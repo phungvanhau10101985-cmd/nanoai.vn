@@ -1,15 +1,15 @@
 /**
  * Shared shop chrome: header, footer, and mobile/tablet bottom nav.
  *
- * Homepage of each device is the source of truth (`index.html` / `index.tablet.html` /
- * `index.mobile.html`). Saving home copies chrome + CSS onto every other page of that
- * device. Saving a non-home page stamps that page from home and never rewrites home.
- * Other devices: keep logo/layout; only add missing feature buttons (no coords).
+ * The page being saved is the source of truth for that device's shared chrome.
+ * Saving any page copies header/footer/bottom nav + chrome widget positions onto every
+ * other page of the same device. Other devices keep their own logo/layout; only home saves
+ * may add missing feature buttons across devices without coordinates.
  */
 
 import { mergeVisualHomeStylesIntoHtml } from '@/lib/partner-website/shop/merge-visual-home-styles'
 
-export type SharedChromeDevice = 'desktop' | 'tablet' | 'mobile'
+export type SharedChromeDevice = 'desktop' | 'laptop' | 'tablet' | 'mobile'
 
 export type SharedChrome = {
   topbar: string
@@ -407,6 +407,7 @@ export function applySharedChrome(
 function variantFromHtmlPath(path: string): SharedChromeDevice {
   if (/\.mobile\.html$/i.test(path)) return 'mobile'
   if (/\.tablet\.html$/i.test(path)) return 'tablet'
+  if (/\.laptop\.html$/i.test(path)) return 'laptop'
   return 'desktop'
 }
 
@@ -416,17 +417,18 @@ function fileNameOf(path: string): string {
 
 /** Homepage HTML of a device — the only chrome source when syncing. */
 export function isHomeSharedChromePath(path: string): boolean {
-  return /^index(\.(tablet|mobile))?\.html$/i.test(fileNameOf(path))
+  return /^index(\.(laptop|tablet|mobile))?\.html$/i.test(fileNameOf(path))
 }
 
 export function homeSharedChromePath(variant: SharedChromeDevice): string {
   if (variant === 'mobile') return 'index.mobile.html'
   if (variant === 'tablet') return 'index.tablet.html'
+  if (variant === 'laptop') return 'index.laptop.html'
   return 'index.html'
 }
 
 function isSystemHtmlPath(path: string): boolean {
-  return /(^|\/)404(\.mobile|\.tablet)?\.html$/i.test(path.replace(/\\/g, '/'))
+  return /(^|\/)404(\.mobile|\.tablet|\.laptop)?\.html$/i.test(path.replace(/\\/g, '/'))
 }
 
 function stampWithHomeChrome(html: string, homeHtml: string, variant: SharedChromeDevice): string {
@@ -457,7 +459,14 @@ export function syncSharedChromeAcrossProjectFiles<
   const sourceVariant = variantFromHtmlPath(path)
   const sourceIsHome = isHomeSharedChromePath(path)
   const homeHtml = readHomeHtmlForVariant(project, sourceVariant, path, sourceHtml)
-  const chromeSource = homeHtml.length >= 40 ? homeHtml : sourceIsHome ? sourceHtml : ''
+  const sourceChrome = extractSharedChrome(sourceHtml)
+  const chromeSource = hasSharedChrome(sourceChrome)
+    ? sourceHtml
+    : homeHtml.length >= 40
+      ? homeHtml
+      : sourceIsHome
+        ? sourceHtml
+        : ''
   const chrome = extractSharedChrome(chromeSource || sourceHtml)
   if (!hasSharedChrome(chrome)) {
     const files = project.files.map((file) =>
@@ -468,10 +477,7 @@ export function syncSharedChromeAcrossProjectFiles<
 
   const files = project.files.map((file) => {
     if (file.path === path && file.kind === 'html') {
-      const content =
-        sourceIsHome || chromeSource.length < 40
-          ? sourceHtml
-          : stampWithHomeChrome(sourceHtml, chromeSource, sourceVariant)
+      const content = sourceHtml
       return content === file.content ? file : { ...file, content }
     }
     if (file.kind !== 'html' || !/\.html$/i.test(file.path) || isSystemHtmlPath(file.path)) return file
@@ -483,7 +489,6 @@ export function syncSharedChromeAcrossProjectFiles<
       const next = mergeMissingChromeFeatures(current, chrome, targetVariant)
       return next === current ? file : { ...file, content: next }
     }
-    if (!sourceIsHome) return file
     const next = stampWithHomeChrome(current, chromeSource || sourceHtml, targetVariant)
     return next === current ? file : { ...file, content: next }
   })

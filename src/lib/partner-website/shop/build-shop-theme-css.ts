@@ -103,11 +103,29 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
 .pw-shop-address-card-label{font-weight:700;margin:0 0 6px;color:var(--pw-primary)}
 .pw-shop-icon-btn{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:44px;min-height:40px;border-radius:10px;border:none;background:transparent;color:#374151;cursor:pointer;position:relative;font-weight:700;font-size:10px;line-height:1.1;padding:4px 6px;text-decoration:none}
 .pw-icon-btn{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;text-decoration:none;color:inherit}
+[data-pw-chrome-added],[data-pw-chrome-btn],[data-pw-el="cat-toggle"]{--pw-chrome-size:22px;--pw-chrome-label:calc(var(--pw-chrome-size,22px)*13/22);--pw-chrome-pad-y:calc(var(--pw-chrome-size,22px)*4/22);--pw-chrome-pad-x:calc(var(--pw-chrome-size,22px)*12/22);--pw-chrome-gap:calc(var(--pw-chrome-size,22px)*6/22)}
+[data-pw-chrome-float="1"]{position:fixed;z-index:190;margin:0}
+[data-pw-chrome-float="1"]:not([data-pw-user-move]){left:auto;top:auto;right:16px}
+[data-pw-chrome-btn="chat"][data-pw-chrome-float="1"]:not([data-pw-user-move]){bottom:88px}
+[data-pw-chrome-btn="chat-zalo"][data-pw-chrome-float="1"]:not([data-pw-user-move]){bottom:144px}
+[data-pw-chrome-btn="chat-facebook"][data-pw-chrome-float="1"]:not([data-pw-user-move]){bottom:200px}
+[data-pw-chrome-btn="topup"][data-pw-chrome-float="1"]:not([data-pw-user-move]){bottom:256px}
+[data-pw-chrome-btn="topup"]{opacity:0;visibility:hidden;pointer-events:none}
+[data-pw-chrome-btn="topup"].pw-chrome-topup-on,[data-pw-chrome-btn="topup"][data-nanoai-ve-selected]{opacity:1;visibility:visible;pointer-events:auto}
+.pw-chrome-icon-wrap{position:relative;display:inline-flex;align-items:center;justify-content:center;width:var(--pw-chrome-size,22px);height:var(--pw-chrome-size,22px);flex-shrink:0;overflow:visible}
 .pw-chrome-icon-only .pw-shop-icon-label,.pw-chrome-icon-only .pw-chrome-btn-label{display:none!important}
+.pw-shop-header-actions .pw-chrome-icon-only,[data-pw-chrome-btn="chat"].pw-chrome-icon-only,[data-pw-chrome-btn="chat-zalo"].pw-chrome-icon-only,[data-pw-chrome-btn="chat-facebook"].pw-chrome-icon-only{width:calc(var(--pw-chrome-size,22px) + 14px);height:calc(var(--pw-chrome-size,22px) + 14px);min-width:calc(var(--pw-chrome-size,22px) + 14px);min-height:calc(var(--pw-chrome-size,22px) + 14px);padding:0;border-radius:999px;flex-direction:row}
+.pw-shop-header-actions .pw-chrome-icon-square,[data-pw-chrome-btn="chat"].pw-chrome-icon-square,[data-pw-chrome-btn="chat-zalo"].pw-chrome-icon-square,[data-pw-chrome-btn="chat-facebook"].pw-chrome-icon-square{border-radius:10px}
+.pw-chrome-icon-square .pw-chrome-icon-wrap,.pw-chrome-icon-square .pw-chrome-chat-logo{border-radius:8px}
 .pw-chrome-has-label{flex-direction:column;gap:2px}
-.pw-header-actions .pw-chrome-has-label,.pw-shop-header-actions .pw-chrome-has-label{flex-direction:row;gap:6px;min-height:36px;padding:0 10px;font-size:13px}
+.pw-header-actions .pw-chrome-has-label,.pw-shop-header-actions .pw-chrome-has-label,.pw-header-actions .pw-chrome-link,.pw-shop-header-actions .pw-chrome-link,[data-pw-chrome-added].pw-chrome-has-label,[data-pw-chrome-added].pw-chrome-link{flex-direction:row;gap:var(--pw-chrome-gap,6px);min-height:calc(var(--pw-chrome-size,22px) + 14px);padding:var(--pw-chrome-pad-y,4px) var(--pw-chrome-pad-x,12px);border-radius:999px;font-size:var(--pw-chrome-label,13px)}
+.pw-chrome-label-below,[data-pw-chrome-style="icon-label-below"],[data-pw-chrome-added].pw-chrome-label-below{flex-direction:column;align-items:center;justify-content:center;padding:var(--pw-chrome-pad-y,4px) 6px;border-radius:10px}
+.pw-chrome-label-left,[data-pw-chrome-style="icon-label-left"],[data-pw-chrome-added].pw-chrome-label-left{flex-direction:row-reverse;align-items:center;justify-content:center}
+[data-pw-chrome-btn="chat"] .pw-chrome-icon-wrap,[data-pw-chrome-btn="chat-zalo"] .pw-chrome-icon-wrap,[data-pw-chrome-btn="chat-facebook"] .pw-chrome-icon-wrap{overflow:hidden;border-radius:999px}
+.pw-chrome-icon-wrap .pw-chrome-chat-logo{width:100%;height:100%;object-fit:cover;border-radius:999px}
 .pw-chrome-has-label .pw-shop-icon-label,.pw-chrome-has-label .pw-chrome-btn-label{display:block;max-width:4.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pw-icon-btn svg,.pw-shop-icon-btn svg,.pw-shop-header-actions>a>svg,.pw-header-actions>a>svg,[data-pw-chrome-btn]>svg,[data-pw-chrome-added] svg{width:20px;height:20px;max-width:20px;max-height:20px;flex-shrink:0;display:block;stroke:currentColor;fill:none}
+.pw-icon-btn svg,.pw-shop-icon-btn svg,.pw-shop-header-actions>a>svg,.pw-header-actions>a>svg{width:20px;height:20px;max-width:20px;max-height:20px;flex-shrink:0;display:block;stroke:currentColor;fill:none}
+.pw-chrome-icon-wrap svg,[data-pw-chrome-btn] svg,[data-pw-chrome-added] svg{width:var(--pw-chrome-size,22px);height:var(--pw-chrome-size,22px);max-width:var(--pw-chrome-size,22px);max-height:var(--pw-chrome-size,22px);flex-shrink:0;display:block}
 .pw-shop-icon-label{max-width:4.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pw-shop-cart-badge{position:absolute;top:0;right:2px;min-width:16px;height:16px;border-radius:999px;background:var(--pw-primary);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px}
 .pw-cart-badge[hidden],.pw-shop-cart-badge[hidden],[data-pw-chrome-badge][hidden]{display:none!important}

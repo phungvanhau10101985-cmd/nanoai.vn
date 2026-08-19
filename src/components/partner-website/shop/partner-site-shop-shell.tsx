@@ -21,7 +21,10 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
-import { PartnerSiteChatWidgetProvider } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
+import {
+  PartnerSiteChatWidgetProvider,
+  usePartnerSiteChatWidget,
+} from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import { PartnerSiteShopSearchBar } from '@/components/partner-website/shop/partner-site-shop-search-bar'
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
 import { PartnerSiteCookieConsentBanner } from '@/components/partner-website/shop/partner-site-cookie-consent-banner'
@@ -75,6 +78,7 @@ import {
   type VisualHomeChromeByDevice,
 } from '@/lib/partner-website/shop/visual-home-chrome'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
+import { htmlHasChromeChatMua } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
@@ -184,10 +188,12 @@ function visualHomeChromeHtml(
     return { html: chrome ? slice(chrome) : '', split: false }
   }
   const desk = byDevice.desktop ? slice(byDevice.desktop) : ''
-  const tab = byDevice.tablet ? slice(byDevice.tablet) : desk
-  const mob = byDevice.mobile ? slice(byDevice.mobile) : tab || desk
+  const lap = byDevice.laptop ? slice(byDevice.laptop) : desk
+  const tab = byDevice.tablet ? slice(byDevice.tablet) : lap || desk
+  const mob = byDevice.mobile ? slice(byDevice.mobile) : tab || lap || desk
   const parts: string[] = []
   if (desk) parts.push(`<div class="pw-visual-desktop" data-pw-visual-device="desktop">${desk}</div>`)
+  if (lap) parts.push(`<div class="pw-visual-laptop" data-pw-visual-device="laptop">${lap}</div>`)
   if (tab) parts.push(`<div class="pw-visual-tablet" data-pw-visual-device="tablet">${tab}</div>`)
   if (mob) parts.push(`<div class="pw-visual-mobile" data-pw-visual-device="mobile">${mob}</div>`)
   return { html: parts.join('\n'), split: parts.length > 1 }
@@ -215,6 +221,15 @@ function VisualHomeDocumentStyles({ html }: { html: string }) {
   )
 }
 
+function visualChromeHasChatMua(byDevice?: VisualHomeChromeByDevice | null): boolean {
+  if (!byDevice) return false
+  return [byDevice.desktop, byDevice.laptop, byDevice.tablet, byDevice.mobile].some(
+    (chrome) =>
+      Boolean(chrome) &&
+      htmlHasChromeChatMua(`${chrome!.topbar}${chrome!.header}${chrome!.footer}${chrome!.bottomNav}`)
+  )
+}
+
 function PartnerSiteShopShellInner({
   siteSlug,
   title,
@@ -232,6 +247,7 @@ function PartnerSiteShopShellInner({
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const n = getPartnerSiteCategoryNavLabels(locale)
+  const { openChat } = usePartnerSiteChatWidget()
   const customDomain = usePartnerSiteCustomDomain()
   const paths = getPartnerSiteShopNavPaths(siteSlug, customDomain)
   const accountMenuItems = getPartnerSiteAccountMenuItems({ siteSlug, locale, customDomain })
@@ -571,6 +587,32 @@ function PartnerSiteShopShellInner({
               <Heart className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
               <span className="pw-shop-icon-label">{t.navFavorites}</span>
             </Link>
+            <button
+              type="button"
+              className="pw-shop-icon-btn pw-chat-open pw-chrome-icon-only"
+              data-pw-chrome-btn="chat"
+              data-pw-chrome-float="1"
+              data-nanoai-open-chat=""
+              {...(theme.chatIconLogoUrl ? { 'data-pw-chat-icon-logo': '1' } : {})}
+              aria-label={t.navChat}
+              onClick={() => openChat()}
+            >
+              <span className="pw-chrome-icon-wrap">
+                {theme.chatIconLogoUrl || logoUrl ? (
+                  <img
+                    src={theme.chatIconLogoUrl || logoUrl || ''}
+                    alt=""
+                    className="pw-chrome-chat-logo"
+                    width={22}
+                    height={22}
+                    draggable={false}
+                  />
+                ) : (
+                  <MessageCircle className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
+                )}
+              </span>
+              <span className="pw-shop-icon-label">{t.navChat}</span>
+            </button>
             <Link href={partnerSiteAccountTabPath(siteSlug, 'cart', { customDomain })} className="pw-shop-icon-btn" data-pw-el={PW_EL.cart} aria-label={t.navCart}>
               <ShoppingBag className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
               <span className="pw-shop-icon-label">{t.navCart}</span>
@@ -712,6 +754,11 @@ export function PartnerSiteShopShell(props: Props) {
       shopName={props.title}
       logoUrl={props.logoUrl}
       locale={props.locale}
+      hideLauncher={
+        props.theme.hideChatLauncher === true ||
+        !hasVisualHomeChrome(props.visualChromeByDevice) ||
+        visualChromeHasChatMua(props.visualChromeByDevice)
+      }
     >
       <PartnerSiteShopProvider tracking={props.tracking}>
         <PartnerSiteShopShellInner {...props} />

@@ -69,16 +69,20 @@ export function isVisualEditorPageKey(value: string | null | undefined): value i
   return Boolean(value && VISUAL_EDITOR_PAGE_KEY_SET.has(value))
 }
 
-export type VisualDeviceVariant = 'desktop' | 'tablet' | 'mobile'
+export type VisualDeviceVariant = 'desktop' | 'laptop' | 'tablet' | 'mobile'
 
-export const VISUAL_DEVICE_VARIANTS: VisualDeviceVariant[] = ['desktop', 'tablet', 'mobile']
+export const VISUAL_DEVICE_VARIANTS: VisualDeviceVariant[] = ['desktop', 'laptop', 'tablet', 'mobile']
 
 /** Same width as Sửa nhanh Mobile iframe — public ?pw-device=mobile must match. */
 export const VISUAL_MOBILE_PREVIEW_PX = 390
 /** Same width as Sửa nhanh Tablet iframe — public ?pw-device=tablet must match. */
 export const VISUAL_TABLET_PREVIEW_PX = 768
-/** Laptop + Desktop share the computer layout. Public tablet band ends just below. */
+/** Same width as Sửa nhanh Laptop iframe — public ?pw-device=laptop must match. */
+export const VISUAL_LAPTOP_PREVIEW_PX = 1280
+/** Public tablet band ends just below. Wide desktop starts here when a laptop HTML exists. */
 export const VISUAL_DESKTOP_MIN_PX = 1280
+/** Wide desktop canvas (Sửa nhanh Desktop / composed split when laptop HTML exists). */
+export const VISUAL_WIDE_DESKTOP_MIN_PX = 1440
 
 /**
  * Iframe viewport for `?pw-device=` / Sửa nhanh canvas.
@@ -89,7 +93,8 @@ export function visualDevicePreviewFrameStyle(
 ): { width?: number | string; minWidth?: number } {
   if (device === 'mobile') return { width: VISUAL_MOBILE_PREVIEW_PX }
   if (device === 'tablet') return { width: VISUAL_TABLET_PREVIEW_PX }
-  if (device === 'desktop') return { width: '100%', minWidth: VISUAL_DESKTOP_MIN_PX }
+  if (device === 'laptop') return { width: VISUAL_LAPTOP_PREVIEW_PX, minWidth: VISUAL_LAPTOP_PREVIEW_PX }
+  if (device === 'desktop') return { width: '100%', minWidth: VISUAL_WIDE_DESKTOP_MIN_PX }
   return {}
 }
 
@@ -105,25 +110,30 @@ export function isDesktopBrowserWindow(win?: { outerWidth?: number } | null): bo
 }
 
 export function parseVisualDeviceVariant(raw: unknown): VisualDeviceVariant {
-  return raw === 'mobile' || raw === 'tablet' ? raw : 'desktop'
+  return raw === 'mobile' || raw === 'tablet' || raw === 'laptop' ? raw : 'desktop'
 }
 
 /** Query `?pw-device=` from Sửa nhanh → Xem. Null = responsive composed page. */
 export function parseVisualDeviceQuery(raw: unknown): VisualDeviceVariant | null {
   const v = Array.isArray(raw) ? raw[0] : raw
-  return v === 'mobile' || v === 'tablet' || v === 'desktop' ? v : null
+  return v === 'mobile' || v === 'tablet' || v === 'laptop' || v === 'desktop' ? v : null
 }
 
 export function visualDeviceVariantFromHtmlPath(path: string): VisualDeviceVariant {
   if (/\.mobile\.html$/i.test(path)) return 'mobile'
   if (/\.tablet\.html$/i.test(path)) return 'tablet'
+  if (/\.laptop\.html$/i.test(path)) return 'laptop'
   return 'desktop'
 }
 
 function visualHtmlFileForBase(baseHtmlPath: string, variant: VisualDeviceVariant): string {
-  const base = baseHtmlPath.replace(/\.mobile\.html$/i, '.html').replace(/\.tablet\.html$/i, '.html')
+  const base = baseHtmlPath
+    .replace(/\.mobile\.html$/i, '.html')
+    .replace(/\.tablet\.html$/i, '.html')
+    .replace(/\.laptop\.html$/i, '.html')
   if (variant === 'mobile') return base.replace(/\.html$/i, '.mobile.html')
   if (variant === 'tablet') return base.replace(/\.html$/i, '.tablet.html')
+  if (variant === 'laptop') return base.replace(/\.html$/i, '.laptop.html')
   return base
 }
 
@@ -139,6 +149,7 @@ export function visualEditorDeviceVariant(
 ): VisualDeviceVariant {
   if (device === 'mobile') return 'mobile'
   if (device === 'tablet') return 'tablet'
+  if (device === 'laptop') return 'laptop'
   return 'desktop'
 }
 
@@ -350,6 +361,12 @@ export function applyVisualEditThemeFlag(
         visualTabletProductIds: addVisualProductId(normalizeVisualProductIds(theme.visualTabletProductIds), productId),
       }
     }
+    if (variant === 'laptop') {
+      return {
+        ...theme,
+        visualLaptopProductIds: addVisualProductId(normalizeVisualProductIds(theme.visualLaptopProductIds), productId),
+      }
+    }
     return {
       ...theme,
       visualProductIds: addVisualProductId(normalizeVisualProductIds(theme.visualProductIds), productId),
@@ -366,6 +383,12 @@ export function applyVisualEditThemeFlag(
       return {
         ...theme,
         visualTabletCmsSlugs: addVisualCmsSlug(normalizeVisualCmsSlugs(theme.visualTabletCmsSlugs), cmsSlug),
+      }
+    }
+    if (variant === 'laptop') {
+      return {
+        ...theme,
+        visualLaptopCmsSlugs: addVisualCmsSlug(normalizeVisualCmsSlugs(theme.visualLaptopCmsSlugs), cmsSlug),
       }
     }
     return {
@@ -392,6 +415,15 @@ export function applyVisualEditThemeFlag(
         ),
       }
     }
+    if (variant === 'laptop') {
+      return {
+        ...theme,
+        visualLaptopCategoryPaths: addVisualCategoryPath(
+          normalizeVisualCategoryPaths(theme.visualLaptopCategoryPaths),
+          categoryPath
+        ),
+      }
+    }
     return {
       ...theme,
       visualCategoryPaths: addVisualCategoryPath(normalizeVisualCategoryPaths(theme.visualCategoryPaths), categoryPath),
@@ -400,6 +432,7 @@ export function applyVisualEditThemeFlag(
   if (pageKey === 'home') {
     if (variant === 'mobile') return { ...theme, useVisualMobileHtml: true }
     if (variant === 'tablet') return { ...theme, useVisualTabletHtml: true }
+    if (variant === 'laptop') return { ...theme, useVisualLaptopHtml: true }
     return { ...theme, useVisualHtml: true }
   }
   if (variant === 'mobile') {
@@ -414,6 +447,12 @@ export function applyVisualEditThemeFlag(
       visualTabletPageKeys: addVisualPageKey(normalizeVisualPageKeys(theme.visualTabletPageKeys), pageKey),
     }
   }
+  if (variant === 'laptop') {
+    return {
+      ...theme,
+      visualLaptopPageKeys: addVisualPageKey(normalizeVisualPageKeys(theme.visualLaptopPageKeys), pageKey),
+    }
+  }
   return {
     ...theme,
     visualPageKeys: addVisualPageKey(normalizeVisualPageKeys(theme.visualPageKeys), pageKey),
@@ -426,6 +465,7 @@ function visualPageKeysForVariant(
 ): string[] {
   if (variant === 'mobile') return theme?.visualMobilePageKeys ?? []
   if (variant === 'tablet') return theme?.visualTabletPageKeys ?? []
+  if (variant === 'laptop') return theme?.visualLaptopPageKeys ?? []
   return theme?.visualPageKeys ?? []
 }
 
@@ -435,6 +475,7 @@ function visualCategoryPathsForVariant(
 ): string[] {
   if (variant === 'mobile') return theme?.visualMobileCategoryPaths ?? []
   if (variant === 'tablet') return theme?.visualTabletCategoryPaths ?? []
+  if (variant === 'laptop') return theme?.visualLaptopCategoryPaths ?? []
   return theme?.visualCategoryPaths ?? []
 }
 
@@ -444,6 +485,7 @@ function visualProductIdsForVariant(
 ): string[] {
   if (variant === 'mobile') return theme?.visualMobileProductIds ?? []
   if (variant === 'tablet') return theme?.visualTabletProductIds ?? []
+  if (variant === 'laptop') return theme?.visualLaptopProductIds ?? []
   return theme?.visualProductIds ?? []
 }
 
@@ -453,6 +495,7 @@ function visualCmsSlugsForVariant(
 ): string[] {
   if (variant === 'mobile') return theme?.visualMobileCmsSlugs ?? []
   if (variant === 'tablet') return theme?.visualTabletCmsSlugs ?? []
+  if (variant === 'laptop') return theme?.visualLaptopCmsSlugs ?? []
   return theme?.visualCmsSlugs ?? []
 }
 
@@ -462,6 +505,7 @@ function visualHomeFlagForVariant(
 ): boolean {
   if (variant === 'mobile') return Boolean(theme?.useVisualMobileHtml)
   if (variant === 'tablet') return Boolean(theme?.useVisualTabletHtml)
+  if (variant === 'laptop') return Boolean(theme?.useVisualLaptopHtml)
   return Boolean(theme?.useVisualHtml)
 }
 
@@ -591,12 +635,17 @@ function extractDeviceWrapperBody(html: string, variant: VisualDeviceVariant): s
 
 /** A composed page always carries wrappers — never guess another device inside one. */
 function hasDeviceWrappers(html: string): boolean {
-  return /\bdata-pw-visual-device="(?:desktop|tablet|mobile)"/i.test(html)
+  return /\bdata-pw-visual-device="(?:desktop|laptop|tablet|mobile)"/i.test(html)
+}
+
+/** Split rules only make sense on a composed page; on one device file they hide real widgets. */
+function stripDeviceSplitCss(html: string): string {
+  return html.replace(/<style id="pw-visual-device-split">[\s\S]*?<\/style>/gi, '')
 }
 
 function rebuildStandaloneHtml(sourceHtml: string, body: string): string {
   const parts = extractHtmlParts(sourceHtml)
-  const head = parts.head.replace(/<style id="pw-visual-device-split">[\s\S]*?<\/style>/gi, '')
+  const head = stripDeviceSplitCss(parts.head)
   return `<!DOCTYPE html>\n<html${parts.htmlAttrs || ' lang="vi"'}>
 <head>
 ${head}
@@ -669,7 +718,11 @@ export function isolateVisualHtmlForDevice(
       if (sliced) break
     }
   }
-  const source = sliced ? rebuildStandaloneHtml(trimmed, sliced) : trimmed
+  const source = sliced
+    ? rebuildStandaloneHtml(trimmed, sliced)
+    : hasDeviceWrappers(trimmed)
+      ? trimmed
+      : stripDeviceSplitCss(trimmed)
   const stripped = opts?.stripAddedChrome
     ? stripVisualAddedChrome(source, { keepCountBadges: true })
     : source
@@ -733,37 +786,66 @@ const VISUAL_TABLET_DESKTOP_SPLIT_CSS = `.pw-visual-desktop,.pw-visual-tablet{di
 [data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap){display:none!important}
 }`
 
-/** One document: desktop + tablet + mobile bodies, shown via CSS breakpoint. */
+const VISUAL_FOUR_DEVICE_SPLIT_CSS = `.pw-visual-desktop,.pw-visual-laptop,.pw-visual-tablet,.pw-visual-mobile{display:none!important}
+@media (max-width:767px){
+.pw-visual-mobile{display:block!important}
+}
+@media (min-width:768px) and (max-width:1279px){
+.pw-visual-tablet{display:block!important}
+}
+@media (min-width:1280px) and (max-width:1439px){
+.pw-visual-laptop{display:block!important}
+}
+@media (min-width:1440px){
+.pw-visual-desktop{display:block!important}
+}`
+
+/** One document: desktop + laptop + tablet + mobile bodies, shown via CSS breakpoint. */
 export function composeResponsiveVisualHtml(
   desktopHtml: string,
   mobileHtml: string,
-  tabletHtml = ''
+  tabletHtml = '',
+  laptopHtml = ''
 ): string {
   const desktopRaw = desktopHtml.trim()
   const mobileRaw = mobileHtml.trim()
   const tabletRaw = tabletHtml.trim()
+  const laptopRaw = laptopHtml.trim()
   let desktop = isolateVisualHtmlForDevice(desktopRaw, 'desktop')
   const mobile = isolateVisualHtmlForDevice(mobileRaw, 'mobile')
   const tablet = isolateVisualHtmlForDevice(tabletRaw, 'tablet')
-  if (desktop.length >= 40 && mobile.length < 40 && tablet.length < 40) return desktop
+  const laptop = isolateVisualHtmlForDevice(laptopRaw, 'laptop')
+  if (desktop.length >= 40 && mobile.length < 40 && tablet.length < 40 && laptop.length < 40) return desktop
+  if (desktop.length < 40 && laptop.length >= 40) {
+    desktop = isolateVisualHtmlForDevice(stripVisualAddedChrome(laptop, { keepCountBadges: true }), 'desktop')
+  }
   if (desktop.length < 40 && tablet.length >= 40) {
     desktop = isolateVisualHtmlForDevice(stripVisualAddedChrome(tablet, { keepCountBadges: true }), 'desktop')
   }
   if (desktop.length < 40 && mobile.length >= 40) {
     desktop = isolateVisualHtmlForDevice(stripVisualAddedChrome(mobile, { keepCountBadges: true }), 'desktop')
   }
-  if (desktop.length < 40 && mobile.length < 40 && tablet.length < 40) return ''
+  if (desktop.length < 40 && mobile.length < 40 && tablet.length < 40 && laptop.length < 40) return ''
   const hasMobile = mobile.length >= 40
   const hasTablet = tablet.length >= 40
+  const hasLaptop = laptop.length >= 40
   const d = extractHtmlParts(desktop)
   const m = extractHtmlParts(hasMobile ? mobile : desktop)
   const t = hasTablet ? extractHtmlParts(tablet) : null
-  const splitCss = hasTablet
-    ? hasMobile
-      ? VISUAL_THREE_DEVICE_SPLIT_CSS
-      : VISUAL_TABLET_DESKTOP_SPLIT_CSS
-    : VISUAL_TWO_DEVICE_SPLIT_CSS
-  const extraHead = [hasTablet ? t?.head || '' : '', hasMobile ? m.head : ''].filter(Boolean).join('\n')
+  const l = hasLaptop ? extractHtmlParts(laptop) : null
+  const splitCss = hasLaptop
+    ? VISUAL_FOUR_DEVICE_SPLIT_CSS
+    : hasTablet
+      ? hasMobile
+        ? VISUAL_THREE_DEVICE_SPLIT_CSS
+        : VISUAL_TABLET_DESKTOP_SPLIT_CSS
+      : VISUAL_TWO_DEVICE_SPLIT_CSS
+  const extraHead = [hasLaptop ? l?.head || '' : '', hasTablet ? t?.head || '' : '', hasMobile ? m.head : '']
+    .filter(Boolean)
+    .join('\n')
+  const laptopBlock = hasLaptop
+    ? `<div class="pw-visual-laptop" data-pw-visual-device="laptop">${l?.body || ''}</div>`
+    : ''
   const tabletBlock = hasTablet
     ? `<div class="pw-visual-tablet" data-pw-visual-device="tablet">${t?.body || ''}</div>`
     : ''
@@ -783,6 +865,7 @@ ${splitCss}
 </head>
 <body>
 <div class="pw-visual-desktop" data-pw-visual-device="desktop">${d.body}</div>
+${laptopBlock}
 ${tabletBlock}
 ${mobileBlock}
 </body>
@@ -793,13 +876,15 @@ function servePublicVisualHtml(
   desktop: string,
   mobile: string,
   theme?: PartnerWebsiteTheme | null,
-  tablet = ''
+  tablet = '',
+  laptop = ''
 ): string {
   const composed = injectPartnerShopChromeLayoutCss(
     composeResponsiveVisualHtml(
       stripEmptyLogoPlaceholdersFromHtml(desktop),
       stripEmptyLogoPlaceholdersFromHtml(mobile),
-      stripEmptyLogoPlaceholdersFromHtml(tablet)
+      stripEmptyLogoPlaceholdersFromHtml(tablet),
+      stripEmptyLogoPlaceholdersFromHtml(laptop)
     )
   )
   return theme ? rewriteThemeCssVarsInHtml(composed, theme) : composed
@@ -825,14 +910,15 @@ export function resolvePublicVisualPageHtml(
   pageKey: PartnerWebsitePageKey,
   variant?: VisualDeviceVariant | null
 ): string {
-  if (variant === 'desktop' || variant === 'tablet' || variant === 'mobile') {
+  if (variant === 'desktop' || variant === 'laptop' || variant === 'tablet' || variant === 'mobile') {
     const exact = resolveExactVisualPageHtml(website, pageKey, variant)
     if (exact.length >= 40) return servePublicOneDeviceVisualHtml(exact, variant, website.theme)
   }
   const desktop = resolveExactVisualPageHtml(website, pageKey, 'desktop')
   const mobile = resolveExactVisualPageHtml(website, pageKey, 'mobile')
   const tablet = resolveExactVisualPageHtml(website, pageKey, 'tablet')
-  return servePublicVisualHtml(desktop, mobile, website.theme, tablet)
+  const laptop = resolveExactVisualPageHtml(website, pageKey, 'laptop')
+  return servePublicVisualHtml(desktop, mobile, website.theme, tablet, laptop)
 }
 
 export function resolveExactVisualCategoryHtml(
@@ -863,7 +949,8 @@ export function resolvePublicVisualCategoryHtml(
   const desktop = resolveExactVisualCategoryHtml(website, categoryPath, 'desktop')
   const mobile = resolveExactVisualCategoryHtml(website, categoryPath, 'mobile')
   const tablet = resolveExactVisualCategoryHtml(website, categoryPath, 'tablet')
-  return servePublicVisualHtml(desktop, mobile, website.theme, tablet)
+  const laptop = resolveExactVisualCategoryHtml(website, categoryPath, 'laptop')
+  return servePublicVisualHtml(desktop, mobile, website.theme, tablet, laptop)
 }
 
 export function resolveExactVisualProductHtml(
@@ -894,7 +981,8 @@ export function resolvePublicVisualProductHtml(
   const desktop = resolveExactVisualProductHtml(website, productId, 'desktop')
   const mobile = resolveExactVisualProductHtml(website, productId, 'mobile')
   const tablet = resolveExactVisualProductHtml(website, productId, 'tablet')
-  return servePublicVisualHtml(desktop, mobile, website.theme, tablet)
+  const laptop = resolveExactVisualProductHtml(website, productId, 'laptop')
+  return servePublicVisualHtml(desktop, mobile, website.theme, tablet, laptop)
 }
 
 export function resolveExactVisualCmsHtml(
@@ -925,7 +1013,8 @@ export function resolvePublicVisualCmsHtml(
   const desktop = resolveExactVisualCmsHtml(website, cmsSlug, 'desktop')
   const mobile = resolveExactVisualCmsHtml(website, cmsSlug, 'mobile')
   const tablet = resolveExactVisualCmsHtml(website, cmsSlug, 'tablet')
-  return servePublicVisualHtml(desktop, mobile, website.theme, tablet)
+  const laptop = resolveExactVisualCmsHtml(website, cmsSlug, 'laptop')
+  return servePublicVisualHtml(desktop, mobile, website.theme, tablet, laptop)
 }
 
 export function mergeVisualPageHtmlIntoProject(
@@ -977,46 +1066,61 @@ export function preserveAndRecolorVisualPageFiles(input: {
   visualPageKeys?: PartnerWebsitePageKey[]
   visualMobilePageKeys?: PartnerWebsitePageKey[]
   visualTabletPageKeys?: PartnerWebsitePageKey[]
+  visualLaptopPageKeys?: PartnerWebsitePageKey[]
   visualCategoryPaths?: string[]
   visualMobileCategoryPaths?: string[]
   visualTabletCategoryPaths?: string[]
+  visualLaptopCategoryPaths?: string[]
   visualProductIds?: string[]
   visualMobileProductIds?: string[]
   visualTabletProductIds?: string[]
+  visualLaptopProductIds?: string[]
   visualCmsSlugs?: string[]
   visualMobileCmsSlugs?: string[]
   visualTabletCmsSlugs?: string[]
+  visualLaptopCmsSlugs?: string[]
 }): PartnerWebsiteProject {
   const desktopKeys = input.visualPageKeys ?? []
   const mobileKeys = input.visualMobilePageKeys ?? []
   const tabletKeys = input.visualTabletPageKeys ?? normalizeVisualPageKeys(input.theme.visualTabletPageKeys)
+  const laptopKeys = input.visualLaptopPageKeys ?? normalizeVisualPageKeys(input.theme.visualLaptopPageKeys)
   const categoryPaths = input.visualCategoryPaths ?? []
   const mobileCategoryPaths = input.visualMobileCategoryPaths ?? []
   const tabletCategoryPaths =
     input.visualTabletCategoryPaths ?? normalizeVisualCategoryPaths(input.theme.visualTabletCategoryPaths)
+  const laptopCategoryPaths =
+    input.visualLaptopCategoryPaths ?? normalizeVisualCategoryPaths(input.theme.visualLaptopCategoryPaths)
   const productIds = input.visualProductIds ?? []
   const mobileProductIds = input.visualMobileProductIds ?? []
   const tabletProductIds =
     input.visualTabletProductIds ?? normalizeVisualProductIds(input.theme.visualTabletProductIds)
+  const laptopProductIds =
+    input.visualLaptopProductIds ?? normalizeVisualProductIds(input.theme.visualLaptopProductIds)
   const cmsSlugs = input.visualCmsSlugs ?? []
   const mobileCmsSlugs = input.visualMobileCmsSlugs ?? []
   const tabletCmsSlugs = input.visualTabletCmsSlugs ?? normalizeVisualCmsSlugs(input.theme.visualTabletCmsSlugs)
+  const laptopCmsSlugs = input.visualLaptopCmsSlugs ?? normalizeVisualCmsSlugs(input.theme.visualLaptopCmsSlugs)
   const keepPaths = new Set<string>([
     ...desktopKeys.map((key) => visualEditorHtmlPath(key, 'desktop')),
     ...mobileKeys.map((key) => visualEditorHtmlPath(key, 'mobile')),
     ...tabletKeys.map((key) => visualEditorHtmlPath(key, 'tablet')),
+    ...laptopKeys.map((key) => visualEditorHtmlPath(key, 'laptop')),
     ...categoryPaths.map((p) => categoryVisualHtmlPath(p, 'desktop')),
     ...mobileCategoryPaths.map((p) => categoryVisualHtmlPath(p, 'mobile')),
     ...tabletCategoryPaths.map((p) => categoryVisualHtmlPath(p, 'tablet')),
+    ...laptopCategoryPaths.map((p) => categoryVisualHtmlPath(p, 'laptop')),
     ...productIds.map((id) => productVisualHtmlPath(id, 'desktop')),
     ...mobileProductIds.map((id) => productVisualHtmlPath(id, 'mobile')),
     ...tabletProductIds.map((id) => productVisualHtmlPath(id, 'tablet')),
+    ...laptopProductIds.map((id) => productVisualHtmlPath(id, 'laptop')),
     ...cmsSlugs.map((s) => cmsVisualHtmlPath(s, 'desktop')),
     ...mobileCmsSlugs.map((s) => cmsVisualHtmlPath(s, 'mobile')),
     ...tabletCmsSlugs.map((s) => cmsVisualHtmlPath(s, 'tablet')),
+    ...laptopCmsSlugs.map((s) => cmsVisualHtmlPath(s, 'laptop')),
     ...(input.theme.useVisualHtml ? ['index.html'] : []),
     ...(input.theme.useVisualMobileHtml ? ['index.mobile.html'] : []),
     ...(input.theme.useVisualTabletHtml ? ['index.tablet.html'] : []),
+    ...(input.theme.useVisualLaptopHtml ? ['index.laptop.html'] : []),
   ])
   if (!keepPaths.size) return input.next
   const kept = input.previous.files.filter((f) => f.kind === 'html' && keepPaths.has(f.path))

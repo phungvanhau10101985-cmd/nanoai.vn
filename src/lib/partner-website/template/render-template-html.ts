@@ -520,6 +520,7 @@ a{color:inherit}
 ${buildPartnerSiteAccountPanelCss()}
 .pw-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;border:none;background:transparent;color:#374151;text-decoration:none;cursor:pointer;position:relative}
 .pw-icon-btn svg,.pw-header-actions>a>svg,[data-pw-chrome-btn]>svg,[data-pw-chrome-added] svg{width:20px;height:20px;max-width:20px;max-height:20px;flex-shrink:0;display:block;stroke:currentColor;fill:none;stroke-width:2}
+.pw-icon-btn svg.pw-chrome-brand-logo,[data-pw-chrome-btn] svg.pw-chrome-brand-logo,[data-pw-chrome-added] svg.pw-chrome-brand-logo{stroke:none;fill:none;stroke-width:0}
 .pw-cart-badge{position:absolute;top:2px;right:2px;min-width:16px;height:16px;border-radius:999px;background:var(--pw-primary);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px}
 .pw-cart-badge[hidden],.pw-shop-cart-badge[hidden],[data-pw-chrome-badge][hidden]{display:none!important}
 .pw-mobile-header{display:none}
@@ -627,7 +628,7 @@ ${buildPartnerSiteAccountPanelCss()}
   }
   .pw-logo{height:28px;padding:0;background:transparent;border-radius:0;filter:none;position:relative;z-index:90;overflow:visible;object-fit:contain;object-position:left center}
   .pw-logo-frame,.pw-header [data-pw-logo-frame="1"]{padding:0;background:transparent;max-width:none;max-height:none;overflow:hidden}
-  .pw-header-actions .pw-icon-btn{color:#fff;flex-shrink:0;width:32px;height:34px}
+  .pw-header-actions .pw-icon-btn:not([data-pw-chrome-float]){color:#fff;flex-shrink:0;width:32px;height:34px}
   .pw-cat-btn{
     width:34px;height:34px;padding:0;justify-content:center;
     border:1.5px solid rgba(255,255,255,.55);
@@ -677,13 +678,10 @@ export function renderTemplateSiteToHtml(input: PartnerWebsiteTemplateRenderInpu
     locale: input.locale,
     title: input.title,
     logoUrl: logo,
+    chatIconLogoUrl: input.theme.chatIconLogoUrl,
     siteSlug: siteSlug || undefined,
     samplePreview: input.samplePreview,
   })
-
-  const floatingChat = input.chatPath?.trim()
-    ? `<button type="button" class="pw-fab-chat pw-chat-open" data-nanoai-open-chat aria-label="Chat">💬</button>`
-    : ''
 
   const personalizationScript = siteSlug
     ? buildPartnerSitePersonalizationBootstrapScript({ siteSlug, locale: input.locale })
@@ -708,7 +706,6 @@ ${faviconLink}
 <body id="top">
 ${chrome.header}
 ${body}
-${floatingChat}
 ${chrome.bottomNav}
 ${chrome.scripts}
 ${personalizationScript}

@@ -82,6 +82,10 @@ export function partnerSiteAccountEditPath(siteSlug: string, opts?: PathOpts): s
   return partnerSiteAccountTabPath(siteSlug, 'edit-profile', opts)
 }
 
+export function partnerSiteContactChannelsApiPath(siteSlug: string): string {
+  return `/api/site/${encodeURIComponent(siteSlug.trim())}/contact-channels`
+}
+
 export function partnerSiteNotificationsApiPath(siteSlug: string, opts?: { unread?: boolean }): string {
   const base = `/api/site/${encodeURIComponent(siteSlug.trim())}/notifications`
   return opts?.unread ? `${base}?count=1` : base

@@ -4,16 +4,25 @@ import { Suspense, useLayoutEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { PartnerSiteChatWidgetProvider } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import type { WebLocale } from '@/lib/i18n/config'
+import { htmlHasChromeChatMua } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import {
   isolateVisualHtmlForDevice,
   isDesktopBrowserWindow,
+  parseVisualDeviceQuery,
   visualDevicePreviewFrameStyle,
+  type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
-function readForcedDevice(search: URLSearchParams | null): 'mobile' | 'tablet' | 'desktop' | null {
-  const raw = search?.get('pw-device') || ''
-  if (raw === 'mobile' || raw === 'tablet' || raw === 'desktop') return raw
-  return null
+function hideChatLaunchersInHtml(html: string, hide: boolean): string {
+  if (!hide || !html.trim() || html.includes('data-pw-hide-chat-launcher')) return html
+  const style =
+    '<style data-pw-hide-chat-launcher>.pw-fab-chat,[data-nanoai-chat-bubble="1"],[data-pw-chat-launcher="1"]{display:none!important}</style>'
+  if (/<\/head>/i.test(html)) return html.replace(/<\/head>/i, `${style}</head>`)
+  return `${style}${html}`
+}
+
+function readForcedDevice(search: URLSearchParams | null): VisualDeviceVariant | null {
+  return parseVisualDeviceQuery(search?.get('pw-device') || '')
 }
 
 export function PartnerSitePublicClient({
@@ -25,6 +34,7 @@ export function PartnerSitePublicClient({
   locale,
   inlineHtml = false,
   initialDevice = null,
+  hideChatLauncher = false,
 }: {
   html: string
   allowScripts?: boolean
@@ -35,7 +45,8 @@ export function PartnerSitePublicClient({
   /** Render landing HTML in-page (custom domain) instead of iframe — links update browser URL. */
   inlineHtml?: boolean
   /** From `?pw-device=` on the server so the first paint already locks desktop width. */
-  initialDevice?: 'mobile' | 'tablet' | 'desktop' | null
+  initialDevice?: VisualDeviceVariant | null
+  hideChatLauncher?: boolean
 }) {
   return (
     <Suspense
@@ -49,6 +60,7 @@ export function PartnerSitePublicClient({
           locale={locale}
           inlineHtml={inlineHtml}
           forceDevice={initialDevice}
+          hideChatLauncher={hideChatLauncher}
         />
       }
     >
@@ -61,6 +73,7 @@ export function PartnerSitePublicClient({
         locale={locale}
         inlineHtml={inlineHtml}
         initialDevice={initialDevice}
+        hideChatLauncher={hideChatLauncher}
       />
     </Suspense>
   )
@@ -74,7 +87,8 @@ function PartnerSitePublicClientWithParams(props: {
   logoUrl?: string | null
   locale: WebLocale
   inlineHtml?: boolean
-  initialDevice?: 'mobile' | 'tablet' | 'desktop' | null
+  initialDevice?: VisualDeviceVariant | null
+  hideChatLauncher?: boolean
 }) {
   const params = useSearchParams()
   return (
@@ -94,6 +108,7 @@ function PartnerSitePublicFrame({
   locale,
   inlineHtml = false,
   forceDevice,
+  hideChatLauncher = false,
 }: {
   html: string
   allowScripts?: boolean
@@ -102,10 +117,12 @@ function PartnerSitePublicFrame({
   logoUrl?: string | null
   locale: WebLocale
   inlineHtml?: boolean
-  forceDevice: 'mobile' | 'tablet' | 'desktop' | null
+  forceDevice: VisualDeviceVariant | null
+  hideChatLauncher?: boolean
 }) {
+  const hideEmbedFab = hideChatLauncher || htmlHasChromeChatMua(html)
   const compactPreview = forceDevice === 'mobile' || forceDevice === 'tablet'
-  const desktopLocked = forceDevice === 'desktop'
+  const desktopLocked = forceDevice === 'desktop' || forceDevice === 'laptop'
   const [desktopWindowLock, setDesktopWindowLock] = useState(false)
   useLayoutEffect(() => {
     // Custom-domain live HTML must stay in-page. A srcDoc iframe keeps the address
@@ -125,7 +142,10 @@ function PartnerSitePublicFrame({
   const previewFrameStyle = visualDevicePreviewFrameStyle(
     forceDevice ?? (desktopWindowLock ? 'desktop' : null)
   )
-  const previewHtml = forceDevice ? isolateVisualHtmlForDevice(html, forceDevice) || html : html
+  const previewHtml = hideChatLaunchersInHtml(
+    forceDevice ? isolateVisualHtmlForDevice(html, forceDevice) || html : html,
+    hideEmbedFab
+  )
   /** Live custom domain: never srcDoc-iframe (except compact ?pw-device= preview). */
   if (inlineHtml && !compactPreview) {
     return (
@@ -135,6 +155,7 @@ function PartnerSitePublicFrame({
         logoUrl={logoUrl}
         locale={locale}
         listenLandingPostMessage
+        hideLauncher={hideEmbedFab}
       >
         <div className="min-h-screen bg-white" dangerouslySetInnerHTML={{ __html: previewHtml }} />
       </PartnerSiteChatWidgetProvider>
@@ -151,6 +172,7 @@ function PartnerSitePublicFrame({
       logoUrl={logoUrl}
       locale={locale}
       listenLandingPostMessage
+      hideLauncher={hideEmbedFab}
     >
       <div
         className={

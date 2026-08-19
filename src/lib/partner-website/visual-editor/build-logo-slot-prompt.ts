@@ -1,7 +1,7 @@
 import { closestGeminiImageAspectRatio } from './gemini-working-aspect'
 
 export type LogoSlotKind = 'header' | 'footer' | 'other'
-export type LogoDeviceKind = 'mobile' | 'tablet' | 'desktop'
+export type LogoDeviceKind = 'mobile' | 'tablet' | 'laptop' | 'desktop'
 
 function parseRgb(color: string): { r: number; g: number; b: number } {
   const raw = String(color || '').trim()

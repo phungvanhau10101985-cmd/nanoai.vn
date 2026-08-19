@@ -8,6 +8,9 @@ export type PartnerSiteShopCopy = {
   navRecommended: string
   navCart: string
   navChat: string
+  navChatZalo: string
+  navChatFacebook: string
+  navTopUp: string
   navCategories: string
   catalogTitle: string
   categorySeoBodyAriaLabel: string
@@ -310,6 +313,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navRecommended: 'Gợi ý',
     navCart: 'Giỏ hàng',
     navChat: 'Chat mua',
+    navChatZalo: 'Chat Zalo',
+    navChatFacebook: 'Chat Facebook',
+    navTopUp: 'Lên đầu trang',
     navCategories: 'Danh mục',
     catalogTitle: 'Tất cả sản phẩm',
     categorySeoBodyAriaLabel: 'Giới thiệu danh mục',
@@ -597,6 +603,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navRecommended: 'For you',
     navCart: 'Cart',
     navChat: 'Chat',
+    navChatZalo: 'Zalo chat',
+    navChatFacebook: 'Facebook chat',
+    navTopUp: 'Back to top',
     navCategories: 'Categories',
     catalogTitle: 'All products',
     categorySeoBodyAriaLabel: 'About this category',
@@ -884,6 +893,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navRecommended: '推荐',
     navCart: '购物车',
     navChat: '聊天购买',
+    navChatZalo: 'Zalo 聊天',
+    navChatFacebook: 'Facebook 聊天',
+    navTopUp: '回到顶部',
     navCategories: '分类',
     catalogTitle: '全部产品',
     categorySeoBodyAriaLabel: '分类介绍',
@@ -1171,6 +1183,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navRecommended: 'おすすめ',
     navCart: 'カート',
     navChat: 'チャット',
+    navChatZalo: 'Zaloチャット',
+    navChatFacebook: 'Facebookチャット',
+    navTopUp: 'ページ先頭',
     navCategories: 'カテゴリ',
     catalogTitle: 'すべての商品',
     categorySeoBodyAriaLabel: 'カテゴリー紹介',
@@ -1458,6 +1473,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navRecommended: '추천',
     navCart: '장바구니',
     navChat: '채팅',
+    navChatZalo: 'Zalo 채팅',
+    navChatFacebook: 'Facebook 채팅',
+    navTopUp: '맨 위로',
     navCategories: '카테고리',
     catalogTitle: '전체 상품',
     categorySeoBodyAriaLabel: '카테고리 소개',

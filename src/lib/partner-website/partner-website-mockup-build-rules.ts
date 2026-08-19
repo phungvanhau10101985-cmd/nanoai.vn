@@ -22,11 +22,12 @@ export const PARTNER_WEBSITE_RESPONSIVE_RULES = `- RESPONSIVE REQUIRED for mobil
 
 /** Prompt rules: shared header/footer/bottom-nav on every shop page. */
 export const PARTNER_WEBSITE_SHARED_CHROME_PROMPT_RULES = `- SHARED CHROME: Within ONE device (desktop OR tablet OR mobile), every page uses the SAME header, footer, and bottom nav as that device's homepage. Only <main> / middle content differs by page.
-- Header: <header class="pw-header" data-pw-region="header"> (logo, search, account, cart). Do not invent a second nav bar or a different header per page of the same device.
+- Header: <header class="pw-header" data-pw-region="header"> (logo, search, account, Chat mua, cart). Do not invent a second nav bar or a different header per page of the same device.
+- Chat mua is a chrome widget in header actions: data-pw-chrome-btn="chat" + data-nanoai-open-chat + shop logo as <img class="pw-chrome-chat-logo"> (or chat SVG if no logo). It opens the platform embed chat API. NEVER create a floating NanoAI bubble (.pw-fab-chat, data-nanoai-chat-bubble, data-pw-chat-launcher).
 - Footer: <footer class="pw-footer" data-pw-region="footer"> after main.
 - Bottom nav: <nav class="pw-bottom-nav" data-pw-region="nav"> as the last body child. CSS: display none at min-width 1280px; position:fixed; left:0; right:0; bottom:0 at max-width 1279px (mobile AND tablet). Never hide it only below 899px.
 - DEVICE LAYOUT IS INDEPENDENT: do NOT copy logo position, header arrangement, or element coordinates from desktop onto mobile/tablet (or vice versa). Each device HTML file keeps its own chrome layout.
-- Feature buttons (search, cart, account, added chrome widgets) should exist on all devices; their size and placement stay per-device.
+- Feature buttons (search, cart, account, Chat mua, added chrome widgets) should exist on all devices; their size and placement stay per-device.
 - Non-home pages of a device: keep that device homepage header/footer/bottom-nav markup; insert page content in <main id="pw-main">.`
 
 export const PARTNER_WEBSITE_STUDIO_BUILD_SYSTEM_EXTRA = `${PARTNER_WEBSITE_MOCKUP_FIDELITY_RULES}

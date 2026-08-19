@@ -131,6 +131,8 @@ Brand/title: ${input.title}
 UI language: ${input.locale}
 ${logoLine}
 Primary chat/consult CTA must use attribute data-nanoai-open-chat on buttons OR class pw-chat-open (platform opens shop chat widget).
+Header MUST include Chat mua chrome widget: data-pw-chrome-btn="chat" + data-nanoai-open-chat + shop logo as <img class="pw-chrome-chat-logo">.
+Do NOT create a floating NanoAI embed icon (.pw-fab-chat, data-nanoai-chat-bubble, data-pw-chat-launcher).
 Optional chat path reference: ${input.chatPath}
 ${sectionUrlBlock}
 ${shopHooks}

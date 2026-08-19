@@ -61,6 +61,7 @@ test('visualHomeChromeByDevice is empty without visual homepage', () => {
   })
   assert.equal(hasVisualHomeChrome(byDevice), false)
   assert.equal(byDevice.desktop, null)
+  assert.equal(byDevice.laptop, null)
 })
 
 test('visualHomeChromeByDevice copies homepage CSS for other pages', () => {

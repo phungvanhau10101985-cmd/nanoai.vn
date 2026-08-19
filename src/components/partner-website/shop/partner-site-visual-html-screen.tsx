@@ -41,7 +41,7 @@ export function PartnerSiteVisualHtmlScreen({
   html,
   device = null,
 }: {
-  site: Pick<PartnerWebsitePublicRow, 'siteSlug' | 'title' | 'logoUrl' | 'locale' | 'chatPath'>
+  site: Pick<PartnerWebsitePublicRow, 'siteSlug' | 'title' | 'logoUrl' | 'locale' | 'chatPath' | 'theme'>
   html: string
   device?: VisualDeviceVariant | null
 }) {
@@ -69,6 +69,7 @@ export function PartnerSiteVisualHtmlScreen({
       locale={site.locale}
       inlineHtml={onCustomDomain}
       initialDevice={device}
+      hideChatLauncher={site.theme?.hideChatLauncher === true}
     />
   )
 }

@@ -368,18 +368,23 @@ export async function buildPartnerWebsiteFromTemplateStudio(
     useVisualHtml: false,
     useVisualMobileHtml: false,
     useVisualTabletHtml: false,
+    useVisualLaptopHtml: false,
     visualPageKeys: [],
     visualMobilePageKeys: [],
     visualTabletPageKeys: [],
+    visualLaptopPageKeys: [],
     visualCategoryPaths: [],
     visualMobileCategoryPaths: [],
     visualTabletCategoryPaths: [],
+    visualLaptopCategoryPaths: [],
     visualProductIds: [],
     visualMobileProductIds: [],
     visualTabletProductIds: [],
+    visualLaptopProductIds: [],
     visualCmsSlugs: [],
     visualMobileCmsSlugs: [],
     visualTabletCmsSlugs: [],
+    visualLaptopCmsSlugs: [],
   }
   const templateId = preset.templateId
   const project = syncTemplateToProject({

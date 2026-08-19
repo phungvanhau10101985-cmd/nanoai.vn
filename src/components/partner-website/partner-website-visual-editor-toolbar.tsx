@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutTemplate, Loader2, Lock, LogIn, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Shield, ShoppingBag, Sparkles, Square, Store, Tag, Trash2, Truck, Type, Undo2, Ungroup, User, Wallet, X } from 'lucide-react'
+import Link from 'next/link'
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutTemplate, Loader2, Lock, LogIn, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Shield, ShoppingBag, Sparkles, Square, Store, Tag, Trash2, Truck, Type, Undo2, Ungroup, Upload, User, Wallet, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -33,6 +34,8 @@ import {
   makeUserLogoColorSwatchDataUrl,
 } from '@/lib/partner-website/visual-editor/logo-generation-context'
 import { persistVisualEditorAdminLogo } from '@/lib/partner-website/visual-editor/persist-visual-editor-admin-logo'
+import { persistVisualEditorChatIconLogo } from '@/lib/partner-website/visual-editor/persist-visual-editor-chat-icon-logo'
+import { buildChatIconLogoPrompt } from '@/lib/partner-website/visual-editor/build-chat-icon-logo-prompt'
 import { appendVisualDeviceQuery, visualDeviceVariantFromHtmlPath } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { isHexColor, resolveShopThemeColors, themeCssVarMap } from '@/lib/partner-website/template/partner-website-theme-tokens'
@@ -54,16 +57,25 @@ import {
 } from '@/lib/partner-website/visual-editor/pw-scene'
 import {
   buildVisualEditorChromeWidgetHtml,
+  CHROME_FACEBOOK_CHAT_LOGO_SVG,
+  CHROME_ZALO_LOGO_SVG,
   chromeWidgetHost,
   chromeWidgetLabel,
+  clampPwChromeIconSize,
+  isChromeContactChatKind,
+  isChromeIconOnlyStyle,
   isVisualEditorChromeWidgetKind,
+  PW_CHROME_ICON_SIZE_DEFAULT,
+  PW_CHROME_ICON_SIZE_MAX,
+  PW_CHROME_ICON_SIZE_MIN,
   VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS,
   type VisualEditorChromeWidgetKind,
   type VisualEditorChromeWidgetPickerGroupId,
   type VisualEditorChromeWidgetPlace,
   type VisualEditorChromeWidgetStyle,
 } from '@/lib/partner-website/visual-editor/chrome-widgets'
-import { partnerSiteProductsPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteContactChannelsApiPath, partnerSiteProductsPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import type { PartnerSiteContactChannels } from '@/lib/partner-website/shop/partner-site-contact-channels'
 import {
   extractFashionHomeCopyFromDocument,
   type FashionHomeCopyPatch,
@@ -86,6 +98,7 @@ const VISUAL_EDITOR_EDIT_KINDS = [
   'dots',
   'field',
   'badge',
+  'chat-embed',
   'other',
 ] as const
 type VisualEditorEditKind = (typeof VISUAL_EDITOR_EDIT_KINDS)[number]
@@ -104,6 +117,7 @@ export type VisualEditorSelection = {
   isAddedBg: boolean
   editKind: VisualEditorEditKind
   chromeKind: string
+  chromeSize: number
   canDelete: boolean
   layerPos: 'only' | 'bottom' | 'top' | 'middle' | ''
   layerIndex: number
@@ -195,6 +209,7 @@ function selectionFromMessage(data: {
   isAddedBg?: boolean
   editKind?: string
   chromeKind?: string
+  chromeSize?: number
   canDelete?: boolean
   layerPos?: string
   layerIndex?: number
@@ -267,6 +282,7 @@ function selectionFromMessage(data: {
     isAddedBg: Boolean(data.isAddedBg),
     editKind: parseEditKind(data.editKind),
     chromeKind: String(data.chromeKind ?? '').replace(/[^a-z0-9-]/g, ''),
+    chromeSize: clampPwChromeIconSize(data.chromeSize),
     canDelete: Boolean(data.canDelete),
     layerPos:
       data.layerPos === 'only' ||
@@ -283,7 +299,12 @@ function selectionFromMessage(data: {
     bgStack: parsePwBgStack(data.bgStack),
     isChrome: Boolean(data.isChrome),
     chromeStyle:
-      data.chromeStyle === 'icon' || data.chromeStyle === 'icon-label' || data.chromeStyle === 'text'
+      data.chromeStyle === 'icon' ||
+      data.chromeStyle === 'icon-square' ||
+      data.chromeStyle === 'icon-label' ||
+      data.chromeStyle === 'icon-label-below' ||
+      data.chromeStyle === 'icon-label-left' ||
+      data.chromeStyle === 'text'
         ? data.chromeStyle
         : '',
     btnStyle:
@@ -447,6 +468,9 @@ const CHROME_WIDGET_ICONS: Record<VisualEditorChromeWidgetKind, LucideIcon> = {
   wishlist: Heart,
   'recently-viewed': Clock,
   chat: MessageCircle,
+  'chat-zalo': MessageCircle,
+  'chat-facebook': MessageCircle,
+  topup: ArrowUp,
   account: User,
   login: LogIn,
   orders: ClipboardList,
@@ -499,6 +523,8 @@ type Props = {
   /** Màu giao diện đang chọn — gửi vào prompt tạo logo. */
   theme?: PartnerWebsiteTheme | null
   onThemeLiveChange?: (next: PartnerWebsiteTheme) => void
+  /** Cập nhật theme không debounce màu (ẩn/hiện nút chat). */
+  onThemeFieldsChange?: (next: PartnerWebsiteTheme) => void
   themeSaving?: boolean
   saveFnRef?: MutableRefObject<(() => Promise<boolean>) | null>
   onRequestLeave?: (kind: 'view' | 'exit') => void
@@ -661,6 +687,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   viewHref,
   theme,
   onThemeLiveChange,
+  onThemeFieldsChange,
   themeSaving,
   saveFnRef,
   onRequestLeave,
@@ -675,7 +702,8 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [useCurrentRef, setUseCurrentRef] = useState(true)
   const [refUrl, setRefUrl] = useState('')
   const [hrefDraft, setHrefDraft] = useState('')
-  const [addWidgetStyle, setAddWidgetStyle] = useState<VisualEditorChromeWidgetStyle>('icon-label')
+  const [addWidgetStyle, setAddWidgetStyle] = useState<VisualEditorChromeWidgetStyle>('icon-label-left')
+  const [addWidgetIconSize, setAddWidgetIconSize] = useState(PW_CHROME_ICON_SIZE_DEFAULT)
   const [addBtnStyle, setAddBtnStyle] = useState<'hero' | 'primary' | 'outline'>('hero')
   const [addBtnLabel, setAddBtnLabel] = useState(t.visualEditAddButtonLabel)
   const [textDraft, setTextDraft] = useState('')
@@ -687,6 +715,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [addBtnHref, setAddBtnHref] = useState(siteSlug ? partnerSiteProductsPath(siteSlug) : '')
   const [addButtonPanelOpen, setAddButtonPanelOpen] = useState(false)
   const [addWidgetPlace, setAddWidgetPlace] = useState<VisualEditorChromeWidgetPlace>('header')
+  const [contactChannels, setContactChannels] = useState<PartnerSiteContactChannels | null>(null)
   const [openPanel, setOpenPanel] = useState<VisualEditOpenPanel | null>(null)
   const [panelPos, setPanelPos] = useState<{ x: number; y: number } | null>(null)
   const [bgColorPickerOpen, setBgColorPickerOpen] = useState(false)
@@ -698,6 +727,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [logoInkCustom, setLogoInkCustom] = useState('#ffffff')
   const [logoInkText, setLogoInkText] = useState('')
   const [logoDrawActive, setLogoDrawActive] = useState(false)
+  const [chatIconPrompt, setChatIconPrompt] = useState('')
   const [hiddenBlocks, setHiddenBlocks] = useState<HiddenBlock[]>([])
   /** Lớp không gian đang được lọc để bấm. -1 = bấm mọi lớp. */
   const [sceneFocus, setSceneFocus] = useState(-1)
@@ -713,6 +743,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const fileRef = useRef<HTMLInputElement>(null)
   const refFileRef = useRef<HTMLInputElement>(null)
   const logoFileRef = useRef<HTMLInputElement>(null)
+  const chatIconFileRef = useRef<HTMLInputElement>(null)
   const scriptInjectedRef = useRef(false)
   const lastLogoKeyRef = useRef('')
   const promptTextareaRef = useRef<HTMLTextAreaElement>(null)
@@ -740,6 +771,20 @@ export function PartnerWebsiteVisualEditorToolbar({
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [openPanel])
 
+  useEffect(() => {
+    if (openPanel !== 'add' || !siteSlug?.trim()) return
+    let cancelled = false
+    void fetch(partnerSiteContactChannelsApiPath(siteSlug), { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j: { channels?: PartnerSiteContactChannels }) => {
+        if (!cancelled && j.channels) setContactChannels(j.channels)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [openPanel, siteSlug])
+
   const hadSelectionRef = useRef(false)
   useEffect(() => {
     const has = Boolean(selection)
@@ -753,12 +798,16 @@ export function PartnerWebsiteVisualEditorToolbar({
   const activatePayloadRef = useRef<{
     device: ReturnType<typeof visualDeviceVariantFromHtmlPath>
     logoUrl: string
+    chatIconLogoUrl: string
     vars: ReturnType<typeof themeCssVarMap> | undefined
-  }>({ device: 'desktop', logoUrl: '', vars: undefined })
+    hideChatLauncher: boolean
+  }>({ device: 'desktop', logoUrl: '', chatIconLogoUrl: '', vars: undefined, hideChatLauncher: false })
   activatePayloadRef.current = {
     device: visualDeviceVariantFromHtmlPath(htmlPath),
     logoUrl: theme?.logoUrl || '',
+    chatIconLogoUrl: theme?.chatIconLogoUrl || '',
     vars: theme ? themeCssVarMap(theme) : undefined,
+    hideChatLauncher: theme?.hideChatLauncher === true,
   }
 
   const injectScript = useCallback(() => {
@@ -976,6 +1025,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         isAddedBg?: boolean
         editKind?: string
         chromeKind?: string
+        chromeSize?: number
         canDelete?: boolean
         canStickHeader?: boolean
         stickHeader?: boolean
@@ -1022,7 +1072,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         imageWidth?: number
         html?: string
         rect?: { width?: number; height?: number }
-        hidden?: HiddenBlock[]
+        hidden?: HiddenBlock[] | boolean
         canUndo?: boolean
         canRedo?: boolean
         dirty?: boolean
@@ -1106,6 +1156,12 @@ export function PartnerWebsiteVisualEditorToolbar({
           data.hidden.map((row) => ({ id: String(row.id ?? ''), label: String(row.label ?? '') })).filter((row) => row.id)
         )
       }
+      if (data.type === 'hideChatLauncher') {
+        void persistChatLauncherHidden(data.hidden === true)
+      }
+      if (data.type === 'chromeDuplicate') {
+        onError(t.visualEditChromeDuplicate)
+      }
       if (data.type === 'html' && data.html && saveWaiterRef.current) {
         void handleSaveHtml(data.html)
       }
@@ -1113,7 +1169,7 @@ export function PartnerWebsiteVisualEditorToolbar({
 
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [active, activateEditor, documentKey, handleSaveHtml, t.visualEditAddButtonLabel])
+  }, [active, activateEditor, documentKey, handleSaveHtml, onError, t.visualEditAddButtonLabel, t.visualEditChromeDuplicate])
 
   useEffect(() => {
     if (!active) return
@@ -1199,6 +1255,52 @@ export function PartnerWebsiteVisualEditorToolbar({
     window.open(href, '_blank', 'noopener,noreferrer')
   }
 
+  async function persistChatLauncherHidden(hidden: boolean): Promise<boolean> {
+    if (!partnerId) return false
+    if (Boolean(theme?.hideChatLauncher) === hidden) return true
+    try {
+      const res = await fetch(`/api/messaging/partner-website/${encodeURIComponent(partnerId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update_chat_launcher', hideChatLauncher: hidden }),
+      })
+      const json = (await res.json().catch(() => ({}))) as {
+        website?: { theme?: PartnerWebsiteTheme }
+        error?: string
+      }
+      if (!res.ok) {
+        onError(json.error || t.visualEditSaveFailed)
+        return false
+      }
+      const nextTheme = { ...(json.website?.theme ?? theme) } as PartnerWebsiteTheme
+      if (hidden) nextTheme.hideChatLauncher = true
+      else delete nextTheme.hideChatLauncher
+      onThemeFieldsChange?.(nextTheme)
+      return true
+    } catch {
+      onError(t.visualEditSaveFailed)
+      return false
+    }
+  }
+
+  async function persistChatIconLogo(url: string): Promise<boolean> {
+    if (!partnerId) return false
+    const result = await persistVisualEditorChatIconLogo(partnerId, url)
+    if (!result.ok) {
+      onError(result.error || t.visualEditSaveFailed)
+      return false
+    }
+    const nextTheme = { ...(result.theme ?? theme), chatIconLogoUrl: url } as PartnerWebsiteTheme
+    onThemeFieldsChange?.(nextTheme)
+    return true
+  }
+
+  async function applySharedChatIconLogo(url: string) {
+    postToIframe(iframeRef.current, 'setChatIconLogo', { url })
+    setDirty(true)
+    await persistChatIconLogo(url)
+  }
+
   async function persistAdminLogo(url: string) {
     const result = await persistVisualEditorAdminLogo(partnerId, url)
     if (!result.ok) {
@@ -1262,6 +1364,24 @@ export function PartnerWebsiteVisualEditorToolbar({
     }
   }
 
+  async function handleUploadChatIconLogo(files: FileList | null) {
+    if (!files?.length || !partnerId) return
+    const file = files[0]
+    if (!file?.type.startsWith('image/')) {
+      onError(t.imageInvalidType)
+      return
+    }
+    setUploadBusy(true)
+    try {
+      const url = await uploadPartnerImageFile(partnerId, file)
+      await applySharedChatIconLogo(url)
+    } catch (e) {
+      onError(e instanceof Error ? e.message : t.uploadFailed)
+    } finally {
+      setUploadBusy(false)
+    }
+  }
+
   async function handleUploadReference(files: FileList | null) {
     if (!files?.length || !partnerId) return
     const file = files[0]
@@ -1290,6 +1410,7 @@ export function PartnerWebsiteVisualEditorToolbar({
     referenceImageMeta?: Array<{ screenKey: string; label?: string }>
     allSlots?: boolean
     lockHeld?: boolean
+    target?: 'image' | 'chat-icon'
   }) {
     if (!partnerId || (!input.lockHeld && aiLockRef.current)) return
     const prompt = input.prompt.trim()
@@ -1328,9 +1449,13 @@ export function PartnerWebsiteVisualEditorToolbar({
         onError(json.error || t.visualEditAiFailed)
         return
       }
-      postToIframe(iframeRef.current, 'setImageSrc', { url: json.publicUrl, allSlots: Boolean(input.allSlots) })
-      setDirty(true)
-      if (input.kind === 'logo') await persistAdminLogo(json.publicUrl)
+      if (input.target === 'chat-icon') {
+        await applySharedChatIconLogo(json.publicUrl)
+      } else {
+        postToIframe(iframeRef.current, 'setImageSrc', { url: json.publicUrl, allSlots: Boolean(input.allSlots) })
+        setDirty(true)
+        if (input.kind === 'logo') await persistAdminLogo(json.publicUrl)
+      }
     } catch (e) {
       onError(e instanceof Error ? e.message : t.visualEditAiFailed)
     } finally {
@@ -1374,6 +1499,37 @@ export function PartnerWebsiteVisualEditorToolbar({
     setLogoInkChoice('custom')
   }
 
+  async function handleCreateChatIconLogo() {
+    if (!partnerId || aiLockRef.current) return
+    if (selection?.chromeKind !== 'chat') return
+    aiLockRef.current = true
+    setAiBusy(true)
+    try {
+      const styleRef = refUrl.trim()
+      const refs = styleRef && /^https?:\/\//i.test(styleRef) ? [styleRef] : []
+      await requestGeneratedImage({
+        prompt: buildChatIconLogoPrompt({
+          shopTitle: websiteTitle || 'Shop',
+          extra: chatIconPrompt,
+          hasReference: refs.length > 0,
+        }),
+        kind: 'logo',
+        aspectRatio: '1:1',
+        referenceImageUrls: refs,
+        referenceImageMeta: refs.length
+          ? [{ screenKey: 'chat_icon_style', label: 'Chat mua icon style reference' }]
+          : undefined,
+        target: 'chat-icon',
+        lockHeld: true,
+      })
+    } catch (e) {
+      onError(e instanceof Error ? e.message : t.visualEditAiFailed)
+    } finally {
+      aiLockRef.current = false
+      setAiBusy(false)
+    }
+  }
+
   async function handleCreateLogoFromPanel() {
     if (!partnerId || aiLockRef.current) return
     const device: LogoDeviceKind = visualDeviceVariantFromHtmlPath(htmlPath)
@@ -1415,6 +1571,7 @@ export function PartnerWebsiteVisualEditorToolbar({
           isAddedBg: false,
           editKind: 'logo',
           chromeKind: '',
+          chromeSize: PW_CHROME_ICON_SIZE_DEFAULT,
           canDelete: false,
           layerPos: '',
           layerIndex: 0,
@@ -1581,6 +1738,15 @@ export function PartnerWebsiteVisualEditorToolbar({
       locale,
       style: addWidgetStyle,
       place,
+      logoUrl: kind === 'chat' ? theme?.chatIconLogoUrl || theme?.logoUrl || undefined : undefined,
+      chatIconLogoUrl: kind === 'chat' ? theme?.chatIconLogoUrl || undefined : undefined,
+      href:
+        kind === 'chat-zalo'
+          ? contactChannels?.zaloUrl
+          : kind === 'chat-facebook'
+            ? contactChannels?.messengerUrl
+            : undefined,
+      iconSize: addWidgetIconSize,
     })
     if (!html) return
     postToIframe(iframeRef.current, 'insertChromeBtn', {
@@ -1625,6 +1791,16 @@ export function PartnerWebsiteVisualEditorToolbar({
     setPanelPos((pos) => pos ?? defaultFloatingPanelPos())
     setOpenPanel('block')
     setAddButtonPanelOpen(true)
+  }
+
+  function chromeStyleChoices(): Array<[VisualEditorChromeWidgetStyle, string]> {
+    return [
+      ['icon', t.visualEditAddStyleIcon],
+      ['icon-square', t.visualEditAddStyleIconSquare],
+      ['icon-label-below', t.visualEditAddStyleIconLabelBelow],
+      ['icon-label-left', t.visualEditAddStyleIconLabelLeft],
+      ['text', t.visualEditAddStyleText],
+    ]
   }
 
   function applySelectedChromeStyle(style: VisualEditorChromeWidgetStyle) {
@@ -1767,6 +1943,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const showDotsHint = editKind === 'dots'
   const showFieldHint = editKind === 'field'
   const showBadgeHint = editKind === 'badge'
+  const showChatEmbedHint = editKind === 'chat-embed'
   const showAddedBgHint = editKind === 'added-bg'
   const showNavLinkHint = editKind === 'nav-link'
   const showWidgetColors =
@@ -1792,7 +1969,12 @@ export function PartnerWebsiteVisualEditorToolbar({
     editKind === 'search-submit' ||
     editKind === 'search-image'
   const showInlineChromeTools = false
-  const showStickHeader = Boolean(selection?.canStickHeader)
+  const showStickHeader = Boolean(
+    selection?.canStickHeader &&
+      selection.chromeKind !== 'chat' &&
+      selection.chromeKind !== 'chat-zalo' &&
+      selection.chromeKind !== 'chat-facebook'
+  )
   const showBlockTools = Boolean(selection?.isBlock && !chromeLikeKind)
   const showLayerSwitch = Boolean(
     selection?.hasImageLayer &&
@@ -1803,7 +1985,8 @@ export function PartnerWebsiteVisualEditorToolbar({
       editKind !== 'wordmark' &&
       editKind !== 'dots' &&
       editKind !== 'field' &&
-      editKind !== 'badge'
+      editKind !== 'badge' &&
+      editKind !== 'chat-embed'
   )
   const showLayerStack = Boolean(
     selection &&
@@ -1816,15 +1999,16 @@ export function PartnerWebsiteVisualEditorToolbar({
       editKind !== 'chrome' &&
       editKind !== 'nav-link' &&
       editKind !== 'dots' &&
-      editKind !== 'field'
+      editKind !== 'field' &&
+      editKind !== 'chat-embed'
   )
   // Lớp không gian: mọi phần tử chọn được đều phải biết đang ở lớp nào và đổi lớp được.
-  const showSceneStack = Boolean(sceneFocus >= 0 || selection)
+  const showSceneStack = Boolean(sceneFocus >= 0 || (selection && editKind !== 'chat-embed'))
   const showTextTools = Boolean(
     (selection?.isText ||
       editKind === 'wordmark' ||
       editKind === 'badge' ||
-      (editKind === 'chrome' && selection?.chromeStyle && selection.chromeStyle !== 'icon')) &&
+      (editKind === 'chrome' && selection?.chromeStyle && !isChromeIconOnlyStyle(selection.chromeStyle))) &&
       editKind !== 'added-bg' &&
       editKind !== 'search' &&
       editKind !== 'search-submit' &&
@@ -1857,15 +2041,39 @@ export function PartnerWebsiteVisualEditorToolbar({
     selection?.chromeKind && isVisualEditorChromeWidgetKind(selection.chromeKind)
       ? chromeWidgetLabel(selection.chromeKind, locale)
       : t.visualEditChromeWidgetTitle
+  const chromeSizeLabel = (style?: string | null) =>
+    isChromeIconOnlyStyle(style) ? t.visualEditChromeIconSize : t.visualEditChromeBtnSize
+  const renderChromeSizeSlider = (
+    style: string | null | undefined,
+    size: number,
+    onSize: (size: number) => void,
+    extraClass?: string
+  ) => (
+    <label className={cn('flex flex-col gap-1 text-[10px] text-muted-foreground', extraClass)}>
+      {chromeSizeLabel(style)} {size}px
+      <input
+        type="range"
+        min={PW_CHROME_ICON_SIZE_MIN}
+        max={PW_CHROME_ICON_SIZE_MAX}
+        step={1}
+        value={size}
+        disabled={busy}
+        onChange={(e) => onSize(clampPwChromeIconSize(e.target.value))}
+        className="w-full accent-foreground"
+      />
+    </label>
+  )
   const deleteLabel =
     editKind === 'added-bg'
       ? t.visualEditDeleteBg
-      : editKind === 'chrome' ||
-          editKind === 'cat-toggle' ||
-          editKind === 'added-btn' ||
-          editKind === 'cta'
-        ? t.visualEditChromeDelete
-        : t.visualEditDeleteUnit
+      : editKind === 'chat-embed'
+        ? t.visualEditChatEmbedDelete
+        : editKind === 'chrome' ||
+            editKind === 'cat-toggle' ||
+            editKind === 'added-btn' ||
+            editKind === 'cta'
+          ? t.visualEditChromeDelete
+          : t.visualEditDeleteUnit
   if (selection?.isBlock || selection?.isAddedBg) {
     pinnedBgSelectionRef.current = selection
   } else if (selection && !bgColorPickerOpen) {
@@ -1936,6 +2144,8 @@ export function PartnerWebsiteVisualEditorToolbar({
                     ? t.visualEditFieldTitle
                     : editKind === 'badge'
                       ? t.visualEditBadgeTitle
+                      : editKind === 'chat-embed'
+                        ? t.visualEditChatEmbedTitle
           : editKind === 'chrome'
             ? chromeTitle
             : editKind === 'added-btn' || editKind === 'cta'
@@ -1975,6 +2185,16 @@ export function PartnerWebsiteVisualEditorToolbar({
         className="hidden"
         onChange={(e) => {
           void handleUploadAsLogo(e.target.files)
+          e.target.value = ''
+        }}
+      />
+      <input
+        ref={chatIconFileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          void handleUploadChatIconLogo(e.target.files)
           e.target.value = ''
         }}
       />
@@ -2107,13 +2327,7 @@ export function PartnerWebsiteVisualEditorToolbar({
           <div className="flex flex-wrap items-center gap-1.5 border-t px-2 py-1.5">
             {showChromeStyle ? (
               <div className="flex flex-wrap items-center gap-1">
-                {(
-                  [
-                    ['icon', t.visualEditAddStyleIcon],
-                    ['icon-label', t.visualEditAddStyleIconLabel],
-                    ['text', t.visualEditAddStyleText],
-                  ] as const
-                ).map(([style, label]) => (
+                {chromeStyleChoices().map(([style, label]) => (
                   <Button
                     key={style}
                     type="button"
@@ -2152,7 +2366,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                 />
               </label>
             ) : null}
-            {(showChromeStyle && selection.chromeStyle !== 'icon') || editKind === 'search-submit' ? (
+            {(showChromeStyle && !isChromeIconOnlyStyle(selection.chromeStyle)) || editKind === 'search-submit' ? (
               <label className="flex min-w-[8rem] flex-1 items-center gap-1 text-[10px]">
                 <span className="shrink-0 text-muted-foreground">{t.visualEditTextContent}</span>
                 <input
@@ -2237,20 +2451,16 @@ export function PartnerWebsiteVisualEditorToolbar({
                     <p className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                       {t.visualEditAddStyleTitle}
                     </p>
-                    <div className="flex gap-1 px-1">
-                      {(
-                        [
-                          ['icon', t.visualEditAddStyleIcon],
-                          ['icon-label', t.visualEditAddStyleIconLabel],
-                          ['text', t.visualEditAddStyleText],
-                        ] as const
-                      ).map(([style, label]) => (
+                    <div className="grid grid-cols-2 gap-1 px-1">
+                      {chromeStyleChoices().map(([style, label]) => (
                         <button
                           key={style}
                           type="button"
                           className={cn(
-                            'flex-1 rounded px-1.5 py-1 text-[10px] font-medium',
-                            addWidgetStyle === style ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'
+                            'rounded px-1.5 py-1 text-[10px] font-medium',
+                            addWidgetStyle === style
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted hover:bg-muted/80'
                           )}
                           disabled={busy}
                           onClick={() => setAddWidgetStyle(style)}
@@ -2259,6 +2469,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                         </button>
                       ))}
                     </div>
+                    {renderChromeSizeSlider(addWidgetStyle, addWidgetIconSize, setAddWidgetIconSize, 'px-1')}
                     <div className="flex gap-1 px-1 pb-0.5">
                       {VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS.map((group) => {
                         const tabTitle: Record<VisualEditorChromeWidgetPickerGroupId, string> = {
@@ -2298,7 +2509,17 @@ export function PartnerWebsiteVisualEditorToolbar({
                             disabled={busy}
                             onClick={() => insertChromeWidget(kind, addWidgetPlace)}
                           >
-                            <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            {isChromeContactChatKind(kind) ? (
+                              <span
+                                className="inline-flex h-3.5 w-3.5 shrink-0 [&>svg]:h-full [&>svg]:w-full"
+                                aria-hidden
+                                dangerouslySetInnerHTML={{
+                                  __html: kind === 'chat-zalo' ? CHROME_ZALO_LOGO_SVG : CHROME_FACEBOOK_CHAT_LOGO_SVG,
+                                }}
+                              />
+                            ) : (
+                              <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            )}
                             {chromeWidgetLabel(kind, locale)}
                           </button>
                         )
@@ -2367,9 +2588,13 @@ export function PartnerWebsiteVisualEditorToolbar({
           </div>
         ) : null}
         {showSearchImageHint && selection ? (
-          <div className="rounded-md border bg-background px-2 py-1.5">
+          <div className="rounded-md border bg-background px-2 py-1.5 space-y-1.5">
             <p className="text-[11px] font-semibold leading-4">{t.visualEditSearchImageTitle}</p>
             <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditSearchImageHint}</p>
+            {renderChromeSizeSlider(selection.chromeStyle, selection.chromeSize, (size) => {
+              postToIframe(iframeRef.current, 'setChromeSize', { size })
+              setDirty(true)
+            })}
           </div>
         ) : null}
         {showWordmarkHint && selection ? (
@@ -2396,10 +2621,50 @@ export function PartnerWebsiteVisualEditorToolbar({
             <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditBadgeHint}</p>
           </div>
         ) : null}
+        {showChatEmbedHint && selection ? (
+          <div className="rounded-md border bg-background px-2 py-1.5 space-y-2">
+            <p className="text-[11px] font-semibold leading-4">{t.visualEditChatEmbedTitle}</p>
+            <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditChatEmbedHint}</p>
+            {partnerId ? (
+              <Button type="button" size="sm" variant="outline" className="h-7 text-[11px]" asChild>
+                <Link
+                  href={`/dashboard/messaging/settings?partner=${encodeURIComponent(partnerId)}&section=api`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {t.visualEditChatEmbedOpenSettings}
+                  <ExternalLink className="ml-1 h-3 w-3" aria-hidden />
+                </Link>
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        {theme?.hideChatLauncher && !selection ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className={btn}
+            disabled={busy}
+            onClick={() => {
+              void (async () => {
+                const ok = await persistChatLauncherHidden(false)
+                if (ok) postToIframe(iframeRef.current, 'restoreChatLauncher')
+              })()
+            }}
+          >
+            <Eye className="mr-1 h-3 w-3" />
+            {t.visualEditChatEmbedRestore}
+          </Button>
+        ) : null}
         {showCatToggleHint && selection ? (
-          <div className="rounded-md border bg-background px-2 py-1.5">
+          <div className="rounded-md border bg-background px-2 py-1.5 space-y-1.5">
             <p className="text-[11px] font-semibold leading-4">{t.visualEditCatToggleTitle}</p>
             <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditCatToggleHint}</p>
+            {renderChromeSizeSlider(selection.chromeStyle, selection.chromeSize, (size) => {
+              postToIframe(iframeRef.current, 'setChromeSize', { size })
+              setDirty(true)
+            })}
           </div>
         ) : null}
         {showNavLinkHint && selection ? (
@@ -3073,13 +3338,7 @@ export function PartnerWebsiteVisualEditorToolbar({
             </div>
             <div className="flex flex-wrap items-center gap-1 text-[10px]">
             <span className="shrink-0 text-muted-foreground">{t.visualEditAddStyleTitle}</span>
-            {(
-              [
-                ['icon', t.visualEditAddStyleIcon],
-                ['icon-label', t.visualEditAddStyleIconLabel],
-                ['text', t.visualEditAddStyleText],
-              ] as const
-            ).map(([style, label]) => (
+            {chromeStyleChoices().map(([style, label]) => (
               <Button
                 key={style}
                 type="button"
@@ -3093,7 +3352,93 @@ export function PartnerWebsiteVisualEditorToolbar({
               </Button>
             ))}
             </div>
-            {selection.chromeStyle && selection.chromeStyle !== 'icon' ? (
+            {renderChromeSizeSlider(selection.chromeStyle, selection.chromeSize, (size) => {
+              postToIframe(iframeRef.current, 'setChromeSize', { size })
+              setDirty(true)
+            })}
+            {selection.chromeKind === 'chat' ? (
+              <div className="grid gap-1 border-t border-border/70 pt-1.5">
+                <p className="text-[11px] font-semibold leading-4">{t.visualEditChatIconLogoTitle}</p>
+                <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditChatIconLogoHint}</p>
+                <p className="rounded-md bg-muted/70 px-2 py-1 text-[10px] leading-4 text-foreground">
+                  {t.visualEditChatIconLogoDefaultPrompt}
+                </p>
+                {theme?.chatIconLogoUrl || selection.src ? (
+                  <img
+                    src={theme?.chatIconLogoUrl || selection.src}
+                    alt=""
+                    className="h-10 w-10 rounded-full border object-cover"
+                  />
+                ) : null}
+                <input
+                  type="text"
+                  value={chatIconPrompt}
+                  onChange={(e) => setChatIconPrompt(e.target.value)}
+                  placeholder={t.visualEditChatIconLogoPromptPlaceholder}
+                  disabled={busy}
+                  className={cn(
+                    'min-w-0 w-full rounded-md border bg-background px-2',
+                    compact ? 'h-6 text-[10px]' : 'h-8 text-xs'
+                  )}
+                />
+                <div className="flex min-w-0 items-center gap-1">
+                  {refUrl ? <img src={refUrl} alt="" className="h-7 w-7 rounded-full border bg-white object-cover" /> : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className={cn(btn, 'shrink-0')}
+                    disabled={busy}
+                    title={t.visualEditUploadReference}
+                    onClick={() => refFileRef.current?.click()}
+                  >
+                    {uploadBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
+                    <span className="ml-1">{t.visualEditLogoReferenceLabel}</span>
+                  </Button>
+                  {refUrl ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 shrink-0 p-0"
+                      disabled={busy}
+                      title={t.visualEditRemoveReference}
+                      onClick={() => {
+                        setRefUrl('')
+                        setUseCurrentRef(false)
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="flex min-w-0 flex-wrap items-center gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className={cn(btn, 'shrink-0')}
+                    disabled={busy}
+                    title={t.visualEditChatIconLogoUpload}
+                    onClick={() => chatIconFileRef.current?.click()}
+                  >
+                    {uploadBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                    <span className="ml-1">{t.visualEditChatIconLogoUpload}</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className={cn(btn, 'shrink-0')}
+                    disabled={busy}
+                    onClick={() => void handleCreateChatIconLogo()}
+                  >
+                    {aiBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                    <span className="ml-1">{t.visualEditChatIconLogoCreate}</span>
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+            {selection.chromeStyle && !isChromeIconOnlyStyle(selection.chromeStyle) ? (
               <label className="flex min-w-0 w-full flex-col gap-0.5 text-[10px]">
                 <span className="shrink-0 text-muted-foreground">{t.visualEditTextContent}</span>
                 <input

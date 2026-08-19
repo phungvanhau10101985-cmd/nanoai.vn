@@ -179,4 +179,10 @@ describe('scene layers inside the editor runtime', () => {
     expect(script).toContain("d.type === 'layerElUp'")
     expect(script).toContain("d.type === 'layerElDown'")
   })
+
+  it('reapplies authored banner text layers after stamp so raised copy stays above the photo', () => {
+    expect(script).toContain('restoreAuthoredLayers')
+    expect(script).toContain('applyDefaultZ(el, 2)')
+    expect(script).not.toContain("el.style.zIndex = '2'")
+  })
 })

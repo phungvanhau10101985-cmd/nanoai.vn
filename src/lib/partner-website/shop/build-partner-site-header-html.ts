@@ -7,12 +7,15 @@ import {
   getPartnerSitePromoNavLabel,
   getPartnerSiteShopNavPaths,
 } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
+import { buildPartnerSiteChatMuaButtonHtml } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export type PartnerSiteHeaderHtmlInput = {
   locale: WebLocale
   title: string
   logoUrl?: string | null
+  /** Logo icon Chat mua dùng chung mọi máy — ưu tiên hơn logo shop. */
+  chatIconLogoUrl?: string | null
   /** When set, header links target React shop routes under /site/{slug}/… */
   siteSlug?: string
   /** Gallery / static sample — show shop chrome without live slug */
@@ -247,6 +250,14 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
           ${accountMenuHtml}
         </nav>
       </div>
+      ${buildPartnerSiteChatMuaButtonHtml({
+        siteSlug: siteSlug || 'shop',
+        locale: input.locale,
+        style: 'icon',
+        place: 'header',
+        logoUrl: logo || undefined,
+        chatIconLogoUrl: input.chatIconLogoUrl,
+      })}
       <a class="pw-icon-btn" ${pwElAttr(PW_EL.cart)} data-pw-chrome-btn="cart" href="${cartHref}" aria-label="${escapeAttr(shop.navCart)}">${svgIcon('cart')}<span class="pw-cart-badge" data-pw-chrome-badge hidden>0</span></a>
     </div>
   </div>

@@ -36,6 +36,7 @@ function revisionNoteLabel(t: PartnerWebsiteCopy, note: string | null): string {
   if (key === 'update_brand') return t.revisionNoteBrand
   if (key === 'update_nav_footer') return t.revisionNoteNavFooter
   if (key === 'update_floating_cta') return t.revisionNoteCta
+  if (key === 'update_chat_launcher') return t.revisionNoteChatLauncher
   return t.revisionNoteSession
 }
 

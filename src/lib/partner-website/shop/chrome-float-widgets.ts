@@ -1,0 +1,178 @@
+/** Viewport-fixed chrome: Chat mua / Zalo / Facebook / Top up — đặt đâu nổi đó. */
+
+export const PW_CHROME_FLOAT_ATTR = 'data-pw-chrome-float'
+export const PW_CHROME_FLOAT_SCRIPT_ID = 'pw-shop-chrome-float'
+export const PW_CHROME_TOPUP_ON_CLASS = 'pw-chrome-topup-on'
+export const PW_CHROME_TOPUP_SCROLL_PX = 240
+
+export const PW_CHROME_FLOAT_KINDS = ['chat', 'chat-zalo', 'chat-facebook', 'topup'] as const
+export type PwChromeFloatKind = (typeof PW_CHROME_FLOAT_KINDS)[number]
+
+export function isChromeFloatKind(kind: string | null | undefined): kind is PwChromeFloatKind {
+  return (PW_CHROME_FLOAT_KINDS as readonly string[]).includes(String(kind || ''))
+}
+
+const FLOAT_BTN_RE = new RegExp(
+  `data-pw-chrome-btn=["'](?:${PW_CHROME_FLOAT_KINDS.join('|')})["']`,
+  'i'
+)
+
+/** Drop leftover Desktop px pins when seeding a narrower machine (laptop). */
+export function resetChromeFloatUserMoveInHtml(html: string): string {
+  return html.replace(/<(a|button)\b([^>]*)>/gi, (full, tag: string, attrs: string) => {
+    if (!FLOAT_BTN_RE.test(attrs)) return full
+    if (!/\bdata-pw-user-move=|\bdata-pw-chrome-float=/i.test(attrs)) return full
+    let next = attrs.replace(/\sdata-pw-user-move=(["'])[^"']*\1/gi, '')
+    next = next.replace(/\sstyle=(["'])([\s\S]*?)\1/i, (_m, q: string, css: string) => {
+      const cleaned = String(css)
+        .replace(/(?:^|;)\s*(?:left|top|right|bottom|transform)\s*:[^;]*/gi, '')
+        .replace(/^;+|;+$/g, '')
+        .trim()
+      return cleaned ? ` style=${q}${cleaned}${q}` : ''
+    })
+    return `<${tag}${next}>`
+  })
+}
+
+/** Shared live + Sửa nhanh JS: keep Tư vấn / chat floats on-screen when laptop ↔ desktop width changes. */
+export const PARTNER_SHOP_CHROME_FLOAT_POS_JS = `function pwChromeFloatViewSize(){
+  var w=window.innerWidth||(document.documentElement&&document.documentElement.clientWidth)||1280;
+  var h=window.innerHeight||(document.documentElement&&document.documentElement.clientHeight)||720;
+  if(w<1)w=1280;if(h<1)h=720;
+  return {w:w,h:h};
+}
+function pwChromeFloatBakePct(el){
+  if(!el||!el.style)return;
+  var r=el.getBoundingClientRect();
+  var view=pwChromeFloatViewSize();
+  var leftPct=Math.max(0,Math.min(100,(r.left/view.w)*100));
+  var topPct=Math.max(0,Math.min(100,(r.top/view.h)*100));
+  el.style.setProperty('position','fixed','important');
+  el.style.setProperty('left',leftPct.toFixed(2)+'%','important');
+  el.style.setProperty('top',topPct.toFixed(2)+'%','important');
+  el.style.setProperty('right','auto','important');
+  el.style.setProperty('bottom','auto','important');
+  el.style.setProperty('transform','none','important');
+  el.style.setProperty('margin','0','important');
+}
+function pwChromeFloatRemap(el){
+  if(!el||!el.style)return;
+  var view=pwChromeFloatViewSize();
+  var leftRaw=String(el.style.left||'');
+  var topRaw=String(el.style.top||'');
+  var left=parseFloat(leftRaw);
+  var top=parseFloat(topRaw);
+  var w=el.offsetWidth||56;
+  var h=el.offsetHeight||56;
+  if(leftRaw.indexOf('px')>=0&&isFinite(left)){
+    if(left+w>view.w-8||left<0){
+      el.style.setProperty('left','auto','important');
+      el.style.setProperty('right','16px','important');
+    }else{
+      el.style.setProperty('left',(Math.max(0,Math.min(100,(left/view.w)*100))).toFixed(2)+'%','important');
+    }
+  }
+  if(topRaw.indexOf('px')>=0&&isFinite(top)){
+    if(top+h>view.h-8||top<0){
+      el.style.setProperty('top','auto','important');
+      el.style.setProperty('bottom','88px','important');
+    }else{
+      el.style.setProperty('top',(Math.max(0,Math.min(100,(top/view.h)*100))).toFixed(2)+'%','important');
+    }
+  }
+}`
+
+export const PARTNER_SHOP_CHROME_FLOAT_CSS = `
+[${PW_CHROME_FLOAT_ATTR}="1"]{position:fixed!important;z-index:190!important;margin:0!important;flex:0 0 auto!important;max-width:none!important;max-height:none!important}
+[${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){left:auto!important;top:auto!important;right:16px!important}
+[data-pw-chrome-btn="chat"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:88px!important}
+[data-pw-chrome-btn="chat-zalo"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:144px!important}
+[data-pw-chrome-btn="chat-facebook"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:200px!important}
+[data-pw-chrome-btn="topup"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:256px!important}
+[${PW_CHROME_FLOAT_ATTR}="1"].pw-chrome-icon-only,[${PW_CHROME_FLOAT_ATTR}="1"].pw-chrome-icon-square{
+  width:calc(var(--pw-chrome-size,22px) + 14px)!important;height:calc(var(--pw-chrome-size,22px) + 14px)!important;
+  min-width:calc(var(--pw-chrome-size,22px) + 14px)!important;min-height:calc(var(--pw-chrome-size,22px) + 14px)!important;
+  padding:0!important
+}
+[data-pw-chrome-btn="topup"]{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+[data-pw-chrome-btn="topup"].${PW_CHROME_TOPUP_ON_CLASS},
+[data-pw-chrome-btn="topup"][data-nanoai-ve-selected],
+[data-pw-chrome-btn="topup"].nanoai-ve-highlight{opacity:1!important;visibility:visible!important;pointer-events:auto!important}
+`.trim()
+
+export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
+  if (window.__pwChromeFloatBound) return;
+  window.__pwChromeFloatBound = 1;
+  var ATTR = '${PW_CHROME_FLOAT_ATTR}';
+  var ON = '${PW_CHROME_TOPUP_ON_CLASS}';
+  var KINDS = ${JSON.stringify(PW_CHROME_FLOAT_KINDS)};
+  var THRESH = ${PW_CHROME_TOPUP_SCROLL_PX};
+  ${PARTNER_SHOP_CHROME_FLOAT_POS_JS}
+  function bake(el){
+    if (!el || !el.setAttribute) return;
+    var placed = el.getAttribute('data-pw-user-move') === '1';
+    el.setAttribute(ATTR, '1');
+    if (!placed || !el.style) return;
+    pwChromeFloatRemap(el);
+  }
+  function stamp(){
+    for (var i = 0; i < KINDS.length; i++) {
+      var nodes = document.querySelectorAll('[data-pw-chrome-btn="' + KINDS[i] + '"]');
+      for (var n = 0; n < nodes.length; n++) bake(nodes[n]);
+    }
+  }
+  function pageY(){
+    var y = window.pageYOffset || window.scrollY || 0;
+    var de = document.documentElement;
+    var body = document.body;
+    var se = document.scrollingElement;
+    if (de && de.scrollTop > y) y = de.scrollTop;
+    if (body && body.scrollTop > y) y = body.scrollTop;
+    if (se && se.scrollTop > y) y = se.scrollTop;
+    try {
+      if (window.visualViewport && window.visualViewport.pageTop > y) y = window.visualViewport.pageTop;
+    } catch (eVv) {}
+    return y;
+  }
+  function thresh(){
+    var h = window.innerHeight || (document.documentElement && document.documentElement.clientHeight) || 0;
+    if (h > 0 && h < 900) return Math.min(THRESH, Math.max(80, Math.round(h * 0.35)));
+    return THRESH;
+  }
+  function syncTopup(){
+    var y = pageY();
+    var nodes = document.querySelectorAll('[data-pw-chrome-btn="topup"]');
+    var show = y > thresh();
+    for (var i = 0; i < nodes.length; i++) {
+      if (show) nodes[i].classList.add(ON);
+      else nodes[i].classList.remove(ON);
+    }
+  }
+  function onClick(e){
+    var t = e.target && e.target.closest ? e.target.closest('[data-pw-chrome-btn="topup"]') : null;
+    if (!t) return;
+    e.preventDefault();
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    catch (err) { window.scrollTo(0, 0); }
+  }
+  var raf = 0;
+  function onScroll(){
+    if (raf) return;
+    raf = requestAnimationFrame(function () { raf = 0; syncTopup(); });
+  }
+  window.__pwChromeTopupSync = syncTopup;
+  stamp();
+  window.addEventListener('resize', function(){
+    for (var i = 0; i < KINDS.length; i++) {
+      var nodes = document.querySelectorAll('[data-pw-chrome-btn="' + KINDS[i] + '"][data-pw-user-move="1"]');
+      for (var n = 0; n < nodes.length; n++) pwChromeFloatRemap(nodes[n]);
+    }
+  });
+  document.addEventListener('click', onClick, true);
+  window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+  document.addEventListener('scroll', onScroll, { passive: true, capture: true });
+  window.addEventListener('touchmove', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ stamp(); syncTopup(); });
+  else syncTopup();
+})();`

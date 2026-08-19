@@ -7,6 +7,8 @@ import {
   addVisualPageKey,
   appendVisualDeviceQuery,
   VISUAL_DESKTOP_MIN_PX,
+  VISUAL_WIDE_DESKTOP_MIN_PX,
+  VISUAL_LAPTOP_PREVIEW_PX,
   VISUAL_MOBILE_PREVIEW_PX,
   VISUAL_TABLET_PREVIEW_PX,
   categoryPathFromSitePath,
@@ -49,11 +51,13 @@ test('visual editor paths map catalog pages', () => {
   assert.equal(visualEditorHtmlPath('recently_viewed'), 'recently-viewed.html')
   assert.equal(visualEditorHtmlPath('home', 'mobile'), 'index.mobile.html')
   assert.equal(visualEditorHtmlPath('home', 'tablet'), 'index.tablet.html')
+  assert.equal(visualEditorHtmlPath('home', 'laptop'), 'index.laptop.html')
   assert.equal(visualEditorHtmlPath('about', 'mobile'), 'about.mobile.html')
   assert.equal(visualEditorHtmlPath('about', 'tablet'), 'about.tablet.html')
+  assert.equal(visualEditorHtmlPath('about', 'laptop'), 'about.laptop.html')
   assert.equal(visualEditorDeviceVariant('mobile'), 'mobile')
   assert.equal(visualEditorDeviceVariant('tablet'), 'tablet')
-  assert.equal(visualEditorDeviceVariant('laptop'), 'desktop')
+  assert.equal(visualEditorDeviceVariant('laptop'), 'laptop')
   assert.equal(visualEditorDeviceVariant('desktop'), 'desktop')
   assert.equal(visualEditorPreviewPath('188-shop', 'home'), '/site/188-shop')
   assert.equal(appendVisualDeviceQuery('/site/188-shop/products', 'mobile'), '/site/188-shop/products?pw-device=mobile')
@@ -61,9 +65,13 @@ test('visual editor paths map catalog pages', () => {
   assert.equal(appendVisualDeviceQuery('/site/188-shop?v=1', 'desktop'), '/site/188-shop?v=1&pw-device=desktop')
   assert.deepEqual(visualDevicePreviewFrameStyle('mobile'), { width: VISUAL_MOBILE_PREVIEW_PX })
   assert.deepEqual(visualDevicePreviewFrameStyle('tablet'), { width: VISUAL_TABLET_PREVIEW_PX })
+  assert.deepEqual(visualDevicePreviewFrameStyle('laptop'), {
+    width: VISUAL_LAPTOP_PREVIEW_PX,
+    minWidth: VISUAL_LAPTOP_PREVIEW_PX,
+  })
   assert.deepEqual(visualDevicePreviewFrameStyle('desktop'), {
     width: '100%',
-    minWidth: VISUAL_DESKTOP_MIN_PX,
+    minWidth: VISUAL_WIDE_DESKTOP_MIN_PX,
   })
   assert.deepEqual(visualDevicePreviewFrameStyle(null), {})
   assert.equal(isDesktopBrowserWindow({ outerWidth: 1920 }), true)
@@ -74,6 +82,8 @@ test('visual editor paths map catalog pages', () => {
   assert.equal(isDesktopBrowserWindow(null), false)
   assert.equal(VISUAL_MOBILE_PREVIEW_PX, 390)
   assert.equal(VISUAL_TABLET_PREVIEW_PX, 768)
+  assert.equal(VISUAL_LAPTOP_PREVIEW_PX, 1280)
+  assert.equal(VISUAL_WIDE_DESKTOP_MIN_PX, 1440)
   assert.equal(visualEditorPreviewPath('188-shop', 'products'), '/site/188-shop/products')
   assert.equal(visualEditorPreviewPath('188-shop', 'size_guide'), '/site/188-shop/size-guide')
   assert.equal(
@@ -373,6 +383,23 @@ test('isolate desktop html keeps nested sections from composed page', () => {
   assert.equal(isolated.includes('Mobile stale'), false)
 })
 
+test('compose four-device html shows laptop between 1280 and 1439', () => {
+  const composed = composeResponsiveVisualHtml(
+    '<!DOCTYPE html><html><body><h1>Desk</h1></body></html>',
+    '<!DOCTYPE html><html><body><h1>Mob</h1></body></html>',
+    '<!DOCTYPE html><html><body><h1>Tab</h1></body></html>',
+    '<!DOCTYPE html><html><body><h1>Lap</h1></body></html>'
+  )
+  assert.match(composed, /data-pw-visual-device="laptop"/)
+  assert.match(composed, /Lap/)
+  assert.match(composed, /max-width:1439px/)
+  assert.match(composed, /min-width:1440px/)
+  const laptop = isolateVisualHtmlForDevice(composed, 'laptop')
+  assert.match(laptop, /Lap/)
+  assert.doesNotMatch(laptop, /Desk/)
+  assert.doesNotMatch(laptop, /Tab/)
+})
+
 test('isolate visual html unwraps composed page and stamps chrome', () => {
   const composed = composeResponsiveVisualHtml(
     '<!DOCTYPE html><html><body><h1>Desk</h1></body></html>',
@@ -393,6 +420,16 @@ test('isolate tablet html restamps search instead of hiding a mobile-stamped clu
   assert.match(tablet, /pw-header-search/)
   assert.match(tablet, /data-pw-device="tablet"/)
   assert.doesNotMatch(tablet, /data-pw-device="mobile"/)
+})
+
+test('one-device html drops composed split css that would hide its own tablet widgets', () => {
+  const html = `<!DOCTYPE html><html><head><style id="pw-visual-device-split">@media (min-width:768px){.pw-header-actions [data-pw-chrome-added]:not([data-pw-device="desktop"]){display:none!important}}</style></head><body>
+<header class="pw-header"><div class="pw-header-actions"><button data-pw-chrome-added="1" data-pw-chrome-btn="chat" data-pw-device="tablet">Chat</button></div></header>
+</body></html>`
+  const tablet = isolateVisualHtmlForDevice(html, 'tablet')
+  assert.equal(tablet.includes('pw-visual-device-split'), false)
+  assert.match(tablet, /data-pw-chrome-btn="chat"/)
+  assert.match(tablet, /data-pw-device="tablet"/)
 })
 
 test('count badge chrome stays when isolating another device', () => {
@@ -567,6 +604,10 @@ test('visual edit theme flags only the page and device being saved', () => {
   assert.deepEqual(aboutTablet.visualPageKeys, ['about'])
   assert.equal(aboutTablet.useVisualHtml, true)
 
+  const homeLaptop = applyVisualEditThemeFlag(theme, { pageKey: 'home', variant: 'laptop' })
+  assert.equal(homeLaptop.useVisualLaptopHtml, true)
+  assert.equal(homeLaptop.useVisualHtml, true)
+
   const faqMobile = applyVisualEditThemeFlag(theme, { pageKey: 'faq', variant: 'mobile' })
   assert.deepEqual(faqMobile.visualMobilePageKeys, ['faq'])
   assert.deepEqual(faqMobile.visualPageKeys, ['about'])
@@ -587,7 +628,7 @@ test('pw-device preview serves only the edited device file', () => {
   assert.equal(parseVisualDeviceQuery('desktop'), 'desktop')
   assert.equal(parseVisualDeviceQuery('mobile'), 'mobile')
   assert.equal(parseVisualDeviceQuery('tablet'), 'tablet')
-  assert.equal(parseVisualDeviceQuery('laptop'), null)
+  assert.equal(parseVisualDeviceQuery('laptop'), 'laptop')
   assert.equal(parseVisualDeviceQuery(undefined), null)
 
   const website = {

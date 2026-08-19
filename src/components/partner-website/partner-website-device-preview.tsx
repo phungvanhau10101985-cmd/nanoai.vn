@@ -56,9 +56,11 @@ import {
   appendVisualDeviceQuery,
   VISUAL_MOBILE_PREVIEW_PX,
   VISUAL_TABLET_PREVIEW_PX,
-  VISUAL_DESKTOP_MIN_PX,
+  VISUAL_LAPTOP_PREVIEW_PX,
+  VISUAL_WIDE_DESKTOP_MIN_PX,
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import { resetChromeFloatUserMoveInHtml } from '@/lib/partner-website/shop/chrome-float-widgets'
 import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
 import { copyMissingChromeCountBadgeWidgets } from '@/lib/partner-website/shop/chrome-count-badges'
 import {
@@ -205,7 +207,7 @@ type VisualEditLeaveIntent =
 const DEVICE_WIDTH: Record<PartnerWebsitePreviewDevice, number | 'full'> = {
   mobile: VISUAL_MOBILE_PREVIEW_PX,
   tablet: VISUAL_TABLET_PREVIEW_PX,
-  laptop: VISUAL_DESKTOP_MIN_PX,
+  laptop: VISUAL_LAPTOP_PREVIEW_PX,
   desktop: 'full',
 }
 
@@ -320,6 +322,27 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   useEffect(() => {
     setPortalReady(true)
   }, [])
+
+  useEffect(() => {
+    const styleId = 'nanoai-ve-hide-global-chat-style'
+    if (!visualEditActive) {
+      document.body.classList.remove('nanoai-ve-shop-edit-active')
+      document.getElementById(styleId)?.remove()
+      return
+    }
+    document.body.classList.add('nanoai-ve-shop-edit-active')
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style')
+      style.id = styleId
+      style.textContent =
+        'body.nanoai-ve-shop-edit-active [data-nanoai-widget-root]{display:none!important;visibility:hidden!important;pointer-events:none!important}'
+      document.head.appendChild(style)
+    }
+    return () => {
+      document.body.classList.remove('nanoai-ve-shop-edit-active')
+      document.getElementById(styleId)?.remove()
+    }
+  }, [visualEditActive])
 
   useEffect(() => {
     persistVisualEditState(partnerId, {
@@ -462,10 +485,9 @@ export const PartnerWebsiteDevicePreview = forwardRef<
 
     const seedFrom = (sourceHtml: string): string => {
       if (variant === 'desktop' || !visualHtmlLooksUsable(sourceHtml)) return ''
-      return withSyncedCountBadges(
-        isolateVisualHtmlForDevice(sourceHtml, variant, { stripAddedChrome: true }),
-        variant
-      )
+      const isolated = isolateVisualHtmlForDevice(sourceHtml, variant, { stripAddedChrome: true })
+      const prepared = variant === 'laptop' ? resetChromeFloatUserMoveInHtml(isolated) : isolated
+      return withSyncedCountBadges(prepared, variant)
     }
 
     const websitePick = { htmlSource, project, theme: liveTheme }
@@ -542,32 +564,32 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     const push = (html: string) => {
       if (html.trim() && visualHtmlLooksUsable(html)) out.push(html)
     }
-    ;(['desktop', 'tablet', 'mobile'] as VisualDeviceVariant[]).forEach((other) => {
+    ;(['desktop', 'laptop', 'tablet', 'mobile'] as VisualDeviceVariant[]).forEach((other) => {
       if (other === variant) return
       push(flushedHtmlByVariantRef.current[other] || '')
     })
     if (previewProductId) {
-      ;(['desktop', 'tablet', 'mobile'] as VisualDeviceVariant[]).forEach((other) => {
+      ;(['desktop', 'laptop', 'tablet', 'mobile'] as VisualDeviceVariant[]).forEach((other) => {
         if (other === variant) return
         push(resolveExactVisualProductHtml(websitePick, previewProductId, other))
       })
       return out
     }
     if (previewCmsSlug) {
-      ;(['desktop', 'tablet', 'mobile'] as VisualDeviceVariant[]).forEach((other) => {
+      ;(['desktop', 'laptop', 'tablet', 'mobile'] as VisualDeviceVariant[]).forEach((other) => {
         if (other === variant) return
         push(resolveExactVisualCmsHtml(websitePick, previewCmsSlug, other))
       })
       return out
     }
     if (previewCategoryPath) {
-      ;(['desktop', 'tablet', 'mobile'] as VisualDeviceVariant[]).forEach((other) => {
+      ;(['desktop', 'laptop', 'tablet', 'mobile'] as VisualDeviceVariant[]).forEach((other) => {
         if (other === variant) return
         push(resolveExactVisualCategoryHtml(websitePick, previewCategoryPath, other))
       })
       return out
     }
-    ;(['desktop', 'tablet', 'mobile'] as VisualDeviceVariant[]).forEach((other) => {
+    ;(['desktop', 'laptop', 'tablet', 'mobile'] as VisualDeviceVariant[]).forEach((other) => {
       if (other === variant) return
       push(resolveExactVisualPageHtml(websitePick, previewPageKey, other))
     })
@@ -999,7 +1021,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   const deviceFrameIsFull = frameWidth === 'full'
   const lockComputerCanvas = device === 'desktop' || device === 'laptop'
   const computerCanvasStyle: CSSProperties = deviceFrameIsFull
-    ? { width: '100%', minWidth: VISUAL_DESKTOP_MIN_PX, height: '100%' }
+    ? { width: '100%', minWidth: VISUAL_WIDE_DESKTOP_MIN_PX, height: '100%' }
     : lockComputerCanvas && typeof editFrameWidth === 'number'
       ? { width: editFrameWidth, minWidth: editFrameWidth, height: '100%' }
       : { width: editFrameWidth as number, maxWidth: '100%', height: '100%' }
@@ -1282,7 +1304,9 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                   ? t.visualEditDeviceMobile
                   : editVariant === 'tablet'
                     ? t.visualEditDeviceTablet
-                    : t.visualEditDeviceDesktop}
+                    : editVariant === 'laptop'
+                      ? t.visualEditDeviceLaptop
+                      : t.visualEditDeviceDesktop}
               </span>
               <div className="flex flex-wrap gap-1">{deviceButtons}</div>
               <div className="min-w-0 flex-1 basis-[min(100%,36rem)]">
@@ -1355,6 +1379,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
               onError={(msg) => onVisualEditError?.(msg)}
               onAdminLogoChange={onAdminLogoChange}
               onThemeLiveChange={liveTheme ? handleThemeLive : undefined}
+              onThemeFieldsChange={onLiveThemeChange}
               themeSaving={themeSaving}
               saveFnRef={saveFnRef}
               onRequestLeave={(kind) => requestLeave({ kind })}
@@ -1411,7 +1436,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
           )}
           style={
             deviceFrameIsFull
-              ? { minWidth: VISUAL_DESKTOP_MIN_PX }
+              ? { minWidth: VISUAL_WIDE_DESKTOP_MIN_PX }
               : lockComputerCanvas && typeof editFrameWidth === 'number'
                 ? { width: editFrameWidth, minWidth: editFrameWidth }
                 : { width: editFrameWidth as number, maxWidth: '100%' }

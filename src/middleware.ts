@@ -64,7 +64,7 @@ function refreshEmailSessionCookies(response: NextResponse, request: NextRequest
 /** Chỉ nhận từ query — xoá header client tự gắn để không giả được bản máy. */
 function applyVisualDeviceHeader(headers: Headers, request: NextRequest) {
   const raw = request.nextUrl.searchParams.get('pw-device')?.trim().toLowerCase() || ''
-  if (raw === 'mobile' || raw === 'tablet' || raw === 'desktop') {
+  if (raw === 'mobile' || raw === 'tablet' || raw === 'laptop' || raw === 'desktop') {
     headers.set(PARTNER_VISUAL_DEVICE_HEADER, raw)
     return
   }

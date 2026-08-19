@@ -69,15 +69,19 @@ export async function syncPartnerWebsiteFullLandingPg(input: {
     visualPageKeys: normalizeVisualPageKeys(existing.theme.visualPageKeys),
     visualMobilePageKeys: normalizeVisualPageKeys(existing.theme.visualMobilePageKeys),
     visualTabletPageKeys: normalizeVisualPageKeys(existing.theme.visualTabletPageKeys),
+    visualLaptopPageKeys: normalizeVisualPageKeys(existing.theme.visualLaptopPageKeys),
     visualCategoryPaths: normalizeVisualCategoryPaths(existing.theme.visualCategoryPaths),
     visualMobileCategoryPaths: normalizeVisualCategoryPaths(existing.theme.visualMobileCategoryPaths),
     visualTabletCategoryPaths: normalizeVisualCategoryPaths(existing.theme.visualTabletCategoryPaths),
+    visualLaptopCategoryPaths: normalizeVisualCategoryPaths(existing.theme.visualLaptopCategoryPaths),
     visualProductIds: normalizeVisualProductIds(existing.theme.visualProductIds),
     visualMobileProductIds: normalizeVisualProductIds(existing.theme.visualMobileProductIds),
     visualTabletProductIds: normalizeVisualProductIds(existing.theme.visualTabletProductIds),
+    visualLaptopProductIds: normalizeVisualProductIds(existing.theme.visualLaptopProductIds),
     visualCmsSlugs: normalizeVisualCmsSlugs(existing.theme.visualCmsSlugs),
     visualMobileCmsSlugs: normalizeVisualCmsSlugs(existing.theme.visualMobileCmsSlugs),
     visualTabletCmsSlugs: normalizeVisualCmsSlugs(existing.theme.visualTabletCmsSlugs),
+    visualLaptopCmsSlugs: normalizeVisualCmsSlugs(existing.theme.visualLaptopCmsSlugs),
   })
 
   const saved = await updatePartnerWebsiteDraftPg({

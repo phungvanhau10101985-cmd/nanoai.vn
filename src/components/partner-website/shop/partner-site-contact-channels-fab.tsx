@@ -19,6 +19,7 @@ type Props = {
 export function PartnerSiteContactChannelsFab({ siteSlug, locale, hasFloatingCta }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const [channels, setChannels] = useState<PartnerSiteContactChannels | null>(null)
+  const [hideChromeDupes, setHideChromeDupes] = useState({ zalo: false, facebook: false })
 
   useEffect(() => {
     let cancelled = false
@@ -33,6 +34,13 @@ export function PartnerSiteContactChannelsFab({ siteSlug, locale, hasFloatingCta
     }
   }, [siteSlug])
 
+  useEffect(() => {
+    setHideChromeDupes({
+      zalo: Boolean(document.querySelector('[data-pw-chrome-btn="chat-zalo"]')),
+      facebook: Boolean(document.querySelector('[data-pw-chrome-btn="chat-facebook"]')),
+    })
+  }, [channels])
+
   if (!partnerSiteContactChannelsHasAny(channels) || !channels) return null
 
   const items: Array<{ key: string; href: string; label: string; className: string }> = []
@@ -44,7 +52,7 @@ export function PartnerSiteContactChannelsFab({ siteSlug, locale, hasFloatingCta
       className: 'bg-emerald-600',
     })
   }
-  if (channels.zaloUrl) {
+  if (channels.zaloUrl && !hideChromeDupes.zalo) {
     items.push({
       key: 'zalo',
       href: channels.zaloUrl,
@@ -52,7 +60,7 @@ export function PartnerSiteContactChannelsFab({ siteSlug, locale, hasFloatingCta
       className: 'bg-sky-500',
     })
   }
-  if (channels.messengerUrl) {
+  if (channels.messengerUrl && !hideChromeDupes.facebook) {
     items.push({
       key: 'messenger',
       href: channels.messengerUrl,

@@ -106,6 +106,8 @@ type Props = {
   externalOpenRequest?: { seq: number; iframeSrc?: string }
   /** Override URL when opening from launcher bubble (e.g. product detail page context). */
   resolveOpenUrl?: () => string | undefined
+  /** Ẩn icon nổi; vẫn mở được khi `externalOpenRequest` (nút Tư vấn trên trang). */
+  hideLauncher?: boolean
 }
 
 export function FloatingChatWidget({
@@ -121,6 +123,7 @@ export function FloatingChatWidget({
   languageSelectAriaLabel,
   externalOpenRequest,
   resolveOpenUrl,
+  hideLauncher = false,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [duplicateMount, setDuplicateMount] = useState(false)
@@ -244,6 +247,9 @@ export function FloatingChatWidget({
   }
 
   if (closed) {
+    if (hideLauncher) {
+      return <div ref={rootRef} data-nanoai-widget-root className="hidden" aria-hidden />
+    }
     if (showLauncherLogo) {
       return (
         <div ref={rootRef} data-nanoai-widget-root className="contents">

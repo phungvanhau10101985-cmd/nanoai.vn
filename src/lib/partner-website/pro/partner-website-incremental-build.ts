@@ -20,6 +20,11 @@ import {
 } from '@/lib/partner-website/partner-website-mockup-build-rules'
 import { getPartnerWebsitePageDef, normalizePartnerWebsitePageKey } from '@/lib/partner-website/partner-website-page-catalog'
 import {
+  buildPartnerSiteChatMuaButtonHtml,
+  htmlHasChromeChatMua,
+} from '@/lib/partner-website/visual-editor/chrome-widgets'
+import { applyChatIconLogoToHtml } from '@/lib/partner-website/visual-editor/apply-chat-icon-logo'
+import {
   composeStandaloneHtml,
   extractIndexHtml,
 } from '@/lib/partner-website/partner-website-project'
@@ -479,11 +484,39 @@ function ensureLiveCatalogSectionsInHtml(
   return out
 }
 
+function ensureChromeChatMuaInHtml(
+  html: string,
+  siteSlug: string,
+  locale: WebLocale,
+  logoUrl?: string | null,
+  chatIconLogoUrl?: string | null
+): string {
+  if (htmlHasChromeChatMua(html)) return html
+  const btn = buildPartnerSiteChatMuaButtonHtml({
+    siteSlug,
+    locale,
+    style: 'icon',
+    place: 'header',
+    logoUrl,
+    chatIconLogoUrl,
+  })
+  if (!btn) return html
+  if (/<div\b[^>]*class=["'][^"']*pw-header-actions/i.test(html)) {
+    return html.replace(/(<div\b[^>]*class=["'][^"']*pw-header-actions[^"']*["'][^>]*>)/i, `$1${btn}`)
+  }
+  if (/<\/header>/i.test(html)) {
+    return html.replace(/<\/header>/i, `${btn}\n</header>`)
+  }
+  return html.replace(/<\/body>/i, `${btn}\n</body>`)
+}
+
 function wireHooksIntoHtml(
   html: string,
   siteSlug: string,
   spec: PartnerWebsiteMockupUiSpec,
-  locale: WebLocale = 'vi'
+  locale: WebLocale = 'vi',
+  logoUrl?: string | null,
+  chatIconLogoUrl?: string | null
 ): string {
   let out = ensureLiveCatalogSectionsInHtml(html, siteSlug, spec, locale)
   const allHooks = new Set(spec.sections.flatMap((s) => s.backendHooks))
@@ -493,12 +526,10 @@ function wireHooksIntoHtml(
       /<(button|a)(\s[^>]*class=["'][^"']*(?:cta|btn|button|mua)[^"']*["'][^>]*)>/i,
       '<$1$2 data-nanoai-open-chat>'
     )
-    if (!/data-nanoai-open-chat/i.test(out)) {
-      out = out.replace(
-        /<\/body>/i,
-        `<button type="button" class="pw-fab-chat" data-nanoai-open-chat aria-label="Chat">Chat</button>\n</body>`
-      )
-    }
+  }
+  out = ensureChromeChatMuaInHtml(out, siteSlug, locale, logoUrl, chatIconLogoUrl)
+  if (chatIconLogoUrl && /^https?:\/\//i.test(chatIconLogoUrl.trim())) {
+    out = applyChatIconLogoToHtml(out, chatIconLogoUrl.trim())
   }
 
   const productsHref = partnerSiteProductsPath(siteSlug)
@@ -783,6 +814,7 @@ Rules:
 - MUST use the exact Logo URL above in header: <img class="pw-logo site-logo" src="${ctx.logoUrl || ''}" alt="${ctx.title}" /> — never invent another logo image, never omit when Logo URL is present
 ${PARTNER_WEBSITE_LOGO_PROMPT_RULES}
 - Primary CTAs: data-nanoai-open-chat
+- Chat mua in header actions: <button type="button" class="pw-icon-btn pw-chat-open" data-pw-chrome-btn="chat" data-nanoai-open-chat> with shop logo as <img class="pw-chrome-chat-logo">. NEVER invent .pw-fab-chat / data-nanoai-chat-bubble / a floating NanoAI embed icon.
 - Search bar: <form data-pw-search-form><input data-pw-search type="search" name="q" /> <button type="button" data-pw-image-search>📷</button></form>
   (platform auto-connects text + image search — do NOT invent search APIs)
 - Product card actions (optional): buttons with data-pw-add-cart / data-pw-favorite and data-inventory-id="{uuid}" — platform wires cart/favorites APIs
@@ -1059,7 +1091,9 @@ ${PARTNER_WEBSITE_MOCKUP_FIDELITY_RULES}`
       ensureBrandLogoInHtml(getPageHtml(site.project, ctx.pageKey), ctx.logoUrl, ctx.title),
       ctx.siteSlug,
       spec,
-      input.locale
+      input.locale,
+      ctx.logoUrl,
+      site.theme?.chatIconLogoUrl
     )
     const project = setPageHtml(site.project, ctx.pageKey, html)
     const website = await saveProject({
@@ -1110,7 +1144,9 @@ ${PARTNER_WEBSITE_MOCKUP_FIDELITY_RULES}`
         ensureBrandLogoInHtml(getPageHtml(project, ctx.pageKey), ctx.logoUrl, ctx.title),
         ctx.siteSlug,
         spec,
-        input.locale
+        input.locale,
+        ctx.logoUrl,
+        site.theme?.chatIconLogoUrl
       )
     )
 

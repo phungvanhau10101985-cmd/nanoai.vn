@@ -14,6 +14,7 @@ const EDITOR_SCRIPT_ID = 'nanoai-visual-editor-script'
 function stripEditorAndRuntimeNodes(clone: Element) {
   clone.querySelector(`#${EDITOR_STYLE_ID}`)?.remove()
   clone.querySelector(`#${EDITOR_SCRIPT_ID}`)?.remove()
+  clone.querySelector('#nanoai-pw-overlay-style')?.remove()
   clone.querySelector('#nanoai-pw-logo-guard')?.remove()
   clone.querySelector('#__NEXT_DATA__')?.remove()
   clone.querySelectorAll('script').forEach((el) => {
@@ -23,6 +24,7 @@ function stripEditorAndRuntimeNodes(clone: Element) {
   })
   clone.querySelectorAll('next-route-announcer, template[data-next-error-message]').forEach((el) => el.remove())
   clone.querySelectorAll('link[rel="preload"][as="script"], link[rel="modulepreload"]').forEach((el) => el.remove())
+  clone.querySelectorAll('[data-pw-ve-chat-preview]').forEach((el) => el.remove())
   clone
     .querySelectorAll(
       '.nanoai-ve-active,.nanoai-ve-selected,.nanoai-ve-highlight,.nanoai-ve-hover,.nanoai-ve-dragging,.nanoai-ve-photo-edit'
@@ -167,7 +169,7 @@ export function serializeVisualEditorHtml(doc: Document, variant?: VisualDeviceV
   const stored = sanitizeVisualHtmlForStore(raw)
   if (!variant) return stored
   // Always persist the isolated device document. Falling back to `stored` can write a
-  // composed desktop+tablet+mobile page into a single device file.
+  // composed desktop+laptop+tablet+mobile page into a single device file.
   return sanitizeVisualHtmlForStore(isolateVisualHtmlForDevice(stored, variant))
 }
 

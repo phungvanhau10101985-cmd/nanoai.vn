@@ -58,6 +58,7 @@ export type PartnerWebsiteCopy = {
   previewPageLabel: string
   visualEditAllPagesHint: string
   visualEditDeviceDesktop: string
+  visualEditDeviceLaptop: string
   visualEditDeviceTablet: string
   visualEditDeviceMobile: string
   visualEditDeviceHint: string
@@ -123,6 +124,7 @@ export type PartnerWebsiteCopy = {
   visualEditBlockHide: string
   visualEditBlockShow: string
   visualEditBlockDuplicate: string
+  visualEditChromeDuplicate: string
   visualEditBlockDelete: string
   visualEditBlockPaddingY: string
   visualEditBlockPaddingX: string
@@ -201,6 +203,12 @@ export type PartnerWebsiteCopy = {
   visualEditPageButtonHint: string
   visualEditChromeWidgetTitle: string
   visualEditChromeWidgetHint: string
+  visualEditChatIconLogoTitle: string
+  visualEditChatIconLogoHint: string
+  visualEditChatIconLogoDefaultPrompt: string
+  visualEditChatIconLogoPromptPlaceholder: string
+  visualEditChatIconLogoCreate: string
+  visualEditChatIconLogoUpload: string
   visualEditSearchTitle: string
   visualEditSearchHint: string
   visualEditSearchSubmitTitle: string
@@ -218,6 +226,11 @@ export type PartnerWebsiteCopy = {
   visualEditPlaceholderColor: string
   visualEditBadgeTitle: string
   visualEditBadgeHint: string
+  visualEditChatEmbedTitle: string
+  visualEditChatEmbedHint: string
+  visualEditChatEmbedOpenSettings: string
+  visualEditChatEmbedDelete: string
+  visualEditChatEmbedRestore: string
   visualEditAddedBgHint: string
   visualEditDeleteBg: string
   visualEditNavLinkTitle: string
@@ -271,8 +284,13 @@ export type PartnerWebsiteCopy = {
   visualEditAddGroupNav: string
   visualEditAddStyleTitle: string
   visualEditAddStyleIcon: string
+  visualEditAddStyleIconSquare: string
   visualEditAddStyleIconLabel: string
+  visualEditAddStyleIconLabelBelow: string
+  visualEditAddStyleIconLabelLeft: string
   visualEditAddStyleText: string
+  visualEditChromeIconSize: string
+  visualEditChromeBtnSize: string
   visualEditBtnStyleHero: string
   visualEditBtnStylePrimary: string
   visualEditBtnStyleOutline: string
@@ -298,6 +316,7 @@ export type PartnerWebsiteCopy = {
   revisionNoteNavFooter: string
   revisionNoteBeforeRestore: string
   revisionNoteCta: string
+  revisionNoteChatLauncher: string
   revisionNoteSession: string
   /** M3.2 */
   floatingCtaPanelTitle: string
@@ -852,9 +871,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     previewPageLabel: 'Trang',
     visualEditAllPagesHint: 'Chọn trang và máy (Mobile / máy tính bảng / Desktop), rồi Sửa nhanh — ba bản lưu riêng, có thể khác nhau.',
     visualEditDeviceDesktop: 'Đang sửa bản Desktop',
+    visualEditDeviceLaptop: 'Đang sửa bản Laptop',
     visualEditDeviceTablet: 'Đang sửa bản máy tính bảng',
     visualEditDeviceMobile: 'Đang sửa bản Mobile',
-    visualEditDeviceHint: 'Mobile, máy tính bảng và Desktop lưu riêng. Sửa trên máy nào thì Xem mở đúng bản đó, cùng độ rộng.',
+    visualEditDeviceHint: 'Mobile, máy tính bảng, Laptop và Desktop lưu riêng. Sửa trên máy nào thì Xem mở đúng bản đó, cùng độ rộng.',
     visualEditSwitchDeviceConfirm: 'Chưa lưu bản này. Đổi máy sẽ mất chỉnh chưa lưu. Tiếp tục?',
     visualEditSwitchPageConfirm: 'Chưa lưu bản này. Đổi trang sẽ mất chỉnh chưa lưu. Tiếp tục?',
     visualEditLeaveTitle: 'Chưa lưu chỉnh sửa',
@@ -917,6 +937,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHide: 'Ẩn khối',
     visualEditBlockShow: 'Hiện lại',
     visualEditBlockDuplicate: 'Nhân bản',
+    visualEditChromeDuplicate: 'Icon này đã có trên màn hình này. Hãy xóa icon đang có rồi thêm lại.',
     visualEditBlockDelete: 'Xóa khối',
     visualEditBlockPaddingY: 'Khoảng cách dọc',
     visualEditBlockPaddingX: 'Khoảng cách ngang',
@@ -999,6 +1020,13 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeWidgetTitle: 'Nút chức năng shop',
     visualEditChromeWidgetHint:
       'Bấm trên web khách sẽ mở đúng chức năng này (giỏ, tài khoản, chat…). Không gắn link trang riêng.',
+    visualEditChatIconLogoTitle: 'Tạo logo icon Chat mua',
+    visualEditChatIconLogoHint:
+      'Cùng một logo icon cho mọi máy. Đổi ở đây thì Desktop / Tablet / Mobile đều đổi. Tải ảnh lên hoặc tạo bằng AI.',
+    visualEditChatIconLogoDefaultPrompt: 'Nút chat: chữ Tư vấn to, chữ Nhắn tin nhỏ. Logo tràn hết viền icon.',
+    visualEditChatIconLogoPromptPlaceholder: 'Thêm ý nếu muốn (không bắt buộc)',
+    visualEditChatIconLogoCreate: 'Tạo logo icon',
+    visualEditChatIconLogoUpload: 'Tải ảnh làm logo icon',
     visualEditSearchTitle: 'Ô tìm kiếm',
     visualEditSearchHint: 'Kéo để đổi vị trí, kéo cạnh để đổi độ rộng. Khách gõ từ khóa tại đây để tìm sản phẩm.',
     visualEditSearchSubmitTitle: 'Nút tìm',
@@ -1016,6 +1044,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditPlaceholderColor: 'Màu chữ gợi ý',
     visualEditBadgeTitle: 'Nhãn',
     visualEditBadgeHint: 'Đổi chữ và màu nền nhãn (SALE, badge…).',
+    visualEditChatEmbedTitle: 'Nút chat nhúng',
+    visualEditChatEmbedHint:
+      'Bấm để chọn, rồi xóa nếu không muốn hiện nút chat trên web. Icon/GIF lấy từ logo shop (Messaging → Tích hợp API). Nút Tư vấn trên sản phẩm vẫn mở chat.',
+    visualEditChatEmbedOpenSettings: 'Mở cài đặt mã nhúng chat',
+    visualEditChatEmbedDelete: 'Xóa nút chat',
+    visualEditChatEmbedRestore: 'Hiện nút chat',
     visualEditAddedBgHint: 'Nền trang trí. Đổi màu, lớp, hoặc gắn vào header. Không gắn link trang.',
     visualEditDeleteBg: 'Xóa nền',
     visualEditNavLinkTitle: 'Liên kết trang',
@@ -1069,8 +1103,13 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddGroupNav: 'Đáy',
     visualEditAddStyleTitle: 'Kiểu nút',
     visualEditAddStyleIcon: 'Chỉ icon',
+    visualEditAddStyleIconSquare: 'Vuông bo góc',
     visualEditAddStyleIconLabel: 'Icon + chữ',
+    visualEditAddStyleIconLabelBelow: 'Chữ dưới icon',
+    visualEditAddStyleIconLabelLeft: 'Chữ bên trái',
     visualEditAddStyleText: 'Chỉ chữ',
+    visualEditChromeIconSize: 'Cỡ icon',
+    visualEditChromeBtnSize: 'Kích thước nút',
     visualEditBtnStyleHero: 'Nền trắng',
     visualEditBtnStylePrimary: 'Màu chính',
     visualEditBtnStyleOutline: 'Viền',
@@ -1096,6 +1135,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     revisionNoteNavFooter: 'Đổi menu / chân trang',
     revisionNoteBeforeRestore: 'Trước khi khôi phục',
     revisionNoteCta: 'Đổi nút CTA nổi',
+    revisionNoteChatLauncher: 'Ẩn / hiện nút chat',
     revisionNoteSession: 'Phiên chỉnh sửa',
     floatingCtaPanelTitle: "Nút liên hệ trên web",
     floatingCtaPanelHint: "Gắn nút Zalo, Facebook, gọi điện trên web. Có thể thêm một nút CTA tuỳ chọn.",
@@ -1665,9 +1705,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     previewPageLabel: 'Page',
     visualEditAllPagesHint: 'Pick a page and device (Mobile/Tablet/Desktop), then Quick edit — each layout is saved separately.',
     visualEditDeviceDesktop: 'Editing desktop layout',
+    visualEditDeviceLaptop: 'Editing laptop layout',
     visualEditDeviceTablet: 'Editing tablet layout',
     visualEditDeviceMobile: 'Editing mobile layout',
-    visualEditDeviceHint: 'Mobile, tablet, and desktop are saved separately. View opens that same layout at the same width.',
+    visualEditDeviceHint: 'Mobile, tablet, laptop, and desktop are saved separately. View opens that same layout at the same width.',
     visualEditSwitchDeviceConfirm: 'This layout is not saved. Switching device discards unsaved edits. Continue?',
     visualEditSwitchPageConfirm: 'This layout is not saved. Switching pages discards unsaved edits. Continue?',
     visualEditLeaveTitle: 'Unsaved edits',
@@ -1730,6 +1771,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHide: 'Hide block',
     visualEditBlockShow: 'Show again',
     visualEditBlockDuplicate: 'Duplicate',
+    visualEditChromeDuplicate: 'This icon already exists on this screen. Delete the existing icon before adding it again.',
     visualEditBlockDelete: 'Delete block',
     visualEditBlockPaddingY: 'Vertical spacing',
     visualEditBlockPaddingX: 'Horizontal spacing',
@@ -1812,6 +1854,13 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeWidgetTitle: 'Shop function button',
     visualEditChromeWidgetHint:
       'On the live site this opens that shop function (cart, account, chat…). It does not use a separate page link.',
+    visualEditChatIconLogoTitle: 'Create Chat mua icon logo',
+    visualEditChatIconLogoHint:
+      'One icon logo for every device. Change it here and Desktop / Tablet / Mobile all update. Upload an image or generate with AI.',
+    visualEditChatIconLogoDefaultPrompt: 'Chat button: large “Tư vấn”, small “Nhắn tin”. Logo fills the icon frame.',
+    visualEditChatIconLogoPromptPlaceholder: 'Add extra ideas (optional)',
+    visualEditChatIconLogoCreate: 'Create icon logo',
+    visualEditChatIconLogoUpload: 'Upload image as icon logo',
     visualEditSearchTitle: 'Search box',
     visualEditSearchHint: 'Drag to move, drag the edge to change width. Customers type here to find products.',
     visualEditSearchSubmitTitle: 'Search button',
@@ -1829,6 +1878,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditPlaceholderColor: 'Placeholder color',
     visualEditBadgeTitle: 'Badge',
     visualEditBadgeHint: 'Change badge text and background (SALE, labels…).',
+    visualEditChatEmbedTitle: 'Embedded chat button',
+    visualEditChatEmbedHint:
+      'Click to select, then delete to hide the chat button on the shop. Icon/GIF still comes from the shop logo (Messaging → API integration). Product Consult buttons still open chat.',
+    visualEditChatEmbedOpenSettings: 'Open chat embed settings',
+    visualEditChatEmbedDelete: 'Remove chat button',
+    visualEditChatEmbedRestore: 'Show chat button',
     visualEditAddedBgHint: 'Decorative fill. Change color, layer, or pin to the header. No page link.',
     visualEditDeleteBg: 'Remove fill',
     visualEditNavLinkTitle: 'Page link',
@@ -1882,8 +1937,13 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddGroupNav: 'Bottom',
     visualEditAddStyleTitle: 'Button style',
     visualEditAddStyleIcon: 'Icon only',
+    visualEditAddStyleIconSquare: 'Rounded square',
     visualEditAddStyleIconLabel: 'Icon + text',
+    visualEditAddStyleIconLabelBelow: 'Text below icon',
+    visualEditAddStyleIconLabelLeft: 'Text left of icon',
     visualEditAddStyleText: 'Text only',
+    visualEditChromeIconSize: 'Icon size',
+    visualEditChromeBtnSize: 'Button size',
     visualEditBtnStyleHero: 'White fill',
     visualEditBtnStylePrimary: 'Primary',
     visualEditBtnStyleOutline: 'Outline',
@@ -1909,6 +1969,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     revisionNoteNavFooter: 'Menu / footer',
     revisionNoteBeforeRestore: 'Before restore',
     revisionNoteCta: 'Floating CTA',
+    revisionNoteChatLauncher: 'Hide / show chat button',
     revisionNoteSession: 'Edit session',
     floatingCtaPanelTitle: "On-site contact buttons",
     floatingCtaPanelHint: "Add Zalo, Facebook, and call buttons on the shop. Optional extra promo CTA below.",
@@ -2476,9 +2537,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     previewPageLabel: '页面',
     visualEditAllPagesHint: '选择页面和设备（手机/平板/桌面）再快速编辑 — 三套布局分开保存，可以不同。',
     visualEditDeviceDesktop: '正在编辑桌面版',
+    visualEditDeviceLaptop: '正在编辑笔记本版',
     visualEditDeviceTablet: '正在编辑平板版',
     visualEditDeviceMobile: '正在编辑手机版',
-    visualEditDeviceHint: '手机版、平板版和桌面版分开保存。查看会打开当前正在编辑的版本，宽度相同。',
+    visualEditDeviceHint: '手机版、平板版、笔记本版和桌面版分开保存。查看会打开当前正在编辑的版本，宽度相同。',
     visualEditSwitchDeviceConfirm: '此布局尚未保存。切换设备会丢失未保存修改。继续？',
     visualEditSwitchPageConfirm: '此布局尚未保存。切换页面会丢失未保存修改。继续？',
     visualEditLeaveTitle: '尚未保存修改',
@@ -2541,6 +2603,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHide: '隐藏区块',
     visualEditBlockShow: '重新显示',
     visualEditBlockDuplicate: '复制',
+    visualEditChromeDuplicate: '此图标已在当前屏幕上存在。请先删除现有图标，再重新添加。',
     visualEditBlockDelete: '删除区块',
     visualEditBlockPaddingY: '垂直间距',
     visualEditBlockPaddingX: '水平间距',
@@ -2619,6 +2682,13 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditPageButtonHint: '在顾客网站上点击会打开下方链接中的页面。',
     visualEditChromeWidgetTitle: '店铺功能按钮',
     visualEditChromeWidgetHint: '在顾客网站上点击会打开对应功能（购物车、账户、聊天…）。不使用单独的页面链接。',
+    visualEditChatIconLogoTitle: '为「Chat mua」图标生成标志',
+    visualEditChatIconLogoHint:
+      '所有设备共用同一图标标志。在此更改后，桌面 / 平板 / 手机一并更新。可上传图片或用 AI 生成。',
+    visualEditChatIconLogoDefaultPrompt: '聊天按钮：大字「Tư vấn」，小字「Nhắn tin」。标志铺满图标边框。',
+    visualEditChatIconLogoPromptPlaceholder: '补充想法（可选）',
+    visualEditChatIconLogoCreate: '生成图标标志',
+    visualEditChatIconLogoUpload: '上传图片作为图标标志',
     visualEditSearchTitle: '搜索框',
     visualEditSearchHint: '拖动可改位置，拖边缘可改宽度。顾客在此输入关键词查找商品。',
     visualEditSearchSubmitTitle: '搜索按钮',
@@ -2636,6 +2706,11 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditPlaceholderColor: '占位符颜色',
     visualEditBadgeTitle: '标签',
     visualEditBadgeHint: '更改标签文字和背景（促销、角标…）。',
+    visualEditChatEmbedTitle: '嵌入聊天按钮',
+    visualEditChatEmbedHint: '点击选中，再删除即可在店铺隐藏聊天按钮。图标/GIF 仍来自店铺标志（消息 → API 集成）。商品页「咨询」按钮仍可打开聊天。',
+    visualEditChatEmbedOpenSettings: '打开聊天嵌入设置',
+    visualEditChatEmbedDelete: '删除聊天按钮',
+    visualEditChatEmbedRestore: '显示聊天按钮',
     visualEditAddedBgHint: '装饰背景。可改颜色、图层，或固定到页头。没有页面链接。',
     visualEditDeleteBg: '删除背景',
     visualEditNavLinkTitle: '页面链接',
@@ -2689,8 +2764,13 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddGroupNav: '底栏',
     visualEditAddStyleTitle: '按钮样式',
     visualEditAddStyleIcon: '仅图标',
+    visualEditAddStyleIconSquare: '圆角方标',
     visualEditAddStyleIconLabel: '图标+文字',
+    visualEditAddStyleIconLabelBelow: '文字在图标下',
+    visualEditAddStyleIconLabelLeft: '文字在图标左',
     visualEditAddStyleText: '仅文字',
+    visualEditChromeIconSize: '图标大小',
+    visualEditChromeBtnSize: '按钮大小',
     visualEditBtnStyleHero: '白底',
     visualEditBtnStylePrimary: '主色',
     visualEditBtnStyleOutline: '描边',
@@ -2716,6 +2796,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     revisionNoteNavFooter: '菜单 / 页脚',
     revisionNoteBeforeRestore: '恢复前',
     revisionNoteCta: '悬浮 CTA',
+    revisionNoteChatLauncher: '隐藏 / 显示聊天按钮',
     revisionNoteSession: '编辑会话',
     floatingCtaPanelTitle: "网站联系按钮",
     floatingCtaPanelHint: "在网站上添加 Zalo、Facebook、电话按钮。下方可再加一个促销 CTA。",
@@ -3266,9 +3347,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     previewPageLabel: 'ページ',
     visualEditAllPagesHint: 'ページと端末（モバイル/タブレット/デスクトップ）を選んでクイック編集 — レイアウトは別々に保存できます。',
     visualEditDeviceDesktop: 'デスクトップ版を編集中',
+    visualEditDeviceLaptop: 'ノートPC版を編集中',
     visualEditDeviceTablet: 'タブレット版を編集中',
     visualEditDeviceMobile: 'モバイル版を編集中',
-    visualEditDeviceHint: 'モバイル・タブレット・デスクトップは別保存。表示は編集中の版を同じ幅で開きます。',
+    visualEditDeviceHint: 'モバイル・タブレット・ノートPC・デスクトップは別保存。表示は編集中の版を同じ幅で開きます。',
     visualEditSwitchDeviceConfirm: '未保存の変更があります。端末を切り替えると破棄されます。続行しますか？',
     visualEditSwitchPageConfirm: '未保存の変更があります。ページを切り替えると破棄されます。続行しますか？',
     visualEditLeaveTitle: '未保存の変更',
@@ -3331,6 +3413,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHide: 'ブロックを隠す',
     visualEditBlockShow: '再表示',
     visualEditBlockDuplicate: '複製',
+    visualEditChromeDuplicate: 'この画面には同じアイコンが既にあります。既存のアイコンを削除してから追加し直してください。',
     visualEditBlockDelete: 'ブロックを削除',
     visualEditBlockPaddingY: '上下の余白',
     visualEditBlockPaddingX: '左右の余白',
@@ -3413,6 +3496,13 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeWidgetTitle: 'ショップ機能ボタン',
     visualEditChromeWidgetHint:
       '公開サイトではその機能（カート、アカウント、チャットなど）が開きます。別のページリンクは使いません。',
+    visualEditChatIconLogoTitle: 'Chat muaアイコンのロゴを作成',
+    visualEditChatIconLogoHint:
+      '全端末で同じアイコンロゴを使います。ここで変えるとデスクトップ / タブレット / モバイルが同時に変わります。画像アップロードまたは AI 生成。',
+    visualEditChatIconLogoDefaultPrompt: 'チャットボタン：大きい「Tư vấn」、小さい「Nhắn tin」。ロゴは枠いっぱいに。',
+    visualEditChatIconLogoPromptPlaceholder: '追加の要望（任意）',
+    visualEditChatIconLogoCreate: 'アイコンロゴを作成',
+    visualEditChatIconLogoUpload: '画像をアップロードしてアイコンに',
     visualEditSearchTitle: '検索ボックス',
     visualEditSearchHint: 'ドラッグで位置、端をドラッグで幅。お客様はここで商品を検索します。',
     visualEditSearchSubmitTitle: '検索ボタン',
@@ -3430,6 +3520,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditPlaceholderColor: 'プレースホルダー色',
     visualEditBadgeTitle: 'バッジ',
     visualEditBadgeHint: 'バッジの文字と背景（SALE など）を変更します。',
+    visualEditChatEmbedTitle: '埋め込みチャットボタン',
+    visualEditChatEmbedHint:
+      'クリックして選択し、削除すると店舗のチャットボタンを非表示にします。アイコン/GIF はショップロゴ（メッセージ → API 連携）のままです。商品の相談ボタンは引き続きチャットを開きます。',
+    visualEditChatEmbedOpenSettings: 'チャット埋め込み設定を開く',
+    visualEditChatEmbedDelete: 'チャットボタンを削除',
+    visualEditChatEmbedRestore: 'チャットボタンを表示',
     visualEditAddedBgHint: '装飾の背景。色・レイヤー・ヘッダー固定を変更できます。ページリンクはありません。',
     visualEditDeleteBg: '背景を削除',
     visualEditNavLinkTitle: 'ページリンク',
@@ -3483,8 +3579,13 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddGroupNav: '下部',
     visualEditAddStyleTitle: 'ボタンの種類',
     visualEditAddStyleIcon: 'アイコンのみ',
+    visualEditAddStyleIconSquare: '角丸四角',
     visualEditAddStyleIconLabel: 'アイコン+文字',
+    visualEditAddStyleIconLabelBelow: '文字を下に',
+    visualEditAddStyleIconLabelLeft: '文字を左に',
     visualEditAddStyleText: '文字のみ',
+    visualEditChromeIconSize: 'アイコンサイズ',
+    visualEditChromeBtnSize: 'ボタンサイズ',
     visualEditBtnStyleHero: '白背景',
     visualEditBtnStylePrimary: 'メイン',
     visualEditBtnStyleOutline: '枠線',
@@ -3510,6 +3611,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     revisionNoteNavFooter: 'メニュー / フッター',
     revisionNoteBeforeRestore: '復元前',
     revisionNoteCta: 'フローティング CTA',
+    revisionNoteChatLauncher: 'チャットボタンの表示 / 非表示',
     revisionNoteSession: '編集セッション',
     floatingCtaPanelTitle: "サイトの連絡ボタン",
     floatingCtaPanelHint: "サイトに Zalo・Facebook・電話ボタンを設置。下に任意のプロモ CTA も追加できます。",
@@ -4067,9 +4169,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     previewPageLabel: '페이지',
     visualEditAllPagesHint: '페이지와 기기(모바일/태블릿/데스크톱)를 고른 뒤 빠른 편집 — 레이아웃은 따로 저장됩니다.',
     visualEditDeviceDesktop: '데스크톱 레이아웃 편집 중',
+    visualEditDeviceLaptop: '노트북 레이아웃 편집 중',
     visualEditDeviceTablet: '태블릿 레이아웃 편집 중',
     visualEditDeviceMobile: '모바일 레이아웃 편집 중',
-    visualEditDeviceHint: '모바일, 태블릿, 데스크톱은 따로 저장됩니다. 보기는 지금 편집 중인 판을 같은 너비로 엽니다.',
+    visualEditDeviceHint: '모바일, 태블릿, 노트북, 데스크톱은 따로 저장됩니다. 보기는 지금 편집 중인 판을 같은 너비로 엽니다.',
     visualEditSwitchDeviceConfirm: '저장하지 않은 변경이 있습니다. 기기를 바꾸면 사라집니다. 계속할까요?',
     visualEditSwitchPageConfirm: '저장하지 않은 변경이 있습니다. 페이지를 바꾸면 사라집니다. 계속할까요?',
     visualEditLeaveTitle: '저장하지 않은 변경',
@@ -4132,6 +4235,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHide: '블록 숨기기',
     visualEditBlockShow: '다시 표시',
     visualEditBlockDuplicate: '복제',
+    visualEditChromeDuplicate: '이 화면에 같은 아이콘이 이미 있습니다. 기존 아이콘을 삭제한 뒤 다시 추가하세요.',
     visualEditBlockDelete: '블록 삭제',
     visualEditBlockPaddingY: '세로 여백',
     visualEditBlockPaddingX: '가로 여백',
@@ -4214,6 +4318,13 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeWidgetTitle: '쇼핑몰 기능 버튼',
     visualEditChromeWidgetHint:
       '고객 사이트에서 누르면 해당 기능(장바구니, 계정, 채팅 등)이 열립니다. 별도 페이지 링크는 없습니다.',
+    visualEditChatIconLogoTitle: 'Chat mua 아이콘 로고 만들기',
+    visualEditChatIconLogoHint:
+      '모든 기기에서 같은 아이콘 로고를 씁니다. 여기서 바꾸면 데스크톱 / 태블릿 / 모바일이 함께 바뀝니다. 이미지 업로드 또는 AI 생성.',
+    visualEditChatIconLogoDefaultPrompt: '채팅 버튼: 큰 글자 Tư vấn, 작은 글자 Nhắn tin. 로고가 테두리까지 채움.',
+    visualEditChatIconLogoCreate: '아이콘 로고 만들기',
+    visualEditChatIconLogoUpload: '이미지를 아이콘 로고로 올리기',
+    visualEditChatIconLogoPromptPlaceholder: '추가 아이디어 (선택)',
     visualEditSearchTitle: '검색창',
     visualEditSearchHint: '드래그로 위치, 가장자리로 너비. 고객은 여기서 상품을 검색합니다.',
     visualEditSearchSubmitTitle: '검색 버튼',
@@ -4231,6 +4342,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditPlaceholderColor: '안내 글 색',
     visualEditBadgeTitle: '배지',
     visualEditBadgeHint: '배지 글과 배경(SALE 등)을 바꿉니다.',
+    visualEditChatEmbedTitle: '임베드 채팅 버튼',
+    visualEditChatEmbedHint:
+      '클릭해 선택한 뒤 삭제하면 쇼핑몰에서 채팅 버튼이 숨겨집니다. 아이콘/GIF는 매장 로고(메시징 → API 연동)를 씁니다. 상품 상담 버튼은 계속 채팅을 엽니다.',
+    visualEditChatEmbedOpenSettings: '채팅 임베드 설정 열기',
+    visualEditChatEmbedDelete: '채팅 버튼 삭제',
+    visualEditChatEmbedRestore: '채팅 버튼 표시',
     visualEditAddedBgHint: '장식 배경. 색, 레이어, 헤더 고정을 바꿉니다. 페이지 링크는 없습니다.',
     visualEditDeleteBg: '배경 삭제',
     visualEditNavLinkTitle: '페이지 링크',
@@ -4284,8 +4401,13 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddGroupNav: '하단',
     visualEditAddStyleTitle: '버튼 스타일',
     visualEditAddStyleIcon: '아이콘만',
+    visualEditAddStyleIconSquare: '둥근 사각형',
     visualEditAddStyleIconLabel: '아이콘+텍스트',
+    visualEditAddStyleIconLabelBelow: '텍스트 아래',
+    visualEditAddStyleIconLabelLeft: '텍스트 왼쪽',
     visualEditAddStyleText: '텍스트만',
+    visualEditChromeIconSize: '아이콘 크기',
+    visualEditChromeBtnSize: '버튼 크기',
     visualEditBtnStyleHero: '흰 배경',
     visualEditBtnStylePrimary: '메인 색',
     visualEditBtnStyleOutline: '외곽선',
@@ -4311,6 +4433,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     revisionNoteNavFooter: '메뉴 / 푸터',
     revisionNoteBeforeRestore: '복원 전',
     revisionNoteCta: '플로팅 CTA',
+    revisionNoteChatLauncher: '채팅 버튼 숨김 / 표시',
     revisionNoteSession: '편집 세션',
     floatingCtaPanelTitle: "사이트 연락 버튼",
     floatingCtaPanelHint: "스토어에 Zalo, Facebook, 전화 버튼을 답니다. 아래에 프로모 CTA를 추가할 수 있습니다.",

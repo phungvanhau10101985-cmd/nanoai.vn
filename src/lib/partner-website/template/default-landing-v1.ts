@@ -583,6 +583,7 @@ export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): P
     ...(o.useVisualHtml === true ? { useVisualHtml: true } : {}),
     ...(o.useVisualMobileHtml === true ? { useVisualMobileHtml: true } : {}),
     ...(o.useVisualTabletHtml === true ? { useVisualTabletHtml: true } : {}),
+    ...(o.useVisualLaptopHtml === true ? { useVisualLaptopHtml: true } : {}),
     ...(Array.isArray(o.visualPageKeys) && o.visualPageKeys.length
       ? {
           visualPageKeys: o.visualPageKeys
@@ -602,6 +603,14 @@ export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): P
     ...(Array.isArray(o.visualTabletPageKeys) && o.visualTabletPageKeys.length
       ? {
           visualTabletPageKeys: o.visualTabletPageKeys
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .map((k) => k.trim())
+            .slice(0, 40),
+        }
+      : {}),
+    ...(Array.isArray(o.visualLaptopPageKeys) && o.visualLaptopPageKeys.length
+      ? {
+          visualLaptopPageKeys: o.visualLaptopPageKeys
             .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
             .map((k) => k.trim())
             .slice(0, 40),
@@ -631,6 +640,14 @@ export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): P
             .slice(0, 80),
         }
       : {}),
+    ...(Array.isArray(o.visualLaptopCategoryPaths) && o.visualLaptopCategoryPaths.length
+      ? {
+          visualLaptopCategoryPaths: o.visualLaptopCategoryPaths
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .map((k) => k.trim())
+            .slice(0, 80),
+        }
+      : {}),
     ...(Array.isArray(o.visualProductIds) && o.visualProductIds.length
       ? {
           visualProductIds: o.visualProductIds
@@ -650,6 +667,14 @@ export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): P
     ...(Array.isArray(o.visualTabletProductIds) && o.visualTabletProductIds.length
       ? {
           visualTabletProductIds: o.visualTabletProductIds
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .map((k) => k.trim())
+            .slice(0, 80),
+        }
+      : {}),
+    ...(Array.isArray(o.visualLaptopProductIds) && o.visualLaptopProductIds.length
+      ? {
+          visualLaptopProductIds: o.visualLaptopProductIds
             .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
             .map((k) => k.trim())
             .slice(0, 80),
@@ -679,6 +704,18 @@ export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): P
             .slice(0, 80),
         }
       : {}),
+    ...(Array.isArray(o.visualLaptopCmsSlugs) && o.visualLaptopCmsSlugs.length
+      ? {
+          visualLaptopCmsSlugs: o.visualLaptopCmsSlugs
+            .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+            .map((k) => k.trim())
+            .slice(0, 80),
+        }
+      : {}),
     ...(floatingCta ? { floatingCta } : {}),
+    ...(o.hideChatLauncher === true ? { hideChatLauncher: true } : {}),
+    ...(typeof o.chatIconLogoUrl === 'string' && o.chatIconLogoUrl.trim()
+      ? { chatIconLogoUrl: o.chatIconLogoUrl.trim() }
+      : {}),
   }
 }

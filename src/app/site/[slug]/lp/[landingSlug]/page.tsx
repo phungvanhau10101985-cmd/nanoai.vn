@@ -73,6 +73,7 @@ export default async function PartnerLandingPublicPage({ params }: Props) {
           shopName={landing.title}
           logoUrl={landing.logoUrl}
           locale={landing.locale}
+          hideLauncher={website?.theme.hideChatLauncher === true}
         >
           {themeCss ? <style dangerouslySetInnerHTML={{ __html: themeCss }} /> : null}
           <LandingAiSectionsView sections={sections} context={context} />
@@ -105,6 +106,7 @@ export default async function PartnerLandingPublicPage({ params }: Props) {
       shopName={landing.title}
       logoUrl={landing.logoUrl}
       locale={landing.locale}
+      hideChatLauncher={website?.theme.hideChatLauncher === true}
     />
   )
 }

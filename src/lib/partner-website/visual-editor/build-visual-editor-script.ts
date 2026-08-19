@@ -3,6 +3,7 @@ import {
   PW_CHROME_COUNT_BADGE_HIDE_CSS,
   PW_CHROME_COUNT_BADGE_RUNTIME_JS,
 } from '../shop/chrome-count-badges'
+import { PARTNER_SHOP_CHROME_FLOAT_POS_JS, PW_CHROME_FLOAT_KINDS } from '../shop/chrome-float-widgets'
 import {
   PW_SCENE_ATTR,
   PW_SCENE_BAND,
@@ -157,7 +158,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function snapshotPage() {
     var clone = document.body.cloneNode(true)
-    var kill = clone.querySelectorAll('#nanoai-visual-editor-script,#nanoai-visual-editor-styles,#nanoai-ve-guides,.nanoai-ve-ignore,[data-nanoai-ve-ignore]')
+    var kill = clone.querySelectorAll('#nanoai-visual-editor-script,#nanoai-visual-editor-styles,#nanoai-ve-guides,.nanoai-ve-ignore,[data-nanoai-ve-ignore],[data-pw-ve-chat-preview]')
     for (var i = 0; i < kill.length; i++) kill[i].remove()
     var marked = clone.querySelectorAll('.nanoai-ve-highlight,.nanoai-ve-hover,.nanoai-ve-dragging,.nanoai-ve-photo-edit')
     for (var j = 0; j < marked.length; j++) {
@@ -863,7 +864,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return !!(el && el.closest && el.closest('header, .pw-header, .pw-shop-header'))
   }
   function pwStampDevice() {
-    return (editDevice === 'mobile' || editDevice === 'tablet') ? editDevice : 'desktop'
+    return (editDevice === 'mobile' || editDevice === 'tablet' || editDevice === 'laptop') ? editDevice : 'desktop'
   }
   function isMobileEdit() {
     return editDevice === 'mobile' || editDevice === 'tablet' || (window.innerWidth || 400) < 900
@@ -1616,6 +1617,85 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (['script','style','img','svg','iframe','button','a','input'].indexOf(tag) >= 0) return false
     return Boolean(extractBgUrl(el))
   }
+  function parseChromeIconSize(el) {
+    if (!el || !el.getAttribute) return 22
+    var attr = Number(el.getAttribute('data-pw-chrome-size'))
+    if (attr >= 16 && attr <= 100) return Math.round(attr)
+    try {
+      var raw = cs(el).getPropertyValue('--pw-chrome-size')
+      var n = parseFloat(raw)
+      if (n >= 16 && n <= 100) return Math.round(n)
+    } catch (errSize) {}
+    return 22
+  }
+  function keepChromeIconCenter(el, before) {
+    if (!el || !el.style || !before) return
+    if (!(before.width > 0 || before.height > 0)) return
+    var after = null
+    try { after = el.getBoundingClientRect() } catch (errAfter) { return }
+    if (!after) return
+    var shiftX = (before.left + before.width / 2) - (after.left + after.width / 2)
+    var shiftY = (before.top + before.height / 2) - (after.top + after.height / 2)
+    if (Math.abs(shiftX) < 0.5 && Math.abs(shiftY) < 0.5) return
+    // Newly added floats sit on CSS right/bottom. Pinning left/top or transform
+    // drops them at the header origin (0,0) as soon as size changes.
+    if (isChromeFloatEl(el) && !isUserMoved(el)) return
+    var pos = ''
+    try { pos = String(cs(el).position || '') } catch (errPos) { pos = '' }
+    if (isChromeFloatEl(el) && (pos === 'absolute' || pos === 'fixed')) {
+      el.style.setProperty('position', 'fixed', 'important')
+      el.style.setProperty('left', Math.round(after.left + shiftX) + 'px', 'important')
+      el.style.setProperty('top', Math.round(after.top + shiftY) + 'px', 'important')
+      el.style.setProperty('right', 'auto', 'important')
+      el.style.setProperty('bottom', 'auto', 'important')
+      el.style.setProperty('transform', 'none', 'important')
+      markUserMoved(el)
+      try { pwChromeFloatBakePct(el) } catch (errBakeSize) {}
+      return
+    }
+    var leftRaw = String(el.style.left || '')
+    var topRaw = String(el.style.top || '')
+    var left = parseFloat(leftRaw)
+    var top = parseFloat(topRaw)
+    if (
+      (pos === 'absolute' || pos === 'fixed') &&
+      leftRaw.indexOf('px') >= 0 &&
+      topRaw.indexOf('px') >= 0 &&
+      isFinite(left) &&
+      isFinite(top)
+    ) {
+      el.style.setProperty('left', Math.round(left + shiftX) + 'px', 'important')
+      el.style.setProperty('top', Math.round(top + shiftY) + 'px', 'important')
+      el.style.setProperty('right', 'auto', 'important')
+      el.style.setProperty('bottom', 'auto', 'important')
+      markUserMoved(el)
+      return
+    }
+    var t = parseTransform(el)
+    applyTranslatePx(el, t.x + shiftX, t.y + shiftY)
+    markUserMoved(el)
+  }
+  function applyChromeIconSize(el, size) {
+    if (!el || !el.setAttribute) return
+    var n = Math.round(Number(size))
+    if (!(n >= 16 && n <= 100)) n = 22
+    var before = null
+    try { before = el.getBoundingClientRect() } catch (errBefore) { before = null }
+    el.setAttribute('data-pw-chrome-size', String(n))
+    try { el.style.setProperty('--pw-chrome-size', n + 'px') } catch (errSetSize) {}
+    try { sizeChromeIcons(el) } catch (errSizeIcons) {}
+    try { keepChromeIconCenter(el, before) } catch (errKeepCenter) {}
+  }
+  function setChromeSize(size) {
+    var el = selected
+      ? (chromeBtnElOf(selected) || catToggleElOf(selected) || searchImageElOf(selected) || selected)
+      : null
+    if (!el) return
+    applyChromeIconSize(el, size)
+    try { positionAllHandles() } catch (errPosHandles) {}
+    post('dirty', {})
+    refreshSelect()
+  }
   function chromeKindOf(el) {
     var host = chromeBtnElOf(el) || el
     if (!host || !host.getAttribute) return ''
@@ -1640,8 +1720,195 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (bottom) return bottom
     return el.closest ? el.closest('.pw-icon-btn,.pw-shop-icon-btn,[data-pw-chrome-btn],[data-pw-chrome-added]') : null
   }
+  function isChromeChatBtn(el) {
+    if (!el || el.nodeType !== 1) return false
+    if (el.getAttribute && el.getAttribute('data-pw-chrome-btn') === 'chat') return true
+    return !!(el.closest && el.closest('[data-pw-chrome-btn="chat"]'))
+  }
+  function chromeChatBtnOf(el) {
+    if (!el || el.nodeType !== 1) return null
+    if (el.getAttribute && el.getAttribute('data-pw-chrome-btn') === 'chat') return el
+    return el.closest ? el.closest('[data-pw-chrome-btn="chat"]') : null
+  }
+  function isChatEmbedLauncher(el) {
+    if (!el || el.nodeType !== 1) return false
+    if (isChromeChatBtn(el)) return false
+    if (el.getAttribute && el.getAttribute('data-pw-chat-launcher') === '1') return true
+    if (el.getAttribute && el.getAttribute('data-nanoai-chat-bubble') === '1') return true
+    return hasClassToken(el, 'pw-fab-chat')
+  }
+  function chatEmbedLauncherOf(el) {
+    if (!el || el.nodeType !== 1) return null
+    if (isChatEmbedLauncher(el)) return el
+    return el.closest
+      ? el.closest('[data-pw-chat-launcher="1"],[data-nanoai-chat-bubble="1"],.pw-fab-chat')
+      : null
+  }
+  function chatEmbedAtPoint(x, y) {
+    var nodes = document.querySelectorAll('[data-pw-chat-launcher="1"],[data-nanoai-chat-bubble="1"],.pw-fab-chat')
+    for (var i = nodes.length - 1; i >= 0; i--) {
+      var el = nodes[i]
+      if (el.getAttribute && el.getAttribute('data-pw-hidden') === '1') continue
+      if (pointInEl(el, x, y)) return el
+    }
+    return null
+  }
+  var chatLauncherHidden = false
+  var chatPrepLogoUrl = ''
+  var chatPrepDevice = 'desktop'
+  function applyChatLogoToChromeBtn(btn, url, force) {
+    if (!btn || !url || !/^https?:/i.test(String(url))) return
+    if (!force && btn.getAttribute && btn.getAttribute('data-pw-chat-icon-logo') === '1') return
+    var wrap = btn.querySelector ? btn.querySelector('.pw-chrome-icon-wrap') : null
+    if (!wrap) return
+    var img = wrap.querySelector ? wrap.querySelector('img.pw-chrome-chat-logo') : null
+    if (!img) {
+      var svgs = wrap.querySelectorAll ? wrap.querySelectorAll('svg') : []
+      for (var si = 0; si < svgs.length; si++) svgs[si].parentNode && svgs[si].parentNode.removeChild(svgs[si])
+      img = document.createElement('img')
+      img.className = 'pw-chrome-chat-logo'
+      img.alt = ''
+      img.setAttribute('width', '22')
+      img.setAttribute('height', '22')
+      img.setAttribute('draggable', 'false')
+      wrap.insertBefore(img, wrap.firstChild)
+    }
+    img.src = String(url)
+    if (force) btn.setAttribute('data-pw-chat-icon-logo', '1')
+  }
+  function setChatIconLogo(url) {
+    applyChatLogoToChromeButtons(url, true)
+    post('dirty', {})
+    refreshSelect()
+  }
+  function applyChatLogoToChromeButtons(url, force) {
+    var u = String(url || '').trim()
+    if (!u || !/^https?:/i.test(u)) return
+    var nodes = document.querySelectorAll('[data-pw-chrome-btn="chat"]')
+    for (var i = 0; i < nodes.length; i++) applyChatLogoToChromeBtn(nodes[i], u, force)
+  }
+  function stampChatEmbedLauncher(el) {
+    if (!el || isChromeChatBtn(el)) return
+    el.setAttribute('data-pw-chat-launcher', '1')
+    try {
+      el.style.pointerEvents = 'auto'
+    } catch (errChatPe) {}
+  }
+  function neutralizeChatWidgetLauncher(el) {
+    if (!el || !el.parentNode) return el
+    var clone = el.cloneNode(true)
+    el.parentNode.replaceChild(clone, el)
+    stampChatEmbedLauncher(clone)
+    return clone
+  }
+  function listChatEmbedLaunchers() {
+    return document.querySelectorAll('[data-pw-chat-launcher="1"],[data-nanoai-chat-bubble="1"],.pw-fab-chat')
+  }
+  function hideChatEmbedLaunchers() {
+    chatLauncherHidden = true
+    var nodes = listChatEmbedLaunchers()
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i]
+      if (el.getAttribute && el.getAttribute('data-pw-ve-chat-preview') === '1') {
+        if (el.parentNode) el.parentNode.removeChild(el)
+      } else {
+        el.setAttribute('data-pw-hidden', '1')
+      }
+    }
+    selected = null
+    hideResizeHandle()
+    hideDeleteHandle()
+    hideMoveHandle()
+    hideDropLine()
+    hideAlignGuides()
+    post('deselect', {})
+    post('hideChatLauncher', { hidden: true })
+    post('dirty', {})
+    postHidden()
+  }
+  function restoreChatEmbedLauncher() {
+    chatLauncherHidden = false
+    var nodes = listChatEmbedLaunchers()
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].removeAttribute('data-pw-hidden')
+      try { nodes[i].style.display = '' } catch (errChatShow) {}
+    }
+    injectChatEmbedPreview(chatPrepLogoUrl, chatPrepDevice)
+    var next = document.querySelector('[data-pw-chat-launcher="1"],[data-nanoai-chat-bubble="1"],.pw-fab-chat')
+    if (next) selectEl(next)
+    post('hideChatLauncher', { hidden: false })
+    post('dirty', {})
+    postHidden()
+  }
+  function injectChatEmbedPreview(logoUrl, device) {
+    if (chatLauncherHidden) return
+    if (document.querySelector('[data-pw-chrome-btn="chat"]')) return
+    if (document.querySelector('[data-pw-chat-launcher="1"],[data-nanoai-chat-bubble="1"],.pw-fab-chat')) return
+    var btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'pw-fab-chat pw-chat-embed-preview'
+    stampChatEmbedLauncher(btn)
+    btn.setAttribute('data-pw-ve-chat-preview', '1')
+    btn.setAttribute('aria-label', 'Chat')
+    var bottom = device === 'mobile' || device === 'tablet' ? '84px' : '16px'
+    btn.style.cssText =
+      'position:fixed;right:16px;bottom:' +
+      bottom +
+      ';z-index:2147483001;width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;padding:0;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.2);background:var(--pw-accent,#6366f1);display:flex;align-items:center;justify-content:center;'
+    var logo = String(logoUrl || '').trim()
+    if (logo && /^https?:/i.test(logo)) {
+      var img = document.createElement('img')
+      img.src = logo
+      img.alt = ''
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;pointer-events:none'
+      btn.appendChild(img)
+    } else {
+      btn.textContent = '💬'
+      btn.style.fontSize = '22px'
+      btn.style.color = '#fff'
+    }
+    document.body.appendChild(btn)
+  }
+  function prepareChatEmbedForEditor(d) {
+    d = d || {}
+    var logoUrl = String(d.logoUrl || '').trim()
+    var chatIconLogoUrl = String(d.chatIconLogoUrl || '').trim()
+    var sharedChatIcon = chatIconLogoUrl && /^https?:/i.test(chatIconLogoUrl) ? chatIconLogoUrl : ''
+    var device = d.device === 'mobile' || d.device === 'tablet' || d.device === 'laptop' ? d.device : 'desktop'
+    chatPrepLogoUrl = sharedChatIcon || logoUrl
+    chatPrepDevice = device
+    if (d.hideChatLauncher === true) chatLauncherHidden = true
+    if (d.hideChatLauncher === false) chatLauncherHidden = false
+    var roots = document.querySelectorAll('#nanoai-chat-widget-v1,[data-widget-id="nanoai-chat-widget-v1"]')
+    for (var ri = 0; ri < roots.length; ri++) {
+      var root = roots[ri]
+      try { root.style.pointerEvents = 'none' } catch (errChatRoot) {}
+      var panel = root.querySelector ? root.querySelector('.nanoai-chat-panel') : null
+      if (panel) panel.style.display = 'none'
+      var bubble = root.querySelector ? root.querySelector('[data-nanoai-chat-bubble="1"]') : null
+      if (bubble) neutralizeChatWidgetLauncher(bubble)
+    }
+    var fabs = document.querySelectorAll('.pw-fab-chat')
+    for (var fi = 0; fi < fabs.length; fi++) stampChatEmbedLauncher(fabs[fi])
+    if (sharedChatIcon) applyChatLogoToChromeButtons(sharedChatIcon, true)
+    else applyChatLogoToChromeButtons(logoUrl)
+    if (chatLauncherHidden) {
+      var hiddenNodes = listChatEmbedLaunchers()
+      for (var hi = 0; hi < hiddenNodes.length; hi++) {
+        if (isChromeChatBtn(hiddenNodes[hi])) continue
+        if (hiddenNodes[hi].getAttribute && hiddenNodes[hi].getAttribute('data-pw-ve-chat-preview') === '1') {
+          if (hiddenNodes[hi].parentNode) hiddenNodes[hi].parentNode.removeChild(hiddenNodes[hi])
+        } else {
+          hiddenNodes[hi].setAttribute('data-pw-hidden', '1')
+        }
+      }
+      return
+    }
+    injectChatEmbedPreview(logoUrl, device)
+  }
   function editKindOf(el) {
     if (!el) return 'other'
+    if (chatEmbedLauncherOf(el)) return 'chat-embed'
     if (isAddedBg(el)) return 'added-bg'
     if (isWordmarkTextEl(el)) return 'wordmark'
     if (isLogoTarget(el) || isLogoFrame(el) || isLogoSlot(el) || isLogoImg(el)) return 'logo'
@@ -1923,6 +2190,21 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (ph) return String(ph)
     return 'Tìm sản phẩm...'
   }
+  function searchSubmitIconSvg() {
+    return '<svg class="pw-shop-nav-icon pw-shop-search-submit-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>'
+  }
+  function ensureSearchSubmitIcon(scope) {
+    var root = scope && scope.querySelectorAll ? scope : document
+    var buttons = root.querySelectorAll('.pw-search-submit, .pw-shop-search-submit')
+    for (var i = 0; i < buttons.length; i++) {
+      var btn = buttons[i]
+      if (btn.querySelector && btn.querySelector('.pw-shop-search-submit-icon')) continue
+      var hold = document.createElement('span')
+      hold.innerHTML = searchSubmitIconSvg()
+      var icon = hold.firstChild
+      if (icon) btn.insertBefore(icon, btn.firstChild)
+    }
+  }
   function createSearchCluster() {
     var wrap = document.createElement('div')
     wrap.className = 'pw-header-search pw-shop-search-wrap'
@@ -1931,7 +2213,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     wrap.innerHTML = '<form class="pw-search-form pw-shop-search-form" data-pw-search-form role="search">' +
       '<input data-pw-search type="search" name="q" placeholder="' + ph + '" aria-label="' + ph + '" autocomplete="off"/>' +
       '<button type="button" class="pw-search-image-btn pw-shop-search-image" data-pw-image-search aria-label="Search image"></button>' +
-      '<button type="submit" class="pw-search-submit pw-shop-search-submit" aria-label="Search"></button></form>'
+      '<button type="submit" class="pw-search-submit pw-shop-search-submit" aria-label="Search">' + searchSubmitIconSvg() + '</button></form>'
     return wrap
   }
   function seatSearchInHeader(search, main) {
@@ -1973,6 +2255,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     pinSearchSlot(search)
     lockSearchBox(search, compactSearchMinWidth() + 38)
+    ensureSearchSubmitIcon(search)
   }
   function lockSearchBox(el, widthPx) {
     if (!el) return
@@ -1993,9 +2276,91 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       el.style.setProperty('max-width', 'none', 'important')
     }
   }
+  ${PARTNER_SHOP_CHROME_FLOAT_POS_JS}
+  function isChromeFloatKind(kind) {
+    var kinds = ${JSON.stringify(PW_CHROME_FLOAT_KINDS)}
+    return kinds.indexOf(String(kind || '')) >= 0
+  }
+  function isChromeFloatEl(el) {
+    if (!el || !el.getAttribute) return false
+    if (el.getAttribute('data-pw-chrome-float') === '1') return true
+    return isChromeFloatKind(chromeKindOf(el))
+  }
+  function isChromeContactChatKind(kind) {
+    return kind === 'chat' || kind === 'chat-zalo' || kind === 'chat-facebook'
+  }
+  function stampChromeFloat(el) {
+    if (!el || !el.setAttribute || !isChromeFloatEl(el)) return
+    el.setAttribute('data-pw-chrome-float', '1')
+  }
+  function releaseChromeFloatPin(el) {
+    if (!el || !el.style || !isChromeFloatEl(el)) return
+    stampChromeFloat(el)
+    if (el.getAttribute && el.getAttribute('data-pw-user-move') === '1') return
+    try {
+      el.style.removeProperty('position')
+      el.style.removeProperty('left')
+      el.style.removeProperty('top')
+      el.style.removeProperty('right')
+      el.style.removeProperty('bottom')
+      el.style.removeProperty('transform')
+      el.style.removeProperty('width')
+      el.style.removeProperty('height')
+      el.style.removeProperty('max-width')
+      el.style.removeProperty('max-height')
+    } catch (errRelFloat) {}
+  }
+  function pinExistingChromeFloat(el) {
+    if (!el || !isChromeFloatEl(el)) return
+    stampChromeFloat(el)
+    var placed = el.getAttribute && el.getAttribute('data-pw-user-move') === '1'
+    if (!placed) {
+      releaseChromeFloatPin(el)
+      return
+    }
+    pwChromeFloatRemap(el)
+  }
+  function chromeFloatOffViewport(el) {
+    var r
+    try { r = el.getBoundingClientRect() } catch (errOff) { return true }
+    if (!r || r.width < 4 || r.height < 4) return true
+    var viewW = window.innerWidth || 390
+    var viewH = window.innerHeight || 640
+    return r.right < 8 || r.left > viewW - 8 || r.bottom < 8 || r.top > viewH - 8
+  }
+  function revealChromeFloat(el) {
+    if (!el || !isChromeFloatEl(el)) return
+    try { el.removeAttribute('data-pw-hidden') } catch (errHid) {}
+    stampChromeFloat(el)
+    var kind = chromeKindOf(el)
+    var stuckTop = false
+    try {
+      var box = el.getBoundingClientRect()
+      stuckTop = !!(kind === 'topup' && box && box.top < 140 && box.bottom < 200)
+    } catch (errBox) {}
+    if (chromeFloatOffViewport(el) || stuckTop) {
+      if (el.removeAttribute) el.removeAttribute('data-pw-user-move')
+      releaseChromeFloatPin(el)
+    }
+    if (kind === 'topup' && el.classList) el.classList.add('pw-chrome-topup-on')
+  }
+  function stampAllChromeFloats() {
+    var kinds = ${JSON.stringify(PW_CHROME_FLOAT_KINDS)}
+    for (var i = 0; i < kinds.length; i++) {
+      var nodes = document.querySelectorAll('[data-pw-chrome-btn="' + kinds[i] + '"]')
+      for (var j = 0; j < nodes.length; j++) pinExistingChromeFloat(nodes[j])
+    }
+  }
+  function bakeChromeFloatPos(el) {
+    if (!el || !el.style || !isChromeFloatEl(el)) return
+    stampChromeFloat(el)
+    markUserMoved(el)
+    pwChromeFloatBakePct(el)
+  }
   function pinChromeFlowEl(el) {
     if (!el || !el.style) return
     if (el.classList && el.classList.contains('pw-stick-header-on')) return
+    if (isChromeFloatEl(el)) return
     if (isUserMoved(el) || (el.getAttribute && el.getAttribute('data-nanoai-ve-selected'))) return
     if (el.closest && el.closest('.pw-cat-panel, .pw-account-panel, .pw-shop-cat-panel, .pw-shop-account-panel')) return
     el.style.setProperty('transform', 'none', 'important')
@@ -2063,7 +2428,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function isIconOnlyChrome(el) {
     if (!isChromeBtn(el)) return false
     var style = currentChromeStyle(el)
-    return style === 'icon'
+    return style === 'icon' || style === 'icon-square'
   }
   function chromeLabelEl(el) {
     if (!el || !el.querySelector) return null
@@ -2517,6 +2882,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       markAll(form, 'button[type="submit"]', 'data-pw-el', 'submit')
     }
     markAll(document, '.pw-chat-cta .pw-btn, .pw-chat-cta button', 'data-pw-el', 'cta')
+    markAll(document, '.pw-fab-chat,[data-nanoai-chat-bubble="1"]', 'data-pw-region', 'chat')
+    markAll(document, '.pw-fab-chat,[data-nanoai-chat-bubble="1"]', 'data-pw-el', 'launcher')
+    markAll(document, '.pw-fab-chat,[data-nanoai-chat-bubble="1"]', 'data-pw-chat-launcher', '1')
     var bgRegions = {
       header: 1,
       banner: 1,
@@ -2910,8 +3278,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     el.setAttribute('data-pw-move-block', '1')
     var pos = ''
     try { pos = cs(el).position } catch (e) { pos = '' }
-    if (!pos || pos === 'static') el.style.position = 'relative'
-    el.style.zIndex = '2'
+    var authored = !!(el.getAttribute && (el.getAttribute('data-pw-z') || el.getAttribute(SCENE.attr)))
+    if ((!pos || pos === 'static') && !authored) el.style.position = 'relative'
+    applyDefaultZ(el, 2)
     return el
   }
   function isBannerMediaChild(n, host) {
@@ -3049,6 +3418,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       ensureMoveBlock(blocks[i])
     }
     try { freeAddedTextOverlays() } catch (errFreeText) {}
+    try { restoreAuthoredLayers() } catch (errZ) {}
   }
   function isAddedOverlay(n) {
     return !!(n && n.getAttribute && (n.getAttribute('data-pw-added-text') === '1' || n.getAttribute('data-pw-added-btn') === '1'))
@@ -3162,7 +3532,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (document.getElementById('nanoai-pw-overlay-style')) return
     var s = document.createElement('style')
     s.id = 'nanoai-pw-overlay-style'
-    s.textContent = '[data-pw-overlay="1"]~*{position:relative;z-index:1}.pw-hero[data-pw-has-overlay]::after,.pw-banner[data-pw-has-overlay]::after{display:none!important}'
+    s.textContent = '[data-pw-overlay="1"]~*:not([data-pw-z]):not([' + SCENE.attr + ']){position:relative;z-index:1}.pw-hero[data-pw-has-overlay]::after,.pw-banner[data-pw-has-overlay]::after{display:none!important}'
     document.head.appendChild(s)
   }
   function setOverlayPct(block, pct) {
@@ -3292,7 +3662,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     else {
       try {
         list = Array.prototype.slice.call(
-          scope.querySelectorAll('.pw-icon-btn svg, [data-pw-chrome-btn] svg, [data-pw-chrome-added] svg')
+          scope.querySelectorAll('.pw-icon-btn svg, [data-pw-chrome-btn] svg, [data-pw-chrome-added] svg, [data-pw-el="cat-toggle"] svg, [data-pw-cat-toggle] svg, [data-pw-image-search] svg')
         )
       } catch (err) {
         list = []
@@ -3300,13 +3670,17 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     for (var i = 0; i < list.length; i++) {
       var svg = list[i]
-      svg.setAttribute('width', '20')
-      svg.setAttribute('height', '20')
-      svg.style.width = '20px'
-      svg.style.height = '20px'
-      svg.style.maxWidth = '20px'
-      svg.style.maxHeight = '20px'
+      var host = svg.closest ? (svg.closest('[data-pw-chrome-btn],[data-pw-chrome-added],.pw-icon-btn,.pw-shop-icon-btn,[data-pw-el="cat-toggle"],[data-pw-cat-toggle],[data-pw-image-search]') || svg.parentElement) : null
+      var n = parseChromeIconSize(host)
+      var px = n + 'px'
+      svg.setAttribute('width', String(n))
+      svg.setAttribute('height', String(n))
+      svg.style.width = px
+      svg.style.height = px
+      svg.style.maxWidth = px
+      svg.style.maxHeight = px
       svg.style.flexShrink = '0'
+      if (svg.classList && svg.classList.contains('pw-chrome-brand-logo')) continue
       if (!svg.getAttribute('fill')) svg.setAttribute('fill', 'none')
       if (!svg.getAttribute('stroke')) svg.setAttribute('stroke', 'currentColor')
     }
@@ -3342,11 +3716,28 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
   }
   ${PW_CHROME_COUNT_BADGE_RUNTIME_JS}
+  function activeVisualRoot() {
+    var dev = pwStampDevice()
+    var root = document.querySelector('[data-pw-visual-device="' + dev + '"]') || document.querySelector('.pw-visual-' + dev)
+    if (root) return root
+    return document
+  }
+  function scopedQuery(selector) {
+    var root = activeVisualRoot()
+    return root && root.querySelector ? root.querySelector(selector) : document.querySelector(selector)
+  }
+  function scopedQueryAll(selector) {
+    var root = activeVisualRoot()
+    return root && root.querySelectorAll ? root.querySelectorAll(selector) : document.querySelectorAll(selector)
+  }
   function ensureChromeHost(place) {
+    if (place === 'float') {
+      return scopedQuery('header.pw-header, header.pw-shop-header, header') || document.body
+    }
     if (place === 'topbar') {
-      var inner = document.querySelector('.pw-topbar-inner, .pw-shop-topbar-inner')
+      var inner = scopedQuery('.pw-topbar-inner, .pw-shop-topbar-inner')
       if (inner) return inner
-      var header = document.querySelector('header.pw-header, header.pw-shop-header') || document.querySelector('header')
+      var header = scopedQuery('header.pw-header, header.pw-shop-header') || scopedQuery('header')
       var bar = document.createElement('div')
       bar.className = 'pw-topbar'
       var wrapInner = document.createElement('div')
@@ -3357,13 +3748,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       return wrapInner
     }
     if (place === 'nav') {
-      var bottom = document.querySelector('.pw-bottom-nav, .pw-shop-bottom-nav')
+      var bottom = scopedQuery('.pw-bottom-nav, .pw-shop-bottom-nav')
       if (bottom) return bottom
     }
     if (place === 'mid') {
-      var mid = document.querySelector('.pw-nav-main, .pw-shop-nav-row')
+      var mid = scopedQuery('.pw-nav-main, .pw-shop-nav-row')
       if (mid) return mid
-      var midHeader = document.querySelector('header.pw-header, header.pw-shop-header') || document.querySelector('header')
+      var midHeader = scopedQuery('header.pw-header, header.pw-shop-header') || scopedQuery('header')
       var midNav = document.createElement('nav')
       midNav.className = 'pw-container pw-nav-main'
       midNav.setAttribute('aria-label', 'Shop')
@@ -3371,10 +3762,18 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       else document.body.insertBefore(midNav, document.body.firstChild)
       return midNav
     }
-    var actions = document.querySelector('.pw-header-actions, .pw-shop-header-actions')
+    var actions = scopedQuery('.pw-header-actions, .pw-shop-header-actions')
     if (actions) return actions
-    var main = document.querySelector('.pw-header-main, header.pw-header, header.pw-shop-header, header')
-    return main || document.body
+    var main = scopedQuery('.pw-header-main, .pw-shop-header-inner')
+    var header = scopedQuery('header.pw-header, header.pw-shop-header, header')
+    if (!main) main = header
+    if (main) {
+      actions = document.createElement('div')
+      actions.className = 'pw-header-actions'
+      main.appendChild(actions)
+      return actions
+    }
+    return document.body
   }
   function insertChromeBtn(kind, html, host) {
     var k = String(kind || '').replace(/[^a-z0-9-]/g, '')
@@ -3384,52 +3783,62 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var node = wrap.firstElementChild
     if (!node) return
     var place = String(host || '')
-    if (place !== 'topbar' && place !== 'nav' && place !== 'mid') place = 'actions'
+    if (place !== 'topbar' && place !== 'nav' && place !== 'mid' && place !== 'float') place = 'actions'
+    if (isChromeFloatKind(k)) place = 'float'
     var hostEl = ensureChromeHost(place)
     if (k === 'categories') {
-      var existingCat = document.querySelector('[data-pw-el="cat-toggle"],[data-pw-cat-toggle],.pw-cat-btn,.pw-shop-cat-btn')
+      var existingCat = scopedQuery('[data-pw-el="cat-toggle"],[data-pw-cat-toggle],.pw-cat-btn,.pw-shop-cat-btn')
       if (existingCat) {
         if (existingCat.setAttribute) existingCat.setAttribute('data-pw-device', pwStampDevice())
         selectEl(existingCat)
         return
       }
       if (place === 'actions') {
-        var cluster = document.querySelector('.pw-brand-cluster, .pw-shop-brand-cluster')
-        hostEl = cluster || document.querySelector('.pw-header-main, .pw-shop-header-inner') || hostEl
+        var cluster = scopedQuery('.pw-brand-cluster, .pw-shop-brand-cluster')
+        hostEl = cluster || scopedQuery('.pw-header-main, .pw-shop-header-inner') || hostEl
       }
-      var panel = document.querySelector('#pw-shop-cat-panel, #pw-cat-panel, [data-pw-cat-panel], .pw-shop-cat-panel, .pw-cat-panel')
+      var panel = scopedQuery('#pw-shop-cat-panel, #pw-cat-panel, [data-pw-cat-panel], .pw-shop-cat-panel, .pw-cat-panel')
       if (panel && node.setAttribute) {
         node.setAttribute('aria-controls', panel.id || 'pw-shop-cat-panel')
       }
     }
     if (k === 'search') {
-      var existingSearch = document.querySelector('[data-pw-el="search"], .pw-header-search, .pw-shop-search-wrap')
+      var existingSearch = scopedQuery('[data-pw-el="search"], .pw-header-search, .pw-shop-search-wrap')
       if (existingSearch) {
         if (existingSearch.setAttribute) existingSearch.setAttribute('data-pw-device', pwStampDevice())
         selectEl(existingSearch)
         return
       }
       if (place === 'actions') {
-        hostEl = document.querySelector('.pw-header-main, .pw-shop-header-inner') || hostEl
+        hostEl = scopedQuery('.pw-header-main, .pw-shop-header-inner') || hostEl
       }
     }
     if (k === 'search-image') {
-      var existingImgSearch = document.querySelector('[data-pw-image-search], .pw-search-image-btn, .pw-shop-search-image')
+      var existingImgSearch = scopedQuery('[data-pw-image-search], .pw-search-image-btn, .pw-shop-search-image')
       if (existingImgSearch) {
         if (existingImgSearch.setAttribute) existingImgSearch.setAttribute('data-pw-device', pwStampDevice())
         selectEl(existingImgSearch)
         return
       }
     }
-    var existing = hostEl.querySelector('[data-pw-chrome-btn="' + k + '"]')
+    var existing =
+      scopedQuery('[data-pw-chrome-btn="' + k + '"]') ||
+      document.querySelector('[data-pw-chrome-btn="' + k + '"]')
     if (existing) {
       if (existing.setAttribute) existing.setAttribute('data-pw-device', pwStampDevice())
+      if (isChromeFloatKind(k)) {
+        revealChromeFloat(existing)
+        if (hostEl && existing.parentNode !== hostEl) hostEl.appendChild(existing)
+        sizeChromeIcons(existing)
+        pinChromeIconBadges(existing)
+      }
       selectEl(existing)
+      post('chromeDuplicate', { kind: k })
       return
     }
     var href = node.getAttribute ? (node.getAttribute('href') || '') : ''
     if (place === 'topbar' && href) {
-      var links = document.querySelectorAll('.pw-topbar a, .pw-topbar-inner a')
+      var links = scopedQueryAll('.pw-topbar a, .pw-topbar-inner a')
       for (var i = 0; i < links.length; i++) {
         var a = links[i]
         if (a.getAttribute('data-pw-chrome-btn')) continue
@@ -3443,6 +3852,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       }
     }
     if (node.setAttribute) node.setAttribute('data-pw-device', pwStampDevice())
+    if (isChromeFloatKind(k)) releaseChromeFloatPin(node)
     if (k === 'search') {
       var searchActions = hostEl.querySelector
         ? hostEl.querySelector('.pw-header-actions, .pw-shop-header-actions')
@@ -3450,7 +3860,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (searchActions && searchActions.parentNode === hostEl) hostEl.insertBefore(node, searchActions)
       else hostEl.appendChild(node)
     } else if (k === 'search-image') {
-      var searchForm = document.querySelector('.pw-search-form, .pw-shop-search-form, form[data-pw-search-form]')
+      var searchForm = scopedQuery('.pw-search-form, .pw-shop-search-form, form[data-pw-search-form]')
       if (searchForm) {
         var searchSubmit = searchForm.querySelector('.pw-search-submit, .pw-shop-search-submit, button[type="submit"]')
         if (searchSubmit) searchForm.insertBefore(node, searchSubmit)
@@ -3463,6 +3873,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     sizeChromeIcons(node)
     pinChromeIconBadges(node)
+    if (k === 'search') ensureSearchSubmitIcon(node)
+    if (k === 'chat') applyChatLogoToChromeBtn(node, chatPrepLogoUrl)
     try { pwApplyDemoChromeCountBadges(document) } catch (errDemoBtn) {}
     selectEl(node)
     post('dirty', {})
@@ -3739,7 +4151,18 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function applyDefaultZ(el, fallback) {
     if (!el) return
     if (el.getAttribute && el.getAttribute('data-pw-z')) writeUserZ(el, readUserZ(el))
+    else if (el.getAttribute && el.getAttribute(SCENE.attr)) writeSceneIndex(el, readSceneIndex(el))
     else el.style.setProperty('z-index', String(fallback), 'important')
+  }
+  /** Gắn lại z đã lưu sau stamp banner — không để editor CSS/z=2 che chữ nổi. */
+  function restoreAuthoredLayers() {
+    var nodes = document.querySelectorAll('[data-pw-z],[' + SCENE.attr + ']')
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i]
+      if (!el || isFullBleedChrome(el)) continue
+      if (el.getAttribute(SCENE.attr)) writeSceneIndex(el, readSceneIndex(el))
+      else writeUserZ(el, readUserZ(el))
+    }
   }
   function layerPeers(el) {
     if (!el) return []
@@ -4040,10 +4463,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function currentChromeStyle(el) {
     if (!el || !el.getAttribute) return 'icon'
     var attr = el.getAttribute('data-pw-chrome-style')
-    if (attr === 'icon' || attr === 'icon-label' || attr === 'text') return attr
+    if (attr === 'icon' || attr === 'icon-square' || attr === 'icon-label' || attr === 'icon-label-below' || attr === 'icon-label-left' || attr === 'text') return attr
     var cls = clsOf(el)
     if (cls.indexOf('pw-chrome-link') >= 0) return 'text'
+    if (cls.indexOf('pw-chrome-icon-square') >= 0) return 'icon-square'
     if (cls.indexOf('pw-chrome-icon-only') >= 0) return 'icon'
+    if (cls.indexOf('pw-chrome-label-below') >= 0) return 'icon-label-below'
+    if (cls.indexOf('pw-chrome-label-left') >= 0) return 'icon-label-left'
     if (cls.indexOf('pw-chrome-has-label') >= 0) return 'icon-label'
     var lab = el.querySelector ? el.querySelector('.pw-account-btn-label, .pw-chrome-btn-label, .pw-shop-nav-label') : null
     if (!lab && el.querySelector) {
@@ -4081,13 +4507,20 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function setChromeStyle(style) {
     if (!selected || (!isChromeBtn(selected) && !isHeaderWidget(selected))) return
     if (clsOf(selected).indexOf('pw-brand') >= 0) return
-    var next = style === 'icon' || style === 'text' ? style : 'icon-label'
+    var next =
+      style === 'icon' ||
+      style === 'icon-square' ||
+      style === 'text' ||
+      style === 'icon-label-below' ||
+      style === 'icon-label-left'
+        ? style
+        : 'icon-label'
     var el = selected
     var labelText = chromeLabelText(el)
     var isAccount = clsOf(el).indexOf('pw-account-btn') >= 0 || !!(el.getAttribute && el.getAttribute('data-pw-account-toggle'))
     ensureChromeIconWrap(el)
     var labelEl = el.querySelector('.pw-chrome-btn-label, .pw-shop-nav-label, .pw-account-btn-label')
-    if (!labelEl && next !== 'icon') {
+    if (!labelEl && next !== 'icon' && next !== 'icon-square') {
       labelEl = document.createElement('span')
       labelEl.className = isAccount ? 'pw-account-btn-label' : 'pw-shop-nav-label pw-chrome-btn-label'
       labelEl.textContent = labelText || ' '
@@ -4097,17 +4530,30 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var wrap = el.querySelector('.pw-chrome-icon-wrap')
     el.setAttribute('data-pw-chrome-style', next)
     if (!isAccount) {
-      el.classList.remove('pw-chrome-link', 'pw-chrome-has-label', 'pw-chrome-icon-only')
+      el.classList.remove(
+        'pw-chrome-link',
+        'pw-chrome-has-label',
+        'pw-chrome-icon-only',
+        'pw-chrome-icon-square',
+        'pw-chrome-label-below',
+        'pw-chrome-label-left'
+      )
       if (next === 'text') {
         el.classList.add('pw-chrome-link')
         el.classList.remove('pw-icon-btn', 'pw-shop-icon-btn')
       } else {
         el.classList.add('pw-icon-btn', 'pw-shop-icon-btn')
-        el.classList.add(next === 'icon' ? 'pw-chrome-icon-only' : 'pw-chrome-has-label')
+        if (next === 'icon-square') el.classList.add('pw-chrome-icon-only', 'pw-chrome-icon-square')
+        else if (next === 'icon') el.classList.add('pw-chrome-icon-only')
+        else {
+          el.classList.add('pw-chrome-has-label')
+          if (next === 'icon-label-below') el.classList.add('pw-chrome-label-below')
+          if (next === 'icon-label-left') el.classList.add('pw-chrome-label-left')
+        }
       }
     }
     if (wrap) wrap.style.display = next === 'text' ? 'none' : ''
-    if (labelEl) labelEl.style.display = next === 'icon' ? 'none' : ''
+    if (labelEl) labelEl.style.display = next === 'icon' || next === 'icon-square' ? 'none' : ''
     if (labelText) {
       el.setAttribute('aria-label', labelText)
       el.setAttribute('title', labelText)
@@ -4795,11 +5241,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function canDragEl(el) {
     if (!el || el === document.body || el === document.documentElement) return false
+    if (chatEmbedLauncherOf(el)) return false
     if (isOverlayNode(el) || isLockedCatalogEl(el) || isProductCardEl(el)) return false
     return isAddedBg(el) || isAddedText(el) || isImgEl(el) || isLogoFrame(el) || isLogoTarget(el) || isBtnEl(el) || isTextEl(el) || isChromeBtn(el) || isHeaderWidget(el) || isSearchEl(el) || isContentBlockEl(el) || isBgImageEl(el) || isMoveBlockEl(el) || isBgLayerEl(el) || isBannerHostEl(el)
   }
   function canDeleteEl(el) {
     if (!el || el === document.body || el === document.documentElement) return false
+    if (chatEmbedLauncherOf(el)) return true
     if (isLockedCatalogEl(el) || isProductCardEl(el) || isShopRegionHost(el)) return false
     if (isHeaderChromeEl(el) || searchElOf(el) || catToggleElOf(el) || isAddedChrome(el)) return true
     var tag = el.tagName.toLowerCase()
@@ -4916,6 +5364,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function canStickHeaderEl(el) {
     if (!el || el.nodeType !== 1) return false
+    if (isChromeFloatEl(el)) return false
+    // Chat mua / Zalo / Facebook luôn float trên màn — không gắn header.
+    if (isChromeContactChatKind(chromeKindOf(el))) return false
     if (el.closest && el.closest('.pw-bottom-nav, .pw-shop-bottom-nav')) return false
     if (isSearchEl(el) || isLogoTarget(el) || isLogoFrame(el)) return false
     if (isFullBleedChrome(el) || isShopRegionHost(el)) return false
@@ -4928,8 +5379,26 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function isStickHeaderOn(el) {
     if (!el || !el.getAttribute) return false
+    if (isChromeFloatEl(el)) return false
+    if (isChromeContactChatKind(chromeKindOf(el))) return false
     if (el.getAttribute('data-pw-stick-header') === '1') return true
     return canStickHeaderEl(el) && isInHeader(el)
+  }
+  function clearChatStickHeader(el) {
+    var host = chromeBtnElOf(el) || el
+    if (!host || !isChromeContactChatKind(chromeKindOf(host))) return
+    if (host.getAttribute('data-pw-stick-header') !== '1') return
+    stickHeaderPause(1)
+    stickHeaderUnpinEl(host)
+    host.removeAttribute('data-pw-stick-header')
+    host.classList.remove('pw-stick-header-on')
+    stickHeaderPause(0)
+  }
+  function clearAllChatStickHeaders() {
+    var nodes = document.querySelectorAll(
+      '[data-pw-chrome-btn="chat"][data-pw-stick-header], [data-pw-chrome-btn="chat-zalo"][data-pw-stick-header], [data-pw-chrome-btn="chat-facebook"][data-pw-stick-header]'
+    )
+    for (var i = 0; i < nodes.length; i++) clearChatStickHeader(nodes[i])
   }
   function stickHeaderPause(on) {
     try { window.__pwStickHeaderPaused = on ? 1 : 0 } catch (ePause) {}
@@ -4945,6 +5414,16 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function stickHeaderRelease() {
     try { if (window.__pwStickHeaderRelease) window.__pwStickHeaderRelease() } catch (eRel) {}
+  }
+  /** Stick-header must stay above page content — never demote to Nền (old default z=40). */
+  function ensureStickHeaderFloatZ(el) {
+    if (!el || !el.getAttribute) return
+    var scene = readSceneIndex(el)
+    var z = readUserZ(el)
+    var hasScene = el.getAttribute(SCENE.attr) != null && String(el.getAttribute(SCENE.attr)).trim() !== ''
+    var buried = scene <= SCENE.minIndex || (!hasScene && z > 0 && z < 100)
+    if (!buried && (hasScene || z >= 100)) return
+    writeSceneIndex(el, SCENE.maxIndex)
   }
   function detachForStickHeader(el) {
     if (!el || !isInHeader(el)) return
@@ -4963,7 +5442,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     el.style.top = Math.round(r.top - hr.top) + 'px'
     el.style.transform = 'none'
     el.style.margin = '0'
-    if (!el.style.zIndex) el.style.zIndex = '40'
+    ensureStickHeaderFloatZ(el)
   }
   function setStickHeader(on) {
     if (!selected || !canStickHeaderEl(selected)) return
@@ -4971,6 +5450,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     stickHeaderUnpinEl(selected)
     if (on) {
       if (isInHeader(selected)) detachForStickHeader(selected)
+      ensureStickHeaderFloatZ(selected)
       selected.setAttribute('data-pw-stick-header', '1')
       stickHeaderPause(0)
       stickHeaderApplyEl(selected)
@@ -4979,6 +5459,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (isInHeader(selected)) detachForStickHeader(selected)
       stickHeaderPause(0)
       stickHeaderUnpinEl(selected)
+      ensureStickHeaderFloatZ(selected)
     }
     positionAllHandles()
     post('dirty', {})
@@ -5058,6 +5539,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       isSearch: Boolean(isSearchEl(el) || searchElOf(el)),
       editKind: editKindOf(el),
       chromeKind: chromeKindOf(el),
+      chromeSize: parseChromeIconSize(chromeBtnElOf(el) || el),
       isButton: !addedBg && !catToggleElOf(el) && !chromeBtnElOf(el) && (isAddedBtn(el) || (btn && !isHeaderWidget(el))),
       layerPos: addedBg ? addedBgLayerPos(el) : elementLayerPos(el),
       layerIndex: addedBg ? addedBgLayer(el) : (function () {
@@ -5070,7 +5552,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       bgCount: addedBg ? listBgStack().length : 0,
       bgStack: addedBg ? serializeBgStack(el) : [],
       isChrome: isChromeBtn(el),
-      chromeStyle: isChromeBtn(el) || isHeaderWidget(el) ? currentChromeStyle(el) : '',
+      chromeStyle: isChromeBtn(el) || isHeaderWidget(el) || searchImageElOf(el) || catToggleElOf(el) ? currentChromeStyle(el) : '',
       btnStyle: btn && !isChromeBtn(el) ? currentBtnStyle(el) : '',
       isBlock: asBlock && !move,
       hasImageLayer: Boolean(imageBlock) && !isLogoTarget(el),
@@ -5087,6 +5569,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       textAlign: cs(el).textAlign || 'left',
       bgColor: parseBgColor(widgetSurfaceEl(el) || el),
       src: (function () {
+        if (isChromeChatBtn(el)) {
+          var chatBtnSrc = chromeChatBtnOf(el) || el
+          var chatImg = chatBtnSrc.querySelector ? chatBtnSrc.querySelector('img.pw-chrome-chat-logo') : null
+          if (chatImg) return photoSrcOf(chatImg) || (chatImg.getAttribute('src') || '')
+        }
         var logoImgSrc = logoImgOf(el) || (isLogoImg(el) ? el : null)
         if (logoImgSrc) return photoSrcOf(logoImgSrc) || (logoImgSrc.getAttribute('src') || '')
         return photoSrcOf(el) || (img ? (el.getAttribute('src') || '') : bgUrl)
@@ -6040,7 +6527,12 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     selected.style.opacity = ''
   }
   function deleteSelectedUnit() {
-    if (!selected || !selected.parentNode || !canDeleteEl(selected)) return
+    if (!selected || !canDeleteEl(selected)) return
+    if (chatEmbedLauncherOf(selected)) {
+      hideChatEmbedLaunchers()
+      return
+    }
+    if (!selected.parentNode) return
     var removeEl = selected
     var frame = logoFrameOf(selected)
     var deletingLogo = isLogoImg(selected) || isLogoFrame(selected) || Boolean(frame)
@@ -6150,7 +6642,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     selected = el
     selected.classList.add('nanoai-ve-highlight')
     selected.setAttribute('data-nanoai-ve-selected', '1')
-    if (isHeaderChromeEl(selected) && !isLogoTarget(selected)) markUserMoved(searchMoveEl(selected) || selected)
+    try { clearChatStickHeader(selected) } catch (errClearChatStick) {}
+    if (isChromeFloatEl(selected)) revealChromeFloat(selected)
+    if (isHeaderChromeEl(selected) && !isLogoTarget(selected) && !isChromeFloatEl(selected)) markUserMoved(searchMoveEl(selected) || selected)
     var payload = buildPayload(selected)
     if (canEditChromeLabel(selected)) {
       var labelEdit = chromeLabelEl(selected) || (isSearchSubmitEl(selected) ? selected : null)
@@ -6240,6 +6734,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return hits[0]
   }
   function resolvePointerTarget(start, x, y) {
+    var chatAt = chatEmbedAtPoint(x, y)
+    if (chatAt) return chatAt
     var chromeAt = headerChromeAtPoint(x, y)
     if (chromeAt) return chromeAt
     var stack = []
@@ -6283,6 +6779,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return start
   }
   function findSelectable(start, x, y) {
+    var chatAt = chatEmbedAtPoint(x, y)
+    if (chatAt) return chatAt
     var chromeAt = headerChromeAtPoint(x, y)
     if (chromeAt) return chromeAt
     var el = start
@@ -6445,10 +6943,24 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       showLogoDrawRect()
       return
     }
+    var chatHit = chatEmbedAtPoint(e.clientX, e.clientY)
+    if (chatHit) {
+      e.preventDefault()
+      e.stopPropagation()
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation()
+      if (selected !== chatHit) selectEl(chatHit, e)
+      return
+    }
     if (isIgnored(e.target) || isOverlayNode(e.target)) return
     var pointerTarget = resolvePointerTarget(e.target, e.clientX, e.clientY)
     var found = findSelectable(pointerTarget, e.clientX, e.clientY)
     if (found && isShopRegionHost(found)) {
+      return
+    }
+    if (found && chatEmbedLauncherOf(found)) {
+      e.preventDefault()
+      e.stopPropagation()
+      if (selected !== found) selectEl(found, e)
       return
     }
     if (found && isEditableTextTarget(found)) {
@@ -6793,7 +7305,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     } else if (wasDrag && selected) {
       selected.style.opacity = ''
       selected.style.pointerEvents = ''
-      if (mode === 'translate' && isHeaderChromeEl(selected)) markUserMoved(searchMoveEl(selected))
+      if (isChromeFloatEl(selected)) bakeChromeFloatPos(chromeBtnElOf(selected) || selected)
+      else if (mode === 'translate' && isHeaderChromeEl(selected)) markUserMoved(searchMoveEl(selected))
     }
     hideDropLine()
     drag.dropTarget = null
@@ -6834,7 +7347,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-hover{outline:1px dashed #2563eb!important;outline-offset:0!important}',
       '.nanoai-ve-highlight[data-pw-bg-layer="1"],.nanoai-ve-hover[data-pw-bg-layer="1"]{outline:2px dashed #f59e0b!important}',
       'html,body{overflow-x:hidden!important;max-width:100%}',
-      '.pw-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]),.pw-shop-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]),.pw-header-actions [data-pw-chrome-btn]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]),.pw-cat-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]),.pw-account-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]){transform:none!important;left:auto!important;top:auto!important}',
+      '.pw-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-shop-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-header-actions [data-pw-chrome-btn]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-cat-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]),.pw-account-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]){transform:none!important;left:auto!important;top:auto!important}',
       '.nanoai-ve-highlight[data-pw-region="banner"],.nanoai-ve-hover[data-pw-region="banner"]{outline:2px dashed #2563eb!important}',
       '.nanoai-ve-highlight[data-pw-move-block="1"],.nanoai-ve-hover[data-pw-move-block="1"]{outline:2px dashed #2563eb!important}',
       '[contenteditable=true]{cursor:text!important;min-width:0;outline:none!important}',
@@ -6859,20 +7372,24 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-active img.pw-logo.nanoai-ve-highlight,.nanoai-ve-active img.pw-shop-logo.nanoai-ve-highlight,.nanoai-ve-active img.pw-shop-footer-logo.nanoai-ve-highlight,.nanoai-ve-active [data-pw-logo-added].nanoai-ve-highlight{outline:2px solid #2563eb!important;outline-offset:1px!important;box-shadow:none!important;cursor:grab!important}',
       '.nanoai-ve-active [data-pw-logo-frame="1"].nanoai-ve-highlight,.nanoai-ve-active .pw-logo-frame.nanoai-ve-highlight{outline:2px solid #fff!important;outline-offset:0!important;box-shadow:0 0 0 2px #2563eb!important;cursor:grab!important;overflow:hidden!important}',
       '.nanoai-ve-active [data-pw-logo-frame="1"].nanoai-ve-highlight img,.nanoai-ve-active .pw-logo-frame.nanoai-ve-highlight img{cursor:grab!important}',
-      '.nanoai-ve-move-handle{width:22px;height:22px;padding:0;border:2px solid #fff;border-radius:6px;background:#2563eb;color:#fff;cursor:grab;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.35)}',
+      '.nanoai-ve-move-handle{box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:center!important;flex:0 0 28px!important;width:28px!important;height:28px!important;min-width:28px!important;max-width:28px!important;min-height:28px!important;max-height:28px!important;padding:0!important;border:2px solid #fff!important;border-radius:8px!important;background:#2563eb!important;color:#fff!important;cursor:grab!important;box-shadow:0 1px 4px rgba(0,0,0,.35)!important;appearance:none!important;-webkit-appearance:none!important;line-height:1!important;transform:none!important}',
       '.nanoai-ve-move-handle svg{display:block;pointer-events:none}',
       '.nanoai-ve-layer-switch{display:flex;gap:4px;padding:3px;border-radius:8px;background:#fff;border:1px solid #bfdbfe;box-shadow:0 2px 8px rgba(0,0,0,.22)}',
       '.nanoai-ve-layer-switch button{border:0;border-radius:6px;padding:5px 9px;font:700 11px/1.2 system-ui,sans-serif;background:transparent;color:#1e3a8a;cursor:pointer}',
       '.nanoai-ve-layer-switch button.is-active{background:#2563eb;color:#fff}',
       '.nanoai-ve-logo-btn{display:flex;padding:3px;border-radius:8px;background:#fff;border:1px solid #fbbf24;box-shadow:0 2px 8px rgba(0,0,0,.22)}',
       '.nanoai-ve-logo-btn button{border:0;border-radius:6px;padding:5px 9px;font:700 11px/1.2 system-ui,sans-serif;background:#f59e0b;color:#fff;cursor:pointer}',
-      '.nanoai-ve-chrome-delete,.nanoai-ve-delete-handle{width:18px;height:18px;padding:0;border:2px solid #fff;border-radius:999px;background:#ef4444;color:#fff;font:700 14px/14px system-ui,sans-serif;cursor:pointer;transform:rotate(45deg);box-shadow:0 1px 4px rgba(0,0,0,.35)}',
+      '.nanoai-ve-chrome-delete,.nanoai-ve-delete-handle{box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:center!important;flex:0 0 22px!important;width:22px!important;height:22px!important;min-width:22px!important;max-width:22px!important;min-height:22px!important;max-height:22px!important;padding:0!important;border:2px solid #fff!important;border-radius:999px!important;background:#ef4444!important;color:#fff!important;font:700 15px/18px system-ui,sans-serif!important;cursor:pointer!important;transform:rotate(45deg)!important;box-shadow:0 1px 4px rgba(0,0,0,.35)!important;appearance:none!important;-webkit-appearance:none!important}',
       '.nanoai-ve-drop-line{background:#2563eb;border-radius:2px;box-shadow:0 0 0 1px #fff}',
       '.nanoai-ve-guides{left:0;top:0}',
       '.nanoai-ve-active .pw-bottom-nav,.nanoai-ve-active .pw-shop-bottom-nav,[data-pw-edit-device="mobile"] .pw-bottom-nav,[data-pw-edit-device="mobile"] .pw-shop-bottom-nav,[data-pw-edit-device="tablet"] .pw-bottom-nav,[data-pw-edit-device="tablet"] .pw-shop-bottom-nav,.nanoai-ve-mobile .pw-bottom-nav,.nanoai-ve-mobile .pw-shop-bottom-nav,.nanoai-ve-tablet .pw-bottom-nav,.nanoai-ve-tablet .pw-shop-bottom-nav{position:fixed!important;left:0;right:0;bottom:0;z-index:180!important;overflow:visible!important;isolation:isolate;background:#fff}',
+      '.nanoai-ve-active #nanoai-chat-widget-v1,.nanoai-ve-active [data-widget-id="nanoai-chat-widget-v1"]{pointer-events:none!important}',
+      '.nanoai-ve-active [data-pw-chat-launcher="1"],.nanoai-ve-active .pw-fab-chat,.nanoai-ve-active [data-nanoai-chat-bubble="1"]{pointer-events:auto!important;cursor:pointer!important;z-index:2147483001!important}',
+      '.nanoai-ve-active #nanoai-chat-widget-v1 .nanoai-chat-panel,.nanoai-ve-active [data-widget-id="nanoai-chat-widget-v1"] .nanoai-chat-panel{display:none!important}',
+      '.nanoai-ve-active [data-pw-chat-launcher="1"].nanoai-ve-highlight,.nanoai-ve-active .pw-fab-chat.nanoai-ve-highlight,.nanoai-ve-active [data-nanoai-chat-bubble="1"].nanoai-ve-highlight{outline:2px solid #2563eb!important;outline-offset:2px!important;box-shadow:none!important}',
       '.nanoai-ve-active .pw-header,.nanoai-ve-active .pw-shop-header{z-index:200!important;isolation:isolate}',
       '.nanoai-ve-active .pw-topbar,.nanoai-ve-active .pw-shop-topbar{position:relative!important;z-index:3!important;isolation:isolate}',
-      '.nanoai-ve-active .pw-hero,.nanoai-ve-active .pw-banner,.nanoai-ve-active .pw-shop-hero,.nanoai-ve-active .pw-shop-banner,.nanoai-ve-active [data-pw-region="banner"]{overflow:hidden!important}',
+      '.nanoai-ve-active .pw-hero.nanoai-ve-photo-edit,.nanoai-ve-active .pw-banner.nanoai-ve-photo-edit,.nanoai-ve-active .pw-shop-hero.nanoai-ve-photo-edit,.nanoai-ve-active .pw-shop-banner.nanoai-ve-photo-edit,.nanoai-ve-active [data-pw-region="banner"].nanoai-ve-photo-edit{overflow:hidden!important}',
       '.nanoai-ve-active [data-pw-catalog-lock="1"],.nanoai-ve-active [data-pw-catalog-lock="1"] *{pointer-events:none!important;cursor:default!important}',
       '.nanoai-ve-active [data-pw-region="categories"],.nanoai-ve-active [data-pw-region="categories"] *,.nanoai-ve-active section.pw-categories,.nanoai-ve-active .pw-categories,.nanoai-ve-active .pw-cat-grid,.nanoai-ve-active .pw-cat-card{pointer-events:auto!important;position:relative;z-index:8}',
       '.nanoai-ve-active [data-pw-region="categories"][data-pw-catalog-lock="1"],.nanoai-ve-active [data-pw-region="categories"] [data-pw-catalog-lock="1"],.nanoai-ve-active [data-pw-region="categories"] [data-pw-catalog-lock="1"] *{pointer-events:auto!important;cursor:pointer!important}',
@@ -6880,11 +7397,17 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-active .pw-product-card .nanoai-ve-hover,.nanoai-ve-active .pw-shop-card .nanoai-ve-hover,.nanoai-ve-active .pw-btn-cart.nanoai-ve-hover,.nanoai-ve-active [data-pw-add-cart].nanoai-ve-hover{outline:none!important}',
       '.nanoai-ve-active div[data-pw-bg-layer]{position:absolute;inset:0;z-index:0;pointer-events:auto!important}',
       '.nanoai-ve-active .pw-hero-inner,.nanoai-ve-active .pw-banner-inner,.nanoai-ve-active .pw-hero > .pw-container,.nanoai-ve-active .pw-banner > .pw-container{pointer-events:none!important}',
-      '.nanoai-ve-active [data-pw-move-block],.nanoai-ve-active .pw-hero-copy,.nanoai-ve-active .pw-banner-copy,[data-pw-banner-copy="1"],.nanoai-ve-active [data-pw-el="copy"]{pointer-events:auto!important;position:relative;z-index:2}',
-      '.nanoai-ve-active [data-pw-move-block] *,.nanoai-ve-active .pw-hero-copy *,.nanoai-ve-active .pw-banner-copy *,.nanoai-ve-active [data-pw-el="copy"] *,.nanoai-ve-active [data-pw-el="title"],.nanoai-ve-active [data-pw-el="subtitle"],.nanoai-ve-active [data-pw-el="cta"],.nanoai-ve-active [data-pw-el="cta-secondary"],.nanoai-ve-active [data-pw-el="badge"],.nanoai-ve-active [data-pw-el="dots"],.nanoai-ve-active [data-pw-el="field"]{pointer-events:auto!important;position:relative;z-index:3}',
+      '.nanoai-ve-active [data-pw-move-block],.nanoai-ve-active .pw-hero-copy,.nanoai-ve-active .pw-banner-copy,[data-pw-banner-copy="1"],.nanoai-ve-active [data-pw-el="copy"]{pointer-events:auto!important}',
+      '.nanoai-ve-active [data-pw-move-block]:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active .pw-hero-copy:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active .pw-banner-copy:not([data-pw-z]):not([data-pw-scene]),[data-pw-banner-copy="1"]:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active [data-pw-el="copy"]:not([data-pw-z]):not([data-pw-scene]){position:relative;z-index:2}',
+      '.nanoai-ve-active [data-pw-move-block] *,.nanoai-ve-active .pw-hero-copy *,.nanoai-ve-active .pw-banner-copy *,.nanoai-ve-active [data-pw-el="copy"] *,.nanoai-ve-active [data-pw-el="title"],.nanoai-ve-active [data-pw-el="subtitle"],.nanoai-ve-active [data-pw-el="cta"],.nanoai-ve-active [data-pw-el="cta-secondary"],.nanoai-ve-active [data-pw-el="badge"],.nanoai-ve-active [data-pw-el="dots"],.nanoai-ve-active [data-pw-el="field"]{pointer-events:auto!important}',
+      '.nanoai-ve-active [data-pw-move-block] *:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active .pw-hero-copy *:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active .pw-banner-copy *:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active [data-pw-el="copy"] *:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active [data-pw-el="title"]:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active [data-pw-el="subtitle"]:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active [data-pw-el="cta"]:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active [data-pw-el="cta-secondary"]:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active [data-pw-el="badge"]:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active [data-pw-el="dots"]:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active [data-pw-el="field"]:not([data-pw-z]):not([data-pw-scene]){position:relative;z-index:3}',
       '.nanoai-ve-active a,.nanoai-ve-active button,.nanoai-ve-active img:not([data-pw-bg-layer]),.nanoai-ve-active h1,.nanoai-ve-active h2,.nanoai-ve-active h3,.nanoai-ve-active p,.nanoai-ve-active [data-pw-added-text]{pointer-events:auto}',
       '.nanoai-ve-active [data-pw-chrome-added]:not(.pw-icon-btn):not([data-pw-chrome-btn]):not([data-pw-z]),.nanoai-ve-active [data-nanoai-ve-selected]:not([data-pw-bg-layer]):not([data-pw-added-bg]):not([data-pw-added-text]):not([data-pw-added-btn]):not([data-pw-logo-float]):not([data-pw-logo-frame]):not([data-pw-logo-added]):not(.pw-logo):not(.pw-shop-logo):not(.pw-logo-frame):not([data-pw-chrome-btn]):not(.pw-icon-btn):not([data-pw-z]){z-index:15!important;position:relative}',
       '.nanoai-ve-active .pw-header [data-pw-chrome-added]:not(.pw-icon-btn):not([data-pw-chrome-btn]),.nanoai-ve-active .pw-shop-header [data-pw-chrome-added]:not(.pw-icon-btn):not([data-pw-chrome-btn]),.nanoai-ve-active header [data-pw-chrome-added]:not(.pw-icon-btn):not([data-pw-chrome-btn]){z-index:90!important}',
+      '[data-pw-edit-device="desktop"] .pw-visual-desktop,[data-pw-edit-device="laptop"] .pw-visual-laptop,[data-pw-edit-device="tablet"] .pw-visual-tablet,[data-pw-edit-device="mobile"] .pw-visual-mobile{display:block!important}',
+      '[data-pw-edit-device="desktop"] .pw-visual-laptop,[data-pw-edit-device="desktop"] .pw-visual-tablet,[data-pw-edit-device="desktop"] .pw-visual-mobile,[data-pw-edit-device="laptop"] .pw-visual-desktop,[data-pw-edit-device="laptop"] .pw-visual-tablet,[data-pw-edit-device="laptop"] .pw-visual-mobile,[data-pw-edit-device="tablet"] .pw-visual-desktop,[data-pw-edit-device="tablet"] .pw-visual-laptop,[data-pw-edit-device="tablet"] .pw-visual-mobile,[data-pw-edit-device="mobile"] .pw-visual-desktop,[data-pw-edit-device="mobile"] .pw-visual-laptop,[data-pw-edit-device="mobile"] .pw-visual-tablet{display:none!important}',
+      '[data-pw-edit-device="desktop"] [data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),[data-pw-edit-device="laptop"] [data-pw-chrome-added][data-pw-device="laptop"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),[data-pw-edit-device="tablet"] [data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),[data-pw-edit-device="mobile"] [data-pw-chrome-added][data-pw-device="mobile"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap){display:inline-flex!important}',
+      '[data-pw-edit-device="desktop"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="desktop"],[data-pw-edit-device="desktop"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="desktop"],[data-pw-edit-device="laptop"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="laptop"],[data-pw-edit-device="laptop"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="laptop"],[data-pw-edit-device="tablet"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="tablet"],[data-pw-edit-device="tablet"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="tablet"],[data-pw-edit-device="mobile"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="mobile"],[data-pw-edit-device="mobile"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="mobile"]{display:flex!important}',
       '.nanoai-ve-active .pw-header a:focus,.nanoai-ve-active .pw-shop-header a:focus,.nanoai-ve-active header a:focus,.nanoai-ve-active .pw-header-actions a:focus,.nanoai-ve-active .pw-shop-header-actions a:focus{outline:none!important}',
       '.nanoai-ve-active .pw-header [data-pw-chrome-btn],.nanoai-ve-active .pw-shop-header [data-pw-chrome-btn],.nanoai-ve-active header [data-pw-chrome-btn],.nanoai-ve-active .pw-header-actions a,.nanoai-ve-active .pw-shop-header-actions a{cursor:grab!important}',
       '.nanoai-ve-guide-h{position:absolute;height:1px;background:repeating-linear-gradient(90deg,rgba(37,99,235,.42) 0 6px,transparent 6px 11px)}',
@@ -6894,7 +7417,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-active .pw-cat-panel:not(.is-open),.nanoai-ve-active .pw-shop-cat-panel:not(.is-open),.nanoai-ve-active .pw-account-panel:not(.is-open),.nanoai-ve-active .pw-shop-account-panel:not(.is-open),.nanoai-ve-active [data-pw-cat-panel]:not(.is-open),.nanoai-ve-active [data-pw-account-panel]:not(.is-open){display:none!important;pointer-events:none!important;visibility:hidden!important}',
       '.nanoai-ve-active .pw-nav-main a,.nanoai-ve-active .pw-shop-nav-row a,.nanoai-ve-active .pw-topbar a,.nanoai-ve-active .pw-shop-topbar a,.nanoai-ve-active [data-pw-el="nav-link"],.nanoai-ve-active [data-pw-el="link"],.nanoai-ve-active [data-pw-el="cat-toggle"],.nanoai-ve-active .pw-cat-btn,.nanoai-ve-active .pw-shop-cat-btn{pointer-events:auto!important;position:relative;z-index:6}',
       '.pw-bottom-nav,.pw-shop-bottom-nav{display:flex!important;flex-wrap:nowrap;justify-content:space-around;align-items:stretch;grid-template-columns:none!important}',
-      '[data-pw-edit-device="desktop"] .pw-bottom-nav,[data-pw-edit-device="desktop"] .pw-shop-bottom-nav{display:none!important}',
+      '[data-pw-edit-device="desktop"] .pw-bottom-nav,[data-pw-edit-device="desktop"] .pw-shop-bottom-nav,[data-pw-edit-device="laptop"] .pw-bottom-nav,[data-pw-edit-device="laptop"] .pw-shop-bottom-nav{display:none!important}',
       '.pw-bottom-nav a:not([data-pw-chrome-added]),.pw-shop-bottom-nav a:not([data-pw-chrome-added]),.pw-bottom-nav .pw-icon-btn:not([data-pw-chrome-added]),.pw-shop-bottom-nav .pw-icon-btn:not([data-pw-chrome-added]){flex:1 1 0;min-width:0;min-height:0;width:auto!important;height:auto!important;color:#6b7280!important;flex-direction:column;align-items:center;justify-content:center;background:transparent!important}',
       '.pw-bottom-nav [data-pw-chrome-added],.pw-shop-bottom-nav [data-pw-chrome-added]{flex:1 1 0;min-width:0;min-height:0;width:auto!important;height:auto!important;flex-direction:column;align-items:center;justify-content:center;background:transparent!important;cursor:grab}',
       '.pw-header,.pw-shop-header,.pw-header-main,.pw-shop-header-inner,.pw-brand-cluster,.pw-shop-brand-cluster{overflow:visible!important}',
@@ -6926,18 +7449,28 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.pw-search-form,.pw-shop-search-form,form[data-pw-search-form]{display:flex!important;width:100%!important;min-width:0!important}',
       '.pw-search-form input[type="search"],.pw-shop-search-form input[type="search"],input[data-pw-search]{flex:1 1 auto!important;min-width:0!important;width:auto!important;max-width:none!important}',
       '[data-pw-ph]::placeholder,input[style*="--pw-ph"]::placeholder,textarea[style*="--pw-ph"]::placeholder{color:var(--pw-ph)!important}',
-      '[data-pw-edit-device="mobile"] .pw-search-submit::before,[data-pw-edit-device="tablet"] .pw-search-submit::before,.nanoai-ve-mobile .pw-search-submit::before,.nanoai-ve-tablet .pw-search-submit::before{background-color:currentColor!important;background-image:none!important;-webkit-mask:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.4%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%2711%27 cy=%2711%27 r=%277%27/%3E%3Cpath d=%27m20 20-3.5-3.5%27/%3E%3C/svg%3E");mask:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.4%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%2711%27 cy=%2711%27 r=%277%27/%3E%3Cpath d=%27m20 20-3.5-3.5%27/%3E%3C/svg%3E")}',
+      '[data-pw-edit-device="mobile"] .pw-shop-search-submit-label,[data-pw-edit-device="tablet"] .pw-shop-search-submit-label,.nanoai-ve-mobile .pw-shop-search-submit-label,.nanoai-ve-tablet .pw-shop-search-submit-label{display:none!important}',
+      '[data-pw-edit-device="mobile"] .pw-shop-search-submit-icon,[data-pw-edit-device="tablet"] .pw-shop-search-submit-icon,.nanoai-ve-mobile .pw-shop-search-submit-icon,.nanoai-ve-tablet .pw-shop-search-submit-icon{display:block!important;width:16px;height:16px}',
+      '[data-pw-edit-device="desktop"] .pw-shop-search-submit-icon,[data-pw-edit-device="laptop"] .pw-shop-search-submit-icon,.nanoai-ve-desktop .pw-shop-search-submit-icon,.nanoai-ve-laptop .pw-shop-search-submit-icon{display:none!important}',
+      '[data-pw-edit-device="mobile"] .pw-search-submit::before,[data-pw-edit-device="tablet"] .pw-search-submit::before,.nanoai-ve-mobile .pw-search-submit::before,.nanoai-ve-tablet .pw-search-submit::before{content:""!important;display:block!important;width:16px;height:16px;flex-shrink:0;background-color:currentColor!important;background-image:none!important;-webkit-mask:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.4%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%2711%27 cy=%2711%27 r=%277%27/%3E%3Cpath d=%27m20 20-3.5-3.5%27/%3E%3C/svg%3E");mask:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.4%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Ccircle cx=%2711%27 cy=%2711%27 r=%277%27/%3E%3Cpath d=%27m20 20-3.5-3.5%27/%3E%3C/svg%3E")}',
+      '[data-pw-edit-device="mobile"] .pw-search-submit:has(.pw-shop-search-submit-icon)::before,[data-pw-edit-device="tablet"] .pw-search-submit:has(.pw-shop-search-submit-icon)::before,.nanoai-ve-mobile .pw-search-submit:has(.pw-shop-search-submit-icon)::before,.nanoai-ve-tablet .pw-search-submit:has(.pw-shop-search-submit-icon)::before{content:none!important;display:none!important}',
       '.pw-header-actions,.pw-shop-header-actions{flex:0 0 auto!important;margin-left:0!important;z-index:2}',
       '.nanoai-ve-active .pw-header-actions,.nanoai-ve-active .pw-shop-header-actions{z-index:170!important;pointer-events:auto!important;position:relative!important}',
       '.nanoai-ve-active .pw-header-actions > *,.nanoai-ve-active .pw-shop-header-actions > *,.nanoai-ve-active [data-pw-el="account"],.nanoai-ve-active .pw-account-btn,.nanoai-ve-active [data-pw-chrome-btn],.nanoai-ve-active [data-pw-chrome-added]{position:relative;z-index:171;pointer-events:auto!important}',
       '@media (max-width:899px){.nanoai-ve-active .pw-header-main,.nanoai-ve-active .pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;column-gap:6px!important;overflow:visible!important;min-width:0!important;max-width:100%!important;padding:8px 10px!important}.pw-brand-cluster,.pw-shop-brand-cluster{flex:0 0 auto!important;width:auto!important;max-width:200px!important;overflow:visible!important}.pw-header a.pw-brand:not([data-pw-logo-float]),.pw-shop-header a.pw-shop-brand:not([data-pw-logo-float]),.pw-header a[data-pw-logo-home]:not([data-pw-logo-float]),.pw-shop-header a[data-pw-logo-home]:not([data-pw-logo-float]){max-width:none!important}.pw-header-search:not([data-pw-user-move]):not([data-nanoai-ve-selected]),.pw-shop-search-wrap:not([data-pw-user-move]):not([data-nanoai-ve-selected]){flex:1 1 0%!important;min-width:96px!important;min-height:36px!important;width:auto!important;max-width:100%!important;margin:0!important;transform:none!important;position:relative!important;left:auto!important;top:auto!important;opacity:1!important;visibility:visible!important}.pw-header-actions,.pw-shop-header-actions{flex:0 0 auto!important;display:flex!important;flex-wrap:nowrap!important;width:auto!important;max-width:42%!important;margin-left:auto!important}}',
       '.nanoai-ve-active .pw-header-actions a,.nanoai-ve-active .pw-shop-header-actions a,.nanoai-ve-active header [data-pw-chrome-btn],.nanoai-ve-active header [data-pw-chrome-added]{cursor:grab!important}',
-      '.pw-header-actions [data-pw-chrome-added],.pw-shop-header-actions [data-pw-chrome-added]{display:inline-flex!important;flex:0 0 auto;flex-direction:row!important;align-items:center!important;justify-content:center!important;gap:6px!important;width:auto!important;height:auto!important;min-width:0;min-height:36px;padding:0 10px;font-size:13px;font-weight:700;background:transparent!important;cursor:grab}',
-      '.pw-header-actions [data-pw-chrome-added] .pw-chrome-btn-label,.pw-shop-header-actions [data-pw-chrome-added] .pw-chrome-btn-label,.pw-header-actions [data-pw-chrome-added] .pw-shop-nav-label,.pw-shop-header-actions [data-pw-chrome-added] .pw-shop-nav-label{display:inline!important;max-width:none!important;overflow:visible!important;white-space:nowrap!important;font-size:13px!important;font-weight:700;line-height:1.2}',
-      '.pw-nav-main [data-pw-chrome-added],.pw-shop-nav-row [data-pw-chrome-added]{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:auto!important;height:auto!important;background:transparent!important;cursor:grab}',
-      '.pw-bottom-nav svg,.pw-shop-bottom-nav svg{width:22px!important;height:22px!important;max-width:22px!important;max-height:22px!important;stroke:currentColor!important;fill:none!important}',
-      '.pw-bottom-nav .pw-chrome-icon-wrap,.pw-shop-bottom-nav .pw-chrome-icon-wrap{position:relative!important;display:inline-flex!important;flex-direction:row!important;align-items:center;justify-content:center;width:22px!important;height:22px!important;overflow:visible!important}',
+      '.pw-header-actions [data-pw-chrome-added]:not(.pw-chrome-icon-only),.pw-shop-header-actions [data-pw-chrome-added]:not(.pw-chrome-icon-only){display:inline-flex!important;flex:0 0 auto;flex-direction:row!important;align-items:center!important;justify-content:center!important;gap:var(--pw-chrome-gap,6px)!important;width:auto!important;height:auto!important;min-width:0;min-height:calc(var(--pw-chrome-size,22px) + 14px);padding:var(--pw-chrome-pad-y,4px) var(--pw-chrome-pad-x,12px)!important;font-size:var(--pw-chrome-label,13px)!important;font-weight:700;background:transparent!important;cursor:grab}',
+      '.pw-header-actions [data-pw-chrome-added] .pw-chrome-btn-label,.pw-shop-header-actions [data-pw-chrome-added] .pw-chrome-btn-label,.pw-header-actions [data-pw-chrome-added] .pw-shop-nav-label,.pw-shop-header-actions [data-pw-chrome-added] .pw-shop-nav-label{display:inline!important;max-width:none!important;overflow:visible!important;white-space:nowrap!important;font-size:var(--pw-chrome-label,13px)!important;font-weight:700;line-height:1.2}',
+      '.pw-nav-main [data-pw-chrome-added],.pw-shop-nav-row [data-pw-chrome-added]{display:inline-flex;align-items:center;justify-content:center;gap:var(--pw-chrome-gap,6px);width:auto!important;height:auto!important;background:transparent!important;cursor:grab}',
+      '.pw-bottom-nav>a:not([data-pw-chrome-added]) svg,.pw-shop-bottom-nav>a:not([data-pw-chrome-added]) svg{width:22px!important;height:22px!important;max-width:22px!important;max-height:22px!important;stroke:currentColor!important;fill:none!important}',
+      '.pw-bottom-nav [data-pw-chrome-added] svg,.pw-shop-bottom-nav [data-pw-chrome-added] svg{width:var(--pw-chrome-size,22px)!important;height:var(--pw-chrome-size,22px)!important;max-width:var(--pw-chrome-size,22px)!important;max-height:var(--pw-chrome-size,22px)!important;stroke:currentColor!important;fill:none!important}',
+      '.pw-bottom-nav>a:not([data-pw-chrome-added]) .pw-chrome-icon-wrap,.pw-shop-bottom-nav>a:not([data-pw-chrome-added]) .pw-chrome-icon-wrap{position:relative!important;display:inline-flex!important;flex-direction:row!important;align-items:center;justify-content:center;width:22px!important;height:22px!important;overflow:visible!important}',
+      '.pw-bottom-nav [data-pw-chrome-added] .pw-chrome-icon-wrap,.pw-shop-bottom-nav [data-pw-chrome-added] .pw-chrome-icon-wrap{position:relative!important;display:inline-flex!important;flex-direction:row!important;align-items:center;justify-content:center;width:var(--pw-chrome-size,22px)!important;height:var(--pw-chrome-size,22px)!important;overflow:visible!important}',
       '.pw-bottom-nav .pw-shop-icon-label,.pw-shop-bottom-nav .pw-shop-icon-label,.pw-bottom-nav .pw-chrome-btn-label,.pw-shop-bottom-nav .pw-chrome-btn-label,.pw-bottom-nav .pw-shop-nav-label,.pw-shop-bottom-nav .pw-shop-nav-label{display:block!important;max-width:100%!important;white-space:normal!important;overflow:visible!important;text-overflow:unset!important;color:inherit!important;text-align:center;line-height:1.15;overflow-wrap:break-word;word-break:break-word}',
+      '.pw-chrome-label-below,[data-pw-chrome-style="icon-label-below"],.pw-header-actions .pw-chrome-label-below,.pw-shop-header-actions .pw-chrome-label-below,.pw-bottom-nav .pw-chrome-label-below,.pw-shop-bottom-nav .pw-chrome-label-below,[data-pw-chrome-added].pw-chrome-label-below{flex-direction:column!important;align-items:center!important;justify-content:center!important;padding:var(--pw-chrome-pad-y,4px) 6px!important;border-radius:10px!important}',
+      '.pw-chrome-label-below .pw-chrome-btn-label,.pw-chrome-label-below .pw-shop-nav-label,.pw-chrome-label-below .pw-shop-icon-label{display:block!important;text-align:center!important;white-space:normal!important;max-width:4.8rem!important}',
+      '.pw-chrome-label-left,[data-pw-chrome-style="icon-label-left"],.pw-header-actions .pw-chrome-label-left,.pw-shop-header-actions .pw-chrome-label-left,.pw-bottom-nav .pw-chrome-label-left,.pw-shop-bottom-nav .pw-chrome-label-left,[data-pw-chrome-added].pw-chrome-label-left{flex-direction:row-reverse!important;align-items:center!important;justify-content:center!important}',
+      '.pw-chrome-label-left .pw-chrome-btn-label,.pw-chrome-label-left .pw-shop-nav-label,.pw-chrome-label-left .pw-shop-icon-label{display:inline!important;white-space:nowrap!important;text-align:left!important;max-width:none!important}',
       '.pw-bottom-nav .pw-chrome-icon-wrap .pw-cart-badge,.pw-shop-bottom-nav .pw-chrome-icon-wrap .pw-cart-badge,.pw-bottom-nav .pw-chrome-icon-wrap .pw-shop-cart-badge,.pw-shop-bottom-nav .pw-chrome-icon-wrap .pw-shop-cart-badge{position:absolute!important;top:-5px!important;right:-9px!important;left:auto!important;bottom:auto!important;z-index:2}',
       ${JSON.stringify(PW_CHROME_COUNT_BADGE_HIDE_CSS)},
       '.nanoai-ve-active [data-pw-region="banner"].nanoai-ve-photo-edit [data-pw-bg-layer],.nanoai-ve-active .pw-hero.nanoai-ve-photo-edit [data-pw-bg-layer]{z-index:6!important;cursor:grab!important}',
@@ -7036,7 +7569,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { rescueHeaderLogos() } catch (errRescue) {}
     try { reflowHeaderChrome() } catch (errHeadLogo) {}
     try { ensureSearchVisible() } catch (errSearchVis) {}
+    try { ensureSearchSubmitIcon(document) } catch (errSearchIcon) {}
     try { lockExistingSearchBoxes() } catch (errSearch) {}
+    try { stampAllChromeFloats() } catch (errFloatStamp) {}
+    try { if (window.__pwChromeTopupSync) window.__pwChromeTopupSync() } catch (errTopupSync) {}
+    try { clearAllChatStickHeaders() } catch (errChatStick) {}
     try { pinHeaderChromeIcons() } catch (errChromePin) {}
     try { pinChromeIconBadges(document) } catch (errPin) {}
     try { pwApplyDemoChromeCountBadges(document) } catch (errDemo) {}
@@ -7072,11 +7609,27 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { window.__nanoaiVeBound = 0 } catch (eBound) {}
     post('inactive', {})
   }
+  function scheduleChatEmbedPrep(d) {
+    try {
+      prepareChatEmbedForEditor(d)
+    } catch (errChat0) {}
+    var tries = 0
+    var timer = setInterval(function () {
+      tries++
+      try {
+        prepareChatEmbedForEditor(d)
+      } catch (errChat1) {}
+      if (tries >= 24 || chatLauncherHidden || document.querySelector('[data-pw-chrome-btn="chat"],[data-pw-chat-launcher="1"],[data-nanoai-chat-bubble="1"],.pw-fab-chat')) {
+        clearInterval(timer)
+      }
+    }, 250)
+  }
   function activateFromHost(d) {
     d = d || {}
-    if (d.device === 'mobile' || d.device === 'tablet' || d.device === 'desktop') editDevice = d.device
+    if (d.device === 'mobile' || d.device === 'tablet' || d.device === 'laptop' || d.device === 'desktop') editDevice = d.device
     activate()
     if (d.vars) applyThemeVars(d.vars)
+    scheduleChatEmbedPrep(d)
   }
   try {
     window.__nanoaiVeActivate = activateFromHost
@@ -7180,6 +7733,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var d = ev.data
     if (!d || d.source !== MSG) return
     if (d.type === 'activate') activateFromHost(d)
+    if (d.type === 'restoreChatLauncher') restoreChatEmbedLauncher()
     if (d.type === 'setTheme' && d.vars) applyThemeVars(d.vars)
     if (d.type === 'deactivate') deactivate()
     if (d.type === 'startAddLogo') startAddLogo()
@@ -7352,6 +7906,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.type === 'showHidden' && d.id) showHiddenBlock(d.id)
     if (d.type === 'deleteBlock') deleteSelectedBlock()
     if (d.type === 'duplicateBlock') duplicateSelectedBlock()
+    if (d.type === 'setChatIconLogo') setChatIconLogo(d.url)
     if (d.type === 'insertChromeBtn') insertChromeBtn(d.kind, d.html, d.host)
     if (d.type === 'insertText') insertText()
     if (d.type === 'insertButton') insertButton(d)
@@ -7369,6 +7924,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.type === 'layerElFront') bringElementFront()
     if (d.type === 'layerElBack') sendElementBack()
     if (d.type === 'setChromeStyle') setChromeStyle(d.style)
+    if (d.type === 'setChromeSize') setChromeSize(d.size)
     if (d.type === 'setButtonStyle') setButtonStyle(d.style)
     if (d.type === 'setButtonLabel') setButtonLabel(d.text)
     if (d.type === 'setSearchPlaceholder') {

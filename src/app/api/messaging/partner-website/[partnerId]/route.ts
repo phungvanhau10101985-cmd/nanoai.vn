@@ -30,6 +30,10 @@ import {
   applyFirstImageLogoToHtml,
   applyFirstImageLogoToProject,
 } from '@/lib/partner-website/visual-editor/apply-first-image-logo'
+import {
+  applyChatIconLogoToHtml,
+  applyChatIconLogoToProject,
+} from '@/lib/partner-website/visual-editor/apply-chat-icon-logo'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
 import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-landing-v1-template'
@@ -140,6 +144,8 @@ export async function PATCH(
       | 'unpublish'
       | 'save_draft'
       | 'update_floating_cta'
+      | 'update_chat_launcher'
+      | 'update_chat_icon_logo'
       | 'update_brand'
       | 'update_logo_url'
       | 'clear_logo'
@@ -147,6 +153,8 @@ export async function PATCH(
       | 'update_shop_home_copy'
       | 'undo_last'
     floatingCta?: unknown
+    hideChatLauncher?: unknown
+    chatIconLogoUrl?: string | null
     title?: string
     briefText?: string
     logoUrl?: string | null
@@ -155,7 +163,7 @@ export async function PATCH(
     theme?: unknown
     visualEdited?: boolean
     visualPageKey?: string
-    visualDevice?: 'desktop' | 'tablet' | 'mobile'
+    visualDevice?: 'desktop' | 'laptop' | 'tablet' | 'mobile'
     visualCategoryPath?: string
     visualProductId?: string
     visualCmsSlug?: string
@@ -201,6 +209,49 @@ export async function PATCH(
       changeNote: 'update_floating_cta',
     })
     if (!updated) return NextResponse.json({ error: 'Could not save floating CTA' }, { status: 500 })
+    return NextResponse.json({ success: true, website: updated })
+  }
+
+  if (body.action === 'update_chat_launcher') {
+    const existing = await fetchPartnerWebsiteByPartnerIdPg(pid)
+    if (!existing) return NextResponse.json({ error: 'Website not found' }, { status: 404 })
+    const hidden = body.hideChatLauncher === true
+    const nextTheme: PartnerWebsiteTheme = { ...existing.theme }
+    if (hidden) nextTheme.hideChatLauncher = true
+    else delete nextTheme.hideChatLauncher
+    const updated = await updatePartnerWebsiteDraftPg({
+      partnerId: pid,
+      theme: nextTheme,
+      changeNote: 'update_chat_launcher',
+    })
+    if (!updated) return NextResponse.json({ error: 'Could not save chat launcher' }, { status: 500 })
+    return NextResponse.json({ success: true, website: updated })
+  }
+
+  if (body.action === 'update_chat_icon_logo') {
+    const existing = await fetchPartnerWebsiteByPartnerIdPg(pid)
+    if (!existing) return NextResponse.json({ error: 'Website not found' }, { status: 404 })
+    const chatIconLogoUrl = typeof body.chatIconLogoUrl === 'string' ? body.chatIconLogoUrl.trim() : ''
+    if (!chatIconLogoUrl || !/^https?:\/\//i.test(chatIconLogoUrl)) {
+      return NextResponse.json({ error: 'chatIconLogoUrl required' }, { status: 400 })
+    }
+    const nextTheme: PartnerWebsiteTheme = {
+      ...existing.theme,
+      chatIconLogoUrl,
+    }
+    const nextProject = applyChatIconLogoToProject(existing.project, chatIconLogoUrl)
+    const nextHtmlSource = existing.htmlSource
+      ? applyChatIconLogoToHtml(existing.htmlSource, chatIconLogoUrl)
+      : existing.htmlSource
+    const updated = await updatePartnerWebsiteDraftPg({
+      partnerId: pid,
+      theme: nextTheme,
+      project: nextProject,
+      htmlSource: nextHtmlSource,
+      skipRevision: true,
+      changeNote: 'update_chat_icon_logo',
+    })
+    if (!updated) return NextResponse.json({ error: 'Could not save chat icon logo' }, { status: 500 })
     return NextResponse.json({ success: true, website: updated })
   }
 
@@ -349,15 +400,19 @@ export async function PATCH(
       visualPageKeys: normalizeVisualPageKeys(existing.theme.visualPageKeys),
       visualMobilePageKeys: normalizeVisualPageKeys(existing.theme.visualMobilePageKeys),
       visualTabletPageKeys: normalizeVisualPageKeys(existing.theme.visualTabletPageKeys),
+      visualLaptopPageKeys: normalizeVisualPageKeys(existing.theme.visualLaptopPageKeys),
       visualCategoryPaths: normalizeVisualCategoryPaths(existing.theme.visualCategoryPaths),
       visualMobileCategoryPaths: normalizeVisualCategoryPaths(existing.theme.visualMobileCategoryPaths),
       visualTabletCategoryPaths: normalizeVisualCategoryPaths(existing.theme.visualTabletCategoryPaths),
+      visualLaptopCategoryPaths: normalizeVisualCategoryPaths(existing.theme.visualLaptopCategoryPaths),
       visualProductIds: normalizeVisualProductIds(existing.theme.visualProductIds),
       visualMobileProductIds: normalizeVisualProductIds(existing.theme.visualMobileProductIds),
       visualTabletProductIds: normalizeVisualProductIds(existing.theme.visualTabletProductIds),
+      visualLaptopProductIds: normalizeVisualProductIds(existing.theme.visualLaptopProductIds),
       visualCmsSlugs: normalizeVisualCmsSlugs(existing.theme.visualCmsSlugs),
       visualMobileCmsSlugs: normalizeVisualCmsSlugs(existing.theme.visualMobileCmsSlugs),
       visualTabletCmsSlugs: normalizeVisualCmsSlugs(existing.theme.visualTabletCmsSlugs),
+      visualLaptopCmsSlugs: normalizeVisualCmsSlugs(existing.theme.visualLaptopCmsSlugs),
     })
     const updated = await updatePartnerWebsiteDraftPg({
       partnerId: pid,

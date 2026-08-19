@@ -68,6 +68,7 @@ type Props = {
   logoUrl?: string | null
   locale: WebLocale
   listenLandingPostMessage?: boolean
+  hideLauncher?: boolean
   children?: ReactNode
 }
 
@@ -77,6 +78,7 @@ export function PartnerSiteChatWidgetProvider({
   logoUrl,
   locale,
   listenLandingPostMessage = false,
+  hideLauncher = false,
   children,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
@@ -179,6 +181,7 @@ export function PartnerSiteChatWidgetProvider({
             languageSelectAriaLabel={t.chatLanguageLabel}
             externalOpenRequest={openRequest}
             resolveOpenUrl={resolveOpenUrl}
+            hideLauncher={hideLauncher}
           />
         ) : null}
       </PartnerSiteChatWidgetContext.Provider>

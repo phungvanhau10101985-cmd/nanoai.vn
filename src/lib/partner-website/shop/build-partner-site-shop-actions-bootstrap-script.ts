@@ -2,6 +2,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import {
   partnerSiteCartApiPath,
   partnerSiteCartPath,
+  partnerSiteContactChannelsApiPath,
   partnerSiteNotificationsApiPath,
   partnerSitePersonalizationApiPath,
   partnerSiteProductApiPath,
@@ -73,6 +74,7 @@ export function buildPartnerSiteShopActionsBootstrapScript(input: {
   const favApi = `${partnerSitePersonalizationApiPath(slug, 'favorites')}?limit=48`
   const recentApi = `${partnerSitePersonalizationApiPath(slug, 'recently-viewed')}?limit=48`
   const notifApi = partnerSiteNotificationsApiPath(slug, { unread: true })
+  const contactApi = partnerSiteContactChannelsApiPath(slug)
   const cartPath = partnerSiteCartPath(slug)
   const productApiPrefix = partnerSiteProductApiPath(slug, '__ID__').replace('__ID__', '')
   const detailPrefix = partnerSiteProductPath(slug, '__ID__').replace('__ID__', '')
@@ -83,6 +85,7 @@ var EVENTS_API=${JSON.stringify(eventsApi)};
 var FAV_API=${JSON.stringify(favApi)};
 var RECENT_API=${JSON.stringify(recentApi)};
 var NOTIF_API=${JSON.stringify(notifApi)};
+var CONTACT_API=${JSON.stringify(contactApi)};
 var PRODUCT_API_PREFIX=${JSON.stringify(productApiPrefix)};
 var CART_PATH=${JSON.stringify(cartPath)};
 var DETAIL_PREFIX=${JSON.stringify(detailPrefix)};
@@ -257,6 +260,18 @@ function cartQty(items){
   for(var i=0;i<items.length;i++) n+=Math.max(0,Number(items[i]&&items[i].quantity)||1);
   return n;
 }
+function hydrateContactChatLinks(){
+  var zalo=document.querySelectorAll('[data-pw-chrome-btn="chat-zalo"]');
+  var fb=document.querySelectorAll('[data-pw-chrome-btn="chat-facebook"]');
+  if(!zalo.length&&!fb.length)return;
+  apiFetch(CONTACT_API).then(function(res){
+    if(!res.ok||!res.j||!res.j.channels)return;
+    var c=res.j.channels;
+    var i;
+    if(c.zaloUrl){for(i=0;i<zalo.length;i++)zalo[i].setAttribute('href',c.zaloUrl);}
+    if(c.messengerUrl){for(i=0;i<fb.length;i++)fb[i].setAttribute('href',c.messengerUrl);}
+  }).catch(function(){});
+}
 function hydrateChromeBadges(){
   pinChromeIconBadges();
   pwStampChromeCountKinds(document);
@@ -296,7 +311,7 @@ function hydrateChromeBadges(){
 }
 document.addEventListener('pw-cart-updated', hydrateChromeBadges);
 document.addEventListener('pw-shop-notifications-refresh', hydrateChromeBadges);
-function run(){enhanceCards();hydrateChromeBadges();
+function run(){enhanceCards();hydrateChromeBadges();hydrateContactChatLinks();
   var obs=typeof MutationObserver!=='undefined'?new MutationObserver(function(){enhanceCards();}):null;
   if(obs)obs.observe(document.documentElement,{childList:true,subtree:true});
 }

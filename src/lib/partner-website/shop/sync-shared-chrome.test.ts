@@ -172,7 +172,54 @@ test('saving mobile chrome does not rewrite desktop logo layout', () => {
   assert.equal(desk.includes('MobFoot'), false)
 })
 
-test('saving a non-home page stamps that page from home and does not rewrite home', () => {
+test('saving one mobile page copies added chrome icon position to all mobile pages only', () => {
+  const desktop = `<!DOCTYPE html><html><body>
+<header class="pw-header"><a class="pw-brand">DeskLogo</a><div class="pw-header-actions"></div></header>
+<main>Desk home</main>
+<footer class="pw-footer">DeskFoot</footer>
+</body></html>`
+  const mobileHome = `<!DOCTYPE html><html><body>
+<header class="pw-header"><a class="pw-brand">MobLogo</a><div class="pw-header-actions"></div></header>
+<main>Mob home</main>
+<footer class="pw-footer">MobFoot</footer>
+<nav class="pw-bottom-nav"><a href="/">Home</a></nav>
+</body></html>`
+  const mobileAboutEdited = `<!DOCTYPE html><html><body>
+<header class="pw-header"><a class="pw-brand">MobLogo</a><div class="pw-header-actions"><button data-pw-chrome-added="1" data-pw-chrome-btn="chat" data-pw-device="mobile" style="--pw-chrome-size:30px;left:18px;top:6px" data-nanoai-open-chat>Chat</button></div></header>
+<main>Mob about</main>
+<footer class="pw-footer">MobFoot</footer>
+<nav class="pw-bottom-nav"><a href="/">Home</a></nav>
+</body></html>`
+  const mobileProducts = `<!DOCTYPE html><html><body>
+<header class="pw-header"><a class="pw-brand">OldMobLogo</a><div class="pw-header-actions"></div></header>
+<main>Mob products</main>
+<footer class="pw-footer">OldMobFoot</footer>
+<nav class="pw-bottom-nav"><a href="/products">Products</a></nav>
+</body></html>`
+  const project = {
+    files: [
+      { path: 'index.html', kind: 'html', content: desktop },
+      { path: 'index.mobile.html', kind: 'html', content: mobileHome },
+      { path: 'about.mobile.html', kind: 'html', content: mobileProducts },
+      { path: 'products.mobile.html', kind: 'html', content: mobileProducts },
+    ],
+  }
+  const next = syncSharedChromeAcrossProjectFiles(project, 'about.mobile.html', mobileAboutEdited)
+  const desk = next.files.find((f) => f.path === 'index.html')?.content || ''
+  const mobHome = next.files.find((f) => f.path === 'index.mobile.html')?.content || ''
+  const mobProducts = next.files.find((f) => f.path === 'products.mobile.html')?.content || ''
+  assert.equal(desk.includes('data-pw-chrome-btn="chat"'), false)
+  assert.match(mobHome, /data-pw-chrome-btn="chat"/)
+  assert.match(mobHome, /left:\s*18px/i)
+  assert.match(mobHome, /top:\s*6px/i)
+  assert.match(mobHome, /<main>Mob home<\/main>/)
+  assert.match(mobProducts, /data-pw-chrome-btn="chat"/)
+  assert.match(mobProducts, /left:\s*18px/i)
+  assert.match(mobProducts, /top:\s*6px/i)
+  assert.match(mobProducts, /<main>Mob products<\/main>/)
+})
+
+test('saving a non-home page syncs that device chrome to every same-device page', () => {
   const project = {
     files: [
       { path: 'index.html', kind: 'html', content: home },
@@ -195,14 +242,14 @@ test('saving a non-home page stamps that page from home and does not rewrite hom
   const homeHtml = next.files.find((f) => f.path === 'index.html')?.content || ''
   const aboutHtml = next.files.find((f) => f.path === 'about.html')?.content || ''
   const productsHtml = next.files.find((f) => f.path === 'products.html')?.content || ''
-  assert.match(homeHtml, /HomeLogo/)
-  assert.match(homeHtml, /Home footer/)
-  assert.equal(homeHtml.includes('EditedAboutHead'), false)
-  assert.match(aboutHtml, /HomeLogo/)
-  assert.match(aboutHtml, /Home footer/)
+  assert.match(homeHtml, /EditedAboutHead/)
+  assert.match(homeHtml, /EditedAboutFoot/)
+  assert.match(homeHtml, /Home hero/)
+  assert.match(aboutHtml, /EditedAboutHead/)
+  assert.match(aboutHtml, /EditedAboutFoot/)
   assert.match(aboutHtml, /<h1>About shop<\/h1>/)
-  assert.equal(aboutHtml.includes('EditedAboutHead'), false)
-  assert.match(productsHtml, /ProductsHead/)
+  assert.match(productsHtml, /EditedAboutHead/)
+  assert.match(productsHtml, /EditedAboutFoot/)
   assert.match(productsHtml, /Products mid/)
 })
 
@@ -230,8 +277,8 @@ test('saving a non-home page keeps deleted chrome widgets deleted', () => {
   const next = syncSharedChromeAcrossProjectFiles(project, 'about.html', aboutWithTombstone)
   const homeHtml = next.files.find((f) => f.path === 'index.html')?.content || ''
   const aboutHtml = next.files.find((f) => f.path === 'about.html')?.content || ''
-  assert.match(homeHtml, /data-pw-chrome-btn="products"/)
-  assert.match(aboutHtml, /HomeLogo/)
+  assert.equal(homeHtml.includes('data-pw-chrome-btn="products"'), false)
+  assert.match(aboutHtml, /EditedAboutHead/)
   assert.equal(aboutHtml.includes('data-pw-chrome-btn="products"'), false)
   assert.match(aboutHtml, /data-pw-deleted-chrome-feature="btn:products"/)
   assert.match(aboutHtml, /<h1>About shop<\/h1>/)

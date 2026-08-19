@@ -27,11 +27,12 @@ function applyRest(el: HTMLElement, rest: StickRest) {
   s.width = rest.width || ''
   s.height = rest.height || ''
   s.transform = rest.transform || ''
-  s.zIndex = rest.zIndex || ''
+  if (rest.zIndex) s.setProperty('z-index', rest.zIndex, 'important')
+  else s.removeProperty('z-index')
   s.margin = rest.margin || ''
 }
 
-/** Strip runtime pin styles before saving HTML. Keeps `data-pw-stick-header`. */
+/** Strip runtime pin styles before saving HTML. Keeps `data-pw-stick-header` (except chat floats). */
 export function releaseStickHeaderPins(root: ParentNode): void {
   root.querySelectorAll(`.${PARTNER_SHOP_STICK_HEADER_SLOT_CLASS}`).forEach((node) => {
     node.remove()
@@ -50,6 +51,11 @@ export function releaseStickHeaderPins(root: ParentNode): void {
     }
     el.removeAttribute('data-pw-stick-origin')
     el.removeAttribute('data-pw-stick-slot')
+    const kind = String(el.getAttribute('data-pw-chrome-btn') || '')
+    // Chat mua / Zalo / Facebook luôn float — không lưu gắn header.
+    if (kind === 'chat' || kind === 'chat-zalo' || kind === 'chat-facebook') {
+      el.removeAttribute(PARTNER_SHOP_STICK_HEADER_ATTR)
+    }
     if (el.getAttribute('style')?.trim() === '') el.removeAttribute('style')
   })
 }
@@ -78,6 +84,11 @@ export const PARTNER_SHOP_STICK_HEADER_SCRIPT = `(function(){
   function list(){ return document.querySelectorAll('[' + ATTR + '="1"]'); }
   function inChrome(el){
     return !!(el && el.closest && el.closest('header, .pw-header, .pw-shop-header, .pw-bottom-nav, .pw-shop-bottom-nav'));
+  }
+  function isChatFloatBtn(el){
+    if (!el || !el.getAttribute) return false;
+    var k = String(el.getAttribute('data-pw-chrome-btn') || '');
+    return k === 'chat' || k === 'chat-zalo' || k === 'chat-facebook';
   }
   function captureOrigin(el){
     if (!el || el.classList.contains(ON)) return;
@@ -117,7 +128,8 @@ export const PARTNER_SHOP_STICK_HEADER_SCRIPT = `(function(){
       el.style.width = o.width || '';
       el.style.height = o.height || '';
       el.style.transform = o.transform || '';
-      el.style.zIndex = o.zIndex || '';
+      if (o.zIndex) el.style.setProperty('z-index', o.zIndex, 'important');
+      else el.style.removeProperty('z-index');
       el.style.margin = o.margin || '';
     } catch (e) {}
     el.removeAttribute(REST);
@@ -168,7 +180,8 @@ export const PARTNER_SHOP_STICK_HEADER_SCRIPT = `(function(){
     el.style.height = Math.round(origin.h) + 'px';
     el.style.transform = 'none';
     el.style.margin = '0';
-    el.style.zIndex = '190';
+    // Below sticky header (200) but above page content — must beat inline !important from scene layers.
+    el.style.setProperty('z-index', '190', 'important');
   }
   function unpin(el){
     if (!el) return;
@@ -182,7 +195,7 @@ export const PARTNER_SHOP_STICK_HEADER_SCRIPT = `(function(){
     var nodes = list();
     for (var i = 0; i < nodes.length; i++) {
       var el = nodes[i];
-      if (!el || el.nodeType !== 1 || inChrome(el)) continue;
+      if (!el || el.nodeType !== 1 || inChrome(el) || isChatFloatBtn(el)) continue;
       if (!el.classList.contains(ON)) captureOrigin(el);
       var origin = parseOrigin(el);
       if (!origin) continue;

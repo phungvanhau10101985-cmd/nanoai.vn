@@ -1,6 +1,8 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerSiteCategoryNavLabels } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { normalizeContactHttpUrl } from '@/lib/partner-website/shop/partner-site-contact-channels'
+import { isChromeFloatKind } from '@/lib/partner-website/shop/chrome-float-widgets'
 import {
   partnerSiteAccountEditPath,
   partnerSiteAccountPath,
@@ -30,6 +32,21 @@ function escapeHtml(value: string): string {
   return escapeAttr(value)
 }
 
+export const PW_CHROME_ICON_SIZE_DEFAULT = 22
+export const PW_CHROME_ICON_SIZE_MIN = 16
+export const PW_CHROME_ICON_SIZE_MAX = 100
+
+export function clampPwChromeIconSize(raw: unknown): number {
+  const n = Math.round(Number(raw))
+  if (!Number.isFinite(n)) return PW_CHROME_ICON_SIZE_DEFAULT
+  return Math.min(PW_CHROME_ICON_SIZE_MAX, Math.max(PW_CHROME_ICON_SIZE_MIN, n))
+}
+
+function chromeSizeAttrs(size?: number | null): string {
+  const n = clampPwChromeIconSize(size)
+  return ` data-pw-chrome-size="${n}" style="--pw-chrome-size:${n}px"`
+}
+
 export const VISUAL_EDITOR_CHROME_WIDGET_KINDS = [
   'home',
   'products',
@@ -41,6 +58,9 @@ export const VISUAL_EDITOR_CHROME_WIDGET_KINDS = [
   'wishlist',
   'recently-viewed',
   'chat',
+  'chat-zalo',
+  'chat-facebook',
+  'topup',
   'account',
   'login',
   'orders',
@@ -69,15 +89,64 @@ export const VISUAL_EDITOR_CHROME_WIDGET_KINDS = [
 
 export type VisualEditorChromeWidgetKind = (typeof VISUAL_EDITOR_CHROME_WIDGET_KINDS)[number]
 
-export type VisualEditorChromeWidgetHost = 'actions' | 'topbar' | 'mid' | 'nav'
+export type VisualEditorChromeWidgetHost = 'actions' | 'topbar' | 'mid' | 'nav' | 'float'
 
 export const VISUAL_EDITOR_CHROME_WIDGET_PLACES = ['header', 'mid', 'nav'] as const
 export type VisualEditorChromeWidgetPlace = (typeof VISUAL_EDITOR_CHROME_WIDGET_PLACES)[number]
 
 export type VisualEditorChromeWidgetAppearance = 'icon' | 'link'
 
-export const VISUAL_EDITOR_CHROME_WIDGET_STYLES = ['icon', 'icon-label', 'text'] as const
+export const VISUAL_EDITOR_CHROME_WIDGET_STYLES = [
+  'icon',
+  'icon-square',
+  'icon-label',
+  'icon-label-below',
+  'icon-label-left',
+  'text',
+] as const
 export type VisualEditorChromeWidgetStyle = (typeof VISUAL_EDITOR_CHROME_WIDGET_STYLES)[number]
+
+export function isChromeIconOnlyStyle(style?: string | null): boolean {
+  return style === 'icon' || style === 'icon-square'
+}
+
+export function isChromeIconLabelStyle(style?: string | null): boolean {
+  return style === 'icon-label' || style === 'icon-label-below' || style === 'icon-label-left'
+}
+
+function chromeFaceClass(style?: VisualEditorChromeWidgetStyle): {
+  withLabel: boolean
+  styleClass: string
+  styleAttr: 'icon' | 'icon-square' | 'icon-label' | 'icon-label-below' | 'icon-label-left'
+} {
+  if (style === 'icon-square') {
+    return {
+      withLabel: false,
+      styleClass: 'pw-chrome-icon-only pw-chrome-icon-square',
+      styleAttr: 'icon-square',
+    }
+  }
+  if (style === 'icon-label-below') {
+    return {
+      withLabel: true,
+      styleClass: 'pw-chrome-has-label pw-chrome-label-below',
+      styleAttr: 'icon-label-below',
+    }
+  }
+  if (style === 'icon-label-left') {
+    return {
+      withLabel: true,
+      styleClass: 'pw-chrome-has-label pw-chrome-label-left',
+      styleAttr: 'icon-label-left',
+    }
+  }
+  const withLabel = style !== 'icon'
+  return {
+    withLabel,
+    styleClass: withLabel ? 'pw-chrome-has-label' : 'pw-chrome-icon-only',
+    styleAttr: withLabel ? 'icon-label' : 'icon',
+  }
+}
 
 export type VisualEditorChromeWidgetPickerGroupId = VisualEditorChromeWidgetPlace
 
@@ -92,6 +161,9 @@ export const VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS: VisualEditorChromeWidgetK
   'wishlist',
   'recently-viewed',
   'chat',
+  'chat-zalo',
+  'chat-facebook',
+  'topup',
   'account',
   'login',
   'orders',
@@ -148,6 +220,7 @@ const SVG: Partial<Record<VisualEditorChromeWidgetKind, string>> = {
     '<path d="M3 4h2l2.2 11h9.6L19 7H7"/><circle cx="10" cy="19" r="1.5"/><circle cx="16" cy="19" r="1.5"/>'
   ),
   chat: chromeSvg('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'),
+  topup: chromeSvg('<path d="m18 15-6-6-6 6"/>'),
   orders: chromeSvg(
     '<rect x="8" y="4" width="8" height="4" rx="1"/><path d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/>'
   ),
@@ -229,10 +302,13 @@ export function chromeWidgetHost(
   style?: VisualEditorChromeWidgetStyle,
   place?: VisualEditorChromeWidgetPlace
 ): VisualEditorChromeWidgetHost {
+  if (isChromeFloatKind(kind)) return 'float'
   if (place === 'nav') return 'nav'
   if (place === 'mid') return 'mid'
   if (style === 'text') return 'topbar'
-  if (style === 'icon' || style === 'icon-label' || place === 'header') return 'actions'
+  if (style === 'icon' || style === 'icon-square' || isChromeIconLabelStyle(style) || place === 'header') {
+    return 'actions'
+  }
   if (TOPBAR_DEFAULT_KINDS.has(kind)) return 'topbar'
   return 'actions'
 }
@@ -242,7 +318,7 @@ export function chromeWidgetAppearance(
   style?: VisualEditorChromeWidgetStyle
 ): VisualEditorChromeWidgetAppearance {
   if (style === 'text') return 'link'
-  if (style === 'icon' || style === 'icon-label') return 'icon'
+  if (style === 'icon' || style === 'icon-square' || isChromeIconLabelStyle(style)) return 'icon'
   return chromeWidgetHost(kind) === 'topbar' ? 'link' : 'icon'
 }
 
@@ -256,7 +332,7 @@ export function chromeWidgetHref(kind: VisualEditorChromeWidgetKind, siteSlug: s
   if (kind === 'wishlist' || kind === 'favorites-link') return partnerSiteWishlistPath(slug)
   if (kind === 'recently-viewed') return partnerSiteRecentlyViewedPath(slug)
   if (kind === 'cart') return partnerSiteCartPath(slug)
-  if (kind === 'chat') return '#'
+  if (kind === 'chat' || kind === 'chat-zalo' || kind === 'chat-facebook' || kind === 'topup') return '#'
   if (kind === 'orders' || kind === 'orders-link') return partnerSiteOrdersPath(slug)
   if (kind === 'order-tracking') return partnerSiteOrderTrackingPath(slug)
   if (kind === 'account') return partnerSiteAccountPath(slug)
@@ -294,6 +370,9 @@ export function chromeWidgetLabel(kind: VisualEditorChromeWidgetKind, locale: We
   if (kind === 'recently-viewed') return shop.navRecentlyViewed
   if (kind === 'cart') return shop.navCart
   if (kind === 'chat') return shop.navChat
+  if (kind === 'chat-zalo') return shop.navChatZalo
+  if (kind === 'chat-facebook') return shop.navChatFacebook
+  if (kind === 'topup') return shop.navTopUp
   if (kind === 'orders' || kind === 'orders-link') return shop.navOrders
   if (kind === 'order-tracking') return shop.orderTrack
   if (kind === 'account') return shop.navAccount
@@ -318,13 +397,72 @@ export function chromeWidgetLabel(kind: VisualEditorChromeWidgetKind, locale: We
   return nav.login
 }
 
+export function htmlHasChromeChatMua(html: string): boolean {
+  return /data-pw-chrome-btn=["']chat["']/i.test(html)
+}
+
+export { isChromeFloatKind } from '@/lib/partner-website/shop/chrome-float-widgets'
+
+export function isChromeContactChatKind(
+  kind: string
+): kind is 'chat-zalo' | 'chat-facebook' {
+  return kind === 'chat-zalo' || kind === 'chat-facebook'
+}
+
+/** Logo chính thức Zalo (màu thương hiệu Zalo, không phải --pw-*). */
+export const CHROME_ZALO_LOGO_SVG =
+  '<svg class="pw-chrome-brand-logo" width="22" height="22" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="12" fill="#0068FF"/><path fill="#fff" d="M15 16.5h18v3.4L22.2 31.2H33.2V35H15v-3.4L25.8 19.9H15z"/></svg>'
+
+/** Logo chính thức Facebook (màu thương hiệu Facebook, không phải --pw-*). */
+export const CHROME_FACEBOOK_CHAT_LOGO_SVG =
+  '<svg class="pw-chrome-brand-logo" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path fill="#fff" d="M13.2 19.2v-6.05h2.03l.3-2.35h-2.33V9.28c0-.68.19-1.15 1.17-1.15h1.25V6.02A16.4 16.4 0 0 0 13.4 5.9c-2.05 0-3.46 1.25-3.46 3.55v1.35H7.8v2.35h2.14V19.2h3.26z"/></svg>'
+
+export function chromeContactChatLogoSvg(kind: 'chat-zalo' | 'chat-facebook'): string {
+  return kind === 'chat-zalo' ? CHROME_ZALO_LOGO_SVG : CHROME_FACEBOOK_CHAT_LOGO_SVG
+}
+
+/** Nút Chat mua — logo shop + `data-nanoai-open-chat` (API chat nhúng). Không phải FAB NanoAI. */
+export function buildPartnerSiteChatMuaButtonHtml(input: {
+  siteSlug?: string | null
+  locale: WebLocale
+  style?: VisualEditorChromeWidgetStyle
+  place?: VisualEditorChromeWidgetPlace
+  logoUrl?: string | null
+  /** Logo icon Chat mua dùng chung mọi máy — ưu tiên hơn logo shop. */
+  chatIconLogoUrl?: string | null
+}): string {
+  return buildVisualEditorChromeWidgetHtml({
+    kind: 'chat',
+    siteSlug: input.siteSlug?.trim() || 'shop',
+    locale: input.locale,
+    style: input.style ?? 'icon',
+    place: input.place ?? 'header',
+    logoUrl: input.logoUrl,
+    chatIconLogoUrl: input.chatIconLogoUrl,
+  })
+}
+
 /** Icon / topbar link wired to shop routes + badge APIs (`data-pw-chrome-btn`). */
+function chromeChatLogoImg(logoUrl?: string | null): string {
+  const logo = typeof logoUrl === 'string' ? logoUrl.trim() : ''
+  if (!logo || !/^https?:\/\//i.test(logo)) return ''
+  return `<img class="pw-chrome-chat-logo" src="${escapeAttr(logo)}" alt="" width="22" height="22" draggable="false" />`
+}
+
 export function buildVisualEditorChromeWidgetHtml(input: {
   kind: VisualEditorChromeWidgetKind
   siteSlug: string
   locale: WebLocale
   style?: VisualEditorChromeWidgetStyle
   place?: VisualEditorChromeWidgetPlace
+  /** Logo shop / icon tin nhắn — nút Chat mua nhận tự động khi có. */
+  logoUrl?: string | null
+  /** Logo icon Chat mua dùng chung mọi máy — ưu tiên hơn logoUrl. */
+  chatIconLogoUrl?: string | null
+  /** URL Zalo / Facebook Messenger từ cài đặt web. */
+  href?: string | null
+  /** Cỡ icon (px), kéo to nhỏ khi thêm. */
+  iconSize?: number | null
 }): string {
   const slug = input.siteSlug.trim()
   if (!slug) return ''
@@ -333,65 +471,79 @@ export function buildVisualEditorChromeWidgetHtml(input: {
   const label = chromeWidgetLabel(kind, input.locale)
   const labelAttr = escapeAttr(label)
   const placeAttr = input.place ? ` data-pw-chrome-place="${input.place}"` : ''
+  const sizeAttr = chromeSizeAttrs(input.iconSize)
   if (kind === 'search') {
     const shop = getPartnerSiteShopCopy(input.locale)
     const ph = escapeAttr(shop.searchPlaceholder)
     const imgLabel = escapeAttr(shop.searchByImage)
     const btnAttr = escapeAttr(shop.searchButton)
     const cameraSvg = SVG['search-image'] || ''
-    return `<div class="pw-shop-search-wrap pw-header-search" data-pw-el="search" data-pw-chrome-added="1"${placeAttr} draggable="false"><form class="pw-shop-search-form pw-search-form" data-pw-search-form role="search"><input data-pw-search type="search" name="q" placeholder="${ph}" aria-label="${ph}" autocomplete="off"/><button type="button" class="pw-shop-search-image pw-search-image-btn" data-pw-image-search aria-label="${imgLabel}" title="${imgLabel}"><span class="pw-chrome-icon-wrap">${cameraSvg}</span></button><button type="submit" class="pw-shop-search-submit pw-search-submit" aria-label="${btnAttr}"><span class="pw-shop-search-submit-label">${escapeHtml(shop.searchButton)}</span></button></form></div>`
+    const searchSvg = (SVG.search || '').replace(
+      'class="pw-shop-nav-icon"',
+      'class="pw-shop-nav-icon pw-shop-search-submit-icon"'
+    )
+    return `<div class="pw-shop-search-wrap pw-header-search" data-pw-el="search" data-pw-chrome-added="1"${placeAttr}${sizeAttr} draggable="false"><form class="pw-shop-search-form pw-search-form" data-pw-search-form role="search"><input data-pw-search type="search" name="q" placeholder="${ph}" aria-label="${ph}" autocomplete="off"/><button type="button" class="pw-shop-search-image pw-search-image-btn" data-pw-image-search aria-label="${imgLabel}" title="${imgLabel}"><span class="pw-chrome-icon-wrap">${cameraSvg}</span></button><button type="submit" class="pw-shop-search-submit pw-search-submit" aria-label="${btnAttr}">${searchSvg}<span class="pw-shop-search-submit-label">${escapeHtml(shop.searchButton)}</span></button></form></div>`
   }
   if (kind === 'search-image') {
     const svg = SVG['search-image'] || ''
     const appearance = chromeWidgetAppearance(kind, style)
     if (appearance === 'link') {
-      return `<button type="button" class="pw-shop-search-image pw-search-image-btn pw-chrome-link" data-pw-image-search="1" data-pw-chrome-added="1" data-pw-chrome-style="text"${placeAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${escapeHtml(label)}</button>`
+      return `<button type="button" class="pw-shop-search-image pw-search-image-btn pw-chrome-link" data-pw-image-search="1" data-pw-chrome-added="1" data-pw-chrome-style="text"${placeAttr}${sizeAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${escapeHtml(label)}</button>`
     }
-    const withLabel = style !== 'icon'
-    const styleClass = withLabel ? 'pw-chrome-has-label' : 'pw-chrome-icon-only'
-    const styleAttr = withLabel ? 'icon-label' : 'icon'
-    const labelHtml = withLabel
+    const face = chromeFaceClass(style)
+    const labelHtml = face.withLabel
       ? `<span class="pw-shop-nav-label pw-chrome-btn-label">${escapeHtml(label)}</span>`
       : ''
-    return `<button type="button" class="pw-shop-search-image pw-search-image-btn pw-icon-btn pw-shop-icon-btn ${styleClass}" data-pw-image-search="1" data-pw-chrome-added="1" data-pw-chrome-style="${styleAttr}"${placeAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false"><span class="pw-chrome-icon-wrap">${svg}</span>${labelHtml}</button>`
+    return `<button type="button" class="pw-shop-search-image pw-search-image-btn pw-icon-btn pw-shop-icon-btn ${face.styleClass}" data-pw-image-search="1" data-pw-chrome-added="1" data-pw-chrome-style="${face.styleAttr}"${placeAttr}${sizeAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false"><span class="pw-chrome-icon-wrap">${svg}</span>${labelHtml}</button>`
   }
   if (kind === 'categories') {
     const svg = SVG.categories || ''
     const appearance = chromeWidgetAppearance(kind, style)
     if (appearance === 'link') {
-      return `<button type="button" class="pw-shop-cat-btn pw-chrome-link" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-added="1" data-pw-chrome-style="text"${placeAttr} aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${escapeHtml(label)}</button>`
+      return `<button type="button" class="pw-shop-cat-btn pw-chrome-link" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-added="1" data-pw-chrome-style="text"${placeAttr}${sizeAttr} aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${escapeHtml(label)}</button>`
     }
-    const withLabel = style !== 'icon'
-    const styleClass = withLabel ? 'pw-chrome-has-label' : 'pw-chrome-icon-only'
-    const styleAttr = withLabel ? 'icon-label' : 'icon'
-    const labelHtml = withLabel
+    const face = chromeFaceClass(style)
+    const labelHtml = face.withLabel
       ? `<span class="pw-shop-nav-label pw-chrome-btn-label">${escapeHtml(label)}</span>`
       : ''
-    return `<button type="button" class="pw-shop-cat-btn pw-icon-btn pw-shop-icon-btn ${styleClass}" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-added="1" data-pw-chrome-style="${styleAttr}"${placeAttr} aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false"><span class="pw-chrome-icon-wrap">${svg}</span>${labelHtml}</button>`
+    return `<button type="button" class="pw-shop-cat-btn pw-icon-btn pw-shop-icon-btn ${face.styleClass}" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-added="1" data-pw-chrome-style="${face.styleAttr}"${placeAttr}${sizeAttr} aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false"><span class="pw-chrome-icon-wrap">${svg}</span>${labelHtml}</button>`
   }
-  const href = escapeAttr(chromeWidgetHref(kind, slug))
+  const isContactChat = isChromeContactChatKind(kind)
+  const contactHref = isContactChat ? normalizeContactHttpUrl(input.href) : null
+  const href = escapeAttr(contactHref || chromeWidgetHref(kind, slug))
   const isChat = kind === 'chat'
+  const isActionBtn = isChat || kind === 'topup'
+  const floatAttr = isChromeFloatKind(kind) ? ' data-pw-chrome-float="1"' : ''
+  const customChatIcon =
+    isChat &&
+    typeof input.chatIconLogoUrl === 'string' &&
+    /^https?:\/\//i.test(input.chatIconLogoUrl.trim())
+  const chatLogoSrc = customChatIcon ? input.chatIconLogoUrl : input.logoUrl
+  const chatIconAttr = customChatIcon ? ' data-pw-chat-icon-logo="1"' : ''
   const chatAttr = isChat ? ' data-nanoai-open-chat' : ''
-  const openTag = isChat
+  const contactAttr = isContactChat
+    ? ` data-pw-contact-channel="${kind === 'chat-zalo' ? 'zalo' : 'facebook'}" target="_blank" rel="noopener noreferrer"`
+    : ''
+  const openTag = isActionBtn
     ? `<button type="button" class="`
     : `<a class="`
-  const closeTag = isChat ? '</button>' : '</a>'
-  const hrefAttr = isChat ? '' : ` href="${href}"`
+  const closeTag = isActionBtn ? '</button>' : '</a>'
+  const hrefAttr = isActionBtn ? '' : ` href="${href}"`
   const countAttr = ICON_BADGE_KINDS.has(kind) ? ' data-pw-chrome-count="1"' : ''
   if (chromeWidgetAppearance(kind, style) === 'link') {
-    return `${openTag}pw-chrome-link${isChat ? ' pw-chat-open' : ''}" data-pw-chrome-btn="${kind}" data-pw-chrome-added="1" data-pw-chrome-style="text"${placeAttr}${hrefAttr}${chatAttr} draggable="false">${escapeHtml(label)}${closeTag}`
+    return `${openTag}pw-chrome-link${isChat ? ' pw-chat-open' : ''}" data-pw-chrome-btn="${kind}" data-pw-chrome-added="1" data-pw-chrome-style="text"${placeAttr}${sizeAttr}${floatAttr}${hrefAttr}${chatAttr}${chatIconAttr}${contactAttr} draggable="false">${escapeHtml(label)}${closeTag}`
   }
-  const svg = SVG[kind] || SVG.account || ''
+  const chatLogo = isChat ? chromeChatLogoImg(chatLogoSrc) : ''
+  const brandLogo = isContactChat ? chromeContactChatLogoSvg(kind) : ''
+  const svg = chatLogo || brandLogo || SVG[kind] || SVG.account || ''
   const badge = ICON_BADGE_KINDS.has(kind)
     ? '<span class="pw-cart-badge pw-shop-cart-badge" data-pw-chrome-badge hidden>0</span>'
     : ''
-  const withLabel = style !== 'icon'
-  const styleClass = withLabel ? 'pw-chrome-has-label' : 'pw-chrome-icon-only'
-  const styleAttr = withLabel ? 'icon-label' : 'icon'
-  const labelHtml = withLabel
+  const face = chromeFaceClass(style)
+  const labelHtml = face.withLabel
     ? `<span class="pw-shop-nav-label pw-chrome-btn-label">${escapeHtml(label)}</span>`
     : ''
   const iconHtml = `<span class="pw-chrome-icon-wrap">${svg}${badge}</span>`
   const chatClass = isChat ? ' pw-chat-open' : ''
-  return `${openTag}pw-icon-btn pw-shop-icon-btn ${styleClass}${chatClass}" data-pw-chrome-btn="${kind}" data-pw-chrome-added="1" data-pw-chrome-style="${styleAttr}"${countAttr}${placeAttr}${hrefAttr}${chatAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${iconHtml}${labelHtml}${closeTag}`
+  return `${openTag}pw-icon-btn pw-shop-icon-btn ${face.styleClass}${chatClass}" data-pw-chrome-btn="${kind}" data-pw-chrome-added="1" data-pw-chrome-style="${face.styleAttr}"${countAttr}${placeAttr}${sizeAttr}${floatAttr}${hrefAttr}${chatAttr}${chatIconAttr}${contactAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${iconHtml}${labelHtml}${closeTag}`
 }
