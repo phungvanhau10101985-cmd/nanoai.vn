@@ -1,5 +1,9 @@
 import type { WebLocale } from '@/lib/i18n/config'
-import { getPartnerSiteCategoryNavLabels } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
+import {
+  getPartnerSiteAccountMenuItems,
+  getPartnerSiteCategoryNavLabels,
+  partnerSiteAccountMenuIconSvg,
+} from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { normalizeContactHttpUrl } from '@/lib/partner-website/shop/partner-site-contact-channels'
 import { isChromeFloatKind } from '@/lib/partner-website/shop/chrome-float-widgets'
@@ -499,18 +503,41 @@ export function buildVisualEditorChromeWidgetHtml(input: {
   if (kind === 'categories') {
     const svg = SVG.categories || ''
     const appearance = chromeWidgetAppearance(kind, style)
+    const panel = `<nav id="pw-shop-cat-panel" class="pw-shop-cat-panel pw-cat-panel" data-pw-cat-panel="1" aria-label="${labelAttr}"></nav>`
     if (appearance === 'link') {
-      return `<button type="button" class="pw-shop-cat-btn pw-chrome-link" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-added="1" data-pw-chrome-style="text"${placeAttr}${sizeAttr} aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${escapeHtml(label)}</button>`
+      return `<span class="pw-chrome-cat-wrap" data-pw-chrome-added="1"${placeAttr}${sizeAttr}><button type="button" class="pw-shop-cat-btn pw-chrome-link" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-style="text" aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${escapeHtml(label)}</button>${panel}</span>`
     }
     const face = chromeFaceClass(style)
     const labelHtml = face.withLabel
       ? `<span class="pw-shop-nav-label pw-chrome-btn-label">${escapeHtml(label)}</span>`
       : ''
-    return `<button type="button" class="pw-shop-cat-btn pw-icon-btn pw-shop-icon-btn ${face.styleClass}" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-added="1" data-pw-chrome-style="${face.styleAttr}"${placeAttr}${sizeAttr} aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false"><span class="pw-chrome-icon-wrap">${svg}</span>${labelHtml}</button>`
+    return `<span class="pw-chrome-cat-wrap" data-pw-chrome-added="1"${placeAttr}${sizeAttr}><button type="button" class="pw-shop-cat-btn pw-icon-btn pw-shop-icon-btn ${face.styleClass}" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-style="${face.styleAttr}" aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false"><span class="pw-chrome-icon-wrap">${svg}</span>${labelHtml}</button>${panel}</span>`
+  }
+  if (kind === 'account') {
+    const svg = SVG.account || ''
+    const appearance = chromeWidgetAppearance(kind, style)
+    const menu = getPartnerSiteAccountMenuItems({ siteSlug: slug, locale: input.locale })
+      .filter((item) => !item.isHeader)
+      .map((item) => {
+        const classes = [item.isAccent ? 'is-accent' : ''].filter(Boolean).join(' ')
+        const classAttr = classes ? ` class="${classes}"` : ''
+        return `<a href="${escapeAttr(item.href)}"${classAttr} data-pw-el="menu-item">${partnerSiteAccountMenuIconSvg(item.id)}<span>${escapeHtml(item.label)}</span></a>`
+      })
+      .join('')
+    const panel = `<nav id="pw-shop-account-panel" class="pw-shop-account-panel pw-account-panel" data-pw-account-panel="1" aria-label="${labelAttr}">${menu}</nav>`
+    if (appearance === 'link') {
+      return `<div class="pw-account-wrap" data-pw-chrome-added="1"${placeAttr}${sizeAttr}><button type="button" class="pw-account-btn pw-chrome-link" data-pw-el="account" data-pw-account-toggle="1" data-pw-chrome-btn="account" data-pw-chrome-style="text" aria-expanded="false" aria-controls="pw-shop-account-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${escapeHtml(label)}</button>${panel}</div>`
+    }
+    const face = chromeFaceClass(style)
+    const labelHtml = face.withLabel
+      ? `<span class="pw-shop-nav-label pw-chrome-btn-label">${escapeHtml(label)}</span>`
+      : ''
+    return `<div class="pw-account-wrap" data-pw-chrome-added="1"${placeAttr}${sizeAttr}><button type="button" class="pw-account-btn pw-icon-btn pw-shop-icon-btn ${face.styleClass}" data-pw-el="account" data-pw-account-toggle="1" data-pw-chrome-btn="account" data-pw-chrome-style="${face.styleAttr}" aria-expanded="false" aria-controls="pw-shop-account-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false"><span class="pw-chrome-icon-wrap">${svg}</span>${labelHtml}</button>${panel}</div>`
   }
   const isContactChat = isChromeContactChatKind(kind)
   const contactHref = isContactChat ? normalizeContactHttpUrl(input.href) : null
-  const href = escapeAttr(contactHref || chromeWidgetHref(kind, slug))
+  const routeHref = isContactChat || isChromeFloatKind(kind) || kind === 'chat' ? '' : chromeWidgetHref(kind, slug)
+  const href = escapeAttr(contactHref || routeHref)
   const isChat = kind === 'chat'
   const isActionBtn = isChat || kind === 'topup'
   const floatAttr = isChromeFloatKind(kind) ? ' data-pw-chrome-float="1"' : ''
@@ -521,17 +548,23 @@ export function buildVisualEditorChromeWidgetHtml(input: {
   const chatLogoSrc = customChatIcon ? input.chatIconLogoUrl : input.logoUrl
   const chatIconAttr = customChatIcon ? ' data-pw-chat-icon-logo="1"' : ''
   const chatAttr = isChat ? ' data-nanoai-open-chat' : ''
+  const contactChannel = kind === 'chat-zalo' ? 'zalo' : kind === 'chat-facebook' ? 'facebook' : ''
   const contactAttr = isContactChat
-    ? ` data-pw-contact-channel="${kind === 'chat-zalo' ? 'zalo' : 'facebook'}" target="_blank" rel="noopener noreferrer"`
+    ? ` data-pw-contact-channel="${contactChannel}"${
+        contactHref
+          ? ' target="_blank" rel="noopener noreferrer"'
+          : ' data-pw-contact-pending="1" aria-disabled="true"'
+      }`
     : ''
   const openTag = isActionBtn
     ? `<button type="button" class="`
     : `<a class="`
   const closeTag = isActionBtn ? '</button>' : '</a>'
-  const hrefAttr = isActionBtn ? '' : ` href="${href}"`
+  const hrefAttr = isActionBtn || !href ? '' : ` href="${href}"`
   const countAttr = ICON_BADGE_KINDS.has(kind) ? ' data-pw-chrome-count="1"' : ''
+  const elRole = kind === 'cart' ? ' data-pw-el="cart"' : ''
   if (chromeWidgetAppearance(kind, style) === 'link') {
-    return `${openTag}pw-chrome-link${isChat ? ' pw-chat-open' : ''}" data-pw-chrome-btn="${kind}" data-pw-chrome-added="1" data-pw-chrome-style="text"${placeAttr}${sizeAttr}${floatAttr}${hrefAttr}${chatAttr}${chatIconAttr}${contactAttr} draggable="false">${escapeHtml(label)}${closeTag}`
+    return `${openTag}pw-chrome-link${isChat ? ' pw-chat-open' : ''}" data-pw-chrome-btn="${kind}" data-pw-chrome-added="1" data-pw-chrome-style="text"${elRole}${placeAttr}${sizeAttr}${floatAttr}${hrefAttr}${chatAttr}${chatIconAttr}${contactAttr} draggable="false">${escapeHtml(label)}${closeTag}`
   }
   const chatLogo = isChat ? chromeChatLogoImg(chatLogoSrc) : ''
   const brandLogo = isContactChat ? chromeContactChatLogoSvg(kind) : ''
@@ -545,5 +578,5 @@ export function buildVisualEditorChromeWidgetHtml(input: {
     : ''
   const iconHtml = `<span class="pw-chrome-icon-wrap">${svg}${badge}</span>`
   const chatClass = isChat ? ' pw-chat-open' : ''
-  return `${openTag}pw-icon-btn pw-shop-icon-btn ${face.styleClass}${chatClass}" data-pw-chrome-btn="${kind}" data-pw-chrome-added="1" data-pw-chrome-style="${face.styleAttr}"${countAttr}${placeAttr}${sizeAttr}${floatAttr}${hrefAttr}${chatAttr}${chatIconAttr}${contactAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${iconHtml}${labelHtml}${closeTag}`
+  return `${openTag}pw-icon-btn pw-shop-icon-btn ${face.styleClass}${chatClass}" data-pw-chrome-btn="${kind}" data-pw-chrome-added="1" data-pw-chrome-style="${face.styleAttr}"${elRole}${countAttr}${placeAttr}${sizeAttr}${floatAttr}${hrefAttr}${chatAttr}${chatIconAttr}${contactAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${iconHtml}${labelHtml}${closeTag}`
 }

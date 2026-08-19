@@ -10,6 +10,7 @@ import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
 import type { StudioGeneratorKind } from '@/lib/hub-chat/hub-studio-presets'
 import { normalizeBannerAspectRatioForGemini } from '@/lib/banner-ad-presets'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { normalizeLogoAspectRatioForGemini } from '@/lib/partner-website/visual-editor/gemini-working-aspect'
 import { stripPackagingFaceTechnicalMeasurementsFromVisualPrompt } from '@/lib/packaging/face-print-prompt'
 import { normalizePanelArtworkToPrintSize } from '@/lib/packaging/panel-artwork-fit'
 import { stripBackground } from '@/lib/remove-background'
@@ -275,7 +276,10 @@ export async function runStudioImagePipeline(input: {
   const hasProduct = productUrls.length > 0
   const spec = input.verbatimPrompt
     ? {
-        aspectRatio: input.aspectRatio || '9:16',
+        aspectRatio:
+          input.kind === 'logo'
+            ? normalizeLogoAspectRatioForGemini(input.aspectRatio)
+            : input.aspectRatio || '9:16',
         imageSize: '2K' as const,
         prompt: input.brief.trim(),
       }

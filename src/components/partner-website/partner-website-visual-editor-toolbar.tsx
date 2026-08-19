@@ -36,7 +36,11 @@ import {
 import { persistVisualEditorAdminLogo } from '@/lib/partner-website/visual-editor/persist-visual-editor-admin-logo'
 import { persistVisualEditorChatIconLogo } from '@/lib/partner-website/visual-editor/persist-visual-editor-chat-icon-logo'
 import { buildChatIconLogoPrompt } from '@/lib/partner-website/visual-editor/build-chat-icon-logo-prompt'
-import { appendVisualDeviceQuery, visualDeviceVariantFromHtmlPath } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import {
+  DEFAULT_LOGO_GEMINI_ASPECT_RATIO,
+  LOGO_GEMINI_ASPECT_RATIOS,
+  type LogoGeminiAspectRatio,
+} from '@/lib/partner-website/visual-editor/gemini-working-aspect'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { isHexColor, resolveShopThemeColors, themeCssVarMap } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import {
@@ -80,6 +84,10 @@ import {
   extractFashionHomeCopyFromDocument,
   type FashionHomeCopyPatch,
 } from '@/lib/partner-website/shop/build-fashion-home-copy'
+import {
+  appendVisualDeviceQuery,
+  visualDeviceVariantFromHtmlPath,
+} from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
 const VISUAL_EDITOR_EDIT_KINDS = [
   'added-bg',
@@ -400,8 +408,6 @@ function bgStackRoleLabel(t: PartnerWebsiteCopy, role: PwBgStackRole): string {
   return labels[role] || t.visualEditBgStackAdded
 }
 
-const LOGO_ASPECT_OPTIONS = ['1:1', '3:2', '4:1', '8:1', '16:9', '21:9'] as const
-
 const LOGO_COLOR_NAMES: Record<string, string> = {
   trắng: '#ffffff',
   white: '#ffffff',
@@ -720,7 +726,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [panelPos, setPanelPos] = useState<{ x: number; y: number } | null>(null)
   const [bgColorPickerOpen, setBgColorPickerOpen] = useState(false)
   const pinnedBgSelectionRef = useRef<VisualEditorSelection | null>(null)
-  const [logoAspect, setLogoAspect] = useState<(typeof LOGO_ASPECT_OPTIONS)[number]>('4:1')
+  const [logoAspect, setLogoAspect] = useState<LogoGeminiAspectRatio>(DEFAULT_LOGO_GEMINI_ASPECT_RATIO)
   const [logoBgChoice, setLogoBgChoice] = useState<'theme' | 'white' | 'custom'>('theme')
   const [logoBgCustom, setLogoBgCustom] = useState('#c2410c')
   const [logoInkChoice, setLogoInkChoice] = useState<'white' | 'theme' | 'custom'>('white')
@@ -801,13 +807,13 @@ export function PartnerWebsiteVisualEditorToolbar({
     chatIconLogoUrl: string
     vars: ReturnType<typeof themeCssVarMap> | undefined
     hideChatLauncher: boolean
-  }>({ device: 'desktop', logoUrl: '', chatIconLogoUrl: '', vars: undefined, hideChatLauncher: false })
+  }>({ device: 'desktop', logoUrl: '', chatIconLogoUrl: '', vars: undefined, hideChatLauncher: true })
   activatePayloadRef.current = {
     device: visualDeviceVariantFromHtmlPath(htmlPath),
     logoUrl: theme?.logoUrl || '',
     chatIconLogoUrl: theme?.chatIconLogoUrl || '',
     vars: theme ? themeCssVarMap(theme) : undefined,
-    hideChatLauncher: theme?.hideChatLauncher === true,
+    hideChatLauncher: theme?.hideChatLauncher !== false,
   }
 
   const injectScript = useCallback(() => {
@@ -1257,7 +1263,7 @@ export function PartnerWebsiteVisualEditorToolbar({
 
   async function persistChatLauncherHidden(hidden: boolean): Promise<boolean> {
     if (!partnerId) return false
-    if (Boolean(theme?.hideChatLauncher) === hidden) return true
+    if ((theme?.hideChatLauncher !== false) === hidden) return true
     try {
       const res = await fetch(`/api/messaging/partner-website/${encodeURIComponent(partnerId)}`, {
         method: 'PATCH',
@@ -1274,7 +1280,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       }
       const nextTheme = { ...(json.website?.theme ?? theme) } as PartnerWebsiteTheme
       if (hidden) nextTheme.hideChatLauncher = true
-      else delete nextTheme.hideChatLauncher
+      else nextTheme.hideChatLauncher = false
       onThemeFieldsChange?.(nextTheme)
       return true
     } catch {
@@ -1840,7 +1846,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const logoCreateFields = (
     <div className="grid w-full min-w-0 gap-1">
       <div className="flex flex-wrap gap-0.5" title={t.visualEditLogoAspect}>
-        {LOGO_ASPECT_OPTIONS.map((aspect) => (
+        {LOGO_GEMINI_ASPECT_RATIOS.map((aspect) => (
           <button
             key={aspect}
             type="button"

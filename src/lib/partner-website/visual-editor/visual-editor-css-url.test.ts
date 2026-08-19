@@ -33,7 +33,7 @@ describe('visual-editor css url', () => {
     expect(inferVisualEditImageKind({ isLogo: true })).toEqual({ kind: 'logo', aspectRatio: '1:1' })
     expect(inferVisualEditImageKind({ isLogo: true, width: 160, height: 36 })).toEqual({
       kind: 'logo',
-      aspectRatio: '4:1',
+      aspectRatio: '21:9',
     })
     expect(inferVisualEditImageKind({ isBgImage: true, width: 1200, height: 400 })).toEqual({
       kind: 'banner',
@@ -79,6 +79,10 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('chromeFloatOffViewport')
     expect(s).toContain('if (isChromeFloatEl(el)) return false')
     expect(s).toContain('data-pw-chrome-float')
+    expect(s).toContain('z-index:9999!important')
+    expect(s).not.toContain('String(PW_CHROME_FLOAT_Z_INDEX)')
+    expect(s).toContain("el.parentNode !== document.body")
+    expect(s).toContain('document.body.appendChild(el)')
     expect(s).toContain('["chat","chat-zalo","chat-facebook","topup"]')
     expect(s).toContain('"topup"')
     expect(s).toContain("k === 'categories'")
@@ -114,6 +118,8 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain("walkCls.indexOf('pw-shop-brand-cluster')")
     expect(s).toContain('isFullBleedChrome')
     expect(s).toContain('revealLayeredLogo')
+    expect(s).toContain('isLogoLayerUnit(el) && isInHeader(el)')
+    expect(s).toContain('removeOrphanCatPanelNear')
     expect(s).toContain('listLayerPack')
     expect(s).toContain('layerIndex:')
     expect(s).toContain('data-pw-z')

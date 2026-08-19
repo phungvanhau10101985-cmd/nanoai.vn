@@ -69,7 +69,7 @@ export function PartnerSiteVisualHtmlScreen({
       locale={site.locale}
       inlineHtml={onCustomDomain}
       initialDevice={device}
-      hideChatLauncher={site.theme?.hideChatLauncher === true}
+      hideChatLauncher={site.theme?.hideChatLauncher}
     />
   )
 }

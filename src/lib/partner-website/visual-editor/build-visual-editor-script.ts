@@ -3,7 +3,11 @@ import {
   PW_CHROME_COUNT_BADGE_HIDE_CSS,
   PW_CHROME_COUNT_BADGE_RUNTIME_JS,
 } from '../shop/chrome-count-badges'
-import { PARTNER_SHOP_CHROME_FLOAT_POS_JS, PW_CHROME_FLOAT_KINDS } from '../shop/chrome-float-widgets'
+import {
+  PARTNER_SHOP_CHROME_FLOAT_POS_JS,
+  PW_CHROME_FLOAT_KINDS,
+  PW_CHROME_FLOAT_Z_INDEX,
+} from '../shop/chrome-float-widgets'
 import {
   PW_SCENE_ATTR,
   PW_SCENE_BAND,
@@ -1753,7 +1757,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     return null
   }
-  var chatLauncherHidden = false
+  var chatLauncherHidden = true
   var chatPrepLogoUrl = ''
   var chatPrepDevice = 'desktop'
   function applyChatLogoToChromeBtn(btn, url, force) {
@@ -1877,8 +1881,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var device = d.device === 'mobile' || d.device === 'tablet' || d.device === 'laptop' ? d.device : 'desktop'
     chatPrepLogoUrl = sharedChatIcon || logoUrl
     chatPrepDevice = device
-    if (d.hideChatLauncher === true) chatLauncherHidden = true
-    if (d.hideChatLauncher === false) chatLauncherHidden = false
+    chatLauncherHidden = d.hideChatLauncher !== false
     var roots = document.querySelectorAll('#nanoai-chat-widget-v1,[data-widget-id="nanoai-chat-widget-v1"]')
     for (var ri = 0; ri < roots.length; ri++) {
       var root = roots[ri]
@@ -1904,7 +1907,6 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       }
       return
     }
-    injectChatEmbedPreview(logoUrl, device)
   }
   function editKindOf(el) {
     if (!el) return 'other'
@@ -2296,6 +2298,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function stampChromeFloat(el) {
     if (!el || !el.setAttribute || !isChromeFloatEl(el)) return
     el.setAttribute('data-pw-chrome-float', '1')
+    if (el.style) el.style.setProperty('z-index', '${PW_CHROME_FLOAT_Z_INDEX}', 'important')
+    // Đưa ra body — tránh bị header/main isolation che mất float.
+    try {
+      if (el.parentNode && el.parentNode !== document.body) document.body.appendChild(el)
+    } catch (errHostFloat) {}
   }
   function releaseChromeFloatPin(el) {
     if (!el || !el.style || !isChromeFloatEl(el)) return
@@ -3795,7 +3802,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (isChromeFloatKind(k)) place = 'float'
     var hostEl = ensureChromeHost(place)
     if (k === 'categories') {
-      var existingCat = scopedQuery('[data-pw-el="cat-toggle"],[data-pw-cat-toggle],.pw-cat-btn,.pw-shop-cat-btn')
+      var existingCat =
+        scopedQuery(
+          '[data-pw-el="cat-toggle"],[data-pw-cat-toggle],.pw-cat-btn,.pw-shop-cat-btn,[data-pw-chrome-btn="categories"]'
+        ) || document.querySelector('[data-pw-chrome-btn="categories"]')
       if (existingCat) {
         if (existingCat.setAttribute) existingCat.setAttribute('data-pw-device', pwStampDevice())
         selectEl(existingCat)
@@ -3806,8 +3816,61 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         hostEl = cluster || scopedQuery('.pw-header-main, .pw-shop-header-inner') || hostEl
       }
       var panel = scopedQuery('#pw-shop-cat-panel, #pw-cat-panel, [data-pw-cat-panel], .pw-shop-cat-panel, .pw-cat-panel')
-      if (panel && node.setAttribute) {
-        node.setAttribute('aria-controls', panel.id || 'pw-shop-cat-panel')
+      var catBtn = node.querySelector
+        ? node.querySelector(
+            '[data-pw-el="cat-toggle"],[data-pw-cat-toggle],.pw-cat-btn,.pw-shop-cat-btn,[data-pw-chrome-btn="categories"]'
+          )
+        : null
+      if (
+        !catBtn &&
+        node.getAttribute &&
+        (node.getAttribute('data-pw-cat-toggle') ||
+          node.getAttribute('data-pw-el') === 'cat-toggle' ||
+          node.getAttribute('data-pw-chrome-btn') === 'categories')
+      ) {
+        catBtn = node
+      }
+      if (panel && catBtn && catBtn.setAttribute) {
+        catBtn.setAttribute('aria-controls', panel.id || 'pw-shop-cat-panel')
+        var nestedPanel = node.querySelector
+          ? node.querySelector('[data-pw-cat-panel],.pw-cat-panel,.pw-shop-cat-panel')
+          : null
+        if (nestedPanel && nestedPanel.parentNode) nestedPanel.parentNode.removeChild(nestedPanel)
+      } else if (catBtn && catBtn.setAttribute && !panel) {
+        var wrapPanel = node.querySelector
+          ? node.querySelector('[data-pw-cat-panel],.pw-cat-panel,.pw-shop-cat-panel')
+          : null
+        if (wrapPanel && wrapPanel.id) catBtn.setAttribute('aria-controls', wrapPanel.id)
+      }
+    }
+    if (k === 'account') {
+      var existingAcc =
+        scopedQuery('[data-pw-account-toggle],[data-pw-chrome-btn="account"],.pw-account-btn') ||
+        document.querySelector('[data-pw-account-toggle],[data-pw-chrome-btn="account"]')
+      if (existingAcc) {
+        if (existingAcc.setAttribute) existingAcc.setAttribute('data-pw-device', pwStampDevice())
+        selectEl(existingAcc)
+        return
+      }
+      var accPanel = scopedQuery(
+        '#pw-shop-account-panel, #pw-account-panel, [data-pw-account-panel], .pw-shop-account-panel, .pw-account-panel'
+      )
+      var accBtn = node.querySelector
+        ? node.querySelector('[data-pw-account-toggle],[data-pw-chrome-btn="account"],.pw-account-btn')
+        : null
+      if (
+        !accBtn &&
+        node.getAttribute &&
+        (node.getAttribute('data-pw-account-toggle') || node.getAttribute('data-pw-chrome-btn') === 'account')
+      ) {
+        accBtn = node
+      }
+      if (accPanel && accBtn && accBtn.setAttribute) {
+        accBtn.setAttribute('aria-controls', accPanel.id || 'pw-shop-account-panel')
+        var nestedAcc = node.querySelector
+          ? node.querySelector('[data-pw-account-panel],.pw-account-panel,.pw-shop-account-panel')
+          : null
+        if (nestedAcc && nestedAcc.parentNode) nestedAcc.parentNode.removeChild(nestedAcc)
       }
     }
     if (k === 'search') {
@@ -4090,6 +4153,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       var n = parseInt(raw, 10)
       if (isFinite(n) && n >= SCENE.minIndex && n <= SCENE.maxIndex) return n
     }
+    // Logo header dùng z-index 120 để xếp chồng chrome — không suy ra lớp không gian từ đó.
+    if (isLogoLayerUnit(el) && isInHeader(el)) return SCENE.defaultIndex
     return sceneIndexOfZ(readUserZ(el))
   }
   function writeSceneIndex(el, index) {
@@ -4109,6 +4174,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function sceneFocusAllows(el) {
     if (sceneFocus < SCENE.minIndex) return true
     if (!el) return false
+    if (isLogoLayerUnit(el) && isInHeader(el)) return true
     return readSceneIndex(el) === sceneFocus
   }
   function setSceneFocus(index) {
@@ -6538,6 +6604,18 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     selected.style.transform = ''
     selected.style.opacity = ''
   }
+  function removeOrphanCatPanelNear(el) {
+    if (!el) return
+    var cluster = el.closest ? el.closest('.pw-brand-cluster, .pw-shop-brand-cluster') : null
+    var scope = cluster || el.parentElement
+    if (!scope || !scope.querySelectorAll) return
+    var panels = scope.querySelectorAll('#pw-cat-panel, #pw-shop-cat-panel, [data-pw-cat-panel], .pw-cat-panel, .pw-shop-cat-panel')
+    var i
+    for (i = panels.length - 1; i >= 0; i--) {
+      var panel = panels[i]
+      if (panel && panel.parentNode) panel.parentNode.removeChild(panel)
+    }
+  }
   function deleteSelectedUnit() {
     if (!selected || !canDeleteEl(selected)) return
     if (chatEmbedLauncherOf(selected)) {
@@ -6548,10 +6626,12 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var removeEl = selected
     var frame = logoFrameOf(selected)
     var deletingLogo = isLogoImg(selected) || isLogoFrame(selected) || Boolean(frame)
+    var deletingCat = catToggleElOf(selected) || isCatToggleEl(selected)
     var brandHost = deletingLogo ? brandHostOf(selected) : null
     if (frame && (isLogoImg(selected) || isLogoFrame(selected) || selected === frame)) removeEl = frame
     if (!removeEl || !removeEl.parentNode) return
     if (isHeaderChromeEl(selected) || isAddedChrome(selected)) rememberDeletedChromeFeature(selected)
+    if (deletingCat) removeOrphanCatPanelNear(removeEl)
     removeEl.parentNode.removeChild(removeEl)
     selected = null
     try { pruneEmptyLogoFrames() } catch (errPrune) {}
@@ -6741,7 +6821,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       for (i = 0; i < hits.length; i++) {
         if (node === hits[i] || (hits[i].contains && hits[i].contains(node)) || (node.contains && node.contains(hits[i]))) return hits[i]
       }
-      return null
+      continue
     }
     return hits[0]
   }
@@ -7360,6 +7440,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-highlight[data-pw-bg-layer="1"],.nanoai-ve-hover[data-pw-bg-layer="1"]{outline:2px dashed #f59e0b!important}',
       'html,body{overflow-x:hidden!important;max-width:100%}',
       '.pw-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-shop-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-header-actions [data-pw-chrome-btn]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-cat-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]),.pw-account-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]){transform:none!important;left:auto!important;top:auto!important}',
+      '[data-pw-chrome-float="1"]{position:fixed!important;z-index:${PW_CHROME_FLOAT_Z_INDEX}!important;isolation:isolate!important;pointer-events:auto!important}',
       '.nanoai-ve-highlight[data-pw-region="banner"],.nanoai-ve-hover[data-pw-region="banner"]{outline:2px dashed #2563eb!important}',
       '.nanoai-ve-highlight[data-pw-move-block="1"],.nanoai-ve-hover[data-pw-move-block="1"]{outline:2px dashed #2563eb!important}',
       '[contenteditable=true]{cursor:text!important;min-width:0;outline:none!important}',
@@ -7475,7 +7556,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-active .pw-header-actions a,.nanoai-ve-active .pw-shop-header-actions a,.nanoai-ve-active header [data-pw-chrome-btn],.nanoai-ve-active header [data-pw-chrome-added]{cursor:grab!important}',
       '.pw-header-actions [data-pw-chrome-added]:not(.pw-chrome-icon-only),.pw-shop-header-actions [data-pw-chrome-added]:not(.pw-chrome-icon-only){display:inline-flex!important;flex:0 0 auto;flex-direction:row!important;align-items:center!important;justify-content:center!important;gap:var(--pw-chrome-gap,6px)!important;width:auto!important;height:auto!important;min-width:0;min-height:calc(var(--pw-chrome-size,22px) + 14px);padding:var(--pw-chrome-pad-y,4px) var(--pw-chrome-pad-x,12px)!important;font-size:var(--pw-chrome-label,13px)!important;font-weight:700;background:transparent!important;cursor:grab}',
       '.pw-header-actions [data-pw-chrome-added].pw-chrome-label-below:not(.pw-chrome-icon-only),.pw-shop-header-actions [data-pw-chrome-added].pw-chrome-label-below:not(.pw-chrome-icon-only),.pw-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"]:not(.pw-chrome-icon-only),.pw-shop-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"]:not(.pw-chrome-icon-only){flex-direction:column!important;align-items:center!important;justify-content:center!important;padding:var(--pw-chrome-pad-y,4px) 6px!important;border-radius:10px!important}',
-      '.pw-header-actions [data-pw-chrome-added].pw-chrome-label-left:not(.pw-chrome-icon-only),.pw-shop-header-actions [data-pw-chrome-added].pw-chrome-label-left:not(.pw-chrome-icon-only),.pw-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-left"]:not(.pw-chrome-icon-only),.pw-shop-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-left"]:not(.pw-chrome-icon-only){flex-direction:row-reverse!important}',
+      '.pw-header-actions [data-pw-chrome-added].pw-chrome-label-left:not(.pw-chrome-icon-only),.pw-shop-header-actions [data-pw-chrome-added].pw-chrome-label-left:not(.pw-chrome-icon-only),.pw-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-left"]:not(.pw-chrome-icon-only),.pw-shop-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-left"]:not(.pw-chrome-icon-only){flex-direction:row!important}',
       '.pw-header-actions [data-pw-chrome-added] .pw-chrome-btn-label,.pw-shop-header-actions [data-pw-chrome-added] .pw-chrome-btn-label,.pw-header-actions [data-pw-chrome-added] .pw-shop-nav-label,.pw-shop-header-actions [data-pw-chrome-added] .pw-shop-nav-label{display:inline!important;max-width:none!important;overflow:visible!important;white-space:nowrap!important;font-size:var(--pw-chrome-label,13px)!important;font-weight:700;line-height:1.2}',
       '.pw-header-actions [data-pw-chrome-added].pw-chrome-label-below .pw-chrome-btn-label,.pw-shop-header-actions [data-pw-chrome-added].pw-chrome-label-below .pw-chrome-btn-label,.pw-header-actions [data-pw-chrome-added].pw-chrome-label-below .pw-shop-nav-label,.pw-shop-header-actions [data-pw-chrome-added].pw-chrome-label-below .pw-shop-nav-label,.pw-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"] .pw-chrome-btn-label,.pw-shop-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"] .pw-chrome-btn-label,.pw-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"] .pw-shop-nav-label,.pw-shop-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"] .pw-shop-nav-label{display:block!important;text-align:center!important;white-space:normal!important;max-width:4.8rem!important}',
       '.pw-nav-main [data-pw-chrome-added],.pw-shop-nav-row [data-pw-chrome-added]{display:inline-flex;align-items:center;justify-content:center;gap:var(--pw-chrome-gap,6px);width:auto!important;height:auto!important;background:transparent!important;cursor:grab}',
@@ -7486,8 +7567,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.pw-bottom-nav .pw-shop-icon-label,.pw-shop-bottom-nav .pw-shop-icon-label,.pw-bottom-nav .pw-chrome-btn-label,.pw-shop-bottom-nav .pw-chrome-btn-label,.pw-bottom-nav .pw-shop-nav-label,.pw-shop-bottom-nav .pw-shop-nav-label{display:block!important;max-width:100%!important;white-space:normal!important;overflow:visible!important;text-overflow:unset!important;color:inherit!important;text-align:center;line-height:1.15;overflow-wrap:break-word;word-break:break-word}',
       '.pw-chrome-label-below,[data-pw-chrome-style="icon-label-below"],.pw-header-actions .pw-chrome-label-below,.pw-shop-header-actions .pw-chrome-label-below,.pw-bottom-nav .pw-chrome-label-below,.pw-shop-bottom-nav .pw-chrome-label-below,[data-pw-chrome-added].pw-chrome-label-below{flex-direction:column!important;align-items:center!important;justify-content:center!important;padding:var(--pw-chrome-pad-y,4px) 6px!important;border-radius:10px!important}',
       '.pw-chrome-label-below .pw-chrome-btn-label,.pw-chrome-label-below .pw-shop-nav-label,.pw-chrome-label-below .pw-shop-icon-label{display:block!important;text-align:center!important;white-space:normal!important;max-width:4.8rem!important}',
-      '.pw-chrome-label-left,[data-pw-chrome-style="icon-label-left"],.pw-header-actions .pw-chrome-label-left,.pw-shop-header-actions .pw-chrome-label-left,.pw-bottom-nav .pw-chrome-label-left,.pw-shop-bottom-nav .pw-chrome-label-left,[data-pw-chrome-added].pw-chrome-label-left{flex-direction:row-reverse!important;align-items:center!important;justify-content:center!important}',
-      '.pw-chrome-label-left .pw-chrome-btn-label,.pw-chrome-label-left .pw-shop-nav-label,.pw-chrome-label-left .pw-shop-icon-label{display:inline!important;white-space:nowrap!important;text-align:left!important;max-width:none!important}',
+      '.pw-chrome-label-left,[data-pw-chrome-style="icon-label-left"],.pw-header-actions .pw-chrome-label-left,.pw-shop-header-actions .pw-chrome-label-left,.pw-bottom-nav .pw-chrome-label-left,.pw-shop-bottom-nav .pw-chrome-label-left,[data-pw-chrome-added].pw-chrome-label-left{flex-direction:row!important;align-items:center!important;justify-content:center!important}',
+      '.pw-chrome-label-left .pw-chrome-btn-label,.pw-chrome-label-left .pw-shop-nav-label,.pw-chrome-label-left .pw-shop-icon-label{display:inline!important;white-space:nowrap!important;text-align:right!important;max-width:none!important}',
       '.pw-bottom-nav .pw-chrome-icon-wrap .pw-cart-badge,.pw-shop-bottom-nav .pw-chrome-icon-wrap .pw-cart-badge,.pw-bottom-nav .pw-chrome-icon-wrap .pw-shop-cart-badge,.pw-shop-bottom-nav .pw-chrome-icon-wrap .pw-shop-cart-badge{position:absolute!important;top:-5px!important;right:-9px!important;left:auto!important;bottom:auto!important;z-index:2}',
       ${JSON.stringify(PW_CHROME_COUNT_BADGE_HIDE_CSS)},
       '.nanoai-ve-active [data-pw-region="banner"].nanoai-ve-photo-edit [data-pw-bg-layer],.nanoai-ve-active .pw-hero.nanoai-ve-photo-edit [data-pw-bg-layer]{z-index:6!important;cursor:grab!important}',

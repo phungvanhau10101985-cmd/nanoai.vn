@@ -4,6 +4,8 @@ export const PW_CHROME_FLOAT_ATTR = 'data-pw-chrome-float'
 export const PW_CHROME_FLOAT_SCRIPT_ID = 'pw-shop-chrome-float'
 export const PW_CHROME_TOPUP_ON_CLASS = 'pw-chrome-topup-on'
 export const PW_CHROME_TOPUP_SCROLL_PX = 240
+/** Above header (200), bottom nav (180), lightbox (200) — chat/topup/Zalo/FB floats stay clickable. */
+export const PW_CHROME_FLOAT_Z_INDEX = 9999
 
 export const PW_CHROME_FLOAT_KINDS = ['chat', 'chat-zalo', 'chat-facebook', 'topup'] as const
 export type PwChromeFloatKind = (typeof PW_CHROME_FLOAT_KINDS)[number]
@@ -83,7 +85,7 @@ function pwChromeFloatRemap(el){
 }`
 
 export const PARTNER_SHOP_CHROME_FLOAT_CSS = `
-[${PW_CHROME_FLOAT_ATTR}="1"]{position:fixed!important;z-index:190!important;margin:0!important;flex:0 0 auto!important;max-width:none!important;max-height:none!important}
+[${PW_CHROME_FLOAT_ATTR}="1"]{position:fixed!important;z-index:${PW_CHROME_FLOAT_Z_INDEX}!important;isolation:isolate!important;margin:0!important;flex:0 0 auto!important;max-width:none!important;max-height:none!important;pointer-events:auto!important}
 [${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){left:auto!important;top:auto!important;right:16px!important}
 [data-pw-chrome-btn="chat"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:88px!important}
 [data-pw-chrome-btn="chat-zalo"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:144px!important}
@@ -112,6 +114,11 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
     if (!el || !el.setAttribute) return;
     var placed = el.getAttribute('data-pw-user-move') === '1';
     el.setAttribute(ATTR, '1');
+    if (el.style) el.style.setProperty('z-index', '${PW_CHROME_FLOAT_Z_INDEX}', 'important');
+    /* Escape header/main isolation so fixed z-index wins over page sections. */
+    try {
+      if (el.parentNode && el.parentNode !== document.body) document.body.appendChild(el);
+    } catch (errHost) {}
     if (!placed || !el.style) return;
     pwChromeFloatRemap(el);
   }

@@ -128,7 +128,7 @@ export default async function PartnerSitePublicPage({ params, searchParams }: Pr
         locale={site.locale}
         inlineHtml={onCustomDomain}
         initialDevice={previewDevice}
-        hideChatLauncher={site.theme.hideChatLauncher === true}
+        hideChatLauncher={site.theme?.hideChatLauncher}
       />
     )
   }
@@ -228,7 +228,7 @@ export default async function PartnerSitePublicPage({ params, searchParams }: Pr
       locale={site.locale}
       inlineHtml={onCustomDomain}
       initialDevice={previewDevice}
-      hideChatLauncher={site.theme.hideChatLauncher === true}
+      hideChatLauncher={site.theme?.hideChatLauncher}
     />
   )
 }

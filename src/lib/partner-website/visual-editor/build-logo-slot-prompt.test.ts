@@ -23,7 +23,7 @@ describe('buildLogoSlotPrompt', () => {
     expect(p).toContain('letterboxing')
     expect(p).toContain('transparent PNG')
     expect(p).toContain('140x36px')
-    expect(p).toContain('4:1')
+    expect(p).toContain('21:9')
     expect(p).toContain('Chosen frame')
     expect(p).toContain('WIDE WORDMARK')
   })
@@ -125,7 +125,7 @@ describe('buildLogoSlotPrompt', () => {
       device: 'mobile',
       bgColor: '#c2410c',
       inkColor: '#111827',
-      aspectRatio: '4:1',
+      aspectRatio: '16:9',
       width: 120,
       height: 30,
     })
@@ -165,17 +165,17 @@ describe('logoColorSwatchSize', () => {
     expect(s.w).toBe(512)
   })
 
-  it('keeps a wide chip for 4:1', () => {
-    const s = logoColorSwatchSize('4:1')
-    expect(s.w / s.h).toBeCloseTo(4, 1)
+  it('keeps a wide chip for 16:9', () => {
+    const s = logoColorSwatchSize('16:9')
+    expect(s.w / s.h).toBeCloseTo(16 / 9, 1)
     expect(s.h).toBeLessThan(s.w)
   })
 })
 
 describe('logoSizeFromAspect', () => {
   it('keeps the chosen ratio inside a header-sized box', () => {
-    const box = logoSizeFromAspect('4:1', 'mobile')
-    expect(box.w / box.h).toBeCloseTo(4, 1)
+    const box = logoSizeFromAspect('16:9', 'mobile')
+    expect(box.w / box.h).toBeCloseTo(16 / 9, 1)
     expect(box.w).toBeGreaterThanOrEqual(24)
     expect(box.h).toBeLessThanOrEqual(52)
   })
@@ -188,9 +188,9 @@ describe('logoAspectFromSize', () => {
     expect(logoAspectFromSize(80, 120)).toBe('2:3')
     expect(logoAspectFromSize(160, 90)).toBe('16:9')
     expect(logoAspectFromSize(210, 90)).toBe('21:9')
-    expect(logoAspectFromSize(140, 36)).toBe('4:1')
-    expect(logoAspectFromSize(160, 36)).toBe('4:1')
-    expect(logoAspectFromSize(200, 24)).toBe('8:1')
+    expect(logoAspectFromSize(140, 36)).toBe('21:9')
+    expect(logoAspectFromSize(160, 36)).toBe('21:9')
+    expect(logoAspectFromSize(200, 24)).toBe('21:9')
     expect(logoAspectFromSize(36, 160)).toBe('9:16')
   })
 })

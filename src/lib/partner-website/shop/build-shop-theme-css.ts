@@ -1,5 +1,6 @@
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { buildThemeCssVarBlock } from '@/lib/partner-website/template/partner-website-theme-tokens'
+import { PARTNER_SHOP_CHROME_FLOAT_CSS } from '@/lib/partner-website/shop/chrome-float-widgets'
 
 /** Fashion-orange aligned chrome for React platform shop pages. */
 export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string {
@@ -46,7 +47,7 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
 .pw-shop-search-card .pw-shop-price{padding:0 8px 8px;font-size:12px}
 .pw-shop-header-actions{display:flex;align-items:center;gap:4px;margin-left:auto}
 .pw-shop-account-wrap{position:relative}
-.pw-shop-account-panel{position:absolute;left:0;top:calc(100% + 8px);z-index:60;min-width:220px;display:grid;gap:2px;padding:6px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.12)}
+.pw-shop-account-panel{position:absolute;right:0;left:auto;top:calc(100% + 8px);z-index:60;min-width:220px;display:grid;gap:2px;padding:6px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.12)}
 .pw-shop-account-panel a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:600;color:#374151}
 .pw-shop-account-panel a:hover{background:var(--pw-surface);color:var(--pw-primary)}
 .pw-shop-account-panel a.is-header{background:#eff6ff;color:#2563eb;border-left:3px solid #2563eb;border-radius:8px 8px 8px 6px;font-weight:700}
@@ -104,14 +105,7 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
 .pw-shop-icon-btn{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:44px;min-height:40px;border-radius:10px;border:none;background:transparent;color:#374151;cursor:pointer;position:relative;font-weight:700;font-size:10px;line-height:1.1;padding:4px 6px;text-decoration:none}
 .pw-icon-btn{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;text-decoration:none;color:inherit}
 [data-pw-chrome-added],[data-pw-chrome-btn],[data-pw-el="cat-toggle"]{--pw-chrome-size:22px;--pw-chrome-label:calc(var(--pw-chrome-size,22px)*13/22);--pw-chrome-pad-y:calc(var(--pw-chrome-size,22px)*4/22);--pw-chrome-pad-x:calc(var(--pw-chrome-size,22px)*12/22);--pw-chrome-gap:calc(var(--pw-chrome-size,22px)*6/22)}
-[data-pw-chrome-float="1"]{position:fixed;z-index:190;margin:0}
-[data-pw-chrome-float="1"]:not([data-pw-user-move]){left:auto;top:auto;right:16px}
-[data-pw-chrome-btn="chat"][data-pw-chrome-float="1"]:not([data-pw-user-move]){bottom:88px}
-[data-pw-chrome-btn="chat-zalo"][data-pw-chrome-float="1"]:not([data-pw-user-move]){bottom:144px}
-[data-pw-chrome-btn="chat-facebook"][data-pw-chrome-float="1"]:not([data-pw-user-move]){bottom:200px}
-[data-pw-chrome-btn="topup"][data-pw-chrome-float="1"]:not([data-pw-user-move]){bottom:256px}
-[data-pw-chrome-btn="topup"]{opacity:0;visibility:hidden;pointer-events:none}
-[data-pw-chrome-btn="topup"].pw-chrome-topup-on,[data-pw-chrome-btn="topup"][data-nanoai-ve-selected]{opacity:1;visibility:visible;pointer-events:auto}
+${PARTNER_SHOP_CHROME_FLOAT_CSS}
 .pw-chrome-icon-wrap{position:relative;display:inline-flex;align-items:center;justify-content:center;width:var(--pw-chrome-size,22px);height:var(--pw-chrome-size,22px);flex-shrink:0;overflow:visible}
 .pw-chrome-icon-only .pw-shop-icon-label,.pw-chrome-icon-only .pw-chrome-btn-label{display:none!important}
 .pw-shop-header-actions .pw-chrome-icon-only,[data-pw-chrome-btn="chat"].pw-chrome-icon-only,[data-pw-chrome-btn="chat-zalo"].pw-chrome-icon-only,[data-pw-chrome-btn="chat-facebook"].pw-chrome-icon-only{width:calc(var(--pw-chrome-size,22px) + 14px);height:calc(var(--pw-chrome-size,22px) + 14px);min-width:calc(var(--pw-chrome-size,22px) + 14px);min-height:calc(var(--pw-chrome-size,22px) + 14px);padding:0;border-radius:999px;flex-direction:row}
@@ -120,7 +114,7 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
 .pw-chrome-has-label{flex-direction:column;gap:2px}
 .pw-header-actions .pw-chrome-has-label,.pw-shop-header-actions .pw-chrome-has-label,.pw-header-actions .pw-chrome-link,.pw-shop-header-actions .pw-chrome-link,[data-pw-chrome-added].pw-chrome-has-label,[data-pw-chrome-added].pw-chrome-link{flex-direction:row;gap:var(--pw-chrome-gap,6px);min-height:calc(var(--pw-chrome-size,22px) + 14px);padding:var(--pw-chrome-pad-y,4px) var(--pw-chrome-pad-x,12px);border-radius:999px;font-size:var(--pw-chrome-label,13px)}
 .pw-chrome-label-below,[data-pw-chrome-style="icon-label-below"],[data-pw-chrome-added].pw-chrome-label-below{flex-direction:column;align-items:center;justify-content:center;padding:var(--pw-chrome-pad-y,4px) 6px;border-radius:10px}
-.pw-chrome-label-left,[data-pw-chrome-style="icon-label-left"],[data-pw-chrome-added].pw-chrome-label-left{flex-direction:row-reverse;align-items:center;justify-content:center}
+.pw-chrome-label-left,[data-pw-chrome-style="icon-label-left"],[data-pw-chrome-added].pw-chrome-label-left{flex-direction:row;align-items:center;justify-content:center}
 [data-pw-chrome-btn="chat"] .pw-chrome-icon-wrap,[data-pw-chrome-btn="chat-zalo"] .pw-chrome-icon-wrap,[data-pw-chrome-btn="chat-facebook"] .pw-chrome-icon-wrap{overflow:hidden;border-radius:999px}
 .pw-chrome-icon-wrap .pw-chrome-chat-logo{width:100%;height:100%;object-fit:cover;border-radius:999px}
 .pw-chrome-has-label .pw-shop-icon-label,.pw-chrome-has-label .pw-chrome-btn-label{display:block;max-width:4.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

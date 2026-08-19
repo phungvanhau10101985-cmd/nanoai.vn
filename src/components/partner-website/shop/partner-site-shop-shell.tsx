@@ -172,6 +172,22 @@ function VisualHomeChromeRuntime({
       s.textContent = PARTNER_SHOP_LOGO_HOST_SCRIPT
       document.body.appendChild(s)
     }
+    // React may paint chrome after the first bootstrap tick — refresh badge APIs + toggles.
+    const t1 = window.setTimeout(() => {
+      document.dispatchEvent(new Event('pw-cart-updated'))
+      document.dispatchEvent(new Event('pw-shop-notifications-refresh'))
+    }, 60)
+    const t2 = window.setTimeout(() => {
+      document.dispatchEvent(new Event('pw-cart-updated'))
+    }, 400)
+    const t3 = window.setTimeout(() => {
+      document.dispatchEvent(new Event('pw-cart-updated'))
+    }, 1200)
+    return () => {
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+      window.clearTimeout(t3)
+    }
   }, [locale, siteSlug])
   return null
 }
@@ -359,7 +375,9 @@ function PartnerSiteShopShellInner({
 
   useEffect(() => {
     if (!ready) return
-    void loadCartCount()
+    void loadCartCount().then(() => {
+      document.dispatchEvent(new Event('pw-cart-updated'))
+    })
   }, [loadCartCount, ready])
 
   useEffect(() => {
@@ -375,7 +393,10 @@ function PartnerSiteShopShellInner({
       })
       captureFromResponse(res)
       const json = (await res.json().catch(() => ({}))) as { unreadCount?: number }
-      if (!cancelled) setUnreadNotifications(Math.max(0, Number(json.unreadCount ?? 0) || 0))
+      if (!cancelled) {
+        setUnreadNotifications(Math.max(0, Number(json.unreadCount ?? 0) || 0))
+        document.dispatchEvent(new Event('pw-shop-notifications-refresh'))
+      }
     }
     void loadUnread()
     const id = window.setInterval(() => void loadUnread(), 60_000)
@@ -559,12 +580,10 @@ function PartnerSiteShopShellInner({
                       <Link
                         key={item.id}
                         href={item.href}
-                        className={
-                          item.isHeader ? 'is-header' : item.isAccent ? 'is-accent' : undefined
-                        }
+                        className={item.isAccent ? 'is-accent' : undefined}
                         onClick={() => setAccountOpen(false)}
                       >
-                        <Icon className="pw-shop-account-icon" aria-hidden="true" strokeWidth={2} />
+                        {Icon ? <Icon className="pw-shop-account-icon" aria-hidden="true" strokeWidth={2} /> : null}
                         <span>{item.label}</span>
                       </Link>
                     )
@@ -755,7 +774,7 @@ export function PartnerSiteShopShell(props: Props) {
       logoUrl={props.logoUrl}
       locale={props.locale}
       hideLauncher={
-        props.theme.hideChatLauncher === true ||
+        props.theme.hideChatLauncher !== false ||
         !hasVisualHomeChrome(props.visualChromeByDevice) ||
         visualChromeHasChatMua(props.visualChromeByDevice)
       }

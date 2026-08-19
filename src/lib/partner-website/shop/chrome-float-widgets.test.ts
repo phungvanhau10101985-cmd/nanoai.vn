@@ -5,6 +5,7 @@ import {
   PARTNER_SHOP_CHROME_FLOAT_CSS,
   PARTNER_SHOP_CHROME_FLOAT_SCRIPT,
   PW_CHROME_FLOAT_KINDS,
+  PW_CHROME_FLOAT_Z_INDEX,
   resetChromeFloatUserMoveInHtml,
 } from '@/lib/partner-website/shop/chrome-float-widgets'
 
@@ -16,6 +17,9 @@ test('chat Zalo Facebook and top-up are viewport-fixed chrome', () => {
   assert.equal(isChromeFloatKind('topup'), true)
   assert.equal(isChromeFloatKind('cart'), false)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('position:fixed'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes(`z-index:${PW_CHROME_FLOAT_Z_INDEX}!important`), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('isolation:isolate!important'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes(`'${PW_CHROME_FLOAT_Z_INDEX}'`), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('[data-pw-chrome-btn="chat-zalo"]'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('["chat","chat-zalo","chat-facebook","topup"]'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('data-pw-user-move'), true)
@@ -23,6 +27,9 @@ test('chat Zalo Facebook and top-up are viewport-fixed chrome', () => {
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('pwChromeFloatBakePct'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes("toFixed(2)+'%'"), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('getBoundingClientRect'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('pointer-events:auto!important'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('document.body.appendChild'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes("el.parentNode !== document.body"), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes("tf !== 'none'"), false)
 })
 

@@ -3,6 +3,7 @@ import { getUserForCreditAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
 import { runStudioImagePipeline } from '@/lib/hub-agent/studio-image-pipeline'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
+import { normalizeLogoAspectRatioForGemini } from '@/lib/partner-website/visual-editor/gemini-working-aspect'
 
 export const maxDuration = 120
 
@@ -44,7 +45,9 @@ export async function POST(
   const kind =
     kindRaw === 'logo' ? 'logo' : kindRaw === 'product_photo' ? 'product_photo' : 'banner'
   const aspectRatio =
-    String(body.aspectRatio ?? '').trim() || (kind === 'logo' ? '1:1' : kind === 'banner' ? '16:9' : '1:1')
+    kind === 'logo'
+      ? normalizeLogoAspectRatioForGemini(String(body.aspectRatio ?? '').trim() || undefined)
+      : String(body.aspectRatio ?? '').trim() || (kind === 'banner' ? '16:9' : '1:1')
   const screenLabel =
     kind === 'logo' ? 'Website logo' : kind === 'banner' ? 'Website banner' : 'Website section image'
 

@@ -19,10 +19,6 @@ import {
   PARTNER_WEBSITE_SHARED_CHROME_PROMPT_RULES,
 } from '@/lib/partner-website/partner-website-mockup-build-rules'
 import { getPartnerWebsitePageDef, normalizePartnerWebsitePageKey } from '@/lib/partner-website/partner-website-page-catalog'
-import {
-  buildPartnerSiteChatMuaButtonHtml,
-  htmlHasChromeChatMua,
-} from '@/lib/partner-website/visual-editor/chrome-widgets'
 import { applyChatIconLogoToHtml } from '@/lib/partner-website/visual-editor/apply-chat-icon-logo'
 import {
   composeStandaloneHtml,
@@ -484,32 +480,6 @@ function ensureLiveCatalogSectionsInHtml(
   return out
 }
 
-function ensureChromeChatMuaInHtml(
-  html: string,
-  siteSlug: string,
-  locale: WebLocale,
-  logoUrl?: string | null,
-  chatIconLogoUrl?: string | null
-): string {
-  if (htmlHasChromeChatMua(html)) return html
-  const btn = buildPartnerSiteChatMuaButtonHtml({
-    siteSlug,
-    locale,
-    style: 'icon',
-    place: 'header',
-    logoUrl,
-    chatIconLogoUrl,
-  })
-  if (!btn) return html
-  if (/<div\b[^>]*class=["'][^"']*pw-header-actions/i.test(html)) {
-    return html.replace(/(<div\b[^>]*class=["'][^"']*pw-header-actions[^"']*["'][^>]*>)/i, `$1${btn}`)
-  }
-  if (/<\/header>/i.test(html)) {
-    return html.replace(/<\/header>/i, `${btn}\n</header>`)
-  }
-  return html.replace(/<\/body>/i, `${btn}\n</body>`)
-}
-
 function wireHooksIntoHtml(
   html: string,
   siteSlug: string,
@@ -527,7 +497,6 @@ function wireHooksIntoHtml(
       '<$1$2 data-nanoai-open-chat>'
     )
   }
-  out = ensureChromeChatMuaInHtml(out, siteSlug, locale, logoUrl, chatIconLogoUrl)
   if (chatIconLogoUrl && /^https?:\/\//i.test(chatIconLogoUrl.trim())) {
     out = applyChatIconLogoToHtml(out, chatIconLogoUrl.trim())
   }

@@ -6,8 +6,8 @@ import {
   getPartnerSiteCategoryNavLabels,
   getPartnerSitePromoNavLabel,
   getPartnerSiteShopNavPaths,
+  partnerSiteAccountMenuIconSvg,
 } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
-import { buildPartnerSiteChatMuaButtonHtml } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export type PartnerSiteHeaderHtmlInput = {
@@ -28,17 +28,7 @@ export type PartnerSiteHeaderHtmlOutput = {
   scripts: string
 }
 
-type HtmlIconName =
-  | 'menu'
-  | 'user'
-  | 'cart'
-  | 'home'
-  | 'box'
-  | 'tag'
-  | 'pencil'
-  | 'clipboard'
-  | 'clock'
-  | 'mappin'
+type HtmlIconName = 'menu' | 'user' | 'cart' | 'home' | 'box' | 'tag'
 
 function svgIcon(name: HtmlIconName): string {
   const paths: Record<HtmlIconName, string> = {
@@ -48,21 +38,8 @@ function svgIcon(name: HtmlIconName): string {
     home: '<path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/>',
     box: '<path d="M4 8l8-4 8 4v9l-8 4-8-4z"/><path d="M4 8l8 4 8-4M12 12v9"/>',
     tag: '<path d="M12 4h7v7l-9.5 9.5a2 2 0 0 1-2.8 0L4.5 18.3a2 2 0 0 1 0-2.8z"/><circle cx="16" cy="8" r="1.2"/>',
-    pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
-    clipboard: '<rect x="8" y="4" width="8" height="4" rx="1"/><path d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/>',
-    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-    mappin: '<path d="M12 21s7-4.5 7-11a7 7 0 1 0-14 0c0 6.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>',
   }
   return `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`
-}
-
-const ACCOUNT_MENU_ICONS: Record<string, HtmlIconName> = {
-  account: 'user',
-  'edit-profile': 'pencil',
-  cart: 'cart',
-  orders: 'clipboard',
-  'recently-viewed': 'clock',
-  addresses: 'mappin',
 }
 
 function searchLabels(locale: WebLocale) {
@@ -86,16 +63,11 @@ function buildCategoryLinks(productsHref: string, saleHref: string, locale: WebL
 
 function buildAccountMenuHtml(items: ReturnType<typeof getPartnerSiteAccountMenuItems>): string {
   return items
+    .filter((item) => !item.isHeader)
     .map((item) => {
-      const icon = ACCOUNT_MENU_ICONS[item.id] ?? 'user'
-      const classes = [
-        item.isHeader ? 'is-header' : '',
-        item.isAccent ? 'is-accent' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')
+      const classes = [item.isAccent ? 'is-accent' : ''].filter(Boolean).join(' ')
       const classAttr = classes ? ` class="${classes}"` : ''
-      return `<a href="${escapeAttr(item.href)}"${classAttr}>${svgIcon(icon)}<span>${escapeHtml(item.label)}</span></a>`
+      return `<a href="${escapeAttr(item.href)}"${classAttr} data-pw-el="menu-item">${partnerSiteAccountMenuIconSvg(item.id)}<span>${escapeHtml(item.label)}</span></a>`
     })
     .join('\n        ')
 }
@@ -250,14 +222,6 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
           ${accountMenuHtml}
         </nav>
       </div>
-      ${buildPartnerSiteChatMuaButtonHtml({
-        siteSlug: siteSlug || 'shop',
-        locale: input.locale,
-        style: 'icon',
-        place: 'header',
-        logoUrl: logo || undefined,
-        chatIconLogoUrl: input.chatIconLogoUrl,
-      })}
       <a class="pw-icon-btn" ${pwElAttr(PW_EL.cart)} data-pw-chrome-btn="cart" href="${cartHref}" aria-label="${escapeAttr(shop.navCart)}">${svgIcon('cart')}<span class="pw-cart-badge" data-pw-chrome-badge hidden>0</span></a>
     </div>
   </div>

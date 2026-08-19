@@ -182,7 +182,7 @@ function addToCart(product){
     if(!res.ok){toast(COPY.error);return;}
     toast(COPY.addedToCart);
     try{document.dispatchEvent(new CustomEvent('pw-cart-updated'));}catch(e){}
-    hydrateChromeBadges();
+    hydrateChromeBadges(true);
   });
 }
 function toggleFavorite(product,btn){
@@ -190,7 +190,7 @@ function toggleFavorite(product,btn){
     if(!res.ok){toast(COPY.error);return;}
     var on=!!(res.j&&res.j.is_favorite);
     if(btn){btn.setAttribute('aria-pressed',on?'true':'false');btn.textContent=on?COPY.favoriteRemove:COPY.favoriteAdd;btn.classList.toggle('is-active',on);}
-    hydrateChromeBadges();
+    hydrateChromeBadges(true);
   });
 }
 function enhanceCards(){
@@ -261,25 +261,56 @@ function cartQty(items){
   return n;
 }
 function hydrateContactChatLinks(){
-  var zalo=document.querySelectorAll('[data-pw-chrome-btn="chat-zalo"]');
-  var fb=document.querySelectorAll('[data-pw-chrome-btn="chat-facebook"]');
+  var zalo=document.querySelectorAll('[data-pw-chrome-btn="chat-zalo"],[data-pw-contact-channel="zalo"]');
+  var fb=document.querySelectorAll('[data-pw-chrome-btn="chat-facebook"],[data-pw-contact-channel="facebook"]');
   if(!zalo.length&&!fb.length)return;
+  function apply(nodes,url){
+    var i,el;
+    for(i=0;i<nodes.length;i++){
+      el=nodes[i];
+      if(url){
+        el.setAttribute('href',url);
+        el.removeAttribute('data-pw-contact-pending');
+        el.removeAttribute('aria-disabled');
+        el.setAttribute('target','_blank');
+        el.setAttribute('rel','noopener noreferrer');
+        el.style.removeProperty('display');
+        el.style.removeProperty('pointer-events');
+      }else if(el.getAttribute('data-pw-contact-pending')==='1'||!el.getAttribute('href')||el.getAttribute('href')==='#'){
+        el.setAttribute('data-pw-contact-pending','1');
+        el.setAttribute('aria-disabled','true');
+        el.removeAttribute('href');
+        el.style.display='none';
+        el.style.pointerEvents='none';
+      }
+    }
+  }
   apiFetch(CONTACT_API).then(function(res){
-    if(!res.ok||!res.j||!res.j.channels)return;
-    var c=res.j.channels;
-    var i;
-    if(c.zaloUrl){for(i=0;i<zalo.length;i++)zalo[i].setAttribute('href',c.zaloUrl);}
-    if(c.messengerUrl){for(i=0;i<fb.length;i++)fb[i].setAttribute('href',c.messengerUrl);}
-  }).catch(function(){});
+    var c=res.ok&&res.j&&res.j.channels?res.j.channels:{};
+    apply(zalo,c.zaloUrl||'');
+    apply(fb,c.messengerUrl||'');
+  }).catch(function(){
+    apply(zalo,'');
+    apply(fb,'');
+  });
 }
-function hydrateChromeBadges(){
+function hydrateChromeBadges(force){
   pinChromeIconBadges();
   pwStampChromeCountKinds(document);
+  if(window.__pwChromeBadgeCache&&!force){
+    var c=window.__pwChromeBadgeCache;
+    pwSetChromeCountBadgeByKind('cart',c.cart);
+    pwSetChromeCountBadgeByKind('wishlist',c.wishlist);
+    pwSetChromeCountBadgeByKind('recently-viewed',c.recently);
+    pwSetChromeCountBadgeByKind('notifications',c.notifications);
+    return;
+  }
   var got={cart:0,notifications:0,recently:0,wishlist:0};
   var pending=4;
   function finish(){
     pending-=1;
     if(pending>0)return;
+    window.__pwChromeBadgeCache=got;
     if(pwIsAdminChromePreview()&&!got.cart&&!got.notifications&&!got.recently){
       pwApplyDemoChromeCountBadges(document);
     }
@@ -309,10 +340,18 @@ function hydrateChromeBadges(){
     }
   }).catch(function(){}).then(finish);
 }
-document.addEventListener('pw-cart-updated', hydrateChromeBadges);
-document.addEventListener('pw-shop-notifications-refresh', hydrateChromeBadges);
-function run(){enhanceCards();hydrateChromeBadges();hydrateContactChatLinks();
-  var obs=typeof MutationObserver!=='undefined'?new MutationObserver(function(){enhanceCards();}):null;
+document.addEventListener('pw-cart-updated', function(){hydrateChromeBadges(true);});
+document.addEventListener('pw-shop-notifications-refresh', function(){hydrateChromeBadges(true);});
+function run(){enhanceCards();hydrateChromeBadges(true);hydrateContactChatLinks();
+  var moTimer=null;
+  var obs=typeof MutationObserver!=='undefined'?new MutationObserver(function(){
+    if(moTimer)clearTimeout(moTimer);
+    moTimer=setTimeout(function(){
+      enhanceCards();
+      hydrateChromeBadges(false);
+      hydrateContactChatLinks();
+    },120);
+  }):null;
   if(obs)obs.observe(document.documentElement,{childList:true,subtree:true});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);else run();

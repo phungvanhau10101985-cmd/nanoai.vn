@@ -218,7 +218,7 @@ export async function PATCH(
     const hidden = body.hideChatLauncher === true
     const nextTheme: PartnerWebsiteTheme = { ...existing.theme }
     if (hidden) nextTheme.hideChatLauncher = true
-    else delete nextTheme.hideChatLauncher
+    else nextTheme.hideChatLauncher = false
     const updated = await updatePartnerWebsiteDraftPg({
       partnerId: pid,
       theme: nextTheme,

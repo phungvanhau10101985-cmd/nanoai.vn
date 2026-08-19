@@ -234,13 +234,49 @@ test('chrome widgets emit category toggle as cat-toggle button', () => {
     locale: 'vi',
     style: 'icon-label',
   })
+  assert.match(html, /pw-chrome-cat-wrap/)
   assert.match(html, /<button type="button"/)
   assert.match(html, /data-pw-el="cat-toggle"/)
   assert.match(html, /data-pw-cat-toggle/)
   assert.match(html, /aria-controls="pw-shop-cat-panel"/)
+  assert.match(html, /data-pw-cat-panel/)
+  assert.match(html, /id="pw-shop-cat-panel"/)
   assert.match(html, /Danh mục/)
   assert.doesNotMatch(html, / href=/)
   assert.doesNotMatch(html, /data-pw-chrome-btn/)
+})
+
+test('chrome widgets emit account toggle with menu panel routes', () => {
+  const html = buildVisualEditorChromeWidgetHtml({
+    kind: 'account',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon',
+  })
+  assert.match(html, /pw-account-wrap/)
+  assert.match(html, /data-pw-account-toggle/)
+  assert.match(html, /data-pw-chrome-btn="account"/)
+  assert.match(html, /data-pw-account-panel/)
+  assert.match(html, /id="pw-shop-account-panel"/)
+  assert.match(html, /data-pw-el="menu-item"/)
+  assert.match(html, /pw-shop-account-icon/)
+  assert.doesNotMatch(html, />Tài khoản<\/span>/)
+  assert.ok(html.includes(partnerSiteAccountTabPath('188-shop', 'orders')))
+  assert.ok(html.includes(partnerSiteAccountTabPath('188-shop', 'wishlist')))
+  assert.doesNotMatch(html, / href="#"/)
+})
+
+test('chrome Chat Zalo without settings URL stays pending (no # href)', () => {
+  const html = buildVisualEditorChromeWidgetHtml({
+    kind: 'chat-zalo',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon',
+  })
+  assert.match(html, /data-pw-contact-pending="1"/)
+  assert.match(html, /data-pw-contact-channel="zalo"/)
+  assert.doesNotMatch(html, / href=/)
+  assert.doesNotMatch(html, /href="#"/)
 })
 
 test('chrome widgets emit search box with image search and submit', () => {

@@ -10,21 +10,19 @@ function readShop(rel: string) {
 }
 
 describe('listing native UI contract stamps', () => {
-  it('includes Chat mua with shop logo and embed API, without NanoAI FAB', () => {
+  it('does not ship default Chat mua or NanoAI FAB in header template', () => {
     const src = readShop('build-partner-site-header-html.ts')
-    expect(src).toContain('buildPartnerSiteChatMuaButtonHtml')
+    expect(src).not.toContain('buildPartnerSiteChatMuaButtonHtml')
     expect(src).not.toContain('pw-fab-chat')
 
     const template = readShop('../template/render-template-html.ts')
     expect(template).not.toContain('class="pw-fab-chat pw-chat-open"')
 
-    const shell = readFileSync(
-      join(here, '../../../components/partner-website/shop/partner-site-shop-shell.tsx'),
-      'utf8'
-    )
-    expect(shell).toContain('data-pw-chrome-btn="chat"')
-    expect(shell).toContain('data-nanoai-open-chat')
-    expect(shell).toContain('pw-chrome-chat-logo')
+    const widgets = readShop('../visual-editor/chrome-widgets.ts')
+    expect(widgets).toContain('buildPartnerSiteChatMuaButtonHtml')
+    expect(widgets).toContain('data-pw-chrome-btn="${kind}"')
+    expect(widgets).toContain('data-nanoai-open-chat')
+    expect(widgets).toContain('pw-chrome-chat-logo')
   })
 
   it('stamps header HTML topbar and nav links', () => {

@@ -13,6 +13,7 @@ import {
   PARTNER_SHOP_CHROME_FLOAT_SCRIPT,
   PW_CHROME_FLOAT_SCRIPT_ID,
 } from '@/lib/partner-website/shop/chrome-float-widgets'
+import { injectPartnerShopFontsIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-fonts'
 
 /** Persistent chrome layout — same rules Sửa nhanh uses, kept on the live shop. */
 export const PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID = 'pw-shop-chrome-layout'
@@ -222,13 +223,13 @@ ${PW_CHROME_COUNT_BADGE_HIDE_CSS}
 }
 .pw-header-actions [data-pw-chrome-added].pw-chrome-label-left:not(.pw-chrome-icon-only),.pw-shop-header-actions [data-pw-chrome-added].pw-chrome-label-left:not(.pw-chrome-icon-only),
 .pw-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-left"]:not(.pw-chrome-icon-only),.pw-shop-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-left"]:not(.pw-chrome-icon-only){
-  flex-direction:row-reverse!important;align-items:center!important;justify-content:center!important
+  flex-direction:row!important;align-items:center!important;justify-content:center!important
 }
 .pw-header-actions [data-pw-chrome-added].pw-chrome-label-left .pw-chrome-btn-label,.pw-shop-header-actions [data-pw-chrome-added].pw-chrome-label-left .pw-chrome-btn-label,
 .pw-header-actions [data-pw-chrome-added].pw-chrome-label-left .pw-shop-nav-label,.pw-shop-header-actions [data-pw-chrome-added].pw-chrome-label-left .pw-shop-nav-label,
 .pw-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-left"] .pw-chrome-btn-label,.pw-shop-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-left"] .pw-chrome-btn-label,
 .pw-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-left"] .pw-shop-nav-label,.pw-shop-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-left"] .pw-shop-nav-label{
-  display:inline!important;white-space:nowrap!important;text-align:left!important;max-width:none!important
+  display:inline!important;white-space:nowrap!important;text-align:right!important;max-width:none!important
 }
 .pw-chrome-icon-only .pw-chrome-btn-label,.pw-chrome-icon-only .pw-shop-nav-label,.pw-chrome-icon-only .pw-shop-icon-label{display:none!important}
 .pw-nav-main [data-pw-chrome-added]:not(.pw-chrome-icon-only),.pw-shop-nav-row [data-pw-chrome-added]:not(.pw-chrome-icon-only){
@@ -266,11 +267,11 @@ ${PW_CHROME_COUNT_BADGE_HIDE_CSS}
 .pw-bottom-nav .pw-chrome-label-left,.pw-shop-bottom-nav .pw-chrome-label-left,
 [data-pw-chrome-added].pw-chrome-label-left,
 .pw-bottom-nav [data-pw-chrome-added].pw-chrome-label-left,.pw-shop-bottom-nav [data-pw-chrome-added].pw-chrome-label-left{
-  flex-direction:row-reverse!important;align-items:center!important;justify-content:center!important
+  flex-direction:row!important;align-items:center!important;justify-content:center!important
 }
 .pw-chrome-label-left .pw-chrome-btn-label,.pw-chrome-label-left .pw-shop-nav-label,.pw-chrome-label-left .pw-shop-icon-label,
 [data-pw-chrome-style="icon-label-left"] .pw-chrome-btn-label,[data-pw-chrome-style="icon-label-left"] .pw-shop-nav-label{
-  display:inline!important;white-space:nowrap!important;text-align:left!important;max-width:none!important
+  display:inline!important;white-space:nowrap!important;text-align:right!important;max-width:none!important
 }
 .pw-bottom-nav [data-pw-chrome-added] svg,.pw-shop-bottom-nav [data-pw-chrome-added] svg{
   width:var(--pw-chrome-size,22px)!important;height:var(--pw-chrome-size,22px)!important;
@@ -416,7 +417,7 @@ export function injectPartnerShopChromeLayoutCss(html: string): string {
   out = injectNamedScript(out, PW_CHROME_FLOAT_SCRIPT_ID, PARTNER_SHOP_CHROME_FLOAT_SCRIPT)
   out = injectNamedScript(out, PARTNER_SHOP_LOGO_HOST_SCRIPT_ID, PARTNER_SHOP_LOGO_HOST_SCRIPT)
   out = injectNamedScript(out, PARTNER_SHOP_SEARCH_CLAMP_SCRIPT_ID, PARTNER_SHOP_SEARCH_CLAMP_SCRIPT)
-  return out
+  return injectPartnerShopFontsIntoHtml(out)
 }
 
 function injectNamedScript(html: string, id: string, body: string): string {

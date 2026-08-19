@@ -13,9 +13,9 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { uploadTryOnImagePublic, getTryOnPublicUrlFromPath } from '@/lib/storage/try-on-public-upload'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { normalizeLogoAspectRatioForGemini } from '@/lib/partner-website/visual-editor/gemini-working-aspect'
 
 const LOGO_COSTS = { '2K': 1.5, '4K': 3 } as const
-const VALID_ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'] as const
 const toTenths = (value: number) => Math.round(value * 10)
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
@@ -28,9 +28,7 @@ export async function createLogo(formData: FormData) {
   }
   const imageQuality = (formData.get('imageQuality') as '2K' | '4K') || '2K'
   const aspectRatioRaw = (formData.get('aspectRatio') as string)?.trim() || '1:1'
-  const aspectRatio = VALID_ASPECT_RATIOS.includes(aspectRatioRaw as (typeof VALID_ASPECT_RATIOS)[number])
-    ? aspectRatioRaw
-    : '1:1'
+  const aspectRatio = normalizeLogoAspectRatioForGemini(aspectRatioRaw)
   const note = (formData.get('note') as string)?.trim() || ''
   const image = formData.get('image') as File | null
 

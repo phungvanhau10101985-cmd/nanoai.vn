@@ -1,4 +1,8 @@
-import { closestGeminiImageAspectRatio } from './gemini-working-aspect'
+import {
+  closestLogoGeminiAspectRatio,
+  DEFAULT_LOGO_GEMINI_ASPECT_RATIO,
+  normalizeLogoAspectRatioForGemini,
+} from './gemini-working-aspect'
 
 export type LogoSlotKind = 'header' | 'footer' | 'other'
 export type LogoDeviceKind = 'mobile' | 'tablet' | 'laptop' | 'desktop'
@@ -41,14 +45,14 @@ function hexOrRgbToLabel(color: string): { hex: string; label: string; rgb: { r:
   return { hex, label, rgb }
 }
 
-/** Tỷ lệ Gemini gần nhất với khung người dùng vẽ hoặc chọn. */
+/** Tỷ lệ Gemini gần nhất với khung người dùng vẽ hoặc chọn (chỉ ratio logo được chấp nhận). */
 export function logoAspectFromSize(width: number, height: number): string {
-  return closestGeminiImageAspectRatio(width, height)
+  return closestLogoGeminiAspectRatio(width, height)
 }
 
 /** Kích thước ô logo ban đầu theo tỷ lệ đã chọn. */
 export function logoSizeFromAspect(aspect: string, device: LogoDeviceKind): { w: number; h: number } {
-  const [aw, ah] = String(aspect || '4:1').split(':').map(Number)
+  const [aw, ah] = String(aspect || DEFAULT_LOGO_GEMINI_ASPECT_RATIO).split(':').map(Number)
   const rw = Number.isFinite(aw) && aw > 0 ? aw : 4
   const rh = Number.isFinite(ah) && ah > 0 ? ah : 1
   const maxW = device === 'mobile' ? 168 : device === 'tablet' ? 196 : 220
@@ -137,7 +141,9 @@ export function buildLogoSlotPrompt(input: LogoSlotPromptInput): string {
   const slot =
     input.slot === 'footer' ? 'footer' : input.slot === 'header' ? 'header' : 'brand'
   const device = input.device === 'mobile' || input.device === 'tablet' ? input.device : 'desktop'
-  const aspect = String(input.aspectRatio || '').trim() || logoAspectFromSize(w, h)
+  const aspect = normalizeLogoAspectRatioForGemini(
+    String(input.aspectRatio || '').trim() || logoAspectFromSize(w, h)
+  )
   return [
     `Website logo for "${title}", ${device} ${slot}.`,
     buildLogoColorFacts(input),

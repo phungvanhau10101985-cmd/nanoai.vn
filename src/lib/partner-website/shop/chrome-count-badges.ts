@@ -49,7 +49,7 @@ export function chromeCountBadgeKindFromLabel(label: string): ChromeCountBadgeKi
   if (!raw) return null
   if (/thông báo|thong bao|notification/.test(raw)) return 'notifications'
   if (/giỏ hàng|gio hang|shopping bag|\bcart\b/.test(raw)) return 'cart'
-  if (/đã xem|da xem|recently viewed|viewed/.test(raw)) return 'recently-viewed'
+  if (/vừa xem|vua xem|đã xem|da xem|recently viewed|viewed/.test(raw)) return 'recently-viewed'
   if (/yêu thích|yeu thich|wishlist|favorite/.test(raw)) return 'wishlist'
   return null
 }
@@ -259,7 +259,7 @@ function pwChromeCountKind(el){
   var aria=String(el.getAttribute('aria-label')||el.getAttribute('title')||'').toLowerCase();
   if(/thông báo|thong bao|notification/.test(aria))return 'notifications';
   if(/giỏ hàng|gio hang|shopping bag/.test(aria)||aria==='cart')return 'cart';
-  if(/đã xem|da xem|recently viewed/.test(aria))return 'recently-viewed';
+  if(/vừa xem|vua xem|đã xem|da xem|recently viewed|viewed/.test(aria))return 'recently-viewed';
   if(/yêu thích|yeu thich|wishlist|favorite/.test(aria))return 'wishlist';
   if(el.querySelector&&(el.querySelector('.lucide-bell')||el.querySelector('[class*="lucide-bell"]')))return 'notifications';
   return '';

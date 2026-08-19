@@ -39,4 +39,28 @@ test('chrome toggle bootstrap hydrates the category panel from the public API', 
   assert.match(s, /\/api\/site\/188-shop\/categories/)
   assert.match(s, /data-pw-el="cat-toggle"/)
   assert.match(s, /fillCatPanel/)
+  assert.match(s, /normalizeCatBtns/)
+  assert.match(s, /normalizeAccountBtns/)
+  assert.match(s, /data-pw-chrome-btn="categories"/)
+  assert.match(s, /data-pw-chrome-btn="account"/)
+  assert.match(s, /fillAccountPanel/)
+  assert.match(s, /ACCOUNT_MENU/)
+  assert.match(s, /deviceRoot/)
+  assert.match(s, /ensureAccountWrap/)
+  assert.match(s, /data-pw-account-fallback-href/)
+  assert.match(s, /aria-haspopup/)
+  assert.match(s, /placePanelFixed/)
+  assert.match(s, /getBoundingClientRect/)
+  assert.match(s, /data-pw-panel-fixed/)
+})
+
+test('shop actions bootstrap hydrates Zalo\/Facebook from contact-channels API', async () => {
+  const { buildPartnerSiteShopActionsBootstrapScript } = await import(
+    '@/lib/partner-website/shop/build-partner-site-shop-actions-bootstrap-script'
+  )
+  const s = buildPartnerSiteShopActionsBootstrapScript({ siteSlug: '188-shop', locale: 'vi' })
+  assert.match(s, /\/api\/site\/188-shop\/contact-channels/)
+  assert.match(s, /hydrateChromeBadges\(true\)/)
+  assert.match(s, /__pwChromeBadgeCache/)
+  assert.match(s, /hydrateChromeBadges\(false\)/)
 })

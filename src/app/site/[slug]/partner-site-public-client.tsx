@@ -1,9 +1,19 @@
 'use client'
 
-import { Suspense, useLayoutEffect, useState } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { PartnerSiteChatWidgetProvider } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import type { WebLocale } from '@/lib/i18n/config'
+import { FASHION_SHOP_GOOGLE_FONTS_HREF } from '@/lib/partner-website/shop/fashion-shop-design'
+import {
+  buildPartnerShopFontCss,
+  extractVisualHtmlBodyMarkup,
+  PARTNER_SHOP_FONT_STYLE_ID,
+} from '@/lib/partner-website/shop/inject-partner-shop-fonts'
+import {
+  extractVisualDocumentCssText,
+  extractVisualDocumentStyleLinks,
+} from '@/lib/partner-website/shop/merge-visual-home-styles'
 import { htmlHasChromeChatMua } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import {
   isolateVisualHtmlForDevice,
@@ -21,8 +31,68 @@ function hideChatLaunchersInHtml(html: string, hide: boolean): string {
   return `${style}${html}`
 }
 
+/** `dangerouslySetInnerHTML` does not execute `<script>` — re-arm shop runtime APIs (badges, search, cats). */
+function PartnerSiteInlineVisualScripts() {
+  useEffect(() => {
+    const root = document.querySelector('[data-pw-inline-visual-root]')
+    if (!root) return
+    const scripts = root.querySelectorAll('script')
+    scripts.forEach((old) => {
+      if (old.getAttribute('data-pw-script-armed') === '1') return
+      old.setAttribute('data-pw-script-armed', '1')
+      const next = document.createElement('script')
+      next.textContent = old.textContent
+      Array.from(old.attributes).forEach((attr) => {
+        if (attr.name === 'data-pw-script-armed') return
+        next.setAttribute(attr.name, attr.value)
+      })
+      next.setAttribute('data-pw-script-armed', '1')
+      old.replaceWith(next)
+    })
+    window.setTimeout(() => {
+      document.dispatchEvent(new Event('pw-cart-updated'))
+      document.dispatchEvent(new Event('pw-shop-notifications-refresh'))
+    }, 80)
+  }, [])
+  return null
+}
+
 function readForcedDevice(search: URLSearchParams | null): VisualDeviceVariant | null {
   return parseVisualDeviceQuery(search?.get('pw-device') || '')
+}
+
+function PartnerSiteInlineVisualHead({ html }: { html: string }) {
+  const links = extractVisualDocumentStyleLinks(html)
+  const css = extractVisualDocumentCssText(html)
+  const hasGoogleFont = links.some((link) => /fonts\.googleapis\.com/i.test(link.href))
+  return (
+    <>
+      {!hasGoogleFont ? (
+        <>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+          <link rel="stylesheet" href={FASHION_SHOP_GOOGLE_FONTS_HREF} data-pw-shop-fonts="1" />
+        </>
+      ) : null}
+      {links.map((link) => (
+        <link
+          key={`${link.rel}:${link.href}`}
+          rel={link.rel}
+          href={link.href}
+          {...(link.as ? { as: link.as } : {})}
+          {...(link.crossOrigin ? { crossOrigin: link.crossOrigin } : {})}
+        />
+      ))}
+      {css.includes(PARTNER_SHOP_FONT_STYLE_ID) ? (
+        <style data-pw-inline-visual-css="1" dangerouslySetInnerHTML={{ __html: css }} />
+      ) : (
+        <>
+          <style id={PARTNER_SHOP_FONT_STYLE_ID} dangerouslySetInnerHTML={{ __html: buildPartnerShopFontCss() }} />
+          {css ? <style data-pw-inline-visual-css="1" dangerouslySetInnerHTML={{ __html: css }} /> : null}
+        </>
+      )}
+    </>
+  )
 }
 
 export function PartnerSitePublicClient({
@@ -34,7 +104,7 @@ export function PartnerSitePublicClient({
   locale,
   inlineHtml = false,
   initialDevice = null,
-  hideChatLauncher = false,
+  hideChatLauncher,
 }: {
   html: string
   allowScripts?: boolean
@@ -46,6 +116,7 @@ export function PartnerSitePublicClient({
   inlineHtml?: boolean
   /** From `?pw-device=` on the server so the first paint already locks desktop width. */
   initialDevice?: VisualDeviceVariant | null
+  /** Omit or true = hide legacy embed FAB; false = opt-in to platform bubble. */
   hideChatLauncher?: boolean
 }) {
   return (
@@ -108,7 +179,7 @@ function PartnerSitePublicFrame({
   locale,
   inlineHtml = false,
   forceDevice,
-  hideChatLauncher = false,
+  hideChatLauncher,
 }: {
   html: string
   allowScripts?: boolean
@@ -120,7 +191,7 @@ function PartnerSitePublicFrame({
   forceDevice: VisualDeviceVariant | null
   hideChatLauncher?: boolean
 }) {
-  const hideEmbedFab = hideChatLauncher || htmlHasChromeChatMua(html)
+  const hideEmbedFab = hideChatLauncher !== false || htmlHasChromeChatMua(html)
   const compactPreview = forceDevice === 'mobile' || forceDevice === 'tablet'
   const desktopLocked = forceDevice === 'desktop' || forceDevice === 'laptop'
   const [desktopWindowLock, setDesktopWindowLock] = useState(false)
@@ -157,7 +228,13 @@ function PartnerSitePublicFrame({
         listenLandingPostMessage
         hideLauncher={hideEmbedFab}
       >
-        <div className="min-h-screen bg-white" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+        <PartnerSiteInlineVisualHead html={previewHtml} />
+        <PartnerSiteInlineVisualScripts />
+        <div
+          data-pw-inline-visual-root="1"
+          className="min-h-screen bg-white"
+          dangerouslySetInnerHTML={{ __html: extractVisualHtmlBodyMarkup(previewHtml) }}
+        />
       </PartnerSiteChatWidgetProvider>
     )
   }
