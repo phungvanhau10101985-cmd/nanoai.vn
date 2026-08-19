@@ -1766,7 +1766,6 @@ export function PartnerWebsiteVisualEditorToolbar({
       html,
       host: chromeWidgetHost(kind, addWidgetStyle, place),
     })
-    setDirty(true)
     setOpenPanel(null)
   }
 

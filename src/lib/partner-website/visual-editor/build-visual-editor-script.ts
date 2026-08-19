@@ -165,9 +165,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var clone = document.body.cloneNode(true)
     var kill = clone.querySelectorAll('#nanoai-visual-editor-script,#nanoai-visual-editor-styles,#nanoai-ve-guides,.nanoai-ve-ignore,[data-nanoai-ve-ignore],[data-pw-ve-chat-preview]')
     for (var i = 0; i < kill.length; i++) kill[i].remove()
-    var marked = clone.querySelectorAll('.nanoai-ve-highlight,.nanoai-ve-hover,.nanoai-ve-dragging,.nanoai-ve-photo-edit')
+    var marked = clone.querySelectorAll('.nanoai-ve-highlight,.nanoai-ve-hover,.nanoai-ve-dragging,.nanoai-ve-photo-edit,.nanoai-ve-chrome-dup')
     for (var j = 0; j < marked.length; j++) {
-      marked[j].classList.remove('nanoai-ve-highlight', 'nanoai-ve-hover', 'nanoai-ve-dragging', 'nanoai-ve-photo-edit')
+      marked[j].classList.remove('nanoai-ve-highlight', 'nanoai-ve-hover', 'nanoai-ve-dragging', 'nanoai-ve-photo-edit', 'nanoai-ve-chrome-dup')
       marked[j].removeAttribute('data-nanoai-ve-selected')
       marked[j].removeAttribute('contenteditable')
     }
@@ -3784,9 +3784,97 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     return document.body
   }
+  function chromeAliasKinds(kind) {
+    if (kind === 'wishlist' || kind === 'favorites-link') return ['wishlist', 'favorites-link']
+    if (kind === 'orders' || kind === 'orders-link') return ['orders', 'orders-link']
+    return [kind]
+  }
+  function collectChromeMatches(selector) {
+    var seen = []
+    var add = function (list) {
+      if (!list) return
+      for (var i = 0; i < list.length; i++) {
+        var n = list[i]
+        if (!n || seen.indexOf(n) >= 0) continue
+        seen.push(n)
+      }
+    }
+    add(scopedQueryAll(selector))
+    add(document.querySelectorAll(selector))
+    return seen
+  }
+  function pickChromeMatch(selector) {
+    var nodes = collectChromeMatches(selector)
+    var first = null
+    for (var i = 0; i < nodes.length; i++) {
+      if (!first) first = nodes[i]
+      if (isShown(nodes[i])) return nodes[i]
+    }
+    return first
+  }
+  function findExistingChrome(kind) {
+    var k = String(kind || '').replace(/[^a-z0-9-]/g, '')
+    if (!k) return null
+    if (k === 'categories') {
+      return pickChromeMatch(
+        '[data-pw-el="cat-toggle"],[data-pw-cat-toggle],.pw-cat-btn,.pw-shop-cat-btn,[data-pw-chrome-btn="categories"]'
+      )
+    }
+    if (k === 'account') {
+      return pickChromeMatch('[data-pw-account-toggle],[data-pw-chrome-btn="account"],.pw-account-btn,[data-pw-el="account"]')
+    }
+    if (k === 'search') {
+      return pickChromeMatch('[data-pw-el="search"],.pw-header-search,.pw-shop-search-wrap')
+    }
+    if (k === 'search-image') {
+      return pickChromeMatch('[data-pw-image-search],.pw-search-image-btn,.pw-shop-search-image')
+    }
+    if (k === 'cart') {
+      var cart = pickChromeMatch('[data-pw-chrome-btn="cart"],[data-pw-el="cart"]')
+      if (cart) return cart
+    }
+    var aliases = chromeAliasKinds(k)
+    for (var a = 0; a < aliases.length; a++) {
+      var found = pickChromeMatch('[data-pw-chrome-btn="' + aliases[a] + '"]')
+      if (found) return found
+    }
+    return null
+  }
+  function centerChromeInView(el) {
+    if (!el) return
+    if (isChromeFloatEl(el)) {
+      revealChromeFloat(el)
+      try { sizeChromeIcons(el) } catch (errSizeDup) {}
+      try { pinChromeIconBadges(el) } catch (errPinDup) {}
+    }
+    try {
+      if (typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+      }
+    } catch (errScroll) {
+      try { el.scrollIntoView(true) } catch (errScroll2) {}
+    }
+    if (el.classList) {
+      el.classList.add('nanoai-ve-chrome-dup')
+      window.setTimeout(function () {
+        try { if (el.classList) el.classList.remove('nanoai-ve-chrome-dup') } catch (errPulse) {}
+      }, 1800)
+    }
+  }
+  function focusExistingChrome(el, kind) {
+    if (!el) return
+    centerChromeInView(el)
+    selectEl(el)
+    post('chromeDuplicate', { kind: kind || '' })
+  }
   function insertChromeBtn(kind, html, host) {
     var k = String(kind || '').replace(/[^a-z0-9-]/g, '')
     if (!k || !html) return
+    var existingNow = findExistingChrome(k)
+    if (existingNow) {
+      focusExistingChrome(existingNow, k)
+      return
+    }
     var wrap = document.createElement('div')
     wrap.innerHTML = String(html)
     var node = wrap.firstElementChild
@@ -3796,15 +3884,6 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (isChromeFloatKind(k)) place = 'float'
     var hostEl = ensureChromeHost(place)
     if (k === 'categories') {
-      var existingCat =
-        scopedQuery(
-          '[data-pw-el="cat-toggle"],[data-pw-cat-toggle],.pw-cat-btn,.pw-shop-cat-btn,[data-pw-chrome-btn="categories"]'
-        ) || document.querySelector('[data-pw-chrome-btn="categories"]')
-      if (existingCat) {
-        if (existingCat.setAttribute) existingCat.setAttribute('data-pw-device', pwStampDevice())
-        selectEl(existingCat)
-        return
-      }
       if (place === 'actions') {
         var cluster = scopedQuery('.pw-brand-cluster, .pw-shop-brand-cluster')
         hostEl = cluster || scopedQuery('.pw-header-main, .pw-shop-header-inner') || hostEl
@@ -3838,14 +3917,6 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       }
     }
     if (k === 'account') {
-      var existingAcc =
-        scopedQuery('[data-pw-account-toggle],[data-pw-chrome-btn="account"],.pw-account-btn') ||
-        document.querySelector('[data-pw-account-toggle],[data-pw-chrome-btn="account"]')
-      if (existingAcc) {
-        if (existingAcc.setAttribute) existingAcc.setAttribute('data-pw-device', pwStampDevice())
-        selectEl(existingAcc)
-        return
-      }
       var accPanel = scopedQuery(
         '#pw-shop-account-panel, #pw-account-panel, [data-pw-account-panel], .pw-shop-account-panel, .pw-account-panel'
       )
@@ -3868,37 +3939,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       }
     }
     if (k === 'search') {
-      var existingSearch = scopedQuery('[data-pw-el="search"], .pw-header-search, .pw-shop-search-wrap')
-      if (existingSearch) {
-        if (existingSearch.setAttribute) existingSearch.setAttribute('data-pw-device', pwStampDevice())
-        selectEl(existingSearch)
-        return
-      }
       if (place === 'actions') {
         hostEl = scopedQuery('.pw-header-main, .pw-shop-header-inner') || hostEl
       }
-    }
-    if (k === 'search-image') {
-      var existingImgSearch = scopedQuery('[data-pw-image-search], .pw-search-image-btn, .pw-shop-search-image')
-      if (existingImgSearch) {
-        if (existingImgSearch.setAttribute) existingImgSearch.setAttribute('data-pw-device', pwStampDevice())
-        selectEl(existingImgSearch)
-        return
-      }
-    }
-    var existing =
-      scopedQuery('[data-pw-chrome-btn="' + k + '"]') ||
-      document.querySelector('[data-pw-chrome-btn="' + k + '"]')
-    if (existing) {
-      if (existing.setAttribute) existing.setAttribute('data-pw-device', pwStampDevice())
-      if (isChromeFloatKind(k)) {
-        revealChromeFloat(existing)
-        sizeChromeIcons(existing)
-        pinChromeIconBadges(existing)
-      }
-      selectEl(existing)
-      post('chromeDuplicate', { kind: k })
-      return
     }
     var href = node.getAttribute ? (node.getAttribute('href') || '') : ''
     if (place === 'topbar' && href) {
@@ -5711,6 +5754,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function clearEditorMarks(el) {
     if (!el || el.nodeType !== 1) return
     el.classList.remove('nanoai-ve-highlight')
+    el.classList.remove('nanoai-ve-chrome-dup')
     el.classList.remove('nanoai-ve-dragging')
     el.removeAttribute('data-nanoai-ve-selected')
     if (el.getAttribute('contenteditable') === 'true') el.removeAttribute('contenteditable')
@@ -5741,7 +5785,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     input.style.removeProperty('pointer-events')
   }
   function clearForeignEditorMarks(keep) {
-    var leftovers = document.querySelectorAll('[data-nanoai-ve-selected],.nanoai-ve-highlight')
+    var leftovers = document.querySelectorAll('[data-nanoai-ve-selected],.nanoai-ve-highlight,.nanoai-ve-chrome-dup')
     for (var i = 0; i < leftovers.length; i++) {
       if (leftovers[i] !== keep) clearEditorMarks(leftovers[i])
     }
@@ -7439,6 +7483,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-logo-draw,.nanoai-ve-logo-draw *{cursor:crosshair!important}',
       '.nanoai-ve-logo-rect{position:fixed!important;z-index:2147483646!important;pointer-events:none;border:2px dashed #f59e0b;background:rgba(245,158,11,.14)}',
       '.nanoai-ve-highlight{outline:1px dashed #2563eb!important;outline-offset:0!important}',
+      '@keyframes nanoai-ve-chrome-dup-pulse{0%,100%{box-shadow:0 0 0 0 rgba(37,99,235,.55)}50%{box-shadow:0 0 0 10px rgba(37,99,235,0)}}',
+      '.nanoai-ve-chrome-dup{outline:2px solid #2563eb!important;outline-offset:2px!important;animation:nanoai-ve-chrome-dup-pulse .7s ease 2}',
       '.nanoai-ve-hover{outline:1px dashed #2563eb!important;outline-offset:0!important}',
       '.nanoai-ve-highlight[data-pw-bg-layer="1"],.nanoai-ve-hover[data-pw-bg-layer="1"]{outline:2px dashed #f59e0b!important}',
       'html,body{overflow-x:hidden!important;max-width:100%}',

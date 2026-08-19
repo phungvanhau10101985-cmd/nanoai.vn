@@ -27,7 +27,7 @@ function stripEditorAndRuntimeNodes(clone: Element) {
   clone.querySelectorAll('[data-pw-ve-chat-preview]').forEach((el) => el.remove())
   clone
     .querySelectorAll(
-      '.nanoai-ve-active,.nanoai-ve-selected,.nanoai-ve-highlight,.nanoai-ve-hover,.nanoai-ve-dragging,.nanoai-ve-photo-edit'
+      '.nanoai-ve-active,.nanoai-ve-selected,.nanoai-ve-highlight,.nanoai-ve-hover,.nanoai-ve-dragging,.nanoai-ve-photo-edit,.nanoai-ve-chrome-dup'
     )
     .forEach((el) => {
       el.classList.remove(
@@ -36,7 +36,8 @@ function stripEditorAndRuntimeNodes(clone: Element) {
         'nanoai-ve-highlight',
         'nanoai-ve-hover',
         'nanoai-ve-dragging',
-        'nanoai-ve-photo-edit'
+        'nanoai-ve-photo-edit',
+        'nanoai-ve-chrome-dup'
       )
       if (!el.getAttribute('class')?.trim()) el.removeAttribute('class')
     })
