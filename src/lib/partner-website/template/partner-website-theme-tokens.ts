@@ -117,6 +117,87 @@ export function hexesClose(a: string, b: string): boolean {
   return normalizeHexColor(a, '') === normalizeHexColor(b, '')
 }
 
+export type ShopThemeQuickPick = {
+  id: string
+  hex: string
+  label: string
+}
+
+export type ShopThemeQuickPicks = {
+  mainTitle: string
+  auxTitle: string
+  hint?: string
+  main: ShopThemeQuickPick[]
+  aux: ShopThemeQuickPick[]
+}
+
+export type ShopThemeQuickPickLabels = {
+  mainTitle: string
+  auxTitle: string
+  hint?: string
+  primary: string
+  accent: string
+  buy: string
+  cart: string
+  background: string
+  text: string
+  muted: string
+  surface: string
+}
+
+function uniqueQuickPicks(items: ShopThemeQuickPick[]): ShopThemeQuickPick[] {
+  const seen = new Set<string>()
+  const out: ShopThemeQuickPick[] = []
+  for (const item of items) {
+    const hex = normalizeHexColor(item.hex, '')
+    if (!hex || seen.has(hex)) continue
+    seen.add(hex)
+    out.push({ ...item, hex })
+  }
+  return out
+}
+
+/** Live shop tokens first, then the site main/supporting palettes — click to apply. */
+export function shopThemeQuickPicks(
+  theme: PartnerWebsiteTheme | null | undefined,
+  labels: ShopThemeQuickPickLabels
+): ShopThemeQuickPicks {
+  const live = theme ? resolveShopThemeColors(theme) : null
+  const liveMain = live
+    ? [
+        { id: 'primary', hex: live.primaryColor, label: labels.primary },
+        { id: 'accent', hex: live.accentColor, label: labels.accent },
+        { id: 'buy', hex: live.buyButtonColor, label: labels.buy },
+        { id: 'cart', hex: live.cartButtonColor, label: labels.cart },
+      ]
+    : []
+  const liveAux = live
+    ? [
+        { id: 'bg', hex: live.backgroundColor, label: labels.background },
+        { id: 'text', hex: live.textColor, label: labels.text },
+        { id: 'muted', hex: live.mutedColor, label: labels.muted },
+        { id: 'surface', hex: live.surfaceColor, label: labels.surface },
+      ]
+    : []
+  const mainPresets = SHOP_MAIN_COLOR_SWATCHES.map((s) => ({
+    id: `main-${s.id}`,
+    hex: s.hex,
+    label: s.hex,
+  }))
+  const auxPresets = [...SHOP_AUX_BG_SWATCHES, ...SHOP_AUX_CART_SWATCHES].map((s) => ({
+    id: `aux-${s.id}`,
+    hex: s.hex,
+    label: s.hex,
+  }))
+  return {
+    mainTitle: labels.mainTitle,
+    auxTitle: labels.auxTitle,
+    hint: labels.hint,
+    main: uniqueQuickPicks([...liveMain, ...mainPresets]),
+    aux: uniqueQuickPicks([...liveAux, ...auxPresets]),
+  }
+}
+
 export function resolveShopThemeColors(theme: PartnerWebsiteTheme): ResolvedShopThemeColors {
   const primaryColor = normalizeHexColor(theme.primaryColor, DEFAULT_PARTNER_WEBSITE_THEME.primaryColor)
   const accentColor = normalizeHexColor(theme.accentColor, darkenHex(primaryColor))

@@ -229,11 +229,11 @@ export const PARTNER_WEBSITE_PAGE_CATALOG: PartnerWebsitePageDef[] = [
     discoveryKeys: PAGE_FEATURE_KEYS,
     defaultFeaturesVi: [
       'Các phương thức TT (COD, chuyển khoản, ví), hướng dẫn từng bước',
-      'Lưu ý xác nhận đơn + FAQ thanh toán',
+      'Tuân thủ chính sách quảng cáo Google Merchant Center, Facebook, TikTok',
     ],
     defaultFeaturesEn: [
       'Payment methods (COD, bank transfer, e-wallets), step guides',
-      'Order confirmation notes + payment FAQ',
+      'Complies with Google Merchant Center, Facebook, and TikTok ad policies',
     ],
   },
   {
@@ -333,11 +333,11 @@ export const PARTNER_WEBSITE_PAGE_CATALOG: PartnerWebsitePageDef[] = [
     discoveryKeys: PAGE_FEATURE_KEYS,
     defaultFeaturesVi: [
       'Phí ship, thời gian giao, khu vực, đơn miễn ship, FAQ ngắn',
-      'Bảng giá theo vùng + lưu ý ngày lễ',
+      'Tuân thủ chính sách quảng cáo Google Merchant Center, Facebook, TikTok',
     ],
     defaultFeaturesEn: [
       'Shipping fees, delivery time, regions, free-ship rules, short FAQ',
-      'Rate table by region + holiday notes',
+      'Complies with Google Merchant Center, Facebook, and TikTok ad policies',
     ],
   },
   {
@@ -348,11 +348,11 @@ export const PARTNER_WEBSITE_PAGE_CATALOG: PartnerWebsitePageDef[] = [
     discoveryKeys: PAGE_FEATURE_KEYS,
     defaultFeaturesVi: [
       'Đổi trả + hoàn tiền rõ ràng: điều kiện, thời hạn, phí, hàng không áp dụng, cách hoàn tiền',
-      'Quy trình từng bước (không cần đăng nhập để xem) + CTA chat hỗ trợ',
+      'Tuân thủ chính sách quảng cáo Google Merchant Center, Facebook, TikTok',
     ],
     defaultFeaturesEn: [
       'Returns + refunds: conditions, window, fees, exclusions, refund method/timeline',
-      'Step-by-step process (viewable without login) + support chat CTA',
+      'Complies with Google Merchant Center, Facebook, and TikTok ad policies',
     ],
   },
   {
@@ -422,11 +422,11 @@ export const PARTNER_WEBSITE_PAGE_CATALOG: PartnerWebsitePageDef[] = [
     discoveryKeys: PAGE_FEATURE_KEYS,
     defaultFeaturesVi: [
       'Thu thập dữ liệu (form, chat, đơn hàng), pixel/Google Ads, quyền khách, liên hệ shop',
-      'Mục đích xử lý + thời gian lưu + chia sẻ bên thứ ba — link rõ ở footer',
+      'Tuân thủ chính sách quảng cáo Google Merchant Center, Facebook (Meta) và TikTok',
     ],
     defaultFeaturesEn: [
       'Data collection (forms, chat, orders), pixels/Google Ads, customer rights, contact',
-      'Processing purposes + retention + third parties — clear footer link',
+      'Complies with Google Merchant Center, Facebook (Meta), and TikTok advertising policies',
     ],
   },
   {
@@ -451,11 +451,11 @@ export const PARTNER_WEBSITE_PAGE_CATALOG: PartnerWebsitePageDef[] = [
     discoveryKeys: PAGE_FEATURE_KEYS,
     defaultFeaturesVi: [
       'Điều khoản mua hàng, thanh toán, trách nhiệm, luật áp dụng',
-      'Quyền/nghĩa vụ khách + shop, giải quyết tranh chấp',
+      'Tuân thủ chính sách quảng cáo Google Merchant Center, Facebook, TikTok',
     ],
     defaultFeaturesEn: [
       'Purchase terms, payment, liability, governing law',
-      'Customer/shop rights & duties, dispute resolution',
+      'Complies with Google Merchant Center, Facebook, and TikTok ad policies',
     ],
   },
 ]
@@ -497,15 +497,15 @@ export function pageCatalogLabels(locale: WebLocale): Record<
       collection: { title: 'Collection', hint: 'Collection story + product grid' },
       lookbook: { title: 'Lookbook', hint: 'Editorial looks, shop the look' },
       size_guide: { title: 'Size guide', hint: 'Charts, measure tips, fit advice' },
-      shipping: { title: 'Shipping', hint: 'Fees, regions, delivery time' },
-      returns: { title: 'Returns & refunds', hint: 'Exchange, return & refund policy' },
+      shipping: { title: 'Shipping', hint: 'Fees, regions, delivery time; ads policy compliance' },
+      returns: { title: 'Returns & refunds', hint: 'Exchange, return, refund; ads policy compliance' },
       order_tracking: { title: 'Order tracking', hint: 'Lookup order status' },
       about: { title: 'About', hint: 'Brand story and values' },
       contact: { title: 'Contact', hint: 'Form, phone, map' },
       faq: { title: 'FAQ', hint: 'Shipping, returns, payment Q&A' },
-      privacy: { title: 'Privacy policy', hint: 'Data, Google Ads pixels, customer rights' },
+      privacy: { title: 'Privacy policy', hint: 'Data, pixels, Google Merchant / Facebook / TikTok ads' },
       cookie: { title: 'Cookie policy', hint: 'Cookies, analytics & ad tracking' },
-      terms: { title: 'Terms', hint: 'Purchase & usage terms' },
+      terms: { title: 'Terms', hint: 'Purchase terms; Google Merchant / Facebook / TikTok ads' },
     }
   }
   if (locale === 'zh') {
@@ -616,15 +616,15 @@ export function pageCatalogLabels(locale: WebLocale): Record<
     collection: { title: 'Bộ sưu tập', hint: 'Story BST + lưới sản phẩm' },
     lookbook: { title: 'Lookbook', hint: 'Gallery look, shop the look' },
     size_guide: { title: 'Hướng dẫn size', hint: 'Bảng size, cách đo, tip chọn' },
-    shipping: { title: 'Vận chuyển', hint: 'Phí ship, khu vực, thời gian giao' },
-    returns: { title: 'Đổi trả & hoàn tiền', hint: 'Đổi trả, hoàn tiền — bắt buộc Google Ads' },
+    shipping: { title: 'Vận chuyển', hint: 'Phí ship, khu vực; tuân thủ quảng cáo Google/Facebook/TikTok' },
+    returns: { title: 'Đổi trả & hoàn tiền', hint: 'Đổi trả, hoàn tiền; tuân thủ quảng cáo Google/Facebook/TikTok' },
     order_tracking: { title: 'Theo dõi đơn', hint: 'Tra cứu trạng thái đơn hàng' },
     about: { title: 'Giới thiệu', hint: 'Câu chuyện thương hiệu' },
     contact: { title: 'Liên hệ', hint: 'Form, SĐT, bản đồ' },
     faq: { title: 'FAQ', hint: 'Vận chuyển, đổi trả, thanh toán' },
-    privacy: { title: 'Chính sách bảo mật', hint: 'Dữ liệu, pixel Google Ads, quyền khách' },
+    privacy: { title: 'Chính sách bảo mật', hint: 'Dữ liệu, pixel; Google Merchant / Facebook / TikTok' },
     cookie: { title: 'Chính sách cookie', hint: 'Cookie, phân tích & quảng cáo' },
-    terms: { title: 'Điều khoản', hint: 'Điều khoản mua hàng & sử dụng' },
+    terms: { title: 'Điều khoản', hint: 'Điều khoản mua hàng; Google Merchant / Facebook / TikTok' },
   }
 }
 

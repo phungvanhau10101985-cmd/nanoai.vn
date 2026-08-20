@@ -194,6 +194,7 @@ function persistVisualEditState(partnerId: string, state: PersistedVisualEditSta
 
 export type PartnerWebsiteDevicePreviewHandle = {
   openVisualEdit: () => void
+  openVisualEditPage: (next: string) => void
 }
 
 type VisualEditLeaveIntent =
@@ -303,6 +304,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   const flushedHtmlByVariantRef = useRef<Partial<Record<VisualDeviceVariant, string>>>({})
   const saveFnRef = useRef<(() => Promise<boolean>) | null>(null)
   const restoredVisualEditActiveRef = useRef(false)
+  const pendingOpenVisualEditRef = useRef(false)
   projectRef.current = project ?? null
 
   const { saving: themeSaving, schedule: scheduleThemeSave } = useDebouncedThemeSave(
@@ -476,6 +478,8 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       theme: liveTheme,
       siteSlug,
       locale,
+      pageKey: previewPageKey,
+      cmsSlug: previewCmsSlug,
     })
   }
 
@@ -659,11 +663,11 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       return
     }
     if (next.startsWith('p:')) {
-      const id = next.slice(2)
-      const hit = productOptions.find((p) => p.id === id)
+      const raw = next.slice(2)
+      const hit = productOptions.find((p) => p.id === raw || p.key === raw)
       setPreviewPageKey('product_detail')
-      setPreviewProductId(id)
-      setPreviewProductKey(hit?.key ?? id)
+      setPreviewProductId(hit?.id ?? raw)
+      setPreviewProductKey(hit?.key ?? raw)
       setPreviewCategoryPath(null)
       setPreviewCmsSlug(null)
       return
@@ -747,10 +751,6 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     }
     setDevice(next)
   }
-
-  useImperativeHandle(ref, () => ({
-    openVisualEdit: () => startVisualEdit(),
-  }))
 
   useEffect(() => {
     if (!visualEditActive) {
@@ -984,6 +984,13 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   }, [liveTheme, previewSrc, editSrcDoc])
 
   const canVisualEdit = visualEditEnabled && Boolean(onVisualEditSave || onShopHomeSave)
+  const pageSelectValue = previewCmsSlug
+    ? `cms:${previewCmsSlug}`
+    : previewProductId
+      ? `p:${previewProductId}`
+      : previewCategoryPath
+        ? `c:${previewCategoryPath}`
+        : previewPageKey
 
   useEffect(() => {
     if (restoredVisualEditActiveRef.current) return
@@ -993,6 +1000,29 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     const timer = window.setTimeout(() => startVisualEdit(), 0)
     return () => window.clearTimeout(timer)
   }, [canVisualEdit, quickEditDisabled, hasWebsite, visualEditActive])
+
+  useEffect(() => {
+    if (!pendingOpenVisualEditRef.current) return
+    pendingOpenVisualEditRef.current = false
+    startVisualEdit()
+  }, [previewPageKey, previewCmsSlug, previewCategoryPath, previewProductId, previewProductKey])
+
+  useImperativeHandle(ref, () => ({
+    openVisualEdit: () => startVisualEdit(),
+    openVisualEditPage: (next: string) => {
+      if (next === pageSelectValue) {
+        startVisualEdit()
+        return
+      }
+      if (visualEditActive) {
+        if (next === pageSelectValue) return
+        requestLeave({ kind: 'page', next })
+        return
+      }
+      pendingOpenVisualEditRef.current = true
+      applyPageSelect(next)
+    },
+  }))
 
   const frameWidth = DEVICE_WIDTH[device]
 
@@ -1027,13 +1057,6 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     : lockComputerCanvas && typeof editFrameWidth === 'number'
       ? { width: editFrameWidth, minWidth: editFrameWidth, height: '100%' }
       : { width: editFrameWidth as number, maxWidth: '100%', height: '100%' }
-  const pageSelectValue = previewCmsSlug
-    ? `cms:${previewCmsSlug}`
-    : previewProductId
-      ? `p:${previewProductId}`
-      : previewCategoryPath
-        ? `c:${previewCategoryPath}`
-        : previewPageKey
   const catalogPageKeys = VISUAL_EDITOR_PAGE_KEYS.filter(
     (key) => key !== 'collection' && key !== 'product_detail'
   )
@@ -1215,6 +1238,10 @@ export const PartnerWebsiteDevicePreview = forwardRef<
               productId: previewProductId,
               cmsSlug: previewCmsSlug,
             })}
+            pageKey={previewPageKey}
+            cmsSlug={previewCmsSlug}
+            pageSelectValue={pageSelectValue}
+            onOpenDestination={(next) => handlePageSelectChange(next)}
             viewHref={
               siteSlug?.trim()
                 ? `${visualEditorPreviewPath(
@@ -1334,6 +1361,10 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                 productId: previewProductId,
                 cmsSlug: previewCmsSlug,
               })}
+              pageKey={previewPageKey}
+              cmsSlug={previewCmsSlug}
+              pageSelectValue={pageSelectValue}
+              onOpenDestination={(next) => handlePageSelectChange(next)}
               viewHref={
                 siteSlug?.trim()
                   ? `${visualEditorPreviewPath(

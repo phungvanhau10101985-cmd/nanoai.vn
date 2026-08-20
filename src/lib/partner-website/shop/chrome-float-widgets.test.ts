@@ -37,6 +37,8 @@ test('chat Zalo Facebook and top-up are viewport-fixed chrome', () => {
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('pointer-events:auto!important'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('document.body.appendChild'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes("el.parentNode !== document.body"), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('if (!rootVisible(nodes[n])) continue'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes("classList.contains('nanoai-ve-active')"), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes("tf !== 'none'"), false)
 })
 

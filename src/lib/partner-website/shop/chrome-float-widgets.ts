@@ -196,6 +196,7 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
       var nodes = document.querySelectorAll('[data-pw-chrome-btn="' + KINDS[i] + '"]');
       for (var n = 0; n < nodes.length; n++) {
         if (nodes[n].getAttribute('data-pw-float-dup') === '1') continue;
+        if (!rootVisible(nodes[n])) continue;
         bake(nodes[n]);
       }
     }
@@ -229,6 +230,7 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
     }
   }
   function onClick(e){
+    if (document.body && document.body.classList.contains('nanoai-ve-active')) return;
     var t = e.target && e.target.closest ? e.target.closest('[data-pw-chrome-btn="topup"]') : null;
     if (!t) return;
     e.preventDefault();

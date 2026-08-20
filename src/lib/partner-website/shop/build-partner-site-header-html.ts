@@ -70,6 +70,7 @@ function buildHeaderInteractionScripts(): string {
   }
   if(catBtn&&catPanel){
     catBtn.addEventListener('click',function(e){
+      if(document.body&&document.body.classList.contains('nanoai-ve-active'))return;
       e.stopPropagation();
       var open=catPanel.classList.toggle('is-open');
       catBtn.setAttribute('aria-expanded',open?'true':'false');
@@ -169,7 +170,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   ${topbar}
   <div class="pw-container pw-header-main">
     <div class="pw-brand-cluster">
-      <button type="button" class="pw-cat-btn" ${pwElAttr(PW_EL.catToggle)} data-pw-cat-toggle aria-expanded="false" aria-controls="pw-cat-panel" aria-label="${escapeAttr(shop.navCategories)}">${svgIcon('menu')}<span>${escapeHtml(shop.navCategories)}</span></button>
+      <button type="button" class="pw-cat-btn" ${pwElAttr(PW_EL.catToggle)} data-pw-chrome-btn="categories" data-pw-cat-toggle aria-expanded="false" aria-controls="pw-cat-panel" aria-label="${escapeAttr(shop.navCategories)}">${svgIcon('menu')}<span>${escapeHtml(shop.navCategories)}</span></button>
       ${brandBlock}
       <nav id="pw-cat-panel" class="pw-cat-panel" data-pw-cat-panel aria-label="${escapeAttr(shop.navCategories)}">
         ${categoryLinks}

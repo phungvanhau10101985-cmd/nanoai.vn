@@ -4,6 +4,16 @@ import { buildPartnerSiteChromeToggleBootstrapScript } from '@/lib/partner-websi
 import { buildPartnerSiteSearchBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-search-bootstrap-script'
 import { buildPartnerSiteShopActionsBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-shop-actions-bootstrap-script'
 import { buildPartnerSiteLandingChatBridgeScript } from '@/lib/partner-website/shop/partner-site-chat-embed'
+import { stampPartnerSiteChromeWidgetHooksInHtml } from '@/lib/partner-website/shop/stamp-partner-site-chrome-widget-hooks'
+
+const PW_RUNTIME_SCRIPT_RE =
+  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|header-toggle|lp-buy)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
+const PW_RUNTIME_STYLE_RE =
+  /<style\b[^>]*\bdata-pw-(?:chrome-toggle-css|search-image-css)\b[^>]*>[\s\S]*?<\/style>/gi
+
+function stripPartnerShopRuntimeAssets(html: string): string {
+  return html.replace(PW_RUNTIME_SCRIPT_RE, '').replace(PW_RUNTIME_STYLE_RE, '')
+}
 
 function appendBeforeBody(html: string, snippet: string): string {
   const chunk = snippet.trim()
@@ -12,9 +22,21 @@ function appendBeforeBody(html: string, snippet: string): string {
   return `${html}\n${chunk}`
 }
 
+/** Stamp chrome hooks and drop live API scripts — Sửa nhanh is display-only. */
+export function stampPartnerShopEditorHooksInHtml(
+  html: string,
+  input: { siteSlug?: string }
+): string {
+  let out = html
+  if (!out.trim()) return html
+  const siteSlug = input.siteSlug?.trim() ?? ''
+  if (siteSlug) out = stampPartnerSiteChromeWidgetHooksInHtml(out, { siteSlug })
+  return stripPartnerShopRuntimeAssets(out)
+}
+
 /**
- * Wire live shop APIs onto saved Sửa nhanh HTML (search, camera, cart badges,
- * catalog, chat, category menu). Scripts are stripped on save — inject at serve.
+ * Wire live shop APIs onto saved Sửa nhanh HTML (every Thêm-phần-tử widget).
+ * Scripts are stripped on save — always replace at serve so new shops inherit the engine.
  */
 export function injectPartnerShopRuntimeScriptsIntoHtml(
   html: string,
@@ -24,25 +46,16 @@ export function injectPartnerShopRuntimeScriptsIntoHtml(
   if (!out.trim()) return html
   const locale = input.locale ?? 'vi'
   const siteSlug = input.siteSlug?.trim() ?? ''
+  out = stampPartnerSiteChromeWidgetHooksInHtml(out, { siteSlug })
+  out = stripPartnerShopRuntimeAssets(out)
 
   const chatBridge = buildPartnerSiteLandingChatBridgeScript()
-  if (chatBridge && !out.includes('data-pw-chat-bridge') && !out.includes('nanoai-partner-site')) {
-    out = appendBeforeBody(out, chatBridge)
-  }
-
+  if (chatBridge) out = appendBeforeBody(out, chatBridge)
   if (!siteSlug) return out
 
-  if (!out.includes('data-pw-search-bootstrap')) {
-    out = appendBeforeBody(out, buildPartnerSiteSearchBootstrapScript({ siteSlug, locale }))
-  }
-  if (!out.includes('data-pw-catalog-bootstrap')) {
-    out = appendBeforeBody(out, buildPartnerSiteCatalogBootstrapScript({ siteSlug, locale }))
-  }
-  if (!out.includes('data-pw-shop-actions-bootstrap')) {
-    out = appendBeforeBody(out, buildPartnerSiteShopActionsBootstrapScript({ siteSlug, locale }))
-  }
-  if (!out.includes('data-pw-chrome-toggle-bootstrap')) {
-    out = appendBeforeBody(out, buildPartnerSiteChromeToggleBootstrapScript({ siteSlug, locale }))
-  }
+  out = appendBeforeBody(out, buildPartnerSiteSearchBootstrapScript({ siteSlug, locale }))
+  out = appendBeforeBody(out, buildPartnerSiteCatalogBootstrapScript({ siteSlug, locale }))
+  out = appendBeforeBody(out, buildPartnerSiteShopActionsBootstrapScript({ siteSlug, locale }))
+  out = appendBeforeBody(out, buildPartnerSiteChromeToggleBootstrapScript({ siteSlug, locale }))
   return out
 }

@@ -1,6 +1,7 @@
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { buildThemeCssVarBlock } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { PARTNER_SHOP_CHROME_FLOAT_CSS } from '@/lib/partner-website/shop/chrome-float-widgets'
+import { PW_SCENE_TOPBAR_Z } from '@/lib/partner-website/visual-editor/pw-scene'
 
 /** Fashion-orange aligned chrome for React platform shop pages. */
 export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string {
@@ -14,7 +15,7 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
   var(--pw-bg);color:var(--pw-text);font-family:var(--pw-font-ui), "Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, sans-serif;line-height:1.6;padding-bottom:72px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
 .pw-shop h1,.pw-shop h2,.pw-shop-info h1,.pw-shop-brand{font-family:var(--pw-font-display), var(--pw-font-ui), "Be Vietnam Pro", "Segoe UI", sans-serif}
 .pw-shop a{color:inherit;text-decoration:none}
-.pw-shop-topbar{background:var(--pw-primary);color:#fff;font-size:12px;position:relative;z-index:3;isolation:isolate}
+.pw-shop-topbar{background:var(--pw-primary);color:#fff;font-size:12px;position:relative;z-index:${PW_SCENE_TOPBAR_Z};isolation:isolate}
 .pw-shop-topbar-inner{max-width:var(--pw-content);margin:0 auto;padding:8px 20px;display:flex;justify-content:flex-end;gap:16px}
 .pw-shop-topbar a,.pw-shop-topbar button{color:#fff;background:none;border:none;cursor:pointer;font:inherit;padding:0}
 .pw-shop-header{position:sticky;top:0;z-index:200;isolation:isolate;background:#fff;border-bottom:1px solid #f3f4f6}
@@ -40,7 +41,9 @@ export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string
 .pw-shop-search-panel{position:absolute;left:0;right:0;top:calc(100% + 8px);z-index:50;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.12);padding:12px;max-height:min(70vh,480px);overflow:auto}
 .pw-shop-search-panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .pw-shop-search-panel-head button{border:none;background:transparent;font-size:1.25rem;cursor:pointer;line-height:1;color:var(--pw-muted)}
-.pw-shop-search-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+.pw-shop-search-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media(min-width:1280px){.pw-shop-search-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(min-width:1280px){.pw-shop-search-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .pw-shop-search-card{display:flex;flex-direction:column;gap:4px;border-radius:10px;overflow:hidden;border:1px solid #f3f4f6;background:#fff}
 .pw-shop-search-card img,.pw-shop-search-ph{width:100%;aspect-ratio:1;object-fit:cover;background:var(--pw-surface);display:block}
 .pw-shop-search-name{font-size:12px;font-weight:600;padding:0 8px;line-height:1.3}
@@ -151,7 +154,8 @@ ${PARTNER_SHOP_CHROME_FLOAT_CSS}
 .pw-shop-category-tile-placeholder{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--pw-primary),#f3f4f6)}
 .pw-shop-category-tile-name{font-size:13px;font-weight:600;color:var(--pw-text);text-align:center}
 .pw-shop-category-tile-count{font-size:11px;color:#6b7280}
-.pw-shop-grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+.pw-shop-grid{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(min-width:1280px){.pw-shop-grid{gap:18px;grid-template-columns:repeat(4,minmax(0,1fr))}}
 .pw-shop-card{display:flex;flex-direction:column;border:1px solid #f3f4f6;border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 4px 14px rgba(15,23,42,.06)}
 .pw-shop-card img{width:100%;aspect-ratio:1;object-fit:cover}
 .pw-shop-card-body{padding:12px;display:grid;gap:8px}
@@ -189,7 +193,8 @@ ${PARTNER_SHOP_CHROME_FLOAT_CSS}
 .pw-shop-product-detail{margin-top:40px;display:grid;gap:32px}
 .pw-shop-product-detail h2{font-size:1.25rem;margin:0 0 12px;color:var(--pw-primary)}
 .pw-shop-product-detail-body{white-space:pre-wrap;line-height:1.75}
-.pw-shop-detail-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+.pw-shop-detail-grid{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(min-width:1280px){.pw-shop-detail-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .pw-shop-detail-grid img{width:100%;border-radius:10px;aspect-ratio:1;object-fit:cover;background:var(--pw-surface)}
 .pw-shop-product-video{width:100%;max-width:720px;border-radius:12px;border:none;aspect-ratio:16/9;background:#0f172a}
 .pw-shop-urgency-badge{display:inline-block;margin-top:10px;padding:4px 10px;border-radius:999px;background:#fef2f2;color:#dc2626;font-size:12px;font-weight:700}

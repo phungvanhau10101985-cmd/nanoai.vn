@@ -8,10 +8,12 @@ import {
   chromeWidgetAppearance,
   chromeWidgetHost,
   chromeWidgetHref,
+  chromeWidgetLiveHook,
   htmlHasChromeChatMua,
   isChromeFloatKind,
   isVisualEditorChromeWidgetKind,
   VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS,
+  VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS,
 } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import {
   partnerSiteAccountEditPath,
@@ -92,6 +94,19 @@ test('chrome widgets place icons in header actions and text in topbar', () => {
   assert.equal(chromeWidgetHost('contact'), 'topbar')
   assert.equal(chromeWidgetHost('login'), 'topbar')
   assert.equal(chromeWidgetAppearance('favorites-link'), 'link')
+})
+
+test('every picker chrome widget has a live shop hook', () => {
+  for (const kind of VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS) {
+    const hook = chromeWidgetLiveHook(kind)
+    if (hook === 'route') {
+      const href = chromeWidgetHref(kind, 'demo-shop')
+      assert.notEqual(href, '#')
+      assert.match(href, /\/site\/demo-shop(?:\/|$)/)
+    } else {
+      assert.ok(['search', 'search-image', 'categories', 'chat', 'contact', 'topup'].includes(hook))
+    }
+  }
 })
 
 test('chrome widgets wire each kind to the real shop route', () => {
@@ -242,7 +257,7 @@ test('chrome widgets emit category toggle as cat-toggle button', () => {
   assert.match(html, /id="pw-shop-cat-panel"/)
   assert.match(html, /Danh mục/)
   assert.doesNotMatch(html, / href=/)
-  assert.doesNotMatch(html, /data-pw-chrome-btn/)
+  assert.match(html, /data-pw-chrome-btn="categories"/)
 })
 
 test('chrome widgets emit account link to account page (no dropdown)', () => {
@@ -289,7 +304,7 @@ test('chrome widgets emit search box with image search and submit', () => {
   assert.match(html, /<circle cx="11" cy="11" r="7"/)
   assert.match(html, /Tìm sản phẩm/)
   assert.match(html, /Tìm bằng ảnh/)
-  assert.doesNotMatch(html, /data-pw-chrome-btn/)
+  assert.match(html, /data-pw-chrome-btn="search"/)
   assert.doesNotMatch(html, / href=/)
 })
 
@@ -304,7 +319,7 @@ test('chrome widgets emit image-search camera button', () => {
   assert.match(html, /data-pw-image-search/)
   assert.match(html, /Tìm bằng ảnh/)
   assert.doesNotMatch(html, / href=/)
-  assert.doesNotMatch(html, /data-pw-chrome-btn/)
+  assert.match(html, /data-pw-chrome-btn="search-image"/)
 })
 
 test('chrome widgets emit icon markup with API badge hook', () => {

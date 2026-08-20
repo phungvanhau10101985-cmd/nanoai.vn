@@ -1,5 +1,52 @@
 import type { WebLocale } from '@/lib/i18n/config'
 
+/** Trang chính sách bắt buộc nêu tuân thủ quảng cáo Google Merchant Center / Facebook / TikTok. */
+export const PARTNER_SITE_ADS_POLICY_PAGE_KEYS = [
+  'privacy',
+  'terms',
+  'shipping',
+  'returns',
+  'payment',
+] as const
+
+export type PartnerSiteAdsPolicyPageKey = (typeof PARTNER_SITE_ADS_POLICY_PAGE_KEYS)[number]
+
+const ADS_POLICY_PAGE_KEY_SET = new Set<string>(PARTNER_SITE_ADS_POLICY_PAGE_KEYS)
+
+export function isPartnerSiteAdsPolicyPageKey(key: string | null | undefined): boolean {
+  const normalized = String(key || '')
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, '-')
+  return ADS_POLICY_PAGE_KEY_SET.has(normalized)
+}
+
+const ADS_PLATFORM_POLICY_PARAGRAPH: Record<WebLocale, string> = {
+  vi: 'Shop tuân thủ chính sách quảng cáo của Google Merchant Center, Facebook (Meta) và TikTok khi chạy catalog, pixel và chiến dịch quảng cáo. Thông tin sản phẩm, giá, tồn kho và dữ liệu khách được xử lý phù hợp với quy định của các nền tảng này.',
+  en: 'This shop complies with the advertising policies of Google Merchant Center, Facebook (Meta), and TikTok when running catalogs, pixels, and ad campaigns. Product, price, inventory, and customer data are handled in line with those platforms’ rules.',
+  zh: '本店在运行商品目录、像素与广告活动时遵守 Google Merchant Center、Facebook（Meta）和 TikTok 的广告政策。商品、价格、库存与客户数据均按上述平台规则处理。',
+  ja: '当ショップはカタログ・ピクセル・広告キャンペーンの運用において、Google Merchant Center、Facebook（Meta）、TikTok の広告ポリシーを遵守します。商品・価格・在庫・お客様データは各プラットフォームの規定に沿って取り扱います。',
+  ko: '이 샵은 카탈로그, 픽셀, 광고 캠페인 운영 시 Google Merchant Center, Facebook(Meta), TikTok의 광고 정책을 준수합니다. 상품, 가격, 재고, 고객 데이터는 해당 플랫폼 규정에 맞게 처리합니다.',
+}
+
+export function adsPlatformPolicyParagraph(locale: WebLocale): string {
+  return ADS_PLATFORM_POLICY_PARAGRAPH[locale] || ADS_PLATFORM_POLICY_PARAGRAPH.en
+}
+
+export function contentHasAdsPlatformPolicy(text: string): boolean {
+  const t = String(text || '').toLowerCase()
+  return /google\s*merchant/.test(t) && /(facebook|\bmeta\b)/.test(t) && /tiktok/.test(t)
+}
+
+export function ensureAdsPlatformPolicyParagraphs(
+  paragraphs: string[],
+  locale: WebLocale
+): string[] {
+  const next = paragraphs.map((p) => String(p || '').trim()).filter(Boolean)
+  if (contentHasAdsPlatformPolicy(next.join('\n'))) return next
+  return [...next, adsPlatformPolicyParagraph(locale)]
+}
+
 export type PartnerSiteInfoPageKey =
   | 'about'
   | 'contact'
@@ -153,6 +200,7 @@ const PAGES: Record<PartnerSiteInfoPageKey, Record<WebLocale, PartnerSiteInfoBlo
       title: 'Vận chuyển',
       paragraphs: [
         'Đơn được xử lý sau khi shop xác nhận. Thời gian giao phụ thuộc khu vực và phương thức vận chuyển.',
+        ADS_PLATFORM_POLICY_PARAGRAPH.vi,
       ],
       bullets: ['Kiểm tra phí ship khi chat hoặc checkout', 'Theo dõi đơn trong mục Đơn hàng'],
     },
@@ -160,22 +208,23 @@ const PAGES: Record<PartnerSiteInfoPageKey, Record<WebLocale, PartnerSiteInfoBlo
       title: 'Shipping',
       paragraphs: [
         'Orders are processed after shop confirmation. Delivery time depends on your area and carrier.',
+        ADS_PLATFORM_POLICY_PARAGRAPH.en,
       ],
       bullets: ['Ask about shipping fees in chat or at checkout', 'Track orders under Orders'],
     },
     zh: {
       title: '配送',
-      paragraphs: ['店铺确认后处理订单。送达时间视地区与物流而定。'],
+      paragraphs: ['店铺确认后处理订单。送达时间视地区与物流而定。', ADS_PLATFORM_POLICY_PARAGRAPH.zh],
       bullets: ['聊天或结账时确认运费', '在订单页跟踪'],
     },
     ja: {
       title: '配送',
-      paragraphs: ['ショップ確認後に発送します。お届け日数は地域により異なります。'],
+      paragraphs: ['ショップ確認後に発送します。お届け日数は地域により異なります。', ADS_PLATFORM_POLICY_PARAGRAPH.ja],
       bullets: ['送料はチャットまたは購入時に確認', '注文ページで追跡'],
     },
     ko: {
       title: '배송',
-      paragraphs: ['샵 확인 후 처리됩니다. 배송 기간은 지역·택배사에 따라 다릅니다.'],
+      paragraphs: ['샵 확인 후 처리됩니다. 배송 기간은 지역·택배사에 따라 다릅니다.', ADS_PLATFORM_POLICY_PARAGRAPH.ko],
       bullets: ['배송비는 채팅 또는 결제 시 확인', '주문에서 배송 조회'],
     },
   },
@@ -184,22 +233,24 @@ const PAGES: Record<PartnerSiteInfoPageKey, Record<WebLocale, PartnerSiteInfoBlo
       title: 'Đổi trả',
       paragraphs: [
         'Đổi trả theo chính sách từng shop. Giữ hóa đơn/mã đơn và liên hệ sớm qua chat để được hỗ trợ.',
+        ADS_PLATFORM_POLICY_PARAGRAPH.vi,
       ],
     },
     en: {
       title: 'Returns',
       paragraphs: [
         'Returns follow each shop’s policy. Keep your order code and contact chat support promptly.',
+        ADS_PLATFORM_POLICY_PARAGRAPH.en,
       ],
     },
-    zh: { title: '退换', paragraphs: ['按店铺政策退换。请保留订单号并尽早通过聊天联系。'] },
+    zh: { title: '退换', paragraphs: ['按店铺政策退换。请保留订单号并尽早通过聊天联系。', ADS_PLATFORM_POLICY_PARAGRAPH.zh] },
     ja: {
       title: '返品・交換',
-      paragraphs: ['ショップ方針に従います。注文番号を控え、チャットでご連絡ください。'],
+      paragraphs: ['ショップ方針に従います。注文番号を控え、チャットでご連絡ください。', ADS_PLATFORM_POLICY_PARAGRAPH.ja],
     },
     ko: {
       title: '교환·반품',
-      paragraphs: ['샵 정책에 따릅니다. 주문번호를 보관하고 채팅으로 빠르게 문의하세요.'],
+      paragraphs: ['샵 정책에 따릅니다. 주문번호를 보관하고 채팅으로 빠르게 문의하세요.', ADS_PLATFORM_POLICY_PARAGRAPH.ko],
     },
   },
   privacy: {
@@ -208,6 +259,7 @@ const PAGES: Record<PartnerSiteInfoPageKey, Record<WebLocale, PartnerSiteInfoBlo
       paragraphs: [
         'Chúng tôi xử lý thông tin bạn cung cấp (form, chat, đơn hàng) để phục vụ mua sắm và hỗ trợ.',
         'Có thể dùng cookie/pixel phân tích hoặc quảng cáo theo cấu hình shop. Liên hệ shop nếu cần chỉnh sửa dữ liệu.',
+        ADS_PLATFORM_POLICY_PARAGRAPH.vi,
       ],
     },
     en: {
@@ -215,17 +267,23 @@ const PAGES: Record<PartnerSiteInfoPageKey, Record<WebLocale, PartnerSiteInfoBlo
       paragraphs: [
         'We process information you provide (forms, chat, orders) to fulfill shopping and support.',
         'Analytics/ads cookies or pixels may run per shop settings. Contact the shop for data requests.',
+        ADS_PLATFORM_POLICY_PARAGRAPH.en,
       ],
     },
     zh: {
       title: '隐私政策',
-      paragraphs: ['我们处理您提供的信息（表单、聊天、订单）以完成购物与支持。', '可能按店铺设置使用分析/广告 Cookie。如需处理数据请联系店铺。'],
+      paragraphs: [
+        '我们处理您提供的信息（表单、聊天、订单）以完成购物与支持。',
+        '可能按店铺设置使用分析/广告 Cookie。如需处理数据请联系店铺。',
+        ADS_PLATFORM_POLICY_PARAGRAPH.zh,
+      ],
     },
     ja: {
       title: 'プライバシー',
       paragraphs: [
         'フォーム・チャット・注文で提供された情報を購入・サポートのために処理します。',
         'ショップ設定に応じて分析/広告Cookieを使用する場合があります。',
+        ADS_PLATFORM_POLICY_PARAGRAPH.ja,
       ],
     },
     ko: {
@@ -233,6 +291,7 @@ const PAGES: Record<PartnerSiteInfoPageKey, Record<WebLocale, PartnerSiteInfoBlo
       paragraphs: [
         '폼·채팅·주문으로 제공된 정보를 쇼핑·지원을 위해 처리합니다.',
         '샵 설정에 따라 분석/광고 쿠키를 사용할 수 있습니다.',
+        ADS_PLATFORM_POLICY_PARAGRAPH.ko,
       ],
     },
   },
@@ -241,22 +300,24 @@ const PAGES: Record<PartnerSiteInfoPageKey, Record<WebLocale, PartnerSiteInfoBlo
       title: 'Điều khoản sử dụng',
       paragraphs: [
         'Khi dùng website shop, bạn đồng ý cung cấp thông tin chính xác khi đặt hàng và tuân thủ chính sách đổi trả/vận chuyển của shop.',
+        ADS_PLATFORM_POLICY_PARAGRAPH.vi,
       ],
     },
     en: {
       title: 'Terms of use',
       paragraphs: [
         'By using this shop site, you agree to provide accurate checkout details and follow the shop’s shipping and return policies.',
+        ADS_PLATFORM_POLICY_PARAGRAPH.en,
       ],
     },
-    zh: { title: '使用条款', paragraphs: ['使用本店网站即表示您同意提供准确订单信息并遵守配送与退换政策。'] },
+    zh: { title: '使用条款', paragraphs: ['使用本店网站即表示您同意提供准确订单信息并遵守配送与退换政策。', ADS_PLATFORM_POLICY_PARAGRAPH.zh] },
     ja: {
       title: '利用規約',
-      paragraphs: ['本サイト利用時、正確な注文情報の提供と配送・返品ポリシーへの同意をお願いします。'],
+      paragraphs: ['本サイト利用時、正確な注文情報の提供と配送・返品ポリシーへの同意をお願いします。', ADS_PLATFORM_POLICY_PARAGRAPH.ja],
     },
     ko: {
       title: '이용약관',
-      paragraphs: ['이 샵 사이트 이용 시 정확한 주문 정보 제공 및 배송·반품 정책 준수에 동의합니다.'],
+      paragraphs: ['이 샵 사이트 이용 시 정확한 주문 정보 제공 및 배송·반품 정책 준수에 동의합니다.', ADS_PLATFORM_POLICY_PARAGRAPH.ko],
     },
   },
   payment: {
@@ -265,6 +326,7 @@ const PAGES: Record<PartnerSiteInfoPageKey, Record<WebLocale, PartnerSiteInfoBlo
       paragraphs: [
         'Shop hỗ trợ thanh toán khi nhận hàng (COD), chuyển khoản ngân hàng, và ví điện tử (nếu đã cấu hình).',
         'Khi đơn yêu cầu đặt cọc, vui lòng chuyển đúng số tiền và nội dung tham chiếu — shop xác nhận sau khi nhận được thanh toán.',
+        ADS_PLATFORM_POLICY_PARAGRAPH.vi,
       ],
       bullets: ['COD — thanh toán khi nhận hàng', 'Chuyển khoản — quét QR / chuyển đúng nội dung', 'Ví điện tử — quét QR ví của shop (nếu có)'],
     },
@@ -273,22 +335,35 @@ const PAGES: Record<PartnerSiteInfoPageKey, Record<WebLocale, PartnerSiteInfoBlo
       paragraphs: [
         'This shop may accept cash on delivery (COD), bank transfer, and e-wallet QR (when configured).',
         'If a deposit is required, transfer the exact amount with the payment reference — the shop confirms after payment is received.',
+        ADS_PLATFORM_POLICY_PARAGRAPH.en,
       ],
       bullets: ['COD — pay on delivery', 'Bank transfer — scan QR / use the reference', 'E-wallet — scan the shop QR (if available)'],
     },
     zh: {
       title: '支付说明',
-      paragraphs: ['本店可支持货到付款、银行转账及电子钱包（如已配置）。', '如需定金，请按提示金额与备注转账，店铺确认到账后继续履约。'],
+      paragraphs: [
+        '本店可支持货到付款、银行转账及电子钱包（如已配置）。',
+        '如需定金，请按提示金额与备注转账，店铺确认到账后继续履约。',
+        ADS_PLATFORM_POLICY_PARAGRAPH.zh,
+      ],
       bullets: ['货到付款', '银行转账 / QR', '电子钱包 QR（如有）'],
     },
     ja: {
       title: 'お支払い案内',
-      paragraphs: ['代金引換・銀行振込・電子マネー（設定時）に対応する場合があります。', 'デポジットが必要な場合は案内どおりの金額・明細でお振込みください。'],
+      paragraphs: [
+        '代金引換・銀行振込・電子マネー（設定時）に対応する場合があります。',
+        'デポジットが必要な場合は案内どおりの金額・明細でお振込みください。',
+        ADS_PLATFORM_POLICY_PARAGRAPH.ja,
+      ],
       bullets: ['代金引換', '銀行振込 / QR', '電子マネー QR（設定時）'],
     },
     ko: {
       title: '결제 안내',
-      paragraphs: ['착불(COD), 계좌이체, 전자지갑 QR(설정 시)을 지원할 수 있습니다.', '보증금이 필요하면 안내된 금액과 참조 내용으로 이체해 주세요.'],
+      paragraphs: [
+        '착불(COD), 계좌이체, 전자지갑 QR(설정 시)을 지원할 수 있습니다.',
+        '보증금이 필요하면 안내된 금액과 참조 내용으로 이체해 주세요.',
+        ADS_PLATFORM_POLICY_PARAGRAPH.ko,
+      ],
       bullets: ['착불', '계좌이체 / QR', '전자지갑 QR(있을 때)'],
     },
   },

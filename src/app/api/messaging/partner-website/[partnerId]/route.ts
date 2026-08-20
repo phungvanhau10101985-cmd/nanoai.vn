@@ -63,6 +63,10 @@ import {
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { sanitizeVisualHtmlForStore } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
 import { syncSharedChromeAcrossProjectFiles } from '@/lib/partner-website/shop/sync-shared-chrome'
+import {
+  publishVisualInfoPageToCms,
+  shouldPublishVisualPageToCms,
+} from '@/lib/partner-website/pages/sync-info-page-cms'
 
 export async function GET(
   req: NextRequest,
@@ -611,12 +615,25 @@ export async function PATCH(
   if (body.visualEdited === true && targetVisualHtml.length < 40) {
     return NextResponse.json({ error: 'Visual HTML is empty — cannot save' }, { status: 400 })
   }
+  let htmlForVisualSave = targetVisualHtml
+  if (
+    body.visualEdited === true &&
+    htmlForVisualSave.length >= 40 &&
+    shouldPublishVisualPageToCms({ pageKey: visualPageKey, cmsSlug: visualCmsSlug })
+  ) {
+    htmlForVisualSave = await publishVisualInfoPageToCms({
+      partnerId: pid,
+      html: htmlForVisualSave,
+      pageKey: visualPageKey,
+      cmsSlug: visualCmsSlug,
+    })
+  }
   const projectToSave =
-    body.visualEdited === true && targetVisualHtml.length >= 40
+    body.visualEdited === true && htmlForVisualSave.length >= 40
       ? syncSharedChromeAcrossProjectFiles(
-          mergeVisualPageHtmlIntoProject(existing.project, targetVisualHtml, htmlPath),
+          mergeVisualPageHtmlIntoProject(existing.project, htmlForVisualSave, htmlPath),
           htmlPath,
-          targetVisualHtml
+          htmlForVisualSave
         )
       : project
   const syncedHomeHtml =
@@ -633,7 +650,7 @@ export async function PATCH(
     project: projectToSave ?? undefined,
     htmlSource:
       visualHtmlExact !== undefined
-        ? targetVisualHtml
+        ? htmlForVisualSave
         : body.visualEdited === true
           ? htmlSourceFromSharedChrome
           : body.htmlSource !== undefined

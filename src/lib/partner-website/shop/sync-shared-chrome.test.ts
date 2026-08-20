@@ -3,7 +3,9 @@ import test from 'node:test'
 import {
   applySharedChrome,
   extractSharedChrome,
+  fillMissingSharedChromeFloats,
   hasSharedChrome,
+  hoistBodyLevelChromeFloats,
   syncSharedChromeAcrossProjectFiles,
 } from '@/lib/partner-website/shop/sync-shared-chrome'
 
@@ -21,13 +23,206 @@ const about = `<!DOCTYPE html><html><body>
 <nav class="pw-bottom-nav"><a href="/about">About</a></nav>
 </body></html>`
 
-test('extractSharedChrome reads header footer and bottom nav', () => {
-  const chrome = extractSharedChrome(home)
-  assert.equal(hasSharedChrome(chrome), true)
-  assert.match(chrome.header, /HomeLogo/)
-  assert.match(chrome.footer, /Home footer/)
-  assert.match(chrome.bottomNav, /pw-bottom-nav/)
-  assert.equal(chrome.header.includes('Home hero'), false)
+test('applySharedChrome drops leftover listing floats when home chrome lives in the header', () => {
+  const homeHeaderChat = `<!DOCTYPE html><html><body>
+<header class="pw-header" data-pw-region="header"><div class="pw-header-actions"><button type="button" class="pw-icon-btn pw-chrome-icon-only" data-pw-chrome-btn="chat" data-pw-chrome-size="36" style="--pw-chrome-size:36px" data-nanoai-open-chat>Tư vấn</button></div></header>
+<main>Home</main>
+<footer class="pw-footer" data-pw-region="footer">Home footer</footer>
+<nav class="pw-bottom-nav"><a href="/">Home</a></nav>
+</body></html>`
+  const listingLeftovers = `<!DOCTYPE html><html><body>
+<header class="pw-header" data-pw-region="header"><a class="pw-brand">OldLogo</a></header>
+<main><h1>Products</h1></main>
+<footer class="pw-footer" data-pw-region="footer">Old footer</footer>
+<button type="button" data-pw-chrome-btn="topup" data-pw-chrome-float="1">Top</button>
+<button type="button" data-pw-chrome-btn="topup" data-pw-chrome-float="1">Top2</button>
+<a data-pw-chrome-btn="chat-zalo" data-pw-chrome-float="1" href="https://zalo.me/x">Zalo leftover</a>
+<button class="pw-fab-chat" data-nanoai-chat-bubble="1">💬</button>
+</body></html>`
+  const next = applySharedChrome(listingLeftovers, extractSharedChrome(homeHeaderChat))
+  assert.match(next, /<h1>Products<\/h1>/)
+  assert.match(next, /data-pw-chrome-btn="chat"/)
+  assert.match(next, /data-pw-chrome-size="36"/)
+  assert.match(next, /--pw-chrome-size:36px/)
+  assert.equal(next.includes('data-pw-chrome-btn="topup"'), false)
+  assert.equal(next.includes('chat-zalo'), false)
+  assert.equal(next.includes('pw-fab-chat'), false)
+  assert.equal(next.includes('Zalo leftover'), false)
+})
+
+test('sync copies homepage topup onto other same-device pages', () => {
+  const homeWithTopup = `<!DOCTYPE html><html><body>
+<header class="pw-header" data-pw-region="header"><a class="pw-brand">HomeLogo</a></header>
+<main>Home</main>
+<footer class="pw-footer" data-pw-region="footer">Home footer</footer>
+<nav class="pw-bottom-nav"><a href="/">Home</a></nav>
+<button type="button" class="pw-icon-btn pw-chrome-icon-only" data-pw-chrome-btn="topup" data-pw-chrome-float="1" data-pw-chrome-added="1" data-pw-device="desktop" style="right:16px;bottom:256px">Top</button>
+</body></html>`
+  const shipping = `<!DOCTYPE html><html><body>
+<header class="pw-header" data-pw-region="header"><a class="pw-brand">OldLogo</a></header>
+<main><h1>Vận chuyển</h1></main>
+<footer class="pw-footer" data-pw-region="footer">Old footer</footer>
+</body></html>`
+  const next = syncSharedChromeAcrossProjectFiles(
+    {
+      files: [
+        { path: 'index.html', kind: 'html', content: homeWithTopup },
+        { path: 'about.html', kind: 'html', content: about },
+        { path: 'shipping.html', kind: 'html', content: shipping },
+      ],
+    },
+    'index.html',
+    homeWithTopup
+  )
+  const aboutHtml = next.files.find((f) => f.path === 'about.html')?.content || ''
+  const shippingHtml = next.files.find((f) => f.path === 'shipping.html')?.content || ''
+  assert.match(aboutHtml, /data-pw-chrome-btn="topup"/)
+  assert.match(aboutHtml, /<h1>About shop<\/h1>/)
+  assert.match(shippingHtml, /data-pw-chrome-btn="topup"/)
+  assert.match(shippingHtml, /<h1>Vận chuyển<\/h1>/)
+  assert.match(aboutHtml, /bottom:\s*256px/i)
+})
+
+test('fillMissingSharedChromeFloats adds topup when isolated chrome already has chat', () => {
+  const isolated = `<!DOCTYPE html><html><body>
+<header class="pw-header" data-pw-region="header">H</header>
+<button type="button" data-pw-chrome-btn="chat" data-pw-chrome-float="1">Tư vấn</button>
+</body></html>`
+  const raw = `<!DOCTYPE html><html><body>
+<div class="pw-visual-desktop" data-pw-visual-device="desktop">
+<header class="pw-header" data-pw-region="header">H</header>
+</div>
+<button type="button" data-pw-chrome-btn="chat" data-pw-chrome-float="1">Tư vấn</button>
+<button type="button" data-pw-chrome-btn="topup" data-pw-chrome-float="1">Top</button>
+</body></html>`
+  const next = fillMissingSharedChromeFloats(extractSharedChrome(isolated), raw)
+  assert.match(next.floats, /data-pw-chrome-btn="chat"/)
+  assert.match(next.floats, /data-pw-chrome-btn="topup"/)
+})
+
+test('hoistBodyLevelChromeFloats pulls topup seated outside the device wrapper', () => {
+  const raw = `<!DOCTYPE html><html><body>
+<div class="pw-visual-desktop" data-pw-visual-device="desktop">
+<header class="pw-header" data-pw-region="header">H</header>
+<main>Home mid</main>
+<footer class="pw-footer" data-pw-region="footer">F</footer>
+</div>
+<button type="button" data-pw-chrome-btn="topup" data-pw-chrome-float="1" data-pw-device="desktop">Top</button>
+<button type="button" data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-pw-device="desktop">Tư vấn</button>
+</body></html>`
+  const inner = `<header class="pw-header" data-pw-region="header">H</header>
+<main>Home mid</main>
+<footer class="pw-footer" data-pw-region="footer">F</footer>`
+  const isolated = `<!DOCTYPE html>
+<html lang="vi">
+<head>
+</head>
+<body>
+${inner}
+</body>
+</html>`
+  const next = hoistBodyLevelChromeFloats(isolated, raw, 'desktop')
+  assert.match(next, /Home mid/)
+  assert.match(next, /data-pw-chrome-btn="topup"/)
+  assert.match(next, /data-pw-chrome-btn="chat"/)
+})
+
+test('applySharedChrome copies body-level float icons to every same-device page', () => {
+  const homeWithFloat = `<!DOCTYPE html><html><body>
+<header class="pw-header" data-pw-region="header"><a class="pw-brand">HomeLogo</a></header>
+<section class="pw-hero">Home hero</section>
+<footer class="pw-footer" data-pw-region="footer">Home footer</footer>
+<nav class="pw-bottom-nav"><a href="/">Home</a></nav>
+<button type="button" class="pw-icon-btn pw-chrome-icon-only" data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-nanoai-open-chat data-pw-user-move="1" style="left:92%;top:42%">Tư vấn</button>
+<a data-pw-chrome-btn="chat-zalo" data-pw-chrome-float="1" href="https://zalo.me/x">Zalo</a>
+</body></html>`
+  const chrome = extractSharedChrome(homeWithFloat)
+  assert.match(chrome.floats, /data-pw-chrome-btn="chat"/)
+  assert.match(chrome.floats, /data-pw-chrome-btn="chat-zalo"/)
+  assert.equal(chrome.header.includes('Tư vấn'), false)
+  const next = applySharedChrome(about, chrome)
+  assert.match(next, /<h1>About shop<\/h1>/)
+  assert.match(next, /HomeLogo/)
+  assert.match(next, /Tư vấn/)
+  assert.match(next, /left:92%/)
+  assert.match(next, /data-pw-chrome-btn="chat-zalo"/)
+  assert.equal(next.includes('Home hero'), false)
+})
+
+test('applySharedChrome copies float size and replaces leftover extra kinds', () => {
+  const homeSized = `<!DOCTYPE html><html><body>
+<header class="pw-header" data-pw-region="header"><a class="pw-brand">HomeLogo</a></header>
+<main>Home</main>
+<footer class="pw-footer" data-pw-region="footer">F</footer>
+<button type="button" class="pw-icon-btn pw-chrome-icon-only" data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-pw-chrome-size="40" style="--pw-chrome-size:40px;left:92%;top:42%" data-nanoai-open-chat>Tư vấn</button>
+</body></html>`
+  const listing = `<!DOCTYPE html><html><body>
+<header class="pw-header" data-pw-region="header"><a class="pw-brand">Old</a></header>
+<main>Listing</main>
+<footer class="pw-footer">OldF</footer>
+<button type="button" data-pw-chrome-btn="topup" data-pw-chrome-float="1" data-pw-chrome-size="18">Top</button>
+<button type="button" data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-pw-chrome-size="22">Old chat</button>
+</body></html>`
+  const next = applySharedChrome(listing, extractSharedChrome(homeSized))
+  assert.match(next, />Listing</)
+  assert.match(next, /data-pw-chrome-size="40"/)
+  assert.match(next, /--pw-chrome-size:40px/)
+  assert.match(next, /left:92%/)
+  assert.equal(next.includes('Old chat'), false)
+  assert.equal(next.includes('data-pw-chrome-btn="topup"'), false)
+  assert.equal((next.match(/data-pw-chrome-btn="chat"/g) || []).length, 1)
+})
+
+test('in-header chat is not double-copied as a body float', () => {
+  const html = `<!DOCTYPE html><html><body>
+<header class="pw-header"><div class="pw-header-actions"><button data-pw-chrome-btn="chat" data-pw-chrome-float="1">Tư vấn</button></div></header>
+<main>Home</main>
+<footer class="pw-footer">F</footer>
+</body></html>`
+  const chrome = extractSharedChrome(html)
+  assert.equal(chrome.floats.trim(), '')
+  assert.match(chrome.header, /Tư vấn/)
+})
+
+test('sync copies homepage floats onto other pages of the same device only', () => {
+  const homeDesk = `<!DOCTYPE html><html><body>
+<header class="pw-header">DeskHead</header>
+<main>Desk home</main>
+<footer class="pw-footer">DeskFoot</footer>
+<button type="button" data-pw-chrome-btn="chat" data-pw-chrome-float="1" style="right:16px;bottom:88px">Tư vấn</button>
+</body></html>`
+  const aboutDesk = `<!DOCTYPE html><html><body>
+<header class="pw-header">OldHead</header>
+<main>About</main>
+<footer class="pw-footer">OldFoot</footer>
+</body></html>`
+  const aboutMobile = `<!DOCTYPE html><html><body>
+<header class="pw-header">MobHead</header>
+<main>About mobile</main>
+<footer class="pw-footer">MobFoot</footer>
+</body></html>`
+  const next = syncSharedChromeAcrossProjectFiles(
+    {
+      files: [
+        { path: 'index.html', kind: 'html', content: homeDesk },
+        { path: 'about.html', kind: 'html', content: aboutDesk },
+        { path: 'about.mobile.html', kind: 'html', content: aboutMobile },
+      ],
+    },
+    'index.html',
+    homeDesk
+  )
+  const aboutHtml = next.files.find((f) => f.path === 'about.html')?.content || ''
+  const aboutMob = next.files.find((f) => f.path === 'about.mobile.html')?.content || ''
+  assert.match(aboutHtml, /Tư vấn/)
+  assert.match(aboutHtml, />About</)
+  assert.match(aboutHtml, /DeskHead/)
+  assert.match(aboutHtml, /right:\s*16px/i)
+  assert.match(aboutMob, /MobHead/)
+  assert.match(aboutMob, /About mobile/)
+  assert.match(aboutMob, /data-pw-chrome-btn="chat"/)
+  assert.equal(/right:\s*16px/i.test(aboutMob), false)
+  assert.equal(/bottom:\s*88px/i.test(aboutMob), false)
 })
 
 test('applySharedChrome keeps page middle and replaces chrome', () => {
@@ -59,6 +254,65 @@ test('applySharedChrome does not match pw-header-main as the header host', () =>
   const chrome = extractSharedChrome(html)
   assert.match(chrome.header, />real</)
   assert.equal(chrome.header.includes('not header'), false)
+})
+
+test('header footer bottom nav and floats sync on every device independently', () => {
+  function page(device: string, where: string) {
+    const suffix = device === 'desktop' ? '' : `.${device}`
+    return {
+      path: `${where === 'home' ? 'index' : where}${suffix}.html`,
+      kind: 'html' as const,
+      content: `<!DOCTYPE html><html><body>
+<header class="pw-header">${device}-head-${where}</header>
+<main>${device}-${where}-mid</main>
+<footer class="pw-footer">${device}-foot-${where}</footer>
+<nav class="pw-bottom-nav">${device}-nav-${where}</nav>
+<button type="button" data-pw-chrome-btn="chat" data-pw-chrome-float="1">${device}-float-${where}</button>
+</body></html>`,
+    }
+  }
+  const project = {
+    files: [
+      page('desktop', 'home'),
+      page('desktop', 'about'),
+      page('laptop', 'home'),
+      page('laptop', 'about'),
+      page('tablet', 'home'),
+      page('tablet', 'about'),
+      page('mobile', 'home'),
+      page('mobile', 'about'),
+    ],
+  }
+  const deskHome = project.files[0].content
+  const next = syncSharedChromeAcrossProjectFiles(project, 'index.html', deskHome)
+  const deskAbout = next.files.find((f) => f.path === 'about.html')?.content || ''
+  const lapAbout = next.files.find((f) => f.path === 'about.laptop.html')?.content || ''
+  const tabAbout = next.files.find((f) => f.path === 'about.tablet.html')?.content || ''
+  const mobAbout = next.files.find((f) => f.path === 'about.mobile.html')?.content || ''
+  assert.match(deskAbout, /desktop-head-home/)
+  assert.match(deskAbout, /desktop-foot-home/)
+  assert.match(deskAbout, /desktop-nav-home/)
+  assert.match(deskAbout, /desktop-float-home/)
+  assert.match(deskAbout, /desktop-about-mid/)
+  assert.match(lapAbout, /laptop-head-about/)
+  assert.match(lapAbout, /laptop-about-mid/)
+  assert.equal(lapAbout.includes('desktop-head-home'), false)
+  assert.match(tabAbout, /tablet-head-about/)
+  assert.equal(tabAbout.includes('desktop-foot-home'), false)
+  assert.match(mobAbout, /mobile-head-about/)
+  assert.equal(mobAbout.includes('desktop-nav-home'), false)
+
+  const mobileHome = next.files.find((f) => f.path === 'index.mobile.html')?.content || ''
+  const afterMobile = syncSharedChromeAcrossProjectFiles(next, 'index.mobile.html', mobileHome)
+  const mobAbout2 = afterMobile.files.find((f) => f.path === 'about.mobile.html')?.content || ''
+  const deskAbout2 = afterMobile.files.find((f) => f.path === 'about.html')?.content || ''
+  assert.match(mobAbout2, /mobile-head-home/)
+  assert.match(mobAbout2, /mobile-foot-home/)
+  assert.match(mobAbout2, /mobile-nav-home/)
+  assert.match(mobAbout2, /mobile-float-home/)
+  assert.match(mobAbout2, /mobile-about-mid/)
+  assert.match(deskAbout2, /desktop-head-home/)
+  assert.equal(deskAbout2.includes('mobile-head-home'), false)
 })
 
 test('syncSharedChromeAcrossProjectFiles copies chrome only within the same device', () => {

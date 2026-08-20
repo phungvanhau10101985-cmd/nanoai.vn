@@ -101,6 +101,15 @@ export type PartnerWebsiteCopy = {
   visualEditAiImageGenerate: string
   visualEditAiPromptLabel: string
   visualEditAiPromptRequired: string
+  visualEditOpenPage: string
+  visualEditOpenHomePage: string
+  visualEditInfoAiTitle: string
+  visualEditInfoAiHint: string
+  visualEditInfoAiPlaceholder: string
+  visualEditInfoAiRewrite: string
+  visualEditInfoAiBusy: string
+  visualEditInfoAiNeedContent: string
+  visualEditInfoSyncHint: string
   visualEditPresets: string
   visualEditTemplateLocked: string
   visualEditFontSize: string
@@ -125,6 +134,9 @@ export type PartnerWebsiteCopy = {
   visualEditBlockShow: string
   visualEditBlockDuplicate: string
   visualEditChromeDuplicate: string
+  visualEditChromeDupAskTitle: string
+  visualEditChromeDupAskAdd: string
+  visualEditChromeDupAskKeep: string
   visualEditBlockDelete: string
   visualEditBlockPaddingY: string
   visualEditBlockPaddingX: string
@@ -171,6 +183,8 @@ export type PartnerWebsiteCopy = {
   visualEditLogoInkTextPlaceholder: string
   visualEditLogoIdeaLabel: string
   visualEditAddText: string
+  visualEditAddArticleImage: string
+  visualEditArticleEditHint: string
   visualEditTextContent: string
   visualEditAddBg: string
   visualEditAddBgColor: string
@@ -752,6 +766,7 @@ export type PartnerWebsiteCopy = {
   themeColorSaving: string
   themeColorSaveError: string
   themeColorOk: string
+  themeColorQuickApplyHint: string
   setupStep3Title: string
   setupStep3Hint: string
   setupStep4Title: string
@@ -914,6 +929,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAiImageGenerate: 'Tạo ảnh',
     visualEditAiPromptLabel: 'Prompt AI',
     visualEditAiPromptRequired: 'Nhập mô tả ảnh (prompt) trước khi tạo',
+    visualEditOpenPage: 'Sửa nhanh trang này',
+    visualEditOpenHomePage: 'Sửa nhanh trang chủ',
+    visualEditInfoAiTitle: 'Ô viết bài (SEO)',
+    visualEditInfoAiHint: 'Sửa chữ trong ô bài. AI viết lại đổ thẳng vào bài. Không ưng → Quay lại. Lưu = giữ bản đó.',
+    visualEditInfoAiPlaceholder: 'Tuỳ chọn: giọng văn / điểm nhấn (để trống cũng được)',
+    visualEditInfoAiRewrite: 'AI viết lại',
+    visualEditInfoAiBusy: 'Đang viết…',
+    visualEditInfoAiNeedContent: 'Cần có tiêu đề hoặc nội dung trang trước khi AI viết lại',
+    visualEditInfoSyncHint: 'Lưu = giữ bản này + đăng CMS',
     visualEditPresets: 'Gợi ý AI',
     visualEditTemplateLocked: 'Bấm «Sửa nhanh» trên preview để chỉnh chữ, màu, ảnh trực tiếp.',
     visualEditFontSize: 'Cỡ chữ',
@@ -937,7 +961,11 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHide: 'Ẩn khối',
     visualEditBlockShow: 'Hiện lại',
     visualEditBlockDuplicate: 'Nhân bản',
-    visualEditChromeDuplicate: 'Đã có. Một trang không được phép có 2 icon tính năng trùng nhau.',
+    visualEditChromeDuplicate:
+      'Thêm cái nữa vào giữa màn hình, hoặc kéo cái đang có ra giữa để chỉnh.',
+    visualEditChromeDupAskTitle: 'Đã có «{name}»',
+    visualEditChromeDupAskAdd: 'Thêm cái nữa',
+    visualEditChromeDupAskKeep: 'Kéo cái đang có',
     visualEditBlockDelete: 'Xóa khối',
     visualEditBlockPaddingY: 'Khoảng cách dọc',
     visualEditBlockPaddingX: 'Khoảng cách ngang',
@@ -984,6 +1012,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoInkTextPlaceholder: 'Gõ màu logo (trống = ô chọn)',
     visualEditLogoIdeaLabel: 'Ý tưởng tạo logo',
     visualEditAddText: 'Thêm chữ',
+    visualEditAddArticleImage: 'Chèn ảnh vào bài',
+    visualEditArticleEditHint: 'Bấm chữ trên bài để sửa trực tiếp, đổi màu/cỡ chữ. Thêm → chèn ảnh hoặc đoạn mới.',
     visualEditTextContent: 'Chữ',
     visualEditAddBg: 'Thêm nền',
     visualEditAddBgColor: 'Màu nền',
@@ -1402,7 +1432,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     customersLastOrder: 'Lần cuối',
     customersLoadMore: 'Xem thêm',
     staticPagesTitle: 'Trang tĩnh & SEO',
-    staticPagesHint: 'Ghi đè nội dung/SEO 8 trang có sẵn (about, contact, faq...) hoặc tạo trang mới tự do.',
+    staticPagesHint: 'Đồng bộ với Sửa nhanh: gõ nội dung trên trang, AI viết lại, Lưu là đăng. Sửa CMS cũng cập nhật HTML visual nếu trang đã có.',
     staticPagesEmpty: 'Chưa có trang tĩnh tuỳ chỉnh nào.',
     staticPagesAddNew: 'Tạo trang mới',
     staticPageSlugLabel: 'Đường dẫn (slug)',
@@ -1583,6 +1613,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     themeColorSaving: 'Đang lưu…',
     themeColorSaveError: 'Không lưu được màu. Thử lại.',
     themeColorOk: 'OK',
+    themeColorQuickApplyHint: 'Bấm màu giao diện để áp dụng ngay',
     setupStep3Title: 'Sửa giao diện',
     setupStep3Hint: 'Chọn trang trên preview, bấm Sửa nhanh, rồi lưu.',
     setupStep4Title: 'Tên miền',
@@ -1748,6 +1779,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAiImageGenerate: 'Generate',
     visualEditAiPromptLabel: 'AI prompt',
     visualEditAiPromptRequired: 'Enter an image prompt before generating',
+    visualEditOpenPage: 'Quick-edit this page',
+    visualEditOpenHomePage: 'Quick-edit homepage',
+    visualEditInfoAiTitle: 'Page content (SEO)',
+    visualEditInfoAiHint: 'Notes are optional — Rewrite with AI auto-optimizes copy and SEO keywords. Quick edit only.',
+    visualEditInfoAiPlaceholder: 'Optional: tone / emphasis (leave blank to auto-optimize)',
+    visualEditInfoAiRewrite: 'Rewrite with AI',
+    visualEditInfoAiBusy: 'Writing…',
+    visualEditInfoAiNeedContent: 'Add a page title or body before AI rewrite',
+    visualEditInfoSyncHint: 'Save = publish now + sync CMS + Article schema',
     visualEditPresets: 'AI presets',
     visualEditTemplateLocked: 'Click «Quick edit» on the preview to change text, colors, and images directly.',
     visualEditFontSize: 'Font size',
@@ -1771,7 +1811,11 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHide: 'Hide block',
     visualEditBlockShow: 'Show again',
     visualEditBlockDuplicate: 'Duplicate',
-    visualEditChromeDuplicate: 'Already exists. A page cannot have two of the same feature icon.',
+    visualEditChromeDuplicate:
+      'Add another in the middle of the screen, or pull the existing one to the center to edit.',
+    visualEditChromeDupAskTitle: '«{name}» already exists',
+    visualEditChromeDupAskAdd: 'Add another',
+    visualEditChromeDupAskKeep: 'Move the existing one',
     visualEditBlockDelete: 'Delete block',
     visualEditBlockPaddingY: 'Vertical spacing',
     visualEditBlockPaddingX: 'Horizontal spacing',
@@ -1818,6 +1862,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoInkTextPlaceholder: 'Type a color, empty = swatch',
     visualEditLogoIdeaLabel: 'Logo idea',
     visualEditAddText: 'Add text',
+    visualEditAddArticleImage: 'Insert image into article',
+    visualEditArticleEditHint: 'Click text on the page to edit, change color/size. Add → insert image or a new paragraph.',
     visualEditTextContent: 'Text',
     visualEditAddBg: 'Add background',
     visualEditAddBgColor: 'Background color',
@@ -2237,7 +2283,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     customersLastOrder: 'Last order',
     customersLoadMore: 'Load more',
     staticPagesTitle: 'Static Pages & SEO',
-    staticPagesHint: 'Override content/SEO of the 8 built-in pages (about, contact, faq...) or create new custom pages.',
+    staticPagesHint: 'Synced with Quick edit: type on the page, AI rewrite, Save publishes. CMS edits also update visual HTML when that page exists.',
     staticPagesEmpty: 'No custom static pages yet.',
     staticPagesAddNew: 'Create page',
     staticPageSlugLabel: 'Slug',
@@ -2418,6 +2464,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     themeColorSaving: 'Saving…',
     themeColorSaveError: 'Could not save colors. Try again.',
     themeColorOk: 'OK',
+    themeColorQuickApplyHint: 'Tap a site color to apply it now',
     setupStep3Title: 'Edit the look',
     setupStep3Hint: 'Pick a page on the preview, use Quick edit, then save.',
     setupStep4Title: 'Domain',
@@ -2580,6 +2627,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAiImageGenerate: '生成',
     visualEditAiPromptLabel: 'AI 提示词',
     visualEditAiPromptRequired: '请先输入图片描述（prompt）',
+    visualEditOpenPage: '快速编辑此页',
+    visualEditOpenHomePage: '快速编辑首页',
+    visualEditInfoAiTitle: '页面内容（SEO）',
+    visualEditInfoAiHint: '备注可留空 — 点 AI 重写会自动优化正文与 SEO 关键词。仅快速编辑显示。',
+    visualEditInfoAiPlaceholder: '可选：语气/重点（留空也可自动优化）',
+    visualEditInfoAiRewrite: 'AI 重写',
+    visualEditInfoAiBusy: '正在撰写…',
+    visualEditInfoAiNeedContent: '请先填写页面标题或正文再让 AI 重写',
+    visualEditInfoSyncHint: '保存 = 立即发布并同步 CMS + Article',
     visualEditPresets: 'AI 预设',
     visualEditTemplateLocked: '点击预览上的「快速编辑」可直接改文字、颜色、图片。',
     visualEditFontSize: '字号',
@@ -2603,7 +2659,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHide: '隐藏区块',
     visualEditBlockShow: '重新显示',
     visualEditBlockDuplicate: '复制',
-    visualEditChromeDuplicate: '已存在。一页不允许有两个相同的功能图标。',
+    visualEditChromeDuplicate: '再添加一个到画面中央，或把现有的拖到中央再编辑。',
+    visualEditChromeDupAskTitle: '已有「{name}」',
+    visualEditChromeDupAskAdd: '再添加一个',
+    visualEditChromeDupAskKeep: '拖出现有的',
     visualEditBlockDelete: '删除区块',
     visualEditBlockPaddingY: '垂直间距',
     visualEditBlockPaddingX: '水平间距',
@@ -2650,6 +2709,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoInkTextPlaceholder: '输入颜色，留空则用色块',
     visualEditLogoIdeaLabel: '标志创意',
     visualEditAddText: '添加文字',
+    visualEditAddArticleImage: '插入文章图片',
+    visualEditArticleEditHint: '点击页面文字可直接编辑、改颜色/字号。添加 → 插入图片或新段落。',
     visualEditTextContent: '文字',
     visualEditAddBg: '添加背景',
     visualEditAddBgColor: '背景色',
@@ -3061,7 +3122,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     customersLastOrder: '最近下单',
     customersLoadMore: '查看更多',
     staticPagesTitle: '静态页面与 SEO',
-    staticPagesHint: '覆盖 8 个内置页面（about、contact、faq 等）的内容/SEO，或创建全新的自定义页面。',
+    staticPagesHint: '与快速编辑同步：在页面上输入、AI 重写、保存即发布。CMS 修改也会更新已有的视觉 HTML。',
     staticPagesEmpty: '暂无自定义静态页面。',
     staticPagesAddNew: '创建页面',
     staticPageSlugLabel: '路径（slug）',
@@ -3230,6 +3291,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     themeColorSaving: '保存中…',
     themeColorSaveError: '无法保存颜色，请重试。',
     themeColorOk: '确定',
+    themeColorQuickApplyHint: '点击网站配色即可应用',
     setupStep3Title: '编辑外观',
     setupStep3Hint: '在预览中选择页面，点「快速编辑」后保存。',
     setupStep4Title: '域名',
@@ -3390,6 +3452,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAiImageGenerate: '生成',
     visualEditAiPromptLabel: 'AIプロンプト',
     visualEditAiPromptRequired: '生成前に画像のプロンプトを入力してください',
+    visualEditOpenPage: 'このページをクイック編集',
+    visualEditOpenHomePage: 'ホームをクイック編集',
+    visualEditInfoAiTitle: 'ページ本文（SEO）',
+    visualEditInfoAiHint: 'メモは任意 — AI書き直しで本文とSEOキーワードを自動最適化。クイック編集のみ表示。',
+    visualEditInfoAiPlaceholder: '任意：トーン/強調（空でも自動最適化）',
+    visualEditInfoAiRewrite: 'AIで書き直す',
+    visualEditInfoAiBusy: '作成中…',
+    visualEditInfoAiNeedContent: 'AIで書き直す前にタイトルか本文を入れてください',
+    visualEditInfoSyncHint: '保存＝即公開＋CMS同期＋Article',
     visualEditPresets: 'AIプリセット',
     visualEditTemplateLocked: 'プレビューの「クイック編集」で文字・色・画像を直接編集できます。',
     visualEditFontSize: '文字サイズ',
@@ -3413,7 +3484,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHide: 'ブロックを隠す',
     visualEditBlockShow: '再表示',
     visualEditBlockDuplicate: '複製',
-    visualEditChromeDuplicate: '既にあります。1ページに同じ機能アイコンを2つ置くことはできません。',
+    visualEditChromeDuplicate: 'もう1つを画面中央に追加するか、既存のものを中央に出して編集できます。',
+    visualEditChromeDupAskTitle: '「{name}」は既にあります',
+    visualEditChromeDupAskAdd: 'もう1つ追加',
+    visualEditChromeDupAskKeep: '既存のものを出す',
     visualEditBlockDelete: 'ブロックを削除',
     visualEditBlockPaddingY: '上下の余白',
     visualEditBlockPaddingX: '左右の余白',
@@ -3460,6 +3534,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoInkTextPlaceholder: '色を入力、空なら色見本',
     visualEditLogoIdeaLabel: 'ロゴのアイデア',
     visualEditAddText: 'テキストを追加',
+    visualEditAddArticleImage: '記事に画像を挿入',
+    visualEditArticleEditHint: 'ページ上の文字をクリックして編集・色/サイズ変更。追加 → 画像や段落を挿入。',
     visualEditTextContent: 'テキスト',
     visualEditAddBg: '背景を追加',
     visualEditAddBgColor: '背景色',
@@ -3877,7 +3953,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     customersLastOrder: '最終注文',
     customersLoadMore: 'もっと見る',
     staticPagesTitle: '静的ページ＆SEO',
-    staticPagesHint: '既存8ページ（about、contact、faqなど）の内容/SEOを上書きするか、新しいカスタムページを作成します。',
+    staticPagesHint: 'クイック編集と同期：ページ上で入力、AIが書き直し、保存で公開。CMSの変更も既存のビジュアルHTMLを更新します。',
     staticPagesEmpty: 'カスタム静的ページはまだありません。',
     staticPagesAddNew: 'ページを作成',
     staticPageSlugLabel: 'スラッグ（URL）',
@@ -4050,6 +4126,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     themeColorSaving: '保存中…',
     themeColorSaveError: '色を保存できませんでした。再試行してください。',
     themeColorOk: 'OK',
+    themeColorQuickApplyHint: 'サイトの色をタップしてすぐ適用',
     setupStep3Title: 'デザインを編集',
     setupStep3Hint: 'プレビューでページを選び、「クイック編集」して保存。',
     setupStep4Title: 'ドメイン',
@@ -4212,6 +4289,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAiImageGenerate: '생성',
     visualEditAiPromptLabel: 'AI 프롬프트',
     visualEditAiPromptRequired: '이미지 생성 전 프롬프트를 입력하세요',
+    visualEditOpenPage: '이 페이지 빠른 편집',
+    visualEditOpenHomePage: '홈 빠른 편집',
+    visualEditInfoAiTitle: '페이지 본문 (SEO)',
+    visualEditInfoAiHint: '메모는 선택 — AI 다시 쓰기가 본문과 SEO 키워드를 자동 최적화. 빠른 편집에서만 표시.',
+    visualEditInfoAiPlaceholder: '선택: 문체/강조 (비워도 자동 최적화)',
+    visualEditInfoAiRewrite: 'AI로 다시 쓰기',
+    visualEditInfoAiBusy: '작성 중…',
+    visualEditInfoAiNeedContent: 'AI로 다시 쓰기 전에 제목이나 본문을 입력하세요',
+    visualEditInfoSyncHint: '저장 = 바로 게시 + CMS 동기화 + Article',
     visualEditPresets: 'AI 프리셋',
     visualEditTemplateLocked: '미리보기의 «빠른 편집»으로 글자·색·이미지를 직접 수정하세요.',
     visualEditFontSize: '글자 크기',
@@ -4235,7 +4321,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHide: '블록 숨기기',
     visualEditBlockShow: '다시 표시',
     visualEditBlockDuplicate: '복제',
-    visualEditChromeDuplicate: '이미 있습니다. 한 페이지에 같은 기능 아이콘을 2개 둘 수 없습니다.',
+    visualEditChromeDuplicate: '화면 가운데에 하나 더 추가하거나, 있는 것을 가운데로 끌어 편집하세요.',
+    visualEditChromeDupAskTitle: '이미 «{name}»이(가) 있습니다',
+    visualEditChromeDupAskAdd: '하나 더 추가',
+    visualEditChromeDupAskKeep: '있는 것을 끌어오기',
     visualEditBlockDelete: '블록 삭제',
     visualEditBlockPaddingY: '세로 여백',
     visualEditBlockPaddingX: '가로 여백',
@@ -4282,6 +4371,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoInkTextPlaceholder: '색 입력, 비우면 선택한 색',
     visualEditLogoIdeaLabel: '로고 아이디어',
     visualEditAddText: '텍스트 추가',
+    visualEditAddArticleImage: '글에 이미지 삽입',
+    visualEditArticleEditHint: '페이지 글자를 클릭해 바로 수정하고 색/크기를 바꾸세요. 추가 → 이미지 또는 새 문단.',
     visualEditTextContent: '글',
     visualEditAddBg: '배경 추가',
     visualEditAddBgColor: '배경색',
@@ -4699,7 +4790,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     customersLastOrder: '최근 주문',
     customersLoadMore: '더 보기',
     staticPagesTitle: '정적 페이지 및 SEO',
-    staticPagesHint: '기본 제공 8개 페이지(about, contact, faq 등)의 내용/SEO를 재정의하거나 새 커스텀 페이지를 만드세요.',
+    staticPagesHint: '빠른 편집과 동기화됩니다. 페이지에 입력하고 AI가 다시 쓴 뒤 저장하면 게시됩니다. CMS 수정도 기존 비주얼 HTML을 업데이트합니다.',
     staticPagesEmpty: '아직 커스텀 정적 페이지가 없습니다.',
     staticPagesAddNew: '페이지 만들기',
     staticPageSlugLabel: '슬러그(경로)',
@@ -4872,6 +4963,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     themeColorSaving: '저장 중…',
     themeColorSaveError: '색상을 저장하지 못했습니다. 다시 시도하세요.',
     themeColorOk: '확인',
+    themeColorQuickApplyHint: '사이트 색을 누르면 바로 적용됩니다',
     setupStep3Title: '디자인 수정',
     setupStep3Hint: '미리보기에서 페이지를 고르고 «빠른 편집»한 뒤 저장.',
     setupStep4Title: '도메인',

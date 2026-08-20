@@ -7,6 +7,8 @@ import {
 } from '@/lib/db/messaging-partner-static-pages-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
+import { cmsSlugToVisualPageKey } from '@/lib/partner-website/pages/partner-info-page-visual'
+import { syncCmsIntoVisualInfoHtml } from '@/lib/partner-website/pages/sync-info-page-cms'
 
 /** W3.4 — danh sách trang tĩnh admin + tạo mới. Gate: quyền `website`. */
 export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: string }> }) {
@@ -43,5 +45,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ partnerId:
     const status = result.error === 'duplicate_slug' || result.error === 'invalid_slug' ? 409 : 500
     return NextResponse.json({ error: result.error }, { status })
   }
+  const visualPageKey = cmsSlugToVisualPageKey(result.row.slug)
+  await syncCmsIntoVisualInfoHtml({
+    partnerId: pid,
+    slug: result.row.slug,
+    title: result.row.title,
+    content: result.row.content,
+    seoTitle: result.row.seoTitle,
+    seoDescription: result.row.seoDescription,
+    visualPageKey,
+  })
   return NextResponse.json({ success: true, page: result.row })
 }

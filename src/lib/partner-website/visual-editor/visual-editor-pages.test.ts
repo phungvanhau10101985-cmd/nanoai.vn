@@ -747,9 +747,9 @@ test('public visual render gateway serves one device with chrome theme and runti
   assert.match(view, /--pw-primary:\s*#123456/)
 })
 
-test('editor visual render gateway matches device chrome and live runtime when site slug exists', () => {
+test('editor visual render stamps chrome hooks but does not inject live shop APIs', () => {
   const html =
-    '<!DOCTYPE html><html><body><header class="pw-header"><div class="pw-header-actions"><a data-pw-chrome-added="1" data-pw-chrome-btn="chat">Chat</a></div></header><h1>Tablet edit</h1></body></html>'
+    '<!DOCTYPE html><html><body><header class="pw-header"><div class="pw-header-actions"><a data-pw-chrome-added="1" data-pw-chrome-btn="chat">Chat</a><button class="pw-cat-btn">Danh mục</button></div></header><h1>Tablet edit</h1></body></html>'
   const edit = preparePartnerVisualHtmlForEditor(html, {
     variant: 'tablet',
     theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, primaryColor: '#654321' },
@@ -760,8 +760,31 @@ test('editor visual render gateway matches device chrome and live runtime when s
   assert.match(edit, /data-pw-device="tablet"/)
   assert.match(edit, /id="pw-shop-chrome-layout"/)
   assert.match(edit, /--pw-primary:\s*#654321/)
-  assert.match(edit, /data-pw-search-bootstrap/)
-  assert.match(edit, /data-pw-shop-actions-bootstrap/)
+  assert.match(edit, /data-pw-cat-toggle/)
+  assert.doesNotMatch(edit, /data-pw-search-bootstrap/)
+  assert.doesNotMatch(edit, /data-pw-shop-actions-bootstrap/)
+  assert.doesNotMatch(edit, /data-pw-chrome-toggle-bootstrap/)
+  assert.doesNotMatch(edit, /data-pw-catalog-bootstrap/)
+  assert.doesNotMatch(edit, /data-pw-chat-bridge/)
+  assert.doesNotMatch(edit, /data-pw-header-toggle/)
+  assert.doesNotMatch(edit, /id="pw-logo-home-link"/)
+})
+
+test('isolate keeps body-level topup seated outside the device wrapper', () => {
+  const html = `<!DOCTYPE html><html><body>
+<div class="pw-visual-desktop" data-pw-visual-device="desktop">
+<header class="pw-header" data-pw-region="header">Head</header>
+<main>Home mid</main>
+<footer class="pw-footer" data-pw-region="footer">Foot</footer>
+</div>
+<button type="button" class="pw-icon-btn" data-pw-chrome-btn="topup" data-pw-chrome-float="1" data-pw-chrome-added="1" data-pw-device="desktop">Top</button>
+<button type="button" class="pw-icon-btn" data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-pw-chrome-added="1" data-pw-device="desktop">Tư vấn</button>
+</body></html>`
+  const isolated = isolateVisualHtmlForDevice(html, 'desktop')
+  assert.match(isolated, /Home mid/)
+  assert.match(isolated, /data-pw-chrome-btn="topup"/)
+  assert.match(isolated, /data-pw-chrome-btn="chat"/)
+  assert.match(isolated, /data-pw-device="desktop"/)
 })
 
 test('save and pw-device view keep dragged notification position', () => {

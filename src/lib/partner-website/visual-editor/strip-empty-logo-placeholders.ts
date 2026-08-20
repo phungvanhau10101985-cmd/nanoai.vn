@@ -247,11 +247,24 @@ export function stripEmptyLogoPlaceholdersFromHtml(html: string): string {
   next = next.replace(/<img\b[^>]*>/gi, (tag) => {
     if (!isLogoImgTag(tag)) return tag
     if (isEmptyLogoTag(tag)) return ''
-    return tag.replace(/\s*data-pw-logo-empty=["'][^"']*["']/gi, '')
+    return tag
+      .replace(/\s*data-pw-logo-empty=["'][^"']*["']/gi, '')
+      // Float belongs on frame/home-link — never on <img> (live wrap blew layout to 100%).
+      .replace(/\s*data-pw-logo-float=["'][^"']*["']/gi, '')
+      .replace(/\s*data-pw-logo-floated=["'][^"']*["']/gi, '')
   })
   next = next.replace(
     /<(span|div)\b[^>]*(?:pw-logo-frame|data-pw-logo-frame)[^>]*>\s*<\/\1>/gi,
     ''
+  )
+  // Drop empty floated home shells (no <img>) left after bad wraps.
+  next = next.replace(
+    /<a\b([^>]*(?:data-pw-logo-float|data-pw-logo-home)[^>]*)>([\s\S]*?)<\/a>/gi,
+    (full, attrs: string, inner: string) => {
+      if (/<img\b/i.test(inner)) return full
+      if (!/\bdata-pw-logo-float=["']1["']/i.test(attrs)) return full
+      return ''
+    }
   )
   next = restoreWordmarksInBrandAnchors(next)
   next = dedupeHeaderLogoFramesFromHtml(next)

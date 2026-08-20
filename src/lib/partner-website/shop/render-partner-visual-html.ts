@@ -5,8 +5,13 @@ import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner
 import { rewriteThemeCssVarsInHtml } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { injectPartnerCustomDomainLinkRewriteScript } from '@/lib/partner-website/shop/inject-partner-custom-domain-link-script'
 import { injectPartnerLogoHomeLinkScript } from '@/lib/partner-website/shop/inject-partner-logo-home-link'
-import { injectPartnerShopRuntimeScriptsIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
+import {
+  injectPartnerShopRuntimeScriptsIntoHtml,
+  stampPartnerShopEditorHooksInHtml,
+} from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
 import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
+import { stripPartnerInfoPageSeoCoachFromHtml } from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
+import { ensureAdsPlatformPolicyInHtml } from '@/lib/partner-website/pages/partner-info-page-visual'
 import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual-editor/strip-empty-logo-placeholders'
 import {
   isolateVisualHtmlForDevice,
@@ -36,19 +41,24 @@ export function preparePartnerVisualHtmlForEditor(
     theme?: PartnerWebsiteTheme | null
     siteSlug?: string | null
     locale?: WebLocale | null
+    pageKey?: string | null
+    cmsSlug?: string | null
   }
 ): string {
+  const locale = input.locale ?? 'vi'
+  const withPolicy = ensureAdsPlatformPolicyInHtml(html, locale, input.pageKey || input.cmsSlug)
   const normalized = injectPartnerShopChromeLayoutCss(
-    isolateVisualHtmlForDevice(stripEmptyLogoPlaceholdersFromHtml(html), input.variant)
+    isolateVisualHtmlForDevice(stripEmptyLogoPlaceholdersFromHtml(withPolicy), input.variant)
   )
   const themed = input.theme ? rewriteThemeCssVarsInHtml(normalized, input.theme) : normalized
-  return input.siteSlug?.trim()
-    ? preparePartnerVisualHtmlForPublic(themed, {
-        siteSlug: input.siteSlug,
-        locale: input.locale,
-        onCustomDomain: false,
-      })
-    : themed
+  return preparePartnerVisualHtmlForPublic(themed, {
+    siteSlug: input.siteSlug,
+    locale,
+    onCustomDomain: false,
+    includeRuntime: false,
+    pageKey: input.pageKey,
+    cmsSlug: input.cmsSlug,
+  })
 }
 
 export function preparePartnerVisualHtmlForPublic(
@@ -58,18 +68,23 @@ export function preparePartnerVisualHtmlForPublic(
     locale?: WebLocale | null
     onCustomDomain?: boolean
     includeRuntime?: boolean
+    pageKey?: string | null
+    cmsSlug?: string | null
   }
 ): string {
   const siteSlug = input.siteSlug?.trim() ?? ''
   const locale = input.locale ?? 'vi'
-  const withChrome = injectPartnerShopChromeLayoutCss(stripEmptyLogoPlaceholdersFromHtml(html))
+  const withPolicy = ensureAdsPlatformPolicyInHtml(html, locale, input.pageKey || input.cmsSlug)
+  const cleaned = stripPartnerInfoPageSeoCoachFromHtml(withPolicy)
+  const withChrome = injectPartnerShopChromeLayoutCss(stripEmptyLogoPlaceholdersFromHtml(cleaned))
   const withRuntime =
     input.includeRuntime === false
-      ? withChrome
+      ? stampPartnerShopEditorHooksInHtml(withChrome, { siteSlug })
       : injectPartnerShopRuntimeScriptsIntoHtml(withChrome, { siteSlug, locale })
-  const withLogoHome = siteSlug
-    ? injectPartnerLogoHomeLinkScript(withRuntime, siteSlug, Boolean(input.onCustomDomain))
-    : withRuntime
+  const withLogoHome =
+    input.includeRuntime === false || !siteSlug
+      ? withRuntime
+      : injectPartnerLogoHomeLinkScript(withRuntime, siteSlug, Boolean(input.onCustomDomain))
   return input.onCustomDomain && siteSlug
     ? injectPartnerCustomDomainLinkRewriteScript(withLogoHome, siteSlug)
     : withLogoHome
@@ -103,10 +118,14 @@ export function renderPartnerVisualHtmlForPublic(
 ): string {
   const html = resolvePartnerVisualHtmlForTarget(website, target, input?.device)
   if (html.trim().length < 40) return ''
+  const pageKey = target.kind === 'page' ? target.pageKey : null
+  const cmsSlug = target.kind === 'cms' ? target.cmsSlug : null
   return preparePartnerVisualHtmlForPublic(html, {
     siteSlug: website.siteSlug,
     locale: website.locale,
     onCustomDomain: input?.onCustomDomain,
     includeRuntime: input?.includeRuntime,
+    pageKey,
+    cmsSlug,
   })
 }

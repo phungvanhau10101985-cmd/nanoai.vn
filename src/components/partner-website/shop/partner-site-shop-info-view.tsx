@@ -3,7 +3,9 @@ import { headers } from 'next/headers'
 import type { WebLocale } from '@/lib/i18n/config'
 import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
 import {
+  ensureAdsPlatformPolicyParagraphs,
   getPartnerSiteInfoPage,
+  isPartnerSiteAdsPolicyPageKey,
   type PartnerSiteInfoPageKey,
 } from '@/lib/partner-website/shop/partner-site-shop-info-pages'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
@@ -34,12 +36,16 @@ export function PartnerSiteShopInfoView({
   const headerStore = headers()
   const customDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
   const title = override?.title || block.title
-  const paragraphs = override?.paragraphs?.length ? override.paragraphs : block.paragraphs
+  const rawParagraphs = override?.paragraphs?.length ? override.paragraphs : block.paragraphs
+  const paragraphs = isPartnerSiteAdsPolicyPageKey(pageKey)
+    ? ensureAdsPlatformPolicyParagraphs(rawParagraphs, locale)
+    : rawParagraphs
   const order = orderId?.trim() || ''
 
   return (
-    <article className="pw-shop-info" data-pw-region={PW_REGION.content}>
-      <h1 data-pw-el={PW_EL.heading}>{title}</h1>
+    <article className="pw-shop-info" data-pw-region={PW_REGION.content} data-pw-info-article="1">
+      <h1 data-pw-el={PW_EL.heading} data-pw-info-title="1">{title}</h1>
+      <div data-pw-info-body="1" data-pw-el={PW_EL.body}>
       {pageKey === 'thank-you' && order ? (
         <p className="pw-shop-thankyou-order" data-pw-el={PW_EL.body}>
           {t.thankYouOrderLabel}: <strong>{order}</strong>
@@ -86,6 +92,7 @@ export function PartnerSiteShopInfoView({
           </Link>
         </p>
       ) : null}
+      </div>
     </article>
   )
 }

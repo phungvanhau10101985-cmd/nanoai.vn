@@ -11,7 +11,8 @@ import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { PARTNER_BUILTIN_PAGE_SLUGS, isBuiltinPageSlug } from '@/lib/partner-website/pages/partner-static-page-types'
-import { Loader2, Pencil, Plus, Trash2, ExternalLink, FileText } from 'lucide-react'
+import { visualEditSelectValueFromCmsSlug } from '@/lib/partner-website/pages/partner-info-page-visual'
+import { Loader2, Pencil, Plus, Trash2, ExternalLink, FileText, MousePointerClick } from 'lucide-react'
 
 /**
  * W3.3 + W3.4 (docs/PARTNER_WEBSITE_AND_LANDING_UPGRADE_188.md) — CMS trang tĩnh + SEO theo shop.
@@ -58,9 +59,10 @@ type Props = {
   siteSlug?: string
   sectionId?: string
   onToast?: (message: string, variant?: 'default' | 'destructive') => void
+  onOpenVisualEdit?: (pageSelect: string) => void
 }
 
-export function PartnerWebsiteStaticPagesPanel({ t, partnerId, siteSlug, sectionId, onToast }: Props) {
+export function PartnerWebsiteStaticPagesPanel({ t, partnerId, siteSlug, sectionId, onToast, onOpenVisualEdit }: Props) {
   const [rows, setRows] = useState<StaticPageRow[]>([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState<FormState | null>(null)
@@ -186,6 +188,19 @@ export function PartnerWebsiteStaticPagesPanel({ t, partnerId, siteSlug, section
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                {onOpenVisualEdit ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1 px-2 text-xs"
+                    title={t.visualEditOpenPage}
+                    onClick={() => onOpenVisualEdit(visualEditSelectValueFromCmsSlug(row.slug))}
+                  >
+                    <MousePointerClick className="h-3.5 w-3.5" />
+                    {t.visualEditOpenPage}
+                  </Button>
+                ) : null}
                 {publicUrl(row.slug) ? (
                   <a href={publicUrl(row.slug)!} target="_blank" rel="noreferrer" title={t.staticPageViewPublic}>
                     <ExternalLink className="h-3.5 w-3.5 text-gray-400 hover:text-gray-700" />

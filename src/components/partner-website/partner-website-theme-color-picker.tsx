@@ -18,7 +18,7 @@ import {
   type ResolvedShopThemeColors,
   type ShopThemeColorRole,
 } from '@/lib/partner-website/template/partner-website-theme-tokens'
-import { ThemeColorConfirmPicker } from '@/components/partner-website/partner-website-confirm-color-picker'
+import { ThemeColorConfirmPicker, shopThemeQuickPicksFromCopy } from '@/components/partner-website/partner-website-confirm-color-picker'
 
 type RoleField = {
   key: ShopThemeColorRole
@@ -72,6 +72,7 @@ function RoleColorRow({
   onChange,
   okLabel,
   compact = false,
+  themePicks,
 }: {
   label: string
   value: string
@@ -79,6 +80,7 @@ function RoleColorRow({
   onChange: (hex: string) => void
   okLabel: string
   compact?: boolean
+  themePicks?: ReturnType<typeof shopThemeQuickPicksFromCopy>
 }) {
   return (
     <div
@@ -92,6 +94,7 @@ function RoleColorRow({
         disabled={disabled}
         compact={compact}
         okLabel={okLabel}
+        themePicks={themePicks}
         onConfirm={onChange}
       />
       <span className={cn('min-w-0 flex-1 truncate font-medium', compact ? 'text-[10px]' : 'text-[11px]')}>
@@ -124,6 +127,7 @@ export function PartnerWebsiteThemeColorPicker({
   layout?: 'stack' | 'bar'
 }) {
   const resolved = useMemo(() => resolveShopThemeColors(theme), [theme])
+  const themePicks = useMemo(() => shopThemeQuickPicksFromCopy(theme, t), [theme, t])
   const mainFields: RoleField[] = [
     { key: 'primaryColor', label: t.themeColorPrimary },
     { key: 'accentColor', label: t.themeColorAccent },
@@ -182,6 +186,7 @@ export function PartnerWebsiteThemeColorPicker({
                 disabled={disabled}
                 compact
                 okLabel={t.themeColorOk}
+                themePicks={themePicks}
                 onConfirm={(hex) => patchRole(f.key, hex)}
               />
               <span className="hidden text-[10px] text-muted-foreground lg:inline">{f.label}</span>
@@ -218,6 +223,7 @@ export function PartnerWebsiteThemeColorPicker({
                   disabled={disabled}
                   compact
                   okLabel={t.themeColorOk}
+                  themePicks={themePicks}
                   onChange={(hex) => patchRole(f.key, hex)}
                 />
               ))}
@@ -303,6 +309,7 @@ export function PartnerWebsiteThemeColorPicker({
               disabled={disabled}
               compact={compact}
               okLabel={t.themeColorOk}
+              themePicks={themePicks}
               onChange={(hex) => patchRole(f.key, hex)}
             />
           ))}
@@ -338,6 +345,7 @@ export function PartnerWebsiteThemeColorPicker({
                   disabled={disabled}
                   compact
                   okLabel={t.themeColorOk}
+                  themePicks={themePicks}
                   onChange={(hex) => patchRole(f.key, hex)}
                 />
               ))}
@@ -369,6 +377,7 @@ export function PartnerWebsiteThemeColorPicker({
                 value={resolved[f.key]}
                 disabled={disabled}
                 okLabel={t.themeColorOk}
+                themePicks={themePicks}
                 onChange={(hex) => patchRole(f.key, hex)}
               />
             ))}

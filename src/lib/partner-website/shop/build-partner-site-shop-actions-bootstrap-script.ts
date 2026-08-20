@@ -9,6 +9,7 @@ import {
   partnerSiteProductPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_CHROME_COUNT_BADGE_RUNTIME_JS } from '@/lib/partner-website/shop/chrome-count-badges'
+import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 
 const COPY: Record<
   WebLocale,
@@ -80,6 +81,7 @@ export function buildPartnerSiteShopActionsBootstrapScript(input: {
   const detailPrefix = partnerSiteProductPath(slug, '__ID__').replace('__ID__', '')
 
   return `<script data-pw-shop-actions-bootstrap>(function(){
+${PW_SHOP_LIVE_UI_OFF_FN};
 var CART_API=${JSON.stringify(cartApi)};
 var EVENTS_API=${JSON.stringify(eventsApi)};
 var FAV_API=${JSON.stringify(favApi)};
@@ -212,6 +214,7 @@ function enhanceCards(){
   }
 }
 document.addEventListener('click',function(ev){
+  if(pwShopLiveUiOff())return;
   var t=ev.target;if(!t||!t.closest)return;
   var addBtn=t.closest('[data-pw-add-cart]');
   if(addBtn){

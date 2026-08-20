@@ -1,13 +1,15 @@
 /**
- * Shared shop chrome: header, footer, and mobile/tablet bottom nav.
+ * Shared shop chrome: header, footer, mobile/tablet bottom nav, and viewport-fixed
+ * float icons (Chat mua / Zalo / Facebook / Top up).
  *
  * The page being saved is the source of truth for that device's shared chrome.
- * Saving any page copies header/footer/bottom nav + chrome widget positions onto every
+ * Saving any page copies header/footer/bottom nav/floats + chrome widget positions onto every
  * other page of the same device. Other devices keep their own logo/layout; only home saves
  * may add missing feature buttons across devices without coordinates.
  */
 
 import { mergeVisualHomeStylesIntoHtml } from '@/lib/partner-website/shop/merge-visual-home-styles'
+import { PW_CHROME_FLOAT_KINDS } from '@/lib/partner-website/shop/chrome-float-widgets'
 
 export type SharedChromeDevice = 'desktop' | 'laptop' | 'tablet' | 'mobile'
 
@@ -16,6 +18,8 @@ export type SharedChrome = {
   header: string
   footer: string
   bottomNav: string
+  /** Body-level float icons — not inside header/footer/nav (JS seats them on `body`). */
+  floats: string
 }
 
 const HEADER_RE =
@@ -71,7 +75,170 @@ function blockInside(inner: ExtractedBlock, outer: ExtractedBlock): boolean {
 }
 
 export function hasSharedChrome(chrome: SharedChrome): boolean {
-  return Boolean(chrome.header || chrome.footer || chrome.bottomNav || chrome.topbar)
+  return Boolean(chrome.header || chrome.footer || chrome.bottomNav || chrome.topbar || chrome.floats)
+}
+
+const FLOAT_KIND_RE = PW_CHROME_FLOAT_KINDS.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+const FLOAT_WIDGET_OPEN_RE = new RegExp(
+  `<(a|button|div)\\b(?=[^>]*(?:\\bdata-pw-chrome-float=["']1["']|\\bdata-pw-chrome-btn=["'](?:${FLOAT_KIND_RE})["']))[^>]*>`,
+  'gi'
+)
+
+function floatWidgetKind(snippet: string): string | null {
+  const kind = snippet.match(/data-pw-chrome-btn=["']([^"']+)["']/i)?.[1]?.trim().toLowerCase() || ''
+  return (PW_CHROME_FLOAT_KINDS as readonly string[]).includes(kind) ? kind : null
+}
+
+function extractStandaloneFloatWidgets(
+  html: string,
+  occupied: ExtractedBlock[],
+  uniqueKinds = true
+): Array<{ kind: string; start: number; end: number; html: string }> {
+  if (!html) return []
+  const masked = maskHtmlForTagScan(html)
+  const out: Array<{ kind: string; start: number; end: number; html: string }> = []
+  const seen = new Set<string>()
+  FLOAT_WIDGET_OPEN_RE.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = FLOAT_WIDGET_OPEN_RE.exec(masked))) {
+    const tag = (match[1] || 'button').toLowerCase()
+    const start = match.index
+    const close = closingTagIndex(masked, start + match[0].length, tag)
+    if (close < 0) continue
+    const closeTok = html.slice(close).match(new RegExp(`^</${tag}\\s*>`, 'i'))
+    const end = close + (closeTok?.[0].length ?? `</${tag}>`.length)
+    FLOAT_WIDGET_OPEN_RE.lastIndex = end
+    if (occupied.some((block) => start >= block.start && end <= block.end)) continue
+    const snippet = html.slice(start, end)
+    if (/\bdata-pw-float-dup=["']1["']/i.test(snippet)) continue
+    const kind = floatWidgetKind(snippet)
+    if (!kind) continue
+    if (uniqueKinds && seen.has(kind)) continue
+    if (uniqueKinds) seen.add(kind)
+    out.push({ kind, start, end, html: snippet })
+  }
+  return out
+}
+
+function stripElementRanges(
+  html: string,
+  ranges: Array<{ start: number; end: number }>
+): string {
+  if (!ranges.length) return html
+  let out = ''
+  let cursor = 0
+  for (const range of ranges) {
+    out += html.slice(cursor, range.start)
+    cursor = range.end
+  }
+  return out + html.slice(cursor)
+}
+
+function stripStandaloneFloatWidgets(html: string, occupied: ExtractedBlock[] = []): string {
+  const floats = extractStandaloneFloatWidgets(html, occupied, false)
+  return stripElementRanges(html, floats)
+}
+
+const LEFTOVER_FAB_OPEN_RE =
+  /<(a|button|div)\b(?=[^>]*(?:class=["'][^"']*\bpw-fab-chat\b|data-nanoai-chat-bubble=["']1["']|data-pw-chat-launcher=["']1["']))[^>]*>/gi
+
+/** Drop old NanoAI embed bubbles — Chat mua is the only shop chat chrome. */
+function stripLeftoverEmbedChatFabs(html: string): string {
+  if (!html) return html
+  const masked = maskHtmlForTagScan(html)
+  const ranges: Array<{ start: number; end: number }> = []
+  LEFTOVER_FAB_OPEN_RE.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = LEFTOVER_FAB_OPEN_RE.exec(masked))) {
+    const tag = (match[1] || 'button').toLowerCase()
+    const start = match.index
+    const close = closingTagIndex(masked, start + match[0].length, tag)
+    if (close < 0) continue
+    const closeTok = html.slice(close).match(new RegExp(`^</${tag}\\s*>`, 'i'))
+    const end = close + (closeTok?.[0].length ?? `</${tag}>`.length)
+    LEFTOVER_FAB_OPEN_RE.lastIndex = end
+    ranges.push({ start, end })
+  }
+  return stripElementRanges(html, ranges)
+}
+
+function chromeOccupiedBlocks(html: string): ExtractedBlock[] {
+  const header = extractFirst(html, HEADER_RE)
+  const footer = extractFirst(html, FOOTER_RE)
+  const bottomNav = extractFirst(html, BOTTOM_RE)
+  const topbar = extractFirst(html, TOPBAR_RE)
+  return [header, footer, bottomNav, topbar].filter((b): b is ExtractedBlock => Boolean(b))
+}
+
+function extractAllBlocks(html: string, openRe: RegExp): ExtractedBlock[] {
+  if (!html) return []
+  const masked = maskHtmlForTagScan(html)
+  const out: ExtractedBlock[] = []
+  openRe.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = openRe.exec(masked))) {
+    const tag = (match[1] || 'div').toLowerCase()
+    const start = match.index
+    const close = closingTagIndex(masked, start + match[0].length, tag)
+    if (close < 0) continue
+    const closeTok = html.slice(close).match(new RegExp(`^</${tag}\\s*>`, 'i'))
+    const end = close + (closeTok?.[0].length ?? `</${tag}>`.length)
+    out.push({ start, end, html: html.slice(start, end) })
+    openRe.lastIndex = end
+  }
+  return out
+}
+
+const DEVICE_WRAP_OPEN_RE =
+  /<(div)\b(?=[^>]*\bdata-pw-visual-device=["'](?:desktop|laptop|tablet|mobile)["'])[^>]*>/gi
+
+function floatMatchesDevice(snippet: string, variant: SharedChromeDevice): boolean {
+  const device = snippet.match(/\bdata-pw-device=["']([^"']+)["']/i)?.[1]?.trim().toLowerCase()
+  if (!device) return true
+  return device === variant
+}
+
+function chromePresentHtml(chrome: SharedChrome): string {
+  return `${chrome.topbar}${chrome.header}${chrome.footer}${chrome.bottomNav}${chrome.floats}`
+}
+
+export function fillMissingSharedChromeFloats(chrome: SharedChrome, fallbackHtml: string): SharedChrome {
+  if (!fallbackHtml.trim()) return chrome
+  const extra = extractSharedChrome(fallbackHtml)
+  if (!extra.floats.trim()) return chrome
+  const present = chromePresentHtml(chrome)
+  const snippets = extractStandaloneFloatWidgets(extra.floats, []).filter(
+    (w) => !htmlHasChromeFeature(present, `btn:${w.kind}`)
+  )
+  if (!snippets.length) return chrome
+  return {
+    ...chrome,
+    floats: [chrome.floats, ...snippets.map((s) => s.html)].filter((part) => part.trim()).join('\n'),
+  }
+}
+
+/**
+ * Editor seats Chat mua / Zalo / Facebook / Top up on `document.body`, outside
+ * `[data-pw-visual-device]`. Isolating a device wrapper would otherwise drop them
+ * on save, so other pages never receive the icons.
+ */
+export function hoistBodyLevelChromeFloats(
+  targetHtml: string,
+  sourceHtml: string,
+  variant?: SharedChromeDevice
+): string {
+  if (!targetHtml.trim() || !sourceHtml.trim()) return targetHtml
+  DEVICE_WRAP_OPEN_RE.lastIndex = 0
+  const occupied = [...chromeOccupiedBlocks(sourceHtml), ...extractAllBlocks(sourceHtml, DEVICE_WRAP_OPEN_RE)]
+  const picked = new Map<string, string>()
+  for (const widget of extractStandaloneFloatWidgets(sourceHtml, occupied, false)) {
+    if (variant && !floatMatchesDevice(widget.html, variant)) continue
+    if (htmlHasChromeFeature(targetHtml, `btn:${widget.kind}`)) continue
+    if (picked.has(widget.kind)) continue
+    picked.set(widget.kind, widget.html)
+  }
+  if (!picked.size) return targetHtml
+  return insertBeforeBodyClose(targetHtml, [...picked.values()].join('\n'))
 }
 
 export function extractSharedChrome(html: string): SharedChrome {
@@ -80,11 +247,16 @@ export function extractSharedChrome(html: string): SharedChrome {
   const bottomNav = extractFirst(html, BOTTOM_RE)
   const topbar = extractFirst(html, TOPBAR_RE)
   const topbarStandalone = topbar && header && blockInside(topbar, header) ? '' : topbar?.html || ''
+  const occupied = chromeOccupiedBlocks(html)
+  const floats = extractStandaloneFloatWidgets(html, occupied)
+    .map((w) => w.html)
+    .join('\n')
   return {
     topbar: topbarStandalone,
     header: header?.html || '',
     footer: footer?.html || '',
     bottomNav: bottomNav?.html || '',
+    floats,
   }
 }
 
@@ -96,6 +268,7 @@ function stripLayoutCoordsFromHtml(html: string): string {
       .map((part) => part.trim())
       .filter(Boolean)
       .filter((part) => !/^(left|top|right|bottom|transform|position)\s*:/i.test(part))
+      // Keep --pw-chrome-size / data-pw-chrome-size so float widgets stay the same size.
       .join('; ')
     return cleaned ? ` style=${q}${cleaned}${q}` : ''
   })
@@ -202,6 +375,7 @@ function stripDeletedChromeFeatures(chrome: SharedChrome, deleted: Set<string>):
     header: stripDeletedChromeFeaturesFromBlock(chrome.header, deleted),
     footer: stripDeletedChromeFeaturesFromBlock(chrome.footer, deleted),
     bottomNav: stripDeletedChromeFeaturesFromBlock(chrome.bottomNav, deleted),
+    floats: stripDeletedChromeFeaturesFromBlock(chrome.floats, deleted),
   }
 }
 
@@ -293,7 +467,11 @@ export function mergeMissingChromeFeatures(
     ...extractAddedChromeWidgets(chrome.footer, 'footer'),
     ...extractAddedChromeWidgets(chrome.bottomNav, 'nav'),
   ]
-  if (!widgets.length) return targetHtml
+  const floatWidgets = extractStandaloneFloatWidgets(chrome.floats, []).map((w) => ({
+    key: `btn:${w.kind}`,
+    html: w.html,
+  }))
+  if (!widgets.length && !floatWidgets.length) return targetHtml
   let next = targetHtml
   for (const widget of widgets) {
     if (deleted.has(widget.key)) continue
@@ -310,6 +488,12 @@ export function mergeMissingChromeFeatures(
         break
       }
     }
+  }
+  for (const widget of floatWidgets) {
+    if (deleted.has(widget.key)) continue
+    if (htmlHasChromeFeature(next, widget.key)) continue
+    const prepared = restampChromeDevice(stripLayoutCoordsFromHtml(widget.html), variant)
+    next = insertBeforeBodyClose(next, prepared)
   }
   return next
 }
@@ -348,17 +532,20 @@ export function applySharedChrome(
   let topbar = chrome.topbar
   let footer = chrome.footer
   let bottomNav = chrome.bottomNav
+  let floats = chrome.floats
   if (opts?.stripLogoFloat) {
     header = stripLayoutCoordsFromHtml(header)
     topbar = stripLayoutCoordsFromHtml(topbar)
     footer = stripLayoutCoordsFromHtml(footer)
     bottomNav = stripLayoutCoordsFromHtml(bottomNav)
+    floats = stripLayoutCoordsFromHtml(floats)
   }
   if (opts?.targetVariant) {
     header = restampChromeDevice(header, opts.targetVariant)
     topbar = restampChromeDevice(topbar, opts.targetVariant)
     footer = restampChromeDevice(footer, opts.targetVariant)
     bottomNav = restampChromeDevice(bottomNav, opts.targetVariant)
+    floats = restampChromeDevice(floats, opts.targetVariant)
   }
 
   let out = html
@@ -399,6 +586,22 @@ export function applySharedChrome(
   if (bottomNav) {
     const targetNav = extractFirst(out, BOTTOM_RE)
     out = targetNav ? replaceRange(out, targetNav, bottomNav) : insertBeforeBodyClose(out, bottomNav)
+  }
+
+  out = stripLeftoverEmbedChatFabs(out)
+  const occupied = [
+    extractFirst(out, HEADER_RE),
+    extractFirst(out, FOOTER_RE),
+    extractFirst(out, BOTTOM_RE),
+    extractFirst(out, TOPBAR_RE),
+  ].filter((b): b is ExtractedBlock => Boolean(b))
+  if (floats.trim()) {
+    // Canonical body floats replace every leftover copy, including extras in header.
+    out = stripStandaloneFloatWidgets(out)
+    out = insertBeforeBodyClose(out, floats)
+  } else {
+    // Chat mua still lives in header: drop page-local Top up / Zalo leftovers in the middle.
+    out = stripStandaloneFloatWidgets(out, occupied)
   }
 
   return out

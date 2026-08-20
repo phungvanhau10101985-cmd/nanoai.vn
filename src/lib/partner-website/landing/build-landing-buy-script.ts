@@ -1,5 +1,6 @@
 import type { PartnerLandingProductSnapshot } from '@/lib/partner-website/landing/partner-landing-types'
 import type { WebLocale } from '@/lib/i18n/config'
+import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 
 function escapeJs(s: string): string {
   return s
@@ -39,6 +40,7 @@ export function buildPartnerLandingBuyScript(input: {
   const emptyLabel = escapeJs(copy.empty)
 
   return `<script data-pw-lp-buy>(function(){
+${PW_SHOP_LIVE_UI_OFF_FN};
 var PRODUCTS=${productsJson};
 var TITLE='${buyTitle}';
 var CLOSE='${closeLabel}';
@@ -88,6 +90,7 @@ function openModal(){
   document.documentElement.style.overflow='hidden';
 }
 document.addEventListener('click',function(ev){
+  if(pwShopLiveUiOff())return;
   var t=ev.target;
   if(!t||!t.closest)return;
   var buy=t.closest('[data-nanoai-buy],.pw-lp-buy');

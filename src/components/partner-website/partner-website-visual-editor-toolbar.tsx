@@ -1,11 +1,19 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutTemplate, Loader2, Lock, LogIn, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Shield, ShoppingBag, Sparkles, Square, Store, Tag, Trash2, Truck, Type, Undo2, Ungroup, Upload, User, Wallet, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -45,6 +53,7 @@ import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner
 import { isHexColor, resolveShopThemeColors, themeCssVarMap } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import {
   cssColorToHex,
+  shopThemeQuickPicksFromCopy,
   ThemeColorConfirmPicker,
 } from '@/components/partner-website/partner-website-confirm-color-picker'
 import { PartnerWebsiteThemeColorPicker } from '@/components/partner-website/partner-website-theme-color-picker'
@@ -88,6 +97,15 @@ import {
   appendVisualDeviceQuery,
   visualDeviceVariantFromHtmlPath,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import type { PartnerWebsitePageKey } from '@/lib/partner-website/partner-website-page-catalog'
+import {
+  extractInfoPageCmsFromHtml,
+} from '@/lib/partner-website/pages/partner-info-page-visual'
+import { isPartnerTextArticlePage } from '@/lib/partner-website/pages/partner-text-article-page'
+import {
+  visualEditSelectValueFromTarget,
+  visualEditTargetFromSelection,
+} from '@/lib/partner-website/visual-editor/visual-edit-page-target'
 
 const VISUAL_EDITOR_EDIT_KINDS = [
   'added-bg',
@@ -526,6 +544,10 @@ type Props = {
   htmlPath?: string
   /** Live shop URL for the page being edited. */
   viewHref?: string
+  pageKey?: PartnerWebsitePageKey
+  cmsSlug?: string | null
+  pageSelectValue?: string
+  onOpenDestination?: (next: string) => void
   /** Màu giao diện đang chọn — gửi vào prompt tạo logo. */
   theme?: PartnerWebsiteTheme | null
   onThemeLiveChange?: (next: PartnerWebsiteTheme) => void
@@ -600,10 +622,10 @@ function VisualEditFloatingPanel({
 }: {
   title: string
   dragHint: string
-  closeLabel: string
+  closeLabel?: string
   pos: { x: number; y: number }
   onPosChange: (next: { x: number; y: number }) => void
-  onClose: () => void
+  onClose?: () => void
   children: ReactNode
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
@@ -662,10 +684,12 @@ function VisualEditFloatingPanel({
         >
           {title}
         </span>
-        <Button type="button" size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-[10px]" onClick={onClose}>
-          <X className="h-3 w-3" aria-hidden />
-          {closeLabel}
-        </Button>
+        {onClose && closeLabel ? (
+          <Button type="button" size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-[10px]" onClick={onClose}>
+            <X className="h-3 w-3" aria-hidden />
+            {closeLabel}
+          </Button>
+        ) : null}
       </div>
       <div className="max-h-[min(70vh,28rem)] overflow-y-auto p-2">{children}</div>
     </div>
@@ -691,6 +715,10 @@ export function PartnerWebsiteVisualEditorToolbar({
   documentKey,
   htmlPath = 'index.html',
   viewHref,
+  pageKey,
+  cmsSlug,
+  pageSelectValue,
+  onOpenDestination,
   theme,
   onThemeLiveChange,
   onThemeFieldsChange,
@@ -699,15 +727,19 @@ export function PartnerWebsiteVisualEditorToolbar({
   onRequestLeave,
 }: Props) {
   const t = getPartnerWebsiteCopy(locale)
+  const themePicks = useMemo(() => shopThemeQuickPicksFromCopy(theme, t), [theme, t])
   const [selection, setSelection] = useState<VisualEditorSelection | null>(null)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [uploadBusy, setUploadBusy] = useState(false)
   const [aiBusy, setAiBusy] = useState(false)
   const [aiPrompt, setAiPrompt] = useState('')
+  const [hrefDraft, setHrefDraft] = useState('')
   const [useCurrentRef, setUseCurrentRef] = useState(true)
   const [refUrl, setRefUrl] = useState('')
-  const [hrefDraft, setHrefDraft] = useState('')
+  const [infoAiPrompt, setInfoAiPrompt] = useState('')
+  const [infoAiBusy, setInfoAiBusy] = useState(false)
+  const rewriteInfoPageRef = useRef<(notes?: string) => Promise<void>>(async () => {})
   const [addWidgetStyle, setAddWidgetStyle] = useState<VisualEditorChromeWidgetStyle>('icon-label-left')
   const [addWidgetIconSize, setAddWidgetIconSize] = useState(PW_CHROME_ICON_SIZE_DEFAULT)
   const [addBtnStyle, setAddBtnStyle] = useState<'hero' | 'primary' | 'outline'>('hero')
@@ -741,6 +773,13 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [canRedo, setCanRedo] = useState(false)
   const insertBtnLockRef = useRef(false)
   const insertBgLockRef = useRef(false)
+  const [chromeDupAskKind, setChromeDupAskKind] = useState<VisualEditorChromeWidgetKind | null>(null)
+  const chromeDupAskKindRef = useRef<VisualEditorChromeWidgetKind | null>(null)
+  const pendingChromeDupRef = useRef<{
+    kind: VisualEditorChromeWidgetKind
+    html: string
+    host: string
+  } | null>(null)
   const btnLabelFocusedRef = useRef(false)
   const textDraftFocusedRef = useRef(false)
   const btnHrefFocusedRef = useRef(false)
@@ -749,6 +788,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const fileRef = useRef<HTMLInputElement>(null)
   const refFileRef = useRef<HTMLInputElement>(null)
   const logoFileRef = useRef<HTMLInputElement>(null)
+  const articleImageFileRef = useRef<HTMLInputElement>(null)
   const chatIconFileRef = useRef<HTMLInputElement>(null)
   const scriptInjectedRef = useRef(false)
   const lastLogoKeyRef = useRef('')
@@ -760,22 +800,29 @@ export function PartnerWebsiteVisualEditorToolbar({
     onDirtyChange?.(dirty || canUndo)
   }, [dirty, canUndo, onDirtyChange])
 
+  const openBlockPanel = useCallback(() => {
+    setOpenPanel('block')
+    setPanelPos((pos) => pos ?? defaultFloatingPanelPos())
+  }, [])
+
   useEffect(() => {
     if (!active) {
       setOpenPanel(null)
       setAddButtonPanelOpen(false)
       setLogoDrawActive(false)
+      return
     }
-  }, [active])
+    openBlockPanel()
+  }, [active, openBlockPanel])
 
   useEffect(() => {
-    if (!openPanel) return
+    if (!openPanel || openPanel === 'block') return
     const onKeyDown = (ev: KeyboardEvent) => {
-      if (ev.key === 'Escape') setOpenPanel(null)
+      if (ev.key === 'Escape') openBlockPanel()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [openPanel])
+  }, [openPanel, openBlockPanel])
 
   useEffect(() => {
     if (openPanel !== 'add' || !siteSlug?.trim()) return
@@ -795,7 +842,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   useEffect(() => {
     const has = Boolean(selection)
     if (has && !hadSelectionRef.current) {
-      setOpenPanel((cur) => cur ?? 'block')
+      setOpenPanel((cur) => (cur === 'logo' ? cur : 'block'))
       setPanelPos((pos) => pos ?? defaultFloatingPanelPos())
     }
     hadSelectionRef.current = has
@@ -807,14 +854,22 @@ export function PartnerWebsiteVisualEditorToolbar({
     chatIconLogoUrl: string
     vars: ReturnType<typeof themeCssVarMap> | undefined
     hideChatLauncher: boolean
-  }>({ device: 'desktop', logoUrl: '', chatIconLogoUrl: '', vars: undefined, hideChatLauncher: true })
+    infoPage: boolean
+    pageKey?: string
+    cmsSlug?: string
+  }>({ device: 'desktop', logoUrl: '', chatIconLogoUrl: '', vars: undefined, hideChatLauncher: true, infoPage: false })
   activatePayloadRef.current = {
     device: visualDeviceVariantFromHtmlPath(htmlPath),
     logoUrl: theme?.logoUrl || '',
     chatIconLogoUrl: theme?.chatIconLogoUrl || '',
     vars: theme ? themeCssVarMap(theme) : undefined,
     hideChatLauncher: theme?.hideChatLauncher !== false,
+    infoPage: isPartnerTextArticlePage({ pageKey, cmsSlug }),
+    pageKey: pageKey || '',
+    cmsSlug: cmsSlug?.trim() || '',
   }
+
+  const isTextArticlePage = isPartnerTextArticlePage({ pageKey, cmsSlug })
 
   const injectScript = useCallback(() => {
     const iframe = iframeRef.current
@@ -927,6 +982,14 @@ export function PartnerWebsiteVisualEditorToolbar({
       iframe.removeEventListener('load', onLoad)
     }
   }, [active, documentKey, htmlPath, iframeRef, injectScript, activateEditor])
+
+  // Đổi trang chữ (shipping/returns…) → gửi lại activate với pageKey/infoPage đúng
+  useEffect(() => {
+    if (!active) return
+    const iframe = iframeRef.current
+    if (!iframe) return
+    activateEditor(iframe)
+  }, [active, pageKey, cmsSlug, activateEditor, iframeRef])
 
   useEffect(() => {
     if (active) return
@@ -1083,6 +1146,9 @@ export function PartnerWebsiteVisualEditorToolbar({
         canRedo?: boolean
         dirty?: boolean
         focus?: number
+        notes?: string
+        kind?: string
+        picked?: boolean
       }
       if (data?.source !== NANOAI_VE_MESSAGE) return
 
@@ -1123,8 +1189,8 @@ export function PartnerWebsiteVisualEditorToolbar({
         } else {
           setAddButtonPanelOpen(false)
         }
-        if (next.editKind === 'chrome' || next.editKind === 'search' || next.editKind === 'search-submit' || next.editKind === 'search-image' || next.editKind === 'cat-toggle') {
-          setOpenPanel((cur) => (cur === 'add' || cur === 'logo' || cur === 'theme' ? cur : 'block'))
+        if (data.type !== 'logoCreate' && data.picked) {
+          openBlockPanel()
         }
         if ((next.isText || next.editKind === 'chrome' || next.editKind === 'search-submit') && !textDraftFocusedRef.current) {
           setTextDraft(String(data.text ?? ''))
@@ -1153,6 +1219,17 @@ export function PartnerWebsiteVisualEditorToolbar({
         setDirty(true)
         setCanUndo(true)
       }
+      if (data.type === 'infoSeoNotes' && typeof data.notes === 'string') {
+        setInfoAiPrompt(data.notes)
+      }
+      if (data.type === 'infoAiRewrite') {
+        const notes = typeof data.notes === 'string' ? data.notes : ''
+        if (notes) setInfoAiPrompt(notes)
+        void rewriteInfoPageRef.current(notes)
+      }
+      if (data.type === 'infoArticleInsertImage') {
+        articleImageFileRef.current?.click()
+      }
       if (data.type === 'history') {
         setCanUndo(Boolean(data.canUndo))
         setCanRedo(Boolean(data.canRedo))
@@ -1166,8 +1243,12 @@ export function PartnerWebsiteVisualEditorToolbar({
       if (data.type === 'hideChatLauncher') {
         void persistChatLauncherHidden(data.hidden === true)
       }
-      if (data.type === 'chromeDuplicate') {
-        onError(t.visualEditChromeDuplicate)
+      if (data.type === 'chromeDuplicateAsk') {
+        const kind = String(data.kind || '')
+        if (isVisualEditorChromeWidgetKind(kind)) {
+          chromeDupAskKindRef.current = kind
+          setChromeDupAskKind(kind)
+        }
       }
       if (data.type === 'html' && data.html && saveWaiterRef.current) {
         void handleSaveHtml(data.html)
@@ -1176,7 +1257,7 @@ export function PartnerWebsiteVisualEditorToolbar({
 
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [active, activateEditor, documentKey, handleSaveHtml, onError, t.visualEditAddButtonLabel, t.visualEditChromeDuplicate])
+  }, [active, activateEditor, documentKey, handleSaveHtml, onError, openBlockPanel, t.visualEditAddButtonLabel])
 
   useEffect(() => {
     if (!active) return
@@ -1330,7 +1411,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       postToIframe(iframeRef.current, 'setLogoSrc', { url, allSlots: true })
       setDirty(true)
       await persistAdminLogo(url)
-      setOpenPanel(null)
+      openBlockPanel()
     } catch (e) {
       onError(e instanceof Error ? e.message : t.uploadFailed)
     } finally {
@@ -1379,6 +1460,26 @@ export function PartnerWebsiteVisualEditorToolbar({
     try {
       const url = await uploadPartnerImageFile(partnerId, file)
       await applySharedChatIconLogo(url)
+    } catch (e) {
+      onError(e instanceof Error ? e.message : t.uploadFailed)
+    } finally {
+      setUploadBusy(false)
+    }
+  }
+
+  async function handleUploadArticleImage(files: FileList | null) {
+    if (!files?.length || !partnerId) return
+    const file = files[0]
+    if (!file?.type.startsWith('image/')) {
+      onError(t.imageInvalidType)
+      return
+    }
+    setUploadBusy(true)
+    try {
+      const url = await uploadPartnerImageFile(partnerId, file)
+      postToIframe(iframeRef.current, 'insertArticleImage', { url })
+      setDirty(true)
+      openBlockPanel()
     } catch (e) {
       onError(e instanceof Error ? e.message : t.uploadFailed)
     } finally {
@@ -1552,7 +1653,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       height: size.h,
       bgColor,
     })
-    setOpenPanel(null)
+    openBlockPanel()
     await new Promise((resolve) => window.setTimeout(resolve, 80))
     await handleGenerateAi({ forceLogo: true })
   }
@@ -1738,7 +1839,83 @@ export function PartnerWebsiteVisualEditorToolbar({
     setDirty(true)
   }
 
-  function insertChromeWidget(kind: VisualEditorChromeWidgetKind, place: VisualEditorChromeWidgetPlace) {
+  function readInfoDraftFromIframe() {
+    const doc = iframeRef.current?.contentDocument
+    if (!doc) return { title: '', content: '' }
+    const root =
+      doc.querySelector(
+        'main [data-pw-region="content"], main [data-pw-info-article], main .pw-shop-info, main [data-pw-info-body]'
+      ) || doc.querySelector('[data-pw-region="content"], .pw-shop-info, [data-pw-info-article]')
+    const html = `<article data-pw-region="content">${root?.innerHTML || ''}</article>`
+    const extracted = extractInfoPageCmsFromHtml(html)
+    return { title: extracted.title, content: extracted.content }
+  }
+
+  async function rewriteInfoPage(notesOverride?: string) {
+    if (!partnerId || infoAiBusy) return
+    const draft = readInfoDraftFromIframe()
+    const notes = typeof notesOverride === 'string' ? notesOverride : infoAiPrompt
+    // Ô gợi ý không bắt buộc: AI tự viết lại + tối ưu từ khóa từ tiêu đề/nội dung trang.
+    if (!draft.content.trim() && !draft.title.trim() && !notes.trim() && !cmsSlug?.trim() && !pageKey) {
+      onError(t.visualEditInfoAiNeedContent)
+      return
+    }
+    setInfoAiBusy(true)
+    postToIframe(iframeRef.current, 'setInfoSeoBusy', { busy: true })
+    try {
+      const res = await fetch(
+        `/api/messaging/partner-website/${encodeURIComponent(partnerId)}/rewrite-info-page`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pageKey,
+            cmsSlug,
+            currentTitle: draft.title,
+            currentContent: draft.content,
+            extraPrompt: notes,
+            locale,
+          }),
+        }
+      )
+      const json = (await res.json().catch(() => ({}))) as {
+        success?: boolean
+        title?: string
+        paragraphs?: string[]
+        seoTitle?: string
+        seoDescription?: string
+        keywords?: string[]
+        error?: string
+      }
+      if (!res.ok || !json.success) {
+        onError(json.error || t.visualEditAiFailed)
+        return
+      }
+      postToIframe(iframeRef.current, 'setInfoPageContent', {
+        title: json.title,
+        paragraphs: json.paragraphs,
+        seoTitle: json.seoTitle,
+        seoDescription: json.seoDescription,
+        keywords: json.keywords,
+      })
+      setDirty(true)
+      window.setTimeout(() => {
+        void requestSave()
+      }, 120)
+    } catch (e) {
+      onError(e instanceof Error ? e.message : t.visualEditAiFailed)
+    } finally {
+      setInfoAiBusy(false)
+      postToIframe(iframeRef.current, 'setInfoSeoBusy', { busy: false })
+    }
+  }
+  rewriteInfoPageRef.current = rewriteInfoPage
+
+  function insertChromeWidget(
+    kind: VisualEditorChromeWidgetKind,
+    place: VisualEditorChromeWidgetPlace,
+    opts?: { force?: boolean; atCenter?: boolean }
+  ) {
     const slug = siteSlug?.trim()
     if (!slug) {
       onError(t.visualEditSaveFailed)
@@ -1761,18 +1938,53 @@ export function PartnerWebsiteVisualEditorToolbar({
       iconSize: addWidgetIconSize,
     })
     if (!html) return
+    const host = chromeWidgetHost(kind, addWidgetStyle, place)
+    pendingChromeDupRef.current = { kind, html, host }
     postToIframe(iframeRef.current, 'insertChromeBtn', {
       kind,
       html,
-      host: chromeWidgetHost(kind, addWidgetStyle, place),
+      host,
+      force: Boolean(opts?.force),
+      atCenter: Boolean(opts?.atCenter),
     })
-    setOpenPanel(null)
+    openBlockPanel()
+    if (opts?.force || opts?.atCenter) setDirty(true)
+  }
+
+  function handleChromeDupAdd() {
+    const pending = pendingChromeDupRef.current
+    const kind = chromeDupAskKindRef.current
+    chromeDupAskKindRef.current = null
+    pendingChromeDupRef.current = null
+    setChromeDupAskKind(null)
+    if (pending && pending.kind === kind) {
+      postToIframe(iframeRef.current, 'insertChromeBtn', {
+        kind: pending.kind,
+        html: pending.html,
+        host: pending.host,
+        force: true,
+        atCenter: true,
+      })
+      setDirty(true)
+      return
+    }
+    if (kind) insertChromeWidget(kind, addWidgetPlace, { force: true, atCenter: true })
+  }
+
+  function handleChromeDupKeep() {
+    const kind = chromeDupAskKindRef.current
+    if (!kind) return
+    chromeDupAskKindRef.current = null
+    pendingChromeDupRef.current = null
+    setChromeDupAskKind(null)
+    postToIframe(iframeRef.current, 'bringExistingChromeToCenter', { kind })
+    setDirty(true)
   }
 
   function insertTextBlock() {
     postToIframe(iframeRef.current, 'insertText')
     setDirty(true)
-    setOpenPanel(null)
+    openBlockPanel()
   }
 
   function insertBgBlock() {
@@ -1783,7 +1995,7 @@ export function PartnerWebsiteVisualEditorToolbar({
     }, 700)
     postToIframe(iframeRef.current, 'insertBg', { color: addBgColor || '#f3f4f6' })
     setDirty(true)
-    setOpenPanel(null)
+    openBlockPanel()
   }
 
   function insertButtonBlock() {
@@ -1799,8 +2011,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       color: addBtnColor,
     })
     setDirty(true)
-    setPanelPos((pos) => pos ?? defaultFloatingPanelPos())
-    setOpenPanel('block')
+    openBlockPanel()
     setAddButtonPanelOpen(true)
   }
 
@@ -1944,7 +2155,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   )
   const editKind = selection?.editKind ?? 'other'
   const showCtaStyle = editKind === 'added-btn' || editKind === 'cta'
-  const showHref = showCtaStyle || editKind === 'nav-link' || editKind === 'added-text'
+  const showHref = showCtaStyle || editKind === 'nav-link' || editKind === 'added-text' || Boolean(selection?.href)
   const showChromeStyle = editKind === 'chrome'
   const showCatToggleHint = editKind === 'cat-toggle'
   const showSearchHint = editKind === 'search'
@@ -2131,8 +2342,36 @@ export function PartnerWebsiteVisualEditorToolbar({
       </label>
     ) : null
 
+  const destIsLogoHome = Boolean(selection?.isLogo || editKind === 'logo')
+  const destTarget = visualEditTargetFromSelection({
+    href: selection?.href || hrefDraft,
+    chromeKind: selection?.chromeKind,
+    siteSlug,
+    isLogo: destIsLogoHome,
+  })
+  const destSelectValue = destTarget ? visualEditSelectValueFromTarget(destTarget) : ''
+  const openDestLabel = destIsLogoHome ? t.visualEditOpenHomePage : t.visualEditOpenPage
+  const openDestButton =
+    onOpenDestination && destSelectValue && destSelectValue !== pageSelectValue ? (
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        className={cn(btn, destIsLogoHome ? 'w-full justify-center gap-1' : 'gap-1')}
+        disabled={busy}
+        title={openDestLabel}
+        onClick={() => onOpenDestination(destSelectValue)}
+      >
+        <ExternalLink className="h-3.5 w-3.5" />
+        {openDestLabel}
+      </Button>
+    ) : null
+
   function togglePanel(id: VisualEditOpenPanel) {
-    setOpenPanel((cur) => (cur === id ? null : id))
+    setOpenPanel((cur) => {
+      if (id === 'block') return 'block'
+      return cur === id ? 'block' : id
+    })
     setPanelPos((pos) => pos ?? defaultFloatingPanelPos())
   }
 
@@ -2200,6 +2439,16 @@ export function PartnerWebsiteVisualEditorToolbar({
         }}
       />
       <input
+        ref={articleImageFileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          void handleUploadArticleImage(e.target.files)
+          e.target.value = ''
+        }}
+      />
+      <input
         ref={chatIconFileRef}
         type="file"
         accept="image/*"
@@ -2255,19 +2504,6 @@ export function PartnerWebsiteVisualEditorToolbar({
               {t.visualEditMenuTheme}
             </Button>
           ) : null}
-          <Button
-            type="button"
-            size="sm"
-            variant={openPanel === 'block' ? 'default' : 'outline'}
-            className={cn(btn, 'gap-1')}
-            disabled={busy || !selection}
-            title={t.visualEditMenuBlock}
-            aria-expanded={openPanel === 'block'}
-            onClick={() => togglePanel('block')}
-          >
-            <LayoutTemplate className="h-3.5 w-3.5" aria-hidden />
-            {t.visualEditMenuBlock}
-          </Button>
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <Button
               type="button"
@@ -2408,13 +2644,18 @@ export function PartnerWebsiteVisualEditorToolbar({
               <VisualEditFloatingPanel
                 title={panelTitle}
                 dragHint={t.visualEditPanelDragHint}
-                closeLabel={t.visualEditPanelClose}
+                closeLabel={openPanel === 'block' ? undefined : t.visualEditPanelClose}
                 pos={panelPos}
                 onPosChange={setPanelPos}
-                onClose={() => setOpenPanel(null)}
+                onClose={openPanel === 'block' ? undefined : openBlockPanel}
               >
                 {openPanel === 'add' ? (
                   <div className="flex flex-col gap-1">
+                    {isTextArticlePage ? (
+                      <p className="px-2 py-1 text-[10px] leading-4 text-muted-foreground">
+                        {t.visualEditArticleEditHint}
+                      </p>
+                    ) : null}
                     <button
                       type="button"
                       className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] font-medium hover:bg-muted"
@@ -2424,6 +2665,21 @@ export function PartnerWebsiteVisualEditorToolbar({
                       <Type className="h-3.5 w-3.5 shrink-0" aria-hidden />
                       {t.visualEditAddText}
                     </button>
+                    {isTextArticlePage ? (
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] font-medium hover:bg-muted"
+                        disabled={busy || uploadBusy}
+                        onClick={() => articleImageFileRef.current?.click()}
+                      >
+                        {uploadBusy ? (
+                          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+                        ) : (
+                          <ImagePlus className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        )}
+                        {t.visualEditAddArticleImage}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] font-medium hover:bg-muted"
@@ -2456,6 +2712,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                         disabled={busy}
                         compact={compact}
                         okLabel={t.themeColorOk}
+                        themePicks={themePicks}
                         onConfirm={setAddBgColor}
                       />
                     </div>
@@ -2577,6 +2834,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                 ) : null}
                 {openPanel === 'block' ? (
                   <div className="flex flex-col gap-2">
+                    {destIsLogoHome ? openDestButton : null}
                     {selection && !selection.isLogo ? (
                       <p className="text-[10px] leading-tight text-muted-foreground">{t.visualEditNudgeHint}</p>
                     ) : null}
@@ -2786,6 +3044,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                   disabled={busy}
                   compact={compact}
                   okLabel={t.themeColorOk}
+                  themePicks={themePicks}
                   onConfirm={(color) => {
                     postToIframe(iframeRef.current, 'setButtonColor', { color })
                     setDirty(true)
@@ -2799,6 +3058,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                   disabled={busy}
                   compact={compact}
                   okLabel={t.themeColorOk}
+                  themePicks={themePicks}
                   onConfirm={(color) => {
                     postToIframe(iframeRef.current, 'setButtonBorder', { color })
                     setDirty(true)
@@ -2815,6 +3075,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                     disabled={busy}
                     compact={compact}
                     okLabel={t.themeColorOk}
+                    themePicks={themePicks}
                     onConfirm={(color) => {
                       postToIframe(iframeRef.current, 'setIconColor', { color })
                       setDirty(true)
@@ -2830,6 +3091,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                     disabled={busy}
                     compact={compact}
                     okLabel={t.themeColorOk}
+                    themePicks={themePicks}
                     onConfirm={(color) => {
                       postToIframe(iframeRef.current, 'setColor', { color })
                       setDirty(true)
@@ -2845,6 +3107,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                     disabled={busy}
                     compact={compact}
                     okLabel={t.themeColorOk}
+                    themePicks={themePicks}
                     onConfirm={(color) => {
                       postToIframe(iframeRef.current, 'setPlaceholderColor', { color })
                       setDirty(true)
@@ -2868,6 +3131,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                   disabled={busy}
                   compact={compact}
                   okLabel={t.themeColorOk}
+                  themePicks={themePicks}
                   onConfirm={(color) => {
                     postToIframe(iframeRef.current, 'setDotColor', { color })
                     setDirty(true)
@@ -2881,6 +3145,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                   disabled={busy}
                   compact={compact}
                   okLabel={t.themeColorOk}
+                  themePicks={themePicks}
                   onConfirm={(color) => {
                     postToIframe(iframeRef.current, 'setDotActiveColor', { color })
                     setDirty(true)
@@ -2936,6 +3201,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                   disabled={busy}
                   compact={compact}
                   okLabel={t.themeColorOk}
+                  themePicks={themePicks}
                   onConfirm={(color) => postToIframe(iframeRef.current, 'setColor', { color })}
                 />
               </div>
@@ -2990,6 +3256,7 @@ export function PartnerWebsiteVisualEditorToolbar({
             </>
           ) : null}
           {!showTextTools ? hrefField : null}
+          {destIsLogoHome ? null : openDestButton}
           {showBgColorPicker && colorSel ? (
             <div className="flex items-center gap-1 text-[10px]">
               <span className="text-muted-foreground">
@@ -3000,6 +3267,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                 disabled={busy}
                 compact={compact}
                 okLabel={t.themeColorOk}
+                themePicks={themePicks}
                 onOpenChange={setBgColorPickerOpen}
                 onConfirm={(color) => postToIframe(iframeRef.current, 'setBgColor', { color })}
               />
@@ -3498,6 +3766,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                 disabled={busy}
                 compact={compact}
                 okLabel={t.themeColorOk}
+                themePicks={themePicks}
                 onConfirm={(color) => {
                   setAddBtnColor(color)
                   postToIframe(iframeRef.current, 'setButtonColor', { color })
@@ -3512,6 +3781,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                 disabled={busy}
                 compact={compact}
                 okLabel={t.themeColorOk}
+                themePicks={themePicks}
                 onConfirm={(color) => {
                   setAddBtnBorder(color)
                   postToIframe(iframeRef.current, 'setButtonBorder', { color })
@@ -3847,6 +4117,32 @@ export function PartnerWebsiteVisualEditorToolbar({
             )
           : null}
       </div>
+      <AlertDialog
+        open={Boolean(chromeDupAskKind)}
+        onOpenChange={(open) => {
+          if (!open) handleChromeDupKeep()
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t.visualEditChromeDupAskTitle.replace(
+                '{name}',
+                chromeDupAskKind ? chromeWidgetLabel(chromeDupAskKind, locale) : ''
+              )}
+            </AlertDialogTitle>
+            <AlertDialogDescription>{t.visualEditChromeDuplicate}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:justify-end">
+            <Button type="button" variant="outline" onClick={handleChromeDupKeep}>
+              {t.visualEditChromeDupAskKeep}
+            </Button>
+            <Button type="button" onClick={handleChromeDupAdd}>
+              {t.visualEditChromeDupAskAdd}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

@@ -64,6 +64,47 @@ export async function fetchPublishedPartnerStaticPageBySlugFromPg(
   }
 }
 
+/** Một trang tĩnh theo slug — admin (kể cả chưa publish). */
+export async function fetchPartnerStaticPageBySlugAdminFromPg(
+  partnerId: string,
+  slug: string
+): Promise<PartnerStaticPageRow | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<StaticPageDbRow>(
+      `select ${SELECT_COLS} from public.messaging_partner_static_pages
+       where partner_id = $1::uuid and slug = $2`,
+      [partnerId, slug.trim().toLowerCase()]
+    )
+    return row ? mapRow(row) : null
+  } catch (e) {
+    console.warn('[fetchPartnerStaticPageBySlugAdminFromPg]', e)
+    return null
+  }
+}
+
+export async function upsertPartnerStaticPageBySlugFromPg(
+  partnerId: string,
+  input: UpsertStaticPageInput
+): Promise<UpsertStaticPageResult> {
+  const slug = input.slug.trim().toLowerCase()
+  const existing = await fetchPartnerStaticPageBySlugAdminFromPg(partnerId, slug)
+  if (existing) {
+    return updatePartnerStaticPageFromPg(partnerId, existing.id, {
+      title: input.title,
+      content: input.content,
+      seoTitle: input.seoTitle,
+      seoDescription: input.seoDescription,
+      seoIndex: input.seoIndex,
+      isPublished: input.isPublished,
+    })
+  }
+  return insertPartnerStaticPageFromPg(partnerId, {
+    ...input,
+    isPublished: input.isPublished !== false,
+  })
+}
+
 /** Toàn bộ trang tĩnh của 1 shop cho admin (gồm cả chưa publish). */
 export async function fetchPartnerStaticPagesForAdminFromPg(
   partnerId: string

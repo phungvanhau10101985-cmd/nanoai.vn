@@ -1,4 +1,5 @@
 import type { WebLocale } from '@/lib/i18n/config'
+import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 
 export const PARTNER_SITE_CHAT_MSG_SOURCE = 'nanoai-partner-site'
 
@@ -103,15 +104,92 @@ export function productToConsultContext(input: {
   }
 }
 
+/** Chat mua chrome + CTA hooks that must open the shop messaging widget. */
+export const PARTNER_SITE_CHAT_OPEN_SELECTOR =
+  '[data-pw-chrome-btn="chat"],[data-nanoai-open-chat],[data-nanoai-consult],[data-nanoai-try-on],a[href*="/messaging/p/"],.pw-fab-chat,.pw-chat-open'
+
+function consultContextFromChatOpenEl(el: {
+  getAttribute: (name: string) => string | null
+}): PartnerSiteConsultContext {
+  return {
+    inventoryId: el.getAttribute('data-nanoai-inventory') || '',
+    sku: el.getAttribute('data-nanoai-sku') || '',
+    imageUrl: el.getAttribute('data-nanoai-image') || '',
+    imageUrl2: el.getAttribute('data-nanoai-image-2') || '',
+    productUrl: el.getAttribute('data-nanoai-product-url') || '',
+  }
+}
+
+export function partnerSiteChatOpenModeFromEl(el: {
+  hasAttribute: (name: string) => boolean
+  getAttribute: (name: string) => string | null
+  classList?: { contains: (token: string) => boolean }
+}): 'default' | 'consult' | 'try_on' {
+  if (el.hasAttribute('data-nanoai-try-on')) return 'try_on'
+  if (el.hasAttribute('data-nanoai-consult')) return 'consult'
+  if (el.getAttribute('data-pw-chrome-btn') === 'chat') return 'default'
+  if (el.classList?.contains('pw-fab-chat') || el.hasAttribute('data-nanoai-open-chat')) return 'default'
+  return 'consult'
+}
+
+export type PartnerSiteChatOpenRequest = {
+  mode: 'default' | 'consult' | 'try_on'
+  ctx: PartnerSiteConsultContext
+}
+
+/** Same-document click → open shop chat (inline HTML / React chrome). */
+export function resolvePartnerSiteChatOpenFromEventTarget(
+  target: EventTarget | null
+): PartnerSiteChatOpenRequest | null {
+  let node: Element | null = null
+  if (target instanceof Element) node = target
+  else if (target instanceof Node) node = target.parentElement
+  if (!node?.closest) return null
+  const el = node.closest(PARTNER_SITE_CHAT_OPEN_SELECTOR)
+  if (!el) return null
+  if (el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]')) return null
+  return {
+    mode: partnerSiteChatOpenModeFromEl(el),
+    ctx: consultContextFromChatOpenEl(el),
+  }
+}
+
+/** Saved Sửa nhanh HTML may drop `data-nanoai-open-chat` after move/clone — stamp it at serve. */
+export function stampPartnerSiteChatOpenAttrsInHtml(html: string): string {
+  if (!html.trim()) return html
+  return html.replace(
+    /<(button|a)\b([^>]*\bdata-pw-chrome-btn=["']chat["'][^>]*)>/gi,
+    (_full, tag: string, attrs: string) => {
+      let next = attrs
+      if (!/\bdata-nanoai-open-chat\b/i.test(next)) next += ' data-nanoai-open-chat'
+      if (!/\bpw-chat-open\b/i.test(next)) {
+        if (/\bclass\s*=\s*(["'])([\s\S]*?)\1/i.test(next)) {
+          next = next.replace(/\bclass\s*=\s*(["'])([\s\S]*?)\1/i, (_m, q: string, cls: string) => {
+            return `class=${q}${String(cls).trim()} pw-chat-open${q}`
+          })
+        } else {
+          next += ' class="pw-chat-open"'
+        }
+      }
+      return `<${tag}${next}>`
+    }
+  )
+}
+
 /** Inline script for landing HTML in srcDoc iframe — forwards chat clicks to parent widget. */
 export function buildPartnerSiteLandingChatBridgeScript(): string {
   return `<script data-pw-chat-bridge>(function(){
+${PW_SHOP_LIVE_UI_OFF_FN};
 var SRC=${JSON.stringify(PARTNER_SITE_CHAT_MSG_SOURCE)};
+var SEL=${JSON.stringify(PARTNER_SITE_CHAT_OPEN_SELECTOR)};
 function postOpen(opts){
   opts=opts||{};
+  var msg=Object.assign({source:SRC,type:'OPEN_CHAT'},opts);
   try{
     if(window.parent&&window.parent!==window){
-      window.parent.postMessage(Object.assign({source:SRC,type:'OPEN_CHAT'},opts),'*');
+      window.parent.postMessage(msg,'*');
+    }else{
+      window.postMessage(msg,'*');
     }
   }catch(e){}
 }
@@ -126,15 +204,18 @@ function ctxFromEl(el){
   };
 }
 document.addEventListener('click',function(ev){
+  if(pwShopLiveUiOff())return;
   var t=ev.target;
   if(!t||!t.closest)return;
-  var el=t.closest('[data-nanoai-open-chat],[data-nanoai-consult],[data-nanoai-try-on],a[href*="/messaging/p/"],.pw-fab-chat,.pw-chat-open');
+  var el=t.closest(SEL);
   if(!el)return;
+  if(el.closest&&el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]'))return;
   ev.preventDefault();
   ev.stopPropagation();
   var mode='default';
   if(el.hasAttribute('data-nanoai-try-on'))mode='try_on';
   else if(el.hasAttribute('data-nanoai-consult'))mode='consult';
+  else if(el.getAttribute('data-pw-chrome-btn')==='chat')mode='default';
   else if(el.classList.contains('pw-fab-chat')||el.hasAttribute('data-nanoai-open-chat'))mode='default';
   else mode='consult';
   var ctx=ctxFromEl(el);

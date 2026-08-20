@@ -638,7 +638,7 @@ export function PartnerWebsiteDashboardClient({
               />
               </div>
 
-              <Card className="flex h-full min-h-0 min-w-0 flex-col">
+              <Card id="partner-website-device-preview" className="flex h-full min-h-0 min-w-0 flex-col">
               <CardHeader className="shrink-0 space-y-2 px-3 pb-2 pt-3 sm:px-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
@@ -868,6 +868,13 @@ export function PartnerWebsiteDashboardClient({
               onToast={(message, variant) =>
                 toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
               }
+              onOpenVisualEdit={(pageSelect) => {
+                previewRef.current?.openVisualEditPage(pageSelect)
+                document.getElementById('partner-website-device-preview')?.scrollIntoView({
+                  behavior: 'smooth',
+                  block: 'start',
+                })
+              }}
             />
             </div>
 

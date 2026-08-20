@@ -45,6 +45,16 @@ export const PW_SCENE_Z_MAX = PW_SCENE_MAX_INDEX * PW_SCENE_BAND + PW_SCENE_LOCA
 /** Chrome header đang chạy ở z 200 — phần tử mới rơi vào lớp giữa cho khớp. */
 export const PW_SCENE_DEFAULT_INDEX = 2
 
+/**
+ * Thanh cam (topbar) nằm trong stacking context của header.
+ * Phải cao hơn lớp dưới (100) và thấp hơn logo mặc định (160) / lớp giữa (200)
+ * — nếu để z=3 thì “Xuống lớp” vẫn để logo đè lên màu cam.
+ */
+export const PW_SCENE_TOPBAR_Z = 150
+
+/** Logo header mặc định — trên topbar, dưới lớp giữa. */
+export const PW_SCENE_LOGO_Z = 160
+
 export function isPwSceneIndex(raw: unknown): boolean {
   // `Number('')` và `Number(null)` đều ra 0 — thuộc tính rỗng không được hiểu là lớp nền.
   if (typeof raw !== 'number' && typeof raw !== 'string') return false

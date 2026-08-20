@@ -273,7 +273,7 @@ function FashionHomeInner({
         >
           {copy.categoriesTitle}
         </h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-6">
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4 xl:gap-6">
           {copy.categories.map((cat, i) => (
             <Link
               key={cat.name}
@@ -322,7 +322,7 @@ function FashionHomeInner({
             {t.navProducts} →
           </Link>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5" data-pw-el={PW_EL.grid}>
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-5" data-pw-el={PW_EL.grid}>
           {flashSale.slice(0, 8).map((p) => (
             <ProductCard key={`flash-${p.id}`} siteSlug={siteSlug} product={p} showFlash cta={t.addToCart} customDomain={customDomain} />
           ))}
@@ -350,7 +350,7 @@ function FashionHomeInner({
             {t.navProducts} →
           </Link>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5" data-pw-el={PW_EL.grid}>
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-5" data-pw-el={PW_EL.grid}>
           {newArrivals.slice(0, 8).map((p) => (
             <ProductCard key={p.id} siteSlug={siteSlug} product={p} showNew cta={t.addToCart} customDomain={customDomain} />
           ))}
@@ -371,7 +371,7 @@ function FashionHomeInner({
         >
           {copy.bestSellersTitle}
         </h2>
-        <div className="relative grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5" data-pw-el={PW_EL.grid}>
+        <div className="relative grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-5" data-pw-el={PW_EL.grid}>
           {(bestSellers.length ? bestSellers : newArrivals).slice(0, 8).map((p) => (
             <ProductCard key={`best-${p.id}`} siteSlug={siteSlug} product={p} cta={t.addToCart} customDomain={customDomain} />
           ))}

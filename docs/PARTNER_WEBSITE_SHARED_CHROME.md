@@ -12,7 +12,7 @@ Cửa hàng là **một khung + nhiều trang giữa**, và **bốn máy độc 
 
 | Khối | Cùng máy (mọi trang) | Khác máy (Desktop / Laptop / Tablet / Mobile) |
 |---|---|---|
-| Nút tính năng header / footer / thanh đáy | **Giống nhau** — copy từ trang chủ máy đó | **Cùng loại nút**; vị trí/kích thước **độc lập** |
+| Header / footer / thanh đáy / **icon nổi** (Chat mua, Zalo, Facebook, Top up) | **Giống nhau** — copy từ trang chủ máy đó | **Cùng loại nút**; vị trí/kích thước **độc lập** |
 | Sắp xếp logo, kéo thả phần tử | **Giống trang chủ máy đó** | **Không copy** — sửa desktop không đụng mobile |
 | Phần giữa (hero, catalog, form…) | **Khác theo trang** | **Độc lập theo máy** |
 | Thanh đáy | Hiện + dính đáy khi `<1280px` | Desktop `≥1280` ẩn |

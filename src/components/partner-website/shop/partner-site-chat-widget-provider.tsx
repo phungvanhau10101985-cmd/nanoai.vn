@@ -17,6 +17,7 @@ import {
   PARTNER_SITE_CHAT_MSG_SOURCE,
   buildPartnerSiteChatEmbedPath,
   buildPartnerSiteConsultEmbedPath,
+  resolvePartnerSiteChatOpenFromEventTarget,
   type PartnerSiteChatOpenMessage,
   type PartnerSiteConsultContext,
 } from '@/lib/partner-website/shop/partner-site-chat-embed'
@@ -129,25 +130,13 @@ export function PartnerSiteChatWidgetProvider({
     activeProductRef.current = ctx
   }, [])
 
-  const handleLandingMessage = useCallback(
-    (event: MessageEvent) => {
-      const data = event.data as PartnerSiteChatOpenMessage | null
-      if (!data || typeof data !== 'object') return
-      if (data.source !== PARTNER_SITE_CHAT_MSG_SOURCE || data.type !== 'OPEN_CHAT') return
-
-      const ctx: PartnerSiteConsultContext = {
-        inventoryId: data.inventoryId,
-        sku: data.sku,
-        imageUrl: data.imageUrl,
-        imageUrl2: data.imageUrl2,
-        productUrl: data.productUrl,
-      }
-
-      if (data.mode === 'try_on') {
+  const applyOpenRequest = useCallback(
+    (mode: 'default' | 'consult' | 'try_on', ctx: PartnerSiteConsultContext) => {
+      if (mode === 'try_on') {
         openTryOn(ctx)
         return
       }
-      if (data.mode === 'consult' && hasConsultContext(ctx)) {
+      if (mode === 'consult' && hasConsultContext(ctx)) {
         openConsult(ctx)
         return
       }
@@ -156,11 +145,40 @@ export function PartnerSiteChatWidgetProvider({
     [openChat, openConsult, openTryOn]
   )
 
+  const handleLandingMessage = useCallback(
+    (event: MessageEvent) => {
+      const data = event.data as PartnerSiteChatOpenMessage | null
+      if (!data || typeof data !== 'object') return
+      if (data.source !== PARTNER_SITE_CHAT_MSG_SOURCE || data.type !== 'OPEN_CHAT') return
+
+      applyOpenRequest(data.mode || 'default', {
+        inventoryId: data.inventoryId,
+        sku: data.sku,
+        imageUrl: data.imageUrl,
+        imageUrl2: data.imageUrl2,
+        productUrl: data.productUrl,
+      })
+    },
+    [applyOpenRequest]
+  )
+
   useEffect(() => {
     if (!listenLandingPostMessage) return
     window.addEventListener('message', handleLandingMessage)
     return () => window.removeEventListener('message', handleLandingMessage)
   }, [handleLandingMessage, listenLandingPostMessage])
+
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      const opened = resolvePartnerSiteChatOpenFromEventTarget(event.target)
+      if (!opened) return
+      event.preventDefault()
+      event.stopPropagation()
+      applyOpenRequest(opened.mode, opened.ctx)
+    }
+    document.addEventListener('click', onClick, true)
+    return () => document.removeEventListener('click', onClick, true)
+  }, [applyOpenRequest])
 
   const chatValue = useMemo(() => ({ openChat, openConsult, openTryOn }), [openChat, openConsult, openTryOn])
   const activeProductValue = useMemo(() => ({ setActiveProduct }), [setActiveProduct])

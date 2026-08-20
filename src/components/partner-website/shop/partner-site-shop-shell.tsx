@@ -6,6 +6,7 @@ import {
   Heart,
   Home,
   Menu,
+  MessageCircle,
   Package,
   ShoppingBag,
   UserRound,
@@ -216,7 +217,7 @@ function visualChromeHasChatMua(byDevice?: VisualHomeChromeByDevice | null): boo
   return [byDevice.desktop, byDevice.laptop, byDevice.tablet, byDevice.mobile].some(
     (chrome) =>
       Boolean(chrome) &&
-      htmlHasChromeChatMua(`${chrome!.topbar}${chrome!.header}${chrome!.footer}${chrome!.bottomNav}`)
+      htmlHasChromeChatMua(`${chrome!.topbar}${chrome!.header}${chrome!.footer}${chrome!.bottomNav}${chrome!.floats}`)
   )
 }
 
@@ -679,7 +680,7 @@ function PartnerSiteShopShellInner({
       </>
       )}
 
-      {theme.floatingCta?.enabled && theme.floatingCta.href ? (
+      {!useVisualChrome && theme.floatingCta?.enabled && theme.floatingCta.href ? (
         <a
           href={theme.floatingCta.href}
           className="fixed bottom-[15.5rem] right-3 z-[2147482900] flex max-w-[11rem] items-center gap-2 rounded-full bg-[var(--pw-primary,#f97316)] px-3 py-2.5 text-sm font-semibold text-white shadow-lg md:bottom-[5.5rem] md:right-4"
@@ -696,11 +697,13 @@ function PartnerSiteShopShellInner({
           <span className="truncate">{theme.floatingCta.label || 'CTA'}</span>
         </a>
       ) : null}
-      <PartnerSiteContactChannelsFab
-        siteSlug={siteSlug}
-        locale={locale}
-        hasFloatingCta={Boolean(theme.floatingCta?.enabled && theme.floatingCta.href)}
-      />
+      {!useVisualChrome ? (
+        <PartnerSiteContactChannelsFab
+          siteSlug={siteSlug}
+          locale={locale}
+          hasFloatingCta={Boolean(theme.floatingCta?.enabled && theme.floatingCta.href)}
+        />
+      ) : null}
     </div>
   )
 }
@@ -713,6 +716,7 @@ export function PartnerSiteShopShell(props: Props) {
       shopName={props.title}
       logoUrl={props.logoUrl}
       locale={props.locale}
+      listenLandingPostMessage
       hideLauncher={
         props.theme.hideChatLauncher !== false ||
         !hasVisualHomeChrome(props.visualChromeByDevice) ||

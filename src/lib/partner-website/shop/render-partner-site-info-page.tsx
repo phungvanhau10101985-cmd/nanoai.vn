@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { buildMetadata } from '@/lib/seo'
+import { JsonLd } from '@/components/seo-json-ld'
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopInfoView } from '@/components/partner-website/shop/partner-site-shop-info-view'
 import { PartnerSiteShopCatalogClient } from '@/components/partner-website/shop/partner-site-shop-catalog-client'
@@ -15,6 +15,13 @@ import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-
 import { fetchPartnerInventoryActivePageWithCountFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { fetchPublishedPartnerStaticPageBySlugFromPg } from '@/lib/db/messaging-partner-static-pages-pg'
 import { splitStaticPageContentToParagraphs } from '@/lib/partner-website/pages/partner-static-page-types'
+import {
+  buildPartnerInfoPageArticleJsonLd,
+  buildPartnerInfoPageBreadcrumbJsonLd,
+} from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
+import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
+import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
+import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   maybePartnerSiteVisualPage,
   readVisualPreviewDevice,
@@ -34,23 +41,27 @@ export async function buildPartnerSiteInfoMetadata(
   const locale = shop?.site.locale ?? 'vi'
   const block = getPartnerSiteInfoPage(pageKey, locale)
   const override = shop ? await fetchPublishedPartnerStaticPageBySlugFromPg(shop.partnerId, pageKey) : null
+  const siteName = shop?.site.title || 'Shop'
+  const noIndex = override ? !override.seoIndex : pageKey === 'thank-you'
+  const title = override
+    ? override.seoTitle || `${siteName} — ${override.title}`
+    : `${siteName} — ${block.title}`
+  const description = override
+    ? override.seoDescription ||
+      splitStaticPageContentToParagraphs(override.content)[0] ||
+      override.title
+    : block.paragraphs[0] || block.title
 
-  if (override) {
-    const firstParagraph = splitStaticPageContentToParagraphs(override.content)[0] ?? ''
-    return buildMetadata({
-      title: override.seoTitle || `${shop?.site.title || 'Shop'} — ${override.title}`,
-      description: override.seoDescription || firstParagraph || override.title,
-      path: `/site/${slug}/${pageKey}`,
-      noIndex: !override.seoIndex,
-    })
-  }
-
-  return buildMetadata({
-    title: `${shop?.site.title || 'Shop'} — ${block.title}`,
-    description: block.paragraphs[0] || block.title,
-    path: `/site/${slug}/${pageKey}`,
-    // thank-you là trang sau checkout — không index.
-    noIndex: pageKey === 'thank-you',
+  return buildPartnerSiteMetadata({
+    siteSlug: slug,
+    path: `/${pageKey}`,
+    title,
+    description,
+    siteName,
+    noIndex,
+    image: shop?.site.logoUrl || null,
+    locale: locale === 'vi' ? 'vi_VN' : locale,
+    type: 'article',
   })
 }
 
@@ -67,15 +78,21 @@ export async function PartnerSiteInfoPageScreen({
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
   const device = await readVisualPreviewDevice()
+  const override = await fetchPublishedPartnerStaticPageBySlugFromPg(shop.partnerId, pageKey)
 
   const visual = maybePartnerSiteVisualPage(
     shop.site,
     infoPageKeyToVisualPageKey(pageKey),
-    device
+    device,
+    override
+      ? {
+          datePublished: override.createdAt || null,
+          dateModified: override.updatedAt || null,
+          noIndex: !override.seoIndex,
+        }
+      : { noIndex: pageKey === 'thank-you' }
   )
   if (visual) return visual
-
-  const override = await fetchPublishedPartnerStaticPageBySlugFromPg(shop.partnerId, pageKey)
 
   const activeNav =
     pageKey === 'sale' ? 'sale' : pageKey === 'about' || pageKey === 'contact' ? 'home' : 'products'
@@ -99,6 +116,35 @@ export async function PartnerSiteInfoPageScreen({
     )
   }
 
+  const block = getPartnerSiteInfoPage(pageKey, shop.site.locale)
+  const headline = override?.seoTitle || override?.title || block.title
+  const description =
+    override?.seoDescription ||
+    (override ? splitStaticPageContentToParagraphs(override.content)[0] : '') ||
+    block.paragraphs[0] ||
+    block.title
+  const pageUrl = resolvePartnerSiteAbsoluteUrl(shop.site.siteSlug, `/${pageKey}`)
+  const homeUrl = resolvePartnerSiteAbsoluteUrl(shop.site.siteSlug, '/')
+  const t = getPartnerSiteShopCopy(shop.site.locale)
+  const articleLd = buildPartnerInfoPageArticleJsonLd({
+    pageUrl,
+    homeUrl,
+    siteName: shop.site.title,
+    logoUrl: shop.site.logoUrl,
+    locale: shop.site.locale,
+    homeLabel: t.navHome,
+    datePublished: override?.createdAt || null,
+    dateModified: override?.updatedAt || null,
+    headline,
+    description,
+  })
+  const breadcrumbLd = buildPartnerInfoPageBreadcrumbJsonLd({
+    homeUrl,
+    homeLabel: t.navHome,
+    pageUrl,
+    pageName: override?.title || block.title,
+  })
+
   return (
     <PartnerSiteShopShell
       siteSlug={shop.site.siteSlug}
@@ -115,6 +161,8 @@ export async function PartnerSiteInfoPageScreen({
       pageKind={pageKey === 'sale' || pageKey === 'lookbook' ? PW_PAGE.listing : PW_PAGE.info}
       {...visualHomeChromeShellProps(shop.site, device)}
     >
+      <JsonLd data={articleLd} />
+      <JsonLd data={breadcrumbLd} />
       <PartnerSiteShopInfoView
         siteSlug={shop.site.siteSlug}
         locale={shop.site.locale}

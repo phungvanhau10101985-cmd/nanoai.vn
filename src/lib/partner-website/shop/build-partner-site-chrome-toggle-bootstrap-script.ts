@@ -15,6 +15,7 @@ import {
   partnerSiteAuthSyncApiPath,
   partnerSiteSessionApiPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 
 /**
  * Live HTML shop: open/close category chrome, fill mega menu from
@@ -52,6 +53,7 @@ export function buildPartnerSiteChromeToggleBootstrapScript(input: {
   const skipAuthSyncKey = partnerSiteShopSkipAuthSyncKey(slug)
 
   return `<script data-pw-chrome-toggle-bootstrap>(function(){
+${PW_SHOP_LIVE_UI_OFF_FN};
 window.__pwChromeToggleBoot=1;
 var SITE_SLUG=${JSON.stringify(slug)};
 var SKIP_AUTH_SYNC_KEY=${JSON.stringify(skipAuthSyncKey)};
@@ -497,6 +499,7 @@ function bindPanelLinks(panel){
   });
 }
 function handleAccountClick(e){
+  if(pwShopLiveUiOff())return;
   e.preventDefault();
   e.stopPropagation();
   var cur=e.currentTarget;
@@ -518,6 +521,7 @@ function bindToggles(){
     btn.setAttribute('data-pw-toggle-bound','1');
     if(panel&&panel.id)btn.setAttribute('aria-controls',panel.id);
     btn.addEventListener('click',function(e){
+      if(pwShopLiveUiOff())return;
       e.preventDefault();
       e.stopPropagation();
       var cur=e.currentTarget;
@@ -542,17 +546,30 @@ function bindToggles(){
     window.addEventListener('scroll',repositionOpenPanels,true);
     window.addEventListener('resize',repositionOpenPanels);
     document.addEventListener('click',function(e){
+      if(pwShopLiveUiOff())return;
       var t=e.target;
-      var liveCatBtns=document.querySelectorAll(catSel());
-      var livePanels=document.querySelectorAll(panelSel());
-      var j;
-      for(j=0;j<liveCatBtns.length;j++){if(liveCatBtns[j].contains(t))return;}
-      for(j=0;j<livePanels.length;j++){if(livePanels[j].contains(t))return;}
-      for(j=0;j<liveCatBtns.length;j++){
-        var root=deviceRoot(liveCatBtns[j]);
-        closeEl(liveCatBtns[j],qs(root,panelSel())||ensureCatPanel(liveCatBtns[j]));
+      if(!t||!t.closest)return;
+      var hit=t.closest(catSel());
+      if(hit&&!isInsidePanel(hit,panelSel())&&!isInsidePanel(hit,accPanelSel())){
+        e.preventDefault();
+        e.stopPropagation();
+        var livePanel=ensureCatPanel(hit);
+        var root=deviceRoot(hit);
+        var liveAccBtn=qs(root,accBtnSel());
+        var liveAcc=liveAccBtn?qs(root,accPanelSel()):qs(root,accPanelSel());
+        if(livePanel&&!livePanel.querySelector('a'))hydrateCats();
+        togglePair(hit,livePanel,liveAccBtn,liveAcc);
+        return;
       }
-    });
+      if(t.closest(panelSel())||t.closest('.pw-chrome-cat-wrap'))return;
+      var liveCatBtns=document.querySelectorAll(catSel());
+      var j;
+      for(j=0;j<liveCatBtns.length;j++){
+        if(isInsidePanel(liveCatBtns[j],panelSel())||isInsidePanel(liveCatBtns[j],accPanelSel()))continue;
+        var croot=deviceRoot(liveCatBtns[j]);
+        closeEl(liveCatBtns[j],qs(croot,panelSel())||ensureCatPanel(liveCatBtns[j]));
+      }
+    },true);
     document.addEventListener('keydown',function(e){
       if(e.key!=='Escape')return;
       var liveCatBtns=document.querySelectorAll(catSel());
@@ -562,6 +579,7 @@ function bindToggles(){
   }
 }
 function hydrateCats(){
+  if(pwShopLiveUiOff())return;
   var btns=document.querySelectorAll(catSel());
   var panels=[];
   var i;
@@ -586,7 +604,11 @@ function hydrateCats(){
     }
   });
 }
-function boot(){hydrateAuth(function(){bindToggles();hydrateCats();});}
+function boot(){
+  bindToggles();
+  hydrateCats();
+  hydrateAuth(function(){bindToggles();});
+}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 var moTimer=null;
 var mo=typeof MutationObserver!=='undefined'?new MutationObserver(function(){

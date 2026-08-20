@@ -7,8 +7,10 @@ import {
   PW_SCENE_DESIGN_WIDTH,
   PW_SCENE_LAYERS,
   PW_SCENE_LOCAL_MAX,
+  PW_SCENE_LOGO_Z,
   PW_SCENE_MAX_INDEX,
   PW_SCENE_MIN_INDEX,
+  PW_SCENE_TOPBAR_Z,
   PW_SCENE_Z_MAX,
   clampPwSceneIndex,
   isPwSceneIndex,
@@ -34,6 +36,9 @@ describe('pw scene layers', () => {
     expect(PW_SCENE_LAYERS.map((layer) => layer.index)).toEqual([0, 1, 2, 3, 4])
     expect(new Set(PW_SCENE_LAYERS.map((layer) => layer.key)).size).toBe(PW_SCENE_LAYERS.length)
     expect(PW_SCENE_Z_MAX).toBe(PW_SCENE_MAX_INDEX * PW_SCENE_BAND + PW_SCENE_LOCAL_MAX)
+    expect(PW_SCENE_TOPBAR_Z).toBeGreaterThan(PW_SCENE_LAYERS[1]!.z)
+    expect(PW_SCENE_TOPBAR_Z).toBeLessThan(PW_SCENE_LOGO_Z)
+    expect(PW_SCENE_LOGO_Z).toBeLessThan(PW_SCENE_LAYERS[2]!.z)
   })
 
   it('clamps any index into the layer range', () => {
@@ -178,6 +183,12 @@ describe('scene layers inside the editor runtime', () => {
     expect(script).toContain('data-pw-z')
     expect(script).toContain("d.type === 'layerElUp'")
     expect(script).toContain("d.type === 'layerElDown'")
+  })
+
+  it('puts the orange topbar above lớp dưới so a lowered logo sits behind the bar', () => {
+    expect(script).toContain(`.pw-topbar,.nanoai-ve-active .pw-shop-topbar{position:relative!important;z-index:${PW_SCENE_TOPBAR_Z}!important;isolation:isolate}`)
+    expect(script).toContain('.pw-logo-frame:not([data-pw-z])')
+    expect(script).not.toContain('.pw-logo-frame,[data-pw-logo-frame="1"]{display:inline-flex!important;align-items:center;justify-content:center;overflow:hidden!important;flex-shrink:0;position:relative;z-index:160!important')
   })
 
   it('reapplies authored banner text layers after stamp so raised copy stays above the photo', () => {

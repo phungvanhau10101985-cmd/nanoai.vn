@@ -15,8 +15,10 @@ import {
   PW_SCENE_DEFAULT_INDEX,
   PW_SCENE_LAYERS,
   PW_SCENE_LOCAL_MAX,
+  PW_SCENE_LOGO_Z,
   PW_SCENE_MAX_INDEX,
   PW_SCENE_MIN_INDEX,
+  PW_SCENE_TOPBAR_Z,
   PW_SCENE_Z_MAX,
 } from './pw-scene'
 
@@ -38,6 +40,18 @@ export type VisualEditorCopy = {
   cropDone: string
   cropCancel: string
   cropZoom: string
+  infoSeoTitle: string
+  infoSeoHint: string
+  infoSeoPlaceholder: string
+  infoSeoRewrite: string
+  infoSeoBusy: string
+  infoSeoSyncHint: string
+  infoSeoUndo: string
+  infoSeoInsertImage: string
+  infoSeoColor: string
+  infoSeoSize: string
+  infoSeoMore: string
+  infoSeoLess: string
 }
 
 const COPY: Record<WebLocale, VisualEditorCopy> = {
@@ -55,6 +69,18 @@ const COPY: Record<WebLocale, VisualEditorCopy> = {
     cropDone: 'Xong',
     cropCancel: 'Hủy',
     cropZoom: 'Zoom',
+    infoSeoTitle: 'SEO / AI',
+    infoSeoHint: 'Sửa chữ trong bài bên dưới. AI đổ thẳng vào bài.',
+    infoSeoPlaceholder: 'Tuỳ chọn: giọng văn / điểm nhấn',
+    infoSeoRewrite: 'AI viết lại',
+    infoSeoBusy: 'Đang viết…',
+    infoSeoSyncHint: 'Lưu để giữ bản này',
+    infoSeoUndo: 'Quay lại',
+    infoSeoInsertImage: 'Ảnh',
+    infoSeoColor: 'Màu',
+    infoSeoSize: 'Cỡ',
+    infoSeoMore: 'Ghi chú',
+    infoSeoLess: 'Thu gọn',
   },
   en: {
     selectHint: 'Click text, button, image or block — edit what you select',
@@ -70,6 +96,18 @@ const COPY: Record<WebLocale, VisualEditorCopy> = {
     cropDone: 'Done',
     cropCancel: 'Cancel',
     cropZoom: 'Zoom',
+    infoSeoTitle: 'SEO / AI',
+    infoSeoHint: 'Edit the article below. AI fills it in place.',
+    infoSeoPlaceholder: 'Optional: tone / emphasis',
+    infoSeoRewrite: 'Rewrite with AI',
+    infoSeoBusy: 'Writing…',
+    infoSeoSyncHint: 'Save to keep this version',
+    infoSeoUndo: 'Undo',
+    infoSeoInsertImage: 'Image',
+    infoSeoColor: 'Color',
+    infoSeoSize: 'Size',
+    infoSeoMore: 'Notes',
+    infoSeoLess: 'Less',
   },
   zh: {
     selectHint: '点击文字、按钮、图片或区块 — 选中即可编辑',
@@ -85,6 +123,18 @@ const COPY: Record<WebLocale, VisualEditorCopy> = {
     cropDone: '完成',
     cropCancel: '取消',
     cropZoom: '缩放',
+    infoSeoTitle: 'SEO / AI',
+    infoSeoHint: '在下方编辑正文。AI 会直接写入文章。',
+    infoSeoPlaceholder: '可选：语气/重点',
+    infoSeoRewrite: 'AI 重写',
+    infoSeoBusy: '正在撰写…',
+    infoSeoSyncHint: '保存以保留此版',
+    infoSeoUndo: '撤销',
+    infoSeoInsertImage: '图片',
+    infoSeoColor: '颜色',
+    infoSeoSize: '字号',
+    infoSeoMore: '备注',
+    infoSeoLess: '收起',
   },
   ja: {
     selectHint: '文字・ボタン・画像・ブロックをクリック — 選んだものを編集',
@@ -100,6 +150,18 @@ const COPY: Record<WebLocale, VisualEditorCopy> = {
     cropDone: '完了',
     cropCancel: 'キャンセル',
     cropZoom: 'ズーム',
+    infoSeoTitle: 'SEO / AI',
+    infoSeoHint: '下の本文を編集。AIは記事に直接反映。',
+    infoSeoPlaceholder: '任意：トーン/強調',
+    infoSeoRewrite: 'AIで書き直す',
+    infoSeoBusy: '作成中…',
+    infoSeoSyncHint: '保存でこの版を保持',
+    infoSeoUndo: '戻す',
+    infoSeoInsertImage: '画像',
+    infoSeoColor: '色',
+    infoSeoSize: 'サイズ',
+    infoSeoMore: 'メモ',
+    infoSeoLess: '閉じる',
   },
   ko: {
     selectHint: '텍스트, 버튼, 이미지 또는 블록 클릭 — 선택한 것을 수정',
@@ -115,6 +177,18 @@ const COPY: Record<WebLocale, VisualEditorCopy> = {
     cropDone: '완료',
     cropCancel: '취소',
     cropZoom: '줌',
+    infoSeoTitle: 'SEO / AI',
+    infoSeoHint: '아래 본문을 수정하세요. AI가 글에 바로 반영합니다.',
+    infoSeoPlaceholder: '선택: 문체/강조',
+    infoSeoRewrite: 'AI로 다시 쓰기',
+    infoSeoBusy: '작성 중…',
+    infoSeoSyncHint: '저장하면 이 버전 유지',
+    infoSeoUndo: '되돌리기',
+    infoSeoInsertImage: '이미지',
+    infoSeoColor: '색',
+    infoSeoSize: '크기',
+    infoSeoMore: '메모',
+    infoSeoLess: '접기',
   },
 }
 
@@ -142,6 +216,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   var historyIndex = -1
   var historyLock = false
   var historyTimer = null
+  var infoPageActive = false
+  var infoArticleUndoHtml = ''
+  var infoArticleUndoMeta = null
   var TEXT_TAGS = {h1:1,h2:1,h3:1,h4:1,h5:1,h6:1,p:1,span:1,li:1,label:1,figcaption:1,a:1,button:1,td:1,th:1,strong:1,em:1,small:1,blockquote:1,dt:1,dd:1,b:1,i:1,u:1}
   function post(type, payload) {
     try { window.parent.postMessage(Object.assign({ source: MSG, type: type }, payload || {}), '*') } catch (e) {}
@@ -218,6 +295,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { prepareImageLayerBlocks() } catch (err3) {}
     syncLayerSwitches()
     syncLogoButtons()
+    if (infoPageActive) {
+      try { ensureInfoArticle(); ensureInfoSeoCoach() } catch (errInfo) {}
+    }
     postHidden()
     historyLock = false
   }
@@ -731,7 +811,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       fh = Math.max(18, Math.round(fh))
       var frame = logoFrameOf(logoCrop.img) || logoCrop.img
       var host = headerLogoUnit(logoCrop.img) || frame
-      applyLogoFrameSize(frame, fw, fh)
+      applyLogoFrameSize(frame, fw, fh, true)
       if (dir.indexOf('w') >= 0) host.style.setProperty('left', Math.round(logoCrop.baseX + (logoCrop.baseViewW - fw)) + 'px', 'important')
       if (dir.indexOf('n') >= 0) host.style.setProperty('top', Math.round(logoCrop.baseY + (logoCrop.baseViewH - fh)) + 'px', 'important')
       positionLiveLogoCropBar()
@@ -795,6 +875,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var unit = headerLogoUnit(img) || frame
     var fr = { width: 80, height: 32 }
     try { fr = frame.getBoundingClientRect() } catch (errFr) {}
+    var frSize = readLogoBoxSize(frame)
     var pan = parseLogoPan(img)
     logoCrop.img = img
     logoCrop.live = true
@@ -803,8 +884,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       zoom: parseLogoZoom(img),
       panX: pan.x,
       panY: pan.y,
-      w: parseFloat(frame.style.width) || fr.width || 80,
-      h: parseFloat(frame.style.height) || fr.height || 32,
+      w: frSize.w || fr.width || 80,
+      h: frSize.h || fr.height || 32,
       left: unit && unit.style ? unit.style.left : '',
       top: unit && unit.style ? unit.style.top : '',
       transform: unit && unit.style ? unit.style.transform : ''
@@ -842,7 +923,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function unlockLogoImage(img) {
     if (!img || !img.style) return
-    img.setAttribute('data-pw-logo-float', '1')
+    // Float belongs on frame/home-link only. Marking the <img> breaks live
+    // injectPartnerLogoHomeLinkScript (wraps img, copies transform, sets 100% → off-screen).
     img.style.setProperty('max-width', 'none', 'important')
     img.style.setProperty('max-height', 'none', 'important')
   }
@@ -900,6 +982,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function headerLogoUnit(el) {
     if (!el) return null
+    var homeFloat = el.closest ? el.closest('a[data-pw-logo-home][data-pw-logo-float="1"], a.pw-brand[data-pw-logo-float="1"], a.pw-shop-brand[data-pw-logo-float="1"]') : null
+    if (homeFloat) return homeFloat
     var frame = logoFrameOf(el)
     if (frame) return frame
     var img = logoImgOf(el) || (isImgEl(el) ? el : null)
@@ -937,8 +1021,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var unit = headerLogoUnit(el)
     if (!unit) return false
     if (unit.tagName && unit.tagName.toLowerCase() === 'a') {
+      var homeOnly = unit.getAttribute && unit.getAttribute('data-pw-logo-home') === '1'
       var inner = logoImgOf(unit) || (unit.querySelector ? unit.querySelector('img.pw-logo, img.pw-shop-logo, [data-pw-logo-added]') : null)
-      if (inner) {
+      if (inner && !homeOnly) {
         releaseFloatedBrandLink(unit)
         unit = headerLogoUnit(inner) || inner
         img = inner
@@ -953,7 +1038,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var beforeTop = unit.style.top
     var sameHost = unit.parentNode === host
     if (unit.parentNode !== host) host.appendChild(unit)
-    if (parentLink && parentLink !== unit) releaseFloatedBrandLink(parentLink)
+    if (parentLink && parentLink !== unit && !(parentLink.getAttribute && parentLink.getAttribute('data-pw-logo-home') === '1')) {
+      releaseFloatedBrandLink(parentLink)
+    }
     unit.setAttribute('data-pw-logo-float', '1')
     var already = unit.getAttribute('data-pw-logo-floated') === '1' && !box
     var left
@@ -967,8 +1054,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       h = box.h
       unit.style.removeProperty('transform')
     } else if (already && sameHost) {
-      w = parseFloat(unit.style.width) || (logoFrameOf(el) && parseFloat(logoFrameOf(el).style.width)) || unit.getBoundingClientRect().width
-      h = parseFloat(unit.style.height) || (logoFrameOf(el) && parseFloat(logoFrameOf(el).style.height)) || unit.getBoundingClientRect().height
+      var kept = readLogoBoxSize(unit)
+      var keptFrame = logoFrameOf(el)
+      if (!(kept.w > 8 && kept.h > 8) && keptFrame) kept = readLogoBoxSize(keptFrame)
+      w = kept.w || unit.getBoundingClientRect().width
+      h = kept.h || unit.getBoundingClientRect().height
       left = parseFloat(unit.style.left)
       top = parseFloat(unit.style.top)
       if (!isFinite(left) || left < 0) left = 0
@@ -976,8 +1066,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     } else {
       left = mr.left - hr.left
       top = mr.top - hr.top
-      w = parseFloat(unit.style.width) || mr.width
-      h = parseFloat(unit.style.height) || mr.height
+      var measured = readLogoBoxSize(unit)
+      w = measured.w || mr.width
+      h = measured.h || mr.height
       unit.style.removeProperty('transform')
     }
     if (!box && hr.width && w >= hr.width * 0.72) {
@@ -993,17 +1084,20 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     unit.style.setProperty('display', isImgEl(unit) ? 'block' : 'inline-block', 'important')
     unit.style.setProperty('left', Math.round(Math.max(0, isFinite(left) ? left : 0)) + 'px', 'important')
     unit.style.setProperty('top', Math.round(Math.max(0, isFinite(top) ? top : 0)) + 'px', 'important')
-    applyDefaultZ(unit, 160)
+    applyDefaultZ(unit, ${PW_SCENE_LOGO_Z})
     unit.style.setProperty('margin', '0', 'important')
     unit.style.setProperty('max-width', 'none', 'important')
     unit.style.setProperty('max-height', 'none', 'important')
     unit.style.setProperty('overflow', 'hidden', 'important')
     unit.setAttribute('data-pw-logo-floated', '1')
-    var sizeTarget = logoFrameOf(el) || (isLogoFrame(unit) ? unit : null)
-    if (sizeTarget && w && h) applyLogoFrameSize(sizeTarget, w, h)
-    else if (w && h) {
-      unit.style.setProperty('width', Math.round(w) + 'px', 'important')
-      unit.style.setProperty('height', Math.round(h) + 'px', 'important')
+    if (w && h) applyLogoFrameSize(unit, w, h, unit.getAttribute('data-pw-logo-user-size') === '1')
+    var innerFrame = logoFrameOf(unit)
+    if (innerFrame && innerFrame !== unit) {
+      // Keep real px on the frame — never width/height 100% (parseFloat('100%') === 100 breaks later fits).
+      applyLogoFrameSize(innerFrame, w, h, innerFrame.getAttribute('data-pw-logo-user-size') === '1' || unit.getAttribute('data-pw-logo-user-size') === '1')
+      innerFrame.style.setProperty('position', 'relative', 'important')
+      innerFrame.style.setProperty('left', '0', 'important')
+      innerFrame.style.setProperty('top', '0', 'important')
     }
     if (img) {
       unlockLogoImage(img)
@@ -1013,7 +1107,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       img.style.position = 'relative'
       img.style.left = '0'
       img.style.top = '0'
-      applyDefaultZ(img, 160)
+      if (unit.getAttribute && (unit.getAttribute('data-pw-z') || unit.getAttribute(SCENE.attr))) {
+        img.style.removeProperty('z-index')
+      } else {
+        applyDefaultZ(img, ${PW_SCENE_LOGO_Z})
+      }
     }
     return beforeParent !== unit.parentNode || beforeLeft !== unit.style.left || beforeTop !== unit.style.top
   }
@@ -1044,7 +1142,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var cluster = header.querySelector('.pw-brand-cluster, .pw-shop-brand-cluster') || main
     var floatedLinks = header.querySelectorAll('a.pw-brand[data-pw-logo-float], a.pw-shop-brand[data-pw-logo-float], a[data-pw-logo-home][data-pw-logo-float]')
     var li
-    for (li = 0; li < floatedLinks.length; li++) releaseFloatedBrandLink(floatedLinks[li])
+    for (li = 0; li < floatedLinks.length; li++) {
+      if (floatedLinks[li].getAttribute && floatedLinks[li].getAttribute('data-pw-logo-home') === '1') continue
+      releaseFloatedBrandLink(floatedLinks[li])
+    }
     var logos = header.querySelectorAll('[data-pw-logo-added="1"], .pw-logo-frame, [data-pw-logo-frame="1"], img.pw-logo, img.pw-shop-logo')
     var i
     for (i = 0; i < logos.length; i++) {
@@ -1068,23 +1169,107 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     return changed
   }
-  function clampLogoBox(w, h, inHeader) {
-    var viewW = window.innerWidth || document.documentElement.clientWidth || 360
-    var cap = inHeader ? headerLogoFreeCap() : { w: Math.max(80, Math.min(320, Math.round(viewW * 0.55))), h: 160 }
+  function defaultLogoFrameBox() {
+    return { w: 140, h: 36 }
+  }
+  function isStretchedLogoBox(w, h, inHeader) {
+    var nw = Number(w) || 0
+    var nh = Number(h) || 0
+    if (nw < 200) return false
+    if (nh <= 8) return true
+    if (inHeader) return nw >= 480 && nw / nh >= 4
+    return nw / nh >= 3.2
+  }
+  function clampLogoStartBox(w, h, inHeader) {
+    if (isStretchedLogoBox(w, h, inHeader) || !(Number(w) > 8) || !(Number(h) > 8)) return defaultLogoFrameBox()
+    var cap = inHeader ? { w: 220, h: 64 } : { w: 180, h: 48 }
     var nw = Math.max(24, Math.round(Number(w) || 72))
     var nh = Math.max(18, Math.round(Number(h) || 28))
     if (nw > cap.w) nw = cap.w
     if (nh > cap.h) nh = cap.h
     return { w: nw, h: nh }
   }
-  function applyLogoFrameSize(frame, w, h) {
+  function clampLogoBox(w, h, inHeader) {
+    var viewW = window.innerWidth || document.documentElement.clientWidth || 360
+    var cap = inHeader ? headerLogoFreeCap() : { w: Math.max(80, Math.min(220, Math.round(viewW * 0.4))), h: 120 }
+    var nw = Math.max(24, Math.round(Number(w) || 72))
+    var nh = Math.max(18, Math.round(Number(h) || 28))
+    if (nw > cap.w) nw = cap.w
+    if (nh > cap.h) nh = cap.h
+    return { w: nw, h: nh }
+  }
+  function parseStylePx(v) {
+    if (v == null || v === '') return 0
+    var s = String(v).trim()
+    if (!s || s.indexOf('%') >= 0) return 0
+    var n = parseFloat(s)
+    return isFinite(n) && n > 0 ? n : 0
+  }
+  function readLogoBoxSize(el) {
+    if (!el) return { w: 0, h: 0 }
+    var w = parseStylePx(el.style && el.style.width)
+    var h = parseStylePx(el.style && el.style.height)
+    if (!(w > 0 && h > 0)) {
+      try {
+        var r = el.getBoundingClientRect()
+        if (!(w > 0) && r.width) w = r.width
+        if (!(h > 0) && r.height) h = r.height
+      } catch (eReadBox) {}
+    }
+    return { w: w || 0, h: h || 0 }
+  }
+  function applyLogoFrameSize(frame, w, h, user) {
     if (!frame) return
-    var box = clampLogoBox(w, h, isInHeader(frame))
+    var stretched = isStretchedLogoBox(w, h, isInHeader(frame)) && frame.getAttribute('data-pw-logo-user-size') !== '1' && !user
+    var box = stretched ? clampLogoStartBox(w, h, isInHeader(frame)) : clampLogoBox(w, h, isInHeader(frame))
     frame.style.setProperty('width', box.w + 'px', 'important')
     frame.style.setProperty('height', box.h + 'px', 'important')
     frame.style.setProperty('max-width', 'none', 'important')
     frame.style.setProperty('max-height', 'none', 'important')
     frame.style.setProperty('overflow', 'hidden', 'important')
+    if (user) frame.setAttribute('data-pw-logo-user-size', '1')
+  }
+  function headingHostOf(el) {
+    if (!el || !el.closest) return null
+    return el.closest('h1, h2, h3, [data-pw-el="heading"], [data-pw-info-title]')
+  }
+  function liftLogoOutOfHeading(el) {
+    if (!el || el.nodeType !== 1) return el
+    var heading = headingHostOf(el)
+    if (!heading || !heading.parentNode) return el
+    var link = el.closest ? el.closest('a.pw-brand, a.pw-shop-brand, a[data-pw-logo-home]') : null
+    var unit = (link && heading.contains(link))
+      ? link
+      : ((isLogoFrame(el) || isLogoImg(el) || isBrandLink(el) || (el.getAttribute && el.getAttribute('data-pw-logo-home') === '1'))
+        ? (headerLogoUnit(el) || logoFrameOf(el) || el)
+        : el)
+    if (!unit || unit === heading || !heading.contains(unit)) return el
+    heading.parentNode.insertBefore(unit, heading)
+    return unit
+  }
+  function logoUnitAtPoint(x, y) {
+    if (!isFinite(x) || !isFinite(y)) return null
+    var nodes = document.querySelectorAll('[data-pw-logo-frame="1"], .pw-logo-frame, img.pw-logo, img.pw-shop-logo, [data-pw-logo-added]')
+    var best = null
+    var bestArea = Infinity
+    var i
+    for (i = 0; i < nodes.length; i++) {
+      var n = nodes[i]
+      if (!pointInEl(n, x, y)) continue
+      var r = n.getBoundingClientRect()
+      var area = Math.max(1, r.width * r.height)
+      if (area < bestArea) {
+        best = n
+        bestArea = area
+      }
+    }
+    if (!best) return null
+    var frame = logoFrameOf(best)
+    if (frame && pointInEl(frame, x, y)) return frame
+    if (isLogoFrame(best) || isLogoImg(best) || (best.getAttribute && best.getAttribute('data-pw-logo-added') === '1')) {
+      return frame || best
+    }
+    return null
   }
   function pruneEmptyLogoFrames() {
     var nodes = document.querySelectorAll('[data-pw-logo-frame="1"], .pw-logo-frame')
@@ -1102,18 +1287,23 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var i
     for (i = 0; i < nodes.length; i++) {
       var frame = nodes[i]
-      var r = frame.getBoundingClientRect()
-      var w = parseFloat(frame.style.width) || r.width || 72
-      var h = parseFloat(frame.style.height) || r.height || 28
-      applyLogoFrameSize(frame, w, h)
+      liftLogoOutOfHeading(frame)
+      var size = readLogoBoxSize(frame)
+      var w = size.w || 72
+      var h = size.h || 28
+      if (frame.getAttribute('data-pw-logo-user-size') === '1') applyLogoFrameSize(frame, w, h, true)
+      else applyLogoFrameSize(frame, w, h)
     }
   }
   function ensureLogoFrame(img) {
     if (!isImgEl(img) || !isLogoImg(img)) return null
     var existing = logoFrameOf(img)
     if (existing) {
-      var er = existing.getBoundingClientRect()
-      applyLogoFrameSize(existing, parseFloat(existing.style.width) || er.width || 72, parseFloat(existing.style.height) || er.height || 28)
+      liftLogoOutOfHeading(existing)
+      var es = readLogoBoxSize(existing)
+      var ew = es.w || 72
+      var eh = es.h || 28
+      applyLogoFrameSize(existing, ew, eh, existing.getAttribute('data-pw-logo-user-size') === '1')
       img.style.maxWidth = 'none'
       img.style.maxHeight = 'none'
       var pan = parseLogoPan(img)
@@ -1128,17 +1318,18 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       return existing
     }
     var r = img.getBoundingClientRect()
-    var box = clampLogoBox(r.width || 72, r.height || 28, isInHeader(img))
+    var box = clampLogoStartBox(r.width || 72, r.height || 28, isInHeader(img))
     var w = box.w
     var h = box.h
     var wrap = document.createElement('span')
     wrap.className = 'pw-logo-frame'
     wrap.setAttribute('data-pw-logo-frame', '1')
-    wrap.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;overflow:hidden;width:' + w + 'px;height:' + h + 'px;max-width:none;max-height:none;flex-shrink:0;vertical-align:middle;position:relative;z-index:160'
+    wrap.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;overflow:hidden;width:' + w + 'px;height:' + h + 'px;max-width:none;max-height:none;flex-shrink:0;vertical-align:middle;position:relative;z-index:${PW_SCENE_LOGO_Z}'
     var parent = img.parentNode
     if (!parent) return null
     parent.insertBefore(wrap, img)
     wrap.appendChild(img)
+    liftLogoOutOfHeading(wrap)
     var pos = ''
     try { pos = cs(img).position } catch (errPos) {}
     if (pos === 'absolute' || pos === 'fixed') {
@@ -1460,38 +1651,46 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     img.removeAttribute('data-pw-logo-pan-y')
     img.removeAttribute('data-pw-logo-crop-x')
     img.removeAttribute('data-pw-logo-crop-y')
+    img.removeAttribute('data-pw-logo-float')
+    img.removeAttribute('data-pw-logo-floated')
     img.style.removeProperty('clip-path')
     img.style.removeProperty('transform')
     img.style.objectFit = 'contain'
   }
   function fitLogoFrameToImage(img) {
-    if (!img || !isImgEl(img)) return
+    if (!img || !isImgEl(img)) return null
     var nw = img.naturalWidth || 0
     var nh = img.naturalHeight || 0
-    if (nw < 4 || nh < 4) return
+    if (nw < 4 || nh < 4) return null
     var frame = logoFrameOf(img) || img
-    var r
-    try { r = frame.getBoundingClientRect() } catch (eFitR) { r = { width: 0, height: 0 } }
-    var curW = parseFloat(frame.style.width) || r.width || 120
-    var curH = parseFloat(frame.style.height) || r.height || 32
-    if (curW < 8) curW = 120
-    if (curH < 8) curH = 32
-    var aspect = nw / nh
-    var boxAspect = curW / Math.max(1, curH)
-    var w
-    var h
-    if (boxAspect > aspect) {
-      h = curH
-      w = Math.max(24, h * aspect)
-    } else {
-      w = curW
-      h = Math.max(18, w / aspect)
+    var unit = isInHeader(img) ? (headerLogoUnit(img) || frame) : frame
+    var inHeader = isInHeader(img)
+    var cap = inHeader ? headerLogoFreeCap() : { w: Math.max(80, Math.min(220, Math.round((window.innerWidth || 360) * 0.4))), h: 120 }
+    // At 100% zoom: frame matches image aspect so object-fit:contain fills the box (no letterbox from old crop).
+    var preferLong = inHeader ? 160 : 140
+    var long = Math.max(nw, nh)
+    var scale = preferLong / long
+    if (scale > 1) scale = 1
+    var w = Math.max(24, Math.round(nw * scale))
+    var h = Math.max(18, Math.round(nh * scale))
+    if (w > cap.w || h > cap.h) {
+      var fit = Math.min(cap.w / w, cap.h / h)
+      w = Math.max(24, Math.round(w * fit))
+      h = Math.max(18, Math.round(h * fit))
     }
+    if (frame && frame.removeAttribute) frame.removeAttribute('data-pw-logo-user-size')
+    if (unit && unit !== frame && unit.removeAttribute) unit.removeAttribute('data-pw-logo-user-size')
     applyLogoFrameSize(frame, w, h)
+    if (unit && unit !== frame) applyLogoFrameSize(unit, w, h)
+    applyLogoTransform(img, 1, 0, 0)
+    img.removeAttribute('data-pw-logo-crop-x')
+    img.removeAttribute('data-pw-logo-crop-y')
+    img.style.removeProperty('clip-path')
     img.style.width = '100%'
     img.style.height = '100%'
     img.style.objectFit = 'contain'
     img.style.backgroundColor = 'transparent'
+    return { w: w, h: h }
   }
   function afterLogoImageReady(img, fn) {
     if (!img || typeof fn !== 'function') return
@@ -1513,11 +1712,23 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     img.addEventListener('load', finish)
     img.addEventListener('error', finish)
   }
-  function sealAppliedLogo(img) {
-    if (!img || !isImgEl(img)) return img
+  function sealAppliedLogo(node) {
+    if (!node) return node
+    // ensureLogoHomeLink often returns <a> — always resolve to the img before sealing.
+    var img = isImgEl(node)
+      ? node
+      : (logoImgOf(node) || (node.querySelector
+        ? node.querySelector('img.pw-logo, img.pw-shop-logo, img.pw-shop-footer-logo, img.site-logo, [data-pw-logo-added]')
+        : null))
+    if (!img || !isImgEl(img)) return node
     resetLogoImageLayout(img)
     clearLogoSlotPaint(img)
+    try { liftLogoOutOfHeading(img) } catch (eLift) {}
     try { ensureLogoFrame(img) } catch (eSeal) {}
+    var sealFrame = logoFrameOf(img)
+    if (sealFrame && sealFrame.removeAttribute) sealFrame.removeAttribute('data-pw-logo-user-size')
+    var sealUnit = headerLogoUnit(img)
+    if (sealUnit && sealUnit !== sealFrame && sealUnit.removeAttribute) sealUnit.removeAttribute('data-pw-logo-user-size')
     clearLogoSlotPaint(img)
     try { revealHeaderLogo(img) } catch (eRev) {}
     if (isInHeader(img)) {
@@ -1525,9 +1736,16 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     afterLogoImageReady(img, function () {
       clearLogoSlotPaint(img)
-      fitLogoFrameToImage(img)
+      var fitted = fitLogoFrameToImage(img)
       if (isInHeader(img)) {
-        try { pinHeaderLogoFloat(img, null) } catch (ePin2) {}
+        try {
+          var unit = headerLogoUnit(img)
+          var ur = { left: 0, top: 0 }
+          try { if (unit) ur = unit.getBoundingClientRect() } catch (eUr) {}
+          var fw = fitted && fitted.w ? fitted.w : 120
+          var fh = fitted && fitted.h ? fitted.h : 36
+          pinHeaderLogoFloat(img, { x: ur.left, y: ur.top, w: fw, h: fh })
+        } catch (ePin2) {}
       }
       try { positionAllHandles() } catch (ePos) {}
       post('dirty', {})
@@ -1539,6 +1757,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!img || !url) return img
     img.removeAttribute('srcset')
     img.removeAttribute('data-pw-logo-empty')
+    resetLogoImageLayout(img)
     img.setAttribute('referrerpolicy', 'no-referrer')
     img.setAttribute('decoding', 'async')
     img.style.objectFit = 'contain'
@@ -1561,7 +1780,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (el.setAttribute) el.setAttribute('data-pw-logo-slot', logoSlotKind(el))
       hideSiblingWordmarks(el)
       hideBrandLinkText(el.closest ? el.closest('a.pw-brand, a.pw-shop-brand, a[data-pw-logo-home]') : null)
-      return sealAppliedLogo(ensureLogoHomeLink(el) || el)
+      try { ensureLogoHomeLink(el) } catch (eHome) {}
+      return sealAppliedLogo(el) || el
     }
     if (hasClassToken(el, 'pw-shop-footer-name')) {
       var footHost = el.closest ? el.closest('.pw-shop-footer-brand') : el.parentNode
@@ -1580,7 +1800,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         }
         el.setAttribute('data-pw-logo-wordmark-hidden', '1')
         el.style.display = 'none'
-        return sealAppliedLogo(ensureLogoHomeLink(footImg) || footImg)
+        try { ensureLogoHomeLink(footImg) } catch (eFootHome) {}
+        return sealAppliedLogo(footImg) || footImg
       }
     }
     var kind = logoSlotKind(el)
@@ -1590,7 +1811,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       paintLogoSrc(hostImg, url)
       hideSiblingWordmarks(hostImg)
       hideBrandLinkText(isBrandLink(existing) ? existing : (hostImg.closest ? hostImg.closest('a.pw-brand, a.pw-shop-brand, a[data-pw-logo-home]') : null))
-      return sealAppliedLogo(ensureLogoHomeLink(hostImg) || hostImg)
+      try { ensureLogoHomeLink(hostImg) } catch (eHostHome) {}
+      return sealAppliedLogo(hostImg) || hostImg
     }
     var img = document.createElement('img')
     img.className = kind === 'footer' ? 'pw-shop-footer-logo pw-logo' : 'pw-logo pw-shop-logo'
@@ -1601,7 +1823,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (clsOf(el).indexOf('pw-shop-footer-brand') >= 0) {
       el.insertBefore(img, el.firstChild)
       hideSiblingWordmarks(img)
-      return sealAppliedLogo(ensureLogoHomeLink(img) || img)
+      try { ensureLogoHomeLink(img) } catch (eInsHome) {}
+      return sealAppliedLogo(img) || img
     }
     if (link) {
       if (isWordmarkEl(el) && el !== link) {
@@ -1613,15 +1836,23 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         link.insertBefore(img, link.firstChild)
       }
       hideBrandLinkText(link)
-      return sealAppliedLogo(ensureLogoHomeLink(img) || img)
+      try { ensureLogoHomeLink(img) } catch (eLinkHome) {}
+      return sealAppliedLogo(img) || img
     }
     if (el.parentNode) {
-      el.parentNode.insertBefore(img, el)
-      el.setAttribute('data-pw-logo-wordmark-hidden', '1')
-      el.style.display = 'none'
+      var headingEl = headingHostOf(el)
+      if (headingEl === el || (el.matches && el.matches('h1, h2, h3, [data-pw-el="heading"], [data-pw-info-title]'))) {
+        el.parentNode.insertBefore(img, el)
+      } else {
+        el.parentNode.insertBefore(img, el)
+        el.setAttribute('data-pw-logo-wordmark-hidden', '1')
+        el.style.display = 'none'
+      }
     }
     hideSiblingWordmarks(img)
-    return sealAppliedLogo(ensureLogoHomeLink(img) || img)
+    liftLogoOutOfHeading(img)
+    try { ensureLogoHomeLink(img) } catch (eNewHome) {}
+    return sealAppliedLogo(img) || img
   }
   function isBgImageEl(el) {
     if (!el || el.nodeType !== 1) return false
@@ -3929,32 +4160,497 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     el.style.setProperty('z-index', '2147483002', 'important')
     if (el.classList) el.classList.add('nanoai-ve-chrome-dup')
   }
-  function focusExistingChrome(el, kind) {
-    if (!el) return
+  function parkChromeAtViewportCenter(el) {
+    if (!el || !el.style) return
     restoreAllChromeDupCenters()
     resetVisualScroll()
     if (isChromeFloatEl(el)) {
       revealChromeFloat(el)
-      try { sizeChromeIcons(el) } catch (errSizeDup) {}
-      try { pinChromeIconBadges(el) } catch (errPinDup) {}
+      try { sizeChromeIcons(el) } catch (errSizePark) {}
+      try { pinChromeIconBadges(el) } catch (errPinPark) {}
+    }
+    markUserMoved(el)
+    var r
+    try { r = el.getBoundingClientRect() } catch (errBox) { r = null }
+    var w = Math.max(24, r && r.width ? r.width : 40)
+    var h = Math.max(24, r && r.height ? r.height : 40)
+    var viewW = window.innerWidth || document.documentElement.clientWidth || 390
+    var viewH = window.innerHeight || document.documentElement.clientHeight || 640
+    var z = isChromeFloatEl(el) ? '${PW_CHROME_FLOAT_Z_INDEX}' : '2147483002'
+    el.style.setProperty('position', 'fixed', 'important')
+    el.style.setProperty('left', Math.round((viewW - w) / 2) + 'px', 'important')
+    el.style.setProperty('top', Math.round((viewH - h) / 2) + 'px', 'important')
+    el.style.setProperty('right', 'auto', 'important')
+    el.style.setProperty('bottom', 'auto', 'important')
+    el.style.setProperty('transform', 'none', 'important')
+    el.style.setProperty('margin', '0', 'important')
+    el.style.setProperty('z-index', z, 'important')
+    if (isChromeFloatEl(el)) {
+      try { bakeChromeFloatPos(el) } catch (errBakePark) {}
     }
     selectEl(el)
-    resetVisualScroll()
-    liftChromeToViewportCenter(el)
-    try { positionAllHandles() } catch (errPosDup) {}
-    post('chromeDuplicate', { kind: kind || '' })
-    try { window.clearTimeout(window.__nanoaiVeDupCenterT) } catch (errClearT) {}
-    window.__nanoaiVeDupCenterT = window.setTimeout(function () {
-      try { restoreChromeDupCenter(el) } catch (errRest) {}
-      try { positionAllHandles() } catch (errPosBack) {}
-    }, 2200)
+    try { positionAllHandles() } catch (errPosPark) {}
+    post('dirty', {})
   }
-  function insertChromeBtn(kind, html, host) {
+  function focusExistingChrome(el) {
+    if (!el) return
+    parkChromeAtViewportCenter(el)
+  }
+  function bringExistingChromeToCenter(kind) {
+    var el = findExistingChrome(kind)
+    if (!el) return
+    focusExistingChrome(el)
+  }
+  function pageFooterEl(){
+    return document.querySelector('footer,.pw-footer,.pw-shop-footer')
+  }
+  function isAfterFooterEl(el){
+    var footer=pageFooterEl()
+    if(!el||!footer)return false
+    try{return !!(el.compareDocumentPosition(footer)&2)}catch(eAf){return false}
+  }
+  function findHeadingHostBeforeFooter(){
+    var heads=document.querySelectorAll('main h1, main [data-pw-el="heading"], main [data-pw-info-title], h1, [data-pw-el="heading"], [data-pw-info-title]')
+    for(var i=0;i<heads.length;i++){
+      var h=heads[i]
+      if(!h||h.nodeType!==1)continue
+      if(h.closest&&h.closest('header,footer,nav,.pw-header,.pw-shop-header,.pw-footer,.pw-shop-footer,.pw-bottom-nav,.pw-shop-bottom-nav'))continue
+      if(isAfterFooterEl(h))continue
+      var host=h.closest('article,section,[data-pw-region="content"],.pw-shop-info,div')
+      if(host&&!(host.closest&&host.closest('header,.pw-header,footer,.pw-footer,.pw-shop-footer')))return host
+    }
+    return null
+  }
+  function removeStrayInfoArticles(keep){
+    var footer=pageFooterEl()
+    var list=document.querySelectorAll('[data-pw-info-article],[data-pw-region="content"][data-pw-text-article],[data-pw-info-body]')
+    for(var i=0;i<list.length;i++){
+      var el=list[i]
+      if(!el||el===keep)continue
+      if(keep&&keep.contains&&keep.contains(el))continue
+      if(keep&&el.contains&&el.contains(keep))continue
+      if(el.closest&&el.closest('header,footer,nav,.pw-header,.pw-shop-header,.pw-footer,.pw-shop-footer,.pw-bottom-nav,.pw-shop-bottom-nav'))continue
+      var after=isAfterFooterEl(el)||(footer&&el===footer)
+      var extraArticle=el.getAttribute&&(el.getAttribute('data-pw-info-article')==='1'||el.getAttribute('data-pw-text-article')==='1')
+      if(after||(extraArticle&&keep&&el!==keep)){
+        try{if(el.parentNode)el.parentNode.removeChild(el)}catch(eRm){}
+      }
+    }
+  }
+  function placeInfoRegionBeforeFooter(region){
+    if(!region)return
+    var footer=pageFooterEl()
+    var host=document.querySelector('main')
+    if(host&&host.contains(region)&&!isAfterFooterEl(region))return
+    if(!host)host=footer&&footer.parentNode?footer.parentNode:document.body
+    if(!host)return
+    try{
+      if(footer&&(footer.parentNode===host||host.contains(footer))){
+        if(footer.parentNode===host)host.insertBefore(region,footer)
+        else footer.parentNode.insertBefore(region,footer)
+      }else host.appendChild(region)
+    }catch(ePl){}
+  }
+  function findBestInfoContentRegion(){
+    var list=document.querySelectorAll('main [data-pw-region="content"],main .pw-shop-info,main [data-pw-info-article],main [data-pw-text-article="1"],main [data-pw-info-body], [data-pw-region="content"],.pw-shop-info,[data-pw-info-article]')
+    var best=null
+    var bestScore=-1
+    for(var i=0;i<list.length;i++){
+      var el=list[i]
+      if(!el||el.nodeType!==1)continue
+      if(el.closest&&el.closest('header,footer,nav,.pw-header,.pw-shop-header,.pw-footer,.pw-shop-footer,.pw-bottom-nav,.pw-shop-bottom-nav'))continue
+      if(isAfterFooterEl(el))continue
+      var text=(el.textContent||'').replace(/\s+/g,' ').trim()
+      var score=Math.min(4000,text.length)
+      if(el.querySelector&&el.querySelector('h1,[data-pw-info-title],[data-pw-el="heading"]'))score+=800
+      if(el.querySelector&&el.querySelector('[data-pw-info-body],p,li'))score+=400
+      if(el.closest&&el.closest('main'))score+=2000
+      if(el.getAttribute&&el.getAttribute('data-pw-info-article')==='1')score+=200
+      if(el.getAttribute&&el.getAttribute('data-pw-text-article')==='1')score+=200
+      // Cột trên (sớm hơn trong DOM) thắng cột dưới
+      score+=Math.max(0,80-i)
+      if(text.length<8)score-=500
+      if(score>bestScore){bestScore=score;best=el}
+    }
+    if(best)return best
+    return findHeadingHostBeforeFooter()
+  }
+  function ensureInfoArticle(){
+    var region=findBestInfoContentRegion()
+    if(!region){
+      region=document.createElement('article')
+      region.setAttribute('data-pw-region','content')
+      placeInfoRegionBeforeFooter(region)
+    } else {
+      placeInfoRegionBeforeFooter(region)
+    }
+    region.setAttribute('data-pw-info-article','1')
+    region.setAttribute('data-pw-text-article','1')
+    var pageRoot=document.querySelector('[data-pw-page],body')
+    if(pageRoot&&!pageRoot.getAttribute('data-pw-page'))pageRoot.setAttribute('data-pw-page','info')
+    var h1=region.querySelector('h1,[data-pw-info-title],[data-pw-el="heading"]')
+    if(!h1){
+      h1=document.createElement('h1')
+      region.insertBefore(h1,region.firstChild)
+    }
+    h1.setAttribute('data-pw-info-title','1')
+    h1.setAttribute('data-pw-el','heading')
+    var body=region.querySelector('[data-pw-info-body]')
+    if(!body){
+      body=document.createElement('div')
+      body.setAttribute('data-pw-info-body','1')
+      body.setAttribute('data-pw-el','body')
+      var node=h1.nextSibling
+      while(node){
+        var nxt=node.nextSibling
+        if(node.nodeType===1){
+          var tag=String(node.tagName||'').toLowerCase()
+          var reg=node.getAttribute?String(node.getAttribute('data-pw-region')||''):''
+          if(tag==='header'||tag==='footer'||tag==='nav'||reg==='header'||reg==='footer'||reg==='nav'||reg==='topbar'){
+            node=nxt
+            continue
+          }
+          if(node.getAttribute&&(node.getAttribute('data-pw-seo-coach')==='1'||node.getAttribute('data-pw-article-editor')==='1')){
+            node=nxt
+            continue
+          }
+        }
+        body.appendChild(node)
+        node=nxt
+      }
+      if(h1.nextSibling)region.insertBefore(body,h1.nextSibling)
+      else region.appendChild(body)
+    }else{
+      var bodyText=(body.textContent||'').replace(/\s+/g,' ').trim()
+      if(bodyText.length<2){
+        var walk=region.firstChild
+        while(walk){
+          var walkNext=walk.nextSibling
+          if(walk===h1||walk===body){walk=walkNext;continue}
+          if(walk.nodeType===1&&walk.getAttribute&&(walk.getAttribute('data-pw-article-editor')==='1'||walk.getAttribute('data-pw-seo-coach')==='1')){
+            walk=walkNext
+            continue
+          }
+          if(walk.nodeType===1||(walk.nodeType===3&&String(walk.textContent||'').trim())){
+            body.appendChild(walk)
+          }
+          walk=walkNext
+        }
+      }
+    }
+    removeStrayInfoArticles(region)
+    return {region:region,h1:h1,body:body}
+  }
+  function pinInfoArticleEditor(editor, parts){
+    if(!editor||!parts||!parts.region)return
+    var region=parts.region
+    var h1=parts.h1
+    var body=parts.body
+    var mainHost=document.querySelector('main')
+    var footer=document.querySelector('footer,.pw-footer,.pw-shop-footer')
+    // Bài + thanh AI phải nằm trong main, trước chân trang
+    if(mainHost&&(!mainHost.contains(region)||(footer&&region.compareDocumentPosition&&(region.compareDocumentPosition(footer)&2)))){
+      try{
+        if(footer&&footer.parentNode===mainHost)mainHost.insertBefore(region,footer)
+        else mainHost.appendChild(region)
+      }catch(eMoveMain){}
+    }
+    if(h1&&h1.parentNode!==region)region.insertBefore(h1,region.firstChild)
+    if(body&&body.parentNode!==region)region.appendChild(body)
+    if(editor.parentNode!==region)region.appendChild(editor)
+    // Thứ tự: H1 → thanh AI gọn → đoạn văn
+    if(h1){
+      if(h1.nextSibling!==editor)region.insertBefore(editor,h1.nextSibling)
+    }else if(body){
+      region.insertBefore(editor,body)
+    }
+    if(body&&editor.nextSibling!==body)region.insertBefore(body,editor.nextSibling)
+  }
+  function removeInfoSeoCoach(){
+    var nodes=document.querySelectorAll('[data-pw-seo-coach="1"],[data-pw-article-editor="1"]')
+    for(var i=0;i<nodes.length;i++){
+      if(nodes[i]&&nodes[i].parentNode)nodes[i].parentNode.removeChild(nodes[i])
+    }
+  }
+  function snapshotInfoArticleForUndo(){
+    var parts=ensureInfoArticle()
+    if(!parts)return
+    infoArticleUndoHtml=parts.body?String(parts.body.innerHTML||''):''
+    infoArticleUndoMeta={
+      title:parts.h1?String(parts.h1.textContent||''):'',
+      seoDescription:parts.region?String(parts.region.getAttribute('data-pw-seo-description')||''):'',
+      seoKeywords:parts.region?String(parts.region.getAttribute('data-pw-seo-keywords')||''):'',
+      docTitle:document.title||''
+    }
+    updateInfoArticleUndoBtn()
+  }
+  function restoreInfoArticleUndo(){
+    if(!infoArticleUndoHtml&&!(infoArticleUndoMeta&&infoArticleUndoMeta.title))return
+    var parts=ensureInfoArticle()
+    if(!parts||!parts.body)return
+    parts.body.innerHTML=infoArticleUndoHtml||''
+    if(infoArticleUndoMeta){
+      if(infoArticleUndoMeta.title&&parts.h1)parts.h1.textContent=infoArticleUndoMeta.title
+      if(parts.region){
+        if(infoArticleUndoMeta.seoDescription)parts.region.setAttribute('data-pw-seo-description',infoArticleUndoMeta.seoDescription)
+        if(infoArticleUndoMeta.seoKeywords)parts.region.setAttribute('data-pw-seo-keywords',infoArticleUndoMeta.seoKeywords)
+      }
+      if(infoArticleUndoMeta.docTitle)document.title=infoArticleUndoMeta.docTitle
+    }
+    infoArticleUndoHtml=''
+    infoArticleUndoMeta=null
+    updateInfoArticleUndoBtn()
+    ensureInfoSeoCoach()
+    post('dirty',{})
+    refreshSelect()
+  }
+  function updateInfoArticleUndoBtn(){
+    var btn=document.querySelector('[data-pw-seo-undo]')
+    if(!btn)return
+    var can=Boolean(infoArticleUndoHtml||(infoArticleUndoMeta&&infoArticleUndoMeta.title))
+    btn.disabled=!can
+    btn.style.opacity=can?'1':'0.45'
+  }
+  function pickArticleTextTarget(){
+    var parts=ensureInfoArticle()
+    if(!parts||!parts.body)return null
+    if(selected&&parts.body.contains(selected)&&isTextEl(selected))return selected
+    if(selected&&parts.h1&&(selected===parts.h1||parts.h1.contains(selected)))return parts.h1
+    var p=parts.body.querySelector('p,[data-pw-el="body"],h2,h3,li')
+    return p||parts.h1||parts.body
+  }
+  function setInfoSeoBusy(busy){
+    var editor=document.querySelector('[data-pw-article-editor="1"],[data-pw-seo-coach="1"]')
+    if(!editor)return
+    var btn=editor.querySelector('[data-pw-seo-rewrite]')
+    var ta=editor.querySelector('textarea')
+    var undo=editor.querySelector('[data-pw-seo-undo]')
+    var imgBtn=editor.querySelector('[data-pw-seo-insert-image]')
+    if(btn){
+      btn.disabled=!!busy
+      btn.textContent=busy?(COPY.infoSeoBusy||'…'):(COPY.infoSeoRewrite||'AI')
+    }
+    if(ta)ta.disabled=!!busy
+    if(undo)undo.disabled=!!busy||!(infoArticleUndoHtml||(infoArticleUndoMeta&&infoArticleUndoMeta.title))
+    if(imgBtn)imgBtn.disabled=!!busy
+  }
+  function forceShowInfoArticleEditor(editor){
+    if(!editor||!editor.style)return
+    try{
+      editor.style.setProperty('display','block','important')
+      editor.style.setProperty('visibility','visible','important')
+      editor.style.setProperty('height','auto','important')
+      editor.style.setProperty('max-height','none','important')
+      editor.style.setProperty('overflow','visible','important')
+      editor.style.setProperty('opacity','1','important')
+      editor.style.setProperty('margin','6px 0 8px','important')
+      editor.style.setProperty('padding','6px 8px','important')
+      editor.style.setProperty('border','1px solid #e2e8f0','important')
+      editor.style.setProperty('background','#f8fafc','important')
+      editor.style.setProperty('color','#0f172a','important')
+      editor.style.setProperty('max-width','720px','important')
+      editor.style.setProperty('width','100%','important')
+      editor.style.setProperty('box-sizing','border-box','important')
+      editor.style.setProperty('border-radius','8px','important')
+      editor.style.setProperty('position','relative','important')
+      editor.style.setProperty('z-index','5','important')
+      editor.style.setProperty('box-shadow','none','important')
+    }catch(eShow){}
+  }
+  function ensureInfoSeoCoach(){
+    var parts=ensureInfoArticle()
+    if(!parts)return null
+    var region=parts.region
+    var editor=document.querySelector('[data-pw-article-editor="1"]')
+    if(!editor){
+      removeInfoSeoCoach()
+      editor=document.createElement('div')
+      editor.setAttribute('data-pw-article-editor','1')
+      editor.setAttribute('data-pw-seo-coach','1')
+      editor.setAttribute('data-nanoai-ve-ignore','1')
+      editor.setAttribute('role','region')
+      editor.setAttribute('aria-label',COPY.infoSeoTitle||'SEO')
+      editor.className='nanoai-ve-ignore pw-article-editor'
+      var row=document.createElement('div')
+      row.className='pw-article-editor-tools'
+      var title=document.createElement('span')
+      title.className='pw-seo-coach-title'
+      title.textContent=COPY.infoSeoTitle||'SEO'
+      title.setAttribute('title',COPY.infoSeoHint||'')
+      var btnAi=document.createElement('button')
+      btnAi.type='button'
+      btnAi.setAttribute('data-pw-seo-rewrite','1')
+      btnAi.textContent=COPY.infoSeoRewrite||'AI'
+      btnAi.addEventListener('click',function(ev){
+        try{ev.preventDefault();ev.stopPropagation()}catch(eBtn){}
+        var notesEl=editor.querySelector('textarea')
+        var notes=notesEl?String(notesEl.value||''):''
+        region.setAttribute('data-pw-seo-notes',notes)
+        snapshotInfoArticleForUndo()
+        post('infoAiRewrite',{notes:notes})
+      })
+      var btnUndo=document.createElement('button')
+      btnUndo.type='button'
+      btnUndo.setAttribute('data-pw-seo-undo','1')
+      btnUndo.className='pw-article-editor-secondary'
+      btnUndo.textContent=COPY.infoSeoUndo||'Undo'
+      btnUndo.addEventListener('click',function(ev){
+        try{ev.preventDefault();ev.stopPropagation()}catch(eU){}
+        restoreInfoArticleUndo()
+      })
+      var btnImg=document.createElement('button')
+      btnImg.type='button'
+      btnImg.setAttribute('data-pw-seo-insert-image','1')
+      btnImg.className='pw-article-editor-secondary'
+      btnImg.textContent=COPY.infoSeoInsertImage||'Image'
+      btnImg.addEventListener('click',function(ev){
+        try{ev.preventDefault();ev.stopPropagation()}catch(eI){}
+        post('infoArticleInsertImage',{})
+      })
+      var colorWrap=document.createElement('label')
+      colorWrap.className='pw-article-editor-field'
+      colorWrap.appendChild(document.createTextNode((COPY.infoSeoColor||'Color')+' '))
+      var colorInput=document.createElement('input')
+      colorInput.type='color'
+      colorInput.value='#111827'
+      colorInput.addEventListener('input',function(){
+        var target=pickArticleTextTarget()
+        if(!target)return
+        if(selected!==target)selectEl(target)
+        target.style.color=colorInput.value
+        post('dirty',{})
+        refreshSelect()
+      })
+      colorWrap.appendChild(colorInput)
+      var sizeWrap=document.createElement('label')
+      sizeWrap.className='pw-article-editor-field'
+      sizeWrap.appendChild(document.createTextNode((COPY.infoSeoSize||'Size')+' '))
+      var sizeInput=document.createElement('input')
+      sizeInput.type='range'
+      sizeInput.min='12'
+      sizeInput.max='48'
+      sizeInput.value='16'
+      sizeInput.addEventListener('input',function(){
+        var target=pickArticleTextTarget()
+        if(!target)return
+        if(selected!==target)selectEl(target)
+        target.style.fontSize=String(sizeInput.value)+'px'
+        post('dirty',{})
+        refreshSelect()
+      })
+      sizeWrap.appendChild(sizeInput)
+      var btnMore=document.createElement('button')
+      btnMore.type='button'
+      btnMore.className='pw-article-editor-secondary'
+      btnMore.setAttribute('data-pw-seo-notes-toggle','1')
+      btnMore.textContent=COPY.infoSeoMore||'Notes'
+      var more=document.createElement('div')
+      more.className='pw-article-editor-more'
+      more.setAttribute('data-pw-seo-notes-panel','1')
+      more.hidden=true
+      var ta=document.createElement('textarea')
+      ta.setAttribute('rows','2')
+      ta.setAttribute('placeholder',COPY.infoSeoPlaceholder||'')
+      ta.value=String(region.getAttribute('data-pw-seo-notes')||'')
+      ta.addEventListener('input',function(){
+        region.setAttribute('data-pw-seo-notes',String(ta.value||''))
+        post('infoSeoNotes',{notes:String(ta.value||'')})
+      })
+      more.appendChild(ta)
+      btnMore.addEventListener('click',function(ev){
+        try{ev.preventDefault();ev.stopPropagation()}catch(eM){}
+        var open=!more.hidden
+        more.hidden=open
+        btnMore.textContent=open?(COPY.infoSeoMore||'Notes'):(COPY.infoSeoLess||'Less')
+        if(!open){try{ta.focus()}catch(eF){}}
+      })
+      row.appendChild(title)
+      row.appendChild(btnAi)
+      row.appendChild(btnUndo)
+      row.appendChild(btnImg)
+      row.appendChild(colorWrap)
+      row.appendChild(sizeWrap)
+      row.appendChild(btnMore)
+      editor.appendChild(row)
+      editor.appendChild(more)
+    }else{
+      var ta2=editor.querySelector('textarea')
+      if(ta2&&!String(ta2.value||'').trim()){
+        ta2.value=String(region.getAttribute('data-pw-seo-notes')||'')
+      }
+      if(editor.querySelector('.pw-article-editor-head')||editor.querySelector('.pw-seo-coach-hint')||editor.querySelector('.pw-seo-coach-sync')){
+        try{if(editor.parentNode)editor.parentNode.removeChild(editor)}catch(eKill){}
+        return ensureInfoSeoCoach()
+      }
+    }
+    pinInfoArticleEditor(editor, parts)
+    forceShowInfoArticleEditor(editor)
+    if(parts.body){
+      parts.body.setAttribute('data-pw-article-box','1')
+    }
+    updateInfoArticleUndoBtn()
+    post('infoSeoNotes',{notes:String(region.getAttribute('data-pw-seo-notes')||'')})
+    return editor
+  }
+  function setInfoPageContent(d){
+    d=d||{}
+    var parts=ensureInfoArticle()
+    if(!parts)return
+    var title=String(d.title||'').trim()
+    if(title)parts.h1.textContent=title
+    var paras=Array.isArray(d.paragraphs)?d.paragraphs:[]
+    if(paras.length){
+      var html=''
+      for(var i=0;i<paras.length;i++){
+        var t=String(paras[i]||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        if(t)html+='<p data-pw-el="body">'+t+'</p>'
+      }
+      if(html)parts.body.innerHTML=html
+    }
+    var seoTitle=String(d.seoTitle||title||'').trim()
+    var seoDesc=String(d.seoDescription||'').trim()
+    if(seoTitle){
+      var titleEl=document.querySelector('title')
+      if(titleEl)titleEl.textContent=seoTitle
+    }
+    if(seoDesc){
+      parts.region.setAttribute('data-pw-seo-description',seoDesc)
+      var meta=document.querySelector('meta[name="description"]')
+      if(!meta){
+        meta=document.createElement('meta')
+        meta.setAttribute('name','description')
+        if(document.head)document.head.appendChild(meta)
+      }
+      meta.setAttribute('content',seoDesc)
+    }
+    var keywords=Array.isArray(d.keywords)?d.keywords:[]
+    if(keywords.length){
+      var kw=keywords.map(function(k){return String(k||'').trim()}).filter(Boolean).join(', ')
+      if(kw){
+        parts.region.setAttribute('data-pw-seo-keywords',kw)
+        var metaKw=document.querySelector('meta[name="keywords"]')
+        if(!metaKw){
+          metaKw=document.createElement('meta')
+          metaKw.setAttribute('name','keywords')
+          if(document.head)document.head.appendChild(metaKw)
+        }
+        metaKw.setAttribute('content',kw)
+      }
+    }
+    ensureInfoSeoCoach()
+    updateInfoArticleUndoBtn()
+    removeStrayInfoArticles(parts.region)
+    post('dirty',{})
+    refreshSelect()
+  }
+  function insertChromeBtn(kind, html, host, opts) {
     var k = String(kind || '').replace(/[^a-z0-9-]/g, '')
     if (!k || !html) return
+    var force = !!(opts && (opts.force || opts.atCenter))
+    var atCenter = !!(opts && opts.atCenter)
     var existingNow = findExistingChrome(k)
-    if (existingNow) {
-      focusExistingChrome(existingNow, k)
+    if (existingNow && !force) {
+      post('chromeDuplicateAsk', { kind: k })
       return
     }
     var wrap = document.createElement('div')
@@ -4026,7 +4722,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       }
     }
     var href = node.getAttribute ? (node.getAttribute('href') || '') : ''
-    if (place === 'topbar' && href) {
+    if (!force && place === 'topbar' && href) {
       var links = scopedQueryAll('.pw-topbar a, .pw-topbar-inner a')
       for (var i = 0; i < links.length; i++) {
         var a = links[i]
@@ -4047,8 +4743,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       sizeChromeIcons(node)
       pinChromeIconBadges(node)
       if (k === 'topup' && node.classList) node.classList.add('pw-chrome-topup-on')
-      selectEl(node)
-      post('dirty', {})
+      if (atCenter) parkChromeAtViewportCenter(node)
+      else {
+        selectEl(node)
+        post('dirty', {})
+      }
       return
     }
     if (k === 'search') {
@@ -4078,8 +4777,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     if (k === 'chat') applyChatLogoToChromeBtn(node, chatPrepLogoUrl)
     try { pwApplyDemoChromeCountBadges(document) } catch (errDemoBtn) {}
-    selectEl(node)
-    post('dirty', {})
+    if (atCenter) parkChromeAtViewportCenter(node)
+    else {
+      selectEl(node)
+      post('dirty', {})
+    }
     try { document.dispatchEvent(new CustomEvent('pw-cart-updated')) } catch (err) {}
   }
   function isShown(el) {
@@ -4522,13 +5224,27 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     refreshSelect()
   }
   function insertText() {
+    if (infoPageActive) {
+      var parts = ensureInfoArticle()
+      if (parts && parts.body) {
+        var label = (COPY && COPY.addTextPlaceholder) ? String(COPY.addTextPlaceholder) : 'Text'
+        var p = document.createElement('p')
+        p.setAttribute('data-pw-el', 'body')
+        p.setAttribute('data-pw-edit', '1')
+        p.textContent = label
+        parts.body.appendChild(p)
+        selectEl(p)
+        post('dirty', {})
+        return
+      }
+    }
     var host = insertTextHost()
     if (!host) return
-    var label = (COPY && COPY.addTextPlaceholder) ? String(COPY.addTextPlaceholder) : 'Text'
+    var label2 = (COPY && COPY.addTextPlaceholder) ? String(COPY.addTextPlaceholder) : 'Text'
     var node = document.createElement('p')
     node.setAttribute('data-pw-added-text', '1')
     node.setAttribute('data-pw-edit', '1')
-    node.textContent = label
+    node.textContent = label2
     node.style.display = 'inline-block'
     node.style.width = 'auto'
     node.style.maxWidth = '100%'
@@ -4541,6 +5257,30 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     node.style.color = 'inherit'
     placeOverlayText(node, host)
     selectEl(node)
+    post('dirty', {})
+  }
+  function insertArticleImage(url) {
+    var src = String(url || '').trim()
+    if (!src) return
+    var parts = ensureInfoArticle()
+    if (!parts || !parts.body) return
+    var fig = document.createElement('figure')
+    fig.setAttribute('data-pw-el', 'image')
+    fig.setAttribute('data-pw-info-image', '1')
+    fig.style.margin = '12px 0'
+    fig.style.maxWidth = '100%'
+    var img = document.createElement('img')
+    img.setAttribute('data-pw-el', 'image')
+    img.setAttribute('src', src)
+    img.setAttribute('alt', '')
+    img.style.display = 'block'
+    img.style.width = '100%'
+    img.style.maxWidth = '720px'
+    img.style.height = 'auto'
+    img.style.borderRadius = '8px'
+    fig.appendChild(img)
+    parts.body.appendChild(fig)
+    selectEl(img)
     post('dirty', {})
   }
   function isTinyBannerHost(el) {
@@ -5389,12 +6129,20 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function hrefOf(el) {
     if (!el) return ''
-    if (!canSetHrefEl(el)) return ''
     if (el.tagName && el.tagName.toLowerCase() === 'a') return el.getAttribute('href') || ''
     var wrap = el.closest ? el.closest('a') : null
     return wrap ? (wrap.getAttribute('href') || '') : ''
   }
   function shopHomeHref() {
+    try {
+      var path = String(location.pathname || '')
+      if (path.indexOf('/site/') === 0) {
+        var rest2 = path.slice(6)
+        var cut2 = rest2.search(/[/?#]/)
+        var slug2 = cut2 < 0 ? rest2 : rest2.slice(0, cut2)
+        if (slug2) return '/site/' + slug2
+      }
+    } catch (e) {}
     var brand = document.querySelector('a.pw-brand[href], a[data-pw-chrome-btn="home"][href], a[data-pw-logo-home][href]')
     if (brand) {
       var brandHref = String(brand.getAttribute('href') || '').trim()
@@ -5410,40 +6158,88 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         if (slug) return '/site/' + slug
       }
     }
-    try {
-      var path = String(location.pathname || '')
-      if (path.indexOf('/site/') === 0) {
-        var rest2 = path.slice(6)
-        var cut2 = rest2.indexOf('/')
-        var slug2 = cut2 < 0 ? rest2 : rest2.slice(0, cut2)
-        if (slug2) return '/site/' + slug2
-      }
-    } catch (e) {}
     return '/'
   }
   function isEmptyHref(h) {
     var s = String(h || '').trim()
     return !s || s === '#' || s.toLowerCase().indexOf('javascript:') === 0
   }
+  function unwrapContentsLink(a) {
+    if (!a || !a.parentNode) return
+    while (a.firstChild) a.parentNode.insertBefore(a.firstChild, a)
+    a.parentNode.removeChild(a)
+  }
+  function logoHomeUnit(el) {
+    if (!el || el.nodeType !== 1) return null
+    if (el.getAttribute && (el.getAttribute('data-pw-logo-float') === '1' || el.getAttribute('data-pw-logo-home') === '1' || el.getAttribute('data-pw-logo-frame') === '1')) return el
+    if (hasClassToken(el, 'pw-logo-frame')) return el
+    var frame = logoFrameOf(el)
+    if (frame) return frame
+    return (isImgEl(el) ? el : (el.querySelector ? el.querySelector('img.pw-logo, img.pw-shop-logo, img.pw-shop-footer-logo, img.site-logo, [data-pw-logo-added]') : null)) || el
+  }
   function ensureLogoHomeLink(el) {
     if (!el || el.nodeType !== 1) return el
-    var img = isImgEl(el) ? el : (el.querySelector ? el.querySelector('img.pw-logo, img.pw-shop-logo, img.pw-shop-footer-logo, img.site-logo, [data-pw-logo-added]') : null)
-    var target = img || el
-    var existing = target.closest ? target.closest('a') : null
+    var unit = logoHomeUnit(el)
+    if (!unit) return el
     var home = shopHomeHref()
-    if (existing) {
-      if (isEmptyHref(existing.getAttribute('href'))) existing.setAttribute('href', home)
-      return target
+    var tag = (unit.tagName || '').toLowerCase()
+    if (tag === 'a') {
+      unit.setAttribute('href', home)
+      unit.setAttribute('data-pw-logo-home', '1')
+      return unit
     }
+    var existing = unit.closest ? unit.closest('a') : null
+    var floated = unit.getAttribute && unit.getAttribute('data-pw-logo-float') === '1'
+    if (existing && existing !== unit) {
+      var disp = existing.style ? String(existing.style.display || '').toLowerCase() : ''
+      if (disp === 'contents') unwrapContentsLink(existing)
+      else if (floated) {
+        if (existing.parentNode) existing.parentNode.insertBefore(unit, existing.nextSibling)
+        if (isEmptyHref(existing.getAttribute('href'))) existing.setAttribute('href', home)
+      } else {
+        existing.setAttribute('href', home)
+        if (isBrandLink(existing) || (existing.getAttribute && existing.getAttribute('data-pw-logo-home') === '1')) {
+          existing.setAttribute('data-pw-logo-home', '1')
+        }
+        return existing
+      }
+    }
+    if (!unit.parentNode) return unit
     var link = document.createElement('a')
     link.className = 'pw-brand'
     link.setAttribute('href', home)
     link.setAttribute('data-pw-logo-home', '1')
-    link.style.display = 'contents'
-    if (!target.parentNode) return target
-    target.parentNode.insertBefore(link, target)
-    link.appendChild(target)
-    return target
+    unit.parentNode.insertBefore(link, unit)
+    if (floated) {
+      link.setAttribute('data-pw-logo-float', '1')
+      var z = unit.getAttribute('data-pw-z')
+      var scene = unit.getAttribute(SCENE.attr)
+      if (z) link.setAttribute('data-pw-z', z)
+      if (scene) link.setAttribute(SCENE.attr, scene)
+      link.style.cssText = unit.style.cssText
+      unit.removeAttribute('data-pw-logo-float')
+      unit.style.setProperty('position', 'relative', 'important')
+      unit.style.setProperty('left', '0', 'important')
+      unit.style.setProperty('top', '0', 'important')
+      // Keep frame size in px (copied to link above). Never width/height 100% — parseFloat('100%') === 100.
+      unit.style.removeProperty('z-index')
+    }
+    link.appendChild(unit)
+    liftLogoOutOfHeading(link)
+    return link
+  }
+  function bakeHeaderLogoHomeLinks(scope) {
+    var root = scope || document
+    if (!root.querySelectorAll) return
+    var nodes = root.querySelectorAll('[data-pw-logo-float="1"], .pw-logo-frame, [data-pw-logo-frame="1"], img.pw-logo, img.pw-shop-logo, [data-pw-logo-added]')
+    var seen = typeof WeakSet === 'function' ? new WeakSet() : null
+    var i
+    for (i = 0; i < nodes.length; i++) {
+      var unit = headerLogoUnit(nodes[i]) || nodes[i]
+      if (!unit) continue
+      if (seen) { if (seen.has(unit)) continue; seen.add(unit) }
+      ensureLogoHomeLink(unit)
+    }
   }
   function canDragEl(el) {
     if (!el || el === document.body || el === document.documentElement) return false
@@ -6221,13 +7017,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     img.style.opacity = '1'
     img.style.visibility = 'visible'
     img.style.display = 'block'
-    applyDefaultZ(img, 160)
+    applyDefaultZ(img, ${PW_SCENE_LOGO_Z})
     img.removeAttribute('data-pw-logo-empty')
     var frame = logoFrameOf(img)
     if (frame) {
       frame.style.opacity = '1'
       frame.style.visibility = 'visible'
-      applyDefaultZ(frame, 160)
+      applyDefaultZ(frame, ${PW_SCENE_LOGO_Z})
       frame.style.overflow = 'visible'
     }
   }
@@ -6276,7 +7072,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       }
     }
     if (reuse) {
-      var reuseSize = clampLogoBox(box.w, box.h, isInHeader(reuse))
+      var reuseSize = isStretchedLogoBox(box.w, box.h, isInHeader(reuse))
+        ? clampLogoStartBox(box.w, box.h, isInHeader(reuse))
+        : clampLogoBox(box.w, box.h, isInHeader(reuse))
       var reuseHost = ensureLogoFrame(reuse) || logoFrameOf(reuse) || reuse
       applyLogoFrameSize(reuseHost, reuseSize.w, reuseSize.h)
       reuse.style.width = reuseSize.w + 'px'
@@ -6296,7 +7094,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (place.inHeader && place.header) {
       var existingHeader = place.header.querySelector('img.pw-logo, img.pw-shop-logo, [data-pw-logo-added="1"]')
       if (isImgEl(existingHeader)) {
-        var existSize = clampLogoBox(box.w, box.h, true)
+        var existSize = isStretchedLogoBox(box.w, box.h, true)
+          ? clampLogoStartBox(box.w, box.h, true)
+          : clampLogoBox(box.w, box.h, true)
         var existHost = ensureLogoFrame(existingHeader) || logoFrameOf(existingHeader) || existingHeader
         applyLogoFrameSize(existHost, existSize.w, existSize.h)
         existingHeader.setAttribute('data-pw-logo-added', '1')
@@ -6323,14 +7123,14 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     img.setAttribute('data-pw-device', pwStampDevice())
     img.setAttribute('alt', 'logo')
     img.setAttribute('src', 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7')
-    var slotSize = clampLogoBox(box.w, box.h, place.inHeader)
+    var slotSize = clampLogoStartBox(box.w, box.h, place.inHeader)
     img.style.width = slotSize.w + 'px'
     img.style.height = slotSize.h + 'px'
     img.style.objectFit = 'contain'
     img.style.backgroundColor = bg || 'transparent'
     img.style.zIndex = '160'
     host.appendChild(img)
-    ensureLogoHomeLink(img)
+    liftLogoOutOfHeading(ensureLogoHomeLink(img) || img)
     var frame = ensureLogoFrame(img)
     if (frame) applyLogoFrameSize(frame, slotSize.w, slotSize.h)
     revealHeaderLogo(img)
@@ -6523,15 +7323,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function positionMoveHandle(el, h) {
     var r = el.getBoundingClientRect()
     h.style.position = 'fixed'
-    h.style.left = Math.max(4, r.left - 8) + 'px'
-    h.style.top = Math.max(4, r.top - 8) + 'px'
+    h.style.left = Math.max(4, r.left - 6) + 'px'
+    h.style.top = Math.max(4, r.top - 6) + 'px'
     h.style.zIndex = '2147483646'
   }
   function positionDeleteHandle(el, h) {
     var r = el.getBoundingClientRect()
     h.style.position = 'fixed'
-    h.style.left = Math.max(4, Math.min((window.innerWidth || 360) - 22, r.right - 9)) + 'px'
-    h.style.top = Math.max(4, r.top - 9) + 'px'
+    h.style.left = Math.max(4, Math.min((window.innerWidth || 360) - 16, r.right - 7)) + 'px'
+    h.style.top = Math.max(4, r.top - 7) + 'px'
     h.style.zIndex = '2147483646'
   }
   function positionAllHandles() {
@@ -6628,7 +7428,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     h.className = 'nanoai-ve-move-handle nanoai-ve-ignore'
     h.setAttribute('data-nanoai-ve-ignore', '1')
     h.setAttribute('aria-label', 'Move')
-    h.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>'
+    h.innerHTML = '<svg viewBox="0 0 24 24" width="10" height="10" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>'
     document.body.appendChild(h)
     positionMoveHandle(logoMoveEl(el) || el, h)
     h.addEventListener('mousedown', function (e) {
@@ -6854,6 +7654,17 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function selectEl(el, ev) {
     if (!el || el === document.documentElement || el === document.body) return
+    if (isLogoTarget(el) || isLogoFrame(el) || isLogoImg(el)) {
+      try {
+        liftLogoOutOfHeading(el)
+        var selFrame = logoFrameOf(el) || (isLogoFrame(el) ? el : null)
+        if (selFrame && selFrame.getAttribute('data-pw-logo-user-size') !== '1') {
+          var selSize = readLogoBoxSize(selFrame)
+          applyLogoFrameSize(selFrame, selSize.w || 72, selSize.h || 28)
+        }
+        el = logoFrameOf(el) || el
+      } catch (errSelLogo) {}
+    }
     var same = selected === el
     if (!same) clearSelection()
     else clearForeignEditorMarks(el)
@@ -6905,6 +7716,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     syncLogoButtons()
     syncLogoLayerVisual()
     try { syncBannerPhotoEdit() } catch (errPhoto2) {}
+    payload.picked = true
     post('select', payload)
   }
   function pointInEl(el, x, y) {
@@ -7005,6 +7817,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (chatAt) return chatAt
     var chromeAt = headerChromeAtPoint(x, y)
     if (chromeAt) return chromeAt
+    var logoAt = logoUnitAtPoint(x, y)
+    if (logoAt) {
+      liftLogoOutOfHeading(logoAt)
+      return logoFrameOf(logoAt) || logoAt
+    }
     var el = start
     if (el && el.nodeType !== 1) el = el.parentElement
     if (isBrandClusterEl(el) || isShopRegionHost(el)) {
@@ -7048,7 +7865,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (walk.getAttribute && walk.getAttribute('data-pw-logo-added') === '1') return walk
       if (walk.getAttribute && walk.getAttribute('data-pw-logo-home') === '1') {
         var homeLogo = walk.querySelector ? walk.querySelector('img.pw-logo, img.pw-shop-logo, img.pw-shop-footer-logo, img.site-logo, [data-pw-logo-added]') : null
-        if (homeLogo) return homeLogo
+        if (homeLogo) return logoFrameOf(homeLogo) || homeLogo
       }
       if (isLogoFrame(walk)) return logoImgOf(walk) || walk
       if (isLogoImg(walk)) return walk
@@ -7281,6 +8098,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     e.preventDefault()
     e.stopPropagation()
+    if (e.stopImmediatePropagation) e.stopImmediatePropagation()
     if (isLockedCatalogEl(t) || isProductCardEl(t)) {
       clearSelection()
       post('deselect', {})
@@ -7292,6 +8110,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     if (found) {
       if (selected === found && (isChromeBtn(found) || isHeaderWidget(found) || isAddedChrome(found))) {
+        var again = buildPayload(found)
+        again.picked = true
+        post('select', again)
         return
       }
       if (isLogoTarget(found)) {
@@ -7411,10 +8232,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         fh = Math.max(18, Math.round(fh))
         frame = logoFrameOf(selected) || (zoomImg && logoFrameOf(zoomImg)) || frame
         var sizeEl = (isInHeader(selected) && headerLogoUnit(selected)) || frame || selected
-        if (frame) applyLogoFrameSize(frame, fw, fh)
+        if (frame) applyLogoFrameSize(frame, fw, fh, true)
         else {
           sizeEl.style.setProperty('width', fw + 'px', 'important')
           sizeEl.style.setProperty('height', fh + 'px', 'important')
+          if (sizeEl.setAttribute) sizeEl.setAttribute('data-pw-logo-user-size', '1')
         }
         if (dir.indexOf('w') >= 0) sizeEl.style.setProperty('left', Math.round(resize.startLeft + (resize.startW - fw)) + 'px', 'important')
         if (dir.indexOf('n') >= 0) sizeEl.style.setProperty('top', Math.round(resize.startTop + (resize.startH - fh)) + 'px', 'important')
@@ -7558,9 +8380,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
   }
   function injectStyles() {
-    if (document.getElementById('nanoai-visual-editor-styles')) return
-    var s = document.createElement('style')
-    s.id = 'nanoai-visual-editor-styles'
+    var s = document.getElementById('nanoai-visual-editor-styles')
+    if (!s) {
+      s = document.createElement('style')
+      s.id = 'nanoai-visual-editor-styles'
+      if (document.head) document.head.appendChild(s)
+      else document.documentElement.appendChild(s)
+    }
     s.textContent = [
       '.nanoai-ve-active{cursor:crosshair!important}',
       '.nanoai-ve-logo-draw,.nanoai-ve-logo-draw *{cursor:crosshair!important}',
@@ -7577,6 +8403,22 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-highlight[data-pw-region="banner"],.nanoai-ve-hover[data-pw-region="banner"]{outline:2px dashed #2563eb!important}',
       '.nanoai-ve-highlight[data-pw-move-block="1"],.nanoai-ve-hover[data-pw-move-block="1"]{outline:2px dashed #2563eb!important}',
       '[contenteditable=true]{cursor:text!important;min-width:0;outline:none!important}',
+      '.nanoai-ve-active [data-pw-seo-coach="1"],.nanoai-ve-active .pw-seo-coach,.nanoai-ve-active [data-pw-article-editor="1"],.nanoai-ve-active .pw-article-editor{display:block!important;visibility:visible!important;height:auto!important;max-height:none!important;overflow:visible!important;opacity:1!important;margin:6px 0 8px!important;padding:6px 8px!important;border:1px solid #e2e8f0!important;border-radius:8px!important;background:#f8fafc!important;color:#0f172a!important;max-width:720px!important;width:100%!important;box-sizing:border-box!important;position:relative!important;z-index:5!important;box-shadow:none!important}',
+      '.nanoai-ve-active [data-pw-article-box="1"],.nanoai-ve-active [data-pw-info-body="1"]{display:block!important;outline:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;max-width:720px;width:100%;box-sizing:border-box;min-height:0;background:#fff}',
+      '[data-pw-info-article="1"],[data-pw-region="content"][data-pw-text-article="1"]{max-width:720px}',
+      '.pw-article-editor-tools{display:flex!important;flex-wrap:wrap;align-items:center;gap:6px;margin:0}',
+      '.pw-seo-coach-title{margin:0 4px 0 0;font-size:11px;font-weight:700;color:#334155;white-space:nowrap}',
+      '.pw-article-editor-tools button{appearance:none;border:0;border-radius:6px;padding:5px 9px;background:#0f172a;color:#fff;font-size:11px;font-weight:600;cursor:pointer;line-height:1.2}',
+      '.pw-article-editor-tools button.pw-article-editor-secondary{background:#fff;color:#0f172a;border:1px solid #cbd5e1}',
+      '.pw-article-editor-tools button:disabled{opacity:.45;cursor:not-allowed}',
+      '.pw-article-editor-field{display:inline-flex;align-items:center;gap:3px;font-size:10px;color:#64748b}',
+      '.pw-article-editor-field input[type="color"]{width:22px;height:20px;padding:0;border:1px solid #cbd5e1;border-radius:4px;background:#fff}',
+      '.pw-article-editor-field input[type="range"]{width:72px}',
+      '.pw-article-editor-more{margin-top:6px}',
+      '.pw-article-editor textarea,.pw-seo-coach textarea{display:block!important;width:100%;min-height:40px;margin:0;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:11px;line-height:1.4;resize:vertical;box-sizing:border-box;background:#fff;color:#0f172a}',
+      '.pw-seo-coach-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}',
+      '.pw-seo-coach-row button{appearance:none;border:0;border-radius:8px;padding:8px 12px;background:#0f172a;color:#fff;font-size:12px;font-weight:600;cursor:pointer}',
+      '.pw-seo-coach-row button:disabled{opacity:.6;cursor:wait}',
       '[contenteditable=true].nanoai-ve-highlight,[contenteditable=true].nanoai-ve-hover{outline:1px dashed #2563eb!important;outline-offset:0!important}',
       '.nanoai-ve-highlight.pw-btn,.nanoai-ve-highlight[data-pw-added-btn],.nanoai-ve-hover.pw-btn,.nanoai-ve-hover[data-pw-added-btn]{outline:1px dashed #2563eb!important;outline-offset:0!important}',
       '[data-pw-added-text]:not([data-pw-z]){display:inline-block!important;width:auto!important;max-width:100%;margin:0;padding:0;line-height:1.25;white-space:nowrap;z-index:250}',
@@ -7598,14 +8440,14 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-active img.pw-logo.nanoai-ve-highlight,.nanoai-ve-active img.pw-shop-logo.nanoai-ve-highlight,.nanoai-ve-active img.pw-shop-footer-logo.nanoai-ve-highlight,.nanoai-ve-active [data-pw-logo-added].nanoai-ve-highlight{outline:2px solid #2563eb!important;outline-offset:1px!important;box-shadow:none!important;cursor:grab!important}',
       '.nanoai-ve-active [data-pw-logo-frame="1"].nanoai-ve-highlight,.nanoai-ve-active .pw-logo-frame.nanoai-ve-highlight{outline:2px solid #fff!important;outline-offset:0!important;box-shadow:0 0 0 2px #2563eb!important;cursor:grab!important;overflow:hidden!important}',
       '.nanoai-ve-active [data-pw-logo-frame="1"].nanoai-ve-highlight img,.nanoai-ve-active .pw-logo-frame.nanoai-ve-highlight img{cursor:grab!important}',
-      '.nanoai-ve-move-handle{box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:center!important;flex:0 0 28px!important;width:28px!important;height:28px!important;min-width:28px!important;max-width:28px!important;min-height:28px!important;max-height:28px!important;padding:0!important;border:2px solid #fff!important;border-radius:8px!important;background:#2563eb!important;color:#fff!important;cursor:grab!important;box-shadow:0 1px 4px rgba(0,0,0,.35)!important;appearance:none!important;-webkit-appearance:none!important;line-height:1!important;transform:none!important}',
-      '.nanoai-ve-move-handle svg{display:block;pointer-events:none}',
+      '.nanoai-ve-move-handle{box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:center!important;flex:0 0 16px!important;width:16px!important;height:16px!important;min-width:16px!important;max-width:16px!important;min-height:16px!important;max-height:16px!important;padding:0!important;border:1.5px solid #fff!important;border-radius:5px!important;background:#2563eb!important;color:#fff!important;cursor:grab!important;box-shadow:0 1px 3px rgba(0,0,0,.28)!important;appearance:none!important;-webkit-appearance:none!important;line-height:1!important;transform:none!important}',
+      '.nanoai-ve-move-handle svg{display:block;width:10px!important;height:10px!important;pointer-events:none}',
       '.nanoai-ve-layer-switch{display:flex;gap:4px;padding:3px;border-radius:8px;background:#fff;border:1px solid #bfdbfe;box-shadow:0 2px 8px rgba(0,0,0,.22)}',
       '.nanoai-ve-layer-switch button{border:0;border-radius:6px;padding:5px 9px;font:700 11px/1.2 system-ui,sans-serif;background:transparent;color:#1e3a8a;cursor:pointer}',
       '.nanoai-ve-layer-switch button.is-active{background:#2563eb;color:#fff}',
       '.nanoai-ve-logo-btn{display:flex;padding:3px;border-radius:8px;background:#fff;border:1px solid #fbbf24;box-shadow:0 2px 8px rgba(0,0,0,.22)}',
       '.nanoai-ve-logo-btn button{border:0;border-radius:6px;padding:5px 9px;font:700 11px/1.2 system-ui,sans-serif;background:#f59e0b;color:#fff;cursor:pointer}',
-      '.nanoai-ve-chrome-delete,.nanoai-ve-delete-handle{box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:center!important;flex:0 0 22px!important;width:22px!important;height:22px!important;min-width:22px!important;max-width:22px!important;min-height:22px!important;max-height:22px!important;padding:0!important;border:2px solid #fff!important;border-radius:999px!important;background:#ef4444!important;color:#fff!important;font:700 15px/18px system-ui,sans-serif!important;cursor:pointer!important;transform:rotate(45deg)!important;box-shadow:0 1px 4px rgba(0,0,0,.35)!important;appearance:none!important;-webkit-appearance:none!important}',
+      '.nanoai-ve-chrome-delete,.nanoai-ve-delete-handle{box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:center!important;flex:0 0 16px!important;width:16px!important;height:16px!important;min-width:16px!important;max-width:16px!important;min-height:16px!important;max-height:16px!important;padding:0!important;border:1.5px solid #fff!important;border-radius:999px!important;background:#ef4444!important;color:#fff!important;font:700 11px/12px system-ui,sans-serif!important;cursor:pointer!important;transform:rotate(45deg)!important;box-shadow:0 1px 3px rgba(0,0,0,.28)!important;appearance:none!important;-webkit-appearance:none!important}',
       '.nanoai-ve-drop-line{background:#2563eb;border-radius:2px;box-shadow:0 0 0 1px #fff}',
       '.nanoai-ve-guides{left:0;top:0}',
       '.nanoai-ve-active .pw-bottom-nav,.nanoai-ve-active .pw-shop-bottom-nav,[data-pw-edit-device="mobile"] .pw-bottom-nav,[data-pw-edit-device="mobile"] .pw-shop-bottom-nav,[data-pw-edit-device="tablet"] .pw-bottom-nav,[data-pw-edit-device="tablet"] .pw-shop-bottom-nav,.nanoai-ve-mobile .pw-bottom-nav,.nanoai-ve-mobile .pw-shop-bottom-nav,.nanoai-ve-tablet .pw-bottom-nav,.nanoai-ve-tablet .pw-shop-bottom-nav{position:fixed!important;left:0;right:0;bottom:0;z-index:180!important;overflow:visible!important;isolation:isolate;background:#fff}',
@@ -7614,7 +8456,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-active #nanoai-chat-widget-v1 .nanoai-chat-panel,.nanoai-ve-active [data-widget-id="nanoai-chat-widget-v1"] .nanoai-chat-panel{display:none!important}',
       '.nanoai-ve-active [data-pw-chat-launcher="1"].nanoai-ve-highlight,.nanoai-ve-active .pw-fab-chat.nanoai-ve-highlight,.nanoai-ve-active [data-nanoai-chat-bubble="1"].nanoai-ve-highlight{outline:2px solid #2563eb!important;outline-offset:2px!important;box-shadow:none!important}',
       '.nanoai-ve-active .pw-header,.nanoai-ve-active .pw-shop-header{z-index:200!important;isolation:isolate}',
-      '.nanoai-ve-active .pw-topbar,.nanoai-ve-active .pw-shop-topbar{position:relative!important;z-index:3!important;isolation:isolate}',
+      '.nanoai-ve-active .pw-topbar,.nanoai-ve-active .pw-shop-topbar{position:relative!important;z-index:${PW_SCENE_TOPBAR_Z}!important;isolation:isolate}',
       '.nanoai-ve-active .pw-hero.nanoai-ve-photo-edit,.nanoai-ve-active .pw-banner.nanoai-ve-photo-edit,.nanoai-ve-active .pw-shop-hero.nanoai-ve-photo-edit,.nanoai-ve-active .pw-shop-banner.nanoai-ve-photo-edit,.nanoai-ve-active [data-pw-region="banner"].nanoai-ve-photo-edit{overflow:hidden!important}',
       '.nanoai-ve-active [data-pw-catalog-lock="1"],.nanoai-ve-active [data-pw-catalog-lock="1"] *{pointer-events:none!important;cursor:default!important}',
       '.nanoai-ve-active [data-pw-region="categories"],.nanoai-ve-active [data-pw-region="categories"] *,.nanoai-ve-active section.pw-categories,.nanoai-ve-active .pw-categories,.nanoai-ve-active .pw-cat-grid,.nanoai-ve-active .pw-cat-card{pointer-events:auto!important;position:relative;z-index:8}',
@@ -7640,7 +8482,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-guide-v{position:absolute;width:1px;background:repeating-linear-gradient(180deg,rgba(37,99,235,.42) 0 6px,transparent 6px 11px)}',
       '.nanoai-ve-guide-h.is-snap,.nanoai-ve-guide-v.is-snap{background:#2563eb;opacity:.85}',
       '.nanoai-ve-active [data-pw-hidden="1"]{display:none!important}',
-      '.nanoai-ve-active .pw-cat-panel:not(.is-open),.nanoai-ve-active .pw-shop-cat-panel:not(.is-open),.nanoai-ve-active .pw-account-panel:not(.is-open),.nanoai-ve-active .pw-shop-account-panel:not(.is-open),.nanoai-ve-active [data-pw-cat-panel]:not(.is-open),.nanoai-ve-active [data-pw-account-panel]:not(.is-open){display:none!important;pointer-events:none!important;visibility:hidden!important}',
+      '.nanoai-ve-active .pw-cat-panel,.nanoai-ve-active .pw-shop-cat-panel,.nanoai-ve-active .pw-account-panel,.nanoai-ve-active .pw-shop-account-panel,.nanoai-ve-active [data-pw-cat-panel],.nanoai-ve-active [data-pw-account-panel],.nanoai-ve-active #pw-search-results,.nanoai-ve-active #pw-image-search-popover,.nanoai-ve-active #pw-lp-buy-modal{display:none!important;pointer-events:none!important;visibility:hidden!important}',
       '.nanoai-ve-active .pw-nav-main a,.nanoai-ve-active .pw-shop-nav-row a,.nanoai-ve-active .pw-topbar a,.nanoai-ve-active .pw-shop-topbar a,.nanoai-ve-active [data-pw-el="nav-link"],.nanoai-ve-active [data-pw-el="link"],.nanoai-ve-active [data-pw-el="cat-toggle"],.nanoai-ve-active .pw-cat-btn,.nanoai-ve-active .pw-shop-cat-btn{pointer-events:auto!important;position:relative;z-index:6}',
       '.pw-bottom-nav,.pw-shop-bottom-nav{display:flex!important;flex-wrap:nowrap;justify-content:space-around;align-items:stretch;grid-template-columns:none!important}',
       '[data-pw-edit-device="desktop"] .pw-bottom-nav,[data-pw-edit-device="desktop"] .pw-shop-bottom-nav,[data-pw-edit-device="laptop"] .pw-bottom-nav,[data-pw-edit-device="laptop"] .pw-shop-bottom-nav{display:none!important}',
@@ -7649,15 +8491,20 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.pw-header,.pw-shop-header,.pw-header-main,.pw-shop-header-inner,.pw-brand-cluster,.pw-shop-brand-cluster{overflow:visible!important}',
       '.pw-header-main,.pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;min-width:0;position:relative!important;max-width:none!important;width:100%!important;margin-left:0!important;margin-right:0!important}',
       '.pw-brand-cluster,.pw-shop-brand-cluster,.pw-brand:not([data-pw-logo-float]),.pw-shop-brand:not([data-pw-logo-float]),a[data-pw-logo-home]:not([data-pw-logo-float]){position:relative!important;z-index:120!important;flex:0 0 auto!important;overflow:visible!important}',
+      '.pw-brand:not([data-pw-logo-float]),.pw-shop-brand:not([data-pw-logo-float]),a[data-pw-logo-home]:not([data-pw-logo-float]){display:inline-flex!important;align-items:center!important;width:max-content!important;max-width:100%!important;vertical-align:middle}',
       '.pw-brand-cluster,.pw-shop-brand-cluster{pointer-events:none!important}',
       '.pw-brand-cluster > *,.pw-shop-brand-cluster > *,.pw-brand-cluster a,.pw-shop-brand-cluster a,.pw-brand-cluster button,.pw-shop-brand-cluster button,.pw-brand-cluster img,.pw-shop-brand-cluster img,.pw-brand-cluster [data-pw-el],.pw-shop-brand-cluster [data-pw-el],.pw-brand-cluster .pw-logo-frame,.pw-shop-brand-cluster .pw-logo-frame,.pw-brand-cluster [data-pw-logo-frame],.pw-shop-brand-cluster [data-pw-logo-frame]{pointer-events:auto!important}',
       'header [data-pw-logo-float="1"],.pw-header [data-pw-logo-float="1"],.pw-shop-header [data-pw-logo-float="1"]{position:absolute!important;margin:0!important;max-width:none!important;max-height:none!important;overflow:visible!important}',
-      'header [data-pw-logo-float="1"]:not([data-pw-z]),.pw-header [data-pw-logo-float="1"]:not([data-pw-z]),.pw-shop-header [data-pw-logo-float="1"]:not([data-pw-z]){z-index:160!important}',
-      'header img.pw-logo,header img.pw-shop-logo,.pw-header img.pw-logo,.pw-shop-header img.pw-shop-logo,header [data-pw-logo-added],.pw-header [data-pw-logo-added],.pw-shop-header [data-pw-logo-added]{z-index:160!important;max-width:none!important;max-height:none!important}',
+      'header [data-pw-logo-float="1"]:not([data-pw-z]),.pw-header [data-pw-logo-float="1"]:not([data-pw-z]),.pw-shop-header [data-pw-logo-float="1"]:not([data-pw-z]){z-index:${PW_SCENE_LOGO_Z}!important}',
+      'header img.pw-logo,header img.pw-shop-logo,.pw-header img.pw-logo,.pw-shop-header img.pw-shop-logo,header [data-pw-logo-added],.pw-header [data-pw-logo-added],.pw-shop-header [data-pw-logo-added]{max-width:none!important;max-height:none!important}',
+      'header img.pw-logo:not([data-pw-z]),header img.pw-shop-logo:not([data-pw-z]),.pw-header img.pw-logo:not([data-pw-z]),.pw-shop-header img.pw-shop-logo:not([data-pw-z]),header [data-pw-logo-added]:not([data-pw-z]),.pw-header [data-pw-logo-added]:not([data-pw-z]),.pw-shop-header [data-pw-logo-added]:not([data-pw-z]){z-index:${PW_SCENE_LOGO_Z}!important}',
       '.nanoai-ve-active header img.pw-logo,.nanoai-ve-active header img.pw-shop-logo,.nanoai-ve-active header [data-pw-logo-added],.nanoai-ve-active .pw-header img.pw-logo,.nanoai-ve-active .pw-shop-header img.pw-shop-logo{max-width:none!important;max-height:none!important}',
       '.nanoai-ve-active header .pw-logo-frame img,.nanoai-ve-active header [data-pw-logo-frame="1"] img,.nanoai-ve-active header [data-pw-logo-added],.nanoai-ve-active .pw-header .pw-logo-frame img,.nanoai-ve-active .pw-shop-header .pw-logo-frame img,.nanoai-ve-active .pw-header [data-pw-logo-added],.nanoai-ve-active .pw-shop-header [data-pw-logo-added]{opacity:1!important;visibility:visible!important}',
       'header,.pw-header,.pw-shop-header,.pw-header-main,.pw-shop-header-inner,.pw-brand-cluster,.pw-shop-brand-cluster,a.pw-brand,a.pw-shop-brand{background-repeat:no-repeat!important}',
-      '.pw-logo-frame,[data-pw-logo-frame="1"]{display:inline-flex!important;align-items:center;justify-content:center;overflow:hidden!important;flex-shrink:0;position:relative;z-index:160!important;vertical-align:middle;max-width:none!important;max-height:none!important}',
+      '.pw-logo-frame,[data-pw-logo-frame="1"]{display:inline-flex!important;align-items:center;justify-content:center;overflow:hidden!important;flex-shrink:0;position:relative;vertical-align:middle;max-width:none!important;max-height:none!important}',
+      '.pw-logo-frame:not([data-pw-z]),[data-pw-logo-frame="1"]:not([data-pw-z]){z-index:${PW_SCENE_LOGO_Z}!important}',
+      'h1 .pw-logo-frame:not([data-pw-logo-user-size="1"]),h1 [data-pw-logo-frame="1"]:not([data-pw-logo-user-size="1"]),[data-pw-el="heading"] .pw-logo-frame:not([data-pw-logo-user-size="1"]),[data-pw-info-title] .pw-logo-frame:not([data-pw-logo-user-size="1"]),.pw-shop-info .pw-logo-frame:not([data-pw-logo-user-size="1"]):not([data-pw-logo-float="1"]),main .pw-logo-frame:not([data-pw-logo-user-size="1"]):not([data-pw-logo-float="1"]){max-width:180px!important}',
+      'h1 a.pw-brand:not([data-pw-logo-float]),h1 a[data-pw-logo-home]:not([data-pw-logo-float]),[data-pw-el="heading"] a.pw-brand:not([data-pw-logo-float]),[data-pw-info-title] a.pw-brand:not([data-pw-logo-float]){width:max-content!important;max-width:180px!important}',
       '[data-pw-edit-device="mobile"] .pw-header-main,[data-pw-edit-device="mobile"] .pw-shop-header-inner,[data-pw-edit-device="tablet"] .pw-header-main,[data-pw-edit-device="tablet"] .pw-shop-header-inner,.nanoai-ve-mobile .pw-header-main,.nanoai-ve-mobile .pw-shop-header-inner,.nanoai-ve-tablet .pw-header-main,.nanoai-ve-tablet .pw-shop-header-inner,.nanoai-ve-active .pw-header-main,.nanoai-ve-active .pw-shop-header-inner{overflow:visible!important;min-width:0!important;padding:8px 10px!important}',
       '[data-pw-edit-device="mobile"] .pw-brand-cluster,[data-pw-edit-device="mobile"] .pw-shop-brand-cluster,[data-pw-edit-device="tablet"] .pw-brand-cluster,[data-pw-edit-device="tablet"] .pw-shop-brand-cluster,.nanoai-ve-mobile .pw-brand-cluster,.nanoai-ve-mobile .pw-shop-brand-cluster,.nanoai-ve-tablet .pw-brand-cluster,.nanoai-ve-tablet .pw-shop-brand-cluster{max-width:200px!important;overflow:visible!important}',
       '[data-pw-edit-device="mobile"] .pw-header-search:not([data-pw-user-move]):not([data-nanoai-ve-selected]),[data-pw-edit-device="mobile"] .pw-shop-search-wrap:not([data-pw-user-move]):not([data-nanoai-ve-selected]),.nanoai-ve-mobile .pw-header-search:not([data-pw-user-move]):not([data-nanoai-ve-selected]),.nanoai-ve-mobile .pw-shop-search-wrap:not([data-pw-user-move]):not([data-nanoai-ve-selected]){flex:1 1 0%!important;min-width:96px!important;min-height:36px!important;width:auto!important;max-width:100%!important;margin:0!important;transform:none!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;position:relative!important;opacity:1!important;visibility:visible!important}',
@@ -7734,7 +8581,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '#nanoai-ve-logo-live-bar button{border:0;border-radius:6px;padding:6px 10px;font:700 12px/1 system-ui,sans-serif;cursor:pointer}',
       '.nanoai-ve-logo-live-handle{position:fixed;z-index:2147483646;width:18px;height:18px}'
     ].join('')
-    document.head.appendChild(s)
+    if (s.parentNode !== document.head && s.parentNode !== document.documentElement) {
+      if (document.head) document.head.appendChild(s)
+      else document.documentElement.appendChild(s)
+    }
   }
   function onWheel(e) {
     if (!document.body.classList.contains('nanoai-ve-active')) return
@@ -7788,6 +8638,14 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     window.addEventListener('scroll', onScrollVe, true)
     veListening = true
   }
+  function freezeLiveChromeForEditor() {
+    var panels = document.querySelectorAll('.pw-cat-panel,.pw-shop-cat-panel,[data-pw-cat-panel],.pw-account-panel,.pw-shop-account-panel,[data-pw-account-panel]')
+    for (var i = 0; i < panels.length; i++) panels[i].classList.remove('is-open')
+    var btns = document.querySelectorAll('[data-pw-cat-toggle],[data-pw-el="cat-toggle"],.pw-cat-btn,.pw-shop-cat-btn,[data-pw-chrome-btn="categories"]')
+    for (var j = 0; j < btns.length; j++) btns[j].setAttribute('aria-expanded', 'false')
+    var pop = document.getElementById('pw-image-search-popover')
+    if (pop) pop.hidden = true
+  }
   function activate() {
     skipClick = false
     drag.active = false
@@ -7799,6 +8657,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { sanitizeLogoFrames() } catch (errSan) {}
     try { rescueHeaderLogos() } catch (errRescue) {}
     try { reflowHeaderChrome() } catch (errHeadLogo) {}
+    try { bakeHeaderLogoHomeLinks() } catch (errLogoHome) {}
     try { ensureSearchVisible() } catch (errSearchVis) {}
     try { ensureSearchSubmitIcon(document) } catch (errSearchIcon) {}
     try { lockExistingSearchBoxes() } catch (errSearch) {}
@@ -7810,6 +8669,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { pwApplyDemoChromeCountBadges(document) } catch (errDemo) {}
     try { restoreWidgetColors(document) } catch (errWidget) {}
     document.body.classList.add('nanoai-ve-active')
+    try { freezeLiveChromeForEditor() } catch (errFreeze) {}
     try { hideLayerSwitches() } catch (errHide) {}
     try { stampPwUiContract() } catch (errStamp2) {}
     try { ensureBgStack() } catch (errBgStack) {}
@@ -7855,12 +8715,86 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       }
     }, 250)
   }
+  function detectTextArticlePage(d) {
+    d = d || {}
+    if (d.infoPage) return true
+    var pk = String(d.pageKey || '').trim()
+    // pageKey từ host — không phụ thuộc stamp HTML / catalog chrome
+    if (pk === 'about' || pk === 'contact' || pk === 'faq' || pk === 'shipping' || pk === 'returns' || pk === 'payment' || pk === 'privacy' || pk === 'terms' || pk === 'thank_you' || pk === 'stores' || pk === 'size_guide' || pk === 'blog') return true
+    if (String(d.cmsSlug || '').trim()) return true
+    if (document.querySelector('[data-pw-text-article="1"]')) return true
+    if (document.querySelector('[data-pw-page="info"]')) return true
+    if (document.querySelector('[data-pw-info-article],[data-pw-info-title],[data-pw-info-body],.pw-shop-info')) return true
+    var page = ''
+    var root = document.querySelector('[data-pw-page]')
+    if (root && root.getAttribute) page = String(root.getAttribute('data-pw-page') || '')
+    if (page === 'home' || page === 'listing' || page === 'product' || page === 'cart' || page === 'account') return false
+    // Chỉ coi là catalog khi LƯỚI SP nằm trong main (không nhầm nút giỏ header)
+    var main = document.querySelector('main') || document.body
+    if (main && main.querySelector && main.querySelector('[data-pw-catalog] .pw-product-grid,[data-pw-catalog] [data-pw-el="card-buy"],[data-pw-region="catalog"] [data-pw-el="card-cart"]')) return false
+    return false
+  }
+  function stampTextArticleMarkers(kind) {
+    var root = document.querySelector('[data-pw-page],body')
+    if (!root || !root.setAttribute) return
+    root.setAttribute('data-pw-page', 'info')
+    root.setAttribute('data-pw-text-article', '1')
+    if (kind) root.setAttribute('data-pw-article-kind', String(kind))
+    var region = findBestInfoContentRegion()
+    if (region && region.setAttribute) {
+      region.setAttribute('data-pw-info-article', '1')
+      region.setAttribute('data-pw-text-article', '1')
+      if (kind) region.setAttribute('data-pw-article-kind', String(kind))
+    }
+  }
+  function scheduleInfoArticleEditor() {
+    var tries = 0
+    var run = function () {
+      tries++
+      try {
+        ensureInfoArticle()
+        ensureInfoSeoCoach()
+      } catch (errSch) {}
+      if (tries < 6) setTimeout(run, tries * 80)
+    }
+    run()
+  }
   function activateFromHost(d) {
     d = d || {}
     if (d.device === 'mobile' || d.device === 'tablet' || d.device === 'laptop' || d.device === 'desktop') editDevice = d.device
     activate()
     if (d.vars) applyThemeVars(d.vars)
     scheduleChatEmbedPrep(d)
+    var isArticle = detectTextArticlePage(d)
+    var pk = String(d.pageKey || '').trim()
+    var hostSaidNo =
+      d.infoPage === false ||
+      pk === 'home' ||
+      pk === 'products' ||
+      pk === 'product_detail' ||
+      pk === 'collection' ||
+      pk === 'cart' ||
+      pk === 'checkout' ||
+      pk === 'account' ||
+      pk === 'sale' ||
+      pk === 'lookbook' ||
+      pk === 'landing'
+    if (isArticle) {
+      infoPageActive = true
+      var kind = 'policy'
+      if (pk === 'blog') kind = 'blog'
+      else if (pk === 'about') kind = 'about'
+      else if (pk === 'contact') kind = 'contact'
+      else if (pk === 'faq') kind = 'faq'
+      else if (pk === 'size_guide' || pk === 'stores' || pk === 'thank_you') kind = 'guide'
+      else if (String(d.cmsSlug || '').trim()) kind = 'cms'
+      stampTextArticleMarkers(kind)
+      scheduleInfoArticleEditor()
+    } else if (hostSaidNo) {
+      infoPageActive = false
+      removeInfoSeoCoach()
+    }
+    // Boot rỗng {} / chưa rõ pageKey → giữ nguyên, chờ host activate đủ payload
   }
   try {
     window.__nanoaiVeActivate = activateFromHost
@@ -8179,8 +9113,23 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.type === 'deleteBlock') deleteSelectedBlock()
     if (d.type === 'duplicateBlock') duplicateSelectedBlock()
     if (d.type === 'setChatIconLogo') setChatIconLogo(d.url)
-    if (d.type === 'insertChromeBtn') insertChromeBtn(d.kind, d.html, d.host)
+    if (d.type === 'insertChromeBtn') insertChromeBtn(d.kind, d.html, d.host, d)
+    if (d.type === 'bringExistingChromeToCenter') bringExistingChromeToCenter(d.kind)
+    if (d.type === 'setInfoPageContent') setInfoPageContent(d)
+    if (d.type === 'stampInfoPage') {
+      ensureInfoArticle()
+      ensureInfoSeoCoach()
+    }
+    if (d.type === 'setInfoSeoBusy') setInfoSeoBusy(!!d.busy)
+    if (d.type === 'setInfoSeoNotes') {
+      var regionN = document.querySelector('[data-pw-info-article],[data-pw-region="content"],.pw-shop-info')
+      var coachN = document.querySelector('[data-pw-seo-coach="1"] textarea')
+      var notes = String(d.notes || '')
+      if (regionN) regionN.setAttribute('data-pw-seo-notes', notes)
+      if (coachN) coachN.value = notes
+    }
     if (d.type === 'insertText') insertText()
+    if (d.type === 'insertArticleImage' && d.url) insertArticleImage(d.url)
     if (d.type === 'insertButton') insertButton(d)
     if (d.type === 'insertBg') insertBg(d)
     if (d.type === 'bringBgFront') bringAddedBgFront()
@@ -8251,6 +9200,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.type === 'listHidden') postHidden()
     if (d.type === 'serialize') {
       try {
+        bakeHeaderLogoHomeLinks()
         stickHeaderRelease()
         hideLogoCropUi()
         logoCrop.live = false
@@ -8273,7 +9223,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   window.addEventListener('message', onVeMessage)
   try { sizeChromeIcons(document) } catch (err) {}
   try { restoreWidgetColors(document) } catch (errW) {}
-  try { activateFromHost({}) } catch (eBoot) {}
+  // Không activate rỗng — host gửi đủ pageKey/infoPage rồi mới bật ô AI
   post('loaded', {})
 })`
 

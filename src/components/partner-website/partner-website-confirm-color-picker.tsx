@@ -3,7 +3,15 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
-import { isHexColor, normalizeHexColor } from '@/lib/partner-website/template/partner-website-theme-tokens'
+import type { PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
+import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
+import {
+  hexesClose,
+  isHexColor,
+  normalizeHexColor,
+  shopThemeQuickPicks,
+  type ShopThemeQuickPicks,
+} from '@/lib/partner-website/template/partner-website-theme-tokens'
 
 type Hsv = { h: number; s: number; v: number }
 
@@ -109,11 +117,71 @@ export function cssColorToHex(color: string, fallback = '#111827'): string {
   return normalizeHexColor(fallback, '#111827')
 }
 
+export function shopThemeQuickPicksFromCopy(
+  theme: PartnerWebsiteTheme | null | undefined,
+  t: PartnerWebsiteCopy
+): ShopThemeQuickPicks {
+  return shopThemeQuickPicks(theme, {
+    mainTitle: t.themeColorMainTitle,
+    auxTitle: t.themeColorAuxTitle,
+    hint: t.themeColorQuickApplyHint,
+    primary: t.themeColorPrimary,
+    accent: t.themeColorAccent,
+    buy: t.themeColorBuy,
+    cart: t.themeColorCart,
+    background: t.themeColorBackground,
+    text: t.themeColorText,
+    muted: t.themeColorMuted,
+    surface: t.themeColorSurface,
+  })
+}
+
+function ThemeQuickPickRow({
+  title,
+  items,
+  selectedHex,
+  onPick,
+}: {
+  title: string
+  items: ShopThemeQuickPicks['main']
+  selectedHex: string
+  onPick: (hex: string) => void
+}) {
+  if (!items.length) return null
+  return (
+    <div className="mt-1.5 first:mt-0">
+      <p className="mb-1 text-[9px] font-semibold leading-none text-muted-foreground">{title}</p>
+      <div className="grid grid-cols-6 gap-1">
+        {items.map((item) => {
+          const on = hexesClose(item.hex, selectedHex)
+          return (
+            <button
+              key={item.id}
+              type="button"
+              title={`${item.label} ${item.hex}`}
+              aria-label={item.label}
+              aria-pressed={on}
+              onClick={() => onPick(item.hex)}
+              className={cn(
+                'h-5 w-full rounded-sm border shadow-sm',
+                on ? 'ring-2 ring-offset-1 ring-foreground/80' : 'border-border/70 hover:scale-[1.04]',
+                hexesClose(item.hex, '#ffffff') && 'border-border'
+              )}
+              style={{ background: item.hex }}
+            />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export function ThemeColorConfirmPicker({
   value,
   disabled,
   compact = false,
   okLabel,
+  themePicks,
   onConfirm,
   onOpenChange,
 }: {
@@ -121,6 +189,8 @@ export function ThemeColorConfirmPicker({
   disabled?: boolean
   compact?: boolean
   okLabel: string
+  /** Shop main + supporting colors — click applies immediately. */
+  themePicks?: ShopThemeQuickPicks | null
   onConfirm: (hex: string) => void
   onOpenChange?: (open: boolean) => void
 }) {
@@ -153,8 +223,9 @@ export function ThemeColorConfirmPicker({
     const r = rootRef.current?.getBoundingClientRect()
     if (!r) return
     const width = 264
+    const height = themePicks ? 420 : 220
     const left = Math.min(Math.max(8, r.left), Math.max(8, window.innerWidth - width - 8))
-    const top = Math.min(r.bottom + 4, window.innerHeight - 220)
+    const top = Math.min(r.bottom + 4, window.innerHeight - height)
     setPanelPos({ top: Math.max(8, top), left })
   }
 
@@ -182,6 +253,14 @@ export function ThemeColorConfirmPicker({
 
   function confirm() {
     const next = normalizeHexColor(draft, value)
+    onConfirm(next)
+    setOpenState(false)
+    rgbFocusRef.current = null
+  }
+
+  function applyThemeSwatch(hex: string) {
+    const next = normalizeHexColor(hex, value)
+    applyHexDraft(next)
     onConfirm(next)
     setOpenState(false)
     rgbFocusRef.current = null
@@ -309,11 +388,30 @@ export function ThemeColorConfirmPicker({
         ? createPortal(
         <div
           data-pw-color-picker="1"
-          className="fixed z-[9999] w-[16.5rem] rounded-md border bg-background p-2 shadow-lg"
+          className="fixed z-[9999] w-[16.5rem] max-h-[min(28rem,calc(100vh-16px))] overflow-y-auto rounded-md border bg-background p-2 shadow-lg"
           style={{ top: panelPos.top, left: panelPos.left }}
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
         >
+          {themePicks ? (
+            <div className="mb-2 border-b border-border/60 pb-2">
+              {themePicks.hint ? (
+                <p className="mb-1 text-[9px] leading-snug text-muted-foreground">{themePicks.hint}</p>
+              ) : null}
+              <ThemeQuickPickRow
+                title={themePicks.mainTitle}
+                items={themePicks.main}
+                selectedHex={validDraft}
+                onPick={applyThemeSwatch}
+              />
+              <ThemeQuickPickRow
+                title={themePicks.auxTitle}
+                items={themePicks.aux}
+                selectedHex={validDraft}
+                onPick={applyThemeSwatch}
+              />
+            </div>
+          ) : null}
           <div
             ref={svRef}
             className="relative h-28 w-full cursor-crosshair touch-none overflow-hidden rounded-sm border"

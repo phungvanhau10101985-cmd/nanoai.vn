@@ -1,8 +1,10 @@
 import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
+import { stampPartnerSiteChromeWidgetHooksInHtml } from '@/lib/partner-website/shop/stamp-partner-site-chrome-widget-hooks'
 import { resetChromeCountBadges } from '@/lib/partner-website/shop/chrome-count-badges'
 import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual-editor/strip-empty-logo-placeholders'
 import { pinChromeIconBadges } from '@/lib/partner-website/shop/pin-chrome-icon-badges'
 import { releaseStickHeaderPins } from '@/lib/partner-website/shop/stick-header-elements'
+import { stripPartnerInfoPageSeoCoachFromHtml } from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
 import {
   isolateVisualHtmlForDevice,
   type VisualDeviceVariant,
@@ -25,6 +27,19 @@ function stripEditorAndRuntimeNodes(clone: Element) {
   clone.querySelectorAll('next-route-announcer, template[data-next-error-message]').forEach((el) => el.remove())
   clone.querySelectorAll('link[rel="preload"][as="script"], link[rel="modulepreload"]').forEach((el) => el.remove())
   clone.querySelectorAll('[data-pw-ve-chat-preview]').forEach((el) => el.remove())
+  clone.querySelectorAll('[data-pw-seo-coach],[data-pw-article-editor]').forEach((el) => el.remove())
+  clone.querySelectorAll('[data-pw-article-box]').forEach((el) => el.removeAttribute('data-pw-article-box'))
+  const footer = clone.querySelector('footer, .pw-footer, .pw-shop-footer, [data-pw-region="footer"]')
+  if (footer) {
+    clone.querySelectorAll('[data-pw-info-article],[data-pw-info-body],[data-pw-region="content"][data-pw-text-article]').forEach((el) => {
+      if (el === footer || footer.contains(el) || el.contains(footer)) return
+      try {
+        if (el.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_PRECEDING) el.remove()
+      } catch {
+        /* ignore */
+      }
+    })
+  }
   clone
     .querySelectorAll(
       '.nanoai-ve-active,.nanoai-ve-selected,.nanoai-ve-highlight,.nanoai-ve-hover,.nanoai-ve-dragging,.nanoai-ve-photo-edit,.nanoai-ve-chrome-dup'
@@ -205,9 +220,11 @@ export function serializeVisualEditorHtml(doc: Document, variant?: VisualDeviceV
   ensureViewportMeta(clone)
   ensureBaseHref(clone)
   const raw = injectPartnerShopChromeLayoutCss(
-    stripEmptyLogoPlaceholdersFromHtml(`<!DOCTYPE html>\n${clone.outerHTML}`)
+    stripEmptyLogoPlaceholdersFromHtml(
+      stripPartnerInfoPageSeoCoachFromHtml(`<!DOCTYPE html>\n${clone.outerHTML}`)
+    )
   )
-  const stored = sanitizeVisualHtmlForStore(raw)
+  const stored = sanitizeVisualHtmlForStore(stampPartnerSiteChromeWidgetHooksInHtml(raw))
   if (!variant) return stored
   // Always persist the isolated device document. Falling back to `stored` can write a
   // composed desktop+laptop+tablet+mobile page into a single device file.

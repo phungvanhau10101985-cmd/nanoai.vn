@@ -321,6 +321,26 @@ export function chromeWidgetAppearance(
   return chromeWidgetHost(kind) === 'topbar' ? 'link' : 'icon'
 }
 
+/** How a Thêm-phần-tử widget talks to the live shop — serve-time, every tenant. */
+export type ChromeWidgetLiveHook =
+  | 'route'
+  | 'search'
+  | 'search-image'
+  | 'categories'
+  | 'chat'
+  | 'contact'
+  | 'topup'
+
+export function chromeWidgetLiveHook(kind: VisualEditorChromeWidgetKind): ChromeWidgetLiveHook {
+  if (kind === 'search') return 'search'
+  if (kind === 'search-image') return 'search-image'
+  if (kind === 'categories') return 'categories'
+  if (kind === 'chat') return 'chat'
+  if (kind === 'chat-zalo' || kind === 'chat-facebook') return 'contact'
+  if (kind === 'topup') return 'topup'
+  return 'route'
+}
+
 export function chromeWidgetHref(kind: VisualEditorChromeWidgetKind, siteSlug: string): string {
   const slug = siteSlug.trim()
   if (kind === 'home') return partnerSiteHomePath(slug)
@@ -482,32 +502,32 @@ export function buildVisualEditorChromeWidgetHtml(input: {
       'class="pw-shop-nav-icon"',
       'class="pw-shop-nav-icon pw-shop-search-submit-icon"'
     )
-    return `<div class="pw-shop-search-wrap pw-header-search" data-pw-el="search" data-pw-chrome-added="1"${placeAttr}${sizeAttr} draggable="false"><form class="pw-shop-search-form pw-search-form" data-pw-search-form role="search"><input data-pw-search type="search" name="q" placeholder="${ph}" aria-label="${ph}" autocomplete="off"/><button type="button" class="pw-shop-search-image pw-search-image-btn" data-pw-image-search aria-label="${imgLabel}" title="${imgLabel}"><span class="pw-chrome-icon-wrap">${cameraSvg}</span></button><button type="submit" class="pw-shop-search-submit pw-search-submit" aria-label="${btnAttr}">${searchSvg}<span class="pw-shop-search-submit-label">${escapeHtml(shop.searchButton)}</span></button></form></div>`
+    return `<div class="pw-shop-search-wrap pw-header-search" data-pw-el="search" data-pw-chrome-btn="search" data-pw-chrome-added="1"${placeAttr}${sizeAttr} draggable="false"><form class="pw-shop-search-form pw-search-form" data-pw-search-form role="search"><input data-pw-search type="search" name="q" placeholder="${ph}" aria-label="${ph}" autocomplete="off"/><button type="button" class="pw-shop-search-image pw-search-image-btn" data-pw-image-search aria-label="${imgLabel}" title="${imgLabel}"><span class="pw-chrome-icon-wrap">${cameraSvg}</span></button><button type="submit" class="pw-shop-search-submit pw-search-submit" aria-label="${btnAttr}">${searchSvg}<span class="pw-shop-search-submit-label">${escapeHtml(shop.searchButton)}</span></button></form></div>`
   }
   if (kind === 'search-image') {
     const svg = SVG['search-image'] || ''
     const appearance = chromeWidgetAppearance(kind, style)
     if (appearance === 'link') {
-      return `<button type="button" class="pw-shop-search-image pw-search-image-btn pw-chrome-link" data-pw-image-search="1" data-pw-chrome-added="1" data-pw-chrome-style="text"${placeAttr}${sizeAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${escapeHtml(label)}</button>`
+      return `<button type="button" class="pw-shop-search-image pw-search-image-btn pw-chrome-link" data-pw-chrome-btn="search-image" data-pw-image-search="1" data-pw-chrome-added="1" data-pw-chrome-style="text"${placeAttr}${sizeAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${escapeHtml(label)}</button>`
     }
     const face = chromeFaceClass(style)
     const labelHtml = face.withLabel
       ? `<span class="pw-shop-nav-label pw-chrome-btn-label">${escapeHtml(label)}</span>`
       : ''
-    return `<button type="button" class="pw-shop-search-image pw-search-image-btn pw-icon-btn pw-shop-icon-btn ${face.styleClass}" data-pw-image-search="1" data-pw-chrome-added="1" data-pw-chrome-style="${face.styleAttr}"${placeAttr}${sizeAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false"><span class="pw-chrome-icon-wrap">${svg}</span>${labelHtml}</button>`
+    return `<button type="button" class="pw-shop-search-image pw-search-image-btn pw-icon-btn pw-shop-icon-btn ${face.styleClass}" data-pw-chrome-btn="search-image" data-pw-image-search="1" data-pw-chrome-added="1" data-pw-chrome-style="${face.styleAttr}"${placeAttr}${sizeAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false"><span class="pw-chrome-icon-wrap">${svg}</span>${labelHtml}</button>`
   }
   if (kind === 'categories') {
     const svg = SVG.categories || ''
     const appearance = chromeWidgetAppearance(kind, style)
     const panel = `<nav id="pw-shop-cat-panel" class="pw-shop-cat-panel pw-cat-panel" data-pw-cat-panel="1" aria-label="${labelAttr}"></nav>`
     if (appearance === 'link') {
-      return `<span class="pw-chrome-cat-wrap" data-pw-chrome-added="1"${placeAttr}${sizeAttr}><button type="button" class="pw-shop-cat-btn pw-chrome-link" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-style="text" aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${escapeHtml(label)}</button>${panel}</span>`
+      return `<span class="pw-chrome-cat-wrap" data-pw-chrome-added="1"${placeAttr}${sizeAttr}><button type="button" class="pw-shop-cat-btn pw-chrome-link" data-pw-chrome-btn="categories" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-style="text" aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${escapeHtml(label)}</button>${panel}</span>`
     }
     const face = chromeFaceClass(style)
     const labelHtml = face.withLabel
       ? `<span class="pw-shop-nav-label pw-chrome-btn-label">${escapeHtml(label)}</span>`
       : ''
-    return `<span class="pw-chrome-cat-wrap" data-pw-chrome-added="1"${placeAttr}${sizeAttr}><button type="button" class="pw-shop-cat-btn pw-icon-btn pw-shop-icon-btn ${face.styleClass}" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-style="${face.styleAttr}" aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false"><span class="pw-chrome-icon-wrap">${svg}</span>${labelHtml}</button>${panel}</span>`
+    return `<span class="pw-chrome-cat-wrap" data-pw-chrome-added="1"${placeAttr}${sizeAttr}><button type="button" class="pw-shop-cat-btn pw-icon-btn pw-shop-icon-btn ${face.styleClass}" data-pw-chrome-btn="categories" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-style="${face.styleAttr}" aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false"><span class="pw-chrome-icon-wrap">${svg}</span>${labelHtml}</button>${panel}</span>`
   }
   if (kind === 'account') {
     const svg = SVG.account || ''

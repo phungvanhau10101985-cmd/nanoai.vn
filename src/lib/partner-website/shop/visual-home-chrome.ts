@@ -6,6 +6,7 @@ import {
 } from '@/lib/partner-website/shop/merge-visual-home-styles'
 import {
   extractSharedChrome,
+  fillMissingSharedChromeFloats,
   hasSharedChrome,
   type SharedChrome,
 } from '@/lib/partner-website/shop/sync-shared-chrome'
@@ -50,31 +51,25 @@ export const VISUAL_HOME_CHROME_SPLIT_CSS = `.pw-visual-desktop,.pw-visual-lapto
 function homeHtmlParts(
   website: VisualHomeChromeWebsite,
   variant: VisualDeviceVariant
-): { isolated: string; stylesFrom: string } {
+): { isolated: string; stylesFrom: string; raw: string } {
   const raw = resolveExactVisualPageHtml(website, 'home', variant).trim()
-  if (raw.length < 40) return { isolated: '', stylesFrom: '' }
+  if (raw.length < 40) return { isolated: '', stylesFrom: '', raw: '' }
   const isolated = isolateVisualHtmlForDevice(raw, variant)
   const chromeHtml = isolated.length >= 40 ? isolated : raw
   return {
     isolated: chromeHtml,
     stylesFrom: preferredVisualHomeStyleSource(chromeHtml, raw),
+    raw,
   }
-}
-
-function isolatedHomeHtml(
-  website: VisualHomeChromeWebsite,
-  variant: VisualDeviceVariant
-): string {
-  return homeHtmlParts(website, variant).isolated
 }
 
 export function visualHomeChromeForDevice(
   website: VisualHomeChromeWebsite,
   variant: VisualDeviceVariant
 ): SharedChrome | null {
-  const html = isolatedHomeHtml(website, variant)
-  if (!html) return null
-  const chrome = extractSharedChrome(html)
+  const parts = homeHtmlParts(website, variant)
+  if (!parts.isolated) return null
+  const chrome = fillMissingSharedChromeFloats(extractSharedChrome(parts.isolated), parts.raw)
   return hasSharedChrome(chrome) ? chrome : null
 }
 
@@ -83,10 +78,18 @@ export function visualHomeChromeByDevice(website: VisualHomeChromeWebsite): Visu
   const laptop = homeHtmlParts(website, 'laptop')
   const tablet = homeHtmlParts(website, 'tablet')
   const mobile = homeHtmlParts(website, 'mobile')
-  const desktopChrome = desktop.isolated ? extractSharedChrome(desktop.isolated) : null
-  const laptopChrome = laptop.isolated ? extractSharedChrome(laptop.isolated) : null
-  const tabletChrome = tablet.isolated ? extractSharedChrome(tablet.isolated) : null
-  const mobileChrome = mobile.isolated ? extractSharedChrome(mobile.isolated) : null
+  const desktopChrome = desktop.isolated
+    ? fillMissingSharedChromeFloats(extractSharedChrome(desktop.isolated), desktop.raw)
+    : null
+  const laptopChrome = laptop.isolated
+    ? fillMissingSharedChromeFloats(extractSharedChrome(laptop.isolated), laptop.raw)
+    : null
+  const tabletChrome = tablet.isolated
+    ? fillMissingSharedChromeFloats(extractSharedChrome(tablet.isolated), tablet.raw)
+    : null
+  const mobileChrome = mobile.isolated
+    ? fillMissingSharedChromeFloats(extractSharedChrome(mobile.isolated), mobile.raw)
+    : null
   return {
     desktop: desktopChrome && hasSharedChrome(desktopChrome) ? desktopChrome : null,
     laptop: laptopChrome && hasSharedChrome(laptopChrome) ? laptopChrome : null,
@@ -129,7 +132,7 @@ export function visualChromeBeforeMain(chrome: SharedChrome): string {
 }
 
 export function visualChromeAfterMain(chrome: SharedChrome): string {
-  return [chrome.footer, chrome.bottomNav].filter(Boolean).join('\n')
+  return [chrome.footer, chrome.bottomNav, chrome.floats].filter(Boolean).join('\n')
 }
 
 export function pickVisualHomeStyles(

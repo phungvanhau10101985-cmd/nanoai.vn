@@ -71,12 +71,34 @@ describe('stripEmptyLogoPlaceholdersFromHtml', () => {
     expect(next.match(/<img\b/g)?.length).toBe(1)
   })
 
-  it('keeps only the first header logo frame', () => {
-    const frame = `<span class="pw-logo-frame" data-pw-logo-frame="1"><a class="pw-brand" href="/"><img class="pw-logo" src="https://cdn.example/logo.png" alt="logo"/></a></span>`
-    const html = `<div class="pw-shop-brand-cluster"><button class="pw-shop-cat-btn">Menu</button>${frame}${frame}${frame}</div>`
+  it('keeps absolute home-link float when frame inside has no left/top', () => {
+    const html = [
+      '<header class="pw-header"><div class="pw-header-main">',
+      '<a class="pw-brand" href="/site/x" data-pw-logo-home="1" data-pw-logo-float="1" data-pw-logo-floated="1"',
+      ' style="position:absolute;left:12px;top:8px;width:160px;height:160px;display:inline-block;overflow:hidden;z-index:160">',
+      '<span class="pw-logo-frame" data-pw-logo-frame="1" style="width:160px;height:160px;position:relative;left:0;top:0">',
+      '<img class="pw-logo pw-shop-logo" src="https://cdn.example/logo.png" alt="188.com.vn" data-pw-logo-slot="header" data-pw-el="logo"',
+      ' style="width:100%;height:100%;object-fit:contain"/>',
+      '</span></a>',
+      '<div class="pw-brand-cluster"><button class="pw-cat-btn">Danh mục</button>',
+      '<a class="pw-brand" href="/"><span class="pw-wordmark" data-pw-logo-wordmark-hidden="1" style="display:none">188.com.vn</span></a>',
+      '</div></div></header>',
+    ].join('')
+
     const next = stripEmptyLogoPlaceholdersFromHtml(html)
-    expect(next.match(/class="pw-logo-frame"/g)?.length).toBe(1)
-    expect(next.match(/<img\b/g)?.length).toBe(1)
-    expect(next).toContain('pw-shop-cat-btn')
+    expect(next).toContain('https://cdn.example/logo.png')
+    expect(next).toContain('data-pw-logo-float="1"')
+    expect(next).toContain('left:12px')
+    expect(next).toContain('top:8px')
+    expect(next).toContain('pw-cat-btn')
+  })
+
+  it('strips float attrs wrongly stored on img tags', () => {
+    const html =
+      '<header class="pw-header"><img class="pw-logo" data-pw-logo-float="1" data-pw-logo-floated="1" src="https://cdn.example/logo.png" alt="L"/></header>'
+    const next = stripEmptyLogoPlaceholdersFromHtml(html)
+    expect(next).toContain('https://cdn.example/logo.png')
+    expect(next).not.toMatch(/<img\b[^>]*data-pw-logo-float/)
+    expect(next).not.toMatch(/<img\b[^>]*data-pw-logo-floated/)
   })
 })

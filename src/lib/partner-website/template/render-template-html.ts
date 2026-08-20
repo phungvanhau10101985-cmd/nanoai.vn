@@ -25,6 +25,7 @@ import type {
 } from '@/lib/partner-website/template/partner-website-template-types'
 import { getSectionRegistryEntry, isSectionTypeEnabled } from '@/lib/partner-website/template/section-registry'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { PW_SCENE_TOPBAR_Z } from '@/lib/partner-website/visual-editor/pw-scene'
 
 function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback
@@ -492,13 +493,13 @@ body{font-family:var(--pw-font-ui);color:var(--pw-text);background:
 ${buildFashionShopMotionCss()}
 a{color:inherit}
 .pw-container{max-width:1200px;margin:0 auto;padding:0 20px}
-.pw-topbar{background:var(--pw-primary);color:#fff;font-size:12px;position:relative;z-index:3;isolation:isolate}
+.pw-topbar{background:var(--pw-primary);color:#fff;font-size:12px;position:relative;z-index:${PW_SCENE_TOPBAR_Z};isolation:isolate}
 .pw-topbar-inner{display:flex;justify-content:flex-end;gap:18px;padding:8px 0}
 .pw-topbar a,.pw-topbar button{color:#fff;text-decoration:none;background:none;border:none;cursor:pointer;font:inherit;padding:0}
 .pw-header{background:#fff;border-bottom:1px solid #f3f4f6;position:sticky;top:0;z-index:200;isolation:isolate}
 .pw-header-main{display:flex;align-items:center;gap:12px;padding:14px 0}
 .pw-brand-cluster{position:relative;display:flex;align-items:center;gap:10px;flex-shrink:0}
-.pw-brand{display:flex;align-items:center;gap:10px;text-decoration:none;min-width:0}
+.pw-brand{display:inline-flex;align-items:center;gap:10px;text-decoration:none;width:max-content;max-width:100%;min-width:0}
 .pw-logo{height:36px;width:auto;object-fit:contain}
 .pw-wordmark{font-weight:800;font-size:1.15rem;color:var(--pw-primary);white-space:nowrap}
 .pw-cat-btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid #e5e7eb;border-radius:999px;background:#fff;color:#374151;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
@@ -551,7 +552,10 @@ ${buildPartnerSiteAccountPanelCss()}
 .pw-cat-media{display:block;width:100%;aspect-ratio:1;border:2px solid var(--pw-primary);border-radius:8px;overflow:hidden;background:var(--pw-surface)}
 .pw-cat-media img{width:100%;height:100%;object-fit:cover;display:block}
 .pw-cat-label{font-size:13px;font-weight:700;color:#4b5563;text-align:center}
-.pw-product-grid{display:grid;gap:18px;grid-template-columns:repeat(4,minmax(0,1fr))}
+.pw-product-grid{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (min-width:1280px){
+  .pw-product-grid{gap:18px;grid-template-columns:repeat(4,minmax(0,1fr))}
+}
 .pw-product-card{display:flex;flex-direction:column;background:#fff;border-radius:16px;overflow:hidden;border:1px solid var(--pw-border);box-shadow:0 12px 36px -18px color-mix(in srgb, var(--pw-primary) 40%, transparent);transition:transform .35s ease,box-shadow .35s ease}
 .pw-product-card:hover{transform:translateY(-4px);box-shadow:0 22px 44px -20px rgba(234,88,12,.5)}
 .pw-product-card-media{position:relative;display:block;aspect-ratio:4/5;background:var(--pw-surface)}
@@ -649,10 +653,11 @@ ${buildPartnerSiteAccountPanelCss()}
   .pw-cat-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;overflow-x:auto}
   .pw-cat-media{border:none;border-radius:999px;aspect-ratio:1;max-width:72px;margin:0 auto}
   .pw-cat-label{font-size:11px}
-  .pw-product-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .pw-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px}
   .pw-footer-grid{grid-template-columns:1fr 1fr}
 }
 @media (max-width:1279px){
+  .pw-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px}
   .pw-bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:180;isolation:isolate;display:flex;flex-wrap:nowrap;justify-content:space-around;align-items:stretch;background:#fff;border-top:1px solid #e5e7eb;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
   .pw-bottom-nav a,.pw-bottom-nav .pw-icon-btn,.pw-bottom-nav .pw-shop-icon-btn{flex:1 1 0;min-width:0;min-height:0;width:auto;height:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-decoration:none;font-size:10px;font-weight:600;color:#6b7280;padding:6px 2px;background:transparent;transform:none}
   .pw-bottom-nav a.is-active,.pw-bottom-nav a:first-child{color:var(--pw-primary)}

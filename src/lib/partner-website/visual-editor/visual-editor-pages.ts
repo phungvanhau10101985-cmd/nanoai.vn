@@ -29,7 +29,9 @@ import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual
 import {
   applySharedChrome,
   extractSharedChrome,
+  fillMissingSharedChromeFloats,
   hasSharedChrome,
+  hoistBodyLevelChromeFloats,
 } from '@/lib/partner-website/shop/sync-shared-chrome'
 
 /** Pages shown in the dashboard preview picker (real `/site/{slug}/…` routes). */
@@ -553,7 +555,10 @@ function withCanonicalSharedChrome(
   const homeRaw = readExactVisualPageHtml(website, 'home', variant)
   if (homeRaw.length < 40) return html
   const home = isolateVisualHtmlForDevice(homeRaw, variant)
-  const chrome = extractSharedChrome(home.length >= 40 ? home : homeRaw)
+  const chrome = fillMissingSharedChromeFloats(
+    extractSharedChrome(home.length >= 40 ? home : homeRaw),
+    homeRaw
+  )
   if (!hasSharedChrome(chrome)) return html
   const next = applySharedChrome(trimmed, chrome, { targetVariant: variant })
   return mergeVisualHomeStylesIntoHtml(next, preferredVisualHomeStyleSource(home, homeRaw))
@@ -719,7 +724,7 @@ export function isolateVisualHtmlForDevice(
     }
   }
   const source = sliced
-    ? rebuildStandaloneHtml(trimmed, sliced)
+    ? hoistBodyLevelChromeFloats(rebuildStandaloneHtml(trimmed, sliced), trimmed, variant)
     : hasDeviceWrappers(trimmed)
       ? trimmed
       : stripDeviceSplitCss(trimmed)
