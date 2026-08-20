@@ -14,7 +14,7 @@ import {
   PW_CHROME_FLOAT_SCRIPT_ID,
 } from '@/lib/partner-website/shop/chrome-float-widgets'
 import { injectPartnerShopFontsIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-fonts'
-import { PW_SCENE_LOGO_Z, PW_SCENE_TOPBAR_Z } from '@/lib/partner-website/visual-editor/pw-scene'
+import { pwSceneCenterCss, PW_SCENE_LOGO_Z, PW_SCENE_TOPBAR_Z } from '@/lib/partner-website/visual-editor/pw-scene'
 
 /** Persistent chrome layout — same rules Sửa nhanh uses, kept on the live shop. */
 export const PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID = 'pw-shop-chrome-layout'
@@ -24,6 +24,8 @@ export const PARTNER_SHOP_LOGO_HOST_SCRIPT_ID = 'pw-shop-logo-host'
 export const PARTNER_SHOP_LOGO_HOST_SCRIPT = `(function(){
   function clamp(){
     var viewW=document.documentElement.clientWidth||window.innerWidth||0;
+    var sceneW=parseFloat(window.getComputedStyle(document.documentElement).getPropertyValue('--pw-scene-w'))||0;
+    if(sceneW>0)viewW=Math.min(viewW,sceneW);
     var logos=document.querySelectorAll('[data-pw-logo-float="1"]');
     for(var i=0;i<logos.length;i++){
       var el=logos[i];
@@ -148,6 +150,7 @@ html:not([data-pw-edit-device="mobile"]):not([data-pw-edit-device="tablet"]) .pw
 
 export const PARTNER_SHOP_CHROME_LAYOUT_CSS = `
 html,body{overflow-x:hidden!important;max-width:100%}
+${pwSceneCenterCss()}
 ${PARTNER_SHOP_PRODUCT_GRID_2COL_CSS}
 .pw-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-shop-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-header .pw-shop-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-shop-header .pw-shop-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-header-actions [data-pw-chrome-btn]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-shop-header-actions [data-pw-chrome-btn]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-header .pw-account-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-shop-header .pw-account-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-header .pw-cat-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-shop-header .pw-cat-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-bottom-nav>a:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-shop-bottom-nav>a:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-bottom-nav>button:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-shop-bottom-nav>button:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]){transform:none!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important}
 [data-pw-chrome-added],[data-pw-chrome-btn],[data-pw-el="cat-toggle"]{--pw-chrome-size:22px;--pw-chrome-label:calc(var(--pw-chrome-size,22px)*13/22);--pw-chrome-pad-y:calc(var(--pw-chrome-size,22px)*4/22);--pw-chrome-pad-x:calc(var(--pw-chrome-size,22px)*12/22);--pw-chrome-gap:calc(var(--pw-chrome-size,22px)*6/22)}

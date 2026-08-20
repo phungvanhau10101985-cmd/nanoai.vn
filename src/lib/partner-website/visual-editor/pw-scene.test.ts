@@ -3,6 +3,7 @@ import { buildVisualEditorScript } from './build-visual-editor-script'
 import {
   PW_SCENE_ATTR,
   PW_SCENE_BAND,
+  PW_SCENE_CANVAS_WIDTH,
   PW_SCENE_DEFAULT_INDEX,
   PW_SCENE_DESIGN_WIDTH,
   PW_SCENE_LAYERS,
@@ -14,6 +15,8 @@ import {
   PW_SCENE_Z_MAX,
   clampPwSceneIndex,
   isPwSceneIndex,
+  pwSceneCanvasWidth,
+  pwSceneCenterCss,
   pwSceneCssVars,
   pwSceneDesignWidth,
   pwSceneIndexOfZ,
@@ -120,6 +123,7 @@ describe('pw scene layers', () => {
   it('pins each layer to the same fixed width as the Sửa nhanh iframe', () => {
     expect(PW_SCENE_DESIGN_WIDTH.mobile).toBe(390)
     expect(PW_SCENE_DESIGN_WIDTH.tablet).toBe(768)
+    expect(PW_SCENE_DESIGN_WIDTH.laptop).toBe(1280)
     expect(PW_SCENE_DESIGN_WIDTH.desktop).toBe(1280)
     expect(pwSceneDesignWidth('mobile')).toBe(390)
     expect(pwSceneDesignWidth('tablet')).toBe(768)
@@ -127,7 +131,16 @@ describe('pw scene layers', () => {
     expect(pwSceneDesignWidth('laptop')).toBe(1280)
     expect(pwSceneDesignWidth(undefined)).toBe(1280)
     expect(pwSceneCssVars('mobile')).toBe('--pw-scene-w:390px')
-    expect(pwSceneCssVars('desktop')).toBe('--pw-scene-w:1280px')
+    expect(pwSceneCssVars('laptop')).toBe('--pw-scene-w:1280px')
+    expect(pwSceneCssVars('desktop')).toBe('--pw-scene-w:1440px')
+    expect(PW_SCENE_CANVAS_WIDTH.mobile).toBe(390)
+    expect(PW_SCENE_CANVAS_WIDTH.tablet).toBe(768)
+    expect(PW_SCENE_CANVAS_WIDTH.laptop).toBe(1280)
+    expect(PW_SCENE_CANVAS_WIDTH.desktop).toBe(1440)
+    expect(pwSceneCanvasWidth('desktop')).toBe(1440)
+    expect(pwSceneCenterCss()).toContain('html[data-pw-edit-device="mobile"]{--pw-scene-w:390px}')
+    expect(pwSceneCenterCss()).toContain('html[data-pw-edit-device="laptop"]{--pw-scene-w:1280px}')
+    expect(pwSceneCenterCss()).toContain('html[data-pw-edit-device] body{width:min(100%,var(--pw-scene-w));margin-left:auto;margin-right:auto}')
   })
 
   it('keeps the attribute name away from the background stack attributes', () => {

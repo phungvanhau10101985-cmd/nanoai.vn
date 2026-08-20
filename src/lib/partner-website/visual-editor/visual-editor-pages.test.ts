@@ -6,7 +6,7 @@ import {
   renderPartnerVisualHtmlForPublic,
 } from '@/lib/partner-website/shop/render-partner-visual-html'
 import { visualHtmlLooksUsable, sanitizeVisualHtmlForStore } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
-import { PW_SCENE_DESIGN_WIDTH } from '@/lib/partner-website/visual-editor/pw-scene'
+import { PW_SCENE_CANVAS_WIDTH, PW_SCENE_DESIGN_WIDTH } from '@/lib/partner-website/visual-editor/pw-scene'
 import {
   addVisualPageKey,
   appendVisualDeviceQuery,
@@ -36,6 +36,7 @@ import {
   resolvePublicVisualPageHtml,
   resolveVisualProductIdFromKey,
   shouldServeVisualPageHtml,
+  visualDeviceCanvasWidth,
   visualDevicePreviewFrameStyle,
   isDesktopBrowserWindow,
   visualEditorDeviceVariant,
@@ -46,7 +47,13 @@ import {
 test('scene layers use the same design width as the device preview', () => {
   assert.equal(PW_SCENE_DESIGN_WIDTH.mobile, VISUAL_MOBILE_PREVIEW_PX)
   assert.equal(PW_SCENE_DESIGN_WIDTH.tablet, VISUAL_TABLET_PREVIEW_PX)
+  assert.equal(PW_SCENE_DESIGN_WIDTH.laptop, VISUAL_LAPTOP_PREVIEW_PX)
   assert.equal(PW_SCENE_DESIGN_WIDTH.desktop, VISUAL_DESKTOP_MIN_PX)
+  assert.equal(PW_SCENE_CANVAS_WIDTH.mobile, VISUAL_MOBILE_PREVIEW_PX)
+  assert.equal(PW_SCENE_CANVAS_WIDTH.tablet, VISUAL_TABLET_PREVIEW_PX)
+  assert.equal(PW_SCENE_CANVAS_WIDTH.laptop, VISUAL_LAPTOP_PREVIEW_PX)
+  assert.equal(PW_SCENE_CANVAS_WIDTH.desktop, VISUAL_WIDE_DESKTOP_MIN_PX)
+  assert.equal(visualDeviceCanvasWidth('desktop'), VISUAL_WIDE_DESKTOP_MIN_PX)
 })
 
 test('visual editor paths map catalog pages', () => {
@@ -67,14 +74,20 @@ test('visual editor paths map catalog pages', () => {
   assert.equal(appendVisualDeviceQuery('/site/188-shop/products', 'mobile'), '/site/188-shop/products?pw-device=mobile')
   assert.equal(appendVisualDeviceQuery('/site/188-shop/products', 'tablet'), '/site/188-shop/products?pw-device=tablet')
   assert.equal(appendVisualDeviceQuery('/site/188-shop?v=1', 'desktop'), '/site/188-shop?v=1&pw-device=desktop')
-  assert.deepEqual(visualDevicePreviewFrameStyle('mobile'), { width: VISUAL_MOBILE_PREVIEW_PX })
-  assert.deepEqual(visualDevicePreviewFrameStyle('tablet'), { width: VISUAL_TABLET_PREVIEW_PX })
+  assert.deepEqual(visualDevicePreviewFrameStyle('mobile'), {
+    width: VISUAL_MOBILE_PREVIEW_PX,
+    minWidth: VISUAL_MOBILE_PREVIEW_PX,
+  })
+  assert.deepEqual(visualDevicePreviewFrameStyle('tablet'), {
+    width: VISUAL_TABLET_PREVIEW_PX,
+    minWidth: VISUAL_TABLET_PREVIEW_PX,
+  })
   assert.deepEqual(visualDevicePreviewFrameStyle('laptop'), {
     width: VISUAL_LAPTOP_PREVIEW_PX,
     minWidth: VISUAL_LAPTOP_PREVIEW_PX,
   })
   assert.deepEqual(visualDevicePreviewFrameStyle('desktop'), {
-    width: '100%',
+    width: VISUAL_WIDE_DESKTOP_MIN_PX,
     minWidth: VISUAL_WIDE_DESKTOP_MIN_PX,
   })
   assert.deepEqual(visualDevicePreviewFrameStyle(null), {})

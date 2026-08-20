@@ -46,7 +46,7 @@ export async function POST(
     pageLabel: body.cmsSlug?.trim() || pageKey,
     pageKey,
     shopName: website?.title || 'Shop',
-    locale: normalizeWebLocale(body.locale || website?.locale || 'vi'),
+    locale: normalizeWebLocale(body.locale || website?.locale || 'vi') ?? 'vi',
     currentTitle,
     currentContent: content,
     extraPrompt: extra,

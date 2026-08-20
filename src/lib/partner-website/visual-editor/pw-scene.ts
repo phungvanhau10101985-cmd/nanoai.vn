@@ -134,7 +134,19 @@ export function pwSceneLayerPos(index: unknown): 'bottom' | 'middle' | 'top' {
 export const PW_SCENE_DESIGN_WIDTH = {
   mobile: 390,
   tablet: 768,
+  laptop: 1280,
   desktop: 1280,
+} as const
+
+/**
+ * Khung vẽ căn giữa màn hình — cùng số với iframe Sửa nhanh / `?pw-device=`.
+ * Desktop dùng 1440 (khung rộng) để đường tâm trùng trung điểm màn hình lớn.
+ */
+export const PW_SCENE_CANVAS_WIDTH = {
+  mobile: 390,
+  tablet: 768,
+  laptop: 1280,
+  desktop: 1440,
 } as const
 
 export type PwSceneDevice = keyof typeof PW_SCENE_DESIGN_WIDTH
@@ -144,7 +156,32 @@ export function pwSceneDesignWidth(device: unknown): number {
   return PW_SCENE_DESIGN_WIDTH[key] ?? PW_SCENE_DESIGN_WIDTH.desktop
 }
 
+export function pwSceneCanvasWidth(device: unknown): number {
+  const key = String(device ?? '') as keyof typeof PW_SCENE_CANVAS_WIDTH
+  return PW_SCENE_CANVAS_WIDTH[key] ?? PW_SCENE_CANVAS_WIDTH.desktop
+}
+
 /** Biến CSS dùng chung cho Sửa nhanh và trang khách — hai bên phải cùng số. */
 export function pwSceneCssVars(device: unknown): string {
-  return `--pw-scene-w:${pwSceneDesignWidth(device)}px`
+  return `--pw-scene-w:${pwSceneCanvasWidth(device)}px`
+}
+
+/** Đường tâm mọi máy = trung điểm màn hình. Inject vào chrome layout dùng chung. */
+export function pwSceneCenterCss(): string {
+  const m = PW_SCENE_CANVAS_WIDTH.mobile
+  const t = PW_SCENE_CANVAS_WIDTH.tablet
+  const l = PW_SCENE_CANVAS_WIDTH.laptop
+  const d = PW_SCENE_CANVAS_WIDTH.desktop
+  return [
+    `html{--pw-scene-w:${d}px}`,
+    `html[data-pw-edit-device="mobile"]{--pw-scene-w:${m}px}`,
+    `html[data-pw-edit-device="tablet"]{--pw-scene-w:${t}px}`,
+    `html[data-pw-edit-device="laptop"]{--pw-scene-w:${l}px}`,
+    `html[data-pw-edit-device="desktop"]{--pw-scene-w:${d}px}`,
+    `@media (max-width:${t - 1}px){html:not([data-pw-edit-device]){--pw-scene-w:${m}px}}`,
+    `@media (min-width:${t}px) and (max-width:${l - 1}px){html:not([data-pw-edit-device]){--pw-scene-w:${t}px}}`,
+    `@media (min-width:${l}px) and (max-width:${d - 1}px){html:not([data-pw-edit-device]){--pw-scene-w:${l}px}}`,
+    `@media (min-width:${d}px){html:not([data-pw-edit-device]){--pw-scene-w:${d}px}}`,
+    `html[data-pw-edit-device] body{width:min(100%,var(--pw-scene-w));margin-left:auto;margin-right:auto}`,
+  ].join('')
 }

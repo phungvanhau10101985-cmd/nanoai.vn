@@ -90,14 +90,20 @@ export const VISUAL_WIDE_DESKTOP_MIN_PX = 1440
  * Iframe viewport for `?pw-device=` / Sửa nhanh canvas.
  * Docked DevTools shrinks the browser chrome — keep this width so desktop CSS does not collapse.
  */
+/** Canvas width for Sửa nhanh / `?pw-device=` — centered on the screen midpoint. */
+export function visualDeviceCanvasWidth(device: VisualDeviceVariant): number {
+  if (device === 'mobile') return VISUAL_MOBILE_PREVIEW_PX
+  if (device === 'tablet') return VISUAL_TABLET_PREVIEW_PX
+  if (device === 'laptop') return VISUAL_LAPTOP_PREVIEW_PX
+  return VISUAL_WIDE_DESKTOP_MIN_PX
+}
+
 export function visualDevicePreviewFrameStyle(
   device: VisualDeviceVariant | null
-): { width?: number | string; minWidth?: number } {
-  if (device === 'mobile') return { width: VISUAL_MOBILE_PREVIEW_PX }
-  if (device === 'tablet') return { width: VISUAL_TABLET_PREVIEW_PX }
-  if (device === 'laptop') return { width: VISUAL_LAPTOP_PREVIEW_PX, minWidth: VISUAL_LAPTOP_PREVIEW_PX }
-  if (device === 'desktop') return { width: '100%', minWidth: VISUAL_WIDE_DESKTOP_MIN_PX }
-  return {}
+): { width?: number; minWidth?: number } {
+  if (!device) return {}
+  const width = visualDeviceCanvasWidth(device)
+  return { width, minWidth: width }
 }
 
 /**

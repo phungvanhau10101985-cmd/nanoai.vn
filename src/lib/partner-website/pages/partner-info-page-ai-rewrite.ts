@@ -34,6 +34,17 @@ export type InfoPageAiRewriteResult = {
   keywords: string[]
 }
 
+function readGeminiText(result: { response: { text: () => string; candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> } }): string {
+  try {
+    const direct = result.response.text()?.trim() || ''
+    if (direct) return direct
+  } catch {
+    // text() ném khi chỉ còn thought parts / MAX_TOKENS — đọc parts thủ công.
+  }
+  const parts = result.response.candidates?.[0]?.content?.parts || []
+  return parts.map((p) => String(p.text || '')).join('').trim()
+}
+
 function parseJsonObject(raw: string): Record<string, unknown> | null {
   const trimmed = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
   const start = trimmed.indexOf('{')
@@ -51,7 +62,10 @@ export async function rewritePartnerInfoPageWithAi(
   input: InfoPageAiRewriteInput
 ): Promise<InfoPageAiRewriteResult | null> {
   const key = resolvePartnerWebsiteGeminiApiKey()
-  if (!key) return null
+  if (!key) {
+    console.warn('[partner-info-page-ai-rewrite] missing GOOGLE_API_KEY/GEMINI_API_KEY')
+    return null
+  }
   const lang = LOCALE_LANGUAGE_NAME[input.locale] ?? LOCALE_LANGUAGE_NAME.vi
   const extra = input.extraPrompt?.trim() || ''
   const isAdsPolicyPage = isPartnerSiteAdsPolicyPageKey(input.pageKey || input.pageLabel)
@@ -84,16 +98,31 @@ ${extra || '(none — auto-optimize SEO keywords yourself)'}`
     const genAI = new GoogleGenerativeAI(key)
     const model = genAI.getGenerativeModel({
       model: GEMINI_25_FLASH_NO_THINKING.model,
-      generationConfig: { temperature: 0.5, maxOutputTokens: 2048 },
+      generationConfig: {
+        temperature: 0.5,
+        // gemini-2.5-flash không tắt được thinking; ngân sách thấp cắt JSON → 502.
+        maxOutputTokens: 8192,
+        responseMimeType: 'application/json',
+      },
     })
     const result = await model.generateContent(prompt)
-    const parsed = parseJsonObject(result.response.text()?.trim() || '')
-    if (!parsed) return null
+    const raw = readGeminiText(result)
+    const parsed = parseJsonObject(raw)
+    if (!parsed) {
+      console.warn('[partner-info-page-ai-rewrite] unparseable Gemini output', {
+        finishReason: result.response.candidates?.[0]?.finishReason || '',
+        preview: raw.slice(0, 240),
+      })
+      return null
+    }
     const title = String(parsed.title || '').trim().slice(0, 200)
     const paragraphs = Array.isArray(parsed.paragraphs)
       ? parsed.paragraphs.map((p) => String(p || '').trim()).filter(Boolean).slice(0, 8)
       : []
-    if (!title || !paragraphs.length) return null
+    if (!title || !paragraphs.length) {
+      console.warn('[partner-info-page-ai-rewrite] Gemini JSON missing title/paragraphs')
+      return null
+    }
     const ensuredParagraphs = isAdsPolicyPage
       ? ensureAdsPlatformPolicyParagraphs(paragraphs, input.locale)
       : paragraphs

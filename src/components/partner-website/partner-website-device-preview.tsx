@@ -53,10 +53,7 @@ import {
   visualEditorPreviewPath,
   visualEditorTargetHtmlPath,
   appendVisualDeviceQuery,
-  VISUAL_MOBILE_PREVIEW_PX,
-  VISUAL_TABLET_PREVIEW_PX,
-  VISUAL_LAPTOP_PREVIEW_PX,
-  VISUAL_WIDE_DESKTOP_MIN_PX,
+  visualDeviceCanvasWidth,
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { resetChromeFloatUserMoveInHtml } from '@/lib/partner-website/shop/chrome-float-widgets'
@@ -203,11 +200,11 @@ type VisualEditLeaveIntent =
   | { kind: 'view' }
   | { kind: 'exit' }
 
-const DEVICE_WIDTH: Record<PartnerWebsitePreviewDevice, number | 'full'> = {
-  mobile: VISUAL_MOBILE_PREVIEW_PX,
-  tablet: VISUAL_TABLET_PREVIEW_PX,
-  laptop: VISUAL_LAPTOP_PREVIEW_PX,
-  desktop: 'full',
+const DEVICE_WIDTH: Record<PartnerWebsitePreviewDevice, number> = {
+  mobile: visualDeviceCanvasWidth('mobile'),
+  tablet: visualDeviceCanvasWidth('tablet'),
+  laptop: visualDeviceCanvasWidth('laptop'),
+  desktop: visualDeviceCanvasWidth('desktop'),
 }
 
 type PartnerWebsiteDevicePreviewProps = {
@@ -299,6 +296,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   const [portalReady, setPortalReady] = useState(false)
   const editVariant = visualEditorDeviceVariant(device)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const canvasWrapRef = useRef<HTMLDivElement>(null)
   const projectRef = useRef<PartnerWebsiteProject | null>(null)
   const freezeLockRef = useRef(false)
   const flushedHtmlByVariantRef = useRef<Partial<Record<VisualDeviceVariant, string>>>({})
@@ -1026,6 +1024,22 @@ export const PartnerWebsiteDevicePreview = forwardRef<
 
   const frameWidth = DEVICE_WIDTH[device]
 
+  useEffect(() => {
+    const el = canvasWrapRef.current
+    if (!el) return
+    const center = () => {
+      el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2)
+    }
+    center()
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(center)
+    ro?.observe(el)
+    window.addEventListener('resize', center)
+    return () => {
+      ro?.disconnect()
+      window.removeEventListener('resize', center)
+    }
+  }, [device, visualEditActive, frameWidth])
+
   if (!hasWebsite || !previewSrc) {
     return (
       <div
@@ -1050,13 +1064,11 @@ export const PartnerWebsiteDevicePreview = forwardRef<
         : 'min-h-[640px] h-[min(78vh,860px)]'
 
   const editFrameWidth = frameWidth
-  const deviceFrameIsFull = frameWidth === 'full'
-  const lockComputerCanvas = device === 'desktop' || device === 'laptop'
-  const computerCanvasStyle: CSSProperties = deviceFrameIsFull
-    ? { width: '100%', minWidth: VISUAL_WIDE_DESKTOP_MIN_PX, height: '100%' }
-    : lockComputerCanvas && typeof editFrameWidth === 'number'
-      ? { width: editFrameWidth, minWidth: editFrameWidth, height: '100%' }
-      : { width: editFrameWidth as number, maxWidth: '100%', height: '100%' }
+  const computerCanvasStyle: CSSProperties = {
+    width: editFrameWidth,
+    minWidth: editFrameWidth,
+    height: '100%',
+  }
   const catalogPageKeys = VISUAL_EDITOR_PAGE_KEYS.filter(
     (key) => key !== 'collection' && key !== 'product_detail'
   )
@@ -1425,17 +1437,11 @@ export const PartnerWebsiteDevicePreview = forwardRef<
             ) : null}
           </div>
           <div
-            className={cn(
-              'relative min-h-0 min-w-0 flex-1 bg-muted/30',
-              lockComputerCanvas ? 'overflow-x-auto overflow-y-hidden' : 'overflow-hidden'
-            )}
+            ref={canvasWrapRef}
+            className="relative flex min-h-0 min-w-0 flex-1 justify-center overflow-x-auto overflow-y-hidden bg-muted/30"
           >
             <div
-              className={cn(
-                'relative mx-auto h-full bg-white',
-                lockComputerCanvas ? 'overflow-x-auto overflow-y-hidden' : 'overflow-hidden',
-                deviceFrameIsFull ? 'w-full' : 'border-x shadow-sm'
-              )}
+              className="relative h-full shrink-0 border-x bg-white shadow-sm"
               style={computerCanvasStyle}
             >
               <iframe
@@ -1456,24 +1462,15 @@ export const PartnerWebsiteDevicePreview = forwardRef<
         </div>
       ) : (
       <div
+        ref={canvasWrapRef}
         className={cn(
-          'overflow-auto rounded-lg border bg-muted/20 p-1',
-          embedded && 'flex min-h-0 flex-1 flex-col'
+          'flex justify-center overflow-auto rounded-lg border bg-muted/20 p-1',
+          embedded && 'min-h-0 flex-1 flex-col'
         )}
       >
         <div
-          className={cn(
-            'relative mx-auto flex min-h-0 flex-col rounded-md border bg-white shadow-sm transition-[width] duration-200',
-            lockComputerCanvas ? 'overflow-x-auto overflow-y-hidden' : 'overflow-hidden',
-            deviceFrameIsFull ? 'h-full w-full flex-1' : ''
-          )}
-          style={
-            deviceFrameIsFull
-              ? { minWidth: VISUAL_WIDE_DESKTOP_MIN_PX }
-              : lockComputerCanvas && typeof editFrameWidth === 'number'
-                ? { width: editFrameWidth, minWidth: editFrameWidth }
-                : { width: editFrameWidth as number, maxWidth: '100%' }
-          }
+          className="relative mx-auto flex min-h-0 shrink-0 flex-col overflow-hidden rounded-md border bg-white shadow-sm transition-[width] duration-200"
+          style={{ width: editFrameWidth, minWidth: editFrameWidth }}
         >
           <iframe
             key={editSrcDoc ? `ve-srcdoc-${editVariant}-${previewPageKey}` : previewSrc}

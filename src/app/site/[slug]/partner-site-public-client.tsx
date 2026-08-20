@@ -200,7 +200,7 @@ function PartnerSitePublicFrame({
   hideChatLauncher?: boolean
 }) {
   const hideEmbedFab = hideChatLauncher !== false || htmlHasChromeChatMua(html)
-  const compactPreview = forceDevice === 'mobile' || forceDevice === 'tablet'
+  const devicePreview = Boolean(forceDevice)
   const desktopLocked = forceDevice === 'desktop' || forceDevice === 'laptop'
   const [desktopWindowLock, setDesktopWindowLock] = useState(false)
   useLayoutEffect(() => {
@@ -225,8 +225,8 @@ function PartnerSitePublicFrame({
     forceDevice && !deviceHtmlAlreadyIsolated ? isolateVisualHtmlForDevice(html, forceDevice) || html : html,
     hideEmbedFab
   )
-  /** Live custom domain: never srcDoc-iframe (except compact ?pw-device= preview). */
-  if (inlineHtml && !compactPreview) {
+  /** Live custom domain: never srcDoc-iframe (except `?pw-device=` preview frames). */
+  if (inlineHtml && !devicePreview) {
     return (
       <PartnerSiteChatWidgetProvider
         chatPath={chatPath}
@@ -261,10 +261,10 @@ function PartnerSitePublicFrame({
     >
       <div
         className={
-          compactPreview
-            ? 'flex min-h-screen justify-center bg-neutral-200'
+          devicePreview
+            ? 'flex min-h-screen justify-center overflow-x-auto bg-neutral-200'
             : frameLocked
-              ? 'min-h-screen overflow-x-auto bg-white'
+              ? 'flex min-h-screen justify-center overflow-x-auto bg-white'
               : 'min-h-screen bg-white'
         }
       >
@@ -273,13 +273,13 @@ function PartnerSitePublicFrame({
           srcDoc={previewHtml}
           sandbox={sandbox}
           className={
-            compactPreview
-              ? 'block h-[100dvh] max-w-full border-0 bg-white shadow-lg'
+            devicePreview
+              ? 'block h-[100dvh] shrink-0 border-0 bg-white shadow-lg'
               : frameLocked
-                ? 'block h-[100dvh] border-0 bg-white'
+                ? 'block h-[100dvh] shrink-0 border-0 bg-white'
                 : 'fixed inset-0 h-full w-full border-0 bg-white'
           }
-          style={compactPreview || frameLocked ? previewFrameStyle : undefined}
+          style={devicePreview || frameLocked ? previewFrameStyle : undefined}
         />
       </div>
     </PartnerSiteChatWidgetProvider>
