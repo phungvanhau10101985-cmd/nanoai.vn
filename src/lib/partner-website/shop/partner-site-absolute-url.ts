@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
 import { getPublicOriginFromAppRouterHeaders } from '@/lib/auth/public-app-url'
 import { partnerSiteHref } from '@/lib/messaging/partner-custom-domain-site-path'
+import { rewritePartnerCustomDomainOriginForSeo } from '@/lib/messaging/partner-custom-domain-hostname'
 
 /**
  * W4.12/S0.6 — URL tuyệt đối cho JSON-LD/canonical trên trang shop công khai.
@@ -11,7 +12,8 @@ import { partnerSiteHref } from '@/lib/messaging/partner-custom-domain-site-path
 export function resolvePartnerSiteAbsoluteUrl(siteSlug: string, subpath: string): string {
   const headerStore = headers()
   const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
-  const origin = getPublicOriginFromAppRouterHeaders(headerStore)
+  const rawOrigin = getPublicOriginFromAppRouterHeaders(headerStore)
+  const origin = onCustomDomain ? rewritePartnerCustomDomainOriginForSeo(rawOrigin) : rawOrigin
   const path = partnerSiteHref(siteSlug, subpath, onCustomDomain)
   return `${origin}${path}`
 }

@@ -7,6 +7,7 @@ import {
 } from '@/lib/db/messaging-partner-custom-domains-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { hostnameFromOrigin, normalizePartnerShopOrigin } from '@/lib/partner-website/shop/partner-site-shop-sso'
+import { partnerCustomDomainHostsMatch } from '@/lib/messaging/partner-custom-domain-hostname'
 
 export {
   buildShopGoogleAuthBridgeUrl,
@@ -208,7 +209,7 @@ export async function resolveVerifiedPartnerShopReturnUrlForSite(input: {
     if (n) allowedOrigins.add(n.toLowerCase())
   }
   const requestOrigin = `${url.protocol}//${url.host}`.replace(/\/$/, '').toLowerCase()
-  if (![...allowedOrigins].some((o) => o === requestOrigin || hostnameFromOrigin(o) === host)) {
+  if (![...allowedOrigins].some((o) => o === requestOrigin || partnerCustomDomainHostsMatch(hostnameFromOrigin(o), host))) {
     return null
   }
   const origin = `${url.protocol}//${url.host}`.replace(/\/$/, '')

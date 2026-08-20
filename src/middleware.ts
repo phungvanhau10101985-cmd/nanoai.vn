@@ -136,15 +136,24 @@ export async function middleware(request: NextRequest) {
           siteSlug?: string | null
           useForSite?: boolean
           sitePublished?: boolean
+          canonicalHostname?: string | null
         }
         if (data.found) {
           const path = request.nextUrl.pathname
           const siteSlug = data.siteSlug?.trim() || ''
           const sitePublished = data.useForSite !== false && data.sitePublished && siteSlug
+          const canonicalHost = data.canonicalHostname?.trim().toLowerCase() || ''
+          const publicPath =
+            sitePublished ? mapPartnerInternalPathToPublic(siteSlug, path) ?? path : path
+
+          if (canonicalHost && canonicalHost !== host && !path.startsWith('/.well-known/')) {
+            const dest = new URL(`https://${canonicalHost}${publicPath}`)
+            dest.search = request.nextUrl.search
+            return NextResponse.redirect(dest, 301)
+          }
 
           if (sitePublished) {
-            const publicPath = mapPartnerInternalPathToPublic(siteSlug, path)
-            if (publicPath !== null && publicPath !== path) {
+            if (publicPath !== path) {
               const redirectUrl = request.nextUrl.clone()
               redirectUrl.pathname = publicPath
               return NextResponse.redirect(redirectUrl, 308)

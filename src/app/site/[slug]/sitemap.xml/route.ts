@@ -6,6 +6,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
 import { getPublicOriginFromAppRouterHeaders } from '@/lib/auth/public-app-url'
 import { partnerSiteHref } from '@/lib/messaging/partner-custom-domain-site-path'
+import { rewritePartnerCustomDomainOriginForSeo } from '@/lib/messaging/partner-custom-domain-hostname'
 import { buildPartnerSiteProductKey } from '@/lib/partner-website/shop/partner-site-product-slug'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 
@@ -41,7 +42,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ slug: strin
   }
 
   const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => req.headers.get(name)))
-  const origin = getPublicOriginFromAppRouterHeaders(req.headers)
+  const rawOrigin = getPublicOriginFromAppRouterHeaders(req.headers)
+  const origin = onCustomDomain ? rewritePartnerCustomDomainOriginForSeo(rawOrigin) : rawOrigin
   const abs = (subpath: string) => `${origin}${partnerSiteHref(shop.site.siteSlug, subpath, onCustomDomain)}`
 
   const [categories, products] = await Promise.all([

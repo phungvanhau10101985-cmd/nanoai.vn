@@ -10,6 +10,10 @@ import { useToast } from '@/hooks/use-toast'
 import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
 import { isStepUpRequiredError } from '@/lib/auth/step-up-otp-shared'
 import type { PartnerCustomDomainRow } from '@/lib/db/messaging-partner-custom-domains-pg'
+import {
+  partnerCustomDomainApexPair,
+  partnerCustomDomainPublicOrigin,
+} from '@/lib/messaging/partner-custom-domain-hostname'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
   buildPartnerChatPublicUrl,
@@ -83,6 +87,7 @@ export function PartnerCustomDomainSettingsCard({
   const [useForSite, setUseForSite] = useState(true)
   const [domain, setDomain] = useState<PartnerCustomDomainRow | null>(null)
   const [cnameTarget, setCnameTarget] = useState('nanoai.vn')
+  const [apexATarget, setApexATarget] = useState('14.225.218.39')
   const [lastDetail, setLastDetail] = useState('')
   const [shopLoginOrigin, setShopLoginOrigin] = useState('')
   const [shopLoginPath, setShopLoginPath] = useState('/dang-nhap')
@@ -101,6 +106,7 @@ export function PartnerCustomDomainSettingsCard({
         setUseForChat(res.domain?.use_for_chat ?? true)
         setUseForSite(res.domain?.use_for_site ?? true)
         setCnameTarget(res.cnameTarget || 'nanoai.vn')
+        if ('apexATarget' in res && res.apexATarget) setApexATarget(String(res.apexATarget))
         if ('shopSso' in res && res.shopSso) {
           setShopLoginOrigin(res.shopSso.externalShopOrigin ?? '')
           setShopLoginPath(res.shopSso.externalShopLoginPath || '/dang-nhap')
@@ -119,12 +125,13 @@ export function PartnerCustomDomainSettingsCard({
 
   const previewOrigin = useMemo(() => {
     if (domain?.hostname?.trim()) {
-      return `https://${domain.hostname.trim().toLowerCase()}`
+      return partnerCustomDomainPublicOrigin(domain.hostname)
     }
     return null
   }, [domain])
 
   const previewSslReady = domain?.ssl_status === 'ssl_active'
+  const apexPair = useMemo(() => partnerCustomDomainApexPair(hostname), [hostname])
 
   const copyText = async (text: string) => {
     try {
@@ -342,7 +349,7 @@ export function PartnerCustomDomainSettingsCard({
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <code className="rounded bg-background px-2 py-1 text-[11px]">
-                {hostname.trim() || 'shop.example.com'} → CNAME → {cnameTarget}
+                {apexPair?.www || hostname.trim() || 'shop.example.com'} → CNAME → {cnameTarget}
               </code>
               <Button type="button" size="sm" variant="outline" className="h-7 gap-1" onClick={() => void copyText(cnameTarget)}>
                 <Copy className="h-3 w-3" aria-hidden />
@@ -350,6 +357,24 @@ export function PartnerCustomDomainSettingsCard({
               </Button>
             </div>
           </div>
+
+          {apexPair ? (
+          <div className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-2">
+            <p className="text-xs font-medium">{t.customDomainApexTitle}</p>
+            <p className="text-[11px] text-muted-foreground">
+              {t.customDomainApexHint.replace('{ip}', apexATarget)}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="rounded bg-background px-2 py-1 text-[11px]">
+                {apexPair.apex} → A → {apexATarget}
+              </code>
+              <Button type="button" size="sm" variant="outline" className="h-7 gap-1" onClick={() => void copyText(apexATarget)}>
+                <Copy className="h-3 w-3" aria-hidden />
+                {t.customDomainCopyApexIp}
+              </Button>
+            </div>
+          </div>
+          ) : null}
 
           <div className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-1">
             <p className="flex items-center gap-1.5 text-xs font-medium">

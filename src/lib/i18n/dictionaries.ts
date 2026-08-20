@@ -803,6 +803,9 @@ export type Dictionary = {
     customDomainUseForSite: string
     customDomainCnameTitle: string
     customDomainCnameHint: string
+    customDomainApexTitle: string
+    customDomainApexHint: string
+    customDomainCopyApexIp: string
     customDomainSslTitle: string
     customDomainSslHint: string
     customDomainSaveButton: string
@@ -3950,7 +3953,7 @@ const VI_DICTIONARY: Dictionary = {
       'Sau khi cấu hình, chat tư vấn và website shop có thể mở trên domain của bạn với chứng chỉ SSL do nền tảng cấp tự động (không cần tự mua cert).',
     customDomainStep1: 'Bước 1 — Nhập hostname (không gõ https://), chọn dùng cho chat và/hoặc website shop, bấm Lưu.',
     customDomainStep2:
-      'Bước 2 — Vào nhà cung cấp domain (Cloudflare, GoDaddy, tenten…), tạo bản ghi CNAME trỏ hostname shop tới {target}.',
+      'Bước 2 — Vào nhà cung cấp domain (Cloudflare, GoDaddy, tenten…): CNAME www (hoặc subdomain) tới {target}. Tên miền gốc không www (vd. tiemanhai.vn) thêm bản ghi A trỏ IP VPS.',
     customDomainStep3:
       'Bước 3 — Chờ DNS cập nhật (5–30 phút, đôi khi đến 24h), quay lại đây bấm «Kiểm tra DNS & SSL».',
     customDomainStep4:
@@ -3961,7 +3964,11 @@ const VI_DICTIONARY: Dictionary = {
     customDomainUseForSite: 'Dùng cho website shop (trang /site)',
     customDomainCnameTitle: 'Bản ghi DNS (CNAME)',
     customDomainCnameHint:
-      'Tạo CNAME: hostname shop → {target}. Không trỏ A record trực tiếp IP trừ khi đội kỹ thuật hướng dẫn.',
+      'Tạo CNAME: hostname shop (thường www) → {target}. Tên miền gốc không www dùng bản ghi A ở ô bên dưới.',
+    customDomainApexTitle: 'Bản ghi DNS gốc (A) — gõ không www cũng vào được',
+    customDomainApexHint:
+      'Tạo A record: tên miền gốc (@) → {ip}. Đây là URL SEO chính (https://tên-miền/). www sẽ chuyển 301 về bản không www. Không dùng CNAME ở root.',
+    customDomainCopyApexIp: 'Sao chép IP',
     customDomainSslTitle: 'SSL (HTTPS)',
     customDomainSslHint:
       'NanoAI cấp HTTPS trên domain của bạn qua reverse proxy sau khi CNAME đúng. Khách luôn truy cập https:// — không cần cài Let\'s Encrypt trên server shop.',
@@ -3994,7 +4001,7 @@ const VI_DICTIONARY: Dictionary = {
     shopSsoSavedOk: 'Đã lưu cấu hình đăng nhập Google.',
     shopSsoInvalidOrigin: 'URL website đăng nhập không hợp lệ.',
     customDomainVerifyOk: 'DNS và SSL đã sẵn sàng trên domain của bạn.',
-    customDomainVerifyDnsFail: 'Chưa thấy CNAME đúng — kiểm tra lại DNS.',
+    customDomainVerifyDnsFail: 'Chưa thấy CNAME hoặc A record đúng — kiểm tra lại DNS (www = CNAME, không www = A).',
     customDomainVerifySslPending: 'DNS đã đúng — SSL có thể cần thêm vài phút, thử lại sau.',
   },
   partnerMessagingOrders: {
@@ -7109,7 +7116,7 @@ const EN_DICTIONARY: Dictionary = {
       'After setup, chat and shop site can run on your domain with SSL provisioned automatically by the platform (no separate cert purchase).',
     customDomainStep1: 'Step 1 — Enter hostname (no https://), choose chat and/or shop site, then Save.',
     customDomainStep2:
-      'Step 2 — At your DNS provider (Cloudflare, GoDaddy, etc.), add a CNAME from your hostname to {target}.',
+      'Step 2 — At your DNS provider: CNAME www (or a subdomain) to {target}. For the bare domain (no www), add an A record to the VPS IP.',
     customDomainStep3: 'Step 3 — Wait for DNS (5–30 min, sometimes up to 24h), then click «Verify DNS & SSL».',
     customDomainStep4:
       'Step 4 — When status is «SSL active», update embed links and marketing to the new domain (see preview below).',
@@ -7118,7 +7125,12 @@ const EN_DICTIONARY: Dictionary = {
     customDomainUseForChat: 'Use for hosted + embed chat',
     customDomainUseForSite: 'Use for shop website (/site)',
     customDomainCnameTitle: 'DNS record (CNAME)',
-    customDomainCnameHint: 'Create CNAME: your hostname → {target}. Avoid pointing A records unless support advises.',
+    customDomainCnameHint:
+      'Create CNAME: shop hostname (usually www) → {target}. The bare domain (no www) uses the A record below.',
+    customDomainApexTitle: 'Root DNS (A) — so visitors can type the domain without www',
+    customDomainApexHint:
+      'Create an A record: apex (@) → {ip}. This is the canonical SEO URL (https://your-domain/). www 301-redirects to the no-www host. Do not use a CNAME on the root.',
+    customDomainCopyApexIp: 'Copy IP',
     customDomainSslTitle: 'SSL (HTTPS)',
     customDomainSslHint:
       'NanoAI terminates HTTPS on your domain via reverse proxy once CNAME is correct. Visitors always use https://.',
@@ -7151,7 +7163,7 @@ const EN_DICTIONARY: Dictionary = {
     shopSsoSavedOk: 'Google sign-in settings saved.',
     shopSsoInvalidOrigin: 'Invalid login website URL.',
     customDomainVerifyOk: 'DNS and SSL are ready on your domain.',
-    customDomainVerifyDnsFail: 'CNAME not found or incorrect — check DNS.',
+    customDomainVerifyDnsFail: 'CNAME or A record not found — check DNS (www = CNAME, no www = A).',
     customDomainVerifySslPending: 'DNS OK — SSL may need a few more minutes; try again.',
     customerCareShopSetupGuideTitle: 'Set up your customer-care shop',
     customerCareShopSetupGuideBody:
@@ -10258,7 +10270,7 @@ const ZH_DICTIONARY: Dictionary = {
     customDomainGuideTitle: '绑定自有域名指南',
     customDomainGuideBody: '配置完成后，聊天与店铺网站可在您的域名上运行，SSL 由平台自动签发（无需自行购买证书）。',
     customDomainStep1: '步骤 1 — 输入主机名（不要 https://），选择聊天和/或店铺网站，保存。',
-    customDomainStep2: '步骤 2 — 在 DNS 服务商添加 CNAME，将店铺主机名指向 {target}。',
+    customDomainStep2: '步骤 2 — 在 DNS 服务商添加 CNAME，将 www（或子域名）指向 {target}。无 www 的根域名请添加 A 记录指向 VPS IP。',
     customDomainStep3: '步骤 3 — 等待 DNS 生效（5–30 分钟，最长 24 小时），点击「验证 DNS 与 SSL」。',
     customDomainStep4: '步骤 4 — 状态为「SSL 已启用」后，将嵌入链接与营销改为新域名（见下方预览）。',
     customDomainHostnameLabel: '主机名（店铺域名）',
@@ -10266,7 +10278,10 @@ const ZH_DICTIONARY: Dictionary = {
     customDomainUseForChat: '用于托管/嵌入聊天',
     customDomainUseForSite: '用于店铺网站 (/site)',
     customDomainCnameTitle: 'DNS 记录 (CNAME)',
-    customDomainCnameHint: '创建 CNAME：您的主机名 → {target}。除非技术支持说明，请勿直接 A 记录到 IP。',
+    customDomainCnameHint: '创建 CNAME：店铺主机名（通常为 www）→ {target}。无 www 的根域名使用下方 A 记录。',
+    customDomainApexTitle: '根域名 DNS（A）— 输入不带 www 也能打开',
+    customDomainApexHint: '创建 A 记录：根域名（@）→ {ip}。这是 SEO 主网址（https://域名/）。www 会 301 到无 www。根域名不要用 CNAME。',
+    customDomainCopyApexIp: '复制 IP',
     customDomainSslTitle: 'SSL (HTTPS)',
     customDomainSslHint: 'CNAME 正确后，NanoAI 通过反向代理在您的域名上提供 HTTPS，访客始终使用 https://。',
     customDomainSaveButton: '保存域名',
@@ -10297,7 +10312,7 @@ const ZH_DICTIONARY: Dictionary = {
     shopSsoSavedOk: '已保存 Google 登录设置。',
     shopSsoInvalidOrigin: '登录网站 URL 无效。',
     customDomainVerifyOk: '您的域名 DNS 与 SSL 已就绪。',
-    customDomainVerifyDnsFail: 'CNAME 不正确 — 请检查 DNS。',
+    customDomainVerifyDnsFail: '未找到正确的 CNAME 或 A 记录 — 请检查 DNS（www = CNAME，无 www = A）。',
     customDomainVerifySslPending: 'DNS 已正确 — SSL 可能需要几分钟，请稍后重试。',
   },
   partnerMessagingOrders: {
@@ -13328,7 +13343,7 @@ const JA_DICTIONARY: Dictionary = {
     customDomainGuideBody:
       '設定後、チャットと shop サイトを独自ドメインで公開できます。SSL はプラットフォームが自動発行（証明書の個別購入不要）。',
     customDomainStep1: '手順 1 — ホスト名を入力（https:// なし）、チャット/shop サイトを選択して保存。',
-    customDomainStep2: '手順 2 — DNS プロバイダで CNAME を作成し、ホスト名を {target} に向ける。',
+    customDomainStep2: '手順 2 — DNS で www（またはサブドメイン）を {target} へ CNAME。www なしのルートドメインは A レコードで VPS IP を指定。',
     customDomainStep3: '手順 3 — DNS 反映を待つ（5–30 分、最大 24 時間）、「DNS・SSL を確認」をクリック。',
     customDomainStep4: '手順 4 — 「SSL 有効」になったら、埋め込みリンクを新ドメインに更新（下のプレビュー参照）。',
     customDomainHostnameLabel: 'ホスト名（shop ドメイン）',
@@ -13336,7 +13351,10 @@ const JA_DICTIONARY: Dictionary = {
     customDomainUseForChat: 'ホスト/埋め込みチャットに使用',
     customDomainUseForSite: 'shop サイト (/site) に使用',
     customDomainCnameTitle: 'DNS レコード (CNAME)',
-    customDomainCnameHint: 'CNAME: ホスト名 → {target}。サポート指示がない限り A レコードは避けてください。',
+    customDomainCnameHint: 'CNAME: ホスト名（通常 www）→ {target}。www なしのルートは下の A レコードを使います。',
+    customDomainApexTitle: 'ルート DNS（A）— www なしでも開けるようにする',
+    customDomainApexHint: 'A レコード: ルート（@）→ {ip}。SEO の正規 URL は www なしです。www は 301 でルートへ。ルートに CNAME は使わないでください。',
+    customDomainCopyApexIp: 'IP をコピー',
     customDomainSslTitle: 'SSL (HTTPS)',
     customDomainSslHint:
       'CNAME 正設定後、NanoAI がリバースプロキシで HTTPS を提供。訪問者は常に https:// でアクセス。',
@@ -13369,7 +13387,7 @@ const JA_DICTIONARY: Dictionary = {
     shopSsoSavedOk: 'Google ログイン設定を保存しました。',
     shopSsoInvalidOrigin: 'ログインサイトの URL が無効です。',
     customDomainVerifyOk: 'DNS と SSL が利用可能です。',
-    customDomainVerifyDnsFail: 'CNAME が正しくありません — DNS を確認してください。',
+    customDomainVerifyDnsFail: '正しい CNAME または A が見つかりません — DNS を確認（www = CNAME、www なし = A）。',
     customDomainVerifySslPending: 'DNS OK — SSL は数分かかる場合があります。再試行してください。',
   },
   partnerMessagingOrders: {
@@ -16460,7 +16478,7 @@ const KO_DICTIONARY: Dictionary = {
     customDomainGuideBody:
       '설정 후 채팅과 매장 사이트를 자체 도메인에서 제공할 수 있습니다. SSL은 플랫폼이 자동 발급(별도 인증서 구매 불필요).',
     customDomainStep1: '1단계 — 호스트명 입력(https:// 제외), 채팅 및/또는 매장 사이트 선택 후 저장.',
-    customDomainStep2: '2단계 — DNS 업체에서 CNAME을 만들어 호스트명을 {target}(으)로 연결.',
+    customDomainStep2: '2단계 — DNS에서 www(또는 서브도메인)를 {target}(으)로 CNAME. www 없는 루트 도메인은 A 레코드로 VPS IP를 지정.',
     customDomainStep3: '3단계 — DNS 반영 대기(5–30분, 최대 24시간) 후 «DNS·SSL 확인» 클릭.',
     customDomainStep4: '4단계 — «SSL 활성» 상태가 되면 임베드·마케팅 링크를 새 도메인으로 변경(아래 미리보기).',
     customDomainHostnameLabel: '호스트명(매장 도메인)',
@@ -16468,7 +16486,10 @@ const KO_DICTIONARY: Dictionary = {
     customDomainUseForChat: '호스팅/임베드 채팅에 사용',
     customDomainUseForSite: '매장 웹사이트(/site)에 사용',
     customDomainCnameTitle: 'DNS 레코드(CNAME)',
-    customDomainCnameHint: 'CNAME: 호스트명 → {target}. 지원팀 안내 없이 A 레코드 직접 지정은 피하세요.',
+    customDomainCnameHint: 'CNAME: 호스트명(보통 www) → {target}. www 없는 루트 도메인은 아래 A 레코드를 사용합니다.',
+    customDomainApexTitle: '루트 DNS(A) — www 없이 입력해도 접속되게',
+    customDomainApexHint: 'A 레코드: 루트(@) → {ip}. SEO 정규 URL은 www 없는 주소입니다. www는 301로 루트로 이동합니다.',
+    customDomainCopyApexIp: 'IP 복사',
     customDomainSslTitle: 'SSL(HTTPS)',
     customDomainSslHint:
       'CNAME이 올바르면 NanoAI가 리버스 프록시로 HTTPS를 제공합니다. 방문자는 항상 https:// 로 접속.',
@@ -16501,7 +16522,7 @@ const KO_DICTIONARY: Dictionary = {
     shopSsoSavedOk: 'Google 로그인 설정을 저장했습니다.',
     shopSsoInvalidOrigin: '로그인 웹사이트 URL이 올바르지 않습니다.',
     customDomainVerifyOk: 'DNS와 SSL이 준비되었습니다.',
-    customDomainVerifyDnsFail: 'CNAME이 올바르지 않습니다 — DNS를 확인하세요.',
+    customDomainVerifyDnsFail: '올바른 CNAME 또는 A 레코드가 없습니다 — DNS를 확인하세요(www = CNAME, www 없음 = A).',
     customDomainVerifySslPending: 'DNS OK — SSL은 몇 분 더 걸릴 수 있습니다. 다시 시도하세요.',
   },
   partnerMessagingOrders: {

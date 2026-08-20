@@ -1,5 +1,9 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import {
+  partnerCustomDomainHostLookupNames,
+  partnerCustomDomainPublicOrigin,
+} from '@/lib/messaging/partner-custom-domain-hostname'
 
 export type PartnerCustomDomainRow = {
   id: string
@@ -136,6 +140,8 @@ export async function resolveActivePartnerCustomDomainByHostPg(
 ): Promise<PartnerCustomDomainResolveRow | null> {
   if (!isPgConfigured()) return null
   const host = hostname.trim().toLowerCase()
+  const lookup = partnerCustomDomainHostLookupNames(host)
+  if (lookup.length === 0) return null
   const row = await pgQueryOne<Record<string, unknown>>(
     `select d.partner_id, p.slug as partner_slug,
             w.site_slug, coalesce(w.is_published, false) as site_published,
@@ -143,13 +149,14 @@ export async function resolveActivePartnerCustomDomainByHostPg(
      from public.messaging_partner_custom_domains d
      join public.messaging_partners p on p.id = d.partner_id
      left join public.messaging_partner_websites w on w.partner_id = d.partner_id
-     where lower(d.hostname) = $1
+     where lower(d.hostname) = any($1::text[])
        and d.dns_verified_at is not null
        and d.ssl_status = 'ssl_active'
        and p.is_active = true
        and p.purge_at is null
+     order by case when lower(d.hostname) = $2 then 0 else 1 end
      limit 1`,
-    [host]
+    [lookup, host]
   )
   if (!row) return null
   return {
@@ -173,7 +180,7 @@ export async function fetchActivePartnerCustomDomainOriginPg(partnerId: string):
     [partnerId]
   )
   const h = row?.hostname?.trim()
-  return h ? `https://${h.toLowerCase()}` : null
+  return h ? partnerCustomDomainPublicOrigin(h) : null
 }
 
 /** Tên miền shop trong quản trị (SSL + dùng cho website /site) — nguồn SSO Google mặc định. */
@@ -189,7 +196,7 @@ export async function fetchPartnerShopSiteCustomDomainOriginPg(partnerId: string
     [partnerId]
   )
   const h = row?.hostname?.trim()
-  return h ? `https://${h.toLowerCase()}` : null
+  return h ? partnerCustomDomainPublicOrigin(h) : null
 }
 
 /** Hostname đã lưu trong quản trị (chưa cần SSL) — dùng cho link «Xem web» / preview. */
@@ -217,6 +224,26 @@ export async function fetchPartnerCustomDomainsNeedingSslPg(limit = 20): Promise
   }))
 }
 
+/** Domain đã SSL — cron cấp thêm cert cho bản www/apex còn thiếu. */
+export async function fetchSslActivePartnerCustomDomainsPg(limit = 20): Promise<
+  Array<{ partner_id: string; hostname: string }>
+> {
+  if (!isPgConfigured()) return []
+  const rows = await pgQuery<{ partner_id: string; hostname: string }>(
+    `select d.partner_id::text, d.hostname
+     from public.messaging_partner_custom_domains d
+     join public.messaging_partners p on p.id = d.partner_id
+     where d.dns_verified_at is not null
+       and d.ssl_status = 'ssl_active'
+       and p.is_active = true
+       and p.purge_at is null
+     order by d.updated_at asc
+     limit $1`,
+    [limit]
+  )
+  return rows.map((r) => ({ partner_id: r.partner_id, hostname: r.hostname }))
+}
+
 export async function fetchPartnerWebsiteConfiguredSiteOriginPg(partnerId: string): Promise<string | null> {
   if (!isPgConfigured()) return null
   const row = await pgQueryOne<{ hostname: string }>(
@@ -227,5 +254,5 @@ export async function fetchPartnerWebsiteConfiguredSiteOriginPg(partnerId: strin
     [partnerId]
   )
   const h = row?.hostname?.trim()
-  return h ? `https://${h.toLowerCase()}` : null
+  return h ? partnerCustomDomainPublicOrigin(h) : null
 }

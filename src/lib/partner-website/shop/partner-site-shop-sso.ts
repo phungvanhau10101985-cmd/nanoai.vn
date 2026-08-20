@@ -1,3 +1,5 @@
+import { partnerCustomDomainHostsMatch } from '@/lib/messaging/partner-custom-domain-hostname'
+
 /** Path on partner shop web (e.g. 188.com.vn) — same-origin when site uses custom domain. */
 export const PARTNER_SITE_CUSTOMER_TOKEN_PATH =
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_PARTNER_SITE_CUSTOMER_TOKEN_PATH?.trim()) ||
@@ -42,7 +44,7 @@ export function isPartnerShopTokenSameOrigin(shopOrigin: string | null | undefin
   if (typeof window === 'undefined') return false
   const shopHost = hostnameFromOrigin(shopOrigin)
   if (!shopHost) return false
-  return window.location.hostname.toLowerCase() === shopHost
+  return partnerCustomDomainHostsMatch(window.location.hostname, shopHost)
 }
 
 export function buildPartnerShopGoogleLoginUrl(input: {

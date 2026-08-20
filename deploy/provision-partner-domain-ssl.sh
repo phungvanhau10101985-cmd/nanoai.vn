@@ -2,6 +2,7 @@
 # Cấp SSL + nginx cho một hostname shop (Let's Encrypt HTTP-01).
 # Usage (trên VPS, cần root):
 #   sudo bash deploy/provision-partner-domain-ssl.sh www.tiemanhai.vn
+#   sudo bash deploy/provision-partner-domain-ssl.sh tiemanhai.vn
 #
 # Biến tuỳ chọn:
 #   CERTBOT_EMAIL=admin@nanoai.vn

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveActivePartnerCustomDomainByHostPg } from '@/lib/db/messaging-partner-custom-domains-pg'
 import { isPlatformAppHostname } from '@/lib/messaging/partner-custom-domain-platform-host'
+import { partnerCustomDomainSeoHostname } from '@/lib/messaging/partner-custom-domain-hostname'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     found: true,
     hostname: host,
+    canonicalHostname: partnerCustomDomainSeoHostname(host),
     partnerId: row.partner_id,
     partnerSlug: row.partner_slug,
     siteSlug: row.site_slug,

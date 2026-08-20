@@ -49,8 +49,9 @@ import {
 } from '@/lib/messaging/partner-custom-domain-hostname'
 import { normalizePartnerShopOrigin } from '@/lib/partner-website/shop/partner-site-shop-sso'
 import {
+  getPartnerCustomDomainApexATarget,
   probePartnerCustomDomainSsl,
-  verifyPartnerCustomDomainCname,
+  verifyPartnerCustomDomainDns,
 } from '@/lib/messaging/partner-custom-domain-dns'
 import {
   deletePartnerInventoryItemForPartnerFromPg,
@@ -3289,6 +3290,7 @@ export async function getMessagingPartnerCustomDomainSettings(partnerId: string)
   return {
     domain: row,
     cnameTarget: getPartnerCustomDomainCnameTarget(),
+    apexATarget: await getPartnerCustomDomainApexATarget(),
     shopSso: {
       externalShopOrigin: shopSso?.external_shop_origin?.trim() ?? '',
       externalShopLoginPath: shopSso?.external_shop_login_path?.trim() || '/dang-nhap',
@@ -3369,15 +3371,15 @@ export async function verifyMessagingPartnerCustomDomain(partnerId: string) {
   const row = await fetchPartnerCustomDomainByPartnerIdPg(partnerId)
   if (!row) return { error: 'NOT_FOUND' as const }
 
-  const cname = await verifyPartnerCustomDomainCname(row.hostname)
-  if (!cname.ok) {
+  const dnsCheck = await verifyPartnerCustomDomainDns(row.hostname)
+  if (!dnsCheck.ok) {
     await updatePartnerCustomDomainVerificationPg({
       partnerId,
       dnsVerified: false,
       sslStatus: 'pending',
-      sslLastError: cname.detail,
+      sslLastError: dnsCheck.detail,
     })
-    return { error: 'DNS_FAILED' as const, detail: cname.detail }
+    return { error: 'DNS_FAILED' as const, detail: dnsCheck.detail }
   }
 
   const ssl = await probePartnerCustomDomainSsl(row.hostname)
@@ -3393,7 +3395,7 @@ export async function verifyMessagingPartnerCustomDomain(partnerId: string) {
   return {
     ok: true as const,
     domain: updated,
-    dnsDetail: cname.detail,
+    dnsDetail: dnsCheck.detail,
     sslDetail: ssl.detail,
     sslActive: ssl.ok,
   }

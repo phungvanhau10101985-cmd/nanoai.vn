@@ -2,9 +2,11 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import {
   fetchPartnerCustomDomainsNeedingSslPg,
+  fetchSslActivePartnerCustomDomainsPg,
   updatePartnerCustomDomainVerificationPg,
 } from '@/lib/db/messaging-partner-custom-domains-pg'
-import { verifyPartnerCustomDomainCname, probePartnerCustomDomainSsl } from '@/lib/messaging/partner-custom-domain-dns'
+import { verifyPartnerCustomDomainDns, probePartnerCustomDomainSsl } from '@/lib/messaging/partner-custom-domain-dns'
+import { partnerCustomDomainWwwApexSibling } from '@/lib/messaging/partner-custom-domain-hostname'
 import { isPgConfigured } from '@/lib/db/pool'
 
 const execFileAsync = promisify(execFile)
@@ -15,6 +17,7 @@ export type PartnerCustomDomainSslWorkerResult = {
   provisionOk: number
   sslActive: number
   stillPending: number
+  siblingProvisioned: number
   errors: string[]
 }
 
@@ -56,6 +59,7 @@ export async function runPartnerCustomDomainSslWorker(limit = 10): Promise<Partn
     provisionOk: 0,
     sslActive: 0,
     stillPending: 0,
+    siblingProvisioned: 0,
     errors: [],
   }
 
@@ -71,13 +75,13 @@ export async function runPartnerCustomDomainSslWorker(limit = 10): Promise<Partn
     const host = row.hostname.trim().toLowerCase()
     if (!host) continue
 
-    const cname = await verifyPartnerCustomDomainCname(host)
-    if (!cname.ok) {
+    const dnsCheck = await verifyPartnerCustomDomainDns(host)
+    if (!dnsCheck.ok) {
       await updatePartnerCustomDomainVerificationPg({
         partnerId: row.partner_id,
         dnsVerified: false,
         sslStatus: 'pending',
-        sslLastError: cname.detail,
+        sslLastError: dnsCheck.detail,
       })
       result.stillPending += 1
       continue
@@ -105,6 +109,26 @@ export async function runPartnerCustomDomainSslWorker(limit = 10): Promise<Partn
 
     if (ssl.ok) result.sslActive += 1
     else result.stillPending += 1
+  }
+
+  const active = await fetchSslActivePartnerCustomDomainsPg(limit)
+  for (const row of active) {
+    const sibling = partnerCustomDomainWwwApexSibling(row.hostname)
+    if (!sibling) continue
+    const siblingDns = await verifyPartnerCustomDomainDns(sibling)
+    if (!siblingDns.ok) continue
+    let siblingSsl = await probePartnerCustomDomainSsl(sibling)
+    if (siblingSsl.ok) continue
+    if (!provisionScriptPath()) continue
+    result.provisionAttempted += 1
+    const prov = await runProvisionScript(sibling)
+    if (prov.ok) {
+      result.provisionOk += 1
+      siblingSsl = await probePartnerCustomDomainSsl(sibling)
+      if (siblingSsl.ok) result.siblingProvisioned += 1
+    } else {
+      result.errors.push(`${sibling}: ${prov.detail.slice(0, 500)}`)
+    }
   }
 
   return result
