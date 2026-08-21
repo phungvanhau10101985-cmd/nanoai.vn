@@ -281,7 +281,7 @@ export function PartnerSiteProductReviewsQa({ siteSlug, inventoryId, locale }: P
 
   return (
     <div style={{ marginTop: 40, display: 'grid', gap: 40 }}>
-      <section className="pw-shop-reviews" data-pw-region={PW_REGION.reviews}>
+      <section id="pw-pdp-reviews" className="pw-shop-reviews" data-pw-region={PW_REGION.reviews}>
         <h2 data-pw-el={PW_EL.sectionTitle}>{t.reviewsTitle}</h2>
         {summary && summary.total > 0 ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
@@ -399,7 +399,7 @@ export function PartnerSiteProductReviewsQa({ siteSlug, inventoryId, locale }: P
         </div>
       </section>
 
-      <section className="pw-shop-reviews" data-pw-region={PW_REGION.reviews}>
+      <section id="pw-pdp-qa" className="pw-shop-reviews" data-pw-region={PW_REGION.reviews}>
         <h2 data-pw-el={PW_EL.sectionTitle}>{t.qaTitle}</h2>
         {!askOpen ? (
           <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => setAskOpen(true)}>

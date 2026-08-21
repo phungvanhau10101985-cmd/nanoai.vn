@@ -88,7 +88,7 @@ async function main() {
     // Lưu ý: class `pw-shop-urgency-badge` LUÔN xuất hiện trong <style> (CSS theme nhúng toàn trang) —
     // phải kiểm tra nội dung text thật ("Chỉ còn 3 sản phẩm") thay vì chỉ tìm tên class.
     assert(lowHtml.includes('Chỉ còn 3 sản phẩm'), 'phải hiện đúng số lượng tồn (3) trong badge cảnh báo')
-    assert(lowHtml.includes('class="pw-shop-sticky-buy"'), 'phải render markup thanh mua nổi (mobile)')
+    assert(lowHtml.includes('pw-pdp-sticky'), 'phải render markup thanh mua nổi (mobile, kiểu 188)')
     assert(lowHtml.includes('Chạm để phóng to'), 'phải hiện hint zoom/swipe khi có nhiều ảnh')
     console.log('OK PDP sản phẩm sắp hết hàng: badge cảnh báo + sticky buy bar + gallery hint')
 

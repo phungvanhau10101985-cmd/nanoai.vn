@@ -576,7 +576,7 @@ export function PartnerWebsiteDashboardClient({
             <div
               id="partner-website-editor"
               className={cn(
-                'grid min-h-[calc(100dvh-8.5rem)] flex-1 scroll-mt-24 gap-3 lg:items-stretch',
+                'grid min-h-0 flex-1 scroll-mt-24 gap-3 lg:items-start',
                 setupCollapsed
                   ? 'lg:grid-cols-1'
                   : isEmbedded
@@ -585,7 +585,7 @@ export function PartnerWebsiteDashboardClient({
                 sectionWrapClass('partner-website-editor')
               )}
             >
-              <div className={cn('h-full min-h-0 min-w-0', setupCollapsed && 'hidden')}>
+              <div className={cn('min-h-0 min-w-0', setupCollapsed && 'hidden')}>
               <PartnerWebsiteCreationJournalPanel
                 key={`${partnerId}-${journalResetKey}`}
                 locale={locale}
@@ -638,7 +638,10 @@ export function PartnerWebsiteDashboardClient({
               />
               </div>
 
-              <Card id="partner-website-device-preview" className="flex h-full min-h-0 min-w-0 flex-col">
+              <Card
+                id="partner-website-device-preview"
+                className="flex min-h-0 min-w-0 w-full flex-col lg:sticky lg:top-[calc(var(--site-header-height,3.5rem)+3.5rem)] lg:z-10 lg:h-[calc(100dvh-var(--site-header-height,3.5rem)-4.5rem)] lg:max-h-[calc(100dvh-var(--site-header-height,3.5rem)-4.5rem)]"
+              >
               <CardHeader className="shrink-0 space-y-2 px-3 pb-2 pt-3 sm:px-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">

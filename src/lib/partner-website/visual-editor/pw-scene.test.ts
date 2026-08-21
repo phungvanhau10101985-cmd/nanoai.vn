@@ -199,7 +199,9 @@ describe('scene layers inside the editor runtime', () => {
   })
 
   it('puts the orange topbar above lớp dưới so a lowered logo sits behind the bar', () => {
-    expect(script).toContain(`.pw-topbar,.nanoai-ve-active .pw-shop-topbar{position:relative!important;z-index:${PW_SCENE_TOPBAR_Z}!important;isolation:isolate}`)
+    expect(script).toContain(
+      `.pw-topbar,.nanoai-ve-active .pw-shop-topbar,[data-pw-region="topbar"]{position:relative!important;z-index:${PW_SCENE_TOPBAR_Z}!important;isolation:isolate;display:block!important;width:100%!important;min-width:100%!important;max-width:none!important;left:auto!important`,
+    )
     expect(script).toContain('.pw-logo-frame:not([data-pw-z])')
     expect(script).not.toContain('.pw-logo-frame,[data-pw-logo-frame="1"]{display:inline-flex!important;align-items:center;justify-content:center;overflow:hidden!important;flex-shrink:0;position:relative;z-index:160!important')
   })

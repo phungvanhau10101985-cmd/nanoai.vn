@@ -110,6 +110,28 @@ export type PartnerSiteShopCopy = {
   searchError: string
   relatedProducts: string
   tryOnLink: string
+  /** PDP — bố cục kiểu 188 (gallery bleed / giá / sticky), copy đa ngôn ngữ */
+  skuLabel: string
+  pdpRatingLabel: string
+  pdpLineTotal: string
+  pdpSavings: string
+  pdpQtyBuy: string
+  pdpShippingNote: string
+  pdpShippingFreeFrom: string
+  pdpShippingPolicyLink: string
+  pdpReturnsPolicyLink: string
+  pdpServiceLabel: string
+  pdpServiceNote: string
+  pdpNotesTitle: string
+  pdpNoteFit: string
+  pdpNoteColor: string
+  pdpStickyHome: string
+  pdpAddToCartShort: string
+  pdpBuyNowShort: string
+  pdpShareCopy: string
+  pdpShareCopied: string
+  pdpJumpReviews: string
+  pdpJumpQa: string
   ordersTitle: string
   ordersEmpty: string
   /** W3.2 — trang cảm ơn sau checkout */
@@ -413,6 +435,27 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchError: 'Không tìm được. Thử lại.',
     relatedProducts: 'Sản phẩm liên quan',
     tryOnLink: 'Thử đồ AI',
+    skuLabel: 'Mã SP',
+    pdpRatingLabel: 'Đánh giá',
+    pdpLineTotal: 'Tổng số',
+    pdpSavings: 'Tiết kiệm {amount}',
+    pdpQtyBuy: 'Số lượng mua',
+    pdpShippingNote: 'Giao hàng toàn quốc. {free}Đổi trả trong 7 ngày nếu sản phẩm lỗi hoặc không đúng mô tả.',
+    pdpShippingFreeFrom: 'Miễn phí đơn từ {amount}. ',
+    pdpShippingPolicyLink: 'Chính sách giao hàng',
+    pdpReturnsPolicyLink: 'Chính sách đổi trả',
+    pdpServiceLabel: 'Dịch vụ',
+    pdpServiceNote: 'Thanh toán khi nhận hàng, đổi size nếu không vừa, xem hàng trước khi nhận.',
+    pdpNotesTitle: 'Lưu ý',
+    pdpNoteFit: 'Kích thước thực tế có thể chênh lệch nhẹ so với mô tả.',
+    pdpNoteColor: 'Màu sắc trên ảnh có thể hơi khác thực tế do ánh sáng và thiết bị.',
+    pdpStickyHome: 'Trang chủ',
+    pdpAddToCartShort: 'Thêm giỏ',
+    pdpBuyNowShort: 'Mua hàng',
+    pdpShareCopy: 'Sao chép link',
+    pdpShareCopied: 'Đã sao chép',
+    pdpJumpReviews: 'Xem đánh giá',
+    pdpJumpQa: 'Hỏi đáp',
     ordersTitle: 'Đơn hàng của bạn',
     ordersEmpty: 'Chưa có đơn hàng.',
     thankYouOrderLabel: 'Mã đơn',
@@ -708,6 +751,27 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchError: 'Search failed. Try again.',
     relatedProducts: 'Related products',
     tryOnLink: 'AI try-on',
+    skuLabel: 'SKU',
+    pdpRatingLabel: 'Reviews',
+    pdpLineTotal: 'Total',
+    pdpSavings: 'Save {amount}',
+    pdpQtyBuy: 'Quantity',
+    pdpShippingNote: 'Nationwide delivery. {free}Returns within 7 days if the item is faulty or not as described.',
+    pdpShippingFreeFrom: 'Free shipping from {amount}. ',
+    pdpShippingPolicyLink: 'Shipping policy',
+    pdpReturnsPolicyLink: 'Returns policy',
+    pdpServiceLabel: 'Service',
+    pdpServiceNote: 'Pay on delivery, exchange size if it does not fit, inspect before accepting.',
+    pdpNotesTitle: 'Notes',
+    pdpNoteFit: 'Actual size may differ slightly from the description.',
+    pdpNoteColor: 'Colors on screen may differ slightly from the real product.',
+    pdpStickyHome: 'Home',
+    pdpAddToCartShort: 'Add to cart',
+    pdpBuyNowShort: 'Buy now',
+    pdpShareCopy: 'Copy link',
+    pdpShareCopied: 'Copied',
+    pdpJumpReviews: 'See reviews',
+    pdpJumpQa: 'Q&A',
     ordersTitle: 'Your orders',
     ordersEmpty: 'No orders yet.',
     thankYouOrderLabel: 'Order ID',
@@ -1003,6 +1067,27 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchError: '搜索失败，请重试。',
     relatedProducts: '相关产品',
     tryOnLink: 'AI 试穿',
+    skuLabel: '货号',
+    pdpRatingLabel: '评价',
+    pdpLineTotal: '合计',
+    pdpSavings: '节省 {amount}',
+    pdpQtyBuy: '购买数量',
+    pdpShippingNote: '全国配送。{free}如商品有瑕疵或与描述不符，7 天内可退换。',
+    pdpShippingFreeFrom: '满 {amount} 包邮。 ',
+    pdpShippingPolicyLink: '配送政策',
+    pdpReturnsPolicyLink: '退换政策',
+    pdpServiceLabel: '服务',
+    pdpServiceNote: '货到付款，尺码不合适可换，收货前可验货。',
+    pdpNotesTitle: '提示',
+    pdpNoteFit: '实际尺寸可能与描述略有差异。',
+    pdpNoteColor: '受光线和设备影响，实物颜色可能与图片略有不同。',
+    pdpStickyHome: '首页',
+    pdpAddToCartShort: '加入购物车',
+    pdpBuyNowShort: '立即购买',
+    pdpShareCopy: '复制链接',
+    pdpShareCopied: '已复制',
+    pdpJumpReviews: '查看评价',
+    pdpJumpQa: '问答',
     ordersTitle: '我的订单',
     ordersEmpty: '暂无订单。',
     thankYouOrderLabel: '订单编号',
@@ -1298,6 +1383,27 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchError: '検索に失敗しました。',
     relatedProducts: '関連商品',
     tryOnLink: 'AI試着',
+    skuLabel: '商品コード',
+    pdpRatingLabel: 'レビュー',
+    pdpLineTotal: '合計',
+    pdpSavings: '{amount} お得',
+    pdpQtyBuy: '数量',
+    pdpShippingNote: '全国配送。{free}不良品・説明と異なる場合は7日以内に返品できます。',
+    pdpShippingFreeFrom: '{amount}以上で送料無料。 ',
+    pdpShippingPolicyLink: '配送ポリシー',
+    pdpReturnsPolicyLink: '返品ポリシー',
+    pdpServiceLabel: 'サービス',
+    pdpServiceNote: '代金引換、サイズ交換、受取前の確認が可能です。',
+    pdpNotesTitle: 'ご注意',
+    pdpNoteFit: '実寸は記載と多少異なる場合があります。',
+    pdpNoteColor: '光や端末により、実物の色が画像と異なる場合があります。',
+    pdpStickyHome: 'ホーム',
+    pdpAddToCartShort: 'カートへ',
+    pdpBuyNowShort: '購入する',
+    pdpShareCopy: 'リンクをコピー',
+    pdpShareCopied: 'コピーしました',
+    pdpJumpReviews: 'レビューを見る',
+    pdpJumpQa: 'Q&A',
     ordersTitle: '注文履歴',
     ordersEmpty: '注文はまだありません。',
     thankYouOrderLabel: '注文ID',
@@ -1593,6 +1699,27 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchError: '검색에 실패했습니다.',
     relatedProducts: '관련 상품',
     tryOnLink: 'AI 피팅',
+    skuLabel: '상품코드',
+    pdpRatingLabel: '리뷰',
+    pdpLineTotal: '합계',
+    pdpSavings: '{amount} 절약',
+    pdpQtyBuy: '구매 수량',
+    pdpShippingNote: '전국 배송. {free}불량 또는 설명과 다를 경우 7일 이내 반품 가능.',
+    pdpShippingFreeFrom: '{amount} 이상 무료 배송. ',
+    pdpShippingPolicyLink: '배송 정책',
+    pdpReturnsPolicyLink: '반품 정책',
+    pdpServiceLabel: '서비스',
+    pdpServiceNote: '착불 결제, 사이즈 교환, 수령 전 확인 가능.',
+    pdpNotesTitle: '안내',
+    pdpNoteFit: '실제 치수는 설명과 약간 다를 수 있습니다.',
+    pdpNoteColor: '조명과 기기에 따라 실제 색상이 사진과 다를 수 있습니다.',
+    pdpStickyHome: '홈',
+    pdpAddToCartShort: '장바구니',
+    pdpBuyNowShort: '구매하기',
+    pdpShareCopy: '링크 복사',
+    pdpShareCopied: '복사됨',
+    pdpJumpReviews: '리뷰 보기',
+    pdpJumpQa: 'QnA',
     ordersTitle: '내 주문',
     ordersEmpty: '주문이 없습니다.',
     thankYouOrderLabel: '주문 번호',

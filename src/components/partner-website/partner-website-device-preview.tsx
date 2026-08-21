@@ -1028,7 +1028,10 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     const el = canvasWrapRef.current
     if (!el) return
     const center = () => {
-      el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2)
+      el.scrollTop = 0
+      const extraX = el.scrollWidth - el.clientWidth
+      // Tiny leftover: center. Wide desktop canvas in a narrow column: keep left (logo).
+      el.scrollLeft = extraX > 0 && extraX <= 160 ? extraX / 2 : 0
     }
     center()
     const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(center)
@@ -1056,7 +1059,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   const iframeClass = visualEditActive
     ? 'absolute inset-0 h-full w-full border-0'
     : embedded
-      ? 'min-h-[calc(100dvh-11rem)] h-full flex-1'
+      ? 'min-h-0 h-full flex-1'
       : device === 'desktop' || device === 'laptop'
         ? device === 'laptop'
           ? 'min-h-[calc(100dvh-12rem)] h-[min(78vh,900px)]'
@@ -1464,12 +1467,15 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       <div
         ref={canvasWrapRef}
         className={cn(
-          'flex justify-center overflow-auto rounded-lg border bg-muted/20 p-1',
-          embedded && 'min-h-0 flex-1 flex-col'
+          'flex overflow-auto rounded-lg border bg-muted/20 p-1',
+          embedded ? 'min-h-0 flex-1 flex-col justify-start' : 'justify-center'
         )}
       >
         <div
-          className="relative mx-auto flex min-h-0 shrink-0 flex-col overflow-hidden rounded-md border bg-white shadow-sm transition-[width] duration-200"
+          className={cn(
+            'relative mx-auto flex min-h-0 flex-col overflow-hidden rounded-md border bg-white shadow-sm transition-[width] duration-200',
+            embedded ? 'h-full' : 'shrink-0'
+          )}
           style={{ width: editFrameWidth, minWidth: editFrameWidth }}
         >
           <iframe

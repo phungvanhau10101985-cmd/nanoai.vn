@@ -251,6 +251,8 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
         locale={shop.site.locale}
         product={productWithGuide}
         relatedProducts={relatedProducts}
+        ratingSummary={ratingSummary}
+        shippingFreeThreshold={paymentSettings?.shipping_free_threshold_amount ?? null}
       />
     </PartnerSiteShopShell>
   )

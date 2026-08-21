@@ -64,6 +64,7 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('data-pw-edit-device="mobile"] .pw-product-grid'), true)
   assert.equal(once.includes('z-index:200'), true)
   assert.equal(once.includes('.pw-topbar,.pw-shop-topbar'), true)
+  assert.equal(once.includes('min-height:36px'), true)
   assert.equal(once.includes('z-index:150'), true)
   assert.equal(once.includes('.pw-logo-frame:not([data-pw-z])'), true)
   assert.equal(once.includes("el.style.setProperty('z-index',z,'important')"), true)

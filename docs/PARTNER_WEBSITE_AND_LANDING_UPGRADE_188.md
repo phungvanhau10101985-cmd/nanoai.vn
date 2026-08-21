@@ -139,7 +139,7 @@ Khi xong một hạng mục: đổi ❌/🟡 → ✅, ghi ngày + ghi chú ngắ
 
 | ID | Hạng mục | Trạng thái | Ghi chú / file neo |
 |----|----------|------------|-------------------|
-| W1.1 | Catalog + PDP gallery/video + variant màu/size/tồn + qty | ✅ Done | `partner-site-shop-product-client.tsx` |
+| W1.1 | Catalog + PDP gallery/video + variant màu/size/tồn + qty | ✅ Done | `partner-site-shop-product-client.tsx` — **2026-08-21**: PDP React theo UX 188 (gallery bleed mobile, khối giá, size/màu pill, qty +/−, sticky Trang chủ/Thử đồ/Tim + Thêm giỏ/Mua hàng). Không copy kiến trúc 188, màu từ `--pw-*`. |
 | W1.2 | Cart + guest checkout + order + tracking cơ bản | ✅ Done | `partner-site-shop-cart-client.tsx`, `api/messaging/guest/[slug]/order` |
 | W1.3 | Deposit / QR thanh toán theo policy shop | ✅ Done-MVP (2026-08-06) | Deposit/QR + COD/bank/ewallet (W1.7) trên checkout; khớp hiện trạng shop guest |
 | W1.4 | Promo / voucher / giá sale / flash / bundle | ✅ Done-MVP (2026-08-06) | Voucher engine đầy đủ + **flash sale** (`sale_price_amount`/`sale_starts_at`/`sale_ends_at` trên inventory, PDP giá gạch, checkout backend tính lại). **Không làm**: bundle multi-SKU packs |
@@ -713,3 +713,5 @@ Sửa tài liệu **cùng PR** với code.
 | 2026-08-14 | **L3 / Ladipage AI** | Khớp UX 188: wizard 3 nguồn, lọc chất liệu, limit SP, tạo → autogen, list 3 tab, editor full-screen (sửa tay + SEO + đổi SP), public theme/i18n/trust strip/sticky CTA, 1-SP redirect PDP. Không clone kiến trúc 188. | ✅ Done |
 
 | 2026-08-21 | **W5 / B.1 auth guard** | Đăng nhập shop giống 188: trang `/login?redirect=` (mọi shop, mọi máy), giữ phiên + remember device, sau login quay đúng trang trước. Chrome HTML/React: khách → login kèm path hiện tại; đã login → account. | ✅ Done |
+
+| 2026-08-21 | **W1.1 PDP UX 188** | Trang chi tiết sản phẩm React (`PartnerSiteShopProductClient`) dựng lại theo UX 188: gallery full-bleed + counter/dots/thumbs trên mobile, khối giá nổi, mã SP, rating, giao hàng/đổi trả, size/màu dạng pill, số lượng +/− + tổng, thanh đáy Trang chủ / Thử đồ / Tim + Thêm giỏ / Mua hàng. Desktop: 2 cột + sticky khi cuộn. Copy 5 locale, màu `--pw-*`. Không copy kiến trúc 188 (Google discount, warehouse, birthday, affiliate). | ✅ Done |

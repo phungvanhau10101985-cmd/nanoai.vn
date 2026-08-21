@@ -2174,7 +2174,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function isShopRegionHost(el) {
     if (!el || el.nodeType !== 1) return false
     var own = el.getAttribute ? el.getAttribute('data-pw-region') : ''
-    if (own === 'header' || own === 'nav' || own === 'footer' || own === 'promo') return true
+    if (own === 'header' || own === 'nav' || own === 'footer' || own === 'promo' || own === 'topbar') return true
     var tag = el.tagName.toLowerCase()
     if (tag === 'header' || tag === 'footer') return true
     var cls = clsOf(el)
@@ -4130,6 +4130,115 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     for (var i = 0; i < nodes.length; i++) restoreChromeDupCenter(nodes[i])
     try { window.clearTimeout(window.__nanoaiVeDupCenterT) } catch (errT) {}
   }
+  function chromeViewportSize() {
+    var viewW = window.innerWidth || document.documentElement.clientWidth || 0
+    var viewH = window.innerHeight || document.documentElement.clientHeight || 0
+    if (!(viewW > 8)) viewW = 390
+    if (!(viewH > 8)) viewH = 640
+    return { w: viewW, h: viewH }
+  }
+  function resetFullBleedChromePos() {
+    var nodes = document.querySelectorAll(
+      '.pw-topbar,.pw-shop-topbar,[data-pw-region="topbar"],header,.pw-header,.pw-shop-header,.pw-header-main,.pw-shop-header-inner,.pw-topbar-inner,.pw-shop-topbar-inner'
+    )
+    var i
+    for (i = 0; i < nodes.length; i++) {
+      var bar = nodes[i]
+      if (!bar || !bar.style) continue
+      var cls = clsOf(bar)
+      var region = bar.getAttribute ? String(bar.getAttribute('data-pw-region') || '') : ''
+      var isTopbar = region === 'topbar' || cls.indexOf('pw-topbar') >= 0 || cls.indexOf('pw-shop-topbar') >= 0
+      if (!isTopbar && !isFullBleedChrome(bar) && !isShopRegionHost(bar)) continue
+      bar.style.removeProperty('position')
+      bar.style.removeProperty('left')
+      bar.style.removeProperty('top')
+      bar.style.removeProperty('right')
+      bar.style.removeProperty('bottom')
+      bar.style.removeProperty('transform')
+      bar.style.removeProperty('width')
+      bar.style.removeProperty('height')
+      bar.style.removeProperty('max-width')
+      bar.style.removeProperty('max-height')
+      bar.style.removeProperty('min-width')
+      bar.style.removeProperty('clip-path')
+      bar.style.removeProperty('margin')
+      bar.style.removeProperty('z-index')
+      if (isTopbar) {
+        bar.style.setProperty('position', 'relative', 'important')
+        bar.style.setProperty('left', 'auto', 'important')
+        bar.style.setProperty('right', 'auto', 'important')
+        bar.style.setProperty('top', 'auto', 'important')
+        bar.style.setProperty('bottom', 'auto', 'important')
+        bar.style.setProperty('transform', 'none', 'important')
+        bar.style.setProperty('width', '100%', 'important')
+        bar.style.setProperty('min-width', '100%', 'important')
+        bar.style.setProperty('max-width', 'none', 'important')
+        bar.style.setProperty('height', 'auto', 'important')
+      }
+      try { bar.removeAttribute('data-pw-user-move') } catch (errBleedMove) {}
+      if (bar.classList) bar.classList.remove('nanoai-ve-chrome-dup')
+    }
+  }
+  function parkableChromeUnit(el, kind) {
+    var unit = chromeReorderUnit(el) || el
+    var k = String(kind || '').replace(/[^a-z0-9-]/g, '')
+    function innerOf(host) {
+      if (!host || !host.querySelector) return null
+      if (k) {
+        var named = host.querySelector('[data-pw-chrome-btn="' + k + '"]')
+        if (named) return named
+      }
+      return host.querySelector('[data-pw-chrome-btn],.pw-icon-btn,.pw-shop-icon-btn,[data-pw-chrome-added]')
+    }
+    if (isFullBleedChrome(unit) || isShopRegionHost(unit)) return innerOf(unit)
+    try {
+      var box = unit.getBoundingClientRect()
+      var view = chromeViewportSize()
+      if (box && view && (box.width > view.w * 0.45 || box.height > Math.max(120, view.h * 0.35))) {
+        return innerOf(unit) || unit
+      }
+    } catch (errParkable) {}
+    return unit
+  }
+  function applyViewportCenterPos(el, w, h) {
+    if (!el || !el.style) return
+    var view = chromeViewportSize()
+    var floating = isChromeFloatEl(el) || (el.parentNode === document.body)
+    if (!floating) {
+      el.style.removeProperty('position')
+      el.style.removeProperty('left')
+      el.style.removeProperty('top')
+      el.style.removeProperty('right')
+      el.style.removeProperty('bottom')
+      el.style.removeProperty('width')
+      el.style.removeProperty('height')
+    }
+    var r
+    try { r = el.getBoundingClientRect() } catch (errBox) { r = null }
+    var boxW = Math.max(24, (r && r.width) || w || 40)
+    var boxH = Math.max(24, (r && r.height) || h || 40)
+    var wantLeft = Math.round((view.w - boxW) / 2)
+    var wantTop = Math.round((view.h - boxH) / 2)
+    if (wantLeft < 24) wantLeft = 24
+    if (wantTop < 24) wantTop = 24
+    if (floating) {
+      var leftPct = (wantLeft / view.w) * 100
+      var topPct = (wantTop / view.h) * 100
+      el.style.setProperty('position', 'fixed', 'important')
+      el.style.setProperty('left', leftPct.toFixed(2) + '%', 'important')
+      el.style.setProperty('top', topPct.toFixed(2) + '%', 'important')
+      el.style.setProperty('right', 'auto', 'important')
+      el.style.setProperty('bottom', 'auto', 'important')
+      el.style.setProperty('transform', 'none', 'important')
+      el.style.setProperty('margin', '0', 'important')
+      return { left: wantLeft, top: wantTop, w: boxW, h: boxH, view: view, wantLeft: wantLeft, wantTop: wantTop }
+    }
+    var cur = parseTransform(el)
+    var dx = wantLeft - (r && isFinite(r.left) ? r.left : 0)
+    var dy = wantTop - (r && isFinite(r.top) ? r.top : 0)
+    clampTranslateToViewport(el, cur.x + dx, cur.y + dy)
+    return { left: wantLeft, top: wantTop, w: boxW, h: boxH, view: view, wantLeft: wantLeft, wantTop: wantTop }
+  }
   function liftChromeToViewportCenter(el) {
     if (!el || !el.style) return
     if (el.getAttribute('data-pw-ve-dup-center') !== '1') {
@@ -4146,60 +4255,62 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     var r
     try { r = el.getBoundingClientRect() } catch (errBox) { r = null }
-    var w = Math.max(24, r && r.width ? r.width : 40)
-    var h = Math.max(24, r && r.height ? r.height : 40)
-    var viewW = window.innerWidth || document.documentElement.clientWidth || 390
-    var viewH = window.innerHeight || document.documentElement.clientHeight || 640
-    el.style.setProperty('position', 'fixed', 'important')
-    el.style.setProperty('left', Math.round((viewW - w) / 2) + 'px', 'important')
-    el.style.setProperty('top', Math.round((viewH - h) / 2) + 'px', 'important')
-    el.style.setProperty('right', 'auto', 'important')
-    el.style.setProperty('bottom', 'auto', 'important')
-    el.style.setProperty('transform', 'none', 'important')
-    el.style.setProperty('margin', '0', 'important')
+    applyViewportCenterPos(el, r && r.width ? r.width : 40, r && r.height ? r.height : 40)
     el.style.setProperty('z-index', '2147483002', 'important')
     if (el.classList) el.classList.add('nanoai-ve-chrome-dup')
   }
-  function parkChromeAtViewportCenter(el) {
+  function parkChromeAtViewportCenter(el, kind) {
     if (!el || !el.style) return
     restoreAllChromeDupCenters()
+    resetFullBleedChromePos()
     resetVisualScroll()
-    if (isChromeFloatEl(el)) {
-      revealChromeFloat(el)
-      try { sizeChromeIcons(el) } catch (errSizePark) {}
-      try { pinChromeIconBadges(el) } catch (errPinPark) {}
+    var unit = parkableChromeUnit(el, kind)
+    if (!unit || !unit.style) return
+    if (isFullBleedChrome(unit) || isShopRegionHost(unit)) {
+      resetFullBleedChromePos()
+      return
     }
-    markUserMoved(el)
-    var r
-    try { r = el.getBoundingClientRect() } catch (errBox) { r = null }
-    var w = Math.max(24, r && r.width ? r.width : 40)
-    var h = Math.max(24, r && r.height ? r.height : 40)
-    var viewW = window.innerWidth || document.documentElement.clientWidth || 390
-    var viewH = window.innerHeight || document.documentElement.clientHeight || 640
-    var z = isChromeFloatEl(el) ? '${PW_CHROME_FLOAT_Z_INDEX}' : '2147483002'
-    el.style.setProperty('position', 'fixed', 'important')
-    el.style.setProperty('left', Math.round((viewW - w) / 2) + 'px', 'important')
-    el.style.setProperty('top', Math.round((viewH - h) / 2) + 'px', 'important')
-    el.style.setProperty('right', 'auto', 'important')
-    el.style.setProperty('bottom', 'auto', 'important')
-    el.style.setProperty('transform', 'none', 'important')
-    el.style.setProperty('margin', '0', 'important')
-    el.style.setProperty('z-index', z, 'important')
-    if (isChromeFloatEl(el)) {
-      try { bakeChromeFloatPos(el) } catch (errBakePark) {}
+    if (isChromeFloatEl(unit)) {
+      revealChromeFloat(unit)
+      try { sizeChromeIcons(unit) } catch (errSizePark) {}
+      try { pinChromeIconBadges(unit) } catch (errPinPark) {}
     }
-    selectEl(el)
-    try { positionAllHandles() } catch (errPosPark) {}
+    var before
+    try { before = unit.getBoundingClientRect() } catch (errBox) { before = null }
+    var w = Math.max(24, before && before.width ? Math.min(before.width, 280) : 40)
+    var h = Math.max(24, before && before.height ? Math.min(before.height, 120) : 40)
+    markUserMoved(unit)
+    applyViewportCenterPos(unit, w, h)
+    var z = isChromeFloatEl(unit) ? '${PW_CHROME_FLOAT_Z_INDEX}' : '2147483002'
+    unit.style.setProperty('z-index', z, 'important')
+    if (unit.classList) unit.classList.add('nanoai-ve-chrome-dup')
+    function verifyParked() {
+      try {
+        var after = unit.getBoundingClientRect()
+        var viewNow = chromeViewportSize()
+        var stuck = !!(after && after.top < 24 && after.left < 24)
+        var off = !!(after && (after.right < 8 || after.left > viewNow.w - 8 || after.bottom < 8 || after.top > viewNow.h - 8))
+        if (stuck || off) applyViewportCenterPos(unit, w, h)
+      } catch (errVerifyPark) {}
+      try { positionAllHandles() } catch (errPosPark2) {}
+    }
+    verifyParked()
+    selectEl(unit)
+    verifyParked()
+    try {
+      if (window.requestAnimationFrame) window.requestAnimationFrame(verifyParked)
+      else window.setTimeout(verifyParked, 0)
+    } catch (errRafPark) {}
     post('dirty', {})
   }
-  function focusExistingChrome(el) {
+  function focusExistingChrome(el, kind) {
     if (!el) return
-    parkChromeAtViewportCenter(el)
+    parkChromeAtViewportCenter(el, kind)
   }
   function bringExistingChromeToCenter(kind) {
     var el = findExistingChrome(kind)
     if (!el) return
-    focusExistingChrome(el)
+    focusExistingChrome(el, kind)
   }
   function pageFooterEl(){
     return document.querySelector('footer,.pw-footer,.pw-shop-footer')
@@ -4743,7 +4854,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       sizeChromeIcons(node)
       pinChromeIconBadges(node)
       if (k === 'topup' && node.classList) node.classList.add('pw-chrome-topup-on')
-      if (atCenter) parkChromeAtViewportCenter(node)
+      if (atCenter) parkChromeAtViewportCenter(node, k)
       else {
         selectEl(node)
         post('dirty', {})
@@ -4777,7 +4888,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     if (k === 'chat') applyChatLogoToChromeBtn(node, chatPrepLogoUrl)
     try { pwApplyDemoChromeCountBadges(document) } catch (errDemoBtn) {}
-    if (atCenter) parkChromeAtViewportCenter(node)
+    if (atCenter) parkChromeAtViewportCenter(node, k)
     else {
       selectEl(node)
       post('dirty', {})
@@ -6245,12 +6356,18 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!el || el === document.body || el === document.documentElement) return false
     if (chatEmbedLauncherOf(el)) return false
     if (isOverlayNode(el) || isLockedCatalogEl(el) || isProductCardEl(el)) return false
+    if (isShopRegionHost(el)) return false
+    var dragCls = clsOf(el)
+    if (dragCls.indexOf('pw-topbar') >= 0 || dragCls.indexOf('pw-shop-topbar') >= 0) return false
+    if (el.matches && el.matches('header, .pw-header, .pw-shop-header, [data-pw-region="topbar"]')) return false
     return isAddedBg(el) || isAddedText(el) || isImgEl(el) || isLogoFrame(el) || isLogoTarget(el) || isBtnEl(el) || isTextEl(el) || isChromeBtn(el) || isHeaderWidget(el) || isSearchEl(el) || isContentBlockEl(el) || isBgImageEl(el) || isMoveBlockEl(el) || isBgLayerEl(el) || isBannerHostEl(el)
   }
   function canDeleteEl(el) {
     if (!el || el === document.body || el === document.documentElement) return false
     if (chatEmbedLauncherOf(el)) return true
     if (isLockedCatalogEl(el) || isProductCardEl(el) || isShopRegionHost(el)) return false
+    var delCls = clsOf(el)
+    if (delCls.indexOf('pw-topbar') >= 0 || delCls.indexOf('pw-shop-topbar') >= 0) return false
     if (isHeaderChromeEl(el) || searchElOf(el) || catToggleElOf(el) || isAddedChrome(el)) return true
     var tag = el.tagName.toLowerCase()
     if (tag === 'header' || tag === 'main' || tag === 'html' || tag === 'form') return false
@@ -8456,7 +8573,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-active #nanoai-chat-widget-v1 .nanoai-chat-panel,.nanoai-ve-active [data-widget-id="nanoai-chat-widget-v1"] .nanoai-chat-panel{display:none!important}',
       '.nanoai-ve-active [data-pw-chat-launcher="1"].nanoai-ve-highlight,.nanoai-ve-active .pw-fab-chat.nanoai-ve-highlight,.nanoai-ve-active [data-nanoai-chat-bubble="1"].nanoai-ve-highlight{outline:2px solid #2563eb!important;outline-offset:2px!important;box-shadow:none!important}',
       '.nanoai-ve-active .pw-header,.nanoai-ve-active .pw-shop-header{z-index:200!important;isolation:isolate}',
-      '.nanoai-ve-active .pw-topbar,.nanoai-ve-active .pw-shop-topbar{position:relative!important;z-index:${PW_SCENE_TOPBAR_Z}!important;isolation:isolate}',
+      '.pw-topbar,.nanoai-ve-active .pw-shop-topbar,[data-pw-region="topbar"]{position:relative!important;z-index:${PW_SCENE_TOPBAR_Z}!important;isolation:isolate;display:block!important;width:100%!important;min-width:100%!important;max-width:none!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;transform:none!important;clip-path:none!important;overflow:visible!important;min-height:36px!important;height:auto!important;flex:0 0 auto!important;align-self:stretch!important;box-sizing:border-box}',
       '.nanoai-ve-active .pw-hero.nanoai-ve-photo-edit,.nanoai-ve-active .pw-banner.nanoai-ve-photo-edit,.nanoai-ve-active .pw-shop-hero.nanoai-ve-photo-edit,.nanoai-ve-active .pw-shop-banner.nanoai-ve-photo-edit,.nanoai-ve-active [data-pw-region="banner"].nanoai-ve-photo-edit{overflow:hidden!important}',
       '.nanoai-ve-active [data-pw-catalog-lock="1"],.nanoai-ve-active [data-pw-catalog-lock="1"] *{pointer-events:none!important;cursor:default!important}',
       '.nanoai-ve-active [data-pw-region="categories"],.nanoai-ve-active [data-pw-region="categories"] *,.nanoai-ve-active section.pw-categories,.nanoai-ve-active .pw-categories,.nanoai-ve-active .pw-cat-grid,.nanoai-ve-active .pw-cat-card{pointer-events:auto!important;position:relative;z-index:8}',
@@ -8470,7 +8587,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-active [data-pw-move-block] *,.nanoai-ve-active .pw-hero-copy *,.nanoai-ve-active .pw-banner-copy *,.nanoai-ve-active [data-pw-el="copy"] *,.nanoai-ve-active [data-pw-el="title"],.nanoai-ve-active [data-pw-el="subtitle"],.nanoai-ve-active [data-pw-el="cta"],.nanoai-ve-active [data-pw-el="cta-secondary"],.nanoai-ve-active [data-pw-el="badge"],.nanoai-ve-active [data-pw-el="dots"],.nanoai-ve-active [data-pw-el="field"]{pointer-events:auto!important}',
       '.nanoai-ve-active [data-pw-move-block] *:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active .pw-hero-copy *:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active .pw-banner-copy *:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active [data-pw-el="copy"] *:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active [data-pw-el="title"]:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active [data-pw-el="subtitle"]:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active [data-pw-el="cta"]:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active [data-pw-el="cta-secondary"]:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active [data-pw-el="badge"]:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active [data-pw-el="dots"]:not([data-pw-z]):not([data-pw-scene]),.nanoai-ve-active [data-pw-el="field"]:not([data-pw-z]):not([data-pw-scene]){position:relative;z-index:3}',
       '.nanoai-ve-active a,.nanoai-ve-active button,.nanoai-ve-active img:not([data-pw-bg-layer]),.nanoai-ve-active h1,.nanoai-ve-active h2,.nanoai-ve-active h3,.nanoai-ve-active p,.nanoai-ve-active [data-pw-added-text]{pointer-events:auto}',
-      '.nanoai-ve-active [data-pw-chrome-added]:not(.pw-icon-btn):not([data-pw-chrome-btn]):not([data-pw-z]),.nanoai-ve-active [data-nanoai-ve-selected]:not([data-pw-bg-layer]):not([data-pw-added-bg]):not([data-pw-added-text]):not([data-pw-added-btn]):not([data-pw-logo-float]):not([data-pw-logo-frame]):not([data-pw-logo-added]):not(.pw-logo):not(.pw-shop-logo):not(.pw-logo-frame):not([data-pw-chrome-btn]):not(.pw-icon-btn):not([data-pw-z]){z-index:15!important;position:relative}',
+      '.nanoai-ve-active [data-pw-chrome-added]:not(.pw-icon-btn):not([data-pw-chrome-btn]):not([data-pw-z]):not(.nanoai-ve-chrome-dup),.nanoai-ve-active [data-nanoai-ve-selected]:not([data-pw-bg-layer]):not([data-pw-added-bg]):not([data-pw-added-text]):not([data-pw-added-btn]):not([data-pw-logo-float]):not([data-pw-logo-frame]):not([data-pw-logo-added]):not(.pw-logo):not(.pw-shop-logo):not(.pw-logo-frame):not([data-pw-chrome-btn]):not(.pw-icon-btn):not([data-pw-z]):not(.nanoai-ve-chrome-dup){z-index:15!important;position:relative}',
       '.nanoai-ve-active .pw-header [data-pw-chrome-added]:not(.pw-icon-btn):not([data-pw-chrome-btn]),.nanoai-ve-active .pw-shop-header [data-pw-chrome-added]:not(.pw-icon-btn):not([data-pw-chrome-btn]),.nanoai-ve-active header [data-pw-chrome-added]:not(.pw-icon-btn):not([data-pw-chrome-btn]){z-index:90!important}',
       '[data-pw-edit-device="desktop"] .pw-visual-desktop,[data-pw-edit-device="laptop"] .pw-visual-laptop,[data-pw-edit-device="tablet"] .pw-visual-tablet,[data-pw-edit-device="mobile"] .pw-visual-mobile{display:block!important}',
       '[data-pw-edit-device="desktop"] .pw-visual-laptop,[data-pw-edit-device="desktop"] .pw-visual-tablet,[data-pw-edit-device="desktop"] .pw-visual-mobile,[data-pw-edit-device="laptop"] .pw-visual-desktop,[data-pw-edit-device="laptop"] .pw-visual-tablet,[data-pw-edit-device="laptop"] .pw-visual-mobile,[data-pw-edit-device="tablet"] .pw-visual-desktop,[data-pw-edit-device="tablet"] .pw-visual-laptop,[data-pw-edit-device="tablet"] .pw-visual-mobile,[data-pw-edit-device="mobile"] .pw-visual-desktop,[data-pw-edit-device="mobile"] .pw-visual-laptop,[data-pw-edit-device="mobile"] .pw-visual-tablet{display:none!important}',
@@ -8664,6 +8781,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { stampAllChromeFloats() } catch (errFloatStamp) {}
     try { if (window.__pwChromeTopupSync) window.__pwChromeTopupSync() } catch (errTopupSync) {}
     try { clearAllChatStickHeaders() } catch (errChatStick) {}
+    try { resetFullBleedChromePos() } catch (errBleedReset) {}
     try { pinHeaderChromeIcons() } catch (errChromePin) {}
     try { pinChromeIconBadges(document) } catch (errPin) {}
     try { pwApplyDemoChromeCountBadges(document) } catch (errDemo) {}
