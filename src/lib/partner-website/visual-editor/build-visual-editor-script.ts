@@ -435,6 +435,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var y = pct(parts[1], 50)
     return { x: isNaN(x) ? 50 : x, y: isNaN(y) ? 50 : y }
   }
+  function mediaZoomOriginY(el) {
+    if (!el || !el.getBoundingClientRect) return 50
+    var r = el.getBoundingClientRect()
+    var viewH = window.innerHeight || document.documentElement.clientHeight || 0
+    if (!(r.height > 0) || !(viewH > 0)) return 50
+    return (viewH / 2 - r.top) / r.height * 100
+  }
   function applyBannerPhoto(host, zoom, panX, panY) {
     if (!host) return
     var z = Math.max(0.5, Math.min(3, Number(zoom) || 1))
@@ -447,19 +454,24 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     host.setAttribute('data-pw-banner-pan-y', String(Math.round(y)))
     host.style.overflow = 'hidden'
     var pos = Math.round(x) + '% ' + Math.round(y) + '%'
+    var img = heroImgIn(host)
+    var originBox = img || host
+    var oy = Math.round(mediaZoomOriginY(originBox) * 100) / 100
+    host.style.setProperty('--pw-zoom-oy', oy + '%')
     if (extractBgUrl(host)) {
       host.style.backgroundPosition = pos
       host.style.backgroundRepeat = 'no-repeat'
-      host.style.backgroundSize = Math.round(z * 100) + '% auto'
+      host.style.backgroundSize = z === 1 ? 'cover' : ('100% ' + Math.round(z * 100) + '%')
     }
-    var img = heroImgIn(host)
     if (img) {
       setAttrIfEmpty(img, 'data-pw-el', 'media')
       img.setAttribute('data-pw-banner-zoom', String(Math.round(z * 100) / 100))
       img.style.objectFit = 'cover'
       img.style.objectPosition = pos
-      img.style.transformOrigin = pos
-      img.style.transform = z === 1 ? 'none' : 'scale(' + z + ')'
+      img.style.width = '100%'
+      img.style.setProperty('--pw-zoom-oy', oy + '%')
+      img.style.transformOrigin = '50% ' + oy + '%'
+      img.style.transform = z === 1 ? 'none' : 'scaleY(' + z + ')'
       img.style.maxWidth = 'none'
       img.style.maxHeight = 'none'
       var wrap = img.parentElement
@@ -8366,7 +8378,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         var hostR = selected.parentElement || selected
         var base = Math.max(1, resize.startW)
         var pct = Math.max(40, Math.min(220, Math.round((base + dx) / base * 100)))
-        hostR.style.backgroundSize = pct + '% auto'
+        hostR.style.backgroundSize = '100% ' + pct + '%'
       } else {
         var nw = Math.max(24, resize.startW + dx)
         var nh = Math.max(18, resize.startH + dy)
@@ -8606,7 +8618,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.pw-bottom-nav a:not([data-pw-chrome-added]),.pw-shop-bottom-nav a:not([data-pw-chrome-added]),.pw-bottom-nav .pw-icon-btn:not([data-pw-chrome-added]),.pw-shop-bottom-nav .pw-icon-btn:not([data-pw-chrome-added]){flex:1 1 0;min-width:0;min-height:0;width:auto!important;height:auto!important;color:#6b7280!important;flex-direction:column;align-items:center;justify-content:center;background:transparent!important}',
       '.pw-bottom-nav [data-pw-chrome-added],.pw-shop-bottom-nav [data-pw-chrome-added]{flex:1 1 0;min-width:0;min-height:0;width:auto!important;height:auto!important;flex-direction:column;align-items:center;justify-content:center;background:transparent!important;cursor:grab}',
       '.pw-header,.pw-shop-header,.pw-header-main,.pw-shop-header-inner,.pw-brand-cluster,.pw-shop-brand-cluster{overflow:visible!important}',
-      '.pw-header-main,.pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;min-width:0;position:relative!important;max-width:none!important;width:100%!important;margin-left:0!important;margin-right:0!important}',
+      'html{--pw-block-w:min(calc(100% - 32px),var(--pw-content,1200px))}',
+      'html .pw-header-main,html .pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;min-width:0;position:relative!important;max-width:var(--pw-block-w)!important;width:var(--pw-block-w)!important;margin-left:auto!important;margin-right:auto!important;align-self:center!important;box-sizing:border-box}',
+      'html .pw-nav-main,html .pw-shop-nav-row,html .pw-hero,html .pw-banner,html .pw-shop-hero,html .pw-shop-banner,html [data-pw-region="banner"]{max-width:var(--pw-block-w)!important;width:var(--pw-block-w)!important;margin-left:auto!important;margin-right:auto!important;box-sizing:border-box}',
+      '@media (min-width:900px){html .pw-header-main,html .pw-shop-header-inner{justify-content:center!important}html .pw-header-actions,html .pw-shop-header-actions{margin-left:0!important}}',
       '.pw-brand-cluster,.pw-shop-brand-cluster,.pw-brand:not([data-pw-logo-float]),.pw-shop-brand:not([data-pw-logo-float]),a[data-pw-logo-home]:not([data-pw-logo-float]){position:relative!important;z-index:120!important;flex:0 0 auto!important;overflow:visible!important}',
       '.pw-brand:not([data-pw-logo-float]),.pw-shop-brand:not([data-pw-logo-float]),a[data-pw-logo-home]:not([data-pw-logo-float]){display:inline-flex!important;align-items:center!important;width:max-content!important;max-width:100%!important;vertical-align:middle}',
       '.pw-brand-cluster,.pw-shop-brand-cluster{pointer-events:none!important}',

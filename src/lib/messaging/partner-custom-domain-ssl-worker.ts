@@ -77,6 +77,10 @@ export async function runPartnerCustomDomainSslWorker(limit = 10): Promise<Partn
 
     const dnsCheck = await verifyPartnerCustomDomainDns(host)
     if (!dnsCheck.ok) {
+      if (dnsCheck.transient) {
+        result.stillPending += 1
+        continue
+      }
       await updatePartnerCustomDomainVerificationPg({
         partnerId: row.partner_id,
         dnsVerified: false,

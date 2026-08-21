@@ -161,10 +161,53 @@ export function pwSceneCanvasWidth(device: unknown): number {
   return PW_SCENE_CANVAS_WIDTH[key] ?? PW_SCENE_CANVAS_WIDTH.desktop
 }
 
+/**
+ * Chọn máy theo bề rộng cửa sổ, không theo CSS px sau khi Ctrl +/- zoom.
+ * Gọi với `max(outerWidth, innerWidth)` để zoom không đổi laptop ↔ desktop.
+ */
+export function pwSceneLockFromWindowWidth(width: unknown): PwSceneDevice {
+  const w = Number(width)
+  if (!Number.isFinite(w) || w < PW_SCENE_CANVAS_WIDTH.tablet) return 'mobile'
+  if (w < PW_SCENE_CANVAS_WIDTH.laptop) return 'tablet'
+  if (w < PW_SCENE_CANVAS_WIDTH.desktop) return 'laptop'
+  return 'desktop'
+}
+
+/** Browser zoom should shrink/grow the shop naturally; only the canvas center is locked. */
+export function pwSceneLiveZoomScale(
+  innerWidth: unknown,
+  outerWidth: unknown,
+  screenWidth?: unknown
+): number {
+  void innerWidth
+  void outerWidth
+  void screenWidth
+  return 1
+}
+
 /** Biến CSS dùng chung cho Sửa nhanh và trang khách — hai bên phải cùng số. */
 export function pwSceneCssVars(device: unknown): string {
   return `--pw-scene-w:${pwSceneCanvasWidth(device)}px`
 }
+
+/**
+ * Zoom ảnh: gốc Y = tâm đứng của khung máy (iframe / ?pw-device=).
+ * Không scale ngang — chiều rộng ảnh luôn 100% khung.
+ */
+export const PW_SCENE_MEDIA_ZOOM_SEL = [
+  '[data-pw-region="banner"] img[data-pw-el="media"]',
+  '[data-pw-region="banner"] img[data-pw-edit*="hero"]',
+  '[data-pw-region="banner"] img[data-pw-edit*="banner"]',
+  '[data-pw-region="promo"] img[data-pw-el="media"]',
+  '[data-pw-region="content"] img[data-pw-el="media"]',
+  '[data-pw-region="content"] img[data-pw-el="image"]',
+  '.pw-hero img:not(.pw-logo):not(.pw-shop-logo):not(.pw-chrome-chat-logo)',
+  '.pw-banner img:not(.pw-logo):not(.pw-shop-logo)',
+  '.pw-shop-hero img:not(.pw-shop-logo)',
+  '.pw-shop-banner img:not(.pw-shop-logo)',
+  '[data-pw-bg-layer="1"] img',
+  'img[data-pw-banner-zoom]',
+].join(',')
 
 /** Đường tâm mọi máy = trung điểm màn hình. Inject vào chrome layout dùng chung. */
 export function pwSceneCenterCss(): string {
@@ -173,15 +216,170 @@ export function pwSceneCenterCss(): string {
   const l = PW_SCENE_CANVAS_WIDTH.laptop
   const d = PW_SCENE_CANVAS_WIDTH.desktop
   return [
-    `html{--pw-scene-w:${d}px}`,
-    `html[data-pw-edit-device="mobile"]{--pw-scene-w:${m}px}`,
-    `html[data-pw-edit-device="tablet"]{--pw-scene-w:${t}px}`,
-    `html[data-pw-edit-device="laptop"]{--pw-scene-w:${l}px}`,
-    `html[data-pw-edit-device="desktop"]{--pw-scene-w:${d}px}`,
-    `@media (max-width:${t - 1}px){html:not([data-pw-edit-device]){--pw-scene-w:${m}px}}`,
-    `@media (min-width:${t}px) and (max-width:${l - 1}px){html:not([data-pw-edit-device]){--pw-scene-w:${t}px}}`,
-    `@media (min-width:${l}px) and (max-width:${d - 1}px){html:not([data-pw-edit-device]){--pw-scene-w:${l}px}}`,
-    `@media (min-width:${d}px){html:not([data-pw-edit-device]){--pw-scene-w:${d}px}}`,
-    `html[data-pw-edit-device] body{width:min(100%,var(--pw-scene-w));margin-left:auto;margin-right:auto}`,
+    `html{--pw-scene-w:${d}px;--pw-scene-zoom:1}`,
+    `html[data-pw-edit-device="mobile"],html[data-pw-scene-lock="mobile"]{--pw-scene-w:${m}px}`,
+    `html[data-pw-edit-device="tablet"],html[data-pw-scene-lock="tablet"]{--pw-scene-w:${t}px}`,
+    `html[data-pw-edit-device="laptop"],html[data-pw-scene-lock="laptop"]{--pw-scene-w:${l}px}`,
+    `html[data-pw-edit-device="desktop"],html[data-pw-scene-lock="desktop"]{--pw-scene-w:${d}px}`,
+    `@media (max-width:${t - 1}px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]){--pw-scene-w:${m}px}}`,
+    `@media (min-width:${t}px) and (max-width:${l - 1}px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]){--pw-scene-w:${t}px}}`,
+    `@media (min-width:${l}px) and (max-width:${d - 1}px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]){--pw-scene-w:${l}px}}`,
+    `@media (min-width:${d}px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]){--pw-scene-w:${d}px}}`,
+    // Sửa nhanh: body trong iframe. Xem thật: neo #shop root — không khóa body Next.js
+    // (html co theo body thì calc(50%-khung/2) = 0 → cả trang dạt trái).
+    `html[data-pw-edit-device] body{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:calc(50% - (var(--pw-scene-w) / 2))!important;margin-right:auto!important;box-sizing:border-box;overflow-x:visible;transform-origin:top center;display:block}`,
+    `[data-pw-inline-visual-root]{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:calc(50% - (var(--pw-scene-w) / 2))!important;margin-right:auto!important;box-sizing:border-box;overflow-x:visible;transform:scale(var(--pw-scene-zoom,1));transform-origin:top center;display:block}`,
+    `main:has([data-pw-inline-visual-root]){width:100%!important;max-width:none!important;margin:0!important;padding:0!important;display:block!important}`,
+    `${PW_SCENE_MEDIA_ZOOM_SEL}{transform-origin:50% var(--pw-zoom-oy,50%)}`,
   ].join('')
 }
+
+/**
+ * Gốc zoom Y = điểm giữa đứng của màn hình máy, tính trên phần tử.
+ * Trả về % theo chiều cao phần tử (có thể ngoài 0–100 khi ảnh không cắt đường giữa).
+ */
+export function pwMediaZoomOriginYPct(top: number, height: number, viewHeight: number): number {
+  if (!(height > 0) || !(viewHeight > 0)) return 50
+  return ((viewHeight / 2 - top) / height) * 100
+}
+
+/** Runtime Sửa nhanh + web thật: neo canvas theo trung điểm màn hình. */
+export const PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID = 'pw-shop-scene-center'
+/** Khóa máy theo outerWidth (không đổi khi Ctrl +/-) rồi neo canvas giữa màn hình. */
+export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
+  var W={mobile:${PW_SCENE_CANVAS_WIDTH.mobile},tablet:${PW_SCENE_CANVAS_WIDTH.tablet},laptop:${PW_SCENE_CANVAS_WIDTH.laptop},desktop:${PW_SCENE_CANVAS_WIDTH.desktop}};
+  function stamped(){
+    var html=document.documentElement;
+    return html&&html.getAttribute?String(html.getAttribute('data-pw-edit-device')||''):'';
+  }
+  function band(){
+    var s=stamped();
+    if(s==='mobile'||s==='tablet'||s==='laptop'||s==='desktop')return s;
+    var outer=window.outerWidth||0;
+    var inner=window.innerWidth||(document.documentElement&&document.documentElement.clientWidth)||0;
+    var w=Math.max(outer,inner);
+    if(!(w>0))return 'desktop';
+    if(w<W.tablet)return 'mobile';
+    if(w<W.laptop)return 'tablet';
+    if(w<W.desktop)return 'laptop';
+    return 'desktop';
+  }
+  function zoomScale(){
+    return 1;
+  }
+  function apply(){
+    var html=document.documentElement;
+    if(!html||!html.style)return;
+    var key=band();
+    var px=W[key]||W.desktop;
+    var z=zoomScale();
+    html.setAttribute('data-pw-scene-lock',key);
+    html.style.setProperty('--pw-scene-w',px+'px');
+    html.style.setProperty('--pw-scene-zoom',String(z));
+    var root=document.querySelector('[data-pw-inline-visual-root]');
+    if(root&&root.style){
+      root.style.marginBottom='';
+    }
+  }
+  apply();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply);
+  window.addEventListener('resize',apply);
+  if(window.visualViewport)window.visualViewport.addEventListener('resize',apply);
+})();`
+
+export const PARTNER_SHOP_IMAGE_ZOOM_SCRIPT_ID = 'pw-shop-image-zoom'
+export const PARTNER_SHOP_IMAGE_ZOOM_SCRIPT = `(function(){
+  function viewH(){
+    var vv=window.visualViewport;
+    if(vv&&vv.height)return vv.height;
+    return window.innerHeight||document.documentElement.clientHeight||0
+  }
+  function originY(el){
+    if(!el||!el.getBoundingClientRect)return 50;
+    var r=el.getBoundingClientRect();
+    if(!(r.height>0))return 50;
+    var h=viewH();
+    if(!(h>0))return 50;
+    return (h/2-r.top)/r.height*100;
+  }
+  function parseZ(el){
+    var raw=el&&el.getAttribute?el.getAttribute('data-pw-banner-zoom'):'';
+    var z=parseFloat(raw||'');
+    if(isFinite(z)&&z>0)return Math.max(0.5,Math.min(3,z));
+    var tr=el&&el.style?String(el.style.transform||''):'';
+    var m=tr.match(/scale(?:Y)?\(\s*([\d.]+)/);
+    if(m){
+      z=parseFloat(m[1]);
+      if(isFinite(z)&&z>0)return Math.max(0.5,Math.min(3,z));
+    }
+    var bs=el&&el.style?String(el.style.backgroundSize||''):'';
+    var two=bs.match(/(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%/);
+    if(two){
+      z=parseFloat(two[2])/100;
+      if(isFinite(z)&&z>0)return Math.max(0.5,Math.min(3,z));
+    }
+    m=bs.match(/(\d+(?:\.\d+)?)%\s*auto/);
+    if(m){
+      z=parseFloat(m[1])/100;
+      if(isFinite(z)&&z>0)return Math.max(0.5,Math.min(3,z));
+    }
+    return 0;
+  }
+  function applyImg(img,z,oy){
+    if(!img||!img.style)return;
+    img.style.setProperty('--pw-zoom-oy',oy+'%');
+    img.style.setProperty('transform-origin','50% '+oy+'%');
+    if(z&&z!==1){
+      img.style.setProperty('transform','scaleY('+z+')');
+      img.style.setProperty('object-fit','cover');
+      img.style.setProperty('width','100%');
+      img.style.setProperty('max-width','none');
+      img.style.setProperty('max-height','none');
+    }else if(img.style.transform&&/scale(?:Y)?\(/.test(String(img.style.transform))){
+      img.style.setProperty('transform','none');
+    }
+  }
+  function applyHost(host){
+    var z=parseZ(host);
+    var img=host.querySelector&&host.querySelector('img[data-pw-el="media"],img[data-pw-banner-zoom],img[data-pw-edit*="hero"],img[data-pw-edit*="banner"]');
+    if(!img&&host.querySelector){
+      var imgs=host.querySelectorAll('img');
+      var j;
+      for(j=0;j<imgs.length;j++){
+        var cls=String(imgs[j].className||'');
+        if(/logo/i.test(cls)||(imgs[j].getAttribute&&imgs[j].getAttribute('data-pw-logo-added')))continue;
+        img=imgs[j];
+        break;
+      }
+    }
+    var box=img||host;
+    var oy=Math.round(originY(box)*100)/100;
+    host.style.setProperty('--pw-zoom-oy',oy+'%');
+    if(z){
+      var size='100% '+Math.round(z*100)+'%';
+      if(host.style.backgroundImage||(host.style.backgroundSize&&String(host.style.backgroundSize).indexOf('%')>=0)){
+        host.style.backgroundSize=z===1?'cover':size;
+      }
+    }
+    if(img)applyImg(img,parseZ(img)||z,oy);
+  }
+  function run(){
+    var hosts=document.querySelectorAll('[data-pw-region="banner"],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,[data-pw-banner-zoom]');
+    var i;
+    for(i=0;i<hosts.length;i++){
+      if(hosts[i].tagName&&hosts[i].tagName.toLowerCase()==='img')continue;
+      applyHost(hosts[i]);
+    }
+    var loose=document.querySelectorAll('img[data-pw-banner-zoom]');
+    for(i=0;i<loose.length;i++){
+      var img=loose[i];
+      var z=parseZ(img);
+      applyImg(img,z,Math.round(originY(img)*100)/100);
+    }
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);
+  else run();
+  window.addEventListener('resize',run);
+  window.addEventListener('load',run);
+  if(window.visualViewport)window.visualViewport.addEventListener('resize',run);
+})();`

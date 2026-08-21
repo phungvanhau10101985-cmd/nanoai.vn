@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { buildGoogleMerchantCatalogFeedTsv } from '@/lib/messaging/google-merchant-catalog-feed'
 import {
+  catalogFeedBuildArgs,
   catalogFeedFileResponse,
   loadPartnerCatalogFeedContext,
 } from '@/lib/messaging/partner-catalog-feed-http'
@@ -21,12 +22,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   const loaded = await loadPartnerCatalogFeedContext(request, slug)
   if (loaded instanceof Response) return loaded
 
-  const buf = buildGoogleMerchantCatalogFeedTsv(loaded.rows, {
-    platformOrigin: loaded.platformOrigin,
-    partnerSlug: loaded.partnerSlug,
-    brand: loaded.brand,
-    shop: loaded.shop,
-  })
+  const buf = buildGoogleMerchantCatalogFeedTsv(loaded.rows, catalogFeedBuildArgs(loaded))
 
   return catalogFeedFileResponse(buf, 'text/tab-separated-values; charset=utf-8', 'google-merchant.tsv')
 }

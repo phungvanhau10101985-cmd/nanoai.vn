@@ -656,6 +656,7 @@ export type Dictionary = {
     tiktokCatalogFeedHint: string
     tiktokCatalogFeedCopyButton: string
     tiktokCatalogFeedCopiedToast: string
+    catalogFeedsPageHint: string
     nanoaiEmbedCodeLabel: string
     facebookChatEmbedCodeLabel: string
     zaloChatEmbedCodeLabel: string
@@ -3796,21 +3797,23 @@ const VI_DICTIONARY: Dictionary = {
     customDomainStatusHintSslActive: "Domain đã sẵn sàng với HTTPS.",
     customDomainStatusHintError: "Xác minh thất bại — kiểm tra CNAME và thử làm mới lại.",
     customDomainLastErrorTitle: "Chi tiết lỗi gần nhất",
-    facebookCatalogFeedTitle: 'Facebook — link danh mục sản phẩm (CSV)',
+    facebookCatalogFeedTitle: 'Facebook — danh mục sản phẩm (CSV)',
     facebookCatalogFeedHint:
-      'Dán URL này vào Commerce Manager khi chọn «URL hoặc Google Trang tính». CSV gồm sản phẩm đang bật; cột link là trang tư vấn trên NanoAI (không phải link web shop). Cần ảnh URL, giá VND; key = khóa nhúng (giữ bí mật).',
+      'Dán URL này vào Commerce Manager khi chọn «URL hoặc Google Trang tính». CSV gồm sản phẩm đang bật; cột link là trang sản phẩm web shop đã đăng. Đủ trường: giá/sale, ảnh, danh mục Google, màu, size, chất liệu, giới tính, video, nhãn tuỳ chỉnh. key = khóa nhúng (giữ bí mật).',
     facebookCatalogFeedCopyButton: 'Sao chép URL feed',
     facebookCatalogFeedCopiedToast: 'Đã sao chép URL feed danh mục.',
     googleMerchantCatalogFeedTitle: 'Google Merchant Center — feed sản phẩm (TSV)',
     googleMerchantCatalogFeedHint:
-      'Dán URL này vào Merchant Center: Sản phẩm → Nguồn dữ liệu → Lấy theo lịch. TSV gồm sản phẩm đang bật; cột id khớp remarketing với Meta/TikTok; cột link ưu tiên trang sản phẩm web shop đã đăng. Cần ảnh URL và giá; key = khóa nhúng (giữ bí mật).',
+      'Dán URL này vào Merchant Center: Sản phẩm → Nguồn dữ liệu → Lấy theo lịch. TSV đủ cột như catalog 188 (id, giá/sale, ảnh, danh mục, màu, size, MPN, video…). id khớp remarketing với Meta/TikTok. key = khóa nhúng (giữ bí mật).',
     googleMerchantCatalogFeedCopyButton: 'Sao chép URL feed',
     googleMerchantCatalogFeedCopiedToast: 'Đã sao chép URL feed Google Merchant Center.',
     tiktokCatalogFeedTitle: 'TikTok — danh mục sản phẩm (CSV)',
     tiktokCatalogFeedHint:
-      'Dán URL này vào TikTok Ads Manager: Tài sản → Catalog → Nguồn dữ liệu → Feed theo lịch. CSV gồm sản phẩm đang bật; cột sku_id khớp id remarketing với Meta/Google. Cần ảnh URL và giá; key = khóa nhúng (giữ bí mật).',
+      'Dán URL này vào TikTok Ads Manager: Tài sản → Catalog → Nguồn dữ liệu → Feed theo lịch. CSV đủ trường (sku_id, giá/sale, danh mục, màu, size, video…). sku_id khớp id Meta/Google. key = khóa nhúng (giữ bí mật).',
     tiktokCatalogFeedCopyButton: 'Sao chép URL feed',
     tiktokCatalogFeedCopiedToast: 'Đã sao chép URL feed danh mục TikTok.',
+    catalogFeedsPageHint:
+      'Ba URL dưới đây là nguồn cấp dữ liệu catalog (scheduled fetch) cho Facebook, Google Merchant Center và TikTok. Cùng kho sản phẩm, đủ trường: tiêu đề, mô tả, giá, giá sale, ảnh, danh mục, màu, size, chất liệu, giới tính, tồn kho, video và nhãn tuỳ chỉnh. Cột link là trang sản phẩm web shop đã đăng.',
     nanoaiEmbedCodeLabel: 'Mã nhúng chat NanoAI',
     facebookChatEmbedCodeLabel: 'Mã nhúng chat Facebook',
     zaloChatEmbedCodeLabel: 'Mã nhúng chat Zalo',
@@ -3931,8 +3934,8 @@ const VI_DICTIONARY: Dictionary = {
       'Tính hạng theo chi tiêu của khách trong cửa sổ thời gian và tự động giảm giá khi chốt đơn.',
     settingsNavPromotions: 'Ưu đãi sinh nhật',
     settingsNavPromotionsDesc: 'Email và giảm giá sinh nhật khách hàng — tách với voucher trên website.',
-    settingsNavAnalyticsMeta: 'Meta & Catalog',
-    settingsNavAnalyticsMetaDesc: 'Meta Pixel, Conversions API và feed catalog Facebook.',
+    settingsNavAnalyticsMeta: 'Nguồn cấp dữ liệu',
+    settingsNavAnalyticsMetaDesc: 'Feed catalog Facebook, Google Merchant Center và TikTok — cùng kho sản phẩm, đủ trường thông tin.',
     settingsNavAnalyticsGoogleMerchant: 'Google Merchant Center',
     settingsNavAnalyticsGoogleMerchantDesc: 'Feed TSV sản phẩm để đồng bộ catalog Google Merchant Center.',
     settingsNavAnalyticsTiktokCatalog: 'TikTok Catalog',
@@ -6964,19 +6967,21 @@ const EN_DICTIONARY: Dictionary = {
     customDomainLastErrorTitle: "Latest error detail",
     facebookCatalogFeedTitle: 'Facebook — product catalog feed (CSV)',
     facebookCatalogFeedHint:
-      'Paste this URL in Commerce Manager (scheduled feed). CSV lists active items; the link column is the NanoAI consult page, not your shop website. Requires image URL and VND price. The key query param is your embed key — keep it private.',
+      'Paste this URL in Commerce Manager (scheduled feed). CSV lists active items; the link column is your published shop product page. Fields include price/sale, images, Google category, color, size, material, gender, video, and custom labels. The key query param is your embed key — keep it private.',
     facebookCatalogFeedCopyButton: 'Copy feed URL',
     facebookCatalogFeedCopiedToast: 'Catalog feed URL copied.',
     googleMerchantCatalogFeedTitle: 'Google Merchant Center — product feed (TSV)',
     googleMerchantCatalogFeedHint:
-      'Paste this URL in Merchant Center: Products → Feeds → Scheduled fetch. TSV lists active items; the id column matches Meta/TikTok remarketing; the link column prefers your published shop product page. Requires image URL and price. The key query param is your embed key — keep it private.',
+      'Paste this URL in Merchant Center: Products → Feeds → Scheduled fetch. TSV includes the full 188-style columns (id, price/sale, images, category, color, size, MPN, video…). The id column matches Meta/TikTok remarketing. The key query param is your embed key — keep it private.',
     googleMerchantCatalogFeedCopyButton: 'Copy feed URL',
     googleMerchantCatalogFeedCopiedToast: 'Google Merchant Center feed URL copied.',
     tiktokCatalogFeedTitle: 'TikTok — product catalog (CSV)',
     tiktokCatalogFeedHint:
-      'Paste this URL in TikTok Ads Manager: Assets → Catalog → Data source → Scheduled feed. CSV lists active items; sku_id matches the Meta/Google catalog id. Requires image URL and price. The key query param is your embed key — keep it private.',
+      'Paste this URL in TikTok Ads Manager: Assets → Catalog → Data source → Scheduled feed. CSV includes sku_id, price/sale, category, color, size, video. sku_id matches the Meta/Google catalog id. The key query param is your embed key — keep it private.',
     tiktokCatalogFeedCopyButton: 'Copy feed URL',
     tiktokCatalogFeedCopiedToast: 'TikTok catalog feed URL copied.',
+    catalogFeedsPageHint:
+      'The three URLs below are scheduled catalog data sources for Facebook, Google Merchant Center, and TikTok. They share the same product catalog with title, description, price, sale price, images, category, color, size, material, gender, stock, video, and custom labels. The link column is your published shop product page.',
     nanoaiEmbedCodeLabel: 'NanoAI chat embed code',
     facebookChatEmbedCodeLabel: 'Facebook chat embed code',
     zaloChatEmbedCodeLabel: 'Zalo chat embed code',
@@ -7094,8 +7099,8 @@ const EN_DICTIONARY: Dictionary = {
       'Tier customers by spend within a time window and apply automatic discounts at checkout.',
     settingsNavPromotions: 'Birthday offers',
     settingsNavPromotionsDesc: 'Birthday emails and discounts — separate from website vouchers.',
-    settingsNavAnalyticsMeta: 'Meta & catalog',
-    settingsNavAnalyticsMetaDesc: 'Meta Pixel, Conversions API, and Facebook catalog feed.',
+    settingsNavAnalyticsMeta: 'Catalog data sources',
+    settingsNavAnalyticsMetaDesc: 'Facebook, Google Merchant Center, and TikTok catalog feeds — same products, full fields.',
     settingsNavAnalyticsGoogleMerchant: 'Google Merchant Center',
     settingsNavAnalyticsGoogleMerchantDesc: 'TSV product feed to sync your Google Merchant Center catalog.',
     settingsNavAnalyticsTiktokCatalog: 'TikTok catalog',
@@ -10126,19 +10131,21 @@ const ZH_DICTIONARY: Dictionary = {
     customDomainLastErrorTitle: "最近错误详情",
     facebookCatalogFeedTitle: 'Facebook — 商品目录 Feed（CSV）',
     facebookCatalogFeedHint:
-      '在商务管理平台粘贴此 Feed URL。CSV 中 link 列为 NanoAI 咨询页，不是店铺官网。需图片 URL 与越南盾价格。key 为嵌入密钥，请保密。',
+      '在商务管理平台粘贴此 Feed URL。CSV 中 link 列为已发布店铺商品页。含价格/促销、图片、Google 类目、颜色、尺码、材质、性别、视频与自定义标签。key 为嵌入密钥，请保密。',
     facebookCatalogFeedCopyButton: '复制 Feed URL',
     facebookCatalogFeedCopiedToast: '已复制目录 Feed URL。',
     googleMerchantCatalogFeedTitle: 'Google Merchant Center — 商品 Feed（TSV）',
     googleMerchantCatalogFeedHint:
-      '在 Merchant Center 粘贴此 URL：商品 → 数据源 → 定时抓取。TSV 含已上架商品；id 与 Meta/TikTok 再营销一致；link 优先已发布店铺商品页。需图片 URL 与价格。key 为嵌入密钥，请保密。',
+      '在 Merchant Center 粘贴此 URL：商品 → 数据源 → 定时抓取。TSV 含完整字段（id、价格/促销、图片、类目、颜色、尺码、MPN、视频…）。id 与 Meta/TikTok 再营销一致。key 为嵌入密钥，请保密。',
     googleMerchantCatalogFeedCopyButton: '复制 Feed URL',
     googleMerchantCatalogFeedCopiedToast: '已复制 Google Merchant Center Feed URL。',
     tiktokCatalogFeedTitle: 'TikTok — 商品目录（CSV）',
     tiktokCatalogFeedHint:
-      '在 TikTok 广告管理平台粘贴此 URL：资产 → 目录 → 数据源 → 定时 Feed。CSV 含已上架商品；sku_id 与 Meta/Google 目录 id 一致。需图片 URL 与价格。key 为嵌入密钥，请保密。',
+      '在 TikTok 广告管理平台粘贴此 URL：资产 → 目录 → 数据源 → 定时 Feed。CSV 含 sku_id、价格/促销、类目、颜色、尺码、视频。sku_id 与 Meta/Google 目录 id 一致。key 为嵌入密钥，请保密。',
     tiktokCatalogFeedCopyButton: '复制 Feed URL',
     tiktokCatalogFeedCopiedToast: '已复制 TikTok 目录 Feed URL。',
+    catalogFeedsPageHint:
+      '以下三个 URL 是 Facebook、Google Merchant Center 与 TikTok 的目录数据源（定时抓取）。共用同一商品库，字段包括标题、描述、价格、促销价、图片、类目、颜色、尺码、材质、性别、库存、视频与自定义标签。link 列为已发布店铺商品页。',
     nanoaiEmbedCodeLabel: 'NanoAI 聊天嵌入代码',
     facebookChatEmbedCodeLabel: 'Facebook 聊天嵌入代码',
     zaloChatEmbedCodeLabel: 'Zalo 聊天嵌入代码',
@@ -10251,8 +10258,8 @@ const ZH_DICTIONARY: Dictionary = {
     settingsNavLoyaltyDesc: '按时间窗口内的消费划分等级，并在结账时自动打折。',
     settingsNavPromotions: '生日优惠',
     settingsNavPromotionsDesc: '生日邮件与折扣 — 与网站优惠券分开。',
-    settingsNavAnalyticsMeta: 'Meta 与目录',
-    settingsNavAnalyticsMetaDesc: 'Meta Pixel、转化 API 与 Facebook 商品目录 feed。',
+    settingsNavAnalyticsMeta: '数据源',
+    settingsNavAnalyticsMetaDesc: 'Facebook、Google Merchant Center 与 TikTok 商品目录 Feed — 同一商品库，字段完整。',
     settingsNavAnalyticsGoogleMerchant: 'Google Merchant Center',
     settingsNavAnalyticsGoogleMerchantDesc: 'TSV 商品 Feed，用于同步 Google Merchant Center 目录。',
     settingsNavAnalyticsTiktokCatalog: 'TikTok 目录',
@@ -13191,19 +13198,21 @@ const JA_DICTIONARY: Dictionary = {
     customDomainLastErrorTitle: "最新のエラー詳細",
     facebookCatalogFeedTitle: 'Facebook — 商品カタログフィード（CSV）',
     facebookCatalogFeedHint:
-      'Commerce Manager のデータソース URL に貼り付けます。link は NanoAI の相談ページで、店舗サイトの URL ではありません。画像 URL と VND 価格が必要です。key は埋め込みキーなので秘密にしてください。',
+      'Commerce Manager のデータソース URL に貼り付けます。link は公開済みショップの商品ページです。価格/セール、画像、Google カテゴリ、色、サイズ、素材、性別、動画、カスタムラベルを含みます。key は埋め込みキーなので秘密にしてください。',
     facebookCatalogFeedCopyButton: 'フィード URL をコピー',
     facebookCatalogFeedCopiedToast: 'フィード URL をコピーしました。',
     googleMerchantCatalogFeedTitle: 'Google Merchant Center — 商品フィード（TSV）',
     googleMerchantCatalogFeedHint:
-      'Merchant Center の「商品 → フィード → 定期取得」にこの URL を貼り付けます。TSV は公開中の商品のみ。id は Meta/TikTok のリマーケティングと一致し、link は公開済みショップの商品ページを優先します。画像 URL と価格が必要です。key は埋め込みキーなので秘密にしてください。',
+      'Merchant Center の「商品 → フィード → 定期取得」にこの URL を貼り付けます。TSV は id、価格/セール、画像、カテゴリ、色、サイズ、MPN、動画などの列を含みます。id は Meta/TikTok のリマーケティングと一致します。key は埋め込みキーなので秘密にしてください。',
     googleMerchantCatalogFeedCopyButton: 'フィード URL をコピー',
     googleMerchantCatalogFeedCopiedToast: 'Google Merchant Center のフィード URL をコピーしました。',
     tiktokCatalogFeedTitle: 'TikTok — 商品カタログ（CSV）',
     tiktokCatalogFeedHint:
-      'TikTok 広告マネージャーの「アセット → カタログ → データソース → 定期フィード」に貼り付けます。CSV は公開中の商品のみ。sku_id は Meta/Google のカタログ id と一致します。画像 URL と価格が必要です。key は埋め込みキーなので秘密にしてください。',
+      'TikTok 広告マネージャーの「アセット → カタログ → データソース → 定期フィード」に貼り付けます。CSV は sku_id、価格/セール、カテゴリ、色、サイズ、動画を含みます。sku_id は Meta/Google のカタログ id と一致します。key は埋め込みキーなので秘密にしてください。',
     tiktokCatalogFeedCopyButton: 'フィード URL をコピー',
     tiktokCatalogFeedCopiedToast: 'TikTok カタログのフィード URL をコピーしました。',
+    catalogFeedsPageHint:
+      '以下 3 つの URL は Facebook、Google Merchant Center、TikTok のカタログデータソース（定期取得）です。同じ商品在庫を使い、タイトル、説明、価格、セール価格、画像、カテゴリ、色、サイズ、素材、性別、在庫、動画、カスタムラベルを含めます。link 列は公開済みショップの商品ページです。',
     nanoaiEmbedCodeLabel: 'NanoAI チャット埋め込みコード',
     facebookChatEmbedCodeLabel: 'Facebook チャット埋め込みコード',
     zaloChatEmbedCodeLabel: 'Zalo チャット埋め込みコード',
@@ -13322,8 +13331,8 @@ const JA_DICTIONARY: Dictionary = {
     settingsNavLoyaltyDesc: '期間内の購入額でランク付けし、注文確定時に自動割引します。',
     settingsNavPromotions: '誕生日特典',
     settingsNavPromotionsDesc: '誕生日メールと割引 — サイトのクーポンとは別です。',
-    settingsNavAnalyticsMeta: 'Meta とカタログ',
-    settingsNavAnalyticsMetaDesc: 'Meta Pixel、Conversions API、Facebook カタログ feed。',
+    settingsNavAnalyticsMeta: 'カタログデータソース',
+    settingsNavAnalyticsMetaDesc: 'Facebook、Google Merchant Center、TikTok のカタログフィード — 同じ商品、十分な項目。',
     settingsNavAnalyticsGoogleMerchant: 'Google Merchant Center',
     settingsNavAnalyticsGoogleMerchantDesc: 'Google Merchant Center カタログ同期用の TSV 商品フィード。',
     settingsNavAnalyticsTiktokCatalog: 'TikTok カタログ',
@@ -16327,19 +16336,21 @@ const KO_DICTIONARY: Dictionary = {
     customDomainLastErrorTitle: "최근 오류 상세",
     facebookCatalogFeedTitle: 'Facebook — 상품 카탈로그 피드(CSV)',
     facebookCatalogFeedHint:
-      '커머스 관리자 데이터 소스 URL에 붙여 넣습니다. link 열은 NanoAI 상담 페이지이며 쇼핑몰 사이트 링크가 아닙니다. 이미지 URL·VND 가격 필요. key는 임베드 키로 비공개 유지.',
+      '커머스 관리자 데이터 소스 URL에 붙여 넣습니다. link 열은 게시된 쇼핑몰 상품 페이지입니다. 가격/세일, 이미지, Google 카테고리, 색상, 사이즈, 소재, 성별, 동영상, 맞춤 라벨을 포함합니다. key는 임베드 키로 비공개 유지.',
     facebookCatalogFeedCopyButton: '피드 URL 복사',
     facebookCatalogFeedCopiedToast: '피드 URL을 복사했습니다.',
     googleMerchantCatalogFeedTitle: 'Google Merchant Center — 상품 피드(TSV)',
     googleMerchantCatalogFeedHint:
-      'Merchant Center의 제품 → 피드 → 예약 가져오기에 이 URL을 붙여 넣으세요. TSV는 활성 상품만 포함합니다. id는 Meta/TikTok 리마케팅과 같고, link는 게시된 쇼핑몰 상품 페이지를 우선합니다. 이미지 URL과 가격이 필요합니다. key는 임베드 키이므로 비공개로 유지하세요.',
+      'Merchant Center의 제품 → 피드 → 예약 가져오기에 이 URL을 붙여 넣으세요. TSV는 id, 가격/세일, 이미지, 카테고리, 색상, 사이즈, MPN, 동영상 등 전체 열을 포함합니다. id는 Meta/TikTok 리마케팅과 같습니다. key는 임베드 키이므로 비공개로 유지하세요.',
     googleMerchantCatalogFeedCopyButton: '피드 URL 복사',
     googleMerchantCatalogFeedCopiedToast: 'Google Merchant Center 피드 URL을 복사했습니다.',
     tiktokCatalogFeedTitle: 'TikTok — 상품 카탈로그(CSV)',
     tiktokCatalogFeedHint:
-      'TikTok 광고 관리자의 자산 → 카탈로그 → 데이터 소스 → 예약 피드에 붙여 넣으세요. CSV는 활성 상품만 포함합니다. sku_id는 Meta/Google 카탈로그 id와 같습니다. 이미지 URL과 가격이 필요합니다. key는 임베드 키이므로 비공개로 유지하세요.',
+      'TikTok 광고 관리자의 자산 → 카탈로그 → 데이터 소스 → 예약 피드에 붙여 넣으세요. CSV는 sku_id, 가격/세일, 카테고리, 색상, 사이즈, 동영상을 포함합니다. sku_id는 Meta/Google 카탈로그 id와 같습니다. key는 임베드 키이므로 비공개로 유지하세요.',
     tiktokCatalogFeedCopyButton: '피드 URL 복사',
     tiktokCatalogFeedCopiedToast: 'TikTok 카탈로그 피드 URL을 복사했습니다.',
+    catalogFeedsPageHint:
+      '아래 세 URL은 Facebook, Google Merchant Center, TikTok 카탈로그 데이터 소스(예약 가져오기)입니다. 같은 상품 재고를 쓰며 제목, 설명, 가격, 세일 가격, 이미지, 카테고리, 색상, 사이즈, 소재, 성별, 재고, 동영상, 맞춤 라벨을 포함합니다. link 열은 게시된 쇼핑몰 상품 페이지입니다.',
     nanoaiEmbedCodeLabel: 'NanoAI 채팅 임베드 코드',
     facebookChatEmbedCodeLabel: 'Facebook 채팅 임베드 코드',
     zaloChatEmbedCodeLabel: 'Zalo 채팅 임베드 코드',
@@ -16457,8 +16468,8 @@ const KO_DICTIONARY: Dictionary = {
     settingsNavLoyaltyDesc: '기간 내 구매액으로 등급을 매기고 주문 확정 시 자동 할인합니다.',
     settingsNavPromotions: '생일 혜택',
     settingsNavPromotionsDesc: '생일 이메일과 할인 — 웹사이트 쿠폰과 별도입니다.',
-    settingsNavAnalyticsMeta: 'Meta 및 카탈로그',
-    settingsNavAnalyticsMetaDesc: 'Meta Pixel, Conversions API, Facebook 카탈로그 feed.',
+    settingsNavAnalyticsMeta: '데이터 소스',
+    settingsNavAnalyticsMetaDesc: 'Facebook, Google Merchant Center, TikTok 카탈로그 피드 — 같은 상품, 전체 필드.',
     settingsNavAnalyticsGoogleMerchant: 'Google Merchant Center',
     settingsNavAnalyticsGoogleMerchantDesc: 'Google Merchant Center 카탈로그 동기화용 TSV 상품 피드.',
     settingsNavAnalyticsTiktokCatalog: 'TikTok 카탈로그',

@@ -122,7 +122,8 @@ test('chrome toggle bootstrap hydrates the category panel from the public API', 
   assert.match(s, /window\.top\.location\.href/)
   assert.match(s, /isAccountSubpathLink/)
   assert.match(s, /handleAccountClick/)
-  assert.match(s, /function boot\(\)\{\s*bindToggles\(\)/)
+  assert.match(s, /applyLocalAuth/)
+  assert.match(s, /function boot\(\)\{\s*applyLocalAuth\(\);\s*bindToggles\(\)/)
   assert.match(s, /hydrateAuth\(function\(\)\{bindToggles\(\);\}\)/)
   assert.match(s, /pwShopLiveUiOff/)
   // Old bug: srcDoc iframe pathname is not /site/… → bare /account → NanoAI 404.

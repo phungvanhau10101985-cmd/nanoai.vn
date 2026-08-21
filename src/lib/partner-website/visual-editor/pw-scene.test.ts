@@ -15,6 +15,10 @@ import {
   PW_SCENE_Z_MAX,
   clampPwSceneIndex,
   isPwSceneIndex,
+  PARTNER_SHOP_IMAGE_ZOOM_SCRIPT,
+  PARTNER_SHOP_SCENE_CENTER_SCRIPT,
+  PW_SCENE_MEDIA_ZOOM_SEL,
+  pwMediaZoomOriginYPct,
   pwSceneCanvasWidth,
   pwSceneCenterCss,
   pwSceneCssVars,
@@ -23,6 +27,8 @@ import {
   pwSceneLayer,
   pwSceneLayerPos,
   pwSceneLocalOfZ,
+  pwSceneLockFromWindowWidth,
+  pwSceneLiveZoomScale,
   pwSceneZ,
   resolvePwSceneIndex,
   stepPwSceneZ,
@@ -138,9 +144,42 @@ describe('pw scene layers', () => {
     expect(PW_SCENE_CANVAS_WIDTH.laptop).toBe(1280)
     expect(PW_SCENE_CANVAS_WIDTH.desktop).toBe(1440)
     expect(pwSceneCanvasWidth('desktop')).toBe(1440)
-    expect(pwSceneCenterCss()).toContain('html[data-pw-edit-device="mobile"]{--pw-scene-w:390px}')
-    expect(pwSceneCenterCss()).toContain('html[data-pw-edit-device="laptop"]{--pw-scene-w:1280px}')
-    expect(pwSceneCenterCss()).toContain('html[data-pw-edit-device] body{width:min(100%,var(--pw-scene-w));margin-left:auto;margin-right:auto}')
+    expect(pwSceneCenterCss()).toContain('html[data-pw-edit-device="mobile"],html[data-pw-scene-lock="mobile"]{--pw-scene-w:390px}')
+    expect(pwSceneCenterCss()).toContain('html[data-pw-edit-device="laptop"],html[data-pw-scene-lock="laptop"]{--pw-scene-w:1280px}')
+    expect(pwSceneCenterCss()).toContain('html[data-pw-edit-device] body{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:calc(50% - (var(--pw-scene-w) / 2))!important')
+    expect(pwSceneCenterCss()).toContain('[data-pw-inline-visual-root]{width:var(--pw-scene-w)!important')
+    expect(pwSceneCenterCss()).toContain('transform:scale(var(--pw-scene-zoom,1))')
+    expect(pwSceneCenterCss()).toContain('main:has([data-pw-inline-visual-root]){width:100%!important')
+    expect(pwSceneCenterCss()).toContain('transform-origin:top center')
+    expect(pwSceneCenterCss()).toContain(PW_SCENE_MEDIA_ZOOM_SEL)
+    expect(pwSceneCenterCss()).toContain('transform-origin:50% var(--pw-zoom-oy,50%)')
+    expect(pwMediaZoomOriginYPct(0, 400, 800)).toBe(100)
+    expect(pwMediaZoomOriginYPct(0, 400, 400)).toBe(50)
+    expect(pwSceneLockFromWindowWidth(390)).toBe('mobile')
+    expect(pwSceneLockFromWindowWidth(767)).toBe('mobile')
+    expect(pwSceneLockFromWindowWidth(768)).toBe('tablet')
+    expect(pwSceneLockFromWindowWidth(1279)).toBe('tablet')
+    expect(pwSceneLockFromWindowWidth(1280)).toBe('laptop')
+    expect(pwSceneLockFromWindowWidth(1439)).toBe('laptop')
+    expect(pwSceneLockFromWindowWidth(1440)).toBe('desktop')
+    expect(pwSceneLockFromWindowWidth(1920)).toBe('desktop')
+    expect(pwSceneLiveZoomScale(1920, 1920)).toBe(1)
+    expect(pwSceneLiveZoomScale(1900, 1920)).toBe(1)
+    expect(pwSceneLiveZoomScale(3840, 1920)).toBe(1)
+    expect(pwSceneLiveZoomScale(3840, 3840, 1920)).toBe(1)
+    expect(pwSceneLiveZoomScale(1200, 1220, 1920)).toBe(1)
+    expect(pwSceneLiveZoomScale(960, 1920)).toBe(1)
+    expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain("transform-origin','50% '")
+    expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain('scaleY(')
+    expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain("'100% '+Math.round(z*100)+'%'")
+    expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain('visualViewport')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-scene-lock')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('Math.max(outer,inner)')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("style.setProperty('--pw-scene-w'")
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("style.setProperty('--pw-scene-zoom'")
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function zoomScale(){')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('return 1;')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).not.toContain('ratio>1.04')
   })
 
   it('keeps the attribute name away from the background stack attributes', () => {

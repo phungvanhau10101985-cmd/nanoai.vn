@@ -355,6 +355,59 @@ export async function fetchCategoryIdsForInventoryFromPg(
 }
 
 /**
+ * Breadcrumb danh mục chính của từng SP (`Túi > Túi đeo chéo`) — dùng feed catalog ads.
+ */
+export async function fetchInventoryProductTypeBreadcrumbsFromPg(
+  partnerId: string
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>()
+  if (!isPgConfigured()) return out
+  try {
+    const cats = await fetchPartnerCategoriesFlatFromPg(partnerId, { activeOnly: false })
+    if (!cats || cats.length === 0) return out
+    const byId = new Map(cats.map((c) => [c.id, c]))
+    const links = await pgQuery<{ inventory_id: string; category_id: string; is_primary: boolean }>(
+      `select pic.inventory_id::text, pic.category_id::text, pic.is_primary
+       from public.messaging_partner_inventory_categories pic
+       join public.messaging_partner_categories c on c.id = pic.category_id
+       where c.partner_id = $1::uuid`,
+      [partnerId]
+    )
+    const best = new Map<string, { categoryId: string; isPrimary: boolean; depth: number }>()
+    for (const link of links) {
+      const cat = byId.get(link.category_id)
+      if (!cat) continue
+      const prev = best.get(link.inventory_id)
+      const isPrimary = Boolean(link.is_primary)
+      if (
+        !prev ||
+        (isPrimary && !prev.isPrimary) ||
+        (isPrimary === prev.isPrimary && cat.depth > prev.depth)
+      ) {
+        best.set(link.inventory_id, { categoryId: cat.id, isPrimary, depth: cat.depth })
+      }
+    }
+    for (const [inventoryId, pick] of best) {
+      const names: string[] = []
+      let cur = byId.get(pick.categoryId)
+      const guard = new Set<string>()
+      while (cur && !guard.has(cur.id)) {
+        guard.add(cur.id)
+        const label = (cur.name ?? '').trim()
+        if (label) names.unshift(label)
+        cur = cur.parentId ? byId.get(cur.parentId) : undefined
+      }
+      if (names.length) out.set(inventoryId, names.join(' > '))
+    }
+    return out
+  } catch (e) {
+    if (isMissingCategoriesTableError(e)) return out
+    console.warn('[fetchInventoryProductTypeBreadcrumbsFromPg]', e)
+    return out
+  }
+}
+
+/**
  * ID sản phẩm gán trực tiếp vào 1 danh mục (không gộp con — caller tự UNION nếu cần cả nhánh).
  */
 export async function fetchInventoryIdsForCategoryFromPg(

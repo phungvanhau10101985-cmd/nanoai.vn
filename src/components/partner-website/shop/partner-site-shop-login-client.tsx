@@ -31,7 +31,7 @@ function hasPendingAuthHandoff(): boolean {
 export function PartnerSiteShopLoginClient({ siteSlug, partnerSlug, shopTitle, locale }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
-  const { ready, isAuthenticated } = usePartnerSiteGuestSession(siteSlug)
+  const { ready, authResolved, isAuthenticated } = usePartnerSiteGuestSession(siteSlug)
   const [dest, setDest] = useState(partnerSiteAccountPath(siteSlug, { customDomain }))
 
   useEffect(() => {
@@ -44,10 +44,10 @@ export function PartnerSiteShopLoginClient({ siteSlug, partnerSlug, shopTitle, l
   }, [dest])
 
   useEffect(() => {
-    if (!ready || !isAuthenticated) return
+    if (!authResolved || !isAuthenticated) return
     if (hasPendingAuthHandoff()) return
     goDest()
-  }, [goDest, isAuthenticated, ready])
+  }, [authResolved, goDest, isAuthenticated])
 
   return (
     <div data-pw-region={PW_REGION.accountMain} className="pw-shop-login">

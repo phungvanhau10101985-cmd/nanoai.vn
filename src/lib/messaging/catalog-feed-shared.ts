@@ -5,7 +5,6 @@
 
 import type { Database } from '@/types/database.types'
 import { buildGuestConsultChatAbsoluteUrl } from '@/lib/messaging/build-guest-consult-chat-link'
-import { parseVndIntegerFromPriceHint } from '@/lib/messaging/facebook-catalog-feed'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { inventoryShopDisplayDescription } from '@/lib/partner-website/shop/inventory-to-shop-product'
 
@@ -19,6 +18,18 @@ export type CatalogFeedShopLanding = {
 
 export function isAbsoluteHttpUrl(u: string): boolean {
   return /^https?:\/\//i.test(u.trim())
+}
+
+/** Lấy số nguyên VND từ chuỗi giá tự do (vd: "1.299.000 ₫"). */
+export function parseVndIntegerFromPriceHint(raw: string): number | null {
+  const t = String(raw ?? '').trim()
+  if (!t) return null
+  const digits = t.replace(/\D/g, '')
+  if (!digits) return null
+  const n = Number.parseInt(digits, 10)
+  if (!Number.isFinite(n) || n < 0) return null
+  if (n === 0) return null
+  return n
 }
 
 export function catalogFeedTrimMax(s: string, max: number): string {
@@ -53,7 +64,12 @@ export function catalogFeedImageUrl(row: Pick<CatalogFeedInventoryRow, 'image_ur
 export function catalogFeedAdditionalImages(
   row: Pick<
     CatalogFeedInventoryRow,
-    'image_url' | 'material_detail_image_url' | 'real_use_image_url' | 'real_use_image_url_2' | 'gallery_urls'
+    | 'image_url'
+    | 'material_detail_image_url'
+    | 'real_use_image_url'
+    | 'real_use_image_url_2'
+    | 'gallery_urls'
+    | 'detail_image_urls'
   >,
   max = 10
 ): string[] {
@@ -65,6 +81,7 @@ export function catalogFeedAdditionalImages(
     row.real_use_image_url,
     row.real_use_image_url_2,
     ...(Array.isArray(row.gallery_urls) ? row.gallery_urls : []),
+    ...(Array.isArray(row.detail_image_urls) ? row.detail_image_urls : []),
   ]
   for (const raw of extras) {
     const s = (raw ?? '').trim()

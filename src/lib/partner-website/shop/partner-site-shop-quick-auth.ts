@@ -37,6 +37,8 @@ export async function tryPartnerSiteQuickAuth(input: {
   shopOrigin?: string | null
   customerTokenPath?: string
   customerTokenOnShopDomain?: boolean
+  /** Session hook already ran resume/sync — only try shop-domain customer token. */
+  skipResumeAndSync?: boolean
 }): Promise<PartnerSiteQuickAuthResult> {
   const { partnerSlug, siteSlug, authHeaders, captureFromResponse, shopOrigin = null } = input
   const customerTokenPath = input.customerTokenPath?.trim() || PARTNER_SITE_CUSTOMER_TOKEN_PATH
@@ -82,8 +84,10 @@ export async function tryPartnerSiteQuickAuth(input: {
     })
   }
 
-  if (await resumeGuest()) return { ok: true, source: 'resume' }
-  if (await syncSiteSession()) return { ok: true, source: 'sync' }
+  if (!input.skipResumeAndSync) {
+    if (await resumeGuest()) return { ok: true, source: 'resume' }
+    if (await syncSiteSession()) return { ok: true, source: 'sync' }
+  }
   if (await authFromShopToken()) return { ok: true, source: 'shop_token' }
   return { ok: false }
 }

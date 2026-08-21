@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef, type CSSProperties } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { Laptop, Monitor, Smartphone, Tablet, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -81,6 +81,7 @@ import {
   pageCatalogLabels,
   type PartnerWebsitePageKey,
 } from '@/lib/partner-website/partner-website-page-catalog'
+import { PARTNER_WEBSITE_SHOW_PREVIEW_EVENT } from '@/lib/partner-website/partner-website-admin-nav'
 
 export type PartnerWebsitePreviewDevice = 'mobile' | 'tablet' | 'laptop' | 'desktop'
 
@@ -155,7 +156,10 @@ function readPersistedVisualEditState(partnerId: string): PersistedVisualEditSta
   }
   try {
     const raw = window.localStorage.getItem(visualEditStateStorageKey(partnerId))
-    if (raw) return normalizePersistedVisualEditState(JSON.parse(raw) as Partial<PersistedVisualEditState>)
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<PersistedVisualEditState>
+      return normalizePersistedVisualEditState({ ...parsed, active: false })
+    }
   } catch {
     /* ignore */
   }
@@ -301,8 +305,11 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   const freezeLockRef = useRef(false)
   const flushedHtmlByVariantRef = useRef<Partial<Record<VisualDeviceVariant, string>>>({})
   const saveFnRef = useRef<(() => Promise<boolean>) | null>(null)
-  const restoredVisualEditActiveRef = useRef(false)
   const pendingOpenVisualEditRef = useRef(false)
+  const visualEditActiveRef = useRef(false)
+  const editDirtyRef = useRef(false)
+  visualEditActiveRef.current = visualEditActive
+  editDirtyRef.current = editDirty
   projectRef.current = project ?? null
 
   const { saving: themeSaving, schedule: scheduleThemeSave } = useDebouncedThemeSave(
@@ -707,6 +714,19 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     setVisualEditActive(false)
   }
 
+  useEffect(() => {
+    const onShowPreview = () => {
+      if (!visualEditActiveRef.current) return
+      if (editDirtyRef.current) {
+        setLeaveIntent({ kind: 'exit' })
+        return
+      }
+      exitVisualEdit()
+    }
+    window.addEventListener(PARTNER_WEBSITE_SHOW_PREVIEW_EVENT, onShowPreview)
+    return () => window.removeEventListener(PARTNER_WEBSITE_SHOW_PREVIEW_EVENT, onShowPreview)
+  }, [])
+
   function fulfillLeave(intent: VisualEditLeaveIntent) {
     if (intent.kind === 'device') applyDevice(intent.next)
     else if (intent.kind === 'page') applyPageSelect(intent.next)
@@ -991,15 +1011,6 @@ export const PartnerWebsiteDevicePreview = forwardRef<
         : previewPageKey
 
   useEffect(() => {
-    if (restoredVisualEditActiveRef.current) return
-    if (!initialVisualEditStateRef.current?.active) return
-    if (!canVisualEdit || quickEditDisabled || !hasWebsite || visualEditActive) return
-    restoredVisualEditActiveRef.current = true
-    const timer = window.setTimeout(() => startVisualEdit(), 0)
-    return () => window.clearTimeout(timer)
-  }, [canVisualEdit, quickEditDisabled, hasWebsite, visualEditActive])
-
-  useEffect(() => {
     if (!pendingOpenVisualEditRef.current) return
     pendingOpenVisualEditRef.current = false
     startVisualEdit()
@@ -1024,31 +1035,44 @@ export const PartnerWebsiteDevicePreview = forwardRef<
 
   const frameWidth = DEVICE_WIDTH[device]
 
-  useEffect(() => {
+  const centerCanvasWrap = useCallback(() => {
     const el = canvasWrapRef.current
     if (!el) return
     const center = () => {
       el.scrollTop = 0
-      const extraX = el.scrollWidth - el.clientWidth
-      // Tiny leftover: center. Wide desktop canvas in a narrow column: keep left (logo).
-      el.scrollLeft = extraX > 0 && extraX <= 160 ? extraX / 2 : 0
+      const extraX = Math.max(0, el.scrollWidth - el.clientWidth)
+      // Center leftover on both sides (100% zoom / 1440 canvas). Do not use
+      // flex `justify-center` here — it clips the left edge when the canvas overflows.
+      el.scrollLeft = extraX / 2
     }
     center()
-    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(center)
+    window.requestAnimationFrame(center)
+    window.setTimeout(center, 80)
+    window.setTimeout(center, 240)
+  }, [])
+
+  useEffect(() => {
+    const el = canvasWrapRef.current
+    if (!el) return
+    centerCanvasWrap()
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(centerCanvasWrap)
     ro?.observe(el)
-    window.addEventListener('resize', center)
+    window.addEventListener('resize', centerCanvasWrap)
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', centerCanvasWrap)
     return () => {
       ro?.disconnect()
-      window.removeEventListener('resize', center)
+      window.removeEventListener('resize', centerCanvasWrap)
+      vv?.removeEventListener('resize', centerCanvasWrap)
     }
-  }, [device, visualEditActive, frameWidth])
+  }, [centerCanvasWrap, device, visualEditActive, frameWidth])
 
   if (!hasWebsite || !previewSrc) {
     return (
       <div
         className={cn(
           'flex items-center justify-center rounded-lg border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground',
-          embedded ? 'min-h-[360px] flex-1' : 'min-h-[320px]'
+          embedded ? 'min-h-[32rem] h-[70vh] flex-1' : 'min-h-[320px]'
         )}
       >
         {t.previewEmpty}
@@ -1059,7 +1083,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   const iframeClass = visualEditActive
     ? 'absolute inset-0 h-full w-full border-0'
     : embedded
-      ? 'min-h-0 h-full flex-1'
+      ? 'h-full min-h-[32rem] flex-1'
       : device === 'desktop' || device === 'laptop'
         ? device === 'laptop'
           ? 'min-h-[calc(100dvh-12rem)] h-[min(78vh,900px)]'
@@ -1441,10 +1465,10 @@ export const PartnerWebsiteDevicePreview = forwardRef<
           </div>
           <div
             ref={canvasWrapRef}
-            className="relative flex min-h-0 min-w-0 flex-1 justify-center overflow-x-auto overflow-y-hidden bg-muted/30"
+            className="relative flex min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden bg-muted/30"
           >
             <div
-              className="relative h-full shrink-0 border-x bg-white shadow-sm"
+              className="relative mx-auto h-full shrink-0 border-x bg-white shadow-sm"
               style={computerCanvasStyle}
             >
               <iframe
@@ -1454,6 +1478,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                 {...(editSrcDoc ? { srcDoc: editSrcDoc } : { src: previewSrc })}
                 className="absolute inset-0 h-full w-full border-0 bg-white"
                 sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"
+                onLoad={centerCanvasWrap}
               />
               {!editSrcDoc ? (
                 <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-white/70 text-sm text-muted-foreground">
@@ -1468,13 +1493,13 @@ export const PartnerWebsiteDevicePreview = forwardRef<
         ref={canvasWrapRef}
         className={cn(
           'flex overflow-auto rounded-lg border bg-muted/20 p-1',
-          embedded ? 'min-h-0 flex-1 flex-col justify-start' : 'justify-center'
+          embedded ? 'min-h-[32rem] h-[70vh] flex-1 flex-col justify-start' : ''
         )}
       >
         <div
           className={cn(
             'relative mx-auto flex min-h-0 flex-col overflow-hidden rounded-md border bg-white shadow-sm transition-[width] duration-200',
-            embedded ? 'h-full' : 'shrink-0'
+            embedded ? 'h-full min-h-[32rem]' : 'shrink-0'
           )}
           style={{ width: editFrameWidth, minWidth: editFrameWidth }}
         >
@@ -1490,6 +1515,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                 : undefined
             }
             sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"
+            onLoad={centerCanvasWrap}
           />
           {visualEditActive && !editSrcDoc ? (
             <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-white/70 text-sm text-muted-foreground">

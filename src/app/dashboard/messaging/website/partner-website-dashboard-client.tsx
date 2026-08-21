@@ -640,7 +640,10 @@ export function PartnerWebsiteDashboardClient({
 
               <Card
                 id="partner-website-device-preview"
-                className="flex min-h-0 min-w-0 w-full flex-col lg:sticky lg:top-[calc(var(--site-header-height,3.5rem)+3.5rem)] lg:z-10 lg:h-[calc(100dvh-var(--site-header-height,3.5rem)-4.5rem)] lg:max-h-[calc(100dvh-var(--site-header-height,3.5rem)-4.5rem)]"
+                className="flex min-h-[36rem] min-w-0 w-full flex-col lg:sticky lg:z-10"
+                style={{
+                  top: 'calc(var(--site-header-height, 3.5rem) + 4.25rem)',
+                }}
               >
               <CardHeader className="shrink-0 space-y-2 px-3 pb-2 pt-3 sm:px-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">

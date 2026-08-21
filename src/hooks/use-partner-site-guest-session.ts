@@ -65,8 +65,72 @@ function persistAccountId(accountId: string) {
   window.localStorage.setItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY, accountId.trim())
 }
 
+type GuestSessionBootstrap = { sessionId: string; accountId: string }
+
+const guestSessionBootstrapBySlug = new Map<string, Promise<GuestSessionBootstrap>>()
+
+function clearGuestSessionBootstrap(siteSlug: string) {
+  guestSessionBootstrapBySlug.delete(siteSlug.trim().toLowerCase())
+}
+
+async function loadGuestSessionBootstrap(siteSlug: string): Promise<GuestSessionBootstrap> {
+  const skipAuthSync = shouldPartnerSiteShopSkipAuthSync(siteSlug)
+  let sessionId = readStoredSessionId()
+  let accountId = skipAuthSync ? '' : readStoredAccountId()
+
+  const sessionRes = await fetch(partnerSiteSessionApiPath(siteSlug), {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      ...(sessionId ? { [MESSAGING_GUEST_SESSION_HEADER]: sessionId } : {}),
+      ...(skipAuthSync ? { [PARTNER_SITE_SHOP_SKIP_AUTH_SYNC_HEADER]: '1' } : {}),
+      ...(!skipAuthSync && accountId ? { [MESSAGING_GUEST_ACCOUNT_HEADER]: accountId } : {}),
+    },
+  })
+  const sidHeader = sessionRes.headers.get(MESSAGING_GUEST_SESSION_HEADER)?.trim() ?? ''
+  if (sidHeader) sessionId = sidHeader
+  const sessionJson = (await sessionRes.json().catch(() => ({}))) as { sessionId?: string }
+  if (sessionJson.sessionId) sessionId = sessionJson.sessionId
+  if (sessionId) persistSessionId(sessionId)
+  const aidFromSession = sessionRes.headers.get(MESSAGING_GUEST_ACCOUNT_HEADER)?.trim() ?? ''
+  if (aidFromSession && !skipAuthSync) {
+    accountId = aidFromSession
+    persistAccountId(aidFromSession)
+  }
+
+  if (!skipAuthSync) {
+    const syncRes = await fetch(partnerSiteAuthSyncApiPath(siteSlug), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        ...(sessionId ? { [MESSAGING_GUEST_SESSION_HEADER]: sessionId } : {}),
+        ...(accountId ? { [MESSAGING_GUEST_ACCOUNT_HEADER]: accountId } : {}),
+      },
+    })
+    const aidHeader = syncRes.headers.get(MESSAGING_GUEST_ACCOUNT_HEADER)?.trim() ?? ''
+    const syncJson = (await syncRes.json().catch(() => ({}))) as { accountId?: string }
+    const nextAid = (aidHeader || syncJson.accountId || '').trim()
+    if (nextAid) {
+      accountId = nextAid
+      persistAccountId(nextAid)
+    }
+  }
+
+  return { sessionId, accountId }
+}
+
+function sharedGuestSessionBootstrap(siteSlug: string): Promise<GuestSessionBootstrap> {
+  const key = siteSlug.trim().toLowerCase()
+  const existing = guestSessionBootstrapBySlug.get(key)
+  if (existing) return existing
+  const pending = loadGuestSessionBootstrap(siteSlug)
+  guestSessionBootstrapBySlug.set(key, pending)
+  return pending
+}
+
 export function usePartnerSiteGuestSession(siteSlug: string) {
   const [ready, setReady] = useState(false)
+  const [authResolved, setAuthResolved] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const sessionRef = useRef('')
   const accountRef = useRef('')
@@ -113,61 +177,49 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
       accountRef.current = ''
       setIsAuthenticated(false)
       setReady(true)
+      setAuthResolved(true)
     } else if (accountRef.current) {
       setIsAuthenticated(true)
       setReady(true)
+      setAuthResolved(true)
     }
-    void (async () => {
-      try {
-        const res = await fetch(partnerSiteSessionApiPath(siteSlug), {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: {
-            ...(sessionRef.current ? { [MESSAGING_GUEST_SESSION_HEADER]: sessionRef.current } : {}),
-            ...(skipAuthSync ? { [PARTNER_SITE_SHOP_SKIP_AUTH_SYNC_HEADER]: '1' } : {}),
-            ...(!skipAuthSync && accountRef.current
-              ? { [MESSAGING_GUEST_ACCOUNT_HEADER]: accountRef.current }
-              : {}),
-          },
-        })
-        captureFromResponse(res)
-        const json = (await res.json().catch(() => ({}))) as { sessionId?: string }
-        if (json.sessionId) {
-          sessionRef.current = json.sessionId
-          persistSessionId(json.sessionId)
+    void sharedGuestSessionBootstrap(siteSlug)
+      .then((result) => {
+        if (cancelled) return
+        if (result.sessionId) {
+          sessionRef.current = result.sessionId
+          persistSessionId(result.sessionId)
         }
-        if (!cancelled && !accountRef.current) setReady(true)
-        if (!skipAuthSync) {
-          const syncRes = await fetch(partnerSiteAuthSyncApiPath(siteSlug), {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-              ...(sessionRef.current ? { [MESSAGING_GUEST_SESSION_HEADER]: sessionRef.current } : {}),
-              ...(accountRef.current ? { [MESSAGING_GUEST_ACCOUNT_HEADER]: accountRef.current } : {}),
-            },
-          })
-          captureFromResponse(syncRes)
-          const syncJson = (await syncRes.json().catch(() => ({}))) as { accountId?: string }
-          if (syncJson.accountId) {
-            accountRef.current = syncJson.accountId
-            setIsAuthenticated(true)
-            persistAccountId(syncJson.accountId)
-          }
+        if (skipAuthSync) {
+          accountRef.current = ''
+          setIsAuthenticated(false)
+          return
         }
-      } finally {
-        if (!cancelled) setReady(true)
-      }
-    })()
+        if (result.accountId) {
+          accountRef.current = result.accountId
+          persistAccountId(result.accountId)
+          setIsAuthenticated(true)
+          clearPartnerSiteShopSkipAuthSync(siteSlug)
+        }
+      })
+      .finally(() => {
+        if (cancelled) return
+        setReady(true)
+        setAuthResolved(true)
+      })
 
     return () => {
       cancelled = true
     }
-  }, [captureFromResponse, siteSlug])
+  }, [siteSlug])
 
   const clearSession = useCallback(async () => {
     sessionRef.current = ''
     accountRef.current = ''
     setIsAuthenticated(false)
+    setReady(true)
+    setAuthResolved(true)
+    clearGuestSessionBootstrap(siteSlug)
     markPartnerSiteShopSkipAuthSync(siteSlug)
     try {
       window.localStorage.removeItem(MESSAGING_GUEST_SESSION_STORAGE_KEY)
@@ -196,5 +248,5 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
     window.location.reload()
   }, [siteSlug])
 
-  return { ready, isAuthenticated, authHeaders, captureFromResponse, clearSession }
+  return { ready, authResolved, isAuthenticated, authHeaders, captureFromResponse, clearSession }
 }

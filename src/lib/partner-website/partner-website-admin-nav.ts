@@ -88,6 +88,18 @@ export function buildPartnerWebsiteAdminNavItems(
   }))
 }
 
+/** Sidebar «Giao diện web shop» — luôn vào preview, không mở Sửa nhanh. */
+export const PARTNER_WEBSITE_SHOW_PREVIEW_EVENT = 'nanoai-pw-show-website-preview'
+
+export function requestPartnerWebsiteShowPreview(): void {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new Event(PARTNER_WEBSITE_SHOW_PREVIEW_EVENT))
+}
+
+export function stripPartnerWebsiteVisualEditActiveParam(params: URLSearchParams): void {
+  params.delete('ve')
+}
+
 export function partnerWebsiteAdminSectionHref(baseHref: string, sectionId: string): string {
   const base = baseHref.split('#')[0] ?? baseHref
   return `${base}#${sectionId}`

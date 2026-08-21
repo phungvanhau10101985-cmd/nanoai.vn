@@ -28,7 +28,10 @@ import {
   type RelatedBuyProduct,
 } from '@/lib/messaging/guest-chat-ordering'
 import { headlessAccountKey } from '@/lib/messaging/partner-headless-cart-utils'
-import { resolveWidgetOrderThreadFromRequest } from '@/lib/messaging/resolve-widget-order-thread'
+import {
+  resolveWidgetOrderThreadFromRequest,
+  type WidgetOrderThreadContext,
+} from '@/lib/messaging/resolve-widget-order-thread'
 import { requestSkipsPartnerSiteShopAuthResume } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 
@@ -432,19 +435,32 @@ export function headlessPersonalizationAccountKey(customerRef: string): string {
 
 export async function resolveSiteVisitorEmail(
   request: NextRequest,
-  partnerId?: string
+  partnerId?: string,
+  preloadedThread?: WidgetOrderThreadContext | null
 ): Promise<string | null> {
-  if (!requestSkipsPartnerSiteShopAuthResume(request)) {
+  if (!preloadedThread && !requestSkipsPartnerSiteShopAuthResume(request)) {
     const user = await getEmailSessionUser()
     const fromSession = user?.email?.trim().toLowerCase() || ''
     if (fromSession) return fromSession
   }
 
   if (!partnerId) return null
-  const thread = await resolveWidgetOrderThreadFromRequest(request, partnerId)
-  if (!thread?.guestAccountId) return null
+  const thread = preloadedThread ?? (await resolveWidgetOrderThreadFromRequest(request, partnerId))
+  if (!thread?.guestAccountId) {
+    if (preloadedThread && !requestSkipsPartnerSiteShopAuthResume(request)) {
+      const user = await getEmailSessionUser()
+      return user?.email?.trim().toLowerCase() || null
+    }
+    return null
+  }
   const accountEmail = await fetchGuestAccountEmailByIdPg(partnerId, thread.guestAccountId)
-  return accountEmail?.emailNormalized?.trim().toLowerCase() || null
+  const fromAccount = accountEmail?.emailNormalized?.trim().toLowerCase() || ''
+  if (fromAccount) return fromAccount
+  if (preloadedThread && !requestSkipsPartnerSiteShopAuthResume(request)) {
+    const user = await getEmailSessionUser()
+    return user?.email?.trim().toLowerCase() || null
+  }
+  return null
 }
 
 export async function saveSiteVisitorProfile(input: {

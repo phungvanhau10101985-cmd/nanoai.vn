@@ -68,6 +68,8 @@ import { API_KEYS_HUB_COPY } from '@/lib/integration/api-keys-hub-copy'
 import {
   buildPartnerWebsiteAdminNavItems,
   isPartnerWebsiteAdminSectionId,
+  requestPartnerWebsiteShowPreview,
+  stripPartnerWebsiteVisualEditActiveParam,
   type PartnerWebsiteAdminSectionId,
 } from '@/lib/partner-website/partner-website-admin-nav'
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
@@ -82,7 +84,7 @@ import {
   CreditCard,
   ExternalLink,
   Globe,
-  LineChart,
+  Database,
   Loader2,
   Megaphone,
   Menu,
@@ -91,10 +93,8 @@ import {
   Plug,
   RefreshCw,
   Share2,
-  Store,
   Table,
   TrendingUp,
-  Video,
   Trophy,
   Trash2,
   Truck,
@@ -244,9 +244,7 @@ const MESSAGING_SETTINGS_SECTION_IDS = [
   'inventory',
   'channels',
   'domains',
-  'analytics-meta',
-  'analytics-google-merchant',
-  'analytics-tiktok-catalog',
+  'analytics-catalog-feeds',
   'analytics-ads',
   'payment',
   'shipping',
@@ -268,7 +266,14 @@ function isOperationsSectionId(value: string | null | undefined): value is Opera
 }
 
 function normalizeSettingsSectionParam(value: string | null): SettingsPageSectionId | null {
-  if (value === 'analytics') return 'analytics-meta'
+  if (
+    value === 'analytics' ||
+    value === 'analytics-meta' ||
+    value === 'analytics-google-merchant' ||
+    value === 'analytics-tiktok-catalog'
+  ) {
+    return 'analytics-catalog-feeds'
+  }
   if (value === 'notifications') return 'hub-notifications'
   if (value === 'marketing') return 'hub-marketing'
   if (value === 'orders') return 'hub-orders'
@@ -496,24 +501,10 @@ export function PartnerMessagingSettingsClient({
         visible: isOwnerSelected,
       },
       {
-        id: 'analytics-meta',
+        id: 'analytics-catalog-feeds',
         group: 'connect',
         label: t.settingsNavAnalyticsMeta,
-        icon: LineChart,
-        visible: partnerAllowsPerm(selectedPartner, 'integrations_analytics'),
-      },
-      {
-        id: 'analytics-google-merchant',
-        group: 'connect',
-        label: t.settingsNavAnalyticsGoogleMerchant,
-        icon: Store,
-        visible: partnerAllowsPerm(selectedPartner, 'integrations_analytics'),
-      },
-      {
-        id: 'analytics-tiktok-catalog',
-        group: 'connect',
-        label: t.settingsNavAnalyticsTiktokCatalog,
-        icon: Video,
+        icon: Database,
         visible: partnerAllowsPerm(selectedPartner, 'integrations_analytics'),
       },
       {
@@ -701,6 +692,10 @@ export function PartnerMessagingSettingsClient({
     setActiveSection(sectionId)
     const next = new URLSearchParams(window.location.search)
     next.set('section', sectionId)
+    if (sectionId === 'partner-website-editor') {
+      stripPartnerWebsiteVisualEditActiveParam(next)
+      requestPartnerWebsiteShowPreview()
+    }
     const qs = next.toString()
     window.history.replaceState(
       window.history.state ?? {},
@@ -2853,13 +2848,14 @@ export function PartnerMessagingSettingsClient({
             </SettingsBlock>
           ) : null}
 
-          {activeSection === 'analytics-meta' && partnerAllowsPerm(selectedPartner, 'integrations_analytics') ? (
+          {activeSection === 'analytics-catalog-feeds' && partnerAllowsPerm(selectedPartner, 'integrations_analytics') ? (
           <SettingsBlock
-            id="messaging-meta-consult"
-            icon={LineChart}
+            id="messaging-catalog-feeds"
+            icon={Database}
             title={t.settingsNavAnalyticsMeta}
             description={t.settingsNavAnalyticsMetaDesc}
           >
+            <p className="text-[11px] text-muted-foreground leading-relaxed">{t.catalogFeedsPageHint}</p>
             <Card className="border-border/70 shadow-sm">
               <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Meta Pixel &amp; CAPI</CardTitle>
@@ -2923,16 +2919,6 @@ export function PartnerMessagingSettingsClient({
                 )}
               </CardContent>
             </Card>
-          </SettingsBlock>
-          ) : null}
-
-          {activeSection === 'analytics-google-merchant' && partnerAllowsPerm(selectedPartner, 'integrations_analytics') ? (
-          <SettingsBlock
-            id="messaging-google-merchant"
-            icon={Store}
-            title={t.settingsNavAnalyticsGoogleMerchant}
-            description={t.settingsNavAnalyticsGoogleMerchantDesc}
-          >
             <Card className="border-border/70 shadow-sm">
               <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">{t.googleMerchantCatalogFeedTitle}</CardTitle>
@@ -2951,16 +2937,6 @@ export function PartnerMessagingSettingsClient({
                 )}
               </CardContent>
             </Card>
-          </SettingsBlock>
-          ) : null}
-
-          {activeSection === 'analytics-tiktok-catalog' && partnerAllowsPerm(selectedPartner, 'integrations_analytics') ? (
-          <SettingsBlock
-            id="messaging-tiktok-catalog"
-            icon={Video}
-            title={t.settingsNavAnalyticsTiktokCatalog}
-            description={t.settingsNavAnalyticsTiktokCatalogDesc}
-          >
             <Card className="border-border/70 shadow-sm">
               <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">{t.tiktokCatalogFeedTitle}</CardTitle>

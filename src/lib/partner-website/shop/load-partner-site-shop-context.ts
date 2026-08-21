@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
 import { fetchPartnerCapabilitiesForPartnerFromPg } from '@/lib/db/messaging-partners-pg'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
@@ -17,7 +18,7 @@ export type PartnerSiteShopContext = {
   capabilities: PartnerCapabilities
 }
 
-export async function loadPartnerSiteShopContext(siteSlug: string): Promise<PartnerSiteShopContext | null> {
+async function loadPartnerSiteShopContextUncached(siteSlug: string): Promise<PartnerSiteShopContext | null> {
   const slug = siteSlug.trim().toLowerCase()
   if (!slug) return null
   // Draft sites must resolve too: studio preview + catalog/cart hooks run before Publish.
@@ -48,6 +49,12 @@ export async function loadPartnerSiteShopContext(siteSlug: string): Promise<Part
     industryKey: partner.industry_key ?? null,
     capabilities,
   }
+}
+
+const loadPartnerSiteShopContextCached = cache(loadPartnerSiteShopContextUncached)
+
+export function loadPartnerSiteShopContext(siteSlug: string): Promise<PartnerSiteShopContext | null> {
+  return loadPartnerSiteShopContextCached(siteSlug.trim().toLowerCase())
 }
 
 export async function loadPartnerSiteCapabilities(siteSlug: string): Promise<PartnerCapabilities | null> {

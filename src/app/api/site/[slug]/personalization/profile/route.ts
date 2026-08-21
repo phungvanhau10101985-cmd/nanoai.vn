@@ -17,20 +17,22 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   if (!shop) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
-  const email = await resolveSiteVisitorEmail(request, shop.partnerId)
-  const profile = await getSiteVisitorProfile({
-    partnerId: shop.partnerId,
-    accountKey: visitor.accountKey,
-    thread: visitor.thread,
-    email,
-  })
-  const shopAdmin = email
-    ? await resolvePartnerShopAdminAccessByEmail({
-        partnerId: shop.partnerId,
-        email,
-        industryKey: shop.industryKey,
-      })
-    : null
+  const email = await resolveSiteVisitorEmail(request, shop.partnerId, visitor.thread)
+  const [profile, shopAdmin] = await Promise.all([
+    getSiteVisitorProfile({
+      partnerId: shop.partnerId,
+      accountKey: visitor.accountKey,
+      thread: visitor.thread,
+      email,
+    }),
+    email
+      ? resolvePartnerShopAdminAccessByEmail({
+          partnerId: shop.partnerId,
+          email,
+          industryKey: shop.industryKey,
+        })
+      : Promise.resolve(null),
+  ])
 
   return jsonSitePersonalization(
     request,
@@ -50,7 +52,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
   if (!shop) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
-  const email = await resolveSiteVisitorEmail(request, shop.partnerId)
+  const email = await resolveSiteVisitorEmail(request, shop.partnerId, visitor.thread)
   if (!email) {
     return jsonSitePersonalization(
       request,

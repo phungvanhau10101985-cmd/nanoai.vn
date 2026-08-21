@@ -4,9 +4,11 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { fetchPartnerWebsiteConfiguredSiteOriginPg } from '@/lib/db/messaging-partner-custom-domains-pg'
 import { fetchPartnerWebsiteByPartnerIdPg } from '@/lib/db/messaging-partner-websites-pg'
+import { fetchInventoryProductTypeBreadcrumbsFromPg } from '@/lib/db/messaging-partner-categories-pg'
 import { listPartnerInventoryRows } from '@/lib/messaging/partner-inventory-upsert-batch'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
+import type { CatalogFeedBuildContext } from '@/lib/messaging/catalog-feed-enrichment'
 import type { CatalogFeedInventoryRow, CatalogFeedShopLanding } from '@/lib/messaging/catalog-feed-shared'
 
 function secureTokenEqual(a: string, b: string): boolean {
@@ -16,11 +18,7 @@ function secureTokenEqual(a: string, b: string): boolean {
   return timingSafeEqual(x, y)
 }
 
-export type PartnerCatalogFeedContext = {
-  partnerSlug: string
-  brand: string
-  platformOrigin: string
-  shop: CatalogFeedShopLanding | null
+export type PartnerCatalogFeedContext = CatalogFeedBuildContext & {
   rows: CatalogFeedInventoryRow[]
 }
 
@@ -63,11 +61,19 @@ export async function loadPartnerCatalogFeedContext(
       : { siteSlug, origin: platformOrigin, customDomain: false }
   }
 
+  const breadcrumbs = await fetchInventoryProductTypeBreadcrumbsFromPg(partner.id)
+  const productTypeByInventoryId: Record<string, string> = {}
+  for (const [id, breadcrumb] of breadcrumbs) {
+    productTypeByInventoryId[id] = breadcrumb
+  }
+
   return {
     partnerSlug: slug,
     brand: (partner.display_name ?? '').trim() || 'Shop',
     platformOrigin,
     shop,
+    industryKey: partner.industry_key,
+    productTypeByInventoryId,
     rows: listed.rows,
   }
 }
@@ -86,4 +92,15 @@ export function catalogFeedFileResponse(
       'X-Robots-Tag': 'noindex, nofollow',
     },
   })
+}
+
+export function catalogFeedBuildArgs(loaded: PartnerCatalogFeedContext): CatalogFeedBuildContext {
+  return {
+    platformOrigin: loaded.platformOrigin,
+    partnerSlug: loaded.partnerSlug,
+    brand: loaded.brand,
+    shop: loaded.shop,
+    industryKey: loaded.industryKey,
+    productTypeByInventoryId: loaded.productTypeByInventoryId,
+  }
 }

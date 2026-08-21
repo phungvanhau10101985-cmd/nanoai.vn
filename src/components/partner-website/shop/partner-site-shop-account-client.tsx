@@ -94,7 +94,8 @@ export function PartnerSiteShopAccountClient({
   const n = getPartnerSiteCategoryNavLabels(locale)
   const router = useRouter()
   const customDomain = usePartnerSiteCustomDomain()
-  const { ready, isAuthenticated, authHeaders, captureFromResponse, clearSession } = usePartnerSiteGuestSession(siteSlug)
+  const { ready, authResolved, isAuthenticated, authHeaders, captureFromResponse, clearSession } =
+    usePartnerSiteGuestSession(siteSlug)
   const [profile, setProfile] = useState<PartnerSiteVisitorProfile | null>(null)
   const [shopAdminHref, setShopAdminHref] = useState<string | null>(null)
   const [customerName, setCustomerName] = useState('')
@@ -155,7 +156,7 @@ export function PartnerSiteShopAccountClient({
   }, [authHeaders, captureFromResponse, siteSlug])
 
   useEffect(() => {
-    if (!ready) return
+    if (!authResolved) return
     if (!isAuthenticated) {
       window.location.replace(
         buildPartnerShopLoginHref(siteSlug, getPartnerShopBrowserReturnLocation(siteSlug, { customDomain }), {
@@ -164,18 +165,17 @@ export function PartnerSiteShopAccountClient({
       )
       return
     }
-    setLoading(true)
     void loadProfile().finally(() => setLoading(false))
-  }, [customDomain, isAuthenticated, loadProfile, ready, siteSlug])
+  }, [authResolved, customDomain, isAuthenticated, loadProfile, siteSlug])
 
   useEffect(() => {
-    if (!ready || loading || !needsAuth || !isAuthenticated) return
+    if (!authResolved || loading || !needsAuth || !isAuthenticated) return
     window.location.replace(
       buildPartnerShopLoginHref(siteSlug, getPartnerShopBrowserReturnLocation(siteSlug, { customDomain }), {
         customDomain,
       })
     )
-  }, [customDomain, isAuthenticated, loading, needsAuth, ready, siteSlug])
+  }, [authResolved, customDomain, isAuthenticated, loading, needsAuth, siteSlug])
 
   // W5.6 — legacy hash deep links → real account routes
   useEffect(() => {
@@ -381,14 +381,14 @@ export function PartnerSiteShopAccountClient({
     { id: 'contact', label: n.contact, Icon: MessageCircle },
   ]
 
+  const showAccountShell = authResolved && isAuthenticated && !needsAuth
+
   return (
     <div>
       <h1 data-pw-el={PW_EL.heading}>{t.navAccount}</h1>
-      {loading ? <p className="pw-shop-muted">…</p> : null}
+      {!showAccountShell ? <p className="pw-shop-muted">…</p> : null}
 
-      {!loading && needsAuth ? <p className="pw-shop-muted">…</p> : null}
-
-      {!loading && !needsAuth ? (
+      {showAccountShell ? (
         <div className="pw-shop-account-layout">
           <aside className="pw-shop-account-sidebar" data-pw-region={PW_REGION.accountNav}>
             <section className="pw-shop-account-links" aria-label={t.accountQuickLinks}>
@@ -442,6 +442,7 @@ export function PartnerSiteShopAccountClient({
                   {t.accountWelcome}
                   {displayName ? `, ${displayName}` : ''}
                 </p>
+                {loading && !profile ? <p className="pw-shop-muted">…</p> : null}
                 {profile?.email ? (
                   <p className="pw-shop-muted">
                     {t.accountEmailLabel}: {profile.email}

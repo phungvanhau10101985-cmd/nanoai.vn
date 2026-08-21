@@ -698,6 +698,17 @@ function stampVisualSearchChrome(html: string, variant: VisualDeviceVariant): st
   })
 }
 
+function htmlAttrsWithoutEditDevice(attrs: string): string {
+  return String(attrs || '').replace(/\sdata-pw-edit-device=(["'])[^"']*\1/gi, '')
+}
+
+function stampHtmlEditDevice(html: string, variant: VisualDeviceVariant): string {
+  if (!/<html\b/i.test(html)) return html
+  return html.replace(/<html\b([^>]*)>/i, (_full, attrs: string) => {
+    return `<html${htmlAttrsWithoutEditDevice(attrs)} data-pw-edit-device="${variant}">`
+  })
+}
+
 function stampVisualAddedChrome(html: string, variant: VisualDeviceVariant): string {
   const next = html.replace(
     /<(a|button)\b([^>]*)>([\s\S]*?)<\/\1>/gi,
@@ -737,7 +748,7 @@ export function isolateVisualHtmlForDevice(
   const stripped = opts?.stripAddedChrome
     ? stripVisualAddedChrome(source, { keepCountBadges: true })
     : source
-  return stampVisualAddedChrome(stripped, variant)
+  return stampHtmlEditDevice(stampVisualAddedChrome(stripped, variant), variant)
 }
 
 function extractHtmlParts(html: string): { head: string; body: string; htmlAttrs: string } {
@@ -864,7 +875,7 @@ export function composeResponsiveVisualHtml(
     ? `<div class="pw-visual-mobile" data-pw-visual-device="mobile">${m.body}</div>`
     : ''
   return `<!DOCTYPE html>
-<html${d.htmlAttrs || ' lang="vi"'}>
+<html${htmlAttrsWithoutEditDevice(d.htmlAttrs || ' lang="vi"')}>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />

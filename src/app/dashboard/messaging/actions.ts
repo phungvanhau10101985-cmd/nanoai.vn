@@ -3373,10 +3373,11 @@ export async function verifyMessagingPartnerCustomDomain(partnerId: string) {
 
   const dnsCheck = await verifyPartnerCustomDomainDns(row.hostname)
   if (!dnsCheck.ok) {
+    const keepVerified = Boolean(dnsCheck.transient && row.dns_verified_at)
     await updatePartnerCustomDomainVerificationPg({
       partnerId,
-      dnsVerified: false,
-      sslStatus: 'pending',
+      dnsVerified: keepVerified,
+      sslStatus: keepVerified ? row.ssl_status : 'pending',
       sslLastError: dnsCheck.detail,
     })
     return { error: 'DNS_FAILED' as const, detail: dnsCheck.detail }

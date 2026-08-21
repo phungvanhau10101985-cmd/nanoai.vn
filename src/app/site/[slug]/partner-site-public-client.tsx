@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useLayoutEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { PartnerSiteChatWidgetProvider } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -22,6 +22,38 @@ import {
   visualDevicePreviewFrameStyle,
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import {
+  PARTNER_SHOP_SCENE_CENTER_SCRIPT,
+  PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID,
+  pwSceneCanvasWidth,
+  pwSceneLiveZoomScale,
+  pwSceneLockFromWindowWidth,
+} from '@/lib/partner-website/visual-editor/pw-scene'
+
+function lockLiveSceneCanvas(forceDevice?: VisualDeviceVariant | null) {
+  if (typeof document === 'undefined') return
+  const stamped =
+    forceDevice ||
+    document.documentElement.getAttribute('data-pw-edit-device') ||
+    ''
+  const vv = window.visualViewport
+  const inner = vv?.width || window.innerWidth || 0
+  const outer = window.outerWidth || 0
+  const screenW = window.screen?.width || window.screen?.availWidth || 0
+  const key =
+    stamped === 'mobile' || stamped === 'tablet' || stamped === 'laptop' || stamped === 'desktop'
+      ? stamped
+      : pwSceneLockFromWindowWidth(Math.max(outer, inner))
+  const zoom = stamped ? 1 : pwSceneLiveZoomScale(inner, outer, screenW)
+  document.documentElement.setAttribute('data-pw-scene-lock', key)
+  document.documentElement.style.setProperty('--pw-scene-w', `${pwSceneCanvasWidth(key)}px`)
+  document.documentElement.style.setProperty('--pw-scene-zoom', String(zoom))
+  const root = document.querySelector('[data-pw-inline-visual-root]') as HTMLElement | null
+  if (root) {
+    const h = root.scrollHeight || 0
+    root.style.marginBottom = zoom > 1 && h > 0 ? `${Math.round((zoom - 1) * h)}px` : ''
+  }
+}
 
 function hideChatLaunchersInHtml(html: string, hide: boolean): string {
   if (!hide || !html.trim() || html.includes('data-pw-hide-chat-launcher')) return html
@@ -91,6 +123,10 @@ function PartnerSiteInlineVisualHead({ html }: { html: string }) {
           {css ? <style data-pw-inline-visual-css="1" dangerouslySetInnerHTML={{ __html: css }} /> : null}
         </>
       )}
+      <script
+        id={PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID}
+        dangerouslySetInnerHTML={{ __html: PARTNER_SHOP_SCENE_CENTER_SCRIPT }}
+      />
     </>
   )
 }
@@ -216,11 +252,46 @@ function PartnerSitePublicFrame({
     window.addEventListener('resize', sync)
     return () => window.removeEventListener('resize', sync)
   }, [forceDevice, inlineHtml])
+  useLayoutEffect(() => {
+    if (!inlineHtml || forceDevice) return
+    const sync = () => lockLiveSceneCanvas(forceDevice)
+    sync()
+    window.addEventListener('resize', sync)
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', sync)
+    return () => {
+      window.removeEventListener('resize', sync)
+      vv?.removeEventListener('resize', sync)
+    }
+  }, [inlineHtml, forceDevice])
   /** Keep desktop iframe ≥1280px when the Chrome window is desktop — F12 docked does not shrink outerWidth. */
   const frameLocked = desktopLocked || desktopWindowLock
   const previewFrameStyle = visualDevicePreviewFrameStyle(
     forceDevice ?? (desktopWindowLock ? 'desktop' : null)
   )
+  const previewWrapRef = useRef<HTMLDivElement>(null)
+  const centerPreviewWrap = useCallback(() => {
+    const el = previewWrapRef.current
+    if (!el) return
+    const center = () => {
+      const extraX = Math.max(0, el.scrollWidth - el.clientWidth)
+      el.scrollLeft = extraX / 2
+    }
+    center()
+    window.requestAnimationFrame(center)
+    window.setTimeout(center, 80)
+    window.setTimeout(center, 240)
+  }, [])
+  useLayoutEffect(() => {
+    centerPreviewWrap()
+    window.addEventListener('resize', centerPreviewWrap)
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', centerPreviewWrap)
+    return () => {
+      window.removeEventListener('resize', centerPreviewWrap)
+      vv?.removeEventListener('resize', centerPreviewWrap)
+    }
+  }, [centerPreviewWrap, devicePreview, frameLocked, previewFrameStyle.width])
   const previewHtml = hideChatLaunchersInHtml(
     forceDevice && !deviceHtmlAlreadyIsolated ? isolateVisualHtmlForDevice(html, forceDevice) || html : html,
     hideEmbedFab
@@ -260,11 +331,12 @@ function PartnerSitePublicFrame({
       hideLauncher={hideEmbedFab}
     >
       <div
+        ref={previewWrapRef}
         className={
           devicePreview
-            ? 'flex min-h-screen justify-center overflow-x-auto bg-neutral-200'
+            ? 'min-h-screen overflow-x-auto bg-neutral-200'
             : frameLocked
-              ? 'flex min-h-screen justify-center overflow-x-auto bg-white'
+              ? 'min-h-screen overflow-x-auto bg-white'
               : 'min-h-screen bg-white'
         }
       >
@@ -279,7 +351,12 @@ function PartnerSitePublicFrame({
                 ? 'block h-[100dvh] shrink-0 border-0 bg-white'
                 : 'fixed inset-0 h-full w-full border-0 bg-white'
           }
-          style={devicePreview || frameLocked ? previewFrameStyle : undefined}
+          style={
+            devicePreview || frameLocked
+              ? previewFrameStyle
+              : undefined
+          }
+          onLoad={centerPreviewWrap}
         />
       </div>
     </PartnerSiteChatWidgetProvider>

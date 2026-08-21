@@ -356,7 +356,10 @@ test('mobile visual html is isolated from desktop', () => {
 
 test('compose responsive visual html keeps a single desktop variant as-is', () => {
   const only = '<!DOCTYPE html><html><body>Just one</body></html>'
-  assert.equal(composeResponsiveVisualHtml(only, ''), only)
+  const out = composeResponsiveVisualHtml(only, '')
+  assert.match(out, /Just one/)
+  assert.doesNotMatch(out, /pw-visual-mobile/)
+  assert.match(out, /<html[^>]*data-pw-edit-device="desktop"/)
 })
 
 test('mobile-only visual html does not leak added chrome onto desktop', () => {
@@ -399,6 +402,8 @@ test('isolate desktop html keeps nested sections from composed page', () => {
   assert.ok(isolated.includes('Logo'))
   assert.equal(isolated.includes('Tablet stale'), false)
   assert.equal(isolated.includes('Mobile stale'), false)
+  assert.match(isolated, /<html[^>]*data-pw-edit-device="desktop"/)
+  assert.doesNotMatch(composed, /<html[^>]*data-pw-edit-device=/)
 })
 
 test('compose four-device html shows laptop between 1280 and 1439', () => {
@@ -416,6 +421,8 @@ test('compose four-device html shows laptop between 1280 and 1439', () => {
   assert.match(laptop, /Lap/)
   assert.doesNotMatch(laptop, /Desk/)
   assert.doesNotMatch(laptop, /Tab/)
+  assert.match(laptop, /<html[^>]*data-pw-edit-device="laptop"/)
+  assert.doesNotMatch(composed, /<html[^>]*data-pw-edit-device=/)
 })
 
 test('isolate visual html unwraps composed page and stamps chrome', () => {

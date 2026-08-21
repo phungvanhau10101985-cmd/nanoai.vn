@@ -70,7 +70,7 @@ function isValidEmail(value: string): boolean {
 export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, locale, onAuthed, pageMode }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const onCustomDomain = usePartnerSiteCustomDomain()
-  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { ready, authResolved, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
   const [step, setStep] = useState<'email' | 'otp'>('email')
@@ -112,6 +112,7 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
       shopOrigin: ssoConfig?.shopOrigin,
       customerTokenPath: ssoConfig?.customerTokenPath,
       customerTokenOnShopDomain: ssoConfig?.customerTokenOnShopDomain,
+      skipResumeAndSync: true,
     })
     if (result.ok) {
       onAuthed?.()
@@ -169,15 +170,26 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
   }, [authHeaders, captureFromResponse, onAuthed, siteSlug])
 
   useEffect(() => {
-    if (!ready) return
+    if (!authResolved) return
     void (async () => {
       if (await consumeGoogleHandoffFromUrl()) return
       if (await consumePcTokenFromUrl()) return
+      if (isAuthenticated) {
+        onAuthed?.()
+        return
+      }
       await tryQuickLogin().catch(() => {
         // stay on login form
       })
     })()
-  }, [ready, consumeGoogleHandoffFromUrl, consumePcTokenFromUrl, tryQuickLogin])
+  }, [
+    authResolved,
+    consumeGoogleHandoffFromUrl,
+    consumePcTokenFromUrl,
+    isAuthenticated,
+    onAuthed,
+    tryQuickLogin,
+  ])
 
   const showGoogleButton = Boolean(ssoConfig?.platformGoogleAuthEnabled)
   /** Domain khách: cookie OAuth phải gắn trên NanoAI → bridge `/auth/shop-google`. */

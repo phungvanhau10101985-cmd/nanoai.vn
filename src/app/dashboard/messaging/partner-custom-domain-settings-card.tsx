@@ -106,6 +106,7 @@ export function PartnerCustomDomainSettingsCard({
         setUseForChat(res.domain?.use_for_chat ?? true)
         setUseForSite(res.domain?.use_for_site ?? true)
         setCnameTarget(res.cnameTarget || 'nanoai.vn')
+        setLastDetail(res.domain?.ssl_last_error ?? '')
         if ('apexATarget' in res && res.apexATarget) setApexATarget(String(res.apexATarget))
         if ('shopSso' in res && res.shopSso) {
           setShopLoginOrigin(res.shopSso.externalShopOrigin ?? '')
@@ -200,8 +201,14 @@ export function PartnerCustomDomainSettingsCard({
       const res = await verifyMessagingPartnerCustomDomain(partnerId)
       if ('error' in res && res.error) {
         if (res.error === 'DNS_FAILED') {
-          setLastDetail('detail' in res ? String(res.detail) : '')
-          toast({ title: t.customDomainVerifyDnsFail, variant: 'destructive' })
+          const detail = 'detail' in res ? String(res.detail) : ''
+          setLastDetail(detail)
+          toast({
+            title: t.customDomainVerifyDnsFail,
+            description: detail || undefined,
+            variant: 'destructive',
+            duration: 12_000,
+          })
           void load()
           return
         }
@@ -382,17 +389,17 @@ export function PartnerCustomDomainSettingsCard({
               {t.customDomainSslTitle}
             </p>
             <p className="text-[11px] text-muted-foreground leading-relaxed">{t.customDomainSslHint}</p>
-            {domain?.ssl_status === 'error' || lastDetail ? (
+            {lastDetail && domain?.ssl_status !== 'ssl_active' ? (
               <div
                 className={
-                  domain?.ssl_status === 'error'
-                    ? 'rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-2'
-                    : 'rounded-md border border-border/60 bg-background/60 px-2.5 py-2'
+                  domain?.ssl_status === 'dns_ok'
+                    ? 'rounded-md border border-border/60 bg-background/60 px-2.5 py-2'
+                    : 'rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-2'
                 }
               >
                 <p className="text-[10px] font-medium text-foreground">{t.customDomainLastErrorTitle}</p>
                 <p className="mt-1 whitespace-pre-wrap break-words font-mono text-[10px] text-muted-foreground">
-                  {lastDetail || badge.hint}
+                  {lastDetail}
                 </p>
               </div>
             ) : null}

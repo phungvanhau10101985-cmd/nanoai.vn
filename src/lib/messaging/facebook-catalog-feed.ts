@@ -1,14 +1,46 @@
 /**
  * CSV feed tương thích Meta Commerce Manager (danh mục sản phẩm / Facebook).
+ * Cột khớp nguồn cấp dữ liệu 188 (`social_catalog_feed_tsv.META_TSV_COLUMNS`).
  * @see https://developers.facebook.com/docs/commerce-platform/catalog/fields
  */
 
-import type { Database } from '@/types/database.types'
-import { buildGuestConsultChatAbsoluteUrl } from '@/lib/messaging/build-guest-consult-chat-link'
+import {
+  catalogFeedAgeGroup,
+  catalogFeedBrand,
+  catalogFeedColor,
+  catalogFeedCustomLabels,
+  catalogFeedFbProductCategory,
+  catalogFeedGender,
+  catalogFeedGoogleProductCategory,
+  catalogFeedInternalLabel,
+  catalogFeedItemGroupId,
+  catalogFeedProductType,
+  catalogFeedSalePriceCell,
+  catalogFeedSize,
+  catalogFeedVideoUrl,
+  emptyCatalogFeedBuildContext,
+  type CatalogFeedBuildContext,
+} from '@/lib/messaging/catalog-feed-enrichment'
+import {
+  catalogFeedAdditionalImages,
+  catalogFeedCurrency,
+  catalogFeedDescription,
+  catalogFeedImageUrl,
+  catalogFeedIsInStock,
+  catalogFeedItemId,
+  catalogFeedPriceAmount,
+  catalogFeedTitle,
+  catalogFeedUtf8Csv,
+  csvEscapeCell,
+  formatCatalogFeedPrice,
+  parseVndIntegerFromPriceHint,
+  pickCatalogProductLandingLink,
+  type CatalogFeedInventoryRow,
+} from '@/lib/messaging/catalog-feed-shared'
 
-type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
+export type { CatalogFeedBuildContext }
 
-/** Cột tối thiểu Meta thường yêu cầu cho data feed. */
+/** Cột Meta Commerce — đủ trường như feed 188 (CSV, Meta chấp nhận CSV/TSV). */
 export const FACEBOOK_CATALOG_CSV_HEADERS = [
   'id',
   'title',
@@ -20,105 +52,75 @@ export const FACEBOOK_CATALOG_CSV_HEADERS = [
   'image_link',
   'brand',
   'additional_image_link',
+  'google_product_category',
+  'fb_product_category',
+  'product_type',
+  'color',
+  'size',
+  'sale_price',
+  'sale_price_effective_date',
+  'item_group_id',
+  'gender',
+  'age_group',
+  'custom_label_0',
+  'custom_label_1',
+  'custom_label_2',
+  'custom_label_3',
+  'custom_label_4',
+  'internal_label',
+  'video_url',
+  'shipping_weight',
 ] as const
 
-function csvEscapeCell(value: string): string {
-  const s = value.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
-  return s
-}
+export { parseVndIntegerFromPriceHint }
 
-function trimMax(s: string, max: number): string {
-  const t = s.trim()
-  if (t.length <= max) return t
-  return t.slice(0, max)
-}
-
-/** Meta chấp nhận http/https cho image_link / link. */
-function isAbsoluteHttpUrl(u: string): boolean {
-  return /^https?:\/\//i.test(u.trim())
-}
-
-/** Lấy số nguyên VND từ chuỗi giá tự do (vd: "1.299.000 ₫"). */
-export function parseVndIntegerFromPriceHint(raw: string): number | null {
-  const t = String(raw ?? '').trim()
-  if (!t) return null
-  const digits = t.replace(/\D/g, '')
-  if (!digits) return null
-  const n = Number.parseInt(digits, 10)
-  if (!Number.isFinite(n) || n < 0) return null
-  if (n === 0) return null
-  return n
-}
-
-function formatMetaPriceVnd(amount: number): string {
-  return `${Math.round(amount)} VND`
-}
-
-/** Luôn dùng trang tư vấn trên NanoAI (`/messaging/p/.../tu-van/...` hoặc `?ctx_*`), không dùng link web shop. */
-function pickConsultLink(origin: string, slug: string, row: InventoryRow): string | null {
-  const consult = buildGuestConsultChatAbsoluteUrl(origin, slug, {
-    id: row.id,
-    image_url: row.image_url,
-    product_url: row.product_url,
-    sku: row.sku,
-  })
-  return isAbsoluteHttpUrl(consult) ? consult : null
-}
-
-function pickAdditionalImage(row: InventoryRow): string {
-  for (const u of [row.material_detail_image_url, row.real_use_image_url, row.real_use_image_url_2]) {
-    const s = (u ?? '').trim()
-    if (isAbsoluteHttpUrl(s)) return s
-  }
-  return ''
-}
-
-/**
- * Một dòng CSV hoặc null nếu thiếu trường bắt buộc (ảnh, link, giá hợp lệ).
- */
-function rowToCsvLine(
-  row: InventoryRow,
-  ctx: { origin: string; slug: string; brand: string }
-): string | null {
+function rowToCsvLine(row: CatalogFeedInventoryRow, ctx: CatalogFeedBuildContext): string | null {
   if (row.is_active === false) return null
 
-  const title = trimMax(row.name || 'Sản phẩm', 200)
-  const description = trimMax(
-    [row.description, row.consult_note, row.stock_note].filter(Boolean).join(' — ') || title,
-    9990
-  )
+  const image = catalogFeedImageUrl(row)
+  if (!image) return null
 
-  const image = (row.image_url ?? '').trim()
-  if (!isAbsoluteHttpUrl(image)) return null
-
-  const link = pickConsultLink(ctx.origin, ctx.slug, row)
+  const link = pickCatalogProductLandingLink(row, ctx)
   if (!link) return null
 
-  const priceNum = parseVndIntegerFromPriceHint(row.price_hint)
+  const priceNum = catalogFeedPriceAmount(row)
   if (priceNum == null) return null
 
-  const idRaw = (row.remarketing_id ?? '').trim() || row.id
-  const id = trimMax(idRaw.replace(/[\s\r\n]+/g, ' ').trim(), 100)
-
-  /** `null` = không quản lý tồn — coi như còn bán; chỉ `0` (hoặc âm) là hết. */
-  const qty = row.stock_qty
-  const availability =
-    qty != null && qty <= 0 ? 'out of stock' : 'in stock'
-
-  const additional = pickAdditionalImage(row)
+  const productType = catalogFeedProductType(row, ctx)
+  const gcat = catalogFeedGoogleProductCategory(row, ctx)
+  const sale = catalogFeedSalePriceCell(row)
+  const [c0, c1, c2, c3, c4] = catalogFeedCustomLabels(row, productType)
+  const additional = catalogFeedAdditionalImages(row).join(',')
 
   const cells = [
-    id,
-    title,
-    description,
-    availability,
+    catalogFeedItemId(row),
+    catalogFeedTitle(row, 200),
+    catalogFeedDescription(row, 9990),
+    catalogFeedIsInStock(row) ? 'in stock' : 'out of stock',
     'new',
-    formatMetaPriceVnd(priceNum),
+    formatCatalogFeedPrice(priceNum, catalogFeedCurrency(row)),
     link,
     image,
-    trimMax(ctx.brand || 'Shop', 100),
+    catalogFeedBrand(ctx, 100),
     additional,
+    gcat,
+    catalogFeedFbProductCategory(ctx, gcat),
+    productType,
+    catalogFeedColor(row),
+    catalogFeedSize(row),
+    sale.sale,
+    sale.effective,
+    catalogFeedItemGroupId(row),
+    catalogFeedGender(row, productType),
+    catalogFeedAgeGroup(row, productType),
+    c0,
+    c1,
+    c2,
+    c3,
+    c4,
+    catalogFeedInternalLabel(row, productType),
+    catalogFeedVideoUrl(row),
+    '',
   ].map(csvEscapeCell)
 
   return cells.join(',')
@@ -128,15 +130,14 @@ function rowToCsvLine(
  * UTF-8 BOM giúp Excel/Google Trang tính nhận UTF-8 khi tải file.
  */
 export function buildFacebookCatalogFeedCsv(
-  rows: InventoryRow[],
-  ctx: { origin: string; slug: string; brand: string }
+  rows: CatalogFeedInventoryRow[],
+  ctx: CatalogFeedBuildContext | Omit<CatalogFeedBuildContext, 'industryKey' | 'productTypeByInventoryId'>
 ): Buffer {
-  const header = FACEBOOK_CATALOG_CSV_HEADERS.join(',')
-  const lines: string[] = [header]
+  const full = emptyCatalogFeedBuildContext(ctx)
+  const lines: string[] = [FACEBOOK_CATALOG_CSV_HEADERS.join(',')]
   for (const row of rows) {
-    const line = rowToCsvLine(row, ctx)
+    const line = rowToCsvLine(row, full)
     if (line) lines.push(line)
   }
-  const body = `${lines.join('\r\n')}\r\n`
-  return Buffer.from(`\ufeff${body}`, 'utf8')
+  return catalogFeedUtf8Csv(lines)
 }

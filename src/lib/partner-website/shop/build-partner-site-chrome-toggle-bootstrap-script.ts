@@ -107,6 +107,13 @@ function readStoredAuth(){
   if(!accountId)accountId=readCookie(ACCOUNT_COOKIE).trim();
   isLoggedIn=!!accountId;
 }
+function applyLocalAuth(){
+  readStoredAuth();
+  if(shouldSkipAuthSync()){
+    accountId='';
+    isLoggedIn=false;
+  }
+}
 function authReqHeaders(){
   var h={};
   if(sessionId)h[SESSION_HDR]=sessionId;
@@ -139,10 +146,8 @@ function clearSkipAuthSync(){
   try{window.sessionStorage.removeItem(SKIP_AUTH_SYNC_KEY);}catch(errClearSkip){}
 }
 function hydrateAuth(done){
-  readStoredAuth();
+  applyLocalAuth();
   if(shouldSkipAuthSync()){
-    accountId='';
-    isLoggedIn=false;
     authReady=true;
     if(done)done();
     return;
@@ -521,10 +526,29 @@ function bindPanelLinks(panel){
 }
 function handleAccountClick(e){
   if(pwShopLiveUiOff())return;
-  e.preventDefault();
-  e.stopPropagation();
   var cur=e.currentTarget;
   if(isAccountSubpathLink(cur))return;
+  applyLocalAuth();
+  // Logged-in: keep native <a href="/account"> so the browser starts navigation
+  // immediately — do not wait for session/sync-session.
+  if(isLoggedIn){
+    var dest=accountLoginHref(cur);
+    try{
+      if(window.top&&window.top!==window){
+        e.preventDefault();
+        e.stopPropagation();
+        if(dest)window.top.location.href=dest;
+        return;
+      }
+    }catch(errTop){}
+    if(cur&&cur.tagName&&cur.tagName.toLowerCase()==='a'&&cur.getAttribute('href'))return;
+    e.preventDefault();
+    e.stopPropagation();
+    if(dest)window.location.href=dest;
+    return;
+  }
+  e.preventDefault();
+  e.stopPropagation();
   navigateAccountLogin(cur);
 }
 function bindToggles(){
@@ -626,10 +650,12 @@ function hydrateCats(){
   });
 }
 function boot(){
+  applyLocalAuth();
   bindToggles();
   hydrateCats();
   hydrateAuth(function(){bindToggles();});
 }
+applyLocalAuth();
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 var moTimer=null;
 var mo=typeof MutationObserver!=='undefined'?new MutationObserver(function(){

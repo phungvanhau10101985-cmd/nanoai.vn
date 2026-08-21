@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { buildTiktokCatalogFeedCsv } from '@/lib/messaging/tiktok-catalog-feed'
 import {
+  catalogFeedBuildArgs,
   catalogFeedFileResponse,
   loadPartnerCatalogFeedContext,
 } from '@/lib/messaging/partner-catalog-feed-http'
@@ -20,12 +21,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   const loaded = await loadPartnerCatalogFeedContext(request, slug)
   if (loaded instanceof Response) return loaded
 
-  const buf = buildTiktokCatalogFeedCsv(loaded.rows, {
-    platformOrigin: loaded.platformOrigin,
-    partnerSlug: loaded.partnerSlug,
-    brand: loaded.brand,
-    shop: loaded.shop,
-  })
+  const buf = buildTiktokCatalogFeedCsv(loaded.rows, catalogFeedBuildArgs(loaded))
 
   return catalogFeedFileResponse(buf, 'text/csv; charset=utf-8', 'tiktok-catalog.csv')
 }
