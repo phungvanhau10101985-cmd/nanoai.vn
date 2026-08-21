@@ -199,6 +199,8 @@ export type VisualEditorSelection = {
   height: number
   canStickHeader: boolean
   stickHeader: boolean
+  canPinScreen: boolean
+  pinScreen: boolean
   /** Lớp không gian toàn trang của phần tử — khác `layerIndex` (thứ tự trong vùng cha). */
   scene: number
   scenePos: 'bottom' | 'middle' | 'top'
@@ -290,6 +292,8 @@ function selectionFromMessage(data: {
   rect?: { width?: number; height?: number }
   canStickHeader?: boolean
   stickHeader?: boolean
+  canPinScreen?: boolean
+  pinScreen?: boolean
   scene?: number
   scenePos?: string
   sceneCount?: number
@@ -383,6 +387,8 @@ function selectionFromMessage(data: {
     height: Number(data.rect?.height) || 0,
     canStickHeader: Boolean(data.canStickHeader),
     stickHeader: Boolean(data.stickHeader),
+    canPinScreen: Boolean(data.canPinScreen),
+    pinScreen: Boolean(data.pinScreen),
     scene: clampPwSceneIndex(data.scene),
     scenePos:
       data.scenePos === 'bottom' || data.scenePos === 'top' || data.scenePos === 'middle'
@@ -490,7 +496,9 @@ const CHROME_WIDGET_ICONS: Record<VisualEditorChromeWidgetKind, LucideIcon> = {
   sale: Tag,
   cart: ShoppingBag,
   wishlist: Heart,
+  'favorite-product': Heart,
   'recently-viewed': Clock,
+  'try-on': Sparkles,
   chat: MessageCircle,
   'chat-zalo': MessageCircle,
   'chat-facebook': MessageCircle,
@@ -1098,6 +1106,8 @@ export function PartnerWebsiteVisualEditorToolbar({
         canDelete?: boolean
         canStickHeader?: boolean
         stickHeader?: boolean
+        canPinScreen?: boolean
+        pinScreen?: boolean
         isChrome?: boolean
         chromeStyle?: string
         btnStyle?: string
@@ -1250,6 +1260,9 @@ export function PartnerWebsiteVisualEditorToolbar({
           setChromeDupAskKind(kind)
         }
       }
+      if (data.type === 'favoriteNeedHost') {
+        onError(t.visualEditFavoriteNeedHost)
+      }
       if (data.type === 'html' && data.html && saveWaiterRef.current) {
         void handleSaveHtml(data.html)
       }
@@ -1257,7 +1270,7 @@ export function PartnerWebsiteVisualEditorToolbar({
 
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [active, activateEditor, documentKey, handleSaveHtml, onError, openBlockPanel, t.visualEditAddButtonLabel])
+  }, [active, activateEditor, documentKey, handleSaveHtml, onError, openBlockPanel, t.visualEditAddButtonLabel, t.visualEditFavoriteNeedHost])
 
   useEffect(() => {
     if (!active) return
@@ -1740,6 +1753,8 @@ export function PartnerWebsiteVisualEditorToolbar({
           height: size.h,
           canStickHeader: false,
           stickHeader: false,
+          canPinScreen: false,
+          pinScreen: false,
           scene: PW_SCENE_DEFAULT_INDEX,
           scenePos: 'middle',
           sceneCount: PW_SCENE_LAYERS.length,
@@ -2191,6 +2206,7 @@ export function PartnerWebsiteVisualEditorToolbar({
     editKind === 'search-submit' ||
     editKind === 'search-image'
   const showInlineChromeTools = false
+  const showPinScreen = Boolean(selection?.canPinScreen)
   const showStickHeader = Boolean(
     selection?.canStickHeader &&
       selection.chromeKind !== 'chat' &&
@@ -3417,6 +3433,23 @@ export function PartnerWebsiteVisualEditorToolbar({
                 </Button>
               </div>
             </div>
+          ) : null}
+          {showPinScreen && selection ? (
+            <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-background px-2 py-1.5">
+              <Switch
+                className="mt-0.5 shrink-0 data-[state=checked]:bg-primary"
+                checked={selection.pinScreen}
+                disabled={busy}
+                onCheckedChange={(on) => {
+                  postToIframe(iframeRef.current, 'setPinScreen', { on })
+                  setDirty(true)
+                }}
+              />
+              <span className="min-w-0">
+                <span className="block text-[11px] font-semibold leading-4">{t.visualEditPinScreen}</span>
+                <span className="block text-[10px] leading-4 text-muted-foreground">{t.visualEditPinScreenHint}</span>
+              </span>
+            </label>
           ) : null}
           {showStickHeader && selection ? (
             <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-background px-2 py-1.5">

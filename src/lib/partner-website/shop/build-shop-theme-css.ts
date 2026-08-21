@@ -228,13 +228,13 @@ ${PARTNER_SHOP_CHROME_FLOAT_CSS}
 @media(min-width:768px){.pw-pdp-actions-inline{display:flex}}
 .pw-pdp-sticky{display:none}
 @media(max-width:767px){
-  .pw-shop:has(.pw-pdp){padding-bottom:140px}
+  .pw-shop:has(.pw-pdp){padding-bottom:88px}
   .pw-shop-main:has(.pw-pdp){padding-top:0}
   .pw-pdp-hero{display:block;margin-inline:-16px}
   #pw-pdp-reviews,#pw-pdp-qa{scroll-margin-top:72px}
   .pw-pdp-gallery-desktop{display:none}
   .pw-pdp-info-pad{padding-inline:16px}
-  .pw-pdp-sticky{display:flex;position:fixed;left:0;right:0;bottom:58px;z-index:49;align-items:stretch;gap:6px;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));background:#f3f4f6;border-top:1px solid #e5e7eb}
+  .pw-pdp-sticky{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:120;align-items:stretch;gap:6px;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));background:#f3f4f6;border-top:1px solid #e5e7eb}
   .pw-pdp-sticky-nav{display:flex;align-items:stretch;gap:2px;padding-right:8px;margin-right:2px;border-right:1px solid #e5e7eb}
   .pw-pdp-sticky-nav a,.pw-pdp-sticky-nav button{width:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:transparent;color:#4b5563;font:inherit;font-size:10px;line-height:1.1;cursor:pointer;text-decoration:none;padding:2px 0}
   .pw-pdp-sticky-nav a.is-try,.pw-pdp-sticky-nav button.is-try{color:var(--pw-primary)}
@@ -383,5 +383,10 @@ ${PARTNER_SHOP_CHROME_FLOAT_CSS}
   .pw-shop-sticky-buy-info p.pw-shop-price{font-size:13px}
   .pw-shop-sticky-buy-actions{display:flex;gap:6px;flex-shrink:0}
   .pw-shop-sticky-buy-actions .pw-shop-btn{padding:9px 12px;font-size:12px}
+}
+@media(max-width:767px){
+  .pw-shop{padding-bottom:0}
+  .pw-shop-bottom-nav{display:none!important}
+  .pw-shop-sticky-buy.is-visible{bottom:0}
 }`
 }

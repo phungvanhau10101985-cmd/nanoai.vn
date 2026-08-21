@@ -110,6 +110,7 @@ export type PartnerSiteShopCopy = {
   searchError: string
   relatedProducts: string
   tryOnLink: string
+  favoriteProduct: string
   /** PDP — bố cục kiểu 188 (gallery bleed / giá / sticky), copy đa ngôn ngữ */
   skuLabel: string
   pdpRatingLabel: string
@@ -435,6 +436,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchError: 'Không tìm được. Thử lại.',
     relatedProducts: 'Sản phẩm liên quan',
     tryOnLink: 'Thử đồ AI',
+    favoriteProduct: 'Thích sản phẩm',
     skuLabel: 'Mã SP',
     pdpRatingLabel: 'Đánh giá',
     pdpLineTotal: 'Tổng số',
@@ -751,6 +753,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchError: 'Search failed. Try again.',
     relatedProducts: 'Related products',
     tryOnLink: 'AI try-on',
+    favoriteProduct: 'Like product',
     skuLabel: 'SKU',
     pdpRatingLabel: 'Reviews',
     pdpLineTotal: 'Total',
@@ -1067,6 +1070,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchError: '搜索失败，请重试。',
     relatedProducts: '相关产品',
     tryOnLink: 'AI 试穿',
+    favoriteProduct: '收藏商品',
     skuLabel: '货号',
     pdpRatingLabel: '评价',
     pdpLineTotal: '合计',
@@ -1383,6 +1387,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchError: '検索に失敗しました。',
     relatedProducts: '関連商品',
     tryOnLink: 'AI試着',
+    favoriteProduct: '商品をお気に入り',
     skuLabel: '商品コード',
     pdpRatingLabel: 'レビュー',
     pdpLineTotal: '合計',
@@ -1699,6 +1704,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchError: '검색에 실패했습니다.',
     relatedProducts: '관련 상품',
     tryOnLink: 'AI 피팅',
+    favoriteProduct: '상품 찜',
     skuLabel: '상품코드',
     pdpRatingLabel: '리뷰',
     pdpLineTotal: '합계',

@@ -106,7 +106,7 @@ export function productToConsultContext(input: {
 
 /** Chat mua chrome + CTA hooks that must open the shop messaging widget. */
 export const PARTNER_SITE_CHAT_OPEN_SELECTOR =
-  '[data-pw-chrome-btn="chat"],[data-nanoai-open-chat],[data-nanoai-consult],[data-nanoai-try-on],a[href*="/messaging/p/"],.pw-fab-chat,.pw-chat-open'
+  '[data-pw-chrome-btn="chat"],[data-pw-chrome-btn="try-on"],[data-nanoai-open-chat],[data-nanoai-consult],[data-nanoai-try-on],a[href*="/messaging/p/"],.pw-fab-chat,.pw-chat-open'
 
 function consultContextFromChatOpenEl(el: {
   getAttribute: (name: string) => string | null
@@ -125,7 +125,7 @@ export function partnerSiteChatOpenModeFromEl(el: {
   getAttribute: (name: string) => string | null
   classList?: { contains: (token: string) => boolean }
 }): 'default' | 'consult' | 'try_on' {
-  if (el.hasAttribute('data-nanoai-try-on')) return 'try_on'
+  if (el.hasAttribute('data-nanoai-try-on') || el.getAttribute('data-pw-chrome-btn') === 'try-on') return 'try_on'
   if (el.hasAttribute('data-nanoai-consult')) return 'consult'
   if (el.getAttribute('data-pw-chrome-btn') === 'chat') return 'default'
   if (el.classList?.contains('pw-fab-chat') || el.hasAttribute('data-nanoai-open-chat')) return 'default'
@@ -138,6 +138,34 @@ export type PartnerSiteChatOpenRequest = {
 }
 
 /** Same-document click → open shop chat (inline HTML / React chrome). */
+function consultContextFromNearestProduct(el: Element): PartnerSiteConsultContext {
+  const host =
+    el.closest(
+      '[data-inventory-id],[data-pw-inventory-id],article,.pw-product-card,.pw-shop-card,[data-pw-region="pdp-info"],[data-pw-region="gallery"]'
+    ) || (el.closest('[data-pw-page="product"]') ? el.ownerDocument?.body || null : null)
+  if (!host) return {}
+  const inventoryId =
+    (host.getAttribute('data-inventory-id') || host.getAttribute('data-pw-inventory-id') || '').trim()
+  const img = host.querySelector('img')
+  const link = host.querySelector('a[href*="/products/"]')
+  const href = link?.getAttribute('href') || ''
+  return {
+    inventoryId: UUID_RE.test(inventoryId) ? inventoryId : '',
+    imageUrl: img?.getAttribute('src') || '',
+    productUrl: href,
+  }
+}
+
+function mergeConsultContext(primary: PartnerSiteConsultContext, fallback: PartnerSiteConsultContext): PartnerSiteConsultContext {
+  return {
+    inventoryId: primary.inventoryId || fallback.inventoryId,
+    sku: primary.sku || fallback.sku,
+    imageUrl: primary.imageUrl || fallback.imageUrl,
+    imageUrl2: primary.imageUrl2 || fallback.imageUrl2,
+    productUrl: primary.productUrl || fallback.productUrl,
+  }
+}
+
 export function resolvePartnerSiteChatOpenFromEventTarget(
   target: EventTarget | null
 ): PartnerSiteChatOpenRequest | null {
@@ -148,9 +176,11 @@ export function resolvePartnerSiteChatOpenFromEventTarget(
   const el = node.closest(PARTNER_SITE_CHAT_OPEN_SELECTOR)
   if (!el) return null
   if (el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]')) return null
+  const mode = partnerSiteChatOpenModeFromEl(el)
+  const ctx = consultContextFromChatOpenEl(el)
   return {
-    mode: partnerSiteChatOpenModeFromEl(el),
-    ctx: consultContextFromChatOpenEl(el),
+    mode,
+    ctx: mode === 'try_on' ? mergeConsultContext(ctx, consultContextFromNearestProduct(el)) : ctx,
   }
 }
 
@@ -203,6 +233,17 @@ function ctxFromEl(el){
     productUrl:el.getAttribute('data-nanoai-product-url')||'',
   };
 }
+function ctxFromNearestProduct(el){
+  if(!el||!el.closest)return {};
+  var host=el.closest('[data-inventory-id],[data-pw-inventory-id],article,.pw-product-card,.pw-shop-card,[data-pw-region="pdp-info"],[data-pw-region="gallery"]');
+  if(!host&&el.closest('[data-pw-page="product"]'))host=document.body;
+  if(!host)return {};
+  var id=(host.getAttribute('data-inventory-id')||host.getAttribute('data-pw-inventory-id')||'').trim();
+  var img=host.querySelector?host.querySelector('img'):null;
+  var a=host.querySelector?host.querySelector('a[href*="/products/"]'):null;
+  var href=a?a.getAttribute('href')||'':'';
+  return {inventoryId:id,imageUrl:img?img.getAttribute('src')||'':'',productUrl:href};
+}
 document.addEventListener('click',function(ev){
   if(pwShopLiveUiOff())return;
   var t=ev.target;
@@ -213,12 +254,18 @@ document.addEventListener('click',function(ev){
   ev.preventDefault();
   ev.stopPropagation();
   var mode='default';
-  if(el.hasAttribute('data-nanoai-try-on'))mode='try_on';
+  if(el.hasAttribute('data-nanoai-try-on')||el.getAttribute('data-pw-chrome-btn')==='try-on')mode='try_on';
   else if(el.hasAttribute('data-nanoai-consult'))mode='consult';
   else if(el.getAttribute('data-pw-chrome-btn')==='chat')mode='default';
   else if(el.classList.contains('pw-fab-chat')||el.hasAttribute('data-nanoai-open-chat'))mode='default';
   else mode='consult';
   var ctx=ctxFromEl(el);
+  if(mode==='try_on'){
+    var near=ctxFromNearestProduct(el);
+    if(!ctx.inventoryId)ctx.inventoryId=near.inventoryId||'';
+    if(!ctx.imageUrl)ctx.imageUrl=near.imageUrl||'';
+    if(!ctx.productUrl)ctx.productUrl=near.productUrl||'';
+  }
   postOpen({mode:mode,inventoryId:ctx.inventoryId,sku:ctx.sku,imageUrl:ctx.imageUrl,imageUrl2:ctx.imageUrl2,productUrl:ctx.productUrl});
 },true);
 })();</script>`

@@ -64,7 +64,7 @@ export const VISUAL_EDITOR_PAGE_KEYS: PartnerWebsitePageKey[] = [
 
 const VISUAL_EDITOR_PAGE_KEY_SET = new Set<string>(VISUAL_EDITOR_PAGE_KEYS)
 
-/** One frozen PDP must not replace every live product page. */
+/** Generic `/products` listing must not use the PDP shell. Product pages hydrate live inventory onto that shell. */
 const VISUAL_HTML_SERVE_EXCLUDED = new Set<PartnerWebsitePageKey>(['product_detail'])
 
 export function isVisualEditorPageKey(value: string | null | undefined): value is PartnerWebsitePageKey {
@@ -254,6 +254,11 @@ export function productVisualHtmlPath(
   return visualHtmlFileForBase(`p/${id}.html`, variant)
 }
 
+/** Shared PDP layout shell for every product on this device. */
+export function productVisualShellHtmlPath(variant: VisualDeviceVariant = 'desktop'): string {
+  return visualEditorHtmlPath('product_detail', variant)
+}
+
 export function normalizeVisualProductIds(raw: unknown): string[] {
   if (!Array.isArray(raw)) return []
   const next: string[] = []
@@ -357,28 +362,36 @@ export function applyVisualEditThemeFlag(
 ): PartnerWebsiteTheme {
   const { pageKey, variant, categoryPath = '', productId = '', cmsSlug = '' } = input
   if (productId) {
-    if (variant === 'mobile') {
-      return {
-        ...theme,
-        visualMobileProductIds: addVisualProductId(normalizeVisualProductIds(theme.visualMobileProductIds), productId),
-      }
-    }
-    if (variant === 'tablet') {
-      return {
-        ...theme,
-        visualTabletProductIds: addVisualProductId(normalizeVisualProductIds(theme.visualTabletProductIds), productId),
-      }
-    }
-    if (variant === 'laptop') {
-      return {
-        ...theme,
-        visualLaptopProductIds: addVisualProductId(normalizeVisualProductIds(theme.visualLaptopProductIds), productId),
-      }
-    }
-    return {
-      ...theme,
-      visualProductIds: addVisualProductId(normalizeVisualProductIds(theme.visualProductIds), productId),
-    }
+    const withProductId =
+      variant === 'mobile'
+        ? {
+            ...theme,
+            visualMobileProductIds: addVisualProductId(
+              normalizeVisualProductIds(theme.visualMobileProductIds),
+              productId
+            ),
+          }
+        : variant === 'tablet'
+          ? {
+              ...theme,
+              visualTabletProductIds: addVisualProductId(
+                normalizeVisualProductIds(theme.visualTabletProductIds),
+                productId
+              ),
+            }
+          : variant === 'laptop'
+            ? {
+                ...theme,
+                visualLaptopProductIds: addVisualProductId(
+                  normalizeVisualProductIds(theme.visualLaptopProductIds),
+                  productId
+                ),
+              }
+            : {
+                ...theme,
+                visualProductIds: addVisualProductId(normalizeVisualProductIds(theme.visualProductIds), productId),
+              }
+    return applyVisualEditThemeFlag(withProductId, { pageKey: 'product_detail', variant })
   }
   if (cmsSlug) {
     if (variant === 'mobile') {
@@ -811,15 +824,22 @@ const VISUAL_TABLET_DESKTOP_SPLIT_CSS = `.pw-visual-desktop,.pw-visual-tablet{di
 const VISUAL_FOUR_DEVICE_SPLIT_CSS = `.pw-visual-desktop,.pw-visual-laptop,.pw-visual-tablet,.pw-visual-mobile{display:none!important}
 @media (max-width:767px){
 .pw-visual-mobile{display:block!important}
+html:not(:has(.pw-visual-mobile)) .pw-visual-tablet{display:block!important}
+html:not(:has(.pw-visual-mobile)):not(:has(.pw-visual-tablet)) .pw-visual-laptop{display:block!important}
+html:not(:has(.pw-visual-mobile)):not(:has(.pw-visual-tablet)):not(:has(.pw-visual-laptop)) .pw-visual-desktop{display:block!important}
 }
 @media (min-width:768px) and (max-width:1279px){
 .pw-visual-tablet{display:block!important}
+html:not(:has(.pw-visual-tablet)) .pw-visual-laptop{display:block!important}
+html:not(:has(.pw-visual-tablet)):not(:has(.pw-visual-laptop)) .pw-visual-desktop{display:block!important}
 }
 @media (min-width:1280px) and (max-width:1439px){
 .pw-visual-laptop{display:block!important}
+html:not(:has(.pw-visual-laptop)) .pw-visual-desktop{display:block!important}
 }
 @media (min-width:1440px){
 .pw-visual-desktop{display:block!important}
+html:not(:has(.pw-visual-desktop)) .pw-visual-laptop{display:block!important}
 }`
 
 /** One document: desktop + laptop + tablet + mobile bodies, shown via CSS breakpoint. */
@@ -975,18 +995,49 @@ export function resolvePublicVisualCategoryHtml(
   return servePublicVisualHtml(desktop, mobile, website.theme, tablet, laptop)
 }
 
+function readProductVisualFile(
+  website: VisualWebsitePick,
+  productId: string,
+  variant: VisualDeviceVariant
+): string {
+  const htmlPath = productVisualHtmlPath(productId, variant)
+  const file = website.project?.files.find((f) => f.path === htmlPath && f.kind === 'html')
+  return file?.content?.trim() || ''
+}
+
+function firstDeviceProductVisualHtml(
+  website: VisualWebsitePick,
+  variant: VisualDeviceVariant
+): string {
+  for (const id of visualProductIdsForVariant(website.theme, variant)) {
+    const raw = readProductVisualFile(website, id, variant)
+    if (raw.length >= 40) return raw
+  }
+  return ''
+}
+
+/** Shared PDP layout for Sửa nhanh — one page per device, not per inventory id. */
+export function resolveVisualPdpShellHtml(
+  website: VisualWebsitePick,
+  variant: VisualDeviceVariant = 'desktop'
+): string {
+  const shell = readExactVisualPageHtml(website, 'product_detail', variant).trim()
+  if (shell.length >= 40) return withCanonicalSharedChrome(shell, website, variant)
+  const shared = firstDeviceProductVisualHtml(website, variant)
+  if (shared.length >= 40) return withCanonicalSharedChrome(shared, website, variant)
+  return ''
+}
+
 export function resolveExactVisualProductHtml(
   website: VisualWebsitePick,
   productId: string,
   variant: VisualDeviceVariant = 'desktop'
 ): string {
+  const shared = resolveVisualPdpShellHtml(website, variant)
+  if (shared.length >= 40) return shared
   const id = normalizeVisualProductId(productId)
   if (!id) return ''
-  const keys = visualProductIdsForVariant(website.theme, variant)
-  if (!keys.includes(id)) return ''
-  const htmlPath = productVisualHtmlPath(id, variant)
-  const file = website.project?.files.find((f) => f.path === htmlPath && f.kind === 'html')
-  const raw = file?.content?.trim() || ''
+  const raw = readProductVisualFile(website, id, variant)
   if (raw.length < 40) return ''
   return withCanonicalSharedChrome(raw, website, variant)
 }

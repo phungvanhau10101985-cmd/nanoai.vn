@@ -72,6 +72,28 @@ function stampChromeBtnOpenTag(
     return `<${tag}${next}>`
   }
 
+  if (hook === 'try-on') {
+    next = ensureFlag(next, 'data-nanoai-try-on')
+    return `<${tag}${next}>`
+  }
+
+  if (hook === 'favorite') {
+    next = ensureFlag(next, 'data-pw-favorite')
+    return `<${tag}${next}>`
+  }
+
+  if (hook === 'add-cart') {
+    next = ensureFlag(next, 'data-pw-add-cart')
+    if (!hasAttr(next, 'data-pw-el')) next = setAttr(next, 'data-pw-el', 'card-cart')
+    return `<${tag}${next}>`
+  }
+
+  if (hook === 'buy-now') {
+    next = ensureFlag(next, 'data-pw-buy')
+    if (!hasAttr(next, 'data-pw-el')) next = setAttr(next, 'data-pw-el', 'buy')
+    return `<${tag}${next}>`
+  }
+
   if (siteSlug && tag.toLowerCase() === 'a') {
     const href = chromeWidgetHref(kind, siteSlug)
     if (href && href !== '#') {

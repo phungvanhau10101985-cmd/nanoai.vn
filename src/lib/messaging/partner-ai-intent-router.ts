@@ -184,6 +184,19 @@ export function parsePartnerAiRouteDecision(raw: unknown): PartnerAiRouteDecisio
   return null
 }
 
+/**
+ * Neo thẻ «Tư vấn» chỉ khi khách đang hỏi tiếp đúng SP đó.
+ * Ý `new_product_search` không bị `page_context` cũ đè thành cô lập 1 SKU.
+ */
+export function partnerAiShouldIsolateProductCardConsult(input: {
+  rawIsProductCardConsult: boolean
+  routeIntent: PartnerAiRouteIntent | null
+}): boolean {
+  if (!input.rawIsProductCardConsult) return false
+  if (input.routeIntent === 'new_product_search') return false
+  return true
+}
+
 export function partnerAiRouteDecisionToPayload(
   decision: PartnerAiRouteDecision
 ): Record<string, unknown> {

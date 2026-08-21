@@ -40,3 +40,14 @@ test('stamp does not overwrite Zalo\/Facebook contact hrefs', () => {
   assert.match(next, /href="https:\/\/zalo\.me\/shop"/)
   assert.match(next, /data-pw-contact-channel="zalo"/)
 })
+
+test('stamp wires try-on and favorite-product action hooks', () => {
+  const html =
+    '<button data-pw-chrome-btn="try-on">Try</button><button data-pw-chrome-btn="favorite-product">Fav</button>' +
+    '<button data-pw-chrome-btn="add-cart">Cart</button><button data-pw-chrome-btn="buy-now">Buy</button>'
+  const next = stampPartnerSiteChromeWidgetHooksInHtml(html, { siteSlug: 'hotel-shop' })
+  assert.match(next, /data-pw-chrome-btn="try-on"[^>]*data-nanoai-try-on/)
+  assert.match(next, /data-pw-chrome-btn="favorite-product"[^>]*data-pw-favorite/)
+  assert.match(next, /data-pw-chrome-btn="add-cart"[^>]*data-pw-add-cart/)
+  assert.match(next, /data-pw-chrome-btn="buy-now"[^>]*data-pw-buy/)
+})

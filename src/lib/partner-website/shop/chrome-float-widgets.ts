@@ -1,6 +1,8 @@
 /** Viewport-fixed chrome: Chat mua / Zalo / Facebook / Top up — đặt đâu nổi đó. */
 
 export const PW_CHROME_FLOAT_ATTR = 'data-pw-chrome-float'
+/** Any Sửa nhanh element pinned to the viewport (scrolls stay, swipe does not drag it). */
+export const PW_PIN_SCREEN_ATTR = 'data-pw-pin-screen'
 export const PW_CHROME_FLOAT_SCRIPT_ID = 'pw-shop-chrome-float'
 export const PW_CHROME_TOPUP_ON_CLASS = 'pw-chrome-topup-on'
 export const PW_CHROME_TOPUP_SCROLL_PX = 240
@@ -116,7 +118,7 @@ function pwChromeFloatRemap(el){
 }`
 
 export const PARTNER_SHOP_CHROME_FLOAT_CSS = `
-[${PW_CHROME_FLOAT_ATTR}="1"]{position:fixed!important;z-index:${PW_CHROME_FLOAT_Z_INDEX}!important;isolation:isolate!important;margin:0!important;flex:0 0 auto!important;max-width:none!important;max-height:none!important;pointer-events:auto!important}
+[${PW_CHROME_FLOAT_ATTR}="1"],[${PW_PIN_SCREEN_ATTR}="1"]{position:fixed!important;z-index:${PW_CHROME_FLOAT_Z_INDEX}!important;isolation:isolate!important;margin:0!important;flex:0 0 auto!important;max-width:none!important;max-height:none!important;pointer-events:auto!important}
 [${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){left:auto!important;top:auto!important;right:${PW_CHROME_FLOAT_DEFAULT_RIGHT_PX}px!important}
 [data-pw-chrome-btn="chat"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat}px!important}
 [data-pw-chrome-btn="chat-zalo"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX['chat-zalo']}px!important}
@@ -138,6 +140,7 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
   if (window.__pwChromeFloatBound) return;
   window.__pwChromeFloatBound = 1;
   var ATTR = '${PW_CHROME_FLOAT_ATTR}';
+  var PIN = '${PW_PIN_SCREEN_ATTR}';
   var ON = '${PW_CHROME_TOPUP_ON_CLASS}';
   var KINDS = ${JSON.stringify(PW_CHROME_FLOAT_KINDS)};
   var THRESH = ${PW_CHROME_TOPUP_SCROLL_PX};
@@ -158,6 +161,18 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
       return;
     }
     pwChromeFloatRemap(el);
+  }
+  function bakePinned(){
+    var nodes=document.querySelectorAll('['+PIN+'="1"]');
+    for(var i=0;i<nodes.length;i++){
+      var el=nodes[i];
+      if(!el||!el.style)continue;
+      try{ if(el.parentNode&&el.parentNode!==document.body) document.body.appendChild(el); }catch(errPin){}
+      el.style.setProperty('position','fixed','important');
+      el.style.setProperty('z-index','${PW_CHROME_FLOAT_Z_INDEX}','important');
+      if(el.getAttribute('data-pw-user-move')==='1') pwChromeFloatRemap(el);
+      else pwChromeFloatBakePct(el);
+    }
   }
   function rootVisible(el){
     if(!el||!el.closest)return true;
@@ -200,6 +215,7 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
         bake(nodes[n]);
       }
     }
+    bakePinned();
   }
   function pageY(){
     var y = window.pageYOffset || window.scrollY || 0;
@@ -250,6 +266,8 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
       var nodes = document.querySelectorAll('[data-pw-chrome-btn="' + KINDS[i] + '"][data-pw-user-move="1"]');
       for (var n = 0; n < nodes.length; n++) pwChromeFloatRemap(nodes[n]);
     }
+    var pinned=document.querySelectorAll('['+PIN+'="1"]');
+    for(var p=0;p<pinned.length;p++) pwChromeFloatRemap(pinned[p]);
   });
   document.addEventListener('click', onClick, true);
   window.addEventListener('scroll', onScroll, { passive: true, capture: true });

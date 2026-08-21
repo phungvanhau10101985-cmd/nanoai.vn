@@ -29,6 +29,7 @@ test('chrome Chat mua without extra attrs still opens default shop chat', () => 
   assert.equal(partnerSiteChatOpenModeFromEl(attrEl({ 'data-nanoai-open-chat': '' })), 'default')
   assert.equal(partnerSiteChatOpenModeFromEl(attrEl({ 'data-nanoai-consult': '1' })), 'consult')
   assert.equal(partnerSiteChatOpenModeFromEl(attrEl({ 'data-nanoai-try-on': '1' })), 'try_on')
+  assert.equal(partnerSiteChatOpenModeFromEl(attrEl({ 'data-pw-chrome-btn': 'try-on' })), 'try_on')
 })
 
 test('stampPartnerSiteChatOpenAttrsInHtml wires leftover Tư vấn buttons', () => {

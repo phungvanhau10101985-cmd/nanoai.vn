@@ -23,10 +23,12 @@ import {
   pwSceneCenterCss,
   pwSceneCssVars,
   pwSceneDesignWidth,
+  pwSceneDeviceVisibilityCss,
   pwSceneIndexOfZ,
   pwSceneLayer,
   pwSceneLayerPos,
   pwSceneLocalOfZ,
+  pwSceneLockForAvailableHtml,
   pwSceneLockFromWindowWidth,
   pwSceneLiveZoomScale,
   pwSceneZ,
@@ -180,6 +182,32 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function zoomScale(){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('return 1;')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).not.toContain('ratio>1.04')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("querySelector('.pw-visual-'+k+',[data-pw-visual-device=\"'+k+'\"]')")
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function pick(preferred)')
+    expect(pwSceneDeviceVisibilityCss()).toContain(
+      'html[data-pw-scene-lock="laptop"]:has(.pw-visual-laptop) .pw-visual-desktop'
+    )
+    expect(pwSceneDeviceVisibilityCss()).toContain(
+      'html[data-pw-scene-lock="laptop"]:has(.pw-visual-laptop) .pw-visual-tablet'
+    )
+    expect(pwSceneDeviceVisibilityCss()).not.toContain(
+      'html[data-pw-scene-lock="laptop"]:has(.pw-visual-laptop) .pw-visual-desktop,.pw-visual-tablet'
+    )
+    expect(pwSceneLockForAvailableHtml('laptop', {
+      querySelector: (sel: string) => (sel.includes('pw-visual-desktop') ? {} : null),
+    })).toBe('desktop')
+    expect(pwSceneLockForAvailableHtml('laptop', {
+      querySelector: (sel: string) => (sel.includes('pw-visual-laptop') ? {} : null),
+    })).toBe('laptop')
+    expect(pwSceneLockForAvailableHtml('tablet', {
+      querySelector: (sel: string) =>
+        sel.includes('pw-visual-desktop') || sel.includes('pw-visual-mobile') ? {} : null,
+    })).toBe('desktop')
+    expect(pwSceneLockForAvailableHtml('mobile', {
+      querySelector: (sel: string) =>
+        sel.includes('pw-visual-desktop') || sel.includes('pw-visual-mobile') ? {} : null,
+    })).toBe('mobile')
+    expect(pwSceneLockForAvailableHtml('laptop', { querySelector: () => null })).toBe(null)
   })
 
   it('keeps the attribute name away from the background stack attributes', () => {

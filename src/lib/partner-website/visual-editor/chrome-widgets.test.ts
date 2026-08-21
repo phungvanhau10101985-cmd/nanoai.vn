@@ -11,6 +11,7 @@ import {
   chromeWidgetLiveHook,
   htmlHasChromeChatMua,
   isChromeFloatKind,
+  isProductActionChromeKind,
   isVisualEditorChromeWidgetKind,
   VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS,
   VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS,
@@ -66,6 +67,10 @@ test('chrome widget picker lists every shop destination in each place group', ()
   assert.ok(kinds.includes('chat-facebook'))
   assert.ok(kinds.includes('topup'))
   assert.ok(kinds.includes('wallet'))
+  assert.ok(kinds.includes('try-on'))
+  assert.ok(kinds.includes('favorite-product'))
+  assert.ok(kinds.includes('add-cart'))
+  assert.ok(kinds.includes('buy-now'))
   assert.ok(kinds.includes('blog'))
   assert.ok(!kinds.includes('favorites-link'))
   assert.ok(!kinds.includes('orders-link'))
@@ -105,7 +110,7 @@ test('every picker chrome widget has a live shop hook', () => {
       assert.notEqual(href, '#')
       assert.match(href, /\/site\/demo-shop(?:\/|$)/)
     } else {
-      assert.ok(['search', 'search-image', 'categories', 'chat', 'contact', 'topup'].includes(hook))
+      assert.ok(['search', 'search-image', 'categories', 'chat', 'contact', 'topup', 'try-on', 'favorite', 'add-cart', 'buy-now'].includes(hook))
     }
   }
 })
@@ -451,4 +456,62 @@ test('chrome widgets emit topbar text links without icon badge', () => {
   assert.doesNotMatch(html, /data-pw-chrome-badge/)
   assert.ok(html.includes(partnerSiteOrdersPath('188-shop')))
   assert.match(html, /Đơn hàng/)
+})
+
+test('try-on and favorite-product widgets wire live shop actions', () => {
+  assert.equal(isProductActionChromeKind('try-on'), true)
+  assert.equal(isProductActionChromeKind('favorite-product'), true)
+  assert.equal(isProductActionChromeKind('add-cart'), true)
+  assert.equal(isProductActionChromeKind('buy-now'), true)
+  assert.equal(isProductActionChromeKind('wishlist'), false)
+  assert.equal(chromeWidgetLiveHook('try-on'), 'try-on')
+  assert.equal(chromeWidgetLiveHook('favorite-product'), 'favorite')
+  assert.equal(chromeWidgetLiveHook('add-cart'), 'add-cart')
+  assert.equal(chromeWidgetLiveHook('buy-now'), 'buy-now')
+  const tryOn = buildVisualEditorChromeWidgetHtml({
+    kind: 'try-on',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon-label-below',
+  })
+  assert.match(tryOn, /<button type="button"/)
+  assert.match(tryOn, /data-pw-chrome-btn="try-on"/)
+  assert.match(tryOn, /data-nanoai-try-on/)
+  assert.match(tryOn, /Thử đồ AI/)
+  assert.doesNotMatch(tryOn, / href=/)
+  const fav = buildVisualEditorChromeWidgetHtml({
+    kind: 'favorite-product',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon-label-below',
+  })
+  assert.match(fav, /<button type="button"/)
+  assert.match(fav, /data-pw-chrome-btn="favorite-product"/)
+  assert.match(fav, /data-pw-favorite/)
+  assert.match(fav, /Thích sản phẩm/)
+  assert.doesNotMatch(fav, / href=/)
+  const addCart = buildVisualEditorChromeWidgetHtml({
+    kind: 'add-cart',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'text',
+  })
+  assert.match(addCart, /<button type="button"/)
+  assert.match(addCart, /data-pw-chrome-btn="add-cart"/)
+  assert.match(addCart, /data-pw-add-cart/)
+  assert.match(addCart, /Thêm giỏ/)
+  assert.match(addCart, /pw-shop-btn-cart/)
+  assert.doesNotMatch(addCart, / href=/)
+  const buyNow = buildVisualEditorChromeWidgetHtml({
+    kind: 'buy-now',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'text',
+  })
+  assert.match(buyNow, /<button type="button"/)
+  assert.match(buyNow, /data-pw-chrome-btn="buy-now"/)
+  assert.match(buyNow, /data-pw-buy/)
+  assert.match(buyNow, /Mua hàng/)
+  assert.match(buyNow, /pw-shop-btn-buy/)
+  assert.doesNotMatch(buyNow, / href=/)
 })

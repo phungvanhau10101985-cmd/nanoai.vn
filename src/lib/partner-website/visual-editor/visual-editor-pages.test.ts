@@ -33,6 +33,7 @@ import {
   resolveExactVisualCategoryHtml,
   resolveExactVisualPageHtml,
   resolveExactVisualProductHtml,
+  resolveVisualPdpShellHtml,
   resolvePublicVisualPageHtml,
   resolveVisualProductIdFromKey,
   shouldServeVisualPageHtml,
@@ -306,9 +307,10 @@ test('generic product detail html is not served for every PDP', () => {
   assert.equal(shouldServeVisualPageHtml('addresses'), true)
 })
 
-test('product visual html is isolated per inventory id', () => {
+test('a saved product page becomes the shared layout when no product-detail shell exists', () => {
   const html = '<!DOCTYPE html><html><body><h1>Tui deo</h1></body></html>'
   const id = '00073cac-1111-2222-3333-444444444444'
+  const other = '11111111-1111-1111-1111-111111111111'
   const website = {
     theme: {
       ...DEFAULT_PARTNER_WEBSITE_THEME,
@@ -321,7 +323,54 @@ test('product visual html is isolated per inventory id', () => {
     },
   }
   assert.equal(resolveExactVisualProductHtml(website, id), html)
-  assert.equal(resolveExactVisualProductHtml(website, '11111111-1111-1111-1111-111111111111'), '')
+  assert.equal(resolveExactVisualProductHtml(website, other), html)
+})
+
+test('resolveVisualPdpShellHtml reads product-detail.html without a product id', () => {
+  const shell = '<!DOCTYPE html><html><body data-pw-page="product"><h1>PDP SHELL</h1></body></html>'
+  const website = {
+    theme: {
+      ...DEFAULT_PARTNER_WEBSITE_THEME,
+      visualPageKeys: ['product_detail'],
+    },
+    htmlSource: null,
+    project: {
+      entryPath: 'site.config.json',
+      files: [{ path: 'product-detail.html', kind: 'html' as const, content: shell }],
+    },
+  }
+  assert.match(resolveVisualPdpShellHtml(website, 'desktop'), /PDP SHELL/)
+})
+
+test('shared PDP shell is served for every product on that device', () => {
+  const shell = '<!DOCTYPE html><html><body data-pw-page="product"><h1>PDP SHELL</h1></body></html>'
+  const idA = '00073cac-1111-2222-3333-444444444444'
+  const idB = '11111111-1111-1111-1111-111111111111'
+  const website = {
+    theme: {
+      ...DEFAULT_PARTNER_WEBSITE_THEME,
+      visualPageKeys: ['product_detail'],
+    },
+    htmlSource: null,
+    project: {
+      entryPath: 'site.config.json',
+      files: [{ path: 'product-detail.html', kind: 'html' as const, content: shell }],
+    },
+  }
+  assert.match(resolveExactVisualProductHtml(website, idA), /PDP SHELL/)
+  assert.match(resolveExactVisualProductHtml(website, idB), /PDP SHELL/)
+})
+
+test('saving a product flags the shared product_detail shell for that device', () => {
+  const id = '00073cac-1111-2222-3333-444444444444'
+  const next = applyVisualEditThemeFlag(DEFAULT_PARTNER_WEBSITE_THEME, {
+    pageKey: 'product_detail',
+    variant: 'mobile',
+    productId: id,
+  })
+  assert.deepEqual(next.visualMobileProductIds, [id])
+  assert.deepEqual(next.visualMobilePageKeys, ['product_detail'])
+  assert.deepEqual(next.visualPageKeys ?? [], [])
 })
 
 test('mobile visual html is isolated from desktop', () => {
@@ -417,6 +466,7 @@ test('compose four-device html shows laptop between 1280 and 1439', () => {
   assert.match(composed, /Lap/)
   assert.match(composed, /max-width:1439px/)
   assert.match(composed, /min-width:1440px/)
+  assert.match(composed, /html:not\(:has\(\.pw-visual-laptop\)\) \.pw-visual-desktop/)
   const laptop = isolateVisualHtmlForDevice(composed, 'laptop')
   assert.match(laptop, /Lap/)
   assert.doesNotMatch(laptop, /Desk/)
@@ -726,7 +776,8 @@ test('pw-device view serves the saved file for that device untouched', () => {
   // Widgets added only on Mobile must survive; no synthesized desktop twin may replace them.
   assert.match(view, /data-pw-chrome-btn="products"/)
   assert.doesNotMatch(view, /Desk home/)
-  assert.doesNotMatch(view, /data-pw-visual-device=/)
+  assert.doesNotMatch(view, /<div class="pw-visual-/)
+  assert.doesNotMatch(view, /<(?:div|section)[^>]*data-pw-visual-device=/)
   assert.doesNotMatch(view, /pw-visual-device-split/)
 })
 
@@ -760,7 +811,8 @@ test('public visual render gateway serves one device with chrome theme and runti
   )
   assert.match(view, /Mob home/)
   assert.doesNotMatch(view, /Desk home/)
-  assert.doesNotMatch(view, /data-pw-visual-device=/)
+  assert.doesNotMatch(view, /<div class="pw-visual-/)
+  assert.doesNotMatch(view, /<(?:div|section)[^>]*data-pw-visual-device=/)
   assert.match(view, /id="pw-shop-chrome-layout"/)
   assert.match(view, /data-pw-search-bootstrap/)
   assert.match(view, /data-pw-catalog-bootstrap/)

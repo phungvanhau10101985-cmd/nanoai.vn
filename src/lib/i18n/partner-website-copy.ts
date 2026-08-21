@@ -137,6 +137,7 @@ export type PartnerWebsiteCopy = {
   visualEditChromeDupAskTitle: string
   visualEditChromeDupAskAdd: string
   visualEditChromeDupAskKeep: string
+  visualEditFavoriteNeedHost: string
   visualEditBlockDelete: string
   visualEditBlockPaddingY: string
   visualEditBlockPaddingX: string
@@ -211,6 +212,8 @@ export type PartnerWebsiteCopy = {
   visualEditLayerOrderHint: string
   visualEditStickHeader: string
   visualEditStickHeaderHint: string
+  visualEditPinScreen: string
+  visualEditPinScreenHint: string
   visualEditCatToggleTitle: string
   visualEditCatToggleHint: string
   visualEditPageButtonTitle: string
@@ -966,6 +969,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeDupAskTitle: 'Đã có «{name}»',
     visualEditChromeDupAskAdd: 'Thêm cái nữa',
     visualEditChromeDupAskKeep: 'Kéo cái đang có',
+    visualEditFavoriteNeedHost:
+      'Thêm giỏ, Mua hàng và Thích sản phẩm chỉ thêm được trên trang chi tiết sản phẩm hoặc lưới sản phẩm.',
     visualEditBlockDelete: 'Xóa khối',
     visualEditBlockPaddingY: 'Khoảng cách dọc',
     visualEditBlockPaddingX: 'Khoảng cách ngang',
@@ -1042,6 +1047,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditStickHeader: 'Gắn vào header',
     visualEditStickHeaderHint:
       'Bật: khi cuộn chạm header thì dính phía dưới header. Tắt: phần tử trôi lên theo trang. Vẫn kéo được.',
+    visualEditPinScreen: 'Nổi trên màn hình',
+    visualEditPinScreenHint:
+      'Bật: đứng yên khi vuốt / cuộn trang. Tắt: trượt theo trang. Vẫn kéo được.',
     visualEditCatToggleTitle: 'Nút danh mục',
     visualEditCatToggleHint:
       'Bấm trên web khách sẽ sổ danh sách danh mục. Không gắn link trang — đó là việc của nút mở trang.',
@@ -1816,6 +1824,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeDupAskTitle: '«{name}» already exists',
     visualEditChromeDupAskAdd: 'Add another',
     visualEditChromeDupAskKeep: 'Move the existing one',
+    visualEditFavoriteNeedHost: 'Add to cart, Buy now, and Like product can only be added on a product page or a product grid.',
     visualEditBlockDelete: 'Delete block',
     visualEditBlockPaddingY: 'Vertical spacing',
     visualEditBlockPaddingX: 'Horizontal spacing',
@@ -1892,6 +1901,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditStickHeader: 'Pin to header',
     visualEditStickHeaderHint:
       'On: sticks under the header when it reaches it while scrolling. Off: scrolls away with the page. You can still drag it.',
+    visualEditPinScreen: 'Pin to screen',
+    visualEditPinScreenHint:
+      'On: stays in place when you swipe or scroll. Off: moves with the page. You can still drag it.',
     visualEditCatToggleTitle: 'Category menu',
     visualEditCatToggleHint:
       'On the live site this opens the category list. It does not use a page link — that is for buttons that open a page.',
@@ -2663,6 +2675,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeDupAskTitle: '已有「{name}」',
     visualEditChromeDupAskAdd: '再添加一个',
     visualEditChromeDupAskKeep: '拖出现有的',
+    visualEditFavoriteNeedHost: '加入购物车、立即购买和收藏商品只能加在商品详情页或商品网格上。',
     visualEditBlockDelete: '删除区块',
     visualEditBlockPaddingY: '垂直间距',
     visualEditBlockPaddingX: '水平间距',
@@ -2737,6 +2750,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLayerOrderHint: '与同层其他元素的前后关系（例如 3/3 = 共 3 个中的第 3 个）。',
     visualEditStickHeader: '固定到页头',
     visualEditStickHeaderHint: '开启：滚动碰到页头时吸附在页头下方。关闭：随页面一起滚走。仍可拖动。',
+    visualEditPinScreen: '固定在屏幕上',
+    visualEditPinScreenHint: '开启：滑动或滚动时保持原位。关闭：随页面一起移动。仍可拖动。',
     visualEditCatToggleTitle: '分类菜单',
     visualEditCatToggleHint: '在顾客网站上点击会展开分类列表。不使用页面链接——那是打开页面的按钮才有。',
     visualEditPageButtonTitle: '打开页面的按钮',
@@ -3488,6 +3503,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeDupAskTitle: '「{name}」は既にあります',
     visualEditChromeDupAskAdd: 'もう1つ追加',
     visualEditChromeDupAskKeep: '既存のものを出す',
+    visualEditFavoriteNeedHost: 'カートへ・購入する・お気に入りは商品詳細または商品グリッドにのみ追加できます。',
     visualEditBlockDelete: 'ブロックを削除',
     visualEditBlockPaddingY: '上下の余白',
     visualEditBlockPaddingX: '左右の余白',
@@ -3564,6 +3580,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditStickHeader: 'ヘッダーに固定',
     visualEditStickHeaderHint:
       'オン：スクロールしてヘッダーに触れると下に固定。オフ：ページと一緒に流れる。ドラッグはできます。',
+    visualEditPinScreen: '画面に固定',
+    visualEditPinScreenHint:
+      'オン：スワイプやスクロールしてもその場に残る。オフ：ページと一緒に動く。ドラッグはできます。',
     visualEditCatToggleTitle: 'カテゴリメニュー',
     visualEditCatToggleHint:
       '公開サイトではカテゴリ一覧が開きます。ページリンクは使いません。リンクはページを開くボタン用です。',
@@ -4325,6 +4344,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeDupAskTitle: '이미 «{name}»이(가) 있습니다',
     visualEditChromeDupAskAdd: '하나 더 추가',
     visualEditChromeDupAskKeep: '있는 것을 끌어오기',
+    visualEditFavoriteNeedHost: '장바구니·구매하기·상품 찜은 상품 상세 또는 상품 그리드에만 추가할 수 있습니다.',
     visualEditBlockDelete: '블록 삭제',
     visualEditBlockPaddingY: '세로 여백',
     visualEditBlockPaddingX: '가로 여백',
@@ -4401,6 +4421,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditStickHeader: '헤더에 고정',
     visualEditStickHeaderHint:
       '켜기: 스크롤하다 헤더에 닿으면 헤더 아래에 붙습니다. 끄기: 페이지와 함께 올라갑니다. 드래그는 가능합니다.',
+    visualEditPinScreen: '화면에 고정',
+    visualEditPinScreenHint:
+      '켜기: 밀거나 스크롤해도 그 자리에 남습니다. 끄기: 페이지와 함께 움직입니다. 드래그는 가능합니다.',
     visualEditCatToggleTitle: '카테고리 메뉴',
     visualEditCatToggleHint:
       '고객 사이트에서 누르면 카테고리 목록이 열립니다. 페이지 링크는 없습니다. 링크는 페이지를 여는 버튼에만 씁니다.',

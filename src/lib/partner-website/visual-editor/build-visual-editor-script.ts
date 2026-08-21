@@ -1889,6 +1889,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     // Float chrome is viewport-fixed. Recalculating left/top from the box
     // (or baking %) on every slider tick makes the icon jump around the page.
     if (isChromeFloatEl(el)) return
+    if (el.getAttribute && el.getAttribute('data-pw-pin-screen') === '1') return
     var after = null
     try { after = el.getBoundingClientRect() } catch (errAfter) { return }
     if (!after) return
@@ -2192,7 +2193,34 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var cls = clsOf(el)
     if (cls.indexOf('pw-header-main') >= 0 || cls.indexOf('pw-shop-header-inner') >= 0) return true
     if (cls.indexOf('pw-bottom-nav') >= 0 || cls.indexOf('pw-shop-bottom-nav') >= 0) return true
+    if (cls.indexOf('pw-topbar') >= 0 || cls.indexOf('pw-shop-topbar') >= 0) return true
+    if (cls.indexOf('pw-pdp-sticky') >= 0) return true
     return false
+  }
+  function isChromeBgHost(el) {
+    if (!el || el.nodeType !== 1) return false
+    if (isAddedBg(el)) return true
+    var bgRole = el.getAttribute ? el.getAttribute('data-pw-bg-role') : ''
+    if (bgRole && bgRole !== 'added') return true
+    var tag = el.tagName.toLowerCase()
+    if (tag === 'header' || tag === 'footer' || tag === 'body') return true
+    var own = el.getAttribute ? el.getAttribute('data-pw-region') : ''
+    if (own === 'header' || own === 'topbar' || own === 'footer' || own === 'nav') return true
+    var cls = clsOf(el)
+    if (cls.indexOf('pw-header') >= 0 && cls.indexOf('pw-header-') < 0) return true
+    if (cls.indexOf('pw-shop-header') >= 0 && cls.indexOf('pw-shop-header-') < 0) return true
+    if (cls.indexOf('pw-topbar') >= 0 || cls.indexOf('pw-shop-topbar') >= 0) return true
+    if (cls.indexOf('pw-pdp-sticky') >= 0) return true
+    if (cls.indexOf('pw-bottom-nav') >= 0 || cls.indexOf('pw-shop-bottom-nav') >= 0) return true
+    return false
+  }
+  function chromeBgHostOf(el) {
+    var walk = el
+    while (walk && walk !== document.documentElement) {
+      if (isChromeBgHost(walk) && !(walk.classList && (walk.classList.contains('pw-header-main') || walk.classList.contains('pw-shop-header-inner')))) return walk
+      walk = walk.parentElement
+    }
+    return null
   }
   function isHeaderWidget(el) {
     if (!el || el.nodeType !== 1) return false
@@ -2601,15 +2629,91 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
   }
   function bakeChromeFloatPos(el) {
-    if (!el || !el.style || !isChromeFloatEl(el)) return
-    stampChromeFloat(el)
-    markUserMoved(el)
-    pwChromeFloatBakePct(el)
+    if (!el || !el.style) return
+    if (isChromeFloatEl(el)) {
+      stampChromeFloat(el)
+      markUserMoved(el)
+      pwChromeFloatBakePct(el)
+      return
+    }
+    if (el.getAttribute && el.getAttribute('data-pw-pin-screen') === '1') {
+      markUserMoved(el)
+      try {
+        if (!isFullBleedChrome(el) && !isShopRegionHost(el) && el.parentNode && el.parentNode !== document.body) {
+          document.body.appendChild(el)
+        }
+      } catch (errPinBake) {}
+      pwChromeFloatBakePct(el)
+    }
+  }
+  function isPinScreenOn(el) {
+    if (!el || !el.getAttribute) return false
+    if (el.getAttribute('data-pw-pin-screen') === '1') return true
+    return isChromeFloatEl(el)
+  }
+  function canPinScreenEl(el) {
+    if (!el || el === document.body || el === document.documentElement) return false
+    if (chatEmbedLauncherOf(el)) return false
+    if (isOverlayNode(el)) return false
+    if (isLockedCatalogEl(el) && !productActionChromeOf(el)) return false
+    if (isProductCardEl(el) && !productActionChromeOf(el)) return false
+    return canDragEl(el) || isAddedBg(el) || isAddedText(el) || isAddedBtn(el) || isAddedChrome(el) || isChromeBtn(el) || isHeaderWidget(el) || isSearchEl(el) || isLogoTarget(el)
+  }
+  function setPinScreen(on) {
+    if (!selected || !canPinScreenEl(selected)) return
+    var el = chromeBtnElOf(selected) || selected
+    if (on) {
+      if (el.getAttribute && el.getAttribute('data-pw-stick-header') === '1') {
+        stickHeaderPause(1)
+        stickHeaderUnpinEl(el)
+        el.removeAttribute('data-pw-stick-header')
+        if (el.classList) el.classList.remove('pw-stick-header-on')
+        stickHeaderPause(0)
+      }
+      var keepHost = isFullBleedChrome(el) || isShopRegionHost(el)
+      try {
+        if (!keepHost && el.parentNode && el.parentNode !== document.body) document.body.appendChild(el)
+      } catch (errPinOn) {}
+      if (isChromeFloatKind(chromeKindOf(el))) {
+        stampChromeFloat(el)
+      } else {
+        el.setAttribute('data-pw-pin-screen', '1')
+      }
+      markUserMoved(el)
+      pwChromeFloatBakePct(el)
+    } else {
+      var r
+      try { r = el.getBoundingClientRect() } catch (errPinOff) { r = null }
+      if (isChromeFloatKind(chromeKindOf(el))) {
+        try { el.removeAttribute('data-pw-chrome-float') } catch (errFloatOff) {}
+      }
+      try { el.removeAttribute('data-pw-pin-screen') } catch (errPinRm) {}
+      var host = addedBgContentHost() || document.querySelector('main, .pw-shop-main, .pw-main') || document.body
+      if (isFullBleedChrome(el) || isShopRegionHost(el)) host = el.parentElement || host
+      else if (host && el.parentNode !== host) {
+        try { host.appendChild(el) } catch (errHostPin) {}
+      }
+      if (r && el.style) {
+        var hr = { left: 0, top: 0 }
+        try { if (host && host.getBoundingClientRect) hr = host.getBoundingClientRect() } catch (errHr) {}
+        el.style.setProperty('position', 'absolute', 'important')
+        el.style.setProperty('left', Math.round(r.left - hr.left) + 'px', 'important')
+        el.style.setProperty('top', Math.round(r.top - hr.top) + 'px', 'important')
+        el.style.setProperty('right', 'auto', 'important')
+        el.style.setProperty('bottom', 'auto', 'important')
+        el.style.setProperty('transform', 'none', 'important')
+      }
+      markUserMoved(el)
+    }
+    positionAllHandles()
+    post('dirty', {})
+    refreshSelect()
   }
   function pinChromeFlowEl(el) {
     if (!el || !el.style) return
     if (el.classList && el.classList.contains('pw-stick-header-on')) return
     if (isChromeFloatEl(el)) return
+    if (el.getAttribute && el.getAttribute('data-pw-pin-screen') === '1') return
     if (isUserMoved(el) || (el.getAttribute && el.getAttribute('data-nanoai-ve-selected'))) return
     if (el.closest && el.closest('.pw-cat-panel, .pw-account-panel, .pw-shop-cat-panel, .pw-shop-account-panel')) return
     el.style.setProperty('transform', 'none', 'important')
@@ -3206,6 +3310,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function isLockedCatalogEl(el) {
     if (!el || el.nodeType !== 1) return false
+    if (productActionChromeOf(el)) return false
     var region = pwRegionOf(el)
     if (!region || region === 'banner' || region === 'header' || region === 'nav' || region === 'footer' || region === 'categories') return false
     if (region === 'catalog') {
@@ -3416,7 +3521,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var canvas = root.querySelector('[data-pw-bg-role="canvas"]') || root
     canvas.setAttribute('data-pw-bg-role', 'canvas')
     items.push({ el: canvas, role: 'canvas' })
-    var regionRoles = ['header', 'banner', 'categories', 'catalog', 'promo', 'footer', 'content', 'form', 'gallery', 'pdp-info', 'reviews', 'cart-list', 'cart-summary', 'account-nav', 'account-main']
+    var regionRoles = ['header', 'topbar', 'banner', 'categories', 'catalog', 'promo', 'footer', 'content', 'form', 'gallery', 'pdp-info', 'reviews', 'cart-list', 'cart-summary', 'account-nav', 'account-main']
     for (var i = 0; i < regionRoles.length; i++) {
       var role = regionRoles[i]
       var el = root.querySelector('[data-pw-region="' + role + '"]')
@@ -4766,9 +4871,207 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     post('dirty',{})
     refreshSelect()
   }
+  function isProductActionChromeKind(kind) {
+    return kind === 'try-on' || kind === 'favorite-product' || kind === 'add-cart' || kind === 'buy-now'
+  }
+  function isProductHostChromeKind(kind) {
+    return kind === 'favorite-product' || kind === 'add-cart' || kind === 'buy-now'
+  }
+  function productActionChromeOf(el) {
+    if (!el || !el.closest) return null
+    return el.closest('[data-pw-chrome-btn="favorite-product"],[data-pw-chrome-btn="try-on"],[data-pw-chrome-btn="add-cart"],[data-pw-chrome-btn="buy-now"]')
+  }
+  function isProductPage() {
+    var root = document.querySelector('[data-pw-page],body')
+    if (root && root.getAttribute && root.getAttribute('data-pw-page') === 'product') return true
+    return !!(document.querySelector('.pw-pdp, [data-pw-region="pdp-info"], [data-pw-region="gallery"]'))
+  }
+  function listProductCards() {
+    var seen = []
+    var nodes = scopedQueryAll(
+      '[data-pw-region="catalog"] [data-pw-el="card"], [data-pw-catalog] [data-pw-el="card"], [data-pw-region="catalog"] .pw-product-card, [data-pw-catalog] .pw-product-card, [data-pw-region="catalog"] .pw-shop-card, [data-pw-catalog] .pw-shop-card'
+    )
+    for (var i = 0; i < nodes.length; i++) {
+      if (seen.indexOf(nodes[i]) >= 0) continue
+      seen.push(nodes[i])
+    }
+    return seen
+  }
+  function listCatalogHosts() {
+    var seen = []
+    var nodes = scopedQueryAll('[data-pw-catalog], [data-pw-region="catalog"]')
+    for (var i = 0; i < nodes.length; i++) {
+      if (seen.indexOf(nodes[i]) >= 0) continue
+      seen.push(nodes[i])
+    }
+    return seen
+  }
+  function cloneWidgetNode(html) {
+    var wrap = document.createElement('div')
+    wrap.innerHTML = String(html || '')
+    return wrap.firstElementChild
+  }
+  function productHostCardAttr(kind) {
+    if (kind === 'favorite-product') return 'data-pw-card-favorite'
+    if (kind === 'add-cart') return 'data-pw-card-add-cart'
+    if (kind === 'buy-now') return 'data-pw-card-buy-now'
+    return ''
+  }
+  function productHostPdpAttr(kind) {
+    if (kind === 'favorite-product') return 'data-pw-pdp-favorite'
+    if (kind === 'add-cart') return 'data-pw-pdp-add-cart'
+    if (kind === 'buy-now') return 'data-pw-pdp-buy-now'
+    return ''
+  }
+  function productHostTplAttr(kind) {
+    if (kind === 'favorite-product') return 'data-pw-card-favorite-tpl'
+    if (kind === 'add-cart') return 'data-pw-card-add-cart-tpl'
+    if (kind === 'buy-now') return 'data-pw-card-buy-now-tpl'
+    return ''
+  }
+  function seatFavoriteOnCard(card, node) {
+    if (!card || !node) return
+    var media = card.querySelector
+      ? card.querySelector('[data-pw-el="card-media"], .pw-product-card-media, .pw-shop-card-media')
+      : null
+    var hostEl = media || card
+    try {
+      if (hostEl && hostEl.style && window.getComputedStyle(hostEl).position === 'static') hostEl.style.position = 'relative'
+    } catch (errPos) {}
+    hostEl.appendChild(node)
+    var id = (card.getAttribute('data-inventory-id') || card.getAttribute('data-pw-inventory-id') || '').trim()
+    if (id && node.setAttribute) node.setAttribute('data-inventory-id', id)
+    if (node.setAttribute) node.setAttribute('data-pw-card-favorite', '1')
+    sizeChromeIcons(node)
+  }
+  function seatProductActionOnCard(card, node, kind) {
+    if (!card || !node) return
+    if (kind === 'favorite-product') {
+      seatFavoriteOnCard(card, node)
+      return
+    }
+    var cardAttr = productHostCardAttr(kind)
+    var actions = card.querySelector
+      ? card.querySelector('.pw-shop-action-bar, [data-pw-el="card-cart"], [data-pw-el="card-buy"]')
+      : null
+    var hostEl = actions && actions.parentNode ? actions.parentNode : card
+    hostEl.appendChild(node)
+    var id = (card.getAttribute('data-inventory-id') || card.getAttribute('data-pw-inventory-id') || '').trim()
+    if (id && node.setAttribute) node.setAttribute('data-inventory-id', id)
+    if (cardAttr && node.setAttribute) node.setAttribute(cardAttr, '1')
+    sizeChromeIcons(node)
+  }
+  function stampCatalogProductHost(catalog, widgetHtml, kind) {
+    if (!catalog || !catalog.setAttribute) return
+    var cardAttr = productHostCardAttr(kind)
+    var tplAttr = productHostTplAttr(kind)
+    if (cardAttr) catalog.setAttribute(cardAttr, '1')
+    var tpl = catalog.querySelector && tplAttr ? catalog.querySelector('template[' + tplAttr + ']') : null
+    if (!tpl) {
+      tpl = document.createElement('template')
+      if (tplAttr) tpl.setAttribute(tplAttr, '1')
+      catalog.appendChild(tpl)
+    }
+    tpl.innerHTML = String(widgetHtml || '')
+  }
+  function unstampCatalogProductHost(kind) {
+    var cardAttr = productHostCardAttr(kind)
+    var tplAttr = productHostTplAttr(kind)
+    var catalogs = listCatalogHosts()
+    for (var i = 0; i < catalogs.length; i++) {
+      if (cardAttr) catalogs[i].removeAttribute(cardAttr)
+      var tpl = catalogs[i].querySelector && tplAttr ? catalogs[i].querySelector('template[' + tplAttr + ']') : null
+      if (tpl && tpl.parentNode) tpl.parentNode.removeChild(tpl)
+    }
+  }
+  function insertProductHostWidget(kind, html) {
+    var cards = listProductCards()
+    var pdp = isProductPage()
+    if (!cards.length && !pdp) {
+      post('favoriteNeedHost', {})
+      return
+    }
+    var cardAttr = productHostCardAttr(kind)
+    var pdpAttr = productHostPdpAttr(kind)
+    var first = null
+    if (cards.length) {
+      var catalogs = listCatalogHosts()
+      for (var c = 0; c < catalogs.length; c++) stampCatalogProductHost(catalogs[c], html, kind)
+      var existingCardSel = '[data-pw-chrome-btn="' + kind + '"]' + (cardAttr ? '[' + cardAttr + '="1"]' : '')
+      var existingCardBtns = document.querySelectorAll(existingCardSel)
+      for (var r = 0; r < existingCardBtns.length; r++) {
+        if (existingCardBtns[r].parentNode) existingCardBtns[r].parentNode.removeChild(existingCardBtns[r])
+      }
+      for (var i = 0; i < cards.length; i++) {
+        var node = cloneWidgetNode(html)
+        if (!node) continue
+        if (node.setAttribute) node.setAttribute('data-pw-device', pwStampDevice())
+        seatProductActionOnCard(cards[i], node, kind)
+        if (!first) first = node
+      }
+    }
+    if (pdp) {
+      var existingPdp = pdpAttr ? document.querySelector('[data-pw-chrome-btn="' + kind + '"][' + pdpAttr + '="1"]') : null
+      var pdpNode = cloneWidgetNode(html)
+      if (pdpNode) {
+        if (pdpNode.setAttribute) {
+          pdpNode.setAttribute('data-pw-device', pwStampDevice())
+          if (pdpAttr) pdpNode.setAttribute(pdpAttr, '1')
+        }
+        var info = scopedQuery('[data-pw-region="pdp-info"], .pw-pdp-actions, .pw-pdp-sticky-nav, .pw-pdp-sticky')
+        if (info) info.appendChild(pdpNode)
+        else document.body.appendChild(pdpNode)
+        sizeChromeIcons(pdpNode)
+        if (existingPdp && existingPdp.parentNode) existingPdp.parentNode.removeChild(existingPdp)
+        parkChromeAtViewportCenter(pdpNode, kind)
+        return
+      }
+    }
+    if (first) {
+      selectEl(first)
+      post('dirty', {})
+    }
+  }
+  function insertFavoriteProductWidget(html) {
+    insertProductHostWidget('favorite-product', html)
+  }
+  function removeSyncedFavoriteProduct(el) {
+    return removeSyncedProductHost(el)
+  }
+  function removeSyncedProductHost(el) {
+    if (!el) return false
+    var kind = chromeKindOf(el)
+    if (!isProductHostChromeKind(kind)) return false
+    var cardAttr = productHostCardAttr(kind)
+    var pdpAttr = productHostPdpAttr(kind)
+    var onCard = !!(el.closest && el.closest('[data-pw-el="card"], .pw-product-card, .pw-shop-card'))
+    var pdp = el.getAttribute && pdpAttr && el.getAttribute(pdpAttr) === '1'
+    if (onCard) {
+      var cardSel = '[data-pw-chrome-btn="' + kind + '"]' + (cardAttr ? '[' + cardAttr + '="1"]' : '')
+      var cardBtns = document.querySelectorAll(cardSel)
+      for (var i = 0; i < cardBtns.length; i++) {
+        if (cardBtns[i].parentNode) cardBtns[i].parentNode.removeChild(cardBtns[i])
+      }
+      unstampCatalogProductHost(kind)
+      return true
+    }
+    if (pdp) {
+      var pdpSel = '[data-pw-chrome-btn="' + kind + '"]' + (pdpAttr ? '[' + pdpAttr + '="1"]' : '')
+      var pdpBtns = document.querySelectorAll(pdpSel)
+      for (var j = 0; j < pdpBtns.length; j++) {
+        if (pdpBtns[j].parentNode) pdpBtns[j].parentNode.removeChild(pdpBtns[j])
+      }
+      return true
+    }
+    return false
+  }
   function insertChromeBtn(kind, html, host, opts) {
     var k = String(kind || '').replace(/[^a-z0-9-]/g, '')
     if (!k || !html) return
+    if (isProductHostChromeKind(k)) {
+      insertProductHostWidget(k, html)
+      return
+    }
     var force = !!(opts && (opts.force || opts.atCenter))
     var atCenter = !!(opts && opts.atCenter)
     var existingNow = findExistingChrome(k)
@@ -6367,17 +6670,14 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function canDragEl(el) {
     if (!el || el === document.body || el === document.documentElement) return false
     if (chatEmbedLauncherOf(el)) return false
-    if (isOverlayNode(el) || isLockedCatalogEl(el) || isProductCardEl(el)) return false
-    if (isShopRegionHost(el)) return false
-    var dragCls = clsOf(el)
-    if (dragCls.indexOf('pw-topbar') >= 0 || dragCls.indexOf('pw-shop-topbar') >= 0) return false
-    if (el.matches && el.matches('header, .pw-header, .pw-shop-header, [data-pw-region="topbar"]')) return false
+    if (isOverlayNode(el) || (isLockedCatalogEl(el) && !productActionChromeOf(el)) || (isProductCardEl(el) && !productActionChromeOf(el))) return false
+    if (isChromeBgHost(el) || isShopRegionHost(el)) return true
     return isAddedBg(el) || isAddedText(el) || isImgEl(el) || isLogoFrame(el) || isLogoTarget(el) || isBtnEl(el) || isTextEl(el) || isChromeBtn(el) || isHeaderWidget(el) || isSearchEl(el) || isContentBlockEl(el) || isBgImageEl(el) || isMoveBlockEl(el) || isBgLayerEl(el) || isBannerHostEl(el)
   }
   function canDeleteEl(el) {
     if (!el || el === document.body || el === document.documentElement) return false
     if (chatEmbedLauncherOf(el)) return true
-    if (isLockedCatalogEl(el) || isProductCardEl(el) || isShopRegionHost(el)) return false
+    if ((isLockedCatalogEl(el) && !productActionChromeOf(el)) || (isProductCardEl(el) && !productActionChromeOf(el)) || isShopRegionHost(el)) return false
     var delCls = clsOf(el)
     if (delCls.indexOf('pw-topbar') >= 0 || delCls.indexOf('pw-shop-topbar') >= 0) return false
     if (isHeaderChromeEl(el) || searchElOf(el) || catToggleElOf(el) || isAddedChrome(el)) return true
@@ -6398,6 +6698,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function dragModeFor(el) {
     if (isAddedBg(el)) return 'translate'
+    if (isChromeBgHost(el) && !isHeaderChromeEl(el) && !isChromeBtn(el)) return 'translate'
     if (el && el.getAttribute && el.getAttribute('data-pw-added-btn') === '1') return 'translate'
     if (isLogoFrame(el) || isLogoImg(el)) return 'translate'
     if (isSearchEl(el)) return 'translate'
@@ -6611,7 +6912,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var dual = blockSelf && imageBlock && imgTarget === el
     var asImage = bgLayer || (dual && layerMode !== 'block')
     var addedBg = isAddedBg(el)
-    var asBlock = (blockSelf && !asImage && !addedBg) || move
+    var chromeBg = isChromeBgHost(el) && !isHeaderChromeEl(el) && !isChromeBtn(el)
+    var asBlock = (blockSelf && !asImage && !addedBg) || move || chromeBg
     var canUngroup = move
     var canGroup = !move && !blockSelf && !bgLayer && !addedBg && !img && !isLogoTarget(el) && Boolean(parentBlock) && (function () {
       var grouped = findMoveBlockEl(el)
@@ -6727,6 +7029,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       transform: canDragEl(el) ? parseTransform(el) : null,
       canStickHeader: canStickHeaderEl(el),
       stickHeader: isStickHeaderOn(el),
+      canPinScreen: canPinScreenEl(el),
+      pinScreen: isPinScreenOn(el),
       scene: readSceneIndex(isAddedOverlay(el) ? el : (layerPromoteHost(el) || el)),
       scenePos: sceneLayerPos(readSceneIndex(isAddedOverlay(el) ? el : (layerPromoteHost(el) || el))),
       sceneCount: SCENE.maxIndex + 1,
@@ -7677,6 +7981,19 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function deleteSelectedUnit() {
     if (!selected || !canDeleteEl(selected)) return
+    if (removeSyncedFavoriteProduct(selected)) {
+      selected = null
+      hideResizeHandle()
+      hideDeleteHandle()
+      hideMoveHandle()
+      hideDropLine()
+      hideAlignGuides()
+      post('deselect', {})
+      post('dirty', {})
+      postHidden()
+      syncLayerSwitches()
+      return
+    }
     if (chatEmbedLauncherOf(selected)) {
       hideChatEmbedLaunchers()
       return
@@ -7916,6 +8233,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (isBrandClusterEl(n) || isShopRegionHost(n) || isBannerHostEl(n) || isHeroInnerOrCopy(n)) {
         var clusterHit = clusterChildAtPoint(n, x, y)
         if (clusterHit) return clusterHit
+        if (isChromeBgHost(n) || isShopRegionHost(n)) return n
         continue
       }
       if (isAddedBg(n) || (n.closest && n.closest('[data-pw-added-bg="1"]'))) {
@@ -7956,6 +8274,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (isBrandClusterEl(el) || isShopRegionHost(el)) {
       var fromHost = clusterChildAtPoint(el, x, y)
       if (fromHost) el = fromHost
+      else if (isChromeBgHost(el) || isShopRegionHost(el)) return chromeBgHostOf(el) || el
     }
     if (isAddedBg(el) || (el && el.closest && el.closest('[data-pw-added-bg="1"]'))) {
       return el.closest ? (el.closest('[data-pw-added-bg="1"]') || el) : el
@@ -8123,7 +8442,18 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var pointerTarget = resolvePointerTarget(e.target, e.clientX, e.clientY)
     var found = findSelectable(pointerTarget, e.clientX, e.clientY)
     if (found && isShopRegionHost(found)) {
-      return
+      var hostChild = clusterChildAtPoint(found, e.clientX, e.clientY)
+      if (hostChild) {
+        found = hostChild
+      } else {
+        e.preventDefault()
+        e.stopPropagation()
+        if (e.stopImmediatePropagation) e.stopImmediatePropagation()
+        var bgHost = chromeBgHostOf(found) || found
+        if (selected !== bgHost) selectEl(bgHost, e)
+        beginHandleDrag(e)
+        return
+      }
     }
     if (found && chatEmbedLauncherOf(found)) {
       e.preventDefault()
@@ -8228,6 +8558,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     e.preventDefault()
     e.stopPropagation()
     if (e.stopImmediatePropagation) e.stopImmediatePropagation()
+    if (found && productActionChromeOf(found)) {
+      selectEl(productActionChromeOf(found), e)
+      return
+    }
     if (isLockedCatalogEl(t) || isProductCardEl(t)) {
       clearSelection()
       post('deselect', {})
@@ -8478,7 +8812,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     } else if (wasDrag && selected) {
       selected.style.opacity = ''
       selected.style.pointerEvents = ''
-      if (isChromeFloatEl(selected)) bakeChromeFloatPos(chromeBtnElOf(selected) || selected)
+      if (isChromeFloatEl(selected) || isPinScreenOn(selected)) bakeChromeFloatPos(chromeBtnElOf(selected) || selected)
       else if (mode === 'translate' && isHeaderChromeEl(selected)) markUserMoved(searchMoveEl(selected))
     }
     hideDropLine()
@@ -8527,7 +8861,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-highlight[data-pw-bg-layer="1"],.nanoai-ve-hover[data-pw-bg-layer="1"]{outline:2px dashed #f59e0b!important}',
       'html,body{overflow-x:hidden!important;max-width:100%}',
       '.pw-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-shop-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-header-actions [data-pw-chrome-btn]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-cat-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]),.pw-account-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]){transform:none!important;left:auto!important;top:auto!important}',
-      '[data-pw-chrome-float="1"]{position:fixed!important;z-index:${PW_CHROME_FLOAT_Z_INDEX}!important;isolation:isolate!important;pointer-events:auto!important}',
+      '[data-pw-chrome-float="1"],[data-pw-pin-screen="1"]{position:fixed!important;z-index:${PW_CHROME_FLOAT_Z_INDEX}!important;isolation:isolate!important;pointer-events:auto!important}',
       ${JSON.stringify(PARTNER_SHOP_CHROME_FLOAT_CSS)},
       '.nanoai-ve-highlight[data-pw-region="banner"],.nanoai-ve-hover[data-pw-region="banner"]{outline:2px dashed #2563eb!important}',
       '.nanoai-ve-highlight[data-pw-move-block="1"],.nanoai-ve-hover[data-pw-move-block="1"]{outline:2px dashed #2563eb!important}',
@@ -8579,7 +8913,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-chrome-delete,.nanoai-ve-delete-handle{box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:center!important;flex:0 0 16px!important;width:16px!important;height:16px!important;min-width:16px!important;max-width:16px!important;min-height:16px!important;max-height:16px!important;padding:0!important;border:1.5px solid #fff!important;border-radius:999px!important;background:#ef4444!important;color:#fff!important;font:700 11px/12px system-ui,sans-serif!important;cursor:pointer!important;transform:rotate(45deg)!important;box-shadow:0 1px 3px rgba(0,0,0,.28)!important;appearance:none!important;-webkit-appearance:none!important}',
       '.nanoai-ve-drop-line{background:#2563eb;border-radius:2px;box-shadow:0 0 0 1px #fff}',
       '.nanoai-ve-guides{left:0;top:0}',
-      '.nanoai-ve-active .pw-bottom-nav,.nanoai-ve-active .pw-shop-bottom-nav,[data-pw-edit-device="mobile"] .pw-bottom-nav,[data-pw-edit-device="mobile"] .pw-shop-bottom-nav,[data-pw-edit-device="tablet"] .pw-bottom-nav,[data-pw-edit-device="tablet"] .pw-shop-bottom-nav,.nanoai-ve-mobile .pw-bottom-nav,.nanoai-ve-mobile .pw-shop-bottom-nav,.nanoai-ve-tablet .pw-bottom-nav,.nanoai-ve-tablet .pw-shop-bottom-nav{position:fixed!important;left:0;right:0;bottom:0;z-index:180!important;overflow:visible!important;isolation:isolate;background:#fff}',
+      '.nanoai-ve-active .pw-bottom-nav,.nanoai-ve-active .pw-shop-bottom-nav,[data-pw-edit-device="tablet"] .pw-bottom-nav,[data-pw-edit-device="tablet"] .pw-shop-bottom-nav,.nanoai-ve-tablet .pw-bottom-nav,.nanoai-ve-tablet .pw-shop-bottom-nav{position:fixed!important;left:0;right:0;bottom:0;z-index:180!important;overflow:visible!important;isolation:isolate;background:#fff}',
       '.nanoai-ve-active #nanoai-chat-widget-v1,.nanoai-ve-active [data-widget-id="nanoai-chat-widget-v1"]{pointer-events:none!important}',
       '.nanoai-ve-active [data-pw-chat-launcher="1"],.nanoai-ve-active .pw-fab-chat,.nanoai-ve-active [data-nanoai-chat-bubble="1"]{pointer-events:auto!important;cursor:pointer!important;z-index:2147483001!important}',
       '.nanoai-ve-active #nanoai-chat-widget-v1 .nanoai-chat-panel,.nanoai-ve-active [data-widget-id="nanoai-chat-widget-v1"] .nanoai-chat-panel{display:none!important}',
@@ -8588,6 +8922,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.pw-topbar,.nanoai-ve-active .pw-shop-topbar,[data-pw-region="topbar"]{position:relative!important;z-index:${PW_SCENE_TOPBAR_Z}!important;isolation:isolate;display:block!important;width:100%!important;min-width:100%!important;max-width:none!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;transform:none!important;clip-path:none!important;overflow:visible!important;min-height:36px!important;height:auto!important;flex:0 0 auto!important;align-self:stretch!important;box-sizing:border-box}',
       '.nanoai-ve-active .pw-hero.nanoai-ve-photo-edit,.nanoai-ve-active .pw-banner.nanoai-ve-photo-edit,.nanoai-ve-active .pw-shop-hero.nanoai-ve-photo-edit,.nanoai-ve-active .pw-shop-banner.nanoai-ve-photo-edit,.nanoai-ve-active [data-pw-region="banner"].nanoai-ve-photo-edit{overflow:hidden!important}',
       '.nanoai-ve-active [data-pw-catalog-lock="1"],.nanoai-ve-active [data-pw-catalog-lock="1"] *{pointer-events:none!important;cursor:default!important}',
+      '.nanoai-ve-active [data-pw-chrome-btn="favorite-product"],.nanoai-ve-active [data-pw-chrome-btn="favorite-product"] *,.nanoai-ve-active [data-pw-chrome-btn="try-on"],.nanoai-ve-active [data-pw-chrome-btn="try-on"] *,.nanoai-ve-active [data-pw-chrome-btn="add-cart"],.nanoai-ve-active [data-pw-chrome-btn="add-cart"] *,.nanoai-ve-active [data-pw-chrome-btn="buy-now"],.nanoai-ve-active [data-pw-chrome-btn="buy-now"] *{pointer-events:auto!important;cursor:grab!important}',
+      '.pw-product-card-media,[data-pw-el="card-media"]{position:relative}',
+      '.pw-product-card-media [data-pw-chrome-btn="favorite-product"],[data-pw-el="card-media"] [data-pw-chrome-btn="favorite-product"]{position:absolute;top:8px;right:8px;z-index:4;background:rgba(255,255,255,.92)!important}',
+      '[data-pw-chrome-btn="favorite-product"].is-active svg,[data-pw-chrome-btn="favorite-product"][aria-pressed="true"] svg{fill:#e11d48;stroke:#e11d48}',
       '.nanoai-ve-active [data-pw-region="categories"],.nanoai-ve-active [data-pw-region="categories"] *,.nanoai-ve-active section.pw-categories,.nanoai-ve-active .pw-categories,.nanoai-ve-active .pw-cat-grid,.nanoai-ve-active .pw-cat-card{pointer-events:auto!important;position:relative;z-index:8}',
       '.nanoai-ve-active [data-pw-region="categories"][data-pw-catalog-lock="1"],.nanoai-ve-active [data-pw-region="categories"] [data-pw-catalog-lock="1"],.nanoai-ve-active [data-pw-region="categories"] [data-pw-catalog-lock="1"] *{pointer-events:auto!important;cursor:pointer!important}',
       '.nanoai-ve-active .pw-product-card,.nanoai-ve-active .pw-shop-card,.nanoai-ve-active .pw-product-grid,.nanoai-ve-active .pw-shop-grid,.nanoai-ve-active [data-pw-grid]{cursor:default!important}',
@@ -8604,7 +8942,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '[data-pw-edit-device="desktop"] .pw-visual-desktop,[data-pw-edit-device="laptop"] .pw-visual-laptop,[data-pw-edit-device="tablet"] .pw-visual-tablet,[data-pw-edit-device="mobile"] .pw-visual-mobile{display:block!important}',
       '[data-pw-edit-device="desktop"] .pw-visual-laptop,[data-pw-edit-device="desktop"] .pw-visual-tablet,[data-pw-edit-device="desktop"] .pw-visual-mobile,[data-pw-edit-device="laptop"] .pw-visual-desktop,[data-pw-edit-device="laptop"] .pw-visual-tablet,[data-pw-edit-device="laptop"] .pw-visual-mobile,[data-pw-edit-device="tablet"] .pw-visual-desktop,[data-pw-edit-device="tablet"] .pw-visual-laptop,[data-pw-edit-device="tablet"] .pw-visual-mobile,[data-pw-edit-device="mobile"] .pw-visual-desktop,[data-pw-edit-device="mobile"] .pw-visual-laptop,[data-pw-edit-device="mobile"] .pw-visual-tablet{display:none!important}',
       '[data-pw-edit-device="desktop"] [data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),[data-pw-edit-device="laptop"] [data-pw-chrome-added][data-pw-device="laptop"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),[data-pw-edit-device="tablet"] [data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),[data-pw-edit-device="mobile"] [data-pw-chrome-added][data-pw-device="mobile"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap){display:inline-flex!important}',
-      '[data-pw-edit-device="desktop"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="desktop"],[data-pw-edit-device="desktop"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="desktop"],[data-pw-edit-device="laptop"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="laptop"],[data-pw-edit-device="laptop"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="laptop"],[data-pw-edit-device="tablet"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="tablet"],[data-pw-edit-device="tablet"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="tablet"],[data-pw-edit-device="mobile"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="mobile"],[data-pw-edit-device="mobile"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="mobile"]{display:flex!important}',
+      '[data-pw-edit-device="desktop"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="desktop"],[data-pw-edit-device="desktop"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="desktop"],[data-pw-edit-device="laptop"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="laptop"],[data-pw-edit-device="laptop"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="laptop"],[data-pw-edit-device="tablet"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="tablet"],[data-pw-edit-device="tablet"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="tablet"]{display:flex!important}',
       '.nanoai-ve-active .pw-header a:focus,.nanoai-ve-active .pw-shop-header a:focus,.nanoai-ve-active header a:focus,.nanoai-ve-active .pw-header-actions a:focus,.nanoai-ve-active .pw-shop-header-actions a:focus{outline:none!important}',
       '.nanoai-ve-active .pw-header [data-pw-chrome-btn],.nanoai-ve-active .pw-shop-header [data-pw-chrome-btn],.nanoai-ve-active header [data-pw-chrome-btn],.nanoai-ve-active .pw-header-actions a,.nanoai-ve-active .pw-shop-header-actions a{cursor:grab!important}',
       '.nanoai-ve-guide-h{position:absolute;height:1px;background:repeating-linear-gradient(90deg,rgba(37,99,235,.42) 0 6px,transparent 6px 11px)}',
@@ -8614,7 +8952,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-active .pw-cat-panel,.nanoai-ve-active .pw-shop-cat-panel,.nanoai-ve-active .pw-account-panel,.nanoai-ve-active .pw-shop-account-panel,.nanoai-ve-active [data-pw-cat-panel],.nanoai-ve-active [data-pw-account-panel],.nanoai-ve-active #pw-search-results,.nanoai-ve-active #pw-image-search-popover,.nanoai-ve-active #pw-lp-buy-modal{display:none!important;pointer-events:none!important;visibility:hidden!important}',
       '.nanoai-ve-active .pw-nav-main a,.nanoai-ve-active .pw-shop-nav-row a,.nanoai-ve-active .pw-topbar a,.nanoai-ve-active .pw-shop-topbar a,.nanoai-ve-active [data-pw-el="nav-link"],.nanoai-ve-active [data-pw-el="link"],.nanoai-ve-active [data-pw-el="cat-toggle"],.nanoai-ve-active .pw-cat-btn,.nanoai-ve-active .pw-shop-cat-btn{pointer-events:auto!important;position:relative;z-index:6}',
       '.pw-bottom-nav,.pw-shop-bottom-nav{display:flex!important;flex-wrap:nowrap;justify-content:space-around;align-items:stretch;grid-template-columns:none!important}',
-      '[data-pw-edit-device="desktop"] .pw-bottom-nav,[data-pw-edit-device="desktop"] .pw-shop-bottom-nav,[data-pw-edit-device="laptop"] .pw-bottom-nav,[data-pw-edit-device="laptop"] .pw-shop-bottom-nav{display:none!important}',
+      '[data-pw-edit-device="desktop"] .pw-bottom-nav,[data-pw-edit-device="desktop"] .pw-shop-bottom-nav,[data-pw-edit-device="laptop"] .pw-bottom-nav,[data-pw-edit-device="laptop"] .pw-shop-bottom-nav,[data-pw-edit-device="mobile"] .pw-bottom-nav,[data-pw-edit-device="mobile"] .pw-shop-bottom-nav,.nanoai-ve-mobile .pw-bottom-nav,.nanoai-ve-mobile .pw-shop-bottom-nav{display:none!important}',
       '.pw-bottom-nav a:not([data-pw-chrome-added]),.pw-shop-bottom-nav a:not([data-pw-chrome-added]),.pw-bottom-nav .pw-icon-btn:not([data-pw-chrome-added]),.pw-shop-bottom-nav .pw-icon-btn:not([data-pw-chrome-added]){flex:1 1 0;min-width:0;min-height:0;width:auto!important;height:auto!important;color:#6b7280!important;flex-direction:column;align-items:center;justify-content:center;background:transparent!important}',
       '.pw-bottom-nav [data-pw-chrome-added],.pw-shop-bottom-nav [data-pw-chrome-added]{flex:1 1 0;min-width:0;min-height:0;width:auto!important;height:auto!important;flex-direction:column;align-items:center;justify-content:center;background:transparent!important;cursor:grab}',
       '.pw-header,.pw-shop-header,.pw-header-main,.pw-shop-header-inner,.pw-brand-cluster,.pw-shop-brand-cluster{overflow:visible!important}',
@@ -9298,6 +9636,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.type === 'setDotActiveColor') setDotActiveColor(d.color)
     if (d.type === 'setPlaceholderColor') setPlaceholderColor(d.color)
     if (d.type === 'setStickHeader') setStickHeader(!!d.on)
+    if (d.type === 'setPinScreen') setPinScreen(!!d.on)
     if (d.type === 'deleteChromeBtn') deleteSelectedUnit()
     if (d.type === 'deleteUnit') deleteSelectedUnit()
     if (d.type === 'nudge') nudgeSelected(Number(d.dx) || 0, Number(d.dy) || 0)

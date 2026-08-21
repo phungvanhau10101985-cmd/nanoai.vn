@@ -533,14 +533,26 @@ export function extractCustomerBudgetTargetVnd(raw: string): number | null {
 export type CustomerGenderSearchIntent = 'male' | 'female' | null
 
 /**
+ * `\b` JS chỉ coi [A-Za-z0-9_] là word — "nữ" (ữ không phải ASCII) bị miss ở cuối câu.
+ * Tách token theo chữ/số Unicode, không đụng logic tìm kho khác.
+ */
+function hasStandaloneViGenderToken(haystack: string, token: string): boolean {
+  if (!token) return false
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(?:^|[^\\p{L}\\p{N}_])${escaped}(?:$|[^\\p{L}\\p{N}_])`, 'u').test(haystack)
+}
+
+/**
  * Khách nêu rõ nam hoặc nữ (không đồng thời cả hai) → lọc/sắp kết quả ANN.
  */
 export function extractCustomerGenderSearchIntent(raw: string): CustomerGenderSearchIntent {
-  const t = normalizeCustomerMessageForInventorySearch(raw).toLowerCase()
+  const t = normalizeCustomerMessageForInventorySearch(raw).normalize('NFC').toLowerCase()
   if (!t) return null
-  if (/\bunisex\b/u.test(t)) return null
-  const hasNam = /\bnam\b/u.test(t) || /\bđàn\s*ông\b/u.test(t) || /\bnam\s*giới\b/u.test(t)
-  const hasNu = /\bnữ\b/u.test(t) || /\bphụ\s*nữ\b/u.test(t) || /\bnữ\s*giới\b/u.test(t)
+  if (hasStandaloneViGenderToken(t, 'unisex')) return null
+  const hasNam =
+    hasStandaloneViGenderToken(t, 'nam') || /đàn\s*ông/u.test(t) || /nam\s*giới/u.test(t)
+  const hasNu =
+    hasStandaloneViGenderToken(t, 'nữ') || /phụ\s*nữ/u.test(t) || /nữ\s*giới/u.test(t)
   if (hasNam && hasNu) return null
   if (hasNam && !hasNu) return 'male'
   if (hasNu && !hasNam) return 'female'

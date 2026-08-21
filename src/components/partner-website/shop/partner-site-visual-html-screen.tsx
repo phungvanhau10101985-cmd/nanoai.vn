@@ -11,6 +11,7 @@ import {
 } from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
 import { isInfoVisualHtml, visualInfoPageCmsSlug } from '@/lib/partner-website/pages/partner-info-page-visual'
 import { isPartnerTextArticlePage } from '@/lib/partner-website/pages/partner-text-article-page'
+import { bindLiveProductToPdpHtml, type LivePdpBindProduct } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
 import {
   preparePartnerVisualHtmlForPublic,
   resolvePartnerVisualHtmlForTarget,
@@ -183,11 +184,13 @@ export function maybePartnerSiteVisualProductPage(
     'theme' | 'project' | 'htmlSource' | 'siteSlug' | 'title' | 'logoUrl' | 'locale' | 'chatPath'
   >,
   productId: string,
-  device?: VisualDeviceVariant | null
+  device?: VisualDeviceVariant | null,
+  product?: LivePdpBindProduct | null
 ) {
   const html = resolvePartnerVisualHtmlForTarget(site, { kind: 'product', productId }, device)
   if (html.length < 40) return null
-  return <PartnerSiteVisualHtmlScreen site={site} html={html} device={device} />
+  const bound = product ? bindLiveProductToPdpHtml(html, product) : html
+  return <PartnerSiteVisualHtmlScreen site={site} html={bound} device={device} />
 }
 
 export function maybePartnerSiteVisualCmsPage(

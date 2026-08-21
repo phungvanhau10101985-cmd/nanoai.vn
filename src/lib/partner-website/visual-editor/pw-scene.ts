@@ -173,6 +173,68 @@ export function pwSceneLockFromWindowWidth(width: unknown): PwSceneDevice {
   return 'desktop'
 }
 
+/** Khi shop chưa lưu bản laptop/tablet, khóa đúng máy đó sẽ ẩn hết và trang trắng. */
+export const PW_SCENE_LOCK_FALLBACK: Record<PwSceneDevice, readonly PwSceneDevice[]> = {
+  desktop: ['desktop', 'laptop', 'tablet', 'mobile'],
+  laptop: ['laptop', 'desktop', 'tablet', 'mobile'],
+  tablet: ['tablet', 'laptop', 'desktop', 'mobile'],
+  mobile: ['mobile', 'tablet', 'laptop', 'desktop'],
+}
+
+export function pwSceneVisualWrapperSelector(device: PwSceneDevice): string {
+  return `.pw-visual-${device},[data-pw-visual-device="${device}"]`
+}
+
+export function pwSceneHasVisualWrapper(
+  doc: { querySelector: (selector: string) => unknown },
+  device: PwSceneDevice
+): boolean {
+  return Boolean(doc.querySelector(pwSceneVisualWrapperSelector(device)))
+}
+
+/** `null` = HTML chưa có wrapper máy — đừng khóa, để CSS split tự hiện. */
+export function pwSceneLockForAvailableHtml(
+  preferred: PwSceneDevice,
+  doc: { querySelector: (selector: string) => unknown }
+): PwSceneDevice | null {
+  const order = PW_SCENE_LOCK_FALLBACK[preferred] || PW_SCENE_LOCK_FALLBACK.desktop
+  let any = false
+  for (const device of order) {
+    if (pwSceneHasVisualWrapper(doc, device)) {
+      any = true
+      break
+    }
+  }
+  if (!any) return null
+  for (const device of order) {
+    if (pwSceneHasVisualWrapper(doc, device)) return device
+  }
+  return preferred
+}
+
+/** Ẩn bản máy khác chỉ khi bản đang khóa thật sự có trong HTML. */
+export function pwSceneDeviceVisibilityCss(): string {
+  const hide = (lock: PwSceneDevice, others: readonly PwSceneDevice[]) =>
+    others
+      .map(
+        (device) =>
+          `html[data-pw-scene-lock="${lock}"]:has(.pw-visual-${lock}) .pw-visual-${device}`
+      )
+      .join(',') + '{display:none!important}'
+  const show = (lock: PwSceneDevice) =>
+    `html[data-pw-scene-lock="${lock}"] .pw-visual-${lock}{display:block!important}`
+  return [
+    hide('mobile', ['desktop', 'laptop', 'tablet']),
+    show('mobile'),
+    hide('tablet', ['desktop', 'laptop', 'mobile']),
+    show('tablet'),
+    hide('laptop', ['desktop', 'tablet', 'mobile']),
+    show('laptop'),
+    hide('desktop', ['laptop', 'tablet', 'mobile']),
+    show('desktop'),
+  ].join('')
+}
+
 /** Browser zoom should shrink/grow the shop naturally; only the canvas center is locked. */
 export function pwSceneLiveZoomScale(
   innerWidth: unknown,
@@ -267,10 +329,21 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
   function zoomScale(){
     return 1;
   }
+  function hasWrap(k){
+    return document.querySelector('.pw-visual-'+k+',[data-pw-visual-device="'+k+'"]');
+  }
+  function pick(preferred){
+    var order={desktop:['desktop','laptop','tablet','mobile'],laptop:['laptop','desktop','tablet','mobile'],tablet:['tablet','laptop','desktop','mobile'],mobile:['mobile','tablet','laptop','desktop']};
+    var list=order[preferred]||order.desktop;
+    var i;
+    for(i=0;i<list.length;i++) if(hasWrap(list[i])) return list[i];
+    return '';
+  }
   function apply(){
     var html=document.documentElement;
     if(!html||!html.style)return;
-    var key=band();
+    var key=pick(band());
+    if(!key)return;
     var px=W[key]||W.desktop;
     var z=zoomScale();
     html.setAttribute('data-pw-scene-lock',key);

@@ -37,15 +37,22 @@ export type VisualHomeChromeByDevice = {
 export const VISUAL_HOME_CHROME_SPLIT_CSS = `.pw-visual-desktop,.pw-visual-laptop,.pw-visual-tablet,.pw-visual-mobile{display:none!important}
 @media (max-width:767px){
 .pw-visual-mobile{display:block!important}
+html:not(:has(.pw-visual-mobile)) .pw-visual-tablet{display:block!important}
+html:not(:has(.pw-visual-mobile)):not(:has(.pw-visual-tablet)) .pw-visual-laptop{display:block!important}
+html:not(:has(.pw-visual-mobile)):not(:has(.pw-visual-tablet)):not(:has(.pw-visual-laptop)) .pw-visual-desktop{display:block!important}
 }
 @media (min-width:768px) and (max-width:1279px){
 .pw-visual-tablet{display:block!important}
+html:not(:has(.pw-visual-tablet)) .pw-visual-laptop{display:block!important}
+html:not(:has(.pw-visual-tablet)):not(:has(.pw-visual-laptop)) .pw-visual-desktop{display:block!important}
 }
 @media (min-width:1280px) and (max-width:1439px){
 .pw-visual-laptop{display:block!important}
+html:not(:has(.pw-visual-laptop)) .pw-visual-desktop{display:block!important}
 }
 @media (min-width:1440px){
 .pw-visual-desktop{display:block!important}
+html:not(:has(.pw-visual-desktop)) .pw-visual-laptop{display:block!important}
 }`
 
 function homeHtmlParts(

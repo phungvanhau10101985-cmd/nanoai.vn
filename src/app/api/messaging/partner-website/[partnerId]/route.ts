@@ -58,11 +58,13 @@ import {
   parseVisualDeviceVariant,
   preserveAndRecolorVisualPageFiles,
   productVisualHtmlPath,
+  productVisualShellHtmlPath,
   mergeVisualPageHtmlIntoProject,
   visualEditorHtmlPath,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { sanitizeVisualHtmlForStore } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
 import { syncSharedChromeAcrossProjectFiles } from '@/lib/partner-website/shop/sync-shared-chrome'
+import { syncProductActionWidgetsAcrossProjectFiles } from '@/lib/partner-website/shop/sync-product-action-widgets'
 import {
   publishVisualInfoPageToCms,
   shouldPublishVisualPageToCms,
@@ -631,7 +633,21 @@ export async function PATCH(
   const projectToSave =
     body.visualEdited === true && htmlForVisualSave.length >= 40
       ? syncSharedChromeAcrossProjectFiles(
-          mergeVisualPageHtmlIntoProject(existing.project, htmlForVisualSave, htmlPath),
+          syncProductActionWidgetsAcrossProjectFiles(
+            mergeVisualPageHtmlIntoProject(
+              visualProductId
+                ? mergeVisualPageHtmlIntoProject(
+                    existing.project,
+                    htmlForVisualSave,
+                    productVisualShellHtmlPath(visualDevice)
+                  )
+                : existing.project,
+              htmlForVisualSave,
+              htmlPath
+            ),
+            htmlPath,
+            htmlForVisualSave
+          ),
           htmlPath,
           htmlForVisualSave
         )

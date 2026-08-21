@@ -56,7 +56,11 @@ export const VISUAL_EDITOR_CHROME_WIDGET_KINDS = [
   'sale',
   'cart',
   'wishlist',
+  'favorite-product',
+  'add-cart',
+  'buy-now',
   'recently-viewed',
+  'try-on',
   'chat',
   'chat-zalo',
   'chat-facebook',
@@ -159,7 +163,11 @@ export const VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS: VisualEditorChromeWidgetK
   'sale',
   'cart',
   'wishlist',
+  'favorite-product',
+  'add-cart',
+  'buy-now',
   'recently-viewed',
+  'try-on',
   'chat',
   'chat-zalo',
   'chat-facebook',
@@ -214,6 +222,16 @@ const SVG: Partial<Record<VisualEditorChromeWidgetKind, string>> = {
   sale: chromeSvg('<path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'),
   wishlist: chromeSvg(
     '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>'
+  ),
+  'favorite-product': chromeSvg(
+    '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>'
+  ),
+  'add-cart': chromeSvg(
+    '<path d="M3 4h2l2.2 11h9.6L19 7H7"/><circle cx="10" cy="19" r="1.5"/><circle cx="16" cy="19" r="1.5"/><path d="M12 8v6"/><path d="M9 11h6"/>'
+  ),
+  'buy-now': chromeSvg('<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>'),
+  'try-on': chromeSvg(
+    '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/>'
   ),
   'recently-viewed': chromeSvg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
   cart: chromeSvg(
@@ -331,6 +349,20 @@ export type ChromeWidgetLiveHook =
   | 'chat'
   | 'contact'
   | 'topup'
+  | 'try-on'
+  | 'favorite'
+  | 'add-cart'
+  | 'buy-now'
+
+export function isProductActionChromeKind(
+  kind: string
+): kind is 'try-on' | 'favorite-product' | 'add-cart' | 'buy-now' {
+  return kind === 'try-on' || kind === 'favorite-product' || kind === 'add-cart' || kind === 'buy-now'
+}
+
+export function isProductHostChromeKind(kind: string): kind is 'favorite-product' | 'add-cart' | 'buy-now' {
+  return kind === 'favorite-product' || kind === 'add-cart' || kind === 'buy-now'
+}
 
 export function chromeWidgetLiveHook(kind: VisualEditorChromeWidgetKind): ChromeWidgetLiveHook {
   if (kind === 'search') return 'search'
@@ -339,6 +371,10 @@ export function chromeWidgetLiveHook(kind: VisualEditorChromeWidgetKind): Chrome
   if (kind === 'chat') return 'chat'
   if (kind === 'chat-zalo' || kind === 'chat-facebook') return 'contact'
   if (kind === 'topup') return 'topup'
+  if (kind === 'try-on') return 'try-on'
+  if (kind === 'favorite-product') return 'favorite'
+  if (kind === 'add-cart') return 'add-cart'
+  if (kind === 'buy-now') return 'buy-now'
   return 'route'
 }
 
@@ -353,6 +389,7 @@ export function chromeWidgetHref(kind: VisualEditorChromeWidgetKind, siteSlug: s
   if (kind === 'recently-viewed') return partnerSiteRecentlyViewedPath(slug)
   if (kind === 'cart') return partnerSiteCartPath(slug)
   if (kind === 'chat' || kind === 'chat-zalo' || kind === 'chat-facebook' || kind === 'topup') return '#'
+  if (kind === 'try-on' || kind === 'favorite-product' || kind === 'add-cart' || kind === 'buy-now') return '#'
   if (kind === 'orders' || kind === 'orders-link') return partnerSiteOrdersPath(slug)
   if (kind === 'order-tracking') return partnerSiteOrderTrackingPath(slug)
   if (kind === 'account') return partnerSiteAccountPath(slug)
@@ -388,6 +425,10 @@ export function chromeWidgetLabel(kind: VisualEditorChromeWidgetKind, locale: We
   if (kind === 'search-image') return shop.searchByImage
   if (kind === 'sale') return nav.sale
   if (kind === 'wishlist' || kind === 'favorites-link') return shop.navFavorites
+  if (kind === 'favorite-product') return shop.favoriteProduct
+  if (kind === 'add-cart') return shop.pdpAddToCartShort
+  if (kind === 'buy-now') return shop.pdpBuyNowShort
+  if (kind === 'try-on') return shop.tryOnLink
   if (kind === 'recently-viewed') return shop.navRecentlyViewed
   if (kind === 'cart') return shop.navCart
   if (kind === 'chat') return shop.navChat
@@ -545,10 +586,14 @@ export function buildVisualEditorChromeWidgetHtml(input: {
   }
   const isContactChat = isChromeContactChatKind(kind)
   const contactHref = isContactChat ? normalizeContactHttpUrl(input.href) : null
-  const routeHref = isContactChat || isChromeFloatKind(kind) ? '' : chromeWidgetHref(kind, slug)
+  const routeHref = isContactChat || isChromeFloatKind(kind) || isProductActionChromeKind(kind) ? '' : chromeWidgetHref(kind, slug)
   const href = escapeAttr(contactHref || routeHref)
   const isChat = kind === 'chat'
-  const isActionBtn = isChat || kind === 'topup'
+  const isTryOn = kind === 'try-on'
+  const isFavoriteProduct = kind === 'favorite-product'
+  const isAddCart = kind === 'add-cart'
+  const isBuyNow = kind === 'buy-now'
+  const isActionBtn = isChat || kind === 'topup' || isTryOn || isFavoriteProduct || isAddCart || isBuyNow
   const floatAttr = isChromeFloatKind(kind) ? ' data-pw-chrome-float="1"' : ''
   const customChatIcon =
     isChat &&
@@ -557,6 +602,10 @@ export function buildVisualEditorChromeWidgetHtml(input: {
   const chatLogoSrc = customChatIcon ? input.chatIconLogoUrl : input.logoUrl
   const chatIconAttr = customChatIcon ? ' data-pw-chat-icon-logo="1"' : ''
   const chatAttr = isChat ? ' data-nanoai-open-chat' : ''
+  const tryOnAttr = isTryOn ? ' data-nanoai-try-on' : ''
+  const favoriteAttr = isFavoriteProduct ? ' data-pw-favorite' : ''
+  const addCartAttr = isAddCart ? ' data-pw-add-cart' : ''
+  const buyAttr = isBuyNow ? ' data-pw-buy' : ''
   const contactChannel = kind === 'chat-zalo' ? 'zalo' : kind === 'chat-facebook' ? 'facebook' : ''
   const contactAttr = isContactChat
     ? ` data-pw-contact-channel="${contactChannel}"${
@@ -571,9 +620,11 @@ export function buildVisualEditorChromeWidgetHtml(input: {
   const closeTag = isActionBtn ? '</button>' : '</a>'
   const hrefAttr = isActionBtn || !href ? '' : ` href="${href}"`
   const countAttr = ICON_BADGE_KINDS.has(kind) ? ' data-pw-chrome-count="1"' : ''
-  const elRole = kind === 'cart' ? ' data-pw-el="cart"' : ''
+  const elRole = kind === 'cart' ? ' data-pw-el="cart"' : isAddCart ? ' data-pw-el="card-cart"' : isBuyNow ? ' data-pw-el="buy"' : ''
+  const liveAttr = `${chatAttr}${tryOnAttr}${favoriteAttr}${addCartAttr}${buyAttr}${chatIconAttr}${contactAttr}`
   if (chromeWidgetAppearance(kind, style) === 'link') {
-    return `${openTag}pw-chrome-link${isChat ? ' pw-chat-open' : ''}" data-pw-chrome-btn="${kind}" data-pw-chrome-added="1" data-pw-chrome-style="text"${elRole}${placeAttr}${sizeAttr}${floatAttr}${hrefAttr}${chatAttr}${chatIconAttr}${contactAttr} draggable="false">${escapeHtml(label)}${closeTag}`
+    const ctaClass = isAddCart ? ' pw-shop-btn pw-shop-btn-cart' : isBuyNow ? ' pw-shop-btn pw-shop-btn-buy' : ''
+    return `${openTag}pw-chrome-link${isChat ? ' pw-chat-open' : ''}${ctaClass}" data-pw-chrome-btn="${kind}" data-pw-chrome-added="1" data-pw-chrome-style="text"${elRole}${placeAttr}${sizeAttr}${floatAttr}${hrefAttr}${liveAttr} draggable="false">${escapeHtml(label)}${closeTag}`
   }
   const chatLogo = isChat ? chromeChatLogoImg(chatLogoSrc) : ''
   const brandLogo = isContactChat ? chromeContactChatLogoSvg(kind) : ''
@@ -587,5 +638,6 @@ export function buildVisualEditorChromeWidgetHtml(input: {
     : ''
   const iconHtml = `<span class="pw-chrome-icon-wrap">${svg}${badge}</span>`
   const chatClass = isChat ? ' pw-chat-open' : ''
-  return `${openTag}pw-icon-btn pw-shop-icon-btn ${face.styleClass}${chatClass}" data-pw-chrome-btn="${kind}" data-pw-chrome-added="1" data-pw-chrome-style="${face.styleAttr}"${elRole}${countAttr}${placeAttr}${sizeAttr}${floatAttr}${hrefAttr}${chatAttr}${chatIconAttr}${contactAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${iconHtml}${labelHtml}${closeTag}`
+  const ctaFace = isAddCart ? ' pw-shop-btn-cart' : isBuyNow ? ' pw-shop-btn-buy' : ''
+  return `${openTag}pw-icon-btn pw-shop-icon-btn ${face.styleClass}${chatClass}${ctaFace}" data-pw-chrome-btn="${kind}" data-pw-chrome-added="1" data-pw-chrome-style="${face.styleAttr}"${elRole}${countAttr}${placeAttr}${sizeAttr}${floatAttr}${hrefAttr}${liveAttr} aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${iconHtml}${labelHtml}${closeTag}`
 }

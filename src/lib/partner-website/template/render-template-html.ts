@@ -666,6 +666,10 @@ ${buildPartnerSiteAccountPanelCss()}
   .pw-bottom-nav .pw-shop-icon-label,.pw-bottom-nav .pw-chrome-btn-label,.pw-bottom-nav .pw-shop-nav-label,.pw-bottom-nav>a>span:not(.pw-chrome-icon-wrap):not(.pw-cart-badge):not(.pw-shop-cart-badge){display:block;max-width:100%;white-space:normal;overflow:visible;text-overflow:unset;color:inherit;text-align:center;line-height:1.15;overflow-wrap:break-word;word-break:break-word}
   .pw-bottom-nav .pw-chrome-icon-wrap .pw-cart-badge,.pw-bottom-nav .pw-chrome-icon-wrap .pw-shop-cart-badge{position:absolute;top:-5px;right:-9px;left:auto;bottom:auto;z-index:2}
 }
+@media (max-width:767px){
+  .pw-bottom-nav{display:none}
+  body{padding-bottom:0}
+}
 @media (max-width:520px){
   .pw-footer-grid{grid-template-columns:1fr}
 }`

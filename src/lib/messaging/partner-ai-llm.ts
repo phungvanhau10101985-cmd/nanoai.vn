@@ -70,6 +70,7 @@ import {
 import {
   defaultSalesConversionForIntent,
   parsePartnerAiRouteDecision,
+  partnerAiShouldIsolateProductCardConsult,
   type PartnerAiCtaStrategy,
   type PartnerAiRouteIntent,
   type PartnerAiSalesStage,
@@ -919,9 +920,12 @@ export async function buildPartnerAiContext(
    * Bấm «Tư vấn» trên thẻ: ưu tiên **SKU / URL / ảnh / vector ảnh** từ `page_context` — **không** trích SKU
    * từ cả đoạn tin dài (dễ khớp nhầm token trong câu mẫu).
    */
-  const isConsultCardPick = rawPayloadIsProductCardConsult(triggerRawPayload)
   const payloadRouteDecision = parsePartnerAiRouteDecision(triggerRawPayload)
   const payloadRouteIntent = payloadRouteDecision?.intent ?? null
+  const isConsultCardPick = partnerAiShouldIsolateProductCardConsult({
+    rawIsProductCardConsult: rawPayloadIsProductCardConsult(triggerRawPayload),
+    routeIntent: payloadRouteIntent,
+  })
   let partnerAiRouteIntent: PartnerAiRouteIntent | null = isConsultCardPick
     ? 'card_consult_isolated'
     : payloadRouteIntent

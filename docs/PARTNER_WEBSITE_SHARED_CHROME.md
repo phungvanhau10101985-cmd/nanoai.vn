@@ -15,7 +15,7 @@ Cửa hàng là **một khung + nhiều trang giữa**, và **bốn máy độc 
 | Header / footer / thanh đáy / **icon nổi** (Chat mua, Zalo, Facebook, Top up) | **Giống nhau** — copy từ trang chủ máy đó | **Cùng loại nút**; vị trí/kích thước **độc lập** |
 | Sắp xếp logo, kéo thả phần tử | **Giống trang chủ máy đó** | **Không copy** — sửa desktop không đụng mobile |
 | Phần giữa (hero, catalog, form…) | **Khác theo trang** | **Độc lập theo máy** |
-| Thanh đáy | Hiện + dính đáy khi `<1280px` | Desktop `≥1280` ẩn |
+| Thanh đáy | Hiện + dính đáy **Tablet** (`768–1279px`); **Mobile ẩn** (header trên) | Desktop `≥1280` ẩn |
 
 Sửa header trang chủ **Desktop** → mọi trang Desktop copy y hệt. File `*.laptop.html` / `*.tablet.html` / `*.mobile.html` giữ layout riêng.
 
@@ -61,9 +61,10 @@ Mọi đường xem HTML visual phải đi qua `render-partner-visual-html.ts`:
 
 ## Breakpoint thanh đáy
 
-- Hiện + `position: fixed; bottom: 0` khi `max-width: 1279px` (`VISUAL_DESKTOP_MIN_PX` = 1280).
-- Ẩn khi `min-width: 1280px`.
-- Preview Sửa nhanh: Mobile 390px, Tablet 768px, Laptop 1280px, Desktop ≥1440px. Mobile + Tablet phải thấy thanh đáy dính đáy khung.
+- **Tablet:** hiện + `position: fixed; bottom: 0` khi `768–1279px`.
+- **Mobile:** ẩn (dùng header trên).
+- **Desktop / Laptop:** ẩn khi `min-width: 1280px`.
+- Preview Sửa nhanh: Mobile 390px, Tablet 768px, Laptop 1280px, Desktop ≥1440px. Tablet phải thấy thanh đáy dính đáy khung. **Mobile không hiện thanh đáy** — điều hướng bằng header trên.
 - Template mới **không** ẩn thanh đáy ở `max-width: 899px` rồi quên tablet.
 
 ## Checklist trước khi báo xong giao diện mới
@@ -72,7 +73,7 @@ Mọi đường xem HTML visual phải đi qua `render-partner-visual-html.ts`:
 - [ ] Sửa sắp xếp logo Desktop **không** đổi vị trí logo Mobile (và ngược lại).
 - [ ] Nút tính năng (giỏ, tài khoản, tìm, **Chat mua**) có trên cả bốn máy; vị trí từng máy độc lập.
 - [ ] Chat mua = `data-pw-chrome-btn="chat"` + `data-nanoai-open-chat` + logo shop (`.pw-chrome-chat-logo`). Không có `.pw-fab-chat` / icon nhúng NanoAI.
-- [ ] Mobile và tablet: thanh đáy dính đáy màn, cùng icon/link **của máy đó**.
+- [ ] Tablet: thanh đáy dính đáy màn, cùng icon/link **của máy đó**. Mobile: không thanh đáy, dùng header.
 - [ ] Desktop không hiện thanh đáy; header + footer vẫn khớp các trang khác.
 - [ ] Chỉ `<main>` / vùng giữa khác theo trang.
 - [ ] Class `pw-header` / `pw-footer` / `pw-bottom-nav` (hoặc `pw-shop-*`) — engine mới sync được.

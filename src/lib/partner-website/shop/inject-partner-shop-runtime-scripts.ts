@@ -1,5 +1,6 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import { buildPartnerSiteCatalogBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-catalog-bootstrap-script'
+import { buildPartnerSitePdpBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-pdp-bootstrap-script'
 import { buildPartnerSiteChromeToggleBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-chrome-toggle-bootstrap-script'
 import { buildPartnerSiteSearchBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-search-bootstrap-script'
 import { buildPartnerSiteShopActionsBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-shop-actions-bootstrap-script'
@@ -7,7 +8,7 @@ import { buildPartnerSiteLandingChatBridgeScript } from '@/lib/partner-website/s
 import { stampPartnerSiteChromeWidgetHooksInHtml } from '@/lib/partner-website/shop/stamp-partner-site-chrome-widget-hooks'
 
 const PW_RUNTIME_SCRIPT_RE =
-  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|header-toggle|lp-buy)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
+  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|header-toggle|lp-buy)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
 const PW_RUNTIME_STYLE_RE =
   /<style\b[^>]*\bdata-pw-(?:chrome-toggle-css|search-image-css)\b[^>]*>[\s\S]*?<\/style>/gi
 
@@ -55,6 +56,7 @@ export function injectPartnerShopRuntimeScriptsIntoHtml(
 
   out = appendBeforeBody(out, buildPartnerSiteSearchBootstrapScript({ siteSlug, locale }))
   out = appendBeforeBody(out, buildPartnerSiteCatalogBootstrapScript({ siteSlug, locale }))
+  out = appendBeforeBody(out, buildPartnerSitePdpBootstrapScript({ siteSlug, locale }))
   out = appendBeforeBody(out, buildPartnerSiteShopActionsBootstrapScript({ siteSlug, locale }))
   out = appendBeforeBody(out, buildPartnerSiteChromeToggleBootstrapScript({ siteSlug, locale }))
   return out

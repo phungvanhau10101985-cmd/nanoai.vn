@@ -96,7 +96,8 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
   const visual = maybePartnerSiteVisualProductPage(
     shop.site,
     row.id,
-    device
+    device,
+    product
   )
   if (visual) return visual
 

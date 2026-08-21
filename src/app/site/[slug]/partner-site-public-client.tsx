@@ -27,7 +27,9 @@ import {
   PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID,
   pwSceneCanvasWidth,
   pwSceneLiveZoomScale,
+  pwSceneLockForAvailableHtml,
   pwSceneLockFromWindowWidth,
+  type PwSceneDevice,
 } from '@/lib/partner-website/visual-editor/pw-scene'
 
 function lockLiveSceneCanvas(forceDevice?: VisualDeviceVariant | null) {
@@ -40,10 +42,12 @@ function lockLiveSceneCanvas(forceDevice?: VisualDeviceVariant | null) {
   const inner = vv?.width || window.innerWidth || 0
   const outer = window.outerWidth || 0
   const screenW = window.screen?.width || window.screen?.availWidth || 0
-  const key =
+  const preferred: PwSceneDevice =
     stamped === 'mobile' || stamped === 'tablet' || stamped === 'laptop' || stamped === 'desktop'
       ? stamped
       : pwSceneLockFromWindowWidth(Math.max(outer, inner))
+  const key = pwSceneLockForAvailableHtml(preferred, document)
+  if (!key) return
   const zoom = stamped ? 1 : pwSceneLiveZoomScale(inner, outer, screenW)
   document.documentElement.setAttribute('data-pw-scene-lock', key)
   document.documentElement.style.setProperty('--pw-scene-w', `${pwSceneCanvasWidth(key)}px`)
