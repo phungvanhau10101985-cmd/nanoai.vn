@@ -156,6 +156,8 @@ export type PartnerSiteShopCopy = {
   authGoogleLogin: string
   authShopOtpOr: string
   authLoginSubtitle: string
+  authLoginTitle: string
+  authLoginWelcome: string
   authQuickLoginFailed: string
   authNanoAiLoginHint: string
   authRememberDevice: string
@@ -455,6 +457,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authGoogleLogin: 'Đăng nhập bằng Google',
     authShopOtpOr: 'Hoặc nhập email để nhận mã',
     authLoginSubtitle: 'Google hoặc mã OTP qua email',
+    authLoginTitle: 'Đăng nhập',
+    authLoginWelcome: 'Chào mừng trở lại',
     authQuickLoginFailed: 'Chưa đăng nhập được — dùng email OTP bên dưới.',
     authNanoAiLoginHint: 'Nhập email — bạn sẽ nhận mã OTP qua email.',
     authRememberDevice: 'Giữ đăng nhập trên thiết bị này (lần sau có thể không cần OTP).',
@@ -748,6 +752,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authGoogleLogin: 'Sign in with Google',
     authShopOtpOr: 'Or enter email to receive a code',
     authLoginSubtitle: 'Google or OTP via email',
+    authLoginTitle: 'Sign in',
+    authLoginWelcome: 'Welcome back',
     authQuickLoginFailed: 'Could not sign in — use email OTP below.',
     authNanoAiLoginHint: 'Enter your email — you will receive an OTP code by email.',
     authRememberDevice: 'Keep me signed in on this device (you may skip OTP next time).',
@@ -1041,6 +1047,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authGoogleLogin: '使用 Google 登录',
     authShopOtpOr: '或输入邮箱获取验证码',
     authLoginSubtitle: 'Google 或邮箱 OTP',
+    authLoginTitle: '登录',
+    authLoginWelcome: '欢迎回来',
     authQuickLoginFailed: '无法登录 — 请使用下方邮箱 OTP。',
     authNanoAiLoginHint: '输入邮箱 — 您将通过邮件收到验证码。',
     authRememberDevice: '在此设备保持登录（下次可能免 OTP）。',
@@ -1334,6 +1342,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authGoogleLogin: 'Googleでログイン',
     authShopOtpOr: 'またはメールでコードを受け取る',
     authLoginSubtitle: 'Google またはメール OTP',
+    authLoginTitle: 'ログイン',
+    authLoginWelcome: 'おかえりなさい',
     authQuickLoginFailed: 'ログインできません — 下のメール OTP をお試しください。',
     authNanoAiLoginHint: 'メールアドレスを入力 — OTPコードをメールで受け取ります。',
     authRememberDevice: 'この端末でログイン状態を保持（次回 OTP 省略の場合あり）。',
@@ -1627,6 +1637,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authGoogleLogin: 'Google로 로그인',
     authShopOtpOr: '또는 이메일로 코드 받기',
     authLoginSubtitle: 'Google 또는 이메일 OTP',
+    authLoginTitle: '로그인',
+    authLoginWelcome: '다시 오신 것을 환영합니다',
     authQuickLoginFailed: '로그인할 수 없습니다 — 아래 이메일 OTP를 사용하세요.',
     authNanoAiLoginHint: '이메일 입력 — OTP 코드를 이메일로 받습니다.',
     authRememberDevice: '이 기기에 로그인 유지(다음에 OTP 생략될 수 있음).',

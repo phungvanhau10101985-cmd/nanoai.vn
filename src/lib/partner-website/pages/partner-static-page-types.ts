@@ -50,7 +50,7 @@ export type PartnerBuiltinPageSlug = (typeof PARTNER_BUILTIN_PAGE_SLUGS)[number]
 
 export const PARTNER_SITE_RESERVED_SLUGS = [
 
-  'about', 'account', 'addresses', 'blog', 'c', 'cart', 'contact', 'faq', 'lookbook', 'lp', 'orders',
+  'about', 'account', 'addresses', 'blog', 'c', 'cart', 'contact', 'faq', 'login', 'lookbook', 'lp', 'orders',
 
   'payment', 'privacy', 'products', 'recently-viewed', 'returns', 'sale', 'shipping', 'size-guide',
 

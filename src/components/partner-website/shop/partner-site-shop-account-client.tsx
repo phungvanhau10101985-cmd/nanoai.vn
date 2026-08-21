@@ -34,6 +34,10 @@ import {
   type PartnerSiteAccountTab,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PartnerSiteShopAuthPanel } from '@/components/partner-website/shop/partner-site-shop-auth-panel'
+import {
+  buildPartnerShopLoginHref,
+  getPartnerShopBrowserReturnLocation,
+} from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
 import { PartnerSiteShopCartClient } from '@/components/partner-website/shop/partner-site-shop-cart-client'
 import { PartnerSiteShopOrdersClient } from '@/components/partner-website/shop/partner-site-shop-orders-client'
 import { PartnerSiteShopSavedProductsClient } from '@/components/partner-website/shop/partner-site-shop-saved-products-client'
@@ -90,7 +94,7 @@ export function PartnerSiteShopAccountClient({
   const n = getPartnerSiteCategoryNavLabels(locale)
   const router = useRouter()
   const customDomain = usePartnerSiteCustomDomain()
-  const { ready, authHeaders, captureFromResponse, clearSession } = usePartnerSiteGuestSession(siteSlug)
+  const { ready, isAuthenticated, authHeaders, captureFromResponse, clearSession } = usePartnerSiteGuestSession(siteSlug)
   const [profile, setProfile] = useState<PartnerSiteVisitorProfile | null>(null)
   const [shopAdminHref, setShopAdminHref] = useState<string | null>(null)
   const [customerName, setCustomerName] = useState('')
@@ -152,9 +156,26 @@ export function PartnerSiteShopAccountClient({
 
   useEffect(() => {
     if (!ready) return
+    if (!isAuthenticated) {
+      window.location.replace(
+        buildPartnerShopLoginHref(siteSlug, getPartnerShopBrowserReturnLocation(siteSlug, { customDomain }), {
+          customDomain,
+        })
+      )
+      return
+    }
     setLoading(true)
     void loadProfile().finally(() => setLoading(false))
-  }, [loadProfile, ready])
+  }, [customDomain, isAuthenticated, loadProfile, ready, siteSlug])
+
+  useEffect(() => {
+    if (!ready || loading || !needsAuth || !isAuthenticated) return
+    window.location.replace(
+      buildPartnerShopLoginHref(siteSlug, getPartnerShopBrowserReturnLocation(siteSlug, { customDomain }), {
+        customDomain,
+      })
+    )
+  }, [customDomain, isAuthenticated, loading, needsAuth, ready, siteSlug])
 
   // W5.6 — legacy hash deep links → real account routes
   useEffect(() => {
@@ -365,18 +386,7 @@ export function PartnerSiteShopAccountClient({
       <h1 data-pw-el={PW_EL.heading}>{t.navAccount}</h1>
       {loading ? <p className="pw-shop-muted">…</p> : null}
 
-      {!loading && needsAuth ? (
-        <PartnerSiteShopAuthPanel
-          partnerSlug={partnerSlug}
-          siteSlug={siteSlug}
-          shopTitle={shopTitle}
-          locale={locale}
-          onAuthed={() => {
-            setNeedsAuth(false)
-            void loadProfile()
-          }}
-        />
-      ) : null}
+      {!loading && needsAuth ? <p className="pw-shop-muted">…</p> : null}
 
       {!loading && !needsAuth ? (
         <div className="pw-shop-account-layout">
@@ -406,6 +416,7 @@ export function PartnerSiteShopAccountClient({
                     href={shopAdminHref}
                     className="pw-shop-account-link-card is-accent"
                     data-pw-el={PW_EL.menuItem}
+                    rel="noopener noreferrer"
                   >
                     <LayoutDashboard className="pw-shop-account-link-icon" aria-hidden="true" strokeWidth={2} />
                     <span>{t.accountOpenShopAdmin}</span>
@@ -449,7 +460,7 @@ export function PartnerSiteShopAccountClient({
                 {shopAdminHref ? (
                   <div className="pw-shop-account-admin-cta">
                     <p className="pw-shop-muted">{t.accountOpenShopAdminHint}</p>
-                    <a href={shopAdminHref} className="pw-shop-btn">
+                    <a href={shopAdminHref} className="pw-shop-btn" rel="noopener noreferrer">
                       {t.accountOpenShopAdmin}
                     </a>
                   </div>

@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
+import {
+  buildPartnerShopLoginHref,
+  composePartnerShopReturnLocation,
+} from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
 import type { WebLocale } from '@/lib/i18n/config'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
@@ -78,7 +83,15 @@ function StarDisplay({ rating }: { rating: number }) {
 
 export function PartnerSiteProductReviewsQa({ siteSlug, inventoryId, locale }: Props) {
   const t = getPartnerSiteShopCopy(locale)
+  const customDomain = usePartnerSiteCustomDomain()
   const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+
+  function redirectToLogin(hash?: string) {
+    const pathname = typeof window !== 'undefined' ? window.location.pathname : '/'
+    const search = typeof window !== 'undefined' ? window.location.search.replace(/^\?/, '') : ''
+    const loc = composePartnerShopReturnLocation(pathname, search, hash ?? (typeof window !== 'undefined' ? window.location.hash : ''))
+    window.location.assign(buildPartnerShopLoginHref(siteSlug, loc, { customDomain }))
+  }
 
   const [summary, setSummary] = useState<RatingSummary | null>(null)
   const [reviews, setReviews] = useState<ReviewRow[]>([])
@@ -167,6 +180,8 @@ export function PartnerSiteProductReviewsQa({ siteSlug, inventoryId, locale }: P
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
       if (res.status === 401 || json.error === 'login_required') {
         setFormMessage(t.reviewsSubmitLoginRequired)
+        redirectToLogin()
+        return
       } else if (json.error === 'already_reviewed') {
         setFormMessage(t.reviewsSubmitAlreadyReviewed)
       } else if (json.error === 'not_eligible') {
@@ -220,6 +235,8 @@ export function PartnerSiteProductReviewsQa({ siteSlug, inventoryId, locale }: P
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
       if (res.status === 401 || json.error === 'login_required') {
         setAskMessage(t.qaSubmitLoginRequired)
+        redirectToLogin('#qa')
+        return
       } else if (json.ok) {
         setAskMessage(t.qaSubmitSuccess)
         setAskContent('')
@@ -246,6 +263,8 @@ export function PartnerSiteProductReviewsQa({ siteSlug, inventoryId, locale }: P
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
       if (res.status === 401 || json.error === 'login_required') {
         setAnswerMessage(t.qaSubmitLoginRequired)
+        redirectToLogin('#qa')
+        return
       } else if (json.error === 'not_eligible') {
         setAnswerMessage(t.qaAnswerNotEligible)
       } else if (json.error === 'slot_full') {

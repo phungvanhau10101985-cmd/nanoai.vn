@@ -41,6 +41,11 @@ export function partnerSiteAccountPath(siteSlug: string, opts?: PathOpts): strin
   return partnerSiteHref(siteSlug, '/account', opts?.customDomain)
 }
 
+/** Dedicated shop login — same flow as 188 `/auth/login` (then `?redirect=`). */
+export function partnerSiteLoginPath(siteSlug: string, opts?: PathOpts): string {
+  return partnerSiteHref(siteSlug, '/login', opts?.customDomain)
+}
+
 /** W5.6 — valid account tabs. `overview` lives at `/account` (no trailing segment). */
 export const PARTNER_SITE_ACCOUNT_TABS = [
   'overview',

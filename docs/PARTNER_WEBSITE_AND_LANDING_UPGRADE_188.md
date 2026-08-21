@@ -711,3 +711,5 @@ Sửa tài liệu **cùng PR** với code.
 | 2026-08-14 | **M2.1** | Menu/CRM «Khách đã đăng ký tài khoản»: danh sách lấy từ tài khoản shop đã tạo, không còn gộp theo người đã đặt đơn. Khách chưa mua vẫn hiện; checkout không tài khoản không hiện. Copy 5 ngôn ngữ. Test `scripts/test-partner-customers-m2_1.ts`. | ✅ Done |
 
 | 2026-08-14 | **L3 / Ladipage AI** | Khớp UX 188: wizard 3 nguồn, lọc chất liệu, limit SP, tạo → autogen, list 3 tab, editor full-screen (sửa tay + SEO + đổi SP), public theme/i18n/trust strip/sticky CTA, 1-SP redirect PDP. Không clone kiến trúc 188. | ✅ Done |
+
+| 2026-08-21 | **W5 / B.1 auth guard** | Đăng nhập shop giống 188: trang `/login?redirect=` (mọi shop, mọi máy), giữ phiên + remember device, sau login quay đúng trang trước. Chrome HTML/React: khách → login kèm path hiện tại; đã login → account. | ✅ Done |

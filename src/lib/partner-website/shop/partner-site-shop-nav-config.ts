@@ -4,6 +4,7 @@ import {
   partnerSiteAccountEditPath,
   partnerSiteAccountPath,
   partnerSiteAccountTabPath,
+  partnerSiteLoginPath,
   partnerSiteAddressesPath,
   partnerSiteCartPath,
   partnerSiteHomePath,
@@ -69,6 +70,7 @@ export type PartnerSiteShopNavPaths = {
   cart: string
   orders: string
   account: string
+  login: string
   addresses: string
   recentlyViewed: string
   contact: string
@@ -203,6 +205,7 @@ export function getPartnerSiteShopNavPaths(siteSlug: string, customDomain = fals
     cart: partnerSiteCartPath(slug, pathOpts),
     orders: partnerSiteOrdersPath(slug, pathOpts),
     account: partnerSiteAccountPath(slug, pathOpts),
+    login: partnerSiteLoginPath(slug, pathOpts),
     addresses: partnerSiteAddressesPath(slug, pathOpts),
     recentlyViewed: partnerSiteRecentlyViewedPath(slug, pathOpts),
     contact: partnerSiteInfoPath(slug, 'contact', pathOpts),

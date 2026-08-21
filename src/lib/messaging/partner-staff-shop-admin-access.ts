@@ -1,6 +1,6 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
-import { partnerStaffAdminPath } from '@/lib/messaging/partner-staff-invite-email'
+import { partnerStaffAdminAbsoluteUrl } from '@/lib/messaging/partner-staff-invite-email'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -44,7 +44,7 @@ export async function resolvePartnerShopAdminAccessByEmail(input: {
     return {
       userId: row.id,
       role: row.is_owner ? 'owner' : 'staff',
-      href: partnerStaffAdminPath(partnerId, input.industryKey),
+      href: partnerStaffAdminAbsoluteUrl(partnerId, input.industryKey),
     }
   } catch (e) {
     console.warn('[resolvePartnerShopAdminAccessByEmail]', e)

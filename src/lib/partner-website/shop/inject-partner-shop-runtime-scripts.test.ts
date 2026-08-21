@@ -53,7 +53,7 @@ test('runtime scripts stamp leftover chrome-btn hrefs to the current shop slug',
   assert.match(out, /data-pw-chrome-btn="cart"[^>]*href="\/site\/188-shop\/cart"/)
   assert.match(out, /data-pw-chrome-btn="account"[^>]*href="\/site\/188-shop\/account"/)
   assert.match(out, /data-pw-chrome-btn="wishlist"[^>]*href="\/site\/188-shop\/wishlist"/)
-  assert.match(out, /data-pw-chrome-btn="login"[^>]*href="\/site\/188-shop\/account"/)
+  assert.match(out, /data-pw-chrome-btn="login"[^>]*href="\/site\/188-shop\/login"/)
   assert.match(out, /pw-search-image-btn[^>]*data-pw-image-search/)
   assert.match(out, /pw-cat-btn[^>]*data-pw-cat-toggle/)
   assert.match(out, /pw-cat-btn[^>]*data-pw-el="cat-toggle"/)
@@ -132,6 +132,9 @@ test('chrome toggle bootstrap hydrates the category panel from the public API', 
 test('chrome toggle account login prefers /site/{slug}/account over bare /account', () => {
   const s = buildPartnerSiteChromeToggleBootstrapScript({ siteSlug: '188-shop', locale: 'vi' })
   assert.match(s, /ACCOUNT_LOGIN_PATH="\/site\/188-shop\/account"/)
+  assert.match(s, /SHOP_LOGIN_PATH="\/site\/188-shop\/login"/)
+  assert.match(s, /function shopLoginHref/)
+  assert.match(s, /return isLoggedIn\?\(ACCOUNT_LOGIN_PATH\|\|'\/account'\):shopLoginHref\(\)/)
   assert.match(s, /return ACCOUNT_LOGIN_PATH\|\|'\/account'/)
 })
 

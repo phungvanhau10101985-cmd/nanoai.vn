@@ -36,6 +36,8 @@ type Props = {
   shopTitle?: string
   locale: WebLocale
   onAuthed?: () => void
+  /** Dedicated `/login` page — hide checkout-style intro (title lives on the page). */
+  pageMode?: boolean
 }
 
 function GoogleIcon() {
@@ -65,7 +67,7 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 }
 
-export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, locale, onAuthed }: Props) {
+export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, locale, onAuthed, pageMode }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const onCustomDomain = usePartnerSiteCustomDomain()
   const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
@@ -297,7 +299,7 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
   if (step === 'otp') {
     return (
       <div className="pw-shop-auth-panel pw-shop-form">
-        <p className="pw-shop-auth-panel-intro">{t.checkoutAuthRequired}</p>
+        {pageMode ? null : <p className="pw-shop-auth-panel-intro">{t.checkoutAuthRequired}</p>}
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -341,9 +343,9 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
 
   return (
     <div className="pw-shop-auth-panel pw-shop-form">
-      <p className="pw-shop-auth-panel-intro">{t.checkoutAuthRequired}</p>
-      {shopTitle ? <p className="pw-shop-auth-panel-welcome">{shopTitle}</p> : null}
-      <p className="pw-shop-auth-panel-hint">{t.authLoginSubtitle}</p>
+      {pageMode ? null : <p className="pw-shop-auth-panel-intro">{t.checkoutAuthRequired}</p>}
+      {pageMode ? null : shopTitle ? <p className="pw-shop-auth-panel-welcome">{shopTitle}</p> : null}
+      {pageMode ? null : <p className="pw-shop-auth-panel-hint">{t.authLoginSubtitle}</p>}
 
       {showGoogleButton ? (
         useBridgeGoogle ? (

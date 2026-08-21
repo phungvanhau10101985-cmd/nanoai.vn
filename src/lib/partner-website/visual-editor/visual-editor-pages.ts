@@ -1179,6 +1179,7 @@ export function pageKeyFromSitePath(pathname: string, siteSlug: string): Partner
   let rest = pathname.startsWith(prefix) ? pathname.slice(prefix.length) : pathname
   rest = rest.replace(/\/+$/, '') || '/'
   if (rest.startsWith('/lp/')) return null
+  if (rest === '/login') return null
   if (rest.startsWith('/account')) return 'account'
   if (rest === '/orders') return 'orders'
   if (rest === '/addresses') return 'addresses'

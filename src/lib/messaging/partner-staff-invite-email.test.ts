@@ -4,6 +4,7 @@ import { extractPathSlugFromLoginNext } from '../auth/signup-source'
 import {
   buildPartnerStaffInviteAdminUrl,
   buildPartnerStaffInviteEmailContent,
+  partnerStaffAdminAbsoluteUrl,
   partnerStaffAdminPath,
 } from './partner-staff-invite-email'
 
@@ -30,6 +31,13 @@ test('buildPartnerStaffInviteAdminUrl is an absolute shop admin link', () => {
     url,
     'https://nanoai.vn/dashboard/messaging/settings?partner=11111111-1111-4111-8111-111111111111'
   )
+})
+
+test('partnerStaffAdminAbsoluteUrl never uses a relative /dashboard path', () => {
+  const href = partnerStaffAdminAbsoluteUrl('11111111-1111-4111-8111-111111111111')
+  assert.match(href, /^https?:\/\//)
+  assert.match(href, /\/dashboard\/messaging\/settings\?partner=11111111-1111-4111-8111-111111111111$/)
+  assert.equal(href.startsWith('/'), false)
 })
 
 test('invite email includes shop admin CTA and escapes HTML', () => {

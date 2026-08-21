@@ -23,6 +23,7 @@ import {
   partnerSiteCartPath,
   partnerSiteHomePath,
   partnerSiteInfoPath,
+  partnerSiteLoginPath,
   partnerSiteOrdersPath,
   partnerSiteOrderTrackingPath,
   partnerSiteProductsPath,
@@ -131,7 +132,7 @@ test('chrome widgets wire each kind to the real shop route', () => {
   assert.equal(chromeWidgetHref('about', '188-shop'), partnerSiteInfoPath('188-shop', 'about'))
   assert.equal(
     chromeWidgetHref('login', '188-shop'),
-    partnerSiteAccountPath('188-shop')
+    partnerSiteLoginPath('188-shop')
   )
 })
 

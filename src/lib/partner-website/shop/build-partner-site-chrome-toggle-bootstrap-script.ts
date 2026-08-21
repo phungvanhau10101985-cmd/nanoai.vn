@@ -12,6 +12,7 @@ import {
   partnerSiteInfoPath,
   partnerSiteProductsPath,
   partnerSiteAccountPath,
+  partnerSiteLoginPath,
   partnerSiteAuthSyncApiPath,
   partnerSiteSessionApiPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
@@ -22,7 +23,7 @@ import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-
  * GET /api/site/{slug}/categories. Also upgrades plain `data-pw-chrome-btn`
  * account/category widgets added in Sửa nhanh so they share the same APIs.
  *
- * Account: bấm → mở thẳng trang tài khoản (không sổ menu).
+ * Account/login: khách → /login?redirect=<trang hiện tại>; đã đăng nhập → /account.
  * Category panels are scoped per device chrome (desktop/laptop/tablet/mobile).
  */
 export function buildPartnerSiteChromeToggleBootstrapScript(input: {
@@ -50,6 +51,7 @@ export function buildPartnerSiteChromeToggleBootstrapScript(input: {
   const sessionApi = partnerSiteSessionApiPath(slug)
   const authSyncApi = partnerSiteAuthSyncApiPath(slug)
   const accountLoginPath = partnerSiteAccountPath(slug)
+  const shopLoginPath = partnerSiteLoginPath(slug)
   const skipAuthSyncKey = partnerSiteShopSkipAuthSyncKey(slug)
 
   return `<script data-pw-chrome-toggle-bootstrap>(function(){
@@ -67,6 +69,7 @@ var ACCOUNT_MENU=${JSON.stringify(accountMenu)};
 var SESSION_API=${JSON.stringify(sessionApi)};
 var AUTH_SYNC_API=${JSON.stringify(authSyncApi)};
 var ACCOUNT_LOGIN_PATH=${JSON.stringify(accountLoginPath)};
+var SHOP_LOGIN_PATH=${JSON.stringify(shopLoginPath)};
 var SESSION_HDR='x-guest-session-id';
 var ACCOUNT_HDR='x-guest-account-id';
 var SESSION_LS='app_guest_session_id';
@@ -183,8 +186,24 @@ function accountLoginHref(btn){
   // fall back to bare /account on the platform host.
   return ACCOUNT_LOGIN_PATH||'/account';
 }
+function currentReturnLocation(){
+  var p=(window.location&&window.location.pathname)||'/';
+  var s=(window.location&&window.location.search)||'';
+  var h=(window.location&&window.location.hash)||'';
+  if(!p||p.indexOf('srcdoc')>=0||p.charAt(0)!=='/')return ACCOUNT_LOGIN_PATH||'/account';
+  if(/\\/login\\/?$/.test(String(p).split('?')[0]))return ACCOUNT_LOGIN_PATH||'/account';
+  return p+s+h;
+}
+function shopLoginHref(){
+  var dest=currentReturnLocation()||ACCOUNT_LOGIN_PATH||'/account';
+  var base=SHOP_LOGIN_PATH||'/login';
+  return base+(base.indexOf('?')>=0?'&':'?')+'redirect='+encodeURIComponent(dest);
+}
+function guestOrAccountHref(){
+  return isLoggedIn?(ACCOUNT_LOGIN_PATH||'/account'):shopLoginHref();
+}
 function navigateAccountLogin(btn){
-  var dest=accountLoginHref(btn);
+  var dest=isLoggedIn?accountLoginHref(btn):shopLoginHref();
   if(!dest)return;
   try{
     if(window.top&&window.top!==window){
@@ -321,10 +340,11 @@ function ensureAccPanel(btn){
 }
 function normalizeLoginLinks(){
   var nodes=document.querySelectorAll('[data-pw-chrome-btn="login"]');
+  var dest=guestOrAccountHref();
   for(var i=0;i<nodes.length;i++){
     var el=nodes[i];
     if(!el||el.tagName.toLowerCase()!=='a')continue;
-    el.setAttribute('href',ACCOUNT_LOGIN_PATH);
+    el.setAttribute('href',dest);
   }
 }
 function normalizeCatBtns(){
@@ -371,19 +391,20 @@ function normalizeAccountBtns(){
     el.removeAttribute('aria-expanded');
     el.removeAttribute('aria-controls');
     el.removeAttribute('role');
-    var dest=ACCOUNT_LOGIN_PATH;
+    var dest=guestOrAccountHref();
     if(el.tagName&&el.tagName.toLowerCase()==='a'){
-      var href=el.getAttribute('href');
-      if(href){
-        var expanded=expandAccountHref(href);
-        if(expanded)dest=expanded;
+      if(isLoggedIn){
+        var href=el.getAttribute('href');
+        if(href){
+          var expanded=expandAccountHref(href);
+          if(expanded)dest=expanded;
+        }
+        if(/^\\/account(\\/)?$/.test(String(dest).split('?')[0])||!dest)dest=ACCOUNT_LOGIN_PATH;
       }
-      // Main account entry only — never leave bare /account on platform host.
-      if(/^\\/account(\\/)?$/.test(String(dest).split('?')[0])||!dest)dest=ACCOUNT_LOGIN_PATH;
       el.setAttribute('href',dest);
-      el.setAttribute('data-pw-account-fallback-href',dest);
+      el.setAttribute('data-pw-account-fallback-href',isLoggedIn?(ACCOUNT_LOGIN_PATH||dest):dest);
     }else{
-      el.setAttribute('data-pw-account-fallback-href',ACCOUNT_LOGIN_PATH);
+      el.setAttribute('data-pw-account-fallback-href',dest);
     }
     // Drop legacy dropdown panels next to the account control.
     var wrap=el.closest('.pw-account-wrap,.pw-shop-account-wrap,.pw-chrome-account-wrap');

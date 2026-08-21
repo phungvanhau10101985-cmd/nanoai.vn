@@ -39,6 +39,29 @@ export function partnerStaffAdminPath(
   return `/dashboard/messaging/settings?partner=${encodeURIComponent(id)}`
 }
 
+/** Origin dashboard NanoAI — không dùng hostname domain shop (vd. tiemanhai.vn). */
+export function partnerStaffAdminOrigin(): string {
+  const configured =
+    process.env.APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
+    ''
+  if (configured) return configured.replace(/\/$/, '')
+  return 'http://localhost:3000'
+}
+
+/** Link tuyệt đối trang quản trị — domain shop không có `/dashboard`. */
+export function partnerStaffAdminAbsoluteUrl(
+  partnerId: string,
+  industryKey?: string | null
+): string {
+  return buildPartnerStaffInviteAdminUrl({
+    origin: partnerStaffAdminOrigin(),
+    partnerId,
+    industryKey,
+  })
+}
+
 export function buildPartnerStaffInviteAdminUrl(input: {
   origin: string
   partnerId: string

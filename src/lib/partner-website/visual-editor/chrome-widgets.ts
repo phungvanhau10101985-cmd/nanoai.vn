@@ -7,6 +7,7 @@ import {
   partnerSiteAccountEditPath,
   partnerSiteAccountPath,
   partnerSiteAccountTabPath,
+  partnerSiteLoginPath,
   partnerSiteAddressesPath,
   partnerSiteCartPath,
   partnerSiteHomePath,
@@ -373,7 +374,7 @@ export function chromeWidgetHref(kind: VisualEditorChromeWidgetKind, siteSlug: s
   if (kind === 'blog') return partnerSiteInfoPath(slug, 'blog')
   if (kind === 'privacy') return partnerSiteInfoPath(slug, 'privacy')
   if (kind === 'terms') return partnerSiteInfoPath(slug, 'terms')
-  if (kind === 'login') return partnerSiteAccountPath(slug)
+  if (kind === 'login') return partnerSiteLoginPath(slug)
   return partnerSiteAccountPath(slug)
 }
 

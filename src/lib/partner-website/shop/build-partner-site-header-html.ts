@@ -142,6 +142,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   const saleHref = escapeAttr(paths.sale)
   const contactHref = escapeAttr(paths.contact)
   const accountHref = escapeAttr(paths.account)
+  const loginHref = escapeAttr(paths.login)
   const search = searchLabels(input.locale)
   const promoLabel = getPartnerSitePromoNavLabel(input.locale)
   const logo = input.logoUrl?.trim() ?? ''
@@ -149,7 +150,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   const topbar = `<div class="pw-topbar" ${pwRegionAttr(PW_REGION.topbar)}><div class="pw-container pw-topbar-inner">
       <a href="${contactHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="contact">${escapeHtml(n.contact)}</a>
       <a href="${wishlistHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="favorites-link">${escapeHtml(shop.navFavorites)}</a>
-      <a href="${accountHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="login">${escapeHtml(n.login)}</a>
+      <a href="${loginHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="login">${escapeHtml(n.login)}</a>
     </div></div>`
 
   const brandBlock = logo

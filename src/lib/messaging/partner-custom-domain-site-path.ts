@@ -1,11 +1,12 @@
 /** Map public shop URLs on a partner custom domain ↔ internal /site/{slug}/… routes. */
 
-const SHOP_PUBLIC_ROOT_SEGMENTS = new Set([
+export const SHOP_PUBLIC_ROOT_SEGMENTS = new Set([
   'products',
   'c',
   'cart',
   'orders',
   'account',
+  'login',
   'addresses',
   'wishlist',
   'recently-viewed',

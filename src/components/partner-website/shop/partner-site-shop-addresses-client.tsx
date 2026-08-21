@@ -6,7 +6,11 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { partnerSiteAccountPath, partnerSitePersonalizationApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
-import { PartnerSiteShopAuthPanel } from '@/components/partner-website/shop/partner-site-shop-auth-panel'
+import {
+  buildPartnerShopLoginHref,
+  getPartnerShopBrowserReturnLocation,
+} from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
+import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import type { PartnerSiteVisitorProfile } from '@/lib/partner-website/shop/partner-site-personalization'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
@@ -17,9 +21,10 @@ type Props = {
   locale: WebLocale
 }
 
-export function PartnerSiteShopAddressesClient({ siteSlug, partnerSlug, shopTitle, locale }: Props) {
+export function PartnerSiteShopAddressesClient({ siteSlug, locale }: Props) {
   const t = getPartnerSiteShopCopy(locale)
-  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const customDomain = usePartnerSiteCustomDomain()
+  const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const [profile, setProfile] = useState<PartnerSiteVisitorProfile | null>(null)
   const [shippingAddress, setShippingAddress] = useState('')
   const [loading, setLoading] = useState(true)
@@ -43,9 +48,26 @@ export function PartnerSiteShopAddressesClient({ siteSlug, partnerSlug, shopTitl
 
   useEffect(() => {
     if (!ready) return
+    if (!isAuthenticated) {
+      window.location.replace(
+        buildPartnerShopLoginHref(siteSlug, getPartnerShopBrowserReturnLocation(siteSlug, { customDomain }), {
+          customDomain,
+        })
+      )
+      return
+    }
     setLoading(true)
     void loadProfile().finally(() => setLoading(false))
-  }, [loadProfile, ready])
+  }, [customDomain, isAuthenticated, loadProfile, ready, siteSlug])
+
+  useEffect(() => {
+    if (!ready || loading || !needsAuth || !isAuthenticated) return
+    window.location.replace(
+      buildPartnerShopLoginHref(siteSlug, getPartnerShopBrowserReturnLocation(siteSlug, { customDomain }), {
+        customDomain,
+      })
+    )
+  }, [customDomain, isAuthenticated, loading, needsAuth, ready, siteSlug])
 
   async function saveAddress() {
     if (saving) return
@@ -95,18 +117,7 @@ export function PartnerSiteShopAddressesClient({ siteSlug, partnerSlug, shopTitl
       <h1 data-pw-el={PW_EL.heading}>{t.accountAddressBook}</h1>
       <p className="pw-shop-muted" data-pw-el={PW_EL.body}>{t.addressesHint}</p>
       {loading ? <p className="pw-shop-muted">…</p> : null}
-      {!loading && needsAuth ? (
-        <PartnerSiteShopAuthPanel
-          partnerSlug={partnerSlug}
-          siteSlug={siteSlug}
-          shopTitle={shopTitle}
-          locale={locale}
-            onAuthed={() => {
-              setNeedsAuth(false)
-              void loadProfile()
-          }}
-        />
-      ) : null}
+      {!loading && needsAuth ? <p className="pw-shop-muted">…</p> : null}
       {!loading && !needsAuth ? (
         <>
           {profile?.shipping_address?.trim() ? (

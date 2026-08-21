@@ -73,6 +73,10 @@ import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/vi
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import {
+  buildPartnerShopLoginHref,
+  getPartnerShopBrowserReturnLocation,
+} from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
+import {
   PartnerSiteShopProvider,
   usePartnerSiteShop,
 } from '@/lib/partner-website/shop/partner-site-shop-context'
@@ -241,6 +245,16 @@ function PartnerSiteShopShellInner({
   const { openChat } = usePartnerSiteChatWidget()
   const customDomain = usePartnerSiteCustomDomain()
   const paths = getPartnerSiteShopNavPaths(siteSlug, customDomain)
+  const [loginHref, setLoginHref] = useState(paths.login)
+  useEffect(() => {
+    setLoginHref(
+      buildPartnerShopLoginHref(
+        siteSlug,
+        getPartnerShopBrowserReturnLocation(siteSlug, { customDomain }),
+        { customDomain }
+      )
+    )
+  }, [customDomain, siteSlug])
   const footerLinks = visibleSortedNavLinks(
     normalizePartnerSiteNavLinks(footerJson, DEFAULT_PARTNER_SITE_FOOTER_LINKS)
   )
@@ -445,7 +459,7 @@ function PartnerSiteShopShellInner({
           <Link href={partnerSiteAccountTabPath(siteSlug, 'contact', { customDomain })} data-pw-el={PW_EL.link}>{n.contact}</Link>
           <Link href={partnerSiteAccountTabPath(siteSlug, 'wishlist', { customDomain })} data-pw-el={PW_EL.link}>{t.navFavorites}</Link>
           <Link href={partnerSiteAccountTabPath(siteSlug, 'orders', { customDomain })} data-pw-el={PW_EL.link}>{t.navOrders}</Link>
-          {!isAuthenticated ? <Link href={paths.account} data-pw-el={PW_EL.link}>{n.login}</Link> : null}
+          {!isAuthenticated ? <Link href={loginHref} data-pw-el={PW_EL.link}>{n.login}</Link> : null}
         </div>
       </div>
 

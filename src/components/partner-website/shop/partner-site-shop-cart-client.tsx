@@ -21,7 +21,10 @@ import {
   trackPartnerSiteBeginCheckout,
   trackPartnerSitePurchase,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
-import { PartnerSiteShopAuthPanel } from '@/components/partner-website/shop/partner-site-shop-auth-panel'
+import {
+  buildPartnerShopLoginHref,
+  getPartnerShopBrowserReturnLocation,
+} from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
 import { PartnerSiteShopOrderConfirmation } from '@/components/partner-website/shop/partner-site-shop-order-confirmation'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
@@ -42,7 +45,7 @@ type OrderSnapshot = {
   shipping_fee_amount?: number | null
 }
 
-export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, locale, chatPath }: Props) {
+export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatPath }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
   const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
@@ -271,6 +274,13 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, lo
         if (json.error === 'AUTH_REQUIRED_PURCHASE_LOGIN' || json.requireAuth) {
           setNeedsAuth(true)
           setStatus(t.checkoutAuthRequired)
+          window.location.assign(
+            buildPartnerShopLoginHref(
+              siteSlug,
+              getPartnerShopBrowserReturnLocation(siteSlug, { customDomain }),
+              { customDomain }
+            )
+          )
         } else if (json.error?.startsWith('promo_invalid:')) {
           setAppliedPromo(null)
           setStatus(promoErrorText(json.error.split(':')[1] ?? ''))
@@ -465,18 +475,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, shopTitle, lo
             </button>
             {status && !needsAuth ? <p className="pw-shop-muted">{status}</p> : null}
           </div>
-          {needsAuth && checkoutLoginRequired ? (
-            <PartnerSiteShopAuthPanel
-              partnerSlug={partnerSlug}
-              siteSlug={siteSlug}
-              shopTitle={shopTitle}
-              locale={locale}
-              onAuthed={() => {
-                setNeedsAuth(false)
-                void checkout()
-              }}
-            />
-          ) : null}
+          {needsAuth && checkoutLoginRequired ? <p className="pw-shop-muted">{t.checkoutAuthRequired}</p> : null}
         </div>
       ) : null}
     </div>

@@ -264,6 +264,7 @@ test('pageKeyFromSitePath maps shop routes', () => {
   assert.equal(pageKeyFromSitePath('/site/188-shop', '188-shop'), 'home')
   assert.equal(pageKeyFromSitePath('/site/188-shop/about', '188-shop'), 'about')
   assert.equal(pageKeyFromSitePath('/site/188-shop/account/orders', '188-shop'), 'account')
+  assert.equal(pageKeyFromSitePath('/site/188-shop/login', '188-shop'), null)
   assert.equal(pageKeyFromSitePath('/site/188-shop/orders', '188-shop'), 'orders')
   assert.equal(pageKeyFromSitePath('/site/188-shop/addresses', '188-shop'), 'addresses')
   assert.equal(pageKeyFromSitePath('/site/188-shop/products/abc-1', '188-shop'), 'product_detail')

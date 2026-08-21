@@ -112,8 +112,10 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
     if (skipAuthSync) {
       accountRef.current = ''
       setIsAuthenticated(false)
+      setReady(true)
     } else if (accountRef.current) {
       setIsAuthenticated(true)
+      setReady(true)
     }
     void (async () => {
       try {
@@ -134,6 +136,7 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
           sessionRef.current = json.sessionId
           persistSessionId(json.sessionId)
         }
+        if (!cancelled && !accountRef.current) setReady(true)
         if (!skipAuthSync) {
           const syncRes = await fetch(partnerSiteAuthSyncApiPath(siteSlug), {
             method: 'POST',
