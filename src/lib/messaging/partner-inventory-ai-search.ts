@@ -559,6 +559,75 @@ export function extractCustomerGenderSearchIntent(raw: string): CustomerGenderSe
   return null
 }
 
+/**
+ * Loại hàng mặc định nữ (shop thời trang VN).
+ * Không gắn giới tính profile khi khách hỏi các từ này.
+ * Không gồm loại unisex: áo / quần / giày / túi / sandal / boot / áo khoác…
+ */
+const FEMALE_DEFAULT_PRODUCT_STANDALONE = [
+  'váy',
+  'đầm',
+  'guốc',
+  'bikini',
+  'bralette',
+  'corset',
+  'bodysuit',
+  'jumpsuit',
+  'croptop',
+  'yếm',
+] as const
+
+const FEMALE_DEFAULT_PRODUCT_PHRASES = [
+  'chân váy',
+  'váy liền',
+  'giày cao gót',
+  'sandal cao gót',
+  'dép cao gót',
+  'cao gót',
+  'gót nhọn',
+  'gót vuông',
+  'nội y',
+  'áo lót',
+  'áo bra',
+  'đồ bầu',
+  'váy bầu',
+  'đầm bầu',
+  'crop top',
+  'áo crop',
+  'áo hai dây',
+  'áo 2 dây',
+  'áo cúp ngực',
+  'áo yếm',
+  'áo dài',
+  'quần váy',
+] as const
+
+export function customerMessageHasFemaleDefaultProduct(raw: string): boolean {
+  const t = normalizeCustomerMessageForInventorySearch(raw).normalize('NFC').toLowerCase()
+  if (!t) return false
+  for (const phrase of FEMALE_DEFAULT_PRODUCT_PHRASES) {
+    if (t.includes(phrase)) return true
+  }
+  for (const token of FEMALE_DEFAULT_PRODUCT_STANDALONE) {
+    if (hasStandaloneViGenderToken(t, token)) return true
+  }
+  return false
+}
+
+/**
+ * Giới khi tìm kho: chữ nam/nữ trong câu thắng profile.
+ * Loại hàng mặc định nữ → không gắn profile (tránh profile nam loại váy).
+ */
+export function resolveInventorySearchGenderIntent(
+  customerMessage: string,
+  preferredGender?: CustomerGenderSearchIntent
+): CustomerGenderSearchIntent {
+  const stated = extractCustomerGenderSearchIntent(customerMessage)
+  if (stated) return stated
+  if (customerMessageHasFemaleDefaultProduct(customerMessage)) return null
+  return preferredGender ?? null
+}
+
 function expandInventoryEmbeddingQueryWithGender(
   customerMessage: string,
   intent: CustomerGenderSearchIntent
@@ -743,7 +812,7 @@ export async function fetchInventoryRowsForPartnerAi(
   const lim = PARTNER_AI_INVENTORY_CONTEXT_LIMIT
   const hintSource = opts?.budgetSourceMessage ?? customerMessage
   const budget = extractCustomerBudgetTargetVnd(hintSource)
-  const genderIntent = extractCustomerGenderSearchIntent(hintSource) ?? opts?.preferredGender ?? null
+  const genderIntent = resolveInventorySearchGenderIntent(hintSource, opts?.preferredGender)
   const queryForEmbedding = expandInventoryEmbeddingQueryWithGender(customerMessage, genderIntent)
   const fetchLim = budget !== null ? Math.min(50, lim * 3) : lim
   let rows = await fetchInventoryRowsBySemanticTextForPartnerAi(partnerId, queryForEmbedding, fetchLim)
