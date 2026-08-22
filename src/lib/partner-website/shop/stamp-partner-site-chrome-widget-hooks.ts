@@ -3,6 +3,8 @@ import { stampPartnerSiteChatOpenAttrsInHtml } from '@/lib/partner-website/shop/
 import {
   partnerSiteAccountPath,
   partnerSiteCartPath,
+  partnerSiteLeadApiPath,
+  partnerSitePromotionsValidateApiPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
   chromeWidgetHref,
@@ -64,7 +66,29 @@ function stampChromeBtnOpenTag(
   }
 
   if (hook === 'contact') {
-    next = setAttr(next, 'data-pw-contact-channel', kind === 'chat-zalo' ? 'zalo' : 'facebook')
+    const channel =
+      kind === 'chat-zalo'
+        ? 'zalo'
+        : kind === 'chat-facebook'
+          ? 'facebook'
+          : kind === 'chat-instagram'
+            ? 'instagram'
+            : kind === 'chat-whatsapp'
+              ? 'whatsapp'
+              : kind === 'phone'
+                ? 'phone'
+                : ''
+    if (channel) next = setAttr(next, 'data-pw-contact-channel', channel)
+    return `<${tag}${next}>`
+  }
+
+  if (hook === 'share') {
+    next = setAttr(next, 'data-pw-share', '1')
+    return `<${tag}${next}>`
+  }
+
+  if (hook === 'logout') {
+    next = setAttr(next, 'data-pw-account-logout', '1')
     return `<${tag}${next}>`
   }
 
@@ -179,5 +203,36 @@ export function stampPartnerSiteChromeWidgetHooksInHtml(
   out = stampCategoryToggles(out)
   out = stampSearchForms(out)
   out = stampElRoleHrefs(out, siteSlug)
+  out = stampLeadAndCouponForms(out, siteSlug)
+  return out
+}
+
+function stampLeadAndCouponForms(html: string, siteSlug: string): string {
+  if (!siteSlug) return html
+  const leadApi = partnerSiteLeadApiPath(siteSlug)
+  const couponApi = partnerSitePromotionsValidateApiPath(siteSlug)
+  let out = html.replace(
+    /<(form|section|div)\b([^>]*(?:\bdata-pw-lead-form(?:-el)?\b|\bid=["']pw-lead-form["']|\bid=["']lead-form["'])[^>]*)>/gi,
+    (full, tag: string, attrs: string) => {
+      let next = attrs
+      if (!hasAttr(next, 'data-pw-lead-form') && !hasAttr(next, 'data-pw-lead-form-el')) {
+        next = setAttr(next, 'data-pw-lead-form', '1')
+      }
+      if (tag.toLowerCase() === 'form' || hasAttr(next, 'data-pw-lead-form-el')) {
+        next = setAttr(next, 'data-api', leadApi)
+      }
+      return next === attrs ? full : `<${tag}${next}>`
+    }
+  )
+  out = out.replace(
+    /<(form|div)\b([^>]*(?:\bdata-pw-coupon-form(?:-el)?\b|\bdata-pw-el=["']coupon["'])[^>]*)>/gi,
+    (full, tag: string, attrs: string) => {
+      let next = attrs
+      if (tag.toLowerCase() === 'form' || hasAttr(next, 'data-pw-coupon-form-el')) {
+        next = setAttr(next, 'data-api', couponApi)
+      }
+      return next === attrs ? full : `<${tag}${next}>`
+    }
+  )
   return out
 }

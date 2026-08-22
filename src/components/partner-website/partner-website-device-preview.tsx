@@ -64,6 +64,7 @@ import {
   applySharedChrome,
   extractSharedChrome,
   hasSharedChrome,
+  htmlHasShopHeader,
 } from '@/lib/partner-website/shop/sync-shared-chrome'
 import {
   mergeVisualHomeStylesIntoHtml,
@@ -83,6 +84,7 @@ import {
   type LivePdpBindProduct,
 } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
 import { DEMO_PDP_BIND_PRODUCT } from '@/lib/partner-website/shop/demo-pdp-bind-product'
+import { buildDefaultDemoPdpShellHtml } from '@/lib/partner-website/shop/build-default-demo-pdp-shell-html'
 import { buildPartnerSiteProductKey } from '@/lib/partner-website/shop/partner-site-product-slug'
 import {
   pageCatalogLabels,
@@ -494,12 +496,29 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     if (id) setPreviewProductId(id)
   }, [previewProductKey, previewProductId, productOptions])
 
-  function isEditingHomePage() {
-    return previewPageKey === 'home' && !previewCategoryPath && !previewProductId && !previewCmsSlug
+  function isEditingHomePage(pick?: {
+    pageKey?: PartnerWebsitePageKey
+    categoryPath?: string | null
+    productId?: string | null
+    cmsSlug?: string | null
+  }) {
+    const pageKey = pick?.pageKey ?? previewPageKey
+    const categoryPath = pick?.categoryPath === undefined ? previewCategoryPath : pick.categoryPath
+    const productId = pick?.productId === undefined ? previewProductId : pick.productId
+    const cmsSlug = pick?.cmsSlug === undefined ? previewCmsSlug : pick.cmsSlug
+    return pageKey === 'home' && !categoryPath && !productId && !cmsSlug
   }
 
-  function applyHomeChromeToEditorHtml(html: string): string {
-    if (isEditingHomePage()) return html
+  function applyHomeChromeToEditorHtml(
+    html: string,
+    pick?: {
+      pageKey?: PartnerWebsitePageKey
+      categoryPath?: string | null
+      productId?: string | null
+      cmsSlug?: string | null
+    }
+  ): string {
+    if (isEditingHomePage(pick)) return html
     const homeRaw = resolveExactVisualPageHtml(
       { htmlSource, project, theme: liveTheme },
       'home',
@@ -513,25 +532,44 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     return mergeVisualHomeStylesIntoHtml(next, preferredVisualHomeStyleSource(home, homeRaw))
   }
 
-  function visualEditSrcDoc(html: string): string {
+  function visualEditSrcDoc(
+    html: string,
+    pick?: {
+      pageKey?: PartnerWebsitePageKey
+      categoryPath?: string | null
+      productId?: string | null
+      cmsSlug?: string | null
+    }
+  ): string {
+    const pageKey = pick?.pageKey ?? previewPageKey
+    const productId = pick?.productId === undefined ? previewProductId : pick.productId
+    const cmsSlug = pick?.cmsSlug === undefined ? previewCmsSlug : pick.cmsSlug
     const bound =
-      previewPageKey === 'product_detail'
-        ? bindLiveProductToPdpHtml(html, DEMO_PDP_BIND_PRODUCT)
-        : previewProductId && previewProduct?.id === previewProductId
-          ? bindLiveProductToPdpHtml(html, previewProduct)
+      pageKey === 'product_detail'
+        ? bindLiveProductToPdpHtml(html, DEMO_PDP_BIND_PRODUCT, { locale })
+        : productId && previewProduct?.id === productId
+          ? bindLiveProductToPdpHtml(html, previewProduct, { locale })
           : html
-    const withChrome = applyHomeChromeToEditorHtml(bound)
+    const withChrome = applyHomeChromeToEditorHtml(bound, pick)
     return preparePartnerVisualHtmlForEditor(withChrome, {
       variant: editVariant,
       theme: liveTheme,
       siteSlug,
       locale,
-      pageKey: previewPageKey,
-      cmsSlug: previewCmsSlug,
+      pageKey,
+      cmsSlug,
     })
   }
 
-  function savedHtmlForVariant(variant: VisualDeviceVariant): string {
+  function savedHtmlForVariant(
+    variant: VisualDeviceVariant,
+    pick?: {
+      pageKey?: PartnerWebsitePageKey
+      categoryPath?: string | null
+      productId?: string | null
+      cmsSlug?: string | null
+    }
+  ): string {
     const flushed = flushedHtmlByVariantRef.current[variant]
     if (flushed && visualHtmlLooksUsable(flushed)) {
       return isolateVisualHtmlForDevice(flushed, variant)
@@ -545,8 +583,12 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     }
 
     const websitePick = { htmlSource, project, theme: liveTheme }
+    const pageKey = pick?.pageKey ?? previewPageKey
+    const cmsSlug = pick?.cmsSlug === undefined ? previewCmsSlug : pick.cmsSlug
+    const categoryPath = pick?.categoryPath === undefined ? previewCategoryPath : pick.categoryPath
+    const productId = pick?.productId === undefined ? previewProductId : pick.productId
 
-    if (previewPageKey === 'product_detail' && !previewCmsSlug && !previewCategoryPath) {
+    if (pageKey === 'product_detail' && !cmsSlug && !categoryPath) {
       const exact = resolveVisualPdpShellHtml(websitePick, variant)
       if (visualHtmlLooksUsable(exact)) {
         return isolateVisualHtmlForDevice(exact, variant)
@@ -555,63 +597,71 @@ export const PartnerWebsiteDevicePreview = forwardRef<
         const fromMobile = seedFrom(resolveVisualPdpShellHtml(websitePick, 'mobile'))
         if (fromMobile) return fromMobile
       }
-      return seedFrom(resolveVisualPdpShellHtml(websitePick, 'desktop'))
+      const seeded = seedFrom(resolveVisualPdpShellHtml(websitePick, 'desktop'))
+      if (visualHtmlLooksUsable(seeded)) return seeded
+      return buildDefaultDemoPdpShellHtml({
+        locale,
+        siteSlug,
+        variant,
+        title: websiteTitle,
+        logoUrl: liveTheme?.logoUrl,
+      })
     }
-    if (previewProductId) {
-      const exact = resolveExactVisualProductHtml(websitePick, previewProductId, variant)
+    if (productId) {
+      const exact = resolveExactVisualProductHtml(websitePick, productId, variant)
       if (visualHtmlLooksUsable(exact)) {
         return isolateVisualHtmlForDevice(exact, variant)
       }
       if (variant === 'tablet') {
-        const fromMobile = seedFrom(resolveExactVisualProductHtml(websitePick, previewProductId, 'mobile'))
+        const fromMobile = seedFrom(resolveExactVisualProductHtml(websitePick, productId, 'mobile'))
         if (fromMobile) return fromMobile
       }
-      return seedFrom(resolveExactVisualProductHtml(websitePick, previewProductId, 'desktop'))
+      return seedFrom(resolveExactVisualProductHtml(websitePick, productId, 'desktop'))
     }
-    if (previewCmsSlug) {
-      const exact = resolveExactVisualCmsHtml(websitePick, previewCmsSlug, variant)
+    if (cmsSlug) {
+      const exact = resolveExactVisualCmsHtml(websitePick, cmsSlug, variant)
       if (visualHtmlLooksUsable(exact)) {
         return isolateVisualHtmlForDevice(exact, variant)
       }
       if (variant === 'tablet') {
-        const fromMobile = seedFrom(resolveExactVisualCmsHtml(websitePick, previewCmsSlug, 'mobile'))
+        const fromMobile = seedFrom(resolveExactVisualCmsHtml(websitePick, cmsSlug, 'mobile'))
         if (fromMobile) return fromMobile
       }
-      return seedFrom(resolveExactVisualCmsHtml(websitePick, previewCmsSlug, 'desktop'))
+      return seedFrom(resolveExactVisualCmsHtml(websitePick, cmsSlug, 'desktop'))
     }
-    if (previewCategoryPath) {
-      const exact = resolveExactVisualCategoryHtml(websitePick, previewCategoryPath, variant)
+    if (categoryPath) {
+      const exact = resolveExactVisualCategoryHtml(websitePick, categoryPath, variant)
       if (visualHtmlLooksUsable(exact)) {
         return isolateVisualHtmlForDevice(exact, variant)
       }
       if (variant === 'tablet') {
-        const fromMobile = seedFrom(resolveExactVisualCategoryHtml(websitePick, previewCategoryPath, 'mobile'))
+        const fromMobile = seedFrom(resolveExactVisualCategoryHtml(websitePick, categoryPath, 'mobile'))
         if (fromMobile) return fromMobile
       }
-      return seedFrom(resolveExactVisualCategoryHtml(websitePick, previewCategoryPath, 'desktop'))
+      return seedFrom(resolveExactVisualCategoryHtml(websitePick, categoryPath, 'desktop'))
     }
-    const exact = resolveExactVisualPageHtml(websitePick, previewPageKey, variant)
+    const exact = resolveExactVisualPageHtml(websitePick, pageKey, variant)
     if (visualHtmlLooksUsable(exact)) {
       return isolateVisualHtmlForDevice(exact, variant)
     }
     if (variant === 'tablet') {
-      const fromMobile = seedFrom(resolveExactVisualPageHtml(websitePick, previewPageKey, 'mobile'))
+      const fromMobile = seedFrom(resolveExactVisualPageHtml(websitePick, pageKey, 'mobile'))
       if (fromMobile) return fromMobile
     }
-    const desktopPage = resolveExactVisualPageHtml(websitePick, previewPageKey, 'desktop')
+    const desktopPage = resolveExactVisualPageHtml(websitePick, pageKey, 'desktop')
     const seeded = seedFrom(desktopPage)
     if (seeded) return seeded
-    if (variant !== 'desktop' && previewPageKey === 'home' && useVisualHtml) {
+    if (variant !== 'desktop' && pageKey === 'home' && useVisualHtml) {
       const home = resolveSavedVisualEditorHtml({ htmlSource, project })
       return withSyncedCountBadges(
         isolateVisualHtmlForDevice(home, variant, { stripAddedChrome: true }),
         variant
       )
     }
-    if (previewPageKey !== 'home') {
+    if (pageKey !== 'home') {
       return isolateVisualHtmlForDevice(
         resolveSavedVisualPageHtml({
-          pageKey: previewPageKey,
+          pageKey,
           variant,
           htmlSource,
           project,
@@ -714,39 +764,41 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   }
 
   function applyPageSelect(next: string) {
+    let pageKey: PartnerWebsitePageKey = previewPageKey
+    let categoryPath: string | null = null
+    let productId: string | null = null
+    let productKey: string | null = null
+    let cmsSlug: string | null = null
+    if (next.startsWith('c:')) {
+      pageKey = 'collection'
+      categoryPath = next.slice(2)
+    } else if (next.startsWith('p:') || next === 'product_detail') {
+      pageKey = 'product_detail'
+    } else if (next.startsWith('cms:')) {
+      cmsSlug = next.slice(4)
+    } else if (isVisualEditorPageKey(next) && next !== 'collection') {
+      pageKey = next
+    } else {
+      return
+    }
+    const pick = { pageKey, categoryPath, productId, cmsSlug }
     if (visualEditActive) {
       flushedHtmlByVariantRef.current = {}
-      freezeLockRef.current = false
-      setEditSrcDoc(null)
       setEditDirty(false)
+      const saved = savedHtmlForVariant(editVariant, pick)
+      if (visualHtmlLooksUsable(saved)) {
+        freezeLockRef.current = true
+        setEditSrcDoc(visualEditSrcDoc(saved, pick))
+      } else {
+        freezeLockRef.current = false
+        setEditSrcDoc(null)
+      }
     }
-    if (next.startsWith('c:')) {
-      setPreviewPageKey('collection')
-      setPreviewCategoryPath(next.slice(2))
-      setPreviewProductId(null)
-      setPreviewProductKey(null)
-      setPreviewCmsSlug(null)
-      return
-    }
-    if (next.startsWith('p:') || next === 'product_detail') {
-      setPreviewPageKey('product_detail')
-      setPreviewProductId(null)
-      setPreviewProductKey(null)
-      setPreviewCategoryPath(null)
-      setPreviewCmsSlug(null)
-      return
-    }
-    if (next.startsWith('cms:')) {
-      setPreviewCmsSlug(next.slice(4))
-      setPreviewCategoryPath(null)
-      setPreviewProductId(null)
-      setPreviewProductKey(null)
-      return
-    }
-    if (isVisualEditorPageKey(next) && next !== 'collection') {
-      setPreviewPageKey(next)
-      clearDynamicPreview()
-    }
+    setPreviewPageKey(pageKey)
+    setPreviewCategoryPath(categoryPath)
+    setPreviewProductId(productId)
+    setPreviewProductKey(productKey)
+    setPreviewCmsSlug(cmsSlug)
   }
 
   function openLiveViewNow() {
@@ -965,6 +1017,16 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       window.removeEventListener('keydown', onKey)
     }
   }, [visualEditActive, leaveIntent, editDirty])
+
+  useEffect(() => {
+    if (!visualEditActive || editDirty) return
+    if (previewPageKey === 'home') return
+    if (htmlHasShopHeader(editSrcDoc || '')) return
+    const saved = savedHtmlForVariant(editVariant)
+    if (!visualHtmlLooksUsable(saved)) return
+    const next = visualEditSrcDoc(saved)
+    if (htmlHasShopHeader(next) && next !== editSrcDoc) setEditSrcDoc(next)
+  }, [visualEditActive, editDirty, htmlSource, project, liveTheme, previewPageKey, editVariant, editSrcDoc])
 
   const previewSrc = useMemo(() => {
     if (!hasWebsite) return null

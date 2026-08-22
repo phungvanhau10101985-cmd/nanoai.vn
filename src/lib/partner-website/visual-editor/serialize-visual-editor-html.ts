@@ -13,7 +13,16 @@ import {
 const EDITOR_STYLE_ID = 'nanoai-visual-editor-styles'
 const EDITOR_SCRIPT_ID = 'nanoai-visual-editor-script'
 
+function restoreDeferredPdpGalleryMedia(clone: Element) {
+  clone.querySelectorAll('img[data-pw-deferred-src]').forEach((img) => {
+    const url = img.getAttribute('data-pw-deferred-src')
+    if (url) img.setAttribute('src', url)
+    img.removeAttribute('data-pw-deferred-src')
+  })
+}
+
 function stripEditorAndRuntimeNodes(clone: Element) {
+  restoreDeferredPdpGalleryMedia(clone)
   clone.querySelector(`#${EDITOR_STYLE_ID}`)?.remove()
   clone.querySelector(`#${EDITOR_SCRIPT_ID}`)?.remove()
   clone.querySelector('#nanoai-pw-overlay-style')?.remove()
@@ -70,7 +79,7 @@ function stripEditorAndRuntimeNodes(clone: Element) {
   })
   clone
     .querySelectorAll(
-      '.nanoai-ve-resize-handle,.nanoai-ve-ignore,.nanoai-ve-chrome-delete,.nanoai-ve-move-handle,.nanoai-ve-delete-handle,.nanoai-ve-drop-line,.nanoai-ve-guides,.nanoai-ve-layer-switch,.nanoai-ve-logo-btn,.nanoai-ve-logo-rect'
+      '.nanoai-ve-resize-handle,.nanoai-ve-ignore,.nanoai-ve-chrome-delete,.nanoai-ve-move-handle,.nanoai-ve-delete-handle,.nanoai-ve-drop-line,.nanoai-ve-guides,.nanoai-ve-layer-switch,.nanoai-ve-logo-btn,.nanoai-ve-logo-rect,.nanoai-ve-gap-plus,.nanoai-ve-gap-pluses'
     )
     .forEach((el) => el.remove())
   clone.querySelectorAll('[data-nanoai-ve-selected],[data-nanoai-ve-ignore]').forEach((el) => {

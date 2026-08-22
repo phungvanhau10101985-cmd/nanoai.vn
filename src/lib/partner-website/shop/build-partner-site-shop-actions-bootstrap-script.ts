@@ -3,11 +3,14 @@ import {
   partnerSiteCartApiPath,
   partnerSiteCartPath,
   partnerSiteContactChannelsApiPath,
+  partnerSiteLeadApiPath,
   partnerSiteNotificationsApiPath,
   partnerSitePersonalizationApiPath,
   partnerSiteProductApiPath,
   partnerSiteProductPath,
+  partnerSitePromotionsValidateApiPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteAppliedPromoStorageKey } from '@/lib/partner-website/shop/partner-site-applied-promo'
 import { PW_CHROME_COUNT_BADGE_RUNTIME_JS } from '@/lib/partner-website/shop/chrome-count-badges'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 
@@ -19,6 +22,10 @@ const COPY: Record<
     favoriteAdd: string
     favoriteRemove: string
     error: string
+    shareCopied: string
+    shareFailed: string
+    couponOk: string
+    couponNeedCart: string
   }
 > = {
   vi: {
@@ -27,6 +34,10 @@ const COPY: Record<
     favoriteAdd: 'Thích',
     favoriteRemove: 'Bỏ thích',
     error: 'Không thực hiện được. Thử lại.',
+    shareCopied: 'Đã sao chép link.',
+    shareFailed: 'Không chia sẻ được.',
+    couponOk: 'Đã áp mã. Mở giỏ để xem giảm giá.',
+    couponNeedCart: 'Thêm sản phẩm vào giỏ rồi áp mã.',
   },
   en: {
     addToCart: 'Add to cart',
@@ -34,6 +45,10 @@ const COPY: Record<
     favoriteAdd: 'Favorite',
     favoriteRemove: 'Unfavorite',
     error: 'Action failed. Try again.',
+    shareCopied: 'Link copied.',
+    shareFailed: 'Could not share.',
+    couponOk: 'Code applied. Open the cart to see the discount.',
+    couponNeedCart: 'Add items to the cart first.',
   },
   zh: {
     addToCart: '加入购物车',
@@ -41,6 +56,10 @@ const COPY: Record<
     favoriteAdd: '收藏',
     favoriteRemove: '取消收藏',
     error: '操作失败，请重试。',
+    shareCopied: '链接已复制。',
+    shareFailed: '无法分享。',
+    couponOk: '已应用优惠码，请打开购物车查看。',
+    couponNeedCart: '请先把商品加入购物车。',
   },
   ja: {
     addToCart: 'カートに追加',
@@ -48,6 +67,10 @@ const COPY: Record<
     favoriteAdd: 'お気に入り',
     favoriteRemove: '解除',
     error: '失敗しました。再試行してください。',
+    shareCopied: 'リンクをコピーしました。',
+    shareFailed: '共有できませんでした。',
+    couponOk: 'コードを適用しました。カートで確認してください。',
+    couponNeedCart: '先にカートへ商品を入れてください。',
   },
   ko: {
     addToCart: '장바구니',
@@ -55,6 +78,10 @@ const COPY: Record<
     favoriteAdd: '찜',
     favoriteRemove: '찜 해제',
     error: '실패했습니다. 다시 시도하세요.',
+    shareCopied: '링크를 복사했습니다.',
+    shareFailed: '공유하지 못했습니다.',
+    couponOk: '코드가 적용되었습니다. 장바구니에서 확인하세요.',
+    couponNeedCart: '먼저 장바구니에 상품을 담으세요.',
   },
 }
 
@@ -76,6 +103,9 @@ export function buildPartnerSiteShopActionsBootstrapScript(input: {
   const recentApi = `${partnerSitePersonalizationApiPath(slug, 'recently-viewed')}?limit=48`
   const notifApi = partnerSiteNotificationsApiPath(slug, { unread: true })
   const contactApi = partnerSiteContactChannelsApiPath(slug)
+  const leadApi = partnerSiteLeadApiPath(slug)
+  const couponApi = partnerSitePromotionsValidateApiPath(slug)
+  const promoLs = partnerSiteAppliedPromoStorageKey(slug)
   const cartPath = partnerSiteCartPath(slug)
   const productApiPrefix = partnerSiteProductApiPath(slug, '__ID__').replace('__ID__', '')
   const detailPrefix = partnerSiteProductPath(slug, '__ID__').replace('__ID__', '')
@@ -88,6 +118,9 @@ var FAV_API=${JSON.stringify(favApi)};
 var RECENT_API=${JSON.stringify(recentApi)};
 var NOTIF_API=${JSON.stringify(notifApi)};
 var CONTACT_API=${JSON.stringify(contactApi)};
+var LEAD_API=${JSON.stringify(leadApi)};
+var COUPON_API=${JSON.stringify(couponApi)};
+var PROMO_LS=${JSON.stringify(promoLs)};
 var PRODUCT_API_PREFIX=${JSON.stringify(productApiPrefix)};
 var CART_PATH=${JSON.stringify(cartPath)};
 var DETAIL_PREFIX=${JSON.stringify(detailPrefix)};
@@ -211,13 +244,28 @@ function toggleFavorite(product,btn){
       if(p&&String(p.inventory_id||'').toLowerCase()===id)applyFavoriteState(all[i],on);
       else if(all[i]===btn)applyFavoriteState(all[i],on);
     }
+    window.__pwFavoriteIdsCache=null;
     hydrateChromeBadges(true);
   });
 }
-function hydrateFavoriteButtons(){
+function paintFavoriteButtons(ids){
+  var btns=document.querySelectorAll('[data-pw-favorite],[data-pw-chrome-btn="favorite-product"]');
+  for(var j=0;j<btns.length;j++){
+    var p=readProductFromEl(btns[j]);
+    applyFavoriteState(btns[j],!!(p&&ids[String(p.inventory_id||'').toLowerCase()]));
+  }
+}
+function hydrateFavoriteButtons(force){
   var btns=document.querySelectorAll('[data-pw-favorite],[data-pw-chrome-btn="favorite-product"]');
   if(!btns.length)return;
+  if(window.__pwFavoriteIdsCache&&!force){
+    paintFavoriteButtons(window.__pwFavoriteIdsCache);
+    return;
+  }
+  if(window.__pwFavoriteFetchInFlight)return;
+  window.__pwFavoriteFetchInFlight=true;
   apiFetch(FAV_API).then(function(res){
+    window.__pwFavoriteFetchInFlight=false;
     if(!res.ok)return;
     var ids={};
     var products=(res.j&&res.j.products)||[];
@@ -225,11 +273,9 @@ function hydrateFavoriteButtons(){
       var id=String(products[i]&&products[i].inventory_id||'').toLowerCase();
       if(id)ids[id]=1;
     }
-    for(var j=0;j<btns.length;j++){
-      var p=readProductFromEl(btns[j]);
-      applyFavoriteState(btns[j],!!(p&&ids[String(p.inventory_id||'').toLowerCase()]));
-    }
-  }).catch(function(){});
+    window.__pwFavoriteIdsCache=ids;
+    paintFavoriteButtons(ids);
+  }).catch(function(){window.__pwFavoriteFetchInFlight=false;});
 }
 function enhanceCards(){
   var links=document.querySelectorAll('a[href*="/products/"]');
@@ -312,8 +358,11 @@ function cartQty(items){
 function hydrateContactChatLinks(){
   var zalo=document.querySelectorAll('[data-pw-chrome-btn="chat-zalo"],[data-pw-contact-channel="zalo"]');
   var fb=document.querySelectorAll('[data-pw-chrome-btn="chat-facebook"],[data-pw-contact-channel="facebook"]');
-  if(!zalo.length&&!fb.length)return;
-  function apply(nodes,url){
+  var ig=document.querySelectorAll('[data-pw-chrome-btn="chat-instagram"],[data-pw-contact-channel="instagram"]');
+  var wa=document.querySelectorAll('[data-pw-chrome-btn="chat-whatsapp"],[data-pw-contact-channel="whatsapp"]');
+  var phone=document.querySelectorAll('[data-pw-chrome-btn="phone"],[data-pw-contact-channel="phone"]');
+  if(!zalo.length&&!fb.length&&!ig.length&&!wa.length&&!phone.length)return;
+  function apply(nodes,url,external){
     var i,el;
     for(i=0;i<nodes.length;i++){
       el=nodes[i];
@@ -321,8 +370,13 @@ function hydrateContactChatLinks(){
         el.setAttribute('href',url);
         el.removeAttribute('data-pw-contact-pending');
         el.removeAttribute('aria-disabled');
-        el.setAttribute('target','_blank');
-        el.setAttribute('rel','noopener noreferrer');
+        if(external){
+          el.setAttribute('target','_blank');
+          el.setAttribute('rel','noopener noreferrer');
+        }else{
+          el.removeAttribute('target');
+          el.removeAttribute('rel');
+        }
         el.style.removeProperty('display');
         el.style.removeProperty('pointer-events');
       }else if(el.getAttribute('data-pw-contact-pending')==='1'||!el.getAttribute('href')||el.getAttribute('href')==='#'){
@@ -334,13 +388,118 @@ function hydrateContactChatLinks(){
       }
     }
   }
+  function waHref(raw){
+    var d=String(raw||'').replace(/[^0-9]/g,'');
+    return d.length>=6?'https://wa.me/'+d:'';
+  }
+  function telHref(raw){
+    var p=String(raw||'').replace(/[^0-9+]/g,'');
+    return p.length>=6?'tel:'+p:'';
+  }
   apiFetch(CONTACT_API).then(function(res){
     var c=res.ok&&res.j&&res.j.channels?res.j.channels:{};
-    apply(zalo,c.zaloUrl||'');
-    apply(fb,c.messengerUrl||'');
+    apply(zalo,c.zaloUrl||'',true);
+    apply(fb,c.messengerUrl||'',true);
+    apply(ig,c.instagramUrl||'',true);
+    apply(wa,waHref(c.phone||''),true);
+    apply(phone,telHref(c.phone||''),false);
   }).catch(function(){
-    apply(zalo,'');
-    apply(fb,'');
+    apply(zalo,'',true);
+    apply(fb,'',true);
+    apply(ig,'',true);
+    apply(wa,'',true);
+    apply(phone,'',false);
+  });
+}
+function bindShareLeadCoupon(){
+  document.querySelectorAll('[data-pw-share],[data-pw-chrome-btn="share"]').forEach(function(el){
+    if(el.getAttribute('data-pw-share-bound'))return;
+    el.setAttribute('data-pw-share-bound','1');
+    el.addEventListener('click',function(e){
+      e.preventDefault();
+      var url=location.href;
+      if(navigator.share){
+        navigator.share({url:url,title:document.title}).catch(function(){});
+        return;
+      }
+      if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url).then(function(){toast(COPY.shareCopied);}).catch(function(){toast(COPY.shareFailed);});
+        return;
+      }
+      toast(COPY.shareFailed);
+    });
+  });
+  document.querySelectorAll('form[data-pw-lead-form-el],form[data-pw-lead-form],#pw-lead-form').forEach(function(f){
+    if(f.getAttribute('data-pw-lead-bound'))return;
+    f.setAttribute('data-pw-lead-bound','1');
+    f.addEventListener('submit',function(e){
+      e.preventDefault();
+      var msg=f.querySelector('.pw-form-msg');
+      var btn=f.querySelector('button[type=submit]');
+      if(btn)btn.disabled=true;
+      var fd=new FormData(f);
+      apiFetch(f.getAttribute('data-api')||LEAD_API,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          name:fd.get('name')||'',
+          phone:fd.get('phone')||'',
+          email:fd.get('email')||'',
+          message:fd.get('message')||''
+        })
+      }).then(function(res){
+        if(msg){
+          msg.hidden=false;
+          msg.textContent=res.ok?(f.getAttribute('data-success')||'OK'):((res.j&&res.j.error)||f.getAttribute('data-error')||COPY.error);
+          msg.className='pw-form-msg '+(res.ok?'pw-form-ok':'pw-form-err');
+        }
+        if(res.ok)f.reset();
+      }).catch(function(){
+        if(msg){msg.hidden=false;msg.textContent=f.getAttribute('data-error')||COPY.error;msg.className='pw-form-msg pw-form-err';}
+      }).finally(function(){if(btn)btn.disabled=false;});
+    });
+  });
+  document.querySelectorAll('form[data-pw-coupon-form-el],[data-pw-coupon-form] form').forEach(function(f){
+    if(f.getAttribute('data-pw-coupon-bound'))return;
+    f.setAttribute('data-pw-coupon-bound','1');
+    f.addEventListener('submit',function(e){
+      e.preventDefault();
+      var msg=f.querySelector('.pw-form-msg');
+      var btn=f.querySelector('button[type=submit]');
+      var code=String((new FormData(f)).get('code')||'').trim();
+      if(!code)return;
+      if(btn)btn.disabled=true;
+      apiFetch(CART_API).then(function(cartRes){
+        var items=(cartRes.ok&&cartRes.j&&cartRes.j.items)||[];
+        var lines=[];
+        for(var i=0;i<items.length;i++){
+          var it=items[i]||{};
+          var id=String(it.inventory_id||it.inventoryId||(it.card&&it.card.inventory_id)||'');
+          if(id)lines.push({inventoryId:id,lineSubtotal:0});
+        }
+        if(!lines.length){
+          if(msg){msg.hidden=false;msg.textContent=COPY.couponNeedCart;msg.className='pw-form-msg pw-form-err';}
+          return null;
+        }
+        return apiFetch(f.getAttribute('data-api')||COUPON_API,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({code:code,cartLines:lines})
+        });
+      }).then(function(res){
+        if(!res)return;
+        if(res.ok&&res.j&&res.j.ok){
+          try{localStorage.setItem(PROMO_LS,JSON.stringify({code:res.j.code||code,name:res.j.name||'',discountAmount:res.j.discountAmount||0}));}catch(errLs){}
+          if(msg){msg.hidden=false;msg.textContent=COPY.couponOk;msg.className='pw-form-msg pw-form-ok';}
+        }else if(msg){
+          msg.hidden=false;
+          msg.textContent=(res.j&&res.j.error)||COPY.error;
+          msg.className='pw-form-msg pw-form-err';
+        }
+      }).catch(function(){
+        if(msg){msg.hidden=false;msg.textContent=COPY.error;msg.className='pw-form-msg pw-form-err';}
+      }).finally(function(){if(btn)btn.disabled=false;});
+    });
   });
 }
 function hydrateChromeBadges(force){
@@ -391,16 +550,37 @@ function hydrateChromeBadges(force){
 }
 document.addEventListener('pw-cart-updated', function(){hydrateChromeBadges(true);});
 document.addEventListener('pw-shop-notifications-refresh', function(){hydrateChromeBadges(true);});
-function run(){enhanceCards();hydrateChromeBadges(true);hydrateContactChatLinks();hydrateFavoriteButtons();
+function runHydrate(forceNetwork){
+  if(window.__pwShopHydrating)return;
+  window.__pwShopHydrating=true;
+  try{
+    enhanceCards();
+    hydrateChromeBadges(!!forceNetwork);
+    hydrateContactChatLinks();
+    hydrateFavoriteButtons(!!forceNetwork);
+    bindShareLeadCoupon();
+  }finally{
+    window.__pwShopHydrating=false;
+  }
+}
+function run(){runHydrate(true);
   var moTimer=null;
-  var obs=typeof MutationObserver!=='undefined'?new MutationObserver(function(){
+  var obs=typeof MutationObserver!=='undefined'?new MutationObserver(function(recs){
+    if(window.__pwShopHydrating)return;
+    if(recs&&recs.length){
+      var onlyVe=true;
+      for(var ri=0;ri<recs.length;ri++){
+        var tg=recs[ri].target;
+        var el=tg&&(tg.nodeType===1?tg:tg.parentNode);
+        if(!el||!el.closest||!el.closest('#nanoai-ve-gap-pluses,.nanoai-ve-ignore,[data-nanoai-ve-ignore]')){onlyVe=false;break;}
+      }
+      if(onlyVe)return;
+    }
     if(moTimer)clearTimeout(moTimer);
     moTimer=setTimeout(function(){
-      enhanceCards();
-      hydrateChromeBadges(false);
-      hydrateContactChatLinks();
-      hydrateFavoriteButtons();
-    },120);
+      if(window.__pwShopHydrating)return;
+      runHydrate(false);
+    },240);
   }):null;
   if(obs)obs.observe(document.documentElement,{childList:true,subtree:true});
 }

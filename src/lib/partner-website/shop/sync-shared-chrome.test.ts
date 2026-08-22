@@ -5,6 +5,7 @@ import {
   extractSharedChrome,
   fillMissingSharedChromeFloats,
   hasSharedChrome,
+  htmlHasShopHeader,
   hoistBodyLevelChromeFloats,
   syncSharedChromeAcrossProjectFiles,
 } from '@/lib/partner-website/shop/sync-shared-chrome'
@@ -223,6 +224,11 @@ test('sync copies homepage floats onto other pages of the same device only', () 
   assert.match(aboutMob, /data-pw-chrome-btn="chat"/)
   assert.equal(/right:\s*16px/i.test(aboutMob), false)
   assert.equal(/bottom:\s*88px/i.test(aboutMob), false)
+})
+
+test('htmlHasShopHeader detects shared header chrome', () => {
+  assert.equal(htmlHasShopHeader(home), true)
+  assert.equal(htmlHasShopHeader('<!DOCTYPE html><html><body><main>No chrome</main></body></html>'), false)
 })
 
 test('applySharedChrome keeps page middle and replaces chrome', () => {
@@ -573,5 +579,63 @@ test('saving home copies chrome CSS onto other pages of the same device', () => 
   assert.match(aboutHtml, /data-pw-home-chrome-css/)
   assert.equal(aboutMobile.includes('HomeLogo'), false)
   assert.equal(aboutMobile.includes('pw-header{background:#c2410c}'), false)
+})
+
+test('shared chrome does not copy homepage bottom nav onto PDP', () => {
+  const pdp = `<!DOCTYPE html><html><body data-pw-page="product">
+<header class="pw-header">PdpHead</header>
+<main>PDP mid</main>
+<nav class="pw-bottom-nav" data-pw-pdp-bottom="1"><a data-pw-chrome-btn="home">Home</a><button data-pw-chrome-btn="buy-now">Mua</button></nav>
+</body></html>`
+  const next = applySharedChrome(pdp, extractSharedChrome(home))
+  assert.match(next, /HomeLogo/)
+  assert.match(next, /PDP mid/)
+  assert.match(next, /data-pw-pdp-bottom="1"/)
+  assert.match(next, /data-pw-chrome-btn="buy-now"/)
+  assert.equal(next.includes('href="/products"'), false)
+})
+
+test('shared chrome does not copy PDP bottom nav onto other pages', () => {
+  const pdp = `<!DOCTYPE html><html><body data-pw-page="product">
+<header class="pw-header">PdpHead</header>
+<main>PDP</main>
+<footer class="pw-footer">PdpFoot</footer>
+<nav class="pw-bottom-nav" data-pw-pdp-bottom="1"><button data-pw-chrome-btn="buy-now">Mua hàng</button></nav>
+</body></html>`
+  const next = applySharedChrome(about, extractSharedChrome(pdp))
+  assert.match(next, /PdpHead/)
+  assert.match(next, /About shop/)
+  assert.match(next, /href="\/about"/)
+  assert.equal(next.includes('data-pw-pdp-bottom'), false)
+  assert.equal(next.includes('Mua hàng'), false)
+})
+
+test('sync keeps mobile PDP bar when homepage nav is saved', () => {
+  const homeMob = `<!DOCTYPE html><html><body>
+<header class="pw-header">MobHead</header>
+<main>Home</main>
+<nav class="pw-bottom-nav"><a href="/">Trang chủ</a><a href="/products">Sản phẩm</a></nav>
+</body></html>`
+  const pdpMob = `<!DOCTYPE html><html><body data-pw-page="product">
+<header class="pw-header">OldPdpHead</header>
+<main>PDP mid</main>
+<nav class="pw-bottom-nav" data-pw-pdp-bottom="1"><a data-pw-chrome-btn="home">Home</a><button data-pw-chrome-btn="try-on">Thử đồ</button></nav>
+</body></html>`
+  const next = syncSharedChromeAcrossProjectFiles(
+    {
+      files: [
+        { path: 'index.mobile.html', kind: 'html', content: homeMob },
+        { path: 'product-detail.mobile.html', kind: 'html', content: pdpMob },
+      ],
+    },
+    'index.mobile.html',
+    homeMob
+  )
+  const pdp = next.files.find((f) => f.path === 'product-detail.mobile.html')?.content || ''
+  assert.match(pdp, /MobHead/)
+  assert.match(pdp, /PDP mid/)
+  assert.match(pdp, /data-pw-pdp-bottom="1"/)
+  assert.match(pdp, /data-pw-chrome-btn="try-on"/)
+  assert.equal(pdp.includes('href="/products"'), false)
 })
 

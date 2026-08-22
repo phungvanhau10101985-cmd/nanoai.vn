@@ -540,6 +540,11 @@ type VisualWebsitePick = {
   htmlSource?: string | null
 }
 
+function looksLikeVisualHomeHtml(html: string): boolean {
+  const page = html.match(/\bdata-pw-page=["']([^"']+)["']/i)?.[1]?.trim().toLowerCase() || ''
+  return !page || page === 'home'
+}
+
 function readExactVisualPageHtml(
   website: VisualWebsitePick,
   pageKey: PartnerWebsitePageKey,
@@ -548,8 +553,11 @@ function readExactVisualPageHtml(
   if (pageKey === 'home' && variant === 'desktop') {
     if (!website.theme?.useVisualHtml) return ''
     const source = website.htmlSource?.trim() || ''
-    if (source.length >= 40) return source
-    return extractIndexHtml(website.project ?? { entryPath: 'index.html', files: [] })?.trim() || ''
+    const indexHtml =
+      extractIndexHtml(website.project ?? { entryPath: 'index.html', files: [] })?.trim() || ''
+    if (source.length >= 40 && looksLikeVisualHomeHtml(source)) return source
+    if (indexHtml.length >= 40) return indexHtml
+    return looksLikeVisualHomeHtml(source) ? source : ''
   }
   if (pageKey === 'home' && variant !== 'desktop') {
     if (!visualHomeFlagForVariant(website.theme, variant)) return ''

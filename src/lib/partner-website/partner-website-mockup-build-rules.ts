@@ -21,7 +21,7 @@ export const PARTNER_WEBSITE_RESPONSIVE_RULES = `- RESPONSIVE REQUIRED for mobil
 - Test mentally at 390px, 768px, 1280px, and 1440px widths before returning JSON.`
 
 /** Prompt rules: shared header/footer/bottom-nav on every shop page. */
-export const PARTNER_WEBSITE_SHARED_CHROME_PROMPT_RULES = `- SHARED CHROME: Within ONE device (desktop OR tablet OR mobile), every page uses the SAME header, footer, and bottom nav as that device's homepage. Only <main> / middle content differs by page.
+export const PARTNER_WEBSITE_SHARED_CHROME_PROMPT_RULES = `- SHARED CHROME: Within ONE device (desktop OR tablet OR mobile), every page uses the SAME header, footer, and bottom nav as that device's homepage — except mobile product detail, which uses a different bottom bar (data-pw-pdp-bottom=1: Home, try-on, favorite, add to cart, buy). Only <main> / middle content differs by page.
 - Header: <header class="pw-header" data-pw-region="header"> (logo, search, account, Chat mua, cart). Do not invent a second nav bar or a different header per page of the same device.
 - Chat mua is a chrome widget in header actions: data-pw-chrome-btn="chat" + data-nanoai-open-chat + shop logo as <img class="pw-chrome-chat-logo"> (or chat SVG if no logo). It opens the platform embed chat API. NEVER create a floating NanoAI bubble (.pw-fab-chat, data-nanoai-chat-bubble, data-pw-chat-launcher).
 - Footer: <footer class="pw-footer" data-pw-region="footer"> after main.

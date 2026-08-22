@@ -149,6 +149,28 @@ test('saved visual page html is isolated from homepage', () => {
   assert.equal(resolveExactVisualPageHtml(website, 'faq'), '')
 })
 
+test('desktop home chrome does not treat a product htmlSource as the homepage', () => {
+  const home = `<!DOCTYPE html><html><body data-pw-page="home"><header class="pw-header">HomeHead</header></body></html>`
+  const pdp = `<!DOCTYPE html><html><body data-pw-page="product"><header class="pw-header">PdpHead</header></body></html>`
+  const website = {
+    theme: {
+      ...DEFAULT_PARTNER_WEBSITE_THEME,
+      useVisualHtml: true,
+      visualPageKeys: ['product_detail'],
+    },
+    htmlSource: pdp,
+    project: {
+      entryPath: 'index.html',
+      files: [
+        { path: 'index.html', kind: 'html' as const, content: home },
+        { path: 'product-detail.html', kind: 'html' as const, content: pdp },
+      ],
+    },
+  }
+  assert.match(resolveExactVisualPageHtml(website, 'home'), /HomeHead/)
+  assert.doesNotMatch(resolveExactVisualPageHtml(website, 'home'), /PdpHead/)
+})
+
 test('non-home visual html uses shared home header footer bottom nav and CSS', () => {
   const home = `<!DOCTYPE html><html><head>
 <style>.pw-shop-topbar{background:#c2410c}</style>
@@ -187,6 +209,43 @@ test('non-home visual html uses shared home header footer bottom nav and CSS', (
   assert.match(out, /data-pw-home-chrome-css/)
   assert.equal(out.includes('AboutHead'), false)
   assert.equal(out.includes('Home mid'), false)
+})
+
+test('product detail keeps its own mobile bottom nav instead of homepage nav', () => {
+  const home = `<!DOCTYPE html><html><body>
+<header class="pw-header">SharedHead</header>
+<main>Home mid</main>
+<nav class="pw-bottom-nav"><a href="/">HomeNav</a></nav>
+</body></html>`
+  const pdp = `<!DOCTYPE html><html><body data-pw-page="product">
+<header class="pw-header">PdpHead</header>
+<main>PDP mid</main>
+<nav class="pw-bottom-nav" data-pw-pdp-bottom="1"><button data-pw-chrome-btn="buy-now">Mua hàng</button></nav>
+</body></html>`
+  const website = {
+    theme: {
+      ...DEFAULT_PARTNER_WEBSITE_THEME,
+      useVisualHtml: true,
+      useVisualMobileHtml: true,
+      visualPageKeys: ['product_detail'],
+      visualMobilePageKeys: ['product_detail'],
+    },
+    htmlSource: home,
+    project: {
+      entryPath: 'index.html',
+      files: [
+        { path: 'index.html', kind: 'html' as const, content: home },
+        { path: 'index.mobile.html', kind: 'html' as const, content: home },
+        { path: 'product-detail.mobile.html', kind: 'html' as const, content: pdp },
+      ],
+    },
+  }
+  const out = resolveExactVisualPageHtml(website, 'product_detail', 'mobile')
+  assert.match(out, /SharedHead/)
+  assert.match(out, /PDP mid/)
+  assert.match(out, /data-pw-pdp-bottom="1"/)
+  assert.match(out, /Mua hàng/)
+  assert.equal(out.includes('HomeNav'), false)
 })
 
 test('mobile about uses that device home chrome, not desktop home chrome', () => {

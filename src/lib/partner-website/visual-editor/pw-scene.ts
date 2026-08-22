@@ -93,6 +93,19 @@ export function pwSceneZ(index: unknown, local: unknown = 0): number {
   return clampPwSceneIndex(index) * PW_SCENE_BAND + localZ
 }
 
+/**
+ * Icon tính năng / chrome widget trên Lớp giữa–nổi phải thắng nền thêm ở Lớp dưới.
+ * Nền lớp dưới cố ý z=1… (stack nền), không dùng dải 100 — nên chrome phải tự mang z scene.
+ */
+export function pwSceneChromeZCss(): string {
+  return [2, 3, 4]
+    .map(
+      (index) =>
+        `[data-pw-chrome-btn][data-pw-scene="${index}"],[data-pw-chrome-added][data-pw-scene="${index}"]{z-index:${pwSceneZ(index)}!important}`
+    )
+    .join('')
+}
+
 /** Đọc lớp của phần tử: ưu tiên `data-pw-scene`, chưa có thì suy từ z. */
 export function resolvePwSceneIndex(sceneAttr: unknown, z?: unknown): number {
   if (isPwSceneIndex(sceneAttr)) return Number(sceneAttr)
@@ -252,10 +265,19 @@ export function pwSceneCssVars(device: unknown): string {
   return `--pw-scene-w:${pwSceneCanvasWidth(device)}px`
 }
 
-/**
- * Zoom ảnh: gốc Y = tâm đứng của khung máy (iframe / ?pw-device=).
- * Không scale ngang — chiều rộng ảnh luôn 100% khung.
- */
+/** Ảnh banner luôn phủ kín khối — kéo = đổi crop, không dịch tấm ra khỏi khung. */
+export const PARTNER_SHOP_BANNER_MEDIA_FILL_CSS = `
+html [data-pw-region="banner"],html .pw-hero,html .pw-banner,html .pw-shop-hero,html .pw-shop-banner{overflow:hidden}
+html [data-pw-region="banner"] img[data-pw-el="media"],
+html [data-pw-region="banner"] img[data-pw-banner-zoom],
+html .pw-hero img[data-pw-el="media"],html .pw-banner img[data-pw-el="media"],
+html .pw-shop-hero img[data-pw-el="media"],html .pw-shop-banner img[data-pw-el="media"]{
+  position:absolute!important;inset:0!important;left:0!important;top:0!important;right:0!important;bottom:0!important;
+  width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;
+  object-fit:cover!important;box-sizing:border-box
+}
+`.trim()
+
 export const PW_SCENE_MEDIA_ZOOM_SEL = [
   '[data-pw-region="banner"] img[data-pw-el="media"]',
   '[data-pw-region="banner"] img[data-pw-edit*="hero"]',
@@ -353,6 +375,15 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
     if(root&&root.style){
       root.style.marginBottom='';
     }
+    var bgs=document.querySelectorAll('[data-pw-added-bg="1"]');
+    var bi;
+    for(bi=0;bi<bgs.length;bi++){
+      var bg=bgs[bi];
+      var sc=bg.getAttribute?String(bg.getAttribute('data-pw-scene')||''):'';
+      if(sc==='2'||sc==='3'||sc==='4')continue;
+      var ix=bg.getAttribute?bg.getAttribute('data-pw-bg-index'):'';
+      if(bg.style)bg.style.setProperty('z-index',ix||'1','important');
+    }
   }
   apply();
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply);
@@ -398,22 +429,52 @@ export const PARTNER_SHOP_IMAGE_ZOOM_SCRIPT = `(function(){
     }
     return 0;
   }
-  function applyImg(img,z,oy){
+  function parsePan(el){
+    var x=50,y=50;
+    var ax=el&&el.getAttribute?el.getAttribute('data-pw-banner-pan-x'):'';
+    var ay=el&&el.getAttribute?el.getAttribute('data-pw-banner-pan-y'):'';
+    if(ax!=null&&ax!==''){var px=parseFloat(ax);if(isFinite(px))x=Math.max(0,Math.min(100,px));}
+    if(ay!=null&&ay!==''){var py=parseFloat(ay);if(isFinite(py))y=Math.max(0,Math.min(100,py));}
+    return {x:x,y:y};
+  }
+  function applyImg(img,z,pan,box){
     if(!img||!img.style)return;
-    img.style.setProperty('--pw-zoom-oy',oy+'%');
-    img.style.setProperty('transform-origin','50% '+oy+'%');
-    if(z&&z!==1){
-      img.style.setProperty('transform','scaleY('+z+')');
-      img.style.setProperty('object-fit','cover');
-      img.style.setProperty('width','100%');
-      img.style.setProperty('max-width','none');
-      img.style.setProperty('max-height','none');
-    }else if(img.style.transform&&/scale(?:Y)?\(/.test(String(img.style.transform))){
-      img.style.setProperty('transform','none');
+    var host=box||(img.parentElement||img);
+    var x=pan&&isFinite(pan.x)?pan.x:50;
+    var y=pan&&isFinite(pan.y)?pan.y:50;
+    if(host&&host.style&&host!==img){
+      try{
+        var hp=window.getComputedStyle(host).position;
+        if(!hp||hp==='static')host.style.position='relative';
+      }catch(eH){}
+      host.style.overflow='hidden';
+      var wrap=img.parentElement;
+      if(wrap&&wrap!==host&&wrap!==document.body&&!(wrap.querySelector&&wrap.querySelector('h1,[data-pw-el="title"],[data-pw-el="copy"]'))){
+        wrap.style.position='absolute';
+        wrap.style.inset='0';
+        wrap.style.width='100%';
+        wrap.style.height='100%';
+        wrap.style.overflow='hidden';
+        wrap.style.transform='none';
+      }
     }
+    img.style.setProperty('position','absolute');
+    img.style.setProperty('left','0');
+    img.style.setProperty('top','0');
+    img.style.setProperty('right','0');
+    img.style.setProperty('bottom','0');
+    img.style.setProperty('object-fit','cover');
+    img.style.setProperty('object-position',Math.round(x)+'% '+Math.round(y)+'%');
+    img.style.setProperty('transform-origin',Math.round(x)+'% '+Math.round(y)+'%');
+    img.style.setProperty('transform',z&&z!==1?('scale('+z+')'):'none');
+    img.style.setProperty('width','100%');
+    img.style.setProperty('height','100%');
+    img.style.setProperty('max-width','none');
+    img.style.setProperty('max-height','none');
   }
   function applyHost(host){
     var z=parseZ(host);
+    var pan=parsePan(host);
     var img=host.querySelector&&host.querySelector('img[data-pw-el="media"],img[data-pw-banner-zoom],img[data-pw-edit*="hero"],img[data-pw-edit*="banner"]');
     if(!img&&host.querySelector){
       var imgs=host.querySelectorAll('img');
@@ -425,16 +486,14 @@ export const PARTNER_SHOP_IMAGE_ZOOM_SCRIPT = `(function(){
         break;
       }
     }
-    var box=img||host;
-    var oy=Math.round(originY(box)*100)/100;
-    host.style.setProperty('--pw-zoom-oy',oy+'%');
     if(z){
-      var size='100% '+Math.round(z*100)+'%';
+      var size=Math.round(z*100)+'% auto';
       if(host.style.backgroundImage||(host.style.backgroundSize&&String(host.style.backgroundSize).indexOf('%')>=0)){
         host.style.backgroundSize=z===1?'cover':size;
+        host.style.backgroundPosition=Math.round(pan.x)+'% '+Math.round(pan.y)+'%';
       }
     }
-    if(img)applyImg(img,parseZ(img)||z,oy);
+    if(img)applyImg(img,parseZ(img)||z||1,pan,host);
   }
   function run(){
     var hosts=document.querySelectorAll('[data-pw-region="banner"],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,[data-pw-banner-zoom]');
@@ -446,8 +505,8 @@ export const PARTNER_SHOP_IMAGE_ZOOM_SCRIPT = `(function(){
     var loose=document.querySelectorAll('img[data-pw-banner-zoom]');
     for(i=0;i<loose.length;i++){
       var img=loose[i];
-      var z=parseZ(img);
-      applyImg(img,z,Math.round(originY(img)*100)/100);
+      var host=img.parentElement||img;
+      applyImg(img,parseZ(img)||1,parsePan(host),host);
     }
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);

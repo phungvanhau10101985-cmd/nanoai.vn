@@ -2,15 +2,16 @@ import type { WebLocale } from '@/lib/i18n/config'
 import {
   fetchPartnerProfileForWebsitePg,
   fetchPartnerWebsiteByPartnerIdPg,
+  fetchPartnerWebsiteOwnerBySlugPg,
   updatePartnerWebsiteCreationJournalPg,
   upsertPartnerWebsitePg,
+  withPartnerWebsiteWriteLock,
 } from '@/lib/db/messaging-partner-websites-pg'
 import {
   appendJournalEntry,
   coerceJournalToTemplateSetup,
   coerceJournalToWebStudioFlow,
   createEmptyCreationJournal,
-  createEmptyJournalsBag,
   discoveryKeysForJournal,
   ensureQuestionEntryForStep,
   getJournalFromBag,
@@ -29,10 +30,11 @@ import {
 import { buildDefaultLandingV1Site } from '@/lib/partner-website/template/default-landing-v1'
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
 
-function resolveStudioSiteSlug(input: {
+async function resolveStudioSiteSlug(input: {
+  partnerId: string
   partnerSlug: string
   existingWebsite?: PartnerWebsiteRow | null
-}): { slug: string } | { error: string } {
+}): Promise<{ slug: string } | { error: string }> {
   if (input.existingWebsite?.siteSlug?.trim()) {
     return { slug: input.existingWebsite.siteSlug.trim().toLowerCase() }
   }
@@ -40,12 +42,15 @@ function resolveStudioSiteSlug(input: {
     input.partnerSlug.trim().toLowerCase(),
     normalizePartnerWebsiteSlug(`${input.partnerSlug}-shop`),
     normalizePartnerWebsiteSlug(`${input.partnerSlug}-web`),
+    normalizePartnerWebsiteSlug(`${input.partnerSlug}-${input.partnerId.slice(0, 8)}`),
   ].filter(Boolean)
   const seen = new Set<string>()
   for (const candidate of candidates) {
     if (!candidate || seen.has(candidate)) continue
     seen.add(candidate)
-    if (!validatePartnerWebsiteSlug(candidate)) return { slug: candidate }
+    if (validatePartnerWebsiteSlug(candidate)) continue
+    const owner = await fetchPartnerWebsiteOwnerBySlugPg(candidate)
+    if (!owner || owner.partnerId === input.partnerId) return { slug: candidate }
   }
   return { error: 'Could not resolve a valid public site slug for this shop.' }
 }
@@ -76,44 +81,54 @@ export async function ensurePartnerWebsiteStudioDraftPg(input: {
     partner.displayName?.trim() ||
     'Website'
 
-  let website = await fetchPartnerWebsiteByPartnerIdPg(input.partnerId)
-  const slugResolved = resolveStudioSiteSlug({ partnerSlug: partner.slug, existingWebsite: website })
-  if ('error' in slugResolved) return { ok: false, reason: slugResolved.error }
-  const siteSlugRaw = slugResolved.slug
-
-  let bag = website?.creationJournals ??
-    normalizeCreationJournals(null, { defaultBrandName: title, locale: input.locale })
-
-  if (!website) {
-    const templateSite = buildDefaultLandingV1Site({
-      locale: input.locale,
-      title,
-      briefText: title,
-      logoUrl: partner.logoUrl,
-    })
-    const project = syncTemplateToProject(templateSite)
-    const chatPath = `/messaging/p/${encodeURIComponent(partner.slug)}`
-    bag = createEmptyJournalsBag({ defaultBrandName: title, locale: input.locale })
-    website = await upsertPartnerWebsitePg({
+  const created = await withPartnerWebsiteWriteLock(input.partnerId, async () => {
+    let website = await fetchPartnerWebsiteByPartnerIdPg(input.partnerId)
+    const slugResolved = await resolveStudioSiteSlug({
       partnerId: input.partnerId,
-      siteSlug: siteSlugRaw,
-      title,
-      briefText: title,
-      logoUrl: partner.logoUrl,
-      referenceImageUrls: [],
-      renderMode: 'template',
-      templateId: templateSite.templateId,
-      theme: templateSite.theme,
-      pages: templateSite.pages,
-      project,
-      locale: input.locale,
-      skipRevision: true,
-      changeNote: 'studio_draft_init',
-      chatPath,
+      partnerSlug: partner.slug,
+      existingWebsite: website,
     })
-    if (!website) return { ok: false, reason: 'Could not create website draft' }
-    bag = website.creationJournals?.version === 2 ? website.creationJournals : bag
-  }
+    if ('error' in slugResolved) return { ok: false as const, reason: slugResolved.error }
+
+    if (!website) {
+      const templateSite = buildDefaultLandingV1Site({
+        locale: input.locale,
+        title,
+        briefText: title,
+        logoUrl: partner.logoUrl,
+      })
+      const project = syncTemplateToProject(templateSite)
+      const chatPath = `/messaging/p/${encodeURIComponent(partner.slug)}`
+      website = await upsertPartnerWebsitePg({
+        partnerId: input.partnerId,
+        siteSlug: slugResolved.slug,
+        title,
+        briefText: title,
+        logoUrl: partner.logoUrl,
+        referenceImageUrls: [],
+        renderMode: 'template',
+        templateId: templateSite.templateId,
+        theme: templateSite.theme,
+        pages: templateSite.pages,
+        project,
+        locale: input.locale,
+        skipRevision: true,
+        changeNote: 'studio_draft_init',
+        chatPath,
+      })
+      if (!website) {
+        website = await fetchPartnerWebsiteByPartnerIdPg(input.partnerId)
+      }
+      if (!website) return { ok: false as const, reason: 'Could not create website draft' }
+    }
+    return { ok: true as const, website }
+  })
+  if (!created.ok) return { ok: false, reason: created.reason }
+  let website = created.website
+
+  let bag =
+    website.creationJournals ??
+    normalizeCreationJournals(null, { defaultBrandName: title, locale: input.locale })
 
   if (input.pickOnly || !input.pageKey?.trim()) {
     return {

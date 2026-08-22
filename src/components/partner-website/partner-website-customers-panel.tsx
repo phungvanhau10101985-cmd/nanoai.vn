@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { Loader2, Users } from 'lucide-react'
+import { PartnerWebsiteLeadsPanel } from '@/components/partner-website/partner-website-leads-panel'
 
 /**
  * M2.1 (docs/PARTNER_WEBSITE_AND_LANDING_UPGRADE_188.md) — CRM nhẹ: khách đã đăng ký tài khoản shop.
@@ -141,6 +142,8 @@ export function PartnerWebsiteCustomersPanel({ locale, t, partnerId, sectionId }
             {t.customersLoadMore}
           </Button>
         ) : null}
+
+        <PartnerWebsiteLeadsPanel locale={locale} partnerId={partnerId} embedded />
       </CardContent>
     </Card>
   )

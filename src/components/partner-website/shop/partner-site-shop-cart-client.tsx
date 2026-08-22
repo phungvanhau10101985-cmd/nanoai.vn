@@ -27,6 +27,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
 import { PartnerSiteShopOrderConfirmation } from '@/components/partner-website/shop/partner-site-shop-order-confirmation'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { partnerSiteAppliedPromoStorageKey } from '@/lib/partner-website/shop/partner-site-applied-promo'
 
 type Props = {
   siteSlug: string
@@ -64,7 +65,19 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   const [promoCodeInput, setPromoCodeInput] = useState('')
   const [promoBusy, setPromoBusy] = useState(false)
   const [promoMessage, setPromoMessage] = useState('')
-  const [appliedPromo, setAppliedPromo] = useState<{ code: string; name: string; discountAmount: number } | null>(null)
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; name: string; discountAmount: number } | null>(
+    () => {
+      if (typeof window === 'undefined') return null
+      try {
+        const raw = window.localStorage.getItem(partnerSiteAppliedPromoStorageKey(siteSlug))
+        if (!raw) return null
+        const parsed = JSON.parse(raw) as { code?: string; name?: string; discountAmount?: number }
+        return parsed.code ? { code: parsed.code, name: parsed.name || '', discountAmount: parsed.discountAmount || 0 } : null
+      } catch {
+        return null
+      }
+    }
+  )
   // W1.7 — phí ship + lựa chọn thanh toán. Phí ship chỉ hiển thị ước tính ở đây; số cuối cùng do
   // backend tính lại lúc checkout (giống mọi số tiền khác trong hệ thống — không tin số FE gửi).
   const [shippingPolicy, setShippingPolicy] = useState<{

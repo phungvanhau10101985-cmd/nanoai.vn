@@ -1,4 +1,4 @@
-import { isPgConfigured } from '@/lib/db/pool'
+import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 import {
@@ -164,6 +164,51 @@ export async function fetchPartnerProfileForWebsitePg(partnerId: string): Promis
     }
   } catch (e) {
     console.error('[messaging-partner-websites-pg] fetchPartnerProfileForWebsitePg', e)
+    return null
+  }
+}
+
+/** Serialize studio/create after reset so two POSTs do not both INSERT the same slug. */
+const PARTNER_WEBSITE_WRITE_LOCK_NS = 871122
+
+export async function withPartnerWebsiteWriteLock<T>(
+  partnerId: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  const client = await getPgPool().connect()
+  try {
+    await client.query('select pg_advisory_lock($1, hashtext($2))', [PARTNER_WEBSITE_WRITE_LOCK_NS, partnerId])
+    return await fn()
+  } finally {
+    try {
+      await client.query('select pg_advisory_unlock($1, hashtext($2))', [
+        PARTNER_WEBSITE_WRITE_LOCK_NS,
+        partnerId,
+      ])
+    } finally {
+      client.release()
+    }
+  }
+}
+
+export async function fetchPartnerWebsiteOwnerBySlugPg(
+  siteSlug: string
+): Promise<{ id: string; partnerId: string } | null> {
+  if (!isPgConfigured()) return null
+  const slug = siteSlug.trim().toLowerCase()
+  if (!slug) return null
+  try {
+    const row = await pgQueryOne<{ id: string; partner_id: string }>(
+      `select id::text, partner_id::text
+         from public.messaging_partner_websites
+        where site_slug = $1
+        limit 1`,
+      [slug]
+    )
+    if (!row) return null
+    return { id: row.id, partnerId: row.partner_id }
+  } catch (e) {
+    console.error('[messaging-partner-websites-pg] fetchPartnerWebsiteOwnerBySlugPg', e)
     return null
   }
 }
@@ -491,6 +536,22 @@ export async function upsertPartnerWebsitePg(input: {
     )
     return row ? mapRow(row) : null
   } catch (e) {
+    const err = e as { code?: string } | null
+    // Concurrent studio init after reset: first INSERT wins. Postgres may raise
+    // site_slug unique (23505) instead of partner_id, so ON CONFLICT (partner_id)
+    // does not absorb the loser — recover the winner's row.
+    if (err?.code === '23505') {
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        const existing = await fetchPartnerWebsiteByPartnerIdPg(input.partnerId)
+        if (existing) return existing
+        const owner = await fetchPartnerWebsiteOwnerBySlugPg(input.siteSlug)
+        if (owner?.partnerId === input.partnerId) {
+          const owned = await fetchPartnerWebsiteByPartnerIdPg(input.partnerId)
+          if (owned) return owned
+        }
+        await new Promise((resolve) => setTimeout(resolve, 40 * (attempt + 1)))
+      }
+    }
     console.error('[messaging-partner-websites-pg] upsertPartnerWebsitePg', e)
     return null
   }

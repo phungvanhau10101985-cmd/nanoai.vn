@@ -508,7 +508,7 @@ function bindPanelLinks(panel){
       closeEl(btn,panel);
     });
   });
-  panel.querySelectorAll('[data-pw-account-logout],button.is-logout,a.is-logout[href="#"]').forEach(function(btn){
+  panel.querySelectorAll('[data-pw-account-logout],button.is-logout,a.is-logout[href="#"],[data-pw-chrome-btn="logout"]').forEach(function(btn){
     if(btn.getAttribute('data-pw-acc-logout-bound'))return;
     btn.setAttribute('data-pw-acc-logout-bound','1');
     btn.addEventListener('click',function(e){
@@ -555,6 +555,15 @@ function bindToggles(){
   normalizeCatBtns();
   normalizeAccountBtns();
   normalizeLoginLinks();
+  document.querySelectorAll('[data-pw-chrome-btn="logout"],[data-pw-account-logout]').forEach(function(btn){
+    if(btn.getAttribute('data-pw-acc-logout-bound'))return;
+    btn.setAttribute('data-pw-acc-logout-bound','1');
+    btn.addEventListener('click',function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      clearShopSession();
+    });
+  });
   var catBtns=document.querySelectorAll(catSel());
   var accBtns=document.querySelectorAll(accBtnSel());
   var i;

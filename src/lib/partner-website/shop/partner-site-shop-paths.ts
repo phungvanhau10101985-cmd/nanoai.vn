@@ -91,6 +91,14 @@ export function partnerSiteContactChannelsApiPath(siteSlug: string): string {
   return `/api/site/${encodeURIComponent(siteSlug.trim())}/contact-channels`
 }
 
+export function partnerSiteLeadApiPath(siteSlug: string): string {
+  return `/api/site/${encodeURIComponent(siteSlug.trim())}/lead`
+}
+
+export function partnerSitePromotionsValidateApiPath(siteSlug: string): string {
+  return `/api/site/${encodeURIComponent(siteSlug.trim())}/promotions/validate`
+}
+
 export function partnerSiteNotificationsApiPath(siteSlug: string, opts?: { unread?: boolean }): string {
   const base = `/api/site/${encodeURIComponent(siteSlug.trim())}/notifications`
   return opts?.unread ? `${base}?count=1` : base

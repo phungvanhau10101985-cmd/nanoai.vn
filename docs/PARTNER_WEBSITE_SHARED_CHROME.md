@@ -15,7 +15,7 @@ Cửa hàng là **một khung + nhiều trang giữa**, và **bốn máy độc 
 | Header / footer / thanh đáy / **icon nổi** (Chat mua, Zalo, Facebook, Top up) | **Giống nhau** — copy từ trang chủ máy đó | **Cùng loại nút**; vị trí/kích thước **độc lập** |
 | Sắp xếp logo, kéo thả phần tử | **Giống trang chủ máy đó** | **Không copy** — sửa desktop không đụng mobile |
 | Phần giữa (hero, catalog, form…) | **Khác theo trang** | **Độc lập theo máy** |
-| Thanh đáy | Hiện + dính đáy **Tablet** (`768–1279px`); **Mobile ẩn** (header trên) | Desktop `≥1280` ẩn |
+| Thanh đáy | Hiện + dính đáy **Mobile + Tablet** (`<1280px`). PDP mobile dùng thanh riêng (`data-pw-pdp-bottom`) | Desktop `≥1280` ẩn |
 
 Sửa header trang chủ **Desktop** → mọi trang Desktop copy y hệt. File `*.laptop.html` / `*.tablet.html` / `*.mobile.html` giữ layout riêng.
 
@@ -62,9 +62,9 @@ Mọi đường xem HTML visual phải đi qua `render-partner-visual-html.ts`:
 ## Breakpoint thanh đáy
 
 - **Tablet:** hiện + `position: fixed; bottom: 0` khi `768–1279px`.
-- **Mobile:** ẩn (dùng header trên).
+- **Mobile:** hiện + dính đáy (`<768px`). Trang chi tiết sản phẩm dùng thanh khác: Home → Thử đồ → Thích sản phẩm → Thêm giỏ → Mua hàng (`data-pw-pdp-bottom="1"`). Không copy thanh này sang trang khác.
 - **Desktop / Laptop:** ẩn khi `min-width: 1280px`.
-- Preview Sửa nhanh: Mobile 390px, Tablet 768px, Laptop 1280px, Desktop ≥1440px. Tablet phải thấy thanh đáy dính đáy khung. **Mobile không hiện thanh đáy** — điều hướng bằng header trên.
+- Preview Sửa nhanh: Mobile 390px, Tablet 768px, Laptop 1280px, Desktop ≥1440px. Mobile và Tablet phải thấy thanh đáy dính đáy khung.
 - Template mới **không** ẩn thanh đáy ở `max-width: 899px` rồi quên tablet.
 
 ## Checklist trước khi báo xong giao diện mới
@@ -73,7 +73,7 @@ Mọi đường xem HTML visual phải đi qua `render-partner-visual-html.ts`:
 - [ ] Sửa sắp xếp logo Desktop **không** đổi vị trí logo Mobile (và ngược lại).
 - [ ] Nút tính năng (giỏ, tài khoản, tìm, **Chat mua**) có trên cả bốn máy; vị trí từng máy độc lập.
 - [ ] Chat mua = `data-pw-chrome-btn="chat"` + `data-nanoai-open-chat` + logo shop (`.pw-chrome-chat-logo`). Không có `.pw-fab-chat` / icon nhúng NanoAI.
-- [ ] Tablet: thanh đáy dính đáy màn, cùng icon/link **của máy đó**. Mobile: không thanh đáy, dùng header.
+- [ ] Tablet + Mobile: thanh đáy dính đáy màn, cùng icon/link **của máy đó**. PDP mobile: thanh Home / Thử đồ / Thích / Thêm giỏ / Mua — các nút vẫn sửa được trong Sửa nhanh.
 - [ ] Desktop không hiện thanh đáy; header + footer vẫn khớp các trang khác.
 - [ ] Chỉ `<main>` / vùng giữa khác theo trang.
 - [ ] Class `pw-header` / `pw-footer` / `pw-bottom-nav` (hoặc `pw-shop-*`) — engine mới sync được.

@@ -31,6 +31,9 @@ describe('listing native UI contract stamps', () => {
     expect(src).toContain('pwElAttr(PW_EL.link)')
     expect(src).toContain('pwElAttr(PW_EL.navLink)')
     expect(src).toContain('data-pw-chrome-btn="account"')
+    expect(src).toContain('data-pw-pdp-bottom="1"')
+    expect(src).toContain('data-pw-chrome-btn="try-on"')
+    expect(src).toContain('data-pw-chrome-btn="favorite-product"')
     expect(src).not.toContain('data-pw-account-toggle')
   })
 

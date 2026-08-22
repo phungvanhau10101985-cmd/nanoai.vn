@@ -10,6 +10,7 @@ export type PartnerSiteShopCopy = {
   navChat: string
   navChatZalo: string
   navChatFacebook: string
+  navChatWhatsapp: string
   navTopUp: string
   navCategories: string
   catalogTitle: string
@@ -191,6 +192,9 @@ export type PartnerSiteShopCopy = {
   productDescriptionTitle: string
   productDetailImagesTitle: string
   productVideoTitle: string
+  pdpConsultNoteTitle: string
+  pdpMaterialImagesTitle: string
+  pdpRealUseImagesTitle: string
   favoriteAdd: string
   favoriteRemove: string
   wishlistTitle: string
@@ -206,6 +210,8 @@ export type PartnerSiteShopCopy = {
   consentReject: string
   navAccount: string
   navLogout: string
+  navRegister: string
+  leadFormTitle: string
   navWallet: string
   walletTitle: string
   walletHint: string
@@ -343,6 +349,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navChat: 'Chat mua',
     navChatZalo: 'Chat Zalo',
     navChatFacebook: 'Chat Facebook',
+    navChatWhatsapp: 'Chat WhatsApp',
     navTopUp: 'Lên đầu trang',
     navCategories: 'Danh mục',
     catalogTitle: 'Tất cả sản phẩm',
@@ -514,6 +521,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     productDescriptionTitle: 'Mô tả sản phẩm',
     productDetailImagesTitle: 'Ảnh chi tiết',
     productVideoTitle: 'Video sản phẩm',
+    pdpConsultNoteTitle: 'Gợi ý tư vấn',
+    pdpMaterialImagesTitle: 'Ảnh chất liệu',
+    pdpRealUseImagesTitle: 'Ảnh thực tế',
     favoriteAdd: 'Thêm yêu thích',
     favoriteRemove: 'Bỏ yêu thích',
     wishlistTitle: 'Yêu thích',
@@ -529,6 +539,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     consentReject: 'Từ chối',
     navAccount: 'Tài khoản',
     navLogout: 'Đăng xuất',
+    navRegister: 'Đăng ký',
+    leadFormTitle: 'Đăng ký nhận tin',
     navWallet: 'Ví quà',
     walletTitle: 'Ví quà của bạn',
     walletHint: 'Sao chép mã và dán vào ô mã giảm giá ở giỏ hàng để áp dụng.',
@@ -660,6 +672,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navChat: 'Chat',
     navChatZalo: 'Zalo chat',
     navChatFacebook: 'Facebook chat',
+    navChatWhatsapp: 'WhatsApp chat',
     navTopUp: 'Back to top',
     navCategories: 'Categories',
     catalogTitle: 'All products',
@@ -831,6 +844,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     productDescriptionTitle: 'Product description',
     productDetailImagesTitle: 'Detail images',
     productVideoTitle: 'Product video',
+    pdpConsultNoteTitle: 'Stylist note',
+    pdpMaterialImagesTitle: 'Material photos',
+    pdpRealUseImagesTitle: 'On-body photos',
     favoriteAdd: 'Add to favorites',
     favoriteRemove: 'Remove from favorites',
     wishlistTitle: 'Favorites',
@@ -846,6 +862,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     consentReject: 'Decline',
     navAccount: 'Account',
     navLogout: 'Log out',
+    navRegister: 'Sign up',
+    leadFormTitle: 'Get updates',
     navWallet: 'My vouchers',
     walletTitle: 'Your vouchers',
     walletHint: 'Copy a code and paste it into the promo code field at checkout to apply it.',
@@ -977,6 +995,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navChat: '聊天购买',
     navChatZalo: 'Zalo 聊天',
     navChatFacebook: 'Facebook 聊天',
+    navChatWhatsapp: 'WhatsApp 聊天',
     navTopUp: '回到顶部',
     navCategories: '分类',
     catalogTitle: '全部产品',
@@ -1148,6 +1167,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     productDescriptionTitle: '产品描述',
     productDetailImagesTitle: '细节图片',
     productVideoTitle: '产品视频',
+    pdpConsultNoteTitle: '搭配建议',
+    pdpMaterialImagesTitle: '材质细节',
+    pdpRealUseImagesTitle: '实拍图',
     favoriteAdd: '加入收藏',
     favoriteRemove: '取消收藏',
     wishlistTitle: '收藏',
@@ -1163,6 +1185,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     consentReject: '拒绝',
     navAccount: '账户',
     navLogout: '退出登录',
+    navRegister: '注册',
+    leadFormTitle: '订阅资讯',
     navWallet: '我的优惠券',
     walletTitle: '您的优惠券',
     walletHint: '复制代码并粘贴到结账时的优惠码栏即可使用。',
@@ -1294,6 +1318,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navChat: 'チャット',
     navChatZalo: 'Zaloチャット',
     navChatFacebook: 'Facebookチャット',
+    navChatWhatsapp: 'WhatsAppチャット',
     navTopUp: 'ページ先頭',
     navCategories: 'カテゴリ',
     catalogTitle: 'すべての商品',
@@ -1465,6 +1490,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     productDescriptionTitle: '商品説明',
     productDetailImagesTitle: '詳細画像',
     productVideoTitle: '商品動画',
+    pdpConsultNoteTitle: 'スタイリストメモ',
+    pdpMaterialImagesTitle: '素材写真',
+    pdpRealUseImagesTitle: '着用写真',
     favoriteAdd: 'お気に入りに追加',
     favoriteRemove: 'お気に入りから削除',
     wishlistTitle: 'お気に入り',
@@ -1480,6 +1508,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     consentReject: '拒否する',
     navAccount: 'アカウント',
     navLogout: 'ログアウト',
+    navRegister: '登録',
+    leadFormTitle: '最新情報を受け取る',
     navWallet: 'マイクーポン',
     walletTitle: 'あなたのクーポン',
     walletHint: 'コードをコピーしてカートのプロモコード欄に貼り付けてください。',
@@ -1611,6 +1641,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navChat: '채팅',
     navChatZalo: 'Zalo 채팅',
     navChatFacebook: 'Facebook 채팅',
+    navChatWhatsapp: 'WhatsApp 채팅',
     navTopUp: '맨 위로',
     navCategories: '카테고리',
     catalogTitle: '전체 상품',
@@ -1782,6 +1813,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     productDescriptionTitle: '상품 설명',
     productDetailImagesTitle: '상세 이미지',
     productVideoTitle: '상품 영상',
+    pdpConsultNoteTitle: '스타일 노트',
+    pdpMaterialImagesTitle: '소재 사진',
+    pdpRealUseImagesTitle: '실착 사진',
     favoriteAdd: '찜하기',
     favoriteRemove: '찜 해제',
     wishlistTitle: '찜',
@@ -1797,6 +1831,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     consentReject: '거부',
     navAccount: '계정',
     navLogout: '로그아웃',
+    navRegister: '가입',
+    leadFormTitle: '소식 받기',
     navWallet: '내 쿠폰함',
     walletTitle: '내 쿠폰함',
     walletHint: '코드를 복사해 장바구니의 할인 코드란에 붙여넣으면 적용됩니다.',

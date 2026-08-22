@@ -2,6 +2,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsitePageKey } from '@/lib/partner-website/partner-website-page-catalog'
 import type { PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
+import { deferOffDevicePdpGalleryMedia } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
 import { rewriteThemeCssVarsInHtml } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { injectPartnerCustomDomainLinkRewriteScript } from '@/lib/partner-website/shop/inject-partner-custom-domain-link-script'
 import { injectPartnerLogoHomeLinkScript } from '@/lib/partner-website/shop/inject-partner-logo-home-link'
@@ -9,6 +10,7 @@ import {
   injectPartnerShopRuntimeScriptsIntoHtml,
   stampPartnerShopEditorHooksInHtml,
 } from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
+import { injectPartnerShopThemeCss } from '@/lib/partner-website/shop/build-shop-theme-css'
 import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
 import { stripPartnerInfoPageSeoCoachFromHtml } from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
 import { ensureAdsPlatformPolicyInHtml } from '@/lib/partner-website/pages/partner-info-page-visual'
@@ -47,9 +49,12 @@ export function preparePartnerVisualHtmlForEditor(
 ): string {
   const locale = input.locale ?? 'vi'
   const withPolicy = ensureAdsPlatformPolicyInHtml(html, locale, input.pageKey || input.cmsSlug)
-  const normalized = injectPartnerShopChromeLayoutCss(
-    isolateVisualHtmlForDevice(stripEmptyLogoPlaceholdersFromHtml(withPolicy), input.variant)
-  )
+  const isolated = isolateVisualHtmlForDevice(stripEmptyLogoPlaceholdersFromHtml(withPolicy), input.variant)
+  const isProduct =
+    input.pageKey === 'product_detail' || /data-pw-page=["']product["']/.test(isolated)
+  const light = isProduct ? deferOffDevicePdpGalleryMedia(isolated, input.variant) : isolated
+  const withShopCss = isProduct ? injectPartnerShopThemeCss(light, input.theme) : light
+  const normalized = injectPartnerShopChromeLayoutCss(withShopCss)
   const themed = input.theme ? rewriteThemeCssVarsInHtml(normalized, input.theme) : normalized
   return preparePartnerVisualHtmlForPublic(themed, {
     siteSlug: input.siteSlug,
@@ -58,6 +63,7 @@ export function preparePartnerVisualHtmlForEditor(
     includeRuntime: false,
     pageKey: input.pageKey,
     cmsSlug: input.cmsSlug,
+    theme: input.theme,
   })
 }
 
@@ -70,13 +76,17 @@ export function preparePartnerVisualHtmlForPublic(
     includeRuntime?: boolean
     pageKey?: string | null
     cmsSlug?: string | null
+    theme?: PartnerWebsiteTheme | null
   }
 ): string {
   const siteSlug = input.siteSlug?.trim() ?? ''
   const locale = input.locale ?? 'vi'
   const withPolicy = ensureAdsPlatformPolicyInHtml(html, locale, input.pageKey || input.cmsSlug)
   const cleaned = stripPartnerInfoPageSeoCoachFromHtml(withPolicy)
-  const withChrome = injectPartnerShopChromeLayoutCss(stripEmptyLogoPlaceholdersFromHtml(cleaned))
+  const isProduct =
+    input.pageKey === 'product_detail' || /data-pw-page=["']product["']/.test(cleaned)
+  const withShopCss = isProduct ? injectPartnerShopThemeCss(cleaned, input.theme) : cleaned
+  const withChrome = injectPartnerShopChromeLayoutCss(stripEmptyLogoPlaceholdersFromHtml(withShopCss))
   const withRuntime =
     input.includeRuntime === false
       ? stampPartnerShopEditorHooksInHtml(withChrome, { siteSlug })
@@ -127,5 +137,6 @@ export function renderPartnerVisualHtmlForPublic(
     includeRuntime: input?.includeRuntime,
     pageKey,
     cmsSlug,
+    theme: website.theme,
   })
 }

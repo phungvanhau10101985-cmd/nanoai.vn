@@ -7,6 +7,7 @@ import {
   copyMissingChromeCountBadgeWidgets,
   DEMO_CHROME_COUNT_BADGES,
   formatChromeCountBadge,
+  PW_CHROME_COUNT_BADGE_HIDE_CSS,
   PW_CHROME_COUNT_BADGE_RUNTIME_JS,
   restampChromeCountBadgeWidgets,
 } from '@/lib/partner-website/shop/chrome-count-badges'
@@ -46,6 +47,9 @@ test('chrome count badge runtime js can stamp demo numbers', () => {
   assert.match(PW_CHROME_COUNT_BADGE_RUNTIME_JS, /lucide-bell/)
   assert.match(PW_CHROME_COUNT_BADGE_RUNTIME_JS, /thông báo/)
   assert.doesNotMatch(PW_CHROME_COUNT_BADGE_RUNTIME_JS, /pw-device=/)
+  assert.match(PW_CHROME_COUNT_BADGE_RUNTIME_JS, /if\(!el.getAttribute\('data-pw-chrome-count'\)\)/)
+  assert.match(PW_CHROME_COUNT_BADGE_RUNTIME_JS, /data-pw-chrome-count'\)==='0'/)
+  assert.match(PW_CHROME_COUNT_BADGE_HIDE_CSS, /data-pw-chrome-count="0"/)
 })
 
 test('count badge widgets copy onto the other device html', () => {

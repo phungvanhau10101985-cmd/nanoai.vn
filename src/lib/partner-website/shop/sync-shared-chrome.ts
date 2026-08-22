@@ -78,6 +78,10 @@ export function hasSharedChrome(chrome: SharedChrome): boolean {
   return Boolean(chrome.header || chrome.footer || chrome.bottomNav || chrome.topbar || chrome.floats)
 }
 
+export function htmlHasShopHeader(html: string): boolean {
+  return Boolean(html.trim() && extractFirst(html, HEADER_RE))
+}
+
 const FLOAT_KIND_RE = PW_CHROME_FLOAT_KINDS.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
 const FLOAT_WIDGET_OPEN_RE = new RegExp(
   `<(a|button|div)\\b(?=[^>]*(?:\\bdata-pw-chrome-float=["']1["']|\\bdata-pw-chrome-btn=["'](?:${FLOAT_KIND_RE})["']))[^>]*>`,
@@ -522,6 +526,14 @@ function replaceRange(html: string, block: ExtractedBlock, next: string): string
   return html.slice(0, block.start) + next + html.slice(block.end)
 }
 
+export function isPdpPageHtml(html: string): boolean {
+  return /data-pw-page=["']product["']/i.test(html)
+}
+
+export function isPdpBottomNavHtml(html: string): boolean {
+  return /data-pw-pdp-bottom=["']1["']/i.test(html)
+}
+
 export function applySharedChrome(
   html: string,
   chrome: SharedChrome,
@@ -584,8 +596,12 @@ export function applySharedChrome(
   }
 
   if (bottomNav) {
-    const targetNav = extractFirst(out, BOTTOM_RE)
-    out = targetNav ? replaceRange(out, targetNav, bottomNav) : insertBeforeBodyClose(out, bottomNav)
+    const targetIsPdp = isPdpPageHtml(out)
+    const sourceIsPdpNav = isPdpBottomNavHtml(bottomNav)
+    if (targetIsPdp === sourceIsPdpNav) {
+      const targetNav = extractFirst(out, BOTTOM_RE)
+      out = targetNav ? replaceRange(out, targetNav, bottomNav) : insertBeforeBodyClose(out, bottomNav)
+    }
   }
 
   out = stripLeftoverEmbedChatFabs(out)

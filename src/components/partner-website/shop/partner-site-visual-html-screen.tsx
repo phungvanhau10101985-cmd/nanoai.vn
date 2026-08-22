@@ -121,6 +121,7 @@ export function PartnerSiteVisualHtmlScreen({
     onCustomDomain,
     pageKey: infoSeo?.pageKey,
     cmsSlug: infoSeo?.cmsSlug,
+    theme: site.theme,
   })
 
   return (
@@ -189,8 +190,15 @@ export function maybePartnerSiteVisualProductPage(
 ) {
   const html = resolvePartnerVisualHtmlForTarget(site, { kind: 'product', productId }, device)
   if (html.length < 40) return null
-  const bound = product ? bindLiveProductToPdpHtml(html, product) : html
-  return <PartnerSiteVisualHtmlScreen site={site} html={bound} device={device} />
+  const bound = product ? bindLiveProductToPdpHtml(html, product, { locale: site.locale }) : html
+  return (
+    <PartnerSiteVisualHtmlScreen
+      site={site}
+      html={bound}
+      device={device}
+      infoSeo={{ pageKey: 'product_detail' }}
+    />
+  )
 }
 
 export function maybePartnerSiteVisualCmsPage(

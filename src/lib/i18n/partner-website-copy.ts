@@ -164,7 +164,13 @@ export type PartnerWebsiteCopy = {
   visualEditLogoZoomHint: string
   visualEditBannerZoom: string
   visualEditBannerZoomHint: string
+  visualEditBlockWidth: string
+  visualEditBlockHeight: string
+  visualEditBlockSizeHint: string
+  visualEditBlockSizeReset: string
   visualEditAddWidget: string
+  visualEditAddAtGap: string
+  visualEditInsertAtGapHint: string
   visualEditAddLogo: string
   visualEditAddLogoHint: string
   visualEditPanelClose: string
@@ -184,11 +190,19 @@ export type PartnerWebsiteCopy = {
   visualEditLogoInkTextPlaceholder: string
   visualEditLogoIdeaLabel: string
   visualEditAddText: string
+  visualEditAddImage: string
+  visualEditAddVideo: string
+  visualEditAddVideoUrl: string
   visualEditAddArticleImage: string
   visualEditArticleEditHint: string
   visualEditTextContent: string
   visualEditAddBg: string
   visualEditAddBgColor: string
+  visualEditInsertBgAbove: string
+  visualEditInsertBgBelow: string
+  visualEditAddBgNoInsert: string
+  visualEditInsertBgNeedSelect: string
+  visualEditInsertBgCancel: string
   visualEditLayerUp: string
   visualEditLayerDown: string
   visualEditLayerFront: string
@@ -232,6 +246,9 @@ export type PartnerWebsiteCopy = {
   visualEditSearchSubmitHint: string
   visualEditSearchImageTitle: string
   visualEditSearchImageHint: string
+  visualEditSearchGlyph: string
+  visualEditSearchCameraGlyph: string
+  visualEditSearchLensGlyph: string
   visualEditWordmarkTitle: string
   visualEditWordmarkHint: string
   visualEditDotsTitle: string
@@ -249,6 +266,7 @@ export type PartnerWebsiteCopy = {
   visualEditChatEmbedDelete: string
   visualEditChatEmbedRestore: string
   visualEditAddedBgHint: string
+  visualEditBgLockedHint: string
   visualEditDeleteBg: string
   visualEditNavLinkTitle: string
   visualEditNavLinkHint: string
@@ -307,7 +325,24 @@ export type PartnerWebsiteCopy = {
   visualEditAddStyleIconLabelLeft: string
   visualEditAddStyleText: string
   visualEditChromeIconSize: string
+  visualEditChromeAllSize: string
+  visualEditChromeTextSize: string
   visualEditChromeBtnSize: string
+  visualEditChromeSizeWidth: string
+  visualEditChromeSizeHeight: string
+  visualEditChromeSizeLock: string
+  visualEditChromeSizeUnlock: string
+  visualEditChromeBold: string
+  visualEditChromeGap: string
+  visualEditChromeRadius: string
+  visualEditChromeHover: string
+  visualEditChromeCountBadge: string
+  visualEditChromeCountBadgeHint: string
+  visualEditChromeReset: string
+  visualEditChromeLayout: string
+  visualEditChromeLayoutHint: string
+  visualEditChromeLayoutRow: string
+  visualEditChromeLayoutCol: string
   visualEditBtnStyleHero: string
   visualEditBtnStylePrimary: string
   visualEditBtnStyleOutline: string
@@ -379,6 +414,11 @@ export type PartnerWebsiteCopy = {
   leadsEmpty: string
   leadsLoading: string
   leadsMarkRead: string
+  leadsStatusNew: string
+  leadsStatusRead: string
+  leadsName: string
+  leadsMessage: string
+  leadsTime: string
   tenantNavEditor: string
   tenantNavLeads: string
   tenantNavLandings: string
@@ -996,8 +1036,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoZoom: 'Zoom ảnh',
     visualEditLogoZoomHint: 'Bấm Cắt ảnh rồi kéo logo trên header. Ảnh giữ nguyên cỡ, chỉ cắt theo khung đứt nét.',
     visualEditBannerZoom: 'Cỡ ảnh',
-    visualEditBannerZoomHint: 'Kéo thanh để phóng to hoặc thu nhỏ ảnh. Chữ và nút giữ nguyên.',
+    visualEditBannerZoomHint: 'Phóng to hoặc thu nhỏ ảnh, giữ nguyên tỷ lệ — không méo. Chữ và nút giữ nguyên.',
+    visualEditBlockWidth: 'Chiều rộng khối',
+    visualEditBlockHeight: 'Chiều cao khối',
+    visualEditBlockSizeHint: 'Đổi khung khối. Ảnh nền và chữ nằm trong khung. Khối giữ trục giữa.',
+    visualEditBlockSizeReset: 'Về mặc định',
     visualEditAddWidget: 'Thêm',
+    visualEditAddAtGap: 'Thêm tại khe này',
+    visualEditInsertAtGapHint: 'Chèn vào khe đã chọn. Bấm Thêm trên thanh nếu muốn thả giữa trang.',
     visualEditAddLogo: 'Thêm logo',
     visualEditAddLogoHint: 'Chọn tỷ lệ khung hình và màu nền, rồi tạo logo. Không cần vẽ khung.',
     visualEditPanelClose: 'Đóng',
@@ -1017,11 +1063,19 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoInkTextPlaceholder: 'Gõ màu logo (trống = ô chọn)',
     visualEditLogoIdeaLabel: 'Ý tưởng tạo logo',
     visualEditAddText: 'Thêm chữ',
+    visualEditAddImage: 'Thêm ảnh',
+    visualEditAddVideo: 'Thêm video',
+    visualEditAddVideoUrl: 'Dán link YouTube hoặc video',
     visualEditAddArticleImage: 'Chèn ảnh vào bài',
     visualEditArticleEditHint: 'Bấm chữ trên bài để sửa trực tiếp, đổi màu/cỡ chữ. Thêm → chèn ảnh hoặc đoạn mới.',
     visualEditTextContent: 'Chữ',
     visualEditAddBg: 'Thêm nền',
     visualEditAddBgColor: 'Màu nền',
+    visualEditInsertBgAbove: 'Chèn lên',
+    visualEditInsertBgBelow: 'Chèn xuống',
+    visualEditAddBgNoInsert: 'Thêm không chèn',
+    visualEditInsertBgNeedSelect: 'Bấm khối gốc trên trang để chèn nền.',
+    visualEditInsertBgCancel: 'Hủy',
     visualEditLayerUp: 'Đưa lên',
     visualEditLayerDown: 'Đưa xuống',
     visualEditLayerFront: 'Đưa lên trên',
@@ -1057,7 +1111,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditPageButtonHint: 'Bấm trên web khách sẽ mở đúng trang gắn ở ô link bên dưới.',
     visualEditChromeWidgetTitle: 'Nút chức năng shop',
     visualEditChromeWidgetHint:
-      'Bấm trên web khách sẽ mở đúng chức năng này (giỏ, tài khoản, chat…). Không gắn link trang riêng.',
+      'Mọi nút chức năng sửa giống nhau: kiểu, icon, cỡ, chữ. Việc khách bấm giữ đúng chức năng của nút đang chọn.',
     visualEditChatIconLogoTitle: 'Tạo logo icon Chat mua',
     visualEditChatIconLogoHint:
       'Cùng một logo icon cho mọi máy. Đổi ở đây thì Desktop / Tablet / Mobile đều đổi. Tải ảnh lên hoặc tạo bằng AI.',
@@ -1068,9 +1122,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditSearchTitle: 'Ô tìm kiếm',
     visualEditSearchHint: 'Kéo để đổi vị trí, kéo cạnh để đổi độ rộng. Khách gõ từ khóa tại đây để tìm sản phẩm.',
     visualEditSearchSubmitTitle: 'Nút tìm',
-    visualEditSearchSubmitHint: 'Nút gửi tìm kiếm trong ô search. Đổi màu nút, viền và icon/chữ.',
+    visualEditSearchSubmitHint: 'Nút gửi tìm kiếm trong ô search. Đổi kiểu kính lúp, màu nút, viền và chữ.',
     visualEditSearchImageTitle: 'Nút tìm bằng ảnh',
-    visualEditSearchImageHint: 'Nút camera để khách tìm sản phẩm bằng ảnh.',
+    visualEditSearchImageHint: 'Nút camera trong ô search. Đổi kiểu icon máy ảnh; icon không được đè chữ tìm kiếm.',
+    visualEditSearchGlyph: 'Kiểu icon',
+    visualEditSearchCameraGlyph: 'Kiểu máy ảnh',
+    visualEditSearchLensGlyph: 'Kiểu kính lúp',
     visualEditWordmarkTitle: 'Tên shop',
     visualEditWordmarkHint: 'Chữ tên shop cạnh logo. Đổi màu, cỡ chữ, đậm và căn lề.',
     visualEditDotsTitle: 'Chấm banner',
@@ -1088,7 +1145,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: 'Mở cài đặt mã nhúng chat',
     visualEditChatEmbedDelete: 'Xóa nút chat',
     visualEditChatEmbedRestore: 'Hiện nút chat',
-    visualEditAddedBgHint: 'Nền trang trí. Đổi màu, lớp, hoặc gắn vào header. Không gắn link trang.',
+    visualEditAddedBgHint: 'Nền đã thêm: đổi màu, lớp, hoặc bấm Xóa nền. Nền khối gốc (header, gallery) không xóa được.',
+    visualEditBgLockedHint: 'Đây là nền khối gốc — chỉ đổi màu. Muốn bỏ lớp phủ thì chọn nền đã thêm rồi Xóa nền.',
     visualEditDeleteBg: 'Xóa nền',
     visualEditNavLinkTitle: 'Liên kết trang',
     visualEditNavLinkHint: 'Bấm trên web khách sẽ mở đúng trang gắn ở ô link. Không phải nút danh mục hay nút chức năng shop.',
@@ -1147,7 +1205,24 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddStyleIconLabelLeft: 'Chữ bên phải',
     visualEditAddStyleText: 'Chỉ chữ',
     visualEditChromeIconSize: 'Cỡ icon',
+    visualEditChromeAllSize: 'Cỡ chung',
+    visualEditChromeTextSize: 'Cỡ chữ',
     visualEditChromeBtnSize: 'Kích thước nút',
+    visualEditChromeSizeWidth: 'Ngang',
+    visualEditChromeSizeHeight: 'Dọc',
+    visualEditChromeSizeLock: 'Khóa 2 chiều',
+    visualEditChromeSizeUnlock: 'Tách 2 chiều',
+    visualEditChromeBold: 'Chữ đậm',
+    visualEditChromeGap: 'Khoảng cách icon–chữ',
+    visualEditChromeRadius: 'Bo góc',
+    visualEditChromeHover: 'Màu khi rê chuột',
+    visualEditChromeCountBadge: 'Chấm số',
+    visualEditChromeCountBadgeHint: 'Số lấy từ giỏ / yêu thích / thông báo thật — không gõ tay.',
+    visualEditChromeReset: 'Về mặc định',
+    visualEditChromeLayout: 'Chữ xếp hàng',
+    visualEditChromeLayoutHint: 'Chỉ xếp chữ. Dọc = mỗi từ một hàng (theo dấu cách). Icon vẫn theo kiểu nút.',
+    visualEditChromeLayoutRow: 'Ngang',
+    visualEditChromeLayoutCol: 'Dọc',
     visualEditBtnStyleHero: 'Nền trắng',
     visualEditBtnStylePrimary: 'Màu chính',
     visualEditBtnStyleOutline: 'Viền',
@@ -1213,10 +1288,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     searchAliasesDuplicate: "Từ khoá này đã tồn tại.",
     searchAliasesTargetRequired: "Cần Inventory ID hoặc Category ID.",
     leadsPanelTitle: 'Lead từ form website',
-    leadsPanelHint: 'Khách gửi từ form liên hệ trên landing — xử lý qua inbox/điện thoại.',
+    leadsPanelHint: 'Khách điền form trên web shop hoặc landing — tên, SĐT, email, lời nhắn.',
     leadsEmpty: 'Chưa có lead nào.',
     leadsLoading: 'Đang tải lead…',
     leadsMarkRead: 'Đã xử lý',
+    leadsStatusNew: 'Mới',
+    leadsStatusRead: 'Đã xử lý',
+    leadsName: 'Tên',
+    leadsMessage: 'Lời nhắn',
+    leadsTime: 'Thời gian',
     tenantNavEditor: 'Chỉnh web',
     tenantNavLeads: 'Lead form',
     tenantNavLandings: 'Landing pages',
@@ -1850,8 +1930,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoZoom: 'Zoom image',
     visualEditLogoZoomHint: 'Tap Crop photo, then drag on the header. The image stays the same size; only the dashed frame crops it.',
     visualEditBannerZoom: 'Image size',
-    visualEditBannerZoomHint: 'Drag to zoom the photo. Text and buttons stay in place.',
+    visualEditBannerZoomHint: 'Zoom the photo without stretching. Text and buttons stay in place.',
+    visualEditBlockWidth: 'Block width',
+    visualEditBlockHeight: 'Block height',
+    visualEditBlockSizeHint: 'Resize the block frame. Photo and text stay inside. The block stays centered.',
+    visualEditBlockSizeReset: 'Reset size',
     visualEditAddWidget: 'Add',
+    visualEditAddAtGap: 'Add at this gap',
+    visualEditInsertAtGapHint: 'Insert at the selected gap. Use Add on the toolbar to drop in the middle of the page.',
     visualEditAddLogo: 'Add logo',
     visualEditAddLogoHint: 'Choose an aspect ratio and background color, then create the logo. No need to draw a frame.',
     visualEditPanelClose: 'Close',
@@ -1871,11 +1957,19 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoInkTextPlaceholder: 'Type a color, empty = swatch',
     visualEditLogoIdeaLabel: 'Logo idea',
     visualEditAddText: 'Add text',
+    visualEditAddImage: 'Add image',
+    visualEditAddVideo: 'Add video',
+    visualEditAddVideoUrl: 'Paste a YouTube or video URL',
     visualEditAddArticleImage: 'Insert image into article',
     visualEditArticleEditHint: 'Click text on the page to edit, change color/size. Add → insert image or a new paragraph.',
     visualEditTextContent: 'Text',
     visualEditAddBg: 'Add background',
     visualEditAddBgColor: 'Background color',
+    visualEditInsertBgAbove: 'Insert above',
+    visualEditInsertBgBelow: 'Insert below',
+    visualEditAddBgNoInsert: 'Add without inserting',
+    visualEditInsertBgNeedSelect: 'Click a root block on the page to insert the background.',
+    visualEditInsertBgCancel: 'Cancel',
     visualEditLayerUp: 'Bring up',
     visualEditLayerDown: 'Send down',
     visualEditLayerFront: 'Bring to front',
@@ -1911,7 +2005,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditPageButtonHint: 'On the live site this opens the page in the link field below.',
     visualEditChromeWidgetTitle: 'Shop function button',
     visualEditChromeWidgetHint:
-      'On the live site this opens that shop function (cart, account, chat…). It does not use a separate page link.',
+      'Every function button is edited the same way: style, icon, size, label. A live click still runs this button’s own action.',
     visualEditChatIconLogoTitle: 'Create Chat mua icon logo',
     visualEditChatIconLogoHint:
       'One icon logo for every device. Change it here and Desktop / Tablet / Mobile all update. Upload an image or generate with AI.',
@@ -1922,9 +2016,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditSearchTitle: 'Search box',
     visualEditSearchHint: 'Drag to move, drag the edge to change width. Customers type here to find products.',
     visualEditSearchSubmitTitle: 'Search button',
-    visualEditSearchSubmitHint: 'The submit button inside the search box. Change fill, border, and icon/text.',
+    visualEditSearchSubmitHint: 'The submit button inside the search box. Change the magnifier icon, fill, border, and text.',
     visualEditSearchImageTitle: 'Image search button',
-    visualEditSearchImageHint: 'Camera button so customers can search by photo.',
+    visualEditSearchImageHint: 'Camera button inside the search box. Pick a camera icon; it must not cover the search text.',
+    visualEditSearchGlyph: 'Icon style',
+    visualEditSearchCameraGlyph: 'Camera icon',
+    visualEditSearchLensGlyph: 'Magnifier icon',
     visualEditWordmarkTitle: 'Shop name',
     visualEditWordmarkHint: 'The shop name next to the logo. Change color, size, weight, and alignment.',
     visualEditDotsTitle: 'Banner dots',
@@ -1942,8 +2039,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: 'Open chat embed settings',
     visualEditChatEmbedDelete: 'Remove chat button',
     visualEditChatEmbedRestore: 'Show chat button',
-    visualEditAddedBgHint: 'Decorative fill. Change color, layer, or pin to the header. No page link.',
-    visualEditDeleteBg: 'Remove fill',
+    visualEditAddedBgHint: 'Added fill: change color, layer, or Delete background. Built-in section fills stay.',
+    visualEditBgLockedHint: 'This is a section fill — recolor only. To remove a layer, select an added background and delete it.',
+    visualEditDeleteBg: 'Delete background',
     visualEditNavLinkTitle: 'Page link',
     visualEditNavLinkHint: 'On the live site this opens the page in the link field. Not a category menu or shop function button.',
     visualEditLogoPanelTitle: 'Logo',
@@ -2001,7 +2099,24 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddStyleIconLabelLeft: 'Text on the right',
     visualEditAddStyleText: 'Text only',
     visualEditChromeIconSize: 'Icon size',
+    visualEditChromeAllSize: 'Size',
+    visualEditChromeTextSize: 'Text size',
     visualEditChromeBtnSize: 'Button size',
+    visualEditChromeSizeWidth: 'Width',
+    visualEditChromeSizeHeight: 'Height',
+    visualEditChromeSizeLock: 'Lock both axes',
+    visualEditChromeSizeUnlock: 'Resize separately',
+    visualEditChromeBold: 'Bold',
+    visualEditChromeGap: 'Icon–text gap',
+    visualEditChromeRadius: 'Corner radius',
+    visualEditChromeHover: 'Hover color',
+    visualEditChromeCountBadge: 'Count badge',
+    visualEditChromeCountBadgeHint: 'Number comes from the live cart / wishlist / notifications — do not type it.',
+    visualEditChromeReset: 'Reset to default',
+    visualEditChromeLayout: 'Text layout',
+    visualEditChromeLayoutHint: 'Arranges the label only. Vertical = one word per line (at spaces). The icon stays put.',
+    visualEditChromeLayoutRow: 'Horizontal',
+    visualEditChromeLayoutCol: 'Vertical',
     visualEditBtnStyleHero: 'White fill',
     visualEditBtnStylePrimary: 'Primary',
     visualEditBtnStyleOutline: 'Outline',
@@ -2067,10 +2182,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     searchAliasesDuplicate: "This keyword already exists.",
     searchAliasesTargetRequired: "Inventory ID or Category ID is required.",
     leadsPanelTitle: 'Website form leads',
-    leadsPanelHint: 'Submitted from the landing contact form.',
+    leadsPanelHint: 'Customers who filled the shop or landing form — name, phone, email, message.',
     leadsEmpty: 'No leads yet.',
     leadsLoading: 'Loading leads…',
     leadsMarkRead: 'Mark handled',
+    leadsStatusNew: 'New',
+    leadsStatusRead: 'Handled',
+    leadsName: 'Name',
+    leadsMessage: 'Message',
+    leadsTime: 'Time',
     tenantNavEditor: 'Edit site',
     tenantNavLeads: 'Form leads',
     tenantNavLandings: 'Landing pages',
@@ -2701,8 +2821,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoZoom: '缩放图片',
     visualEditLogoZoomHint: '点击「裁切图片」后在页头拖动。图片大小不变，只按虚线框裁切。',
     visualEditBannerZoom: '图片大小',
-    visualEditBannerZoomHint: '拖动滑块放大或缩小图片。文字和按钮保持原位。',
+    visualEditBannerZoomHint: '缩放图片并保持比例，不会变形。文字和按钮保持原位。',
+    visualEditBlockWidth: '区块宽度',
+    visualEditBlockHeight: '区块高度',
+    visualEditBlockSizeHint: '调整区块外框。背景图和文字留在框内。区块保持居中。',
+    visualEditBlockSizeReset: '恢复默认',
     visualEditAddWidget: '添加',
+    visualEditAddAtGap: '在此间隙添加',
+    visualEditInsertAtGapHint: '插入到已选间隙。若要放到页面中间，请点顶栏的“添加”。',
     visualEditAddLogo: '添加标志',
     visualEditAddLogoHint: '选择画面比例和背景色后创建标志，无需再画框。',
     visualEditPanelClose: '关闭',
@@ -2722,11 +2848,19 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoInkTextPlaceholder: '输入颜色，留空则用色块',
     visualEditLogoIdeaLabel: '标志创意',
     visualEditAddText: '添加文字',
+    visualEditAddImage: '添加图片',
+    visualEditAddVideo: '添加视频',
+    visualEditAddVideoUrl: '粘贴 YouTube 或视频链接',
     visualEditAddArticleImage: '插入文章图片',
     visualEditArticleEditHint: '点击页面文字可直接编辑、改颜色/字号。添加 → 插入图片或新段落。',
     visualEditTextContent: '文字',
     visualEditAddBg: '添加背景',
     visualEditAddBgColor: '背景色',
+    visualEditInsertBgAbove: '插入上方',
+    visualEditInsertBgBelow: '插入下方',
+    visualEditAddBgNoInsert: '直接添加',
+    visualEditInsertBgNeedSelect: '点击页面上的根区块以插入背景。',
+    visualEditInsertBgCancel: '取消',
     visualEditLayerUp: '上移一层',
     visualEditLayerDown: '下移一层',
     visualEditLayerFront: '移到最前',
@@ -2757,7 +2891,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditPageButtonTitle: '打开页面的按钮',
     visualEditPageButtonHint: '在顾客网站上点击会打开下方链接中的页面。',
     visualEditChromeWidgetTitle: '店铺功能按钮',
-    visualEditChromeWidgetHint: '在顾客网站上点击会打开对应功能（购物车、账户、聊天…）。不使用单独的页面链接。',
+    visualEditChromeWidgetHint: '所有功能按钮用同一套改法：样式、图标、大小、文字。顾客点击仍执行该按钮自己的功能。',
     visualEditChatIconLogoTitle: '为「Chat mua」图标生成标志',
     visualEditChatIconLogoHint:
       '所有设备共用同一图标标志。在此更改后，桌面 / 平板 / 手机一并更新。可上传图片或用 AI 生成。',
@@ -2768,9 +2902,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditSearchTitle: '搜索框',
     visualEditSearchHint: '拖动可改位置，拖边缘可改宽度。顾客在此输入关键词查找商品。',
     visualEditSearchSubmitTitle: '搜索按钮',
-    visualEditSearchSubmitHint: '搜索框内的提交按钮。可改按钮色、边框和图标/文字。',
+    visualEditSearchSubmitHint: '搜索框内的提交按钮。可改放大镜样式、按钮色、边框和文字。',
     visualEditSearchImageTitle: '以图搜按钮',
-    visualEditSearchImageHint: '相机按钮，顾客可用照片搜索商品。',
+    visualEditSearchImageHint: '搜索框内的相机按钮。可换相机图标，且不得挡住搜索文字。',
+    visualEditSearchGlyph: '图标样式',
+    visualEditSearchCameraGlyph: '相机图标',
+    visualEditSearchLensGlyph: '放大镜图标',
     visualEditWordmarkTitle: '店铺名称',
     visualEditWordmarkHint: '标志旁的店名文字。可改颜色、字号、粗细和对齐。',
     visualEditDotsTitle: '横幅圆点',
@@ -2787,7 +2924,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: '打开聊天嵌入设置',
     visualEditChatEmbedDelete: '删除聊天按钮',
     visualEditChatEmbedRestore: '显示聊天按钮',
-    visualEditAddedBgHint: '装饰背景。可改颜色、图层，或固定到页头。没有页面链接。',
+    visualEditAddedBgHint: '已添加的背景：可改颜色、图层，或点删除背景。区块原背景不能删。',
+    visualEditBgLockedHint: '这是区块原背景，只能改色。要去掉覆盖层，请选中已添加的背景再删除。',
     visualEditDeleteBg: '删除背景',
     visualEditNavLinkTitle: '页面链接',
     visualEditNavLinkHint: '在顾客网站上点击会打开链接中的页面。不是分类菜单，也不是店铺功能按钮。',
@@ -2846,7 +2984,24 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddStyleIconLabelLeft: '文字在图标右',
     visualEditAddStyleText: '仅文字',
     visualEditChromeIconSize: '图标大小',
+    visualEditChromeAllSize: '整体大小',
+    visualEditChromeTextSize: '文字大小',
     visualEditChromeBtnSize: '按钮大小',
+    visualEditChromeSizeWidth: '宽',
+    visualEditChromeSizeHeight: '高',
+    visualEditChromeSizeLock: '锁定宽高',
+    visualEditChromeSizeUnlock: '分开调整',
+    visualEditChromeBold: '加粗',
+    visualEditChromeGap: '图标与文字间距',
+    visualEditChromeRadius: '圆角',
+    visualEditChromeHover: '悬停颜色',
+    visualEditChromeCountBadge: '数字角标',
+    visualEditChromeCountBadgeHint: '数字来自真实购物车 / 收藏 / 通知，不能手输。',
+    visualEditChromeReset: '恢复默认',
+    visualEditChromeLayout: '文字排列',
+    visualEditChromeLayoutHint: '只排列文字。纵向=按空格每个词一行。图标位置不变。',
+    visualEditChromeLayoutRow: '横向',
+    visualEditChromeLayoutCol: '纵向',
     visualEditBtnStyleHero: '白底',
     visualEditBtnStylePrimary: '主色',
     visualEditBtnStyleOutline: '描边',
@@ -2912,10 +3067,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     searchAliasesDuplicate: "该关键词已存在。",
     searchAliasesTargetRequired: "需要 Inventory ID 或 Category ID。",
     leadsPanelTitle: '表单线索',
-    leadsPanelHint: '来自落地页联系表单。',
+    leadsPanelHint: '在网店或落地页填写表单的客户 — 姓名、电话、邮箱、留言。',
     leadsEmpty: '暂无线索。',
     leadsLoading: '加载中…',
     leadsMarkRead: '已处理',
+    leadsStatusNew: '新',
+    leadsStatusRead: '已处理',
+    leadsName: '姓名',
+    leadsMessage: '留言',
+    leadsTime: '时间',
     tenantNavEditor: '编辑网站',
     tenantNavLeads: '表单线索',
     tenantNavLandings: '落地页',
@@ -3529,8 +3689,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoZoom: '画像ズーム',
     visualEditLogoZoomHint: '「画像を切り抜き」のあとヘッダー上でドラッグ。画像サイズはそのまま、破線の枠だけで切ります。',
     visualEditBannerZoom: '画像サイズ',
-    visualEditBannerZoomHint: 'スライダーで写真を拡大・縮小します。文字とボタンはそのままです。',
+    visualEditBannerZoomHint: '写真を拡大・縮小します。縦横比は維持し、歪みません。文字とボタンはそのままです。',
+    visualEditBlockWidth: 'ブロック幅',
+    visualEditBlockHeight: 'ブロック高さ',
+    visualEditBlockSizeHint: 'ブロック枠を変更します。写真と文字は枠内のまま。中央揃えを維持します。',
+    visualEditBlockSizeReset: 'サイズを戻す',
     visualEditAddWidget: '追加',
+    visualEditAddAtGap: 'この隙間に追加',
+    visualEditInsertAtGapHint: '選んだ隙間に挿入します。ページ中央に置く場合は上部の「追加」を押します。',
     visualEditAddLogo: 'ロゴを追加',
     visualEditAddLogoHint: '比率と背景色を選んでロゴを作成します。枠を描く必要はありません。',
     visualEditPanelClose: '閉じる',
@@ -3550,11 +3716,19 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoInkTextPlaceholder: '色を入力、空なら色見本',
     visualEditLogoIdeaLabel: 'ロゴのアイデア',
     visualEditAddText: 'テキストを追加',
+    visualEditAddImage: '画像を追加',
+    visualEditAddVideo: '動画を追加',
+    visualEditAddVideoUrl: 'YouTube または動画 URL を貼り付け',
     visualEditAddArticleImage: '記事に画像を挿入',
     visualEditArticleEditHint: 'ページ上の文字をクリックして編集・色/サイズ変更。追加 → 画像や段落を挿入。',
     visualEditTextContent: 'テキスト',
     visualEditAddBg: '背景を追加',
     visualEditAddBgColor: '背景色',
+    visualEditInsertBgAbove: '上に挿入',
+    visualEditInsertBgBelow: '下に挿入',
+    visualEditAddBgNoInsert: '挿入せず追加',
+    visualEditInsertBgNeedSelect: 'ページ上の元ブロックをクリックして背景を挿入します。',
+    visualEditInsertBgCancel: 'キャンセル',
     visualEditLayerUp: '上へ',
     visualEditLayerDown: '下へ',
     visualEditLayerFront: '最前面へ',
@@ -3590,7 +3764,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditPageButtonHint: '公開サイトでは下のリンク欄のページが開きます。',
     visualEditChromeWidgetTitle: 'ショップ機能ボタン',
     visualEditChromeWidgetHint:
-      '公開サイトではその機能（カート、アカウント、チャットなど）が開きます。別のページリンクは使いません。',
+      '機能ボタンはどれも同じ直し方です：スタイル・アイコン・サイズ・文字。公開サイトの動作はそのボタンのままです。',
     visualEditChatIconLogoTitle: 'Chat muaアイコンのロゴを作成',
     visualEditChatIconLogoHint:
       '全端末で同じアイコンロゴを使います。ここで変えるとデスクトップ / タブレット / モバイルが同時に変わります。画像アップロードまたは AI 生成。',
@@ -3601,9 +3775,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditSearchTitle: '検索ボックス',
     visualEditSearchHint: 'ドラッグで位置、端をドラッグで幅。お客様はここで商品を検索します。',
     visualEditSearchSubmitTitle: '検索ボタン',
-    visualEditSearchSubmitHint: '検索ボックス内の送信ボタン。塗り・枠・アイコン/文字を変更できます。',
+    visualEditSearchSubmitHint: '検索ボックス内の送信ボタン。虫眼鏡・塗り・枠・文字を変更できます。',
     visualEditSearchImageTitle: '画像検索ボタン',
-    visualEditSearchImageHint: '写真で商品を探すカメラボタンです。',
+    visualEditSearchImageHint: '検索ボックス内のカメラボタン。アイコンを選べます。検索文字を覆わないこと。',
+    visualEditSearchGlyph: 'アイコンの種類',
+    visualEditSearchCameraGlyph: 'カメラアイコン',
+    visualEditSearchLensGlyph: '虫眼鏡アイコン',
     visualEditWordmarkTitle: 'ショップ名',
     visualEditWordmarkHint: 'ロゴ横の店名。色・サイズ・太さ・揃えを変更できます。',
     visualEditDotsTitle: 'バナーの点',
@@ -3621,7 +3798,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: 'チャット埋め込み設定を開く',
     visualEditChatEmbedDelete: 'チャットボタンを削除',
     visualEditChatEmbedRestore: 'チャットボタンを表示',
-    visualEditAddedBgHint: '装飾の背景。色・レイヤー・ヘッダー固定を変更できます。ページリンクはありません。',
+    visualEditAddedBgHint: '追加した背景は色・レイヤー変更、または削除できます。ブロック本来の背景は削除できません。',
+    visualEditBgLockedHint: 'ブロック本来の背景です。色だけ変えられます。重ねた背景を消すには、追加した背景を選んで削除します。',
     visualEditDeleteBg: '背景を削除',
     visualEditNavLinkTitle: 'ページリンク',
     visualEditNavLinkHint: '公開サイトではリンク欄のページが開きます。カテゴリメニューやショップ機能ボタンではありません。',
@@ -3680,7 +3858,24 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddStyleIconLabelLeft: '文字を右に',
     visualEditAddStyleText: '文字のみ',
     visualEditChromeIconSize: 'アイコンサイズ',
+    visualEditChromeAllSize: '全体サイズ',
+    visualEditChromeTextSize: '文字サイズ',
     visualEditChromeBtnSize: 'ボタンサイズ',
+    visualEditChromeSizeWidth: '横',
+    visualEditChromeSizeHeight: '縦',
+    visualEditChromeSizeLock: '縦横を固定',
+    visualEditChromeSizeUnlock: '縦横を別々に',
+    visualEditChromeBold: '太字',
+    visualEditChromeGap: 'アイコンと文字の間隔',
+    visualEditChromeRadius: '角丸',
+    visualEditChromeHover: 'ホバー色',
+    visualEditChromeCountBadge: '件数バッジ',
+    visualEditChromeCountBadgeHint: '件数はカート・お気に入り・通知の実数です。手入力しません。',
+    visualEditChromeReset: '初期状態に戻す',
+    visualEditChromeLayout: '文字の並び',
+    visualEditChromeLayoutHint: '文字だけ並べます。縦はスペース区切りで1語1行。アイコン位置はそのまま。',
+    visualEditChromeLayoutRow: '横',
+    visualEditChromeLayoutCol: '縦',
     visualEditBtnStyleHero: '白背景',
     visualEditBtnStylePrimary: 'メイン',
     visualEditBtnStyleOutline: '枠線',
@@ -3746,10 +3941,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     searchAliasesDuplicate: "このキーワードは既に存在します。",
     searchAliasesTargetRequired: "Inventory ID または Category ID が必要です。",
     leadsPanelTitle: 'フォームリード',
-    leadsPanelHint: 'ランディングのお問い合わせフォームから。',
+    leadsPanelHint: 'ショップまたはランディングのフォームに入力したお客様 — 名前、電話、メール、メッセージ。',
     leadsEmpty: 'リードはまだありません。',
     leadsLoading: '読み込み中…',
     leadsMarkRead: '対応済み',
+    leadsStatusNew: '新規',
+    leadsStatusRead: '対応済み',
+    leadsName: '名前',
+    leadsMessage: 'メッセージ',
+    leadsTime: '日時',
     tenantNavEditor: 'サイト編集',
     tenantNavLeads: 'フォームリード',
     tenantNavLandings: 'ランディング',
@@ -4370,8 +4570,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoZoom: '이미지 줌',
     visualEditLogoZoomHint: '사진 자르기를 누른 뒤 헤더에서 드래그하세요. 이미지 크기는 그대로이고 점선 틀만 자릅니다.',
     visualEditBannerZoom: '이미지 크기',
-    visualEditBannerZoomHint: '슬라이더로 사진을 확대하거나 축소합니다. 글자와 버튼은 그대로입니다.',
+    visualEditBannerZoomHint: '사진을 확대·축소하며 비율을 유지합니다. 찌그러지지 않습니다. 글자와 버튼은 그대로입니다.',
+    visualEditBlockWidth: '블록 너비',
+    visualEditBlockHeight: '블록 높이',
+    visualEditBlockSizeHint: '블록 틀을 바꿉니다. 사진과 글자는 틀 안에 둡니다. 가운데 정렬을 유지합니다.',
+    visualEditBlockSizeReset: '기본 크기',
     visualEditAddWidget: '추가',
+    visualEditAddAtGap: '이 칸에 추가',
+    visualEditInsertAtGapHint: '선택한 칸에 넣습니다. 페이지 가운데에 놓으려면 위쪽 추가를 누르세요.',
     visualEditAddLogo: '로고 추가',
     visualEditAddLogoHint: '화면 비율과 배경색을 고른 뒤 로고를 만듭니다. 프레임을 그릴 필요는 없습니다.',
     visualEditPanelClose: '닫기',
@@ -4391,11 +4597,19 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoInkTextPlaceholder: '색 입력, 비우면 선택한 색',
     visualEditLogoIdeaLabel: '로고 아이디어',
     visualEditAddText: '텍스트 추가',
+    visualEditAddImage: '이미지 추가',
+    visualEditAddVideo: '동영상 추가',
+    visualEditAddVideoUrl: 'YouTube 또는 동영상 URL을 붙여넣기',
     visualEditAddArticleImage: '글에 이미지 삽입',
     visualEditArticleEditHint: '페이지 글자를 클릭해 바로 수정하고 색/크기를 바꾸세요. 추가 → 이미지 또는 새 문단.',
     visualEditTextContent: '글',
     visualEditAddBg: '배경 추가',
     visualEditAddBgColor: '배경색',
+    visualEditInsertBgAbove: '위에 삽입',
+    visualEditInsertBgBelow: '아래에 삽입',
+    visualEditAddBgNoInsert: '삽입 없이 추가',
+    visualEditInsertBgNeedSelect: '페이지의 기준 블록을 클릭해 배경을 넣으세요.',
+    visualEditInsertBgCancel: '취소',
     visualEditLayerUp: '위로',
     visualEditLayerDown: '아래로',
     visualEditLayerFront: '맨 앞으로',
@@ -4431,7 +4645,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditPageButtonHint: '고객 사이트에서 누르면 아래 링크의 페이지가 열립니다.',
     visualEditChromeWidgetTitle: '쇼핑몰 기능 버튼',
     visualEditChromeWidgetHint:
-      '고객 사이트에서 누르면 해당 기능(장바구니, 계정, 채팅 등)이 열립니다. 별도 페이지 링크는 없습니다.',
+      '기능 버튼은 모두 같은 방식으로 수정합니다: 스타일, 아이콘, 크기, 글자. 고객이 누르면 이 버튼 고유 동작이 유지됩니다.',
     visualEditChatIconLogoTitle: 'Chat mua 아이콘 로고 만들기',
     visualEditChatIconLogoHint:
       '모든 기기에서 같은 아이콘 로고를 씁니다. 여기서 바꾸면 데스크톱 / 태블릿 / 모바일이 함께 바뀝니다. 이미지 업로드 또는 AI 생성.',
@@ -4442,9 +4656,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditSearchTitle: '검색창',
     visualEditSearchHint: '드래그로 위치, 가장자리로 너비. 고객은 여기서 상품을 검색합니다.',
     visualEditSearchSubmitTitle: '검색 버튼',
-    visualEditSearchSubmitHint: '검색창 안의 전송 버튼. 버튼색, 테두리, 아이콘/글을 바꿉니다.',
+    visualEditSearchSubmitHint: '검색창 안의 전송 버튼. 돋보기 아이콘, 버튼색, 테두리, 글을 바꿉니다.',
     visualEditSearchImageTitle: '이미지 검색 버튼',
-    visualEditSearchImageHint: '사진으로 상품을 찾는 카메라 버튼입니다.',
+    visualEditSearchImageHint: '검색창 안의 카메라 버튼. 아이콘을 고를 수 있으며 검색 글을 가리면 안 됩니다.',
+    visualEditSearchGlyph: '아이콘 종류',
+    visualEditSearchCameraGlyph: '카메라 아이콘',
+    visualEditSearchLensGlyph: '돋보기 아이콘',
     visualEditWordmarkTitle: '상점 이름',
     visualEditWordmarkHint: '로고 옆 상점 이름. 색, 크기, 굵기, 정렬을 바꿉니다.',
     visualEditDotsTitle: '배너 점',
@@ -4462,7 +4679,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: '채팅 임베드 설정 열기',
     visualEditChatEmbedDelete: '채팅 버튼 삭제',
     visualEditChatEmbedRestore: '채팅 버튼 표시',
-    visualEditAddedBgHint: '장식 배경. 색, 레이어, 헤더 고정을 바꿉니다. 페이지 링크는 없습니다.',
+    visualEditAddedBgHint: '추가한 배경은 색·레이어 변경 또는 삭제가 됩니다. 블록 원래 배경은 삭제할 수 없습니다.',
+    visualEditBgLockedHint: '블록 원래 배경입니다. 색만 바꿀 수 있습니다. 덮은 층을 없애려면 추가한 배경을 선택한 뒤 삭제하세요.',
     visualEditDeleteBg: '배경 삭제',
     visualEditNavLinkTitle: '페이지 링크',
     visualEditNavLinkHint: '고객 사이트에서 누르면 링크의 페이지가 열립니다. 카테고리 메뉴나 쇼핑몰 기능 버튼이 아닙니다.',
@@ -4521,7 +4739,24 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddStyleIconLabelLeft: '텍스트 오른쪽',
     visualEditAddStyleText: '텍스트만',
     visualEditChromeIconSize: '아이콘 크기',
+    visualEditChromeAllSize: '전체 크기',
+    visualEditChromeTextSize: '글자 크기',
     visualEditChromeBtnSize: '버튼 크기',
+    visualEditChromeSizeWidth: '가로',
+    visualEditChromeSizeHeight: '세로',
+    visualEditChromeSizeLock: '가로세로 잠금',
+    visualEditChromeSizeUnlock: '따로 조절',
+    visualEditChromeBold: '굵게',
+    visualEditChromeGap: '아이콘-글자 간격',
+    visualEditChromeRadius: '모서리',
+    visualEditChromeHover: '마우스 올림 색',
+    visualEditChromeCountBadge: '숫자 배지',
+    visualEditChromeCountBadgeHint: '숫자는 장바구니/찜/알림의 실제 값이며 직접 입력하지 않습니다.',
+    visualEditChromeReset: '기본값으로',
+    visualEditChromeLayout: '글자 배치',
+    visualEditChromeLayoutHint: '글자만 배치합니다. 세로는 띄어쓰기마다 한 줄. 아이콘 위치는 그대로입니다.',
+    visualEditChromeLayoutRow: '가로',
+    visualEditChromeLayoutCol: '세로',
     visualEditBtnStyleHero: '흰 배경',
     visualEditBtnStylePrimary: '메인 색',
     visualEditBtnStyleOutline: '외곽선',
@@ -4587,10 +4822,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     searchAliasesDuplicate: "이미 존재하는 키워드입니다.",
     searchAliasesTargetRequired: "Inventory ID 또는 Category ID가 필요합니다.",
     leadsPanelTitle: '폼 리드',
-    leadsPanelHint: '랜딩 문의 폼에서 접수.',
+    leadsPanelHint: '쇼핑몰 또는 랜딩 폼을 작성한 고객 — 이름, 전화, 이메일, 메시지.',
     leadsEmpty: '리드 없음.',
     leadsLoading: '로딩 중…',
     leadsMarkRead: '처리 완료',
+    leadsStatusNew: '신규',
+    leadsStatusRead: '처리됨',
+    leadsName: '이름',
+    leadsMessage: '메시지',
+    leadsTime: '시간',
     tenantNavEditor: '사이트 편집',
     tenantNavLeads: '폼 리드',
     tenantNavLandings: '랜딩 페이지',

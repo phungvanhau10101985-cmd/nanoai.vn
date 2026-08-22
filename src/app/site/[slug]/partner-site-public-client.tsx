@@ -338,7 +338,7 @@ function PartnerSitePublicFrame({
         ref={previewWrapRef}
         className={
           devicePreview
-            ? 'min-h-screen overflow-x-auto bg-neutral-200'
+            ? 'flex min-h-screen justify-center overflow-x-auto bg-neutral-200'
             : frameLocked
               ? 'min-h-screen overflow-x-auto bg-white'
               : 'min-h-screen bg-white'
@@ -350,7 +350,7 @@ function PartnerSitePublicFrame({
           sandbox={sandbox}
           className={
             devicePreview
-              ? 'block h-[100dvh] shrink-0 border-0 bg-white shadow-lg'
+              ? 'mx-auto block h-[100dvh] shrink-0 border-0 bg-white shadow-lg'
               : frameLocked
                 ? 'block h-[100dvh] shrink-0 border-0 bg-white'
                 : 'fixed inset-0 h-full w-full border-0 bg-white'

@@ -139,6 +139,31 @@ export async function fetchPartnerWebsiteResetTrashInfoFromPg(
   }
 }
 
+export type PartnerWebsiteResetDeleteResult =
+  | { ok: true }
+  | { ok: false; reason: 'otp' | 'db'; message: string }
+
+function isPgInvalidPageError(e: unknown): boolean {
+  return Boolean(e && typeof e === 'object' && 'code' in e && (e as { code?: string }).code === 'XX001')
+}
+
+/**
+ * Drop the previous trash snapshot before inserting a new one.
+ * UPDATE/DELETE of a corrupt TOAST payload (XX001) cannot read the old row —
+ * the table only holds 7-day restore blobs, so truncate is the recovery path.
+ */
+async function clearPartnerWebsiteResetTrashRow(partnerId: string): Promise<void> {
+  try {
+    await pgQuery(`delete from public.messaging_partner_website_reset_trash where partner_id = $1::uuid`, [
+      partnerId,
+    ])
+  } catch (e) {
+    if (!isPgInvalidPageError(e)) throw e
+    console.warn('[clearPartnerWebsiteResetTrashRow] XX001 — truncate unreadable trash table')
+    await pgQuery(`truncate table public.messaging_partner_website_reset_trash`)
+  }
+}
+
 /**
  * Verify OTP → snapshot website (+ revisions + landings) into 7-day trash → delete live site.
  */
@@ -146,15 +171,31 @@ export async function verifyPartnerWebsiteResetOtpAndDeleteFromPg(params: {
   partnerId: string
   ownerUserId: string
   otp: string
-}): Promise<boolean> {
-  if (!isPgConfigured()) return false
+}): Promise<PartnerWebsiteResetDeleteResult> {
+  if (!isPgConfigured()) return { ok: false, reason: 'db', message: 'DATABASE_URL is not set.' }
   const pid = safeUuid(params.partnerId)
   const uid = safeUuid(params.ownerUserId)
-  if (!pid || !uid) return false
+  if (!pid || !uid) return { ok: false, reason: 'otp', message: 'Mã OTP không đúng hoặc đã hết hạn.' }
   const otp = params.otp.replace(/\D/g, '').trim()
-  if (otp.length !== 6) return false
+  if (otp.length !== 6) return { ok: false, reason: 'otp', message: 'Mã OTP không đúng hoặc đã hết hạn.' }
   const tryHash = hashPartnerWebsiteResetOtp(pid, uid, otp)
   try {
+    const otpOk = await pgQueryOne<{ ok: boolean }>(
+      `select exists(
+         select 1 from public.messaging_partner_website_reset_otps o
+         where o.partner_id = $1::uuid
+           and o.owner_user_id = $2::uuid
+           and o.expires_at > now()
+           and o.otp_hash = $3
+       ) as ok`,
+      [pid, uid, tryHash]
+    )
+    if (otpOk?.ok !== true) {
+      return { ok: false, reason: 'otp', message: 'Mã OTP không đúng hoặc đã hết hạn.' }
+    }
+
+    await clearPartnerWebsiteResetTrashRow(pid)
+
     const row = await pgQueryOne<{ deleted: boolean }>(
       `with verified as (
          delete from public.messaging_partner_website_reset_otps o
@@ -207,13 +248,6 @@ export async function verifyPartnerWebsiteResetOtpAndDeleteFromPg(params: {
            timezone('utc'::text, now()) + ($4::int * interval '1 day'),
            null
          from site s
-         on conflict (partner_id) do update set
-           owner_user_id = excluded.owner_user_id,
-           payload = excluded.payload,
-           reset_at = excluded.reset_at,
-           expires_at = excluded.expires_at,
-           restored_at = null,
-           created_at = timezone('utc'::text, now())
          returning partner_id
        ),
        del_revisions as (
@@ -230,10 +264,23 @@ export async function verifyPartnerWebsiteResetOtpAndDeleteFromPg(params: {
        select exists(select 1 from snap) as deleted`,
       [pid, uid, tryHash, PARTNER_WEBSITE_RESET_TRASH_DAYS]
     )
-    return row?.deleted === true
+    if (row?.deleted === true) return { ok: true }
+    return { ok: false, reason: 'otp', message: 'Mã OTP không đúng hoặc đã hết hạn.' }
   } catch (e) {
     console.warn('[verifyPartnerWebsiteResetOtpAndDeleteFromPg]', e)
-    return false
+    if (isPgInvalidPageError(e)) {
+      return {
+        ok: false,
+        reason: 'db',
+        message:
+          'Không reset được vì bảng lưu tạm website bị hỏng trên Postgres (XX001). Gửi lại OTP rồi xác nhận.',
+      }
+    }
+    return {
+      ok: false,
+      reason: 'db',
+      message: 'Không reset được website do lỗi cơ sở dữ liệu. Thử lại sau.',
+    }
   }
 }
 

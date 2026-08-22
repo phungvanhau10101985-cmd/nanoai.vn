@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { bindLiveProductToPdpHtml } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
+import {
+  bindLiveProductToPdpHtml,
+  deferOffDevicePdpGalleryMedia,
+} from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
 import { DEMO_PDP_BIND_PRODUCT } from '@/lib/partner-website/shop/demo-pdp-bind-product'
 
 const SHELL = `<!DOCTYPE html><html><body data-pw-page="product">
@@ -55,7 +58,60 @@ test('bindLiveProductToPdpHtml is a no-op without a product id', () => {
 
 test('demo PDP product fills every locked field on the shared shell', () => {
   const next = bindLiveProductToPdpHtml(SHELL, DEMO_PDP_BIND_PRODUCT)
-  assert.match(next, /Áo thun cotton demo/)
+  assert.match(next, /Đầm voan/)
   assert.match(next, /DEMO-PDP-001/)
-  assert.match(next, /placehold\.co/)
+  assert.match(next, /cdn\.188\.com\.vn|188comvn\.b-cdn\.net/)
+  assert.match(next, /data-pw-el="variant"/)
+  assert.match(next, /pw-pdp-pill/)
+  assert.match(next, /pw-pdp-color/)
+  assert.match(next, />S</)
+  assert.match(next, /Kem|Trắng/)
+})
+
+test('bind injects missing size and color slots and extra gallery thumbs', () => {
+  const next = bindLiveProductToPdpHtml(SHELL, DEMO_PDP_BIND_PRODUCT)
+  const thumbs = next.match(/data-pw-el="thumb"/g) || []
+  assert.ok(thumbs.length >= 4)
+  assert.match(next, /data-pw-pdp-option="size"/)
+  assert.match(next, /data-pw-pdp-option="color"/)
+})
+
+test('bind fills demo reviews instead of clearing them', () => {
+  const next = bindLiveProductToPdpHtml(SHELL, DEMO_PDP_BIND_PRODUCT)
+  assert.match(next, /Form đẹp/)
+  assert.match(next, /Lan/)
+})
+
+test('bind does not treat a product photo as a video slot', () => {
+  const next = bindLiveProductToPdpHtml(SHELL, {
+    ...DEMO_PDP_BIND_PRODUCT,
+    productVideoUrl: 'https://cdn.example/look.jpg',
+  })
+  assert.doesNotMatch(next, /data-pw-pdp-slot="video"/)
+})
+
+test('bind injects missing editor layout slots onto a sparse shell', () => {
+  const next = bindLiveProductToPdpHtml(SHELL, DEMO_PDP_BIND_PRODUCT)
+  assert.match(next, /id="pw-pdp-qa"/)
+  assert.match(next, /data-pw-pdp-slot="consult"/)
+  assert.match(next, /data-pw-pdp-slot="size-guide"/)
+  assert.match(next, /data-pw-region="breadcrumb"/)
+  assert.doesNotMatch(next, /data-pw-pdp-slot="video"/)
+})
+
+test('deferOffDevicePdpGalleryMedia parks hidden hero images on desktop', () => {
+  const html = `<div class="pw-pdp-hero"><img src="https://cdn.example/hero.jpg" alt="x" /></div>
+<div class="pw-shop-product-gallery pw-pdp-gallery-desktop"><img src="https://cdn.example/desk.jpg" alt="y" /></div>`
+  const desktop = deferOffDevicePdpGalleryMedia(html, 'desktop')
+  assert.match(desktop, /data-pw-deferred-src="https:\/\/cdn\.example\/hero\.jpg"/)
+  assert.doesNotMatch(desktop, /(?:^|[\s"'/])src="https:\/\/cdn\.example\/hero\.jpg"/)
+  assert.match(desktop, /(?:^|[\s"'/])src="https:\/\/cdn\.example\/desk\.jpg"/)
+  const mobile = deferOffDevicePdpGalleryMedia(html, 'mobile')
+  assert.match(mobile, /data-pw-deferred-src="https:\/\/cdn\.example\/desk\.jpg"/)
+  assert.match(mobile, /src="https:\/\/cdn\.example\/hero\.jpg"/)
+})
+
+test('deferOffDevicePdpGalleryMedia keeps the only gallery on a device', () => {
+  const heroOnly = `<div class="pw-pdp-hero"><img src="https://cdn.example/hero.jpg" alt="x" /></div>`
+  assert.equal(deferOffDevicePdpGalleryMedia(heroOnly, 'desktop'), heroOnly)
 })

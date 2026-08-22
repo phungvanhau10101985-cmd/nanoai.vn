@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildVisualEditorScript } from './build-visual-editor-script'
 import {
+  pwSceneChromeZCss,
   PW_SCENE_ATTR,
   PW_SCENE_BAND,
   PW_SCENE_CANVAS_WIDTH,
@@ -171,9 +172,13 @@ describe('pw scene layers', () => {
     expect(pwSceneLiveZoomScale(3840, 3840, 1920)).toBe(1)
     expect(pwSceneLiveZoomScale(1200, 1220, 1920)).toBe(1)
     expect(pwSceneLiveZoomScale(960, 1920)).toBe(1)
-    expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain("transform-origin','50% '")
-    expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain('scaleY(')
-    expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain("'100% '+Math.round(z*100)+'%'")
+    expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain('data-pw-banner-pan-y')
+    expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain("object-position")
+    expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).not.toContain('translate(')
+    expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain('scale(')
+    expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain("Math.round(z*100)+'% auto'")
+    expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).not.toContain('scaleY(')
+    expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).not.toContain("'100% '+Math.round(z*100)+'%'")
     expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain('visualViewport')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-scene-lock')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('Math.max(outer,inner)')
@@ -184,6 +189,8 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).not.toContain('ratio>1.04')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("querySelector('.pw-visual-'+k+',[data-pw-visual-device=\"'+k+'\"]')")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function pick(preferred)')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('[data-pw-added-bg="1"]')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("sc==='2'||sc==='3'||sc==='4'")
     expect(pwSceneDeviceVisibilityCss()).toContain(
       'html[data-pw-scene-lock="laptop"]:has(.pw-visual-laptop) .pw-visual-desktop'
     )
@@ -215,6 +222,15 @@ describe('pw scene layers', () => {
     expect(PW_SCENE_ATTR).not.toBe('data-pw-layer')
     expect(PW_SCENE_ATTR).not.toBe('data-pw-bg-index')
     expect(PW_SCENE_ATTR).not.toBe('data-pw-bg-layer')
+  })
+
+  it('gives chrome widgets on lớp nổi a scene-band z above lớp dưới backgrounds', () => {
+    const css = pwSceneChromeZCss()
+    expect(css).toContain('[data-pw-chrome-btn][data-pw-scene="4"]')
+    expect(css).toContain('[data-pw-chrome-added][data-pw-scene="4"]')
+    expect(css).toContain(`z-index:${pwSceneZ(2)}!important`)
+    expect(css).toContain(`z-index:${pwSceneZ(4)}!important`)
+    expect(pwSceneZ(4)).toBeGreaterThan(100)
   })
 })
 
@@ -277,5 +293,25 @@ describe('scene layers inside the editor runtime', () => {
     expect(script).toContain('restoreAuthoredLayers')
     expect(script).toContain('applyDefaultZ(el, 2)')
     expect(script).not.toContain("el.style.zIndex = '2'")
+  })
+
+  it('writes scene on the chrome widget itself and lifts it out of header isolation', () => {
+    expect(script).toContain('sceneWriteHost')
+    expect(script).toContain('applySceneToLooseChrome')
+    expect(script).toContain('liftLooseElToSceneHost')
+    expect(script).toContain('chromeLeftChromeHost')
+    expect(script).toContain('isInFlowFooterLink')
+    expect(script).toContain('unstampFooterInFlowChrome')
+    expect(script).toContain('var el = sceneWriteHost(selected)')
+    expect(script).toContain(JSON.stringify(pwSceneChromeZCss()))
+    expect(script).toContain('[data-pw-chrome-btn][data-pw-scene=\\"4\\"]')
+    expect(script).toContain(`z-index:${pwSceneZ(4)}!important`)
+    expect(script).toContain("place === 'canvas'")
+    expect(script).toContain('shouldSnapChromeToBar')
+    expect(script).toContain('if (isAddedChrome(el)) return false')
+    expect(script).toContain('writeSceneIndex(node, SCENE.defaultIndex)')
+    expect(script).toContain('liftLooseElToSceneHost(node)')
+    expect(script).toContain('[data-pw-chrome-btn]:not([data-pw-scene])')
+    expect(script).toContain('[data-pw-chrome-added]:not([data-pw-scene])')
   })
 })

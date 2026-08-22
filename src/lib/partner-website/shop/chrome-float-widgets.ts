@@ -76,12 +76,18 @@ function pwChromeFloatSeatDefault(el){
   el.style.setProperty('margin','0','important');
   el.style.setProperty('z-index','${PW_CHROME_FLOAT_Z_INDEX}','important');
 }
-function pwChromeFloatBakePct(el){
+function pwChromeFloatBakePct(el,box){
   if(!el||!el.style)return;
-  var r=el.getBoundingClientRect();
+  var r=box;
+  if(!r){try{r=el.getBoundingClientRect()}catch(eBox){r=null}}
+  if(!r)return;
   var view=pwChromeFloatViewSize();
-  var leftPct=Math.max(0,Math.min(100,(r.left/view.w)*100));
-  var topPct=Math.max(0,Math.min(100,(r.top/view.h)*100));
+  var leftPct=(r.left/view.w)*100;
+  var topPct=(r.top/view.h)*100;
+  if(!box){
+    leftPct=Math.max(0,Math.min(100,leftPct));
+    topPct=Math.max(0,Math.min(100,topPct));
+  }
   el.style.setProperty('position','fixed','important');
   el.style.setProperty('left',leftPct.toFixed(2)+'%','important');
   el.style.setProperty('top',topPct.toFixed(2)+'%','important');
@@ -89,6 +95,17 @@ function pwChromeFloatBakePct(el){
   el.style.setProperty('bottom','auto','important');
   el.style.setProperty('transform','none','important');
   el.style.setProperty('margin','0','important');
+  el.style.setProperty('z-index','${PW_CHROME_FLOAT_Z_INDEX}','important');
+}
+function pwChromeFloatLiftAndPin(el,box){
+  if(!el||!el.style)return;
+  var r=box;
+  if(!r){try{r=el.getBoundingClientRect()}catch(eLift){r=null}}
+  try{
+    if(el.parentNode&&el.parentNode!==document.body) document.body.appendChild(el);
+  }catch(eHost){}
+  if(r&&(r.width>0||r.height>0)) pwChromeFloatBakePct(el,r);
+  else pwChromeFloatBakePct(el);
 }
 function pwChromeFloatRemap(el){
   if(!el||!el.style)return;
@@ -118,16 +135,17 @@ function pwChromeFloatRemap(el){
 }`
 
 export const PARTNER_SHOP_CHROME_FLOAT_CSS = `
-[${PW_CHROME_FLOAT_ATTR}="1"],[${PW_PIN_SCREEN_ATTR}="1"]{position:fixed!important;z-index:${PW_CHROME_FLOAT_Z_INDEX}!important;isolation:isolate!important;margin:0!important;flex:0 0 auto!important;max-width:none!important;max-height:none!important;pointer-events:auto!important}
+[${PW_CHROME_FLOAT_ATTR}="1"],[${PW_PIN_SCREEN_ATTR}="1"]{position:fixed!important;z-index:${PW_CHROME_FLOAT_Z_INDEX}!important;isolation:isolate!important;margin:0!important;flex:0 0 auto!important;max-width:none!important;max-height:none!important;pointer-events:auto!important;visibility:visible!important;opacity:1!important}
+[data-pw-chrome-added][${PW_PIN_SCREEN_ATTR}="1"],[data-pw-chrome-btn][${PW_PIN_SCREEN_ATTR}="1"]{display:inline-flex!important}
 [${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){left:auto!important;top:auto!important;right:${PW_CHROME_FLOAT_DEFAULT_RIGHT_PX}px!important}
 [data-pw-chrome-btn="chat"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat}px!important}
 [data-pw-chrome-btn="chat-zalo"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX['chat-zalo']}px!important}
 [data-pw-chrome-btn="chat-facebook"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX['chat-facebook']}px!important}
 [data-pw-chrome-btn="topup"][${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]){bottom:${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.topup}px!important}
 [${PW_CHROME_FLOAT_ATTR}="1"].pw-chrome-icon-only,[${PW_CHROME_FLOAT_ATTR}="1"].pw-chrome-icon-square{
-  width:calc(var(--pw-chrome-size,22px) + 14px)!important;height:calc(var(--pw-chrome-size,22px) + 14px)!important;
-  min-width:calc(var(--pw-chrome-size,22px) + 14px)!important;min-height:calc(var(--pw-chrome-size,22px) + 14px)!important;
-  padding:0!important
+  width:auto!important;height:auto!important;
+  min-width:0!important;min-height:0!important;
+  padding:var(--pw-chrome-pad-y,4px) var(--pw-chrome-pad-x,4px)!important
 }
 [data-pw-chrome-btn="topup"]{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
 [data-pw-chrome-btn="topup"].${PW_CHROME_TOPUP_ON_CLASS},
@@ -167,11 +185,12 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
     for(var i=0;i<nodes.length;i++){
       var el=nodes[i];
       if(!el||!el.style)continue;
-      try{ if(el.parentNode&&el.parentNode!==document.body) document.body.appendChild(el); }catch(errPin){}
-      el.style.setProperty('position','fixed','important');
-      el.style.setProperty('z-index','${PW_CHROME_FLOAT_Z_INDEX}','important');
-      if(el.getAttribute('data-pw-user-move')==='1') pwChromeFloatRemap(el);
-      else pwChromeFloatBakePct(el);
+      if(el.parentNode&&el.parentNode!==document.body) pwChromeFloatLiftAndPin(el);
+      else {
+        el.style.setProperty('position','fixed','important');
+        el.style.setProperty('z-index','${PW_CHROME_FLOAT_Z_INDEX}','important');
+        if(el.getAttribute('data-pw-user-move')==='1') pwChromeFloatRemap(el);
+      }
     }
   }
   function rootVisible(el){

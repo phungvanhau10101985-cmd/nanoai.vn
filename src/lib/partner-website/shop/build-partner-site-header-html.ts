@@ -7,6 +7,7 @@ import {
   getPartnerSiteShopNavPaths,
 } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { searchGlyphSvg } from '@/lib/partner-website/visual-editor/search-cluster-icons'
 
 export type PartnerSiteHeaderHtmlInput = {
   locale: WebLocale
@@ -27,6 +28,16 @@ export type PartnerSiteHeaderHtmlOutput = {
 }
 
 type HtmlIconName = 'menu' | 'user' | 'cart' | 'home' | 'box' | 'tag'
+
+function svgPdpIcon(name: 'home' | 'try-on' | 'heart'): string {
+  if (name === 'try-on') {
+    return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>`
+  }
+  if (name === 'heart') {
+    return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>`
+  }
+  return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>`
+}
 
 function svgIcon(name: HtmlIconName): string {
   const paths: Record<HtmlIconName, string> = {
@@ -130,6 +141,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
         cart: '#products',
         orders: '#lead-form',
         account: '#lead-form',
+        login: '#lead-form',
         addresses: '#lead-form',
         recentlyViewed: '#products',
         contact: '#lead-form',
@@ -160,8 +172,8 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   const searchBar = `<div class="pw-header-search" ${pwElAttr(PW_EL.search)}>
     <form class="pw-search-form" data-pw-search-form role="search">
       <input data-pw-search type="search" name="q" placeholder="${escapeAttr(search.placeholder)}" aria-label="${escapeAttr(search.placeholder)}" autocomplete="off"/>
-      <button type="button" class="pw-search-image-btn" data-pw-image-search aria-label="${escapeAttr(search.image)}" title="${escapeAttr(search.image)}">📷</button>
-      <button type="submit" class="pw-search-submit">${escapeHtml(search.button)}</button>
+      <button type="button" class="pw-search-image-btn" data-pw-image-search data-pw-search-glyph="camera" aria-label="${escapeAttr(search.image)}" title="${escapeAttr(search.image)}"><span class="pw-chrome-icon-wrap">${searchGlyphSvg('camera')}</span></button>
+      <button type="submit" class="pw-search-submit" data-pw-search-glyph="lens">${searchGlyphSvg('lens')}<span class="pw-shop-search-submit-label">${escapeHtml(search.button)}</span></button>
     </form>
   </div>`
 
@@ -192,9 +204,9 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
 </header>`
 
   const bottomNav = `<nav class="pw-bottom-nav" ${pwRegionAttr(PW_REGION.nav)} aria-label="Mobile">
-    <a class="is-active" href="${homeHref}">${svgIcon('home')}<span>${escapeHtml(shop.navHome)}</span></a>
-    <a href="${productsHref}">${svgIcon('box')}<span>${escapeHtml(shop.navProducts)}</span></a>
-    <a href="${saleHref}">${svgIcon('tag')}<span>${escapeHtml(promoLabel)}</span></a>
+    <a class="is-active" href="${homeHref}" ${pwElAttr(PW_EL.navLink)} data-pw-chrome-btn="home">${svgIcon('home')}<span>${escapeHtml(shop.navHome)}</span></a>
+    <a href="${productsHref}" ${pwElAttr(PW_EL.navLink)} data-pw-chrome-btn="products">${svgIcon('box')}<span>${escapeHtml(shop.navProducts)}</span></a>
+    <a href="${saleHref}" ${pwElAttr(PW_EL.navLink)} data-pw-chrome-btn="sale">${svgIcon('tag')}<span>${escapeHtml(promoLabel)}</span></a>
     <a href="${accountHref}" ${pwElAttr(PW_EL.account)} data-pw-chrome-btn="account">${svgIcon('user')}<span>${escapeHtml(shop.navAccount)}</span></a>
   </nav>`
 
@@ -203,4 +215,31 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
     bottomNav,
     scripts: buildHeaderInteractionScripts(),
   }
+}
+
+/**
+ * Mobile PDP bottom bar — Home, try-on, favorite, add to cart, buy.
+ * Kept off the shared shop nav so Sửa nhanh can edit it without copying onto other pages.
+ */
+export function buildPartnerSitePdpBottomNavHtml(input: {
+  locale: WebLocale
+  homeHref: string
+  /** Tablet/desktop overlay — not the shared `pw-bottom-nav`. */
+  stickyOnly?: boolean
+}): string {
+  const t = getPartnerSiteShopCopy(input.locale)
+  const homeHref = escapeAttr(input.homeHref)
+  const inner = `<div class="pw-pdp-sticky-nav">
+      <a href="${homeHref}" ${pwElAttr(PW_EL.navLink)} data-pw-chrome-btn="home">${svgPdpIcon('home')}<span>${escapeHtml(t.pdpStickyHome)}</span></a>
+      <button type="button" class="is-try" data-pw-chrome-btn="try-on" data-nanoai-try-on>${svgPdpIcon('try-on')}<span>${escapeHtml(t.tryOnLink)}</span></button>
+      <button type="button" class="is-fav" data-pw-chrome-btn="favorite-product" ${pwElAttr(PW_EL.wishlist)} data-pw-favorite data-pw-pdp-favorite="1">${svgPdpIcon('heart')}<span>${escapeHtml(t.favoriteProduct)}</span></button>
+    </div>
+    <div class="pw-pdp-sticky-ctas">
+      <button type="button" class="pw-shop-btn pw-shop-btn-cart" data-pw-chrome-btn="add-cart" ${pwElAttr(PW_EL.cardCart)} data-pw-add-cart data-pw-pdp-add-cart="1">${escapeHtml(t.pdpAddToCartShort)}</button>
+      <button type="button" class="pw-shop-btn pw-shop-btn-buy" data-pw-chrome-btn="buy-now" ${pwElAttr(PW_EL.buy)} data-pw-buy data-pw-pdp-buy-now="1">${escapeHtml(t.pdpBuyNowShort)}</button>
+    </div>`
+  if (input.stickyOnly) {
+    return `<div class="pw-pdp-sticky">${inner}</div>`
+  }
+  return `<nav class="pw-bottom-nav pw-shop-bottom-nav pw-pdp-sticky" ${pwRegionAttr(PW_REGION.nav)} data-pw-pdp-bottom="1" aria-label="${escapeAttr(t.pdpStickyHome)}">${inner}</nav>`
 }

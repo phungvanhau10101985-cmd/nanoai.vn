@@ -44,7 +44,7 @@ export type PwBgRegionRole = (typeof PW_BG_REGION_ROLES)[number]
 
 export const PW_BG_LOCKED_ROLES: readonly PwBgStackRole[] = ['canvas', 'header']
 
-/** Chỉ các lớp cũ mới gán z-index khi paint — region mới chỉ gắn mã, không đổi layout. */
+/** Region nội dung phải có z để “Thêm nền” ở lớp dưới không đè chữ/ảnh. */
 export const PW_BG_PAINT_Z_ROLES: readonly PwBgStackRole[] = [
   'canvas',
   'header',
@@ -53,6 +53,15 @@ export const PW_BG_PAINT_Z_ROLES: readonly PwBgStackRole[] = [
   'catalog',
   'promo',
   'footer',
+  'content',
+  'form',
+  'gallery',
+  'pdp-info',
+  'reviews',
+  'cart-list',
+  'cart-summary',
+  'account-nav',
+  'account-main',
   'added',
 ]
 

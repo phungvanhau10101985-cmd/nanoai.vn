@@ -125,8 +125,8 @@ export async function confirmPartnerWebsiteResetWithOtp(
     ownerUserId: user.id,
     otp: otpRaw,
   })
-  if (!deleted) {
-    return { error: 'Mã OTP không đúng hoặc đã hết hạn.' }
+  if (!deleted.ok) {
+    return { error: deleted.message }
   }
 
   revalidatePath('/dashboard/messaging/website')

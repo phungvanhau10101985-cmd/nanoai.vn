@@ -929,7 +929,7 @@ export function PartnerWebsiteDashboardClient({
             <PartnerWebsiteLeadsPanel
               locale={locale}
               partnerId={partnerId}
-              enabled={Boolean(website?.renderMode === 'template')}
+              enabled
               sectionId="partner-website-leads"
             />
             </div>

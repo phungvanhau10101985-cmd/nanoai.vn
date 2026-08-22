@@ -34,6 +34,16 @@ test('stamp wires leftover camera and category buttons without chrome-btn', () =
   assert.match(next, /<form[^>]*data-pw-search-form/)
 })
 
+test('stamp stamps phone and Instagram contact channels', () => {
+  const html =
+    '<a data-pw-chrome-btn="phone">Gọi</a><a data-pw-chrome-btn="chat-instagram">IG</a>' +
+    '<form data-pw-lead-form-el><input name="name"/></form>'
+  const next = stampPartnerSiteChromeWidgetHooksInHtml(html, { siteSlug: 'hotel-shop' })
+  assert.match(next, /data-pw-contact-channel="phone"/)
+  assert.match(next, /data-pw-contact-channel="instagram"/)
+  assert.match(next, /data-api="\/api\/site\/hotel-shop\/lead"/)
+})
+
 test('stamp does not overwrite Zalo\/Facebook contact hrefs', () => {
   const html = '<a data-pw-chrome-btn="chat-zalo" href="https://zalo.me/shop">Z</a>'
   const next = stampPartnerSiteChromeWidgetHooksInHtml(html, { siteSlug: '188-shop' })

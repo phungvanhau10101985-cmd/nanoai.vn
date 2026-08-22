@@ -618,7 +618,10 @@ export function PartnerMessagingSettingsClient({
         title: t.settingsNavCustomersTitle,
         items: [
           ...settingsWebsiteNavItems
-            .filter((item) => item.sectionId === 'partner-website-customers')
+            .filter(
+              (item) =>
+                item.sectionId === 'partner-website-customers' || item.sectionId === 'partner-website-leads'
+            )
             .map((item) => ({
               id: item.sectionId as SettingsPageSectionId,
               label: item.label,
@@ -632,7 +635,10 @@ export function PartnerMessagingSettingsClient({
         id: 'website',
         title: t.settingsNavWebsiteTitle,
         items: settingsWebsiteNavItems
-          .filter((item) => item.sectionId !== 'partner-website-customers')
+          .filter(
+            (item) =>
+              item.sectionId !== 'partner-website-customers' && item.sectionId !== 'partner-website-leads'
+          )
           .map((item) => ({
             id: item.sectionId as SettingsPageSectionId,
             label: item.label,

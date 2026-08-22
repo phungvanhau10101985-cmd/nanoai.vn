@@ -6,6 +6,7 @@ import {
   partnerSiteSearchTextApiPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
+import { searchGlyphSvg } from '@/lib/partner-website/visual-editor/search-cluster-icons'
 
 const COPY: Record<
   WebLocale,
@@ -266,10 +267,12 @@ function ensureImageControl(){
       var created=document.createElement('button');
       created.type='button';
       created.setAttribute('data-pw-image-search','1');
+      created.setAttribute('data-pw-search-glyph','camera');
       created.setAttribute('aria-label',COPY.imageBtn);
       created.title=COPY.imageBtn;
-      created.textContent='📷';
-      created.style.cssText='margin-left:.35rem;border:0;background:transparent;cursor:pointer;font-size:1.1rem;line-height:1;padding:.25rem';
+      created.className='pw-search-image-btn pw-shop-search-image';
+      created.innerHTML='<span class="pw-chrome-icon-wrap">${searchGlyphSvg('camera')}</span>';
+      created.style.cssText='margin-left:.35rem;border:0;background:transparent;cursor:pointer;line-height:1;padding:.25rem;flex:0 0 auto';
       if(host.parentNode){
         if(host.tagName==='INPUT'||host.tagName==='FORM')host.parentNode.insertBefore(created,host.nextSibling);
         else host.appendChild(created);

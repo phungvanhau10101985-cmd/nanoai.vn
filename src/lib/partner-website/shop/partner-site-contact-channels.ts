@@ -47,3 +47,9 @@ export function partnerSiteContactChannelsHasAny(c: PartnerSiteContactChannels |
 export function partnerSiteTelHref(phone: string): string {
   return `tel:${phone.replace(/[^\d+]/g, '')}`
 }
+
+/** WhatsApp click-to-chat from the same shop phone (no extra DB field). */
+export function partnerSiteWhatsAppHref(phone: string): string {
+  const digits = phone.replace(/[^\d]/g, '')
+  return digits.length >= 6 ? `https://wa.me/${digits}` : ''
+}

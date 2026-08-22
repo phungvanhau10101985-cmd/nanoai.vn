@@ -3,7 +3,21 @@ import test from 'node:test'
 import {
   buildPartnerSiteChatMuaButtonHtml,
   buildVisualEditorChromeWidgetHtml,
+  PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS,
+  PW_CHROME_TOKEN_VARS_CSS,
+  PW_SEARCH_IMAGE_IN_FORM_BTN_CSS,
+  PW_STOCK_CHROME_EDIT_CSS,
+  PW_CHROME_LABELED_MIN_W_CSS,
+  PW_CHROME_LABEL_FACE_CSS,
+  PW_CHROME_FACE_EXTRAS_CSS,
+  PW_CHROME_ICON_SIZE_MAX,
+  chromeKindDefaultLabels,
+  chromeKindShowsCountBadge,
+  clampPwChromeLabelSize,
+  chromeLabelSizeFromIcon,
   CHROME_FACEBOOK_CHAT_LOGO_SVG,
+  CHROME_INSTAGRAM_LOGO_SVG,
+  CHROME_WHATSAPP_LOGO_SVG,
   CHROME_ZALO_LOGO_SVG,
   chromeWidgetAppearance,
   chromeWidgetHost,
@@ -52,12 +66,8 @@ test('chrome widgets accept shop header kinds', () => {
   assert.equal(isVisualEditorChromeWidgetKind('notifications'), true)
 })
 
-test('chrome widget picker lists every shop destination in each place group', () => {
-  assert.deepEqual(
-    VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS.map((group) => group.id),
-    ['header', 'mid', 'nav']
-  )
-  const kinds = VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS[0]?.kinds || []
+test('chrome widget picker lists every shop destination once', () => {
+  const kinds = VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS
   assert.equal(new Set(kinds).size, kinds.length)
   assert.ok(kinds.includes('home'))
   assert.ok(kinds.includes('categories'))
@@ -74,32 +84,41 @@ test('chrome widget picker lists every shop destination in each place group', ()
   assert.ok(kinds.includes('blog'))
   assert.ok(!kinds.includes('favorites-link'))
   assert.ok(!kinds.includes('orders-link'))
-  for (const group of VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS) {
-    assert.deepEqual(group.kinds, kinds)
-  }
+  assert.ok(VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS.length >= 1)
+  assert.deepEqual(VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS[0]?.kinds, kinds)
 })
 
-test('chrome widgets place icons in header actions and text in topbar', () => {
+test('chrome widgets from Thêm land on canvas, float kinds stay float', () => {
   assert.equal(chromeWidgetHost('chat'), 'float')
   assert.equal(chromeWidgetHost('chat', 'icon', 'nav'), 'float')
   assert.equal(chromeWidgetHost('chat-zalo', 'icon-label', 'header'), 'float')
   assert.equal(chromeWidgetHost('topup', 'icon', 'nav'), 'float')
-  assert.equal(chromeWidgetHost('cart'), 'actions')
-  assert.equal(chromeWidgetHost('orders'), 'actions')
-  assert.equal(chromeWidgetHost('wishlist', 'icon-square'), 'actions')
+  assert.equal(chromeWidgetHost('cart'), 'canvas')
+  assert.equal(chromeWidgetHost('orders'), 'canvas')
+  assert.equal(chromeWidgetHost('wishlist', 'icon-square'), 'canvas')
   assert.equal(chromeWidgetAppearance('wishlist', 'icon-square'), 'icon')
-  assert.equal(chromeWidgetHost('wishlist', 'icon-label'), 'actions')
-  assert.equal(chromeWidgetHost('wishlist', 'icon-label-below'), 'actions')
-  assert.equal(chromeWidgetHost('wishlist', 'icon-label-left'), 'actions')
-  assert.equal(chromeWidgetHost('wishlist', 'icon-label', 'header'), 'actions')
-  assert.equal(chromeWidgetHost('login', 'icon-label', 'nav'), 'nav')
-  assert.equal(chromeWidgetHost('login', 'text', 'nav'), 'nav')
-  assert.equal(chromeWidgetHost('login', 'icon-label', 'mid'), 'mid')
-  assert.equal(chromeWidgetHost('login', 'text', 'header'), 'topbar')
+  assert.equal(chromeWidgetHost('wishlist', 'icon-label'), 'canvas')
+  assert.equal(chromeWidgetHost('wishlist', 'icon-label-below'), 'canvas')
+  assert.equal(chromeWidgetHost('wishlist', 'icon-label-left'), 'canvas')
+  assert.equal(chromeWidgetHost('wishlist', 'icon-label', 'header'), 'canvas')
+  assert.equal(chromeWidgetHost('login', 'icon-label', 'nav'), 'canvas')
+  assert.equal(chromeWidgetHost('login', 'text', 'nav'), 'canvas')
+  assert.equal(chromeWidgetHost('login', 'icon-label', 'mid'), 'canvas')
+  assert.equal(chromeWidgetHost('login', 'text', 'header'), 'canvas')
   assert.equal(chromeWidgetAppearance('wishlist'), 'icon')
-  assert.equal(chromeWidgetHost('contact'), 'topbar')
-  assert.equal(chromeWidgetHost('login'), 'topbar')
+  assert.equal(chromeWidgetHost('contact'), 'canvas')
+  assert.equal(chromeWidgetHost('login'), 'canvas')
   assert.equal(chromeWidgetAppearance('favorites-link'), 'link')
+  assert.equal(chromeWidgetAppearance('contact'), 'link')
+  for (const kind of VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS) {
+    const host = chromeWidgetHost(kind)
+    if (isChromeFloatKind(kind)) assert.equal(host, 'float')
+    else assert.equal(host, 'canvas')
+    assert.notEqual(host, 'actions')
+    assert.notEqual(host, 'topbar')
+    assert.notEqual(host, 'mid')
+    assert.notEqual(host, 'nav')
+  }
 })
 
 test('every picker chrome widget has a live shop hook', () => {
@@ -110,7 +129,24 @@ test('every picker chrome widget has a live shop hook', () => {
       assert.notEqual(href, '#')
       assert.match(href, /\/site\/demo-shop(?:\/|$)/)
     } else {
-      assert.ok(['search', 'search-image', 'categories', 'chat', 'contact', 'topup', 'try-on', 'favorite', 'add-cart', 'buy-now'].includes(hook))
+      assert.ok(
+        [
+          'search',
+          'search-image',
+          'categories',
+          'chat',
+          'contact',
+          'topup',
+          'try-on',
+          'favorite',
+          'add-cart',
+          'buy-now',
+          'share',
+          'logout',
+          'coupon',
+          'lead',
+        ].includes(hook)
+      )
     }
   }
 })
@@ -305,6 +341,8 @@ test('chrome widgets emit search box with image search and submit', () => {
   assert.match(html, /data-pw-el="search"/)
   assert.match(html, /data-pw-search/)
   assert.match(html, /data-pw-image-search/)
+  assert.match(html, /data-pw-search-glyph="camera"/)
+  assert.match(html, /data-pw-search-glyph="lens"/)
   assert.match(html, /pw-search-submit/)
   assert.match(html, /pw-shop-search-submit-icon/)
   assert.match(html, /<circle cx="11" cy="11" r="7"/)
@@ -323,6 +361,7 @@ test('chrome widgets emit image-search camera button', () => {
   })
   assert.match(html, /<button type="button"/)
   assert.match(html, /data-pw-image-search/)
+  assert.match(html, /data-pw-search-glyph="camera"/)
   assert.match(html, /Tìm bằng ảnh/)
   assert.doesNotMatch(html, / href=/)
   assert.match(html, /data-pw-chrome-btn="search-image"/)
@@ -374,6 +413,8 @@ test('chrome widgets stamp icon size for the add slider', () => {
   })
   assert.match(html, /data-pw-chrome-size="30"/)
   assert.match(html, /--pw-chrome-size:30px/)
+  assert.match(html, /--pw-chrome-w:30px/)
+  assert.match(html, /--pw-chrome-h:30px/)
   assert.match(html, /pw-chrome-icon-only/)
   const pill = buildVisualEditorChromeWidgetHtml({
     kind: 'cart',
@@ -393,6 +434,19 @@ test('chrome widgets stamp icon size for the add slider', () => {
   })
   assert.match(saleText, /data-pw-chrome-size="40"/)
   assert.match(saleText, /data-pw-chrome-style="text"/)
+  const box = buildVisualEditorChromeWidgetHtml({
+    kind: 'add-cart',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon-square',
+    iconWidth: 80,
+    iconHeight: 40,
+  })
+  assert.match(box, /data-pw-chrome-w="80"/)
+  assert.match(box, /data-pw-chrome-h="40"/)
+  assert.match(box, /--pw-chrome-w:80px/)
+  assert.match(box, /--pw-chrome-h:40px/)
+  assert.match(box, /--pw-chrome-size:60px/)
 })
 
 test('chrome widgets can emit rounded-square icon-only', () => {
@@ -442,6 +496,103 @@ test('chrome widgets can emit icon-only or icon+label', () => {
   })
   assert.match(left, /pw-chrome-label-left/)
   assert.match(left, /data-pw-chrome-style="icon-label-left"/)
+  assert.match(iconOnly, /data-pw-chrome-glyph="cart"/)
+  assert.match(left, /data-pw-chrome-glyph="heart"/)
+})
+
+test('chrome widgets stamp a chosen glyph and skip brand chat icons', () => {
+  const home = buildVisualEditorChromeWidgetHtml({
+    kind: 'home',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon',
+    glyph: 'home-door',
+  })
+  assert.match(home, /data-pw-chrome-glyph="home-door"/)
+  const chat = buildVisualEditorChromeWidgetHtml({
+    kind: 'chat',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon',
+  })
+  assert.doesNotMatch(chat, /data-pw-chrome-glyph=/)
+  const zalo = buildVisualEditorChromeWidgetHtml({
+    kind: 'chat-zalo',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon',
+  })
+  assert.doesNotMatch(zalo, /data-pw-chrome-glyph=/)
+})
+
+test('chrome size tokens pad X from width and pad Y from height', () => {
+  assert.match(PW_CHROME_TOKEN_VARS_CSS, /--pw-chrome-pad-x:calc\(var\(--pw-chrome-w/)
+  assert.match(PW_CHROME_TOKEN_VARS_CSS, /--pw-chrome-pad-y:calc\(var\(--pw-chrome-h/)
+  assert.match(PW_CHROME_TOKEN_VARS_CSS, /--pw-chrome-label:13px/)
+  assert.doesNotMatch(PW_CHROME_TOKEN_VARS_CSS, /--pw-chrome-pad-x:calc\(var\(--pw-chrome-size,22px\)\*/)
+  assert.doesNotMatch(PW_CHROME_TOKEN_VARS_CSS, /--pw-chrome-pad-y:calc\(var\(--pw-chrome-size,22px\)\*/)
+})
+
+test('chrome label size follows icon scale and clamps', () => {
+  assert.equal(chromeLabelSizeFromIcon(22), 13)
+  assert.equal(chromeLabelSizeFromIcon(44), 26)
+  assert.equal(clampPwChromeLabelSize(5), 10)
+  assert.equal(clampPwChromeLabelSize(99), 48)
+})
+
+test('search image button in the form stretches to the pill height', () => {
+  assert.match(PW_SEARCH_IMAGE_IN_FORM_BTN_CSS, /align-self:stretch!important/)
+  assert.match(PW_SEARCH_IMAGE_IN_FORM_BTN_CSS, /min-height:100%!important/)
+  assert.match(PW_SEARCH_IMAGE_IN_FORM_BTN_CSS, /height:auto!important/)
+})
+
+test('labeled chrome buttons hug icon and text', () => {
+  assert.equal(PW_CHROME_ICON_SIZE_MAX >= 200, true)
+  assert.match(PW_CHROME_LABELED_MIN_W_CSS, /width:auto!important/)
+  assert.match(PW_CHROME_LABELED_MIN_W_CSS, /min-width:0!important/)
+  assert.match(PW_CHROME_LABELED_MIN_W_CSS, /height:auto!important/)
+  assert.match(PW_CHROME_LABELED_MIN_W_CSS, /icon-label-below/)
+  assert.match(PW_CHROME_LABELED_MIN_W_CSS, /max-width:none!important/)
+  assert.match(PW_CHROME_LABELED_MIN_W_CSS, /font-size:var\(--pw-chrome-label,13px\)!important/)
+})
+
+test('chrome label face CSS sizes stock bottom-nav .pw-shop-icon-label', () => {
+  assert.match(PW_CHROME_LABEL_FACE_CSS, /\.pw-shop-icon-label/)
+  assert.match(PW_CHROME_LABEL_FACE_CSS, /\.pw-bottom-nav \.pw-shop-icon-label/)
+  assert.match(PW_CHROME_LABEL_FACE_CSS, /font-size:var\(--pw-chrome-label,13px\)!important/)
+})
+
+test('chrome face extras cover bold, gap, radius, hover, and column text', () => {
+  assert.match(PW_CHROME_FACE_EXTRAS_CSS, /data-pw-chrome-weight="700"/)
+  assert.match(PW_CHROME_FACE_EXTRAS_CSS, /--pw-chrome-gap/)
+  assert.match(PW_CHROME_FACE_EXTRAS_CSS, /--pw-chrome-radius/)
+  assert.match(PW_CHROME_FACE_EXTRAS_CSS, /data-pw-chrome-hover/)
+  assert.match(PW_CHROME_FACE_EXTRAS_CSS, /data-pw-chrome-text-flow="col"/)
+  assert.match(PW_CHROME_FACE_EXTRAS_CSS, /writing-mode:horizontal-tb/)
+  assert.match(PW_CHROME_FACE_EXTRAS_CSS, /width:min-content/)
+  assert.doesNotMatch(PW_CHROME_FACE_EXTRAS_CSS, /vertical-rl/)
+  assert.doesNotMatch(PW_CHROME_FACE_EXTRAS_CSS, /\[data-pw-chrome-style="text"\]\[data-pw-chrome-layout="col"\]\{flex-direction:column/)
+  assert.equal(chromeKindShowsCountBadge('cart'), true)
+  assert.equal(chromeKindShowsCountBadge('wishlist'), true)
+  assert.equal(chromeKindShowsCountBadge('notifications'), true)
+  assert.equal(chromeKindShowsCountBadge('account'), false)
+  assert.equal(chromeKindDefaultLabels('vi').account, 'Tài khoản')
+})
+
+test('stock chrome CSS uses size vars and style hooks without locking 22px', () => {
+  assert.match(PW_STOCK_CHROME_EDIT_CSS, /--pw-chrome-w:var\(--pw-chrome-size\)/)
+  assert.match(PW_STOCK_CHROME_EDIT_CSS, /\.pw-bottom-nav svg/)
+  assert.match(PW_STOCK_CHROME_EDIT_CSS, /width:var\(--pw-chrome-w,var\(--pw-chrome-size,22px\)\)!important/)
+  assert.match(PW_STOCK_CHROME_EDIT_CSS, /\[data-pw-chrome-style="text"\]/)
+  assert.match(PW_STOCK_CHROME_EDIT_CSS, /\.pw-chrome-icon-only/)
+  assert.match(PW_STOCK_CHROME_EDIT_CSS, /\[data-pw-icon-color\].*color:inherit!important/)
+  assert.doesNotMatch(PW_STOCK_CHROME_EDIT_CSS, /\.pw-bottom-nav svg\{width:22px!important/)
+})
+
+test('text-only chrome CSS hides leftover icon wrap with !important', () => {
+  assert.match(PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS, /\[data-pw-chrome-style="text"\] \.pw-chrome-icon-wrap/)
+  assert.match(PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS, /\.pw-chrome-link \.pw-chrome-icon-wrap/)
+  assert.match(PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS, /display:none!important/)
 })
 
 test('chrome widgets emit topbar text links without icon badge', () => {
@@ -514,4 +665,73 @@ test('try-on and favorite-product widgets wire live shop actions', () => {
   assert.match(buyNow, /Mua hàng/)
   assert.match(buyNow, /pw-shop-btn-buy/)
   assert.doesNotMatch(buyNow, / href=/)
+})
+
+test('phone Instagram WhatsApp share logout coupon and lead form wire live APIs', () => {
+  assert.equal(chromeWidgetLiveHook('phone'), 'contact')
+  assert.equal(chromeWidgetLiveHook('chat-instagram'), 'contact')
+  assert.equal(chromeWidgetLiveHook('chat-whatsapp'), 'contact')
+  assert.equal(chromeWidgetLiveHook('share'), 'share')
+  assert.equal(chromeWidgetLiveHook('logout'), 'logout')
+  assert.equal(chromeWidgetLiveHook('coupon'), 'coupon')
+  assert.equal(chromeWidgetLiveHook('lead-form'), 'lead')
+  assert.equal(chromeWidgetHref('register', '188-shop'), partnerSiteLoginPath('188-shop'))
+  const phone = buildVisualEditorChromeWidgetHtml({
+    kind: 'phone',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon',
+    href: '+84901234567',
+  })
+  assert.match(phone, /data-pw-chrome-btn="phone"/)
+  assert.match(phone, /data-pw-contact-channel="phone"/)
+  assert.match(phone, /href="tel:\+84901234567"/)
+  const ig = buildVisualEditorChromeWidgetHtml({
+    kind: 'chat-instagram',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon',
+    href: 'https://instagram.com/shop',
+  })
+  assert.match(ig, /data-pw-contact-channel="instagram"/)
+  assert.ok(ig.includes(CHROME_INSTAGRAM_LOGO_SVG) || ig.includes('pw-chrome-brand-logo'))
+  const wa = buildVisualEditorChromeWidgetHtml({
+    kind: 'chat-whatsapp',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon',
+    href: '0901234567',
+  })
+  assert.match(wa, /data-pw-contact-channel="whatsapp"/)
+  assert.match(wa, /href="https:\/\/wa.me\/0901234567"/)
+  assert.ok(wa.includes(CHROME_WHATSAPP_LOGO_SVG) || wa.includes('#25D366'))
+  const share = buildVisualEditorChromeWidgetHtml({
+    kind: 'share',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon',
+  })
+  assert.match(share, /data-pw-share="1"/)
+  const logout = buildVisualEditorChromeWidgetHtml({
+    kind: 'logout',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon',
+  })
+  assert.match(logout, /data-pw-account-logout="1"/)
+  const coupon = buildVisualEditorChromeWidgetHtml({
+    kind: 'coupon',
+    siteSlug: '188-shop',
+    locale: 'vi',
+  })
+  assert.match(coupon, /data-pw-coupon-form/)
+  assert.match(coupon, /\/api\/site\/188-shop\/promotions\/validate/)
+  const lead = buildVisualEditorChromeWidgetHtml({
+    kind: 'lead-form',
+    siteSlug: '188-shop',
+    locale: 'vi',
+  })
+  assert.match(lead, /data-pw-lead-form/)
+  assert.match(lead, /\/api\/site\/188-shop\/lead/)
+  assert.match(lead, /name="name"/)
 })

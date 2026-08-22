@@ -275,7 +275,7 @@ function pwStampChromeCountKinds(root){
     var kind=pwChromeCountKind(el);
     if(!kind)continue;
     if(!el.getAttribute('data-pw-chrome-btn'))el.setAttribute('data-pw-chrome-btn',kind);
-    el.setAttribute('data-pw-chrome-count','1');
+    if(!el.getAttribute('data-pw-chrome-count'))el.setAttribute('data-pw-chrome-count','1');
   }
 }
 function pwEnsureChromeCountBadge(el){
@@ -303,6 +303,11 @@ function pwEnsureChromeCountBadge(el){
   return b;
 }
 function pwSetChromeCountBadge(el,n,demo){
+  if(el&&el.getAttribute&&el.getAttribute('data-pw-chrome-count')==='0'){
+    var hidden=el.querySelector?el.querySelector('[data-pw-chrome-badge],.pw-cart-badge,.pw-shop-cart-badge'):null;
+    if(hidden){hidden.setAttribute('hidden','');hidden.textContent='0';hidden.removeAttribute('data-pw-badge-demo');}
+    return;
+  }
   var b=pwEnsureChromeCountBadge(el);
   if(!b)return;
   var count=Math.max(0,Math.round(Number(n)||0));
@@ -337,6 +342,8 @@ function pwIsAdminChromePreview(){
 `.trim()
 
 export const PW_CHROME_COUNT_BADGE_HIDE_CSS =
+  '[data-pw-chrome-count="0"] .pw-cart-badge,[data-pw-chrome-count="0"] .pw-shop-cart-badge,' +
+  '[data-pw-chrome-count="0"] [data-pw-chrome-badge]{display:none!important}' +
   '.pw-cart-badge[hidden],.pw-shop-cart-badge[hidden],[data-pw-chrome-badge][hidden]{display:none!important}' +
   '.pw-cart-badge:not([hidden]),.pw-shop-cart-badge:not([hidden]){display:flex!important;align-items:center;justify-content:center;font-size:10px!important;line-height:1!important;font-weight:700!important;color:#fff!important;-webkit-text-fill-color:#fff!important;background:var(--pw-primary)!important}' +
   '@media (max-width:899px){.pw-header .pw-cart-badge:not([hidden]),.pw-shop-header .pw-cart-badge:not([hidden]),.pw-header .pw-shop-cart-badge:not([hidden]),.pw-shop-header .pw-shop-cart-badge:not([hidden]),.pw-header-actions .pw-cart-badge:not([hidden]),.pw-shop-header-actions .pw-cart-badge:not([hidden]),.pw-header-actions .pw-shop-cart-badge:not([hidden]),.pw-shop-header-actions .pw-shop-cart-badge:not([hidden]){background:#fff!important;color:var(--pw-primary,#111)!important;-webkit-text-fill-color:var(--pw-primary,#111)!important;box-shadow:0 0 0 1px rgba(255,255,255,.45)!important}}'
