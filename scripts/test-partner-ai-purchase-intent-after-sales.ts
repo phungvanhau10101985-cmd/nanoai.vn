@@ -45,6 +45,14 @@ function main() {
   expectAfterSales('sdt của mình 0369597965 kiểm tra đơn', true)
   expectAfterSales('hàng của mình đến đâu rồi, hàng của mình gửi chưa, sao chưa nhận được hàng', true)
 
+  // Chính sách hoàn/hủy — không coi là tra đơn (AI policy_or_order_support)
+  expectAfterSales('Đặt cọc rồi khi nhận hàng ko ưng mà hủy có đc hoàn lại tiền ko', false)
+  expectAfterSales('nếu nhận hàng ko đúng ý thì sao em?', false)
+  expectAfterSales('hủy đơn DH493 có hoàn cọc không', false)
+  expectAfterSales('DH493', true)
+  expectAfterSales('0912345678', false)
+  expectAfterSales('Sđt của mình là 0912345678', true)
+
   const phoneTrack = extractShippingLookupQuery(
     'Kiểm tra hộ mình sdt của mình là 0369597965 kiểm tra đơn của mình gửi đến đâu rồi',
     { allowPhone: true }

@@ -162,8 +162,104 @@ export function inboundTextLooksLikeAfterSalesNotCheckout(raw: string): boolean 
   return AFTER_SALES_NOT_CHECKOUT_RE.test(msg)
 }
 
-/** Hỏi tình trạng hàng/đơn — kể cả chưa nêu mã DH (dùng SĐT tin này hoặc tin trước). */
+/**
+ * Hỏi chính sách hoàn / hủy / không ưng — **không** phải «đơn đi đâu».
+ * Tách khỏi regex hậu mãi rộng (`cọc…ko` từng khớp «cọc rồi khi nhận hàng ko ưng»).
+ */
+const POLICY_REFUND_OR_CANCEL_RE = new RegExp(
+  [
+    String.raw`hoàn\s*(?:lại\s*)?(?:tiền|cọc|coc)`,
+    String.raw`hoan\s*(?:lai\s*)?(?:tien|coc)`,
+    String.raw`refund`,
+    String.raw`hủy.{0,40}(?:đơn|don|hàng|hang|cọc|coc|hoàn|hoan)`,
+    String.raw`\bhủy\b`,
+    String.raw`huy.{0,40}(?:don|hang|coc|hoan)`,
+    String.raw`(?:không|ko|khong)\s*ưng`,
+    String.raw`(?:không|ko|khong)\s*đúng\s*ý`,
+    String.raw`(?:không|ko|khong)\s*dung\s*y`,
+    String.raw`đổi\s*trả`,
+    String.raw`doi\s*tra`,
+    String.raw`(?<!kiểm\s)(?<!kiem\s)trả\s*hàng`,
+    String.raw`(?<!kiểm\s)(?<!kiem\s)tra\s*hang`,
+    String.raw`cancel.{0,20}(?:order|refund)`,
+  ].join('|'),
+  'i'
+)
+
+/** Câu hỏi tình trạng / tracking rõ — vẫn đi nhánh tra cứu. */
+const EXPLICIT_ORDER_TRACK_RE = new RegExp(
+  [
+    String.raw`gửi\s*chưa`,
+    String.raw`gui\s*chua`,
+    String.raw`gửit\s*(?:đến|den|tới|toi)`,
+    String.raw`đến\s*đâu`,
+    String.raw`den\s*dau`,
+    String.raw`tới\s*đâu`,
+    String.raw`toi\s*dau`,
+    String.raw`tình\s*trạng\s*(?:đơn|don)`,
+    String.raw`tinh\s*trang\s*don`,
+    String.raw`kiểm\s*tra.{0,48}(?:đơn|don|sđt|sdt)`,
+    String.raw`kiem\s*tra.{0,48}(?:don|sdt)`,
+    String.raw`theo\s*dõi`,
+    String.raw`theo\s*doi`,
+    String.raw`tra\s*cứu`,
+    String.raw`tra\s*cuu`,
+    String.raw`mã\s*vận`,
+    String.raw`ma\s*van`,
+    String.raw`where\s+is\s+my\s+order`,
+    String.raw`track(?:ing)?\s+(?:my\s+)?order`,
+    String.raw`chưa\s*nhận`,
+    String.raw`chua\s*nhan`,
+    String.raw`chưa\s*giao`,
+    String.raw`chua\s*giao`,
+    String.raw`không\s*giao`,
+    String.raw`ko\s*giao`,
+    String.raw`check\s*(?:giúp|đơn|don|order|sđt|sdt)`,
+  ].join('|'),
+  'i'
+)
+
+export function inboundTextLooksLikePolicyRefundOrCancelAsk(raw: string): boolean {
+  const msg = normalizeCustomerMessageForInventorySearch(raw)
+  if (!msg) return false
+  return POLICY_REFUND_OR_CANCEL_RE.test(msg)
+}
+
+export function inboundTextLooksLikeExplicitOrderTrackAsk(raw: string): boolean {
+  const msg = normalizeCustomerMessageForInventorySearch(raw)
+  if (!msg) return false
+  return EXPLICIT_ORDER_TRACK_RE.test(msg)
+}
+
+/** Tin gần như chỉ mã DH / vận đơn / SĐT — vẫn tra cứu. */
+export function inboundTextLooksLikeBareShippingId(raw: string): boolean {
+  const t = normalizeCustomerMessageForInventorySearch(raw).trim()
+  if (!t || t.length > 48) return false
+  if (
+    /^(?:(?:mã|ma)\s*)?(?:(?:đơn|don)\s*)?(?:là|la)?\s*(?:dh|đh|dc|đc)\s*[-_]?\s*\d{2,}\s*[.!?]*$/i.test(t)
+  ) {
+    return true
+  }
+  if (/^(?:(?:mã|ma)\s*(?:vận|van)?\s*(?:đơn|don)?\s*)?[a-z]{2}\d{8,}vn\s*[.!?]*$/i.test(t)) {
+    return true
+  }
+  if (/^ho\d{6,}\s*[.!?]*$/i.test(t)) return true
+  const digits = t.replace(/\D+/g, '')
+  const local = digits.startsWith('84') && digits.length === 11 ? `0${digits.slice(2)}` : digits
+  if (!/^0(?:3|5|7|8|9)\d{8}$/.test(local)) return false
+  /** SĐT kèm nhãn — không coi dãy số trần (có thể đang chốt đơn). */
+  return /sđt|sdt|đt|điện\s*thoại|dien\s*thoai|phone/i.test(t)
+}
+
+/**
+ * Hỏi tình trạng hàng/đơn — kể cả chưa nêu mã DH (dùng SĐT tin này hoặc tin trước).
+ * Không gồm hỏi hoàn/hủy/không ưng (đi job `policy_or_order_support`).
+ */
 export function inboundTextLooksLikeOrderStatusAsk(raw: string): boolean {
+  if (inboundTextLooksLikeBareShippingId(raw)) return true
+  if (inboundTextLooksLikePolicyRefundOrCancelAsk(raw) && !inboundTextLooksLikeExplicitOrderTrackAsk(raw)) {
+    return false
+  }
   return inboundTextLooksLikeAfterSalesNotCheckout(raw)
 }
 

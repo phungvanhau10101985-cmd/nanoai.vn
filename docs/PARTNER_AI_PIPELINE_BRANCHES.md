@@ -35,7 +35,7 @@ Luồng bắt đầu tại `buildPartnerAiContext` (`src/lib/messaging/partner-a
 | **Neo SKU / trang (không similar, không B)** | Khớp mã trong tin/trang, thường **≤1 thẻ** | `explicitSkuRows` + không bật A | `explicitSkuRows` | *(mặc định)* |
 | **Ảnh góc chi tiết (template)** | Khách hỏi góc rất cụ thể (bên trong/trước/sau/đáy/ngăn...) → **không tạo ảnh AI**; gửi thẻ và điều hướng bấm **Xem chi tiết** trên web | `customerMessageAsksSpecificPhotoAngleDetail` + có dòng kho neo | `specificAnglePhotoRequest`, `specificAnglePhotoTemplateInventoryRows` | `photo_angle_detail_template` |
 | **Page context — mã không có kho, gợi ý theo ảnh** | Trang/embed có `page_context` + ảnh nhưng **không** resolve được dòng kho → vector ảnh ngoài so với kho | `inboundPageSkuMissImageSimilarFallback` | `fetchInventoryRowsSimilarToExternalImageUrl` | `page_context_image_similar_fallback` |
-| **Neo đơn (ảnh CK / tra cứu)** | Giữ **một mã DH** từ ảnh CK (`SEVQR DH…`) hoặc lần tra cứu, tư vấn đúng đơn đó đến khi khách **đổi chủ đề / đơn khác** | `bound_order` trên `raw_payload`; `inboundTextSwitchesOffBoundOrder` | `partner-ai-bound-order.ts`, `partner-ai-inbound.ts` | *(intercept trước LLM; không set A/B)* |
+| **Neo đơn (ảnh CK / tra cứu)** | Giữ **một mã DH** từ ảnh CK (`SEVQR DH…`) hoặc lần tra cứu, tư vấn đúng đơn đó đến khi khách **đổi chủ đề / đơn khác**. **Không** intercept câu hỏi hoàn/hủy/không ưng (đi job `policy_or_order_support`). | `bound_order` trên `raw_payload`; `inboundTextLooksLikeOrderStatusAsk` ≠ `AfterSalesNotCheckout` | `partner-ai-bound-order.ts`, `partner-ai-inbound.ts`, `partner-ai-purchase-intent.ts` | *(intercept trước LLM; không set A/B)* |
 | **Tìm kho mặc định** | Keyword + vector theo tin | Không thuộc các nhánh trên | `invForContext` rộng | *(mặc định)* |
 
 ## Loại trừ giữa Nhánh A và Nhánh B
@@ -80,4 +80,4 @@ Dùng để debug và để sau này không đổi nghĩa key một cách âm th
 
 ---
 
-*Cập nhật lần cuối cùng hệ thống nhánh A/B và pipeline marker như trong repo; không đồng bộ tài liệu này với code sẽ gây hiểu nhầm cho người sau.*
+*Cập nhật lần cuối: tách `inboundTextLooksLikeOrderStatusAsk` khỏi regex hậu mãi rộng (hỏi hoàn/hủy không intercept tra đơn). Không đồng bộ tài liệu này với code sẽ gây hiểu nhầm cho người sau.*

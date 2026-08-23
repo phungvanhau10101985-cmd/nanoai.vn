@@ -26,7 +26,11 @@ import {
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import { runMessagingPartnerAiJobBatch } from '@/lib/messaging/partner-ai-run-jobs'
 import { normalizeWebLocale } from '@/lib/i18n/config'
-import { inboundTextLooksLikeOrderStatusAsk, inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/partner-ai-purchase-intent'
+import {
+  inboundTextLooksLikeOrderStatusAsk,
+  inboundTextLooksLikePolicyRefundOrCancelAsk,
+  inboundTextLooksLikePurchasePickListIntent,
+} from '@/lib/messaging/partner-ai-purchase-intent'
 import { inboundTextLooksLikeFollowUpConsultHeuristic } from '@/lib/messaging/partner-inventory-ai-search'
 import {
   findLatestBoundOrderSnapshot,
@@ -349,8 +353,12 @@ export async function handlePartnerInboundForAi(input: {
     const variantAsk = Boolean(activeBound && inboundTextLooksLikeBoundOrderVariantFollowUp(probeForLookup))
     const followsBound = Boolean(activeBound && inboundTextFollowsBoundOrder(probeForLookup, activeBound))
     const orderStatusAsk = inboundTextLooksLikeOrderStatusAsk(probeForLookup)
+    /** Hỏi hoàn/hủy: AI `policy_or_order_support` — không cắt sang tra cứu / hỏi mã DH. */
+    const policyRefundWithoutTrack =
+      inboundTextLooksLikePolicyRefundOrCancelAsk(probeForLookup) && !orderStatusAsk
     const boundProductFollowUp =
       Boolean(activeBound) &&
+      !policyRefundWithoutTrack &&
       inboundTextLooksLikeFollowUpConsultHeuristic(probeForLookup) &&
       !depositAsk &&
       !variantAsk &&
@@ -393,11 +401,17 @@ export async function handlePartnerInboundForAi(input: {
       variantAsk ||
       depositAsk ||
       Boolean(activeBound && boundProductFollowUp)
-    const allowPhoneLookup = !activeBound && (orderStatusAsk || skipPurchasePickForAfterSales)
+    const allowPhoneLookup =
+      !activeBound && !policyRefundWithoutTrack && (orderStatusAsk || followsBound || depositAsk)
     let shippingQuery = extractShippingLookupQuery(probeForLookup, {
       allowPhone: allowPhoneLookup,
     })
-    if (activeBound && !boundProductFollowUp && (followsBound || orderStatusAsk || depositAsk || variantAsk)) {
+    if (
+      activeBound &&
+      !boundProductFollowUp &&
+      !policyRefundWithoutTrack &&
+      (followsBound || orderStatusAsk || depositAsk || variantAsk)
+    ) {
       shippingQuery = { type: 'order_code', value: activeBound.order_code }
     }
     if (!shippingQuery && allowPhoneLookup && isPgConfigured()) {
@@ -415,7 +429,9 @@ export async function handlePartnerInboundForAi(input: {
     }
     if (
       !boundProductFollowUp &&
+      !policyRefundWithoutTrack &&
       shippingQuery &&
+      (orderStatusAsk || depositAsk || variantAsk || followsBound) &&
       (allowPhoneLookup || shippingQuery.type !== 'phone')
     ) {
       try {
