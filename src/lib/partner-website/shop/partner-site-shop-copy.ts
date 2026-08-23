@@ -328,6 +328,9 @@ export type PartnerSiteShopCopy = {
   lpExploreProducts: string
   lpViewProducts: string
   lpSuggestedForYou: string
+  /** 188 homepage block title — recommended product grid */
+  homeYouMayLike: string
+  forYouBadge: string
   lpHighlightsHeading: string
   lpFaqHeading: string
   lpRealReviews: string
@@ -653,6 +656,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     lpExploreProducts: 'Khám phá sản phẩm',
     lpViewProducts: 'Xem sản phẩm',
     lpSuggestedForYou: 'Gợi ý dành cho bạn',
+    homeYouMayLike: 'CÓ THỂ BẠN THÍCH',
+    forYouBadge: 'Dành cho bạn',
     lpHighlightsHeading: 'Điểm nổi bật & đáng mua',
     lpFaqHeading: 'Câu hỏi thường gặp',
     lpRealReviews: '{rating}/5 · {count} đánh giá thật',
@@ -976,6 +981,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     lpExploreProducts: 'Explore products',
     lpViewProducts: 'View products',
     lpSuggestedForYou: 'Suggested for you',
+    homeYouMayLike: 'YOU MAY ALSO LIKE',
+    forYouBadge: 'For you',
     lpHighlightsHeading: 'Highlights worth buying',
     lpFaqHeading: 'Frequently asked questions',
     lpRealReviews: '{rating}/5 · {count} real reviews',
@@ -1299,6 +1306,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     lpExploreProducts: '探索商品',
     lpViewProducts: '查看商品',
     lpSuggestedForYou: '为你推荐',
+    homeYouMayLike: '猜你喜欢',
+    forYouBadge: '为你',
     lpHighlightsHeading: '亮点与购买理由',
     lpFaqHeading: '常见问题',
     lpRealReviews: '{rating}/5 · {count} 条真实评价',
@@ -1622,6 +1631,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     lpExploreProducts: '商品を見る',
     lpViewProducts: '商品を見る',
     lpSuggestedForYou: 'あなたへのおすすめ',
+    homeYouMayLike: 'あなたへのおすすめ',
+    forYouBadge: 'おすすめ',
     lpHighlightsHeading: '注目ポイント',
     lpFaqHeading: 'よくある質問',
     lpRealReviews: '{rating}/5 · 本物のレビュー {count}件',
@@ -1945,6 +1956,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     lpExploreProducts: '상품 둘러보기',
     lpViewProducts: '상품 보기',
     lpSuggestedForYou: '당신을 위한 추천',
+    homeYouMayLike: '이런 상품은 어때요',
+    forYouBadge: '추천',
     lpHighlightsHeading: '구매 포인트',
     lpFaqHeading: '자주 묻는 질문',
     lpRealReviews: '{rating}/5 · 실제 후기 {count}개',

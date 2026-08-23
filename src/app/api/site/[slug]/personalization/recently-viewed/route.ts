@@ -15,7 +15,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   if (!shop) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
-  const limit = Math.min(24, Math.max(1, Number(request.nextUrl.searchParams.get('limit') ?? 8) || 8))
+  const limit = Math.min(40, Math.max(1, Number(request.nextUrl.searchParams.get('limit') ?? 10) || 10))
   const products = await getSiteRecentlyViewedProducts({
     partnerId: shop.partnerId,
     siteSlug: shop.site.siteSlug,

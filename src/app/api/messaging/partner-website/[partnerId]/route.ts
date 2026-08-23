@@ -66,6 +66,10 @@ import { sanitizeVisualHtmlForStore } from '@/lib/partner-website/visual-editor/
 import { syncSharedChromeAcrossProjectFiles } from '@/lib/partner-website/shop/sync-shared-chrome'
 import { syncProductActionWidgetsAcrossProjectFiles } from '@/lib/partner-website/shop/sync-product-action-widgets'
 import {
+  copyPageCloneElementsAcrossSameDevicePages,
+  seedVisualPageHtmlWithChrome,
+} from '@/lib/partner-website/visual-editor/copy-element-across-pages'
+import {
   publishVisualInfoPageToCms,
   shouldPublishVisualPageToCms,
 } from '@/lib/partner-website/pages/sync-info-page-cms'
@@ -630,7 +634,7 @@ export async function PATCH(
       cmsSlug: visualCmsSlug,
     })
   }
-  const projectToSave =
+  const projectAfterChrome =
     body.visualEdited === true && htmlForVisualSave.length >= 40
       ? syncSharedChromeAcrossProjectFiles(
           syncProductActionWidgetsAcrossProjectFiles(
@@ -652,6 +656,28 @@ export async function PATCH(
           htmlForVisualSave
         )
       : project
+  const cloned =
+    body.visualEdited === true && htmlForVisualSave.length >= 40 && projectAfterChrome
+      ? copyPageCloneElementsAcrossSameDevicePages(projectAfterChrome, htmlPath, htmlForVisualSave, {
+          seedMissingHtml: (_path, pageKey) =>
+            seedVisualPageHtmlWithChrome({
+              pageKey,
+              variant: visualDevice,
+              locale: existing.locale,
+              siteSlug: existing.siteSlug,
+              brand: existing.title || existing.siteSlug,
+              chromeSourceHtml: htmlForVisualSave,
+            }),
+        })
+      : null
+  let themeForSave = theme
+  if (cloned?.pageKeys.length && themeForSave) {
+    themeForSave = cloned.pageKeys.reduce(
+      (next, pageKey) => applyVisualEditThemeFlag(next, { pageKey, variant: visualDevice }),
+      themeForSave
+    )
+  }
+  const projectToSave = cloned?.project ?? projectAfterChrome
   const syncedHomeHtml =
     projectToSave?.files.find((f) => f.path === 'index.html' && f.kind === 'html')?.content?.trim() || ''
   const htmlSourceFromSharedChrome =
@@ -662,7 +688,7 @@ export async function PATCH(
     title: body.title,
     briefText: body.briefText,
     logoUrl: body.logoUrl,
-    theme,
+    theme: themeForSave,
     project: projectToSave ?? undefined,
     htmlSource:
       visualHtmlExact !== undefined

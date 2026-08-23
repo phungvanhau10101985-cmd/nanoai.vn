@@ -6,9 +6,11 @@ import { pinChromeIconBadges } from '@/lib/partner-website/shop/pin-chrome-icon-
 import { releaseStickHeaderPins } from '@/lib/partner-website/shop/stick-header-elements'
 import { stripPartnerInfoPageSeoCoachFromHtml } from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
 import {
+  ensureVisualHtmlLiveReady,
   isolateVisualHtmlForDevice,
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import { refreshCloneBoxesInDocument } from '@/lib/partner-website/visual-editor/copy-element-across-pages'
 
 const EDITOR_STYLE_ID = 'nanoai-visual-editor-styles'
 const EDITOR_SCRIPT_ID = 'nanoai-visual-editor-script'
@@ -220,6 +222,7 @@ function documentOrigin(doc: Document): string {
  * geometry belongs in the editor runtime, where the user can see it happen.
  */
 export function serializeVisualEditorHtml(doc: Document, variant?: VisualDeviceVariant): string {
+  refreshCloneBoxesInDocument(doc)
   const clone = doc.documentElement.cloneNode(true) as HTMLElement
   stripEditorAndRuntimeNodes(clone)
   releaseStickHeaderPins(clone)
@@ -237,7 +240,9 @@ export function serializeVisualEditorHtml(doc: Document, variant?: VisualDeviceV
   if (!variant) return stored
   // Always persist the isolated device document. Falling back to `stored` can write a
   // composed desktop+laptop+tablet+mobile page into a single device file.
-  return sanitizeVisualHtmlForStore(isolateVisualHtmlForDevice(stored, variant))
+  return sanitizeVisualHtmlForStore(
+    ensureVisualHtmlLiveReady(isolateVisualHtmlForDevice(stored, variant), variant)
+  )
 }
 
 /** Postgres jsonb/text reject NUL; strip before persist. */

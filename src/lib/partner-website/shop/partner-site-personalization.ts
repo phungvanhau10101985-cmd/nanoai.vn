@@ -3,7 +3,6 @@ import {
   fetchPartnerInventoryRowByIdForPartnerFromPg,
   type MessagingPartnerInventoryRow,
 } from '@/lib/db/messaging-partner-inventory-pg'
-import { fetchMessagingGuestCartFromPg } from '@/lib/db/messaging-guest-cart-pg'
 import {
   appendPartnerVisitorEventInventoryIdsFromPg,
   clearPartnerVisitorRecentlyViewedFromPg,
@@ -21,12 +20,7 @@ import {
   readGuestSessionIdFromRequestStrictOrLoose,
 } from '@/lib/messaging/guest-auth-session'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
-import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
-import {
-  getCustomerDeliveryProfile,
-  listRelatedBuyProducts,
-  type RelatedBuyProduct,
-} from '@/lib/messaging/guest-chat-ordering'
+import { getCustomerDeliveryProfile } from '@/lib/messaging/guest-chat-ordering'
 import { headlessAccountKey } from '@/lib/messaging/partner-headless-cart-utils'
 import {
   resolveWidgetOrderThreadFromRequest,
@@ -34,6 +28,8 @@ import {
 } from '@/lib/messaging/resolve-widget-order-thread'
 import { requestSkipsPartnerSiteShopAuthResume } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { mergePartnerVisitorPersonalizationFromPg } from '@/lib/db/messaging-partner-recommendation-pg'
+import { getSiteHomeRecommendationBlock } from '@/lib/partner-website/shop/partner-site-home-recommendation'
 
 export type PartnerSitePersonalizationProduct = {
   inventory_id: string
@@ -88,6 +84,13 @@ export async function resolveSiteVisitorContext(
   }
 
   const accountKey = visitorAccountKeyFromThread(thread)!
+  if (sessionId && sessionId !== accountKey) {
+    await mergePartnerVisitorPersonalizationFromPg({
+      partnerId,
+      fromAccountKey: sessionId,
+      toAccountKey: accountKey,
+    })
+  }
   return { accountKey, thread, sessionId }
 }
 
@@ -129,28 +132,6 @@ export function mapInventoryRowToPersonalizationProduct(
   }
 }
 
-function relatedToPersonalizationProduct(
-  siteSlug: string,
-  item: RelatedBuyProduct
-): PartnerSitePersonalizationProduct | null {
-  const imageUrl = item.image_url.trim()
-  const productUrl = item.product_url.trim()
-  if (!/^https?:\/\//i.test(imageUrl) || !/^https?:\/\//i.test(productUrl)) return null
-  const inventoryId = item.inventory_id?.trim() ?? ''
-  return {
-    inventory_id: inventoryId || productUrl,
-    name: item.name.trim() || 'Product',
-    price_hint: item.price_hint?.trim() ?? '',
-    image_url: imageUrl,
-    product_url: productUrl,
-    detail_path:
-      inventoryId && UUID_RE.test(inventoryId)
-        ? partnerSiteProductPath(siteSlug, inventoryId, { name: item.name })
-        : '',
-    sku: item.sku?.trim() || null,
-  }
-}
-
 async function loadProductsByIds(
   partnerId: string,
   siteSlug: string,
@@ -173,7 +154,7 @@ export async function getSiteRecentlyViewedProducts(input: {
   accountKey: string
   limit?: number
 }): Promise<PartnerSitePersonalizationProduct[]> {
-  const lim = Math.max(1, Math.min(24, Math.floor(Number(input.limit) || 8)))
+  const lim = Math.max(1, Math.min(40, Math.floor(Number(input.limit) || 8)))
   const state = await fetchPartnerVisitorPersonalizationFromPg({
     partnerId: input.partnerId,
     accountKey: input.accountKey,
@@ -221,31 +202,6 @@ export async function mutateSiteFavoriteProduct(input: {
   return { is_favorite: result.is_favorite }
 }
 
-function cartItemsToProductCards(raw: unknown): PartnerAiProductCard[] {
-  if (!Array.isArray(raw)) return []
-  const out: PartnerAiProductCard[] = []
-  for (const item of raw) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) continue
-    const o = item as Record<string, unknown>
-    const card = o.card
-    if (!card || typeof card !== 'object' || Array.isArray(card)) continue
-    const c = card as Record<string, unknown>
-    const name = typeof c.name === 'string' ? c.name.trim() : ''
-    const image_url = typeof c.image_url === 'string' ? c.image_url.trim() : ''
-    const product_url = typeof c.product_url === 'string' ? c.product_url.trim() : ''
-    if (!name || !/^https?:\/\//i.test(image_url) || !/^https?:\/\//i.test(product_url)) continue
-    const cardOut: PartnerAiProductCard = { name, image_url, product_url }
-    if (typeof c.price_hint === 'string' && c.price_hint.trim()) cardOut.price_hint = c.price_hint.trim()
-    if (typeof c.sku === 'string' && c.sku.trim()) cardOut.sku = c.sku.trim()
-    if (typeof c.inventory_id === 'string' && UUID_RE.test(c.inventory_id.trim())) {
-      cardOut.inventory_id = c.inventory_id.trim()
-    }
-    out.push(cardOut)
-    if (out.length >= 24) break
-  }
-  return out
-}
-
 export async function getSiteRecommendedProducts(input: {
   partnerId: string
   siteSlug: string
@@ -253,69 +209,8 @@ export async function getSiteRecommendedProducts(input: {
   linkedUserId?: string | null
   limit?: number
 }): Promise<PartnerSitePersonalizationProduct[]> {
-  const lim = Math.max(1, Math.min(24, Math.floor(Number(input.limit) || 8)))
-  const state = await fetchPartnerVisitorPersonalizationFromPg({
-    partnerId: input.partnerId,
-    accountKey: input.accountKey,
-  })
-  const viewedIds = new Set((state?.recently_viewed_ids ?? []).map((id) => id.toLowerCase()))
-  const favoriteIds = new Set((state?.favorite_ids ?? []).map((id) => id.toLowerCase()))
-
-  const cartRaw = await fetchMessagingGuestCartFromPg({
-    partnerId: input.partnerId,
-    accountKey: input.accountKey,
-  })
-  const cartCards = cartItemsToProductCards(cartRaw)
-
-  const viewedProducts = await loadProductsByIds(
-    input.partnerId,
-    input.siteSlug,
-    state?.recently_viewed_ids ?? []
-  )
-  const favoriteProducts = await loadProductsByIds(
-    input.partnerId,
-    input.siteSlug,
-    state?.favorite_ids ?? []
-  )
-  const viewedCards: PartnerAiProductCard[] = viewedProducts.map((p) => ({
-    name: p.name,
-    image_url: p.image_url,
-    product_url: p.product_url,
-    price_hint: p.price_hint || undefined,
-    sku: p.sku || undefined,
-    inventory_id: UUID_RE.test(p.inventory_id) ? p.inventory_id : undefined,
-  }))
-
-  const favoriteCards: PartnerAiProductCard[] = favoriteProducts.map((p) => ({
-    name: p.name,
-    image_url: p.image_url,
-    product_url: p.product_url,
-    price_hint: p.price_hint || undefined,
-    sku: p.sku || undefined,
-    inventory_id: UUID_RE.test(p.inventory_id) ? p.inventory_id : undefined,
-  }))
-
-  const recentCards = [...cartCards, ...favoriteCards, ...viewedCards]
-  const related = await listRelatedBuyProducts({
-    partnerId: input.partnerId,
-    recentCards,
-    limit: lim + viewedIds.size,
-    linkedUserId: input.linkedUserId ?? null,
-  })
-
-  const out: PartnerSitePersonalizationProduct[] = []
-  const seen = new Set<string>()
-  for (const item of related) {
-    const key = (item.inventory_id || item.product_url).toLowerCase()
-    if (seen.has(key)) continue
-    if (item.inventory_id && viewedIds.has(item.inventory_id.toLowerCase())) continue
-    if (item.inventory_id && favoriteIds.has(item.inventory_id.toLowerCase())) continue
-    seen.add(key)
-    const mapped = relatedToPersonalizationProduct(input.siteSlug, item)
-    if (mapped) out.push(mapped)
-    if (out.length >= lim) break
-  }
-  return out
+  const block = await getSiteHomeRecommendationBlock(input)
+  return block.products
 }
 
 export async function getSiteVisitorProfile(input: {

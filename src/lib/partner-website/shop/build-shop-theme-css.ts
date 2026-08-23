@@ -36,7 +36,7 @@ a{color:inherit;text-decoration:none}
 .pw-brand{display:inline-flex;align-items:center;gap:10px;text-decoration:none;width:max-content;max-width:100%;min-width:0;color:var(--pw-primary)}
 .pw-logo{height:36px;width:auto;object-fit:contain}
 .pw-wordmark{font-weight:800;font-size:1.15rem;color:var(--pw-primary);white-space:nowrap}
-.pw-cat-btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid var(--pw-border,#e5e7eb);border-radius:999px;background:#fff;color:#374151;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.pw-cat-btn:not([data-pw-chrome-added]){display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid var(--pw-border,#e5e7eb);border-radius:999px;background:#fff;color:#374151;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
 .pw-cat-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
 .pw-cat-panel{display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:60;min-width:200px;padding:8px;background:#fff;border:1px solid var(--pw-border,#e5e7eb);border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.12)}
 .pw-cat-panel.is-open{display:grid;gap:2px}
@@ -65,8 +65,8 @@ ${buildPartnerSiteAccountPanelCss()}
   .pw-header{background:var(--pw-primary);border:none;box-shadow:0 6px 18px color-mix(in srgb, var(--pw-primary) 35%, transparent)}
   .pw-wordmark,.pw-brand{color:#fff}
   .pw-header-actions .pw-icon-btn:not([data-pw-chrome-float]),.pw-account-btn{color:#fff}
-  .pw-cat-btn{width:34px;height:34px;padding:0;justify-content:center;border:1.5px solid rgba(255,255,255,.55);background:rgba(255,255,255,.16);color:#fff}
-  .pw-cat-btn span{display:none}
+  .pw-cat-btn:not([data-pw-chrome-added]){width:34px;height:34px;padding:0;justify-content:center;border:1.5px solid rgba(255,255,255,.55);background:rgba(255,255,255,.16);color:#fff}
+  .pw-cat-btn:not([data-pw-chrome-added]) span{display:none}
   .pw-search-form{border:none;height:36px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.10)}
 }
 @media (max-width:1279px){
@@ -97,7 +97,7 @@ ${buildPartnerSiteHtmlChromeCss()}
 .pw-shop-header-inner{max-width:var(--pw-content);width:100%;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px;box-sizing:border-box}
 .pw-shop-brand-cluster{position:relative;display:flex;align-items:center;gap:10px;flex-shrink:0;pointer-events:none}
 .pw-shop-brand-cluster > *,.pw-shop-brand-cluster a,.pw-shop-brand-cluster button,.pw-shop-brand-cluster img,.pw-shop-brand-cluster [data-pw-el]{pointer-events:auto}
-.pw-shop-cat-btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid #e5e7eb;border-radius:999px;background:#fff;color:#374151;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.pw-shop-cat-btn:not([data-pw-chrome-added]){display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid #e5e7eb;border-radius:999px;background:#fff;color:#374151;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
 .pw-shop-nav-icon{width:20px;height:20px;flex-shrink:0;display:block}
 .pw-shop-cat-panel{position:absolute;left:0;top:calc(100% + 8px);z-index:60;min-width:200px;display:grid;gap:2px;padding:8px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.12)}
 .pw-shop-cat-panel a{display:block;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:700;color:#374151}
@@ -420,13 +420,13 @@ ${PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS}
   }
   .pw-shop-logo{height:28px;padding:0;background:transparent;border-radius:0;filter:none;position:relative;z-index:90;overflow:visible;object-fit:contain;object-position:left center}
   .pw-logo-frame,.pw-shop-header [data-pw-logo-frame="1"]{padding:0;background:transparent;max-width:none;max-height:none;overflow:hidden}
-  .pw-shop-cat-btn{
+  .pw-shop-cat-btn:not([data-pw-chrome-added]){
     width:34px;height:34px;padding:0;justify-content:center;
     border:1.5px solid rgba(255,255,255,.55);
     background:rgba(255,255,255,.16);
     color:#fff;flex-shrink:0;
   }
-  .pw-shop-cat-btn > span{display:none}
+  .pw-shop-cat-btn:not([data-pw-chrome-added]) > span{display:none}
   .pw-shop-cat-btn .pw-shop-nav-icon{width:18px;height:18px}
   .pw-shop-search-form{
     border:none;

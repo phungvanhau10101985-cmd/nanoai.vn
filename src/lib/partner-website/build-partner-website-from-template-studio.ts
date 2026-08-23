@@ -35,6 +35,7 @@ import { maybeSeedShopDemoInventoryOnWebsiteCreate } from '@/lib/messaging/seed-
 import { mergeTemplateFlagsWithCapabilities } from '@/lib/partner-website/partner-capabilities'
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
 import { themeFromPresetPartial } from '@/lib/partner-website/template/partner-website-theme-tokens'
+import { seedBlankShopVisualWebsite } from '@/lib/partner-website/shop/build-blank-shop-visual-html'
 
 export type BuildPartnerWebsiteFromTemplateStudioInput = {
   locale: WebLocale
@@ -387,11 +388,25 @@ export async function buildPartnerWebsiteFromTemplateStudio(
     visualLaptopCmsSlugs: [],
   }
   const templateId = preset.templateId
-  const project = syncTemplateToProject({
+  let project = syncTemplateToProject({
     templateId,
     theme,
     pages,
   })
+  let htmlSource: string | undefined
+  let seededTheme = theme
+  if (preset.id === 'blank-white') {
+    const seeded = seedBlankShopVisualWebsite({
+      project,
+      theme,
+      locale: input.locale,
+      siteSlug,
+      brand,
+    })
+    project = seeded.project
+    seededTheme = seeded.theme
+    htmlSource = seeded.htmlSource
+  }
   const chatPath = `/messaging/p/${encodeURIComponent(partner.slug)}`
 
   const website = await upsertPartnerWebsitePg({
@@ -403,9 +418,10 @@ export async function buildPartnerWebsiteFromTemplateStudio(
     referenceImageUrls: existing?.referenceImageUrls ?? [],
     renderMode: 'template',
     templateId,
-    theme,
+    theme: seededTheme,
     pages,
     project,
+    htmlSource,
     locale: input.locale,
     changeNote: `studio_apply_template_${preset.id as ShopTemplatePresetId}`,
     chatPath,
@@ -419,9 +435,13 @@ export async function buildPartnerWebsiteFromTemplateStudio(
     (await setPartnerWebsitePublishedPg({ partnerId, isPublished: true })) || website
 
   const assistantMessage =
-    input.locale === 'vi'
-      ? `Đã áp mẫu «${preset.label.vi}». Bạn có thể chỉnh module và giao diện trên preview.`
-      : `Applied «${preset.label.en}». You can adjust modules and layout in the preview.`
+    preset.id === 'blank-white'
+      ? input.locale === 'vi'
+        ? `Đã áp mẫu «${preset.label.vi}» — canvas trống để tạo web từ số 0 trong Sửa nhanh. Giao diện cũ đã được chụp; chọn lại mẫu cam để khôi phục.`
+        : `Applied «${preset.label.en}» — empty canvas to build from zero in Quick edit. The previous look was snapshotted; switch back to restore it.`
+      : input.locale === 'vi'
+        ? `Đã áp mẫu «${preset.label.vi}». Bạn có thể chỉnh module và giao diện trên preview.`
+        : `Applied «${preset.label.en}». You can adjust modules and layout in the preview.`
 
   return { ok: true, website: published, assistantMessage }
 }

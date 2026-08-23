@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutTemplate, Loader2, Lock, LogIn, LogOut, Mail, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Share2, Shield, ShoppingBag, Sparkles, Square, Store, Tag, Ticket, Trash2, Truck, Type, Undo2, Ungroup, Upload, User, UserPlus, Video, Wallet, X } from 'lucide-react'
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutGrid, LayoutTemplate, Loader2, Lock, LogIn, LogOut, Mail, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Share2, Shield, ShoppingBag, Sparkles, Square, Store, Tag, Ticket, Trash2, Truck, Type, Undo2, Upload, User, UserPlus, Video, Wallet, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -41,6 +41,7 @@ import {
   dataUrlToPngFile,
   makeUserLogoColorSwatchDataUrl,
 } from '@/lib/partner-website/visual-editor/logo-generation-context'
+import { useToast } from '@/hooks/use-toast'
 import { persistVisualEditorAdminLogo } from '@/lib/partner-website/visual-editor/persist-visual-editor-admin-logo'
 import { persistVisualEditorChatIconLogo } from '@/lib/partner-website/visual-editor/persist-visual-editor-chat-icon-logo'
 import { buildChatIconLogoPrompt } from '@/lib/partner-website/visual-editor/build-chat-icon-logo-prompt'
@@ -80,6 +81,7 @@ import {
   clampPwChromeIconSize,
   clampPwChromeLabelSize,
   clampPwChromeRadius,
+  clampPwImageRadius,
   chromeKindShowsCountBadge,
   isChromeContactChatKind,
   isChromeIconOnlyStyle,
@@ -94,10 +96,20 @@ import {
   PW_CHROME_LABEL_SIZE_MIN,
   PW_CHROME_RADIUS_MAX,
   PW_CHROME_RADIUS_MIN,
+  PW_IMAGE_RADIUS_DEFAULT,
+  PW_IMAGE_RADIUS_MAX,
+  PW_IMAGE_RADIUS_MIN,
+  PW_IMAGE_RADIUS_ROUNDED,
   VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS,
   type VisualEditorChromeWidgetKind,
   type VisualEditorChromeWidgetStyle,
 } from '@/lib/partner-website/visual-editor/chrome-widgets'
+import {
+  buildVisualEditorProductGridHtml,
+  productGridWidgetLabel,
+  VISUAL_EDITOR_PRODUCT_GRID_KINDS,
+  type VisualEditorProductGridKind,
+} from '@/lib/partner-website/visual-editor/product-grid-widgets'
 import {
   canPickChromeGlyph,
   chromeGlyphsForKind,
@@ -158,13 +170,13 @@ export type VisualEditorSelection = {
   isImage: boolean
   isBlock: boolean
   isMoveBlock: boolean
-  canUngroup: boolean
-  canGroup: boolean
   isButton: boolean
   isAddedBtn: boolean
   isCatToggle: boolean
   isSearch: boolean
   isAddedBg: boolean
+  canClearBg: boolean
+  bgCleared: boolean
   canInsertBgSlot: boolean
   editKind: VisualEditorEditKind
   chromeKind: string
@@ -237,12 +249,18 @@ export type VisualEditorSelection = {
   src: string
   href: string
   imageWidth: number
+  imageRadius: number
+  canImageRadius: boolean
   width: number
   height: number
   canStickHeader: boolean
   stickHeader: boolean
   canPinScreen: boolean
   pinScreen: boolean
+  canStayScroll: boolean
+  stayScroll: boolean
+  canHide: boolean
+  canCopyToPages: boolean
   /** Lớp không gian toàn trang của phần tử — khác `layerIndex` (thứ tự trong vùng cha). */
   scene: number
   scenePos: 'bottom' | 'middle' | 'top'
@@ -270,13 +288,13 @@ function selectionFromMessage(data: {
   isImage?: boolean
   isBlock?: boolean
   isMoveBlock?: boolean
-  canUngroup?: boolean
-  canGroup?: boolean
   isButton?: boolean
   isAddedBtn?: boolean
   isCatToggle?: boolean
   isSearch?: boolean
   isAddedBg?: boolean
+  canClearBg?: boolean
+  bgCleared?: boolean
   canInsertBgSlot?: boolean
   editKind?: string
   chromeKind?: string
@@ -349,11 +367,17 @@ function selectionFromMessage(data: {
   src?: string
   href?: string
   imageWidth?: number
+  imageRadius?: number
+  canImageRadius?: boolean
   rect?: { width?: number; height?: number }
   canStickHeader?: boolean
   stickHeader?: boolean
   canPinScreen?: boolean
   pinScreen?: boolean
+  canStayScroll?: boolean
+  stayScroll?: boolean
+  canHide?: boolean
+  canCopyToPages?: boolean
   scene?: number
   scenePos?: string
   sceneCount?: number
@@ -363,13 +387,13 @@ function selectionFromMessage(data: {
     isImage: Boolean(data.isImage),
     isBlock: Boolean(data.isBlock),
     isMoveBlock: Boolean(data.isMoveBlock),
-    canUngroup: Boolean(data.canUngroup),
-    canGroup: Boolean(data.canGroup),
     isButton: Boolean(data.isButton),
     isAddedBtn: Boolean(data.isAddedBtn),
     isCatToggle: Boolean(data.isCatToggle),
     isSearch: Boolean(data.isSearch),
     isAddedBg: Boolean(data.isAddedBg),
+    canClearBg: Boolean(data.canClearBg),
+    bgCleared: Boolean(data.bgCleared),
     canInsertBgSlot: Boolean(data.canInsertBgSlot),
     editKind: parseEditKind(data.editKind),
     chromeKind: String(data.chromeKind ?? '').replace(/[^a-z0-9-]/g, ''),
@@ -461,12 +485,18 @@ function selectionFromMessage(data: {
     src: String(data.src ?? ''),
     href: String(data.href ?? ''),
     imageWidth: Number(data.imageWidth) || 100,
+    imageRadius: clampPwImageRadius(data.imageRadius),
+    canImageRadius: Boolean(data.canImageRadius),
     width: Number(data.rect?.width) || 0,
     height: Number(data.rect?.height) || 0,
     canStickHeader: Boolean(data.canStickHeader),
     stickHeader: Boolean(data.stickHeader),
     canPinScreen: Boolean(data.canPinScreen),
     pinScreen: Boolean(data.pinScreen),
+    canStayScroll: Boolean(data.canStayScroll),
+    stayScroll: Boolean(data.stayScroll),
+    canHide: Boolean(data.canHide),
+    canCopyToPages: data.canCopyToPages !== false,
     scene: clampPwSceneIndex(data.scene),
     scenePos:
       data.scenePos === 'bottom' || data.scenePos === 'top' || data.scenePos === 'middle'
@@ -858,6 +888,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   onRequestLeave,
 }: Props) {
   const t = getPartnerWebsiteCopy(locale)
+  const { toast } = useToast()
   const themePicks = useMemo(() => shopThemeQuickPicksFromCopy(theme, t), [theme, t])
   const [selection, setSelection] = useState<VisualEditorSelection | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -1283,13 +1314,13 @@ export function PartnerWebsiteVisualEditorToolbar({
         isImage?: boolean
         isBlock?: boolean
         isMoveBlock?: boolean
-        canUngroup?: boolean
-        canGroup?: boolean
         isButton?: boolean
         isAddedBtn?: boolean
         isCatToggle?: boolean
         isSearch?: boolean
         isAddedBg?: boolean
+        canClearBg?: boolean
+        bgCleared?: boolean
         canInsertBgSlot?: boolean
         editKind?: string
         chromeKind?: string
@@ -1301,7 +1332,12 @@ export function PartnerWebsiteVisualEditorToolbar({
         canStickHeader?: boolean
         stickHeader?: boolean
         canPinScreen?: boolean
+        canStayScroll?: boolean
+        stayScroll?: boolean
         pinScreen?: boolean
+        canCopyToPages?: boolean
+        reason?: string
+        id?: string
         isChrome?: boolean
         chromeStyle?: string
         searchGlyph?: string
@@ -1350,6 +1386,8 @@ export function PartnerWebsiteVisualEditorToolbar({
         src?: string
         href?: string
         imageWidth?: number
+        imageRadius?: number
+        canImageRadius?: boolean
         html?: string
         rect?: { width?: number; height?: number }
         hidden?: HiddenBlock[] | boolean
@@ -1502,6 +1540,22 @@ export function PartnerWebsiteVisualEditorToolbar({
       if (data.type === 'favoriteNeedHost') {
         onError(t.visualEditFavoriteNeedHost)
       }
+      if (data.type === 'copyToAllPagesSkip') {
+        const reason = String(data.reason || '')
+        onError(
+          reason === 'chrome'
+            ? t.visualEditCopyAllPagesSkip
+            : reason === 'locked'
+              ? t.visualEditCopyAllPagesLocked
+              : t.visualEditCopyAllPagesNone
+        )
+      }
+      if (data.type === 'copyToAllPagesReady') {
+        void handleSaveHtml('').then((ok) => {
+          if (!ok) return
+          toast({ title: t.visualEditCopyAllPagesDone })
+        })
+      }
       if (data.type === 'html' && data.html && saveWaiterRef.current) {
         void handleSaveHtml(data.html)
       }
@@ -1509,7 +1563,7 @@ export function PartnerWebsiteVisualEditorToolbar({
 
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [active, activateEditor, documentKey, handleSaveHtml, onError, openBlockPanel, t.visualEditAddButtonLabel, t.visualEditFavoriteNeedHost])
+  }, [active, activateEditor, documentKey, handleSaveHtml, onError, openBlockPanel, t.visualEditAddButtonLabel, t.visualEditCopyAllPagesDone, t.visualEditCopyAllPagesLocked, t.visualEditCopyAllPagesNone, t.visualEditCopyAllPagesSkip, t.visualEditFavoriteNeedHost, toast])
 
   useEffect(() => {
     if (!active) return
@@ -1555,12 +1609,15 @@ export function PartnerWebsiteVisualEditorToolbar({
         return
       }
       if (!selection) return
-      if ((e.key === 'Delete' || e.key === 'Backspace') && (selection.isAddedBg || selection.canDelete)) {
+      if (
+        (e.key === 'Delete' || e.key === 'Backspace') &&
+        (selection.isAddedBg || selection.canClearBg || selection.canDelete)
+      ) {
         e.preventDefault()
         e.stopPropagation()
         postToIframe(
           iframeRef.current,
-          selection.isAddedBg || !selection.isBlock ? 'deleteUnit' : 'deleteBlock'
+          selection.isBlock && selection.canDelete && !selection.isAddedBg ? 'deleteBlock' : 'deleteUnit'
         )
         setDirty(true)
         return
@@ -1977,13 +2034,13 @@ export function PartnerWebsiteVisualEditorToolbar({
           isImage: true,
           isBlock: false,
           isMoveBlock: false,
-          canUngroup: false,
-          canGroup: false,
           isButton: false,
           isAddedBtn: false,
           isCatToggle: false,
           isSearch: false,
           isAddedBg: false,
+          canClearBg: false,
+          bgCleared: false,
           canInsertBgSlot: false,
           editKind: 'logo',
           chromeKind: '',
@@ -2056,12 +2113,18 @@ export function PartnerWebsiteVisualEditorToolbar({
           src: '',
           href: '',
           imageWidth: 100,
+          imageRadius: PW_IMAGE_RADIUS_DEFAULT,
+          canImageRadius: false,
           width: size.w,
           height: size.h,
           canStickHeader: false,
           stickHeader: false,
           canPinScreen: false,
           pinScreen: false,
+          canStayScroll: false,
+          stayScroll: false,
+          canHide: false,
+          canCopyToPages: false,
           scene: PW_SCENE_DEFAULT_INDEX,
           scenePos: 'middle',
           sceneCount: PW_SCENE_LAYERS.length,
@@ -2347,6 +2410,21 @@ export function PartnerWebsiteVisualEditorToolbar({
     })
   }
 
+  function insertProductGridWidget(kind: VisualEditorProductGridKind) {
+    const slug = siteSlug?.trim()
+    if (!slug) {
+      onError(t.visualEditSaveFailed)
+      return
+    }
+    if (insertBgPickPlace) cancelInsertBgPickUi()
+    setAddBgAskOpen(false)
+    const html = buildVisualEditorProductGridHtml({ kind, siteSlug: slug, locale, limit: 10 })
+    if (!html) return
+    postToIframe(iframeRef.current, 'insertProductGrid', { html, useAnchor: insertAnchorActive })
+    setDirty(true)
+    openBlockPanel()
+  }
+
   function insertButtonBlock() {
     if (insertBgPickPlace) cancelInsertBgPickUi()
     setAddBgAskOpen(false)
@@ -2610,6 +2688,8 @@ export function PartnerWebsiteVisualEditorToolbar({
   const chromeLikeKind = chromeFaceKind || editKind === 'search'
   const showInlineChromeTools = false
   const showPinScreen = Boolean(selection?.canPinScreen)
+  const showStayScroll = Boolean(selection?.canStayScroll)
+  const showHideEl = Boolean(selection?.canHide)
   const showStickHeader = Boolean(
     selection?.canStickHeader &&
       selection.chromeKind !== 'chat' &&
@@ -2768,7 +2848,7 @@ export function PartnerWebsiteVisualEditorToolbar({
     )
   }
   const deleteLabel =
-    editKind === 'added-bg'
+    editKind === 'added-bg' || selection?.canClearBg
       ? t.visualEditDeleteBg
       : editKind === 'chat-embed'
         ? t.visualEditChatEmbedDelete
@@ -3238,6 +3318,28 @@ export function PartnerWebsiteVisualEditorToolbar({
                       <MousePointerClick className="h-3.5 w-3.5 shrink-0" aria-hidden />
                       {t.visualEditAddButton}
                     </button>
+                    {VISUAL_EDITOR_PRODUCT_GRID_KINDS.map((kind) => {
+                      const Icon =
+                        kind === 'recently-viewed' ? Clock : kind === 'recommended' ? Sparkles : LayoutGrid
+                      return (
+                        <button
+                          key={kind}
+                          type="button"
+                          className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] font-medium hover:bg-muted"
+                          disabled={busy}
+                          onClick={() => insertProductGridWidget(kind)}
+                        >
+                          <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                          {t[
+                            kind === 'catalog'
+                              ? 'visualEditAddProductGrid'
+                              : kind === 'recently-viewed'
+                                ? 'visualEditAddRecentlyViewedGrid'
+                                : 'visualEditAddRecommendedGrid'
+                          ] || productGridWidgetLabel(kind, locale)}
+                        </button>
+                      )
+                    })}
                     <div className="flex flex-col gap-1 rounded px-2 py-1.5">
                       <button
                         type="button"
@@ -3420,13 +3522,33 @@ export function PartnerWebsiteVisualEditorToolbar({
                     {selection && !selection.isLogo ? (
                       <p className="text-[10px] leading-tight text-muted-foreground">{t.visualEditNudgeHint}</p>
                     ) : null}
+                    {selection ? (
+                      <div className="space-y-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className={cn(btn, 'w-full justify-start')}
+                          disabled={busy}
+                          title={t.visualEditCopyAllPagesHint}
+                          onClick={() => postToIframe(iframeRef.current, 'copyToAllPages')}
+                        >
+                          <Copy className="h-3 w-3" />
+                          <span className="ml-1">{t.visualEditCopyAllPages}</span>
+                        </Button>
+                        <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditCopyAllPagesHint}</p>
+                      </div>
+                    ) : null}
         {showAddedBgHint && selection ? (
           <div className="rounded-md border bg-background px-2 py-1.5">
             <p className="text-[11px] font-semibold leading-4">{t.visualEditBgStackAdded}</p>
             <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditAddedBgHint}</p>
           </div>
         ) : null}
-        {showBgColorPicker && selection && !selection.isAddedBg && !selection.canDelete ? (
+        {showBgColorPicker && selection && selection.canClearBg ? (
+          <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditRegionBgHint}</p>
+        ) : null}
+        {showBgColorPicker && selection && !selection.isAddedBg && !selection.canDelete && !selection.canClearBg ? (
           <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditBgLockedHint}</p>
         ) : null}
         {showSearchHint && selection ? (
@@ -3603,34 +3725,6 @@ export function PartnerWebsiteVisualEditorToolbar({
                 {t.visualEditBlockSizeReset}
               </Button>
             </div>
-          ) : null}
-          {selection?.canUngroup ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className={btn}
-              disabled={busy}
-              title={t.visualEditUngroupBlock}
-              onClick={() => postToIframe(iframeRef.current, 'ungroupBlock')}
-            >
-              <Ungroup className="h-3 w-3" />
-              {compact ? null : <span className="ml-1">{t.visualEditUngroupBlock}</span>}
-            </Button>
-          ) : null}
-          {selection?.canGroup ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className={btn}
-              disabled={busy}
-              title={t.visualEditGroupBlock}
-              onClick={() => postToIframe(iframeRef.current, 'groupBlock')}
-            >
-              <LayoutTemplate className="h-3 w-3" />
-              {compact ? null : <span className="ml-1">{t.visualEditGroupBlock}</span>}
-            </Button>
           ) : null}
           {showWidgetColors && selection ? (
             <div
@@ -4071,6 +4165,40 @@ export function PartnerWebsiteVisualEditorToolbar({
               </span>
             </label>
           ) : null}
+          {showHideEl && selection && !showBlockTools ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={btn}
+              disabled={busy}
+              title={t.visualEditBlockHide}
+              onClick={() => {
+                postToIframe(iframeRef.current, 'hideBlock')
+                setDirty(true)
+              }}
+            >
+              <EyeOff className="h-3 w-3" />
+              {compact ? null : <span className="ml-1">{t.visualEditBlockHide}</span>}
+            </Button>
+          ) : null}
+          {showStayScroll && selection ? (
+            <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-background px-2 py-1.5">
+              <Switch
+                className="mt-0.5 shrink-0 data-[state=checked]:bg-primary"
+                checked={selection.stayScroll}
+                disabled={busy}
+                onCheckedChange={(on) => {
+                  postToIframe(iframeRef.current, 'setStayScroll', { on })
+                  setDirty(true)
+                }}
+              />
+              <span className="min-w-0">
+                <span className="block text-[11px] font-semibold leading-4">{t.visualEditStayScroll}</span>
+                <span className="block text-[10px] leading-4 text-muted-foreground">{t.visualEditStayScrollHint}</span>
+              </span>
+            </label>
+          ) : null}
           {showStickHeader && selection ? (
             <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-background px-2 py-1.5">
               <Switch
@@ -4106,6 +4234,56 @@ export function PartnerWebsiteVisualEditorToolbar({
                 />
                 <span className="w-7 tabular-nums text-muted-foreground">{selection.imageWidth}%</span>
               </label>
+              ) : null}
+              {!selection.isBannerPhoto && selection.canImageRadius ? (
+                <div className="grid gap-1">
+                  <div className="flex flex-wrap items-center gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={(selection.imageRadius ?? 0) === 0 ? 'default' : 'outline'}
+                      className={btn}
+                      disabled={busy}
+                      onClick={() => {
+                        postToIframe(iframeRef.current, 'setImageRadius', { radius: 0 })
+                        setDirty(true)
+                      }}
+                    >
+                      {t.visualEditImageSquare}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={(selection.imageRadius ?? 0) > 0 ? 'default' : 'outline'}
+                      className={btn}
+                      disabled={busy}
+                      onClick={() => {
+                        postToIframe(iframeRef.current, 'setImageRadius', { radius: PW_IMAGE_RADIUS_ROUNDED })
+                        setDirty(true)
+                      }}
+                    >
+                      {t.visualEditImageRound}
+                    </Button>
+                  </div>
+                  <label className="flex items-center gap-1 text-[10px]">
+                    <span className="text-muted-foreground">{t.visualEditImageRadius}</span>
+                    <input
+                      type="range"
+                      min={PW_IMAGE_RADIUS_MIN}
+                      max={PW_IMAGE_RADIUS_MAX}
+                      value={selection.imageRadius ?? PW_IMAGE_RADIUS_DEFAULT}
+                      className={slider}
+                      disabled={busy}
+                      onChange={(e) => {
+                        postToIframe(iframeRef.current, 'setImageRadius', { radius: Number(e.target.value) })
+                        setDirty(true)
+                      }}
+                    />
+                    <span className="w-8 tabular-nums text-muted-foreground">
+                      {selection.imageRadius ?? 0}px
+                    </span>
+                  </label>
+                </div>
               ) : null}
               <Button
                 type="button"
@@ -4152,7 +4330,10 @@ export function PartnerWebsiteVisualEditorToolbar({
                 className={cn(btn, 'text-destructive')}
                 disabled={busy}
                 title={t.visualEditBlockDelete}
-                onClick={() => postToIframe(iframeRef.current, 'deleteBlock')}
+                onClick={() => {
+                  postToIframe(iframeRef.current, 'deleteBlock')
+                  setDirty(true)
+                }}
               >
                 <Trash2 className="h-3 w-3" />
                 {compact ? null : <span className="ml-1">{t.visualEditBlockDelete}</span>}
@@ -4206,7 +4387,8 @@ export function PartnerWebsiteVisualEditorToolbar({
               ) : null}
             </>
           ) : null}
-          {selection && (selection.isAddedBg || (!selection.isBlock && selection.canDelete)) ? (
+          {selection &&
+          (selection.isAddedBg || selection.canClearBg || (!selection.isBlock && selection.canDelete)) ? (
             <Button
               type="button"
               size="sm"

@@ -20,6 +20,7 @@ import {
   cmsSlugFromSitePath,
   cmsVisualHtmlPath,
   composeResponsiveVisualHtml,
+  ensureVisualHtmlLiveReady,
   isolateVisualHtmlForDevice,
   applyVisualEditThemeFlag,
   mergeVisualPageHtmlIntoProject,
@@ -468,6 +469,7 @@ test('compose responsive visual html keeps a single desktop variant as-is', () =
   assert.match(out, /Just one/)
   assert.doesNotMatch(out, /pw-visual-mobile/)
   assert.match(out, /<html[^>]*data-pw-edit-device="desktop"/)
+  assert.match(out, /<html[^>]*data-pw-scene-lock="desktop"/)
 })
 
 test('mobile-only visual html does not leak added chrome onto desktop', () => {
@@ -511,7 +513,9 @@ test('isolate desktop html keeps nested sections from composed page', () => {
   assert.equal(isolated.includes('Tablet stale'), false)
   assert.equal(isolated.includes('Mobile stale'), false)
   assert.match(isolated, /<html[^>]*data-pw-edit-device="desktop"/)
+  assert.match(isolated, /<html[^>]*data-pw-scene-lock="desktop"/)
   assert.doesNotMatch(composed, /<html[^>]*data-pw-edit-device=/)
+  assert.doesNotMatch(composed, /<html[^>]*data-pw-scene-lock=/)
 })
 
 test('compose four-device html shows laptop between 1280 and 1439', () => {
@@ -531,6 +535,7 @@ test('compose four-device html shows laptop between 1280 and 1439', () => {
   assert.doesNotMatch(laptop, /Desk/)
   assert.doesNotMatch(laptop, /Tab/)
   assert.match(laptop, /<html[^>]*data-pw-edit-device="laptop"/)
+  assert.match(laptop, /<html[^>]*data-pw-scene-lock="laptop"/)
   assert.doesNotMatch(composed, /<html[^>]*data-pw-edit-device=/)
 })
 
@@ -673,6 +678,16 @@ test('empty visual html is not usable for Sửa nhanh', () => {
 
 test('sanitizeVisualHtmlForStore strips NUL before persist', () => {
   assert.equal(sanitizeVisualHtmlForStore('ok\u0000html'), 'okhtml')
+})
+
+test('ensureVisualHtmlLiveReady stamps chrome-added and device on moved widgets', () => {
+  const html =
+    '<button class="pw-cat-btn" data-pw-el="cat-toggle" data-pw-user-move="1">DM</button>' +
+    '<a class="pw-icon-btn" data-pw-chrome-btn="cart">Cart</a>'
+  const out = ensureVisualHtmlLiveReady(html, 'mobile')
+  assert.match(out, /data-pw-user-move="1"[^>]*data-pw-chrome-added="1"/)
+  assert.match(out, /data-pw-device="mobile"/)
+  assert.doesNotMatch(out, /data-pw-chrome-btn="cart"[^>]*data-pw-chrome-added/)
 })
 
 test('saving one device html does not replace the other device file', () => {
@@ -875,6 +890,7 @@ test('public visual render gateway serves one device with chrome theme and runti
   assert.match(view, /id="pw-shop-chrome-layout"/)
   assert.match(view, /data-pw-search-bootstrap/)
   assert.match(view, /data-pw-catalog-bootstrap/)
+  assert.match(view, /data-pw-personalization-bootstrap/)
   assert.match(view, /id="pw-logo-home-link"/)
   assert.match(view, /--pw-primary:\s*#123456/)
 })
@@ -897,6 +913,7 @@ test('editor visual render stamps chrome hooks but does not inject live shop API
   assert.doesNotMatch(edit, /data-pw-shop-actions-bootstrap/)
   assert.doesNotMatch(edit, /data-pw-chrome-toggle-bootstrap/)
   assert.doesNotMatch(edit, /data-pw-catalog-bootstrap/)
+  assert.doesNotMatch(edit, /data-pw-personalization-bootstrap/)
   assert.doesNotMatch(edit, /data-pw-chat-bridge/)
   assert.doesNotMatch(edit, /data-pw-header-toggle/)
   assert.doesNotMatch(edit, /id="pw-logo-home-link"/)

@@ -18,6 +18,9 @@ import {
   PW_CHROME_RADIUS_DEFAULT,
   PW_CHROME_RADIUS_MIN,
   PW_CHROME_RADIUS_MAX,
+  PW_IMAGE_RADIUS_DEFAULT,
+  PW_IMAGE_RADIUS_MIN,
+  PW_IMAGE_RADIUS_MAX,
   chromeKindDefaultLabels,
 } from './chrome-widgets'
 import {
@@ -30,6 +33,11 @@ import {
   PW_CHROME_FLOAT_KINDS,
   PW_CHROME_FLOAT_Z_INDEX,
 } from '../shop/chrome-float-widgets'
+import {
+  PW_STAY_SCROLL_ATTR,
+  PW_STAY_SCROLL_X_ATTR,
+  PW_STAY_SCROLL_Y_ATTR,
+} from '../shop/stay-scroll-elements'
 import {
   PW_SCENE_ATTR,
   PW_SCENE_BAND,
@@ -379,7 +387,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     el.setAttribute(name, value)
   }
   function isIgnored(el) {
-    return !!(el && el.closest && el.closest('.nanoai-ve-ignore,[data-nanoai-ve-ignore]'))
+    return !!(el && el.closest && el.closest('.nanoai-ve-ignore,[data-nanoai-ve-ignore],[data-pw-stay-ph-slot]'))
   }
   function extractBgUrl(el) {
     var bg = ''
@@ -558,6 +566,67 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
   }
   function isImgEl(el) { return !!(el && el.tagName && el.tagName.toLowerCase() === 'img') }
+  function isAddedImageEl(el) {
+    return !!(el && el.getAttribute && el.getAttribute('data-pw-added-image') === '1')
+  }
+  function addedImageHostOf(el) {
+    if (!el) return null
+    if (isAddedImageEl(el)) return el
+    return el.closest ? el.closest('[data-pw-added-image="1"]') : null
+  }
+  function imageRadiusHost(el) {
+    if (!el) return null
+    var added = addedImageHostOf(el)
+    if (added) return added
+    if (el.getAttribute && el.getAttribute('data-pw-info-image') === '1') return el
+    if (el.closest) {
+      var info = el.closest('[data-pw-info-image="1"]')
+      if (info) return info
+    }
+    return null
+  }
+  function imageRadiusPaintEl(host) {
+    if (!host) return null
+    if (isImgEl(host)) return host
+    return host.querySelector ? host.querySelector('img') : null
+  }
+  function clampImageRadius(n) {
+    n = Math.round(Number(n))
+    if (!Number.isFinite(n)) return ${PW_IMAGE_RADIUS_DEFAULT}
+    if (n < ${PW_IMAGE_RADIUS_MIN}) return ${PW_IMAGE_RADIUS_MIN}
+    if (n > ${PW_IMAGE_RADIUS_MAX}) return ${PW_IMAGE_RADIUS_MAX}
+    return n
+  }
+  function parseImageRadius(el) {
+    var host = imageRadiusHost(el)
+    if (!host) return ${PW_IMAGE_RADIUS_DEFAULT}
+    var attr = host.getAttribute && host.getAttribute('data-pw-image-radius')
+    if (attr != null && attr !== '') {
+      var n = Number(attr)
+      if (Number.isFinite(n)) return clampImageRadius(n)
+    }
+    var paint = imageRadiusPaintEl(host) || host
+    try {
+      var r = parseFloat(cs(paint).borderTopLeftRadius)
+      if (Number.isFinite(r)) return clampImageRadius(r)
+    } catch (eRad) {}
+    return ${PW_IMAGE_RADIUS_DEFAULT}
+  }
+  function applyImageRadius(el, size) {
+    var host = imageRadiusHost(el)
+    if (!host) return
+    var n = clampImageRadius(size)
+    host.setAttribute('data-pw-image-radius', String(n))
+    if (host.style) {
+      host.style.setProperty('border-radius', n + 'px')
+      host.style.setProperty('overflow', 'hidden')
+    }
+    var paint = imageRadiusPaintEl(host)
+    if (paint && paint !== host && paint.style) {
+      paint.style.setProperty('border-radius', n + 'px')
+      paint.style.setProperty('overflow', 'hidden')
+    }
+  }
   function isLogoImg(el) {
     if (!isImgEl(el)) return false
     if (el.getAttribute && el.getAttribute('data-pw-logo-added') === '1') return true
@@ -1023,11 +1092,12 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return (editDevice === 'mobile' || editDevice === 'tablet' || editDevice === 'laptop') ? editDevice : 'desktop'
   }
   function isMobileEdit() {
-    return editDevice === 'mobile' || editDevice === 'tablet' || (window.innerWidth || 400) < 900
+    return editDevice === 'mobile' || editDevice === 'tablet'
   }
   function syncEditDeviceAttr() {
     var stamped = pwStampDevice()
     document.documentElement.setAttribute('data-pw-edit-device', stamped)
+    document.documentElement.setAttribute('data-pw-scene-lock', stamped)
     if (document.body) {
       if (editDevice === 'mobile') document.body.classList.add('nanoai-ve-mobile')
       else document.body.classList.remove('nanoai-ve-mobile')
@@ -1963,6 +2033,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     // (or baking %) on every slider tick makes the icon jump around the page.
     if (isChromeFloatEl(el)) return
     if (el.getAttribute && el.getAttribute('data-pw-pin-screen') === '1') return
+    if (isStayScrollOn(el)) return
     var after = null
     try { after = el.getBoundingClientRect() } catch (errAfter) { return }
     if (!after) return
@@ -2461,6 +2532,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var role = pwElOf(el)
     if (role === 'cta' || role === 'cta-secondary') return 'cta'
     if (role === 'nav-link' || role === 'link' || role === 'crumb' || role === 'section-more' || role === 'menu-item') return 'nav-link'
+    if (isAddedImageEl(el) || (el.closest && el.closest('[data-pw-added-image="1"]'))) return 'image'
     if (isImgEl(el)) return 'image'
     if (isBtnEl(el) && !chromeBtnElOf(el) && !isHeaderWidget(el)) return 'cta'
     if (el.tagName && el.tagName.toLowerCase() === 'a' && canSetHrefEl(el)) return 'nav-link'
@@ -3129,11 +3201,19 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         el.setAttribute('data-pw-pin-screen', '1')
       }
       markUserMoved(el)
+      holdStayFlowBox(el, pinBox)
       if (keepHost) {
         if (pinBox && (pinBox.width > 0 || pinBox.height > 0)) pwChromeFloatBakePct(el, pinBox)
         else pwChromeFloatBakePct(el)
       } else {
         pwChromeFloatLiftAndPin(el, pinBox)
+      }
+      if (pinBox && el.style) {
+        if (pinBox.width > 0) el.style.setProperty('width', Math.round(pinBox.width) + 'px', 'important')
+        if (pinBox.height > 0) el.style.setProperty('height', Math.round(pinBox.height) + 'px', 'important')
+        el.style.setProperty('box-sizing', 'border-box', 'important')
+        el.style.setProperty('max-width', 'none', 'important')
+        el.style.setProperty('max-height', 'none', 'important')
       }
     } else {
       var r
@@ -3158,6 +3238,122 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         el.style.setProperty('transform', 'none', 'important')
       }
       markUserMoved(el)
+      releaseStayPlaceholder(el)
+    }
+    if (on) {
+      try { el.removeAttribute('${PW_STAY_SCROLL_ATTR}') } catch (errStayPin) {}
+      try { el.removeAttribute('${PW_STAY_SCROLL_X_ATTR}') } catch (errStayPinX) {}
+      try { el.removeAttribute('${PW_STAY_SCROLL_Y_ATTR}') } catch (errStayPinY) {}
+    }
+    positionAllHandles()
+    post('dirty', {})
+    refreshSelect()
+  }
+  function isStayScrollOn(el) {
+    return !!(el && el.getAttribute && el.getAttribute('${PW_STAY_SCROLL_ATTR}') === '1')
+  }
+  function canStayScrollEl(el) {
+    if (!el || el === document.body || el === document.documentElement) return false
+    if (chatEmbedLauncherOf(el)) return false
+    if (isOverlayNode(el)) return false
+    if (isFullBleedChrome(el) || isShopRegionHost(el)) return false
+    if (isChromeFloatKind(chromeKindOf(el))) return false
+    if (isAddedBg(el) || isAddedText(el) || isAddedBtn(el) || isAddedChrome(el)) return true
+    if (isChromeBtn(el) || catToggleElOf(el) || isSearchEl(el)) {
+      return isUserMoved(el) || !!(el.getAttribute && el.getAttribute('data-pw-chrome-added') === '1')
+    }
+    return false
+  }
+  function stayScrollPause(on) {
+    try {
+      if (window.__pwStayScrollPause) window.__pwStayScrollPause(on ? 1 : 0)
+    } catch (errStayP) {}
+  }
+  function stayScrollCapture(el, box) {
+    if (!el || !el.setAttribute) return
+    var r = box
+    if (!r) {
+      try { r = el.getBoundingClientRect() } catch (errStayBox) { r = null }
+    }
+    if (!r) return
+    try {
+      if (window.__pwStayScrollCapture) {
+        window.__pwStayScrollCapture(el, r)
+        return
+      }
+    } catch (errStayCap) {}
+    var vw = window.innerWidth || 390
+    var vh = window.innerHeight || 640
+    var ox = 0
+    try {
+      var sceneRaw = cs(document.documentElement).getPropertyValue('--pw-scene-w')
+      var sceneN = parseFloat(sceneRaw)
+      if (sceneN > 8) vw = sceneN
+      var sceneRoot = document.querySelector('[data-pw-inline-visual-root]') || document.body
+      var sceneBox = sceneRoot ? sceneRoot.getBoundingClientRect() : null
+      if (sceneBox && isFinite(sceneBox.left)) ox = sceneBox.left
+    } catch (errSceneCap) {}
+    if (!(vw > 8)) vw = 390
+    if (!(vh > 8)) vh = 640
+    el.setAttribute('${PW_STAY_SCROLL_X_ATTR}', (((r.left - ox) / vw) * 100).toFixed(3))
+    el.setAttribute('${PW_STAY_SCROLL_Y_ATTR}', ((r.top / vh) * 100).toFixed(3))
+    if (r.width > 0) el.setAttribute('data-pw-stay-w', String(Math.round(r.width)))
+    if (r.height > 0) el.setAttribute('data-pw-stay-h', String(Math.round(r.height)))
+    el.setAttribute('${PW_STAY_SCROLL_ATTR}', '1')
+    if (el.style) {
+      el.style.setProperty('position', 'fixed', 'important')
+      el.style.setProperty('left', r.left + 'px', 'important')
+      el.style.setProperty('top', r.top + 'px', 'important')
+      el.style.setProperty('right', 'auto', 'important')
+      el.style.setProperty('bottom', 'auto', 'important')
+      el.style.setProperty('transform', 'none', 'important')
+      if (r.width > 0) el.style.setProperty('width', Math.round(r.width) + 'px', 'important')
+      if (r.height > 0) el.style.setProperty('height', Math.round(r.height) + 'px', 'important')
+    }
+  }
+  function clearStayScroll(el) {
+    if (!el) return
+    try {
+      if (window.__pwStayScrollRelease) {
+        window.__pwStayScrollRelease(el)
+        return
+      }
+    } catch (errStayRel) {}
+    if (!el.removeAttribute) return
+    try { el.removeAttribute('${PW_STAY_SCROLL_ATTR}') } catch (errStayRm) {}
+    try { el.removeAttribute('${PW_STAY_SCROLL_X_ATTR}') } catch (errStayX) {}
+    try { el.removeAttribute('${PW_STAY_SCROLL_Y_ATTR}') } catch (errStayY) {}
+  }
+  function holdStayFlowBox(el, box) {
+    try {
+      if (window.__pwStayScrollHoldFlow) window.__pwStayScrollHoldFlow(el, box)
+    } catch (errHold) {}
+  }
+  function releaseStayPlaceholder(el) {
+    try {
+      if (window.__pwStayScrollReleasePh) window.__pwStayScrollReleasePh(el)
+    } catch (errPh) {}
+  }
+  function setStayScroll(on) {
+    if (!selected || !canStayScrollEl(selected)) return
+    var el = selected
+    if (on) {
+      var box = null
+      try { box = el.getBoundingClientRect() } catch (errStayOn) { box = null }
+      if (el.getAttribute && el.getAttribute('data-pw-stick-header') === '1') {
+        stickHeaderPause(1)
+        stickHeaderUnpinEl(el)
+        el.removeAttribute('data-pw-stick-header')
+        if (el.classList) el.classList.remove('pw-stick-header-on')
+        stickHeaderPause(0)
+      }
+      if (isPinScreenOn(el)) {
+        try { el.removeAttribute('data-pw-pin-screen') } catch (errPinStay) {}
+        try { el.removeAttribute('data-pw-chrome-float') } catch (errFloatStay) {}
+      }
+      stayScrollCapture(el, box)
+    } else {
+      clearStayScroll(el)
     }
     positionAllHandles()
     post('dirty', {})
@@ -3223,6 +3419,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function growCanvasForAbsEl(el) {
     if (!el || !isAddedBg(el) || !el.style) return
     if (el.getAttribute && el.getAttribute('data-pw-added-bg-slot') === '1') return
+    if (isStayScrollOn(el) || isPinScreenOn(el)) return
     bakeTranslateToBox(el)
     var host = el.parentElement || addedBgContentHost()
     if (!host) return
@@ -3929,6 +4126,68 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (isProductCardEl(el) || isLockedCatalogEl(el)) return false
     return isBlockEl(el) && !isChromeBlock(el)
   }
+  function isTopbarHost(el) {
+    if (!el || el.nodeType !== 1) return false
+    if (el === document.body || el === document.documentElement) return false
+    var region = el.getAttribute ? String(el.getAttribute('data-pw-region') || '') : ''
+    if (region === 'topbar') return true
+    var cls = clsOf(el)
+    if (cls.indexOf('pw-topbar-inner') >= 0 || cls.indexOf('pw-shop-topbar-inner') >= 0) return false
+    return cls.indexOf('pw-topbar') >= 0 || cls.indexOf('pw-shop-topbar') >= 0
+  }
+  function topbarHostOf(el) {
+    if (!el || isHeaderChromeEl(el) || isChromeBtn(el) || isSearchEl(el)) return null
+    if (isTopbarHost(el)) return el
+    var cls = clsOf(el)
+    if (cls.indexOf('pw-topbar-inner') >= 0 || cls.indexOf('pw-shop-topbar-inner') >= 0) {
+      return el.closest ? (el.closest('[data-pw-region="topbar"], .pw-topbar, .pw-shop-topbar') || null) : null
+    }
+    return null
+  }
+  function isHeaderHost(el) {
+    if (!el || el.nodeType !== 1) return false
+    if (el === document.body || el === document.documentElement) return false
+    var cls = clsOf(el)
+    if (cls.indexOf('pw-header-main') >= 0 || cls.indexOf('pw-header-search') >= 0 || cls.indexOf('pw-header-actions') >= 0) return false
+    if (cls.indexOf('pw-shop-header-inner') >= 0 || cls.indexOf('pw-shop-header-actions') >= 0) return false
+    var region = el.getAttribute ? String(el.getAttribute('data-pw-region') || '') : ''
+    if (region === 'header') return true
+    if (el.tagName && el.tagName.toLowerCase() === 'header') return true
+    if (cls.indexOf('pw-header') >= 0 && cls.indexOf('pw-header-') < 0) return true
+    if (cls.indexOf('pw-shop-header') >= 0 && cls.indexOf('pw-shop-header-') < 0) return true
+    return false
+  }
+  function headerHostOf(el) {
+    if (!el || isHeaderChromeEl(el) || isChromeBtn(el) || isSearchEl(el) || catToggleElOf(el)) return null
+    if (isHeaderHost(el)) return el
+    var cls = clsOf(el)
+    if (cls.indexOf('pw-header-main') >= 0 || cls.indexOf('pw-shop-header-inner') >= 0) {
+      return el.closest ? (el.closest('header, [data-pw-region="header"], .pw-header, .pw-shop-header') || null) : null
+    }
+    return null
+  }
+  function regionBlockHostOf(el) {
+    return topbarHostOf(el) || headerHostOf(el)
+  }
+  function canDeleteRegionBlock(el) {
+    return !!regionBlockHostOf(el)
+  }
+  function removeSelectedRegionBlock() {
+    var bar = selected ? regionBlockHostOf(selected) : null
+    if (!bar || !bar.parentNode) return false
+    bar.parentNode.removeChild(bar)
+    selected = null
+    hideResizeHandle()
+    hideDeleteHandle()
+    hideMoveHandle()
+    hideDropLine()
+    hideAlignGuides()
+    post('deselect', {})
+    post('dirty', {})
+    postHidden()
+    syncLayerSwitches()
+    return true
+  }
   function findBlockEl(start) {
     var el = start
     while (el && el !== document.body) {
@@ -3988,6 +4247,58 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function isAddedBg(el) {
     return !!(el && el.getAttribute && el.getAttribute('data-pw-added-bg') === '1')
+  }
+  function isRegionFillCleared(el) {
+    return !!(el && el.getAttribute && el.getAttribute('data-pw-bg-cleared') === '1')
+  }
+  function isRegionFillHost(el) {
+    if (!el || el.nodeType !== 1) return false
+    if (el === document.body || el === document.documentElement) return false
+    if (isAddedBg(el)) return false
+    var role = el.getAttribute ? el.getAttribute('data-pw-bg-role') : ''
+    if (role === 'canvas' || role === 'added' || role === 'banner') return false
+    var region = el.getAttribute ? el.getAttribute('data-pw-region') : ''
+    if (region === 'banner') return false
+    if (isChromeBgHost(el) && !isHeaderChromeEl(el) && !isChromeBtn(el)) return true
+    if (role && role !== 'added' && role !== 'canvas') return true
+    if (region === 'topbar' || region === 'header' || region === 'footer' || region === 'nav') return true
+    return false
+  }
+  function regionFillTarget(el) {
+    if (!el || isHeaderChromeEl(el) || isChromeBtn(el) || isSearchEl(el) || isAddedBg(el)) return null
+    if (isRegionFillHost(el)) return el
+    var cls = clsOf(el)
+    if (cls.indexOf('pw-header-main') >= 0 || cls.indexOf('pw-shop-header-inner') >= 0 || cls.indexOf('pw-topbar-inner') >= 0 || cls.indexOf('pw-shop-topbar-inner') >= 0) {
+      var host = chromeBgHostOf(el)
+      return host && isRegionFillHost(host) ? host : null
+    }
+    return null
+  }
+  function canClearRegionFill(el) {
+    var target = regionFillTarget(el)
+    return !!(target && !isRegionFillCleared(target))
+  }
+  function applyClearedFill(el) {
+    if (!el || !el.setAttribute) return
+    el.setAttribute('data-pw-bg-cleared', '1')
+  }
+  function clearRegionFill(el) {
+    if (!el) return
+    applyClearedFill(el)
+    var region = el.getAttribute ? el.getAttribute('data-pw-region') : ''
+    var cls = clsOf(el)
+    if (region === 'header' || cls.indexOf('pw-header') >= 0 || cls.indexOf('pw-shop-header') >= 0) {
+      var nested = el.querySelectorAll('[data-pw-region="topbar"], .pw-topbar, .pw-shop-topbar')
+      for (var i = 0; i < nested.length; i++) applyClearedFill(nested[i])
+    }
+  }
+  function restoreRegionFill(el, color) {
+    if (!el || !el.removeAttribute) return
+    el.removeAttribute('data-pw-bg-cleared')
+    if (color) {
+      el.style.background = color
+      el.style.backgroundColor = color
+    }
   }
   function addedBgLayer(el) {
     var n = parseInt(el && el.getAttribute ? (el.getAttribute('data-pw-bg-index') || el.getAttribute('data-pw-layer') || '') : '', 10)
@@ -4377,54 +4688,6 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function isAddedOverlay(n) {
     return !!(n && n.getAttribute && (n.getAttribute('data-pw-added-text') === '1' || n.getAttribute('data-pw-added-btn') === '1'))
   }
-  function isGroupableLeaf(n) {
-    if (!n || n.nodeType !== 1 || isIgnored(n) || isBgLayerEl(n) || isOverlayNode(n) || isLogoTarget(n) || isLockedCatalogEl(n)) return false
-    if (isAddedOverlay(n)) return false
-    return isTextEl(n) || isBtnEl(n)
-  }
-  function ungroupMoveBlock() {
-    var el = selected && isMoveBlockEl(selected) ? selected : (selected ? findMoveBlockEl(selected) : null)
-    if (!el) return
-    el.removeAttribute('data-pw-move-block')
-    el.setAttribute('data-pw-ungrouped', '1')
-    clearSelection()
-    post('deselect', {})
-    post('dirty', {})
-    syncLayerSwitches()
-  }
-  function groupIntoBlock() {
-    var el = selected
-    if (!el || isMoveBlockEl(el) || isContentBlockEl(el) || isBgLayerEl(el) || isImgEl(el) || isLogoTarget(el)) return
-    var host = findContentBlockEl(el)
-    if (!host) return
-    var existing = findMoveBlockEl(el)
-    if (existing) {
-      existing.removeAttribute('data-pw-ungrouped')
-      existing.setAttribute('data-pw-move-block', '1')
-      selectEl(existing)
-      post('dirty', {})
-      return
-    }
-    var parent = el.parentNode
-    if (!parent) return
-    var kids = Array.prototype.slice.call(parent.children)
-    var idx = kids.indexOf(el)
-    var nodes = [el]
-    var l = idx - 1
-    while (l >= 0 && isGroupableLeaf(kids[l])) { nodes.unshift(kids[l]); l-- }
-    var r = idx + 1
-    while (r < kids.length && isGroupableLeaf(kids[r])) { nodes.push(kids[r]); r++ }
-    var wrap = document.createElement('div')
-    wrap.setAttribute('data-pw-move-block', '1')
-    wrap.style.position = 'relative'
-    wrap.style.zIndex = '2'
-    wrap.style.display = 'inline-block'
-    wrap.style.maxWidth = '100%'
-    parent.insertBefore(wrap, nodes[0])
-    for (var i = 0; i < nodes.length; i++) wrap.appendChild(nodes[i])
-    selectEl(wrap)
-    post('dirty', {})
-  }
   function listImageLayerBlocks() {
     var all = document.querySelectorAll('[data-pw-region="banner"]')
     var out = []
@@ -4598,22 +4861,40 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return out
   }
   function postHidden() { post('hidden', { hidden: listHiddenBlocks() }) }
+  function canHideSelectedEl(el) {
+    if (!el || el === document.body || el === document.documentElement) return false
+    if (chatEmbedLauncherOf(el)) return false
+    if (isOverlayNode(el)) return false
+    if (isFullBleedChrome(el) || isShopRegionHost(el)) return false
+    return isAddedBg(el) || isAddedText(el) || isAddedBtn(el) || isAddedChrome(el) || isChromeBtn(el) || !!(catToggleElOf(el)) || isSearchEl(el) || isContentBlockEl(el)
+  }
+  function hideSelectedUnitEl(el) {
+    if (!el || !el.setAttribute) return
+    blockId(el)
+    el.setAttribute('data-pw-hidden', '1')
+    try { el.style.display = 'none' } catch (errHidDisp) {}
+  }
   function hideSelectedBlock() {
-    if (selected && isAddedBg(selected)) {
-      blockId(selected)
-      selected.setAttribute('data-pw-hidden', '1')
-      selected.style.display = 'none'
+    if (!selected) return
+    if (
+      isAddedBg(selected) ||
+      isAddedText(selected) ||
+      isAddedBtn(selected) ||
+      isAddedChrome(selected) ||
+      isChromeBtn(selected) ||
+      catToggleElOf(selected) ||
+      isSearchEl(selected)
+    ) {
+      hideSelectedUnitEl(selected)
       clearSelection()
       post('deselect', {})
       post('dirty', {})
       postHidden()
       return
     }
-    var block = selected && isContentBlockEl(selected) ? selected : findContentBlockEl(selected)
+    var block = isContentBlockEl(selected) ? selected : findContentBlockEl(selected)
     if (!block) return
-    blockId(block)
-    block.setAttribute('data-pw-hidden', '1')
-    block.style.display = 'none'
+    hideSelectedUnitEl(block)
     clearSelection()
     post('deselect', {})
     post('dirty', {})
@@ -4631,6 +4912,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     postHidden()
   }
   function deleteSelectedBlock() {
+    if (removeSelectedRegionBlock()) return
     if (selected && isAddedBg(selected)) {
       deleteSelectedUnit()
       return
@@ -4680,6 +4962,75 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     post('dirty', {})
     postHidden()
     syncLayerSwitches()
+  }
+  function newPageCloneId() {
+    return 'c' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4)
+  }
+  function copyToPagesSkipReason(el) {
+    if (!el || el === document.documentElement || el === document.body) return 'root'
+    var tag = el.tagName ? el.tagName.toLowerCase() : ''
+    if (tag === 'html' || tag === 'body' || tag === 'main') return 'root'
+    if (el.classList && (el.classList.contains('pw-shop-main') || el.classList.contains('pw-main'))) return 'root'
+    if (isLockedCatalogEl(el) || isProductCardEl(el)) return 'locked'
+    var added = isAddedBg(el) || isAddedText(el) || isAddedBtn(el) || isAddedChrome(el) || (el.getAttribute && (el.getAttribute('data-pw-added-image') === '1' || el.getAttribute('data-pw-added-video') === '1' || el.getAttribute('data-pw-logo-added') === '1' || el.getAttribute('data-pw-chrome-added') === '1'))
+    if (el.closest && el.closest('[data-pw-pdp-bottom], .pw-bottom-nav, .pw-shop-bottom-nav')) {
+      return added ? '' : 'chrome'
+    }
+    var region = el.closest ? el.closest('[data-pw-region]') : null
+    if (region) {
+      var role = String(region.getAttribute('data-pw-region') || '')
+      if (role === 'header' || role === 'nav' || role === 'topbar' || role === 'footer') return added ? '' : 'chrome'
+    }
+    if (isShopRegionHost(el) && !added) {
+      var hostRole = el.getAttribute ? String(el.getAttribute('data-pw-region') || '') : ''
+      if (hostRole === 'header' || hostRole === 'nav' || hostRole === 'topbar' || hostRole === 'footer') return 'chrome'
+      var hostCls = clsOf(el)
+      if (hostCls.indexOf('pw-header') >= 0 || hostCls.indexOf('pw-footer') >= 0 || hostCls.indexOf('pw-bottom-nav') >= 0 || hostCls.indexOf('pw-topbar') >= 0) return 'chrome'
+    }
+    return ''
+  }
+  function canCopyElToPages(el) {
+    return !copyToPagesSkipReason(el)
+  }
+  function stampPageCloneOnEl(el) {
+    if (!el || !el.setAttribute) return ''
+    var id = el.getAttribute('data-pw-clone-id') || ''
+    if (!id) {
+      id = newPageCloneId()
+      el.setAttribute('data-pw-clone-id', id)
+    }
+    el.setAttribute('data-pw-clone-all', '1')
+    var host = addedBgContentHost() || document.body
+    var slot = isInFlowAddedSlot(el)
+    if (slot) {
+      el.setAttribute('data-pw-clone-box', 'flow')
+      return id
+    }
+    var er = el.getBoundingClientRect()
+    var hr = host.getBoundingClientRect()
+    var stay = el.getAttribute('data-pw-stay-scroll') === '1' || el.getAttribute('data-pw-pin-screen') === '1'
+    var pos = ''
+    try { pos = cs(el).position } catch (ePos) { pos = '' }
+    var mode = stay || pos === 'fixed' ? 'fixed' : 'abs'
+    var left = Math.round(er.left - (mode === 'fixed' ? 0 : hr.left))
+    var top = Math.round(er.top - (mode === 'fixed' ? 0 : hr.top))
+    el.setAttribute('data-pw-clone-box', [mode, left, top, Math.round(er.width), Math.round(er.height)].join(','))
+    return id
+  }
+  function copySelectedToAllPages() {
+    if (!selected) {
+      post('copyToAllPagesSkip', { reason: 'none' })
+      return
+    }
+    var reason = copyToPagesSkipReason(selected)
+    if (reason) {
+      post('copyToAllPagesSkip', { reason: reason })
+      return
+    }
+    var id = stampPageCloneOnEl(selected)
+    post('dirty', {})
+    refreshSelect()
+    post('copyToAllPagesReady', { id: id })
   }
   function sizeChromeIcons(root) {
     var scope = root && root.querySelectorAll ? root : document
@@ -5854,6 +6205,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     if (!hostEl) hostEl = addedBgContentHost() || overlayRoot() || document.body
     ensureOverlayHost(hostEl)
+    if (node.setAttribute) {
+      node.setAttribute('data-pw-chrome-added', '1')
+      node.setAttribute('data-pw-device', pwStampDevice())
+    }
     hostEl.appendChild(node)
     sizeChromeIcons(node)
     pinChromeIconBadges(node)
@@ -5928,6 +6283,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       || el.getAttribute('data-pw-added-image-slot') === '1'
       || el.getAttribute('data-pw-added-video-slot') === '1'
       || el.getAttribute('data-pw-added-chrome-slot') === '1'
+      || el.getAttribute('data-pw-added-catalog') === '1'
   }
   function hasInsertAnchor() {
     return !!(insertAnchor.on && insertAnchor.unit && insertAnchor.unit.parentNode)
@@ -5994,7 +6350,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function listInsertGapUnits() {
     var seen = []
-    var nodes = document.querySelectorAll('[data-pw-region], .pw-pdp, [data-pw-added-bg-slot],[data-pw-added-text-slot],[data-pw-added-btn-slot],[data-pw-added-image-slot],[data-pw-added-video-slot],[data-pw-added-chrome-slot]')
+    var nodes = document.querySelectorAll('[data-pw-region], .pw-pdp, [data-pw-added-bg-slot],[data-pw-added-text-slot],[data-pw-added-btn-slot],[data-pw-added-image-slot],[data-pw-added-video-slot],[data-pw-added-chrome-slot],[data-pw-added-catalog]')
     for (var i = 0; i < nodes.length; i++) {
       var unit = resolveGapUnit(nodes[i])
       if (!unit || seen.indexOf(unit) >= 0) continue
@@ -6735,8 +7091,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     img.style.width = '100%'
     img.style.maxWidth = '720px'
     img.style.height = 'auto'
-    img.style.borderRadius = '8px'
     fig.appendChild(img)
+    applyImageRadius(fig, ${PW_IMAGE_RADIUS_DEFAULT})
     parts.body.appendChild(fig)
     selectEl(img)
     post('dirty', {})
@@ -6758,8 +7114,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     img.style.display = 'block'
     img.style.width = '100%'
     img.style.height = 'auto'
-    img.style.borderRadius = '8px'
     fig.appendChild(img)
+    applyImageRadius(fig, ${PW_IMAGE_RADIUS_DEFAULT})
     if (hasInsertAnchor()) {
       fig.setAttribute('data-pw-added-image-slot', '1')
       fig.style.maxWidth = '100%'
@@ -7751,6 +8107,32 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     post('dirty', {})
     refreshSelect()
   }
+  function insertProductGrid(html) {
+    var raw = String(html || '').trim()
+    if (!raw) return
+    var wrap = document.createElement('div')
+    wrap.innerHTML = raw
+    var node = wrap.firstElementChild
+    if (!node) return
+    if (node.setAttribute) {
+      node.setAttribute('data-pw-added-catalog', '1')
+      node.setAttribute('data-pw-edit', '1')
+    }
+    styleInFlowSlot(node)
+    if (hasInsertAnchor() && insertInFlowAtAnchor(node)) {
+      selectEl(node)
+      post('dirty', {})
+      consumeInsertAnchor()
+      return
+    }
+    var host = addedBgContentHost()
+    if (!host) return
+    var footer = host.querySelector('footer, .pw-footer, .pw-shop-footer, [data-pw-region="footer"]')
+    if (footer && footer.parentNode === host) host.insertBefore(node, footer)
+    else host.appendChild(node)
+    selectEl(node)
+    post('dirty', {})
+  }
   function insertButton(opts) {
     var now = Date.now()
     if (now - lastInsertButtonAt < 600) return
@@ -7877,7 +8259,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       redoHistory()
       return
     }
-    if ((key === 'Delete' || key === 'Backspace') && selected && canDeleteEl(selected)) {
+    if ((key === 'Delete' || key === 'Backspace') && selected && (canDeleteEl(selected) || canClearRegionFill(selected))) {
       if (selected.getAttribute && selected.getAttribute('contenteditable') === 'true') return
       var keyTag = e.target && e.target.tagName ? String(e.target.tagName).toLowerCase() : ''
       if (keyTag === 'input' || keyTag === 'textarea' || keyTag === 'select') return
@@ -8079,9 +8461,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function canDeleteEl(el) {
     if (!el || el === document.body || el === document.documentElement) return false
     if (chatEmbedLauncherOf(el)) return true
+    if (canDeleteRegionBlock(el)) return true
     if ((isLockedCatalogEl(el) && !productActionChromeOf(el)) || (isProductCardEl(el) && !productActionChromeOf(el)) || isShopRegionHost(el)) return false
     var delCls = clsOf(el)
-    if (delCls.indexOf('pw-topbar') >= 0 || delCls.indexOf('pw-shop-topbar') >= 0) return false
+    if (delCls.indexOf('pw-topbar-inner') >= 0 || delCls.indexOf('pw-shop-topbar-inner') >= 0) return !!topbarHostOf(el)
     if (isHeaderChromeEl(el) || searchElOf(el) || catToggleElOf(el) || isAddedChrome(el)) return true
     var tag = el.tagName.toLowerCase()
     if (tag === 'header' || tag === 'main' || tag === 'html' || tag === 'form') return false
@@ -8289,6 +8672,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     stickHeaderPause(1)
     stickHeaderUnpinEl(selected)
     if (on) {
+      clearStayScroll(selected)
       if (isInHeader(selected)) detachForStickHeader(selected)
       ensureStickHeaderFloatZ(selected)
       selected.setAttribute('data-pw-stick-header', '1')
@@ -8322,23 +8706,16 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var addedBg = isAddedBg(el)
     var chromeBg = isChromeBgHost(el) && !isHeaderChromeEl(el) && !isChromeBtn(el) && !addedBg
     var asBlock = (blockSelf && !asImage && !addedBg) || move || chromeBg
-    var canUngroup = move
-    var canGroup = !move && !blockSelf && !bgLayer && !addedBg && !img && !isLogoTarget(el) && Boolean(parentBlock) && (function () {
-      var grouped = findMoveBlockEl(el)
-      if (grouped) return grouped.getAttribute('data-pw-ungrouped') === '1'
-      return Boolean(imageBlock)
-    })()
     var padEl = parentBlock ? paddingTarget(parentBlock) : null
     var overlayBlock = parentBlock && canOverlayBlock(parentBlock) ? parentBlock : (blockSelf && canOverlayBlock(el) ? el : null)
     var themeColors = sampleThemeColors()
     return {
       tag: el.tagName.toLowerCase(),
       isText: canEditText(el),
-      isImage: img,
+      isImage: img || Boolean(addedImageHostOf(el)),
+      canImageRadius: Boolean(imageRadiusHost(el)),
       isBgImage: addedBg || img ? false : (asImage || bgLayer || (Boolean(bgUrl) && !move)),
       isMoveBlock: move,
-      canUngroup: canUngroup,
-      canGroup: canGroup,
       isLogo: isLogoSlot(el) || isLogoImg(el) || isLogoFrame(el),
       logoLayer: '',
       logoZoom: (function () {
@@ -8375,6 +8752,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         return 0
       })(),
       isAddedBg: addedBg,
+      canClearBg: canClearRegionFill(el),
+      bgCleared: isRegionFillCleared(el),
       canInsertBgSlot: Boolean(insertBgFlowUnit(el)),
       isAddedBtn: isAddedBtn(el),
       isCatToggle: Boolean(catToggleElOf(el)),
@@ -8475,12 +8854,20 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       placeholderColor: readPlaceholderColor(el),
       dotColor: readDotColor(el, 'idle'),
       dotActiveColor: readDotColor(el, 'active'),
-      imageWidth: img ? parseImageWidthPct(el) : 100,
+      imageWidth: (function () {
+        var widthEl = isImgEl(el) ? el : addedImageHostOf(el)
+        return widthEl ? parseImageWidthPct(widthEl) : 100
+      })(),
+      imageRadius: parseImageRadius(el),
       transform: canDragEl(el) ? parseTransform(el) : null,
       canStickHeader: canStickHeaderEl(el),
       stickHeader: isStickHeaderOn(el),
       canPinScreen: canPinScreenEl(el),
       pinScreen: isPinScreenOn(el),
+      canStayScroll: canStayScrollEl(el),
+      stayScroll: isStayScrollOn(el),
+      canHide: canHideSelectedEl(el),
+      canCopyToPages: canCopyElToPages(el),
       scene: readSceneIndex(sceneWriteHost(el) || el),
       scenePos: sceneLayerPos(readSceneIndex(sceneWriteHost(el) || el)),
       sceneCount: SCENE.maxIndex + 1,
@@ -9270,6 +9657,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     drag.lastX = e.clientX
     drag.lastY = e.clientY
     stickHeaderPause(1)
+    stayScrollPause(1)
     stickHeaderUnpinEl(selected)
     if (isLogoTarget(selected)) {
       var zImg = logoImgOf(selected) || (isLogoImg(selected) ? selected : null)
@@ -9338,7 +9726,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     h.addEventListener('click', function (e) {
       e.preventDefault()
       e.stopPropagation()
-      deleteSelectedUnit()
+      if (canDeleteRegionBlock(selected) || (selected && isContentBlockEl(selected))) deleteSelectedBlock()
+      else deleteSelectedUnit()
     })
   }
   function showDropLine(target, before, horizontal) {
@@ -9431,7 +9820,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
   }
   function deleteSelectedUnit() {
-    if (!selected || !canDeleteEl(selected)) return
+    if (!selected) return
+    if (removeSelectedRegionBlock()) return
+    if (canClearRegionFill(selected)) {
+      clearRegionFill(regionFillTarget(selected) || selected)
+      post('dirty', {})
+      refreshSelect()
+      return
+    }
+    if (!canDeleteEl(selected)) return
     if (removeSyncedFavoriteProduct(selected)) {
       selected = null
       hideResizeHandle()
@@ -10302,6 +10699,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     drag.dropTarget = null
     if (wasDrag) skipClick = true
     stickHeaderPause(0)
+    if (wasDrag && selected && isStayScrollOn(selected)) stayScrollCapture(selected)
+    stayScrollPause(0)
     if (wasDrag && selected && isLogoTarget(selected) && isInHeader(selected)) {
       var bake = headerLogoUnit(selected)
       var bakeHeader = bake && bake.closest ? bake.closest('header, .pw-header, .pw-shop-header') : null
@@ -10348,7 +10747,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '[data-pw-added-bg="1"]{overflow:visible}',
       '[data-pw-region="gallery"],[data-pw-region="pdp-info"],[data-pw-region="reviews"],[data-pw-region="breadcrumb"],[data-pw-region="catalog"],[data-pw-region="content"],[data-pw-region="form"],.pw-pdp,.pw-shop-breadcrumb{position:relative;z-index:2}',
       ${JSON.stringify(pwSceneChromeZCss())},
-      '.pw-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-shop-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-header-actions [data-pw-chrome-btn]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]),.pw-cat-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]),.pw-account-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]){transform:none!important;left:auto!important;top:auto!important}',
+      '.pw-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-header-actions [data-pw-chrome-btn]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-cat-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-account-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]){transform:none!important;left:auto!important;top:auto!important}',
       '[data-pw-chrome-float="1"],[data-pw-pin-screen="1"]{position:fixed!important;z-index:${PW_CHROME_FLOAT_Z_INDEX}!important;isolation:isolate!important;pointer-events:auto!important}',
       ${JSON.stringify(PARTNER_SHOP_CHROME_FLOAT_CSS)},
       '.nanoai-ve-highlight[data-pw-region="banner"],.nanoai-ve-hover[data-pw-region="banner"]{outline:2px dashed #2563eb!important}',
@@ -10374,11 +10773,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-highlight.pw-btn,.nanoai-ve-highlight[data-pw-added-btn],.nanoai-ve-hover.pw-btn,.nanoai-ve-hover[data-pw-added-btn]{outline:1px dashed #2563eb!important;outline-offset:0!important}',
       '[data-pw-added-text]:not([data-pw-z]):not([data-pw-added-text-slot]){display:inline-block!important;width:auto!important;max-width:100%;margin:0;padding:0;line-height:1.25;white-space:nowrap;z-index:250}',
       '[data-pw-added-btn]:not([data-pw-z]):not([data-pw-added-btn-slot]){display:inline-flex!important;width:max-content!important;max-width:100%;height:auto!important;margin:0;align-items:center;justify-content:center;white-space:nowrap;z-index:250}',
-      '[data-pw-added-bg="1"]:not([data-pw-added-bg-slot]){position:absolute;box-sizing:border-box;pointer-events:auto;border:0}',
-      '[data-pw-added-bg-slot="1"]{position:relative!important;display:block;width:100%;left:auto!important;top:auto!important;margin:0;box-sizing:border-box;pointer-events:auto;border:0}',
+      '[data-pw-added-bg="1"]:not([data-pw-added-bg-slot]):not([data-pw-stay-scroll="1"]):not([data-pw-pin-screen="1"]){position:absolute;box-sizing:border-box;pointer-events:auto;border:0}',
+      '[data-pw-stay-scroll="1"]{position:fixed!important;right:auto!important;bottom:auto!important;transform:none!important;margin:0!important}',
+      '[data-pw-added-bg-slot="1"]:not([data-pw-stay-scroll="1"]):not([data-pw-pin-screen="1"]){position:relative!important;display:block;width:100%;left:auto!important;top:auto!important;margin:0;box-sizing:border-box;pointer-events:auto;border:0}',
       '[data-pw-added-text-slot="1"],[data-pw-added-btn-slot="1"],[data-pw-added-image-slot="1"],[data-pw-added-video-slot="1"],[data-pw-added-chrome-slot="1"]{position:relative!important;display:block!important;width:100%!important;left:auto!important;top:auto!important;margin-left:0!important;margin-right:0!important;box-sizing:border-box;z-index:auto}',
       '[data-pw-added-text-slot="1"]{text-align:center;padding:16px 12px;white-space:normal!important}',
       '[data-pw-added-btn-slot="1"],[data-pw-added-chrome-slot="1"]{display:flex!important;justify-content:center;align-items:center;padding:16px 12px}',
+      '[data-pw-added-image][data-pw-image-radius],[data-pw-info-image][data-pw-image-radius]{overflow:hidden}',
       '[data-pw-added-image-slot="1"],[data-pw-added-video-slot="1"]{padding:12px 0;text-align:center}',
       '[data-pw-added-image-slot="1"] > *,[data-pw-added-video-slot="1"] > *{margin-left:auto;margin-right:auto}',
       '.nanoai-ve-highlight[data-pw-added-bg="1"],.nanoai-ve-hover[data-pw-added-bg="1"]{outline:2px dashed #2563eb!important}',
@@ -10448,7 +10849,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-guide-h{position:absolute;height:1px;background:repeating-linear-gradient(90deg,rgba(37,99,235,.42) 0 6px,transparent 6px 11px)}',
       '.nanoai-ve-guide-v{position:absolute;width:1px;background:repeating-linear-gradient(180deg,rgba(37,99,235,.42) 0 6px,transparent 6px 11px)}',
       '.nanoai-ve-guide-h.is-snap,.nanoai-ve-guide-v.is-snap{background:#2563eb;opacity:.85}',
-      '.nanoai-ve-active [data-pw-hidden="1"]{display:none!important}',
+      '[data-pw-hidden="1"]{display:none!important}',
       '.nanoai-ve-active .pw-cat-panel,.nanoai-ve-active .pw-shop-cat-panel,.nanoai-ve-active .pw-account-panel,.nanoai-ve-active .pw-shop-account-panel,.nanoai-ve-active [data-pw-cat-panel],.nanoai-ve-active [data-pw-account-panel],.nanoai-ve-active #pw-search-results,.nanoai-ve-active #pw-image-search-popover,.nanoai-ve-active #pw-lp-buy-modal{display:none!important;pointer-events:none!important;visibility:hidden!important}',
       '.nanoai-ve-active .pw-nav-main a,.nanoai-ve-active .pw-shop-nav-row a,.nanoai-ve-active .pw-topbar a,.nanoai-ve-active .pw-shop-topbar a,.nanoai-ve-active [data-pw-el="nav-link"],.nanoai-ve-active .pw-topbar [data-pw-el="link"],.nanoai-ve-active .pw-shop-topbar [data-pw-el="link"],.nanoai-ve-active [data-pw-el="cat-toggle"],.nanoai-ve-active .pw-cat-btn,.nanoai-ve-active .pw-shop-cat-btn{pointer-events:auto!important;position:relative;z-index:6}',
       '.pw-bottom-nav,.pw-shop-bottom-nav{display:flex!important;flex-wrap:nowrap;justify-content:space-around;align-items:stretch;grid-template-columns:none!important}',
@@ -10993,18 +11394,25 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     if (d.type === 'setTextAlign' && selected && d.align) { selected.style.textAlign = d.align; post('dirty', {}); refreshSelect() }
     if (d.type === 'setBgColor' && selected && d.color) {
-      selected.style.background = d.color
-      selected.style.backgroundColor = d.color
+      restoreRegionFill(regionFillTarget(selected) || selected, d.color)
       post('dirty', {})
       refreshSelect()
     }
-    if (d.type === 'setImageWidth' && selected && isImgEl(selected) && d.width) {
-      selected.style.width = Math.max(20, Math.min(100, Number(d.width))) + '%'
-      selected.style.height = 'auto'
-      selected.style.maxWidth = '100%'
-      positionAllHandles()
+    if (d.type === 'setImageRadius' && selected) {
+      applyImageRadius(selected, d.radius)
       post('dirty', {})
       refreshSelect()
+    }
+    if (d.type === 'setImageWidth' && selected && d.width) {
+      var widthEl = isImgEl(selected) ? selected : addedImageHostOf(selected)
+      if (widthEl && widthEl.style) {
+        widthEl.style.width = Math.max(20, Math.min(100, Number(d.width))) + '%'
+        widthEl.style.height = 'auto'
+        widthEl.style.maxWidth = '100%'
+        positionAllHandles()
+        post('dirty', {})
+        refreshSelect()
+      }
     }
     if (d.type === 'resetImageTransform' && selected && canDragEl(selected)) {
       var resetBanner = bannerHostOf(selected)
@@ -11112,12 +11520,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         if (pb) selectEl(pb)
       }
     }
-    if (d.type === 'ungroupBlock') ungroupMoveBlock()
-    if (d.type === 'groupBlock') groupIntoBlock()
     if (d.type === 'hideBlock') hideSelectedBlock()
     if (d.type === 'showHidden' && d.id) showHiddenBlock(d.id)
     if (d.type === 'deleteBlock') deleteSelectedBlock()
     if (d.type === 'duplicateBlock') duplicateSelectedBlock()
+    if (d.type === 'copyToAllPages') copySelectedToAllPages()
     if (d.type === 'setChatIconLogo') setChatIconLogo(d.url)
     if (d.type === 'insertChromeBtn') insertChromeBtn(d.kind, d.html, d.host, d)
     if (d.type === 'bringExistingChromeToCenter') bringExistingChromeToCenter(d.kind)
@@ -11139,6 +11546,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.type === 'insertFreeImage' && d.url) insertFreeImage(d.url)
     if (d.type === 'insertVideo' && d.url) insertVideo(d.url)
     if (d.type === 'insertButton') insertButton(d)
+    if (d.type === 'insertProductGrid') insertProductGrid(d.html)
     if (d.type === 'insertBg') insertBg(d)
     if (d.type === 'startInsertBgPick') startInsertBgPick(d.place, d.color)
     if (d.type === 'setInsertBgPickColor' && d.color) insertBgPick.color = String(d.color)
@@ -11228,6 +11636,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.type === 'setPlaceholderColor') setPlaceholderColor(d.color)
     if (d.type === 'setStickHeader') setStickHeader(!!d.on)
     if (d.type === 'setPinScreen') setPinScreen(!!d.on)
+    if (d.type === 'setStayScroll') setStayScroll(!!d.on)
     if (d.type === 'deleteChromeBtn') deleteSelectedUnit()
     if (d.type === 'deleteUnit') deleteSelectedUnit()
     if (d.type === 'nudge') nudgeSelected(Number(d.dx) || 0, Number(d.dy) || 0)

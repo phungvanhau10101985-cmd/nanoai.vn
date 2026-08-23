@@ -6,6 +6,12 @@
 
 export const PW_BG_INDEX_ATTR = 'data-pw-bg-index'
 export const PW_BG_ROLE_ATTR = 'data-pw-bg-role'
+/** Nền khối gốc đã bỏ màu — giữ khối (logo/nút), không xóa DOM. */
+export const PW_BG_CLEARED_ATTR = 'data-pw-bg-cleared'
+export const PW_BG_CLEARED_CSS = [
+  `html [${PW_BG_CLEARED_ATTR}="1"]{background-color:transparent!important;box-shadow:none!important}`,
+  `html [${PW_BG_CLEARED_ATTR}="1"].pw-header,html [${PW_BG_CLEARED_ATTR}="1"].pw-shop-header,html [${PW_BG_CLEARED_ATTR}="1"].pw-topbar,html [${PW_BG_CLEARED_ATTR}="1"].pw-shop-topbar,html [${PW_BG_CLEARED_ATTR}="1"].pw-footer,html [${PW_BG_CLEARED_ATTR}="1"].pw-shop-footer,html [${PW_BG_CLEARED_ATTR}="1"][data-pw-region="header"],html [${PW_BG_CLEARED_ATTR}="1"][data-pw-region="topbar"],html [${PW_BG_CLEARED_ATTR}="1"][data-pw-region="footer"],html [${PW_BG_CLEARED_ATTR}="1"][data-pw-region="nav"]{background:transparent!important;background-image:none!important;background-color:transparent!important;box-shadow:none!important}`,
+].join('')
 
 export const PW_BG_CANVAS_INDEX = 0
 export const PW_BG_HEADER_Z = 200

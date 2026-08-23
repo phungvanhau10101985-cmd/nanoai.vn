@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { buildVisualEditorScript } from './build-visual-editor-script'
 import {
   PW_BG_CANVAS_INDEX,
+  PW_BG_CLEARED_ATTR,
+  PW_BG_CLEARED_CSS,
   PW_BG_HEADER_Z,
   PW_BG_INDEX_ATTR,
   PW_BG_REGION_ROLES,
@@ -82,5 +84,23 @@ describe('pw bg stack', () => {
     expect(s).toContain('if (isAddedBg(el))')
     expect(s).toContain("var regionRoles = ['header', 'topbar', 'banner', 'categories'")
     expect(s).not.toContain("node.setAttribute('data-pw-bg-layer'")
+    expect(s).toContain('canClearRegionFill')
+    expect(s).toContain('regionFillTarget')
+    expect(s).toContain('clearRegionFill')
+    expect(s).toContain('canClearBg:')
+    expect(s).toContain(PW_BG_CLEARED_ATTR)
+    expect(s).toContain('canDeleteRegionBlock')
+    expect(s).toContain('removeSelectedRegionBlock')
+    expect(s).toContain('topbarHostOf')
+    expect(s).toContain('headerHostOf')
+    expect(s).toContain('regionBlockHostOf')
+  })
+
+  it('cleared region fill css keeps the block and drops the color', () => {
+    expect(PW_BG_CLEARED_ATTR).toBe('data-pw-bg-cleared')
+    expect(PW_BG_CLEARED_CSS).toContain(`${PW_BG_CLEARED_ATTR}="1"`)
+    expect(PW_BG_CLEARED_CSS).toContain('background-color:transparent!important')
+    expect(PW_BG_CLEARED_CSS).toContain('[data-pw-region="header"]')
+    expect(PW_BG_CLEARED_CSS).toContain('[data-pw-region="topbar"]')
   })
 })

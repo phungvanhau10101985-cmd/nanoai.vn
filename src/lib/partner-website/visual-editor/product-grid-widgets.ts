@@ -1,0 +1,142 @@
+import type { WebLocale } from '@/lib/i18n/config'
+import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import {
+  partnerSiteProductsPath,
+  partnerSiteRecentlyViewedPath,
+} from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+
+export const VISUAL_EDITOR_PRODUCT_GRID_KINDS = [
+  'catalog',
+  'recently-viewed',
+  'recommended',
+] as const
+
+export type VisualEditorProductGridKind = (typeof VISUAL_EDITOR_PRODUCT_GRID_KINDS)[number]
+
+export function isVisualEditorProductGridKind(value: string): value is VisualEditorProductGridKind {
+  return (VISUAL_EDITOR_PRODUCT_GRID_KINDS as readonly string[]).includes(value)
+}
+
+const TITLE: Record<VisualEditorProductGridKind, Record<WebLocale, string>> = {
+  catalog: {
+    vi: 'Sản phẩm',
+    en: 'Products',
+    zh: '商品',
+    ja: '商品',
+    ko: '상품',
+  },
+  'recently-viewed': {
+    vi: 'Sản phẩm đã xem',
+    en: 'Recently viewed',
+    zh: '最近浏览',
+    ja: '最近見た商品',
+    ko: '최근 본 상품',
+  },
+  recommended: {
+    vi: 'CÓ THỂ BẠN THÍCH',
+    en: 'YOU MAY ALSO LIKE',
+    zh: '猜你喜欢',
+    ja: 'あなたへのおすすめ',
+    ko: '이런 상품은 어때요',
+  },
+}
+
+export function productGridWidgetLabel(kind: VisualEditorProductGridKind, locale: WebLocale): string {
+  if (kind === 'catalog') {
+    return locale === 'vi'
+      ? 'Lưới sản phẩm'
+      : locale === 'zh'
+        ? '商品网格'
+        : locale === 'ja'
+          ? '商品グリッド'
+          : locale === 'ko'
+            ? '상품 그리드'
+            : 'Product grid'
+  }
+  if (kind === 'recently-viewed') {
+    return locale === 'vi'
+      ? 'Lưới đã xem'
+      : locale === 'zh'
+        ? '最近浏览网格'
+        : locale === 'ja'
+          ? '閲覧履歴グリッド'
+          : locale === 'ko'
+            ? '최근 본 그리드'
+            : 'Recently viewed grid'
+  }
+  return locale === 'vi'
+    ? 'Lưới đề xuất'
+    : locale === 'zh'
+      ? '个性化推荐网格'
+      : locale === 'ja'
+        ? 'おすすめグリッド'
+        : locale === 'ko'
+          ? '추천 그리드'
+          : 'Recommended grid'
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function placeholderCards(count: number, label: string): string {
+  const n = Math.max(4, Math.min(10, count))
+  let out = ''
+  for (let i = 1; i <= n; i += 1) {
+    out += `<article class="pw-product-card" ${pwElAttr(PW_EL.card)} data-pw-grid-placeholder="1">
+  <div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} style="background:var(--pw-surface,#f3f4f6)"></div>
+  <div class="pw-product-card-body">
+    <h3 ${pwElAttr(PW_EL.cardName)}>${escapeHtml(label)} ${i}</h3>
+    <p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>—</p>
+  </div>
+</article>`
+  }
+  return out
+}
+
+/** In-flow catalog section for Sửa nhanh «Thêm». Live hydrates via catalog / personalization bootstrap. */
+export function buildVisualEditorProductGridHtml(input: {
+  kind: VisualEditorProductGridKind
+  siteSlug: string
+  locale?: WebLocale
+  limit?: number
+}): string {
+  const locale = input.locale && input.locale in TITLE.catalog ? input.locale : 'vi'
+  const kind = input.kind
+  const limit = Math.max(4, Math.min(24, Math.floor(Number(input.limit) || 10)))
+  const copy = getPartnerSiteShopCopy(locale)
+  const title =
+    kind === 'recommended'
+      ? copy.homeYouMayLike || TITLE.recommended[locale]
+      : kind === 'recently-viewed'
+        ? copy.recentlyViewedTitle || TITLE['recently-viewed'][locale]
+        : copy.catalogTitle || TITLE.catalog[locale]
+  const seeAll = copy.lpViewProducts
+  const moreHref =
+    kind === 'recently-viewed'
+      ? partnerSiteRecentlyViewedPath(input.siteSlug)
+      : partnerSiteProductsPath(input.siteSlug)
+  const personalize =
+    kind === 'catalog' ? '' : ` data-pw-personalize="${kind === 'recommended' ? 'recommended' : 'recently-viewed'}"`
+  const catalogAttr = kind === 'catalog' ? ' data-pw-catalog data-sort="default"' : ''
+  const sectionId =
+    kind === 'catalog' ? 'pw-grid-catalog' : kind === 'recommended' ? 'pw-grid-recommended' : 'pw-grid-recently-viewed'
+  const cards = placeholderCards(limit, title)
+
+  return `<section class="pw-catalog pw-section pw-product-grid-section" id="${sectionId}" ${pwRegionAttr(PW_REGION.catalog)} data-pw-added-catalog="1" data-pw-grid-kind="${kind}" data-pw-grid-cols="5" data-pw-grid-cols-mobile="2" data-limit="${limit}"${catalogAttr}${personalize}>
+  <div class="pw-container" style="padding:32px 20px">
+    <div style="display:flex;align-items:end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+      <h2 ${pwElAttr(PW_EL.sectionTitle)} style="margin:0;font-size:clamp(1.4rem,2.5vw,2rem)">${escapeHtml(title)}</h2>
+      <a class="pw-btn" ${pwElAttr(PW_EL.sectionMore)} href="${escapeHtml(moreHref)}">${escapeHtml(seeAll)}</a>
+    </div>
+    <div data-pw-grid class="pw-product-grid" ${pwElAttr(PW_EL.grid)}>${cards}</div>
+    <p class="pw-catalog-empty pw-personalize-empty" hidden></p>
+  </div>
+</section>`
+}

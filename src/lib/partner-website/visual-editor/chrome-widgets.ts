@@ -85,6 +85,17 @@ export function clampPwChromeRadius(raw: unknown): number {
   return Math.min(PW_CHROME_RADIUS_MAX, Math.max(PW_CHROME_RADIUS_MIN, n))
 }
 
+export const PW_IMAGE_RADIUS_MIN = 0
+export const PW_IMAGE_RADIUS_MAX = 80
+export const PW_IMAGE_RADIUS_DEFAULT = 8
+export const PW_IMAGE_RADIUS_ROUNDED = 16
+
+export function clampPwImageRadius(raw: unknown): number {
+  const n = Math.round(Number(raw))
+  if (!Number.isFinite(n)) return PW_IMAGE_RADIUS_DEFAULT
+  return Math.min(PW_IMAGE_RADIUS_MAX, Math.max(PW_IMAGE_RADIUS_MIN, n))
+}
+
 export const PW_CHROME_COUNT_KINDS = [
   'cart',
   'wishlist',

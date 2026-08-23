@@ -13,6 +13,7 @@ import {
   PW_CHROME_ICON_SIZE_MAX,
   chromeKindDefaultLabels,
   chromeKindShowsCountBadge,
+  clampPwImageRadius,
   clampPwChromeLabelSize,
   chromeLabelSizeFromIcon,
   CHROME_FACEBOOK_CHAT_LOGO_SVG,
@@ -734,4 +735,11 @@ test('phone Instagram WhatsApp share logout coupon and lead form wire live APIs'
   assert.match(lead, /data-pw-lead-form/)
   assert.match(lead, /\/api\/site\/188-shop\/lead/)
   assert.match(lead, /name="name"/)
+})
+
+test('clampPwImageRadius keeps square and rounded within range', () => {
+  assert.equal(clampPwImageRadius(0), 0)
+  assert.equal(clampPwImageRadius(16), 16)
+  assert.equal(clampPwImageRadius(-4), 0)
+  assert.equal(clampPwImageRadius(200), 80)
 })

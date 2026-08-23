@@ -119,6 +119,9 @@ export type PartnerWebsiteCopy = {
   visualEditAlignRight: string
   visualEditBgColor: string
   visualEditImageWidth: string
+  visualEditImageSquare: string
+  visualEditImageRound: string
+  visualEditImageRadius: string
   visualEditResetImagePos: string
   visualEditSectionHint: string
   visualEditButtonHref: string
@@ -133,6 +136,12 @@ export type PartnerWebsiteCopy = {
   visualEditBlockHide: string
   visualEditBlockShow: string
   visualEditBlockDuplicate: string
+  visualEditCopyAllPages: string
+  visualEditCopyAllPagesHint: string
+  visualEditCopyAllPagesDone: string
+  visualEditCopyAllPagesSkip: string
+  visualEditCopyAllPagesLocked: string
+  visualEditCopyAllPagesNone: string
   visualEditChromeDuplicate: string
   visualEditChromeDupAskTitle: string
   visualEditChromeDupAskAdd: string
@@ -146,8 +155,6 @@ export type PartnerWebsiteCopy = {
   visualEditSelectBlock: string
   visualEditLayerBlock: string
   visualEditLayerImage: string
-  visualEditUngroupBlock: string
-  visualEditGroupBlock: string
   visualEditCreateLogo: string
   visualEditRecreateLogo: string
   visualEditApplyLogoAll: string
@@ -228,6 +235,8 @@ export type PartnerWebsiteCopy = {
   visualEditStickHeaderHint: string
   visualEditPinScreen: string
   visualEditPinScreenHint: string
+  visualEditStayScroll: string
+  visualEditStayScrollHint: string
   visualEditCatToggleTitle: string
   visualEditCatToggleHint: string
   visualEditPageButtonTitle: string
@@ -267,6 +276,7 @@ export type PartnerWebsiteCopy = {
   visualEditChatEmbedRestore: string
   visualEditAddedBgHint: string
   visualEditBgLockedHint: string
+  visualEditRegionBgHint: string
   visualEditDeleteBg: string
   visualEditNavLinkTitle: string
   visualEditNavLinkHint: string
@@ -293,6 +303,9 @@ export type PartnerWebsiteCopy = {
   visualEditBgStackAdded: string
   visualEditBgStackLocked: string
   visualEditAddButton: string
+  visualEditAddProductGrid: string
+  visualEditAddRecentlyViewedGrid: string
+  visualEditAddRecommendedGrid: string
   visualEditAddButtonText: string
   visualEditAddButtonColor: string
   visualEditAddButtonBorder: string
@@ -990,6 +1003,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAlignRight: 'Phải',
     visualEditBgColor: 'Màu nền',
     visualEditImageWidth: 'Rộng ảnh',
+    visualEditImageSquare: 'Vuông',
+    visualEditImageRound: 'Bo góc',
+    visualEditImageRadius: 'Bo góc',
     visualEditResetImagePos: 'Vị trí gốc',
     visualEditSectionHint: 'Khối: ẩn / xóa / nhân bản. Banner: lớp phủ và khoảng cách.',
     visualEditButtonHref: 'Link ẩn dưới nút',
@@ -1004,6 +1020,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHide: 'Ẩn khối',
     visualEditBlockShow: 'Hiện lại',
     visualEditBlockDuplicate: 'Nhân bản',
+    visualEditCopyAllPages: 'Copy sang mọi trang',
+    visualEditCopyAllPagesHint: 'Dán phần tử này lên mọi trang khác cùng máy, cùng tọa độ.',
+    visualEditCopyAllPagesDone: 'Đã copy sang mọi trang khác cùng máy',
+    visualEditCopyAllPagesSkip: 'Header, chân trang và thanh đáy đã đồng bộ mọi trang cùng máy.',
+    visualEditCopyAllPagesLocked: 'Không copy thẻ sản phẩm / dữ liệu tồn kho sống.',
+    visualEditCopyAllPagesNone: 'Chưa có trang khác cùng máy để copy.',
     visualEditChromeDuplicate:
       'Thêm cái nữa vào giữa màn hình, hoặc kéo cái đang có ra giữa để chỉnh.',
     visualEditChromeDupAskTitle: 'Đã có «{name}»',
@@ -1019,8 +1041,6 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditSelectBlock: 'Chọn khối chứa',
     visualEditLayerBlock: 'Khối',
     visualEditLayerImage: 'Ảnh',
-    visualEditUngroupBlock: 'Tách khối',
-    visualEditGroupBlock: 'Gom khối',
     visualEditCreateLogo: 'Tạo logo',
     visualEditRecreateLogo: 'Tạo lại logo',
     visualEditApplyLogoAll: 'Dùng logo này mọi vị trí',
@@ -1104,6 +1124,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditPinScreen: 'Nổi trên màn hình',
     visualEditPinScreenHint:
       'Bật: đứng yên khi vuốt / cuộn trang. Tắt: trượt theo trang. Vẫn kéo được.',
+    visualEditStayScroll: 'Đứng im khi cuộn',
+    visualEditStayScrollHint:
+      'Bật: cố định một chỗ trên màn hình khi vuốt/cuộn — không trượt theo, không nhảy lại. Không nổi lớp overlay. Tắt: trượt theo trang. Vẫn kéo được.',
     visualEditCatToggleTitle: 'Nút danh mục',
     visualEditCatToggleHint:
       'Bấm trên web khách sẽ sổ danh sách danh mục. Không gắn link trang — đó là việc của nút mở trang.',
@@ -1145,8 +1168,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: 'Mở cài đặt mã nhúng chat',
     visualEditChatEmbedDelete: 'Xóa nút chat',
     visualEditChatEmbedRestore: 'Hiện nút chat',
-    visualEditAddedBgHint: 'Nền đã thêm: đổi màu, lớp, hoặc bấm Xóa nền. Nền khối gốc (header, gallery) không xóa được.',
-    visualEditBgLockedHint: 'Đây là nền khối gốc — chỉ đổi màu. Muốn bỏ lớp phủ thì chọn nền đã thêm rồi Xóa nền.',
+    visualEditAddedBgHint: 'Nền đã thêm: đổi màu, lớp, hoặc bấm Xóa nền.',
+    visualEditBgLockedHint: 'Nền này không xóa được (ảnh banner / nền trang). Chỉ đổi màu.',
+    visualEditRegionBgHint: 'Nền khối gốc: bấm Xóa nền để bỏ màu (giữ chữ/nút). Chọn màu để tô lại. Header có hai dải cam thì xóa cả thanh trên.',
     visualEditDeleteBg: 'Xóa nền',
     visualEditNavLinkTitle: 'Liên kết trang',
     visualEditNavLinkHint: 'Bấm trên web khách sẽ mở đúng trang gắn ở ô link. Không phải nút danh mục hay nút chức năng shop.',
@@ -1173,6 +1197,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBgStackAdded: 'Nền thêm',
     visualEditBgStackLocked: 'Cố định',
     visualEditAddButton: 'Thêm nút',
+    visualEditAddProductGrid: 'Lưới sản phẩm',
+    visualEditAddRecentlyViewedGrid: 'Lưới đã xem',
+    visualEditAddRecommendedGrid: 'Lưới đề xuất',
     visualEditAddButtonText: 'Chữ trên nút',
     visualEditAddButtonColor: 'Màu nút',
     visualEditAddButtonBorder: 'Màu viền',
@@ -1885,6 +1912,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAlignRight: 'Right',
     visualEditBgColor: 'Background',
     visualEditImageWidth: 'Image width',
+    visualEditImageSquare: 'Square',
+    visualEditImageRound: 'Rounded',
+    visualEditImageRadius: 'Corner radius',
     visualEditResetImagePos: 'Reset position',
     visualEditSectionHint: 'Blocks: hide / delete / duplicate. Banner: overlay and padding.',
     visualEditButtonHref: 'Button link',
@@ -1899,6 +1929,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHide: 'Hide block',
     visualEditBlockShow: 'Show again',
     visualEditBlockDuplicate: 'Duplicate',
+    visualEditCopyAllPages: 'Copy to every page',
+    visualEditCopyAllPagesHint: 'Paste this element onto every other page of this device, at the same coordinates.',
+    visualEditCopyAllPagesDone: 'Copied to every other page on this device',
+    visualEditCopyAllPagesSkip: 'Header, footer and bottom bar already sync across pages of this device.',
+    visualEditCopyAllPagesLocked: 'Product cards and live inventory fields cannot be copied.',
+    visualEditCopyAllPagesNone: 'No other pages on this device to copy to.',
     visualEditChromeDuplicate:
       'Add another in the middle of the screen, or pull the existing one to the center to edit.',
     visualEditChromeDupAskTitle: '«{name}» already exists',
@@ -1913,8 +1949,6 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditSelectBlock: 'Select containing block',
     visualEditLayerBlock: 'Block',
     visualEditLayerImage: 'Image',
-    visualEditUngroupBlock: 'Ungroup',
-    visualEditGroupBlock: 'Group',
     visualEditCreateLogo: 'Create logo',
     visualEditRecreateLogo: 'Recreate logo',
     visualEditApplyLogoAll: 'Use this logo everywhere',
@@ -1998,6 +2032,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditPinScreen: 'Pin to screen',
     visualEditPinScreenHint:
       'On: stays in place when you swipe or scroll. Off: moves with the page. You can still drag it.',
+    visualEditStayScroll: 'Stay still while scrolling',
+    visualEditStayScrollHint:
+      'On: stays glued to one screen spot while you swipe or scroll — no sliding, no snap-back. Does not float to an overlay layer. Off: moves with the page. You can still drag it.',
     visualEditCatToggleTitle: 'Category menu',
     visualEditCatToggleHint:
       'On the live site this opens the category list. It does not use a page link — that is for buttons that open a page.',
@@ -2039,8 +2076,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: 'Open chat embed settings',
     visualEditChatEmbedDelete: 'Remove chat button',
     visualEditChatEmbedRestore: 'Show chat button',
-    visualEditAddedBgHint: 'Added fill: change color, layer, or Delete background. Built-in section fills stay.',
-    visualEditBgLockedHint: 'This is a section fill — recolor only. To remove a layer, select an added background and delete it.',
+    visualEditAddedBgHint: 'Added fill: change color, layer, or Delete background.',
+    visualEditBgLockedHint: 'This fill cannot be removed (banner photo / page paper). Recolor only.',
+    visualEditRegionBgHint: 'Section fill: Delete background removes the color (keeps text/buttons). Pick a color to restore. Clearing the header also clears the top bar.',
     visualEditDeleteBg: 'Delete background',
     visualEditNavLinkTitle: 'Page link',
     visualEditNavLinkHint: 'On the live site this opens the page in the link field. Not a category menu or shop function button.',
@@ -2067,6 +2105,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBgStackAdded: 'Added fill',
     visualEditBgStackLocked: 'Locked',
     visualEditAddButton: 'Add button',
+    visualEditAddProductGrid: 'Product grid',
+    visualEditAddRecentlyViewedGrid: 'Recently viewed grid',
+    visualEditAddRecommendedGrid: 'Recommended grid',
     visualEditAddButtonText: 'Button text',
     visualEditAddButtonColor: 'Button color',
     visualEditAddButtonBorder: 'Border color',
@@ -2777,6 +2818,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAlignRight: '右对齐',
     visualEditBgColor: '背景色',
     visualEditImageWidth: '图片宽度',
+    visualEditImageSquare: '直角',
+    visualEditImageRound: '圆角',
+    visualEditImageRadius: '圆角',
     visualEditResetImagePos: '重置位置',
     visualEditSectionHint: '区块：隐藏/删除/复制。横幅：遮罩与间距。',
     visualEditButtonHref: '按钮链接',
@@ -2791,6 +2835,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHide: '隐藏区块',
     visualEditBlockShow: '重新显示',
     visualEditBlockDuplicate: '复制',
+    visualEditCopyAllPages: '复制到所有页面',
+    visualEditCopyAllPagesHint: '把此元素粘贴到同一设备的其他页面，坐标保持不变。',
+    visualEditCopyAllPagesDone: '已复制到同一设备的其他页面',
+    visualEditCopyAllPagesSkip: '页头、页脚和底栏已在同一设备的所有页面同步。',
+    visualEditCopyAllPagesLocked: '不能复制商品卡片或实时库存字段。',
+    visualEditCopyAllPagesNone: '同一设备没有其他页面可复制。',
     visualEditChromeDuplicate: '再添加一个到画面中央，或把现有的拖到中央再编辑。',
     visualEditChromeDupAskTitle: '已有「{name}」',
     visualEditChromeDupAskAdd: '再添加一个',
@@ -2804,8 +2854,6 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditSelectBlock: '选择所在区块',
     visualEditLayerBlock: '区块',
     visualEditLayerImage: '图片',
-    visualEditUngroupBlock: '拆分组块',
-    visualEditGroupBlock: '合并区块',
     visualEditCreateLogo: '生成标志',
     visualEditRecreateLogo: '重新生成标志',
     visualEditApplyLogoAll: '将此标志用于所有位置',
@@ -2886,6 +2934,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditStickHeaderHint: '开启：滚动碰到页头时吸附在页头下方。关闭：随页面一起滚走。仍可拖动。',
     visualEditPinScreen: '固定在屏幕上',
     visualEditPinScreenHint: '开启：滑动或滚动时保持原位。关闭：随页面一起移动。仍可拖动。',
+    visualEditStayScroll: '滚动时原地不动',
+    visualEditStayScrollHint: '开启：固定在屏幕当前位置，滑动/滚动不跟着走、也不回弹。不浮到覆盖层。关闭：随页面移动。仍可拖动。',
     visualEditCatToggleTitle: '分类菜单',
     visualEditCatToggleHint: '在顾客网站上点击会展开分类列表。不使用页面链接——那是打开页面的按钮才有。',
     visualEditPageButtonTitle: '打开页面的按钮',
@@ -2924,8 +2974,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: '打开聊天嵌入设置',
     visualEditChatEmbedDelete: '删除聊天按钮',
     visualEditChatEmbedRestore: '显示聊天按钮',
-    visualEditAddedBgHint: '已添加的背景：可改颜色、图层，或点删除背景。区块原背景不能删。',
-    visualEditBgLockedHint: '这是区块原背景，只能改色。要去掉覆盖层，请选中已添加的背景再删除。',
+    visualEditAddedBgHint: '已添加的背景：可改颜色、图层，或点删除背景。',
+    visualEditBgLockedHint: '此背景不能删除（横幅图 / 页面底）。只能改色。',
+    visualEditRegionBgHint: '区块原背景：点删除背景可去掉颜色（保留文字/按钮）。再选颜色即可恢复。删除页头时也会去掉顶栏底色。',
     visualEditDeleteBg: '删除背景',
     visualEditNavLinkTitle: '页面链接',
     visualEditNavLinkHint: '在顾客网站上点击会打开链接中的页面。不是分类菜单，也不是店铺功能按钮。',
@@ -2952,6 +3003,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBgStackAdded: '新增底',
     visualEditBgStackLocked: '固定',
     visualEditAddButton: '添加按钮',
+    visualEditAddProductGrid: '商品网格',
+    visualEditAddRecentlyViewedGrid: '最近浏览网格',
+    visualEditAddRecommendedGrid: '推荐网格',
     visualEditAddButtonText: '按钮文字',
     visualEditAddButtonColor: '按钮颜色',
     visualEditAddButtonBorder: '边框颜色',
@@ -3645,6 +3699,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAlignRight: '右',
     visualEditBgColor: '背景色',
     visualEditImageWidth: '画像幅',
+    visualEditImageSquare: '直角',
+    visualEditImageRound: '角丸',
+    visualEditImageRadius: '角丸',
     visualEditResetImagePos: '位置リセット',
     visualEditSectionHint: 'ブロック：非表示/削除/複製。バナー：オーバーレイと余白。',
     visualEditButtonHref: 'ボタンのリンク',
@@ -3659,6 +3716,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHide: 'ブロックを隠す',
     visualEditBlockShow: '再表示',
     visualEditBlockDuplicate: '複製',
+    visualEditCopyAllPages: '全ページにコピー',
+    visualEditCopyAllPagesHint: '同じ端末の他ページへ、同じ座標でこの要素を貼り付けます。',
+    visualEditCopyAllPagesDone: '同じ端末の他ページにコピーしました',
+    visualEditCopyAllPagesSkip: 'ヘッダー・フッター・下部バーは同じ端末の全ページで既に同期されています。',
+    visualEditCopyAllPagesLocked: '商品カードと在庫のライブ項目はコピーできません。',
+    visualEditCopyAllPagesNone: '同じ端末にコピー先の他ページがありません。',
     visualEditChromeDuplicate: 'もう1つを画面中央に追加するか、既存のものを中央に出して編集できます。',
     visualEditChromeDupAskTitle: '「{name}」は既にあります',
     visualEditChromeDupAskAdd: 'もう1つ追加',
@@ -3672,8 +3735,6 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditSelectBlock: '親ブロックを選択',
     visualEditLayerBlock: 'ブロック',
     visualEditLayerImage: '画像',
-    visualEditUngroupBlock: 'グループ解除',
-    visualEditGroupBlock: 'グループ化',
     visualEditCreateLogo: 'ロゴを作成',
     visualEditRecreateLogo: 'ロゴを再作成',
     visualEditApplyLogoAll: 'このロゴをすべての位置に使う',
@@ -3757,6 +3818,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditPinScreen: '画面に固定',
     visualEditPinScreenHint:
       'オン：スワイプやスクロールしてもその場に残る。オフ：ページと一緒に動く。ドラッグはできます。',
+    visualEditStayScroll: 'スクロールしても動かない',
+    visualEditStayScrollHint:
+      'オン：画面のその位置に固定。スワイプ/スクロールしても追従も跳ね戻りもしない。オーバーレイには浮かない。オフ：ページと一緒に動く。ドラッグはできます。',
     visualEditCatToggleTitle: 'カテゴリメニュー',
     visualEditCatToggleHint:
       '公開サイトではカテゴリ一覧が開きます。ページリンクは使いません。リンクはページを開くボタン用です。',
@@ -3798,8 +3862,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: 'チャット埋め込み設定を開く',
     visualEditChatEmbedDelete: 'チャットボタンを削除',
     visualEditChatEmbedRestore: 'チャットボタンを表示',
-    visualEditAddedBgHint: '追加した背景は色・レイヤー変更、または削除できます。ブロック本来の背景は削除できません。',
-    visualEditBgLockedHint: 'ブロック本来の背景です。色だけ変えられます。重ねた背景を消すには、追加した背景を選んで削除します。',
+    visualEditAddedBgHint: '追加した背景は色・レイヤー変更、または削除できます。',
+    visualEditBgLockedHint: 'この背景は削除できません（バナー写真 / ページ下地）。色だけ変えられます。',
+    visualEditRegionBgHint: 'ブロック本来の背景：削除すると色だけ消えます（文字/ボタンは残ります）。色を選べば戻せます。ヘッダーを消すとトップバーの色も消えます。',
     visualEditDeleteBg: '背景を削除',
     visualEditNavLinkTitle: 'ページリンク',
     visualEditNavLinkHint: '公開サイトではリンク欄のページが開きます。カテゴリメニューやショップ機能ボタンではありません。',
@@ -3826,6 +3891,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBgStackAdded: '追加背景',
     visualEditBgStackLocked: '固定',
     visualEditAddButton: 'ボタンを追加',
+    visualEditAddProductGrid: '商品グリッド',
+    visualEditAddRecentlyViewedGrid: '閲覧履歴グリッド',
+    visualEditAddRecommendedGrid: 'おすすめグリッド',
     visualEditAddButtonText: 'ボタンの文字',
     visualEditAddButtonColor: 'ボタンの色',
     visualEditAddButtonBorder: '枠線の色',
@@ -4526,6 +4594,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAlignRight: '오른쪽',
     visualEditBgColor: '배경색',
     visualEditImageWidth: '이미지 너비',
+    visualEditImageSquare: '직각',
+    visualEditImageRound: '둥글게',
+    visualEditImageRadius: '모서리',
     visualEditResetImagePos: '위치 초기화',
     visualEditSectionHint: '블록: 숨기기/삭제/복제. 배너: 오버레이와 여백.',
     visualEditButtonHref: '버튼 링크',
@@ -4540,6 +4611,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHide: '블록 숨기기',
     visualEditBlockShow: '다시 표시',
     visualEditBlockDuplicate: '복제',
+    visualEditCopyAllPages: '모든 페이지에 복사',
+    visualEditCopyAllPagesHint: '같은 기기의 다른 페이지에 같은 좌표로 이 요소를 붙여넣습니다.',
+    visualEditCopyAllPagesDone: '같은 기기의 다른 페이지에 복사했습니다',
+    visualEditCopyAllPagesSkip: '헤더·푸터·하단 바는 같은 기기의 모든 페이지에 이미 동기화됩니다.',
+    visualEditCopyAllPagesLocked: '상품 카드와 실시간 재고 필드는 복사할 수 없습니다.',
+    visualEditCopyAllPagesNone: '같은 기기에 복사할 다른 페이지가 없습니다.',
     visualEditChromeDuplicate: '화면 가운데에 하나 더 추가하거나, 있는 것을 가운데로 끌어 편집하세요.',
     visualEditChromeDupAskTitle: '이미 «{name}»이(가) 있습니다',
     visualEditChromeDupAskAdd: '하나 더 추가',
@@ -4553,8 +4630,6 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditSelectBlock: '상위 블록 선택',
     visualEditLayerBlock: '블록',
     visualEditLayerImage: '이미지',
-    visualEditUngroupBlock: '그룹 해제',
-    visualEditGroupBlock: '그룹 묶기',
     visualEditCreateLogo: '로고 만들기',
     visualEditRecreateLogo: '로고 다시 만들기',
     visualEditApplyLogoAll: '이 로고를 모든 위치에 사용',
@@ -4638,6 +4713,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditPinScreen: '화면에 고정',
     visualEditPinScreenHint:
       '켜기: 밀거나 스크롤해도 그 자리에 남습니다. 끄기: 페이지와 함께 움직입니다. 드래그는 가능합니다.',
+    visualEditStayScroll: '스크롤해도 그 자리',
+    visualEditStayScrollHint:
+      '켜기: 화면 그 자리에 고정됩니다. 밀거나 스크롤해도 따라가지 않고 튀어 돌아오지도 않습니다. 오버레이로 떠오르지 않습니다. 끄기: 페이지와 함께 움직입니다. 드래그는 가능합니다.',
     visualEditCatToggleTitle: '카테고리 메뉴',
     visualEditCatToggleHint:
       '고객 사이트에서 누르면 카테고리 목록이 열립니다. 페이지 링크는 없습니다. 링크는 페이지를 여는 버튼에만 씁니다.',
@@ -4679,8 +4757,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: '채팅 임베드 설정 열기',
     visualEditChatEmbedDelete: '채팅 버튼 삭제',
     visualEditChatEmbedRestore: '채팅 버튼 표시',
-    visualEditAddedBgHint: '추가한 배경은 색·레이어 변경 또는 삭제가 됩니다. 블록 원래 배경은 삭제할 수 없습니다.',
-    visualEditBgLockedHint: '블록 원래 배경입니다. 색만 바꿀 수 있습니다. 덮은 층을 없애려면 추가한 배경을 선택한 뒤 삭제하세요.',
+    visualEditAddedBgHint: '추가한 배경은 색·레이어 변경 또는 삭제가 됩니다.',
+    visualEditBgLockedHint: '이 배경은 지울 수 없습니다(배너 사진 / 페이지 바탕). 색만 바꿀 수 있습니다.',
+    visualEditRegionBgHint: '블록 원래 배경: 삭제하면 색만 없어집니다(글/버튼은 유지). 색을 고르면 다시 칠할 수 있습니다. 헤더를 지우면 상단바 색도 함께 지워집니다.',
     visualEditDeleteBg: '배경 삭제',
     visualEditNavLinkTitle: '페이지 링크',
     visualEditNavLinkHint: '고객 사이트에서 누르면 링크의 페이지가 열립니다. 카테고리 메뉴나 쇼핑몰 기능 버튼이 아닙니다.',
@@ -4707,6 +4786,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBgStackAdded: '추가 배경',
     visualEditBgStackLocked: '고정',
     visualEditAddButton: '버튼 추가',
+    visualEditAddProductGrid: '상품 그리드',
+    visualEditAddRecentlyViewedGrid: '최근 본 그리드',
+    visualEditAddRecommendedGrid: '추천 그리드',
     visualEditAddButtonText: '버튼 텍스트',
     visualEditAddButtonColor: '버튼 색',
     visualEditAddButtonBorder: '테두리 색',

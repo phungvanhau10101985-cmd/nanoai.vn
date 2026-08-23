@@ -225,6 +225,72 @@ export function pwSceneLockForAvailableHtml(
   return preferred
 }
 
+/** Trang chưa khóa máy — mới được phép ẩn widget theo độ rộng tab. */
+export const PW_SCENE_UNLOCKED_HTML =
+  'html:not([data-pw-edit-device]):not([data-pw-scene-lock])'
+
+/** Máy compact = Sửa nhanh Mobile/Tablet. Live `?pw-device=` phải dùng cùng mặt này. */
+export const PW_SCENE_COMPACT_HOSTS = [
+  'html[data-pw-edit-device="mobile"]',
+  'html[data-pw-edit-device="tablet"]',
+  'html[data-pw-scene-lock="mobile"]',
+  'html[data-pw-scene-lock="tablet"]',
+] as const
+
+export const PW_SCENE_WIDE_HOSTS = [
+  'html[data-pw-edit-device="laptop"]',
+  'html[data-pw-edit-device="desktop"]',
+  'html[data-pw-scene-lock="laptop"]',
+  'html[data-pw-scene-lock="desktop"]',
+] as const
+
+/** Gắn mỗi selector trong khối CSS (không có @media) vào từng host. */
+export function pwHostPrefixCss(hosts: readonly string[], css: string): string {
+  const chunks = String(css || '').match(/[^{}]+\{[^{}]*\}/g)
+  if (!chunks?.length) return ''
+  return chunks
+    .map((chunk) => {
+      const i = chunk.indexOf('{')
+      const sel = chunk.slice(0, i).trim()
+      const decls = chunk.slice(i)
+      if (!sel) return ''
+      return hosts
+        .flatMap((host) => sel.split(',').map((part) => `${host} ${part.trim()}`))
+        .join(',') + decls
+    })
+    .join('')
+}
+
+const PW_SCENE_DEVICES = ['mobile', 'tablet', 'laptop', 'desktop'] as const
+
+const PW_CHROME_ADDED_NOT_SEARCH =
+  '[data-pw-chrome-added]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap)'
+
+/**
+ * Widget Thêm theo máy: Sửa nhanh / `?pw-device=` / scene-lock thắng `@media` độ rộng tab.
+ * Không khóa thì chrome-layout mới ẩn máy khác theo viewport.
+ */
+export function pwSceneChromeAddedVisibilityCss(): string {
+  const show: string[] = []
+  const hide: string[] = []
+  for (const lock of PW_SCENE_DEVICES) {
+    const sel = `${PW_CHROME_ADDED_NOT_SEARCH}[data-pw-device="${lock}"]`
+    show.push(
+      `html[data-pw-edit-device="${lock}"] ${sel}`,
+      `html[data-pw-scene-lock="${lock}"] ${sel}`
+    )
+    for (const other of PW_SCENE_DEVICES) {
+      if (other === lock) continue
+      const otherSel = `${PW_CHROME_ADDED_NOT_SEARCH}[data-pw-device="${other}"]`
+      hide.push(
+        `html[data-pw-edit-device="${lock}"] ${otherSel}`,
+        `html[data-pw-scene-lock="${lock}"] ${otherSel}`
+      )
+    }
+  }
+  return `${show.join(',')}{display:inline-flex!important}${hide.join(',')}{display:none!important}`
+}
+
 /** Ẩn bản máy khác chỉ khi bản đang khóa thật sự có trong HTML. */
 export function pwSceneDeviceVisibilityCss(): string {
   const hide = (lock: PwSceneDevice, others: readonly PwSceneDevice[]) =>
@@ -312,7 +378,8 @@ export function pwSceneCenterCss(): string {
     // Sửa nhanh: body trong iframe. Xem thật: neo #shop root — không khóa body Next.js
     // (html co theo body thì calc(50%-khung/2) = 0 → cả trang dạt trái).
     `html[data-pw-edit-device] body{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:calc(50% - (var(--pw-scene-w) / 2))!important;margin-right:auto!important;box-sizing:border-box;overflow-x:visible;transform-origin:top center;display:block}`,
-    `[data-pw-inline-visual-root]{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:calc(50% - (var(--pw-scene-w) / 2))!important;margin-right:auto!important;box-sizing:border-box;overflow-x:visible;transform:scale(var(--pw-scene-zoom,1));transform-origin:top center;display:block}`,
+    `[data-pw-inline-visual-root]{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:calc(50% - (var(--pw-scene-w) / 2))!important;margin-right:auto!important;box-sizing:border-box;overflow-x:visible;transform-origin:top center;display:block}`,
+    `html[data-pw-scene-zoomed="1"] [data-pw-inline-visual-root]{transform:scale(var(--pw-scene-zoom,1))}`,
     `main:has([data-pw-inline-visual-root]){width:100%!important;max-width:none!important;margin:0!important;padding:0!important;display:block!important}`,
     `${PW_SCENE_MEDIA_ZOOM_SEL}{transform-origin:50% var(--pw-zoom-oy,50%)}`,
   ].join('')
@@ -371,6 +438,8 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
     html.setAttribute('data-pw-scene-lock',key);
     html.style.setProperty('--pw-scene-w',px+'px');
     html.style.setProperty('--pw-scene-zoom',String(z));
+    if (z && z !== 1) html.setAttribute('data-pw-scene-zoomed','1');
+    else html.removeAttribute('data-pw-scene-zoomed');
     var root=document.querySelector('[data-pw-inline-visual-root]');
     if(root&&root.style){
       root.style.marginBottom='';

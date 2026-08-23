@@ -63,5 +63,17 @@ test('ignores a saved look when template id is not a shop preset', () => {
 
 test('presetIdFromTemplateId maps stored template_id to a shop preset', () => {
   assert.equal(presetIdFromTemplateId('fashion-orange'), 'fashion-orange')
+  assert.equal(presetIdFromTemplateId('blank-white'), 'blank-white')
   assert.equal(presetIdFromTemplateId('landing-v1'), null)
+})
+
+test('fashion-orange → blank-white snapshots the outgoing look', () => {
+  assert.deepEqual(
+    planPresetLookSwitch({
+      currentPresetId: 'fashion-orange',
+      targetPresetId: 'blank-white',
+      hasSavedTargetLook: false,
+    }),
+    { action: 'generate', snapshotOutgoing: true }
+  )
 })

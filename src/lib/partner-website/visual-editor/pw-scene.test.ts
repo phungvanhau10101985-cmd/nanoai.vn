@@ -24,6 +24,8 @@ import {
   pwSceneCenterCss,
   pwSceneCssVars,
   pwSceneDesignWidth,
+  pwHostPrefixCss,
+  pwSceneChromeAddedVisibilityCss,
   pwSceneDeviceVisibilityCss,
   pwSceneIndexOfZ,
   pwSceneLayer,
@@ -151,7 +153,8 @@ describe('pw scene layers', () => {
     expect(pwSceneCenterCss()).toContain('html[data-pw-edit-device="laptop"],html[data-pw-scene-lock="laptop"]{--pw-scene-w:1280px}')
     expect(pwSceneCenterCss()).toContain('html[data-pw-edit-device] body{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:calc(50% - (var(--pw-scene-w) / 2))!important')
     expect(pwSceneCenterCss()).toContain('[data-pw-inline-visual-root]{width:var(--pw-scene-w)!important')
-    expect(pwSceneCenterCss()).toContain('transform:scale(var(--pw-scene-zoom,1))')
+    expect(pwSceneCenterCss()).not.toContain('[data-pw-inline-visual-root]{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:calc(50% - (var(--pw-scene-w) / 2))!important;margin-right:auto!important;box-sizing:border-box;overflow-x:visible;transform:scale(var(--pw-scene-zoom,1))')
+    expect(pwSceneCenterCss()).toContain('html[data-pw-scene-zoomed="1"] [data-pw-inline-visual-root]{transform:scale(var(--pw-scene-zoom,1))}')
     expect(pwSceneCenterCss()).toContain('main:has([data-pw-inline-visual-root]){width:100%!important')
     expect(pwSceneCenterCss()).toContain('transform-origin:top center')
     expect(pwSceneCenterCss()).toContain(PW_SCENE_MEDIA_ZOOM_SEL)
@@ -184,6 +187,7 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('Math.max(outer,inner)')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("style.setProperty('--pw-scene-w'")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("style.setProperty('--pw-scene-zoom'")
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-scene-zoomed')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function zoomScale(){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('return 1;')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).not.toContain('ratio>1.04')
@@ -191,6 +195,17 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function pick(preferred)')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('[data-pw-added-bg="1"]')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("sc==='2'||sc==='3'||sc==='4'")
+    expect(pwHostPrefixCss(['html[data-pw-edit-device="mobile"]'], '.pw-header-main{padding:8px}')).toBe(
+      'html[data-pw-edit-device="mobile"] .pw-header-main{padding:8px}'
+    )
+    expect(pwSceneChromeAddedVisibilityCss()).toContain(
+      'html[data-pw-edit-device="mobile"] [data-pw-chrome-added]'
+    )
+    expect(pwSceneChromeAddedVisibilityCss()).toContain(
+      'html[data-pw-scene-lock="mobile"] [data-pw-chrome-added]'
+    )
+    expect(pwSceneChromeAddedVisibilityCss()).toContain('[data-pw-device="mobile"]')
+    expect(pwSceneChromeAddedVisibilityCss()).toContain('[data-pw-device="desktop"]')
     expect(pwSceneDeviceVisibilityCss()).toContain(
       'html[data-pw-scene-lock="laptop"]:has(.pw-visual-laptop) .pw-visual-desktop'
     )

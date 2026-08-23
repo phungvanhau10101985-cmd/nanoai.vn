@@ -57,6 +57,11 @@ import {
   visualDeviceCanvasWidth,
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import {
+  extractPageClones,
+  mergeClonesFromSourceHtml,
+  seedVisualPageHtmlWithChrome,
+} from '@/lib/partner-website/visual-editor/copy-element-across-pages'
 import { resetChromeFloatUserMoveInHtml } from '@/lib/partner-website/shop/chrome-float-widgets'
 import { preparePartnerVisualHtmlForEditor } from '@/lib/partner-website/shop/render-partner-visual-html'
 import { copyMissingChromeCountBadgeWidgets } from '@/lib/partner-website/shop/chrome-count-badges'
@@ -641,8 +646,26 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       return seedFrom(resolveExactVisualCategoryHtml(websitePick, categoryPath, 'desktop'))
     }
     const exact = resolveExactVisualPageHtml(websitePick, pageKey, variant)
+    const homeHtml = resolveExactVisualPageHtml(websitePick, 'home', variant)
+    const withHomeClones = (html: string) => {
+      if (pageKey === 'home' || !visualHtmlLooksUsable(homeHtml)) return html
+      return mergeClonesFromSourceHtml(html, homeHtml)
+    }
     if (visualHtmlLooksUsable(exact)) {
-      return isolateVisualHtmlForDevice(exact, variant)
+      return isolateVisualHtmlForDevice(withHomeClones(exact), variant)
+    }
+    if (pageKey !== 'home' && extractPageClones(homeHtml).length) {
+      const seeded = seedVisualPageHtmlWithChrome({
+        pageKey,
+        variant,
+        locale,
+        siteSlug: siteSlug?.trim() || '',
+        brand: websiteTitle || siteSlug || 'Shop',
+        chromeSourceHtml: homeHtml,
+      })
+      if (visualHtmlLooksUsable(seeded)) {
+        return isolateVisualHtmlForDevice(withHomeClones(seeded), variant)
+      }
     }
     if (variant === 'tablet') {
       const fromMobile = seedFrom(resolveExactVisualPageHtml(websitePick, pageKey, 'mobile'))

@@ -10,12 +10,21 @@ export function buildPartnerSitePdpBootstrapScript(input: { siteSlug: string; lo
   const slug = input.siteSlug.trim()
   if (!slug) return ''
   const apiPrefix = partnerSiteProductApiPath(slug, '__ID__').replace('__ID__', '')
+  const eventsApi = `/api/site/${encodeURIComponent(slug)}/personalization/events`
 
   return `<script data-pw-pdp-bootstrap>(function(){
 ${PW_SHOP_LIVE_UI_OFF_FN};
 if(pwShopLiveUiOff())return;
 if(!document.querySelector('[data-pw-region="pdp-info"],[data-pw-region="gallery"],.pw-pdp'))return;
 var API_PREFIX=${JSON.stringify(apiPrefix)};
+var EVENTS_API=${JSON.stringify(eventsApi)};
+function sessionId(){try{return localStorage.getItem('app_guest_session_id')||localStorage.getItem('nanoai_guest_session_id')||'';}catch(e){return '';}}
+function trackView(id){
+  if(!id)return;
+  var h={'Content-Type':'application/json'};
+  var s=sessionId();if(s)h['x-guest-session-id']=s;
+  fetch(EVENTS_API,{method:'POST',credentials:'same-origin',headers:h,body:JSON.stringify({event:'view_product',inventory_id:id})}).catch(function(){});
+}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
 function productId(){
   var host=document.querySelector('[data-pw-region="pdp-info"],[data-pw-region="gallery"],.pw-pdp,[data-pw-page="product"]');
@@ -72,6 +81,7 @@ function apply(p){
 }
 var id=productId();
 if(!id)return;
+trackView(id);
 fetch(API_PREFIX+encodeURIComponent(id),{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
   if(j&&j.product)apply(j.product);
 }).catch(function(){});

@@ -720,13 +720,36 @@ function stampVisualSearchChrome(html: string, variant: VisualDeviceVariant): st
 }
 
 function htmlAttrsWithoutEditDevice(attrs: string): string {
-  return String(attrs || '').replace(/\sdata-pw-edit-device=(["'])[^"']*\1/gi, '')
+  return String(attrs || '')
+    .replace(/\sdata-pw-edit-device=(["'])[^"']*\1/gi, '')
+    .replace(/\sdata-pw-scene-lock=(["'])[^"']*\1/gi, '')
 }
 
 function stampHtmlEditDevice(html: string, variant: VisualDeviceVariant): string {
   if (!/<html\b/i.test(html)) return html
   return html.replace(/<html\b([^>]*)>/i, (_full, attrs: string) => {
-    return `<html${htmlAttrsWithoutEditDevice(attrs)} data-pw-edit-device="${variant}">`
+    return `<html${htmlAttrsWithoutEditDevice(attrs)} data-pw-edit-device="${variant}" data-pw-scene-lock="${variant}">`
+  })
+}
+
+const LIVE_READY_CHROME_RE =
+  /data-pw-chrome-btn=|data-pw-el=["']cat-toggle["']|data-pw-cat-toggle|[\s"']pw-cat-btn[\s"']|[\s"']pw-shop-cat-btn[\s"']|[\s"']pw-icon-btn[\s"']|[\s"']pw-shop-icon-btn[\s"']|data-pw-chrome-added=/
+
+/**
+ * Sửa nhanh = gốc. Lưu phải đủ attr live đọc được: máy, chrome-added trên nút đã kéo/đứng im.
+ */
+export function ensureVisualHtmlLiveReady(html: string, variant?: VisualDeviceVariant): string {
+  if (!html) return html
+  return html.replace(/<(a|button)(\s[^>]*?)>/gi, (full, tag: string, attrs: string) => {
+    const moved = /\bdata-pw-user-move=["']1["']/.test(attrs)
+    const stay = /\bdata-pw-stay-scroll=["']1["']/.test(attrs)
+    const added = /\bdata-pw-chrome-added=["']1["']/.test(attrs)
+    if (!LIVE_READY_CHROME_RE.test(attrs) && !moved && !stay) return full
+    if (!(moved || stay || added)) return full
+    let next = attrs
+    if (!added) next += ' data-pw-chrome-added="1"'
+    if (variant && !/\bdata-pw-device=/.test(next)) next += ` data-pw-device="${variant}"`
+    return next === attrs ? full : `<${tag}${next}>`
   })
 }
 

@@ -2,7 +2,7 @@ import type { Json } from '@/types/database.types'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
 
-const MAX_RECENTLY_VIEWED = 24
+const MAX_RECENTLY_VIEWED = 40
 const MAX_FAVORITES = 48
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 

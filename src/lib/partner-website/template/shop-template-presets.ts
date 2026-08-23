@@ -8,6 +8,7 @@ export type ShopTemplatePresetId =
   | 'food-warm'
   | 'commerce-minimal'
   | 'soft-neutral'
+  | 'blank-white'
 
 export function isShopTemplatePresetId(id: string | null | undefined): id is ShopTemplatePresetId {
   return (
@@ -16,7 +17,8 @@ export function isShopTemplatePresetId(id: string | null | undefined): id is Sho
     id === 'hospitality-stay' ||
     id === 'food-warm' ||
     id === 'commerce-minimal' ||
-    id === 'soft-neutral'
+    id === 'soft-neutral' ||
+    id === 'blank-white'
   )
 }
 
@@ -60,6 +62,19 @@ const COMMERCE_FULL_FLAGS: ShopTemplatePresetFlags = {
   pricing: false,
   trust: false,
   categories: true,
+}
+
+const BLANK_CANVAS_FLAGS: ShopTemplatePresetFlags = {
+  products: true,
+  personalize: true,
+  chat: true,
+  lead: false,
+  faq: false,
+  features: false,
+  testimonials: false,
+  pricing: false,
+  trust: false,
+  categories: false,
 }
 
 const HOSPITALITY_FLAGS: ShopTemplatePresetFlags = {
@@ -268,6 +283,42 @@ export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
         '"Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
     },
     flags: COMMERCE_FULL_FLAGS,
+  },
+  {
+    id: 'blank-white',
+    templateId: 'blank-white',
+    label: {
+      vi: 'Canvas trắng',
+      en: 'Blank white canvas',
+      zh: '空白画布',
+      ja: '白紙キャンバス',
+      ko: '빈 흰 캔버스',
+    },
+    description: {
+      vi: 'Trang trắng sạch — tạo web từ số 0 bằng Sửa nhanh (Thêm / sửa khối, nút, nền).',
+      en: 'Empty white page — build from zero in Quick edit (Add / edit blocks, buttons, backgrounds).',
+      zh: '空白白页 — 在快速编辑中从零搭建（添加/编辑区块、按钮、背景）。',
+      ja: '真っ白なキャンバス — クイック編集でゼロから作成（追加・編集）。',
+      ko: '흰 빈 페이지 — 빠른 수정에서 처음부터 만들기(추가/수정).',
+    },
+    swatch: { primary: '#111827', accent: '#374151', background: '#ffffff' },
+    coverImageUrl:
+      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
+    readyToUse: true,
+    theme: {
+      primaryColor: '#111827',
+      accentColor: '#374151',
+      backgroundColor: '#ffffff',
+      textColor: '#111827',
+      mutedColor: '#6b7280',
+      buyButtonColor: '#111827',
+      cartButtonColor: '#6b7280',
+      surfaceColor: '#f8fafc',
+      borderColor: '#e5e7eb',
+      fontFamily:
+        '"Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+    },
+    flags: BLANK_CANVAS_FLAGS,
   },
 ]
 

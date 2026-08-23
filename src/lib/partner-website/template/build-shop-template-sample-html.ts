@@ -1,4 +1,5 @@
 import type { WebLocale } from '@/lib/i18n/config'
+import { buildBlankShopVisualHtml } from '@/lib/partner-website/shop/build-blank-shop-visual-html'
 import { buildDefaultLandingV1Site } from '@/lib/partner-website/template/default-landing-v1'
 import { renderTemplateSiteToHtml } from '@/lib/partner-website/template/render-template-html'
 import {
@@ -46,6 +47,16 @@ export function buildShopTemplateSampleHtml(input: {
   }
   const preset = getShopTemplatePreset(input.presetId)
   const brand = getShopTemplateSampleBrand(input.locale)
+  if (preset.id === 'blank-white') {
+    const html = buildBlankShopVisualHtml({
+      pageKey: 'home',
+      variant: 'desktop',
+      locale: input.locale,
+      siteSlug: '',
+      brand,
+    })
+    return { ok: true, html, presetId: preset.id }
+  }
   const site = buildDefaultLandingV1Site({
     locale: input.locale,
     title: brand,
