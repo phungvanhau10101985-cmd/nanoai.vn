@@ -31,15 +31,19 @@ export function shouldUseCurrentImageAsRef(sel: {
   logoFace?: string
   isImage?: boolean
   isBgImage?: boolean
+  isBannerPhoto?: boolean
 }): boolean {
-  if (!String(sel.src || '').trim()) return false
+  const src = String(sel.src || '').trim()
+  if (!src) return false
+  if (/^data:/i.test(src)) return false
   if (sel.isLogo) return sel.logoFace === 'image'
-  return Boolean(sel.isImage || sel.isBgImage)
+  return Boolean(sel.isImage || sel.isBgImage || sel.isBannerPhoto)
 }
 
 export function inferVisualEditImageKind(sel: {
   isLogo?: boolean
   isBgImage?: boolean
+  isBannerPhoto?: boolean
   width?: number
   height?: number
 }): { kind: 'logo' | 'banner' | 'product_photo'; aspectRatio: string } {
@@ -49,6 +53,7 @@ export function inferVisualEditImageKind(sel: {
   if (sel.isLogo) {
     return { kind: 'logo', aspectRatio: aspect }
   }
+  if (sel.isBannerPhoto) return { kind: 'banner', aspectRatio: w > 0 && h > 0 ? aspect : '16:9' }
   if (sel.isBgImage) return { kind: 'banner', aspectRatio: w > 0 && h > 0 ? aspect : '16:9' }
   if (w > 0 && h > 0) {
     const r = w / h

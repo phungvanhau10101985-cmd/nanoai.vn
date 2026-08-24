@@ -351,7 +351,7 @@ function sizeVariantInner(sizes: string[], locale: WebLocale): string {
   const pills = sizes
     .map(
       (s, i) =>
-        `<button type="button" class="pw-pdp-pill${i === 0 ? ' is-active' : ''}">${escText(s)}</button>`
+        `<button type="button" class="pw-pdp-pill${i === 0 ? ' is-active' : ''}" data-pw-pdp-option-value="${escAttr(s)}">${escText(s)}</button>`
     )
     .join('')
   return `<p style="font-weight:700;margin:0 0 8px;font-size:14px">${escText(t.sizeLabel)}</p><div class="pw-pdp-pills">${pills}</div>`
@@ -366,7 +366,7 @@ function colorVariantInner(colors: LivePdpBindColor[], locale: WebLocale): strin
       const face = img
         ? `<img src="${escAttr(img)}" alt="${escAttr(name)}" />`
         : escText(name)
-      return `<button type="button" class="pw-pdp-pill pw-pdp-color${i === 0 ? ' is-active' : ''}">${face}</button>`
+      return `<button type="button" class="pw-pdp-pill pw-pdp-color${i === 0 ? ' is-active' : ''}" data-pw-pdp-option-value="${escAttr(name)}">${face}</button>`
     })
     .join('')
   return `<p style="font-weight:700;margin:0 0 8px;font-size:14px">${escText(t.colorLabel)}</p><div class="pw-pdp-pills">${pills}</div>`

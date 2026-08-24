@@ -19,9 +19,16 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /data-pw-personalization-bootstrap/)
   assert.match(out, /\/api\/site\/188-com-vn-rl56\/personalization/)
   assert.match(out, /data-pw-pdp-bootstrap/)
+  assert.match(out, /\/reviews/)
+  assert.match(out, /\/questions/)
+  assert.match(out, /\/options/)
   assert.match(out, /data-pw-chat-bridge/)
   assert.match(out, /data-pw-chrome-toggle-bootstrap/)
+  assert.match(out, /isPlacedCatBtn/)
+  assert.match(out, /transferCatBox/)
   assert.match(out, /\/api\/site\/188-com-vn-rl56\/categories/)
+  assert.match(out, /data-pw-slider-bootstrap/)
+  assert.match(out, /data-pw-slide-wait/)
 })
 
 test('editor stamp keeps chrome hooks and strips live API bootstraps', () => {
@@ -29,6 +36,7 @@ test('editor stamp keeps chrome hooks and strips live API bootstraps', () => {
     '<!DOCTYPE html><html><body>' +
     '<button class="pw-cat-btn">Danh mục</button>' +
     '<script data-pw-chrome-toggle-bootstrap>window.__liveCat=1</script>' +
+    '<script data-pw-slider-bootstrap>window.__liveSlider=1</script>' +
     '<script data-pw-search-bootstrap>window.__liveSearch=1</script>' +
     '<script data-pw-lp-buy>window.__liveBuy=1</script>' +
     '<script id="pw-logo-home-link">window.__liveLogo=1</script>' +
@@ -36,6 +44,8 @@ test('editor stamp keeps chrome hooks and strips live API bootstraps', () => {
   const out = stampPartnerShopEditorHooksInHtml(html, { siteSlug: '188-shop' })
   assert.match(out, /data-pw-cat-toggle/)
   assert.doesNotMatch(out, /data-pw-chrome-toggle-bootstrap/)
+  assert.doesNotMatch(out, /data-pw-slider-bootstrap/)
+  assert.doesNotMatch(out, /window\.__liveSlider=1/)
   assert.doesNotMatch(out, /data-pw-search-bootstrap/)
   assert.doesNotMatch(out, /data-pw-personalization-bootstrap/)
   assert.doesNotMatch(out, /data-pw-lp-buy/)
@@ -162,4 +172,7 @@ test('shop actions bootstrap hydrates Zalo\/Facebook from contact-channels API',
   assert.match(s, /__pwShopHydrating/)
   assert.match(s, /hydrateFavoriteButtons\(!!forceNetwork\)/)
   assert.match(s, /pwShopLiveUiOff/)
+  assert.match(s, /selectedPdpOption\('size'\)/)
+  assert.match(s, /selectedPdpOption\('color'\)/)
+  assert.match(s, /selectedPdpQty/)
 })

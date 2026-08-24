@@ -1,4 +1,5 @@
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
+import { parseColorVariantsJson } from '@/lib/messaging/inventory-color-variants'
 import {
   collectShopProductDetailImages,
   collectShopProductGalleryImages,
@@ -6,6 +7,8 @@ import {
   inventoryShopProductVideoUrl,
   type InventoryShopSourceRow,
 } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { parseInventorySizesForFacet } from '@/lib/partner-website/shop/partner-shop-industry-facets'
+import type { LivePdpBindColor } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 
 export type PartnerSiteShopProduct = {
@@ -109,6 +112,36 @@ export function inventoryRowToShopProduct(
     saleStartsAt: row.sale_starts_at ? String(row.sale_starts_at) : null,
     saleEndsAt: row.sale_ends_at ? String(row.sale_ends_at) : null,
     sizeGuideImageUrl: row.sizeGuideImageUrl?.trim() || null,
+  }
+}
+
+/** Size/color for visual PDP bind — same source as GET .../options. */
+export function inventoryRowToLivePdpVariants(row: {
+  description?: string | null
+  stock_note?: string | null
+  sizes_json?: unknown
+  colors_json?: unknown
+}): { sizes: string[]; colors: LivePdpBindColor[] } {
+  const sizes = parseInventorySizesForFacet(
+    row.description,
+    Array.isArray(row.sizes_json)
+      ? row.sizes_json.map((x) => String(x ?? '').trim()).filter(Boolean)
+      : null
+  )
+  const structured = Array.isArray(row.colors_json)
+    ? row.colors_json
+        .map((item) => {
+          const c = item as { name?: string; img?: string } | null
+          return {
+            name: String(c?.name || '').trim(),
+            img: String(c?.img || '').trim() || null,
+          }
+        })
+        .filter((c) => c.name)
+    : []
+  return {
+    sizes,
+    colors: structured.length ? structured : parseColorVariantsJson(row.stock_note ?? ''),
   }
 }
 

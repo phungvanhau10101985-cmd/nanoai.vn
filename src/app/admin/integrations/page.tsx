@@ -197,6 +197,13 @@ export default function AdminIntegrationsPage() {
           '삭제'
         )}
         nanoaiEmbedCodeLabel={tr('Mã nhúng chat NanoAI', 'NanoAI chat embed code', 'NanoAI 聊天嵌入代码', 'NanoAI チャット埋め込みコード', 'NanoAI 채팅 임베드 코드')}
+        nanoaiEmbedCodeHint={tr(
+          'Dán iframe trang chat (`/messaging/p/…?embed=1`) hoặc script shop (`nanoai-chat-widget.js` + `data-chat-url`). Site mở trang chat — không nhúng file JS.',
+          'Paste a chat iframe (`/messaging/p/…?embed=1`) or the shop script (`nanoai-chat-widget.js` + `data-chat-url`). The site opens the chat page — it does not embed the JS file.',
+          '粘贴聊天 iframe（`/messaging/p/…?embed=1`）或店铺脚本（`nanoai-chat-widget.js` + `data-chat-url`）。站点会打开聊天页，而不是嵌入 JS 文件。',
+          'チャット iframe（`/messaging/p/…?embed=1`）またはショップ用スクリプト（`nanoai-chat-widget.js` + `data-chat-url`）を貼り付けてください。サイトはチャットページを開き、JS ファイルは埋め込みません。',
+          '채팅 iframe(`/messaging/p/…?embed=1`) 또는 샵 스크립트(`nanoai-chat-widget.js` + `data-chat-url`)를 붙여 넣으세요. 사이트는 채팅 페이지를 열며 JS 파일은 임베드하지 않습니다.'
+        )}
         facebookChatEmbedCodeLabel={tr('Mã nhúng chat Facebook', 'Facebook chat embed code', 'Facebook 聊天嵌入代码', 'Facebook チャット埋め込みコード', 'Facebook 채팅 임베드 코드')}
         zaloChatEmbedCodeLabel={tr('Mã nhúng chat Zalo', 'Zalo chat embed code', 'Zalo 聊天嵌入代码', 'Zalo チャット埋め込みコード', 'Zalo 채팅 임베드 코드')}
         embedCodePlaceholder={tr(

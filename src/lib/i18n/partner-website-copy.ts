@@ -98,6 +98,8 @@ export type PartnerWebsiteCopy = {
   visualEditAiImageTitle: string
   visualEditAiImageHint: string
   visualEditAiImagePlaceholder: string
+  visualEditAiBannerPlaceholder: string
+  visualEditAiBannerDefault: string
   visualEditAiImageGenerate: string
   visualEditAiPromptLabel: string
   visualEditAiPromptRequired: string
@@ -175,14 +177,21 @@ export type PartnerWebsiteCopy = {
   visualEditBlockHeight: string
   visualEditBlockSizeHint: string
   visualEditBlockSizeReset: string
+  visualEditBgWidth: string
+  visualEditBgHeight: string
+  visualEditBgSizeHint: string
+  visualEditSceneHintAddedBg: string
   visualEditAddWidget: string
   visualEditAddAtGap: string
+  visualEditAddAtSide: string
   visualEditInsertAtGapHint: string
   visualEditAddLogo: string
   visualEditAddLogoHint: string
   visualEditPanelClose: string
   visualEditMenuTheme: string
   visualEditMenuBlock: string
+  visualEditHoverName: string
+  visualEditHoverNameHint: string
   visualEditPanelDragHint: string
   visualEditLogoAspect: string
   visualEditLogoBgLabel: string
@@ -303,6 +312,21 @@ export type PartnerWebsiteCopy = {
   visualEditBgStackAdded: string
   visualEditBgStackLocked: string
   visualEditAddButton: string
+  visualEditAddBanner: string
+  visualEditAddBannerRegular: string
+  visualEditAddSlider: string
+  visualEditAddSliderPush: string
+  visualEditAddSliderPushHint: string
+  visualEditSliderWait: string
+  visualEditSliderWaitHint: string
+  visualEditSliderWaitOff: string
+  visualEditSliderArrows: string
+  visualEditSliderArrowsHint: string
+  visualEditSliderAdd: string
+  visualEditSliderRemove: string
+  visualEditSliderPrev: string
+  visualEditSliderNext: string
+  visualEditSliderSlide: string
   visualEditAddProductGrid: string
   visualEditAddRecentlyViewedGrid: string
   visualEditAddRecommendedGrid: string
@@ -982,6 +1006,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAiImageTitle: 'AI tạo ảnh thay thế',
     visualEditAiImageHint: 'Mô tả ảnh mới (AI Gemini). Có thể dùng ảnh hiện tại làm tham chiếu.',
     visualEditAiImagePlaceholder: 'Ví dụ: áo lụa tơ tằm nam màu nâu, studio lighting',
+    visualEditAiBannerPlaceholder: 'Ví dụ: banner shop thời trang ngang, ánh sáng studio, không chữ trên ảnh',
+    visualEditAiBannerDefault: 'Ảnh banner shop ngang 16:9, ánh sáng studio, không chữ trên ảnh',
     visualEditAiImageGenerate: 'Tạo ảnh',
     visualEditAiPromptLabel: 'Prompt AI',
     visualEditAiPromptRequired: 'Nhập mô tả ảnh (prompt) trước khi tạo',
@@ -1061,14 +1087,20 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHeight: 'Chiều cao khối',
     visualEditBlockSizeHint: 'Đổi khung khối. Ảnh nền và chữ nằm trong khung. Khối giữ trục giữa.',
     visualEditBlockSizeReset: 'Về mặc định',
+    visualEditBgWidth: 'Chiều rộng nền',
+    visualEditBgHeight: 'Chiều cao nền',
+    visualEditBgSizeHint: 'Kéo cạnh nền trên trang hoặc chỉnh số ở đây. Rộng và cao độc lập.',
     visualEditAddWidget: 'Thêm',
     visualEditAddAtGap: 'Thêm tại khe này',
+    visualEditAddAtSide: 'Thêm bên cạnh',
     visualEditInsertAtGapHint: 'Chèn vào khe đã chọn. Bấm Thêm trên thanh nếu muốn thả giữa trang.',
     visualEditAddLogo: 'Thêm logo',
     visualEditAddLogoHint: 'Chọn tỷ lệ khung hình và màu nền, rồi tạo logo. Không cần vẽ khung.',
     visualEditPanelClose: 'Đóng',
     visualEditMenuTheme: 'Màu',
     visualEditMenuBlock: 'Khối',
+    visualEditHoverName: 'Tên phần tử',
+    visualEditHoverNameHint: 'Đưa chuột lên trang — luôn hiện tên phần tử dưới chuột.',
     visualEditPanelDragHint: 'Kéo để dời hộp',
     visualEditLogoAspect: 'Tỷ lệ khung hình',
     visualEditLogoBgLabel: 'Màu nền',
@@ -1103,6 +1135,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditSceneTitle: 'Lớp không gian',
     visualEditSceneHint:
       'Hàng nút là lớp làm việc để bấm chọn phần tử. Khi đã chọn phần tử, dùng Lên lớp/Xuống lớp để đổi lớp của phần tử.',
+    visualEditSceneHintAddedBg:
+      'Bấm tên lớp (Lớp trên, Lớp dưới…) để đổi lớp không gian của nền. Đưa lên / Đưa xuống ở Lớp nền là thứ tự các mặt nền — không trùng với đổi lớp không gian.',
     visualEditSceneWorkLayer: 'Lớp làm việc',
     visualEditSceneElementLayer: 'Phần tử đang ở',
     visualEditSceneAllLayers: 'Tất cả lớp',
@@ -1168,7 +1202,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: 'Mở cài đặt mã nhúng chat',
     visualEditChatEmbedDelete: 'Xóa nút chat',
     visualEditChatEmbedRestore: 'Hiện nút chat',
-    visualEditAddedBgHint: 'Nền đã thêm: đổi màu, lớp, hoặc bấm Xóa nền.',
+    visualEditAddedBgHint: 'Nền đã thêm: đổi màu, kích thước (kéo cạnh hoặc ô số), lớp, hoặc bấm Xóa nền.',
     visualEditBgLockedHint: 'Nền này không xóa được (ảnh banner / nền trang). Chỉ đổi màu.',
     visualEditRegionBgHint: 'Nền khối gốc: bấm Xóa nền để bỏ màu (giữ chữ/nút). Chọn màu để tô lại. Header có hai dải cam thì xóa cả thanh trên.',
     visualEditDeleteBg: 'Xóa nền',
@@ -1197,6 +1231,21 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBgStackAdded: 'Nền thêm',
     visualEditBgStackLocked: 'Cố định',
     visualEditAddButton: 'Thêm nút',
+    visualEditAddBanner: 'Banner',
+    visualEditAddBannerRegular: 'Banner thường',
+    visualEditAddSlider: 'Banner ngang',
+    visualEditAddSliderPush: 'Banner trượt',
+    visualEditAddSliderPushHint: 'Đẩy banner đang có dạt sang, hai banner trượt ngang — cái này ẩn cái kia hiện.',
+    visualEditSliderWait: 'Thời gian chờ',
+    visualEditSliderWaitHint: 'Kéo để đặt số giây tự lướt. 0 = chỉ bấm mũi tên.',
+    visualEditSliderWaitOff: 'Tắt tự lướt',
+    visualEditSliderArrows: 'Mũi tên trái / phải',
+    visualEditSliderArrowsHint: 'Hiện nút bấm hai mép để chuyển slide khi thiết kế hoặc xem.',
+    visualEditSliderAdd: 'Thêm slide',
+    visualEditSliderRemove: 'Xóa slide',
+    visualEditSliderPrev: 'Slide trước',
+    visualEditSliderNext: 'Slide sau',
+    visualEditSliderSlide: 'Slide',
     visualEditAddProductGrid: 'Lưới sản phẩm',
     visualEditAddRecentlyViewedGrid: 'Lưới đã xem',
     visualEditAddRecommendedGrid: 'Lưới đề xuất',
@@ -1891,6 +1940,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAiImageTitle: 'AI replace image',
     visualEditAiImageHint: 'Describe the new image (Gemini AI). Current image can be used as reference.',
     visualEditAiImagePlaceholder: 'e.g. brown silk shirt for men, studio lighting',
+    visualEditAiBannerPlaceholder: 'e.g. wide fashion shop banner, studio light, no text on image',
+    visualEditAiBannerDefault: 'Wide 16:9 shop hero banner, studio lighting, no text on the image',
     visualEditAiImageGenerate: 'Generate',
     visualEditAiPromptLabel: 'AI prompt',
     visualEditAiPromptRequired: 'Enter an image prompt before generating',
@@ -1969,14 +2020,20 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHeight: 'Block height',
     visualEditBlockSizeHint: 'Resize the block frame. Photo and text stay inside. The block stays centered.',
     visualEditBlockSizeReset: 'Reset size',
+    visualEditBgWidth: 'Background width',
+    visualEditBgHeight: 'Background height',
+    visualEditBgSizeHint: 'Drag the background edge on the page or type the numbers here. Width and height are independent.',
     visualEditAddWidget: 'Add',
     visualEditAddAtGap: 'Add at this gap',
+    visualEditAddAtSide: 'Add beside',
     visualEditInsertAtGapHint: 'Insert at the selected gap. Use Add on the toolbar to drop in the middle of the page.',
     visualEditAddLogo: 'Add logo',
     visualEditAddLogoHint: 'Choose an aspect ratio and background color, then create the logo. No need to draw a frame.',
     visualEditPanelClose: 'Close',
     visualEditMenuTheme: 'Colors',
     visualEditMenuBlock: 'Block',
+    visualEditHoverName: 'Element name',
+    visualEditHoverNameHint: 'Hover the page to always see the name of the element under the pointer.',
     visualEditPanelDragHint: 'Drag to move',
     visualEditLogoAspect: 'Aspect ratio',
     visualEditLogoBgLabel: 'Background',
@@ -2011,6 +2068,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditSceneTitle: 'Space layers',
     visualEditSceneHint:
       'The buttons choose the working layer for selecting items. After selecting an item, use Layer up/down to move it.',
+    visualEditSceneHintAddedBg:
+      'Tap a space-layer name (Upper, Lower…) to move this fill. Bring up / Send down under Background layers only reorders fills — it is not the same as changing space layer.',
     visualEditSceneWorkLayer: 'Working layer',
     visualEditSceneElementLayer: 'Element is on',
     visualEditSceneAllLayers: 'All layers',
@@ -2076,7 +2135,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: 'Open chat embed settings',
     visualEditChatEmbedDelete: 'Remove chat button',
     visualEditChatEmbedRestore: 'Show chat button',
-    visualEditAddedBgHint: 'Added fill: change color, layer, or Delete background.',
+    visualEditAddedBgHint: 'Added fill: change color, size (drag edges or type numbers), layer, or Delete background.',
     visualEditBgLockedHint: 'This fill cannot be removed (banner photo / page paper). Recolor only.',
     visualEditRegionBgHint: 'Section fill: Delete background removes the color (keeps text/buttons). Pick a color to restore. Clearing the header also clears the top bar.',
     visualEditDeleteBg: 'Delete background',
@@ -2105,6 +2164,21 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBgStackAdded: 'Added fill',
     visualEditBgStackLocked: 'Locked',
     visualEditAddButton: 'Add button',
+    visualEditAddBanner: 'Banner',
+    visualEditAddBannerRegular: 'Regular banner',
+    visualEditAddSlider: 'Horizontal banner',
+    visualEditAddSliderPush: 'Sliding banner',
+    visualEditAddSliderPushHint: 'Push the current banner aside and slide between them — one hides, the other shows.',
+    visualEditSliderWait: 'Wait time',
+    visualEditSliderWaitHint: 'Seconds before the next slide. 0 = arrows only.',
+    visualEditSliderWaitOff: 'Autoplay off',
+    visualEditSliderArrows: 'Left / right arrows',
+    visualEditSliderArrowsHint: 'Show edge arrows to change slides while editing or viewing.',
+    visualEditSliderAdd: 'Add slide',
+    visualEditSliderRemove: 'Remove slide',
+    visualEditSliderPrev: 'Previous slide',
+    visualEditSliderNext: 'Next slide',
+    visualEditSliderSlide: 'Slide',
     visualEditAddProductGrid: 'Product grid',
     visualEditAddRecentlyViewedGrid: 'Recently viewed grid',
     visualEditAddRecommendedGrid: 'Recommended grid',
@@ -2797,6 +2871,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAiImageTitle: 'AI 替换图片',
     visualEditAiImageHint: '描述新图片（Gemini AI）。可使用当前图片作为参考。',
     visualEditAiImagePlaceholder: '例如：男士棕色真丝衬衫，影棚光',
+    visualEditAiBannerPlaceholder: '例如：横版时装店横幅，影棚光，图上无文字',
+    visualEditAiBannerDefault: '16:9 横版店铺横幅，影棚光，图上无文字',
     visualEditAiImageGenerate: '生成',
     visualEditAiPromptLabel: 'AI 提示词',
     visualEditAiPromptRequired: '请先输入图片描述（prompt）',
@@ -2874,14 +2950,20 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHeight: '区块高度',
     visualEditBlockSizeHint: '调整区块外框。背景图和文字留在框内。区块保持居中。',
     visualEditBlockSizeReset: '恢复默认',
+    visualEditBgWidth: '背景宽度',
+    visualEditBgHeight: '背景高度',
+    visualEditBgSizeHint: '在页面上拖背景边缘，或在此输入数字。宽和高各自独立。',
     visualEditAddWidget: '添加',
     visualEditAddAtGap: '在此间隙添加',
+    visualEditAddAtSide: '在旁边添加',
     visualEditInsertAtGapHint: '插入到已选间隙。若要放到页面中间，请点顶栏的“添加”。',
     visualEditAddLogo: '添加标志',
     visualEditAddLogoHint: '选择画面比例和背景色后创建标志，无需再画框。',
     visualEditPanelClose: '关闭',
     visualEditMenuTheme: '颜色',
     visualEditMenuBlock: '区块',
+    visualEditHoverName: '元素名称',
+    visualEditHoverNameHint: '把鼠标移到页面上，始终显示指针下的元素名称。',
     visualEditPanelDragHint: '拖动以移动',
     visualEditLogoAspect: '画面比例',
     visualEditLogoBgLabel: '背景色',
@@ -2915,6 +2997,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLayerBack: '移到最后',
     visualEditSceneTitle: '空间层',
     visualEditSceneHint: '按钮用于选择可操作层。选中元素后，用升一层/降一层移动该元素。',
+    visualEditSceneHintAddedBg:
+      '点层名（上层、下层…）可改背景的空间层。背景层里的上移/下移只调整各底面顺序，与改空间层不是同一操作。',
     visualEditSceneWorkLayer: '工作层',
     visualEditSceneElementLayer: '元素所在层',
     visualEditSceneAllLayers: '所有层',
@@ -2974,7 +3058,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: '打开聊天嵌入设置',
     visualEditChatEmbedDelete: '删除聊天按钮',
     visualEditChatEmbedRestore: '显示聊天按钮',
-    visualEditAddedBgHint: '已添加的背景：可改颜色、图层，或点删除背景。',
+    visualEditAddedBgHint: '已添加的背景：可改颜色、尺寸（拖边缘或输入数字）、图层，或点删除背景。',
     visualEditBgLockedHint: '此背景不能删除（横幅图 / 页面底）。只能改色。',
     visualEditRegionBgHint: '区块原背景：点删除背景可去掉颜色（保留文字/按钮）。再选颜色即可恢复。删除页头时也会去掉顶栏底色。',
     visualEditDeleteBg: '删除背景',
@@ -3003,6 +3087,21 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBgStackAdded: '新增底',
     visualEditBgStackLocked: '固定',
     visualEditAddButton: '添加按钮',
+    visualEditAddBanner: '横幅',
+    visualEditAddBannerRegular: '普通横幅',
+    visualEditAddSlider: '横向横幅',
+    visualEditAddSliderPush: '滑动横幅',
+    visualEditAddSliderPushHint: '把现有横幅推到一侧，两张横幅左右滑动，一张隐藏一张显示。',
+    visualEditSliderWait: '停留时间',
+    visualEditSliderWaitHint: '自动翻到下一张前等待的秒数。0 = 仅用箭头。',
+    visualEditSliderWaitOff: '关闭自动播放',
+    visualEditSliderArrows: '左右箭头',
+    visualEditSliderArrowsHint: '在两侧显示箭头，编辑或浏览时切换幻灯片。',
+    visualEditSliderAdd: '添加幻灯片',
+    visualEditSliderRemove: '删除幻灯片',
+    visualEditSliderPrev: '上一张',
+    visualEditSliderNext: '下一张',
+    visualEditSliderSlide: '幻灯片',
     visualEditAddProductGrid: '商品网格',
     visualEditAddRecentlyViewedGrid: '最近浏览网格',
     visualEditAddRecommendedGrid: '推荐网格',
@@ -3678,6 +3777,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAiImageTitle: 'AIで画像を差し替え',
     visualEditAiImageHint: '新しい画像を説明（Gemini AI）。現在の画像を参考にできます。',
     visualEditAiImagePlaceholder: '例：男性用ブラウンのシルクシャツ、スタジオ照明',
+    visualEditAiBannerPlaceholder: '例：横長のファッション店バナー、スタジオ照明、画像に文字なし',
+    visualEditAiBannerDefault: '16:9の店舗ヒーローバナー、スタジオ照明、画像に文字なし',
     visualEditAiImageGenerate: '生成',
     visualEditAiPromptLabel: 'AIプロンプト',
     visualEditAiPromptRequired: '生成前に画像のプロンプトを入力してください',
@@ -3755,14 +3856,20 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHeight: 'ブロック高さ',
     visualEditBlockSizeHint: 'ブロック枠を変更します。写真と文字は枠内のまま。中央揃えを維持します。',
     visualEditBlockSizeReset: 'サイズを戻す',
+    visualEditBgWidth: '背景の幅',
+    visualEditBgHeight: '背景の高さ',
+    visualEditBgSizeHint: 'ページ上で背景の辺をドラッグするか、ここで数値を入力します。幅と高さは別々です。',
     visualEditAddWidget: '追加',
     visualEditAddAtGap: 'この隙間に追加',
+    visualEditAddAtSide: '横に追加',
     visualEditInsertAtGapHint: '選んだ隙間に挿入します。ページ中央に置く場合は上部の「追加」を押します。',
     visualEditAddLogo: 'ロゴを追加',
     visualEditAddLogoHint: '比率と背景色を選んでロゴを作成します。枠を描く必要はありません。',
     visualEditPanelClose: '閉じる',
     visualEditMenuTheme: 'カラー',
     visualEditMenuBlock: 'ブロック',
+    visualEditHoverName: '要素名',
+    visualEditHoverNameHint: 'ページ上にマウスを置くと、ポインター下の要素名を常に表示します。',
     visualEditPanelDragHint: 'ドラッグして移動',
     visualEditLogoAspect: '画面比率',
     visualEditLogoBgLabel: '背景色',
@@ -3797,6 +3904,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditSceneTitle: '空間レイヤー',
     visualEditSceneHint:
       'ボタンは選択できる作業レイヤーを切り替えます。要素を選択した後は「上へ/下へ」でその要素の層を移動します。',
+    visualEditSceneHintAddedBg:
+      '層名（上層・下層など）を押すと背景の空間レイヤーが変わります。背景層の「上へ/下へ」は面の順番だけで、空間レイヤーの移動とは別です。',
     visualEditSceneWorkLayer: '作業レイヤー',
     visualEditSceneElementLayer: '要素の層',
     visualEditSceneAllLayers: 'すべての層',
@@ -3862,7 +3971,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: 'チャット埋め込み設定を開く',
     visualEditChatEmbedDelete: 'チャットボタンを削除',
     visualEditChatEmbedRestore: 'チャットボタンを表示',
-    visualEditAddedBgHint: '追加した背景は色・レイヤー変更、または削除できます。',
+    visualEditAddedBgHint: '追加した背景は色・サイズ（辺をドラッグまたは数値）・レイヤー変更、または削除できます。',
     visualEditBgLockedHint: 'この背景は削除できません（バナー写真 / ページ下地）。色だけ変えられます。',
     visualEditRegionBgHint: 'ブロック本来の背景：削除すると色だけ消えます（文字/ボタンは残ります）。色を選べば戻せます。ヘッダーを消すとトップバーの色も消えます。',
     visualEditDeleteBg: '背景を削除',
@@ -3891,6 +4000,21 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBgStackAdded: '追加背景',
     visualEditBgStackLocked: '固定',
     visualEditAddButton: 'ボタンを追加',
+    visualEditAddBanner: 'バナー',
+    visualEditAddBannerRegular: '通常バナー',
+    visualEditAddSlider: '横スライド',
+    visualEditAddSliderPush: 'スライドバナー',
+    visualEditAddSliderPushHint: '今のバナーを横へ送り、2枚を左右に切り替えます。片方が隠れ、もう片方だけ表示。',
+    visualEditSliderWait: '待ち時間',
+    visualEditSliderWaitHint: '次のスライドまでの秒数。0 = 矢印のみ。',
+    visualEditSliderWaitOff: '自動オフ',
+    visualEditSliderArrows: '左右の矢印',
+    visualEditSliderArrowsHint: '両端の矢印でスライドを切り替えます。',
+    visualEditSliderAdd: 'スライドを追加',
+    visualEditSliderRemove: 'スライドを削除',
+    visualEditSliderPrev: '前のスライド',
+    visualEditSliderNext: '次のスライド',
+    visualEditSliderSlide: 'スライド',
     visualEditAddProductGrid: '商品グリッド',
     visualEditAddRecentlyViewedGrid: '閲覧履歴グリッド',
     visualEditAddRecommendedGrid: 'おすすめグリッド',
@@ -4573,6 +4697,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAiImageTitle: 'AI로 이미지 교체',
     visualEditAiImageHint: '새 이미지 설명(Gemini AI). 현재 이미지를 참고로 사용할 수 있습니다.',
     visualEditAiImagePlaceholder: '예: 남성용 갈색 실크 셔츠, 스튜디오 조명',
+    visualEditAiBannerPlaceholder: '예: 가로형 패션 샵 배너, 스튜디오 조명, 이미지에 글자 없음',
+    visualEditAiBannerDefault: '16:9 가로형 샵 히어로 배너, 스튜디오 조명, 이미지에 글자 없음',
     visualEditAiImageGenerate: '생성',
     visualEditAiPromptLabel: 'AI 프롬프트',
     visualEditAiPromptRequired: '이미지 생성 전 프롬프트를 입력하세요',
@@ -4650,14 +4776,20 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockHeight: '블록 높이',
     visualEditBlockSizeHint: '블록 틀을 바꿉니다. 사진과 글자는 틀 안에 둡니다. 가운데 정렬을 유지합니다.',
     visualEditBlockSizeReset: '기본 크기',
+    visualEditBgWidth: '배경 너비',
+    visualEditBgHeight: '배경 높이',
+    visualEditBgSizeHint: '페이지에서 배경 가장자리를 끌거나 여기에 숫자를 입력하세요. 너비와 높이는 따로입니다.',
     visualEditAddWidget: '추가',
     visualEditAddAtGap: '이 칸에 추가',
+    visualEditAddAtSide: '옆에 추가',
     visualEditInsertAtGapHint: '선택한 칸에 넣습니다. 페이지 가운데에 놓으려면 위쪽 추가를 누르세요.',
     visualEditAddLogo: '로고 추가',
     visualEditAddLogoHint: '화면 비율과 배경색을 고른 뒤 로고를 만듭니다. 프레임을 그릴 필요는 없습니다.',
     visualEditPanelClose: '닫기',
     visualEditMenuTheme: '색상',
     visualEditMenuBlock: '블록',
+    visualEditHoverName: '요소 이름',
+    visualEditHoverNameHint: '페이지 위에 마우스를 올리면 포인터 아래 요소 이름이 항상 보입니다.',
     visualEditPanelDragHint: '드래그하여 이동',
     visualEditLogoAspect: '화면 비율',
     visualEditLogoBgLabel: '배경색',
@@ -4692,6 +4824,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditSceneTitle: '공간 레이어',
     visualEditSceneHint:
       '버튼은 요소를 선택할 작업 레이어를 고릅니다. 요소를 선택한 뒤에는 위/아래로 레이어를 이동합니다.',
+    visualEditSceneHintAddedBg:
+      '층 이름(위층, 아래층…)을 누르면 배경의 공간 레이어가 바뀝니다. 배경 층의 위로/아래로는 면 순서만 바꾸며 공간 레이어 이동과 다릅니다.',
     visualEditSceneWorkLayer: '작업 레이어',
     visualEditSceneElementLayer: '요소 위치',
     visualEditSceneAllLayers: '모든 레이어',
@@ -4757,7 +4891,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: '채팅 임베드 설정 열기',
     visualEditChatEmbedDelete: '채팅 버튼 삭제',
     visualEditChatEmbedRestore: '채팅 버튼 표시',
-    visualEditAddedBgHint: '추가한 배경은 색·레이어 변경 또는 삭제가 됩니다.',
+    visualEditAddedBgHint: '추가한 배경은 색·크기(가장자리 끌기 또는 숫자)·레이어 변경 또는 삭제가 됩니다.',
     visualEditBgLockedHint: '이 배경은 지울 수 없습니다(배너 사진 / 페이지 바탕). 색만 바꿀 수 있습니다.',
     visualEditRegionBgHint: '블록 원래 배경: 삭제하면 색만 없어집니다(글/버튼은 유지). 색을 고르면 다시 칠할 수 있습니다. 헤더를 지우면 상단바 색도 함께 지워집니다.',
     visualEditDeleteBg: '배경 삭제',
@@ -4786,6 +4920,21 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBgStackAdded: '추가 배경',
     visualEditBgStackLocked: '고정',
     visualEditAddButton: '버튼 추가',
+    visualEditAddBanner: '배너',
+    visualEditAddBannerRegular: '일반 배너',
+    visualEditAddSlider: '가로 배너',
+    visualEditAddSliderPush: '슬라이드 배너',
+    visualEditAddSliderPushHint: '현재 배너를 옆으로 밀고 두 배너를 가로로 넘깁니다. 하나가 숨고 다른 하나가 보입니다.',
+    visualEditSliderWait: '대기 시간',
+    visualEditSliderWaitHint: '다음 슬라이드까지 초. 0 = 화살표만.',
+    visualEditSliderWaitOff: '자동 끄기',
+    visualEditSliderArrows: '좌우 화살표',
+    visualEditSliderArrowsHint: '양쪽 화살표로 슬라이드를 넘깁니다.',
+    visualEditSliderAdd: '슬라이드 추가',
+    visualEditSliderRemove: '슬라이드 삭제',
+    visualEditSliderPrev: '이전 슬라이드',
+    visualEditSliderNext: '다음 슬라이드',
+    visualEditSliderSlide: '슬라이드',
     visualEditAddProductGrid: '상품 그리드',
     visualEditAddRecentlyViewedGrid: '최근 본 그리드',
     visualEditAddRecommendedGrid: '추천 그리드',

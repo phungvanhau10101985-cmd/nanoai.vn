@@ -31,5 +31,6 @@ test('stay-scroll keeps the element in place without floating overlay', () => {
   assert.equal(PARTNER_SHOP_HIDDEN_CSS.includes('[data-pw-hidden="1"]{display:none!important}'), true)
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes('--pw-scene-w'), true)
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes('data-pw-inline-visual-root'), true)
+  assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes("querySelector('[data-pw-inline-visual-root]')"), true)
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes("left', x + '%'"), false)
 })

@@ -35,9 +35,11 @@ import {
   PW_SCENE_UNLOCKED_HTML,
   PW_SCENE_WIDE_HOSTS,
   PARTNER_SHOP_BANNER_MEDIA_FILL_CSS,
+  PARTNER_SHOP_HROW_CSS,
   PW_SCENE_LOGO_Z,
   PW_SCENE_TOPBAR_Z,
 } from '@/lib/partner-website/visual-editor/pw-scene'
+import { PARTNER_SHOP_SLIDER_CSS } from '@/lib/partner-website/visual-editor/pw-slider-runtime'
 import {
   PW_CHROME_BTN_MIN_H,
   PW_CHROME_H_VAR,
@@ -175,11 +177,32 @@ export const PARTNER_SHOP_SEARCH_CLAMP_SCRIPT = `(function(){
     var k=el.getAttribute('data-pw-chrome-btn')||'';
     return k==='chat'||k==='chat-zalo'||k==='chat-facebook'||k==='topup';
   }
+  function isCatToggle(el){
+    if(!el||!el.getAttribute)return false;
+    if(el.getAttribute('data-pw-el')==='cat-toggle')return true;
+    if(el.getAttribute('data-pw-cat-toggle')!=null)return true;
+    if(el.getAttribute('data-pw-chrome-btn')==='categories')return true;
+    return !!(el.classList&&(el.classList.contains('pw-cat-btn')||el.classList.contains('pw-shop-cat-btn')));
+  }
+  function isPlacedChrome(el){
+    if(!el||!el.getAttribute)return false;
+    if(el.getAttribute('data-pw-user-move')==='1')return true;
+    if(el.getAttribute('data-pw-stay-scroll')==='1')return true;
+    if(isCatToggle(el))return true;
+    var st=el.style;
+    if(!st)return false;
+    var pos=st.position||'';
+    if(pos==='absolute'||pos==='fixed')return true;
+    var left=st.left||'';
+    var top=st.top||'';
+    return (left&&left!=='auto')||(top&&top!=='auto');
+  }
   function pinFlow(el){
     if(!el||!el.style)return;
     if(el.classList&&el.classList.contains('pw-stick-header-on'))return;
     if(el.getAttribute&&el.getAttribute('data-pw-user-move'))return;
     if(isFloatChrome(el))return;
+    if(isPlacedChrome(el))return;
     el.style.setProperty('transform','none','important');
     el.style.setProperty('left','auto','important');
     el.style.setProperty('top','auto','important');
@@ -225,7 +248,7 @@ export const PARTNER_SHOP_SEARCH_CLAMP_SCRIPT = `(function(){
       'header .pw-icon-btn,header .pw-shop-icon-btn,.pw-header .pw-icon-btn,.pw-shop-header .pw-icon-btn,'+
       '.pw-header-actions [data-pw-chrome-btn],.pw-shop-header-actions [data-pw-chrome-btn],'+
       '.pw-header-actions [data-pw-chrome-added],.pw-shop-header-actions [data-pw-chrome-added],'+
-      '.pw-cat-btn,.pw-shop-cat-btn,.pw-account-btn,'+
+      '.pw-account-btn,'+
       '.pw-bottom-nav>a,.pw-shop-bottom-nav>a,.pw-bottom-nav>button,.pw-shop-bottom-nav>button'
     );
     for(i=0;i<icons.length;i++){
@@ -267,7 +290,7 @@ html{--pw-content:1200px;--pw-block-w:min(calc(100% - 32px),var(--pw-content,120
 ${pwSceneCenterCss()}
 ${PARTNER_SHOP_PRODUCT_GRID_2COL_CSS}
 .pw-for-you-badge{position:absolute;top:8px;left:8px;z-index:2;background:var(--pw-primary);color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px}
-.pw-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-header .pw-shop-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-header .pw-shop-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-header-actions [data-pw-chrome-btn]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-header-actions [data-pw-chrome-btn]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-header .pw-account-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-header .pw-account-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-header .pw-cat-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-header .pw-cat-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-bottom-nav>a:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-bottom-nav>a:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-bottom-nav>button:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-bottom-nav>button:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]){transform:none!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important}
+.pw-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-header .pw-shop-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-header .pw-shop-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-header-actions [data-pw-chrome-btn]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-header-actions [data-pw-chrome-btn]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-header .pw-account-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-header .pw-account-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-bottom-nav>a:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-bottom-nav>a:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-bottom-nav>button:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-bottom-nav>button:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]){transform:none!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important}
 ${PW_CHROME_TOKEN_VARS_CSS}
 .pw-chrome-icon-wrap{position:relative!important;display:inline-flex!important;flex-direction:row!important;align-items:center!important;justify-content:center!important;width:${PW_CHROME_W_VAR}!important;height:${PW_CHROME_H_VAR}!important;flex-shrink:0!important;overflow:visible!important}
 ${PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS}
@@ -562,6 +585,8 @@ ${PARTNER_SHOP_STAY_SCROLL_CSS}
 ${PARTNER_SHOP_CHROME_FLOAT_CSS}
 ${PARTNER_SHOP_FOOTER_INFLOW_CSS}
 ${PARTNER_SHOP_BANNER_MEDIA_FILL_CSS}
+${PARTNER_SHOP_HROW_CSS}
+${PARTNER_SHOP_SLIDER_CSS}
 `.trim()
 
 /**

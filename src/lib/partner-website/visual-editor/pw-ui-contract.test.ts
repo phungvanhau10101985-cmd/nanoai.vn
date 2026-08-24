@@ -225,6 +225,9 @@ describe('pw ui contract', () => {
 
   it('visual editor prefers contract codes over heuristics', () => {
     const s = buildVisualEditorScript('vi')
+    expect(s).toContain('function hoverNameOf')
+    expect(s).toContain('nanoai-ve-hover-name')
+    expect(s).toContain("d.type === 'setHoverNameOn'")
     expect(s).toContain('stampPwUiContract')
     expect(s).toContain("classList.add('pw-nav-sale')")
     expect(s).toContain('data-pw-region')

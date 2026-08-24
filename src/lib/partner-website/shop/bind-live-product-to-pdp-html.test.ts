@@ -74,6 +74,7 @@ test('bind injects missing size and color slots and extra gallery thumbs', () =>
   assert.ok(thumbs.length >= 4)
   assert.match(next, /data-pw-pdp-option="size"/)
   assert.match(next, /data-pw-pdp-option="color"/)
+  assert.match(next, /data-pw-pdp-option-value="S"/)
 })
 
 test('bind fills demo reviews instead of clearing them', () => {

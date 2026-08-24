@@ -51,7 +51,20 @@ import {
   PW_SCENE_Z_MAX,
   pwSceneChromeZCss,
   PARTNER_SHOP_BANNER_MEDIA_FILL_CSS,
+  PARTNER_SHOP_HROW_CSS,
 } from './pw-scene'
+import {
+  BANNER_PLACEHOLDER_SRC,
+} from './banner-widgets'
+import {
+  PARTNER_SHOP_SLIDER_CSS,
+  PW_SLIDER_ARROW_NEXT_HTML,
+  PW_SLIDER_ARROW_PREV_HTML,
+  PW_SLIDER_ENGINE_JS,
+  PW_SLIDER_FULL_ATTR,
+  PW_SLIDER_SLIDE_MAX,
+  PW_SLIDER_WAIT_DEFAULT,
+} from './pw-slider-runtime'
 import { searchGlyphPathsJs } from './search-cluster-icons'
 import { chromeGlyphCatalogJs } from './chrome-widget-icons'
 import { CHROME_KIND_INFER_RULES } from './infer-chrome-widget-kind'
@@ -233,10 +246,408 @@ const COPY: Record<WebLocale, VisualEditorCopy> = {
   },
 }
 
+/** Tên phần tử khi rê chuột — chỉ overlay Sửa nhanh, không ghi vào HTML shop. */
+function hoverNamesFor(locale: WebLocale): Record<string, string> {
+  const pack: Record<WebLocale, Record<string, string>> = {
+    vi: {
+      header: 'Header',
+      nav: 'Thanh điều hướng',
+      topbar: 'Thanh trên',
+      banner: 'Banner',
+      categories: 'Danh mục',
+      catalog: 'Sản phẩm',
+      filters: 'Bộ lọc',
+      toolbar: 'Thanh công cụ',
+      breadcrumb: 'Đường dẫn',
+      gallery: 'Ảnh sản phẩm',
+      'pdp-info': 'Thông tin sản phẩm',
+      reviews: 'Đánh giá',
+      'cart-list': 'Giỏ hàng',
+      'cart-summary': 'Tóm tắt đơn',
+      promo: 'Khuyến mãi',
+      content: 'Nội dung',
+      form: 'Form',
+      footer: 'Chân trang',
+      'account-nav': 'Menu tài khoản',
+      'account-main': 'Tài khoản',
+      logo: 'Logo',
+      wordmark: 'Tên shop',
+      search: 'Ô tìm',
+      'cat-toggle': 'Danh mục',
+      title: 'Tiêu đề',
+      subtitle: 'Phụ đề',
+      copy: 'Chữ',
+      badge: 'Nhãn',
+      cta: 'Nút',
+      'cta-secondary': 'Nút phụ',
+      dots: 'Chấm slide',
+      media: 'Ảnh',
+      inner: 'Khối trong',
+      'section-title': 'Tiêu đề mục',
+      'section-more': 'Xem thêm',
+      card: 'Thẻ sản phẩm',
+      'card-media': 'Ảnh sản phẩm',
+      'card-name': 'Tên sản phẩm',
+      'card-price': 'Giá',
+      'card-cart': 'Thêm giỏ',
+      'card-buy': 'Mua',
+      grid: 'Lưới sản phẩm',
+      link: 'Liên kết',
+      copyright: 'Bản quyền',
+      announcement: 'Thông báo',
+      heading: 'Tiêu đề',
+      body: 'Đoạn văn',
+      image: 'Ảnh',
+      field: 'Ô nhập',
+      label: 'Nhãn',
+      submit: 'Nút gửi',
+      price: 'Giá',
+      desc: 'Mô tả',
+      sku: 'Mã SP',
+      text: 'Chữ',
+      button: 'Nút',
+      block: 'Khối',
+      bg: 'Nền',
+      facet: 'Bộ lọc',
+      sort: 'Sắp xếp',
+      count: 'Số lượng',
+      crumb: 'Đường dẫn',
+      'main-image': 'Ảnh chính',
+      thumb: 'Ảnh nhỏ',
+      qty: 'Số lượng',
+      buy: 'Mua',
+      wishlist: 'Yêu thích',
+      'faq-item': 'Câu hỏi',
+      line: 'Dòng giỏ',
+      remove: 'Xóa',
+      coupon: 'Mã giảm',
+      checkout: 'Thanh toán',
+      'menu-item': 'Mục menu',
+      empty: 'Trống',
+      'compare-price': 'Giá gốc',
+      variant: 'Biến thể',
+    },
+    en: {
+      header: 'Header',
+      nav: 'Navigation',
+      topbar: 'Top bar',
+      banner: 'Banner',
+      categories: 'Categories',
+      catalog: 'Products',
+      filters: 'Filters',
+      toolbar: 'Toolbar',
+      breadcrumb: 'Breadcrumb',
+      gallery: 'Product photos',
+      'pdp-info': 'Product info',
+      reviews: 'Reviews',
+      'cart-list': 'Cart',
+      'cart-summary': 'Order summary',
+      promo: 'Promo',
+      content: 'Content',
+      form: 'Form',
+      footer: 'Footer',
+      'account-nav': 'Account menu',
+      'account-main': 'Account',
+      logo: 'Logo',
+      wordmark: 'Shop name',
+      search: 'Search',
+      'cat-toggle': 'Categories',
+      title: 'Title',
+      subtitle: 'Subtitle',
+      copy: 'Text',
+      badge: 'Badge',
+      cta: 'Button',
+      'cta-secondary': 'Secondary button',
+      dots: 'Slide dots',
+      media: 'Image',
+      inner: 'Inner block',
+      'section-title': 'Section title',
+      'section-more': 'See more',
+      card: 'Product card',
+      'card-media': 'Product image',
+      'card-name': 'Product name',
+      'card-price': 'Price',
+      'card-cart': 'Add to cart',
+      'card-buy': 'Buy',
+      grid: 'Product grid',
+      link: 'Link',
+      copyright: 'Copyright',
+      announcement: 'Announcement',
+      heading: 'Heading',
+      body: 'Paragraph',
+      image: 'Image',
+      field: 'Field',
+      label: 'Label',
+      submit: 'Submit',
+      price: 'Price',
+      desc: 'Description',
+      sku: 'SKU',
+      text: 'Text',
+      button: 'Button',
+      block: 'Block',
+      bg: 'Background',
+      facet: 'Filter',
+      sort: 'Sort',
+      count: 'Count',
+      crumb: 'Crumb',
+      'main-image': 'Main image',
+      thumb: 'Thumbnail',
+      qty: 'Quantity',
+      buy: 'Buy',
+      wishlist: 'Wishlist',
+      'faq-item': 'FAQ',
+      line: 'Cart line',
+      remove: 'Remove',
+      coupon: 'Coupon',
+      checkout: 'Checkout',
+      'menu-item': 'Menu item',
+      empty: 'Empty',
+      'compare-price': 'Compare price',
+      variant: 'Variant',
+    },
+    zh: {
+      header: '页头',
+      nav: '导航',
+      topbar: '顶栏',
+      banner: '横幅',
+      categories: '分类',
+      catalog: '商品',
+      filters: '筛选',
+      toolbar: '工具栏',
+      breadcrumb: '面包屑',
+      gallery: '商品图',
+      'pdp-info': '商品信息',
+      reviews: '评价',
+      'cart-list': '购物车',
+      'cart-summary': '订单摘要',
+      promo: '促销',
+      content: '内容',
+      form: '表单',
+      footer: '页脚',
+      'account-nav': '账户菜单',
+      'account-main': '账户',
+      logo: '标志',
+      wordmark: '店铺名',
+      search: '搜索框',
+      'cat-toggle': '分类',
+      title: '标题',
+      subtitle: '副标题',
+      copy: '文字',
+      badge: '标签',
+      cta: '按钮',
+      'cta-secondary': '次按钮',
+      dots: '幻灯点',
+      media: '图片',
+      inner: '内层',
+      'section-title': '栏目标题',
+      'section-more': '查看更多',
+      card: '商品卡',
+      'card-media': '商品图',
+      'card-name': '商品名',
+      'card-price': '价格',
+      'card-cart': '加入购物车',
+      'card-buy': '购买',
+      grid: '商品网格',
+      link: '链接',
+      copyright: '版权',
+      announcement: '公告',
+      heading: '标题',
+      body: '段落',
+      image: '图片',
+      field: '输入框',
+      label: '标签',
+      submit: '提交',
+      price: '价格',
+      desc: '描述',
+      sku: '货号',
+      text: '文字',
+      button: '按钮',
+      block: '区块',
+      bg: '背景',
+      facet: '筛选',
+      sort: '排序',
+      count: '数量',
+      crumb: '路径',
+      'main-image': '主图',
+      thumb: '缩略图',
+      qty: '数量',
+      buy: '购买',
+      wishlist: '收藏',
+      'faq-item': '问答',
+      line: '购物车行',
+      remove: '删除',
+      coupon: '优惠码',
+      checkout: '结账',
+      'menu-item': '菜单项',
+      empty: '空',
+      'compare-price': '原价',
+      variant: '规格',
+    },
+    ja: {
+      header: 'ヘッダー',
+      nav: 'ナビ',
+      topbar: 'トップバー',
+      banner: 'バナー',
+      categories: 'カテゴリ',
+      catalog: '商品',
+      filters: '絞り込み',
+      toolbar: 'ツールバー',
+      breadcrumb: 'パンくず',
+      gallery: '商品画像',
+      'pdp-info': '商品情報',
+      reviews: 'レビュー',
+      'cart-list': 'カート',
+      'cart-summary': '注文概要',
+      promo: 'プロモ',
+      content: 'コンテンツ',
+      form: 'フォーム',
+      footer: 'フッター',
+      'account-nav': 'アカウントメニュー',
+      'account-main': 'アカウント',
+      logo: 'ロゴ',
+      wordmark: '店名',
+      search: '検索',
+      'cat-toggle': 'カテゴリ',
+      title: 'タイトル',
+      subtitle: 'サブタイトル',
+      copy: 'テキスト',
+      badge: 'バッジ',
+      cta: 'ボタン',
+      'cta-secondary': 'サブボタン',
+      dots: 'スライド点',
+      media: '画像',
+      inner: '内側',
+      'section-title': '見出し',
+      'section-more': 'もっと見る',
+      card: '商品カード',
+      'card-media': '商品画像',
+      'card-name': '商品名',
+      'card-price': '価格',
+      'card-cart': 'カートに追加',
+      'card-buy': '購入',
+      grid: '商品グリッド',
+      link: 'リンク',
+      copyright: '著作権',
+      announcement: 'お知らせ',
+      heading: '見出し',
+      body: '本文',
+      image: '画像',
+      field: '入力欄',
+      label: 'ラベル',
+      submit: '送信',
+      price: '価格',
+      desc: '説明',
+      sku: 'SKU',
+      text: 'テキスト',
+      button: 'ボタン',
+      block: 'ブロック',
+      bg: '背景',
+      facet: '絞り込み',
+      sort: '並び替え',
+      count: '件数',
+      crumb: 'パンくず',
+      'main-image': 'メイン画像',
+      thumb: 'サムネイル',
+      qty: '数量',
+      buy: '購入',
+      wishlist: 'お気に入り',
+      'faq-item': 'FAQ',
+      line: 'カート行',
+      remove: '削除',
+      coupon: 'クーポン',
+      checkout: '会計',
+      'menu-item': 'メニュー',
+      empty: '空',
+      'compare-price': '通常価格',
+      variant: 'バリエーション',
+    },
+    ko: {
+      header: '헤더',
+      nav: '탐색',
+      topbar: '상단 바',
+      banner: '배너',
+      categories: '카테고리',
+      catalog: '상품',
+      filters: '필터',
+      toolbar: '도구 모음',
+      breadcrumb: '경로',
+      gallery: '상품 사진',
+      'pdp-info': '상품 정보',
+      reviews: '리뷰',
+      'cart-list': '장바구니',
+      'cart-summary': '주문 요약',
+      promo: '프로모',
+      content: '내용',
+      form: '양식',
+      footer: '푸터',
+      'account-nav': '계정 메뉴',
+      'account-main': '계정',
+      logo: '로고',
+      wordmark: '상점 이름',
+      search: '검색',
+      'cat-toggle': '카테고리',
+      title: '제목',
+      subtitle: '부제',
+      copy: '글',
+      badge: '배지',
+      cta: '버튼',
+      'cta-secondary': '보조 버튼',
+      dots: '슬라이드 점',
+      media: '이미지',
+      inner: '안쪽',
+      'section-title': '구역 제목',
+      'section-more': '더 보기',
+      card: '상품 카드',
+      'card-media': '상품 이미지',
+      'card-name': '상품명',
+      'card-price': '가격',
+      'card-cart': '장바구니',
+      'card-buy': '구매',
+      grid: '상품 그리드',
+      link: '링크',
+      copyright: '저작권',
+      announcement: '공지',
+      heading: '제목',
+      body: '문단',
+      image: '이미지',
+      field: '입력란',
+      label: '라벨',
+      submit: '제출',
+      price: '가격',
+      desc: '설명',
+      sku: 'SKU',
+      text: '글',
+      button: '버튼',
+      block: '블록',
+      bg: '배경',
+      facet: '필터',
+      sort: '정렬',
+      count: '수량',
+      crumb: '경로',
+      'main-image': '대표 이미지',
+      thumb: '썸네일',
+      qty: '수량',
+      buy: '구매',
+      wishlist: '찜',
+      'faq-item': 'FAQ',
+      line: '장바구니 줄',
+      remove: '삭제',
+      coupon: '쿠폰',
+      checkout: '결제',
+      'menu-item': '메뉴',
+      empty: '비어 있음',
+      'compare-price': '정가',
+      variant: '옵션',
+    },
+  }
+  return pack[locale] || pack.en
+}
+
 /** IIFE body injected into preview iframe. Avoid `${` — this is a JS template literal. */
 const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   if (window.__nanoaiVeBound) return
   window.__nanoaiVeBound = 1
+  ${PW_SLIDER_ENGINE_JS}
   var selected = null
   var lastInsertButtonAt = 0
   var lastInsertBgAt = 0
@@ -244,6 +655,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   var insertBgPickHover = null
   var insertAnchor = { on: false, place: 'after', unit: null }
   var hoverEl = null
+  var hoverNameOn = true
+  var hoverNameTarget = null
   var drag = { active: false, ready: false, startX: 0, startY: 0, lastX: 0, lastY: 0, baseX: 0, baseY: 0, mode: 'translate', dropTarget: null, dropHost: null, dropBefore: true }
   var skipClick = false
   var veListening = false
@@ -285,7 +698,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function snapshotPage() {
     restoreAllChromeDupCenters()
     var clone = document.body.cloneNode(true)
-    var kill = clone.querySelectorAll('#nanoai-visual-editor-script,#nanoai-visual-editor-styles,#nanoai-ve-guides,.nanoai-ve-ignore,[data-nanoai-ve-ignore],[data-pw-ve-chat-preview]')
+    var kill = clone.querySelectorAll('#nanoai-visual-editor-script,#nanoai-visual-editor-styles,#nanoai-ve-guides,#nanoai-ve-hover-name,.nanoai-ve-ignore,[data-nanoai-ve-ignore],[data-pw-ve-chat-preview]')
     for (var i = 0; i < kill.length; i++) kill[i].remove()
     var marked = clone.querySelectorAll('.nanoai-ve-highlight,.nanoai-ve-hover,.nanoai-ve-dragging,.nanoai-ve-photo-edit,.nanoai-ve-chrome-dup')
     for (var j = 0; j < marked.length; j++) {
@@ -388,6 +801,80 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function isIgnored(el) {
     return !!(el && el.closest && el.closest('.nanoai-ve-ignore,[data-nanoai-ve-ignore],[data-pw-stay-ph-slot]'))
+  }
+  function hoverNameOf(el) {
+    if (!el) return ''
+    var labels = (COPY && COPY.chromeKindLabels) || {}
+    var names = (COPY && COPY.hoverNames) || {}
+    var kind = chromeKindOf(el)
+    if (kind && labels[kind]) return labels[kind]
+    var ek = editKindOf(el)
+    if (ek === 'cat-toggle') return labels.categories || names['cat-toggle'] || names.categories || ''
+    if (ek === 'search' || ek === 'search-submit') return labels.search || names.search || ''
+    if (ek === 'search-image') return labels['search-image'] || names['search-image'] || ''
+    if (ek === 'logo' || ek === 'wordmark') return names.logo || names.wordmark || ''
+    if (ek === 'added-bg') return names.bg || ''
+    if (ek === 'added-btn' || ek === 'cta') return names.button || names.cta || ''
+    if (ek === 'added-text') return names.text || ''
+    if (ek === 'image') return names.image || ''
+    if (ek === 'badge') return names.badge || ''
+    if (ek === 'dots') return names.dots || ''
+    if (ek === 'field') return names.field || ''
+    if (ek === 'chat-embed') return labels.chat || names.chat || ''
+    var role = pwElOf(el)
+    if (role && names[role]) return names[role]
+    if (role && labels[role]) return labels[role]
+    var region = ownPwRegion(el)
+    if (region && names[region]) return names[region]
+    if (isBannerHostEl(el)) return names.banner || ''
+    if (isAddedBg(el)) return names.bg || ''
+    if (isBtnEl(el)) return names.button || ''
+    if (isTextEl(el)) return names.text || ''
+    if (isBlockEl(el)) return names.block || ''
+    return names.block || ''
+  }
+  function hoverNameNode() {
+    var n = document.getElementById('nanoai-ve-hover-name')
+    if (n) return n
+    n = document.createElement('div')
+    n.id = 'nanoai-ve-hover-name'
+    n.className = 'nanoai-ve-ignore'
+    n.setAttribute('data-nanoai-ve-ignore', '1')
+    if (document.body) document.body.appendChild(n)
+    else document.documentElement.appendChild(n)
+    return n
+  }
+  function hideHoverName() {
+    hoverNameTarget = null
+    var n = document.getElementById('nanoai-ve-hover-name')
+    if (n) n.removeAttribute('data-pw-hover-on')
+  }
+  function paintHoverName(el) {
+    hoverNameOn = true
+    if (!el || !document.body.classList.contains('nanoai-ve-active')) {
+      hideHoverName()
+      return
+    }
+    var name = hoverNameOf(el)
+    if (!name) {
+      hideHoverName()
+      return
+    }
+    hoverNameTarget = el
+    var n = hoverNameNode()
+    n.textContent = name
+    n.setAttribute('data-pw-hover-on', '1')
+    var r = el.getBoundingClientRect()
+    var w = n.offsetWidth || 80
+    var left = Math.max(8, Math.min(r.left, Math.max(8, window.innerWidth - w - 8)))
+    var top = r.top < 26 ? Math.min(window.innerHeight - 24, r.bottom + 4) : Math.max(8, r.top - 22)
+    n.style.left = left + 'px'
+    n.style.top = top + 'px'
+  }
+  function setHoverNameOn() {
+    hoverNameOn = true
+    if (hoverEl) paintHoverName(hoverEl)
+    else if (selected) paintHoverName(selected)
   }
   function extractBgUrl(el) {
     var bg = ''
@@ -583,6 +1070,16 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       var info = el.closest('[data-pw-info-image="1"]')
       if (info) return info
     }
+    var banner = bannerHostOf(el)
+    if (
+      banner &&
+      !isBannerContentEl(el) &&
+      !isBannerLeafEl(el) &&
+      !isTextEl(el) &&
+      !isBtnEl(el)
+    ) {
+      return banner
+    }
     return null
   }
   function imageRadiusPaintEl(host) {
@@ -604,6 +1101,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (attr != null && attr !== '') {
       var n = Number(attr)
       if (Number.isFinite(n)) return clampImageRadius(n)
+    }
+    if (host.getAttribute && (host.getAttribute('data-pw-added-banner') === '1' || host.getAttribute('data-pw-region') === 'banner')) {
+      return 0
     }
     var paint = imageRadiusPaintEl(host) || host
     try {
@@ -3629,6 +4129,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function isBtnEl(el) {
     if (!el || el.nodeType !== 1) return false
+    if (typeof pwSliderIsControl === 'function' && pwSliderIsControl(el)) return false
     if (isAddedText(el)) return false
     if (catToggleElOf(el) || isCatToggleEl(el)) return false
     if (isAddedBg(el)) return false
@@ -4175,17 +4676,20 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function removeSelectedRegionBlock() {
     var bar = selected ? regionBlockHostOf(selected) : null
     if (!bar || !bar.parentNode) return false
-    bar.parentNode.removeChild(bar)
+    var barParent = bar.parentNode
+    barParent.removeChild(bar)
     selected = null
     hideResizeHandle()
     hideDeleteHandle()
     hideMoveHandle()
     hideDropLine()
     hideAlignGuides()
+    try { unwrapHrowIfSingle(barParent) } catch (eHrowDel) {}
     post('deselect', {})
     post('dirty', {})
     postHidden()
     syncLayerSwitches()
+    try { syncGapPluses() } catch (eGapDel) {}
     return true
   }
   function findBlockEl(start) {
@@ -4222,6 +4726,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function heroImgIn(el) {
     if (!el || !el.querySelector) return null
+    var slider = el.getAttribute && (el.getAttribute('data-pw-slider') === '1' || el.getAttribute('data-pw-banner-kind') === 'slider')
+      ? el
+      : (el.closest ? el.closest('[data-pw-slider="1"],[data-pw-banner-kind="slider"]') : null)
+    if (slider) {
+      var activeSlide = slider.querySelector('[data-pw-slide][data-pw-slide-active="1"] img[data-pw-el="media"]')
+      if (activeSlide) return activeSlide
+      var firstSlide = slider.querySelector('[data-pw-slide] img[data-pw-el="media"]')
+      if (firstSlide) return firstSlide
+    }
     var marked = el.querySelector('img[data-pw-edit="heroImage"], img[data-pw-edit*="hero"], img[data-pw-edit*="banner"]')
     if (marked) return marked
     var imgs = el.querySelectorAll('img')
@@ -4724,6 +5237,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function sizeBlockHostOf(el) {
     if (!el || el.nodeType !== 1) return null
+    if (isAddedBg(el)) return el
     if (isBannerHostEl(el)) return el
     var banner = bannerHostOf(el)
     if (banner) return banner
@@ -4748,8 +5262,33 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (isFinite(mh) && mh > 0) return mh
     try { return Math.round(el.getBoundingClientRect().height) } catch (eH) { return 0 }
   }
-  function applyBlockSize(el, width, height) {
+  function applyAddedBgSize(el, width, height, live) {
+    if (!el || !isAddedBg(el)) return
+    var sceneW = sceneWidthPx()
+    var slot = isInFlowAddedSlot(el)
+    if (!slot && typeof width === 'number' && isFinite(width)) {
+      var w = Math.max(24, Math.min(sceneW, Math.round(width)))
+      el.style.width = w + 'px'
+      el.style.maxWidth = 'none'
+      el.setAttribute('data-pw-block-w', String(w))
+    }
+    if (typeof height === 'number' && isFinite(height)) {
+      var h = Math.max(18, Math.min(2400, Math.round(height)))
+      el.style.height = h + 'px'
+      el.style.minHeight = h + 'px'
+      el.setAttribute('data-pw-block-h', String(h))
+    }
+    if (!live) growCanvasForAbsEl(el)
+    positionAllHandles()
+    post('dirty', {})
+    if (!live) refreshSelect()
+  }
+  function applyBlockSize(el, width, height, live) {
     if (!el) return
+    if (isAddedBg(el)) {
+      applyAddedBgSize(el, width, height, live)
+      return
+    }
     var sceneW = sceneWidthPx()
     if (typeof width === 'number' && isFinite(width)) {
       var w = Math.max(80, Math.min(sceneW, Math.round(width)))
@@ -4770,10 +5309,34 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     positionAllHandles()
     post('dirty', {})
-    refreshSelect()
+    if (!live) refreshSelect()
   }
   function clearBlockSize(el) {
     if (!el) return
+    if (isAddedBg(el)) {
+      if (isInFlowAddedSlot(el)) {
+        el.style.width = '100%'
+        el.style.height = '120px'
+        el.style.minHeight = '120px'
+        el.removeAttribute('data-pw-block-w')
+        el.setAttribute('data-pw-block-h', '120')
+      } else {
+        var host = el.parentElement
+        var hostW = 0
+        try { hostW = host ? host.getBoundingClientRect().width : 0 } catch (eHostW) { hostW = 0 }
+        var resetW = Math.max(80, Math.round((hostW || sceneWidthPx()) * 0.7))
+        el.style.width = resetW + 'px'
+        el.style.height = '120px'
+        el.style.minHeight = '120px'
+        el.setAttribute('data-pw-block-w', String(resetW))
+        el.setAttribute('data-pw-block-h', '120')
+      }
+      growCanvasForAbsEl(el)
+      positionAllHandles()
+      post('dirty', {})
+      refreshSelect()
+      return
+    }
     el.removeAttribute('data-pw-block-w')
     el.removeAttribute('data-pw-block-h')
     el.style.removeProperty('--pw-block-w')
@@ -4919,17 +5482,20 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     var block = selected && isContentBlockEl(selected) ? selected : findContentBlockEl(selected)
     if (!block || !block.parentNode) return
-    block.parentNode.removeChild(block)
+    var blockParent = block.parentNode
+    blockParent.removeChild(block)
     selected = null
     hideResizeHandle()
     hideDeleteHandle()
     hideMoveHandle()
     hideDropLine()
     hideAlignGuides()
+    try { unwrapHrowIfSingle(blockParent) } catch (eHrowDel2) {}
     post('deselect', {})
     post('dirty', {})
     postHidden()
     syncLayerSwitches()
+    try { syncGapPluses() } catch (eGapDel2) {}
   }
   function duplicateSelectedBlock() {
     if (selected && isAddedBg(selected) && selected.parentNode) {
@@ -6094,7 +6660,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       insertProductHostWidget(k, html)
       return
     }
-    var force = !!(opts && (opts.force || opts.atCenter))
+    var force = !!(opts && opts.force)
     var atCenter = !!(opts && opts.atCenter)
     var existingNow = findExistingChrome(k)
     if (existingNow && !force) {
@@ -6302,11 +6868,93 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { syncGapPluses() } catch (eGap2) {}
     post('insertAnchorClear', {})
   }
-  function setInsertAnchor(place, unit) {
-    if (!unit || !unit.parentNode) return
+  function isHrow(el) {
+    return !!(el && el.getAttribute && el.getAttribute('data-pw-hrow') === '1')
+  }
+  function isHInsertPlace(place) {
+    return place === 'left' || place === 'right'
+  }
+  function hrowCells(row) {
+    var out = []
+    if (!row || !row.children) return out
+    var kids = row.children
+    for (var hi = 0; hi < kids.length; hi++) {
+      var kid = kids[hi]
+      if (!kid || kid.nodeType !== 1) continue
+      if (isIgnored(kid) || isEditorChromeNode(kid)) continue
+      out.push(kid)
+    }
+    return out
+  }
+  function styleHrow(row) {
+    if (!row) return
+    row.setAttribute('data-pw-hrow', '1')
+    row.setAttribute('data-pw-edit', '1')
+    if (!row.style) return
+    row.style.display = 'flex'
+    row.style.flexDirection = 'row'
+    row.style.alignItems = 'stretch'
+    row.style.width = '100%'
+    row.style.position = 'relative'
+    row.style.left = 'auto'
+    row.style.top = 'auto'
+    row.style.boxSizing = 'border-box'
+  }
+  function styleHrowCell(node) {
+    if (!node || !node.style) return
+    node.style.position = 'relative'
+    node.style.display = 'block'
+    node.style.width = 'auto'
+    node.style.flex = '1 1 0%'
+    node.style.minWidth = '0'
+    node.style.left = 'auto'
+    node.style.top = 'auto'
+    node.style.marginLeft = '0'
+    node.style.marginRight = '0'
+    node.style.boxSizing = 'border-box'
+  }
+  function unwrapHrowIfSingle(row) {
+    if (!isHrow(row) || !row.parentNode) return
+    var cells = hrowCells(row)
+    var host = row.parentNode
+    if (cells.length >= 2) return
+    if (cells.length === 1) {
+      styleInFlowSlot(cells[0])
+      host.insertBefore(cells[0], row)
+    }
+    host.removeChild(row)
+  }
+  function ensureHrowAround(unit) {
+    if (!unit || !unit.parentNode) return null
+    if (isHrow(unit.parentNode)) return unit.parentNode
+    var row = document.createElement('div')
+    styleHrow(row)
+    unit.parentNode.insertBefore(row, unit)
+    row.appendChild(unit)
+    styleHrowCell(unit)
+    return row
+  }
+  function insertBeside(unit, node, side) {
+    if (!unit || !node) return false
+    var row = isHrow(unit.parentNode) ? unit.parentNode : null
+    if (row && hrowCells(row).length >= 4) return false
+    if (!row) row = ensureHrowAround(unit)
+    if (!row) return false
+    styleHrowCell(node)
+    if (side === 'left') row.insertBefore(node, unit)
+    else if (unit.nextSibling) row.insertBefore(node, unit.nextSibling)
+    else row.appendChild(node)
+    return true
+  }
+  function armInsertAnchor(place, unit) {
+    if (!unit || !unit.parentNode) return false
     insertAnchor.on = true
-    insertAnchor.place = place === 'before' ? 'before' : 'after'
+    insertAnchor.place = isHInsertPlace(place) ? place : (place === 'before' ? 'before' : 'after')
     insertAnchor.unit = unit
+    return true
+  }
+  function setInsertAnchor(place, unit) {
+    if (!armInsertAnchor(place, unit)) return
     try { syncGapPluses() } catch (eGap3) {}
     post('openAddAtGap', { place: insertAnchor.place })
   }
@@ -6315,6 +6963,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     node.style.position = 'relative'
     node.style.display = 'block'
     node.style.width = '100%'
+    node.style.flex = ''
+    node.style.minWidth = ''
     node.style.left = 'auto'
     node.style.top = 'auto'
     node.style.marginLeft = '0'
@@ -6327,6 +6977,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var place = insertAnchor.place
     var host = unit.parentNode
     if (!host) return false
+    if (isHInsertPlace(place)) return insertBeside(unit, node, place)
     styleInFlowSlot(node)
     if (place === 'before') host.insertBefore(node, unit)
     else if (unit.nextSibling) host.insertBefore(node, unit.nextSibling)
@@ -6345,8 +6996,25 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function resolveGapUnit(el) {
     if (!el || el.nodeType !== 1) return null
+    var row = el.closest ? el.closest('[data-pw-hrow="1"]') : null
+    if (row) return row
     if (isInFlowAddedSlot(el)) return el
     return insertBgFlowUnit(el)
+  }
+  function listHGapPoints() {
+    var units = listInsertGapUnits()
+    var points = []
+    for (var ui = 0; ui < units.length; ui++) {
+      var V = units[ui]
+      var cells = isHrow(V) ? hrowCells(V) : [V]
+      if (!cells.length) continue
+      for (var ci = 0; ci <= cells.length; ci++) {
+        var cell = ci < cells.length ? cells[ci] : cells[cells.length - 1]
+        var side = ci < cells.length ? 'left' : 'right'
+        points.push({ cell: cell, side: side })
+      }
+    }
+    return points
   }
   function listInsertGapUnits() {
     var seen = []
@@ -6370,7 +7038,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return seen
   }
   function hideGapPluses() {
-    try { post('gapUnits', { units: [], active: -1 }) } catch (eHideGap) {}
+    try { post('gapUnits', { units: [], active: -1, hUnits: [], hActive: -1 }) } catch (eHideGap) {}
   }
   function applyInsertAnchorIndex(idx) {
     var list = listInsertGapUnits()
@@ -6380,6 +7048,12 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var prev = i > 0 ? list[i - 1] : null
     if (next) setInsertAnchor('before', next)
     else if (prev) setInsertAnchor('after', prev)
+  }
+  function applyInsertHAnchorIndex(idx) {
+    var points = listHGapPoints()
+    var i = Number(idx)
+    if (!(i >= 0) || i >= points.length) return
+    setInsertAnchor(points[i].side, points[i].cell)
   }
   function syncGapPluses() {
     try {
@@ -6405,7 +7079,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         var place = nextU ? 'before' : 'after'
         if (insertAnchor.on && insertAnchor.unit === target && insertAnchor.place === place) activeI = gi
       }
-      post('gapUnits', { units: out, active: activeI })
+      var hPoints = listHGapPoints()
+      var hOut = []
+      var hActiveI = -1
+      for (var hp = 0; hp < hPoints.length; hp++) {
+        var hr = hPoints[hp].cell.getBoundingClientRect()
+        hOut.push({ t: hr.top, l: hr.left, w: hr.width, h: hr.height, side: hPoints[hp].side })
+        if (insertAnchor.on && insertAnchor.unit === hPoints[hp].cell && insertAnchor.place === hPoints[hp].side) hActiveI = hp
+      }
+      post('gapUnits', { units: out, active: activeI, hUnits: hOut, hActive: hActiveI })
     } catch (eGapSync) {}
   }
   function bumpAddedBgStack() {
@@ -6478,7 +7160,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     node.style.border = '0'
     node.style.pointerEvents = 'auto'
     node.style.boxSizing = 'border-box'
-    if (place === 'before') host.insertBefore(node, unit)
+    if (isHInsertPlace(place)) {
+      if (!insertBeside(unit, node, place)) return
+    } else if (place === 'before') host.insertBefore(node, unit)
     else if (unit.nextSibling) host.insertBefore(node, unit.nextSibling)
     else host.appendChild(node)
     finishInsertedBg(node)
@@ -8107,7 +8791,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     post('dirty', {})
     refreshSelect()
   }
-  function insertProductGrid(html) {
+  function insertInFlowSection(html, markAttr) {
     var raw = String(html || '').trim()
     if (!raw) return
     var wrap = document.createElement('div')
@@ -8115,7 +8799,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var node = wrap.firstElementChild
     if (!node) return
     if (node.setAttribute) {
-      node.setAttribute('data-pw-added-catalog', '1')
+      if (markAttr) node.setAttribute(markAttr, '1')
       node.setAttribute('data-pw-edit', '1')
     }
     styleInFlowSlot(node)
@@ -8132,6 +8816,275 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     else host.appendChild(node)
     selectEl(node)
     post('dirty', {})
+  }
+  function insertProductGrid(html) {
+    insertInFlowSection(html, 'data-pw-added-catalog')
+  }
+  function insertBanner(html, opts) {
+    opts = opts && typeof opts === 'object' ? opts : {}
+    if (!hasInsertAnchor() && opts.beside) {
+      var besideUnit = selected ? resolveGapUnit(selected) : null
+      if (besideUnit) {
+        if (isHrow(besideUnit)) {
+          var besideCells = hrowCells(besideUnit)
+          if (besideCells.length) armInsertAnchor('right', besideCells[besideCells.length - 1])
+        } else {
+          armInsertAnchor('right', besideUnit)
+        }
+      }
+    }
+    if (opts.mergeSlide && tryMergeBannerSlide(opts.slideHtml || html, insertAnchor.place)) {
+      return
+    }
+    insertInFlowSection(html, 'data-pw-added-banner')
+    try { pwSliderBoot() } catch (eSliderIns) {}
+  }
+  function parseBannerHtml(html) {
+    var wrap = document.createElement('div')
+    wrap.innerHTML = String(html || '').trim()
+    return wrap.firstElementChild
+  }
+  function isBannerUnit(el) {
+    if (!el || el.nodeType !== 1 || !el.getAttribute) return false
+    if (el.getAttribute('data-pw-region') === 'banner') return true
+    if (el.getAttribute('data-pw-added-banner') === '1') return true
+    if (el.getAttribute('data-pw-bg-role') === 'banner') return true
+    if (el.classList && (el.classList.contains('pw-hero') || el.classList.contains('pw-banner') || el.classList.contains('pw-shop-hero') || el.classList.contains('pw-shop-banner'))) return true
+    return false
+  }
+  function findBannerUnit(el) {
+    if (!el) return null
+    if (isBannerUnit(el)) return el
+    if (!el.closest) return null
+    var found = el.closest('[data-pw-region="banner"],[data-pw-added-banner="1"],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner')
+    return isBannerUnit(found) ? found : null
+  }
+  function isSliderHostEl(el) {
+    return !!(el && el.getAttribute && (el.getAttribute('data-pw-slider') === '1' || el.getAttribute('data-pw-banner-kind') === 'slider'))
+  }
+  function isFullSlideSlider(el) {
+    return !!(isSliderHostEl(el) && el.getAttribute(${JSON.stringify(PW_SLIDER_FULL_ATTR)}) === '1')
+  }
+  function isSliderChromeEl(el) {
+    if (!el || el.nodeType !== 1 || !el.getAttribute) return false
+    if (el.hasAttribute('data-pw-slides') || el.hasAttribute('data-pw-slide') || el.hasAttribute('data-pw-slide-prev') || el.hasAttribute('data-pw-slide-next')) return true
+    if (el.classList && (el.classList.contains('pw-slide-arrow') || el.classList.contains('pw-slide-dots'))) return true
+    return false
+  }
+  function stripHeroDots(root) {
+    if (!root || !root.querySelectorAll) return
+    var dots = root.querySelectorAll('.pw-hero-dots, [data-pw-el="dots"]:not(.pw-slide-dots)')
+    for (var i = 0; i < dots.length; i++) {
+      if (dots[i].parentNode) dots[i].parentNode.removeChild(dots[i])
+    }
+  }
+  function resetSlideMedia(root) {
+    if (!root || !root.querySelectorAll) return
+    var imgs = root.querySelectorAll('img')
+    for (var i = 0; i < imgs.length; i++) {
+      imgs[i].setAttribute('src', ${JSON.stringify(BANNER_PLACEHOLDER_SRC)})
+      imgs[i].removeAttribute('srcset')
+      imgs[i].setAttribute('data-pw-banner-placeholder', '1')
+    }
+  }
+  function fillSlideFromBanner(slide, node) {
+    if (!slide || !node) return
+    if (isSliderHostEl(node)) {
+      var first = node.querySelector ? node.querySelector('[data-pw-slide]') : null
+      var copy = node.querySelector ? node.querySelector('[data-pw-el="inner"], .pw-hero-inner') : null
+      var overlay = null
+      var kids = node.children
+      var ki
+      for (ki = 0; ki < kids.length; ki++) {
+        var kid = kids[ki]
+        if (!kid || kid.nodeType !== 1) continue
+        if (isSliderChromeEl(kid)) continue
+        if (kid.getAttribute && kid.getAttribute('data-pw-el') === 'inner') continue
+        if (kid.classList && kid.classList.contains('pw-hero-inner')) continue
+        if (!overlay && kid.getAttribute && !kid.getAttribute('data-pw-el') && kid.getAttribute('aria-hidden') === 'true') overlay = kid
+      }
+      if (first) {
+        var slideKids = Array.prototype.slice.call(first.children)
+        for (ki = 0; ki < slideKids.length; ki++) slide.appendChild(slideKids[ki])
+      }
+      if (overlay) slide.appendChild(overlay.cloneNode(true))
+      if (copy) slide.appendChild(copy.cloneNode(true))
+      stripHeroDots(slide)
+      return
+    }
+    var moved = Array.prototype.slice.call(node.children)
+    for (var mi = 0; mi < moved.length; mi++) {
+      if (isEditorChromeNode(moved[mi]) || isSliderChromeEl(moved[mi])) continue
+      slide.appendChild(moved[mi])
+    }
+    stripHeroDots(slide)
+  }
+  function ensureSliderChrome(host) {
+    if (!host) return
+    if (!host.querySelector('[data-pw-slide-prev]')) {
+      host.insertAdjacentHTML('beforeend', ${JSON.stringify(PW_SLIDER_ARROW_PREV_HTML)})
+    }
+    if (!host.querySelector('[data-pw-slide-next]')) {
+      host.insertAdjacentHTML('beforeend', ${JSON.stringify(PW_SLIDER_ARROW_NEXT_HTML)})
+    }
+    var dots = host.querySelector('.pw-slide-dots')
+    if (!dots) {
+      dots = document.createElement('div')
+      dots.className = 'pw-slide-dots'
+      dots.setAttribute('data-pw-el', 'dots')
+      dots.setAttribute('aria-hidden', 'true')
+      host.appendChild(dots)
+    }
+    stripHeroDots(host)
+  }
+  function stampFullSliderHost(host) {
+    if (!host) return
+    host.setAttribute('data-pw-slider', '1')
+    host.setAttribute('data-pw-banner-kind', 'slider')
+    host.setAttribute(${JSON.stringify(PW_SLIDER_FULL_ATTR)}, '1')
+    if (!host.getAttribute('data-pw-slide-wait')) host.setAttribute('data-pw-slide-wait', String(${PW_SLIDER_WAIT_DEFAULT}))
+    if (!host.getAttribute('data-pw-slide-arrows')) host.setAttribute('data-pw-slide-arrows', '1')
+    host.setAttribute('data-pw-slide-index', host.getAttribute('data-pw-slide-index') || '0')
+    if (host.style) {
+      if (!host.style.position || host.style.position === 'static') host.style.position = 'relative'
+      host.style.overflow = 'hidden'
+    }
+    ensureSliderChrome(host)
+  }
+  function convertHeroToFullSlider(hero) {
+    if (!hero) return null
+    if (isFullSlideSlider(hero) && hero.querySelector('[data-pw-slides]')) return hero
+    if (isSliderHostEl(hero) && !isFullSlideSlider(hero)) return hero
+    var track = document.createElement('div')
+    track.setAttribute('data-pw-slides', '')
+    var slide = document.createElement('div')
+    slide.setAttribute('data-pw-slide', '0')
+    slide.setAttribute('data-pw-slide-active', '1')
+    var kids = Array.prototype.slice.call(hero.children)
+    for (var i = 0; i < kids.length; i++) {
+      var kid = kids[i]
+      if (isEditorChromeNode(kid) || isIgnored(kid) || isSliderChromeEl(kid)) continue
+      slide.appendChild(kid)
+    }
+    stripHeroDots(slide)
+    if (hero.firstChild) hero.insertBefore(track, hero.firstChild)
+    else hero.appendChild(track)
+    track.appendChild(slide)
+    stampFullSliderHost(hero)
+    reindexSlider(hero)
+    return hero
+  }
+  function appendFullBannerSlide(host, slideHtml, side) {
+    if (!host) return null
+    var track = host.querySelector('[data-pw-slides]')
+    if (!track) return null
+    if (pwSliderSlides(host).length >= ${PW_SLIDER_SLIDE_MAX}) return null
+    var slide = document.createElement('div')
+    fillSlideFromBanner(slide, parseBannerHtml(slideHtml))
+    if (!slide.childNodes.length) return null
+    if (side === 'left' && track.firstChild) track.insertBefore(slide, track.firstChild)
+    else track.appendChild(slide)
+    reindexSlider(host)
+    return slide
+  }
+  function tryMergeBannerSlide(slideHtml, place) {
+    if (!hasInsertAnchor() || !isHInsertPlace(place || insertAnchor.place)) return false
+    var banner = findBannerUnit(insertAnchor.unit)
+    if (!banner) return false
+    var side = place === 'left' || insertAnchor.place === 'left' ? 'left' : 'right'
+    if (isSliderHostEl(banner) && !isFullSlideSlider(banner)) {
+      selectEl(banner)
+      addSlide()
+      consumeInsertAnchor()
+      return true
+    }
+    if (!isFullSlideSlider(banner)) convertHeroToFullSlider(banner)
+    if (!isFullSlideSlider(banner)) return false
+    var added = appendFullBannerSlide(banner, slideHtml, side)
+    if (!added) return false
+    styleInFlowSlot(banner)
+    var goTo = side === 'left' ? 0 : pwSliderSlides(banner).length - 1
+    pwSliderGo(banner, goTo)
+    try { pwSliderBoot() } catch (eMergeBoot) {}
+    selectEl(banner)
+    post('dirty', {})
+    consumeInsertAnchor()
+    return true
+  }
+  function sliderHostOf(el) {
+    return typeof pwSliderHostOf === 'function' ? pwSliderHostOf(el) : null
+  }
+  function reindexSlider(host) {
+    if (!host) return
+    var slides = host.querySelectorAll('[data-pw-slide]')
+    var dotsWrap = host.querySelector('.pw-slide-dots') || host.querySelector('[data-pw-el="dots"]')
+    var i
+    for (i = 0; i < slides.length; i++) slides[i].setAttribute('data-pw-slide', String(i))
+    if (dotsWrap) {
+      dotsWrap.innerHTML = ''
+      for (i = 0; i < slides.length; i++) {
+        var btn = document.createElement('button')
+        btn.type = 'button'
+        btn.setAttribute('data-pw-slide-to', String(i))
+        dotsWrap.appendChild(btn)
+      }
+    }
+  }
+  function setSlideWait(ms) {
+    var host = sliderHostOf(selected)
+    if (!host) return
+    var wait = typeof pwSliderClampWait === 'function' ? pwSliderClampWait(ms) : ${PW_SLIDER_WAIT_DEFAULT}
+    host.setAttribute('data-pw-slide-wait', String(wait))
+    try { pwSliderRestart(host) } catch (eWait) {}
+    post('dirty', {})
+    refreshSelect()
+  }
+  function setSlideArrows(on) {
+    var host = sliderHostOf(selected)
+    if (!host) return
+    host.setAttribute('data-pw-slide-arrows', on ? '1' : '0')
+    post('dirty', {})
+    refreshSelect()
+  }
+  function goSlide(index) {
+    var host = sliderHostOf(selected)
+    if (!host) return
+    pwSliderGo(host, index)
+    post('dirty', {})
+    refreshSelect()
+  }
+  function addSlide() {
+    var host = sliderHostOf(selected)
+    if (!host) return
+    if (typeof pwSliderPromoteFull === 'function') pwSliderPromoteFull(host)
+    var track = host.querySelector('[data-pw-slides]')
+    var first = host.querySelector('[data-pw-slide]')
+    if (!track || !first) return
+    if (pwSliderSlides(host).length >= ${PW_SLIDER_SLIDE_MAX}) return
+    var clone = first.cloneNode(true)
+    clone.removeAttribute('data-pw-slide-active')
+    resetSlideMedia(clone)
+    var nextNo = pwSliderSlides(host).length + 1
+    var title = clone.querySelector ? clone.querySelector('[data-pw-el="title"]') : null
+    if (title) title.textContent = 'Banner ' + nextNo
+    track.appendChild(clone)
+    reindexSlider(host)
+    pwSliderGo(host, pwSliderSlides(host).length - 1)
+    post('dirty', {})
+    refreshSelect()
+  }
+  function removeSlide() {
+    var host = sliderHostOf(selected)
+    if (!host) return
+    var slides = pwSliderSlides(host)
+    if (slides.length <= 2) return
+    var cur = Number(host.getAttribute('data-pw-slide-index') || 0)
+    var node = slides[cur] || slides[slides.length - 1]
+    if (node && node.parentNode) node.parentNode.removeChild(node)
+    reindexSlider(host)
+    pwSliderGo(host, Math.max(0, cur - 1))
+    post('dirty', {})
+    refreshSelect()
   }
   function insertButton(opts) {
     var now = Date.now()
@@ -8722,6 +9675,26 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         var logoImg = logoImgOf(el) || (isLogoImg(el) ? el : null)
         return logoImg ? Math.round(parseLogoZoom(logoImg) * 100) : 100
       })(),
+      isSlider: Boolean(sliderHostOf(el)),
+      slideWait: (function () {
+        var sh = sliderHostOf(el)
+        if (!sh) return ${PW_SLIDER_WAIT_DEFAULT}
+        return typeof pwSliderClampWait === 'function'
+          ? pwSliderClampWait(sh.getAttribute('data-pw-slide-wait'))
+          : ${PW_SLIDER_WAIT_DEFAULT}
+      })(),
+      slideArrows: (function () {
+        var sh = sliderHostOf(el)
+        return !sh || sh.getAttribute('data-pw-slide-arrows') !== '0'
+      })(),
+      slideCount: (function () {
+        var sh = sliderHostOf(el)
+        return sh ? pwSliderSlides(sh).length : 0
+      })(),
+      slideIndex: (function () {
+        var sh = sliderHostOf(el)
+        return sh ? Number(sh.getAttribute('data-pw-slide-index') || 0) : 0
+      })(),
       isBannerPhoto: (function () {
         var h = bannerHostOf(el)
         if (!h) return false
@@ -8752,6 +9725,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         return 0
       })(),
       isAddedBg: addedBg,
+      isAddedBgSlot: addedBg && isInFlowAddedSlot(el),
       canClearBg: canClearRegionFill(el),
       bgCleared: isRegionFillCleared(el),
       canInsertBgSlot: Boolean(insertBgFlowUnit(el)),
@@ -8879,6 +9853,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       hoverEl.classList.remove('nanoai-ve-hover')
       hoverEl = null
     }
+    hideHoverName()
   }
   function clearLogoLayerVisual() {
     var frames = document.querySelectorAll('[data-pw-logo-frame="1"], .pw-logo-frame')
@@ -9614,13 +10589,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (mv) positionMoveHandle(boxEl, mv)
     var del = document.querySelector('.nanoai-ve-delete-handle,.nanoai-ve-chrome-delete')
     if (del) positionDeleteHandle(boxEl, del)
-    var rs = document.querySelector('.nanoai-ve-resize-handle')
-    if (rs && (isImgEl(selected) || isAddedBg(selected) || isBgLayerEl(selected) || isBannerPhotoTarget(selected) || isSearchEl(selected))) {
-      var resizeEl = boxEl
-      if (isSearchEl(selected)) resizeEl = selected
-      else if (isLogoTarget(selected) && layerMode === 'image') resizeEl = logoImgOf(selected) || selected
-      else if (isBannerPhotoTarget(selected)) resizeEl = bannerHostOf(selected) || selected
-      positionResizeHandle(resizeEl, rs)
+    var handles = document.querySelectorAll('.nanoai-ve-resize-handle')
+    if (handles.length && canShowResizeHandles(selected)) {
+      var resizeEl = resizeBoxOf(selected)
+      for (var hi = 0; hi < handles.length; hi++) positionResizeHandle(resizeEl, handles[hi])
     }
     positionAlignGuides()
     if (logoCrop.live) positionLiveLogoCropBar()
@@ -9877,35 +10849,69 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     syncLayerSwitches()
   }
   function hideResizeHandle() {
-    var h = document.querySelector('.nanoai-ve-resize-handle')
-    if (h) h.remove()
+    var nodes = document.querySelectorAll('.nanoai-ve-resize-handle')
+    for (var hi = 0; hi < nodes.length; hi++) nodes[hi].remove()
   }
-  function positionResizeHandle(img, h) {
-    var r = img.getBoundingClientRect()
+  function resizeDirsFor(el) {
+    if (!el) return []
+    if (isSearchEl(el)) return ['e']
+    if (isLogoTarget(el) || isLogoFrame(el)) return ['se']
+    if (isBannerPhotoTarget(el) && layerMode === 'image') return ['se']
+    if (isAddedBg(el)) return isInFlowAddedSlot(el) ? ['s'] : ['s', 'e', 'se']
+    if (isBannerHostEl(el) && layerMode === 'block') return ['s', 'e']
+    if (isImgEl(el) || isBgLayerEl(el)) return ['se']
+    return []
+  }
+  function canShowResizeHandles(el) {
+    return resizeDirsFor(el).length > 0
+  }
+  function resizeBoxOf(el) {
+    if (!el) return el
+    if (isSearchEl(el)) return el
+    if (isLogoTarget(el)) return (isInHeader(el) && headerLogoUnit(el)) || logoFrameOf(el) || (isLogoFrame(el) ? el : null) || logoImgOf(el) || el
+    if (isBannerPhotoTarget(el) && layerMode === 'image') return bannerHostOf(el) || el
+    if (isAddedBg(el) || isBannerHostEl(el)) return el
+    return el
+  }
+  function resizeModeFor(el) {
+    if (isSearchEl(el)) return 'search-width'
+    if (isBannerPhotoTarget(el) && layerMode === 'image') return 'banner-zoom'
+    if (isAddedBg(el) || (isBannerHostEl(el) && layerMode === 'block')) return 'surface-size'
+    return 'frame'
+  }
+  function positionResizeHandle(box, h) {
+    if (!box || !h) return
+    var r = box.getBoundingClientRect()
+    var dir = (h.getAttribute && h.getAttribute('data-ve-resize')) || 'se'
+    var x = r.right - 8
+    var y = r.bottom - 8
+    if (h.classList && h.classList.contains('is-search-width')) {
+      x = r.right - 8
+      y = r.top + r.height / 2 - 8
+    } else if (dir === 's') {
+      x = r.left + r.width / 2 - 14
+      y = r.bottom - 6
+    } else if (dir === 'e') {
+      x = r.right - 6
+      y = r.top + r.height / 2 - 14
+    } else if (dir === 'w') {
+      x = r.left - 6
+      y = r.top + r.height / 2 - 14
+    } else if (dir === 'n') {
+      x = r.left + r.width / 2 - 14
+      y = r.top - 6
+    }
     h.style.position = 'fixed'
-    h.style.left = r.right - 8 + 'px'
-    h.style.top = isSearchEl(img) ? (r.top + r.height / 2 - 8) + 'px' : (r.bottom - 8) + 'px'
+    h.style.left = x + 'px'
+    h.style.top = y + 'px'
     h.style.zIndex = '2147483646'
   }
-  function showResizeHandle(img) {
-    hideResizeHandle()
-    if (logoCrop.live) return
-    if (!img || (!isImgEl(img) && !isAddedBg(img) && !isLogoFrame(img) && !isLogoTarget(img) && !isBgLayerEl(img) && !isBannerPhotoTarget(img) && !isSearchEl(img))) return
-    var frame = isLogoTarget(img) ? ((isInHeader(img) && headerLogoUnit(img)) || logoFrameOf(img) || (isLogoFrame(img) ? img : null) || logoImgOf(img) || img) : null
-    var bannerPhoto = !frame && isBannerPhotoTarget(img)
-    var box = isSearchEl(img) ? img : (frame || (bannerPhoto ? (bannerHostOf(img) || img) : img))
-    var h = document.createElement('div')
-    h.className = 'nanoai-ve-resize-handle nanoai-ve-ignore'
-    h.setAttribute('data-nanoai-ve-ignore', '1')
-    if (isSearchEl(img)) h.classList.add('is-search-width')
-    else if (frame) h.classList.add('is-logo-frame')
-    else if (bannerPhoto) h.classList.add('is-banner-zoom')
-    document.body.appendChild(h)
-    positionResizeHandle(box, h)
+  function bindResizeHandle(h, img, box, dir) {
     h.addEventListener('mousedown', function (e) {
       e.preventDefault()
       e.stopPropagation()
       var zoomImg = logoImgOf(img) || img
+      var bannerPhoto = isBannerPhotoTarget(img) && layerMode === 'image'
       var bHost = bannerPhoto ? (bannerHostOf(img) || img) : null
       resize.active = true
       resize.startX = e.clientX
@@ -9913,11 +10919,34 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       resize.startW = box.getBoundingClientRect().width
       resize.startH = box.getBoundingClientRect().height
       resize.startZoom = isLogoTarget(img) ? parseLogoZoom(zoomImg) : (bHost ? parseBannerZoom(bHost) : 1)
-      resize.dir = 'se'
+      resize.dir = dir
       resize.startLeft = parseFloat(box.style.left) || 0
       resize.startTop = parseFloat(box.style.top) || 0
-      resize.mode = isSearchEl(img) ? 'search-width' : (bannerPhoto ? 'banner-zoom' : 'frame')
+      resize.mode = resizeModeFor(img)
     })
+  }
+  function showResizeHandle(img) {
+    hideResizeHandle()
+    if (logoCrop.live) return
+    if (!canShowResizeHandles(img)) return
+    var dirs = resizeDirsFor(img)
+    var box = resizeBoxOf(img)
+    var bannerPhoto = isBannerPhotoTarget(img) && layerMode === 'image'
+    for (var i = 0; i < dirs.length; i++) {
+      var dir = dirs[i]
+      var h = document.createElement('div')
+      h.className = 'nanoai-ve-resize-handle nanoai-ve-ignore'
+      h.setAttribute('data-nanoai-ve-ignore', '1')
+      h.setAttribute('data-ve-resize', dir)
+      if (isSearchEl(img)) h.classList.add('is-search-width')
+      else if (isLogoTarget(img) || isLogoFrame(img)) h.classList.add('is-logo-frame')
+      else if (bannerPhoto) h.classList.add('is-banner-zoom')
+      else if (dir === 's' || dir === 'n') h.classList.add('is-banner-height')
+      else if (dir === 'e' || dir === 'w') h.classList.add('is-banner-width')
+      document.body.appendChild(h)
+      positionResizeHandle(box, h)
+      bindResizeHandle(h, img, box, dir)
+    }
   }
   function placeCaretAtPoint(el, clientX, clientY) {
     if (!el) return
@@ -10011,7 +11040,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     showMoveHandle(selected)
     if (canDeleteEl(selected)) showDeleteHandle(selected)
-    if (payload.isImage || isAddedBg(selected) || isLogoFrame(selected) || isLogoTarget(selected) || isBgLayerEl(selected) || isSearchEl(selected) || (isBannerPhotoTarget(selected) && layerMode === 'image')) showResizeHandle(selected)
+    if (canShowResizeHandles(selected)) showResizeHandle(selected)
     showAlignGuides(logoMoveEl(selected) || selected)
     syncLayerSwitches()
     syncLogoButtons()
@@ -10303,6 +11332,24 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       return
     }
     if (isIgnored(e.target) || isOverlayNode(e.target)) return
+    if (typeof pwSliderIsControl === 'function' && pwSliderIsControl(e.target)) {
+      e.preventDefault()
+      e.stopPropagation()
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation()
+      var slideHost = pwSliderHostOf(e.target)
+      if (slideHost) {
+        var hit = e.target.closest('[data-pw-slide-prev],[data-pw-slide-next],[data-pw-slide-to]')
+        var curSlide = Number(slideHost.getAttribute('data-pw-slide-index') || 0)
+        if (hit && hit.hasAttribute('data-pw-slide-prev')) pwSliderGo(slideHost, curSlide - 1)
+        else if (hit && hit.hasAttribute('data-pw-slide-next')) pwSliderGo(slideHost, curSlide + 1)
+        else if (hit) pwSliderGo(slideHost, Number(hit.getAttribute('data-pw-slide-to')))
+        if (selected !== slideHost) selectEl(slideHost, e)
+        else refreshSelect()
+        post('dirty', {})
+      }
+      skipClick = true
+      return
+    }
     var pointerTarget = resolvePointerTarget(e.target, e.clientX, e.clientY)
     var found = findSelectable(pointerTarget, e.clientX, e.clientY)
     if (found && isShopRegionHost(found)) {
@@ -10514,13 +11561,26 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function onMouseOver(e) {
     if (!document.body.classList.contains('nanoai-ve-active')) return
     if (insertBgPick.on) {
+      hideHoverName()
       hoverInsertBgPick(e)
       return
     }
     var t = resolvePointerTarget(e.target, e.clientX, e.clientY)
-    if (isIgnored(t)) return
+    if (isIgnored(t)) {
+      hideHoverName()
+      return
+    }
     var found = findSelectable(t, e.clientX, e.clientY)
-    if (!found || found === selected) {
+    if (!found) {
+      if (hoverEl) {
+        hoverEl.classList.remove('nanoai-ve-hover')
+        hoverEl = null
+      }
+      hideHoverName()
+      return
+    }
+    paintHoverName(found)
+    if (found === selected) {
       if (hoverEl && hoverEl !== found) {
         hoverEl.classList.remove('nanoai-ve-hover')
         hoverEl = null
@@ -10531,6 +11591,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     hoverEl = found
     found.classList.add('nanoai-ve-hover')
   }
+  function onMouseOut(e) {
+    var rel = e.relatedTarget
+    if (rel && rel !== document.documentElement && rel !== document.body) return
+    clearHover()
+  }
   function onMouseMove(e) {
     if (logoCrop.on) return
     if (logoDraw.on && logoDraw.dragging) {
@@ -10540,7 +11605,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       showLogoDrawRect()
       return
     }
-    if (resize.active && selected && (isSearchEl(selected) || isAddedBg(selected) || isImgEl(selected) || isLogoFrame(selected) || isLogoTarget(selected) || isBgLayerEl(selected) || isBannerPhotoTarget(selected))) {
+    if (resize.active && selected && (isSearchEl(selected) || isAddedBg(selected) || isImgEl(selected) || isLogoFrame(selected) || isLogoTarget(selected) || isBgLayerEl(selected) || isBannerPhotoTarget(selected) || (isBannerHostEl(selected) && layerMode === 'block'))) {
       var dx = e.clientX - resize.startX
       var dy = e.clientY - resize.startY
       if (resize.mode === 'search-width' || isSearchEl(selected)) {
@@ -10548,6 +11613,22 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         lockSearchBox(selected, resize.startW + dx)
         positionAllHandles()
         post('dirty', {})
+        return
+      }
+      if (resize.mode === 'surface-size') {
+        var hostS = isAddedBg(selected) ? selected : (sizeBlockHostOf(selected) || selected)
+        var dirS = resize.dir || 'se'
+        var nwS = resize.startW
+        var nhS = resize.startH
+        if (dirS.indexOf('e') >= 0) nwS = Math.max(24, resize.startW + dx)
+        if (dirS.indexOf('w') >= 0) nwS = Math.max(24, resize.startW - dx)
+        if (dirS.indexOf('s') >= 0) nhS = Math.max(18, resize.startH + dy)
+        if (dirS.indexOf('n') >= 0) nhS = Math.max(18, resize.startH - dy)
+        var nextW = (dirS.indexOf('e') >= 0 || dirS.indexOf('w') >= 0) ? nwS : undefined
+        var nextH = (dirS.indexOf('s') >= 0 || dirS.indexOf('n') >= 0) ? nhS : undefined
+        if (isAddedBg(hostS)) applyAddedBgSize(hostS, nextW, nextH, true)
+        else applyBlockSize(hostS, nextW, nextH, true)
+        positionAllHandles()
         return
       }
       var frame = logoFrameOf(selected)
@@ -10661,7 +11742,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (resize.active) {
       resize.active = false
       if (selected && isAddedBg(selected)) growCanvasForAbsEl(selected)
-      if (selected && (isImgEl(selected) || isBgLayerEl(selected) || isSearchEl(selected))) post('select', buildPayload(selected))
+      if (selected && (isImgEl(selected) || isBgLayerEl(selected) || isSearchEl(selected) || isAddedBg(selected) || isBannerHostEl(selected))) post('select', buildPayload(selected))
       positionAllHandles()
       return
     }
@@ -10740,6 +11821,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '@keyframes nanoai-ve-chrome-dup-pulse{0%,100%{box-shadow:0 0 0 0 rgba(37,99,235,.55)}50%{box-shadow:0 0 0 10px rgba(37,99,235,0)}}',
       '.nanoai-ve-chrome-dup{outline:2px solid #2563eb!important;outline-offset:2px!important;animation:nanoai-ve-chrome-dup-pulse .7s ease 2}',
       '.nanoai-ve-hover{outline:1px dashed #2563eb!important;outline-offset:0!important}',
+      '#nanoai-ve-hover-name{position:fixed;z-index:2147483645;display:none;pointer-events:none;max-width:220px;padding:2px 7px;border-radius:4px;background:#111827;color:#fff;font:600 11px/16px system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 1px 4px rgba(0,0,0,.28)}',
+      '#nanoai-ve-hover-name[data-pw-hover-on="1"]{display:block}',
       '.nanoai-ve-highlight[data-pw-bg-layer="1"],.nanoai-ve-hover[data-pw-bg-layer="1"]{outline:2px dashed #f59e0b!important}',
       'html{overflow-x:hidden!important;max-width:100%}',
       'html.nanoai-ve-active,body.nanoai-ve-active{overflow-y:visible!important}',
@@ -10797,6 +11880,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-resize-handle.is-logo-frame{background:#2563eb}',
       '.nanoai-ve-resize-handle.is-banner-zoom{background:#f59e0b;cursor:nwse-resize}',
       '.nanoai-ve-resize-handle.is-search-width{cursor:ew-resize;width:16px;height:16px;border-radius:999px}',
+      '.nanoai-ve-resize-handle.is-banner-height{width:28px;height:10px;border-radius:999px;cursor:ns-resize;background:#2563eb}',
+      '.nanoai-ve-resize-handle.is-banner-width{width:10px;height:28px;border-radius:999px;cursor:ew-resize;background:#2563eb}',
       '.nanoai-ve-highlight.pw-header-search,.nanoai-ve-highlight.pw-shop-search-wrap,.nanoai-ve-hover.pw-header-search,.nanoai-ve-hover.pw-shop-search-wrap{outline:2px dashed #2563eb!important}',
       '.nanoai-ve-active img.pw-logo.nanoai-ve-highlight,.nanoai-ve-active img.pw-shop-logo.nanoai-ve-highlight,.nanoai-ve-active img.pw-shop-footer-logo.nanoai-ve-highlight,.nanoai-ve-active [data-pw-logo-added].nanoai-ve-highlight{outline:2px solid #2563eb!important;outline-offset:1px!important;box-shadow:none!important;cursor:grab!important}',
       '.nanoai-ve-active [data-pw-logo-frame="1"].nanoai-ve-highlight,.nanoai-ve-active .pw-logo-frame.nanoai-ve-highlight{outline:2px solid #fff!important;outline-offset:0!important;box-shadow:0 0 0 2px #2563eb!important;cursor:grab!important;overflow:hidden!important}',
@@ -10865,6 +11950,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       'html [data-pw-block-w]:not([data-pw-region="header"]):not([data-pw-region="nav"]):not([data-pw-region="topbar"]):not([data-pw-region="footer"]){width:var(--pw-block-w)!important;max-width:100%!important;margin-left:auto!important;margin-right:auto!important;box-sizing:border-box}',
       'html [data-pw-block-h]{min-height:var(--pw-block-h)!important;height:var(--pw-block-h)!important}',
       ${JSON.stringify(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS)},
+      ${JSON.stringify(PARTNER_SHOP_HROW_CSS)},
+      ${JSON.stringify(PARTNER_SHOP_SLIDER_CSS)},
       '@media (min-width:900px){html .pw-header-main,html .pw-shop-header-inner{justify-content:center!important}html .pw-header-actions,html .pw-shop-header-actions{margin-left:0!important}}',
       '.pw-brand-cluster,.pw-shop-brand-cluster,.pw-brand:not([data-pw-logo-float]),.pw-shop-brand:not([data-pw-logo-float]),a[data-pw-logo-home]:not([data-pw-logo-float]){position:relative!important;z-index:120!important;flex:0 0 auto!important;overflow:visible!important}',
       '.pw-brand:not([data-pw-logo-float]),.pw-shop-brand:not([data-pw-logo-float]),a[data-pw-logo-home]:not([data-pw-logo-float]){display:inline-flex!important;align-items:center!important;width:max-content!important;max-width:100%!important;vertical-align:middle}',
@@ -10998,10 +12085,12 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       scrollVeRaf = 0
       positionAllHandles()
       stickHeaderSync()
+      if (hoverNameTarget) paintHoverName(hoverNameTarget)
     }) : 0
     if (!scrollVeRaf) {
       positionAllHandles()
       stickHeaderSync()
+      if (hoverNameTarget) paintHoverName(hoverNameTarget)
     }
   }
   function unbindVeListeners() {
@@ -11012,6 +12101,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     document.removeEventListener('mousedown', onMouseDown, true)
     document.removeEventListener('input', onInput, true)
     document.removeEventListener('mouseover', onMouseOver, true)
+    document.removeEventListener('mouseout', onMouseOut, true)
     document.removeEventListener('mousemove', onMouseMove, true)
     document.removeEventListener('mouseup', onMouseUp, true)
     document.removeEventListener('keydown', onKeyDown, true)
@@ -11027,6 +12117,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     document.addEventListener('mousedown', onMouseDown, true)
     document.addEventListener('input', onInput, true)
     document.addEventListener('mouseover', onMouseOver, true)
+    document.addEventListener('mouseout', onMouseOut, true)
     document.addEventListener('mousemove', onMouseMove, true)
     document.addEventListener('mouseup', onMouseUp, true)
     document.addEventListener('keydown', onKeyDown, true)
@@ -11087,6 +12178,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     syncLogoButtons()
     stickHeaderSync()
     try { syncGapPluses() } catch (eGapAct) {}
+    try { pwSliderBoot() } catch (eSliderAct) {}
   }
   function deactivate() {
     if (scrollVeRaf && window.cancelAnimationFrame) window.cancelAnimationFrame(scrollVeRaf)
@@ -11098,6 +12190,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     cancelInsertBgPick(false)
     closeLogoCrop(false)
     hideGapPluses()
+    hideHoverName()
     clearInsertAnchor(false)
     document.body.classList.remove('nanoai-ve-active')
     unbindVeListeners()
@@ -11168,6 +12261,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function activateFromHost(d) {
     d = d || {}
     if (d.device === 'mobile' || d.device === 'tablet' || d.device === 'laptop' || d.device === 'desktop') editDevice = d.device
+    setHoverNameOn()
     activate()
     if (d.vars) applyThemeVars(d.vars)
     scheduleChatEmbedPrep(d)
@@ -11312,6 +12406,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (photo) {
         photo.setAttribute('src', url)
         photo.removeAttribute('srcset')
+        photo.removeAttribute('data-pw-banner-placeholder')
       } else {
         var curB = ''
         try { curB = bannerHost.style.backgroundImage || cs(bannerHost).backgroundImage || '' } catch (eB) { curB = '' }
@@ -11324,6 +12419,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (isImgEl(selected)) {
       selected.setAttribute('src', url)
       selected.removeAttribute('srcset')
+      selected.removeAttribute('data-pw-banner-placeholder')
       selected.style.transform = ''
     } else {
       var paint = isBgLayerEl(selected) && selected.parentElement ? selected.parentElement : selected
@@ -11331,6 +12427,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (photo2) {
         photo2.setAttribute('src', url)
         photo2.removeAttribute('srcset')
+        photo2.removeAttribute('data-pw-banner-placeholder')
       } else {
         var cur = ''
         try { cur = paint.style.backgroundImage || cs(paint).backgroundImage || '' } catch (e) { cur = '' }
@@ -11547,6 +12644,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.type === 'insertVideo' && d.url) insertVideo(d.url)
     if (d.type === 'insertButton') insertButton(d)
     if (d.type === 'insertProductGrid') insertProductGrid(d.html)
+    if (d.type === 'insertBanner') insertBanner(d.html, d)
+    if (d.type === 'setInsertHAnchor') applyInsertHAnchorIndex(d.index)
+    if (d.type === 'setSlideWait') setSlideWait(d.ms)
+    if (d.type === 'setSlideArrows') setSlideArrows(!!d.on)
+    if (d.type === 'addSlide') addSlide()
+    if (d.type === 'removeSlide') removeSlide()
+    if (d.type === 'goSlide') goSlide(d.index)
     if (d.type === 'insertBg') insertBg(d)
     if (d.type === 'startInsertBgPick') startInsertBgPick(d.place, d.color)
     if (d.type === 'setInsertBgPickColor' && d.color) insertBgPick.color = String(d.color)
@@ -11562,6 +12666,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.type === 'setScene') setElementScene(d.scene)
     if (d.type === 'sceneUp') stepElementScene(1)
     if (d.type === 'sceneDown') stepElementScene(-1)
+    if (d.type === 'setHoverNameOn') setHoverNameOn()
     if (d.type === 'setSceneFocus') setSceneFocus(d.scene)
     if (d.type === 'layerElFront') bringElementFront()
     if (d.type === 'layerElBack') sendElementBack()
@@ -11730,7 +12835,11 @@ export function buildVisualEditorScript(locale: WebLocale): string {
     '(' +
     JSON.stringify(NANOAI_VE_MESSAGE) +
     ',' +
-    JSON.stringify({ ...copy, chromeKindLabels: chromeKindDefaultLabels(locale) }) +
+    JSON.stringify({
+      ...copy,
+      chromeKindLabels: chromeKindDefaultLabels(locale),
+      hoverNames: hoverNamesFor(locale),
+    }) +
     ',' +
     JSON.stringify(SCENE_RUNTIME) +
     ');'

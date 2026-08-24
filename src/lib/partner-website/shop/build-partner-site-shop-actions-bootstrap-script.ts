@@ -176,13 +176,30 @@ function readProductFromEl(el){
   var imgEl=host2.querySelector('img');
   var linkEl=host2.querySelector('a[href*="/products/"]');
   var productUrl=(linkEl&&linkEl.href)||(DETAIL_PREFIX+id);
+  var onPdp=el.closest('[data-pw-region="pdp-info"],.pw-pdp,.pw-pdp-sticky,[data-pw-pdp-add-cart],[data-pw-pdp-buy-now]');
   return {
     inventory_id:id,
     name:(nameEl&&nameEl.textContent||'Product').trim(),
     price_hint:(priceEl&&priceEl.textContent||'').trim(),
     image_url:(imgEl&&imgEl.getAttribute('src'))||'',
-    product_url:productUrl
+    product_url:productUrl,
+    size:onPdp?selectedPdpOption('size'):'',
+    color:onPdp?selectedPdpOption('color'):'',
+    quantity:onPdp?selectedPdpQty():1
   };
+}
+function selectedPdpOption(kind){
+  var block=document.querySelector('[data-pw-pdp-option="'+kind+'"]');
+  if(!block)return '';
+  var active=block.querySelector('.pw-pdp-pill.is-active,[data-pw-pdp-option-value].is-active');
+  if(!active)return '';
+  return String(active.getAttribute('data-pw-pdp-option-value')||active.textContent||'').trim();
+}
+function selectedPdpQty(){
+  var host=document.querySelector('[data-pw-region="pdp-info"] [data-pw-el="qty"],.pw-pdp [data-pw-el="qty"]');
+  if(!host)return 1;
+  var n=Number((host.querySelector('span')&&host.querySelector('span').textContent)||host.getAttribute('data-qty')||1);
+  return Math.min(99,Math.max(1,Math.round(n)||1));
 }
 function uuid(){
   if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
@@ -206,7 +223,7 @@ function addToCart(product, opts){
     return apiFetch(CART_API).then(function(res){
       var items=(res.j&&res.j.items)||[];
       if(!Array.isArray(items))items=[];
-      var line={id:uuid(),card:card,quantity:1,color:'',size:'',note:''};
+      var line={id:uuid(),card:card,quantity:Math.min(99,Math.max(1,Number(product.quantity)||1)),color:String(product.color||''),size:String(product.size||''),note:''};
       var key=((line.card.product_url||'')+'|'+line.color+'|'+line.size).toLowerCase();
       var found=false;
       for(var i=0;i<items.length;i++){

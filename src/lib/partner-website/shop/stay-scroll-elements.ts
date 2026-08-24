@@ -112,6 +112,7 @@ export const PARTNER_SHOP_STAY_SCROLL_SCRIPT = `(function(){
   }
   function apply(el){
     if (!el || !el.style || paused) return;
+    if (document.querySelector('[data-pw-inline-visual-root]')) return;
     var x = parseFloat(el.getAttribute(XA) || '');
     var y = parseFloat(el.getAttribute(YA) || '');
     if (!isFinite(x) || !isFinite(y)) return;

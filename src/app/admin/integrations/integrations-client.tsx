@@ -49,6 +49,7 @@ type Props = {
   addDomainVerificationButton: string
   removeDomainVerificationButton: string
   nanoaiEmbedCodeLabel: string
+  nanoaiEmbedCodeHint: string
   facebookChatEmbedCodeLabel: string
   zaloChatEmbedCodeLabel: string
   embedCodePlaceholder: string
@@ -327,6 +328,7 @@ export function AdminIntegrationsClient(props: Props) {
 
         <div className="space-y-2">
           <Label className="text-xs font-medium">{props.nanoaiEmbedCodeLabel}</Label>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">{props.nanoaiEmbedCodeHint}</p>
           <Textarea
             value={nanoaiEmbedCode}
             onChange={(e) => setNanoaiEmbedCode(e.target.value)}

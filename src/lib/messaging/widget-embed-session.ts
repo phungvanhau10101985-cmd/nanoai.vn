@@ -1,6 +1,15 @@
+import { isChatWidgetScriptSrc, isHostedChatIframeSrc } from '@/lib/messaging/parse-site-chat-embed'
+
 /** Storage trên domain trang host (shop) — không dùng cookie để tránh bị chặn trong iframe bên thứ ba. */
 export const NANOAI_SESSION_RETURN_CHAT_IFRAME_HREF = 'nanoai_return_chat_iframe_href_v1'
 export const NANOAI_PERSIST_RETURN_CHAT_IFRAME_HREF = 'nanoai_persist_chat_iframe_href_v1'
+
+function isPersistableChatIframeHref(href: string): boolean {
+  const next = href.trim()
+  if (!next) return false
+  if (isChatWidgetScriptSrc(next)) return false
+  return isHostedChatIframeSrc(next)
+}
 
 export function readReturnChatIframeHref(): string | null {
   if (typeof window === 'undefined') return null
@@ -9,7 +18,12 @@ export function readReturnChatIframeHref(): string | null {
       window.localStorage.getItem(NANOAI_PERSIST_RETURN_CHAT_IFRAME_HREF)?.trim()
       || window.sessionStorage.getItem(NANOAI_SESSION_RETURN_CHAT_IFRAME_HREF)?.trim()
       || ''
-    return raw.length > 0 ? raw : null
+    if (!raw) return null
+    if (!isPersistableChatIframeHref(raw)) {
+      clearReturnChatIframeHref()
+      return null
+    }
+    return raw
   } catch {
     return null
   }
@@ -19,6 +33,7 @@ export function writeReturnChatIframeHref(href: string): void {
   if (typeof window === 'undefined') return
   try {
     const next = href.trim()
+    if (!isPersistableChatIframeHref(next)) return
     window.sessionStorage.setItem(NANOAI_SESSION_RETURN_CHAT_IFRAME_HREF, next)
     window.localStorage.setItem(NANOAI_PERSIST_RETURN_CHAT_IFRAME_HREF, next)
   } catch {

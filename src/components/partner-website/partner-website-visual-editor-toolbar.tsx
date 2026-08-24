@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutGrid, LayoutTemplate, Loader2, Lock, LogIn, LogOut, Mail, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Share2, Shield, ShoppingBag, Sparkles, Square, Store, Tag, Ticket, Trash2, Truck, Type, Undo2, Upload, User, UserPlus, Video, Wallet, X } from 'lucide-react'
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, ChevronLeft, ChevronRight, ChevronsLeftRight, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutGrid, LayoutTemplate, Loader2, Lock, LogIn, LogOut, Mail, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Share2, Shield, ShoppingBag, Sparkles, Square, Store, Tag, Ticket, Trash2, Truck, Type, Undo2, Upload, User, UserPlus, Video, Wallet, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -105,6 +105,18 @@ import {
   type VisualEditorChromeWidgetStyle,
 } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import {
+  buildVisualEditorBannerHtml,
+  bannerWidgetLabel,
+} from '@/lib/partner-website/visual-editor/banner-widgets'
+import {
+  clampPwSliderWait,
+  PW_SLIDER_SLIDE_MAX,
+  PW_SLIDER_WAIT_DEFAULT,
+  PW_SLIDER_WAIT_MAX,
+  PW_SLIDER_WAIT_MIN,
+  PW_SLIDER_WAIT_STEP,
+} from '@/lib/partner-website/visual-editor/pw-slider-runtime'
+import {
   buildVisualEditorProductGridHtml,
   productGridWidgetLabel,
   VISUAL_EDITOR_PRODUCT_GRID_KINDS,
@@ -175,6 +187,7 @@ export type VisualEditorSelection = {
   isCatToggle: boolean
   isSearch: boolean
   isAddedBg: boolean
+  isAddedBgSlot: boolean
   canClearBg: boolean
   bgCleared: boolean
   canInsertBgSlot: boolean
@@ -228,6 +241,11 @@ export type VisualEditorSelection = {
   logoCropY: number
   logoZoom: number
   isBannerPhoto: boolean
+  isSlider: boolean
+  slideWait: number
+  slideArrows: boolean
+  slideCount: number
+  slideIndex: number
   bannerZoom: number
   logoLayer: 'block' | 'image' | ''
   hasImageLayer: boolean
@@ -293,6 +311,7 @@ function selectionFromMessage(data: {
   isCatToggle?: boolean
   isSearch?: boolean
   isAddedBg?: boolean
+  isAddedBgSlot?: boolean
   canClearBg?: boolean
   bgCleared?: boolean
   canInsertBgSlot?: boolean
@@ -346,6 +365,11 @@ function selectionFromMessage(data: {
   logoCropY?: number
   logoZoom?: number
   isBannerPhoto?: boolean
+  isSlider?: boolean
+  slideWait?: number
+  slideArrows?: boolean
+  slideCount?: number
+  slideIndex?: number
   bannerZoom?: number
   logoLayer?: string
   hasImageLayer?: boolean
@@ -392,6 +416,7 @@ function selectionFromMessage(data: {
     isCatToggle: Boolean(data.isCatToggle),
     isSearch: Boolean(data.isSearch),
     isAddedBg: Boolean(data.isAddedBg),
+    isAddedBgSlot: Boolean(data.isAddedBgSlot),
     canClearBg: Boolean(data.canClearBg),
     bgCleared: Boolean(data.bgCleared),
     canInsertBgSlot: Boolean(data.canInsertBgSlot),
@@ -462,6 +487,11 @@ function selectionFromMessage(data: {
     logoCropY: Number.isFinite(Number(data.logoCropY)) ? Number(data.logoCropY) : 0,
     logoZoom: Number.isFinite(Number(data.logoZoom)) ? Math.max(30, Math.min(400, Number(data.logoZoom))) : 100,
     isBannerPhoto: Boolean(data.isBannerPhoto),
+    isSlider: Boolean(data.isSlider),
+    slideWait: clampPwSliderWait(data.slideWait ?? PW_SLIDER_WAIT_DEFAULT),
+    slideArrows: data.slideArrows !== false,
+    slideCount: Math.max(0, Math.round(Number(data.slideCount) || 0)),
+    slideIndex: Math.max(0, Math.round(Number(data.slideIndex) || 0)),
     bannerZoom: Number.isFinite(Number(data.bannerZoom))
       ? Math.max(50, Math.min(300, Number(data.bannerZoom)))
       : 100,
@@ -695,6 +725,7 @@ function postToIframe(iframe: HTMLIFrameElement | null, type: string, payload?: 
 }
 
 type VisualEditorGapUnit = { t: number; l: number; w: number; h: number }
+type VisualEditorHGapUnit = VisualEditorGapUnit & { side: 'left' | 'right' }
 
 function parseGapUnits(raw: unknown): VisualEditorGapUnit[] {
   if (!Array.isArray(raw)) return []
@@ -709,6 +740,31 @@ function parseGapUnits(raw: unknown): VisualEditorGapUnit[] {
     out.push({ t, l, w, h })
   }
   return out
+}
+
+function parseHGapUnits(raw: unknown): VisualEditorHGapUnit[] {
+  if (!Array.isArray(raw)) return []
+  const out: VisualEditorHGapUnit[] = []
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue
+    const side = (row as { side?: unknown }).side
+    if (side !== 'left' && side !== 'right') continue
+    const t = Number((row as { t?: unknown }).t)
+    const l = Number((row as { l?: unknown }).l)
+    const w = Number((row as { w?: unknown }).w)
+    const h = Number((row as { h?: unknown }).h)
+    if (![t, l, w, h].every(Number.isFinite)) continue
+    out.push({ t, l, w, h, side })
+  }
+  return out
+}
+
+function gapHPlusPoint(unit: VisualEditorHGapUnit): { x: number; y: number } {
+  const outset = 22
+  return {
+    x: unit.side === 'left' ? unit.l - outset : unit.l + unit.w + outset,
+    y: unit.t + unit.h / 2,
+  }
 }
 
 function isLucideIconComponent(Icon: unknown): Icon is LucideIcon {
@@ -819,7 +875,7 @@ function VisualEditFloatingPanel({
   return (
     <div
       ref={panelRef}
-      className="fixed z-[120] flex w-[20rem] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-lg border bg-background shadow-lg"
+      className="fixed z-[130] flex w-[20rem] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-lg border bg-background shadow-lg"
       style={{ left: pos.x, top: pos.y }}
       role="dialog"
       aria-label={title}
@@ -935,7 +991,12 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [addBgAskOpen, setAddBgAskOpen] = useState(false)
   const [insertBgPickPlace, setInsertBgPickPlace] = useState<'before' | 'after' | null>(null)
   const [insertAnchorActive, setInsertAnchorActive] = useState(false)
+  const [insertAnchorPlace, setInsertAnchorPlace] = useState<'left' | 'right' | 'before' | 'after' | null>(
+    null
+  )
   const [gapUnits, setGapUnits] = useState<VisualEditorGapUnit[]>([])
+  const [hGapUnits, setHGapUnits] = useState<VisualEditorHGapUnit[]>([])
+  const [hGapActiveIndex, setHGapActiveIndex] = useState(-1)
   const [gapActiveIndex, setGapActiveIndex] = useState(-1)
   const [iframeBox, setIframeBox] = useState({ top: 0, left: 0, width: 0, height: 0 })
   const [chromeDupAskKind, setChromeDupAskKind] = useState<VisualEditorChromeWidgetKind | null>(null)
@@ -980,6 +1041,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       setAddBgAskOpen(false)
       setInsertBgPickPlace(null)
       setInsertAnchorActive(false)
+      setInsertAnchorPlace(null)
       setGapUnits([])
       setGapActiveIndex(-1)
       return
@@ -994,6 +1056,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         if (openPanel === 'add') {
           postToIframe(iframeRef.current, 'clearInsertAnchor')
           setInsertAnchorActive(false)
+          setInsertAnchorPlace(null)
         }
         openBlockPanel()
       }
@@ -1035,7 +1098,8 @@ export function PartnerWebsiteVisualEditorToolbar({
     infoPage: boolean
     pageKey?: string
     cmsSlug?: string
-  }>({ device: 'desktop', logoUrl: '', chatIconLogoUrl: '', vars: undefined, hideChatLauncher: true, infoPage: false })
+    hoverNameOn: boolean
+  }>({ device: 'desktop', logoUrl: '', chatIconLogoUrl: '', vars: undefined, hideChatLauncher: true, infoPage: false, hoverNameOn: true })
   activatePayloadRef.current = {
     device: visualDeviceVariantFromHtmlPath(htmlPath),
     logoUrl: theme?.logoUrl || '',
@@ -1045,6 +1109,7 @@ export function PartnerWebsiteVisualEditorToolbar({
     infoPage: isPartnerTextArticlePage({ pageKey, cmsSlug }),
     pageKey: pageKey || '',
     cmsSlug: cmsSlug?.trim() || '',
+    hoverNameOn: true,
   }
 
   const isTextArticlePage = isPartnerTextArticlePage({ pageKey, cmsSlug })
@@ -1319,6 +1384,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         isCatToggle?: boolean
         isSearch?: boolean
         isAddedBg?: boolean
+        isAddedBgSlot?: boolean
         canClearBg?: boolean
         bgCleared?: boolean
         canInsertBgSlot?: boolean
@@ -1422,6 +1488,12 @@ export function PartnerWebsiteVisualEditorToolbar({
               data.type === 'logoCreate' || /website logo for|drawn slot is/i.test(prev) ? '' : prev
             )
           }
+        } else if (next.isBannerPhoto) {
+          setAiPrompt((prev) => {
+            const cur = prev.trim()
+            if (!cur || cur === t.visualEditAiBannerDefault) return t.visualEditAiBannerDefault
+            return prev
+          })
         }
         if (data.type === 'logoCreate' && next.isLogo) {
           requestAnimationFrame(() => promptTextareaRef.current?.focus())
@@ -1474,6 +1546,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       }
       if (data.type === 'ready') {
         postToIframe(iframeRef.current, 'listHidden')
+        postToIframe(iframeRef.current, 'setHoverNameOn', { on: true })
       }
       if (data.type === 'dirty') {
         setDirty(true)
@@ -1515,10 +1588,19 @@ export function PartnerWebsiteVisualEditorToolbar({
         setGapUnits(parseGapUnits(data.units))
         const nextActive = Number(data.active)
         setGapActiveIndex(Number.isFinite(nextActive) ? nextActive : -1)
+        setHGapUnits(parseHGapUnits(data.hUnits))
+        const nextH = Number(data.hActive)
+        setHGapActiveIndex(Number.isFinite(nextH) ? nextH : -1)
       }
       if (data.type === 'openAddAtGap') {
         try {
+          const place = String(data.place || '')
           setInsertAnchorActive(true)
+          setInsertAnchorPlace(
+            place === 'left' || place === 'right' || place === 'before' || place === 'after'
+              ? place
+              : null
+          )
           setAddBgAskOpen(false)
           setInsertBgPickPlace(null)
           setOpenPanel('add')
@@ -1529,6 +1611,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       }
       if (data.type === 'insertAnchorClear') {
         setInsertAnchorActive(false)
+        setInsertAnchorPlace(null)
       }
       if (data.type === 'chromeDuplicateAsk') {
         const kind = String(data.kind || '')
@@ -1591,6 +1674,7 @@ export function PartnerWebsiteVisualEditorToolbar({
           e.preventDefault()
           postToIframe(iframeRef.current, 'clearInsertAnchor')
           setInsertAnchorActive(false)
+          setInsertAnchorPlace(null)
           return
         }
       }
@@ -2039,6 +2123,7 @@ export function PartnerWebsiteVisualEditorToolbar({
           isCatToggle: false,
           isSearch: false,
           isAddedBg: false,
+          isAddedBgSlot: false,
           canClearBg: false,
           bgCleared: false,
           canInsertBgSlot: false,
@@ -2092,6 +2177,11 @@ export function PartnerWebsiteVisualEditorToolbar({
           logoCropY: 0,
           logoZoom: 100,
           isBannerPhoto: false,
+          isSlider: false,
+          slideWait: PW_SLIDER_WAIT_DEFAULT,
+          slideArrows: true,
+          slideCount: 0,
+          slideIndex: 0,
           bannerZoom: 100,
           logoLayer: 'block',
           hasImageLayer: true,
@@ -2188,7 +2278,10 @@ export function PartnerWebsiteVisualEditorToolbar({
       onError(t.visualEditAiPromptRequired)
       return
     }
-    const inferred = inferVisualEditImageKind(selection)
+    const inferred = inferVisualEditImageKind({
+      ...selection,
+      isBannerPhoto: selection.isBannerPhoto,
+    })
     let referenceImageUrl = refUrl.trim() || (useCurrentRef ? selection.src.trim() : '')
     if (useCurrentRef && !refUrl.trim() && selection.src.trim() && !/^https?:\/\//i.test(referenceImageUrl)) {
       try {
@@ -2335,8 +2428,10 @@ export function PartnerWebsiteVisualEditorToolbar({
       atCenter: true,
       useAnchor: insertAnchorActive,
     })
-    openBlockPanel()
-    setDirty(true)
+    if (opts?.force) {
+      openBlockPanel()
+      setDirty(true)
+    }
   }
 
   function handleChromeDupAdd() {
@@ -2392,7 +2487,10 @@ export function PartnerWebsiteVisualEditorToolbar({
     setDirty(true)
     setAddBgAskOpen(false)
     setInsertBgPickPlace(null)
-    if (useAnchor) setInsertAnchorActive(false)
+    if (useAnchor) {
+      setInsertAnchorActive(false)
+      setInsertAnchorPlace(null)
+    }
     openBlockPanel()
   }
 
@@ -2408,6 +2506,42 @@ export function PartnerWebsiteVisualEditorToolbar({
       place,
       color: addBgColor || '#f3f4f6',
     })
+  }
+
+  function insertBannerWidget() {
+    const slug = siteSlug?.trim()
+    if (!slug) {
+      onError(t.visualEditSaveFailed)
+      return
+    }
+    if (insertBgPickPlace) cancelInsertBgPickUi()
+    setAddBgAskOpen(false)
+    const html = buildVisualEditorBannerHtml({ kind: 'hero', siteSlug: slug, locale })
+    if (!html) return
+    postToIframe(iframeRef.current, 'insertBanner', { html, useAnchor: insertAnchorActive })
+    setDirty(true)
+    openBlockPanel()
+  }
+
+  function insertSliderWidget() {
+    const slug = siteSlug?.trim()
+    if (!slug) {
+      onError(t.visualEditSaveFailed)
+      return
+    }
+    if (insertBgPickPlace) cancelInsertBgPickUi()
+    setAddBgAskOpen(false)
+    const html = buildVisualEditorBannerHtml({ kind: 'slider', siteSlug: slug, locale })
+    if (!html) return
+    postToIframe(iframeRef.current, 'insertBanner', {
+      html,
+      slideHtml: buildVisualEditorBannerHtml({ kind: 'hero', siteSlug: slug, locale }),
+      useAnchor: insertAnchorActive,
+      beside: !insertAnchorActive,
+      mergeSlide: true,
+    })
+    setDirty(true)
+    openBlockPanel()
   }
 
   function insertProductGridWidget(kind: VisualEditorProductGridKind) {
@@ -2935,7 +3069,9 @@ export function PartnerWebsiteVisualEditorToolbar({
   }
 
   const blockPanelTitle =
-    chromeFaceKind
+    selection?.isSlider
+      ? t.visualEditAddSlider || bannerWidgetLabel('slider', locale)
+      : chromeFaceKind
       ? chromeTitle
       : editKind === 'added-bg'
         ? t.visualEditAddBg
@@ -3034,6 +3170,7 @@ export function PartnerWebsiteVisualEditorToolbar({
             onClick={() => {
               if (openPanel !== 'add') {
                 setInsertAnchorActive(false)
+                setInsertAnchorPlace(null)
                 postToIframe(iframeRef.current, 'clearInsertAnchor')
               }
               togglePanel('add')
@@ -3223,6 +3360,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                         if (openPanel === 'add') {
                           postToIframe(iframeRef.current, 'clearInsertAnchor')
                           setInsertAnchorActive(false)
+                          setInsertAnchorPlace(null)
                         }
                         openBlockPanel()
                       }
@@ -3318,6 +3456,35 @@ export function PartnerWebsiteVisualEditorToolbar({
                       <MousePointerClick className="h-3.5 w-3.5 shrink-0" aria-hidden />
                       {t.visualEditAddButton}
                     </button>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] font-medium hover:bg-muted"
+                      disabled={busy}
+                      onClick={() => insertBannerWidget()}
+                    >
+                      <Images className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      {insertAnchorPlace === 'left' || insertAnchorPlace === 'right'
+                        ? t.visualEditAddBannerRegular || t.visualEditAddBanner
+                        : t.visualEditAddBanner || bannerWidgetLabel('hero', locale)}
+                    </button>
+                    <div className="flex flex-col">
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] font-medium hover:bg-muted"
+                        disabled={busy}
+                        onClick={() => insertSliderWidget()}
+                      >
+                        <ChevronsLeftRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        {insertAnchorPlace === 'left' || insertAnchorPlace === 'right'
+                          ? t.visualEditAddSliderPush || t.visualEditAddSlider
+                          : t.visualEditAddSlider || bannerWidgetLabel('slider', locale)}
+                      </button>
+                      {insertAnchorPlace === 'left' || insertAnchorPlace === 'right' ? (
+                        <p className="px-2 pb-1 pl-7 text-[10px] leading-4 text-muted-foreground">
+                          {t.visualEditAddSliderPushHint}
+                        </p>
+                      ) : null}
+                    </div>
                     {VISUAL_EDITOR_PRODUCT_GRID_KINDS.map((kind) => {
                       const Icon =
                         kind === 'recently-viewed' ? Clock : kind === 'recommended' ? Sparkles : LayoutGrid
@@ -3665,6 +3832,116 @@ export function PartnerWebsiteVisualEditorToolbar({
               </Button>
             </div>
           ) : null}
+          {selection?.isSlider ? (
+            <div className="flex w-full min-w-[12rem] flex-col gap-2 rounded-md border bg-background px-2 py-1.5">
+              <div className="flex items-center justify-between gap-1">
+                <button
+                  type="button"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded border hover:bg-muted"
+                  disabled={busy}
+                  title={t.visualEditSliderPrev}
+                  onClick={() => {
+                    postToIframe(iframeRef.current, 'goSlide', {
+                      index: selection.slideIndex - 1,
+                    })
+                    setDirty(true)
+                  }}
+                >
+                  <ChevronLeft className="h-4 w-4" aria-hidden />
+                </button>
+                <span className="text-[11px] font-semibold tabular-nums">
+                  {t.visualEditSliderSlide} {selection.slideIndex + 1} / {Math.max(1, selection.slideCount)}
+                </span>
+                <button
+                  type="button"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded border hover:bg-muted"
+                  disabled={busy}
+                  title={t.visualEditSliderNext}
+                  onClick={() => {
+                    postToIframe(iframeRef.current, 'goSlide', {
+                      index: selection.slideIndex + 1,
+                    })
+                    setDirty(true)
+                  }}
+                >
+                  <ChevronRight className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={btn}
+                  disabled={busy || selection.slideCount >= PW_SLIDER_SLIDE_MAX}
+                  onClick={() => {
+                    postToIframe(iframeRef.current, 'addSlide')
+                    setDirty(true)
+                  }}
+                >
+                  <Plus className="mr-1 h-3 w-3" />
+                  {t.visualEditSliderAdd}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={cn(btn, 'text-destructive')}
+                  disabled={busy || selection.slideCount <= 2}
+                  onClick={() => {
+                    postToIframe(iframeRef.current, 'removeSlide')
+                    setDirty(true)
+                  }}
+                >
+                  <Trash2 className="mr-1 h-3 w-3" />
+                  {t.visualEditSliderRemove}
+                </Button>
+              </div>
+              <label className="flex flex-col gap-1 text-[10px]" title={t.visualEditSliderWaitHint}>
+                <span className="flex items-center justify-between gap-2">
+                  <span className="font-medium text-foreground">{t.visualEditSliderWait}</span>
+                  <span className="tabular-nums text-muted-foreground">
+                    {selection.slideWait <= 0
+                      ? t.visualEditSliderWaitOff
+                      : `${(selection.slideWait / 1000).toFixed(1)}s`}
+                  </span>
+                </span>
+                <input
+                  type="range"
+                  min={PW_SLIDER_WAIT_MIN}
+                  max={PW_SLIDER_WAIT_MAX}
+                  step={PW_SLIDER_WAIT_STEP}
+                  value={selection.slideWait}
+                  className={slider}
+                  disabled={busy}
+                  onChange={(e) => {
+                    postToIframe(iframeRef.current, 'setSlideWait', {
+                      ms: clampPwSliderWait(e.target.value),
+                    })
+                    setDirty(true)
+                  }}
+                />
+                <span className="text-muted-foreground">{t.visualEditSliderWaitHint}</span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2">
+                <Switch
+                  className="mt-0.5 shrink-0 data-[state=checked]:bg-primary"
+                  checked={selection.slideArrows}
+                  disabled={busy}
+                  onCheckedChange={(on) => {
+                    postToIframe(iframeRef.current, 'setSlideArrows', { on })
+                    setDirty(true)
+                  }}
+                />
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-semibold leading-4">{t.visualEditSliderArrows}</span>
+                  <span className="block text-[10px] leading-4 text-muted-foreground">
+                    {t.visualEditSliderArrowsHint}
+                  </span>
+                </span>
+              </label>
+            </div>
+          ) : null}
           {showImageTools && selection?.isBannerPhoto ? (
             <label
               className="flex min-w-[10rem] flex-1 items-center gap-1.5 text-[10px] sm:min-w-[14rem]"
@@ -3685,27 +3962,33 @@ export function PartnerWebsiteVisualEditorToolbar({
               <span className="w-8 shrink-0 tabular-nums text-muted-foreground">{selection.bannerZoom}%</span>
             </label>
           ) : null}
-          {selection?.canSizeBlock && !chromeLikeKind ? (
+          {(selection?.canSizeBlock || selection?.isAddedBg) && !chromeLikeKind ? (
             <div className="flex w-full min-w-[12rem] flex-col gap-1.5 rounded-md border bg-background px-2 py-1.5">
-              <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditBlockSizeHint}</p>
-              {renderChromeNumSlider(
-                t.visualEditBlockWidth,
-                Math.max(80, selection.blockWidth || 80),
-                80,
+              <p className="text-[10px] leading-4 text-muted-foreground">
+                {selection.isAddedBg ? t.visualEditBgSizeHint : t.visualEditBlockSizeHint}
+              </p>
+              {selection.isAddedBg && selection.isAddedBgSlot ? null : renderChromeNumSlider(
+                selection.isAddedBg ? t.visualEditBgWidth : t.visualEditBlockWidth,
+                Math.max(selection.isAddedBg ? 24 : 80, selection.blockWidth || selection.width || 80),
+                selection.isAddedBg ? 24 : 80,
                 Math.max(80, selection.blockMaxWidth || 390),
                 (raw) =>
-                  Math.max(80, Math.min(Math.max(80, selection.blockMaxWidth || 390), Math.round(Number(raw) || 80))),
+                  Math.max(
+                    selection.isAddedBg ? 24 : 80,
+                    Math.min(Math.max(80, selection.blockMaxWidth || 390), Math.round(Number(raw) || 80))
+                  ),
                 (width) => {
                   postToIframe(iframeRef.current, 'setBlockSize', { width })
                   setDirty(true)
                 }
               )}
               {renderChromeNumSlider(
-                t.visualEditBlockHeight,
-                Math.max(80, selection.blockHeight || 80),
-                80,
+                selection.isAddedBg ? t.visualEditBgHeight : t.visualEditBlockHeight,
+                Math.max(selection.isAddedBg ? 24 : 80, selection.blockHeight || selection.height || 80),
+                selection.isAddedBg ? 24 : 80,
                 2400,
-                (raw) => Math.max(80, Math.min(2400, Math.round(Number(raw) || 80))),
+                (raw) =>
+                  Math.max(selection.isAddedBg ? 24 : 80, Math.min(2400, Math.round(Number(raw) || 80))),
                 (height) => {
                   postToIframe(iframeRef.current, 'setBlockSize', { height })
                   setDirty(true)
@@ -4017,27 +4300,35 @@ export function PartnerWebsiteVisualEditorToolbar({
               <div className="flex overflow-hidden rounded-md border">
                 {[...PW_SCENE_LAYERS].reverse().map((layer) => {
                   const locked = sceneFocus === layer.index
+                  const onAddedBg = Boolean(selection?.isAddedBg && selection.scene === layer.index)
+                  const pressed = selection?.isAddedBg ? onAddedBg : locked
                   return (
                     <button
                       key={layer.key}
                       type="button"
                       disabled={busy}
-                      title={`${sceneLayerLabel(t, layer.index)} · ${t.visualEditSceneLock}`}
-                      aria-pressed={locked}
+                      title={`${sceneLayerLabel(t, layer.index)} · ${selection?.isAddedBg ? t.visualEditSceneElementLayer : t.visualEditSceneLock}`}
+                      aria-pressed={pressed}
                       className={cn(
                         'relative flex-1 border-r px-1 py-1 text-[10px] leading-4 last:border-r-0 disabled:opacity-50',
-                        locked
+                        pressed
                           ? 'bg-primary font-semibold text-primary-foreground'
                           : 'text-muted-foreground hover:bg-muted'
                       )}
-                      onClick={() =>
+                      onClick={() => {
+                        if (selection?.isAddedBg) {
+                          postToIframe(iframeRef.current, 'setScene', { scene: layer.index })
+                          return
+                        }
                         postToIframe(iframeRef.current, 'setSceneFocus', {
                           scene: locked ? -1 : layer.index,
                         })
-                      }
+                      }}
                     >
                       <span className="inline-flex items-center justify-center gap-0.5">
-                        {locked ? <MousePointerClick className="h-2.5 w-2.5 shrink-0 opacity-90" aria-hidden /> : null}
+                        {pressed && !selection?.isAddedBg ? (
+                          <MousePointerClick className="h-2.5 w-2.5 shrink-0 opacity-90" aria-hidden />
+                        ) : null}
                         {sceneLayerLabel(t, layer.index)}
                       </span>
                     </button>
@@ -4050,8 +4341,10 @@ export function PartnerWebsiteVisualEditorToolbar({
                   <span className="font-semibold text-foreground">{sceneLayerLabel(t, selection.scene)}</span>
                 </p>
               ) : null}
-              <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditSceneHint}</p>
-              {selection ? (
+              <p className="text-[10px] leading-4 text-muted-foreground">
+                {selection?.isAddedBg ? t.visualEditSceneHintAddedBg : t.visualEditSceneHint}
+              </p>
+              {selection && !selection.isAddedBg ? (
                 <div className="flex overflow-hidden rounded-md border">
                   <Button
                     type="button"
@@ -4235,7 +4528,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                 <span className="w-7 tabular-nums text-muted-foreground">{selection.imageWidth}%</span>
               </label>
               ) : null}
-              {!selection.isBannerPhoto && selection.canImageRadius ? (
+              {selection.canImageRadius ? (
                 <div className="grid gap-1">
                   <div className="flex flex-wrap items-center gap-1">
                     <Button
@@ -4941,7 +5234,9 @@ export function PartnerWebsiteVisualEditorToolbar({
                 ref={promptTextareaRef}
                 value={aiPrompt}
                 onChange={(e) => setAiPrompt(e.target.value)}
-                placeholder={t.visualEditAiImagePlaceholder}
+                placeholder={
+                  selection.isBannerPhoto ? t.visualEditAiBannerPlaceholder : t.visualEditAiImagePlaceholder
+                }
                 rows={compact ? 1 : 2}
                 disabled={busy}
                 className={cn(
@@ -5068,9 +5363,9 @@ export function PartnerWebsiteVisualEditorToolbar({
             )
           : null}
       </div>
-      {typeof document !== 'undefined' && active && gapUnits.length > 0
+      {typeof document !== 'undefined' && active && (gapUnits.length > 0 || hGapUnits.length > 0)
         ? createPortal(
-            <div className="pointer-events-none fixed inset-0 z-[120]" data-pw-gap-plus-host="1">
+            <div className="pointer-events-none fixed inset-0 z-[90]" data-pw-gap-plus-host="1">
               {Array.from({ length: gapUnits.length + 1 }, (_, i) => {
                 const point = gapPlusPoint(i, gapUnits)
                 if (!point) return null
@@ -5086,7 +5381,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                 }
                 return (
                   <button
-                    key={i}
+                    key={'v-' + i}
                     type="button"
                     className={cn(
                       'pointer-events-auto absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[1.5px] border-white bg-[#2563eb] text-[20px] font-bold leading-none text-white shadow opacity-90 hover:bg-[#1d4ed8] hover:opacity-100',
@@ -5097,6 +5392,37 @@ export function PartnerWebsiteVisualEditorToolbar({
                     title={t.visualEditAddAtGap}
                     onClick={() => {
                       postToIframe(iframeRef.current, 'setInsertAnchor', { index: i })
+                    }}
+                  >
+                    +
+                  </button>
+                )
+              })}
+              {hGapUnits.map((unit, i) => {
+                const point = gapHPlusPoint(unit)
+                const x = iframeBox.left + point.x
+                const y = iframeBox.top + point.y
+                if (
+                  x < iframeBox.left - 8 ||
+                  x > iframeBox.left + iframeBox.width + 8 ||
+                  y < iframeBox.top - 8 ||
+                  y > iframeBox.top + iframeBox.height + 8
+                ) {
+                  return null
+                }
+                return (
+                  <button
+                    key={'h-' + i + '-' + unit.side}
+                    type="button"
+                    className={cn(
+                      'pointer-events-auto absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[1.5px] border-white bg-[#2563eb] text-[20px] font-bold leading-none text-white shadow opacity-90 hover:bg-[#1d4ed8] hover:opacity-100',
+                      hGapActiveIndex === i && 'bg-[#1d4ed8] opacity-100'
+                    )}
+                    style={{ left: x, top: y }}
+                    aria-label={t.visualEditAddAtSide}
+                    title={t.visualEditAddAtSide}
+                    onClick={() => {
+                      postToIframe(iframeRef.current, 'setInsertHAnchor', { index: i })
                     }}
                   >
                     +

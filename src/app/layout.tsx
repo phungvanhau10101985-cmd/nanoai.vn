@@ -22,6 +22,7 @@ import {
 } from '@/lib/auth/app-request-headers'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 import { FloatingChatWidget } from '@/components/messaging/floating-chat-widget'
+import { parseSiteChatEmbed } from '@/lib/messaging/parse-site-chat-embed'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
 import { PlatformServiceWorkerRegistration } from '@/components/pwa/platform-service-worker-registration'
 
@@ -84,12 +85,6 @@ type MetaTagPayload = {
   content: string;
 };
 
-type IframeEmbedPayload = {
-  src: string;
-  title: string;
-  loading?: "lazy" | "eager";
-  referrerPolicy?: React.IframeHTMLAttributes<HTMLIFrameElement>["referrerPolicy"];
-};
 
 async function loadAdminIntegrationsSettings(): Promise<AdminIntegrationsSettings> {
   if (!isPgConfigured()) return {};
@@ -110,25 +105,6 @@ function parseMetaTag(raw: string): MetaTagPayload | null {
   if (!content || (!name && !property)) return null;
 
   return { name, property, content };
-}
-
-function parseIframeEmbed(raw: string): IframeEmbedPayload | null {
-  const source = raw.trim();
-  if (!source) return null;
-  const src = source.match(/src\s*=\s*["']([^"']+)["']/i)?.[1]?.trim();
-  if (!src) return null;
-
-  const title = source.match(/title\s*=\s*["']([^"']+)["']/i)?.[1]?.trim() || "Chat widget";
-  const loadingRaw = source.match(/loading\s*=\s*["']([^"']+)["']/i)?.[1]?.trim().toLowerCase();
-  const referrerPolicy = source.match(/referrerpolicy\s*=\s*["']([^"']+)["']/i)?.[1]?.trim();
-
-  const loading = loadingRaw === "eager" ? "eager" : "lazy";
-  return {
-    src,
-    title,
-    loading,
-    referrerPolicy: referrerPolicy as React.IframeHTMLAttributes<HTMLIFrameElement>["referrerPolicy"],
-  };
 }
 
 function extractMessagingPartnerSlugFromChatUrl(chatUrl: string): string | null {
@@ -295,7 +271,7 @@ export default async function RootLayout({
   const embedIframeRaw = envEmbedExplicit
     ? embedFromEnv || embedFromDb
     : embedFromDb || embedFromEnv;
-  const hostedChatIframe = parseIframeEmbed(embedIframeRaw);
+  const hostedChatIframe = parseSiteChatEmbed(embedIframeRaw);
   const hostedChatUrl = hostedChatIframe
     ? normalizeEmbedSrc(hostedChatIframe.src, requestOrigin)
     : "";
@@ -506,7 +482,11 @@ export default async function RootLayout({
                   shopName={widgetShopName}
                   launcherLogoUrl={widgetLauncherLogoUrl}
                   loading={hostedChatIframe?.loading || 'lazy'}
-                  referrerPolicy={hostedChatIframe?.referrerPolicy}
+                  referrerPolicy={
+                    hostedChatIframe?.referrerPolicy as
+                      | React.IframeHTMLAttributes<HTMLIFrameElement>['referrerPolicy']
+                      | undefined
+                  }
                   openLabel={widgetText.openLabel}
                   closeLabel={widgetText.closeLabel}
                   openFullPageLabel={widgetText.openFullPageLabel}

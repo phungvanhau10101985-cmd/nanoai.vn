@@ -15,6 +15,7 @@ test('default demo PDP shell includes gallery, sizes, colors, qty, and reviews',
   assert.match(html, /data-pw-el="thumb"/)
   assert.match(html, /data-pw-pdp-option="size"/)
   assert.match(html, /data-pw-pdp-option="color"/)
+  assert.match(html, /data-pw-pdp-option-value="/)
   assert.match(html, /data-pw-el="qty"/)
   assert.match(html, /data-pw-el="buy"/)
   assert.match(html, /data-pw-el="card-cart"/)

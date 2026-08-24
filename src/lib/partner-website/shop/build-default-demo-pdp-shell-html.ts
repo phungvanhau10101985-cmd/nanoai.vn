@@ -94,7 +94,7 @@ export function buildDefaultDemoPdpShellHtml(input?: {
   const sizePills = sizes
     .map(
       (s, i) =>
-        `<button type="button" class="pw-pdp-pill${i === 0 ? ' is-active' : ''}">${escapeHtml(s)}</button>`
+        `<button type="button" class="pw-pdp-pill${i === 0 ? ' is-active' : ''}" data-pw-pdp-option-value="${escapeAttr(s)}">${escapeHtml(s)}</button>`
     )
     .join('')
   const colorPills = colors
@@ -103,7 +103,7 @@ export function buildDefaultDemoPdpShellHtml(input?: {
       const face = img
         ? `<img src="${escapeAttr(img)}" alt="${escapeAttr(c.name)}" />`
         : escapeHtml(c.name)
-      return `<button type="button" class="pw-pdp-pill pw-pdp-color${i === 0 ? ' is-active' : ''}">${face}</button>`
+      return `<button type="button" class="pw-pdp-pill pw-pdp-color${i === 0 ? ' is-active' : ''}" data-pw-pdp-option-value="${escapeAttr(c.name)}">${face}</button>`
     })
     .join('')
   const breadcrumbHtml = [

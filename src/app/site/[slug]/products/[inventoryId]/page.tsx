@@ -5,7 +5,10 @@ import { fetchPartnerInventoryActivePageWithCountFromPg } from '@/lib/db/messagi
 import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
-import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import {
+  inventoryRowToLivePdpVariants,
+  inventoryRowToShopProduct,
+} from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopProductClient } from '@/components/partner-website/shop/partner-site-shop-product-client'
@@ -97,7 +100,7 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
     shop.site,
     row.id,
     device,
-    product
+    { ...product, ...inventoryRowToLivePdpVariants(row) }
   )
   if (visual) return visual
 

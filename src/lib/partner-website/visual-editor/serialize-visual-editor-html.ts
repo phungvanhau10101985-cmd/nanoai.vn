@@ -27,6 +27,7 @@ function stripEditorAndRuntimeNodes(clone: Element) {
   restoreDeferredPdpGalleryMedia(clone)
   clone.querySelector(`#${EDITOR_STYLE_ID}`)?.remove()
   clone.querySelector(`#${EDITOR_SCRIPT_ID}`)?.remove()
+  clone.querySelector('#nanoai-ve-hover-name')?.remove()
   clone.querySelector('#nanoai-pw-overlay-style')?.remove()
   clone.querySelector('#nanoai-pw-logo-guard')?.remove()
   clone.querySelector('#__NEXT_DATA__')?.remove()

@@ -40,6 +40,11 @@ describe('visual-editor css url', () => {
       kind: 'banner',
       aspectRatio: '21:9',
     })
+    expect(inferVisualEditImageKind({ isBannerPhoto: true })).toEqual({
+      kind: 'banner',
+      aspectRatio: '16:9',
+    })
+    expect(inferVisualEditImageKind({ isBannerPhoto: true, width: 1600, height: 720 }).kind).toBe('banner')
     expect(inferVisualEditImageKind({ width: 800, height: 400 })).toEqual({
       kind: 'banner',
       aspectRatio: '16:9',
@@ -52,6 +57,8 @@ describe('visual-editor css url', () => {
 
   it('enables current-image reference for banner photos, not empty logos', () => {
     expect(shouldUseCurrentImageAsRef({ src: 'https://cdn.example/hero.jpg', isBgImage: true })).toBe(true)
+    expect(shouldUseCurrentImageAsRef({ src: 'https://cdn.example/hero.jpg', isBannerPhoto: true })).toBe(true)
+    expect(shouldUseCurrentImageAsRef({ src: 'data:image/svg+xml,<svg/>', isBannerPhoto: true })).toBe(false)
     expect(shouldUseCurrentImageAsRef({ src: 'https://cdn.example/p.jpg', isImage: true })).toBe(true)
     expect(shouldUseCurrentImageAsRef({ src: '', isBgImage: true })).toBe(false)
     expect(
@@ -78,6 +85,11 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('isChromeBtn')
     expect(s).toContain('insertChromeBtn')
     expect(s).toContain('insertProductGrid')
+    expect(s).toContain('insertBanner')
+    expect(s).toContain('setSlideWait')
+    expect(s).toContain('setSlideArrows')
+    expect(s).toContain('pwSliderBoot')
+    expect(s).toContain('data-pw-slide-wait')
     expect(s).toContain('insertProductHostWidget')
     expect(s).toContain('isChromeBgHost')
     expect(s).toContain('findExistingChrome')
@@ -116,6 +128,8 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('chromeDuplicateAsk')
     expect(s).toContain("post('chromeDuplicateAsk'")
     expect(s).toContain('opts.atCenter')
+    expect(s).toContain('var force = !!(opts && opts.force)')
+    expect(s).not.toContain('opts.force || opts.atCenter')
     expect(s).not.toContain("post('chromeDuplicate',")
     expect(s).toContain('nanoai-ve-chrome-dup')
     expect(s).toContain('bakeChromeFloatPos')
@@ -148,6 +162,9 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('!isChromeBtn(el) && !addedBg')
     expect(s).toContain('insertBgInFlow')
     expect(s).toContain('insertInFlowAtAnchor')
+    expect(s).toContain('tryMergeBannerSlide')
+    expect(s).toContain('convertHeroToFullSlider')
+    expect(s).toContain('data-pw-full-slides')
     expect(s).toContain('syncGapPluses')
     expect(s).toContain('gapUnits')
     expect(s).toContain('applyInsertAnchorIndex')
@@ -519,6 +536,13 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('objectPosition = pos')
     expect(s).toContain('parseBannerPan')
     expect(s).toContain('is-banner-zoom')
+    expect(s).toContain('is-banner-height')
+    expect(s).toContain('is-banner-width')
+    expect(s).toContain('function applyAddedBgSize(')
+    expect(s).toContain('function resizeDirsFor(')
+    expect(s).toContain("resize.mode === 'surface-size'")
+    expect(s).toContain("if (isAddedBg(el)) return el")
+    expect(s).toContain("document.querySelectorAll('.nanoai-ve-resize-handle')")
     expect(s).toContain('photoSrcOf')
     expect(s).toContain('photoSrcOf(logoImgSrc)')
     expect(s).toContain('pointer-events:none!important')
@@ -719,6 +743,8 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('setImageRadius')
     expect(s).toContain('data-pw-image-radius')
     expect(s).toContain('applyImageRadius')
+    expect(s).toContain("host.getAttribute('data-pw-added-banner') === '1'")
+    expect(s).toContain('return banner')
     expect(s).toContain('setOverlay')
     expect(s).toContain('setPadding')
     expect(s).toContain('setBlockSize')

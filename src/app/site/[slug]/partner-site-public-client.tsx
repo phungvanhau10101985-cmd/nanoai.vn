@@ -46,17 +46,22 @@ function lockLiveSceneCanvas(forceDevice?: VisualDeviceVariant | null) {
     stamped === 'mobile' || stamped === 'tablet' || stamped === 'laptop' || stamped === 'desktop'
       ? stamped
       : pwSceneLockFromWindowWidth(Math.max(outer, inner))
-  const key = pwSceneLockForAvailableHtml(preferred, document)
-  if (!key) return
-  const zoom = stamped ? 1 : pwSceneLiveZoomScale(inner, outer, screenW)
+  const key = pwSceneLockForAvailableHtml(preferred, document) || preferred
+  const sceneW = pwSceneCanvasWidth(key)
+  const zoom = pwSceneLiveZoomScale(inner, outer, screenW, sceneW)
   document.documentElement.setAttribute('data-pw-scene-lock', key)
-  document.documentElement.style.setProperty('--pw-scene-w', `${pwSceneCanvasWidth(key)}px`)
+  document.documentElement.setAttribute('data-pw-edit-device', key)
+  document.documentElement.style.setProperty('--pw-scene-w', `${sceneW}px`)
   document.documentElement.style.setProperty('--pw-scene-zoom', String(zoom))
+  if (zoom && zoom !== 1) document.documentElement.setAttribute('data-pw-scene-zoomed', '1')
+  else document.documentElement.removeAttribute('data-pw-scene-zoomed')
   const root = document.querySelector('[data-pw-inline-visual-root]') as HTMLElement | null
   if (root) {
     const h = root.scrollHeight || 0
-    root.style.marginBottom = zoom > 1 && h > 0 ? `${Math.round((zoom - 1) * h)}px` : ''
+    root.style.marginBottom = zoom !== 1 && h > 0 ? `${Math.round((zoom - 1) * h)}px` : ''
   }
+  const apply = (window as Window & { __pwSceneCenterApply?: () => void }).__pwSceneCenterApply
+  if (typeof apply === 'function') apply()
 }
 
 function hideChatLaunchersInHtml(html: string, hide: boolean): string {

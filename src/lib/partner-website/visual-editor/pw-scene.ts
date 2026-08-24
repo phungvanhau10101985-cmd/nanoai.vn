@@ -314,16 +314,22 @@ export function pwSceneDeviceVisibilityCss(): string {
   ].join('')
 }
 
-/** Browser zoom should shrink/grow the shop naturally; only the canvas center is locked. */
+/**
+ * Live copies the Sửa nhanh canvas 1:1 then scales it to the CSS viewport.
+ * `sceneW` omitted → 1 (Sửa nhanh iframe is already the canvas).
+ */
 export function pwSceneLiveZoomScale(
   innerWidth: unknown,
   outerWidth: unknown,
-  screenWidth?: unknown
+  screenWidth?: unknown,
+  sceneW?: unknown
 ): number {
-  void innerWidth
   void outerWidth
   void screenWidth
-  return 1
+  const inner = Number(innerWidth)
+  const w = Number(sceneW)
+  if (!(inner > 8) || !(w > 8)) return 1
+  return inner / w
 }
 
 /** Biến CSS dùng chung cho Sửa nhanh và trang khách — hai bên phải cùng số. */
@@ -332,8 +338,20 @@ export function pwSceneCssVars(device: unknown): string {
 }
 
 /** Ảnh banner luôn phủ kín khối — kéo = đổi crop, không dịch tấm ra khỏi khung. */
+/** Hàng ngang Sửa nhanh — `+` trái/phải chèn mọi phần tử cạnh khối. */
+export const PARTNER_SHOP_HROW_CSS = `
+html [data-pw-hrow]{display:flex!important;flex-direction:row!important;align-items:stretch;width:var(--pw-block-w,100%);max-width:var(--pw-block-w,100%);margin-left:auto!important;margin-right:auto!important;box-sizing:border-box;gap:0}
+html [data-pw-hrow]>*{flex:1 1 0;min-width:0;width:auto!important;max-width:100%!important;margin-left:0!important;margin-right:0!important;box-sizing:border-box}
+html [data-pw-hrow] [data-pw-region="banner"],html [data-pw-hrow] .pw-hero,html [data-pw-hrow] .pw-banner,html [data-pw-hrow] .pw-shop-hero,html [data-pw-hrow] .pw-shop-banner{width:auto!important;max-width:100%!important;margin-left:0!important;margin-right:0!important}
+`.trim()
+
 export const PARTNER_SHOP_BANNER_MEDIA_FILL_CSS = `
 html [data-pw-region="banner"],html .pw-hero,html .pw-banner,html .pw-shop-hero,html .pw-shop-banner{overflow:hidden}
+html [data-pw-added-banner]{
+  background:linear-gradient(135deg,var(--pw-primary),var(--pw-accent));color:#fff
+}
+html [data-pw-added-banner]::before,html [data-pw-added-banner]::after{display:none!important;content:none!important;background:none!important}
+html [data-pw-added-banner] img[data-pw-banner-placeholder="1"]{opacity:0!important}
 html [data-pw-region="banner"] img[data-pw-el="media"],
 html [data-pw-region="banner"] img[data-pw-banner-zoom],
 html .pw-hero img[data-pw-el="media"],html .pw-banner img[data-pw-el="media"],
@@ -375,11 +393,12 @@ export function pwSceneCenterCss(): string {
     `@media (min-width:${t}px) and (max-width:${l - 1}px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]){--pw-scene-w:${t}px}}`,
     `@media (min-width:${l}px) and (max-width:${d - 1}px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]){--pw-scene-w:${l}px}}`,
     `@media (min-width:${d}px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]){--pw-scene-w:${d}px}}`,
-    // Sửa nhanh: body trong iframe. Xem thật: neo #shop root — không khóa body Next.js
-    // (html co theo body thì calc(50%-khung/2) = 0 → cả trang dạt trái).
+    // Sửa nhanh: body trong iframe đúng khổ máy. Live: cùng khổ rồi scale phủ viewport.
     `html[data-pw-edit-device] body{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:calc(50% - (var(--pw-scene-w) / 2))!important;margin-right:auto!important;box-sizing:border-box;overflow-x:visible;transform-origin:top center;display:block}`,
-    `[data-pw-inline-visual-root]{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:calc(50% - (var(--pw-scene-w) / 2))!important;margin-right:auto!important;box-sizing:border-box;overflow-x:visible;transform-origin:top center;display:block}`,
-    `html[data-pw-scene-zoomed="1"] [data-pw-inline-visual-root]{transform:scale(var(--pw-scene-zoom,1))}`,
+    `[data-pw-inline-visual-root]{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:0!important;margin-right:calc(var(--pw-scene-w) * (var(--pw-scene-zoom,1) - 1))!important;box-sizing:border-box;overflow-x:visible;transform-origin:top left;transform:scale(var(--pw-scene-zoom,1));display:block}`,
+    `[data-pw-live-fixed-layer]{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:210}`,
+    `[data-pw-live-fixed-layer]>*{pointer-events:auto}`,
+    `[data-pw-live-fixed-layer] [data-pw-added-bg="1"]{pointer-events:none!important}`,
     `main:has([data-pw-inline-visual-root]){width:100%!important;max-width:none!important;margin:0!important;padding:0!important;display:block!important}`,
     `${PW_SCENE_MEDIA_ZOOM_SEL}{transform-origin:50% var(--pw-zoom-oy,50%)}`,
   ].join('')
@@ -396,7 +415,7 @@ export function pwMediaZoomOriginYPct(top: number, height: number, viewHeight: n
 
 /** Runtime Sửa nhanh + web thật: neo canvas theo trung điểm màn hình. */
 export const PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID = 'pw-shop-scene-center'
-/** Khóa máy theo outerWidth (không đổi khi Ctrl +/-) rồi neo canvas giữa màn hình. */
+/** Khóa máy theo outerWidth (không đổi khi Ctrl +/-) rồi copy canvas Sửa nhanh phủ viewport. */
 export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
   var W={mobile:${PW_SCENE_CANVAS_WIDTH.mobile},tablet:${PW_SCENE_CANVAS_WIDTH.tablet},laptop:${PW_SCENE_CANVAS_WIDTH.laptop},desktop:${PW_SCENE_CANVAS_WIDTH.desktop}};
   function stamped(){
@@ -415,8 +434,15 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
     if(w<W.desktop)return 'laptop';
     return 'desktop';
   }
-  function zoomScale(){
-    return 1;
+  function liveRoot(){
+    return document.querySelector('[data-pw-inline-visual-root]');
+  }
+  function zoomScale(scenePx){
+    var root=liveRoot();
+    if(!root)return 1;
+    var inner=window.innerWidth||(document.documentElement&&document.documentElement.clientWidth)||0;
+    if(!(inner>8)||!(scenePx>8))return 1;
+    return inner/scenePx;
   }
   function hasWrap(k){
     return document.querySelector('.pw-visual-'+k+',[data-pw-visual-device="'+k+'"]');
@@ -428,21 +454,130 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
     for(i=0;i<list.length;i++) if(hasWrap(list[i])) return list[i];
     return '';
   }
+  function parsePx(v){
+    var n=parseFloat(String(v==null?'':v));
+    return isFinite(n)?n:NaN;
+  }
+  function isChromeFloat(el){
+    var k=el&&el.getAttribute?String(el.getAttribute('data-pw-chrome-btn')||''):'';
+    return k==='chat'||k==='chat-zalo'||k==='chat-facebook'||k==='chat-instagram'||k==='chat-whatsapp'||k==='topup';
+  }
+  function isPct(raw){
+    return String(raw||'').indexOf('%')>=0;
+  }
+  function readCanvasBox(el,scenePx,scale){
+    if(el.getAttribute('data-pw-canvas-x')!=null&&el.getAttribute('data-pw-canvas-x')!==''){
+      return {
+        x:parsePx(el.getAttribute('data-pw-canvas-x')),
+        y:parsePx(el.getAttribute('data-pw-canvas-y')),
+        w:parsePx(el.getAttribute('data-pw-canvas-w')),
+        h:parsePx(el.getAttribute('data-pw-canvas-h')),
+        xu:el.getAttribute('data-pw-canvas-xu')||'px',
+        yu:el.getAttribute('data-pw-canvas-yu')||'px'
+      };
+    }
+    var st=el.style||{};
+    var left=parsePx(st.left);
+    var top=parsePx(st.top);
+    var xu=isPct(st.left)?'pct':'px';
+    var yu=isPct(st.top)?'pct':'px';
+    var w=parsePx(st.width);
+    var h=parsePx(st.height);
+    if(!isFinite(left)&&st.inset){
+      var parts=String(st.inset).trim().split(/\\s+/);
+      if(parts.length===4){top=parsePx(parts[0]);left=parsePx(parts[3]);xu='px';yu='px';}
+    }
+    var sx=parsePx(el.getAttribute('data-pw-stay-x'));
+    var sy=parsePx(el.getAttribute('data-pw-stay-y'));
+    var sw=parsePx(el.getAttribute('data-pw-stay-w'));
+    var sh=parsePx(el.getAttribute('data-pw-stay-h'));
+    if(!isFinite(left)&&isFinite(sx)){left=sx;xu='pct';}
+    if(!isFinite(top)&&isFinite(sy)){top=sy;yu='pct';}
+    if(isFinite(sw)&&!isFinite(w))w=sw;
+    if(isFinite(sh)&&!isFinite(h))h=sh;
+    if(!isFinite(w)||!isFinite(h)){
+      try{
+        var r=el.getBoundingClientRect();
+        var z=scale>0?scale:1;
+        if(!isFinite(w)&&r.width>0)w=r.width/z;
+        if(!isFinite(h)&&r.height>0)h=r.height/z;
+      }catch(eR){}
+    }
+    if(isFinite(left))el.setAttribute('data-pw-canvas-x',String(left));
+    if(isFinite(top))el.setAttribute('data-pw-canvas-y',String(top));
+    if(isFinite(w))el.setAttribute('data-pw-canvas-w',String(w));
+    if(isFinite(h))el.setAttribute('data-pw-canvas-h',String(h));
+    el.setAttribute('data-pw-canvas-xu',xu);
+    el.setAttribute('data-pw-canvas-yu',yu);
+    return {x:left,y:top,w:w,h:h,xu:xu,yu:yu};
+  }
+  function shouldBindFixed(el){
+    if(!el||!el.getAttribute||isChromeFloat(el))return false;
+    if(el.getAttribute('data-pw-stay-scroll')==='1')return true;
+    if(el.getAttribute('data-pw-pin-screen')==='1')return true;
+    var pos='';
+    try{pos=window.getComputedStyle(el).position}catch(eP){}
+    if(pos!=='fixed')return false;
+    return el.getAttribute('data-pw-user-move')==='1'||el.getAttribute('data-pw-added-bg')==='1'||el.getAttribute('data-pw-chrome-added')==='1';
+  }
+  function ensureLayer(root){
+    var host=root.parentNode||document.body;
+    var layer=host.querySelector('[data-pw-live-fixed-layer]');
+    if(layer)return layer;
+    layer=document.createElement('div');
+    layer.setAttribute('data-pw-live-fixed-layer','1');
+    host.insertBefore(layer,root);
+    return layer;
+  }
+  function bindFixed(root,scale,scenePx){
+    if(!root)return;
+    var layer=ensureLayer(root);
+    var nodes=document.querySelectorAll('[data-pw-stay-scroll="1"],[data-pw-user-move="1"],[data-pw-added-bg="1"],[data-pw-chrome-added="1"],[data-pw-pin-screen="1"]');
+    var i;
+    for(i=0;i<nodes.length;i++){
+      var el=nodes[i];
+      if(!shouldBindFixed(el))continue;
+      var box=readCanvasBox(el,scenePx,scale);
+      if(el.parentNode!==layer){
+        try{layer.appendChild(el)}catch(eM){}
+      }
+      if(!el.style)continue;
+      el.style.pointerEvents=el.getAttribute('data-pw-added-bg')==='1'?'none':'auto';
+      el.style.setProperty('position','fixed','important');
+      var inner=window.innerWidth||scenePx;
+      var innerH=window.innerHeight||720;
+      if(isFinite(box.x)){
+        var leftPx=box.xu==='pct'?(box.x/100)*inner:box.x*scale;
+        el.style.setProperty('left',leftPx+'px','important');
+      }
+      if(isFinite(box.y)){
+        var topPx=box.yu==='pct'?(box.y/100)*innerH:box.y*scale;
+        el.style.setProperty('top',topPx+'px','important');
+      }
+      el.style.setProperty('right','auto','important');
+      el.style.setProperty('bottom','auto','important');
+      el.style.setProperty('transform','none','important');
+      if(isFinite(box.w)&&box.w>0)el.style.setProperty('width',(box.w*scale)+'px','important');
+      if(isFinite(box.h)&&box.h>0)el.style.setProperty('height',(box.h*scale)+'px','important');
+    }
+  }
   function apply(){
     var html=document.documentElement;
     if(!html||!html.style)return;
-    var key=pick(band());
-    if(!key)return;
+    var key=pick(band())||band();
     var px=W[key]||W.desktop;
-    var z=zoomScale();
+    var z=zoomScale(px);
     html.setAttribute('data-pw-scene-lock',key);
+    html.setAttribute('data-pw-edit-device',key);
     html.style.setProperty('--pw-scene-w',px+'px');
     html.style.setProperty('--pw-scene-zoom',String(z));
     if (z && z !== 1) html.setAttribute('data-pw-scene-zoomed','1');
     else html.removeAttribute('data-pw-scene-zoomed');
-    var root=document.querySelector('[data-pw-inline-visual-root]');
+    var root=liveRoot();
     if(root&&root.style){
-      root.style.marginBottom='';
+      var h=root.scrollHeight||0;
+      root.style.marginBottom=z!==1&&h>0?Math.round((z-1)*h)+'px':'';
+      bindFixed(root,z,px);
     }
     var bgs=document.querySelectorAll('[data-pw-added-bg="1"]');
     var bi;
@@ -454,10 +589,17 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
       if(bg.style)bg.style.setProperty('z-index',ix||'1','important');
     }
   }
+  window.__pwSceneCenterApply=apply;
   apply();
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply);
   window.addEventListener('resize',apply);
   if(window.visualViewport)window.visualViewport.addEventListener('resize',apply);
+  if(!liveRoot()){
+    var mo=new MutationObserver(function(){
+      if(liveRoot()){apply();mo.disconnect();}
+    });
+    mo.observe(document.documentElement,{childList:true,subtree:true});
+  }
 })();`
 
 export const PARTNER_SHOP_IMAGE_ZOOM_SCRIPT_ID = 'pw-shop-image-zoom'

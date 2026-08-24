@@ -265,12 +265,40 @@ function ensureAccountWrap(btn){
   }
   return wrap;
 }
+function isPlacedCatBtn(el){
+  if(!el||!el.getAttribute)return false;
+  if(el.getAttribute('data-pw-user-move')==='1')return true;
+  if(el.getAttribute('data-pw-stay-scroll')==='1')return true;
+  var st=el.style;
+  if(!st)return false;
+  var pos=st.position||'';
+  if(pos==='absolute'||pos==='fixed')return true;
+  var left=st.left||'';
+  var top=st.top||'';
+  return (left&&left!=='auto')||(top&&top!=='auto');
+}
+function transferCatBox(from,to){
+  if(!from||!to||!from.style||!to.style)return;
+  var props=['position','left','top','right','bottom','z-index','transform'];
+  for(var i=0;i<props.length;i++){
+    var p=props[i];
+    var v=from.style.getPropertyValue(p);
+    if(!v)continue;
+    to.style.setProperty(p,v,from.style.getPropertyPriority(p)||'');
+    from.style.removeProperty(p);
+  }
+  if(from.getAttribute('data-pw-user-move'))to.setAttribute('data-pw-user-move','1');
+  to.setAttribute('data-pw-cat-placed','1');
+}
 function ensureCatWrap(btn){
   if(!btn)return null;
-  var wrap=btn.closest('.pw-chrome-cat-wrap,.pw-brand-cluster,.pw-shop-brand-cluster');
-  if(wrap)return wrap;
-  wrap=document.createElement('span');
+  var existing=btn.closest('.pw-chrome-cat-wrap');
+  if(existing)return existing;
+  var cluster=btn.closest('.pw-brand-cluster,.pw-shop-brand-cluster');
+  if(cluster&&!isPlacedCatBtn(btn))return cluster;
+  var wrap=document.createElement('span');
   wrap.className='pw-chrome-cat-wrap';
+  if(isPlacedCatBtn(btn))transferCatBox(btn,wrap);
   if(btn.parentNode){
     btn.parentNode.insertBefore(wrap,btn);
     wrap.appendChild(btn);
@@ -681,6 +709,7 @@ if(mo)mo.observe(document.documentElement,{childList:true,subtree:true});
 })();</script>
 <style data-pw-chrome-toggle-css>
 .pw-chrome-cat-wrap,.pw-account-wrap,.pw-shop-account-wrap,.pw-chrome-account-wrap{position:relative;display:inline-flex;align-items:center}
+.pw-chrome-cat-wrap[data-pw-cat-placed="1"]{display:inline-flex;align-items:center}
 .pw-cat-panel:not(.is-open),.pw-shop-cat-panel:not(.is-open),[data-pw-cat-panel]:not(.is-open),
 .pw-account-panel:not(.is-open),.pw-shop-account-panel:not(.is-open),[data-pw-account-panel]:not(.is-open){display:none!important}
 .pw-cat-panel.is-open,.pw-shop-cat-panel.is-open,[data-pw-cat-panel].is-open,
