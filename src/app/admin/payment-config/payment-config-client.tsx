@@ -28,13 +28,15 @@ import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import type { WebLocale } from '@/lib/i18n/config'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
-import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
+import { KeyRound, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
 import { isStepUpRequiredError } from '@/lib/auth/step-up-otp-shared'
 import {
   deletePaymentConfigAction,
+  getSepayWebhookSecretStatusAction,
   listPaymentConfigsAction,
   savePaymentConfigAction,
+  saveSepayWebhookSecretAction,
   type PaymentConfigRow,
 } from './actions'
 
@@ -62,6 +64,10 @@ export function PaymentConfigClient({ initialLocale }: { initialLocale: WebLocal
   const [accountHolder, setAccountHolder] = useState('')
   const [qrTemplateUrl, setQrTemplateUrl] = useState(DEFAULT_QR)
   const [isActive, setIsActive] = useState(true)
+  const [hmacSecret, setHmacSecret] = useState('')
+  const [hmacConfigured, setHmacConfigured] = useState(false)
+  const [hmacLast4, setHmacLast4] = useState<string | null>(null)
+  const [savingHmac, setSavingHmac] = useState(false)
 
   const { toast } = useToast()
   const { runWithStepUp } = useStepUpOtp()
@@ -87,6 +93,11 @@ export function PaymentConfigClient({ initialLocale }: { initialLocale: WebLocal
       return
     }
     setRows(res.data)
+    const secretStatus = await getSepayWebhookSecretStatusAction()
+    if (!('error' in secretStatus)) {
+      setHmacConfigured(secretStatus.configured)
+      setHmacLast4(secretStatus.last4)
+    }
   }, [toast, tr])
 
   useEffect(() => {
@@ -207,6 +218,43 @@ export function PaymentConfigClient({ initialLocale }: { initialLocale: WebLocal
     await load()
   }
 
+  const handleSaveHmac = async () => {
+    setSavingHmac(true)
+    const res = await runWithStepUp(() => saveSepayWebhookSecretAction(hmacSecret))
+    setSavingHmac(false)
+    if ('error' in res) {
+      if (isStepUpRequiredError(res)) return
+      toast({
+        title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
+        description:
+          res.error === 'secret_required'
+            ? tr(
+                'Dán Secret Key từ SePay (HMAC-SHA256), tối thiểu 8 ký tự.',
+                'Paste the SePay HMAC-SHA256 Secret Key (at least 8 characters).',
+                '请粘贴 SePay HMAC-SHA256 Secret Key（至少 8 位）。',
+                'SePay の HMAC-SHA256 Secret Key を貼り付けてください（8文字以上）。',
+                'SePay HMAC-SHA256 Secret Key를 붙여넣으세요(8자 이상).'
+              )
+            : res.error,
+        variant: 'destructive',
+      })
+      return
+    }
+    setHmacSecret('')
+    setHmacConfigured(true)
+    setHmacLast4(res.last4)
+    toast({
+      title: tr('Đã lưu Secret Key', 'Secret Key saved', '已保存 Secret Key', 'Secret Key を保存しました', 'Secret Key 저장됨'),
+      description: tr(
+        'Webhook nạp credit sẽ dùng key này để xác thực HMAC-SHA256.',
+        'Credit webhooks will verify HMAC-SHA256 with this key.',
+        '充值 webhook 将用此密钥校验 HMAC-SHA256。',
+        '入金 webhook はこのキーで HMAC-SHA256 を検証します。',
+        '충전 웹훅이 이 키로 HMAC-SHA256을 검증합니다.'
+      ),
+    })
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -234,6 +282,61 @@ export function PaymentConfigClient({ initialLocale }: { initialLocale: WebLocal
           </Button>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="h-5 w-5" />
+            {tr('SePay — Secret Key HMAC', 'SePay — HMAC Secret Key', 'SePay — HMAC Secret Key', 'SePay — HMAC Secret Key', 'SePay — HMAC Secret Key')}
+          </CardTitle>
+          <CardDescription>
+            {tr(
+              'Lấy từ SePay → Webhooks → Bảo mật → HMAC-SHA256 → bấm mắt, copy Secret Key (whsec_…). Dán vào đây rồi Lưu. Không dùng merchant key spsk_.',
+              'From SePay → Webhooks → Security → HMAC-SHA256 → reveal and copy Secret Key (whsec_…). Paste here and Save. Do not use the merchant spsk_ key.',
+              '在 SePay → Webhooks → 安全 → HMAC-SHA256 点眼睛复制 Secret Key（whsec_…），粘贴到此并保存。不要用商户 spsk_。',
+              'SePay → Webhooks → セキュリティ → HMAC-SHA256 で目のアイコンから Secret Key（whsec_…）をコピーし、ここに貼って保存。商用 spsk_ は使わないでください。',
+              'SePay → Webhooks → 보안 → HMAC-SHA256에서 눈 아이콘으로 Secret Key(whsec_…)를 복사해 여기에 붙여 저장하세요. 가맹점 spsk_는 쓰지 마세요.'
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {hmacConfigured
+              ? tr(
+                  `Đã lưu. Key hiện tại kết thúc bằng ****${hmacLast4 || '????'}. Điền key mới bên dưới nếu muốn thay.`,
+                  `Saved. Current key ends with ****${hmacLast4 || '????'}. Enter a new key below to replace it.`,
+                  `已保存。当前密钥末四位 ****${hmacLast4 || '????'}。要更换请在下方填写新密钥。`,
+                  `保存済み。末尾 ****${hmacLast4 || '????'}。差し替える場合は下に新しいキーを入力。`,
+                  `저장됨. 현재 키 끝자리 ****${hmacLast4 || '????'}. 바꾸려면 아래에 새 키를 입력하세요.`
+                )
+              : tr(
+                  'Chưa có Secret Key trên máy chủ. Webhook HMAC sẽ bị từ chối cho đến khi bạn lưu key.',
+                  'No Secret Key on the server yet. HMAC webhooks will be rejected until you save one.',
+                  '服务器上还没有 Secret Key。保存前 HMAC webhook 会被拒绝。',
+                  'サーバーに Secret Key がありません。保存するまで HMAC webhook は拒否されます。',
+                  '서버에 Secret Key가 없습니다. 저장하기 전까지 HMAC 웹훅은 거부됩니다.'
+                )}
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="pc-hmac-secret">
+              {tr('Secret Key (HMAC-SHA256)', 'Secret Key (HMAC-SHA256)', 'Secret Key（HMAC-SHA256）', 'Secret Key（HMAC-SHA256）', 'Secret Key (HMAC-SHA256)')}
+            </Label>
+            <Input
+              id="pc-hmac-secret"
+              type="password"
+              autoComplete="new-password"
+              value={hmacSecret}
+              onChange={(e) => setHmacSecret(e.target.value)}
+              placeholder="whsec_…"
+              className="font-mono"
+            />
+          </div>
+          <Button type="button" onClick={() => void handleSaveHmac()} disabled={savingHmac || !hmacSecret.trim()}>
+            {savingHmac ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {tr('Lưu Secret Key', 'Save Secret Key', '保存 Secret Key', 'Secret Key を保存', 'Secret Key 저장')}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

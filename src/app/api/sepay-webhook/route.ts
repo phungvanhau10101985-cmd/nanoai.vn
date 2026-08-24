@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createHmac, timingSafeEqual } from 'crypto'
 import { deliverUserNotificationPg } from '@/lib/notifications/deliver-user-notification-pg'
+import { verifySePayHmacSignature, verifySePayWebhookAuth } from '@/lib/sepay-webhook-auth'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import { addCreditsToUser } from '@/lib/db/credits-balance'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
+  getSepayWebhookHmacSecretFromPg,
   sepayFindPaymentByTransactionId,
   sepayFindPendingPaymentMatch,
   sepayMarkPaymentCompleted,
@@ -76,24 +77,6 @@ const parseBody = (rawBody: string, contentType: string): SePayBody => {
   return Object.fromEntries(params.entries())
 }
 
-const signaturesEqual = (left: string, right: string) => {
-  const leftBuffer = Buffer.from(left)
-  const rightBuffer = Buffer.from(right)
-  if (leftBuffer.length !== rightBuffer.length) return false
-  return timingSafeEqual(leftBuffer, rightBuffer)
-}
-
-const verifySePaySignature = (rawBody: string, secretKey: string, signature: string) => {
-  const expectedHex = createHmac('sha256', secretKey).update(rawBody).digest('hex')
-  const expectedBase64 = createHmac('sha256', secretKey).update(rawBody).digest('base64')
-  const normalizedSignature = signature.trim()
-
-  return (
-    signaturesEqual(normalizedSignature.toLowerCase(), expectedHex.toLowerCase()) ||
-    signaturesEqual(normalizedSignature, expectedBase64)
-  )
-}
-
 function formatVnd(n: number): string {
   return `${new Intl.NumberFormat('vi-VN').format(Math.max(0, Math.round(n)))}đ`
 }
@@ -117,7 +100,25 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(body, null, 2)
     })
 
-    // Xác thực IPN từ SePay (nếu có signature)
+    const url = new URL(request.url)
+    const partnerIdEarly = (url.searchParams.get('partner') || '').trim()
+    const tokenEarly = (url.searchParams.get('token') || '').trim()
+    const dbHmacSecret = await getSepayWebhookHmacSecretFromPg()
+    const auth = verifySePayWebhookAuth({
+      headers: request.headers,
+      searchParams: url.searchParams,
+      rawBody,
+      remoteIp: request.headers.get('x-real-ip'),
+      extraHmacSecrets: dbHmacSecret ? [dbHmacSecret] : [],
+    })
+    if (!auth.ok && !(partnerIdEarly && tokenEarly)) {
+      console.warn('SePay webhook rejected:', auth.reason)
+      return NextResponse.json({ error: 'unauthorized', reason: auth.reason }, { status: 401 })
+    }
+    if (auth.ok) {
+      console.log('SePay webhook auth via', auth.via)
+    }
+
     const signature =
       request.headers.get('x-sepay-signature') ||
       request.headers.get('signature') ||
@@ -225,27 +226,17 @@ export async function POST(request: NextRequest) {
     // Multi-tenant shop order webhook mode:
     // ?partner=<partnerId>&token=<shopToken>
     // If shop order matched, process order payment directly (independent from wallet top-up flow).
-    const url = new URL(request.url)
-    const partnerId = (url.searchParams.get('partner') || '').trim()
-    const token = (url.searchParams.get('token') || '').trim()
+    const partnerId = partnerIdEarly
+    const token = tokenEarly
     if (partnerId && token) {
       const order = await fetchPartnerOrderByPaymentReferenceFromPg(partnerId, normalizedContent)
       if (!order) {
         return NextResponse.json({ error: 'Order not found for partner webhook.' }, { status: 404 })
       }
       const secretKey = (order.sepay_secret_key ?? '').trim() || (process.env.SEPAY_SECRET_KEY ?? '').trim()
-      if (secretKey && signature) {
-        const isValidSignature = verifySePaySignature(rawBody, secretKey, signature)
-        if (!isValidSignature) {
-          console.error('Invalid SePay signature (partner mode)')
-          return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-        }
-      } else if (secretKey) {
-        const requireSignature = process.env.SEPAY_REQUIRE_SIGNATURE === 'true'
-        if (requireSignature) {
-          return NextResponse.json({ error: 'Missing signature' }, { status: 401 })
-        }
-        console.warn('No signature received; continuing because SEPAY_REQUIRE_SIGNATURE=false')
+      if (!auth.ok && secretKey && signature && !verifySePayHmacSignature(rawBody, secretKey, signature)) {
+        console.error('Invalid SePay signature (partner mode)')
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
       }
       const cfgToken = (order.sepay_webhook_token ?? '').trim()
       if (!cfgToken || cfgToken !== token) {
@@ -344,20 +335,6 @@ export async function POST(request: NextRequest) {
           status: nextStatus,
         },
       })
-    }
-    const secretKey = (process.env.SEPAY_SECRET_KEY ?? '').trim()
-    if (secretKey && signature) {
-      const isValidSignature = verifySePaySignature(rawBody, secretKey, signature)
-      if (!isValidSignature) {
-        console.error('Invalid SePay signature')
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-      }
-    } else if (secretKey) {
-      const requireSignature = process.env.SEPAY_REQUIRE_SIGNATURE === 'true'
-      if (requireSignature) {
-        return NextResponse.json({ error: 'Missing signature' }, { status: 401 })
-      }
-      console.warn('No signature received; continuing because SEPAY_REQUIRE_SIGNATURE=false')
     }
     if (!pending) {
       console.warn('No pending payment found for content:', normalizedContent)

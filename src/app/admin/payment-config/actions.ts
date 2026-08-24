@@ -5,8 +5,10 @@ import { revalidatePath } from 'next/cache'
 import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
 import {
   deletePaymentConfigPg,
+  getSepayWebhookHmacSecretStatusFromPg,
   listPaymentConfigsAllFromPg,
   upsertPaymentConfigPg,
+  upsertSepayWebhookHmacSecretPg,
   type PaymentConfigAdminRow,
 } from '@/lib/db/payments-repo'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -91,6 +93,38 @@ export async function savePaymentConfigAction(
   if ('error' in result) return { error: result.error }
   revalidatePath('/admin/payment-config')
   return { ok: true }
+}
+
+export async function getSepayWebhookSecretStatusAction(): Promise<
+  { configured: boolean; last4: string | null } | { error: string }
+> {
+  const gate = await requireAdmin()
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) {
+    return { error: 'Cấu hình máy chủ thiếu DATABASE_URL.' }
+  }
+  return getSepayWebhookHmacSecretStatusFromPg()
+}
+
+export async function saveSepayWebhookSecretAction(
+  hmacSecret: string
+): Promise<{ ok: true; last4: string } | { error: string }> {
+  const gate = await requireAdmin()
+  if ('error' in gate) return { error: gate.error }
+
+  const step = await assertStepUp(gate.user.id, 'admin')
+  if ('error' in step) return { error: STEP_UP_REQUIRED }
+
+  const v = String(hmacSecret || '').trim()
+  if (v.length < 8) return { error: 'secret_required' }
+
+  if (!isPgConfigured()) {
+    return { error: 'Cấu hình máy chủ thiếu DATABASE_URL.' }
+  }
+  const result = await upsertSepayWebhookHmacSecretPg(v)
+  if ('error' in result) return { error: result.error }
+  revalidatePath('/admin/payment-config')
+  return { ok: true, last4: v.slice(-4) }
 }
 
 export async function deletePaymentConfigAction(id: string): Promise<{ ok: true } | { error: string }> {

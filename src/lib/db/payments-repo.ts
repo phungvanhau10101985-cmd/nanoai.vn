@@ -277,6 +277,58 @@ export async function upsertPaymentConfigPg(input: {
   }
 }
 
+export function maskSepayHmacSecret(secret: string | null | undefined): { configured: boolean; last4: string | null } {
+  const v = String(secret ?? '').trim()
+  if (!v) return { configured: false, last4: null }
+  return { configured: true, last4: v.slice(-4) }
+}
+
+export async function getSepayWebhookHmacSecretFromPg(): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ hmac_secret: string | null }>(
+      'select hmac_secret from public.sepay_webhook_settings where id = 1 limit 1'
+    )
+    const v = String(row?.hmac_secret ?? '').trim()
+    return v || null
+  } catch (e) {
+    const code = typeof e === 'object' && e && 'code' in e ? String((e as { code?: unknown }).code || '') : ''
+    if (code === '42P01') return null
+    console.warn('[getSepayWebhookHmacSecretFromPg]', e)
+    return null
+  }
+}
+
+export async function getSepayWebhookHmacSecretStatusFromPg(): Promise<{
+  configured: boolean
+  last4: string | null
+}> {
+  const secret = await getSepayWebhookHmacSecretFromPg()
+  return maskSepayHmacSecret(secret)
+}
+
+export async function upsertSepayWebhookHmacSecretPg(
+  hmacSecret: string
+): Promise<{ ok: true } | { error: string }> {
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set' }
+  const v = hmacSecret.trim()
+  if (!v) return { error: 'secret_required' }
+  try {
+    const pool = getPgPool()
+    await pool.query(
+      `insert into public.sepay_webhook_settings (id, hmac_secret, updated_at)
+       values (1, $1, timezone('utc'::text, now()))
+       on conflict (id) do update set hmac_secret = excluded.hmac_secret, updated_at = excluded.updated_at`,
+      [v]
+    )
+    return { ok: true }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.warn('[upsertSepayWebhookHmacSecretPg]', e)
+    return { error: msg }
+  }
+}
+
 export async function deletePaymentConfigPg(id: string): Promise<{ ok: true } | { error: string }> {
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set' }
