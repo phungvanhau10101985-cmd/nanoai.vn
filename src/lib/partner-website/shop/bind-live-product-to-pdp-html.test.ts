@@ -139,7 +139,31 @@ test('bind stamps related catalog and rewrites cards when relatedProducts exist'
   assert.match(next, /data-exclude="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"/)
   assert.match(next, /data-category-id="11111111-1111-4111-8111-111111111111"/)
   assert.match(next, /Similar tee/)
+  assert.match(next, /pw-related-grid/)
+  assert.doesNotMatch(next, /alt="Similar tee"/)
   assert.doesNotMatch(next, /data-inventory-id="cccccccc-cccc-cccc-cccc-cccccccccccc"/)
+})
+
+test('bind related strip keeps at most 5 first-paint cards and stamps ruler grid class', () => {
+  const html = SHELL.replace(
+    '<section data-pw-region="catalog"><article data-pw-el="card" data-inventory-id="cccccccc-cccc-cccc-cccc-cccccccccccc"><h3 data-pw-el="card-name">Related</h3></article></section>',
+    '<section data-pw-region="catalog" data-pw-related="1"><div data-pw-grid class="pw-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))"><article data-pw-el="card" data-inventory-id="cccccccc-cccc-cccc-cccc-cccccccccccc"><h3 data-pw-el="card-name">Related</h3></article></div></section>'
+  )
+  const relatedProducts = Array.from({ length: 8 }, (_, i) => ({
+    id: `33333333-3333-4333-8333-33333333333${i}`,
+    name: `Similar ${i}`,
+    imageUrl: `https://new.example/tee-${i}.jpg`,
+  }))
+  const next = bindLiveProductToPdpHtml(
+    html,
+    { ...PRODUCT_B, relatedProducts },
+    { locale: 'vi', siteSlug: 'demo-shop' }
+  )
+  assert.match(next, /pw-related-grid/)
+  assert.match(next, /pw-product-grid/)
+  assert.doesNotMatch(next, /auto-fit/)
+  assert.equal((next.match(/class="pw-product-card pw-related-card"/g) || []).length, 5)
+  assert.doesNotMatch(next, /Similar 5/)
 })
 
 test('bind does not rewrite recommended catalog cards', () => {

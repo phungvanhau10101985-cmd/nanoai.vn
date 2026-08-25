@@ -56,8 +56,12 @@ export function outfitCardHtml(item: OutfitProductCard, opts?: { siteSlug?: stri
   const href = slug && item.id ? escapeAttr(partnerSiteProductPath(slug, item.id, { name: item.name })) : '#'
   const price = String(item.priceHint || '').trim()
   const reason = String(item.reason || '').trim()
+  const imageUrl = String(item.imageUrl || '').trim()
+  const media = imageUrl
+    ? `<img src="${escapeAttr(imageUrl)}" alt="" loading="lazy" decoding="async" />`
+    : ''
   return `<article class="pw-product-card pw-outfit-card" ${pwElAttr(PW_EL.card)} data-inventory-id="${escapeAttr(item.id)}">
-  <a class="pw-product-card-media" href="${href}" ${pwElAttr(PW_EL.cardMedia)}><img src="${escapeAttr(item.imageUrl)}" alt="${escapeAttr(item.name)}" loading="lazy" decoding="async" /></a>
+  <a class="pw-product-card-media" href="${href}" ${pwElAttr(PW_EL.cardMedia)}>${media}</a>
   <div class="pw-product-card-body pw-outfit-card-body">
     <h4 ${pwElAttr(PW_EL.cardName)}><a href="${href}">${escapeHtml(item.name)}</a></h4>
     ${reason ? `<p class="pw-outfit-reason">${escapeHtml(reason)}</p>` : ''}

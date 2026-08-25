@@ -12,6 +12,7 @@ import {
   PW_STAY_SCROLL_Y_ATTR,
   prepareVisualDomForStore,
   rehomeInflowSceneChromeInDocument,
+  restoreLiveChromePins,
   restoreStayScrollPins,
 } from '@/lib/partner-website/shop/stay-scroll-elements'
 
@@ -56,4 +57,5 @@ test('stay-scroll keeps the element in place without floating overlay', () => {
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes("if (document.querySelector('[data-pw-inline-visual-root]')) return"), false)
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes("left', x + '%'"), false)
   assert.equal(typeof restoreStayScrollPins, 'function')
+  assert.equal(typeof restoreLiveChromePins, 'function')
 })

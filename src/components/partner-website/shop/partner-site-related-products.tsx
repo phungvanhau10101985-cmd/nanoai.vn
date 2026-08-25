@@ -81,7 +81,16 @@ export function PartnerSiteRelatedProducts({
               return (
                 <article key={p.id} className="pw-product-card pw-related-card" data-pw-el={PW_EL.card}>
                   <Link className="pw-product-card-media" href={href} data-pw-el={PW_EL.cardMedia}>
-                    <img src={p.imageUrl} alt={p.name} loading="lazy" />
+                    {p.imageUrl ? (
+                      <img
+                        src={p.imageUrl}
+                        alt=""
+                        loading="lazy"
+                        onError={(event) => {
+                          event.currentTarget.style.visibility = 'hidden'
+                        }}
+                      />
+                    ) : null}
                   </Link>
                   <div className="pw-product-card-body pw-related-card-body">
                     <h4 data-pw-el={PW_EL.cardName}>

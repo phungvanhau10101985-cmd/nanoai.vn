@@ -60,8 +60,12 @@ export function relatedCardHtml(
   const slug = String(opts?.siteSlug || '').trim()
   const href = slug && item.id ? escapeAttr(partnerSiteProductPath(slug, item.id, { name: item.name })) : '#'
   const price = String(item.priceHint || '').trim()
+  const imageUrl = String(item.imageUrl || '').trim()
+  const media = imageUrl
+    ? `<img src="${escapeAttr(imageUrl)}" alt="" loading="lazy" decoding="async" />`
+    : ''
   return `<article class="pw-product-card pw-related-card" ${pwElAttr(PW_EL.card)} data-inventory-id="${escapeAttr(item.id)}">
-  <a class="pw-product-card-media" href="${href}" ${pwElAttr(PW_EL.cardMedia)}><img src="${escapeAttr(item.imageUrl)}" alt="${escapeAttr(item.name)}" loading="lazy" decoding="async" /></a>
+  <a class="pw-product-card-media" href="${href}" ${pwElAttr(PW_EL.cardMedia)}>${media}</a>
   <div class="pw-product-card-body pw-related-card-body">
     <h4 ${pwElAttr(PW_EL.cardName)}><a href="${href}">${escapeHtml(item.name)}</a></h4>
     ${price ? `<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>${escapeHtml(price)}</p>` : ''}

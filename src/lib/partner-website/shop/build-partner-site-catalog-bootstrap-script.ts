@@ -140,7 +140,15 @@ function renderRelatedCard(p){
   var name=esc(p.name||'Product');
   var img=esc(p.imageUrl||'');
   var price=esc(p.priceHint||'');
-  return '<article class="pw-product-card pw-related-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'"><a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="'+esc(href)+'">'+(img?'<img src="'+img+'" alt="'+name+'" loading="lazy"/>':'')+'</a><div class="pw-product-card-body pw-related-card-body"><h4 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h4>'+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+'</div></article>';
+  return '<article class="pw-product-card pw-related-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'"><a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="'+esc(href)+'">'+(img?'<img src="'+img+'" alt="" loading="lazy"/>':'')+'</a><div class="pw-product-card-body pw-related-card-body"><h4 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h4>'+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+'</div></article>';
+}
+function hideBrokenCardImgs(root){
+  var imgs=(root||document).querySelectorAll('.pw-product-card-media img,[data-pw-el="card-media"] img');
+  for(var i=0;i<imgs.length;i++){
+    var imgEl=imgs[i];
+    if(imgEl.complete&&imgEl.naturalWidth===0)imgEl.style.visibility='hidden';
+    imgEl.addEventListener('error',function(){this.style.visibility='hidden';});
+  }
 }
 function ensureRelatedActions(el){
   var actions=el.querySelector('.pw-related-actions');
@@ -174,7 +182,9 @@ function ensureRelatedActions(el){
 function paintRelatedSlice(el){
   var st=el._pwRelated;if(!st)return;
   var grid=el.querySelector('[data-pw-grid]');if(!grid)return;
+  grid.classList.add('pw-product-grid','pw-related-grid');
   grid.innerHTML=st.products.slice(0,st.visible).map(renderRelatedCard).join('');
+  hideBrokenCardImgs(grid);
   var ui=ensureRelatedActions(el);
   ui.more.hidden=st.visible>=st.products.length;
   if(st.moreHref)ui.all.setAttribute('href',st.moreHref);

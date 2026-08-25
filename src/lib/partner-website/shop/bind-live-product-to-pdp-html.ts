@@ -517,21 +517,54 @@ function stampOpenAttr(open: string, name: string, value: string): string {
   return open.replace(/>$/, ` ${name}="${escAttr(value)}">`)
 }
 
-function replaceFirstGridInner(inner: string, cards: string): string {
+function stampStripGridOpen(open: string, extraClass: 'pw-related-grid' | 'pw-outfit-grid'): string {
+  let out = open
+  if (/\bclass\s*=/.test(out)) {
+    if (!/\bpw-product-grid\b/.test(out)) {
+      out = out.replace(/\bclass=(["'])/, 'class=$1pw-product-grid ')
+    }
+    if (!new RegExp(`\\b${extraClass}\\b`).test(out)) {
+      out = out.replace(/\bclass=(["'])/, `class=$1${extraClass} `)
+    }
+  } else {
+    out = out.replace(/>$/, ` class="pw-product-grid ${extraClass}">`)
+  }
+  out = out.replace(
+    /(\sstyle=)(["'])([\s\S]*?)\2/i,
+    (_full, attr: string, quote: string, css: string) => {
+      const next = css
+        .replace(/grid-template-columns\s*:[^;]+;?/gi, '')
+        .replace(/display\s*:\s*(flex|block)\s*;?/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/;\s*;/g, ';')
+        .trim()
+        .replace(/^;|;$/g, '')
+      return next ? `${attr}${quote}${next}${quote}` : ''
+    }
+  )
+  return out
+}
+
+function replaceFirstGridInner(
+  inner: string,
+  cards: string,
+  extraClass?: 'pw-related-grid' | 'pw-outfit-grid'
+): string {
   const re = /<([a-z0-9]+)\b(?=[^>]*\b(?:data-pw-grid|data-pw-el=["']grid["']))[^>]*>/i
   const match = inner.match(re)
   if (!match || match.index == null) return inner
   const tag = match[1]
   const start = match.index
+  const open = extraClass ? stampStripGridOpen(match[0], extraClass) : match[0]
   const openEnd = start + match[0].length
   const masked = maskHtmlForTagScan(inner)
   const close = closingTagIndex(masked, openEnd, tag)
   if (close < 0) return inner
-  return inner.slice(0, openEnd) + cards + inner.slice(close)
+  return inner.slice(0, start) + open + cards + inner.slice(close)
 }
 
 function replaceRelatedCards(inner: string, cards: string): string {
-  const withGrid = replaceFirstGridInner(inner, cards)
+  const withGrid = replaceFirstGridInner(inner, cards, 'pw-related-grid')
   if (withGrid !== inner) return withGrid
   const title = inner.match(/<([a-z0-9]+)\b[^>]*data-pw-el=["']section-title["'][^>]*>[\s\S]*?<\/\1>/i)?.[0] || ''
   const actions = inner.match(/<([a-z0-9]+)\b[^>]*\bpw-related-actions\b[^>]*>[\s\S]*?<\/\1>/i)?.[0] || ''
@@ -558,7 +591,7 @@ function rewriteCatalogRelatedInner(
       (_full, tag: string, attrs: string) => `<${tag}${setAttr(attrs, 'href', moreHref)}>`
     )
   }
-  const items = (product.relatedProducts ?? []).filter((item) => String(item?.id || '').trim())
+  const items = (product.relatedProducts ?? []).filter((item) => String(item?.id || '').trim()).slice(0, 5)
   if (items.length) {
     out = replaceRelatedCards(
       out,

@@ -22,6 +22,7 @@ import {
 } from '@/lib/partner-website/shop/stay-scroll-elements'
 import { injectPartnerShopFontsIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-fonts'
 import { PW_OUTFIT_CSS } from '@/lib/partner-website/shop/outfit-products-css'
+import { PW_PRODUCT_GRID_RULER_CSS } from '@/lib/partner-website/shop/pw-product-grid-ruler'
 import { PW_RELATED_CSS } from '@/lib/partner-website/shop/related-products-css'
 import {
   PARTNER_SHOP_IMAGE_ZOOM_SCRIPT,
@@ -296,6 +297,7 @@ body{overflow-x:hidden!important;max-width:100%}
 html{--pw-content:1200px;--pw-block-w:min(calc(var(--pw-scene-w,100%) - 32px),var(--pw-content,1200px))}
 ${pwSceneCenterCss()}
 ${PARTNER_SHOP_PRODUCT_GRID_2COL_CSS}
+${PW_PRODUCT_GRID_RULER_CSS}
 ${PW_RELATED_CSS}
 ${PW_OUTFIT_CSS}
 .pw-for-you-badge{position:absolute;top:8px;left:8px;z-index:2;background:var(--pw-primary);color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px}

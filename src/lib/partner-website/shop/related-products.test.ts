@@ -27,6 +27,19 @@ test('related factory stamps 188-style contract', () => {
   assert.doesNotMatch(html, /data-pw-el="card-buy"/)
 })
 
+test('related live cards keep a square media slot and do not leak name as img alt', () => {
+  const html = buildRelatedProductsSectionHtml({
+    locale: 'vi',
+    siteSlug: 'demo-shop',
+    cards: [
+      { id: '33333333-3333-4333-8333-333333333333', name: 'Giày boot nữ cổ ngắn', imageUrl: '', priceHint: '920.000₫' },
+    ],
+  })
+  assert.match(html, /class="pw-product-card-media"/)
+  assert.doesNotMatch(html, /alt="Giày boot nữ cổ ngắn"/)
+  assert.match(html, /Giày boot nữ cổ ngắn/)
+})
+
 test('related listing href prefers category path', () => {
   assert.match(relatedListingHref({ siteSlug: 'demo-shop', categoryPath: 'ao/ao-thun' }), /ao\/ao-thun/)
   assert.match(relatedListingHref({ siteSlug: 'demo-shop' }), /\/products/)

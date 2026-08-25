@@ -27,6 +27,19 @@ test('outfit factory stamps complementary grid contract', () => {
   assert.doesNotMatch(html, /data-pw-el="card-buy"/)
 })
 
+test('outfit live cards keep a square media slot and do not leak name as img alt', () => {
+  const html = buildOutfitProductsSectionHtml({
+    locale: 'vi',
+    siteSlug: 'demo-shop',
+    cards: [
+      { id: '33333333-3333-4333-8333-333333333333', name: 'Túi xách nữ', imageUrl: '', priceHint: '450.000₫' },
+    ],
+  })
+  assert.match(html, /class="pw-product-card-media"/)
+  assert.doesNotMatch(html, /alt="Túi xách nữ"/)
+  assert.match(html, /Túi xách nữ/)
+})
+
 test('outfit listing href falls back to products', () => {
   assert.match(outfitListingHref({ siteSlug: 'demo-shop', categoryPath: 'giay-dep/sneaker' }), /giay-dep/)
   assert.match(outfitListingHref({ siteSlug: 'demo-shop' }), /\/products/)

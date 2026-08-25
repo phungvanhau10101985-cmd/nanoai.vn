@@ -472,6 +472,25 @@ export const PW_SCENE_MEDIA_ZOOM_SEL = [
   'img[data-pw-banner-zoom]',
 ].join(',')
 
+export const PW_LIVE_CHROME_ATTR = 'data-pw-live-chrome'
+export const PW_LIVE_CHROME_SCALE_ATTR = 'data-pw-live-chrome-scale'
+export const PW_LIVE_CHROME_PH_ATTR = 'data-pw-live-chrome-ph'
+
+/**
+ * Live inline: sticky header không được nằm trong ancestor có transform.
+ * Host sticky không scale; mặt header scale cùng `--pw-scene-zoom`.
+ */
+export function pwSceneLiveChromeCss(): string {
+  return [
+    `[${PW_LIVE_CHROME_ATTR}]{position:sticky!important;top:0!important;z-index:200!important;width:100%;display:flex;flex-direction:column;align-items:flex-start;box-sizing:border-box}`,
+    `[${PW_LIVE_CHROME_SCALE_ATTR}]{width:var(--pw-scene-w)!important;transform-origin:top left;display:flex;flex-direction:column;flex:0 0 auto;box-sizing:border-box}`,
+    `html[data-pw-scene-zoomed="1"] [${PW_LIVE_CHROME_SCALE_ATTR}]{transform:scale(var(--pw-scene-zoom,1))}`,
+    `[${PW_LIVE_CHROME_ATTR}] .pw-header,[${PW_LIVE_CHROME_ATTR}] .pw-shop-header{position:relative!important;top:auto!important;width:100%!important}`,
+    `[${PW_LIVE_CHROME_PH_ATTR}]{display:block;width:100%;pointer-events:none;visibility:hidden}`,
+    `html[data-pw-scene-zoomed="1"] [data-pw-inline-visual-root] .pw-header,html[data-pw-scene-zoomed="1"] [data-pw-inline-visual-root] .pw-shop-header{position:relative!important;top:auto!important}`,
+  ].join('')
+}
+
 /** Đường tâm mọi máy = trung điểm màn hình. Inject vào chrome layout dùng chung. */
 export function pwSceneCenterCss(): string {
   const m = PW_SCENE_CANVAS_WIDTH.mobile
@@ -489,8 +508,12 @@ export function pwSceneCenterCss(): string {
     `@media (min-width:${l}px) and (max-width:${d - 1}px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]){--pw-scene-w:${l}px}}`,
     `@media (min-width:${d}px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]){--pw-scene-w:${d}px}}`,
     // Sửa nhanh: body trong iframe đúng khổ máy. Live: cùng khổ rồi scale phủ viewport.
+    // `transform:scale` (kể cả scale(1)) tạo containing block → sticky header “nặn xuống”.
+    // Chỉ scale khi zoom thật; header hoist ra [data-pw-live-chrome] (sticky, không transform trên host).
     `html[data-pw-edit-device] body{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:calc(50% - (var(--pw-scene-w) / 2))!important;margin-right:auto!important;box-sizing:border-box;overflow-x:visible;transform-origin:top center;display:block}`,
-    `[data-pw-inline-visual-root]{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:0!important;margin-right:calc(var(--pw-scene-w) * (var(--pw-scene-zoom,1) - 1))!important;box-sizing:border-box;overflow-x:visible;transform-origin:top left;transform:scale(var(--pw-scene-zoom,1));display:block}`,
+    `[data-pw-inline-visual-root]{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:0!important;margin-right:calc(var(--pw-scene-w) * (var(--pw-scene-zoom,1) - 1))!important;box-sizing:border-box;overflow-x:visible;transform-origin:top left;transform:none;display:block}`,
+    `html[data-pw-scene-zoomed="1"] [data-pw-inline-visual-root]{transform:scale(var(--pw-scene-zoom,1))}`,
+    pwSceneLiveChromeCss(),
     pwSceneHoistLayerHostCss('[data-pw-live-fixed-layer]'),
     `[data-pw-live-fixed-layer]>*{pointer-events:auto}`,
     `[data-pw-live-fixed-layer]>[data-pw-added-bg="1"]{pointer-events:none!important}`,
@@ -610,12 +633,84 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
   }
   function shouldBindFixed(el){
     if(!el||!el.getAttribute||isChromeFloat(el))return false;
+    if(el.closest&&el.closest('header,.pw-header,.pw-shop-header,[data-pw-live-chrome]'))return false;
     if(el.getAttribute('data-pw-stay-scroll')==='1')return false;
     if(el.getAttribute('data-pw-pin-screen')==='1')return true;
     var pos='';
     try{pos=window.getComputedStyle(el).position}catch(eP){}
     if(pos!=='fixed')return false;
     return el.getAttribute('data-pw-user-move')==='1'||el.getAttribute('data-pw-added-bg')==='1'||el.getAttribute('data-pw-chrome-added')==='1';
+  }
+  function isEditor(){
+    return !!(document.body&&document.body.classList.contains('nanoai-ve-active'));
+  }
+  function findLiveHeader(root){
+    if(!root||!root.querySelector)return null;
+    var header=root.querySelector('header.pw-header,header.pw-shop-header,.pw-header,.pw-shop-header');
+    if(!header)return null;
+    if(header.closest&&header.closest('[data-pw-live-chrome]'))return null;
+    return header;
+  }
+  function siblingChrome(host){
+    if(!host||!host.children)return null;
+    var i;
+    for(i=0;i<host.children.length;i++){
+      var n=host.children[i];
+      if(n.getAttribute&&n.getAttribute('data-pw-live-chrome')==='1')return n;
+    }
+    return null;
+  }
+  function hoistLiveChrome(root,scale){
+    if(!root||isEditor())return;
+    var header=findLiveHeader(root);
+    var host=root.parentNode||document.body;
+    if(!host)return;
+    var chrome=siblingChrome(host);
+    var z=scale>0?scale:1;
+    var leftover=root.querySelector('[data-pw-live-chrome-ph]');
+    if(leftover)try{leftover.remove()}catch(ePh){}
+    if(!header){
+      if(!chrome)return;
+      var inner0=chrome.querySelector('[data-pw-live-chrome-scale]')||chrome;
+      var h0=inner0.offsetHeight||0;
+      if(inner0.style)inner0.style.marginBottom=z!==1&&h0>0?Math.round((z-1)*h0)+'px':'';
+      return;
+    }
+    var nodes=[];
+    var prev=header.previousElementSibling;
+    if(prev&&prev.matches&&prev.matches('.pw-topbar,.pw-shop-topbar,[data-pw-region="topbar"]'))nodes.push(prev);
+    nodes.push(header);
+    if(!chrome){
+      chrome=document.createElement('div');
+      chrome.setAttribute('data-pw-live-chrome','1');
+      host.insertBefore(chrome,root);
+    }
+    var inner=chrome.querySelector('[data-pw-live-chrome-scale]');
+    if(!inner){
+      inner=document.createElement('div');
+      inner.setAttribute('data-pw-live-chrome-scale','1');
+      chrome.appendChild(inner);
+    }
+    var stale=inner.querySelector('header.pw-header,header.pw-shop-header,.pw-header,.pw-shop-header');
+    if(stale&&stale!==header){
+      try{stale.remove()}catch(eS){}
+    }
+    var i;
+    for(i=0;i<nodes.length;i++){
+      if(nodes[i].parentNode!==inner){
+        try{inner.appendChild(nodes[i])}catch(eM){}
+      }
+    }
+    var ih=inner.offsetHeight||0;
+    if(inner.style)inner.style.marginBottom=z!==1&&ih>0?Math.round((z-1)*ih)+'px':'';
+  }
+  var rootWatch=null;
+  function watchLiveRoot(root){
+    if(!root||rootWatch)return;
+    rootWatch=new MutationObserver(function(){
+      if(findLiveHeader(root))apply();
+    });
+    rootWatch.observe(root,{childList:true});
   }
   function ensureLayer(root){
     var host=root.parentNode||document.body;
@@ -671,6 +766,10 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
     if (z && z !== 1) html.setAttribute('data-pw-scene-zoomed','1');
     else html.removeAttribute('data-pw-scene-zoomed');
     var root=liveRoot();
+    if(root){
+      watchLiveRoot(root);
+      hoistLiveChrome(root,z);
+    }
     if(root&&root.style){
       var h=root.scrollHeight||0;
       root.style.marginBottom=z!==1&&h>0?Math.round((z-1)*h)+'px':'';

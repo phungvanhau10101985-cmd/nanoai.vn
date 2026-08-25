@@ -55,7 +55,15 @@ function renderCard(item){
   var img=esc(p.imageUrl||'');
   var price=esc(p.priceHint||'');
   var reason=esc((item&&item.reasons&&item.reasons[0])||'');
-  return '<article class="pw-product-card pw-outfit-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'"><a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="'+esc(href)+'">'+(img?'<img src="'+img+'" alt="'+name+'" loading="lazy"/>':'')+'</a><div class="pw-product-card-body pw-outfit-card-body"><h4 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h4>'+(reason?'<p class="pw-outfit-reason">'+reason+'</p>':'')+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+'</div></article>';
+  return '<article class="pw-product-card pw-outfit-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'"><a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="'+esc(href)+'">'+(img?'<img src="'+img+'" alt="" loading="lazy"/>':'')+'</a><div class="pw-product-card-body pw-outfit-card-body"><h4 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h4>'+(reason?'<p class="pw-outfit-reason">'+reason+'</p>':'')+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+'</div></article>';
+}
+function hideBrokenCardImgs(root){
+  var imgs=(root||document).querySelectorAll('.pw-product-card-media img,[data-pw-el="card-media"] img');
+  for(var i=0;i<imgs.length;i++){
+    var imgEl=imgs[i];
+    if(imgEl.complete&&imgEl.naturalWidth===0)imgEl.style.visibility='hidden';
+    imgEl.addEventListener('error',function(){this.style.visibility='hidden';});
+  }
 }
 function ensureActions(el){
   var actions=el.querySelector('.pw-outfit-actions');
@@ -91,7 +99,9 @@ function paintSlice(el){
   var slot=st.slots[st.active]||null;
   var items=slot&&slot.items?slot.items:[];
   var grid=el.querySelector('[data-pw-grid]');if(!grid)return;
+  grid.classList.add('pw-product-grid','pw-outfit-grid');
   grid.innerHTML=items.slice(0,st.visible).map(renderCard).join('');
+  hideBrokenCardImgs(grid);
   var ui=ensureActions(el);
   ui.more.hidden=st.visible>=items.length;
   if(slot&&slot.listingHref)ui.all.setAttribute('href',slot.listingHref);

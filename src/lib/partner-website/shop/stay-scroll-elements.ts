@@ -11,6 +11,9 @@
  */
 
 import {
+  PW_LIVE_CHROME_ATTR,
+  PW_LIVE_CHROME_PH_ATTR,
+  PW_LIVE_CHROME_SCALE_ATTR,
   PW_SCENE_BAND,
   pwSceneHoistLayerChildZCss,
   pwSceneHoistLayerHostCss,
@@ -70,6 +73,35 @@ export function restoreStayScrollPins(root: ParentNode): void {
   root.querySelectorAll(`[${PW_STAY_SCROLL_PH_SLOT_ATTR}]`).forEach((ph) => ph.remove())
 }
 
+/** Put hoisted live header back before save. Drops runtime chrome host + spacer. */
+export function restoreLiveChromePins(root: ParentNode): void {
+  const chromes = root.querySelectorAll(`[${PW_LIVE_CHROME_ATTR}]`)
+  chromes.forEach((chrome) => {
+    const ph =
+      root.querySelector(`[${PW_LIVE_CHROME_PH_ATTR}]`) ||
+      chrome.nextElementSibling?.querySelector?.(`[${PW_LIVE_CHROME_PH_ATTR}]`) ||
+      null
+    const host =
+      ph?.parentNode ||
+      root.querySelector('[data-pw-inline-visual-root]') ||
+      root.querySelector('body') ||
+      chrome.parentNode
+    const move = Array.from(chrome.querySelectorAll('.pw-topbar, .pw-shop-topbar, header.pw-header, header.pw-shop-header, .pw-header, .pw-shop-header')).filter(
+      (el) => {
+        const parent = el.parentElement
+        return parent === chrome || parent?.getAttribute(PW_LIVE_CHROME_SCALE_ATTR) === '1'
+      }
+    )
+    move.forEach((el) => {
+      if (ph?.parentNode) ph.parentNode.insertBefore(el, ph)
+      else if (host) host.insertBefore(el, host.firstChild)
+    })
+    chrome.remove()
+    ph?.remove()
+  })
+  root.querySelectorAll(`[${PW_LIVE_CHROME_PH_ATTR}]`).forEach((ph) => ph.remove())
+}
+
 const INFLOW_CAT_SEL =
   '[data-pw-chrome-btn="categories"],[data-pw-el="cat-toggle"],[data-pw-cat-toggle],.pw-cat-btn,.pw-shop-cat-btn'
 
@@ -120,6 +152,7 @@ export function clearStayScrollTransientStyles(root: ParentNode): void {
 
 export function prepareVisualDomForStore(root: ParentNode): void {
   rehomeInflowSceneChromeInDocument(root)
+  restoreLiveChromePins(root)
   restoreStayScrollPins(root)
   clearStayScrollTransientStyles(root)
 }
