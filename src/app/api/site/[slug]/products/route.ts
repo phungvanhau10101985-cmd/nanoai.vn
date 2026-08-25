@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
+  fetchCategoryIdsForInventoryFromPg,
+  fetchPartnerCategoriesFlatFromPg,
+} from '@/lib/db/messaging-partner-categories-pg'
+import {
   fetchPartnerCategoryFacetCountsFromPg,
   fetchPartnerInventoryPageByCategoryFromPg,
   fetchPartnerInventoryShopPageFromPg,
@@ -50,8 +54,30 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     .filter((x) => UUID_RE.test(x))
     .slice(0, 48)
 
+  // PDP «Sản phẩm tương tự» — same primary category as the current product,
+  // current product excluded. Falls back to newest inventory when the product
+  // has no category (flat /products shops). `relatedTo` and legacy `related=1&exclude=` both work.
+  const relatedRaw = String(sp.get('related') ?? '').trim().toLowerCase()
+  const relatedFlag = relatedRaw === '1' || relatedRaw === 'true'
   let categoryId = String(sp.get('categoryId') ?? '').trim()
   let preferIds = ids
+  const relatedTo = String(sp.get('relatedTo') ?? '').trim()
+  const excludeIds = String(sp.get('exclude') ?? '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter((x) => UUID_RE.test(x))
+    .slice(0, 8)
+  let categoryPath: string | null = null
+  if (relatedTo && UUID_RE.test(relatedTo) && !excludeIds.includes(relatedTo)) {
+    excludeIds.push(relatedTo)
+  }
+  const relatedSeed = relatedTo && UUID_RE.test(relatedTo) ? relatedTo : excludeIds[0] || ''
+  if ((relatedFlag || relatedTo) && relatedSeed && !(categoryId && UUID_RE.test(categoryId))) {
+    const links = await fetchCategoryIdsForInventoryFromPg(relatedSeed)
+    const primary = links?.find((l) => l.isPrimary) ?? links?.[0]
+    if (primary && UUID_RE.test(primary.categoryId)) categoryId = primary.categoryId
+  }
+  const related = Boolean(relatedFlag || (relatedTo && UUID_RE.test(relatedTo)))
 
   // M3.4 — keyword alias shortcut before text/vector search.
   if (q && !(categoryId && UUID_RE.test(categoryId)) && preferIds.length === 0) {
@@ -63,11 +89,12 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     }
   }
 
+  const fetchLimit = Math.min(48, limit + excludeIds.length)
   const page =
     categoryId && UUID_RE.test(categoryId)
       ? await fetchPartnerInventoryPageByCategoryFromPg(shop.partnerId, {
           offset,
-          limit,
+          limit: fetchLimit,
           categoryId,
           sort: categorySort,
           minPrice: Number.isFinite(minPrice) ? minPrice : undefined,
@@ -77,7 +104,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
         })
       : await fetchPartnerInventoryShopPageFromPg(shop.partnerId, {
           offset,
-          limit,
+          limit: fetchLimit,
           q: preferIds.length ? undefined : q || undefined,
           collection: collection || undefined,
           sale: sale || undefined,
@@ -86,13 +113,21 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
         })
   if (!page) return NextResponse.json({ error: 'Could not load products' }, { status: 500 })
 
+  const excludeSet = new Set(excludeIds)
   const products = page.rows
     .map((row) => inventoryRowToShopProduct(shop.site.siteSlug, row))
     .filter((p): p is NonNullable<typeof p> => Boolean(p))
+    .filter((p) => !excludeSet.has(p.id))
+    .slice(0, limit)
+
+  if (related && categoryId && UUID_RE.test(categoryId)) {
+    const flat = await fetchPartnerCategoriesFlatFromPg(shop.partnerId)
+    categoryPath = flat?.find((c) => c.id === categoryId)?.path?.trim() || null
+  }
 
   const facetDefs = partnerShopFacetDefsForIndustry(shop.industryKey)
   const facets =
-    categoryId && UUID_RE.test(categoryId) && facetDefs.length > 0
+    categoryId && UUID_RE.test(categoryId) && facetDefs.length > 0 && !related
       ? await fetchPartnerCategoryFacetCountsFromPg(shop.partnerId, categoryId)
       : null
 
@@ -102,7 +137,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     products,
     total: products.length < page.rows.length ? products.length : page.count,
     mapped: products.length,
-    inventoryTotal: page.count,
+    inventoryTotal: related ? products.length : page.count,
     offset,
     limit,
     facetDefs,
@@ -114,6 +149,9 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
       sort: categoryId && UUID_RE.test(categoryId) ? categorySort : sort,
       ids: ids.length ? ids : null,
       categoryId: categoryId && UUID_RE.test(categoryId) ? categoryId : null,
+      categoryPath,
+      relatedTo: relatedTo && UUID_RE.test(relatedTo) ? relatedTo : null,
+      exclude: excludeIds.length ? excludeIds : null,
       minPrice: Number.isFinite(minPrice) ? minPrice : null,
       maxPrice: Number.isFinite(maxPrice) ? maxPrice : null,
       size: size || null,

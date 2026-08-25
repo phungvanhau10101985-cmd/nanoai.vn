@@ -2,7 +2,10 @@ import assert from 'node:assert/strict'
 import { createHmac } from 'crypto'
 import { afterEach, describe, it } from 'node:test'
 import {
+  authorizePartnerSePayWebhook,
   collectSePayWebhookIpCandidates,
+  sepaySecretLast4,
+  verifySePayHmacAgainstSecrets,
   verifySePayWebhookAuth,
 } from './sepay-webhook-auth'
 
@@ -166,6 +169,76 @@ describe('sepay-webhook-auth', () => {
     })
     assert.equal(result.ok, false)
     if (!result.ok) assert.equal(result.reason, 'invalid_hmac')
+  })
+
+  it('verifies official HMAC against shop secret before platform secret', () => {
+    const shop = 'whsec_shop_only'
+    const platform = 'whsec_platform_only'
+    const rawBody = '{"transferAmount":15000}'
+    const timestamp = String(Math.floor(Date.now() / 1000))
+    const hex = createHmac('sha256', shop).update(`${timestamp}.${rawBody}`).digest('hex')
+    const result = verifySePayHmacAgainstSecrets({
+      rawBody,
+      signature: `sha256=${hex}`,
+      timestamp,
+      secrets: [shop, platform],
+    })
+    assert.deepEqual(result, { ok: true })
+  })
+
+  it('accepts shop webhook by token when HMAC is not configured', () => {
+    const result = authorizePartnerSePayWebhook({
+      shopWebhookToken: 'shop-token-abc',
+      queryToken: 'shop-token-abc',
+      shopHmacSecret: '',
+      rawBody: '{"transferAmount":15000}',
+      signature: '',
+      timestamp: '',
+    })
+    assert.deepEqual(result, { ok: true })
+  })
+
+  it('accepts shop official HMAC and rejects a wrong shop secret', () => {
+    const shop = 'whsec_shop_hmac'
+    const rawBody = '{"transferAmount":20000}'
+    const timestamp = String(Math.floor(Date.now() / 1000))
+    const hex = createHmac('sha256', shop).update(`${timestamp}.${rawBody}`).digest('hex')
+    const ok = authorizePartnerSePayWebhook({
+      shopWebhookToken: 'shop-token-abc',
+      queryToken: 'shop-token-abc',
+      shopHmacSecret: shop,
+      rawBody,
+      signature: `sha256=${hex}`,
+      timestamp,
+    })
+    assert.deepEqual(ok, { ok: true })
+    const bad = authorizePartnerSePayWebhook({
+      shopWebhookToken: 'shop-token-abc',
+      queryToken: 'shop-token-abc',
+      shopHmacSecret: shop,
+      rawBody,
+      signature: 'sha256=deadbeef',
+      timestamp,
+    })
+    assert.equal(bad.ok, false)
+    if (!bad.ok) assert.equal(bad.reason, 'invalid_hmac')
+  })
+
+  it('keeps token-only shop webhook when secret is saved but SePay sends no signature', () => {
+    const result = authorizePartnerSePayWebhook({
+      shopWebhookToken: 'shop-token-abc',
+      queryToken: 'shop-token-abc',
+      shopHmacSecret: 'whsec_saved',
+      rawBody: '{}',
+      signature: '',
+      timestamp: '',
+    })
+    assert.deepEqual(result, { ok: true })
+  })
+
+  it('masks only the last 4 characters of a webhook secret', () => {
+    assert.equal(sepaySecretLast4('whsec_abcd1234'), '1234')
+    assert.equal(sepaySecretLast4(''), '')
   })
 
   it('reads X-Forwarded-For when peer is loopback', () => {

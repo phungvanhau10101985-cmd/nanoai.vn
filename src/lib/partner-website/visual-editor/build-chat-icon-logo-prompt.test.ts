@@ -28,4 +28,8 @@ test('chat icon logo prompt adds reference and optional extra only when present'
   assert.match(withRef, /Tư vấn/)
   const emptyExtra = buildChatIconLogoPrompt({ extra: '   ', hasReference: false })
   assert.doesNotMatch(emptyExtra, /Optional user request/)
+  const withColors = buildChatIconLogoPrompt({
+    colorFacts: 'Use ONLY these user-picked colors from the editor color picker: main #c2410c.',
+  })
+  assert.match(withColors, /main #c2410c/)
 })

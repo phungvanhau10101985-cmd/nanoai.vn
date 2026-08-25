@@ -4,6 +4,10 @@ import {
   PW_BG_CANVAS_INDEX,
   PW_BG_CLEARED_ATTR,
   PW_BG_CLEARED_CSS,
+  PW_PAPER_ATTR,
+  PW_PAPER_CSS,
+  PW_PAPER_POS_X_ATTR,
+  PW_PAPER_SRC_ATTR,
   PW_BG_HEADER_Z,
   PW_BG_INDEX_ATTR,
   PW_BG_REGION_ROLES,
@@ -70,6 +74,9 @@ describe('pw bg stack', () => {
     expect(s).toContain('insertBgInFlow')
     expect(s).toContain('insertInFlowAtAnchor')
     expect(s).toContain('setBlockSize')
+    expect(s).toContain('function stampAddedBgBox(')
+    expect(s).toContain('--pw-added-bg-w')
+    expect(s).toContain('--pw-added-bg-h')
     expect(s).toContain('data-pw-block-h')
     expect(s).toContain('listInsertGapUnits')
     expect(s).toContain('gapUnits')
@@ -80,6 +87,10 @@ describe('pw bg stack', () => {
     expect(s).toContain('cancelInsertBgPick')
     expect(s).toContain('finishInsertBgPick')
     expect(s).toContain('nanoai-ve-bg-pick')
+    expect(s).toContain('paintInsertBgPickCursor')
+    expect(s).toContain('nanoai-ve-bg-pick-cursor')
+    expect(s).toContain('insertBgPickCursor')
+    expect(s).toContain('Chọn phần tử mốc')
     expect(s).not.toContain('host.style.paddingLeft')
     expect(s).toContain('if (isAddedBg(el))')
     expect(s).toContain("var regionRoles = ['header', 'topbar', 'banner', 'categories'")
@@ -87,8 +98,24 @@ describe('pw bg stack', () => {
     expect(s).toContain('canClearRegionFill')
     expect(s).toContain('regionFillTarget')
     expect(s).toContain('clearRegionFill')
+    expect(s).toContain("d.type === 'clearRegionFill'")
     expect(s).toContain('canClearBg:')
     expect(s).toContain(PW_BG_CLEARED_ATTR)
+    expect(s).toContain('isPaperHost')
+    expect(s).toContain('fillHostOf')
+    expect(s).toContain('if (isPaperHost(n)) return n')
+    expect(s).toContain('if (isPaperHost(walk) && walk === el) return walk')
+    expect(s).toContain('applyPaperImage')
+    expect(s).toContain('applyPaperPan')
+    expect(s).toContain('parsePaperPan')
+    expect(s).toContain('clearPaperImage')
+    expect(s).toContain(PW_PAPER_ATTR)
+    expect(s).toContain(PW_PAPER_SRC_ATTR)
+    expect(s).toContain(PW_PAPER_POS_X_ATTR)
+    expect(s).toContain("d.type === 'setPaperWhite'")
+    expect(s).toContain("d.type === 'setPaperPan'")
+    expect(s).toContain('isPaper:')
+    expect(s).toContain('paperMode:')
     expect(s).toContain('canDeleteRegionBlock')
     expect(s).toContain('removeSelectedRegionBlock')
     expect(s).toContain('topbarHostOf')
@@ -102,5 +129,19 @@ describe('pw bg stack', () => {
     expect(PW_BG_CLEARED_CSS).toContain('background-color:transparent!important')
     expect(PW_BG_CLEARED_CSS).toContain('[data-pw-region="header"]')
     expect(PW_BG_CLEARED_CSS).toContain('[data-pw-region="topbar"]')
+    expect(PW_BG_CLEARED_CSS).toContain('[data-pw-region="footer"]')
+    expect(PW_BG_CLEARED_CSS).toContain('.pw-footer')
+  })
+
+  it('content paper can be white or a cover image', () => {
+    expect(PW_PAPER_ATTR).toBe('data-pw-paper')
+    expect(PW_PAPER_SRC_ATTR).toBe('data-pw-paper-src')
+    expect(PW_PAPER_CSS).toContain(`${PW_PAPER_ATTR}="image"`)
+    expect(PW_PAPER_CSS).toContain('background-size:cover!important')
+    expect(PW_PAPER_CSS).toContain('--pw-paper-pos-x')
+    expect(PW_PAPER_CSS).toContain('var(--pw-paper-pos-x,50%)')
+    expect(PW_PAPER_CSS).not.toContain('background-position:center center!important')
+    expect(PW_PAPER_CSS).toContain(`${PW_PAPER_ATTR}="white"`)
+    expect(PW_PAPER_CSS).toContain('background-image:none!important')
   })
 })

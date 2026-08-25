@@ -36,6 +36,8 @@ export type PartnerSiteShopProduct = {
   saleEndsAt?: string | null
   /** W1.5 — resolved from primary category when available. */
   sizeGuideImageUrl?: string | null
+  categoryId?: string | null
+  categoryPath?: string | null
 }
 /** Mô tả hiển thị shop — bỏ qua cột JSON size/màu (description / stock_note). */
 export function inventoryShopDisplayDescription(row: {

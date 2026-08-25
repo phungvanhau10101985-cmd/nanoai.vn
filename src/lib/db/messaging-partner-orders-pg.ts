@@ -423,7 +423,7 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
         String(input.sepayAccountNumber ?? '').trim().slice(0, 40),
         input.sepayQrTemplate === 'qronly' ? 'qronly' : input.sepayQrTemplate === '' ? '' : 'compact',
         String(input.sepayWebhookToken ?? '').trim().slice(0, 120),
-        String(input.sepaySecretKey ?? '').trim().slice(0, 180),
+        String(input.sepaySecretKey ?? '').trim().slice(0, 256),
         Math.max(0, Math.round(num(input.shippingFeeAmount, 0))),
         input.shippingFreeThresholdAmount == null ? null : Math.max(0, Math.round(num(input.shippingFreeThresholdAmount, 0))),
         input.ewalletEnabled === true,

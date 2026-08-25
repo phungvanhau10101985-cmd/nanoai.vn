@@ -110,6 +110,14 @@ export type PartnerSiteShopCopy = {
   searchEmpty: string
   searchError: string
   relatedProducts: string
+  relatedSeeAll: string
+  relatedEmpty: string
+  outfitTitleFallback: string
+  outfitSubtitle: string
+  outfitSlotsAria: string
+  outfitEmpty: string
+  outfitError: string
+  outfitSeeAll: string
   tryOnLink: string
   favoriteProduct: string
   /** PDP — bố cục kiểu 188 (gallery bleed / giá / sticky), copy đa ngôn ngữ */
@@ -444,7 +452,15 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchResults: 'Kết quả tìm kiếm',
     searchEmpty: 'Không tìm thấy sản phẩm phù hợp.',
     searchError: 'Không tìm được. Thử lại.',
-    relatedProducts: 'Sản phẩm liên quan',
+    relatedProducts: 'Sản phẩm tương tự',
+    relatedSeeAll: 'Xem tất cả',
+    relatedEmpty: 'Không có sản phẩm khác cùng danh mục.',
+    outfitTitleFallback: 'Phối với món này',
+    outfitSubtitle: 'Món khác loại để mặc cùng',
+    outfitSlotsAria: 'Nhóm phối',
+    outfitEmpty: 'Chưa có gợi ý phối cho sản phẩm này.',
+    outfitError: 'Không tải được gợi ý phối.',
+    outfitSeeAll: 'Xem tất cả',
     tryOnLink: 'Thử đồ AI',
     favoriteProduct: 'Thích sản phẩm',
     skuLabel: 'Mã SP',
@@ -769,7 +785,15 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchResults: 'Search results',
     searchEmpty: 'No matching products.',
     searchError: 'Search failed. Try again.',
-    relatedProducts: 'Related products',
+    relatedProducts: 'Similar products',
+    relatedSeeAll: 'See all',
+    relatedEmpty: 'No other products in this category.',
+    outfitTitleFallback: 'Pair with this piece',
+    outfitSubtitle: 'Other categories to wear together',
+    outfitSlotsAria: 'Outfit groups',
+    outfitEmpty: 'No outfit suggestions for this product yet.',
+    outfitError: 'Could not load outfit suggestions.',
+    outfitSeeAll: 'See all',
     tryOnLink: 'AI try-on',
     favoriteProduct: 'Like product',
     skuLabel: 'SKU',
@@ -1094,7 +1118,15 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchResults: '搜索结果',
     searchEmpty: '未找到匹配商品。',
     searchError: '搜索失败，请重试。',
-    relatedProducts: '相关产品',
+    relatedProducts: '相似商品',
+    relatedSeeAll: '查看全部',
+    relatedEmpty: '该分类暂无其他商品。',
+    outfitTitleFallback: '搭配单品',
+    outfitSubtitle: '不同品类一起穿',
+    outfitSlotsAria: '搭配分组',
+    outfitEmpty: '暂无搭配建议。',
+    outfitError: '无法加载搭配建议。',
+    outfitSeeAll: '查看全部',
     tryOnLink: 'AI 试穿',
     favoriteProduct: '收藏商品',
     skuLabel: '货号',
@@ -1419,7 +1451,15 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchResults: '検索結果',
     searchEmpty: '該当する商品がありません。',
     searchError: '検索に失敗しました。',
-    relatedProducts: '関連商品',
+    relatedProducts: '類似商品',
+    relatedSeeAll: 'すべて見る',
+    relatedEmpty: 'このカテゴリに他の商品はありません。',
+    outfitTitleFallback: 'このアイテムに合うコーディネート',
+    outfitSubtitle: '別カテゴリで合わせる',
+    outfitSlotsAria: 'コーディネートグループ',
+    outfitEmpty: 'この商品のコーディネート提案はまだありません。',
+    outfitError: 'コーディネートを読み込めませんでした。',
+    outfitSeeAll: 'すべて見る',
     tryOnLink: 'AI試着',
     favoriteProduct: '商品をお気に入り',
     skuLabel: '商品コード',
@@ -1744,7 +1784,15 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchResults: '검색 결과',
     searchEmpty: '일치하는 상품이 없습니다.',
     searchError: '검색에 실패했습니다.',
-    relatedProducts: '관련 상품',
+    relatedProducts: '유사 상품',
+    relatedSeeAll: '전체 보기',
+    relatedEmpty: '이 카테고리에 다른 상품이 없습니다.',
+    outfitTitleFallback: '이 상품과 코디하기',
+    outfitSubtitle: '다른 종류와 함께 입기',
+    outfitSlotsAria: '코디 그룹',
+    outfitEmpty: '이 상품의 코디 제안이 아직 없습니다.',
+    outfitError: '코디 제안을 불러오지 못했습니다.',
+    outfitSeeAll: '전체 보기',
     tryOnLink: 'AI 피팅',
     favoriteProduct: '상품 찜',
     skuLabel: '상품코드',

@@ -577,6 +577,7 @@ export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): P
     buyButtonColor: typeof o.buyButtonColor === 'string' ? o.buyButtonColor : base.buyButtonColor,
     cartButtonColor: typeof o.cartButtonColor === 'string' ? o.cartButtonColor : base.cartButtonColor,
     surfaceColor: typeof o.surfaceColor === 'string' ? o.surfaceColor : base.surfaceColor,
+    footerColor: typeof o.footerColor === 'string' ? o.footerColor : base.footerColor,
     borderColor: typeof o.borderColor === 'string' ? o.borderColor : base.borderColor,
     fontFamily: typeof o.fontFamily === 'string' ? o.fontFamily : base.fontFamily,
     logoUrl: typeof o.logoUrl === 'string' ? o.logoUrl : logoUrl ?? base.logoUrl ?? null,

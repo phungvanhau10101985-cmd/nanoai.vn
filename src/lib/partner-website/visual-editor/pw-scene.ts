@@ -98,11 +98,65 @@ export function pwSceneZ(index: unknown, local: unknown = 0): number {
  * Nền lớp dưới cố ý z=1… (stack nền), không dùng dải 100 — nên chrome phải tự mang z scene.
  */
 export function pwSceneChromeZCss(): string {
+  const sel = (index: number) =>
+    `[data-pw-chrome-btn][data-pw-scene="${index}"],[data-pw-chrome-added][data-pw-scene="${index}"],[data-pw-el="cat-toggle"][data-pw-scene="${index}"],.pw-cat-btn[data-pw-scene="${index}"],.pw-shop-cat-btn[data-pw-scene="${index}"]`
   return [2, 3, 4]
-    .map(
-      (index) =>
-        `[data-pw-chrome-btn][data-pw-scene="${index}"],[data-pw-chrome-added][data-pw-scene="${index}"]{z-index:${pwSceneZ(index)}!important}`
-    )
+    .map((index) => `${sel(index)}{z-index:${pwSceneZ(index)}!important}`)
+    .join('')
+}
+
+/**
+ * Z của **từng** phần tử đứng im lớp dưới — trên catalog (z 2), dưới header (200).
+ * Không gắn số này lên cả tấm neo (cấm 210 / restack host).
+ */
+export const PW_STAY_HOIST_LAYER_Z = pwSceneZ(1)
+
+/**
+ * Một hệ lớp. Lớp 0 (nền) là chuẩn; mọi `data-pw-scene` dùng cùng dải z.
+ * Nền thêm lớp dưới (không đứng im) giữ stack nền 1,2… — không nhảy dải 100.
+ * Nền đứng im lớp dưới dùng `pwSceneStayScrollZCss` (100).
+ */
+export function pwSceneUnifiedStackCss(): string {
+  return [
+    `[data-pw-scene="0"]{z-index:${pwSceneZ(0)}!important}`,
+    `[data-pw-scene="1"]:not([data-pw-added-bg]){z-index:${pwSceneZ(1)}!important}`,
+    `[data-pw-scene="2"]{z-index:${pwSceneZ(2)}!important}`,
+    `[data-pw-scene="3"]{z-index:${pwSceneZ(3)}!important}`,
+    `[data-pw-scene="4"]{z-index:${pwSceneZ(4)}!important}`,
+    pwSceneStayScrollZCss(),
+    pwSceneChromeZCss(),
+  ].join('')
+}
+
+/** Tấm neo chỉ nhóm DOM — không box, không z. `html` overflow-x phải visible. */
+export function pwSceneHoistLayerHostCss(layerSel: string): string {
+  const host = String(layerSel || '').trim()
+  if (!host) return ''
+  return `${host}{display:contents}`
+}
+
+/** Từng phần tử đứng im mang z scene — lớp dưới = 100, không z 1. */
+export function pwSceneStayScrollZCss(): string {
+  const stamped = [1, 2, 3, 4]
+    .map((index) => `[data-pw-stay-scroll="1"][data-pw-scene="${index}"]{z-index:${pwSceneZ(index)}!important}`)
+    .join('')
+  const unstamped = `[data-pw-stay-scroll="1"][data-pw-added-bg="1"]:not([data-pw-scene]){z-index:${pwSceneZ(1)}!important}`
+  return stamped + unstamped
+}
+
+/** Header / topbar / thanh đáy — chrome lớp cao giữ trong header (z 200) để thắng nền đứng im fixed z 100. */
+export const PW_SCENE_CHROME_STACK_HOST_SEL =
+  'header, .pw-header, .pw-shop-header, .pw-topbar, .pw-shop-topbar, .pw-bottom-nav, .pw-shop-bottom-nav'
+
+/**
+ * Lớp neo `position:fixed` (đứng im / live-fixed) không được gắn z riêng.
+ * Z theo `data-pw-scene` trên chính phần tử — nền lớp dưới/giữa không đè lớp nổi.
+ */
+export function pwSceneHoistLayerChildZCss(layerSel: string): string {
+  const host = String(layerSel || '').trim()
+  if (!host) return ''
+  return [1, 2, 3, 4]
+    .map((index) => `${host}>[data-pw-scene="${index}"]{z-index:${pwSceneZ(index)}!important}`)
     .join('')
 }
 
@@ -342,6 +396,7 @@ export function pwSceneCssVars(device: unknown): string {
 export const PARTNER_SHOP_HROW_CSS = `
 html [data-pw-hrow]{display:flex!important;flex-direction:row!important;align-items:stretch;width:var(--pw-block-w,100%);max-width:var(--pw-block-w,100%);margin-left:auto!important;margin-right:auto!important;box-sizing:border-box;gap:0}
 html [data-pw-hrow]>*{flex:1 1 0;min-width:0;width:auto!important;max-width:100%!important;margin-left:0!important;margin-right:0!important;box-sizing:border-box}
+html [data-pw-hrow]>[data-pw-added-bg="1"]:not([data-pw-added-bg-slot]){flex:0 0 auto!important;width:unset!important;max-width:none!important}
 html [data-pw-hrow] [data-pw-region="banner"],html [data-pw-hrow] .pw-hero,html [data-pw-hrow] .pw-banner,html [data-pw-hrow] .pw-shop-hero,html [data-pw-hrow] .pw-shop-banner{width:auto!important;max-width:100%!important;margin-left:0!important;margin-right:0!important}
 `.trim()
 
@@ -359,6 +414,46 @@ html .pw-shop-hero img[data-pw-el="media"],html .pw-shop-banner img[data-pw-el="
   position:absolute!important;inset:0!important;left:0!important;top:0!important;right:0!important;bottom:0!important;
   width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;
   object-fit:cover!important;box-sizing:border-box
+}
+`.trim()
+
+/**
+ * Sửa nhanh is the source. Live must not restyle banner from the tab width.
+ * Saved HTML still embeds `@media (max-width:899px) .pw-hero` card + `.pw-btn-hero` uppercase.
+ */
+export const PARTNER_SHOP_BANNER_LIVE_MATCH_CSS = `
+html [data-pw-region="banner"] [data-pw-el="cta"],
+html [data-pw-region="banner"] [data-pw-el="cta-secondary"],
+html .pw-hero [data-pw-el="cta"],html .pw-hero [data-pw-el="cta-secondary"],
+html .pw-banner [data-pw-el="cta"],html .pw-banner [data-pw-el="cta-secondary"],
+html .pw-shop-hero [data-pw-el="cta"],html .pw-shop-hero [data-pw-el="cta-secondary"]{
+  text-transform:none!important;
+  width:auto!important;
+  max-width:100%;
+  display:inline-flex!important;
+  flex:0 0 auto!important;
+  box-sizing:border-box
+}
+html [data-pw-region="banner"] [data-pw-el="copy"] > div:has(> [data-pw-el="cta"]),
+html .pw-hero-copy > div:has(> [data-pw-el="cta"]),
+html .pw-banner-copy > div:has(> [data-pw-el="cta"]){
+  display:flex!important;
+  flex-direction:row!important;
+  flex-wrap:wrap!important;
+  align-items:center!important
+}
+html [data-pw-region="banner"] [data-pw-el="cta"][data-pw-chrome-label],
+html [data-pw-region="banner"] [data-pw-el="cta-secondary"][data-pw-chrome-label]{
+  font-size:var(--pw-chrome-label)!important
+}
+@media (max-width:899px){
+${pwHostPrefixCss(
+  PW_SCENE_WIDE_HOSTS,
+  `
+.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,[data-pw-region="banner"]{margin-top:0!important;border-radius:0!important}
+.pw-btn-hero{border:none!important}
+`
+)}
 }
 `.trim()
 
@@ -396,9 +491,11 @@ export function pwSceneCenterCss(): string {
     // Sửa nhanh: body trong iframe đúng khổ máy. Live: cùng khổ rồi scale phủ viewport.
     `html[data-pw-edit-device] body{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:calc(50% - (var(--pw-scene-w) / 2))!important;margin-right:auto!important;box-sizing:border-box;overflow-x:visible;transform-origin:top center;display:block}`,
     `[data-pw-inline-visual-root]{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:0!important;margin-right:calc(var(--pw-scene-w) * (var(--pw-scene-zoom,1) - 1))!important;box-sizing:border-box;overflow-x:visible;transform-origin:top left;transform:scale(var(--pw-scene-zoom,1));display:block}`,
-    `[data-pw-live-fixed-layer]{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:210}`,
+    pwSceneHoistLayerHostCss('[data-pw-live-fixed-layer]'),
     `[data-pw-live-fixed-layer]>*{pointer-events:auto}`,
-    `[data-pw-live-fixed-layer] [data-pw-added-bg="1"]{pointer-events:none!important}`,
+    `[data-pw-live-fixed-layer]>[data-pw-added-bg="1"]{pointer-events:none!important}`,
+    `[data-pw-live-fixed-layer]>[data-pw-added-bg="1"] a,[data-pw-live-fixed-layer]>[data-pw-added-bg="1"] button,[data-pw-live-fixed-layer]>[data-pw-added-bg="1"] [data-pw-chrome-btn],[data-pw-live-fixed-layer]>[data-pw-added-bg="1"] [data-pw-el]{pointer-events:auto!important}`,
+    pwSceneHoistLayerChildZCss('[data-pw-live-fixed-layer]'),
     `main:has([data-pw-inline-visual-root]){width:100%!important;max-width:none!important;margin:0!important;padding:0!important;display:block!important}`,
     `${PW_SCENE_MEDIA_ZOOM_SEL}{transform-origin:50% var(--pw-zoom-oy,50%)}`,
   ].join('')
@@ -513,7 +610,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
   }
   function shouldBindFixed(el){
     if(!el||!el.getAttribute||isChromeFloat(el))return false;
-    if(el.getAttribute('data-pw-stay-scroll')==='1')return true;
+    if(el.getAttribute('data-pw-stay-scroll')==='1')return false;
     if(el.getAttribute('data-pw-pin-screen')==='1')return true;
     var pos='';
     try{pos=window.getComputedStyle(el).position}catch(eP){}

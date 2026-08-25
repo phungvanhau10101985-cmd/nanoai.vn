@@ -123,6 +123,7 @@ test('shopThemeQuickPicks exposes live main and supporting theme colors', () => 
     text: 'Text',
     muted: 'Muted',
     surface: 'Surface',
+    footer: 'Footer',
   }
   const picks = shopThemeQuickPicks(
     {

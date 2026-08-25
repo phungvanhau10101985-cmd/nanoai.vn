@@ -14,6 +14,8 @@ export type PartnerWebsiteTheme = {
   cartButtonColor?: string
   /** Nền nhạt (hover / card wash). */
   surfaceColor?: string
+  /** Nền chân trang — `--pw-footer`. */
+  footerColor?: string
   borderColor?: string
   fontFamily: string
   logoUrl?: string | null
@@ -126,6 +128,7 @@ export const DEFAULT_PARTNER_WEBSITE_THEME: PartnerWebsiteTheme = {
   buyButtonColor: '#f97316',
   cartButtonColor: '#6b7280',
   surfaceColor: '#fff7ed',
+  footerColor: '#ffffff',
   borderColor: '#e5e7eb',
   fontFamily:
     '"Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',

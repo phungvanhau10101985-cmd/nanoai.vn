@@ -10,6 +10,13 @@ import {
   resolvePartnerEffectiveUnitPrice,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { isOutfitCatalogOpenTag } from '@/lib/partner-website/shop/outfit-products'
+import {
+  buildRelatedProductsSectionHtml,
+  isRelatedCatalogOpenTag,
+  relatedCardHtml,
+  relatedListingHref,
+} from '@/lib/partner-website/shop/related-products'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export type LivePdpBindColor = {
@@ -41,6 +48,8 @@ export type LivePdpBindRelated = {
   name: string
   imageUrl: string
   priceHint?: string | null
+  /** Đường dẫn PDP của SP tương tự — build bằng `partnerSiteProductPath`. */
+  detailPath?: string | null
 }
 
 export type LivePdpBindCrumb = {
@@ -75,6 +84,8 @@ export type LivePdpBindProduct = {
   questions?: LivePdpBindQuestion[] | null
   relatedProducts?: LivePdpBindRelated[] | null
   breadcrumb?: LivePdpBindCrumb[] | null
+  categoryId?: string | null
+  categoryPath?: string | null
 }
 
 function escAttr(value: string): string {
@@ -480,6 +491,83 @@ function reviewCardHtml(review: LivePdpBindReview): string {
   return `<article data-pw-el="${PW_EL.card}"><strong data-pw-el="${PW_EL.cardName}">${escText(review.name)}</strong><span class="pw-pdp-star"> ${stars}</span>${title ? `<p style="font-weight:600;margin:6px 0 2px">${escText(title)}</p>` : ''}<p data-pw-el="${PW_EL.body}">${escText(review.body)}</p>${photoHtml}${replyHtml}${useful}</article>`
 }
 
+function stampOutfitOpenTag(open: string, product: LivePdpBindProduct): string {
+  let out = open
+  if (!/\bdata-pw-outfit\s*=/.test(out)) out = out.replace(/>$/, ' data-pw-outfit="1">')
+  if (!/\bdata-pw-grid-kind\s*=/.test(out)) out = out.replace(/>$/, ' data-pw-grid-kind="outfit">')
+  return stampOpenAttr(out, 'data-exclude', product.id)
+}
+
+function stampRelatedOpenTag(open: string, product: LivePdpBindProduct, siteSlug?: string | null): string {
+  let out = open
+  if (!/\bdata-pw-related\s*=/.test(out)) out = out.replace(/>$/, ' data-pw-related="1">')
+  if (!/\bdata-pw-catalog\b/.test(out)) out = out.replace(/>$/, ' data-pw-catalog>')
+  if (!/\bdata-pw-grid-kind\s*=/.test(out)) out = out.replace(/>$/, ' data-pw-grid-kind="related">')
+  out = stampOpenAttr(out, 'data-exclude', product.id)
+  const categoryId = String(product.categoryId || '').trim()
+  if (categoryId) out = stampOpenAttr(out, 'data-category-id', categoryId)
+  const moreHref = relatedListingHref({ siteSlug, categoryPath: product.categoryPath })
+  if (moreHref && moreHref !== '#') out = stampOpenAttr(out, 'data-more-href', moreHref)
+  return out
+}
+
+function stampOpenAttr(open: string, name: string, value: string): string {
+  const re = new RegExp(`\\s${name}\\s*=\\s*(["'])[\\s\\S]*?\\1`, 'i')
+  if (re.test(open)) return open.replace(re, ` ${name}="${escAttr(value)}"`)
+  return open.replace(/>$/, ` ${name}="${escAttr(value)}">`)
+}
+
+function replaceFirstGridInner(inner: string, cards: string): string {
+  const re = /<([a-z0-9]+)\b(?=[^>]*\b(?:data-pw-grid|data-pw-el=["']grid["']))[^>]*>/i
+  const match = inner.match(re)
+  if (!match || match.index == null) return inner
+  const tag = match[1]
+  const start = match.index
+  const openEnd = start + match[0].length
+  const masked = maskHtmlForTagScan(inner)
+  const close = closingTagIndex(masked, openEnd, tag)
+  if (close < 0) return inner
+  return inner.slice(0, openEnd) + cards + inner.slice(close)
+}
+
+function replaceRelatedCards(inner: string, cards: string): string {
+  const withGrid = replaceFirstGridInner(inner, cards)
+  if (withGrid !== inner) return withGrid
+  const title = inner.match(/<([a-z0-9]+)\b[^>]*data-pw-el=["']section-title["'][^>]*>[\s\S]*?<\/\1>/i)?.[0] || ''
+  const actions = inner.match(/<([a-z0-9]+)\b[^>]*\bpw-related-actions\b[^>]*>[\s\S]*?<\/\1>/i)?.[0] || ''
+  const empty = inner.match(/<([a-z0-9]+)\b[^>]*\bpw-related-empty\b[^>]*>[\s\S]*?<\/\1>/i)?.[0] || ''
+  return `${title}<div class="pw-product-grid pw-related-grid" data-pw-el="${PW_EL.grid}" data-pw-grid>${cards}</div>${actions}${empty}`
+}
+
+function rewriteCatalogRelatedInner(
+  inner: string,
+  product: LivePdpBindProduct,
+  locale: WebLocale,
+  siteSlug?: string | null
+): string {
+  const t = getPartnerSiteShopCopy(locale)
+  let out = replaceElInner(inner, PW_EL.sectionTitle, escText(t.relatedProducts))
+  const moreHref = relatedListingHref({ siteSlug, categoryPath: product.categoryPath })
+  if (moreHref && moreHref !== '#') {
+    out = out.replace(
+      /<([a-z0-9]+)\b([^>]*\bdata-pw-el=["']section-more["'][^>]*)>/gi,
+      (_full, tag: string, attrs: string) => `<${tag}${setAttr(attrs, 'href', moreHref)}>`
+    )
+    out = out.replace(
+      /<([a-z0-9]+)\b([^>]*\bpw-related-all\b[^>]*)>/gi,
+      (_full, tag: string, attrs: string) => `<${tag}${setAttr(attrs, 'href', moreHref)}>`
+    )
+  }
+  const items = (product.relatedProducts ?? []).filter((item) => String(item?.id || '').trim())
+  if (items.length) {
+    out = replaceRelatedCards(
+      out,
+      items.map((item) => relatedCardHtml(item, { siteSlug })).join('')
+    )
+  }
+  return out
+}
+
 function rewriteReviewsInner(inner: string, product: LivePdpBindProduct): string {
   const reviews = (product.reviews ?? []).filter((r) => String(r.body || '').trim())
   if (!reviews.length) {
@@ -536,7 +624,12 @@ function insertAfterOpen(html: string, tagRe: RegExp, chunk: string): string {
   return html.slice(0, at) + chunk + html.slice(at)
 }
 
-function ensureMissingPdpSlots(html: string, product: LivePdpBindProduct, locale: WebLocale): string {
+function ensureMissingPdpSlots(
+  html: string,
+  product: LivePdpBindProduct,
+  locale: WebLocale,
+  siteSlug?: string | null
+): string {
   const t = getPartnerSiteShopCopy(locale)
   const name = product.name || 'Product'
   let out = html
@@ -651,18 +744,30 @@ function ensureMissingPdpSlots(html: string, product: LivePdpBindProduct, locale
     const qa = `<section id="pw-pdp-qa" class="pw-shop-reviews" data-pw-region="${PW_REGION.reviews}" data-pw-pdp-slot="qa"><h2 data-pw-el="${PW_EL.sectionTitle}">${escText(t.qaTitle)}</h2><button type="button" class="pw-shop-btn pw-shop-btn-outline">${escText(t.qaAskButton)}</button><div style="margin-top:20px;display:grid;gap:16px">${cards}</div></section>`
     out = insertBeforeMainClose(out, qa)
   }
+  if (!/\bdata-pw-related\s*=/.test(out) && !/\bdata-pw-grid-kind\s*=\s*(["']?)related\1/.test(out)) {
+    const related = buildRelatedProductsSectionHtml({
+      locale,
+      siteSlug,
+      cards: product.relatedProducts,
+      categoryId: product.categoryId,
+      categoryPath: product.categoryPath,
+      excludeId: product.id,
+    })
+    out = insertBeforeMainClose(out, related)
+  }
   return out
 }
 
 export function bindLiveProductToPdpHtml(
   html: string,
   product: LivePdpBindProduct | null | undefined,
-  opts?: { locale?: WebLocale }
+  opts?: { locale?: WebLocale; siteSlug?: string | null }
 ): string {
   const source = html.trim()
   const id = String(product?.id || '').trim()
   if (!source || !id || !product) return html
   const locale = opts?.locale || 'vi'
+  const siteSlug = opts?.siteSlug
   let out = stampPdpHosts(source, id)
   out = replaceRegionBlocks(out, PW_REGION.gallery, (inner, open) => {
     return `${stampInventoryIdOnTag(open, id)}${rewriteGalleryInner(inner, product)}`
@@ -674,5 +779,10 @@ export function bindLiveProductToPdpHtml(
     if (/id=["']pw-pdp-qa["']|data-pw-pdp-slot=["']qa["']/.test(open)) return `${open}${inner}`
     return `${open}${rewriteReviewsInner(inner, product)}`
   })
-  return ensureMissingPdpSlots(out, product, locale)
+  out = replaceRegionBlocks(out, PW_REGION.catalog, (inner, open) => {
+    if (isOutfitCatalogOpenTag(open)) return `${stampOutfitOpenTag(open, product)}${inner}`
+    if (!isRelatedCatalogOpenTag(open)) return `${open}${inner}`
+    return `${stampRelatedOpenTag(open, product, siteSlug)}${rewriteCatalogRelatedInner(inner, product, locale, siteSlug)}`
+  })
+  return ensureMissingPdpSlots(out, product, locale, siteSlug)
 }

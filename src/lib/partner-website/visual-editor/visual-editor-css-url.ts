@@ -32,18 +32,26 @@ export function shouldUseCurrentImageAsRef(sel: {
   isImage?: boolean
   isBgImage?: boolean
   isBannerPhoto?: boolean
+  isPaper?: boolean
+  isFillHost?: boolean
+  isAddedBg?: boolean
 }): boolean {
   const src = String(sel.src || '').trim()
   if (!src) return false
   if (/^data:/i.test(src)) return false
   if (sel.isLogo) return sel.logoFace === 'image'
-  return Boolean(sel.isImage || sel.isBgImage || sel.isBannerPhoto)
+  return Boolean(
+    sel.isImage || sel.isBgImage || sel.isBannerPhoto || sel.isPaper || sel.isFillHost || sel.isAddedBg
+  )
 }
 
 export function inferVisualEditImageKind(sel: {
   isLogo?: boolean
   isBgImage?: boolean
   isBannerPhoto?: boolean
+  isPaper?: boolean
+  isFillHost?: boolean
+  isAddedBg?: boolean
   width?: number
   height?: number
 }): { kind: 'logo' | 'banner' | 'product_photo'; aspectRatio: string } {
@@ -52,6 +60,9 @@ export function inferVisualEditImageKind(sel: {
   const aspect = w > 0 && h > 0 ? logoAspectFromSize(w, h) : '1:1'
   if (sel.isLogo) {
     return { kind: 'logo', aspectRatio: aspect }
+  }
+  if (sel.isPaper || sel.isFillHost || sel.isAddedBg) {
+    return { kind: 'banner', aspectRatio: w > 0 && h > 0 ? aspect : '9:16' }
   }
   if (sel.isBannerPhoto) return { kind: 'banner', aspectRatio: w > 0 && h > 0 ? aspect : '16:9' }
   if (sel.isBgImage) return { kind: 'banner', aspectRatio: w > 0 && h > 0 ? aspect : '16:9' }

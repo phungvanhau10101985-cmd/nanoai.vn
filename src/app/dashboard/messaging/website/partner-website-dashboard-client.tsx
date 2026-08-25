@@ -21,7 +21,6 @@ import type { PartnerWebsiteCreationJournal } from '@/lib/partner-website/partne
 import { isHomePageBuilt } from '@/lib/partner-website/partner-website-creation-journal'
 import { PartnerWebsiteDevicePreview, type PartnerWebsiteDevicePreviewHandle } from '@/components/partner-website/partner-website-device-preview'
 import { PartnerWebsiteLeadsPanel } from '@/components/partner-website/partner-website-leads-panel'
-import { PartnerWebsiteCapabilitiesPanel } from '@/components/partner-website/partner-website-capabilities-panel'
 import { PartnerWebsiteCategoriesPanel } from '@/components/partner-website/partner-website-categories-panel'
 import { PartnerWebsiteReviewsQaPanel } from '@/components/partner-website/partner-website-reviews-qa-panel'
 import { PartnerWebsitePromotionsPanel } from '@/components/partner-website/partner-website-promotions-panel'
@@ -816,17 +815,6 @@ export function PartnerWebsiteDashboardClient({
                     })
                   }}
                 />
-                {website ? (
-                  <div className="mt-3 border-t border-border/60 pt-3">
-                    <PartnerWebsiteCapabilitiesPanel
-                      locale={locale}
-                      t={t}
-                      partnerId={partnerId}
-                      sectionId="partner-website-capabilities"
-                      compact
-                    />
-                  </div>
-                ) : null}
               </CardContent>
             </Card>
             </div>

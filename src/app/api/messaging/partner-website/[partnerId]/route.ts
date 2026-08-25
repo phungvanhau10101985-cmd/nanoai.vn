@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { getUserForCreditAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
@@ -678,6 +679,10 @@ export async function PATCH(
     )
   }
   const projectToSave = cloned?.project ?? projectAfterChrome
+  const persistedPageHtml =
+    projectToSave?.files.find((f) => f.path === htmlPath && f.kind === 'html')?.content?.trim() || ''
+  const visualHtmlToPersist =
+    body.visualEdited === true && persistedPageHtml.length >= 40 ? persistedPageHtml : htmlForVisualSave
   const syncedHomeHtml =
     projectToSave?.files.find((f) => f.path === 'index.html' && f.kind === 'html')?.content?.trim() || ''
   const htmlSourceFromSharedChrome =
@@ -691,22 +696,33 @@ export async function PATCH(
     theme: themeForSave,
     project: projectToSave ?? undefined,
     htmlSource:
-      visualHtmlExact !== undefined
-        ? htmlForVisualSave
-        : body.visualEdited === true
-          ? htmlSourceFromSharedChrome
-          : body.htmlSource !== undefined
-            ? body.htmlSource == null
-              ? body.htmlSource
-              : sanitizeVisualHtmlForStore(body.htmlSource)
-            : projectToSave
-              ? composeStandaloneHtml(projectToSave)
-              : undefined,
+      body.visualEdited === true && visualHtmlToPersist.length >= 40
+        ? visualHtmlToPersist
+        : visualHtmlExact !== undefined
+          ? htmlForVisualSave
+          : body.visualEdited === true
+            ? htmlSourceFromSharedChrome
+            : body.htmlSource !== undefined
+              ? body.htmlSource == null
+                ? body.htmlSource
+                : sanitizeVisualHtmlForStore(body.htmlSource)
+              : projectToSave
+                ? composeStandaloneHtml(projectToSave)
+                : undefined,
     changeNote: body.visualEdited === true ? 'visual_edit' : undefined,
   })
 
   if (!updated) {
     return NextResponse.json({ error: 'Could not save website HTML' }, { status: 500 })
+  }
+
+  if (body.visualEdited === true) {
+    revalidatePath('/dashboard/messaging/website')
+    revalidatePath('/dashboard/messaging/p')
+    if (updated.siteSlug?.trim()) {
+      revalidatePath(`/dashboard/messaging/p/${updated.siteSlug}/website`)
+      revalidatePath(`/site/${updated.siteSlug}`)
+    }
   }
 
   const publicUrl = await resolvePartnerWebsitePublicUrl({

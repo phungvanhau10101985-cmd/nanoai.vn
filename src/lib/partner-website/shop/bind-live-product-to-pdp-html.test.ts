@@ -116,3 +116,73 @@ test('deferOffDevicePdpGalleryMedia keeps the only gallery on a device', () => {
   const heroOnly = `<div class="pw-pdp-hero"><img src="https://cdn.example/hero.jpg" alt="x" /></div>`
   assert.equal(deferOffDevicePdpGalleryMedia(heroOnly, 'desktop'), heroOnly)
 })
+
+test('bind stamps related catalog and rewrites cards when relatedProducts exist', () => {
+  const next = bindLiveProductToPdpHtml(
+    SHELL,
+    {
+      ...PRODUCT_B,
+      categoryId: '11111111-1111-4111-8111-111111111111',
+      categoryPath: 'ao/ao-thun',
+      relatedProducts: [
+        {
+          id: '33333333-3333-4333-8333-333333333333',
+          name: 'Similar tee',
+          imageUrl: 'https://new.example/tee.jpg',
+          priceHint: '99.000₫',
+        },
+      ],
+    },
+    { locale: 'vi', siteSlug: 'demo-shop' }
+  )
+  assert.match(next, /data-pw-related="1"/)
+  assert.match(next, /data-exclude="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"/)
+  assert.match(next, /data-category-id="11111111-1111-4111-8111-111111111111"/)
+  assert.match(next, /Similar tee/)
+  assert.doesNotMatch(next, /data-inventory-id="cccccccc-cccc-cccc-cccc-cccccccccccc"/)
+})
+
+test('bind does not rewrite recommended catalog cards', () => {
+  const html = SHELL.replace(
+    'data-pw-region="catalog"',
+    'data-pw-region="catalog" data-pw-personalize="recommended"'
+  )
+  const next = bindLiveProductToPdpHtml(
+    html,
+    {
+      ...PRODUCT_B,
+      relatedProducts: [
+        {
+          id: '33333333-3333-4333-8333-333333333333',
+          name: 'Similar tee',
+          imageUrl: 'https://new.example/tee.jpg',
+        },
+      ],
+    },
+    { locale: 'vi', siteSlug: 'demo-shop' }
+  )
+  assert.match(next, /data-inventory-id="cccccccc-cccc-cccc-cccc-cccccccccccc"/)
+  assert.match(next, /data-pw-related="1"/)
+})
+
+test('bind stamps outfit exclude without rewriting outfit cards as related', () => {
+  const html = SHELL.replace(
+    'data-pw-region="catalog"',
+    'data-pw-region="catalog" data-pw-outfit="1" data-pw-grid-kind="outfit"'
+  )
+  const next = bindLiveProductToPdpHtml(html, PRODUCT_B, { locale: 'vi', siteSlug: 'demo-shop' })
+  assert.match(next, /data-pw-outfit="1"/)
+  assert.match(next, /data-exclude="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"/)
+  assert.match(next, /data-inventory-id="cccccccc-cccc-cccc-cccc-cccccccccccc"/)
+  assert.match(next, /data-pw-related="1"/)
+})
+
+test('bind injects related strip when the shell has no catalog', () => {
+  const html = SHELL.replace(
+    /<section data-pw-region="catalog">[\s\S]*?<\/section>/,
+    ''
+  )
+  const next = bindLiveProductToPdpHtml(html, PRODUCT_B, { locale: 'vi', siteSlug: 'demo-shop' })
+  assert.match(next, /data-pw-related="1"/)
+  assert.match(next, /Sản phẩm tương tự/)
+})

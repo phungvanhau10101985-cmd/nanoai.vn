@@ -767,6 +767,12 @@ export type Dictionary = {
     settingsManageWebsiteButton: string
     settingsCreateWebsiteButton: string
     settingsNavPayment: string
+    sepayHmacLabel: string
+    sepayHmacHint: string
+    sepayHmacPlaceholder: string
+    sepayHmacConfiguredBadge: string
+    sepayHmacSavedHint: string
+    sepayHmacKeepHint: string
     settingsNavShipping: string
     settingsNavShippingDesc: string
     settingsNavShippingFeeTitle: string
@@ -3923,6 +3929,13 @@ const VI_DICTIONARY: Dictionary = {
     settingsManageWebsiteButton: 'Chỉnh web',
     settingsCreateWebsiteButton: 'Tạo web',
     settingsNavPayment: 'Cài đặt thanh toán',
+    sepayHmacLabel: 'Secret Key HMAC-SHA256 (whsec_)',
+    sepayHmacHint:
+      'SePay → Webhooks của shop → Bảo mật → HMAC-SHA256 → bấm mắt, copy Secret Key (whsec_…). Không dùng merchant key spsk_. Để trống ô này nếu không đổi key đã lưu.',
+    sepayHmacPlaceholder: 'whsec_…',
+    sepayHmacConfiguredBadge: 'Đã lưu HMAC',
+    sepayHmacSavedHint: 'Key hiện tại kết thúc bằng ****{last4}. Điền key mới bên dưới nếu muốn thay.',
+    sepayHmacKeepHint: 'Chưa lưu Secret Key HMAC. Webhook shop vẫn nhận theo token; bật HMAC trên SePay thì dán whsec_ vào đây.',
     settingsNavShipping: 'Cài đặt vận chuyển',
     settingsNavShippingDesc:
       'Phí ship, đơn vị vận chuyển, địa chỉ hoàn hàng và cổng API tra cứu đơn trên web shop (NanoAI gọi khi khách hỏi đơn / mã vận).',
@@ -7088,6 +7101,13 @@ const EN_DICTIONARY: Dictionary = {
     settingsManageWebsiteButton: 'Edit website',
     settingsCreateWebsiteButton: 'Create website',
     settingsNavPayment: 'Payment settings',
+    sepayHmacLabel: 'HMAC-SHA256 Secret Key (whsec_)',
+    sepayHmacHint:
+      'SePay → this shop’s Webhooks → Security → HMAC-SHA256 → reveal and copy the Secret Key (whsec_…). Do not use the merchant spsk_ key. Leave blank to keep the saved key.',
+    sepayHmacPlaceholder: 'whsec_…',
+    sepayHmacConfiguredBadge: 'HMAC saved',
+    sepayHmacSavedHint: 'Current key ends with ****{last4}. Enter a new key below to replace it.',
+    sepayHmacKeepHint: 'No HMAC Secret Key saved yet. The shop webhook still accepts the token; paste whsec_ here after you enable HMAC on SePay.',
     settingsNavShipping: 'Shipping settings',
     settingsNavShippingDesc:
       'Shipping fees, carrier label, return address, and the shop shipping-lookup API (NanoAI calls it when customers ask about orders / tracking).',
@@ -10248,6 +10268,13 @@ const ZH_DICTIONARY: Dictionary = {
     settingsManageWebsiteButton: '编辑网站',
     settingsCreateWebsiteButton: '创建网站',
     settingsNavPayment: '支付设置',
+    sepayHmacLabel: 'HMAC-SHA256 Secret Key（whsec_）',
+    sepayHmacHint:
+      '在 SePay → 本店 Webhooks → 安全 → HMAC-SHA256 点眼睛复制 Secret Key（whsec_…）。不要用商户 spsk_。不更换已保存密钥请留空。',
+    sepayHmacPlaceholder: 'whsec_…',
+    sepayHmacConfiguredBadge: '已保存 HMAC',
+    sepayHmacSavedHint: '当前密钥末四位 ****{last4}。要更换请在下方填写新密钥。',
+    sepayHmacKeepHint: '尚未保存 HMAC Secret Key。店铺 webhook 仍按 token 接收；在 SePay 启用 HMAC 后请把 whsec_ 粘贴到这里。',
     settingsNavShipping: '物流设置',
     settingsNavShippingDesc:
       '运费、承运商标签、退货地址，以及店铺物流查询 API（顾客询问订单/运单时由 NanoAI 调用）。',
@@ -13321,6 +13348,13 @@ const JA_DICTIONARY: Dictionary = {
     settingsManageWebsiteButton: 'Webを編集',
     settingsCreateWebsiteButton: 'Webを作成',
     settingsNavPayment: '決済設定',
+    sepayHmacLabel: 'HMAC-SHA256 Secret Key（whsec_）',
+    sepayHmacHint:
+      'SePay → この店舗の Webhooks → セキュリティ → HMAC-SHA256 で目のアイコンから Secret Key（whsec_…）をコピー。商用 spsk_ は使わないでください。変更しない場合は空欄のまま。',
+    sepayHmacPlaceholder: 'whsec_…',
+    sepayHmacConfiguredBadge: 'HMAC 保存済み',
+    sepayHmacSavedHint: '現在のキー末尾 ****{last4}。差し替える場合は下に新しいキーを入力。',
+    sepayHmacKeepHint: 'HMAC Secret Key は未保存です。店舗 webhook は token で受信します。SePay で HMAC を有効にしたら whsec_ をここに貼ってください。',
     settingsNavShipping: '配送設定',
     settingsNavShippingDesc:
       '送料、配送業者、返送先住所、ショップの配送照会 API（注文・追跡の問い合わせ時に NanoAI が呼び出します）。',
@@ -16458,6 +16492,13 @@ const KO_DICTIONARY: Dictionary = {
     settingsManageWebsiteButton: '웹사이트 편집',
     settingsCreateWebsiteButton: '웹사이트 만들기',
     settingsNavPayment: '결제 설정',
+    sepayHmacLabel: 'HMAC-SHA256 Secret Key (whsec_)',
+    sepayHmacHint:
+      'SePay → 이 매장 Webhooks → 보안 → HMAC-SHA256에서 눈 아이콘으로 Secret Key(whsec_…)를 복사하세요. 가맹점 spsk_는 쓰지 마세요. 저장된 키를 유지하려면 비워 두세요.',
+    sepayHmacPlaceholder: 'whsec_…',
+    sepayHmacConfiguredBadge: 'HMAC 저장됨',
+    sepayHmacSavedHint: '현재 키 끝자리 ****{last4}. 바꾸려면 아래에 새 키를 입력하세요.',
+    sepayHmacKeepHint: 'HMAC Secret Key가 아직 없습니다. 매장 웹훅은 token으로 수신됩니다. SePay에서 HMAC을 켠 뒤 whsec_를 여기에 붙여 넣으세요.',
     settingsNavShipping: '배송 설정',
     settingsNavShippingDesc:
       '배송비, 운송사, 반송 주소, 쇼핑몰 배송 조회 API(고객이 주문/운송장을 물을 때 NanoAI가 호출).',

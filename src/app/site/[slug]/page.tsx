@@ -18,7 +18,6 @@ import {
   partnerSiteHomeIndustryBadge,
   partnerSiteHomeSecondaryCta,
 } from '@/lib/partner-website/shop/build-partner-site-home-copy'
-import { partnerWebsiteProductsEnabled, partnerWebsiteBookingEnabled, partnerWebsitePersonalizeEnabled } from '@/lib/partner-website/partner-capabilities'
 import { getShopTemplateSampleProducts } from '@/lib/partner-website/template/shop-template-sample-products'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { isPartnerFlashSaleActive } from '@/lib/partner-website/shop/partner-shop-flash-sale'
@@ -100,28 +99,23 @@ export default async function PartnerSitePublicPage({ params, searchParams }: Pr
     const shop = await loadPartnerSiteShopContext(slug)
     if (!shop) notFound()
 
-    const showProducts = partnerWebsiteProductsEnabled(shop.capabilities)
-    const bookingEnabled = partnerWebsiteBookingEnabled(shop.capabilities)
-    const inv = showProducts
-      ? await fetchPartnerInventoryActivePageWithCountFromPg(shop.partnerId, 0, 16)
-      : null
+    const bookingEnabled = shop.industryKey === 'hotel'
+    const inv = await fetchPartnerInventoryActivePageWithCountFromPg(shop.partnerId, 0, 16)
     const live = (inv?.rows ?? [])
       .map((row) => inventoryRowToShopProduct(shop.site.siteSlug, row))
       .filter((p): p is NonNullable<typeof p> => Boolean(p))
-    const fallback = showProducts ? sampleAsShopProducts(shop.site.siteSlug, shop.site.locale) : []
+    const fallback = sampleAsShopProducts(shop.site.siteSlug, shop.site.locale)
     const products = live.length ? live : fallback
-    const newArrivals = showProducts ? products.slice(0, 8) : []
-    const bestSellers = showProducts ? products.slice(0, 8).reverse() : []
-    const flashSale = showProducts
-      ? products.filter((p) =>
-          isPartnerFlashSaleActive({
-            priceAmount: p.priceAmount ?? null,
-            salePriceAmount: p.salePriceAmount ?? null,
-            saleStartsAt: p.saleStartsAt ?? null,
-            saleEndsAt: p.saleEndsAt ?? null,
-          })
-        )
-      : []
+    const newArrivals = products.slice(0, 8)
+    const bestSellers = products.slice(0, 8).reverse()
+    const flashSale = products.filter((p) =>
+      isPartnerFlashSaleActive({
+        priceAmount: p.priceAmount ?? null,
+        salePriceAmount: p.salePriceAmount ?? null,
+        saleStartsAt: p.saleStartsAt ?? null,
+        saleEndsAt: p.saleEndsAt ?? null,
+      })
+    )
     const copy = buildPartnerSiteHomeCopy({
       pages: shop.site.pages,
       locale: shop.site.locale,
@@ -147,9 +141,9 @@ export default async function PartnerSitePublicPage({ params, searchParams }: Pr
         newArrivals={newArrivals}
         bestSellers={bestSellers}
         flashSale={flashSale}
-        showProductSections={showProducts}
-        showCategories={showProducts && shop.capabilities.website.categories}
-        showPersonalize={partnerWebsitePersonalizeEnabled(shop.capabilities)}
+        showProductSections
+        showCategories
+        showPersonalize
         heroCtaHref={bookingHref}
         industryBadge={partnerSiteHomeIndustryBadge(shop.site.locale, shop.industryKey)}
         secondaryCtaLabel={partnerSiteHomeSecondaryCta(shop.site.locale, shop.industryKey)}

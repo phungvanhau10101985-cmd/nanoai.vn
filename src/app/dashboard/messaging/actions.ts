@@ -1,6 +1,7 @@
 ﻿'use server'
 
 import { randomBytes } from 'node:crypto'
+import { SEPAY_HMAC_SECRET_MAX_LEN, sepaySecretLast4 } from '@/lib/sepay-webhook-auth'
 import { revalidatePath } from 'next/cache'
 import { getUserForCreditAction } from '@/lib/auth'
 import { RESERVED_MESSAGING_GUEST_SLUGS } from '@/lib/messaging/reserved-guest-slugs'
@@ -733,33 +734,40 @@ export async function getMessagingWorkspacePaymentSettings(partnerId: string) {
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const row = await fetchPartnerPaymentSettingsFromPg(partnerId)
+  const storedSecret = (row?.sepay_secret_key ?? '').trim()
+  const settings = row ?? {
+    partner_id: partnerId,
+    bank_name: '',
+    bank_bin: '',
+    account_number: '',
+    account_holder: '',
+    default_deposit_percent: 30 as const,
+    default_deposit_mode: 'percent' as const,
+    default_deposit_amount: 0,
+    notify_email: user.email?.trim() || '',
+    require_payment_proof: true,
+    sepay_enabled: false,
+    sepay_bank_code: '',
+    sepay_account_number: '',
+    sepay_qr_template: 'compact' as const,
+    sepay_webhook_token: randomBytes(12).toString('hex'),
+    sepay_secret_key: '',
+    shipping_fee_amount: 0,
+    shipping_free_threshold_amount: null,
+    ewallet_enabled: false,
+    ewallet_provider_label: '',
+    ewallet_account_name: '',
+    ewallet_account_number: '',
+    ewallet_qr_url: '',
+    shipping_carrier_label: '',
+    updated_at: new Date(0).toISOString(),
+  }
   return {
-    settings: row ?? {
-      partner_id: partnerId,
-      bank_name: '',
-      bank_bin: '',
-      account_number: '',
-      account_holder: '',
-      default_deposit_percent: 30 as const,
-      default_deposit_mode: 'percent' as const,
-      default_deposit_amount: 0,
-      notify_email: user.email?.trim() || '',
-      require_payment_proof: true,
-      sepay_enabled: false,
-      sepay_bank_code: '',
-      sepay_account_number: '',
-      sepay_qr_template: 'compact' as const,
-      sepay_webhook_token: randomBytes(12).toString('hex'),
+    settings: {
+      ...settings,
       sepay_secret_key: '',
-      shipping_fee_amount: 0,
-      shipping_free_threshold_amount: null,
-      ewallet_enabled: false,
-      ewallet_provider_label: '',
-      ewallet_account_name: '',
-      ewallet_account_number: '',
-      ewallet_qr_url: '',
-      shipping_carrier_label: '',
-      updated_at: new Date(0).toISOString(),
+      sepay_secret_configured: Boolean(storedSecret),
+      sepay_secret_last4: sepaySecretLast4(storedSecret),
     },
   }
 }
@@ -901,7 +909,11 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
     sepayAccountNumber: (input.sepayAccountNumber ?? '').trim().slice(0, 40),
     sepayQrTemplate: input.sepayQrTemplate === 'qronly' ? 'qronly' : input.sepayQrTemplate === '' ? '' : 'compact',
     sepayWebhookToken: stableWebhookToken,
-    sepaySecretKey: (input.sepaySecretKey ?? '').trim().slice(0, 180),
+    sepaySecretKey: (() => {
+      const incoming = (input.sepaySecretKey ?? '').trim()
+      if (!incoming) return existing?.sepay_secret_key ?? ''
+      return incoming.slice(0, SEPAY_HMAC_SECRET_MAX_LEN)
+    })(),
     shippingFeeAmount: Math.max(0, Math.round(Number(input.shippingFeeAmount) || 0)),
     shippingFreeThresholdAmount:
       input.shippingFreeThresholdAmount == null ? null : Math.max(0, Math.round(Number(input.shippingFreeThresholdAmount) || 0)),

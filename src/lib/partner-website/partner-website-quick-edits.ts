@@ -1,11 +1,10 @@
 /**
- * W2.2 — gợi ý sửa nhanh website theo ngành + capabilities (không hardcode fashion/cam).
- * Chip text = prompt gửi AI chat.
+ * W2.2 — gợi ý sửa nhanh website theo ngành (không hardcode fashion/cam).
+ * Chip text = prompt gửi AI chat. Sửa nhanh thêm được thì gợi ý được — không lọc theo bảng module.
  */
 import type { PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
-  defaultPartnerCapabilities,
   type PartnerCapabilities,
   type PartnerIndustryKey,
 } from '@/lib/partner-website/partner-capabilities'
@@ -123,22 +122,19 @@ function promptsForLocale(
  */
 export function getPartnerWebsiteEditSuggestions(input: PartnerWebsiteEditSuggestionsInput): string[] {
   const industryKey = input.industryKey ?? 'fashion'
-  const caps = input.capabilities ?? defaultPartnerCapabilities(industryKey)
   const p = promptsForLocale(input.locale, industryKey)
   const phase = input.phase ?? 'built'
 
-  const out: string[] = [p.heroRewrite!, p.heroColor!]
-
-  if (caps.website.faq) out.push(p.addFaq!)
+  const out: string[] = [p.heroRewrite!, p.heroColor!, p.addFaq!]
 
   if (phase === 'built') {
     out.push(input.t.quickEditHeroColor)
     out.push(input.t.quickEditHeroTitle)
   }
 
-  if (caps.website.booking) {
+  if (industryKey === 'hotel') {
     out.push(p.bookingCta!)
-  } else if (caps.website.chat) {
+  } else {
     out.push(p.chatCta!)
   }
 

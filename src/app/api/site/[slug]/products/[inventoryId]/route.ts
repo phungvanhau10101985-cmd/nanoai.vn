@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { resolveRelatedProductContext } from '@/lib/partner-website/shop/related-products-pg'
 import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
@@ -37,6 +38,13 @@ export async function GET(
   const product = inventoryRowToShopProduct(shop.site.siteSlug, row)
   if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
 
+  const relatedCtx = await resolveRelatedProductContext(shop.partnerId, id)
+  const productWithCategory = {
+    ...product,
+    categoryId: relatedCtx.categoryId,
+    categoryPath: relatedCtx.categoryPath,
+  }
+
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
   const isFavorite = await isSiteProductFavorite({
     partnerId: shop.partnerId,
@@ -46,7 +54,7 @@ export async function GET(
 
   return jsonSitePersonalization(
     request,
-    { ok: true, product, is_favorite: isFavorite },
+    { ok: true, product: productWithCategory, is_favorite: isFavorite },
     200,
     { sessionId: visitor.sessionId, thread: visitor.thread }
   )

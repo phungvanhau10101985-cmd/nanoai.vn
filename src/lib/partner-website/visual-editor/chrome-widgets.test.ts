@@ -10,6 +10,7 @@ import {
   PW_CHROME_LABELED_MIN_W_CSS,
   PW_CHROME_LABEL_FACE_CSS,
   PW_CHROME_FACE_EXTRAS_CSS,
+  PW_CHROME_LABEL_BELOW_CSS,
   PW_CHROME_ICON_SIZE_MAX,
   chromeKindDefaultLabels,
   chromeKindShowsCountBadge,
@@ -301,6 +302,9 @@ test('chrome widgets emit category toggle as cat-toggle button', () => {
   assert.match(html, /Danh mục/)
   assert.doesNotMatch(html, / href=/)
   assert.match(html, /data-pw-chrome-btn="categories"/)
+  assert.match(html, /data-pw-el="cat-toggle"[^>]*data-pw-chrome-added="1"/)
+  assert.doesNotMatch(html, /pw-chrome-cat-wrap" data-pw-chrome-added/)
+  assert.doesNotMatch(html, /pw-chrome-cat-wrap"[^>]*data-pw-chrome-style/)
 })
 
 test('chrome widgets emit account link to account page (no dropdown)', () => {
@@ -563,11 +567,30 @@ test('chrome label face CSS sizes stock bottom-nav .pw-shop-icon-label', () => {
   assert.match(PW_CHROME_LABEL_FACE_CSS, /font-size:var\(--pw-chrome-label,13px\)!important/)
 })
 
+test('chrome label-below CSS wins row layout for every chrome host', () => {
+  assert.match(PW_CHROME_LABEL_BELOW_CSS, /html \[data-pw-chrome-style="icon-label-below"\]/)
+  assert.match(PW_CHROME_LABEL_BELOW_CSS, /flex-direction:column!important/)
+  assert.match(PW_CHROME_LABEL_BELOW_CSS, /pw-account-btn/)
+  assert.match(PW_CHROME_LABEL_BELOW_CSS, /pw-account-btn-label/)
+  assert.match(PW_CHROME_LABEL_BELOW_CSS, /pw-header-actions/)
+  assert.match(PW_CHROME_LABEL_BELOW_CSS, /pw-bottom-nav/)
+  assert.match(PW_CHROME_LABEL_BELOW_CSS, /pw-pdp-sticky/)
+  assert.match(PW_CHROME_LABEL_BELOW_CSS, /cat-toggle/)
+  assert.match(PW_STOCK_CHROME_EDIT_CSS, /:not\(\.pw-chrome-label-below\):not\(\[data-pw-chrome-style="icon-label-below"\]\)/)
+})
+
 test('chrome face extras cover bold, gap, radius, hover, and column text', () => {
   assert.match(PW_CHROME_FACE_EXTRAS_CSS, /data-pw-chrome-weight="700"/)
   assert.match(PW_CHROME_FACE_EXTRAS_CSS, /--pw-chrome-gap/)
   assert.match(PW_CHROME_FACE_EXTRAS_CSS, /--pw-chrome-radius/)
+  assert.match(PW_CHROME_FACE_EXTRAS_CSS, /data-pw-el="cta"\]\[data-pw-chrome-radius/)
+  assert.match(PW_CHROME_FACE_EXTRAS_CSS, /pw-btn-hero\[data-pw-chrome-radius/)
   assert.match(PW_CHROME_FACE_EXTRAS_CSS, /data-pw-chrome-hover/)
+  assert.match(PW_CHROME_FACE_EXTRAS_CSS, /--pw-btn-text/)
+  assert.match(PW_CHROME_FACE_EXTRAS_CSS, /--pw-icon-color/)
+  assert.match(PW_CHROME_FACE_EXTRAS_CSS, /--pw-btn-color/)
+  assert.match(PW_CHROME_FACE_EXTRAS_CSS, /--pw-btn-border/)
+  assert.doesNotMatch(PW_CHROME_FACE_EXTRAS_CSS, /\[data-pw-btn-text\],\[data-pw-btn-text\] \.pw-chrome-btn-label/)
   assert.match(PW_CHROME_FACE_EXTRAS_CSS, /data-pw-chrome-text-flow="col"/)
   assert.match(PW_CHROME_FACE_EXTRAS_CSS, /writing-mode:horizontal-tb/)
   assert.match(PW_CHROME_FACE_EXTRAS_CSS, /width:min-content/)

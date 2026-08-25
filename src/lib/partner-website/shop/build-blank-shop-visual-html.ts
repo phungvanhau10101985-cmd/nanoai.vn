@@ -3,6 +3,7 @@ import type { PartnerWebsitePageKey } from '@/lib/partner-website/partner-websit
 import type { PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { escapeAttr, escapeHtml } from '@/lib/packaging/mockup-share-html'
+import { buildPartnerSiteFooterHtml } from '@/lib/partner-website/shop/build-partner-site-footer-html'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   ensureAdsPlatformPolicyParagraphs,
@@ -11,7 +12,7 @@ import {
   PARTNER_SITE_PLATFORM_INFO_KEYS,
   type PartnerSiteInfoPageKey,
 } from '@/lib/partner-website/shop/partner-site-shop-info-pages'
-import { partnerSiteHomePath, partnerSiteInfoPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteHomePath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
   PW_EL,
   PW_PAGE,
@@ -47,8 +48,6 @@ const INFO_PAGES: PartnerWebsitePageKey[] = [
 
 const SHOP_ROUTE_PAGES: PartnerWebsitePageKey[] = ['products', 'cart', 'account']
 
-const FOOTER_POLICY_KEYS = ['privacy', 'terms', 'shipping', 'returns', 'payment'] as const
-
 export const BLANK_SHOP_VISUAL_PAGE_KEYS: PartnerWebsitePageKey[] = [
   'home',
   'product_detail',
@@ -67,22 +66,12 @@ function homeHref(siteSlug: string): string {
   return siteSlug.trim() ? partnerSiteHomePath(siteSlug.trim()) : '/'
 }
 
-function infoHref(siteSlug: string, key: (typeof FOOTER_POLICY_KEYS)[number]): string {
-  return siteSlug.trim() ? partnerSiteInfoPath(siteSlug.trim(), key) : `/${key}`
-}
-
 function buildBlankFooterHtml(input: { locale: WebLocale; brand: string; siteSlug: string }): string {
-  const shop = getPartnerSiteShopCopy(input.locale)
-  const year = String(new Date().getFullYear())
-  const copyright = shop.footerCopyright.replace('{year}', year).replace('{shop}', input.brand)
-  const links = FOOTER_POLICY_KEYS.map((key) => {
-    const title = getPartnerSiteInfoPage(key, input.locale).title
-    return `<a href="${escapeAttr(infoHref(input.siteSlug, key))}" ${pwElAttr(PW_EL.link)}>${escapeHtml(title)}</a>`
-  }).join('')
-  return `<footer class="pw-footer" ${pwRegionAttr(PW_REGION.footer)}>
-  <div class="pw-footer-col" ${pwElAttr(PW_EL.col)}>${links}</div>
-  <p ${pwElAttr(PW_EL.copyright)}>${escapeHtml(copyright)}</p>
-</footer>`
+  return buildPartnerSiteFooterHtml({
+    locale: input.locale,
+    brand: input.brand,
+    siteSlug: input.siteSlug,
+  })
 }
 
 function buildBlankBottomNavHtml(input: { locale: WebLocale; siteSlug: string; pdp?: boolean }): string {

@@ -389,6 +389,8 @@ export function PartnerMessagingSettingsClient({
   const [paymentSePayQrTemplate, setPaymentSePayQrTemplate] = useState<'compact' | 'qronly'>('compact')
   const [paymentSePayWebhookToken, setPaymentSePayWebhookToken] = useState('')
   const [paymentSePaySecretKey, setPaymentSePaySecretKey] = useState('')
+  const [paymentSePaySecretConfigured, setPaymentSePaySecretConfigured] = useState(false)
+  const [paymentSePaySecretLast4, setPaymentSePaySecretLast4] = useState('')
   const [paymentSePayWebhookUrl, setPaymentSePayWebhookUrl] = useState('')
   // W1.7 — phí ship + ví điện tử (QR thủ công, giống cơ chế nhập tay của ngân hàng ở trên).
   const [paymentShippingFeeAmount, setPaymentShippingFeeAmount] = useState('0')
@@ -962,7 +964,9 @@ export function PartnerMessagingSettingsClient({
           setPaymentSePayAccountNumber(res.settings.sepay_account_number || '')
           setPaymentSePayQrTemplate(res.settings.sepay_qr_template === 'qronly' ? 'qronly' : 'compact')
           setPaymentSePayWebhookToken(res.settings.sepay_webhook_token || '')
-          setPaymentSePaySecretKey(res.settings.sepay_secret_key || '')
+          setPaymentSePaySecretKey('')
+          setPaymentSePaySecretConfigured(Boolean(res.settings.sepay_secret_configured))
+          setPaymentSePaySecretLast4(res.settings.sepay_secret_last4 || '')
           setPaymentShippingFeeAmount(String(Math.max(0, Math.round(Number(res.settings.shipping_fee_amount) || 0))))
           setPaymentShippingFreeThreshold(
             res.settings.shipping_free_threshold_amount == null
@@ -995,7 +999,7 @@ export function PartnerMessagingSettingsClient({
             sepayAccountNumber: res.settings.sepay_account_number || '',
             sepayQrTemplate: res.settings.sepay_qr_template === 'qronly' ? 'qronly' : 'compact',
             sepayWebhookToken: res.settings.sepay_webhook_token || '',
-            sepaySecretKey: res.settings.sepay_secret_key || '',
+            sepaySecretKey: '',
             shippingFeeAmount: Math.max(0, Math.round(Number(res.settings.shipping_fee_amount) || 0)),
             shippingFreeThresholdAmount:
               res.settings.shipping_free_threshold_amount == null
@@ -1699,7 +1703,7 @@ export function PartnerMessagingSettingsClient({
   }, [copyCatalogFeedUrl, tiktokCatalogFeedUrl, t.tiktokCatalogFeedCopiedToast])
 
   const paymentSnapshot = useCallback(
-    (partnerId: string) =>
+    (partnerId: string, secretOverride?: string) =>
       JSON.stringify({
         partnerId,
         bankName: paymentBankName,
@@ -1715,7 +1719,7 @@ export function PartnerMessagingSettingsClient({
         sepayAccountNumber: paymentSePayAccountNumber,
         sepayQrTemplate: paymentSePayQrTemplate,
         sepayWebhookToken: paymentSePayWebhookToken,
-        sepaySecretKey: paymentSePaySecretKey,
+        sepaySecretKey: secretOverride !== undefined ? secretOverride : paymentSePaySecretKey,
         shippingFeeAmount: Math.max(0, Math.round(Number(paymentShippingFeeAmount) || 0)),
         shippingFreeThresholdAmount:
           paymentShippingFreeThreshold.trim() === '' ? null : Math.max(0, Math.round(Number(paymentShippingFreeThreshold) || 0)),
@@ -1790,7 +1794,13 @@ export function PartnerMessagingSettingsClient({
         if (isStepUpRequiredError(res) && !opts?.silent) setPaymentAutoSaveStatus('error')
         return
       }
-      paymentLastSavedSnapshotRef.current = paymentSnapshot(selectedPartnerId)
+      const savedSecret = paymentSePaySecretKey.trim()
+      if (savedSecret) {
+        setPaymentSePaySecretConfigured(true)
+        setPaymentSePaySecretLast4(savedSecret.slice(-4))
+        setPaymentSePaySecretKey('')
+      }
+      paymentLastSavedSnapshotRef.current = paymentSnapshot(selectedPartnerId, '')
       setPaymentAutoSaveStatus('saved')
       if (!opts?.silent) toast({ title: 'Da luu cai dat thanh toan.' })
     },
@@ -3208,15 +3218,29 @@ export function PartnerMessagingSettingsClient({
                     />
                     <p className="text-[11px] text-muted-foreground">Token duoc tao tu dong theo tung shop va khong cho sua tay.</p>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-medium">SePay Secret Key</Label>
+                  <div className="space-y-2 md:col-span-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Label className="text-xs font-medium">{t.sepayHmacLabel}</Label>
+                      {paymentSePaySecretConfigured ? (
+                        <span className="rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-900 dark:text-emerald-100">
+                          {t.sepayHmacConfiguredBadge}
+                        </span>
+                      ) : null}
+                    </div>
                     <Input
-                      className="h-9 text-sm"
+                      className="h-9 font-mono text-sm"
                       value={paymentSePaySecretKey}
                       onChange={(e) => setPaymentSePaySecretKey(e.target.value)}
                       type="password"
-                      placeholder="Nhap Secret Key cua don vi SePay"
+                      autoComplete="new-password"
+                      placeholder={t.sepayHmacPlaceholder}
                     />
+                    <p className="text-[11px] text-muted-foreground">{t.sepayHmacHint}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {paymentSePaySecretConfigured
+                        ? t.sepayHmacSavedHint.replace('{last4}', paymentSePaySecretLast4 || '????')
+                        : t.sepayHmacKeepHint}
+                    </p>
                   </div>
                 </div>
                 {paymentSePayEnabled &&

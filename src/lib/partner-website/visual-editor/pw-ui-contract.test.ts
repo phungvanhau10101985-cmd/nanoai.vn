@@ -207,7 +207,7 @@ describe('pw ui contract', () => {
     expect(PW_PAGE_ATTR).toBe('data-pw-page')
     expect(PW_TOKEN_ATTR).toBe('data-pw-token')
     expect(pwTokenAttr(PW_TOKEN.buy)).toBe('data-pw-token="buy"')
-    expect(PW_TOKEN_VALUES).toHaveLength(9)
+    expect(PW_TOKEN_VALUES).toHaveLength(10)
     for (const token of PW_TOKEN_VALUES) {
       expect(PW_TOKEN_CSS_VAR[token]).toBe(`--pw-${token}`)
     }

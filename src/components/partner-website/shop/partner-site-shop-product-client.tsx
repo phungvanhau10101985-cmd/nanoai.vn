@@ -32,6 +32,7 @@ import {
   trackPartnerSiteViewItem,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { PartnerSiteProductReviewsQa } from '@/components/partner-website/shop/partner-site-product-reviews-qa'
+import { PartnerSiteRelatedProducts } from '@/components/partner-website/shop/partner-site-related-products'
 import {
   formatPartnerShopMoneyVnd,
   isPartnerFlashSaleActive,
@@ -800,26 +801,12 @@ export function PartnerSiteShopProductClient({
 
       <PartnerSiteProductReviewsQa siteSlug={siteSlug} inventoryId={product.id} locale={locale} />
 
-      {relatedProducts.length > 0 ? (
-        <section style={{ marginTop: 40 }} data-pw-region={PW_REGION.catalog} data-pw-catalog>
-          <h2 data-pw-el={PW_EL.sectionTitle}>{t.relatedProducts}</h2>
-          <div className="pw-shop-grid" style={{ marginTop: 16 }} data-pw-el={PW_EL.grid} data-pw-grid>
-            {relatedProducts.map((p) => (
-              <article key={p.id} className="pw-shop-card" data-pw-el={PW_EL.card}>
-                <Link href={partnerSiteProductPath(siteSlug, p.id, { customDomain, name: p.name })} data-pw-el={PW_EL.cardMedia}>
-                  <img src={p.imageUrl} alt={p.name} loading="lazy" />
-                </Link>
-                <div className="pw-shop-card-body">
-                  <Link href={partnerSiteProductPath(siteSlug, p.id, { customDomain, name: p.name })}>
-                    <h3 data-pw-el={PW_EL.cardName}>{p.name}</h3>
-                  </Link>
-                  {p.priceHint ? <p className="pw-shop-price" data-pw-el={PW_EL.cardPrice}>{p.priceHint}</p> : null}
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <PartnerSiteRelatedProducts
+        siteSlug={siteSlug}
+        locale={locale}
+        products={relatedProducts}
+        categoryPath={product.categoryPath}
+      />
 
       {lightboxOpen ? (
         <div className="pw-shop-lightbox" onClick={() => setLightboxOpen(false)} role="dialog" aria-modal="true">

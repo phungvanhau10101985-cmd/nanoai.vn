@@ -14,6 +14,7 @@ import { injectPartnerShopThemeCss } from '@/lib/partner-website/shop/build-shop
 import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
 import { stripPartnerInfoPageSeoCoachFromHtml } from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
 import { ensureAdsPlatformPolicyInHtml } from '@/lib/partner-website/pages/partner-info-page-visual'
+import { ensureFullPartnerSiteFooterInHtml } from '@/lib/partner-website/shop/build-partner-site-footer-html'
 import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual-editor/strip-empty-logo-placeholders'
 import {
   isolateVisualHtmlForDevice,
@@ -49,7 +50,12 @@ export function preparePartnerVisualHtmlForEditor(
 ): string {
   const locale = input.locale ?? 'vi'
   const withPolicy = ensureAdsPlatformPolicyInHtml(html, locale, input.pageKey || input.cmsSlug)
-  const isolated = isolateVisualHtmlForDevice(stripEmptyLogoPlaceholdersFromHtml(withPolicy), input.variant)
+  const withFooter = ensureFullPartnerSiteFooterInHtml(withPolicy, {
+    locale,
+    siteSlug: input.siteSlug,
+    logoUrl: input.theme?.logoUrl,
+  })
+  const isolated = isolateVisualHtmlForDevice(stripEmptyLogoPlaceholdersFromHtml(withFooter), input.variant)
   const isProduct =
     input.pageKey === 'product_detail' || /data-pw-page=["']product["']/.test(isolated)
   const light = isProduct ? deferOffDevicePdpGalleryMedia(isolated, input.variant) : isolated
@@ -82,7 +88,12 @@ export function preparePartnerVisualHtmlForPublic(
   const siteSlug = input.siteSlug?.trim() ?? ''
   const locale = input.locale ?? 'vi'
   const withPolicy = ensureAdsPlatformPolicyInHtml(html, locale, input.pageKey || input.cmsSlug)
-  const cleaned = stripPartnerInfoPageSeoCoachFromHtml(withPolicy)
+  const withFooter = ensureFullPartnerSiteFooterInHtml(withPolicy, {
+    locale,
+    siteSlug: input.siteSlug,
+    logoUrl: input.theme?.logoUrl,
+  })
+  const cleaned = stripPartnerInfoPageSeoCoachFromHtml(withFooter)
   const isProduct =
     input.pageKey === 'product_detail' || /data-pw-page=["']product["']/.test(cleaned)
   const withShopCss = isProduct ? injectPartnerShopThemeCss(cleaned, input.theme) : cleaned

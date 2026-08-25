@@ -190,7 +190,9 @@ export function maybePartnerSiteVisualProductPage(
 ) {
   const html = resolvePartnerVisualHtmlForTarget(site, { kind: 'product', productId }, device)
   if (html.length < 40) return null
-  const bound = product ? bindLiveProductToPdpHtml(html, product, { locale: site.locale }) : html
+  const bound = product
+    ? bindLiveProductToPdpHtml(html, product, { locale: site.locale, siteSlug: site.siteSlug })
+    : html
   return (
     <PartnerSiteVisualHtmlScreen
       site={site}

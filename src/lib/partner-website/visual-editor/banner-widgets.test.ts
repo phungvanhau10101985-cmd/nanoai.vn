@@ -5,7 +5,10 @@ import {
   buildVisualEditorBannerHtml,
   isVisualEditorBannerKind,
 } from '@/lib/partner-website/visual-editor/banner-widgets'
-import { PARTNER_SHOP_BANNER_MEDIA_FILL_CSS } from '@/lib/partner-website/visual-editor/pw-scene'
+import {
+  PARTNER_SHOP_BANNER_LIVE_MATCH_CSS,
+  PARTNER_SHOP_BANNER_MEDIA_FILL_CSS,
+} from '@/lib/partner-website/visual-editor/pw-scene'
 
 test('recognizes banner kinds', () => {
   assert.equal(isVisualEditorBannerKind('hero'), true)
@@ -61,4 +64,12 @@ test('live CSS paints added banner from theme tokens', () => {
   assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /var\(--pw-primary\)/)
   assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /var\(--pw-accent\)/)
   assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /::after\{display:none/)
+})
+
+test('live banner CSS keeps Sửa nhanh CTA row when desktop is stamped', () => {
+  assert.match(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS, /text-transform:none!important/)
+  assert.match(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS, /flex-direction:row!important/)
+  assert.match(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS, /html\[data-pw-edit-device="desktop"\] \.pw-hero/)
+  assert.match(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS, /html\[data-pw-scene-lock="laptop"\] \.pw-hero/)
+  assert.match(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS, /margin-top:0!important;border-radius:0!important/)
 })

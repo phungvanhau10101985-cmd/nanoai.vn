@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, ChevronLeft, ChevronRight, ChevronsLeftRight, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutGrid, LayoutTemplate, Loader2, Lock, LogIn, LogOut, Mail, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Share2, Shield, ShoppingBag, Sparkles, Square, Store, Tag, Ticket, Trash2, Truck, Type, Undo2, Upload, User, UserPlus, Video, Wallet, X } from 'lucide-react'
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, ChevronLeft, ChevronRight, ChevronsLeftRight, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutGrid, LayoutTemplate, Loader2, Lock, LogIn, LogOut, Mail, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Share2, Shield, Shirt, ShoppingBag, Sparkles, Square, Store, Tag, Ticket, Trash2, Truck, Type, Undo2, Upload, User, UserPlus, Video, Wallet, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -29,6 +29,7 @@ import {
   visualHtmlLooksUsable,
 } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
 import { inferVisualEditImageKind, shouldUseCurrentImageAsRef } from '@/lib/partner-website/visual-editor/visual-editor-css-url'
+import { buildAiImageColorFacts, mergeAiImageColorPrompt } from '@/lib/partner-website/visual-editor/merge-ai-image-color-prompt'
 import {
   logoSizeFromAspect,
   mergeLogoSlotPrompt,
@@ -118,6 +119,7 @@ import {
 } from '@/lib/partner-website/visual-editor/pw-slider-runtime'
 import {
   buildVisualEditorProductGridHtml,
+  productGridKindAllowedOnVisualPage,
   productGridWidgetLabel,
   VISUAL_EDITOR_PRODUCT_GRID_KINDS,
   type VisualEditorProductGridKind,
@@ -173,6 +175,7 @@ const VISUAL_EDITOR_EDIT_KINDS = [
   'field',
   'badge',
   'chat-embed',
+  'paper',
   'other',
 ] as const
 type VisualEditorEditKind = (typeof VISUAL_EDITOR_EDIT_KINDS)[number]
@@ -189,6 +192,12 @@ export type VisualEditorSelection = {
   isAddedBg: boolean
   isAddedBgSlot: boolean
   canClearBg: boolean
+  isPaper: boolean
+  isFillHost: boolean
+  fillMode: 'color' | 'transparent' | 'image'
+  paperMode: 'white' | 'image'
+  paperPanX: number
+  paperPanY: number
   bgCleared: boolean
   canInsertBgSlot: boolean
   editKind: VisualEditorEditKind
@@ -313,6 +322,12 @@ function selectionFromMessage(data: {
   isAddedBg?: boolean
   isAddedBgSlot?: boolean
   canClearBg?: boolean
+  isPaper?: boolean
+  isFillHost?: boolean
+  fillMode?: string
+  paperMode?: string
+  paperPanX?: number
+  paperPanY?: number
   bgCleared?: boolean
   canInsertBgSlot?: boolean
   editKind?: string
@@ -418,6 +433,16 @@ function selectionFromMessage(data: {
     isAddedBg: Boolean(data.isAddedBg),
     isAddedBgSlot: Boolean(data.isAddedBgSlot),
     canClearBg: Boolean(data.canClearBg),
+    isPaper: Boolean(data.isPaper),
+    isFillHost: Boolean(data.isFillHost),
+    fillMode: data.fillMode === 'image' || data.fillMode === 'transparent' ? data.fillMode : 'color',
+    paperMode: data.paperMode === 'image' ? 'image' : 'white',
+    paperPanX: Number.isFinite(Number(data.paperPanX))
+      ? Math.max(0, Math.min(100, Math.round(Number(data.paperPanX))))
+      : 50,
+    paperPanY: Number.isFinite(Number(data.paperPanY))
+      ? Math.max(0, Math.min(100, Math.round(Number(data.paperPanY))))
+      : 50,
     bgCleared: Boolean(data.bgCleared),
     canInsertBgSlot: Boolean(data.canInsertBgSlot),
     editKind: parseEditKind(data.editKind),
@@ -952,6 +977,12 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [uploadBusy, setUploadBusy] = useState(false)
   const [aiBusy, setAiBusy] = useState(false)
   const [aiPrompt, setAiPrompt] = useState('')
+  const [aiImageColor, setAiImageColor] = useState(() =>
+    theme ? cssColorToHex(resolveShopThemeColors(theme).primaryColor, '#c2410c') : '#c2410c'
+  )
+  const [aiImageAccent, setAiImageAccent] = useState(() =>
+    theme ? cssColorToHex(resolveShopThemeColors(theme).accentColor, '#fb923c') : '#fb923c'
+  )
   const [hrefDraft, setHrefDraft] = useState('')
   const [useCurrentRef, setUseCurrentRef] = useState(true)
   const [refUrl, setRefUrl] = useState('')
@@ -2068,6 +2099,7 @@ export function PartnerWebsiteVisualEditorToolbar({
           shopTitle: websiteTitle || 'Shop',
           extra: chatIconPrompt,
           hasReference: refs.length > 0,
+          colorFacts: buildAiImageColorFacts({ main: aiImageColor, accent: aiImageAccent }),
         }),
         kind: 'logo',
         aspectRatio: '1:1',
@@ -2125,6 +2157,12 @@ export function PartnerWebsiteVisualEditorToolbar({
           isAddedBg: false,
           isAddedBgSlot: false,
           canClearBg: false,
+          isPaper: false,
+          isFillHost: false,
+          fillMode: 'color',
+          paperMode: 'white',
+          paperPanX: 50,
+          paperPanY: 50,
           bgCleared: false,
           canInsertBgSlot: false,
           editKind: 'logo',
@@ -2273,14 +2311,17 @@ export function PartnerWebsiteVisualEditorToolbar({
       return
     }
     if (!selection) return
-    const prompt = aiPrompt.trim()
-    if (prompt.length < 4) {
+    if (aiPrompt.trim().length < 4) {
       onError(t.visualEditAiPromptRequired)
       return
     }
+    const prompt = mergeAiImageColorPrompt(aiPrompt, { main: aiImageColor, accent: aiImageAccent })
     const inferred = inferVisualEditImageKind({
       ...selection,
       isBannerPhoto: selection.isBannerPhoto,
+      isPaper: selection.isPaper,
+      isFillHost: selection.isFillHost,
+      isAddedBg: selection.isAddedBg,
     })
     let referenceImageUrl = refUrl.trim() || (useCurrentRef ? selection.src.trim() : '')
     if (useCurrentRef && !refUrl.trim() && selection.src.trim() && !/^https?:\/\//i.test(referenceImageUrl)) {
@@ -2550,6 +2591,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       onError(t.visualEditSaveFailed)
       return
     }
+    if (!productGridKindAllowedOnVisualPage(kind, pageKey)) return
     if (insertBgPickPlace) cancelInsertBgPickUi()
     setAddBgAskOpen(false)
     const html = buildVisualEditorProductGridHtml({ kind, siteSlug: slug, locale, limit: 10 })
@@ -2830,7 +2872,9 @@ export function PartnerWebsiteVisualEditorToolbar({
       selection.chromeKind !== 'chat-zalo' &&
       selection.chromeKind !== 'chat-facebook'
   )
-  const showBlockTools = Boolean(selection?.isBlock && !selection.isAddedBg && !chromeLikeKind)
+  const showBlockTools = Boolean(
+    selection?.isBlock && !selection.isAddedBg && !selection.isPaper && !chromeLikeKind && editKind !== 'paper'
+  )
   const showLayerSwitch = Boolean(
     selection?.hasImageLayer &&
       !selection.isLogo &&
@@ -2855,7 +2899,8 @@ export function PartnerWebsiteVisualEditorToolbar({
       editKind !== 'nav-link' &&
       editKind !== 'dots' &&
       editKind !== 'field' &&
-      editKind !== 'chat-embed'
+      editKind !== 'chat-embed' &&
+      editKind !== 'paper'
   )
   // Lớp không gian: mọi phần tử chọn được đều phải biết đang ở lớp nào và đổi lớp được.
   const showSceneStack = Boolean(sceneFocus >= 0 || (selection && editKind !== 'chat-embed'))
@@ -2877,6 +2922,10 @@ export function PartnerWebsiteVisualEditorToolbar({
     selection &&
       (editKind === 'logo' ||
         editKind === 'image' ||
+        editKind === 'paper' ||
+        selection.isPaper ||
+        selection.isFillHost ||
+        selection.isAddedBg ||
         ((selection.isImage || selection.isBgImage || selection.isBannerPhoto) &&
           editKind !== 'chrome' &&
           editKind !== 'cat-toggle' &&
@@ -2982,7 +3031,9 @@ export function PartnerWebsiteVisualEditorToolbar({
     )
   }
   const deleteLabel =
-    editKind === 'added-bg' || selection?.canClearBg
+    editKind === 'paper' || selection?.isPaper
+      ? t.visualEditPaperWhite
+      : editKind === 'added-bg' || selection?.canClearBg
       ? t.visualEditDeleteBg
       : editKind === 'chat-embed'
         ? t.visualEditChatEmbedDelete
@@ -3008,6 +3059,135 @@ export function PartnerWebsiteVisualEditorToolbar({
 
   const btn = compact ? 'h-6 px-1.5 text-[10px]' : 'h-7 px-2 text-xs'
   const slider = compact ? 'h-5 w-16 accent-primary' : 'h-7 w-24 accent-primary'
+  const showFillAiStudio = Boolean(
+    selection && (selection.isPaper || selection.isFillHost || selection.isAddedBg || editKind === 'paper')
+  )
+  const aiPromptPlaceholder =
+    selection?.isPaper || selection?.isFillHost || selection?.isAddedBg || editKind === 'paper'
+      ? t.visualEditPaperAiPlaceholder
+      : selection?.isBannerPhoto
+        ? t.visualEditAiBannerPlaceholder
+        : t.visualEditAiImagePlaceholder
+  const renderAiImageStudio = (promptId: string) => {
+    const currentSrc = selection?.src?.trim() || ''
+    const canUseCurrent = shouldUseCurrentImageAsRef({
+      src: currentSrc,
+      isLogo: selection?.isLogo,
+      logoFace: selection?.logoFace,
+      isImage: selection?.isImage,
+      isBgImage: selection?.isBgImage,
+      isBannerPhoto: selection?.isBannerPhoto,
+      isPaper: selection?.isPaper,
+      isFillHost: selection?.isFillHost,
+      isAddedBg: selection?.isAddedBg,
+    })
+    return (
+      <div className="space-y-1.5">
+        <label className="flex min-w-0 flex-col gap-0.5" htmlFor={promptId}>
+          <span className="text-[10px] text-muted-foreground">{t.visualEditAiPromptLabel}</span>
+          <textarea
+            id={promptId}
+            ref={promptTextareaRef}
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            placeholder={aiPromptPlaceholder}
+            rows={compact ? 2 : 3}
+            disabled={busy}
+            className={cn(
+              'w-full rounded-md border bg-background px-2 py-1 resize-y',
+              compact ? 'text-[10px]' : 'text-xs'
+            )}
+          />
+        </label>
+        <div className="space-y-1">
+          <p className="text-[10px] font-semibold leading-4">{t.visualEditAiColorTitle}</p>
+          <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditAiColorHint}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 text-[10px]">
+              <span className="text-muted-foreground">{t.visualEditAiColorMain}</span>
+              <ThemeColorConfirmPicker
+                value={cssColorToHex(aiImageColor, '#c2410c')}
+                disabled={busy}
+                compact={compact}
+                okLabel={t.themeColorOk}
+                themePicks={themePicks}
+                onConfirm={setAiImageColor}
+              />
+            </div>
+            <div className="flex items-center gap-1 text-[10px]">
+              <span className="text-muted-foreground">{t.visualEditAiColorAccent}</span>
+              <ThemeColorConfirmPicker
+                value={cssColorToHex(aiImageAccent, '#fb923c')}
+                disabled={busy}
+                compact={compact}
+                okLabel={t.themeColorOk}
+                themePicks={themePicks}
+                onConfirm={setAiImageAccent}
+              />
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {refUrl || canUseCurrent ? (
+            <img
+              src={refUrl || currentSrc}
+              alt=""
+              className={cn('rounded border object-cover', compact ? 'h-7 w-10' : 'h-10 w-16')}
+            />
+          ) : null}
+          <label className="flex items-center gap-1 text-[10px]">
+            <input
+              type="checkbox"
+              checked={useCurrentRef && !refUrl && canUseCurrent}
+              disabled={busy || !canUseCurrent}
+              onChange={(e) => {
+                setUseCurrentRef(e.target.checked)
+                if (e.target.checked) setRefUrl('')
+              }}
+            />
+            {t.visualEditUseCurrentAsRef}
+          </label>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={btn}
+            disabled={busy}
+            onClick={() => refFileRef.current?.click()}
+          >
+            {uploadBusy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <ImagePlus className="mr-1 h-3 w-3" />}
+            {t.visualEditUploadReference}
+          </Button>
+          {refUrl ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-6 w-6 shrink-0 p-0"
+              disabled={busy}
+              title={t.visualEditRemoveReference}
+              onClick={() => {
+                setRefUrl('')
+                setUseCurrentRef(false)
+              }}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          ) : null}
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          className={cn(btn, 'w-full')}
+          disabled={busy}
+          onClick={() => void handleGenerateAi()}
+        >
+          {aiBusy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
+          {t.visualEditCreateWithAi}
+        </Button>
+      </div>
+    )
+  }
   const hrefField =
     showHref && selection && !showCtaStyle && !addButtonPanelOpen ? (
       <label className="flex min-w-0 w-full flex-col gap-0.5 text-[10px]">
@@ -3095,6 +3275,8 @@ export function PartnerWebsiteVisualEditorToolbar({
                           ? t.visualEditLogoPanelTitle
                           : editKind === 'image'
                             ? t.visualEditImagePanelTitle
+                            : editKind === 'paper'
+                              ? t.visualEditPaperTitle
                             : t.visualEditMenuBlock
   const panelTitle =
     openPanel === 'add'
@@ -3485,9 +3667,29 @@ export function PartnerWebsiteVisualEditorToolbar({
                         </p>
                       ) : null}
                     </div>
-                    {VISUAL_EDITOR_PRODUCT_GRID_KINDS.map((kind) => {
+                    {VISUAL_EDITOR_PRODUCT_GRID_KINDS.filter((kind) =>
+                      productGridKindAllowedOnVisualPage(kind, pageKey)
+                    ).map((kind) => {
                       const Icon =
-                        kind === 'recently-viewed' ? Clock : kind === 'recommended' ? Sparkles : LayoutGrid
+                        kind === 'recently-viewed'
+                          ? Clock
+                          : kind === 'recommended'
+                            ? Sparkles
+                            : kind === 'related'
+                              ? Images
+                              : kind === 'outfit'
+                                ? Shirt
+                                : LayoutGrid
+                      const labelKey =
+                        kind === 'catalog'
+                          ? 'visualEditAddProductGrid'
+                          : kind === 'recently-viewed'
+                            ? 'visualEditAddRecentlyViewedGrid'
+                            : kind === 'related'
+                              ? 'visualEditAddRelatedGrid'
+                              : kind === 'outfit'
+                                ? 'visualEditAddOutfitGrid'
+                                : 'visualEditAddRecommendedGrid'
                       return (
                         <button
                           key={kind}
@@ -3497,13 +3699,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                           onClick={() => insertProductGridWidget(kind)}
                         >
                           <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                          {t[
-                            kind === 'catalog'
-                              ? 'visualEditAddProductGrid'
-                              : kind === 'recently-viewed'
-                                ? 'visualEditAddRecentlyViewedGrid'
-                                : 'visualEditAddRecommendedGrid'
-                          ] || productGridWidgetLabel(kind, locale)}
+                          {t[labelKey] || productGridWidgetLabel(kind, locale)}
                         </button>
                       )
                     })}
@@ -3712,8 +3908,135 @@ export function PartnerWebsiteVisualEditorToolbar({
             <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditAddedBgHint}</p>
           </div>
         ) : null}
-        {showBgColorPicker && selection && selection.canClearBg ? (
+        {showBgColorPicker && selection && selection.canClearBg && !selection.isPaper && !selection.isFillHost && editKind !== 'paper' ? (
           <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditRegionBgHint}</p>
+        ) : null}
+        {selection && (selection.isPaper || selection.isFillHost || selection.isAddedBg || editKind === 'paper') ? (
+          <div className="space-y-1.5 rounded-md border bg-background px-2 py-1.5">
+            <p className="text-[11px] font-semibold leading-4">
+              {selection.isPaper || editKind === 'paper' ? t.visualEditPaperTitle : t.visualEditBgFillTitle}
+            </p>
+            <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditBgFillHint}</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={cn(btn, 'w-full')}
+              disabled={busy}
+              onClick={() => fileRef.current?.click()}
+            >
+              {uploadBusy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <ImagePlus className="mr-1 h-3 w-3" />}
+              {t.visualEditPaperPickImage}
+            </Button>
+            {renderAiImageStudio('nanoai-ve-fill-ai-prompt')}
+            {selection.isPaper || editKind === 'paper' ? (
+              <Button
+                type="button"
+                size="sm"
+                variant={selection.paperMode === 'white' && selection.fillMode !== 'transparent' ? 'default' : 'outline'}
+                className={cn(btn, 'w-full')}
+                disabled={busy || (selection.paperMode === 'white' && selection.fillMode !== 'transparent' && selection.fillMode !== 'image')}
+                onClick={() => {
+                  postToIframe(iframeRef.current, 'setPaperWhite')
+                  setDirty(true)
+                }}
+              >
+                {t.visualEditPaperWhite}
+              </Button>
+            ) : null}
+            {selection.fillMode === 'image' ? (
+              <div className="space-y-1.5 border-t pt-1.5">
+                <p className="text-[11px] font-semibold leading-4">{t.visualEditBgImagePos}</p>
+                <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditBgImagePosHint}</p>
+                <div className="flex items-start gap-2">
+                  <div className="grid grid-cols-3 gap-0.5" role="group" aria-label={t.visualEditBgImagePos}>
+                    {(
+                      [
+                        [0, 0],
+                        [50, 0],
+                        [100, 0],
+                        [0, 50],
+                        [50, 50],
+                        [100, 50],
+                        [0, 100],
+                        [50, 100],
+                        [100, 100],
+                      ] as const
+                    ).map(([x, y]) => {
+                      const on = selection.paperPanX === x && selection.paperPanY === y
+                      return (
+                        <button
+                          key={`${x}-${y}`}
+                          type="button"
+                          disabled={busy}
+                          title={`${x}% / ${y}%`}
+                          className={cn(
+                            'h-4 w-4 rounded-sm border',
+                            on ? 'border-primary bg-primary' : 'border-muted-foreground/40 bg-background hover:bg-muted'
+                          )}
+                          onClick={() => {
+                            postToIframe(iframeRef.current, 'setPaperPan', { x, y })
+                            setDirty(true)
+                          }}
+                        />
+                      )
+                    })}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <span className="w-16 shrink-0">{t.visualEditBgImagePosX}</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={selection.paperPanX}
+                        className={cn(slider, 'min-w-0 flex-1')}
+                        disabled={busy}
+                        onChange={(e) => {
+                          postToIframe(iframeRef.current, 'setPaperPan', {
+                            x: Number(e.target.value),
+                            y: selection.paperPanY,
+                          })
+                          setDirty(true)
+                        }}
+                      />
+                      <span className="w-8 shrink-0 tabular-nums">{selection.paperPanX}%</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <span className="w-16 shrink-0">{t.visualEditBgImagePosY}</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={selection.paperPanY}
+                        className={cn(slider, 'min-w-0 flex-1')}
+                        disabled={busy}
+                        onChange={(e) => {
+                          postToIframe(iframeRef.current, 'setPaperPan', {
+                            x: selection.paperPanX,
+                            y: Number(e.target.value),
+                          })
+                          setDirty(true)
+                        }}
+                      />
+                      <span className="w-8 shrink-0 tabular-nums">{selection.paperPanY}%</span>
+                    </label>
+                    <button
+                      type="button"
+                      className="text-[10px] text-muted-foreground underline-offset-2 hover:underline"
+                      disabled={busy}
+                      onClick={() => {
+                        postToIframe(iframeRef.current, 'setPaperPan', { x: 50, y: 50 })
+                        setDirty(true)
+                      }}
+                    >
+                      {t.visualEditResetImagePos}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
         ) : null}
         {showBgColorPicker && selection && !selection.isAddedBg && !selection.canDelete && !selection.canClearBg ? (
           <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditBgLockedHint}</p>
@@ -4019,13 +4342,21 @@ export function PartnerWebsiteVisualEditorToolbar({
               <div className="flex items-center gap-1 text-[10px]">
                 <span className="text-muted-foreground">{t.visualEditAddButtonColor}</span>
                 <ThemeColorConfirmPicker
-                  value={cssColorToHex(selection.btnColor || selection.bgColor || '', '#ffffff')}
+                  value={
+                    selection.btnColor
+                      ? cssColorToHex(selection.btnColor, '#ffffff')
+                      : 'transparent'
+                  }
                   disabled={busy}
                   compact={compact}
                   okLabel={t.themeColorOk}
                   themePicks={themePicks}
+                  allowTransparent
+                  transparentLabel={t.visualEditBgTransparent}
                   onConfirm={(color) => {
-                    postToIframe(iframeRef.current, 'setButtonColor', { color })
+                    postToIframe(iframeRef.current, 'setButtonColor', {
+                      color: color === 'transparent' ? '' : color,
+                    })
                     setDirty(true)
                   }}
                 />
@@ -4050,7 +4381,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                     {t.visualEditIconColor}
                   </span>
                   <ThemeColorConfirmPicker
-                    value={cssColorToHex(selection.iconColor || selection.textColor || '', '#374151')}
+                    value={cssColorToHex(selection.iconColor || '', '#ffffff')}
                     disabled={busy}
                     compact={compact}
                     okLabel={t.themeColorOk}
@@ -4066,7 +4397,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                 <div className="flex items-center gap-1 text-[10px]">
                   <span className="text-muted-foreground">{t.visualEditTextColor}</span>
                   <ThemeColorConfirmPicker
-                    value={cssColorToHex(selection.textColor, '#111827')}
+                    value={cssColorToHex(selection.textColor || '', '#ffffff')}
                     disabled={busy}
                     compact={compact}
                     okLabel={t.themeColorOk}
@@ -4082,7 +4413,10 @@ export function PartnerWebsiteVisualEditorToolbar({
                 <div className="flex items-center gap-1 text-[10px]">
                   <span className="text-muted-foreground">{t.visualEditChromeHover}</span>
                   <ThemeColorConfirmPicker
-                    value={cssColorToHex(selection.chromeHover || '', '#111827')}
+                    value={cssColorToHex(
+                      selection.chromeHover || selection.textColor || selection.iconColor || '',
+                      '#ffffff'
+                    )}
                     disabled={busy}
                     compact={compact}
                     okLabel={t.themeColorOk}
@@ -4271,19 +4605,58 @@ export function PartnerWebsiteVisualEditorToolbar({
           {!showTextTools ? hrefField : null}
           {destIsLogoHome ? null : openDestButton}
           {showBgColorPicker && colorSel ? (
-            <div className="flex items-center gap-1 text-[10px]">
+            <div className="flex flex-wrap items-center gap-1 text-[10px]">
               <span className="text-muted-foreground">
                 {colorSel.isAddedBg ? t.visualEditAddBgColor : t.visualEditBgColor}
               </span>
               <ThemeColorConfirmPicker
-                value={cssColorToHex(colorSel.bgColor, colorSel.isAddedBg ? addBgColor : '#ffffff')}
+                value={
+                  colorSel.fillMode === 'transparent' || colorSel.bgCleared
+                    ? 'transparent'
+                    : cssColorToHex(colorSel.bgColor, colorSel.isAddedBg ? addBgColor : '#ffffff')
+                }
                 disabled={busy}
                 compact={compact}
                 okLabel={t.themeColorOk}
                 themePicks={themePicks}
+                allowTransparent={Boolean(
+                  colorSel.isFillHost ||
+                    colorSel.isAddedBg ||
+                    colorSel.isPaper ||
+                    colorSel.canClearBg ||
+                    colorSel.bgCleared
+                )}
+                transparentLabel={t.visualEditBgTransparent}
                 onOpenChange={setBgColorPickerOpen}
-                onConfirm={(color) => postToIframe(iframeRef.current, 'setBgColor', { color })}
+                onConfirm={(color) => {
+                  if (color === 'transparent') {
+                    postToIframe(iframeRef.current, 'clearRegionFill')
+                  } else {
+                    postToIframe(iframeRef.current, 'setBgColor', { color })
+                  }
+                  setDirty(true)
+                }}
               />
+              {colorSel.isFillHost ||
+              colorSel.isAddedBg ||
+              colorSel.isPaper ||
+              colorSel.canClearBg ||
+              colorSel.bgCleared ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={colorSel.bgCleared ? 'default' : 'outline'}
+                  className={cn(btn, 'px-1.5')}
+                  disabled={busy || colorSel.bgCleared}
+                  title={t.visualEditBgTransparent}
+                  onClick={() => {
+                    postToIframe(iframeRef.current, 'clearRegionFill')
+                    setDirty(true)
+                  }}
+                >
+                  {t.visualEditBgTransparent}
+                </Button>
+              ) : null}
             </div>
           ) : null}
           {showSceneStack ? (
@@ -4681,6 +5054,8 @@ export function PartnerWebsiteVisualEditorToolbar({
             </>
           ) : null}
           {selection &&
+          !selection.isPaper &&
+          editKind !== 'paper' &&
           (selection.isAddedBg || selection.canClearBg || (!selection.isBlock && selection.canDelete)) ? (
             <Button
               type="button"
@@ -4871,6 +5246,33 @@ export function PartnerWebsiteVisualEditorToolbar({
                     compact ? 'h-6 text-[10px]' : 'h-8 text-xs'
                   )}
                 />
+                <div className="space-y-1">
+                  <p className="text-[10px] font-semibold leading-4">{t.visualEditAiColorTitle}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1 text-[10px]">
+                      <span className="text-muted-foreground">{t.visualEditAiColorMain}</span>
+                      <ThemeColorConfirmPicker
+                        value={cssColorToHex(aiImageColor, '#c2410c')}
+                        disabled={busy}
+                        compact={compact}
+                        okLabel={t.themeColorOk}
+                        themePicks={themePicks}
+                        onConfirm={setAiImageColor}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px]">
+                      <span className="text-muted-foreground">{t.visualEditAiColorAccent}</span>
+                      <ThemeColorConfirmPicker
+                        value={cssColorToHex(aiImageAccent, '#fb923c')}
+                        disabled={busy}
+                        compact={compact}
+                        okLabel={t.themeColorOk}
+                        themePicks={themePicks}
+                        onConfirm={setAiImageAccent}
+                      />
+                    </div>
+                  </div>
+                </div>
                 <div className="flex min-w-0 items-center gap-1">
                   {refUrl ? <img src={refUrl} alt="" className="h-7 w-7 rounded-full border bg-white object-cover" /> : null}
                   <Button
@@ -5117,6 +5519,91 @@ export function PartnerWebsiteVisualEditorToolbar({
                 }
               }}
             />
+            <div className="flex items-center gap-1 text-[10px]">
+              <span className="text-muted-foreground">{t.visualEditTextColor}</span>
+              <ThemeColorConfirmPicker
+                value={cssColorToHex(selection.textColor || '', '#ffffff')}
+                disabled={busy}
+                compact={compact}
+                okLabel={t.themeColorOk}
+                themePicks={themePicks}
+                onConfirm={(color) => {
+                  postToIframe(iframeRef.current, 'setColor', { color })
+                  setDirty(true)
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-1 text-[10px]">
+              <span className="text-muted-foreground">{t.visualEditChromeHover}</span>
+              <ThemeColorConfirmPicker
+                value={cssColorToHex(selection.chromeHover || selection.textColor || '', '#ffffff')}
+                disabled={busy}
+                compact={compact}
+                okLabel={t.themeColorOk}
+                themePicks={themePicks}
+                onConfirm={(color) => {
+                  postToIframe(iframeRef.current, 'setChromeHover', { color })
+                  setDirty(true)
+                }}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-1 text-[10px]">
+              <Button
+                type="button"
+                size="sm"
+                variant={selection.chromeBold ? 'default' : 'outline'}
+                className={btn}
+                disabled={busy}
+                title={t.visualEditChromeBold}
+                onClick={() => {
+                  postToIframe(iframeRef.current, 'setChromeBold', { on: !selection.chromeBold })
+                  setDirty(true)
+                }}
+              >
+                <Bold className="mr-1 h-3 w-3" />
+                {t.visualEditChromeBold}
+              </Button>
+            </div>
+            {renderChromeNumSlider(
+              t.visualEditChromeTextSize,
+              selection.fontSize || selection.chromeLabelSize || 14,
+              10,
+              72,
+              (raw) => {
+                const n = Number(raw)
+                if (!Number.isFinite(n)) return 14
+                return Math.min(72, Math.max(10, Math.round(n)))
+              },
+              (size) => {
+                postToIframe(iframeRef.current, 'setFontSize', { size })
+                setDirty(true)
+              }
+            )}
+            {renderChromeNumSlider(
+              t.visualEditChromeRadius,
+              selection.chromeRadius ?? 0,
+              PW_CHROME_RADIUS_MIN,
+              PW_CHROME_RADIUS_MAX,
+              clampPwChromeRadius,
+              (size) => {
+                postToIframe(iframeRef.current, 'setChromeRadius', { size })
+                setDirty(true)
+              }
+            )}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={cn(btn, 'w-full justify-center')}
+              disabled={busy}
+              onClick={() => {
+                postToIframe(iframeRef.current, 'resetChromeFace', {})
+                setDirty(true)
+              }}
+            >
+              <RotateCcw className="mr-1 h-3 w-3" />
+              {t.visualEditChromeReset}
+            </Button>
           </div>
         ) : null}
 
@@ -5224,61 +5711,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                 <p className="text-[11px] text-muted-foreground">{t.visualEditAiImageHint}</p>
               </div>
             )}
-            {selection.isLogo ? null : (
-            <label className="flex min-w-0 flex-col gap-0.5" htmlFor="nanoai-ve-ai-prompt">
-              <span className="sr-only">
-                {t.visualEditAiPromptLabel}
-              </span>
-              <textarea
-                id="nanoai-ve-ai-prompt"
-                ref={promptTextareaRef}
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                placeholder={
-                  selection.isBannerPhoto ? t.visualEditAiBannerPlaceholder : t.visualEditAiImagePlaceholder
-                }
-                rows={compact ? 1 : 2}
-                disabled={busy}
-                className={cn(
-                  'w-full rounded-md border bg-background px-2 py-1 resize-y',
-                  compact ? 'text-[10px]' : 'text-xs'
-                )}
-              />
-            </label>
-            )}
-            {selection.isLogo ? null : (
-              <div className="flex flex-wrap items-center gap-1.5">
-                {selection.src ? (
-                  <img
-                    src={refUrl || selection.src}
-                    alt=""
-                    className={cn('rounded border object-cover', compact ? 'h-7 w-10' : 'h-10 w-16')}
-                  />
-                ) : null}
-                <label className="flex items-center gap-1 text-[10px]">
-                  <input
-                    type="checkbox"
-                    checked={useCurrentRef && !refUrl}
-                    disabled={busy || !selection.src}
-                    onChange={(e) => {
-                      setUseCurrentRef(e.target.checked)
-                      if (e.target.checked) setRefUrl('')
-                    }}
-                  />
-                  {t.visualEditUseCurrentAsRef}
-                </label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className={btn}
-                  disabled={busy}
-                  onClick={() => refFileRef.current?.click()}
-                >
-                  {t.visualEditUploadReference}
-                </Button>
-              </div>
-            )}
+            {selection.isLogo || showFillAiStudio ? null : renderAiImageStudio('nanoai-ve-ai-prompt')}
             <div className={cn('flex flex-wrap items-center gap-1', selection.isLogo && 'shrink-0')}>
               <input
                 ref={fileRef}
@@ -5296,7 +5729,13 @@ export function PartnerWebsiteVisualEditorToolbar({
                 variant="outline"
                 className={selection.isLogo ? 'h-6 px-1.5 text-[10px]' : btn}
                 disabled={busy}
-                title={selection.isLogo ? t.visualEditUploadAsLogo : t.visualEditReplaceImage}
+                title={
+                  selection.isLogo
+                    ? t.visualEditUploadAsLogo
+                    : selection.isPaper || selection.isFillHost || selection.isAddedBg || editKind === 'paper'
+                      ? t.visualEditPaperPickImage
+                      : t.visualEditReplaceImage
+                }
                 onClick={() => fileRef.current?.click()}
               >
                 {uploadBusy ? (
@@ -5304,14 +5743,19 @@ export function PartnerWebsiteVisualEditorToolbar({
                 ) : (
                   <ImagePlus className="mr-1 h-3 w-3" />
                 )}
-                {selection.isLogo ? t.visualEditUploadAsLogo : t.visualEditReplaceImage}
+                {selection.isLogo
+                  ? t.visualEditUploadAsLogo
+                  : selection.isPaper || selection.isFillHost || selection.isAddedBg || editKind === 'paper'
+                    ? t.visualEditPaperPickImage
+                    : t.visualEditReplaceImage}
               </Button>
+              {selection.isLogo ? (
               <Button
                 type="button"
                 size="sm"
-                className={selection.isLogo ? 'h-6 px-1.5 text-[10px]' : btn}
+                className="h-6 px-1.5 text-[10px]"
                 disabled={busy}
-                title={selection.isLogo ? logoActionLabel : t.visualEditCreateWithAi}
+                title={logoActionLabel}
                 onClick={() => void handleGenerateAi()}
               >
                 {aiBusy ? (
@@ -5319,8 +5763,9 @@ export function PartnerWebsiteVisualEditorToolbar({
                 ) : (
                   <Sparkles className="mr-1 h-3 w-3" />
                 )}
-                {selection.isLogo ? logoActionLabel : t.visualEditCreateWithAi}
+                {logoActionLabel}
               </Button>
+              ) : null}
               {hasRealLogoSrc ? (
                 <Button
                   type="button"

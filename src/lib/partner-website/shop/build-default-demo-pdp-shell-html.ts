@@ -15,6 +15,8 @@ import {
   partnerSiteInfoPath,
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { buildOutfitProductsSectionHtml } from '@/lib/partner-website/shop/outfit-products'
+import { buildRelatedProductsSectionHtml } from '@/lib/partner-website/shop/related-products'
 import { PW_EL, PW_PAGE, PW_REGION, pwElAttr, pwPageAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 function uniqueUrls(urls: Array<string | null | undefined>): string[] {
@@ -151,19 +153,17 @@ export function buildDefaultDemoPdpShellHtml(input?: {
       return `<article ${pwElAttr(PW_EL.card)} style="border-bottom:1px solid var(--pw-border);padding-bottom:16px"><strong ${pwElAttr(PW_EL.cardName)}>${escapeHtml(q.asker)}</strong><p ${pwElAttr(PW_EL.body)}>${escapeHtml(q.body)}</p>${reply}</article>`
     })
     .join('')
-  const relatedCards = related
-    .map((item) => {
-      return `<article class="pw-shop-card" ${pwElAttr(PW_EL.card)} data-inventory-id="${escapeAttr(item.id)}">
-        <a href="#" ${pwElAttr(PW_EL.cardMedia)}><img src="${escapeAttr(item.imageUrl)}" alt="${escapeAttr(item.name)}" loading="lazy" decoding="async" /></a>
-        <div class="pw-shop-card-body">
-          <h3 ${pwElAttr(PW_EL.cardName)}>${escapeHtml(item.name)}</h3>
-          ${item.priceHint ? `<p class="pw-shop-price" ${pwElAttr(PW_EL.cardPrice)}>${escapeHtml(item.priceHint)}</p>` : ''}
-          <button type="button" class="pw-shop-btn pw-shop-btn-cart" data-pw-chrome-btn="add-cart" ${pwElAttr(PW_EL.cardCart)} data-pw-add-cart>${escapeHtml(t.addToCart)}</button>
-          <button type="button" class="pw-shop-btn pw-shop-btn-buy" data-pw-chrome-btn="buy-now" ${pwElAttr(PW_EL.cardBuy)} data-pw-buy>${escapeHtml(t.buyNow)}</button>
-        </div>
-      </article>`
-    })
-    .join('')
+  const relatedSection = buildRelatedProductsSectionHtml({
+    locale,
+    siteSlug: slug || undefined,
+    cards: related,
+    excludeId: p.id,
+  })
+  const outfitSection = buildOutfitProductsSectionHtml({
+    locale,
+    siteSlug: slug || undefined,
+    excludeId: p.id,
+  })
   const detailImgs = details
     .slice(0, 2)
     .map((url) => `<img src="${escapeAttr(url)}" alt="${escapeAttr(name)}" loading="lazy" decoding="async" />`)
@@ -268,6 +268,7 @@ ${chrome.header}
         </div>
       </div>
     </div>
+    ${outfitSection}
     <section class="pw-shop-product-detail" ${pwRegionAttr(PW_REGION.pdpInfo)} data-pw-bg-role="pdp-info">
       <div>
         <h2>${escapeHtml(t.productDescriptionTitle)}</h2>
@@ -314,11 +315,7 @@ ${chrome.header}
       </div>
       <div style="margin-top:20px;display:grid;gap:16px">${qaCards}</div>
     </section>
-    <section style="margin-top:40px" ${pwRegionAttr(PW_REGION.catalog)} data-pw-catalog data-pw-bg-role="catalog">
-      <h2 ${pwElAttr(PW_EL.sectionTitle)}>${escapeHtml(t.relatedProducts)}</h2>
-      <a href="${productsHref}" ${pwElAttr(PW_EL.sectionMore)}>${escapeHtml(t.loadMore)}</a>
-      <div class="pw-shop-grid" style="margin-top:16px" ${pwElAttr(PW_EL.grid)} data-pw-grid>${relatedCards}</div>
-    </section>
+    ${relatedSection}
     ${
       useMobileHero
         ? ''

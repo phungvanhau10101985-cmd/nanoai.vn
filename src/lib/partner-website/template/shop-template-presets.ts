@@ -90,7 +90,7 @@ const HOSPITALITY_FLAGS: ShopTemplatePresetFlags = {
   categories: false,
 }
 
-/** Platform presets — any industry can apply; capabilities filter sections at runtime. */
+/** Platform presets — any industry can apply; Sửa nhanh / HTML decides which widgets stay. */
 export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
   {
     id: 'commerce-blue',

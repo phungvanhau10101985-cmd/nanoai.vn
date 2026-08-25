@@ -139,6 +139,7 @@ export function PartnerWebsiteThemeColorPicker({
     { key: 'textColor', label: t.themeColorText },
     { key: 'mutedColor', label: t.themeColorMuted },
     { key: 'surfaceColor', label: t.themeColorSurface },
+    { key: 'footerColor', label: t.themeColorFooter },
   ]
 
   function patchRole(key: ShopThemeColorRole, hex: string) {

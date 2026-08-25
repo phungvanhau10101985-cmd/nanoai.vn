@@ -112,10 +112,22 @@ function hsvAfterHueDrag(prev: Hsv, h: number): Hsv {
 export function cssColorToHex(color: string, fallback = '#111827'): string {
   const raw = String(color || '').trim()
   if (isHexColor(raw)) return normalizeHexColor(raw, fallback)
-  const m = raw.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i)
+  let m = raw.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i)
+  if (m) return rgbToHex(Number(m[1]), Number(m[2]), Number(m[3]))
+  m = raw.match(/rgba?\(\s*(\d+)\s+(\d+)\s+(\d+)/i)
   if (m) return rgbToHex(Number(m[1]), Number(m[2]), Number(m[3]))
   return normalizeHexColor(fallback, '#111827')
 }
+
+export function isTransparentCssColor(color: string): boolean {
+  const n = String(color || '')
+    .replace(/\s/g, '')
+    .toLowerCase()
+  return n === 'transparent' || n === 'rgba(0,0,0,0)'
+}
+
+const TRANSPARENT_CHECKER =
+  'repeating-conic-gradient(#d1d5db 0% 25%, #ffffff 0% 50%) 50% / 8px 8px'
 
 export function shopThemeQuickPicksFromCopy(
   theme: PartnerWebsiteTheme | null | undefined,
@@ -133,6 +145,7 @@ export function shopThemeQuickPicksFromCopy(
     text: t.themeColorText,
     muted: t.themeColorMuted,
     surface: t.themeColorSurface,
+    footer: t.themeColorFooter,
   })
 }
 
@@ -182,6 +195,8 @@ export function ThemeColorConfirmPicker({
   compact = false,
   okLabel,
   themePicks,
+  allowTransparent = false,
+  transparentLabel,
   onConfirm,
   onOpenChange,
 }: {
@@ -191,6 +206,9 @@ export function ThemeColorConfirmPicker({
   okLabel: string
   /** Shop main + supporting colors — click applies immediately. */
   themePicks?: ShopThemeQuickPicks | null
+  /** Region fill (footer / header…): pick transparent without deleting the block. */
+  allowTransparent?: boolean
+  transparentLabel?: string
   onConfirm: (hex: string) => void
   onOpenChange?: (open: boolean) => void
 }) {
@@ -202,12 +220,18 @@ export function ThemeColorConfirmPicker({
   const [open, setOpen] = useState(false)
   const [panelPos, setPanelPos] = useState({ top: 0, left: 0 })
   const [draft, setDraft] = useState(value)
-  const [hsv, setHsv] = useState<Hsv>(() => hexToHsv(value))
+  const [draftTransparent, setDraftTransparent] = useState(() => isTransparentCssColor(value))
+  const [hsv, setHsv] = useState<Hsv>(() => hexToHsv(isTransparentCssColor(value) ? '#ffffff' : value))
   const hsvRef = useRef(hsv)
   hsvRef.current = hsv
-  const validDraft = isHexColor(draft) ? normalizeHexColor(draft, value) : normalizeHexColor(value, '#000000')
+  const wheelHex = isHexColor(draft)
+    ? normalizeHexColor(draft, '#ffffff')
+    : normalizeHexColor(isTransparentCssColor(value) ? '#ffffff' : value, '#ffffff')
+  const validDraft = draftTransparent ? '#ffffff' : wheelHex
   const rgb = hexToRgb(validDraft)
   const [rgbText, setRgbText] = useState({ r: String(rgb.r), g: String(rgb.g), b: String(rgb.b) })
+  const transparentOn = allowTransparent && (draftTransparent || isTransparentCssColor(value))
+  const transparentText = transparentLabel || 'transparent'
 
   function syncRgbText(hex: string) {
     const next = hexToRgb(hex)
@@ -223,7 +247,7 @@ export function ThemeColorConfirmPicker({
     const r = rootRef.current?.getBoundingClientRect()
     if (!r) return
     const width = 264
-    const height = themePicks ? 420 : 220
+    const height = (themePicks ? 420 : 220) + (allowTransparent ? 36 : 0)
     const left = Math.min(Math.max(8, r.left), Math.max(8, window.innerWidth - width - 8))
     const top = Math.min(r.bottom + 4, window.innerHeight - height)
     setPanelPos({ top: Math.max(8, top), left })
@@ -231,11 +255,13 @@ export function ThemeColorConfirmPicker({
 
   function openPicker() {
     if (disabled) return
-    const hex = normalizeHexColor(value, value)
+    const cleared = allowTransparent && isTransparentCssColor(value)
+    const hex = cleared ? '#ffffff' : normalizeHexColor(value, '#ffffff')
     const nextHsv = hexToHsv(hex)
     hsvRef.current = nextHsv
     setHsv(nextHsv)
     setDraft(hex)
+    setDraftTransparent(cleared)
     syncRgbText(hex)
     placePanel()
     setOpenState(true)
@@ -243,25 +269,39 @@ export function ThemeColorConfirmPicker({
 
   function closeWithoutSave() {
     setOpenState(false)
-    const hex = normalizeHexColor(value, value)
+    const cleared = allowTransparent && isTransparentCssColor(value)
+    const hex = cleared ? '#ffffff' : normalizeHexColor(value, '#ffffff')
     const nextHsv = hexToHsv(hex)
     hsvRef.current = nextHsv
     setHsv(nextHsv)
     setDraft(hex)
+    setDraftTransparent(cleared)
     rgbFocusRef.current = null
   }
 
   function confirm() {
-    const next = normalizeHexColor(draft, value)
-    onConfirm(next)
+    if (allowTransparent && draftTransparent) {
+      onConfirm('transparent')
+    } else {
+      onConfirm(normalizeHexColor(draft, '#ffffff'))
+    }
     setOpenState(false)
     rgbFocusRef.current = null
   }
 
   function applyThemeSwatch(hex: string) {
-    const next = normalizeHexColor(hex, value)
+    const next = normalizeHexColor(hex, '#ffffff')
+    setDraftTransparent(false)
     applyHexDraft(next)
     onConfirm(next)
+    setOpenState(false)
+    rgbFocusRef.current = null
+  }
+
+  function applyTransparent() {
+    if (!allowTransparent) return
+    setDraftTransparent(true)
+    onConfirm('transparent')
     setOpenState(false)
     rgbFocusRef.current = null
   }
@@ -301,6 +341,7 @@ export function ThemeColorConfirmPicker({
     hsvRef.current = next
     setHsv(next)
     const hex = hsvToHex(next)
+    setDraftTransparent(false)
     setDraft(hex)
     if (!rgbFocusRef.current) syncRgbText(hex)
   }
@@ -309,6 +350,7 @@ export function ThemeColorConfirmPicker({
     const nextHsv = hsvFromHexPreserving(hex, hsvRef.current)
     hsvRef.current = nextHsv
     setHsv(nextHsv)
+    setDraftTransparent(false)
     setDraft(hex)
     if (!rgbFocusRef.current) syncRgbText(hex)
   }
@@ -370,7 +412,7 @@ export function ThemeColorConfirmPicker({
       <button
         type="button"
         disabled={disabled}
-        aria-label={value}
+        aria-label={transparentOn ? transparentText : value}
         aria-expanded={open}
         onClick={() => {
           if (draggingRef.current) return
@@ -382,7 +424,7 @@ export function ThemeColorConfirmPicker({
           compact ? 'h-5 w-6' : 'h-7 w-8',
           disabled && 'cursor-not-allowed opacity-50'
         )}
-        style={{ background: value }}
+        style={{ background: transparentOn ? TRANSPARENT_CHECKER : value }}
       />
       {open
         ? createPortal(
@@ -393,6 +435,25 @@ export function ThemeColorConfirmPicker({
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
         >
+          {allowTransparent ? (
+            <button
+              type="button"
+              title={transparentText}
+              aria-label={transparentText}
+              aria-pressed={draftTransparent}
+              onClick={applyTransparent}
+              className={cn(
+                'mb-2 flex w-full items-center gap-2 rounded-md border px-2 py-1 text-left text-[10px]',
+                draftTransparent ? 'border-foreground ring-1 ring-foreground/70' : 'border-border/70 hover:bg-muted/50'
+              )}
+            >
+              <span
+                className="h-5 w-6 shrink-0 rounded-sm border border-border shadow-sm"
+                style={{ background: TRANSPARENT_CHECKER }}
+              />
+              <span className="font-medium">{transparentText}</span>
+            </button>
+          ) : null}
           {themePicks ? (
             <div className="mb-2 border-b border-border/60 pb-2">
               {themePicks.hint ? (

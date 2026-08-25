@@ -2,10 +2,7 @@ import {
   fetchPartnerCapabilitiesForPartnerFromPg,
   fetchMessagingPartnerBySlugFromPg,
 } from '@/lib/db/messaging-partners-pg'
-import {
-  partnerCommerceCartEnabled,
-  type PartnerCapabilities,
-} from '@/lib/partner-website/partner-capabilities'
+import { type PartnerCapabilities } from '@/lib/partner-website/partner-capabilities'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 
 export type CommercePartnerResolveError = 'not_found' | 'commerce_cart_disabled' | 'commerce_disabled'
@@ -36,9 +33,6 @@ export async function resolveCommerceCartPartnerBySlug(slug: string): Promise<
 > {
   const base = await resolveCommercePartnerBase(slug)
   if ('error' in base) return base
-  if (!partnerCommerceCartEnabled(base.capabilities)) {
-    return { error: 'commerce_cart_disabled' }
-  }
   return { partnerId: base.partnerId }
 }
 
@@ -48,10 +42,6 @@ export async function resolveCommerceOrderPartnerBySlug(slug: string): Promise<
 > {
   const base = await resolveCommercePartnerBase(slug)
   if ('error' in base) return base
-  const { capabilities } = base
-  if (!capabilities.commerce.cart && !capabilities.commerce.order_tracking) {
-    return { error: 'commerce_disabled' }
-  }
   return { partnerId: base.partnerId, displayName: base.displayName }
 }
 
@@ -73,6 +63,5 @@ export async function resolvePartnerWebsitePartnerBySlug(slug: string) {
   const row = await fetchMessagingPartnerBySlugFromPg(slug)
   if (!row || !row.is_active || row.purge_at) return null
   const caps = await fetchPartnerCapabilitiesForPartnerFromPg(row.id, row.industry_key)
-  if (!caps.website.enabled) return null
   return { ...row, capabilities: caps }
 }

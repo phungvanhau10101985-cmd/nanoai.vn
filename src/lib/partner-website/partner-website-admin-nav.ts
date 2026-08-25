@@ -9,14 +9,12 @@ import {
   MousePointerClick,
   Rocket,
   Search,
-  Settings2,
   Ticket,
   Users,
 } from 'lucide-react'
 
 export const PARTNER_WEBSITE_ADMIN_SECTION_IDS = [
   'partner-website-editor',
-  'partner-website-capabilities',
   'partner-website-categories',
   'partner-website-reviews-qa',
   'partner-website-customers',
@@ -38,7 +36,6 @@ export type PartnerWebsiteAdminNavItem = {
 
 const NAV_ICONS: Record<PartnerWebsiteAdminSectionId, ComponentType<{ className?: string }>> = {
   'partner-website-editor': Globe,
-  'partner-website-capabilities': Settings2,
   'partner-website-categories': FolderTree,
   'partner-website-reviews-qa': MessageSquareQuote,
   'partner-website-customers': Users,
@@ -66,7 +63,6 @@ export function buildPartnerWebsiteAdminNavItems(
 ): PartnerWebsiteAdminNavItem[] {
   const labels: Record<PartnerWebsiteAdminSectionId, string> = {
     'partner-website-editor': mainWebsiteLabel,
-    'partner-website-capabilities': t.capabilitiesPanelTitle,
     'partner-website-categories': t.categoriesTitle,
     'partner-website-reviews-qa': t.reviewsAdminTitle,
     'partner-website-customers': t.customersTitle,
@@ -78,9 +74,7 @@ export function buildPartnerWebsiteAdminNavItems(
     'partner-website-leads': t.leadsPanelTitle,
   }
   return PARTNER_WEBSITE_ADMIN_SECTION_IDS.filter(
-    (sectionId) =>
-      sectionId !== 'partner-website-capabilities' &&
-      sectionId !== 'partner-website-search-aliases'
+    (sectionId) => sectionId !== 'partner-website-search-aliases'
   ).map((sectionId) => ({
     sectionId,
     label: labels[sectionId],

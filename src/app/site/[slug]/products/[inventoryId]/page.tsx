@@ -1,7 +1,11 @@
 import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
-import { fetchPartnerInventoryActivePageWithCountFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { shopProductsToRelatedBind } from '@/lib/partner-website/shop/related-products'
+import {
+  fetchRelatedShopProducts,
+  resolveRelatedProductContext,
+} from '@/lib/partner-website/shop/related-products-pg'
 import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
@@ -96,23 +100,36 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
   }
 
   const device = await readVisualPreviewDevice(searchParams)
+  const relatedCtx = await resolveRelatedProductContext(shop.partnerId, row.id)
+  const relatedProducts = await fetchRelatedShopProducts({
+    partnerId: shop.partnerId,
+    siteSlug: shop.site.siteSlug,
+    excludeId: row.id,
+    categoryId: relatedCtx.categoryId,
+    limit: 24,
+  })
+
   const visual = maybePartnerSiteVisualProductPage(
     shop.site,
     row.id,
     device,
-    { ...product, ...inventoryRowToLivePdpVariants(row) }
+    {
+      ...product,
+      ...inventoryRowToLivePdpVariants(row),
+      categoryId: relatedCtx.categoryId,
+      categoryPath: relatedCtx.categoryPath,
+      relatedProducts: shopProductsToRelatedBind(relatedProducts),
+    }
   )
   if (visual) return visual
 
-  const relatedPage = await fetchPartnerInventoryActivePageWithCountFromPg(shop.partnerId, 0, 8)
-  const relatedProducts = (relatedPage?.rows ?? [])
-    .filter((r) => r.id !== row.id)
-    .map((r) => inventoryRowToShopProduct(shop.site.siteSlug, r))
-    .filter((p): p is NonNullable<typeof p> => Boolean(p))
-    .slice(0, 4)
-
   const sizeGuideImageUrl = await fetchSizeGuideImageUrlForInventoryFromPg(shop.partnerId, row.id)
-  const productWithGuide = { ...product, sizeGuideImageUrl }
+  const productWithGuide = {
+    ...product,
+    sizeGuideImageUrl,
+    categoryId: relatedCtx.categoryId,
+    categoryPath: relatedCtx.categoryPath,
+  }
 
   // S0.6 — Product JSON-LD. Chỉ đưa `offers` khi có giá số thật (price_amount, W4.10) —
   // không suy đoán giá từ price_hint text để tránh dữ liệu structured data sai lệch.

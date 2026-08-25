@@ -6,6 +6,7 @@ export function buildChatIconLogoPrompt(input: {
   shopTitle?: string | null
   extra?: string | null
   hasReference?: boolean
+  colorFacts?: string | null
 }): string {
   const title = String(input.shopTitle || '').trim()
   const extra = String(input.extra || '').trim()
@@ -16,6 +17,8 @@ export function buildChatIconLogoPrompt(input: {
       'A reference image is attached. Follow its style, colors, and marks when they help, but keep the large "Tư vấn" / small "Nhắn tin" text hierarchy.'
     )
   }
+  const colorFacts = String(input.colorFacts || '').trim()
+  if (colorFacts) parts.push(colorFacts)
   if (extra && extra !== CHAT_ICON_LOGO_DEFAULT_PROMPT) {
     parts.push(`Optional user request: ${extra}`)
   }

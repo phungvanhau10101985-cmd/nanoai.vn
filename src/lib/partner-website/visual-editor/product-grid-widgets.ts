@@ -1,5 +1,7 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { buildOutfitProductsSectionHtml } from '@/lib/partner-website/shop/outfit-products'
+import { buildRelatedProductsSectionHtml } from '@/lib/partner-website/shop/related-products'
 import {
   partnerSiteProductsPath,
   partnerSiteRecentlyViewedPath,
@@ -10,12 +12,29 @@ export const VISUAL_EDITOR_PRODUCT_GRID_KINDS = [
   'catalog',
   'recently-viewed',
   'recommended',
+  'related',
+  'outfit',
 ] as const
 
 export type VisualEditorProductGridKind = (typeof VISUAL_EDITOR_PRODUCT_GRID_KINDS)[number]
 
 export function isVisualEditorProductGridKind(value: string): value is VisualEditorProductGridKind {
   return (VISUAL_EDITOR_PRODUCT_GRID_KINDS as readonly string[]).includes(value)
+}
+
+/** Related + outfit bind the product being viewed — Thêm only on PDP. */
+export const VISUAL_EDITOR_PDP_ONLY_PRODUCT_GRID_KINDS = ['related', 'outfit'] as const
+
+export function isPdpOnlyProductGridKind(kind: string): boolean {
+  return (VISUAL_EDITOR_PDP_ONLY_PRODUCT_GRID_KINDS as readonly string[]).includes(kind)
+}
+
+export function productGridKindAllowedOnVisualPage(
+  kind: VisualEditorProductGridKind,
+  pageKey?: string | null
+): boolean {
+  if (!isPdpOnlyProductGridKind(kind)) return true
+  return String(pageKey || '').trim() === 'product_detail'
 }
 
 const TITLE: Record<VisualEditorProductGridKind, Record<WebLocale, string>> = {
@@ -39,6 +58,20 @@ const TITLE: Record<VisualEditorProductGridKind, Record<WebLocale, string>> = {
     zh: '猜你喜欢',
     ja: 'あなたへのおすすめ',
     ko: '이런 상품은 어때요',
+  },
+  related: {
+    vi: 'Sản phẩm tương tự',
+    en: 'Similar products',
+    zh: '相似商品',
+    ja: '類似商品',
+    ko: '유사 상품',
+  },
+  outfit: {
+    vi: 'Phối đồ',
+    en: 'Outfit pairing',
+    zh: '搭配',
+    ja: 'コーディネート',
+    ko: '코디',
   },
 }
 
@@ -64,6 +97,28 @@ export function productGridWidgetLabel(kind: VisualEditorProductGridKind, locale
           : locale === 'ko'
             ? '최근 본 그리드'
             : 'Recently viewed grid'
+  }
+  if (kind === 'related') {
+    return locale === 'vi'
+      ? 'Sản phẩm tương tự'
+      : locale === 'zh'
+        ? '相似商品'
+        : locale === 'ja'
+          ? '類似商品'
+          : locale === 'ko'
+            ? '유사 상품'
+            : 'Similar products'
+  }
+  if (kind === 'outfit') {
+    return locale === 'vi'
+      ? 'Phối đồ'
+      : locale === 'zh'
+        ? '搭配'
+        : locale === 'ja'
+          ? 'コーディネート'
+          : locale === 'ko'
+            ? '코디'
+            : 'Outfit pairing'
   }
   return locale === 'vi'
     ? 'Lưới đề xuất'
@@ -109,6 +164,22 @@ export function buildVisualEditorProductGridHtml(input: {
 }): string {
   const locale = input.locale && input.locale in TITLE.catalog ? input.locale : 'vi'
   const kind = input.kind
+  if (kind === 'related') {
+    return buildRelatedProductsSectionHtml({
+      locale,
+      siteSlug: input.siteSlug,
+      limit: Math.max(8, Math.min(24, Math.floor(Number(input.limit) || 24))),
+      added: true,
+    })
+  }
+  if (kind === 'outfit') {
+    return buildOutfitProductsSectionHtml({
+      locale,
+      siteSlug: input.siteSlug,
+      limit: Math.max(8, Math.min(24, Math.floor(Number(input.limit) || 12))),
+      added: true,
+    })
+  }
   const limit = Math.max(4, Math.min(24, Math.floor(Number(input.limit) || 10)))
   const copy = getPartnerSiteShopCopy(locale)
   const title =

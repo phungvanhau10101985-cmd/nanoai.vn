@@ -4,14 +4,8 @@ import {
   buildPartnerSiteAccountPanelCss,
   buildPartnerSiteHeaderHtml,
 } from '@/lib/partner-website/shop/build-partner-site-header-html'
-import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
-import {
-  partnerSiteCartPath,
-  partnerSiteInfoPath,
-  partnerSiteOrdersPath,
-  partnerSiteProductsPath,
-  partnerSiteWishlistPath,
-} from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { buildPartnerSiteFooterHtml } from '@/lib/partner-website/shop/build-partner-site-footer-html'
+import { partnerSiteProductsPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
   FASHION_SHOP_FONT_DISPLAY,
   FASHION_SHOP_FONT_UI,
@@ -346,80 +340,13 @@ function renderFooter(
   section: PartnerWebsiteSection,
   input: PartnerWebsiteTemplateRenderInput
 ): string {
-  const brand = escapeHtml(str(section.props.brandName, input.title || 'Shop'))
-  const note = escapeHtml(str(section.props.note, ''))
-  const about = escapeHtml(
-    str(
-      section.props.aboutText,
-      input.locale === 'vi'
-        ? 'Shop thời trang — chất lượng, giao nhanh, tư vấn tận tâm.'
-        : 'Fashion shop — quality pieces, fast delivery, friendly support.'
-    )
-  )
-  const siteSlug = input.siteSlug?.trim() ?? ''
-  const shop = siteSlug || input.samplePreview ? getPartnerSiteShopCopy(input.locale) : null
-  const products = siteSlug ? escapeAttr(partnerSiteProductsPath(siteSlug)) : '#products'
-  const cart = siteSlug ? escapeAttr(partnerSiteCartPath(siteSlug)) : '#'
-  const wishlist = siteSlug ? escapeAttr(partnerSiteWishlistPath(siteSlug)) : '#'
-  const orders = siteSlug ? escapeAttr(partnerSiteOrdersPath(siteSlug)) : '#'
-  const aboutPage = siteSlug ? escapeAttr(partnerSiteInfoPath(siteSlug, 'about')) : '#faq'
-  const contactPage = siteSlug ? escapeAttr(partnerSiteInfoPath(siteSlug, 'contact')) : '#lead-form'
-  const faqPage = siteSlug ? escapeAttr(partnerSiteInfoPath(siteSlug, 'faq')) : '#faq'
-  const shippingPage = siteSlug ? escapeAttr(partnerSiteInfoPath(siteSlug, 'shipping')) : '#faq'
-  const returnsPage = siteSlug ? escapeAttr(partnerSiteInfoPath(siteSlug, 'returns')) : '#faq'
-  const year = new Date().getFullYear()
-
-  const aboutLabel =
-    input.locale === 'vi' ? 'Về chúng tôi' : input.locale === 'zh' ? '关于我们' : 'About us'
-  const serviceLabel =
-    input.locale === 'vi' ? 'Hỗ trợ khách hàng' : input.locale === 'zh' ? '客户服务' : 'Customer service'
-  const contactLabel =
-    input.locale === 'vi' ? 'Liên hệ' : input.locale === 'zh' ? '联系' : 'Contact'
-  const newsLabel =
-    input.locale === 'vi' ? 'Nhận ưu đãi' : input.locale === 'zh' ? '订阅优惠' : 'Newsletter'
-  const shippingLabel =
-    input.locale === 'vi' ? 'Vận chuyển' : input.locale === 'zh' ? '配送' : 'Shipping'
-  const returnsLabel =
-    input.locale === 'vi' ? 'Đổi trả' : input.locale === 'zh' ? '退换' : 'Returns'
-
-  return `<footer class="pw-footer" ${pwRegionAttr(PW_REGION.footer)}>
-  <div class="pw-container pw-footer-grid">
-    <div class="pw-footer-col" ${pwElAttr(PW_EL.col)}>
-      <h3>${aboutLabel}</h3>
-      <p>${about}</p>
-      <a href="${aboutPage}" ${pwElAttr(PW_EL.link)}>${aboutLabel}</a>
-    </div>
-    <div class="pw-footer-col" ${pwElAttr(PW_EL.col)}>
-      <h3>${serviceLabel}</h3>
-      <a href="${products}" ${pwElAttr(PW_EL.link)}>${shop ? escapeHtml(shop.navProducts) : 'Products'}</a>
-      <a href="${wishlist}" ${pwElAttr(PW_EL.link)}>${shop ? escapeHtml(shop.navFavorites) : 'Wishlist'}</a>
-      <a href="${orders}" ${pwElAttr(PW_EL.link)}>${shop ? escapeHtml(shop.navOrders) : 'Orders'}</a>
-      <a href="${faqPage}" ${pwElAttr(PW_EL.link)}>FAQ</a>
-      <a href="${shippingPage}" ${pwElAttr(PW_EL.link)}>${shippingLabel}</a>
-      <a href="${returnsPage}" ${pwElAttr(PW_EL.link)}>${returnsLabel}</a>
-    </div>
-    <div class="pw-footer-col" ${pwElAttr(PW_EL.col)}>
-      <h3>${contactLabel}</h3>
-      <a href="${contactPage}" ${pwElAttr(PW_EL.link)}>${contactLabel}</a>
-      <button type="button" class="pw-footer-link-btn pw-chat-open" data-nanoai-open-chat>${shop ? escapeHtml(shop.navChat) : 'Chat'}</button>
-      <a href="${cart}" ${pwElAttr(PW_EL.link)}>${shop ? escapeHtml(shop.navCart) : 'Cart'}</a>
-    </div>
-    <div class="pw-footer-col" ${pwElAttr(PW_EL.col)}>
-      <h3>${newsLabel}</h3>
-      <p class="pw-footer-news-hint">${note || brand}</p>
-      <form class="pw-newsletter" action="#lead-form" method="get">
-        <input type="email" name="email" placeholder="Email" aria-label="Email"/>
-        <button type="submit" aria-label="Subscribe">→</button>
-      </form>
-    </div>
-  </div>
-  <div class="pw-footer-bottom">
-    <div class="pw-container pw-footer-bottom-inner">
-      <span ${pwElAttr(PW_EL.copyright)}>© ${year} ${brand}</span>
-      <span>NanoAI</span>
-    </div>
-  </div>
-</footer>`
+  const brand = str(section.props.brandName, input.title || 'Shop')
+  return buildPartnerSiteFooterHtml({
+    locale: input.locale,
+    siteSlug: input.siteSlug?.trim() ?? '',
+    brand,
+    logoUrl: input.logoUrl ?? input.theme.logoUrl ?? null,
+  })
 }
 
 function renderTrustBar(section: PartnerWebsiteSection): string {
@@ -493,10 +420,10 @@ body{font-family:var(--pw-font-ui);color:var(--pw-text);background:
 ${buildFashionShopMotionCss()}
 a{color:inherit}
 .pw-container{max-width:1200px;margin:0 auto;padding:0 20px}
-.pw-topbar{background:var(--pw-primary);color:#fff;font-size:12px;position:relative;z-index:${PW_SCENE_TOPBAR_Z};isolation:isolate}
+.pw-topbar{background:var(--pw-primary);color:#fff;font-size:12px;position:relative;z-index:${PW_SCENE_TOPBAR_Z}}
 .pw-topbar-inner{display:flex;justify-content:flex-end;gap:18px;padding:8px 0}
 .pw-topbar a,.pw-topbar button{color:#fff;text-decoration:none;background:none;border:none;cursor:pointer;font:inherit;padding:0}
-.pw-header{background:#fff;border-bottom:1px solid #f3f4f6;position:sticky;top:0;z-index:200;isolation:isolate}
+.pw-header{background:#fff;border-bottom:1px solid #f3f4f6;position:sticky;top:0;z-index:200}
 .pw-header-main{display:flex;align-items:center;gap:12px;padding:14px 0}
 .pw-brand-cluster{position:relative;display:flex;align-items:center;gap:10px;flex-shrink:0}
 .pw-brand{display:inline-flex;align-items:center;gap:10px;text-decoration:none;width:max-content;max-width:100%;min-width:0}
@@ -532,7 +459,7 @@ ${buildPartnerSiteAccountPanelCss()}
 .pw-hero h1{margin:0 0 12px;font-family:var(--pw-font-display);font-size:clamp(2rem,4.5vw,3.4rem);line-height:1.08;letter-spacing:.01em;text-transform:uppercase;font-weight:800}
 .pw-hero-sub{margin:0 0 20px;color:rgba(255,255,255,.92);font-size:1rem}
 .pw-btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 22px;border-radius:999px;background:var(--pw-primary);color:#fff;font-weight:700;text-decoration:none;border:none;cursor:pointer;font-size:14px}
-.pw-btn-hero{background:#fff;color:var(--pw-primary);border-radius:10px;padding:12px 28px;text-transform:uppercase;letter-spacing:.04em}
+.pw-btn-hero{background:#fff;color:var(--pw-primary);border-radius:10px;padding:12px 28px;letter-spacing:.04em}
 .pw-btn-accent{background:var(--pw-accent);color:#fff}
 .pw-btn-cart{width:100%;border-radius:8px;background:var(--pw-cart);color:#fff;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:10px 12px}
 .pw-btn-lg{padding:14px 28px;font-size:16px}
@@ -597,7 +524,7 @@ ${buildPartnerSiteAccountPanelCss()}
 .pw-center{text-align:center}
 .pw-gallery{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
 .pw-gallery-item img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px}
-.pw-footer{background:#fff;color:#111827;border-top:1px solid #e5e7eb;padding:40px 0 0;margin-top:40px}
+.pw-footer{background:var(--pw-footer,#fff);color:var(--pw-text,#111827);border-top:1px solid var(--pw-border,#e5e7eb);padding:40px 0 0;margin-top:40px}
 .pw-footer-grid{display:grid;gap:28px;grid-template-columns:repeat(4,minmax(0,1fr));padding-bottom:28px}
 .pw-footer-col h3{margin:0 0 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#111827}
 .pw-footer-col p{display:block;color:#4b5563;font-size:14px;line-height:1.65;margin:0 0 10px;padding:0}
@@ -647,10 +574,10 @@ ${buildPartnerSiteAccountPanelCss()}
   .pw-search-image-btn{background:transparent;padding:0}
   .pw-search-submit{min-width:36px;padding:0 10px;font-size:0;letter-spacing:0}
   .pw-search-submit::before{content:"";display:block;width:16px;height:16px;background-color:currentColor;background-image:none;-webkit-mask:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");mask:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E")}
-  .pw-hero{margin:12px 16px 0;border-radius:1.5rem;min-height:220px;overflow:hidden}
-  .pw-hero-inner{padding:28px 18px}
-  .pw-hero h1{font-size:1.45rem}
-  .pw-btn-hero{background:var(--pw-primary);color:#fff;border:2px solid #fff}
+  html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-hero{margin:12px 16px 0;border-radius:1.5rem;min-height:220px;overflow:hidden}
+  html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-hero-inner{padding:28px 18px}
+  html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-hero h1{font-size:1.45rem}
+  html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-btn-hero{background:var(--pw-primary);color:#fff;border:2px solid #fff}
   .pw-band-orange{background:transparent}
   .pw-band-orange .pw-section-title-light{color:var(--pw-primary)}
   .pw-cat-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;overflow-x:auto}
@@ -661,7 +588,7 @@ ${buildPartnerSiteAccountPanelCss()}
 }
 @media (max-width:1279px){
   .pw-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px}
-  .pw-bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:180;isolation:isolate;display:flex;flex-wrap:nowrap;justify-content:space-around;align-items:stretch;background:#fff;border-top:1px solid #e5e7eb;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+  .pw-bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:200;display:flex;flex-wrap:nowrap;justify-content:space-around;align-items:stretch;background:#fff;border-top:1px solid #e5e7eb;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
   .pw-bottom-nav a,.pw-bottom-nav .pw-icon-btn,.pw-bottom-nav .pw-shop-icon-btn{flex:1 1 0;min-width:0;min-height:0;width:auto;height:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-decoration:none;font-size:var(--pw-chrome-label,13px);font-weight:600;color:#6b7280;padding:6px 2px;background:transparent;transform:none}
   .pw-bottom-nav a.is-active,.pw-bottom-nav a:first-child{color:var(--pw-primary)}
   .pw-bottom-nav svg{width:20px;height:20px;max-width:20px;max-height:20px;stroke:currentColor;fill:none;stroke-width:2}

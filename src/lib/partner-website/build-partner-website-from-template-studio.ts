@@ -30,9 +30,7 @@ import {
   type ShopTemplatePresetFlags,
   type ShopTemplatePresetId,
 } from '@/lib/partner-website/template/shop-template-presets'
-import { fetchPartnerCapabilitiesForPartnerFromPg } from '@/lib/db/messaging-partners-pg'
 import { maybeSeedShopDemoInventoryOnWebsiteCreate } from '@/lib/messaging/seed-shop-demo-inventory'
-import { mergeTemplateFlagsWithCapabilities } from '@/lib/partner-website/partner-capabilities'
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
 import { themeFromPresetPartial } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { seedBlankShopVisualWebsite } from '@/lib/partner-website/shop/build-blank-shop-visual-html'
@@ -329,12 +327,10 @@ export async function buildPartnerWebsiteFromTemplateStudio(
 
   const briefText = buildPartnerWebsiteStudioBrief(input.answers, input.locale)
   const paletteTheme = themeFromStudioPalette(input.answers.color_palette)
-  const partnerCaps = await fetchPartnerCapabilitiesForPartnerFromPg(partnerId)
-  // Preset wins for structure; intersect with partner capabilities; free-text when no preset.
-  const presetFlags: FeatureFlags = input.presetId
+  // Preset / Sửa nhanh decides structure. Module toggles do not hide sections.
+  const flags: FeatureFlags = input.presetId
     ? preset.flags
     : parseFeatureFlags(input.answers.site_features)
-  const flags: FeatureFlags = mergeTemplateFlagsWithCapabilities(presetFlags, partnerCaps)
 
   const templateSite = buildDefaultLandingV1Site({
     locale: input.locale,

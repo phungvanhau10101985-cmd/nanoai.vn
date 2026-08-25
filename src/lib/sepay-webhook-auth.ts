@@ -1,12 +1,15 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 
 /**
- * Xác thực webhook SePay — cùng nguyên lý 188.com.vn:
+ * Xác thực webhook SePay — một engine cho nạp credit nền tảng và mọi shop SaaS:
  * 1) Authorization Apikey / ?token= (SEPAY_WEBHOOK_API_KEY)
- * 2) HMAC: chuẩn mới `sha256=` + `{timestamp}.{body}` (SEPAY_WEBHOOK_SECRET / whsec_)
- *    hoặc HMAC cũ (chỉ raw body + SEPAY_SECRET_KEY)
+ * 2) HMAC: chuẩn mới `sha256=` + `{timestamp}.{body}` (whsec_ của webhook)
+ *    hoặc HMAC cũ (chỉ raw body). Shop: `sepay_secret_key` trước, rồi DB/env nền tảng.
  * 3) IP allowlist khi webhook để «Không xác thực» (mặc định bật)
+ * Shop `?partner=&token=`: token luôn bắt buộc; HMAC chỉ khi shop đã lưu secret và SePay gửi chữ ký.
  */
+
+export const SEPAY_HMAC_SECRET_MAX_LEN = 256
 
 export const SEPAY_DEFAULT_WEBHOOK_IPS = [
   '172.236.138.20',
@@ -171,6 +174,73 @@ export function webhookHmacSecrets(extra?: string[]): string[] {
   return keys
 }
 
+export function sepaySecretLast4(secret: string): string {
+  const s = (secret || '').trim()
+  if (!s) return ''
+  return s.slice(-4)
+}
+
+export function verifySePayHmacAgainstSecrets(input: {
+  rawBody: string
+  signature: string
+  timestamp: string
+  secrets: string[]
+  nowSec?: number
+}): { ok: true } | { ok: false; reason: 'expired' | 'mismatch' | 'missing' } {
+  const signature = input.signature.trim()
+  const secrets = [...new Set(input.secrets.map((s) => s.trim()).filter(Boolean))]
+  if (!signature || !input.rawBody || secrets.length === 0) return { ok: false, reason: 'missing' }
+  let expired = false
+  for (const secret of secrets) {
+    const official = verifySePayOfficialHmac({
+      rawBody: input.rawBody,
+      secretKey: secret,
+      signature,
+      timestamp: input.timestamp,
+      nowSec: input.nowSec,
+    })
+    if (official.ok) return { ok: true }
+    if (official.reason === 'expired') expired = true
+    if (verifySePayHmacSignature(input.rawBody, secret, signature)) return { ok: true }
+  }
+  return { ok: false, reason: expired ? 'expired' : 'mismatch' }
+}
+
+export type PartnerSePayWebhookAuthResult =
+  | { ok: true }
+  | { ok: false; reason: 'invalid_token' | 'invalid_hmac' | 'hmac_expired' }
+
+/** Webhook đơn shop: `?partner=&token=`. HMAC chỉ khi shop đã lưu whsec_ và SePay gửi chữ ký. */
+export function authorizePartnerSePayWebhook(input: {
+  shopWebhookToken: string
+  queryToken: string
+  shopHmacSecret: string
+  platformHmacSecrets?: string[]
+  rawBody: string
+  signature: string
+  timestamp: string
+  nowSec?: number
+}): PartnerSePayWebhookAuthResult {
+  const shopToken = input.shopWebhookToken.trim()
+  const queryToken = input.queryToken.trim()
+  if (!shopToken || !secretsEqual(shopToken, queryToken)) {
+    return { ok: false, reason: 'invalid_token' }
+  }
+  const shopSecret = input.shopHmacSecret.trim()
+  const signature = input.signature.trim()
+  if (!shopSecret || !signature) return { ok: true }
+  const hmac = verifySePayHmacAgainstSecrets({
+    rawBody: input.rawBody,
+    signature,
+    timestamp: input.timestamp,
+    secrets: webhookHmacSecrets([shopSecret, ...(input.platformHmacSecrets ?? [])]),
+    nowSec: input.nowSec,
+  })
+  if (hmac.ok) return { ok: true }
+  if (hmac.reason === 'expired') return { ok: false, reason: 'hmac_expired' }
+  return { ok: false, reason: 'invalid_hmac' }
+}
+
 function configuredWebhookApiKeys(): string[] {
   const keys: string[] = []
   const seen = new Set<string>()
@@ -227,21 +297,14 @@ export function verifySePayWebhookAuth(input: SePayWebhookAuthInput): SePayWebho
   const timestamp = header(input.headers, 'x-sepay-timestamp')
   const hmacSecrets = webhookHmacSecrets(input.extraHmacSecrets)
   if (signature && input.rawBody && hmacSecrets.length) {
-    let expired = false
-    for (const secret of hmacSecrets) {
-      const official = verifySePayOfficialHmac({
-        rawBody: input.rawBody,
-        secretKey: secret,
-        signature,
-        timestamp,
-      })
-      if (official.ok) return { ok: true, via: 'hmac' }
-      if (official.reason === 'expired') expired = true
-      if (verifySePayHmacSignature(input.rawBody, secret, signature)) {
-        return { ok: true, via: 'hmac' }
-      }
-    }
-    if (expired) return { ok: false, reason: 'hmac_expired' }
+    const hmac = verifySePayHmacAgainstSecrets({
+      rawBody: input.rawBody,
+      signature,
+      timestamp,
+      secrets: hmacSecrets,
+    })
+    if (hmac.ok) return { ok: true, via: 'hmac' }
+    if (hmac.reason === 'expired') return { ok: false, reason: 'hmac_expired' }
     return { ok: false, reason: 'invalid_hmac' }
   }
 

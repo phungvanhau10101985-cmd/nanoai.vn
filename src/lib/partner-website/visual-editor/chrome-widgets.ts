@@ -162,7 +162,8 @@ export const PW_STOCK_CHROME_EDIT_CSS =
   '.pw-bottom-nav>button[data-pw-chrome-style="text"],.pw-shop-bottom-nav>button[data-pw-chrome-style="text"],' +
   '.pw-bottom-nav>a.pw-chrome-link,.pw-shop-bottom-nav>a.pw-chrome-link,' +
   '.pw-bottom-nav>button.pw-chrome-link,.pw-shop-bottom-nav>button.pw-chrome-link,' +
-  '.pw-bottom-nav .pw-chrome-has-label,.pw-shop-bottom-nav .pw-chrome-has-label{' +
+  '.pw-bottom-nav .pw-chrome-has-label:not(.pw-chrome-label-below):not([data-pw-chrome-style="icon-label-below"]),' +
+  '.pw-shop-bottom-nav .pw-chrome-has-label:not(.pw-chrome-label-below):not([data-pw-chrome-style="icon-label-below"]){' +
   'flex:0 0 auto!important;width:auto!important;height:auto!important;' +
   'min-width:0!important;min-height:0!important;' +
   'flex-direction:row!important;gap:var(--pw-chrome-gap,6px)!important;' +
@@ -197,11 +198,63 @@ export const PW_CHROME_LABELED_MIN_W_CSS =
   'width:auto!important;min-width:0!important;height:auto!important;min-height:0!important;box-sizing:border-box!important}' +
   '.pw-search-form [data-pw-chrome-btn],.pw-shop-search-form [data-pw-chrome-btn]{width:auto!important;min-width:0!important;height:auto!important;min-height:0!important}' +
   '.pw-chrome-label-below .pw-chrome-btn-label,.pw-chrome-label-below .pw-shop-nav-label,.pw-chrome-label-below .pw-shop-icon-label,' +
+  '.pw-chrome-label-below .pw-account-btn-label,' +
   '[data-pw-chrome-style="icon-label-below"] .pw-chrome-btn-label,[data-pw-chrome-style="icon-label-below"] .pw-shop-nav-label,' +
-  '[data-pw-chrome-style="icon-label-below"] .pw-shop-icon-label,' +
+  '[data-pw-chrome-style="icon-label-below"] .pw-shop-icon-label,[data-pw-chrome-style="icon-label-below"] .pw-account-btn-label,' +
   '.pw-chrome-has-label .pw-chrome-btn-label,.pw-chrome-has-label .pw-shop-nav-label,.pw-chrome-has-label .pw-shop-icon-label,' +
+  '.pw-chrome-has-label .pw-account-btn-label,' +
   '.pw-chrome-link .pw-chrome-btn-label,.pw-chrome-link .pw-shop-icon-label{' +
   'max-width:none!important;width:auto!important;font-size:var(--pw-chrome-label,13px)!important}'
+
+/** Chữ dưới icon — thắng mọi rule flex-direction:row của nút có nhãn (header / canvas / thanh đáy / PDP). */
+export const PW_CHROME_LABEL_BELOW_CSS =
+  'html [data-pw-chrome-style="icon-label-below"],' +
+  'html [data-pw-chrome-btn][data-pw-chrome-style="icon-label-below"],' +
+  'html [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"],' +
+  'html [data-pw-el="account"][data-pw-chrome-style="icon-label-below"],' +
+  'html [data-pw-el="cat-toggle"][data-pw-chrome-style="icon-label-below"],' +
+  'html .pw-account-btn[data-pw-chrome-style="icon-label-below"],' +
+  'html .pw-cat-btn[data-pw-chrome-style="icon-label-below"],' +
+  'html .pw-shop-cat-btn[data-pw-chrome-style="icon-label-below"],' +
+  'html .pw-chrome-label-below,' +
+  'html [data-pw-chrome-added].pw-chrome-label-below,' +
+  'html [data-pw-chrome-btn].pw-chrome-label-below,' +
+  'html .pw-header-actions [data-pw-chrome-style="icon-label-below"],' +
+  'html .pw-shop-header-actions [data-pw-chrome-style="icon-label-below"],' +
+  'html .pw-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"],' +
+  'html .pw-shop-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"],' +
+  'html .pw-header-actions .pw-chrome-label-below,' +
+  'html .pw-shop-header-actions .pw-chrome-label-below,' +
+  'html .pw-nav-main [data-pw-chrome-style="icon-label-below"],' +
+  'html .pw-shop-nav-row [data-pw-chrome-style="icon-label-below"],' +
+  'html .pw-bottom-nav [data-pw-chrome-style="icon-label-below"],' +
+  'html .pw-shop-bottom-nav [data-pw-chrome-style="icon-label-below"],' +
+  'html .pw-bottom-nav .pw-chrome-has-label[data-pw-chrome-style="icon-label-below"],' +
+  'html .pw-shop-bottom-nav .pw-chrome-has-label[data-pw-chrome-style="icon-label-below"],' +
+  'html .pw-pdp-sticky [data-pw-chrome-style="icon-label-below"],' +
+  'html .pw-pdp-sticky-nav [data-pw-chrome-style="icon-label-below"],' +
+  'html .pw-topbar [data-pw-chrome-style="icon-label-below"],' +
+  'html .pw-shop-topbar [data-pw-chrome-style="icon-label-below"]{' +
+  'display:inline-flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;' +
+  'padding:var(--pw-chrome-pad-y,4px) 6px!important;border-radius:10px!important}' +
+  'html [data-pw-chrome-style="icon-label-below"] .pw-chrome-btn-label,' +
+  'html [data-pw-chrome-style="icon-label-below"] .pw-shop-nav-label,' +
+  'html [data-pw-chrome-style="icon-label-below"] .pw-shop-icon-label,' +
+  'html [data-pw-chrome-style="icon-label-below"] .pw-account-btn-label,' +
+  'html [data-pw-chrome-style="icon-label-below"] .pw-shop-search-submit-label,' +
+  'html [data-pw-chrome-style="icon-label-below"]>span:not(.pw-chrome-icon-wrap):not(.pw-cart-badge):not(.pw-shop-cart-badge):not(.pw-chrome-chat-logo),' +
+  'html .pw-chrome-label-below .pw-chrome-btn-label,' +
+  'html .pw-chrome-label-below .pw-shop-nav-label,' +
+  'html .pw-chrome-label-below .pw-shop-icon-label,' +
+  'html .pw-chrome-label-below .pw-account-btn-label,' +
+  'html .pw-chrome-label-below .pw-shop-search-submit-label,' +
+  'html .pw-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"] .pw-chrome-btn-label,' +
+  'html .pw-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"] .pw-shop-nav-label,' +
+  'html .pw-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"] .pw-account-btn-label,' +
+  'html .pw-shop-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"] .pw-chrome-btn-label,' +
+  'html .pw-shop-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"] .pw-shop-nav-label,' +
+  'html .pw-shop-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"] .pw-account-btn-label{' +
+  'display:block!important;text-align:center!important;white-space:nowrap!important;max-width:none!important}'
 
 /** Cỡ chữ — stock thanh đáy / PDP dùng .pw-shop-icon-label, không bị font-size:10px khóa. */
 export const PW_CHROME_LABEL_FACE_CSS =
@@ -241,6 +294,14 @@ export const PW_CHROME_FACE_EXTRAS_CSS =
   '[data-pw-chrome-weight="400"] .pw-account-btn-label,[data-pw-chrome-weight="400"] .pw-shop-search-submit-label{' +
   'font-weight:400!important}' +
   '[data-pw-chrome-radius]{border-radius:var(--pw-chrome-radius,0px)!important}' +
+  'html [data-pw-el="cta"][data-pw-chrome-radius],' +
+  'html [data-pw-el="cta-secondary"][data-pw-chrome-radius],' +
+  'html [data-pw-added-btn][data-pw-chrome-radius],' +
+  'html .pw-btn[data-pw-chrome-radius],' +
+  'html .pw-btn-hero[data-pw-chrome-radius],' +
+  'html .pw-btn-outline[data-pw-chrome-radius],' +
+  'html .pw-btn-accent[data-pw-chrome-radius]{' +
+  'border-radius:var(--pw-chrome-radius,0px)!important}' +
   '[data-pw-chrome-hover]:hover,[data-pw-chrome-hover]:hover .pw-chrome-btn-label,' +
   '[data-pw-chrome-hover]:hover .pw-shop-nav-label,[data-pw-chrome-hover]:hover .pw-shop-icon-label,' +
   '[data-pw-chrome-hover]:hover .pw-account-btn-label,[data-pw-chrome-hover]:hover .pw-shop-search-submit-label{' +
@@ -251,6 +312,16 @@ export const PW_CHROME_FACE_EXTRAS_CSS =
   '[data-pw-chrome-hover]:hover svg line,[data-pw-chrome-hover]:hover svg polyline,' +
   '[data-pw-chrome-hover]:hover svg rect,[data-pw-chrome-hover]:hover svg polygon{' +
   'stroke:var(--pw-chrome-hover)!important}' +
+  '[data-pw-btn-text] .pw-chrome-btn-label,[data-pw-btn-text] .pw-shop-nav-label,' +
+  '[data-pw-btn-text] .pw-shop-icon-label,[data-pw-btn-text] .pw-account-btn-label,' +
+  '[data-pw-btn-text] .pw-shop-search-submit-label,' +
+  '[data-pw-btn-text] > span:not(.pw-chrome-icon-wrap):not(.pw-cart-badge):not(.pw-shop-cart-badge):not(.pw-chrome-chat-logo){color:var(--pw-btn-text)!important}' +
+  '[data-pw-icon-color]{color:var(--pw-icon-color)}' +
+  '[data-pw-icon-color] svg,[data-pw-icon-color] .pw-chrome-icon-wrap{color:var(--pw-icon-color)!important;stroke:var(--pw-icon-color)!important}' +
+  '[data-pw-icon-color] svg path,[data-pw-icon-color] svg circle,[data-pw-icon-color] svg line,' +
+  '[data-pw-icon-color] svg polyline,[data-pw-icon-color] svg rect,[data-pw-icon-color] svg polygon{stroke:var(--pw-icon-color)!important}' +
+  '[data-pw-btn-color]{background:var(--pw-btn-color)!important;background-color:var(--pw-btn-color)!important}' +
+  '[data-pw-btn-border]{border-color:var(--pw-btn-border)!important}' +
   '[data-pw-chrome-text-flow="row"] .pw-chrome-btn-label,[data-pw-chrome-text-flow="row"] .pw-shop-nav-label,' +
   '[data-pw-chrome-text-flow="row"] .pw-shop-icon-label,[data-pw-chrome-text-flow="row"] .pw-account-btn-label,' +
   '[data-pw-chrome-text-flow="row"] .pw-shop-search-submit-label,' +
@@ -259,9 +330,11 @@ export const PW_CHROME_FACE_EXTRAS_CSS =
   '[data-pw-chrome-style="icon-label-below"]:not([data-pw-chrome-text-flow="col"]) .pw-chrome-btn-label,' +
   '[data-pw-chrome-style="icon-label-below"]:not([data-pw-chrome-text-flow="col"]) .pw-shop-nav-label,' +
   '[data-pw-chrome-style="icon-label-below"]:not([data-pw-chrome-text-flow="col"]) .pw-shop-icon-label,' +
+  '[data-pw-chrome-style="icon-label-below"]:not([data-pw-chrome-text-flow="col"]) .pw-account-btn-label,' +
   '.pw-chrome-label-below:not([data-pw-chrome-text-flow="col"]) .pw-chrome-btn-label,' +
   '.pw-chrome-label-below:not([data-pw-chrome-text-flow="col"]) .pw-shop-nav-label,' +
-  '.pw-chrome-label-below:not([data-pw-chrome-text-flow="col"]) .pw-shop-icon-label{' +
+  '.pw-chrome-label-below:not([data-pw-chrome-text-flow="col"]) .pw-shop-icon-label,' +
+  '.pw-chrome-label-below:not([data-pw-chrome-text-flow="col"]) .pw-account-btn-label{' +
   'writing-mode:horizontal-tb!important;text-orientation:mixed!important;' +
   'white-space:nowrap!important;max-width:none!important;width:auto!important;' +
   'overflow:visible!important;word-break:normal!important;overflow-wrap:normal!important}' +
@@ -930,13 +1003,13 @@ export function buildVisualEditorChromeWidgetHtml(input: {
     const appearance = chromeWidgetAppearance(kind, style)
     const panel = `<nav id="pw-shop-cat-panel" class="pw-shop-cat-panel pw-cat-panel" data-pw-cat-panel="1" aria-label="${labelAttr}"></nav>`
     if (appearance === 'link') {
-      return `<span class="pw-chrome-cat-wrap" data-pw-chrome-added="1"${placeAttr}${sizeAttr}><button type="button" class="pw-shop-cat-btn pw-chrome-link" data-pw-chrome-btn="categories" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-style="text"${glyphAttr} aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${escapeHtml(label)}</button>${panel}</span>`
+      return `<span class="pw-chrome-cat-wrap"${placeAttr}><button type="button" class="pw-shop-cat-btn pw-chrome-link" data-pw-chrome-btn="categories" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-added="1" data-pw-chrome-style="text"${glyphAttr}${sizeAttr} aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false">${escapeHtml(label)}</button>${panel}</span>`
     }
     const face = chromeFaceClass(style)
     const labelHtml = face.withLabel
       ? `<span class="pw-shop-nav-label pw-chrome-btn-label">${escapeHtml(label)}</span>`
       : ''
-    return `<span class="pw-chrome-cat-wrap" data-pw-chrome-added="1"${placeAttr}${sizeAttr}><button type="button" class="pw-shop-cat-btn pw-icon-btn pw-shop-icon-btn ${face.styleClass}" data-pw-chrome-btn="categories" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-style="${face.styleAttr}"${glyphAttr} aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false"><span class="pw-chrome-icon-wrap">${svg}</span>${labelHtml}</button>${panel}</span>`
+    return `<span class="pw-chrome-cat-wrap"${placeAttr}><button type="button" class="pw-shop-cat-btn pw-icon-btn pw-shop-icon-btn ${face.styleClass}" data-pw-chrome-btn="categories" data-pw-el="cat-toggle" data-pw-cat-toggle="1" data-pw-chrome-added="1" data-pw-chrome-style="${face.styleAttr}"${glyphAttr}${sizeAttr} aria-expanded="false" aria-controls="pw-shop-cat-panel" aria-label="${labelAttr}" title="${labelAttr}" draggable="false"><span class="pw-chrome-icon-wrap">${svg}</span>${labelHtml}</button>${panel}</span>`
   }
   if (kind === 'account') {
     const svg = chromeKindSvg(kind, input.glyph)

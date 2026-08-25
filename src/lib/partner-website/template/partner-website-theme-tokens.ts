@@ -15,6 +15,7 @@ export type ShopThemeColorRole =
   | 'textColor'
   | 'mutedColor'
   | 'surfaceColor'
+  | 'footerColor'
 
 export type ResolvedShopThemeColors = {
   primaryColor: string
@@ -25,6 +26,7 @@ export type ResolvedShopThemeColors = {
   textColor: string
   mutedColor: string
   surfaceColor: string
+  footerColor: string
   borderColor: string
 }
 
@@ -143,6 +145,7 @@ export type ShopThemeQuickPickLabels = {
   text: string
   muted: string
   surface: string
+  footer: string
 }
 
 function uniqueQuickPicks(items: ShopThemeQuickPick[]): ShopThemeQuickPick[] {
@@ -177,6 +180,7 @@ export function shopThemeQuickPicks(
         { id: 'text', hex: live.textColor, label: labels.text },
         { id: 'muted', hex: live.mutedColor, label: labels.muted },
         { id: 'surface', hex: live.surfaceColor, label: labels.surface },
+        { id: 'footer', hex: live.footerColor, label: labels.footer },
       ]
     : []
   const mainPresets = SHOP_MAIN_COLOR_SWATCHES.map((s) => ({
@@ -216,6 +220,7 @@ export function resolveShopThemeColors(theme: PartnerWebsiteTheme): ResolvedShop
     textColor,
     mutedColor,
     surfaceColor: normalizeHexColor(theme.surfaceColor, mixHex('#ffffff', primaryColor, 0.08)),
+    footerColor: normalizeHexColor(theme.footerColor, DEFAULT_PARTNER_WEBSITE_THEME.footerColor || '#ffffff'),
     borderColor: normalizeHexColor(theme.borderColor, '#e5e7eb'),
   }
 }
@@ -310,7 +315,7 @@ export function themeCssVarMap(theme: PartnerWebsiteTheme): Record<string, strin
     '--pw-muted': c.mutedColor,
     '--pw-surface': c.surfaceColor,
     '--pw-border': c.borderColor,
-    '--pw-footer': '#ffffff',
+    '--pw-footer': c.footerColor,
   }
 }
 
@@ -488,6 +493,7 @@ export function parseThemeColorPatch(raw: unknown): Partial<ResolvedShopThemeCol
     'textColor',
     'mutedColor',
     'surfaceColor',
+    'footerColor',
     'borderColor',
   ]
   const patch: Partial<ResolvedShopThemeColors> = {}

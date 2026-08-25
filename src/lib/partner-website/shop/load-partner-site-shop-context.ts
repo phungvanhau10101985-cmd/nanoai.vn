@@ -5,7 +5,6 @@ import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-act
 import { extractPartnerWebsiteThemeFromProject } from '@/lib/partner-website/extract-theme-from-project'
 import {
   normalizePartnerCapabilities,
-  partnerWebsiteEnabled,
   type PartnerCapabilities,
 } from '@/lib/partner-website/partner-capabilities'
 import type { PartnerWebsitePublicRow } from '@/lib/partner-website/partner-website-types'
@@ -27,7 +26,6 @@ async function loadPartnerSiteShopContextUncached(siteSlug: string): Promise<Par
   const partner = await resolveActiveMessagingPartnerBySlug(site.partnerSlug)
   if (!partner) return null
   const capabilities = await fetchPartnerCapabilitiesForPartnerFromPg(partner.id, partner.industry_key)
-  if (!partnerWebsiteEnabled(capabilities)) return null
   // W2.6 — template mode: theme_json là nguồn sự thật (color picker). Project CSS chỉ
   // bổ sung field thiếu; tránh shell bị kẹt màu cũ trong css/main.css.
   const fromCss = extractPartnerWebsiteThemeFromProject(site.project, site.theme)

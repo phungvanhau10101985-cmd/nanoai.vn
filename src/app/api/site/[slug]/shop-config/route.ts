@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { fetchShopCheckoutLoginRequiredForPartnerFromPg } from '@/lib/partner-website/shop/shop-checkout-auth'
-import { partnerCommerceCartEnabled } from '@/lib/partner-website/partner-capabilities'
 import { fetchPartnerPaymentSettingsFromPg } from '@/lib/db/messaging-partner-orders-pg'
 import { normalizePartnerShopCurrency } from '@/lib/partner-website/shop/partner-shop-currency'
 
@@ -19,7 +18,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ slug: stri
   return NextResponse.json({
     ok: true,
     checkoutLoginRequired,
-    cartEnabled: partnerCommerceCartEnabled(shop.capabilities),
+    cartEnabled: true,
     capabilities: shop.capabilities,
     // S0.10 — display/tracking currency (no FX).
     defaultCurrency: normalizePartnerShopCurrency(shop.site.defaultCurrency),

@@ -103,6 +103,10 @@ export type PartnerWebsiteCopy = {
   visualEditAiImageGenerate: string
   visualEditAiPromptLabel: string
   visualEditAiPromptRequired: string
+  visualEditAiColorTitle: string
+  visualEditAiColorHint: string
+  visualEditAiColorMain: string
+  visualEditAiColorAccent: string
   visualEditOpenPage: string
   visualEditOpenHomePage: string
   visualEditInfoAiTitle: string
@@ -120,6 +124,7 @@ export type PartnerWebsiteCopy = {
   visualEditAlignCenter: string
   visualEditAlignRight: string
   visualEditBgColor: string
+  visualEditBgTransparent: string
   visualEditImageWidth: string
   visualEditImageSquare: string
   visualEditImageRound: string
@@ -287,6 +292,17 @@ export type PartnerWebsiteCopy = {
   visualEditBgLockedHint: string
   visualEditRegionBgHint: string
   visualEditDeleteBg: string
+  visualEditPaperTitle: string
+  visualEditPaperHint: string
+  visualEditPaperWhite: string
+  visualEditPaperPickImage: string
+  visualEditPaperAiPlaceholder: string
+  visualEditBgFillTitle: string
+  visualEditBgFillHint: string
+  visualEditBgImagePos: string
+  visualEditBgImagePosHint: string
+  visualEditBgImagePosX: string
+  visualEditBgImagePosY: string
   visualEditNavLinkTitle: string
   visualEditNavLinkHint: string
   visualEditLogoPanelTitle: string
@@ -330,6 +346,8 @@ export type PartnerWebsiteCopy = {
   visualEditAddProductGrid: string
   visualEditAddRecentlyViewedGrid: string
   visualEditAddRecommendedGrid: string
+  visualEditAddRelatedGrid: string
+  visualEditAddOutfitGrid: string
   visualEditAddButtonText: string
   visualEditAddButtonColor: string
   visualEditAddButtonBorder: string
@@ -843,6 +861,7 @@ export type PartnerWebsiteCopy = {
   themeColorText: string
   themeColorMuted: string
   themeColorSurface: string
+  themeColorFooter: string
   themeColorSaving: string
   themeColorSaveError: string
   themeColorOk: string
@@ -1011,6 +1030,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAiImageGenerate: 'Tạo ảnh',
     visualEditAiPromptLabel: 'Prompt AI',
     visualEditAiPromptRequired: 'Nhập mô tả ảnh (prompt) trước khi tạo',
+    visualEditAiColorTitle: 'Màu đưa vào prompt',
+    visualEditAiColorHint: 'Chọn trên bảng màu như các ô màu khác. AI dùng đúng hex này, không lấy màu giao diện ngoài bảng.',
+    visualEditAiColorMain: 'Màu chính',
+    visualEditAiColorAccent: 'Màu phụ',
     visualEditOpenPage: 'Sửa nhanh trang này',
     visualEditOpenHomePage: 'Sửa nhanh trang chủ',
     visualEditInfoAiTitle: 'Ô viết bài (SEO)',
@@ -1028,6 +1051,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAlignCenter: 'Giữa',
     visualEditAlignRight: 'Phải',
     visualEditBgColor: 'Màu nền',
+    visualEditBgTransparent: 'Trong suốt',
     visualEditImageWidth: 'Rộng ảnh',
     visualEditImageSquare: 'Vuông',
     visualEditImageRound: 'Bo góc',
@@ -1202,10 +1226,24 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: 'Mở cài đặt mã nhúng chat',
     visualEditChatEmbedDelete: 'Xóa nút chat',
     visualEditChatEmbedRestore: 'Hiện nút chat',
-    visualEditAddedBgHint: 'Nền đã thêm: đổi màu, kích thước (kéo cạnh hoặc ô số), lớp, hoặc bấm Xóa nền.',
+    visualEditAddedBgHint: 'Nền đã thêm: trong suốt, màu, tải ảnh, AI, kích thước (kéo cạnh hoặc ô số), lớp. Xóa nền = gỡ cả lớp.',
     visualEditBgLockedHint: 'Nền này không xóa được (ảnh banner / nền trang). Chỉ đổi màu.',
-    visualEditRegionBgHint: 'Nền khối gốc: bấm Xóa nền để bỏ màu (giữ chữ/nút). Chọn màu để tô lại. Header có hai dải cam thì xóa cả thanh trên.',
+    visualEditRegionBgHint: 'Nền khối: trong suốt, màu, tải ảnh, hoặc AI. Header có hai dải thì xóa cả thanh trên.',
     visualEditDeleteBg: 'Xóa nền',
+    visualEditPaperTitle: 'Nền trang',
+    visualEditPaperHint:
+      'Nền gốc khung giữa: trong suốt, màu, chọn ảnh, tạo bằng AI, hoặc nền trắng. Lưu xong Xem thử / live giống Sửa nhanh.',
+    visualEditPaperWhite: 'Nền trắng',
+    visualEditPaperPickImage: 'Chọn ảnh nền',
+    visualEditPaperAiPlaceholder: 'Ví dụ: vải linen kem, ánh sáng studio, không chữ',
+    visualEditBgFillTitle: 'Nền khối',
+    visualEditBgFillHint:
+      'Mọi khối nền: trong suốt, chọn màu, tải ảnh, hoặc tạo bằng AI. Lưu xong Xem thử / live giống Sửa nhanh.',
+    visualEditBgImagePos: 'Vị trí ảnh nền',
+    visualEditBgImagePosHint:
+      'Kéo ảnh trên khối nền hoặc chỉnh số / lưới. Ảnh phủ kín khung, không méo. Lưu xong Xem thử / live giống Sửa nhanh.',
+    visualEditBgImagePosX: 'Trái — phải',
+    visualEditBgImagePosY: 'Trên — dưới',
     visualEditNavLinkTitle: 'Liên kết trang',
     visualEditNavLinkHint: 'Bấm trên web khách sẽ mở đúng trang gắn ở ô link. Không phải nút danh mục hay nút chức năng shop.',
     visualEditLogoPanelTitle: 'Logo',
@@ -1249,6 +1287,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddProductGrid: 'Lưới sản phẩm',
     visualEditAddRecentlyViewedGrid: 'Lưới đã xem',
     visualEditAddRecommendedGrid: 'Lưới đề xuất',
+    visualEditAddRelatedGrid: 'Sản phẩm tương tự',
+    visualEditAddOutfitGrid: 'Phối đồ',
     visualEditAddButtonText: 'Chữ trên nút',
     visualEditAddButtonColor: 'Màu nút',
     visualEditAddButtonBorder: 'Màu viền',
@@ -1774,6 +1814,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     themeColorText: 'Chữ chính',
     themeColorMuted: 'Chữ phụ',
     themeColorSurface: 'Nền nhạt / hover',
+    themeColorFooter: 'Nền chân trang',
     themeColorSaving: 'Đang lưu…',
     themeColorSaveError: 'Không lưu được màu. Thử lại.',
     themeColorOk: 'OK',
@@ -1945,6 +1986,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAiImageGenerate: 'Generate',
     visualEditAiPromptLabel: 'AI prompt',
     visualEditAiPromptRequired: 'Enter an image prompt before generating',
+    visualEditAiColorTitle: 'Colors for the prompt',
+    visualEditAiColorHint: 'Pick from the same color board as other swatches. AI uses these hex values and does not sample shop UI colors.',
+    visualEditAiColorMain: 'Main color',
+    visualEditAiColorAccent: 'Accent color',
     visualEditOpenPage: 'Quick-edit this page',
     visualEditOpenHomePage: 'Quick-edit homepage',
     visualEditInfoAiTitle: 'Page content (SEO)',
@@ -1962,6 +2007,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAlignCenter: 'Center',
     visualEditAlignRight: 'Right',
     visualEditBgColor: 'Background',
+    visualEditBgTransparent: 'Transparent',
     visualEditImageWidth: 'Image width',
     visualEditImageSquare: 'Square',
     visualEditImageRound: 'Rounded',
@@ -2135,10 +2181,24 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: 'Open chat embed settings',
     visualEditChatEmbedDelete: 'Remove chat button',
     visualEditChatEmbedRestore: 'Show chat button',
-    visualEditAddedBgHint: 'Added fill: change color, size (drag edges or type numbers), layer, or Delete background.',
+    visualEditAddedBgHint: 'Added fill: transparent, color, image, AI, size (drag edges or type numbers), layer. Delete background removes the layer.',
     visualEditBgLockedHint: 'This fill cannot be removed (banner photo / page paper). Recolor only.',
-    visualEditRegionBgHint: 'Section fill: Delete background removes the color (keeps text/buttons). Pick a color to restore. Clearing the header also clears the top bar.',
+    visualEditRegionBgHint: 'Block fill: transparent, color, image, or AI. Clearing the header also clears the top bar.',
     visualEditDeleteBg: 'Delete background',
+    visualEditPaperTitle: 'Page paper',
+    visualEditPaperHint:
+      'Middle canvas fill: transparent, color, pick an image, generate with AI, or keep it white. After Save, preview and live match Quick edit.',
+    visualEditPaperWhite: 'White background',
+    visualEditPaperPickImage: 'Choose background image',
+    visualEditPaperAiPlaceholder: 'e.g. cream linen fabric, studio light, no text',
+    visualEditBgFillTitle: 'Block fill',
+    visualEditBgFillHint:
+      'Any background block: transparent, a color, upload an image, or generate with AI. After Save, preview and live match Quick edit.',
+    visualEditBgImagePos: 'Background image position',
+    visualEditBgImagePosHint:
+      'Drag the photo on the block or use the sliders / grid. The image covers the frame without stretching. After Save, preview and live match Quick edit.',
+    visualEditBgImagePosX: 'Left — right',
+    visualEditBgImagePosY: 'Top — bottom',
     visualEditNavLinkTitle: 'Page link',
     visualEditNavLinkHint: 'On the live site this opens the page in the link field. Not a category menu or shop function button.',
     visualEditLogoPanelTitle: 'Logo',
@@ -2182,6 +2242,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddProductGrid: 'Product grid',
     visualEditAddRecentlyViewedGrid: 'Recently viewed grid',
     visualEditAddRecommendedGrid: 'Recommended grid',
+    visualEditAddRelatedGrid: 'Similar products',
+    visualEditAddOutfitGrid: 'Outfit pairing',
     visualEditAddButtonText: 'Button text',
     visualEditAddButtonColor: 'Button color',
     visualEditAddButtonBorder: 'Border color',
@@ -2708,6 +2770,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     themeColorText: 'Text',
     themeColorMuted: 'Muted text',
     themeColorSurface: 'Tint / hover',
+    themeColorFooter: 'Footer background',
     themeColorSaving: 'Saving…',
     themeColorSaveError: 'Could not save colors. Try again.',
     themeColorOk: 'OK',
@@ -2876,6 +2939,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAiImageGenerate: '生成',
     visualEditAiPromptLabel: 'AI 提示词',
     visualEditAiPromptRequired: '请先输入图片描述（prompt）',
+    visualEditAiColorTitle: '写入提示词的颜色',
+    visualEditAiColorHint: '用和其他色板一样的取色器。AI 只用这些 hex，不从店铺界面取样。',
+    visualEditAiColorMain: '主色',
+    visualEditAiColorAccent: '辅色',
     visualEditOpenPage: '快速编辑此页',
     visualEditOpenHomePage: '快速编辑首页',
     visualEditInfoAiTitle: '页面内容（SEO）',
@@ -2893,6 +2960,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAlignCenter: '居中',
     visualEditAlignRight: '右对齐',
     visualEditBgColor: '背景色',
+    visualEditBgTransparent: '透明',
     visualEditImageWidth: '图片宽度',
     visualEditImageSquare: '直角',
     visualEditImageRound: '圆角',
@@ -3058,10 +3126,21 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: '打开聊天嵌入设置',
     visualEditChatEmbedDelete: '删除聊天按钮',
     visualEditChatEmbedRestore: '显示聊天按钮',
-    visualEditAddedBgHint: '已添加的背景：可改颜色、尺寸（拖边缘或输入数字）、图层，或点删除背景。',
+    visualEditAddedBgHint: '已添加的背景：透明、颜色、图片、AI、尺寸（拖边缘或输入数字）、图层。删除背景会去掉整层。',
     visualEditBgLockedHint: '此背景不能删除（横幅图 / 页面底）。只能改色。',
-    visualEditRegionBgHint: '区块原背景：点删除背景可去掉颜色（保留文字/按钮）。再选颜色即可恢复。删除页头时也会去掉顶栏底色。',
+    visualEditRegionBgHint: '区块背景：透明、颜色、图片或 AI。删除页头时也会去掉顶栏底色。',
     visualEditDeleteBg: '删除背景',
+    visualEditPaperTitle: '页面底色',
+    visualEditPaperHint: '中间画布背景：透明、颜色、选图、AI 生成或保持白色。保存后预览和线上与快速编辑一致。',
+    visualEditPaperWhite: '白色背景',
+    visualEditPaperPickImage: '选择背景图',
+    visualEditPaperAiPlaceholder: '例如：奶油色亚麻、影棚光、无文字',
+    visualEditBgFillTitle: '区块背景',
+    visualEditBgFillHint: '任何背景块：透明、选色、上传图片或用 AI 生成。保存后预览和线上与快速编辑一致。',
+    visualEditBgImagePos: '背景图位置',
+    visualEditBgImagePosHint: '在背景块上拖动图片，或用滑块 / 九宫格。图片铺满且不变形。保存后预览和线上与快速编辑一致。',
+    visualEditBgImagePosX: '左 — 右',
+    visualEditBgImagePosY: '上 — 下',
     visualEditNavLinkTitle: '页面链接',
     visualEditNavLinkHint: '在顾客网站上点击会打开链接中的页面。不是分类菜单，也不是店铺功能按钮。',
     visualEditLogoPanelTitle: '标志',
@@ -3105,6 +3184,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddProductGrid: '商品网格',
     visualEditAddRecentlyViewedGrid: '最近浏览网格',
     visualEditAddRecommendedGrid: '推荐网格',
+    visualEditAddRelatedGrid: '相似商品',
+    visualEditAddOutfitGrid: '搭配',
     visualEditAddButtonText: '按钮文字',
     visualEditAddButtonColor: '按钮颜色',
     visualEditAddButtonBorder: '边框颜色',
@@ -3616,6 +3697,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     themeColorText: '正文',
     themeColorMuted: '次要文字',
     themeColorSurface: '浅底 / 悬停',
+    themeColorFooter: '页脚背景',
     themeColorSaving: '保存中…',
     themeColorSaveError: '无法保存颜色，请重试。',
     themeColorOk: '确定',
@@ -3782,6 +3864,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAiImageGenerate: '生成',
     visualEditAiPromptLabel: 'AIプロンプト',
     visualEditAiPromptRequired: '生成前に画像のプロンプトを入力してください',
+    visualEditAiColorTitle: 'プロンプトに入れる色',
+    visualEditAiColorHint: '他の色見本と同じピッカーで選びます。AI はこの hex だけを使い、ショップ UI から色を取りません。',
+    visualEditAiColorMain: 'メイン色',
+    visualEditAiColorAccent: 'アクセント色',
     visualEditOpenPage: 'このページをクイック編集',
     visualEditOpenHomePage: 'ホームをクイック編集',
     visualEditInfoAiTitle: 'ページ本文（SEO）',
@@ -3799,6 +3885,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAlignCenter: '中央',
     visualEditAlignRight: '右',
     visualEditBgColor: '背景色',
+    visualEditBgTransparent: '透明',
     visualEditImageWidth: '画像幅',
     visualEditImageSquare: '直角',
     visualEditImageRound: '角丸',
@@ -3971,10 +4058,24 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: 'チャット埋め込み設定を開く',
     visualEditChatEmbedDelete: 'チャットボタンを削除',
     visualEditChatEmbedRestore: 'チャットボタンを表示',
-    visualEditAddedBgHint: '追加した背景は色・サイズ（辺をドラッグまたは数値）・レイヤー変更、または削除できます。',
+    visualEditAddedBgHint: '追加した背景は透明・色・画像・AI・サイズ（辺をドラッグまたは数値）・レイヤー変更ができます。背景削除は層ごと消します。',
     visualEditBgLockedHint: 'この背景は削除できません（バナー写真 / ページ下地）。色だけ変えられます。',
-    visualEditRegionBgHint: 'ブロック本来の背景：削除すると色だけ消えます（文字/ボタンは残ります）。色を選べば戻せます。ヘッダーを消すとトップバーの色も消えます。',
+    visualEditRegionBgHint: 'ブロック背景：透明・色・画像・AI。ヘッダーを消すとトップバーの色も消えます。',
     visualEditDeleteBg: '背景を削除',
+    visualEditPaperTitle: 'ページ背景',
+    visualEditPaperHint:
+      '中央キャンバスの下地：透明・色・画像・AI、または白のまま。保存後はプレビューと公開がクイック編集と同じ。',
+    visualEditPaperWhite: '白背景',
+    visualEditPaperPickImage: '背景画像を選ぶ',
+    visualEditPaperAiPlaceholder: '例：クリームのリネン、スタジオ照明、文字なし',
+    visualEditBgFillTitle: 'ブロック背景',
+    visualEditBgFillHint:
+      'どの背景ブロックも透明・色・画像アップロード・AI生成ができます。保存後はプレビューと公開がクイック編集と同じ。',
+    visualEditBgImagePos: '背景画像の位置',
+    visualEditBgImagePosHint:
+      'ブロック上で画像をドラッグするか、スライダー / グリッドで調整。画像は枠を覆い、歪みません。保存後はプレビューと公開がクイック編集と同じ。',
+    visualEditBgImagePosX: '左 — 右',
+    visualEditBgImagePosY: '上 — 下',
     visualEditNavLinkTitle: 'ページリンク',
     visualEditNavLinkHint: '公開サイトではリンク欄のページが開きます。カテゴリメニューやショップ機能ボタンではありません。',
     visualEditLogoPanelTitle: 'ロゴ',
@@ -4018,6 +4119,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddProductGrid: '商品グリッド',
     visualEditAddRecentlyViewedGrid: '閲覧履歴グリッド',
     visualEditAddRecommendedGrid: 'おすすめグリッド',
+    visualEditAddRelatedGrid: '類似商品',
+    visualEditAddOutfitGrid: 'コーディネート',
     visualEditAddButtonText: 'ボタンの文字',
     visualEditAddButtonColor: 'ボタンの色',
     visualEditAddButtonBorder: '枠線の色',
@@ -4534,6 +4637,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     themeColorText: '本文',
     themeColorMuted: '補助テキスト',
     themeColorSurface: '薄い背景 / ホバー',
+    themeColorFooter: 'フッター背景',
     themeColorSaving: '保存中…',
     themeColorSaveError: '色を保存できませんでした。再試行してください。',
     themeColorOk: 'OK',
@@ -4702,6 +4806,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAiImageGenerate: '생성',
     visualEditAiPromptLabel: 'AI 프롬프트',
     visualEditAiPromptRequired: '이미지 생성 전 프롬프트를 입력하세요',
+    visualEditAiColorTitle: '프롬프트에 넣을 색',
+    visualEditAiColorHint: '다른 색 견본과 같은 피커로 고릅니다. AI는 이 hex만 쓰고 상점 UI에서 색을 가져오지 않습니다.',
+    visualEditAiColorMain: '메인 색',
+    visualEditAiColorAccent: '보조 색',
     visualEditOpenPage: '이 페이지 빠른 편집',
     visualEditOpenHomePage: '홈 빠른 편집',
     visualEditInfoAiTitle: '페이지 본문 (SEO)',
@@ -4719,6 +4827,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAlignCenter: '가운데',
     visualEditAlignRight: '오른쪽',
     visualEditBgColor: '배경색',
+    visualEditBgTransparent: '투명',
     visualEditImageWidth: '이미지 너비',
     visualEditImageSquare: '직각',
     visualEditImageRound: '둥글게',
@@ -4891,10 +5000,24 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChatEmbedOpenSettings: '채팅 임베드 설정 열기',
     visualEditChatEmbedDelete: '채팅 버튼 삭제',
     visualEditChatEmbedRestore: '채팅 버튼 표시',
-    visualEditAddedBgHint: '추가한 배경은 색·크기(가장자리 끌기 또는 숫자)·레이어 변경 또는 삭제가 됩니다.',
+    visualEditAddedBgHint: '추가한 배경은 투명·색·이미지·AI·크기(가장자리 끌기 또는 숫자)·레이어 변경이 됩니다. 배경 삭제는 레이어 전체를 없앱니다.',
     visualEditBgLockedHint: '이 배경은 지울 수 없습니다(배너 사진 / 페이지 바탕). 색만 바꿀 수 있습니다.',
-    visualEditRegionBgHint: '블록 원래 배경: 삭제하면 색만 없어집니다(글/버튼은 유지). 색을 고르면 다시 칠할 수 있습니다. 헤더를 지우면 상단바 색도 함께 지워집니다.',
+    visualEditRegionBgHint: '블록 배경: 투명, 색, 이미지, AI. 헤더를 지우면 상단바 색도 함께 지워집니다.',
     visualEditDeleteBg: '배경 삭제',
+    visualEditPaperTitle: '페이지 배경',
+    visualEditPaperHint:
+      '가운데 캔버스 배경: 투명, 색, 이미지, AI, 또는 흰색 유지. 저장 후 미리보기·라이브가 빠른 수정과 같습니다.',
+    visualEditPaperWhite: '흰색 배경',
+    visualEditPaperPickImage: '배경 이미지 선택',
+    visualEditPaperAiPlaceholder: '예: 크림 리넨, 스튜디오 조명, 글자 없음',
+    visualEditBgFillTitle: '블록 배경',
+    visualEditBgFillHint:
+      '모든 배경 블록: 투명, 색, 이미지 업로드, 또는 AI 생성. 저장 후 미리보기·라이브가 빠른 수정과 같습니다.',
+    visualEditBgImagePos: '배경 이미지 위치',
+    visualEditBgImagePosHint:
+      '블록에서 사진을 드래그하거나 슬라이더 / 격자로 맞춥니다. 이미지가 프레임을 덮고 찌그러지지 않습니다. 저장 후 미리보기·라이브가 빠른 수정과 같습니다.',
+    visualEditBgImagePosX: '왼쪽 — 오른쪽',
+    visualEditBgImagePosY: '위 — 아래',
     visualEditNavLinkTitle: '페이지 링크',
     visualEditNavLinkHint: '고객 사이트에서 누르면 링크의 페이지가 열립니다. 카테고리 메뉴나 쇼핑몰 기능 버튼이 아닙니다.',
     visualEditLogoPanelTitle: '로고',
@@ -4938,6 +5061,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddProductGrid: '상품 그리드',
     visualEditAddRecentlyViewedGrid: '최근 본 그리드',
     visualEditAddRecommendedGrid: '추천 그리드',
+    visualEditAddRelatedGrid: '유사 상품',
+    visualEditAddOutfitGrid: '코디',
     visualEditAddButtonText: '버튼 텍스트',
     visualEditAddButtonColor: '버튼 색',
     visualEditAddButtonBorder: '테두리 색',
@@ -5454,6 +5579,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     themeColorText: '본문',
     themeColorMuted: '보조 텍스트',
     themeColorSurface: '연한 배경 / 호버',
+    themeColorFooter: '푸터 배경',
     themeColorSaving: '저장 중…',
     themeColorSaveError: '색상을 저장하지 못했습니다. 다시 시도하세요.',
     themeColorOk: '확인',

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { deliverUserNotificationPg } from '@/lib/notifications/deliver-user-notification-pg'
-import { verifySePayHmacSignature, verifySePayWebhookAuth } from '@/lib/sepay-webhook-auth'
+import { authorizePartnerSePayWebhook, verifySePayWebhookAuth } from '@/lib/sepay-webhook-auth'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import { addCreditsToUser } from '@/lib/db/credits-balance'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -103,13 +103,16 @@ export async function POST(request: NextRequest) {
     const url = new URL(request.url)
     const partnerIdEarly = (url.searchParams.get('partner') || '').trim()
     const tokenEarly = (url.searchParams.get('token') || '').trim()
+    const shopPayEarly = partnerIdEarly ? await fetchPartnerPaymentSettingsFromPg(partnerIdEarly) : null
+    const shopHmacSecret = (shopPayEarly?.sepay_secret_key ?? '').trim()
     const dbHmacSecret = await getSepayWebhookHmacSecretFromPg()
+    const extraHmacSecrets = [shopHmacSecret, dbHmacSecret].filter(Boolean)
     const auth = verifySePayWebhookAuth({
       headers: request.headers,
       searchParams: url.searchParams,
       rawBody,
       remoteIp: request.headers.get('x-real-ip'),
-      extraHmacSecrets: dbHmacSecret ? [dbHmacSecret] : [],
+      extraHmacSecrets,
     })
     if (!auth.ok && !(partnerIdEarly && tokenEarly)) {
       console.warn('SePay webhook rejected:', auth.reason)
@@ -229,18 +232,26 @@ export async function POST(request: NextRequest) {
     const partnerId = partnerIdEarly
     const token = tokenEarly
     if (partnerId && token) {
+      const timestamp =
+        request.headers.get('x-sepay-timestamp') ||
+        request.headers.get('X-SePay-Timestamp') ||
+        ''
+      const partnerAuth = authorizePartnerSePayWebhook({
+        shopWebhookToken: shopPayEarly?.sepay_webhook_token ?? '',
+        queryToken: token,
+        shopHmacSecret,
+        platformHmacSecrets: dbHmacSecret ? [dbHmacSecret] : [],
+        rawBody,
+        signature: signature ?? '',
+        timestamp,
+      })
+      if (!partnerAuth.ok) {
+        console.warn('SePay partner webhook rejected:', partnerAuth.reason)
+        return NextResponse.json({ error: 'unauthorized', reason: partnerAuth.reason }, { status: 401 })
+      }
       const order = await fetchPartnerOrderByPaymentReferenceFromPg(partnerId, normalizedContent)
       if (!order) {
         return NextResponse.json({ error: 'Order not found for partner webhook.' }, { status: 404 })
-      }
-      const secretKey = (order.sepay_secret_key ?? '').trim() || (process.env.SEPAY_SECRET_KEY ?? '').trim()
-      if (!auth.ok && secretKey && signature && !verifySePayHmacSignature(rawBody, secretKey, signature)) {
-        console.error('Invalid SePay signature (partner mode)')
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-      }
-      const cfgToken = (order.sepay_webhook_token ?? '').trim()
-      if (!cfgToken || cfgToken !== token) {
-        return NextResponse.json({ error: 'Invalid partner webhook token.' }, { status: 401 })
       }
       const partnerRows = await fetchMessagingPartnersByIdsFromPg([partnerId])
       const shopBrand = (partnerRows?.[0]?.display_name ?? '').trim() || 'Shop'

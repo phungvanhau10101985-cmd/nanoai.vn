@@ -119,24 +119,30 @@ export function normalizePartnerCapabilities(
   }
 }
 
-export function partnerWebsiteEnabled(caps: PartnerCapabilities): boolean {
-  return caps.website.enabled
+/** Site is public when the partner + published site exist — not a dashboard module toggle. */
+export function partnerWebsiteEnabled(_caps?: PartnerCapabilities): boolean {
+  return true
 }
 
-export function partnerCommerceCartEnabled(caps: PartnerCapabilities): boolean {
-  return caps.website.enabled && caps.website.cart && caps.commerce.cart
+/** Cart/checkout APIs follow Sửa nhanh widgets — no second capability gate. */
+export function partnerCommerceCartEnabled(_caps?: PartnerCapabilities): boolean {
+  return true
 }
 
-export function partnerWebsiteProductsEnabled(caps: PartnerCapabilities): boolean {
-  return caps.website.enabled && caps.website.products
+export function partnerWebsiteProductsEnabled(_caps?: PartnerCapabilities): boolean {
+  return true
 }
 
-export function partnerWebsitePersonalizeEnabled(caps: PartnerCapabilities): boolean {
-  return caps.website.enabled && caps.website.personalize
+export function partnerWebsitePersonalizeEnabled(_caps?: PartnerCapabilities): boolean {
+  return true
 }
 
-export function partnerWebsiteBookingEnabled(caps: PartnerCapabilities): boolean {
-  return caps.website.enabled && caps.website.booking
+/** Booking CTA is industry copy (hotel), not a shop module switch. */
+export function partnerWebsiteBookingEnabled(
+  _caps: PartnerCapabilities | undefined,
+  industryKey?: PartnerIndustryKey
+): boolean {
+  return industryKey === 'hotel'
 }
 
 export function capabilitiesToTemplateFlags(caps: PartnerCapabilities): ShopTemplatePresetFlags {
@@ -154,23 +160,12 @@ export function capabilitiesToTemplateFlags(caps: PartnerCapabilities): ShopTemp
   }
 }
 
+/** Preset / Sửa nhanh decides sections. Stored module toggles do not hide widgets. */
 export function mergeTemplateFlagsWithCapabilities(
   presetFlags: ShopTemplatePresetFlags,
-  caps: PartnerCapabilities
+  _caps?: PartnerCapabilities
 ): ShopTemplatePresetFlags {
-  const fromCaps = capabilitiesToTemplateFlags(caps)
-  return {
-    products: presetFlags.products && fromCaps.products,
-    personalize: presetFlags.personalize && fromCaps.personalize,
-    chat: presetFlags.chat && fromCaps.chat,
-    lead: presetFlags.lead && fromCaps.lead,
-    faq: presetFlags.faq && fromCaps.faq,
-    categories: presetFlags.categories && fromCaps.categories,
-    features: presetFlags.features,
-    testimonials: presetFlags.testimonials,
-    pricing: presetFlags.pricing,
-    trust: presetFlags.trust,
-  }
+  return { ...presetFlags }
 }
 
 export type PartnerSiteIndustryCopyProfile = {

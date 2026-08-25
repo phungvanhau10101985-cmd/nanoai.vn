@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { buildVisualEditorScript } from './build-visual-editor-script'
 import {
   pwSceneChromeZCss,
+  pwSceneHoistLayerChildZCss,
+  pwSceneUnifiedStackCss,
   PW_SCENE_ATTR,
   PW_SCENE_BAND,
   PW_SCENE_CANVAS_WIDTH,
@@ -16,6 +18,8 @@ import {
   PW_SCENE_Z_MAX,
   clampPwSceneIndex,
   isPwSceneIndex,
+  PARTNER_SHOP_BANNER_LIVE_MATCH_CSS,
+  PARTNER_SHOP_HROW_CSS,
   PARTNER_SHOP_IMAGE_ZOOM_SCRIPT,
   PARTNER_SHOP_SCENE_CENTER_SCRIPT,
   PW_SCENE_MEDIA_ZOOM_SEL,
@@ -156,6 +160,11 @@ describe('pw scene layers', () => {
     expect(pwSceneCenterCss()).toContain('transform:scale(var(--pw-scene-zoom,1))')
     expect(pwSceneCenterCss()).toContain('transform-origin:top left')
     expect(pwSceneCenterCss()).toContain('[data-pw-live-fixed-layer]')
+    expect(pwSceneCenterCss()).toContain('[data-pw-live-fixed-layer]{display:contents}')
+    expect(pwSceneCenterCss()).not.toContain('[data-pw-live-fixed-layer]{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:210}')
+    expect(pwSceneCenterCss()).not.toContain('[data-pw-live-fixed-layer]{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:100}')
+    expect(pwSceneCenterCss()).not.toContain('z-index:210')
+    expect(pwSceneCenterCss()).toContain('[data-pw-live-fixed-layer]>[data-pw-scene="4"]{z-index:400!important}')
     expect(pwSceneCenterCss()).toContain('main:has([data-pw-inline-visual-root]){width:100%!important')
     expect(pwSceneCenterCss()).toContain('transform-origin:top center')
     expect(pwSceneCenterCss()).toContain(PW_SCENE_MEDIA_ZOOM_SEL)
@@ -252,9 +261,28 @@ describe('pw scene layers', () => {
     const css = pwSceneChromeZCss()
     expect(css).toContain('[data-pw-chrome-btn][data-pw-scene="4"]')
     expect(css).toContain('[data-pw-chrome-added][data-pw-scene="4"]')
+    expect(css).toContain('[data-pw-el="cat-toggle"][data-pw-scene="4"]')
+    expect(css).toContain('.pw-cat-btn[data-pw-scene="4"]')
     expect(css).toContain(`z-index:${pwSceneZ(2)}!important`)
     expect(css).toContain(`z-index:${pwSceneZ(4)}!important`)
     expect(pwSceneZ(4)).toBeGreaterThan(100)
+  })
+
+  it('does not give the stay/live hoist host a blanket z above lớp nổi chrome', () => {
+    const css = pwSceneHoistLayerChildZCss('[data-pw-stay-layer="1"]')
+    expect(css).toContain('[data-pw-stay-layer="1"]>[data-pw-scene="1"]{z-index:100!important}')
+    expect(css).toContain('[data-pw-stay-layer="1"]>[data-pw-scene="2"]{z-index:200!important}')
+    expect(css).toContain('[data-pw-stay-layer="1"]>[data-pw-scene="4"]{z-index:400!important}')
+    expect(css).not.toContain('z-index:210')
+  })
+
+  it('uses one scene stack with lớp nền as the baseline', () => {
+    const css = pwSceneUnifiedStackCss()
+    expect(css).toContain('[data-pw-scene="0"]{z-index:0!important}')
+    expect(css).toContain('[data-pw-scene="4"]{z-index:400!important}')
+    expect(css).toContain('[data-pw-scene="1"]:not([data-pw-added-bg])')
+    expect(css).toContain('[data-pw-stay-scroll="1"][data-pw-scene="1"]{z-index:100!important}')
+    expect(css).not.toContain('z-index:210')
   })
 })
 
@@ -287,13 +315,21 @@ describe('scene layers inside the editor runtime', () => {
   })
 
   it('sizes added backgrounds and banners from edge handles and the floating panel', () => {
+    expect(script).toContain('function stampAddedBgBox(')
     expect(script).toContain('function applyAddedBgSize(')
+    expect(script).toContain('--pw-added-bg-w')
+    expect(script).toContain(':not([data-pw-added-bg])')
     expect(script).toContain('function resizeDirsFor(')
-    expect(script).toContain("return isInFlowAddedSlot(el) ? ['s'] : ['s', 'e', 'se']")
+    expect(script).toContain("return isInFlowAddedSlot(el) ? ['sl', 'sr'] : ['sl', 'sr', 'e', 'se']")
+    expect(script).toContain("dir === 'sl' || dir === 'sr'")
     expect(script).toContain("if (isBannerHostEl(el) && layerMode === 'block') return ['s', 'e']")
     expect(script).toContain("resize.mode === 'surface-size'")
     expect(script).toContain('is-banner-height')
     expect(script).toContain('isAddedBgSlot: addedBg && isInFlowAddedSlot(el)')
+    expect(PARTNER_SHOP_HROW_CSS).toContain('html [data-pw-hrow]>[data-pw-added-bg="1"]:not([data-pw-added-bg-slot]){flex:0 0 auto!important')
+    expect(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS).toContain('text-transform:none!important')
+    expect(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS).toContain('html[data-pw-edit-device="desktop"] .pw-hero')
+    expect(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS).toContain('margin-top:0!important;border-radius:0!important')
   })
 
   it('moves the whole bottom navigation when a bottom nav item changes scene layer', () => {
@@ -317,7 +353,7 @@ describe('scene layers inside the editor runtime', () => {
 
   it('puts the orange topbar above lớp dưới so a lowered logo sits behind the bar', () => {
     expect(script).toContain(
-      `.pw-topbar,.nanoai-ve-active .pw-shop-topbar,[data-pw-region="topbar"]{position:relative!important;z-index:${PW_SCENE_TOPBAR_Z}!important;isolation:isolate;display:block!important;width:100%!important;min-width:100%!important;max-width:none!important;left:auto!important`,
+      `.pw-topbar,.nanoai-ve-active .pw-shop-topbar,[data-pw-region="topbar"]{position:relative!important;z-index:${PW_SCENE_TOPBAR_Z}!important;display:block!important;width:100%!important;min-width:100%!important;max-width:none!important;left:auto!important`,
     )
     expect(script).toContain('.pw-logo-frame:not([data-pw-z])')
     expect(script).not.toContain('.pw-logo-frame,[data-pw-logo-frame="1"]{display:inline-flex!important;align-items:center;justify-content:center;overflow:hidden!important;flex-shrink:0;position:relative;z-index:160!important')
@@ -329,15 +365,18 @@ describe('scene layers inside the editor runtime', () => {
     expect(script).not.toContain("el.style.zIndex = '2'")
   })
 
-  it('writes scene on the chrome widget itself and lifts it out of header isolation', () => {
+  it('writes scene on the chrome widget itself and only lifts chrome dragged off header', () => {
     expect(script).toContain('sceneWriteHost')
     expect(script).toContain('applySceneToLooseChrome')
     expect(script).toContain('liftLooseElToSceneHost')
     expect(script).toContain('chromeLeftChromeHost')
+    expect(script).toContain('rehomeInflowSceneChrome')
+    expect(script).toContain('isInflowHeaderCat')
     expect(script).toContain('isInFlowFooterLink')
     expect(script).toContain('unstampFooterInFlowChrome')
     expect(script).toContain('var el = sceneWriteHost(selected)')
-    expect(script).toContain(JSON.stringify(pwSceneChromeZCss()))
+    expect(script).toContain(JSON.stringify(pwSceneUnifiedStackCss()))
+    expect(script).not.toContain('sceneNeedsEscapeChromeHost')
     expect(script).toContain('[data-pw-chrome-btn][data-pw-scene=\\"4\\"]')
     expect(script).toContain(`z-index:${pwSceneZ(4)}!important`)
     expect(script).toContain("place === 'canvas'")

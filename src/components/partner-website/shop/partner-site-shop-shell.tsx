@@ -628,7 +628,7 @@ function PartnerSiteShopShellInner({
         ) : null
       ) : (
       <>
-      <footer className="pw-shop-footer" data-pw-region={PW_REGION.footer}>
+      <footer className="pw-shop-footer" data-pw-region={PW_REGION.footer} data-pw-bg-role="footer" data-pw-token="footer" data-pw-footer="full">
         <div className="pw-shop-footer-inner">
           <div className="pw-shop-footer-brand">
             {logoUrl ? (

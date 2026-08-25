@@ -126,7 +126,7 @@ export const PW_CAP = {
 
 export type PwCapKind = (typeof PW_CAP)[keyof typeof PW_CAP]
 
-/** Token màu — khớp `--pw-*` trong themeCssVarMap (trừ --pw-footer). */
+/** Token màu — khớp `--pw-*` trong themeCssVarMap. */
 export const PW_TOKEN = {
   primary: 'primary',
   accent: 'accent',
@@ -137,6 +137,7 @@ export const PW_TOKEN = {
   muted: 'muted',
   surface: 'surface',
   border: 'border',
+  footer: 'footer',
 } as const
 
 export type PwTokenKind = (typeof PW_TOKEN)[keyof typeof PW_TOKEN]
@@ -151,6 +152,7 @@ export const PW_TOKEN_CSS_VAR: Record<PwTokenKind, string> = {
   muted: '--pw-muted',
   surface: '--pw-surface',
   border: '--pw-border',
+  footer: '--pw-footer',
 }
 
 /** Ô nội dung đã chốt trên home fashion — `{slot}` hoặc `{slot}:{index}`. */

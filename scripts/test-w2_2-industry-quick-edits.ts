@@ -4,7 +4,6 @@
  */
 import assert from 'node:assert/strict'
 import { getPartnerWebsiteCopy } from '../src/lib/i18n/partner-website-copy'
-import { defaultPartnerCapabilities } from '../src/lib/partner-website/partner-capabilities'
 import { getPartnerWebsiteEditSuggestions } from '../src/lib/partner-website/partner-website-quick-edits'
 
 function main() {
@@ -14,7 +13,6 @@ function main() {
     locale: 'vi',
     t,
     industryKey: 'fashion',
-    capabilities: defaultPartnerCapabilities('fashion'),
     phase: 'built',
   })
   assert.ok(fashion.length >= 4, 'fashion phải có vài gợi ý')
@@ -31,7 +29,6 @@ function main() {
     locale: 'vi',
     t,
     industryKey: 'hotel',
-    capabilities: defaultPartnerCapabilities('hotel'),
     phase: 'built',
   })
   assert.ok(
@@ -43,18 +40,15 @@ function main() {
     `hotel không được dính fashion/cam: ${hotel.join(' | ')}`
   )
 
-  const hotelNoFaq = defaultPartnerCapabilities('hotel')
-  hotelNoFaq.website.faq = false
   const hotelChips = getPartnerWebsiteEditSuggestions({
     locale: 'en',
     t: getPartnerWebsiteCopy('en'),
     industryKey: 'hotel',
-    capabilities: hotelNoFaq,
     phase: 'other',
   })
   assert.ok(
-    !hotelChips.some((s) => /faq/i.test(s)),
-    'tắt capability faq → không hiện chip FAQ'
+    hotelChips.some((s) => /faq/i.test(s)),
+    'FAQ luôn gợi ý — Sửa nhanh thêm được thì dùng được'
   )
 
   console.log('OK — W2.2 industry quick-edits')

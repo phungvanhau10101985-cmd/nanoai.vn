@@ -4,6 +4,7 @@ import { resetChromeCountBadges } from '@/lib/partner-website/shop/chrome-count-
 import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual-editor/strip-empty-logo-placeholders'
 import { pinChromeIconBadges } from '@/lib/partner-website/shop/pin-chrome-icon-badges'
 import { releaseStickHeaderPins } from '@/lib/partner-website/shop/stick-header-elements'
+import { prepareVisualDomForStore } from '@/lib/partner-website/shop/stay-scroll-elements'
 import { stripPartnerInfoPageSeoCoachFromHtml } from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
 import {
   ensureVisualHtmlLiveReady,
@@ -54,7 +55,7 @@ function stripEditorAndRuntimeNodes(clone: Element) {
   }
   clone
     .querySelectorAll(
-      '.nanoai-ve-active,.nanoai-ve-selected,.nanoai-ve-highlight,.nanoai-ve-hover,.nanoai-ve-dragging,.nanoai-ve-photo-edit,.nanoai-ve-chrome-dup'
+      '.nanoai-ve-active,.nanoai-ve-selected,.nanoai-ve-highlight,.nanoai-ve-hover,.nanoai-ve-dragging,.nanoai-ve-photo-edit,.nanoai-ve-paper-pan,.nanoai-ve-chrome-dup'
     )
     .forEach((el) => {
       el.classList.remove(
@@ -64,6 +65,7 @@ function stripEditorAndRuntimeNodes(clone: Element) {
         'nanoai-ve-hover',
         'nanoai-ve-dragging',
         'nanoai-ve-photo-edit',
+        'nanoai-ve-paper-pan',
         'nanoai-ve-chrome-dup'
       )
       if (!el.getAttribute('class')?.trim()) el.removeAttribute('class')
@@ -225,6 +227,7 @@ function documentOrigin(doc: Document): string {
 export function serializeVisualEditorHtml(doc: Document, variant?: VisualDeviceVariant): string {
   refreshCloneBoxesInDocument(doc)
   const clone = doc.documentElement.cloneNode(true) as HTMLElement
+  prepareVisualDomForStore(clone)
   stripEditorAndRuntimeNodes(clone)
   releaseStickHeaderPins(clone)
   pinChromeIconBadges(clone)

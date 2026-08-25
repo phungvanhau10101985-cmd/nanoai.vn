@@ -9,8 +9,19 @@ export const PW_BG_ROLE_ATTR = 'data-pw-bg-role'
 /** Nền khối gốc đã bỏ màu — giữ khối (logo/nút), không xóa DOM. */
 export const PW_BG_CLEARED_ATTR = 'data-pw-bg-cleared'
 export const PW_BG_CLEARED_CSS = [
-  `html [${PW_BG_CLEARED_ATTR}="1"]{background-color:transparent!important;box-shadow:none!important}`,
+  `html [${PW_BG_CLEARED_ATTR}="1"]{background-color:transparent!important;background-image:none!important;box-shadow:none!important}`,
   `html [${PW_BG_CLEARED_ATTR}="1"].pw-header,html [${PW_BG_CLEARED_ATTR}="1"].pw-shop-header,html [${PW_BG_CLEARED_ATTR}="1"].pw-topbar,html [${PW_BG_CLEARED_ATTR}="1"].pw-shop-topbar,html [${PW_BG_CLEARED_ATTR}="1"].pw-footer,html [${PW_BG_CLEARED_ATTR}="1"].pw-shop-footer,html [${PW_BG_CLEARED_ATTR}="1"][data-pw-region="header"],html [${PW_BG_CLEARED_ATTR}="1"][data-pw-region="topbar"],html [${PW_BG_CLEARED_ATTR}="1"][data-pw-region="footer"],html [${PW_BG_CLEARED_ATTR}="1"][data-pw-region="nav"]{background:transparent!important;background-image:none!important;background-color:transparent!important;box-shadow:none!important}`,
+].join('')
+
+/** Ảnh nền cover — mọi khối nền (main / header / footer / Thêm nền). Sửa nhanh ghi; live đọc. */
+export const PW_PAPER_ATTR = 'data-pw-paper'
+export const PW_PAPER_SRC_ATTR = 'data-pw-paper-src'
+/** Trọng tâm ảnh nền 0–100. Live đọc CSS var; không khóa center. */
+export const PW_PAPER_POS_X_ATTR = 'data-pw-paper-pos-x'
+export const PW_PAPER_POS_Y_ATTR = 'data-pw-paper-pos-y'
+export const PW_PAPER_CSS = [
+  `html [${PW_PAPER_ATTR}="image"]{--pw-paper-pos-x:50%;--pw-paper-pos-y:50%;background-size:cover!important;background-position:var(--pw-paper-pos-x,50%) var(--pw-paper-pos-y,50%)!important;background-repeat:no-repeat!important}`,
+  `html [${PW_PAPER_ATTR}="white"]{background-image:none!important}`,
 ].join('')
 
 export const PW_BG_CANVAS_INDEX = 0
