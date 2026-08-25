@@ -1,5 +1,12 @@
 import { createHash } from 'node:crypto'
 import type { Database, Json } from '@/types/database.types'
+import {
+  SHOP_ITEM_TTL_SEC,
+  SHOP_LIST_TTL_SEC,
+  bumpInventoryCacheLater,
+  hashShopCachePayload,
+  withInventoryShopCache,
+} from '@/lib/cache/partner-shop-cache'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
@@ -503,6 +510,228 @@ const INVENTORY_PAGE_SELECT_LEGACY = `select
   mpi.updated_at
 from public.messaging_partner_inventory mpi`
 
+/** Storefront/listing — display columns only. Never pull embedding vectors. */
+const INVENTORY_SHOP_SELECT_WITH_PRODUCT_STUDIO = `select
+  mpi.id::text as id,
+  mpi.partner_id::text as partner_id,
+  mpi.sort_order,
+  mpi.sku,
+  coalesce(mpi.name, '') as name,
+  coalesce(mpi.description, '') as description,
+  coalesce(mpi.stock_note, '') as stock_note,
+  coalesce(mpi.stock_qty, 0) as stock_qty,
+  coalesce(mpi.price_hint, '') as price_hint,
+  coalesce(mpi.image_url, '') as image_url,
+  coalesce(mpi.product_url, '') as product_url,
+  coalesce(mpi.product_video_url, '') as product_video_url,
+  coalesce(mpi.consult_note, '') as consult_note,
+  coalesce(mpi.remarketing_id, '') as remarketing_id,
+  coalesce(mpi.material_note, '') as material_note,
+  coalesce(mpi.material_detail_image_url, '') as material_detail_image_url,
+  coalesce(mpi.real_use_image_url, '') as real_use_image_url,
+  coalesce(mpi.real_use_image_url_2, '') as real_use_image_url_2,
+  coalesce(mpi.is_active, true) as is_active,
+  mpi.price_amount,
+  coalesce(mpi.price_currency, 'VND') as price_currency,
+  mpi.sale_price_amount,
+  mpi.sale_starts_at,
+  mpi.sale_ends_at,
+  null::jsonb as image_embedding_json,
+  null::text as image_embedding_vec,
+  null::text as image_embedding_model,
+  null::int as image_embedding_dims,
+  null::text as image_embedding_fingerprint,
+  null::timestamptz as image_embedding_updated_at,
+  null::text as image_embedding_error,
+  null::jsonb as text_embedding_json,
+  null::text as text_embedding_vec,
+  null::text as text_embedding_model,
+  null::int as text_embedding_dims,
+  null::text as text_embedding_fingerprint,
+  null::timestamptz as text_embedding_updated_at,
+  null::text as text_embedding_error,
+  null::text as vision_catalog_checksum,
+  null::timestamptz as vision_catalog_synced_at,
+  false as vision_catalog_excluded,
+  null::text as consult_link_opening_text,
+  null::text as consult_link_opening_input_fingerprint,
+  mpi.colors_json,
+  mpi.sizes_json,
+  mpi.gallery_urls,
+  mpi.detail_image_urls,
+  mpi.product_studio_meta,
+  mpi.origin,
+  mpi.product_studio_job_id::text as product_studio_job_id,
+  mpi.created_at,
+  mpi.updated_at
+from public.messaging_partner_inventory mpi`
+
+const INVENTORY_SHOP_SELECT = `select
+  mpi.id::text as id,
+  mpi.partner_id::text as partner_id,
+  mpi.sort_order,
+  mpi.sku,
+  coalesce(mpi.name, '') as name,
+  coalesce(mpi.description, '') as description,
+  coalesce(mpi.stock_note, '') as stock_note,
+  coalesce(mpi.stock_qty, 0) as stock_qty,
+  coalesce(mpi.price_hint, '') as price_hint,
+  coalesce(mpi.image_url, '') as image_url,
+  coalesce(mpi.product_url, '') as product_url,
+  coalesce(mpi.product_video_url, '') as product_video_url,
+  coalesce(mpi.consult_note, '') as consult_note,
+  coalesce(mpi.remarketing_id, '') as remarketing_id,
+  coalesce(mpi.material_note, '') as material_note,
+  coalesce(mpi.material_detail_image_url, '') as material_detail_image_url,
+  coalesce(mpi.real_use_image_url, '') as real_use_image_url,
+  coalesce(mpi.real_use_image_url_2, '') as real_use_image_url_2,
+  coalesce(mpi.is_active, true) as is_active,
+  mpi.price_amount,
+  coalesce(mpi.price_currency, 'VND') as price_currency,
+  mpi.sale_price_amount,
+  mpi.sale_starts_at,
+  mpi.sale_ends_at,
+  null::jsonb as image_embedding_json,
+  null::text as image_embedding_vec,
+  null::text as image_embedding_model,
+  null::int as image_embedding_dims,
+  null::text as image_embedding_fingerprint,
+  null::timestamptz as image_embedding_updated_at,
+  null::text as image_embedding_error,
+  null::jsonb as text_embedding_json,
+  null::text as text_embedding_vec,
+  null::text as text_embedding_model,
+  null::int as text_embedding_dims,
+  null::text as text_embedding_fingerprint,
+  null::timestamptz as text_embedding_updated_at,
+  null::text as text_embedding_error,
+  null::text as vision_catalog_checksum,
+  null::timestamptz as vision_catalog_synced_at,
+  false as vision_catalog_excluded,
+  null::text as consult_link_opening_text,
+  null::text as consult_link_opening_input_fingerprint,
+  mpi.created_at,
+  mpi.updated_at
+from public.messaging_partner_inventory mpi`
+
+const INVENTORY_SHOP_SELECT_PRE_PRICE_AMOUNT = `select
+  mpi.id::text as id,
+  mpi.partner_id::text as partner_id,
+  mpi.sort_order,
+  mpi.sku,
+  coalesce(mpi.name, '') as name,
+  coalesce(mpi.description, '') as description,
+  coalesce(mpi.stock_note, '') as stock_note,
+  coalesce(mpi.stock_qty, 0) as stock_qty,
+  coalesce(mpi.price_hint, '') as price_hint,
+  coalesce(mpi.image_url, '') as image_url,
+  coalesce(mpi.product_url, '') as product_url,
+  coalesce(mpi.product_video_url, '') as product_video_url,
+  coalesce(mpi.consult_note, '') as consult_note,
+  coalesce(mpi.remarketing_id, '') as remarketing_id,
+  coalesce(mpi.material_note, '') as material_note,
+  coalesce(mpi.material_detail_image_url, '') as material_detail_image_url,
+  coalesce(mpi.real_use_image_url, '') as real_use_image_url,
+  coalesce(mpi.real_use_image_url_2, '') as real_use_image_url_2,
+  coalesce(mpi.is_active, true) as is_active,
+  null::numeric as price_amount,
+  'VND'::text as price_currency,
+  null::numeric as sale_price_amount,
+  null::timestamptz as sale_starts_at,
+  null::timestamptz as sale_ends_at,
+  null::jsonb as image_embedding_json,
+  null::text as image_embedding_vec,
+  null::text as image_embedding_model,
+  null::int as image_embedding_dims,
+  null::text as image_embedding_fingerprint,
+  null::timestamptz as image_embedding_updated_at,
+  null::text as image_embedding_error,
+  null::jsonb as text_embedding_json,
+  null::text as text_embedding_vec,
+  null::text as text_embedding_model,
+  null::int as text_embedding_dims,
+  null::text as text_embedding_fingerprint,
+  null::timestamptz as text_embedding_updated_at,
+  null::text as text_embedding_error,
+  null::text as vision_catalog_checksum,
+  null::timestamptz as vision_catalog_synced_at,
+  false as vision_catalog_excluded,
+  null::text as consult_link_opening_text,
+  null::text as consult_link_opening_input_fingerprint,
+  mpi.created_at,
+  mpi.updated_at
+from public.messaging_partner_inventory mpi`
+
+const INVENTORY_SHOP_SELECT_LEGACY = `select
+  mpi.id::text as id,
+  mpi.partner_id::text as partner_id,
+  mpi.sort_order,
+  mpi.sku,
+  coalesce(mpi.name, '') as name,
+  coalesce(mpi.description, '') as description,
+  coalesce(mpi.stock_note, '') as stock_note,
+  0 as stock_qty,
+  coalesce(mpi.price_hint, '') as price_hint,
+  coalesce(mpi.image_url, '') as image_url,
+  coalesce(mpi.product_url, '') as product_url,
+  coalesce(mpi.product_video_url, '') as product_video_url,
+  coalesce(mpi.consult_note, '') as consult_note,
+  ''::text as remarketing_id,
+  coalesce(mpi.material_note, '') as material_note,
+  coalesce(mpi.material_detail_image_url, '') as material_detail_image_url,
+  coalesce(mpi.real_use_image_url, '') as real_use_image_url,
+  coalesce(mpi.real_use_image_url_2, '') as real_use_image_url_2,
+  coalesce(mpi.is_active, true) as is_active,
+  null::numeric as price_amount,
+  'VND'::text as price_currency,
+  null::numeric as sale_price_amount,
+  null::timestamptz as sale_starts_at,
+  null::timestamptz as sale_ends_at,
+  null::jsonb as image_embedding_json,
+  null::text as image_embedding_vec,
+  null::text as image_embedding_model,
+  null::int as image_embedding_dims,
+  null::text as image_embedding_fingerprint,
+  null::timestamptz as image_embedding_updated_at,
+  null::text as image_embedding_error,
+  null::jsonb as text_embedding_json,
+  null::text as text_embedding_vec,
+  null::text as text_embedding_model,
+  null::int as text_embedding_dims,
+  null::text as text_embedding_fingerprint,
+  null::timestamptz as text_embedding_updated_at,
+  null::text as text_embedding_error,
+  null::text as vision_catalog_checksum,
+  null::timestamptz as vision_catalog_synced_at,
+  false as vision_catalog_excluded,
+  null::text as consult_link_opening_text,
+  null::text as consult_link_opening_input_fingerprint,
+  mpi.created_at,
+  mpi.updated_at
+from public.messaging_partner_inventory mpi`
+
+async function runInventoryShopSelectWithFallback(
+  sqlFromSelect: string,
+  params: unknown[]
+): Promise<PgInventoryRaw[]> {
+  try {
+    return await pgQuery<PgInventoryRaw>(`${INVENTORY_SHOP_SELECT_WITH_PRODUCT_STUDIO}\n${sqlFromSelect}`, params)
+  } catch (e0) {
+    if (!isMissingProductStudioColumnError(e0)) throw e0
+  }
+  try {
+    return await pgQuery<PgInventoryRaw>(`${INVENTORY_SHOP_SELECT}\n${sqlFromSelect}`, params)
+  } catch (e) {
+    if (isMissingPriceAmountColumnError(e)) {
+      return await pgQuery<PgInventoryRaw>(`${INVENTORY_SHOP_SELECT_PRE_PRICE_AMOUNT}\n${sqlFromSelect}`, params)
+    }
+    if (isMissingRemarketingIdColumnError(e) || isMissingInventoryStockQtyColumnError(e)) {
+      return await pgQuery<PgInventoryRaw>(`${INVENTORY_SHOP_SELECT_LEGACY}\n${sqlFromSelect}`, params)
+    }
+    throw e
+  }
+}
+
 async function runInventorySelectWithStockQtyFallback(
   sqlFromSelect: string,
   params: unknown[]
@@ -578,6 +807,32 @@ export async function fetchPartnerInventoryPageByCategoryFromPg(
   const off = Math.max(0, Math.floor(query.offset))
   const lim = Math.max(1, Math.min(96, Math.floor(query.limit)))
   const categoryId = query.categoryId.trim()
+  const cached = await withInventoryShopCache({
+    partnerId,
+    kind: 'cat',
+    suffix: `${categoryId}:${hashShopCachePayload({
+      off,
+      lim,
+      sort: query.sort ?? 'newest',
+      minPrice: query.minPrice ?? null,
+      maxPrice: query.maxPrice ?? null,
+      size: query.size ?? '',
+      color: query.color ?? '',
+      material: query.material ?? '',
+    })}`,
+    ttlSec: SHOP_LIST_TTL_SEC,
+    load: () => fetchPartnerInventoryPageByCategoryFromPgUncached(partnerId, query),
+  })
+  return cached
+}
+
+async function fetchPartnerInventoryPageByCategoryFromPgUncached(
+  partnerId: string,
+  query: PartnerCategoryInventoryQuery
+): Promise<{ rows: MessagingPartnerInventoryRow[]; count: number } | null> {
+  const off = Math.max(0, Math.floor(query.offset))
+  const lim = Math.max(1, Math.min(96, Math.floor(query.limit)))
+  const categoryId = query.categoryId.trim()
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId)) {
     return { rows: [], count: 0 }
   }
@@ -633,7 +888,7 @@ export async function fetchPartnerInventoryPageByCategoryFromPg(
     )
     const limitIdx = params.length + 1
     const offsetIdx = params.length + 2
-    const rows = await runInventorySelectWithStockQtyFallback(
+    const rows = await runInventoryShopSelectWithFallback(
       `where ${where}
        order by ${orderBy}
        limit $${limitIdx} offset $${offsetIdx}`,
@@ -805,6 +1060,29 @@ export async function fetchPartnerInventoryShopPageFromPg(
   if (!isPgConfigured()) return null
   const off = Math.max(0, Math.floor(query.offset))
   const lim = Math.max(1, Math.min(48, Math.floor(query.limit)))
+  return withInventoryShopCache({
+    partnerId,
+    kind: 'shop',
+    suffix: hashShopCachePayload({
+      off,
+      lim,
+      q: query.q ?? '',
+      collection: query.collection ?? '',
+      sale: Boolean(query.sale),
+      ids: query.ids ?? [],
+      sort: query.sort ?? 'default',
+    }),
+    ttlSec: SHOP_LIST_TTL_SEC,
+    load: () => fetchPartnerInventoryShopPageFromPgUncached(partnerId, query),
+  })
+}
+
+async function fetchPartnerInventoryShopPageFromPgUncached(
+  partnerId: string,
+  query: PartnerInventoryShopListQuery
+): Promise<{ rows: MessagingPartnerInventoryRow[]; count: number } | null> {
+  const off = Math.max(0, Math.floor(query.offset))
+  const lim = Math.max(1, Math.min(48, Math.floor(query.limit)))
   const q = String(query.q ?? '').trim().slice(0, 80)
   const collection = String(query.collection ?? '').trim().slice(0, 80)
   const ids = (query.ids ?? [])
@@ -863,7 +1141,7 @@ export async function fetchPartnerInventoryShopPageFromPg(
 
     const limitIdx = selectParams.length + 1
     const offsetIdx = selectParams.length + 2
-    const rows = await runInventorySelectWithStockQtyFallback(
+    const rows = await runInventoryShopSelectWithFallback(
       `where ${where}
        order by ${orderBy}
        limit $${limitIdx} offset $${offsetIdx}`,
@@ -1182,18 +1460,26 @@ export async function fetchPartnerInventoryRowByIdForPartnerFromPg(
   inventoryId: string
 ): Promise<MessagingPartnerInventoryRow | null> {
   if (!isPgConfigured()) return null
-  try {
-    const rows = await runInventorySelectWithStockQtyFallback(
-      `where mpi.partner_id = $1::uuid and mpi.id = $2::uuid
-       limit 1`,
-      [partnerId, inventoryId]
-    )
-    const row = rows[0] ?? null
-    return row ? mapPgInventoryRow(row) : null
-  } catch (e) {
-    console.warn('[fetchPartnerInventoryRowByIdForPartnerFromPg]', e)
-    return null
-  }
+  return withInventoryShopCache({
+    partnerId,
+    kind: 'item',
+    suffix: inventoryId.trim(),
+    ttlSec: SHOP_ITEM_TTL_SEC,
+    load: async () => {
+      try {
+        const rows = await runInventoryShopSelectWithFallback(
+          `where mpi.partner_id = $1::uuid and mpi.id = $2::uuid
+           limit 1`,
+          [partnerId, inventoryId]
+        )
+        const row = rows[0] ?? null
+        return row ? mapPgInventoryRow(row) : null
+      } catch (e) {
+        console.warn('[fetchPartnerInventoryRowByIdForPartnerFromPg]', e)
+        return null
+      }
+    },
+  })
 }
 
 /** Resolve `/products/{name-slug}-{uuid8}` via id text prefix (first 8 hex of UUID). */
@@ -1205,7 +1491,7 @@ export async function fetchPartnerInventoryRowByIdPrefixForPartnerFromPg(
   const prefix = idPrefix.trim().toLowerCase()
   if (!/^[0-9a-f]{8}$/.test(prefix)) return null
   try {
-    const rows = await runInventorySelectWithStockQtyFallback(
+    const rows = await runInventoryShopSelectWithFallback(
       `where mpi.partner_id = $1::uuid
          and mpi.id::text like $2
        order by mpi.updated_at desc nulls last
@@ -1577,17 +1863,25 @@ export async function fetchPartnerInventoryRowsByIdsInOrderFromPg(
   if (!isPgConfigured() || ids.length === 0) return null
   const clean = ids.map((x) => x.trim()).filter(Boolean)
   if (!clean.length) return null
-  try {
-    const rows = await runInventorySelectWithStockQtyFallback(
-      `where mpi.partner_id = $1::uuid and mpi.id = any($2::uuid[])
-       order by array_position($2::uuid[], mpi.id)`,
-      [partnerId, clean]
-    )
-    return rows.map(mapPgInventoryRow)
-  } catch (e) {
-    console.warn('[fetchPartnerInventoryRowsByIdsInOrderFromPg]', e)
-    return null
-  }
+  return withInventoryShopCache({
+    partnerId,
+    kind: 'shop',
+    suffix: `ids:${hashShopCachePayload(clean)}`,
+    ttlSec: SHOP_ITEM_TTL_SEC,
+    load: async () => {
+      try {
+        const rows = await runInventoryShopSelectWithFallback(
+          `where mpi.partner_id = $1::uuid and mpi.id = any($2::uuid[])
+           order by array_position($2::uuid[], mpi.id)`,
+          [partnerId, clean]
+        )
+        return rows.map(mapPgInventoryRow)
+      } catch (e) {
+        console.warn('[fetchPartnerInventoryRowsByIdsInOrderFromPg]', e)
+        return null
+      }
+    },
+  })
 }
 
 /**
@@ -1633,6 +1927,7 @@ export async function deletePartnerInventoryByIdsForPartnerFromPg(
        where partner_id = $1::uuid and id = any($2::uuid[])`,
       [partnerId, ids]
     )
+    bumpInventoryCacheLater(partnerId)
     return true
   } catch (e) {
     console.warn('[deletePartnerInventoryByIdsForPartnerFromPg]', e)
@@ -1694,6 +1989,9 @@ export async function insertPartnerInventoryChunkFromPg(
       ) values ${valuesSql.join(', ')}`,
       params
     )
+    for (const id of new Set(rows.map((r) => String(r.partner_id ?? '').trim()).filter(Boolean))) {
+      bumpInventoryCacheLater(id)
+    }
     return true
   } catch (e) {
     console.warn('[insertPartnerInventoryChunkFromPg]', e)
@@ -1747,6 +2045,9 @@ export async function upsertPartnerInventoryChunkFromPg(
       where public.messaging_partner_inventory.partner_id = excluded.partner_id`,
       params
     )
+    for (const id of new Set(rows.map((r) => String(r.partner_id ?? '').trim()).filter(Boolean))) {
+      bumpInventoryCacheLater(id)
+    }
     return true
   } catch (e) {
     console.warn('[upsertPartnerInventoryChunkFromPg]', e)
@@ -2267,6 +2568,7 @@ export async function updatePartnerInventoryDashboardItemFromPg(
         fields.sale_ends_at || null,
       ]
     )
+    if ((r.rowCount ?? 0) > 0) bumpInventoryCacheLater(partnerId)
     return (r.rowCount ?? 0) > 0
   } catch (e) {
     console.warn('[updatePartnerInventoryDashboardItemFromPg]', e)
@@ -2331,6 +2633,7 @@ export async function insertPartnerInventoryDashboardItemFromPg(
         computePriceAmountForWrite(fields.price_hint),
       ]
     )
+    if (row?.id) bumpInventoryCacheLater(partnerId)
     return row?.id ?? null
   } catch (e) {
     console.warn('[insertPartnerInventoryDashboardItemFromPg]', e)
@@ -2405,6 +2708,7 @@ export async function insertPartnerInventoryFromProductStudioFromPg(
         now,
       ]
     )
+    if (row?.id) bumpInventoryCacheLater(partnerId)
     return row?.id ?? null
   } catch (e) {
     console.error('[insertPartnerInventoryFromProductStudioFromPg]', e)
@@ -2521,6 +2825,7 @@ export async function insertPartnerInventoryShopDemoFromPg(
         now,
       ]
     )
+    if (row?.id) bumpInventoryCacheLater(partnerId)
     return row?.id ?? null
   } catch (e) {
     console.error('[insertPartnerInventoryShopDemoFromPg]', e)

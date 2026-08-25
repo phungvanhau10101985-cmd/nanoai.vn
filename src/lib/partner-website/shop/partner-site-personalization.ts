@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 import {
-  fetchPartnerInventoryRowByIdForPartnerFromPg,
+  fetchPartnerInventoryRowsByIdsInOrderFromPg,
   type MessagingPartnerInventoryRow,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import {
@@ -137,10 +137,13 @@ async function loadProductsByIds(
   siteSlug: string,
   ids: string[]
 ): Promise<PartnerSitePersonalizationProduct[]> {
+  const clean = ids.filter((id) => UUID_RE.test(id))
+  if (!clean.length) return []
+  const rows = (await fetchPartnerInventoryRowsByIdsInOrderFromPg(partnerId, clean)) ?? []
+  const byId = new Map(rows.map((row) => [row.id, row]))
   const out: PartnerSitePersonalizationProduct[] = []
-  for (const id of ids) {
-    if (!UUID_RE.test(id)) continue
-    const row = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, id)
+  for (const id of clean) {
+    const row = byId.get(id)
     if (!row) continue
     const mapped = mapInventoryRowToPersonalizationProduct(siteSlug, row)
     if (mapped) out.push(mapped)

@@ -1,5 +1,6 @@
 import { headers } from 'next/headers'
 import { PartnerSitePublicClient } from '@/app/site/[slug]/partner-site-public-client'
+import { withSiteHtmlCache } from '@/lib/cache/partner-shop-cache'
 import {
   readPartnerCustomDomainFromHeaders,
   readPartnerVisualDeviceFromHeaders,
@@ -95,11 +96,12 @@ function withInfoPageAdvancedSeo(
   })
 }
 
-export function PartnerSiteVisualHtmlScreen({
+export async function PartnerSiteVisualHtmlScreen({
   site,
   html,
   device = null,
   infoSeo,
+  skipHtmlCache = false,
 }: {
   site: Pick<PartnerWebsitePublicRow, 'siteSlug' | 'title' | 'logoUrl' | 'locale' | 'chatPath' | 'theme'>
   html: string
@@ -111,18 +113,38 @@ export function PartnerSiteVisualHtmlScreen({
     dateModified?: string | null
     noIndex?: boolean
   }
+  /** PDP bind tồn kho sống — không cache HTML đã gắn 1 SP. */
+  skipHtmlCache?: boolean
 }) {
   const headerStore = headers()
   const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
-  const seoHtml = withInfoPageAdvancedSeo(site, html, infoSeo)
-  const publicHtml = preparePartnerVisualHtmlForPublic(seoHtml, {
-    siteSlug: site.siteSlug,
-    locale: site.locale,
-    onCustomDomain,
-    pageKey: infoSeo?.pageKey,
-    cmsSlug: infoSeo?.cmsSlug,
-    theme: site.theme,
-  })
+  const pageKey = String(infoSeo?.pageKey || infoSeo?.cmsSlug || 'page')
+  const deviceKey = device || 'auto'
+  const prepare = () => {
+    const seoHtml = withInfoPageAdvancedSeo(site, html, infoSeo)
+    return preparePartnerVisualHtmlForPublic(seoHtml, {
+      siteSlug: site.siteSlug,
+      locale: site.locale,
+      onCustomDomain,
+      pageKey: infoSeo?.pageKey,
+      cmsSlug: infoSeo?.cmsSlug,
+      theme: site.theme,
+    })
+  }
+  const publicHtml = skipHtmlCache
+    ? prepare()
+    : await withSiteHtmlCache({
+        slug: site.siteSlug,
+        pageKey,
+        device: deviceKey,
+        extra: [
+          onCustomDomain ? 'd1' : 'd0',
+          infoSeo?.datePublished || '',
+          infoSeo?.dateModified || '',
+          infoSeo?.noIndex ? '1' : '0',
+        ].join(':'),
+        load: async () => prepare(),
+      })
 
   return (
     <PartnerSitePublicClient
@@ -176,7 +198,14 @@ export function maybePartnerSiteVisualCategoryPage(
 ) {
   const html = resolvePartnerVisualHtmlForTarget(site, { kind: 'category', categoryPath }, device)
   if (html.length < 40) return null
-  return <PartnerSiteVisualHtmlScreen site={site} html={html} device={device} />
+  return (
+    <PartnerSiteVisualHtmlScreen
+      site={site}
+      html={html}
+      device={device}
+      infoSeo={{ cmsSlug: `c:${categoryPath}` }}
+    />
+  )
 }
 
 export function maybePartnerSiteVisualProductPage(
@@ -199,6 +228,7 @@ export function maybePartnerSiteVisualProductPage(
       html={bound}
       device={device}
       infoSeo={{ pageKey: 'product_detail' }}
+      skipHtmlCache
     />
   )
 }

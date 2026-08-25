@@ -1,3 +1,4 @@
+import { bumpInventoryCacheLater } from '@/lib/cache/partner-shop-cache'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import {
@@ -284,6 +285,7 @@ export async function assignInventoryToCategoryFromPg(
        on conflict (inventory_id, category_id) do update set is_primary = excluded.is_primary`,
       [inventoryId, categoryId, isPrimary]
     )
+    bumpInventoryCacheLater(partnerId)
     return true
   } catch (e) {
     console.warn('[assignInventoryToCategoryFromPg]', e, { partnerId })
@@ -297,11 +299,16 @@ export async function unassignInventoryFromCategoryFromPg(
 ): Promise<boolean> {
   if (!isPgConfigured()) return false
   try {
+    const owner = await pgQueryOne<{ partner_id: string }>(
+      `select partner_id::text from public.messaging_partner_inventory where id = $1::uuid limit 1`,
+      [inventoryId]
+    )
     await pgQuery(
       `delete from public.messaging_partner_inventory_categories
        where inventory_id = $1::uuid and category_id = $2::uuid`,
       [inventoryId, categoryId]
     )
+    bumpInventoryCacheLater(owner?.partner_id)
     return true
   } catch (e) {
     console.warn('[unassignInventoryFromCategoryFromPg]', e)
@@ -875,6 +882,7 @@ export async function setCategoryProductsFromPg(
     }
 
     await client.query('commit')
+    bumpInventoryCacheLater(partnerId)
     return true
   } catch (e) {
     await client.query('rollback').catch(() => undefined)

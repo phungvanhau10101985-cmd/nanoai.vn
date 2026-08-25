@@ -33,6 +33,7 @@ Sau khi clone repo lần đầu: **bắt buộc** có `.env.local` thì `npm run
 |------|------------|-----------|----------------|
 | App URL | `NEXT_PUBLIC_BASE_URL`, `APP_URL`, `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | `https://nanoai.vn` (domain thật) |
 | Postgres | `DATABASE_URL` | ✓ | ✓ |
+| Redis shop cache | `REDIS_URL` | Tuỳ (fail-open nếu trống) | Nên có `redis://127.0.0.1:6379` |
 | Auth + URL public | `NEXT_PUBLIC_LEGACY_HTTP_ORIGIN`, `LEGACY_HTTP_SERVICE_ROLE_KEY` (+ alias trong `.env.example`) | ✓ nếu session qua host đó | ✓ production nếu còn dùng |
 | Bunny Storage | `BUNNY_STORAGE_*`, `BUNNY_STORAGE_PUBLIC_BASE_URL` | ✓ cho upload media mới | ✓ |
 | Storage REST legacy (tùy) | `NEXT_PUBLIC_STORAGE_LEGACY_*`, `STORAGE_LEGACY_*` | Nếu backfill / URL cũ | Tuỳ |

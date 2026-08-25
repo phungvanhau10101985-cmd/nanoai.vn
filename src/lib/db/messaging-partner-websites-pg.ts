@@ -1,3 +1,4 @@
+import { bumpSiteCacheLater } from '@/lib/cache/partner-shop-cache'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
@@ -534,7 +535,9 @@ export async function upsertPartnerWebsitePg(input: {
           : null,
       ]
     )
-    return row ? mapRow(row) : null
+    const mapped = row ? mapRow(row) : null
+    if (mapped?.siteSlug) bumpSiteCacheLater(mapped.siteSlug)
+    return mapped
   } catch (e) {
     const err = e as { code?: string } | null
     // Concurrent studio init after reset: first INSERT wins. Postgres may raise
@@ -648,7 +651,9 @@ export async function updatePartnerWebsiteDraftPg(input: {
         input.logoUrl !== undefined,
       ]
     )
-    return row ? mapRow(row) : null
+    const mapped = row ? mapRow(row) : null
+    if (mapped?.siteSlug) bumpSiteCacheLater(mapped.siteSlug)
+    return mapped
   } catch (e) {
     console.error('[messaging-partner-websites-pg] updatePartnerWebsiteDraftPg', e)
     return null
@@ -683,7 +688,9 @@ export async function updatePartnerWebsiteNavFooterPg(input: {
                  created_at, updated_at`,
       [input.partnerId, JSON.stringify(input.navJson ?? null), JSON.stringify(input.footerJson ?? null)]
     )
-    return row ? mapRow(row) : null
+    const mapped = row ? mapRow(row) : null
+    if (mapped?.siteSlug) bumpSiteCacheLater(mapped.siteSlug)
+    return mapped
   } catch (e) {
     console.error('[messaging-partner-websites-pg] updatePartnerWebsiteNavFooterPg', e)
     return null
@@ -711,7 +718,9 @@ export async function setPartnerWebsitePublishedPg(input: {
                  created_at, updated_at`,
       [input.partnerId, input.isPublished]
     )
-    return row ? mapRow(row) : null
+    const mapped = row ? mapRow(row) : null
+    if (mapped?.siteSlug) bumpSiteCacheLater(mapped.siteSlug)
+    return mapped
   } catch (e) {
     console.error('[messaging-partner-websites-pg] setPartnerWebsitePublishedPg', e)
     return null
