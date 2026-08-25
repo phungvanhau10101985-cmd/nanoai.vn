@@ -9,6 +9,7 @@ import { insertMessagingPartnerImageEmbedUsageFromPg } from '@/lib/db/messaging-
 import { isPgConfigured } from '@/lib/db/pool'
 import { fetchRemoteImageForCatalog, sniffImageContentType } from '@/lib/fetch-image-1688'
 import type { Database } from '@/types/database.types'
+import { emptyInventoryCatalogRowFields } from '@/lib/messaging/partner-inventory-catalog-188'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 const DB_VECTOR_DIMS = 768
@@ -118,6 +119,7 @@ function rowAsEmbeddingComparable(
     product_studio_meta: null,
     origin: null,
     product_studio_job_id: null,
+    ...emptyInventoryCatalogRowFields(),
     created_at: '',
     updated_at: '',
   }

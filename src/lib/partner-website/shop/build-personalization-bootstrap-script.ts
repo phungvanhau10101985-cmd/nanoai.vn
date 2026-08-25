@@ -1,4 +1,5 @@
 import type { WebLocale } from '@/lib/i18n/config'
+import { PW_SHOP_CARD_IMG_JS } from '@/lib/partner-website/shop/inventory-shop-detail'
 
 const EMPTY: Record<WebLocale, string> = {
   vi: 'Chưa có sản phẩm phù hợp.',
@@ -109,11 +110,12 @@ function applyHeroVariant(){
   if(hit.ctaText){var btn=hero.querySelector('.pw-btn');if(btn)btn.textContent=hit.ctaText;}
   if(hit.backgroundImage){hero.style.backgroundImage="linear-gradient(rgba(0,0,0,.45),rgba(0,0,0,.45)),url('"+hit.backgroundImage+"')";}
 }
+${PW_SHOP_CARD_IMG_JS}
 function renderCard(p,cta,badge){
   var href=p.detail_path||p.product_url||'#';
   var name=(p.name||'').replace(/"/g,'&quot;');
   var id=(p.inventory_id||'').replace(/"/g,'');
-  var img=(p.image_url||'').replace(/"/g,'&quot;');
+  var img=shopImg(p).replace(/"/g,'&quot;');
   var mark=badge?'<span class="pw-for-you-badge">'+COPY.forYou+'</span>':'';
   var cart=id
     ? '<button type="button" class="pw-btn pw-btn-cart" data-pw-el="card-cart" data-pw-add-cart data-inventory-id="'+id+'">'+COPY.addToCart+'</button>'

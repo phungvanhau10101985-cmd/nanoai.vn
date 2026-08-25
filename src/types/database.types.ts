@@ -1007,6 +1007,33 @@ export interface Database {
           product_studio_meta: Json | null
           origin: string | null
           product_studio_job_id: string | null
+          catalog_json: Json | null
+          brand_name: string | null
+          source_origin: string | null
+          chinese_name: string | null
+          deposit_required: boolean
+          category_l1: string | null
+          category_l2: string | null
+          category_l3: string | null
+          likes_count: number
+          purchases_count: number
+          reviews_count: number
+          questions_count: number
+          rating_score: number
+          catalog_slug: string | null
+          style: string | null
+          color_summary: string | null
+          occasion: string | null
+          weight: string | null
+          features_json: string[] | null
+          product_info_json: Json | null
+          source_shop_name: string | null
+          source_shop_id: string | null
+          source_shop_name_chinese: string | null
+          price_low_hint: string | null
+          price_high_hint: string | null
+          rating_group_id: number | null
+          question_group_id: number | null
           created_at: string
           updated_at: string
         }
@@ -1061,6 +1088,33 @@ export interface Database {
           product_studio_meta?: Json | null
           origin?: string | null
           product_studio_job_id?: string | null
+          catalog_json?: Json | null
+          brand_name?: string | null
+          source_origin?: string | null
+          chinese_name?: string | null
+          deposit_required?: boolean
+          category_l1?: string | null
+          category_l2?: string | null
+          category_l3?: string | null
+          likes_count?: number
+          purchases_count?: number
+          reviews_count?: number
+          questions_count?: number
+          rating_score?: number
+          catalog_slug?: string | null
+          style?: string | null
+          color_summary?: string | null
+          occasion?: string | null
+          weight?: string | null
+          features_json?: string[] | null
+          product_info_json?: Json | null
+          source_shop_name?: string | null
+          source_shop_id?: string | null
+          source_shop_name_chinese?: string | null
+          price_low_hint?: string | null
+          price_high_hint?: string | null
+          rating_group_id?: number | null
+          question_group_id?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -1115,6 +1169,33 @@ export interface Database {
           product_studio_meta?: Json | null
           origin?: string | null
           product_studio_job_id?: string | null
+          catalog_json?: Json | null
+          brand_name?: string | null
+          source_origin?: string | null
+          chinese_name?: string | null
+          deposit_required?: boolean
+          category_l1?: string | null
+          category_l2?: string | null
+          category_l3?: string | null
+          likes_count?: number
+          purchases_count?: number
+          reviews_count?: number
+          questions_count?: number
+          rating_score?: number
+          catalog_slug?: string | null
+          style?: string | null
+          color_summary?: string | null
+          occasion?: string | null
+          weight?: string | null
+          features_json?: string[] | null
+          product_info_json?: Json | null
+          source_shop_name?: string | null
+          source_shop_id?: string | null
+          source_shop_name_chinese?: string | null
+          price_low_hint?: string | null
+          price_high_hint?: string | null
+          rating_group_id?: number | null
+          question_group_id?: number | null
           created_at?: string
           updated_at?: string
         }

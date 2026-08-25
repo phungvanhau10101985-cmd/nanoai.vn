@@ -5,6 +5,7 @@ import {
   partnerSiteSearchImageApiPath,
   partnerSiteSearchTextApiPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { PW_SHOP_CARD_IMG_JS } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import { searchGlyphSvg } from '@/lib/partner-website/visual-editor/search-cluster-icons'
 
@@ -128,6 +129,7 @@ var PRODUCTS_PATH=${JSON.stringify(productsPath)};
 var DETAIL_PREFIX=${JSON.stringify(productPathPrefix)};
 var COPY=${JSON.stringify(copy)};
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+${PW_SHOP_CARD_IMG_JS}
 function ensurePanel(){
   var el=document.getElementById('pw-search-results');
   if(el)return el;
@@ -156,7 +158,7 @@ function renderProducts(list){
   grid.innerHTML=list.map(function(p){
     var id=p.id||p.inventory_id||'';
     var href=p.detailPath||(id?DETAIL_PREFIX+encodeURIComponent(id):PRODUCTS_PATH);
-    var img=p.imageUrl||p.image_url||'';
+    var img=shopImg(p);
     var name=p.name||'';
     var price=p.priceHint||p.price_hint||'';
     return '<a href="'+esc(href)+'" class="pw-search-card" style="display:block;text-decoration:none;color:inherit;border-radius:12px;overflow:hidden;background:#f5f5f5">'

@@ -27,6 +27,23 @@ test('related factory stamps 188-style contract', () => {
   assert.doesNotMatch(html, /data-pw-el="card-buy"/)
 })
 
+test('related live cards proxy AliCDN so the photo is not hotlink-blocked', () => {
+  const html = buildRelatedProductsSectionHtml({
+    locale: 'vi',
+    siteSlug: 'demo-shop',
+    cards: [
+      {
+        id: '33333333-3333-4333-8333-333333333333',
+        name: 'Váy liền thân Nữ Thiết Kế Pháp',
+        imageUrl: 'https://img.alicdn.com/img/ibank/O1CN01aUuPLA2Dd3T8T15w4_!!991128631-0-cib.jpg',
+        priceHint: '1.520.000đ',
+      },
+    ],
+  })
+  assert.match(html, /\/api\/fetch-image\?url=/)
+  assert.doesNotMatch(html, /src="https:\/\/img\.alicdn\.com/)
+})
+
 test('related live cards keep a square media slot and do not leak name as img alt', () => {
   const html = buildRelatedProductsSectionHtml({
     locale: 'vi',

@@ -9,6 +9,7 @@ import {
   formatPartnerShopMoneyVnd,
   resolvePartnerEffectiveUnitPrice,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { isOutfitCatalogOpenTag } from '@/lib/partner-website/shop/outfit-products'
 import {
@@ -185,8 +186,8 @@ function replaceElInner(
 }
 
 function productImages(product: LivePdpBindProduct): string[] {
-  const gallery = (product.galleryImages ?? []).map((url) => String(url || '').trim()).filter(Boolean)
-  const hero = String(product.imageUrl || '').trim()
+  const gallery = (product.galleryImages ?? []).map((url) => shopCardDisplaySrc(url)).filter(Boolean)
+  const hero = shopCardDisplaySrc(product.imageUrl)
   const seen = new Set<string>()
   const out: string[] = []
   for (const url of [hero, ...gallery]) {
@@ -373,7 +374,7 @@ function colorVariantInner(colors: LivePdpBindColor[], locale: WebLocale): strin
   const pills = colors
     .map((c, i) => {
       const name = String(c.name || '').trim()
-      const img = String(c.img || '').trim()
+      const img = shopCardDisplaySrc(c.img)
       const face = img
         ? `<img src="${escAttr(img)}" alt="${escAttr(name)}" />`
         : escText(name)
@@ -732,7 +733,7 @@ function ensureMissingPdpSlots(
       out = insertBeforeMainClose(out, `<section class="pw-shop-product-detail" data-pw-region="${PW_REGION.pdpInfo}">${video}</section>`)
     }
   }
-  const material = String(product.materialImageUrl || '').trim()
+  const material = shopCardDisplaySrc(product.materialImageUrl)
   if (material && !hasSlot(out, 'material')) {
     const block = `<div data-pw-pdp-slot="material"><h2>${escText(t.pdpMaterialImagesTitle)}</h2><div class="pw-shop-detail-grid"><img src="${escAttr(material)}" alt="${escAttr(name)}" /></div></div>`
     if (/class=["'][^"']*\bpw-shop-product-detail\b/.test(out)) {
@@ -742,7 +743,7 @@ function ensureMissingPdpSlots(
       )
     }
   }
-  const realUse = (product.realUseImageUrls ?? []).map((u) => String(u || '').trim()).filter(Boolean)
+  const realUse = (product.realUseImageUrls ?? []).map((u) => shopCardDisplaySrc(u)).filter(Boolean)
   if (realUse.length && !hasSlot(out, 'real-use')) {
     const imgs = realUse
       .map((url) => `<img src="${escAttr(url)}" alt="${escAttr(name)}" />`)

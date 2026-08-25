@@ -7,6 +7,7 @@ import {
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { PW_SHOP_CARD_IMG_JS } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import { PW_RELATED_CSS } from '@/lib/partner-website/shop/related-products-css'
 
@@ -102,11 +103,12 @@ var PRODUCT_API_PREFIX=${JSON.stringify(productApiPrefix)};
 var CATEGORY_PREFIX=${JSON.stringify(categoryPrefix)};
 var COPY=${JSON.stringify(copy)};
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+${PW_SHOP_CARD_IMG_JS}
 function renderCard(p, opts){
   var id=String(p.id||'').trim();
   var href=p.detailPath||(id?DETAIL_PREFIX+encodeURIComponent(id):PRODUCTS_PATH);
   var name=esc(p.name||'Product');
-  var img=esc(p.imageUrl||'');
+  var img=esc(shopImg(p));
   var price=esc(p.priceHint||'');
   var badge=(opts&&opts.newBadge)?'<span class="pw-badge-new">NEW</span>':'';
   var favBtn='';
@@ -138,7 +140,7 @@ function renderRelatedCard(p){
   var id=String(p.id||'').trim();
   var href=p.detailPath||(id?DETAIL_PREFIX+encodeURIComponent(id):PRODUCTS_PATH);
   var name=esc(p.name||'Product');
-  var img=esc(p.imageUrl||'');
+  var img=esc(shopImg(p));
   var price=esc(p.priceHint||'');
   return '<article class="pw-product-card pw-related-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'"><a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="'+esc(href)+'">'+(img?'<img src="'+img+'" alt="" loading="lazy"/>':'')+'</a><div class="pw-product-card-body pw-related-card-body"><h4 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h4>'+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+'</div></article>';
 }

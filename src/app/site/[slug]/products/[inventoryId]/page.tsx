@@ -154,7 +154,7 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
     image: [product.imageUrl, ...product.galleryImages].filter(Boolean),
     url: productUrl,
     sku: product.sku || undefined,
-    brand: { '@type': 'Brand', name: shop.site.title },
+    brand: { '@type': 'Brand', name: (row.brand_name || '').trim() || shop.site.title },
     ...(effectivePrice != null
       ? {
           offers: {

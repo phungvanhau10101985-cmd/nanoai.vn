@@ -70,8 +70,13 @@ export function mapInventoryRowToPartnerCatalogProduct(
     product_video_url: inventoryShopProductVideoUrl(row),
     gallery_images: collectShopProductGalleryImages(row),
     detail_images: collectShopProductDetailImages(row),
-    sizes: parseInventorySizeJson(row.description ?? ''),
-    colors: parseColorVariantsJson(row.stock_note ?? ''),
+    sizes: Array.isArray(row.sizes_json) && row.sizes_json.length
+      ? row.sizes_json.map((x) => String(x ?? '').trim()).filter(Boolean)
+      : parseInventorySizeJson(row.description ?? ''),
+    colors:
+      Array.isArray(row.colors_json) && row.colors_json.length
+        ? row.colors_json.map((c) => ({ name: c.name, img: c.img }))
+        : parseColorVariantsJson(row.stock_note ?? ''),
     stock_qty: Math.max(0, Math.floor(Number(row.stock_qty ?? 0) || 0)),
     sort_order: Math.floor(Number(row.sort_order ?? 0) || 0),
     remarketing_id: (row.remarketing_id ?? '').trim() || null,

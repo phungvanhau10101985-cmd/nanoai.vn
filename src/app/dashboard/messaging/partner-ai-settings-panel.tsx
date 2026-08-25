@@ -2788,6 +2788,7 @@ function InventoryEditor({
           </div>
         </div>
       ) : null}
+      <p className="text-[11px] leading-relaxed text-muted-foreground">{t.inventoryExcel188Hint}</p>
       <p className="text-[11px] leading-relaxed text-muted-foreground">
         {t.inventoryOpenApiHint}{' '}
         <Link

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
@@ -78,14 +79,16 @@ export function PartnerSiteRelatedProducts({
           >
             {shown.map((p) => {
               const href = partnerSiteProductPath(siteSlug, p.id, { customDomain, name: p.name })
+              const img = shopCardDisplaySrc(p.imageUrl)
               return (
                 <article key={p.id} className="pw-product-card pw-related-card" data-pw-el={PW_EL.card}>
                   <Link className="pw-product-card-media" href={href} data-pw-el={PW_EL.cardMedia}>
-                    {p.imageUrl ? (
+                    {img ? (
                       <img
-                        src={p.imageUrl}
+                        src={img}
                         alt=""
                         loading="lazy"
+                        referrerPolicy="no-referrer"
                         onError={(event) => {
                           event.currentTarget.style.visibility = 'hidden'
                         }}

@@ -12,6 +12,7 @@ import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 import { PARTNER_PUBLIC_INVENTORY_SEARCH_MAX } from '@/lib/messaging/partner-public-search-limits'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
+import type { InventoryCatalog188Fields } from '@/lib/messaging/partner-inventory-catalog-188'
 
 /**
  * W4.10 — giá dạng số tự tính từ `price_hint` mỗi lần ghi (tạo/sửa/import). Dòng cũ chưa
@@ -97,6 +98,26 @@ function isMissingPriceAmountColumnError(e: unknown): boolean {
   return msg.includes('price_amount') && msg.includes('messaging_partner_inventory')
 }
 
+/** Catalog 188 — DB chưa áp migration `catalog_json` / brand / deposit… */
+function isMissingCatalog188ColumnError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const err = e as { code?: string; message?: string }
+  if (err.code !== '42703') return false
+  const msg = String(err.message ?? '').toLowerCase()
+  return (
+    msg.includes('messaging_partner_inventory') &&
+    (msg.includes('catalog_json') ||
+      msg.includes('brand_name') ||
+      msg.includes('source_origin') ||
+      msg.includes('deposit_required') ||
+      msg.includes('category_l1') ||
+      msg.includes('likes_count') ||
+      msg.includes('catalog_slug') ||
+      msg.includes('product_info_json') ||
+      msg.includes('features_json'))
+  )
+}
+
 /** PS.1 — DB chưa áp migration Product Studio (colors_json/sizes_json/gallery_urls/...). */
 function isMissingProductStudioColumnError(e: unknown): boolean {
   if (!e || typeof e !== 'object') return false
@@ -166,6 +187,33 @@ type PgInventoryRaw = {
   product_studio_meta?: unknown
   origin?: string | null
   product_studio_job_id?: string | null
+  catalog_json?: unknown
+  brand_name?: string | null
+  source_origin?: string | null
+  chinese_name?: string | null
+  deposit_required?: boolean | null
+  category_l1?: string | null
+  category_l2?: string | null
+  category_l3?: string | null
+  likes_count?: number | string | null
+  purchases_count?: number | string | null
+  reviews_count?: number | string | null
+  questions_count?: number | string | null
+  rating_score?: number | string | null
+  catalog_slug?: string | null
+  style?: string | null
+  color_summary?: string | null
+  occasion?: string | null
+  weight?: string | null
+  features_json?: unknown
+  product_info_json?: unknown
+  source_shop_name?: string | null
+  source_shop_id?: string | null
+  source_shop_name_chinese?: string | null
+  price_low_hint?: string | null
+  price_high_hint?: string | null
+  rating_group_id?: number | string | null
+  question_group_id?: number | string | null
   created_at: unknown
   updated_at: unknown
 }
@@ -189,11 +237,15 @@ function parseColorsJsonColumn(raw: unknown): { name: string; img: string }[] | 
   if (!arr.length) return null
   const out: { name: string; img: string }[] = []
   for (const item of arr) {
+    if (typeof item === 'string' && item.trim()) {
+      out.push({ name: item.trim(), img: '' })
+      continue
+    }
     if (!item || typeof item !== 'object') continue
     const o = item as Record<string, unknown>
-    const name = typeof o.name === 'string' ? o.name.trim() : ''
-    const img = typeof o.img === 'string' ? o.img.trim() : ''
-    if (name && img) out.push({ name, img })
+    const name = typeof o.name === 'string' ? o.name.trim() : typeof o.label === 'string' ? o.label.trim() : ''
+    const img = typeof o.img === 'string' ? o.img.trim() : typeof o.image_url === 'string' ? o.image_url.trim() : ''
+    if (name) out.push({ name, img })
   }
   return out.length ? out : null
 }
@@ -264,6 +316,42 @@ function mapPgInventoryRow(r: PgInventoryRaw): MessagingPartnerInventoryRow {
       r.product_studio_meta && typeof r.product_studio_meta === 'object' ? (r.product_studio_meta as Json) : null,
     origin: r.origin ?? null,
     product_studio_job_id: r.product_studio_job_id ?? null,
+    catalog_json:
+      r.catalog_json && typeof r.catalog_json === 'object' && !Array.isArray(r.catalog_json)
+        ? (r.catalog_json as Json)
+        : null,
+    brand_name: r.brand_name != null ? String(r.brand_name) : null,
+    source_origin: r.source_origin != null ? String(r.source_origin) : null,
+    chinese_name: r.chinese_name != null ? String(r.chinese_name) : null,
+    deposit_required: r.deposit_required === true,
+    category_l1: r.category_l1 != null ? String(r.category_l1) : null,
+    category_l2: r.category_l2 != null ? String(r.category_l2) : null,
+    category_l3: r.category_l3 != null ? String(r.category_l3) : null,
+    likes_count: num(r.likes_count, 0),
+    purchases_count: num(r.purchases_count, 0),
+    reviews_count: num(r.reviews_count, 0),
+    questions_count: num(r.questions_count, 0),
+    rating_score: num(r.rating_score, 0),
+    catalog_slug: r.catalog_slug != null ? String(r.catalog_slug) : null,
+    style: r.style != null ? String(r.style) : null,
+    color_summary: r.color_summary != null ? String(r.color_summary) : null,
+    occasion: r.occasion != null ? String(r.occasion) : null,
+    weight: r.weight != null ? String(r.weight) : null,
+    features_json: (() => {
+      const arr = parseStringArrayColumn(r.features_json)
+      return arr.length ? arr : null
+    })(),
+    product_info_json:
+      r.product_info_json && typeof r.product_info_json === 'object' && !Array.isArray(r.product_info_json)
+        ? (r.product_info_json as Json)
+        : null,
+    source_shop_name: r.source_shop_name != null ? String(r.source_shop_name) : null,
+    source_shop_id: r.source_shop_id != null ? String(r.source_shop_id) : null,
+    source_shop_name_chinese: r.source_shop_name_chinese != null ? String(r.source_shop_name_chinese) : null,
+    price_low_hint: r.price_low_hint != null ? String(r.price_low_hint) : null,
+    price_high_hint: r.price_high_hint != null ? String(r.price_high_hint) : null,
+    rating_group_id: numOrNull(r.rating_group_id),
+    question_group_id: numOrNull(r.question_group_id),
     created_at: tsIsoReq(r.created_at),
     updated_at: tsIsoReq(r.updated_at),
   }
@@ -321,6 +409,33 @@ const INVENTORY_PAGE_SELECT_WITH_PRODUCT_STUDIO = `select
   mpi.product_studio_meta,
   mpi.origin,
   mpi.product_studio_job_id::text as product_studio_job_id,
+  mpi.catalog_json,
+  mpi.brand_name,
+  mpi.source_origin,
+  mpi.chinese_name,
+  coalesce(mpi.deposit_required, false) as deposit_required,
+  mpi.category_l1,
+  mpi.category_l2,
+  mpi.category_l3,
+  coalesce(mpi.likes_count, 0) as likes_count,
+  coalesce(mpi.purchases_count, 0) as purchases_count,
+  coalesce(mpi.reviews_count, 0) as reviews_count,
+  coalesce(mpi.questions_count, 0) as questions_count,
+  coalesce(mpi.rating_score, 0) as rating_score,
+  mpi.catalog_slug,
+  mpi.style,
+  mpi.color_summary,
+  mpi.occasion,
+  mpi.weight,
+  mpi.features_json,
+  mpi.product_info_json,
+  mpi.source_shop_name,
+  mpi.source_shop_id,
+  mpi.source_shop_name_chinese,
+  mpi.price_low_hint,
+  mpi.price_high_hint,
+  mpi.rating_group_id,
+  mpi.question_group_id,
   mpi.created_at,
   mpi.updated_at
 from public.messaging_partner_inventory mpi`
@@ -562,6 +677,33 @@ const INVENTORY_SHOP_SELECT_WITH_PRODUCT_STUDIO = `select
   mpi.product_studio_meta,
   mpi.origin,
   mpi.product_studio_job_id::text as product_studio_job_id,
+  mpi.catalog_json,
+  mpi.brand_name,
+  mpi.source_origin,
+  mpi.chinese_name,
+  coalesce(mpi.deposit_required, false) as deposit_required,
+  mpi.category_l1,
+  mpi.category_l2,
+  mpi.category_l3,
+  coalesce(mpi.likes_count, 0) as likes_count,
+  coalesce(mpi.purchases_count, 0) as purchases_count,
+  coalesce(mpi.reviews_count, 0) as reviews_count,
+  coalesce(mpi.questions_count, 0) as questions_count,
+  coalesce(mpi.rating_score, 0) as rating_score,
+  mpi.catalog_slug,
+  mpi.style,
+  mpi.color_summary,
+  mpi.occasion,
+  mpi.weight,
+  mpi.features_json,
+  mpi.product_info_json,
+  mpi.source_shop_name,
+  mpi.source_shop_id,
+  mpi.source_shop_name_chinese,
+  mpi.price_low_hint,
+  mpi.price_high_hint,
+  mpi.rating_group_id,
+  mpi.question_group_id,
   mpi.created_at,
   mpi.updated_at
 from public.messaging_partner_inventory mpi`
@@ -710,6 +852,15 @@ const INVENTORY_SHOP_SELECT_LEGACY = `select
   mpi.updated_at
 from public.messaging_partner_inventory mpi`
 
+const INVENTORY_PAGE_SELECT_PRE_CATALOG = INVENTORY_PAGE_SELECT_WITH_PRODUCT_STUDIO.replace(
+  /\n  mpi\.catalog_json,[\s\S]*mpi\.question_group_id,/,
+  ''
+)
+const INVENTORY_SHOP_SELECT_PRE_CATALOG = INVENTORY_SHOP_SELECT_WITH_PRODUCT_STUDIO.replace(
+  /\n  mpi\.catalog_json,[\s\S]*mpi\.question_group_id,/,
+  ''
+)
+
 async function runInventoryShopSelectWithFallback(
   sqlFromSelect: string,
   params: unknown[]
@@ -717,7 +868,15 @@ async function runInventoryShopSelectWithFallback(
   try {
     return await pgQuery<PgInventoryRaw>(`${INVENTORY_SHOP_SELECT_WITH_PRODUCT_STUDIO}\n${sqlFromSelect}`, params)
   } catch (e0) {
-    if (!isMissingProductStudioColumnError(e0)) throw e0
+    if (isMissingCatalog188ColumnError(e0)) {
+      try {
+        return await pgQuery<PgInventoryRaw>(`${INVENTORY_SHOP_SELECT_PRE_CATALOG}\n${sqlFromSelect}`, params)
+      } catch (e1) {
+        if (!isMissingProductStudioColumnError(e1)) throw e1
+      }
+    } else if (!isMissingProductStudioColumnError(e0)) {
+      throw e0
+    }
   }
   try {
     return await pgQuery<PgInventoryRaw>(`${INVENTORY_SHOP_SELECT}\n${sqlFromSelect}`, params)
@@ -739,7 +898,15 @@ async function runInventorySelectWithStockQtyFallback(
   try {
     return await pgQuery<PgInventoryRaw>(`${INVENTORY_PAGE_SELECT_WITH_PRODUCT_STUDIO}\n${sqlFromSelect}`, params)
   } catch (e0) {
-    if (!isMissingProductStudioColumnError(e0)) throw e0
+    if (isMissingCatalog188ColumnError(e0)) {
+      try {
+        return await pgQuery<PgInventoryRaw>(`${INVENTORY_PAGE_SELECT_PRE_CATALOG}\n${sqlFromSelect}`, params)
+      } catch (e1) {
+        if (!isMissingProductStudioColumnError(e1)) throw e1
+      }
+    } else if (!isMissingProductStudioColumnError(e0)) {
+      throw e0
+    }
   }
   try {
     return await pgQuery<PgInventoryRaw>(`${INVENTORY_PAGE_SELECT}\n${sqlFromSelect}`, params)
@@ -2051,6 +2218,110 @@ export async function upsertPartnerInventoryChunkFromPg(
     return true
   } catch (e) {
     console.warn('[upsertPartnerInventoryChunkFromPg]', e)
+    return false
+  }
+}
+
+export type InventoryCatalogPatchRow = {
+  id: string
+  partnerId: string
+  catalog: InventoryCatalog188Fields
+  materialNote?: string
+}
+
+/** Ghi cột catalog 188 + sizes/colors/gallery có cấu trúc sau upsert core. */
+export async function applyPartnerInventoryCatalogPatchFromPg(
+  rows: InventoryCatalogPatchRow[]
+): Promise<boolean> {
+  if (!isPgConfigured() || rows.length === 0) return true
+  try {
+    for (const r of rows) {
+      await getPgPool().query(
+        `update public.messaging_partner_inventory set
+           catalog_json = $3::jsonb,
+           brand_name = $4,
+           source_origin = $5,
+           chinese_name = $6,
+           deposit_required = $7,
+           category_l1 = $8,
+           category_l2 = $9,
+           category_l3 = $10,
+           likes_count = $11,
+           purchases_count = $12,
+           reviews_count = $13,
+           questions_count = $14,
+           rating_score = $15,
+           catalog_slug = $16,
+           style = $17,
+           color_summary = $18,
+           occasion = $19,
+           weight = $20,
+           features_json = $21::jsonb,
+           product_info_json = $22::jsonb,
+           source_shop_name = $23,
+           source_shop_id = $24,
+           source_shop_name_chinese = $25,
+           price_low_hint = $26,
+           price_high_hint = $27,
+           rating_group_id = $28,
+           question_group_id = $29,
+           colors_json = $30::jsonb,
+           sizes_json = $31::jsonb,
+           gallery_urls = $32::jsonb,
+           detail_image_urls = $33::jsonb,
+           material_note = case
+             when coalesce(trim($34), '') = '' then material_note
+             else $34
+           end
+         where id = $1::uuid and partner_id = $2::uuid`,
+        [
+          r.id,
+          r.partnerId,
+          JSON.stringify(r.catalog.catalog_json),
+          r.catalog.brand_name || null,
+          r.catalog.source_origin || null,
+          r.catalog.chinese_name || null,
+          r.catalog.deposit_required === true,
+          r.catalog.category_l1 || null,
+          r.catalog.category_l2 || null,
+          r.catalog.category_l3 || null,
+          r.catalog.likes_count,
+          r.catalog.purchases_count,
+          r.catalog.reviews_count,
+          r.catalog.questions_count,
+          r.catalog.rating_score,
+          r.catalog.catalog_slug || null,
+          r.catalog.style || null,
+          r.catalog.color_summary || null,
+          r.catalog.occasion || null,
+          r.catalog.weight || null,
+          JSON.stringify(r.catalog.features_json ?? []),
+          r.catalog.product_info_json ? JSON.stringify(r.catalog.product_info_json) : null,
+          r.catalog.source_shop_name || null,
+          r.catalog.source_shop_id || null,
+          r.catalog.source_shop_name_chinese || null,
+          r.catalog.price_low_hint || null,
+          r.catalog.price_high_hint || null,
+          r.catalog.rating_group_id,
+          r.catalog.question_group_id,
+          JSON.stringify(r.catalog.colors ?? []),
+          JSON.stringify(r.catalog.sizes ?? []),
+          JSON.stringify(r.catalog.gallery_urls ?? []),
+          JSON.stringify(r.catalog.detail_image_urls ?? []),
+          (r.materialNote ?? r.catalog.material_note ?? '').trim(),
+        ]
+      )
+    }
+    for (const id of new Set(rows.map((r) => r.partnerId))) {
+      bumpInventoryCacheLater(id)
+    }
+    return true
+  } catch (e) {
+    if (isMissingCatalog188ColumnError(e) || isMissingProductStudioColumnError(e)) {
+      console.warn('[applyPartnerInventoryCatalogPatchFromPg] catalog columns missing — skip patch')
+      return true
+    }
+    console.warn('[applyPartnerInventoryCatalogPatchFromPg]', e)
     return false
   }
 }

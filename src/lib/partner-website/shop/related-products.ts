@@ -1,5 +1,6 @@
 import { escapeAttr, escapeHtml } from '@/lib/packaging/mockup-share-html'
 import type { WebLocale } from '@/lib/i18n/config'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
@@ -60,9 +61,9 @@ export function relatedCardHtml(
   const slug = String(opts?.siteSlug || '').trim()
   const href = slug && item.id ? escapeAttr(partnerSiteProductPath(slug, item.id, { name: item.name })) : '#'
   const price = String(item.priceHint || '').trim()
-  const imageUrl = String(item.imageUrl || '').trim()
+  const imageUrl = shopCardDisplaySrc(item.imageUrl)
   const media = imageUrl
-    ? `<img src="${escapeAttr(imageUrl)}" alt="" loading="lazy" decoding="async" />`
+    ? `<img src="${escapeAttr(imageUrl)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />`
     : ''
   return `<article class="pw-product-card pw-related-card" ${pwElAttr(PW_EL.card)} data-inventory-id="${escapeAttr(item.id)}">
   <a class="pw-product-card-media" href="${href}" ${pwElAttr(PW_EL.cardMedia)}>${media}</a>

@@ -1,11 +1,15 @@
 import { randomUUID } from 'node:crypto'
 import type { Database } from '@/types/database.types'
 import {
+  applyPartnerInventoryCatalogPatchFromPg,
   deletePartnerInventoryByIdsForPartnerFromPg,
   fetchPartnerInventoryFullListOrderedCreatedFromPg,
   insertPartnerInventoryChunkFromPg,
   upsertPartnerInventoryChunkFromPg,
+  type InventoryCatalogPatchRow,
 } from '@/lib/db/messaging-partner-inventory-pg'
+import { emptyInventoryCatalogRowFields } from '@/lib/messaging/partner-inventory-catalog-188'
+import { linkImportedInventoryToCatalogCategories } from '@/lib/messaging/partner-inventory-import-categories'
 import { isPgConfigured } from '@/lib/db/pool'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
 import type { InventoryExcelInsert } from '@/lib/messaging/partner-inventory-excel'
@@ -60,6 +64,18 @@ function indexExistingBySku(rows: InventoryRow[]) {
   const m = new Map<string, InventoryRow[]>()
   for (const r of rows) {
     const k = inventorySkuMatchKey(r.sku)
+    if (!k) continue
+    const arr = m.get(k) ?? []
+    arr.push(r)
+    m.set(k, arr)
+  }
+  return m
+}
+
+function indexExistingByRemarketing(rows: InventoryRow[]) {
+  const m = new Map<string, InventoryRow[]>()
+  for (const r of rows) {
+    const k = inventoryRemarketingMatchKey(r.remarketing_id)
     if (!k) continue
     const arr = m.get(k) ?? []
     arr.push(r)
@@ -172,6 +188,7 @@ function toInventoryRow(id: string, partnerId: string, base: InventoryUpsertBase
     product_studio_meta: null,
     origin: 'import',
     product_studio_job_id: null,
+    ...emptyInventoryCatalogRowFields(),
     created_at: createdAt,
     updated_at: base.updated_at,
   }
@@ -467,6 +484,9 @@ export async function upsertPartnerInventoryBatch(
 
   const skuResolvedId = new Map<string, string>()
   const nameNoSkuResolvedId = new Map<string, string>()
+  const remarketingResolvedId = new Map<string, string>()
+  const byRemarketing = indexExistingByRemarketing(resolvedExistingRows)
+  const catalogPatches = new Map<string, InventoryCatalogPatchRow>()
 
   let inserted = 0
   let updated = 0
@@ -495,15 +515,24 @@ export async function upsertPartnerInventoryBatch(
 
   for (const r of rows) {
     const skuKey = inventorySkuMatchKey(r.sku)
+    const rk = inventoryRemarketingMatchKey(r.remarketing_id)
     let targetId: string | null = null
 
-    if (skuKey) {
+    if (rk) {
+      targetId = remarketingResolvedId.get(rk) ?? null
+      if (!targetId) {
+        const first = byRemarketing.get(rk)?.[0]
+        if (first) targetId = first.id
+      }
+    }
+    if (!targetId && skuKey) {
       targetId = skuResolvedId.get(skuKey) ?? null
       if (!targetId) {
         const first = bySku.get(skuKey)?.[0]
         if (first) targetId = first.id
       }
-    } else {
+    }
+    if (!targetId && !rk) {
       const nk = inventoryNameMatchKey(r.name)
       targetId = nameNoSkuResolvedId.get(nk) ?? null
       if (!targetId) {
@@ -531,6 +560,8 @@ export async function upsertPartnerInventoryBatch(
         deleted += 1
         changedIds.add(targetId)
       }
+      if (rk) remarketingResolvedId.delete(rk)
+      catalogPatches.delete(targetId)
       if (skuKey) {
         skuResolvedId.delete(skuKey)
         dropFromSkuIndex(skuKey, targetId)
@@ -561,10 +592,14 @@ export async function upsertPartnerInventoryBatch(
 
     if (targetId) {
       const current = existingById.get(targetId)
-      if (current && sameInventoryData(current, base)) {
+      if (current && sameInventoryData(current, base) && !r.catalog) {
         // Dòng không đổi dữ liệu => không update DB, tránh trigger đồng bộ Vision không cần thiết.
+        if (rk) remarketingResolvedId.set(rk, targetId)
         if (skuKey) skuResolvedId.set(skuKey, targetId)
         else nameNoSkuResolvedId.set(inventoryNameMatchKey(r.name), targetId)
+        if (r.catalog) {
+          catalogPatches.set(targetId, { id: targetId, partnerId, catalog: r.catalog })
+        }
         continue
       }
       if (plannedInserts.has(targetId)) {
@@ -588,8 +623,12 @@ export async function upsertPartnerInventoryBatch(
         ...(current ?? toInventoryRow(targetId, partnerId, base, now)),
         ...base,
       })
+      if (rk) remarketingResolvedId.set(rk, targetId)
       if (skuKey) skuResolvedId.set(skuKey, targetId)
       else nameNoSkuResolvedId.set(inventoryNameMatchKey(r.name), targetId)
+      if (r.catalog) {
+        catalogPatches.set(targetId, { id: targetId, partnerId, catalog: r.catalog })
+      }
     } else {
       const newId = randomUUID()
       plannedInserts.set(newId, {
@@ -601,8 +640,12 @@ export async function upsertPartnerInventoryBatch(
       inserted += 1
       changedIds.add(newId)
       existingById.set(newId, toInventoryRow(newId, partnerId, base, now))
+      if (rk) remarketingResolvedId.set(rk, newId)
       if (skuKey) skuResolvedId.set(skuKey, newId)
       else nameNoSkuResolvedId.set(inventoryNameMatchKey(r.name), newId)
+      if (r.catalog) {
+        catalogPatches.set(newId, { id: newId, partnerId, catalog: r.catalog })
+      }
     }
   }
 
@@ -624,6 +667,25 @@ export async function upsertPartnerInventoryBatch(
     const ok = await insertPartnerInventoryChunkFromPg(rowsChunk)
     if (!ok) {
       return { ok: false, error: 'Inventory insert failed (Postgres).' }
+    }
+  }
+
+  const patches = Array.from(catalogPatches.values())
+  if (patches.length > 0) {
+    const patched = await applyPartnerInventoryCatalogPatchFromPg(patches)
+    if (!patched) {
+      return { ok: false, error: 'Inventory catalog update failed (Postgres).' }
+    }
+    for (const p of patches) {
+      if (p.catalog.category_l1?.trim()) {
+        await linkImportedInventoryToCatalogCategories({
+          partnerId,
+          inventoryId: p.id,
+          categoryL1: p.catalog.category_l1,
+          categoryL2: p.catalog.category_l2,
+          categoryL3: p.catalog.category_l3,
+        })
+      }
     }
   }
 

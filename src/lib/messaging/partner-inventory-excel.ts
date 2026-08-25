@@ -3,6 +3,28 @@ import type { Database } from '@/types/database.types'
 import { buildGuestConsultChatAbsoluteUrl } from '@/lib/messaging/build-guest-consult-chat-link'
 import { defaultPublicOrigin } from '@/lib/public-app-origin'
 import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
+import {
+  CATALOG_188_EXCEL_COLUMNS,
+  CATALOG_188_EXPORT_ONLY_COLUMNS,
+  CATALOG_188_EXPORT_ONLY_VI,
+  CATALOG_188_VI_HEADERS,
+  buildCatalog188Snapshot,
+  catalogFieldsFromLegacyVariants,
+  catalogFieldsFromSnapshot,
+  isCatalog188HeaderRow,
+  isCatalog188LabelRow,
+  jsonCell,
+  parseColorVariantsField,
+  parseDepositRequired188,
+  parseFeaturesField,
+  parseFloatCell,
+  parseIntCell,
+  parseListed188,
+  parseProductInfoField,
+  parseStringArrayField,
+  resolveCatalog188Column,
+  type InventoryCatalog188Fields,
+} from '@/lib/messaging/partner-inventory-catalog-188'
 
 export type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
@@ -57,15 +79,18 @@ export type InventoryExcelInsert = {
   consult_note: string
   remarketing_id: string
   is_active: boolean
-  /** true: xóa dòng kho khớp SKU/tên (không thêm mới). */
+  /** true: xóa dòng kho khớp SKU/tên/id (không thêm mới). */
   removeFromInventory: boolean
+  /** File Excel 41 cột 188 hoặc biến thể đã parse từ file cũ. */
+  catalog?: InventoryCatalog188Fields | null
+  catalogFormat?: 'legacy' | '188'
 }
 
 export type InventoryImportWarning = {
   row_number: number
   sku: string
   name: string
-  field: 'size_json' | 'color_json' | 'stock_qty' | 'price_hint'
+  field: 'size_json' | 'color_json' | 'stock_qty' | 'price_hint' | 'product_info'
   code: string
   raw_value: string
   normalized_value: string
@@ -305,27 +330,142 @@ function normalizeColorVariantsJsonLenient(raw: string): string {
   return out.length > 0 ? JSON.stringify(out.slice(0, 100)) : ''
 }
 
-export function buildInventoryTemplateBuffer(): Buffer {
-  const header = [...INVENTORY_EXCEL_HEADER_LABELS_VI]
-  /** Mỗi ô khớp đúng một cột tiêu đề (12 cột); không chèn thêm cột ẩn kẻo lệch cả file. */
-  const example = [
-    'AT-001',
-    'Ví dụ: Áo thun cotton',
+function catalog188ExampleRow(): (string | number)[] {
+  return [
+    'A746-DEMO-001',
+    'B0038',
+    '1688',
+    'Demo Brand',
+    'Áo thun cotton cổ tròn',
+    '<p>Áo thun cotton mềm, form regular.</p>',
+    199000,
+    '',
+    '',
+    '',
+    '',
+    888,
+    0,
     '["M","L","XL"]',
     '[{"name":"Đen","img":"https://cdn.example.com/images/ao-thun-den.jpg"},{"name":"Trắng","img":"https://cdn.example.com/images/ao-thun-trang.jpg"}]',
-    '120',
-    '199000',
-    'https://cdn.example.com/images/ao-thun-mau.jpg',
+    '["https://cdn.example.com/images/ao-thun-1.jpg"]',
+    '["https://cdn.example.com/images/ao-thun-detail.jpg"]',
     'https://shop.example.com/san-pham/ao-thun',
     '',
-    'Bảo hành đổi size trong 7 ngày',
+    'https://cdn.example.com/images/ao-thun-mau.jpg',
+    0,
+    0,
+    0,
+    0,
+    0,
+    120,
+    0,
+    'Thời trang nam',
+    'Áo',
+    'Áo thun',
+    'Cotton',
+    'Basic',
+    'Đen, Trắng',
+    'Hàng ngày',
+    'Mềm mại, Thoáng khí',
+    '180g',
     '',
-    '1',
+    '',
+    '',
+    '',
+    1,
   ]
-  const ws = XLSX.utils.aoa_to_sheet([header, example])
+}
+
+export function buildInventoryTemplateBuffer(): Buffer {
+  const en = [...CATALOG_188_EXCEL_COLUMNS]
+  const vi = CATALOG_188_EXCEL_COLUMNS.map((col) => CATALOG_188_VI_HEADERS[col])
+  const ws = XLSX.utils.aoa_to_sheet([en, vi, catalog188ExampleRow()])
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, SHEET_NAME)
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+}
+
+function inventoryRowToCatalog188Cells(
+  r: InventoryRow,
+  extras: { consultUrl: string }
+): (string | number)[] {
+  const snap = (r.catalog_json && typeof r.catalog_json === 'object' && !Array.isArray(r.catalog_json)
+    ? r.catalog_json
+    : null) as Record<string, unknown> | null
+  const sizes = Array.isArray(r.sizes_json)
+    ? r.sizes_json
+    : Array.isArray(snap?.sizes)
+      ? snap.sizes
+      : []
+  const colors = Array.isArray(r.colors_json)
+    ? r.colors_json
+    : Array.isArray(snap?.colors)
+      ? snap.colors
+      : []
+  const gallery = Array.isArray(r.gallery_urls) && r.gallery_urls.length
+    ? r.gallery_urls
+    : Array.isArray(snap?.images)
+      ? snap.images
+      : []
+  const detail = Array.isArray(r.detail_image_urls) && r.detail_image_urls.length
+    ? r.detail_image_urls
+    : Array.isArray(snap?.gallery)
+      ? snap.gallery
+      : []
+  const features = Array.isArray(r.features_json)
+    ? r.features_json.join(', ')
+    : Array.isArray(snap?.features)
+      ? (snap.features as unknown[]).map((x) => String(x)).join(', ')
+      : ''
+  const priceNum = r.price_amount != null && Number.isFinite(Number(r.price_amount))
+    ? Number(r.price_amount)
+    : parseFloatCell(String(r.price_hint ?? ''), 0)
+  const listed = r.is_active === false ? 0 : 1
+  return [
+    r.remarketing_id || String(snap?.product_id ?? ''),
+    r.sku ?? '',
+    r.source_origin || String(snap?.origin ?? ''),
+    r.brand_name || String(snap?.brand_name ?? ''),
+    r.name,
+    (r.description ?? '').startsWith('[') ? String(snap?.description ?? '') : r.description ?? '',
+    priceNum,
+    r.source_shop_name || '',
+    r.source_shop_id || '',
+    r.price_low_hint || '',
+    r.price_high_hint || '',
+    r.rating_group_id ?? Number(snap?.group_rating ?? 0) ?? 0,
+    r.question_group_id ?? Number(snap?.group_question ?? 0) ?? 0,
+    jsonCell(sizes),
+    jsonCell(colors),
+    jsonCell(gallery),
+    jsonCell(detail),
+    r.product_url ?? '',
+    r.product_video_url ?? '',
+    r.image_url ?? '',
+    r.likes_count ?? 0,
+    r.purchases_count ?? 0,
+    r.reviews_count ?? 0,
+    r.questions_count ?? 0,
+    r.rating_score ?? 0,
+    Number.isFinite(r.stock_qty) ? r.stock_qty : 0,
+    r.deposit_required ? 1 : 0,
+    r.category_l1 || '',
+    r.category_l2 || '',
+    r.category_l3 || '',
+    r.material_note || String(snap?.material ?? ''),
+    r.style || '',
+    r.color_summary || '',
+    r.occasion || '',
+    features,
+    r.weight || '',
+    r.product_info_json ? jsonCell(r.product_info_json) : jsonCell(snap?.product_info ?? ''),
+    r.chinese_name || '',
+    r.source_shop_name_chinese || '',
+    r.catalog_slug || String(snap?.slug ?? ''),
+    listed,
+    extras.consultUrl,
+    r.id,
+  ]
 }
 
 export function buildInventoryExportBuffer(
@@ -335,7 +475,12 @@ export function buildInventoryExportBuffer(
   const origin = defaultPublicOrigin()
   const slug = options.partnerChatSlug.trim()
   const aoa: (string | number)[][] = [
-    [...INVENTORY_EXCEL_HEADER_LABELS_VI, ...INVENTORY_EXPORT_ONLY_HEADER_LABELS_VI],
+    [...CATALOG_188_EXCEL_COLUMNS, ...CATALOG_188_EXPORT_ONLY_COLUMNS],
+    [
+      ...CATALOG_188_EXCEL_COLUMNS.map((col) => CATALOG_188_VI_HEADERS[col]),
+      CATALOG_188_EXPORT_ONLY_VI.consult_url,
+      CATALOG_188_EXPORT_ONLY_VI.inventory_id,
+    ],
   ]
   for (const r of rows) {
     const consultUrl =
@@ -347,22 +492,7 @@ export function buildInventoryExportBuffer(
             sku: r.sku,
           })
         : ''
-    aoa.push([
-      r.sku ?? '',
-      r.name,
-      r.description ?? '',
-      r.stock_note ?? '',
-      Number.isFinite(r.stock_qty) ? r.stock_qty : 0,
-      r.price_hint ?? '',
-      r.image_url ?? '',
-      r.product_url ?? '',
-      r.product_video_url ?? '',
-      r.consult_note ?? '',
-      r.remarketing_id ?? '',
-      r.is_active === false ? 0 : 1,
-      consultUrl,
-      r.id,
-    ])
+    aoa.push(inventoryRowToCatalog188Cells(r, { consultUrl }))
   }
   const ws = XLSX.utils.aoa_to_sheet(aoa)
   const wb = XLSX.utils.book_new()
@@ -374,6 +504,180 @@ const MAX_IMPORT_ROWS = Math.max(
   500,
   Math.min(200_000, parseInt(process.env.PARTNER_INVENTORY_IMPORT_MAX_ROWS || '100000', 10) || 100_000)
 )
+
+function parseCatalog188Workbook(
+  matrix: unknown[][],
+  warnings: InventoryImportWarning[]
+): { ok: true; rows: InventoryExcelInsert[] } | { ok: false; error: string } {
+  const headerRow = (matrix[0] ?? []).map((c) => cellStr(c))
+  const colIndex: Partial<Record<(typeof CATALOG_188_EXCEL_COLUMNS)[number], number>> = {}
+  headerRow.forEach((h, i) => {
+    const key = resolveCatalog188Column(h)
+    if (key && colIndex[key] === undefined) colIndex[key] = i
+  })
+  if (colIndex.id === undefined || colIndex.name === undefined) {
+    return { ok: false, error: 'MISSING_NAME_COLUMN' }
+  }
+
+  let dataStart = 1
+  if (matrix.length > 2 && isCatalog188LabelRow((matrix[1] ?? []).map((c) => cellStr(c)))) {
+    dataStart = 2
+  }
+
+  const out: InventoryExcelInsert[] = []
+  const pushWarning = (w: InventoryImportWarning) => {
+    if (warnings.length < 5000) warnings.push(w)
+  }
+
+  for (let r = dataStart; r < matrix.length; r++) {
+    const line = matrix[r] ?? []
+    const get = (k: (typeof CATALOG_188_EXCEL_COLUMNS)[number]) => {
+      const idx = colIndex[k]
+      return idx === undefined ? '' : cellStr(line[idx])
+    }
+
+    const productId = get('id').trim()
+    const listedRaw = colIndex.listed !== undefined ? get('listed') : ''
+    const mode = parseListed188(listedRaw)
+    const sku = get('sku').trim() || null
+    const nameRaw = get('name').trim()
+
+    if (mode === 'delete') {
+      if (!productId && !nameRaw && !sku) continue
+      const displayName = (nameRaw || productId || sku || '—').slice(0, 500)
+      out.push({
+        sort_order: 100 + out.length,
+        name: displayName,
+        sku: sku ? sku.slice(0, 120) : null,
+        description: '',
+        stock_note: '',
+        stock_qty: 0,
+        price_hint: '',
+        image_url: '',
+        product_url: '',
+        product_video_url: '',
+        consult_note: '',
+        remarketing_id: productId.slice(0, 500),
+        is_active: true,
+        removeFromInventory: true,
+        catalog: null,
+        catalogFormat: '188',
+      })
+      if (out.length >= MAX_IMPORT_ROWS) {
+        return { ok: false, error: `TOO_MANY_ROWS_${MAX_IMPORT_ROWS}` }
+      }
+      continue
+    }
+
+    const name = nameRaw || (productId ? `Sản phẩm ${productId}` : '')
+    if (!name || !productId) continue
+
+    const sizes = parseStringArrayField(get('sizes'))
+    const colors = parseColorVariantsField(get('Variant'))
+    const gallery = parseStringArrayField(get('gallery_images'))
+      .map((u) => validateInventoryImageUrl(u))
+      .filter(Boolean)
+    const detail = parseStringArrayField(get('detail_images'))
+      .map((u) => validateInventoryImageUrl(u))
+      .filter(Boolean)
+    const features = parseFeaturesField(get('Features'))
+    const productInfoRaw = get('product_info')
+    const productInfo = parseProductInfoField(productInfoRaw)
+    if (productInfoRaw.trim() && !productInfo) {
+      pushWarning({
+        row_number: r + 1,
+        sku: sku ?? '',
+        name: name.slice(0, 500),
+        field: 'product_info',
+        code: 'PRODUCT_INFO_SKIPPED',
+        raw_value: productInfoRaw.slice(0, 2000),
+        normalized_value: '',
+        message: 'Cột product_info không phải JSON object hợp lệ — đã bỏ qua.',
+      })
+    }
+
+    const mainImage = validateInventoryImageUrl(get('main_image'))
+    const productUrl = validateInventoryProductUrl(get('product_url'))
+    const videoUrl = validateInventoryHttpUrl(get('video_url'))
+    const price = parseFloatCell(get('price'), 0)
+    const stockQty = parseIntCell(get('stock_quantity'), 0)
+    const depositRequired = parseDepositRequired188(get('deposit_required'))
+    const style = get('Style').trim().slice(0, 100)
+    const shopId = get('shop_id').trim().slice(0, 100) || style
+    const description = get('pro_content').trim()
+    const material = get('Material').trim().slice(0, 8000)
+    const colorSummary = get('Color').trim().slice(0, 500)
+    const snap = buildCatalog188Snapshot({
+      productId: productId.slice(0, 255),
+      sku: sku ?? '',
+      origin: get('origin').trim().slice(0, 100),
+      brand: get('brand').trim().slice(0, 200),
+      name: name.slice(0, 500),
+      description,
+      price,
+      shopName: get('shop_name').trim().slice(0, 200),
+      shopId,
+      priceLow: get('pro_lower_price').trim().slice(0, 255),
+      priceHigh: get('pro_high_price').trim().slice(0, 255),
+      ratingGroupId: parseIntCell(get('rating_group_id'), 0),
+      questionGroupId: parseIntCell(get('question_group_id'), 0),
+      sizes,
+      colors,
+      gallery,
+      detail,
+      productUrl,
+      videoUrl,
+      mainImage,
+      likes: parseIntCell(get('likes_count'), 0),
+      purchases: parseIntCell(get('purchases_count'), 0),
+      reviews: parseIntCell(get('reviews_count'), 0),
+      questions: parseIntCell(get('questions_count'), 0),
+      ratingScore: parseFloatCell(get('rating_score'), 0),
+      stockQty,
+      depositRequired,
+      categoryL1: get('Main Category').trim().slice(0, 200),
+      categoryL2: get('Subcategory').trim().slice(0, 200),
+      categoryL3: get('Sub-subcategory').trim().slice(0, 200),
+      material,
+      style,
+      color: colorSummary,
+      occasion: get('Occasion').trim().slice(0, 100),
+      features,
+      weight: get('Weight').trim().slice(0, 100),
+      productInfo,
+      chineseName: get('chinese_name').trim().slice(0, 500),
+      shopNameChinese: get('shop_name_chinese').trim().slice(0, 200),
+      slug: get('Slug').trim().slice(0, 500),
+    })
+    const catalog = catalogFieldsFromSnapshot(snap)
+    const stockNote = colors.length ? JSON.stringify(colors) : ''
+
+    out.push({
+      sort_order: 100 + out.length,
+      name: name.slice(0, 500),
+      sku: sku ? sku.slice(0, 120) : null,
+      description: description.slice(0, 20000),
+      stock_note: stockNote.slice(0, 20000),
+      stock_qty: stockQty,
+      price_hint: get('price').trim().slice(0, 500) || (price > 0 ? String(price) : ''),
+      image_url: mainImage,
+      product_url: productUrl,
+      product_video_url: videoUrl,
+      consult_note: '',
+      remarketing_id: productId.slice(0, 500),
+      is_active: true,
+      removeFromInventory: false,
+      catalog,
+      catalogFormat: '188',
+    })
+    if (out.length >= MAX_IMPORT_ROWS) {
+      return { ok: false, error: `TOO_MANY_ROWS_${MAX_IMPORT_ROWS}` }
+    }
+  }
+
+  if (out.length === 0) return { ok: false, error: 'NO_DATA_ROWS' }
+  return { ok: true, rows: out }
+}
 
 export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: InventoryExcelInsert[]; warnings: InventoryImportWarning[] } | { ok: false; error: string } {
   let wb: XLSX.WorkBook
@@ -389,6 +693,13 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
   if (!matrix.length) return { ok: false, error: 'EMPTY_SHEET' }
 
   const headerRow = (matrix[0] ?? []).map((c) => cellStr(c))
+  const catalog188Warnings: InventoryImportWarning[] = []
+  if (isCatalog188HeaderRow(headerRow)) {
+    const parsed188 = parseCatalog188Workbook(matrix, catalog188Warnings)
+    if (!parsed188.ok) return parsed188
+    return { ok: true, rows: parsed188.rows, warnings: catalog188Warnings }
+  }
+
   const colIndex: Record<string, number> = {}
   headerRow.forEach((h, i) => {
     const key = resolveCanonicalKey(h)
@@ -487,6 +798,8 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
         remarketing_id: '',
         is_active: true,
         removeFromInventory: true,
+        catalog: null,
+        catalogFormat: 'legacy',
       })
       if (out.length >= MAX_IMPORT_ROWS) {
         return { ok: false, error: `TOO_MANY_ROWS_${MAX_IMPORT_ROWS}` }
@@ -571,6 +884,8 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
     const product_video_url = validateInventoryHttpUrl(get('product_video_url'))
     const consult_note = get('consult_note').trim().slice(0, 2000)
     const remarketing_id = get('remarketing_id').trim().slice(0, 500)
+    const parsedSizes = parseStringArrayField(description)
+    const parsedColors = parseColorVariantsField(stock_note)
     out.push({
       sort_order,
       name: name.slice(0, 500),
@@ -586,6 +901,8 @@ export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: Invent
       remarketing_id,
       is_active: true,
       removeFromInventory: false,
+      catalog: catalogFieldsFromLegacyVariants({ sizes: parsedSizes, colors: parsedColors }),
+      catalogFormat: 'legacy',
     })
     if (out.length >= MAX_IMPORT_ROWS) {
       return { ok: false, error: `TOO_MANY_ROWS_${MAX_IMPORT_ROWS}` }

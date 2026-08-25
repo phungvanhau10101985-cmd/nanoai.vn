@@ -2,6 +2,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { partnerSiteOutfitApiPath, partnerSiteProductPath, partnerSiteProductsPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { PW_EL, pwElAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { PW_SHOP_CARD_IMG_JS } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import { PW_OUTFIT_CSS } from '@/lib/partner-website/shop/outfit-products-css'
 
@@ -37,6 +38,7 @@ var DETAIL_PREFIX=${JSON.stringify(detailPrefix)};
 var LOCALE=${JSON.stringify(locale)};
 var COPY=${JSON.stringify(copy)};
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+${PW_SHOP_CARD_IMG_JS}
 function currentProductId(el){
   return String((el&&el.getAttribute('data-exclude'))||document.body.getAttribute('data-inventory-id')||'').trim();
 }
@@ -52,7 +54,7 @@ function renderCard(item){
   var id=String(p.id||'').trim();
   var href=p.detailPath||(id?DETAIL_PREFIX+encodeURIComponent(id):PRODUCTS_PATH);
   var name=esc(p.name||'Product');
-  var img=esc(p.imageUrl||'');
+  var img=esc(shopImg(p));
   var price=esc(p.priceHint||'');
   var reason=esc((item&&item.reasons&&item.reasons[0])||'');
   return '<article class="pw-product-card pw-outfit-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'"><a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="'+esc(href)+'">'+(img?'<img src="'+img+'" alt="" loading="lazy"/>':'')+'</a><div class="pw-product-card-body pw-outfit-card-body"><h4 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h4>'+(reason?'<p class="pw-outfit-reason">'+reason+'</p>':'')+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+'</div></article>';

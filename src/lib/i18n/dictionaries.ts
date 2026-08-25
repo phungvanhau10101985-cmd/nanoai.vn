@@ -1401,6 +1401,8 @@ export type Dictionary = {
     inventoryDownloadTemplate: string
     inventoryExportExcel: string
     inventoryImportExcel: string
+    /** File mẫu / import khớp ~41 cột Excel 188 + file kho 12 cột cũ */
+    inventoryExcel188Hint: string
     /** Tải lại 10 sản phẩm demo (túi/giày/quần áo) sau khi merchant đã xóa */
     inventoryReloadDemoProducts: string
     inventoryReloadDemoHint: string
@@ -4584,6 +4586,8 @@ const VI_DICTIONARY: Dictionary = {
     inventoryDownloadTemplate: 'Tải file Excel mẫu',
     inventoryExportExcel: 'Xuất Excel',
     inventoryImportExcel: 'Nhập Excel',
+    inventoryExcel188Hint:
+      'File mẫu / xuất Excel dùng đủ cột catalog (id, sku, mô tả, biến thể, thư viện ảnh, 3 cấp danh mục, chất liệu, listed…). File kho 12 cột cũ vẫn nhập được. Khớp trước theo Id sản phẩm (remarketing), rồi SKU, rồi tên. listed=0 xóa theo id/SKU/tên.',
     inventoryReloadDemoProducts: 'Tải lại sản phẩm demo',
     inventoryReloadDemoHint:
       '10 sản phẩm mẫu từ catalog thời trang (3 túi nhiều màu, 3 giày nhiều màu·size, 4 quần áo nhiều màu·size). Có thể xóa rồi tải lại.',
@@ -4728,16 +4732,16 @@ const VI_DICTIONARY: Dictionary = {
     productStudioGalleryMinHint: 'Gallery đã chọn — tối thiểu 2 ảnh.',
     productStudioDetailOptionalHint: 'Chi tiết đã chọn — không chọn gì cũng được (bỏ qua).',
     inventoryImportReplaceWarning:
-      'Nhập Excel: trùng Mã SKU (không phân biệt hoa thường) với kho thì cập nhật, chưa có thì thêm mới. Không có SKU thì khớp theo tên với hàng trong kho cũng không SKU (nhiều dòng trùng tên: ưu tiên dòng đầu trùng trong kho). Cột «Trạng thái» (hoặc is_active): 1 = thêm/cập nhật; 0 = xóa mặt hàng đó khỏi kho (cần Mã SKU hoặc tên để khớp). Thứ tự hiển thị gán theo thứ tự dòng trong file nếu file không có cột Thứ tự. Hàng đang có mà không nằm trong file vẫn giữ nguyên. Tiếp tục?',
+      'Nhập Excel catalog: trùng Id sản phẩm (remarketing) hoặc Mã SKU thì cập nhật, chưa có thì thêm mới. Không có id/SKU thì khớp theo tên. Cột listed / Trạng thái: 1 = thêm/cập nhật; 0 = xóa (cần id, SKU hoặc tên). File 41 cột (hàng 1 EN, hàng 2 nhãn VI) và file kho 12 cột cũ đều được. Hàng đang có mà không nằm trong file vẫn giữ nguyên. Tiếp tục?',
     inventoryImportSuccess: 'Đã xử lý {count} dòng: thêm {inserted}, cập nhật {updated}, xóa {deleted}.',
     inventoryImportFailed: 'Không nhập được từ Excel.',
     inventoryExcelImportUploading: 'Đang tải file Excel lên…',
     inventoryExcelImportSending: 'Đang gửi file…',
     inventoryErrInvalidXlsx: 'File không đúng định dạng Excel (.xlsx).',
     inventoryErrEmptySheet: 'Trang tính trống.',
-    inventoryErrMissingName: 'Thiếu cột tên hàng (name / tên). Hãy dùng file mẫu.',
+    inventoryErrMissingName: 'Thiếu cột tên hàng (name / Tên) hoặc Id sản phẩm trên file catalog. Hãy dùng file mẫu.',
     inventoryErrNoRows:
-      'Không có dòng dữ liệu hợp lệ (cần ít nhất một dòng có tên hàng để thêm/cập nhật, hoặc Trạng thái = 0 kèm Mã SKU hoặc tên để xóa).',
+      'Không có dòng dữ liệu hợp lệ (cần tên hoặc id để thêm/cập nhật; listed=0 cần id, SKU hoặc tên để xóa).',
     inventoryErrNoFile: 'Chưa chọn file.',
     inventoryErrFileTooLarge: 'File quá lớn (tối đa ~20 MB).',
     inventoryErrTooManyRows: 'File có quá nhiều dòng. Tối đa {max} dòng mỗi lần import.',
@@ -7759,6 +7763,8 @@ const EN_DICTIONARY: Dictionary = {
     inventoryDownloadTemplate: 'Download sample Excel',
     inventoryExportExcel: 'Export Excel',
     inventoryImportExcel: 'Import Excel',
+    inventoryExcel188Hint:
+      'The sample/export file uses the full catalog columns (id, sku, description, variants, gallery, 3-level categories, material, listed…). The older 12-column inventory file still imports. Rows match by product id first, then SKU, then name. listed=0 deletes by id/SKU/name.',
     inventoryReloadDemoProducts: 'Reload demo products',
     inventoryReloadDemoHint:
       '10 sample fashion products (3 bags with colors, 3 shoes with colors & sizes, 4 apparel items with colors & sizes). Delete them, then reload anytime.',
@@ -7902,7 +7908,7 @@ const EN_DICTIONARY: Dictionary = {
     productStudioGalleryMinHint: 'Gallery selected — at least 2 photos.',
     productStudioDetailOptionalHint: 'Detail selected — you can skip this step.',
     inventoryImportReplaceWarning:
-      'Excel import: rows matching an existing SKU (case-insensitive) are updated; otherwise inserted. Without a SKU, rows match by name to existing rows that also have no SKU (if several match, the first matching row is used). Status column (or is_active): 1 = add/update; 0 = delete that item from inventory (requires SKU or name to match). Display order follows row order in the file unless a Sort order column is present. Items already in stock that are not in the file stay unchanged. Continue?',
+      'Catalog Excel import: rows matching product id (remarketing) or SKU are updated; otherwise inserted. Without id/SKU, rows match by name. listed / Status: 1 = add/update; 0 = delete (needs id, SKU, or name). Both the 41-column catalog file (EN header + VI labels) and the older 12-column inventory file work. Items not in the file stay unchanged. Continue?',
     inventoryImportSuccess: 'Processed {count} row(s): {inserted} added, {updated} updated, {deleted} removed.',
     inventoryImportFailed: 'Excel import failed.',
     inventoryExcelImportUploading: 'Uploading Excel file…',
@@ -10898,6 +10904,8 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryDownloadTemplate: '下载 Excel 模板',
     inventoryExportExcel: '导出 Excel',
     inventoryImportExcel: '导入 Excel',
+    inventoryExcel188Hint:
+      '模板/导出使用完整商品列（id、sku、描述、变体、图库、三级类目、材质、listed…）。旧的 12 列库存表仍可导入。先按商品 Id 匹配，再 SKU，再名称。listed=0 按 id/SKU/名称删除。',
     inventoryReloadDemoProducts: '重新加载演示商品',
     inventoryReloadDemoHint:
       '10 件时装示例商品（3 个多色包包、3 个多色多码鞋履、4 个多色多码服装）。可删除后再加载。',
@@ -11037,7 +11045,7 @@ const ZH_DICTIONARY: Dictionary = {
     productStudioGalleryMinHint: '已选图库 — 至少 2 张。',
     productStudioDetailOptionalHint: '已选细节 — 也可以跳过。',
     inventoryImportReplaceWarning:
-      '导入 Excel：与现有 SKU（不区分大小写）匹配则更新，否则新增。无 SKU 时按名称与同样无 SKU 的库存行匹配（多条同名时取库存中第一条匹配）。「状态」列（或 is_active）：1 = 新增/更新；0 = 从库存删除（需填写 SKU 或名称以匹配）。若无“排序”列，显示顺序按文件中的行顺序。未出现在文件中的现有商品将保留。是否继续？',
+      '导入商品 Excel：按商品 Id（remarketing）或 SKU 匹配则更新，否则新增。无 id/SKU 时按名称匹配。listed/状态：1 = 新增/更新；0 = 删除（需 id、SKU 或名称）。41 列目录表（第1行英文、第2行中文/越南语标签）和旧 12 列库存表均可。文件中未出现的现有商品保留。是否继续？',
     inventoryImportSuccess: '已处理 {count} 行：新增 {inserted}，更新 {updated}，删除 {deleted}。',
     inventoryImportFailed: 'Excel 导入失败。',
     inventoryExcelImportUploading: '正在上传 Excel 文件…',
@@ -13998,6 +14006,8 @@ const JA_DICTIONARY: Dictionary = {
     inventoryDownloadTemplate: 'Excelテンプレをダウンロード',
     inventoryExportExcel: 'Excelに出力',
     inventoryImportExcel: 'Excelから取込',
+    inventoryExcel188Hint:
+      'テンプレ/出力は商品列一式（id、sku、説明、バリエーション、ギャラリー、3階層カテゴリ、素材、listed…）。旧12列の在庫ファイルも取り込めます。照合は商品Id → SKU → 商品名。listed=0 は id/SKU/名前で削除。',
     inventoryReloadDemoProducts: 'デモ商品を再読込',
     inventoryReloadDemoHint:
       'ファッションのサンプル商品10点（多色バッグ3、多色・サイズ靴3、多色・サイズ衣類4）。削除してから再読込できます。',
@@ -14138,7 +14148,7 @@ const JA_DICTIONARY: Dictionary = {
     productStudioGalleryMinHint: 'ギャラリー選択済み — 最低2枚。',
     productStudioDetailOptionalHint: 'ディテール選択済み — スキップもできます。',
     inventoryImportReplaceWarning:
-      'Excel取込：既存の SKU（大文字小文字無視）と一致すれば更新、なければ新規追加。SKU がない行は、SKU なしの既存行と商品名で照合（複数ある場合は在庫の先頭一致を使用）。「状態」列（または is_active）：1 = 追加/更新、0 = 在庫から削除（SKU または商品名が必要）。「並び順」列がなければ表示順はファイルの行順です。ファイルに無い既存商品はそのまま残ります。続行しますか？',
+      '商品Excel取込：商品Id（remarketing）または SKU が一致すれば更新、なければ追加。id/SKU がなければ商品名で照合。listed/状態：1 = 追加/更新、0 = 削除（id・SKU・名前のいずれか必要）。41列カタログ（1行目EN、2行目ラベル）と旧12列在庫ファイルの両方に対応。ファイルに無い既存商品はそのまま。続行しますか？',
     inventoryImportSuccess: '{count} 行を処理：新規 {inserted}、更新 {updated}、削除 {deleted}。',
     inventoryImportFailed: 'Excelの取込に失敗しました。',
     inventoryExcelImportUploading: 'Excelファイルをアップロード中…',
@@ -17138,6 +17148,8 @@ const KO_DICTIONARY: Dictionary = {
     inventoryDownloadTemplate: 'Excel 샘플 받기',
     inventoryExportExcel: 'Excel보내기',
     inventoryImportExcel: 'Excel 가져오기',
+    inventoryExcel188Hint:
+      '샘플/보내기 파일은 전체 상품 열(id, sku, 설명, 변형, 갤러리, 3단계 카테고리, 소재, listed…)입니다. 예전 12열 재고 파일도 가져올 수 있습니다. 상품 Id → SKU → 이름 순으로 맞춥니다. listed=0 은 id/SKU/이름으로 삭제합니다.',
     inventoryReloadDemoProducts: '데모 상품 다시 받기',
     inventoryReloadDemoHint:
       '패션 샘플 상품 10개(컬러 가방 3, 컬러·사이즈 신발 3, 컬러·사이즈 의류 4). 삭제한 뒤 다시 받을 수 있습니다.',
@@ -17278,7 +17290,7 @@ const KO_DICTIONARY: Dictionary = {
     productStudioGalleryMinHint: '갤러리 선택됨 — 최소 2장.',
     productStudioDetailOptionalHint: '디테일 선택됨 — 건너뛰어도 됩니다.',
     inventoryImportReplaceWarning:
-      'Excel 가져오기: 기존 SKU와 일치(대소문자 무시)하면 업데이트, 없으면 추가. SKU가 없으면 SKU 없는 기존 행과 상품명으로 매칭(여러 개면 재고에서 먼저 맞는 행). «상태» 열(또는 is_active): 1 = 추가/업데이트, 0 = 재고에서 삭제(SKU 또는 상품명 필요). «정렬» 열이 없으면 표시 순서는 파일 행 순서입니다. 파일에 없는 기존 상품은 유지됩니다. 계속할까요?',
+      '상품 Excel 가져오기: 상품 Id(remarketing) 또는 SKU가 같으면 업데이트, 없으면 추가. id/SKU가 없으면 이름으로 맞춥니다. listed/상태: 1 = 추가/업데이트, 0 = 삭제(id·SKU·이름 필요). 41열 카탈로그(1행 EN, 2행 라벨)와 예전 12열 재고 파일 모두 됩니다. 파일에 없는 기존 상품은 유지됩니다. 계속할까요?',
     inventoryImportSuccess: '{count}행 처리: 추가 {inserted}, 업데이트 {updated}, 삭제 {deleted}.',
     inventoryImportFailed: 'Excel 가져오기에 실패했습니다.',
     inventoryExcelImportUploading: 'Excel 파일 업로드 중…',

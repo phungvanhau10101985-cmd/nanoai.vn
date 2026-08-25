@@ -24,6 +24,7 @@ import {
   type SameAgeGenderCohortMode,
 } from '@/lib/partner-website/shop/partner-site-home-recommendation-mix'
 import type { MessagingPartnerInventoryRow } from '@/lib/db/messaging-partner-inventory-pg'
+import { normalizeShopImageUrl } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import type { PartnerSitePersonalizationProduct } from '@/lib/partner-website/shop/partner-site-personalization'
 
@@ -33,8 +34,8 @@ function mapInventoryRowToPersonalizationProduct(
   siteSlug: string,
   row: MessagingPartnerInventoryRow
 ): PartnerSitePersonalizationProduct | null {
-  const imageUrl = (row.image_url ?? '').trim()
-  if (!HTTP_RE.test(imageUrl)) return null
+  const imageUrl = normalizeShopImageUrl(row.image_url)
+  if (!imageUrl) return null
   const detailPath = partnerSiteProductPath(siteSlug, row.id, { name: (row.name ?? '').trim() || 'Product' })
   const rawProductUrl = (row.product_url ?? '').trim()
   return {

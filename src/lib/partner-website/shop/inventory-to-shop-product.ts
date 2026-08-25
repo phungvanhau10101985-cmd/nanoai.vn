@@ -5,6 +5,7 @@ import {
   collectShopProductGalleryImages,
   inventoryShopDetailDescription,
   inventoryShopProductVideoUrl,
+  normalizeShopImageUrl,
   type InventoryShopSourceRow,
 } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { parseInventorySizesForFacet } from '@/lib/partner-website/shop/partner-shop-industry-facets'
@@ -38,6 +39,12 @@ export type PartnerSiteShopProduct = {
   sizeGuideImageUrl?: string | null
   categoryId?: string | null
   categoryPath?: string | null
+  brandName?: string | null
+  depositPolicy?: boolean | null
+  likesCount?: number
+  purchasesCount?: number
+  reviewsCount?: number
+  ratingScore?: number
 }
 /** Mô tả hiển thị shop — bỏ qua cột JSON size/màu (description / stock_note). */
 export function inventoryShopDisplayDescription(row: {
@@ -69,17 +76,20 @@ export function inventoryRowToShopProduct(
     sale_starts_at?: string | null
     sale_ends_at?: string | null
     sizeGuideImageUrl?: string | null
+    brand_name?: string | null
+    deposit_required?: boolean | null
+    likes_count?: number | null
+    purchases_count?: number | null
+    reviews_count?: number | null
+    rating_score?: number | null
   }
 ): PartnerSiteShopProduct | null {
   const name = (row.name ?? '').trim() || 'Product'
   const detailPath = partnerSiteProductPath(siteSlug, row.id, { name })
   const galleryImages = collectShopProductGalleryImages(row)
-  const rawImage =
-    (row.image_url ?? '').trim() ||
-    galleryImages[0]?.trim() ||
-    ''
-  // Prefer real https image; otherwise keep a visible placeholder so catalog is not empty.
-  const imageUrl = /^https?:\/\//i.test(rawImage)
+  const rawImage = normalizeShopImageUrl(row.image_url) || galleryImages[0] || ''
+  // Prefer a reachable https image; otherwise keep a visible placeholder so catalog is not empty.
+  const imageUrl = rawImage
     ? rawImage
     : `https://placehold.co/600x600/f1f5f9/64748b?text=${encodeURIComponent(name.slice(0, 18))}`
   const rawProductUrl = (row.product_url ?? '').trim()
@@ -114,6 +124,12 @@ export function inventoryRowToShopProduct(
     saleStartsAt: row.sale_starts_at ? String(row.sale_starts_at) : null,
     saleEndsAt: row.sale_ends_at ? String(row.sale_ends_at) : null,
     sizeGuideImageUrl: row.sizeGuideImageUrl?.trim() || null,
+    brandName: (row.brand_name ?? '').trim() || null,
+    depositPolicy: row.deposit_required === true,
+    likesCount: Math.max(0, Math.round(Number(row.likes_count ?? 0)) || 0),
+    purchasesCount: Math.max(0, Math.round(Number(row.purchases_count ?? 0)) || 0),
+    reviewsCount: Math.max(0, Math.round(Number(row.reviews_count ?? 0)) || 0),
+    ratingScore: Number(row.rating_score ?? 0) || 0,
   }
 }
 

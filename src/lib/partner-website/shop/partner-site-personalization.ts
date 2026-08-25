@@ -27,6 +27,7 @@ import {
   type WidgetOrderThreadContext,
 } from '@/lib/messaging/resolve-widget-order-thread'
 import { requestSkipsPartnerSiteShopAuthResume } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
+import { normalizeShopImageUrl } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { mergePartnerVisitorPersonalizationFromPg } from '@/lib/db/messaging-partner-recommendation-pg'
 import { getSiteHomeRecommendationBlock } from '@/lib/partner-website/shop/partner-site-home-recommendation'
@@ -114,8 +115,8 @@ export function mapInventoryRowToPersonalizationProduct(
   siteSlug: string,
   row: MessagingPartnerInventoryRow
 ): PartnerSitePersonalizationProduct | null {
-  const imageUrl = (row.image_url ?? '').trim()
-  if (!/^https?:\/\//i.test(imageUrl)) return null
+  const imageUrl = normalizeShopImageUrl(row.image_url)
+  if (!imageUrl) return null
   const detailPath = partnerSiteProductPath(siteSlug, row.id, { name: (row.name ?? '').trim() || 'Product' })
   const rawProductUrl = (row.product_url ?? '').trim()
   const productUrl = /^https?:\/\//i.test(rawProductUrl)
