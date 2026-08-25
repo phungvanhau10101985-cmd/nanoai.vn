@@ -37,6 +37,7 @@ import {
   formatPartnerShopMoneyVnd,
   isPartnerFlashSaleActive,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
+import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type RatingSummary = { average: number; total: number }
@@ -120,6 +121,7 @@ export function PartnerSiteShopProductClient({
   const [color, setColor] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [cartAdded, setCartAdded] = useState<{ name: string; imageUrl?: string | null } | null>(null)
   const [isFavorite, setIsFavorite] = useState(false)
   const [favoriteBusy, setFavoriteBusy] = useState(false)
   const [activeImage, setActiveImage] = useState(product.imageUrl)
@@ -367,7 +369,7 @@ export function PartnerSiteShopProductClient({
         line.quantity
       )
       if (redirectToCart) router.push(partnerSiteCartPath(siteSlug, { customDomain }))
-      else setMessage(t.addedToCart)
+      else setCartAdded({ name: productName, imageUrl: displayImage })
     } finally {
       setBusy(false)
     }
@@ -869,6 +871,19 @@ export function PartnerSiteShopProductClient({
       ) : null}
 
       {stickyBar}
+
+      <PartnerSiteCartAddedModal
+        open={Boolean(cartAdded)}
+        item={cartAdded}
+        cartHref={partnerSiteCartPath(siteSlug, { customDomain })}
+        copy={{
+          cartAddedTitle: t.cartAddedTitle,
+          cartGoToCart: t.cartGoToCart,
+          cartContinueShopping: t.cartContinueShopping,
+          cartAddedClose: t.cartAddedClose,
+        }}
+        onClose={() => setCartAdded(null)}
+      />
     </div>
   )
 }

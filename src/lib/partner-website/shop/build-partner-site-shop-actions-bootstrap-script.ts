@@ -13,6 +13,10 @@ import {
 import { partnerSiteAppliedPromoStorageKey } from '@/lib/partner-website/shop/partner-site-applied-promo'
 import { PW_CHROME_COUNT_BADGE_RUNTIME_JS } from '@/lib/partner-website/shop/chrome-count-badges'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
+import {
+  CART_ADDED_MODAL_COPY,
+  PW_CART_ADDED_MODAL_RUNTIME_JS,
+} from '@/lib/partner-website/shop/partner-site-cart-added-modal'
 
 const COPY: Record<
   WebLocale,
@@ -26,11 +30,16 @@ const COPY: Record<
     shareFailed: string
     couponOk: string
     couponNeedCart: string
+    cartAddedTitle: string
+    cartGoToCart: string
+    cartContinueShopping: string
+    cartAddedClose: string
   }
 > = {
   vi: {
     addToCart: 'Thêm vào giỏ',
     addedToCart: 'Đã thêm vào giỏ.',
+    ...CART_ADDED_MODAL_COPY.vi,
     favoriteAdd: 'Thích',
     favoriteRemove: 'Bỏ thích',
     error: 'Không thực hiện được. Thử lại.',
@@ -42,6 +51,7 @@ const COPY: Record<
   en: {
     addToCart: 'Add to cart',
     addedToCart: 'Added to cart.',
+    ...CART_ADDED_MODAL_COPY.en,
     favoriteAdd: 'Favorite',
     favoriteRemove: 'Unfavorite',
     error: 'Action failed. Try again.',
@@ -53,6 +63,7 @@ const COPY: Record<
   zh: {
     addToCart: '加入购物车',
     addedToCart: '已加入购物车。',
+    ...CART_ADDED_MODAL_COPY.zh,
     favoriteAdd: '收藏',
     favoriteRemove: '取消收藏',
     error: '操作失败，请重试。',
@@ -64,6 +75,7 @@ const COPY: Record<
   ja: {
     addToCart: 'カートに追加',
     addedToCart: 'カートに追加しました。',
+    ...CART_ADDED_MODAL_COPY.ja,
     favoriteAdd: 'お気に入り',
     favoriteRemove: '解除',
     error: '失敗しました。再試行してください。',
@@ -75,6 +87,7 @@ const COPY: Record<
   ko: {
     addToCart: '장바구니',
     addedToCart: '담았습니다.',
+    ...CART_ADDED_MODAL_COPY.ko,
     favoriteAdd: '찜',
     favoriteRemove: '찜 해제',
     error: '실패했습니다. 다시 시도하세요.',
@@ -216,10 +229,13 @@ function resolveCartCard(product){
     return card;
   });
 }
+${PW_CART_ADDED_MODAL_RUNTIME_JS}
 function addToCart(product, opts){
   opts=opts||{};
+  var addedCard=null;
   return resolveCartCard(product).then(function(card){
     if(!card){toast(COPY.error);return null;}
+    addedCard=card;
     return apiFetch(CART_API).then(function(res){
       var items=(res.j&&res.j.items)||[];
       if(!Array.isArray(items))items=[];
@@ -236,7 +252,7 @@ function addToCart(product, opts){
   }).then(function(res){
     if(!res)return false;
     if(!res.ok){toast(COPY.error);return false;}
-    if(!opts.silent)toast(COPY.addedToCart);
+    if(!opts.silent)showCartAddedModal({name:addedCard&&addedCard.name||product.name,imageUrl:addedCard&&addedCard.image_url||product.image_url});
     try{document.dispatchEvent(new CustomEvent('pw-cart-updated'));}catch(e){}
     hydrateChromeBadges(true);
     return true;

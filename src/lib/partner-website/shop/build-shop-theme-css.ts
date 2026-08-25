@@ -8,6 +8,7 @@ import { PW_OUTFIT_CSS } from '@/lib/partner-website/shop/outfit-products-css'
 import { PW_RELATED_CSS } from '@/lib/partner-website/shop/related-products-css'
 import { buildPartnerSiteAccountPanelCss } from '@/lib/partner-website/shop/build-partner-site-header-html'
 import { PW_SCENE_TOPBAR_Z } from '@/lib/partner-website/visual-editor/pw-scene'
+import { PW_CART_ADDED_MODAL_CSS } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
 import {
   PW_CHROME_BTN_MIN_H,
   PW_CHROME_H_VAR,
@@ -77,7 +78,8 @@ ${buildPartnerSiteAccountPanelCss()}
   .pw-bottom-nav a{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:var(--pw-chrome-label,13px);font-weight:600;color:#6b7280;padding:6px 2px;text-decoration:none}
   .pw-bottom-nav a.is-active{color:var(--pw-primary)}
   .pw-bottom-nav svg{width:${PW_CHROME_W_VAR};height:${PW_CHROME_H_VAR};max-width:${PW_CHROME_W_VAR};max-height:${PW_CHROME_H_VAR};stroke:currentColor;fill:none}
-}`
+}
+${PW_CART_ADDED_MODAL_CSS}`
 }
 
 /** Fashion-orange aligned chrome for React platform shop pages + HTML factory chrome. */
@@ -186,8 +188,29 @@ ${buildPartnerSiteHtmlChromeCss()}
 .pw-shop-order-qr{max-width:280px;width:100%;border-radius:8px}
 .pw-shop-push-card{margin:0 0 16px;padding:16px 18px;border:1px solid var(--pw-border);border-radius:12px;background:var(--pw-surface)}
 .pw-shop-push-card h3{margin:0 0 6px;color:var(--pw-text);font-size:16px}
-.pw-shop-address-card{margin-top:16px;padding:16px 18px;border:1px solid #e5e7eb;border-radius:12px;background:#fff}
+.pw-shop-address-head{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;margin:0 0 16px}
+.pw-shop-address-list{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.pw-shop-address-card{margin-top:0;padding:16px 18px;border:1px solid var(--pw-border,#e5e7eb);border-radius:12px;background:#fff;display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px}
 .pw-shop-address-card-label{font-weight:700;margin:0 0 6px;color:var(--pw-primary)}
+.pw-shop-address-card-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.pw-shop-address-default{display:inline-flex;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:var(--pw-surface);color:var(--pw-primary)}
+.pw-shop-address-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.pw-shop-address-actions button{background:none;border:none;padding:0;cursor:pointer;font-size:13px;font-weight:600;color:var(--pw-muted)}
+.pw-shop-address-actions button.pw-shop-address-set-default{color:var(--pw-primary)}
+.pw-shop-address-actions button.pw-shop-address-delete{color:#dc2626}
+.pw-shop-address-form{margin-top:24px;padding:18px;border:1px solid var(--pw-border);border-radius:12px;background:var(--pw-surface)}
+.pw-shop-address-form h2,.pw-shop-address-modal-card h3{margin:0 0 14px}
+.pw-shop-address-form-grid{display:grid;gap:12px}
+.pw-shop-address-form-grid-2{display:grid;gap:12px}
+@media (min-width:640px){.pw-shop-address-form-grid-2{grid-template-columns:1fr 1fr}}
+.pw-shop-address-default-check{display:flex;align-items:center;gap:8px;font-size:14px}
+.pw-shop-address-form-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.pw-shop-address-modal{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.5)}
+.pw-shop-address-modal-card{width:min(520px,100%);max-height:min(90vh,720px);overflow:auto;padding:20px;border-radius:14px;background:#fff}
+.pw-shop-address-pick{display:grid;gap:10px;margin:0 0 16px}
+.pw-shop-address-pick-item{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid var(--pw-border);border-radius:12px;background:#fff;cursor:pointer}
+.pw-shop-address-pick-item.is-on{border-color:var(--pw-primary);box-shadow:0 0 0 1px var(--pw-primary)}
+.pw-shop-address-delete-btn{background:#dc2626;color:#fff}
 .pw-shop-icon-btn{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:44px;min-height:40px;border-radius:10px;border:none;background:transparent;color:#374151;cursor:pointer;position:relative;font-weight:700;font-size:var(--pw-chrome-label,13px);line-height:1.1;padding:4px 6px;text-decoration:none}
 .pw-icon-btn{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;text-decoration:none;color:inherit}
 ${PW_CHROME_TOKEN_VARS_CSS}

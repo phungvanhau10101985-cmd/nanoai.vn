@@ -8,7 +8,6 @@ import { PartnerSiteShopAddressesClient } from '@/components/partner-website/sho
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
 import {
-  maybePartnerSiteVisualPage,
   readVisualPreviewDevice,
   type PartnerSiteSearchParams,
 } from '@/components/partner-website/shop/partner-site-visual-html-screen'
@@ -39,18 +38,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export const dynamic = 'force-dynamic'
 
+/** Sổ địa chỉ luôn React (CRUD sống) — không đóng băng HTML Sửa nhanh. */
 export default async function PartnerSiteAddressesPage({ params, searchParams }: Props) {
   const { slug } = await params
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
   const device = await readVisualPreviewDevice(searchParams)
-
-  const visual = maybePartnerSiteVisualPage(
-    shop.site,
-    'addresses',
-    device
-  )
-  if (visual) return visual
 
   return (
     <PartnerSiteShopShell

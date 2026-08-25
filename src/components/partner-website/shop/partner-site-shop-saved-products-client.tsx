@@ -17,6 +17,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
+import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Mode = 'favorites' | 'recently-viewed'
@@ -47,6 +48,7 @@ export function PartnerSiteShopSavedProductsClient({ siteSlug, locale, mode }: P
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [message, setMessage] = useState('')
+  const [cartAdded, setCartAdded] = useState<{ name: string; imageUrl?: string | null } | null>(null)
 
   const title = mode === 'favorites' ? t.wishlistTitle : t.recentlyViewedTitle
   const empty = mode === 'favorites' ? t.wishlistEmpty : t.recentlyViewedEmpty
@@ -146,7 +148,7 @@ export function PartnerSiteShopSavedProductsClient({ siteSlug, locale, mode }: P
         return
       }
       await refreshCartCount()
-      setMessage(t.addedToCart)
+      setCartAdded({ name: product.name, imageUrl: product.image_url })
     } finally {
       setBusyId(null)
     }
@@ -225,6 +227,18 @@ export function PartnerSiteShopSavedProductsClient({ siteSlug, locale, mode }: P
           </Link>
         </p>
       ) : null}
+      <PartnerSiteCartAddedModal
+        open={Boolean(cartAdded)}
+        item={cartAdded}
+        cartHref={partnerSiteCartPath(siteSlug, { customDomain })}
+        copy={{
+          cartAddedTitle: t.cartAddedTitle,
+          cartGoToCart: t.cartGoToCart,
+          cartContinueShopping: t.cartContinueShopping,
+          cartAddedClose: t.cartAddedClose,
+        }}
+        onClose={() => setCartAdded(null)}
+      />
     </section>
   )
 }

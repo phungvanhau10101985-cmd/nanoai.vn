@@ -112,6 +112,19 @@ export function partnerSiteAddressesPath(siteSlug: string, opts?: PathOpts): str
   return partnerSiteHref(siteSlug, '/addresses', opts?.customDomain)
 }
 
+/** Sổ địa chỉ khách — mọi shop, cần email đăng nhập. */
+export function partnerSiteAddressesApiPath(
+  siteSlug: string,
+  addressId?: string,
+  action?: 'default'
+): string {
+  const base = `/api/site/${encodeURIComponent(siteSlug.trim())}/addresses`
+  const id = addressId?.trim()
+  if (!id) return base
+  const item = `${base}/${encodeURIComponent(id)}`
+  return action === 'default' ? `${item}/default` : item
+}
+
 export function partnerSiteProductsApiPath(siteSlug: string): string {
   return `/api/site/${encodeURIComponent(siteSlug.trim())}/products`
 }

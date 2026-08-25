@@ -12,9 +12,18 @@ import {
 } from '@/lib/partner-website/shop/cart-line-utils'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
+  partnerSiteAccountTabPath,
+  partnerSiteAddressesApiPath,
   partnerSiteInfoPath,
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import {
+  emptyPartnerSiteAddressInput,
+  formatPartnerSiteAddressLine,
+  type PartnerSiteCustomerAddress,
+  type PartnerSiteCustomerAddressInput,
+} from '@/lib/partner-website/shop/partner-site-customer-address'
+import { PartnerSiteAddressFormFields } from '@/components/partner-website/shop/partner-site-address-form'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import {
@@ -49,7 +58,7 @@ type OrderSnapshot = {
 export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatPath }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
-  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { refreshCartCount, tracking } = usePartnerSiteShop()
   const [items, setItems] = useState<SiteCartLine[]>([])
   const [loading, setLoading] = useState(true)
@@ -91,6 +100,34 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   })
   const [ewalletAvailable, setEwalletAvailable] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'ewallet'>('bank_transfer')
+  const [bookAddresses, setBookAddresses] = useState<PartnerSiteCustomerAddress[]>([])
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null)
+  const [showAddressModal, setShowAddressModal] = useState(false)
+  const [addressForm, setAddressForm] = useState<PartnerSiteCustomerAddressInput>(emptyPartnerSiteAddressInput())
+  const [addressSaving, setAddressSaving] = useState(false)
+
+  const loadAddressBook = useCallback(async () => {
+    if (!isAuthenticated) {
+      setBookAddresses([])
+      setSelectedAddressId(null)
+      return
+    }
+    const res = await fetch(partnerSiteAddressesApiPath(siteSlug), {
+      credentials: 'same-origin',
+      headers: authHeaders(),
+    })
+    captureFromResponse(res)
+    const json = (await res.json().catch(() => ({}))) as {
+      ok?: boolean
+      addresses?: PartnerSiteCustomerAddress[]
+    }
+    const list = Array.isArray(json.addresses) ? json.addresses : []
+    setBookAddresses(list)
+    setSelectedAddressId((prev) => {
+      if (prev && list.some((addr) => addr.id === prev)) return prev
+      return list.find((addr) => addr.is_default)?.id ?? list[0]?.id ?? null
+    })
+  }, [authHeaders, captureFromResponse, isAuthenticated, siteSlug])
 
   const loadCart = useCallback(async () => {
     const res = await fetch(`/api/messaging/guest/${encodeURIComponent(partnerSlug)}/cart`, {
@@ -107,6 +144,20 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     setLoading(true)
     void loadCart().finally(() => setLoading(false))
   }, [loadCart, ready])
+
+  useEffect(() => {
+    if (!ready) return
+    void loadAddressBook()
+  }, [loadAddressBook, ready])
+
+  const selectedAddress = bookAddresses.find((addr) => addr.id === selectedAddressId) ?? null
+
+  useEffect(() => {
+    if (!selectedAddress) return
+    setOrderName(selectedAddress.full_name)
+    setOrderPhone(selectedAddress.phone)
+    setOrderAddress(formatPartnerSiteAddressLine(selectedAddress))
+  }, [selectedAddress])
 
   useEffect(() => {
     if (!siteSlug) return
@@ -210,6 +261,44 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     setPromoMessage('')
   }
 
+  function openAddAddress() {
+    setAddressForm(
+      emptyPartnerSiteAddressInput({
+        full_name: orderName,
+        phone: orderPhone,
+        is_default: bookAddresses.length === 0,
+      })
+    )
+    setShowAddressModal(true)
+  }
+
+  async function saveCartAddress() {
+    if (addressSaving) return
+    setAddressSaving(true)
+    try {
+      const res = await fetch(partnerSiteAddressesApiPath(siteSlug), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify(addressForm),
+      })
+      captureFromResponse(res)
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean
+        address?: PartnerSiteCustomerAddress
+      }
+      if (!res.ok || !json.ok || !json.address) {
+        setStatus(t.accountSaveFailed)
+        return
+      }
+      setShowAddressModal(false)
+      await loadAddressBook()
+      setSelectedAddressId(json.address.id)
+    } finally {
+      setAddressSaving(false)
+    }
+  }
+
   const payableSubtotal = Math.max(0, subtotal - (appliedPromo?.discountAmount ?? 0))
   const shippingFeeEstimate = useMemo(() => {
     if (shippingPolicy.feeAmount <= 0) return 0
@@ -232,6 +321,10 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
 
   async function checkout() {
     if (items.length === 0 || checkoutBusy) return
+    if (isAuthenticated && bookAddresses.length === 0) {
+      setStatus(t.addressCartEmpty)
+      return
+    }
     if (!orderName.trim() || !orderPhone.trim() || !orderAddress.trim()) {
       setStatus(`${t.checkoutName}, ${t.checkoutPhone}, ${t.checkoutAddress}`)
       return
@@ -467,18 +560,63 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                 {t.checkoutGuestHint}
               </p>
             ) : null}
-            <label data-pw-el={PW_EL.label}>
-              {t.checkoutName}
-              <input value={orderName} onChange={(e) => setOrderName(e.target.value)} data-pw-el={PW_EL.field} />
-            </label>
-            <label data-pw-el={PW_EL.label}>
-              {t.checkoutPhone}
-              <input value={orderPhone} onChange={(e) => setOrderPhone(e.target.value)} data-pw-el={PW_EL.field} />
-            </label>
-            <label data-pw-el={PW_EL.label}>
-              {t.checkoutAddress}
-              <textarea rows={3} value={orderAddress} onChange={(e) => setOrderAddress(e.target.value)} data-pw-el={PW_EL.field} />
-            </label>
+            {isAuthenticated ? (
+              <div className="pw-shop-address-pick">
+                <p style={{ fontWeight: 700, margin: 0 }}>{t.addressCartTitle}</p>
+                {bookAddresses.length === 0 ? (
+                  <p className="pw-shop-muted">{t.addressCartEmpty}</p>
+                ) : (
+                  bookAddresses.map((addr) => (
+                    <label
+                      key={addr.id}
+                      className={`pw-shop-address-pick-item${selectedAddressId === addr.id ? ' is-on' : ''}`}
+                    >
+                      <input
+                        type="radio"
+                        name="shipping_address"
+                        checked={selectedAddressId === addr.id}
+                        onChange={() => setSelectedAddressId(addr.id)}
+                      />
+                      <span>
+                        <strong>{addr.full_name}</strong>
+                        <span className="pw-shop-muted"> {addr.phone}</span>
+                        {addr.is_default ? (
+                          <span className="pw-shop-address-default">{t.addressDefaultBadge}</span>
+                        ) : null}
+                        <br />
+                        {formatPartnerSiteAddressLine(addr)}
+                      </span>
+                    </label>
+                  ))
+                )}
+                <div className="pw-shop-address-form-actions">
+                  <button type="button" className="pw-shop-btn pw-shop-btn-buy" onClick={openAddAddress}>
+                    {t.addressCartAddHint}
+                  </button>
+                  <Link
+                    href={partnerSiteAccountTabPath(siteSlug, 'addresses', { customDomain })}
+                    className="pw-shop-btn pw-shop-btn-outline"
+                  >
+                    {t.addressManageBook}
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <>
+                <label data-pw-el={PW_EL.label}>
+                  {t.checkoutName}
+                  <input value={orderName} onChange={(e) => setOrderName(e.target.value)} data-pw-el={PW_EL.field} />
+                </label>
+                <label data-pw-el={PW_EL.label}>
+                  {t.checkoutPhone}
+                  <input value={orderPhone} onChange={(e) => setOrderPhone(e.target.value)} data-pw-el={PW_EL.field} />
+                </label>
+                <label data-pw-el={PW_EL.label}>
+                  {t.checkoutAddress}
+                  <textarea rows={3} value={orderAddress} onChange={(e) => setOrderAddress(e.target.value)} data-pw-el={PW_EL.field} />
+                </label>
+              </>
+            )}
             <label data-pw-el={PW_EL.label}>
               {t.checkoutNote}
               <textarea rows={2} value={orderNote} onChange={(e) => setOrderNote(e.target.value)} data-pw-el={PW_EL.field} />
@@ -489,6 +627,29 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
             {status && !needsAuth ? <p className="pw-shop-muted">{status}</p> : null}
           </div>
           {needsAuth && checkoutLoginRequired ? <p className="pw-shop-muted">{t.checkoutAuthRequired}</p> : null}
+          {showAddressModal ? (
+            <div className="pw-shop-address-modal" role="dialog" aria-modal="true" onClick={() => setShowAddressModal(false)}>
+              <div className="pw-shop-address-modal-card" onClick={(e) => e.stopPropagation()}>
+                <h3>{t.addressCartModalTitle}</h3>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    void saveCartAddress()
+                  }}
+                >
+                  <PartnerSiteAddressFormFields value={addressForm} onChange={setAddressForm} t={t} idPrefix="cart" />
+                  <div className="pw-shop-address-form-actions">
+                    <button type="submit" className="pw-shop-btn pw-shop-btn-buy" disabled={addressSaving} data-pw-el={PW_EL.submit}>
+                      {addressSaving ? '…' : t.addressSaveBook}
+                    </button>
+                    <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => setShowAddressModal(false)}>
+                      {t.addressCancel}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
