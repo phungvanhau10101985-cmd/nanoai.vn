@@ -1,8 +1,12 @@
+import type { CSSProperties } from 'react'
 import type { Metadata } from 'next'
-import { Be_Vietnam_Pro, Fraunces } from 'next/font/google'
 import { headers } from 'next/headers'
 import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
 import { PartnerSiteShopPushBoot } from '@/components/partner-website/shop/partner-site-shop-push-boot'
+import {
+  FASHION_SHOP_FONT_DISPLAY,
+  FASHION_SHOP_FONT_UI,
+} from '@/lib/partner-website/shop/fashion-shop-design'
 import { PartnerSiteCustomDomainProvider } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
 import {
@@ -10,19 +14,11 @@ import {
   partnerSitePwaManifestPath,
 } from '@/lib/partner-website/shop/partner-site-pwa'
 
-const display = Fraunces({
-  subsets: ['latin', 'latin-ext', 'vietnamese'],
-  weight: ['500', '700', '800'],
-  variable: '--pw-font-display',
-  display: 'swap',
-})
-
-const ui = Be_Vietnam_Pro({
-  subsets: ['latin', 'latin-ext', 'vietnamese'],
-  weight: ['400', '500', '600', '700', '800'],
-  variable: '--pw-font-ui',
-  display: 'swap',
-})
+/** Do not use `next/font/google` here — VPS `next build` fetches fonts.gstatic.com and times out. */
+const shopFontVars = {
+  '--pw-font-display': FASHION_SHOP_FONT_DISPLAY,
+  '--pw-font-ui': FASHION_SHOP_FONT_UI,
+} as CSSProperties
 
 export async function generateMetadata({
   params,
@@ -86,7 +82,7 @@ export default async function PartnerSiteSlugLayout({
         {icon180 ? <link rel="apple-touch-icon" href={icon180} /> : null}
       </head>
       <PartnerSiteShopPushBoot siteSlug={site?.siteSlug || slug} />
-      <div className={`${display.variable} ${ui.variable}`}>{children}</div>
+      <div style={shopFontVars}>{children}</div>
     </PartnerSiteCustomDomainProvider>
   )
 }
