@@ -146,8 +146,9 @@ function hideBrokenCardImgs(root){
   var imgs=(root||document).querySelectorAll('.pw-product-card-media img,[data-pw-el="card-media"] img');
   for(var i=0;i<imgs.length;i++){
     var imgEl=imgs[i];
-    if(imgEl.complete&&imgEl.naturalWidth===0)imgEl.style.visibility='hidden';
+    imgEl.addEventListener('load',function(){this.style.visibility='';});
     imgEl.addEventListener('error',function(){this.style.visibility='hidden';});
+    if(imgEl.complete&&imgEl.naturalWidth===0&&(imgEl.currentSrc||''))imgEl.style.visibility='hidden';
   }
 }
 function ensureRelatedActions(el){

@@ -17,10 +17,12 @@ test('strip grid ruler locks 5 desktop / 2 mobile by data-pw attr, not auto-fit'
   assert.doesNotMatch(PW_PRODUCT_STRIP_GRID_CSS, /auto-fit|auto-fill/)
 })
 
-test('card media ruler keeps a square slot and hides broken-image alt text', () => {
+test('card media ruler keeps a square slot and does not indent the photo away', () => {
   assert.match(PW_PRODUCT_CARD_MEDIA_RULER_CSS, /aspect-ratio:1\/1!important/)
   assert.match(PW_PRODUCT_CARD_MEDIA_RULER_CSS, /position:absolute!important/)
-  assert.match(PW_PRODUCT_CARD_MEDIA_RULER_CSS, /color:transparent!important/)
+  assert.match(PW_PRODUCT_CARD_MEDIA_RULER_CSS, /object-fit:cover!important/)
+  assert.match(PW_PRODUCT_CARD_MEDIA_RULER_CSS, /text-indent:0!important/)
+  assert.doesNotMatch(PW_PRODUCT_CARD_MEDIA_RULER_CSS, /text-indent:100%/)
   assert.match(PW_PRODUCT_CARD_MEDIA_RULER_CSS, /-webkit-line-clamp:2/)
 })
 
