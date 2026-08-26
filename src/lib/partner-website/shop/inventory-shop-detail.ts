@@ -1,5 +1,3 @@
-import { colorImageUrlsForInventorySearch } from '@/lib/messaging/inventory-extra-image-urls'
-import { parseColorVariantsJson } from '@/lib/messaging/inventory-color-variants'
 import { is1688ImageUrl, normalizeAlicdnImageUrl } from '@/lib/fetch-image-1688'
 import { rewriteAllMessagingCdnUrls } from '@/lib/shop188-cdn-url'
 
@@ -12,9 +10,9 @@ export type InventoryShopSourceRow = {
   real_use_image_url?: string | null
   real_use_image_url_2?: string | null
   product_video_url?: string | null
-  /** PS.1 — ảnh phụ bổ sung (Product Studio / upload nhiều ảnh) — nối THÊM, không thay thế nguồn cũ. */
+  /** Cột P / `gallery_images` — thư viện carousel PDP (không gồm ảnh chi tiết cột Q). */
   gallery_urls?: string[] | null
-  /** PS.1 — ảnh chi tiết/chất liệu do Product Studio sinh — nối THÊM vào ảnh chi tiết hiện có. */
+  /** Cột Q / `detail_images` — ảnh mô tả dưới PDP, full-width. */
   detail_image_urls?: string[] | null
   colors_json?: Array<{ name?: string; img?: string }> | null
 }
@@ -59,58 +57,55 @@ export const PW_SHOP_CARD_IMG_JS = `function shopImg(p){
   return raw;
 }`
 
-/** Mô tả chi tiết PDP: mô tả HTML/text (pro_content) rồi chất liệu. */
+/** Mô tả PDP — cột F `pro_content` giống 188. Chất liệu hiện ở lưới thông số, không nhét vào mô tả. */
 export function inventoryShopDetailDescription(row: {
   description?: string | null
   material_note?: string | null
   consult_note?: string | null
 }): string {
   const desc = (row.description ?? '').trim()
-  const material = (row.material_note ?? '').trim()
-  const parts: string[] = []
-  if (desc && !desc.startsWith('[')) parts.push(desc)
-  if (material && material !== desc) parts.push(material)
-  if (parts.length) return parts.join('\n\n')
+  if (desc && !desc.startsWith('[')) return desc
   return (row.consult_note ?? '').trim()
 }
 
-/** Gallery ảnh shop: ảnh chính → màu → ảnh chi tiết / thực tế. */
+function pushShopImageUrl(out: string[], seen: Set<string>, raw: string): void {
+  const url = normalizeShopImageUrl(raw)
+  if (!url || seen.has(url)) return
+  seen.add(url)
+  out.push(url)
+}
+
+/**
+ * Thư viện ảnh PDP — giống 188 `mergeProductGalleryPhotoUrls`:
+ * ảnh chính + cột P (`gallery_urls`). Không gộp cột Q / màu / thực tế vào carousel.
+ */
 export function collectShopProductGalleryImages(row: InventoryShopSourceRow): string[] {
   const out: string[] = []
   const seen = new Set<string>()
-  const push = (raw: string) => {
-    const url = normalizeShopImageUrl(raw)
-    if (!url || seen.has(url)) return
-    seen.add(url)
-    out.push(url)
-  }
-
-  push(row.image_url ?? '')
-  for (const c of row.colors_json ?? []) {
-    push(String(c?.img ?? ''))
-  }
-  for (const c of parseColorVariantsJson(row.stock_note ?? '')) {
-    push(c.img)
-  }
-  for (const url of colorImageUrlsForInventorySearch(
-    row.image_url ?? '',
-    row.material_detail_image_url ?? '',
-    row.real_use_image_url ?? '',
-    row.real_use_image_url_2 ?? ''
-  )) {
-    push(url)
-  }
-  // PS.1 — ảnh phụ Product Studio (studio slots hoặc upload nhiều ảnh thủ công), nối thêm cuối.
-  for (const url of row.gallery_urls ?? []) push(url)
-  for (const url of row.detail_image_urls ?? []) push(url)
-
+  pushShopImageUrl(out, seen, row.image_url ?? '')
+  for (const url of row.gallery_urls ?? []) pushShopImageUrl(out, seen, url)
   return out
 }
 
-/** Ảnh chi tiết / lifestyle (không gồm ảnh chính). */
+/** Ảnh chi tiết PDP — giống 188 `product.gallery` (cột Q `detail_images`). */
 export function collectShopProductDetailImages(row: InventoryShopSourceRow): string[] {
-  const main = normalizeShopImageUrl(row.image_url ?? '')
-  return collectShopProductGalleryImages(row).filter((url) => url !== main)
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const url of row.detail_image_urls ?? []) pushShopImageUrl(out, seen, url)
+  return out
+}
+
+/** Ảnh thực tế / chất liệu — ô riêng dưới mô tả, không nhét vào carousel. */
+export function collectShopProductRealUseImages(row: InventoryShopSourceRow): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  pushShopImageUrl(out, seen, row.real_use_image_url ?? '')
+  pushShopImageUrl(out, seen, row.real_use_image_url_2 ?? '')
+  return out
+}
+
+export function collectShopProductMaterialImageUrl(row: InventoryShopSourceRow): string | null {
+  return normalizeShopImageUrl(row.material_detail_image_url ?? '') || null
 }
 
 export function inventoryShopProductVideoUrl(row: { product_video_url?: string | null }): string | null {

@@ -23,7 +23,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }
   if (flat === null) return NextResponse.json({ error: 'Could not load categories' }, { status: 500 })
 
   const tree = buildPartnerCategoryTree(prunePartnerCategoriesMissingAncestors(flat))
-  const { menuTree, seoSizeNodes } = splitPartnerCategoryNavTree(tree)
+  const { menuTree, seoSizeNodes } = splitPartnerCategoryNavTree(tree, shop.site.locale)
   return NextResponse.json(
     { tree, menuTree, seoSizes: seoSizeNodes },
     { headers: { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' } }

@@ -19,10 +19,12 @@ import { productToConsultContext } from '@/lib/partner-website/shop/partner-site
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   partnerSiteCartPath,
+  partnerSiteCategoryPath,
   partnerSiteHomePath,
   partnerSiteInfoPath,
   partnerSitePersonalizationApiPath,
   partnerSiteProductPath,
+  partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
@@ -40,6 +42,13 @@ import {
 import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
 import { PartnerSiteProductVariantModal } from '@/components/partner-website/shop/partner-site-product-variant-modal'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import {
+  displayablePdpText,
+  pdpAttrGridHtml,
+  pdpDescriptionBodyHtml,
+  pdpProductInfoHtml,
+} from '@/lib/partner-website/shop/pdp-product-info-html'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 
 type RatingSummary = { average: number; total: number }
 
@@ -118,8 +127,8 @@ export function PartnerSiteShopProductClient({
   const customDomain = usePartnerSiteCustomDomain()
   const [options, setOptions] = useState<ProductPurchaseOptions | null>(null)
   const [quantity, setQuantity] = useState(1)
-  const [size, setSize] = useState('')
-  const [color, setColor] = useState('')
+  const [size, setSize] = useState(product.sizes[0] || '')
+  const [color, setColor] = useState(product.colors[0]?.name || '')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [cartAdded, setCartAdded] = useState<{ name: string; imageUrl?: string | null } | null>(null)
@@ -133,6 +142,7 @@ export function PartnerSiteShopProductClient({
   const [stickyBuyVisible, setStickyBuyVisible] = useState(false)
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
+  const [pdpTab, setPdpTab] = useState<'description' | 'specs'>('description')
   const touchStartXRef = useRef<number | null>(null)
   const buyActionsRef = useRef<HTMLDivElement | null>(null)
   const flashActive = isPartnerFlashSaleActive({
@@ -142,8 +152,10 @@ export function PartnerSiteShopProductClient({
     saleEndsAt: product.saleEndsAt ?? null,
   })
 
-  const displayImage =
-    options?.colors.find((c) => c.name === color)?.img?.trim() || product.imageUrl
+  const rawDisplay =
+    (options?.colors.length ? options.colors : product.colors).find((c) => c.name === color)?.img?.trim() ||
+    product.imageUrl
+  const displayImage = shopCardDisplaySrc(rawDisplay) || rawDisplay
 
   const consultCtx = useMemo(
     () =>
@@ -177,7 +189,9 @@ export function PartnerSiteShopProductClient({
     return () => observer.disconnect()
   }, [])
 
-  const galleryImages = product.galleryImages.length ? product.galleryImages : [product.imageUrl]
+  const galleryImages = (product.galleryImages.length ? product.galleryImages : [product.imageUrl])
+    .map((url) => shopCardDisplaySrc(url))
+    .filter(Boolean)
   const videoEmbedUrl = (() => {
     const raw = product.productVideoUrl?.trim()
     if (!raw) return null
@@ -219,14 +233,38 @@ export function PartnerSiteShopProductClient({
     goToMedia(dx > 0 ? -1 : 1)
   }
 
-  const detailBody = product.detailDescription.trim()
-  const detailParagraphs = detailBody
-    ? detailBody.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean)
-    : []
-  const showDetailDescription =
-    detailParagraphs.length > 0 &&
-    detailBody !== product.description.trim()
-  const detailImageUrls = product.detailImages.filter((url) => url !== activeImage)
+  const detailBody = product.detailDescription.trim() || product.description.trim()
+  const showDetailDescription = Boolean(detailBody)
+  const detailImageUrls = product.detailImages.map((url) => shopCardDisplaySrc(url)).filter(Boolean)
+  const materialImageUrl = shopCardDisplaySrc(product.materialImageUrl)
+  const realUseImageUrls = (product.realUseImageUrls ?? []).map((url) => shopCardDisplaySrc(url)).filter(Boolean)
+  const attrFields = {
+    brandName: product.brandName,
+    origin: product.origin,
+    material: product.material,
+    style: product.style,
+    occasion: product.occasion,
+    weight: product.weight,
+    features: product.features ?? null,
+    colorSummary: product.colorSummary,
+    categoryL1: product.categoryL1,
+    categoryL2: product.categoryL2,
+    categoryL3: product.categoryL3,
+    stockQty: product.stockQty,
+  }
+  const attrGridHtml = pdpAttrGridHtml(attrFields, t)
+  const specsHtml = pdpProductInfoHtml(product.productInfo, locale, t, attrFields)
+  const descHtml = pdpDescriptionBodyHtml(detailBody)
+  const catalogRating = Number(product.ratingScore ?? 0)
+  const catalogReviews = Math.max(0, Math.round(Number(product.reviewsCount ?? ratingSummary?.total ?? 0) || 0))
+  const catalogSold = Math.max(0, Math.round(Number(product.purchasesCount ?? 0) || 0))
+  const catalogLikes = Math.max(0, Math.round(Number(product.likesCount ?? 0) || 0))
+  const brandText = displayablePdpText(product.brandName)
+  const crumbNames = [product.categoryL1, product.categoryL2, product.categoryL3]
+    .map((x) => displayablePdpText(x))
+    .filter(Boolean)
+  const sizeOptions = options?.sizes?.length ? options.sizes : product.sizes
+  const colorOptions = options?.colors?.length ? options.colors : product.colors
 
   const unitPrice =
     flashActive && product.salePriceAmount != null
@@ -245,6 +283,9 @@ export function PartnerSiteShopProductClient({
   const sku = options?.sku || product.sku
   const custom = Boolean(customDomain)
   const homeHref = partnerSiteHomePath(siteSlug, { customDomain: custom })
+  const categoryHref = product.categoryPath
+    ? partnerSiteCategoryPath(siteSlug, product.categoryPath, { customDomain: custom })
+    : partnerSiteProductsPath(siteSlug, { customDomain: custom })
   const shippingHref = partnerSiteInfoPath(siteSlug, 'shipping', { customDomain: custom })
   const returnsHref = partnerSiteInfoPath(siteSlug, 'returns', { customDomain: custom })
   const freeShipText =
@@ -449,7 +490,9 @@ export function PartnerSiteShopProductClient({
           data-pw-el={PW_EL.wishlist}
         >
           <IconHeart filled={isFavorite} />
-          <span>{t.navFavorites}</span>
+          <span>
+            {t.pdpLikesLabel} {catalogLikes}
+          </span>
         </button>
       </nav>
       <div className="pw-pdp-sticky-ctas">
@@ -465,6 +508,23 @@ export function PartnerSiteShopProductClient({
 
   return (
     <div className="pw-pdp">
+      {crumbNames.length ? (
+        <nav className="pw-shop-breadcrumb" data-pw-region={PW_REGION.breadcrumb} data-pw-pdp-slot="breadcrumb">
+          <Link href={homeHref} data-pw-el={PW_EL.link}>
+            {t.navHome}
+          </Link>
+          {crumbNames.map((name) => (
+            <span key={name}>
+              {' / '}
+              <Link href={categoryHref} data-pw-el={PW_EL.crumb}>
+                {name}
+              </Link>
+            </span>
+          ))}
+          {' / '}
+          <span data-pw-el={PW_EL.crumb}>{productName}</span>
+        </nav>
+      ) : null}
       <div className="pw-pdp-hero" data-pw-region={PW_REGION.gallery}>
         {renderMedia(currentMedia, { hero: true })}
         {mediaItems.length > 1 ? (
@@ -538,30 +598,29 @@ export function PartnerSiteShopProductClient({
 
         <div className="pw-shop-pdp-info pw-pdp-info-pad" data-pw-region={PW_REGION.pdpInfo}>
           <h1 className="pw-pdp-title" data-pw-el={PW_EL.title}>{productName}</h1>
+          {brandText ? (
+            <p className="pw-pdp-brand" data-pw-pdp-slot="brand">
+              {t.pdpBrandLabel}: {brandText}
+            </p>
+          ) : null}
           {sku ? (
             <p className="pw-pdp-sku">
               {t.skuLabel}: <strong>{sku}</strong>
             </p>
           ) : null}
-          <div className="pw-pdp-stats">
-            {ratingSummary && ratingSummary.total > 0 ? (
-              <>
-                <span>
-                  <span className="pw-pdp-star">★</span>{' '}
-                  <strong>{ratingSummary.average.toFixed(1)}</strong>
-                </span>
-                <span>
-                  {t.pdpRatingLabel}: <strong>{ratingSummary.total}</strong>
-                </span>
-                <a href="#pw-pdp-reviews">{t.pdpJumpReviews}</a>
-                <a href="#pw-pdp-qa">{t.pdpJumpQa}</a>
-              </>
-            ) : (
-              <>
-                <a href="#pw-pdp-reviews">{t.pdpJumpReviews}</a>
-                <a href="#pw-pdp-qa">{t.pdpJumpQa}</a>
-              </>
-            )}
+          <div className="pw-pdp-stats" data-pw-pdp-slot="stats">
+            <span>
+              <span className="pw-pdp-star">★</span>{' '}
+              <strong>{Number.isFinite(catalogRating) ? catalogRating.toFixed(1) : '0.0'}</strong>
+            </span>
+            <span className="pw-pdp-stats-dot">•</span>
+            <span>
+              <strong>{catalogReviews}</strong> {t.pdpRatingLabel}
+            </span>
+            <span className="pw-pdp-stats-dot">•</span>
+            <span>
+              <strong>{catalogSold}</strong> {t.pdpPurchasesLabel}
+            </span>
           </div>
 
           {flashActive && product.salePriceAmount != null ? (
@@ -606,11 +665,11 @@ export function PartnerSiteShopProductClient({
             <li>{t.pdpNoteColor}</li>
           </ul>
 
-          {options?.sizes.length ? (
+          {sizeOptions.length ? (
             <div style={{ marginTop: 16 }} data-pw-el={PW_EL.variant}>
               <p style={{ fontWeight: 700, margin: '0 0 8px', fontSize: 14 }}>{t.sizeLabel}</p>
               <div className="pw-pdp-pills">
-                {options.sizes.map((s) => (
+                {sizeOptions.map((s) => (
                   <button
                     key={s}
                     type="button"
@@ -673,18 +732,18 @@ export function PartnerSiteShopProductClient({
             </div>
           ) : null}
 
-          {options?.colors.length ? (
+          {colorOptions.length ? (
             <div style={{ marginTop: 16 }} data-pw-el={PW_EL.variant}>
               <p style={{ fontWeight: 700, margin: '0 0 8px', fontSize: 14 }}>{t.colorLabel}</p>
               <div className="pw-pdp-pills">
-                {options.colors.map((c) => (
+                {colorOptions.map((c) => (
                   <button
                     key={c.name}
                     type="button"
                     className={`pw-pdp-pill pw-pdp-color${color === c.name ? ' is-active' : ''}`}
                     onClick={() => setColor(c.name)}
                   >
-                    {c.img ? <img src={c.img} alt={c.name} /> : c.name}
+                    {c.img ? <img src={shopCardDisplaySrc(c.img) || c.img} alt={c.name} /> : c.name}
                   </button>
                 ))}
               </div>
@@ -734,81 +793,82 @@ export function PartnerSiteShopProductClient({
               aria-pressed={isFavorite}
               data-pw-el={PW_EL.wishlist}
             >
-              {isFavorite ? '♥' : '♡'}
+              {isFavorite ? '♥' : '♡'} {catalogLikes}
             </button>
           </div>
           {message ? <p style={{ marginTop: 12 }}>{message}</p> : null}
         </div>
       </div>
 
-      {showDetailDescription || detailImageUrls.length > 0 || videoEmbedUrl ? (
-        <section className="pw-shop-product-detail" data-pw-region={PW_REGION.pdpInfo}>
-          {showDetailDescription ? (
-            <div>
-              <h2>{t.productDescriptionTitle}</h2>
-              <div className="pw-shop-product-detail-body" data-pw-el={PW_EL.desc}>
-                {detailParagraphs.map((paragraph) => (
-                  <p key={paragraph.slice(0, 48)} style={{ margin: '0 0 12px' }}>
-                    {paragraph}
-                  </p>
-                ))}
-              </div>
-            </div>
-          ) : product.description ? (
-            <div>
-              <h2>{t.productDescriptionTitle}</h2>
-              <div className="pw-shop-product-detail-body" data-pw-el={PW_EL.desc}>
-                <p>{product.description}</p>
-              </div>
-            </div>
-          ) : null}
-          {detailImageUrls.length > 0 ? (
-            <div>
-              <h2>{t.productDetailImagesTitle}</h2>
-              <div className="pw-shop-detail-grid">
-                {detailImageUrls.map((url) => (
-                  <button
-                    key={url}
-                    type="button"
-                    className="pw-shop-product-thumb"
-                    style={{ width: '100%', height: 'auto', aspectRatio: '1' }}
-                    onClick={() => {
-                      setActiveImage(url)
-                      const idx = mediaItems.findIndex((m) => m.kind === 'photo' && m.url === url)
-                      if (idx >= 0) setMediaIndex(idx)
-                    }}
-                  >
-                    <img src={url} alt={product.name} loading="lazy" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          {videoEmbedUrl ? (
-            <div>
-              <h2>{t.productVideoTitle}</h2>
-              {isYoutubeEmbed(product.productVideoUrl ?? '') ? (
-                <iframe
-                  className="pw-shop-product-video"
-                  src={videoEmbedUrl}
-                  title={product.name}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              ) : (
-                <video className="pw-shop-product-video" src={videoEmbedUrl} controls preload="metadata" />
-              )}
-            </div>
-          ) : null}
-        </section>
-      ) : product.description ? (
-        <section className="pw-shop-product-detail" data-pw-region={PW_REGION.pdpInfo}>
-          <h2>{t.productDescriptionTitle}</h2>
-          <div className="pw-shop-product-detail-body" data-pw-el={PW_EL.desc}>
-            <p>{product.description}</p>
+      <section className="pw-shop-product-detail" data-pw-region={PW_REGION.pdpInfo}>
+        <div className="pw-pdp-tabs" data-pw-pdp-slot="tabs">
+          <div className="pw-pdp-tablist" role="tablist">
+            <button
+              type="button"
+              className={`pw-pdp-tab${pdpTab === 'description' ? ' is-active' : ''}`}
+              onClick={() => setPdpTab('description')}
+            >
+              {t.pdpDescTab}
+            </button>
+            <button
+              type="button"
+              className={`pw-pdp-tab${pdpTab === 'specs' ? ' is-active' : ''}`}
+              onClick={() => setPdpTab('specs')}
+            >
+              {t.pdpSpecsTab}
+            </button>
           </div>
-        </section>
-      ) : null}
+          {pdpTab === 'description' ? (
+            <div className="pw-pdp-tabpanel pw-pdp-tabpanel-desc" style={{ display: 'block' }}>
+              {showDetailDescription && descHtml ? (
+                <div>
+                  <h2>{t.productDescriptionTitle}</h2>
+                  <div
+                    className="pw-shop-product-detail-body"
+                    data-pw-el={PW_EL.desc}
+                    dangerouslySetInnerHTML={{ __html: descHtml }}
+                  />
+                </div>
+              ) : null}
+              {detailImageUrls.length > 0 ? (
+                <div data-pw-pdp-slot="detail-images">
+                  <h2>{t.pdpDetailImagesHeading}</h2>
+                  <div className="pw-pdp-detail-photos">
+                    {detailImageUrls.map((url) => (
+                      <img key={url} src={url} alt={product.name} loading="lazy" />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {attrGridHtml ? <div dangerouslySetInnerHTML={{ __html: attrGridHtml }} /> : null}
+              {materialImageUrl ? (
+                <div data-pw-pdp-slot="material">
+                  <h2>{t.pdpMaterialImagesTitle}</h2>
+                  <div className="pw-shop-detail-grid">
+                    <img src={materialImageUrl} alt={product.name} loading="lazy" />
+                  </div>
+                </div>
+              ) : null}
+              {realUseImageUrls.length > 0 ? (
+                <div data-pw-pdp-slot="real-use">
+                  <h2>{t.pdpRealUseImagesTitle}</h2>
+                  <div className="pw-shop-detail-grid">
+                    {realUseImageUrls.map((url) => (
+                      <img key={url} src={url} alt={product.name} loading="lazy" />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div
+              className="pw-pdp-tabpanel pw-pdp-tabpanel-specs"
+              style={{ display: 'block' }}
+              dangerouslySetInnerHTML={{ __html: specsHtml }}
+            />
+          )}
+        </div>
+      </section>
 
       <PartnerSiteProductReviewsQa siteSlug={siteSlug} inventoryId={product.id} locale={locale} />
 
@@ -894,8 +954,8 @@ export function PartnerSiteShopProductClient({
           saleStartsAt: product.saleStartsAt,
           saleEndsAt: product.saleEndsAt,
           stockQty: product.stockQty,
-          colors: options?.colors?.length ? options.colors : product.colors,
-          sizes: options?.sizes?.length ? options.sizes : product.sizes,
+          colors: colorOptions,
+          sizes: sizeOptions,
         }}
         initialColor={color}
         initialSize={size}

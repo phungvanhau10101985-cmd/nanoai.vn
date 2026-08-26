@@ -263,6 +263,19 @@ function parseStringArrayColumn(raw: unknown): string[] {
     .filter(Boolean)
 }
 
+function parseJsonObjectColumn(raw: unknown): Json | null {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw as Json
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw) as unknown
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed as Json
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
 function mapPgInventoryRow(r: PgInventoryRaw): MessagingPartnerInventoryRow {
   return {
     id: r.id,
@@ -316,10 +329,7 @@ function mapPgInventoryRow(r: PgInventoryRaw): MessagingPartnerInventoryRow {
       r.product_studio_meta && typeof r.product_studio_meta === 'object' ? (r.product_studio_meta as Json) : null,
     origin: r.origin ?? null,
     product_studio_job_id: r.product_studio_job_id ?? null,
-    catalog_json:
-      r.catalog_json && typeof r.catalog_json === 'object' && !Array.isArray(r.catalog_json)
-        ? (r.catalog_json as Json)
-        : null,
+    catalog_json: parseJsonObjectColumn(r.catalog_json),
     brand_name: r.brand_name != null ? String(r.brand_name) : null,
     source_origin: r.source_origin != null ? String(r.source_origin) : null,
     chinese_name: r.chinese_name != null ? String(r.chinese_name) : null,
@@ -341,10 +351,7 @@ function mapPgInventoryRow(r: PgInventoryRaw): MessagingPartnerInventoryRow {
       const arr = parseStringArrayColumn(r.features_json)
       return arr.length ? arr : null
     })(),
-    product_info_json:
-      r.product_info_json && typeof r.product_info_json === 'object' && !Array.isArray(r.product_info_json)
-        ? (r.product_info_json as Json)
-        : null,
+    product_info_json: parseJsonObjectColumn(r.product_info_json),
     source_shop_name: r.source_shop_name != null ? String(r.source_shop_name) : null,
     source_shop_id: r.source_shop_id != null ? String(r.source_shop_id) : null,
     source_shop_name_chinese: r.source_shop_name_chinese != null ? String(r.source_shop_name_chinese) : null,
@@ -941,6 +948,8 @@ export type PartnerInventoryShopListQuery = {
   collection?: string
   /** Prefer items that look discounted in price_hint / name. */
   sale?: boolean
+  /** Hàng hoàn / thanh lý kho — remarketing_id kiểu 188 (`BASE/size`). */
+  warehouse?: boolean
   /** Explicit inventory UUID list (collection curated). */
   ids?: string[]
   sort?: 'default' | 'newest' | 'name'
@@ -1258,6 +1267,7 @@ export async function fetchPartnerInventoryShopPageFromPg(
       q: query.q ?? '',
       collection: query.collection ?? '',
       sale: Boolean(query.sale),
+      warehouse: Boolean(query.warehouse),
       ids: query.ids ?? [],
       sort: query.sort ?? 'default',
     }),
@@ -1306,6 +1316,10 @@ async function fetchPartnerInventoryShopPageFromPgUncached(
       `(coalesce(mpi.price_hint, '') ~* '(%|sale|giảm|giam|-\\s*\\d)'
         or coalesce(mpi.name, '') ~* '(sale|giảm|giam|flash)')`
     )
+  }
+
+  if (query.warehouse) {
+    conditions.push(`position('/' in coalesce(mpi.remarketing_id, '')) > 0`)
   }
 
   const where = conditions.join(' and ')

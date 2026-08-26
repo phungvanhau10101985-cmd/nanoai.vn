@@ -35,7 +35,7 @@ export async function GET(
     return NextResponse.json({ error: 'Product not found' }, { status: 404 })
   }
 
-  const product = inventoryRowToShopProduct(shop.site.siteSlug, row)
+  const product = inventoryRowToShopProduct(shop.site.siteSlug, row, { pdp: true })
   if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
 
   const relatedCtx = await resolveRelatedProductContext(shop.partnerId, id)

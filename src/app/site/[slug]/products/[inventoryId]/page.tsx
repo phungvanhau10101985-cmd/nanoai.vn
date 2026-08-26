@@ -9,10 +9,7 @@ import {
 import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
-import {
-  inventoryRowToLivePdpVariants,
-  inventoryRowToShopProduct,
-} from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopProductClient } from '@/components/partner-website/shop/partner-site-shop-product-client'
@@ -82,7 +79,7 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
   if (!shop) notFound()
 
   const row = await resolvePartnerShopProductByKey(shop.partnerId, inventoryId)
-  const product = row ? inventoryRowToShopProduct(shop.site.siteSlug, row) : null
+  const product = row ? inventoryRowToShopProduct(shop.site.siteSlug, row, { pdp: true }) : null
   if (!row || !product) notFound()
 
   const canonicalKey = buildPartnerSiteProductKey(row.name, row.id)
@@ -115,7 +112,6 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
     device,
     {
       ...product,
-      ...inventoryRowToLivePdpVariants(row),
       categoryId: relatedCtx.categoryId,
       categoryPath: relatedCtx.categoryPath,
       relatedProducts: shopProductsToRelatedBind(relatedProducts),
@@ -139,10 +135,10 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
   const ratingSummary = await fetchPartnerProductRatingSummaryFromPg(shop.partnerId, row.id)
   const paymentSettings = await fetchPartnerPaymentSettingsFromPg(shop.partnerId)
   const effectivePrice = resolvePartnerEffectiveUnitPrice({
-    priceAmount: row.price_amount,
-    salePriceAmount: row.sale_price_amount ?? null,
-    saleStartsAt: row.sale_starts_at ?? null,
-    saleEndsAt: row.sale_ends_at ?? null,
+    priceAmount: product.priceAmount ?? row.price_amount,
+    salePriceAmount: product.salePriceAmount ?? row.sale_price_amount ?? null,
+    saleStartsAt: product.saleStartsAt ?? row.sale_starts_at ?? null,
+    saleEndsAt: product.saleEndsAt ?? row.sale_ends_at ?? null,
   })
   const shippingFee = Math.max(0, Math.round(paymentSettings?.shipping_fee_amount ?? 0))
   const returnPolicyUrl = resolvePartnerSiteAbsoluteUrl(shop.site.siteSlug, '/pages/return-policy')
@@ -154,7 +150,7 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
     image: [product.imageUrl, ...product.galleryImages].filter(Boolean),
     url: productUrl,
     sku: product.sku || undefined,
-    brand: { '@type': 'Brand', name: (row.brand_name || '').trim() || shop.site.title },
+    brand: { '@type': 'Brand', name: (product.brandName || row.brand_name || '').trim() || shop.site.title },
     ...(effectivePrice != null
       ? {
           offers: {
@@ -162,7 +158,7 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
             url: productUrl,
             priceCurrency: row.price_currency || 'VND',
             price: effectivePrice,
-            availability: row.stock_qty > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+            availability: product.stockQty > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
             seller: { '@type': 'Organization', name: shop.site.partnerDisplayName || shop.site.title },
             shippingDetails: {
               '@type': 'OfferShippingDetails',

@@ -116,7 +116,9 @@ test('mega menu html is 2-column L1 | L2/L3', () => {
   const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
   const megaCss = css.slice(css.indexOf('.pw-cat-mega-cols'))
   assert.match(css, /pw-cat-mega-cols/)
-  assert.match(megaCss.slice(0, 1200), /--pw-primary|--pw-surface|--pw-buy/)
+  assert.match(megaCss.slice(0, 1800), /--pw-primary|--pw-surface|--pw-buy/)
+  assert.match(css, /text-transform:lowercase/)
+  assert.match(css, /overflow-x:hidden/)
 })
 
 test('category listing copy exists for all locales', () => {
@@ -126,6 +128,9 @@ test('category listing copy exists for all locales', () => {
     assert.ok(t.categorySortOldest)
     assert.ok(t.categorySortViews)
     assert.ok(t.categoryMegaHint)
+    assert.ok(t.khoSaleNavLabel)
+    assert.ok(t.khoSaleNavBlurb)
+    assert.ok(t.khoSaleViewAll)
     assert.ok(t.categorySeoRowAria)
     assert.ok(t.categoryExpand)
     assert.ok(t.categoryCollapse)

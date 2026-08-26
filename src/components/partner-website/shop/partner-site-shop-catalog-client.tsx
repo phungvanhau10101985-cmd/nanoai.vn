@@ -20,6 +20,8 @@ type Props = {
   locale: WebLocale
   initialProducts: PartnerSiteShopProduct[]
   initialTotal: number
+  heading?: string
+  apiQuery?: string
 }
 
 export function PartnerSiteShopCatalogClient({
@@ -28,6 +30,8 @@ export function PartnerSiteShopCatalogClient({
   locale,
   initialProducts,
   initialTotal,
+  heading,
+  apiQuery,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const { tracking } = usePartnerSiteShop()
@@ -42,7 +46,7 @@ export function PartnerSiteShopCatalogClient({
     setLoading(true)
     try {
       const res = await fetch(
-        `${partnerSiteProductsApiPath(siteSlug)}?offset=${offset}&limit=24`,
+        `${partnerSiteProductsApiPath(siteSlug)}?offset=${offset}&limit=24${apiQuery ? `&${apiQuery.replace(/^\?/, '')}` : ''}`,
         { cache: 'no-store' }
       )
       const json = (await res.json()) as { products?: PartnerSiteShopProduct[] }
@@ -52,7 +56,7 @@ export function PartnerSiteShopCatalogClient({
     } finally {
       setLoading(false)
     }
-  }, [initialTotal, loading, offset, products.length, siteSlug])
+  }, [apiQuery, initialTotal, loading, offset, products.length, siteSlug])
 
   useEffect(() => {
     setProducts(initialProducts)
@@ -107,7 +111,7 @@ export function PartnerSiteShopCatalogClient({
 
   return (
     <section data-pw-region={PW_REGION.catalog} data-pw-catalog>
-      <h1 data-pw-el={PW_EL.sectionTitle}>{t.catalogTitle}</h1>
+      <h1 data-pw-el={PW_EL.sectionTitle}>{heading || t.catalogTitle}</h1>
       <div className="pw-shop-toolbar" data-pw-region={PW_REGION.toolbar} style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
         <input
           type="search"

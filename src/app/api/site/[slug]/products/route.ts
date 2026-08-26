@@ -34,6 +34,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   const collection = String(sp.get('collection') ?? sp.get('tag') ?? '').trim()
   const saleRaw = String(sp.get('sale') ?? '').trim().toLowerCase()
   const sale = saleRaw === '1' || saleRaw === 'true' || saleRaw === 'yes'
+  const warehouseRaw = String(sp.get('warehouse') ?? '').trim().toLowerCase()
+  const warehouse = warehouseRaw === '1' || warehouseRaw === 'true' || warehouseRaw === 'kho-sale'
   const sortRaw = String(sp.get('sort') ?? '').trim().toLowerCase()
   const sort =
     sortRaw === 'newest' || sortRaw === 'name' ? (sortRaw as 'newest' | 'name') : 'default'
@@ -123,6 +125,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
           q: preferIds.length ? undefined : q || undefined,
           collection: collection || undefined,
           sale: sale || undefined,
+          warehouse: warehouse || undefined,
           ids: preferIds.length ? preferIds : undefined,
           sort,
         })
@@ -161,6 +164,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
       q: q || null,
       collection: collection || null,
       sale,
+      warehouse,
       sort: categoryId && UUID_RE.test(categoryId) ? categorySort : sort,
       ids: ids.length ? ids : null,
       categoryId: categoryId && UUID_RE.test(categoryId) ? categoryId : null,

@@ -15,6 +15,11 @@ export function partnerSiteProductsPath(siteSlug: string, opts?: PathOpts): stri
   return partnerSiteHref(siteSlug, '/products', opts?.customDomain)
 }
 
+/** Listing hàng hoàn / thanh lý kho — giống 188 `/kho-sale`. */
+export function partnerSiteKhoSalePath(siteSlug: string, opts?: PathOpts): string {
+  return partnerSiteHref(siteSlug, '/kho-sale', opts?.customDomain)
+}
+
 export function partnerSiteProductPath(
   siteSlug: string,
   inventoryId: string,

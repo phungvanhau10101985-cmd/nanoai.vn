@@ -17,6 +17,7 @@ import {
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { isPartnerCategoryNavJunkNode } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
 import {
   partnerSiteCategoryPath,
   partnerSiteHomePath,
@@ -67,7 +68,9 @@ export default async function PartnerSiteCategoryHubPage({ params, searchParams 
   ])
   const tree = buildPartnerCategoryTree(prunePartnerCategoriesMissingAncestors(flat ?? []))
   const rolled = rollupPartnerCategoryProductCounts(tree, counts ?? new Map())
-  const tiles = flattenPartnerCategoryTree(tree).slice(0, 120)
+  const tiles = flattenPartnerCategoryTree(tree)
+    .filter((cat) => !isPartnerCategoryNavJunkNode(cat))
+    .slice(0, 120)
 
   return (
     <PartnerSiteShopShell

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchPartnerCategoriesFlatFromPg } from '@/lib/db/messaging-partner-categories-pg'
 import { prunePartnerCategoriesMissingAncestors } from '@/lib/partner-website/category/partner-category-types'
+import { isPartnerCategoryNavJunkNode } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
 import { fetchPartnerInventoryFullListOrderedCreatedFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { fetchPartnerWebsiteByPartnerIdPg } from '@/lib/db/messaging-partner-websites-pg'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -55,12 +56,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ slug: strin
   const entries: string[] = [urlEntry(abs('/')), urlEntry(abs('/c'))]
 
   // W3.2 — trang phụ indexable (bỏ thank-you: noindex / sau checkout).
-  for (const path of ['/about', '/contact', '/faq', '/shipping', '/returns', '/privacy', '/terms', '/payment', '/stores', '/lookbook', '/size-guide', '/blog', '/sale'] as const) {
+  for (const path of ['/about', '/contact', '/faq', '/shipping', '/returns', '/privacy', '/terms', '/payment', '/stores', '/lookbook', '/size-guide', '/blog', '/sale', '/kho-sale'] as const) {
     entries.push(urlEntry(abs(path)))
   }
 
   for (const cat of prunePartnerCategoriesMissingAncestors(categories ?? [])) {
-    if (!cat.seoIndex) continue
+    if (!cat.seoIndex || isPartnerCategoryNavJunkNode(cat)) continue
     entries.push(urlEntry(abs(`/c/${cat.path}`), cat.updatedAt || undefined))
   }
 

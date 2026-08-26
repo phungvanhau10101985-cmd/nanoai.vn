@@ -19,9 +19,11 @@ import {
 } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import {
   PartnerSiteCategoryMegaMenu,
+  PartnerSiteCategoryMobileAccordion,
   PartnerSiteCategoryNavPills,
   PartnerSiteCategorySeoRow,
   usePartnerCategoryFineHover,
+  usePartnerShopMobileCategoryFace,
 } from '@/components/partner-website/shop/partner-site-category-mega-menu'
 import { PartnerSiteShopSearchBar } from '@/components/partner-website/shop/partner-site-shop-search-bar'
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
@@ -325,6 +327,14 @@ function PartnerSiteShopShellInner({
   const categoriesRef = useRef<HTMLDivElement | null>(null)
   const categoriesLeaveTimer = useRef<number | null>(null)
   const fineHover = usePartnerCategoryFineHover()
+  const mobileCatFace = usePartnerShopMobileCategoryFace(previewDevice)
+
+  useEffect(() => {
+    if (!categoriesOpen) return
+    const header = categoriesRef.current?.closest('header, .pw-shop-header, .pw-header')
+    const top = header ? Math.round(header.getBoundingClientRect().bottom) : 56
+    document.documentElement.style.setProperty('--pw-cat-sheet-top', `${top}px`)
+  }, [categoriesOpen, mobileCatFace])
 
   useEffect(() => {
     if (!categoriesOpen) return
@@ -421,9 +431,9 @@ function PartnerSiteShopShellInner({
       .then((res) => (res.ok ? res.json() : null))
       .then((json: { tree?: PartnerCategoryTreeNode[]; menuTree?: PartnerCategoryTreeNode[]; seoSizes?: PartnerCategoryTreeNode[] } | null) => {
         if (cancelled) return
-        const split = splitPartnerCategoryNavTree(json?.tree ?? [])
-        setCategoryTree(json?.menuTree ?? split.menuTree)
-        setSeoSizeNodes(json?.seoSizes ?? split.seoSizeNodes)
+        const split = splitPartnerCategoryNavTree(json?.tree ?? json?.menuTree ?? [], locale)
+        setCategoryTree(split.menuTree)
+        setSeoSizeNodes(split.seoSizeNodes)
       })
       .catch(() => {
         if (!cancelled) {
@@ -434,7 +444,7 @@ function PartnerSiteShopShellInner({
     return () => {
       cancelled = true
     }
-  }, [siteSlug])
+  }, [locale, siteSlug])
 
   const hasCategoryTree = Boolean(categoryTree && categoryTree.length > 0)
   const useVisualChrome = hasVisualHomeChrome(visualChromeByDevice)
@@ -485,7 +495,7 @@ function PartnerSiteShopShellInner({
               className="pw-chrome-cat-wrap"
               ref={categoriesRef}
               onMouseEnter={() => {
-                if (!fineHover) return
+                if (!fineHover || mobileCatFace) return
                 if (categoriesLeaveTimer.current != null) {
                   window.clearTimeout(categoriesLeaveTimer.current)
                   categoriesLeaveTimer.current = null
@@ -493,7 +503,7 @@ function PartnerSiteShopShellInner({
                 setCategoriesOpen(true)
               }}
               onMouseLeave={() => {
-                if (!fineHover) return
+                if (!fineHover || mobileCatFace) return
                 if (categoriesLeaveTimer.current != null) window.clearTimeout(categoriesLeaveTimer.current)
                 categoriesLeaveTimer.current = window.setTimeout(() => {
                   setCategoriesOpen(false)
@@ -507,16 +517,39 @@ function PartnerSiteShopShellInner({
               aria-expanded={categoriesOpen}
               aria-controls="pw-shop-cat-panel"
                 onClick={() => {
-                  if (fineHover && categoriesOpen) return
+                  if (fineHover && !mobileCatFace && categoriesOpen) return
                   setCategoriesOpen((open) => !open)
                 }}
             >
               <Menu className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
               <span>{t.navCategories}</span>
             </button>
+            {categoriesOpen && mobileCatFace ? (
+              <button
+                type="button"
+                className="pw-cat-acc-backdrop"
+                aria-label={t.cartAddedClose}
+                onClick={() => setCategoriesOpen(false)}
+              />
+            ) : null}
             {categoriesOpen ? (
               <nav id="pw-shop-cat-panel" className="pw-shop-cat-panel pw-cat-mega" aria-label={t.navCategories}>
                 {hasCategoryTree ? (
+                  mobileCatFace ? (
+                    <PartnerSiteCategoryMobileAccordion
+                      tree={categoryTree!}
+                      siteSlug={siteSlug}
+                      locale={locale}
+                      productsHref={paths.products}
+                      saleHref={paths.sale}
+                      newArrivalsLabel={n.newArrivals}
+                      saleLabel={n.sale}
+                      hoverHint={t.categoryMegaHint}
+                      customDomain={customDomain}
+                      onNavigate={() => setCategoriesOpen(false)}
+                      onClose={() => setCategoriesOpen(false)}
+                    />
+                  ) : (
                   <PartnerSiteCategoryMegaMenu
                     tree={categoryTree!}
                     siteSlug={siteSlug}
@@ -529,6 +562,7 @@ function PartnerSiteShopShellInner({
                     customDomain={customDomain}
                     onNavigate={() => setCategoriesOpen(false)}
                   />
+                  )
                 ) : (
                   <>
                     <Link href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>

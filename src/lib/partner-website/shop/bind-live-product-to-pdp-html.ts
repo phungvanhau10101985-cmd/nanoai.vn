@@ -18,7 +18,14 @@ import {
   relatedCardHtml,
   relatedListingHref,
 } from '@/lib/partner-website/shop/related-products'
+import { partnerSiteHomePath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import {
+  pdpAttrGridHtml,
+  pdpDescriptionBodyHtml,
+  pdpProductInfoHtml,
+  displayablePdpText,
+} from '@/lib/partner-website/shop/pdp-product-info-html'
 
 export type LivePdpBindColor = {
   name: string
@@ -81,6 +88,24 @@ export type LivePdpBindProduct = {
   stockQty?: number | null
   sizes?: string[] | null
   colors?: LivePdpBindColor[] | null
+  brandName?: string | null
+  origin?: string | null
+  material?: string | null
+  style?: string | null
+  occasion?: string | null
+  weight?: string | null
+  features?: string[] | null
+  chineseName?: string | null
+  colorSummary?: string | null
+  likesCount?: number | null
+  purchasesCount?: number | null
+  reviewsCount?: number | null
+  questionsCount?: number | null
+  ratingScore?: number | null
+  productInfo?: Record<string, unknown> | null
+  categoryL1?: string | null
+  categoryL2?: string | null
+  categoryL3?: string | null
   reviews?: LivePdpBindReview[] | null
   questions?: LivePdpBindQuestion[] | null
   relatedProducts?: LivePdpBindRelated[] | null
@@ -200,6 +225,22 @@ function productImages(product: LivePdpBindProduct): string[] {
 
 function looksLikeVideoUrl(url: string): boolean {
   return /\.(mp4|webm|ogg|mov)(\?|#|$)/i.test(url) || /(?:youtube\.com|youtu\.be|vimeo\.com)\//i.test(url)
+}
+
+function toYoutubeEmbedSrc(raw: string): string | null {
+  const t = String(raw || '').trim()
+  if (!t) return null
+  if (/youtu\.be\//i.test(t)) {
+    const id = t.split(/youtu\.be\//i)[1]?.split(/[?#]/)[0]?.trim()
+    return id ? `https://www.youtube.com/embed/${id}` : null
+  }
+  if (!/youtube\.com/i.test(t)) return null
+  try {
+    const id = new URL(t).searchParams.get('v')?.trim()
+    return id ? `https://www.youtube.com/embed/${id}` : null
+  } catch {
+    return null
+  }
 }
 
 function rewriteClassBlocks(html: string, className: string, rewrite: (inner: string, open: string) => string): string {
@@ -347,6 +388,46 @@ function rewriteGalleryInner(inner: string, product: LivePdpBindProduct): string
       out += `<div class="pw-shop-product-thumbs">${extra}</div>`
     }
   }
+  return insertGalleryVideo(out, product)
+}
+
+function insertGalleryVideo(inner: string, product: LivePdpBindProduct): string {
+  const videoUrl = String(product.productVideoUrl || '').trim()
+  if (!videoUrl || !looksLikeVideoUrl(videoUrl)) return inner
+  let out = inner
+  const name = product.name || 'Product'
+  const yt = toYoutubeEmbedSrc(videoUrl)
+  const videoInner = yt
+    ? `<iframe class="pw-pdp-hero-video-el" src="${escAttr(yt)}" title="${escAttr(name)}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowfullscreen></iframe>`
+    : `<video class="pw-pdp-hero-video-el" src="${escAttr(videoUrl)}" controls playsinline preload="metadata"></video>`
+  if (!/data-pw-pdp-hero-video/.test(out)) {
+    out = out.replace(
+      /(<img\b[^>]*(?:\bdata-pw-el=["']main-image["']|\b(?:pw-pdp-hero-img|pw-shop-product-img)\b)[^>]*>)/i,
+      `$1<div class="pw-pdp-hero-video" data-pw-pdp-hero-video hidden>${videoInner}</div>`
+    )
+  }
+  if (!/data-pw-pdp-video-thumb/.test(out)) {
+    const videoThumb = `<button type="button" class="pw-shop-product-thumb pw-pdp-video-thumb" data-pw-pdp-video-thumb="1" aria-label="Video"><span class="pw-pdp-video-thumb-play">▶</span></button>`
+    if (/data-pw-el=["']thumb["']/.test(out)) {
+      out = out.replace(
+        /(<([a-z0-9]+)\b[^>]*\bdata-pw-el=["']thumb["'][^>]*>[\s\S]*?<\/\2>)/i,
+        `$1${videoThumb}`
+      )
+    } else {
+      const thumbsRe =
+        /<(nav|div)\b([^>]*\b(?:pw-pdp-hero-thumbs|pw-shop-product-thumbs)\b[^>]*)>([\s\S]*?)<\/\1>/i
+      if (thumbsRe.test(out)) {
+        out = out.replace(thumbsRe, (_full, tag: string, attrs: string, thumbsInner: string) => {
+          return `<${tag}${attrs}>${thumbsInner}${videoThumb}</${tag}>`
+        })
+      }
+    }
+  }
+  const mediaCount = productImages(product).length + 1
+  out = out.replace(
+    /(<span\b[^>]*\bpw-pdp-hero-count\b[^>]*>)([\s\S]*?)(<\/span>)/i,
+    `$11/${mediaCount}$3`
+  )
   return out
 }
 
@@ -356,6 +437,99 @@ function productSizes(product: LivePdpBindProduct): string[] {
 
 function productColors(product: LivePdpBindProduct): LivePdpBindColor[] {
   return (product.colors ?? []).filter((c) => String(c?.name || '').trim())
+}
+
+function productCrumbs(product: LivePdpBindProduct, siteSlug?: string | null): LivePdpBindCrumb[] {
+  const existing = (product.breadcrumb ?? []).filter((c) => String(c.name || '').trim())
+  if (existing.length) return existing
+  const listing = relatedListingHref({ siteSlug, categoryPath: product.categoryPath })
+  return [product.categoryL1, product.categoryL2, product.categoryL3]
+    .map((name) => String(name || '').trim())
+    .filter(Boolean)
+    .map((name) => ({ name, href: listing !== '#' ? listing : '#' }))
+}
+
+function breadcrumbInnerHtml(
+  product: LivePdpBindProduct,
+  locale: WebLocale,
+  siteSlug?: string | null
+): string {
+  const t = getPartnerSiteShopCopy(locale)
+  const name = product.name || 'Product'
+  const home = siteSlug ? partnerSiteHomePath(siteSlug) : '#'
+  const crumbs = productCrumbs(product, siteSlug)
+  return [
+    `<a href="${escAttr(home)}" data-pw-el="${PW_EL.link}">${escText(t.navHome)}</a>`,
+    ...crumbs.map((c) => `<a href="${escAttr(c.href || '#')}" data-pw-el="${PW_EL.crumb}">${escText(c.name)}</a>`),
+    `<span data-pw-el="${PW_EL.crumb}">${escText(name)}</span>`,
+  ].join(' / ')
+}
+
+function pdpStatsInnerHtml(product: LivePdpBindProduct, locale: WebLocale): string {
+  const t = getPartnerSiteShopCopy(locale)
+  const rating = Number(product.ratingScore ?? 0)
+  const reviews = Math.max(0, Math.round(Number(product.reviewsCount ?? 0) || 0))
+  const sold = Math.max(0, Math.round(Number(product.purchasesCount ?? 0) || 0))
+  const ratingText = Number.isFinite(rating) ? rating.toFixed(1) : '0.0'
+  return `<span><span class="pw-pdp-star">★</span> <strong>${escText(ratingText)}</strong></span><span class="pw-pdp-stats-dot">•</span><span><strong>${escText(String(reviews))}</strong> ${escText(t.pdpRatingLabel)}</span><span class="pw-pdp-stats-dot">•</span><span><strong>${escText(String(sold))}</strong> ${escText(t.pdpPurchasesLabel)}</span>`
+}
+
+function pdpBrandHtml(product: LivePdpBindProduct, locale: WebLocale): string {
+  const t = getPartnerSiteShopCopy(locale)
+  const brand = displayablePdpText(product.brandName)
+  if (!brand) return ''
+  return `<p class="pw-pdp-brand" data-pw-pdp-slot="brand">${escText(t.pdpBrandLabel)}: ${escText(brand)}</p>`
+}
+
+function pdpAttrFieldsOf(product: LivePdpBindProduct) {
+  return {
+    brandName: product.brandName,
+    origin: product.origin,
+    material: product.material,
+    style: product.style,
+    occasion: product.occasion,
+    weight: product.weight,
+    features: product.features ?? null,
+    colorSummary: product.colorSummary,
+    categoryL1: product.categoryL1,
+    categoryL2: product.categoryL2,
+    categoryL3: product.categoryL3,
+    stockQty: product.stockQty,
+  }
+}
+
+export function buildPdpDetailTabsHtml(product: LivePdpBindProduct, locale: WebLocale): string {
+  const t = getPartnerSiteShopCopy(locale)
+  const name = product.name || 'Product'
+  const desc = pdpDescriptionBodyHtml(String(product.detailDescription || product.description || '').trim())
+  const details = (product.detailImages ?? []).map((url) => shopCardDisplaySrc(url)).filter(Boolean)
+  const detailImgs = details
+    .map(
+      (url) =>
+        `<img src="${escAttr(url)}" alt="${escAttr(name)}" loading="lazy" decoding="async" />`
+    )
+    .join('')
+  const attrGrid = pdpAttrGridHtml(pdpAttrFieldsOf(product), t)
+  const specs = pdpProductInfoHtml(product.productInfo, locale, t, pdpAttrFieldsOf(product))
+  const descPanel = `<div class="pw-pdp-tabpanel pw-pdp-tabpanel-desc" data-pw-pdp-tabpanel="description">
+      ${desc ? `<h2>${escText(t.productDescriptionTitle)}</h2><div class="pw-shop-product-detail-body" data-pw-el="${PW_EL.desc}">${desc}</div>` : ''}
+      ${
+        detailImgs
+          ? `<div data-pw-pdp-slot="detail-images"><h2>${escText(t.pdpDetailImagesHeading)}</h2><div class="pw-pdp-detail-photos">${detailImgs}</div></div>`
+          : ''
+      }
+      ${attrGrid}
+    </div>`
+  return `<div class="pw-pdp-tabs" data-pw-pdp-slot="tabs">
+    <input type="radio" name="pw-pdp-tab" id="pw-pdp-tab-desc" checked hidden />
+    <input type="radio" name="pw-pdp-tab" id="pw-pdp-tab-specs" hidden />
+    <div class="pw-pdp-tablist" role="tablist">
+      <label for="pw-pdp-tab-desc" class="pw-pdp-tab">${escText(t.pdpDescTab)}</label>
+      <label for="pw-pdp-tab-specs" class="pw-pdp-tab">${escText(t.pdpSpecsTab)}</label>
+    </div>
+    ${descPanel}
+    <div class="pw-pdp-tabpanel pw-pdp-tabpanel-specs" data-pw-pdp-tabpanel="specifications">${specs}</div>
+  </div>`
 }
 
 function sizeVariantInner(sizes: string[], locale: WebLocale): string {
@@ -474,12 +648,39 @@ function rewriteVariantBlocks(inner: string, product: LivePdpBindProduct, locale
 function rewritePdpInfoInner(inner: string, product: LivePdpBindProduct, locale: WebLocale): string {
   const name = escText(product.name || 'Product')
   const sku = String(product.sku || '').trim()
-  const desc = String(product.detailDescription || product.description || '').trim()
+  const descHtml = pdpDescriptionBodyHtml(String(product.detailDescription || product.description || '').trim())
   const { price, compare } = productPriceText(product)
   let out = replaceElInner(inner, PW_EL.title, name)
   out = out.replace(
     /<(h1)([^>]*\bclass=["'][^"']*\bpw-pdp-title\b[^>]*)>([\s\S]*?)<\/\1>/gi,
     `<$1$2>${name}</$1>`
+  )
+  const brand = pdpBrandHtml(product, locale)
+  if (brand) {
+    if (/data-pw-pdp-slot=["']brand["']/.test(out)) {
+      out = out.replace(
+        /<p\b[^>]*data-pw-pdp-slot=["']brand["'][^>]*>[\s\S]*?<\/p>/i,
+        brand
+      )
+    } else if (/\bpw-pdp-title\b/.test(out)) {
+      out = out.replace(
+        /(<(h1)[^>]*\bpw-pdp-title\b[^>]*>[\s\S]*?<\/h1>)/i,
+        `$1${brand}`
+      )
+    }
+  } else {
+    out = out.replace(/<p\b[^>]*data-pw-pdp-slot=["']brand["'][^>]*>[\s\S]*?<\/p>/i, '')
+  }
+  if (/\bpw-pdp-stats\b/.test(out)) {
+    out = out.replace(
+      /<(div)([^>]*\bclass=["'][^"']*\bpw-pdp-stats\b[^>]*)>([\s\S]*?)<\/\1>/i,
+      `<$1$2>${pdpStatsInnerHtml(product, locale)}</$1>`
+    )
+  }
+  const likes = Math.max(0, Math.round(Number(product.likesCount ?? 0) || 0))
+  out = out.replace(
+    /(<button\b[^>]*\b(?:data-pw-pdp-favorite=["']1["']|data-pw-favorite\b)[^>]*>)([\s\S]*?)(<\/button>)/i,
+    `$1♡ ${escText(String(likes))}$3`
   )
   if (sku) {
     out = replaceElInner(out, PW_EL.sku, escText(sku))
@@ -488,7 +689,7 @@ function rewritePdpInfoInner(inner: string, product: LivePdpBindProduct, locale:
       `$1${escText(sku)}$3`
     )
   }
-  if (desc) out = replaceElInner(out, PW_EL.desc, escText(desc))
+  if (descHtml) out = replaceElInner(out, PW_EL.desc, descHtml)
   if (price) {
     out = replaceElInner(out, PW_EL.price, (priceInner) => {
       const compareBlock = priceInner.match(
@@ -702,14 +903,9 @@ function ensureMissingPdpSlots(
   const t = getPartnerSiteShopCopy(locale)
   const name = product.name || 'Product'
   let out = html
-  const crumbs = (product.breadcrumb ?? []).filter((c) => String(c.name || '').trim())
+  const crumbs = productCrumbs(product, siteSlug)
   if (crumbs.length && !/data-pw-region=["']breadcrumb["']/.test(out)) {
-    const links = [
-      `<a href="#" data-pw-el="${PW_EL.link}">${escText(t.navHome)}</a>`,
-      ...crumbs.map((c) => `<a href="${escAttr(c.href || '#')}" data-pw-el="${PW_EL.crumb}">${escText(c.name)}</a>`),
-      `<span data-pw-el="${PW_EL.crumb}">${escText(name)}</span>`,
-    ].join(' / ')
-    const nav = `<nav class="pw-shop-breadcrumb" data-pw-region="${PW_REGION.breadcrumb}" data-pw-pdp-slot="breadcrumb">${links}</nav>`
+    const nav = `<nav class="pw-shop-breadcrumb" data-pw-region="${PW_REGION.breadcrumb}" data-pw-pdp-slot="breadcrumb">${breadcrumbInnerHtml(product, locale, siteSlug)}</nav>`
     if (/<main\b/i.test(out)) out = insertAfterOpen(out, /<main\b[^>]*>/i, nav)
     else if (/<body\b/i.test(out)) out = insertAfterOpen(out, /<body\b[^>]*>/i, nav)
     else out = nav + out
@@ -732,6 +928,28 @@ function ensureMissingPdpSlots(
   if (stock > 0 && stock <= 5 && !hasSlot(out, 'low-stock')) {
     const badge = `<span class="pw-shop-urgency-badge" data-pw-el="${PW_EL.badge}" data-pw-pdp-slot="low-stock">${escText(t.lowStockUrgency.replace('{n}', String(stock)))}</span>`
     out = out.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>[\s\S]*?<\/div>)/i, `$1${badge}`)
+  }
+  if (!/\bpw-pdp-stats\b/.test(out) && /\bpw-pdp-title\b/.test(out)) {
+    const stats = `<div class="pw-pdp-stats" data-pw-pdp-slot="stats">${pdpStatsInnerHtml(product, locale)}</div>`
+    if (/\bpw-pdp-sku\b/.test(out)) {
+      out = out.replace(/(<p\b[^>]*\bpw-pdp-sku\b[^>]*>[\s\S]*?<\/p>)/i, `$1${stats}`)
+    } else {
+      out = out.replace(/(<(h1)[^>]*\bpw-pdp-title\b[^>]*>[\s\S]*?<\/h1>)/i, `$1${stats}`)
+    }
+  }
+  if (/class=["'][^"']*\bpw-shop-product-detail\b/.test(out)) {
+    out = rewriteClassBlocks(out, 'pw-shop-product-detail', (inner, open) => {
+      const keep =
+        inner.match(
+          /<div\b[^>]*data-pw-pdp-slot=["'](?:material|real-use|video)["'][\s\S]*?<\/div>/gi
+        ) || []
+      return `${open}${buildPdpDetailTabsHtml(product, locale)}${keep.join('')}`
+    })
+  } else if (!hasSlot(out, 'tabs')) {
+    out = insertBeforeMainClose(
+      out,
+      `<section class="pw-shop-product-detail" data-pw-region="${PW_REGION.pdpInfo}" data-pw-bg-role="pdp-info">${buildPdpDetailTabsHtml(product, locale)}</section>`
+    )
   }
   const sizeGuide = String(product.sizeGuideImageUrl || '').trim()
   if (sizeGuide && !hasSlot(out, 'size-guide')) {
@@ -756,10 +974,22 @@ function ensureMissingPdpSlots(
       out = out.replace(/(<[^>]*\bpw-pdp-actions\b[^>]*>)/i, `${note}$1`)
     }
   }
-  const videoPoster = String(product.productVideoUrl || '').trim()
-  if (videoPoster && looksLikeVideoUrl(videoPoster) && !hasSlot(out, 'video')) {
-    const video = `<div data-pw-pdp-slot="video"><h2>${escText(t.productVideoTitle)}</h2><video class="pw-shop-product-video" poster="${escAttr(videoPoster)}" controls preload="none"></video></div>`
-    if (/class=["'][^"']*\bpw-shop-product-detail\b/.test(out)) {
+  const videoUrl = String(product.productVideoUrl || '').trim()
+  if (videoUrl && looksLikeVideoUrl(videoUrl) && /data-pw-pdp-video-thumb|data-pw-pdp-hero-video/.test(out)) {
+    if (hasSlot(out, 'video')) {
+      out = out.replace(
+        /(<div\b[^>]*data-pw-pdp-slot=["']video["'][^>]*)>/i,
+        '$1 hidden style="display:none">'
+      )
+    }
+  } else if (videoUrl && looksLikeVideoUrl(videoUrl)) {
+    const yt = toYoutubeEmbedSrc(videoUrl)
+    const video = yt
+      ? `<div data-pw-pdp-slot="video"><h2>${escText(t.productVideoTitle)}</h2><iframe class="pw-shop-product-video" src="${escAttr(yt)}" title="${escAttr(name)}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowfullscreen></iframe></div>`
+      : `<div data-pw-pdp-slot="video"><h2>${escText(t.productVideoTitle)}</h2><video class="pw-shop-product-video" src="${escAttr(videoUrl)}" controls preload="metadata"></video></div>`
+    if (hasSlot(out, 'video')) {
+      out = out.replace(/<div\b[^>]*data-pw-pdp-slot=["']video["'][^>]*>[\s\S]*?<\/div>/i, video)
+    } else if (/class=["'][^"']*\bpw-shop-product-detail\b/.test(out)) {
       out = out.replace(
         /(<([a-z0-9]+)\b[^>]*\bpw-shop-product-detail\b[^>]*>)([\s\S]*?)(<\/\2>)/i,
         `$1$3${video}$4`
@@ -767,6 +997,11 @@ function ensureMissingPdpSlots(
     } else {
       out = insertBeforeMainClose(out, `<section class="pw-shop-product-detail" data-pw-region="${PW_REGION.pdpInfo}">${video}</section>`)
     }
+  } else if (hasSlot(out, 'video')) {
+    out = out.replace(
+      /(<div\b[^>]*data-pw-pdp-slot=["']video["'][^>]*)>/i,
+      '$1 hidden style="display:none">'
+    )
   }
   const material = shopCardDisplaySrc(product.materialImageUrl)
   if (material && !hasSlot(out, 'material')) {
@@ -838,6 +1073,9 @@ export function bindLiveProductToPdpHtml(
   const locale = opts?.locale || 'vi'
   const siteSlug = opts?.siteSlug
   let out = stampPdpHosts(source, id)
+  out = replaceRegionBlocks(out, PW_REGION.breadcrumb, (inner, open) => {
+    return `${open}${breadcrumbInnerHtml(product, locale, siteSlug)}`
+  })
   out = replaceRegionBlocks(out, PW_REGION.gallery, (inner, open) => {
     return `${stampInventoryIdOnTag(open, id)}${rewriteGalleryInner(inner, product)}`
   })

@@ -5,6 +5,7 @@ import {
 } from '@/lib/db/messaging-partner-categories-pg'
 import { slugifyPartnerCategoryName } from '@/lib/partner-website/category/partner-category-types'
 import type { PartnerCategoryRow } from '@/lib/partner-website/category/partner-category-types'
+import { shouldSkipPartnerCategoryImportName } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
 
 function nameKey(name: string): string {
   return name
@@ -81,13 +82,21 @@ export async function linkImportedInventoryToCatalogCategoriesBatch(
   const rows = [...listed]
   for (const item of work) {
     const l1 = (item.categoryL1 ?? '').trim()
-    if (!l1) continue
+    if (!l1 || shouldSkipPartnerCategoryImportName(l1)) continue
     const n1 = await ensureLevel(partnerId, rows, null, l1)
     if (!n1) continue
     const l2 = (item.categoryL2 ?? '').trim()
+    if (l2 && shouldSkipPartnerCategoryImportName(l2)) {
+      await assignInventoryToCategoryFromPg(partnerId, item.inventoryId, n1.id, true)
+      continue
+    }
     const n2 = l2 ? await ensureLevel(partnerId, rows, n1.id, l2) : n1
     if (!n2) continue
     const l3 = (item.categoryL3 ?? '').trim()
+    if (l3 && shouldSkipPartnerCategoryImportName(l3)) {
+      await assignInventoryToCategoryFromPg(partnerId, item.inventoryId, n2.id, true)
+      continue
+    }
     const n3 = l3 ? await ensureLevel(partnerId, rows, n2.id, l3) : n2
     if (!n3) continue
     await assignInventoryToCategoryFromPg(partnerId, item.inventoryId, n3.id, true)

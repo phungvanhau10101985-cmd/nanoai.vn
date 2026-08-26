@@ -5,6 +5,7 @@ import {
   resolvePartnerEffectiveUnitPrice,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import { DEMO_PDP_BIND_PRODUCT } from '@/lib/partner-website/shop/demo-pdp-bind-product'
+import { buildPdpDetailTabsHtml } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
 import {
   buildPartnerSiteHeaderHtml,
   buildPartnerSitePdpBottomNavHtml,
@@ -54,7 +55,6 @@ export function buildDefaultDemoPdpShellHtml(input?: {
   const main = images[0] || ''
   const sizes = (p.sizes ?? []).filter(Boolean)
   const colors = (p.colors ?? []).filter((c) => c.name)
-  const details = uniqueUrls(p.detailImages ?? [])
   const realUse = uniqueUrls(p.realUseImageUrls ?? [])
   const material = String(p.materialImageUrl || '').trim()
   const sizeGuide = String(p.sizeGuideImageUrl || '').trim()
@@ -86,10 +86,6 @@ export function buildDefaultDemoPdpShellHtml(input?: {
   const sizeGuideHref = slug ? escapeAttr(partnerSiteInfoPath(slug, 'size-guide')) : '#'
   const homeHref = slug ? escapeAttr(partnerSiteHomePath(slug)) : '#'
   const productsHref = slug ? escapeAttr(partnerSiteProductsPath(slug)) : '#'
-  const descHtml = escapeHtml(p.detailDescription || p.description || '')
-    .split(/\n{2,}/)
-    .map((para) => `<p style="margin:0 0 12px">${para.replace(/\n/g, '<br/>')}</p>`)
-    .join('')
   const shareBtn = `<button type="button" class="pw-pdp-pill" data-pw-pdp-slot="share">${escapeHtml(t.pdpShareCopy)}</button>`
   const thumbs = `${images.map((url, i) => thumbHtml(url, name, i === 0)).join('')}${shareBtn}`
   const dots = images.map((_, i) => `<span${i === 0 ? ' class="is-active"' : ''}></span>`).join('')
@@ -164,10 +160,6 @@ export function buildDefaultDemoPdpShellHtml(input?: {
     siteSlug: slug || undefined,
     excludeId: p.id,
   })
-  const detailImgs = details
-    .slice(0, 2)
-    .map((url) => `<img src="${escapeAttr(url)}" alt="${escapeAttr(name)}" loading="lazy" decoding="async" />`)
-    .join('')
   const realUseImgs = realUse
     .slice(0, 1)
     .map((url) => `<img src="${escapeAttr(url)}" alt="${escapeAttr(name)}" loading="lazy" decoding="async" />`)
@@ -208,12 +200,18 @@ ${chrome.header}
       ${useMobileHero ? '' : galleryDesktop}
       <div class="pw-shop-pdp-info pw-pdp-info-pad" ${pwRegionAttr(PW_REGION.pdpInfo)} data-pw-bg-role="pdp-info">
         <h1 class="pw-pdp-title" ${pwElAttr(PW_EL.title)}>${escapeHtml(name)}</h1>
+        ${
+          p.brandName
+            ? `<p class="pw-pdp-brand" data-pw-pdp-slot="brand">${escapeHtml(t.pdpBrandLabel)}: ${escapeHtml(p.brandName)}</p>`
+            : ''
+        }
         <p class="pw-pdp-sku">${escapeHtml(t.skuLabel)}: <strong ${pwElAttr(PW_EL.sku)}>${escapeHtml(p.sku || '')}</strong></p>
-        <div class="pw-pdp-stats">
-          <span><span class="pw-pdp-star">★</span> <strong>4.8</strong></span>
-          <span>${escapeHtml(t.pdpRatingLabel)}: <strong>${reviews.length}</strong></span>
-          <a href="#pw-pdp-reviews">${escapeHtml(t.pdpJumpReviews)}</a>
-          <a href="#pw-pdp-qa">${escapeHtml(t.pdpJumpQa)}</a>
+        <div class="pw-pdp-stats" data-pw-pdp-slot="stats">
+          <span><span class="pw-pdp-star">★</span> <strong>${escapeHtml(Number(p.ratingScore ?? 4.8).toFixed(1))}</strong></span>
+          <span class="pw-pdp-stats-dot">•</span>
+          <span><strong>${escapeHtml(String(p.reviewsCount ?? reviews.length))}</strong> ${escapeHtml(t.pdpRatingLabel)}</span>
+          <span class="pw-pdp-stats-dot">•</span>
+          <span><strong>${escapeHtml(String(p.purchasesCount ?? 0))}</strong> ${escapeHtml(t.pdpPurchasesLabel)}</span>
         </div>
         <div class="pw-pdp-price-card">
           <span class="pw-shop-urgency-badge" ${pwElAttr(PW_EL.badge)}>${escapeHtml(t.flashSaleBadge)}</span>
@@ -264,20 +262,13 @@ ${chrome.header}
           <button type="button" class="pw-shop-btn pw-shop-btn-buy" data-pw-chrome-btn="buy-now" ${pwElAttr(PW_EL.buy)} data-pw-buy data-pw-pdp-buy-now="1">${escapeHtml(t.buyNow)}</button>
           <button type="button" class="pw-shop-btn pw-shop-btn-outline" ${pwElAttr(PW_EL.cta)} data-nanoai-open-chat>${escapeHtml(t.consultChat)}</button>
           <button type="button" class="pw-shop-btn pw-shop-btn-outline" data-pw-chrome-btn="try-on" ${pwElAttr(PW_EL.cta)} data-nanoai-try-on>${escapeHtml(t.tryOnLink)}</button>
-          <button type="button" class="pw-shop-btn pw-shop-btn-outline" data-pw-chrome-btn="favorite-product" ${pwElAttr(PW_EL.wishlist)} data-pw-favorite data-pw-pdp-favorite="1">♡</button>
+          <button type="button" class="pw-shop-btn pw-shop-btn-outline" data-pw-chrome-btn="favorite-product" ${pwElAttr(PW_EL.wishlist)} data-pw-favorite data-pw-pdp-favorite="1">♡ ${escapeHtml(String(p.likesCount ?? 0))}</button>
         </div>
       </div>
     </div>
     ${outfitSection}
     <section class="pw-shop-product-detail" ${pwRegionAttr(PW_REGION.pdpInfo)} data-pw-bg-role="pdp-info">
-      <div>
-        <h2>${escapeHtml(t.productDescriptionTitle)}</h2>
-        <div class="pw-shop-product-detail-body" ${pwElAttr(PW_EL.desc)}>${descHtml}</div>
-      </div>
-      <div>
-        <h2>${escapeHtml(t.productDetailImagesTitle)}</h2>
-        <div class="pw-shop-detail-grid">${detailImgs}</div>
-      </div>
+      ${buildPdpDetailTabsHtml(p, locale)}
       ${
         material
           ? `<div data-pw-pdp-slot="material"><h2>${escapeHtml(t.pdpMaterialImagesTitle)}</h2><div class="pw-shop-detail-grid"><img src="${escapeAttr(material)}" alt="${escapeAttr(name)}" loading="lazy" decoding="async" /></div></div>`

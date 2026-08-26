@@ -89,6 +89,18 @@ test('bind does not treat a product photo as a video slot', () => {
     productVideoUrl: 'https://cdn.example/look.jpg',
   })
   assert.doesNotMatch(next, /data-pw-pdp-slot="video"/)
+  assert.doesNotMatch(next, /data-pw-pdp-video-thumb/)
+})
+
+test('bind puts product video as second gallery thumb like 188', () => {
+  const next = bindLiveProductToPdpHtml(SHELL, {
+    ...PRODUCT_B,
+    productVideoUrl: 'https://cdn.example/look.mp4',
+  })
+  assert.match(next, /data-pw-pdp-video-thumb/)
+  assert.match(next, /data-pw-pdp-hero-video/)
+  assert.match(next, /look\.mp4/)
+  assert.doesNotMatch(next, /data-pw-pdp-slot="video"/)
 })
 
 test('bind injects missing editor layout slots onto a sparse shell', () => {
@@ -209,4 +221,34 @@ test('bind injects related strip when the shell has no catalog', () => {
   const next = bindLiveProductToPdpHtml(html, PRODUCT_B, { locale: 'vi', siteSlug: 'demo-shop' })
   assert.match(next, /data-pw-related="1"/)
   assert.match(next, /Sản phẩm tương tự/)
+})
+
+test('bind fills catalog stats, brand, tabs, and every detail photo', () => {
+  const next = bindLiveProductToPdpHtml(
+    SHELL,
+    {
+      ...PRODUCT_B,
+      brandName: '188 Fashion',
+      origin: 'Trung Quốc',
+      material: 'Cotton',
+      ratingScore: 4.7,
+      reviewsCount: 21,
+      purchasesCount: 90,
+      galleryImages: ['https://new.example/shirt.jpg'],
+      detailImages: ['https://new.example/d1.jpg', 'https://new.example/d2.jpg', 'https://new.example/d3.jpg'],
+      productInfo: { product_info: { sku: 'SHIRT-9', brand: '188 Fashion' } },
+    },
+    { locale: 'vi' }
+  )
+  assert.match(next, /Thương hiệu: 188 Fashion/)
+  assert.match(next, /4\.7/)
+  assert.match(next, /90/)
+  assert.match(next, /Đã bán/)
+  assert.match(next, /pw-pdp-stats-dot/)
+  assert.match(next, /data-pw-pdp-slot="tabs"/)
+  assert.match(next, /Thông tin sản phẩm/)
+  assert.match(next, /https:\/\/new\.example\/d1\.jpg/)
+  assert.match(next, /https:\/\/new\.example\/d3\.jpg/)
+  assert.match(next, /pw-pdp-detail-photos/)
+  assert.doesNotMatch(next, /https:\/\/new\.example\/d2\.jpg[^"]*"[^>]*data-pw-el="thumb"/)
 })

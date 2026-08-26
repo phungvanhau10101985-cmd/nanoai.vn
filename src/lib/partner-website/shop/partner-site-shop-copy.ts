@@ -32,6 +32,10 @@ export type PartnerSiteShopCopy = {
   categoryFilterAllSizes: string
   categoryFilterAllColors: string
   categoryMegaHint: string
+  khoSaleNavLabel: string
+  khoSaleNavBlurb: string
+  khoSaleViewAll: string
+  khoSalePageTitle: string
   categorySeoRowAria: string
   categoryExpand: string
   categoryCollapse: string
@@ -162,6 +166,23 @@ export type PartnerSiteShopCopy = {
   pdpShareCopied: string
   pdpJumpReviews: string
   pdpJumpQa: string
+  pdpBrandLabel: string
+  pdpOriginLabel: string
+  pdpMaterialLabel: string
+  pdpStyleLabel: string
+  pdpOccasionLabel: string
+  pdpWeightLabel: string
+  pdpFeaturesLabel: string
+  pdpCategoryLabel: string
+  pdpPurchasesLabel: string
+  pdpLikesLabel: string
+  pdpRatingCountSuffix: string
+  pdpDescTab: string
+  pdpSpecsTab: string
+  pdpDetailImagesHeading: string
+  pdpSpecsEmpty: string
+  pdpYes: string
+  pdpNo: string
   ordersTitle: string
   ordersEmpty: string
   /** W3.2 — trang cảm ơn sau checkout */
@@ -429,6 +450,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterAllSizes: 'Tất cả size',
     categoryFilterAllColors: 'Tất cả màu',
     categoryMegaHint: 'Di chuột vào danh mục để xem cấp 2, cấp 3.',
+    khoSaleNavLabel: 'Sale kho',
+    khoSaleNavBlurb: 'Hàng hoàn và tồn thanh lý — giá ưu đãi, số lượng có hạn.',
+    khoSaleViewAll: 'Xem tất cả →',
+    khoSalePageTitle: 'Sale kho',
     categorySeoRowAria: 'Từ khóa size SEO',
     categoryExpand: 'Mở danh mục con',
     categoryCollapse: 'Thu gọn danh mục con',
@@ -551,6 +576,23 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpShareCopied: 'Đã sao chép',
     pdpJumpReviews: 'Xem đánh giá',
     pdpJumpQa: 'Hỏi đáp',
+    pdpBrandLabel: 'Thương hiệu',
+    pdpOriginLabel: 'Xuất xứ',
+    pdpMaterialLabel: 'Chất liệu',
+    pdpStyleLabel: 'Phong cách',
+    pdpOccasionLabel: 'Dịp',
+    pdpWeightLabel: 'Trọng lượng',
+    pdpFeaturesLabel: 'Tính năng',
+    pdpCategoryLabel: 'Danh mục',
+    pdpPurchasesLabel: 'Đã bán',
+    pdpLikesLabel: 'Lượt thích',
+    pdpRatingCountSuffix: 'lượt',
+    pdpDescTab: 'Mô Tả Sản Phẩm',
+    pdpSpecsTab: 'Thông tin sản phẩm',
+    pdpDetailImagesHeading: 'Hình ảnh chi tiết sản phẩm',
+    pdpSpecsEmpty: 'Chưa có dữ liệu thông tin sản phẩm.',
+    pdpYes: 'Có',
+    pdpNo: 'Không',
     ordersTitle: 'Đơn hàng của bạn',
     ordersEmpty: 'Chưa có đơn hàng.',
     thankYouOrderLabel: 'Mã đơn',
@@ -809,6 +851,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterAllSizes: 'All sizes',
     categoryFilterAllColors: 'All colors',
     categoryMegaHint: 'Hover a category to see level 2 and 3.',
+    khoSaleNavLabel: 'Warehouse sale',
+    khoSaleNavBlurb: 'Returned and clearance stock — promotional prices, limited quantity.',
+    khoSaleViewAll: 'View all →',
+    khoSalePageTitle: 'Warehouse sale',
     categorySeoRowAria: 'Size SEO links',
     categoryExpand: 'Open subcategories',
     categoryCollapse: 'Collapse subcategories',
@@ -931,6 +977,23 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpShareCopied: 'Copied',
     pdpJumpReviews: 'See reviews',
     pdpJumpQa: 'Q&A',
+    pdpBrandLabel: 'Brand',
+    pdpOriginLabel: 'Origin',
+    pdpMaterialLabel: 'Material',
+    pdpStyleLabel: 'Style',
+    pdpOccasionLabel: 'Occasion',
+    pdpWeightLabel: 'Weight',
+    pdpFeaturesLabel: 'Features',
+    pdpCategoryLabel: 'Category',
+    pdpPurchasesLabel: 'Sold',
+    pdpLikesLabel: 'Likes',
+    pdpRatingCountSuffix: 'ratings',
+    pdpDescTab: 'Product description',
+    pdpSpecsTab: 'Product information',
+    pdpDetailImagesHeading: 'Product detail photos',
+    pdpSpecsEmpty: 'No product information yet.',
+    pdpYes: 'Yes',
+    pdpNo: 'No',
     ordersTitle: 'Your orders',
     ordersEmpty: 'No orders yet.',
     thankYouOrderLabel: 'Order ID',
@@ -1189,6 +1252,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterAllSizes: '全部尺码',
     categoryFilterAllColors: '全部颜色',
     categoryMegaHint: '将鼠标移到分类上可查看二级、三级。',
+    khoSaleNavLabel: '仓库特卖',
+    khoSaleNavBlurb: '退货与清仓库存 — 优惠价，数量有限。',
+    khoSaleViewAll: '查看全部 →',
+    khoSalePageTitle: '仓库特卖',
     categorySeoRowAria: '尺码搜索链接',
     categoryExpand: '打开子分类',
     categoryCollapse: '收起子分类',
@@ -1311,6 +1378,23 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpShareCopied: '已复制',
     pdpJumpReviews: '查看评价',
     pdpJumpQa: '问答',
+    pdpBrandLabel: '品牌',
+    pdpOriginLabel: '产地',
+    pdpMaterialLabel: '材质',
+    pdpStyleLabel: '风格',
+    pdpOccasionLabel: '场合',
+    pdpWeightLabel: '重量',
+    pdpFeaturesLabel: '卖点',
+    pdpCategoryLabel: '类目',
+    pdpPurchasesLabel: '已售',
+    pdpLikesLabel: '喜欢',
+    pdpRatingCountSuffix: '次',
+    pdpDescTab: '商品描述',
+    pdpSpecsTab: '商品信息',
+    pdpDetailImagesHeading: '商品细节图',
+    pdpSpecsEmpty: '暂无商品信息。',
+    pdpYes: '是',
+    pdpNo: '否',
     ordersTitle: '我的订单',
     ordersEmpty: '暂无订单。',
     thankYouOrderLabel: '订单编号',
@@ -1569,6 +1653,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterAllSizes: 'すべてのサイズ',
     categoryFilterAllColors: 'すべてのカラー',
     categoryMegaHint: 'カテゴリにマウスを置くと2階層・3階層が表示されます。',
+    khoSaleNavLabel: '倉庫セール',
+    khoSaleNavBlurb: '返品・倉庫清算品 — 特価、数量限定。',
+    khoSaleViewAll: 'すべて見る →',
+    khoSalePageTitle: '倉庫セール',
     categorySeoRowAria: 'サイズSEO',
     categoryExpand: '下のカテゴリを開く',
     categoryCollapse: '下のカテゴリを閉じる',
@@ -1691,6 +1779,23 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpShareCopied: 'コピーしました',
     pdpJumpReviews: 'レビューを見る',
     pdpJumpQa: 'Q&A',
+    pdpBrandLabel: 'ブランド',
+    pdpOriginLabel: '原産地',
+    pdpMaterialLabel: '素材',
+    pdpStyleLabel: 'スタイル',
+    pdpOccasionLabel: 'シーン',
+    pdpWeightLabel: '重量',
+    pdpFeaturesLabel: '特徴',
+    pdpCategoryLabel: 'カテゴリ',
+    pdpPurchasesLabel: '販売',
+    pdpLikesLabel: 'いいね',
+    pdpRatingCountSuffix: '件',
+    pdpDescTab: '商品説明',
+    pdpSpecsTab: '商品情報',
+    pdpDetailImagesHeading: '詳細画像',
+    pdpSpecsEmpty: '商品情報はまだありません。',
+    pdpYes: 'はい',
+    pdpNo: 'いいえ',
     ordersTitle: '注文履歴',
     ordersEmpty: '注文はまだありません。',
     thankYouOrderLabel: '注文ID',
@@ -1949,6 +2054,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterAllSizes: '모든 사이즈',
     categoryFilterAllColors: '모든 색상',
     categoryMegaHint: '카테고리에 마우스를 올리면 2·3단계를 봅니다.',
+    khoSaleNavLabel: '창고 세일',
+    khoSaleNavBlurb: '반품·창고 정리 재고 — 특가, 수량 한정.',
+    khoSaleViewAll: '모두 보기 →',
+    khoSalePageTitle: '창고 세일',
     categorySeoRowAria: '사이즈 SEO',
     categoryExpand: '하위 카테고리 열기',
     categoryCollapse: '하위 카테고리 접기',
@@ -2071,6 +2180,23 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpShareCopied: '복사됨',
     pdpJumpReviews: '리뷰 보기',
     pdpJumpQa: 'QnA',
+    pdpBrandLabel: '브랜드',
+    pdpOriginLabel: '원산지',
+    pdpMaterialLabel: '소재',
+    pdpStyleLabel: '스타일',
+    pdpOccasionLabel: '상황',
+    pdpWeightLabel: '무게',
+    pdpFeaturesLabel: '특징',
+    pdpCategoryLabel: '카테고리',
+    pdpPurchasesLabel: '판매',
+    pdpLikesLabel: '좋아요',
+    pdpRatingCountSuffix: '건',
+    pdpDescTab: '상품 설명',
+    pdpSpecsTab: '상품 정보',
+    pdpDetailImagesHeading: '상세 이미지',
+    pdpSpecsEmpty: '상품 정보가 아직 없습니다.',
+    pdpYes: '예',
+    pdpNo: '아니요',
     ordersTitle: '내 주문',
     ordersEmpty: '주문이 없습니다.',
     thankYouOrderLabel: '주문 번호',

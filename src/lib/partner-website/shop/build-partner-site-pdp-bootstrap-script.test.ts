@@ -18,6 +18,8 @@ test('PDP bootstrap hydrates reviews, Q&A, and options instead of clearing cards
   assert.match(s, /Gửi đánh giá/)
   assert.match(s, /Gửi câu hỏi/)
   assert.match(s, /applyOptions/)
+  assert.match(s, /pdpPurchasesLabel/)
+  assert.match(s, /data-pw-pdp-video-thumb/)
   assert.match(s, /closest\('\[data-pw-el="variant"\]'\)/)
   assert.match(s, /if\(info\.querySelector\('\[data-pw-pdp-option="'\+kind\+'"\]'\)\)return/)
   assert.doesNotMatch(s, /\[data-pw-region="reviews"\] \[data-pw-el="card"\]'\)\.forEach\(function\(card\)\{card\.innerHTML=''/)
