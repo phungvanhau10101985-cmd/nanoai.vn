@@ -102,6 +102,7 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('focusExistingChrome')
     expect(s).toContain('parkChromeAtViewportCenter')
     expect(s).toContain('bringExistingChromeToCenter')
+    expect(s).toContain('isInFlowPdpAction')
     expect(s).toContain('liftChromeToViewportCenter')
     expect(s).toContain('restoreChromeDupCenter')
     expect(s).toContain('resetVisualScroll')

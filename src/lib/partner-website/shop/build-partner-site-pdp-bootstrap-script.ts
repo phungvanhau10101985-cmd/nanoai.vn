@@ -171,13 +171,18 @@ function setStarValue(host,n){
 }
 function paintPills(kind,items){
   var block=document.querySelector('[data-pw-region="pdp-info"] [data-pw-pdp-option="'+kind+'"],[data-pw-pdp-option="'+kind+'"]');
+  if(!block&&kind==='color'){
+    var colorPill=document.querySelector('[data-pw-region="pdp-info"] .pw-pdp-color,.pw-pdp-color');
+    block=colorPill&&colorPill.closest?colorPill.closest('[data-pw-el="variant"]'):null;
+  }
   if(!items||!items.length){
     if(block)block.style.display='none';
     return;
   }
   if(!block){
-    var info=document.querySelector('[data-pw-region="pdp-info"]');
+    var info=document.querySelector('.pw-shop-pdp-info,[data-pw-region="pdp-info"]');
     if(!info)return;
+    if(info.querySelector('[data-pw-pdp-option="'+kind+'"]'))return;
     block=document.createElement('div');
     block.setAttribute('data-pw-el','variant');
     block.setAttribute('data-pw-pdp-option',kind);

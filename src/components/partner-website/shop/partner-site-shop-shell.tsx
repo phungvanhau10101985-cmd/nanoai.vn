@@ -17,7 +17,12 @@ import {
   PartnerSiteChatWidgetProvider,
   usePartnerSiteChatWidget,
 } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
-import { PartnerSiteCategoryMegaMenu } from '@/components/partner-website/shop/partner-site-category-mega-menu'
+import {
+  PartnerSiteCategoryMegaMenu,
+  PartnerSiteCategoryNavPills,
+  PartnerSiteCategorySeoRow,
+  usePartnerCategoryFineHover,
+} from '@/components/partner-website/shop/partner-site-category-mega-menu'
 import { PartnerSiteShopSearchBar } from '@/components/partner-website/shop/partner-site-shop-search-bar'
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
 import { PartnerSiteCookieConsentBanner } from '@/components/partner-website/shop/partner-site-cookie-consent-banner'
@@ -26,14 +31,14 @@ import {
   partnerSiteAccountTabPath,
   partnerSiteCartApiPath,
   partnerSiteCategoriesApiPath,
-  partnerSiteCategoryPath,
   partnerSiteInfoPath,
   partnerSiteNotificationsApiPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { type PartnerCategoryTreeNode } from '@/lib/partner-website/category/partner-category-types'
 import {
-  resolvePartnerCategoryDisplayName,
-  type PartnerCategoryTreeNode,
-} from '@/lib/partner-website/category/partner-category-types'
+  PARTNER_CATEGORY_MEGA_CLOSE_MS,
+  splitPartnerCategoryNavTree,
+} from '@/lib/partner-website/shop/partner-site-category-mega-menu'
 import {
   getPartnerSiteCategoryNavLabels,
   getPartnerSiteShopNavPaths,
@@ -314,9 +319,12 @@ function PartnerSiteShopShellInner({
   const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { cartCount, setCartCount, registerCartLoader } = usePartnerSiteShop()
   const [categoryTree, setCategoryTree] = useState<PartnerCategoryTreeNode[] | null>(null)
+  const [seoSizeNodes, setSeoSizeNodes] = useState<PartnerCategoryTreeNode[]>([])
   const [categoriesOpen, setCategoriesOpen] = useState(false)
   const [unreadNotifications, setUnreadNotifications] = useState(0)
   const categoriesRef = useRef<HTMLDivElement | null>(null)
+  const categoriesLeaveTimer = useRef<number | null>(null)
+  const fineHover = usePartnerCategoryFineHover()
 
   useEffect(() => {
     if (!categoriesOpen) return
@@ -411,11 +419,17 @@ function PartnerSiteShopShellInner({
     let cancelled = false
     fetch(partnerSiteCategoriesApiPath(siteSlug), { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
-      .then((json: { tree?: PartnerCategoryTreeNode[] } | null) => {
-        if (!cancelled) setCategoryTree(json?.tree ?? [])
+      .then((json: { tree?: PartnerCategoryTreeNode[]; menuTree?: PartnerCategoryTreeNode[]; seoSizes?: PartnerCategoryTreeNode[] } | null) => {
+        if (cancelled) return
+        const split = splitPartnerCategoryNavTree(json?.tree ?? [])
+        setCategoryTree(json?.menuTree ?? split.menuTree)
+        setSeoSizeNodes(json?.seoSizes ?? split.seoSizeNodes)
       })
       .catch(() => {
-        if (!cancelled) setCategoryTree([])
+        if (!cancelled) {
+          setCategoryTree([])
+          setSeoSizeNodes([])
+        }
       })
     return () => {
       cancelled = true
@@ -466,7 +480,26 @@ function PartnerSiteShopShellInner({
 
       <header className="pw-shop-header" data-pw-region={PW_REGION.header}>
         <div className="pw-shop-header-inner">
-          <div className="pw-shop-brand-cluster" ref={categoriesRef}>
+          <div className="pw-shop-brand-cluster">
+            <div
+              className="pw-chrome-cat-wrap"
+              ref={categoriesRef}
+              onMouseEnter={() => {
+                if (!fineHover) return
+                if (categoriesLeaveTimer.current != null) {
+                  window.clearTimeout(categoriesLeaveTimer.current)
+                  categoriesLeaveTimer.current = null
+                }
+                setCategoriesOpen(true)
+              }}
+              onMouseLeave={() => {
+                if (!fineHover) return
+                if (categoriesLeaveTimer.current != null) window.clearTimeout(categoriesLeaveTimer.current)
+                categoriesLeaveTimer.current = window.setTimeout(() => {
+                  setCategoriesOpen(false)
+                }, PARTNER_CATEGORY_MEGA_CLOSE_MS)
+              }}
+            >
             <button
               type="button"
               className="pw-shop-cat-btn"
@@ -474,21 +507,13 @@ function PartnerSiteShopShellInner({
               aria-expanded={categoriesOpen}
               aria-controls="pw-shop-cat-panel"
                 onClick={() => {
+                  if (fineHover && categoriesOpen) return
                   setCategoriesOpen((open) => !open)
                 }}
             >
               <Menu className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
               <span>{t.navCategories}</span>
             </button>
-            {logoUrl ? (
-              <Link href={paths.home}>
-                <img className="pw-shop-logo" data-pw-el={PW_EL.logo} src={logoUrl} alt={title} />
-              </Link>
-            ) : (
-              <Link href={paths.home} className="pw-shop-brand" data-pw-el={PW_EL.wordmark}>
-                {title}
-              </Link>
-            )}
             {categoriesOpen ? (
               <nav id="pw-shop-cat-panel" className="pw-shop-cat-panel pw-cat-mega" aria-label={t.navCategories}>
                 {hasCategoryTree ? (
@@ -528,6 +553,16 @@ function PartnerSiteShopShellInner({
                 )}
               </nav>
             ) : null}
+            </div>
+            {logoUrl ? (
+              <Link href={paths.home}>
+                <img className="pw-shop-logo" data-pw-el={PW_EL.logo} src={logoUrl} alt={title} />
+              </Link>
+            ) : (
+              <Link href={paths.home} className="pw-shop-brand" data-pw-el={PW_EL.wordmark}>
+                {title}
+              </Link>
+            )}
           </div>
 
           <PartnerSiteShopSearchBar siteSlug={siteSlug} locale={locale} />
@@ -594,25 +629,39 @@ function PartnerSiteShopShellInner({
             </Link>
           </div>
         </div>
+        <PartnerSiteCategorySeoRow
+          nodes={seoSizeNodes}
+          siteSlug={siteSlug}
+          locale={locale}
+          customDomain={customDomain}
+          ariaLabel={t.categorySeoRowAria}
+        />
         <nav className="pw-shop-nav-row" data-pw-region={PW_REGION.nav} aria-label="Shop">
-          <Link href={paths.products} data-pw-el={PW_EL.navLink}>{n.newArrivals}</Link>
           {hasCategoryTree ? (
-            categoryTree!.map((cat) => (
-              <Link key={cat.id} href={partnerSiteCategoryPath(siteSlug, cat.path, { customDomain })} data-pw-el={PW_EL.navLink}>
-                {resolvePartnerCategoryDisplayName(cat, locale)}
-              </Link>
-            ))
+            <PartnerSiteCategoryNavPills
+              tree={categoryTree!}
+              siteSlug={siteSlug}
+              locale={locale}
+              productsHref={paths.products}
+              saleHref={paths.sale}
+              newArrivalsLabel={n.newArrivals}
+              saleLabel={n.sale}
+              expandLabel={t.categoryExpand}
+              collapseLabel={t.categoryCollapse}
+              customDomain={customDomain}
+            />
           ) : (
             <>
+              <Link href={paths.products} data-pw-el={PW_EL.navLink}>{n.newArrivals}</Link>
               <Link href={paths.products} data-pw-el={PW_EL.navLink}>{n.clothing}</Link>
               <Link href={paths.products} data-pw-el={PW_EL.navLink}>{n.bags}</Link>
               <Link href={paths.products} data-pw-el={PW_EL.navLink}>{n.shoes}</Link>
               <Link href={paths.products} data-pw-el={PW_EL.navLink}>{n.accessories}</Link>
+              <Link href={paths.sale} className="is-sale" data-pw-el={PW_EL.navLink}>
+                {n.sale}
+              </Link>
             </>
           )}
-          <Link href={paths.sale} className="is-sale" data-pw-el={PW_EL.navLink}>
-            {n.sale}
-          </Link>
         </nav>
       </header>
       </>

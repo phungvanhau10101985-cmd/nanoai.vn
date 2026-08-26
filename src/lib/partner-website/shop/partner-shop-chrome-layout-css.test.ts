@@ -47,6 +47,7 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('data-pw-stay-layer'), true)
   assert.equal(once.includes('pw-shop-stay-scroll'), true)
   assert.equal(once.includes('[data-pw-hidden="1"]{display:none!important}'), true)
+  assert.equal(once.includes('.pw-pdp-actions [data-pw-chrome-btn]'), true)
   assert.equal(once.includes(':not([data-pw-chrome-added]):not([data-pw-stay-scroll])'), true)
   assert.equal(once.includes('z-index:9999!important'), true)
   assert.equal(once.includes('pw-shop-chrome-float'), true)

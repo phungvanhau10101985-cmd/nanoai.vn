@@ -53,6 +53,38 @@ test('binding the demo product onto the default shell keeps size and color pills
   assert.match(next, /data-pw-pdp-slot="video"/)
 })
 
+test('bind keeps size, color, consult, and actions inside the buy box', () => {
+  const html = buildDefaultDemoPdpShellHtml({ locale: 'vi', variant: 'desktop' })
+  const next = bindLiveProductToPdpHtml(html, DEMO_PDP_BIND_PRODUCT)
+  const open = next.match(/<div\b[^>]*\bpw-shop-pdp-info\b[^>]*>/)
+  assert.ok(open && open.index != null)
+  const start = open.index + open[0].length
+  const slice = next.slice(start)
+  const re = /<div\b[^>]*>|<\/div>/gi
+  let depth = 1
+  let end = -1
+  let match: RegExpExecArray | null
+  while ((match = re.exec(slice))) {
+    if (match[0][1] === '/') {
+      depth -= 1
+      if (depth === 0) {
+        end = match.index
+        break
+      }
+    } else {
+      depth += 1
+    }
+  }
+  assert.ok(end >= 0)
+  const buyBox = slice.slice(0, end)
+  assert.match(buyBox, /data-pw-pdp-option="size"/)
+  assert.match(buyBox, /data-pw-pdp-option="color"/)
+  assert.match(buyBox, /data-pw-pdp-slot="consult"/)
+  assert.match(buyBox, /pw-pdp-actions/)
+  assert.match(buyBox, /data-pw-el="qty"/)
+  assert.equal((buyBox.match(/data-pw-pdp-option="color"/g) || []).length, 1)
+})
+
 test('default demo PDP shell uses shop title and logo on the fallback header', () => {
   const html = buildDefaultDemoPdpShellHtml({
     locale: 'vi',

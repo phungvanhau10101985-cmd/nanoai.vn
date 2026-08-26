@@ -633,7 +633,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
   }
   function shouldBindFixed(el){
     if(!el||!el.getAttribute||isChromeFloat(el))return false;
-    if(el.closest&&el.closest('header,.pw-header,.pw-shop-header,[data-pw-live-chrome]'))return false;
+    if(el.closest&&el.closest('header,.pw-header,.pw-shop-header,[data-pw-live-chrome],.pw-pdp-actions,.pw-pdp-sticky,[data-pw-pdp-bottom]'))return false;
     if(el.getAttribute('data-pw-stay-scroll')==='1')return false;
     if(el.getAttribute('data-pw-pin-screen')==='1')return true;
     var pos='';

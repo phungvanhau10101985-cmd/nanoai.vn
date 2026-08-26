@@ -384,32 +384,67 @@ function colorVariantInner(colors: LivePdpBindColor[], locale: WebLocale): strin
   return `<p style="font-weight:700;margin:0 0 8px;font-size:14px">${escText(t.colorLabel)}</p><div class="pw-pdp-pills">${pills}</div>`
 }
 
+function replaceAttrBlocks(
+  html: string,
+  attr: string,
+  value: string,
+  rewrite: (inner: string, open: string) => string
+): string {
+  const masked = maskHtmlForTagScan(html)
+  const attrRe = attr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const valueRe = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const openRe = new RegExp(
+    `<([a-z0-9]+)\\b(?=[^>]*\\b${attrRe}=["']${valueRe}["'])[^>]*>`,
+    'gi'
+  )
+  const chunks: Array<{ start: number; end: number; next: string }> = []
+  let match: RegExpExecArray | null
+  while ((match = openRe.exec(masked))) {
+    const tag = (match[1] || 'div').toLowerCase()
+    const start = match.index
+    const openEnd = start + match[0].length
+    const close = closingTagIndex(masked, openEnd, tag)
+    if (close < 0) continue
+    const closeTok = html.slice(close).match(new RegExp(`^</${tag}\\s*>`, 'i'))
+    const end = close + (closeTok?.[0].length ?? `</${tag}>`.length)
+    openRe.lastIndex = end
+    const open = html.slice(start, openEnd)
+    const inner = html.slice(openEnd, close)
+    chunks.push({ start, end, next: `${rewrite(inner, open)}${html.slice(close, end)}` })
+  }
+  if (!chunks.length) return html
+  let out = ''
+  let cursor = 0
+  for (const chunk of chunks) {
+    out += html.slice(cursor, chunk.start)
+    out += chunk.next
+    cursor = chunk.end
+  }
+  return out + html.slice(cursor)
+}
+
+function stampPdpOption(open: string, option: 'size' | 'color'): string {
+  if (/\bdata-pw-pdp-option=/.test(open)) return open
+  return open.replace(/>$/, ` data-pw-pdp-option="${option}">`)
+}
+
 function rewriteVariantBlocks(inner: string, product: LivePdpBindProduct, locale: WebLocale): string {
   const sizes = productSizes(product)
   const colors = productColors(product)
   let sizeDone = false
   let colorDone = false
-  let out = inner.replace(
-    /<([a-z0-9]+)\b([^>]*\bdata-pw-el=["']variant["'][^>]*)>([\s\S]*?)<\/\1>/gi,
-    (_full, tag: string, attrs: string, blockInner: string) => {
-      const blob = `${attrs}${blockInner}`
-      const isColor = /pw-pdp-color|data-pw-pdp-option=["']color["']/.test(blob)
-      if (isColor) {
-        if (!colors.length) return `<${tag}${attrs}>${blockInner}</${tag}>`
-        colorDone = true
-        const nextAttrs = /\bdata-pw-pdp-option=/.test(attrs)
-          ? attrs
-          : `${attrs} data-pw-pdp-option="color"`
-        return `<${tag}${nextAttrs}>${colorVariantInner(colors, locale)}</${tag}>`
-      }
-      if (!sizes.length) return `<${tag}${attrs}>${blockInner}</${tag}>`
-      sizeDone = true
-      const nextAttrs = /\bdata-pw-pdp-option=/.test(attrs)
-        ? attrs
-        : `${attrs} data-pw-pdp-option="size"`
-      return `<${tag}${nextAttrs}>${sizeVariantInner(sizes, locale)}</${tag}>`
+  const out = replaceAttrBlocks(inner, 'data-pw-el', PW_EL.variant, (blockInner, open) => {
+    const blob = `${open}${blockInner}`
+    const isColor = /pw-pdp-color|data-pw-pdp-option=["']color["']/.test(blob)
+    if (isColor) {
+      if (!colors.length) return `${open}${blockInner}`
+      colorDone = true
+      return `${stampPdpOption(open, 'color')}${colorVariantInner(colors, locale)}`
     }
-  )
+    if (!sizes.length) return `${open}${blockInner}`
+    sizeDone = true
+    return `${stampPdpOption(open, 'size')}${sizeVariantInner(sizes, locale)}`
+  })
   const inject: string[] = []
   if (sizes.length && !sizeDone) {
     inject.push(

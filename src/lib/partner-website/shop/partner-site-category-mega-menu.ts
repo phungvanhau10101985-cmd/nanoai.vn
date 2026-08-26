@@ -8,6 +8,59 @@ import { partnerSiteCategoryPath } from '@/lib/partner-website/shop/partner-site
 /** Khớp 188 Navigation: rời panel → đóng sau 150ms. */
 export const PARTNER_CATEGORY_MEGA_CLOSE_MS = 150
 
+/** Desktop: hover mở danh mục. Mobile/touch không dùng hover. */
+export const PARTNER_CATEGORY_FINE_HOVER_MQ = '(hover: hover) and (pointer: fine)'
+
+const SIZE_SEO_NAME_RE = /ch[iỉ]\s*size/i
+const SIZE_SEO_SLUG_RE = /(^|-)chi-size(-|$)/i
+
+export function isPartnerCategorySizeSeoNode(node: { name?: string | null; slug?: string | null }): boolean {
+  return SIZE_SEO_NAME_RE.test(String(node.name || '')) || SIZE_SEO_SLUG_RE.test(String(node.slug || ''))
+}
+
+/** «CHỈ SIZE 43» → «Size 43» trên hàng SEO một dòng. */
+export function compactPartnerCategorySizeSeoLabel(name: string): string {
+  const raw = name.trim()
+  const match = raw.match(/ch[iỉ]\s*size\s*[:\-]?\s*(.*)$/i)
+  const rest = (match?.[1] || raw).trim()
+  return rest ? `Size ${rest}` : raw
+}
+
+export type PartnerCategoryNavSplit = {
+  menuTree: PartnerCategoryTreeNode[]
+  seoSizeNodes: PartnerCategoryTreeNode[]
+}
+
+/**
+ * Gom mọi node «CHỈ SIZE» / «Chi size» (mọi cấp) ra hàng SEO.
+ * Mega + pill L1 chỉ còn danh mục thật — giống 188: keyword strip một hàng, menu riêng.
+ */
+export function splitPartnerCategoryNavTree(tree: PartnerCategoryTreeNode[]): PartnerCategoryNavSplit {
+  const seen = new Set<string>()
+  const seoSizeNodes: PartnerCategoryTreeNode[] = []
+
+  const takeSeo = (node: PartnerCategoryTreeNode) => {
+    if (seen.has(node.id)) return
+    seen.add(node.id)
+    seoSizeNodes.push({ ...node, children: [] })
+  }
+
+  const walk = (nodes: PartnerCategoryTreeNode[]): PartnerCategoryTreeNode[] => {
+    const kept: PartnerCategoryTreeNode[] = []
+    for (const node of nodes) {
+      if (isPartnerCategorySizeSeoNode(node)) {
+        takeSeo(node)
+        if ((node.children ?? []).length) kept.push(...walk(node.children ?? []))
+        continue
+      }
+      kept.push({ ...node, children: walk(node.children ?? []) })
+    }
+    return kept
+  }
+
+  return { menuTree: walk(tree), seoSizeNodes }
+}
+
 export type PartnerCategoryMegaMenuCopy = {
   newArrivals: string
   sale: string
@@ -32,7 +85,8 @@ export function buildPartnerSiteCategoryMegaMenuHtml(input: {
   copy: PartnerCategoryMegaMenuCopy
   customDomain?: boolean
 }): string {
-  const { tree, siteSlug, locale, productsHref, saleHref, copy } = input
+  const { menuTree: tree } = splitPartnerCategoryNavTree(input.tree)
+  const { siteSlug, locale, productsHref, saleHref, copy } = input
   const firstId = tree[0]?.id ?? ''
   const l1Bits: string[] = [
     `<a href="${escapeHtml(productsHref)}" data-pw-el="nav-link" data-pw-cat-l1="__arrivals">${escapeHtml(copy.newArrivals)}</a>`,

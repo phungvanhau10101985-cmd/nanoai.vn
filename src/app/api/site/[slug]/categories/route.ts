@@ -4,6 +4,7 @@ import {
   buildPartnerCategoryTree,
   prunePartnerCategoriesMissingAncestors,
 } from '@/lib/partner-website/category/partner-category-types'
+import { splitPartnerCategoryNavTree } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
 import { isPgConfigured } from '@/lib/db/pool'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 
@@ -22,8 +23,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }
   if (flat === null) return NextResponse.json({ error: 'Could not load categories' }, { status: 500 })
 
   const tree = buildPartnerCategoryTree(prunePartnerCategoriesMissingAncestors(flat))
+  const { menuTree, seoSizeNodes } = splitPartnerCategoryNavTree(tree)
   return NextResponse.json(
-    { tree },
+    { tree, menuTree, seoSizes: seoSizeNodes },
     { headers: { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' } }
   )
 }

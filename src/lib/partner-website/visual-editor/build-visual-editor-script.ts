@@ -3134,6 +3134,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (cls.indexOf('pw-bottom-nav') >= 0 || cls.indexOf('pw-shop-bottom-nav') >= 0) return true
     if (cls.indexOf('pw-topbar') >= 0 || cls.indexOf('pw-shop-topbar') >= 0) return true
     if (cls.indexOf('pw-pdp-sticky') >= 0) return true
+    if (cls.indexOf('pw-pdp-actions') >= 0) return true
+    if (own === 'pdp-info') return true
     return false
   }
   function isChromeBgHost(el) {
@@ -6321,8 +6323,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     el.style.setProperty('z-index', '2147483002', 'important')
     markChromeDupFace(el)
   }
+  function isInFlowPdpAction(el) {
+    return !!(el && el.closest && el.closest('.pw-pdp-actions,.pw-pdp-sticky,[data-pw-pdp-bottom]'))
+  }
   function parkChromeAtViewportCenter(el, kind) {
     if (!el || !el.style) return
+    if (isInFlowPdpAction(el)) {
+      selectEl(el)
+      return
+    }
     restoreAllChromeDupCenters()
     resetFullBleedChromePos()
     resetVisualScroll()
@@ -6963,12 +6972,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
           pdpNode.setAttribute('data-pw-device', pwStampDevice())
           if (pdpAttr) pdpNode.setAttribute(pdpAttr, '1')
         }
-        var info = scopedQuery('[data-pw-region="pdp-info"], .pw-pdp-actions, .pw-pdp-sticky-nav, .pw-pdp-sticky')
-        if (info) info.appendChild(pdpNode)
+        var actions = scopedQuery('.pw-pdp-actions')
+        var info = scopedQuery('.pw-shop-pdp-info, [data-pw-region="pdp-info"]')
+        var host = actions || info
+        if (host) host.appendChild(pdpNode)
         else document.body.appendChild(pdpNode)
         sizeChromeIcons(pdpNode)
         if (existingPdp && existingPdp.parentNode) existingPdp.parentNode.removeChild(existingPdp)
-        parkChromeAtViewportCenter(pdpNode, kind)
+        selectEl(pdpNode)
+        post('dirty', {})
         return
       }
     }

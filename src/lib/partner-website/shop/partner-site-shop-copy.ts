@@ -32,6 +32,9 @@ export type PartnerSiteShopCopy = {
   categoryFilterAllSizes: string
   categoryFilterAllColors: string
   categoryMegaHint: string
+  categorySeoRowAria: string
+  categoryExpand: string
+  categoryCollapse: string
   categoryHubTitle: string
   categoryHubEmpty: string
   categoryPagePrev: string
@@ -426,6 +429,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterAllSizes: 'Tất cả size',
     categoryFilterAllColors: 'Tất cả màu',
     categoryMegaHint: 'Di chuột vào danh mục để xem cấp 2, cấp 3.',
+    categorySeoRowAria: 'Từ khóa size SEO',
+    categoryExpand: 'Mở danh mục con',
+    categoryCollapse: 'Thu gọn danh mục con',
     categoryHubTitle: 'Danh mục sản phẩm',
     categoryHubEmpty: 'Chưa có danh mục để hiển thị.',
     categoryPagePrev: 'Trước',
@@ -803,6 +809,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterAllSizes: 'All sizes',
     categoryFilterAllColors: 'All colors',
     categoryMegaHint: 'Hover a category to see level 2 and 3.',
+    categorySeoRowAria: 'Size SEO links',
+    categoryExpand: 'Open subcategories',
+    categoryCollapse: 'Collapse subcategories',
     categoryHubTitle: 'Shop categories',
     categoryHubEmpty: 'No categories to show yet.',
     categoryPagePrev: 'Prev',
@@ -1180,6 +1189,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterAllSizes: '全部尺码',
     categoryFilterAllColors: '全部颜色',
     categoryMegaHint: '将鼠标移到分类上可查看二级、三级。',
+    categorySeoRowAria: '尺码搜索链接',
+    categoryExpand: '打开子分类',
+    categoryCollapse: '收起子分类',
     categoryHubTitle: '商品分类',
     categoryHubEmpty: '暂无可显示的分类。',
     categoryPagePrev: '上一页',
@@ -1557,6 +1569,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterAllSizes: 'すべてのサイズ',
     categoryFilterAllColors: 'すべてのカラー',
     categoryMegaHint: 'カテゴリにマウスを置くと2階層・3階層が表示されます。',
+    categorySeoRowAria: 'サイズSEO',
+    categoryExpand: '下のカテゴリを開く',
+    categoryCollapse: '下のカテゴリを閉じる',
     categoryHubTitle: '商品カテゴリ',
     categoryHubEmpty: '表示できるカテゴリがありません。',
     categoryPagePrev: '前へ',
@@ -1934,6 +1949,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterAllSizes: '모든 사이즈',
     categoryFilterAllColors: '모든 색상',
     categoryMegaHint: '카테고리에 마우스를 올리면 2·3단계를 봅니다.',
+    categorySeoRowAria: '사이즈 SEO',
+    categoryExpand: '하위 카테고리 열기',
+    categoryCollapse: '하위 카테고리 접기',
     categoryHubTitle: '상품 카테고리',
     categoryHubEmpty: '표시할 카테고리가 없습니다.',
     categoryPagePrev: '이전',

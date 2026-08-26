@@ -210,7 +210,7 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('return 1;')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function hoistLiveChrome(root,scale){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-live-chrome')
-    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("closest('header,.pw-header,.pw-shop-header,[data-pw-live-chrome]')")
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("closest('header,.pw-header,.pw-shop-header,[data-pw-live-chrome],.pw-pdp-actions,.pw-pdp-sticky,[data-pw-pdp-bottom]')")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('nanoai-ve-active')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-live-fixed-layer')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-canvas-x')

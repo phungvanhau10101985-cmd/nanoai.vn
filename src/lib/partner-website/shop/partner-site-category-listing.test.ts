@@ -126,6 +126,9 @@ test('category listing copy exists for all locales', () => {
     assert.ok(t.categorySortOldest)
     assert.ok(t.categorySortViews)
     assert.ok(t.categoryMegaHint)
+    assert.ok(t.categorySeoRowAria)
+    assert.ok(t.categoryExpand)
+    assert.ok(t.categoryCollapse)
     assert.ok(t.categoryHubTitle)
   }
 })
