@@ -4,6 +4,7 @@
  */
 
 import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
+import { catalogFieldsFromExternalProduct } from '@/lib/messaging/partner-inventory-catalog-188'
 import type { InventoryExcelInsert, InventoryRow } from '@/lib/messaging/partner-inventory-excel'
 import {
   inventoryRemarketingMatchKey,
@@ -11,6 +12,8 @@ import {
   validateInventoryProductUrl,
 } from '@/lib/messaging/partner-inventory-excel'
 import type { InventoryExternalSyncMapKey } from '@/lib/messaging/partner-inventory-external-sync-defaults'
+import { applyPartnerInventoryCatalogPatchFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { getPgPool } from '@/lib/db/pool'
 import {
   fetchMessagingPartnerOwnerUserIdFromPg,
   fetchMessagingPartnersByIdsFromPg,
@@ -25,6 +28,7 @@ import {
   notifyPartnerExternalCatalogSyncReport,
   type ExternalCatalogSyncReportStats,
 } from '@/lib/messaging/partner-inventory-external-catalog-sync-notify'
+import { linkImportedInventoryToCatalogCategoriesBatch } from '@/lib/messaging/partner-inventory-import-categories'
 import {
   listPartnerInventoryRows,
   upsertPartnerInventoryRemarketingIncrementalBatch,
@@ -234,9 +238,12 @@ function mapProductToInventoryRow(
     stock_qty = Math.max(0, parseInt(cellStr(qtyRaw).replace(/[^\d-]/g, ''), 10) || 0)
   }
 
-  /** Cột `stock_note` (NanoAI) lưu JSON màu [{name,img}] cho bộ chọn màu trên shop — chỉ lấy từ `colors_json`. */
+  const catalog = catalogFieldsFromExternalProduct(p)
+  /** Cột `stock_note` (NanoAI) lưu JSON màu [{name,img}] — ưu tiên catalog đã parse, fallback map `colors_json`. */
   const cj = get('colors_json')
-  const stock_note = (cj != null ? formatStockPiece(cj) : '').slice(0, 2000)
+  const stock_note = (
+    catalog?.colors?.length ? JSON.stringify(catalog.colors) : cj != null ? formatStockPiece(cj) : ''
+  ).slice(0, 20000)
 
   const image_url = validateInventoryImageUrl(cellStr(get('image')))
   const product_url = validateInventoryProductUrl(cellStr(get('slug')))
@@ -287,6 +294,8 @@ function mapProductToInventoryRow(
     remarketing_id,
     is_active,
     removeFromInventory: false,
+    catalog,
+    catalogFormat: catalog ? '188' : undefined,
   }
 }
 
@@ -797,4 +806,106 @@ export async function runPartnerExternalCatalogSyncJob(params: {
   }
   await sendReport(out)
   return out
+}
+
+function chunked<T>(items: T[], size: number): T[][] {
+  if (items.length === 0) return []
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
+  return out
+}
+
+/**
+ * Lấp cột catalog 188 (size/màu/gallery/danh mục/…) cho kho đã có remarketing_id.
+ * Không tải embedding, không gửi báo cáo email — dùng khi kho đã đủ mã nhưng thiếu trường.
+ */
+export async function runPartnerExternalCatalogFieldFillJob(params: {
+  partnerId: string
+}): Promise<
+  | { ok: true; fetched: number; patched: number; skipped: number }
+  | { ok: false; code: ExternalCatalogSyncErrorCode; detail?: string }
+> {
+  const partnerId = String(params.partnerId ?? '').trim()
+  if (!partnerId) return { ok: false, code: 'NO_PARTNER_ID' }
+
+  const settings = await fetchPartnerInventoryExternalSyncSettingsFromPg(partnerId)
+  const listUrl = settings?.products_list_url?.trim() ?? ''
+  if (!listUrl) return { ok: false, code: 'MISSING_LIST_URL' }
+
+  const fm = settings?.field_mapping ?? {}
+  const pulled = await fetchExternalCatalogIncrementalProducts(listUrl, '1970-01-01T00:00:00Z')
+  if (!pulled.ok) {
+    return { ok: false, code: pulled.code as ExternalCatalogSyncErrorCode, detail: pulled.detail }
+  }
+
+  let existing: Map<string, string>
+  try {
+    const res = await getPgPool().query<{ id: string; remarketing_id: string | null }>(
+      `select id::text as id, remarketing_id
+         from public.messaging_partner_inventory
+        where partner_id = $1::uuid
+          and coalesce(trim(remarketing_id), '') <> ''`,
+      [partnerId]
+    )
+    existing = new Map<string, string>()
+    for (const row of res.rows) {
+      const k = String(row.remarketing_id ?? '').trim()
+      const id = String(row.id ?? '').trim()
+      if (k && id && !existing.has(k)) existing.set(k, id)
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { ok: false, code: 'LIST_INVENTORY_FAILED', detail: msg.slice(0, 500) }
+  }
+
+  const patches: Array<{ id: string; partnerId: string; catalog: NonNullable<InventoryExcelInsert['catalog']> }> = []
+  let skipped = 0
+  for (const raw of pulled.products) {
+    if (productIsSoftDeleted(raw)) {
+      skipped += 1
+      continue
+    }
+    const row = mapProductToInventoryRow(raw, fm)
+    const rk = inventoryRemarketingMatchKey(row?.remarketing_id)
+    const inventoryId = rk ? existing.get(rk) : undefined
+    if (!row?.catalog || !inventoryId) {
+      skipped += 1
+      continue
+    }
+    patches.push({ id: inventoryId, partnerId, catalog: row.catalog })
+  }
+
+  for (const chunk of chunked(patches, 200)) {
+    const ok = await applyPartnerInventoryCatalogPatchFromPg(chunk)
+    if (!ok) return { ok: false, code: 'UPSERT_FAILED', detail: 'Catalog field patch failed.' }
+    await linkImportedInventoryToCatalogCategoriesBatch(
+      partnerId,
+      chunk.map((p) => ({
+        inventoryId: p.id,
+        categoryL1: p.catalog.category_l1,
+        categoryL2: p.catalog.category_l2,
+        categoryL3: p.catalog.category_l3,
+      }))
+    )
+    const priceIds: string[] = []
+    const priceAmounts: number[] = []
+    for (const p of chunk) {
+      const amount = Math.round(Number(p.catalog.catalog_json.price) || 0)
+      if (amount > 0) {
+        priceIds.push(p.id)
+        priceAmounts.push(amount)
+      }
+    }
+    if (priceIds.length > 0) {
+      await getPgPool().query(
+        `update public.messaging_partner_inventory as mpi
+            set price_amount = v.amount, price_currency = 'VND'
+           from unnest($1::uuid[], $2::numeric[]) as v(id, amount)
+          where mpi.id = v.id and mpi.partner_id = $3::uuid`,
+        [priceIds, priceAmounts, partnerId]
+      )
+    }
+  }
+
+  return { ok: true, fetched: pulled.products.length, patched: patches.length, skipped }
 }

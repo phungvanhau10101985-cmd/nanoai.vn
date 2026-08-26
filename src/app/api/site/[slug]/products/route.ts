@@ -39,11 +39,25 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     sortRaw === 'newest' || sortRaw === 'name' ? (sortRaw as 'newest' | 'name') : 'default'
   const categorySortRaw = String(sp.get('sort') ?? '').trim().toLowerCase()
   const categorySort =
-    categorySortRaw === 'newest' || categorySortRaw === 'name' || categorySortRaw === 'price_asc' || categorySortRaw === 'price_desc'
-      ? (categorySortRaw as 'newest' | 'name' | 'price_asc' | 'price_desc')
+    categorySortRaw === 'newest' ||
+    categorySortRaw === 'oldest' ||
+    categorySortRaw === 'views_desc' ||
+    categorySortRaw === 'name' ||
+    categorySortRaw === 'price_asc' ||
+    categorySortRaw === 'price_desc' ||
+    categorySortRaw === 'random'
+      ? (categorySortRaw as
+          | 'newest'
+          | 'oldest'
+          | 'views_desc'
+          | 'name'
+          | 'price_asc'
+          | 'price_desc'
+          | 'random')
       : 'newest'
-  const minPriceRaw = sp.get('minPrice')
-  const maxPriceRaw = sp.get('maxPrice')
+  const minPriceRaw = sp.get('min_price') ?? sp.get('minPrice')
+  const maxPriceRaw = sp.get('max_price') ?? sp.get('maxPrice')
+  const randomSeed = String(sp.get('r') ?? '').trim().slice(0, 32)
   const minPrice = minPriceRaw != null && minPriceRaw !== '' ? Number(minPriceRaw) : undefined
   const maxPrice = maxPriceRaw != null && maxPriceRaw !== '' ? Number(maxPriceRaw) : undefined
   const size = String(sp.get('size') ?? '').trim()
@@ -97,6 +111,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
           limit: fetchLimit,
           categoryId,
           sort: categorySort,
+          randomSeed: categorySort === 'random' ? randomSeed || undefined : undefined,
           minPrice: Number.isFinite(minPrice) ? minPrice : undefined,
           maxPrice: Number.isFinite(maxPrice) ? maxPrice : undefined,
           size: size || undefined,

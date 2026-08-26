@@ -38,6 +38,7 @@ import {
   isPartnerFlashSaleActive,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
+import { PartnerSiteProductVariantModal } from '@/components/partner-website/shop/partner-site-product-variant-modal'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type RatingSummary = { average: number; total: number }
@@ -122,6 +123,7 @@ export function PartnerSiteShopProductClient({
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [cartAdded, setCartAdded] = useState<{ name: string; imageUrl?: string | null } | null>(null)
+  const [variantModalOpen, setVariantModalOpen] = useState(false)
   const [isFavorite, setIsFavorite] = useState(false)
   const [favoriteBusy, setFavoriteBusy] = useState(false)
   const [activeImage, setActiveImage] = useState(product.imageUrl)
@@ -322,23 +324,30 @@ export function PartnerSiteShopProductClient({
     }
   }
 
-  async function addLine(redirectToCart: boolean) {
+  async function addLine(
+    redirectToCart: boolean,
+    pick?: { color?: string; size?: string; quantity?: number; imageUrl?: string }
+  ) {
     if (!ready || busy) return
     setBusy(true)
     setMessage('')
+    const nextColor = pick?.color ?? color
+    const nextSize = pick?.size ?? size
+    const nextQty = pick?.quantity ?? quantity
+    const nextImage = pick?.imageUrl?.trim() || displayImage
     try {
       const card = shopProductToCartCard({
         ...product,
         priceHint: options?.price_hint || product.priceHint,
-        imageUrl: displayImage,
+        imageUrl: nextImage,
       })
-      const colorImg = options?.colors.find((c) => c.name === color)?.img
+      const colorImg = options?.colors.find((c) => c.name === nextColor)?.img || pick?.imageUrl
       const line: SiteCartLine = {
         id: crypto.randomUUID(),
         card,
-        quantity: Math.max(1, Math.min(99, quantity)),
-        color,
-        size,
+        quantity: Math.max(1, Math.min(99, nextQty)),
+        color: nextColor,
+        size: nextSize,
         note: '',
         ...(colorImg ? { variantLineImages: [colorImg] } : {}),
       }
@@ -369,7 +378,7 @@ export function PartnerSiteShopProductClient({
         line.quantity
       )
       if (redirectToCart) router.push(partnerSiteCartPath(siteSlug, { customDomain }))
-      else setCartAdded({ name: productName, imageUrl: displayImage })
+      else setCartAdded({ name: productName, imageUrl: nextImage })
     } finally {
       setBusy(false)
     }
@@ -444,10 +453,10 @@ export function PartnerSiteShopProductClient({
         </button>
       </nav>
       <div className="pw-pdp-sticky-ctas">
-        <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => void addLine(false)} data-pw-el={PW_EL.cardCart}>
+        <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => setVariantModalOpen(true)} data-pw-el={PW_EL.cardCart}>
           {t.pdpAddToCartShort}
         </button>
-        <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => void addLine(true)} data-pw-el={PW_EL.buy}>
+        <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => setVariantModalOpen(true)} data-pw-el={PW_EL.buy}>
           {t.pdpBuyNowShort}
         </button>
       </div>
@@ -640,7 +649,7 @@ export function PartnerSiteShopProductClient({
               style={{
                 position: 'fixed',
                 inset: 0,
-                zIndex: 80,
+                zIndex: 100060,
                 background: 'rgba(0,0,0,0.65)',
                 display: 'grid',
                 placeItems: 'center',
@@ -705,10 +714,10 @@ export function PartnerSiteShopProductClient({
           ) : null}
 
           <div ref={buyActionsRef} className="pw-pdp-actions pw-pdp-actions-inline">
-            <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => void addLine(false)} data-pw-el={PW_EL.cardCart}>
+            <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => setVariantModalOpen(true)} data-pw-el={PW_EL.cardCart}>
               {t.addToCart}
             </button>
-            <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => void addLine(true)} data-pw-el={PW_EL.buy}>
+            <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => setVariantModalOpen(true)} data-pw-el={PW_EL.buy}>
               {t.buyNow}
             </button>
             <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => openConsult(consultCtx)} data-pw-el={PW_EL.cta}>
@@ -872,6 +881,44 @@ export function PartnerSiteShopProductClient({
 
       {stickyBar}
 
+      <PartnerSiteProductVariantModal
+        open={variantModalOpen}
+        locale={locale}
+        product={{
+          name: productName,
+          sku,
+          imageUrl: displayImage,
+          priceHint: priceLabel,
+          priceAmount: product.priceAmount,
+          salePriceAmount: product.salePriceAmount,
+          saleStartsAt: product.saleStartsAt,
+          saleEndsAt: product.saleEndsAt,
+          stockQty: product.stockQty,
+          colors: options?.colors?.length ? options.colors : product.colors,
+          sizes: options?.sizes?.length ? options.sizes : product.sizes,
+        }}
+        initialColor={color}
+        initialSize={size}
+        initialQty={quantity}
+        sizeGuideHref={partnerSiteInfoPath(siteSlug, 'size-guide', { customDomain: custom })}
+        onOpenSizeGuide={product.sizeGuideImageUrl ? () => setSizeGuideOpen(true) : undefined}
+        busy={busy}
+        onClose={() => setVariantModalOpen(false)}
+        onAddToCart={(pick) => {
+          setColor(pick.color)
+          setSize(pick.size)
+          setQuantity(pick.quantity)
+          setVariantModalOpen(false)
+          void addLine(false, pick)
+        }}
+        onBuyNow={(pick) => {
+          setColor(pick.color)
+          setSize(pick.size)
+          setQuantity(pick.quantity)
+          setVariantModalOpen(false)
+          void addLine(true, pick)
+        }}
+      />
       <PartnerSiteCartAddedModal
         open={Boolean(cartAdded)}
         item={cartAdded}

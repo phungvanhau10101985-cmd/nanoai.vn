@@ -17,6 +17,7 @@ import {
   PartnerSiteChatWidgetProvider,
   usePartnerSiteChatWidget,
 } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
+import { PartnerSiteCategoryMegaMenu } from '@/components/partner-website/shop/partner-site-category-mega-menu'
 import { PartnerSiteShopSearchBar } from '@/components/partner-website/shop/partner-site-shop-search-bar'
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
 import { PartnerSiteCookieConsentBanner } from '@/components/partner-website/shop/partner-site-cookie-consent-banner'
@@ -489,23 +490,20 @@ function PartnerSiteShopShellInner({
               </Link>
             )}
             {categoriesOpen ? (
-              <nav id="pw-shop-cat-panel" className="pw-shop-cat-panel" aria-label={t.navCategories}>
+              <nav id="pw-shop-cat-panel" className="pw-shop-cat-panel pw-cat-mega" aria-label={t.navCategories}>
                 {hasCategoryTree ? (
-                  <>
-                    <Link href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
-                      {n.newArrivals}
-                    </Link>
-                    {categoryTree!.map((cat) => (
-                      <Link
-                        key={cat.id}
-                        href={partnerSiteCategoryPath(siteSlug, cat.path, { customDomain })}
-                        data-pw-el={PW_EL.navLink}
-                        onClick={() => setCategoriesOpen(false)}
-                      >
-                        {resolvePartnerCategoryDisplayName(cat, locale)}
-                      </Link>
-                    ))}
-                  </>
+                  <PartnerSiteCategoryMegaMenu
+                    tree={categoryTree!}
+                    siteSlug={siteSlug}
+                    locale={locale}
+                    productsHref={paths.products}
+                    saleHref={paths.sale}
+                    newArrivalsLabel={n.newArrivals}
+                    saleLabel={n.sale}
+                    hoverHint={t.categoryMegaHint}
+                    customDomain={customDomain}
+                    onNavigate={() => setCategoriesOpen(false)}
+                  />
                 ) : (
                   <>
                     <Link href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
@@ -523,11 +521,11 @@ function PartnerSiteShopShellInner({
                     <Link href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
                       {n.accessories}
                     </Link>
+                    <Link href={paths.sale} className="is-sale" data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
+                      {n.sale}
+                    </Link>
                   </>
                 )}
-                <Link href={paths.sale} className="is-sale" data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
-                  {n.sale}
-                </Link>
               </nav>
             ) : null}
           </div>

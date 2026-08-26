@@ -3,6 +3,7 @@ import {
   partnerSiteCartApiPath,
   partnerSiteCartPath,
   partnerSiteContactChannelsApiPath,
+  partnerSiteInfoPath,
   partnerSiteLeadApiPath,
   partnerSiteNotificationsApiPath,
   partnerSitePersonalizationApiPath,
@@ -17,6 +18,30 @@ import {
   CART_ADDED_MODAL_COPY,
   PW_CART_ADDED_MODAL_RUNTIME_JS,
 } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
+import {
+  PRODUCT_VARIANT_MODAL_COPY,
+  PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS,
+  type ProductVariantModalCopy,
+} from '@/lib/partner-website/shop/partner-site-product-variant-modal'
+
+function variantModalCopyKeys(c: ProductVariantModalCopy) {
+  return {
+    variantTitle: c.title,
+    variantSku: c.sku,
+    variantSkuShort: c.skuShort,
+    variantColor: c.color,
+    variantSize: c.size,
+    variantQty: c.qty,
+    variantLineTotal: c.lineTotal,
+    variantStockLeft: c.stockLeft,
+    variantStockLeftShort: c.stockLeftShort,
+    variantOutOfStock: c.outOfStock,
+    variantAdd: c.add,
+    variantBuy: c.buy,
+    variantClose: c.close,
+    variantSizeGuide: c.sizeGuide,
+  }
+}
 
 const COPY: Record<
   WebLocale,
@@ -34,12 +59,27 @@ const COPY: Record<
     cartGoToCart: string
     cartContinueShopping: string
     cartAddedClose: string
+    variantTitle: string
+    variantSku: string
+    variantSkuShort: string
+    variantColor: string
+    variantSize: string
+    variantQty: string
+    variantLineTotal: string
+    variantStockLeft: string
+    variantStockLeftShort: string
+    variantOutOfStock: string
+    variantAdd: string
+    variantBuy: string
+    variantClose: string
+    variantSizeGuide: string
   }
 > = {
   vi: {
     addToCart: 'Thêm vào giỏ',
     addedToCart: 'Đã thêm vào giỏ.',
     ...CART_ADDED_MODAL_COPY.vi,
+    ...variantModalCopyKeys(PRODUCT_VARIANT_MODAL_COPY.vi),
     favoriteAdd: 'Thích',
     favoriteRemove: 'Bỏ thích',
     error: 'Không thực hiện được. Thử lại.',
@@ -52,6 +92,7 @@ const COPY: Record<
     addToCart: 'Add to cart',
     addedToCart: 'Added to cart.',
     ...CART_ADDED_MODAL_COPY.en,
+    ...variantModalCopyKeys(PRODUCT_VARIANT_MODAL_COPY.en),
     favoriteAdd: 'Favorite',
     favoriteRemove: 'Unfavorite',
     error: 'Action failed. Try again.',
@@ -64,6 +105,7 @@ const COPY: Record<
     addToCart: '加入购物车',
     addedToCart: '已加入购物车。',
     ...CART_ADDED_MODAL_COPY.zh,
+    ...variantModalCopyKeys(PRODUCT_VARIANT_MODAL_COPY.zh),
     favoriteAdd: '收藏',
     favoriteRemove: '取消收藏',
     error: '操作失败，请重试。',
@@ -76,6 +118,7 @@ const COPY: Record<
     addToCart: 'カートに追加',
     addedToCart: 'カートに追加しました。',
     ...CART_ADDED_MODAL_COPY.ja,
+    ...variantModalCopyKeys(PRODUCT_VARIANT_MODAL_COPY.ja),
     favoriteAdd: 'お気に入り',
     favoriteRemove: '解除',
     error: '失敗しました。再試行してください。',
@@ -88,6 +131,7 @@ const COPY: Record<
     addToCart: '장바구니',
     addedToCart: '담았습니다.',
     ...CART_ADDED_MODAL_COPY.ko,
+    ...variantModalCopyKeys(PRODUCT_VARIANT_MODAL_COPY.ko),
     favoriteAdd: '찜',
     favoriteRemove: '찜 해제',
     error: '실패했습니다. 다시 시도하세요.',
@@ -120,6 +164,7 @@ export function buildPartnerSiteShopActionsBootstrapScript(input: {
   const couponApi = partnerSitePromotionsValidateApiPath(slug)
   const promoLs = partnerSiteAppliedPromoStorageKey(slug)
   const cartPath = partnerSiteCartPath(slug)
+  const sizeGuidePath = partnerSiteInfoPath(slug, 'size-guide')
   const productApiPrefix = partnerSiteProductApiPath(slug, '__ID__').replace('__ID__', '')
   const detailPrefix = partnerSiteProductPath(slug, '__ID__').replace('__ID__', '')
 
@@ -136,6 +181,7 @@ var COUPON_API=${JSON.stringify(couponApi)};
 var PROMO_LS=${JSON.stringify(promoLs)};
 var PRODUCT_API_PREFIX=${JSON.stringify(productApiPrefix)};
 var CART_PATH=${JSON.stringify(cartPath)};
+var SIZE_GUIDE_PATH=${JSON.stringify(sizeGuidePath)};
 var DETAIL_PREFIX=${JSON.stringify(detailPrefix)};
 var COPY=${JSON.stringify(copy)};
 var SESSION_KEY='app_guest_session_id';
@@ -244,7 +290,7 @@ function addToCart(product, opts){
       var found=false;
       for(var i=0;i<items.length;i++){
         var it=items[i];var k=(((it.card&&it.card.product_url)||'')+'|'+(it.color||'')+'|'+(it.size||'')).toLowerCase();
-        if(k===key){it.quantity=Math.min(99,(Number(it.quantity)||1)+1);found=true;break;}
+        if(k===key){it.quantity=Math.min(99,(Number(it.quantity)||1)+Math.min(99,Math.max(1,Number(product.quantity)||1)));found=true;break;}
       }
       if(!found)items.push(line);
       return apiFetch(CART_API,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})});
@@ -258,6 +304,7 @@ function addToCart(product, opts){
     return true;
   });
 }
+${PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS}
 function applyFavoriteState(btn,on){
   if(!btn)return;
   btn.setAttribute('aria-pressed',on?'true':'false');
@@ -336,6 +383,7 @@ document.addEventListener('click',function(ev){
   if(addBtn){
     ev.preventDefault();ev.stopPropagation();
     var p=readProductFromEl(addBtn);if(!p){toast(COPY.error);return;}
+    if(isPdpCartTrigger(addBtn)){openPdpVariantModal(p,'add');return;}
     addBtn.disabled=true;
     addToCart(p).finally(function(){addBtn.disabled=false;});
     return;
@@ -343,6 +391,7 @@ document.addEventListener('click',function(ev){
   if(buyBtn){
     ev.preventDefault();ev.stopPropagation();
     var pBuy=readProductFromEl(buyBtn);if(!pBuy){toast(COPY.error);return;}
+    if(isPdpCartTrigger(buyBtn)){openPdpVariantModal(pBuy,'buy');return;}
     buyBtn.disabled=true;
     addToCart(pBuy,{silent:true}).then(function(ok){
       if(ok) location.href=CART_PATH;

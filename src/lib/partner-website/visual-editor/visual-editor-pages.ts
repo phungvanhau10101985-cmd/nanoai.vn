@@ -1277,7 +1277,7 @@ export function pageKeyFromSitePath(pathname: string, siteSlug: string): Partner
   if (rest === '/orders') return 'orders'
   if (rest === '/addresses') return 'addresses'
   if (rest.startsWith('/products/') && rest !== '/products') return 'product_detail'
-  if (rest.startsWith('/c/')) return 'collection'
+  if (rest === '/c' || rest.startsWith('/c/')) return 'collection'
   if (rest.startsWith('/pages/')) return null
   if (rest === '/' || rest === '') return 'home'
   const hit = PARTNER_WEBSITE_PAGE_CATALOG.find((def) => {

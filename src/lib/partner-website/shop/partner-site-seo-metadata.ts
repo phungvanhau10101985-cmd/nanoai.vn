@@ -28,6 +28,8 @@ export interface PartnerSiteSEOConfig {
   keywords?: string[]
   locale?: string
   type?: 'website' | 'article'
+  /** Query canonical đã whitelist (min_price, max_price, page, size, sort, color). */
+  search?: string
 }
 
 export function buildPartnerSiteMetadata(config: PartnerSiteSEOConfig): Metadata {
@@ -42,9 +44,11 @@ export function buildPartnerSiteMetadata(config: PartnerSiteSEOConfig): Metadata
     keywords = [],
     locale = 'vi_VN',
     type = 'website',
+    search,
   } = config
 
-  const url = resolvePartnerSiteAbsoluteUrl(siteSlug, path)
+  const urlBase = resolvePartnerSiteAbsoluteUrl(siteSlug, path)
+  const url = search ? `${urlBase.split('?')[0]}?${search}` : urlBase
   const origin = (() => {
     try {
       return new URL(url).origin

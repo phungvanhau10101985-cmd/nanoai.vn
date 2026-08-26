@@ -950,7 +950,11 @@ export type PartnerCategoryInventoryQuery = {
   offset: number
   limit: number
   categoryId: string
-  sort?: 'newest' | 'name' | 'price_asc' | 'price_desc'
+  sort?: 'newest' | 'oldest' | 'views_desc' | 'name' | 'price_asc' | 'price_desc' | 'random'
+  /** Seed cho sort=random — ổn định khi phân trang. */
+  randomSeed?: string
+  /** W4.14 — gộp SP nhánh con (mặc định true, khớp 188 listing). */
+  includeDescendants?: boolean
   /** W4.11 — khoảng giá (VND). Sản phẩm chưa có `price_amount` (chưa từng sửa/import lại từ W4.10) bị loại khỏi kết quả lọc giá — xem docs/188_BEHAVIOR_SPEC.md mục A.7. */
   minPrice?: number
   maxPrice?: number
@@ -961,9 +965,30 @@ export type PartnerCategoryInventoryQuery = {
   material?: string
 }
 
+const CATEGORY_SUBTREE_EXISTS_SQL = `exists (
+      select 1
+      from public.messaging_partner_inventory_categories pic
+      join public.messaging_partner_categories cat
+        on cat.id = pic.category_id
+       and cat.partner_id = $1::uuid
+      where pic.inventory_id = mpi.id
+        and (
+          cat.id = $2::uuid
+          or cat.path like (
+            select trim(trailing '/' from c2.path) || '/%'
+            from public.messaging_partner_categories c2
+            where c2.id = $2::uuid and c2.partner_id = $1::uuid
+          )
+        )
+    )`
+
+const CATEGORY_DIRECT_EXISTS_SQL = `exists (
+      select 1 from public.messaging_partner_inventory_categories pic
+      where pic.inventory_id = mpi.id and pic.category_id = $2::uuid
+    )`
+
 /**
- * Trang sản phẩm gán trực tiếp vào 1 danh mục (W4.9/W4.11). Sort mặc định = mới nhất — xem
- * docs/188_BEHAVIOR_SPEC.md mục A.4 (cố ý KHÔNG copy sort=random mặc định của 188).
+ * Trang sản phẩm theo danh mục (W4.9/W4.11/W4.14). Mặc định gộp nhánh con + sort mới nhất.
  * `null` = không pool hoặc lỗi — caller xử lý khi không có PG.
  */
 export async function fetchPartnerInventoryPageByCategoryFromPg(
@@ -986,6 +1011,8 @@ export async function fetchPartnerInventoryPageByCategoryFromPg(
       size: query.size ?? '',
       color: query.color ?? '',
       material: query.material ?? '',
+      descendants: query.includeDescendants !== false,
+      seed: query.sort === 'random' ? query.randomSeed ?? '' : '',
     })}`,
     ttlSec: SHOP_LIST_TTL_SEC,
     load: () => fetchPartnerInventoryPageByCategoryFromPgUncached(partnerId, query),
@@ -1003,24 +1030,28 @@ async function fetchPartnerInventoryPageByCategoryFromPgUncached(
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId)) {
     return { rows: [], count: 0 }
   }
-  const orderBy =
-    query.sort === 'name'
-      ? 'lower(mpi.name) asc, mpi.sort_order asc'
-      : query.sort === 'price_asc'
-        ? 'mpi.price_amount asc nulls last, mpi.sort_order asc'
-        : query.sort === 'price_desc'
-          ? 'mpi.price_amount desc nulls last, mpi.sort_order asc'
-          : 'mpi.created_at desc nulls last, mpi.sort_order asc'
+  const params: unknown[] = [partnerId, categoryId]
+  let orderBy = 'mpi.created_at desc nulls last, mpi.sort_order asc'
+  if (query.sort === 'name') {
+    orderBy = 'lower(mpi.name) asc, mpi.sort_order asc'
+  } else if (query.sort === 'price_asc') {
+    orderBy = 'mpi.price_amount asc nulls last, mpi.sort_order asc'
+  } else if (query.sort === 'price_desc') {
+    orderBy = 'mpi.price_amount desc nulls last, mpi.sort_order asc'
+  } else if (query.sort === 'oldest') {
+    orderBy = 'mpi.created_at asc nulls last, mpi.sort_order asc'
+  } else if (query.sort === 'views_desc') {
+    orderBy = 'coalesce(mpi.reviews_count, 0) desc, mpi.created_at desc nulls last'
+  } else if (query.sort === 'random') {
+    params.push(String(query.randomSeed || '0'))
+    orderBy = `md5(mpi.id::text || $${params.length})`
+  }
 
   const conditions = [
     'mpi.partner_id = $1::uuid',
     'coalesce(mpi.is_active, true) = true',
-    `exists (
-      select 1 from public.messaging_partner_inventory_categories pic
-      where pic.inventory_id = mpi.id and pic.category_id = $2::uuid
-    )`,
+    query.includeDescendants === false ? CATEGORY_DIRECT_EXISTS_SQL : CATEGORY_SUBTREE_EXISTS_SQL,
   ]
-  const params: unknown[] = [partnerId, categoryId]
   const minPrice = typeof query.minPrice === 'number' && Number.isFinite(query.minPrice) ? Math.max(0, query.minPrice) : null
   const maxPrice = typeof query.maxPrice === 'number' && Number.isFinite(query.maxPrice) ? Math.max(0, query.maxPrice) : null
   if (minPrice !== null) {
@@ -1128,10 +1159,7 @@ export async function fetchPartnerCategoryFacetCountsFromPg(
          from public.messaging_partner_inventory mpi
          where mpi.partner_id = $1::uuid
            and coalesce(mpi.is_active, true) = true
-           and exists (
-             select 1 from public.messaging_partner_inventory_categories pic
-             where pic.inventory_id = mpi.id and pic.category_id = $2::uuid
-           )
+           and ${CATEGORY_SUBTREE_EXISTS_SQL}
          limit 500`,
         [partnerId, categoryId]
       )
@@ -1142,10 +1170,7 @@ export async function fetchPartnerCategoryFacetCountsFromPg(
          from public.messaging_partner_inventory mpi
          where mpi.partner_id = $1::uuid
            and coalesce(mpi.is_active, true) = true
-           and exists (
-             select 1 from public.messaging_partner_inventory_categories pic
-             where pic.inventory_id = mpi.id and pic.category_id = $2::uuid
-           )
+           and ${CATEGORY_SUBTREE_EXISTS_SQL}
          limit 500`,
         [partnerId, categoryId]
       )
@@ -1191,10 +1216,7 @@ export async function fetchPartnerCategoryPriceRangeFromPg(
        where mpi.partner_id = $1::uuid
          and coalesce(mpi.is_active, true) = true
          and mpi.price_amount is not null
-         and exists (
-           select 1 from public.messaging_partner_inventory_categories pic
-           where pic.inventory_id = mpi.id and pic.category_id = $2::uuid
-         )`,
+         and ${CATEGORY_SUBTREE_EXISTS_SQL}`,
       [partnerId, categoryId]
     )
     if (!row || row.min_price == null || row.max_price == null) return null

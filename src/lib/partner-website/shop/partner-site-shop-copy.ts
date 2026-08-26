@@ -22,8 +22,21 @@ export type PartnerSiteShopCopy = {
   categoryFilterClear: string
   categorySortLabel: string
   categorySortNewest: string
+  categorySortRandom: string
+  categorySortOldest: string
+  categorySortViews: string
   categorySortPriceAsc: string
   categorySortPriceDesc: string
+  categoryFilterSize: string
+  categoryFilterColor: string
+  categoryFilterAllSizes: string
+  categoryFilterAllColors: string
+  categoryMegaHint: string
+  categoryHubTitle: string
+  categoryHubEmpty: string
+  categoryPagePrev: string
+  categoryPageNext: string
+  categoryFiltersAria: string
   catalogEmpty: string
   loadMore: string
   productDetail: string
@@ -403,8 +416,21 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterClear: 'Xóa bộ lọc',
     categorySortLabel: 'Sắp xếp',
     categorySortNewest: 'Mới nhất',
+    categorySortRandom: 'Ngẫu nhiên',
+    categorySortOldest: 'Cũ nhất',
+    categorySortViews: 'Xem nhiều',
     categorySortPriceAsc: 'Giá tăng dần',
     categorySortPriceDesc: 'Giá giảm dần',
+    categoryFilterSize: 'Size',
+    categoryFilterColor: 'Màu',
+    categoryFilterAllSizes: 'Tất cả size',
+    categoryFilterAllColors: 'Tất cả màu',
+    categoryMegaHint: 'Di chuột vào danh mục để xem cấp 2, cấp 3.',
+    categoryHubTitle: 'Danh mục sản phẩm',
+    categoryHubEmpty: 'Chưa có danh mục để hiển thị.',
+    categoryPagePrev: 'Trước',
+    categoryPageNext: 'Sau',
+    categoryFiltersAria: 'Bộ lọc sản phẩm',
     catalogEmpty: 'Chưa có sản phẩm.',
     loadMore: 'Xem thêm',
     productDetail: 'Chi tiết sản phẩm',
@@ -767,8 +793,21 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterClear: 'Clear filters',
     categorySortLabel: 'Sort',
     categorySortNewest: 'Newest',
+    categorySortRandom: 'Random',
+    categorySortOldest: 'Oldest',
+    categorySortViews: 'Most viewed',
     categorySortPriceAsc: 'Price: low to high',
     categorySortPriceDesc: 'Price: high to low',
+    categoryFilterSize: 'Size',
+    categoryFilterColor: 'Color',
+    categoryFilterAllSizes: 'All sizes',
+    categoryFilterAllColors: 'All colors',
+    categoryMegaHint: 'Hover a category to see level 2 and 3.',
+    categoryHubTitle: 'Shop categories',
+    categoryHubEmpty: 'No categories to show yet.',
+    categoryPagePrev: 'Prev',
+    categoryPageNext: 'Next',
+    categoryFiltersAria: 'Product filters',
     catalogEmpty: 'No products yet.',
     loadMore: 'Load more',
     productDetail: 'Product details',
@@ -1131,8 +1170,21 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterClear: '清除筛选',
     categorySortLabel: '排序',
     categorySortNewest: '最新',
+    categorySortRandom: '随机',
+    categorySortOldest: '最早',
+    categorySortViews: '最多浏览',
     categorySortPriceAsc: '价格从低到高',
     categorySortPriceDesc: '价格从高到低',
+    categoryFilterSize: '尺码',
+    categoryFilterColor: '颜色',
+    categoryFilterAllSizes: '全部尺码',
+    categoryFilterAllColors: '全部颜色',
+    categoryMegaHint: '将鼠标移到分类上可查看二级、三级。',
+    categoryHubTitle: '商品分类',
+    categoryHubEmpty: '暂无可显示的分类。',
+    categoryPagePrev: '上一页',
+    categoryPageNext: '下一页',
+    categoryFiltersAria: '商品筛选',
     catalogEmpty: '暂无产品。',
     loadMore: '加载更多',
     productDetail: '产品详情',
@@ -1495,8 +1547,21 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterClear: 'フィルターを解除',
     categorySortLabel: '並び替え',
     categorySortNewest: '新着順',
+    categorySortRandom: 'ランダム',
+    categorySortOldest: '古い順',
+    categorySortViews: '閲覧が多い順',
     categorySortPriceAsc: '価格が安い順',
     categorySortPriceDesc: '価格が高い順',
+    categoryFilterSize: 'サイズ',
+    categoryFilterColor: 'カラー',
+    categoryFilterAllSizes: 'すべてのサイズ',
+    categoryFilterAllColors: 'すべてのカラー',
+    categoryMegaHint: 'カテゴリにマウスを置くと2階層・3階層が表示されます。',
+    categoryHubTitle: '商品カテゴリ',
+    categoryHubEmpty: '表示できるカテゴリがありません。',
+    categoryPagePrev: '前へ',
+    categoryPageNext: '次へ',
+    categoryFiltersAria: '商品フィルター',
     catalogEmpty: '商品がありません。',
     loadMore: 'もっと見る',
     productDetail: '商品詳細',
@@ -1859,8 +1924,21 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterClear: '필터 지우기',
     categorySortLabel: '정렬',
     categorySortNewest: '최신순',
+    categorySortRandom: '무작위',
+    categorySortOldest: '오래된순',
+    categorySortViews: '많이 본순',
     categorySortPriceAsc: '가격 낮은순',
     categorySortPriceDesc: '가격 높은순',
+    categoryFilterSize: '사이즈',
+    categoryFilterColor: '색상',
+    categoryFilterAllSizes: '모든 사이즈',
+    categoryFilterAllColors: '모든 색상',
+    categoryMegaHint: '카테고리에 마우스를 올리면 2·3단계를 봅니다.',
+    categoryHubTitle: '상품 카테고리',
+    categoryHubEmpty: '표시할 카테고리가 없습니다.',
+    categoryPagePrev: '이전',
+    categoryPageNext: '다음',
+    categoryFiltersAria: '상품 필터',
     catalogEmpty: '상품이 없습니다.',
     loadMore: '더 보기',
     productDetail: '상품 상세',

@@ -678,3 +678,136 @@ export function jsonCell(value: unknown): string {
     return ''
   }
 }
+
+function cellText(value: unknown): string {
+  if (value == null) return ''
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  if (typeof value === 'boolean') return value ? 'true' : 'false'
+  return ''
+}
+
+function asStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((x) => String(x ?? '').trim()).filter(Boolean).slice(0, 200)
+  }
+  if (typeof value === 'string') return parseStringArrayField(value)
+  return []
+}
+
+function asColors(value: unknown): Catalog188Color[] {
+  if (value == null || value === '') return []
+  if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
+    try {
+      return parseColorVariantsField(JSON.stringify(value))
+    } catch {
+      return []
+    }
+  }
+  if (typeof value === 'string') return parseColorVariantsField(value)
+  return []
+}
+
+function asProductInfo(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>
+  }
+  if (typeof value === 'string') return parseProductInfoField(value)
+  return null
+}
+
+function asFiniteNumber(value: unknown, fallback = 0): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') return parseFloatCell(value, fallback)
+  return fallback
+}
+
+function asBool(value: unknown, fallback = false): boolean {
+  if (typeof value === 'boolean') return value
+  if (value == null || value === '') return fallback
+  const s = cellText(value).toLowerCase()
+  if (s === 'true' || s === '1' || s === 'yes') return true
+  if (s === 'false' || s === '0' || s === 'no') return false
+  return fallback
+}
+
+/**
+ * Map object sản phẩm REST kiểu 188 (`sizes`, `colors`, `gallery`, danh mục…)
+ * sang cột catalog kho SaaS. Thiếu field thì để trống — không bịa dữ liệu.
+ */
+export function catalogFieldsFromExternalProduct(product: unknown): InventoryCatalog188Fields | null {
+  if (!product || typeof product !== 'object' || Array.isArray(product)) return null
+  const p = product as Record<string, unknown>
+  const sizes = asStringArray(p.sizes ?? p.size)
+  const colors = asColors(p.colors ?? p.color_variants ?? p.variants)
+  const images = asStringArray(p.images)
+  const gallery = asStringArray(p.gallery ?? p.detail_images)
+  const galleryUrls = [...(images.length ? images : gallery)]
+  const detailUrls = images.length ? [...gallery] : []
+  const mainImage = cellText(p.main_image ?? p.image)
+  if (mainImage && !galleryUrls.includes(mainImage)) galleryUrls.unshift(mainImage)
+
+  const categoryL1 = cellText(p.category ?? p.raw_category).slice(0, 200)
+  const categoryL2 = cellText(p.subcategory ?? p.raw_subcategory).slice(0, 200)
+  const categoryL3 = cellText(p.sub_subcategory ?? p.raw_sub_subcategory).slice(0, 200)
+  const brand = cellText(p.brand_name ?? p.brand).slice(0, 200)
+  const material = cellText(p.material).slice(0, 8000)
+  const features = Array.isArray(p.features) ? asStringArray(p.features) : parseFeaturesField(cellText(p.features))
+  const productInfo = asProductInfo(p.product_info)
+  const name = cellText(p.name).slice(0, 500)
+  const description = cellText(p.description).slice(0, 20000)
+
+  const hasCatalog =
+    sizes.length > 0 ||
+    colors.length > 0 ||
+    galleryUrls.length > 0 ||
+    detailUrls.length > 0 ||
+    Boolean(categoryL1 || brand || material || productInfo || features.length || name)
+
+  if (!hasCatalog) return null
+
+  const price = asFiniteNumber(p.price, 0)
+  const snap = buildCatalog188Snapshot({
+    productId: cellText(p.product_id ?? p.id).slice(0, 255),
+    sku: cellText(p.code ?? p.sku).slice(0, 120),
+    origin: cellText(p.origin).slice(0, 100),
+    brand,
+    name,
+    description,
+    price,
+    shopName: cellText(p.shop_name).slice(0, 200),
+    shopId: cellText(p.shop_id).slice(0, 100) || cellText(p.style).slice(0, 100),
+    priceLow: cellText(p.pro_lower_price).slice(0, 255),
+    priceHigh: cellText(p.pro_high_price).slice(0, 255),
+    ratingGroupId: Math.round(asFiniteNumber(p.group_rating ?? p.rating_group_id, 0)),
+    questionGroupId: Math.round(asFiniteNumber(p.group_question ?? p.question_group_id, 0)),
+    sizes,
+    colors,
+    gallery: galleryUrls,
+    detail: detailUrls,
+    productUrl: cellText(p.link_default ?? p.slug ?? p.product_url).slice(0, 2000),
+    videoUrl: cellText(p.video_link ?? p.video_url).slice(0, 2000),
+    mainImage,
+    likes: Math.max(0, Math.round(asFiniteNumber(p.likes ?? p.likes_count, 0))),
+    purchases: Math.max(0, Math.round(asFiniteNumber(p.purchases ?? p.purchases_count, 0))),
+    reviews: Math.max(0, Math.round(asFiniteNumber(p.rating_total ?? p.reviews_count, 0))),
+    questions: Math.max(0, Math.round(asFiniteNumber(p.question_total ?? p.questions_count, 0))),
+    ratingScore: asFiniteNumber(p.rating_point ?? p.rating_score, 0),
+    stockQty: Math.max(0, Math.round(asFiniteNumber(p.available ?? p.stock ?? p.stock_qty, 0))),
+    depositRequired: asBool(p.deposit_require ?? p.deposit_required, false),
+    categoryL1,
+    categoryL2,
+    categoryL3,
+    material,
+    style: cellText(p.style).slice(0, 100),
+    color: cellText(p.color).slice(0, 500),
+    occasion: cellText(p.occasion).slice(0, 100),
+    features,
+    weight: cellText(p.weight).slice(0, 100),
+    productInfo,
+    chineseName: cellText(p.chinese_name).slice(0, 500),
+    shopNameChinese: cellText(p.shop_name_chinese).slice(0, 200),
+    slug: cellText(p.slug).slice(0, 500),
+  })
+  return catalogFieldsFromSnapshot(snap)
+}

@@ -137,6 +137,54 @@ export function buildPartnerCategoryTree(rows: PartnerCategoryRow[]): PartnerCat
   return roots
 }
 
+/**
+ * W4.14 — ẩn node mồ côi khi cha `is_active=false` (188 tree-v2 nuốt im; mình lọc rõ).
+ * `flat` đã `activeOnly` thì con của cha tắt vẫn có thể lọt nếu query từng row rời.
+ */
+export function prunePartnerCategoriesMissingAncestors(flat: PartnerCategoryRow[]): PartnerCategoryRow[] {
+  const byId = new Map(flat.map((c) => [c.id, c]))
+  return flat.filter((c) => {
+    let cur: PartnerCategoryRow | undefined = c
+    const seen = new Set<string>()
+    while (cur?.parentId) {
+      if (seen.has(cur.parentId)) return false
+      seen.add(cur.parentId)
+      const parent = byId.get(cur.parentId)
+      if (!parent) return false
+      cur = parent
+    }
+    return true
+  })
+}
+
+/** Cộng dồn số SP trực tiếp xuống cha — tile hub / badge L1. */
+export function rollupPartnerCategoryProductCounts(
+  tree: PartnerCategoryTreeNode[],
+  direct: Map<string, number>
+): Map<string, number> {
+  const out = new Map<string, number>()
+  const walk = (node: PartnerCategoryTreeNode): number => {
+    let sum = direct.get(node.id) ?? 0
+    for (const child of node.children) sum += walk(child)
+    out.set(node.id, sum)
+    return sum
+  }
+  for (const root of tree) walk(root)
+  return out
+}
+
+export function flattenPartnerCategoryTree(tree: PartnerCategoryTreeNode[]): PartnerCategoryTreeNode[] {
+  const out: PartnerCategoryTreeNode[] = []
+  const walk = (nodes: PartnerCategoryTreeNode[]) => {
+    for (const n of nodes) {
+      out.push(n)
+      if (n.children.length) walk(n.children)
+    }
+  }
+  walk(tree)
+  return out
+}
+
 /** Tách path "/" thành mảng segment slug — dùng để resolve route `/site/{slug}/c/{...path}`. */
 export function splitPartnerCategoryPath(path: string): string[] {
   return path

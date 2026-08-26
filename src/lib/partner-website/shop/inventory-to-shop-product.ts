@@ -35,6 +35,8 @@ export type PartnerSiteShopProduct = {
   salePriceAmount?: number | null
   saleStartsAt?: string | null
   saleEndsAt?: string | null
+  sizes: string[]
+  colors: LivePdpBindColor[]
   /** W1.5 — resolved from primary category when available. */
   sizeGuideImageUrl?: string | null
   categoryId?: string | null
@@ -75,6 +77,8 @@ export function inventoryRowToShopProduct(
     sale_price_amount?: number | null
     sale_starts_at?: string | null
     sale_ends_at?: string | null
+    description?: string | null
+    sizes_json?: unknown
     sizeGuideImageUrl?: string | null
     brand_name?: string | null
     deposit_required?: boolean | null
@@ -97,6 +101,7 @@ export function inventoryRowToShopProduct(
   const productUrl = /^https?:\/\//i.test(rawProductUrl)
     ? rawProductUrl
     : `https://shop.local${detailPath}`
+  const variants = inventoryRowToLivePdpVariants(row)
   return {
     id: row.id,
     name,
@@ -123,6 +128,8 @@ export function inventoryRowToShopProduct(
         : null,
     saleStartsAt: row.sale_starts_at ? String(row.sale_starts_at) : null,
     saleEndsAt: row.sale_ends_at ? String(row.sale_ends_at) : null,
+    sizes: variants.sizes,
+    colors: variants.colors,
     sizeGuideImageUrl: row.sizeGuideImageUrl?.trim() || null,
     brandName: (row.brand_name ?? '').trim() || null,
     depositPolicy: row.deposit_required === true,

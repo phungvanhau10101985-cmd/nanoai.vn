@@ -9,7 +9,7 @@ import {
   type InventoryCatalogPatchRow,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { emptyInventoryCatalogRowFields } from '@/lib/messaging/partner-inventory-catalog-188'
-import { linkImportedInventoryToCatalogCategories } from '@/lib/messaging/partner-inventory-import-categories'
+import { linkImportedInventoryToCatalogCategoriesBatch } from '@/lib/messaging/partner-inventory-import-categories'
 import { isPgConfigured } from '@/lib/db/pool'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
 import type { InventoryExcelInsert } from '@/lib/messaging/partner-inventory-excel'
@@ -355,6 +355,7 @@ export async function upsertPartnerInventoryRemarketingIncrementalBatch(
   const plannedDeletes = new Set<string>()
   const plannedUpdates = new Map<string, InventoryInsert>()
   const plannedInserts = new Map<string, InventoryInsert>()
+  const catalogPatches = new Map<string, InventoryCatalogPatchRow>()
 
   for (const delId of options.deleteRemarketingIds ?? []) {
     const rk = inventoryRemarketingMatchKey(delId)
@@ -395,23 +396,32 @@ export async function upsertPartnerInventoryRemarketingIncrementalBatch(
     if (targets.length === 0) {
       if (plannedInserts.has(rk)) {
         plannedInserts.set(rk, { ...plannedInserts.get(rk)!, ...base })
+        if (r.catalog) {
+          const existingNewId = plannedInserts.get(rk)!.id
+          if (existingNewId) catalogPatches.set(existingNewId, { id: existingNewId, partnerId, catalog: r.catalog })
+        }
         continue
       }
       const newId = randomUUID()
       plannedInserts.set(rk, { id: newId, partner_id: partnerId, ...base, created_at: now })
+      if (r.catalog) catalogPatches.set(newId, { id: newId, partnerId, catalog: r.catalog })
       inserted += 1
       changedIds.add(newId)
       continue
     }
     const target = targets[0]
     const current = existingById.get(target.id)
-    if (current && sameInventoryData(current, base)) continue
+    if (current && sameInventoryData(current, base)) {
+      if (r.catalog) catalogPatches.set(target.id, { id: target.id, partnerId, catalog: r.catalog })
+      continue
+    }
     plannedUpdates.set(target.id, {
       id: target.id,
       partner_id: partnerId,
       created_at: current?.created_at ?? now,
       ...base,
     })
+    if (r.catalog) catalogPatches.set(target.id, { id: target.id, partnerId, catalog: r.catalog })
     updated += 1
     changedIds.add(target.id)
   }
@@ -427,6 +437,21 @@ export async function upsertPartnerInventoryRemarketingIncrementalBatch(
   for (const rowsChunk of chunked(Array.from(plannedInserts.values()), WRITE_CHUNK_SIZE)) {
     const ok = await insertPartnerInventoryChunkFromPg(rowsChunk)
     if (!ok) return { ok: false, error: 'Inventory insert failed (Postgres).' }
+  }
+
+  const patches = Array.from(catalogPatches.values())
+  if (patches.length > 0) {
+    const patched = await applyPartnerInventoryCatalogPatchFromPg(patches)
+    if (!patched) return { ok: false, error: 'Inventory catalog update failed (Postgres).' }
+    await linkImportedInventoryToCatalogCategoriesBatch(
+      partnerId,
+      patches.map((p) => ({
+        inventoryId: p.id,
+        categoryL1: p.catalog.category_l1,
+        categoryL2: p.catalog.category_l2,
+        categoryL3: p.catalog.category_l3,
+      }))
+    )
   }
 
   const deferEmbeddings = Boolean(options.deferEmbeddings)
@@ -676,17 +701,15 @@ export async function upsertPartnerInventoryBatch(
     if (!patched) {
       return { ok: false, error: 'Inventory catalog update failed (Postgres).' }
     }
-    for (const p of patches) {
-      if (p.catalog.category_l1?.trim()) {
-        await linkImportedInventoryToCatalogCategories({
-          partnerId,
-          inventoryId: p.id,
-          categoryL1: p.catalog.category_l1,
-          categoryL2: p.catalog.category_l2,
-          categoryL3: p.catalog.category_l3,
-        })
-      }
-    }
+    await linkImportedInventoryToCatalogCategoriesBatch(
+      partnerId,
+      patches.map((p) => ({
+        inventoryId: p.id,
+        categoryL1: p.catalog.category_l1,
+        categoryL2: p.catalog.category_l2,
+        categoryL3: p.catalog.category_l3,
+      }))
+    )
   }
 
   const deferEmbeddings = Boolean(options?.deferEmbeddings)

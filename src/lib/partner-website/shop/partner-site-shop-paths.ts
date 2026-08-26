@@ -133,6 +133,11 @@ export function partnerSiteOutfitApiPath(siteSlug: string): string {
   return `/api/site/${encodeURIComponent(siteSlug.trim())}/products/outfit`
 }
 
+/** W4.14 — hub danh mục `/site/{slug}/c` (tương đương 188 `/danh-muc`). */
+export function partnerSiteCategoryHubPath(siteSlug: string, opts?: PathOpts): string {
+  return partnerSiteHref(siteSlug, '/c', opts?.customDomain)
+}
+
 /** W4.7 — trang danh mục công khai `/site/{slug}/c/{...path}`. `categoryPath` không có `/` đầu/cuối. */
 export function partnerSiteCategoryPath(
   siteSlug: string,

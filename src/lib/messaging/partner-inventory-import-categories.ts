@@ -61,18 +61,35 @@ export async function linkImportedInventoryToCatalogCategories(input: {
   categoryL2?: string | null
   categoryL3?: string | null
 }): Promise<void> {
-  const l1 = (input.categoryL1 ?? '').trim()
-  if (!l1) return
-  const listed = await fetchPartnerCategoriesFlatFromPg(input.partnerId, { activeOnly: false })
+  await linkImportedInventoryToCatalogCategoriesBatch(input.partnerId, [input])
+}
+
+/** Một lần đọc cây danh mục, rồi gán nhiều SP — dùng khi đồng bộ kho khách số lớn. */
+export async function linkImportedInventoryToCatalogCategoriesBatch(
+  partnerId: string,
+  items: Array<{
+    inventoryId: string
+    categoryL1?: string | null
+    categoryL2?: string | null
+    categoryL3?: string | null
+  }>
+): Promise<void> {
+  const work = items.filter((item) => item.inventoryId && (item.categoryL1 ?? '').trim())
+  if (work.length === 0) return
+  const listed = await fetchPartnerCategoriesFlatFromPg(partnerId, { activeOnly: false })
   if (listed === null) return
   const rows = [...listed]
-  const n1 = await ensureLevel(input.partnerId, rows, null, l1)
-  if (!n1) return
-  const l2 = (input.categoryL2 ?? '').trim()
-  const n2 = l2 ? await ensureLevel(input.partnerId, rows, n1.id, l2) : n1
-  if (!n2) return
-  const l3 = (input.categoryL3 ?? '').trim()
-  const n3 = l3 ? await ensureLevel(input.partnerId, rows, n2.id, l3) : n2
-  if (!n3) return
-  await assignInventoryToCategoryFromPg(input.partnerId, input.inventoryId, n3.id, true)
+  for (const item of work) {
+    const l1 = (item.categoryL1 ?? '').trim()
+    if (!l1) continue
+    const n1 = await ensureLevel(partnerId, rows, null, l1)
+    if (!n1) continue
+    const l2 = (item.categoryL2 ?? '').trim()
+    const n2 = l2 ? await ensureLevel(partnerId, rows, n1.id, l2) : n1
+    if (!n2) continue
+    const l3 = (item.categoryL3 ?? '').trim()
+    const n3 = l3 ? await ensureLevel(partnerId, rows, n2.id, l3) : n2
+    if (!n3) continue
+    await assignInventoryToCategoryFromPg(partnerId, item.inventoryId, n3.id, true)
+  }
 }

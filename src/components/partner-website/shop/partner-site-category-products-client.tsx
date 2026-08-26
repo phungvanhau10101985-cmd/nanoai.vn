@@ -1,9 +1,19 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import {
+  buildPartnerCategoryListingSearch,
+  parsePartnerCategoryListingFromSearchParams,
+  partnerCategoryListingHasFilters,
+  partnerCategoryListingPageCount,
+  PARTNER_CATEGORY_PAGE_SIZE,
+  type PartnerCategoryListingQuery,
+  type PartnerCategoryListingSort,
+} from '@/lib/partner-website/shop/partner-site-category-listing'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { partnerSiteProductsApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
@@ -13,13 +23,6 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
-/**
- * W4.9/W4.11 — lưới sản phẩm trong 1 trang danh mục (chỉ sản phẩm gán trực tiếp, không gộp nhánh con)
- * + lọc khoảng giá + facet size/màu (fashion) + sắp xếp.
- */
-
-type CategorySort = 'newest' | 'price_asc' | 'price_desc'
-
 type Props = {
   siteSlug: string
   categoryId: string
@@ -27,6 +30,15 @@ type Props = {
   initialProducts: PartnerSiteShopProduct[]
   initialTotal: number
   priceRange: { min: number; max: number } | null
+  initialFacets?: {
+    sizes: Array<{ value: string; count: number }>
+    colors: Array<{ value: string; count: number }>
+  }
+}
+
+function listingHref(pathname: string, q: Partial<PartnerCategoryListingQuery>): string {
+  const search = buildPartnerCategoryListingSearch(q)
+  return search ? `${pathname}?${search}` : pathname
 }
 
 export function PartnerSiteCategoryProductsClient({
@@ -36,22 +48,31 @@ export function PartnerSiteCategoryProductsClient({
   initialProducts,
   initialTotal,
   priceRange,
+  initialFacets,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const { tracking } = usePartnerSiteShop()
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const [isPending, startTransition] = useTransition()
+  const listing = useMemo(
+    () => parsePartnerCategoryListingFromSearchParams(searchParams, { defaultSort: 'newest' }),
+    [searchParams]
+  )
+
   const [products, setProducts] = useState(initialProducts)
   const [total, setTotal] = useState(initialTotal)
-  const [offset, setOffset] = useState(initialProducts.length)
   const [loading, setLoading] = useState(false)
-  const [sort, setSort] = useState<CategorySort>('newest')
-  const [minPriceInput, setMinPriceInput] = useState('')
-  const [maxPriceInput, setMaxPriceInput] = useState('')
-  const [appliedMinPrice, setAppliedMinPrice] = useState<number | null>(null)
-  const [appliedMaxPrice, setAppliedMaxPrice] = useState<number | null>(null)
-  const [sizeFacet, setSizeFacet] = useState('')
-  const [colorFacet, setColorFacet] = useState('')
-  const [facetSizes, setFacetSizes] = useState<Array<{ value: string; count: number }>>([])
-  const [facetColors, setFacetColors] = useState<Array<{ value: string; count: number }>>([])
+  const [minLocal, setMinLocal] = useState(listing.minPrice != null ? String(listing.minPrice) : '')
+  const [maxLocal, setMaxLocal] = useState(listing.maxPrice != null ? String(listing.maxPrice) : '')
+  const [facetSizes, setFacetSizes] = useState(initialFacets?.sizes ?? [])
+  const [facetColors, setFacetColors] = useState(initialFacets?.colors ?? [])
+
+  useEffect(() => {
+    setMinLocal(listing.minPrice != null ? String(listing.minPrice) : '')
+    setMaxLocal(listing.maxPrice != null ? String(listing.maxPrice) : '')
+  }, [listing.minPrice, listing.maxPrice])
 
   useEffect(() => {
     trackPartnerSiteViewItemList(
@@ -61,247 +82,216 @@ export function PartnerSiteCategoryProductsClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const buildQuery = useCallback(
-    (
-      nextOffset: number,
-      nextSort: CategorySort,
-      min: number | null,
-      max: number | null,
-      size: string,
-      color: string
-    ) => {
-      const params = new URLSearchParams()
-      params.set('categoryId', categoryId)
-      params.set('offset', String(nextOffset))
-      params.set('limit', '24')
-      params.set('sort', nextSort)
-      if (min !== null) params.set('minPrice', String(min))
-      if (max !== null) params.set('maxPrice', String(max))
-      if (size) params.set('size', size)
-      if (color) params.set('color', color)
-      return `${partnerSiteProductsApiPath(siteSlug)}?${params.toString()}`
+  const pushListing = useCallback(
+    (next: Partial<PartnerCategoryListingQuery>) => {
+      const dest = listingHref(pathname, { ...listing, page: 1, ...next })
+      startTransition(() => {
+        router.push(dest, { scroll: false })
+      })
     },
-    [categoryId, siteSlug]
+    [listing, pathname, router]
   )
 
-  const fetchPage = useCallback(
-    async (
-      nextOffset: number,
-      nextSort: CategorySort,
-      min: number | null,
-      max: number | null,
-      size: string,
-      color: string,
-      append: boolean
-    ) => {
-      setLoading(true)
-      try {
-        const res = await fetch(buildQuery(nextOffset, nextSort, min, max, size, color), { cache: 'no-store' })
-        const json = (await res.json()) as {
-          products?: PartnerSiteShopProduct[]
-          total?: number
-          facets?: { sizes?: Array<{ value: string; count: number }>; colors?: Array<{ value: string; count: number }> }
-        }
-        const next = json.products ?? []
-        setProducts((prev) => (append ? [...prev, ...next] : next))
-        setOffset(nextOffset + next.length)
-        if (typeof json.total === 'number') setTotal(json.total)
-        if (!append && json.facets) {
-          setFacetSizes(json.facets.sizes ?? [])
-          setFacetColors(json.facets.colors ?? [])
-        }
-      } finally {
-        setLoading(false)
-      }
-    },
-    [buildQuery]
+  const skipInitialFetch = useMemo(
+    () =>
+      listing.page === 1 &&
+      listing.sort === 'newest' &&
+      !listing.size &&
+      !listing.color &&
+      listing.minPrice == null &&
+      listing.maxPrice == null,
+    [listing]
   )
+  const skippedRef = useRef(skipInitialFetch)
 
   useEffect(() => {
-    // Warm facet chips without wiping SSR product list unless filters later change.
-    void fetch(buildQuery(0, 'newest', null, null, '', ''), { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((json: { facets?: { sizes?: Array<{ value: string; count: number }>; colors?: Array<{ value: string; count: number }> } }) => {
+    const params = new URLSearchParams()
+    params.set('categoryId', categoryId)
+    params.set('offset', String((listing.page - 1) * PARTNER_CATEGORY_PAGE_SIZE))
+    params.set('limit', String(PARTNER_CATEGORY_PAGE_SIZE))
+    params.set('sort', listing.sort)
+    if (listing.minPrice != null) params.set('min_price', String(listing.minPrice))
+    if (listing.maxPrice != null) params.set('max_price', String(listing.maxPrice))
+    if (listing.size) params.set('size', listing.size)
+    if (listing.color) params.set('color', listing.color)
+    if (listing.sort === 'random' && listing.randomSeed) params.set('r', listing.randomSeed)
+    let cancelled = false
+    if (skippedRef.current) {
+      skippedRef.current = false
+      void fetch(`${partnerSiteProductsApiPath(siteSlug)}?${params.toString()}`, { cache: 'no-store' })
+        .then((res) => res.json())
+        .then((json: { facets?: { sizes?: Array<{ value: string; count: number }>; colors?: Array<{ value: string; count: number }> } }) => {
+          if (!cancelled && json.facets) {
+            setFacetSizes(json.facets.sizes ?? [])
+            setFacetColors(json.facets.colors ?? [])
+          }
+        })
+        .catch(() => {})
+      return () => {
+        cancelled = true
+      }
+    }
+    setLoading(true)
+    void fetch(`${partnerSiteProductsApiPath(siteSlug)}?${params.toString()}`, { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((json: {
+        products?: PartnerSiteShopProduct[]
+        total?: number
+        facets?: { sizes?: Array<{ value: string; count: number }>; colors?: Array<{ value: string; count: number }> }
+      }) => {
+        if (cancelled) return
+        setProducts(json.products ?? [])
+        if (typeof json.total === 'number') setTotal(json.total)
         if (json.facets) {
           setFacetSizes(json.facets.sizes ?? [])
           setFacetColors(json.facets.colors ?? [])
         }
       })
-      .catch(() => {})
-  }, [buildQuery, categoryId])
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [categoryId, listing.color, listing.maxPrice, listing.minPrice, listing.page, listing.randomSeed, listing.size, listing.sort, siteSlug])
 
-  const loadMore = useCallback(() => {
-    if (loading || products.length >= total) return
-    void fetchPage(offset, sort, appliedMinPrice, appliedMaxPrice, sizeFacet, colorFacet, true)
-  }, [
-    appliedMaxPrice,
-    appliedMinPrice,
-    colorFacet,
-    fetchPage,
-    loading,
-    offset,
-    products.length,
-    sizeFacet,
-    sort,
-    total,
-  ])
+  const applyPrice = useCallback(() => {
+    const min = minLocal.trim() ? Math.max(0, Number(minLocal)) : null
+    const max = maxLocal.trim() ? Math.max(0, Number(maxLocal)) : null
+    if ((Number.isFinite(min) ? min : null) === listing.minPrice && (Number.isFinite(max) ? max : null) === listing.maxPrice) {
+      return
+    }
+    pushListing({
+      minPrice: Number.isFinite(min) ? min : null,
+      maxPrice: Number.isFinite(max) ? max : null,
+    })
+  }, [listing.maxPrice, listing.minPrice, maxLocal, minLocal, pushListing])
 
-  const applyFilters = useCallback(() => {
-    const min = minPriceInput.trim() ? Math.max(0, Number(minPriceInput)) : null
-    const max = maxPriceInput.trim() ? Math.max(0, Number(maxPriceInput)) : null
-    setAppliedMinPrice(Number.isFinite(min) ? min : null)
-    setAppliedMaxPrice(Number.isFinite(max) ? max : null)
-    void fetchPage(
-      0,
-      sort,
-      Number.isFinite(min) ? min : null,
-      Number.isFinite(max) ? max : null,
-      sizeFacet,
-      colorFacet,
-      false
-    )
-  }, [colorFacet, fetchPage, maxPriceInput, minPriceInput, sizeFacet, sort])
-
-  const clearFilters = useCallback(() => {
-    setMinPriceInput('')
-    setMaxPriceInput('')
-    setAppliedMinPrice(null)
-    setAppliedMaxPrice(null)
-    setSizeFacet('')
-    setColorFacet('')
-    void fetchPage(0, sort, null, null, '', '', false)
-  }, [fetchPage, sort])
-
-  const onSortChange = useCallback(
-    (next: CategorySort) => {
-      setSort(next)
-      void fetchPage(0, next, appliedMinPrice, appliedMaxPrice, sizeFacet, colorFacet, false)
-    },
-    [appliedMaxPrice, appliedMinPrice, colorFacet, fetchPage, sizeFacet]
-  )
-
-  const toggleSize = useCallback(
-    (value: string) => {
-      const next = sizeFacet === value ? '' : value
-      setSizeFacet(next)
-      void fetchPage(0, sort, appliedMinPrice, appliedMaxPrice, next, colorFacet, false)
-    },
-    [appliedMaxPrice, appliedMinPrice, colorFacet, fetchPage, sizeFacet, sort]
-  )
-
-  const toggleColor = useCallback(
-    (value: string) => {
-      const next = colorFacet === value ? '' : value
-      setColorFacet(next)
-      void fetchPage(0, sort, appliedMinPrice, appliedMaxPrice, sizeFacet, next, false)
-    },
-    [appliedMaxPrice, appliedMinPrice, fetchPage, sizeFacet, sort, colorFacet]
-  )
-
-  const hasActiveFilters =
-    appliedMinPrice !== null || appliedMaxPrice !== null || Boolean(sizeFacet) || Boolean(colorFacet)
-  const showFilterBar = Boolean(priceRange && priceRange.max > priceRange.min) || facetSizes.length > 0 || facetColors.length > 0
-
-  const priceRangeHint = useMemo(() => {
-    if (!priceRange) return ''
-    return `${new Intl.NumberFormat(locale === 'vi' ? 'vi-VN' : locale).format(priceRange.min)} – ${new Intl.NumberFormat(locale === 'vi' ? 'vi-VN' : locale).format(priceRange.max)}`
-  }, [locale, priceRange])
+  const hasActive = partnerCategoryListingHasFilters(listing)
+  const showBar =
+    hasActive ||
+    products.length > 0 ||
+    Boolean(priceRange && priceRange.max > priceRange.min) ||
+    facetSizes.length > 0 ||
+    facetColors.length > 0
+  const pageCount = partnerCategoryListingPageCount(total)
+  const pages = useMemo(() => {
+    const out: number[] = []
+    const start = Math.max(1, listing.page - 2)
+    const end = Math.min(pageCount, start + 4)
+    for (let p = start; p <= end; p += 1) out.push(p)
+    return out
+  }, [listing.page, pageCount])
 
   return (
     <div>
-      {showFilterBar ? (
-        <div className="pw-shop-filters" data-pw-region={PW_REGION.filters} style={{ display: 'grid', gap: 12, marginBottom: 16 }}>
+      {showBar ? (
+        <div
+          className="pw-shop-filters"
+          data-pw-region={PW_REGION.filters}
+          aria-label={t.categoryFiltersAria}
+          aria-busy={isPending || loading || undefined}
+        >
           {facetSizes.length > 0 ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }} data-pw-el={PW_EL.sectionTitle}>{t.sizeLabel}</span>
-              {facetSizes.map((f) => (
-                <button
-                  key={f.value}
-                  type="button"
-                  className={sizeFacet === f.value ? 'pw-shop-btn' : 'pw-shop-btn pw-shop-btn-outline'}
-                  style={{ padding: '5px 10px', fontSize: 12 }}
-                  data-pw-el={PW_EL.facet}
-                  onClick={() => toggleSize(f.value)}
-                >
-                  {f.value} ({f.count})
-                </button>
-              ))}
-            </div>
+            <label>
+              {t.categoryFilterSize}
+              <select
+                value={listing.size}
+                data-pw-el={PW_EL.facet}
+                onChange={(e) => pushListing({ size: e.target.value })}
+              >
+                <option value="">{t.categoryFilterAllSizes}</option>
+                {facetSizes.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.value} ({f.count})
+                  </option>
+                ))}
+              </select>
+            </label>
           ) : null}
           {facetColors.length > 0 ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }} data-pw-el={PW_EL.sectionTitle}>{t.colorLabel}</span>
-              {facetColors.map((f) => (
-                <button
-                  key={f.value}
-                  type="button"
-                  className={colorFacet === f.value ? 'pw-shop-btn' : 'pw-shop-btn pw-shop-btn-outline'}
-                  style={{ padding: '5px 10px', fontSize: 12 }}
-                  data-pw-el={PW_EL.facet}
-                  onClick={() => toggleColor(f.value)}
-                >
-                  {f.value} ({f.count})
-                </button>
-              ))}
-            </div>
+            <label>
+              {t.categoryFilterColor}
+              <select
+                value={listing.color}
+                data-pw-el={PW_EL.facet}
+                onChange={(e) => pushListing({ color: e.target.value })}
+              >
+                <option value="">{t.categoryFilterAllColors}</option>
+                {facetColors.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.value} ({f.count})
+                  </option>
+                ))}
+              </select>
+            </label>
           ) : null}
-          {priceRange && priceRange.max > priceRange.min ? (
-            <div className="pw-shop-toolbar" data-pw-region={PW_REGION.toolbar} style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                {t.categoryFilterMinPrice}
-                <input
-                  type="number"
-                  min={0}
-                  placeholder={priceRangeHint ? String(priceRange.min) : ''}
-                  value={minPriceInput}
-                  onChange={(e) => setMinPriceInput(e.target.value)}
-                  style={{ width: 100, padding: '6px 8px', borderRadius: 6, border: '1px solid #cbd5e1' }}
-                />
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                {t.categoryFilterMaxPrice}
-                <input
-                  type="number"
-                  min={0}
-                  placeholder={priceRangeHint ? String(priceRange.max) : ''}
-                  value={maxPriceInput}
-                  onChange={(e) => setMaxPriceInput(e.target.value)}
-                  style={{ width: 100, padding: '6px 8px', borderRadius: 6, border: '1px solid #cbd5e1' }}
-                />
-              </label>
-              <button type="button" className="pw-shop-btn" style={{ padding: '7px 14px' }} onClick={applyFilters}>
-                {t.categoryFilterApply}
-              </button>
-              {hasActiveFilters ? (
-                <button
-                  type="button"
-                  className="pw-shop-btn pw-shop-btn-outline"
-                  style={{ padding: '7px 14px' }}
-                  onClick={clearFilters}
-                >
-                  {t.categoryFilterClear}
-                </button>
-              ) : null}
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, marginLeft: 'auto' }}>
-                {t.categorySortLabel}
-                <select
-                  value={sort}
-                  onChange={(e) => onSortChange(e.target.value as CategorySort)}
-                  style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #cbd5e1' }}
-                  data-pw-el={PW_EL.sort}
-                >
-                  <option value="newest">{t.categorySortNewest}</option>
-                  <option value="price_asc">{t.categorySortPriceAsc}</option>
-                  <option value="price_desc">{t.categorySortPriceDesc}</option>
-                </select>
-              </label>
-            </div>
+          <label>
+            {t.categoryFilterMinPrice}
+            <input
+              type="number"
+              min={0}
+              step={1000}
+              placeholder={priceRange ? String(priceRange.min) : ''}
+              value={minLocal}
+              onChange={(e) => setMinLocal(e.target.value)}
+              onBlur={applyPrice}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') applyPrice()
+              }}
+            />
+          </label>
+          <label>
+            {t.categoryFilterMaxPrice}
+            <input
+              type="number"
+              min={0}
+              step={1000}
+              placeholder={priceRange ? String(priceRange.max) : ''}
+              value={maxLocal}
+              onChange={(e) => setMaxLocal(e.target.value)}
+              onBlur={applyPrice}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') applyPrice()
+              }}
+            />
+          </label>
+          <label data-pw-region={PW_REGION.toolbar}>
+            {t.categorySortLabel}
+            <select
+              value={listing.sort}
+              data-pw-el={PW_EL.sort}
+              onChange={(e) => pushListing({ sort: e.target.value as PartnerCategoryListingSort })}
+            >
+              <option value="random">{t.categorySortRandom}</option>
+              <option value="newest">{t.categorySortNewest}</option>
+              <option value="oldest">{t.categorySortOldest}</option>
+              <option value="views_desc">{t.categorySortViews}</option>
+              <option value="price_asc">{t.categorySortPriceAsc}</option>
+              <option value="price_desc">{t.categorySortPriceDesc}</option>
+            </select>
+          </label>
+          {hasActive ? (
+            <button
+              type="button"
+              className="pw-shop-btn pw-shop-btn-outline"
+              style={{ height: 36, padding: '0 12px' }}
+              onClick={() => startTransition(() => router.push(pathname, { scroll: false }))}
+            >
+              {t.categoryFilterClear}
+            </button>
           ) : null}
         </div>
       ) : null}
 
       <section data-pw-region={PW_REGION.catalog} data-pw-catalog>
-        {products.length === 0 ? (
+        {loading || isPending ? (
+          <div className="pw-shop-grid" data-pw-el={PW_EL.grid} data-pw-grid aria-hidden>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <article key={i} className="pw-shop-card" style={{ minHeight: 220, background: 'var(--pw-surface)' }} />
+            ))}
+          </div>
+        ) : products.length === 0 ? (
           <p className="pw-shop-muted">{t.catalogEmpty}</p>
         ) : (
           <div className="pw-shop-grid" data-pw-el={PW_EL.grid} data-pw-grid>
@@ -323,12 +313,24 @@ export function PartnerSiteCategoryProductsClient({
             ))}
           </div>
         )}
-        {products.length < total ? (
-          <p style={{ marginTop: 24 }}>
-            <button type="button" className="pw-shop-btn pw-shop-btn-outline" disabled={loading} onClick={loadMore}>
-              {loading ? '…' : t.loadMore}
-            </button>
-          </p>
+        {pageCount > 1 ? (
+          <nav className="pw-shop-page-nav" aria-label="Pagination">
+            {listing.page > 1 ? (
+              <Link href={listingHref(pathname, { ...listing, page: listing.page - 1 })}>{t.categoryPagePrev}</Link>
+            ) : null}
+            {pages.map((p) => (
+              <Link
+                key={p}
+                href={listingHref(pathname, { ...listing, page: p })}
+                className={p === listing.page ? 'is-current' : undefined}
+              >
+                {p}
+              </Link>
+            ))}
+            {listing.page < pageCount ? (
+              <Link href={listingHref(pathname, { ...listing, page: listing.page + 1 })}>{t.categoryPageNext}</Link>
+            ) : null}
+          </nav>
         ) : null}
       </section>
     </div>

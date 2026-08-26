@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { fetchPartnerCategoriesFlatFromPg } from '@/lib/db/messaging-partner-categories-pg'
-import { buildPartnerCategoryTree } from '@/lib/partner-website/category/partner-category-types'
+import {
+  buildPartnerCategoryTree,
+  prunePartnerCategoriesMissingAncestors,
+} from '@/lib/partner-website/category/partner-category-types'
 import { isPgConfigured } from '@/lib/db/pool'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 
@@ -18,7 +21,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }
   const flat = await fetchPartnerCategoriesFlatFromPg(shop.partnerId, { activeOnly: true })
   if (flat === null) return NextResponse.json({ error: 'Could not load categories' }, { status: 500 })
 
-  const tree = buildPartnerCategoryTree(flat)
+  const tree = buildPartnerCategoryTree(prunePartnerCategoriesMissingAncestors(flat))
   return NextResponse.json(
     { tree },
     { headers: { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' } }

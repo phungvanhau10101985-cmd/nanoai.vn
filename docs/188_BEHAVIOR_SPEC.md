@@ -75,11 +75,14 @@ GET /products/?limit=96&skip=(page-1)*96&is_active=true
 
 **Danh mục có con vs lá:** 188 **không hiển thị tile danh mục con** khi vào 1 category có con — nó hiển thị thẳng sản phẩm của toàn bộ nhánh con gộp lại. Việc khám phá danh mục con chỉ có ở nav và trang catalog gốc.
 
-**→ Áp dụng cho NanoAI web:**
-- Giữ **page size 96 + phân trang số trang** (đã chứng minh ổn định, dễ SEO hơn infinite-scroll).
-- **KHÔNG copy sort=random mặc định** — đây là lựa chọn đặc thù bán lẻ thời trang của 188 để tránh nhàm chán, nhưng gây khó hiểu cho merchant đa ngành. NanoAI web nên mặc định **sort=mới nhất** (dễ đoán, chuẩn thương mại điện tử phổ biến), cho phép merchant tự chọn "ngẫu nhiên" nếu muốn qua cấu hình category.
-- **NÊN hiển thị tile danh mục con** khi vào 1 category có con (trước khi liệt kê sản phẩm) — đây là gap UX của 188 mà mình có thể làm tốt hơn: giúp khách điều hướng rõ ràng hơn, đặc biệt category L1 rộng.
-- Bỏ cơ chế SEO-cluster-redirect trừ khi có yêu cầu cụ thể sau.
+**→ Áp dụng cho NanoAI web (W4.14+ — UX/cấu trúc khớp 188, không copy lỗi):**
+- **Phân trang số** + page size 48 (cùng kiểu 188, payload nhẹ hơn 96 cho SaaS đa shop).
+- Sort UI giống 188: **Ngẫu nhiên / Mới nhất / Cũ nhất / Xem nhiều** (+ giá tăng/giảm). Mặc định **mới nhất** — không random mặc định. Query `sort` + `page` + `min_price`/`max_price`/`size`/`color` trên URL.
+- **Gộp SP cả nhánh con** (L1 hiện hàng L2/L3) — khớp 188 listing.
+- **Vẫn hiện tile danh mục con** trước lưới (cải hơn 188).
+- Mega menu «Danh mục» **2 cột L1 | L2/L3**, đóng trễ 150ms — HTML + React cùng engine.
+- Hub `/c` (tương đương `/danh-muc` bare) — tile L1 + L2/L3.
+- Bỏ SEO-cluster-redirect. Tôn trọng `seo_index`. Canonical whitelist gồm cả facet đang lọc.
 
 ### A.5 SEO danh mục — quy tắc canonical chính xác
 
