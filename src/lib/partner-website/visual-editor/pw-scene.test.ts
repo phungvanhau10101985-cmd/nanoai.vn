@@ -164,6 +164,9 @@ describe('pw scene layers', () => {
     expect(pwSceneCenterCss()).toContain('[data-pw-live-chrome]')
     expect(pwSceneCenterCss()).toContain('[data-pw-live-chrome-scale]')
     expect(pwSceneCenterCss()).toContain('[data-pw-live-chrome-ph]')
+    expect(pwSceneCenterCss()).toContain('[data-pw-live-dock]')
+    expect(pwSceneCenterCss()).toContain('[data-pw-live-dock]>.pw-bottom-nav')
+    expect(pwSceneCenterCss()).toContain('html[data-pw-scene-lock="mobile"] [data-pw-live-dock]>.pw-bottom-nav')
     expect(pwSceneCenterCss()).toContain('[data-pw-live-fixed-layer]')
     expect(pwSceneCenterCss()).toContain('[data-pw-live-fixed-layer]{display:contents}')
     expect(pwSceneCenterCss()).not.toContain('[data-pw-live-fixed-layer]{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:210}')
@@ -209,8 +212,12 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function zoomScale(scenePx){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('return 1;')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function hoistLiveChrome(root,scale){')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function hoistLiveDock(root){')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function hoistLiveOverlays(){')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('var isPdp=(el.getAttribute&&el.getAttribute(\'data-pw-pdp-bottom\')===\'1\')')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-live-chrome')
-    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("closest('header,.pw-header,.pw-shop-header,[data-pw-live-chrome],.pw-pdp-actions,.pw-pdp-sticky,[data-pw-pdp-bottom]')")
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-live-dock')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("closest('header,.pw-header,.pw-shop-header,[data-pw-live-chrome],[data-pw-live-dock],.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-actions,.pw-pdp-sticky,[data-pw-pdp-bottom]')")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('nanoai-ve-active')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-live-fixed-layer')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-canvas-x')
@@ -344,6 +351,12 @@ describe('scene layers inside the editor runtime', () => {
   it('moves the whole bottom navigation when a bottom nav item changes scene layer', () => {
     expect(script).toContain("unit.closest ? unit.closest('.pw-bottom-nav, .pw-shop-bottom-nav') : null")
     expect(script).toContain('if (bottomNav) return bottomNav')
+  })
+
+  it('treats the bottom dock as full-bleed chrome and strips leftover drag coords', () => {
+    expect(script).toContain("cls.indexOf('pw-bottom-nav') >= 0 || cls.indexOf('pw-shop-bottom-nav') >= 0 || cls.indexOf('pw-pdp-sticky') >= 0")
+    expect(script).toContain('.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-sticky,[data-pw-pdp-bottom]')
+    expect(script).toContain('var isDock =')
   })
 
   it('filters clicks to the selected scene layer', () => {

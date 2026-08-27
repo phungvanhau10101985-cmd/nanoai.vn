@@ -690,6 +690,18 @@ test('ensureVisualHtmlLiveReady stamps chrome-added and device on moved widgets'
   assert.doesNotMatch(out, /data-pw-chrome-btn="cart"[^>]*data-pw-chrome-added/)
 })
 
+test('ensureVisualHtmlLiveReady strips leftover drag geometry from the bottom dock', () => {
+  const html =
+    '<nav class="pw-bottom-nav" data-pw-pdp-bottom="1" data-pw-user-move="1" style="position:relative;left:12px;top:80px;color:#111">Dock</nav>'
+  const out = ensureVisualHtmlLiveReady(html, 'mobile')
+  assert.doesNotMatch(out, /data-pw-user-move/)
+  assert.doesNotMatch(out, /position:relative/)
+  assert.doesNotMatch(out, /left:12px/)
+  assert.doesNotMatch(out, /top:80px/)
+  assert.match(out, /color:#111/)
+  assert.match(out, /data-pw-pdp-bottom="1"/)
+})
+
 test('saving one device html does not replace the other device file', () => {
   const project = {
     entryPath: 'index.html',

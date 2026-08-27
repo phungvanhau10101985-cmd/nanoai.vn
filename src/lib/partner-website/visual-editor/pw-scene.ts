@@ -475,10 +475,12 @@ export const PW_SCENE_MEDIA_ZOOM_SEL = [
 export const PW_LIVE_CHROME_ATTR = 'data-pw-live-chrome'
 export const PW_LIVE_CHROME_SCALE_ATTR = 'data-pw-live-chrome-scale'
 export const PW_LIVE_CHROME_PH_ATTR = 'data-pw-live-chrome-ph'
+export const PW_LIVE_DOCK_ATTR = 'data-pw-live-dock'
 
 /**
  * Live inline: sticky header không được nằm trong ancestor có transform.
  * Host sticky không scale; mặt header scale cùng `--pw-scene-zoom`.
+ * Thanh đáy / PDP sticky hoist ra [data-pw-live-dock] (fixed đáy viewport, không transform).
  */
 export function pwSceneLiveChromeCss(): string {
   return [
@@ -488,6 +490,16 @@ export function pwSceneLiveChromeCss(): string {
     `[${PW_LIVE_CHROME_ATTR}] .pw-header,[${PW_LIVE_CHROME_ATTR}] .pw-shop-header{position:relative!important;top:auto!important;width:100%!important}`,
     `[${PW_LIVE_CHROME_PH_ATTR}]{display:block;width:100%;pointer-events:none;visibility:hidden}`,
     `html[data-pw-scene-zoomed="1"] [data-pw-inline-visual-root] .pw-header,html[data-pw-scene-zoomed="1"] [data-pw-inline-visual-root] .pw-shop-header{position:relative!important;top:auto!important}`,
+    pwSceneLiveDockCss(),
+  ].join('')
+}
+
+/** Thanh đáy live: host fixed viewport, không nằm trong canvas `transform:scale`. */
+export function pwSceneLiveDockCss(): string {
+  return [
+    `[${PW_LIVE_DOCK_ATTR}]{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;z-index:200!important;width:100%;max-width:100%;display:flex;flex-direction:column;align-items:stretch;box-sizing:border-box;pointer-events:none;transform:none!important}`,
+    `html[data-pw-scene-lock="mobile"] [${PW_LIVE_DOCK_ATTR}]>.pw-bottom-nav,html[data-pw-scene-lock="mobile"] [${PW_LIVE_DOCK_ATTR}]>.pw-shop-bottom-nav,html[data-pw-scene-lock="tablet"] [${PW_LIVE_DOCK_ATTR}]>.pw-bottom-nav,html[data-pw-scene-lock="tablet"] [${PW_LIVE_DOCK_ATTR}]>.pw-shop-bottom-nav,html[data-pw-edit-device="mobile"] [${PW_LIVE_DOCK_ATTR}]>.pw-bottom-nav,html[data-pw-edit-device="mobile"] [${PW_LIVE_DOCK_ATTR}]>.pw-shop-bottom-nav,html[data-pw-edit-device="tablet"] [${PW_LIVE_DOCK_ATTR}]>.pw-bottom-nav,html[data-pw-edit-device="tablet"] [${PW_LIVE_DOCK_ATTR}]>.pw-shop-bottom-nav,[${PW_LIVE_DOCK_ATTR}]>.pw-bottom-nav,[${PW_LIVE_DOCK_ATTR}]>.pw-shop-bottom-nav,[${PW_LIVE_DOCK_ATTR}]>.pw-pdp-sticky,[${PW_LIVE_DOCK_ATTR}]>[data-pw-pdp-bottom]{position:relative!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;width:100%!important;max-width:100%!important;transform:none!important;pointer-events:auto}`,
+    `[${PW_LIVE_DOCK_ATTR}] .pw-bottom-nav>a,[${PW_LIVE_DOCK_ATTR}] .pw-shop-bottom-nav>a,[${PW_LIVE_DOCK_ATTR}] .pw-bottom-nav>button,[${PW_LIVE_DOCK_ATTR}] .pw-shop-bottom-nav>button,[${PW_LIVE_DOCK_ATTR}] .pw-pdp-sticky-nav a,[${PW_LIVE_DOCK_ATTR}] .pw-pdp-sticky-nav button{position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:none!important}`,
   ].join('')
 }
 
@@ -633,7 +645,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
   }
   function shouldBindFixed(el){
     if(!el||!el.getAttribute||isChromeFloat(el))return false;
-    if(el.closest&&el.closest('header,.pw-header,.pw-shop-header,[data-pw-live-chrome],.pw-pdp-actions,.pw-pdp-sticky,[data-pw-pdp-bottom]'))return false;
+    if(el.closest&&el.closest('header,.pw-header,.pw-shop-header,[data-pw-live-chrome],[data-pw-live-dock],.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-actions,.pw-pdp-sticky,[data-pw-pdp-bottom]'))return false;
     if(el.getAttribute('data-pw-stay-scroll')==='1')return false;
     if(el.getAttribute('data-pw-pin-screen')==='1')return true;
     var pos='';
@@ -704,11 +716,117 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
     var ih=inner.offsetHeight||0;
     if(inner.style)inner.style.marginBottom=z!==1&&ih>0?Math.round((z-1)*ih)+'px':'';
   }
+  function findLiveDockNavs(root){
+    if(!root||!root.querySelectorAll)return [];
+    var list=root.querySelectorAll('.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-sticky,[data-pw-pdp-bottom]');
+    var pdp=null;
+    var home=null;
+    var i;
+    for(i=0;i<list.length;i++){
+      var el=list[i];
+      if(el.closest&&el.closest('[data-pw-live-dock]'))continue;
+      var isPdp=(el.getAttribute&&el.getAttribute('data-pw-pdp-bottom')==='1')||(el.classList&&el.classList.contains('pw-pdp-sticky'));
+      if(isPdp){ if(!pdp) pdp=el; }
+      else if(!home) home=el;
+    }
+    var out=[];
+    if(pdp) out.push(pdp);
+    if(home) out.push(home);
+    return out;
+  }
+  function siblingDock(host){
+    if(!host||!host.children)return null;
+    var i;
+    for(i=0;i<host.children.length;i++){
+      var n=host.children[i];
+      if(n.getAttribute&&n.getAttribute('data-pw-live-dock')==='1')return n;
+    }
+    return null;
+  }
+  function lockDockNavGeom(nav){
+    if(!nav||!nav.style)return;
+    nav.style.removeProperty('left');
+    nav.style.removeProperty('top');
+    nav.style.removeProperty('right');
+    nav.style.removeProperty('bottom');
+    nav.style.removeProperty('transform');
+    nav.style.removeProperty('position');
+    nav.style.removeProperty('width');
+    nav.style.removeProperty('height');
+    nav.style.removeProperty('inset');
+    try{
+      nav.removeAttribute('data-pw-user-move');
+      nav.removeAttribute('data-pw-stay-scroll');
+      nav.removeAttribute('data-pw-canvas-x');
+      nav.removeAttribute('data-pw-canvas-y');
+      nav.removeAttribute('data-pw-canvas-w');
+      nav.removeAttribute('data-pw-canvas-h');
+    }catch(eG){}
+    var kids=nav.querySelectorAll?nav.querySelectorAll('a,button,[data-pw-chrome-btn],[data-pw-chrome-added]'):[];
+    var ki;
+    for(ki=0;ki<kids.length;ki++){
+      var kid=kids[ki];
+      if(kid.getAttribute&&kid.getAttribute('data-pw-chrome-float')==='1')continue;
+      if(kid.style){
+        kid.style.removeProperty('left');
+        kid.style.removeProperty('top');
+        kid.style.removeProperty('right');
+        kid.style.removeProperty('bottom');
+        kid.style.removeProperty('transform');
+        kid.style.removeProperty('position');
+      }
+      try{kid.removeAttribute('data-pw-user-move')}catch(eK){}
+    }
+  }
+  function hoistLiveDock(root){
+    if(!root||isEditor())return;
+    var navs=findLiveDockNavs(root);
+    var host=root.parentNode||document.body;
+    if(!host)return;
+    var dock=siblingDock(host);
+    if(!navs.length){
+      if(dock&&!dock.querySelector('.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-sticky,[data-pw-pdp-bottom]')){
+        try{dock.remove()}catch(eD){}
+      }
+      return;
+    }
+    if(!dock){
+      dock=document.createElement('div');
+      dock.setAttribute('data-pw-live-dock','1');
+      host.appendChild(dock);
+    }
+    var stale=dock.querySelectorAll('.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-sticky,[data-pw-pdp-bottom]');
+    var i;
+    var j;
+    for(i=0;i<stale.length;i++){
+      var keep=false;
+      for(j=0;j<navs.length;j++) if(navs[j]===stale[i]) keep=true;
+      if(!keep) try{stale[i].remove()}catch(eS){}
+    }
+    for(i=0;i<navs.length;i++){
+      lockDockNavGeom(navs[i]);
+      if(navs[i].parentNode!==dock){
+        try{dock.appendChild(navs[i])}catch(eM){}
+      }
+    }
+  }
+  function hoistLiveOverlays(){
+    if(isEditor())return;
+    var root=liveRoot();
+    if(!root||!root.querySelectorAll)return;
+    var nodes=root.querySelectorAll('[data-pw-cat-panel].is-open,.pw-cat-panel.is-open,.pw-shop-cat-panel.is-open,[data-pw-cat-acc-backdrop],.pw-cat-acc-backdrop');
+    var i;
+    for(i=0;i<nodes.length;i++){
+      if(nodes[i].parentNode!==document.body){
+        try{document.body.appendChild(nodes[i])}catch(eO){}
+      }
+    }
+  }
   var rootWatch=null;
   function watchLiveRoot(root){
     if(!root||rootWatch)return;
     rootWatch=new MutationObserver(function(){
-      if(findLiveHeader(root))apply();
+      if(findLiveHeader(root)||findLiveDockNavs(root).length)apply();
     });
     rootWatch.observe(root,{childList:true});
   }
@@ -769,6 +887,8 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
     if(root){
       watchLiveRoot(root);
       hoistLiveChrome(root,z);
+      hoistLiveDock(root);
+      hoistLiveOverlays();
     }
     if(root&&root.style){
       var h=root.scrollHeight||0;

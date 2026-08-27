@@ -735,12 +735,37 @@ function stampHtmlEditDevice(html: string, variant: VisualDeviceVariant): string
 const LIVE_READY_CHROME_RE =
   /data-pw-chrome-btn=|data-pw-el=["']cat-toggle["']|data-pw-cat-toggle|[\s"']pw-cat-btn[\s"']|[\s"']pw-shop-cat-btn[\s"']|[\s"']pw-icon-btn[\s"']|[\s"']pw-shop-icon-btn[\s"']|data-pw-chrome-added=/
 
+const VIEWPORT_DOCK_CHROME_RE =
+  /(?:pw-bottom-nav|pw-shop-bottom-nav|pw-pdp-sticky|data-pw-pdp-bottom)/i
+
+/** Thanh đáy / PDP sticky là chrome viewport — không lưu tọa độ kéo lên cả thanh. */
+export function stripViewportDockChromeGeometry(html: string): string {
+  if (!html) return html
+  return html.replace(/<(nav|div)(\s[^>]*?)>/gi, (full, tag: string, attrs: string) => {
+    if (!VIEWPORT_DOCK_CHROME_RE.test(attrs)) return full
+    let next = attrs
+      .replace(/\sdata-pw-user-move=["'][^"']*["']/gi, '')
+      .replace(/\sdata-pw-stay-scroll=["'][^"']*["']/gi, '')
+      .replace(/\sdata-pw-canvas-[xywh]=["'][^"']*["']/gi, '')
+      .replace(/\sdata-pw-canvas-[xy]u=["'][^"']*["']/gi, '')
+    next = next.replace(/\sstyle=(["'])([\s\S]*?)\1/i, (_s, quote: string, css: string) => {
+      const cleaned = String(css)
+        .replace(/(?:^|;)\s*(?:position|left|top|right|bottom|transform|width|height|inset)\s*:[^;]*/gi, '')
+        .replace(/^;+|;(?=\s*;)/g, '')
+        .replace(/^;+|;+$/g, '')
+        .trim()
+      return cleaned ? ` style=${quote}${cleaned}${quote}` : ''
+    })
+    return next === attrs ? full : `<${tag}${next}>`
+  })
+}
+
 /**
  * Sửa nhanh = gốc. Lưu phải đủ attr live đọc được: máy, chrome-added trên nút đã kéo/đứng im.
  */
 export function ensureVisualHtmlLiveReady(html: string, variant?: VisualDeviceVariant): string {
   if (!html) return html
-  return html.replace(/<(a|button)(\s[^>]*?)>/gi, (full, tag: string, attrs: string) => {
+  const stamped = html.replace(/<(a|button)(\s[^>]*?)>/gi, (full, tag: string, attrs: string) => {
     const moved = /\bdata-pw-user-move=["']1["']/.test(attrs)
     const stay = /\bdata-pw-stay-scroll=["']1["']/.test(attrs)
     const added = /\bdata-pw-chrome-added=["']1["']/.test(attrs)
@@ -751,6 +776,7 @@ export function ensureVisualHtmlLiveReady(html: string, variant?: VisualDeviceVa
     if (variant && !/\bdata-pw-device=/.test(next)) next += ` data-pw-device="${variant}"`
     return next === attrs ? full : `<${tag}${next}>`
   })
+  return stripViewportDockChromeGeometry(stamped)
 }
 
 function stampVisualAddedChrome(html: string, variant: VisualDeviceVariant): string {

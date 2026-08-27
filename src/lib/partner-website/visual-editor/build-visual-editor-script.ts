@@ -6203,7 +6203,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function resetFullBleedChromePos() {
     var nodes = document.querySelectorAll(
-      '.pw-topbar,.pw-shop-topbar,[data-pw-region="topbar"],header,.pw-header,.pw-shop-header,.pw-header-main,.pw-shop-header-inner,.pw-topbar-inner,.pw-shop-topbar-inner'
+      '.pw-topbar,.pw-shop-topbar,[data-pw-region="topbar"],header,.pw-header,.pw-shop-header,.pw-header-main,.pw-shop-header-inner,.pw-topbar-inner,.pw-shop-topbar-inner,.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-sticky,[data-pw-pdp-bottom]'
     )
     var i
     for (i = 0; i < nodes.length; i++) {
@@ -6212,7 +6212,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       var cls = clsOf(bar)
       var region = bar.getAttribute ? String(bar.getAttribute('data-pw-region') || '') : ''
       var isTopbar = region === 'topbar' || cls.indexOf('pw-topbar') >= 0 || cls.indexOf('pw-shop-topbar') >= 0
-      if (!isTopbar && !isFullBleedChrome(bar) && !isShopRegionHost(bar)) continue
+      var isDock = region === 'nav' || cls.indexOf('pw-bottom-nav') >= 0 || cls.indexOf('pw-shop-bottom-nav') >= 0 || cls.indexOf('pw-pdp-sticky') >= 0 || (bar.getAttribute && bar.getAttribute('data-pw-pdp-bottom') === '1')
+      if (!isTopbar && !isDock && !isFullBleedChrome(bar) && !isShopRegionHost(bar)) continue
       bar.style.removeProperty('position')
       bar.style.removeProperty('left')
       bar.style.removeProperty('top')
@@ -6240,6 +6241,24 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         bar.style.setProperty('height', 'auto', 'important')
       }
       try { bar.removeAttribute('data-pw-user-move') } catch (errBleedMove) {}
+      if (isDock) {
+        var kids = bar.querySelectorAll('a,button,[data-pw-chrome-btn],[data-pw-chrome-added]')
+        var k
+        for (k = 0; k < kids.length; k++) {
+          var kid = kids[k]
+          if (!kid || kid.getAttribute && kid.getAttribute('data-pw-chrome-float') === '1') continue
+          if (kid.style) {
+            kid.style.removeProperty('position')
+            kid.style.removeProperty('left')
+            kid.style.removeProperty('top')
+            kid.style.removeProperty('right')
+            kid.style.removeProperty('bottom')
+            kid.style.removeProperty('transform')
+          }
+          try { kid.removeAttribute('data-pw-user-move') } catch (errKidMove) {}
+          try { kid.removeAttribute('data-pw-stay-scroll') } catch (errKidStay) {}
+        }
+      }
       if (bar.classList) bar.classList.remove('nanoai-ve-chrome-dup')
     }
   }
@@ -7694,6 +7713,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (cls.indexOf('pw-header-main') >= 0 || cls.indexOf('pw-shop-header-inner') >= 0) return true
     if (cls.indexOf('pw-topbar') >= 0 || cls.indexOf('pw-container') >= 0) return true
     if (el.matches && el.matches('header, .pw-header, .pw-shop-header, .pw-header-main, .pw-shop-header-inner, .pw-topbar, .pw-shop-topbar')) return true
+    if (cls.indexOf('pw-bottom-nav') >= 0 || cls.indexOf('pw-shop-bottom-nav') >= 0 || cls.indexOf('pw-pdp-sticky') >= 0) return true
+    if (el.getAttribute('data-pw-pdp-bottom') === '1') return true
     return false
   }
   function isLogoLayerUnit(el) {
