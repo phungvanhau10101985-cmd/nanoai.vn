@@ -15,7 +15,10 @@ import { isPartnerTextArticlePage } from '@/lib/partner-website/pages/partner-te
 import { bindLiveProductToPdpHtml, type LivePdpBindProduct } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
 import {
   preparePartnerVisualHtmlForPublic,
-  resolvePartnerVisualHtmlForTarget,
+  resolvePartnerVisualHtmlVariantsForTarget,
+  selectPartnerVisualHtmlDevice,
+  type PartnerVisualHtmlByDevice,
+  type PartnerVisualHtmlTarget,
 } from '@/lib/partner-website/shop/render-partner-visual-html'
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
@@ -25,6 +28,7 @@ import {
   shouldServeVisualPageHtml,
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import { pwResolveCoordinateDevice } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
 
 /** `?pw-device=` from Sửa nhanh → Xem. Every page must serve the file that device saved. */
 export type PartnerSiteSearchParams =
@@ -99,12 +103,14 @@ function withInfoPageAdvancedSeo(
 export async function PartnerSiteVisualHtmlScreen({
   site,
   html,
+  htmlByDevice,
   device = null,
   infoSeo,
   skipHtmlCache = false,
 }: {
   site: Pick<PartnerWebsitePublicRow, 'siteSlug' | 'title' | 'logoUrl' | 'locale' | 'chatPath' | 'theme'>
   html: string
+  htmlByDevice?: PartnerVisualHtmlByDevice
   device?: VisualDeviceVariant | null
   infoSeo?: {
     pageKey?: PartnerWebsitePageKey | null
@@ -119,47 +125,100 @@ export async function PartnerSiteVisualHtmlScreen({
   const headerStore = headers()
   const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
   const pageKey = String(infoSeo?.pageKey || infoSeo?.cmsSlug || 'page')
-  const deviceKey = device || 'auto'
-  const prepare = () => {
-    const seoHtml = withInfoPageAdvancedSeo(site, html, infoSeo)
-    return preparePartnerVisualHtmlForPublic(seoHtml, {
-      siteSlug: site.siteSlug,
-      locale: site.locale,
-      onCustomDomain,
-      pageKey: infoSeo?.pageKey,
-      cmsSlug: infoSeo?.cmsSlug,
-      theme: site.theme,
+  const prepareOne = async (sourceHtml: string, sourceDevice: VisualDeviceVariant | null) => {
+    const prepare = () => {
+      const seoHtml = withInfoPageAdvancedSeo(site, sourceHtml, infoSeo)
+      return preparePartnerVisualHtmlForPublic(seoHtml, {
+        siteSlug: site.siteSlug,
+        locale: site.locale,
+        onCustomDomain,
+        pageKey: infoSeo?.pageKey,
+        cmsSlug: infoSeo?.cmsSlug,
+        theme: site.theme,
+      })
+    }
+    if (skipHtmlCache) return prepare()
+    return withSiteHtmlCache({
+      slug: site.siteSlug,
+      pageKey,
+      device: sourceDevice || 'auto',
+      extra: [
+        onCustomDomain ? 'd1' : 'd0',
+        infoSeo?.datePublished || '',
+        infoSeo?.dateModified || '',
+        infoSeo?.noIndex ? '1' : '0',
+      ].join(':'),
+      load: async () => prepare(),
     })
   }
-  const publicHtml = skipHtmlCache
-    ? prepare()
-    : await withSiteHtmlCache({
-        slug: site.siteSlug,
-        pageKey,
-        device: deviceKey,
-        extra: [
-          onCustomDomain ? 'd1' : 'd0',
-          infoSeo?.datePublished || '',
-          infoSeo?.dateModified || '',
-          infoSeo?.noIndex ? '1' : '0',
-        ].join(':'),
-        load: async () => prepare(),
+
+  const preparedByDevice: PartnerVisualHtmlByDevice = {}
+  if (htmlByDevice) {
+    await Promise.all(
+      (Object.keys(htmlByDevice) as VisualDeviceVariant[]).map(async (sourceDevice) => {
+        const source = htmlByDevice[sourceDevice]
+        if (!source) return
+        preparedByDevice[sourceDevice] = await prepareOne(source, sourceDevice)
       })
+    )
+  }
+  const requestViewportWidth = Number(
+    headerStore.get('sec-ch-viewport-width') || headerStore.get('viewport-width') || 0
+  )
+  const userAgent = headerStore.get('user-agent') || ''
+  const inferredRequestDevice = Number.isFinite(requestViewportWidth) && requestViewportWidth > 0
+    ? pwResolveCoordinateDevice({
+        outerWidth: requestViewportWidth,
+        layoutWidth: requestViewportWidth,
+      })
+    : /ipad|tablet|kindle|silk/i.test(userAgent)
+      ? 'tablet'
+      : /mobile|iphone|ipod|android/i.test(userAgent)
+        ? 'mobile'
+        : 'desktop'
+  const initialSelection = htmlByDevice
+    ? selectPartnerVisualHtmlDevice(preparedByDevice, inferredRequestDevice)
+    : null
+  const publicHtml = initialSelection?.html || (await prepareOne(html, device))
 
   return (
     <PartnerSitePublicClient
       html={publicHtml}
+      htmlByDevice={Object.keys(preparedByDevice).length ? preparedByDevice : undefined}
       allowScripts
       chatPath={site.chatPath}
       shopName={site.title}
       logoUrl={site.logoUrl}
       locale={site.locale}
       inlineHtml
-      initialDevice={device}
+      initialDevice={device || initialSelection?.sourceDevice || null}
       deviceHtmlAlreadyIsolated={Boolean(device)}
       hideChatLauncher={site.theme?.hideChatLauncher}
     />
   )
+}
+
+function resolveVisualTargetForScreen(
+  site: Pick<
+    PartnerWebsitePublicRow,
+    'theme' | 'project' | 'htmlSource'
+  >,
+  target: PartnerVisualHtmlTarget,
+  device?: VisualDeviceVariant | null
+): {
+  html: string
+  htmlByDevice?: PartnerVisualHtmlByDevice
+  sourceDevice?: VisualDeviceVariant
+} | null {
+  const variants = resolvePartnerVisualHtmlVariantsForTarget(site, target)
+  if (device) {
+    const selected = selectPartnerVisualHtmlDevice(variants, device)
+    return selected
+      ? { html: selected.html, sourceDevice: selected.sourceDevice }
+      : null
+  }
+  const initial = selectPartnerVisualHtmlDevice(variants, 'desktop')
+  return initial ? { html: initial.html, htmlByDevice: variants } : null
 }
 
 export function maybePartnerSiteVisualPage(
@@ -176,13 +235,14 @@ export function maybePartnerSiteVisualPage(
   }
 ) {
   if (!shouldServeVisualPageHtml(pageKey)) return null
-  const html = resolvePartnerVisualHtmlForTarget(site, { kind: 'page', pageKey }, device)
-  if (html.length < 40) return null
+  const resolved = resolveVisualTargetForScreen(site, { kind: 'page', pageKey }, device)
+  if (!resolved) return null
   return (
     <PartnerSiteVisualHtmlScreen
       site={site}
-      html={html}
-      device={device}
+      html={resolved.html}
+      htmlByDevice={resolved.htmlByDevice}
+      device={device ? resolved.sourceDevice : null}
       infoSeo={{ pageKey, ...infoSeo }}
     />
   )
@@ -196,13 +256,14 @@ export function maybePartnerSiteVisualCategoryPage(
   categoryPath: string,
   device?: VisualDeviceVariant | null
 ) {
-  const html = resolvePartnerVisualHtmlForTarget(site, { kind: 'category', categoryPath }, device)
-  if (html.length < 40) return null
+  const resolved = resolveVisualTargetForScreen(site, { kind: 'category', categoryPath }, device)
+  if (!resolved) return null
   return (
     <PartnerSiteVisualHtmlScreen
       site={site}
-      html={html}
-      device={device}
+      html={resolved.html}
+      htmlByDevice={resolved.htmlByDevice}
+      device={device ? resolved.sourceDevice : null}
       infoSeo={{ cmsSlug: `c:${categoryPath}` }}
     />
   )
@@ -217,16 +278,26 @@ export function maybePartnerSiteVisualProductPage(
   device?: VisualDeviceVariant | null,
   product?: LivePdpBindProduct | null
 ) {
-  const html = resolvePartnerVisualHtmlForTarget(site, { kind: 'product', productId }, device)
-  if (html.length < 40) return null
-  const bound = product
-    ? bindLiveProductToPdpHtml(html, product, { locale: site.locale, siteSlug: site.siteSlug })
-    : html
+  const resolved = resolveVisualTargetForScreen(site, { kind: 'product', productId }, device)
+  if (!resolved) return null
+  const bind = (source: string) =>
+    product
+      ? bindLiveProductToPdpHtml(source, product, {
+          locale: site.locale,
+          siteSlug: site.siteSlug,
+        })
+      : source
+  const boundByDevice = resolved.htmlByDevice
+    ? Object.fromEntries(
+        Object.entries(resolved.htmlByDevice).map(([key, source]) => [key, bind(source)])
+      ) as PartnerVisualHtmlByDevice
+    : undefined
   return (
     <PartnerSiteVisualHtmlScreen
       site={site}
-      html={bound}
-      device={device}
+      html={bind(resolved.html)}
+      htmlByDevice={boundByDevice}
+      device={device ? resolved.sourceDevice : null}
       infoSeo={{ pageKey: 'product_detail' }}
       skipHtmlCache
     />
@@ -246,13 +317,14 @@ export function maybePartnerSiteVisualCmsPage(
     noIndex?: boolean
   }
 ) {
-  const html = resolvePartnerVisualHtmlForTarget(site, { kind: 'cms', cmsSlug }, device)
-  if (html.length < 40) return null
+  const resolved = resolveVisualTargetForScreen(site, { kind: 'cms', cmsSlug }, device)
+  if (!resolved) return null
   return (
     <PartnerSiteVisualHtmlScreen
       site={site}
-      html={html}
-      device={device}
+      html={resolved.html}
+      htmlByDevice={resolved.htmlByDevice}
+      device={device ? resolved.sourceDevice : null}
       infoSeo={{ cmsSlug, ...infoSeo }}
     />
   )

@@ -30,6 +30,8 @@ test('copies an overlay onto other pages of the same device at the same coordina
   const about = next.project.files.find((f) => f.path === 'about.html')?.content || ''
   const mobile = next.project.files.find((f) => f.path === 'cart.mobile.html')?.content || ''
   assert.match(cart, /data-pw-clone-id="c1"/)
+  assert.match(cart, /data-pw-placement="scene-absolute"/)
+  assert.match(cart, /data-pw-box-x="80"/)
   assert.match(cart, /left:80px/)
   assert.match(cart, /top:40px/)
   assert.doesNotMatch(cart, /data-pw-clone-all="1"/)
@@ -50,6 +52,23 @@ test('replaces an existing clone on the same device instead of stacking a second
   assert.equal(cart.match(/data-pw-clone-id="c1"/g)?.length, 1)
   assert.match(cart, /left:80px/)
   assert.doesNotMatch(cart, /left:10px/)
+})
+
+test('copies v2 viewport-fixed clone boxes as normalized viewport coordinates', () => {
+  const source = `<button data-pw-added-btn="1" data-pw-clone-id="fixed-1" data-pw-clone-all="1" data-pw-clone-box="2,viewport-fixed,0.25,0.5,80,40">Fixed</button>`
+  const project = {
+    files: [
+      { path: 'index.html', kind: 'html', content: page(source) },
+      { path: 'cart.html', kind: 'html', content: page('<p>cart</p>') },
+    ],
+  }
+  const next = copyPageCloneElementsAcrossSameDevicePages(project, 'index.html', page(source))
+  const cart = next.project.files.find((file) => file.path === 'cart.html')?.content || ''
+  assert.match(cart, /data-pw-placement="viewport-fixed"/)
+  assert.match(cart, /data-pw-fixed-x="0\.25"/)
+  assert.match(cart, /data-pw-fixed-y="0\.5"/)
+  assert.match(cart, /left:25%/)
+  assert.match(cart, /top:50%/)
 })
 
 test('skips 404 and per-product HTML', () => {
@@ -83,13 +102,29 @@ test('seeds missing catalog pages such as orders.html on the same device', () =>
 
 test('parses clone box and extracts only clone-all sources', () => {
   assert.deepEqual(parseCloneBox('abs,12,8,100,40'), {
-    mode: 'abs',
+    mode: 'scene-absolute',
     left: 12,
     top: 8,
     width: 100,
     height: 40,
+    version: 1,
   })
-  assert.deepEqual(parseCloneBox('flow'), { mode: 'flow', left: 0, top: 0, width: 0, height: 0 })
+  assert.deepEqual(parseCloneBox('flow'), {
+    mode: 'flow',
+    left: 0,
+    top: 0,
+    width: 0,
+    height: 0,
+    version: 1,
+  })
+  assert.deepEqual(parseCloneBox('2,viewport-fixed,0.25,0.5,80,40'), {
+    mode: 'viewport-fixed',
+    left: 0.25,
+    top: 0.5,
+    width: 80,
+    height: 40,
+    version: 2,
+  })
   const clones = extractPageClones(page(`${SOURCE_BG}<div data-pw-clone-id="other">x</div>`))
   assert.equal(clones.length, 1)
   assert.equal(clones[0]?.id, 'c1')

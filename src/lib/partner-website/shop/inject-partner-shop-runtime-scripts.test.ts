@@ -28,6 +28,8 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /data-pw-chrome-toggle-bootstrap/)
   assert.match(out, /isPlacedCatBtn/)
   assert.match(out, /transferCatBox/)
+  assert.match(out, /var props=\['position','left','top','right','bottom','z-index'\]/)
+  assert.doesNotMatch(out, /var props=\[[^\]]*'transform'[^\]]*\]/)
   assert.match(out, /bindCatPanelHover/)
   assert.match(out, /Math\.min\(720/)
   assert.match(out, /\/api\/site\/188-com-vn-rl56\/categories/)

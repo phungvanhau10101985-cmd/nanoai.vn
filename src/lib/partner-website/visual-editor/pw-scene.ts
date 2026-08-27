@@ -1,3 +1,35 @@
+import {
+  PW_DEVICE_FALLBACK_ORDER,
+  PW_SCENE_WIDTH,
+  pwCoordinateRuntimeSource,
+  pwResolveCoordinateDevice,
+  pwSceneWidth,
+  pwUniformSceneScale,
+  type PwCoordinateDevice,
+} from './pw-coordinate-space'
+
+export {
+  PW_COORDINATE_CONTRACT_VERSION,
+  PW_COORDINATE_VERSION_ATTR,
+  PW_PLACEMENT_ATTR,
+  PW_SCENE_WIDTH,
+  pwClientBoxToScene,
+  pwClientToScene,
+  pwCoordinateDevice,
+  pwCreateViewportMap,
+  pwPickAvailableDevice,
+  pwResolveCoordinateDevice,
+  pwSceneBoxToClient,
+  pwSceneToClient,
+  pwSceneWidth,
+  pwUniformSceneScale,
+  type PwCoordinateDevice,
+  type PwPlacementMode,
+  type PwPoint,
+  type PwSceneBox,
+  type PwViewportMap,
+} from './pw-coordinate-space'
+
 /**
  * Lớp không gian toàn trang — mặt bằng chiếu từ trên xuống.
  *
@@ -198,34 +230,22 @@ export function pwSceneLayerPos(index: unknown): 'bottom' | 'middle' | 'top' {
  * ở màn rộng hơn. Nhờ vậy đổi laptop ↔ desktop không làm phần tử nhảy — trùng đúng
  * bề rộng iframe của Sửa nhanh và dải `?pw-device=` công khai.
  */
-export const PW_SCENE_DESIGN_WIDTH = {
-  mobile: 390,
-  tablet: 768,
-  laptop: 1280,
-  desktop: 1280,
-} as const
+export const PW_SCENE_DESIGN_WIDTH = PW_SCENE_WIDTH
 
 /**
  * Khung vẽ căn giữa màn hình — cùng số với iframe Sửa nhanh / `?pw-device=`.
  * Desktop dùng 1440 (khung rộng) để đường tâm trùng trung điểm màn hình lớn.
  */
-export const PW_SCENE_CANVAS_WIDTH = {
-  mobile: 390,
-  tablet: 768,
-  laptop: 1280,
-  desktop: 1440,
-} as const
+export const PW_SCENE_CANVAS_WIDTH = PW_SCENE_WIDTH
 
-export type PwSceneDevice = keyof typeof PW_SCENE_DESIGN_WIDTH
+export type PwSceneDevice = PwCoordinateDevice
 
 export function pwSceneDesignWidth(device: unknown): number {
-  const key = String(device ?? '') as PwSceneDevice
-  return PW_SCENE_DESIGN_WIDTH[key] ?? PW_SCENE_DESIGN_WIDTH.desktop
+  return pwSceneWidth(device)
 }
 
 export function pwSceneCanvasWidth(device: unknown): number {
-  const key = String(device ?? '') as keyof typeof PW_SCENE_CANVAS_WIDTH
-  return PW_SCENE_CANVAS_WIDTH[key] ?? PW_SCENE_CANVAS_WIDTH.desktop
+  return pwSceneWidth(device)
 }
 
 /**
@@ -233,20 +253,11 @@ export function pwSceneCanvasWidth(device: unknown): number {
  * Gọi với `max(outerWidth, innerWidth)` để zoom không đổi laptop ↔ desktop.
  */
 export function pwSceneLockFromWindowWidth(width: unknown): PwSceneDevice {
-  const w = Number(width)
-  if (!Number.isFinite(w) || w < PW_SCENE_CANVAS_WIDTH.tablet) return 'mobile'
-  if (w < PW_SCENE_CANVAS_WIDTH.laptop) return 'tablet'
-  if (w < PW_SCENE_CANVAS_WIDTH.desktop) return 'laptop'
-  return 'desktop'
+  return pwResolveCoordinateDevice({ outerWidth: width, layoutWidth: width })
 }
 
 /** Khi shop chưa lưu bản laptop/tablet, khóa đúng máy đó sẽ ẩn hết và trang trắng. */
-export const PW_SCENE_LOCK_FALLBACK: Record<PwSceneDevice, readonly PwSceneDevice[]> = {
-  desktop: ['desktop', 'laptop', 'tablet', 'mobile'],
-  laptop: ['laptop', 'desktop', 'tablet', 'mobile'],
-  tablet: ['tablet', 'laptop', 'desktop', 'mobile'],
-  mobile: ['mobile', 'tablet', 'laptop', 'desktop'],
-}
+export const PW_SCENE_LOCK_FALLBACK = PW_DEVICE_FALLBACK_ORDER
 
 export function pwSceneVisualWrapperSelector(device: PwSceneDevice): string {
   return `.pw-visual-${device},[data-pw-visual-device="${device}"]`
@@ -370,6 +381,8 @@ export function pwSceneDeviceVisibilityCss(): string {
 
 /**
  * Live copies the Sửa nhanh canvas 1:1 then scales it to the CSS viewport.
+ * Browser page zoom changes `innerWidth`; Sửa nhanh does not compensate for
+ * that inside the iframe, so live must use the stable outer window width first.
  * `sceneW` omitted → 1 (Sửa nhanh iframe is already the canvas).
  */
 export function pwSceneLiveZoomScale(
@@ -378,12 +391,16 @@ export function pwSceneLiveZoomScale(
   screenWidth?: unknown,
   sceneW?: unknown
 ): number {
-  void outerWidth
-  void screenWidth
-  const inner = Number(innerWidth)
-  const w = Number(sceneW)
-  if (!(inner > 8) || !(w > 8)) return 1
-  return inner / w
+  const scene = Number(sceneW)
+  if (!(scene > 8)) return 1
+  const candidates = [outerWidth, innerWidth, screenWidth]
+  for (const candidate of candidates) {
+    const viewport = Number(candidate)
+    if (Number.isFinite(viewport) && viewport > 8) {
+      return pwUniformSceneScale(viewport, scene)
+    }
+  }
+  return 1
 }
 
 /** Biến CSS dùng chung cho Sửa nhanh và trang khách — hai bên phải cùng số. */
@@ -524,6 +541,9 @@ export function pwSceneCenterCss(): string {
     // Chỉ scale khi zoom thật; header hoist ra [data-pw-live-chrome] (sticky, không transform trên host).
     `html[data-pw-edit-device] body{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:calc(50% - (var(--pw-scene-w) / 2))!important;margin-right:auto!important;box-sizing:border-box;overflow-x:visible;transform-origin:top center;display:block}`,
     `[data-pw-inline-visual-root]{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:0!important;margin-right:calc(var(--pw-scene-w) * (var(--pw-scene-zoom,1) - 1))!important;box-sizing:border-box;overflow-x:visible;transform-origin:top left;transform:none;display:block}`,
+    `[data-pw-scene-root="1"]{position:relative;box-sizing:border-box;width:100%;max-width:none;transform-origin:top left}`,
+    `[data-pw-placement="scene-absolute"]{position:absolute!important;right:auto!important;bottom:auto!important;margin:0!important;transform:none!important}`,
+    `[data-pw-placement="viewport-fixed"]{position:fixed!important;right:auto;bottom:auto;margin:0!important;transform:none!important}`,
     `html[data-pw-scene-zoomed="1"] [data-pw-inline-visual-root]{transform:scale(var(--pw-scene-zoom,1))}`,
     pwSceneLiveChromeCss(),
     pwSceneHoistLayerHostCss('[data-pw-live-fixed-layer]'),
@@ -548,43 +568,41 @@ export function pwMediaZoomOriginYPct(top: number, height: number, viewHeight: n
 /** Runtime Sửa nhanh + web thật: neo canvas theo trung điểm màn hình. */
 export const PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID = 'pw-shop-scene-center'
 /** Khóa máy theo outerWidth (không đổi khi Ctrl +/-) rồi copy canvas Sửa nhanh phủ viewport. */
-export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
-  var W={mobile:${PW_SCENE_CANVAS_WIDTH.mobile},tablet:${PW_SCENE_CANVAS_WIDTH.tablet},laptop:${PW_SCENE_CANVAS_WIDTH.laptop},desktop:${PW_SCENE_CANVAS_WIDTH.desktop}};
+export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
+(function(){
+  var C=window.__pwCoordinate;
+  var W=C.widths;
   function stamped(){
     var html=document.documentElement;
     return html&&html.getAttribute?String(html.getAttribute('data-pw-edit-device')||''):'';
   }
   function band(){
     var s=stamped();
-    if(s==='mobile'||s==='tablet'||s==='laptop'||s==='desktop')return s;
-    var outer=window.outerWidth||0;
-    var inner=window.innerWidth||(document.documentElement&&document.documentElement.clientWidth)||0;
-    var w=Math.max(outer,inner);
-    if(!(w>0))return 'desktop';
-    if(w<W.tablet)return 'mobile';
-    if(w<W.laptop)return 'tablet';
-    if(w<W.desktop)return 'laptop';
-    return 'desktop';
+    return C.resolveDevice({
+      forcedDevice:s,
+      outerWidth:window.outerWidth||0,
+      layoutWidth:window.innerWidth||(document.documentElement&&document.documentElement.clientWidth)||0,
+      screenWidth:window.screen&&window.screen.availWidth||0
+    });
   }
   function liveRoot(){
     return document.querySelector('[data-pw-inline-visual-root]');
   }
-  function zoomScale(scenePx){
+  function zoomScale(scenePx,key){
     var root=liveRoot();
     if(!root)return 1;
     var inner=window.innerWidth||(document.documentElement&&document.documentElement.clientWidth)||0;
-    if(!(inner>8)||!(scenePx>8))return 1;
-    return inner/scenePx;
+    var outer=window.outerWidth||0;
+    var screenW=window.screen&&(window.screen.availWidth||window.screen.width)||0;
+    var view=outer>8?outer:(inner>8?inner:screenW);
+    if(!(view>8)||!(scenePx>8))return 1;
+    return C.createMap({device:key,viewportWidth:view}).scale;
   }
   function hasWrap(k){
     return document.querySelector('.pw-visual-'+k+',[data-pw-visual-device="'+k+'"]');
   }
   function pick(preferred){
-    var order={desktop:['desktop','laptop','tablet','mobile'],laptop:['laptop','desktop','tablet','mobile'],tablet:['tablet','laptop','desktop','mobile'],mobile:['mobile','tablet','laptop','desktop']};
-    var list=order[preferred]||order.desktop;
-    var i;
-    for(i=0;i<list.length;i++) if(hasWrap(list[i])) return list[i];
-    return '';
+    return C.pickAvailable(preferred,function(k){return !!hasWrap(k)});
   }
   function parsePx(v){
     var n=parseFloat(String(v==null?'':v));
@@ -598,6 +616,27 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
     return String(raw||'').indexOf('%')>=0;
   }
   function readCanvasBox(el,scenePx,scale){
+    var placement=el.getAttribute('data-pw-placement')||'';
+    if(placement==='viewport-fixed'){
+      return {
+        x:parsePx(el.getAttribute('data-pw-fixed-x')),
+        y:parsePx(el.getAttribute('data-pw-fixed-y')),
+        w:parsePx(el.getAttribute('data-pw-fixed-w')),
+        h:parsePx(el.getAttribute('data-pw-fixed-h')),
+        xu:'norm',
+        yu:'norm'
+      };
+    }
+    if(placement==='scene-absolute'){
+      return {
+        x:parsePx(el.getAttribute('data-pw-box-x')),
+        y:parsePx(el.getAttribute('data-pw-box-y')),
+        w:parsePx(el.getAttribute('data-pw-box-w')),
+        h:parsePx(el.getAttribute('data-pw-box-h')),
+        xu:'px',
+        yu:'px'
+      };
+    }
     if(el.getAttribute('data-pw-canvas-x')!=null&&el.getAttribute('data-pw-canvas-x')!==''){
       return {
         x:parsePx(el.getAttribute('data-pw-canvas-x')),
@@ -646,6 +685,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
   function shouldBindFixed(el){
     if(!el||!el.getAttribute||isChromeFloat(el))return false;
     if(el.closest&&el.closest('header,.pw-header,.pw-shop-header,[data-pw-live-chrome],[data-pw-live-dock],.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-actions,.pw-pdp-sticky,[data-pw-pdp-bottom]'))return false;
+    if(el.getAttribute('data-pw-placement')==='viewport-fixed')return true;
     if(el.getAttribute('data-pw-stay-scroll')==='1')return false;
     if(el.getAttribute('data-pw-pin-screen')==='1')return true;
     var pos='';
@@ -676,12 +716,25 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
     }
     return null;
   }
+  function runtimeRevision(root){
+    return root&&root.getAttribute?String(root.getAttribute('data-pw-runtime-revision')||''):'';
+  }
+  function currentRuntimeHost(node,root){
+    if(!node)return null;
+    var revision=runtimeRevision(root);
+    if(revision&&node.getAttribute('data-pw-runtime-revision')!==revision){
+      try{node.remove()}catch(eR){}
+      return null;
+    }
+    if(revision)node.setAttribute('data-pw-runtime-revision',revision);
+    return node;
+  }
   function hoistLiveChrome(root,scale){
     if(!root||isEditor())return;
     var header=findLiveHeader(root);
     var host=root.parentNode||document.body;
     if(!host)return;
-    var chrome=siblingChrome(host);
+    var chrome=currentRuntimeHost(siblingChrome(host),root);
     var z=scale>0?scale:1;
     var leftover=root.querySelector('[data-pw-live-chrome-ph]');
     if(leftover)try{leftover.remove()}catch(ePh){}
@@ -699,6 +752,8 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
     if(!chrome){
       chrome=document.createElement('div');
       chrome.setAttribute('data-pw-live-chrome','1');
+      var chromeRevision=runtimeRevision(root);
+      if(chromeRevision)chrome.setAttribute('data-pw-runtime-revision',chromeRevision);
       host.insertBefore(chrome,root);
     }
     var inner=chrome.querySelector('[data-pw-live-chrome-scale]');
@@ -787,7 +842,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
     var navs=findLiveDockNavs(root);
     var host=root.parentNode||document.body;
     if(!host)return;
-    var dock=siblingDock(host);
+    var dock=currentRuntimeHost(siblingDock(host),root);
     if(!navs.length){
       if(dock&&!dock.querySelector('.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-sticky,[data-pw-pdp-bottom]')){
         try{dock.remove()}catch(eD){}
@@ -797,6 +852,8 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
     if(!dock){
       dock=document.createElement('div');
       dock.setAttribute('data-pw-live-dock','1');
+      var dockRevision=runtimeRevision(root);
+      if(dockRevision)dock.setAttribute('data-pw-runtime-revision',dockRevision);
       host.appendChild(dock);
     }
     var stale=dock.querySelectorAll('.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-sticky,[data-pw-pdp-bottom]');
@@ -827,26 +884,62 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
     }
   }
   var rootWatch=null;
+  var watchedRoot=null;
   function watchLiveRoot(root){
-    if(!root||rootWatch)return;
+    if(!root||root===watchedRoot)return;
+    if(rootWatch){try{rootWatch.disconnect()}catch(eD){}}
+    watchedRoot=root;
     rootWatch=new MutationObserver(function(){
       if(findLiveHeader(root)||findLiveDockNavs(root).length)apply();
     });
     rootWatch.observe(root,{childList:true});
   }
   function ensureLayer(root){
-    var host=root.parentNode||document.body;
-    var layer=host.querySelector('[data-pw-live-fixed-layer]');
+    var host=root===document.body?document.body:(root.parentNode||document.body);
+    var layer=currentRuntimeHost(host.querySelector('[data-pw-live-fixed-layer]'),root);
     if(layer)return layer;
     layer=document.createElement('div');
     layer.setAttribute('data-pw-live-fixed-layer','1');
-    host.insertBefore(layer,root);
+    var layerRevision=runtimeRevision(root);
+    if(layerRevision)layer.setAttribute('data-pw-runtime-revision',layerRevision);
+    if(root!==host&&root.parentNode===host)host.insertBefore(layer,root);
+    else host.insertBefore(layer,host.firstChild);
     return layer;
+  }
+  window.__pwViewportFixedHost=function(){
+    return ensureLayer(liveRoot()||document.body);
+  };
+  function bindSceneAbsolute(root){
+    if(!root||!root.querySelectorAll)return;
+    var sceneRoot=root.querySelector('[data-pw-scene-root="1"]')||root.querySelector('main,.pw-shop-main,.pw-main')||root;
+    if(sceneRoot&&sceneRoot.setAttribute)sceneRoot.setAttribute('data-pw-scene-root','1');
+    var nodes=root.querySelectorAll('[data-pw-placement="scene-absolute"]');
+    var i;
+    for(i=0;i<nodes.length;i++){
+      var el=nodes[i];
+      if(!el||!el.style||el.closest&&el.closest('header,.pw-header,.pw-shop-header,.pw-bottom-nav,.pw-shop-bottom-nav,[data-pw-pdp-bottom],[data-pw-live-chrome],[data-pw-live-dock]'))continue;
+      var box=readCanvasBox(el,W[band()]||W.desktop,1);
+      if(el.parentNode!==sceneRoot){
+        try{sceneRoot.appendChild(el)}catch(eP){continue}
+      }
+      el.style.setProperty('position','absolute','important');
+      if(isFinite(box.x))el.style.setProperty('left',box.x+'px','important');
+      if(isFinite(box.y))el.style.setProperty('top',box.y+'px','important');
+      el.style.setProperty('right','auto','important');
+      el.style.setProperty('bottom','auto','important');
+      el.style.setProperty('transform','none','important');
+      el.style.setProperty('margin','0','important');
+      if(isFinite(box.w)&&box.w>0)el.style.setProperty('width',box.w+'px','important');
+      if(isFinite(box.h)&&box.h>0)el.style.setProperty('height',box.h+'px','important');
+    }
   }
   function bindFixed(root,scale,scenePx){
     if(!root)return;
     var layer=ensureLayer(root);
-    var nodes=document.querySelectorAll('[data-pw-stay-scroll="1"],[data-pw-user-move="1"],[data-pw-added-bg="1"],[data-pw-chrome-added="1"],[data-pw-pin-screen="1"]');
+    var nodes=Array.prototype.slice.call(root.querySelectorAll('[data-pw-placement="viewport-fixed"],[data-pw-stay-scroll="1"],[data-pw-user-move="1"],[data-pw-added-bg="1"],[data-pw-chrome-added="1"],[data-pw-pin-screen="1"]'));
+    var hoisted=layer.querySelectorAll('[data-pw-placement="viewport-fixed"],[data-pw-stay-scroll="1"],[data-pw-user-move="1"],[data-pw-added-bg="1"],[data-pw-chrome-added="1"],[data-pw-pin-screen="1"]');
+    var hi;
+    for(hi=0;hi<hoisted.length;hi++)if(nodes.indexOf(hoisted[hi])<0)nodes.push(hoisted[hi]);
     var i;
     for(i=0;i<nodes.length;i++){
       var el=nodes[i];
@@ -861,11 +954,11 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
       var inner=window.innerWidth||scenePx;
       var innerH=window.innerHeight||720;
       if(isFinite(box.x)){
-        var leftPx=box.xu==='pct'?(box.x/100)*inner:box.x*scale;
+        var leftPx=box.xu==='norm'?box.x*inner:(box.xu==='pct'?(box.x/100)*inner:box.x*scale);
         el.style.setProperty('left',leftPx+'px','important');
       }
       if(isFinite(box.y)){
-        var topPx=box.yu==='pct'?(box.y/100)*innerH:box.y*scale;
+        var topPx=box.yu==='norm'?box.y*innerH:(box.yu==='pct'?(box.y/100)*innerH:box.y*scale);
         el.style.setProperty('top',topPx+'px','important');
       }
       el.style.setProperty('right','auto','important');
@@ -880,7 +973,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
     if(!html||!html.style)return;
     var key=pick(band())||band();
     var px=W[key]||W.desktop;
-    var z=zoomScale(px);
+    var z=zoomScale(px,key);
     html.setAttribute('data-pw-scene-lock',key);
     html.setAttribute('data-pw-edit-device',key);
     html.style.setProperty('--pw-scene-w',px+'px');
@@ -890,6 +983,8 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
     var root=liveRoot();
     if(root){
       watchLiveRoot(root);
+      bindSceneAbsolute(root);
+      bindFixed(root,z,px);
       hoistLiveChrome(root,z);
       hoistLiveDock(root);
       hoistLiveOverlays();
@@ -897,7 +992,6 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
     if(root&&root.style){
       var h=root.scrollHeight||0;
       root.style.marginBottom=z!==1&&h>0?Math.round((z-1)*h)+'px':'';
-      bindFixed(root,z,px);
     }
     var bgs=document.querySelectorAll('[data-pw-added-bg="1"]');
     var bi;

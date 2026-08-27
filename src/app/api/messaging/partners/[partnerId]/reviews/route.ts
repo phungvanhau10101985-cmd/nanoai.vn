@@ -24,8 +24,24 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: 
   const ratingRaw = Number(url.searchParams.get('rating') ?? 0)
   const ratingFilter = ratingRaw >= 1 && ratingRaw <= 5 ? ratingRaw : undefined
   const inventoryId = url.searchParams.get('inventoryId') || undefined
+  const groupRaw = url.searchParams.get('importGroup')
+  const importGroup =
+    groupRaw != null && groupRaw.trim() !== '' && Number.isFinite(Number(groupRaw))
+      ? Number(groupRaw)
+      : undefined
+  const sourceRaw = url.searchParams.get('source')
+  const source =
+    sourceRaw === 'real' || sourceRaw === 'imported' || sourceRaw === 'all' ? sourceRaw : undefined
 
-  const result = await fetchPartnerProductReviewsForAdminFromPg({ partnerId: pid, page, pageSize, ratingFilter, inventoryId })
+  const result = await fetchPartnerProductReviewsForAdminFromPg({
+    partnerId: pid,
+    page,
+    pageSize,
+    ratingFilter,
+    inventoryId,
+    importGroup,
+    source,
+  })
   if (result === null) return NextResponse.json({ error: 'Could not load reviews' }, { status: 500 })
   return NextResponse.json({ reviews: result.rows, total: result.total, page, pageSize })
 }

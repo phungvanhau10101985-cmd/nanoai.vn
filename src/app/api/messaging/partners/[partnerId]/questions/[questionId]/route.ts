@@ -21,7 +21,13 @@ export async function PATCH(
   const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
-  const body = (await req.json().catch(() => ({}))) as { isActive?: boolean; content?: string }
+  const body = (await req.json().catch(() => ({}))) as {
+    isActive?: boolean
+    content?: string
+    askerName?: string
+    usefulCount?: number
+    importGroup?: number
+  }
   const row = await updatePartnerProductQuestionFromPg(pid, questionId, body)
   if (!row) return NextResponse.json({ error: 'Could not update question' }, { status: 500 })
   return NextResponse.json({ success: true, question: row })

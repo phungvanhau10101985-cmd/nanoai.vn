@@ -33,6 +33,14 @@ export type PartnerWebsiteProject = {
   files: PartnerWebsiteProjectFile[]
 }
 
+export type PartnerWebsiteCanonicalVisualSave = {
+  html: string
+  htmlPath: string
+  device: 'mobile' | 'tablet' | 'laptop' | 'desktop'
+  revision: string
+  sourceHash: string
+}
+
 export type PartnerWebsiteRow = {
   id: string
   partnerId: string

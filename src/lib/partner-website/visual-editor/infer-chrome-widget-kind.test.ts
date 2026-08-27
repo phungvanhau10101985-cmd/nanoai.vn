@@ -4,7 +4,7 @@ import {
   inferChromeWidgetKindFromHints,
   resolveChromeWidgetKind,
   resolveChromeWidgetKindFromHints,
-} from './infer-chrome-widget-kind.ts'
+} from './infer-chrome-widget-kind'
 
 test('wishlist beats generic /account in href', () => {
   assert.equal(

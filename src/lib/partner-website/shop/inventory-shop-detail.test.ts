@@ -167,6 +167,7 @@ test('inventoryRowToShopProduct hydrates empty columns from catalog_json like 18
     'https://cdn.example/d2.jpg',
     'https://cdn.example/d3.jpg',
   ])
+  assert.equal(product?.imageUrl, 'https://cdn.example/main.jpg')
   assert.equal(product?.productVideoUrl, 'https://www.youtube.com/watch?v=abc123')
   assert.deepEqual(product?.sizes, ['M', 'L'])
   assert.equal(product?.colors[0]?.name, 'Đen')

@@ -82,6 +82,22 @@ test('later :root block does not keep the old primary color', () => {
   assert.equal(next.includes('--pw-primary:#f97316'), false)
 })
 
+test('theme root rewrite is byte-idempotent and stays in place', () => {
+  const theme = {
+    ...DEFAULT_PARTNER_WEBSITE_THEME,
+    primaryColor: '#0f766e',
+    buyButtonColor: '#0f766e',
+  }
+  const html =
+    '<html><head><style id="before">.x{color:red}</style><style id="pw-theme-root">:root{--pw-primary:#f97316}</style><style id="after">.y{color:blue}</style></head><body></body></html>'
+  const once = rewriteThemeCssVarsInHtml(html, theme)
+  const twice = rewriteThemeCssVarsInHtml(once, theme)
+  assert.equal(twice, once)
+  assert.equal(once.indexOf('id="before"') < once.indexOf('id="pw-theme-root"'), true)
+  assert.equal(once.indexOf('id="pw-theme-root"') < once.indexOf('id="after"'), true)
+  assert.equal((once.match(/id="pw-theme-root"/g) || []).length, 1)
+})
+
 test('rebinds chrome class hex to tokens and leaves inline paint alone', () => {
   const html =
     '<html><head><style>.pw-topbar{background:#c2410c}.pw-hero{background:#c2410c}</style></head><body><button style="background:#c2410c">TÌM</button><div data-pw-added-bg style="background:#c2410c"></div></body></html>'

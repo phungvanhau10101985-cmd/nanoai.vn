@@ -28,3 +28,15 @@ test('without useVisualHtml there is no visual homepage override', () => {
   })
   assert.equal(out, '')
 })
+
+test('stale visual flags still serve homepage chrome after reset', () => {
+  const html = `<!DOCTYPE html><html lang="vi"><body data-pw-page="home">
+<header class="pw-header" data-pw-region="header"><nav class="pw-nav-main">Hàng mới</nav></header>
+</body></html>`
+  const out = resolveExactVisualHomepageHtml({
+    theme: DEFAULT_PARTNER_WEBSITE_THEME,
+    htmlSource: html,
+    project: { entryPath: 'index.html', files: [] },
+  })
+  assert.equal(out, html)
+})

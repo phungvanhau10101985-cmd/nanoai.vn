@@ -312,7 +312,9 @@ function isPlacedCatBtn(el){
 }
 function transferCatBox(from,to){
   if(!from||!to||!from.style||!to.style)return;
-  var props=['position','left','top','right','bottom','z-index','transform'];
+  /* Keep the authored transform on the button. Moving it to the live-only wrapper
+     changes its coordinate context and makes Sửa nhanh and live diverge. */
+  var props=['position','left','top','right','bottom','z-index'];
   for(var i=0;i<props.length;i++){
     var p=props[i];
     var v=from.style.getPropertyValue(p);
@@ -616,6 +618,7 @@ function fillNavRow(nav,tree){
   bindNavPills(nav,tree);
 }
 function fillNavRows(tree){
+  if(document.querySelector('header.pw-header,[data-pw-region="header"].pw-header')) return;
   var navs=document.querySelectorAll('.pw-nav-main,.pw-shop-nav-row');
   for(var i=0;i<navs.length;i++)fillNavRow(navs[i],tree);
 }

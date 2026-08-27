@@ -12,6 +12,11 @@ import {
   FASHION_SHOP_GOOGLE_FONTS_HREF,
   buildFashionShopMotionCss,
 } from '@/lib/partner-website/shop/fashion-shop-design'
+import {
+  buildShopVisualSeoHead,
+  buildShopVisualWebsiteJsonLd,
+} from '@/lib/partner-website/shop/build-shop-visual-seo-head'
+import { PW_PRODUCT_GRID_RULER_CSS } from '@/lib/partner-website/shop/pw-product-grid-ruler'
 import { buildThemeCssVarBlock } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import type {
   PartnerWebsiteSection,
@@ -602,7 +607,39 @@ ${buildPartnerSiteAccountPanelCss()}
 }
 @media (max-width:520px){
   .pw-footer-grid{grid-template-columns:1fr}
-}`
+}
+.pw-skip{position:absolute;left:-999px;top:8px;z-index:1000;padding:8px 12px;background:var(--pw-primary);color:#fff;border-radius:8px}
+.pw-skip:focus{left:12px}
+html[data-pw-edit-device="desktop"] .pw-hero,html[data-pw-scene-lock="desktop"] .pw-hero,html[data-pw-edit-device="laptop"] .pw-hero,html[data-pw-scene-lock="laptop"] .pw-hero{margin:0;border-radius:0;min-height:360px}
+html[data-pw-edit-device="desktop"] .pw-hero-inner,html[data-pw-scene-lock="desktop"] .pw-hero-inner,html[data-pw-edit-device="laptop"] .pw-hero-inner,html[data-pw-scene-lock="laptop"] .pw-hero-inner{padding:64px 20px}
+html[data-pw-edit-device="desktop"] .pw-hero h1,html[data-pw-scene-lock="desktop"] .pw-hero h1{font-size:clamp(2rem,4.5vw,3.4rem)}
+html[data-pw-edit-device="desktop"] .pw-btn-hero,html[data-pw-scene-lock="desktop"] .pw-btn-hero,html[data-pw-edit-device="laptop"] .pw-btn-hero,html[data-pw-scene-lock="laptop"] .pw-btn-hero{background:#fff;color:var(--pw-primary);border:none}
+html[data-pw-edit-device="mobile"] .pw-hero,html[data-pw-scene-lock="mobile"] .pw-hero{margin:12px 16px 0;border-radius:1.5rem;min-height:220px}
+html[data-pw-edit-device="tablet"] .pw-hero,html[data-pw-scene-lock="tablet"] .pw-hero{margin:16px 20px 0;border-radius:1.25rem;min-height:280px}
+html[data-pw-edit-device="mobile"] .pw-hero-inner,html[data-pw-scene-lock="mobile"] .pw-hero-inner{padding:28px 18px}
+html[data-pw-edit-device="mobile"] .pw-hero h1,html[data-pw-scene-lock="mobile"] .pw-hero h1{font-size:1.45rem}
+html[data-pw-edit-device="mobile"] .pw-btn-hero,html[data-pw-scene-lock="mobile"] .pw-btn-hero{background:var(--pw-primary);color:#fff;border:2px solid #fff}
+html[data-pw-edit-device="desktop"] .pw-product-grid,html[data-pw-scene-lock="desktop"] .pw-product-grid{grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:18px}
+html[data-pw-edit-device="laptop"] .pw-product-grid,html[data-pw-scene-lock="laptop"] .pw-product-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:16px}
+html[data-pw-edit-device="tablet"] .pw-product-grid,html[data-pw-scene-lock="tablet"] .pw-product-grid,html[data-pw-edit-device="mobile"] .pw-product-grid,html[data-pw-scene-lock="mobile"] .pw-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px}
+html[data-pw-edit-device="desktop"] .pw-cat-grid,html[data-pw-scene-lock="desktop"] .pw-cat-grid,html[data-pw-edit-device="laptop"] .pw-cat-grid,html[data-pw-scene-lock="laptop"] .pw-cat-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+html[data-pw-edit-device="mobile"] .pw-cat-media,html[data-pw-scene-lock="mobile"] .pw-cat-media{border:none;border-radius:999px;max-width:72px;margin:0 auto}
+html[data-pw-edit-device="desktop"] .pw-cat-media,html[data-pw-scene-lock="desktop"] .pw-cat-media,html[data-pw-edit-device="laptop"] .pw-cat-media,html[data-pw-scene-lock="laptop"] .pw-cat-media{border:2px solid var(--pw-primary);border-radius:8px;max-width:none}
+html[data-pw-edit-device="desktop"] .pw-footer-grid,html[data-pw-scene-lock="desktop"] .pw-footer-grid,html[data-pw-edit-device="laptop"] .pw-footer-grid,html[data-pw-scene-lock="laptop"] .pw-footer-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+html[data-pw-edit-device="tablet"] .pw-footer-grid,html[data-pw-scene-lock="tablet"] .pw-footer-grid{grid-template-columns:1fr 1fr}
+html[data-pw-edit-device="mobile"] .pw-footer-grid,html[data-pw-scene-lock="mobile"] .pw-footer-grid{grid-template-columns:1fr}
+html[data-pw-edit-device="desktop"] .pw-nav-main,html[data-pw-scene-lock="desktop"] .pw-nav-main,html[data-pw-edit-device="laptop"] .pw-nav-main,html[data-pw-scene-lock="laptop"] .pw-nav-main{display:flex}
+html[data-pw-edit-device="mobile"] .pw-nav-main,html[data-pw-scene-lock="mobile"] .pw-nav-main,html[data-pw-edit-device="tablet"] .pw-nav-main,html[data-pw-scene-lock="tablet"] .pw-nav-main{display:none}
+html[data-pw-edit-device="desktop"] .pw-topbar,html[data-pw-scene-lock="desktop"] .pw-topbar,html[data-pw-edit-device="laptop"] .pw-topbar,html[data-pw-scene-lock="laptop"] .pw-topbar{display:block}
+html[data-pw-edit-device="mobile"] .pw-topbar,html[data-pw-scene-lock="mobile"] .pw-topbar,html[data-pw-edit-device="tablet"] .pw-topbar,html[data-pw-scene-lock="tablet"] .pw-topbar{display:none}
+html[data-pw-edit-device="desktop"] .pw-header,html[data-pw-scene-lock="desktop"] .pw-header,html[data-pw-edit-device="laptop"] .pw-header,html[data-pw-scene-lock="laptop"] .pw-header{background:#fff;border-bottom:1px solid #f3f4f6;box-shadow:none}
+html[data-pw-edit-device="desktop"] .pw-wordmark,html[data-pw-scene-lock="desktop"] .pw-wordmark,html[data-pw-edit-device="laptop"] .pw-wordmark,html[data-pw-scene-lock="laptop"] .pw-wordmark{color:var(--pw-primary);text-shadow:none}
+html[data-pw-edit-device="mobile"] .pw-header,html[data-pw-scene-lock="mobile"] .pw-header,html[data-pw-edit-device="tablet"] .pw-header,html[data-pw-scene-lock="tablet"] .pw-header{background:var(--pw-primary);border:none;box-shadow:0 6px 18px color-mix(in srgb, var(--pw-primary) 35%, transparent)}
+html[data-pw-edit-device="mobile"] .pw-wordmark,html[data-pw-scene-lock="mobile"] .pw-wordmark,html[data-pw-edit-device="tablet"] .pw-wordmark,html[data-pw-scene-lock="tablet"] .pw-wordmark{color:#fff}
+html[data-pw-edit-device="desktop"] .pw-bottom-nav,html[data-pw-scene-lock="desktop"] .pw-bottom-nav,html[data-pw-edit-device="laptop"] .pw-bottom-nav,html[data-pw-scene-lock="laptop"] .pw-bottom-nav{display:none}
+html[data-pw-edit-device="desktop"] body,html[data-pw-scene-lock="desktop"] body,html[data-pw-edit-device="laptop"] body,html[data-pw-scene-lock="laptop"] body{padding-bottom:0}
+html[data-pw-edit-device="mobile"] body,html[data-pw-scene-lock="mobile"] body,html[data-pw-edit-device="tablet"] body,html[data-pw-scene-lock="tablet"] body{padding-bottom:72px}
+${PW_PRODUCT_GRID_RULER_CSS}`
 }
 
 export function renderTemplateSiteToHtml(input: PartnerWebsiteTemplateRenderInput): string {
@@ -629,20 +666,45 @@ export function renderTemplateSiteToHtml(input: PartnerWebsiteTemplateRenderInpu
   const faviconLink = logo
     ? `<link rel="icon" href="${escapeAttr(logo)}"/>`
     : ''
+  const hero = sections.find((s) => s.type === 'hero-v1')
+  const seoDescription = str(hero?.props.subtitle, input.title)
+  const skipLabel =
+    input.locale === 'vi'
+      ? 'Bỏ qua nội dung'
+      : input.locale === 'zh'
+        ? '跳到正文'
+        : input.locale === 'ja'
+          ? '本文へスキップ'
+          : input.locale === 'ko'
+            ? '본문으로 건너뛰기'
+            : 'Skip to content'
 
   return `<!DOCTYPE html>
 <html lang="${escapeAttr(input.locale)}">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>${escapeHtml(input.title)}</title>
+${buildShopVisualSeoHead({
+  title: input.title,
+  description: seoDescription,
+  locale: input.locale,
+  imageUrl: logo || str(hero?.props.backgroundImage) || null,
+})}
 ${faviconLink}
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="${FASHION_SHOP_GOOGLE_FONTS_HREF}" rel="stylesheet"/>
 <style>${buildStyles(input.theme)}</style>
+${buildShopVisualWebsiteJsonLd({
+  brand: input.title,
+  locale: input.locale,
+  siteSlug: siteSlug || undefined,
+  logoUrl: logo,
+  description: seoDescription,
+})}
 </head>
 <body id="top">
+<a class="pw-skip" href="#products">${escapeHtml(skipLabel)}</a>
 ${chrome.header}
 ${body}
 ${chrome.bottomNav}

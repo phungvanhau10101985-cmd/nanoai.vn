@@ -1,0 +1,63 @@
+name: Partner website editor-live parity
+
+on:
+  pull_request:
+    paths:
+      - 'src/lib/partner-website/**'
+      - 'src/components/partner-website/**'
+      - 'src/app/dashboard/messaging/**'
+      - 'src/app/site/**'
+      - 'src/app/api/site/**'
+      - 'src/app/api/messaging/partner-website/**'
+      - 'src/lib/cache/partner-shop-cache.ts'
+      - 'tests/partner-website/**'
+      - 'playwright.partner-website.config.ts'
+      - 'vitest.partner-website.config.mts'
+      - '.github/workflows/partner-website-parity.yml'
+      - 'package.json'
+      - 'package-lock.json'
+  push:
+    branches: [main]
+    paths:
+      - 'src/lib/partner-website/**'
+      - 'src/components/partner-website/**'
+      - 'src/app/dashboard/messaging/**'
+      - 'src/app/site/**'
+      - 'src/app/api/site/**'
+      - 'src/app/api/messaging/partner-website/**'
+      - 'src/lib/cache/partner-shop-cache.ts'
+      - 'tests/partner-website/**'
+      - 'playwright.partner-website.config.ts'
+      - 'vitest.partner-website.config.mts'
+      - '.github/workflows/partner-website-parity.yml'
+      - 'package.json'
+      - 'package-lock.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: partner-website-parity-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:partner-website-parity
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: partner-website-parity-report
+          path: |
+            playwright-report
+            test-results/partner-website-parity
+          if-no-files-found: ignore

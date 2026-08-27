@@ -59,6 +59,15 @@ Mọi đường xem HTML visual phải đi qua `render-partner-visual-html.ts`:
 - `?pw-device=mobile|tablet|laptop|desktop` luôn là bản **isolated** đúng file đã lưu của máy đó. Không lấy bản responsive rồi tách lại ở client nếu server đã trả đúng máy.
 - Không tạo route preview/render mới tự gọi `resolvePublicVisualPageHtml()` rồi tự inject CSS/script riêng. Nếu cần entry mới, thêm target vào gateway trước.
 
+## Coordinate và Save contract
+
+- Scene width duy nhất: Mobile 390 / Tablet 768 / Laptop 1280 / Desktop 1440. `--pw-block-w` chỉ là cột nội dung.
+- Chỉ dùng `flow`, `scene-absolute` (`data-pw-box-*`) và `viewport-fixed` (`data-pw-fixed-*`). Mapper ở `pw-coordinate-space.ts` là nguồn công thức duy nhất.
+- HTML canonical ghi `data-pw-coordinate-version="2"`; loader đọc cả geometry cũ nhưng serializer chỉ ghi v2.
+- Live chỉ mount một document active device. Sticky chrome, fixed layer và dock là host runtime, không persist.
+- API Save trả `canonicalVisual.html/revision/sourceHash` sau khi sync chrome/clone. Sửa nhanh thay baseline bằng đúng HTML đó; site cache bump sau persist.
+- Gate bắt buộc: map round-trip, Save idempotence, geometry + fixed scroll + screenshot ở 390/768/1280/1440 và zoom 50–150%.
+
 ## Breakpoint thanh đáy
 
 - **Tablet:** hiện + `position: fixed; bottom: 0` khi `768–1279px`.

@@ -11,7 +11,15 @@ import {
   insertPartnerProductReviewFromPg,
 } from '@/lib/db/messaging-partner-reviews-pg'
 import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
-import { clampRating, sanitizeReviewImageUrls, reviewTitleTemplate } from '@/lib/partner-website/reviews/partner-review-types'
+import {
+  PUBLIC_REVIEW_QA_PAGE_SIZE,
+  PUBLIC_REVIEW_QA_PAGE_SIZE_MAX,
+  clampRating,
+  coalesceImportGroup,
+  reviewShowsVerifiedBadge,
+  reviewTitleTemplate,
+  sanitizeReviewImageUrls,
+} from '@/lib/partner-website/reviews/partner-review-types'
 import { normalizeWebLocale } from '@/lib/i18n/config'
 import { notifyPartnerOwnerNewReview } from '@/lib/messaging/partner-admin-notifications'
 
@@ -28,16 +36,24 @@ export async function GET(
 
   const url = request.nextUrl
   const page = Math.max(1, Number(url.searchParams.get('page') ?? 1) || 1)
-  const pageSize = Math.min(50, Math.max(1, Number(url.searchParams.get('pageSize') ?? 10) || 10))
+  const pageSize = Math.min(
+    PUBLIC_REVIEW_QA_PAGE_SIZE_MAX,
+    Math.max(1, Number(url.searchParams.get('pageSize') ?? PUBLIC_REVIEW_QA_PAGE_SIZE) || PUBLIC_REVIEW_QA_PAGE_SIZE)
+  )
   const ratingFilterRaw = Number(url.searchParams.get('rating') ?? 0)
   const ratingFilter = ratingFilterRaw >= 1 && ratingFilterRaw <= 5 ? ratingFilterRaw : undefined
 
+  const inv = await fetchPartnerInventoryRowByIdForPartnerFromPg(shop.partnerId, inventoryId)
+  if (!inv) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const importGroup = coalesceImportGroup(inv.rating_group_id)
+
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
   const [summary, page1] = await Promise.all([
-    fetchPartnerProductRatingSummaryFromPg(shop.partnerId, inventoryId),
+    fetchPartnerProductRatingSummaryFromPg(shop.partnerId, inventoryId, importGroup),
     fetchPartnerProductReviewsPageFromPg({
       partnerId: shop.partnerId,
       inventoryId,
+      importGroup,
       page,
       pageSize,
       viewerAccountKey: visitor.accountKey,
@@ -48,7 +64,15 @@ export async function GET(
 
   return jsonSitePersonalization(
     request,
-    { ok: true, summary, reviews: page1.rows, total: page1.total, page, pageSize },
+    {
+      ok: true,
+      summary,
+      reviews: page1.rows.map((r) => ({ ...r, verified: reviewShowsVerifiedBadge(r) })),
+      total: page1.total,
+      page,
+      pageSize,
+      hasReviewed: page1.hasReviewed,
+    },
     200,
     { sessionId: visitor.sessionId, thread: visitor.thread }
   )

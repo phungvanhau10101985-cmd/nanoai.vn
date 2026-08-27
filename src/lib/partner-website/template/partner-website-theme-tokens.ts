@@ -472,9 +472,18 @@ export function rewriteThemeCssVarsInHtml(html: string, theme: PartnerWebsiteThe
   const liveTag = `<style id="${PW_THEME_ROOT_STYLE_ID}">:root{${buildThemeCssVarImportantBlock(theme)}}</style>`
   let out = html
   out = rewriteStyleTagCss(out, (css) => bindChromeThemeVarsInCss(css))
-  out = out.replace(new RegExp(`<style id="${PW_THEME_ROOT_STYLE_ID}">[\\s\\S]*?<\\/style>`, 'gi'), '')
   out = out.replace(/:root\s*\{[^}]*--pw-primary:[^}]*\}/gi, (block) => upsertPwVarsInRootBlock(block, vars))
   out = out.replace(/\bhtml\s*\{[^}]*--pw-primary:[^}]*\}/gi, (block) => upsertPwVarsInRootBlock(block, vars))
+  let replacedThemeRoot = false
+  out = out.replace(
+    new RegExp(`<style id="${PW_THEME_ROOT_STYLE_ID}">[\\s\\S]*?<\\/style>`, 'gi'),
+    () => {
+      if (replacedThemeRoot) return ''
+      replacedThemeRoot = true
+      return liveTag
+    }
+  )
+  if (replacedThemeRoot) return out
   if (/<\/head>/i.test(out)) {
     return out.replace(/<\/head>/i, `${liveTag}</head>`)
   }

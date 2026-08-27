@@ -26,6 +26,18 @@ test('card media ruler keeps a square slot and does not indent the photo away', 
   assert.match(PW_PRODUCT_CARD_MEDIA_RULER_CSS, /-webkit-line-clamp:2/)
 })
 
+test('empty-src hide only targets img, never the media box or loaded photos', () => {
+  const hide = PW_PRODUCT_CARD_MEDIA_RULER_CSS.match(/\{visibility:hidden!important\}/g)
+  assert.equal((hide || []).length, 1)
+  const hideBlock = PW_PRODUCT_CARD_MEDIA_RULER_CSS.split('{visibility:hidden!important}')[0]
+  const lastRule = hideBlock.slice(hideBlock.lastIndexOf('\n') + 1)
+  for (const part of lastRule.split(',')) {
+    assert.match(part, / img(\[src=""\]|:not\(\[src\]\))$/)
+  }
+  assert.match(PW_PRODUCT_CARD_MEDIA_RULER_CSS, /html \.pw-related-card \.pw-product-card-media img,/)
+  assert.match(PW_PRODUCT_CARD_MEDIA_RULER_CSS, /html \.pw-outfit-card \.pw-product-card-media img,/)
+})
+
 test('related and outfit CSS both ship the shared ruler', () => {
   assert.match(PW_RELATED_CSS, /\[data-pw-related\] \[data-pw-grid\]/)
   assert.match(PW_OUTFIT_CSS, /\[data-pw-outfit\] \[data-pw-grid\]/)

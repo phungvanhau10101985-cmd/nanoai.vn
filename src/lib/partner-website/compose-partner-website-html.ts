@@ -1,20 +1,15 @@
 import type { PartnerWebsiteRow } from '@/lib/partner-website/partner-website-types'
 import { injectPartnerWebsiteLogoGuardIntoHtml } from '@/lib/partner-website/partner-website-logo-guard'
-import {
-  extractIndexHtml,
-  resolvePartnerWebsiteDisplayHtml,
-} from '@/lib/partner-website/partner-website-project'
+import { resolvePartnerWebsiteDisplayHtml } from '@/lib/partner-website/partner-website-project'
 import { hydratePartnerWebsitePages } from '@/lib/partner-website/template/hydrate-template-pages'
 import { renderTemplateSiteToHtml } from '@/lib/partner-website/template/render-template-html'
+import { resolveExactVisualPageHtml } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
 /** Homepage HTML from Sửa nhanh — as saved, no template CSS/JS injected. */
 export function resolveExactVisualHomepageHtml(
   website: Pick<PartnerWebsiteRow, 'theme' | 'project' | 'htmlSource'>
 ): string {
-  if (!website.theme?.useVisualHtml) return ''
-  const source = website.htmlSource?.trim() || ''
-  if (source.length >= 40) return source
-  return extractIndexHtml(website.project)?.trim() || ''
+  return resolveExactVisualPageHtml(website, 'home', 'desktop').trim()
 }
 
 function resolveVisualHtmlOverride(

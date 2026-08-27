@@ -41,7 +41,18 @@ const PW_CARD_MEDIA_SEL = [
   'html [data-pw-el="card"] > [data-pw-el="card-media"]',
 ].join(',')
 
-const PW_CARD_MEDIA_IMG_SEL = `${PW_CARD_MEDIA_SEL} img`
+const PW_CARD_MEDIA_IMG_SEL = suffixEach(PW_CARD_MEDIA_SEL, ' img')
+const PW_CARD_MEDIA_EMPTY_IMG_SEL = [
+  suffixEach(PW_CARD_MEDIA_IMG_SEL, '[src=""]'),
+  suffixEach(PW_CARD_MEDIA_SEL, ' img:not([src])'),
+].join(',')
+
+function suffixEach(sel: string, suffix: string): string {
+  return sel
+    .split(',')
+    .map((part) => `${part}${suffix}`)
+    .join(',')
+}
 
 const PW_STRIP_CARD_SEL = [
   'html .pw-related-card',
@@ -79,8 +90,8 @@ ${PW_STRIP_GRID_UNLOCKED_NARROW_SEL}{grid-template-columns:repeat(2,minmax(0,1fr
 export const PW_PRODUCT_CARD_MEDIA_RULER_CSS = `
 ${PW_STRIP_CARD_SEL}{display:flex!important;flex-direction:column!important;min-width:0!important;max-width:100%!important;width:auto!important;box-sizing:border-box;overflow:hidden}
 ${PW_CARD_MEDIA_SEL}{position:relative!important;display:block!important;width:100%!important;aspect-ratio:1/1!important;height:auto!important;min-height:0!important;max-height:none!important;padding:0!important;overflow:hidden!important;background:var(--pw-surface,#f3f4f6);flex:0 0 auto}
-${PW_CARD_MEDIA_IMG_SEL}{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:cover!important;object-position:center!important;display:block!important;border:0!important;text-indent:0!important;transform:none}
-${PW_CARD_MEDIA_IMG_SEL}[src=""],${PW_CARD_MEDIA_SEL} img:not([src]){visibility:hidden!important}
+${PW_CARD_MEDIA_IMG_SEL}{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:cover!important;object-position:center!important;display:block!important;border:0!important;text-indent:0!important;transform:none;visibility:visible}
+${PW_CARD_MEDIA_EMPTY_IMG_SEL}{visibility:hidden!important}
 ${PW_STRIP_NAME_SEL}{margin:0;font-size:12px;font-weight:500;line-height:1.25;color:var(--pw-text,#111827);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.5em}
 ${PW_STRIP_NAME_SEL} a{color:inherit;text-decoration:none}
 ${PW_STRIP_PRICE_SEL}{margin:0;margin-top:auto;font-size:14px;font-weight:700;color:var(--pw-primary)}

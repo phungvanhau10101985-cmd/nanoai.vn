@@ -6,7 +6,11 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
-import type { PartnerWebsiteRow, PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
+import type {
+  PartnerWebsiteCanonicalVisualSave,
+  PartnerWebsiteRow,
+  PartnerWebsiteProject,
+} from '@/lib/partner-website/partner-website-types'
 import { partnerWebsitePublicPath } from '@/lib/partner-website/partner-website-slug'
 import { partnerWebsiteDashboardPath } from '@/lib/partner-website/partner-website-dashboard-path'
 import {
@@ -59,6 +63,57 @@ type NavLabels = {
   marketing: string
   settings: string
   website: string
+}
+
+type VisualSaveRuntimeGatePayload = {
+  htmlPath?: string
+  device?: string
+  sourceDevice?: string
+  persistedHash?: string
+  liveBeforeHash?: string
+  liveAfterHash?: string
+}
+
+function visualSaveRuntimeGateHint(input: {
+  code?: string
+  runtimeGate?: VisualSaveRuntimeGatePayload
+  t: Pick<
+    ReturnType<typeof getPartnerWebsiteCopy>,
+    | 'visualEditRuntimeGateTargetMissing'
+    | 'visualEditRuntimeGateDeviceMismatch'
+    | 'visualEditRuntimeGateLiveNotUpdated'
+    | 'visualEditRuntimeGateLabelPath'
+    | 'visualEditRuntimeGateLabelDevice'
+    | 'visualEditRuntimeGateLabelSourceDevice'
+    | 'visualEditRuntimeGateLabelBeforeHash'
+    | 'visualEditRuntimeGateLabelAfterHash'
+  >
+}): string {
+  const code = String(input.code || '').trim()
+  const gate = input.runtimeGate || {}
+  const details: string[] = []
+  if (gate.htmlPath) details.push(`${input.t.visualEditRuntimeGateLabelPath}: ${gate.htmlPath}`)
+  if (gate.device) details.push(`${input.t.visualEditRuntimeGateLabelDevice}: ${gate.device}`)
+  if (gate.sourceDevice) {
+    details.push(`${input.t.visualEditRuntimeGateLabelSourceDevice}: ${gate.sourceDevice}`)
+  }
+  if (gate.liveBeforeHash) {
+    details.push(`${input.t.visualEditRuntimeGateLabelBeforeHash}: ${gate.liveBeforeHash}`)
+  }
+  if (gate.liveAfterHash) {
+    details.push(`${input.t.visualEditRuntimeGateLabelAfterHash}: ${gate.liveAfterHash}`)
+  }
+  const suffix = details.length ? `. ${details.join(' · ')}` : ''
+  if (code === 'VISUAL_LIVE_TARGET_MISSING') {
+    return `${input.t.visualEditRuntimeGateTargetMissing}${suffix}`
+  }
+  if (code === 'VISUAL_LIVE_DEVICE_MISMATCH') {
+    return `${input.t.visualEditRuntimeGateDeviceMismatch}${suffix}`
+  }
+  if (code === 'VISUAL_LIVE_NOT_UPDATED') {
+    return `${input.t.visualEditRuntimeGateLiveNotUpdated}${suffix}`
+  }
+  return ''
 }
 
 type WebsiteDashboardPartner = {
@@ -411,17 +466,27 @@ export function PartnerWebsiteDashboardClient({
       }
       const json = (await res.json().catch(() => ({}))) as {
         website?: PartnerWebsiteRow
+        canonicalVisual?: PartnerWebsiteCanonicalVisualSave
         error?: string
+        code?: string
+        runtimeGate?: VisualSaveRuntimeGatePayload
       }
-      if (!res.ok || !json.website) {
-        throw new Error(json.error || t.visualEditSaveFailed)
+      if (!res.ok || !json.website || !json.canonicalVisual) {
+        const runtimeHint = visualSaveRuntimeGateHint({
+          code: json.code,
+          runtimeGate: json.runtimeGate,
+          t,
+        })
+        const detail = runtimeHint || json.error || ''
+        throw new Error(detail ? `${t.visualEditSaveFailed}. ${detail}` : t.visualEditSaveFailed)
       }
       setWebsite(json.website)
       setLiveTheme(json.website.theme)
       setPreviewVersion(json.website.updatedAt || String(Date.now()))
       toast({ title: t.visualEditSaveSuccess })
+      return json.canonicalVisual
     },
-    [partnerId, website, t.visualEditSaveFailed, t.visualEditSaveSuccess, toast]
+    [partnerId, website, t, toast]
   )
 
   const scrollToSection = useCallback((section: PartnerWebsiteTenantSection) => {

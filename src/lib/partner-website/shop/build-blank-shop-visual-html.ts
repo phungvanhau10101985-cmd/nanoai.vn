@@ -46,7 +46,17 @@ const INFO_PAGES: PartnerWebsitePageKey[] = [
   'thank_you',
 ]
 
-const SHOP_ROUTE_PAGES: PartnerWebsitePageKey[] = ['products', 'cart', 'account']
+const SHOP_ROUTE_PAGES: PartnerWebsitePageKey[] = [
+  'products',
+  'cart',
+  'account',
+  'sale',
+  'collection',
+  'wishlist',
+  'recently_viewed',
+  'orders',
+  'addresses',
+]
 
 export const BLANK_SHOP_VISUAL_PAGE_KEYS: PartnerWebsitePageKey[] = [
   'home',

@@ -17,6 +17,7 @@ import {
   isFullLandingV1Template,
   upgradeLandingV1Pages,
 } from '@/lib/partner-website/template/upgrade-landing-v1-template'
+import { htmlHasPartnerVisualChrome } from '@/lib/partner-website/visual-editor/visual-html-detect'
 
 export type SyncPartnerWebsiteFullLandingResult = {
   website: PartnerWebsiteRow | null
@@ -41,7 +42,13 @@ export async function syncPartnerWebsiteFullLandingPg(input: {
   }
 
   // Visual «Sửa nhanh» owns HTML — do not regenerate project from template pages.
-  if (existing.theme?.useVisualHtml) {
+  // Stale theme flags after reset still count if html_source / index has shop chrome.
+  const visualHome =
+    existing.htmlSource?.trim() ||
+    existing.project?.files.find((f) => f.kind === 'html' && /(^|\/)index(\.[a-z]+)?\.html$/i.test(f.path))
+      ?.content ||
+    ''
+  if (existing.theme?.useVisualHtml || htmlHasPartnerVisualChrome(visualHome)) {
     return { website: existing, upgraded: false, htmlRefreshed: false }
   }
 

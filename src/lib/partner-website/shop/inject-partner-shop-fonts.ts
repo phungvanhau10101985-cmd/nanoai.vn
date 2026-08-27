@@ -26,9 +26,9 @@ font-family:var(--pw-font-display),var(--pw-font-ui),serif
 }
 
 export function buildPartnerShopFontHeadLinks(): string {
-  return `<link rel="preconnect" href="https://fonts.googleapis.com" ${PARTNER_SHOP_FONT_LINK_ATTR}="1"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin ${PARTNER_SHOP_FONT_LINK_ATTR}="1"/>
-<link rel="stylesheet" href="${FASHION_SHOP_GOOGLE_FONTS_HREF}" ${PARTNER_SHOP_FONT_LINK_ATTR}="1"/>`
+  return `<link rel="preconnect" href="https://fonts.googleapis.com" ${PARTNER_SHOP_FONT_LINK_ATTR}="1">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" ${PARTNER_SHOP_FONT_LINK_ATTR}="1">
+<link rel="stylesheet" href="${FASHION_SHOP_GOOGLE_FONTS_HREF}" ${PARTNER_SHOP_FONT_LINK_ATTR}="1">`
 }
 
 export function htmlHasPartnerShopFontPack(html: string): boolean {

@@ -1,15 +1,17 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
-import {
-  buildPartnerShopLoginHref,
-  composePartnerShopReturnLocation,
-} from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
+import { buildPartnerShopLoginHrefFromParts } from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
 import type { WebLocale } from '@/lib/i18n/config'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { PW_PDP_REVIEW_QA_CSS } from '@/lib/partner-website/shop/partner-site-pdp-review-qa'
+import {
+  qaBuyerAnswerShowsVerifiedBadge,
+  reviewShowsVerifiedBadge,
+} from '@/lib/partner-website/reviews/partner-review-types'
 
 type ReviewRow = {
   id: string
@@ -21,13 +23,10 @@ type ReviewRow = {
   usefulCount: number
   merchantReply: string
   merchantReplyBy: string
+  isImported?: boolean
+  guestAccountId?: string | null
+  linkedUserId?: string | null
   createdAt: string
-}
-
-type RatingSummary = {
-  average: number
-  total: number
-  histogram: Record<'1' | '2' | '3' | '4' | '5', number>
 }
 
 type AnswerRow = {
@@ -36,6 +35,8 @@ type AnswerRow = {
   responderName: string
   content: string
   isVerified: boolean
+  guestAccountId?: string | null
+  linkedUserId?: string | null
   createdAt: string
 }
 
@@ -43,6 +44,8 @@ type QuestionRow = {
   id: string
   askerName: string
   content: string
+  usefulCount?: number
+  isImported?: boolean
   createdAt: string
   answers: AnswerRow[]
 }
@@ -51,466 +54,433 @@ type Props = {
   siteSlug: string
   inventoryId: string
   locale: WebLocale
+  productName?: string
+  productImage?: string
+  productPrice?: string
+  catalogReviewsCount?: number
+  catalogRatingScore?: number
+  catalogQuestionsCount?: number
 }
 
 const STARS = [1, 2, 3, 4, 5] as const
 
-function StarPicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
-  return (
-    <div style={{ display: 'flex', gap: 4 }}>
-      {STARS.map((n) => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => onChange(n)}
-          aria-label={`${n} star`}
-          style={{ fontSize: '1.5rem', lineHeight: 1, background: 'none', border: 'none', cursor: 'pointer', color: n <= value ? '#f59e0b' : '#d1d5db' }}
-        >
-          ★
-        </button>
-      ))}
-    </div>
-  )
+function stars(n: number) {
+  return STARS.map((i) => (i <= Math.round(n) ? '★' : '☆')).join('')
 }
 
-function StarDisplay({ rating }: { rating: number }) {
-  return (
-    <span style={{ color: '#f59e0b', letterSpacing: 1 }}>
-      {STARS.map((n) => (n <= rating ? '★' : '☆')).join('')}
-    </span>
-  )
+function fmtDate(s: string) {
+  const d = new Date(s)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-export function PartnerSiteProductReviewsQa({ siteSlug, inventoryId, locale }: Props) {
+function Verified({ label }: { label: string }) {
+  return <span className="pw-pdp-verified">✓ {label}</span>
+}
+
+export function PartnerSiteProductReviewsQa({
+  siteSlug,
+  inventoryId,
+  locale,
+  productName,
+  productImage,
+  productPrice,
+  catalogReviewsCount,
+  catalogRatingScore,
+  catalogQuestionsCount,
+}: Props) {
   const t = getPartnerSiteShopCopy(locale)
-  const customDomain = usePartnerSiteCustomDomain()
-  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { isAuthenticated } = usePartnerSiteGuestSession(siteSlug)
+  const onCustomDomain = usePartnerSiteCustomDomain()
+  const api = `/api/site/${encodeURIComponent(siteSlug)}/products/${encodeURIComponent(inventoryId)}`
 
-  function redirectToLogin(hash?: string) {
-    const pathname = typeof window !== 'undefined' ? window.location.pathname : '/'
-    const search = typeof window !== 'undefined' ? window.location.search.replace(/^\?/, '') : ''
-    const loc = composePartnerShopReturnLocation(pathname, search, hash ?? (typeof window !== 'undefined' ? window.location.hash : ''))
-    window.location.assign(buildPartnerShopLoginHref(siteSlug, loc, { customDomain }))
-  }
-
-  const [summary, setSummary] = useState<RatingSummary | null>(null)
   const [reviews, setReviews] = useState<ReviewRow[]>([])
-  const [reviewsTotal, setReviewsTotal] = useState(0)
-  const [reviewsPage, setReviewsPage] = useState(1)
-  const [votedIds, setVotedIds] = useState<Set<string>>(new Set())
-
-  const [formOpen, setFormOpen] = useState(false)
-  const [rating, setRating] = useState(5)
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-  const [imageUrlInput, setImageUrlInput] = useState('')
-  const [imageUrls, setImageUrls] = useState<string[]>([])
-  const [submitting, setSubmitting] = useState(false)
-  const [formMessage, setFormMessage] = useState('')
-
   const [questions, setQuestions] = useState<QuestionRow[]>([])
+  const [reviewsTotal, setReviewsTotal] = useState(0)
   const [questionsTotal, setQuestionsTotal] = useState(0)
-  const [questionsPage, setQuestionsPage] = useState(1)
-  const [askOpen, setAskOpen] = useState(false)
-  const [askContent, setAskContent] = useState('')
-  const [askSubmitting, setAskSubmitting] = useState(false)
-  const [askMessage, setAskMessage] = useState('')
-  const [answerOpenFor, setAnswerOpenFor] = useState<string | null>(null)
-  const [answerContent, setAnswerContent] = useState('')
-  const [answerSubmitting, setAnswerSubmitting] = useState(false)
-  const [answerMessage, setAnswerMessage] = useState('')
+  const [hasReviewed, setHasReviewed] = useState(false)
+  const [modal, setModal] = useState<'reviews' | 'qa' | 'write' | null>(null)
+  const [rating, setRating] = useState(5)
+  const [reviewBody, setReviewBody] = useState('')
+  const [qaBody, setQaBody] = useState('')
+  const [msg, setMsg] = useState('')
+  const [answerDrafts, setAnswerDrafts] = useState<Record<string, string>>({})
 
-  const basePath = `/api/site/${encodeURIComponent(siteSlug)}/products/${encodeURIComponent(inventoryId)}`
+  const loginHref = useMemo(() => {
+    if (typeof window === 'undefined') return '#'
+    return buildPartnerShopLoginHrefFromParts(
+      siteSlug,
+      window.location.pathname,
+      new URLSearchParams(window.location.search),
+      window.location.hash || '#reviews',
+      { customDomain: onCustomDomain }
+    )
+  }, [siteSlug, onCustomDomain])
 
-  const loadReviews = useCallback(
-    async (page: number, append: boolean) => {
-      const res = await fetch(`${basePath}/reviews?page=${page}&pageSize=10`, { credentials: 'same-origin' })
-      captureFromResponse(res)
-      const json = (await res.json().catch(() => null)) as {
-        summary?: RatingSummary
-        reviews?: ReviewRow[]
-        total?: number
-      } | null
-      if (!json) return
-      if (json.summary) setSummary(json.summary)
-      setReviewsTotal(json.total ?? 0)
-      setReviews((prev) => (append ? [...prev, ...(json.reviews ?? [])] : json.reviews ?? []))
-    },
-    [basePath, captureFromResponse]
-  )
-
-  const loadQuestions = useCallback(
-    async (page: number, append: boolean) => {
-      const res = await fetch(`${basePath}/questions?page=${page}&pageSize=10`, { credentials: 'same-origin' })
-      captureFromResponse(res)
-      const json = (await res.json().catch(() => null)) as { questions?: QuestionRow[]; total?: number } | null
-      if (!json) return
-      setQuestionsTotal(json.total ?? 0)
-      setQuestions((prev) => (append ? [...prev, ...(json.questions ?? [])] : json.questions ?? []))
-    },
-    [basePath, captureFromResponse]
-  )
+  const load = useCallback(async () => {
+    const [r, q] = await Promise.all([
+      fetch(`${api}/reviews?page=1&pageSize=100`, { credentials: 'same-origin' }).then((x) => x.json()),
+      fetch(`${api}/questions?page=1&pageSize=100`, { credentials: 'same-origin' }).then((x) => x.json()),
+    ])
+    setReviews(r.reviews ?? [])
+    setReviewsTotal(Number(r.total ?? 0))
+    if (r.hasReviewed === true) setHasReviewed(true)
+    setQuestions(q.questions ?? [])
+    setQuestionsTotal(Number(q.total ?? 0))
+  }, [api])
 
   useEffect(() => {
-    void loadReviews(1, false)
-    void loadQuestions(1, false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteSlug, inventoryId])
+    void load()
+  }, [load])
 
-  function addImageUrl() {
-    const url = imageUrlInput.trim()
-    if (!/^https?:\/\//i.test(url)) return
-    if (imageUrls.length >= 6) return
-    setImageUrls((prev) => [...prev, url])
-    setImageUrlInput('')
+  useEffect(() => {
+    const applyHash = () => {
+      const h = window.location.hash
+      if (h === '#reviews' || h.startsWith('#review-')) setModal('reviews')
+      if (h === '#qa' || h.startsWith('#question-')) setModal('qa')
+    }
+    applyHash()
+    window.addEventListener('hashchange', applyHash)
+    return () => window.removeEventListener('hashchange', applyHash)
+  }, [])
+
+  const displayReviewTotal = catalogReviewsCount && catalogReviewsCount > 0 ? catalogReviewsCount : reviewsTotal
+  const displayScore = catalogRatingScore && catalogRatingScore > 0 ? catalogRatingScore : 0
+  const displayQaTotal = catalogQuestionsCount && catalogQuestionsCount > 0 ? catalogQuestionsCount : questionsTotal
+  const sampleReview = reviews[0] ?? null
+  const sampleQa = questions[0] ?? null
+  const starLabels = [t.reviewsStarLabel1, t.reviewsStarLabel2, t.reviewsStarLabel3, t.reviewsStarLabel4, t.reviewsStarLabel5]
+
+  function goLogin() {
+    window.location.href = loginHref
+  }
+
+  async function voteReview(id: string) {
+    const res = await fetch(`${api}/reviews/${encodeURIComponent(id)}/vote`, { method: 'POST', credentials: 'same-origin' })
+    const j = await res.json().catch(() => null)
+    if (j?.ok) setReviews((prev) => prev.map((r) => (r.id === id ? { ...r, usefulCount: j.usefulCount } : r)))
+  }
+
+  async function voteQuestion(id: string) {
+    const res = await fetch(`${api}/questions/${encodeURIComponent(id)}/vote`, { method: 'POST', credentials: 'same-origin' })
+    const j = await res.json().catch(() => null)
+    if (j?.ok) setQuestions((prev) => prev.map((q) => (q.id === id ? { ...q, usefulCount: j.usefulCount } : q)))
   }
 
   async function submitReview() {
-    if (!ready || submitting || !content.trim()) return
-    setSubmitting(true)
-    setFormMessage('')
-    try {
-      const res = await fetch(`${basePath}/reviews`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ rating, title, content, imageUrls, locale }),
-      })
-      captureFromResponse(res)
-      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
-      if (res.status === 401 || json.error === 'login_required') {
-        setFormMessage(t.reviewsSubmitLoginRequired)
-        redirectToLogin()
-        return
-      } else if (json.error === 'already_reviewed') {
-        setFormMessage(t.reviewsSubmitAlreadyReviewed)
-      } else if (json.error === 'not_eligible') {
-        setFormMessage(t.reviewsSubmitNotEligible)
-      } else if (json.ok) {
-        setFormMessage(t.reviewsSubmitSuccess)
-        setContent('')
-        setTitle('')
-        setImageUrls([])
-        setRating(5)
-        setFormOpen(false)
-        void loadReviews(1, false)
-      }
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  async function toggleVote(reviewId: string) {
-    const res = await fetch(`${basePath}/reviews/${encodeURIComponent(reviewId)}/vote`, {
+    const content = reviewBody.trim()
+    if (!content) return
+    const res = await fetch(`${api}/reviews`, {
       method: 'POST',
       credentials: 'same-origin',
-      headers: authHeaders(),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rating, content, locale }),
     })
-    captureFromResponse(res)
-    const json = (await res.json().catch(() => null)) as { ok?: boolean; voted?: boolean; usefulCount?: number } | null
-    if (!json?.ok) return
-    setVotedIds((prev) => {
-      const next = new Set(prev)
-      if (json.voted) next.add(reviewId)
-      else next.delete(reviewId)
-      return next
-    })
-    setReviews((prev) =>
-      prev.map((r) => (r.id === reviewId ? { ...r, usefulCount: json.usefulCount ?? r.usefulCount } : r))
-    )
+    const j = await res.json().catch(() => null)
+    if (res.status === 401 || j?.error === 'login_required') {
+      setMsg(t.reviewsSubmitLoginRequired)
+      goLogin()
+      return
+    }
+    if (j?.error === 'already_reviewed') {
+      setMsg(t.reviewsSubmitAlreadyReviewed)
+      setHasReviewed(true)
+      return
+    }
+    if (j?.error === 'not_eligible') {
+      setMsg(t.reviewsSubmitNotEligible)
+      return
+    }
+    if (j?.ok) {
+      setMsg(t.reviewsSubmitSuccess)
+      setReviewBody('')
+      setHasReviewed(true)
+      setModal('reviews')
+      await load()
+    }
   }
 
   async function submitQuestion() {
-    if (!ready || askSubmitting || !askContent.trim()) return
-    setAskSubmitting(true)
-    setAskMessage('')
-    try {
-      const res = await fetch(`${basePath}/questions`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ content: askContent }),
-      })
-      captureFromResponse(res)
-      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
-      if (res.status === 401 || json.error === 'login_required') {
-        setAskMessage(t.qaSubmitLoginRequired)
-        redirectToLogin('#qa')
-        return
-      } else if (json.ok) {
-        setAskMessage(t.qaSubmitSuccess)
-        setAskContent('')
-        setAskOpen(false)
-        void loadQuestions(1, false)
-      }
-    } finally {
-      setAskSubmitting(false)
+    const content = qaBody.trim()
+    if (!content) return
+    const res = await fetch(`${api}/questions`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    })
+    const j = await res.json().catch(() => null)
+    if (res.status === 401 || j?.error === 'login_required') {
+      setMsg(t.qaSubmitLoginRequired)
+      goLogin()
+      return
+    }
+    if (j?.ok) {
+      setQaBody('')
+      await load()
     }
   }
 
-  async function submitAnswer(questionId: string) {
-    if (!ready || answerSubmitting || !answerContent.trim()) return
-    setAnswerSubmitting(true)
-    setAnswerMessage('')
-    try {
-      const res = await fetch(`${basePath}/questions/${encodeURIComponent(questionId)}/answers`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ content: answerContent }),
-      })
-      captureFromResponse(res)
-      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
-      if (res.status === 401 || json.error === 'login_required') {
-        setAnswerMessage(t.qaSubmitLoginRequired)
-        redirectToLogin('#qa')
-        return
-      } else if (json.error === 'not_eligible') {
-        setAnswerMessage(t.qaAnswerNotEligible)
-      } else if (json.error === 'slot_full') {
-        setAnswerMessage(t.qaAnswerSlotFull)
-      } else if (json.ok) {
-        setAnswerContent('')
-        setAnswerOpenFor(null)
-        void loadQuestions(1, false)
-      }
-    } finally {
-      setAnswerSubmitting(false)
+  async function submitAnswer(qid: string) {
+    const content = (answerDrafts[qid] ?? '').trim()
+    if (!content) return
+    const res = await fetch(`${api}/questions/${encodeURIComponent(qid)}/answers`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    })
+    const j = await res.json().catch(() => null)
+    if (res.status === 401 || j?.error === 'login_required') {
+      goLogin()
+      return
     }
+    if (j?.error === 'not_eligible') {
+      setMsg(t.qaAnswerNotEligible)
+      return
+    }
+    if (j?.error === 'slot_full') {
+      setMsg(t.qaAnswerSlotFull)
+      return
+    }
+    if (j?.ok) {
+      setAnswerDrafts((p) => ({ ...p, [qid]: '' }))
+      await load()
+    }
+  }
+
+  function strip() {
+    return (
+      <div className="pw-pdp-rq-strip">
+        {productImage ? <img src={productImage} alt="" /> : null}
+        <div>
+          <strong>{productName}</strong>
+          {productPrice ? <p className="pw-shop-price" style={{ margin: 0 }}>{productPrice}</p> : null}
+        </div>
+      </div>
+    )
+  }
+
+  function reviewBlock(r: ReviewRow) {
+    const verified = reviewShowsVerifiedBadge({
+      isImported: Boolean(r.isImported),
+      guestAccountId: r.guestAccountId ?? null,
+      linkedUserId: r.linkedUserId ?? null,
+      content: r.content,
+    })
+    return (
+      <article key={r.id} id={`review-${r.id}`} className="pw-pdp-rq-item" data-pw-el={PW_EL.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+          <div>
+            <strong data-pw-el={PW_EL.cardName}>{r.reviewerName}</strong>
+            {verified ? <Verified label={t.qaVerifiedBadge} /> : null}
+            <div className="pw-shop-muted" style={{ fontSize: 12 }}>{fmtDate(r.createdAt)}</div>
+          </div>
+          <span className="pw-pdp-star">{stars(r.rating)}</span>
+        </div>
+        {r.title ? <p className="pw-pdp-rq-title">{r.title}</p> : null}
+        <p data-pw-el={PW_EL.body} style={{ margin: '6px 0' }}>{r.content}</p>
+        {r.imageUrls?.length ? (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {r.imageUrls.map((u) => (
+              <img key={u} src={u} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8 }} />
+            ))}
+          </div>
+        ) : null}
+        {r.merchantReply ? (
+          <div className="pw-pdp-rq-reply">
+            <strong>{r.merchantReplyBy || 'Shop'}</strong> · {fmtDate(r.createdAt)}
+            <p style={{ margin: '4px 0 0' }}>{r.merchantReply}</p>
+          </div>
+        ) : null}
+        <div className="pw-pdp-helpful">
+          <span>{t.reviewsHelpfulCount.replace('{n}', String(r.usefulCount || 0))}</span>
+          <button type="button" onClick={() => void voteReview(r.id)}>
+            👍 {t.reviewsUsefulLabel}
+          </button>
+        </div>
+      </article>
+    )
+  }
+
+  function questionBlock(q: QuestionRow) {
+    const admin = q.answers.find((a) => a.answerType === 'admin')
+    const buyers = q.answers.filter((a) => a.answerType === 'buyer').slice(0, 2)
+    return (
+      <article key={q.id} id={`question-${q.id}`} className="pw-pdp-rq-item" data-pw-el={PW_EL.card}>
+        <p style={{ margin: 0 }}>
+          <strong data-pw-el={PW_EL.cardName}>{q.askerName}</strong> {t.qaAskedPrefix}{' '}
+          <span data-pw-el={PW_EL.body}>{q.content}</span>
+        </p>
+        <div className="pw-shop-muted" style={{ fontSize: 12 }}>{fmtDate(q.createdAt)}</div>
+        {admin ? (
+          <div className="pw-pdp-rq-reply">
+            <strong>{admin.responderName || 'Shop'}</strong> · {fmtDate(admin.createdAt)}
+            <p style={{ margin: '4px 0 0' }}>{admin.content}</p>
+          </div>
+        ) : null}
+        {buyers.map((a) => (
+          <div key={a.id} className="pw-pdp-rq-reply buyer">
+            <strong>{a.responderName}</strong>
+            {qaBuyerAnswerShowsVerifiedBadge({
+              ...a,
+              guestAccountId: a.guestAccountId ?? null,
+              linkedUserId: a.linkedUserId ?? null,
+            }) ? <Verified label={t.qaVerifiedBadge} /> : null} {t.qaBuyerReplied} ·{' '}
+            {fmtDate(a.createdAt)}
+            <p style={{ margin: '4px 0 0' }}>{a.content}</p>
+          </div>
+        ))}
+        {buyers.length < 2 ? (
+          <div style={{ marginTop: 8 }}>
+            <textarea
+              rows={2}
+              placeholder={t.qaAnswerFormPlaceholder}
+              value={answerDrafts[q.id] ?? ''}
+              onChange={(e) => setAnswerDrafts((p) => ({ ...p, [q.id]: e.target.value }))}
+            />
+            <button type="button" className="pw-shop-btn" style={{ marginTop: 6 }} onClick={() => void submitAnswer(q.id)}>
+              {t.qaAnswerSubmit}
+            </button>
+          </div>
+        ) : null}
+        <div className="pw-pdp-helpful">
+          <span>{t.reviewsHelpfulCount.replace('{n}', String(q.usefulCount || 0))}</span>
+          <button type="button" onClick={() => void voteQuestion(q.id)}>
+            👍 {t.reviewsUsefulLabel}
+          </button>
+        </div>
+      </article>
+    )
   }
 
   return (
-    <div style={{ marginTop: 40, display: 'grid', gap: 40 }}>
-      <section id="pw-pdp-reviews" className="pw-shop-reviews" data-pw-region={PW_REGION.reviews}>
-        <h2 data-pw-el={PW_EL.sectionTitle}>{t.reviewsTitle}</h2>
-        {summary && summary.total > 0 ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
-            <span style={{ fontSize: '1.5rem', fontWeight: 700 }}>{summary.average}/5</span>
-            <StarDisplay rating={Math.round(summary.average)} />
-            <span className="pw-shop-muted">
-              ({summary.total} {t.reviewsTotalSuffix})
-            </span>
+    <>
+      <style>{PW_PDP_REVIEW_QA_CSS}</style>
+      <div className="pw-pdp-rq-grid" data-pw-region={PW_REGION.reviews} data-pw-bg-role="reviews">
+        <section className="pw-pdp-rq-card" id="pw-pdp-reviews">
+          <div className="pw-pdp-rq-head">
+            <div>
+              <h3 className="pw-pdp-rq-head-title" data-pw-el={PW_EL.sectionTitle}>
+                {t.reviewsFromCustomers}
+              </h3>
+              <p className="pw-pdp-rq-head-sub">
+                {displayReviewTotal} {t.reviewsTotalSuffix}
+              </p>
+            </div>
+            {displayScore > 0 ? <span className="pw-pdp-rq-badge">{displayScore}/5 ★</span> : null}
           </div>
-        ) : null}
+          <div className="pw-pdp-rq-sample">
+            {sampleReview ? reviewBlock(sampleReview) : <p className="pw-shop-muted">{t.reviewsEmpty}</p>}
+          </div>
+          <div className="pw-pdp-rq-ctas">
+            <button type="button" className="pw-shop-btn" onClick={() => setModal('reviews')}>
+              {t.reviewsSeeAll}
+            </button>
+            {!hasReviewed ? (
+              <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => setModal('write')}>
+                {t.reviewsWriteButton}
+              </button>
+            ) : null}
+          </div>
+        </section>
+        <section className="pw-pdp-rq-card" id="pw-pdp-qa">
+          <div className="pw-pdp-rq-head">
+            <div>
+              <h3 className="pw-pdp-rq-head-title">{t.qaTitle}</h3>
+              <p className="pw-pdp-rq-head-sub">
+                {displayQaTotal} {t.qaCountSuffix}
+              </p>
+            </div>
+          </div>
+          <div className="pw-pdp-rq-sample">
+            {sampleQa ? questionBlock(sampleQa) : <p className="pw-shop-muted">{t.qaEmpty}</p>}
+          </div>
+          <div className="pw-pdp-rq-ctas">
+            <button type="button" className="pw-shop-btn" onClick={() => setModal('qa')}>
+              {t.qaSeeMore}
+            </button>
+          </div>
+        </section>
+      </div>
 
-        {!formOpen ? (
-          <button type="button" className="pw-shop-btn pw-shop-btn-outline" style={{ marginTop: 16 }} onClick={() => setFormOpen(true)}>
-            {t.reviewsWriteButton}
-          </button>
-        ) : (
-          <div style={{ marginTop: 16, padding: 16, border: '1px solid #e5e7eb', borderRadius: 12, display: 'grid', gap: 10 }}>
-            <label style={{ display: 'grid', gap: 4 }}>
-              {t.reviewsFormRatingLabel}
-              <StarPicker value={rating} onChange={setRating} />
-            </label>
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder={t.reviewsFormContentPlaceholder}
-              rows={4}
-              maxLength={4000}
-            />
-            <label style={{ display: 'grid', gap: 4 }}>
-              {t.reviewsFormImagesLabel}
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type="url"
-                  value={imageUrlInput}
-                  onChange={(e) => setImageUrlInput(e.target.value)}
-                  placeholder="https://..."
-                  style={{ flex: 1 }}
-                />
-                <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={addImageUrl}>
-                  +
+      {modal === 'reviews' || modal === 'write' ? (
+        <div className="pw-pdp-rq-modal" role="dialog" aria-modal="true" onClick={() => setModal(null)}>
+          <div className="pw-pdp-rq-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="pw-pdp-rq-dialog-head">
+              <strong>{t.reviewsTitle}</strong>
+              <div>
+                {!hasReviewed ? (
+                  <button type="button" className="pw-shop-btn" onClick={() => setModal('write')}>
+                    {t.reviewsWriteButton}
+                  </button>
+                ) : null}
+                <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => setModal(null)}>
+                  ×
                 </button>
               </div>
-              {imageUrls.length > 0 ? (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-                  {imageUrls.map((url) => (
-                    <img key={url} src={url} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8 }} />
-                  ))}
-                </div>
-              ) : null}
-            </label>
-            {formMessage ? <p style={{ margin: 0 }}>{formMessage}</p> : null}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" className="pw-shop-btn" disabled={!ready || submitting || !content.trim()} onClick={() => void submitReview()}>
-                {t.reviewsFormSubmit}
-              </button>
-              <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => setFormOpen(false)}>
-                {t.reviewsFormCancel}
-              </button>
             </div>
-          </div>
-        )}
-
-        <div style={{ marginTop: 20, display: 'grid', gap: 16 }}>
-          {reviews.length === 0 ? <p className="pw-shop-muted">{t.reviewsEmpty}</p> : null}
-          {reviews.map((r) => (
-            <article key={r.id} style={{ borderBottom: '1px solid #f0f0f0', paddingBottom: 16 }} data-pw-el={PW_EL.card}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                <strong data-pw-el={PW_EL.cardName}>{r.reviewerName}</strong>
-                <span className="pw-shop-muted" style={{ fontSize: 12 }}>
-                  {new Date(r.createdAt).toLocaleDateString(locale)}
-                </span>
-              </div>
-              <StarDisplay rating={r.rating} />
-              {r.title ? <p style={{ fontWeight: 600, margin: '6px 0 2px' }}>{r.title}</p> : null}
-              <p style={{ margin: '4px 0' }} data-pw-el={PW_EL.body}>{r.content}</p>
-              {r.imageUrls.length > 0 ? (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '8px 0' }}>
-                  {r.imageUrls.map((url) => (
-                    <img key={url} src={url} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8 }} />
-                  ))}
-                </div>
-              ) : null}
-              {r.merchantReply ? (
-                <div style={{ marginTop: 8, padding: 10, background: '#f9fafb', borderRadius: 8, fontSize: 14 }}>
-                  <strong>
-                    {t.reviewsMerchantReplyPrefix} {r.merchantReplyBy}:
-                  </strong>{' '}
-                  {r.merchantReply}
-                </div>
-              ) : null}
-              <button
-                type="button"
-                className="pw-shop-btn pw-shop-btn-outline"
-                style={{ marginTop: 8, fontSize: 13, padding: '4px 10px' }}
-                onClick={() => void toggleVote(r.id)}
-                aria-pressed={votedIds.has(r.id)}
-              >
-                👍 {t.reviewsUsefulLabel} ({r.usefulCount})
-              </button>
-            </article>
-          ))}
-          {reviews.length < reviewsTotal ? (
-            <button
-              type="button"
-              className="pw-shop-btn pw-shop-btn-outline"
-              onClick={() => {
-                const next = reviewsPage + 1
-                setReviewsPage(next)
-                void loadReviews(next, true)
-              }}
-            >
-              {t.reviewsLoadMore}
-            </button>
-          ) : null}
-        </div>
-      </section>
-
-      <section id="pw-pdp-qa" className="pw-shop-reviews" data-pw-region={PW_REGION.reviews}>
-        <h2 data-pw-el={PW_EL.sectionTitle}>{t.qaTitle}</h2>
-        {!askOpen ? (
-          <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => setAskOpen(true)}>
-            {t.qaAskButton}
-          </button>
-        ) : (
-          <div style={{ marginTop: 12, display: 'grid', gap: 8, maxWidth: 480 }}>
-            <textarea
-              value={askContent}
-              onChange={(e) => setAskContent(e.target.value)}
-              placeholder={t.qaFormPlaceholder}
-              rows={3}
-              maxLength={1000}
-            />
-            {askMessage ? <p style={{ margin: 0 }}>{askMessage}</p> : null}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" className="pw-shop-btn" disabled={!ready || askSubmitting || !askContent.trim()} onClick={() => void submitQuestion()}>
-                {t.qaFormSubmit}
-              </button>
-              <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => setAskOpen(false)}>
-                {t.reviewsFormCancel}
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div style={{ marginTop: 20, display: 'grid', gap: 16 }}>
-          {questions.length === 0 ? <p className="pw-shop-muted">{t.qaEmpty}</p> : null}
-          {questions.map((q) => (
-            <article key={q.id} style={{ borderBottom: '1px solid #f0f0f0', paddingBottom: 16 }} data-pw-el={PW_EL.card}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                <strong data-pw-el={PW_EL.cardName}>{q.askerName}</strong>
-                <span className="pw-shop-muted" style={{ fontSize: 12 }}>
-                  {new Date(q.createdAt).toLocaleDateString(locale)}
-                </span>
-              </div>
-              <p style={{ margin: '4px 0' }} data-pw-el={PW_EL.body}>{q.content}</p>
-              <div style={{ display: 'grid', gap: 8, marginLeft: 16, marginTop: 8 }}>
-                {q.answers.length === 0 ? <p className="pw-shop-muted" style={{ fontSize: 13 }}>{t.qaNoAnswersYet}</p> : null}
-                {q.answers.map((a) => (
-                  <div key={a.id} style={{ fontSize: 14 }}>
-                    <strong>{a.responderName}</strong>{' '}
-                    <span
-                      style={{
-                        fontSize: 11,
-                        padding: '2px 6px',
-                        borderRadius: 999,
-                        background: a.answerType === 'admin' ? '#fef3c7' : '#dbeafe',
-                        color: a.answerType === 'admin' ? '#92400e' : '#1e40af',
-                      }}
-                    >
-                      {a.answerType === 'admin' ? t.qaAdminBadge : t.qaVerifiedBadge}
-                    </span>
-                    <p style={{ margin: '4px 0 0' }}>{a.content}</p>
-                  </div>
-                ))}
-              </div>
-              {answerOpenFor === q.id ? (
-                <div style={{ marginTop: 10, marginLeft: 16, display: 'grid', gap: 8, maxWidth: 420 }}>
-                  <textarea
-                    value={answerContent}
-                    onChange={(e) => setAnswerContent(e.target.value)}
-                    placeholder={t.qaAnswerFormPlaceholder}
-                    rows={2}
-                    maxLength={2000}
-                  />
-                  {answerMessage ? <p style={{ margin: 0, fontSize: 13 }}>{answerMessage}</p> : null}
-                  <div style={{ display: 'flex', gap: 8 }}>
+            {strip()}
+            {modal === 'write' ? (
+              <div data-pw-pdp-slot="review-form" style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+                <p style={{ margin: 0 }}>{t.reviewsFormRatingLabel}</p>
+                <div>
+                  {STARS.map((n) => (
                     <button
+                      key={n}
                       type="button"
-                      className="pw-shop-btn"
-                      disabled={!ready || answerSubmitting || !answerContent.trim()}
-                      onClick={() => void submitAnswer(q.id)}
+                      onClick={() => setRating(n)}
+                      style={{ fontSize: 22, background: 'none', border: 'none', color: n <= rating ? '#f59e0b' : '#d1d5db' }}
                     >
-                      {t.qaAnswerSubmit}
+                      ★
                     </button>
-                    <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => setAnswerOpenFor(null)}>
-                      {t.reviewsFormCancel}
-                    </button>
-                  </div>
+                  ))}
+                  <span className="pw-shop-muted" style={{ marginLeft: 8 }}>{starLabels[rating - 1]}</span>
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  className="pw-shop-btn pw-shop-btn-outline"
-                  style={{ marginTop: 8, marginLeft: 16, fontSize: 13, padding: '4px 10px' }}
-                  onClick={() => {
-                    setAnswerOpenFor(q.id)
-                    setAnswerMessage('')
-                  }}
-                >
-                  {t.qaAnswerButton}
+                <textarea
+                  rows={3}
+                  placeholder={t.reviewsFormContentPlaceholder}
+                  value={reviewBody}
+                  onChange={(e) => setReviewBody(e.target.value)}
+                />
+                {msg ? <p>{msg}</p> : null}
+                <button type="button" className="pw-shop-btn" onClick={() => void submitReview()}>
+                  {t.reviewsFormSubmit}
                 </button>
-              )}
-            </article>
-          ))}
-          {questions.length < questionsTotal ? (
-            <button
-              type="button"
-              className="pw-shop-btn pw-shop-btn-outline"
-              onClick={() => {
-                const next = questionsPage + 1
-                setQuestionsPage(next)
-                void loadQuestions(next, true)
-              }}
-            >
-              {t.qaLoadMore}
-            </button>
-          ) : null}
+              </div>
+            ) : null}
+            <div className="pw-pdp-rq-list">{reviews.map(reviewBlock)}</div>
+          </div>
         </div>
-      </section>
-    </div>
+      ) : null}
+
+      {modal === 'qa' ? (
+        <div className="pw-pdp-rq-modal" role="dialog" aria-modal="true" onClick={() => setModal(null)}>
+          <div className="pw-pdp-rq-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="pw-pdp-rq-dialog-head">
+              <strong>{t.qaModalTitle}</strong>
+              <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => setModal(null)}>
+                ×
+              </button>
+            </div>
+            {strip()}
+            {isAuthenticated ? (
+              <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+                <textarea rows={3} placeholder={t.qaFormPlaceholder} value={qaBody} onChange={(e) => setQaBody(e.target.value)} />
+                <button type="button" className="pw-shop-btn" onClick={() => void submitQuestion()}>
+                  {t.qaFormSubmit}
+                </button>
+              </div>
+            ) : (
+              <p>
+                <a href={loginHref}>{t.qaLoginToAsk}</a>
+              </p>
+            )}
+            {msg ? <p>{msg}</p> : null}
+            <div className="pw-pdp-rq-list">{questions.map(questionBlock)}</div>
+          </div>
+        </div>
+      ) : null}
+    </>
   )
 }

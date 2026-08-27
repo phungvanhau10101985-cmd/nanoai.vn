@@ -819,6 +819,17 @@ export function PartnerSiteShopProductClient({
             </button>
           </div>
           {message ? <p style={{ marginTop: 12 }}>{message}</p> : null}
+          <PartnerSiteProductReviewsQa
+            siteSlug={siteSlug}
+            inventoryId={product.id}
+            locale={locale}
+            productName={productName}
+            productImage={product.imageUrl || product.galleryImages?.[0]}
+            productPrice={priceLabel || (unitPrice != null ? formatPartnerShopMoneyVnd(unitPrice) : '')}
+            catalogReviewsCount={product.reviewsCount}
+            catalogRatingScore={product.ratingScore}
+            catalogQuestionsCount={product.questionsCount}
+          />
         </div>
       </div>
 
@@ -891,8 +902,6 @@ export function PartnerSiteShopProductClient({
           )}
         </div>
       </section>
-
-      <PartnerSiteProductReviewsQa siteSlug={siteSlug} inventoryId={product.id} locale={locale} />
 
       <PartnerSiteRelatedProducts
         siteSlug={siteSlug}

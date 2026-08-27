@@ -15,7 +15,10 @@ import {
 import { cn } from '@/lib/utils'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
-import type { PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
+import type {
+  PartnerWebsiteCanonicalVisualSave,
+  PartnerWebsiteProject,
+} from '@/lib/partner-website/partner-website-types'
 import type { FashionHomeCopyPatch } from '@/lib/partner-website/shop/build-fashion-home-copy'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import {
@@ -65,16 +68,7 @@ import {
 import { resetChromeFloatUserMoveInHtml } from '@/lib/partner-website/shop/chrome-float-widgets'
 import { preparePartnerVisualHtmlForEditor } from '@/lib/partner-website/shop/render-partner-visual-html'
 import { copyMissingChromeCountBadgeWidgets } from '@/lib/partner-website/shop/chrome-count-badges'
-import {
-  applySharedChrome,
-  extractSharedChrome,
-  hasSharedChrome,
-  htmlHasShopHeader,
-} from '@/lib/partner-website/shop/sync-shared-chrome'
-import {
-  mergeVisualHomeStylesIntoHtml,
-  preferredVisualHomeStyleSource,
-} from '@/lib/partner-website/shop/merge-visual-home-styles'
+import { htmlHasShopHeader } from '@/lib/partner-website/shop/sync-shared-chrome'
 import {
   resolvePartnerCategoryDisplayName,
   type PartnerCategoryTreeNode,
@@ -248,7 +242,7 @@ type PartnerWebsiteDevicePreviewProps = {
     pageKey: PartnerWebsitePageKey,
     device: VisualDeviceVariant,
     extras?: { categoryPath?: string | null; productId?: string | null; cmsSlug?: string | null }
-  ) => Promise<void>
+  ) => Promise<PartnerWebsiteCanonicalVisualSave | void>
   onShopHomeSave?: (patch: FashionHomeCopyPatch) => Promise<void>
   onVisualEditError?: (message: string) => void
   onLiveThemeChange?: (theme: PartnerWebsiteTheme) => void
@@ -501,42 +495,6 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     if (id) setPreviewProductId(id)
   }, [previewProductKey, previewProductId, productOptions])
 
-  function isEditingHomePage(pick?: {
-    pageKey?: PartnerWebsitePageKey
-    categoryPath?: string | null
-    productId?: string | null
-    cmsSlug?: string | null
-  }) {
-    const pageKey = pick?.pageKey ?? previewPageKey
-    const categoryPath = pick?.categoryPath === undefined ? previewCategoryPath : pick.categoryPath
-    const productId = pick?.productId === undefined ? previewProductId : pick.productId
-    const cmsSlug = pick?.cmsSlug === undefined ? previewCmsSlug : pick.cmsSlug
-    return pageKey === 'home' && !categoryPath && !productId && !cmsSlug
-  }
-
-  function applyHomeChromeToEditorHtml(
-    html: string,
-    pick?: {
-      pageKey?: PartnerWebsitePageKey
-      categoryPath?: string | null
-      productId?: string | null
-      cmsSlug?: string | null
-    }
-  ): string {
-    if (isEditingHomePage(pick)) return html
-    const homeRaw = resolveExactVisualPageHtml(
-      { htmlSource, project, theme: liveTheme },
-      'home',
-      editVariant
-    )
-    if (!visualHtmlLooksUsable(homeRaw)) return html
-    const home = isolateVisualHtmlForDevice(homeRaw, editVariant)
-    const chrome = extractSharedChrome(home.length >= 40 ? home : homeRaw)
-    if (!hasSharedChrome(chrome)) return html
-    const next = applySharedChrome(html, chrome, { targetVariant: editVariant })
-    return mergeVisualHomeStylesIntoHtml(next, preferredVisualHomeStyleSource(home, homeRaw))
-  }
-
   function visualEditSrcDoc(
     html: string,
     pick?: {
@@ -555,8 +513,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
         : productId && previewProduct?.id === productId
           ? bindLiveProductToPdpHtml(html, previewProduct, { locale })
           : html
-    const withChrome = applyHomeChromeToEditorHtml(bound, pick)
-    return preparePartnerVisualHtmlForEditor(withChrome, {
+    return preparePartnerVisualHtmlForEditor(bound, {
       variant: editVariant,
       theme: liveTheme,
       siteSlug,
@@ -789,8 +746,8 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   function applyPageSelect(next: string) {
     let pageKey: PartnerWebsitePageKey = previewPageKey
     let categoryPath: string | null = null
-    let productId: string | null = null
-    let productKey: string | null = null
+    const productId: string | null = null
+    const productKey: string | null = null
     let cmsSlug: string | null = null
     if (next.startsWith('c:')) {
       pageKey = 'collection'
@@ -1250,13 +1207,6 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   }
   const catalogPageKeys = VISUAL_EDITOR_PAGE_KEYS.filter((key) => key !== 'collection')
 
-  function clearDynamicPreview() {
-    setPreviewCategoryPath(null)
-    setPreviewProductId(null)
-    setPreviewProductKey(null)
-    setPreviewCmsSlug(null)
-  }
-
   function handlePageSelectChange(next: string) {
     if (next === pageSelectValue) return
     if (visualEditActive) {
@@ -1431,7 +1381,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
             }
             onSave={
               onVisualEditSave
-                ? (nextProject) => {
+                ? async (nextProject) => {
                     const path = visualEditorTargetHtmlPath({
                       pageKey: previewPageKey,
                       variant: editVariant,
@@ -1443,11 +1393,25 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                     if (html && visualHtmlLooksUsable(html)) {
                       flushedHtmlByVariantRef.current[editVariant] = html
                     }
-                    return onVisualEditSave(nextProject, previewPageKey, editVariant, {
+                    const persisted = await onVisualEditSave(
+                      nextProject,
+                      previewPageKey,
+                      editVariant,
+                      {
                       categoryPath: previewCategoryPath,
                       productId: visualTargetProductId,
                       cmsSlug: previewCmsSlug,
-                    })
+                      }
+                    )
+                    if (
+                      persisted?.device === editVariant &&
+                      persisted.htmlPath === path &&
+                      visualHtmlLooksUsable(persisted.html)
+                    ) {
+                      flushedHtmlByVariantRef.current[editVariant] = persisted.html
+                      setEditSrcDoc(visualEditSrcDoc(persisted.html))
+                    }
+                    return persisted
                   }
                 : undefined
             }
@@ -1554,7 +1518,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
               }
               onSave={
                 onVisualEditSave
-                  ? (nextProject) => {
+                  ? async (nextProject) => {
                       const path = visualEditorTargetHtmlPath({
                         pageKey: previewPageKey,
                         variant: editVariant,
@@ -1566,11 +1530,25 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                       if (html && visualHtmlLooksUsable(html)) {
                         flushedHtmlByVariantRef.current[editVariant] = html
                       }
-                      return onVisualEditSave(nextProject, previewPageKey, editVariant, {
+                      const persisted = await onVisualEditSave(
+                        nextProject,
+                        previewPageKey,
+                        editVariant,
+                        {
                         categoryPath: previewCategoryPath,
                         productId: visualTargetProductId,
                         cmsSlug: previewCmsSlug,
-                      })
+                        }
+                      )
+                      if (
+                        persisted?.device === editVariant &&
+                        persisted.htmlPath === path &&
+                        visualHtmlLooksUsable(persisted.html)
+                      ) {
+                        flushedHtmlByVariantRef.current[editVariant] = persisted.html
+                        setEditSrcDoc(visualEditSrcDoc(persisted.html))
+                      }
+                      return persisted
                     }
                   : undefined
               }

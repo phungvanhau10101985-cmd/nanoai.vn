@@ -19,6 +19,7 @@ import {
   pwSceneHoistLayerHostCss,
   pwSceneStayScrollZCss,
 } from '@/lib/partner-website/visual-editor/pw-scene'
+import { PW_PLACEMENT_ATTR } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
 
 export const PW_STAY_SCROLL_ATTR = 'data-pw-stay-scroll'
 export const PW_STAY_SCROLL_X_ATTR = 'data-pw-stay-x'
@@ -34,7 +35,7 @@ export const PW_HIDDEN_ATTR = 'data-pw-hidden'
 export const PARTNER_SHOP_HIDDEN_CSS = `[${PW_HIDDEN_ATTR}="1"]{display:none!important}`
 
 export const PARTNER_SHOP_STAY_SCROLL_CSS = `
-[${PW_STAY_SCROLL_ATTR}="1"]{position:fixed!important;right:auto!important;bottom:auto!important;margin:0!important;box-sizing:border-box!important;max-width:none!important;max-height:none!important;transform:none!important}
+[${PW_STAY_SCROLL_ATTR}="1"],[${PW_PLACEMENT_ATTR}="viewport-fixed"]{position:fixed!important;right:auto!important;bottom:auto!important;margin:0!important;box-sizing:border-box!important;max-width:none!important;max-height:none!important;transform:none!important}
 [${PW_STAY_SCROLL_PH_SLOT_ATTR}="1"]{display:block;width:100%;margin:0;padding:0;border:0;visibility:hidden;pointer-events:none}
 ${pwSceneHoistLayerHostCss(`[${PW_STAY_SCROLL_LAYER_ATTR}="1"]`)}
 [${PW_STAY_SCROLL_ATTR}="1"][data-pw-added-bg="1"]{pointer-events:none!important}
@@ -49,7 +50,11 @@ export function restoreStayScrollPins(root: ParentNode): void {
   layers.forEach((layer) => {
     Array.from(layer.children).forEach((node) => {
       const el = node as HTMLElement
-      if (el.getAttribute(PW_STAY_SCROLL_ATTR) !== '1' && layer.getAttribute(PW_STAY_SCROLL_LAYER_ATTR) !== '1') {
+      if (
+        el.getAttribute(PW_STAY_SCROLL_ATTR) !== '1' &&
+        el.getAttribute(PW_PLACEMENT_ATTR) !== 'viewport-fixed' &&
+        layer.getAttribute(PW_STAY_SCROLL_LAYER_ATTR) !== '1'
+      ) {
         return
       }
       const phId = el.getAttribute(PW_STAY_SCROLL_PH_ATTR) || ''
@@ -149,23 +154,80 @@ export function rehomeInflowSceneChromeInDocument(root: ParentNode): void {
 
 /** Drop runtime fixed coords — live re-applies from data-pw-stay-* after load. */
 export function clearStayScrollTransientStyles(root: ParentNode): void {
-  root.querySelectorAll(`[${PW_STAY_SCROLL_ATTR}="1"]`).forEach((node) => {
-    const el = node as HTMLElement
-    el.style.removeProperty('position')
-    el.style.removeProperty('left')
-    el.style.removeProperty('top')
-    el.style.removeProperty('right')
-    el.style.removeProperty('bottom')
-    el.style.removeProperty('transform')
-    el.style.removeProperty('z-index')
+  root
+    .querySelectorAll(
+      `[${PW_STAY_SCROLL_ATTR}="1"],[${PW_PLACEMENT_ATTR}="viewport-fixed"]`
+    )
+    .forEach((node) => {
+      const el = node as HTMLElement
+      el.style.removeProperty('position')
+      el.style.removeProperty('left')
+      el.style.removeProperty('top')
+      el.style.removeProperty('right')
+      el.style.removeProperty('bottom')
+      el.style.removeProperty('inset')
+      el.style.removeProperty('transform')
+      el.style.removeProperty('z-index')
+      el.style.removeProperty('margin')
+    })
+}
+
+/** Body is the canonical authored host for floating chrome; runtime fixed layers are derived. */
+function rehomeChromeFloatsForStore(root: ParentNode): void {
+  const body = root.querySelector('body')
+  if (!body) return
+  root.querySelectorAll('[data-pw-chrome-float="1"]').forEach((node) => {
+    if (node.parentNode !== body) body.appendChild(node)
   })
+}
+
+/** In-flow search geometry is derived from data-pw-search-width + the active device. */
+function clearInflowSearchTransientStyles(root: ParentNode): void {
+  root
+    .querySelectorAll('.pw-header-search, .pw-shop-search-wrap, [data-pw-el="search"]')
+    .forEach((node) => {
+      const el = node as HTMLElement
+      const userSized = el.getAttribute('data-pw-search-width-user') === '1'
+      if (
+        userSized ||
+        el.getAttribute('data-pw-user-move') === '1' ||
+        el.getAttribute(PW_STAY_SCROLL_ATTR) === '1' ||
+        el.getAttribute(PW_PLACEMENT_ATTR) === 'scene-absolute' ||
+        el.getAttribute(PW_PLACEMENT_ATTR) === 'viewport-fixed'
+      ) {
+        return
+      }
+      el.removeAttribute('data-pw-search-width')
+      el.removeAttribute('data-pw-search-width-user')
+      for (const property of [
+        'position',
+        'left',
+        'top',
+        'right',
+        'bottom',
+        'inset',
+        'transform',
+        'margin',
+        'opacity',
+        'visibility',
+        'min-width',
+        'min-height',
+        'width',
+        'max-width',
+        'flex',
+      ]) {
+        el.style.removeProperty(property)
+      }
+    })
 }
 
 export function prepareVisualDomForStore(root: ParentNode): void {
   rehomeInflowSceneChromeInDocument(root)
   restoreLiveChromePins(root)
   restoreStayScrollPins(root)
+  rehomeChromeFloatsForStore(root)
   clearStayScrollTransientStyles(root)
+  clearInflowSearchTransientStyles(root)
 }
 
 function cssEscapeId(id: string): string {
@@ -173,7 +235,10 @@ function cssEscapeId(id: string): string {
 }
 
 export const PARTNER_SHOP_STAY_SCROLL_SCRIPT = `(function(){
-  if (window.__pwStayScrollBound) return;
+  if (window.__pwStayScrollBound) {
+    try { if (window.__pwStayScrollSync) window.__pwStayScrollSync(); } catch (errRebind) {}
+    return;
+  }
   window.__pwStayScrollBound = 1;
   var ATTR = '${PW_STAY_SCROLL_ATTR}';
   var XA = '${PW_STAY_SCROLL_X_ATTR}';
@@ -183,6 +248,11 @@ export const PARTNER_SHOP_STAY_SCROLL_SCRIPT = `(function(){
   var PH = '${PW_STAY_SCROLL_PH_ATTR}';
   var PHS = '${PW_STAY_SCROLL_PH_SLOT_ATTR}';
   var LAYER = '${PW_STAY_SCROLL_LAYER_ATTR}';
+  var PLACEMENT = '${PW_PLACEMENT_ATTR}';
+  var FX = 'data-pw-fixed-x';
+  var FY = 'data-pw-fixed-y';
+  var FW = 'data-pw-fixed-w';
+  var FH = 'data-pw-fixed-h';
   var paused = 0;
   function sceneW(){
     try {
@@ -265,13 +335,27 @@ export const PARTNER_SHOP_STAY_SCROLL_SCRIPT = `(function(){
     return ph;
   }
   function stayLayer(){
-    var html = document.documentElement;
-    if (!html) return null;
-    var layer = html.querySelector('[' + LAYER + ']');
+    try {
+      if (typeof window.__pwViewportFixedHost === 'function') {
+        var shared = window.__pwViewportFixedHost();
+        if (shared) return shared;
+      }
+    } catch (errShared) {}
+    var visual = document.querySelector('[data-pw-inline-visual-root]');
+    var host = (visual && visual.parentNode) || document.body || document.documentElement;
+    if (!host) return null;
+    var layer = host.querySelector ? host.querySelector('[data-pw-live-fixed-layer],[' + LAYER + ']') : null;
+    var revision = visual && visual.getAttribute ? String(visual.getAttribute('data-pw-runtime-revision') || '') : '';
+    if (layer && revision && layer.getAttribute('data-pw-runtime-revision') !== revision) {
+      try { layer.remove(); } catch (errOldLayer) {}
+      layer = null;
+    }
     if (layer) return layer;
     layer = document.createElement('div');
-    layer.setAttribute(LAYER, '1');
-    html.insertBefore(layer, document.body);
+    layer.setAttribute('data-pw-live-fixed-layer', '1');
+    if (revision) layer.setAttribute('data-pw-runtime-revision', revision);
+    if (visual && visual.parentNode === host) host.insertBefore(layer, visual);
+    else host.insertBefore(layer, host.firstChild);
     return layer;
   }
   function hoist(el){
@@ -300,17 +384,18 @@ export const PARTNER_SHOP_STAY_SCROLL_SCRIPT = `(function(){
   }
   function apply(el){
     if (!el || !el.style || paused) return;
-    var x = parseFloat(el.getAttribute(XA) || '');
-    var y = parseFloat(el.getAttribute(YA) || '');
+    var canonical = el.getAttribute(PLACEMENT) === 'viewport-fixed';
+    var x = parseFloat(el.getAttribute(canonical ? FX : XA) || '');
+    var y = parseFloat(el.getAttribute(canonical ? FY : YA) || '');
     if (!isFinite(x) || !isFinite(y)) return;
     hoist(el);
-    var w = parseFloat(el.getAttribute(WA) || '');
-    var h = parseFloat(el.getAttribute(HA) || '');
+    var w = parseFloat(el.getAttribute(canonical ? FW : WA) || '');
+    var h = parseFloat(el.getAttribute(canonical ? FH : HA) || '');
     var v = view();
     var z = v.z > 0.05 ? v.z : 1;
     el.style.setProperty('position', 'fixed', 'important');
-    el.style.setProperty('left', (v.ox + (x / 100) * v.w * z) + 'px', 'important');
-    el.style.setProperty('top', (y / 100) * v.h + 'px', 'important');
+    el.style.setProperty('left', (canonical ? x * (window.innerWidth || v.w) : v.ox + (x / 100) * v.w * z) + 'px', 'important');
+    el.style.setProperty('top', (canonical ? y * v.h : (y / 100) * v.h) + 'px', 'important');
     el.style.setProperty('right', 'auto', 'important');
     el.style.setProperty('bottom', 'auto', 'important');
     el.style.setProperty('transform', 'none', 'important');
@@ -327,7 +412,7 @@ export const PARTNER_SHOP_STAY_SCROLL_SCRIPT = `(function(){
   }
   function sync(){
     rehomeInflowSceneChrome();
-    var nodes = document.querySelectorAll('[' + ATTR + '="1"]');
+    var nodes = document.querySelectorAll('[' + ATTR + '="1"],[' + PLACEMENT + '="viewport-fixed"]');
     for (var i = 0; i < nodes.length; i++) apply(nodes[i]);
   }
   function rehomeInflowSceneChrome(){
@@ -366,10 +451,12 @@ export const PARTNER_SHOP_STAY_SCROLL_SCRIPT = `(function(){
     ensurePlaceholder(el, r);
     var v = view();
     var z = v.z > 0.05 ? v.z : 1;
-    el.setAttribute(XA, ((((r.left - v.ox) / z) / v.w) * 100).toFixed(3));
-    el.setAttribute(YA, ((r.top / v.h) * 100).toFixed(3));
-    if (r.width > 0) el.setAttribute(WA, String(Math.round(r.width / z)));
-    if (r.height > 0) el.setAttribute(HA, String(Math.round(r.height / z)));
+    var viewportW = window.innerWidth || document.documentElement.clientWidth || v.w;
+    el.setAttribute(PLACEMENT, 'viewport-fixed');
+    el.setAttribute(FX, (r.left / Math.max(1, viewportW)).toFixed(5));
+    el.setAttribute(FY, (r.top / Math.max(1, v.h)).toFixed(5));
+    if (r.width > 0) el.setAttribute(FW, String(Math.round(r.width / z)));
+    if (r.height > 0) el.setAttribute(FH, String(Math.round(r.height / z)));
     el.setAttribute(ATTR, '1');
     apply(el);
   }
@@ -397,6 +484,11 @@ export const PARTNER_SHOP_STAY_SCROLL_SCRIPT = `(function(){
     try { el.removeAttribute(YA); } catch (errY) {}
     try { el.removeAttribute(WA); } catch (errW) {}
     try { el.removeAttribute(HA); } catch (errH) {}
+    try { el.removeAttribute(PLACEMENT); } catch (errP) {}
+    try { el.removeAttribute(FX); } catch (errFx) {}
+    try { el.removeAttribute(FY); } catch (errFy) {}
+    try { el.removeAttribute(FW); } catch (errFw) {}
+    try { el.removeAttribute(FH); } catch (errFh) {}
   }
   window.__pwStayScrollPause = function (on) {
     paused = on ? 1 : 0;

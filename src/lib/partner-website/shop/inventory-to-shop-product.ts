@@ -9,6 +9,7 @@ import {
   inventoryShopDetailDescription,
   inventoryShopProductVideoUrl,
   normalizeShopImageUrl,
+  pickShopCardImageRaw,
   type InventoryShopSourceRow,
 } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { parseInventorySizesForFacet } from '@/lib/partner-website/shop/partner-shop-industry-facets'
@@ -260,7 +261,19 @@ export function inventoryRowToShopProduct(
   const name = (row.name ?? '').trim() || 'Product'
   const detailPath = partnerSiteProductPath(siteSlug, row.id, { name })
   const galleryImages = collectShopProductGalleryImages(row)
-  const rawImage = firstValidShopImageUrl(row.image_url, galleryImages[0]) || galleryImages[0] || ''
+  const snap = catalog188SnapshotOf(row.catalog_json)
+  const rawImage =
+    normalizeShopImageUrl(
+      pickShopCardImageRaw({
+        image_url: row.image_url,
+        main_image: snap?.main_image,
+        galleryImages,
+        images: snap?.images,
+      })
+    ) ||
+    firstValidShopImageUrl(row.image_url, galleryImages[0]) ||
+    galleryImages[0] ||
+    ''
   // Prefer a reachable https image; otherwise keep a visible placeholder so catalog is not empty.
   const imageUrl = rawImage
     ? rawImage

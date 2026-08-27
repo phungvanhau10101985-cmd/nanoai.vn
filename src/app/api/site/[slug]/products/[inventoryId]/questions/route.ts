@@ -11,6 +11,12 @@ import {
 } from '@/lib/db/messaging-partner-reviews-pg'
 import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { notifyPartnerOwnerNewQuestion } from '@/lib/messaging/partner-admin-notifications'
+import {
+  PUBLIC_REVIEW_QA_PAGE_SIZE,
+  PUBLIC_REVIEW_QA_PAGE_SIZE_MAX,
+  coalesceImportGroup,
+  qaBuyerAnswerShowsVerifiedBadge,
+} from '@/lib/partner-website/reviews/partner-review-types'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,20 +31,38 @@ export async function GET(
 
   const url = request.nextUrl
   const page = Math.max(1, Number(url.searchParams.get('page') ?? 1) || 1)
-  const pageSize = Math.min(50, Math.max(1, Number(url.searchParams.get('pageSize') ?? 10) || 10))
+  const pageSize = Math.min(
+    PUBLIC_REVIEW_QA_PAGE_SIZE_MAX,
+    Math.max(1, Number(url.searchParams.get('pageSize') ?? PUBLIC_REVIEW_QA_PAGE_SIZE) || PUBLIC_REVIEW_QA_PAGE_SIZE)
+  )
+
+  const inv = await fetchPartnerInventoryRowByIdForPartnerFromPg(shop.partnerId, inventoryId)
+  if (!inv) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const importGroup = coalesceImportGroup(inv.question_group_id)
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
   const result = await fetchPartnerProductQuestionsPageFromPg({
     partnerId: shop.partnerId,
     inventoryId,
+    importGroup,
     page,
     pageSize,
+    viewerAccountKey: visitor.accountKey,
   })
   if (result === null) return NextResponse.json({ error: 'Could not load questions' }, { status: 500 })
 
   return jsonSitePersonalization(
     request,
-    { ok: true, questions: result.rows, total: result.total, page, pageSize },
+    {
+      ok: true,
+      questions: result.rows.map((q) => ({
+        ...q,
+        answers: q.answers.map((a) => ({ ...a, verified: qaBuyerAnswerShowsVerifiedBadge(a) })),
+      })),
+      total: result.total,
+      page,
+      pageSize,
+    },
     200,
     { sessionId: visitor.sessionId, thread: visitor.thread }
   )

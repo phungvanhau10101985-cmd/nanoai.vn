@@ -72,6 +72,7 @@ import { chromeGlyphCatalogJs } from './chrome-widget-icons'
 import { CHROME_KIND_INFER_RULES } from './infer-chrome-widget-kind'
 import { PARTNER_SHOP_FOOTER_INFLOW_CSS } from '../shop/partner-shop-chrome-layout-css'
 import { PW_PAPER_ATTR, PW_PAPER_CSS, PW_PAPER_POS_X_ATTR, PW_PAPER_POS_Y_ATTR, PW_PAPER_SRC_ATTR } from './pw-bg-stack'
+import { pwCoordinateRuntimeSource } from './pw-coordinate-space'
 
 export const NANOAI_VE_MESSAGE = 'nanoai-visual-editor'
 /** Số bước hoàn tác trong một phiên sửa. 30 đủ dùng, HTML snapshot không quá nặng. */
@@ -758,6 +759,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { sizeChromeIcons(document) } catch (err) {}
     try { pinChromeIconBadges(document) } catch (err2) {}
     try { pwApplyDemoChromeCountBadges(document) } catch (errDemo) {}
+    try { applyCanonicalPlacements() } catch (errCoord) {}
     try { prepareImageLayerBlocks() } catch (err3) {}
     syncLayerSwitches()
     syncLogoButtons()
@@ -3433,6 +3435,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (isMobileEdit()) return compactSearchMinWidth() + 38
     return 280
   }
+  function searchWidthUserSized(el) {
+    return !!(el && el.getAttribute && el.getAttribute('data-pw-search-width-user') === '1')
+  }
   function searchPlaceholderText() {
     var existing = document.querySelector('.pw-header-search input, .pw-shop-search-wrap input, input[data-pw-search]')
     var ph = existing && (existing.getAttribute('placeholder') || existing.placeholder)
@@ -3641,7 +3646,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     ensureSearchSubmitIcon(search)
     ensureSearchImageIcon(search)
   }
-  function lockSearchBox(el, widthPx) {
+  function lockSearchBox(el, widthPx, manual) {
     if (!el) return
     var minW = isMobileEdit() ? compactSearchMinWidth() : 72
     var w = Math.max(minW, Math.min(360, Math.round(Number(widthPx) || defaultSearchBoxWidth())))
@@ -3649,7 +3654,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var pinnedMobile = mobile && !isUserMoved(el) && !(el.getAttribute && el.getAttribute('data-nanoai-ve-selected'))
     pinSearchSlot(el)
     el.style.setProperty('min-width', minW + 'px', 'important')
-    el.setAttribute('data-pw-search-width', String(w))
+    if (manual) {
+      el.setAttribute('data-pw-search-width', String(w))
+      el.setAttribute('data-pw-search-width-user', '1')
+    } else if (el.getAttribute && !searchWidthUserSized(el)) {
+      el.removeAttribute('data-pw-search-width')
+      el.removeAttribute('data-pw-search-width-user')
+    }
     if (pinnedMobile) {
       el.style.setProperty('flex', '1 1 0%', 'important')
       el.style.setProperty('width', 'auto', 'important')
@@ -3806,22 +3817,34 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         try { el.removeAttribute('data-pw-chrome-float') } catch (errFloatOff) {}
       }
       try { el.removeAttribute('data-pw-pin-screen') } catch (errPinRm) {}
-      var host = addedBgContentHost() || document.querySelector('main, .pw-shop-main, .pw-main') || document.body
+      try {
+        el.removeAttribute('data-pw-placement')
+        el.removeAttribute('data-pw-fixed-x')
+        el.removeAttribute('data-pw-fixed-y')
+        el.removeAttribute('data-pw-fixed-w')
+        el.removeAttribute('data-pw-fixed-h')
+        el.removeAttribute('data-pw-fixed-anchor')
+      } catch (errPinCoord) {}
+      var host = canonicalSceneRoot() || addedBgContentHost() || document.querySelector('main, .pw-shop-main, .pw-main') || document.body
       if (isFullBleedChrome(el) || isShopRegionHost(el)) host = el.parentElement || host
       else if (host && el.parentNode !== host) {
         try { host.appendChild(el) } catch (errHostPin) {}
       }
       if (r && el.style) {
-        var hr = { left: 0, top: 0 }
-        try { if (host && host.getBoundingClientRect) hr = host.getBoundingClientRect() } catch (errHr) {}
+        var mapOff = coordinateMapForRoot(host)
+        var coreOff = coordinateCore()
+        var pOff = mapOff && coreOff
+          ? coreOff.clientToScene({ x: r.left, y: r.top }, mapOff)
+          : { x: r.left, y: r.top }
         el.style.setProperty('position', 'absolute', 'important')
-        el.style.setProperty('left', Math.round(r.left - hr.left) + 'px', 'important')
-        el.style.setProperty('top', Math.round(r.top - hr.top) + 'px', 'important')
+        el.style.setProperty('left', Math.round(pOff.x) + 'px', 'important')
+        el.style.setProperty('top', Math.round(pOff.y) + 'px', 'important')
         el.style.setProperty('right', 'auto', 'important')
         el.style.setProperty('bottom', 'auto', 'important')
         el.style.setProperty('transform', 'none', 'important')
       }
       markUserMoved(el)
+      captureCanonicalPlacement(el)
       releaseStayPlaceholder(el)
     }
     if (on) {
@@ -3910,10 +3933,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     } catch (errSceneCap) {}
     if (!(vw > 8)) vw = 390
     if (!(vh > 8)) vh = 640
-    el.setAttribute('${PW_STAY_SCROLL_X_ATTR}', (((r.left - ox) / vw) * 100).toFixed(3))
-    el.setAttribute('${PW_STAY_SCROLL_Y_ATTR}', ((r.top / vh) * 100).toFixed(3))
-    if (r.width > 0) el.setAttribute('data-pw-stay-w', String(Math.round(r.width)))
-    if (r.height > 0) el.setAttribute('data-pw-stay-h', String(Math.round(r.height)))
+    el.setAttribute('data-pw-placement', 'viewport-fixed')
+    el.setAttribute('data-pw-fixed-x', (r.left / Math.max(1, window.innerWidth || vw)).toFixed(5))
+    el.setAttribute('data-pw-fixed-y', (r.top / vh).toFixed(5))
+    if (r.width > 0) el.setAttribute('data-pw-fixed-w', String(Math.round(r.width)))
+    if (r.height > 0) el.setAttribute('data-pw-fixed-h', String(Math.round(r.height)))
     el.setAttribute('${PW_STAY_SCROLL_ATTR}', '1')
     if (el.style) {
       el.style.setProperty('position', 'fixed', 'important')
@@ -4073,20 +4097,30 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       var box = nodes[i]
       if (isUserMoved(box) || (box.getAttribute && box.getAttribute('data-nanoai-ve-selected'))) continue
       if (isMobileEdit()) {
-        lockSearchBox(box, compactSearchMinWidth() + 38)
+        lockSearchBox(box, compactSearchMinWidth() + 38, false)
         continue
       }
       var saved = parseFloat(box.getAttribute('data-pw-search-width') || '')
-      if (saved > 0) {
-        lockSearchBox(box, saved)
+      var userSized = searchWidthUserSized(box) || isUserMoved(box)
+      if (saved > 0 && userSized) {
+        lockSearchBox(box, saved, true)
         continue
       }
+      if (box.getAttribute) {
+        box.removeAttribute('data-pw-search-width')
+        box.removeAttribute('data-pw-search-width-user')
+      }
+      pinSearchSlot(box)
+      box.style.removeProperty('flex')
+      box.style.removeProperty('width')
+      box.style.removeProperty('max-width')
+      box.style.removeProperty('min-width')
       if (!isMobileEdit()) {
-        lockSearchBox(box, defaultSearchBoxWidth())
+        lockSearchBox(box, defaultSearchBoxWidth(), false)
         continue
       }
       var r = box.getBoundingClientRect()
-      lockSearchBox(box, r.width || defaultSearchBoxWidth())
+      lockSearchBox(box, r.width || defaultSearchBoxWidth(), false)
     }
   }
   function isIconOnlyChrome(el) {
@@ -5466,7 +5500,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     wrap.setAttribute('data-pw-move-block', '1')
     wrap.setAttribute('data-pw-banner-copy', '1')
     wrap.style.position = 'relative'
-    wrap.style.zIndex = '2'
+    wrap.style.setProperty('z-index', '2', 'important')
     wrap.style.display = 'inline-block'
     wrap.style.maxWidth = '560px'
     host.insertBefore(wrap, nodes[0])
@@ -5547,6 +5581,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       ensureImageLayer(blocks[i])
       ensureMoveBlock(blocks[i])
     }
+    try { stampPwUiContract() } catch (errRestamp) {}
     try { freeAddedTextOverlays() } catch (errFreeText) {}
     try { restoreAuthoredLayers() } catch (errZ) {}
   }
@@ -5586,6 +5621,121 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (isFinite(n) && n > 80) return n
     var w = document.documentElement ? document.documentElement.clientWidth : 0
     return Math.max(200, w || 390)
+  }
+  function coordinateCore() {
+    return window.__pwCoordinate || null
+  }
+  function coordinateDevice() {
+    var html = document.documentElement
+    var raw = html && html.getAttribute
+      ? (html.getAttribute('data-pw-edit-device') || html.getAttribute('data-pw-scene-lock') || '')
+      : ''
+    var core = coordinateCore()
+    return core ? core.device(raw) : (raw || 'desktop')
+  }
+  function canonicalSceneRoot() {
+    var visual = visibleVisualRoot()
+    if (!visual || !visual.querySelector) return visual || document.body
+    var root = visual.querySelector('[data-pw-scene-root="1"]') || visual.querySelector('main, .pw-shop-main, .pw-main') || visual
+    if (root && root.setAttribute) root.setAttribute('data-pw-scene-root', '1')
+    return root
+  }
+  function coordinateMapForRoot(root) {
+    var core = coordinateCore()
+    if (!core) return null
+    root = root || canonicalSceneRoot()
+    var rect = { left: 0, top: 0, width: sceneWidthPx() }
+    try { if (root && root.getBoundingClientRect) rect = root.getBoundingClientRect() } catch (errMap) {}
+    var device = coordinateDevice()
+    var sceneW = core.widths[device] || sceneWidthPx()
+    var scale = rect.width > 8 && sceneW > 8 ? rect.width / sceneW : 1
+    return core.createMap({
+      device: device,
+      viewportWidth: window.innerWidth || sceneW,
+      scale: scale,
+      originX: rect.left || 0,
+      originY: rect.top || 0
+    })
+  }
+  function writeCanonicalSceneBox(el, box) {
+    if (!el || !el.setAttribute || !box) return
+    function n(v) { return String(Math.round((Number(v) || 0) * 1000) / 1000) }
+    el.setAttribute('data-pw-placement', 'scene-absolute')
+    el.setAttribute('data-pw-box-x', n(box.x))
+    el.setAttribute('data-pw-box-y', n(box.y))
+    el.setAttribute('data-pw-box-w', n(box.width))
+    el.setAttribute('data-pw-box-h', n(box.height))
+  }
+  function writeCanonicalFixedBox(el, rect) {
+    if (!el || !el.setAttribute || !rect) return
+    var vw = window.innerWidth || document.documentElement.clientWidth || 1
+    var vh = window.innerHeight || document.documentElement.clientHeight || 1
+    function n(v) { return String(Math.round((Number(v) || 0) * 100000) / 100000) }
+    el.setAttribute('data-pw-placement', 'viewport-fixed')
+    el.setAttribute('data-pw-fixed-x', n(rect.left / Math.max(1, vw)))
+    el.setAttribute('data-pw-fixed-y', n(rect.top / Math.max(1, vh)))
+    el.setAttribute('data-pw-fixed-w', n(rect.width))
+    el.setAttribute('data-pw-fixed-h', n(rect.height))
+  }
+  function captureCanonicalPlacement(el) {
+    el = sceneWriteHost(el) || el
+    if (!el || !el.getBoundingClientRect || isFullBleedChrome(el)) return
+    var fixed = isStayScrollOn(el) || isPinScreenOn(el) || isChromeFloatEl(el)
+    if (!fixed && el.closest && el.closest('header,.pw-header,.pw-shop-header,.pw-bottom-nav,.pw-shop-bottom-nav,[data-pw-pdp-bottom]')) {
+      return
+    }
+    var moved = fixed || isUserMoved(el) || isAddedOverlay(el) || isAddedBg(el) || isAddedChrome(el)
+    if (!moved) {
+      if (el.setAttribute) el.setAttribute('data-pw-placement', 'flow')
+      return
+    }
+    var rect
+    try { rect = el.getBoundingClientRect() } catch (errRect) { return }
+    if (fixed) {
+      writeCanonicalFixedBox(el, rect)
+      return
+    }
+    var root = canonicalSceneRoot()
+    var map = coordinateMapForRoot(root)
+    var core = coordinateCore()
+    if (!map || !core) return
+    var point = core.clientToScene({ x: rect.left, y: rect.top }, map)
+    writeCanonicalSceneBox(el, {
+      x: point.x,
+      y: point.y,
+      width: rect.width / Math.max(0.0001, map.scale),
+      height: rect.height / Math.max(0.0001, map.scale)
+    })
+  }
+  function applyCanonicalPlacement(el) {
+    if (!el || !el.getAttribute || !el.style) return
+    var mode = el.getAttribute('data-pw-placement')
+    if (mode !== 'scene-absolute') return
+    if (el.closest && el.closest('header,.pw-header,.pw-shop-header,.pw-bottom-nav,.pw-shop-bottom-nav,[data-pw-pdp-bottom]')) return
+    var x = parseFloat(el.getAttribute('data-pw-box-x') || '')
+    var y = parseFloat(el.getAttribute('data-pw-box-y') || '')
+    var w = parseFloat(el.getAttribute('data-pw-box-w') || '')
+    var h = parseFloat(el.getAttribute('data-pw-box-h') || '')
+    if (!isFinite(x) || !isFinite(y)) return
+    var root = canonicalSceneRoot()
+    if (root && el.parentNode !== root) {
+      try { root.appendChild(el) } catch (errParent) {}
+    }
+    el.style.setProperty('position', 'absolute', 'important')
+    el.style.setProperty('left', x + 'px', 'important')
+    el.style.setProperty('top', y + 'px', 'important')
+    el.style.setProperty('right', 'auto', 'important')
+    el.style.setProperty('bottom', 'auto', 'important')
+    el.style.setProperty('transform', 'none', 'important')
+    el.style.setProperty('margin', '0', 'important')
+    if (isFinite(w) && w > 0) el.style.setProperty('width', w + 'px', 'important')
+    if (isFinite(h) && h > 0) el.style.setProperty('height', h + 'px', 'important')
+  }
+  function applyCanonicalPlacements() {
+    var root = visibleVisualRoot()
+    if (!root || !root.querySelectorAll) return
+    var nodes = root.querySelectorAll('[data-pw-placement="scene-absolute"]')
+    for (var i = 0; i < nodes.length; i++) applyCanonicalPlacement(nodes[i])
   }
   function sizeBlockHostOf(el) {
     if (!el || el.nodeType !== 1) return null
@@ -5925,21 +6075,29 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       el.setAttribute('data-pw-clone-id', id)
     }
     el.setAttribute('data-pw-clone-all', '1')
-    var host = addedBgContentHost() || document.body
     var slot = isInFlowAddedSlot(el)
     if (slot) {
-      el.setAttribute('data-pw-clone-box', 'flow')
+      el.setAttribute('data-pw-clone-box', ((coordinateCore() && coordinateCore().version) || '2') + ',flow')
       return id
     }
-    var er = el.getBoundingClientRect()
-    var hr = host.getBoundingClientRect()
+    captureCanonicalPlacement(el)
     var stay = el.getAttribute('data-pw-stay-scroll') === '1' || el.getAttribute('data-pw-pin-screen') === '1'
     var pos = ''
     try { pos = cs(el).position } catch (ePos) { pos = '' }
-    var mode = stay || pos === 'fixed' ? 'fixed' : 'abs'
-    var left = Math.round(er.left - (mode === 'fixed' ? 0 : hr.left))
-    var top = Math.round(er.top - (mode === 'fixed' ? 0 : hr.top))
-    el.setAttribute('data-pw-clone-box', [mode, left, top, Math.round(er.width), Math.round(er.height)].join(','))
+    var fixed = stay || pos === 'fixed' || el.getAttribute('data-pw-placement') === 'viewport-fixed'
+    var mode = fixed ? 'viewport-fixed' : 'scene-absolute'
+    var left = parseFloat(el.getAttribute(fixed ? 'data-pw-fixed-x' : 'data-pw-box-x') || '0')
+    var top = parseFloat(el.getAttribute(fixed ? 'data-pw-fixed-y' : 'data-pw-box-y') || '0')
+    var width = parseFloat(el.getAttribute(fixed ? 'data-pw-fixed-w' : 'data-pw-box-w') || '0')
+    var height = parseFloat(el.getAttribute(fixed ? 'data-pw-fixed-h' : 'data-pw-box-h') || '0')
+    el.setAttribute('data-pw-clone-box', [
+      (coordinateCore() && coordinateCore().version) || '2',
+      mode,
+      left,
+      top,
+      width,
+      height
+    ].join(','))
     return id
   }
   function copySelectedToAllPages() {
@@ -6387,6 +6545,14 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     verifyParked()
     selectEl(unit)
     verifyParked()
+    // "Kéo cái đang có" may park an existing header control before the user
+    // drags it. A transform-only preview is transient and is stripped on save,
+    // so immediately turn canvas widgets into their canonical scene box.
+    // Floats intentionally retain their viewport-fixed placement.
+    if (!isChromeFloatEl(unit) && !isPinScreenOn(unit)) {
+      liftLooseElToSceneHost(unit)
+      applySceneToLooseChrome(unit)
+    }
     try {
       if (window.requestAnimationFrame) window.requestAnimationFrame(verifyParked)
       else window.setTimeout(verifyParked, 0)
@@ -7796,7 +7962,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!el || !el.style) return
     if (isChromeFloatEl(el) || isPinScreenOn(el)) return
     if (isFullBleedChrome(el) || isShopRegionHost(el)) return
-    var host = addedBgContentHost() || overlayRoot() || document.body
+    var host = canonicalSceneRoot() || addedBgContentHost() || overlayRoot() || document.body
     if (!host) return
     var r
     try { r = el.getBoundingClientRect() } catch (errBox) { r = null }
@@ -7805,16 +7971,27 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       try { host.appendChild(el) } catch (errLift) { return }
     }
     if (!r) return
-    var hr = { left: 0, top: 0 }
-    try { if (host.getBoundingClientRect) hr = host.getBoundingClientRect() } catch (errHr) {}
+    var map = coordinateMapForRoot(host)
+    var core = coordinateCore()
+    var point = map && core
+      ? core.clientToScene({ x: r.left, y: r.top }, map)
+      : { x: r.left, y: r.top }
     el.style.setProperty('position', 'absolute', 'important')
-    el.style.setProperty('left', Math.round(r.left - hr.left) + 'px', 'important')
-    el.style.setProperty('top', Math.round(r.top - hr.top) + 'px', 'important')
+    el.style.setProperty('left', Math.round(point.x) + 'px', 'important')
+    el.style.setProperty('top', Math.round(point.y) + 'px', 'important')
     el.style.setProperty('right', 'auto', 'important')
     el.style.setProperty('bottom', 'auto', 'important')
     el.style.setProperty('transform', 'none', 'important')
     el.style.setProperty('margin', '0', 'important')
     markUserMoved(el)
+    if (map) {
+      writeCanonicalSceneBox(el, {
+        x: point.x,
+        y: point.y,
+        width: r.width / Math.max(0.0001, map.scale),
+        height: r.height / Math.max(0.0001, map.scale)
+      })
+    }
   }
   function chromeStackHostOf(el) {
     return el && el.closest ? el.closest(${JSON.stringify(PW_SCENE_CHROME_STACK_HOST_SEL)}) : null
@@ -8384,7 +8561,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return main || root
   }
   function overlayRoot() {
-    return visibleVisualRoot() || document.body
+    return canonicalSceneRoot() || visibleVisualRoot() || document.body
   }
   function nextAddedOverlayZ() {
     var nodes = document.querySelectorAll('[data-pw-added-text="1"],[data-pw-added-btn="1"]')
@@ -8423,14 +8600,22 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var pr = place.getBoundingClientRect()
     var rr = root.getBoundingClientRect()
     var er = el.getBoundingClientRect()
+    var map = coordinateMapForRoot(root)
+    var core = coordinateCore()
     var sel = kind === 'text' ? '[data-pw-added-text]' : '[data-pw-added-btn]'
     var n = root.querySelectorAll(sel).length
     var step = kind === 'text' ? 36 : 18
     var offset = Math.max(0, n - 1) * step
-    var left = Math.round(pr.left - rr.left + (pr.width - er.width) / 2 + offset)
-    var top = Math.round(pr.top - rr.top + (pr.height - er.height) / 2 + (kind === 'text' ? Math.round(offset * 0.35) : offset))
+    var clientLeft = pr.left + (pr.width - er.width) / 2 + offset
+    var clientTop = pr.top + (pr.height - er.height) / 2 + (kind === 'text' ? Math.round(offset * 0.35) : offset)
+    var scenePoint = map && core
+      ? core.clientToScene({ x: clientLeft, y: clientTop }, map)
+      : { x: clientLeft - rr.left, y: clientTop - rr.top }
+    var left = Math.round(scenePoint.x)
+    var top = Math.round(scenePoint.y)
     el.style.left = Math.max(0, left) + 'px'
     el.style.top = Math.max(0, top) + 'px'
+    captureCanonicalPlacement(el)
   }
   function pinOverlayAtRect(el, host) {
     if (!el) return
@@ -8442,9 +8627,20 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     el.style.position = 'absolute'
     el.style.margin = '0'
     el.style.transform = 'none'
-    el.style.left = Math.round(er.left - hr.left) + 'px'
-    el.style.top = Math.round(er.top - hr.top) + 'px'
+    var map = coordinateMapForRoot(root)
+    var core = coordinateCore()
+    var point = map && core
+      ? core.clientToScene({ x: er.left, y: er.top }, map)
+      : { x: er.left - hr.left, y: er.top - hr.top }
+    el.style.left = Math.round(point.x) + 'px'
+    el.style.top = Math.round(point.y) + 'px'
     if (!el.getAttribute || !el.getAttribute('data-pw-z')) writeUserZ(el, nextAddedOverlayZ())
+    writeCanonicalSceneBox(el, {
+      x: point.x,
+      y: point.y,
+      width: map ? er.width / Math.max(0.0001, map.scale) : er.width,
+      height: map ? er.height / Math.max(0.0001, map.scale) : er.height
+    })
   }
   function freeAddedTextOverlays() {
     var root = overlayRoot()
@@ -11203,7 +11399,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function beginHandleDrag(e, forceMove) {
     if (!selected || !canDragEl(selected)) return
-    if (!isLogoTarget(selected)) {
+    // Added chrome is always a canvas element. Never promote its parent block:
+    // doing so makes the drag target depend on the pointer path and can save
+    // the whole banner/main instead of the button's own canonical coordinates.
+    if (!isLogoTarget(selected) && !isAddedChrome(selected)) {
       var bHostDrag = bannerHostOf(selected)
       if (bHostDrag) {
         if (layerMode === 'image' && !isBannerLeafEl(selected) && !isTextEl(selected) && !isBtnEl(selected)) {
@@ -12264,7 +12463,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       var dy = e.clientY - resize.startY
       if (resize.mode === 'search-width' || isSearchEl(selected)) {
         markUserMoved(selected)
-        lockSearchBox(selected, resize.startW + dx)
+        lockSearchBox(selected, resize.startW + dx, true)
         positionAllHandles()
         post('dirty', {})
         return
@@ -12406,6 +12605,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (resize.active) {
       resize.active = false
       if (selected && isAddedBg(selected)) growCanvasForAbsEl(selected)
+      if (selected) captureCanonicalPlacement(selected)
       if (selected && (isImgEl(selected) || isBgLayerEl(selected) || isSearchEl(selected) || isAddedBg(selected) || isBannerHostEl(selected))) post('select', buildPayload(selected))
       positionAllHandles()
       return
@@ -12462,6 +12662,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     if (wasDrag && selected && canDragEl(selected)) {
       stickHeaderApplyEl(selected)
+      captureCanonicalPlacement(selected)
       positionAllHandles()
       post('select', buildPayload(selected))
       post('dirty', {})
@@ -12836,6 +13037,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { freezeLiveChromeForEditor() } catch (errFreeze) {}
     try { hideLayerSwitches() } catch (errHide) {}
     try { stampPwUiContract() } catch (errStamp2) {}
+    try {
+      document.documentElement.setAttribute('data-pw-coordinate-version', (coordinateCore() && coordinateCore().version) || '2')
+      canonicalSceneRoot()
+      applyCanonicalPlacements()
+    } catch (errCoordinate) {}
     try { ensureBgStack() } catch (errBgStack) {}
     try { stampCatalogLocks() } catch (errLock2) {}
     try { prepareImageLayerBlocks() } catch (errPrep) {}
@@ -13539,6 +13745,7 @@ const SCENE_RUNTIME = {
 export function buildVisualEditorScript(locale: WebLocale): string {
   const copy = COPY[locale in COPY ? locale : 'en']
   return (
+    pwCoordinateRuntimeSource() +
     RUNTIME_BODY +
     '(' +
     JSON.stringify(NANOAI_VE_MESSAGE) +

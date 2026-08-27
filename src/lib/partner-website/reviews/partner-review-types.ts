@@ -14,10 +14,24 @@ export const REVIEW_IMAGE_MAX_COUNT = 6
 export const QUESTION_CONTENT_MAX_LEN = 1000
 export const ANSWER_CONTENT_MAX_LEN = 2000
 
+/** 188 `coalesce_group_rating`: null/0 → 888. */
+export const DEFAULT_IMPORT_GROUP = 888
+
+export const PUBLIC_REVIEW_QA_PAGE_SIZE = 100
+export const PUBLIC_REVIEW_QA_PAGE_SIZE_MAX = 200
+
+export function coalesceImportGroup(raw: unknown): number {
+  const n = Math.round(Number(raw))
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_IMPORT_GROUP
+  return n
+}
+
+export type PartnerReviewSourceFilter = 'all' | 'real' | 'imported'
+
 export type PartnerReviewRow = {
   id: string
   partnerId: string
-  inventoryId: string
+  inventoryId: string | null
   orderId: string | null
   orderLineId: string | null
   guestAccountId: string | null
@@ -32,6 +46,8 @@ export type PartnerReviewRow = {
   merchantReply: string
   merchantReplyBy: string
   merchantReplyAt: string | null
+  isImported: boolean
+  importGroup: number
   createdAt: string
   updatedAt: string
 }
@@ -62,14 +78,32 @@ export type PartnerQuestionAnswerRow = {
 export type PartnerQuestionRow = {
   id: string
   partnerId: string
-  inventoryId: string
+  inventoryId: string | null
   guestAccountId: string | null
   linkedUserId: string | null
   askerName: string
   content: string
   isActive: boolean
+  usefulCount: number
+  isImported: boolean
+  importGroup: number
   createdAt: string
   updatedAt: string
+}
+
+/** 188 VerifiedPurchaserBadge: có user_id hoặc import + còn nội dung. */
+export function reviewShowsVerifiedBadge(
+  row: Pick<PartnerReviewRow, 'isImported' | 'guestAccountId' | 'linkedUserId' | 'content'>
+): boolean {
+  if (row.guestAccountId || row.linkedUserId) return true
+  return row.isImported && Boolean(row.content?.trim())
+}
+
+export function qaBuyerAnswerShowsVerifiedBadge(
+  row: Pick<PartnerQuestionAnswerRow, 'isVerified' | 'guestAccountId' | 'linkedUserId' | 'content'>
+): boolean {
+  if (row.isVerified || row.guestAccountId || row.linkedUserId) return true
+  return Boolean(row.content?.trim())
 }
 
 export type PartnerQuestionWithAnswers = PartnerQuestionRow & {

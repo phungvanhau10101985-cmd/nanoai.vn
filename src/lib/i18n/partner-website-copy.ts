@@ -94,6 +94,14 @@ export type PartnerWebsiteCopy = {
   visualEditRedo: string
   visualEditSaveSuccess: string
   visualEditSaveFailed: string
+  visualEditRuntimeGateTargetMissing: string
+  visualEditRuntimeGateDeviceMismatch: string
+  visualEditRuntimeGateLiveNotUpdated: string
+  visualEditRuntimeGateLabelPath: string
+  visualEditRuntimeGateLabelDevice: string
+  visualEditRuntimeGateLabelSourceDevice: string
+  visualEditRuntimeGateLabelBeforeHash: string
+  visualEditRuntimeGateLabelAfterHash: string
   visualEditAiFailed: string
   visualEditAiImageTitle: string
   visualEditAiImageHint: string
@@ -643,6 +651,21 @@ export type PartnerWebsiteCopy = {
   reviewsAdminReplyPlaceholder: string
   reviewsAdminReplyLabel: string
   reviewsAdminSaved: string
+  reviewsAdminGroupFilter: string
+  reviewsAdminGroupPlaceholder: string
+  reviewsAdminSourceAll: string
+  reviewsAdminSourceReal: string
+  reviewsAdminSourceImported: string
+  reviewsAdminDownloadSample: string
+  reviewsAdminImport: string
+  reviewsAdminImportOk: string
+  reviewsAdminImportFail: string
+  reviewsAdminImportHint: string
+  reviewsAdminGroupLabel: string
+  reviewsAdminUsefulLabel: string
+  reviewsAdminNameLabel: string
+  reviewsAdminStarLabel: string
+  reviewsAdminTitleField: string
   qaAdminTitle: string
   qaAdminHint: string
   qaAdminEmpty: string
@@ -650,6 +673,13 @@ export type PartnerWebsiteCopy = {
   qaAdminReplyPlaceholder: string
   qaAdminReplyButton: string
   qaAdminDeleteConfirm: string
+  qaAdminDownloadSample: string
+  qaAdminImport: string
+  qaAdminImportOk: string
+  qaAdminImportFail: string
+  qaAdminGroupLabel: string
+  qaAdminUsefulLabel: string
+  qaAdminNameLabel: string
   promotionsTitle: string
   promotionsHint: string
   promotionsEmpty: string
@@ -1021,6 +1051,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditRedo: 'Làm lại',
     visualEditSaveSuccess: 'Đã lưu chỉnh sửa trực tiếp',
     visualEditSaveFailed: 'Không lưu được — thử lại',
+    visualEditRuntimeGateTargetMissing: 'Bản live không tìm thấy đúng trang sau khi lưu',
+    visualEditRuntimeGateDeviceMismatch: 'Bản live đang mở sai thiết bị so với bản vừa lưu',
+    visualEditRuntimeGateLiveNotUpdated: 'Bản live chưa cập nhật sau khi lưu',
+    visualEditRuntimeGateLabelPath: 'Tệp',
+    visualEditRuntimeGateLabelDevice: 'Thiết bị',
+    visualEditRuntimeGateLabelSourceDevice: 'Nguồn live',
+    visualEditRuntimeGateLabelBeforeHash: 'Hash trước',
+    visualEditRuntimeGateLabelAfterHash: 'Hash sau',
     visualEditAiFailed: 'AI không tạo được ảnh',
     visualEditAiImageTitle: 'AI tạo ảnh thay thế',
     visualEditAiImageHint: 'Mô tả ảnh mới (AI Gemini). Có thể dùng ảnh hiện tại làm tham chiếu.',
@@ -1583,6 +1621,21 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     reviewsAdminReplyPlaceholder: 'Trả lời khách hàng...',
     reviewsAdminReplyLabel: 'Phản hồi của shop',
     reviewsAdminSaved: 'Đã lưu',
+    reviewsAdminGroupFilter: 'Nhóm đánh giá',
+    reviewsAdminGroupPlaceholder: 'Số nhóm',
+    reviewsAdminSourceAll: 'Tất cả nguồn',
+    reviewsAdminSourceReal: 'Thật',
+    reviewsAdminSourceImported: 'Ảo',
+    reviewsAdminDownloadSample: 'Tải file mẫu',
+    reviewsAdminImport: 'Import Excel',
+    reviewsAdminImportOk: 'Đã import {n} đánh giá',
+    reviewsAdminImportFail: 'Import thất bại',
+    reviewsAdminImportHint: 'Cùng số nhóm với cột Nhóm đánh giá / Nhóm hỏi trên file tồn kho 41 cột.',
+    reviewsAdminGroupLabel: 'Nhóm',
+    reviewsAdminUsefulLabel: 'Hữu ích',
+    reviewsAdminNameLabel: 'Tên',
+    reviewsAdminStarLabel: 'Sao',
+    reviewsAdminTitleField: 'Tiêu đề',
     qaAdminTitle: 'Hỏi đáp sản phẩm',
     qaAdminHint: 'Ẩn/hiện câu hỏi, trả lời trực tiếp với vai trò chủ shop.',
     qaAdminEmpty: 'Chưa có câu hỏi nào.',
@@ -1590,6 +1643,13 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     qaAdminReplyPlaceholder: 'Trả lời với vai trò chủ shop...',
     qaAdminReplyButton: 'Gửi trả lời',
     qaAdminDeleteConfirm: 'Xoá câu hỏi này?',
+    qaAdminDownloadSample: 'Tải file mẫu',
+    qaAdminImport: 'Import Excel',
+    qaAdminImportOk: 'Đã import {n} câu hỏi',
+    qaAdminImportFail: 'Import thất bại',
+    qaAdminGroupLabel: 'Nhóm',
+    qaAdminUsefulLabel: 'Hữu ích',
+    qaAdminNameLabel: 'Người hỏi',
     promotionsTitle: 'Khuyến mãi / Voucher',
     promotionsHint: 'Tạo mã giảm giá khách tự nhập ở giỏ hàng, hoặc voucher tặng riêng theo khách.',
     promotionsEmpty: 'Chưa có voucher nào.',
@@ -1977,6 +2037,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditRedo: 'Redo',
     visualEditSaveSuccess: 'Direct edits saved',
     visualEditSaveFailed: 'Could not save — try again',
+    visualEditRuntimeGateTargetMissing: 'Live target is missing after save',
+    visualEditRuntimeGateDeviceMismatch: 'Live device does not match saved device',
+    visualEditRuntimeGateLiveNotUpdated: 'Live output did not update after save',
+    visualEditRuntimeGateLabelPath: 'Path',
+    visualEditRuntimeGateLabelDevice: 'Device',
+    visualEditRuntimeGateLabelSourceDevice: 'Live source',
+    visualEditRuntimeGateLabelBeforeHash: 'Before hash',
+    visualEditRuntimeGateLabelAfterHash: 'After hash',
     visualEditAiFailed: 'AI could not generate image',
     visualEditAiImageTitle: 'AI replace image',
     visualEditAiImageHint: 'Describe the new image (Gemini AI). Current image can be used as reference.',
@@ -2539,6 +2607,21 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     reviewsAdminReplyPlaceholder: 'Reply to customer...',
     reviewsAdminReplyLabel: 'Shop reply',
     reviewsAdminSaved: 'Saved',
+    reviewsAdminGroupFilter: 'Review group',
+    reviewsAdminGroupPlaceholder: 'Group number',
+    reviewsAdminSourceAll: 'All sources',
+    reviewsAdminSourceReal: 'Real',
+    reviewsAdminSourceImported: 'Imported',
+    reviewsAdminDownloadSample: 'Download sample',
+    reviewsAdminImport: 'Import Excel',
+    reviewsAdminImportOk: 'Imported {n} reviews',
+    reviewsAdminImportFail: 'Import failed',
+    reviewsAdminImportHint: 'Use the same group number as Rating group / Question group on the 41-column inventory file.',
+    reviewsAdminGroupLabel: 'Group',
+    reviewsAdminUsefulLabel: 'Helpful',
+    reviewsAdminNameLabel: 'Name',
+    reviewsAdminStarLabel: 'Stars',
+    reviewsAdminTitleField: 'Title',
     qaAdminTitle: 'Product Q&A',
     qaAdminHint: 'Hide/show questions, reply directly as the shop owner.',
     qaAdminEmpty: 'No questions yet.',
@@ -2546,6 +2629,13 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     qaAdminReplyPlaceholder: 'Reply as shop owner...',
     qaAdminReplyButton: 'Submit reply',
     qaAdminDeleteConfirm: 'Delete this question?',
+    qaAdminDownloadSample: 'Download sample',
+    qaAdminImport: 'Import Excel',
+    qaAdminImportOk: 'Imported {n} questions',
+    qaAdminImportFail: 'Import failed',
+    qaAdminGroupLabel: 'Group',
+    qaAdminUsefulLabel: 'Helpful',
+    qaAdminNameLabel: 'Asker',
     promotionsTitle: 'Promotions / Vouchers',
     promotionsHint: 'Create codes customers can enter at checkout, or gift vouchers to specific customers.',
     promotionsEmpty: 'No vouchers yet.',
@@ -2930,6 +3020,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditRedo: '重做',
     visualEditSaveSuccess: '已保存直接编辑',
     visualEditSaveFailed: '无法保存 — 请重试',
+    visualEditRuntimeGateTargetMissing: '保存后未找到对应的线上页面',
+    visualEditRuntimeGateDeviceMismatch: '线上设备与刚保存的设备不一致',
+    visualEditRuntimeGateLiveNotUpdated: '保存后线上页面仍未更新',
+    visualEditRuntimeGateLabelPath: '文件',
+    visualEditRuntimeGateLabelDevice: '设备',
+    visualEditRuntimeGateLabelSourceDevice: '线上来源',
+    visualEditRuntimeGateLabelBeforeHash: '之前哈希',
+    visualEditRuntimeGateLabelAfterHash: '之后哈希',
     visualEditAiFailed: 'AI 无法生成图片',
     visualEditAiImageTitle: 'AI 替换图片',
     visualEditAiImageHint: '描述新图片（Gemini AI）。可使用当前图片作为参考。',
@@ -3478,6 +3576,21 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     reviewsAdminReplyPlaceholder: '回复客户...',
     reviewsAdminReplyLabel: '店铺回复',
     reviewsAdminSaved: '已保存',
+    reviewsAdminGroupFilter: '评价组',
+    reviewsAdminGroupPlaceholder: '组号',
+    reviewsAdminSourceAll: '全部来源',
+    reviewsAdminSourceReal: '真实',
+    reviewsAdminSourceImported: '虚拟',
+    reviewsAdminDownloadSample: '下载模板',
+    reviewsAdminImport: '导入 Excel',
+    reviewsAdminImportOk: '已导入 {n} 条评价',
+    reviewsAdminImportFail: '导入失败',
+    reviewsAdminImportHint: '组号需与库存 41 列文件中的评价组 / 问答组一致。',
+    reviewsAdminGroupLabel: '组',
+    reviewsAdminUsefulLabel: '有用',
+    reviewsAdminNameLabel: '姓名',
+    reviewsAdminStarLabel: '星级',
+    reviewsAdminTitleField: '标题',
     qaAdminTitle: '商品问答',
     qaAdminHint: '隐藏/显示问题，以店主身份直接回复。',
     qaAdminEmpty: '暂无问题。',
@@ -3485,6 +3598,13 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     qaAdminReplyPlaceholder: '以店主身份回复...',
     qaAdminReplyButton: '提交回复',
     qaAdminDeleteConfirm: '删除该问题？',
+    qaAdminDownloadSample: '下载模板',
+    qaAdminImport: '导入 Excel',
+    qaAdminImportOk: '已导入 {n} 条问题',
+    qaAdminImportFail: '导入失败',
+    qaAdminGroupLabel: '组',
+    qaAdminUsefulLabel: '有用',
+    qaAdminNameLabel: '提问者',
     promotionsTitle: '促销 / 优惠券',
     promotionsHint: '创建客户可在结账时输入的优惠码，或赠送指定客户的优惠券。',
     promotionsEmpty: '暂无优惠券。',
@@ -3855,6 +3975,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditRedo: 'やり直す',
     visualEditSaveSuccess: '直接編集を保存しました',
     visualEditSaveFailed: '保存できません — 再試行してください',
+    visualEditRuntimeGateTargetMissing: '保存後、公開側で対象ページが見つかりません',
+    visualEditRuntimeGateDeviceMismatch: '公開側のデバイスが保存したデバイスと一致しません',
+    visualEditRuntimeGateLiveNotUpdated: '保存後も公開側に反映されていません',
+    visualEditRuntimeGateLabelPath: 'ファイル',
+    visualEditRuntimeGateLabelDevice: 'デバイス',
+    visualEditRuntimeGateLabelSourceDevice: '公開ソース',
+    visualEditRuntimeGateLabelBeforeHash: '保存前ハッシュ',
+    visualEditRuntimeGateLabelAfterHash: '保存後ハッシュ',
     visualEditAiFailed: 'AIが画像を生成できませんでした',
     visualEditAiImageTitle: 'AIで画像を差し替え',
     visualEditAiImageHint: '新しい画像を説明（Gemini AI）。現在の画像を参考にできます。',
@@ -4414,6 +4542,21 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     reviewsAdminReplyPlaceholder: 'お客様へ返信...',
     reviewsAdminReplyLabel: 'ショップの返信',
     reviewsAdminSaved: '保存しました',
+    reviewsAdminGroupFilter: 'レビューグループ',
+    reviewsAdminGroupPlaceholder: 'グループ番号',
+    reviewsAdminSourceAll: 'すべてのソース',
+    reviewsAdminSourceReal: '本物',
+    reviewsAdminSourceImported: '仮想',
+    reviewsAdminDownloadSample: 'サンプルをダウンロード',
+    reviewsAdminImport: 'Excelを取り込む',
+    reviewsAdminImportOk: '{n}件のレビューを取り込みました',
+    reviewsAdminImportFail: '取り込みに失敗しました',
+    reviewsAdminImportHint: '在庫41列ファイルの評価グループ / 質問グループと同じ番号を使います。',
+    reviewsAdminGroupLabel: 'グループ',
+    reviewsAdminUsefulLabel: '役立つ',
+    reviewsAdminNameLabel: '名前',
+    reviewsAdminStarLabel: '星',
+    reviewsAdminTitleField: 'タイトル',
     qaAdminTitle: '商品Q&A',
     qaAdminHint: '質問の非表示/表示、ショップオーナーとして直接返信。',
     qaAdminEmpty: 'まだ質問がありません。',
@@ -4421,6 +4564,13 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     qaAdminReplyPlaceholder: 'ショップオーナーとして返信...',
     qaAdminReplyButton: '返信を送信',
     qaAdminDeleteConfirm: 'この質問を削除しますか？',
+    qaAdminDownloadSample: 'サンプルをダウンロード',
+    qaAdminImport: 'Excelを取り込む',
+    qaAdminImportOk: '{n}件の質問を取り込みました',
+    qaAdminImportFail: '取り込みに失敗しました',
+    qaAdminGroupLabel: 'グループ',
+    qaAdminUsefulLabel: '役立つ',
+    qaAdminNameLabel: '質問者',
     promotionsTitle: 'プロモーション / クーポン',
     promotionsHint: '顧客がチェックアウト時に入力できるコードや、特定顧客への贈呈クーポンを作成します。',
     promotionsEmpty: 'クーポンはまだありません。',
@@ -4797,6 +4947,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditRedo: '다시 실행',
     visualEditSaveSuccess: '직접 편집 저장됨',
     visualEditSaveFailed: '저장 실패 — 다시 시도',
+    visualEditRuntimeGateTargetMissing: '저장 후 라이브 대상 페이지를 찾을 수 없습니다',
+    visualEditRuntimeGateDeviceMismatch: '라이브 기기가 방금 저장한 기기와 다릅니다',
+    visualEditRuntimeGateLiveNotUpdated: '저장 후에도 라이브 화면이 갱신되지 않았습니다',
+    visualEditRuntimeGateLabelPath: '파일',
+    visualEditRuntimeGateLabelDevice: '기기',
+    visualEditRuntimeGateLabelSourceDevice: '라이브 소스',
+    visualEditRuntimeGateLabelBeforeHash: '저장 전 해시',
+    visualEditRuntimeGateLabelAfterHash: '저장 후 해시',
     visualEditAiFailed: 'AI가 이미지를 생성하지 못했습니다',
     visualEditAiImageTitle: 'AI로 이미지 교체',
     visualEditAiImageHint: '새 이미지 설명(Gemini AI). 현재 이미지를 참고로 사용할 수 있습니다.',
@@ -5356,6 +5514,21 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     reviewsAdminReplyPlaceholder: '고객에게 답변...',
     reviewsAdminReplyLabel: '상점 답변',
     reviewsAdminSaved: '저장됨',
+    reviewsAdminGroupFilter: '리뷰 그룹',
+    reviewsAdminGroupPlaceholder: '그룹 번호',
+    reviewsAdminSourceAll: '모든 출처',
+    reviewsAdminSourceReal: '실제',
+    reviewsAdminSourceImported: '가상',
+    reviewsAdminDownloadSample: '샘플 다운로드',
+    reviewsAdminImport: 'Excel 가져오기',
+    reviewsAdminImportOk: '리뷰 {n}건을 가져왔습니다',
+    reviewsAdminImportFail: '가져오기에 실패했습니다',
+    reviewsAdminImportHint: '재고 41열 파일의 평가 그룹 / 질문 그룹과 같은 번호를 사용하세요.',
+    reviewsAdminGroupLabel: '그룹',
+    reviewsAdminUsefulLabel: '도움됨',
+    reviewsAdminNameLabel: '이름',
+    reviewsAdminStarLabel: '별점',
+    reviewsAdminTitleField: '제목',
     qaAdminTitle: '상품 Q&A',
     qaAdminHint: '질문 숨기기/표시, 상점 주인으로서 직접 답변.',
     qaAdminEmpty: '아직 질문이 없습니다.',
@@ -5363,6 +5536,13 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     qaAdminReplyPlaceholder: '상점 주인으로서 답변...',
     qaAdminReplyButton: '답변 제출',
     qaAdminDeleteConfirm: '이 질문을 삭제하시겠습니까?',
+    qaAdminDownloadSample: '샘플 다운로드',
+    qaAdminImport: 'Excel 가져오기',
+    qaAdminImportOk: '질문 {n}건을 가져왔습니다',
+    qaAdminImportFail: '가져오기에 실패했습니다',
+    qaAdminGroupLabel: '그룹',
+    qaAdminUsefulLabel: '도움됨',
+    qaAdminNameLabel: '질문자',
     promotionsTitle: '프로모션 / 쿠폰',
     promotionsHint: '고객이 결제 시 직접 입력할 수 있는 코드 또는 특정 고객에게 증정하는 쿠폰을 만드세요.',
     promotionsEmpty: '아직 쿠폰이 없습니다.',

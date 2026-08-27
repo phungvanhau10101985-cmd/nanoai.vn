@@ -18,7 +18,10 @@ import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerWebsiteCopy, type PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
-import type { PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
+import type {
+  PartnerWebsiteCanonicalVisualSave,
+  PartnerWebsiteProject,
+} from '@/lib/partner-website/partner-website-types'
 import { uploadPartnerImageFile } from '@/components/partner-website/partner-website-asset-panel'
 import {
   buildVisualEditorScript,
@@ -713,7 +716,9 @@ type Props = {
   websiteTitle?: string
   compact?: boolean
   sidebar?: boolean
-  onSave?: (project: PartnerWebsiteProject) => Promise<void>
+  onSave?: (
+    project: PartnerWebsiteProject
+  ) => Promise<PartnerWebsiteCanonicalVisualSave | void>
   onSaveShopHome?: (patch: FashionHomeCopyPatch) => Promise<void>
   onCancel: () => void
   onError: (message: string) => void
@@ -1497,6 +1502,9 @@ export function PartnerWebsiteVisualEditorToolbar({
         picked?: boolean
         units?: unknown
         active?: number
+        hUnits?: unknown
+        hActive?: number
+        place?: string
         index?: number
       }
       if (data?.source !== NANOAI_VE_MESSAGE) return

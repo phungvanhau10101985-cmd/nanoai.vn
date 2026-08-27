@@ -1,4 +1,4 @@
-import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
+import { injectPartnerShopChromeLayoutStyles } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
 import { stampPartnerSiteChromeWidgetHooksInHtml } from '@/lib/partner-website/shop/stamp-partner-site-chrome-widget-hooks'
 import { resetChromeCountBadges } from '@/lib/partner-website/shop/chrome-count-badges'
 import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual-editor/strip-empty-logo-placeholders'
@@ -12,9 +12,19 @@ import {
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { refreshCloneBoxesInDocument } from '@/lib/partner-website/visual-editor/copy-element-across-pages'
+import { normalizeVisualCoordinateContract } from '@/lib/partner-website/visual-editor/normalize-visual-coordinate-contract'
 
 const EDITOR_STYLE_ID = 'nanoai-visual-editor-styles'
 const EDITOR_SCRIPT_ID = 'nanoai-visual-editor-script'
+
+function removeRuntimeNode(el: Element | null): void {
+  if (!el) return
+  const previous = el.previousSibling
+  el.remove()
+  if (previous?.nodeType === 3 && !String(previous.textContent || '').trim()) {
+    previous.parentNode?.removeChild(previous)
+  }
+}
 
 function restoreDeferredPdpGalleryMedia(clone: Element) {
   clone.querySelectorAll('img[data-pw-deferred-src]').forEach((img) => {
@@ -26,16 +36,19 @@ function restoreDeferredPdpGalleryMedia(clone: Element) {
 
 function stripEditorAndRuntimeNodes(clone: Element) {
   restoreDeferredPdpGalleryMedia(clone)
-  clone.querySelector(`#${EDITOR_STYLE_ID}`)?.remove()
-  clone.querySelector(`#${EDITOR_SCRIPT_ID}`)?.remove()
-  clone.querySelector('#nanoai-ve-hover-name')?.remove()
-  clone.querySelector('#nanoai-pw-overlay-style')?.remove()
-  clone.querySelector('#nanoai-pw-logo-guard')?.remove()
-  clone.querySelector('#__NEXT_DATA__')?.remove()
+  removeRuntimeNode(clone.querySelector(`#${EDITOR_STYLE_ID}`))
+  removeRuntimeNode(clone.querySelector(`#${EDITOR_SCRIPT_ID}`))
+  removeRuntimeNode(clone.querySelector('#nanoai-ve-hover-name'))
+  removeRuntimeNode(clone.querySelector('#nanoai-pw-overlay-style'))
+  removeRuntimeNode(clone.querySelector('#nanoai-pw-logo-guard'))
+  removeRuntimeNode(clone.querySelector('#pw-catalog-card-css'))
+  removeRuntimeNode(clone.querySelector('#pw-related-css'))
+  removeRuntimeNode(clone.querySelector('#pw-outfit-css'))
+  removeRuntimeNode(clone.querySelector('#__NEXT_DATA__'))
   clone.querySelectorAll('script').forEach((el) => {
     const type = (el.getAttribute('type') || '').toLowerCase()
     if (type === 'application/ld+json') return
-    el.remove()
+    removeRuntimeNode(el)
   })
   clone.querySelectorAll('next-route-announcer, template[data-next-error-message]').forEach((el) => el.remove())
   clone.querySelectorAll('link[rel="preload"][as="script"], link[rel="modulepreload"]').forEach((el) => el.remove())
@@ -160,10 +173,20 @@ function ensureBaseHref(clone: Element) {
   head.insertBefore(base, head.firstChild)
 }
 
+function stripExecutableScriptsFromStoredHtml(html: string): string {
+  return html.replace(/<script\b([^>]*)>[\s\S]*?<\/script\s*>/gi, (full, attrs: string) => {
+    return /\btype=(["'])application\/ld\+json\1/i.test(attrs) ? full : ''
+  })
+}
+
+function collapseEmptyInterTagLines(html: string): string {
+  return html.replace(/>(?:[ \t]*\r?\n){2,}[ \t]*(?=<)/g, '>\n')
+}
+
 function inlineSameOriginStylesheets(doc: Document, clone: Element) {
   const origin = documentOrigin(doc)
   const byHref = new Map<string, string>()
-  for (const sheet of Array.from(doc.styleSheets)) {
+  for (const sheet of doc.styleSheets ? Array.from(doc.styleSheets) : []) {
     let href = ''
     try {
       href = sheet.href || ''
@@ -235,17 +258,30 @@ export function serializeVisualEditorHtml(doc: Document, variant?: VisualDeviceV
   inlineSameOriginStylesheets(doc, clone)
   ensureViewportMeta(clone)
   ensureBaseHref(clone)
-  const raw = injectPartnerShopChromeLayoutCss(
+  const raw = injectPartnerShopChromeLayoutStyles(
     stripEmptyLogoPlaceholdersFromHtml(
       stripPartnerInfoPageSeoCoachFromHtml(`<!DOCTYPE html>\n${clone.outerHTML}`)
     )
   )
-  const stored = sanitizeVisualHtmlForStore(stampPartnerSiteChromeWidgetHooksInHtml(raw))
+  const canonical = normalizeVisualCoordinateContract(raw, {
+    variant,
+    writeCanonicalOnly: true,
+  })
+  const stored = collapseEmptyInterTagLines(
+    sanitizeVisualHtmlForStore(
+      stripExecutableScriptsFromStoredHtml(stampPartnerSiteChromeWidgetHooksInHtml(canonical))
+    )
+  )
   if (!variant) return stored
   // Always persist the isolated device document. Falling back to `stored` can write a
   // composed desktop+laptop+tablet+mobile page into a single device file.
-  return sanitizeVisualHtmlForStore(
-    ensureVisualHtmlLiveReady(isolateVisualHtmlForDevice(stored, variant), variant)
+  return collapseEmptyInterTagLines(
+    sanitizeVisualHtmlForStore(
+      normalizeVisualCoordinateContract(
+        ensureVisualHtmlLiveReady(isolateVisualHtmlForDevice(stored, variant), variant),
+        { variant, writeCanonicalOnly: true }
+      )
+    )
   )
 }
 

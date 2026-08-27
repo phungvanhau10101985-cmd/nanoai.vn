@@ -39,6 +39,26 @@ export function stampPartnerShopEditorHooksInHtml(
 }
 
 /**
+ * Sửa nhanh uses the same read-only data hydration as live so dynamic slots keep
+ * identical dimensions. Navigation, checkout and other mutating actions stay off.
+ */
+export function injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(
+  html: string,
+  input: { siteSlug?: string; locale?: WebLocale }
+): string {
+  let out = stampPartnerShopEditorHooksInHtml(html, input)
+  const siteSlug = input.siteSlug?.trim() ?? ''
+  if (!siteSlug) return out
+  const locale = input.locale ?? 'vi'
+  out = appendBeforeBody(out, buildPartnerSiteCatalogBootstrapScript({ siteSlug, locale }))
+  out = appendBeforeBody(out, buildPartnerSiteOutfitBootstrapScript({ siteSlug, locale }))
+  out = appendBeforeBody(out, buildPartnerSitePersonalizationBootstrapScript({ siteSlug, locale }))
+  out = appendBeforeBody(out, buildPartnerSitePdpBootstrapScript({ siteSlug, locale }))
+  out = appendBeforeBody(out, buildPartnerSiteSliderBootstrapScript())
+  return out
+}
+
+/**
  * Wire live shop APIs onto saved Sửa nhanh HTML (every Thêm-phần-tử widget).
  * Scripts are stripped on save — always replace at serve so new shops inherit the engine.
  */

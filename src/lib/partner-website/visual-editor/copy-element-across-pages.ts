@@ -10,10 +10,12 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsitePageKey } from '@/lib/partner-website/partner-website-page-catalog'
 import { buildBlankShopVisualHtml } from '@/lib/partner-website/shop/build-blank-shop-visual-html'
+import { buildShopTemplatePageVisualHtml } from '@/lib/partner-website/shop/build-shop-template-page-visual-html'
 import {
   applySharedChrome,
   extractSharedChrome,
   hasSharedChrome,
+  htmlHasShopHeader,
 } from '@/lib/partner-website/shop/sync-shared-chrome'
 import {
   VISUAL_EDITOR_PAGE_KEYS,
@@ -21,6 +23,14 @@ import {
   visualEditorHtmlPath,
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import {
+  PW_COORDINATE_CONTRACT_VERSION,
+  pwClientBoxToScene,
+  pwCreateViewportMap,
+  pwCoordinateDevice,
+  pwSceneWidth,
+  type PwPlacementMode,
+} from '@/lib/partner-website/visual-editor/pw-coordinate-space'
 
 export const PW_CLONE_ID_ATTR = 'data-pw-clone-id'
 export const PW_CLONE_ALL_ATTR = 'data-pw-clone-all'
@@ -46,7 +56,7 @@ const VOID_TAGS = new Set([
 const PRODUCT_INSTANCE_RE =
   /(^|\/)p\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\.(mobile|tablet|laptop))?\.html$/i
 
-export type CloneBoxMode = 'abs' | 'fixed' | 'flow'
+export type CloneBoxMode = PwPlacementMode
 
 export type CloneBox = {
   mode: CloneBoxMode
@@ -54,6 +64,8 @@ export type CloneBox = {
   top: number
   width: number
   height: number
+  /** Legacy abs/fixed values are viewport px; v2 fixed values are normalized 0..1. */
+  version?: 1 | 2
 }
 
 export type CopiedPageClone = {
@@ -165,32 +177,49 @@ export function seedVisualPageHtmlWithChrome(input: {
   brand: string
   chromeSourceHtml: string
 }): string {
-  const blank = buildBlankShopVisualHtml({
-    pageKey: input.pageKey,
-    variant: input.variant,
-    locale: input.locale,
-    siteSlug: input.siteSlug,
-    brand: input.brand,
-  })
+  const inner = htmlHasShopHeader(input.chromeSourceHtml)
+    ? buildShopTemplatePageVisualHtml({
+        pageKey: input.pageKey,
+        variant: input.variant,
+        locale: input.locale,
+        siteSlug: input.siteSlug,
+        brand: input.brand,
+      })
+    : buildBlankShopVisualHtml({
+        pageKey: input.pageKey,
+        variant: input.variant,
+        locale: input.locale,
+        siteSlug: input.siteSlug,
+        brand: input.brand,
+      })
   const chrome = extractSharedChrome(input.chromeSourceHtml)
-  if (!hasSharedChrome(chrome)) return blank
-  return applySharedChrome(blank, chrome, { targetVariant: input.variant })
+  if (!hasSharedChrome(chrome)) return inner
+  return applySharedChrome(inner, chrome, { targetVariant: input.variant })
 }
 
 export function parseCloneBox(raw: string | null | undefined): CloneBox | null {
   const value = String(raw || '').trim()
   if (!value) return null
-  if (value === 'flow') return { mode: 'flow', left: 0, top: 0, width: 0, height: 0 }
-  const parts = value.split(',')
-  const mode = parts[0] === 'fixed' || parts[0] === 'flow' || parts[0] === 'abs' ? parts[0] : null
+  if (value === 'flow') return { mode: 'flow', left: 0, top: 0, width: 0, height: 0, version: 1 }
+  const rawParts = value.split(',')
+  const version = rawParts[0] === PW_COORDINATE_CONTRACT_VERSION ? 2 : 1
+  const parts = version === 2 ? rawParts.slice(1) : rawParts
+  const mode =
+    parts[0] === 'scene-absolute' || parts[0] === 'abs'
+      ? 'scene-absolute'
+      : parts[0] === 'viewport-fixed' || parts[0] === 'fixed'
+        ? 'viewport-fixed'
+        : parts[0] === 'flow'
+          ? 'flow'
+          : null
   if (!mode) return null
-  if (mode === 'flow') return { mode: 'flow', left: 0, top: 0, width: 0, height: 0 }
+  if (mode === 'flow') return { mode: 'flow', left: 0, top: 0, width: 0, height: 0, version }
   const left = Number(parts[1])
   const top = Number(parts[2])
   const width = Number(parts[3])
   const height = Number(parts[4])
   if (![left, top, width, height].every((n) => Number.isFinite(n))) return null
-  return { mode, left, top, width, height }
+  return { mode, left, top, width, height, version }
 }
 
 function cloneIdOf(snippet: string): string {
@@ -242,17 +271,53 @@ function setStyleDecls(snippet: string, decls: Record<string, string>): string {
   return snippet.replace(/^(<[a-zA-Z][\w-]*)\b/, `$1 style="${extra}"`)
 }
 
+function setOpeningTagAttrs(snippet: string, attrs: Record<string, string>): string {
+  return snippet.replace(/^<([a-zA-Z][\w-]*)([^>]*)>/, (_full, tag: string, raw: string) => {
+    let next = raw
+    for (const [name, value] of Object.entries(attrs)) {
+      const safe = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      next = next.replace(new RegExp(`\\s${safe}=(["'])[^"']*\\1`, 'gi'), '')
+      next += ` ${name}="${String(value).replace(/"/g, '&quot;')}"`
+    }
+    return `<${tag}${next}>`
+  })
+}
+
 function applyCloneBoxToSnippet(snippet: string, box: CloneBox | null): string {
   if (!box || box.mode === 'flow') return snippet
-  return setStyleDecls(snippet, {
-    position: box.mode === 'fixed' ? 'fixed' : 'absolute',
-    left: `${Math.round(box.left)}px`,
-    top: `${Math.round(box.top)}px`,
+  const fixed = box.mode === 'viewport-fixed'
+  const left = fixed && box.version === 2 ? `${box.left * 100}%` : `${Math.round(box.left)}px`
+  const top = fixed && box.version === 2 ? `${box.top * 100}%` : `${Math.round(box.top)}px`
+  const styled = setStyleDecls(snippet, {
+    position: fixed ? 'fixed' : 'absolute',
+    left,
+    top,
     width: `${Math.max(1, Math.round(box.width))}px`,
     height: `${Math.max(1, Math.round(box.height))}px`,
     right: 'auto',
     bottom: 'auto',
   })
+  if (fixed) {
+    return setOpeningTagAttrs(
+      styled,
+      box.version === 2
+        ? {
+            'data-pw-placement': 'viewport-fixed',
+            'data-pw-fixed-x': String(box.left),
+            'data-pw-fixed-y': String(box.top),
+            'data-pw-fixed-w': String(box.width),
+            'data-pw-fixed-h': String(box.height),
+          }
+        : { 'data-pw-placement': 'viewport-fixed' }
+    )
+  }
+  return setOpeningTagAttrs(styled, {
+        'data-pw-placement': 'scene-absolute',
+        'data-pw-box-x': String(box.left),
+        'data-pw-box-y': String(box.top),
+        'data-pw-box-w': String(box.width),
+        'data-pw-box-h': String(box.height),
+      })
 }
 
 export function extractPageClones(html: string): CopiedPageClone[] {
@@ -354,19 +419,50 @@ export function refreshCloneBoxesInDocument(doc: Document): void {
   doc.querySelectorAll(`[${PW_CLONE_ALL_ATTR}="1"]`).forEach((node) => {
     if (!(node instanceof HTMLElement)) return
     if (FLOW_SLOT_ATTRS.some((attr) => node.getAttribute(attr) === '1')) {
-      node.setAttribute(PW_CLONE_BOX_ATTR, 'flow')
+      node.setAttribute(PW_CLONE_BOX_ATTR, `${PW_COORDINATE_CONTRACT_VERSION},flow`)
       return
     }
     const er = node.getBoundingClientRect()
     const cs = view?.getComputedStyle(node)
     const stay =
       node.getAttribute('data-pw-stay-scroll') === '1' || node.getAttribute('data-pw-pin-screen') === '1'
-    const mode: CloneBoxMode = stay || cs?.position === 'fixed' ? 'fixed' : 'abs'
-    const left = Math.round(er.left - (mode === 'fixed' ? 0 : hr.left))
-    const top = Math.round(er.top - (mode === 'fixed' ? 0 : hr.top))
+    const mode: CloneBoxMode = stay || cs?.position === 'fixed' ? 'viewport-fixed' : 'scene-absolute'
+    const device = pwCoordinateDevice(
+      doc.documentElement.getAttribute('data-pw-edit-device') ||
+        doc.documentElement.getAttribute('data-pw-scene-lock')
+    )
+    const sceneWidth = pwSceneWidth(device)
+    const map = pwCreateViewportMap({
+      device,
+      viewportWidth: view?.innerWidth || sceneWidth,
+      scale: hr.width > 8 ? hr.width / sceneWidth : 1,
+      originX: hr.left,
+      originY: hr.top,
+    })
+    const sceneBox = pwClientBoxToScene(
+      { x: er.left, y: er.top, width: er.width, height: er.height },
+      map
+    )
+    const left =
+      mode === 'viewport-fixed'
+        ? er.left / Math.max(1, view?.innerWidth || doc.documentElement.clientWidth || 1)
+        : sceneBox.x
+    const top =
+      mode === 'viewport-fixed'
+        ? er.top / Math.max(1, view?.innerHeight || doc.documentElement.clientHeight || 1)
+        : sceneBox.y
+    const width = mode === 'viewport-fixed' ? er.width / map.scale : sceneBox.width
+    const height = mode === 'viewport-fixed' ? er.height / map.scale : sceneBox.height
     node.setAttribute(
       PW_CLONE_BOX_ATTR,
-      [mode, left, top, Math.round(er.width), Math.round(er.height)].join(',')
+      [
+        PW_COORDINATE_CONTRACT_VERSION,
+        mode,
+        Math.round(left * 100000) / 100000,
+        Math.round(top * 100000) / 100000,
+        Math.round(width * 1000) / 1000,
+        Math.round(height * 1000) / 1000,
+      ].join(',')
     )
   })
 }

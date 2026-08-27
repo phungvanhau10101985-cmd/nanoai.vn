@@ -102,6 +102,8 @@ export function PartnerSiteShopCatalogClient({
             sku: c.sku ?? '',
             detailPath: partnerSiteProductPath(siteSlug, c.inventory_id!, { name: c.name }),
             stockQty: 0,
+            sizes: [],
+            colors: [],
           }))
       )
     } finally {

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { parseHTML } from 'linkedom'
 import {
   PARTNER_SHOP_HIDDEN_CSS,
   PARTNER_SHOP_STAY_SCROLL_CSS,
@@ -26,7 +27,11 @@ test('stay-scroll keeps the element in place without floating overlay', () => {
   assert.equal(PW_STAY_SCROLL_LAYER_ATTR, 'data-pw-stay-layer')
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes('document.body.appendChild'), false)
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes('document.documentElement.insertBefore'), false)
-  assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes('html.insertBefore'), true)
+  assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes('host.insertBefore(layer, visual)'), true)
+  assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes('data-pw-live-fixed-layer'), true)
+  assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes("PLACEMENT, 'viewport-fixed'"), true)
+  assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes('data-pw-fixed-x'), true)
+  assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes('data-pw-fixed-y'), true)
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes("position', 'fixed'"), true)
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes('addEventListener(\'scroll\''), false)
   assert.equal(PARTNER_SHOP_STAY_SCROLL_CSS.includes('position:fixed'), true)
@@ -58,4 +63,31 @@ test('stay-scroll keeps the element in place without floating overlay', () => {
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes("left', x + '%'"), false)
   assert.equal(typeof restoreStayScrollPins, 'function')
   assert.equal(typeof restoreLiveChromePins, 'function')
+})
+
+test('prepareVisualDomForStore clears auto search width but keeps user-sized search width', () => {
+  const { document, window } = parseHTML(`<!doctype html><html><body>
+    <header>
+      <div class="pw-header-search" data-pw-el="search" data-pw-search-width="280" style="width:280px;flex:0 0 auto"></div>
+      <div class="pw-header-search" data-pw-el="search" data-pw-search-width="260" data-pw-search-width-user="1" style="width:260px;flex:0 0 auto"></div>
+    </header>
+  </body></html>`)
+  const prevDocumentCtor = (globalThis as { Document?: unknown }).Document
+  ;(globalThis as { Document?: unknown }).Document = window.Document
+  try {
+    prepareVisualDomForStore(document)
+  } finally {
+    ;(globalThis as { Document?: unknown }).Document = prevDocumentCtor
+  }
+  const all = Array.from(document.querySelectorAll('.pw-header-search'))
+  const autoSized = all[0] as HTMLElement
+  const userSized = all[1] as HTMLElement
+
+  assert.equal(autoSized.getAttribute('data-pw-search-width'), null)
+  assert.equal(autoSized.getAttribute('data-pw-search-width-user'), null)
+  assert.equal(autoSized.style.width, '')
+  assert.equal(autoSized.style.flex, '')
+
+  assert.equal(userSized.getAttribute('data-pw-search-width'), '260')
+  assert.equal(userSized.getAttribute('data-pw-search-width-user'), '1')
 })

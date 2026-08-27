@@ -305,8 +305,9 @@ export function ensurePartnerSitePdpBottomNavInHtml(
   }
 ): string {
   if (!html.trim()) return html
+  const bodyAttrs = html.match(/<body\b([^>]*)>/i)?.[1] || ''
   const isProduct =
-    input.pageKey === 'product_detail' || /data-pw-page=["']product["']/i.test(html)
+    input.pageKey === 'product_detail' || /\bdata-pw-page=["']product["']/i.test(bodyAttrs)
   if (!isProduct) return html
   const locale = input.locale ?? 'vi'
   const siteSlug = input.siteSlug?.trim() ?? ''

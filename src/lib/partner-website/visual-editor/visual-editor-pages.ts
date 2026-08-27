@@ -35,6 +35,17 @@ import {
   hoistBodyLevelChromeFloats,
   unwrapPersistedLiveChromeHtml,
 } from '@/lib/partner-website/shop/sync-shared-chrome'
+import {
+  PW_SCENE_WIDTH,
+  pwPickAvailableDevice,
+  pwSceneWidth,
+} from '@/lib/partner-website/visual-editor/pw-coordinate-space'
+import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
+import { buildDefaultDemoPdpShellHtml } from '@/lib/partner-website/shop/build-default-demo-pdp-shell-html'
+import {
+  htmlHasPartnerVisualChrome,
+  looksLikeVisualHomeHtml,
+} from '@/lib/partner-website/visual-editor/visual-html-detect'
 
 /** Pages shown in the dashboard preview picker (real `/site/{slug}/…` routes). */
 export const VISUAL_EDITOR_PAGE_KEYS: PartnerWebsitePageKey[] = [
@@ -78,15 +89,15 @@ export type VisualDeviceVariant = 'desktop' | 'laptop' | 'tablet' | 'mobile'
 export const VISUAL_DEVICE_VARIANTS: VisualDeviceVariant[] = ['desktop', 'laptop', 'tablet', 'mobile']
 
 /** Same width as Sửa nhanh Mobile iframe — public ?pw-device=mobile must match. */
-export const VISUAL_MOBILE_PREVIEW_PX = 390
+export const VISUAL_MOBILE_PREVIEW_PX = PW_SCENE_WIDTH.mobile
 /** Same width as Sửa nhanh Tablet iframe — public ?pw-device=tablet must match. */
-export const VISUAL_TABLET_PREVIEW_PX = 768
+export const VISUAL_TABLET_PREVIEW_PX = PW_SCENE_WIDTH.tablet
 /** Same width as Sửa nhanh Laptop iframe — public ?pw-device=laptop must match. */
-export const VISUAL_LAPTOP_PREVIEW_PX = 1280
+export const VISUAL_LAPTOP_PREVIEW_PX = PW_SCENE_WIDTH.laptop
 /** Public tablet band ends just below. Wide desktop starts here when a laptop HTML exists. */
-export const VISUAL_DESKTOP_MIN_PX = 1280
+export const VISUAL_DESKTOP_MIN_PX = PW_SCENE_WIDTH.laptop
 /** Wide desktop canvas (Sửa nhanh Desktop / composed split when laptop HTML exists). */
-export const VISUAL_WIDE_DESKTOP_MIN_PX = 1440
+export const VISUAL_WIDE_DESKTOP_MIN_PX = PW_SCENE_WIDTH.desktop
 
 /**
  * Iframe viewport for `?pw-device=` / Sửa nhanh canvas.
@@ -94,10 +105,7 @@ export const VISUAL_WIDE_DESKTOP_MIN_PX = 1440
  */
 /** Canvas width for Sửa nhanh / `?pw-device=` — centered on the screen midpoint. */
 export function visualDeviceCanvasWidth(device: VisualDeviceVariant): number {
-  if (device === 'mobile') return VISUAL_MOBILE_PREVIEW_PX
-  if (device === 'tablet') return VISUAL_TABLET_PREVIEW_PX
-  if (device === 'laptop') return VISUAL_LAPTOP_PREVIEW_PX
-  return VISUAL_WIDE_DESKTOP_MIN_PX
+  return pwSceneWidth(device)
 }
 
 export function visualDevicePreviewFrameStyle(
@@ -542,9 +550,41 @@ type VisualWebsitePick = {
   htmlSource?: string | null
 }
 
-function looksLikeVisualHomeHtml(html: string): boolean {
-  const page = html.match(/\bdata-pw-page=["']([^"']+)["']/i)?.[1]?.trim().toLowerCase() || ''
-  return !page || page === 'home'
+function looksLikeSavedVisualDocument(html: string): boolean {
+  return (
+    html.trim().length >= 40 &&
+    (htmlHasPartnerVisualChrome(html) ||
+      /\bdata-pw-(?:page|edit-device|coordinate-version|region)=/i.test(html))
+  )
+}
+
+function pickDesktopHomeHtml(website: VisualWebsitePick): string {
+  const source = website.htmlSource?.trim() || ''
+  const indexHtml =
+    extractIndexHtml(website.project ?? { entryPath: 'index.html', files: [] })?.trim() || ''
+  // `project/index.html` is the canonical Sửa nhanh file. `htmlSource` is a
+  // compatibility mirror and may be stale/corrupted by an older save of a
+  // different page or device, so it must never override a usable visual index.
+  if (
+    indexHtml.length >= 40 &&
+    looksLikeVisualHomeHtml(indexHtml) &&
+    looksLikeSavedVisualDocument(indexHtml)
+  ) {
+    return indexHtml
+  }
+  if (source.length >= 40 && looksLikeVisualHomeHtml(source)) return source
+  if (indexHtml.length >= 40) return indexHtml
+  return looksLikeVisualHomeHtml(source) ? source : ''
+}
+
+function readVisualHtmlFile(
+  website: VisualWebsitePick,
+  pageKey: PartnerWebsitePageKey,
+  variant: VisualDeviceVariant
+): string {
+  const htmlPath = visualEditorHtmlPath(pageKey, variant)
+  const file = website.project?.files.find((f) => f.path === htmlPath && f.kind === 'html')
+  return file?.content?.trim() || ''
 }
 
 function readExactVisualPageHtml(
@@ -553,25 +593,23 @@ function readExactVisualPageHtml(
   variant: VisualDeviceVariant = 'desktop'
 ): string {
   if (pageKey === 'home' && variant === 'desktop') {
-    if (!website.theme?.useVisualHtml) return ''
-    const source = website.htmlSource?.trim() || ''
-    const indexHtml =
-      extractIndexHtml(website.project ?? { entryPath: 'index.html', files: [] })?.trim() || ''
-    if (source.length >= 40 && looksLikeVisualHomeHtml(source)) return source
-    if (indexHtml.length >= 40) return indexHtml
-    return looksLikeVisualHomeHtml(source) ? source : ''
+    const picked = pickDesktopHomeHtml(website)
+    if (website.theme?.useVisualHtml) return picked
+    return htmlHasPartnerVisualChrome(picked) ? picked : ''
   }
   if (pageKey === 'home' && variant !== 'desktop') {
-    if (!visualHomeFlagForVariant(website.theme, variant)) return ''
-    const htmlPath = visualEditorHtmlPath('home', variant)
-    const file = website.project?.files.find((f) => f.path === htmlPath && f.kind === 'html')
-    return file?.content?.trim() || ''
+    const file = readVisualHtmlFile(website, 'home', variant)
+    if (file.length >= 40 && (visualHomeFlagForVariant(website.theme, variant) || htmlHasPartnerVisualChrome(file))) {
+      return file
+    }
+    return ''
   }
   const keys = visualPageKeysForVariant(website.theme, variant)
-  if (!keys.includes(pageKey)) return ''
-  const htmlPath = visualEditorHtmlPath(pageKey, variant)
-  const file = website.project?.files.find((f) => f.path === htmlPath && f.kind === 'html')
-  return file?.content?.trim() || ''
+  const file = readVisualHtmlFile(website, pageKey, variant)
+  if (keys.includes(pageKey)) return file
+  if (looksLikeSavedVisualDocument(file)) return file
+  if (pageKey === 'product_detail' && file.length >= 40) return file
+  return ''
 }
 
 function withCanonicalSharedChrome(
@@ -581,7 +619,9 @@ function withCanonicalSharedChrome(
 ): string {
   const trimmed = html.trim()
   if (trimmed.length < 40) return html
-  const homeRaw = readExactVisualPageHtml(website, 'home', variant)
+  const homeRaw =
+    readExactVisualPageHtml(website, 'home', variant) ||
+    (variant !== 'desktop' ? readExactVisualPageHtml(website, 'home', 'desktop') : '')
   if (homeRaw.length < 40) return html
   const home = isolateVisualHtmlForDevice(homeRaw, variant)
   const chrome = fillMissingSharedChromeFloats(
@@ -599,7 +639,15 @@ export function resolveExactVisualPageHtml(
   variant: VisualDeviceVariant = 'desktop'
 ): string {
   const raw = readExactVisualPageHtml(website, pageKey, variant)
-  if (pageKey === 'home' || raw.length < 40) return raw
+  if (pageKey === 'home') {
+    if (raw.length >= 40) return raw
+    if (variant !== 'desktop') {
+      const desktop = readExactVisualPageHtml(website, 'home', 'desktop')
+      if (desktop.length >= 40) return isolateVisualHtmlForDevice(desktop, variant)
+    }
+    return raw
+  }
+  if (raw.length < 40) return raw
   return withCanonicalSharedChrome(raw, website, variant)
 }
 
@@ -667,9 +715,9 @@ function extractDeviceWrapperBody(html: string, variant: VisualDeviceVariant): s
   return ''
 }
 
-/** A composed page always carries wrappers — never guess another device inside one. */
+/** Only top-level device wrappers make a composed page; nested chrome wrappers are normal content. */
 function hasDeviceWrappers(html: string): boolean {
-  return /\bdata-pw-visual-device="(?:desktop|laptop|tablet|mobile)"/i.test(html)
+  return VISUAL_DEVICE_VARIANTS.some((device) => Boolean(extractDeviceWrapperBody(html, device)))
 }
 
 /** Split rules only make sense on a composed page; on one device file they hide real widgets. */
@@ -750,6 +798,9 @@ export function stripViewportDockChromeGeometry(html: string): string {
       .replace(/\sdata-pw-stay-scroll=["'][^"']*["']/gi, '')
       .replace(/\sdata-pw-canvas-[xywh]=["'][^"']*["']/gi, '')
       .replace(/\sdata-pw-canvas-[xy]u=["'][^"']*["']/gi, '')
+      .replace(/\sdata-pw-placement=["'][^"']*["']/gi, '')
+      .replace(/\sdata-pw-box-[xywh]=["'][^"']*["']/gi, '')
+      .replace(/\sdata-pw-fixed-(?:x|y|w|h|anchor)=["'][^"']*["']/gi, '')
     next = next.replace(/\sstyle=(["'])([\s\S]*?)\1/i, (_s, quote: string, css: string) => {
       const cleaned = String(css)
         .replace(/(?:^|;)\s*(?:position|left|top|right|bottom|transform|width|height|inset)\s*:[^;]*/gi, '')
@@ -783,9 +834,11 @@ export function ensureVisualHtmlLiveReady(html: string, variant?: VisualDeviceVa
     const moved = /\bdata-pw-user-move=["']1["']/.test(attrs)
     const stay = /\bdata-pw-stay-scroll=["']1["']/.test(attrs)
     const added = /\bdata-pw-chrome-added=["']1["']/.test(attrs)
-    if (!LIVE_READY_CHROME_RE.test(attrs) && !moved && !stay) return full
-    if (!(moved || stay || added)) return full
+    const placed = /\bdata-pw-placement=["'](?:scene-absolute|viewport-fixed)["']/.test(attrs)
+    if (!LIVE_READY_CHROME_RE.test(attrs)) return full
+    if (!(moved || stay || added || placed)) return full
     let next = attrs
+    if (placed && !moved) next += ' data-pw-user-move="1"'
     if (!added) next += ' data-pw-chrome-added="1"'
     if (variant && !/\bdata-pw-device=/.test(next)) next += ` data-pw-device="${variant}"`
     return next === attrs ? full : `<${tag}${next}>`
@@ -815,20 +868,13 @@ export function isolateVisualHtmlForDevice(
 ): string {
   const trimmed = html.trim()
   if (!trimmed) return ''
-  let sliced = extractDeviceWrapperBody(trimmed, variant)
-  if (!sliced && hasDeviceWrappers(trimmed)) {
-    // Bản máy này chưa lưu — mượn bản gần nhất, không trả cả trang đã gộp.
-    for (const fallback of VISUAL_DEVICE_VARIANTS) {
-      if (fallback === variant) continue
-      sliced = extractDeviceWrapperBody(trimmed, fallback)
-      if (sliced) break
-    }
-  }
+  const sliced = extractDeviceWrapperBody(trimmed, variant)
   const source = sliced
     ? hoistBodyLevelChromeFloats(rebuildStandaloneHtml(trimmed, sliced), trimmed, variant)
     : hasDeviceWrappers(trimmed)
-      ? trimmed
+      ? ''
       : stripDeviceSplitCss(trimmed)
+  if (!source) return ''
   const stripped = opts?.stripAddedChrome
     ? stripVisualAddedChrome(source, { keepCountBadges: true })
     : source
@@ -985,29 +1031,11 @@ ${mobileBlock}
 </html>`
 }
 
-function servePublicVisualHtml(
-  desktop: string,
-  mobile: string,
-  theme?: PartnerWebsiteTheme | null,
-  tablet = '',
-  laptop = ''
-): string {
-  const composed = injectPartnerShopChromeLayoutCss(
-    composeResponsiveVisualHtml(
-      stripEmptyLogoPlaceholdersFromHtml(desktop),
-      stripEmptyLogoPlaceholdersFromHtml(mobile),
-      stripEmptyLogoPlaceholdersFromHtml(tablet),
-      stripEmptyLogoPlaceholdersFromHtml(laptop)
-    )
-  )
-  return theme ? rewriteThemeCssVarsInHtml(composed, theme) : composed
-}
-
 /**
  * Xem một máy (`?pw-device=`) = đúng file đã lưu của máy đó. Không gộp rồi tách lại: bản gộp phải
  * dựng thêm một bản máy khác (đã gỡ widget Sửa nhanh), nên trang xem dễ hiện thiếu nút.
  */
-function servePublicOneDeviceVisualHtml(
+export function servePublicOneDeviceVisualHtml(
   html: string,
   variant: VisualDeviceVariant,
   theme?: PartnerWebsiteTheme | null
@@ -1018,20 +1046,30 @@ function servePublicOneDeviceVisualHtml(
   return theme ? rewriteThemeCssVarsInHtml(out, theme) : out
 }
 
+function servePublicAvailableDeviceHtml(
+  exact: Partial<Record<VisualDeviceVariant, string>>,
+  requested: VisualDeviceVariant,
+  theme?: PartnerWebsiteTheme | null
+): string {
+  const source = pwPickAvailableDevice(
+    requested,
+    VISUAL_DEVICE_VARIANTS.filter((device) => (exact[device]?.trim().length ?? 0) >= 40)
+  )
+  return source ? servePublicOneDeviceVisualHtml(exact[source] || '', source, theme) : ''
+}
+
 export function resolvePublicVisualPageHtml(
   website: VisualWebsitePick,
   pageKey: PartnerWebsitePageKey,
   variant?: VisualDeviceVariant | null
 ): string {
-  if (variant === 'desktop' || variant === 'laptop' || variant === 'tablet' || variant === 'mobile') {
-    const exact = resolveExactVisualPageHtml(website, pageKey, variant)
-    if (exact.length >= 40) return servePublicOneDeviceVisualHtml(exact, variant, website.theme)
-  }
-  const desktop = resolveExactVisualPageHtml(website, pageKey, 'desktop')
-  const mobile = resolveExactVisualPageHtml(website, pageKey, 'mobile')
-  const tablet = resolveExactVisualPageHtml(website, pageKey, 'tablet')
-  const laptop = resolveExactVisualPageHtml(website, pageKey, 'laptop')
-  return servePublicVisualHtml(desktop, mobile, website.theme, tablet, laptop)
+  const exact = Object.fromEntries(
+    VISUAL_DEVICE_VARIANTS.map((device) => [
+      device,
+      resolveExactVisualPageHtml(website, pageKey, device),
+    ])
+  ) as Partial<Record<VisualDeviceVariant, string>>
+  return servePublicAvailableDeviceHtml(exact, variant || 'desktop', website.theme)
 }
 
 export function resolveExactVisualCategoryHtml(
@@ -1042,11 +1080,11 @@ export function resolveExactVisualCategoryHtml(
   const path = normalizeVisualCategoryPath(categoryPath)
   if (!path) return ''
   const keys = visualCategoryPathsForVariant(website.theme, variant)
-  if (!keys.includes(path)) return ''
   const htmlPath = categoryVisualHtmlPath(path, variant)
   const file = website.project?.files.find((f) => f.path === htmlPath && f.kind === 'html')
   const raw = file?.content?.trim() || ''
   if (raw.length < 40) return ''
+  if (!keys.includes(path) && !looksLikeSavedVisualDocument(raw)) return ''
   return withCanonicalSharedChrome(raw, website, variant)
 }
 
@@ -1055,15 +1093,13 @@ export function resolvePublicVisualCategoryHtml(
   categoryPath: string,
   variant?: VisualDeviceVariant | null
 ): string {
-  if (variant) {
-    const exact = resolveExactVisualCategoryHtml(website, categoryPath, variant)
-    if (exact.length >= 40) return servePublicOneDeviceVisualHtml(exact, variant, website.theme)
-  }
-  const desktop = resolveExactVisualCategoryHtml(website, categoryPath, 'desktop')
-  const mobile = resolveExactVisualCategoryHtml(website, categoryPath, 'mobile')
-  const tablet = resolveExactVisualCategoryHtml(website, categoryPath, 'tablet')
-  const laptop = resolveExactVisualCategoryHtml(website, categoryPath, 'laptop')
-  return servePublicVisualHtml(desktop, mobile, website.theme, tablet, laptop)
+  const exact = Object.fromEntries(
+    VISUAL_DEVICE_VARIANTS.map((device) => [
+      device,
+      resolveExactVisualCategoryHtml(website, categoryPath, device),
+    ])
+  ) as Partial<Record<VisualDeviceVariant, string>>
+  return servePublicAvailableDeviceHtml(exact, variant || 'desktop', website.theme)
 }
 
 function readProductVisualFile(
@@ -1087,6 +1123,39 @@ function firstDeviceProductVisualHtml(
   return ''
 }
 
+function inferVisualHtmlContext(html: string): {
+  locale: WebLocale
+  siteSlug: string
+  title: string
+} {
+  const locale = normalizeWebLocale(html.match(/<html\b[^>]*\blang=["']([^"']+)["']/i)?.[1]) ?? 'vi'
+  const siteSlug = html.match(/\/site\/([a-z0-9][a-z0-9-]{1,80})(?:\/|"|')/i)?.[1] || ''
+  const title =
+    html.match(/<title>([^<]*)<\/title>/i)?.[1]?.trim() ||
+    html.match(/\bdata-pw-el=["']wordmark["'][^>]*>([^<]+)/i)?.[1]?.trim() ||
+    ''
+  return { locale, siteSlug, title }
+}
+
+function fallbackPdpShellFromHomeChrome(
+  website: VisualWebsitePick,
+  variant: VisualDeviceVariant
+): string {
+  const home =
+    resolveExactVisualPageHtml(website, 'home', variant).trim() ||
+    resolveExactVisualPageHtml(website, 'home', 'desktop').trim()
+  if (home.length < 40 || !htmlHasPartnerVisualChrome(home)) return ''
+  const ctx = inferVisualHtmlContext(home)
+  const shell = buildDefaultDemoPdpShellHtml({
+    locale: ctx.locale,
+    siteSlug: ctx.siteSlug,
+    variant,
+    title: ctx.title || undefined,
+    logoUrl: website.theme?.logoUrl,
+  })
+  return withCanonicalSharedChrome(shell, website, variant)
+}
+
 /** Shared PDP layout for Sửa nhanh — one page per device, not per inventory id. */
 export function resolveVisualPdpShellHtml(
   website: VisualWebsitePick,
@@ -1096,7 +1165,7 @@ export function resolveVisualPdpShellHtml(
   if (shell.length >= 40) return withCanonicalSharedChrome(shell, website, variant)
   const shared = firstDeviceProductVisualHtml(website, variant)
   if (shared.length >= 40) return withCanonicalSharedChrome(shared, website, variant)
-  return ''
+  return fallbackPdpShellFromHomeChrome(website, variant)
 }
 
 export function resolveExactVisualProductHtml(
@@ -1118,15 +1187,13 @@ export function resolvePublicVisualProductHtml(
   productId: string,
   variant?: VisualDeviceVariant | null
 ): string {
-  if (variant) {
-    const exact = resolveExactVisualProductHtml(website, productId, variant)
-    if (exact.length >= 40) return servePublicOneDeviceVisualHtml(exact, variant, website.theme)
-  }
-  const desktop = resolveExactVisualProductHtml(website, productId, 'desktop')
-  const mobile = resolveExactVisualProductHtml(website, productId, 'mobile')
-  const tablet = resolveExactVisualProductHtml(website, productId, 'tablet')
-  const laptop = resolveExactVisualProductHtml(website, productId, 'laptop')
-  return servePublicVisualHtml(desktop, mobile, website.theme, tablet, laptop)
+  const exact = Object.fromEntries(
+    VISUAL_DEVICE_VARIANTS.map((device) => [
+      device,
+      resolveExactVisualProductHtml(website, productId, device),
+    ])
+  ) as Partial<Record<VisualDeviceVariant, string>>
+  return servePublicAvailableDeviceHtml(exact, variant || 'desktop', website.theme)
 }
 
 export function resolveExactVisualCmsHtml(
@@ -1137,11 +1204,11 @@ export function resolveExactVisualCmsHtml(
   const slug = normalizeVisualCmsSlug(cmsSlug)
   if (!slug) return ''
   const keys = visualCmsSlugsForVariant(website.theme, variant)
-  if (!keys.includes(slug)) return ''
   const htmlPath = cmsVisualHtmlPath(slug, variant)
   const file = website.project?.files.find((f) => f.path === htmlPath && f.kind === 'html')
   const raw = file?.content?.trim() || ''
   if (raw.length < 40) return ''
+  if (!keys.includes(slug) && !looksLikeSavedVisualDocument(raw)) return ''
   return withCanonicalSharedChrome(raw, website, variant)
 }
 
@@ -1150,15 +1217,13 @@ export function resolvePublicVisualCmsHtml(
   cmsSlug: string,
   variant?: VisualDeviceVariant | null
 ): string {
-  if (variant) {
-    const exact = resolveExactVisualCmsHtml(website, cmsSlug, variant)
-    if (exact.length >= 40) return servePublicOneDeviceVisualHtml(exact, variant, website.theme)
-  }
-  const desktop = resolveExactVisualCmsHtml(website, cmsSlug, 'desktop')
-  const mobile = resolveExactVisualCmsHtml(website, cmsSlug, 'mobile')
-  const tablet = resolveExactVisualCmsHtml(website, cmsSlug, 'tablet')
-  const laptop = resolveExactVisualCmsHtml(website, cmsSlug, 'laptop')
-  return servePublicVisualHtml(desktop, mobile, website.theme, tablet, laptop)
+  const exact = Object.fromEntries(
+    VISUAL_DEVICE_VARIANTS.map((device) => [
+      device,
+      resolveExactVisualCmsHtml(website, cmsSlug, device),
+    ])
+  ) as Partial<Record<VisualDeviceVariant, string>>
+  return servePublicAvailableDeviceHtml(exact, variant || 'desktop', website.theme)
 }
 
 export function mergeVisualPageHtmlIntoProject(

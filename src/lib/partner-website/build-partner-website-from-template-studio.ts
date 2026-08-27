@@ -34,6 +34,7 @@ import { maybeSeedShopDemoInventoryOnWebsiteCreate } from '@/lib/messaging/seed-
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
 import { themeFromPresetPartial } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { seedBlankShopVisualWebsite } from '@/lib/partner-website/shop/build-blank-shop-visual-html'
+import { seedShopTemplateVisualWebsite } from '@/lib/partner-website/shop/seed-shop-template-visual-website'
 
 export type BuildPartnerWebsiteFromTemplateStudioInput = {
   locale: WebLocale
@@ -360,8 +361,7 @@ export async function buildPartnerWebsiteFromTemplateStudio(
       { ...preset.theme, ...paletteTheme }
     ),
     logoUrl,
-    // Fresh generate (new look or explicit reset) clears live visual HTML.
-    // Previous look was snapshotted before this write when switching presets.
+    // Seeded below so Sửa nhanh and live read the same HTML after reset / apply.
     useVisualHtml: false,
     useVisualMobileHtml: false,
     useVisualTabletHtml: false,
@@ -384,6 +384,7 @@ export async function buildPartnerWebsiteFromTemplateStudio(
     visualLaptopCmsSlugs: [],
   }
   const templateId = preset.templateId
+  const chatPath = `/messaging/p/${encodeURIComponent(partner.slug)}`
   let project = syncTemplateToProject({
     templateId,
     theme,
@@ -402,8 +403,22 @@ export async function buildPartnerWebsiteFromTemplateStudio(
     project = seeded.project
     seededTheme = seeded.theme
     htmlSource = seeded.htmlSource
+  } else {
+    const seeded = seedShopTemplateVisualWebsite({
+      project,
+      theme,
+      pages,
+      locale: input.locale,
+      siteSlug,
+      brand,
+      logoUrl,
+      templateId,
+      chatPath,
+    })
+    project = seeded.project
+    seededTheme = seeded.theme
+    htmlSource = seeded.htmlSource
   }
-  const chatPath = `/messaging/p/${encodeURIComponent(partner.slug)}`
 
   const website = await upsertPartnerWebsitePg({
     partnerId,

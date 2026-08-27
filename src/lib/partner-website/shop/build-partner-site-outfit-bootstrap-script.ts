@@ -109,9 +109,16 @@ function ensureActions(el){
   }
   return {more:more,all:all};
 }
+function slotOf(st){
+  if(!st||!st.slots||!st.slots.length)return null;
+  var id=st.active;
+  if(typeof id==='number'&&st.slots[id])return st.slots[id];
+  for(var i=0;i<st.slots.length;i++){if(st.slots[i]&&st.slots[i].id===id)return st.slots[i];}
+  return st.slots[0]||null;
+}
 function paintSlice(el){
   var st=el._pwOutfit;if(!st)return;
-  var slot=st.slots[st.active]||null;
+  var slot=slotOf(st);
   var items=slot&&slot.items?slot.items:[];
   var grid=el.querySelector('[data-pw-grid]');if(!grid)return;
   grid.classList.add('pw-product-grid','pw-outfit-grid');

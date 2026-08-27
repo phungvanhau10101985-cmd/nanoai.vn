@@ -399,6 +399,22 @@ export type PartnerSiteShopCopy = {
   qaVerifiedBadge: string
   qaAdminBadge: string
   qaNoAnswersYet: string
+  reviewsFromCustomers: string
+  reviewsSeeAll: string
+  reviewsSeeMore: string
+  reviewsStarLabel1: string
+  reviewsStarLabel2: string
+  reviewsStarLabel3: string
+  reviewsStarLabel4: string
+  reviewsStarLabel5: string
+  reviewsHelpfulCount: string
+  qaSeeMore: string
+  qaCountSuffix: string
+  qaAskedPrefix: string
+  qaReplyBuyerOnly: string
+  qaModalTitle: string
+  qaLoginToAsk: string
+  qaBuyerReplied: string
   footerColShop: string
   footerColShopping: string
   footerColSupport: string
@@ -809,6 +825,22 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaVerifiedBadge: 'Đã mua hàng',
     qaAdminBadge: 'Chủ shop',
     qaNoAnswersYet: 'Chưa có câu trả lời.',
+    reviewsFromCustomers: 'Đánh giá từ khách hàng',
+    reviewsSeeAll: 'Xem tất cả đánh giá',
+    reviewsSeeMore: 'Xem thêm đánh giá...',
+    reviewsStarLabel1: 'Rất không hài lòng',
+    reviewsStarLabel2: 'Không hài lòng',
+    reviewsStarLabel3: 'Bình thường',
+    reviewsStarLabel4: 'Hài lòng',
+    reviewsStarLabel5: 'Cực hài lòng',
+    reviewsHelpfulCount: '{n} người thấy hữu ích',
+    qaSeeMore: 'Xem thêm câu hỏi, trả lời và đặt câu hỏi...',
+    qaCountSuffix: 'câu hỏi và trả lời',
+    qaAskedPrefix: 'hỏi:',
+    qaReplyBuyerOnly: 'Trả lời (chỉ người đã mua hàng)',
+    qaModalTitle: 'Trang tổng hợp câu hỏi',
+    qaLoginToAsk: 'Đăng nhập để đặt câu hỏi',
+    qaBuyerReplied: 'trả lời',
     footerColShop: 'Cửa hàng',
     footerColShopping: 'Mua sắm',
     footerColSupport: 'Hỗ trợ khách hàng',
@@ -1215,6 +1247,22 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaVerifiedBadge: 'Verified buyer',
     qaAdminBadge: 'Shop owner',
     qaNoAnswersYet: 'No answers yet.',
+    reviewsFromCustomers: 'Customer reviews',
+    reviewsSeeAll: 'See all reviews',
+    reviewsSeeMore: 'See more reviews...',
+    reviewsStarLabel1: 'Very dissatisfied',
+    reviewsStarLabel2: 'Dissatisfied',
+    reviewsStarLabel3: 'Okay',
+    reviewsStarLabel4: 'Satisfied',
+    reviewsStarLabel5: 'Extremely satisfied',
+    reviewsHelpfulCount: '{n} people found this helpful',
+    qaSeeMore: 'See more questions, answers and ask a question...',
+    qaCountSuffix: 'questions and answers',
+    qaAskedPrefix: 'asked:',
+    qaReplyBuyerOnly: 'Reply (purchasers only)',
+    qaModalTitle: 'All questions',
+    qaLoginToAsk: 'Sign in to ask a question',
+    qaBuyerReplied: 'replied',
     footerColShop: 'Shop',
     footerColShopping: 'Shopping',
     footerColSupport: 'Customer support',
@@ -1621,6 +1669,22 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaVerifiedBadge: '已购买',
     qaAdminBadge: '店主',
     qaNoAnswersYet: '暂无回答。',
+    reviewsFromCustomers: '顾客评价',
+    reviewsSeeAll: '查看全部评价',
+    reviewsSeeMore: '查看更多评价...',
+    reviewsStarLabel1: '非常不满意',
+    reviewsStarLabel2: '不满意',
+    reviewsStarLabel3: '一般',
+    reviewsStarLabel4: '满意',
+    reviewsStarLabel5: '非常满意',
+    reviewsHelpfulCount: '{n} 人觉得有用',
+    qaSeeMore: '查看更多问答并提问...',
+    qaCountSuffix: '个问答',
+    qaAskedPrefix: '问：',
+    qaReplyBuyerOnly: '回复（仅限已购顾客）',
+    qaModalTitle: '全部问题',
+    qaLoginToAsk: '登录后提问',
+    qaBuyerReplied: '回复',
     footerColShop: '店铺',
     footerColShopping: '购物',
     footerColSupport: '客户支持',
@@ -2027,6 +2091,22 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaVerifiedBadge: '購入者',
     qaAdminBadge: 'ショップオーナー',
     qaNoAnswersYet: 'まだ回答がありません。',
+    reviewsFromCustomers: 'お客様のレビュー',
+    reviewsSeeAll: 'すべてのレビューを見る',
+    reviewsSeeMore: 'レビューをもっと見る...',
+    reviewsStarLabel1: '非常に不満',
+    reviewsStarLabel2: '不満',
+    reviewsStarLabel3: '普通',
+    reviewsStarLabel4: '満足',
+    reviewsStarLabel5: '非常に満足',
+    reviewsHelpfulCount: '{n}人が役立つと回答',
+    qaSeeMore: '質問と回答をさらに見て質問する...',
+    qaCountSuffix: '件の質問と回答',
+    qaAskedPrefix: '質問：',
+    qaReplyBuyerOnly: '返信（購入者のみ）',
+    qaModalTitle: '質問一覧',
+    qaLoginToAsk: 'ログインして質問する',
+    qaBuyerReplied: '返信',
     footerColShop: 'ショップ',
     footerColShopping: 'ショッピング',
     footerColSupport: 'カスタマーサポート',
@@ -2433,6 +2513,22 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaVerifiedBadge: '구매 확인',
     qaAdminBadge: '판매자',
     qaNoAnswersYet: '아직 답변이 없습니다.',
+    reviewsFromCustomers: '고객 리뷰',
+    reviewsSeeAll: '모든 리뷰 보기',
+    reviewsSeeMore: '리뷰 더 보기...',
+    reviewsStarLabel1: '매우 불만족',
+    reviewsStarLabel2: '불만족',
+    reviewsStarLabel3: '보통',
+    reviewsStarLabel4: '만족',
+    reviewsStarLabel5: '매우 만족',
+    reviewsHelpfulCount: '{n}명이 도움이 됨',
+    qaSeeMore: '질문과 답변을 더 보고 질문하기...',
+    qaCountSuffix: '개의 질문과 답변',
+    qaAskedPrefix: '질문:',
+    qaReplyBuyerOnly: '답변 (구매자만)',
+    qaModalTitle: '질문 모음',
+    qaLoginToAsk: '로그인하고 질문하기',
+    qaBuyerReplied: '답변',
     footerColShop: '스토어',
     footerColShopping: '쇼핑',
     footerColSupport: '고객 지원',

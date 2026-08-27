@@ -1,5 +1,7 @@
 /** Viewport-fixed chrome: Chat mua / Zalo / Facebook / Top up — đặt đâu nổi đó. */
 
+import { PW_PLACEMENT_ATTR } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
+
 export const PW_CHROME_FLOAT_ATTR = 'data-pw-chrome-float'
 /** Any Sửa nhanh element pinned to the viewport (scrolls stay, swipe does not drag it). */
 export const PW_PIN_SCREEN_ATTR = 'data-pw-pin-screen'
@@ -40,6 +42,9 @@ export function resetChromeFloatUserMoveInHtml(html: string): string {
     if (!FLOAT_BTN_RE.test(attrs)) return full
     if (!/\bdata-pw-user-move=|\bdata-pw-chrome-float=/i.test(attrs)) return full
     let next = attrs.replace(/\sdata-pw-user-move=(["'])[^"']*\1/gi, '')
+    next = next
+      .replace(/\sdata-pw-placement=(["'])[^"']*\1/gi, '')
+      .replace(/\sdata-pw-fixed-(?:x|y|w|h)=(["'])[^"']*\1/gi, '')
     next = next.replace(/\sstyle=(["'])([\s\S]*?)\1/i, (_m, q: string, css: string) => {
       const cleaned = String(css)
         .replace(/(?:^|;)\s*(?:left|top|right|bottom|transform)\s*:[^;]*/gi, '')
@@ -64,6 +69,15 @@ function pwChromeFloatDefaultBottom(kind){
   if(kind==='chat-facebook')return ${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX['chat-facebook']};
   return ${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.topup};
 }
+function pwChromeFloatHost(){
+  try{
+    if(typeof window.__pwViewportFixedHost==='function'){
+      var shared=window.__pwViewportFixedHost();
+      if(shared)return shared;
+    }
+  }catch(eShared){}
+  return document.body;
+}
 function pwChromeFloatSeatDefault(el){
   if(!el||!el.style)return;
   var kind=el.getAttribute?String(el.getAttribute('data-pw-chrome-btn')||''):'';
@@ -75,6 +89,8 @@ function pwChromeFloatSeatDefault(el){
   el.style.setProperty('transform','none','important');
   el.style.setProperty('margin','0','important');
   el.style.setProperty('z-index','${PW_CHROME_FLOAT_Z_INDEX}','important');
+  el.setAttribute('${PW_PLACEMENT_ATTR}','viewport-fixed');
+  el.setAttribute('data-pw-fixed-anchor','right-bottom');
 }
 function pwChromeFloatBakePct(el,box){
   if(!el||!el.style)return;
@@ -96,13 +112,20 @@ function pwChromeFloatBakePct(el,box){
   el.style.setProperty('transform','none','important');
   el.style.setProperty('margin','0','important');
   el.style.setProperty('z-index','${PW_CHROME_FLOAT_Z_INDEX}','important');
+  el.setAttribute('${PW_PLACEMENT_ATTR}','viewport-fixed');
+  el.setAttribute('data-pw-fixed-x',Math.max(0,Math.min(1,r.left/view.w)).toFixed(5));
+  el.setAttribute('data-pw-fixed-y',Math.max(0,Math.min(1,r.top/view.h)).toFixed(5));
+  if(r.width>0)el.setAttribute('data-pw-fixed-w',String(Math.round(r.width)));
+  if(r.height>0)el.setAttribute('data-pw-fixed-h',String(Math.round(r.height)));
+  el.removeAttribute('data-pw-fixed-anchor');
 }
 function pwChromeFloatLiftAndPin(el,box){
   if(!el||!el.style)return;
   var r=box;
   if(!r){try{r=el.getBoundingClientRect()}catch(eLift){r=null}}
   try{
-    if(el.parentNode&&el.parentNode!==document.body) document.body.appendChild(el);
+    var host=pwChromeFloatHost();
+    if(host&&el.parentNode!==host) host.appendChild(el);
   }catch(eHost){}
   if(r&&(r.width>0||r.height>0)) pwChromeFloatBakePct(el,r);
   else pwChromeFloatBakePct(el);
@@ -116,6 +139,21 @@ function pwChromeFloatRemap(el){
   var top=parseFloat(topRaw);
   var w=el.offsetWidth||56;
   var h=el.offsetHeight||56;
+  if(el.getAttribute&&el.getAttribute('${PW_PLACEMENT_ATTR}')==='viewport-fixed'){
+    var fx=parseFloat(el.getAttribute('data-pw-fixed-x')||'');
+    var fy=parseFloat(el.getAttribute('data-pw-fixed-y')||'');
+    var fw=parseFloat(el.getAttribute('data-pw-fixed-w')||'');
+    var fh=parseFloat(el.getAttribute('data-pw-fixed-h')||'');
+    if(isFinite(fx))el.style.setProperty('left',(Math.max(0,Math.min(1,fx))*100).toFixed(3)+'%','important');
+    if(isFinite(fy))el.style.setProperty('top',(Math.max(0,Math.min(1,fy))*100).toFixed(3)+'%','important');
+    if(isFinite(fw)&&fw>0)el.style.setProperty('width',Math.round(fw)+'px','important');
+    if(isFinite(fh)&&fh>0)el.style.setProperty('height',Math.round(fh)+'px','important');
+    if(isFinite(fx)||isFinite(fy)){
+      el.style.setProperty('right','auto','important');
+      el.style.setProperty('bottom','auto','important');
+      return;
+    }
+  }
   if(leftRaw.indexOf('px')>=0&&isFinite(left)){
     if(left+w>view.w-8||left<0){
       el.style.setProperty('left','auto','important');
@@ -155,7 +193,10 @@ export const PARTNER_SHOP_CHROME_FLOAT_CSS = `
 `.trim()
 
 export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
-  if (window.__pwChromeFloatBound) return;
+  if (window.__pwChromeFloatBound) {
+    try { if (window.__pwChromeFloatSync) window.__pwChromeFloatSync(); } catch (errRebind) {}
+    return;
+  }
   window.__pwChromeFloatBound = 1;
   var ATTR = '${PW_CHROME_FLOAT_ATTR}';
   var PIN = '${PW_PIN_SCREEN_ATTR}';
@@ -171,7 +212,8 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
     if (el.style) el.style.setProperty('z-index', '${PW_CHROME_FLOAT_Z_INDEX}', 'important');
     /* Escape header/main isolation so fixed z-index wins over page sections. */
     try {
-      if (el.parentNode && el.parentNode !== document.body) document.body.appendChild(el);
+      var host=pwChromeFloatHost();
+      if (host && el.parentNode !== host) host.appendChild(el);
     } catch (errHost) {}
     if (!el.style) return;
     if (!placed) {
@@ -185,7 +227,7 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
     for(var i=0;i<nodes.length;i++){
       var el=nodes[i];
       if(!el||!el.style)continue;
-      if(el.parentNode&&el.parentNode!==document.body) pwChromeFloatLiftAndPin(el);
+      if(el.parentNode&&el.parentNode!==pwChromeFloatHost()) pwChromeFloatLiftAndPin(el);
       else {
         el.style.setProperty('position','fixed','important');
         el.style.setProperty('z-index','${PW_CHROME_FLOAT_Z_INDEX}','important');
@@ -278,6 +320,7 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
     raf = requestAnimationFrame(function () { raf = 0; syncTopup(); });
   }
   window.__pwChromeTopupSync = syncTopup;
+  window.__pwChromeFloatSync = function(){ dedupeFloats(); stamp(); syncTopup(); };
   dedupeFloats();
   stamp();
   window.addEventListener('resize', function(){

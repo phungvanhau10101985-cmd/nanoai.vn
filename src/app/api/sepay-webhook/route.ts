@@ -106,7 +106,9 @@ export async function POST(request: NextRequest) {
     const shopPayEarly = partnerIdEarly ? await fetchPartnerPaymentSettingsFromPg(partnerIdEarly) : null
     const shopHmacSecret = (shopPayEarly?.sepay_secret_key ?? '').trim()
     const dbHmacSecret = await getSepayWebhookHmacSecretFromPg()
-    const extraHmacSecrets = [shopHmacSecret, dbHmacSecret].filter(Boolean)
+    const extraHmacSecrets = [shopHmacSecret, dbHmacSecret].filter(
+      (secret): secret is string => Boolean(secret)
+    )
     const auth = verifySePayWebhookAuth({
       headers: request.headers,
       searchParams: url.searchParams,

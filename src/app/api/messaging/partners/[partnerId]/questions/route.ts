@@ -19,8 +19,23 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: 
   const page = Math.max(1, Number(url.searchParams.get('page') ?? 1) || 1)
   const pageSize = Math.min(50, Math.max(1, Number(url.searchParams.get('pageSize') ?? 10) || 10))
   const inventoryId = url.searchParams.get('inventoryId') || undefined
+  const groupRaw = url.searchParams.get('importGroup')
+  const importGroup =
+    groupRaw != null && groupRaw.trim() !== '' && Number.isFinite(Number(groupRaw))
+      ? Number(groupRaw)
+      : undefined
+  const sourceRaw = url.searchParams.get('source')
+  const source =
+    sourceRaw === 'real' || sourceRaw === 'imported' || sourceRaw === 'all' ? sourceRaw : undefined
 
-  const result = await fetchPartnerProductQuestionsForAdminFromPg({ partnerId: pid, page, pageSize, inventoryId })
+  const result = await fetchPartnerProductQuestionsForAdminFromPg({
+    partnerId: pid,
+    page,
+    pageSize,
+    inventoryId,
+    importGroup,
+    source,
+  })
   if (result === null) return NextResponse.json({ error: 'Could not load questions' }, { status: 500 })
   return NextResponse.json({ questions: result.rows, total: result.total, page, pageSize })
 }

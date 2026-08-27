@@ -81,6 +81,8 @@ function sampleAsShopProducts(
     sku: `SAMPLE-${i + 1}`,
     detailPath: productsPath,
     stockQty: 0,
+    sizes: [],
+    colors: [],
   }))
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { PartnerSiteChatWidgetProvider } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -25,44 +25,11 @@ import {
 import {
   PARTNER_SHOP_SCENE_CENTER_SCRIPT,
   PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID,
-  pwSceneCanvasWidth,
-  pwSceneLiveZoomScale,
-  pwSceneLockForAvailableHtml,
-  pwSceneLockFromWindowWidth,
-  type PwSceneDevice,
 } from '@/lib/partner-website/visual-editor/pw-scene'
-
-function lockLiveSceneCanvas(forceDevice?: VisualDeviceVariant | null) {
-  if (typeof document === 'undefined') return
-  const stamped =
-    forceDevice ||
-    document.documentElement.getAttribute('data-pw-edit-device') ||
-    ''
-  const vv = window.visualViewport
-  const inner = vv?.width || window.innerWidth || 0
-  const outer = window.outerWidth || 0
-  const screenW = window.screen?.width || window.screen?.availWidth || 0
-  const preferred: PwSceneDevice =
-    stamped === 'mobile' || stamped === 'tablet' || stamped === 'laptop' || stamped === 'desktop'
-      ? stamped
-      : pwSceneLockFromWindowWidth(Math.max(outer, inner))
-  const key = pwSceneLockForAvailableHtml(preferred, document) || preferred
-  const sceneW = pwSceneCanvasWidth(key)
-  const zoom = pwSceneLiveZoomScale(inner, outer, screenW, sceneW)
-  document.documentElement.setAttribute('data-pw-scene-lock', key)
-  document.documentElement.setAttribute('data-pw-edit-device', key)
-  document.documentElement.style.setProperty('--pw-scene-w', `${sceneW}px`)
-  document.documentElement.style.setProperty('--pw-scene-zoom', String(zoom))
-  if (zoom && zoom !== 1) document.documentElement.setAttribute('data-pw-scene-zoomed', '1')
-  else document.documentElement.removeAttribute('data-pw-scene-zoomed')
-  const root = document.querySelector('[data-pw-inline-visual-root]') as HTMLElement | null
-  if (root) {
-    const h = root.scrollHeight || 0
-    root.style.marginBottom = zoom !== 1 && h > 0 ? `${Math.round((zoom - 1) * h)}px` : ''
-  }
-  const apply = (window as Window & { __pwSceneCenterApply?: () => void }).__pwSceneCenterApply
-  if (typeof apply === 'function') apply()
-}
+import {
+  pwResolveCoordinateDevice,
+} from '@/lib/partner-website/visual-editor/pw-coordinate-space'
+import type { PartnerVisualHtmlByDevice } from '@/lib/partner-website/shop/render-partner-visual-html'
 
 function hideChatLaunchersInHtml(html: string, hide: boolean): string {
   if (!hide || !html.trim() || html.includes('data-pw-hide-chat-launcher')) return html
@@ -73,10 +40,18 @@ function hideChatLaunchersInHtml(html: string, hide: boolean): string {
 }
 
 /** `dangerouslySetInnerHTML` does not execute `<script>` — re-arm shop runtime APIs (badges, search, cats). */
-function PartnerSiteInlineVisualScripts() {
-  useEffect(() => {
+function PartnerSiteInlineVisualScripts({ revision }: { revision: string }) {
+  useLayoutEffect(() => {
     const root = document.querySelector('[data-pw-inline-visual-root]')
     if (!root) return
+    document
+      .querySelectorAll(
+        '[data-pw-live-chrome],[data-pw-live-dock],[data-pw-live-fixed-layer]'
+      )
+      .forEach((host) => {
+        const hostRevision = host.getAttribute('data-pw-runtime-revision')
+        if (hostRevision && hostRevision !== revision) host.remove()
+      })
     const scripts = root.querySelectorAll('script')
     scripts.forEach((old) => {
       if (old.getAttribute('data-pw-script-armed') === '1') return
@@ -93,13 +68,24 @@ function PartnerSiteInlineVisualScripts() {
     window.setTimeout(() => {
       document.dispatchEvent(new Event('pw-cart-updated'))
       document.dispatchEvent(new Event('pw-shop-notifications-refresh'))
+      const apply = (window as Window & { __pwSceneCenterApply?: () => void }).__pwSceneCenterApply
+      if (typeof apply === 'function') apply()
     }, 80)
-  }, [])
+  }, [revision])
   return null
 }
 
 function readForcedDevice(search: URLSearchParams | null): VisualDeviceVariant | null {
   return parseVisualDeviceQuery(search?.get('pw-device') || '')
+}
+
+function visualHtmlRevision(html: string, device: VisualDeviceVariant): string {
+  let hash = 2166136261
+  for (let i = 0; i < html.length; i += Math.max(1, Math.floor(html.length / 2048))) {
+    hash ^= html.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `${device}:${html.length}:${hash >>> 0}`
 }
 
 function PartnerSiteInlineVisualHead({ html }: { html: string }) {
@@ -142,6 +128,7 @@ function PartnerSiteInlineVisualHead({ html }: { html: string }) {
 
 export function PartnerSitePublicClient({
   html,
+  htmlByDevice,
   allowScripts,
   chatPath,
   shopName,
@@ -153,6 +140,7 @@ export function PartnerSitePublicClient({
   hideChatLauncher,
 }: {
   html: string
+  htmlByDevice?: PartnerVisualHtmlByDevice
   allowScripts?: boolean
   chatPath: string
   shopName: string
@@ -172,13 +160,15 @@ export function PartnerSitePublicClient({
       fallback={
         <PartnerSitePublicFrame
           html={html}
+          htmlByDevice={htmlByDevice}
           allowScripts={allowScripts}
           chatPath={chatPath}
           shopName={shopName}
           logoUrl={logoUrl}
           locale={locale}
           inlineHtml={inlineHtml}
-          forceDevice={initialDevice}
+          initialDevice={initialDevice}
+          forceDevice={deviceHtmlAlreadyIsolated ? initialDevice : null}
           deviceHtmlAlreadyIsolated={deviceHtmlAlreadyIsolated}
           hideChatLauncher={hideChatLauncher}
         />
@@ -186,6 +176,7 @@ export function PartnerSitePublicClient({
     >
       <PartnerSitePublicClientWithParams
         html={html}
+        htmlByDevice={htmlByDevice}
         allowScripts={allowScripts}
         chatPath={chatPath}
         shopName={shopName}
@@ -202,6 +193,7 @@ export function PartnerSitePublicClient({
 
 function PartnerSitePublicClientWithParams(props: {
   html: string
+  htmlByDevice?: PartnerVisualHtmlByDevice
   allowScripts?: boolean
   chatPath: string
   shopName: string
@@ -216,37 +208,80 @@ function PartnerSitePublicClientWithParams(props: {
   return (
     <PartnerSitePublicFrame
       {...props}
-      forceDevice={readForcedDevice(params) ?? props.initialDevice ?? null}
+      forceDevice={
+        props.deviceHtmlAlreadyIsolated
+          ? props.initialDevice ?? null
+          : readForcedDevice(params)
+      }
     />
   )
 }
 
 function PartnerSitePublicFrame({
   html,
+  htmlByDevice,
   allowScripts,
   chatPath,
   shopName,
   logoUrl,
   locale,
   inlineHtml = false,
+  initialDevice = null,
   forceDevice,
   deviceHtmlAlreadyIsolated = false,
   hideChatLauncher,
 }: {
   html: string
+  htmlByDevice?: PartnerVisualHtmlByDevice
   allowScripts?: boolean
   chatPath: string
   shopName: string
   logoUrl?: string | null
   locale: WebLocale
   inlineHtml?: boolean
+  initialDevice?: VisualDeviceVariant | null
   forceDevice: VisualDeviceVariant | null
   deviceHtmlAlreadyIsolated?: boolean
   hideChatLauncher?: boolean
 }) {
-  const hideEmbedFab = hideChatLauncher !== false || htmlHasChromeChatMua(html)
+  const availableDevices = useMemo(
+    () =>
+      (Object.keys(htmlByDevice || {}) as VisualDeviceVariant[]).filter(
+        (device) => (htmlByDevice?.[device]?.trim().length ?? 0) >= 40
+      ),
+    [htmlByDevice]
+  )
+  const firstDevice =
+    forceDevice ||
+    initialDevice ||
+    'desktop'
+  const [activeDevice, setActiveDevice] = useState<VisualDeviceVariant>(firstDevice)
+  useLayoutEffect(() => {
+    const choose = () => {
+      const requested =
+        forceDevice ||
+        pwResolveCoordinateDevice({
+          outerWidth: window.outerWidth || 0,
+          layoutWidth: window.innerWidth || document.documentElement.clientWidth || 0,
+          screenWidth: window.screen?.availWidth || window.screen?.width || 0,
+        })
+      if (!availableDevices.length || availableDevices.includes(requested)) {
+        setActiveDevice((current) => (current === requested ? current : requested))
+      }
+    }
+    choose()
+    if (forceDevice || !availableDevices.length) return
+    window.addEventListener('resize', choose)
+    return () => window.removeEventListener('resize', choose)
+  }, [availableDevices, forceDevice])
+  const selectedHtml =
+    (htmlByDevice && htmlByDevice[activeDevice]) ||
+    (forceDevice && !deviceHtmlAlreadyIsolated
+      ? isolateVisualHtmlForDevice(html, forceDevice) || html
+      : html)
+  const hideEmbedFab = hideChatLauncher !== false || htmlHasChromeChatMua(selectedHtml)
   const devicePreview = Boolean(forceDevice)
-  const desktopLocked = forceDevice === 'desktop' || forceDevice === 'laptop'
+  const desktopLocked = activeDevice === 'desktop' || activeDevice === 'laptop'
   const [desktopWindowLock, setDesktopWindowLock] = useState(false)
   useLayoutEffect(() => {
     // Custom-domain live HTML must stay in-page. A srcDoc iframe keeps the address
@@ -262,21 +297,17 @@ function PartnerSitePublicFrame({
     return () => window.removeEventListener('resize', sync)
   }, [forceDevice, inlineHtml])
   useLayoutEffect(() => {
-    if (!inlineHtml || forceDevice) return
-    const sync = () => lockLiveSceneCanvas(forceDevice)
-    sync()
-    window.addEventListener('resize', sync)
-    const vv = window.visualViewport
-    vv?.addEventListener('resize', sync)
-    return () => {
-      window.removeEventListener('resize', sync)
-      vv?.removeEventListener('resize', sync)
-    }
-  }, [inlineHtml, forceDevice])
+    if (!inlineHtml) return
+    const root = document.documentElement
+    root.setAttribute('data-pw-edit-device', activeDevice)
+    root.setAttribute('data-pw-scene-lock', activeDevice)
+    const apply = (window as Window & { __pwSceneCenterApply?: () => void }).__pwSceneCenterApply
+    if (typeof apply === 'function') apply()
+  }, [activeDevice, inlineHtml, selectedHtml])
   /** Keep desktop iframe ≥1280px when the Chrome window is desktop — F12 docked does not shrink outerWidth. */
   const frameLocked = desktopLocked || desktopWindowLock
   const previewFrameStyle = visualDevicePreviewFrameStyle(
-    forceDevice ?? (desktopWindowLock ? 'desktop' : null)
+    forceDevice ? activeDevice : desktopWindowLock ? 'desktop' : null
   )
   const previewWrapRef = useRef<HTMLDivElement>(null)
   const centerPreviewWrap = useCallback(() => {
@@ -301,10 +332,8 @@ function PartnerSitePublicFrame({
       vv?.removeEventListener('resize', centerPreviewWrap)
     }
   }, [centerPreviewWrap, devicePreview, frameLocked, previewFrameStyle.width])
-  const previewHtml = hideChatLaunchersInHtml(
-    forceDevice && !deviceHtmlAlreadyIsolated ? isolateVisualHtmlForDevice(html, forceDevice) || html : html,
-    hideEmbedFab
-  )
+  const previewHtml = hideChatLaunchersInHtml(selectedHtml, hideEmbedFab)
+  const revision = visualHtmlRevision(previewHtml, activeDevice)
   /** Live custom domain: never srcDoc-iframe (except `?pw-device=` preview frames). */
   if (inlineHtml && !devicePreview) {
     return (
@@ -317,9 +346,12 @@ function PartnerSitePublicFrame({
         hideLauncher={hideEmbedFab}
       >
         <PartnerSiteInlineVisualHead html={previewHtml} />
-        <PartnerSiteInlineVisualScripts />
+        <PartnerSiteInlineVisualScripts revision={revision} />
         <div
+          key={revision}
           data-pw-inline-visual-root="1"
+          data-pw-active-device={activeDevice}
+          data-pw-runtime-revision={revision}
           className="min-h-screen bg-white"
           dangerouslySetInnerHTML={{ __html: extractVisualHtmlBodyMarkup(previewHtml) }}
         />

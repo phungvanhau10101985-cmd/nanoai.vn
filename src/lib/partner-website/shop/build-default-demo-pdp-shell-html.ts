@@ -19,6 +19,10 @@ import {
 import { buildOutfitProductsSectionHtml } from '@/lib/partner-website/shop/outfit-products'
 import { buildRelatedProductsSectionHtml } from '@/lib/partner-website/shop/related-products'
 import { PW_EL, PW_PAGE, PW_REGION, pwElAttr, pwPageAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import {
+  buildPdpReviewQaCardsHtml,
+  buildPdpReviewQaModalsHtml,
+} from '@/lib/partner-website/shop/partner-site-pdp-review-qa'
 
 function uniqueUrls(urls: Array<string | null | undefined>): string[] {
   const seen = new Set<string>()
@@ -59,7 +63,6 @@ export function buildDefaultDemoPdpShellHtml(input?: {
   const material = String(p.materialImageUrl || '').trim()
   const sizeGuide = String(p.sizeGuideImageUrl || '').trim()
   const reviews = p.reviews ?? []
-  const questions = p.questions ?? []
   const related = p.relatedProducts ?? []
   const crumbs = p.breadcrumb ?? []
   const stock = Math.max(0, Math.round(Number(p.stockQty ?? 0)))
@@ -112,43 +115,8 @@ export function buildDefaultDemoPdpShellHtml(input?: {
     ),
     `<span ${pwElAttr(PW_EL.crumb)}>${escapeHtml(name)}</span>`,
   ].join(' / ')
-  const reviewCards = reviews
-    .map((r) => {
-      const stars = '★'.repeat(Math.min(5, Math.max(1, Math.round(r.rating || 5))))
-      const photos = (r.imageUrls ?? [])
-        .map((url) => String(url || '').trim())
-        .filter(Boolean)
-        .map(
-          (url) =>
-            `<img src="${escapeAttr(url)}" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:8px" />`
-        )
-        .join('')
-      const reply = String(r.merchantReply || '').trim()
-      return `<article ${pwElAttr(PW_EL.card)} style="border-bottom:1px solid var(--pw-border);padding-bottom:16px">
-        <strong ${pwElAttr(PW_EL.cardName)}>${escapeHtml(r.name)}</strong>
-        <span class="pw-pdp-star"> ${stars}</span>
-        ${r.title ? `<p style="font-weight:600;margin:6px 0 2px">${escapeHtml(r.title)}</p>` : ''}
-        <p ${pwElAttr(PW_EL.body)}>${escapeHtml(r.body)}</p>
-        ${photos ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">${photos}</div>` : ''}
-        ${
-          reply
-            ? `<div style="margin-top:8px;padding:10px;background:var(--pw-surface);border-radius:8px;font-size:14px"><strong>${escapeHtml(t.reviewsMerchantReplyPrefix)} ${escapeHtml(r.merchantReplyBy || 'Shop')}:</strong> ${escapeHtml(reply)}</div>`
-            : ''
-        }
-        <button type="button" class="pw-shop-btn pw-shop-btn-outline" style="margin-top:8px;font-size:13px;padding:4px 10px">👍 ${escapeHtml(t.reviewsUsefulLabel)} (${r.usefulCount ?? 0})</button>
-      </article>`
-    })
-    .join('')
-  const qaCards = questions
-    .map((q) => {
-      const answer = String(q.answer || '').trim()
-      const badge = q.answerType === 'buyer' ? t.qaVerifiedBadge : t.qaAdminBadge
-      const reply = answer
-        ? `<div style="margin-left:16px;margin-top:8px;font-size:14px"><strong>${escapeHtml(q.answerBy || 'Shop')}</strong> <span style="font-size:11px;padding:2px 6px;border-radius:999px;background:var(--pw-surface)">${escapeHtml(badge)}</span><p style="margin:4px 0 0">${escapeHtml(answer)}</p></div>`
-        : `<p class="pw-shop-muted" style="margin-left:16px;font-size:13px">${escapeHtml(t.qaNoAnswersYet)}</p>`
-      return `<article ${pwElAttr(PW_EL.card)} style="border-bottom:1px solid var(--pw-border);padding-bottom:16px"><strong ${pwElAttr(PW_EL.cardName)}>${escapeHtml(q.asker)}</strong><p ${pwElAttr(PW_EL.body)}>${escapeHtml(q.body)}</p>${reply}</article>`
-    })
-    .join('')
+  const reviewQaCards = buildPdpReviewQaCardsHtml(locale)
+  const reviewQaModals = buildPdpReviewQaModalsHtml(locale)
   const relatedSection = buildRelatedProductsSectionHtml({
     locale,
     siteSlug: slug || undefined,
@@ -264,6 +232,7 @@ ${chrome.header}
           <button type="button" class="pw-shop-btn pw-shop-btn-outline" data-pw-chrome-btn="try-on" ${pwElAttr(PW_EL.cta)} data-nanoai-try-on>${escapeHtml(t.tryOnLink)}</button>
           <button type="button" class="pw-shop-btn pw-shop-btn-outline" data-pw-chrome-btn="favorite-product" ${pwElAttr(PW_EL.wishlist)} data-pw-favorite data-pw-pdp-favorite="1" data-pw-like-base="${escapeAttr(String(p.likesCount ?? 0))}">♡ <span data-pw-like-count>${escapeHtml(String(p.likesCount ?? 0))}</span></button>
         </div>
+        ${reviewQaCards}
       </div>
     </div>
     ${outfitSection}
@@ -284,28 +253,7 @@ ${chrome.header}
         <video class="pw-shop-product-video" controls preload="none"></video>
       </div>
     </section>
-    <section id="pw-pdp-reviews" class="pw-shop-reviews" ${pwRegionAttr(PW_REGION.reviews)} data-pw-bg-role="reviews">
-      <h2 ${pwElAttr(PW_EL.sectionTitle)}>${escapeHtml(t.reviewsTitle)}</h2>
-      <div style="display:flex;align-items:center;gap:12px;margin-top:8px"><span style="font-size:1.5rem;font-weight:700">4.8/5</span><span class="pw-pdp-star">★★★★★</span><span class="pw-shop-muted">(${reviews.length} ${escapeHtml(t.reviewsTotalSuffix)})</span></div>
-      <div data-pw-pdp-slot="review-form" style="margin-top:16px;padding:16px;border:1px solid var(--pw-border);border-radius:12px;display:grid;gap:10px">
-        <p style="margin:0;font-weight:700">${escapeHtml(t.reviewsWriteButton)}</p>
-        <p class="pw-shop-muted" style="margin:0">${escapeHtml(t.reviewsFormRatingLabel)} ★★★★★</p>
-        <textarea rows="3" placeholder="${escapeAttr(t.reviewsFormContentPlaceholder)}"></textarea>
-        <p class="pw-shop-muted" style="margin:0">${escapeHtml(t.reviewsFormImagesLabel)}</p>
-        <button type="button" class="pw-shop-btn">${escapeHtml(t.reviewsFormSubmit)}</button>
-      </div>
-      <div style="margin-top:20px;display:grid;gap:16px">${reviewCards}</div>
-      <button type="button" class="pw-shop-btn pw-shop-btn-outline" style="margin-top:12px">${escapeHtml(t.reviewsLoadMore)}</button>
-    </section>
-    <section id="pw-pdp-qa" class="pw-shop-reviews" ${pwRegionAttr(PW_REGION.reviews)} data-pw-pdp-slot="qa">
-      <h2 ${pwElAttr(PW_EL.sectionTitle)}>${escapeHtml(t.qaTitle)}</h2>
-      <button type="button" class="pw-shop-btn pw-shop-btn-outline">${escapeHtml(t.qaAskButton)}</button>
-      <div style="margin-top:12px;display:grid;gap:8px;max-width:480px">
-        <textarea rows="3" placeholder="${escapeAttr(t.qaFormPlaceholder)}"></textarea>
-        <button type="button" class="pw-shop-btn">${escapeHtml(t.qaFormSubmit)}</button>
-      </div>
-      <div style="margin-top:20px;display:grid;gap:16px">${qaCards}</div>
-    </section>
+    ${reviewQaModals}
     ${relatedSection}
     ${
       useMobileHero

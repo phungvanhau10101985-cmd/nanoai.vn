@@ -4,6 +4,7 @@ import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/pa
 import {
   preparePartnerVisualHtmlForEditor,
   renderPartnerVisualHtmlForPublic,
+  selectPartnerVisualHtmlDevice,
 } from '@/lib/partner-website/shop/render-partner-visual-html'
 import { visualHtmlLooksUsable, sanitizeVisualHtmlForStore } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
 import { PW_SCENE_CANVAS_WIDTH, PW_SCENE_DESIGN_WIDTH } from '@/lib/partner-website/visual-editor/pw-scene'
@@ -32,6 +33,7 @@ import {
   productVisualHtmlPath,
   parseVisualDeviceQuery,
   resolveExactVisualCategoryHtml,
+  resolveExactVisualCmsHtml,
   resolveExactVisualPageHtml,
   resolveExactVisualProductHtml,
   resolveVisualPdpShellHtml,
@@ -50,7 +52,7 @@ test('scene layers use the same design width as the device preview', () => {
   assert.equal(PW_SCENE_DESIGN_WIDTH.mobile, VISUAL_MOBILE_PREVIEW_PX)
   assert.equal(PW_SCENE_DESIGN_WIDTH.tablet, VISUAL_TABLET_PREVIEW_PX)
   assert.equal(PW_SCENE_DESIGN_WIDTH.laptop, VISUAL_LAPTOP_PREVIEW_PX)
-  assert.equal(PW_SCENE_DESIGN_WIDTH.desktop, VISUAL_DESKTOP_MIN_PX)
+  assert.equal(PW_SCENE_DESIGN_WIDTH.desktop, VISUAL_WIDE_DESKTOP_MIN_PX)
   assert.equal(PW_SCENE_CANVAS_WIDTH.mobile, VISUAL_MOBILE_PREVIEW_PX)
   assert.equal(PW_SCENE_CANVAS_WIDTH.tablet, VISUAL_TABLET_PREVIEW_PX)
   assert.equal(PW_SCENE_CANVAS_WIDTH.laptop, VISUAL_LAPTOP_PREVIEW_PX)
@@ -127,6 +129,16 @@ test('visual editor paths map catalog pages', () => {
   assert.equal(cmsVisualHtmlPath('huong-dan-mua', 'mobile'), 'cms/huong-dan-mua.mobile.html')
 })
 
+test('public device selection never borrows another device file', () => {
+  const desktop = '<!DOCTYPE html><html><body data-pw-page="home">Desktop</body></html>'
+  assert.equal(selectPartnerVisualHtmlDevice({ desktop }, 'mobile'), null)
+  assert.deepEqual(selectPartnerVisualHtmlDevice({ desktop }, 'desktop'), {
+    requestedDevice: 'desktop',
+    sourceDevice: 'desktop',
+    html: desktop,
+  })
+})
+
 test('saved visual page html is isolated from homepage', () => {
   const about = '<!DOCTYPE html><html><body><h1>About shop</h1></body></html>'
   const home = '<!DOCTYPE html><html><body><h1>Home</h1></body></html>'
@@ -170,6 +182,23 @@ test('desktop home chrome does not treat a product htmlSource as the homepage', 
   }
   assert.match(resolveExactVisualPageHtml(website, 'home'), /HomeHead/)
   assert.doesNotMatch(resolveExactVisualPageHtml(website, 'home'), /PdpHead/)
+})
+
+test('canonical Sửa nhanh index wins over a stale visual htmlSource mirror', () => {
+  const canonical = `<!DOCTYPE html><html><body data-pw-page="home"><header class="pw-header" data-pw-region="header">Canonical editor header</header></body></html>`
+  const stale = `<!DOCTYPE html><html><body data-pw-page="home"><header class="pw-header" data-pw-region="header">Stale live header</header></body></html>`
+  const website = {
+    theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, useVisualHtml: true },
+    htmlSource: stale,
+    project: {
+      entryPath: 'index.html',
+      files: [{ path: 'index.html', kind: 'html' as const, content: canonical }],
+    },
+  }
+
+  const out = resolveExactVisualPageHtml(website, 'home')
+  assert.match(out, /Canonical editor header/)
+  assert.doesNotMatch(out, /Stale live header/)
 })
 
 test('non-home visual html uses shared home header footer bottom nav and CSS', () => {
@@ -307,6 +336,41 @@ test('without visualPageKeys there is no non-home override', () => {
   assert.equal(out, '')
 })
 
+test('a canonical Sửa nhanh page file remains live when a legacy flag is missing', () => {
+  const about = `<!DOCTYPE html><html data-pw-edit-device="desktop"><body data-pw-page="info"><main data-pw-region="content">Saved in editor</main></body></html>`
+  const out = resolveExactVisualPageHtml(
+    {
+      theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, useVisualHtml: true },
+      htmlSource: '<!DOCTYPE html><html><body data-pw-page="home">home</body></html>',
+      project: {
+        entryPath: 'index.html',
+        files: [{ path: 'about.html', kind: 'html', content: about }],
+      },
+    },
+    'about'
+  )
+
+  assert.equal(out, about)
+})
+
+test('canonical category and CMS files remain live when legacy flags are missing', () => {
+  const category = `<!DOCTYPE html><html><body data-pw-page="listing"><main data-pw-region="catalog">Saved category</main></body></html>`
+  const cms = `<!DOCTYPE html><html><body data-pw-page="info"><main data-pw-region="content">Saved CMS</main></body></html>`
+  const website = {
+    theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, useVisualHtml: true },
+    project: {
+      entryPath: 'index.html',
+      files: [
+        { path: 'c/ao.html', kind: 'html' as const, content: category },
+        { path: 'cms/huong-dan.html', kind: 'html' as const, content: cms },
+      ],
+    },
+  }
+
+  assert.equal(resolveExactVisualCategoryHtml(website, 'ao'), category)
+  assert.equal(resolveExactVisualCmsHtml(website, 'huong-dan'), cms)
+})
+
 test('merge visual page html does not overwrite site.config.json', () => {
   const project = {
     entryPath: 'site.config.json',
@@ -386,6 +450,30 @@ test('a saved product page becomes the shared layout when no product-detail shel
   assert.equal(resolveExactVisualProductHtml(website, other), html)
 })
 
+test('stale flags still copy homepage chrome onto the PDP shell', () => {
+  const home = `<!DOCTYPE html><html lang="vi"><body data-pw-page="home">
+<header class="pw-header" data-pw-region="header">
+  <a href="/site/demo-shop/account" data-pw-chrome-btn="account">Tài khoản</a>
+  <a data-pw-chrome-btn="cart" href="/site/demo-shop/cart">Giỏ</a>
+  <nav class="pw-nav-main">Hàng mới Thời trang</nav>
+</header>
+<main>Home middle</main>
+</body></html>`
+  const website = {
+    theme: DEFAULT_PARTNER_WEBSITE_THEME,
+    htmlSource: home,
+    project: { entryPath: 'index.html', files: [] },
+  }
+  assert.match(resolveExactVisualPageHtml(website, 'home', 'desktop'), /pw-header/)
+  assert.match(resolveExactVisualPageHtml(website, 'home', 'mobile'), /pw-header/)
+  const pdp = resolveVisualPdpShellHtml(website, 'desktop')
+  assert.match(pdp, /data-pw-page="product"/)
+  assert.match(pdp, /pw-header/)
+  assert.match(pdp, /Hàng mới Thời trang/)
+  assert.match(pdp, /data-pw-chrome-btn="account"/)
+  assert.doesNotMatch(pdp, /Thông báo/)
+})
+
 test('resolveVisualPdpShellHtml reads product-detail.html without a product id', () => {
   const shell = '<!DOCTYPE html><html><body data-pw-page="product"><h1>PDP SHELL</h1></body></html>'
   const website = {
@@ -455,8 +543,9 @@ test('mobile visual html is isolated from desktop', () => {
   assert.equal(resolveExactVisualPageHtml(website, 'about', 'mobile'), mobile)
   const pub = resolvePublicVisualPageHtml(website, 'about')
   assert.ok(pub.includes('Desktop about'))
-  assert.ok(pub.includes('Mobile about'))
-  assert.ok(pub.includes('pw-visual-device-split'))
+  assert.doesNotMatch(pub, /Mobile about/)
+  assert.doesNotMatch(pub, /pw-visual-device-split/)
+  assert.doesNotMatch(pub, /<(?:div|section)[^>]*data-pw-visual-device=/)
   assert.ok(pub.includes('pw-shop-chrome-layout'))
   assert.ok(pub.includes('[data-pw-chrome-added][data-pw-device="mobile"]'))
   assert.ok(pub.includes('pw-theme-root'))
@@ -499,6 +588,14 @@ test('isolate does not treat nested chrome device wrappers as a composed page', 
   assert.match(out, /pw-header\{background:#c2410c\}/)
   assert.match(out, /pw-topbar\{color:#fff\}/)
   assert.match(out, /<footer class="pw-footer">Foot<\/footer>/)
+})
+
+test('device isolation returns empty when a composed document lacks that device', () => {
+  const desktopOnly = `<!DOCTYPE html><html><body>
+    <div data-pw-visual-device="desktop"><main>Desktop only</main></div>
+  </body></html>`
+
+  assert.equal(isolateVisualHtmlForDevice(desktopOnly, 'mobile'), '')
 })
 
 test('isolate desktop html keeps nested sections from composed page', () => {
@@ -633,10 +730,10 @@ test('tablet visual html is isolated from desktop and mobile', () => {
   assert.equal(resolveExactVisualPageHtml(website, 'about', 'mobile'), mobile)
   const pub = resolvePublicVisualPageHtml(website, 'about')
   assert.ok(pub.includes('Desktop about'))
-  assert.ok(pub.includes('Tablet about'))
-  assert.ok(pub.includes('Mobile about'))
-  assert.ok(pub.includes('pw-visual-tablet'))
-  assert.ok(pub.includes('min-width:1280px'))
+  assert.doesNotMatch(pub, /Tablet about/)
+  assert.doesNotMatch(pub, /Mobile about/)
+  assert.doesNotMatch(pub, /class=["'][^"']*\bpw-visual-tablet\b/)
+  assert.doesNotMatch(pub, /<(?:div|section)[^>]*data-pw-visual-device=/)
 })
 
 test('public html without tablet still uses desktop from 768px', () => {
@@ -696,6 +793,25 @@ test('ensureVisualHtmlLiveReady stamps chrome-added and device on moved widgets'
   assert.match(out, /data-pw-user-move="1"[^>]*data-pw-chrome-added="1"/)
   assert.match(out, /data-pw-device="mobile"/)
   assert.doesNotMatch(out, /data-pw-chrome-btn="cart"[^>]*data-pw-chrome-added/)
+})
+
+test('ensureVisualHtmlLiveReady protects canonical chrome placement from live clamping', () => {
+  const html =
+    '<a class="pw-icon-btn" data-pw-chrome-btn="cart" data-pw-placement="scene-absolute" data-pw-box-x="820" data-pw-box-y="34">Cart</a>'
+  const out = ensureVisualHtmlLiveReady(html, 'desktop')
+  assert.match(out, /data-pw-placement="scene-absolute"/)
+  assert.match(out, /data-pw-user-move="1"/)
+  assert.match(out, /data-pw-chrome-added="1"/)
+  assert.match(out, /data-pw-device="desktop"/)
+})
+
+test('ensureVisualHtmlLiveReady does not turn an ordinary fixed button into chrome', () => {
+  const html =
+    '<button data-pw-added-btn="1" data-pw-stay-scroll="1" data-pw-placement="viewport-fixed">CTA</button>'
+  const out = ensureVisualHtmlLiveReady(html, 'mobile')
+  assert.doesNotMatch(out, /data-pw-chrome-added/)
+  assert.doesNotMatch(out, /data-pw-device/)
+  assert.match(out, /data-pw-placement="viewport-fixed"/)
 })
 
 test('ensureVisualHtmlLiveReady strips leftover drag geometry from the bottom dock', () => {
@@ -833,9 +949,10 @@ test('pw-device preview serves only the edited device file', () => {
   assert.doesNotMatch(desk, /Mob home/)
   assert.doesNotMatch(desk, /data-pw-visual-device="mobile"/)
 
-  const composed = resolvePublicVisualPageHtml(website, 'home')
-  assert.match(composed, /Desk home/)
-  assert.match(composed, /Mob home/)
+  const automaticInitial = resolvePublicVisualPageHtml(website, 'home')
+  assert.match(automaticInitial, /Desk home/)
+  assert.doesNotMatch(automaticInitial, /Mob home/)
+  assert.doesNotMatch(automaticInitial, /<(?:div|section)[^>]*data-pw-visual-device=/)
 })
 
 test('device slice survives runtime scripts appended after the wrapper', () => {
@@ -925,7 +1042,7 @@ test('public visual render gateway serves one device with chrome theme and runti
   assert.match(view, /--pw-primary:\s*#123456/)
 })
 
-test('editor visual render stamps chrome hooks but does not inject live shop APIs', () => {
+test('editor visual render hydrates read-only slots but excludes mutating live actions', () => {
   const html =
     '<!DOCTYPE html><html><body><header class="pw-header"><div class="pw-header-actions"><a data-pw-chrome-added="1" data-pw-chrome-btn="chat">Chat</a><button class="pw-cat-btn">Danh mục</button></div></header><h1>Tablet edit</h1></body></html>'
   const edit = preparePartnerVisualHtmlForEditor(html, {
@@ -942,8 +1059,10 @@ test('editor visual render stamps chrome hooks but does not inject live shop API
   assert.doesNotMatch(edit, /data-pw-search-bootstrap/)
   assert.doesNotMatch(edit, /data-pw-shop-actions-bootstrap/)
   assert.doesNotMatch(edit, /data-pw-chrome-toggle-bootstrap/)
-  assert.doesNotMatch(edit, /data-pw-catalog-bootstrap/)
-  assert.doesNotMatch(edit, /data-pw-personalization-bootstrap/)
+  assert.match(edit, /data-pw-catalog-bootstrap/)
+  assert.match(edit, /data-pw-personalization-bootstrap/)
+  assert.match(edit, /data-pw-pdp-bootstrap/)
+  assert.match(edit, /data-pw-slider-bootstrap/)
   assert.doesNotMatch(edit, /data-pw-chat-bridge/)
   assert.doesNotMatch(edit, /data-pw-header-toggle/)
   assert.doesNotMatch(edit, /id="pw-logo-home-link"/)

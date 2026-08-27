@@ -59,21 +59,49 @@ import {
   parseVisualDeviceVariant,
   preserveAndRecolorVisualPageFiles,
   productVisualHtmlPath,
-  productVisualShellHtmlPath,
-  mergeVisualPageHtmlIntoProject,
   visualEditorHtmlPath,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { sanitizeVisualHtmlForStore } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
-import { syncSharedChromeAcrossProjectFiles } from '@/lib/partner-website/shop/sync-shared-chrome'
-import { syncProductActionWidgetsAcrossProjectFiles } from '@/lib/partner-website/shop/sync-product-action-widgets'
+import { normalizeVisualCoordinateContract } from '@/lib/partner-website/visual-editor/normalize-visual-coordinate-contract'
+import { seedVisualPageHtmlWithChrome } from '@/lib/partner-website/visual-editor/copy-element-across-pages'
 import {
-  copyPageCloneElementsAcrossSameDevicePages,
-  seedVisualPageHtmlWithChrome,
-} from '@/lib/partner-website/visual-editor/copy-element-across-pages'
+  finalizeVisualEditorSave,
+  visualHomeHtmlSourceAfterSave,
+} from '@/lib/partner-website/visual-editor/finalize-visual-editor-save'
 import {
   publishVisualInfoPageToCms,
   shouldPublishVisualPageToCms,
 } from '@/lib/partner-website/pages/sync-info-page-cms'
+import { bumpSiteCache, hashShopCachePayload } from '@/lib/cache/partner-shop-cache'
+import {
+  resolvePartnerVisualHtmlVariantsForTarget,
+  selectPartnerVisualHtmlDevice,
+  type PartnerVisualHtmlTarget,
+} from '@/lib/partner-website/shop/render-partner-visual-html'
+
+type VisualLiveGateSelection = {
+  hash: string
+  sourceDevice: 'desktop' | 'laptop' | 'tablet' | 'mobile'
+}
+
+function resolveVisualLiveGateSelection(
+  website: {
+    theme?: PartnerWebsiteTheme | null
+    project?: { entryPath: string; files: Array<{ path: string; kind: string; content: string }> } | null
+    htmlSource?: string | null
+  },
+  target: PartnerVisualHtmlTarget,
+  device: 'desktop' | 'laptop' | 'tablet' | 'mobile'
+): VisualLiveGateSelection | null {
+  const variants = resolvePartnerVisualHtmlVariantsForTarget(website, target)
+  const selected = selectPartnerVisualHtmlDevice(variants, device)
+  const html = selected?.html?.trim() || ''
+  if (!selected || html.length < 40) return null
+  return {
+    hash: hashShopCachePayload(html),
+    sourceDevice: selected.sourceDevice,
+  }
+}
 
 export async function GET(
   req: NextRequest,
@@ -590,6 +618,20 @@ export async function PATCH(
         ? categoryVisualHtmlPath(visualCategoryPath, visualDevice)
         : visualEditorHtmlPath(visualPageKey, visualDevice)
   const isDynamicVisualTarget = Boolean(visualProductId || visualCmsSlug || visualCategoryPath)
+  const visualTarget: PartnerVisualHtmlTarget | null =
+    body.visualEdited === true
+      ? visualProductId
+        ? { kind: 'product', productId: visualProductId }
+        : visualCmsSlug
+          ? { kind: 'cms', cmsSlug: visualCmsSlug }
+          : visualCategoryPath
+            ? { kind: 'category', categoryPath: visualCategoryPath }
+            : { kind: 'page', pageKey: visualPageKey }
+      : null
+  const liveBeforeSelection =
+    visualTarget && body.visualEdited === true
+      ? resolveVisualLiveGateSelection(existing, visualTarget, visualDevice)
+      : null
   const theme =
     body.visualEdited === true
       ? applyVisualEditThemeFlag(existing.theme, {
@@ -618,7 +660,10 @@ export async function PATCH(
         ? incomingHtml
         : project?.files.find((f) => f.path === htmlPath && f.kind === 'html')?.content
       : undefined
-  const targetVisualHtml = sanitizeVisualHtmlForStore(visualHtmlExact || pageHtmlExact || '').trim()
+  const targetVisualHtml = normalizeVisualCoordinateContract(
+    sanitizeVisualHtmlForStore(visualHtmlExact || pageHtmlExact || '').trim(),
+    { variant: visualDevice, writeCanonicalOnly: true }
+  )
   if (body.visualEdited === true && targetVisualHtml.length < 40) {
     return NextResponse.json({ error: 'Visual HTML is empty — cannot save' }, { status: 400 })
   }
@@ -635,31 +680,15 @@ export async function PATCH(
       cmsSlug: visualCmsSlug,
     })
   }
-  const projectAfterChrome =
+  const finalizedVisual =
     body.visualEdited === true && htmlForVisualSave.length >= 40
-      ? syncSharedChromeAcrossProjectFiles(
-          syncProductActionWidgetsAcrossProjectFiles(
-            mergeVisualPageHtmlIntoProject(
-              visualProductId
-                ? mergeVisualPageHtmlIntoProject(
-                    existing.project,
-                    htmlForVisualSave,
-                    productVisualShellHtmlPath(visualDevice)
-                  )
-                : existing.project,
-              htmlForVisualSave,
-              htmlPath
-            ),
-            htmlPath,
-            htmlForVisualSave
-          ),
+      ? finalizeVisualEditorSave({
+          project: existing.project,
+          theme: theme || existing.theme,
           htmlPath,
-          htmlForVisualSave
-        )
-      : project
-  const cloned =
-    body.visualEdited === true && htmlForVisualSave.length >= 40 && projectAfterChrome
-      ? copyPageCloneElementsAcrossSameDevicePages(projectAfterChrome, htmlPath, htmlForVisualSave, {
+          sourceHtml: htmlForVisualSave,
+          visualDevice,
+          visualProductId,
           seedMissingHtml: (_path, pageKey) =>
             seedVisualPageHtmlWithChrome({
               pageKey,
@@ -671,22 +700,15 @@ export async function PATCH(
             }),
         })
       : null
-  let themeForSave = theme
-  if (cloned?.pageKeys.length && themeForSave) {
-    themeForSave = cloned.pageKeys.reduce(
-      (next, pageKey) => applyVisualEditThemeFlag(next, { pageKey, variant: visualDevice }),
-      themeForSave
-    )
-  }
-  const projectToSave = cloned?.project ?? projectAfterChrome
-  const persistedPageHtml =
-    projectToSave?.files.find((f) => f.path === htmlPath && f.kind === 'html')?.content?.trim() || ''
+  const themeForSave = finalizedVisual?.theme ?? theme
+  const projectToSave = finalizedVisual?.project ?? project
   const visualHtmlToPersist =
-    body.visualEdited === true && persistedPageHtml.length >= 40 ? persistedPageHtml : htmlForVisualSave
-  const syncedHomeHtml =
-    projectToSave?.files.find((f) => f.path === 'index.html' && f.kind === 'html')?.content?.trim() || ''
-  const htmlSourceFromSharedChrome =
-    syncedHomeHtml.length >= 40 ? syncedHomeHtml : existing.htmlSource
+    body.visualEdited === true && (finalizedVisual?.canonicalHtml.length ?? 0) >= 40
+      ? finalizedVisual?.canonicalHtml || ''
+      : htmlForVisualSave
+  const htmlSourceFromSharedChrome = finalizedVisual
+    ? visualHomeHtmlSourceAfterSave(finalizedVisual, existing.htmlSource)
+    : existing.htmlSource
 
   const updated = await updatePartnerWebsiteDraftPg({
     partnerId: pid,
@@ -696,19 +718,17 @@ export async function PATCH(
     theme: themeForSave,
     project: projectToSave ?? undefined,
     htmlSource:
-      body.visualEdited === true && visualHtmlToPersist.length >= 40
-        ? visualHtmlToPersist
+      body.visualEdited === true
+        ? htmlSourceFromSharedChrome
         : visualHtmlExact !== undefined
           ? htmlForVisualSave
-          : body.visualEdited === true
-            ? htmlSourceFromSharedChrome
-            : body.htmlSource !== undefined
-              ? body.htmlSource == null
-                ? body.htmlSource
-                : sanitizeVisualHtmlForStore(body.htmlSource)
-              : projectToSave
-                ? composeStandaloneHtml(projectToSave)
-                : undefined,
+          : body.htmlSource !== undefined
+            ? body.htmlSource == null
+              ? body.htmlSource
+              : sanitizeVisualHtmlForStore(body.htmlSource)
+            : projectToSave
+              ? composeStandaloneHtml(projectToSave)
+              : undefined,
     changeNote: body.visualEdited === true ? 'visual_edit' : undefined,
   })
 
@@ -722,6 +742,7 @@ export async function PATCH(
     if (updated.siteSlug?.trim()) {
       revalidatePath(`/dashboard/messaging/p/${updated.siteSlug}/website`)
       revalidatePath(`/site/${updated.siteSlug}`)
+      await bumpSiteCache(updated.siteSlug)
     }
   }
 
@@ -731,9 +752,83 @@ export async function PATCH(
     isPublished: updated.isPublished,
     req,
   })
+  const canonicalPersistedHtml =
+    body.visualEdited === true
+      ? updated.project?.files
+          .find((file) => file.kind === 'html' && file.path === htmlPath)
+          ?.content?.trim() ||
+        (htmlPath === 'index.html' ? updated.htmlSource?.trim() : '') ||
+        visualHtmlToPersist
+      : ''
+  if (body.visualEdited === true && visualTarget) {
+    const persistedHash = hashShopCachePayload(canonicalPersistedHtml)
+    const liveAfterSelection = resolveVisualLiveGateSelection(updated, visualTarget, visualDevice)
+    if (!liveAfterSelection) {
+      return NextResponse.json(
+        {
+          error: 'Visual save rejected: live target is missing after save',
+          code: 'VISUAL_LIVE_TARGET_MISSING',
+          runtimeGate: {
+            htmlPath,
+            device: visualDevice,
+            persistedHash,
+            liveBeforeHash: liveBeforeSelection?.hash || '',
+          },
+        },
+        { status: 409 }
+      )
+    }
+    if (liveAfterSelection.sourceDevice !== visualDevice) {
+      return NextResponse.json(
+        {
+          error: 'Visual save rejected: live resolved to a different device',
+          code: 'VISUAL_LIVE_DEVICE_MISMATCH',
+          runtimeGate: {
+            htmlPath,
+            device: visualDevice,
+            sourceDevice: liveAfterSelection.sourceDevice,
+            persistedHash,
+            liveBeforeHash: liveBeforeSelection?.hash || '',
+            liveAfterHash: liveAfterSelection.hash,
+          },
+        },
+        { status: 409 }
+      )
+    }
+    const liveBeforeHash = liveBeforeSelection?.hash || ''
+    const persistedChanged = persistedHash !== liveBeforeHash
+    const liveChanged = liveAfterSelection.hash !== liveBeforeHash
+    if (persistedChanged && !liveChanged) {
+      return NextResponse.json(
+        {
+          error: 'Visual save rejected: live output did not change after save',
+          code: 'VISUAL_LIVE_NOT_UPDATED',
+          runtimeGate: {
+            htmlPath,
+            device: visualDevice,
+            persistedHash,
+            liveBeforeHash,
+            liveAfterHash: liveAfterSelection.hash,
+          },
+        },
+        { status: 409 }
+      )
+    }
+  }
   return NextResponse.json({
     success: true,
     website: updated,
     publicUrl,
+    ...(body.visualEdited === true
+      ? {
+          canonicalVisual: {
+            html: canonicalPersistedHtml,
+            htmlPath,
+            device: visualDevice,
+            revision: updated.updatedAt,
+            sourceHash: hashShopCachePayload(canonicalPersistedHtml),
+          },
+        }
+      : {}),
   })
 }

@@ -18,7 +18,7 @@ import type { PartnerMemberRow } from '@/lib/db/messaging-partner-members-pg'
 import { getDictionary, type Dictionary } from '@/lib/i18n/dictionaries'
 import type { PartnerStaffPermKey, PartnerStaffPermissionMap } from '@/lib/messaging/partner-staff-permissions'
 import { PARTNER_STAFF_PERM_KEYS } from '@/lib/messaging/partner-staff-permissions'
-import type { Database } from '@/types/database.types'
+import type { Database as AppDatabase } from '@/types/database.types'
 import {
   cancelMessagingWorkspaceDeletionSchedule,
   confirmMessagingWorkspaceDeletionWithOtp,
@@ -127,7 +127,7 @@ type LoyaltyTierDraft = {
   isActive: boolean
 }
 
-type MessagingPartnerDbRow = Database['public']['Tables']['messaging_partners']['Row']
+type MessagingPartnerDbRow = AppDatabase['public']['Tables']['messaging_partners']['Row']
 
 function withOwnerDashboardAccess(row: MessagingPartnerDbRow): MessagingPartnerDashboardRow {
   return { ...row, dashboard_access: 'owner', staff_permissions: null }

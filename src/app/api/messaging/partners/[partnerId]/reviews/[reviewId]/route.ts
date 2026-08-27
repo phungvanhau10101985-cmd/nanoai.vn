@@ -29,6 +29,9 @@ export async function PATCH(
     content?: string
     merchantReply?: string
     merchantReplyBy?: string
+    reviewerName?: string
+    usefulCount?: number
+    importGroup?: number
   }
 
   if (body.merchantReply !== undefined && body.merchantReply.trim() && !body.merchantReplyBy?.trim()) {

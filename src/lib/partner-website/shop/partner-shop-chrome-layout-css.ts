@@ -192,11 +192,42 @@ export const PARTNER_SHOP_SEARCH_CLAMP_SCRIPT = `(function(){
     var k=el.getAttribute('data-pw-chrome-btn')||'';
     return k==='chat'||k==='chat-zalo'||k==='chat-facebook'||k==='topup';
   }
+  function isLegacyInflowCategory(el){
+    if(!el||!el.getAttribute||!el.closest)return false;
+    var k=el.getAttribute('data-pw-chrome-btn')||'';
+    var cat=k==='categories'||el.getAttribute('data-pw-el')==='cat-toggle'||el.getAttribute('data-pw-cat-toggle')!=null;
+    if(!cat||el.getAttribute('data-pw-placement'))return false;
+    return !!el.closest('.pw-brand-cluster,.pw-shop-brand-cluster');
+  }
+  function resetLegacyInflowCategory(el){
+    if(!isLegacyInflowCategory(el)||!el.style)return false;
+    el.style.setProperty('position','relative','important');
+    el.style.setProperty('left','auto','important');
+    el.style.setProperty('top','auto','important');
+    el.style.setProperty('right','auto','important');
+    el.style.setProperty('bottom','auto','important');
+    el.style.setProperty('transform','none','important');
+    return true;
+  }
+  function resetLegacyInflowWordmark(el){
+    if(!el||!el.style||!el.closest)return;
+    if(el.getAttribute&&el.getAttribute('data-pw-placement'))return;
+    if(!el.closest('.pw-brand:not([data-pw-logo-float]),.pw-shop-brand:not([data-pw-logo-float]),a[data-pw-logo-home]:not([data-pw-logo-float])'))return;
+    el.style.setProperty('position','relative','important');
+    el.style.setProperty('left','auto','important');
+    el.style.setProperty('top','auto','important');
+    el.style.setProperty('right','auto','important');
+    el.style.setProperty('bottom','auto','important');
+    el.style.setProperty('transform','none','important');
+  }
   function isPlacedChrome(el){
     if(!el||!el.getAttribute)return false;
     if(el.getAttribute('data-pw-user-move')==='1')return true;
     if(el.getAttribute('data-pw-stay-scroll')==='1')return true;
     if(el.getAttribute('data-pw-chrome-added')==='1')return true;
+    if(el.getAttribute('data-pw-placement'))return true;
+    if(el.getAttribute('data-pw-box-x')!=null)return true;
+    if(el.getAttribute('data-pw-fixed-x')!=null)return true;
     var st=el.style;
     if(!st)return false;
     var pos=st.position||'';
@@ -208,6 +239,7 @@ export const PARTNER_SHOP_SEARCH_CLAMP_SCRIPT = `(function(){
   function pinFlow(el){
     if(!el||!el.style)return;
     if(el.classList&&el.classList.contains('pw-stick-header-on'))return;
+    if(resetLegacyInflowCategory(el))return;
     if(el.getAttribute&&el.getAttribute('data-pw-user-move'))return;
     if(isFloatChrome(el))return;
     if(isPlacedChrome(el))return;
@@ -224,12 +256,15 @@ export const PARTNER_SHOP_SEARCH_CLAMP_SCRIPT = `(function(){
     if(!isCompact()){
       pinFlow(el);
       var saved=parseFloat(el.getAttribute('data-pw-search-width')||'');
-      if(saved>0){
+      var userSized=el.getAttribute('data-pw-search-width-user')==='1'||el.getAttribute('data-pw-user-move')==='1';
+      if(saved>0&&userSized){
         var w=Math.max(72,Math.min(360,Math.round(saved)));
         el.style.setProperty('flex','0 0 auto','important');
         el.style.setProperty('width',w+'px','important');
         el.style.setProperty('max-width','none','important');
         el.style.setProperty('min-width','72px','important');
+      } else if (el.getAttribute('data-pw-search-width-user')!=='1') {
+        try{el.removeAttribute('data-pw-search-width');}catch(errSearchAttr){}
       }
       return;
     }
@@ -249,6 +284,9 @@ export const PARTNER_SHOP_SEARCH_CLAMP_SCRIPT = `(function(){
     el.style.setProperty('visibility','visible','important');
   }
   function clamp(){
+    var wordmarks=document.querySelectorAll('.pw-wordmark');
+    var wi;
+    for(wi=0;wi<wordmarks.length;wi++)resetLegacyInflowWordmark(wordmarks[wi]);
     var search=document.querySelectorAll('.pw-header-search,.pw-shop-search-wrap,[data-pw-el="search"]');
     var i;
     for(i=0;i<search.length;i++)pinSearch(search[i]);
@@ -303,6 +341,9 @@ ${PW_RELATED_CSS}
 ${PW_OUTFIT_CSS}
 .pw-for-you-badge{position:absolute;top:8px;left:8px;z-index:2;background:var(--pw-primary);color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px}
 .pw-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-header .pw-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-header .pw-shop-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-header .pw-shop-icon-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-header-actions [data-pw-chrome-btn]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-header-actions [data-pw-chrome-btn]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-header .pw-account-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-header .pw-account-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-bottom-nav>a:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-bottom-nav>a:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-bottom-nav>button:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-bottom-nav>button:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-cat-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),.pw-shop-cat-btn:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),[data-pw-el="cat-toggle"]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]),[data-pw-chrome-btn="categories"]:not(.pw-stick-header-on):not([data-pw-user-move]):not([data-nanoai-ve-selected]):not([data-pw-chrome-float]):not([data-pw-chrome-added]):not([data-pw-stay-scroll]){transform:none!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important}
+.pw-brand-cluster [data-pw-chrome-btn="categories"]:not([data-pw-placement]),.pw-shop-brand-cluster [data-pw-chrome-btn="categories"]:not([data-pw-placement]){
+  position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:none!important
+}
 ${PW_CHROME_TOKEN_VARS_CSS}
 .pw-chrome-icon-wrap{position:relative!important;display:inline-flex!important;flex-direction:row!important;align-items:center!important;justify-content:center!important;width:${PW_CHROME_W_VAR}!important;height:${PW_CHROME_H_VAR}!important;flex-shrink:0!important;overflow:visible!important}
 ${PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS}
@@ -625,7 +666,8 @@ export function stripVisualEditorRuntimeStateClasses(html: string): string {
   )
 }
 
-export function injectPartnerShopChromeLayoutCss(html: string): string {
+/** Persisted author HTML contains deterministic styles only; runtime scripts are injected on render. */
+export function injectPartnerShopChromeLayoutStyles(html: string): string {
   const trimmed = html.trim()
   if (!trimmed) return html
   let out = stripVisualEditorRuntimeStateClasses(trimmed)
@@ -648,6 +690,12 @@ export function injectPartnerShopChromeLayoutCss(html: string): string {
       out = `${styleTag}\n${out}`
     }
   }
+  return injectPartnerShopFontsIntoHtml(out)
+}
+
+export function injectPartnerShopChromeLayoutCss(html: string): string {
+  let out = injectPartnerShopChromeLayoutStyles(html)
+  if (!out.trim()) return out
   out = injectNamedScript(out, PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID, PARTNER_SHOP_SCENE_CENTER_SCRIPT, true)
   if (!out.includes(PARTNER_SHOP_CHROME_BADGE_PIN_SCRIPT_ID)) {
     const scriptTag = `<script id="${PARTNER_SHOP_CHROME_BADGE_PIN_SCRIPT_ID}">${PARTNER_SHOP_CHROME_BADGE_PIN_SCRIPT}</script>`
@@ -660,7 +708,7 @@ export function injectPartnerShopChromeLayoutCss(html: string): string {
   out = injectNamedScript(out, PARTNER_SHOP_LOGO_HOST_SCRIPT_ID, PARTNER_SHOP_LOGO_HOST_SCRIPT)
   out = injectNamedScript(out, PARTNER_SHOP_SEARCH_CLAMP_SCRIPT_ID, PARTNER_SHOP_SEARCH_CLAMP_SCRIPT)
   out = injectNamedScript(out, PARTNER_SHOP_IMAGE_ZOOM_SCRIPT_ID, PARTNER_SHOP_IMAGE_ZOOM_SCRIPT)
-  return injectPartnerShopFontsIntoHtml(out)
+  return out
 }
 
 function injectNamedScript(html: string, id: string, body: string, inHead = false): string {
