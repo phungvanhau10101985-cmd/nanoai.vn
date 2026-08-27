@@ -4,6 +4,7 @@ import {
   insertPartnerCategoryFromPg,
 } from '@/lib/db/messaging-partner-categories-pg'
 import {
+  applyPartnerInventoryCatalogPatchFromPg,
   countPartnerInventoryFromPg,
   fetchPartnerInventorySkusFromPg,
   insertPartnerInventoryShopDemoFromPg,
@@ -15,6 +16,10 @@ import {
   shopDemoSkuList,
   type ShopDemoProduct,
 } from '@/lib/messaging/shop-demo-catalog'
+import {
+  shopDemoCategoryL3,
+  shopDemoProductToCatalog188Fields,
+} from '@/lib/messaging/shop-demo-catalog-188'
 import type { PartnerCategoryNameI18n } from '@/lib/partner-website/category/partner-category-types'
 
 export type SeedShopDemoInventoryResult = {
@@ -94,7 +99,7 @@ async function categoryIdForDemoProduct(partnerId: string, product: ShopDemoProd
     0
   )
   if (!parentId) return null
-  return ensureDemoCategoryChild(
+  const childId = await ensureDemoCategoryChild(
     partnerId,
     parentId,
     product.category.parent.slug,
@@ -103,10 +108,21 @@ async function categoryIdForDemoProduct(partnerId: string, product: ShopDemoProd
     product.category.child.nameEn,
     0
   )
+  if (!childId) return null
+  const l3 = shopDemoCategoryL3(product)
+  return ensureDemoCategoryChild(
+    partnerId,
+    childId,
+    `${product.category.parent.slug}/${product.category.child.slug}`,
+    l3.slug,
+    l3.name,
+    l3.nameEn,
+    0
+  )
 }
 
 /**
- * Gắn 10 sản phẩm demo (túi / giày / quần áo từ 188.com.vn) vào kho shop.
+ * Gắn 9 sản phẩm demo (túi / giày / quần áo) đủ cột catalog 188 vào kho shop.
  * Idempotent theo SKU `DEMO-188-*`: đã có thì bỏ qua; đã xóa thì thêm lại.
  */
 export async function seedShopDemoInventoryForPartner(
@@ -132,6 +148,7 @@ export async function seedShopDemoInventoryForPartner(
       skipped += 1
       continue
     }
+    const catalog = shopDemoProductToCatalog188Fields(product, SHOP_DEMO_PRODUCTS)
     const inventoryId = await insertPartnerInventoryShopDemoFromPg(pid, {
       sku: product.sku,
       name: product.name,
@@ -147,9 +164,11 @@ export async function seedShopDemoInventoryForPartner(
       realUseImageUrl: product.realUseImageUrl,
       realUseImageUrl2: product.realUseImageUrl2,
       consultNote: product.consultNote,
-      remarketingId: product.sku.toLowerCase(),
+      remarketingId: product.sourceProductId,
       stockQty: product.stockQty,
       sortOrder: i + 1,
+      productUrl: catalog.catalog_json.link_default,
+      productVideoUrl: catalog.catalog_json.video_link,
       productStudioMeta: {
         demo: true,
         source: '188.com.vn',
@@ -162,6 +181,14 @@ export async function seedShopDemoInventoryForPartner(
       console.warn('[seedShopDemoInventoryForPartner] insert failed', product.sku)
       continue
     }
+    await applyPartnerInventoryCatalogPatchFromPg([
+      {
+        id: inventoryId,
+        partnerId: pid,
+        catalog,
+        materialNote: product.material,
+      },
+    ])
     inserted += 1
     const categoryId = await categoryIdForDemoProduct(pid, product)
     if (categoryId) {

@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   bindLiveProductToPdpHtml,
   deferOffDevicePdpGalleryMedia,
+  restoreDeferredPdpGalleryMediaInHtml,
 } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
 import { DEMO_PDP_BIND_PRODUCT } from '@/lib/partner-website/shop/demo-pdp-bind-product'
 
@@ -129,6 +130,36 @@ test('deferOffDevicePdpGalleryMedia keeps the only gallery on a device', () => {
   assert.equal(deferOffDevicePdpGalleryMedia(heroOnly, 'desktop'), heroOnly)
 })
 
+test('restoreDeferredPdpGalleryMediaInHtml puts src back on parked gallery images', () => {
+  const html = `<img class="pw-shop-product-img" data-pw-el="main-image" data-pw-deferred-src="https://cdn.example/desk.jpg" alt="y" />`
+  const next = restoreDeferredPdpGalleryMediaInHtml(html)
+  assert.match(next, /src="https:\/\/cdn\.example\/desk\.jpg"/)
+  assert.doesNotMatch(next, /data-pw-deferred-src/)
+})
+
+test('bind restores parked gallery src then rewrites it to the live product', () => {
+  const html = `<!DOCTYPE html><html><body data-pw-page="product">
+<section data-pw-region="gallery" class="pw-shop-product-gallery pw-pdp-gallery-desktop">
+  <img class="pw-shop-product-img" data-pw-el="main-image" data-pw-deferred-src="https://old.example/parked.jpg" alt="Old" />
+</section>
+<div data-pw-region="pdp-info"><h1 class="pw-pdp-title" data-pw-el="title">Old</h1></div>
+</body></html>`
+  const next = bindLiveProductToPdpHtml(html, PRODUCT_B)
+  assert.match(next, /src="https:\/\/new\.example\/shirt\.jpg"/)
+  assert.doesNotMatch(next, /data-pw-deferred-src/)
+  assert.doesNotMatch(next, /old\.example\/parked/)
+})
+
+test('bind injects a visible main image when the gallery region has none', () => {
+  const html = `<!DOCTYPE html><html><body data-pw-page="product">
+<section data-pw-region="gallery" class="pw-shop-product-gallery pw-pdp-gallery-desktop"></section>
+<div data-pw-region="pdp-info"><h1 class="pw-pdp-title" data-pw-el="title">Old</h1></div>
+</body></html>`
+  const next = bindLiveProductToPdpHtml(html, PRODUCT_B)
+  assert.match(next, /class="pw-shop-product-img"/)
+  assert.match(next, /src="https:\/\/new\.example\/shirt\.jpg"/)
+})
+
 test('bind stamps related catalog and rewrites cards when relatedProducts exist', () => {
   const next = bindLiveProductToPdpHtml(
     SHELL,
@@ -251,4 +282,47 @@ test('bind fills catalog stats, brand, tabs, and every detail photo', () => {
   assert.match(next, /https:\/\/new\.example\/d3\.jpg/)
   assert.match(next, /pw-pdp-detail-photos/)
   assert.doesNotMatch(next, /https:\/\/new\.example\/d2\.jpg[^"]*"[^>]*data-pw-el="thumb"/)
+})
+
+test('bind updates like count without wiping the sticky heart icon', () => {
+  const html = `<nav class="pw-pdp-sticky" data-pw-pdp-bottom="1">
+    <button type="button" class="is-fav" data-pw-chrome-btn="favorite-product" data-pw-favorite data-pw-pdp-favorite="1" data-pw-like-base="0">
+      <svg class="pw-pdp-like-icon" width="17" height="17" viewBox="0 0 24 24"></svg>
+      <span class="pw-pdp-like-copy"><span>Thích</span><span class="pw-pdp-like-count" data-pw-like-count>0</span></span>
+    </button>
+  </nav>
+  <div data-pw-region="pdp-info">
+    <button type="button" data-pw-favorite data-pw-pdp-favorite="1">♡ <span data-pw-like-count>0</span></button>
+  </div>`
+  const next = bindLiveProductToPdpHtml(html, { ...PRODUCT_B, likesCount: 121 })
+  assert.match(next, /data-pw-like-base="121"/)
+  assert.match(next, /data-pw-like-count[^>]*>121</)
+  assert.match(next, /pw-pdp-like-icon/)
+  assert.match(next, /<span>Thích<\/span>/)
+  assert.doesNotMatch(next, /class="is-fav"[^>]*>♡ 121/)
+})
+
+test('bind upgrades a legacy sticky favorite into 188 like-copy without wiping the heart', () => {
+  const html = `<body data-pw-page="product">
+    <nav class="pw-bottom-nav pw-pdp-sticky" data-pw-pdp-bottom="1">
+      <div class="pw-pdp-sticky-nav">
+        <a data-pw-chrome-btn="home"><svg width="22" height="22"></svg><span>Trang chủ</span></a>
+        <button type="button" class="is-try" data-pw-chrome-btn="try-on"><span>Thử đồ AI</span></button>
+        <button type="button" class="is-fav" data-pw-chrome-btn="favorite-product" data-pw-favorite data-pw-pdp-favorite="1">
+          <svg class="pw-pdp-like-icon" width="22" height="22" viewBox="0 0 24 24"></svg><span>Thích sản phẩm</span>
+        </button>
+      </div>
+      <div class="pw-pdp-sticky-ctas">
+        <button type="button" data-pw-add-cart>Thêm giỏ</button>
+        <button type="button" data-pw-buy>Mua hàng</button>
+      </div>
+    </nav>
+  </body>`
+  const next = bindLiveProductToPdpHtml(html, { ...PRODUCT_B, likesCount: 121 }, { locale: 'vi', siteSlug: 'demo-shop' })
+  assert.match(next, /pw-pdp-like-icon/)
+  assert.match(next, /pw-pdp-like-copy/)
+  assert.match(next, /pw-pdp-sticky-copy/)
+  assert.match(next, /data-pw-like-count[^>]*>121</)
+  assert.doesNotMatch(next, /Thích sản phẩm/)
+  assert.doesNotMatch(next, /class="is-fav"[^>]*>♡ 121/)
 })

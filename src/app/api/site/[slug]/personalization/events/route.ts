@@ -47,6 +47,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     {
       ok: result.ok,
       ...(typeof result.is_favorite === 'boolean' ? { is_favorite: result.is_favorite } : {}),
+      ...(typeof result.likes_count === 'number' ? { likes_count: result.likes_count } : {}),
     },
     result.ok ? 200 : 400,
     { sessionId: visitor.sessionId, thread: visitor.thread }

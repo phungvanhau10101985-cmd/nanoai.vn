@@ -183,6 +183,10 @@ test('horizontal nav keeps Sale kho plus a short industry row', () => {
   assert.match(PARTNER_CATEGORY_MEGA_LAYOUT_CSS, /text-transform:lowercase/)
   assert.match(PARTNER_CATEGORY_MEGA_LAYOUT_CSS, /overflow-x:hidden/)
   assert.match(PARTNER_CATEGORY_MEGA_LAYOUT_CSS, /data-pw-edit-device="mobile"/)
+  assert.match(PARTNER_CATEGORY_MEGA_LAYOUT_CSS, /720px/)
+  assert.match(PARTNER_CATEGORY_MEGA_LAYOUT_CSS, /220px/)
+  assert.match(PARTNER_CATEGORY_MEGA_LAYOUT_CSS, /data-pw-panel-fixed/)
+  assert.match(PARTNER_CATEGORY_MEGA_LAYOUT_CSS, /pw-cat-mega-l1 a/)
   assert.doesNotMatch(PARTNER_CATEGORY_MEGA_LAYOUT_CSS, /@media \(max-width:899px\)/)
 })
 

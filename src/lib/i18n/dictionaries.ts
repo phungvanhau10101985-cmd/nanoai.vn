@@ -1403,7 +1403,7 @@ export type Dictionary = {
     inventoryImportExcel: string
     /** File mẫu / import khớp ~41 cột Excel 188 + file kho 12 cột cũ */
     inventoryExcel188Hint: string
-    /** Tải lại 10 sản phẩm demo (túi/giày/quần áo) sau khi merchant đã xóa */
+    /** Tải lại 9 sản phẩm demo (túi/giày/quần áo) sau khi merchant đã xóa */
     inventoryReloadDemoProducts: string
     inventoryReloadDemoHint: string
     /** {count} = số sản phẩm vừa thêm */
@@ -4590,7 +4590,7 @@ const VI_DICTIONARY: Dictionary = {
       'File mẫu / xuất Excel dùng đủ cột catalog (id, sku, mô tả, biến thể, thư viện ảnh, 3 cấp danh mục, chất liệu, listed…). File kho 12 cột cũ vẫn nhập được. Khớp trước theo Id sản phẩm (remarketing), rồi SKU, rồi tên. listed=0 xóa theo id/SKU/tên.',
     inventoryReloadDemoProducts: 'Tải lại sản phẩm demo',
     inventoryReloadDemoHint:
-      '10 sản phẩm mẫu từ catalog thời trang (3 túi nhiều màu, 3 giày nhiều màu·size, 4 quần áo nhiều màu·size). Có thể xóa rồi tải lại.',
+      '9 sản phẩm mẫu từ catalog thời trang (3 túi nhiều màu, 3 giày nhiều màu·size, 3 quần áo nhiều màu·size) — đủ cột giống 188.com.vn. Có thể xóa rồi tải lại.',
     inventoryReloadDemoSuccess: 'Đã thêm {count} sản phẩm demo.',
     inventoryReloadDemoNone: 'Sản phẩm demo đã có đủ trong kho. Xóa bớt rồi tải lại nếu muốn.',
     inventoryReloadDemoFailed: 'Không tải được sản phẩm demo.',
@@ -7767,7 +7767,7 @@ const EN_DICTIONARY: Dictionary = {
       'The sample/export file uses the full catalog columns (id, sku, description, variants, gallery, 3-level categories, material, listed…). The older 12-column inventory file still imports. Rows match by product id first, then SKU, then name. listed=0 deletes by id/SKU/name.',
     inventoryReloadDemoProducts: 'Reload demo products',
     inventoryReloadDemoHint:
-      '10 sample fashion products (3 bags with colors, 3 shoes with colors & sizes, 4 apparel items with colors & sizes). Delete them, then reload anytime.',
+      '9 sample fashion products (3 bags with colors, 3 shoes with colors & sizes, 3 apparel items with colors & sizes) — same catalog columns as 188.com.vn. Delete them, then reload anytime.',
     inventoryReloadDemoSuccess: 'Added {count} demo product(s).',
     inventoryReloadDemoNone: 'Demo products are already in inventory. Delete some, then reload.',
     inventoryReloadDemoFailed: 'Could not reload demo products.',
@@ -10908,7 +10908,7 @@ const ZH_DICTIONARY: Dictionary = {
       '模板/导出使用完整商品列（id、sku、描述、变体、图库、三级类目、材质、listed…）。旧的 12 列库存表仍可导入。先按商品 Id 匹配，再 SKU，再名称。listed=0 按 id/SKU/名称删除。',
     inventoryReloadDemoProducts: '重新加载演示商品',
     inventoryReloadDemoHint:
-      '10 件时装示例商品（3 个多色包包、3 个多色多码鞋履、4 个多色多码服装）。可删除后再加载。',
+      '9 件时装示例商品（3 个多色包包、3 个多色多码鞋履、3 个多色多码服装）— 字段与 188.com.vn 目录一致。可删除后再加载。',
     inventoryReloadDemoSuccess: '已添加 {count} 件演示商品。',
     inventoryReloadDemoNone: '演示商品已在库存中。删除后再加载即可。',
     inventoryReloadDemoFailed: '无法加载演示商品。',
@@ -14010,7 +14010,7 @@ const JA_DICTIONARY: Dictionary = {
       'テンプレ/出力は商品列一式（id、sku、説明、バリエーション、ギャラリー、3階層カテゴリ、素材、listed…）。旧12列の在庫ファイルも取り込めます。照合は商品Id → SKU → 商品名。listed=0 は id/SKU/名前で削除。',
     inventoryReloadDemoProducts: 'デモ商品を再読込',
     inventoryReloadDemoHint:
-      'ファッションのサンプル商品10点（多色バッグ3、多色・サイズ靴3、多色・サイズ衣類4）。削除してから再読込できます。',
+      'ファッションのサンプル商品9点（多色バッグ3、多色・サイズ靴3、多色・サイズ衣類3）。188.com.vnと同じカタログ項目。削除してから再読込できます。',
     inventoryReloadDemoSuccess: 'デモ商品を {count} 件追加しました。',
     inventoryReloadDemoNone: 'デモ商品はすでに在庫にあります。削除してから再読込してください。',
     inventoryReloadDemoFailed: 'デモ商品を読み込めませんでした。',
@@ -17152,7 +17152,7 @@ const KO_DICTIONARY: Dictionary = {
       '샘플/보내기 파일은 전체 상품 열(id, sku, 설명, 변형, 갤러리, 3단계 카테고리, 소재, listed…)입니다. 예전 12열 재고 파일도 가져올 수 있습니다. 상품 Id → SKU → 이름 순으로 맞춥니다. listed=0 은 id/SKU/이름으로 삭제합니다.',
     inventoryReloadDemoProducts: '데모 상품 다시 받기',
     inventoryReloadDemoHint:
-      '패션 샘플 상품 10개(컬러 가방 3, 컬러·사이즈 신발 3, 컬러·사이즈 의류 4). 삭제한 뒤 다시 받을 수 있습니다.',
+      '패션 샘플 상품 9개(컬러 가방 3, 컬러·사이즈 신발 3, 컬러·사이즈 의류 3) — 188.com.vn과 같은 카탈로그 필드. 삭제한 뒤 다시 받을 수 있습니다.',
     inventoryReloadDemoSuccess: '데모 상품 {count}개를 추가했습니다.',
     inventoryReloadDemoNone: '데모 상품이 이미 재고에 있습니다. 삭제한 뒤 다시 받으세요.',
     inventoryReloadDemoFailed: '데모 상품을 불러오지 못했습니다.',

@@ -24,7 +24,7 @@ const SOURCE =
   SHOP_DEMO_PRODUCTS[0]
 
 const RELATED_A = demoBySourceSku('Z2008')
-const RELATED_B = demoBySourceSku('B8864')
+const RELATED_B = demoBySourceSku('Q7349')
 const RELATED_C = demoBySourceSku('O3837')
 
 /** Keep the editor sample light: a few gallery shots, not every color/real-use URL. */
@@ -128,7 +128,7 @@ export const DEMO_PDP_BIND_PRODUCT: LivePdpBindProduct = {
           id: '00000000-0000-4000-8000-000000000003',
           name: RELATED_B.name,
           imageUrl: RELATED_B.mainImage,
-          priceHint: '200.000₫',
+          priceHint: '2.870.000₫',
         }
       : null,
     RELATED_C

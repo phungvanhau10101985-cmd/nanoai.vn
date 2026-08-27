@@ -166,6 +166,12 @@ export function partnerKhoSaleViewAllLabel(locale: WebLocale): string {
 /** Hàng pill ngang ~8 L1 như 188; đủ cây vẫn trong mega «Danh mục». */
 export const PARTNER_HORIZONTAL_NAV_L1_LIMIT = 8
 
+/** Khớp 188 Navigation `w-[min(720px,calc(100vw-1.5rem))]`. */
+export const PARTNER_CATEGORY_MEGA_WIDTH_PX = 720
+
+/** Khớp 188 `grid-cols-[220px_1fr]` — cột L1 cuộn, chữ được xuống dòng. */
+export const PARTNER_CATEGORY_MEGA_L1_WIDTH_PX = 220
+
 export function partnerCategoryNavAllLabel(locale: WebLocale): string {
   if (locale === 'en') return 'All'
   if (locale === 'zh') return '全部'
@@ -183,17 +189,26 @@ export function takePartnerHorizontalNavTree(tree: PartnerCategoryTreeNode[]): P
 
 /** Mega + flyout: không tràn, không đè chữ, L3 chữ thường. */
 export const PARTNER_CATEGORY_MEGA_LAYOUT_CSS = `
-html .pw-cat-panel.is-open.pw-cat-mega,html .pw-shop-cat-panel.is-open.pw-cat-mega,html [data-pw-cat-panel].is-open.pw-cat-mega{
+html .pw-cat-panel.is-open.pw-cat-mega:not([data-pw-panel-fixed]),html .pw-shop-cat-panel.is-open.pw-cat-mega:not([data-pw-panel-fixed]),html [data-pw-cat-panel].is-open.pw-cat-mega:not([data-pw-panel-fixed]){
   left:0!important;right:auto!important;box-sizing:border-box;
-  width:min(960px,calc(var(--pw-scene-w,100vw) - 16px));
-  min-width:min(280px,calc(var(--pw-scene-w,100vw) - 16px));
-  max-width:calc(var(--pw-scene-w,100vw) - 16px);overflow:hidden
+  width:min(720px,calc(var(--pw-scene-w,100vw) - 24px));
+  min-width:min(280px,calc(var(--pw-scene-w,100vw) - 24px));
+  max-width:calc(var(--pw-scene-w,100vw) - 24px);overflow:hidden
+}
+html .pw-cat-panel.is-open.pw-cat-mega[data-pw-panel-fixed],html .pw-shop-cat-panel.is-open.pw-cat-mega[data-pw-panel-fixed],html [data-pw-cat-panel].is-open.pw-cat-mega[data-pw-panel-fixed]{
+  box-sizing:border-box;
+  width:min(720px,calc(var(--pw-scene-w,100vw) - 24px));
+  min-width:min(280px,calc(var(--pw-scene-w,100vw) - 24px));
+  max-width:calc(var(--pw-scene-w,100vw) - 24px);overflow:hidden
 }
 html .pw-cat-mega-root,html .pw-cat-mega-cols{
-  display:grid;grid-template-columns:minmax(132px,200px) minmax(0,1fr);min-height:200px;min-width:0;width:100%;max-width:100%
+  display:grid;grid-template-columns:220px minmax(0,1fr);min-height:200px;min-width:0;width:100%;max-width:100%
 }
-html .pw-cat-mega-l1{min-width:0;max-height:min(70vh,420px);overflow:auto}
+html .pw-cat-mega-l1{min-width:220px;width:220px;max-width:220px;max-height:min(70vh,420px);overflow:auto}
 html .pw-cat-mega-l23{min-width:0;max-height:min(70vh,420px);overflow-x:hidden;overflow-y:auto}
+html .pw-cat-mega-l1 a,html .pw-cat-panel.is-open.pw-cat-mega .pw-cat-mega-l1 a,html .pw-shop-cat-panel.is-open.pw-cat-mega .pw-cat-mega-l1 a,html [data-pw-cat-panel].is-open.pw-cat-mega .pw-cat-mega-l1 a{
+  display:block!important;white-space:normal!important;overflow-wrap:anywhere;line-height:1.35
+}
 html .pw-cat-mega-l2-grid{
   display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px 16px;min-width:0;align-items:start
 }

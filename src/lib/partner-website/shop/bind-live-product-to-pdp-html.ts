@@ -18,6 +18,7 @@ import {
   relatedCardHtml,
   relatedListingHref,
 } from '@/lib/partner-website/shop/related-products'
+import { ensurePartnerSitePdpBottomNavInHtml } from '@/lib/partner-website/shop/build-partner-site-header-html'
 import { partnerSiteHomePath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import {
@@ -119,6 +120,39 @@ function escAttr(value: string): string {
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
+}
+
+function rewriteFavoriteButtonLikeCount(buttonHtml: string, likes: number, locale: WebLocale): string {
+  const nText = escText(String(likes))
+  const closeAt = buttonHtml.lastIndexOf('</button>')
+  if (closeAt < 0) return buttonHtml
+  const gt = buttonHtml.indexOf('>')
+  if (gt < 0) return buttonHtml
+  let open = buttonHtml.slice(0, gt + 1)
+  const inner = buttonHtml.slice(gt + 1, closeAt)
+  if (/\bdata-pw-like-base=/.test(open)) {
+    open = open.replace(/\bdata-pw-like-base=["'][^"']*["']/, `data-pw-like-base="${likes}"`)
+  } else {
+    open = open.replace(/>$/, ` data-pw-like-base="${likes}">`)
+  }
+  if (/\bdata-pw-like-count\b/i.test(inner)) {
+    return `${open}${inner.replace(/(<[^>]*\bdata-pw-like-count\b[^>]*>)[\s\S]*?(<\/)/i, `$1${nText}$2`)}</button>`
+  }
+  if (/<svg[\s>]/i.test(inner)) {
+    const svg = inner.match(/<svg[\s\S]*?<\/svg>/i)?.[0] || ''
+    const label = escText(getPartnerSiteShopCopy(locale).pdpStickyLikeLabel)
+    return `${open}${svg}<span class="pw-pdp-like-copy"><span>${label}</span><span class="pw-pdp-like-count" data-pw-like-count>${nText}</span></span></button>`
+  }
+  return `${open}♡ ${nText}</button>`
+}
+
+/** Cập nhật số lượt thích trên nút PDP — không xóa icon / nhãn thanh đáy. */
+export function applyPdpFavoriteLikeCounts(html: string, likes: number, locale: WebLocale = 'vi'): string {
+  const n = Math.max(0, Math.round(Number(likes) || 0))
+  return html.replace(
+    /<button\b[^>]*\b(?:data-pw-pdp-favorite\s*=|data-pw-chrome-btn\s*=\s*["']favorite-product["']|\bdata-pw-favorite\b)[^>]*>[\s\S]*?<\/button>/gi,
+    (full) => rewriteFavoriteButtonLikeCount(full, n, locale)
+  )
 }
 
 function escText(value: string): string {
@@ -286,6 +320,18 @@ function deferImgsInHtml(inner: string): string {
   })
 }
 
+/** Live/save must never keep parked gallery URLs — Sửa nhanh defers, live binds the same file. */
+export function restoreDeferredPdpGalleryMediaInHtml(html: string): string {
+  if (!html || !html.includes('data-pw-deferred-src')) return html
+  return html.replace(/<img\b([^>]*)\/?>/gi, (_full, attrs: string) => {
+    const deferred = attrs.match(/\bdata-pw-deferred-src=(["'])([^"']*)\1/i)
+    if (!deferred?.[2]) return `<img${attrs}>`
+    let next = setAttr(attrs, 'src', deferred[2])
+    next = next.replace(/\s*data-pw-deferred-src=(["'])[^"']*\1/i, '')
+    return `<img${next}>`
+  })
+}
+
 /** Hidden device gallery still downloads `src` in Chrome — park those URLs until save/serve restore. */
 function classBlockHasImgSrc(html: string, className: string): boolean {
   const escaped = className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -388,7 +434,25 @@ function rewriteGalleryInner(inner: string, product: LivePdpBindProduct): string
       out += `<div class="pw-shop-product-thumbs">${extra}</div>`
     }
   }
-  return insertGalleryVideo(out, product)
+  return insertGalleryVideo(ensureGalleryHasVisibleMainImage(out, product), product)
+}
+
+function ensureGalleryHasVisibleMainImage(inner: string, product: LivePdpBindProduct): string {
+  const images = productImages(product)
+  const main = images[0] || ''
+  if (!main) return inner
+  const hasVisibleMain =
+    /<img\b[^>]*(?:\bdata-pw-el=["']main-image["']|\b(?:pw-pdp-hero-img|pw-shop-product-img)\b)[^>]*\bsrc=(["'])[^"']+\1/i.test(
+      inner
+    ) ||
+    /<img\b[^>]*\bsrc=(["'])[^"']+\1[^>]*(?:\bdata-pw-el=["']main-image["']|\b(?:pw-pdp-hero-img|pw-shop-product-img)\b)/i.test(
+      inner
+    )
+  if (hasVisibleMain) return inner
+  const name = product.name || 'Product'
+  const isHero = /\bpw-pdp-hero-count\b|\bpw-pdp-hero-dots\b|\bpw-pdp-hero-thumbs\b/.test(inner)
+  const cls = isHero ? 'pw-pdp-hero-img' : 'pw-shop-product-img'
+  return `<img class="${cls}" data-pw-el="${PW_EL.mainImage}" src="${escAttr(main)}" alt="${escAttr(name)}" decoding="async" />${inner}`
 }
 
 function insertGalleryVideo(inner: string, product: LivePdpBindProduct): string {
@@ -677,11 +741,6 @@ function rewritePdpInfoInner(inner: string, product: LivePdpBindProduct, locale:
       `<$1$2>${pdpStatsInnerHtml(product, locale)}</$1>`
     )
   }
-  const likes = Math.max(0, Math.round(Number(product.likesCount ?? 0) || 0))
-  out = out.replace(
-    /(<button\b[^>]*\b(?:data-pw-pdp-favorite=["']1["']|data-pw-favorite\b)[^>]*>)([\s\S]*?)(<\/button>)/i,
-    `$1♡ ${escText(String(likes))}$3`
-  )
   if (sku) {
     out = replaceElInner(out, PW_EL.sku, escText(sku))
     out = out.replace(
@@ -1072,7 +1131,12 @@ export function bindLiveProductToPdpHtml(
   if (!source || !id || !product) return html
   const locale = opts?.locale || 'vi'
   const siteSlug = opts?.siteSlug
-  let out = stampPdpHosts(source, id)
+  let out = ensurePartnerSitePdpBottomNavInHtml(restoreDeferredPdpGalleryMediaInHtml(source), {
+    locale,
+    siteSlug,
+    pageKey: 'product_detail',
+  })
+  out = stampPdpHosts(out, id)
   out = replaceRegionBlocks(out, PW_REGION.breadcrumb, (inner, open) => {
     return `${open}${breadcrumbInnerHtml(product, locale, siteSlug)}`
   })
@@ -1091,5 +1155,10 @@ export function bindLiveProductToPdpHtml(
     if (!isRelatedCatalogOpenTag(open)) return `${open}${inner}`
     return `${stampRelatedOpenTag(open, product, siteSlug)}${rewriteCatalogRelatedInner(inner, product, locale, siteSlug)}`
   })
-  return ensureMissingPdpSlots(out, product, locale, siteSlug)
+  out = ensureMissingPdpSlots(out, product, locale, siteSlug)
+  return applyPdpFavoriteLikeCounts(
+    out,
+    Math.max(0, Math.round(Number(product.likesCount ?? 0) || 0)),
+    locale
+  )
 }

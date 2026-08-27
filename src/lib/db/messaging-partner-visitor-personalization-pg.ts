@@ -241,7 +241,7 @@ export async function mutatePartnerVisitorFavoriteFromPg(input: {
   accountKey: string
   inventoryId: string
   action: 'add' | 'remove' | 'toggle'
-}): Promise<{ favorite_ids: string[]; is_favorite: boolean } | null> {
+}): Promise<{ favorite_ids: string[]; is_favorite: boolean; changed: boolean } | null> {
   if (!isPgConfigured()) return null
   const accountKey = input.accountKey.trim()
   const inventoryId = input.inventoryId.trim()
@@ -282,7 +282,7 @@ export async function mutatePartnerVisitorFavoriteFromPg(input: {
          updated_at = now()`,
       [input.partnerId, accountKey, JSON.stringify(recently), JSON.stringify(next), JSON.stringify(utm)]
     )
-    return { favorite_ids: next, is_favorite: isFavorite }
+    return { favorite_ids: next, is_favorite: isFavorite, changed: has !== isFavorite }
   } catch (e) {
     console.warn('[mutatePartnerVisitorFavoriteFromPg]', e)
     return null

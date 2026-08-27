@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server'
 import {
   fetchPartnerInventoryRowsByIdsInOrderFromPg,
+  incrementPartnerInventoryLikesCountFromPg,
   type MessagingPartnerInventoryRow,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import {
@@ -200,10 +201,19 @@ export async function mutateSiteFavoriteProduct(input: {
   accountKey: string
   inventoryId: string
   action: 'add' | 'remove' | 'toggle'
-}): Promise<{ is_favorite: boolean } | null> {
+}): Promise<{ is_favorite: boolean; likes_count?: number } | null> {
   const result = await mutatePartnerVisitorFavoriteFromPg(input)
   if (!result) return null
-  return { is_favorite: result.is_favorite }
+  let likes_count: number | undefined
+  if (result.changed) {
+    const next = await incrementPartnerInventoryLikesCountFromPg(
+      input.partnerId,
+      input.inventoryId,
+      result.is_favorite ? 1 : -1
+    )
+    if (typeof next === 'number') likes_count = next
+  }
+  return { is_favorite: result.is_favorite, likes_count }
 }
 
 export async function getSiteRecommendedProducts(input: {
@@ -278,7 +288,7 @@ export async function trackSitePersonalizationEventDetailed(input: {
   event: string
   inventoryId?: string
   inventoryIds?: string[]
-}): Promise<{ ok: boolean; is_favorite?: boolean }> {
+}): Promise<{ ok: boolean; is_favorite?: boolean; likes_count?: number }> {
   const event = input.event.trim().toLowerCase()
   if (event === 'view_product' && input.inventoryId) {
     const ok = await trackSiteProductView({
@@ -308,7 +318,13 @@ export async function trackSitePersonalizationEventDetailed(input: {
       inventoryId: input.inventoryId,
       action,
     })
-    return result ? { ok: true, is_favorite: result.is_favorite } : { ok: false }
+    return result
+      ? {
+          ok: true,
+          is_favorite: result.is_favorite,
+          ...(typeof result.likes_count === 'number' ? { likes_count: result.likes_count } : {}),
+        }
+      : { ok: false }
   }
   if (event === 'clear_recently_viewed' || event === 'clear_recent') {
     const ok = await clearPartnerVisitorRecentlyViewedFromPg({

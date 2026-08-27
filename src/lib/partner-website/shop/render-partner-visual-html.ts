@@ -2,7 +2,10 @@ import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsitePageKey } from '@/lib/partner-website/partner-website-page-catalog'
 import type { PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
-import { deferOffDevicePdpGalleryMedia } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
+import {
+  deferOffDevicePdpGalleryMedia,
+  restoreDeferredPdpGalleryMediaInHtml,
+} from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
 import { rewriteThemeCssVarsInHtml } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { injectPartnerCustomDomainLinkRewriteScript } from '@/lib/partner-website/shop/inject-partner-custom-domain-link-script'
 import { injectPartnerLogoHomeLinkScript } from '@/lib/partner-website/shop/inject-partner-logo-home-link'
@@ -15,6 +18,7 @@ import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/par
 import { stripPartnerInfoPageSeoCoachFromHtml } from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
 import { ensureAdsPlatformPolicyInHtml } from '@/lib/partner-website/pages/partner-info-page-visual'
 import { ensureFullPartnerSiteFooterInHtml } from '@/lib/partner-website/shop/build-partner-site-footer-html'
+import { ensurePartnerSitePdpBottomNavInHtml } from '@/lib/partner-website/shop/build-partner-site-header-html'
 import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual-editor/strip-empty-logo-placeholders'
 import {
   isolateVisualHtmlForDevice,
@@ -55,7 +59,12 @@ export function preparePartnerVisualHtmlForEditor(
     siteSlug: input.siteSlug,
     logoUrl: input.theme?.logoUrl,
   })
-  const isolated = isolateVisualHtmlForDevice(stripEmptyLogoPlaceholdersFromHtml(withFooter), input.variant)
+  const withPdpBar = ensurePartnerSitePdpBottomNavInHtml(withFooter, {
+    locale,
+    siteSlug: input.siteSlug,
+    pageKey: input.pageKey,
+  })
+  const isolated = isolateVisualHtmlForDevice(stripEmptyLogoPlaceholdersFromHtml(withPdpBar), input.variant)
   const isProduct =
     input.pageKey === 'product_detail' || /data-pw-page=["']product["']/.test(isolated)
   const light = isProduct ? deferOffDevicePdpGalleryMedia(isolated, input.variant) : isolated
@@ -93,7 +102,12 @@ export function preparePartnerVisualHtmlForPublic(
     siteSlug: input.siteSlug,
     logoUrl: input.theme?.logoUrl,
   })
-  const cleaned = stripPartnerInfoPageSeoCoachFromHtml(withFooter)
+  const withPdpBar = ensurePartnerSitePdpBottomNavInHtml(withFooter, {
+    locale,
+    siteSlug: input.siteSlug,
+    pageKey: input.pageKey,
+  })
+  const cleaned = restoreDeferredPdpGalleryMediaInHtml(stripPartnerInfoPageSeoCoachFromHtml(withPdpBar))
   const isProduct =
     input.pageKey === 'product_detail' || /data-pw-page=["']product["']/.test(cleaned)
   const withShopCss = isProduct ? injectPartnerShopThemeCss(cleaned, input.theme) : cleaned

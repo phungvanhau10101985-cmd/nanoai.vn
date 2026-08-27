@@ -262,7 +262,7 @@ ${chrome.header}
           <button type="button" class="pw-shop-btn pw-shop-btn-buy" data-pw-chrome-btn="buy-now" ${pwElAttr(PW_EL.buy)} data-pw-buy data-pw-pdp-buy-now="1">${escapeHtml(t.buyNow)}</button>
           <button type="button" class="pw-shop-btn pw-shop-btn-outline" ${pwElAttr(PW_EL.cta)} data-nanoai-open-chat>${escapeHtml(t.consultChat)}</button>
           <button type="button" class="pw-shop-btn pw-shop-btn-outline" data-pw-chrome-btn="try-on" ${pwElAttr(PW_EL.cta)} data-nanoai-try-on>${escapeHtml(t.tryOnLink)}</button>
-          <button type="button" class="pw-shop-btn pw-shop-btn-outline" data-pw-chrome-btn="favorite-product" ${pwElAttr(PW_EL.wishlist)} data-pw-favorite data-pw-pdp-favorite="1">♡ ${escapeHtml(String(p.likesCount ?? 0))}</button>
+          <button type="button" class="pw-shop-btn pw-shop-btn-outline" data-pw-chrome-btn="favorite-product" ${pwElAttr(PW_EL.wishlist)} data-pw-favorite data-pw-pdp-favorite="1" data-pw-like-base="${escapeAttr(String(p.likesCount ?? 0))}">♡ <span data-pw-like-count>${escapeHtml(String(p.likesCount ?? 0))}</span></button>
         </div>
       </div>
     </div>

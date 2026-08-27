@@ -3067,6 +3067,7 @@ export async function fetchPartnerInventorySkusFromPg(
 /**
  * Insert sản phẩm demo shop (fashion) — đủ cột Product Studio + SKU/consult/ảnh thực tế.
  * `description` là mô tả thật; màu/size nằm ở `colors_json`/`sizes_json`.
+ * Cột catalog 188 (brand / origin / product_info…) ghi sau bằng `applyPartnerInventoryCatalogPatchFromPg`.
  */
 export async function insertPartnerInventoryShopDemoFromPg(
   partnerId: string,
@@ -3088,6 +3089,8 @@ export async function insertPartnerInventoryShopDemoFromPg(
     remarketingId: string
     stockQty: number
     sortOrder: number
+    productUrl?: string
+    productVideoUrl?: string
     productStudioMeta: Record<string, unknown>
   }
 ): Promise<string | null> {
@@ -3098,14 +3101,16 @@ export async function insertPartnerInventoryShopDemoFromPg(
     const row = await pgQueryOne<{ id: string }>(
       `insert into public.messaging_partner_inventory (
          partner_id, name, sku, description, stock_note, stock_qty, price_hint, image_url,
+         product_url, product_video_url,
          consult_note, material_note, material_detail_image_url, real_use_image_url, real_use_image_url_2,
          remarketing_id, sort_order, is_active, price_amount, colors_json, sizes_json,
          gallery_urls, detail_image_urls, product_studio_meta, origin, created_at, updated_at
        ) values (
          $1::uuid, $2, $3, $4, '', $5::int, $6, $7,
-         $8, $9, $10, $11, $12,
-         $13, $14::int, true, $15::numeric, $16::jsonb, $17::jsonb,
-         $18::jsonb, $19::jsonb, $20::jsonb, 'import', $21::timestamptz, $21::timestamptz
+         $8, $9,
+         $10, $11, $12, $13, $14,
+         $15, $16::int, true, $17::numeric, $18::jsonb, $19::jsonb,
+         $20::jsonb, $21::jsonb, $22::jsonb, 'import', $23::timestamptz, $23::timestamptz
        )
        returning id::text as id`,
       [
@@ -3116,6 +3121,8 @@ export async function insertPartnerInventoryShopDemoFromPg(
         Math.max(0, Math.round(fields.stockQty)),
         priceHint,
         fields.mainImage.trim(),
+        (fields.productUrl || '').trim().slice(0, 2000),
+        (fields.productVideoUrl || '').trim().slice(0, 2000),
         fields.consultNote.trim().slice(0, 4000),
         fields.material.trim().slice(0, 2000),
         (fields.materialDetailImageUrl || '').trim(),
@@ -3145,6 +3152,36 @@ export async function deletePartnerInventoryItemForPartnerFromPg(
   itemId: string
 ): Promise<boolean> {
   return deletePartnerInventoryByIdsForPartnerFromPg(partnerId, [itemId])
+}
+
+const INVENTORY_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Toggle favorite trên shop — +1 / −1 `likes_count`, không âm. */
+export async function incrementPartnerInventoryLikesCountFromPg(
+  partnerId: string,
+  inventoryId: string,
+  delta: 1 | -1
+): Promise<number | null> {
+  if (!isPgConfigured()) return null
+  const pid = partnerId.trim()
+  const id = inventoryId.trim()
+  if (!INVENTORY_UUID_RE.test(pid) || !INVENTORY_UUID_RE.test(id)) return null
+  try {
+    const row = await pgQueryOne<{ likes_count: unknown }>(
+      `update public.messaging_partner_inventory
+       set likes_count = greatest(0, coalesce(likes_count, 0) + $3::int),
+           updated_at = now()
+       where partner_id = $1::uuid and id = $2::uuid
+       returning coalesce(likes_count, 0) as likes_count`,
+      [pid, id, delta]
+    )
+    if (!row) return null
+    bumpInventoryCacheLater(pid)
+    return Math.max(0, Math.round(Number(row.likes_count) || 0))
+  } catch (e) {
+    console.warn('[incrementPartnerInventoryLikesCountFromPg]', e)
+    return null
+  }
 }
 
 /**

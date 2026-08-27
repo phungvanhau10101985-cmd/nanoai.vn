@@ -1,6 +1,6 @@
 /**
- * 10 sản phẩm demo cho shop mua sắm (fashion).
- * Nguồn: catalog 188.com.vn (PostgreSQL products) — túi / giày / quần áo, đủ màu·size·ảnh.
+ * 9 sản phẩm demo cho shop mua sắm (fashion) — 3 túi / 3 giày / 3 quần áo.
+ * Nguồn: catalog 188.com.vn — đủ màu·size·ảnh; cột Excel/PDP map qua `shop-demo-catalog-188.ts`.
  * SKU `DEMO-188-*` để merchant xóa rồi tải lại mà không đụng hàng tự đăng.
  */
 
@@ -542,52 +542,6 @@ export const SHOP_DEMO_PRODUCTS: ShopDemoProduct[] = [
     category: {
       parent: CAT_APPAREL_W,
       child: { slug: 'quan-dai-legging-nu', name: 'Quần dài & legging Nữ', nameEn: 'Pants & leggings' },
-    },
-  },
-  {
-    kind: 'clothing',
-    sku: demoSku('B8864'),
-    sourceSku: 'B8864',
-    sourceProductId: 'M260811082634367FAD',
-    name: 'Áo sơ mi nữ cotton dài tay ôm nhẹ',
-    description:
-      'Áo sơ mi nữ chất liệu cotton cao cấp, thiết kế thanh lịch, phù hợp cho nhiều dịp khác nhau từ đi làm, đi chơi đến dạo phố. Chất vải mềm mại, thoáng mát, thấm hút mồ hôi tốt, mang lại cảm giác thoải mái suốt cả ngày dài.\n\n' +
-      'Áo có kiểu dáng ôm nhẹ, tôn dáng, với tay áo dài và cổ áo thanh thoát, dễ dàng kết hợp với quần âu, chân váy hay quần jeans. Sản phẩm có sẵn hai màu tím và đen, phù hợp với nhiều phong cách và sở thích khác nhau.\n\n' +
-      'Chất liệu cotton tự nhiên, an toàn cho da, không gây kích ứng, giặt nhanh khô và bền màu. Áo phù hợp cho các bạn nữ yêu thích sự nhẹ nhàng, lịch sự nhưng vẫn hiện đại.',
-    consultNote: 'Phù hợp Nữ 18–35 tuổi, nhân viên văn phòng. Cotton, size S–L, form ôm nhẹ.',
-    material: 'Cotton',
-    priceAmount: 200000,
-    stockQty: 56,
-    colors: [
-      {
-        name: 'Tím',
-        img: 'https://cdn.188.com.vn/site/manual-products/uploads/20260811/o1cn01mtosrd1j1yg9xqxzu___2215503714488-0-cib_4d7c65cc3671.jpg',
-      },
-      {
-        name: 'Đen',
-        img: 'https://cdn.188.com.vn/site/manual-products/uploads/20260811/o1cn01oah5bm1j1yg2hdthq___2215503714488-0-cib_fa3dde2ebee6.jpg',
-      },
-    ],
-    sizes: ['S', 'M', 'L'],
-    mainImage:
-      'https://cdn.188.com.vn/site/manual-products/uploads/20260811/o1cn01oah5bm1j1yg2hdthq___2215503714488-0-cib_0e6cb93053d1.jpg',
-    galleryUrls: [
-      'https://cdn.188.com.vn/site/manual-products/uploads/20260811/o1cn01mtosrd1j1yg9xqxzu___2215503714488-0-cib_55d2c9f7f2d1.jpg',
-      'https://cdn.188.com.vn/site/manual-products/uploads/20260811/o1cn01oah5bm1j1yg2hdthq___2215503714488-0-cib_7d0200183498.jpg',
-      'https://cdn.188.com.vn/site/manual-products/uploads/20260811/o1cn01tiucgp1j1ygu2ly46___2215503714488-0-cib_ce302e5a5b78.jpg',
-    ],
-    detailImageUrls: [
-      'https://cdn.188.com.vn/site/manual-products/uploads/20260811/o1cn01tiucgp1j1ygu2ly46___2215503714488-0-cib_ce302e5a5b78.jpg',
-    ],
-    materialDetailImageUrl:
-      'https://cdn.188.com.vn/site/manual-products/uploads/20260811/o1cn01mtosrd1j1yg9xqxzu___2215503714488-0-cib_55d2c9f7f2d1.jpg',
-    realUseImageUrl:
-      'https://cdn.188.com.vn/site/manual-products/uploads/20260811/o1cn01oah5bm1j1yg2hdthq___2215503714488-0-cib_7d0200183498.jpg',
-    realUseImageUrl2:
-      'https://cdn.188.com.vn/site/manual-products/uploads/20260811/o1cn01tiucgp1j1ygu2ly46___2215503714488-0-cib_ce302e5a5b78.jpg',
-    category: {
-      parent: CAT_APPAREL_W,
-      child: { slug: 'ao-so-mi-blazer-nu', name: 'Áo sơ mi & blazer Nữ', nameEn: 'Shirts & blazers' },
     },
   },
 ]

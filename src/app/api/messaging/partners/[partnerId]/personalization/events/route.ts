@@ -99,6 +99,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ partnerId:
       ok: result.ok,
       customer_ref: parsedRef,
       ...(typeof result.is_favorite === 'boolean' ? { is_favorite: result.is_favorite } : {}),
+      ...(typeof result.likes_count === 'number' ? { likes_count: result.likes_count } : {}),
     },
     result.ok ? 200 : 400
   )

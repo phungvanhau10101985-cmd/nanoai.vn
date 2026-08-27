@@ -33,6 +33,9 @@ test('shop theme CSS sizes stock bottom-nav icons from chrome vars', () => {
   assert.match(css, /\.pw-pdp-sticky svg,.pw-pdp-sticky-nav svg\{width:var\(--pw-chrome-w/)
   assert.doesNotMatch(css, /\.pw-bottom-nav svg\{width:22px/)
   assert.doesNotMatch(css, /\.pw-pdp-sticky svg,.pw-pdp-sticky-nav svg\{width:22px!important/)
+  assert.match(css, /\.pw-pdp-sticky-nav svg\{width:17px!important/)
+  assert.match(css, /button\.is-fav\[aria-pressed="true"\]/)
+  assert.doesNotMatch(css, /\.pw-pdp-sticky-nav button\.is-fav\{color:#e11d48\}/)
 })
 
 test('HTML chrome CSS colors the factory header used by visual PDP', () => {
@@ -43,6 +46,15 @@ test('HTML chrome CSS colors the factory header used by visual PDP', () => {
   assert.match(css, /\.pw-wordmark\{[^}]*color:var\(--pw-primary\)/)
   assert.match(css, /\.pw-search-form\{[^}]*border:2px solid var\(--pw-primary\)/)
   assert.match(css, /\.pw-search-submit\{[^}]*background:var\(--pw-primary\)/)
+})
+
+test('shop theme CSS lets the stamped device win over @media for PDP gallery', () => {
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(css, /html\[data-pw-edit-device="desktop"\] \.pw-pdp-gallery-desktop/)
+  assert.match(css, /html\[data-pw-edit-device="mobile"\] \.pw-pdp-hero/)
+  assert.match(css, /html\[data-pw-scene-lock="desktop"\] \.pw-pdp-hero/)
+  assert.match(css, /\[data-pw-visual-device\]:not\(:has\(\.pw-pdp-gallery-desktop\)\) \.pw-pdp-hero/)
+  assert.match(css, /html:not\(:has\(\[data-pw-visual-device\]\)\):not\(:has\(\.pw-pdp-gallery-desktop\)\) \.pw-pdp-hero/)
 })
 
 test('shop theme CSS ships HTML chrome alongside React pw-shop-header', () => {

@@ -160,6 +160,12 @@ export type PartnerSiteShopCopy = {
   pdpNoteFit: string
   pdpNoteColor: string
   pdpStickyHome: string
+  /** Thanh đáy PDP mobile — 2 dòng như 188 (Trang / chủ) */
+  pdpStickyHomeL1: string
+  pdpStickyHomeL2: string
+  pdpStickyTryOnL1: string
+  pdpStickyTryOnL2: string
+  pdpStickyLikeLabel: string
   pdpAddToCartShort: string
   pdpBuyNowShort: string
   pdpShareCopy: string
@@ -570,6 +576,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpNoteFit: 'Kích thước thực tế có thể chênh lệch nhẹ so với mô tả.',
     pdpNoteColor: 'Màu sắc trên ảnh có thể hơi khác thực tế do ánh sáng và thiết bị.',
     pdpStickyHome: 'Trang chủ',
+    pdpStickyHomeL1: 'Trang',
+    pdpStickyHomeL2: 'chủ',
+    pdpStickyTryOnL1: 'Thử',
+    pdpStickyTryOnL2: 'đồ',
+    pdpStickyLikeLabel: 'Thích',
     pdpAddToCartShort: 'Thêm giỏ',
     pdpBuyNowShort: 'Mua hàng',
     pdpShareCopy: 'Sao chép link',
@@ -971,6 +982,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpNoteFit: 'Actual size may differ slightly from the description.',
     pdpNoteColor: 'Colors on screen may differ slightly from the real product.',
     pdpStickyHome: 'Home',
+    pdpStickyHomeL1: 'Home',
+    pdpStickyHomeL2: '',
+    pdpStickyTryOnL1: 'Try',
+    pdpStickyTryOnL2: 'on',
+    pdpStickyLikeLabel: 'Like',
     pdpAddToCartShort: 'Add to cart',
     pdpBuyNowShort: 'Buy now',
     pdpShareCopy: 'Copy link',
@@ -1372,6 +1388,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpNoteFit: '实际尺寸可能与描述略有差异。',
     pdpNoteColor: '受光线和设备影响，实物颜色可能与图片略有不同。',
     pdpStickyHome: '首页',
+    pdpStickyHomeL1: '首页',
+    pdpStickyHomeL2: '',
+    pdpStickyTryOnL1: '试穿',
+    pdpStickyTryOnL2: '',
+    pdpStickyLikeLabel: '喜欢',
     pdpAddToCartShort: '加入购物车',
     pdpBuyNowShort: '立即购买',
     pdpShareCopy: '复制链接',
@@ -1773,6 +1794,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpNoteFit: '実寸は記載と多少異なる場合があります。',
     pdpNoteColor: '光や端末により、実物の色が画像と異なる場合があります。',
     pdpStickyHome: 'ホーム',
+    pdpStickyHomeL1: 'ホーム',
+    pdpStickyHomeL2: '',
+    pdpStickyTryOnL1: '試着',
+    pdpStickyTryOnL2: '',
+    pdpStickyLikeLabel: 'いいね',
     pdpAddToCartShort: 'カートへ',
     pdpBuyNowShort: '購入する',
     pdpShareCopy: 'リンクをコピー',
@@ -2174,6 +2200,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpNoteFit: '실제 치수는 설명과 약간 다를 수 있습니다.',
     pdpNoteColor: '조명과 기기에 따라 실제 색상이 사진과 다를 수 있습니다.',
     pdpStickyHome: '홈',
+    pdpStickyHomeL1: '홈',
+    pdpStickyHomeL2: '',
+    pdpStickyTryOnL1: '피팅',
+    pdpStickyTryOnL2: '',
+    pdpStickyLikeLabel: '좋아요',
     pdpAddToCartShort: '장바구니',
     pdpBuyNowShort: '구매하기',
     pdpShareCopy: '링크 복사',

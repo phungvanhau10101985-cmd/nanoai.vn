@@ -87,7 +87,7 @@ function toYoutubeEmbed(raw: string): string | null {
 
 function IconHome() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+    <svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
     </svg>
   )
@@ -95,7 +95,7 @@ function IconHome() {
 
 function IconTryOn() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+    <svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
     </svg>
   )
@@ -103,7 +103,7 @@ function IconTryOn() {
 
 function IconHeart({ filled }: { filled: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" aria-hidden>
+    <svg width={17} height={17} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" aria-hidden>
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
     </svg>
   )
@@ -135,6 +135,7 @@ export function PartnerSiteShopProductClient({
   const [variantModalOpen, setVariantModalOpen] = useState(false)
   const [isFavorite, setIsFavorite] = useState(false)
   const [favoriteBusy, setFavoriteBusy] = useState(false)
+  const [likesCount, setLikesCount] = useState(() => Math.max(0, Math.round(Number(product.likesCount ?? 0) || 0)))
   const [activeImage, setActiveImage] = useState(product.imageUrl)
   const [mediaIndex, setMediaIndex] = useState(0)
   const [lightboxOpen, setLightboxOpen] = useState(false)
@@ -324,6 +325,10 @@ export function PartnerSiteShopProductClient({
   }, [authHeaders, captureFromResponse, product.id, ready, siteSlug])
 
   useEffect(() => {
+    setLikesCount(catalogLikes)
+  }, [catalogLikes, product.id])
+
+  useEffect(() => {
     if (!ready) return
     void fetch(partnerSitePersonalizationApiPath(siteSlug, `favorites?limit=48`), {
       credentials: 'same-origin',
@@ -340,6 +345,7 @@ export function PartnerSiteShopProductClient({
   async function toggleFavorite() {
     if (!ready || favoriteBusy) return
     setFavoriteBusy(true)
+    const wasFavorite = isFavorite
     try {
       const res = await fetch(partnerSitePersonalizationApiPath(siteSlug, 'events'), {
         method: 'POST',
@@ -348,8 +354,15 @@ export function PartnerSiteShopProductClient({
         body: JSON.stringify({ event: 'toggle_favorite', inventory_id: product.id }),
       })
       captureFromResponse(res)
-      const json = (await res.json()) as { is_favorite?: boolean; ok?: boolean }
-      if (res.ok && typeof json.is_favorite === 'boolean') setIsFavorite(json.is_favorite)
+      const json = (await res.json()) as { is_favorite?: boolean; likes_count?: number; ok?: boolean }
+      if (res.ok && typeof json.is_favorite === 'boolean') {
+        setIsFavorite(json.is_favorite)
+        if (typeof json.likes_count === 'number' && Number.isFinite(json.likes_count)) {
+          setLikesCount(Math.max(0, Math.round(json.likes_count)))
+        } else {
+          setLikesCount((n) => Math.max(0, n + (json.is_favorite && !wasFavorite ? 1 : !json.is_favorite && wasFavorite ? -1 : 0)))
+        }
+      }
     } finally {
       setFavoriteBusy(false)
     }
@@ -474,15 +487,21 @@ export function PartnerSiteShopProductClient({
       <nav className="pw-pdp-sticky-nav" aria-label={t.navHome}>
         <Link href={homeHref}>
           <IconHome />
-          <span>{t.pdpStickyHome}</span>
+          <span className="pw-pdp-sticky-copy">
+            <span>{t.pdpStickyHomeL1}</span>
+            {t.pdpStickyHomeL2 ? <span>{t.pdpStickyHomeL2}</span> : null}
+          </span>
         </Link>
         <button type="button" className="is-try" onClick={() => openTryOn(consultCtx)}>
           <IconTryOn />
-          <span>{t.tryOnLink}</span>
+          <span className="pw-pdp-sticky-copy">
+            <span>{t.pdpStickyTryOnL1}</span>
+            {t.pdpStickyTryOnL2 ? <span>{t.pdpStickyTryOnL2}</span> : null}
+          </span>
         </button>
         <button
           type="button"
-          className={isFavorite ? 'is-fav' : undefined}
+          className="is-fav"
           disabled={!ready || favoriteBusy}
           onClick={() => void toggleFavorite()}
           aria-pressed={isFavorite}
@@ -490,8 +509,11 @@ export function PartnerSiteShopProductClient({
           data-pw-el={PW_EL.wishlist}
         >
           <IconHeart filled={isFavorite} />
-          <span>
-            {t.pdpLikesLabel} {catalogLikes}
+          <span className="pw-pdp-like-copy">
+            <span>{t.pdpStickyLikeLabel}</span>
+            <span className="pw-pdp-like-count" data-pw-like-count>
+              {likesCount}
+            </span>
           </span>
         </button>
       </nav>
@@ -793,7 +815,7 @@ export function PartnerSiteShopProductClient({
               aria-pressed={isFavorite}
               data-pw-el={PW_EL.wishlist}
             >
-              {isFavorite ? '♥' : '♡'} {catalogLikes}
+              {isFavorite ? '♥' : '♡'} {likesCount}
             </button>
           </div>
           {message ? <p style={{ marginTop: 12 }}>{message}</p> : null}

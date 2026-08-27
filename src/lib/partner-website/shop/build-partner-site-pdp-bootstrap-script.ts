@@ -154,12 +154,20 @@ function apply(p){
   var rating=Number(p.ratingScore||0);
   var ratingText=isFinite(rating)?Number(rating).toFixed(1):'0.0';
   var statsHtml='<span>🛒 '+esc(COPY.pdpPurchasesLabel)+': <strong>'+esc(String(sold))+'</strong></span>'+
-    '<span>♥ '+esc(COPY.pdpLikesLabel)+': <strong>'+esc(String(likes))+'</strong></span>'+
+    '<span>♥ '+esc(COPY.pdpLikesLabel)+': <strong data-pw-stat="likes">'+esc(String(likes))+'</strong></span>'+
     '<span><span class="pw-pdp-star">★</span> '+esc(COPY.pdpRatingLabel)+': <strong>'+esc(ratingText)+'/5</strong> ('+esc(String(reviews))+' '+esc(COPY.pdpRatingCountSuffix)+')</span>'+
     '<a href="#pw-pdp-reviews">'+esc(COPY.pdpJumpReviews)+'</a><a href="#pw-pdp-qa">'+esc(COPY.pdpJumpQa)+'</a>';
   document.querySelectorAll('[data-pw-pdp-slot="stats"],.pw-pdp-stats').forEach(function(el){el.innerHTML=statsHtml;});
-  document.querySelectorAll('[data-pw-pdp-favorite],[data-pw-region="pdp-info"] [data-pw-favorite]').forEach(function(btn){
-    btn.textContent='♡ '+String(likes);
+  paintPdpLikeCounts(likes);
+}
+function paintPdpLikeCounts(likes){
+  var n=Math.max(0,Math.round(Number(likes)||0));
+  document.querySelectorAll('[data-pw-like-count]').forEach(function(el){el.textContent=String(n);});
+  document.querySelectorAll('[data-pw-stat="likes"]').forEach(function(el){el.textContent=String(n);});
+  document.querySelectorAll('[data-pw-favorite],[data-pw-pdp-favorite],[data-pw-chrome-btn="favorite-product"]').forEach(function(btn){
+    btn.setAttribute('data-pw-like-base',String(n));
+    if(btn.querySelector&&btn.querySelector('[data-pw-like-count],svg,.pw-pdp-like-copy'))return;
+    btn.textContent='♡ '+String(n);
   });
 }
 function ensureSection(sel,id,region,title,qa){

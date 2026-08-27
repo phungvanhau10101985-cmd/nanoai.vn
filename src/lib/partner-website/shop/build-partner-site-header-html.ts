@@ -6,6 +6,7 @@ import {
   getPartnerSitePromoNavLabel,
   getPartnerSiteShopNavPaths,
 } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
+import { partnerSiteHomePath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { searchGlyphSvg } from '@/lib/partner-website/visual-editor/search-cluster-icons'
 
@@ -31,12 +32,19 @@ type HtmlIconName = 'menu' | 'user' | 'cart' | 'home' | 'box' | 'tag'
 
 function svgPdpIcon(name: 'home' | 'try-on' | 'heart'): string {
   if (name === 'try-on') {
-    return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>`
+    return `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>`
   }
   if (name === 'heart') {
-    return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>`
+    return `<svg class="pw-pdp-like-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>`
   }
-  return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>`
+  return `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>`
+}
+
+function stickyTwoLine(line1: string, line2?: string): string {
+  const a = escapeHtml(line1)
+  const b = (line2 || '').trim()
+  if (!b) return `<span class="pw-pdp-sticky-copy"><span>${a}</span></span>`
+  return `<span class="pw-pdp-sticky-copy"><span>${a}</span><span>${escapeHtml(b)}</span></span>`
 }
 
 function svgIcon(name: HtmlIconName): string {
@@ -231,9 +239,9 @@ export function buildPartnerSitePdpBottomNavHtml(input: {
   const t = getPartnerSiteShopCopy(input.locale)
   const homeHref = escapeAttr(input.homeHref)
   const inner = `<div class="pw-pdp-sticky-nav">
-      <a href="${homeHref}" ${pwElAttr(PW_EL.navLink)} data-pw-chrome-btn="home">${svgPdpIcon('home')}<span>${escapeHtml(t.pdpStickyHome)}</span></a>
-      <button type="button" class="is-try" data-pw-chrome-btn="try-on" data-nanoai-try-on>${svgPdpIcon('try-on')}<span>${escapeHtml(t.tryOnLink)}</span></button>
-      <button type="button" class="is-fav" data-pw-chrome-btn="favorite-product" ${pwElAttr(PW_EL.wishlist)} data-pw-favorite data-pw-pdp-favorite="1">${svgPdpIcon('heart')}<span>${escapeHtml(t.favoriteProduct)}</span></button>
+      <a href="${homeHref}" ${pwElAttr(PW_EL.navLink)} data-pw-chrome-btn="home">${svgPdpIcon('home')}${stickyTwoLine(t.pdpStickyHomeL1, t.pdpStickyHomeL2)}</a>
+      <button type="button" class="is-try" data-pw-chrome-btn="try-on" data-nanoai-try-on>${svgPdpIcon('try-on')}${stickyTwoLine(t.pdpStickyTryOnL1, t.pdpStickyTryOnL2)}</button>
+      <button type="button" class="is-fav" data-pw-chrome-btn="favorite-product" ${pwElAttr(PW_EL.wishlist)} data-pw-favorite data-pw-pdp-favorite="1" data-pw-like-base="0" aria-pressed="false">${svgPdpIcon('heart')}<span class="pw-pdp-like-copy"><span>${escapeHtml(t.pdpStickyLikeLabel)}</span><span class="pw-pdp-like-count" data-pw-like-count>0</span></span></button>
     </div>
     <div class="pw-pdp-sticky-ctas">
       <button type="button" class="pw-shop-btn pw-shop-btn-cart" data-pw-chrome-btn="add-cart" ${pwElAttr(PW_EL.cardCart)} data-pw-add-cart data-pw-pdp-add-cart="1">${escapeHtml(t.pdpAddToCartShort)}</button>
@@ -243,4 +251,73 @@ export function buildPartnerSitePdpBottomNavHtml(input: {
     return `<div class="pw-pdp-sticky">${inner}</div>`
   }
   return `<nav class="pw-bottom-nav pw-shop-bottom-nav pw-pdp-sticky" ${pwRegionAttr(PW_REGION.nav)} data-pw-pdp-bottom="1" aria-label="${escapeAttr(t.pdpStickyHome)}">${inner}</nav>`
+}
+
+const PDP_BOTTOM_OPEN_RE =
+  /<(nav|div)\b(?=[^>]*?(?:data-pw-pdp-bottom=["']1["']|class=["'][^"']*\bpw-pdp-sticky\b))[^>]*>/i
+
+function extractPdpBottomNavRange(html: string): { start: number; end: number; html: string } | null {
+  const masked = html.replace(
+    /<!--[\s\S]*?-->|<script\b[\s\S]*?<\/script>|<style\b[\s\S]*?<\/style>/gi,
+    (block) => ' '.repeat(block.length)
+  )
+  const open = PDP_BOTTOM_OPEN_RE.exec(masked)
+  if (!open || open.index == null) return null
+  const tag = (open[1] || 'nav').toLowerCase()
+  const start = open.index
+  const re = new RegExp(`<${tag}\\b[^>]*>|</${tag}\\s*>`, 'gi')
+  re.lastIndex = start + open[0].length
+  let depth = 1
+  let match: RegExpExecArray | null
+  while ((match = re.exec(masked))) {
+    if (match[0][1] === '/') {
+      depth -= 1
+      if (depth === 0) {
+        const closeTok = html.slice(match.index).match(new RegExp(`^</${tag}\\s*>`, 'i'))
+        const end = match.index + (closeTok?.[0].length ?? `</${tag}>`.length)
+        return { start, end, html: html.slice(start, end) }
+      }
+      continue
+    }
+    if (!/\/>$/.test(match[0])) depth += 1
+  }
+  return null
+}
+
+function is188PdpBottomNav(html: string): boolean {
+  return (
+    /data-pw-like-count/i.test(html) &&
+    /pw-pdp-like-copy/i.test(html) &&
+    /pw-pdp-sticky-copy/i.test(html)
+  )
+}
+
+/**
+ * HTML PDP cũ thiếu số lượt / 2 dòng 188 — nâng thanh đáy lúc Sửa nhanh / live.
+ * Đã có `pw-pdp-like-copy` + `pw-pdp-sticky-copy` thì giữ (merchant đã sửa).
+ */
+export function ensurePartnerSitePdpBottomNavInHtml(
+  html: string,
+  input: {
+    locale?: WebLocale | null
+    siteSlug?: string | null
+    pageKey?: string | null
+  }
+): string {
+  if (!html.trim()) return html
+  const isProduct =
+    input.pageKey === 'product_detail' || /data-pw-page=["']product["']/i.test(html)
+  if (!isProduct) return html
+  const locale = input.locale ?? 'vi'
+  const siteSlug = input.siteSlug?.trim() ?? ''
+  const homeHref = siteSlug ? partnerSiteHomePath(siteSlug) : '#'
+  const found = extractPdpBottomNavRange(html)
+  if (found && is188PdpBottomNav(found.html)) return html
+  const stickyOnly = Boolean(found && /<div\b/i.test(found.html) && !/data-pw-pdp-bottom/i.test(found.html))
+  const next = buildPartnerSitePdpBottomNavHtml({ locale, homeHref, stickyOnly })
+  if (!found) {
+    if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${next}\n</body>`)
+    return `${html}\n${next}`
+  }
+  return `${html.slice(0, found.start)}${next}${html.slice(found.end)}`
 }

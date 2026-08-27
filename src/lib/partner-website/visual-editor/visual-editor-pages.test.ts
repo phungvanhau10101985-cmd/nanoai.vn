@@ -680,6 +680,14 @@ test('sanitizeVisualHtmlForStore strips NUL before persist', () => {
   assert.equal(sanitizeVisualHtmlForStore('ok\u0000html'), 'okhtml')
 })
 
+test('ensureVisualHtmlLiveReady restores parked PDP gallery src before save', () => {
+  const html =
+    '<div class="pw-pdp-gallery-desktop"><img class="pw-shop-product-img" data-pw-deferred-src="https://cdn.example/desk.jpg" alt="x" /></div>'
+  const out = ensureVisualHtmlLiveReady(html, 'desktop')
+  assert.match(out, /src="https:\/\/cdn\.example\/desk\.jpg"/)
+  assert.doesNotMatch(out, /data-pw-deferred-src/)
+})
+
 test('ensureVisualHtmlLiveReady stamps chrome-added and device on moved widgets', () => {
   const html =
     '<button class="pw-cat-btn" data-pw-el="cat-toggle" data-pw-user-move="1">DM</button>' +

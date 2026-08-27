@@ -34,6 +34,9 @@ describe('listing native UI contract stamps', () => {
     expect(src).toContain('data-pw-pdp-bottom="1"')
     expect(src).toContain('data-pw-chrome-btn="try-on"')
     expect(src).toContain('data-pw-chrome-btn="favorite-product"')
+    expect(src).toContain('data-pw-like-count')
+    expect(src).toContain('pw-pdp-like-copy')
+    expect(src).toContain('ensurePartnerSitePdpBottomNavInHtml')
     expect(src).not.toContain('data-pw-account-toggle')
   })
 

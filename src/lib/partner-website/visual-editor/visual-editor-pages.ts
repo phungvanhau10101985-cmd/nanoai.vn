@@ -765,7 +765,19 @@ export function stripViewportDockChromeGeometry(html: string): string {
  */
 export function ensureVisualHtmlLiveReady(html: string, variant?: VisualDeviceVariant): string {
   if (!html) return html
-  const stamped = html.replace(/<(a|button)(\s[^>]*?)>/gi, (full, tag: string, attrs: string) => {
+  const ready = html.includes('data-pw-deferred-src')
+    ? html.replace(/<img\b([^>]*)\/?>/gi, (_full, attrs: string) => {
+        const deferred = attrs.match(/\bdata-pw-deferred-src=(["'])([^"']*)\1/i)
+        if (!deferred?.[2]) return `<img${attrs}>`
+        const src = deferred[2].replace(/"/g, '&quot;')
+        let next = /(?:^|\s)src=/.test(attrs)
+          ? attrs.replace(/(?:^|\s)src=(["'])[^"']*\1/i, ` src="${src}"`)
+          : ` src="${src}"${attrs}`
+        next = next.replace(/\s*data-pw-deferred-src=(["'])[^"']*\1/i, '')
+        return `<img${next}>`
+      })
+    : html
+  const stamped = ready.replace(/<(a|button)(\s[^>]*?)>/gi, (full, tag: string, attrs: string) => {
     const moved = /\bdata-pw-user-move=["']1["']/.test(attrs)
     const stay = /\bdata-pw-stay-scroll=["']1["']/.test(attrs)
     const added = /\bdata-pw-chrome-added=["']1["']/.test(attrs)

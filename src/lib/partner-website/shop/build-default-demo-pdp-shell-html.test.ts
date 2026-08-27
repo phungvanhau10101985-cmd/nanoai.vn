@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { bindLiveProductToPdpHtml } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
+import { ensurePartnerSitePdpBottomNavInHtml } from '@/lib/partner-website/shop/build-partner-site-header-html'
 import { buildDefaultDemoPdpShellHtml } from '@/lib/partner-website/shop/build-default-demo-pdp-shell-html'
 import { DEMO_PDP_BIND_PRODUCT } from '@/lib/partner-website/shop/demo-pdp-bind-product'
 
@@ -27,7 +28,9 @@ test('default demo PDP shell includes gallery, sizes, colors, qty, and reviews',
   assert.match(html, /Phối với món này/)
   assert.match(html, /data-pw-region="breadcrumb"/)
   assert.match(html, /pw-pdp-sticky/)
-  assert.match(html, /<svg width="22" height="22"/)
+  assert.match(html, /<svg width="17" height="17"/)
+  assert.match(html, /data-pw-like-count/)
+  assert.match(html, /pw-pdp-like-copy/)
   assert.match(html, /id="pw-pdp-qa"/)
   assert.match(html, /pw-shop-product-video/)
   assert.match(html, /data-pw-pdp-slot="size-guide"/)
@@ -107,4 +110,32 @@ test('default desktop shell does not duplicate the mobile hero gallery', () => {
   assert.match(mobile, /data-pw-chrome-btn="favorite-product"/)
   assert.match(mobile, /data-pw-chrome-btn="add-cart"/)
   assert.match(mobile, /data-pw-chrome-btn="buy-now"/)
+})
+
+test('ensure upgrades a legacy PDP sticky bar to the 188 like + two-line layout', () => {
+  const html = `<body data-pw-page="product">
+    <nav class="pw-bottom-nav pw-pdp-sticky" data-pw-pdp-bottom="1">
+      <a data-pw-chrome-btn="home">Trang chủ</a>
+      <button type="button" class="is-fav" data-pw-favorite data-pw-pdp-favorite="1">Thích sản phẩm</button>
+      <button type="button" data-pw-add-cart>Thêm giỏ</button>
+    </nav>
+  </body>`
+  const next = ensurePartnerSitePdpBottomNavInHtml(html, {
+    locale: 'vi',
+    siteSlug: 'demo-shop',
+    pageKey: 'product_detail',
+  })
+  assert.match(next, /data-pw-like-count/)
+  assert.match(next, /pw-pdp-like-copy/)
+  assert.match(next, /pw-pdp-sticky-copy/)
+  assert.match(next, />Trang</)
+  assert.match(next, />chủ</)
+  assert.match(next, />Thích</)
+  assert.doesNotMatch(next, /Thích sản phẩm/)
+  const again = ensurePartnerSitePdpBottomNavInHtml(next, {
+    locale: 'vi',
+    siteSlug: 'demo-shop',
+    pageKey: 'product_detail',
+  })
+  assert.equal(again, next)
 })
