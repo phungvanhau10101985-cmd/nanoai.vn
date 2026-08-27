@@ -1510,6 +1510,47 @@ export async function fetchPartnerInventoryRowsByTokenIlikeFromPg(
   }
 }
 
+/** Catalog 188 L1 — `category_l1` / `catalog_json.category` giống listing 188. */
+export async function fetchPartnerInventoryRowsByCategoryL1FromPg(
+  partnerId: string,
+  categoryL1Names: string[],
+  limit: number
+): Promise<MessagingPartnerInventoryRow[] | null> {
+  if (!isPgConfigured()) return null
+  const names = [...new Set(categoryL1Names.map((name) => String(name || '').trim()).filter(Boolean))]
+  if (!names.length) return []
+  const lim = Math.min(80, Math.max(8, Math.floor(limit)))
+  const lowered = names.map((name) => name.toLowerCase())
+  const prefixes = names.map((name) => `${name}%`)
+  try {
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where mpi.partner_id = $1::uuid
+         and coalesce(mpi.is_active, true) = true
+         and (
+           lower(trim(coalesce(mpi.category_l1, ''))) = any($2::text[])
+           or exists (
+             select 1 from unnest($3::text[]) as q(prefix)
+             where coalesce(mpi.category_l1, '') ilike q.prefix
+           )
+           or exists (
+             select 1 from unnest($3::text[]) as q(prefix)
+             where coalesce(mpi.catalog_json->>'category', '') ilike q.prefix
+           )
+         )
+       order by mpi.updated_at desc nulls last
+       limit $4`,
+      [partnerId, lowered, prefixes, lim]
+    )
+    return rows.map(mapPgInventoryRow)
+  } catch (e) {
+    if (isMissingCatalog188ColumnError(e)) {
+      return fetchPartnerInventoryRowsByTokensIlikeAnyFromPg(partnerId, names, lim)
+    }
+    console.warn('[fetchPartnerInventoryRowsByCategoryL1FromPg]', e)
+    return null
+  }
+}
+
 /**
  * Một lần query: hàng nào khớp **bất kỳ** pattern ILIKE nào (sku/name/description/price_hint).
  * Dùng cho AI inbox — thay vì N vòng gọi theo từng token.

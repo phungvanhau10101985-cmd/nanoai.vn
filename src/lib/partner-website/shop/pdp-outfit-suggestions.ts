@@ -5,6 +5,7 @@ import {
 import {
   fetchPartnerInventoryPageByCategoryFromPg,
   fetchPartnerInventoryRowByIdForPartnerFromPg,
+  fetchPartnerInventoryRowsByCategoryL1FromPg,
   fetchPartnerInventoryRowsByTokensIlikeAnyFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import type { PartnerCategoryRow } from '@/lib/partner-website/category/partner-category-types'
@@ -23,8 +24,10 @@ import {
   outfitSectionTitle,
   outfitSlotLabel,
   outfitSlotSearchTokens,
+  rowMatchesOutfitSlot,
   scoreOutfitCandidate,
   slotsForOutfitAnchor,
+  targetOutfitCat1Names,
   type OutfitGender,
   type OutfitNotApplicableReason,
   type OutfitSlotId,
@@ -113,7 +116,13 @@ export async function fetchPartnerOutfitSuggestions(input: {
   const primary = (links ?? []).find((l) => l.isPrimary) ?? (links ?? [])[0]
   const primaryCat = primary ? byId.get(primary.categoryId) : null
   const catNames = primaryCat ? categoryAncestorNames(primaryCat, byId) : []
-  const classified = classifyOutfitAnchor([...catNames, product.name])
+  const classified = classifyOutfitAnchor([
+    product.categoryL1,
+    product.categoryL2,
+    product.categoryL3,
+    ...catNames,
+    product.name,
+  ])
   if (!classified.role) {
     return {
       ...empty,
@@ -203,6 +212,33 @@ async function buildOutfitSlot(input: {
   const seen = new Set<string>([input.excludeId])
   const pool: Array<{ product: PartnerSiteShopProduct; gender: OutfitGender }> = []
 
+  const cat1Rows = await fetchPartnerInventoryRowsByCategoryL1FromPg(
+    input.partnerId,
+    targetOutfitCat1Names(input.slot, input.anchorGender),
+    60
+  )
+  for (const row of cat1Rows ?? []) {
+    if (seen.has(row.id)) continue
+    const product = inventoryRowToShopProduct(input.siteSlug, row)
+    if (!product) continue
+    if (
+      !rowMatchesOutfitSlot(
+        input.slot,
+        product.categoryL1,
+        product.categoryL2,
+        product.categoryL3,
+        product.name
+      )
+    ) {
+      continue
+    }
+    seen.add(row.id)
+    pool.push({
+      product,
+      gender: inferOutfitGender(product.categoryL1, product.categoryL2, product.name),
+    })
+  }
+
   for (const cat of input.categories) {
     const page = await fetchPartnerInventoryPageByCategoryFromPg(input.partnerId, {
       offset: 0,
@@ -233,10 +269,12 @@ async function buildOutfitSlot(input: {
       if (seen.has(row.id)) continue
       const product = inventoryRowToShopProduct(input.siteSlug, row)
       if (!product) continue
-      const role = inferOutfitRole(product.name)
-      if (role && role !== input.slot) continue
-      if (!role && !outfitSlotSearchTokens(input.slot).some((tok) => product.name.toLowerCase().includes(tok))) {
-        continue
+      if (
+        !rowMatchesOutfitSlot(input.slot, product.categoryL1, product.categoryL2, product.categoryL3, product.name)
+      ) {
+        if (!outfitSlotSearchTokens(input.slot).some((tok) => product.name.toLowerCase().includes(tok))) {
+          continue
+        }
       }
       seen.add(row.id)
       pool.push({ product, gender: inferOutfitGender(product.name) })
@@ -244,7 +282,7 @@ async function buildOutfitSlot(input: {
   }
 
   const anchorPrice = effectivePrice(input.anchor)
-  const ranked = pool
+  const scored = pool
     .map(({ product, gender }) => {
       const candPrice = effectivePrice(product)
       const score = scoreOutfitCandidate({
@@ -266,9 +304,11 @@ async function buildOutfitSlot(input: {
         }),
       }
     })
-    .filter((item) => item.matchScore > 0)
     .sort((a, b) => b.matchScore - a.matchScore)
-    .slice(0, input.limit)
+  const ranked = (scored.some((item) => item.matchScore > 0) ? scored.filter((item) => item.matchScore > 0) : scored).slice(
+    0,
+    input.limit
+  )
 
   const listingCat = input.categories[0]
   return {

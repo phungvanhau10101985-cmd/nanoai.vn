@@ -5,7 +5,9 @@ import {
   inferOutfitGender,
   inferOutfitRole,
   outfitSectionTitle,
+  rowMatchesOutfitSlot,
   slotsForOutfitAnchor,
+  targetOutfitCat1Names,
 } from '@/lib/partner-website/shop/pdp-outfit-roles'
 
 test('infers fashion roles from category and name', () => {
@@ -29,6 +31,13 @@ test('complementary slots exclude the anchor role', () => {
   assert.deepEqual(slotsForOutfitAnchor('shoes', 'male').slice(0, 2), ['top', 'bottom'])
   assert.ok(!slotsForOutfitAnchor('dress', 'female').includes('dress'))
   assert.ok(slotsForOutfitAnchor('top', 'female').includes('dress'))
+})
+
+test('targetOutfitCat1Names matches 188 complementary L1 names', () => {
+  assert.deepEqual(targetOutfitCat1Names('shoes', 'female'), ['Giày dép Nữ'])
+  assert.deepEqual(targetOutfitCat1Names('bag', 'female'), ['Túi xách Nữ'])
+  assert.ok(rowMatchesOutfitSlot('shoes', 'Giày dép Nữ', 'Sneaker nữ'))
+  assert.equal(rowMatchesOutfitSlot('dress', 'Thời trang Nữ', 'Áo thun'), false)
 })
 
 test('classifies title copy', () => {

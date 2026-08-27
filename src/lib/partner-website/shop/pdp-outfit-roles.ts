@@ -314,6 +314,43 @@ export function classifyOutfitAnchor(labels: unknown[]): {
   return { role, gender, reason: null }
 }
 
+/** 188 `target_cat1_names` — lọc kho theo cột catalog L1, không đoán từ cây menu. */
+export function targetOutfitCat1Names(slot: OutfitSlotId, gender: OutfitGender): string[] {
+  if (slot === 'shoes') {
+    if (gender === 'male') return ['Giày dép Nam']
+    if (gender === 'female') return ['Giày dép Nữ']
+    return ['Giày dép Nam', 'Giày dép Nữ']
+  }
+  if (slot === 'bag') {
+    if (gender === 'male') return ['Túi xách Nam']
+    if (gender === 'female') return ['Túi xách Nữ']
+    return ['Túi xách Nam', 'Túi xách Nữ']
+  }
+  if (slot === 'accessory') {
+    if (gender === 'male') return ['Phụ kiện Nam']
+    if (gender === 'female') return ['Phụ kiện Nữ']
+    return ['Phụ kiện Nam', 'Phụ kiện Nữ', 'Trang sức thời trang', 'Đồng hồ']
+  }
+  if (gender === 'male') return ['Thời trang Nam']
+  if (gender === 'female') return ['Thời trang Nữ']
+  return ['Thời trang Nam', 'Thời trang Nữ']
+}
+
+/** 188 `row_matches_slot_keywords` — shoes/bag/accessory tin cat1; áo/quần/váy bắt buộc đúng vai. */
+export function rowMatchesOutfitSlot(slot: OutfitSlotId, ...labels: unknown[]): boolean {
+  if (slot === 'shoes' || slot === 'bag' || slot === 'accessory') {
+    const role = inferOutfitRole(...labels)
+    return !role || role === slot
+  }
+  const role = inferOutfitRole(...labels)
+  if (slot === 'dress') {
+    if (role === 'dress') return true
+    const blob = joinParts(...labels)
+    return blob.includes('chân váy') || blob.includes('chan vay') || blob.includes('váy chữ a')
+  }
+  return role === slot
+}
+
 export function outfitSlotSearchTokens(slot: OutfitSlotId): string[] {
   if (slot === 'top') return ['áo', 'sơ mi', 'thun', 'khoác', 'shirt', 'blouse']
   if (slot === 'bottom') return ['quần', 'jean', 'short', 'chân váy', 'pants', 'skirt']

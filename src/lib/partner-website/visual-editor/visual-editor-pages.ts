@@ -28,10 +28,12 @@ import {
 import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual-editor/strip-empty-logo-placeholders'
 import {
   applySharedChrome,
+  dedupeSharedShopHeaders,
   extractSharedChrome,
   fillMissingSharedChromeFloats,
   hasSharedChrome,
   hoistBodyLevelChromeFloats,
+  unwrapPersistedLiveChromeHtml,
 } from '@/lib/partner-website/shop/sync-shared-chrome'
 
 /** Pages shown in the dashboard preview picker (real `/site/{slug}/…` routes). */
@@ -788,7 +790,7 @@ export function ensureVisualHtmlLiveReady(html: string, variant?: VisualDeviceVa
     if (variant && !/\bdata-pw-device=/.test(next)) next += ` data-pw-device="${variant}"`
     return next === attrs ? full : `<${tag}${next}>`
   })
-  return stripViewportDockChromeGeometry(stamped)
+  return dedupeSharedShopHeaders(unwrapPersistedLiveChromeHtml(stripViewportDockChromeGeometry(stamped)))
 }
 
 function stampVisualAddedChrome(html: string, variant: VisualDeviceVariant): string {

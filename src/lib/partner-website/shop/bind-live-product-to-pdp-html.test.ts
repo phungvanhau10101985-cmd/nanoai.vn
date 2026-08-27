@@ -232,6 +232,36 @@ test('bind does not rewrite recommended catalog cards', () => {
   assert.match(next, /data-pw-related="1"/)
 })
 
+test('bind fills outfit slots and card images like 188 main_image', () => {
+  const html = SHELL.replace(
+    'data-pw-region="catalog"',
+    'data-pw-region="catalog" data-pw-outfit="1" data-pw-grid-kind="outfit"'
+  ).replace(
+    '<article data-pw-el="card" data-inventory-id="cccccccc-cccc-cccc-cccc-cccccccccccc"><h3 data-pw-el="card-name">Related</h3></article>',
+    '<div data-pw-outfit-slots></div><div data-pw-grid></div>'
+  )
+  const dress = 'https://img.alicdn.com/img/ibank/O1CN01aUuPLA2Dd3T8T15w4_!!991128631-0-cib.jpg'
+  const next = bindLiveProductToPdpHtml(
+    html,
+    {
+      ...PRODUCT_B,
+      outfitTitle: 'Phối với váy này',
+      outfitSlots: [
+        {
+          id: 'shoes',
+          label: 'Giày',
+          listingHref: '/site/demo-shop/c/giay',
+          items: [{ id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', name: 'Giày sandal', imageUrl: dress, priceHint: '320.000đ' }],
+        },
+      ],
+    },
+    { locale: 'vi', siteSlug: 'demo-shop' }
+  )
+  assert.match(next, /data-pw-outfit-slot="shoes"/)
+  assert.match(next, /Giày sandal/)
+  assert.match(next, /img\.alicdn\.com\/img\/ibank\/O1CN01aUuPLA2Dd3T8T15w4_!!991128631-0-cib\.jpg_600x600q90\.jpg/)
+})
+
 test('bind stamps outfit exclude without rewriting outfit cards as related', () => {
   const html = SHELL.replace(
     'data-pw-region="catalog"',

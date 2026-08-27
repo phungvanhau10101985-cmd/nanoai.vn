@@ -710,6 +710,16 @@ test('ensureVisualHtmlLiveReady strips leftover drag geometry from the bottom do
   assert.match(out, /data-pw-pdp-bottom="1"/)
 })
 
+test('ensureVisualHtmlLiveReady unwraps persisted live-chrome so save does not stack a second header', () => {
+  const html = `<!DOCTYPE html><html><body>
+<div data-pw-live-chrome="1"><div data-pw-live-chrome-scale="1"><header class="pw-header" data-pw-region="header">One</header></div></div>
+<header class="pw-header" data-pw-region="header">Two</header>
+</body></html>`
+  const out = ensureVisualHtmlLiveReady(html, 'mobile')
+  assert.doesNotMatch(out, /data-pw-live-chrome/)
+  assert.equal((out.match(/<header /g) || []).length, 1)
+})
+
 test('saving one device html does not replace the other device file', () => {
   const project = {
     entryPath: 'index.html',

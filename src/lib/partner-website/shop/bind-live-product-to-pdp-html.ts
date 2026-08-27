@@ -11,7 +11,12 @@ import {
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
-import { isOutfitCatalogOpenTag } from '@/lib/partner-website/shop/outfit-products'
+import {
+  buildOutfitProductsSectionHtml,
+  isOutfitCatalogOpenTag,
+  outfitCardHtml,
+  type OutfitProductCard,
+} from '@/lib/partner-website/shop/outfit-products'
 import {
   buildRelatedProductsSectionHtml,
   isRelatedCatalogOpenTag,
@@ -110,6 +115,13 @@ export type LivePdpBindProduct = {
   reviews?: LivePdpBindReview[] | null
   questions?: LivePdpBindQuestion[] | null
   relatedProducts?: LivePdpBindRelated[] | null
+  outfitTitle?: string | null
+  outfitSlots?: Array<{
+    id: string
+    label: string
+    listingHref?: string | null
+    items: OutfitProductCard[]
+  }> | null
   breadcrumb?: LivePdpBindCrumb[] | null
   categoryId?: string | null
   categoryPath?: string | null
@@ -791,7 +803,52 @@ function stampOutfitOpenTag(open: string, product: LivePdpBindProduct): string {
   let out = open
   if (!/\bdata-pw-outfit\s*=/.test(out)) out = out.replace(/>$/, ' data-pw-outfit="1">')
   if (!/\bdata-pw-grid-kind\s*=/.test(out)) out = out.replace(/>$/, ' data-pw-grid-kind="outfit">')
+  const firstHref = String(product.outfitSlots?.[0]?.listingHref || '').trim()
+  if (firstHref) out = stampOpenAttr(out, 'data-more-href', firstHref)
   return stampOpenAttr(out, 'data-exclude', product.id)
+}
+
+function rewriteCatalogOutfitInner(
+  inner: string,
+  product: LivePdpBindProduct,
+  siteSlug?: string | null
+): string {
+  let out = inner
+  const title = String(product.outfitTitle || '').trim()
+  if (title) out = replaceElInner(out, PW_EL.sectionTitle, escText(title))
+  const slots = (product.outfitSlots ?? []).filter((slot) => String(slot?.id || '').trim())
+  if (slots.length) {
+    const slotHtml = slots
+      .map(
+        (slot, i) =>
+          `<button type="button" class="pw-outfit-slot${i === 0 ? ' is-active' : ''}" role="tab" data-pw-outfit-slot="${escAttr(slot.id)}" aria-selected="${i === 0 ? 'true' : 'false'}">${escText(slot.label)}</button>`
+      )
+      .join('')
+    out = out.replace(
+      /(<([a-z0-9]+)\b[^>]*\bdata-pw-outfit-slots\b[^>]*>)([\s\S]*?)(<\/\2>)/i,
+      `$1${slotHtml}$4`
+    )
+    const moreHref = String(slots[0]?.listingHref || '').trim()
+    if (moreHref) {
+      out = out.replace(
+        /<([a-z0-9]+)\b([^>]*\bdata-pw-el=["']section-more["'][^>]*)>/gi,
+        (_full, tag: string, attrs: string) => `<${tag}${setAttr(attrs, 'href', moreHref)}>`
+      )
+      out = out.replace(
+        /<([a-z0-9]+)\b([^>]*\bpw-outfit-all\b[^>]*)>/gi,
+        (_full, tag: string, attrs: string) => `<${tag}${setAttr(attrs, 'href', moreHref)}>`
+      )
+    }
+    const items = (slots[0]?.items ?? []).filter((item) => String(item?.id || '').trim()).slice(0, 5)
+    if (items.length) {
+      out = replaceFirstGridInner(
+        out,
+        items.map((item) => outfitCardHtml(item, { siteSlug })).join(''),
+        'pw-outfit-grid'
+      )
+    }
+  }
+  return out
 }
 
 function stampRelatedOpenTag(open: string, product: LivePdpBindProduct, siteSlug?: string | null): string {
@@ -1107,6 +1164,17 @@ function ensureMissingPdpSlots(
     const qa = `<section id="pw-pdp-qa" class="pw-shop-reviews" data-pw-region="${PW_REGION.reviews}" data-pw-pdp-slot="qa"><h2 data-pw-el="${PW_EL.sectionTitle}">${escText(t.qaTitle)}</h2><button type="button" class="pw-shop-btn pw-shop-btn-outline">${escText(t.qaAskButton)}</button><div style="margin-top:20px;display:grid;gap:16px">${cards}</div></section>`
     out = insertBeforeMainClose(out, qa)
   }
+  if (!/\bdata-pw-outfit\s*=/.test(out) && !/\bdata-pw-grid-kind\s*=\s*(["']?)outfit\1/.test(out)) {
+    const first = product.outfitSlots?.[0]
+    const outfit = buildOutfitProductsSectionHtml({
+      locale,
+      siteSlug,
+      cards: first?.items ?? [],
+      excludeId: product.id,
+      slots: (product.outfitSlots ?? []).map((slot) => slot.id as import('@/lib/partner-website/shop/pdp-outfit-roles').OutfitSlotId),
+    })
+    out = insertBeforeMainClose(out, outfit)
+  }
   if (!/\bdata-pw-related\s*=/.test(out) && !/\bdata-pw-grid-kind\s*=\s*(["']?)related\1/.test(out)) {
     const related = buildRelatedProductsSectionHtml({
       locale,
@@ -1151,7 +1219,9 @@ export function bindLiveProductToPdpHtml(
     return `${open}${rewriteReviewsInner(inner, product)}`
   })
   out = replaceRegionBlocks(out, PW_REGION.catalog, (inner, open) => {
-    if (isOutfitCatalogOpenTag(open)) return `${stampOutfitOpenTag(open, product)}${inner}`
+    if (isOutfitCatalogOpenTag(open)) {
+      return `${stampOutfitOpenTag(open, product)}${rewriteCatalogOutfitInner(inner, product, siteSlug)}`
+    }
     if (!isRelatedCatalogOpenTag(open)) return `${open}${inner}`
     return `${stampRelatedOpenTag(open, product, siteSlug)}${rewriteCatalogRelatedInner(inner, product, locale, siteSlug)}`
   })

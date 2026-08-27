@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  applyShopAlicdnCardSize,
   collectShopProductDetailImages,
   collectShopProductGalleryImages,
+  hasValidShopCardImageUrl,
   normalizeShopImageUrl,
+  pickShopCardImageRaw,
   shopCardDisplaySrc,
 } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
@@ -26,14 +29,21 @@ test('normalizeShopImageUrl rewrites blocked 188 Bunny host and protocol-relativ
   assert.equal(normalizeShopImageUrl('not-a-url'), '')
 })
 
-test('shopCardDisplaySrc proxies AliCDN/1688 so storefront cards are not hotlink-blocked', () => {
+test('shopCardDisplaySrc reads AliCDN like 188 getProductMainImage (img.alicdn + 600q90)', () => {
   const dress = 'https://img.alicdn.com/img/ibank/O1CN01aUuPLA2Dd3T8T15w4_!!991128631-0-cib.jpg'
-  assert.equal(shopCardDisplaySrc(dress), `/api/fetch-image?url=${encodeURIComponent(dress)}`)
+  assert.equal(shopCardDisplaySrc(dress), `${dress}_600x600q90.jpg`)
   assert.equal(
     shopCardDisplaySrc('https://cbu01.alicdn.com/img/ibank/O1CN01a.jpg'),
-    `/api/fetch-image?url=${encodeURIComponent('https://img.alicdn.com/img/ibank/O1CN01a.jpg')}`
+    'https://img.alicdn.com/img/ibank/O1CN01a.jpg_600x600q90.jpg'
   )
   assert.equal(shopCardDisplaySrc('https://cdn.188.com.vn/site/ok.jpg'), 'https://cdn.188.com.vn/site/ok.jpg')
+  assert.equal(hasValidShopCardImageUrl('0'), false)
+  assert.equal(hasValidShopCardImageUrl('https://188.com.vn'), false)
+  assert.equal(
+    pickShopCardImageRaw({ image_url: '0', main_image: dress, galleryImages: [] }),
+    dress
+  )
+  assert.equal(applyShopAlicdnCardSize(dress), `${dress}_600x600q90.jpg`)
 })
 
 test('collectShopProductGalleryImages and shop mapper keep a reachable https card image', () => {

@@ -657,11 +657,15 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `(function(){
     return !!(document.body&&document.body.classList.contains('nanoai-ve-active'));
   }
   function findLiveHeader(root){
-    if(!root||!root.querySelector)return null;
-    var header=root.querySelector('header.pw-header,header.pw-shop-header,.pw-header,.pw-shop-header');
-    if(!header)return null;
-    if(header.closest&&header.closest('[data-pw-live-chrome]'))return null;
-    return header;
+    if(!root||!root.querySelectorAll)return null;
+    var list=root.querySelectorAll('header.pw-header,header.pw-shop-header,.pw-header,.pw-shop-header');
+    var outside=null,inside=null,i;
+    for(i=0;i<list.length;i++){
+      var el=list[i];
+      if(el.closest&&el.closest('[data-pw-live-chrome]')){ if(!inside) inside=el; }
+      else if(!outside) outside=el;
+    }
+    return outside||inside;
   }
   function siblingChrome(host){
     if(!host||!host.children)return null;

@@ -1,6 +1,8 @@
 import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
+import { outfitSuggestionsToBind } from '@/lib/partner-website/shop/outfit-products'
+import { fetchPartnerOutfitSuggestions } from '@/lib/partner-website/shop/pdp-outfit-suggestions'
 import { shopProductsToRelatedBind } from '@/lib/partner-website/shop/related-products'
 import {
   fetchRelatedShopProducts,
@@ -105,6 +107,15 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
     categoryId: relatedCtx.categoryId,
     limit: 24,
   })
+  const outfit = outfitSuggestionsToBind(
+    await fetchPartnerOutfitSuggestions({
+      partnerId: shop.partnerId,
+      siteSlug: shop.site.siteSlug,
+      inventoryId: row.id,
+      locale: shop.site.locale,
+      limit: 12,
+    })
+  )
 
   const visual = maybePartnerSiteVisualProductPage(
     shop.site,
@@ -115,6 +126,8 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
       categoryId: relatedCtx.categoryId,
       categoryPath: relatedCtx.categoryPath,
       relatedProducts: shopProductsToRelatedBind(relatedProducts),
+      outfitTitle: outfit.title,
+      outfitSlots: outfit.slots,
     }
   )
   if (visual) return visual

@@ -212,6 +212,7 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function zoomScale(scenePx){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('return 1;')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function hoistLiveChrome(root,scale){')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('return outside||inside;')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function hoistLiveDock(root){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function hoistLiveOverlays(){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('var isPdp=(el.getAttribute&&el.getAttribute(\'data-pw-pdp-bottom\')===\'1\')')

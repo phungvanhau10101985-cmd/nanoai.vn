@@ -8,6 +8,7 @@ import {
   outfitSlotLabel,
   type OutfitSlotId,
 } from '@/lib/partner-website/shop/pdp-outfit-roles'
+import type { PartnerOutfitSuggestions } from '@/lib/partner-website/shop/pdp-outfit-suggestions'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   partnerSiteCategoryPath,
@@ -25,6 +26,28 @@ export type OutfitProductCard = {
   imageUrl: string
   priceHint?: string | null
   reason?: string | null
+}
+
+export function outfitSuggestionsToBind(data: PartnerOutfitSuggestions | null | undefined): {
+  title: string | null
+  slots: Array<{ id: string; label: string; listingHref: string; items: OutfitProductCard[] }>
+} {
+  if (!data?.applicable || !data.slots.length) return { title: data?.anchor?.title || null, slots: [] }
+  return {
+    title: data.anchor?.title || null,
+    slots: data.slots.map((slot) => ({
+      id: slot.id,
+      label: slot.label,
+      listingHref: slot.listingHref,
+      items: slot.items.map((item) => ({
+        id: item.product.id,
+        name: item.product.name,
+        imageUrl: item.product.imageUrl,
+        priceHint: item.product.priceHint || null,
+        reason: item.reasons[0] || null,
+      })),
+    })),
+  }
 }
 
 export function shopProductsToOutfitBind(products: PartnerSiteShopProduct[], reason?: string | null): OutfitProductCard[] {

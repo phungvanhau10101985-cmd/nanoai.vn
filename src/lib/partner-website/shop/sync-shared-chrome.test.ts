@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   applySharedChrome,
+  dedupeSharedShopHeaders,
   extractSharedChrome,
+  unwrapPersistedLiveChromeHtml,
   fillMissingSharedChromeFloats,
   hasSharedChrome,
   htmlHasShopHeader,
@@ -637,5 +639,21 @@ test('sync keeps mobile PDP bar when homepage nav is saved', () => {
   assert.match(pdp, /data-pw-pdp-bottom="1"/)
   assert.match(pdp, /data-pw-chrome-btn="try-on"/)
   assert.equal(pdp.includes('href="/products"'), false)
+})
+
+test('applySharedChrome unwraps persisted live-chrome and drops a second header', () => {
+  const chrome = extractSharedChrome(home)
+  const duplicated = `<!DOCTYPE html><html><body>
+<div data-pw-live-chrome="1"><div data-pw-live-chrome-scale="1"><header class="pw-header" data-pw-region="header">Hoisted</header></div></div>
+<header class="pw-header" data-pw-region="header">ExtraHead</header>
+<main>PDP</main>
+</body></html>`
+  assert.equal((unwrapPersistedLiveChromeHtml(duplicated).match(/<header /g) || []).length, 2)
+  const next = applySharedChrome(duplicated, chrome)
+  assert.equal((next.match(/<header /g) || []).length, 1)
+  assert.match(next, /HomeLogo/)
+  assert.doesNotMatch(next, /ExtraHead/)
+  assert.doesNotMatch(next, /data-pw-live-chrome/)
+  assert.equal(dedupeSharedShopHeaders(duplicated).includes('ExtraHead'), false)
 })
 

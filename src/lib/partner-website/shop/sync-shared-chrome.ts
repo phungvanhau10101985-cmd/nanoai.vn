@@ -178,17 +178,21 @@ function extractAllBlocks(html: string, openRe: RegExp): ExtractedBlock[] {
   if (!html) return []
   const masked = maskHtmlForTagScan(html)
   const out: ExtractedBlock[] = []
-  openRe.lastIndex = 0
+  const re = new RegExp(openRe.source, openRe.flags.includes('g') ? openRe.flags : `${openRe.flags}g`)
+  re.lastIndex = 0
   let match: RegExpExecArray | null
-  while ((match = openRe.exec(masked))) {
+  while ((match = re.exec(masked))) {
     const tag = (match[1] || 'div').toLowerCase()
     const start = match.index
     const close = closingTagIndex(masked, start + match[0].length, tag)
-    if (close < 0) continue
+    if (close < 0) {
+      re.lastIndex = start + match[0].length
+      continue
+    }
     const closeTok = html.slice(close).match(new RegExp(`^</${tag}\\s*>`, 'i'))
     const end = close + (closeTok?.[0].length ?? `</${tag}>`.length)
     out.push({ start, end, html: html.slice(start, end) })
-    openRe.lastIndex = end
+    re.lastIndex = end
   }
   return out
 }
@@ -534,6 +538,35 @@ export function isPdpBottomNavHtml(html: string): boolean {
   return /data-pw-pdp-bottom=["']1["']/i.test(html)
 }
 
+const LIVE_CHROME_OPEN_RE = /<(div)\b(?=[^>]*\bdata-pw-live-chrome\b)[^>]*>/gi
+
+/** Runtime hoist wrapper must not persist — it blocks live hoist and stacks a second header. */
+export function unwrapPersistedLiveChromeHtml(html: string): string {
+  if (!html || !/data-pw-live-chrome/i.test(html)) return html
+  let out = html
+  const blocks = extractAllBlocks(out, LIVE_CHROME_OPEN_RE)
+  for (let i = blocks.length - 1; i >= 0; i -= 1) {
+    const block = blocks[i]
+    let inner = block.html.replace(/^<div\b[^>]*>/i, '').replace(/<\/div>\s*$/i, '')
+    inner = inner.replace(/^<div\b[^>]*\bdata-pw-live-chrome-scale\b[^>]*>([\s\S]*)<\/div>\s*$/i, '$1')
+    out = out.slice(0, block.start) + inner + out.slice(block.end)
+  }
+  return out.replace(/<[^>]*\bdata-pw-live-chrome-ph\b[^>]*>\s*<\/[^>]+>/gi, '')
+}
+
+export function dedupeSharedShopHeaders(html: string): string {
+  if (!html) return html
+  const blocks = extractAllBlocks(html, HEADER_RE)
+  if (blocks.length <= 1) return html
+  let out = html
+  for (let i = blocks.length - 1; i >= 1; i -= 1) {
+    const extra = blocks[i]
+    if (blocks.some((keep, idx) => idx < i && extra.start >= keep.start && extra.end <= keep.end)) continue
+    out = out.slice(0, extra.start) + out.slice(extra.end)
+  }
+  return out
+}
+
 export function applySharedChrome(
   html: string,
   chrome: SharedChrome,
@@ -560,12 +593,14 @@ export function applySharedChrome(
     floats = restampChromeDevice(floats, opts.targetVariant)
   }
 
-  let out = html
+  let out = dedupeSharedShopHeaders(unwrapPersistedLiveChromeHtml(html))
   const sourceHeaderHasTopbar = /(?:pw-topbar|pw-shop-topbar|data-pw-region=["']topbar["'])/i.test(header)
 
   if (header) {
+    out = dedupeSharedShopHeaders(out)
     const targetHeader = extractFirst(out, HEADER_RE)
     out = targetHeader ? replaceRange(out, targetHeader, header) : insertAfterBodyOpen(out, header)
+    out = dedupeSharedShopHeaders(out)
   }
 
   if (topbar && !sourceHeaderHasTopbar) {

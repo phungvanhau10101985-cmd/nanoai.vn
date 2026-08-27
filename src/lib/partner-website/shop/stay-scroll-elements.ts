@@ -100,6 +100,17 @@ export function restoreLiveChromePins(root: ParentNode): void {
     ph?.remove()
   })
   root.querySelectorAll(`[${PW_LIVE_CHROME_PH_ATTR}]`).forEach((ph) => ph.remove())
+  dedupeShopHeadersInDocument(root)
+}
+
+function dedupeShopHeadersInDocument(root: ParentNode): void {
+  const nodes = Array.from(
+    root.querySelectorAll(
+      'header.pw-header, header.pw-shop-header, .pw-header, .pw-shop-header, [data-pw-region="header"]'
+    )
+  )
+  const roots = nodes.filter((el) => !nodes.some((other) => other !== el && other.contains(el)))
+  roots.slice(1).forEach((el) => el.remove())
 }
 
 const INFLOW_CAT_SEL =

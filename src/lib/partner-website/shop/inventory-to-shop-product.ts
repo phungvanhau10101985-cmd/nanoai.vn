@@ -77,6 +77,14 @@ function firstCatalogUrls(primary: unknown, fallback: unknown): string[] {
   return a.length ? a : catalogStringList(fallback)
 }
 
+function firstValidShopImageUrl(...vals: unknown[]): string {
+  for (const raw of vals) {
+    const url = normalizeShopImageUrl(String(raw ?? ''))
+    if (url) return url
+  }
+  return ''
+}
+
 function firstCatalogText(...vals: unknown[]): string | null {
   for (const raw of vals) {
     const v = String(raw ?? '').trim()
@@ -113,7 +121,7 @@ export function hydrateInventoryShopRowFromCatalog188(row: InventoryShopProductR
       row.description,
     sku: firstCatalogText(row.sku, snap.code) || row.sku,
     remarketing_id: firstCatalogText(row.remarketing_id, snap.product_id) || row.remarketing_id,
-    image_url: firstCatalogText(row.image_url, snap.main_image) || row.image_url,
+    image_url: firstValidShopImageUrl(row.image_url, snap.main_image) || row.image_url,
     product_url: firstCatalogText(row.product_url, snap.link_default) || row.product_url,
     product_video_url: firstCatalogText(row.product_video_url, snap.video_link) || row.product_video_url,
     gallery_urls: firstCatalogUrls(row.gallery_urls, snap.images),
@@ -252,7 +260,7 @@ export function inventoryRowToShopProduct(
   const name = (row.name ?? '').trim() || 'Product'
   const detailPath = partnerSiteProductPath(siteSlug, row.id, { name })
   const galleryImages = collectShopProductGalleryImages(row)
-  const rawImage = normalizeShopImageUrl(row.image_url) || galleryImages[0] || ''
+  const rawImage = firstValidShopImageUrl(row.image_url, galleryImages[0]) || galleryImages[0] || ''
   // Prefer a reachable https image; otherwise keep a visible placeholder so catalog is not empty.
   const imageUrl = rawImage
     ? rawImage
