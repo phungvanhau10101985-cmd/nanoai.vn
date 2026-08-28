@@ -13,7 +13,11 @@ describe('stripEmptyLogoPlaceholdersFromHtml', () => {
 
   it('keeps a real uploaded logo', () => {
     const html = `<a class="pw-brand"><img class="pw-logo" src="https://cdn.example/logo.png" alt="188"/></a>`
-    expect(stripEmptyLogoPlaceholdersFromHtml(html)).toBe(html)
+    const next = stripEmptyLogoPlaceholdersFromHtml(html)
+    expect(next).toContain('https://cdn.example/logo.png')
+    expect(next).toContain('class="pw-logo"')
+    expect(next).toContain('<img')
+    expect(next).not.toContain('data-pw-logo-empty')
   })
 
   it('keeps a real https logo even if the empty flag was left on', () => {
@@ -25,13 +29,26 @@ describe('stripEmptyLogoPlaceholdersFromHtml', () => {
     expect(next).toContain('data-pw-logo-wordmark-hidden')
   })
 
-  it('keeps a positioned floated logo instead of seating it back into the brand', () => {
+  it('seats a scene-absolute header logo back into the brand slot and keeps image pan', () => {
+    const html = `<header class="pw-header"><div class="pw-brand-cluster"><a class="pw-brand" href="/"><span class="pw-wordmark">188.com.vn</span></a></div></header><main data-pw-scene-root="1"><span class="pw-logo-frame" data-pw-logo-frame="1" data-pw-user-move="1" data-pw-placement="scene-absolute" data-pw-box-x="-600" data-pw-box-y="40" style="position:absolute;left:12px;top:8px;width:140px;height:36px"><img class="pw-logo" src="https://cdn.example/desk-logo.png" alt="logo" data-pw-logo-pan-x="40" data-pw-logo-pan-y="-18" style="transform:translate(40px, -18px) scale(2.4)"/></span></main>`
+    const next = stripEmptyLogoPlaceholdersFromHtml(html)
+    expect(next).toContain('https://cdn.example/desk-logo.png')
+    expect(next).toMatch(/<a class="pw-brand"[^>]*>[\s\S]*pw-logo-frame/)
+    expect(next).not.toContain('data-pw-placement="scene-absolute"')
+    expect(next).not.toContain('data-pw-logo-float')
+    expect(next).toContain('data-pw-logo-pan-x="40"')
+    expect(next).toContain('data-pw-logo-pan-y="-18"')
+    expect(next).toContain('translate(40px, -18px) scale(2.4)')
+    expect(next).toContain('data-pw-logo-wordmark-hidden')
+  })
+
+  it('seats a positioned floated logo into the default brand slot', () => {
     const html = `<header class="pw-header"><div class="pw-brand-cluster"><a class="pw-brand" href="/"><span class="pw-wordmark" data-pw-logo-wordmark-hidden="1" style="display:none">188.com.vn</span></a></div><span class="pw-logo-frame" data-pw-logo-frame="1" data-pw-logo-float="1" style="position:absolute;left:12px;top:8px;width:140px;height:36px"><img class="pw-logo" src="https://cdn.example/desk-logo.png" alt="logo"/></span></header>`
     const next = stripEmptyLogoPlaceholdersFromHtml(html)
     expect(next).toContain('https://cdn.example/desk-logo.png')
-    expect(next).toContain('data-pw-logo-float="1"')
-    expect(next).toContain('left:12px')
-    expect(next).toContain('top:8px')
+    expect(next).toMatch(/<a class="pw-brand"[^>]*>[\s\S]*pw-logo-frame/)
+    expect(next).not.toContain('data-pw-logo-float')
+    expect(next).not.toContain('left:12px')
     expect(next).toContain('data-pw-logo-wordmark-hidden')
   })
 
@@ -71,7 +88,7 @@ describe('stripEmptyLogoPlaceholdersFromHtml', () => {
     expect(next.match(/<img\b/g)?.length).toBe(1)
   })
 
-  it('keeps absolute home-link float when frame inside has no left/top', () => {
+  it('seats a floated home-link logo into the brand cluster slot', () => {
     const html = [
       '<header class="pw-header"><div class="pw-header-main">',
       '<a class="pw-brand" href="/site/x" data-pw-logo-home="1" data-pw-logo-float="1" data-pw-logo-floated="1"',
@@ -87,10 +104,18 @@ describe('stripEmptyLogoPlaceholdersFromHtml', () => {
 
     const next = stripEmptyLogoPlaceholdersFromHtml(html)
     expect(next).toContain('https://cdn.example/logo.png')
-    expect(next).toContain('data-pw-logo-float="1"')
-    expect(next).toContain('left:12px')
-    expect(next).toContain('top:8px')
+    expect(next).toMatch(/pw-brand-cluster[\s\S]*<a class="pw-brand"[\s\S]*pw-logo-frame/)
+    expect(next).not.toContain('data-pw-logo-float')
+    expect(next).not.toContain('left:12px')
     expect(next).toContain('pw-cat-btn')
+    expect(next.match(/<img\b/g)?.length).toBe(1)
+  })
+
+  it('keeps a same-origin uploaded logo path', () => {
+    const html = `<a class="pw-brand" href="/"><img class="pw-logo" src="/uploads/logo.png" alt="logo"/></a>`
+    const next = stripEmptyLogoPlaceholdersFromHtml(html)
+    expect(next).toContain('/uploads/logo.png')
+    expect(next).toContain('<img')
   })
 
   it('strips float attrs wrongly stored on img tags', () => {

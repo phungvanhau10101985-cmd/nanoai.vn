@@ -3,7 +3,13 @@ import {
   PW_COORDINATE_VERSION_ATTR,
   PW_PLACEMENT_ATTR,
   pwCoordinateDevice,
+  pwLeftOriginToCenterX,
+  pwLooksLikeNormalized01,
+  pwParseCoordinateVersion,
+  pwSceneBoxLeftCss,
+  pwSceneBoxTopPx,
   pwSceneWidth,
+  pwTopLeftToElementCenter,
   type PwCoordinateDevice,
   type PwPlacementMode,
 } from './pw-coordinate-space'
@@ -12,6 +18,8 @@ type NormalizeCoordinateOptions = {
   variant?: PwCoordinateDevice
   /** Save path: retain semantic flags, but stop writing legacy geometry. */
   writeCanonicalOnly?: boolean
+  /** HTML coordinate version before this pass. Missing/1/2 = left-origin; 3 = top-left of the element. */
+  sourceVersion?: string
 }
 
 const FLOW_SLOT_RE =
@@ -115,8 +123,18 @@ function canonicalizeOpeningTag(
 ): string {
   let attrs = rawAttrs
   const sceneWidth = pwSceneWidth(device)
+  const sourceVer = pwParseCoordinateVersion(options.sourceVersion)
+  const migrateLeftOrigin = sourceVer < 3
+  const migrateElementCenter = sourceVer < 4
   const style = styleMap(readStyle(attrs).css)
   const explicit = explicitPlacement(attrs)
+  if (
+    /\bdata-pw-logo-(?:float|floated|frame|home|added)=["']1["']/i.test(attrs) ||
+    /\bdata-pw-el=["']logo["']/i.test(attrs) ||
+    /\b(?:pw-logo-frame|pw-logo|pw-shop-logo|pw-brand|pw-shop-brand)\b/i.test(attrs)
+  ) {
+    return `<${tag}${rawAttrs}>`
+  }
   const isFlow = FLOW_SLOT_RE.test(attrs) || explicit === 'flow'
   const isFixed =
     explicit === 'viewport-fixed' ||
@@ -178,6 +196,16 @@ function canonicalizeOpeningTag(
     if (!Number.isFinite(height)) height = numberAttr(attrs, 'data-pw-stay-h')
     if (!Number.isFinite(width)) width = cssNumber(style.get('width'))
     if (!Number.isFinite(height)) height = cssNumber(style.get('height'))
+    if (
+      migrateElementCenter &&
+      Number.isFinite(x) &&
+      Number.isFinite(y) &&
+      !pwLooksLikeNormalized01(x, y)
+    ) {
+      const center = pwTopLeftToElementCenter(x, y, width, height)
+      x = center.x
+      y = center.y
+    }
     attrs = setAttr(attrs, PW_PLACEMENT_ATTR, 'viewport-fixed')
     if (Number.isFinite(x)) attrs = setAttr(attrs, 'data-pw-fixed-x', round(x, 5))
     if (Number.isFinite(y)) attrs = setAttr(attrs, 'data-pw-fixed-y', round(y, 5))
@@ -234,6 +262,12 @@ function canonicalizeOpeningTag(
     if (!Number.isFinite(width)) width = cssNumber(style.get('width'))
     if (!Number.isFinite(height)) height = cssNumber(style.get('height'))
     if (Number.isFinite(x) && Number.isFinite(y)) {
+      if (migrateLeftOrigin) x = pwLeftOriginToCenterX(x, sceneWidth)
+      if (migrateElementCenter) {
+        const center = pwTopLeftToElementCenter(x, y, width, height)
+        x = center.x
+        y = center.y
+      }
       attrs = setAttr(attrs, PW_PLACEMENT_ATTR, 'scene-absolute')
       attrs = setAttr(attrs, 'data-pw-box-x', round(x))
       attrs = setAttr(attrs, 'data-pw-box-y', round(y))
@@ -251,8 +285,8 @@ function canonicalizeOpeningTag(
           attrs = removeAttr(attrs, name)
         }
         style.set('position', 'absolute')
-        style.set('left', `${round(x)}px`)
-        style.set('top', `${round(y)}px`)
+        style.set('left', pwSceneBoxLeftCss(x, width))
+        style.set('top', `${pwSceneBoxTopPx(y, height)}px`)
         style.delete('right')
         style.delete('bottom')
         style.delete('transform')
@@ -271,17 +305,19 @@ export function visualCoordinateContractVersionOf(html: string): string {
   )
 }
 
-/** Pure, idempotent legacy reader. Render is dual-read; save writes v2 geometry only. */
+/** Pure, idempotent legacy reader. Render is dual-read; save writes v4 element-center geometry. */
 export function normalizeVisualCoordinateContract(
   html: string,
   options: NormalizeCoordinateOptions = {}
 ): string {
   if (!html.trim()) return html
+  const sourceVersion = options.sourceVersion ?? visualCoordinateContractVersionOf(html)
   const stampedDevice =
     options.variant ||
     pwCoordinateDevice(
       html.match(/\bdata-pw-(?:edit-device|scene-lock)=["']([^"']+)["']/i)?.[1]
     )
+  const tagOptions: NormalizeCoordinateOptions = { ...options, sourceVersion }
   const rawBlocks: string[] = []
   let next = html.replace(
     /<(script|style|textarea|template)\b[\s\S]*?<\/\1\s*>/gi,
@@ -293,7 +329,7 @@ export function normalizeVisualCoordinateContract(
   next = next.replace(
     /<([a-zA-Z][\w-]*)(\s[^<>]*?)>/g,
     (_full, tag: string, attrs: string) =>
-      canonicalizeOpeningTag(tag, attrs, stampedDevice, options)
+      canonicalizeOpeningTag(tag, attrs, stampedDevice, tagOptions)
   )
   next = next.replace(/<html\b([^>]*)>/i, (_full, attrs: string) => {
     return `<html${setAttr(attrs, PW_COORDINATE_VERSION_ATTR, PW_COORDINATE_CONTRACT_VERSION)}>`

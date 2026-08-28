@@ -34,7 +34,7 @@ test('dual-reads legacy geometry and writes only the canonical coordinate contra
   assert.match(canonical, /<main[^>]*data-pw-scene-root="1"/)
   assert.match(
     canonical,
-    /id="absolute"[^>]*data-pw-placement="scene-absolute"[^>]*data-pw-box-x="75"[^>]*data-pw-box-y="148"/
+    /id="absolute"[^>]*data-pw-placement="scene-absolute"[^>]*data-pw-box-x="-525"[^>]*data-pw-box-y="178"/
   )
   assert.match(
     canonical,
@@ -63,8 +63,8 @@ test('render-time dual-read does not accumulate legacy translate after canonical
   const first = normalizeVisualCoordinateContract(legacyHtml, { variant: 'desktop' })
   const second = normalizeVisualCoordinateContract(first, { variant: 'desktop' })
   assert.equal(second, first)
-  assert.match(first, /data-pw-box-x="75"/)
-  assert.doesNotMatch(first, /data-pw-box-x="78"/)
+  assert.match(first, /data-pw-box-x="-525"/)
+  assert.doesNotMatch(first, /data-pw-box-x="-522"/)
 })
 
 test('normalizer leaves raw script, style, textarea, and template contents untouched', () => {

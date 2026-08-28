@@ -160,7 +160,8 @@ describe('pw scene layers', () => {
     expect(pwSceneCenterCss()).toContain('transform:none;display:block}')
     expect(pwSceneCenterCss()).toContain('html[data-pw-scene-zoomed="1"] [data-pw-inline-visual-root]{transform:scale(var(--pw-scene-zoom,1))}')
     expect(pwSceneCenterCss()).toContain('transform:scale(var(--pw-scene-zoom,1))')
-    expect(pwSceneCenterCss()).toContain('transform-origin:top left')
+    expect(pwSceneCenterCss()).toContain('transform-origin:top center')
+    expect(pwSceneCenterCss()).not.toContain('transform-origin:top left')
     expect(pwSceneCenterCss()).toContain('[data-pw-live-chrome]')
     expect(pwSceneCenterCss()).toContain('[data-pw-live-chrome-scale]')
     expect(pwSceneCenterCss()).toContain('[data-pw-live-chrome-ph]')
@@ -409,6 +410,8 @@ describe('scene layers inside the editor runtime', () => {
     expect(script).toContain('if (isAddedChrome(el)) return false')
     expect(script).toContain('writeSceneIndex(node, SCENE.defaultIndex)')
     expect(script).toContain('liftLooseElToSceneHost(node)')
+    expect(script).toContain('isLooseAuthoredOverlay(el)')
+    expect(script).toContain('canonicalSceneRoot() || addedBgContentHost()')
     expect(script).toContain('!isLogoTarget(selected) && !isAddedChrome(selected)')
     expect(script).toContain('immediately turn canvas widgets into their canonical scene box')
     expect(script).toContain('[data-pw-chrome-btn]:not([data-pw-scene])')
@@ -416,6 +419,7 @@ describe('scene layers inside the editor runtime', () => {
   })
 
   it('binds canonical viewport placement during the live scene pass', () => {
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('if(!isEditor()){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('bindSceneAbsolute(root);')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('bindFixed(root,z,px);')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT.indexOf('bindFixed(root,z,px);')).toBeLessThan(

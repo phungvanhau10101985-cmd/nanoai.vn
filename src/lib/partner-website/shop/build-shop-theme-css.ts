@@ -34,7 +34,7 @@ export function buildPartnerSiteHtmlChromeCss(): string {
 a{color:inherit;text-decoration:none}
 .pw-container{max-width:var(--pw-content,1200px);margin:0 auto;padding:0 20px;box-sizing:border-box}
 .pw-topbar{background:var(--pw-primary);color:#fff;font-size:12px;position:relative;z-index:${PW_SCENE_TOPBAR_Z};}
-.pw-topbar-inner{display:flex;justify-content:flex-end;gap:18px;padding:8px 0}
+.pw-topbar-inner{display:flex;justify-content:flex-end;align-items:center;gap:18px;max-width:var(--pw-content,1200px);width:100%;margin:0 auto;padding:8px 0;box-sizing:border-box}
 .pw-topbar a,.pw-topbar button{color:#fff;text-decoration:none;background:none;border:none;cursor:pointer;font:inherit;padding:0}
 .pw-header{background:#fff;border-bottom:1px solid var(--pw-border,#f3f4f6);position:sticky;top:0;z-index:200;overflow:visible}
 .pw-header-main{display:flex;align-items:center;gap:12px;padding:14px 0}
@@ -508,7 +508,9 @@ html[data-pw-scene-lock="desktop"] .pw-pdp-spec-grid,html[data-pw-scene-lock="la
 }
 @media(min-width:900px){
   .pw-shop-nav-row{display:flex}
-  .pw-shop-header-inner{padding:14px 24px;gap:16px}
+  .pw-shop-header-inner{padding:14px 24px;gap:16px;justify-content:flex-start}
+  .pw-shop-search-wrap{flex:1 1 0%;min-width:200px;max-width:100%}
+  .pw-shop-header-actions{margin-left:0}
   .pw-shop-topbar-inner{padding:8px 24px}
   .pw-shop-main{padding:28px 24px 64px}
   .pw-shop-footer{padding:48px 24px 0;margin-top:56px}
@@ -593,8 +595,8 @@ html[data-pw-scene-lock="desktop"] .pw-pdp-spec-grid,html[data-pw-scene-lock="la
 }
 @media(max-width:767px){
   .pw-shop{padding-bottom:72px}
-  [data-pw-page="product"] .pw-shop-bottom-nav:not([data-pw-pdp-bottom]),
-  [data-pw-page="product"] .pw-bottom-nav:not([data-pw-pdp-bottom]){display:none!important}
+  [data-pw-page="product"] .pw-shop-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]),
+  [data-pw-page="product"] .pw-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]){display:none!important}
   .pw-shop-bottom-nav[data-pw-pdp-bottom],.pw-bottom-nav[data-pw-pdp-bottom]{
     justify-content:flex-start;gap:6px;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px))
   }

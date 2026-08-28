@@ -249,6 +249,86 @@ export function hoistBodyLevelChromeFloats(
   return insertBeforeBodyClose(targetHtml, [...picked.values()].join('\n'))
 }
 
+const SCENE_OVERLAY_OPEN_RE =
+  /<(div|p|h[1-6]|span|a|button|section|article|figure|img)\b(?=[^>]*(?:data-pw-added-text=["']1["']|data-pw-added-btn=["']1["']|data-pw-added-bg=["']1["']|data-pw-added-image=["']1["']|data-pw-added-video=["']1["']|data-pw-placement=["']scene-absolute["']))[^>]*>/gi
+
+function overlayIdentity(snippet: string): string {
+  return (
+    snippet.match(/\bid=["']([^"']+)["']/i)?.[1] ||
+    snippet.match(/\bdata-pw-clone-id=["']([^"']+)["']/i)?.[1] ||
+    snippet.match(/<[^>]+>/)?.[0]?.replace(/\s+/g, ' ').slice(0, 180) ||
+    snippet.slice(0, 180)
+  )
+}
+
+function extractStandaloneSceneOverlays(
+  html: string,
+  occupied: ExtractedBlock[]
+): Array<{ start: number; end: number; html: string; id: string }> {
+  if (!html) return []
+  const masked = maskHtmlForTagScan(html)
+  const out: Array<{ start: number; end: number; html: string; id: string }> = []
+  const seen = new Set<string>()
+  SCENE_OVERLAY_OPEN_RE.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = SCENE_OVERLAY_OPEN_RE.exec(masked))) {
+    const tag = (match[1] || 'div').toLowerCase()
+    const start = match.index
+    const close = closingTagIndex(masked, start + match[0].length, tag)
+    if (close < 0) {
+      SCENE_OVERLAY_OPEN_RE.lastIndex = start + match[0].length
+      continue
+    }
+    const closeTok = html.slice(close).match(new RegExp(`^</${tag}\\s*>`, 'i'))
+    const end = close + (closeTok?.[0].length ?? `</${tag}>`.length)
+    SCENE_OVERLAY_OPEN_RE.lastIndex = end
+    if (occupied.some((block) => start >= block.start && end <= block.end)) continue
+    const snippet = html.slice(start, end)
+    if (/\bdata-pw-chrome-float=["']1["']/i.test(snippet)) continue
+    if (/\bdata-pw-added-(?:bg|text|btn|image|video)-slot=["']1["']/i.test(snippet)) continue
+    const id = overlayIdentity(snippet)
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    out.push({ start, end, html: snippet, id })
+  }
+  return out
+}
+
+function insertBeforeMainClose(html: string, snippet: string): string {
+  if (/<\/main>/i.test(html)) {
+    return html.replace(/<\/main>/i, `${snippet}\n</main>`)
+  }
+  return insertBeforeBodyClose(html, snippet)
+}
+
+/**
+ * Old Save parked authored overlays on `document.body`. Isolating a device
+ * wrapper would drop them. Recover them into `main` / scene root.
+ */
+export function hoistBodyLevelSceneOverlays(
+  targetHtml: string,
+  sourceHtml: string,
+  variant?: SharedChromeDevice
+): string {
+  if (!targetHtml.trim() || !sourceHtml.trim()) return targetHtml
+  DEVICE_WRAP_OPEN_RE.lastIndex = 0
+  const occupied = [...chromeOccupiedBlocks(sourceHtml), ...extractAllBlocks(sourceHtml, DEVICE_WRAP_OPEN_RE)]
+  const snippets: string[] = []
+  for (const overlay of extractStandaloneSceneOverlays(sourceHtml, occupied)) {
+    if (variant && !floatMatchesDevice(overlay.html, variant)) continue
+    if (
+      overlay.id &&
+      (targetHtml.includes(`id="${overlay.id}"`) || targetHtml.includes(`id='${overlay.id}'`))
+    ) {
+      continue
+    }
+    if (targetHtml.includes(overlay.html)) continue
+    snippets.push(overlay.html)
+  }
+  if (!snippets.length) return targetHtml
+  return insertBeforeMainClose(targetHtml, snippets.join('\n'))
+}
+
 export function extractSharedChrome(html: string): SharedChrome {
   const header = extractFirst(html, HEADER_RE)
   const footer = extractFirst(html, FOOTER_RE)
@@ -633,7 +713,8 @@ export function applySharedChrome(
   if (bottomNav) {
     const targetIsPdp = isPdpPageHtml(out)
     const sourceIsPdpNav = isPdpBottomNavHtml(bottomNav)
-    if (targetIsPdp === sourceIsPdpNav) {
+    const sourceIsKitDock = /\bdata-pw-chrome-kit=["']dock["']/i.test(bottomNav)
+    if (sourceIsKitDock || targetIsPdp === sourceIsPdpNav) {
       const targetNav = extractFirst(out, BOTTOM_RE)
       out = targetNav ? replaceRange(out, targetNav, bottomNav) : insertBeforeBodyClose(out, bottomNav)
     }
@@ -706,6 +787,56 @@ function readHomeHtmlForVariant<T extends { files: Array<{ path: string; kind: s
   return project.files.find((f) => f.path === homePath && f.kind === 'html')?.content?.trim() || ''
 }
 
+function pairWideChrome(source: SharedChromeDevice, target: SharedChromeDevice): boolean {
+  return (
+    (source === 'desktop' && target === 'laptop') || (source === 'laptop' && target === 'desktop')
+  )
+}
+
+function pairDockChrome(source: SharedChromeDevice, target: SharedChromeDevice): boolean {
+  return (
+    (source === 'mobile' && target === 'tablet') || (source === 'tablet' && target === 'mobile')
+  )
+}
+
+function applyPairedHeadChrome(
+  targetHtml: string,
+  chrome: SharedChrome,
+  variant: SharedChromeDevice
+): string {
+  const keep = extractSharedChrome(targetHtml)
+  return applySharedChrome(
+    targetHtml,
+    {
+      header: chrome.header,
+      topbar: chrome.topbar,
+      footer: keep.footer,
+      bottomNav: keep.bottomNav,
+      floats: keep.floats,
+    },
+    { targetVariant: variant }
+  )
+}
+
+function applyPairedDockChrome(
+  targetHtml: string,
+  chrome: SharedChrome,
+  variant: SharedChromeDevice
+): string {
+  const keep = extractSharedChrome(targetHtml)
+  return applySharedChrome(
+    targetHtml,
+    {
+      header: keep.header,
+      topbar: keep.topbar,
+      footer: keep.footer,
+      bottomNav: chrome.bottomNav,
+      floats: keep.floats,
+    },
+    { targetVariant: variant }
+  )
+}
+
 export function syncSharedChromeAcrossProjectFiles<
   T extends { files: Array<{ path: string; kind: string; content: string }> },
 >(project: T, sourcePath: string, sourceHtml: string): T {
@@ -739,6 +870,14 @@ export function syncSharedChromeAcrossProjectFiles<
     if (!current.trim()) return file
     const targetVariant = variantFromHtmlPath(file.path)
     if (targetVariant !== sourceVariant) {
+      if (sourceIsHome && pairWideChrome(sourceVariant, targetVariant)) {
+        const next = applyPairedHeadChrome(current, chrome, targetVariant)
+        return next === current ? file : { ...file, content: next }
+      }
+      if (sourceIsHome && pairDockChrome(sourceVariant, targetVariant)) {
+        const next = applyPairedDockChrome(current, chrome, targetVariant)
+        return next === current ? file : { ...file, content: next }
+      }
       if (!sourceIsHome) return file
       const next = mergeMissingChromeFeatures(current, chrome, targetVariant)
       return next === current ? file : { ...file, content: next }

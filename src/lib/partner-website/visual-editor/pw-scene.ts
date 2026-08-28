@@ -302,6 +302,16 @@ export const PW_SCENE_COMPACT_HOSTS = [
   'html[data-pw-scene-lock="tablet"]',
 ] as const
 
+export const PW_SCENE_PHONE_HOSTS = [
+  'html[data-pw-edit-device="mobile"]',
+  'html[data-pw-scene-lock="mobile"]',
+] as const
+
+export const PW_SCENE_TABLET_HOSTS = [
+  'html[data-pw-edit-device="tablet"]',
+  'html[data-pw-scene-lock="tablet"]',
+] as const
+
 export const PW_SCENE_WIDE_HOSTS = [
   'html[data-pw-edit-device="laptop"]',
   'html[data-pw-edit-device="desktop"]',
@@ -501,8 +511,8 @@ export const PW_LIVE_DOCK_ATTR = 'data-pw-live-dock'
  */
 export function pwSceneLiveChromeCss(): string {
   return [
-    `[${PW_LIVE_CHROME_ATTR}]{position:sticky!important;top:0!important;z-index:200!important;width:100%;display:flex;flex-direction:column;align-items:flex-start;box-sizing:border-box}`,
-    `[${PW_LIVE_CHROME_SCALE_ATTR}]{width:var(--pw-scene-w)!important;transform-origin:top left;display:flex;flex-direction:column;flex:0 0 auto;box-sizing:border-box}`,
+    `[${PW_LIVE_CHROME_ATTR}]{position:sticky!important;top:0!important;z-index:200!important;width:100%;display:flex;flex-direction:column;align-items:center;box-sizing:border-box}`,
+    `[${PW_LIVE_CHROME_SCALE_ATTR}]{width:var(--pw-scene-w)!important;transform-origin:top center;display:flex;flex-direction:column;flex:0 0 auto;box-sizing:border-box}`,
     `html[data-pw-scene-zoomed="1"] [${PW_LIVE_CHROME_SCALE_ATTR}]{transform:scale(var(--pw-scene-zoom,1))}`,
     `[${PW_LIVE_CHROME_ATTR}] .pw-header,[${PW_LIVE_CHROME_ATTR}] .pw-shop-header{position:relative!important;top:auto!important;width:100%!important}`,
     `[${PW_LIVE_CHROME_PH_ATTR}]{display:block;width:100%;pointer-events:none;visibility:hidden}`,
@@ -540,8 +550,8 @@ export function pwSceneCenterCss(): string {
     // `transform:scale` (kể cả scale(1)) tạo containing block → sticky header “nặn xuống”.
     // Chỉ scale khi zoom thật; header hoist ra [data-pw-live-chrome] (sticky, không transform trên host).
     `html[data-pw-edit-device] body{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:calc(50% - (var(--pw-scene-w) / 2))!important;margin-right:auto!important;box-sizing:border-box;overflow-x:visible;transform-origin:top center;display:block}`,
-    `[data-pw-inline-visual-root]{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:0!important;margin-right:calc(var(--pw-scene-w) * (var(--pw-scene-zoom,1) - 1))!important;box-sizing:border-box;overflow-x:visible;transform-origin:top left;transform:none;display:block}`,
-    `[data-pw-scene-root="1"]{position:relative;box-sizing:border-box;width:100%;max-width:none;transform-origin:top left}`,
+    `[data-pw-inline-visual-root]{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:calc(50% - (var(--pw-scene-w) / 2))!important;margin-right:auto!important;box-sizing:border-box;overflow-x:visible;transform-origin:top center;transform:none;display:block}`,
+    `[data-pw-scene-root="1"]{position:relative;box-sizing:border-box;width:100%;max-width:none;transform-origin:top center}`,
     `[data-pw-placement="scene-absolute"]{position:absolute!important;right:auto!important;bottom:auto!important;margin:0!important;transform:none!important}`,
     `[data-pw-placement="viewport-fixed"]{position:fixed!important;right:auto;bottom:auto;margin:0!important;transform:none!important}`,
     `html[data-pw-scene-zoomed="1"] [data-pw-inline-visual-root]{transform:scale(var(--pw-scene-zoom,1))}`,
@@ -618,13 +628,16 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
   function readCanvasBox(el,scenePx,scale){
     var placement=el.getAttribute('data-pw-placement')||'';
     if(placement==='viewport-fixed'){
+      var fx=parsePx(el.getAttribute('data-pw-fixed-x'));
+      var fy=parsePx(el.getAttribute('data-pw-fixed-y'));
+      var norm=C.looksNorm(fx,fy);
       return {
-        x:parsePx(el.getAttribute('data-pw-fixed-x')),
-        y:parsePx(el.getAttribute('data-pw-fixed-y')),
+        x:fx,
+        y:fy,
         w:parsePx(el.getAttribute('data-pw-fixed-w')),
         h:parsePx(el.getAttribute('data-pw-fixed-h')),
-        xu:'norm',
-        yu:'norm'
+        xu:norm?'norm':'px',
+        yu:norm?'norm':'px'
       };
     }
     if(placement==='scene-absolute'){
@@ -913,7 +926,17 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     if(!root||!root.querySelectorAll)return;
     var sceneRoot=root.querySelector('[data-pw-scene-root="1"]')||root.querySelector('main,.pw-shop-main,.pw-main')||root;
     if(sceneRoot&&sceneRoot.setAttribute)sceneRoot.setAttribute('data-pw-scene-root','1');
-    var nodes=root.querySelectorAll('[data-pw-placement="scene-absolute"]');
+    var nodes=Array.prototype.slice.call(root.querySelectorAll('[data-pw-placement="scene-absolute"]'));
+    var host=root.parentNode;
+    if(host&&host.children){
+      var kids=host.children;
+      var k;
+      for(k=0;k<kids.length;k++){
+        if(kids[k]!==root&&kids[k].getAttribute&&kids[k].getAttribute('data-pw-placement')==='scene-absolute'&&nodes.indexOf(kids[k])<0){
+          nodes.push(kids[k]);
+        }
+      }
+    }
     var i;
     for(i=0;i<nodes.length;i++){
       var el=nodes[i];
@@ -923,8 +946,8 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
         try{sceneRoot.appendChild(el)}catch(eP){continue}
       }
       el.style.setProperty('position','absolute','important');
-      if(isFinite(box.x))el.style.setProperty('left',box.x+'px','important');
-      if(isFinite(box.y))el.style.setProperty('top',box.y+'px','important');
+      if(isFinite(box.x))el.style.setProperty('left',C.boxLeftCss?C.boxLeftCss(box.x,box.w):C.leftCss(box.x),'important');
+      if(isFinite(box.y))el.style.setProperty('top',(C.boxTopPx?C.boxTopPx(box.y,box.h):box.y)+'px','important');
       el.style.setProperty('right','auto','important');
       el.style.setProperty('bottom','auto','important');
       el.style.setProperty('transform','none','important');
@@ -953,13 +976,24 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
       el.style.setProperty('position','fixed','important');
       var inner=window.innerWidth||scenePx;
       var innerH=window.innerHeight||720;
-      if(isFinite(box.x)){
-        var leftPx=box.xu==='norm'?box.x*inner:(box.xu==='pct'?(box.x/100)*inner:box.x*scale);
-        el.style.setProperty('left',leftPx+'px','important');
-      }
-      if(isFinite(box.y)){
-        var topPx=box.yu==='norm'?box.y*innerH:(box.yu==='pct'?(box.y/100)*innerH:box.y*scale);
-        el.style.setProperty('top',topPx+'px','important');
+      var map=C.createMap({device:band(),viewportWidth:inner,originY:0});
+      var v4=!C.looksNorm(box.x,box.y)&&box.xu!=='norm'&&box.yu!=='norm';
+      if(isFinite(box.x)||isFinite(box.y)){
+        if(v4){
+          var pt=C.sceneToClient({x:box.x||0,y:box.y||0},map);
+          var tl=C.clientTopLeft?C.clientTopLeft(pt,box.w,box.h,map.scale):{x:pt.x-(box.w||0)*map.scale/2,y:pt.y-(box.h||0)*map.scale/2};
+          if(isFinite(box.x))el.style.setProperty('left',tl.x+'px','important');
+          if(isFinite(box.y))el.style.setProperty('top',tl.y+'px','important');
+        }else{
+          if(isFinite(box.x)){
+            var leftPx=box.xu==='norm'?box.x*inner:(box.xu==='pct'?(box.x/100)*inner:box.x*scale);
+            el.style.setProperty('left',leftPx+'px','important');
+          }
+          if(isFinite(box.y)){
+            var topPx=box.yu==='norm'?box.y*innerH:(box.yu==='pct'?(box.y/100)*innerH:box.y*scale);
+            el.style.setProperty('top',topPx+'px','important');
+          }
+        }
       }
       el.style.setProperty('right','auto','important');
       el.style.setProperty('bottom','auto','important');
@@ -983,11 +1017,13 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     var root=liveRoot();
     if(root){
       watchLiveRoot(root);
-      bindSceneAbsolute(root);
-      bindFixed(root,z,px);
-      hoistLiveChrome(root,z);
-      hoistLiveDock(root);
-      hoistLiveOverlays();
+      if(!isEditor()){
+        bindSceneAbsolute(root);
+        bindFixed(root,z,px);
+        hoistLiveChrome(root,z);
+        hoistLiveDock(root);
+        hoistLiveOverlays();
+      }
     }
     if(root&&root.style){
       var h=root.scrollHeight||0;

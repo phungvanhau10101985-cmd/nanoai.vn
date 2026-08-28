@@ -9,6 +9,7 @@ import {
   hasSharedChrome,
   htmlHasShopHeader,
   hoistBodyLevelChromeFloats,
+  hoistBodyLevelSceneOverlays,
   syncSharedChromeAcrossProjectFiles,
 } from '@/lib/partner-website/shop/sync-shared-chrome'
 
@@ -101,6 +102,31 @@ test('fillMissingSharedChromeFloats adds topup when isolated chrome already has 
   const next = fillMissingSharedChromeFloats(extractSharedChrome(isolated), raw)
   assert.match(next.floats, /data-pw-chrome-btn="chat"/)
   assert.match(next.floats, /data-pw-chrome-btn="topup"/)
+})
+
+test('hoistBodyLevelSceneOverlays recovers authored overlays dropped outside the device wrapper', () => {
+  const raw = `<!DOCTYPE html><html><body>
+<div class="pw-visual-desktop" data-pw-visual-device="desktop">
+<header class="pw-header" data-pw-region="header">H</header>
+<main>Home mid</main>
+<footer class="pw-footer" data-pw-region="footer">F</footer>
+</div>
+<div id="float-copy" data-pw-added-text="1" data-pw-scene="4" data-pw-placement="scene-absolute">Nổi</div>
+</body></html>`
+  const isolated = `<!DOCTYPE html>
+<html lang="vi">
+<head>
+</head>
+<body>
+<header class="pw-header" data-pw-region="header">H</header>
+<main>Home mid</main>
+<footer class="pw-footer" data-pw-region="footer">F</footer>
+</body>
+</html>`
+  const next = hoistBodyLevelSceneOverlays(isolated, raw, 'desktop')
+  assert.match(next, /id="float-copy"/)
+  assert.match(next, /data-pw-scene="4"/)
+  assert.match(next, /<main>Home mid[\s\S]*id="float-copy"[\s\S]*<\/main>/)
 })
 
 test('hoistBodyLevelChromeFloats pulls topup seated outside the device wrapper', () => {
@@ -302,9 +328,13 @@ test('header footer bottom nav and floats sync on every device independently', (
   assert.match(deskAbout, /desktop-nav-home/)
   assert.match(deskAbout, /desktop-float-home/)
   assert.match(deskAbout, /desktop-about-mid/)
-  assert.match(lapAbout, /laptop-head-about/)
+  assert.match(lapAbout, /desktop-head-home/)
   assert.match(lapAbout, /laptop-about-mid/)
-  assert.equal(lapAbout.includes('desktop-head-home'), false)
+  assert.match(lapAbout, /laptop-foot-about/)
+  assert.match(lapAbout, /laptop-nav-about/)
+  assert.match(lapAbout, /laptop-float-about/)
+  assert.equal(lapAbout.includes('desktop-foot-home'), false)
+  assert.equal(lapAbout.includes('desktop-nav-home'), false)
   assert.match(tabAbout, /tablet-head-about/)
   assert.equal(tabAbout.includes('desktop-foot-home'), false)
   assert.match(mobAbout, /mobile-head-about/)
@@ -610,6 +640,81 @@ test('shared chrome does not copy PDP bottom nav onto other pages', () => {
   assert.match(next, /href="\/about"/)
   assert.equal(next.includes('data-pw-pdp-bottom'), false)
   assert.equal(next.includes('Mua hàng'), false)
+})
+
+test('kit dock from homepage copies onto PDP of the same device', () => {
+  const homeKit = `<!DOCTYPE html><html><body>
+<header class="pw-header">KitHead</header>
+<main>Home</main>
+<nav class="pw-bottom-nav" data-pw-chrome-kit="dock"><a data-pw-chrome-btn="home" data-pw-dock-show="both">Home</a><a data-pw-chrome-btn="products" data-pw-dock-show="shop">SP</a><button data-pw-chrome-btn="try-on" data-pw-dock-show="pdp">Thử</button></nav>
+</body></html>`
+  const pdp = `<!DOCTYPE html><html><body data-pw-page="product">
+<header class="pw-header">OldPdp</header>
+<main>PDP mid</main>
+<nav class="pw-bottom-nav" data-pw-pdp-bottom="1"><button data-pw-chrome-btn="buy-now">Mua cũ</button></nav>
+</body></html>`
+  const next = applySharedChrome(pdp, extractSharedChrome(homeKit))
+  assert.match(next, /KitHead/)
+  assert.match(next, /PDP mid/)
+  assert.match(next, /data-pw-chrome-kit="dock"/)
+  assert.match(next, /data-pw-chrome-btn="try-on"/)
+  assert.equal(next.includes('Mua cũ'), false)
+})
+
+test('saving desktop home copies header onto laptop home, not the mid page', () => {
+  const desk = `<!DOCTYPE html><html><body>
+<header class="pw-header">DeskHead</header>
+<main>Desk mid</main>
+<nav class="pw-bottom-nav" data-pw-chrome-kit="dock"><a data-pw-chrome-btn="home">H</a></nav>
+</body></html>`
+  const lap = `<!DOCTYPE html><html><body>
+<header class="pw-header">LapHead</header>
+<main>Lap mid</main>
+<nav class="pw-bottom-nav">LapNav</nav>
+</body></html>`
+  const next = syncSharedChromeAcrossProjectFiles(
+    {
+      files: [
+        { path: 'index.html', kind: 'html', content: desk },
+        { path: 'index.laptop.html', kind: 'html', content: lap },
+      ],
+    },
+    'index.html',
+    desk
+  )
+  const laptop = next.files.find((f) => f.path === 'index.laptop.html')?.content || ''
+  assert.match(laptop, /DeskHead/)
+  assert.match(laptop, /Lap mid/)
+  assert.match(laptop, /LapNav/)
+})
+
+test('saving mobile home copies kit dock onto tablet home, not the header', () => {
+  const mob = `<!DOCTYPE html><html><body>
+<header class="pw-header">MobHead</header>
+<main>Mob mid</main>
+<nav class="pw-bottom-nav" data-pw-chrome-kit="dock"><a data-pw-chrome-btn="home">Chủ</a><a data-pw-chrome-btn="cart">Giỏ kit</a></nav>
+</body></html>`
+  const tab = `<!DOCTYPE html><html><body>
+<header class="pw-header">TabHead</header>
+<main>Tab mid</main>
+<nav class="pw-bottom-nav">TabNav</nav>
+</body></html>`
+  const next = syncSharedChromeAcrossProjectFiles(
+    {
+      files: [
+        { path: 'index.mobile.html', kind: 'html', content: mob },
+        { path: 'index.tablet.html', kind: 'html', content: tab },
+      ],
+    },
+    'index.mobile.html',
+    mob
+  )
+  const tablet = next.files.find((f) => f.path === 'index.tablet.html')?.content || ''
+  assert.match(tablet, /TabHead/)
+  assert.match(tablet, /Tab mid/)
+  assert.match(tablet, /data-pw-chrome-kit="dock"/)
+  assert.match(tablet, /Giỏ kit/)
+  assert.equal(tablet.includes('TabNav'), false)
 })
 
 test('sync keeps mobile PDP bar when homepage nav is saved', () => {

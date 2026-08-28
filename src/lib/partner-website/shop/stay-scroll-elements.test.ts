@@ -54,7 +54,14 @@ test('stay-scroll keeps the element in place without floating overlay', () => {
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes('data-pw-stay-h'), true)
   assert.equal(PARTNER_SHOP_STAY_SCROLL_CSS.includes('data-pw-stay-ph-slot'), true)
   assert.equal(PW_HIDDEN_ATTR, 'data-pw-hidden')
-  assert.equal(PARTNER_SHOP_HIDDEN_CSS.includes('[data-pw-hidden="1"]{display:none!important}'), true)
+  assert.equal(PARTNER_SHOP_HIDDEN_CSS.includes('[data-pw-hidden="1"]'), true)
+  assert.equal(PARTNER_SHOP_HIDDEN_CSS.includes('{display:none!important}'), true)
+  assert.equal(
+    PARTNER_SHOP_HIDDEN_CSS.includes(
+      '.pw-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"][data-pw-hidden="1"]'
+    ),
+    true
+  )
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes('--pw-scene-w'), true)
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes('--pw-scene-zoom'), true)
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes('data-pw-inline-visual-root'), true)
@@ -90,4 +97,31 @@ test('prepareVisualDomForStore clears auto search width but keeps user-sized sea
 
   assert.equal(userSized.getAttribute('data-pw-search-width'), '260')
   assert.equal(userSized.getAttribute('data-pw-search-width-user'), '1')
+})
+
+test('prepareVisualDomForStore keeps an intentionally moved category at its new coordinates', () => {
+  const { document, window } = parseHTML(`<!doctype html><html><body>
+    <header><div class="pw-brand-cluster"></div></header>
+    <main>
+      <button id="moved-category" data-pw-chrome-btn="categories"
+        data-pw-user-move="1" data-pw-placement="scene-absolute"
+        data-pw-box-x="184" data-pw-box-y="260"
+        style="position:absolute;left:calc(50% + 120px);top:240px">Danh mục</button>
+    </main>
+  </body></html>`)
+  const prevDocumentCtor = (globalThis as { Document?: unknown }).Document
+  ;(globalThis as { Document?: unknown }).Document = window.Document
+  try {
+    prepareVisualDomForStore(document)
+  } finally {
+    ;(globalThis as { Document?: unknown }).Document = prevDocumentCtor
+  }
+
+  const moved = document.querySelector('#moved-category') as HTMLElement
+  assert.equal(moved.parentElement?.tagName, 'MAIN')
+  assert.equal(moved.getAttribute('data-pw-user-move'), '1')
+  assert.equal(moved.getAttribute('data-pw-placement'), 'scene-absolute')
+  assert.equal(moved.getAttribute('data-pw-box-x'), '184')
+  assert.equal(moved.style.top, '240px')
+  assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes("if (el.getAttribute(PLACEMENT)) continue"), true)
 })

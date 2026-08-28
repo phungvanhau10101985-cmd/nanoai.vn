@@ -12,7 +12,10 @@ function readSrc(tag: string): string {
 
 function isFilledLogoSrc(src: string): boolean {
   const s = String(src || '').trim()
-  return /^https?:\/\//i.test(s) || /^data:image\/(?:png|jpe?g|webp)/i.test(s)
+  if (!s || EMPTY_GIF.test(s)) return false
+  if (/^https?:\/\//i.test(s)) return true
+  if (/^\/(?!\/)/.test(s) && s.length > 4) return true
+  return /^data:image\/(?:png|jpe?g|webp)/i.test(s)
 }
 
 function isEmptyLogoTag(tag: string): boolean {
@@ -78,68 +81,66 @@ function unfloatLogoMarkup(html: string): string {
   return html
     .replace(/\s*data-pw-logo-float=["'][^"']*["']/gi, '')
     .replace(/\s*data-pw-logo-floated=["'][^"']*["']/gi, '')
-    .replace(/\s*style=["']([^"']*)["']/i, (_all, style: string) => {
-      const next = String(style)
+    .replace(/<([a-z0-9]+)\b([^>]*\sstyle=["']([^"']*)["'][^>]*)>/gi, (full, tag: string, attrs: string, style: string) => {
+      let next = String(style)
         .replace(/(?:^|;)\s*position\s*:\s*[^;]+/gi, '')
         .replace(/(?:^|;)\s*left\s*:\s*[^;]+/gi, '')
         .replace(/(?:^|;)\s*top\s*:\s*[^;]+/gi, '')
-        .replace(/(?:^|;)\s*transform\s*:\s*[^;]+/gi, '')
-        .replace(/;{2,}/g, ';')
-        .replace(/^;|;$/g, '')
-        .trim()
-      return next ? ` style="${next}"` : ''
+      if (String(tag).toLowerCase() !== 'img') {
+        next = next.replace(/(?:^|;)\s*transform\s*:\s*[^;]+/gi, '')
+      }
+      next = next.replace(/;{2,}/g, ';').replace(/^;|;$/g, '').trim()
+      const rest = attrs.replace(/\s*style=["'][^"']*["']/i, next ? ` style="${next}"` : '')
+      return `<${tag}${rest}>`
     })
 }
 
-function isPositionedLogoMarkup(html: string): boolean {
-  return (
-    /\bdata-pw-logo-float=["']1["']/.test(html) &&
-    /(?:^|[;"']\s*)(?:left|top)\s*:\s*-?[\d.]+px/i.test(html)
-  )
+function stripSceneLogoPlacement(html: string): string {
+  return html
+    .replace(/\s*data-pw-placement=["'][^"']*["']/gi, '')
+    .replace(/\s*data-pw-coordinate-root=["'][^"']*["']/gi, '')
+    .replace(/\s*data-pw-box-[xywh]=["'][^"']*["']/gi, '')
+    .replace(/\s*data-pw-user-move=["'][^"']*["']/gi, '')
 }
 
 function keepLogoMarkup(html: string): string {
-  return isPositionedLogoMarkup(html) ? html : unfloatLogoMarkup(html)
+  return unfloatLogoMarkup(html)
 }
 
-/** Logo đã ghim left/top thì giữ nguyên. Logo mồ côi (không float) mới nhét lại brand. */
+function injectSeatedLogoIntoBrand(html: string, seated: string, marker: string): string {
+  const clusterRe =
+    /<(div)([^>]*\b(?:pw-brand-cluster|pw-shop-brand-cluster)\b[^>]*)>([\s\S]*?)<\/\1>/i
+  const cluster = html.match(clusterRe)
+  if (cluster) {
+    const brandRe = /<a\b([^>]*(?:pw-brand|pw-shop-brand|data-pw-logo-home)[^>]*)>([\s\S]*?)<\/a>/i
+    const brand = cluster[3].match(brandRe)
+    if (brand) {
+      if (brand[0].includes(marker)) {
+        const brandNext = brand[0].replace(marker, seated)
+        return html.replace(brand[0], brandNext).replace(marker, '')
+      }
+      const inner = stripLogoNodesFromInner(brand[2].replace(marker, ''))
+      const brandHtml = `<a${brand[1]}>${seated}${hideWordmarksInInner(inner)}</a>`
+      const clusterInner = cluster[3].replace(brand[0], brandHtml).replace(marker, '')
+      return html.replace(cluster[0], `<div${cluster[2]}>${clusterInner}</div>`).replace(marker, '')
+    }
+  }
+  const brandRe = /<a\b([^>]*(?:pw-brand|pw-shop-brand|data-pw-logo-home)[^>]*)>([\s\S]*?)<\/a>/i
+  const brand = html.match(brandRe)
+  if (!brand) return html.replace(marker, seated)
+  if (brand[0].includes(marker)) return html.replace(marker, seated)
+  const inner = stripLogoNodesFromInner(brand[2].replace(marker, ''))
+  return html.replace(brand[0], `<a${brand[1]}>${seated}${hideWordmarksInInner(inner)}</a>`).replace(marker, '')
+}
+
+/** Always park the filled header logo in the default brand slot (after Danh mục). */
 export function seatFilledLogoInBrandHtml(html: string): string {
   if (!html.trim()) return html
   const filled = pickFilledLogo(html)
   if (!filled) return html
-  if (isPositionedLogoMarkup(filled.full)) return html
-
-  if (
-    isInsideBrandAnchor(html, filled.full) ||
-    /<a\b[^>]*(?:pw-brand|pw-shop-brand|data-pw-logo-home)/i.test(filled.full)
-  ) {
-    return html.replace(filled.full, filled.seated)
-  }
-
+  const seated = unfloatLogoMarkup(stripSceneLogoPlacement(filled.full))
   const marker = '<!--pw-logo-seat-->'
-  let next = html.replace(filled.full, marker)
-  const brandRe = /<a\b([^>]*(?:pw-brand|pw-shop-brand|data-pw-logo-home)[^>]*)>([\s\S]*?)<\/a>/i
-  const brand = next.match(brandRe)
-  if (!brand) return html.replace(filled.full, filled.seated)
-  if (brand[0].includes(marker)) {
-    return next.replace(marker, filled.seated)
-  }
-  const inner = stripLogoNodesFromInner(brand[2].replace(marker, ''))
-  next = next.replace(brand[0], `<a${brand[1]}>${filled.seated}${hideWordmarksInInner(inner)}</a>`)
-  return next.replace(marker, '')
-}
-
-function isInsideBrandAnchor(html: string, snippet: string): boolean {
-  const idx = html.indexOf(snippet)
-  if (idx < 0) return false
-  const before = html.slice(0, idx)
-  const lastOpen = before.toLowerCase().lastIndexOf('<a')
-  if (lastOpen < 0) return false
-  const gt = html.indexOf('>', lastOpen)
-  if (gt < 0 || gt > idx) return false
-  const openTag = html.slice(lastOpen, gt + 1)
-  if (!/\b(?:pw-brand|pw-shop-brand|data-pw-logo-home)\b/.test(openTag)) return false
-  return !/<\/a>/i.test(html.slice(gt + 1, idx))
+  return injectSeatedLogoIntoBrand(html.replace(filled.full, marker), seated, marker)
 }
 
 function stripOrphanHeaderLogoImgs(inner: string): string {
@@ -219,17 +220,24 @@ function restoreWordmarksInBrandAnchors(html: string): string {
   })
 }
 
-/** Keep the first header logo frame in a brand cluster; drop the rest. */
+/** Keep the filled header logo frame in a brand cluster; drop empty leftovers. */
 export function dedupeHeaderLogoFramesFromHtml(html: string): string {
   if (!html.trim()) return html
   return html.replace(
     /<(div)([^>]*\b(?:pw-brand-cluster|pw-shop-brand-cluster)\b[^>]*)>([\s\S]*?)<\/\1>/gi,
     (_full, tag: string, attrs: string, inner: string) => {
+      const frames = inner.match(/<span\b[^>]*(?:pw-logo-frame|data-pw-logo-frame)[^>]*>[\s\S]*?<\/span>/gi) || []
+      const keep =
+        frames.find((frame) => {
+          const img = frame.match(/<img\b[^>]*>/i)?.[0] || ''
+          return isLogoImgTag(img) && isFilledLogoSrc(readSrc(img))
+        }) || frames.find((frame) => /<img\b/i.test(frame))
       let kept = false
       const nextInner = inner.replace(
         /<span\b[^>]*(?:pw-logo-frame|data-pw-logo-frame)[^>]*>[\s\S]*?<\/span>/gi,
         (frame) => {
           if (!/<img\b/i.test(frame)) return ''
+          if (keep && frame !== keep) return ''
           if (kept) return ''
           kept = true
           return frame

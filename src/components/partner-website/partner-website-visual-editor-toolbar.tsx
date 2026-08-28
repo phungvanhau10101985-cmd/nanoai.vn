@@ -109,6 +109,12 @@ import {
   type VisualEditorChromeWidgetStyle,
 } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import {
+  clampChromeKitShift,
+  isChromeKitPickerKind,
+  PW_KIT_X_MAX,
+  PW_KIT_X_MIN,
+} from '@/lib/partner-website/shop/partner-site-chrome-kit'
+import {
   buildVisualEditorBannerHtml,
   bannerWidgetLabel,
 } from '@/lib/partner-website/visual-editor/banner-widgets'
@@ -297,7 +303,20 @@ export type VisualEditorSelection = {
   sceneCount: number
 }
 
-type HiddenBlock = { id: string; label: string }
+type HiddenBlockPlace = 'header' | 'dock' | 'float' | 'page'
+type HiddenBlock = { id: string; label: string; place?: HiddenBlockPlace }
+
+function parseHiddenBlockPlace(raw: unknown): HiddenBlockPlace | undefined {
+  return raw === 'header' || raw === 'dock' || raw === 'float' || raw === 'page' ? raw : undefined
+}
+
+function hiddenPlaceCopy(place: HiddenBlockPlace | undefined, t: PartnerWebsiteCopy): string {
+  if (place === 'header') return t.visualEditHiddenPlaceHeader
+  if (place === 'dock') return t.visualEditHiddenPlaceDock
+  if (place === 'float') return t.visualEditHiddenPlaceFloat
+  if (place === 'page') return t.visualEditHiddenPlacePage
+  return ''
+}
 
 function parseEditKind(raw: unknown): VisualEditorEditKind {
   return VISUAL_EDITOR_EDIT_KINDS.includes(raw as VisualEditorEditKind)
@@ -834,7 +853,15 @@ function cleanSerializedHtml(raw: string, htmlPath: string): string {
   return serializeVisualEditorHtml(doc, visualDeviceVariantFromHtmlPath(htmlPath))
 }
 
-type VisualEditOpenPanel = 'add' | 'logo' | 'theme' | 'block'
+type VisualEditOpenPanel = 'add' | 'logo' | 'theme' | 'block' | 'chromeKit'
+
+type ChromeKitListItem = {
+  kind: string
+  hidden: boolean
+  dockShow: string
+  slot: string
+  label: string
+}
 
 const FLOATING_PANEL_W = 320
 const FLOATING_PANEL_TOP = 52
@@ -943,6 +970,179 @@ function VisualEditFloatingPanel({
   )
 }
 
+function ChromeKitPanel({
+  t,
+  locale,
+  device,
+  head,
+  dock,
+  headX,
+  busy,
+  onToggleHead,
+  onToggleDock,
+  onReorder,
+  onShiftHead,
+}: {
+  t: PartnerWebsiteCopy
+  locale: WebLocale
+  device: 'desktop' | 'laptop' | 'tablet' | 'mobile'
+  head: ChromeKitListItem[]
+  dock: ChromeKitListItem[]
+  headX: number
+  busy: boolean
+  onToggleHead: (kind: string, hidden: boolean) => void
+  onToggleDock: (kind: string, show: 'shop' | 'pdp' | 'both' | 'off') => void
+  onReorder: (kind: string, bar: 'head' | 'dock', dir: 'up' | 'down') => void
+  onShiftHead: (x: number) => void
+}) {
+  const headTitle =
+    device === 'tablet' ? t.visualEditChromeKitHeadTablet : device === 'mobile' ? t.visualEditChromeKitHeadMobile : t.visualEditChromeKitHeadPc
+  const showDock = device === 'mobile' || device === 'tablet'
+  const shift = clampChromeKitShift(headX)
+  return (
+    <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto">
+      <p className="px-1 text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitHint}</p>
+      <label className="flex flex-col gap-1 px-1 text-[10px] text-muted-foreground">
+        <span className="flex items-center justify-between gap-2">
+          <span>{t.visualEditChromeKitShift}</span>
+          <span className="inline-flex items-center gap-1">
+            <input
+              type="number"
+              min={PW_KIT_X_MIN}
+              max={PW_KIT_X_MAX}
+              step={1}
+              value={shift}
+              disabled={busy}
+              onChange={(e) => {
+                if (e.target.value === '') return
+                onShiftHead(clampChromeKitShift(e.target.value))
+              }}
+              className="h-6 w-14 rounded border bg-background px-1 text-right text-[11px] text-foreground"
+            />
+            <span>px</span>
+          </span>
+        </span>
+        <input
+          type="range"
+          min={PW_KIT_X_MIN}
+          max={PW_KIT_X_MAX}
+          step={1}
+          value={shift}
+          disabled={busy}
+          onChange={(e) => onShiftHead(clampChromeKitShift(e.target.value))}
+          className="w-full accent-foreground"
+        />
+        <span className="leading-4">{t.visualEditChromeKitShiftHint}</span>
+      </label>
+      <p className="px-1 text-[11px] font-semibold">{headTitle}</p>
+      {head.map((item) => (
+        <ChromeKitRow
+          key={`h-${item.kind}`}
+          label={isVisualEditorChromeWidgetKind(item.kind) ? chromeWidgetLabel(item.kind, locale) : item.label}
+          hidden={item.hidden}
+          busy={busy}
+          hideLabel={t.visualEditBlockHide}
+          showLabel={t.visualEditBlockShow}
+          onToggle={() => onToggleHead(item.kind, !item.hidden)}
+          onUp={() => onReorder(item.kind, 'head', 'up')}
+          onDown={() => onReorder(item.kind, 'head', 'down')}
+        />
+      ))}
+      {showDock ? (
+        <>
+          <p className="mt-1 px-1 text-[11px] font-semibold">{t.visualEditChromeKitDock}</p>
+          <div className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-1 px-1 text-[9px] text-muted-foreground">
+            <span />
+            <span>{t.visualEditChromeKitShopPages}</span>
+            <span>{t.visualEditChromeKitPdp}</span>
+            <span />
+            <span />
+          </div>
+          {dock.map((item) => {
+            const show = item.hidden ? 'off' : item.dockShow || 'shop'
+            const shopOn = show === 'shop' || show === 'both'
+            const pdpOn = show === 'pdp' || show === 'both'
+            return (
+              <div key={`d-${item.kind}`} className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/60">
+                <span className="truncate text-[11px]">
+                  {isVisualEditorChromeWidgetKind(item.kind) ? chromeWidgetLabel(item.kind, locale) : item.label}
+                </span>
+                <button
+                  type="button"
+                  className="rounded p-0.5"
+                  disabled={busy}
+                  title={t.visualEditChromeKitShopPages}
+                  onClick={() => {
+                    const nextShop = !shopOn
+                    const next = nextShop && pdpOn ? 'both' : nextShop ? 'shop' : pdpOn ? 'pdp' : 'off'
+                    onToggleDock(item.kind, next)
+                  }}
+                >
+                  {shopOn ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
+                </button>
+                <button
+                  type="button"
+                  className="rounded p-0.5"
+                  disabled={busy}
+                  title={t.visualEditChromeKitPdp}
+                  onClick={() => {
+                    const nextPdp = !pdpOn
+                    const next = shopOn && nextPdp ? 'both' : nextPdp ? 'pdp' : shopOn ? 'shop' : 'off'
+                    onToggleDock(item.kind, next)
+                  }}
+                >
+                  {pdpOn ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
+                </button>
+                <button type="button" className="rounded p-0.5" disabled={busy} onClick={() => onReorder(item.kind, 'dock', 'up')}>
+                  <ArrowUp className="h-3 w-3" />
+                </button>
+                <button type="button" className="rounded p-0.5" disabled={busy} onClick={() => onReorder(item.kind, 'dock', 'down')}>
+                  <ArrowDown className="h-3 w-3" />
+                </button>
+              </div>
+            )
+          })}
+        </>
+      ) : null}
+    </div>
+  )
+}
+
+function ChromeKitRow({
+  label,
+  hidden,
+  busy,
+  hideLabel,
+  showLabel,
+  onToggle,
+  onUp,
+  onDown,
+}: {
+  label: string
+  hidden: boolean
+  busy: boolean
+  hideLabel: string
+  showLabel: string
+  onToggle: () => void
+  onUp: () => void
+  onDown: () => void
+}) {
+  return (
+    <div className="flex items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/60">
+      <span className="min-w-0 flex-1 truncate text-[11px]">{label}</span>
+      <button type="button" className="rounded p-0.5" disabled={busy} onClick={onToggle} title={hidden ? showLabel : hideLabel}>
+        {hidden ? <EyeOff className="h-3.5 w-3.5 text-muted-foreground" /> : <Eye className="h-3.5 w-3.5" />}
+      </button>
+      <button type="button" className="rounded p-0.5" disabled={busy} onClick={onUp}>
+        <ArrowUp className="h-3 w-3" />
+      </button>
+      <button type="button" className="rounded p-0.5" disabled={busy} onClick={onDown}>
+        <ArrowDown className="h-3 w-3" />
+      </button>
+    </div>
+  )
+}
+
 export function PartnerWebsiteVisualEditorToolbar({
   locale,
   partnerId,
@@ -1006,6 +1206,9 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [addButtonPanelOpen, setAddButtonPanelOpen] = useState(false)
   const [contactChannels, setContactChannels] = useState<PartnerSiteContactChannels | null>(null)
   const [openPanel, setOpenPanel] = useState<VisualEditOpenPanel | null>(null)
+  const [chromeKitHead, setChromeKitHead] = useState<ChromeKitListItem[]>([])
+  const [chromeKitDock, setChromeKitDock] = useState<ChromeKitListItem[]>([])
+  const [chromeKitHeadX, setChromeKitHeadX] = useState(0)
   const [panelPos, setPanelPos] = useState<{ x: number; y: number } | null>(null)
   const [bgColorPickerOpen, setBgColorPickerOpen] = useState(false)
   const pinnedBgSelectionRef = useRef<VisualEditorSelection | null>(null)
@@ -1015,7 +1218,6 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [logoInkChoice, setLogoInkChoice] = useState<'white' | 'theme' | 'custom'>('white')
   const [logoInkCustom, setLogoInkCustom] = useState('#ffffff')
   const [logoInkText, setLogoInkText] = useState('')
-  const [logoDrawActive, setLogoDrawActive] = useState(false)
   const [chatIconPrompt, setChatIconPrompt] = useState('')
   const [hiddenBlocks, setHiddenBlocks] = useState<HiddenBlock[]>([])
   /** Lớp không gian đang được lọc để bấm. -1 = bấm mọi lớp. */
@@ -1059,6 +1261,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const promptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const aiLockRef = useRef(false)
   const saveWaiterRef = useRef<{ resolve: (ok: boolean) => void } | null>(null)
+  const generateLogoRef = useRef<() => Promise<void>>(async () => {})
 
   useEffect(() => {
     onDirtyChange?.(dirty || canUndo)
@@ -1073,7 +1276,6 @@ export function PartnerWebsiteVisualEditorToolbar({
     if (!active) {
       setOpenPanel(null)
       setAddButtonPanelOpen(false)
-      setLogoDrawActive(false)
       setAddBgAskOpen(false)
       setInsertBgPickPlace(null)
       setInsertAnchorActive(false)
@@ -1119,7 +1321,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   useEffect(() => {
     const has = Boolean(selection)
     if (has && !hadSelectionRef.current) {
-      setOpenPanel((cur) => (cur === 'logo' ? cur : 'block'))
+      setOpenPanel('block')
       setPanelPos((pos) => pos ?? defaultFloatingPanelPos())
     }
     hadSelectionRef.current = has
@@ -1455,6 +1657,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         text?: string
         isBgImage?: boolean
         isLogo?: boolean
+        generate?: boolean
         logoFace?: string
         logoSlot?: string
         logoBg?: string
@@ -1506,6 +1709,11 @@ export function PartnerWebsiteVisualEditorToolbar({
         hActive?: number
         place?: string
         index?: number
+        head?: unknown
+        dock?: unknown
+        show?: string
+        bar?: string
+        dir?: string
       }
       if (data?.source !== NANOAI_VE_MESSAGE) return
 
@@ -1514,7 +1722,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         setSceneFocus(Number.isFinite(focus) && focus >= 0 ? clampPwSceneIndex(focus) : -1)
       }
 
-      if (data.type === 'select' || data.type === 'logoCreate') {
+      if (data.type === 'select' || data.type === 'logoCreate' || data.type === 'logoUpload') {
         const next = selectionFromMessage(data)
         setSelection(next)
         setHrefDraft(next.href)
@@ -1536,6 +1744,14 @@ export function PartnerWebsiteVisualEditorToolbar({
         }
         if (data.type === 'logoCreate' && next.isLogo) {
           requestAnimationFrame(() => promptTextareaRef.current?.focus())
+          if (data.generate) {
+            window.setTimeout(() => {
+              void generateLogoRef.current()
+            }, 80)
+          }
+        }
+        if (data.type === 'logoUpload') {
+          window.setTimeout(() => logoFileRef.current?.click(), 0)
         }
         if (next.editKind === 'added-btn' || next.editKind === 'cta') {
           setAddButtonPanelOpen(true)
@@ -1552,7 +1768,10 @@ export function PartnerWebsiteVisualEditorToolbar({
         } else {
           setAddButtonPanelOpen(false)
         }
-        if (data.type !== 'logoCreate' && data.picked) {
+        if (data.type !== 'logoCreate' && data.type !== 'logoUpload' && data.picked) {
+          openBlockPanel()
+        }
+        if (data.type === 'logoCreate' || data.type === 'logoUpload') {
           openBlockPanel()
         }
         if (
@@ -1577,8 +1796,6 @@ export function PartnerWebsiteVisualEditorToolbar({
         setAddButtonPanelOpen(false)
         pinnedBgSelectionRef.current = null
       }
-      if (data.type === 'logoDrawStart') setLogoDrawActive(true)
-      if (data.type === 'logoDrawEnd') setLogoDrawActive(false)
       if (data.type === 'loaded') {
         if (active) activateEditor(iframeRef.current)
         postToIframe(iframeRef.current, 'listHidden')
@@ -1609,7 +1826,13 @@ export function PartnerWebsiteVisualEditorToolbar({
       }
       if (data.type === 'hidden' && Array.isArray(data.hidden)) {
         setHiddenBlocks(
-          data.hidden.map((row) => ({ id: String(row.id ?? ''), label: String(row.label ?? '') })).filter((row) => row.id)
+          data.hidden
+            .map((row) => ({
+              id: String(row.id ?? ''),
+              label: String(row.label ?? ''),
+              place: parseHiddenBlockPlace(row.place),
+            }))
+            .filter((row) => row.id)
         )
       }
       if (data.type === 'hideChatLauncher') {
@@ -1658,6 +1881,13 @@ export function PartnerWebsiteVisualEditorToolbar({
           chromeDupAskKindRef.current = kind
           setChromeDupAskKind(kind)
         }
+      }
+      if (data.type === 'chromeKitState') {
+        const head = Array.isArray(data.head) ? (data.head as ChromeKitListItem[]) : []
+        const dock = Array.isArray(data.dock) ? (data.dock as ChromeKitListItem[]) : []
+        setChromeKitHead(head)
+        setChromeKitDock(dock)
+        setChromeKitHeadX(clampChromeKitShift(data.headX))
       }
       if (data.type === 'favoriteNeedHost') {
         onError(t.visualEditFavoriteNeedHost)
@@ -2357,6 +2587,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       referenceImageUrl: referenceImageUrl || undefined,
     })
   }
+  generateLogoRef.current = handleCreateLogoFromPanel
 
   function commitHref(next: string) {
     const kind = selection?.editKind
@@ -3289,8 +3520,8 @@ export function PartnerWebsiteVisualEditorToolbar({
   const panelTitle =
     openPanel === 'add'
       ? t.visualEditAddWidget
-      : openPanel === 'logo'
-        ? t.visualEditAddLogo
+      : openPanel === 'chromeKit'
+        ? t.visualEditChromeKit
         : openPanel === 'theme'
           ? t.visualEditMenuTheme
           : blockPanelTitle
@@ -3363,7 +3594,8 @@ export function PartnerWebsiteVisualEditorToolbar({
                 setInsertAnchorPlace(null)
                 postToIframe(iframeRef.current, 'clearInsertAnchor')
               }
-              togglePanel('add')
+              setOpenPanel((cur) => (cur === 'add' ? 'block' : 'add'))
+              setPanelPos((pos) => pos || defaultFloatingPanelPos())
             }}
           >
             <Plus className="h-3.5 w-3.5" aria-hidden />
@@ -3372,18 +3604,19 @@ export function PartnerWebsiteVisualEditorToolbar({
           <Button
             type="button"
             size="sm"
-            variant={openPanel === 'logo' ? 'default' : 'outline'}
+            variant={openPanel === 'chromeKit' ? 'default' : 'outline'}
             className={cn(btn, 'gap-1')}
             disabled={busy}
-            title={t.visualEditAddLogoHint}
-            aria-expanded={openPanel === 'logo'}
+            title={t.visualEditChromeKit}
+            aria-expanded={openPanel === 'chromeKit'}
             onClick={() => {
-              if (logoDrawActive) postToIframe(iframeRef.current, 'cancelAddLogo')
-              togglePanel('logo')
+              setOpenPanel((cur) => (cur === 'chromeKit' ? 'block' : 'chromeKit'))
+              setPanelPos((pos) => pos || defaultFloatingPanelPos())
+              postToIframe(iframeRef.current, 'listChromeKit', {})
             }}
           >
-            <ImagePlus className="h-3.5 w-3.5" aria-hidden />
-            {t.visualEditAddLogo}
+            <LayoutTemplate className="h-3.5 w-3.5" aria-hidden />
+            {t.visualEditChromeKit}
           </Button>
           {theme && onThemeLiveChange ? (
             <Button
@@ -3813,7 +4046,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                       </div>
                     ) : null}
                     <div className="max-h-48 overflow-y-auto">
-                      {VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS.map((kind) => {
+                      {VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS.filter((kind) => !isChromeKitPickerKind(kind)).map((kind) => {
                         const Icon = isLucideIconComponent(CHROME_WIDGET_ICONS[kind])
                           ? CHROME_WIDGET_ICONS[kind]
                           : Plus
@@ -3850,31 +4083,33 @@ export function PartnerWebsiteVisualEditorToolbar({
                     </div>
                   </div>
                 ) : null}
-                {openPanel === 'logo' ? (
-                  <div className="space-y-1.5">
-                    {logoCreateFields}
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className={cn(btn, 'w-full')}
-                      disabled={busy}
-                      onClick={() => logoFileRef.current?.click()}
-                    >
-                      {uploadBusy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <ImagePlus className="mr-1 h-3 w-3" />}
-                      {t.visualEditUploadAsLogo}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      className={cn(btn, 'w-full')}
-                      disabled={busy}
-                      onClick={() => void handleCreateLogoFromPanel()}
-                    >
-                      {aiBusy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
-                      {t.visualEditCreateLogo}
-                    </Button>
-                  </div>
+                {openPanel === 'chromeKit' ? (
+                  <ChromeKitPanel
+                    t={t}
+                    locale={locale}
+                    device={visualDeviceVariantFromHtmlPath(htmlPath)}
+                    head={chromeKitHead}
+                    dock={chromeKitDock}
+                    headX={chromeKitHeadX}
+                    busy={busy}
+                    onToggleHead={(kind, hidden) => {
+                      postToIframe(iframeRef.current, 'setChromeKitHidden', { kind, bar: 'head', hidden })
+                      setDirty(true)
+                    }}
+                    onToggleDock={(kind, show) => {
+                      postToIframe(iframeRef.current, 'setChromeKitDockShow', { kind, show })
+                      setDirty(true)
+                    }}
+                    onReorder={(kind, bar, dir) => {
+                      postToIframe(iframeRef.current, 'reorderChromeKit', { kind, bar, dir })
+                      setDirty(true)
+                    }}
+                    onShiftHead={(x) => {
+                      setChromeKitHeadX(x)
+                      postToIframe(iframeRef.current, 'setChromeKitShift', { bar: 'head', x })
+                      setDirty(true)
+                    }}
+                  />
                 ) : null}
                 {openPanel === 'theme' && theme && onThemeLiveChange ? (
                   <PartnerWebsiteThemeColorPicker
@@ -5102,7 +5337,9 @@ export function PartnerWebsiteVisualEditorToolbar({
         {hiddenBlocks.length > 0 ? (
           <div className="flex flex-wrap items-center gap-1 text-[10px]">
             <span className="text-muted-foreground">{t.visualEditHiddenBlocks}:</span>
-            {hiddenBlocks.map((row) => (
+            {hiddenBlocks.map((row) => {
+              const place = hiddenPlaceCopy(row.place, t)
+              return (
               <Button
                 key={row.id}
                 type="button"
@@ -5110,13 +5347,17 @@ export function PartnerWebsiteVisualEditorToolbar({
                 variant="secondary"
                 className={btn}
                 disabled={busy}
+                title={place ? `${row.label} · ${place}` : row.label}
                 onClick={() => postToIframe(iframeRef.current, 'showHidden', { id: row.id })}
               >
                 <Eye className="mr-1 h-3 w-3" />
                 {t.visualEditBlockShow}
                 {row.label ? ` · ${row.label}` : ''}
+                {place ? ` · ${place}` : ''}
               </Button>
-            ))}
+              )
+            })}
+            <p className="w-full text-[10px] leading-4 text-muted-foreground">{t.visualEditHiddenBlocksHint}</p>
           </div>
         ) : null}
 

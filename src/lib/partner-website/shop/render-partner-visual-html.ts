@@ -19,6 +19,7 @@ import { stripPartnerInfoPageSeoCoachFromHtml } from '@/lib/partner-website/page
 import { ensureAdsPlatformPolicyInHtml } from '@/lib/partner-website/pages/partner-info-page-visual'
 import { ensureFullPartnerSiteFooterInHtml } from '@/lib/partner-website/shop/build-partner-site-footer-html'
 import { ensurePartnerSitePdpBottomNavInHtml } from '@/lib/partner-website/shop/build-partner-site-header-html'
+import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import { ensurePdpReviewQaCardsInBuyBox } from '@/lib/partner-website/shop/partner-site-pdp-review-qa'
 import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual-editor/strip-empty-logo-placeholders'
 import {
@@ -87,7 +88,14 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
     siteSlug: input.siteSlug,
     pageKey: input.pageKey,
   })
-  const noSeoCoach = stripPartnerInfoPageSeoCoachFromHtml(withPdpBar)
+  const withChromeKit = ensurePartnerSiteChromeKitInHtml(withPdpBar, {
+    locale,
+    siteSlug: input.siteSlug,
+    device: input.variant,
+    logoUrl: input.theme?.logoUrl,
+    chatIconLogoUrl: input.theme?.chatIconLogoUrl,
+  })
+  const noSeoCoach = stripPartnerInfoPageSeoCoachFromHtml(withChromeKit)
   const mediaReady =
     input.runtime === 'authoring' && input.variant
       ? deferOffDevicePdpGalleryMedia(noSeoCoach, input.variant)

@@ -150,6 +150,7 @@ export function buildDefaultDemoPdpShellHtml(input?: {
     logoUrl: input?.logoUrl,
     siteSlug: slug || undefined,
     samplePreview: !slug,
+    device: variant,
   })
 
   return `<!DOCTYPE html>
@@ -266,11 +267,7 @@ ${chrome.header}
     }
   </div>
 </main>
-${
-  useMobileHero
-    ? buildPartnerSitePdpBottomNavHtml({ locale, homeHref: slug ? partnerSiteHomePath(slug) : '#' })
-    : chrome.bottomNav
-}
+${chrome.bottomNav}
 </body>
 </html>`
 }

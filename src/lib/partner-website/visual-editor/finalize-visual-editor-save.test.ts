@@ -90,7 +90,7 @@ test('the route save transition is byte-idempotent on every device and feeds pub
       hashShopCachePayload(first.canonicalHtml),
       `${device} sourceHash drifted`
     )
-    assert.match(first.canonicalHtml, /data-pw-coordinate-version="2"/)
+    assert.match(first.canonicalHtml, /data-pw-coordinate-version="4"/)
     assert.match(first.canonicalHtml, /id="box"[^>]*data-pw-placement="scene-absolute"/)
     assert.match(first.canonicalHtml, /id="fixed"[^>]*data-pw-placement="viewport-fixed"/)
     assert.doesNotMatch(first.canonicalHtml, /data-pw-(?:canvas|stay)-(?:x|y|w|h|xu|yu)=/)

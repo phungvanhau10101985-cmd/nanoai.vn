@@ -105,6 +105,8 @@ export type PartnerWebsiteTemplateRenderInput = {
   enabledSectionTypes?: string[]
   /** Public template gallery: full shop chrome + static demo products (no live inventory). */
   samplePreview?: boolean
+  /** Seed kit ẩn/hiện theo máy. */
+  variant?: 'desktop' | 'laptop' | 'tablet' | 'mobile'
 }
 
 export type TemplateSectionEditOp =

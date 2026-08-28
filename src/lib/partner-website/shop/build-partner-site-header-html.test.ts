@@ -30,7 +30,8 @@ describe('listing native UI contract stamps', () => {
     expect(src).toContain('pwRegionAttr(PW_REGION.topbar)')
     expect(src).toContain('pwElAttr(PW_EL.link)')
     expect(src).toContain('pwElAttr(PW_EL.navLink)')
-    expect(src).toContain('data-pw-chrome-btn="account"')
+    expect(src).toContain('buildChromeKitHeadActionHtml')
+    expect(src).toContain('buildChromeKitDockHtml')
     expect(src).toContain('data-pw-pdp-bottom="1"')
     expect(src).toContain('data-pw-chrome-btn="try-on"')
     expect(src).toContain('data-pw-chrome-btn="favorite-product"')
@@ -74,7 +75,12 @@ describe('listing native UI contract stamps', () => {
     expect(pdp).toContain('data-pw-el={PW_EL.buy}')
     expect(pdp).toContain('data-pw-el={PW_EL.cardCart}')
     expect(pdp).toContain('data-pw-el={PW_EL.wishlist}')
-    expect(pdp).toContain('data-pw-region={PW_REGION.catalog}')
+
+    const related = readFileSync(
+      join(here, '../../../components/partner-website/shop/partner-site-related-products.tsx'),
+      'utf8'
+    )
+    expect(related).toContain('data-pw-region={PW_REGION.catalog}')
 
     const reviews = readFileSync(
       join(here, '../../../components/partner-website/shop/partner-site-product-reviews-qa.tsx'),

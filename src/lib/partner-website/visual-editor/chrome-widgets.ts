@@ -208,33 +208,33 @@ export const PW_CHROME_LABELED_MIN_W_CSS =
 
 /** Chữ dưới icon — thắng mọi rule flex-direction:row của nút có nhãn (header / canvas / thanh đáy / PDP). */
 export const PW_CHROME_LABEL_BELOW_CSS =
-  'html [data-pw-chrome-style="icon-label-below"],' +
-  'html [data-pw-chrome-btn][data-pw-chrome-style="icon-label-below"],' +
-  'html [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"],' +
-  'html [data-pw-el="account"][data-pw-chrome-style="icon-label-below"],' +
-  'html [data-pw-el="cat-toggle"][data-pw-chrome-style="icon-label-below"],' +
-  'html .pw-account-btn[data-pw-chrome-style="icon-label-below"],' +
-  'html .pw-cat-btn[data-pw-chrome-style="icon-label-below"],' +
-  'html .pw-shop-cat-btn[data-pw-chrome-style="icon-label-below"],' +
-  'html .pw-chrome-label-below,' +
-  'html [data-pw-chrome-added].pw-chrome-label-below,' +
-  'html [data-pw-chrome-btn].pw-chrome-label-below,' +
-  'html .pw-header-actions [data-pw-chrome-style="icon-label-below"],' +
-  'html .pw-shop-header-actions [data-pw-chrome-style="icon-label-below"],' +
-  'html .pw-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"],' +
-  'html .pw-shop-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"],' +
-  'html .pw-header-actions .pw-chrome-label-below,' +
-  'html .pw-shop-header-actions .pw-chrome-label-below,' +
-  'html .pw-nav-main [data-pw-chrome-style="icon-label-below"],' +
-  'html .pw-shop-nav-row [data-pw-chrome-style="icon-label-below"],' +
-  'html .pw-bottom-nav [data-pw-chrome-style="icon-label-below"],' +
-  'html .pw-shop-bottom-nav [data-pw-chrome-style="icon-label-below"],' +
-  'html .pw-bottom-nav .pw-chrome-has-label[data-pw-chrome-style="icon-label-below"],' +
-  'html .pw-shop-bottom-nav .pw-chrome-has-label[data-pw-chrome-style="icon-label-below"],' +
-  'html .pw-pdp-sticky [data-pw-chrome-style="icon-label-below"],' +
-  'html .pw-pdp-sticky-nav [data-pw-chrome-style="icon-label-below"],' +
-  'html .pw-topbar [data-pw-chrome-style="icon-label-below"],' +
-  'html .pw-shop-topbar [data-pw-chrome-style="icon-label-below"]{' +
+  'html [data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html [data-pw-chrome-btn][data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html [data-pw-el="account"][data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html [data-pw-el="cat-toggle"][data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html .pw-account-btn[data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html .pw-cat-btn[data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html .pw-shop-cat-btn[data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html .pw-chrome-label-below:not([data-pw-hidden="1"]),' +
+  'html [data-pw-chrome-added].pw-chrome-label-below:not([data-pw-hidden="1"]),' +
+  'html [data-pw-chrome-btn].pw-chrome-label-below:not([data-pw-hidden="1"]),' +
+  'html .pw-header-actions [data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html .pw-shop-header-actions [data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html .pw-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html .pw-shop-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html .pw-header-actions .pw-chrome-label-below:not([data-pw-hidden="1"]),' +
+  'html .pw-shop-header-actions .pw-chrome-label-below:not([data-pw-hidden="1"]),' +
+  'html .pw-nav-main [data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html .pw-shop-nav-row [data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html .pw-bottom-nav [data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html .pw-shop-bottom-nav [data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html .pw-bottom-nav .pw-chrome-has-label[data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html .pw-shop-bottom-nav .pw-chrome-has-label[data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html .pw-pdp-sticky [data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html .pw-pdp-sticky-nav [data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html .pw-topbar [data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]),' +
+  'html .pw-shop-topbar [data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"]){' +
   'display:inline-flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;' +
   'padding:var(--pw-chrome-pad-y,4px) 6px!important;border-radius:10px!important}' +
   'html [data-pw-chrome-style="icon-label-below"] .pw-chrome-btn-label,' +

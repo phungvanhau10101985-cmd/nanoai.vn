@@ -13,7 +13,7 @@ import {
   DEFAULT_PARTNER_WEBSITE_THEME,
   type PartnerWebsiteTheme,
 } from '../../src/lib/partner-website/template/partner-website-template-types'
-import { buildVisualEditorScript } from '../../src/lib/partner-website/visual-editor/build-visual-editor-script'
+import { buildVisualEditorScript, NANOAI_VE_MESSAGE } from '../../src/lib/partner-website/visual-editor/build-visual-editor-script'
 import { finalizeVisualEditorSave } from '../../src/lib/partner-website/visual-editor/finalize-visual-editor-save'
 import {
   PW_COORDINATE_CONTRACT_VERSION,
@@ -107,6 +107,221 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
+test('a dragged nested banner element keeps its position after save', async ({ page }) => {
+  const device: PwCoordinateDevice = 'desktop'
+  const source = fixtureHtml('home', device, TENANTS[0])
+  await page.setViewportSize({ width: PW_SCENE_WIDTH[device], height: 900 })
+  await settle(
+    page,
+    preparePartnerVisualHtmlForEditor(source, {
+      variant: device,
+      siteSlug: TENANTS[0].slug,
+      locale: 'vi',
+      pageKey: 'home',
+      theme: TENANTS[0].theme,
+    }),
+    device
+  )
+  await activateActualEditor(page, device)
+
+  const title = page.locator('[data-pw-el="title"]').first()
+  await title.click()
+  const before = await title.evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+  })
+  const handle = await page.locator('.nanoai-ve-move-handle').boundingBox()
+  expect(handle).not.toBeNull()
+  if (!handle) return
+
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(handle.x + handle.width / 2 + 90, handle.y + handle.height / 2 + 55, {
+    steps: 6,
+  })
+  await page.mouse.up()
+
+  const moved = await title.evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+  })
+  expect(moved.left).toBeGreaterThan(before.left + 70)
+  await expect(title).toHaveAttribute('data-pw-user-move', '1')
+  await expect(title).toHaveAttribute('data-pw-placement', 'scene-absolute')
+
+  const saved = serializeBrowserMarkupForSave(await page.content(), device)
+  await settle(
+    page,
+    preparePartnerVisualHtmlForEditor(saved, {
+      variant: device,
+      siteSlug: TENANTS[0].slug,
+      locale: 'vi',
+      pageKey: 'home',
+      theme: TENANTS[0].theme,
+    }),
+    device
+  )
+  await activateActualEditor(page, device)
+  const restored = await page.locator('[data-pw-el="title"]').first().evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+  })
+  expect(Math.abs(restored.left - moved.left)).toBeLessThanOrEqual(2)
+  expect(
+    Math.abs(restored.top - moved.top),
+    JSON.stringify({ moved, restored, savedTitle: saved.match(/<h1\b[^>]*data-pw-el="title"[^>]*>/)?.[0] })
+  ).toBeLessThanOrEqual(2)
+})
+
+test('a dragged header control is lifted to the scene and does not jump after save', async ({ page }) => {
+  const device: PwCoordinateDevice = 'desktop'
+  const source = fixtureHtml('home', device, TENANTS[0])
+  await page.setViewportSize({ width: PW_SCENE_WIDTH[device], height: 900 })
+  await settle(
+    page,
+    preparePartnerVisualHtmlForEditor(source, {
+      variant: device,
+      siteSlug: TENANTS[0].slug,
+      locale: 'vi',
+      pageKey: 'home',
+      theme: TENANTS[0].theme,
+    }),
+    device
+  )
+  await activateActualEditor(page, device)
+  await page.evaluate((slug) => {
+    const account = document.createElement('a')
+    account.id = 'header-account'
+    account.className = 'pw-account-btn'
+    account.setAttribute('data-pw-el', 'account')
+    account.setAttribute('data-pw-chrome-btn', 'account')
+    account.href = `/site/${slug}/account`
+    account.textContent = 'Account'
+    document.querySelector('header')?.appendChild(account)
+  }, TENANTS[0].slug)
+
+  const account = page.locator('#header-account')
+  await account.evaluate((element) => {
+    const html = element as HTMLElement
+    html.style.setProperty('display', 'inline-flex', 'important')
+    html.style.setProperty('visibility', 'visible', 'important')
+    html.style.setProperty('opacity', '1', 'important')
+    html.style.setProperty('position', 'relative', 'important')
+    html.style.setProperty('width', '120px', 'important')
+    html.style.setProperty('height', '32px', 'important')
+  })
+  await account.click({ timeout: 5_000 })
+  const handle = await page.locator('.nanoai-ve-move-handle').boundingBox()
+  expect(handle).not.toBeNull()
+  if (!handle) return
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(handle.x + handle.width / 2 + 80, handle.y + handle.height / 2 + 12, {
+    steps: 5,
+  })
+  await page.mouse.up()
+
+  const moved = await account.evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    return {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      parent: element.parentElement?.id || '',
+      inHeader: Boolean(element.closest('header')),
+    }
+  })
+  expect(moved.inHeader).toBe(false)
+  await expect(account).toHaveAttribute('data-pw-placement', 'scene-absolute')
+
+  const saved = serializeBrowserMarkupForSave(await page.content(), device)
+  await settle(
+    page,
+    preparePartnerVisualHtmlForEditor(saved, {
+      variant: device,
+      siteSlug: TENANTS[0].slug,
+      locale: 'vi',
+      pageKey: 'home',
+      theme: TENANTS[0].theme,
+    }),
+    device
+  )
+  await activateActualEditor(page, device)
+  const restored = await page.locator('#header-account').evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    return { left: rect.left, top: rect.top }
+  })
+  expect(Math.abs(restored.left - moved.left)).toBeLessThanOrEqual(2)
+  expect(
+    Math.abs(restored.top - moved.top),
+    JSON.stringify({
+      moved,
+      restored,
+      savedAccount: saved.match(/<a\b[^>]*id="header-account"[^>]*>/)?.[0],
+    })
+  ).toBeLessThanOrEqual(2)
+})
+
+test('a newly added overlay keeps its mouse-dragged position', async ({ page }) => {
+  const device: PwCoordinateDevice = 'desktop'
+  const source = fixtureHtml('home', device, TENANTS[0])
+  await page.setViewportSize({ width: PW_SCENE_WIDTH[device], height: 900 })
+  await settle(
+    page,
+    preparePartnerVisualHtmlForEditor(source, {
+      variant: device,
+      siteSlug: TENANTS[0].slug,
+      locale: 'vi',
+      pageKey: 'home',
+      theme: TENANTS[0].theme,
+    }),
+    device
+  )
+  await activateActualEditor(page, device)
+  await page.evaluate((sourceName) => {
+    window.postMessage({ source: sourceName, type: 'insertText' }, '*')
+  }, NANOAI_VE_MESSAGE)
+
+  const text = page.locator('[data-pw-added-text="1"]').first()
+  await expect(text).toBeVisible({ timeout: 5_000 })
+  const before = await text.evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    return {
+      left: rect.left,
+      top: rect.top,
+      boxX: element.getAttribute('data-pw-box-x') || '',
+      boxY: element.getAttribute('data-pw-box-y') || '',
+    }
+  })
+
+  await text.click()
+  const handle = await page.locator('.nanoai-ve-move-handle').boundingBox()
+  expect(handle).not.toBeNull()
+  if (!handle) return
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(handle.x + handle.width / 2 + 120, handle.y + handle.height / 2 + 80, {
+    steps: 6,
+  })
+  await page.mouse.up()
+
+  const after = await text.evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    return {
+      left: rect.left,
+      top: rect.top,
+      boxX: element.getAttribute('data-pw-box-x') || '',
+      boxY: element.getAttribute('data-pw-box-y') || '',
+      transform: (element as HTMLElement).style.transform || '',
+    }
+  })
+  expect(after.left, JSON.stringify({ before, after })).toBeGreaterThan(before.left + 80)
+  expect(after.top, JSON.stringify({ before, after })).toBeGreaterThan(before.top + 40)
+  expect(after.boxX).not.toEqual(before.boxX)
+  expect(after.boxY).not.toEqual(before.boxY)
+})
+
 function pageKind(page: VisualPage): string {
   if (page === 'products') return 'listing'
   if (page === 'product_detail') return 'product'
@@ -147,8 +362,16 @@ function fixtureHtml(
     page === 'product_detail'
       ? `<nav id="pw-dock" class="pw-bottom-nav pw-shop-bottom-nav pw-pdp-sticky" data-pw-pdp-bottom="1" data-pw-region="nav"><div class="pw-pdp-sticky-nav"><a href="/site/${siteSlug}"><span class="pw-pdp-sticky-copy">Home</span></a><button type="button"><span class="pw-pdp-like-copy">Like <span data-pw-like-count>0</span></span></button></div><div class="pw-pdp-sticky-ctas"><button type="button">Cart</button><button type="button">Buy</button></div></nav>`
       : `<nav id="pw-dock" class="pw-bottom-nav" data-pw-region="nav"><a data-pw-el="nav-link" href="/site/${siteSlug}">Home</a></nav>`
+  const boxW = 180
+  const boxH = 64
+  const boxX = Math.round(width * 0.18 - width / 2 + boxW / 2)
+  const boxY = 180 + boxH / 2
+  const fixedW = 96
+  const fixedH = 44
+  const fixedX = Math.round((width * 0.7 - width / 2 + fixedW / 2) * 1000) / 1000
+  const fixedY = 180 + fixedH / 2
   return `<!doctype html>
-<html lang="vi" data-pw-edit-device="${device}" data-pw-scene-lock="${device}">
+<html lang="vi" data-pw-edit-device="${device}" data-pw-scene-lock="${device}" data-pw-coordinate-version="${PW_COORDINATE_CONTRACT_VERSION}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -173,11 +396,11 @@ function fixtureHtml(
   <main id="pw-scene" data-pw-scene-root="1">
     <section id="pw-flow" data-pw-region="content"><span data-pw-el="body">Flow</span></section>
     <div id="pw-absolute" data-pw-added-text="1" data-pw-user-move="1" data-pw-scene="3"
-      data-pw-placement="scene-absolute" data-pw-box-x="${Math.round(width * 0.18)}"
-      data-pw-box-y="180" data-pw-box-w="180" data-pw-box-h="64">Absolute</div>
+      data-pw-placement="scene-absolute" data-pw-box-x="${boxX}"
+      data-pw-box-y="${boxY}" data-pw-box-w="180" data-pw-box-h="64">Absolute</div>
     <button id="pw-fixed" type="button" data-pw-added-btn="1" data-pw-stay-scroll="1"
-      data-pw-scene="4" data-pw-placement="viewport-fixed" data-pw-fixed-x="0.7"
-      data-pw-fixed-y="0.2" data-pw-fixed-w="96" data-pw-fixed-h="44">Fixed</button>
+      data-pw-scene="4" data-pw-placement="viewport-fixed" data-pw-fixed-x="${fixedX}"
+      data-pw-fixed-y="${fixedY}" data-pw-fixed-w="96" data-pw-fixed-h="44">Fixed</button>
     <button id="pw-float" type="button" data-pw-chrome-btn="chat" data-pw-chrome-added="1"
       data-pw-device="${device}" data-pw-scene="4">Chat</button>
     <div id="pw-page-region">${pageRegion(page)}</div>
@@ -751,7 +974,7 @@ test('device ownership stays stable through the full viewport and zoom matrix', 
             screenWidth: window.screen.width,
           })
           const map = core.createMap({ device: active, viewportWidth: visualWidth })
-          const center = core.sceneToClient({ x: map.sceneWidth / 2, y: 0 }, map)
+          const center = core.sceneToClient({ x: 0, y: 0 }, map)
           return {
             active,
             centerX: center.x,

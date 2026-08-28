@@ -31,8 +31,8 @@ test('copies an overlay onto other pages of the same device at the same coordina
   const mobile = next.project.files.find((f) => f.path === 'cart.mobile.html')?.content || ''
   assert.match(cart, /data-pw-clone-id="c1"/)
   assert.match(cart, /data-pw-placement="scene-absolute"/)
-  assert.match(cart, /data-pw-box-x="80"/)
-  assert.match(cart, /left:80px/)
+  assert.match(cart, /data-pw-box-x="-440"/)
+  assert.match(cart, /left:calc\(50% - 640px\)/)
   assert.match(cart, /top:40px/)
   assert.doesNotMatch(cart, /data-pw-clone-all="1"/)
   assert.match(about, /data-pw-clone-id="c1"/)
@@ -50,7 +50,7 @@ test('replaces an existing clone on the same device instead of stacking a second
   const next = copyPageCloneElementsAcrossSameDevicePages(project, 'index.html', page(SOURCE_BG))
   const cart = next.project.files.find((f) => f.path === 'cart.html')?.content || ''
   assert.equal(cart.match(/data-pw-clone-id="c1"/g)?.length, 1)
-  assert.match(cart, /left:80px/)
+  assert.match(cart, /left:calc\(50% - 640px\)/)
   assert.doesNotMatch(cart, /left:10px/)
 })
 
@@ -91,7 +91,7 @@ test('seeds missing catalog pages such as orders.html on the same device', () =>
   })
   const orders = next.project.files.find((f) => f.path === 'orders.html')?.content || ''
   assert.match(orders, /data-pw-clone-id="c1"/)
-  assert.match(orders, /left:80px/)
+  assert.match(orders, /left:calc\(50% - 640px\)/)
   assert.match(orders, /top:40px/)
   assert.ok(next.pageKeys.includes('orders'))
   assert.doesNotMatch(
@@ -124,6 +124,22 @@ test('parses clone box and extracts only clone-all sources', () => {
     width: 80,
     height: 40,
     version: 2,
+  })
+  assert.deepEqual(parseCloneBox('3,scene-absolute,-640,40,400,120'), {
+    mode: 'scene-absolute',
+    left: -640,
+    top: 40,
+    width: 400,
+    height: 120,
+    version: 3,
+  })
+  assert.deepEqual(parseCloneBox('4,scene-absolute,-440,100,400,120'), {
+    mode: 'scene-absolute',
+    left: -440,
+    top: 100,
+    width: 400,
+    height: 120,
+    version: 4,
   })
   const clones = extractPageClones(page(`${SOURCE_BG}<div data-pw-clone-id="other">x</div>`))
   assert.equal(clones.length, 1)

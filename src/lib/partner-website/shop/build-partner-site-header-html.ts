@@ -3,10 +3,15 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   getPartnerSiteCategoryNavLabels,
-  getPartnerSitePromoNavLabel,
   getPartnerSiteShopNavPaths,
 } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import { partnerSiteHomePath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import {
+  PW_CHROME_KIT_ATTR,
+  buildChromeKitDockHtml,
+  buildChromeKitHeadActionHtml,
+} from '@/lib/partner-website/shop/partner-site-chrome-kit'
+import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { searchGlyphSvg } from '@/lib/partner-website/visual-editor/search-cluster-icons'
 
@@ -20,6 +25,8 @@ export type PartnerSiteHeaderHtmlInput = {
   siteSlug?: string
   /** Gallery / static sample — show shop chrome without live slug */
   samplePreview?: boolean
+  /** Seed ẩn/hiện kit theo máy (desktop+laptop = pc). */
+  device?: VisualDeviceVariant | null
 }
 
 export type PartnerSiteHeaderHtmlOutput = {
@@ -28,7 +35,7 @@ export type PartnerSiteHeaderHtmlOutput = {
   scripts: string
 }
 
-type HtmlIconName = 'menu' | 'user' | 'cart' | 'home' | 'box' | 'tag'
+type HtmlIconName = 'menu'
 
 function svgPdpIcon(name: 'home' | 'try-on' | 'heart'): string {
   if (name === 'try-on') {
@@ -50,11 +57,6 @@ function stickyTwoLine(line1: string, line2?: string): string {
 function svgIcon(name: HtmlIconName): string {
   const paths: Record<HtmlIconName, string> = {
     menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
-    user: '<circle cx="12" cy="8" r="3.5"/><path d="M5 19c1.5-3 4-4.5 7-4.5s5.5 1.5 7 4.5"/>',
-    cart: '<path d="M3 4h2l2.2 11h9.6L19 7H7"/><circle cx="10" cy="19" r="1.5"/><circle cx="16" cy="19" r="1.5"/>',
-    home: '<path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/>',
-    box: '<path d="M4 8l8-4 8 4v9l-8 4-8-4z"/><path d="M4 8l8 4 8-4M12 12v9"/>',
-    tag: '<path d="M12 4h7v7l-9.5 9.5a2 2 0 0 1-2.8 0L4.5 18.3a2 2 0 0 1 0-2.8z"/><circle cx="16" cy="8" r="1.2"/>',
   }
   return `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`
 }
@@ -122,7 +124,10 @@ export function buildPartnerSiteAccountPanelCss(): string {
 .pw-account-btn{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 10px;border-radius:999px;border:none;background:transparent;color:#374151;font:inherit;font-size:13px;font-weight:700;cursor:pointer;position:relative}
 .pw-account-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2}
 @media(min-width:900px){.pw-account-btn-label{display:inline}}
-@media(max-width:899px){.pw-account-wrap{display:none}.pw-account-btn-label{display:none}}`
+@media(max-width:899px){
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-account-wrap{display:none}
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-account-btn-label{display:none}
+}`
 }
 
 /**
@@ -158,13 +163,10 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   const homeHref = escapeAttr(paths.home)
   const productsHref = escapeAttr(paths.products)
   const wishlistHref = escapeAttr(paths.wishlist)
-  const cartHref = escapeAttr(paths.cart)
   const saleHref = escapeAttr(paths.sale)
   const contactHref = escapeAttr(paths.contact)
-  const accountHref = escapeAttr(paths.account)
   const loginHref = escapeAttr(paths.login)
   const search = searchLabels(input.locale)
-  const promoLabel = getPartnerSitePromoNavLabel(input.locale)
   const logo = input.logoUrl?.trim() ?? ''
 
   const topbar = `<div class="pw-topbar" ${pwRegionAttr(PW_REGION.topbar)}><div class="pw-container pw-topbar-inner">
@@ -191,19 +193,21 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   ${topbar}
   <div class="pw-container pw-header-main">
     <div class="pw-brand-cluster">
-      <button type="button" class="pw-cat-btn" ${pwElAttr(PW_EL.catToggle)} data-pw-chrome-btn="categories" data-pw-cat-toggle aria-expanded="false" aria-controls="pw-cat-panel" aria-label="${escapeAttr(shop.navCategories)}">${svgIcon('menu')}<span>${escapeHtml(shop.navCategories)}</span></button>
+      <button type="button" class="pw-cat-btn" ${pwElAttr(PW_EL.catToggle)} data-pw-chrome-btn="categories" data-pw-cat-toggle ${PW_CHROME_KIT_ATTR}="1" aria-expanded="false" aria-controls="pw-cat-panel" aria-label="${escapeAttr(shop.navCategories)}">${svgIcon('menu')}<span>${escapeHtml(shop.navCategories)}</span></button>
       ${brandBlock}
       <nav id="pw-cat-panel" class="pw-cat-panel" data-pw-cat-panel aria-label="${escapeAttr(shop.navCategories)}">
         ${categoryLinks}
       </nav>
     </div>
     ${searchBar}
-    <div class="pw-header-actions">
-      <a class="pw-account-btn" href="${accountHref}" ${pwElAttr(PW_EL.account)} data-pw-chrome-btn="account" aria-label="${escapeAttr(shop.navAccount)}">
-        ${svgIcon('user')}
-        <span class="pw-account-btn-label">${escapeHtml(shop.navAccount)}</span>
-      </a>
-      <a class="pw-icon-btn" ${pwElAttr(PW_EL.cart)} data-pw-chrome-btn="cart" href="${cartHref}" aria-label="${escapeAttr(shop.navCart)}">${svgIcon('cart')}<span class="pw-cart-badge" data-pw-chrome-badge hidden>0</span></a>
+    <div class="pw-header-actions" ${PW_CHROME_KIT_ATTR}="actions">
+      ${buildChromeKitHeadActionHtml({
+        locale: input.locale,
+        siteSlug: siteSlug || null,
+        device: input.device,
+        logoUrl: logo,
+        chatIconLogoUrl: input.chatIconLogoUrl,
+      })}
     </div>
   </div>
   <nav class="pw-container pw-seo-row" data-pw-seo-row hidden aria-label=""></nav>
@@ -212,11 +216,13 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   </nav>
 </header>`
 
-  const bottomNav = `<nav class="pw-bottom-nav" ${pwRegionAttr(PW_REGION.nav)} aria-label="Mobile">
-    <a class="is-active" href="${homeHref}" ${pwElAttr(PW_EL.navLink)} data-pw-chrome-btn="home">${svgIcon('home')}<span>${escapeHtml(shop.navHome)}</span></a>
-    <a href="${productsHref}" ${pwElAttr(PW_EL.navLink)} data-pw-chrome-btn="products">${svgIcon('box')}<span>${escapeHtml(shop.navProducts)}</span></a>
-    <a href="${saleHref}" ${pwElAttr(PW_EL.navLink)} data-pw-chrome-btn="sale">${svgIcon('tag')}<span>${escapeHtml(promoLabel)}</span></a>
-    <a href="${accountHref}" ${pwElAttr(PW_EL.account)} data-pw-chrome-btn="account">${svgIcon('user')}<span>${escapeHtml(shop.navAccount)}</span></a>
+  const bottomNav = `<nav class="pw-bottom-nav" ${pwRegionAttr(PW_REGION.nav)} ${PW_CHROME_KIT_ATTR}="dock" aria-label="Mobile">
+    ${buildChromeKitDockHtml({
+      locale: input.locale,
+      siteSlug: siteSlug || null,
+      logoUrl: logo,
+      chatIconLogoUrl: input.chatIconLogoUrl,
+    })}
   </nav>`
 
   return {
@@ -305,6 +311,7 @@ export function ensurePartnerSitePdpBottomNavInHtml(
   }
 ): string {
   if (!html.trim()) return html
+  if (/\bdata-pw-chrome-kit=["']dock["']/i.test(html)) return html
   const bodyAttrs = html.match(/<body\b([^>]*)>/i)?.[1] || ''
   const isProduct =
     input.pageKey === 'product_detail' || /\bdata-pw-page=["']product["']/i.test(bodyAttrs)

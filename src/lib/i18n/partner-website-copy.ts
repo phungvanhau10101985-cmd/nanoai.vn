@@ -167,6 +167,11 @@ export type PartnerWebsiteCopy = {
   visualEditBlockPaddingX: string
   visualEditBlockOverlay: string
   visualEditHiddenBlocks: string
+  visualEditHiddenBlocksHint: string
+  visualEditHiddenPlaceHeader: string
+  visualEditHiddenPlaceDock: string
+  visualEditHiddenPlaceFloat: string
+  visualEditHiddenPlacePage: string
   visualEditSelectBlock: string
   visualEditLayerBlock: string
   visualEditLayerImage: string
@@ -265,6 +270,16 @@ export type PartnerWebsiteCopy = {
   visualEditPageButtonHint: string
   visualEditChromeWidgetTitle: string
   visualEditChromeWidgetHint: string
+  visualEditChromeKit: string
+  visualEditChromeKitHint: string
+  visualEditChromeKitHeadPc: string
+  visualEditChromeKitHeadTablet: string
+  visualEditChromeKitHeadMobile: string
+  visualEditChromeKitDock: string
+  visualEditChromeKitShopPages: string
+  visualEditChromeKitPdp: string
+  visualEditChromeKitShift: string
+  visualEditChromeKitShiftHint: string
   visualEditChatIconLogoTitle: string
   visualEditChatIconLogoHint: string
   visualEditChatIconLogoDefaultPrompt: string
@@ -1126,6 +1141,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockPaddingX: 'Khoảng cách ngang',
     visualEditBlockOverlay: 'Lớp phủ banner',
     visualEditHiddenBlocks: 'Khối đã ẩn',
+    visualEditHiddenBlocksHint:
+      'Nút đầu trang và thanh đáy bật/tắt ở Thanh điều hướng. Chỗ này chỉ phần tử ẩn khác.',
+    visualEditHiddenPlaceHeader: 'đầu trang',
+    visualEditHiddenPlaceDock: 'thanh đáy',
+    visualEditHiddenPlaceFloat: 'nút nổi',
+    visualEditHiddenPlacePage: 'giữa trang',
     visualEditSelectBlock: 'Chọn khối chứa',
     visualEditLayerBlock: 'Khối',
     visualEditLayerImage: 'Ảnh',
@@ -1142,7 +1163,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoCropX: 'Cắt 2 bên',
     visualEditLogoCropY: 'Cắt trên dưới',
     visualEditLogoZoom: 'Zoom ảnh',
-    visualEditLogoZoomHint: 'Bấm Cắt ảnh rồi kéo logo trên header. Ảnh giữ nguyên cỡ, chỉ cắt theo khung đứt nét.',
+    visualEditLogoZoomHint: 'Phóng to ảnh trong khung. Kéo ảnh để canh giữa. Kéo nét đứt mới làm khung to.',
     visualEditBannerZoom: 'Cỡ ảnh',
     visualEditBannerZoomHint: 'Phóng to hoặc thu nhỏ ảnh, giữ nguyên tỷ lệ — không méo. Chữ và nút giữ nguyên.',
     visualEditBlockWidth: 'Chiều rộng khối',
@@ -1231,6 +1252,17 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeWidgetTitle: 'Nút chức năng shop',
     visualEditChromeWidgetHint:
       'Mọi nút chức năng sửa giống nhau: kiểu, icon, cỡ, chữ. Việc khách bấm giữ đúng chức năng của nút đang chọn.',
+    visualEditChromeKit: 'Thanh điều hướng',
+    visualEditChromeKitHint:
+      'Ẩn/hiện và đổi thứ tự trong head hoặc thanh đáy. Lệch ngang cả cụm icon bằng thanh trượt — không kéo tọa độ, live khớp Sửa nhanh.',
+    visualEditChromeKitHeadPc: 'Head máy tính (Desktop + Laptop)',
+    visualEditChromeKitHeadTablet: 'Head máy tính bảng',
+    visualEditChromeKitHeadMobile: 'Head điện thoại',
+    visualEditChromeKitDock: 'Thanh đáy (Mobile + Tablet)',
+    visualEditChromeKitShopPages: 'Trang khác',
+    visualEditChromeKitPdp: 'Chi tiết SP',
+    visualEditChromeKitShift: 'Lệch ngang',
+    visualEditChromeKitShiftHint: 'Cả cụm icon bên phải, vẫn trong hàng. Số âm sang trái, dương sang phải.',
     visualEditChatIconLogoTitle: 'Tạo logo icon Chat mua',
     visualEditChatIconLogoHint:
       'Cùng một logo icon cho mọi máy. Đổi ở đây thì Desktop / Tablet / Mobile đều đổi. Tải ảnh lên hoặc tạo bằng AI.',
@@ -2111,6 +2143,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockPaddingX: 'Horizontal spacing',
     visualEditBlockOverlay: 'Banner overlay',
     visualEditHiddenBlocks: 'Hidden blocks',
+    visualEditHiddenBlocksHint:
+      'Header and bottom-bar buttons are toggled in Navigation bars. This list is only other hidden items.',
+    visualEditHiddenPlaceHeader: 'header',
+    visualEditHiddenPlaceDock: 'bottom bar',
+    visualEditHiddenPlaceFloat: 'floating',
+    visualEditHiddenPlacePage: 'page',
     visualEditSelectBlock: 'Select containing block',
     visualEditLayerBlock: 'Block',
     visualEditLayerImage: 'Image',
@@ -2127,7 +2165,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoCropX: 'Crop both sides',
     visualEditLogoCropY: 'Crop top & bottom',
     visualEditLogoZoom: 'Zoom image',
-    visualEditLogoZoomHint: 'Tap Crop photo, then drag on the header. The image stays the same size; only the dashed frame crops it.',
+    visualEditLogoZoomHint: 'Enlarge the image inside the frame. Drag the image to center it. Drag the dashed edge to make the frame bigger.',
     visualEditBannerZoom: 'Image size',
     visualEditBannerZoomHint: 'Zoom the photo without stretching. Text and buttons stay in place.',
     visualEditBlockWidth: 'Block width',
@@ -2216,6 +2254,17 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeWidgetTitle: 'Shop function button',
     visualEditChromeWidgetHint:
       'Every function button is edited the same way: style, icon, size, label. A live click still runs this button’s own action.',
+    visualEditChromeKit: 'Navigation bars',
+    visualEditChromeKitHint:
+      'Show, hide, and reorder items inside the header or bottom bar. Nudge the whole icon cluster with the slider — no free-drag coordinates, so live matches Sửa nhanh.',
+    visualEditChromeKitHeadPc: 'Computer header (Desktop + Laptop)',
+    visualEditChromeKitHeadTablet: 'Tablet header',
+    visualEditChromeKitHeadMobile: 'Phone header',
+    visualEditChromeKitDock: 'Bottom bar (Mobile + Tablet)',
+    visualEditChromeKitShopPages: 'Other pages',
+    visualEditChromeKitPdp: 'Product page',
+    visualEditChromeKitShift: 'Horizontal shift',
+    visualEditChromeKitShiftHint: 'Moves the whole right-side icon cluster in flow. Negative is left, positive is right.',
     visualEditChatIconLogoTitle: 'Create Chat mua icon logo',
     visualEditChatIconLogoHint:
       'One icon logo for every device. Change it here and Desktop / Tablet / Mobile all update. Upload an image or generate with AI.',
@@ -3093,6 +3142,11 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockPaddingX: '水平间距',
     visualEditBlockOverlay: '横幅遮罩',
     visualEditHiddenBlocks: '已隐藏区块',
+    visualEditHiddenBlocksHint: '页头和底栏按钮在「导航栏」开关。这里只列出其他已隐藏项。',
+    visualEditHiddenPlaceHeader: '页头',
+    visualEditHiddenPlaceDock: '底栏',
+    visualEditHiddenPlaceFloat: '悬浮',
+    visualEditHiddenPlacePage: '页面中',
     visualEditSelectBlock: '选择所在区块',
     visualEditLayerBlock: '区块',
     visualEditLayerImage: '图片',
@@ -3109,7 +3163,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoCropX: '左右对称裁切',
     visualEditLogoCropY: '上下对称裁切',
     visualEditLogoZoom: '缩放图片',
-    visualEditLogoZoomHint: '点击「裁切图片」后在页头拖动。图片大小不变，只按虚线框裁切。',
+    visualEditLogoZoomHint: '放大框内图片。拖动图片可居中。拖动虚线才会放大裁切框。',
     visualEditBannerZoom: '图片大小',
     visualEditBannerZoomHint: '缩放图片并保持比例，不会变形。文字和按钮保持原位。',
     visualEditBlockWidth: '区块宽度',
@@ -3192,6 +3246,16 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditPageButtonHint: '在顾客网站上点击会打开下方链接中的页面。',
     visualEditChromeWidgetTitle: '店铺功能按钮',
     visualEditChromeWidgetHint: '所有功能按钮用同一套改法：样式、图标、大小、文字。顾客点击仍执行该按钮自己的功能。',
+    visualEditChromeKit: '导航栏',
+    visualEditChromeKitHint: '在页头或底栏内显示、隐藏并调整顺序。用滑块整体左右微调图标组，不使用自由拖放坐标，线上与「Sửa nhanh」一致。',
+    visualEditChromeKitHeadPc: '电脑页头（桌面 + 笔记本）',
+    visualEditChromeKitHeadTablet: '平板页头',
+    visualEditChromeKitHeadMobile: '手机页头',
+    visualEditChromeKitDock: '底栏（手机 + 平板）',
+    visualEditChromeKitShopPages: '其他页面',
+    visualEditChromeKitPdp: '商品详情',
+    visualEditChromeKitShift: '水平偏移',
+    visualEditChromeKitShiftHint: '移动右侧整组图标，仍在同一行内。负数向左，正数向右。',
     visualEditChatIconLogoTitle: '为「Chat mua」图标生成标志',
     visualEditChatIconLogoHint:
       '所有设备共用同一图标标志。在此更改后，桌面 / 平板 / 手机一并更新。可上传图片或用 AI 生成。',
@@ -4048,6 +4112,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockPaddingX: '左右の余白',
     visualEditBlockOverlay: 'バナーオーバーレイ',
     visualEditHiddenBlocks: '非表示のブロック',
+    visualEditHiddenBlocksHint:
+      'ヘッダーと下部バーのボタンはナビバーで切り替えます。ここにはそれ以外の非表示項目だけ出ます。',
+    visualEditHiddenPlaceHeader: 'ヘッダー',
+    visualEditHiddenPlaceDock: '下部バー',
+    visualEditHiddenPlaceFloat: 'フローティング',
+    visualEditHiddenPlacePage: 'ページ内',
     visualEditSelectBlock: '親ブロックを選択',
     visualEditLayerBlock: 'ブロック',
     visualEditLayerImage: '画像',
@@ -4064,7 +4134,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoCropX: '左右を均等に切る',
     visualEditLogoCropY: '上下を均等に切る',
     visualEditLogoZoom: '画像ズーム',
-    visualEditLogoZoomHint: '「画像を切り抜き」のあとヘッダー上でドラッグ。画像サイズはそのまま、破線の枠だけで切ります。',
+    visualEditLogoZoomHint: '枠内の画像を拡大。画像をドラッグして中央へ。枠を大きくするには破線をドラッグします。',
     visualEditBannerZoom: '画像サイズ',
     visualEditBannerZoomHint: '写真を拡大・縮小します。縦横比は維持し、歪みません。文字とボタンはそのままです。',
     visualEditBlockWidth: 'ブロック幅',
@@ -4153,6 +4223,17 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeWidgetTitle: 'ショップ機能ボタン',
     visualEditChromeWidgetHint:
       '機能ボタンはどれも同じ直し方です：スタイル・アイコン・サイズ・文字。公開サイトの動作はそのボタンのままです。',
+    visualEditChromeKit: 'ナビバー',
+    visualEditChromeKitHint:
+      'ヘッダーや下部バー内で表示・非表示と並びを変えます。スライダーでアイコングループ全体を左右にずらします。座標ドラッグは使いません。公開ページはSửa nhanhと同じです。',
+    visualEditChromeKitHeadPc: 'パソコンヘッダー（デスクトップ + ノート）',
+    visualEditChromeKitHeadTablet: 'タブレットヘッダー',
+    visualEditChromeKitHeadMobile: 'スマホヘッダー',
+    visualEditChromeKitDock: '下部バー（スマホ + タブレット）',
+    visualEditChromeKitShopPages: 'その他のページ',
+    visualEditChromeKitPdp: '商品ページ',
+    visualEditChromeKitShift: '左右オフセット',
+    visualEditChromeKitShiftHint: '右側のアイコン一式を行内で動かします。マイナスは左、プラスは右です。',
     visualEditChatIconLogoTitle: 'Chat muaアイコンのロゴを作成',
     visualEditChatIconLogoHint:
       '全端末で同じアイコンロゴを使います。ここで変えるとデスクトップ / タブレット / モバイルが同時に変わります。画像アップロードまたは AI 生成。',
@@ -5020,6 +5101,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBlockPaddingX: '가로 여백',
     visualEditBlockOverlay: '배너 오버레이',
     visualEditHiddenBlocks: '숨긴 블록',
+    visualEditHiddenBlocksHint:
+      '헤더와 하단 바 버튼은 탐색 막대에서 켜고 끕니다. 여기에는 그 외 숨긴 항목만 나옵니다.',
+    visualEditHiddenPlaceHeader: '헤더',
+    visualEditHiddenPlaceDock: '하단 바',
+    visualEditHiddenPlaceFloat: '플로팅',
+    visualEditHiddenPlacePage: '페이지 안',
     visualEditSelectBlock: '상위 블록 선택',
     visualEditLayerBlock: '블록',
     visualEditLayerImage: '이미지',
@@ -5036,7 +5123,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoCropX: '좌우 균등 자르기',
     visualEditLogoCropY: '상하 균등 자르기',
     visualEditLogoZoom: '이미지 줌',
-    visualEditLogoZoomHint: '사진 자르기를 누른 뒤 헤더에서 드래그하세요. 이미지 크기는 그대로이고 점선 틀만 자릅니다.',
+    visualEditLogoZoomHint: '틀 안 이미지만 확대합니다. 이미지를 끌어 가운데로 맞춥니다. 점선을 끌어야 틀이 커집니다.',
     visualEditBannerZoom: '이미지 크기',
     visualEditBannerZoomHint: '사진을 확대·축소하며 비율을 유지합니다. 찌그러지지 않습니다. 글자와 버튼은 그대로입니다.',
     visualEditBlockWidth: '블록 너비',
@@ -5125,6 +5212,17 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeWidgetTitle: '쇼핑몰 기능 버튼',
     visualEditChromeWidgetHint:
       '기능 버튼은 모두 같은 방식으로 수정합니다: 스타일, 아이콘, 크기, 글자. 고객이 누르면 이 버튼 고유 동작이 유지됩니다.',
+    visualEditChromeKit: '탐색 막대',
+    visualEditChromeKitHint:
+      '헤더나 하단 바 안에서 숨기기/보이기와 순서를 바꿉니다. 슬라이더로 아이콘 묶음 전체를 좌우로 밀며 좌표 드래그는 쓰지 않아 라이브가 Sửa nhanh와 같습니다.',
+    visualEditChromeKitHeadPc: '컴퓨터 헤더 (데스크톱 + 노트북)',
+    visualEditChromeKitHeadTablet: '태블릿 헤더',
+    visualEditChromeKitHeadMobile: '휴대폰 헤더',
+    visualEditChromeKitDock: '하단 바 (모바일 + 태블릿)',
+    visualEditChromeKitShopPages: '다른 페이지',
+    visualEditChromeKitPdp: '상품 상세',
+    visualEditChromeKitShift: '좌우 이동',
+    visualEditChromeKitShiftHint: '오른쪽 아이콘 묶음 전체를 같은 줄에서 옮깁니다. 음수는 왼쪽, 양수는 오른쪽입니다.',
     visualEditChatIconLogoTitle: 'Chat mua 아이콘 로고 만들기',
     visualEditChatIconLogoHint:
       '모든 기기에서 같은 아이콘 로고를 씁니다. 여기서 바꾸면 데스크톱 / 태블릿 / 모바일이 함께 바뀝니다. 이미지 업로드 또는 AI 생성.',

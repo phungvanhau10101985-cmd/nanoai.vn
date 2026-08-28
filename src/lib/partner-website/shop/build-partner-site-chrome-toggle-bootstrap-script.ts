@@ -312,15 +312,22 @@ function isPlacedCatBtn(el){
 }
 function transferCatBox(from,to){
   if(!from||!to||!from.style||!to.style)return;
-  /* Keep the authored transform on the button. Moving it to the live-only wrapper
-     changes its coordinate context and makes Sửa nhanh and live diverge. */
-  var props=['position','left','top','right','bottom','z-index'];
+  /* The wrapper becomes the positioned box. Leaving canonical placement on the
+     child makes it absolute inside a zero-sized wrapper and shifts the button. */
+  var props=['position','inset','left','top','right','bottom','z-index'];
   for(var i=0;i<props.length;i++){
     var p=props[i];
     var v=from.style.getPropertyValue(p);
     if(!v)continue;
     to.style.setProperty(p,v,from.style.getPropertyPriority(p)||'');
     from.style.removeProperty(p);
+  }
+  var attrs=['data-pw-placement','data-pw-coordinate-root','data-pw-box-x','data-pw-box-y','data-pw-box-w','data-pw-box-h'];
+  for(var j=0;j<attrs.length;j++){
+    var a=attrs[j],value=from.getAttribute(a);
+    if(value==null)continue;
+    to.setAttribute(a,value);
+    from.removeAttribute(a);
   }
   if(from.getAttribute('data-pw-user-move'))to.setAttribute('data-pw-user-move','1');
   to.setAttribute('data-pw-cat-placed','1');

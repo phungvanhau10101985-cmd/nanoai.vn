@@ -33,6 +33,7 @@ import {
   fillMissingSharedChromeFloats,
   hasSharedChrome,
   hoistBodyLevelChromeFloats,
+  hoistBodyLevelSceneOverlays,
   unwrapPersistedLiveChromeHtml,
 } from '@/lib/partner-website/shop/sync-shared-chrome'
 import {
@@ -836,6 +837,22 @@ export function ensureVisualHtmlLiveReady(html: string, variant?: VisualDeviceVa
     const added = /\bdata-pw-chrome-added=["']1["']/.test(attrs)
     const placed = /\bdata-pw-placement=["'](?:scene-absolute|viewport-fixed)["']/.test(attrs)
     if (!LIVE_READY_CHROME_RE.test(attrs)) return full
+    if (/\bdata-pw-chrome-kit=/.test(attrs)) {
+      let kit = attrs
+        .replace(/\sdata-pw-user-move=["'][^"']*["']/gi, '')
+        .replace(/\sdata-pw-chrome-added=["'][^"']*["']/gi, '')
+        .replace(/\sdata-pw-placement=["'][^"']*["']/gi, '')
+        .replace(/\sdata-pw-box-[xywh]=["'][^"']*["']/gi, '')
+        .replace(/\sdata-pw-fixed-(?:x|y|w|h)=["'][^"']*["']/gi, '')
+      kit = kit.replace(/\sstyle=(["'])([\s\S]*?)\1/i, (_s, quote: string, css: string) => {
+        const cleaned = String(css)
+          .replace(/(?:^|;)\s*(?:position|left|top|right|bottom|transform)\s*:[^;]*/gi, '')
+          .replace(/^;+|;+$/g, '')
+          .trim()
+        return cleaned ? ` style=${quote}${cleaned}${quote}` : ''
+      })
+      return kit === attrs ? full : `<${tag}${kit}>`
+    }
     if (!(moved || stay || added || placed)) return full
     let next = attrs
     if (placed && !moved) next += ' data-pw-user-move="1"'
@@ -870,7 +887,11 @@ export function isolateVisualHtmlForDevice(
   if (!trimmed) return ''
   const sliced = extractDeviceWrapperBody(trimmed, variant)
   const source = sliced
-    ? hoistBodyLevelChromeFloats(rebuildStandaloneHtml(trimmed, sliced), trimmed, variant)
+    ? hoistBodyLevelSceneOverlays(
+        hoistBodyLevelChromeFloats(rebuildStandaloneHtml(trimmed, sliced), trimmed, variant),
+        trimmed,
+        variant
+      )
     : hasDeviceWrappers(trimmed)
       ? ''
       : stripDeviceSplitCss(trimmed)

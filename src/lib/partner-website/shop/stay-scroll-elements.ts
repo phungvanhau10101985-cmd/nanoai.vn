@@ -1,7 +1,7 @@
 /**
  * Added elements glued to one viewport spot while the page scrolls.
  * Uses CSS position:fixed (not JS rebase on scroll — that jitters then snaps).
- * X/Y are % of the scene canvas (`--pw-scene-w`) / viewport height, not window.innerWidth.
+ * X/Y are scene pixels from the top-center origin, then scaled with the canvas.
  * Parks the node on a viewport layer that is a sibling of `body` so ancestor
  * `transform` / `will-change:transform` (live canvas scale, banner slides) cannot
  * turn `fixed` into “sticky until the section ends”.
@@ -32,7 +32,33 @@ export const PW_STAY_SCROLL_LAYER_ATTR = 'data-pw-stay-layer'
 export const PW_STAY_SCROLL_SCRIPT_ID = 'pw-shop-stay-scroll'
 
 export const PW_HIDDEN_ATTR = 'data-pw-hidden'
-export const PARTNER_SHOP_HIDDEN_CSS = `[${PW_HIDDEN_ATTR}="1"]{display:none!important}`
+/** Phải thắng mặt nút `display:inline-flex!important` (icon chữ dưới / kit head). */
+export const PARTNER_SHOP_HIDDEN_CSS = [
+  `[${PW_HIDDEN_ATTR}="1"]`,
+  `html [${PW_HIDDEN_ATTR}="1"]`,
+  `html [${PW_HIDDEN_ATTR}="1"][data-pw-chrome-btn]`,
+  `html [${PW_HIDDEN_ATTR}="1"][data-pw-chrome-kit]`,
+  `html [${PW_HIDDEN_ATTR}="1"][data-pw-chrome-added]`,
+  `html [${PW_HIDDEN_ATTR}="1"][data-pw-chrome-style]`,
+  `html [data-pw-chrome-btn][${PW_HIDDEN_ATTR}="1"]`,
+  `html [data-pw-chrome-kit="1"][${PW_HIDDEN_ATTR}="1"]`,
+  `html [data-pw-chrome-style="icon-label-below"][${PW_HIDDEN_ATTR}="1"]`,
+  `html [data-pw-chrome-btn][data-pw-chrome-style="icon-label-below"][${PW_HIDDEN_ATTR}="1"]`,
+  `html [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"][${PW_HIDDEN_ATTR}="1"]`,
+  `html [data-pw-chrome-kit="1"].pw-chrome-label-below[${PW_HIDDEN_ATTR}="1"]`,
+  `html .pw-header-actions [${PW_HIDDEN_ATTR}="1"]`,
+  `html .pw-shop-header-actions [${PW_HIDDEN_ATTR}="1"]`,
+  `html .pw-bottom-nav [${PW_HIDDEN_ATTR}="1"]`,
+  `html .pw-shop-bottom-nav [${PW_HIDDEN_ATTR}="1"]`,
+  `html .pw-header-actions [data-pw-chrome-kit="1"][${PW_HIDDEN_ATTR}="1"]`,
+  `html .pw-shop-header-actions [data-pw-chrome-kit="1"][${PW_HIDDEN_ATTR}="1"]`,
+  `html .pw-header-actions [data-pw-chrome-style="icon-label-below"][${PW_HIDDEN_ATTR}="1"]`,
+  `html .pw-shop-header-actions [data-pw-chrome-style="icon-label-below"][${PW_HIDDEN_ATTR}="1"]`,
+  `html .pw-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"][${PW_HIDDEN_ATTR}="1"]`,
+  `html .pw-shop-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"][${PW_HIDDEN_ATTR}="1"]`,
+  `html .pw-header-actions [data-pw-chrome-kit="1"].pw-chrome-label-below[${PW_HIDDEN_ATTR}="1"]`,
+  `html .pw-shop-header-actions [data-pw-chrome-kit="1"].pw-chrome-label-below[${PW_HIDDEN_ATTR}="1"]`,
+].join(',') + '{display:none!important}'
 
 export const PARTNER_SHOP_STAY_SCROLL_CSS = `
 [${PW_STAY_SCROLL_ATTR}="1"],[${PW_PLACEMENT_ATTR}="viewport-fixed"]{position:fixed!important;right:auto!important;bottom:auto!important;margin:0!important;box-sizing:border-box!important;max-width:none!important;max-height:none!important;transform:none!important}
@@ -131,6 +157,9 @@ export function rehomeInflowSceneChromeInDocument(root: ParentNode): void {
     const el = node as HTMLElement
     if (el.getAttribute('data-pw-chrome-added') === '1') return
     if (el.getAttribute(PW_STAY_SCROLL_ATTR) === '1') return
+    if (el.getAttribute('data-pw-user-move') === '1') return
+    if (el.getAttribute(PW_PLACEMENT_ATTR)) return
+    if (el.getAttribute('data-pw-box-x') != null || el.getAttribute('data-pw-fixed-x') != null) return
     if (el.closest('header, .pw-header, .pw-shop-header')) return
     if (!main.contains(el)) return
     const cluster = root.querySelector('.pw-brand-cluster, .pw-shop-brand-cluster')
@@ -393,9 +422,28 @@ export const PARTNER_SHOP_STAY_SCROLL_SCRIPT = `(function(){
     var h = parseFloat(el.getAttribute(canonical ? FH : HA) || '');
     var v = view();
     var z = v.z > 0.05 ? v.z : 1;
+    var leftPx;
+    var topPx;
+    var C = window.__pwCoordinate;
+    var vw = window.innerWidth || v.w;
+    if (canonical && C && !(C.looksNorm && C.looksNorm(x, y))) {
+      var map = C.createMap({ viewportWidth: vw, originX: vw / 2, originY: 0 });
+      var pt = C.sceneToClient({ x: x, y: y }, map);
+      var tl = C.clientTopLeft
+        ? C.clientTopLeft(pt, w, h, map.scale)
+        : { x: pt.x - (isFinite(w) ? w : 0) * map.scale / 2, y: pt.y - (isFinite(h) ? h : 0) * map.scale / 2 };
+      leftPx = tl.x;
+      topPx = tl.y;
+    } else if (canonical) {
+      leftPx = x * vw;
+      topPx = y * v.h;
+    } else {
+      leftPx = v.ox + (x / 100) * v.w * z;
+      topPx = (y / 100) * v.h;
+    }
     el.style.setProperty('position', 'fixed', 'important');
-    el.style.setProperty('left', (canonical ? x * (window.innerWidth || v.w) : v.ox + (x / 100) * v.w * z) + 'px', 'important');
-    el.style.setProperty('top', (canonical ? y * v.h : (y / 100) * v.h) + 'px', 'important');
+    el.style.setProperty('left', leftPx + 'px', 'important');
+    el.style.setProperty('top', topPx + 'px', 'important');
     el.style.setProperty('right', 'auto', 'important');
     el.style.setProperty('bottom', 'auto', 'important');
     el.style.setProperty('transform', 'none', 'important');
@@ -424,6 +472,9 @@ export const PARTNER_SHOP_STAY_SCROLL_SCRIPT = `(function(){
       if (!el || !el.getAttribute) continue;
       if (el.getAttribute('data-pw-chrome-added') === '1') continue;
       if (el.getAttribute(ATTR) === '1') continue;
+      if (el.getAttribute('data-pw-user-move') === '1') continue;
+      if (el.getAttribute(PLACEMENT)) continue;
+      if (el.getAttribute('data-pw-box-x') != null || el.getAttribute(FX) != null) continue;
       if (el.getAttribute('data-pw-chrome-float') === '1' || el.getAttribute('data-pw-pin-screen') === '1') continue;
       if (el.closest && el.closest('header, .pw-header, .pw-shop-header')) continue;
       if (!main.contains(el)) continue;
@@ -452,9 +503,17 @@ export const PARTNER_SHOP_STAY_SCROLL_SCRIPT = `(function(){
     var v = view();
     var z = v.z > 0.05 ? v.z : 1;
     var viewportW = window.innerWidth || document.documentElement.clientWidth || v.w;
+    var C = window.__pwCoordinate;
     el.setAttribute(PLACEMENT, 'viewport-fixed');
-    el.setAttribute(FX, (r.left / Math.max(1, viewportW)).toFixed(5));
-    el.setAttribute(FY, (r.top / Math.max(1, v.h)).toFixed(5));
+    if (C) {
+      var capMap = C.createMap({ viewportWidth: viewportW, originX: viewportW / 2, originY: 0 });
+      var cap = C.clientToScene(C.rectCenter ? C.rectCenter(r) : { x: r.left + r.width / 2, y: r.top + r.height / 2 }, capMap);
+      el.setAttribute(FX, String(Math.round(cap.x * 1000) / 1000));
+      el.setAttribute(FY, String(Math.round(cap.y * 1000) / 1000));
+    } else {
+      el.setAttribute(FX, (r.left / Math.max(1, viewportW)).toFixed(5));
+      el.setAttribute(FY, (r.top / Math.max(1, v.h)).toFixed(5));
+    }
     if (r.width > 0) el.setAttribute(FW, String(Math.round(r.width / z)));
     if (r.height > 0) el.setAttribute(FH, String(Math.round(r.height / z)));
     el.setAttribute(ATTR, '1');

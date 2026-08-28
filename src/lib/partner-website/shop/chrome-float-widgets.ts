@@ -98,23 +98,38 @@ function pwChromeFloatBakePct(el,box){
   if(!r){try{r=el.getBoundingClientRect()}catch(eBox){r=null}}
   if(!r)return;
   var view=pwChromeFloatViewSize();
-  var leftPct=(r.left/view.w)*100;
-  var topPct=(r.top/view.h)*100;
-  if(!box){
-    leftPct=Math.max(0,Math.min(100,leftPct));
-    topPct=Math.max(0,Math.min(100,topPct));
+  var C=window.__pwCoordinate;
+  var leftCss;
+  var topCss;
+  var fx;
+  var fy;
+  if(C){
+    var map=C.createMap({viewportWidth:view.w,originX:view.w/2,originY:0});
+    var center=C.rectCenter?C.rectCenter(r):{x:r.left+r.width/2,y:r.top+r.height/2};
+    var pt=C.clientToScene(center,map);
+    var client=C.sceneToClient(pt,map);
+    var tl=C.clientTopLeft?C.clientTopLeft(client,r.width,r.height,1):{x:client.x-r.width/2,y:client.y-r.height/2};
+    fx=pt.x;
+    fy=pt.y;
+    leftCss=tl.x+'px';
+    topCss=tl.y+'px';
+  }else{
+    fx=Math.max(0,Math.min(1,r.left/view.w));
+    fy=Math.max(0,Math.min(1,r.top/view.h));
+    leftCss=(fx*100).toFixed(2)+'%';
+    topCss=(fy*100).toFixed(2)+'%';
   }
   el.style.setProperty('position','fixed','important');
-  el.style.setProperty('left',leftPct.toFixed(2)+'%','important');
-  el.style.setProperty('top',topPct.toFixed(2)+'%','important');
+  el.style.setProperty('left',leftCss,'important');
+  el.style.setProperty('top',topCss,'important');
   el.style.setProperty('right','auto','important');
   el.style.setProperty('bottom','auto','important');
   el.style.setProperty('transform','none','important');
   el.style.setProperty('margin','0','important');
   el.style.setProperty('z-index','${PW_CHROME_FLOAT_Z_INDEX}','important');
   el.setAttribute('${PW_PLACEMENT_ATTR}','viewport-fixed');
-  el.setAttribute('data-pw-fixed-x',Math.max(0,Math.min(1,r.left/view.w)).toFixed(5));
-  el.setAttribute('data-pw-fixed-y',Math.max(0,Math.min(1,r.top/view.h)).toFixed(5));
+  el.setAttribute('data-pw-fixed-x',String(Math.round(fx*1000)/1000));
+  el.setAttribute('data-pw-fixed-y',String(Math.round(fy*1000)/1000));
   if(r.width>0)el.setAttribute('data-pw-fixed-w',String(Math.round(r.width)));
   if(r.height>0)el.setAttribute('data-pw-fixed-h',String(Math.round(r.height)));
   el.removeAttribute('data-pw-fixed-anchor');
@@ -144,8 +159,17 @@ function pwChromeFloatRemap(el){
     var fy=parseFloat(el.getAttribute('data-pw-fixed-y')||'');
     var fw=parseFloat(el.getAttribute('data-pw-fixed-w')||'');
     var fh=parseFloat(el.getAttribute('data-pw-fixed-h')||'');
-    if(isFinite(fx))el.style.setProperty('left',(Math.max(0,Math.min(1,fx))*100).toFixed(3)+'%','important');
-    if(isFinite(fy))el.style.setProperty('top',(Math.max(0,Math.min(1,fy))*100).toFixed(3)+'%','important');
+    var C=window.__pwCoordinate;
+    if(isFinite(fx)&&isFinite(fy)&&C&&!(C.looksNorm&&C.looksNorm(fx,fy))){
+      var map=C.createMap({viewportWidth:view.w,originX:view.w/2,originY:0});
+      var pt=C.sceneToClient({x:fx,y:fy},map);
+      var tl=C.clientTopLeft?C.clientTopLeft(pt,fw,fh,map.scale):{x:pt.x-(isFinite(fw)?fw:0)*map.scale/2,y:pt.y-(isFinite(fh)?fh:0)*map.scale/2};
+      el.style.setProperty('left',tl.x+'px','important');
+      el.style.setProperty('top',tl.y+'px','important');
+    }else{
+      if(isFinite(fx))el.style.setProperty('left',(Math.max(0,Math.min(1,fx))*100).toFixed(3)+'%','important');
+      if(isFinite(fy))el.style.setProperty('top',(Math.max(0,Math.min(1,fy))*100).toFixed(3)+'%','important');
+    }
     if(isFinite(fw)&&fw>0)el.style.setProperty('width',Math.round(fw)+'px','important');
     if(isFinite(fh)&&fh>0)el.style.setProperty('height',Math.round(fh)+'px','important');
     if(isFinite(fx)||isFinite(fy)){

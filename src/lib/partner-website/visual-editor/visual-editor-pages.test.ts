@@ -471,7 +471,8 @@ test('stale flags still copy homepage chrome onto the PDP shell', () => {
   assert.match(pdp, /pw-header/)
   assert.match(pdp, /Hàng mới Thời trang/)
   assert.match(pdp, /data-pw-chrome-btn="account"/)
-  assert.doesNotMatch(pdp, /Thông báo/)
+  assert.match(pdp, /data-pw-chrome-kit="dock"/)
+  assert.doesNotMatch(pdp, /<header[\s\S]*?Thông báo[\s\S]*?<\/header>/)
 })
 
 test('resolveVisualPdpShellHtml reads product-detail.html without a product id', () => {
@@ -824,6 +825,16 @@ test('ensureVisualHtmlLiveReady strips leftover drag geometry from the bottom do
   assert.doesNotMatch(out, /top:80px/)
   assert.match(out, /color:#111/)
   assert.match(out, /data-pw-pdp-bottom="1"/)
+})
+
+test('ensureVisualHtmlLiveReady does not stamp chrome-added on kit buttons', () => {
+  const html =
+    '<a data-pw-chrome-btn="cart" data-pw-chrome-kit="1" data-pw-user-move="1" data-pw-placement="scene-absolute" style="left:12px;top:8px">Giỏ</a>'
+  const out = ensureVisualHtmlLiveReady(html, 'desktop')
+  assert.match(out, /data-pw-chrome-kit="1"/)
+  assert.doesNotMatch(out, /data-pw-user-move/)
+  assert.doesNotMatch(out, /data-pw-chrome-added/)
+  assert.doesNotMatch(out, /left:12px/)
 })
 
 test('ensureVisualHtmlLiveReady unwraps persisted live-chrome so save does not stack a second header', () => {

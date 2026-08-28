@@ -26,9 +26,15 @@ import {
 import {
   PW_COORDINATE_CONTRACT_VERSION,
   pwClientBoxToScene,
-  pwCreateViewportMap,
   pwCoordinateDevice,
+  pwCreateViewportMap,
+  pwLeftOriginToCenterX,
+  pwLooksLikeNormalized01,
+  pwParseCoordinateVersion,
+  pwSceneBoxLeftCss,
+  pwSceneBoxTopPx,
   pwSceneWidth,
+  pwTopLeftToElementCenter,
   type PwPlacementMode,
 } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
 
@@ -64,8 +70,8 @@ export type CloneBox = {
   top: number
   width: number
   height: number
-  /** Legacy abs/fixed values are viewport px; v2 fixed values are normalized 0..1. */
-  version?: 1 | 2
+  /** Legacy abs/fixed values are top-left; v2 fixed is 0..1; v3 is top-left scene px; v4 is element-center scene px. */
+  version?: 1 | 2 | 3 | 4
 }
 
 export type CopiedPageClone = {
@@ -202,8 +208,9 @@ export function parseCloneBox(raw: string | null | undefined): CloneBox | null {
   if (!value) return null
   if (value === 'flow') return { mode: 'flow', left: 0, top: 0, width: 0, height: 0, version: 1 }
   const rawParts = value.split(',')
-  const version = rawParts[0] === PW_COORDINATE_CONTRACT_VERSION ? 2 : 1
-  const parts = version === 2 ? rawParts.slice(1) : rawParts
+  const parsedVersion = pwParseCoordinateVersion(rawParts[0])
+  const version = parsedVersion || 1
+  const parts = parsedVersion ? rawParts.slice(1) : rawParts
   const mode =
     parts[0] === 'scene-absolute' || parts[0] === 'abs'
       ? 'scene-absolute'
@@ -283,11 +290,26 @@ function setOpeningTagAttrs(snippet: string, attrs: Record<string, string>): str
   })
 }
 
-function applyCloneBoxToSnippet(snippet: string, box: CloneBox | null): string {
+function applyCloneBoxToSnippet(snippet: string, box: CloneBox | null, sceneWidth = 1440): string {
   if (!box || box.mode === 'flow') return snippet
   const fixed = box.mode === 'viewport-fixed'
-  const left = fixed && box.version === 2 ? `${box.left * 100}%` : `${Math.round(box.left)}px`
-  const top = fixed && box.version === 2 ? `${box.top * 100}%` : `${Math.round(box.top)}px`
+  const legacyNorm = fixed && (box.version === 2 || (box.version < 3 && pwLooksLikeNormalized01(box.left, box.top)))
+  let x = box.left
+  let y = box.top
+  if (!fixed) {
+    if (box.version < 3) x = pwLeftOriginToCenterX(x, sceneWidth)
+    if (box.version < 4) {
+      const center = pwTopLeftToElementCenter(x, y, box.width, box.height)
+      x = center.x
+      y = center.y
+    }
+  } else if (!legacyNorm && box.version < 4) {
+    const center = pwTopLeftToElementCenter(x, y, box.width, box.height)
+    x = center.x
+    y = center.y
+  }
+  const left = legacyNorm ? `${box.left * 100}%` : pwSceneBoxLeftCss(x, box.width)
+  const top = legacyNorm ? `${box.top * 100}%` : `${pwSceneBoxTopPx(y, box.height)}px`
   const styled = setStyleDecls(snippet, {
     position: fixed ? 'fixed' : 'absolute',
     left,
@@ -300,7 +322,7 @@ function applyCloneBoxToSnippet(snippet: string, box: CloneBox | null): string {
   if (fixed) {
     return setOpeningTagAttrs(
       styled,
-      box.version === 2
+      legacyNorm
         ? {
             'data-pw-placement': 'viewport-fixed',
             'data-pw-fixed-x': String(box.left),
@@ -308,13 +330,19 @@ function applyCloneBoxToSnippet(snippet: string, box: CloneBox | null): string {
             'data-pw-fixed-w': String(box.width),
             'data-pw-fixed-h': String(box.height),
           }
-        : { 'data-pw-placement': 'viewport-fixed' }
+        : {
+            'data-pw-placement': 'viewport-fixed',
+            'data-pw-fixed-x': String(x),
+            'data-pw-fixed-y': String(y),
+            'data-pw-fixed-w': String(box.width),
+            'data-pw-fixed-h': String(box.height),
+          }
     )
   }
   return setOpeningTagAttrs(styled, {
         'data-pw-placement': 'scene-absolute',
-        'data-pw-box-x': String(box.left),
-        'data-pw-box-y': String(box.top),
+        'data-pw-box-x': String(x),
+        'data-pw-box-y': String(y),
         'data-pw-box-w': String(box.width),
         'data-pw-box-h': String(box.height),
       })
@@ -386,8 +414,14 @@ function insertAfterMainOpen(html: string, snippet: string): string {
   return insertBeforeMainClose(html, snippet)
 }
 
+function sceneWidthOfHtml(html: string): number {
+  return pwSceneWidth(
+    pwCoordinateDevice(html.match(/\bdata-pw-(?:edit-device|scene-lock)=["']([^"']+)["']/i)?.[1])
+  )
+}
+
 function placeCloneOnPage(html: string, clone: CopiedPageClone): string {
-  const snippet = applyCloneBoxToSnippet(stripCloneAllAttr(clone.html), clone.box)
+  const snippet = applyCloneBoxToSnippet(stripCloneAllAttr(clone.html), clone.box, sceneWidthOfHtml(html))
   const without = removeCloneById(html, clone.id)
   if (clone.box?.mode === 'flow') return insertAfterMainOpen(without, snippet)
   return insertBeforeMainClose(without, snippet)
@@ -436,23 +470,27 @@ export function refreshCloneBoxesInDocument(doc: Document): void {
       device,
       viewportWidth: view?.innerWidth || sceneWidth,
       scale: hr.width > 8 ? hr.width / sceneWidth : 1,
-      originX: hr.left,
+      originX: (hr.left || 0) + (hr.width || 0) / 2,
       originY: hr.top,
     })
     const sceneBox = pwClientBoxToScene(
-      { x: er.left, y: er.top, width: er.width, height: er.height },
+      { x: er.left + er.width / 2, y: er.top + er.height / 2, width: er.width, height: er.height },
       map
     )
-    const left =
-      mode === 'viewport-fixed'
-        ? er.left / Math.max(1, view?.innerWidth || doc.documentElement.clientWidth || 1)
-        : sceneBox.x
-    const top =
-      mode === 'viewport-fixed'
-        ? er.top / Math.max(1, view?.innerHeight || doc.documentElement.clientHeight || 1)
-        : sceneBox.y
-    const width = mode === 'viewport-fixed' ? er.width / map.scale : sceneBox.width
-    const height = mode === 'viewport-fixed' ? er.height / map.scale : sceneBox.height
+    const viewportMap = pwCreateViewportMap({
+      device,
+      viewportWidth: view?.innerWidth || sceneWidth,
+      originX: (view?.innerWidth || sceneWidth) / 2,
+      originY: 0,
+    })
+    const fixedBox = pwClientBoxToScene(
+      { x: er.left + er.width / 2, y: er.top + er.height / 2, width: er.width, height: er.height },
+      viewportMap
+    )
+    const left = mode === 'viewport-fixed' ? fixedBox.x : sceneBox.x
+    const top = mode === 'viewport-fixed' ? fixedBox.y : sceneBox.y
+    const width = mode === 'viewport-fixed' ? fixedBox.width : sceneBox.width
+    const height = mode === 'viewport-fixed' ? fixedBox.height : sceneBox.height
     node.setAttribute(
       PW_CLONE_BOX_ATTR,
       [

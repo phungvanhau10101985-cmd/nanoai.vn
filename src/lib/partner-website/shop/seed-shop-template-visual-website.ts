@@ -71,6 +71,7 @@ export function buildShopTemplateHomeVisualHtml(input: {
       siteSlug: input.siteSlug,
       logoUrl: input.logoUrl,
       chatPath: input.chatPath,
+      variant: input.variant,
     })
   )
   return finishVisualHtml(raw, input.variant, input)

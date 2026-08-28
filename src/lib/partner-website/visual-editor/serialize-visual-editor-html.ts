@@ -13,9 +13,201 @@ import {
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { refreshCloneBoxesInDocument } from '@/lib/partner-website/visual-editor/copy-element-across-pages'
 import { normalizeVisualCoordinateContract } from '@/lib/partner-website/visual-editor/normalize-visual-coordinate-contract'
+import {
+  pwCoordinateDevice,
+  pwSceneBoxLeftCss,
+  pwSceneBoxTopPx,
+  pwSceneWidth,
+} from '@/lib/partner-website/visual-editor/pw-coordinate-space'
 
 const EDITOR_STYLE_ID = 'nanoai-visual-editor-styles'
 const EDITOR_SCRIPT_ID = 'nanoai-visual-editor-script'
+
+function roundCoordinate(value: number, precision = 3): string {
+  const factor = 10 ** precision
+  return String(Math.round(value * factor) / factor)
+}
+
+/**
+ * Save is the final authority for authored geometry. Read the box the user is
+ * actually seeing so a stale pre-drag data-pw-box cannot overwrite a newer
+ * transform when canonical HTML removes transient transforms.
+ */
+function sceneRootOfDocument(doc: Document): HTMLElement | null {
+  const body = doc.body
+  if (!body) return null
+  const stamped =
+    body.querySelector<HTMLElement>('[data-pw-scene-root="1"]') ||
+    body.querySelector<HTMLElement>('main, .pw-shop-main, .pw-main')
+  if (stamped) {
+    stamped.setAttribute('data-pw-scene-root', '1')
+    return stamped
+  }
+  return body
+}
+
+function elementLeftHeaderHost(el: HTMLElement, host: HTMLElement): boolean {
+  try {
+    const er = el.getBoundingClientRect()
+    const hr = host.getBoundingClientRect()
+    if (!(er.width > 0) || !(er.height > 0)) return false
+    const overlapX = Math.min(er.right, hr.right) - Math.max(er.left, hr.left)
+    const overlapY = Math.min(er.bottom, hr.bottom) - Math.max(er.top, hr.top)
+    const overlap = Math.max(0, overlapX) * Math.max(0, overlapY)
+    return overlap < er.width * er.height * 0.45
+  } catch {
+    return el.getAttribute('data-pw-user-move') === '1'
+  }
+}
+
+function isHeaderLogoElement(el: HTMLElement): boolean {
+  if (
+    el.getAttribute('data-pw-logo-float') === '1' ||
+    el.getAttribute('data-pw-logo-floated') === '1' ||
+    el.getAttribute('data-pw-logo-frame') === '1' ||
+    el.getAttribute('data-pw-logo-home') === '1' ||
+    el.getAttribute('data-pw-el') === 'logo' ||
+    el.getAttribute('data-pw-logo-added') === '1'
+  ) {
+    return true
+  }
+  const cls = ` ${el.className || ''} `
+  if (
+    cls.includes(' pw-logo ') ||
+    cls.includes(' pw-shop-logo ') ||
+    cls.includes(' pw-logo-frame ') ||
+    cls.includes(' pw-brand ') ||
+    cls.includes(' pw-shop-brand ')
+  ) {
+    return true
+  }
+  return !!el.closest?.(
+    '[data-pw-logo-float="1"],[data-pw-logo-frame="1"],.pw-logo-frame,a.pw-brand,a.pw-shop-brand,a[data-pw-logo-home]'
+  )
+}
+
+function shouldKeepHeaderChromeInPlace(el: HTMLElement): boolean {
+  if (el.getAttribute('data-pw-chrome-float') === '1') return false
+  if (el.getAttribute('data-pw-added-text') === '1') return false
+  if (el.getAttribute('data-pw-added-btn') === '1') return false
+  if (el.getAttribute('data-pw-added-bg') === '1') return false
+  if (el.getAttribute('data-pw-chrome-added') === '1') return false
+  if (isHeaderLogoElement(el)) return true
+  const header = el.closest<HTMLElement>('header, .pw-header, .pw-shop-header')
+  if (!header) return false
+  return !elementLeftHeaderHost(el, header)
+}
+
+function refreshMovedElementPlacementsInDocument(
+  doc: Document,
+  variant?: VisualDeviceVariant
+): void {
+  const body = doc.body
+  const sceneRoot = sceneRootOfDocument(doc)
+  if (!body || !sceneRoot) return
+  const device = pwCoordinateDevice(
+    variant ||
+      doc.documentElement.getAttribute('data-pw-edit-device') ||
+      doc.documentElement.getAttribute('data-pw-scene-lock')
+  )
+  const sceneWidth = pwSceneWidth(device)
+  let sceneRect: DOMRect
+  try {
+    sceneRect = sceneRoot.getBoundingClientRect()
+  } catch {
+    return
+  }
+  const viewportWidth =
+    doc.defaultView?.innerWidth || doc.documentElement.clientWidth || sceneWidth
+  const viewportScale = viewportWidth > 8 ? viewportWidth / sceneWidth : 1
+
+  doc
+    .querySelectorAll<HTMLElement>(
+      '[data-pw-user-move="1"],[data-pw-placement="scene-absolute"],[data-pw-placement="viewport-fixed"]'
+    )
+    .forEach((el) => {
+      const fixed =
+        el.getAttribute('data-pw-placement') === 'viewport-fixed' ||
+        el.getAttribute('data-pw-stay-scroll') === '1' ||
+        el.getAttribute('data-pw-pin-screen') === '1' ||
+        el.getAttribute('data-pw-chrome-float') === '1'
+      if (
+        el.closest(
+          '.pw-bottom-nav,.pw-shop-bottom-nav,[data-pw-pdp-bottom],[data-pw-stay-layer],[data-pw-live-fixed-layer]'
+        ) &&
+        el.getAttribute('data-pw-placement') !== 'viewport-fixed'
+      ) {
+        return
+      }
+      if (isHeaderLogoElement(el)) return
+      if (!fixed && shouldKeepHeaderChromeInPlace(el)) return
+      let rect: DOMRect
+      try {
+        rect = el.getBoundingClientRect()
+      } catch {
+        return
+      }
+      if (!(rect.width > 0) || !(rect.height > 0)) return
+      const centerX = rect.left + rect.width / 2
+      const centerY = rect.top + rect.height / 2
+      if (fixed) {
+        el.setAttribute('data-pw-placement', 'viewport-fixed')
+        el.setAttribute('data-pw-fixed-x', roundCoordinate((centerX - viewportWidth / 2) / viewportScale))
+        el.setAttribute('data-pw-fixed-y', roundCoordinate(centerY / viewportScale))
+        el.setAttribute('data-pw-fixed-w', roundCoordinate(rect.width / viewportScale))
+        el.setAttribute('data-pw-fixed-h', roundCoordinate(rect.height / viewportScale))
+        return
+      }
+      const placementRootRect = sceneRect.width > 8
+        ? sceneRect
+        : ({
+            left: 0,
+            top: 0,
+            width: viewportWidth,
+            height: doc.documentElement.scrollHeight,
+          } as DOMRect)
+      const rootScale =
+        placementRootRect.width > 8 ? placementRootRect.width / sceneWidth : 1
+      const rootOriginX = placementRootRect.left + placementRootRect.width / 2
+      const rootOriginY = placementRootRect.top
+      const x = (centerX - rootOriginX) / rootScale
+      const y = (centerY - rootOriginY) / rootScale
+      const width = rect.width / rootScale
+      const height = rect.height / rootScale
+      const formerHeader = el.closest<HTMLElement>('header,.pw-header,.pw-shop-header')
+      const formerHeaderMain =
+        formerHeader?.querySelector<HTMLElement>('.pw-header-main,.pw-shop-header-inner') ||
+        formerHeader
+      if (formerHeaderMain && formerHeaderMain !== el) {
+        const hostRect = formerHeaderMain.getBoundingClientRect()
+        const reservedHeight = hostRect.height / rootScale
+        const existingMin = Number.parseFloat(formerHeaderMain.style.minHeight || '0') || 0
+        if (reservedHeight > existingMin) {
+          formerHeaderMain.style.setProperty(
+            'min-height',
+            `${roundCoordinate(reservedHeight)}px`,
+            'important'
+          )
+        }
+      }
+      if (el.parentElement !== sceneRoot) sceneRoot.appendChild(el)
+      el.setAttribute('data-pw-placement', 'scene-absolute')
+      el.setAttribute('data-pw-coordinate-root', 'scene')
+      el.setAttribute('data-pw-box-x', roundCoordinate(x))
+      el.setAttribute('data-pw-box-y', roundCoordinate(y))
+      el.setAttribute('data-pw-box-w', roundCoordinate(width))
+      el.setAttribute('data-pw-box-h', roundCoordinate(height))
+      el.style.setProperty('position', 'absolute', 'important')
+      el.style.setProperty('left', pwSceneBoxLeftCss(x, width), 'important')
+      el.style.setProperty('top', `${pwSceneBoxTopPx(y, height)}px`, 'important')
+      el.style.setProperty('right', 'auto', 'important')
+      el.style.setProperty('bottom', 'auto', 'important')
+      el.style.setProperty('transform', 'none', 'important')
+      el.style.setProperty('margin', '0', 'important')
+      if (width > 0) el.style.setProperty('width', `${roundCoordinate(width)}px`, 'important')
+      if (height > 0) el.style.setProperty('height', `${roundCoordinate(height)}px`, 'important')
+    })
+}
 
 function removeRuntimeNode(el: Element | null): void {
   if (!el) return
@@ -248,6 +440,7 @@ function documentOrigin(doc: Document): string {
  * geometry belongs in the editor runtime, where the user can see it happen.
  */
 export function serializeVisualEditorHtml(doc: Document, variant?: VisualDeviceVariant): string {
+  refreshMovedElementPlacementsInDocument(doc, variant)
   refreshCloneBoxesInDocument(doc)
   const clone = doc.documentElement.cloneNode(true) as HTMLElement
   prepareVisualDomForStore(clone)
