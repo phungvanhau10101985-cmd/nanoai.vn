@@ -6408,7 +6408,7 @@ export function PartnerWebsiteVisualEditorToolbar({
           if (!open) handleChromeDupKeep()
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="z-[200]" overlayClassName="z-[200]">
           <AlertDialogHeader>
             <AlertDialogTitle>
               {t.visualEditChromeDupAskTitle.replace(

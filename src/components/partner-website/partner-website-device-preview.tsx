@@ -1663,7 +1663,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
           if (!open && !leaveBusy) void resolveLeave('stay')
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="z-[200]" overlayClassName="z-[200]">
           <AlertDialogHeader>
             <AlertDialogTitle>{t.visualEditLeaveTitle}</AlertDialogTitle>
             <AlertDialogDescription>{t.visualEditLeaveBody}</AlertDialogDescription>
