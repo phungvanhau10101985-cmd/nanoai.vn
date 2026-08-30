@@ -1061,6 +1061,8 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     var kids=dock.querySelectorAll('[data-pw-chrome-btn]');
     for(i=0;i<kids.length;i++){
       var btn=kids[i];
+      if(btn.closest&&btn.closest('.pw-pdp-actions,.pw-pdp-actions-inline')) continue;
+      if(btn.classList&&btn.classList.contains('pw-shop-btn-outline')) continue;
       var bk=btn.getAttribute('data-pw-chrome-btn')||'';
       var show=btn.getAttribute('data-pw-dock-show')||'';
       if(bk==='add-cart'||bk==='buy-now'){

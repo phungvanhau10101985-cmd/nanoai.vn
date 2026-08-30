@@ -473,6 +473,12 @@ ${pwProductDockCss(' .pw-pdp-sticky-nav .pw-chrome-cat-wrap:has(> [data-pw-hidde
 ${pwProductDockCss(` .pw-pdp-sticky-nav [${PW_DOCK_SHOW_ATTR}="pdp"]:not([${PW_HIDDEN_ATTR}="1"])`, '{display:flex!important;flex-direction:column;flex:0 0 44px!important;width:44px!important;gap:2px!important;padding:2px 0!important;font-size:10px!important;line-height:1.05!important;color:#4b5563!important;background:transparent!important}')}
 ${pwProductDockCss(` .pw-pdp-sticky-ctas [${PW_DOCK_SHOW_ATTR}="pdp"]`, '{display:flex!important;flex:1 1 0!important;min-height:40px;align-items:center;justify-content:center;padding:0 8px!important;font-size:11px!important;font-weight:600!important;text-transform:uppercase;border-radius:6px!important;color:#fff!important}')}
 ${pwProductDockCss(' .pw-pdp-sticky-nav svg', '{width:17px!important;height:17px!important;max-width:17px!important;max-height:17px!important}')}
+${pwProductDockCss(' .pw-pdp-sticky-nav [data-pw-chrome-btn="home"] ~ [data-pw-chrome-btn="home"]', '{display:none!important}')}
+${pwProductDockCss(' .pw-pdp-sticky-nav [data-pw-chrome-btn="try-on"] ~ [data-pw-chrome-btn="try-on"]', '{display:none!important}')}
+${pwProductDockCss(' .pw-pdp-sticky-nav [data-pw-chrome-btn="favorite-product"] ~ [data-pw-chrome-btn="favorite-product"]', '{display:none!important}')}
+${pwProductDockCss(' .pw-pdp-sticky-ctas [data-pw-chrome-btn="add-cart"] ~ [data-pw-chrome-btn="add-cart"]', '{display:none!important}')}
+${pwProductDockCss(' .pw-pdp-sticky-ctas [data-pw-chrome-btn="buy-now"] ~ [data-pw-chrome-btn="buy-now"]', '{display:none!important}')}
+${pwProductDockCss(' .pw-shop-btn-outline', '{display:none!important}')}
 ${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="add-cart"]`, '{background:var(--pw-cart)!important;color:#fff!important}')}
 ${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="buy-now"]`, '{background:var(--pw-buy)!important;color:#fff!important}')}
 ${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] .is-try`, '{color:var(--pw-primary)!important}')}
@@ -956,6 +962,30 @@ function revealPdpDefaultIcon(block: string, kind: string): string {
   })
 }
 
+function isBuyBoxActionBlock(block: string): boolean {
+  if (/\bpw-shop-btn-outline\b/.test(block)) return true
+  if (/\bdata-pw-kit-lock=["']cta["']/.test(block)) return false
+  if (/\bis-try\b|\bis-fav\b/.test(block)) return false
+  if (new RegExp(`\\b${PW_PDP_NAV_ATTR}=`, 'i').test(block) || new RegExp(`\\b${PW_PDP_HOME_ATTR}=`, 'i').test(block)) {
+    return false
+  }
+  return (
+    /\bdata-pw-chrome-btn=["'](?:add-cart|buy-now)["']/.test(block) &&
+    /\bpw-shop-btn\b/.test(block) &&
+    !/\bdata-pw-chrome-kit=["']1["']/.test(block)
+  )
+}
+
+function isPreferredPdpNavBlock(block: string): boolean {
+  if (isBuyBoxActionBlock(block)) return false
+  return (
+    /\bis-try\b|\bis-fav\b/.test(block) ||
+    new RegExp(`\\b${PW_PDP_NAV_ATTR}=`, 'i').test(block) ||
+    new RegExp(`\\b${PW_PDP_HOME_ATTR}=`, 'i').test(block) ||
+    /\bdata-pw-kit-lock=["']cta["']/.test(block)
+  )
+}
+
 function rebuildPdpStickyNavInner(navInner: string, locale: WebLocale, siteSlug?: string | null): string {
   const blocks: string[] = []
   CHROME_BTN_BLOCK_RE.lastIndex = 0
@@ -967,8 +997,11 @@ function rebuildPdpStickyNavInner(navInner: string, locale: WebLocale, siteSlug?
   const extraExisting: Record<string, string> = {}
   for (const block of blocks) {
     const kind = chromeBtnKindOf(block)
+    if (isBuyBoxActionBlock(block)) continue
     if (CHROME_KIT_PDP_NAV_DEFAULT_KINDS.includes(kind as (typeof CHROME_KIT_PDP_NAV_DEFAULT_KINDS)[number])) {
-      if (!defaults[kind]) defaults[kind] = revealPdpDefaultIcon(block, kind)
+      if (!defaults[kind] || (isPreferredPdpNavBlock(block) && !isPreferredPdpNavBlock(defaults[kind] || ''))) {
+        defaults[kind] = revealPdpDefaultIcon(block, kind)
+      }
       continue
     }
     if (kind === 'add-cart' || kind === 'buy-now') continue
@@ -984,6 +1017,24 @@ function rebuildPdpStickyNavInner(navInner: string, locale: WebLocale, siteSlug?
   })}`
 }
 
+function rebuildPdpStickyCtasInner(ctaInner: string, locale: WebLocale): string {
+  const blocks: string[] = []
+  CHROME_BTN_BLOCK_RE.lastIndex = 0
+  ctaInner.replace(CHROME_BTN_BLOCK_RE, (block) => {
+    blocks.push(block)
+    return ''
+  })
+  let add = ''
+  let buy = ''
+  for (const block of blocks) {
+    const kind = chromeBtnKindOf(block)
+    if (isBuyBoxActionBlock(block)) continue
+    if (kind === 'add-cart' && !add) add = stampPdpCtaLockAttrs(block)
+    if (kind === 'buy-now' && !buy) buy = stampPdpCtaLockAttrs(block)
+  }
+  return `${add || buildDockPdpCtaHtml('add-cart', locale)}\n      ${buy || buildDockPdpCtaHtml('buy-now', locale)}`
+}
+
 export function ensurePdpDockFaceInInner(
   inner: string,
   locale: WebLocale,
@@ -993,8 +1044,15 @@ export function ensurePdpDockFaceInInner(
   const navHit = extractBalancedDivByClass(stamped, 'pw-pdp-sticky-nav')
   const ctaHit = extractBalancedDivByClass(stamped, 'pw-pdp-sticky-ctas')
   if (navHit && ctaHit) {
-    const rebuilt = `${navHit.open}\n      ${rebuildPdpStickyNavInner(navHit.inner, locale, siteSlug)}\n    </div>`
-    let next = stamped.replace(navHit.full, rebuilt)
+    const rebuiltNav = `${navHit.open}\n      ${rebuildPdpStickyNavInner(navHit.inner, locale, siteSlug)}\n    </div>`
+    let next = stamped.replace(navHit.full, rebuiltNav)
+    const cta2 = extractBalancedDivByClass(next, 'pw-pdp-sticky-ctas')
+    if (cta2) {
+      next = next.replace(
+        cta2.full,
+        `${cta2.open}\n      ${rebuildPdpStickyCtasInner(cta2.inner, locale)}\n    </div>`
+      )
+    }
     next = next.replace(
       /<(a|button)(\s[^>]*data-pw-chrome-btn=["']home["'][^>]*)>/gi,
       (full, tag: string, attrs: string) => {
@@ -1033,19 +1091,19 @@ export function ensurePdpDockFaceInInner(
       continue
     }
     if (kind === 'try-on') {
-      pdpTry = block
+      if (!isBuyBoxActionBlock(block) && (!pdpTry || isPreferredPdpNavBlock(block))) pdpTry = block
       continue
     }
     if (kind === 'favorite-product') {
-      pdpFav = block
+      if (!isBuyBoxActionBlock(block) && (!pdpFav || isPreferredPdpNavBlock(block))) pdpFav = block
       continue
     }
     if (kind === 'add-cart') {
-      pdpAdd = stampPdpCtaLockAttrs(block)
+      if (!isBuyBoxActionBlock(block)) pdpAdd = stampPdpCtaLockAttrs(block)
       continue
     }
     if (kind === 'buy-now') {
-      pdpBuy = stampPdpCtaLockAttrs(block)
+      if (!isBuyBoxActionBlock(block)) pdpBuy = stampPdpCtaLockAttrs(block)
       continue
     }
     if (kind === 'home') {

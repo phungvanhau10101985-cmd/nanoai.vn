@@ -356,6 +356,39 @@ describe('partner-site-chrome-kit', () => {
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
       '.pw-pdp-sticky-ctas:not([data-pw-chrome-kit="dock"] .pw-pdp-sticky-ctas)'
     )
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
+      '.pw-pdp-sticky-nav [data-pw-chrome-btn="try-on"] ~ [data-pw-chrome-btn="try-on"]'
+    )
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
+      '.pw-pdp-sticky-ctas [data-pw-chrome-btn="add-cart"] ~ [data-pw-chrome-btn="add-cart"]'
+    )
+  })
+
+  it('drops buy-box duplicate try-on / add-cart from the PDP dock face', () => {
+    const html = `<nav class="pw-bottom-nav" data-pw-chrome-kit="dock">
+      <div class="pw-pdp-sticky-nav" data-pw-dock-show="pdp">
+        <button class="is-try" data-pw-chrome-btn="try-on" data-pw-pdp-nav="1" data-pw-dock-show="pdp">Thử đồ</button>
+        <button class="pw-shop-btn pw-shop-btn-outline" data-pw-chrome-btn="try-on">Thử đồ AI</button>
+        <button class="is-fav" data-pw-chrome-btn="favorite-product" data-pw-pdp-nav="1">Thích</button>
+        <button class="pw-shop-btn pw-shop-btn-outline" data-pw-chrome-btn="favorite-product">128</button>
+      </div>
+      <div class="pw-pdp-sticky-ctas" data-pw-dock-show="pdp">
+        <button data-pw-chrome-btn="add-cart" data-pw-kit-lock="cta">Thêm giỏ</button>
+        <button class="pw-shop-btn pw-shop-btn-cart" data-pw-chrome-btn="add-cart">Thêm vào giỏ</button>
+        <button data-pw-chrome-btn="buy-now" data-pw-kit-lock="cta">Mua hàng</button>
+      </div>
+    </nav>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop' })
+    const navOpen = next.indexOf('pw-pdp-sticky-nav')
+    const navChunk = next.slice(navOpen, next.indexOf('pw-pdp-sticky-ctas', navOpen))
+    expect(navChunk).toContain('is-try')
+    expect(navChunk).not.toContain('Thử đồ AI')
+    expect(navChunk).not.toContain('pw-shop-btn-outline')
+    expect(next).toContain('data-pw-kit-lock="cta"')
+    expect(next).toContain('Thêm giỏ')
+    expect((next.match(/data-pw-chrome-btn="add-cart"/g) || []).length).toBe(1)
+    expect((next.match(/data-pw-chrome-btn="try-on"/g) || []).filter(() => true).length).toBeGreaterThanOrEqual(1)
+    expect(next).not.toContain('Thử đồ AI')
   })
 
   it('strips leftover in-flow THÊM GIỎ / MUA HÀNG sitting after the footer', () => {

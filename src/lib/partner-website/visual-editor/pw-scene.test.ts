@@ -232,6 +232,7 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function pinPdpDockFaceLive(){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('.pw-pdp-sticky-ctas')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('pinPdpDockFaceLive();')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('.pw-pdp-actions-inline')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain(':scope > .pw-pdp-sticky-nav')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function hoistLiveFloat(root){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function findLiveFloatKit(root){')

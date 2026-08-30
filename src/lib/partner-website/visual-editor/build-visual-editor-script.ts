@@ -14044,6 +14044,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       'html[data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"] > [data-pw-dock-show="pdp"]:not(.pw-pdp-sticky-nav):not(.pw-pdp-sticky-ctas):not([data-pw-hidden="1"]),html[data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"] > [data-pw-dock-show="both"]:not(.pw-pdp-sticky-nav):not(.pw-pdp-sticky-ctas):not([data-pw-hidden="1"]),html[data-pw-page="product"] .pw-shop-bottom-nav[data-pw-chrome-kit="dock"] > [data-pw-dock-show="pdp"]:not(.pw-pdp-sticky-nav):not(.pw-pdp-sticky-ctas):not([data-pw-hidden="1"]),html[data-pw-page="product"] .pw-shop-bottom-nav[data-pw-chrome-kit="dock"] > [data-pw-dock-show="both"]:not(.pw-pdp-sticky-nav):not(.pw-pdp-sticky-ctas):not([data-pw-hidden="1"]){display:flex!important;flex-direction:column;align-items:center;justify-content:center}',
       'html[data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"] .pw-pdp-sticky-nav,html[data-pw-page="product"] .pw-shop-bottom-nav[data-pw-chrome-kit="dock"] .pw-pdp-sticky-nav{display:flex!important;flex-direction:row!important;align-items:stretch}',
       'html[data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"] .pw-pdp-sticky-ctas,html[data-pw-page="product"] .pw-shop-bottom-nav[data-pw-chrome-kit="dock"] .pw-pdp-sticky-ctas{display:flex!important;flex-direction:row!important;flex:1;min-width:0}',
+      'html[data-pw-page="product"] [data-pw-chrome-kit="dock"] .pw-pdp-sticky-nav [data-pw-chrome-btn="home"] ~ [data-pw-chrome-btn="home"],html[data-pw-page="product"] [data-pw-chrome-kit="dock"] .pw-pdp-sticky-nav [data-pw-chrome-btn="try-on"] ~ [data-pw-chrome-btn="try-on"],html[data-pw-page="product"] [data-pw-chrome-kit="dock"] .pw-pdp-sticky-nav [data-pw-chrome-btn="favorite-product"] ~ [data-pw-chrome-btn="favorite-product"],html[data-pw-page="product"] [data-pw-chrome-kit="dock"] .pw-pdp-sticky-ctas [data-pw-chrome-btn="add-cart"] ~ [data-pw-chrome-btn="add-cart"],html[data-pw-page="product"] [data-pw-chrome-kit="dock"] .pw-pdp-sticky-ctas [data-pw-chrome-btn="buy-now"] ~ [data-pw-chrome-btn="buy-now"]{display:none!important}',
+      'html[data-pw-page="product"] [data-pw-chrome-kit="dock"] .pw-shop-btn-outline{display:none!important}',
       '[data-pw-live-dock]{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100%;z-index:${PW_SCENE_HEAD_Z};pointer-events:none;transform:none!important}',
       '[data-pw-live-dock]>.pw-bottom-nav,[data-pw-live-dock]>.pw-shop-bottom-nav{position:relative!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;width:100%!important;pointer-events:auto}',
       '[data-pw-edit-device="mobile"] .pw-bottom-nav,[data-pw-edit-device="tablet"] .pw-bottom-nav,[data-pw-edit-device="mobile"] .pw-shop-bottom-nav,[data-pw-edit-device="tablet"] .pw-shop-bottom-nav{top:auto!important}',
@@ -14288,8 +14290,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       }
     } catch (errPageStamp) {}
     try { hoistKitDockToBody() } catch (errHoistDock) {}
-    try { ensurePdpDockFaceInDoc() } catch (errFaceDock) {}
     try { reseatPdpDockButtonsFromHead() } catch (errReseatDock) {}
+    try { restorePdpBuyBoxActionsFromDock() } catch (errRestoreBuy) {}
+    try { ensurePdpDockFaceInDoc() } catch (errFaceDock) {}
+    try { restorePdpBuyBoxActionsFromDock() } catch (errRestoreBuy2) {}
     try { hideLeftoverPdpBottomBars() } catch (errHidePdpBar) {}
     try { seatLockedHeaderRow() } catch (errSeatRow) {}
     try { pinChromeIconBadges(document) } catch (errPin) {}
@@ -14438,6 +14442,57 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var host = ensureEditorLiveDockHost()
     if (host && dock.parentNode !== host) host.appendChild(dock)
   }
+  function isPdpBuyBoxActionEl(el) {
+    if (!el || !el.getAttribute) return false
+    if (el.closest && el.closest('.pw-pdp-actions,.pw-pdp-actions-inline,[data-pw-region="pdp-info"] .pw-shop-btn')) return true
+    if (el.classList && el.classList.contains('pw-shop-btn-outline')) return true
+    var kind = el.getAttribute('data-pw-chrome-btn') || ''
+    if (el.getAttribute('data-pw-kit-lock') === 'cta') return false
+    if (el.getAttribute('data-pw-pdp-nav') === '1' || el.getAttribute('data-pw-pdp-home') === '1') return false
+    if (el.classList && (el.classList.contains('is-try') || el.classList.contains('is-fav'))) return false
+    if ((kind === 'add-cart' || kind === 'buy-now') && el.classList && el.classList.contains('pw-shop-btn') && el.getAttribute('data-pw-chrome-kit') !== '1') return true
+    return false
+  }
+  function pdpDockKeepScore(el) {
+    var s = 0
+    if (!el || !el.getAttribute) return -20
+    if (el.getAttribute('data-pw-kit-lock') === 'cta') s += 8
+    if (el.getAttribute('data-pw-pdp-nav') === '1') s += 6
+    if (el.getAttribute('data-pw-pdp-home') === '1') s += 6
+    if (el.classList && (el.classList.contains('is-try') || el.classList.contains('is-fav'))) s += 6
+    if (el.getAttribute('data-pw-chrome-kit') === '1') s += 3
+    if (isPdpBuyBoxActionEl(el)) s -= 10
+    return s
+  }
+  function restorePdpBuyBoxActionsFromDock() {
+    var dock = document.querySelector('[data-pw-chrome-kit="dock"]')
+    if (!dock) return
+    var box = document.querySelector('.pw-pdp-actions-inline') || document.querySelector('.pw-pdp-actions')
+    var kinds = ['home', 'try-on', 'favorite-product', 'add-cart', 'buy-now']
+    var k
+    for (k = 0; k < kinds.length; k++) {
+      var kind = kinds[k]
+      var nodes = Array.prototype.slice.call(dock.querySelectorAll('[data-pw-chrome-btn="' + kind + '"]'))
+      if (!nodes.length) continue
+      nodes.sort(function (a, b) { return pdpDockKeepScore(b) - pdpDockKeepScore(a) })
+      var keep = nodes[0]
+      if (keep && pdpDockKeepScore(keep) < 0) keep = null
+      var i
+      for (i = 0; i < nodes.length; i++) {
+        var el = nodes[i]
+        if (el === keep) continue
+        if (isPdpBuyBoxActionEl(el) && box) {
+          if (!box.contains(el) && !box.querySelector('[data-pw-chrome-btn="' + kind + '"]')) {
+            try { box.appendChild(el) } catch (errBox) {}
+          } else {
+            try { el.remove() } catch (errDup) {}
+          }
+          continue
+        }
+        try { el.remove() } catch (errDrop) {}
+      }
+    }
+  }
   function reseatPdpDockButtonsFromHead() {
     var dock = document.querySelector('[data-pw-chrome-kit="dock"],.pw-bottom-nav,.pw-shop-bottom-nav')
     if (!dock) return
@@ -14450,6 +14505,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (!el) continue
       if (el.closest && el.closest('[data-pw-chrome-kit="dock"],.pw-bottom-nav,.pw-shop-bottom-nav,[data-pw-live-dock]')) continue
       if (el.closest && el.closest('[data-pw-chrome-kit="float"]')) continue
+      if (isPdpBuyBoxActionEl(el)) continue
+      var inHead = el.closest && el.closest('header,.pw-header,.pw-shop-header,[data-pw-live-chrome],.pw-header-actions,.pw-shop-header-actions')
+      var leftoverBar = el.closest && el.closest('nav[data-pw-pdp-bottom],nav.pw-pdp-sticky,div.pw-pdp-sticky')
+      var bodyChild = el.parentNode === document.body
+      if (!inHead && !leftoverBar && !bodyChild) continue
       var kind = el.getAttribute('data-pw-chrome-btn') || ''
       var host = (kind === 'add-cart' || kind === 'buy-now') ? (faceCtas || dock) : (faceNav || dock)
       if (host && el.parentNode !== host) {
@@ -14530,6 +14590,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       var ordered = nav.querySelector('[data-pw-chrome-btn="' + defaults[i] + '"]')
       if (ordered) nav.insertBefore(ordered, nav.firstChild)
     }
+    try { capPdpNavVisible(nav, nav.querySelector('[data-pw-pdp-home="1"],[data-pw-chrome-btn="home"]')) } catch (errCap) {}
   }
   function hideLeftoverPdpBottomBars() {
     var kit = document.querySelector('[data-pw-chrome-kit="dock"]')
@@ -14547,8 +14608,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.device === 'mobile' || d.device === 'tablet' || d.device === 'laptop' || d.device === 'desktop') editDevice = d.device
     stampShopPageFromHost(d)
     try { hoistKitDockToBody() } catch (errHoistDockHost) {}
-    try { ensurePdpDockFaceInDoc() } catch (errFaceDockHost) {}
     try { reseatPdpDockButtonsFromHead() } catch (errReseatDockHost) {}
+    try { restorePdpBuyBoxActionsFromDock() } catch (errRestoreBuyHost) {}
+    try { ensurePdpDockFaceInDoc() } catch (errFaceDockHost) {}
+    try { restorePdpBuyBoxActionsFromDock() } catch (errRestoreBuyHost2) {}
     try { hideLeftoverPdpBottomBars() } catch (errHidePdpBarHost) {}
     setHoverNameOn()
     activate()
