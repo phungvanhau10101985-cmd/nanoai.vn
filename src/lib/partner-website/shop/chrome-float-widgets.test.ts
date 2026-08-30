@@ -2,8 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   chromeFloatDefaultBottomPx,
+  chromeFloatDomOrderFromVisual,
   clampChromeFloatEdge,
   isChromeFloatKind,
+  visualOrderOfChromeFloatDom,
   PARTNER_SHOP_CHROME_FLOAT_CSS,
   PARTNER_SHOP_CHROME_FLOAT_POS_JS,
   PARTNER_SHOP_CHROME_FLOAT_SCRIPT,
@@ -69,6 +71,9 @@ test('chat Zalo Facebook and top-up are viewport-fixed chrome', () => {
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes("classList.contains('nanoai-ve-active')"), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes("tf !== 'none'"), false)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('function pwChromeFloatApplyStack'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('function pwChromeFloatEscapeScaledRoot'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('[data-pw-inline-visual-root]'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('pwChromeFloatEscapeScaledRoot(pwChromeFloatKitHost())'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('function pwChromeFloatStackWrite'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes(PW_FLOAT_STACK_BOTTOM_ATTR), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes(PW_FLOAT_GAP_ATTR), true)
@@ -121,4 +126,13 @@ test('resetChromeFloatUserMoveInHtml drops leftover Desktop pins on Tư vấn', 
   assert.equal(next.includes('left:1700px'), false)
   assert.equal(next.includes('top:600px'), false)
   assert.equal(next.includes('data-pw-chrome-btn="chat"'), true)
+})
+
+test('float panel order is screen top-to-bottom, opposite of bottom-up DOM', () => {
+  const dom = ['topup', 'chat', 'chat-zalo', 'chat-facebook']
+  const visual = visualOrderOfChromeFloatDom(dom)
+  assert.deepEqual(visual, ['chat-facebook', 'chat-zalo', 'chat', 'topup'])
+  assert.deepEqual(chromeFloatDomOrderFromVisual(visual), [...dom])
+  const afterUp = ['chat-zalo', 'chat-facebook', 'chat', 'topup']
+  assert.deepEqual(chromeFloatDomOrderFromVisual(afterUp), ['topup', 'chat', 'chat-facebook', 'chat-zalo'])
 })

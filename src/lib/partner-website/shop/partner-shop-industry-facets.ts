@@ -3,12 +3,12 @@
  * other industries return empty facet defs (no fashion leakage into core).
  */
 
-export type PartnerShopFacetKey = 'size' | 'color'
+export type PartnerShopFacetKey = 'size' | 'color' | 'style'
 
 export type PartnerShopFacetDef = {
   key: PartnerShopFacetKey
   /** i18n key hint for UI */
-  labelKey: 'sizeLabel' | 'colorLabel'
+  labelKey: 'sizeLabel' | 'colorLabel' | 'styleLabel'
 }
 
 export function partnerShopFacetDefsForIndustry(
@@ -17,6 +17,7 @@ export function partnerShopFacetDefsForIndustry(
   if (industryKey === 'fashion') {
     return [
       { key: 'size', labelKey: 'sizeLabel' },
+      { key: 'style', labelKey: 'styleLabel' },
       { key: 'color', labelKey: 'colorLabel' },
     ]
   }

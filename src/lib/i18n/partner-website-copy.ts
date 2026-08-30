@@ -291,6 +291,8 @@ export type PartnerWebsiteCopy = {
   visualEditChromeKitPdp: string
   visualEditChromeKitShift: string
   visualEditChromeKitShiftHint: string
+  visualEditChromeKitGap: string
+  visualEditChromeKitGapHint: string
   visualEditChatIconLogoTitle: string
   visualEditChatIconLogoHint: string
   visualEditChatIconLogoDefaultPrompt: string
@@ -1283,7 +1285,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitDock: 'Thanh đáy',
     visualEditChromeKitFloat: 'Thanh nổi — nút góc màn',
     visualEditChromeKitFloatHint:
-      'Bật mắt để hiện. Một cột khóa góc màn — gõ Cách phải / Cách dưới / Khoảng cách / Kích thước icon. Mũi tên đổi thứ tự. Ẩn thì nút còn lại khít lại. Bấm tên để sửa từng nút. Mỗi máy một bản.',
+      'Bật mắt để hiện. Một cột khóa góc màn — gõ Cách phải / Cách dưới / Khoảng cách / Kích thước icon. Danh sách trên xuống dưới = cột góc màn. ↑ lên trên cột, ↓ xuống dưới. Ẩn thì nút còn lại khít lại. Bấm tên để sửa từng nút. Mỗi máy một bản.',
     visualEditChromeKitFloatLocked:
       'Nút thanh nổi luôn đứng yên góc màn theo một cột. Ẩn/hiện và thứ tự ở Thanh điều hướng — không kéo tọa độ.',
     visualEditChromeKitFloatRight: 'Cách phải',
@@ -1295,6 +1297,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitPdp: 'Chi tiết SP',
     visualEditChromeKitShift: 'Lệch ngang',
     visualEditChromeKitShiftHint: 'Cả cụm icon bên phải, vẫn trong hàng. Số âm sang trái, dương sang phải.',
+    visualEditChromeKitGap: 'Khoảng cách icon',
+    visualEditChromeKitGapHint: 'Khoảng cách giữa các icon cụm phải. Không dời cả cụm.',
     visualEditChatIconLogoTitle: 'Tạo logo icon Chat mua',
     visualEditChatIconLogoHint:
       'Cùng một logo icon cho mọi máy. Đổi ở đây thì Desktop / Tablet / Mobile đều đổi. Tải ảnh lên hoặc tạo bằng AI.',
@@ -2306,7 +2310,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitDock: 'Bottom bar',
     visualEditChromeKitFloat: 'Floating bar — corner buttons',
     visualEditChromeKitFloatHint:
-      'Turn the eye on to show. One locked corner column — type Right / Bottom / Gap / Icon size. Arrows change order. Hidden buttons close the gap. Click a name to edit that button. One set per device.',
+      'Turn the eye on to show. One locked corner column — type Right / Bottom / Gap / Icon size. The list top-to-bottom matches the corner column. Up moves toward the top of the column. Hidden buttons close the gap. Click a name to edit that button. One set per device.',
     visualEditChromeKitFloatLocked:
       'Float-bar buttons stay in one locked corner column. Show, hide, and reorder them in Navigation — no dragging.',
     visualEditChromeKitFloatRight: 'From right',
@@ -2318,6 +2322,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitPdp: 'Product page',
     visualEditChromeKitShift: 'Horizontal shift',
     visualEditChromeKitShiftHint: 'Moves the whole right-side icon cluster in flow. Negative is left, positive is right.',
+    visualEditChromeKitGap: 'Icon gap',
+    visualEditChromeKitGapHint: 'Space between the right-side icons. Does not shift the whole cluster.',
     visualEditChatIconLogoTitle: 'Create Chat mua icon logo',
     visualEditChatIconLogoHint:
       'One icon logo for every device. Change it here and Desktop / Tablet / Mobile all update. Upload an image or generate with AI.',
@@ -3317,7 +3323,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitHeadMobile: '手机页头',
     visualEditChromeKitDock: '底栏',
     visualEditChromeKitFloat: '浮动栏 — 角落按钮',
-    visualEditChromeKitFloatHint: '点眼睛显示。角落一列锁定 — 输入距右 / 距下 / 间距 / 图标大小。箭头改顺序。隐藏后其余按钮靠拢。点名称可单独编辑。每台设备一份。',
+    visualEditChromeKitFloatHint: '点眼睛显示。角落一列锁定 — 输入距右 / 距下 / 间距 / 图标大小。列表从上到下与角落列一致。↑ 上移，↓ 下移。隐藏后其余按钮靠拢。点名称可单独编辑。每台设备一份。',
     visualEditChromeKitFloatLocked: '悬浮栏按钮固定为一列。在「导航栏」中显示、隐藏或改顺序，不能拖动坐标。',
     visualEditChromeKitFloatRight: '距右',
     visualEditChromeKitFloatBottom: '距下',
@@ -3328,6 +3334,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitPdp: '商品详情',
     visualEditChromeKitShift: '水平偏移',
     visualEditChromeKitShiftHint: '移动右侧整组图标，仍在同一行内。负数向左，正数向右。',
+    visualEditChromeKitGap: '图标间距',
+    visualEditChromeKitGapHint: '右侧图标之间的间距。不移动整组。',
     visualEditChatIconLogoTitle: '为「Chat mua」图标生成标志',
     visualEditChatIconLogoHint:
       '所有设备共用同一图标标志。在此更改后，桌面 / 平板 / 手机一并更新。可上传图片或用 AI 生成。',
@@ -4315,7 +4323,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitDock: '下部バー',
     visualEditChromeKitFloat: 'フローティングバー — 角のボタン',
     visualEditChromeKitFloatHint:
-      '目のアイコンで表示。角の1列に固定 — 右・下・間隔・アイコンサイズを入力。矢印で順番変更。非表示にすると残りが詰まります。名前を押すと個別編集。端末ごとに別です。',
+      '目のアイコンで表示。角の1列に固定 — 右・下・間隔・アイコンサイズを入力。リスト上から下は角の列と同じ。↑は上、↓は下。非表示にすると残りが詰まります。名前を押すと個別編集。端末ごとに別です。',
     visualEditChromeKitFloatLocked:
       'フローティングバーは1列に固定されます。表示・非表示・順番は「ナビゲーション」で行い、座標ドラッグはありません。',
     visualEditChromeKitFloatRight: '右から',
@@ -4327,6 +4335,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitPdp: '商品ページ',
     visualEditChromeKitShift: '左右オフセット',
     visualEditChromeKitShiftHint: '右側のアイコン一式を行内で動かします。マイナスは左、プラスは右です。',
+    visualEditChromeKitGap: 'アイコン間隔',
+    visualEditChromeKitGapHint: '右側アイコン同士の間隔です。グループ全体の位置は変わりません。',
     visualEditChatIconLogoTitle: 'Chat muaアイコンのロゴを作成',
     visualEditChatIconLogoHint:
       '全端末で同じアイコンロゴを使います。ここで変えるとデスクトップ / タブレット / モバイルが同時に変わります。画像アップロードまたは AI 生成。',
@@ -5325,7 +5335,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitDock: '하단 바',
     visualEditChromeKitFloat: '플로팅 바 — 모서리 버튼',
     visualEditChromeKitFloatHint:
-      '눈을 켜면 보입니다. 모서리 한 열로 고정 — 오른쪽/아래/간격/아이콘 크기를 입력하세요. 화살표로 순서 변경. 숨기면 나머지 버튼이 붙습니다. 이름을 누르면 개별 편집. 기기마다 따로입니다.',
+      '눈을 켜면 보입니다. 모서리 한 열로 고정 — 오른쪽/아래/간격/아이콘 크기를 입력하세요. 목록 위→아래가 모서리 열과 같습니다. ↑는 위로, ↓는 아래로. 숨기면 나머지 버튼이 붙습니다. 이름을 누르면 개별 편집. 기기마다 따로입니다.',
     visualEditChromeKitFloatLocked:
       '플로팅 버튼은 모서리 한 열에 고정됩니다. 표시/숨김/순서는 탐색에서 하며 좌표를 끌지 않습니다.',
     visualEditChromeKitFloatRight: '오른쪽',
@@ -5337,6 +5347,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitPdp: '상품 상세',
     visualEditChromeKitShift: '좌우 이동',
     visualEditChromeKitShiftHint: '오른쪽 아이콘 묶음 전체를 같은 줄에서 옮깁니다. 음수는 왼쪽, 양수는 오른쪽입니다.',
+    visualEditChromeKitGap: '아이콘 간격',
+    visualEditChromeKitGapHint: '오른쪽 아이콘 사이 간격입니다. 묶음 전체 위치는 바꾸지 않습니다.',
     visualEditChatIconLogoTitle: 'Chat mua 아이콘 로고 만들기',
     visualEditChatIconLogoHint:
       '모든 기기에서 같은 아이콘 로고를 씁니다. 여기서 바꾸면 데스크톱 / 태블릿 / 모바일이 함께 바뀝니다. 이미지 업로드 또는 AI 생성.',

@@ -54,6 +54,18 @@ export function clampChromeFloatSize(raw: unknown): number {
   return Math.max(PW_FLOAT_SIZE_MIN, Math.min(PW_FLOAT_SIZE_MAX, n))
 }
 
+/**
+ * Cột góc màn neo từ dưới: phần tử DOM đầu = đáy cột.
+ * Panel Thanh nổi + nút ↑/↓ dùng thứ tự nhìn thấy (trên → dưới).
+ */
+export function visualOrderOfChromeFloatDom<T>(domOrder: readonly T[]): T[] {
+  return domOrder.slice().reverse()
+}
+
+export function chromeFloatDomOrderFromVisual<T>(visualOrder: readonly T[]): T[] {
+  return visualOrder.slice().reverse()
+}
+
 export function isChromeFloatKind(kind: string | null | undefined): kind is PwChromeFloatKind {
   return (PW_CHROME_FLOAT_KINDS as readonly string[]).includes(String(kind || ''))
 }
@@ -333,8 +345,21 @@ function pwChromeFloatMigrateStack(host){
   if(!hasSize){for(var c=0;c<items.length;c++)pwChromeFloatEnsureCircle(items[c]);}
   pwChromeFloatStackWrite(right,bottom,gap,size);
 }
+function pwChromeFloatEscapeScaledRoot(host){
+  if(!host||!host.closest)return host;
+  try{
+    if(document.body&&document.body.classList.contains('nanoai-ve-active'))return host;
+  }catch(eVe){}
+  var scaled=host.closest('[data-pw-inline-visual-root]');
+  if(!scaled)return host;
+  var dest=pwChromeFloatHost();
+  if(dest&&host.parentNode!==dest){
+    try{dest.appendChild(host)}catch(eEsc){}
+  }
+  return host;
+}
 function pwChromeFloatApplyStack(){
-  var host=pwChromeFloatKitHost();
+  var host=pwChromeFloatEscapeScaledRoot(pwChromeFloatKitHost());
   if(!host)return pwChromeFloatStackRead();
   pwChromeFloatMigrateStack(host);
   var st=pwChromeFloatStackRead();

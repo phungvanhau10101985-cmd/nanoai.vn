@@ -11,6 +11,7 @@ import {
   partnerSiteSearchTextApiPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
+import { emitPartnerSiteSearchHistory } from '@/lib/partner-website/shop/partner-site-search-history'
 import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Hit = {
@@ -43,6 +44,7 @@ export function PartnerSiteShopSearchBar({
     e?.preventDefault()
     const query = q.trim()
     if (query.length < 1 || busy) return
+    emitPartnerSiteSearchHistory(query)
     setBusy(true)
     setError('')
     try {

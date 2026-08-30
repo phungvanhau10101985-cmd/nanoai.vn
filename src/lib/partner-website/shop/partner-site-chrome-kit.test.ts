@@ -6,11 +6,17 @@ import {
   PARTNER_SHOP_CHROME_KIT_CSS,
   PW_CHROME_KIT_ATTR,
   PW_DOCK_SHOW_ATTR,
+  PW_KIT_GAP_ATTR,
+  PW_KIT_GAP_DEFAULT,
+  PW_KIT_GAP_DEFAULT_COMPACT,
+  PW_KIT_GAP_MAX,
   PW_KIT_X_ATTR,
   PW_KIT_X_MIN,
   buildChromeKitDockHtml,
   buildChromeKitHeadActionHtml,
+  chromeKitGapDefaultForDevice,
   chromeKitHeadGroup,
+  clampChromeKitGap,
   clampChromeKitShift,
   ensurePartnerSiteChromeKitInHtml,
   isChromeKitPickerKind,
@@ -199,6 +205,49 @@ describe('partner-site-chrome-kit', () => {
     )
     expect(fromCssOnly).toContain(`${PW_KIT_X_ATTR}="-20"`)
     expect(fromCssOnly).toContain('--pw-kit-x:-20px')
+  })
+
+  it('keeps head icon gap on the actions host without inventing a default', () => {
+    expect(clampChromeKitGap(-4)).toBe(0)
+    expect(clampChromeKitGap(12.4)).toBe(12)
+    expect(clampChromeKitGap(99)).toBe(PW_KIT_GAP_MAX)
+    expect(chromeKitGapDefaultForDevice('desktop')).toBe(PW_KIT_GAP_DEFAULT)
+    expect(chromeKitGapDefaultForDevice('laptop')).toBe(PW_KIT_GAP_DEFAULT)
+    expect(chromeKitGapDefaultForDevice('tablet')).toBe(PW_KIT_GAP_DEFAULT_COMPACT)
+    expect(chromeKitGapDefaultForDevice('mobile')).toBe(PW_KIT_GAP_DEFAULT_COMPACT)
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('gap:var(--pw-kit-gap, 2px)')
+    const html = `<header class="pw-header"><div class="pw-header-actions" ${PW_KIT_GAP_ATTR}="16">
+      <a data-pw-chrome-btn="cart" href="/cart">Giỏ</a>
+    </div></header>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' })
+    expect(next).toContain(`${PW_KIT_GAP_ATTR}="16"`)
+    expect(next).toContain('--pw-kit-gap:16px')
+    const fromCssOnly = ensurePartnerSiteChromeKitInHtml(
+      `<header class="pw-header"><div class="pw-header-actions" style="--pw-kit-gap:8px;--pw-kit-x:-12px">
+        <a data-pw-chrome-btn="cart" href="/cart">Giỏ</a>
+      </div></header>`,
+      { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' }
+    )
+    expect(fromCssOnly).toContain(`${PW_KIT_GAP_ATTR}="8"`)
+    expect(fromCssOnly).toContain('--pw-kit-gap:8px')
+    expect(fromCssOnly).toContain(`${PW_KIT_X_ATTR}="-12"`)
+    expect(fromCssOnly).toContain('--pw-kit-x:-12px')
+    const zero = ensurePartnerSiteChromeKitInHtml(
+      `<header class="pw-header"><div class="pw-header-actions" ${PW_KIT_GAP_ATTR}="0">
+        <a data-pw-chrome-btn="cart" href="/cart">Giỏ</a>
+      </div></header>`,
+      { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' }
+    )
+    expect(zero).toContain(`${PW_KIT_GAP_ATTR}="0"`)
+    expect(zero).toContain('--pw-kit-gap:0px')
+    const untouched = ensurePartnerSiteChromeKitInHtml(
+      `<header class="pw-header"><div class="pw-header-actions">
+        <a data-pw-chrome-btn="cart" href="/cart">Giỏ</a>
+      </div></header>`,
+      { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' }
+    )
+    expect(untouched).not.toContain(PW_KIT_GAP_ATTR)
+    expect(untouched).not.toContain('--pw-kit-gap')
   })
 
   it('resets leftover drag on in-flow header search so it can sit in the middle', () => {

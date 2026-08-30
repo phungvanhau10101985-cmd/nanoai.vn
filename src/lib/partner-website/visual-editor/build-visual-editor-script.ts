@@ -80,7 +80,15 @@ import { searchGlyphPathsJs } from './search-cluster-icons'
 import { chromeGlyphCatalogJs } from './chrome-widget-icons'
 import { CHROME_KIND_INFER_RULES } from './infer-chrome-widget-kind'
 import { PARTNER_SHOP_FOOTER_INFLOW_CSS, PARTNER_SHOP_WIDE_HEADER_BALANCE_CSS } from '../shop/partner-shop-chrome-layout-css'
-import { listMidCanvasFlowChromeKinds, PW_KIT_X_MAX, PW_KIT_X_MIN } from '../shop/partner-site-chrome-kit'
+import {
+  listMidCanvasFlowChromeKinds,
+  PW_KIT_GAP_DEFAULT,
+  PW_KIT_GAP_DEFAULT_COMPACT,
+  PW_KIT_GAP_MAX,
+  PW_KIT_GAP_MIN,
+  PW_KIT_X_MAX,
+  PW_KIT_X_MIN,
+} from '../shop/partner-site-chrome-kit'
 import {
   PW_LAST_MEDIA_SRC_ATTR,
   PW_MEDIA_HIDDEN_ATTR,
@@ -4557,10 +4565,46 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     post('dirty', {})
     listChromeKitState()
   }
+  function chromeKitGapDefault() {
+    var d = pwStampDevice()
+    return (d === 'mobile' || d === 'tablet') ? ${PW_KIT_GAP_DEFAULT_COMPACT} : ${PW_KIT_GAP_DEFAULT}
+  }
+  function chromeKitGapRawOf(root) {
+    if (!root || !root.getAttribute) return NaN
+    var n = parseInt(String(root.getAttribute('data-pw-kit-gap') || ''), 10)
+    if (!isFinite(n) && root.style) n = parseInt(String(root.style.getPropertyValue('--pw-kit-gap') || ''), 10)
+    return n
+  }
+  function chromeKitGapOf(root) {
+    var n = chromeKitGapRawOf(root)
+    if (!isFinite(n)) n = chromeKitGapDefault()
+    n = Math.round(n)
+    if (n > ${PW_KIT_GAP_MAX}) n = ${PW_KIT_GAP_MAX}
+    if (n < ${PW_KIT_GAP_MIN}) n = ${PW_KIT_GAP_MIN}
+    return n
+  }
+  function applyChromeKitGap(root, raw) {
+    if (!root) return chromeKitGapDefault()
+    var n = parseInt(String(raw), 10)
+    if (!isFinite(n)) n = chromeKitGapDefault()
+    n = Math.round(n)
+    if (n > ${PW_KIT_GAP_MAX}) n = ${PW_KIT_GAP_MAX}
+    if (n < ${PW_KIT_GAP_MIN}) n = ${PW_KIT_GAP_MIN}
+    root.setAttribute('data-pw-kit-gap', String(n))
+    if (root.style) root.style.setProperty('--pw-kit-gap', n + 'px')
+    return n
+  }
+  function setChromeKitGap(bar, gap) {
+    var root = bar === 'dock' ? chromeKitDockRoot() : chromeKitHeadRoot()
+    applyChromeKitGap(root, gap)
+    post('dirty', {})
+    listChromeKitState()
+  }
   function listChromeKitState() {
     var headRoot = chromeKitHeadRoot()
     var dockRoot = chromeKitDockRoot()
     applyChromeKitShift(headRoot, chromeKitShiftOf(headRoot))
+    if (isFinite(chromeKitGapRawOf(headRoot))) applyChromeKitGap(headRoot, chromeKitGapOf(headRoot))
     function collect(root) {
       if (!root || !root.querySelectorAll) return []
       var nodes = root.querySelectorAll('[data-pw-chrome-btn]')
@@ -4583,7 +4627,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       return out
     }
     function collectFloat() {
-      var items = listFloatKitItems()
+      var items = listFloatKitItemsVisual()
       var out = []
       for (var i = 0; i < items.length; i++) {
         var it = items[i]
@@ -4608,6 +4652,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       floatGap: stack.gap,
       floatSize: stack.size,
       headX: chromeKitShiftOf(headRoot),
+      headGap: chromeKitGapOf(headRoot),
       device: pwStampDevice()
     })
   }
@@ -4650,6 +4695,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (n) items.push({ el: n, kind: kinds[k] })
     }
     return items
+  }
+  function listFloatKitItemsVisual() {
+    return listFloatKitItems().slice().reverse()
   }
   function chromeKitBtnSiblings(el) {
     if (!el || !el.parentNode) return []
@@ -4739,19 +4787,21 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     listChromeKitState()
   }
   function reorderChromeKitFloat(kind, dir) {
-    var items = listFloatKitItems()
+    var visual = listFloatKitItemsVisual()
     var idx = -1
-    for (var i = 0; i < items.length; i++) {
-      if (items[i].kind === kind) { idx = i; break }
+    for (var i = 0; i < visual.length; i++) {
+      if (visual[i].kind === kind) { idx = i; break }
     }
     if (idx < 0) return
     var otherIdx = dir === 'up' ? idx - 1 : idx + 1
-    if (otherIdx < 0 || otherIdx >= items.length) return
-    var a = items[idx]
-    var b = items[otherIdx]
-    if (a.el.parentNode && a.el.parentNode === b.el.parentNode) {
-      if (dir === 'up') a.el.parentNode.insertBefore(a.el, b.el)
-      else a.el.parentNode.insertBefore(b.el, a.el)
+    if (otherIdx < 0 || otherIdx >= visual.length) return
+    var moved = visual[idx]
+    visual.splice(idx, 1)
+    visual.splice(otherIdx, 0, moved)
+    var host = chromeKitFloatRoot()
+    var bottomFirst = visual.slice().reverse()
+    for (var j = 0; j < bottomFirst.length; j++) {
+      if (host && bottomFirst[j].el) host.appendChild(bottomFirst[j].el)
     }
     try { pwChromeFloatApplyStack() } catch (errStackOrd) {}
     post('dirty', {})
@@ -14652,6 +14702,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.type === 'setChromeKitFloatSize') setChromeKitFloatSize(d.size)
     if (d.type === 'selectChromeKit') selectChromeKit(d.kind, d.bar)
     if (d.type === 'setChromeKitShift') setChromeKitShift(d.bar || 'head', d.x)
+    if (d.type === 'setChromeKitGap') setChromeKitGap(d.bar || 'head', d.gap)
     if (d.type === 'reorderChromeKit') reorderChromeKit(d.kind, d.bar, d.dir)
     if (d.type === 'bringExistingChromeToCenter') bringExistingChromeToCenter(d.kind)
     if (d.type === 'setInfoPageContent') setInfoPageContent(d)

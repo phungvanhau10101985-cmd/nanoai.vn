@@ -28,8 +28,10 @@ export type PartnerSiteShopCopy = {
   categorySortPriceAsc: string
   categorySortPriceDesc: string
   categoryFilterSize: string
+  categoryFilterStyle: string
   categoryFilterColor: string
   categoryFilterAllSizes: string
+  categoryFilterAllStyles: string
   categoryFilterAllColors: string
   categoryMegaHint: string
   khoSaleNavLabel: string
@@ -135,6 +137,8 @@ export type PartnerSiteShopCopy = {
   searchResults: string
   searchEmpty: string
   searchError: string
+  searchHistoryAria: string
+  searchHistoryRemove: string
   relatedProducts: string
   relatedSeeAll: string
   relatedEmpty: string
@@ -470,8 +474,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categorySortPriceAsc: 'Giá tăng dần',
     categorySortPriceDesc: 'Giá giảm dần',
     categoryFilterSize: 'Size',
+    categoryFilterStyle: 'Kiểu',
     categoryFilterColor: 'Màu',
     categoryFilterAllSizes: 'Tất cả size',
+    categoryFilterAllStyles: 'Tất cả kiểu',
     categoryFilterAllColors: 'Tất cả màu',
     categoryMegaHint: 'Di chuột vào danh mục để xem cấp 2, cấp 3.',
     khoSaleNavLabel: 'Sale kho',
@@ -569,6 +575,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchResults: 'Kết quả tìm kiếm',
     searchEmpty: 'Không tìm thấy sản phẩm phù hợp.',
     searchError: 'Không tìm được. Thử lại.',
+    searchHistoryAria: 'Lịch sử tìm kiếm',
+    searchHistoryRemove: 'Xóa',
     relatedProducts: 'Sản phẩm tương tự',
     relatedSeeAll: 'Xem tất cả',
     relatedEmpty: 'Không có sản phẩm khác cùng danh mục.',
@@ -893,8 +901,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categorySortPriceAsc: 'Price: low to high',
     categorySortPriceDesc: 'Price: high to low',
     categoryFilterSize: 'Size',
+    categoryFilterStyle: 'Style',
     categoryFilterColor: 'Color',
     categoryFilterAllSizes: 'All sizes',
+    categoryFilterAllStyles: 'All styles',
     categoryFilterAllColors: 'All colors',
     categoryMegaHint: 'Hover a category to see level 2 and 3.',
     khoSaleNavLabel: 'Warehouse sale',
@@ -992,6 +1002,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchResults: 'Search results',
     searchEmpty: 'No matching products.',
     searchError: 'Search failed. Try again.',
+    searchHistoryAria: 'Search history',
+    searchHistoryRemove: 'Remove',
     relatedProducts: 'Similar products',
     relatedSeeAll: 'See all',
     relatedEmpty: 'No other products in this category.',
@@ -1316,8 +1328,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categorySortPriceAsc: '价格从低到高',
     categorySortPriceDesc: '价格从高到低',
     categoryFilterSize: '尺码',
+    categoryFilterStyle: '款式',
     categoryFilterColor: '颜色',
     categoryFilterAllSizes: '全部尺码',
+    categoryFilterAllStyles: '全部款式',
     categoryFilterAllColors: '全部颜色',
     categoryMegaHint: '将鼠标移到分类上可查看二级、三级。',
     khoSaleNavLabel: '仓库特卖',
@@ -1415,6 +1429,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchResults: '搜索结果',
     searchEmpty: '未找到匹配商品。',
     searchError: '搜索失败，请重试。',
+    searchHistoryAria: '搜索历史',
+    searchHistoryRemove: '删除',
     relatedProducts: '相似商品',
     relatedSeeAll: '查看全部',
     relatedEmpty: '该分类暂无其他商品。',
@@ -1739,8 +1755,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categorySortPriceAsc: '価格が安い順',
     categorySortPriceDesc: '価格が高い順',
     categoryFilterSize: 'サイズ',
+    categoryFilterStyle: 'タイプ',
     categoryFilterColor: 'カラー',
     categoryFilterAllSizes: 'すべてのサイズ',
+    categoryFilterAllStyles: 'すべてのタイプ',
     categoryFilterAllColors: 'すべてのカラー',
     categoryMegaHint: 'カテゴリにマウスを置くと2階層・3階層が表示されます。',
     khoSaleNavLabel: '倉庫セール',
@@ -1838,6 +1856,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchResults: '検索結果',
     searchEmpty: '該当する商品がありません。',
     searchError: '検索に失敗しました。',
+    searchHistoryAria: '検索履歴',
+    searchHistoryRemove: '削除',
     relatedProducts: '類似商品',
     relatedSeeAll: 'すべて見る',
     relatedEmpty: 'このカテゴリに他の商品はありません。',
@@ -2162,8 +2182,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categorySortPriceAsc: '가격 낮은순',
     categorySortPriceDesc: '가격 높은순',
     categoryFilterSize: '사이즈',
+    categoryFilterStyle: '스타일',
     categoryFilterColor: '색상',
     categoryFilterAllSizes: '모든 사이즈',
+    categoryFilterAllStyles: '모든 스타일',
     categoryFilterAllColors: '모든 색상',
     categoryMegaHint: '카테고리에 마우스를 올리면 2·3단계를 봅니다.',
     khoSaleNavLabel: '창고 세일',
@@ -2261,6 +2283,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchResults: '검색 결과',
     searchEmpty: '일치하는 상품이 없습니다.',
     searchError: '검색에 실패했습니다.',
+    searchHistoryAria: '검색 기록',
+    searchHistoryRemove: '삭제',
     relatedProducts: '유사 상품',
     relatedSeeAll: '전체 보기',
     relatedEmpty: '이 카테고리에 다른 상품이 없습니다.',

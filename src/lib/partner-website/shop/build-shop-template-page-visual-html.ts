@@ -253,6 +253,9 @@ function buildListingMain(
     <label ${pwElAttr(PW_EL.facet)}>${escapeHtml(shop.categoryFilterSize)}
       <select><option>${escapeHtml(shop.categoryFilterAllSizes)}</option></select>
     </label>
+    <label ${pwElAttr(PW_EL.facet)}>${escapeHtml(shop.categoryFilterStyle)}
+      <select><option>${escapeHtml(shop.categoryFilterAllStyles)}</option></select>
+    </label>
     <label ${pwElAttr(PW_EL.facet)}>${escapeHtml(shop.categoryFilterColor)}
       <select><option>${escapeHtml(shop.categoryFilterAllColors)}</option></select>
     </label>

@@ -64,6 +64,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   const maxPrice = maxPriceRaw != null && maxPriceRaw !== '' ? Number(maxPriceRaw) : undefined
   const size = String(sp.get('size') ?? '').trim()
   const color = String(sp.get('color') ?? '').trim()
+  const styleTag = String(sp.get('style_tag') ?? sp.get('styleTag') ?? '').trim()
   const ids = String(sp.get('ids') ?? '')
     .split(',')
     .map((x) => x.trim())
@@ -118,6 +119,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
           maxPrice: Number.isFinite(maxPrice) ? maxPrice : undefined,
           size: size || undefined,
           color: color || undefined,
+          styleTag: styleTag || undefined,
         })
       : await fetchPartnerInventoryShopPageFromPg(shop.partnerId, {
           offset,
@@ -161,7 +163,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     offset,
     limit,
     facetDefs,
-    facets: facets ?? { sizes: [], colors: [] },
+    facets: facets ?? { sizes: [], colors: [], styleTags: [] },
     filters: {
       q: q || null,
       collection: collection || null,
@@ -177,6 +179,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
       maxPrice: Number.isFinite(maxPrice) ? maxPrice : null,
       size: size || null,
       color: color || null,
+      styleTag: styleTag || null,
     },
   })
 }

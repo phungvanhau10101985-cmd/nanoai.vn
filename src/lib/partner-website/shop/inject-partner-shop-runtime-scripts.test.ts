@@ -13,6 +13,7 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /data-pw-search-bootstrap/)
   assert.match(out, /\/api\/site\/188-com-vn-rl56\/search\/text/)
   assert.match(out, /\/api\/site\/188-com-vn-rl56\/search\/image/)
+  assert.match(out, /\/api\/site\/188-com-vn-rl56\/search\/history/)
   assert.match(out, /data-pw-shop-actions-bootstrap/)
   assert.match(out, /data-pw-buy/)
   assert.match(out, /data-pw-catalog-bootstrap/)
@@ -28,7 +29,7 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /data-pw-chrome-toggle-bootstrap/)
   assert.match(out, /isPlacedCatBtn/)
   assert.match(out, /transferCatBox/)
-  assert.match(out, /var props=\['position','left','top','right','bottom','z-index'\]/)
+  assert.match(out, /var props=\['position','inset','left','top','right','bottom','z-index'\]/)
   assert.doesNotMatch(out, /var props=\[[^\]]*'transform'[^\]]*\]/)
   assert.match(out, /bindCatPanelHover/)
   assert.match(out, /Math\.min\(720/)
@@ -123,6 +124,20 @@ test('search bootstrap opens an image-search popover like 188 (paste / drop / ch
   assert.match(s, /data-pw-image-drop/)
   assert.match(s, /IMAGE_API/)
   assert.match(s, /pwShopLiveUiOff/)
+})
+
+test('search bootstrap paints history chips in the nav row and keeps guest queries in localStorage', () => {
+  const s = buildPartnerSiteSearchBootstrapScript({ siteSlug: '188-shop', locale: 'vi' })
+  assert.match(s, /HISTORY_API/)
+  assert.match(s, /\/api\/site\/188-shop\/search\/history/)
+  assert.match(s, /pw-search-history:188-shop/)
+  assert.match(s, /data-pw-search-history/)
+  assert.match(s, /\.pw-nav-main,\.pw-shop-nav-row/)
+  assert.match(s, /historyLoggedIn/)
+  assert.match(s, /readLocalHistory/)
+  assert.match(s, /persistHistory/)
+  assert.match(s, /pw-search-history/)
+  assert.match(s, /Lịch sử tìm kiếm/)
 })
 
 test('chrome toggle bootstrap hydrates the category panel from the public API', () => {

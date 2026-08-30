@@ -426,7 +426,10 @@ function rewriteGalleryInner(inner: string, product: LivePdpBindProduct): string
       if (!url) {
         let nextAttrs = setAttr(attrs, 'hidden', '')
         if (!/\bstyle=/.test(nextAttrs)) nextAttrs += ' style="display:none"'
-        return `<${tag}${nextAttrs}>${thumbInner}</${tag}>`
+        const nextInner = thumbInner.replace(/<img\b([^>]*)>/i, (_img, imgAttrs: string) => {
+          return `<img${setAttr(setAttr(imgAttrs, 'src', ''), 'alt', '')}>`
+        })
+        return `<${tag}${nextAttrs}>${nextInner}</${tag}>`
       }
       const nextInner = thumbInner.replace(/<img\b([^>]*)>/i, (_img, imgAttrs: string) => {
         return `<img${setAttr(setAttr(imgAttrs, 'src', url), 'alt', name)}>`
@@ -640,6 +643,20 @@ function replaceAttrBlocks(
   value: string,
   rewrite: (inner: string, open: string) => string
 ): string {
+  return mutateAttrBlocks(html, attr, value, (inner, open, closeTok) => `${rewrite(inner, open)}${closeTok}`)
+}
+
+/** Drop leftover live-media slots from the shared PDP shell so the next product cannot inherit demo photos. */
+function dropAttrBlocks(html: string, attr: string, value: string): string {
+  return mutateAttrBlocks(html, attr, value, () => '')
+}
+
+function mutateAttrBlocks(
+  html: string,
+  attr: string,
+  value: string,
+  next: (inner: string, open: string, closeTok: string) => string
+): string {
   const masked = maskHtmlForTagScan(html)
   const attrRe = attr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const valueRe = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -655,12 +672,12 @@ function replaceAttrBlocks(
     const openEnd = start + match[0].length
     const close = closingTagIndex(masked, openEnd, tag)
     if (close < 0) continue
-    const closeTok = html.slice(close).match(new RegExp(`^</${tag}\\s*>`, 'i'))
-    const end = close + (closeTok?.[0].length ?? `</${tag}>`.length)
+    const closeTok = html.slice(close).match(new RegExp(`^</${tag}\\s*>`, 'i'))?.[0] ?? `</${tag}>`
+    const end = close + closeTok.length
     openRe.lastIndex = end
     const open = html.slice(start, openEnd)
     const inner = html.slice(openEnd, close)
-    chunks.push({ start, end, next: `${rewrite(inner, open)}${html.slice(close, end)}` })
+    chunks.push({ start, end, next: next(inner, open, closeTok) })
   }
   if (!chunks.length) return html
   let out = ''
@@ -1055,11 +1072,9 @@ function ensureMissingPdpSlots(
   }
   if (/class=["'][^"']*\bpw-shop-product-detail\b/.test(out)) {
     out = rewriteClassBlocks(out, 'pw-shop-product-detail', (inner, open) => {
-      const keep =
-        inner.match(
-          /<div\b[^>]*data-pw-pdp-slot=["'](?:material|real-use|video)["'][\s\S]*?<\/div>/gi
-        ) || []
-      return `${open}${buildPdpDetailTabsHtml(product, locale)}${keep.join('')}`
+      const keepVideo =
+        inner.match(/<div\b[^>]*data-pw-pdp-slot=["']video["'][\s\S]*?<\/div>/gi) || []
+      return `${open}${buildPdpDetailTabsHtml(product, locale)}${keepVideo.join('')}`
     })
   } else if (!hasSlot(out, 'tabs')) {
     out = insertBeforeMainClose(
@@ -1067,6 +1082,10 @@ function ensureMissingPdpSlots(
       `<section class="pw-shop-product-detail" data-pw-region="${PW_REGION.pdpInfo}" data-pw-bg-role="pdp-info">${buildPdpDetailTabsHtml(product, locale)}</section>`
     )
   }
+  // Shared shell bakes demo dress photos into these slots. Always rebuild from this product.
+  out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'material')
+  out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'real-use')
+  out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'size-guide')
   const sizeGuide = String(product.sizeGuideImageUrl || '').trim()
   if (sizeGuide && !hasSlot(out, 'size-guide')) {
     const block = `<div data-pw-pdp-slot="size-guide" style="margin-top:8px"><button type="button" class="pw-shop-btn pw-shop-btn-outline" style="font-size:13px">${escText(t.sizeGuideButton)}</button><img src="${escAttr(sizeGuide)}" alt="${escAttr(t.sizeGuideModalTitle)}" style="width:100%;max-width:360px;height:auto;margin-top:8px;border-radius:8px;border:1px solid var(--pw-border)" /></div>`

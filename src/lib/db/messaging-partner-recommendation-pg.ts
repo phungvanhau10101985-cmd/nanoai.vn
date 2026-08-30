@@ -6,6 +6,7 @@ import {
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { fetchPartnerCategoriesFlatFromPg } from '@/lib/db/messaging-partner-categories-pg'
 import { inferApparelGenderFromName } from '@/lib/partner-website/shop/partner-site-home-recommendation-mix'
+import { mergeSearchQueries } from '@/lib/partner-website/shop/partner-site-search-history'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -306,11 +307,12 @@ export async function mergePartnerVisitorPersonalizationFromPg(input: {
     const from = await pgQueryOne<{
       recently_viewed_ids: unknown
       favorite_ids: unknown
+      search_queries: unknown
       utm_context: unknown
       profile_gender: string | null
       profile_birth_year: number | null
     }>(
-      `select recently_viewed_ids, favorite_ids, utm_context, profile_gender, profile_birth_year
+      `select recently_viewed_ids, favorite_ids, search_queries, utm_context, profile_gender, profile_birth_year
        from public.messaging_partner_visitor_personalization
        where partner_id = $1::uuid and account_key = $2
        limit 1`,
@@ -320,11 +322,12 @@ export async function mergePartnerVisitorPersonalizationFromPg(input: {
     const to = await pgQueryOne<{
       recently_viewed_ids: unknown
       favorite_ids: unknown
+      search_queries: unknown
       utm_context: unknown
       profile_gender: string | null
       profile_birth_year: number | null
     }>(
-      `select recently_viewed_ids, favorite_ids, utm_context, profile_gender, profile_birth_year
+      `select recently_viewed_ids, favorite_ids, search_queries, utm_context, profile_gender, profile_birth_year
        from public.messaging_partner_visitor_personalization
        where partner_id = $1::uuid and account_key = $2
        limit 1`,
@@ -346,6 +349,7 @@ export async function mergePartnerVisitorPersonalizationFromPg(input: {
     }
     const recently = mergeIds(from.recently_viewed_ids, to?.recently_viewed_ids, 40)
     const favorites = mergeIds(from.favorite_ids, to?.favorite_ids, 48)
+    const searches = mergeSearchQueries(from.search_queries, to?.search_queries)
     const utm =
       to?.utm_context && typeof to.utm_context === 'object' && to.utm_context
         ? to.utm_context
@@ -354,16 +358,26 @@ export async function mergePartnerVisitorPersonalizationFromPg(input: {
     const birthYear = to?.profile_birth_year ?? from.profile_birth_year ?? null
     await getPgPool().query(
       `insert into public.messaging_partner_visitor_personalization
-         (partner_id, account_key, recently_viewed_ids, favorite_ids, utm_context, profile_gender, profile_birth_year, updated_at)
-       values ($1::uuid, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6, $7, now())
+         (partner_id, account_key, recently_viewed_ids, favorite_ids, search_queries, utm_context, profile_gender, profile_birth_year, updated_at)
+       values ($1::uuid, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7, $8, now())
        on conflict (partner_id, account_key) do update set
          recently_viewed_ids = excluded.recently_viewed_ids,
          favorite_ids = excluded.favorite_ids,
+         search_queries = excluded.search_queries,
          utm_context = excluded.utm_context,
          profile_gender = coalesce(excluded.profile_gender, messaging_partner_visitor_personalization.profile_gender),
          profile_birth_year = coalesce(excluded.profile_birth_year, messaging_partner_visitor_personalization.profile_birth_year),
          updated_at = now()`,
-      [input.partnerId, toKey, JSON.stringify(recently), JSON.stringify(favorites), JSON.stringify(utm), gender, birthYear]
+      [
+        input.partnerId,
+        toKey,
+        JSON.stringify(recently),
+        JSON.stringify(favorites),
+        JSON.stringify(searches),
+        JSON.stringify(utm),
+        gender,
+        birthYear,
+      ]
     )
     return true
   } catch (e) {

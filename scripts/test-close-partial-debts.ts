@@ -27,7 +27,7 @@ async function main() {
 
   assert.deepEqual(
     partnerShopFacetDefsForIndustry('fashion').map((f) => f.key),
-    ['size', 'color']
+    ['size', 'style', 'color']
   )
   assert.equal(partnerShopFacetDefsForIndustry('hotel').length, 0)
   console.log('OK W4.11 facet defs')

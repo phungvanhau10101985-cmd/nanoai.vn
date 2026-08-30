@@ -37,11 +37,24 @@ export const PW_KIT_X_ATTR = 'data-pw-kit-x'
 /** Âm đủ để kéo icon sát ô tìm neo giữa (header ~1200, ô tìm 380). */
 export const PW_KIT_X_MIN = -360
 export const PW_KIT_X_MAX = 80
+/** Khoảng cách giữa các icon cụm phải — flex gap trên host, không kéo từng nút. */
+export const PW_KIT_GAP_ATTR = 'data-pw-kit-gap'
+export const PW_KIT_GAP_MIN = 0
+export const PW_KIT_GAP_MAX = 48
+/** Desktop/Laptop hiện đang `gap:2px`. Mobile/Tablet compact đang `gap:0`. */
+export const PW_KIT_GAP_DEFAULT = 2
+export const PW_KIT_GAP_DEFAULT_COMPACT = 0
 
 export function clampChromeKitShift(raw: unknown): number {
   const n = Math.round(Number(raw))
   if (!Number.isFinite(n)) return 0
   return Math.max(PW_KIT_X_MIN, Math.min(PW_KIT_X_MAX, n))
+}
+
+export function clampChromeKitGap(raw: unknown): number {
+  const n = Math.round(Number(raw))
+  if (!Number.isFinite(n)) return PW_KIT_GAP_DEFAULT
+  return Math.max(PW_KIT_GAP_MIN, Math.min(PW_KIT_GAP_MAX, n))
 }
 
 export type ChromeKitDockShow = 'shop' | 'pdp' | 'both'
@@ -110,6 +123,11 @@ const FLOAT_KIND_SET = new Set(CHROME_KIT_FLOAT_ITEMS.map((item) => item.kind))
 export function chromeKitHeadGroup(device?: VisualDeviceVariant | null): ChromeKitHeadGroup {
   if (device === 'laptop' || device === 'tablet' || device === 'mobile') return device
   return 'desktop'
+}
+
+export function chromeKitGapDefaultForDevice(device?: VisualDeviceVariant | null): number {
+  const group = chromeKitHeadGroup(device)
+  return group === 'mobile' || group === 'tablet' ? PW_KIT_GAP_DEFAULT_COMPACT : PW_KIT_GAP_DEFAULT
 }
 
 function chromeKitHeadStyle(group: ChromeKitHeadGroup): 'icon-label-below' | 'icon' {
@@ -282,7 +300,7 @@ export function buildChromeKitFloatHostHtml(input: {
 }
 
 export const PARTNER_SHOP_CHROME_KIT_CSS = `
-.pw-header-actions[${PW_CHROME_KIT_ATTR}="actions"],.pw-shop-header-actions[${PW_CHROME_KIT_ATTR}="actions"]{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;margin-right:0!important;transform:translateX(var(--pw-kit-x, 0px))!important}
+.pw-header-actions[${PW_CHROME_KIT_ATTR}="actions"],.pw-shop-header-actions[${PW_CHROME_KIT_ATTR}="actions"]{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;margin-right:0!important;gap:var(--pw-kit-gap, 2px)!important;transform:translateX(var(--pw-kit-x, 0px))!important}
 .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"],.pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{flex-wrap:nowrap!important;align-items:stretch}
 body:not([data-pw-page="product"]) .pw-bottom-nav [${PW_DOCK_SHOW_ATTR}="pdp"],body:not([data-pw-page="product"]) .pw-shop-bottom-nav [${PW_DOCK_SHOW_ATTR}="pdp"]{display:none!important}
 body[data-pw-page="product"] .pw-bottom-nav [${PW_DOCK_SHOW_ATTR}="shop"],body[data-pw-page="product"] .pw-shop-bottom-nav [${PW_DOCK_SHOW_ATTR}="shop"]{display:none!important}
@@ -502,6 +520,25 @@ function stampFloatKitFaceAndSize(inner: string, size: number, migrateCircle: bo
   })
 }
 
+function writeHostCssVar(
+  openAttrs: string,
+  attrName: string,
+  cssVar: string,
+  n: number
+): string {
+  const styleMatch = openAttrs.match(/\sstyle=(["'])([\s\S]*?)\1/i)
+  const quote = styleMatch?.[1] || '"'
+  let css = String(styleMatch?.[2] || '')
+    .replace(new RegExp(`(?:^|;)\\s*${cssVar}\\s*:[^;]*`, 'gi'), '')
+    .replace(/^;+|;+$/g, '')
+    .trim()
+  let next = openAttrs.replace(new RegExp(`\\s${attrName}=(["'])[^"']*\\1`, 'i'), '')
+  next += ` ${attrName}="${n}"`
+  const nextCss = css ? `${css};${cssVar}:${n}px` : `${cssVar}:${n}px`
+  if (styleMatch) return next.replace(/\sstyle=(["'])([\s\S]*?)\1/i, ` style=${quote}${nextCss}${quote}`)
+  return `${next} style=${quote}${nextCss}${quote}`
+}
+
 /** Gắn `--pw-kit-x` từ `data-pw-kit-x` để live đọc CSS var, không cần JS. */
 function withHostKitShiftStyle(openAttrs: string): string {
   const fromAttr = openAttrs.match(new RegExp(`\\b${PW_KIT_X_ATTR}=(["'])([^"']*)\\1`, 'i'))?.[2]
@@ -526,6 +563,14 @@ function withHostKitShiftStyle(openAttrs: string): string {
   const nextCss = css ? `${css};--pw-kit-x:${n}px` : `--pw-kit-x:${n}px`
   if (styleMatch) return next.replace(/\sstyle=(["'])([\s\S]*?)\1/i, ` style=${quote}${nextCss}${quote}`)
   return `${next} style=${quote}${nextCss}${quote}`
+}
+
+/** Gắn `--pw-kit-gap` từ `data-pw-kit-gap` — 0 vẫn ghi (khác lệch ngang). Không invent nếu HTML chưa có. */
+function withHostKitGapStyle(openAttrs: string): string {
+  const fromAttr = openAttrs.match(new RegExp(`\\b${PW_KIT_GAP_ATTR}=(["'])([^"']*)\\1`, 'i'))?.[2]
+  const fromCss = openAttrs.match(/--pw-kit-gap\s*:\s*(-?\d+(?:\.\d+)?)px/i)?.[1]
+  if (fromAttr == null && fromCss == null) return openAttrs
+  return writeHostCssVar(openAttrs, PW_KIT_GAP_ATTR, '--pw-kit-gap', clampChromeKitGap(fromAttr ?? fromCss))
 }
 
 /**
@@ -568,7 +613,7 @@ export function ensurePartnerSiteChromeKitInHtml(
         .join('\n      ')
       if (extra) nextInner = `${nextInner.trim()}\n      ${extra}\n    `
     }
-    return `<div${withHostKitShiftStyle(withHostKitAttr(attrs, 'actions'))}>${nextInner}</div>`
+    return `<div${withHostKitGapStyle(withHostKitShiftStyle(withHostKitAttr(attrs, 'actions')))}>${nextInner}</div>`
   })
 
   const kitDockAlready = new RegExp(`${PW_CHROME_KIT_ATTR}=["']dock["']`, 'i').test(out)

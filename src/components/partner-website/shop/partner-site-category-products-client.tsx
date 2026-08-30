@@ -33,6 +33,7 @@ type Props = {
   initialFacets?: {
     sizes: Array<{ value: string; count: number }>
     colors: Array<{ value: string; count: number }>
+    styleTags?: Array<{ value: string; count: number }>
   }
 }
 
@@ -68,6 +69,7 @@ export function PartnerSiteCategoryProductsClient({
   const [maxLocal, setMaxLocal] = useState(listing.maxPrice != null ? String(listing.maxPrice) : '')
   const [facetSizes, setFacetSizes] = useState(initialFacets?.sizes ?? [])
   const [facetColors, setFacetColors] = useState(initialFacets?.colors ?? [])
+  const [facetStyleTags, setFacetStyleTags] = useState(initialFacets?.styleTags ?? [])
 
   useEffect(() => {
     setMinLocal(listing.minPrice != null ? String(listing.minPrice) : '')
@@ -98,6 +100,7 @@ export function PartnerSiteCategoryProductsClient({
       listing.sort === 'newest' &&
       !listing.size &&
       !listing.color &&
+      !listing.styleTag &&
       listing.minPrice == null &&
       listing.maxPrice == null,
     [listing]
@@ -114,16 +117,18 @@ export function PartnerSiteCategoryProductsClient({
     if (listing.maxPrice != null) params.set('max_price', String(listing.maxPrice))
     if (listing.size) params.set('size', listing.size)
     if (listing.color) params.set('color', listing.color)
+    if (listing.styleTag) params.set('style_tag', listing.styleTag)
     if (listing.sort === 'random' && listing.randomSeed) params.set('r', listing.randomSeed)
     let cancelled = false
     if (skippedRef.current) {
       skippedRef.current = false
       void fetch(`${partnerSiteProductsApiPath(siteSlug)}?${params.toString()}`, { cache: 'no-store' })
         .then((res) => res.json())
-        .then((json: { facets?: { sizes?: Array<{ value: string; count: number }>; colors?: Array<{ value: string; count: number }> } }) => {
+        .then((json: { facets?: { sizes?: Array<{ value: string; count: number }>; colors?: Array<{ value: string; count: number }>; styleTags?: Array<{ value: string; count: number }> } }) => {
           if (!cancelled && json.facets) {
             setFacetSizes(json.facets.sizes ?? [])
             setFacetColors(json.facets.colors ?? [])
+            setFacetStyleTags(json.facets.styleTags ?? [])
           }
         })
         .catch(() => {})
@@ -137,7 +142,7 @@ export function PartnerSiteCategoryProductsClient({
       .then((json: {
         products?: PartnerSiteShopProduct[]
         total?: number
-        facets?: { sizes?: Array<{ value: string; count: number }>; colors?: Array<{ value: string; count: number }> }
+        facets?: { sizes?: Array<{ value: string; count: number }>; colors?: Array<{ value: string; count: number }>; styleTags?: Array<{ value: string; count: number }> }
       }) => {
         if (cancelled) return
         setProducts(json.products ?? [])
@@ -145,6 +150,7 @@ export function PartnerSiteCategoryProductsClient({
         if (json.facets) {
           setFacetSizes(json.facets.sizes ?? [])
           setFacetColors(json.facets.colors ?? [])
+          setFacetStyleTags(json.facets.styleTags ?? [])
         }
       })
       .finally(() => {
@@ -153,7 +159,7 @@ export function PartnerSiteCategoryProductsClient({
     return () => {
       cancelled = true
     }
-  }, [categoryId, listing.color, listing.maxPrice, listing.minPrice, listing.page, listing.randomSeed, listing.size, listing.sort, siteSlug])
+  }, [categoryId, listing.color, listing.maxPrice, listing.minPrice, listing.page, listing.randomSeed, listing.size, listing.sort, listing.styleTag, siteSlug])
 
   const applyPrice = useCallback(() => {
     const min = minLocal.trim() ? Math.max(0, Number(minLocal)) : null
@@ -173,7 +179,8 @@ export function PartnerSiteCategoryProductsClient({
     products.length > 0 ||
     Boolean(priceRange && priceRange.max > priceRange.min) ||
     facetSizes.length > 0 ||
-    facetColors.length > 0
+    facetColors.length > 0 ||
+    facetStyleTags.length > 0
   const pageCount = partnerCategoryListingPageCount(total)
   const pages = useMemo(() => {
     const out: number[] = []
@@ -204,6 +211,27 @@ export function PartnerSiteCategoryProductsClient({
                 {facetSizes.map((f) => (
                   <option key={f.value} value={f.value}>
                     {f.value} ({f.count})
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {facetStyleTags.length > 0 || listing.styleTag ? (
+            <label>
+              {t.categoryFilterStyle}
+              <select
+                value={listing.styleTag}
+                data-pw-el={PW_EL.facet}
+                aria-label={t.categoryFilterStyle}
+                onChange={(e) => pushListing({ styleTag: e.target.value })}
+              >
+                <option value="">{t.categoryFilterAllStyles}</option>
+                {listing.styleTag && !facetStyleTags.some((f) => f.value === listing.styleTag) ? (
+                  <option value={listing.styleTag}>{listing.styleTag}</option>
+                ) : null}
+                {facetStyleTags.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.value}
                   </option>
                 ))}
               </select>

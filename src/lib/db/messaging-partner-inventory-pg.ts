@@ -114,7 +114,9 @@ function isMissingCatalog188ColumnError(e: unknown): boolean {
       msg.includes('likes_count') ||
       msg.includes('catalog_slug') ||
       msg.includes('product_info_json') ||
-      msg.includes('features_json'))
+      msg.includes('features_json') ||
+      msg.includes('mpi.style') ||
+      msg.includes('.style'))
   )
 }
 
@@ -970,6 +972,8 @@ export type PartnerCategoryInventoryQuery = {
   /** W4.11 fashion facets — match option JSON stored in description / stock_note. */
   size?: string
   color?: string
+  /** Tag kiểu chuẩn 188 (`style_tag`) — ILIKE alias trên tên / style / catalog. */
+  styleTag?: string
   /** L3 — lọc chất liệu (material_note), giống 188 category ladipage. */
   material?: string
 }
@@ -1019,6 +1023,7 @@ export async function fetchPartnerInventoryPageByCategoryFromPg(
       maxPrice: query.maxPrice ?? null,
       size: query.size ?? '',
       color: query.color ?? '',
+      styleTag: query.styleTag ?? '',
       material: query.material ?? '',
       descendants: query.includeDescendants !== false,
       seed: query.sort === 'random' ? query.randomSeed ?? '' : '',
@@ -1086,6 +1091,33 @@ async function fetchPartnerInventoryPageByCategoryFromPgUncached(
     params.push(material.toLowerCase())
     conditions.push(`lower(trim(coalesce(mpi.material_note, ''))) = $${params.length}`)
   }
+  const styleTag = String(query.styleTag ?? '').trim().slice(0, 40)
+  const { styleTagFilterAliases } = await import('@/lib/partner-website/shop/partner-shop-style-tags')
+  const styleAliases = styleTagFilterAliases(styleTag).map((a) => `%${a.toLowerCase()}%`).filter(Boolean)
+  const applyStyleHaystack = (includeCatalog: boolean) => {
+    if (!styleAliases.length) return
+    params.push(styleAliases)
+    const haystack = includeCatalog
+      ? `lower(
+          coalesce(mpi.name, '') || ' ' ||
+          coalesce(mpi.description, '') || ' ' ||
+          coalesce(mpi.material_note, '') || ' ' ||
+          coalesce(mpi.style, '') || ' ' ||
+          coalesce(mpi.catalog_json::text, '') || ' ' ||
+          coalesce(mpi.product_info_json::text, '') || ' ' ||
+          coalesce(mpi.features_json::text, '') || ' ' ||
+          coalesce(mpi.category_l1, '') || ' ' ||
+          coalesce(mpi.category_l2, '') || ' ' ||
+          coalesce(mpi.category_l3, '')
+        )`
+      : `lower(
+          coalesce(mpi.name, '') || ' ' ||
+          coalesce(mpi.description, '') || ' ' ||
+          coalesce(mpi.material_note, '')
+        )`
+    conditions.push(`${haystack} like any($${params.length}::text[])`)
+  }
+  applyStyleHaystack(true)
   const where = conditions.join(' and ')
 
   try {
@@ -1104,6 +1136,31 @@ async function fetchPartnerInventoryPageByCategoryFromPgUncached(
     return { count: countRow?.c ?? 0, rows: rows.map(mapPgInventoryRow) }
   } catch (e) {
     if (isMissingInventoryTableError(e)) return { rows: [], count: 0 }
+    if (styleAliases.length && isMissingCatalog188ColumnError(e)) {
+      conditions.pop()
+      params.pop()
+      applyStyleHaystack(false)
+      const fallbackWhere = conditions.join(' and ')
+      try {
+        const countRow = await pgQueryOne<{ c: number }>(
+          `select count(*)::int as c from public.messaging_partner_inventory mpi where ${fallbackWhere}`,
+          params
+        )
+        const limitIdx = params.length + 1
+        const offsetIdx = params.length + 2
+        const rows = await runInventoryShopSelectWithFallback(
+          `where ${fallbackWhere}
+           order by ${orderBy}
+           limit $${limitIdx} offset $${offsetIdx}`,
+          [...params, lim, off]
+        )
+        return { count: countRow?.c ?? 0, rows: rows.map(mapPgInventoryRow) }
+      } catch (e2) {
+        if (isMissingInventoryTableError(e2)) return { rows: [], count: 0 }
+        console.warn('[fetchPartnerInventoryPageByCategoryFromPg]', e2)
+        return null
+      }
+    }
     console.warn('[fetchPartnerInventoryPageByCategoryFromPg]', e)
     return null
   }
@@ -1144,27 +1201,70 @@ export async function listPartnerCategoryMaterialsFromPg(
   }
 }
 
-/** W4.11 — facet value counts for a category (fashion size/color from option JSON). */
+export type PartnerCategoryFacetCounts = {
+  sizes: Array<{ value: string; count: number }>
+  colors: Array<{ value: string; count: number }>
+  styleTags: Array<{ value: string; count: number }>
+}
+
+async function fetchPartnerCategoryL1NameFromPg(partnerId: string, categoryId: string): Promise<string> {
+  try {
+    const row = await pgQueryOne<{ name: string; path: string; depth: number }>(
+      `select name, path, depth from public.messaging_partner_categories
+       where partner_id = $1::uuid and id = $2::uuid`,
+      [partnerId, categoryId]
+    )
+    if (!row) return ''
+    if ((row.depth ?? 1) <= 1) return String(row.name ?? '').trim()
+    const l1Path = String(row.path ?? '').split('/').filter(Boolean)[0] || ''
+    if (!l1Path) return String(row.name ?? '').trim()
+    const l1 = await pgQueryOne<{ name: string }>(
+      `select name from public.messaging_partner_categories
+       where partner_id = $1::uuid and path = $2
+       limit 1`,
+      [partnerId, l1Path]
+    )
+    return String(l1?.name ?? row.name ?? '').trim()
+  } catch {
+    return ''
+  }
+}
+
+/** W4.11 — facet value counts for a category (fashion size/color + style_tag 188). */
 export async function fetchPartnerCategoryFacetCountsFromPg(
   partnerId: string,
   categoryId: string
-): Promise<{ sizes: Array<{ value: string; count: number }>; colors: Array<{ value: string; count: number }> } | null> {
+): Promise<PartnerCategoryFacetCounts | null> {
   if (!isPgConfigured()) return null
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId)) {
-    return { sizes: [], colors: [] }
+    return { sizes: [], colors: [], styleTags: [] }
   }
   try {
     type FacetRow = {
+      name?: string
       description: string
       stock_note: string
+      material_note?: string
+      style?: string | null
       sizes_json?: unknown
       colors_json?: unknown
+      catalog_json?: unknown
+      product_info_json?: unknown
+      features_json?: unknown
+      category_l1?: string | null
+      category_l2?: string | null
+      category_l3?: string | null
     }
     let rows: FacetRow[]
     try {
       rows = await pgQuery<FacetRow>(
-        `select coalesce(mpi.description, '') as description, coalesce(mpi.stock_note, '') as stock_note,
-                mpi.sizes_json, mpi.colors_json
+        `select coalesce(mpi.name, '') as name,
+                coalesce(mpi.description, '') as description,
+                coalesce(mpi.stock_note, '') as stock_note,
+                coalesce(mpi.material_note, '') as material_note,
+                mpi.style, mpi.sizes_json, mpi.colors_json, mpi.catalog_json,
+                mpi.product_info_json, mpi.features_json,
+                mpi.category_l1, mpi.category_l2, mpi.category_l3
          from public.messaging_partner_inventory mpi
          where mpi.partner_id = $1::uuid
            and coalesce(mpi.is_active, true) = true
@@ -1173,9 +1273,12 @@ export async function fetchPartnerCategoryFacetCountsFromPg(
         [partnerId, categoryId]
       )
     } catch (e) {
-      if (!isMissingProductStudioColumnError(e)) throw e
+      if (!isMissingProductStudioColumnError(e) && !isMissingCatalog188ColumnError(e)) throw e
       rows = await pgQuery<FacetRow>(
-        `select coalesce(mpi.description, '') as description, coalesce(mpi.stock_note, '') as stock_note
+        `select coalesce(mpi.name, '') as name,
+                coalesce(mpi.description, '') as description,
+                coalesce(mpi.stock_note, '') as stock_note,
+                coalesce(mpi.material_note, '') as material_note
          from public.messaging_partner_inventory mpi
          where mpi.partner_id = $1::uuid
            and coalesce(mpi.is_active, true) = true
@@ -1188,8 +1291,16 @@ export async function fetchPartnerCategoryFacetCountsFromPg(
       parseInventorySizesForFacet,
       parseInventoryColorsForFacet,
     } = await import('@/lib/partner-website/shop/partner-shop-industry-facets')
+    const {
+      allowedStyleTagsForListingL1,
+      styleTagsFromProductText,
+      styleTagsMeetingMinCount,
+    } = await import('@/lib/partner-website/shop/partner-shop-style-tags')
     const sizeMap = new Map<string, number>()
     const colorMap = new Map<string, number>()
+    const styleMap = new Map<string, number>()
+    const listingL1 = await fetchPartnerCategoryL1NameFromPg(partnerId, categoryId)
+    const allowedStyle = allowedStyleTagsForListingL1(listingL1)
     for (const r of rows) {
       const structuredSizes = parseSizesJsonColumn(r.sizes_json)
       const structuredColors = parseColorsJsonColumn(r.colors_json)
@@ -1199,13 +1310,31 @@ export async function fetchPartnerCategoryFacetCountsFromPg(
       for (const c of parseInventoryColorsForFacet(r.stock_note, structuredColors)) {
         colorMap.set(c, (colorMap.get(c) ?? 0) + 1)
       }
+      for (const tag of styleTagsFromProductText(
+        r.name,
+        r.style,
+        r.material_note,
+        r.features_json,
+        r.product_info_json,
+        r.catalog_json,
+        r.category_l1,
+        r.category_l2,
+        r.category_l3,
+        r.description
+      )) {
+        styleMap.set(tag, (styleMap.get(tag) ?? 0) + 1)
+      }
     }
     const toList = (m: Map<string, number>) =>
       [...m.entries()]
         .map(([value, count]) => ({ value, count }))
         .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))
         .slice(0, 40)
-    return { sizes: toList(sizeMap), colors: toList(colorMap) }
+    return {
+      sizes: toList(sizeMap),
+      colors: toList(colorMap),
+      styleTags: styleTagsMeetingMinCount(styleMap, { allowed: allowedStyle }),
+    }
   } catch (e) {
     console.warn('[fetchPartnerCategoryFacetCountsFromPg]', e)
     return null

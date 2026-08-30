@@ -5,6 +5,7 @@ import {
   deferOffDevicePdpGalleryMedia,
   restoreDeferredPdpGalleryMediaInHtml,
 } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
+import { buildDefaultDemoPdpShellHtml } from '@/lib/partner-website/shop/build-default-demo-pdp-shell-html'
 import { DEMO_PDP_BIND_PRODUCT } from '@/lib/partner-website/shop/demo-pdp-bind-product'
 
 const SHELL = `<!DOCTYPE html><html><body data-pw-page="product">
@@ -282,6 +283,46 @@ test('bind injects related strip when the shell has no catalog', () => {
   const next = bindLiveProductToPdpHtml(html, PRODUCT_B, { locale: 'vi', siteSlug: 'demo-shop' })
   assert.match(next, /data-pw-related="1"/)
   assert.match(next, /Sản phẩm tương tự/)
+})
+
+test('bind strips leftover demo material and real-use photos from the shared PDP shell', () => {
+  const leftover = `<!DOCTYPE html><html><body data-pw-page="product">
+<section class="pw-shop-product-detail">
+  <div data-pw-pdp-slot="tabs">old</div>
+  <div data-pw-pdp-slot="material"><h2>Ảnh chất liệu</h2><div class="pw-shop-detail-grid"><img src="https://cdn.188.com.vn/site/manual-products/M260809034359C724D5/20260809/material-1-a3-1786251749-b5707ab23f.jpg" alt="Đầm voan trễ vai tiểu thư họa tiết hoa thêu" loading="lazy" decoding="async" /></div></div>
+  <div data-pw-pdp-slot="real-use"><h2>Ảnh thực tế</h2><div class="pw-shop-detail-grid"><img src="https://cdn.188.com.vn/site/manual-products/M260809034359C724D5/20260809/gallery-1-a2-1786247712-b45667f642.jpg" alt="Đầm voan trễ vai tiểu thư họa tiết hoa thêu" loading="lazy" decoding="async" /></div></div>
+</section>
+</body></html>`
+  const next = bindLiveProductToPdpHtml(leftover, PRODUCT_B)
+  assert.match(next, /Cotton shirt/)
+  assert.doesNotMatch(next, /material-1-a3-1786251749/)
+  assert.doesNotMatch(next, /gallery-1-a2-1786247712/)
+  assert.doesNotMatch(next, /data-pw-pdp-slot="material"/)
+  assert.doesNotMatch(next, /data-pw-pdp-slot="real-use"/)
+  const fromFactory = bindLiveProductToPdpHtml(buildDefaultDemoPdpShellHtml({ locale: 'vi' }), PRODUCT_B)
+  assert.doesNotMatch(fromFactory, /data-pw-pdp-slot="material"/)
+  assert.doesNotMatch(fromFactory, /data-pw-pdp-slot="real-use"/)
+  assert.doesNotMatch(fromFactory, /material-1-a3-1786251749/)
+})
+
+test('bind writes this product material and real-use photos instead of shell leftovers', () => {
+  const leftover = `<!DOCTYPE html><html><body data-pw-page="product">
+<section class="pw-shop-product-detail">
+  <div data-pw-pdp-slot="material"><img src="https://cdn.188.com.vn/site/manual-products/M260809034359C724D5/20260809/material-1-a3-1786251749-b5707ab23f.jpg" alt="Đầm voan" /></div>
+  <div data-pw-pdp-slot="real-use"><img src="https://cdn.188.com.vn/site/manual-products/M260809034359C724D5/20260809/gallery-1-a2-1786247712-b45667f642.jpg" alt="Đầm voan" /></div>
+</section>
+</body></html>`
+  const next = bindLiveProductToPdpHtml(leftover, {
+    ...PRODUCT_B,
+    materialImageUrl: 'https://new.example/mat.jpg',
+    realUseImageUrls: ['https://new.example/real.jpg'],
+  })
+  assert.match(next, /https:\/\/new\.example\/mat\.jpg/)
+  assert.match(next, /https:\/\/new\.example\/real\.jpg/)
+  assert.match(next, /data-pw-pdp-slot="material"/)
+  assert.match(next, /data-pw-pdp-slot="real-use"/)
+  assert.doesNotMatch(next, /material-1-a3-1786251749/)
+  assert.doesNotMatch(next, /gallery-1-a2-1786247712/)
 })
 
 test('bind fills catalog stats, brand, tabs, and every detail photo', () => {

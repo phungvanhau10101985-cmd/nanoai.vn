@@ -1,6 +1,12 @@
 import type { Json } from '@/types/database.types'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
+import {
+  mergeSearchQueries,
+  parseSearchQueries,
+  prependSearchQuery,
+  removeSearchQuery,
+} from '@/lib/partner-website/shop/partner-site-search-history'
 
 const MAX_RECENTLY_VIEWED = 40
 const MAX_FAVORITES = 48
@@ -18,6 +24,7 @@ export type PartnerVisitorUtmContext = {
 export type PartnerVisitorPersonalizationRow = {
   recently_viewed_ids: string[]
   favorite_ids: string[]
+  search_queries: string[]
   utm_context: PartnerVisitorUtmContext
 }
 
@@ -70,17 +77,23 @@ export async function fetchPartnerVisitorPersonalizationFromPg(input: {
   const accountKey = input.accountKey.trim()
   if (!accountKey) return null
   try {
-    const row = await pgQueryOne<{ recently_viewed_ids: Json; favorite_ids: Json; utm_context: Json }>(
-      `select recently_viewed_ids, favorite_ids, utm_context
+    const row = await pgQueryOne<{
+      recently_viewed_ids: Json
+      favorite_ids: Json
+      search_queries: Json
+      utm_context: Json
+    }>(
+      `select recently_viewed_ids, favorite_ids, search_queries, utm_context
        from public.messaging_partner_visitor_personalization
        where partner_id = $1::uuid and account_key = $2
        limit 1`,
       [input.partnerId, accountKey]
     )
-    if (!row) return { recently_viewed_ids: [], favorite_ids: [], utm_context: {} }
+    if (!row) return { recently_viewed_ids: [], favorite_ids: [], search_queries: [], utm_context: {} }
     return {
       recently_viewed_ids: parseRecentlyViewedIds(row.recently_viewed_ids),
       favorite_ids: parseFavoriteIds(row.favorite_ids),
+      search_queries: parseSearchQueries(row.search_queries),
       utm_context: parseUtmContext(row.utm_context),
     }
   } catch (e) {
@@ -287,4 +300,112 @@ export async function mutatePartnerVisitorFavoriteFromPg(input: {
     console.warn('[mutatePartnerVisitorFavoriteFromPg]', e)
     return null
   }
+}
+
+async function persistPartnerVisitorSearchQueries(input: {
+  partnerId: string
+  accountKey: string
+  queries: string[]
+}): Promise<string[] | null> {
+  const existing = await fetchPartnerVisitorPersonalizationFromPg({
+    partnerId: input.partnerId,
+    accountKey: input.accountKey,
+  })
+  const recently = existing?.recently_viewed_ids ?? []
+  const favorites = existing?.favorite_ids ?? []
+  const utm = existing?.utm_context ?? {}
+  try {
+    await getPgPool().query(
+      `insert into public.messaging_partner_visitor_personalization
+         (partner_id, account_key, recently_viewed_ids, favorite_ids, search_queries, utm_context, updated_at)
+       values ($1::uuid, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, now())
+       on conflict (partner_id, account_key) do update set
+         search_queries = excluded.search_queries,
+         updated_at = now()`,
+      [
+        input.partnerId,
+        input.accountKey,
+        JSON.stringify(recently),
+        JSON.stringify(favorites),
+        JSON.stringify(input.queries),
+        JSON.stringify(utm),
+      ]
+    )
+    return input.queries
+  } catch (e) {
+    console.warn('[persistPartnerVisitorSearchQueries]', e)
+    return null
+  }
+}
+
+export async function addPartnerVisitorSearchQueryFromPg(input: {
+  partnerId: string
+  accountKey: string
+  query: string
+}): Promise<string[] | null> {
+  if (!isPgConfigured()) return null
+  const accountKey = input.accountKey.trim()
+  if (!accountKey) return null
+  const existing = await fetchPartnerVisitorPersonalizationFromPg({
+    partnerId: input.partnerId,
+    accountKey,
+  })
+  const next = prependSearchQuery(input.query, existing?.search_queries ?? [])
+  return persistPartnerVisitorSearchQueries({
+    partnerId: input.partnerId,
+    accountKey,
+    queries: next,
+  })
+}
+
+export async function mergePartnerVisitorSearchQueriesFromPg(input: {
+  partnerId: string
+  accountKey: string
+  queries: string[]
+}): Promise<string[] | null> {
+  if (!isPgConfigured()) return null
+  const accountKey = input.accountKey.trim()
+  if (!accountKey) return null
+  const existing = await fetchPartnerVisitorPersonalizationFromPg({
+    partnerId: input.partnerId,
+    accountKey,
+  })
+  return persistPartnerVisitorSearchQueries({
+    partnerId: input.partnerId,
+    accountKey,
+    queries: mergeSearchQueries(input.queries, existing?.search_queries ?? []),
+  })
+}
+
+export async function removePartnerVisitorSearchQueryFromPg(input: {
+  partnerId: string
+  accountKey: string
+  query: string
+}): Promise<string[] | null> {
+  if (!isPgConfigured()) return null
+  const accountKey = input.accountKey.trim()
+  if (!accountKey) return null
+  const existing = await fetchPartnerVisitorPersonalizationFromPg({
+    partnerId: input.partnerId,
+    accountKey,
+  })
+  return persistPartnerVisitorSearchQueries({
+    partnerId: input.partnerId,
+    accountKey,
+    queries: removeSearchQuery(input.query, existing?.search_queries ?? []),
+  })
+}
+
+export async function clearPartnerVisitorSearchQueriesFromPg(input: {
+  partnerId: string
+  accountKey: string
+}): Promise<string[] | null> {
+  if (!isPgConfigured()) return null
+  const accountKey = input.accountKey.trim()
+  if (!accountKey) return null
+  return persistPartnerVisitorSearchQueries({
+    partnerId: input.partnerId,
+    accountKey,
+    queries: [],
+  })
 }

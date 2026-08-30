@@ -28,7 +28,7 @@ export interface PartnerSiteSEOConfig {
   keywords?: string[]
   locale?: string
   type?: 'website' | 'article'
-  /** Query canonical đã whitelist (min_price, max_price, page, size, sort, color). */
+  /** Query canonical đã whitelist (min_price, max_price, page, size, style_tag, sort, color). */
   search?: string
 }
 

@@ -671,6 +671,7 @@ function PartnerSiteShopShellInner({
           ariaLabel={t.categorySeoRowAria}
         />
         <nav className="pw-shop-nav-row" data-pw-region={PW_REGION.nav} aria-label="Shop">
+          <div data-pw-search-history hidden />
           {hasCategoryTree ? (
             <PartnerSiteCategoryNavPills
               tree={categoryTree!}

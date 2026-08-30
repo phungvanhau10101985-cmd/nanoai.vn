@@ -212,6 +212,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   </div>
   <nav class="pw-container pw-seo-row" data-pw-seo-row hidden aria-label=""></nav>
   <nav class="pw-container pw-nav-main" ${pwRegionAttr(PW_REGION.nav)} aria-label="Shop">
+    <div data-pw-search-history hidden></div>
     ${categoryLinks}
   </nav>
 </header>`

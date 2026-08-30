@@ -353,7 +353,7 @@ function PartnerSitePublicFrame({
           data-pw-inline-visual-root="1"
           data-pw-active-device={activeDevice}
           data-pw-runtime-revision={revision}
-          className="min-h-screen bg-white"
+          className="bg-white"
           dangerouslySetInnerHTML={{ __html: extractVisualHtmlBodyMarkup(previewHtml) }}
         />
       </PartnerSiteChatWidgetProvider>

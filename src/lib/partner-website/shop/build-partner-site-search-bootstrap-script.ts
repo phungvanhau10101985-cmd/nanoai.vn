@@ -2,9 +2,11 @@ import type { WebLocale } from '@/lib/i18n/config'
 import {
   partnerSiteProductPath,
   partnerSiteProductsPath,
+  partnerSiteSearchHistoryApiPath,
   partnerSiteSearchImageApiPath,
   partnerSiteSearchTextApiPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteSearchHistoryStorageKey } from '@/lib/partner-website/shop/partner-site-search-history'
 import { PW_SHOP_CARD_IMG_JS } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import { searchGlyphSvg } from '@/lib/partner-website/visual-editor/search-cluster-icons'
@@ -25,6 +27,8 @@ const COPY: Record<
     imageUrlErr: string
     imageClose: string
     imageBusy: string
+    historyAria: string
+    historyRemove: string
   }
 > = {
   vi: {
@@ -41,6 +45,8 @@ const COPY: Record<
     imageUrlErr: 'Link cần bắt đầu bằng http:// hoặc https://',
     imageClose: 'Đóng',
     imageBusy: 'Đang tải ảnh…',
+    historyAria: 'Lịch sử tìm kiếm',
+    historyRemove: 'Xóa',
   },
   en: {
     searching: 'Searching…',
@@ -56,6 +62,8 @@ const COPY: Record<
     imageUrlErr: 'Link must start with http:// or https://',
     imageClose: 'Close',
     imageBusy: 'Loading image…',
+    historyAria: 'Search history',
+    historyRemove: 'Remove',
   },
   zh: {
     searching: '搜索中…',
@@ -71,6 +79,8 @@ const COPY: Record<
     imageUrlErr: '链接需以 http:// 或 https:// 开头',
     imageClose: '关闭',
     imageBusy: '正在加载图片…',
+    historyAria: '搜索历史',
+    historyRemove: '删除',
   },
   ja: {
     searching: '検索中…',
@@ -86,6 +96,8 @@ const COPY: Record<
     imageUrlErr: 'リンクは http:// または https:// で始めてください',
     imageClose: '閉じる',
     imageBusy: '画像を読み込み中…',
+    historyAria: '検索履歴',
+    historyRemove: '削除',
   },
   ko: {
     searching: '검색 중…',
@@ -101,6 +113,8 @@ const COPY: Record<
     imageUrlErr: '링크는 http:// 또는 https://로 시작해야 합니다',
     imageClose: '닫기',
     imageBusy: '이미지 불러오는 중…',
+    historyAria: '검색 기록',
+    historyRemove: '삭제',
   },
 }
 
@@ -118,6 +132,8 @@ export function buildPartnerSiteSearchBootstrapScript(input: {
   const copy = COPY[locale]
   const textApi = partnerSiteSearchTextApiPath(slug)
   const imageApi = partnerSiteSearchImageApiPath(slug)
+  const historyApi = partnerSiteSearchHistoryApiPath(slug)
+  const historyLsKey = partnerSiteSearchHistoryStorageKey(slug)
   const productsPath = partnerSiteProductsPath(slug)
   const productPathPrefix = partnerSiteProductPath(slug, '__ID__').replace('__ID__', '')
 
@@ -125,9 +141,12 @@ export function buildPartnerSiteSearchBootstrapScript(input: {
 ${PW_SHOP_LIVE_UI_OFF_FN};
 var TEXT_API=${JSON.stringify(textApi)};
 var IMAGE_API=${JSON.stringify(imageApi)};
+var HISTORY_API=${JSON.stringify(historyApi)};
+var HISTORY_LS=${JSON.stringify(historyLsKey)};
 var PRODUCTS_PATH=${JSON.stringify(productsPath)};
 var DETAIL_PREFIX=${JSON.stringify(productPathPrefix)};
 var COPY=${JSON.stringify(copy)};
+var historyLoggedIn=false;
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
 ${PW_SHOP_CARD_IMG_JS}
 function ensurePanel(){
@@ -168,9 +187,110 @@ function renderProducts(list){
       +'</div></a>';
   }).join('');
 }
+function historyNav(){return document.querySelector('.pw-nav-main,.pw-shop-nav-row');}
+function normHistoryQ(raw){return String(raw||'').trim().replace(/\\s+/g,' ').slice(0,80);}
+function dedupeHistory(arr){
+  var out=[],seen={};
+  for(var i=0;i<(arr||[]).length;i++){
+    var q=normHistoryQ(arr[i]);if(!q)continue;
+    var k=q.toLowerCase();if(seen[k])continue;seen[k]=1;out.push(q);if(out.length>=12)break;
+  }
+  return out;
+}
+function readLocalHistory(){
+  try{return dedupeHistory(JSON.parse(localStorage.getItem(HISTORY_LS)||'[]'));}catch(e){return [];}
+}
+function writeLocalHistory(list){
+  try{localStorage.setItem(HISTORY_LS,JSON.stringify(dedupeHistory(list)));}catch(e){}
+}
+function ensureHistoryHost(){
+  var nav=historyNav();if(!nav)return null;
+  var el=nav.querySelector('[data-pw-search-history]');
+  if(!el){
+    el=document.createElement('div');
+    el.setAttribute('data-pw-search-history','1');
+    el.setAttribute('hidden','');
+    nav.insertBefore(el,nav.firstChild);
+  }
+  if(!el.getAttribute('data-pw-search-history-bound')){
+    el.setAttribute('data-pw-search-history-bound','1');
+    el.addEventListener('click',function(e){
+      if(pwShopLiveUiOff())return;
+      var t=e.target;if(!t||!t.closest)return;
+      var x=t.closest('[data-pw-search-history-x]');
+      if(x){e.preventDefault();e.stopPropagation();removeHistory(x.getAttribute('data-pw-search-history-x'));return;}
+      var qb=t.closest('[data-pw-search-history-q]');
+      if(qb){e.preventDefault();runTextSearch(qb.getAttribute('data-pw-search-history-q'));}
+    });
+  }
+  return el;
+}
+function renderHistory(list){
+  if(pwShopLiveUiOff())return;
+  var nav=historyNav();var host=ensureHistoryHost();if(!nav||!host)return;
+  list=dedupeHistory(list);
+  if(!list.length){
+    host.innerHTML='';host.hidden=true;nav.removeAttribute('data-pw-search-history-on');return;
+  }
+  host.hidden=false;
+  nav.setAttribute('data-pw-search-history-on','1');
+  host.setAttribute('role','list');
+  host.setAttribute('aria-label',COPY.historyAria||'');
+  host.innerHTML=list.map(function(q){
+    var eq=esc(q);
+    return '<span data-pw-search-history-item role="listitem"><button type="button" data-pw-search-history-q="'+eq+'">'+eq+'</button><button type="button" data-pw-search-history-x="'+eq+'" aria-label="'+esc(COPY.historyRemove||'')+'">×</button></span>';
+  }).join('');
+}
+function persistHistory(raw){
+  if(pwShopLiveUiOff())return;
+  var q=normHistoryQ(raw);if(!q)return;
+  if(historyLoggedIn){
+    fetch(HISTORY_API,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({query:q})})
+      .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};}).catch(function(){return {ok:false,j:null};});})
+      .then(function(res){if(res.ok&&res.j&&res.j.ok)renderHistory(res.j.queries||[]);})
+      .catch(function(){});
+    return;
+  }
+  var next=dedupeHistory([q].concat(readLocalHistory()));
+  writeLocalHistory(next);
+  renderHistory(next);
+}
+function removeHistory(raw){
+  if(pwShopLiveUiOff())return;
+  var q=normHistoryQ(raw);
+  if(historyLoggedIn){
+    fetch(HISTORY_API,{method:'DELETE',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({query:q})})
+      .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};}).catch(function(){return {ok:false,j:null};});})
+      .then(function(res){if(res.ok&&res.j&&res.j.ok)renderHistory(res.j.queries||[]);})
+      .catch(function(){});
+    return;
+  }
+  var next=readLocalHistory().filter(function(item){return item.toLowerCase()!==q.toLowerCase();});
+  writeLocalHistory(next);
+  renderHistory(next);
+}
+function loadHistory(){
+  if(pwShopLiveUiOff())return;
+  fetch(HISTORY_API,{credentials:'same-origin'})
+    .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};}).catch(function(){return {ok:false,j:null};});})
+    .then(function(res){
+      historyLoggedIn=!!(res.ok&&res.j&&res.j.loggedIn);
+      if(historyLoggedIn){
+        var local=readLocalHistory();
+        if(local.length){
+          fetch(HISTORY_API,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({queries:local})})
+            .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};}).catch(function(){return {ok:false,j:null};});})
+            .then(function(m){writeLocalHistory([]);renderHistory((m.ok&&m.j&&m.j.queries)||(res.j&&res.j.queries)||[]);})
+            .catch(function(){renderHistory(res.j&&res.j.queries||[]);});
+        }else renderHistory(res.j&&res.j.queries||[]);
+      }else renderHistory(readLocalHistory());
+    })
+    .catch(function(){renderHistory(readLocalHistory());});
+}
 function runTextSearch(q){
   if(pwShopLiveUiOff())return;
   q=String(q||'').trim();if(q.length<1)return;
+  persistHistory(q);
   showStatus(COPY.searching,false);
   fetch(TEXT_API+'?q='+encodeURIComponent(q)+'&limit=24',{credentials:'same-origin'})
     .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});})
@@ -396,8 +516,15 @@ function ensureImageControl(){
     document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!pop.hidden)hidePop();});
   }
 }
-function boot(){bindText();ensureImageControl();}
+function boot(){bindText();ensureImageControl();loadHistory();}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
+if(!document.documentElement.getAttribute('data-pw-search-history-doc')){
+  document.documentElement.setAttribute('data-pw-search-history-doc','1');
+  document.addEventListener('pw-search-history',function(e){
+    var q=e&&e.detail&&e.detail.query;
+    persistHistory(q);
+  });
+}
 var imgMoT=null;
 var imgMo=typeof MutationObserver!=='undefined'?new MutationObserver(function(){
   if(imgMoT)clearTimeout(imgMoT);

@@ -1,6 +1,6 @@
 /**
  * W4.14 — query listing danh mục khớp cấu trúc 188 (`CategoryProductFilters`).
- * URL dùng snake_case: min_price, max_price, size, color, sort, page.
+ * URL dùng snake_case: min_price, max_price, size, style_tag, color, sort, page.
  * Canonical whitelist theo alphabet — bỏ page=1 và seed `r`.
  */
 
@@ -24,6 +24,8 @@ export type PartnerCategoryListingQuery = {
   maxPrice: number | null
   size: string
   color: string
+  /** Tag kiểu chuẩn 188 (`?style_tag=Váy`) — không phải cột Style thô. */
+  styleTag: string
   /** Seed random — không đưa vào canonical. */
   randomSeed: string
 }
@@ -65,6 +67,7 @@ export function parsePartnerCategoryListingFromRecord(
     maxPrice: parsePrice(maxRaw),
     size: get('size').slice(0, 40),
     color: get('color').slice(0, 40),
+    styleTag: (get('style_tag') || get('styleTag')).slice(0, 40),
     randomSeed: get('r').slice(0, 32),
   }
 }
@@ -82,7 +85,14 @@ export function parsePartnerCategoryListingFromSearchParams(
 }
 
 export function partnerCategoryListingHasFilters(q: PartnerCategoryListingQuery): boolean {
-  return q.minPrice !== null || q.maxPrice !== null || Boolean(q.size) || Boolean(q.color) || q.sort !== 'newest'
+  return (
+    q.minPrice !== null ||
+    q.maxPrice !== null ||
+    Boolean(q.size) ||
+    Boolean(q.color) ||
+    Boolean(q.styleTag) ||
+    q.sort !== 'newest'
+  )
 }
 
 export function buildPartnerCategoryListingSearch(
@@ -95,6 +105,7 @@ export function buildPartnerCategoryListingSearch(
   if (q.maxPrice != null) params.set('max_price', String(q.maxPrice))
   if (q.size) params.set('size', q.size)
   if (q.color) params.set('color', q.color)
+  if (q.styleTag) params.set('style_tag', q.styleTag)
   if (q.sort && q.sort !== defaultSort) {
     params.set('sort', q.sort === 'random' ? '' : q.sort)
     if (q.sort === 'random') params.set('sort', 'random')
@@ -104,7 +115,7 @@ export function buildPartnerCategoryListingSearch(
   return params.toString()
 }
 
-const CANONICAL_KEYS = ['color', 'max_price', 'min_price', 'page', 'size', 'sort'] as const
+const CANONICAL_KEYS = ['color', 'max_price', 'min_price', 'page', 'size', 'sort', 'style_tag'] as const
 
 export function buildPartnerCategoryCanonicalQuery(q: PartnerCategoryListingQuery): string {
   const raw: Record<(typeof CANONICAL_KEYS)[number], string | null> = {
@@ -114,6 +125,7 @@ export function buildPartnerCategoryCanonicalQuery(q: PartnerCategoryListingQuer
     page: q.page > 1 ? String(q.page) : null,
     size: q.size || null,
     sort: q.sort && q.sort !== 'newest' ? q.sort : null,
+    style_tag: q.styleTag || null,
   }
   const params = new URLSearchParams()
   for (const key of CANONICAL_KEYS) {

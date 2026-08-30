@@ -112,8 +112,12 @@ import {
 } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import {
   CHROME_KIT_FLOAT_ITEMS,
+  clampChromeKitGap,
   clampChromeKitShift,
   isChromeKitPickerKind,
+  PW_KIT_GAP_DEFAULT,
+  PW_KIT_GAP_MAX,
+  PW_KIT_GAP_MIN,
   PW_KIT_X_MAX,
   PW_KIT_X_MIN,
 } from '@/lib/partner-website/shop/partner-site-chrome-kit'
@@ -1026,6 +1030,8 @@ function ChromeKitPanel({
   onSelectFloat,
   onReorder,
   onShiftHead,
+  headGap,
+  onSetHeadGap,
 }: {
   t: PartnerWebsiteCopy
   locale: WebLocale
@@ -1038,6 +1044,7 @@ function ChromeKitPanel({
   floatGap: number
   floatSize: number
   headX: number
+  headGap: number
   busy: boolean
   onToggleHead: (kind: string, hidden: boolean) => void
   onToggleDock: (kind: string, show: 'shop' | 'pdp' | 'both' | 'off') => void
@@ -1047,6 +1054,7 @@ function ChromeKitPanel({
   onSelectFloat: (kind: string) => void
   onReorder: (kind: string, bar: 'head' | 'dock' | 'float', dir: 'up' | 'down') => void
   onShiftHead: (x: number) => void
+  onSetHeadGap: (gap: number) => void
 }) {
   const headTitle =
     device === 'laptop'
@@ -1058,6 +1066,7 @@ function ChromeKitPanel({
           : t.visualEditChromeKitHeadPc
   const showDock = device === 'mobile' || device === 'tablet'
   const shift = clampChromeKitShift(headX)
+  const gap = clampChromeKitGap(headGap)
   const seenFloat = new Set<string>()
   const floatRows: ChromeKitListItem[] = []
   for (const row of float) {
@@ -1212,6 +1221,38 @@ function ChromeKitPanel({
           className="w-full accent-foreground"
         />
         <span className="leading-4">{t.visualEditChromeKitShiftHint}</span>
+      </label>
+      <label className="flex flex-col gap-1 px-1 text-[10px] text-muted-foreground">
+        <span className="flex items-center justify-between gap-2">
+          <span>{t.visualEditChromeKitGap}</span>
+          <span className="inline-flex items-center gap-1">
+            <input
+              type="number"
+              min={PW_KIT_GAP_MIN}
+              max={PW_KIT_GAP_MAX}
+              step={1}
+              value={gap}
+              disabled={busy}
+              onChange={(e) => {
+                if (e.target.value === '') return
+                onSetHeadGap(clampChromeKitGap(e.target.value))
+              }}
+              className="h-6 w-14 rounded border bg-background px-1 text-right text-[11px] text-foreground"
+            />
+            <span>px</span>
+          </span>
+        </span>
+        <input
+          type="range"
+          min={PW_KIT_GAP_MIN}
+          max={PW_KIT_GAP_MAX}
+          step={1}
+          value={gap}
+          disabled={busy}
+          onChange={(e) => onSetHeadGap(clampChromeKitGap(e.target.value))}
+          className="w-full accent-foreground"
+        />
+        <span className="leading-4">{t.visualEditChromeKitGapHint}</span>
       </label>
       {head.map((item) => (
         <ChromeKitRow
@@ -1411,6 +1452,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [chromeKitFloatGap, setChromeKitFloatGap] = useState(PW_FLOAT_GAP_DEFAULT)
   const [chromeKitFloatSize, setChromeKitFloatSize] = useState(PW_FLOAT_SIZE_DEFAULT)
   const [chromeKitHeadX, setChromeKitHeadX] = useState(0)
+  const [chromeKitHeadGap, setChromeKitHeadGap] = useState(PW_KIT_GAP_DEFAULT)
   const [panelPos, setPanelPos] = useState<{ x: number; y: number } | null>(null)
   const [bgColorPickerOpen, setBgColorPickerOpen] = useState(false)
   const pinnedBgSelectionRef = useRef<VisualEditorSelection | null>(null)
@@ -2124,6 +2166,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         setChromeKitFloatGap(clampChromeFloatGap(data.floatGap ?? PW_FLOAT_GAP_DEFAULT))
         setChromeKitFloatSize(clampChromeFloatSize(data.floatSize ?? PW_FLOAT_SIZE_DEFAULT))
         setChromeKitHeadX(clampChromeKitShift(data.headX))
+        setChromeKitHeadGap(clampChromeKitGap(data.headGap ?? PW_KIT_GAP_DEFAULT))
       }
       if (data.type === 'favoriteNeedHost') {
         onError(t.visualEditFavoriteNeedHost)
@@ -4354,6 +4397,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                     floatGap={chromeKitFloatGap}
                     floatSize={chromeKitFloatSize}
                     headX={chromeKitHeadX}
+                    headGap={chromeKitHeadGap}
                     busy={busy}
                     onToggleHead={(kind, hidden) => {
                       postToIframe(iframeRef.current, 'setChromeKitHidden', { kind, bar: 'head', hidden })
@@ -4390,6 +4434,11 @@ export function PartnerWebsiteVisualEditorToolbar({
                     onShiftHead={(x) => {
                       setChromeKitHeadX(x)
                       postToIframe(iframeRef.current, 'setChromeKitShift', { bar: 'head', x })
+                      setDirty(true)
+                    }}
+                    onSetHeadGap={(gap) => {
+                      setChromeKitHeadGap(gap)
+                      postToIframe(iframeRef.current, 'setChromeKitGap', { bar: 'head', gap })
                       setDirty(true)
                     }}
                   />

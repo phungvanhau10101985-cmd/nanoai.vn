@@ -216,6 +216,11 @@ export function partnerSiteSearchImageApiPath(siteSlug: string): string {
   return `/api/site/${encodeURIComponent(siteSlug.trim())}/search/image`
 }
 
+/** Same-platform shop search history (account when logged in; guest stays in the browser). */
+export function partnerSiteSearchHistoryApiPath(siteSlug: string): string {
+  return `/api/site/${encodeURIComponent(siteSlug.trim())}/search/history`
+}
+
 export function partnerSiteInfoPath(
   siteSlug: string,
   page:

@@ -132,6 +132,7 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
       maxPrice: listing.maxPrice ?? undefined,
       size: listing.size || undefined,
       color: listing.color || undefined,
+      styleTag: listing.styleTag || undefined,
     }),
     fetchPartnerCategoryPriceRangeFromPg(shop.partnerId, category.id),
     fetchPartnerCategoryFacetCountsFromPg(shop.partnerId, category.id),
@@ -226,7 +227,7 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
             initialProducts={initialProducts}
             initialTotal={page?.count ?? initialProducts.length}
             priceRange={priceRange}
-            initialFacets={facets ?? { sizes: [], colors: [] }}
+            initialFacets={facets ?? { sizes: [], colors: [], styleTags: [] }}
           />
         </Suspense>
       </section>

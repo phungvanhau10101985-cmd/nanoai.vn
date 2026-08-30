@@ -59,9 +59,10 @@ test('canonical query uses 188 whitelist order and drops page=1', () => {
     min_price: '100000',
     size: 'M',
     color: 'den',
+    style_tag: 'Váy',
     r: 'seed',
   })
-  assert.equal(buildPartnerCategoryCanonicalQuery(q), 'color=den&min_price=100000&size=M&sort=oldest')
+  assert.equal(buildPartnerCategoryCanonicalQuery(q), 'color=den&min_price=100000&size=M&sort=oldest&style_tag=V%C3%A1y')
   assert.doesNotMatch(buildPartnerCategoryCanonicalQuery(q), /[?&]r=/)
 })
 
@@ -140,5 +141,7 @@ test('category listing copy exists for all locales', () => {
     assert.ok(t.categoryExpand)
     assert.ok(t.categoryCollapse)
     assert.ok(t.categoryHubTitle)
+    assert.ok(t.categoryFilterStyle)
+    assert.ok(t.categoryFilterAllStyles)
   }
 })
