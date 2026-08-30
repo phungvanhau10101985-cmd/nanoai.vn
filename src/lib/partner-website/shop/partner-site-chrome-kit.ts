@@ -342,37 +342,51 @@ export function buildChromeKitFloatHostHtml(input: {
   return `<aside class="pw-chrome-float-kit" ${PW_CHROME_KIT_ATTR}="float" data-pw-chrome-float-host="1" ${PW_FLOAT_RIGHT_ATTR}="${PW_CHROME_FLOAT_DEFAULT_RIGHT_PX}" ${PW_FLOAT_STACK_BOTTOM_ATTR}="${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat}" ${PW_FLOAT_GAP_ATTR}="${PW_FLOAT_GAP_DEFAULT}" ${PW_FLOAT_SIZE_ATTR}="${PW_FLOAT_SIZE_DEFAULT}" style="--pw-float-size:${PW_FLOAT_SIZE_DEFAULT}px">\n    ${inner}\n  </aside>`
 }
 
+/**
+ * Live inlines visual `<body>` into `[data-pw-inline-visual-root]` and hoists dock
+ * outside that root — `html:has([data-pw-page])` must also see gallery / PDP CTA
+ * leftover in the inline tree, plus `html[data-pw-page]` stamped by the client.
+ */
+export const PW_PRODUCT_PAGE_CSS_HOSTS = [
+  'html:has([data-pw-page="product"])',
+  'html:has([data-pw-region="gallery"])',
+  'html:has([data-pw-pdp-add-cart])',
+  'html[data-pw-page="product"]',
+  '[data-pw-page="product"]',
+] as const
+
+function pwProductDockCss(selector: string, body: string): string {
+  return `${PW_PRODUCT_PAGE_CSS_HOSTS.flatMap((host) => [
+    `${host} .pw-bottom-nav${selector}`,
+    `${host} .pw-shop-bottom-nav${selector}`,
+  ]).join(',')}${body}`
+}
+
 export const PARTNER_SHOP_CHROME_KIT_CSS = `
 .pw-header-actions[${PW_CHROME_KIT_ATTR}="actions"],.pw-shop-header-actions[${PW_CHROME_KIT_ATTR}="actions"]{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;margin-right:0!important;gap:var(--pw-kit-gap, 2px)!important;transform:translateX(var(--pw-kit-x, 0px))!important}
 .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"],.pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{flex-wrap:nowrap!important;align-items:stretch}
 .pw-bottom-nav .pw-pdp-sticky-nav,.pw-shop-bottom-nav .pw-pdp-sticky-nav,.pw-bottom-nav .pw-pdp-sticky-ctas,.pw-shop-bottom-nav .pw-pdp-sticky-ctas,
 .pw-bottom-nav [${PW_DOCK_SHOW_ATTR}="pdp"],.pw-shop-bottom-nav [${PW_DOCK_SHOW_ATTR}="pdp"]{display:none!important}
-[data-pw-page="product"] .pw-bottom-nav [${PW_DOCK_SHOW_ATTR}="shop"],[data-pw-page="product"] .pw-shop-bottom-nav [${PW_DOCK_SHOW_ATTR}="shop"]{display:none!important}
-[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"],[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{
+${pwProductDockCss(` [${PW_DOCK_SHOW_ATTR}="shop"]`, '{display:none!important}')}
+${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] > a:not([${PW_DOCK_SHOW_ATTR}="pdp"])`, '{display:none!important}')}
+${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] > button:not([${PW_DOCK_SHOW_ATTR}="pdp"])`, '{display:none!important}')}
+${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"]`, `{
   justify-content:flex-start!important;align-items:stretch!important;gap:6px!important;min-height:48px!important;
   padding:2px 6px calc(2px + env(safe-area-inset-bottom,0px))!important;background:#f3f4f6!important;border-top:1px solid #e5e7eb!important
-}
-[data-pw-page="product"] .pw-bottom-nav .pw-pdp-sticky-nav,[data-pw-page="product"] .pw-shop-bottom-nav .pw-pdp-sticky-nav{
-  display:flex!important;align-items:stretch;gap:1px;flex:0 0 auto;padding-right:6px;margin-right:2px;border-right:1px solid #e5e7eb
-}
-[data-pw-page="product"] .pw-bottom-nav .pw-pdp-sticky-ctas,[data-pw-page="product"] .pw-shop-bottom-nav .pw-pdp-sticky-ctas{
-  display:flex!important;flex:1;min-width:0;gap:4px
-}
-[data-pw-page="product"] .pw-bottom-nav .pw-pdp-sticky-nav [${PW_DOCK_SHOW_ATTR}="pdp"]:not([${PW_HIDDEN_ATTR}="1"]),[data-pw-page="product"] .pw-shop-bottom-nav .pw-pdp-sticky-nav [${PW_DOCK_SHOW_ATTR}="pdp"]:not([${PW_HIDDEN_ATTR}="1"]){
-  display:flex!important;flex-direction:column;flex:0 0 44px!important;width:44px!important;gap:2px!important;padding:2px 0!important;font-size:10px!important;line-height:1.05!important;color:#4b5563!important;background:transparent!important
-}
-[data-pw-page="product"] .pw-bottom-nav .pw-pdp-sticky-ctas [${PW_DOCK_SHOW_ATTR}="pdp"],[data-pw-page="product"] .pw-shop-bottom-nav .pw-pdp-sticky-ctas [${PW_DOCK_SHOW_ATTR}="pdp"]{
-  display:flex!important;flex:1 1 0!important;min-height:40px;align-items:center;justify-content:center;padding:0 8px!important;font-size:11px!important;font-weight:600!important;text-transform:uppercase;border-radius:6px!important;color:#fff!important
-}
-[data-pw-page="product"] .pw-bottom-nav .pw-pdp-sticky-nav svg,[data-pw-page="product"] .pw-shop-bottom-nav .pw-pdp-sticky-nav svg{width:17px!important;height:17px!important;max-width:17px!important;max-height:17px!important}
-[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="add-cart"],[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="add-cart"]{background:var(--pw-cart)!important;color:#fff!important}
-[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="buy-now"],[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="buy-now"]{background:var(--pw-buy)!important;color:#fff!important}
-[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] .is-try,[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] .is-try{color:var(--pw-primary)!important}
-[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"],[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"]{color:#e11d48!important}
-[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"] svg,[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"] svg{fill:currentColor!important}
-[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] ~ .pw-bottom-nav[data-pw-pdp-bottom],[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] ~ .pw-bottom-nav[data-pw-pdp-bottom],
-[data-pw-page="product"] .pw-bottom-nav[data-pw-pdp-bottom] ~ .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{display:none!important}
-.pw-shop:has([${PW_CHROME_KIT_ATTR}="dock"]) .pw-pdp-sticky{display:none!important}
+}`)}
+${pwProductDockCss(' .pw-pdp-sticky-nav', '{display:flex!important;align-items:stretch;gap:1px;flex:0 0 auto;padding-right:6px;margin-right:2px;border-right:1px solid #e5e7eb}')}
+${pwProductDockCss(' .pw-pdp-sticky-ctas', '{display:flex!important;flex:1;min-width:0;gap:4px}')}
+${pwProductDockCss(` .pw-pdp-sticky-nav [${PW_DOCK_SHOW_ATTR}="pdp"]:not([${PW_HIDDEN_ATTR}="1"])`, '{display:flex!important;flex-direction:column;flex:0 0 44px!important;width:44px!important;gap:2px!important;padding:2px 0!important;font-size:10px!important;line-height:1.05!important;color:#4b5563!important;background:transparent!important}')}
+${pwProductDockCss(` .pw-pdp-sticky-ctas [${PW_DOCK_SHOW_ATTR}="pdp"]`, '{display:flex!important;flex:1 1 0!important;min-height:40px;align-items:center;justify-content:center;padding:0 8px!important;font-size:11px!important;font-weight:600!important;text-transform:uppercase;border-radius:6px!important;color:#fff!important}')}
+${pwProductDockCss(' .pw-pdp-sticky-nav svg', '{width:17px!important;height:17px!important;max-width:17px!important;max-height:17px!important}')}
+${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="add-cart"]`, '{background:var(--pw-cart)!important;color:#fff!important}')}
+${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="buy-now"]`, '{background:var(--pw-buy)!important;color:#fff!important}')}
+${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] .is-try`, '{color:var(--pw-primary)!important}')}
+${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"]`, '{color:#e11d48!important}')}
+${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"] svg`, '{fill:currentColor!important}')}
+${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] ~ .pw-bottom-nav[data-pw-pdp-bottom]`, '{display:none!important}')}
+${pwProductDockCss('[data-pw-pdp-bottom] ~ .pw-bottom-nav[data-pw-chrome-kit="dock"]', '{display:none!important}')}
+html:has([${PW_CHROME_KIT_ATTR}="dock"]) .pw-pdp-sticky,.pw-shop:has([${PW_CHROME_KIT_ATTR}="dock"]) .pw-pdp-sticky{display:none!important}
 .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"],.pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{
   justify-content:stretch!important;gap:0!important;min-height:56px!important;
   padding:4px 2px calc(4px + env(safe-area-inset-bottom,0px))!important;background:#fff!important;border-top:1px solid var(--pw-border,#e5e7eb)!important

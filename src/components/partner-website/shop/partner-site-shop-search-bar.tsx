@@ -108,6 +108,9 @@ export function PartnerSiteShopSearchBar({
   return (
     <div className="pw-shop-search-wrap" data-pw-el={PW_EL.search}>
       <form className="pw-shop-search-form" role="search" onSubmit={(e) => void runText(e)}>
+        <span className="pw-shop-search-default-icon" aria-hidden="true">
+          <Search className="pw-search-default-glyph" strokeWidth={2} />
+        </span>
         <input
           type="search"
           name="q"

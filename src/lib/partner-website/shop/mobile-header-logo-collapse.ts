@@ -15,8 +15,9 @@ export const PW_MOBILE_HEADER_STACK_RULES = `
 .pw-header-main,.pw-shop-header-inner{display:flex!important;flex-wrap:wrap!important;align-items:center!important;row-gap:4px!important;column-gap:6px!important;padding:6px 8px 8px!important}
 .pw-brand-cluster,.pw-shop-brand-cluster,.pw-chrome-cat-wrap{display:contents!important;max-width:none!important;width:auto!important}
 .pw-header a.pw-brand:not([data-pw-logo-float]),.pw-shop-header a.pw-shop-brand:not([data-pw-logo-float]),.pw-header a[data-pw-logo-home]:not([data-pw-logo-float]),.pw-shop-header a[data-pw-logo-home]:not([data-pw-logo-float]){order:-1!important;flex:1 1 100%!important;width:100%!important;max-width:100%!important;justify-content:center!important;align-items:center!important;position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:none!important;display:flex!important;min-height:0!important;max-height:44px!important;overflow:hidden!important;margin:0!important;transition:max-height .2s ease-out,opacity .2s ease-out,min-height .2s ease-out,margin .2s ease-out!important}
-.pw-header a.pw-brand:has(img):not([data-pw-logo-float]),.pw-shop-header a.pw-shop-brand:has(img):not([data-pw-logo-float]),.pw-header a[data-pw-logo-home]:has(img):not([data-pw-logo-float]),.pw-shop-header a[data-pw-logo-home]:has(img):not([data-pw-logo-float]){min-height:40px!important}
-.pw-header a.pw-brand:not(:has(img)) .pw-wordmark,.pw-shop-header a.pw-shop-brand:not(:has(img)) .pw-wordmark,.pw-header a[data-pw-logo-home]:not(:has(img)) .pw-wordmark{display:inline-block!important;color:#fff!important;font-weight:800!important;font-size:18px!important;line-height:40px!important;min-height:40px!important}
+.pw-header a.pw-brand:has(img:not([data-pw-logo-empty])):not([data-pw-logo-float]),.pw-shop-header a.pw-shop-brand:has(img:not([data-pw-logo-empty])):not([data-pw-logo-float]),.pw-header a[data-pw-logo-home]:has(img:not([data-pw-logo-empty])):not([data-pw-logo-float]),.pw-shop-header a[data-pw-logo-home]:has(img:not([data-pw-logo-empty])):not([data-pw-logo-float]){min-height:40px!important}
+.pw-header a.pw-brand:not(:has(img:not([data-pw-logo-empty]))) .pw-wordmark,.pw-shop-header a.pw-shop-brand:not(:has(img:not([data-pw-logo-empty]))) .pw-wordmark,.pw-header a[data-pw-logo-home]:not(:has(img:not([data-pw-logo-empty]))) .pw-wordmark{display:inline-block!important;color:#fff!important;font-weight:800!important;font-size:18px!important;line-height:40px!important;min-height:40px!important}
+body.nanoai-ve-active .pw-header a.pw-brand:has([data-pw-logo-empty]) .pw-wordmark,body.nanoai-ve-active .pw-shop-header a.pw-shop-brand:has([data-pw-logo-empty]) .pw-wordmark,body.nanoai-ve-active .pw-header a[data-pw-logo-home]:has([data-pw-logo-empty]) .pw-wordmark{display:none!important}
 .pw-logo,.pw-shop-logo,.pw-brand .pw-logo-frame img,.pw-shop-brand .pw-logo-frame img,.pw-brand [data-pw-logo-frame="1"] img,.pw-shop-brand [data-pw-logo-frame="1"] img{height:40px!important;width:auto!important;max-height:40px!important;max-width:min(200px,72vw)!important;object-fit:contain!important}
 .pw-cat-btn:not([data-pw-chrome-added]),.pw-shop-cat-btn:not([data-pw-chrome-added]),.pw-brand-cluster [data-pw-chrome-btn="categories"]:not([data-pw-chrome-added]),.pw-shop-brand-cluster [data-pw-chrome-btn="categories"]:not([data-pw-chrome-added]){order:1!important}
 .pw-header-search,.pw-shop-search-wrap{order:2!important;flex:1 1 0%!important;min-width:96px!important}
@@ -36,6 +37,9 @@ const LOGO_ROW_SEL = [
   '.pw-shop-header a[data-pw-logo-home]:not([data-pw-logo-float])',
 ].join(',')
 
+/** Prefix every logo row — do not interpolate a comma list after `html[…]` (later items leak). */
+const LOGO_ROW_IS = `:is(${LOGO_ROW_SEL})`
+
 /** Thắng `html .pw-header-main{flex-wrap:nowrap}` và CSS kéo từ HTML visual. */
 export const PW_MOBILE_HEADER_STACK_WIN_CSS = `
 html[data-pw-edit-device="mobile"] .pw-container.pw-header-main,html[data-pw-scene-lock="mobile"] .pw-container.pw-header-main,html[data-pw-edit-device="mobile"] .pw-shop-header-inner,html[data-pw-scene-lock="mobile"] .pw-shop-header-inner{display:flex!important;flex-wrap:wrap!important}
@@ -43,9 +47,12 @@ html[data-pw-edit-device="mobile"] .pw-container.pw-header-main,html[data-pw-sce
 `.trim()
 
 export const PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS = `
-html[data-pw-edit-device="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] ${LOGO_ROW_SEL},
-html[data-pw-scene-lock="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] ${LOGO_ROW_SEL},
-html:not([data-pw-edit-device]):not([data-pw-scene-lock])[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] ${LOGO_ROW_SEL}{max-height:0!important;min-height:0!important;opacity:0!important;margin:0!important;pointer-events:none!important}
+html[data-pw-edit-device="mobile"]:not([${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"]) ${LOGO_ROW_IS},
+html[data-pw-scene-lock="mobile"]:not([${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"]) ${LOGO_ROW_IS},
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]):not([${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"]) ${LOGO_ROW_IS}{opacity:1!important;pointer-events:auto!important}
+html[data-pw-edit-device="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] ${LOGO_ROW_IS},
+html[data-pw-scene-lock="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] ${LOGO_ROW_IS},
+html:not([data-pw-edit-device]):not([data-pw-scene-lock])[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] ${LOGO_ROW_IS}{max-height:0!important;min-height:0!important;opacity:0!important;margin:0!important;pointer-events:none!important}
 html[data-pw-edit-device="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-header-main,
 html[data-pw-edit-device="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-shop-header-inner,
 html[data-pw-scene-lock="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-header-main,

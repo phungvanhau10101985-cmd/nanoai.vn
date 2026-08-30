@@ -18,6 +18,8 @@ export type PartnerSiteShopCopy = {
   categorySubcategoriesLabel: string
   categoryFilterMinPrice: string
   categoryFilterMaxPrice: string
+  categoryFilterPriceMinPh: string
+  categoryFilterPriceMaxPh: string
   categoryFilterApply: string
   categoryFilterClear: string
   categorySortLabel: string
@@ -464,6 +466,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categorySubcategoriesLabel: 'Danh mục con',
     categoryFilterMinPrice: 'Giá từ',
     categoryFilterMaxPrice: 'Giá đến',
+    categoryFilterPriceMinPh: 'Tối thiểu',
+    categoryFilterPriceMaxPh: 'Tối đa',
     categoryFilterApply: 'Áp dụng',
     categoryFilterClear: 'Xóa bộ lọc',
     categorySortLabel: 'Sắp xếp',
@@ -891,6 +895,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categorySubcategoriesLabel: 'Subcategories',
     categoryFilterMinPrice: 'Min price',
     categoryFilterMaxPrice: 'Max price',
+    categoryFilterPriceMinPh: 'Minimum',
+    categoryFilterPriceMaxPh: 'Maximum',
     categoryFilterApply: 'Apply',
     categoryFilterClear: 'Clear filters',
     categorySortLabel: 'Sort',
@@ -1318,6 +1324,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categorySubcategoriesLabel: '子分类',
     categoryFilterMinPrice: '最低价',
     categoryFilterMaxPrice: '最高价',
+    categoryFilterPriceMinPh: '最低',
+    categoryFilterPriceMaxPh: '最高',
     categoryFilterApply: '应用',
     categoryFilterClear: '清除筛选',
     categorySortLabel: '排序',
@@ -1745,6 +1753,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categorySubcategoriesLabel: 'サブカテゴリー',
     categoryFilterMinPrice: '最低価格',
     categoryFilterMaxPrice: '最高価格',
+    categoryFilterPriceMinPh: '下限',
+    categoryFilterPriceMaxPh: '上限',
     categoryFilterApply: '適用',
     categoryFilterClear: 'フィルターを解除',
     categorySortLabel: '並び替え',
@@ -2172,6 +2182,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categorySubcategoriesLabel: '하위 카테고리',
     categoryFilterMinPrice: '최소 가격',
     categoryFilterMaxPrice: '최대 가격',
+    categoryFilterPriceMinPh: '최소',
+    categoryFilterPriceMaxPh: '최대',
     categoryFilterApply: '적용',
     categoryFilterClear: '필터 지우기',
     categorySortLabel: '정렬',

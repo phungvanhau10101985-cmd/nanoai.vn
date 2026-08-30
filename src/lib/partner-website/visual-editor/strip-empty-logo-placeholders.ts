@@ -1,9 +1,8 @@
 const EMPTY_GIF = /^data:image\/gif/i
 
 function isLogoImgTag(tag: string): boolean {
-  return /(?:\bclass=["'][^"']*\b(?:pw-logo|pw-shop-logo|pw-shop-footer-logo|site-logo)\b|\bdata-pw-logo-added=)/i.test(
-    tag
-  )
+  if (/\bpw-shop-footer-logo\b/.test(tag)) return false
+  return /(?:\bclass=["'][^"']*\b(?:pw-logo|pw-shop-logo|site-logo)\b|\bdata-pw-logo-added=)/i.test(tag)
 }
 
 function readSrc(tag: string): string {

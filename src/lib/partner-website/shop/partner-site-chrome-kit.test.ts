@@ -203,7 +203,12 @@ describe('partner-site-chrome-kit', () => {
       '[data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"])'
     )
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('[data-pw-page="product"]')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('html:has([data-pw-page="product"])')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('html:has([data-pw-region="gallery"])')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('html:has([data-pw-pdp-add-cart])')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('html[data-pw-page="product"]')
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('pw-pdp-sticky-nav')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('html:has([data-pw-chrome-kit="dock"]) .pw-pdp-sticky')
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('.pw-shop:has([data-pw-chrome-kit="dock"]) .pw-pdp-sticky')
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('flex:1 1 0')
     expect(PARTNER_SHOP_CHROME_KIT_CSS).not.toMatch(

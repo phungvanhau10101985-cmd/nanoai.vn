@@ -249,21 +249,28 @@ function buildListingMain(
     <h1 ${pwElAttr(PW_EL.heading)}>${escapeHtml(title)}</h1>
     <p class="pw-muted" ${pwElAttr(PW_EL.body)}>${escapeHtml(lead)}</p>
   </header>
-  <div class="pw-page-filters" ${pwRegionAttr(PW_REGION.filters)} aria-label="${escapeAttr(shop.categoryFiltersAria)}">
-    <label ${pwElAttr(PW_EL.facet)}>${escapeHtml(shop.categoryFilterSize)}
-      <select><option>${escapeHtml(shop.categoryFilterAllSizes)}</option></select>
+  <div class="pw-shop-filters pw-page-filters" ${pwRegionAttr(PW_REGION.filters)} aria-label="${escapeAttr(shop.categoryFiltersAria)}">
+    <label><span class="pw-shop-filter-label">${escapeHtml(shop.categoryFilterSize)}</span>
+      <select ${pwElAttr(PW_EL.facet)} aria-label="${escapeAttr(shop.categoryFilterSize)}"><option>${escapeHtml(shop.categoryFilterAllSizes)}</option></select>
     </label>
-    <label ${pwElAttr(PW_EL.facet)}>${escapeHtml(shop.categoryFilterStyle)}
-      <select><option>${escapeHtml(shop.categoryFilterAllStyles)}</option></select>
+    <label><span class="pw-shop-filter-label">${escapeHtml(shop.categoryFilterStyle)}</span>
+      <select ${pwElAttr(PW_EL.facet)} aria-label="${escapeAttr(shop.categoryFilterStyle)}"><option>${escapeHtml(shop.categoryFilterAllStyles)}</option></select>
     </label>
-    <label ${pwElAttr(PW_EL.facet)}>${escapeHtml(shop.categoryFilterColor)}
-      <select><option>${escapeHtml(shop.categoryFilterAllColors)}</option></select>
+    <label><span class="pw-shop-filter-label">${escapeHtml(shop.categoryFilterColor)}</span>
+      <select ${pwElAttr(PW_EL.facet)} aria-label="${escapeAttr(shop.categoryFilterColor)}"><option>${escapeHtml(shop.categoryFilterAllColors)}</option></select>
     </label>
-    <label ${pwElAttr(PW_EL.sort)}>${escapeHtml(shop.categorySortLabel)}
-      <select>
-        <option value="default">${escapeHtml(shop.categorySortNewest)}</option>
-        <option value="price-asc">${escapeHtml(shop.categorySortPriceAsc)}</option>
-        <option value="price-desc">${escapeHtml(shop.categorySortPriceDesc)}</option>
+    <label><span class="pw-shop-filter-label">${escapeHtml(shop.categoryFilterMinPrice)}</span>
+      <input type="number" min="0" step="1000" placeholder="${escapeAttr(shop.categoryFilterPriceMinPh)}" aria-label="${escapeAttr(shop.categoryFilterMinPrice)}"/>
+    </label>
+    <label><span class="pw-shop-filter-label">${escapeHtml(shop.categoryFilterMaxPrice)}</span>
+      <input type="number" min="0" step="1000" placeholder="${escapeAttr(shop.categoryFilterPriceMaxPh)}" aria-label="${escapeAttr(shop.categoryFilterMaxPrice)}"/>
+    </label>
+    <label ${pwRegionAttr(PW_REGION.toolbar)}><span class="pw-shop-filter-label">${escapeHtml(shop.categorySortLabel)}</span>
+      <select ${pwElAttr(PW_EL.sort)} aria-label="${escapeAttr(shop.categorySortLabel)}">
+        <option value="random">${escapeHtml(shop.categorySortRandom)}</option>
+        <option value="newest">${escapeHtml(shop.categorySortNewest)}</option>
+        <option value="oldest">${escapeHtml(shop.categorySortOldest)}</option>
+        <option value="views_desc">${escapeHtml(shop.categorySortViews)}</option>
       </select>
     </label>
   </div>
@@ -406,9 +413,10 @@ function pageShellCss(variant: VisualDeviceVariant): string {
 .pw-page-crumbs a:hover{color:var(--pw-primary)}
 .pw-page-head{margin:0 0 22px;max-width:40rem}
 .pw-page-head h1{margin:0 0 8px;font-size:clamp(1.5rem,3vw,2.1rem);line-height:1.2;color:var(--pw-text,#111)}
-.pw-page-filters{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 16px;padding-bottom:12px;border-bottom:1px solid var(--pw-border,#e5e7eb)}
-.pw-page-filters label{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;color:var(--pw-muted,#6b7280);min-width:120px}
-.pw-page-filters select,.pw-page-filters input,.pw-form input,.pw-form textarea{height:36px;border:1px solid var(--pw-border,#e5e7eb);border-radius:8px;padding:0 10px;font:inherit;background:#fff}
+.pw-page-filters{position:sticky;top:var(--pw-sticky-head,56px);z-index:40;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;align-items:end;margin:0 0 12px;padding:6px 0 8px;background:var(--pw-surface,#f9fafb);border-bottom:1px solid var(--pw-border,#e5e7eb)}
+.pw-page-filters label{display:flex;flex-direction:column;gap:0;min-width:0;margin:0}
+.pw-page-filters .pw-shop-filter-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.pw-page-filters select,.pw-page-filters input,.pw-form input,.pw-form textarea{height:32px;border:1px solid var(--pw-border,#d1d5db);border-radius:6px;padding:0 6px;font:inherit;font-size:11px;background:#fff;min-width:0;width:100%;box-sizing:border-box}
 .pw-form textarea{height:auto;padding:10px}
 .pw-page-toolbar{margin:0 0 16px;font-size:13px;color:var(--pw-muted,#6b7280)}
 .pw-page-shell .pw-product-grid{display:grid;grid-template-columns:repeat(${gridCols},minmax(0,1fr));gap:${compactDevice(variant) ? '10px' : '16px'}}

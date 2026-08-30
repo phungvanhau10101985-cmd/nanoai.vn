@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   buildPartnerShopFontCss,
   extractVisualHtmlBodyMarkup,
+  extractVisualHtmlPageKind,
   injectPartnerShopFontsIntoHtml,
   PARTNER_SHOP_FONT_STYLE_ID,
 } from './inject-partner-shop-fonts'
@@ -29,6 +30,18 @@ test('injectPartnerShopChromeLayoutCss always ships font pack', () => {
 test('extractVisualHtmlBodyMarkup returns inner body only', () => {
   const html = '<html><head><title>x</title></head><body><main>Shop</main></body></html>'
   assert.equal(extractVisualHtmlBodyMarkup(html), '<main>Shop</main>')
+})
+
+test('extractVisualHtmlPageKind reads html then body', () => {
+  assert.equal(
+    extractVisualHtmlPageKind('<html data-pw-page="product"><body data-pw-page="home"></body></html>'),
+    'product'
+  )
+  assert.equal(
+    extractVisualHtmlPageKind('<html><body data-pw-page="product"><main></main></body></html>'),
+    'product'
+  )
+  assert.equal(extractVisualHtmlPageKind('<html><body></body></html>'), '')
 })
 
 test('buildPartnerShopFontCss pins UI vs display stacks', () => {

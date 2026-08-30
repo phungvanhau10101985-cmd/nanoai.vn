@@ -8,6 +8,7 @@ import { FASHION_SHOP_GOOGLE_FONTS_HREF } from '@/lib/partner-website/shop/fashi
 import {
   buildPartnerShopFontCss,
   extractVisualHtmlBodyMarkup,
+  extractVisualHtmlPageKind,
   PARTNER_SHOP_FONT_STYLE_ID,
 } from '@/lib/partner-website/shop/inject-partner-shop-fonts'
 import {
@@ -335,6 +336,17 @@ function PartnerSitePublicFrame({
   }, [centerPreviewWrap, devicePreview, frameLocked, previewFrameStyle.width])
   const previewHtml = hideChatLaunchersInHtml(selectedHtml, hideEmbedFab)
   const revision = visualHtmlRevision(previewHtml, activeDevice)
+  const visualPageKind = extractVisualHtmlPageKind(previewHtml)
+  useLayoutEffect(() => {
+    if (!inlineHtml || !visualPageKind) return
+    const root = document.documentElement
+    root.setAttribute('data-pw-page', visualPageKind)
+    return () => {
+      if (root.getAttribute('data-pw-page') === visualPageKind) {
+        root.removeAttribute('data-pw-page')
+      }
+    }
+  }, [inlineHtml, visualPageKind, revision])
   /** Live custom domain: never srcDoc-iframe (except `?pw-device=` preview frames). */
   if (inlineHtml && !devicePreview) {
     return (
@@ -351,6 +363,7 @@ function PartnerSitePublicFrame({
         <div
           key={revision}
           data-pw-inline-visual-root="1"
+          data-pw-page={visualPageKind || undefined}
           data-pw-active-device={activeDevice}
           data-pw-runtime-revision={revision}
           className="bg-white"

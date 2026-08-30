@@ -28,11 +28,20 @@ test('mobile header stack centers the logo row and keeps toolbar below', () => {
   assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('order:-1!important'), true)
   assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('flex:1 1 100%!important'), true)
   assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('justify-content:center!important'), true)
+  assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('data-pw-logo-empty'), true)
+  assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('nanoai-ve-active'), true)
   assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('.pw-brand-cluster,.pw-shop-brand-cluster,.pw-chrome-cat-wrap{display:contents!important'), true)
   assert.equal(PW_MOBILE_HEADER_ICON_ONLY_RULES.includes('.pw-chrome-btn-label'), true)
   assert.equal(PW_MOBILE_HEADER_ICON_ONLY_RULES.includes('icon-label-below'), true)
   assert.equal(PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS.includes(`${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"`), true)
   assert.equal(PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS.includes('max-height:0!important'), true)
+  assert.equal(PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS.includes(':is('), true)
+  assert.equal(
+    /html\[[^\]]*\]\s+\.pw-header a\.pw-brand[\s\S]*?,\s*\.pw-header a\[data-pw-logo-home\]/.test(
+      PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS
+    ),
+    false
+  )
 })
 
 test('chrome layout injects mobile logo script and stack CSS once', () => {

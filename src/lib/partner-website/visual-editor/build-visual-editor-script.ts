@@ -3737,12 +3737,28 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (!btn.getAttribute('data-pw-search-glyph')) btn.setAttribute('data-pw-search-glyph', 'lens')
     }
   }
+  function ensureSearchDefaultIcon(scope) {
+    var root = scope && scope.querySelectorAll ? scope : document
+    var forms = root.querySelectorAll('.pw-search-form, .pw-shop-search-form, form[data-pw-search-form]')
+    for (var i = 0; i < forms.length; i++) {
+      var form = forms[i]
+      if (form.querySelector && form.querySelector('.pw-search-default-icon, .pw-shop-search-default-icon')) continue
+      var input = form.querySelector('input[data-pw-search], input[type="search"]')
+      if (!input) continue
+      var hold = document.createElement('span')
+      hold.className = 'pw-search-default-icon pw-shop-search-default-icon'
+      hold.setAttribute('aria-hidden', 'true')
+      hold.innerHTML = searchSubmitIconSvg()
+      form.insertBefore(hold, input)
+    }
+  }
   function createSearchCluster() {
     var wrap = document.createElement('div')
     wrap.className = 'pw-header-search pw-shop-search-wrap'
     wrap.setAttribute('data-pw-el', 'search')
     var ph = searchPlaceholderText().replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
     wrap.innerHTML = '<form class="pw-search-form pw-shop-search-form" data-pw-search-form role="search">' +
+      '<span class="pw-search-default-icon pw-shop-search-default-icon" aria-hidden="true">' + searchSubmitIconSvg() + '</span>' +
       '<input data-pw-search type="search" name="q" placeholder="' + ph + '" aria-label="' + ph + '" autocomplete="off"/>' +
       '<button type="button" class="pw-search-image-btn pw-shop-search-image" data-pw-image-search data-pw-search-glyph="camera" aria-label="Search image"><span class="pw-chrome-icon-wrap">' + searchCameraIconSvg() + '</span></button>' +
       '<button type="submit" class="pw-search-submit pw-shop-search-submit" data-pw-search-glyph="lens" aria-label="Search">' + searchSubmitIconSvg() + '</button></form>'
@@ -3789,6 +3805,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     lockSearchBox(search, compactSearchMinWidth() + 38)
     ensureSearchSubmitIcon(search)
     ensureSearchImageIcon(search)
+    ensureSearchDefaultIcon(search)
   }
   function lockSearchBox(el, widthPx, manual) {
     if (!el) return
@@ -8186,6 +8203,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         if (k === 'search') {
           ensureSearchSubmitIcon(node)
           ensureSearchImageIcon(node)
+          ensureSearchDefaultIcon(node)
           lockSearchBox(node, defaultSearchBoxWidth())
           try { ensureSearchVisible() } catch (errSearchSeatGap) {}
         }
@@ -8212,6 +8230,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (k === 'search') {
       ensureSearchSubmitIcon(node)
       ensureSearchImageIcon(node)
+      ensureSearchDefaultIcon(node)
       lockSearchBox(node, defaultSearchBoxWidth())
       try { ensureSearchVisible() } catch (errSearchSeat) {}
     }
@@ -14167,6 +14186,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { ensureSearchVisible() } catch (errSearchVis) {}
     try { ensureSearchSubmitIcon(document) } catch (errSearchIcon) {}
     try { ensureSearchImageIcon(document) } catch (errSearchCam) {}
+    try { ensureSearchDefaultIcon(document) } catch (errSearchDef) {}
     try { lockExistingSearchBoxes() } catch (errSearch) {}
     try { stampAllChromeFloats() } catch (errFloatStamp) {}
     try { pinMidTopChromeAll() } catch (errMidFlow) {}

@@ -389,6 +389,17 @@ function PartnerSiteShopShellInner({
   }, [previewDevice])
 
   useEffect(() => {
+    if (!pageKind) return
+    const html = document.documentElement
+    html.setAttribute('data-pw-page', pageKind)
+    return () => {
+      if (html.getAttribute('data-pw-page') === pageKind) {
+        html.removeAttribute('data-pw-page')
+      }
+    }
+  }, [pageKind])
+
+  useEffect(() => {
     if (!categoriesOpen) return
     const header = categoriesRef.current?.closest('header, .pw-shop-header, .pw-header')
     const top = header ? Math.round(header.getBoundingClientRect().bottom) : 56
@@ -665,10 +676,18 @@ function PartnerSiteShopShellInner({
             {logoUrl ? (
               <Link href={paths.home} className="pw-shop-brand">
                 <img className="pw-shop-logo" data-pw-el={PW_EL.logo} src={logoUrl} alt={title} />
+                <span className="pw-wordmark" data-pw-el={PW_EL.wordmark}>{title}</span>
               </Link>
             ) : (
-              <Link href={paths.home} className="pw-shop-brand" data-pw-el={PW_EL.wordmark}>
-                {title}
+              <Link href={paths.home} className="pw-shop-brand">
+                <img
+                  className="pw-shop-logo"
+                  data-pw-el={PW_EL.logo}
+                  data-pw-logo-empty="1"
+                  src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+                  alt=""
+                />
+                <span className="pw-wordmark" data-pw-el={PW_EL.wordmark}>{title}</span>
               </Link>
             )}
           </div>

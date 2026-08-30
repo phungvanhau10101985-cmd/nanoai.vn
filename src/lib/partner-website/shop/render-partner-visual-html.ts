@@ -18,8 +18,13 @@ import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/par
 import { stripPartnerInfoPageSeoCoachFromHtml } from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
 import { ensureAdsPlatformPolicyInHtml } from '@/lib/partner-website/pages/partner-info-page-visual'
 import { ensureFullPartnerSiteFooterInHtml } from '@/lib/partner-website/shop/build-partner-site-footer-html'
-import { ensurePartnerSitePdpBottomNavInHtml } from '@/lib/partner-website/shop/build-partner-site-header-html'
+import {
+  ensurePartnerSiteHeaderLogoSlotInHtml,
+  ensurePartnerSitePdpBottomNavInHtml,
+} from '@/lib/partner-website/shop/build-partner-site-header-html'
 import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/partner-site-chrome-kit'
+import { ensureSearchClusterInHtml } from '@/lib/partner-website/visual-editor/search-cluster-icons'
+import { PW_PAGE_BY_CATALOG_KEY } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { ensurePdpReviewQaCardsInBuyBox } from '@/lib/partner-website/shop/partner-site-pdp-review-qa'
 import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual-editor/strip-empty-logo-placeholders'
 import {
@@ -65,6 +70,19 @@ type PartnerVisualRenderInput = {
   runtime: 'authoring' | 'live'
 }
 
+function stampPwPageOnDocumentHtml(html: string, pageKey?: string | null): string {
+  const fromBody = html.match(/<body\b[^>]*\bdata-pw-page=["']([^"']+)["']/i)?.[1]?.trim() || ''
+  const fromKey = pageKey ? PW_PAGE_BY_CATALOG_KEY[pageKey] || '' : ''
+  const page = fromBody || fromKey
+  if (!page || !/<html\b/i.test(html)) return html
+  return html.replace(/<html\b([^>]*)>/i, (_full, attrs: string) => {
+    if (/\bdata-pw-page=/.test(attrs)) {
+      return `<html${attrs.replace(/\bdata-pw-page=(["'])[^"']*\1/i, `data-pw-page="${page}"`)}>`
+    }
+    return `<html${attrs} data-pw-page="${page}">`
+  })
+}
+
 function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInput): string {
   const siteSlug = input.siteSlug?.trim() ?? ''
   const locale = input.locale ?? 'vi'
@@ -104,10 +122,19 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
   const isProduct =
     input.pageKey === 'product_detail' || /\bdata-pw-page=["']product["']/.test(bodyAttrs)
   const withReviewQa = isProduct ? ensurePdpReviewQaCardsInBuyBox(mediaReady, locale) : mediaReady
-  const withShopCss = injectPartnerShopThemeCss(withReviewQa, input.theme)
-  const withChrome = injectPartnerShopChromeLayoutCss(
-    stripEmptyLogoPlaceholdersFromHtml(withShopCss)
-  )
+  const withSearch = ensureSearchClusterInHtml(withReviewQa)
+  const wordmark =
+    withSearch.match(/<span\b[^>]*\bpw-wordmark\b[^>]*>([\s\S]*?)<\/span>/i)?.[1]?.replace(/<[^>]+>/g, '').trim() ||
+    ''
+  const withLogoSlot = ensurePartnerSiteHeaderLogoSlotInHtml(withSearch, {
+    logoUrl: input.theme?.logoUrl,
+    title: wordmark,
+    siteSlug: input.siteSlug,
+  })
+  const withShopCss = injectPartnerShopThemeCss(withLogoSlot, input.theme)
+  const logosReady =
+    input.runtime === 'authoring' ? withShopCss : stripEmptyLogoPlaceholdersFromHtml(withShopCss)
+  const withChrome = injectPartnerShopChromeLayoutCss(stampPwPageOnDocumentHtml(logosReady, input.pageKey))
   const withRuntime =
     input.runtime === 'authoring'
       ? injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(withChrome, { siteSlug, locale })

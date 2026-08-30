@@ -71,6 +71,15 @@ test('shop theme CSS ships HTML chrome alongside React pw-shop-header', () => {
   assert.match(css, /\.pw-header\{/)
 })
 
+test('shop theme CSS keeps listing filters compact and sticky under the head', () => {
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(css, /\.pw-shop-filters[\s\S]*?top:var\(--pw-sticky-head,56px\)!important/)
+  assert.match(css, /\.pw-shop-filter-label\{position:absolute/)
+  assert.match(css, /\.pw-shop-filter-clear[\s\S]*?color:var\(--pw-primary\)/)
+  assert.match(css, /height:32px/)
+  assert.doesNotMatch(css, /\.pw-shop-filters label\{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600/)
+})
+
 test('injecting theme CSS onto the default PDP shell styles the HTML header', () => {
   const html = buildDefaultDemoPdpShellHtml({ locale: 'vi' })
   const out = injectPartnerShopThemeCss(html, DEFAULT_PARTNER_WEBSITE_THEME)

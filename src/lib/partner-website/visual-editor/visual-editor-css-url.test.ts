@@ -687,6 +687,8 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('pointInElPad')
     expect(s).toContain('ensureSearchVisible')
     expect(s).toContain('createSearchCluster')
+    expect(s).toContain('ensureSearchDefaultIcon')
+    expect(s).toContain('pw-search-default-icon')
     expect(s).toContain('ensureSearchSubmitIcon')
     expect(s).toContain('pw-shop-search-submit-icon')
     expect(s).toContain('seatSearchInHeader')

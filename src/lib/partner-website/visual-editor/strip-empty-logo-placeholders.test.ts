@@ -118,6 +118,14 @@ describe('stripEmptyLogoPlaceholdersFromHtml', () => {
     expect(next).toContain('<img')
   })
 
+  it('does not hide the header wordmark because the footer has a logo', () => {
+    const html = `<header class="pw-header"><a class="pw-brand" href="/"><span class="pw-wordmark" data-pw-logo-wordmark-hidden="1" style="display:none">188.com.vn</span></a></header><footer><img class="pw-shop-footer-logo" src="https://cdn.example/foot.png" alt=""/></footer>`
+    const next = stripEmptyLogoPlaceholdersFromHtml(html)
+    expect(next).toContain('188.com.vn')
+    expect(next).not.toContain('data-pw-logo-wordmark-hidden')
+    expect(next).toContain('pw-shop-footer-logo')
+  })
+
   it('strips float attrs wrongly stored on img tags', () => {
     const html =
       '<header class="pw-header"><img class="pw-logo" data-pw-logo-float="1" data-pw-logo-floated="1" src="https://cdn.example/logo.png" alt="L"/></header>'

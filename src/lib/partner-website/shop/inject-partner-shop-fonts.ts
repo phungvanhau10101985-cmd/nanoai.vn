@@ -75,3 +75,13 @@ export function extractVisualHtmlBodyMarkup(html: string): string {
   const body = trimmed.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i)?.[1]
   return body?.trim() ? body : trimmed
 }
+
+/** `data-pw-page` lives on `<html>` / `<body>` — lost when only inner body is inlined. */
+export function extractVisualHtmlPageKind(html: string): string {
+  const trimmed = html.trim()
+  if (!trimmed) return ''
+  const fromHtml = trimmed.match(/<html\b[^>]*\bdata-pw-page=["']([^"']+)["']/i)?.[1]
+  if (fromHtml?.trim()) return fromHtml.trim()
+  const fromBody = trimmed.match(/<body\b[^>]*\bdata-pw-page=["']([^"']+)["']/i)?.[1]
+  return fromBody?.trim() || ''
+}

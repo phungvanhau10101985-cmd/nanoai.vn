@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import {
+  buildPartnerSiteHeaderHtml,
+  ensurePartnerSiteHeaderLogoSlotInHtml,
+} from '@/lib/partner-website/shop/build-partner-site-header-html'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -39,6 +43,8 @@ describe('listing native UI contract stamps', () => {
     expect(src).toContain('data-pw-like-count')
     expect(src).toContain('pw-pdp-like-copy')
     expect(src).toContain('ensurePartnerSitePdpBottomNavInHtml')
+    expect(src).toContain('pw-search-default-icon')
+    expect(src).toContain('data-pw-logo-empty')
     expect(src).not.toContain('data-pw-account-toggle')
   })
 
@@ -173,5 +179,52 @@ describe('listing native UI contract stamps', () => {
     expect(template).toContain('pwRegionAttr(PW_REGION.form)')
     expect(template).toContain('pwElAttr(PW_EL.faqItem)')
     expect(template).toContain('pwElAttr(PW_EL.submit)')
+  })
+
+  it('seeds mobile search defaults and an empty logo upload slot', () => {
+    const { header } = buildPartnerSiteHeaderHtml({
+      locale: 'vi',
+      title: 'Demo Shop',
+      siteSlug: 'demo-shop',
+      device: 'mobile',
+    })
+    expect(header).toContain('pw-search-default-icon')
+    expect(header).toContain('data-pw-image-search')
+    expect(header).toContain('data-pw-search-glyph="camera"')
+    expect(header).toContain('data-pw-search-glyph="lens"')
+    expect(header).toContain('data-pw-logo-empty="1"')
+    expect(header).toContain('class="pw-logo"')
+    expect(header).toContain('pw-wordmark')
+  })
+
+  it('fills an existing brand that lost its logo img', () => {
+    const html = `<header class="pw-header"><div class="pw-header-main"><div class="pw-brand-cluster">
+      <button class="pw-cat-btn" data-pw-chrome-btn="categories">Menu</button>
+      <a class="pw-brand" href="/" data-pw-logo-home="1"><span class="pw-wordmark" data-pw-el="wordmark" style="display: none;">188.com.vn</span></a>
+      <a class="pw-brand" href="/" data-pw-logo-slot="header"></a>
+    </div></div></header>`
+    const next = ensurePartnerSiteHeaderLogoSlotInHtml(html, {
+      title: '188.com.vn',
+      siteSlug: 'demo-shop',
+    })
+    expect(next).toContain('data-pw-logo-empty="1"')
+    expect(next).toContain('class="pw-logo"')
+    expect(next).toContain('188.com.vn')
+    expect(next).not.toMatch(/style="display:\s*none;?"/)
+    expect(next.match(/class="pw-brand"/g)?.length).toBe(1)
+  })
+
+  it('injects a logo upload slot when the header has none', () => {
+    const html = `<header class="pw-header"><div class="pw-header-main"><div class="pw-brand-cluster">
+      <button class="pw-cat-btn" data-pw-chrome-btn="categories">Menu</button>
+    </div></div></header>`
+    const next = ensurePartnerSiteHeaderLogoSlotInHtml(html, {
+      logoUrl: 'https://cdn.example/logo.png',
+      title: 'Shop',
+      siteSlug: 'demo-shop',
+    })
+    expect(next).toContain('class="pw-logo"')
+    expect(next).toContain('https://cdn.example/logo.png')
+    expect(next).toContain('pw-wordmark')
   })
 })

@@ -168,6 +168,8 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   const loginHref = escapeAttr(paths.login)
   const search = searchLabels(input.locale)
   const logo = input.logoUrl?.trim() ?? ''
+  const emptyLogoSrc =
+    'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
 
   const topbar = `<div class="pw-topbar" ${pwRegionAttr(PW_REGION.topbar)}><div class="pw-container pw-topbar-inner">
       <a href="${contactHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="contact">${escapeHtml(n.contact)}</a>
@@ -177,10 +179,11 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
 
   const brandBlock = logo
     ? `<a class="pw-brand" href="${homeHref}"><img class="pw-logo" ${pwElAttr(PW_EL.logo)} src="${escapeAttr(logo)}" alt="${escapeAttr(input.title)}"/><span class="pw-wordmark" ${pwElAttr(PW_EL.wordmark)}>${escapeHtml(input.title)}</span></a>`
-    : `<a class="pw-brand" href="${homeHref}"><span class="pw-wordmark" ${pwElAttr(PW_EL.wordmark)}>${escapeHtml(input.title)}</span></a>`
+    : `<a class="pw-brand" href="${homeHref}"><img class="pw-logo" ${pwElAttr(PW_EL.logo)} data-pw-logo-empty="1" src="${emptyLogoSrc}" alt=""/><span class="pw-wordmark" ${pwElAttr(PW_EL.wordmark)}>${escapeHtml(input.title)}</span></a>`
 
   const searchBar = `<div class="pw-header-search" ${pwElAttr(PW_EL.search)}>
     <form class="pw-search-form" data-pw-search-form role="search">
+      <span class="pw-search-default-icon" aria-hidden="true">${searchGlyphSvg('lens', 'pw-search-default-glyph')}</span>
       <input data-pw-search type="search" name="q" placeholder="${escapeAttr(search.placeholder)}" aria-label="${escapeAttr(search.placeholder)}" autocomplete="off"/>
       <button type="button" class="pw-search-image-btn" data-pw-image-search data-pw-search-glyph="camera" aria-label="${escapeAttr(search.image)}" title="${escapeAttr(search.image)}"><span class="pw-chrome-icon-wrap">${searchGlyphSvg('camera')}</span></button>
       <button type="submit" class="pw-search-submit" data-pw-search-glyph="lens">${searchGlyphSvg('lens')}<span class="pw-shop-search-submit-label">${escapeHtml(search.button)}</span></button>
@@ -329,4 +332,115 @@ export function ensurePartnerSitePdpBottomNavInHtml(
     return `${html}\n${next}`
   }
   return `${html.slice(0, found.start)}${next}${html.slice(found.end)}`
+}
+
+const EMPTY_LOGO_GIF =
+  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+
+function isFilledLogoSrc(src: string): boolean {
+  const s = src.trim()
+  if (!s || /^data:image\/gif/i.test(s)) return false
+  return /^(https?:\/\/|\/(?!\/)|data:image\/(?:png|jpe?g|webp))/i.test(s)
+}
+
+function fillEmptyHeaderLogoImg(tag: string, logoUrl: string, title: string): string {
+  if (!/\b(?:pw-logo|pw-shop-logo)\b/.test(tag)) return tag
+  const src = tag.match(/\bsrc=["']([^"']*)["']/i)?.[1] || ''
+  if (isFilledLogoSrc(src) && !/\bdata-pw-logo-empty=/.test(tag)) return tag
+  let next = tag
+    .replace(/\s*data-pw-logo-empty=["'][^"']*["']/gi, '')
+    .replace(/\bsrc=["'][^"']*["']/i, `src="${escapeAttr(logoUrl)}"`)
+  if (!/\bsrc=/.test(next)) next = next.replace(/<img\b/i, `<img src="${escapeAttr(logoUrl)}"`)
+  if (title && !/\balt=["'][^"']+["']/.test(next)) {
+    next = next.replace(/\balt=["']["']/i, `alt="${escapeAttr(title)}"`)
+  }
+  return next
+}
+
+function buildHeaderLogoSlotHtml(input: { logoUrl?: string; title?: string; homeHref?: string }): string {
+  const homeHref = escapeAttr(input.homeHref || '/')
+  const title = input.title?.trim() || ''
+  const logo = input.logoUrl?.trim() || ''
+  if (logo) {
+    return `<a class="pw-brand" href="${homeHref}"><img class="pw-logo" ${pwElAttr(PW_EL.logo)} src="${escapeAttr(logo)}" alt="${escapeAttr(title)}"/><span class="pw-wordmark" ${pwElAttr(PW_EL.wordmark)}>${escapeHtml(title)}</span></a>`
+  }
+  return `<a class="pw-brand" href="${homeHref}"><img class="pw-logo" ${pwElAttr(PW_EL.logo)} data-pw-logo-empty="1" src="${EMPTY_LOGO_GIF}" alt=""/><span class="pw-wordmark" ${pwElAttr(PW_EL.wordmark)}>${escapeHtml(title)}</span></a>`
+}
+
+function headerLogoImgHtml(logo: string, title: string): string {
+  if (logo) {
+    return `<img class="pw-logo" ${pwElAttr(PW_EL.logo)} src="${escapeAttr(logo)}" alt="${escapeAttr(title)}"/>`
+  }
+  return `<img class="pw-logo" ${pwElAttr(PW_EL.logo)} data-pw-logo-empty="1" src="${EMPTY_LOGO_GIF}" alt=""/>`
+}
+
+function unhideWordmarkIfEmptyLogo(inner: string, hasFilledLogo: boolean): string {
+  if (hasFilledLogo) return inner
+  return inner.replace(/<span\b([^>]*\bpw-wordmark\b[^>]*)>/gi, (tag) =>
+    tag
+      .replace(/\s*data-pw-logo-wordmark-hidden=["'][^"']*["']/gi, '')
+      .replace(/(\sstyle=["'])([^"']*)(["'])/i, (_m, a: string, style: string, c: string) => {
+        const next = style.replace(/(?:^|;)\s*display\s*:\s*none\s*;?/gi, '').replace(/^;|;$/g, '').trim()
+        return next ? `${a}${next}${c}` : ''
+      })
+  )
+}
+
+function fillMissingHeaderBrandImgs(
+  html: string,
+  input: { logo: string; title: string }
+): string {
+  const img = headerLogoImgHtml(input.logo, input.title)
+  return html.replace(/<header\b([^>]*)>([\s\S]*?)<\/header>/gi, (_full, attrs: string, inner: string) => {
+    let seenBrand = false
+    const nextInner = inner.replace(
+      /<a\b([^>]*(?:pw-brand|pw-shop-brand|data-pw-logo-home)[^>]*)>([\s\S]*?)<\/a>/gi,
+      (brandFull: string, brandAttrs: string, brandInner: string) => {
+        const hasLogoImg = /<img\b[^>]*(?:pw-logo|pw-shop-logo|data-pw-el=["']logo["'])/i.test(brandInner)
+        if (seenBrand && !hasLogoImg) return ''
+        seenBrand = true
+        if (hasLogoImg) return brandFull
+        return `<a${brandAttrs}>${img}${unhideWordmarkIfEmptyLogo(brandInner, Boolean(input.logo))}</a>`
+      }
+    )
+    return `<header${attrs}>${nextInner}</header>`
+  })
+}
+
+/** Header luôn có ô logo (ảnh theme hoặc placeholder) để Sửa nhanh tải được. */
+export function ensurePartnerSiteHeaderLogoSlotInHtml(
+  html: string,
+  input: { logoUrl?: string | null; title?: string | null; siteSlug?: string | null }
+): string {
+  if (!html.trim()) return html
+  const logo = input.logoUrl?.trim() || ''
+  const title = input.title?.trim() || ''
+  const homeHref = input.siteSlug ? partnerSiteHomePath(input.siteSlug) : '/'
+  let out = html
+  if (logo) {
+    out = out.replace(/<img\b[^>]*>/gi, (tag) => fillEmptyHeaderLogoImg(tag, logo, title))
+  }
+  out = fillMissingHeaderBrandImgs(out, { logo, title })
+  if (/<header\b[^>]*>[\s\S]*<(?:a)[^>]*(?:pw-brand|pw-shop-brand|data-pw-logo-home)/i.test(out)) {
+    return out
+  }
+  const slot = buildHeaderLogoSlotHtml({ logoUrl: logo, title, homeHref })
+  const clusterRe =
+    /<(div)([^>]*\b(?:pw-brand-cluster|pw-shop-brand-cluster)\b[^>]*)>([\s\S]*?)<\/\1>/i
+  const cluster = out.match(clusterRe)
+  if (cluster) {
+    const cat = cluster[3].match(
+      /<(?:button|a)\b[^>]*(?:pw-cat-btn|data-pw-chrome-btn=["']categories["'])[^>]*>[\s\S]*?<\/(?:button|a)>/i
+    )
+    const inner = cat
+      ? cluster[3].replace(cat[0], `${cat[0]}\n      ${slot}`)
+      : `${slot}\n      ${cluster[3]}`
+    return out.replace(cluster[0], `<div${cluster[2]}>${inner}</div>`)
+  }
+  const mainRe = /<(div)([^>]*\b(?:pw-header-main|pw-shop-header-inner)\b[^>]*)>([\s\S]*?)<\/\1>/i
+  const main = out.match(mainRe)
+  if (main) {
+    return out.replace(main[0], `<div${main[2]}>${slot}\n    ${main[3]}</div>`)
+  }
+  return out.replace(/<(header)\b([^>]*)>/i, `<$1$2>\n  ${slot}`)
 }

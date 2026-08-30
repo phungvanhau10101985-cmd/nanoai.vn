@@ -38,8 +38,13 @@ type Props = {
 }
 
 function listingHref(pathname: string, q: Partial<PartnerCategoryListingQuery>): string {
-  const search = buildPartnerCategoryListingSearch(q)
-  return search ? `${pathname}?${search}` : pathname
+  const qs = buildPartnerCategoryListingSearch(q)
+  return qs ? `${pathname}?${qs}` : pathname
+}
+
+function formatFilterPriceHint(n: number, locale: WebLocale): string {
+  const tag = locale === 'vi' ? 'vi-VN' : locale === 'zh' ? 'zh-CN' : locale === 'ja' ? 'ja-JP' : locale === 'ko' ? 'ko-KR' : 'en-US'
+  return `${Math.round(n).toLocaleString(tag)} ₫`
 }
 
 export function PartnerSiteCategoryProductsClient({
@@ -201,10 +206,11 @@ export function PartnerSiteCategoryProductsClient({
         >
           {facetSizes.length > 0 ? (
             <label>
-              {t.categoryFilterSize}
+              <span className="pw-shop-filter-label">{t.categoryFilterSize}</span>
               <select
                 value={listing.size}
                 data-pw-el={PW_EL.facet}
+                aria-label={t.categoryFilterSize}
                 onChange={(e) => pushListing({ size: e.target.value })}
               >
                 <option value="">{t.categoryFilterAllSizes}</option>
@@ -218,7 +224,7 @@ export function PartnerSiteCategoryProductsClient({
           ) : null}
           {facetStyleTags.length > 0 || listing.styleTag ? (
             <label>
-              {t.categoryFilterStyle}
+              <span className="pw-shop-filter-label">{t.categoryFilterStyle}</span>
               <select
                 value={listing.styleTag}
                 data-pw-el={PW_EL.facet}
@@ -239,10 +245,11 @@ export function PartnerSiteCategoryProductsClient({
           ) : null}
           {facetColors.length > 0 ? (
             <label>
-              {t.categoryFilterColor}
+              <span className="pw-shop-filter-label">{t.categoryFilterColor}</span>
               <select
                 value={listing.color}
                 data-pw-el={PW_EL.facet}
+                aria-label={t.categoryFilterColor}
                 onChange={(e) => pushListing({ color: e.target.value })}
               >
                 <option value="">{t.categoryFilterAllColors}</option>
@@ -255,12 +262,13 @@ export function PartnerSiteCategoryProductsClient({
             </label>
           ) : null}
           <label>
-            {t.categoryFilterMinPrice}
+            <span className="pw-shop-filter-label">{t.categoryFilterMinPrice}</span>
             <input
               type="number"
               min={0}
               step={1000}
-              placeholder={priceRange ? String(priceRange.min) : ''}
+              placeholder={priceRange ? formatFilterPriceHint(priceRange.min, locale) : t.categoryFilterPriceMinPh}
+              aria-label={t.categoryFilterMinPrice}
               value={minLocal}
               onChange={(e) => setMinLocal(e.target.value)}
               onBlur={applyPrice}
@@ -270,12 +278,13 @@ export function PartnerSiteCategoryProductsClient({
             />
           </label>
           <label>
-            {t.categoryFilterMaxPrice}
+            <span className="pw-shop-filter-label">{t.categoryFilterMaxPrice}</span>
             <input
               type="number"
               min={0}
               step={1000}
-              placeholder={priceRange ? String(priceRange.max) : ''}
+              placeholder={priceRange ? formatFilterPriceHint(priceRange.max, locale) : t.categoryFilterPriceMaxPh}
+              aria-label={t.categoryFilterMaxPrice}
               value={maxLocal}
               onChange={(e) => setMaxLocal(e.target.value)}
               onBlur={applyPrice}
@@ -285,10 +294,11 @@ export function PartnerSiteCategoryProductsClient({
             />
           </label>
           <label data-pw-region={PW_REGION.toolbar}>
-            {t.categorySortLabel}
+            <span className="pw-shop-filter-label">{t.categorySortLabel}</span>
             <select
               value={listing.sort}
               data-pw-el={PW_EL.sort}
+              aria-label={t.categorySortLabel}
               onChange={(e) => pushListing({ sort: e.target.value as PartnerCategoryListingSort })}
             >
               <option value="random">{t.categorySortRandom}</option>
@@ -302,8 +312,7 @@ export function PartnerSiteCategoryProductsClient({
           {hasActive ? (
             <button
               type="button"
-              className="pw-shop-btn pw-shop-btn-outline"
-              style={{ height: 36, padding: '0 12px' }}
+              className="pw-shop-filter-clear"
               onClick={() => startTransition(() => router.push(pathname, { scroll: false }))}
             >
               {t.categoryFilterClear}

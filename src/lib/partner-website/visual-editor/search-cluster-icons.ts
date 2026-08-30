@@ -45,7 +45,10 @@ export function searchGlyphPath(id: SearchGlyphId): string {
 }
 
 export function searchGlyphSvg(id: SearchGlyphId, className = 'pw-shop-nav-icon'): string {
-  const extra = id === 'lens' || id.startsWith('lens') ? ' pw-shop-search-submit-icon' : ''
+  const extra =
+    (id === 'lens' || id.startsWith('lens')) && !className.includes('pw-search-default')
+      ? ' pw-shop-search-submit-icon'
+      : ''
   const cls = `${className}${extra}`.trim()
   return `<svg class="${cls}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[id]}</svg>`
 }
@@ -53,4 +56,41 @@ export function searchGlyphSvg(id: SearchGlyphId, className = 'pw-shop-nav-icon'
 /** JS object literal for the visual-editor iframe script. */
 export function searchGlyphPathsJs(): string {
   return JSON.stringify(PATHS)
+}
+
+const SEARCH_FORM_RE =
+  /<(form)([^>]*(?:pw-search-form|pw-shop-search-form|data-pw-search-form)[^>]*)>([\s\S]*?)<\/\1>/gi
+
+const DEFAULT_LENS = () =>
+  `<span class="pw-search-default-icon pw-shop-search-default-icon" aria-hidden="true">${searchGlyphSvg('lens', 'pw-search-default-glyph')}</span>`
+
+const IMAGE_SEARCH_BTN = () =>
+  `<button type="button" class="pw-search-image-btn pw-shop-search-image" data-pw-image-search data-pw-search-glyph="camera" aria-label="Search image"><span class="pw-chrome-icon-wrap">${searchGlyphSvg('camera')}</span></button>`
+
+/** Live + Sửa nhanh: luôn có kính trái, camera tìm ảnh, và một SVG trên nút submit. */
+export function ensureSearchClusterInHtml(html: string): string {
+  if (!html.trim()) return html
+  return html.replace(SEARCH_FORM_RE, (_full, tag: string, attrs: string, inner: string) => {
+    let next = inner
+    if (!/\b(?:pw-search-default-icon|pw-shop-search-default-icon)\b/.test(next)) {
+      const input = next.match(/<input\b[^>]*(?:data-pw-search|type=["']search["'])[^>]*>/i)
+      if (input) next = next.replace(input[0], `${DEFAULT_LENS()}${input[0]}`)
+      else next = `${DEFAULT_LENS()}${next}`
+    }
+    if (!/\b(?:data-pw-image-search|pw-search-image-btn|pw-shop-search-image)\b/.test(next)) {
+      const submit = next.match(
+        /<button\b[^>]*(?:pw-search-submit|pw-shop-search-submit|type=["']submit["'])[^>]*>[\s\S]*?<\/button>/i
+      )
+      if (submit) next = next.replace(submit[0], `${IMAGE_SEARCH_BTN()}${submit[0]}`)
+      else next += IMAGE_SEARCH_BTN()
+    }
+    next = next.replace(
+      /<button\b([^>]*(?:pw-search-submit|pw-shop-search-submit)[^>]*)>([\s\S]*?)<\/button>/gi,
+      (btn, bAttrs: string, bInner: string) => {
+        if (/<svg\b/i.test(bInner)) return btn
+        return `<button${bAttrs}>${searchGlyphSvg('lens')}${bInner}</button>`
+      }
+    )
+    return `<${tag}${attrs}>${next}</${tag}>`
+  })
 }

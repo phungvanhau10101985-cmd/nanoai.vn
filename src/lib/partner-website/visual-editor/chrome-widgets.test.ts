@@ -355,6 +355,7 @@ test('chrome widgets emit search box with image search and submit', () => {
   })
   assert.match(html, /data-pw-el="search"/)
   assert.match(html, /data-pw-search/)
+  assert.match(html, /pw-search-default-icon/)
   assert.match(html, /data-pw-image-search/)
   assert.match(html, /data-pw-search-glyph="camera"/)
   assert.match(html, /data-pw-search-glyph="lens"/)
