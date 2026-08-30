@@ -132,6 +132,7 @@ export type PartnerWebsiteCopy = {
   visualEditAlignCenter: string
   visualEditAlignRight: string
   visualEditBgColor: string
+  visualEditRestoreLastImage: string
   visualEditBgTransparent: string
   visualEditImageWidth: string
   visualEditImageSquare: string
@@ -203,6 +204,7 @@ export type PartnerWebsiteCopy = {
   visualEditAddAtGap: string
   visualEditAddAtSide: string
   visualEditInsertAtGapHint: string
+  visualEditAddToolbarHint: string
   visualEditAddLogo: string
   visualEditAddLogoHint: string
   visualEditPanelClose: string
@@ -273,9 +275,18 @@ export type PartnerWebsiteCopy = {
   visualEditChromeKit: string
   visualEditChromeKitHint: string
   visualEditChromeKitHeadPc: string
+  visualEditChromeKitHeadLaptop: string
   visualEditChromeKitHeadTablet: string
   visualEditChromeKitHeadMobile: string
   visualEditChromeKitDock: string
+  visualEditChromeKitFloat: string
+  visualEditChromeKitFloatHint: string
+  visualEditChromeKitFloatLocked: string
+  visualEditChromeKitFloatRight: string
+  visualEditChromeKitFloatBottom: string
+  visualEditChromeKitFloatGap: string
+  visualEditChromeKitFloatSize: string
+  visualEditChromeKitFloatSizeHint: string
   visualEditChromeKitShopPages: string
   visualEditChromeKitPdp: string
   visualEditChromeKitShift: string
@@ -371,6 +382,12 @@ export type PartnerWebsiteCopy = {
   visualEditAddRecommendedGrid: string
   visualEditAddRelatedGrid: string
   visualEditAddOutfitGrid: string
+  visualEditGridRowsAsk: string
+  visualEditGridRowsHint: string
+  visualEditGridRow1: string
+  visualEditGridRow2: string
+  visualEditGridRow3: string
+  visualEditGridRow4: string
   visualEditAddButtonText: string
   visualEditAddButtonColor: string
   visualEditAddButtonBorder: string
@@ -398,6 +415,7 @@ export type PartnerWebsiteCopy = {
   visualEditAddStyleTitle: string
   visualEditAddStyleIcon: string
   visualEditAddStyleIconSquare: string
+  visualEditAddStyleIconCircle: string
   visualEditAddStyleIconLabel: string
   visualEditAddStyleIconLabelBelow: string
   visualEditAddStyleIconLabelLeft: string
@@ -429,6 +447,7 @@ export type PartnerWebsiteCopy = {
   visualEditAddPlaceNav: string
   visualEditChromeDelete: string
   visualEditNudgeHint: string
+  visualEditMidFlowHint: string
   restoreButton: string
   /** Hoàn tác thao tác gần nhất (revision mới nhất). */
   undoLastButton: string
@@ -1104,6 +1123,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAlignCenter: 'Giữa',
     visualEditAlignRight: 'Phải',
     visualEditBgColor: 'Màu nền',
+    visualEditRestoreLastImage: 'Ảnh trước',
     visualEditBgTransparent: 'Trong suốt',
     visualEditImageWidth: 'Rộng ảnh',
     visualEditImageSquare: 'Vuông',
@@ -1130,9 +1150,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditCopyAllPagesLocked: 'Không copy thẻ sản phẩm / dữ liệu tồn kho sống.',
     visualEditCopyAllPagesNone: 'Chưa có trang khác cùng máy để copy.',
     visualEditChromeDuplicate:
-      'Thêm cái nữa vào giữa màn hình, hoặc kéo cái đang có ra giữa để chỉnh.',
+      'Thêm ở giữa trang, hoặc kéo cái đang có ra giữa để chỉnh.',
     visualEditChromeDupAskTitle: 'Đã có «{name}»',
-    visualEditChromeDupAskAdd: 'Thêm cái nữa',
+    visualEditChromeDupAskAdd: 'Thêm ở giữa',
     visualEditChromeDupAskKeep: 'Kéo cái đang có',
     visualEditFavoriteNeedHost:
       'Thêm giỏ, Mua hàng và Thích sản phẩm chỉ thêm được trên trang chi tiết sản phẩm hoặc lưới sản phẩm.',
@@ -1173,10 +1193,11 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBgWidth: 'Chiều rộng nền',
     visualEditBgHeight: 'Chiều cao nền',
     visualEditBgSizeHint: 'Kéo cạnh nền trên trang hoặc chỉnh số ở đây. Rộng và cao độc lập.',
-    visualEditAddWidget: 'Thêm',
+    visualEditAddWidget: 'Thêm ở giữa',
     visualEditAddAtGap: 'Thêm tại khe này',
     visualEditAddAtSide: 'Thêm bên cạnh',
-    visualEditInsertAtGapHint: 'Chèn vào khe đã chọn. Bấm Thêm trên thanh nếu muốn thả giữa trang.',
+    visualEditInsertAtGapHint: 'Chèn vào khe đã chọn (+ trên / dưới / trái / phải).',
+    visualEditAddToolbarHint: 'Chữ nổi và nút. Ảnh, video, banner, lưới, nền thêm bằng nút + trên trang.',
     visualEditAddLogo: 'Thêm logo',
     visualEditAddLogoHint: 'Chọn tỷ lệ khung hình và màu nền, rồi tạo logo. Không cần vẽ khung.',
     visualEditPanelClose: 'Đóng',
@@ -1217,9 +1238,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLayerBack: 'Đưa xuống dưới',
     visualEditSceneTitle: 'Lớp không gian',
     visualEditSceneHint:
-      'Hàng nút là lớp làm việc để bấm chọn phần tử. Khi đã chọn phần tử, dùng Lên lớp/Xuống lớp để đổi lớp của phần tử.',
+      'Hàng nút là lớp làm việc để bấm chọn phần tử. Mỗi loại phần tử giữ lớp mặc định — không đổi lớp, không đưa lên/đưa xuống.',
     visualEditSceneHintAddedBg:
-      'Bấm tên lớp (Lớp trên, Lớp dưới…) để đổi lớp không gian của nền. Đưa lên / Đưa xuống ở Lớp nền là thứ tự các mặt nền — không trùng với đổi lớp không gian.',
+      'Hàng nút chỉ lọc lớp để bấm chọn. Nền thêm luôn ở Lớp dưới — không đổi lớp, không đưa lên/đưa xuống.',
     visualEditSceneWorkLayer: 'Lớp làm việc',
     visualEditSceneElementLayer: 'Phần tử đang ở',
     visualEditSceneAllLayers: 'Tất cả lớp',
@@ -1254,11 +1275,22 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Mọi nút chức năng sửa giống nhau: kiểu, icon, cỡ, chữ. Việc khách bấm giữ đúng chức năng của nút đang chọn.',
     visualEditChromeKit: 'Thanh điều hướng',
     visualEditChromeKitHint:
-      'Ẩn/hiện và đổi thứ tự trong head hoặc thanh đáy. Lệch ngang cả cụm icon bằng thanh trượt — không kéo tọa độ, live khớp Sửa nhanh.',
-    visualEditChromeKitHeadPc: 'Head máy tính (Desktop + Laptop)',
+      'Nút nổi (Chat mua, Zalo, Facebook, Top) ở mục Thanh nổi ngay dưới đây — bật mắt để hiện góc màn. Head và thanh đáy cùng panel này. Mỗi máy một bản — không kéo tọa độ. Không còn trên thanh Thêm.',
+    visualEditChromeKitHeadPc: 'Head Desktop',
+    visualEditChromeKitHeadLaptop: 'Head Laptop',
     visualEditChromeKitHeadTablet: 'Head máy tính bảng',
     visualEditChromeKitHeadMobile: 'Head điện thoại',
-    visualEditChromeKitDock: 'Thanh đáy (Mobile + Tablet)',
+    visualEditChromeKitDock: 'Thanh đáy',
+    visualEditChromeKitFloat: 'Thanh nổi — nút góc màn',
+    visualEditChromeKitFloatHint:
+      'Bật mắt để hiện. Một cột khóa góc màn — gõ Cách phải / Cách dưới / Khoảng cách / Kích thước icon. Mũi tên đổi thứ tự. Ẩn thì nút còn lại khít lại. Bấm tên để sửa từng nút. Mỗi máy một bản.',
+    visualEditChromeKitFloatLocked:
+      'Nút thanh nổi luôn đứng yên góc màn theo một cột. Ẩn/hiện và thứ tự ở Thanh điều hướng — không kéo tọa độ.',
+    visualEditChromeKitFloatRight: 'Cách phải',
+    visualEditChromeKitFloatBottom: 'Cách dưới',
+    visualEditChromeKitFloatGap: 'Khoảng cách',
+    visualEditChromeKitFloatSize: 'Kích thước icon',
+    visualEditChromeKitFloatSizeHint: 'Mọi nút nổi cùng một vòng tròn. Bấm tên bên dưới để sửa từng nút.',
     visualEditChromeKitShopPages: 'Trang khác',
     visualEditChromeKitPdp: 'Chi tiết SP',
     visualEditChromeKitShift: 'Lệch ngang',
@@ -1359,6 +1391,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddRecommendedGrid: 'Lưới đề xuất',
     visualEditAddRelatedGrid: 'Sản phẩm tương tự',
     visualEditAddOutfitGrid: 'Phối đồ',
+    visualEditGridRowsAsk: 'Hiện sẵn mấy hàng sản phẩm?',
+    visualEditGridRowsHint: 'Tải thêm sẽ thêm đúng bấy nhiêu hàng.',
+    visualEditGridRow1: '1 hàng',
+    visualEditGridRow2: '2 hàng',
+    visualEditGridRow3: '3 hàng',
+    visualEditGridRow4: '4 hàng',
     visualEditAddButtonText: 'Chữ trên nút',
     visualEditAddButtonColor: 'Màu nút',
     visualEditAddButtonBorder: 'Màu viền',
@@ -1386,6 +1424,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddStyleTitle: 'Kiểu nút',
     visualEditAddStyleIcon: 'Chỉ icon',
     visualEditAddStyleIconSquare: 'Vuông bo góc',
+    visualEditAddStyleIconCircle: 'Hình tròn',
     visualEditAddStyleIconLabel: 'Icon + chữ',
     visualEditAddStyleIconLabelBelow: 'Chữ dưới icon',
     visualEditAddStyleIconLabelLeft: 'Chữ bên phải',
@@ -1417,6 +1456,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddPlaceNav: 'Thanh đáy',
     visualEditChromeDelete: 'Xóa nút',
     visualEditNudgeHint: 'Kéo icon ở góc · Mũi tên: 1px · Shift+mũi tên: 10px',
+    visualEditMidFlowHint: 'Nút chức năng luôn nổi lớp trên cùng. Kéo thả giữa trang. Mỗi máy lưu riêng.',
     restoreButton: 'Xem phiên bản',
     undoLastButton: 'Hoàn tác gần nhất',
     restoreVersionButton: 'Khôi phục',
@@ -2107,6 +2147,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAlignCenter: 'Center',
     visualEditAlignRight: 'Right',
     visualEditBgColor: 'Background',
+    visualEditRestoreLastImage: 'Previous image',
     visualEditBgTransparent: 'Transparent',
     visualEditImageWidth: 'Image width',
     visualEditImageSquare: 'Square',
@@ -2135,7 +2176,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeDuplicate:
       'Add another in the middle of the screen, or pull the existing one to the center to edit.',
     visualEditChromeDupAskTitle: '«{name}» already exists',
-    visualEditChromeDupAskAdd: 'Add another',
+    visualEditChromeDupAskAdd: 'Add in the middle',
     visualEditChromeDupAskKeep: 'Move the existing one',
     visualEditFavoriteNeedHost: 'Add to cart, Buy now, and Like product can only be added on a product page or a product grid.',
     visualEditBlockDelete: 'Delete block',
@@ -2175,10 +2216,11 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBgWidth: 'Background width',
     visualEditBgHeight: 'Background height',
     visualEditBgSizeHint: 'Drag the background edge on the page or type the numbers here. Width and height are independent.',
-    visualEditAddWidget: 'Add',
+    visualEditAddWidget: 'Add in the middle',
     visualEditAddAtGap: 'Add at this gap',
     visualEditAddAtSide: 'Add beside',
-    visualEditInsertAtGapHint: 'Insert at the selected gap. Use Add on the toolbar to drop in the middle of the page.',
+    visualEditInsertAtGapHint: 'Insert at the selected gap (+ up / down / left / right).',
+    visualEditAddToolbarHint: 'Floating text and buttons. Add images, videos, banners, and grids with the + marks on the page.',
     visualEditAddLogo: 'Add logo',
     visualEditAddLogoHint: 'Choose an aspect ratio and background color, then create the logo. No need to draw a frame.',
     visualEditPanelClose: 'Close',
@@ -2219,9 +2261,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLayerBack: 'Send to back',
     visualEditSceneTitle: 'Space layers',
     visualEditSceneHint:
-      'The buttons choose the working layer for selecting items. After selecting an item, use Layer up/down to move it.',
+      'The buttons choose the working layer for selecting items. Each kind stays on its default layer — no layer up/down, no bring forward/back.',
     visualEditSceneHintAddedBg:
-      'Tap a space-layer name (Upper, Lower…) to move this fill. Bring up / Send down under Background layers only reorders fills — it is not the same as changing space layer.',
+      'The buttons only filter which layer you can click. Added fills stay on Lower — no layer change, no bring forward/back.',
     visualEditSceneWorkLayer: 'Working layer',
     visualEditSceneElementLayer: 'Element is on',
     visualEditSceneAllLayers: 'All layers',
@@ -2256,11 +2298,22 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Every function button is edited the same way: style, icon, size, label. A live click still runs this button’s own action.',
     visualEditChromeKit: 'Navigation bars',
     visualEditChromeKitHint:
-      'Show, hide, and reorder items inside the header or bottom bar. Nudge the whole icon cluster with the slider — no free-drag coordinates, so live matches Sửa nhanh.',
-    visualEditChromeKitHeadPc: 'Computer header (Desktop + Laptop)',
+      'Floating buttons (Shop chat, Zalo, Facebook, Top) are in Floating bar below — turn the eye on to show them. Head and bottom bar are in this same panel. One set per device — no free-drag. They are not on the Add bar.',
+    visualEditChromeKitHeadPc: 'Desktop header',
+    visualEditChromeKitHeadLaptop: 'Laptop header',
     visualEditChromeKitHeadTablet: 'Tablet header',
     visualEditChromeKitHeadMobile: 'Phone header',
-    visualEditChromeKitDock: 'Bottom bar (Mobile + Tablet)',
+    visualEditChromeKitDock: 'Bottom bar',
+    visualEditChromeKitFloat: 'Floating bar — corner buttons',
+    visualEditChromeKitFloatHint:
+      'Turn the eye on to show. One locked corner column — type Right / Bottom / Gap / Icon size. Arrows change order. Hidden buttons close the gap. Click a name to edit that button. One set per device.',
+    visualEditChromeKitFloatLocked:
+      'Float-bar buttons stay in one locked corner column. Show, hide, and reorder them in Navigation — no dragging.',
+    visualEditChromeKitFloatRight: 'From right',
+    visualEditChromeKitFloatBottom: 'From bottom',
+    visualEditChromeKitFloatGap: 'Gap',
+    visualEditChromeKitFloatSize: 'Icon size',
+    visualEditChromeKitFloatSizeHint: 'All floating buttons share one circle size. Click a name below to edit that button.',
     visualEditChromeKitShopPages: 'Other pages',
     visualEditChromeKitPdp: 'Product page',
     visualEditChromeKitShift: 'Horizontal shift',
@@ -2361,6 +2414,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddRecommendedGrid: 'Recommended grid',
     visualEditAddRelatedGrid: 'Similar products',
     visualEditAddOutfitGrid: 'Outfit pairing',
+    visualEditGridRowsAsk: 'How many product rows to show first?',
+    visualEditGridRowsHint: 'Load more adds the same number of rows.',
+    visualEditGridRow1: '1 row',
+    visualEditGridRow2: '2 rows',
+    visualEditGridRow3: '3 rows',
+    visualEditGridRow4: '4 rows',
     visualEditAddButtonText: 'Button text',
     visualEditAddButtonColor: 'Button color',
     visualEditAddButtonBorder: 'Border color',
@@ -2388,6 +2447,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddStyleTitle: 'Button style',
     visualEditAddStyleIcon: 'Icon only',
     visualEditAddStyleIconSquare: 'Rounded square',
+    visualEditAddStyleIconCircle: 'Circle',
     visualEditAddStyleIconLabel: 'Icon + text',
     visualEditAddStyleIconLabelBelow: 'Text below icon',
     visualEditAddStyleIconLabelLeft: 'Text on the right',
@@ -2419,6 +2479,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddPlaceNav: 'Bottom bar',
     visualEditChromeDelete: 'Remove button',
     visualEditNudgeHint: 'Drag the corner icon · Arrows: 1px · Shift+arrows: 10px',
+    visualEditMidFlowHint: 'Functional buttons stay on the top layer. Drag them anywhere. Each device saves separately.',
     restoreButton: 'View versions',
     undoLastButton: 'Undo last change',
     restoreVersionButton: 'Restore',
@@ -3107,6 +3168,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAlignCenter: '居中',
     visualEditAlignRight: '右对齐',
     visualEditBgColor: '背景色',
+    visualEditRestoreLastImage: '上一张图片',
     visualEditBgTransparent: '透明',
     visualEditImageWidth: '图片宽度',
     visualEditImageSquare: '直角',
@@ -3134,7 +3196,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditCopyAllPagesNone: '同一设备没有其他页面可复制。',
     visualEditChromeDuplicate: '再添加一个到画面中央，或把现有的拖到中央再编辑。',
     visualEditChromeDupAskTitle: '已有「{name}」',
-    visualEditChromeDupAskAdd: '再添加一个',
+    visualEditChromeDupAskAdd: '添加到中间',
     visualEditChromeDupAskKeep: '拖出现有的',
     visualEditFavoriteNeedHost: '加入购物车、立即购买和收藏商品只能加在商品详情页或商品网格上。',
     visualEditBlockDelete: '删除区块',
@@ -3173,10 +3235,11 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBgWidth: '背景宽度',
     visualEditBgHeight: '背景高度',
     visualEditBgSizeHint: '在页面上拖背景边缘，或在此输入数字。宽和高各自独立。',
-    visualEditAddWidget: '添加',
+    visualEditAddWidget: '添加到中间',
     visualEditAddAtGap: '在此间隙添加',
     visualEditAddAtSide: '在旁边添加',
-    visualEditInsertAtGapHint: '插入到已选间隙。若要放到页面中间，请点顶栏的“添加”。',
+    visualEditInsertAtGapHint: '插入到已选间隙（+ 上 / 下 / 左 / 右）。',
+    visualEditAddToolbarHint: '浮动文字和按钮。图片、视频、横幅、网格请用页面上的 + 添加。',
     visualEditAddLogo: '添加标志',
     visualEditAddLogoHint: '选择画面比例和背景色后创建标志，无需再画框。',
     visualEditPanelClose: '关闭',
@@ -3216,9 +3279,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLayerFront: '移到最前',
     visualEditLayerBack: '移到最后',
     visualEditSceneTitle: '空间层',
-    visualEditSceneHint: '按钮用于选择可操作层。选中元素后，用升一层/降一层移动该元素。',
+    visualEditSceneHint: '按钮用于选择可操作层。每种元素固定在默认层——不升层/降层，不上移/下移。',
     visualEditSceneHintAddedBg:
-      '点层名（上层、下层…）可改背景的空间层。背景层里的上移/下移只调整各底面顺序，与改空间层不是同一操作。',
+      '按钮只用于筛选可点击的层。添加的背景固定在下层——不改层，不上移/下移。',
     visualEditSceneWorkLayer: '工作层',
     visualEditSceneElementLayer: '元素所在层',
     visualEditSceneAllLayers: '所有层',
@@ -3247,11 +3310,20 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeWidgetTitle: '店铺功能按钮',
     visualEditChromeWidgetHint: '所有功能按钮用同一套改法：样式、图标、大小、文字。顾客点击仍执行该按钮自己的功能。',
     visualEditChromeKit: '导航栏',
-    visualEditChromeKitHint: '在页头或底栏内显示、隐藏并调整顺序。用滑块整体左右微调图标组，不使用自由拖放坐标，线上与「Sửa nhanh」一致。',
-    visualEditChromeKitHeadPc: '电脑页头（桌面 + 笔记本）',
+    visualEditChromeKitHint: '浮动按钮（购买咨询、Zalo、Facebook、回顶）在下方「浮动栏」——点眼睛即可显示。页头和底栏也在此面板。每台设备一份，不拖坐标。不在「添加」栏。',
+    visualEditChromeKitHeadPc: '桌面页头',
+    visualEditChromeKitHeadLaptop: '笔记本页头',
     visualEditChromeKitHeadTablet: '平板页头',
     visualEditChromeKitHeadMobile: '手机页头',
-    visualEditChromeKitDock: '底栏（手机 + 平板）',
+    visualEditChromeKitDock: '底栏',
+    visualEditChromeKitFloat: '浮动栏 — 角落按钮',
+    visualEditChromeKitFloatHint: '点眼睛显示。角落一列锁定 — 输入距右 / 距下 / 间距 / 图标大小。箭头改顺序。隐藏后其余按钮靠拢。点名称可单独编辑。每台设备一份。',
+    visualEditChromeKitFloatLocked: '悬浮栏按钮固定为一列。在「导航栏」中显示、隐藏或改顺序，不能拖动坐标。',
+    visualEditChromeKitFloatRight: '距右',
+    visualEditChromeKitFloatBottom: '距下',
+    visualEditChromeKitFloatGap: '间距',
+    visualEditChromeKitFloatSize: '图标大小',
+    visualEditChromeKitFloatSizeHint: '所有浮动按钮共用一个圆形尺寸。点下方名称可单独编辑该按钮。',
     visualEditChromeKitShopPages: '其他页面',
     visualEditChromeKitPdp: '商品详情',
     visualEditChromeKitShift: '水平偏移',
@@ -3348,6 +3420,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddRecommendedGrid: '推荐网格',
     visualEditAddRelatedGrid: '相似商品',
     visualEditAddOutfitGrid: '搭配',
+    visualEditGridRowsAsk: '先显示几行商品？',
+    visualEditGridRowsHint: '加载更多会再显示同样行数。',
+    visualEditGridRow1: '1 行',
+    visualEditGridRow2: '2 行',
+    visualEditGridRow3: '3 行',
+    visualEditGridRow4: '4 行',
     visualEditAddButtonText: '按钮文字',
     visualEditAddButtonColor: '按钮颜色',
     visualEditAddButtonBorder: '边框颜色',
@@ -3375,6 +3453,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddStyleTitle: '按钮样式',
     visualEditAddStyleIcon: '仅图标',
     visualEditAddStyleIconSquare: '圆角方标',
+    visualEditAddStyleIconCircle: '圆形',
     visualEditAddStyleIconLabel: '图标+文字',
     visualEditAddStyleIconLabelBelow: '文字在图标下',
     visualEditAddStyleIconLabelLeft: '文字在图标右',
@@ -3406,6 +3485,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddPlaceNav: '底栏',
     visualEditChromeDelete: '删除按钮',
     visualEditNudgeHint: '拖动区块角落的移动图标，或用方向键移动',
+    visualEditMidFlowHint: '功能按钮始终在最上层。可拖到页面中间任意位置。各设备单独保存。',
     restoreButton: '查看版本',
     undoLastButton: '撤销最近更改',
     restoreVersionButton: '恢复',
@@ -4077,6 +4157,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAlignCenter: '中央',
     visualEditAlignRight: '右',
     visualEditBgColor: '背景色',
+    visualEditRestoreLastImage: '前の画像',
     visualEditBgTransparent: '透明',
     visualEditImageWidth: '画像幅',
     visualEditImageSquare: '直角',
@@ -4104,7 +4185,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditCopyAllPagesNone: '同じ端末にコピー先の他ページがありません。',
     visualEditChromeDuplicate: 'もう1つを画面中央に追加するか、既存のものを中央に出して編集できます。',
     visualEditChromeDupAskTitle: '「{name}」は既にあります',
-    visualEditChromeDupAskAdd: 'もう1つ追加',
+    visualEditChromeDupAskAdd: '中央に追加',
     visualEditChromeDupAskKeep: '既存のものを出す',
     visualEditFavoriteNeedHost: 'カートへ・購入する・お気に入りは商品詳細または商品グリッドにのみ追加できます。',
     visualEditBlockDelete: 'ブロックを削除',
@@ -4144,10 +4225,11 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBgWidth: '背景の幅',
     visualEditBgHeight: '背景の高さ',
     visualEditBgSizeHint: 'ページ上で背景の辺をドラッグするか、ここで数値を入力します。幅と高さは別々です。',
-    visualEditAddWidget: '追加',
+    visualEditAddWidget: '中央に追加',
     visualEditAddAtGap: 'この隙間に追加',
     visualEditAddAtSide: '横に追加',
-    visualEditInsertAtGapHint: '選んだ隙間に挿入します。ページ中央に置く場合は上部の「追加」を押します。',
+    visualEditInsertAtGapHint: '選んだ隙間に挿入します（+ 上 / 下 / 左 / 右）。',
+    visualEditAddToolbarHint: '浮き文字とボタン。画像・動画・バナー・グリッドはページ上の + で追加します。',
     visualEditAddLogo: 'ロゴを追加',
     visualEditAddLogoHint: '比率と背景色を選んでロゴを作成します。枠を描く必要はありません。',
     visualEditPanelClose: '閉じる',
@@ -4188,9 +4270,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLayerBack: '最背面へ',
     visualEditSceneTitle: '空間レイヤー',
     visualEditSceneHint:
-      'ボタンは選択できる作業レイヤーを切り替えます。要素を選択した後は「上へ/下へ」でその要素の層を移動します。',
+      'ボタンは選択できる作業レイヤーを切り替えます。種類ごとの既定層のまま — 層の上げ下げも前後移動もしません。',
     visualEditSceneHintAddedBg:
-      '層名（上層・下層など）を押すと背景の空間レイヤーが変わります。背景層の「上へ/下へ」は面の順番だけで、空間レイヤーの移動とは別です。',
+      'ボタンはクリックできる層の絞り込みだけです。追加背景は下層のまま — 層変更も前後移動もしません。',
     visualEditSceneWorkLayer: '作業レイヤー',
     visualEditSceneElementLayer: '要素の層',
     visualEditSceneAllLayers: 'すべての層',
@@ -4225,11 +4307,22 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '機能ボタンはどれも同じ直し方です：スタイル・アイコン・サイズ・文字。公開サイトの動作はそのボタンのままです。',
     visualEditChromeKit: 'ナビバー',
     visualEditChromeKitHint:
-      'ヘッダーや下部バー内で表示・非表示と並びを変えます。スライダーでアイコングループ全体を左右にずらします。座標ドラッグは使いません。公開ページはSửa nhanhと同じです。',
-    visualEditChromeKitHeadPc: 'パソコンヘッダー（デスクトップ + ノート）',
+      'フローティングボタン（Chat mua、Zalo、Facebook、先頭へ）は下のフローティングバーにあります。目のアイコンで表示します。ヘッダーと下部バーも同じパネル。端末ごとに別。追加バーにはありません。',
+    visualEditChromeKitHeadPc: 'デスクトップヘッダー',
+    visualEditChromeKitHeadLaptop: 'ノートヘッダー',
     visualEditChromeKitHeadTablet: 'タブレットヘッダー',
     visualEditChromeKitHeadMobile: 'スマホヘッダー',
-    visualEditChromeKitDock: '下部バー（スマホ + タブレット）',
+    visualEditChromeKitDock: '下部バー',
+    visualEditChromeKitFloat: 'フローティングバー — 角のボタン',
+    visualEditChromeKitFloatHint:
+      '目のアイコンで表示。角の1列に固定 — 右・下・間隔・アイコンサイズを入力。矢印で順番変更。非表示にすると残りが詰まります。名前を押すと個別編集。端末ごとに別です。',
+    visualEditChromeKitFloatLocked:
+      'フローティングバーは1列に固定されます。表示・非表示・順番は「ナビゲーション」で行い、座標ドラッグはありません。',
+    visualEditChromeKitFloatRight: '右から',
+    visualEditChromeKitFloatBottom: '下から',
+    visualEditChromeKitFloatGap: '間隔',
+    visualEditChromeKitFloatSize: 'アイコンサイズ',
+    visualEditChromeKitFloatSizeHint: 'フローティングボタンは同じ円サイズです。下の名前を押すとそのボタンを編集できます。',
     visualEditChromeKitShopPages: 'その他のページ',
     visualEditChromeKitPdp: '商品ページ',
     visualEditChromeKitShift: '左右オフセット',
@@ -4330,6 +4423,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddRecommendedGrid: 'おすすめグリッド',
     visualEditAddRelatedGrid: '類似商品',
     visualEditAddOutfitGrid: 'コーディネート',
+    visualEditGridRowsAsk: '最初に何行表示しますか？',
+    visualEditGridRowsHint: 'さらに読み込むと同じ行数が追加されます。',
+    visualEditGridRow1: '1行',
+    visualEditGridRow2: '2行',
+    visualEditGridRow3: '3行',
+    visualEditGridRow4: '4行',
     visualEditAddButtonText: 'ボタンの文字',
     visualEditAddButtonColor: 'ボタンの色',
     visualEditAddButtonBorder: '枠線の色',
@@ -4357,6 +4456,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddStyleTitle: 'ボタンの種類',
     visualEditAddStyleIcon: 'アイコンのみ',
     visualEditAddStyleIconSquare: '角丸四角',
+    visualEditAddStyleIconCircle: '円形',
     visualEditAddStyleIconLabel: 'アイコン+文字',
     visualEditAddStyleIconLabelBelow: '文字を下に',
     visualEditAddStyleIconLabelLeft: '文字を右に',
@@ -4388,6 +4488,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddPlaceNav: '下部バー',
     visualEditChromeDelete: 'ボタンを削除',
     visualEditNudgeHint: 'ブロック角の移動アイコンをドラッグ、または矢印キー',
+    visualEditMidFlowHint: '機能ボタンは常に最前面。ページ中央のどこへでもドラッグできます。端末ごとに別保存です。',
     restoreButton: 'バージョンを見る',
     undoLastButton: '直前の変更を取り消す',
     restoreVersionButton: '復元',
@@ -5066,6 +5167,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAlignCenter: '가운데',
     visualEditAlignRight: '오른쪽',
     visualEditBgColor: '배경색',
+    visualEditRestoreLastImage: '이전 이미지',
     visualEditBgTransparent: '투명',
     visualEditImageWidth: '이미지 너비',
     visualEditImageSquare: '직각',
@@ -5093,7 +5195,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditCopyAllPagesNone: '같은 기기에 복사할 다른 페이지가 없습니다.',
     visualEditChromeDuplicate: '화면 가운데에 하나 더 추가하거나, 있는 것을 가운데로 끌어 편집하세요.',
     visualEditChromeDupAskTitle: '이미 «{name}»이(가) 있습니다',
-    visualEditChromeDupAskAdd: '하나 더 추가',
+    visualEditChromeDupAskAdd: '가운데에 추가',
     visualEditChromeDupAskKeep: '있는 것을 끌어오기',
     visualEditFavoriteNeedHost: '장바구니·구매하기·상품 찜은 상품 상세 또는 상품 그리드에만 추가할 수 있습니다.',
     visualEditBlockDelete: '블록 삭제',
@@ -5133,10 +5235,11 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditBgWidth: '배경 너비',
     visualEditBgHeight: '배경 높이',
     visualEditBgSizeHint: '페이지에서 배경 가장자리를 끌거나 여기에 숫자를 입력하세요. 너비와 높이는 따로입니다.',
-    visualEditAddWidget: '추가',
+    visualEditAddWidget: '가운데에 추가',
     visualEditAddAtGap: '이 칸에 추가',
     visualEditAddAtSide: '옆에 추가',
-    visualEditInsertAtGapHint: '선택한 칸에 넣습니다. 페이지 가운데에 놓으려면 위쪽 추가를 누르세요.',
+    visualEditInsertAtGapHint: '선택한 칸에 넣습니다(+ 위 / 아래 / 왼쪽 / 오른쪽).',
+    visualEditAddToolbarHint: '떠 있는 글자와 버튼. 이미지, 영상, 배너, 그리드는 페이지의 + 로 추가하세요.',
     visualEditAddLogo: '로고 추가',
     visualEditAddLogoHint: '화면 비율과 배경색을 고른 뒤 로고를 만듭니다. 프레임을 그릴 필요는 없습니다.',
     visualEditPanelClose: '닫기',
@@ -5177,9 +5280,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLayerBack: '맨 뒤로',
     visualEditSceneTitle: '공간 레이어',
     visualEditSceneHint:
-      '버튼은 요소를 선택할 작업 레이어를 고릅니다. 요소를 선택한 뒤에는 위/아래로 레이어를 이동합니다.',
+      '버튼은 요소를 선택할 작업 레이어를 고릅니다. 종류별 기본 층에 그대로 둡니다 — 층 이동·앞뒤 이동 없음.',
     visualEditSceneHintAddedBg:
-      '층 이름(위층, 아래층…)을 누르면 배경의 공간 레이어가 바뀝니다. 배경 층의 위로/아래로는 면 순서만 바꾸며 공간 레이어 이동과 다릅니다.',
+      '버튼은 클릭할 층만 고릅니다. 추가 배경은 아래층 고정 — 층 변경·앞뒤 이동 없음.',
     visualEditSceneWorkLayer: '작업 레이어',
     visualEditSceneElementLayer: '요소 위치',
     visualEditSceneAllLayers: '모든 레이어',
@@ -5214,11 +5317,22 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '기능 버튼은 모두 같은 방식으로 수정합니다: 스타일, 아이콘, 크기, 글자. 고객이 누르면 이 버튼 고유 동작이 유지됩니다.',
     visualEditChromeKit: '탐색 막대',
     visualEditChromeKitHint:
-      '헤더나 하단 바 안에서 숨기기/보이기와 순서를 바꿉니다. 슬라이더로 아이콘 묶음 전체를 좌우로 밀며 좌표 드래그는 쓰지 않아 라이브가 Sửa nhanh와 같습니다.',
-    visualEditChromeKitHeadPc: '컴퓨터 헤더 (데스크톱 + 노트북)',
+      '플로팅 버튼(Chat mua, Zalo, Facebook, 맨 위로)은 아래 플로팅 바에 있습니다. 눈을 켜면 모서리에 보입니다. 헤더와 하단 바도 이 패널에 있습니다. 기기마다 따로이며 추가 막대에는 없습니다.',
+    visualEditChromeKitHeadPc: '데스크톱 헤더',
+    visualEditChromeKitHeadLaptop: '노트북 헤더',
     visualEditChromeKitHeadTablet: '태블릿 헤더',
     visualEditChromeKitHeadMobile: '휴대폰 헤더',
-    visualEditChromeKitDock: '하단 바 (모바일 + 태블릿)',
+    visualEditChromeKitDock: '하단 바',
+    visualEditChromeKitFloat: '플로팅 바 — 모서리 버튼',
+    visualEditChromeKitFloatHint:
+      '눈을 켜면 보입니다. 모서리 한 열로 고정 — 오른쪽/아래/간격/아이콘 크기를 입력하세요. 화살표로 순서 변경. 숨기면 나머지 버튼이 붙습니다. 이름을 누르면 개별 편집. 기기마다 따로입니다.',
+    visualEditChromeKitFloatLocked:
+      '플로팅 버튼은 모서리 한 열에 고정됩니다. 표시/숨김/순서는 탐색에서 하며 좌표를 끌지 않습니다.',
+    visualEditChromeKitFloatRight: '오른쪽',
+    visualEditChromeKitFloatBottom: '아래',
+    visualEditChromeKitFloatGap: '간격',
+    visualEditChromeKitFloatSize: '아이콘 크기',
+    visualEditChromeKitFloatSizeHint: '모든 플로팅 버튼이 같은 원형 크기를 씁니다. 아래 이름을 누르면 그 버튼을 수정할 수 있습니다.',
     visualEditChromeKitShopPages: '다른 페이지',
     visualEditChromeKitPdp: '상품 상세',
     visualEditChromeKitShift: '좌우 이동',
@@ -5319,6 +5433,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddRecommendedGrid: '추천 그리드',
     visualEditAddRelatedGrid: '유사 상품',
     visualEditAddOutfitGrid: '코디',
+    visualEditGridRowsAsk: '먼저 몇 줄을 보여줄까요?',
+    visualEditGridRowsHint: '더 불러오기는 같은 줄 수만큼 추가합니다.',
+    visualEditGridRow1: '1줄',
+    visualEditGridRow2: '2줄',
+    visualEditGridRow3: '3줄',
+    visualEditGridRow4: '4줄',
     visualEditAddButtonText: '버튼 텍스트',
     visualEditAddButtonColor: '버튼 색',
     visualEditAddButtonBorder: '테두리 색',
@@ -5346,6 +5466,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddStyleTitle: '버튼 스타일',
     visualEditAddStyleIcon: '아이콘만',
     visualEditAddStyleIconSquare: '둥근 사각형',
+    visualEditAddStyleIconCircle: '원형',
     visualEditAddStyleIconLabel: '아이콘+텍스트',
     visualEditAddStyleIconLabelBelow: '텍스트 아래',
     visualEditAddStyleIconLabelLeft: '텍스트 오른쪽',
@@ -5377,6 +5498,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddPlaceNav: '하단 바',
     visualEditChromeDelete: '버튼 삭제',
     visualEditNudgeHint: '블록 모서리의 이동 아이콘을 드래그하거나 화살표 키로 이동',
+    visualEditMidFlowHint: '기능 버튼은 항상 최상위 층입니다. 화면 가운데 어디든 드래그하세요. 기기마다 따로 저장됩니다.',
     restoreButton: '버전 보기',
     undoLastButton: '최근 변경 취소',
     restoreVersionButton: '복원',

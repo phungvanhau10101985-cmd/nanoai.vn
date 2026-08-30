@@ -45,6 +45,8 @@ export type PwDeviceViewport = {
   outerWidth?: unknown
   layoutWidth?: unknown
   screenWidth?: unknown
+  /** `window.devicePixelRatio`. Windows Display Scale on FHD (21" 1920×1080 @ 150%) is 1.5. */
+  devicePixelRatio?: unknown
 }
 
 export type PwViewportMapInput = PwDeviceViewport & {
@@ -187,24 +189,45 @@ export function pwClientTopLeftFromCenter(
   }
 }
 
+export function pwFirstPositivePx(...values: unknown[]): number {
+  for (const candidate of values) {
+    const n = Number(candidate)
+    if (Number.isFinite(n) && n > 0) return n
+  }
+  return 0
+}
+
+/**
+ * Windows Display Scale on a full-HD panel (typical 21" 1920×1080 @ 125–175%).
+ * CSS width lands in the laptop band (1280–1439) even though the screen is a desktop.
+ * Exclude Retina `dpr >= 2` so a 13" MacBook at 1280 CSS stays laptop.
+ */
+export const PW_SCALED_FHD_DPR_MIN = 1.25
+export const PW_SCALED_FHD_DPR_MAX_EXCLUSIVE = 2
+
+export function pwScaledFhdDesktopMediaQuery(): string {
+  return `(min-width:${PW_SCENE_WIDTH.laptop}px) and (max-width:${PW_SCENE_WIDTH.desktop - 1}px) and (min-resolution:${PW_SCALED_FHD_DPR_MIN}dppx) and (max-resolution:1.99dppx)`
+}
+
+export function pwLooksLikeScaledFhdDesktop(input: PwDeviceViewport): boolean {
+  const dpr = Number(input.devicePixelRatio)
+  if (!(dpr >= PW_SCALED_FHD_DPR_MIN) || !(dpr < PW_SCALED_FHD_DPR_MAX_EXCLUSIVE)) return false
+  const width = pwFirstPositivePx(input.outerWidth, input.layoutWidth, input.screenWidth)
+  return width >= PW_SCENE_WIDTH.laptop && width < PW_SCENE_WIDTH.desktop
+}
+
 /**
  * Stable device resolver. Callers should pass outerWidth for browser windows and
  * layoutWidth only as a fallback. visualViewport width never owns device selection.
  */
 export function pwResolveCoordinateDevice(input: PwDeviceViewport): PwCoordinateDevice {
   if (isPwCoordinateDevice(input.forcedDevice)) return input.forcedDevice
-  const candidates = [input.outerWidth, input.layoutWidth, input.screenWidth]
-  let width = 0
-  for (const candidate of candidates) {
-    const n = Number(candidate)
-    if (Number.isFinite(n) && n > 0) {
-      width = n
-      break
-    }
-  }
+  const width = pwFirstPositivePx(input.outerWidth, input.layoutWidth, input.screenWidth)
   if (width < PW_SCENE_WIDTH.tablet) return 'mobile'
   if (width < PW_SCENE_WIDTH.laptop) return 'tablet'
-  if (width < PW_SCENE_WIDTH.desktop) return 'laptop'
+  if (width < PW_SCENE_WIDTH.desktop) {
+    return pwLooksLikeScaledFhdDesktop({ ...input, outerWidth: width }) ? 'desktop' : 'laptop'
+  }
   return 'desktop'
 }
 
@@ -300,7 +323,9 @@ export function pwCoordinateRuntimeSource(globalName = '__pwCoordinate'): string
 var W=${JSON.stringify(PW_SCENE_WIDTH)};
 var O=${JSON.stringify(PW_DEVICE_FALLBACK_ORDER)};
 function device(v){return v==='mobile'||v==='tablet'||v==='laptop'||v==='desktop'?v:'desktop'}
-function resolve(i){i=i||{};if(i.forcedDevice==='mobile'||i.forcedDevice==='tablet'||i.forcedDevice==='laptop'||i.forcedDevice==='desktop')return i.forcedDevice;var a=[i.outerWidth,i.layoutWidth,i.screenWidth],w=0,n,j;for(j=0;j<a.length;j++){n=Number(a[j]);if(isFinite(n)&&n>0){w=n;break}}if(w<W.tablet)return'mobile';if(w<W.laptop)return'tablet';if(w<W.desktop)return'laptop';return'desktop'}
+function pos(){var a=arguments,w=0,n,j;for(j=0;j<a.length;j++){n=Number(a[j]);if(isFinite(n)&&n>0){w=n;break}}return w}
+function scaledDesk(i,w){var r=Number(i.devicePixelRatio);return r>=${PW_SCALED_FHD_DPR_MIN}&&r<${PW_SCALED_FHD_DPR_MAX_EXCLUSIVE}&&w>=W.laptop&&w<W.desktop}
+function resolve(i){i=i||{};if(i.forcedDevice==='mobile'||i.forcedDevice==='tablet'||i.forcedDevice==='laptop'||i.forcedDevice==='desktop')return i.forcedDevice;var w=pos(i.outerWidth,i.layoutWidth,i.screenWidth);if(w<W.tablet)return'mobile';if(w<W.laptop)return'tablet';if(w<W.desktop)return scaledDesk(i,w)?'desktop':'laptop';return'desktop'}
 function pick(preferred,has){var list=O[device(preferred)]||O.desktop,j;for(j=0;j<list.length;j++)if(has(list[j]))return list[j];return''}
 function map(i){i=i||{};var d=i.device?device(i.device):resolve(i),sw=W[d],vw=Number(i.viewportWidth==null?i.layoutWidth:i.viewportWidth);if(!(vw>0))vw=sw;var s=Number(i.scale);if(!(s>0))s=i.fitWidth===false?1:vw/sw;var ox=Number(i.originX);var oy=Number(i.originY);return{device:d,sceneWidth:sw,viewportWidth:vw,scale:s,originX:isFinite(ox)?ox:vw/2,originY:isFinite(oy)?oy:0}}
 function toClient(p,m){return{x:m.originX+Number(p.x||0)*m.scale,y:m.originY+Number(p.y||0)*m.scale}}

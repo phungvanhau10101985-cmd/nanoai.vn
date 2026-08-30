@@ -7,11 +7,8 @@ import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-de
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
-import {
-  partnerSiteCategoryPath,
-  partnerSiteProductPath,
-  partnerSiteProductsPath,
-} from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { productGridPageSize } from '@/lib/partner-website/shop/pw-product-grid-page'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = {
@@ -21,7 +18,7 @@ type Props = {
   categoryPath?: string | null
 }
 
-function relatedStepFromViewport(): number {
+function relatedColsFromViewport(): number {
   if (typeof window === 'undefined') return 5
   return window.matchMedia('(min-width: 1280px)').matches ? 5 : 2
 }
@@ -30,16 +27,15 @@ export function PartnerSiteRelatedProducts({
   siteSlug,
   locale,
   products,
-  categoryPath = null,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
-  const [step, setStep] = useState(5)
-  const [visible, setVisible] = useState(5)
+  const [step, setStep] = useState(productGridPageSize(2, 5))
+  const [visible, setVisible] = useState(productGridPageSize(2, 5))
 
   useEffect(() => {
     const sync = () => {
-      const next = relatedStepFromViewport()
+      const next = productGridPageSize(2, relatedColsFromViewport())
       setStep(next)
       setVisible((current) => {
         if (current <= next) return Math.min(next, products.length)
@@ -52,9 +48,6 @@ export function PartnerSiteRelatedProducts({
     return () => mq.removeEventListener('change', sync)
   }, [products.length])
 
-  const moreHref = categoryPath
-    ? partnerSiteCategoryPath(siteSlug, categoryPath, { customDomain })
-    : partnerSiteProductsPath(siteSlug, { customDomain })
   const shown = products.slice(0, visible)
   const canLoadMore = visible < products.length
 
@@ -65,6 +58,9 @@ export function PartnerSiteRelatedProducts({
       data-pw-catalog
       data-pw-related="1"
       data-pw-grid-kind="related"
+      data-pw-grid-cols="5"
+      data-pw-grid-cols-mobile="2"
+      data-pw-grid-rows="2"
     >
       <h3 className="pw-related-title" data-pw-el={PW_EL.sectionTitle}>
         {t.relatedProducts}
@@ -109,23 +105,21 @@ export function PartnerSiteRelatedProducts({
               )
             })}
           </div>
-          <div className="pw-related-actions">
+          <div className="pw-related-actions pw-grid-actions" data-pw-grid-actions>
             {canLoadMore ? (
               <button
                 type="button"
-                className="pw-related-more"
-                data-pw-related-more
+                className="pw-related-more pw-grid-more"
+                data-pw-related-more="1"
+                data-pw-grid-more="1"
                 onClick={() => setVisible((n) => Math.min(n + step, products.length))}
               >
-                <span className="pw-related-more-icon" aria-hidden="true">
+                <span className="pw-related-more-icon pw-grid-more-icon" aria-hidden="true">
                   ↻
                 </span>
-                {t.loadMore}
+                {t.gridLoadMore || t.loadMore}
               </button>
             ) : null}
-            <Link className="pw-related-all" href={moreHref} data-pw-el={PW_EL.sectionMore}>
-              {t.relatedSeeAll}
-            </Link>
           </div>
         </>
       ) : (

@@ -24,6 +24,7 @@ test('listing seed is SEO stamped and hydrates catalog on every device', () => {
     assert.match(html, /data-pw-catalog/)
     assert.match(html, /data-pw-region="filters"/)
     assert.match(html, /data-pw-region="breadcrumb"/)
+    assert.doesNotMatch(html, /Danh mục con|pw-shop-category-tiles/)
     assert.match(html, /<meta name="description"/)
     assert.match(html, /<h1\b/)
   }

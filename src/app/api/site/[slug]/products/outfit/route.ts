@@ -27,7 +27,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   }
 
   const locale = normalizeWebLocale(sp.get('locale')) ?? 'vi'
-  const limit = Math.min(12, Math.max(1, Number(sp.get('limit') ?? 12) || 12))
+  const offset = Math.max(0, Number(sp.get('offset') ?? 0) || 0)
+  const limit = Math.min(48, Math.max(1, Number(sp.get('limit') ?? 12) || 12))
   const slot = parseOutfitSlotParam(sp.get('slot'))
 
   const data = await fetchPartnerOutfitSuggestions({
@@ -35,8 +36,12 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     siteSlug: shop.site.siteSlug,
     inventoryId,
     locale,
-    limit,
+    limit: Math.min(48, offset + limit + 1),
     slot,
+  })
+  const slots = data.slots.map((s) => {
+    const items = s.items.slice(offset, offset + limit)
+    return { ...s, items, hasMore: s.items.length > offset + limit }
   })
 
   return NextResponse.json({
@@ -44,6 +49,9 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     applicable: data.applicable,
     reason: data.reason,
     anchor: data.anchor,
-    slots: data.slots,
+    offset,
+    limit,
+    hasMore: slots.some((s) => s.hasMore),
+    slots,
   })
 }

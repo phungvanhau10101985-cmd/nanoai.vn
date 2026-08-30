@@ -19,9 +19,13 @@ export const PW_PAPER_SRC_ATTR = 'data-pw-paper-src'
 /** Trọng tâm ảnh nền 0–100. Live đọc CSS var; không khóa center. */
 export const PW_PAPER_POS_X_ATTR = 'data-pw-paper-pos-x'
 export const PW_PAPER_POS_Y_ATTR = 'data-pw-paper-pos-y'
+/** Ảnh banner / nền vừa có trước khi chọn màu — để hiện lại, không mất src. */
+export const PW_LAST_MEDIA_SRC_ATTR = 'data-pw-last-media-src'
+export const PW_MEDIA_HIDDEN_ATTR = 'data-pw-media-hidden'
 export const PW_PAPER_CSS = [
   `html [${PW_PAPER_ATTR}="image"]{--pw-paper-pos-x:50%;--pw-paper-pos-y:50%;background-size:cover!important;background-position:var(--pw-paper-pos-x,50%) var(--pw-paper-pos-y,50%)!important;background-repeat:no-repeat!important}`,
   `html [${PW_PAPER_ATTR}="white"]{background-image:none!important}`,
+  `html [${PW_MEDIA_HIDDEN_ATTR}="1"]{opacity:0!important;visibility:hidden!important;pointer-events:none!important}`,
 ].join('')
 
 export const PW_BG_CANVAS_INDEX = 0

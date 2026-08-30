@@ -3,9 +3,9 @@
  * float icons (Chat mua / Zalo / Facebook / Top up).
  *
  * The page being saved is the source of truth for that device's shared chrome.
- * Saving any page copies header/footer/bottom nav/floats + chrome widget positions onto every
- * other page of the same device. Other devices keep their own logo/layout; only home saves
- * may add missing feature buttons across devices without coordinates.
+ * Saving any page copies header/footer/bottom nav/floats onto every other page of the
+ * same device. Head / dock / float are independent per machine — no Desktop↔Laptop
+ * or Mobile↔Tablet pairing.
  */
 
 import { mergeVisualHomeStylesIntoHtml } from '@/lib/partner-website/shop/merge-visual-home-styles'
@@ -30,6 +30,8 @@ const BOTTOM_RE =
   /<(nav|div)\b(?=[^>]*?class=["'][^"']*\b(?:pw-bottom-nav|pw-shop-bottom-nav)(?![\w-]))[^>]*>/i
 const TOPBAR_RE =
   /<(div)\b(?=[^>]*?(?:data-pw-region=["']topbar["']|class=["'][^"']*\b(?:pw-topbar|pw-shop-topbar)(?![\w-])))[^>]*>/i
+const FLOAT_KIT_RE =
+  /<(aside|div|nav)\b(?=[^>]*\bdata-pw-chrome-kit=["']float["'])[^>]*>/i
 
 function maskHtmlForTagScan(html: string): string {
   return html.replace(
@@ -171,7 +173,8 @@ function chromeOccupiedBlocks(html: string): ExtractedBlock[] {
   const footer = extractFirst(html, FOOTER_RE)
   const bottomNav = extractFirst(html, BOTTOM_RE)
   const topbar = extractFirst(html, TOPBAR_RE)
-  return [header, footer, bottomNav, topbar].filter((b): b is ExtractedBlock => Boolean(b))
+  const floatKit = extractFirst(html, FLOAT_KIT_RE)
+  return [header, footer, bottomNav, topbar, floatKit].filter((b): b is ExtractedBlock => Boolean(b))
 }
 
 function extractAllBlocks(html: string, openRe: RegExp): ExtractedBlock[] {
@@ -250,7 +253,7 @@ export function hoistBodyLevelChromeFloats(
 }
 
 const SCENE_OVERLAY_OPEN_RE =
-  /<(div|p|h[1-6]|span|a|button|section|article|figure|img)\b(?=[^>]*(?:data-pw-added-text=["']1["']|data-pw-added-btn=["']1["']|data-pw-added-bg=["']1["']|data-pw-added-image=["']1["']|data-pw-added-video=["']1["']|data-pw-placement=["']scene-absolute["']))[^>]*>/gi
+  /<(div|p|h[1-6]|span|a|button|section|article|figure|img)\b(?=[^>]*(?:data-pw-added-text=["']1["']|data-pw-added-btn=["']1["']|data-pw-added-bg=["']1["']|data-pw-added-image=["']1["']|data-pw-added-video=["']1["']|data-pw-chrome-added=["']1["']|data-pw-placement=["']scene-absolute["']))[^>]*>/gi
 
 function overlayIdentity(snippet: string): string {
   return (
@@ -285,6 +288,7 @@ function extractStandaloneSceneOverlays(
     if (occupied.some((block) => start >= block.start && end <= block.end)) continue
     const snippet = html.slice(start, end)
     if (/\bdata-pw-chrome-float=["']1["']/i.test(snippet)) continue
+    if (/\bdata-pw-chrome-kit=["'](?:1|actions|dock|float)["']/i.test(snippet)) continue
     if (/\bdata-pw-added-(?:bg|text|btn|image|video)-slot=["']1["']/i.test(snippet)) continue
     const id = overlayIdentity(snippet)
     if (!id || seen.has(id)) continue
@@ -329,6 +333,26 @@ export function hoistBodyLevelSceneOverlays(
   return insertBeforeMainClose(targetHtml, snippets.join('\n'))
 }
 
+function kitHtmlHasChromeKind(kitHtml: string, kind: string): boolean {
+  return new RegExp(`data-pw-chrome-btn=["']${kind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`, 'i').test(
+    kitHtml
+  )
+}
+
+/** Empty kit host after runtime hoist must not win over the authored standalone icons. */
+function mergeStandaloneFloatsIntoKit(
+  kitHtml: string,
+  standalone: Array<{ kind: string; html: string }>
+): string {
+  const extras = standalone.filter((widget) => widget.kind && !kitHtmlHasChromeKind(kitHtml, widget.kind))
+  if (!extras.length) return kitHtml
+  const inject = extras.map((widget) => widget.html).join('\n')
+  if (/<\/(aside|div|nav)\s*>/i.test(kitHtml)) {
+    return kitHtml.replace(/<\/(aside|div|nav)\s*>/i, (_close, tag: string) => `${inject}\n</${tag}>`)
+  }
+  return `${kitHtml}\n${inject}`
+}
+
 export function extractSharedChrome(html: string): SharedChrome {
   const header = extractFirst(html, HEADER_RE)
   const footer = extractFirst(html, FOOTER_RE)
@@ -336,15 +360,16 @@ export function extractSharedChrome(html: string): SharedChrome {
   const topbar = extractFirst(html, TOPBAR_RE)
   const topbarStandalone = topbar && header && blockInside(topbar, header) ? '' : topbar?.html || ''
   const occupied = chromeOccupiedBlocks(html)
-  const floats = extractStandaloneFloatWidgets(html, occupied)
-    .map((w) => w.html)
-    .join('\n')
+  const floatKit = extractFirst(html, FLOAT_KIT_RE)
+  const standalone = extractStandaloneFloatWidgets(html, occupied)
   return {
     topbar: topbarStandalone,
     header: header?.html || '',
     footer: footer?.html || '',
     bottomNav: bottomNav?.html || '',
-    floats,
+    floats: floatKit
+      ? mergeStandaloneFloatsIntoKit(floatKit.html, standalone)
+      : standalone.map((w) => w.html).join('\n'),
   }
 }
 
@@ -728,7 +753,8 @@ export function applySharedChrome(
     extractFirst(out, TOPBAR_RE),
   ].filter((b): b is ExtractedBlock => Boolean(b))
   if (floats.trim()) {
-    // Canonical body floats replace every leftover copy, including extras in header.
+    const existingKit = extractFirst(out, FLOAT_KIT_RE)
+    if (existingKit) out = replaceRange(out, existingKit, '')
     out = stripStandaloneFloatWidgets(out)
     out = insertBeforeBodyClose(out, floats)
   } else {
@@ -787,56 +813,6 @@ function readHomeHtmlForVariant<T extends { files: Array<{ path: string; kind: s
   return project.files.find((f) => f.path === homePath && f.kind === 'html')?.content?.trim() || ''
 }
 
-function pairWideChrome(source: SharedChromeDevice, target: SharedChromeDevice): boolean {
-  return (
-    (source === 'desktop' && target === 'laptop') || (source === 'laptop' && target === 'desktop')
-  )
-}
-
-function pairDockChrome(source: SharedChromeDevice, target: SharedChromeDevice): boolean {
-  return (
-    (source === 'mobile' && target === 'tablet') || (source === 'tablet' && target === 'mobile')
-  )
-}
-
-function applyPairedHeadChrome(
-  targetHtml: string,
-  chrome: SharedChrome,
-  variant: SharedChromeDevice
-): string {
-  const keep = extractSharedChrome(targetHtml)
-  return applySharedChrome(
-    targetHtml,
-    {
-      header: chrome.header,
-      topbar: chrome.topbar,
-      footer: keep.footer,
-      bottomNav: keep.bottomNav,
-      floats: keep.floats,
-    },
-    { targetVariant: variant }
-  )
-}
-
-function applyPairedDockChrome(
-  targetHtml: string,
-  chrome: SharedChrome,
-  variant: SharedChromeDevice
-): string {
-  const keep = extractSharedChrome(targetHtml)
-  return applySharedChrome(
-    targetHtml,
-    {
-      header: keep.header,
-      topbar: keep.topbar,
-      footer: keep.footer,
-      bottomNav: chrome.bottomNav,
-      floats: keep.floats,
-    },
-    { targetVariant: variant }
-  )
-}
-
 export function syncSharedChromeAcrossProjectFiles<
   T extends { files: Array<{ path: string; kind: string; content: string }> },
 >(project: T, sourcePath: string, sourceHtml: string): T {
@@ -870,17 +846,7 @@ export function syncSharedChromeAcrossProjectFiles<
     if (!current.trim()) return file
     const targetVariant = variantFromHtmlPath(file.path)
     if (targetVariant !== sourceVariant) {
-      if (sourceIsHome && pairWideChrome(sourceVariant, targetVariant)) {
-        const next = applyPairedHeadChrome(current, chrome, targetVariant)
-        return next === current ? file : { ...file, content: next }
-      }
-      if (sourceIsHome && pairDockChrome(sourceVariant, targetVariant)) {
-        const next = applyPairedDockChrome(current, chrome, targetVariant)
-        return next === current ? file : { ...file, content: next }
-      }
-      if (!sourceIsHome) return file
-      const next = mergeMissingChromeFeatures(current, chrome, targetVariant)
-      return next === current ? file : { ...file, content: next }
+      return file
     }
     const next = stampWithHomeChrome(current, chromeSource || sourceHtml, targetVariant)
     return next === current ? file : { ...file, content: next }

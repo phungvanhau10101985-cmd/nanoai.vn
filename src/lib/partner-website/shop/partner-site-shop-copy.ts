@@ -46,6 +46,8 @@ export type PartnerSiteShopCopy = {
   categoryFiltersAria: string
   catalogEmpty: string
   loadMore: string
+  /** Nút cuối lưới sản phẩm — tải thêm đúng số hàng đã chọn. */
+  gridLoadMore: string
   productDetail: string
   addToCart: string
   buyNow: string
@@ -486,6 +488,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFiltersAria: 'Bộ lọc sản phẩm',
     catalogEmpty: 'Chưa có sản phẩm.',
     loadMore: 'Xem thêm',
+    gridLoadMore: 'Tải thêm',
     productDetail: 'Chi tiết sản phẩm',
     addToCart: 'Thêm vào giỏ',
     buyNow: 'Mua ngay',
@@ -908,6 +911,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFiltersAria: 'Product filters',
     catalogEmpty: 'No products yet.',
     loadMore: 'Load more',
+    gridLoadMore: 'Load more',
     productDetail: 'Product details',
     addToCart: 'Add to cart',
     buyNow: 'Buy now',
@@ -1330,6 +1334,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFiltersAria: '商品筛选',
     catalogEmpty: '暂无产品。',
     loadMore: '加载更多',
+    gridLoadMore: '加载更多',
     productDetail: '产品详情',
     addToCart: '加入购物车',
     buyNow: '立即购买',
@@ -1752,6 +1757,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFiltersAria: '商品フィルター',
     catalogEmpty: '商品がありません。',
     loadMore: 'もっと見る',
+    gridLoadMore: 'さらに読み込む',
     productDetail: '商品詳細',
     addToCart: 'カートに追加',
     buyNow: '今すぐ購入',
@@ -2174,6 +2180,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFiltersAria: '상품 필터',
     catalogEmpty: '상품이 없습니다.',
     loadMore: '더 보기',
+    gridLoadMore: '더 불러오기',
     productDetail: '상품 상세',
     addToCart: '장바구니 담기',
     buyNow: '바로 구매',

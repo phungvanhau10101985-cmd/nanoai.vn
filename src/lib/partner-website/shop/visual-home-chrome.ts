@@ -10,6 +10,7 @@ import {
   hasSharedChrome,
   type SharedChrome,
 } from '@/lib/partner-website/shop/sync-shared-chrome'
+import { pwScaledFhdDesktopMediaQuery } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
 import {
   isolateVisualHtmlForDevice,
   resolveExactVisualPageHtml,
@@ -49,6 +50,11 @@ html:not(:has(.pw-visual-tablet)):not(:has(.pw-visual-laptop)) .pw-visual-deskto
 @media (min-width:1280px) and (max-width:1439px){
 .pw-visual-laptop{display:block!important}
 html:not(:has(.pw-visual-laptop)) .pw-visual-desktop{display:block!important}
+}
+@media ${pwScaledFhdDesktopMediaQuery()}{
+.pw-visual-laptop{display:none!important}
+.pw-visual-desktop{display:block!important}
+html:not(:has(.pw-visual-desktop)) .pw-visual-laptop{display:block!important}
 }
 @media (min-width:1440px){
 .pw-visual-desktop{display:block!important}

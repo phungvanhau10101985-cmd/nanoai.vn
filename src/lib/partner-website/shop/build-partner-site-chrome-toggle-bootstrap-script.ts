@@ -1353,14 +1353,15 @@ if(mo)mo.observe(document.documentElement,{childList:true,subtree:true});
   width:18px;height:18px;flex-shrink:0;stroke:currentColor;fill:none
 }
 .pw-account-panel.is-open a:hover,.pw-shop-account-panel.is-open a:hover,[data-pw-account-panel].is-open a:hover,
-.pw-cat-panel.is-open a:hover,.pw-shop-cat-panel.is-open a:hover,[data-pw-cat-panel].is-open a:hover{
-  background:var(--pw-surface,#f3f4f6);color:var(--pw-primary,#2563eb)
+.pw-cat-panel.is-open a:hover,.pw-shop-cat-panel.is-open a:hover,[data-pw-cat-panel].is-open a:hover,
+.pw-cat-mega-l2:hover,.pw-cat-mega-l3:hover{
+  background:var(--pw-surface,#f3f4f6);color:var(--pw-primary)!important
 }
 .pw-cat-panel.is-open .pw-cat-mega-kho-more,.pw-shop-cat-panel.is-open .pw-cat-mega-kho-more,[data-pw-cat-panel].is-open .pw-cat-mega-kho-more{
   display:inline-block;padding:0;border-radius:0;font-size:12px;font-weight:600;color:var(--pw-primary);background:transparent;white-space:normal
 }
 .pw-cat-panel.is-open .pw-cat-mega-kho-more:hover,.pw-shop-cat-panel.is-open .pw-cat-mega-kho-more:hover,[data-pw-cat-panel].is-open .pw-cat-mega-kho-more:hover{
-  background:transparent;color:var(--pw-accent);text-decoration:underline
+  background:transparent;color:var(--pw-accent)!important;text-decoration:underline
 }
 .pw-seo-row{display:flex;flex-wrap:nowrap;align-items:center;gap:14px;overflow-x:auto;overflow-y:hidden;max-width:var(--pw-block-w,var(--pw-content,1200px));width:100%;margin:0 auto;padding:4px 16px 8px;box-sizing:border-box;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .pw-seo-row::-webkit-scrollbar{display:none}

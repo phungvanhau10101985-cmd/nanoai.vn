@@ -8,6 +8,7 @@ import {
   PW_SEARCH_IMAGE_IN_FORM_BTN_CSS,
   PW_STOCK_CHROME_EDIT_CSS,
   PW_CHROME_LABELED_MIN_W_CSS,
+  PW_CHROME_ICON_CIRCLE_CSS,
   PW_CHROME_LABEL_FACE_CSS,
   PW_CHROME_FACE_EXTRAS_CSS,
   PW_CHROME_LABEL_BELOW_CSS,
@@ -27,6 +28,7 @@ import {
   chromeWidgetLiveHook,
   htmlHasChromeChatMua,
   isChromeFloatKind,
+  isGapOnlyChromeAddKind,
   isProductActionChromeKind,
   isVisualEditorChromeWidgetKind,
   VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS,
@@ -90,6 +92,13 @@ test('chrome widget picker lists every shop destination once', () => {
   assert.deepEqual(VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS[0]?.kinds, kinds)
 })
 
+test('form sections are gap-only adds, not toolbar Thêm', () => {
+  assert.equal(isGapOnlyChromeAddKind('lead-form'), true)
+  assert.equal(isGapOnlyChromeAddKind('coupon'), true)
+  assert.equal(isGapOnlyChromeAddKind('stores'), false)
+  assert.equal(isGapOnlyChromeAddKind('contact'), false)
+})
+
 test('chrome widgets from Thêm land on canvas, float kinds stay float', () => {
   assert.equal(chromeWidgetHost('chat'), 'float')
   assert.equal(chromeWidgetHost('chat', 'icon', 'nav'), 'float')
@@ -99,6 +108,7 @@ test('chrome widgets from Thêm land on canvas, float kinds stay float', () => {
   assert.equal(chromeWidgetHost('orders'), 'canvas')
   assert.equal(chromeWidgetHost('wishlist', 'icon-square'), 'canvas')
   assert.equal(chromeWidgetAppearance('wishlist', 'icon-square'), 'icon')
+  assert.equal(chromeWidgetAppearance('wishlist', 'icon-circle'), 'icon')
   assert.equal(chromeWidgetHost('wishlist', 'icon-label'), 'canvas')
   assert.equal(chromeWidgetHost('wishlist', 'icon-label-below'), 'canvas')
   assert.equal(chromeWidgetHost('wishlist', 'icon-label-left'), 'canvas')
@@ -467,6 +477,19 @@ test('chrome widgets can emit rounded-square icon-only', () => {
   assert.doesNotMatch(html, /pw-chrome-btn-label/)
 })
 
+test('chrome widgets can emit circular icon-only', () => {
+  const html = buildVisualEditorChromeWidgetHtml({
+    kind: 'topup',
+    siteSlug: '188-shop',
+    locale: 'vi',
+    style: 'icon-circle',
+  })
+  assert.match(html, /pw-chrome-icon-circle/)
+  assert.match(html, /pw-chrome-icon-only/)
+  assert.match(html, /data-pw-chrome-style="icon-circle"/)
+  assert.doesNotMatch(html, /pw-chrome-btn-label/)
+})
+
 test('chrome widgets can emit icon-only or icon+label', () => {
   const iconOnly = buildVisualEditorChromeWidgetHtml({
     kind: 'cart',
@@ -549,6 +572,14 @@ test('search image button in the form stretches to the pill height', () => {
   assert.match(PW_SEARCH_IMAGE_IN_FORM_BTN_CSS, /align-self:stretch!important/)
   assert.match(PW_SEARCH_IMAGE_IN_FORM_BTN_CSS, /min-height:100%!important/)
   assert.match(PW_SEARCH_IMAGE_IN_FORM_BTN_CSS, /height:auto!important/)
+})
+
+test('circle chrome style is a square box with full round corners', () => {
+  assert.match(PW_CHROME_ICON_CIRCLE_CSS, /icon-circle/)
+  assert.match(PW_CHROME_ICON_CIRCLE_CSS, /border-radius:999px!important/)
+  assert.match(PW_CHROME_ICON_CIRCLE_CSS, /aspect-ratio:1!important/)
+  assert.match(PW_CHROME_ICON_CIRCLE_CSS, /\.pw-chrome-icon-circle \.pw-chrome-icon-wrap svg/)
+  assert.match(PW_CHROME_ICON_CIRCLE_CSS, /width:var\(--pw-chrome-w,var\(--pw-chrome-size,22px\)\)!important/)
 })
 
 test('labeled chrome buttons hug icon and text', () => {

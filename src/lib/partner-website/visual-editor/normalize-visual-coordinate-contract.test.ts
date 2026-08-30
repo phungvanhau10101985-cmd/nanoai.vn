@@ -67,6 +67,69 @@ test('render-time dual-read does not accumulate legacy translate after canonical
   assert.doesNotMatch(first, /data-pw-box-x="-522"/)
 })
 
+test('catalog title and see-more stay in-flow instead of scene-absolute', () => {
+  const html = `<html data-pw-edit-device="desktop"><body><main>
+    <section data-pw-region="catalog">
+      <h2 data-pw-el="section-title" data-pw-user-move="1" data-pw-placement="scene-absolute"
+        data-pw-box-x="12" data-pw-box-y="240" style="position:absolute;left:10px;top:20px">CÓ THỂ BẠN THÍCH</h2>
+      <a data-pw-el="section-more" data-pw-placement="scene-absolute" data-pw-box-x="400"
+        style="position:absolute;left:900px;top:20px">XEM SẢN PHẨM</a>
+      <a data-pw-chrome-added="1" data-pw-chrome-btn="stores" data-pw-placement="scene-absolute"
+        data-pw-box-x="-600" data-pw-box-y="180">Cửa hàng</a>
+    </section>
+  </main></body></html>`
+  const next = normalizeVisualCoordinateContract(html, { variant: 'desktop' })
+  const title = next.match(/<h2\b[^>]*>/)?.[0] || ''
+  const more = next.match(/<a\b[^>]*data-pw-el="section-more"[^>]*>/)?.[0] || ''
+  const store = next.match(/<a\b[^>]*data-pw-chrome-btn="stores"[^>]*>/)?.[0] || ''
+  assert.match(title, /data-pw-placement="flow"/)
+  assert.doesNotMatch(title, /data-pw-box-x/)
+  assert.doesNotMatch(title, /data-pw-user-move/)
+  assert.doesNotMatch(title, /position:absolute/)
+  assert.match(more, /data-pw-placement="flow"/)
+  assert.doesNotMatch(more, /data-pw-box-x/)
+  assert.match(store, /data-pw-placement="scene-absolute"/)
+  assert.match(store, /data-pw-box-x="/)
+})
+
+test('banner and category hosts stay in-flow instead of scene-absolute', () => {
+  const html = `<html data-pw-edit-device="desktop"><body><main>
+    <section class="pw-hero" data-pw-region="banner" data-pw-user-move="1" data-pw-placement="scene-absolute"
+      data-pw-box-x="0" data-pw-box-y="180" style="position:absolute;left:120px;top:80px">Banner</section>
+    <section data-pw-region="categories" data-pw-placement="scene-absolute" style="position:absolute;top:200px">Cats</section>
+    <div data-pw-added-bg="1" data-pw-placement="scene-absolute" data-pw-box-x="12" style="position:absolute;left:10px">Bg</div>
+  </main></body></html>`
+  const next = normalizeVisualCoordinateContract(html, { variant: 'desktop' })
+  const banner = next.match(/<section\b[^>]*data-pw-region="banner"[^>]*>/)?.[0] || ''
+  const cats = next.match(/<section\b[^>]*data-pw-region="categories"[^>]*>/)?.[0] || ''
+  const bg = next.match(/<div\b[^>]*data-pw-added-bg="1"[^>]*>/)?.[0] || ''
+  assert.match(banner, /data-pw-placement="flow"/)
+  assert.doesNotMatch(banner, /data-pw-box-x/)
+  assert.doesNotMatch(banner, /position:absolute/)
+  assert.match(cats, /data-pw-placement="flow"/)
+  assert.match(bg, /data-pw-placement="scene-absolute"/)
+})
+
+test('kit float buttons keep authored colors and drop runtime seat geometry', () => {
+  const html = `<html data-pw-edit-device="desktop"><body><main></main>
+    <aside data-pw-chrome-kit="float">
+      <button id="chat" data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-pw-chrome-kit="1"
+        data-pw-btn-color="#111111" data-pw-placement="viewport-fixed" data-pw-fixed-x="0.4"
+        style="position:fixed;right:16px;--pw-btn-color:#111111">Chat</button>
+    </aside>
+  </body></html>`
+  const next = normalizeVisualCoordinateContract(html, {
+    variant: 'desktop',
+    writeCanonicalOnly: true,
+  })
+  const chat = next.match(/<button\b[^>]*id="chat"[^>]*>/)?.[0] || ''
+  assert.match(chat, /data-pw-btn-color="#111111"/)
+  assert.match(chat, /--pw-btn-color:#111111/)
+  assert.doesNotMatch(chat, /data-pw-placement/)
+  assert.doesNotMatch(chat, /data-pw-fixed-x/)
+  assert.doesNotMatch(chat, /position:fixed/)
+})
+
 test('normalizer leaves raw script, style, textarea, and template contents untouched', () => {
   const raw =
     '<html><body><main><script>const card = `<div data-pw-added-text="1" style="position:absolute;left:1px;top:2px">`</script><style>.x::before{content:"<main>"}</style><template><div data-pw-canvas-x="1"></div></template></main></body></html>'

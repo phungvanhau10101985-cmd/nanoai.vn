@@ -201,12 +201,67 @@ export function clearStayScrollTransientStyles(root: ParentNode): void {
     })
 }
 
-/** Body is the canonical authored host for floating chrome; runtime fixed layers are derived. */
+function isHeadDockChromeFloat(el: Element): boolean {
+  if (el.closest('[data-pw-chrome-kit="float"],[data-pw-chrome-float-host="1"]')) return false
+  return Boolean(
+    el.closest(
+      '.pw-header-actions,.pw-shop-header-actions,[data-pw-chrome-kit="actions"],.pw-bottom-nav,.pw-shop-bottom-nav,[data-pw-chrome-kit="dock"],header.pw-header,.pw-shop-header,header[data-pw-region="header"]'
+    )
+  )
+}
+
+const KIT_FLOAT_FACE_VARS: Array<[attr: string, cssVar: string]> = [
+  ['data-pw-btn-color', '--pw-btn-color'],
+  ['data-pw-btn-border', '--pw-btn-border'],
+  ['data-pw-btn-text', '--pw-btn-text'],
+  ['data-pw-icon-color', '--pw-icon-color'],
+  ['data-pw-chrome-hover', '--pw-chrome-hover'],
+]
+
+function stripKitFloatRuntimeSeat(el: HTMLElement): void {
+  const keptVars = new Map<string, string>()
+  for (const [, cssVar] of KIT_FLOAT_FACE_VARS) {
+    const fromStyle = el.style.getPropertyValue(cssVar).trim()
+    if (fromStyle) keptVars.set(cssVar, fromStyle)
+  }
+  for (const [attr, cssVar] of KIT_FLOAT_FACE_VARS) {
+    const fromAttr = el.getAttribute(attr)?.trim() || ''
+    if (fromAttr && !keptVars.has(cssVar)) keptVars.set(cssVar, fromAttr)
+  }
+  el.removeAttribute(PW_PLACEMENT_ATTR)
+  el.removeAttribute('data-pw-fixed-x')
+  el.removeAttribute('data-pw-fixed-y')
+  el.removeAttribute('data-pw-fixed-w')
+  el.removeAttribute('data-pw-fixed-h')
+  el.removeAttribute('data-pw-fixed-anchor')
+  el.removeAttribute('data-pw-user-move')
+  for (const property of ['position', 'left', 'top', 'right', 'bottom', 'transform', 'z-index', 'margin']) {
+    el.style.removeProperty(property)
+  }
+  for (const [cssVar, value] of keptVars) {
+    el.style.setProperty(cssVar, value)
+  }
+}
+
+/**
+ * Thanh nổi kit is the authored host. Runtime may hoist icons to `body` so
+ * `position:fixed` wins; Save must put them back or the empty kit is reseeded.
+ * Legacy pages without a kit still persist standalone floats on `body`.
+ */
 function rehomeChromeFloatsForStore(root: ParentNode): void {
   const body = root.querySelector('body')
   if (!body) return
+  const kit = root.querySelector<HTMLElement>('[data-pw-chrome-kit="float"],[data-pw-chrome-float-host="1"]')
+  const host = kit || body
   root.querySelectorAll('[data-pw-chrome-float="1"]').forEach((node) => {
-    if (node.parentNode !== body) body.appendChild(node)
+    const el = node as HTMLElement
+    if (el.getAttribute('data-pw-float-dup') === '1') {
+      el.remove()
+      return
+    }
+    if (isHeadDockChromeFloat(el)) return
+    if (el.parentNode !== host) host.appendChild(el)
+    if (kit && kit.contains(el)) stripKitFloatRuntimeSeat(el)
   })
 }
 

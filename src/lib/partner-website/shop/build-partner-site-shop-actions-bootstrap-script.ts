@@ -468,7 +468,7 @@ function cartQty(items){
   for(var i=0;i<items.length;i++) n+=Math.max(0,Number(items[i]&&items[i].quantity)||1);
   return n;
 }
-function hydrateContactChatLinks(){
+function hydrateContactChatLinks(force){
   var zalo=document.querySelectorAll('[data-pw-chrome-btn="chat-zalo"],[data-pw-contact-channel="zalo"]');
   var fb=document.querySelectorAll('[data-pw-chrome-btn="chat-facebook"],[data-pw-contact-channel="facebook"]');
   var ig=document.querySelectorAll('[data-pw-chrome-btn="chat-instagram"],[data-pw-contact-channel="instagram"]');
@@ -509,19 +509,31 @@ function hydrateContactChatLinks(){
     var p=String(raw||'').replace(/[^0-9+]/g,'');
     return p.length>=6?'tel:'+p:'';
   }
-  apiFetch(CONTACT_API).then(function(res){
-    var c=res.ok&&res.j&&res.j.channels?res.j.channels:{};
+  function applyChannels(c){
+    c=c||{};
     apply(zalo,c.zaloUrl||'',true);
     apply(fb,c.messengerUrl||'',true);
     apply(ig,c.instagramUrl||'',true);
     apply(wa,waHref(c.phone||''),true);
     apply(phone,telHref(c.phone||''),false);
+  }
+  if(window.__pwContactChannelsCache&&!force){
+    applyChannels(window.__pwContactChannelsCache);
+    return;
+  }
+  if(pwShopLiveUiOff()||window.__pwContactFetchInFlight){
+    if(window.__pwContactChannelsCache)applyChannels(window.__pwContactChannelsCache);
+    return;
+  }
+  window.__pwContactFetchInFlight=true;
+  apiFetch(CONTACT_API).then(function(res){
+    window.__pwContactFetchInFlight=false;
+    var c=res.ok&&res.j&&res.j.channels?res.j.channels:{};
+    window.__pwContactChannelsCache=c;
+    applyChannels(c);
   }).catch(function(){
-    apply(zalo,'',true);
-    apply(fb,'',true);
-    apply(ig,'',true);
-    apply(wa,'',true);
-    apply(phone,'',false);
+    window.__pwContactFetchInFlight=false;
+    applyChannels({});
   });
 }
 function bindShareLeadCoupon(){
@@ -669,7 +681,7 @@ function runHydrate(forceNetwork){
   try{
     enhanceCards();
     hydrateChromeBadges(!!forceNetwork);
-    hydrateContactChatLinks();
+    hydrateContactChatLinks(!!forceNetwork);
     hydrateFavoriteButtons(!!forceNetwork);
     bindShareLeadCoupon();
   }finally{

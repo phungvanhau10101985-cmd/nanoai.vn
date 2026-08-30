@@ -68,13 +68,13 @@ async function main() {
     assert(html.includes('Áo thun test'), 'trang danh mục phải chứa tên sản phẩm đã gán')
     console.log('OK GET /site/{slug}/c/{path} render 200 kèm đúng tên danh mục + sản phẩm')
 
-    // 3) W4.9 — trang danh mục CHA phải có tile danh mục con (không có sản phẩm trực tiếp)
+    // 3) Listing `/c/{path}` — không khối «Danh mục con»; chỉ lọc + lưới + head.
     const parentPageRes = await fetch(`${BASE}/site/${siteSlug}/c/${l1.row.path}`)
     assert(parentPageRes.status === 200, `parent category page status ${parentPageRes.status}`)
     const parentHtml = await parentPageRes.text()
-    assert(parentHtml.includes('pw-shop-category-tile'), 'trang danh mục cha phải render tile danh mục con')
-    assert(parentHtml.includes('Áo thun'), 'tile con phải hiện tên "Áo thun"')
-    console.log('OK trang danh mục cha hiện tile danh mục con')
+    assert(!parentHtml.includes('Danh mục con'), 'listing không hiện khối danh mục con')
+    assert(!parentHtml.includes('pw-shop-category-tiles'), 'listing không hiện lưới tile con')
+    console.log('OK trang danh mục listing không hiện khối danh mục con')
 
     // 4) Danh mục không tồn tại -> 404
     const notFoundRes = await fetch(`${BASE}/site/${siteSlug}/c/khong-ton-tai`)

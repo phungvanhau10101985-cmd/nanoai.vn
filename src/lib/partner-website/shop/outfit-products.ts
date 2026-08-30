@@ -11,10 +11,17 @@ import {
 import type { PartnerOutfitSuggestions } from '@/lib/partner-website/shop/pdp-outfit-suggestions'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
+  clampProductGridRows,
+  PW_GRID_COLS_NARROW,
+  PW_GRID_COLS_WIDE,
+  productGridPageSize,
+} from '@/lib/partner-website/shop/pw-product-grid-page'
+import {
   partnerSiteCategoryPath,
   partnerSiteProductPath,
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { PW_KIND_SCENE_MEDIA, pwKindSceneAttr } from '@/lib/partner-website/visual-editor/pw-kind-scene'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export const PW_OUTFIT_ATTR = 'data-pw-outfit'
@@ -98,6 +105,7 @@ export function buildOutfitProductsSectionHtml(input: {
   locale?: WebLocale
   siteSlug?: string | null
   limit?: number
+  rows?: number
   cards?: OutfitProductCard[] | null
   excludeId?: string | null
   role?: OutfitSlotId | null
@@ -106,13 +114,13 @@ export function buildOutfitProductsSectionHtml(input: {
 }): string {
   const locale = input.locale || 'vi'
   const t = getPartnerSiteShopCopy(locale)
-  const limit = Math.min(24, Math.max(4, Math.floor(input.limit ?? PW_OUTFIT_LIMIT_DEFAULT)))
+  const rows = clampProductGridRows(input.rows)
+  const pageSize = productGridPageSize(rows, PW_GRID_COLS_WIDE)
   const slug = String(input.siteSlug || '').trim()
-  const moreHref = outfitListingHref({ siteSlug: slug })
   const cards = (input.cards ?? []).filter((c) => String(c?.id || '').trim())
   const cardHtml = cards.length
     ? cards.map((item) => outfitCardHtml(item, { siteSlug: slug })).join('')
-    : placeholderOutfitCards(5, t.outfitTitleFallback)
+    : placeholderOutfitCards(pageSize, t.outfitTitleFallback)
   const excludeId = String(input.excludeId || '').trim()
   const added = input.added ? ' data-pw-added-catalog="1"' : ''
   const title = outfitSectionTitle(input.role ?? null, locale)
@@ -123,19 +131,19 @@ export function buildOutfitProductsSectionHtml(input: {
         `<button type="button" class="pw-outfit-slot${i === 0 ? ' is-active' : ''}" role="tab" data-pw-outfit-slot="${slot}" aria-selected="${i === 0 ? 'true' : 'false'}">${escapeHtml(outfitSlotLabel(slot, locale))}</button>`
     )
     .join('')
-  return `<section class="pw-outfit pw-catalog" ${pwRegionAttr(PW_REGION.catalog)} data-pw-bg-role="catalog" ${PW_OUTFIT_ATTR}="1" data-pw-grid-kind="outfit" data-pw-grid-cols="5" data-pw-grid-cols-mobile="2" data-limit="${limit}"${added}${
+  const loadMore = t.gridLoadMore || t.loadMore
+  return `<section class="pw-outfit pw-catalog" ${pwRegionAttr(PW_REGION.catalog)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="catalog" ${PW_OUTFIT_ATTR}="1" data-pw-grid-kind="outfit" data-pw-grid-cols="${PW_GRID_COLS_WIDE}" data-pw-grid-cols-mobile="${PW_GRID_COLS_NARROW}" data-pw-grid-rows="${rows}" data-limit="${pageSize}"${added}${
     excludeId ? ` data-exclude="${escapeAttr(excludeId)}"` : ''
   }>
   <h3 class="pw-outfit-title" ${pwElAttr(PW_EL.sectionTitle)}>${escapeHtml(title)}</h3>
   <p class="pw-outfit-subtitle">${escapeHtml(t.outfitSubtitle)}</p>
   <div class="pw-outfit-slots" role="tablist" data-pw-outfit-slots aria-label="${escapeAttr(t.outfitSlotsAria)}">${slotHtml}</div>
   <div class="pw-product-grid pw-outfit-grid" style="margin-top:12px" ${pwElAttr(PW_EL.grid)} data-pw-grid>${cardHtml}</div>
-  <div class="pw-outfit-actions">
-    <button type="button" class="pw-outfit-more" data-pw-outfit-more hidden>
-      <span class="pw-outfit-more-icon" aria-hidden="true">↻</span>
-      ${escapeHtml(t.loadMore)}
+  <div class="pw-outfit-actions pw-grid-actions" data-pw-grid-actions>
+    <button type="button" class="pw-outfit-more pw-grid-more" data-pw-outfit-more data-pw-grid-more>
+      <span class="pw-outfit-more-icon pw-grid-more-icon" aria-hidden="true">↻</span>
+      ${escapeHtml(loadMore)}
     </button>
-    <a class="pw-outfit-all" ${pwElAttr(PW_EL.sectionMore)} href="${escapeAttr(moreHref)}">${escapeHtml(t.outfitSeeAll)}</a>
   </div>
   <p class="pw-catalog-empty pw-outfit-empty" hidden>${escapeHtml(t.outfitEmpty)}</p>
 </section>`

@@ -25,7 +25,7 @@ export type PartnerSiteHeaderHtmlInput = {
   siteSlug?: string
   /** Gallery / static sample — show shop chrome without live slug */
   samplePreview?: boolean
-  /** Seed ẩn/hiện kit theo máy (desktop+laptop = pc). */
+  /** Seed ẩn/hiện kit theo máy (Desktop ≠ Laptop ≠ Tablet ≠ Mobile). */
   device?: VisualDeviceVariant | null
 }
 

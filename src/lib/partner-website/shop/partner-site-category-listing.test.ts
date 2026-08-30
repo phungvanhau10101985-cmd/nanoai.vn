@@ -117,8 +117,13 @@ test('mega menu html is 2-column L1 | L2/L3', () => {
   const megaCss = css.slice(css.indexOf('.pw-cat-mega-cols'))
   assert.match(css, /pw-cat-mega-cols/)
   assert.match(megaCss.slice(0, 1800), /--pw-primary|--pw-surface|--pw-buy/)
+  assert.match(css, /pw-cat-mega-l2:hover/)
+  assert.match(css, /pw-cat-mega-l3:hover/)
+  assert.match(css, /color:var\(--pw-primary\)!important/)
   assert.match(css, /text-transform:lowercase/)
   assert.match(css, /overflow-x:hidden/)
+  assert.match(css, /\.pw-shop-category-tiles\{display:none!important\}/)
+  assert.match(css, /\.pw-shop-category-hub\{display:grid/)
 })
 
 test('category listing copy exists for all locales', () => {

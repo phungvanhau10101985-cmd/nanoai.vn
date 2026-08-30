@@ -15,17 +15,20 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   if (!shop) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
-  const limit = Math.min(40, Math.max(1, Number(request.nextUrl.searchParams.get('limit') ?? 10) || 10))
-  const products = await getSiteRecentlyViewedProducts({
+  const offset = Math.max(0, Number(request.nextUrl.searchParams.get('offset') ?? 0) || 0)
+  const limit = Math.min(48, Math.max(1, Number(request.nextUrl.searchParams.get('limit') ?? 10) || 10))
+  const peeked = await getSiteRecentlyViewedProducts({
     partnerId: shop.partnerId,
     siteSlug: shop.site.siteSlug,
     accountKey: visitor.accountKey,
-    limit,
+    limit: Math.min(48, offset + limit + 1),
   })
+  const products = peeked.slice(offset, offset + limit)
+  const hasMore = peeked.length > offset + limit
 
   return jsonSitePersonalization(
     request,
-    { ok: true, products, count: products.length },
+    { ok: true, products, hasMore, offset, limit, count: products.length },
     200,
     { sessionId: visitor.sessionId, thread: visitor.thread }
   )

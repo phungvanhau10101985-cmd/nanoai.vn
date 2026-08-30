@@ -1,11 +1,14 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { buildOutfitProductsSectionHtml } from '@/lib/partner-website/shop/outfit-products'
-import { buildRelatedProductsSectionHtml } from '@/lib/partner-website/shop/related-products'
 import {
-  partnerSiteProductsPath,
-  partnerSiteRecentlyViewedPath,
-} from '@/lib/partner-website/shop/partner-site-shop-paths'
+  clampProductGridRows,
+  productGridColsForDevice,
+  productGridPageSize,
+  type PartnerProductGridDevice,
+} from '@/lib/partner-website/shop/pw-product-grid-page'
+import { buildRelatedProductsSectionHtml } from '@/lib/partner-website/shop/related-products'
+import { PW_KIND_SCENE_MEDIA, pwKindSceneAttr } from '@/lib/partner-website/visual-editor/pw-kind-scene'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export const VISUAL_EDITOR_PRODUCT_GRID_KINDS = [
@@ -141,7 +144,7 @@ function escapeHtml(value: string): string {
 }
 
 function placeholderCards(count: number, label: string): string {
-  const n = Math.max(4, Math.min(10, count))
+  const n = Math.max(2, Math.min(20, count))
   let out = ''
   for (let i = 1; i <= n; i += 1) {
     out += `<article class="pw-product-card" ${pwElAttr(PW_EL.card)} data-pw-grid-placeholder="1">
@@ -155,20 +158,36 @@ function placeholderCards(count: number, label: string): string {
   return out
 }
 
+function gridMoreButtonHtml(label: string): string {
+  return `<div class="pw-grid-actions" data-pw-grid-actions>
+    <button type="button" class="pw-grid-more" data-pw-grid-more>
+      <span class="pw-grid-more-icon" aria-hidden="true">↻</span>
+      ${escapeHtml(label)}
+    </button>
+  </div>`
+}
+
 /** In-flow catalog section for Sửa nhanh «Thêm». Live hydrates via catalog / personalization bootstrap. */
 export function buildVisualEditorProductGridHtml(input: {
   kind: VisualEditorProductGridKind
   siteSlug: string
   locale?: WebLocale
+  rows?: number
+  device?: PartnerProductGridDevice | string | null
   limit?: number
 }): string {
   const locale = input.locale && input.locale in TITLE.catalog ? input.locale : 'vi'
   const kind = input.kind
+  const rows = clampProductGridRows(input.rows)
+  const cols = productGridColsForDevice(input.device)
+  const pageSize = productGridPageSize(rows, cols)
+  const limit = Math.max(pageSize, Math.min(48, Math.floor(Number(input.limit) || pageSize)))
   if (kind === 'related') {
     return buildRelatedProductsSectionHtml({
       locale,
       siteSlug: input.siteSlug,
-      limit: Math.max(8, Math.min(24, Math.floor(Number(input.limit) || 24))),
+      rows,
+      limit,
       added: true,
     })
   }
@@ -176,11 +195,11 @@ export function buildVisualEditorProductGridHtml(input: {
     return buildOutfitProductsSectionHtml({
       locale,
       siteSlug: input.siteSlug,
-      limit: Math.max(8, Math.min(24, Math.floor(Number(input.limit) || 12))),
+      rows,
+      limit,
       added: true,
     })
   }
-  const limit = Math.max(4, Math.min(24, Math.floor(Number(input.limit) || 10)))
   const copy = getPartnerSiteShopCopy(locale)
   const title =
     kind === 'recommended'
@@ -188,25 +207,19 @@ export function buildVisualEditorProductGridHtml(input: {
       : kind === 'recently-viewed'
         ? copy.recentlyViewedTitle || TITLE['recently-viewed'][locale]
         : copy.catalogTitle || TITLE.catalog[locale]
-  const seeAll = copy.lpViewProducts
-  const moreHref =
-    kind === 'recently-viewed'
-      ? partnerSiteRecentlyViewedPath(input.siteSlug)
-      : partnerSiteProductsPath(input.siteSlug)
+  const loadMore = copy.gridLoadMore || copy.loadMore
   const personalize =
     kind === 'catalog' ? '' : ` data-pw-personalize="${kind === 'recommended' ? 'recommended' : 'recently-viewed'}"`
   const catalogAttr = kind === 'catalog' ? ' data-pw-catalog data-sort="default"' : ''
   const sectionId =
     kind === 'catalog' ? 'pw-grid-catalog' : kind === 'recommended' ? 'pw-grid-recommended' : 'pw-grid-recently-viewed'
-  const cards = placeholderCards(limit, title)
+  const cards = placeholderCards(pageSize, title)
 
-  return `<section class="pw-catalog pw-section pw-product-grid-section" id="${sectionId}" ${pwRegionAttr(PW_REGION.catalog)} data-pw-added-catalog="1" data-pw-grid-kind="${kind}" data-pw-grid-cols="5" data-pw-grid-cols-mobile="2" data-limit="${limit}"${catalogAttr}${personalize}>
-  <div class="pw-container" style="padding:32px 20px">
-    <div style="display:flex;align-items:end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px">
-      <h2 ${pwElAttr(PW_EL.sectionTitle)} style="margin:0;font-size:clamp(1.4rem,2.5vw,2rem)">${escapeHtml(title)}</h2>
-      <a class="pw-btn" ${pwElAttr(PW_EL.sectionMore)} href="${escapeHtml(moreHref)}">${escapeHtml(seeAll)}</a>
-    </div>
+  return `<section class="pw-catalog pw-product-grid-section" id="${sectionId}" ${pwRegionAttr(PW_REGION.catalog)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-added-catalog="1" data-pw-grid-kind="${kind}" data-pw-grid-cols="5" data-pw-grid-cols-mobile="2" data-pw-grid-rows="${rows}" data-limit="${pageSize}"${catalogAttr}${personalize} style="margin:0;padding:0;min-height:0;height:auto">
+  <div class="pw-container" style="padding:12px 16px 16px">
+    <h2 ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2>
     <div data-pw-grid class="pw-product-grid" ${pwElAttr(PW_EL.grid)}>${cards}</div>
+    ${gridMoreButtonHtml(loadMore)}
     <p class="pw-catalog-empty pw-personalize-empty" hidden></p>
   </div>
 </section>`

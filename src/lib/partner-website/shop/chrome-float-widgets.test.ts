@@ -2,12 +2,23 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   chromeFloatDefaultBottomPx,
+  clampChromeFloatEdge,
   isChromeFloatKind,
   PARTNER_SHOP_CHROME_FLOAT_CSS,
   PARTNER_SHOP_CHROME_FLOAT_POS_JS,
   PARTNER_SHOP_CHROME_FLOAT_SCRIPT,
   PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX,
+  PW_CHROME_FLOAT_DEFAULT_RIGHT_PX,
   PW_CHROME_FLOAT_KINDS,
+  clampChromeFloatGap,
+  clampChromeFloatSize,
+  PW_FLOAT_BOTTOM_ATTR,
+  PW_FLOAT_GAP_ATTR,
+  PW_FLOAT_GAP_DEFAULT,
+  PW_FLOAT_SIZE_ATTR,
+  PW_FLOAT_SIZE_DEFAULT,
+  PW_FLOAT_RIGHT_ATTR,
+  PW_FLOAT_STACK_BOTTOM_ATTR,
   PW_CHROME_FLOAT_Z_INDEX,
   resetChromeFloatUserMoveInHtml,
 } from '@/lib/partner-website/shop/chrome-float-widgets'
@@ -34,6 +45,19 @@ test('chat Zalo Facebook and top-up are viewport-fixed chrome', () => {
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('display:inline-flex!important'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('pwChromeFloatSeatDefault'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('pwChromeFloatSeatDefault'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('pwChromeFloatSeatEdge'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('pwChromeFloatWriteEdge'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('function pwChromeFloatMoveBy'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('function pwChromeFloatDragFrom'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('nanoai-ve-dragging'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('[data-nanoai-ve-selected][data-pw-chrome-float="1"]'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('data-pw-fixed-anchor="right-bottom"'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('--pw-float-right'), true)
+  assert.equal(clampChromeFloatEdge(-20), 0)
+  assert.equal(clampChromeFloatEdge(80), 80)
+  assert.equal(PW_CHROME_FLOAT_DEFAULT_RIGHT_PX, 16)
+  assert.equal(PW_FLOAT_RIGHT_ATTR, 'data-pw-float-right')
+  assert.equal(PW_FLOAT_BOTTOM_ATTR, 'data-pw-float-bottom')
   assert.equal(chromeFloatDefaultBottomPx('topup'), PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.topup)
   assert.equal(chromeFloatDefaultBottomPx('chat'), PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes("toFixed(2)+'%'"), true)
@@ -41,9 +65,33 @@ test('chat Zalo Facebook and top-up are viewport-fixed chrome', () => {
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('pointer-events:auto!important'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('host.appendChild(el)'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('el.parentNode!==host') || PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('el.parentNode !== host'), true)
-  assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('if (!rootVisible(nodes[n])) continue'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('if (!pwChromeFloatShouldBake(el)) continue'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes("classList.contains('nanoai-ve-active')"), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes("tf !== 'none'"), false)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('function pwChromeFloatApplyStack'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('function pwChromeFloatStackWrite'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes(PW_FLOAT_STACK_BOTTOM_ATTR), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes(PW_FLOAT_GAP_ATTR), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('[data-pw-hidden="1"]'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('[data-pw-hidden="1"][data-nanoai-ve-selected]'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('visibility:visible!important;pointer-events:auto!important;opacity:1!important'), false)
+  assert.equal(clampChromeFloatGap(12), 36)
+  assert.equal(clampChromeFloatGap(80), 80)
+  assert.equal(PW_FLOAT_GAP_DEFAULT, 56)
+  assert.equal(PW_FLOAT_SIZE_DEFAULT, 40)
+  assert.equal(PW_FLOAT_SIZE_ATTR, 'data-pw-float-size')
+  assert.equal(clampChromeFloatSize(8), 16)
+  assert.equal(clampChromeFloatSize(40), 40)
+  assert.equal(clampChromeFloatSize(240), 200)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('pwChromeFloatEnsureCircle'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('pwChromeFloatApplyIconSize'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes(PW_FLOAT_SIZE_ATTR), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('--pw-float-size'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('icon-circle'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('[data-pw-chrome-kit="float"] .pw-chrome-icon-wrap svg'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes("querySelector('.pw-chrome-icon-wrap')"), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes("setAttribute('width',String(size))"), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes("setProperty('width',px,'important')"), true)
 })
 
 test('top-up stays hidden until the page is scrolled on every device', () => {
@@ -57,7 +105,12 @@ test('top-up stays hidden until the page is scrolled on every device', () => {
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('__pwChromeTopupSync'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('dedupeFloats'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('data-pw-float-dup'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('pwChromeFloatShouldBake'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('pwChromeFloatKeepScore'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_SCRIPT.includes('data-pw-chrome-kit="float"'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('[data-pw-float-dup="1"]'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('html[data-pw-edit-device]'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('--pw-scene-w'), true)
 })
 
 test('resetChromeFloatUserMoveInHtml drops leftover Desktop pins on Tư vấn', () => {

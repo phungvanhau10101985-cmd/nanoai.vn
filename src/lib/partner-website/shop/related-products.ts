@@ -4,10 +4,17 @@ import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-de
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
+  clampProductGridRows,
+  PW_GRID_COLS_NARROW,
+  PW_GRID_COLS_WIDE,
+  productGridPageSize,
+} from '@/lib/partner-website/shop/pw-product-grid-page'
+import {
   partnerSiteCategoryPath,
   partnerSiteProductPath,
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { PW_KIND_SCENE_MEDIA, pwKindSceneAttr } from '@/lib/partner-website/visual-editor/pw-kind-scene'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export const PW_RELATED_ATTR = 'data-pw-related'
@@ -78,6 +85,7 @@ export function buildRelatedProductsSectionHtml(input: {
   locale?: WebLocale
   siteSlug?: string | null
   limit?: number
+  rows?: number
   cards?: RelatedProductCard[] | null
   categoryId?: string | null
   categoryPath?: string | null
@@ -86,27 +94,27 @@ export function buildRelatedProductsSectionHtml(input: {
 }): string {
   const locale = input.locale || 'vi'
   const t = getPartnerSiteShopCopy(locale)
-  const limit = Math.min(48, Math.max(4, Math.floor(input.limit ?? PW_RELATED_LIMIT_DEFAULT)))
+  const rows = clampProductGridRows(input.rows)
+  const pageSize = productGridPageSize(rows, PW_GRID_COLS_WIDE)
   const slug = String(input.siteSlug || '').trim()
-  const moreHref = relatedListingHref({ siteSlug: slug, categoryPath: input.categoryPath })
   const cards = (input.cards ?? []).filter((c) => String(c?.id || '').trim())
   const cardHtml = cards.length
     ? cards.map((item) => relatedCardHtml(item, { siteSlug: slug })).join('')
-    : placeholderRelatedCards(5, t.relatedProducts)
+    : placeholderRelatedCards(pageSize, t.relatedProducts)
   const categoryId = String(input.categoryId || '').trim()
   const excludeId = String(input.excludeId || '').trim()
   const added = input.added ? ' data-pw-added-catalog="1"' : ''
-  return `<section class="pw-related pw-catalog" ${pwRegionAttr(PW_REGION.catalog)} data-pw-bg-role="catalog" data-pw-catalog data-pw-related="1" data-pw-grid-kind="related" data-pw-grid-cols="5" data-pw-grid-cols-mobile="2" data-limit="${limit}"${added}${
+  const loadMore = t.gridLoadMore || t.loadMore
+  return `<section class="pw-related pw-catalog" ${pwRegionAttr(PW_REGION.catalog)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="catalog" data-pw-catalog data-pw-related="1" data-pw-grid-kind="related" data-pw-grid-cols="${PW_GRID_COLS_WIDE}" data-pw-grid-cols-mobile="${PW_GRID_COLS_NARROW}" data-pw-grid-rows="${rows}" data-limit="${pageSize}"${added}${
     categoryId ? ` data-category-id="${escapeAttr(categoryId)}"` : ''
   }${excludeId ? ` data-exclude="${escapeAttr(excludeId)}"` : ''}>
   <h3 class="pw-related-title" ${pwElAttr(PW_EL.sectionTitle)}>${escapeHtml(t.relatedProducts)}</h3>
   <div class="pw-product-grid pw-related-grid" style="margin-top:12px" ${pwElAttr(PW_EL.grid)} data-pw-grid>${cardHtml}</div>
-  <div class="pw-related-actions">
-    <button type="button" class="pw-related-more" data-pw-related-more hidden>
-      <span class="pw-related-more-icon" aria-hidden="true">↻</span>
-      ${escapeHtml(t.loadMore)}
+  <div class="pw-related-actions pw-grid-actions" data-pw-grid-actions>
+    <button type="button" class="pw-related-more pw-grid-more" data-pw-related-more data-pw-grid-more>
+      <span class="pw-related-more-icon pw-grid-more-icon" aria-hidden="true">↻</span>
+      ${escapeHtml(loadMore)}
     </button>
-    <a class="pw-related-all" ${pwElAttr(PW_EL.sectionMore)} href="${escapeAttr(moreHref)}">${escapeHtml(t.relatedSeeAll)}</a>
   </div>
   <p class="pw-catalog-empty pw-related-empty" hidden>${escapeHtml(t.relatedEmpty)}</p>
 </section>`

@@ -105,7 +105,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     }
   }
 
-  const fetchLimit = Math.min(48, limit + excludeIds.length)
+  const fetchLimit = Math.min(48, limit + excludeIds.length + 1)
   const page =
     categoryId && UUID_RE.test(categoryId)
       ? await fetchPartnerInventoryPageByCategoryFromPg(shop.partnerId, {
@@ -132,11 +132,12 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   if (!page) return NextResponse.json({ error: 'Could not load products' }, { status: 500 })
 
   const excludeSet = new Set(excludeIds)
-  const products = page.rows
+  const mapped = page.rows
     .map((row) => inventoryRowToShopProduct(shop.site.siteSlug, row))
     .filter((p): p is NonNullable<typeof p> => Boolean(p))
     .filter((p) => !excludeSet.has(p.id))
-    .slice(0, limit)
+  const hasMore = mapped.length > limit || offset + limit < page.count
+  const products = mapped.slice(0, limit)
 
   if (related && categoryId && UUID_RE.test(categoryId)) {
     const flat = await fetchPartnerCategoriesFlatFromPg(shop.partnerId)
@@ -153,6 +154,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   return NextResponse.json({
     ok: true,
     products,
+    hasMore,
     total: products.length < page.rows.length ? products.length : page.count,
     mapped: products.length,
     inventoryTotal: related ? products.length : page.count,

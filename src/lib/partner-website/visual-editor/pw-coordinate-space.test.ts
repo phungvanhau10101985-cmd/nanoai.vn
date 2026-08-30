@@ -10,7 +10,9 @@ import {
   pwLeftOriginToCenterX,
   pwNormalizedLeftToCenterX,
   pwPickAvailableDevice,
+  pwLooksLikeScaledFhdDesktop,
   pwResolveCoordinateDevice,
+  pwScaledFhdDesktopMediaQuery,
   pwSceneBoxLeftCss,
   pwSceneBoxToClient,
   pwSceneBoxTopPx,
@@ -34,6 +36,27 @@ test('device selection is independent from display scale', () => {
     'desktop'
   )
   assert.equal(pwResolveCoordinateDevice({ outerWidth: 1366, layoutWidth: 683 }), 'laptop')
+  assert.equal(
+    pwResolveCoordinateDevice({
+      outerWidth: 1280,
+      layoutWidth: 1280,
+      screenWidth: 1280,
+      devicePixelRatio: 1.5,
+    }),
+    'desktop'
+  )
+  assert.equal(
+    pwResolveCoordinateDevice({
+      outerWidth: 1280,
+      layoutWidth: 1280,
+      screenWidth: 1280,
+      devicePixelRatio: 2,
+    }),
+    'laptop'
+  )
+  assert.equal(pwLooksLikeScaledFhdDesktop({ outerWidth: 1280, devicePixelRatio: 1.5 }), true)
+  assert.equal(pwLooksLikeScaledFhdDesktop({ outerWidth: 1280, devicePixelRatio: 2 }), false)
+  assert.match(pwScaledFhdDesktopMediaQuery(), /min-resolution:1\.25dppx/)
   assert.equal(pwResolveCoordinateDevice({ outerWidth: 768, layoutWidth: 384 }), 'tablet')
   assert.equal(pwResolveCoordinateDevice({ outerWidth: 390, layoutWidth: 195 }), 'mobile')
   assert.equal(
@@ -113,4 +136,6 @@ test('runtime is generated from the same constants and contract version', () => 
   assert.match(source, /leftCss/)
   assert.match(source, /boxLeftCss/)
   assert.match(source, /rectCenter/)
+  assert.match(source, /function scaledDesk/)
+  assert.match(source, /r>=1\.25&&r<2/)
 })

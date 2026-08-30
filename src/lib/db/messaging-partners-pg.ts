@@ -431,6 +431,56 @@ export async function fetchMessagingPartnerContactChannelsFromPg(partnerId: stri
   }
 }
 
+/**
+ * Public shop contact deep-links by site slug — thin join only.
+ * Do not load project_files_json / shop context (that path is multi-second).
+ */
+export async function fetchMessagingPartnerContactChannelsBySiteSlugFromPg(siteSlug: string): Promise<{
+  contact_phone: string | null
+  contact_zalo_url: string | null
+  contact_messenger_url: string | null
+  contact_instagram_url: string | null
+} | null> {
+  if (!isPgConfigured()) return null
+  const slug = siteSlug.trim().toLowerCase()
+  if (!slug) return null
+  try {
+    const row = await pgQueryOne<{
+      contact_phone: string | null
+      contact_zalo_url: string | null
+      contact_messenger_url: string | null
+      contact_instagram_url: string | null
+    }>(
+      `select p.contact_phone, p.contact_zalo_url, p.contact_messenger_url, p.contact_instagram_url
+         from public.messaging_partner_websites w
+         inner join public.messaging_partners p on p.id = w.partner_id
+        where w.site_slug = $1
+          and coalesce(p.is_active, true) = true
+          and p.purge_at is null
+        limit 1`,
+      [slug]
+    )
+    if (!row) return null
+    return {
+      contact_phone: row.contact_phone,
+      contact_zalo_url: row.contact_zalo_url,
+      contact_messenger_url: row.contact_messenger_url,
+      contact_instagram_url: row.contact_instagram_url,
+    }
+  } catch (e) {
+    if (isMissingPartnerProfileColumnError(e)) {
+      return {
+        contact_phone: null,
+        contact_zalo_url: null,
+        contact_messenger_url: null,
+        contact_instagram_url: null,
+      }
+    }
+    console.warn('[fetchMessagingPartnerContactChannelsBySiteSlugFromPg]', e)
+    return null
+  }
+}
+
 export async function updateMessagingPartnerContactChannelsForOwnerFromPg(params: {
   partner_id: string
   owner_user_id: string

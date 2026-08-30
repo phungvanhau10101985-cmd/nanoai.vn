@@ -36,6 +36,36 @@ test('stamps live catalog contract', () => {
   assert.match(html, /data-pw-grid/)
   assert.match(html, /data-pw-grid-cols="5"/)
   assert.match(html, /data-pw-grid-cols-mobile="2"/)
+  assert.match(html, /data-pw-grid-rows="2"/)
+  assert.match(html, /data-pw-grid-more/)
+  assert.match(html, /Tải thêm/)
+  assert.match(html, /data-pw-scene="2"/)
+  assert.match(html, /data-pw-added-catalog="1"/)
+  assert.doesNotMatch(html, /(?:^|[\s"'])pw-section(?:[\s"']|$)/)
+  assert.doesNotMatch(html, /data-pw-el="section-more"/)
+  assert.match(html, /min-height:0/)
+  assert.match(html, /padding:12px 16px 16px/)
+})
+
+test('chosen rows set page size for the device', () => {
+  const desktop = buildVisualEditorProductGridHtml({
+    kind: 'recommended',
+    siteSlug: 'demo-shop',
+    locale: 'vi',
+    rows: 3,
+    device: 'desktop',
+  })
+  const mobile = buildVisualEditorProductGridHtml({
+    kind: 'recommended',
+    siteSlug: 'demo-shop',
+    locale: 'vi',
+    rows: 3,
+    device: 'mobile',
+  })
+  assert.match(desktop, /data-pw-grid-rows="3"/)
+  assert.match(desktop, /data-limit="15"/)
+  assert.match(mobile, /data-pw-grid-rows="3"/)
+  assert.match(mobile, /data-limit="6"/)
 })
 
 test('stamps recently viewed and recommended personalize hooks', () => {
@@ -54,19 +84,27 @@ test('stamps recently viewed and recommended personalize hooks', () => {
 test('stamps related products strip', () => {
   const html = buildVisualEditorProductGridHtml({ kind: 'related', siteSlug: 'demo-shop', locale: 'vi' })
   assert.match(html, /data-pw-related="1"/)
+  assert.match(html, /data-pw-scene="2"/)
   assert.match(html, /data-pw-grid-kind="related"/)
   assert.match(html, /Sản phẩm tương tự/)
   assert.match(html, /data-pw-related-more/)
+  assert.match(html, /data-pw-grid-more/)
+  assert.match(html, /data-pw-grid-rows="2"/)
+  assert.doesNotMatch(html, /pw-related-all/)
   assert.equal(productGridWidgetLabel('related', 'vi'), 'Sản phẩm tương tự')
 })
 
 test('stamps outfit pairing strip', () => {
   const html = buildVisualEditorProductGridHtml({ kind: 'outfit', siteSlug: 'demo-shop', locale: 'vi' })
   assert.match(html, /data-pw-outfit="1"/)
+  assert.match(html, /data-pw-scene="2"/)
   assert.match(html, /data-pw-grid-kind="outfit"/)
   assert.match(html, /Phối với món này/)
   assert.match(html, /Món khác loại để mặc cùng/)
   assert.match(html, /data-pw-outfit-slot="top"/)
   assert.match(html, /data-pw-outfit-more/)
+  assert.match(html, /data-pw-grid-more/)
+  assert.match(html, /data-pw-grid-rows="2"/)
+  assert.doesNotMatch(html, /pw-outfit-all/)
   assert.equal(productGridWidgetLabel('outfit', 'vi'), 'Phối đồ')
 })

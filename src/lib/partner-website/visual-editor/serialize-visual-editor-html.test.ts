@@ -76,6 +76,24 @@ test('visual serializer drops hydrated runtime CSS and canonicalizes floating ch
   assert.equal(persisted.querySelector('#chat')?.parentElement?.tagName, 'BODY')
 })
 
+test('visual serializer keeps edited float kit buttons inside the kit host', () => {
+  const html = `<!doctype html><html data-pw-edit-device="desktop"><body>
+<main>Home</main>
+<aside data-pw-chrome-kit="float" data-pw-float-right="24" data-pw-float-stack-bottom="100" data-pw-float-gap="60" data-pw-float-size="32">
+  <button id="chat" data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-pw-chrome-kit="1" data-pw-btn-color="#111111" data-pw-chrome-style="icon-circle" style="--pw-btn-color:#111111">Chat</button>
+</aside>
+</body></html>`
+  const saved = serializeVisualEditorHtml(parseForSerializer(html), 'desktop')
+  const persisted = parseHTML(saved).document
+  const chat = persisted.querySelector('#chat')
+  const kit = persisted.querySelector('[data-pw-chrome-kit="float"]')
+  assert.ok(kit)
+  assert.equal(chat?.parentElement, kit)
+  assert.equal(chat?.getAttribute('data-pw-btn-color'), '#111111')
+  assert.match(chat?.getAttribute('style') || saved, /--pw-btn-color:\s*#111111/)
+  assert.match(saved, /data-pw-float-right="24"/)
+})
+
 test('visual serializer overwrites stale coordinates with the element current screen position', () => {
   const doc = parseForSerializer(`<!doctype html>
     <html data-pw-edit-device="desktop" data-pw-coordinate-version="4"><body>
@@ -200,6 +218,75 @@ test('visual serializer measures body-level loose chrome from the scene root', (
   assert.match(tag, /data-pw-box-y="-25"/)
   assert.match(tag, /data-pw-coordinate-root="scene"/)
   assert.equal(doc.querySelector('#account')?.parentElement, scene)
+})
+
+test('visual serializer keeps catalog title and see-more in the catalog row', () => {
+  const doc = parseForSerializer(`<!doctype html>
+    <html data-pw-edit-device="desktop" data-pw-coordinate-version="4"><body>
+      <main id="scene" data-pw-scene-root="1">
+        <section id="catalog" data-pw-region="catalog" data-pw-catalog>
+          <h2 id="title" data-pw-el="section-title" data-pw-user-move="1"
+            data-pw-placement="scene-absolute" data-pw-box-x="0" data-pw-box-y="220"
+            data-pw-box-w="240" data-pw-box-h="28">CÓ THỂ BẠN THÍCH</h2>
+          <a id="more" data-pw-el="section-more" data-pw-placement="scene-absolute"
+            data-pw-box-x="500" data-pw-box-y="220">XEM SẢN PHẨM</a>
+          <div data-pw-el="grid" data-pw-grid>grid</div>
+        </section>
+      </main>
+    </body></html>`)
+  const scene = doc.querySelector('#scene') as HTMLElement
+  const title = doc.querySelector('#title') as HTMLElement
+  const more = doc.querySelector('#more') as HTMLElement
+  scene.getBoundingClientRect = () =>
+    ({ left: 0, top: 80, width: 1440, height: 900, right: 1440, bottom: 980 }) as DOMRect
+  title.getBoundingClientRect = () =>
+    ({ left: 24, top: 280, width: 240, height: 28, right: 264, bottom: 308 }) as DOMRect
+  more.getBoundingClientRect = () =>
+    ({ left: 1100, top: 280, width: 140, height: 28, right: 1240, bottom: 308 }) as DOMRect
+
+  const saved = serializeVisualEditorHtml(doc, 'desktop')
+  const persisted = parseHTML(saved).document
+  assert.equal(persisted.querySelector('#title')?.closest('#catalog') != null, true)
+  assert.equal(persisted.querySelector('#more')?.closest('#catalog') != null, true)
+  assert.equal(doc.querySelector('#title')?.parentElement?.id, 'catalog')
+  assert.equal(doc.querySelector('#more')?.parentElement?.id, 'catalog')
+  const titleTag = saved.match(/<h2\b[^>]*id="title"[^>]*>/)?.[0] || ''
+  const moreTag = saved.match(/<a\b[^>]*id="more"[^>]*>/)?.[0] || ''
+  assert.match(titleTag, /data-pw-placement="flow"/)
+  assert.match(moreTag, /data-pw-placement="flow"/)
+  assert.doesNotMatch(titleTag, /data-pw-box-x/)
+  assert.doesNotMatch(moreTag, /data-pw-box-x/)
+})
+
+test('visual serializer keeps banner and categories in document flow', () => {
+  const doc = parseForSerializer(`<!doctype html>
+    <html data-pw-edit-device="desktop" data-pw-coordinate-version="4"><body>
+      <main id="scene" data-pw-scene-root="1">
+        <section id="cats" data-pw-region="categories">Cats</section>
+        <section id="banner" class="pw-hero" data-pw-region="banner" data-pw-user-move="1"
+          data-pw-placement="scene-absolute" data-pw-box-x="0" data-pw-box-y="80"
+          data-pw-box-w="1200" data-pw-box-h="332" style="position:absolute;top:80px">Banner</section>
+      </main>
+    </body></html>`)
+  const scene = doc.querySelector('#scene') as HTMLElement
+  const banner = doc.querySelector('#banner') as HTMLElement
+  const cats = doc.querySelector('#cats') as HTMLElement
+  scene.getBoundingClientRect = () =>
+    ({ left: 0, top: 80, width: 1440, height: 900, right: 1440, bottom: 980 }) as DOMRect
+  banner.getBoundingClientRect = () =>
+    ({ left: 120, top: 80, width: 1200, height: 332, right: 1320, bottom: 412 }) as DOMRect
+  cats.getBoundingClientRect = () =>
+    ({ left: 120, top: 220, width: 1200, height: 180, right: 1320, bottom: 400 }) as DOMRect
+
+  const saved = serializeVisualEditorHtml(doc, 'desktop')
+  const persisted = parseHTML(saved).document
+  assert.equal(persisted.querySelector('#banner')?.closest('#scene') != null, true)
+  assert.equal(persisted.querySelector('#cats')?.closest('#scene') != null, true)
+  const bannerTag = saved.match(/<section\b[^>]*id="banner"[^>]*>/)?.[0] || ''
+  assert.match(bannerTag, /data-pw-placement="flow"/)
+  assert.doesNotMatch(bannerTag, /data-pw-box-x/)
+  const bodyOrder = saved
+  assert.ok(bodyOrder.indexOf('id="cats"') < bodyOrder.indexOf('id="banner"'))
 })
 
 test('visual serializer keeps a floating overlay on the scene root with its scene layer', () => {

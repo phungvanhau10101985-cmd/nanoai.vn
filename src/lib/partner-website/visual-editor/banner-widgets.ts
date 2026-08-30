@@ -6,6 +6,7 @@ import {
   PW_SLIDER_SLIDE_MAX,
   PW_SLIDER_WAIT_DEFAULT,
 } from '@/lib/partner-website/visual-editor/pw-slider-runtime'
+import { PW_KIND_SCENE_MEDIA, pwKindSceneAttr } from '@/lib/partner-website/visual-editor/pw-kind-scene'
 import {
   PW_EDIT_SLOT,
   PW_EL,
@@ -205,14 +206,14 @@ export function buildVisualEditorBannerHtml(input: {
     '<div aria-hidden="true" style="position:absolute;inset:0;background:linear-gradient(90deg,color-mix(in srgb,var(--pw-text,#111) 35%,transparent),transparent);pointer-events:none;z-index:1"></div>'
 
   if (kind === 'slider') {
-    return `<section class="pw-hero pw-banner" ${pwRegionAttr(PW_REGION.banner)} data-pw-bg-role="banner" data-pw-added-banner="1" data-pw-banner-kind="slider" data-pw-slider="1" data-pw-slide-wait="${PW_SLIDER_WAIT_DEFAULT}" data-pw-slide-arrows="1" data-pw-slide-index="0" data-pw-image-radius="0" style="position:relative;min-height:360px;overflow:hidden;display:flex;align-items:center;background:linear-gradient(135deg,var(--pw-primary),var(--pw-accent));color:#fff;border-radius:0">
+    return `<section class="pw-hero pw-banner" ${pwRegionAttr(PW_REGION.banner)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="banner" data-pw-added-banner="1" data-pw-banner-kind="slider" data-pw-slider="1" data-pw-slide-wait="${PW_SLIDER_WAIT_DEFAULT}" data-pw-slide-arrows="1" data-pw-slide-index="0" data-pw-image-radius="0" style="position:relative;min-height:360px;overflow:hidden;display:flex;align-items:center;background:linear-gradient(135deg,var(--pw-primary),var(--pw-accent));color:#fff;border-radius:0">
   ${buildSliderSlidesHtml(3)}
   ${overlay}
   ${bannerCopyHtml(copy, productsHref, false)}
 </section>`
   }
 
-  return `<section class="pw-hero pw-banner" id="pw-banner-added" ${pwRegionAttr(PW_REGION.banner)} data-pw-bg-role="banner" data-pw-added-banner="1" data-pw-banner-kind="${kind}" data-pw-image-radius="0" style="position:relative;min-height:360px;overflow:hidden;display:flex;align-items:center;background:linear-gradient(135deg,var(--pw-primary),var(--pw-accent));color:#fff;border-radius:0">
+  return `<section class="pw-hero pw-banner" id="pw-banner-added" ${pwRegionAttr(PW_REGION.banner)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="banner" data-pw-added-banner="1" data-pw-banner-kind="${kind}" data-pw-image-radius="0" style="position:relative;min-height:360px;overflow:hidden;display:flex;align-items:center;background:linear-gradient(135deg,var(--pw-primary),var(--pw-accent));color:#fff;border-radius:0">
   <img class="pw-hero-media" ${pwElAttr(PW_EL.media)} ${editAttr(PW_EDIT_SLOT.heroImage)} data-pw-banner-placeholder="1" alt="" width="1600" height="720" src="${BANNER_PLACEHOLDER_SRC}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"/>
   ${overlay}
   ${bannerCopyHtml(copy, productsHref, true)}

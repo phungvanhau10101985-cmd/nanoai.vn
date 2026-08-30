@@ -5,6 +5,7 @@ import { PW_EL, pwElAttr } from '@/lib/partner-website/visual-editor/pw-ui-contr
 import { PW_SHOP_CARD_IMG_JS } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import { PW_OUTFIT_CSS } from '@/lib/partner-website/shop/outfit-products-css'
+import { PW_PRODUCT_GRID_PAGE_JS } from '@/lib/partner-website/shop/pw-product-grid-page'
 
 /**
  * Hydrate [data-pw-outfit] PDP grids from complementary inventory
@@ -26,12 +27,13 @@ export function buildPartnerSiteOutfitBootstrapScript(input: {
     empty: t.outfitEmpty,
     error: t.outfitError,
     seeAll: t.outfitSeeAll,
-    loadMore: t.loadMore,
+    loadMore: t.gridLoadMore || t.loadMore,
     slotsAria: t.outfitSlotsAria,
   }
 
   return `<script data-pw-outfit-bootstrap>(function(){
 ${PW_SHOP_LIVE_UI_OFF_FN};
+${PW_PRODUCT_GRID_PAGE_JS}
 var API=${JSON.stringify(api)};
 var PRODUCTS_PATH=${JSON.stringify(productsPath)};
 var DETAIL_PREFIX=${JSON.stringify(detailPrefix)};
@@ -89,25 +91,19 @@ function ensureActions(el){
     if(grid&&grid.parentNode)grid.parentNode.insertBefore(actions,grid.nextSibling);
     else el.appendChild(actions);
   }
-  var more=actions.querySelector('[data-pw-outfit-more]');
+  var see=actions.querySelectorAll('[data-pw-el="section-more"],.pw-outfit-all');
+  for(var s=0;s<see.length;s++)see[s].hidden=true;
+  var more=actions.querySelector('[data-pw-outfit-more],[data-pw-grid-more]');
   if(!more){
     more=document.createElement('button');
     more.type='button';
-    more.className='pw-outfit-more';
+    more.className='pw-outfit-more pw-grid-more';
     more.setAttribute('data-pw-outfit-more','1');
-    more.innerHTML='<span class="pw-outfit-more-icon" aria-hidden="true">↻</span> '+esc(COPY.loadMore);
+    more.setAttribute('data-pw-grid-more','1');
+    more.innerHTML='<span class="pw-outfit-more-icon pw-grid-more-icon" aria-hidden="true">↻</span> '+esc(COPY.loadMore);
     actions.appendChild(more);
   }
-  var all=actions.querySelector('[data-pw-el="section-more"],.pw-outfit-all');
-  if(!all){
-    all=document.createElement('a');
-    all.className='pw-outfit-all';
-    all.setAttribute('data-pw-el','section-more');
-    all.textContent=COPY.seeAll;
-    all.href=el.getAttribute('data-more-href')||PRODUCTS_PATH;
-    actions.appendChild(all);
-  }
-  return {more:more,all:all};
+  return {more:more};
 }
 function slotOf(st){
   if(!st||!st.slots||!st.slots.length)return null;
@@ -126,8 +122,6 @@ function paintSlice(el){
   hideBrokenCardImgs(grid);
   var ui=ensureActions(el);
   ui.more.hidden=st.visible>=items.length;
-  if(slot&&slot.listingHref)ui.all.setAttribute('href',slot.listingHref);
-  ui.all.hidden=items.length===0;
   var tabs=el.querySelectorAll('[data-pw-outfit-slot]');
   for(var i=0;i<tabs.length;i++){
     var on=tabs[i].getAttribute('data-pw-outfit-slot')===st.active;
@@ -160,8 +154,8 @@ function hydrate(el){
     if(!id)el.hidden=true;
     return;
   }
-  var limit=Math.max(1,Math.min(12,parseInt(el.getAttribute('data-limit')||'12',10)||12));
-  fetch(API+'?inventoryId='+encodeURIComponent(id)+'&limit='+limit+'&locale='+encodeURIComponent(LOCALE),{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};});}).then(function(res){
+  var pageSize=pwGridPageSize(el);
+  fetch(API+'?inventoryId='+encodeURIComponent(id)+'&limit=48&offset=0&locale='+encodeURIComponent(LOCALE),{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};});}).then(function(res){
     var data=res.j||{};
     var slots=data.slots||[];
     if(!res.ok||!data.applicable||!slots.length){
@@ -171,7 +165,6 @@ function hydrate(el){
       if(empty){empty.hidden=false;empty.textContent=res.ok?COPY.empty:COPY.error;}
       var emptyUi=ensureActions(el);
       emptyUi.more.hidden=true;
-      emptyUi.all.hidden=true;
       el.hidden=true;
       return;
     }
@@ -180,7 +173,7 @@ function hydrate(el){
     var sub=el.querySelector('.pw-outfit-subtitle');
     if(sub)sub.textContent=COPY.subtitle;
     renderSlots(el,slots);
-    var step=outfitLayout()==='desktop'?5:2;
+    var step=pageSize;
     el._pwOutfit={slots:slots,active:slots[0].id,visible:Math.min(step,slots[0].items.length),step:step};
     if(empty)empty.hidden=true;
     paintSlice(el);

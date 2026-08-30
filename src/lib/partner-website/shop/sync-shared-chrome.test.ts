@@ -249,9 +249,8 @@ test('sync copies homepage floats onto other pages of the same device only', () 
   assert.match(aboutHtml, /right:\s*16px/i)
   assert.match(aboutMob, /MobHead/)
   assert.match(aboutMob, /About mobile/)
-  assert.match(aboutMob, /data-pw-chrome-btn="chat"/)
-  assert.equal(/right:\s*16px/i.test(aboutMob), false)
-  assert.equal(/bottom:\s*88px/i.test(aboutMob), false)
+  assert.equal(aboutMob.includes('Tư vấn'), false)
+  assert.equal(aboutMob.includes('data-pw-chrome-btn="chat"'), false)
 })
 
 test('htmlHasShopHeader detects shared header chrome', () => {
@@ -328,11 +327,12 @@ test('header footer bottom nav and floats sync on every device independently', (
   assert.match(deskAbout, /desktop-nav-home/)
   assert.match(deskAbout, /desktop-float-home/)
   assert.match(deskAbout, /desktop-about-mid/)
-  assert.match(lapAbout, /desktop-head-home/)
+  assert.match(lapAbout, /laptop-head-about/)
   assert.match(lapAbout, /laptop-about-mid/)
   assert.match(lapAbout, /laptop-foot-about/)
   assert.match(lapAbout, /laptop-nav-about/)
   assert.match(lapAbout, /laptop-float-about/)
+  assert.equal(lapAbout.includes('desktop-head-home'), false)
   assert.equal(lapAbout.includes('desktop-foot-home'), false)
   assert.equal(lapAbout.includes('desktop-nav-home'), false)
   assert.match(tabAbout, /tablet-head-about/)
@@ -406,7 +406,7 @@ test('same-device chrome copy keeps floated logo coordinates', () => {
   assert.match(out, /<main>About<\/main>/)
 })
 
-test('cross-device chrome keeps layout and copies missing feature buttons without coords', () => {
+test('cross-device chrome keeps layout and does not copy buttons from another machine', () => {
   const desktop = `<!DOCTYPE html><html><body>
 <header class="pw-header"><img class="pw-logo" data-pw-logo-float="1" style="left:40px;top:8px;width:80px" alt="DeskLogo"/><div class="pw-header-actions"><a data-pw-chrome-added="1" data-pw-chrome-btn="wallet" data-pw-device="desktop" style="transform:translate(120px,0)">$</a></div></header>
 <main>Desk</main>
@@ -432,8 +432,7 @@ test('cross-device chrome keeps layout and copies missing feature buttons withou
   assert.match(out, /MobFoot/)
   assert.equal(out.includes('DeskFoot'), false)
   assert.match(out, /<main>Mob<\/main>/)
-  assert.match(out, /data-pw-chrome-btn="wallet"/)
-  assert.match(out, /data-pw-device="mobile"/)
+  assert.equal(out.includes('data-pw-chrome-btn="wallet"'), false)
   assert.equal(/translate\(120px/i.test(out), false)
 })
 
@@ -661,7 +660,7 @@ test('kit dock from homepage copies onto PDP of the same device', () => {
   assert.equal(next.includes('Mua cũ'), false)
 })
 
-test('saving desktop home copies header onto laptop home, not the mid page', () => {
+test('saving desktop home does not copy header onto laptop home', () => {
   const desk = `<!DOCTYPE html><html><body>
 <header class="pw-header">DeskHead</header>
 <main>Desk mid</main>
@@ -683,12 +682,13 @@ test('saving desktop home copies header onto laptop home, not the mid page', () 
     desk
   )
   const laptop = next.files.find((f) => f.path === 'index.laptop.html')?.content || ''
-  assert.match(laptop, /DeskHead/)
+  assert.match(laptop, /LapHead/)
   assert.match(laptop, /Lap mid/)
   assert.match(laptop, /LapNav/)
+  assert.equal(laptop.includes('DeskHead'), false)
 })
 
-test('saving mobile home copies kit dock onto tablet home, not the header', () => {
+test('saving mobile home does not copy kit dock onto tablet home', () => {
   const mob = `<!DOCTYPE html><html><body>
 <header class="pw-header">MobHead</header>
 <main>Mob mid</main>
@@ -712,9 +712,8 @@ test('saving mobile home copies kit dock onto tablet home, not the header', () =
   const tablet = next.files.find((f) => f.path === 'index.tablet.html')?.content || ''
   assert.match(tablet, /TabHead/)
   assert.match(tablet, /Tab mid/)
-  assert.match(tablet, /data-pw-chrome-kit="dock"/)
-  assert.match(tablet, /Giỏ kit/)
-  assert.equal(tablet.includes('TabNav'), false)
+  assert.match(tablet, /TabNav/)
+  assert.equal(tablet.includes('Giỏ kit'), false)
 })
 
 test('sync keeps mobile PDP bar when homepage nav is saved', () => {
@@ -744,6 +743,20 @@ test('sync keeps mobile PDP bar when homepage nav is saved', () => {
   assert.match(pdp, /data-pw-pdp-bottom="1"/)
   assert.match(pdp, /data-pw-chrome-btn="try-on"/)
   assert.equal(pdp.includes('href="/products"'), false)
+})
+
+test('extractSharedChrome merges escaped floats into an empty kit host', () => {
+  const html = `<!DOCTYPE html><html><body>
+<header class="pw-header" data-pw-region="header"><a class="pw-brand">HomeLogo</a></header>
+<main>Home</main>
+<footer class="pw-footer" data-pw-region="footer">F</footer>
+<aside data-pw-chrome-kit="float" data-pw-float-right="24" data-pw-float-size="32"></aside>
+<button type="button" data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-pw-chrome-kit="1" data-pw-btn-color="#111111">Chat</button>
+</body></html>`
+  const chrome = extractSharedChrome(html)
+  assert.match(chrome.floats, /data-pw-chrome-kit=["']float["']/)
+  assert.match(chrome.floats, /data-pw-btn-color="#111111"/)
+  assert.match(chrome.floats, /data-pw-chrome-btn="chat"/)
 })
 
 test('applySharedChrome unwraps persisted live-chrome and drops a second header', () => {

@@ -165,11 +165,13 @@ export async function PartnerSiteVisualHtmlScreen({
   const requestViewportWidth = Number(
     headerStore.get('sec-ch-viewport-width') || headerStore.get('viewport-width') || 0
   )
+  const requestDpr = Number(headerStore.get('sec-ch-dpr') || 0)
   const userAgent = headerStore.get('user-agent') || ''
   const inferredRequestDevice = Number.isFinite(requestViewportWidth) && requestViewportWidth > 0
     ? pwResolveCoordinateDevice({
         outerWidth: requestViewportWidth,
         layoutWidth: requestViewportWidth,
+        devicePixelRatio: requestDpr,
       })
     : /ipad|tablet|kindle|silk/i.test(userAgent)
       ? 'tablet'

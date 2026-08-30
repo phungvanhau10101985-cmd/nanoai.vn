@@ -477,11 +477,12 @@ export function refreshCloneBoxesInDocument(doc: Document): void {
       { x: er.left + er.width / 2, y: er.top + er.height / 2, width: er.width, height: er.height },
       map
     )
+    const frame = doc.documentElement.getBoundingClientRect()
     const viewportMap = pwCreateViewportMap({
       device,
       viewportWidth: view?.innerWidth || sceneWidth,
-      originX: (view?.innerWidth || sceneWidth) / 2,
-      originY: 0,
+      originX: (frame.left || 0) + (frame.width || view?.innerWidth || sceneWidth) / 2,
+      originY: frame.top || 0,
     })
     const fixedBox = pwClientBoxToScene(
       { x: er.left + er.width / 2, y: er.top + er.height / 2, width: er.width, height: er.height },

@@ -100,7 +100,7 @@ export async function fetchPartnerOutfitSuggestions(input: {
     slots: [],
   }
   const inventoryId = String(input.inventoryId || '').trim()
-  const limit = Math.min(12, Math.max(1, Math.floor(input.limit ?? 12)))
+  const limit = Math.min(48, Math.max(1, Math.floor(input.limit ?? 12)))
   if (!inventoryId) return empty
 
   const row = await fetchPartnerInventoryRowByIdForPartnerFromPg(input.partnerId, inventoryId)

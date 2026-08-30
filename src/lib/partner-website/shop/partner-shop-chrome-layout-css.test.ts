@@ -6,6 +6,7 @@ import {
   PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID,
   PARTNER_SHOP_LOGO_HOST_SCRIPT,
 } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
+import { PW_SCENE_HEAD_Z } from '@/lib/partner-website/visual-editor/pw-scene'
 
 test('chrome layout css is injected once before </head>', () => {
   const html = '<!DOCTYPE html><html><head><title>Shop</title></head><body><nav class="pw-shop-bottom-nav"></nav></body></html>'
@@ -28,6 +29,8 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('[data-pw-chrome-btn="chat-zalo"] .pw-chrome-icon-wrap'), true)
   assert.equal(once.includes('border-radius:999px!important'), true)
   assert.equal(once.includes('.pw-chrome-icon-square'), true)
+  assert.equal(once.includes('.pw-chrome-icon-circle'), true)
+  assert.equal(once.includes('data-pw-chrome-style="icon-circle"'), true)
   assert.equal(once.includes('[data-pw-chrome-style="text"] .pw-chrome-icon-wrap'), true)
   assert.equal(once.includes('.pw-chrome-link .pw-chrome-icon-wrap'), true)
   assert.equal(once.includes('.pw-bottom-nav svg,.pw-shop-bottom-nav svg'), true)
@@ -102,7 +105,7 @@ test('chrome layout css is injected once before </head>', () => {
     once.includes('.pw-brand-cluster [data-pw-chrome-btn="categories"]:not([data-pw-placement])'),
     true
   )
-  assert.equal(once.includes('.pw-cat-btn:not(.pw-stick-header-on):not([data-pw-user-move])'), true)
+  assert.equal(once.includes('.pw-cat-btn:not(.pw-stick-header-on):not([data-pw-chrome-float])'), true)
   assert.equal(once.includes('isFloatChrome'), true)
   assert.match(once, /body:not\(\.nanoai-ve-active\) \[data-pw-seo-coach\]/)
   assert.match(once, /\.nanoai-ve-active \[data-pw-article-editor\]/)
@@ -111,8 +114,8 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes("return k==='chat'||k==='chat-zalo'||k==='chat-facebook'||k==='topup';"), true)
   assert.equal(once.includes('if(isFloatChrome(el))return'), true)
   assert.equal(once.includes('[data-pw-chrome-float="1"].pw-chrome-icon-only'), true)
-  assert.equal(once.includes('.pw-header-search[data-pw-user-move]'), true)
-  assert.equal(once.includes('.pw-shop-search-wrap[data-pw-user-move]'), true)
+  assert.equal(once.includes('flex-wrap:nowrap!important;align-items:center!important;justify-content:flex-end!important'), true)
+  assert.equal(once.includes('min-width:96px!important;max-width:100%!important;margin:0!important;min-height:36px!important'), true)
   assert.equal(once.includes('flex:1 1 0%'), true)
   assert.equal(once.includes('data-pw-search-width'), true)
   assert.equal(once.includes('width:calc(var(--pw-chrome-w,var(--pw-chrome-size,16px)) + 4px)!important'), true)
@@ -127,7 +130,7 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('html{overflow-x:visible!important'), true)
   assert.equal(once.includes('body{overflow-x:hidden!important'), true)
   assert.equal(once.includes('html{overflow-x:hidden!important'), false)
-  assert.equal(once.includes('--pw-content:1200px;--pw-block-w:min(calc(var(--pw-scene-w,100%) - 32px),var(--pw-content,1200px))'), true)
+  assert.equal(once.includes('--pw-content:1200px;--pw-block-w:min(calc(var(--pw-scene-w,100%) - 32px),var(--pw-content,1200px));--pw-chrome-inset:calc(var(--pw-block-w) * 0.05)'), true)
   assert.equal(once.includes('html [data-pw-region="banner"] [data-pw-el="cta"]'), true)
   assert.equal(once.includes('html [data-pw-region="banner"] [data-pw-el="cta-secondary"]'), true)
   assert.equal(once.includes('html[data-pw-edit-device="desktop"] .pw-hero'), true)
@@ -189,6 +192,8 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('grid-template-columns:repeat(5,minmax(0,1fr))!important'), true)
   assert.equal(once.includes('min-width:1440px'), true)
   assert.equal(once.includes('z-index:200'), true)
+  assert.equal(once.includes(`z-index:${PW_SCENE_HEAD_Z}!important`), true)
+  assert.equal(once.includes(`.pw-header,.pw-shop-header{position:sticky!important;top:0!important;z-index:${PW_SCENE_HEAD_Z}!important`), true)
   assert.equal(once.includes('.pw-topbar,.pw-shop-topbar'), true)
   assert.equal(once.includes('min-height:36px'), true)
   assert.equal(once.includes('z-index:150'), true)
@@ -199,6 +204,7 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('[data-pw-scene="0"]{z-index:0!important}'), true)
   assert.equal(once.includes('z-index:210'), false)
   assert.equal(once.includes('.pw-header,.pw-shop-header{position:sticky!important;top:0!important;z-index:200!important;isolation:isolate'), false)
+  assert.equal(once.includes(`.pw-header,.pw-shop-header{position:sticky!important;top:0!important;z-index:${PW_SCENE_HEAD_Z}!important;isolation:isolate`), false)
   assert.equal(once.includes('position:fixed!important'), true)
   assert.equal(once.includes('z-index:160'), true)
   assert.equal(once.includes('html .pw-header-main,html .pw-shop-header-inner{display:flex!important'), true)
@@ -206,16 +212,24 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('html .pw-topbar-inner,html .pw-shop-topbar-inner{display:flex!important;justify-content:flex-end!important'), true)
   assert.equal(once.includes('align-self:center!important;box-sizing:border-box'), true)
   assert.equal(once.includes('html .pw-hero,html .pw-banner,html .pw-shop-hero,html .pw-shop-banner,html [data-pw-region="banner"]{max-width:var(--pw-block-w)!important'), true)
+  assert.equal(once.includes('[data-pw-region="banner"][data-pw-placement="scene-absolute"]'), true)
+  assert.equal(once.includes('html [data-pw-region="banner"][data-pw-scene],html [data-pw-region="categories"][data-pw-scene]'), true)
+  assert.equal(once.includes('[data-pw-added-bg-slot]'), true)
   assert.equal(once.includes('html [data-pw-block-w]:not([data-pw-region="header"])'), true)
   assert.equal(once.includes(':not([data-pw-added-bg]){width:var(--pw-block-w)!important'), true)
-  assert.equal(once.includes('html [data-pw-block-h]:not([data-pw-added-bg]){min-height:var(--pw-block-h)!important'), true)
+  assert.equal(
+    once.includes(
+      'html [data-pw-block-h]:not([data-pw-added-bg]):not([data-pw-added-catalog]):not([data-pw-region="catalog"]){min-height:var(--pw-block-h)!important'
+    ),
+    true
+  )
   assert.equal(once.includes('html [data-pw-hrow]>[data-pw-added-bg="1"]:not([data-pw-added-bg-slot]){flex:0 0 auto!important'), true)
   assert.equal(once.includes('html[data-pw-edit-device="mobile"] .pw-header-main'), true)
   assert.equal(once.includes('html[data-pw-scene-lock="mobile"] .pw-header-main'), true)
   assert.equal(once.includes('max-width:none!important'), true)
   assert.equal(once.includes('@media (min-width:900px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-header-main'), true)
-  assert.equal(once.includes('html[data-pw-edit-device="desktop"] .pw-header-search:not([data-pw-placement])'), true)
-  assert.equal(once.includes('html[data-pw-edit-device="laptop"] .pw-header-search:not([data-pw-placement])'), true)
+  assert.equal(once.includes('html[data-pw-edit-device="desktop"] .pw-header-search'), true)
+  assert.equal(once.includes('html[data-pw-edit-device="laptop"] .pw-header-search'), true)
   assert.equal(once.includes('left:50%!important'), true)
   assert.equal(once.includes('transform:translate(-50%,-50%)!important'), true)
   assert.equal(once.includes('transform:translateX(var(--pw-kit-x, 0px))'), true)
@@ -228,7 +242,8 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('margin-right:calc(190px + 50px)!important'), false)
   assert.equal(once.includes('flex:1 1 0%!important'), true)
   assert.equal(once.includes('justify-content:flex-end!important'), true)
-  assert.equal(once.includes('padding:8px 0!important'), true)
+  assert.equal(once.includes('padding:8px var(--pw-chrome-inset,60px)!important'), true)
+  assert.equal(once.includes('padding-left:var(--pw-chrome-inset,60px)!important'), true)
   assert.equal(once.includes('--pw-chrome-size:16px'), true)
   assert.equal(once.includes('[data-pw-chrome-size="22"]'), true)
   assert.equal(once.includes('isInflowHeaderSearch'), true)
@@ -280,6 +295,9 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('flex-direction:column!important'), true)
   assert.equal(once.includes('.pw-nav-main>a.pw-nav-sale'), true)
   assert.equal(once.includes('color:#374151!important'), true)
+  assert.equal(once.includes('.pw-cat-mega-l2:hover'), true)
+  assert.equal(once.includes('.pw-cat-mega-l3:hover'), true)
+  assert.equal(once.includes('color:var(--pw-primary)!important'), true)
   assert.equal(once.includes('pw-shop-chrome-badge-pin'), true)
   assert.equal(once.includes('pw-shop-stick-header'), true)
   assert.equal(once.includes('pw-shop-logo-host'), true)

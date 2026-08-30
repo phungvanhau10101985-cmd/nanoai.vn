@@ -1,11 +1,14 @@
+import { PW_ENSURE_CONTENT_SCENE_ROOT_SOURCE } from './ensure-content-scene-root'
 import {
   PW_DEVICE_FALLBACK_ORDER,
   PW_SCENE_WIDTH,
   pwCoordinateRuntimeSource,
   pwResolveCoordinateDevice,
+  pwScaledFhdDesktopMediaQuery,
   pwSceneWidth,
   pwUniformSceneScale,
   type PwCoordinateDevice,
+  type PwDeviceViewport,
 } from './pw-coordinate-space'
 
 export {
@@ -74,7 +77,14 @@ export const PW_SCENE_MIN_INDEX = 0
 export const PW_SCENE_MAX_INDEX = PW_SCENE_LAYERS.length - 1
 export const PW_SCENE_Z_MAX = PW_SCENE_MAX_INDEX * PW_SCENE_BAND + PW_SCENE_LOCAL_MAX
 
-/** Chrome header đang chạy ở z 200 — phần tử mới rơi vào lớp giữa cho khớp. */
+/**
+ * Head (topbar + header + nav) và thanh đáy — luôn trên mọi lớp canvas 0–4.
+ * Lớp nổi giữa trang cao nhất là 499; head = 500. Thanh nổi kit vẫn 9999.
+ * Không isolation trên header — chỉ nâng stacking context của cả khối chrome.
+ */
+export const PW_SCENE_HEAD_Z = PW_SCENE_Z_MAX + 1
+
+/** Phần tử Thêm giữa trang mặc định lớp giữa (trên catalog, dưới head). */
 export const PW_SCENE_DEFAULT_INDEX = 2
 
 /**
@@ -138,25 +148,36 @@ export function pwSceneChromeZCss(): string {
 }
 
 /**
- * Z của **từng** phần tử đứng im lớp dưới — trên catalog (z 2), dưới header (200).
+ * Z của **từng** phần tử đứng im lớp dưới — trên catalog (z 2), dưới head (`PW_SCENE_HEAD_Z`).
  * Không gắn số này lên cả tấm neo (cấm 210 / restack host).
  */
 export const PW_STAY_HOIST_LAYER_Z = pwSceneZ(1)
+
+/** Cả khối head (kể cả nav thấp nhất) và dock — trên lớp nổi giữa trang. */
+export function pwSceneHeadStackCss(): string {
+  return [
+    `.pw-header,.pw-shop-header{z-index:${PW_SCENE_HEAD_Z}!important}`,
+    `[data-pw-live-chrome]{z-index:${PW_SCENE_HEAD_Z}!important}`,
+    `.pw-bottom-nav,.pw-shop-bottom-nav,[data-pw-live-dock]{z-index:${PW_SCENE_HEAD_Z}!important}`,
+  ].join('')
+}
 
 /**
  * Một hệ lớp. Lớp 0 (nền) là chuẩn; mọi `data-pw-scene` dùng cùng dải z.
  * Nền thêm lớp dưới (không đứng im) giữ stack nền 1,2… — không nhảy dải 100.
  * Nền đứng im lớp dưới dùng `pwSceneStayScrollZCss` (100).
+ * Head chrome (`PW_SCENE_HEAD_Z`) luôn trên lớp nổi giữa trang (4).
  */
 export function pwSceneUnifiedStackCss(): string {
   return [
     `[data-pw-scene="0"]{z-index:${pwSceneZ(0)}!important}`,
     `[data-pw-scene="1"]:not([data-pw-added-bg]){z-index:${pwSceneZ(1)}!important}`,
-    `[data-pw-scene="2"]{z-index:${pwSceneZ(2)}!important}`,
+    `[data-pw-scene="2"]:not([data-pw-region="banner"]):not([data-pw-region="categories"]):not([data-pw-region="catalog"]):not([data-pw-region="promo"]):not([data-pw-added-banner]):not([data-pw-added-catalog]){z-index:${pwSceneZ(2)}!important}`,
     `[data-pw-scene="3"]{z-index:${pwSceneZ(3)}!important}`,
     `[data-pw-scene="4"]{z-index:${pwSceneZ(4)}!important}`,
     pwSceneStayScrollZCss(),
     pwSceneChromeZCss(),
+    pwSceneHeadStackCss(),
   ].join('')
 }
 
@@ -176,7 +197,7 @@ export function pwSceneStayScrollZCss(): string {
   return stamped + unstamped
 }
 
-/** Header / topbar / thanh đáy — chrome lớp cao giữ trong header (z 200) để thắng nền đứng im fixed z 100. */
+/** Header / topbar / thanh đáy — chrome host; z head (`PW_SCENE_HEAD_Z`) thắng lớp nổi giữa trang. */
 export const PW_SCENE_CHROME_STACK_HOST_SEL =
   'header, .pw-header, .pw-shop-header, .pw-topbar, .pw-shop-topbar, .pw-bottom-nav, .pw-shop-bottom-nav'
 
@@ -252,8 +273,16 @@ export function pwSceneCanvasWidth(device: unknown): number {
  * Chọn máy theo bề rộng cửa sổ, không theo CSS px sau khi Ctrl +/- zoom.
  * Gọi với `max(outerWidth, innerWidth)` để zoom không đổi laptop ↔ desktop.
  */
-export function pwSceneLockFromWindowWidth(width: unknown): PwSceneDevice {
-  return pwResolveCoordinateDevice({ outerWidth: width, layoutWidth: width })
+export function pwSceneLockFromWindowWidth(
+  width: unknown,
+  hint?: Pick<PwDeviceViewport, 'devicePixelRatio' | 'screenWidth'>
+): PwSceneDevice {
+  return pwResolveCoordinateDevice({
+    outerWidth: width,
+    layoutWidth: width,
+    screenWidth: hint?.screenWidth,
+    devicePixelRatio: hint?.devicePixelRatio,
+  })
 }
 
 /** Khi shop chưa lưu bản laptop/tablet, khóa đúng máy đó sẽ ẩn hết và trang trắng. */
@@ -427,6 +456,33 @@ html [data-pw-hrow]>[data-pw-added-bg="1"]:not([data-pw-added-bg-slot]){flex:0 0
 html [data-pw-hrow] [data-pw-region="banner"],html [data-pw-hrow] .pw-hero,html [data-pw-hrow] .pw-banner,html [data-pw-hrow] .pw-shop-hero,html [data-pw-hrow] .pw-shop-banner{width:auto!important;max-width:100%!important;margin-left:0!important;margin-right:0!important}
 `.trim()
 
+const STACK_FLOW_HOSTS = [
+  '[data-pw-region="banner"]',
+  '[data-pw-region="categories"]',
+  '[data-pw-region="catalog"]',
+  '[data-pw-region="promo"]',
+  '[data-pw-added-banner]',
+  '[data-pw-added-catalog]',
+  '[data-pw-added-bg-slot]',
+  '[data-pw-hrow]',
+  '.pw-hero',
+  '.pw-banner',
+  '.pw-shop-hero',
+  '.pw-shop-banner',
+  '.pw-categories',
+] as const
+
+function stackFlowSel(extra = ''): string {
+  return STACK_FLOW_HOSTS.map((sel) => `html ${sel}${extra}`).join(',')
+}
+
+/** Mảng khối + nền thêm in-flow chiếm chỗ, z dưới head (`PW_SCENE_HEAD_Z`) — kéo/cuộn không trèo head. */
+export const PARTNER_SHOP_STACK_FLOW_CSS = `
+${stackFlowSel()}{position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;float:none!important;z-index:1!important}
+${stackFlowSel('[data-pw-scene]')}{z-index:1!important}
+${stackFlowSel('[data-pw-placement="scene-absolute"]')}{position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:1!important}
+`.trim()
+
 export const PARTNER_SHOP_BANNER_MEDIA_FILL_CSS = `
 html [data-pw-region="banner"],html .pw-hero,html .pw-banner,html .pw-shop-hero,html .pw-shop-banner{overflow:hidden}
 html [data-pw-added-banner]{
@@ -511,11 +567,13 @@ export const PW_LIVE_DOCK_ATTR = 'data-pw-live-dock'
  */
 export function pwSceneLiveChromeCss(): string {
   return [
-    `[${PW_LIVE_CHROME_ATTR}]{position:sticky!important;top:0!important;z-index:200!important;width:100%;display:flex;flex-direction:column;align-items:center;box-sizing:border-box}`,
+    `[${PW_LIVE_CHROME_ATTR}]{position:sticky!important;top:0!important;z-index:${PW_SCENE_HEAD_Z}!important;width:100%;display:flex;flex-direction:column;align-items:center;box-sizing:border-box}`,
     `[${PW_LIVE_CHROME_SCALE_ATTR}]{width:var(--pw-scene-w)!important;transform-origin:top center;display:flex;flex-direction:column;flex:0 0 auto;box-sizing:border-box}`,
     `html[data-pw-scene-zoomed="1"] [${PW_LIVE_CHROME_SCALE_ATTR}]{transform:scale(var(--pw-scene-zoom,1))}`,
     `[${PW_LIVE_CHROME_ATTR}] .pw-header,[${PW_LIVE_CHROME_ATTR}] .pw-shop-header{position:relative!important;top:auto!important;width:100%!important}`,
-    `[${PW_LIVE_CHROME_PH_ATTR}]{display:block;width:100%;pointer-events:none;visibility:hidden}`,
+    // Sticky chrome already occupies page flow. Do not leave an in-canvas
+    // header spacer — scene Y is measured from `main`, not the visual root.
+    `[${PW_LIVE_CHROME_PH_ATTR}]{display:none!important;height:0!important;min-height:0!important;margin:0!important;padding:0!important;overflow:hidden!important;pointer-events:none}`,
     `html[data-pw-scene-zoomed="1"] [data-pw-inline-visual-root] .pw-header,html[data-pw-scene-zoomed="1"] [data-pw-inline-visual-root] .pw-shop-header{position:relative!important;top:auto!important}`,
     pwSceneLiveDockCss(),
   ].join('')
@@ -524,7 +582,7 @@ export function pwSceneLiveChromeCss(): string {
 /** Thanh đáy live: host fixed viewport, không nằm trong canvas `transform:scale`. */
 export function pwSceneLiveDockCss(): string {
   return [
-    `[${PW_LIVE_DOCK_ATTR}]{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;z-index:200!important;width:100%;max-width:100%;display:flex;flex-direction:column;align-items:stretch;box-sizing:border-box;pointer-events:none;transform:none!important}`,
+    `[${PW_LIVE_DOCK_ATTR}]{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;z-index:${PW_SCENE_HEAD_Z}!important;width:100%;max-width:100%;display:flex;flex-direction:column;align-items:stretch;box-sizing:border-box;pointer-events:none;transform:none!important}`,
     `html[data-pw-scene-lock="mobile"] [${PW_LIVE_DOCK_ATTR}]>.pw-bottom-nav,html[data-pw-scene-lock="mobile"] [${PW_LIVE_DOCK_ATTR}]>.pw-shop-bottom-nav,html[data-pw-scene-lock="tablet"] [${PW_LIVE_DOCK_ATTR}]>.pw-bottom-nav,html[data-pw-scene-lock="tablet"] [${PW_LIVE_DOCK_ATTR}]>.pw-shop-bottom-nav,html[data-pw-edit-device="mobile"] [${PW_LIVE_DOCK_ATTR}]>.pw-bottom-nav,html[data-pw-edit-device="mobile"] [${PW_LIVE_DOCK_ATTR}]>.pw-shop-bottom-nav,html[data-pw-edit-device="tablet"] [${PW_LIVE_DOCK_ATTR}]>.pw-bottom-nav,html[data-pw-edit-device="tablet"] [${PW_LIVE_DOCK_ATTR}]>.pw-shop-bottom-nav,[${PW_LIVE_DOCK_ATTR}]>.pw-bottom-nav,[${PW_LIVE_DOCK_ATTR}]>.pw-shop-bottom-nav,[${PW_LIVE_DOCK_ATTR}]>.pw-pdp-sticky,[${PW_LIVE_DOCK_ATTR}]>[data-pw-pdp-bottom]{position:relative!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;width:100%!important;max-width:100%!important;transform:none!important;pointer-events:auto}`,
     `[${PW_LIVE_DOCK_ATTR}] .pw-bottom-nav>a,[${PW_LIVE_DOCK_ATTR}] .pw-shop-bottom-nav>a,[${PW_LIVE_DOCK_ATTR}] .pw-bottom-nav>button,[${PW_LIVE_DOCK_ATTR}] .pw-shop-bottom-nav>button,[${PW_LIVE_DOCK_ATTR}] .pw-pdp-sticky-nav a,[${PW_LIVE_DOCK_ATTR}] .pw-pdp-sticky-nav button{position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:none!important}`,
   ].join('')
@@ -545,6 +603,7 @@ export function pwSceneCenterCss(): string {
     `@media (max-width:${t - 1}px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]){--pw-scene-w:${m}px}}`,
     `@media (min-width:${t}px) and (max-width:${l - 1}px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]){--pw-scene-w:${t}px}}`,
     `@media (min-width:${l}px) and (max-width:${d - 1}px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]){--pw-scene-w:${l}px}}`,
+    `@media ${pwScaledFhdDesktopMediaQuery()}{html:not([data-pw-edit-device]):not([data-pw-scene-lock]){--pw-scene-w:${d}px}}`,
     `@media (min-width:${d}px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]){--pw-scene-w:${d}px}}`,
     // Sửa nhanh: body trong iframe đúng khổ máy. Live: cùng khổ rồi scale phủ viewport.
     // `transform:scale` (kể cả scale(1)) tạo containing block → sticky header “nặn xuống”.
@@ -582,6 +641,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
 (function(){
   var C=window.__pwCoordinate;
   var W=C.widths;
+  ${PW_ENSURE_CONTENT_SCENE_ROOT_SOURCE}
   function stamped(){
     var html=document.documentElement;
     return html&&html.getAttribute?String(html.getAttribute('data-pw-edit-device')||''):'';
@@ -592,7 +652,8 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
       forcedDevice:s,
       outerWidth:window.outerWidth||0,
       layoutWidth:window.innerWidth||(document.documentElement&&document.documentElement.clientWidth)||0,
-      screenWidth:window.screen&&window.screen.availWidth||0
+      screenWidth:window.screen&&Math.max(window.screen.width||0,window.screen.availWidth||0)||0,
+      devicePixelRatio:window.devicePixelRatio||0
     });
   }
   function liveRoot(){
@@ -621,6 +682,70 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
   function isChromeFloat(el){
     var k=el&&el.getAttribute?String(el.getAttribute('data-pw-chrome-btn')||''):'';
     return k==='chat'||k==='chat-zalo'||k==='chat-facebook'||k==='chat-instagram'||k==='chat-whatsapp'||k==='topup';
+  }
+  function isAuthoredOverlay(el){
+    if(!el||!el.getAttribute)return false;
+    if(el.getAttribute('data-pw-chrome-added')==='1'&&el.getAttribute('data-pw-chrome-btn')&&el.getAttribute('data-pw-chrome-kit')!=='1')return true;
+    if(el.getAttribute('data-pw-added-bg')==='1'&&el.getAttribute('data-pw-added-bg-slot')!=='1')return true;
+    return el.getAttribute('data-pw-added-text')==='1'||el.getAttribute('data-pw-added-btn')==='1'||el.getAttribute('data-pw-added-image')==='1'||el.getAttribute('data-pw-added-video')==='1';
+  }
+  function isInFlowSlot(el){
+    if(!el||!el.getAttribute)return false;
+    return el.getAttribute('data-pw-added-bg-slot')==='1'||el.getAttribute('data-pw-added-catalog')==='1'||el.getAttribute('data-pw-added-banner')==='1'||el.hasAttribute('data-pw-hrow');
+  }
+  function isInFlowCatalogChrome(el){
+    if(!el||!el.getAttribute||isAuthoredOverlay(el))return false;
+    if(isInFlowSlot(el))return true;
+    var region=el.getAttribute('data-pw-region')||'';
+    if(region==='banner'||region==='categories'||region==='catalog'||region==='promo')return true;
+    var role=el.getAttribute('data-pw-el')||'';
+    if(role==='section-title'||role==='section-more')return true;
+    if(el.getAttribute('data-pw-catalog')!=null||el.getAttribute('data-pw-grid')!=null)return true;
+    var cls=String(el.className||'');
+    if(cls.indexOf('pw-section-title')>=0||cls.indexOf('pw-section-more')>=0)return true;
+    if(/(?:^|\\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories)(?:\\s|$)/.test(cls))return true;
+    return !!(el.closest&&el.closest('[data-pw-region="catalog"],[data-pw-catalog]'));
+  }
+  function isInFlowStackHost(el){
+    if(!el||!el.getAttribute||isAuthoredOverlay(el))return false;
+    if(isInFlowSlot(el))return true;
+    var region=el.getAttribute('data-pw-region')||'';
+    if(region==='banner'||region==='categories'||region==='catalog'||region==='promo')return true;
+    var cls=String(el.className||'');
+    return /(?:^|\\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories)(?:\\s|$)/.test(cls);
+  }
+  function reflowInFlowStackHosts(root){
+    if(!root||!root.querySelectorAll)return;
+    var nodes=root.querySelectorAll('[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="catalog"],[data-pw-region="promo"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-categories');
+    var i;
+    for(i=0;i<nodes.length;i++){
+      var el=nodes[i];
+      if(!el||!el.getAttribute||isAuthoredOverlay(el))continue;
+      try{el.removeAttribute('data-pw-placement')}catch(eP){}
+      try{el.removeAttribute('data-pw-user-move')}catch(eM){}
+      try{el.removeAttribute('data-pw-z')}catch(eZ){}
+      if(!el.style)continue;
+      el.style.removeProperty('position');
+      el.style.removeProperty('left');
+      el.style.removeProperty('top');
+      el.style.removeProperty('right');
+      el.style.removeProperty('bottom');
+      el.style.removeProperty('transform');
+      el.style.removeProperty('z-index');
+    }
+  }
+  function sceneCanvasOf(root){
+    if(!root||!root.querySelector)return root;
+    var stamped=root.querySelector('[data-pw-scene-root="1"]');
+    if(stamped&&stamped!==root&&!isBodyOrVisualHost(stamped)&&!isOuterSceneChromeNode(stamped))return stamped;
+    var main=root.querySelector('main,.pw-shop-main,.pw-main');
+    return main||root;
+  }
+  function staysInCatalogRow(el,sceneRoot){
+    if(!el||!el.closest)return false;
+    if(sceneRoot&&el.parentNode===sceneRoot)return false;
+    if(el.closest('[data-pw-hrow]'))return true;
+    return !!(el.closest('[data-pw-region="catalog"],[data-pw-catalog],[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-added-bg-slot]'));
   }
   function isPct(raw){
     return String(raw||'').indexOf('%')>=0;
@@ -698,6 +823,9 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
   function shouldBindFixed(el){
     if(!el||!el.getAttribute||isChromeFloat(el))return false;
     if(el.closest&&el.closest('header,.pw-header,.pw-shop-header,[data-pw-live-chrome],[data-pw-live-dock],.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-actions,.pw-pdp-sticky,[data-pw-pdp-bottom]'))return false;
+    if(isInFlowCatalogChrome(el))return false;
+    if(el.getAttribute('data-pw-placement')==='scene-absolute')return false;
+    if(el.getAttribute('data-pw-box-x')&&el.getAttribute('data-pw-placement')!=='viewport-fixed')return false;
     if(el.getAttribute('data-pw-placement')==='viewport-fixed')return true;
     if(el.getAttribute('data-pw-stay-scroll')==='1')return false;
     if(el.getAttribute('data-pw-pin-screen')==='1')return true;
@@ -749,8 +877,11 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     if(!host)return;
     var chrome=currentRuntimeHost(siblingChrome(host),root);
     var z=scale>0?scale:1;
-    var leftover=root.querySelector('[data-pw-live-chrome-ph]');
-    if(leftover)try{leftover.remove()}catch(ePh){}
+    var leftover=root.querySelectorAll('[data-pw-live-chrome-ph]');
+    var li;
+    for(li=0;li<leftover.length;li++){
+      try{leftover[li].remove()}catch(ePh){}
+    }
     if(!header){
       if(!chrome)return;
       var inner0=chrome.querySelector('[data-pw-live-chrome-scale]')||chrome;
@@ -922,11 +1053,23 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
   window.__pwViewportFixedHost=function(){
     return ensureLayer(liveRoot()||document.body);
   };
+  function applySceneBox(el,x,y,w,h){
+    if(!el||!el.style)return;
+    el.style.setProperty('position','absolute','important');
+    if(isFinite(x))el.style.setProperty('left',C.boxLeftCss?C.boxLeftCss(x,w):C.leftCss(x),'important');
+    if(isFinite(y))el.style.setProperty('top',(C.boxTopPx?C.boxTopPx(y,h):y)+'px','important');
+    el.style.setProperty('right','auto','important');
+    el.style.setProperty('bottom','auto','important');
+    el.style.setProperty('transform','none','important');
+    el.style.setProperty('margin','0','important');
+    if(isFinite(w)&&w>0)el.style.setProperty('width',w+'px','important');
+    if(isFinite(h)&&h>0)el.style.setProperty('height',h+'px','important');
+  }
   function bindSceneAbsolute(root){
     if(!root||!root.querySelectorAll)return;
-    var sceneRoot=root.querySelector('[data-pw-scene-root="1"]')||root.querySelector('main,.pw-shop-main,.pw-main')||root;
-    if(sceneRoot&&sceneRoot.setAttribute)sceneRoot.setAttribute('data-pw-scene-root','1');
-    var nodes=Array.prototype.slice.call(root.querySelectorAll('[data-pw-placement="scene-absolute"]'));
+    var sceneRoot=sceneCanvasOf(root);
+    if(sceneRoot&&sceneRoot.setAttribute&&sceneRoot!==root&&!isBodyOrVisualHost(sceneRoot))sceneRoot.setAttribute('data-pw-scene-root','1');
+    var nodes=Array.prototype.slice.call(root.querySelectorAll('[data-pw-placement="scene-absolute"],[data-pw-chrome-added="1"][data-pw-chrome-btn]:not([data-pw-chrome-kit])[data-pw-box-x]'));
     var host=root.parentNode;
     if(host&&host.children){
       var kids=host.children;
@@ -938,22 +1081,32 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
       }
     }
     var i;
+    var scenePx=W[band()]||W.desktop;
     for(i=0;i<nodes.length;i++){
       var el=nodes[i];
       if(!el||!el.style||el.closest&&el.closest('header,.pw-header,.pw-shop-header,.pw-bottom-nav,.pw-shop-bottom-nav,[data-pw-pdp-bottom],[data-pw-live-chrome],[data-pw-live-dock]'))continue;
-      var box=readCanvasBox(el,W[band()]||W.desktop,1);
-      if(el.parentNode!==sceneRoot){
+      if(isInFlowCatalogChrome(el)||staysInCatalogRow(el,sceneRoot))continue;
+      if(el.getAttribute('data-pw-placement')==='viewport-fixed')continue;
+      var box=readCanvasBox(el,scenePx,1);
+      var needMove=el.parentNode!==sceneRoot;
+      var br=null;
+      if(needMove){
+        try{br=el.getBoundingClientRect()}catch(eB){}
         try{sceneRoot.appendChild(el)}catch(eP){continue}
       }
-      el.style.setProperty('position','absolute','important');
-      if(isFinite(box.x))el.style.setProperty('left',C.boxLeftCss?C.boxLeftCss(box.x,box.w):C.leftCss(box.x),'important');
-      if(isFinite(box.y))el.style.setProperty('top',(C.boxTopPx?C.boxTopPx(box.y,box.h):box.y)+'px','important');
-      el.style.setProperty('right','auto','important');
-      el.style.setProperty('bottom','auto','important');
-      el.style.setProperty('transform','none','important');
-      el.style.setProperty('margin','0','important');
-      if(isFinite(box.w)&&box.w>0)el.style.setProperty('width',box.w+'px','important');
-      if(isFinite(box.h)&&box.h>0)el.style.setProperty('height',box.h+'px','important');
+      if(needMove&&br&&(br.width>0||br.height>0)&&sceneRoot.getBoundingClientRect){
+        var sr=sceneRoot.getBoundingClientRect();
+        var scale=sr.width>8&&scenePx>8?sr.width/scenePx:1;
+        applySceneBox(
+          el,
+          (br.left+br.width/2-(sr.left+sr.width/2))/scale,
+          (br.top+br.height/2-sr.top)/scale,
+          br.width/scale,
+          br.height/scale
+        );
+        continue;
+      }
+      applySceneBox(el,box.x,box.y,box.w,box.h);
     }
   }
   function bindFixed(root,scale,scenePx){
@@ -976,7 +1129,16 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
       el.style.setProperty('position','fixed','important');
       var inner=window.innerWidth||scenePx;
       var innerH=window.innerHeight||720;
-      var map=C.createMap({device:band(),viewportWidth:inner,originY:0});
+      var fr={left:0,top:0,width:inner,height:0};
+      try{if(root.getBoundingClientRect)fr=root.getBoundingClientRect()}catch(eFr){}
+      var map=C.createMap({
+        device:band(),
+        viewportWidth:inner,
+        originX:(fr.left||0)+(fr.width||0)/2,
+        originY:fr.top||0,
+        scale:(fr.width>8&&scenePx>8)?fr.width/scenePx:(scale||1),
+        fitWidth:false
+      });
       var v4=!C.looksNorm(box.x,box.y)&&box.xu!=='norm'&&box.yu!=='norm';
       if(isFinite(box.x)||isFinite(box.y)){
         if(v4){
@@ -1018,12 +1180,24 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     if(root){
       watchLiveRoot(root);
       if(!isEditor()){
-        bindSceneAbsolute(root);
-        bindFixed(root,z,px);
-        hoistLiveChrome(root,z);
-        hoistLiveDock(root);
-        hoistLiveOverlays();
+        var contentRoot=ensureContentSceneRoot(root);
+        var originReady=!root.querySelector('[data-pw-placement="scene-absolute"],[data-pw-added-text="1"],[data-pw-added-btn="1"],[data-pw-chrome-added="1"][data-pw-box-x]')||(contentRoot&&contentRoot.getAttribute&&contentRoot.getAttribute('data-pw-scene-origin')==='content');
+        if(originReady){
+          hoistLiveChrome(root,z);
+          hoistLiveDock(root);
+          reflowInFlowStackHosts(sceneCanvasOf(root));
+          bindSceneAbsolute(root);
+          bindFixed(root,z,px);
+          hoistLiveOverlays();
+        }else if(!root.getAttribute('data-pw-scene-origin-retry')){
+          root.setAttribute('data-pw-scene-origin-retry','1');
+          requestAnimationFrame(function(){ apply(); });
+        }
       }
+    } else if(!isEditor()&&document.body){
+      ensureContentSceneRoot(document.body);
+      reflowInFlowStackHosts(sceneCanvasOf(document.body));
+      bindSceneAbsolute(document.body);
     }
     if(root&&root.style){
       var h=root.scrollHeight||0;
@@ -1072,18 +1246,18 @@ export const PARTNER_SHOP_IMAGE_ZOOM_SCRIPT = `(function(){
     var z=parseFloat(raw||'');
     if(isFinite(z)&&z>0)return Math.max(0.5,Math.min(3,z));
     var tr=el&&el.style?String(el.style.transform||''):'';
-    var m=tr.match(/scale(?:Y)?\(\s*([\d.]+)/);
+    var m=tr.match(/scale(?:Y)?\\(\\s*([\\d.]+)/);
     if(m){
       z=parseFloat(m[1]);
       if(isFinite(z)&&z>0)return Math.max(0.5,Math.min(3,z));
     }
     var bs=el&&el.style?String(el.style.backgroundSize||''):'';
-    var two=bs.match(/(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%/);
+    var two=bs.match(/(\\d+(?:\\.\\d+)?)%\\s+(\\d+(?:\\.\\d+)?)%/);
     if(two){
       z=parseFloat(two[2])/100;
       if(isFinite(z)&&z>0)return Math.max(0.5,Math.min(3,z));
     }
-    m=bs.match(/(\d+(?:\.\d+)?)%\s*auto/);
+    m=bs.match(/(\\d+(?:\\.\\d+)?)%\\s*auto/);
     if(m){
       z=parseFloat(m[1])/100;
       if(isFinite(z)&&z>0)return Math.max(0.5,Math.min(3,z));

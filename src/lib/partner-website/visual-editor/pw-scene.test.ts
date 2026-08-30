@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildVisualEditorScript } from './build-visual-editor-script'
 import {
   pwSceneChromeZCss,
+  pwSceneHeadStackCss,
   pwSceneHoistLayerChildZCss,
   pwSceneUnifiedStackCss,
   PW_SCENE_ATTR,
@@ -9,6 +10,7 @@ import {
   PW_SCENE_CANVAS_WIDTH,
   PW_SCENE_DEFAULT_INDEX,
   PW_SCENE_DESIGN_WIDTH,
+  PW_SCENE_HEAD_Z,
   PW_SCENE_LAYERS,
   PW_SCENE_LOCAL_MAX,
   PW_SCENE_LOGO_Z,
@@ -20,6 +22,7 @@ import {
   isPwSceneIndex,
   PARTNER_SHOP_BANNER_LIVE_MATCH_CSS,
   PARTNER_SHOP_HROW_CSS,
+  PARTNER_SHOP_STACK_FLOW_CSS,
   PARTNER_SHOP_IMAGE_ZOOM_SCRIPT,
   PARTNER_SHOP_SCENE_CENTER_SCRIPT,
   PW_SCENE_MEDIA_ZOOM_SEL,
@@ -54,6 +57,8 @@ describe('pw scene layers', () => {
     expect(PW_SCENE_LAYERS.map((layer) => layer.index)).toEqual([0, 1, 2, 3, 4])
     expect(new Set(PW_SCENE_LAYERS.map((layer) => layer.key)).size).toBe(PW_SCENE_LAYERS.length)
     expect(PW_SCENE_Z_MAX).toBe(PW_SCENE_MAX_INDEX * PW_SCENE_BAND + PW_SCENE_LOCAL_MAX)
+    expect(PW_SCENE_HEAD_Z).toBe(PW_SCENE_Z_MAX + 1)
+    expect(PW_SCENE_HEAD_Z).toBeGreaterThan(pwSceneZ(4, PW_SCENE_LOCAL_MAX))
     expect(PW_SCENE_TOPBAR_Z).toBeGreaterThan(PW_SCENE_LAYERS[1]!.z)
     expect(PW_SCENE_TOPBAR_Z).toBeLessThan(PW_SCENE_LOGO_Z)
     expect(PW_SCENE_LOGO_Z).toBeLessThan(PW_SCENE_LAYERS[2]!.z)
@@ -155,6 +160,7 @@ describe('pw scene layers', () => {
     expect(pwSceneCanvasWidth('desktop')).toBe(1440)
     expect(pwSceneCenterCss()).toContain('html[data-pw-edit-device="mobile"],html[data-pw-scene-lock="mobile"]{--pw-scene-w:390px}')
     expect(pwSceneCenterCss()).toContain('html[data-pw-edit-device="laptop"],html[data-pw-scene-lock="laptop"]{--pw-scene-w:1280px}')
+    expect(pwSceneCenterCss()).toContain('min-resolution:1.25dppx')
     expect(pwSceneCenterCss()).toContain('html[data-pw-edit-device] body{width:var(--pw-scene-w)!important;min-width:var(--pw-scene-w)!important;max-width:none!important;margin-left:calc(50% - (var(--pw-scene-w) / 2))!important')
     expect(pwSceneCenterCss()).toContain('[data-pw-inline-visual-root]{width:var(--pw-scene-w)!important')
     expect(pwSceneCenterCss()).toContain('transform:none;display:block}')
@@ -164,7 +170,7 @@ describe('pw scene layers', () => {
     expect(pwSceneCenterCss()).not.toContain('transform-origin:top left')
     expect(pwSceneCenterCss()).toContain('[data-pw-live-chrome]')
     expect(pwSceneCenterCss()).toContain('[data-pw-live-chrome-scale]')
-    expect(pwSceneCenterCss()).toContain('[data-pw-live-chrome-ph]')
+    expect(pwSceneCenterCss()).toContain('[data-pw-live-chrome-ph]{display:none!important;height:0!important')
     expect(pwSceneCenterCss()).toContain('[data-pw-live-dock]')
     expect(pwSceneCenterCss()).toContain('[data-pw-live-dock]>.pw-bottom-nav')
     expect(pwSceneCenterCss()).toContain('html[data-pw-scene-lock="mobile"] [data-pw-live-dock]>.pw-bottom-nav')
@@ -186,6 +192,8 @@ describe('pw scene layers', () => {
     expect(pwSceneLockFromWindowWidth(1279)).toBe('tablet')
     expect(pwSceneLockFromWindowWidth(1280)).toBe('laptop')
     expect(pwSceneLockFromWindowWidth(1439)).toBe('laptop')
+    expect(pwSceneLockFromWindowWidth(1280, { devicePixelRatio: 1.5 })).toBe('desktop')
+    expect(pwSceneLockFromWindowWidth(1280, { devicePixelRatio: 2 })).toBe('laptop')
     expect(pwSceneLockFromWindowWidth(1440)).toBe('desktop')
     expect(pwSceneLockFromWindowWidth(1920)).toBe('desktop')
     expect(pwSceneLiveZoomScale(1920, 1920)).toBe(1)
@@ -207,8 +215,11 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).not.toContain('scaleY(')
     expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).not.toContain("'100% '+Math.round(z*100)+'%'")
     expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain('visualViewport')
+    expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain('/scale(?:Y)?\\(\\s*([\\d.]+)/')
+    expect(() => new Function(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT)).not.toThrow()
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-scene-lock')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('C.resolveDevice')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('devicePixelRatio:window.devicePixelRatio||0')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("style.setProperty('--pw-scene-w'")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("style.setProperty('--pw-scene-zoom'")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-scene-zoomed')
@@ -304,6 +315,15 @@ describe('pw scene layers', () => {
     expect(css).toContain('[data-pw-stay-scroll="1"][data-pw-scene="1"]{z-index:100!important}')
     expect(css).not.toContain('z-index:210')
   })
+
+  it('keeps the whole head stack above mid-page lớp nổi', () => {
+    const css = pwSceneHeadStackCss()
+    expect(css).toContain(`.pw-header,.pw-shop-header{z-index:${PW_SCENE_HEAD_Z}!important}`)
+    expect(css).toContain(`[data-pw-live-chrome]{z-index:${PW_SCENE_HEAD_Z}!important}`)
+    expect(css).toContain(`.pw-bottom-nav,.pw-shop-bottom-nav,[data-pw-live-dock]{z-index:${PW_SCENE_HEAD_Z}!important}`)
+    expect(pwSceneUnifiedStackCss()).toContain(css)
+    expect(PW_SCENE_HEAD_Z).toBeGreaterThan(400)
+  })
 })
 
 describe('scene layers inside the editor runtime', () => {
@@ -315,6 +335,7 @@ describe('scene layers inside the editor runtime', () => {
     expect(script).toContain(`"band":${PW_SCENE_BAND}`)
     expect(script).toContain(`"maxIndex":${PW_SCENE_MAX_INDEX}`)
     expect(script).toContain(`"zMax":${PW_SCENE_Z_MAX}`)
+    expect(script).toContain(`"headZ":${PW_SCENE_HEAD_Z}`)
     expect(script).toContain(`"defaultIndex":${PW_SCENE_DEFAULT_INDEX}`)
     expect(script).toContain('"keys":["nen","duoi","giua","tren","noi"]')
     // Dải z cũ khoá cứng ở 400 sẽ cắt mất lớp trên cùng.
@@ -400,7 +421,10 @@ describe('scene layers inside the editor runtime', () => {
     expect(script).toContain('isInflowHeaderCat')
     expect(script).toContain('isInFlowFooterLink')
     expect(script).toContain('unstampFooterInFlowChrome')
-    expect(script).toContain('var el = sceneWriteHost(selected)')
+    expect(script).toContain('function kindLockedScene(el)')
+    expect(script).toContain('function setElementScene(index)')
+    expect(script).toContain('function stepElementScene(dir)')
+    expect(script).toContain('var locked = kindLockedScene(el)')
     expect(script).toContain(JSON.stringify(pwSceneUnifiedStackCss()))
     expect(script).not.toContain('sceneNeedsEscapeChromeHost')
     expect(script).toContain('[data-pw-chrome-btn][data-pw-scene=\\"4\\"]')
@@ -411,7 +435,13 @@ describe('scene layers inside the editor runtime', () => {
     expect(script).toContain('writeSceneIndex(node, SCENE.defaultIndex)')
     expect(script).toContain('liftLooseElToSceneHost(node)')
     expect(script).toContain('isLooseAuthoredOverlay(el)')
-    expect(script).toContain('canonicalSceneRoot() || addedBgContentHost()')
+    expect(script).toContain('function addedBgContentHost() {\n    return canonicalSceneRoot()')
+    expect(script).toContain('function overlayRoot() {\n    return canonicalSceneRoot()')
+    expect(script).toContain('ensureContentSceneRoot(visual)')
+    expect(script).not.toContain('canonicalSceneRoot() || addedBgContentHost()')
+    expect(script).not.toContain('canonicalSceneRoot() || document.body')
+    expect(script).not.toContain('var top = Math.max(8, Math.round(-hr.top + 72))')
+    expect(script).toContain('captureCanonicalPlacement(node, true)')
     expect(script).toContain('!isLogoTarget(selected) && !isAddedChrome(selected)')
     expect(script).toContain('immediately turn canvas widgets into their canonical scene box')
     expect(script).toContain('[data-pw-chrome-btn]:not([data-pw-scene])')
@@ -422,8 +452,49 @@ describe('scene layers inside the editor runtime', () => {
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('if(!isEditor()){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('bindSceneAbsolute(root);')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('bindFixed(root,z,px);')
-    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT.indexOf('bindFixed(root,z,px);')).toBeLessThan(
-      PARTNER_SHOP_SCENE_CENTER_SCRIPT.indexOf('hoistLiveChrome(root,z);')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('ensureContentSceneRoot(root)')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('ensureContentSceneRoot(document.body)')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("getAttribute('data-pw-scene-origin')==='content'")
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT.indexOf('ensureContentSceneRoot(root)')).toBeLessThan(
+      PARTNER_SHOP_SCENE_CENTER_SCRIPT.indexOf('hoistLiveChrome(root,z)')
     )
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT.indexOf('hoistLiveChrome(root,z);')).toBeLessThan(
+      PARTNER_SHOP_SCENE_CENTER_SCRIPT.indexOf('bindSceneAbsolute(root);')
+    )
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT.indexOf('bindSceneAbsolute(root);')).toBeLessThan(
+      PARTNER_SHOP_SCENE_CENTER_SCRIPT.indexOf('bindFixed(root,z,px);')
+    )
+  })
+
+  it('keeps scene-absolute overlays on the scene-root origin instead of viewport 0', () => {
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function isInFlowCatalogChrome(el)')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function isInFlowStackHost(el)')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function reflowInFlowStackHosts(root)')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function staysInCatalogRow(el,sceneRoot)')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('if(isInFlowCatalogChrome(el)||staysInCatalogRow(el,sceneRoot))continue')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('reflowInFlowStackHosts(sceneCanvasOf(root))')
+    expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('[data-pw-region="banner"]')
+    expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('position:relative!important')
+    expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('z-index:1!important')
+    expect(pwSceneUnifiedStackCss()).toContain(
+      '[data-pw-scene="2"]:not([data-pw-region="banner"]):not([data-pw-region="categories"])'
+    )
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).not.toContain('blocks.sort(')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('if(isInFlowCatalogChrome(el))return false')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain(
+      "if(el.getAttribute('data-pw-placement')==='scene-absolute')return false"
+    )
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('originY:fr.top||0')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain(
+      '[data-pw-placement="scene-absolute"],[data-pw-chrome-added="1"][data-pw-chrome-btn]:not([data-pw-chrome-kit])[data-pw-box-x]'
+    )
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-live-chrome-ph')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("querySelectorAll('[data-pw-live-chrome-ph]')")
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).not.toContain("setAttribute('data-pw-live-chrome-ph'")
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).not.toContain('var spacerH=0')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function applySceneBox(el,x,y,w,h)')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-scene-origin')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function ensureContentSceneRoot(root)')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('isBodyOrVisualHost')
   })
 })

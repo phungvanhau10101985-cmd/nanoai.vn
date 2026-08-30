@@ -97,7 +97,65 @@ ${PW_STRIP_NAME_SEL} a{color:inherit;text-decoration:none}
 ${PW_STRIP_PRICE_SEL}{margin:0;margin-top:auto;font-size:14px;font-weight:700;color:var(--pw-primary)}
 `.trim()
 
+const PW_CATALOG_TITLE_PARTS = [
+  '[data-pw-catalog] [data-pw-el="section-title"]',
+  '[data-pw-region="catalog"] [data-pw-el="section-title"]',
+  '[data-pw-personalize] [data-pw-el="section-title"]',
+  '[data-pw-related] [data-pw-el="section-title"]',
+  '[data-pw-outfit] [data-pw-el="section-title"]',
+  '[data-pw-added-catalog] [data-pw-el="section-title"]',
+  '.pw-catalog .pw-section-title',
+  '.pw-related-title',
+  '.pw-outfit-title',
+] as const
+
+function pwCatalogTitleSel(prefix = 'html'): string {
+  return PW_CATALOG_TITLE_PARTS.map((sel) => `${prefix} ${sel}`).join(',')
+}
+
+/** Tiêu đề nhóm lưới — nhỏ hơn hero; máy stamp thắng clamp template. */
+export const PW_PRODUCT_GRID_TITLE_CSS = `
+${pwCatalogTitleSel('html')}{margin:0!important;font-size:1.125rem!important;line-height:1.25!important;font-weight:700!important;letter-spacing:.04em!important;text-transform:uppercase;color:var(--pw-text,#111827)}
+${pwCatalogTitleSel('html[data-pw-edit-device="laptop"]')},${pwCatalogTitleSel('html[data-pw-scene-lock="laptop"]')}{font-size:1.0625rem!important}
+${pwCatalogTitleSel('html[data-pw-edit-device="tablet"]')},${pwCatalogTitleSel('html[data-pw-scene-lock="tablet"]')}{font-size:1.05rem!important}
+${pwCatalogTitleSel('html[data-pw-edit-device="mobile"]')},${pwCatalogTitleSel('html[data-pw-scene-lock="mobile"]')}{font-size:1rem!important}
+@media (max-width:1279px){
+${pwCatalogTitleSel('html:not([data-pw-edit-device]):not([data-pw-scene-lock])')}{font-size:1.05rem!important}
+}
+@media (max-width:767px){
+${pwCatalogTitleSel('html:not([data-pw-edit-device]):not([data-pw-scene-lock])')}{font-size:1rem!important}
+}
+`.trim()
+
+/** Nút Tải thêm dưới lưới; ẩn «Xem hết / Xem tất cả / Xem sản phẩm». */
+export const PW_PRODUCT_GRID_MORE_CSS = `
+html [data-pw-catalog] [data-pw-grid-actions],html [data-pw-personalize] [data-pw-grid-actions],html [data-pw-related] [data-pw-grid-actions],html [data-pw-outfit] [data-pw-grid-actions],html .pw-grid-actions,html .pw-related-actions,html .pw-outfit-actions{margin-top:12px;display:flex;align-items:center;justify-content:center;flex-wrap:wrap}
+html .pw-grid-more,html [data-pw-grid-more],html .pw-related-more,html .pw-outfit-more{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--pw-surface,#f3f4f6);color:var(--pw-text,#111827);border:1px solid var(--pw-border,#e5e7eb);border-radius:8px;padding:8px 16px;cursor:pointer;font:600 13px/1.2 var(--pw-font-ui),system-ui,sans-serif}
+html .pw-grid-more[hidden],html [data-pw-grid-more][hidden],html .pw-related-more[hidden],html .pw-outfit-more[hidden]{display:none!important}
+html .pw-grid-more-icon,html .pw-related-more-icon,html .pw-outfit-more-icon{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:1px solid var(--pw-border,#d1d5db);border-radius:999px;font-size:12px}
+html [data-pw-catalog] [data-pw-el="section-more"],html [data-pw-personalize] [data-pw-el="section-more"],html [data-pw-related] [data-pw-el="section-more"],html [data-pw-outfit] [data-pw-el="section-more"],html [data-pw-added-catalog] [data-pw-el="section-more"],html .pw-related-all,html .pw-outfit-all{display:none!important}
+`.trim()
+
+/** Thêm lưới: ôm nội dung, không padding section 48px / không khóa chiều cao khối. */
+export const PW_ADDED_PRODUCT_GRID_COMPACT_CSS = `
+html [data-pw-added-catalog],html .pw-product-grid-section,html [data-pw-grid-kind][data-pw-added-catalog]{
+margin:0!important;padding:0!important;min-height:0!important;height:auto!important;flex:0 0 auto!important;align-self:stretch!important;box-sizing:border-box
+}
+html [data-pw-added-catalog] > .pw-container,html .pw-product-grid-section > .pw-container{
+padding:12px 16px 16px!important;box-sizing:border-box
+}
+html [data-pw-added-catalog].pw-related,html [data-pw-added-catalog].pw-outfit{
+margin-top:12px!important;padding-top:8px!important
+}
+html [data-pw-added-catalog][data-pw-block-h],html [data-pw-region="catalog"][data-pw-added-catalog][data-pw-block-h]{
+min-height:0!important;height:auto!important
+}
+`.trim()
+
 export const PW_PRODUCT_GRID_RULER_CSS = `
 ${PW_PRODUCT_STRIP_GRID_CSS}
 ${PW_PRODUCT_CARD_MEDIA_RULER_CSS}
+${PW_ADDED_PRODUCT_GRID_COMPACT_CSS}
+${PW_PRODUCT_GRID_TITLE_CSS}
+${PW_PRODUCT_GRID_MORE_CSS}
 `.trim()

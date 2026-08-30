@@ -38,6 +38,21 @@ test('empty-src hide only targets img, never the media box or loaded photos', ()
   assert.match(PW_PRODUCT_CARD_MEDIA_RULER_CSS, /html \.pw-outfit-card \.pw-product-card-media img,/)
 })
 
+test('added product grids hug content and do not keep section padding', () => {
+  assert.match(PW_PRODUCT_GRID_RULER_CSS, /\[data-pw-added-catalog\]/)
+  assert.match(PW_PRODUCT_GRID_RULER_CSS, /min-height:0!important/)
+  assert.match(PW_PRODUCT_GRID_RULER_CSS, /height:auto!important/)
+  assert.match(PW_PRODUCT_GRID_RULER_CSS, /padding:12px 16px 16px!important/)
+})
+
+test('catalog titles are sized per device and load-more hides see-all', () => {
+  assert.match(PW_PRODUCT_GRID_RULER_CSS, /font-size:1\.125rem!important/)
+  assert.match(PW_PRODUCT_GRID_RULER_CSS, /html\[data-pw-edit-device="mobile"\]/)
+  assert.match(PW_PRODUCT_GRID_RULER_CSS, /data-pw-grid-more/)
+  assert.match(PW_PRODUCT_GRID_RULER_CSS, /\.pw-related-all/)
+  assert.match(PW_PRODUCT_GRID_RULER_CSS, /display:none!important/)
+})
+
 test('related and outfit CSS both ship the shared ruler', () => {
   assert.match(PW_RELATED_CSS, /\[data-pw-related\] \[data-pw-grid\]/)
   assert.match(PW_OUTFIT_CSS, /\[data-pw-outfit\] \[data-pw-grid\]/)

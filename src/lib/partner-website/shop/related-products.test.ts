@@ -21,8 +21,10 @@ test('related factory stamps 188-style contract', () => {
   assert.match(html, /data-exclude="22222222-2222-4222-8222-222222222222"/)
   assert.match(html, /data-category-id="11111111-1111-4111-8111-111111111111"/)
   assert.match(html, /Sản phẩm tương tự/)
-  assert.match(html, /Xem thêm/)
-  assert.match(html, /Xem tất cả/)
+  assert.match(html, /Tải thêm/)
+  assert.match(html, /data-pw-grid-rows="2"/)
+  assert.match(html, /data-pw-grid-more/)
+  assert.doesNotMatch(html, /Xem tất cả/)
   assert.doesNotMatch(html, /data-pw-el="card-cart"/)
   assert.doesNotMatch(html, /data-pw-el="card-buy"/)
 })
@@ -40,8 +42,9 @@ test('related live cards proxy AliCDN so the photo is not hotlink-blocked', () =
       },
     ],
   })
-  assert.match(html, /\/api\/fetch-image\?url=/)
-  assert.doesNotMatch(html, /src="https:\/\/img\.alicdn\.com/)
+  assert.match(html, /img\.alicdn\.com/)
+  assert.match(html, /_600x600q90\.jpg/)
+  assert.doesNotMatch(html, /\/api\/fetch-image\?url=/)
 })
 
 test('related live cards keep a square media slot and do not leak name as img alt', () => {

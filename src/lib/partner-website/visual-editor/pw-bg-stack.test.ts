@@ -7,6 +7,8 @@ import {
   PW_PAPER_ATTR,
   PW_PAPER_CSS,
   PW_PAPER_POS_X_ATTR,
+  PW_LAST_MEDIA_SRC_ATTR,
+  PW_MEDIA_HIDDEN_ATTR,
   PW_PAPER_SRC_ATTR,
   PW_BG_HEADER_Z,
   PW_BG_INDEX_ATTR,
@@ -111,6 +113,12 @@ describe('pw bg stack', () => {
     expect(s).toContain('clearPaperImage')
     expect(s).toContain(PW_PAPER_ATTR)
     expect(s).toContain(PW_PAPER_SRC_ATTR)
+    expect(s).toContain(PW_LAST_MEDIA_SRC_ATTR)
+    expect(s).toContain(PW_MEDIA_HIDDEN_ATTR)
+    expect(s).toContain('function stashLastMedia(el)')
+    expect(s).toContain('function restoreLastMedia(el)')
+    expect(s).toContain("d.type === 'restoreLastMedia'")
+    expect(s).toContain('lastMediaSrc:')
     expect(s).toContain(PW_PAPER_POS_X_ATTR)
     expect(s).toContain("d.type === 'setPaperWhite'")
     expect(s).toContain("d.type === 'setPaperPan'")
@@ -143,5 +151,8 @@ describe('pw bg stack', () => {
     expect(PW_PAPER_CSS).not.toContain('background-position:center center!important')
     expect(PW_PAPER_CSS).toContain(`${PW_PAPER_ATTR}="white"`)
     expect(PW_PAPER_CSS).toContain('background-image:none!important')
+    expect(PW_LAST_MEDIA_SRC_ATTR).toBe('data-pw-last-media-src')
+    expect(PW_MEDIA_HIDDEN_ATTR).toBe('data-pw-media-hidden')
+    expect(PW_PAPER_CSS).toContain(`${PW_MEDIA_HIDDEN_ATTR}="1"`)
   })
 })

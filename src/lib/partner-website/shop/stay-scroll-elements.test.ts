@@ -125,3 +125,25 @@ test('prepareVisualDomForStore keeps an intentionally moved category at its new 
   assert.equal(moved.style.top, '240px')
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes("if (el.getAttribute(PLACEMENT)) continue"), true)
 })
+
+test('prepareVisualDomForStore puts escaped float icons back into the kit host', () => {
+  const { document, window } = parseHTML(`<!doctype html><html><body>
+    <aside data-pw-chrome-kit="float" data-pw-float-right="24" data-pw-float-size="32"></aside>
+    <button id="chat" data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-pw-chrome-kit="1"
+      data-pw-btn-color="#111111" data-pw-placement="viewport-fixed" style="position:fixed;right:16px;--pw-btn-color:#111111">Chat</button>
+  </body></html>`)
+  const prevDocumentCtor = (globalThis as { Document?: unknown }).Document
+  ;(globalThis as { Document?: unknown }).Document = window.Document
+  try {
+    prepareVisualDomForStore(document)
+  } finally {
+    ;(globalThis as { Document?: unknown }).Document = prevDocumentCtor
+  }
+  const chat = document.querySelector('#chat') as HTMLElement
+  const kit = document.querySelector('[data-pw-chrome-kit="float"]')
+  assert.equal(chat.parentElement, kit)
+  assert.equal(chat.getAttribute('data-pw-btn-color'), '#111111')
+  assert.equal(chat.style.getPropertyValue('--pw-btn-color'), '#111111')
+  assert.equal(chat.getAttribute('data-pw-placement'), null)
+  assert.equal(chat.style.position, '')
+})

@@ -219,6 +219,16 @@ html .pw-cat-mega-l2,html .pw-nav-flyout-bar .pw-cat-mega-l2{
 html .pw-cat-mega-l3,html .pw-nav-flyout-bar .pw-cat-mega-l3{
   display:block;white-space:normal!important;overflow-wrap:anywhere;text-transform:lowercase!important;letter-spacing:0!important;font-weight:500
 }
+html .pw-cat-mega-l2:hover,html .pw-cat-mega-l3:hover,
+html .pw-nav-flyout-bar .pw-cat-mega-l2:hover,html .pw-nav-flyout-bar .pw-cat-mega-l3:hover,
+html .pw-cat-mega-l1 a:hover,html .pw-cat-mega-l1 a.is-active,
+html .pw-cat-mega-l23 a:hover,html .pw-nav-flyout-bar a:hover,
+html .pw-cat-panel a:hover,html .pw-shop-cat-panel a:hover,html [data-pw-cat-panel] a:hover{
+  color:var(--pw-primary)!important
+}
+html .pw-cat-panel .pw-cat-mega-kho-more:hover,html .pw-shop-cat-panel .pw-cat-mega-kho-more:hover,html [data-pw-cat-panel] .pw-cat-mega-kho-more:hover{
+  color:var(--pw-accent)!important
+}
 html .pw-cat-mega-kho,html .pw-cat-mega-kho-blurb,html .pw-cat-mega-hint{white-space:normal!important;max-width:100%}
 html .pw-nav-flyout-bar{
   display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px 16px;

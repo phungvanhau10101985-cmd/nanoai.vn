@@ -258,7 +258,7 @@ export async function getSiteHomeRecommendationBlock(input: {
   linkedUserId?: string | null
   limit?: number
 }): Promise<PartnerSiteHomeRecommendationBlock> {
-  const limit = Math.max(1, Math.min(24, Math.floor(Number(input.limit) || HOME_RECOMMENDATION_SHOP_LIMIT)))
+  const limit = Math.max(1, Math.min(48, Math.floor(Number(input.limit) || HOME_RECOMMENDATION_SHOP_LIMIT)))
   const state = await fetchPartnerVisitorPersonalizationFromPg({
     partnerId: input.partnerId,
     accountKey: input.accountKey,

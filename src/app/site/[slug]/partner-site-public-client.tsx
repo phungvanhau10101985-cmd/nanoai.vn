@@ -263,7 +263,8 @@ function PartnerSitePublicFrame({
         pwResolveCoordinateDevice({
           outerWidth: window.outerWidth || 0,
           layoutWidth: window.innerWidth || document.documentElement.clientWidth || 0,
-          screenWidth: window.screen?.availWidth || window.screen?.width || 0,
+          screenWidth: Math.max(window.screen?.width || 0, window.screen?.availWidth || 0),
+          devicePixelRatio: window.devicePixelRatio || 0,
         })
       if (!availableDevices.length || availableDevices.includes(requested)) {
         setActiveDevice((current) => (current === requested ? current : requested))

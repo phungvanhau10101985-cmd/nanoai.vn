@@ -10,6 +10,13 @@ import {
 } from '@/lib/partner-website/shop/build-shop-theme-css'
 import { preparePartnerVisualHtmlForEditor } from '@/lib/partner-website/shop/render-partner-visual-html'
 
+test('shop theme CSS turns mega L2/L3 hover text to the primary token', () => {
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(css, /\.pw-cat-mega-l2:hover,\.pw-cat-mega-l3:hover\{background:var\(--pw-surface\);color:var\(--pw-primary\)!important\}/)
+  assert.match(css, /html \.pw-cat-mega-l2:hover,html \.pw-cat-mega-l3:hover/)
+  assert.match(css, /html \.pw-cat-mega-l2:hover[\s\S]*?color:var\(--pw-primary\)!important/)
+})
+
 test('shop theme CSS hides leftover icons on text-only chrome widgets', () => {
   const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
   assert.match(css, /\[data-pw-chrome-style="text"\] \.pw-chrome-icon-wrap/)

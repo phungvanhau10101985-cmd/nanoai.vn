@@ -1,16 +1,33 @@
 /**
- * Kit chrome sẵn trong head / thanh đáy — ẩn hiện + thứ tự, không tọa độ.
- * Một engine mọi shop. Sửa nhanh = live vì nút in-flow flex.
+ * Kit chrome sẵn: head / thanh đáy / thanh nổi — ẩn hiện + thứ tự, không tọa độ.
+ * Nút Thêm giữa trang (Cửa hàng / Ví quà…) — kéo tọa độ, luôn lớp nổi, mỗi máy một file.
+ * Mỗi máy một bản (Desktop ≠ Laptop ≠ Tablet ≠ Mobile).
  */
 import type { WebLocale } from '@/lib/i18n/config'
 import { PW_HIDDEN_ATTR } from '@/lib/partner-website/shop/stay-scroll-elements'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import {
+  clampChromeFloatSize,
+  PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX,
+  PW_CHROME_FLOAT_DEFAULT_RIGHT_PX,
+  PW_CHROME_FLOAT_KINDS,
+  PW_FLOAT_GAP_ATTR,
+  PW_FLOAT_GAP_DEFAULT,
+  PW_FLOAT_RIGHT_ATTR,
+  PW_FLOAT_SIZE_ATTR,
+  PW_FLOAT_SIZE_DEFAULT,
+  PW_FLOAT_STACK_BOTTOM_ATTR,
+  type PwChromeFloatKind,
+} from '@/lib/partner-website/shop/chrome-float-widgets'
 import { PW_EL, pwElAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import {
   buildVisualEditorChromeWidgetHtml,
+  isVisualEditorChromeWidgetKind,
+  VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS,
   type VisualEditorChromeWidgetKind,
 } from '@/lib/partner-website/visual-editor/chrome-widgets'
+import { PW_SCENE_MAX_INDEX, pwSceneZ } from '@/lib/partner-website/visual-editor/pw-scene'
 
 export const PW_CHROME_KIT_ATTR = 'data-pw-chrome-kit'
 export const PW_DOCK_SHOW_ATTR = 'data-pw-dock-show'
@@ -29,11 +46,16 @@ export function clampChromeKitShift(raw: unknown): number {
 
 export type ChromeKitDockShow = 'shop' | 'pdp' | 'both'
 export type ChromeKitDockSlot = 'icon' | 'cta'
-export type ChromeKitHeadGroup = 'pc' | 'tablet' | 'mobile'
+export type ChromeKitHeadGroup = 'desktop' | 'laptop' | 'tablet' | 'mobile'
 
 export type ChromeKitHeadItem = {
   kind: VisualEditorChromeWidgetKind
   defaultOn: Record<ChromeKitHeadGroup, boolean>
+}
+
+export type ChromeKitFloatItem = {
+  kind: PwChromeFloatKind
+  defaultOn: boolean
 }
 
 export type ChromeKitDockItem = {
@@ -44,18 +66,18 @@ export type ChromeKitDockItem = {
 
 /** Nút nhóm phải (và Chat mua) — seed sẵn, phần lớn tắt. */
 export const CHROME_KIT_HEAD_ACTION_ITEMS: ChromeKitHeadItem[] = [
-  { kind: 'account', defaultOn: { pc: true, tablet: false, mobile: false } },
-  { kind: 'recently-viewed', defaultOn: { pc: true, tablet: false, mobile: false } },
-  { kind: 'cart', defaultOn: { pc: true, tablet: true, mobile: true } },
-  { kind: 'chat', defaultOn: { pc: false, tablet: false, mobile: false } },
-  { kind: 'notifications', defaultOn: { pc: false, tablet: false, mobile: false } },
-  { kind: 'wishlist', defaultOn: { pc: false, tablet: false, mobile: false } },
-  { kind: 'orders', defaultOn: { pc: false, tablet: false, mobile: false } },
-  { kind: 'sale', defaultOn: { pc: false, tablet: false, mobile: false } },
-  { kind: 'contact', defaultOn: { pc: false, tablet: false, mobile: false } },
+  { kind: 'account', defaultOn: { desktop: true, laptop: true, tablet: false, mobile: false } },
+  { kind: 'recently-viewed', defaultOn: { desktop: true, laptop: true, tablet: false, mobile: false } },
+  { kind: 'cart', defaultOn: { desktop: true, laptop: true, tablet: true, mobile: true } },
+  { kind: 'chat', defaultOn: { desktop: false, laptop: false, tablet: false, mobile: false } },
+  { kind: 'notifications', defaultOn: { desktop: false, laptop: false, tablet: false, mobile: false } },
+  { kind: 'wishlist', defaultOn: { desktop: false, laptop: false, tablet: false, mobile: false } },
+  { kind: 'orders', defaultOn: { desktop: false, laptop: false, tablet: false, mobile: false } },
+  { kind: 'sale', defaultOn: { desktop: false, laptop: false, tablet: false, mobile: false } },
+  { kind: 'contact', defaultOn: { desktop: false, laptop: false, tablet: false, mobile: false } },
 ]
 
-/** Thanh đáy mobile+tablet: một nav, ẩn hiện theo trang. */
+/** Thanh đáy — seed giống nhau, ẩn hiện độc lập từng máy (chỉ hiện Mobile/Tablet). */
 export const CHROME_KIT_DOCK_ITEMS: ChromeKitDockItem[] = [
   { kind: 'home', slot: 'icon', defaultShow: 'both' },
   { kind: 'products', slot: 'icon', defaultShow: 'shop' },
@@ -75,21 +97,46 @@ export const CHROME_KIT_DOCK_ITEMS: ChromeKitDockItem[] = [
   { kind: 'buy-now', slot: 'cta', defaultShow: 'pdp' },
 ]
 
+/** Thanh nổi mọi máy — Chat mua / Zalo / Facebook / Top, chỉ ẩn hiện. */
+export const CHROME_KIT_FLOAT_ITEMS: ChromeKitFloatItem[] = PW_CHROME_FLOAT_KINDS.map((kind) => ({
+  kind,
+  defaultOn: false,
+}))
+
 const HEAD_ACTION_KIND_SET = new Set(CHROME_KIT_HEAD_ACTION_ITEMS.map((item) => item.kind))
 const DOCK_KIND_SET = new Set(CHROME_KIT_DOCK_ITEMS.map((item) => item.kind))
+const FLOAT_KIND_SET = new Set(CHROME_KIT_FLOAT_ITEMS.map((item) => item.kind))
 
 export function chromeKitHeadGroup(device?: VisualDeviceVariant | null): ChromeKitHeadGroup {
-  if (device === 'tablet') return 'tablet'
-  if (device === 'mobile') return 'mobile'
-  return 'pc'
+  if (device === 'laptop' || device === 'tablet' || device === 'mobile') return device
+  return 'desktop'
+}
+
+function chromeKitHeadStyle(group: ChromeKitHeadGroup): 'icon-label-below' | 'icon' {
+  return group === 'desktop' || group === 'laptop' ? 'icon-label-below' : 'icon'
 }
 
 export function isChromeKitManagedKind(kind: string): boolean {
-  return HEAD_ACTION_KIND_SET.has(kind as VisualEditorChromeWidgetKind) || DOCK_KIND_SET.has(kind as VisualEditorChromeWidgetKind)
+  return (
+    HEAD_ACTION_KIND_SET.has(kind as VisualEditorChromeWidgetKind) ||
+    DOCK_KIND_SET.has(kind as VisualEditorChromeWidgetKind) ||
+    FLOAT_KIND_SET.has(kind as PwChromeFloatKind)
+  )
 }
 
 export function isChromeKitPickerKind(kind: string): boolean {
   return isChromeKitManagedKind(kind) || kind === 'categories' || kind === 'search' || kind === 'search-image' || kind === 'login' || kind === 'favorites-link'
+}
+
+/** Nút Thêm ở giữa (Cửa hàng / Ví quà…) — kéo tọa độ, luôn lớp nổi. */
+export const PW_MID_CANVAS_TOP_SCENE = PW_SCENE_MAX_INDEX
+
+export function isMidCanvasFlowChromeKind(kind: string): boolean {
+  return isVisualEditorChromeWidgetKind(kind) && !isChromeKitPickerKind(kind)
+}
+
+export function listMidCanvasFlowChromeKinds(): VisualEditorChromeWidgetKind[] {
+  return VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS.filter((kind) => !isChromeKitPickerKind(kind))
 }
 
 function slugOrShop(siteSlug?: string | null): string {
@@ -101,6 +148,19 @@ function asKitTag(html: string, extras: string): string {
     .replace(/\sdata-pw-chrome-added=(["'])1\1/gi, ` ${PW_CHROME_KIT_ATTR}="1"`)
     .replace(/\sdata-pw-chrome-float=(["'])1\1/gi, '')
     .replace(/<(a|button)\b/i, (open) => `${open}${extras}`)
+}
+
+function asFloatKitTag(html: string, extras: string): string {
+  let next = html
+    .replace(/\sdata-pw-chrome-added=(["'])1\1/gi, ` ${PW_CHROME_KIT_ATTR}="1"`)
+    .replace(/<(a|button)\b/i, (open) => `${open}${extras}`)
+  if (!/\bdata-pw-chrome-float=/i.test(next)) {
+    next = next.replace(/<(a|button)\b/i, (open) => `${open} data-pw-chrome-float="1"`)
+  }
+  if (!new RegExp(`\\b${PW_CHROME_KIT_ATTR}=`, 'i').test(next)) {
+    next = next.replace(/<(a|button)\b/i, (open) => `${open} ${PW_CHROME_KIT_ATTR}="1"`)
+  }
+  return next
 }
 
 function hiddenAttr(on: boolean): string {
@@ -121,7 +181,7 @@ export function buildChromeKitHeadActionHtml(input: {
       kind: item.kind,
       siteSlug: slug,
       locale: input.locale,
-      style: group === 'pc' ? 'icon-label-below' : 'icon',
+      style: chromeKitHeadStyle(group),
       place: 'header',
       logoUrl: input.logoUrl,
       chatIconLogoUrl: input.chatIconLogoUrl,
@@ -185,6 +245,42 @@ export function buildChromeKitDockHtml(input: {
     .join('\n    ')
 }
 
+export function buildChromeKitFloatHtml(input: {
+  locale: WebLocale
+  siteSlug?: string | null
+  logoUrl?: string | null
+  chatIconLogoUrl?: string | null
+}): string {
+  const slug = slugOrShop(input.siteSlug)
+  return CHROME_KIT_FLOAT_ITEMS.map((item) => {
+    const raw = buildVisualEditorChromeWidgetHtml({
+      kind: item.kind,
+      siteSlug: slug,
+      locale: input.locale,
+      style: 'icon-circle',
+      place: 'nav',
+      logoUrl: input.logoUrl,
+      chatIconLogoUrl: input.chatIconLogoUrl,
+      iconSize: PW_FLOAT_SIZE_DEFAULT,
+    })
+    if (!raw) return ''
+    return asFloatKitTag(raw, hiddenAttr(item.defaultOn))
+  })
+    .filter(Boolean)
+    .join('\n    ')
+}
+
+export function buildChromeKitFloatHostHtml(input: {
+  locale: WebLocale
+  siteSlug?: string | null
+  logoUrl?: string | null
+  chatIconLogoUrl?: string | null
+  inner?: string
+}): string {
+  const inner = (input.inner || buildChromeKitFloatHtml(input)).trim()
+  return `<aside class="pw-chrome-float-kit" ${PW_CHROME_KIT_ATTR}="float" data-pw-chrome-float-host="1" ${PW_FLOAT_RIGHT_ATTR}="${PW_CHROME_FLOAT_DEFAULT_RIGHT_PX}" ${PW_FLOAT_STACK_BOTTOM_ATTR}="${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat}" ${PW_FLOAT_GAP_ATTR}="${PW_FLOAT_GAP_DEFAULT}" ${PW_FLOAT_SIZE_ATTR}="${PW_FLOAT_SIZE_DEFAULT}" style="--pw-float-size:${PW_FLOAT_SIZE_DEFAULT}px">\n    ${inner}\n  </aside>`
+}
+
 export const PARTNER_SHOP_CHROME_KIT_CSS = `
 .pw-header-actions[${PW_CHROME_KIT_ATTR}="actions"],.pw-shop-header-actions[${PW_CHROME_KIT_ATTR}="actions"]{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;margin-right:0!important;transform:translateX(var(--pw-kit-x, 0px))!important}
 .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"],.pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{flex-wrap:nowrap!important;align-items:stretch}
@@ -219,7 +315,12 @@ body:not([data-pw-page="product"]) .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] 
 .pw-header-actions [${PW_CHROME_KIT_ATTR}="1"].pw-chrome-icon-only,.pw-shop-header-actions [${PW_CHROME_KIT_ATTR}="1"].pw-chrome-icon-only{
   flex:0 0 auto!important;padding:4px!important
 }
-[${PW_CHROME_KIT_ATTR}="1"]:not([data-pw-user-move]){position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:none!important}
+[${PW_CHROME_KIT_ATTR}="1"]:not([data-pw-user-move]):not([data-pw-chrome-float="1"]){position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:none!important}
+[${PW_CHROME_KIT_ATTR}="float"]{
+  display:contents
+}
+[${PW_CHROME_KIT_ATTR}="float"] > [${PW_CHROME_KIT_ATTR}="1"]:not([${PW_HIDDEN_ATTR}="1"]){pointer-events:auto}
+[data-pw-chrome-added="1"][data-pw-chrome-btn]:not([data-pw-chrome-kit]){z-index:${pwSceneZ(PW_MID_CANVAS_TOP_SCENE)}!important}
 `.trim()
 
 const HEADER_SEARCH_OPEN_RE =
@@ -263,19 +364,24 @@ function htmlHasChromeKind(html: string, kind: string): boolean {
   return re.test(html)
 }
 
-function stampExistingKitAttrs(inner: string, bar: 'head' | 'dock'): string {
+function stampExistingKitAttrs(inner: string, bar: 'head' | 'dock' | 'float'): string {
   return inner.replace(/<(a|button)(\s[^>]*?)>/gi, (full, tag: string, attrs: string) => {
     const kind = attrs.match(/\bdata-pw-chrome-btn=["']([^"']+)["']/i)?.[1] || ''
     if (!kind) return full
     if (bar === 'head' && !HEAD_ACTION_KIND_SET.has(kind as VisualEditorChromeWidgetKind)) return full
     if (bar === 'dock' && !DOCK_KIND_SET.has(kind as VisualEditorChromeWidgetKind)) return full
+    if (bar === 'float' && !FLOAT_KIND_SET.has(kind as PwChromeFloatKind)) return full
     let next = attrs
       .replace(/\sdata-pw-chrome-added=(["'])[^"']*\1/gi, '')
-      .replace(/\sdata-pw-chrome-float=(["'])[^"']*\1/gi, '')
       .replace(/\sdata-pw-user-move=(["'])[^"']*\1/gi, '')
       .replace(/\sdata-pw-placement=(["'])[^"']*\1/gi, '')
       .replace(/\sdata-pw-box-[xywh]=(["'])[^"']*\1/gi, '')
       .replace(/\sdata-pw-fixed-(?:x|y|w|h)=(["'])[^"']*\1/gi, '')
+    if (bar !== 'float') {
+      next = next.replace(/\sdata-pw-chrome-float=(["'])[^"']*\1/gi, '')
+    } else if (!/\bdata-pw-chrome-float=/i.test(next)) {
+      next += ' data-pw-chrome-float="1"'
+    }
     if (!new RegExp(`\\b${PW_CHROME_KIT_ATTR}=`, 'i').test(next)) next += ` ${PW_CHROME_KIT_ATTR}="1"`
     if (bar === 'dock') {
       const spec = CHROME_KIT_DOCK_ITEMS.find((item) => item.kind === kind)
@@ -297,11 +403,103 @@ function stampExistingKitAttrs(inner: string, bar: 'head' | 'dock'): string {
   })
 }
 
-function withHostKitAttr(openAttrs: string, value: 'actions' | 'dock'): string {
+function withHostKitAttr(openAttrs: string, value: 'actions' | 'dock' | 'float'): string {
   if (new RegExp(`\\b${PW_CHROME_KIT_ATTR}=`, 'i').test(openAttrs)) {
     return openAttrs.replace(new RegExp(`\\s${PW_CHROME_KIT_ATTR}=(["'])[^"']*\\1`, 'i'), ` ${PW_CHROME_KIT_ATTR}="${value}"`)
   }
   return `${openAttrs} ${PW_CHROME_KIT_ATTR}="${value}"`
+}
+
+function writeFloatSizeCss(openAttrs: string, size: number): string {
+  const n = clampChromeFloatSize(size)
+  const styleMatch = openAttrs.match(/\sstyle=(["'])([\s\S]*?)\1/i)
+  const quote = styleMatch?.[1] || '"'
+  let css = String(styleMatch?.[2] || '')
+    .replace(/(?:^|;)\s*--pw-float-size\s*:[^;]*/gi, '')
+    .replace(/^;+|;+$/g, '')
+    .trim()
+  const nextCss = css ? `${css};--pw-float-size:${n}px` : `--pw-float-size:${n}px`
+  if (styleMatch) return openAttrs.replace(/\sstyle=(["'])([\s\S]*?)\1/i, ` style=${quote}${nextCss}${quote}`)
+  return `${openAttrs} style=${quote}${nextCss}${quote}`
+}
+
+function withFloatStackHostAttrs(openAttrs: string): string {
+  let next = openAttrs
+  if (!new RegExp(`\\b${PW_FLOAT_RIGHT_ATTR}=`, 'i').test(next)) {
+    next += ` ${PW_FLOAT_RIGHT_ATTR}="${PW_CHROME_FLOAT_DEFAULT_RIGHT_PX}"`
+  }
+  if (!new RegExp(`\\b${PW_FLOAT_STACK_BOTTOM_ATTR}=`, 'i').test(next)) {
+    next += ` ${PW_FLOAT_STACK_BOTTOM_ATTR}="${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat}"`
+  }
+  if (!new RegExp(`\\b${PW_FLOAT_GAP_ATTR}=`, 'i').test(next)) {
+    next += ` ${PW_FLOAT_GAP_ATTR}="${PW_FLOAT_GAP_DEFAULT}"`
+  }
+  const hadSize = new RegExp(`\\b${PW_FLOAT_SIZE_ATTR}=`, 'i').test(next)
+  const fromAttr = next.match(new RegExp(`\\b${PW_FLOAT_SIZE_ATTR}=(["'])([^"']*)\\1`, 'i'))?.[2]
+  const fromCss = next.match(/--pw-float-size\s*:\s*(-?\d+(?:\.\d+)?)px/i)?.[1]
+  const size = clampChromeFloatSize(fromAttr ?? fromCss ?? PW_FLOAT_SIZE_DEFAULT)
+  if (!hadSize) next += ` ${PW_FLOAT_SIZE_ATTR}="${size}"`
+  else {
+    next = next.replace(new RegExp(`\\s${PW_FLOAT_SIZE_ATTR}=(["'])[^"']*\\1`, 'i'), ` ${PW_FLOAT_SIZE_ATTR}="${size}"`)
+  }
+  return writeFloatSizeCss(next, size)
+}
+
+function floatHostSizeFromAttrs(openAttrs: string): number {
+  const fromAttr = openAttrs.match(new RegExp(`\\b${PW_FLOAT_SIZE_ATTR}=(["'])([^"']*)\\1`, 'i'))?.[2]
+  const fromCss = openAttrs.match(/--pw-float-size\s*:\s*(-?\d+(?:\.\d+)?)px/i)?.[1]
+  return clampChromeFloatSize(fromAttr ?? fromCss ?? PW_FLOAT_SIZE_DEFAULT)
+}
+
+function stampFloatKitFaceAndSize(inner: string, size: number, migrateCircle: boolean): string {
+  const n = clampChromeFloatSize(size)
+  return inner.replace(/<(a|button)(\s[^>]*?)>/gi, (full, tag: string, attrs: string) => {
+    const kind = attrs.match(/\bdata-pw-chrome-btn=["']([^"']+)["']/i)?.[1] || ''
+    if (!FLOAT_KIND_SET.has(kind as PwChromeFloatKind)) return full
+    let next = attrs
+    const style = (next.match(/\bdata-pw-chrome-style=["']([^"']+)["']/i)?.[1] || '').toLowerCase()
+    if (migrateCircle && (!style || style === 'icon')) {
+      if (/\bdata-pw-chrome-style=/i.test(next)) {
+        next = next.replace(/\sdata-pw-chrome-style=(["'])[^"']*\1/gi, ' data-pw-chrome-style="icon-circle"')
+      } else {
+        next += ' data-pw-chrome-style="icon-circle"'
+      }
+      if (/\bclass=/i.test(next)) {
+        next = next.replace(/\sclass=(["'])([^"']*)\1/i, (_m, q: string, cls: string) => {
+          const cleaned = String(cls)
+            .replace(/\bpw-chrome-icon-square\b/g, '')
+            .replace(/\bpw-chrome-has-label\b/g, '')
+            .replace(/\bpw-chrome-label-below\b/g, '')
+            .replace(/\bpw-chrome-label-left\b/g, '')
+            .replace(/\bpw-chrome-link\b/g, '')
+            .replace(/\bpw-chrome-icon-only\b/g, '')
+            .replace(/\bpw-chrome-icon-circle\b/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+          return ` class=${q}${cleaned}${cleaned ? ' ' : ''}pw-chrome-icon-only pw-chrome-icon-circle${q}`
+        })
+      } else {
+        next += ' class="pw-chrome-icon-only pw-chrome-icon-circle"'
+      }
+    }
+    if (/\bdata-pw-chrome-size=/i.test(next)) {
+      next = next.replace(/\sdata-pw-chrome-size=(["'])[^"']*\1/gi, ` data-pw-chrome-size="${n}"`)
+    } else {
+      next += ` data-pw-chrome-size="${n}"`
+    }
+    next = next.replace(/\sdata-pw-chrome-w=(["'])[^"']*\1/gi, '').replace(/\sdata-pw-chrome-h=(["'])[^"']*\1/gi, '')
+    const styleMatch = next.match(/\sstyle=(["'])([\s\S]*?)\1/i)
+    const quote = styleMatch?.[1] || '"'
+    let css = String(styleMatch?.[2] || '')
+      .replace(/(?:^|;)\s*--pw-chrome-(?:size|w|h)\s*:[^;]*/gi, '')
+      .replace(/^;+|;+$/g, '')
+      .trim()
+    const sizeCss = `--pw-chrome-size:${n}px;--pw-chrome-w:${n}px;--pw-chrome-h:${n}px`
+    const nextCss = css ? `${css};${sizeCss}` : sizeCss
+    if (styleMatch) next = next.replace(/\sstyle=(["'])([\s\S]*?)\1/i, ` style=${quote}${nextCss}${quote}`)
+    else next += ` style=${quote}${nextCss}${quote}`
+    return `<${tag}${next}>`
+  })
 }
 
 /** Gắn `--pw-kit-x` từ `data-pw-kit-x` để live đọc CSS var, không cần JS. */
@@ -418,7 +616,166 @@ export function ensurePartnerSiteChromeKitInHtml(
     })
   }
 
-  return out
+  out = ensureChromeKitFloatHost(out, {
+    locale,
+    siteSlug: input.siteSlug,
+    logoUrl: input.logoUrl,
+    chatIconLogoUrl: input.chatIconLogoUrl,
+  })
+
+  return pinMidCanvasTopChromeInHtml(out)
+}
+
+const FLOAT_KIT_HOST_RE =
+  /<(aside|div|nav)([^>]*\bdata-pw-chrome-kit=["']float["'][^>]*)>([\s\S]*?)<\/\1>/i
+const STANDALONE_FLOAT_RE = new RegExp(
+  `<(a|button)\\b([^>]*\\bdata-pw-chrome-btn=["'](?:${PW_CHROME_FLOAT_KINDS.join('|')})["'][^>]*)>([\\s\\S]*?)<\\/\\1>`,
+  'gi'
+)
+
+function insideOpenTag(html: string, index: number, tag: string): boolean {
+  const before = html.slice(0, index).toLowerCase()
+  return before.lastIndexOf(`<${tag}`) > before.lastIndexOf(`</${tag}`)
+}
+
+/** Body-level kit icons after runtime hoist — keep authored face/colors, do not reseed. */
+function takeEscapedChromeFloatWidgets(html: string): { html: string; widgets: Map<string, string> } {
+  const widgets = new Map<string, string>()
+  const ranges: Array<{ start: number; end: number }> = []
+  const scan = new RegExp(STANDALONE_FLOAT_RE.source, STANDALONE_FLOAT_RE.flags)
+  let found: RegExpExecArray | null
+  while ((found = scan.exec(html))) {
+    const start = found.index
+    const full = found[0]
+    const attrs = found[2] || ''
+    if (/\bdata-pw-chrome-kit=["'](?:actions|dock|float)["']/i.test(attrs)) continue
+    if (insideOpenTag(html, start, 'header') || insideOpenTag(html, start, 'footer')) continue
+    if (insideOpenTag(html, start, 'nav') || insideOpenTag(html, start, 'aside')) continue
+    const kind = attrs.match(/\bdata-pw-chrome-btn=["']([^"']+)["']/i)?.[1] || ''
+    if (!FLOAT_KIND_SET.has(kind as PwChromeFloatKind) || widgets.has(kind)) continue
+    const isFloat = /\bdata-pw-chrome-float=["']1["']/i.test(attrs)
+    const isKitBtn = /\bdata-pw-chrome-kit=["']1["']/i.test(attrs)
+    if (isKitBtn && !isFloat) continue
+    widgets.set(kind, asFloatKitTag(full, ''))
+    ranges.push({ start, end: start + full.length })
+  }
+  let next = html
+  for (let i = ranges.length - 1; i >= 0; i -= 1) {
+    next = next.slice(0, ranges[i].start) + next.slice(ranges[i].end)
+  }
+  return { html: next, widgets }
+}
+
+function ensureChromeKitFloatHost(
+  html: string,
+  input: {
+    locale: WebLocale
+    siteSlug?: string | null
+    logoUrl?: string | null
+    chatIconLogoUrl?: string | null
+  }
+): string {
+  const escaped = takeEscapedChromeFloatWidgets(html)
+  const hostMatch = escaped.html.match(FLOAT_KIT_HOST_RE)
+  if (hostMatch) {
+    const migrateCircle = !new RegExp(`\\b${PW_FLOAT_SIZE_ATTR}=`, 'i').test(hostMatch[2])
+    let inner = stampExistingKitAttrs(hostMatch[3], 'float')
+    for (const [kind, snippet] of escaped.widgets) {
+      if (!htmlHasChromeKind(inner, kind)) inner = `${inner.trim()}\n    ${snippet}\n  `
+    }
+    if (migrateCircle && !new RegExp(`\\b${PW_FLOAT_SIZE_ATTR}=`, 'i').test(hostMatch[2])) {
+      const fromChild = inner.match(/\bdata-pw-chrome-size=["'](\d+)["']/i)?.[1]
+      if (fromChild && !/\bdata-pw-float-size=/i.test(hostMatch[2])) {
+        hostMatch[2] += ` ${PW_FLOAT_SIZE_ATTR}="${clampChromeFloatSize(fromChild)}"`
+      }
+    }
+    const missing = CHROME_KIT_FLOAT_ITEMS.filter((item) => !htmlHasChromeKind(inner, item.kind))
+    if (missing.length) {
+      const extra = buildChromeKitFloatHtml(input)
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => {
+          const kind = line.match(/data-pw-chrome-btn=["']([^"']+)["']/)?.[1]
+          return kind && missing.some((item) => item.kind === kind)
+        })
+        .join('\n    ')
+      if (extra) inner = `${inner.trim()}\n    ${extra}\n  `
+    }
+    const hostAttrs = withFloatStackHostAttrs(withHostKitAttr(hostMatch[2], 'float'))
+    const size = floatHostSizeFromAttrs(hostAttrs)
+    inner = stampFloatKitFaceAndSize(inner, size, migrateCircle)
+    const nextHost = `<${hostMatch[1]}${hostAttrs}>${inner}</${hostMatch[1]}>`
+    return escaped.html.replace(FLOAT_KIT_HOST_RE, nextHost)
+  }
+
+  const kept = [...escaped.widgets.values()]
+  const seen = new Set(escaped.widgets.keys())
+  let stripped = escaped.html
+
+  const missing = CHROME_KIT_FLOAT_ITEMS.filter((item) => !seen.has(item.kind))
+  const extra = missing.length
+    ? buildChromeKitFloatHtml(input)
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => {
+          const kind = line.match(/data-pw-chrome-btn=["']([^"']+)["']/)?.[1]
+          return kind && missing.some((item) => item.kind === kind)
+        })
+    : []
+  const inner = stampFloatKitFaceAndSize([...kept, ...extra].filter(Boolean).join('\n    '), PW_FLOAT_SIZE_DEFAULT, true)
+  const host = buildChromeKitFloatHostHtml({ ...input, inner })
+  if (/<\/body>/i.test(stripped)) return stripped.replace(/<\/body>/i, `${host}\n</body>`)
+  return `${stripped}\n${host}`
+}
+
+const MID_FLOW_CHROME_OPEN_RE =
+  /<(a|button)\b(?=[^>]*\bdata-pw-chrome-added=["']1["'])(?=[^>]*\bdata-pw-chrome-btn=)[^>]*>/gi
+
+function stampMidTopOpenTag(openTag: string): string {
+  let next = openTag
+    .replace(/\sdata-pw-pin-screen=(["'])[^"']*\1/gi, '')
+    .replace(/\sdata-pw-stay-scroll=(["'])[^"']*\1/gi, '')
+    .replace(/\sdata-pw-stay-[xy]=(["'])[^"']*\1/gi, '')
+    .replace(/\sdata-pw-stick-header=(["'])[^"']*\1/gi, '')
+    .replace(/\sdata-pw-device=(["'])[^"']*\1/gi, '')
+    .replace(/\sdata-pw-scene=(["'])[^"']*\1/gi, '')
+    .replace(/\sdata-pw-z=(["'])[^"']*\1/gi, '')
+  if (!/\bdata-pw-scene=/.test(next)) {
+    next = next.replace(/>$/, ` data-pw-scene="${PW_MID_CANVAS_TOP_SCENE}" data-pw-z="${pwSceneZ(PW_MID_CANVAS_TOP_SCENE)}">`)
+  }
+  return next
+}
+
+function unwrapAddedChromeSlots(html: string): string {
+  return html.replace(/<div\b[^>]*\bdata-pw-added-chrome-slot=["']1["'][^>]*>([\s\S]*?)<\/div>/gi, '$1')
+}
+
+/** Nút giữa trang luôn lớp nổi; giữ tọa độ. File máy nào = máy đó — không ẩn theo viewport. */
+export function pinMidCanvasTopChromeInHtml(html: string): string {
+  if (!html.trim() || !/data-pw-chrome-added=["']1["']/i.test(html)) return html
+  MID_FLOW_CHROME_OPEN_RE.lastIndex = 0
+  const matches: Array<{ start: number; endOpen: number; open: string }> = []
+  let found: RegExpExecArray | null
+  while ((found = MID_FLOW_CHROME_OPEN_RE.exec(html))) {
+    const start = found.index
+    const attrs = found[0]
+    const kind = attrs.match(/\bdata-pw-chrome-btn=["']([^"']+)["']/i)?.[1] || ''
+    if (!isMidCanvasFlowChromeKind(kind)) continue
+    if (/\bdata-pw-chrome-kit=/.test(attrs) || /\bdata-pw-chrome-float=["']1["']/.test(attrs)) continue
+    if (insideOpenTag(html, start, 'header') || insideOpenTag(html, start, 'footer')) continue
+    if (insideOpenTag(html, start, 'nav') || insideOpenTag(html, start, 'aside')) continue
+    matches.push({ start, endOpen: start + attrs.length, open: attrs })
+  }
+  let out = html
+  for (let i = matches.length - 1; i >= 0; i -= 1) {
+    const item = matches[i]
+    out = out.slice(0, item.start) + stampMidTopOpenTag(item.open) + out.slice(item.endOpen)
+  }
+  return unwrapAddedChromeSlots(out)
+}
+
+export function reseatMidCanvasFlowChromeInHtml(html: string): string {
+  return pinMidCanvasTopChromeInHtml(html)
 }
 
 function escapeText(value: string): string {

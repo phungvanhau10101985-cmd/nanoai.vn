@@ -12,6 +12,10 @@ import {
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { refreshCloneBoxesInDocument } from '@/lib/partner-website/visual-editor/copy-element-across-pages'
+import {
+  isInFlowCatalogChromeElement,
+  reflowInFlowStackHosts,
+} from '@/lib/partner-website/visual-editor/in-flow-catalog-chrome'
 import { normalizeVisualCoordinateContract } from '@/lib/partner-website/visual-editor/normalize-visual-coordinate-contract'
 import {
   pwCoordinateDevice,
@@ -39,7 +43,7 @@ function sceneRootOfDocument(doc: Document): HTMLElement | null {
   const stamped =
     body.querySelector<HTMLElement>('[data-pw-scene-root="1"]') ||
     body.querySelector<HTMLElement>('main, .pw-shop-main, .pw-main')
-  if (stamped) {
+  if (stamped && stamped !== body) {
     stamped.setAttribute('data-pw-scene-root', '1')
     return stamped
   }
@@ -105,6 +109,7 @@ function refreshMovedElementPlacementsInDocument(
   const body = doc.body
   const sceneRoot = sceneRootOfDocument(doc)
   if (!body || !sceneRoot) return
+  reflowInFlowStackHosts(sceneRoot)
   const device = pwCoordinateDevice(
     variant ||
       doc.documentElement.getAttribute('data-pw-edit-device') ||
@@ -139,7 +144,14 @@ function refreshMovedElementPlacementsInDocument(
       ) {
         return
       }
+      if (
+        el.closest('[data-pw-chrome-kit="float"],[data-pw-chrome-float-host="1"]') ||
+        (el.getAttribute('data-pw-chrome-float') === '1' && el.getAttribute('data-pw-chrome-kit') === '1')
+      ) {
+        return
+      }
       if (isHeaderLogoElement(el)) return
+      if (isInFlowCatalogChromeElement(el)) return
       if (!fixed && shouldKeepHeaderChromeInPlace(el)) return
       let rect: DOMRect
       try {

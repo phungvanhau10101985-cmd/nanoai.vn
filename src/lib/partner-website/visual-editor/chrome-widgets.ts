@@ -178,6 +178,7 @@ export const PW_STOCK_CHROME_EDIT_CSS =
   'min-width:0!important;min-height:0!important;' +
   'padding:var(--pw-chrome-pad-y,4px) var(--pw-chrome-pad-x,4px)!important;flex-direction:row!important}' +
   '.pw-bottom-nav .pw-chrome-icon-square,.pw-shop-bottom-nav .pw-chrome-icon-square{border-radius:10px!important}' +
+  '.pw-bottom-nav .pw-chrome-icon-circle,.pw-shop-bottom-nav .pw-chrome-icon-circle{border-radius:999px!important}' +
   '.pw-bottom-nav>a[data-pw-btn-text],.pw-shop-bottom-nav>a[data-pw-btn-text],' +
   '.pw-bottom-nav>button[data-pw-btn-text],.pw-shop-bottom-nav>button[data-pw-btn-text],' +
   '.pw-bottom-nav>a[data-pw-icon-color],.pw-shop-bottom-nav>a[data-pw-icon-color],' +
@@ -205,6 +206,38 @@ export const PW_CHROME_LABELED_MIN_W_CSS =
   '.pw-chrome-has-label .pw-account-btn-label,' +
   '.pw-chrome-link .pw-chrome-btn-label,.pw-chrome-link .pw-shop-icon-label{' +
   'max-width:none!important;width:auto!important;font-size:var(--pw-chrome-label,13px)!important}'
+
+/** Icon-only circle — equal box + full round. Wins after hug/radius so floats stay a real circle. */
+export const PW_CHROME_ICON_CIRCLE_CSS =
+  '[data-pw-chrome-btn][data-pw-chrome-style="icon-circle"],[data-pw-chrome-added][data-pw-chrome-style="icon-circle"],' +
+  '[data-pw-el="cat-toggle"][data-pw-chrome-style="icon-circle"],' +
+  '[data-pw-chrome-btn].pw-chrome-icon-circle,[data-pw-chrome-added].pw-chrome-icon-circle,' +
+  '[data-pw-chrome-float="1"][data-pw-chrome-style="icon-circle"],[data-pw-chrome-float="1"].pw-chrome-icon-circle{' +
+  'border-radius:999px!important;' +
+  'aspect-ratio:1!important;' +
+  'width:calc(max(var(--pw-chrome-w,var(--pw-chrome-size,22px)),var(--pw-chrome-h,var(--pw-chrome-size,22px))) + 16px)!important;' +
+  'height:calc(max(var(--pw-chrome-w,var(--pw-chrome-size,22px)),var(--pw-chrome-h,var(--pw-chrome-size,22px))) + 16px)!important;' +
+  'min-width:calc(max(var(--pw-chrome-w,var(--pw-chrome-size,22px)),var(--pw-chrome-h,var(--pw-chrome-size,22px))) + 16px)!important;' +
+  'min-height:calc(max(var(--pw-chrome-w,var(--pw-chrome-size,22px)),var(--pw-chrome-h,var(--pw-chrome-size,22px))) + 16px)!important;' +
+  'max-width:calc(max(var(--pw-chrome-w,var(--pw-chrome-size,22px)),var(--pw-chrome-h,var(--pw-chrome-size,22px))) + 16px)!important;' +
+  'max-height:calc(max(var(--pw-chrome-w,var(--pw-chrome-size,22px)),var(--pw-chrome-h,var(--pw-chrome-size,22px))) + 16px)!important;' +
+  'padding:0!important;box-sizing:border-box!important;' +
+  'align-items:center!important;justify-content:center!important}' +
+  '.pw-chrome-icon-circle .pw-chrome-icon-wrap,[data-pw-chrome-style="icon-circle"] .pw-chrome-icon-wrap{' +
+  'width:var(--pw-chrome-w,var(--pw-chrome-size,22px))!important;' +
+  'height:var(--pw-chrome-h,var(--pw-chrome-size,22px))!important;' +
+  'max-width:var(--pw-chrome-w,var(--pw-chrome-size,22px))!important;' +
+  'max-height:var(--pw-chrome-h,var(--pw-chrome-size,22px))!important;' +
+  'border-radius:999px!important}' +
+  '.pw-chrome-icon-circle .pw-chrome-icon-wrap svg,[data-pw-chrome-style="icon-circle"] .pw-chrome-icon-wrap svg,' +
+  '.pw-chrome-icon-circle .pw-chrome-icon-wrap img,[data-pw-chrome-style="icon-circle"] .pw-chrome-icon-wrap img,' +
+  '.pw-chrome-icon-circle .pw-chrome-chat-logo,[data-pw-chrome-style="icon-circle"] .pw-chrome-chat-logo,' +
+  '.pw-chrome-icon-circle .pw-chrome-brand-logo,[data-pw-chrome-style="icon-circle"] .pw-chrome-brand-logo{' +
+  'width:var(--pw-chrome-w,var(--pw-chrome-size,22px))!important;' +
+  'height:var(--pw-chrome-h,var(--pw-chrome-size,22px))!important;' +
+  'max-width:var(--pw-chrome-w,var(--pw-chrome-size,22px))!important;' +
+  'max-height:var(--pw-chrome-h,var(--pw-chrome-size,22px))!important;' +
+  'border-radius:999px!important}'
 
 /** Chữ dưới icon — thắng mọi rule flex-direction:row của nút có nhãn (header / canvas / thanh đáy / PDP). */
 export const PW_CHROME_LABEL_BELOW_CSS =
@@ -442,6 +475,7 @@ export type VisualEditorChromeWidgetAppearance = 'icon' | 'link'
 export const VISUAL_EDITOR_CHROME_WIDGET_STYLES = [
   'icon',
   'icon-square',
+  'icon-circle',
   'icon-label',
   'icon-label-below',
   'icon-label-left',
@@ -450,7 +484,7 @@ export const VISUAL_EDITOR_CHROME_WIDGET_STYLES = [
 export type VisualEditorChromeWidgetStyle = (typeof VISUAL_EDITOR_CHROME_WIDGET_STYLES)[number]
 
 export function isChromeIconOnlyStyle(style?: string | null): boolean {
-  return style === 'icon' || style === 'icon-square'
+  return style === 'icon' || style === 'icon-square' || style === 'icon-circle'
 }
 
 export function isChromeIconLabelStyle(style?: string | null): boolean {
@@ -460,13 +494,20 @@ export function isChromeIconLabelStyle(style?: string | null): boolean {
 function chromeFaceClass(style?: VisualEditorChromeWidgetStyle): {
   withLabel: boolean
   styleClass: string
-  styleAttr: 'icon' | 'icon-square' | 'icon-label' | 'icon-label-below' | 'icon-label-left'
+  styleAttr: 'icon' | 'icon-square' | 'icon-circle' | 'icon-label' | 'icon-label-below' | 'icon-label-left'
 } {
   if (style === 'icon-square') {
     return {
       withLabel: false,
       styleClass: 'pw-chrome-icon-only pw-chrome-icon-square',
       styleAttr: 'icon-square',
+    }
+  }
+  if (style === 'icon-circle') {
+    return {
+      withLabel: false,
+      styleClass: 'pw-chrome-icon-only pw-chrome-icon-circle',
+      styleAttr: 'icon-circle',
     }
   }
   if (style === 'icon-label-below') {
@@ -608,7 +649,7 @@ export function chromeWidgetAppearance(
   style?: VisualEditorChromeWidgetStyle
 ): VisualEditorChromeWidgetAppearance {
   if (style === 'text') return 'link'
-  if (style === 'icon' || style === 'icon-square' || isChromeIconLabelStyle(style)) return 'icon'
+  if (style === 'icon' || style === 'icon-square' || style === 'icon-circle' || isChromeIconLabelStyle(style)) return 'icon'
   if (TOPBAR_DEFAULT_KINDS.has(kind)) return 'link'
   return 'icon'
 }
@@ -639,6 +680,11 @@ export function isProductActionChromeKind(
 
 export function isProductHostChromeKind(kind: string): kind is 'favorite-product' | 'add-cart' | 'buy-now' {
   return kind === 'favorite-product' || kind === 'add-cart' || kind === 'buy-now'
+}
+
+/** Form / khối chiếm hàng — chỉ thêm bằng nút + trên canvas, không từ thanh Thêm. */
+export function isGapOnlyChromeAddKind(kind: string): boolean {
+  return kind === 'lead-form' || kind === 'coupon'
 }
 
 export function chromeWidgetLiveHook(kind: VisualEditorChromeWidgetKind): ChromeWidgetLiveHook {

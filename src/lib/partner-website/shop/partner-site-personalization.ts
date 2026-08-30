@@ -159,7 +159,7 @@ export async function getSiteRecentlyViewedProducts(input: {
   accountKey: string
   limit?: number
 }): Promise<PartnerSitePersonalizationProduct[]> {
-  const lim = Math.max(1, Math.min(40, Math.floor(Number(input.limit) || 8)))
+  const lim = Math.max(1, Math.min(48, Math.floor(Number(input.limit) || 8)))
   const state = await fetchPartnerVisitorPersonalizationFromPg({
     partnerId: input.partnerId,
     accountKey: input.accountKey,

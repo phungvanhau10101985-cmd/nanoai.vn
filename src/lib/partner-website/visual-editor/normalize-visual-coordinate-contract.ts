@@ -1,3 +1,4 @@
+import { isInFlowCatalogChromeAttrs } from './in-flow-catalog-chrome'
 import {
   PW_COORDINATE_CONTRACT_VERSION,
   PW_COORDINATE_VERSION_ATTR,
@@ -134,6 +135,69 @@ function canonicalizeOpeningTag(
     /\b(?:pw-logo-frame|pw-logo|pw-shop-logo|pw-brand|pw-shop-brand)\b/i.test(attrs)
   ) {
     return `<${tag}${rawAttrs}>`
+  }
+  if (isInFlowCatalogChromeAttrs(attrs)) {
+    attrs = setAttr(attrs, PW_PLACEMENT_ATTR, 'flow')
+    attrs = removeAttr(attrs, 'data-pw-user-move')
+    for (const name of [
+      'data-pw-box-x',
+      'data-pw-box-y',
+      'data-pw-box-w',
+      'data-pw-box-h',
+      'data-pw-fixed-x',
+      'data-pw-fixed-y',
+      'data-pw-fixed-w',
+      'data-pw-fixed-h',
+      'data-pw-fixed-anchor',
+      'data-pw-stay-x',
+      'data-pw-stay-y',
+      'data-pw-stay-w',
+      'data-pw-stay-h',
+      'data-pw-canvas-x',
+      'data-pw-canvas-y',
+      'data-pw-canvas-w',
+      'data-pw-canvas-h',
+      'data-pw-canvas-xu',
+      'data-pw-canvas-yu',
+    ]) {
+      attrs = removeAttr(attrs, name)
+    }
+    for (const name of ['position', 'left', 'top', 'right', 'bottom', 'transform']) {
+      style.delete(name)
+    }
+    attrs = writeStyle(attrs, style)
+    return `<${tag}${attrs}>`
+  }
+  const isKitFloatBtn =
+    /\bdata-pw-chrome-float=["']1["']/i.test(attrs) && /\bdata-pw-chrome-kit=["']1["']/i.test(attrs)
+  if (isKitFloatBtn) {
+    attrs = removeAttr(attrs, PW_PLACEMENT_ATTR)
+    for (const name of [
+      'data-pw-fixed-x',
+      'data-pw-fixed-y',
+      'data-pw-fixed-w',
+      'data-pw-fixed-h',
+      'data-pw-fixed-anchor',
+      'data-pw-user-move',
+    ]) {
+      attrs = removeAttr(attrs, name)
+    }
+    for (const name of ['position', 'left', 'top', 'right', 'bottom', 'transform', 'z-index', 'margin']) {
+      style.delete(name)
+    }
+    const faceVars: Array<[string, string]> = [
+      ['data-pw-btn-color', '--pw-btn-color'],
+      ['data-pw-btn-border', '--pw-btn-border'],
+      ['data-pw-btn-text', '--pw-btn-text'],
+      ['data-pw-icon-color', '--pw-icon-color'],
+      ['data-pw-chrome-hover', '--pw-chrome-hover'],
+    ]
+    for (const [attr, cssVar] of faceVars) {
+      const color = readAttr(attrs, attr).trim()
+      if (color && !style.has(cssVar)) style.set(cssVar, color)
+    }
+    attrs = writeStyle(attrs, style)
+    return `<${tag}${attrs}>`
   }
   const isFlow = FLOW_SLOT_RE.test(attrs) || explicit === 'flow'
   const isFixed =

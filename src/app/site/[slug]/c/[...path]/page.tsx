@@ -4,10 +4,7 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
-import {
-  fetchDirectProductCountsByCategoryFromPg,
-  fetchPartnerCategoriesFlatFromPg,
-} from '@/lib/db/messaging-partner-categories-pg'
+import { fetchPartnerCategoriesFlatFromPg } from '@/lib/db/messaging-partner-categories-pg'
 import {
   fetchPartnerCategoryFacetCountsFromPg,
   fetchPartnerCategoryPriceRangeFromPg,
@@ -19,8 +16,6 @@ import {
   prunePartnerCategoriesMissingAncestors,
   resolvePartnerCategoryDisplayDescription,
   resolvePartnerCategoryDisplayName,
-  rollupPartnerCategoryProductCounts,
-  buildPartnerCategoryTree,
   type PartnerCategoryRow,
 } from '@/lib/partner-website/category/partner-category-types'
 import {
@@ -53,8 +48,9 @@ type Props = {
 }
 
 /**
- * W4.7/W4.9/W4.14 — trang danh mục `/site/{slug}/c/{...path}`.
- * Tile danh mục con trước lưới; sản phẩm gộp cả nhánh con. Filter/sort trên URL.
+ * W4.7/W4.14 — trang danh mục `/site/{slug}/c/{...path}`.
+ * Chỉ breadcrumb + tiêu đề + bộ lọc + lưới SP + head. Không khối «Danh mục con».
+ * Sản phẩm gộp cả nhánh con. Filter/sort trên URL.
  */
 
 async function resolveCategoryContext(slug: string, pathSegments: string[]) {
@@ -80,11 +76,7 @@ async function resolveCategoryContext(slug: string, pathSegments: string[]) {
     if (found) ancestors.push(found)
   }
 
-  const children = flat
-    .filter((c) => c.parentId === category.id)
-    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
-
-  return { shop, category, ancestors, children, flat }
+  return { shop, category, ancestors, flat }
 }
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
@@ -117,7 +109,7 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
   const { slug, path } = await params
   const ctx = await resolveCategoryContext(slug, path)
   if (!ctx) notFound()
-  const { shop, category, ancestors, children, flat } = ctx
+  const { shop, category, ancestors } = ctx
   const device = await readVisualPreviewDevice(searchParams)
   const visual = maybePartnerSiteVisualCategoryPage(
     shop.site,
@@ -129,8 +121,7 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
   const locale = shop.site.locale
 
   const listing = parsePartnerCategoryListingFromRecord((searchParams ? await searchParams : {}) ?? {})
-  const [counts, page, priceRange, facets] = await Promise.all([
-    fetchDirectProductCountsByCategoryFromPg(shop.partnerId),
+  const [page, priceRange, facets] = await Promise.all([
     fetchPartnerInventoryPageByCategoryFromPg(shop.partnerId, {
       offset: partnerCategoryListingOffset(listing),
       limit: PARTNER_CATEGORY_PAGE_SIZE,
@@ -145,7 +136,6 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
     fetchPartnerCategoryPriceRangeFromPg(shop.partnerId, category.id),
     fetchPartnerCategoryFacetCountsFromPg(shop.partnerId, category.id),
   ])
-  const rolled = rollupPartnerCategoryProductCounts(buildPartnerCategoryTree(flat), counts ?? new Map())
 
   const initialProducts = (page?.rows ?? [])
     .map((row) => inventoryRowToShopProduct(shop.site.siteSlug, row))
@@ -226,34 +216,6 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
         <h1 data-pw-el={PW_EL.sectionTitle}>{categoryName}</h1>
       )}
       {categoryDescription ? <p className="pw-shop-muted">{categoryDescription}</p> : null}
-
-      {children.length > 0 ? (
-        <section style={{ marginTop: 20 }} data-pw-region={PW_REGION.categories}>
-          <h2 style={{ fontSize: '0.95rem', fontWeight: 600 }} data-pw-el={PW_EL.sectionTitle}>{t.categorySubcategoriesLabel}</h2>
-          <div className="pw-shop-category-tiles">
-            {children.map((child) => {
-              const childName = resolvePartnerCategoryDisplayName(child, locale)
-              const count = rolled.get(child.id) ?? 0
-              return (
-                <Link
-                  key={child.id}
-                  href={partnerSiteCategoryPath(shop.site.siteSlug, child.path)}
-                  className="pw-shop-category-tile"
-                  data-pw-el={PW_EL.card}
-                >
-                  {child.imageUrl ? (
-                    <img src={child.imageUrl} alt={childName} loading="lazy" data-pw-el={PW_EL.cardMedia} />
-                  ) : (
-                    <span className="pw-shop-category-tile-placeholder" data-pw-el={PW_EL.cardMedia} />
-                  )}
-                  <span className="pw-shop-category-tile-name" data-pw-el={PW_EL.cardName}>{childName}</span>
-                  {count > 0 ? <span className="pw-shop-category-tile-count">{count}</span> : null}
-                </Link>
-              )
-            })}
-          </div>
-        </section>
-      ) : null}
 
       <section style={{ marginTop: 24 }}>
         <Suspense fallback={<p className="pw-shop-muted">…</p>}>

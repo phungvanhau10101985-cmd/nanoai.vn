@@ -627,6 +627,7 @@ test('compose four-device html shows laptop between 1280 and 1439', () => {
   assert.match(composed, /Lap/)
   assert.match(composed, /max-width:1439px/)
   assert.match(composed, /min-width:1440px/)
+  assert.match(composed, /min-resolution:1\.25dppx/)
   assert.match(composed, /html:not\(:has\(\.pw-visual-laptop\)\) \.pw-visual-desktop/)
   const laptop = isolateVisualHtmlForDevice(composed, 'laptop')
   assert.match(laptop, /Lap/)

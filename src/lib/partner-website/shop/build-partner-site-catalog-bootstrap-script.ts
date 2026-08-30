@@ -10,6 +10,7 @@ import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/
 import { PW_SHOP_CARD_IMG_JS } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import { PW_RELATED_CSS } from '@/lib/partner-website/shop/related-products-css'
+import { PW_PRODUCT_GRID_PAGE_JS } from '@/lib/partner-website/shop/pw-product-grid-page'
 
 const COPY: Record<
   WebLocale,
@@ -30,7 +31,7 @@ const COPY: Record<
     addToCart: 'Thêm vào giỏ',
     favorite: 'Thích',
     seeAll: 'Xem tất cả',
-    loadMore: 'Xem thêm',
+    loadMore: 'Tải thêm',
     relatedEmpty: 'Không có sản phẩm khác cùng danh mục.',
     error: 'Không tải được sản phẩm.',
   },
@@ -103,6 +104,7 @@ var PRODUCT_API_PREFIX=${JSON.stringify(productApiPrefix)};
 var CATEGORY_PREFIX=${JSON.stringify(categoryPrefix)};
 var COPY=${JSON.stringify(copy)};
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+${PW_PRODUCT_GRID_PAGE_JS}
 ${PW_SHOP_CARD_IMG_JS}
 function renderCard(p, opts){
   var id=String(p.id||'').trim();
@@ -128,13 +130,6 @@ function isRelated(el){
 }
 function currentProductId(el){
   return String((el&&el.getAttribute('data-exclude'))||document.body.getAttribute('data-inventory-id')||'').trim();
-}
-function relatedLayout(){
-  var html=document.documentElement;
-  var d=html.getAttribute('data-pw-edit-device')||html.getAttribute('data-pw-scene-lock')||'';
-  if(d==='mobile'||d==='tablet')return 'mobile';
-  if(d==='desktop'||d==='laptop')return 'desktop';
-  return window.innerWidth>=1280?'desktop':'mobile';
 }
 function renderRelatedCard(p){
   var id=String(p.id||'').trim();
@@ -165,51 +160,40 @@ function hideBrokenCardImgs(root){
     })(imgs[i]);
   }
 }
-function ensureRelatedActions(el){
-  var actions=el.querySelector('.pw-related-actions');
+function ensureGridMore(el){
+  var see=el.querySelectorAll('[data-pw-el="section-more"],.pw-related-all,.pw-outfit-all');
+  for(var i=0;i<see.length;i++)see[i].hidden=true;
+  var actions=el.querySelector('[data-pw-grid-actions],.pw-related-actions,.pw-grid-actions');
   if(!actions){
     actions=document.createElement('div');
-    actions.className='pw-related-actions';
+    actions.className='pw-grid-actions';
+    actions.setAttribute('data-pw-grid-actions','1');
     var grid=el.querySelector('[data-pw-grid]');
     if(grid&&grid.parentNode)grid.parentNode.insertBefore(actions,grid.nextSibling);
     else el.appendChild(actions);
   }
-  var more=actions.querySelector('[data-pw-related-more]');
+  var more=actions.querySelector('[data-pw-grid-more],[data-pw-related-more]');
   if(!more){
     more=document.createElement('button');
     more.type='button';
-    more.className='pw-related-more';
-    more.setAttribute('data-pw-related-more','1');
-    more.innerHTML='<span class="pw-related-more-icon" aria-hidden="true">↻</span> '+esc(COPY.loadMore);
+    more.className='pw-grid-more';
+    more.setAttribute('data-pw-grid-more','1');
+    more.innerHTML='<span class="pw-grid-more-icon" aria-hidden="true">↻</span> '+esc(COPY.loadMore);
     actions.appendChild(more);
   }
-  var all=actions.querySelector('[data-pw-el="section-more"],.pw-related-all');
-  if(!all){
-    all=document.createElement('a');
-    all.className='pw-related-all';
-    all.setAttribute('data-pw-el','section-more');
-    all.textContent=COPY.seeAll;
-    all.href=el.getAttribute('data-more-href')||PRODUCTS_PATH;
-    actions.appendChild(all);
-  }
-  return {more:more,all:all};
+  return more;
 }
-function paintRelatedSlice(el){
-  var st=el._pwRelated;if(!st)return;
-  var grid=el.querySelector('[data-pw-grid]');if(!grid)return;
-  grid.classList.add('pw-product-grid','pw-related-grid');
-  grid.innerHTML=st.products.slice(0,st.visible).map(renderRelatedCard).join('');
-  hideBrokenCardImgs(grid);
-  var ui=ensureRelatedActions(el);
-  ui.more.hidden=st.visible>=st.products.length;
-  if(st.moreHref)ui.all.setAttribute('href',st.moreHref);
-  ui.all.hidden=st.products.length===0;
+function paintMore(el){
+  var more=ensureGridMore(el);
+  var st=el._pwGrid;
+  more.hidden=!st||!st.hasMore;
 }
-function queryFor(el){
+function queryFor(el,offset,limit){
+  var page=Math.max(1,Math.min(48,limit||pwGridPageSize(el)));
+  var off=Math.max(0,offset||0);
   if(isRelated(el)){
-    var rLimit=Math.max(1,Math.min(48,parseInt(el.getAttribute('data-limit')||'24',10)||24));
     var exclude=currentProductId(el);
-    var q='?limit='+rLimit+'&sort=newest';
+    var q='?limit='+page+'&offset='+off+'&sort=newest';
     if(exclude)q+='&relatedTo='+encodeURIComponent(exclude);
     else {
       var cat=(el.getAttribute('data-category-id')||'').trim();
@@ -217,78 +201,90 @@ function queryFor(el){
     }
     return q;
   }
-  var limit=Math.max(1,Math.min(24,parseInt(el.getAttribute('data-limit')||'8',10)||8));
   var sort=(el.getAttribute('data-sort')||'default').trim()||'default';
   var sale=el.getAttribute('data-sale');
   var collection=(el.getAttribute('data-collection')||'').trim();
-  var q='?limit='+limit+'&sort='+encodeURIComponent(sort);
+  var q='?limit='+page+'&offset='+off+'&sort='+encodeURIComponent(sort);
   if(sale==='1'||sale==='true')q+='&sale=1';
   if(collection)q+='&collection='+encodeURIComponent(collection);
   return q;
 }
-function hydrate(el){
-  if(pwShopLiveUiOff())return;
-  if(el.getAttribute('data-pw-personalize'))return;
-  if(el.getAttribute('data-pw-outfit')==='1'||el.getAttribute('data-pw-grid-kind')==='outfit')return;
-  var grid=el.querySelector('[data-pw-grid]');
-  var empty=el.querySelector('.pw-catalog-empty,.pw-personalize-empty');
-  if(!grid)return;
-  fetch(API+queryFor(el),{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};});}).then(function(res){
-    var products=(res.j&&res.j.products)||[];
-    if(!res.ok){
-      grid.innerHTML='';
-      if(empty){empty.hidden=false;empty.textContent=COPY.error+' ('+res.status+')';}
-      el.hidden=false;
-      return;
-    }
-    if(!products.length){
-      if(isRelated(el)){
-        grid.innerHTML='';
-        if(empty){empty.hidden=false;empty.textContent=COPY.relatedEmpty;}
-        var emptyUi=ensureRelatedActions(el);
-        emptyUi.more.hidden=true;
-        emptyUi.all.hidden=true;
-        el.hidden=false;
-        return;
-      }
-      // Keep SSR sample cards when inventory is still empty.
-      if(grid.children.length){
-        if(empty)empty.hidden=true;
-        el.hidden=false;
-        return;
-      }
-      grid.innerHTML='';
-      if(empty){empty.hidden=false;empty.textContent=COPY.empty;}
-      el.hidden=false;
-      return;
-    }
-    if(isRelated(el)){
-      var exclude=currentProductId(el);
-      if(exclude)products=products.filter(function(p){return String(p.id||'')!==exclude;});
-      var filters=(res.j&&res.j.filters)||{};
-      var moreHref=el.getAttribute('data-more-href')||'';
-      if(!moreHref&&filters.categoryPath)moreHref=CATEGORY_PREFIX+String(filters.categoryPath).replace(/^\\/+/, '');
-      if(!moreHref)moreHref=PRODUCTS_PATH;
-      var step=relatedLayout()==='desktop'?5:2;
-      el._pwRelated={products:products,visible:Math.min(step,products.length),step:step,moreHref:moreHref};
-      if(empty)empty.hidden=products.length>0;
-      if(!products.length&&empty)empty.textContent=COPY.relatedEmpty;
-      paintRelatedSlice(el);
-      el.hidden=false;
-      return;
-    }
+function appendCards(el,products,replace){
+  var grid=el.querySelector('[data-pw-grid]');if(!grid)return;
+  var html;
+  if(isRelated(el)){
+    grid.classList.add('pw-product-grid','pw-related-grid');
+    html=products.map(renderRelatedCard).join('');
+  }else{
     var newBadge=el.getAttribute('data-new-badge')==='1';
     var favOn=el.getAttribute('data-pw-card-favorite')==='1'||!!el.querySelector('[data-pw-chrome-btn="favorite-product"],template[data-pw-card-favorite-tpl]');
     var favTpl=el.querySelector('template[data-pw-card-favorite-tpl]');
     var favoriteHtml=favTpl&&favTpl.innerHTML?favTpl.innerHTML:'';
-    grid.innerHTML=products.map(function(p){return renderCard(p,{newBadge:newBadge,favorite:favOn,favoriteHtml:favoriteHtml});}).join('');
+    html=products.map(function(p){return renderCard(p,{newBadge:newBadge,favorite:favOn,favoriteHtml:favoriteHtml});}).join('');
+  }
+  if(replace)grid.innerHTML=html;
+  else{
+    var tmp=document.createElement('div');
+    tmp.innerHTML=html;
+    while(tmp.firstChild)grid.appendChild(tmp.firstChild);
+  }
+  hideBrokenCardImgs(grid);
+}
+function loadGridPage(el,append){
+  if(pwShopLiveUiOff())return;
+  if(el.getAttribute('data-pw-personalize'))return;
+  if(el.getAttribute('data-pw-outfit')==='1'||el.getAttribute('data-pw-grid-kind')==='outfit')return;
+  var st=el._pwGrid;if(!st||st.loading)return;
+  var grid=el.querySelector('[data-pw-grid]');
+  var empty=el.querySelector('.pw-catalog-empty,.pw-personalize-empty');
+  if(!grid)return;
+  st.loading=true;
+  fetch(API+queryFor(el,st.offset,st.pageSize),{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};});}).then(function(res){
+    st.loading=false;
+    var products=(res.j&&res.j.products)||[];
+    if(isRelated(el)){
+      var exclude=currentProductId(el);
+      if(exclude)products=products.filter(function(p){return String(p.id||'')!==exclude;});
+    }
+    if(!res.ok){
+      if(!append){
+        grid.innerHTML='';
+        if(empty){empty.hidden=false;empty.textContent=COPY.error+' ('+res.status+')';}
+      }
+      st.hasMore=false;paintMore(el);el.hidden=false;return;
+    }
+    if(!products.length){
+      if(!append){
+        if(isRelated(el)){
+          grid.innerHTML='';
+          if(empty){empty.hidden=false;empty.textContent=COPY.relatedEmpty;}
+        }else if(grid.children.length){
+          if(empty)empty.hidden=true;
+        }else{
+          grid.innerHTML='';
+          if(empty){empty.hidden=false;empty.textContent=COPY.empty;}
+        }
+      }
+      st.hasMore=false;paintMore(el);el.hidden=false;return;
+    }
     if(empty)empty.hidden=true;
+    appendCards(el,products,!append);
+    st.offset+=products.length;
+    st.hasMore=res.j&&res.j.hasMore===true;
+    paintMore(el);
     el.hidden=false;
   }).catch(function(){
-    grid.innerHTML='';
-    if(empty){empty.hidden=false;empty.textContent=COPY.error;}
-    el.hidden=false;
+    st.loading=false;
+    if(!append){
+      grid.innerHTML='';
+      if(empty){empty.hidden=false;empty.textContent=COPY.error;}
+    }
+    st.hasMore=false;paintMore(el);el.hidden=false;
   });
+}
+function hydrate(el){
+  el._pwGrid={offset:0,pageSize:pwGridPageSize(el),hasMore:true,loading:false};
+  loadGridPage(el,false);
 }
 function ensureStyles(){
   if(!document.getElementById('pw-catalog-card-css')){
@@ -311,18 +307,18 @@ function run(){
     if(!(grid&&grid.children.length)) el.hidden=true;
     hydrate(el);
   });
-  if(!document.documentElement.getAttribute('data-pw-related-bound')){
-    document.documentElement.setAttribute('data-pw-related-bound','1');
+  if(!document.documentElement.getAttribute('data-pw-grid-more-bound')){
+    document.documentElement.setAttribute('data-pw-grid-more-bound','1');
     document.addEventListener('click',function(ev){
       var t=ev.target;if(!t||!t.closest)return;
-      var more=t.closest('[data-pw-related-more]');
+      var more=t.closest('[data-pw-grid-more],[data-pw-related-more]');
       if(!more)return;
+      if(more.closest('[data-pw-outfit],[data-pw-grid-kind="outfit"]'))return;
+      if(more.closest('[data-pw-personalize]'))return;
       ev.preventDefault();
-      var host=more.closest('[data-pw-related],[data-pw-grid-kind="related"]');
-      if(!host||!host._pwRelated)return;
-      var st=host._pwRelated;
-      st.visible=Math.min(st.visible+st.step,st.products.length);
-      paintRelatedSlice(host);
+      var host=more.closest('[data-pw-catalog],[data-pw-related],[data-pw-grid-kind="related"]');
+      if(!host||!host._pwGrid)return;
+      loadGridPage(host,true);
     });
   }
 }
@@ -336,22 +332,26 @@ export function buildLiveCatalogSectionHtml(input: {
   title: string
   siteSlug: string
   limit?: number
+  rows?: number
   locale?: WebLocale
   seeAllLabel?: string
 }): string {
-  const limit = Math.max(1, Math.min(24, input.limit ?? 8))
+  const rows = Math.max(1, Math.min(4, Math.floor(Number(input.rows) || 2)))
+  const limit = Math.max(1, Math.min(24, input.limit ?? rows * 5))
   const locale = input.locale && input.locale in COPY ? input.locale : 'vi'
-  const seeAll = input.seeAllLabel || COPY[locale].seeAll
   const title = input.title.trim() || (locale === 'en' ? 'Products' : 'Sản phẩm')
-  const productsHref = partnerSiteProductsPath(input.siteSlug)
   const empty = COPY[locale].empty
-  return `<section class="pw-catalog pw-section" ${pwRegionAttr(PW_REGION.catalog)} data-pw-section-id="${escapeAttr(input.sectionId)}" data-pw-catalog data-limit="${limit}" data-sort="default">
-  <div class="pw-container" style="padding:32px 20px">
-    <div style="display:flex;align-items:end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px">
-      <h2 ${pwElAttr(PW_EL.sectionTitle)} style="margin:0;font-size:clamp(1.4rem,2.5vw,2rem)">${escapeHtml(title)}</h2>
-      <a class="pw-btn" ${pwElAttr(PW_EL.sectionMore)} href="${escapeAttr(productsHref)}">${escapeHtml(seeAll)}</a>
-    </div>
+  const loadMore = COPY[locale].loadMore
+  return `<section class="pw-catalog pw-section" ${pwRegionAttr(PW_REGION.catalog)} data-pw-section-id="${escapeAttr(input.sectionId)}" data-pw-catalog data-pw-grid-cols="5" data-pw-grid-cols-mobile="2" data-pw-grid-rows="${rows}" data-limit="${limit}" data-sort="default">
+  <div class="pw-container" style="padding:16px 20px">
+    <h2 ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2>
     <div data-pw-grid class="pw-product-grid" ${pwElAttr(PW_EL.grid)}></div>
+    <div class="pw-grid-actions" data-pw-grid-actions>
+      <button type="button" class="pw-grid-more" data-pw-grid-more>
+        <span class="pw-grid-more-icon" aria-hidden="true">↻</span>
+        ${escapeHtml(loadMore)}
+      </button>
+    </div>
     <p class="pw-catalog-empty pw-personalize-empty" hidden>${escapeHtml(empty)}</p>
   </div>
 </section>`
