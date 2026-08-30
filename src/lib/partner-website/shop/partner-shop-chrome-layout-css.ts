@@ -20,6 +20,14 @@ import {
   PARTNER_SHOP_STAY_SCROLL_SCRIPT,
   PW_STAY_SCROLL_SCRIPT_ID,
 } from '@/lib/partner-website/shop/stay-scroll-elements'
+import {
+  PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT,
+  PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID,
+  PW_MOBILE_HEADER_ICON_ONLY_RULES,
+  PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS,
+  PW_MOBILE_HEADER_STACK_RULES,
+  PW_MOBILE_HEADER_STACK_WIN_CSS,
+} from '@/lib/partner-website/shop/mobile-header-logo-collapse'
 import { PARTNER_SHOP_CHROME_KIT_CSS } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import { injectPartnerShopFontsIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-fonts'
 import { PW_OUTFIT_CSS } from '@/lib/partner-website/shop/outfit-products-css'
@@ -218,12 +226,16 @@ const PW_TABLET_HEADER_FACE_RULES = `
 export const PARTNER_SHOP_MOBILE_HEADER_SEARCH_LOCK_CSS = [
   pwHostPrefixCss(PW_SCENE_COMPACT_HOSTS, PW_COMPACT_HEADER_RULES),
   pwHostPrefixCss(PW_SCENE_PHONE_HOSTS, PW_PHONE_HEADER_FACE_RULES),
+  pwHostPrefixCss(PW_SCENE_PHONE_HOSTS, PW_MOBILE_HEADER_STACK_RULES),
+  pwHostPrefixCss(PW_SCENE_PHONE_HOSTS, PW_MOBILE_HEADER_ICON_ONLY_RULES),
   pwHostPrefixCss(PW_SCENE_TABLET_HOSTS, PW_TABLET_HEADER_FACE_RULES),
   pwHostPrefixCss(
     PW_SCENE_WIDE_HOSTS,
     '.pw-nav-main,.pw-shop-nav-row{display:flex!important;flex-wrap:nowrap!important;justify-content:center!important;align-items:center!important}.pw-header,.pw-shop-header{background:#fff!important;border-bottom:1px solid #f3f4f6!important;box-shadow:none!important}'
   ),
   `@media (max-width:899px){${pwHostPrefixCss([PW_SCENE_UNLOCKED_HTML], PW_COMPACT_HEADER_RULES)}${pwHostPrefixCss([PW_SCENE_UNLOCKED_HTML], PW_PHONE_HEADER_FACE_RULES)}}`,
+  `@media (max-width:767px){${pwHostPrefixCss([PW_SCENE_UNLOCKED_HTML], PW_MOBILE_HEADER_STACK_RULES)}${pwHostPrefixCss([PW_SCENE_UNLOCKED_HTML], PW_MOBILE_HEADER_ICON_ONLY_RULES)}}`,
+  PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS,
 ].join('')
 
 /** Desktop/Laptop: Danh mục trái | logo mép phải cách ô tìm 50px | ô tìm neo giữa | icon phải. */
@@ -800,6 +812,7 @@ ${PARTNER_SHOP_HROW_CSS}
 ${PARTNER_SHOP_SLIDER_CSS}
 ${PARTNER_SHOP_WIDE_HEADER_BALANCE_CSS}
 ${PARTNER_SHOP_SEARCH_HISTORY_CSS}
+${PW_MOBILE_HEADER_STACK_WIN_CSS}
 `.trim()
 
 /**
@@ -870,6 +883,7 @@ export function injectPartnerShopChromeLayoutCss(html: string): string {
   out = injectNamedScript(out, PARTNER_SHOP_LOGO_HOST_SCRIPT_ID, PARTNER_SHOP_LOGO_HOST_SCRIPT)
   out = injectNamedScript(out, PARTNER_SHOP_SEARCH_CLAMP_SCRIPT_ID, PARTNER_SHOP_SEARCH_CLAMP_SCRIPT)
   out = injectNamedScript(out, PARTNER_SHOP_IMAGE_ZOOM_SCRIPT_ID, PARTNER_SHOP_IMAGE_ZOOM_SCRIPT)
+  out = injectNamedScript(out, PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID, PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT)
   return out
 }
 

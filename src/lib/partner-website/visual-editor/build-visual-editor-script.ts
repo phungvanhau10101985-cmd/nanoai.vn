@@ -4733,6 +4733,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     selectEl(el)
   }
   function setChromeKitHidden(kind, bar, hidden) {
+    if (bar === 'dock' && isPdpDockCtaLockedKind(kind)) return
     var targets = bar === 'float' ? chromeKitFloatBtnsOf(kind) : []
     if (bar !== 'float') {
       var one = findChromeKitBtn(kind, bar)
@@ -4771,10 +4772,17 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     post('dirty', {})
     listChromeKitState()
   }
+  function isPdpDockCtaLockedKind(kind) {
+    return kind === 'add-cart' || kind === 'buy-now'
+  }
   function setChromeKitDockShow(kind, show) {
+    if (isPdpDockCtaLockedKind(kind)) return
     var el = findChromeKitBtn(kind, 'dock')
     if (!el) return
     var next = String(show || 'shop')
+    if (kind === 'home' && el.getAttribute('data-pw-pdp-home') !== '1' && (next === 'pdp' || next === 'both')) {
+      next = 'shop'
+    }
     if (next === 'off') {
       el.setAttribute('data-pw-dock-show', 'shop')
       el.setAttribute('data-pw-hidden', '1')
@@ -4808,6 +4816,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     listChromeKitState()
   }
   function reorderChromeKit(kind, bar, dir) {
+    if (bar === 'dock' && isPdpDockCtaLockedKind(kind)) return
     if (bar === 'float') {
       reorderChromeKitFloat(kind, dir)
       return
@@ -13924,7 +13933,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-active a,.nanoai-ve-active button,.nanoai-ve-active img:not([data-pw-bg-layer]),.nanoai-ve-active h1,.nanoai-ve-active h2,.nanoai-ve-active h3,.nanoai-ve-active p,.nanoai-ve-active [data-pw-added-text]{pointer-events:auto}',
       '.nanoai-ve-active [data-pw-chrome-added]:not(.pw-icon-btn):not([data-pw-chrome-btn]):not([data-pw-z]):not(.nanoai-ve-chrome-dup),.nanoai-ve-active [data-nanoai-ve-selected]:not([data-pw-bg-layer]):not([data-pw-added-bg]):not([data-pw-added-text]):not([data-pw-added-btn]):not([data-pw-logo-float]):not([data-pw-logo-frame]):not([data-pw-logo-added]):not(.pw-logo):not(.pw-shop-logo):not(.pw-logo-frame):not([data-pw-chrome-btn]):not(.pw-icon-btn):not([data-pw-z]):not(.nanoai-ve-chrome-dup){z-index:15!important;position:relative}',
       '.nanoai-ve-active .pw-header [data-pw-chrome-added]:not(.pw-icon-btn):not([data-pw-chrome-btn]),.nanoai-ve-active .pw-shop-header [data-pw-chrome-added]:not(.pw-icon-btn):not([data-pw-chrome-btn]),.nanoai-ve-active header [data-pw-chrome-added]:not(.pw-icon-btn):not([data-pw-chrome-btn]){z-index:90!important}',
-      '[data-pw-edit-device="desktop"] .pw-visual-desktop,[data-pw-edit-device="laptop"] .pw-visual-laptop,[data-pw-edit-device="tablet"] .pw-visual-tablet,[data-pw-edit-device="mobile"] .pw-visual-mobile{display:block!important}',
+      '[data-pw-edit-device="desktop"] .pw-visual-desktop,[data-pw-edit-device="laptop"] .pw-visual-laptop,[data-pw-edit-device="tablet"] .pw-visual-tablet,[data-pw-edit-device="mobile"] .pw-visual-mobile{display:contents!important}',
       '[data-pw-edit-device="desktop"] .pw-visual-laptop,[data-pw-edit-device="desktop"] .pw-visual-tablet,[data-pw-edit-device="desktop"] .pw-visual-mobile,[data-pw-edit-device="laptop"] .pw-visual-desktop,[data-pw-edit-device="laptop"] .pw-visual-tablet,[data-pw-edit-device="laptop"] .pw-visual-mobile,[data-pw-edit-device="tablet"] .pw-visual-desktop,[data-pw-edit-device="tablet"] .pw-visual-laptop,[data-pw-edit-device="tablet"] .pw-visual-mobile,[data-pw-edit-device="mobile"] .pw-visual-desktop,[data-pw-edit-device="mobile"] .pw-visual-laptop,[data-pw-edit-device="mobile"] .pw-visual-tablet{display:none!important}',
       '[data-pw-edit-device="desktop"] [data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),[data-pw-edit-device="laptop"] [data-pw-chrome-added][data-pw-device="laptop"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),[data-pw-edit-device="tablet"] [data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),[data-pw-edit-device="mobile"] [data-pw-chrome-added][data-pw-device="mobile"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap){display:inline-flex!important}',
       '[data-pw-edit-device="desktop"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="desktop"],[data-pw-edit-device="desktop"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="desktop"],[data-pw-edit-device="laptop"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="laptop"],[data-pw-edit-device="laptop"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="laptop"],[data-pw-edit-device="tablet"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="tablet"],[data-pw-edit-device="tablet"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="tablet"],[data-pw-edit-device="mobile"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="mobile"],[data-pw-edit-device="mobile"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="mobile"]{display:flex!important}',

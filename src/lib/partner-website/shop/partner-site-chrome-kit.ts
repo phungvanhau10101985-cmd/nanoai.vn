@@ -6,6 +6,7 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import { PW_HIDDEN_ATTR } from '@/lib/partner-website/shop/stay-scroll-elements'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { partnerSiteHomePath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
   clampChromeFloatSize,
   PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX,
@@ -32,6 +33,9 @@ import { PW_SCENE_MAX_INDEX, pwSceneZ } from '@/lib/partner-website/visual-edito
 export const PW_CHROME_KIT_ATTR = 'data-pw-chrome-kit'
 export const PW_DOCK_SHOW_ATTR = 'data-pw-dock-show'
 export const PW_DOCK_SLOT_ATTR = 'data-pw-dock-slot'
+/** Nút Thêm giỏ / Mua trên thanh đáy PDP — cố định, không sửa trên Sửa nhanh. */
+export const PW_KIT_LOCK_ATTR = 'data-pw-kit-lock'
+export const PW_PDP_HOME_ATTR = 'data-pw-pdp-home'
 /** Lệch ngang cả cụm icon head — transform trên host, không đụng ô tìm. */
 export const PW_KIT_X_ATTR = 'data-pw-kit-x'
 /** Âm đủ để kéo icon sát ô tìm neo giữa (header ~1200, ô tìm 380). */
@@ -90,9 +94,13 @@ export const CHROME_KIT_HEAD_ACTION_ITEMS: ChromeKitHeadItem[] = [
   { kind: 'contact', defaultOn: { desktop: false, laptop: false, tablet: false, mobile: false } },
 ]
 
+export function isPdpDockCtaLocked(kind: string): boolean {
+  return kind === 'add-cart' || kind === 'buy-now'
+}
+
 /** Thanh đáy — seed giống nhau, ẩn hiện độc lập từng máy (chỉ hiện Mobile/Tablet). */
 export const CHROME_KIT_DOCK_ITEMS: ChromeKitDockItem[] = [
-  { kind: 'home', slot: 'icon', defaultShow: 'both' },
+  { kind: 'home', slot: 'icon', defaultShow: 'shop' },
   { kind: 'products', slot: 'icon', defaultShow: 'shop' },
   { kind: 'cart', slot: 'icon', defaultShow: 'shop' },
   { kind: 'account', slot: 'icon', defaultShow: 'shop' },
@@ -216,6 +224,19 @@ function dockShowAttr(show: ChromeKitDockShow | 'off'): string {
   return ` ${PW_DOCK_SHOW_ATTR}="${show}"`
 }
 
+function dockPdpTwoLine(line1: string, line2?: string): string {
+  const a = escapeText(line1)
+  const b = (line2 || '').trim()
+  if (!b) return `<span class="pw-pdp-sticky-copy"><span>${a}</span></span>`
+  return `<span class="pw-pdp-sticky-copy"><span>${a}</span><span>${escapeText(b)}</span></span>`
+}
+
+function buildDockPdpHomeHtml(locale: WebLocale, siteSlug?: string | null): string {
+  const t = getPartnerSiteShopCopy(locale)
+  const href = partnerSiteHomePath(slugOrShop(siteSlug))
+  return `<a href="${href}" ${PW_CHROME_KIT_ATTR}="1" data-pw-chrome-btn="home" ${pwElAttr(PW_EL.navLink)} ${PW_DOCK_SLOT_ATTR}="icon" ${PW_DOCK_SHOW_ATTR}="pdp" ${PW_PDP_HOME_ATTR}="1" aria-label="${escapeText(t.pdpStickyHome)}">${pdpHomeSvg()}${dockPdpTwoLine(t.pdpStickyHomeL1, t.pdpStickyHomeL2)}</a>`
+}
+
 function buildDockPdpFavoriteHtml(locale: WebLocale): string {
   const t = getPartnerSiteShopCopy(locale)
   return `<button type="button" class="is-fav" ${PW_CHROME_KIT_ATTR}="1" data-pw-chrome-btn="favorite-product" ${pwElAttr(PW_EL.wishlist)} ${PW_DOCK_SLOT_ATTR}="icon" ${PW_DOCK_SHOW_ATTR}="pdp" data-pw-favorite data-pw-pdp-favorite="1" data-pw-like-base="0" aria-pressed="false">${pdpHeartSvg()}<span class="pw-pdp-like-copy"><span>${escapeText(t.pdpStickyLikeLabel)}</span><span class="pw-pdp-like-count" data-pw-like-count>0</span></span></button>`
@@ -223,15 +244,37 @@ function buildDockPdpFavoriteHtml(locale: WebLocale): string {
 
 function buildDockPdpTryOnHtml(locale: WebLocale): string {
   const t = getPartnerSiteShopCopy(locale)
-  return `<button type="button" class="is-try" ${PW_CHROME_KIT_ATTR}="1" data-pw-chrome-btn="try-on" ${PW_DOCK_SLOT_ATTR}="icon" ${PW_DOCK_SHOW_ATTR}="pdp" data-nanoai-try-on>${pdpTryOnSvg()}<span class="pw-pdp-sticky-copy"><span>${escapeText(t.pdpStickyTryOnL1)}</span>${t.pdpStickyTryOnL2 ? `<span>${escapeText(t.pdpStickyTryOnL2)}</span>` : ''}</span></button>`
+  return `<button type="button" class="is-try" ${PW_CHROME_KIT_ATTR}="1" data-pw-chrome-btn="try-on" ${PW_DOCK_SLOT_ATTR}="icon" ${PW_DOCK_SHOW_ATTR}="pdp" data-nanoai-try-on>${pdpTryOnSvg()}${dockPdpTwoLine(t.pdpStickyTryOnL1, t.pdpStickyTryOnL2)}</button>`
 }
 
 function buildDockPdpCtaHtml(kind: 'add-cart' | 'buy-now', locale: WebLocale): string {
   const t = getPartnerSiteShopCopy(locale)
   if (kind === 'add-cart') {
-    return `<button type="button" class="pw-shop-btn pw-shop-btn-cart" ${PW_CHROME_KIT_ATTR}="1" data-pw-chrome-btn="add-cart" ${pwElAttr(PW_EL.cardCart)} ${PW_DOCK_SLOT_ATTR}="cta" ${PW_DOCK_SHOW_ATTR}="pdp" data-pw-add-cart data-pw-pdp-add-cart="1">${escapeText(t.pdpAddToCartShort)}</button>`
+    return `<button type="button" class="pw-shop-btn pw-shop-btn-cart" ${PW_CHROME_KIT_ATTR}="1" data-pw-chrome-btn="add-cart" ${pwElAttr(PW_EL.cardCart)} ${PW_DOCK_SLOT_ATTR}="cta" ${PW_DOCK_SHOW_ATTR}="pdp" ${PW_KIT_LOCK_ATTR}="cta" data-pw-add-cart data-pw-pdp-add-cart="1">${escapeText(t.pdpAddToCartShort)}</button>`
   }
-  return `<button type="button" class="pw-shop-btn pw-shop-btn-buy" ${PW_CHROME_KIT_ATTR}="1" data-pw-chrome-btn="buy-now" ${pwElAttr(PW_EL.buy)} ${PW_DOCK_SLOT_ATTR}="cta" ${PW_DOCK_SHOW_ATTR}="pdp" data-pw-buy data-pw-pdp-buy-now="1">${escapeText(t.pdpBuyNowShort)}</button>`
+  return `<button type="button" class="pw-shop-btn pw-shop-btn-buy" ${PW_CHROME_KIT_ATTR}="1" data-pw-chrome-btn="buy-now" ${pwElAttr(PW_EL.buy)} ${PW_DOCK_SLOT_ATTR}="cta" ${PW_DOCK_SHOW_ATTR}="pdp" ${PW_KIT_LOCK_ATTR}="cta" data-pw-buy data-pw-pdp-buy-now="1">${escapeText(t.pdpBuyNowShort)}</button>`
+}
+
+function buildDockPdpFaceHtml(input: {
+  locale: WebLocale
+  siteSlug?: string | null
+  nav?: { home?: string; tryOn?: string; favorite?: string }
+  ctas?: { addCart?: string; buyNow?: string }
+}): string {
+  const navHome = input.nav?.home || buildDockPdpHomeHtml(input.locale, input.siteSlug)
+  const navTry = input.nav?.tryOn || buildDockPdpTryOnHtml(input.locale)
+  const navFav = input.nav?.favorite || buildDockPdpFavoriteHtml(input.locale)
+  const addCart = stampPdpCtaLockAttrs(input.ctas?.addCart || buildDockPdpCtaHtml('add-cart', input.locale))
+  const buyNow = stampPdpCtaLockAttrs(input.ctas?.buyNow || buildDockPdpCtaHtml('buy-now', input.locale))
+  return `<div class="pw-pdp-sticky-nav" ${PW_DOCK_SHOW_ATTR}="pdp">
+      ${navHome}
+      ${navTry}
+      ${navFav}
+    </div>
+    <div class="pw-pdp-sticky-ctas" ${PW_DOCK_SHOW_ATTR}="pdp">
+      ${addCart}
+      ${buyNow}
+    </div>`
 }
 
 export function buildChromeKitDockHtml(input: {
@@ -241,26 +284,26 @@ export function buildChromeKitDockHtml(input: {
   chatIconLogoUrl?: string | null
 }): string {
   const slug = slugOrShop(input.siteSlug)
-  return CHROME_KIT_DOCK_ITEMS.map((item) => {
-    if (item.kind === 'try-on') return buildDockPdpTryOnHtml(input.locale)
-    if (item.kind === 'favorite-product') return buildDockPdpFavoriteHtml(input.locale)
-    if (item.kind === 'add-cart' || item.kind === 'buy-now') {
-      return buildDockPdpCtaHtml(item.kind, input.locale)
-    }
-    const raw = buildVisualEditorChromeWidgetHtml({
-      kind: item.kind,
-      siteSlug: slug,
-      locale: input.locale,
-      style: 'icon-label-below',
-      place: 'nav',
-      logoUrl: input.logoUrl,
-      chatIconLogoUrl: input.chatIconLogoUrl,
+  const shopItems = CHROME_KIT_DOCK_ITEMS.filter(
+    (item) => item.kind !== 'try-on' && item.kind !== 'favorite-product' && item.kind !== 'add-cart' && item.kind !== 'buy-now'
+  )
+    .map((item) => {
+      const raw = buildVisualEditorChromeWidgetHtml({
+        kind: item.kind,
+        siteSlug: slug,
+        locale: input.locale,
+        style: 'icon-label-below',
+        place: 'nav',
+        logoUrl: input.logoUrl,
+        chatIconLogoUrl: input.chatIconLogoUrl,
+      })
+      if (!raw) return ''
+      return asKitTag(raw, `${dockShowAttr(item.defaultShow)} ${PW_DOCK_SLOT_ATTR}="${item.slot}"`)
     })
-    if (!raw) return ''
-    return asKitTag(raw, `${dockShowAttr(item.defaultShow)} ${PW_DOCK_SLOT_ATTR}="${item.slot}"`)
-  })
     .filter(Boolean)
     .join('\n    ')
+  return `${shopItems}
+    ${buildDockPdpFaceHtml({ locale: input.locale, siteSlug: input.siteSlug })}`
 }
 
 export function buildChromeKitFloatHtml(input: {
@@ -302,27 +345,39 @@ export function buildChromeKitFloatHostHtml(input: {
 export const PARTNER_SHOP_CHROME_KIT_CSS = `
 .pw-header-actions[${PW_CHROME_KIT_ATTR}="actions"],.pw-shop-header-actions[${PW_CHROME_KIT_ATTR}="actions"]{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;margin-right:0!important;gap:var(--pw-kit-gap, 2px)!important;transform:translateX(var(--pw-kit-x, 0px))!important}
 .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"],.pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{flex-wrap:nowrap!important;align-items:stretch}
-body:not([data-pw-page="product"]) .pw-bottom-nav [${PW_DOCK_SHOW_ATTR}="pdp"],body:not([data-pw-page="product"]) .pw-shop-bottom-nav [${PW_DOCK_SHOW_ATTR}="pdp"]{display:none!important}
-body[data-pw-page="product"] .pw-bottom-nav [${PW_DOCK_SHOW_ATTR}="shop"],body[data-pw-page="product"] .pw-shop-bottom-nav [${PW_DOCK_SHOW_ATTR}="shop"]{display:none!important}
-body[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"],body[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{
+.pw-bottom-nav .pw-pdp-sticky-nav,.pw-shop-bottom-nav .pw-pdp-sticky-nav,.pw-bottom-nav .pw-pdp-sticky-ctas,.pw-shop-bottom-nav .pw-pdp-sticky-ctas,
+.pw-bottom-nav [${PW_DOCK_SHOW_ATTR}="pdp"],.pw-shop-bottom-nav [${PW_DOCK_SHOW_ATTR}="pdp"]{display:none!important}
+[data-pw-page="product"] .pw-bottom-nav [${PW_DOCK_SHOW_ATTR}="shop"],[data-pw-page="product"] .pw-shop-bottom-nav [${PW_DOCK_SHOW_ATTR}="shop"]{display:none!important}
+[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"],[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{
   justify-content:flex-start!important;align-items:stretch!important;gap:6px!important;min-height:48px!important;
   padding:2px 6px calc(2px + env(safe-area-inset-bottom,0px))!important;background:#f3f4f6!important;border-top:1px solid #e5e7eb!important
 }
-body[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] [${PW_DOCK_SLOT_ATTR}="icon"]:not([${PW_HIDDEN_ATTR}="1"]),body[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] [${PW_DOCK_SLOT_ATTR}="icon"]:not([${PW_HIDDEN_ATTR}="1"]){
-  flex:0 0 44px!important;width:44px!important;gap:2px!important;padding:2px 0!important;font-size:10px!important;line-height:1.05!important;color:#4b5563!important;background:transparent!important
+[data-pw-page="product"] .pw-bottom-nav .pw-pdp-sticky-nav,[data-pw-page="product"] .pw-shop-bottom-nav .pw-pdp-sticky-nav{
+  display:flex!important;align-items:stretch;gap:1px;flex:0 0 auto;padding-right:6px;margin-right:2px;border-right:1px solid #e5e7eb
 }
-body[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] [${PW_DOCK_SLOT_ATTR}="cta"]:not([${PW_HIDDEN_ATTR}="1"]),body[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] [${PW_DOCK_SLOT_ATTR}="cta"]:not([${PW_HIDDEN_ATTR}="1"]){
-  flex:1 1 0!important;min-height:40px;padding:0 8px!important;font-size:11px!important;font-weight:600!important;text-transform:uppercase;border-radius:6px!important;color:#fff!important
+[data-pw-page="product"] .pw-bottom-nav .pw-pdp-sticky-ctas,[data-pw-page="product"] .pw-shop-bottom-nav .pw-pdp-sticky-ctas{
+  display:flex!important;flex:1;min-width:0;gap:4px
 }
-body[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="add-cart"],body[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="add-cart"]{background:var(--pw-cart)!important;color:#fff!important}
-body[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="buy-now"],body[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="buy-now"]{background:var(--pw-buy)!important;color:#fff!important}
-body[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] ~ .pw-bottom-nav[data-pw-pdp-bottom],body[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] ~ .pw-bottom-nav[data-pw-pdp-bottom],
-body[data-pw-page="product"] .pw-bottom-nav[data-pw-pdp-bottom] ~ .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{display:none!important}
-body:not([data-pw-page="product"]) .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"],body:not([data-pw-page="product"]) .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{
+[data-pw-page="product"] .pw-bottom-nav .pw-pdp-sticky-nav [${PW_DOCK_SHOW_ATTR}="pdp"]:not([${PW_HIDDEN_ATTR}="1"]),[data-pw-page="product"] .pw-shop-bottom-nav .pw-pdp-sticky-nav [${PW_DOCK_SHOW_ATTR}="pdp"]:not([${PW_HIDDEN_ATTR}="1"]){
+  display:flex!important;flex-direction:column;flex:0 0 44px!important;width:44px!important;gap:2px!important;padding:2px 0!important;font-size:10px!important;line-height:1.05!important;color:#4b5563!important;background:transparent!important
+}
+[data-pw-page="product"] .pw-bottom-nav .pw-pdp-sticky-ctas [${PW_DOCK_SHOW_ATTR}="pdp"],[data-pw-page="product"] .pw-shop-bottom-nav .pw-pdp-sticky-ctas [${PW_DOCK_SHOW_ATTR}="pdp"]{
+  display:flex!important;flex:1 1 0!important;min-height:40px;align-items:center;justify-content:center;padding:0 8px!important;font-size:11px!important;font-weight:600!important;text-transform:uppercase;border-radius:6px!important;color:#fff!important
+}
+[data-pw-page="product"] .pw-bottom-nav .pw-pdp-sticky-nav svg,[data-pw-page="product"] .pw-shop-bottom-nav .pw-pdp-sticky-nav svg{width:17px!important;height:17px!important;max-width:17px!important;max-height:17px!important}
+[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="add-cart"],[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="add-cart"]{background:var(--pw-cart)!important;color:#fff!important}
+[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="buy-now"],[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="buy-now"]{background:var(--pw-buy)!important;color:#fff!important}
+[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] .is-try,[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] .is-try{color:var(--pw-primary)!important}
+[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"],[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"]{color:#e11d48!important}
+[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"] svg,[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"] svg{fill:currentColor!important}
+[data-pw-page="product"] .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] ~ .pw-bottom-nav[data-pw-pdp-bottom],[data-pw-page="product"] .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] ~ .pw-bottom-nav[data-pw-pdp-bottom],
+[data-pw-page="product"] .pw-bottom-nav[data-pw-pdp-bottom] ~ .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{display:none!important}
+.pw-shop:has([${PW_CHROME_KIT_ATTR}="dock"]) .pw-pdp-sticky{display:none!important}
+.pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"],.pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{
   justify-content:stretch!important;gap:0!important;min-height:56px!important;
   padding:4px 2px calc(4px + env(safe-area-inset-bottom,0px))!important;background:#fff!important;border-top:1px solid var(--pw-border,#e5e7eb)!important
 }
-body:not([data-pw-page="product"]) .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > [${PW_CHROME_KIT_ATTR}="1"]:not([${PW_HIDDEN_ATTR}="1"]),body:not([data-pw-page="product"]) .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > [${PW_CHROME_KIT_ATTR}="1"]:not([${PW_HIDDEN_ATTR}="1"]){
+.pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > [${PW_CHROME_KIT_ATTR}="1"]:not([${PW_HIDDEN_ATTR}="1"]),.pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > [${PW_CHROME_KIT_ATTR}="1"]:not([${PW_HIDDEN_ATTR}="1"]){
   flex:1 1 0!important;min-width:0!important;max-width:none!important;width:auto!important
 }
 .pw-header-actions [${PW_CHROME_KIT_ATTR}="1"].pw-chrome-label-below:not([${PW_HIDDEN_ATTR}="1"]),.pw-shop-header-actions [${PW_CHROME_KIT_ATTR}="1"].pw-chrome-label-below:not([${PW_HIDDEN_ATTR}="1"]),
@@ -403,11 +458,19 @@ function stampExistingKitAttrs(inner: string, bar: 'head' | 'dock' | 'float'): s
     if (!new RegExp(`\\b${PW_CHROME_KIT_ATTR}=`, 'i').test(next)) next += ` ${PW_CHROME_KIT_ATTR}="1"`
     if (bar === 'dock') {
       const spec = CHROME_KIT_DOCK_ITEMS.find((item) => item.kind === kind)
+      const isPdpHome = new RegExp(`\\b${PW_PDP_HOME_ATTR}=`, 'i').test(next)
       if (spec && !new RegExp(`\\b${PW_DOCK_SHOW_ATTR}=`, 'i').test(next)) {
-        next += spec.defaultShow === 'off' ? ` ${PW_DOCK_SHOW_ATTR}="shop"` : ` ${PW_DOCK_SHOW_ATTR}="${spec.defaultShow}"`
+        if (isPdpDockCtaLocked(kind) || kind === 'try-on' || kind === 'favorite-product' || isPdpHome) {
+          next += ` ${PW_DOCK_SHOW_ATTR}="pdp"`
+        } else {
+          next += spec.defaultShow === 'off' ? ` ${PW_DOCK_SHOW_ATTR}="shop"` : ` ${PW_DOCK_SHOW_ATTR}="${spec.defaultShow === 'both' ? 'shop' : spec.defaultShow}"`
+        }
       }
       if (spec && !new RegExp(`\\b${PW_DOCK_SLOT_ATTR}=`, 'i').test(next)) {
         next += ` ${PW_DOCK_SLOT_ATTR}="${spec.slot}"`
+      }
+      if (isPdpDockCtaLocked(kind) && !new RegExp(`\\b${PW_KIT_LOCK_ATTR}=`, 'i').test(next)) {
+        next += ` ${PW_KIT_LOCK_ATTR}="cta"`
       }
     }
     next = next.replace(/\sstyle=(["'])([\s\S]*?)\1/i, (_s, q: string, css: string) => {
@@ -573,6 +636,108 @@ function withHostKitGapStyle(openAttrs: string): string {
   return writeHostCssVar(openAttrs, PW_KIT_GAP_ATTR, '--pw-kit-gap', clampChromeKitGap(fromAttr ?? fromCss))
 }
 
+const CHROME_BTN_BLOCK_RE =
+  /<(a|button)\b[^>]*\bdata-pw-chrome-btn=["'][^"']+["'][^>]*>[\s\S]*?<\/\1>/gi
+
+function chromeBtnKindOf(block: string): string {
+  return block.match(/\bdata-pw-chrome-btn=["']([^"']+)["']/i)?.[1] || ''
+}
+
+function stampPdpCtaLockAttrs(html: string): string {
+  return html.replace(/<(button|a)(\s[^>]*data-pw-chrome-btn=["'](?:add-cart|buy-now)["'][^>]*)>/gi, (_full, tag: string, attrs: string) => {
+    let next = String(attrs)
+      .replace(/\sdata-pw-hidden=(["'])[^"']*\1/gi, '')
+      .replace(new RegExp(`\\s${PW_DOCK_SHOW_ATTR}=(["'])[^"']*\\1`, 'gi'), '')
+    if (!new RegExp(`\\b${PW_KIT_LOCK_ATTR}=`, 'i').test(next)) next += ` ${PW_KIT_LOCK_ATTR}="cta"`
+    next += ` ${PW_DOCK_SHOW_ATTR}="pdp"`
+    return `<${tag}${next}>`
+  })
+}
+
+function shopHomeAttrs(attrs: string): string {
+  let next = attrs.replace(new RegExp(`\\s${PW_DOCK_SHOW_ATTR}=(["'])[^"']*\\1`, 'gi'), '')
+  next += ` ${PW_DOCK_SHOW_ATTR}="shop"`
+  return next
+}
+
+export function ensurePdpDockFaceInInner(
+  inner: string,
+  locale: WebLocale,
+  siteSlug?: string | null
+): string {
+  const stamped = stampPdpCtaLockAttrs(inner)
+  if (/\bpw-pdp-sticky-nav\b/.test(stamped) && /\bpw-pdp-sticky-ctas\b/.test(stamped)) {
+    let next = stamped
+    if (!new RegExp(`\\b${PW_PDP_HOME_ATTR}=["']1["']`, 'i').test(next)) {
+      next = next.replace(
+        /(<div\b[^>]*\bpw-pdp-sticky-nav\b[^>]*>)/i,
+        `$1\n      ${buildDockPdpHomeHtml(locale, siteSlug)}`
+      )
+    }
+    return next.replace(
+      /<(a|button)(\s[^>]*data-pw-chrome-btn=["']home["'][^>]*)>/gi,
+      (full, tag: string, attrs: string) => {
+        if (new RegExp(`\\b${PW_PDP_HOME_ATTR}=`, 'i').test(attrs)) return full
+        if (new RegExp(`\\b${PW_DOCK_SHOW_ATTR}=["']pdp["']`, 'i').test(attrs)) return full
+        return `<${tag}${shopHomeAttrs(attrs)}>`
+      }
+    )
+  }
+
+  const blocks: string[] = []
+  const leftover = stamped
+    .replace(CHROME_BTN_BLOCK_RE, (block) => {
+      blocks.push(block)
+      return ''
+    })
+    .replace(/<div\b[^>]*\b(?:pw-pdp-sticky-nav|pw-pdp-sticky-ctas)\b[^>]*>\s*<\/div>/gi, '')
+    .trim()
+
+  const shop: string[] = []
+  let pdpHome = ''
+  let pdpTry = ''
+  let pdpFav = ''
+  let pdpAdd = ''
+  let pdpBuy = ''
+  for (const block of blocks) {
+    const kind = chromeBtnKindOf(block)
+    const isPdpHome = new RegExp(`\\b${PW_PDP_HOME_ATTR}=`, 'i').test(block)
+    if (kind === 'home' && (isPdpHome || /\bdata-pw-dock-show=["']pdp["']/i.test(block))) {
+      pdpHome = block
+      continue
+    }
+    if (kind === 'try-on') {
+      pdpTry = block
+      continue
+    }
+    if (kind === 'favorite-product') {
+      pdpFav = block
+      continue
+    }
+    if (kind === 'add-cart') {
+      pdpAdd = stampPdpCtaLockAttrs(block)
+      continue
+    }
+    if (kind === 'buy-now') {
+      pdpBuy = stampPdpCtaLockAttrs(block)
+      continue
+    }
+    if (kind === 'home') {
+      shop.push(block.replace(/<(a|button)(\s[^>]*)>/i, (_m, tag: string, attrs: string) => `<${tag}${shopHomeAttrs(attrs)}>`))
+      continue
+    }
+    shop.push(block)
+  }
+
+  const face = buildDockPdpFaceHtml({
+    locale,
+    siteSlug,
+    nav: { home: pdpHome || undefined, tryOn: pdpTry || undefined, favorite: pdpFav || undefined },
+    ctas: { addCart: pdpAdd || undefined, buyNow: pdpBuy || undefined },
+  })
+  return `${shop.join('\n    ')}${leftover ? `\n    ${leftover}` : ''}\n    ${face}`
+}
+
 /**
  * HTML cũ: gắn kit vào nút sẵn, thêm nút thiếu (ẩn theo mặc định), gỡ tọa độ.
  * Không ẩn nút merchant đang hiện.
@@ -621,7 +786,12 @@ export function ensurePartnerSiteChromeKitInHtml(
     if (/data-pw-pdp-bottom=["']1["']/i.test(attrs) && kitDockAlready) return full
     if (/data-pw-pdp-bottom=["']1["']/i.test(attrs)) return full
     let nextInner = stampExistingKitAttrs(inner, 'dock')
-    const missing = CHROME_KIT_DOCK_ITEMS.filter((item) => !htmlHasChromeKind(nextInner, item.kind))
+    const missing = CHROME_KIT_DOCK_ITEMS.filter((item) => {
+      if (item.kind === 'try-on' || item.kind === 'favorite-product' || isPdpDockCtaLocked(item.kind)) {
+        return false
+      }
+      return !htmlHasChromeKind(nextInner, item.kind)
+    })
     if (missing.length) {
       const extra = buildChromeKitDockHtml({
         locale,
@@ -638,6 +808,7 @@ export function ensurePartnerSiteChromeKitInHtml(
         .join('\n    ')
       if (extra) nextInner = `${nextInner.trim()}\n    ${extra}\n  `
     }
+    nextInner = ensurePdpDockFaceInInner(nextInner, locale, input.siteSlug)
     return `<nav${withHostKitAttr(attrs, 'dock')}>${nextInner}</nav>`
   })
 
@@ -829,6 +1000,10 @@ function escapeText(value: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+function pdpHomeSvg(): string {
+  return `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>`
 }
 
 function pdpTryOnSvg(): string {

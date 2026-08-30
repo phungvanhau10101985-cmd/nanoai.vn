@@ -10,10 +10,11 @@ import {
   hasSharedChrome,
   type SharedChrome,
 } from '@/lib/partner-website/shop/sync-shared-chrome'
-import { pwScaledFhdDesktopMediaQuery } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
+import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import {
   isolateVisualHtmlForDevice,
   resolveExactVisualPageHtml,
+  VISUAL_FOUR_DEVICE_SPLIT_CSS,
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
@@ -34,32 +35,8 @@ export type VisualHomeChromeByDevice = {
   mobileStyles: string
 }
 
-/** Same breakpoints as composed visual HTML (`composeResponsiveVisualHtml`). */
-export const VISUAL_HOME_CHROME_SPLIT_CSS = `.pw-visual-desktop,.pw-visual-laptop,.pw-visual-tablet,.pw-visual-mobile{display:none!important}
-@media (max-width:767px){
-.pw-visual-mobile{display:block!important}
-html:not(:has(.pw-visual-mobile)) .pw-visual-tablet{display:block!important}
-html:not(:has(.pw-visual-mobile)):not(:has(.pw-visual-tablet)) .pw-visual-laptop{display:block!important}
-html:not(:has(.pw-visual-mobile)):not(:has(.pw-visual-tablet)):not(:has(.pw-visual-laptop)) .pw-visual-desktop{display:block!important}
-}
-@media (min-width:768px) and (max-width:1279px){
-.pw-visual-tablet{display:block!important}
-html:not(:has(.pw-visual-tablet)) .pw-visual-laptop{display:block!important}
-html:not(:has(.pw-visual-tablet)):not(:has(.pw-visual-laptop)) .pw-visual-desktop{display:block!important}
-}
-@media (min-width:1280px) and (max-width:1439px){
-.pw-visual-laptop{display:block!important}
-html:not(:has(.pw-visual-laptop)) .pw-visual-desktop{display:block!important}
-}
-@media ${pwScaledFhdDesktopMediaQuery()}{
-.pw-visual-laptop{display:none!important}
-.pw-visual-desktop{display:block!important}
-html:not(:has(.pw-visual-desktop)) .pw-visual-laptop{display:block!important}
-}
-@media (min-width:1440px){
-.pw-visual-desktop{display:block!important}
-html:not(:has(.pw-visual-desktop)) .pw-visual-laptop{display:block!important}
-}`
+/** Same four-device split as composed visual HTML — visible wrappers are `display:contents`. */
+export const VISUAL_HOME_CHROME_SPLIT_CSS = VISUAL_FOUR_DEVICE_SPLIT_CSS
 
 function homeHtmlParts(
   website: VisualHomeChromeWebsite,
@@ -69,8 +46,9 @@ function homeHtmlParts(
   if (raw.length < 40) return { isolated: '', stylesFrom: '', raw: '' }
   const isolated = isolateVisualHtmlForDevice(raw, variant)
   const chromeHtml = isolated.length >= 40 ? isolated : raw
+  const ensured = ensurePartnerSiteChromeKitInHtml(chromeHtml, { device: variant })
   return {
-    isolated: chromeHtml,
+    isolated: ensured.length >= 40 ? ensured : chromeHtml,
     stylesFrom: preferredVisualHomeStyleSource(chromeHtml, raw),
     raw,
   }

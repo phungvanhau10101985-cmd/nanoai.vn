@@ -910,11 +910,11 @@ function extractHtmlParts(html: string): { head: string; body: string; htmlAttrs
   return { head, body, htmlAttrs }
 }
 
-const VISUAL_TWO_DEVICE_SPLIT_CSS = `.pw-visual-desktop{display:block}
+const VISUAL_TWO_DEVICE_SPLIT_CSS = `.pw-visual-desktop{display:contents}
 .pw-visual-mobile{display:none!important}
 @media (max-width:767px){
 .pw-visual-desktop{display:none!important}
-.pw-visual-mobile{display:block!important}
+.pw-visual-mobile{display:contents!important}
 }
 @media (min-width:768px){
 [data-pw-chrome-added][data-pw-device="mobile"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),
@@ -931,15 +931,15 @@ const VISUAL_TWO_DEVICE_SPLIT_CSS = `.pw-visual-desktop{display:block}
 
 const VISUAL_THREE_DEVICE_SPLIT_CSS = `.pw-visual-desktop,.pw-visual-tablet,.pw-visual-mobile{display:none!important}
 @media (max-width:767px){
-.pw-visual-mobile{display:block!important}
+.pw-visual-mobile{display:contents!important}
 }
 @media (min-width:768px) and (max-width:1279px){
-.pw-visual-tablet{display:block!important}
+.pw-visual-tablet{display:contents!important}
 [data-pw-chrome-added][data-pw-device="mobile"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),
 [data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap){display:none!important}
 }
 @media (min-width:1280px){
-.pw-visual-desktop{display:block!important}
+.pw-visual-desktop{display:contents!important}
 [data-pw-chrome-added][data-pw-device="mobile"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),
 [data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap){display:none!important}
 }
@@ -950,40 +950,45 @@ const VISUAL_THREE_DEVICE_SPLIT_CSS = `.pw-visual-desktop,.pw-visual-tablet,.pw-
 
 const VISUAL_TABLET_DESKTOP_SPLIT_CSS = `.pw-visual-desktop,.pw-visual-tablet{display:none!important}
 @media (max-width:1279px){
-.pw-visual-tablet{display:block!important}
+.pw-visual-tablet{display:contents!important}
 }
 @media (min-width:1280px){
-.pw-visual-desktop{display:block!important}
+.pw-visual-desktop{display:contents!important}
 [data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap){display:none!important}
 }
 @media (max-width:767px){
 [data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap){display:none!important}
 }`
 
-const VISUAL_FOUR_DEVICE_SPLIT_CSS = `.pw-visual-desktop,.pw-visual-laptop,.pw-visual-tablet,.pw-visual-mobile{display:none!important}
+/**
+ * Visible `.pw-visual-*` wrappers must be `display:contents` so sticky head /
+ * fixed float / dock participate in the page scroll — same Sửa nhanh desktop
+ * physics on every storefront and device. Hidden devices stay `display:none`.
+ */
+export const VISUAL_FOUR_DEVICE_SPLIT_CSS = `.pw-visual-desktop,.pw-visual-laptop,.pw-visual-tablet,.pw-visual-mobile{display:none!important}
 @media (max-width:767px){
-.pw-visual-mobile{display:block!important}
-html:not(:has(.pw-visual-mobile)) .pw-visual-tablet{display:block!important}
-html:not(:has(.pw-visual-mobile)):not(:has(.pw-visual-tablet)) .pw-visual-laptop{display:block!important}
-html:not(:has(.pw-visual-mobile)):not(:has(.pw-visual-tablet)):not(:has(.pw-visual-laptop)) .pw-visual-desktop{display:block!important}
+.pw-visual-mobile{display:contents!important}
+html:not(:has(.pw-visual-mobile)) .pw-visual-tablet{display:contents!important}
+html:not(:has(.pw-visual-mobile)):not(:has(.pw-visual-tablet)) .pw-visual-laptop{display:contents!important}
+html:not(:has(.pw-visual-mobile)):not(:has(.pw-visual-tablet)):not(:has(.pw-visual-laptop)) .pw-visual-desktop{display:contents!important}
 }
 @media (min-width:768px) and (max-width:1279px){
-.pw-visual-tablet{display:block!important}
-html:not(:has(.pw-visual-tablet)) .pw-visual-laptop{display:block!important}
-html:not(:has(.pw-visual-tablet)):not(:has(.pw-visual-laptop)) .pw-visual-desktop{display:block!important}
+.pw-visual-tablet{display:contents!important}
+html:not(:has(.pw-visual-tablet)) .pw-visual-laptop{display:contents!important}
+html:not(:has(.pw-visual-tablet)):not(:has(.pw-visual-laptop)) .pw-visual-desktop{display:contents!important}
 }
 @media (min-width:1280px) and (max-width:1439px){
-.pw-visual-laptop{display:block!important}
-html:not(:has(.pw-visual-laptop)) .pw-visual-desktop{display:block!important}
+.pw-visual-laptop{display:contents!important}
+html:not(:has(.pw-visual-laptop)) .pw-visual-desktop{display:contents!important}
 }
 @media ${pwScaledFhdDesktopMediaQuery()}{
 .pw-visual-laptop{display:none!important}
-.pw-visual-desktop{display:block!important}
-html:not(:has(.pw-visual-desktop)) .pw-visual-laptop{display:block!important}
+.pw-visual-desktop{display:contents!important}
+html:not(:has(.pw-visual-desktop)) .pw-visual-laptop{display:contents!important}
 }
 @media (min-width:1440px){
-.pw-visual-desktop{display:block!important}
-html:not(:has(.pw-visual-desktop)) .pw-visual-laptop{display:block!important}
+.pw-visual-desktop{display:contents!important}
+html:not(:has(.pw-visual-desktop)) .pw-visual-laptop{display:contents!important}
 }`
 
 /** One document: desktop + laptop + tablet + mobile bodies, shown via CSS breakpoint. */

@@ -629,6 +629,8 @@ test('compose four-device html shows laptop between 1280 and 1439', () => {
   assert.match(composed, /min-width:1440px/)
   assert.match(composed, /min-resolution:1\.25dppx/)
   assert.match(composed, /html:not\(:has\(\.pw-visual-laptop\)\) \.pw-visual-desktop/)
+  assert.match(composed, /\.pw-visual-laptop\{display:contents!important\}/)
+  assert.equal(composed.includes('.pw-visual-laptop{display:block!important}'), false)
   const laptop = isolateVisualHtmlForDevice(composed, 'laptop')
   assert.match(laptop, /Lap/)
   assert.doesNotMatch(laptop, /Desk/)

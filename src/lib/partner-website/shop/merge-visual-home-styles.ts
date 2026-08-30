@@ -1,12 +1,20 @@
 const SKIP_HOME_STYLE_ID =
   /^(nanoai-visual-editor-styles|nanoai-visual-editor-script|pw-visual-device-split)$/i
 const SKIP_INLINE_STYLE_ID =
-  /^(nanoai-visual-editor-styles|nanoai-visual-editor-script)$/i
+  /^(nanoai-visual-editor-styles|nanoai-visual-editor-script|pw-visual-device-split)$/i
 
 const HOME_STYLE_ATTR = 'data-pw-home-chrome-css'
 
 function styleIdFromAttrs(attrs: string): string {
   return attrs.match(/\bid=["']([^"']+)["']/i)?.[1]?.trim() || ''
+}
+
+/** Saved homepage CSS used `display:block` on `.pw-visual-*` and killed sticky head. */
+function rewriteVisualWrapperStickyCss(css: string): string {
+  return css.replace(
+    /(\.pw-visual-(?:desktop|laptop|tablet|mobile))\{display:block!important\}/g,
+    '$1{display:contents!important}'
+  )
 }
 
 function stampTag(open: string): string {
@@ -51,7 +59,8 @@ export function extractVisualDocumentStyles(html: string): string {
     const id = styleIdFromAttrs(attrs)
     if (id && SKIP_HOME_STYLE_ID.test(id)) return full
     const open = stampTag(`<style${attrs}>`)
-    push(`${open}${full.slice(full.indexOf('>') + 1)}`)
+    const inner = rewriteVisualWrapperStickyCss(full.slice(full.indexOf('>') + 1))
+    push(`${open}${inner}`)
     return full
   })
 
@@ -67,12 +76,12 @@ export function extractVisualDocumentStyles(html: string): string {
 /** Inner CSS only — safe to put in a React `<style>` tag (not a hidden innerHTML host). */
 export function extractVisualDocumentCssText(html: string): string {
   if (!html.trim()) return ''
-  if (!/<style\b/i.test(html) && !/<link\b/i.test(html)) return html
+  if (!/<style\b/i.test(html) && !/<link\b/i.test(html)) return rewriteVisualWrapperStickyCss(html)
   const parts: string[] = []
   html.replace(/<style\b([^>]*)>([\s\S]*?)<\/style>/gi, (full, attrs: string, css: string) => {
     const id = styleIdFromAttrs(attrs)
     if (id && SKIP_INLINE_STYLE_ID.test(id)) return full
-    if (css.trim()) parts.push(css)
+    if (css.trim()) parts.push(rewriteVisualWrapperStickyCss(css))
     return full
   })
   return parts.join('\n')

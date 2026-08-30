@@ -11,7 +11,7 @@ import {
   ShoppingBag,
   UserRound,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
   PartnerSiteChatWidgetProvider,
@@ -58,11 +58,27 @@ import { buildPartnerSiteSearchBootstrapScript } from '@/lib/partner-website/sho
 import { buildPartnerSiteShopActionsBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-shop-actions-bootstrap-script'
 import { buildPartnerSiteShopThemeCss } from '@/lib/partner-website/shop/build-shop-theme-css'
 import {
+  PARTNER_SHOP_CHROME_FLOAT_SCRIPT,
+  PW_CHROME_FLOAT_SCRIPT_ID,
+} from '@/lib/partner-website/shop/chrome-float-widgets'
+import {
   PARTNER_SHOP_CHROME_LAYOUT_CSS,
   PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID,
   PARTNER_SHOP_LOGO_HOST_SCRIPT,
   PARTNER_SHOP_LOGO_HOST_SCRIPT_ID,
 } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
+import {
+  PARTNER_SHOP_STICK_HEADER_SCRIPT,
+  PARTNER_SHOP_STICK_HEADER_SCRIPT_ID,
+} from '@/lib/partner-website/shop/stick-header-elements'
+import {
+  PARTNER_SHOP_STAY_SCROLL_SCRIPT,
+  PW_STAY_SCROLL_SCRIPT_ID,
+} from '@/lib/partner-website/shop/stay-scroll-elements'
+import {
+  PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT,
+  PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID,
+} from '@/lib/partner-website/shop/mobile-header-logo-collapse'
 import {
   extractVisualDocumentCssText,
   extractVisualDocumentStyleLinks,
@@ -153,10 +169,18 @@ function VisualHomeChromeRuntime({
         buildPartnerSiteShopActionsBootstrapScript({ siteSlug, locale }),
       ].join('\n')
     )
-    if (!document.getElementById(PARTNER_SHOP_LOGO_HOST_SCRIPT_ID)) {
+    const scripts: Array<[string, string]> = [
+      [PARTNER_SHOP_LOGO_HOST_SCRIPT_ID, PARTNER_SHOP_LOGO_HOST_SCRIPT],
+      [PW_CHROME_FLOAT_SCRIPT_ID, PARTNER_SHOP_CHROME_FLOAT_SCRIPT],
+      [PW_STAY_SCROLL_SCRIPT_ID, PARTNER_SHOP_STAY_SCROLL_SCRIPT],
+      [PARTNER_SHOP_STICK_HEADER_SCRIPT_ID, PARTNER_SHOP_STICK_HEADER_SCRIPT],
+      [PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID, PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT],
+    ]
+    for (const [id, body] of scripts) {
+      if (document.getElementById(id)) continue
       const s = document.createElement('script')
-      s.id = PARTNER_SHOP_LOGO_HOST_SCRIPT_ID
-      s.textContent = PARTNER_SHOP_LOGO_HOST_SCRIPT
+      s.id = id
+      s.textContent = body
       document.body.appendChild(s)
     }
     // React may paint chrome after the first bootstrap tick — refresh badge APIs + toggles.
@@ -222,6 +246,30 @@ function VisualHomeDocumentStyles({ html }: { html: string }) {
       {css ? <style data-pw-home-chrome-css="1" dangerouslySetInnerHTML={{ __html: css }} /> : null}
     </>
   )
+}
+
+const VISUAL_HOME_DEVICE_WRAP =
+  '.pw-visual-desktop, .pw-visual-laptop, .pw-visual-tablet, .pw-visual-mobile'
+
+function visibleShopHeader(shop: HTMLElement): HTMLElement | null {
+  const headers = shop.querySelectorAll<HTMLElement>(
+    'header.pw-header, header.pw-shop-header, [data-pw-region="header"]'
+  )
+  for (const el of headers) {
+    const wrap = el.closest(VISUAL_HOME_DEVICE_WRAP)
+    if (wrap && getComputedStyle(wrap).display === 'none') continue
+    const cs = getComputedStyle(el)
+    if (cs.display === 'none' || cs.visibility === 'hidden') continue
+    if (el.getBoundingClientRect().height <= 0) continue
+    return el
+  }
+  return null
+}
+
+function applyStickyHeadOffset(shop: HTMLElement) {
+  const header = visibleShopHeader(shop)
+  const height = header ? Math.round(header.getBoundingClientRect().height) : 0
+  shop.style.setProperty('--pw-sticky-head', `${height}px`)
 }
 
 function visualChromeHasChatMua(byDevice?: VisualHomeChromeByDevice | null): boolean {
@@ -328,6 +376,17 @@ function PartnerSiteShopShellInner({
   const categoriesLeaveTimer = useRef<number | null>(null)
   const fineHover = usePartnerCategoryFineHover()
   const mobileCatFace = usePartnerShopMobileCategoryFace(previewDevice)
+
+  useEffect(() => {
+    const html = document.documentElement
+    if (!previewDevice) return
+    html.setAttribute('data-pw-scene-lock', previewDevice)
+    return () => {
+      if (html.getAttribute('data-pw-scene-lock') === previewDevice) {
+        html.removeAttribute('data-pw-scene-lock')
+      }
+    }
+  }, [previewDevice])
 
   useEffect(() => {
     if (!categoriesOpen) return
@@ -448,6 +507,21 @@ function PartnerSiteShopShellInner({
 
   const hasCategoryTree = Boolean(categoryTree && categoryTree.length > 0)
   const useVisualChrome = hasVisualHomeChrome(visualChromeByDevice)
+  useLayoutEffect(() => {
+    const shop = document.querySelector('.pw-shop')
+    if (!(shop instanceof HTMLElement)) return
+    const apply = () => applyStickyHeadOffset(shop)
+    apply()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(apply) : null
+    ro?.observe(shop)
+    const header = visibleShopHeader(shop)
+    if (header) ro?.observe(header)
+    window.addEventListener('resize', apply)
+    return () => {
+      ro?.disconnect()
+      window.removeEventListener('resize', apply)
+    }
+  }, [previewDevice, useVisualChrome])
   const visualBefore =
     useVisualChrome && visualChromeByDevice
       ? visualHomeChromeHtml(visualChromeByDevice, previewDevice, 'before')
@@ -464,6 +538,8 @@ function PartnerSiteShopShellInner({
       <style dangerouslySetInnerHTML={{ __html: buildPartnerSiteShopThemeCss(theme) }} />
       {useVisualChrome ? (
         <>
+          <VisualHomeChromeRuntime siteSlug={siteSlug} locale={locale} />
+          <VisualHomeDocumentStyles html={visualChromeStyles} />
           <style
             id={PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID}
             dangerouslySetInnerHTML={{ __html: PARTNER_SHOP_CHROME_LAYOUT_CSS }}
@@ -471,8 +547,6 @@ function PartnerSiteShopShellInner({
           {visualBefore?.split || visualAfter?.split ? (
             <style dangerouslySetInnerHTML={{ __html: VISUAL_HOME_CHROME_SPLIT_CSS }} />
           ) : null}
-          <VisualHomeChromeRuntime siteSlug={siteSlug} locale={locale} />
-          <VisualHomeDocumentStyles html={visualChromeStyles} />
           {visualBefore?.html ? (
             <div style={{ display: 'contents' }} dangerouslySetInnerHTML={{ __html: visualBefore.html }} />
           ) : null}
@@ -589,7 +663,7 @@ function PartnerSiteShopShellInner({
             ) : null}
             </div>
             {logoUrl ? (
-              <Link href={paths.home}>
+              <Link href={paths.home} className="pw-shop-brand">
                 <img className="pw-shop-logo" data-pw-el={PW_EL.logo} src={logoUrl} alt={title} />
               </Link>
             ) : (

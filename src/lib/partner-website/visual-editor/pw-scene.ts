@@ -405,7 +405,7 @@ export function pwSceneDeviceVisibilityCss(): string {
       )
       .join(',') + '{display:none!important}'
   const show = (lock: PwSceneDevice) =>
-    `html[data-pw-scene-lock="${lock}"] .pw-visual-${lock}{display:block!important}`
+    `html[data-pw-scene-lock="${lock}"] .pw-visual-${lock}{display:contents!important}`
   return [
     hide('mobile', ['desktop', 'laptop', 'tablet']),
     show('mobile'),

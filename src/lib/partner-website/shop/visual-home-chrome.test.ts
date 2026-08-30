@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/partner-website-template-types'
 import {
+  VISUAL_HOME_CHROME_SPLIT_CSS,
   hasVisualHomeChrome,
   pickVisualHomeChrome,
   visualChromeAfterMain,
@@ -81,6 +82,15 @@ test('visualHomeChromeByDevice copies homepage CSS for other pages', () => {
   })
   assert.match(byDevice.desktopStyles, /pw-header\{background:#c2410c\}/)
   assert.match(byDevice.desktopStyles, /data-pw-home-chrome-css/)
+})
+
+test('VISUAL_HOME_CHROME_SPLIT_CSS uses display:contents so sticky header pins to the page', () => {
+  assert.match(VISUAL_HOME_CHROME_SPLIT_CSS, /\.pw-visual-mobile\{display:contents!important\}/)
+  assert.match(VISUAL_HOME_CHROME_SPLIT_CSS, /\.pw-visual-tablet\{display:contents!important\}/)
+  assert.match(VISUAL_HOME_CHROME_SPLIT_CSS, /\.pw-visual-laptop\{display:contents!important\}/)
+  assert.match(VISUAL_HOME_CHROME_SPLIT_CSS, /\.pw-visual-desktop\{display:contents!important\}/)
+  assert.equal(VISUAL_HOME_CHROME_SPLIT_CSS.includes('{display:block!important}'), false)
+  assert.match(VISUAL_HOME_CHROME_SPLIT_CSS, /\.pw-visual-desktop,.pw-visual-laptop,.pw-visual-tablet,.pw-visual-mobile\{display:none!important\}/)
 })
 
 test('pickVisualHomeChrome falls back to desktop when tablet is missing', () => {

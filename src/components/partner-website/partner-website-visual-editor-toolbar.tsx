@@ -115,6 +115,7 @@ import {
   clampChromeKitGap,
   clampChromeKitShift,
   isChromeKitPickerKind,
+  isPdpDockCtaLocked,
   PW_KIT_GAP_DEFAULT,
   PW_KIT_GAP_MAX,
   PW_KIT_GAP_MIN,
@@ -1278,46 +1279,62 @@ function ChromeKitPanel({
             <span />
           </div>
           {dock.map((item) => {
+            const locked = isPdpDockCtaLocked(item.kind)
             const show = item.hidden ? 'off' : item.dockShow || 'shop'
-            const shopOn = show === 'shop' || show === 'both'
-            const pdpOn = show === 'pdp' || show === 'both'
+            const shopOn = locked ? false : show === 'shop' || show === 'both'
+            const pdpOn = locked ? true : show === 'pdp' || show === 'both'
             return (
               <div key={`d-${item.kind}`} className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/60">
                 <span className="truncate text-[11px]">
                   {isVisualEditorChromeWidgetKind(item.kind) ? chromeWidgetLabel(item.kind, locale) : item.label}
                 </span>
-                <button
-                  type="button"
-                  className="rounded p-0.5"
-                  disabled={busy}
-                  title={t.visualEditChromeKitShopPages}
-                  onClick={() => {
-                    const nextShop = !shopOn
-                    const next = nextShop && pdpOn ? 'both' : nextShop ? 'shop' : pdpOn ? 'pdp' : 'off'
-                    onToggleDock(item.kind, next)
-                  }}
-                >
-                  {shopOn ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
-                </button>
-                <button
-                  type="button"
-                  className="rounded p-0.5"
-                  disabled={busy}
-                  title={t.visualEditChromeKitPdp}
-                  onClick={() => {
-                    const nextPdp = !pdpOn
-                    const next = shopOn && nextPdp ? 'both' : nextPdp ? 'pdp' : shopOn ? 'shop' : 'off'
-                    onToggleDock(item.kind, next)
-                  }}
-                >
-                  {pdpOn ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
-                </button>
-                <button type="button" className="rounded p-0.5" disabled={busy} onClick={() => onReorder(item.kind, 'dock', 'up')}>
-                  <ArrowUp className="h-3 w-3" />
-                </button>
-                <button type="button" className="rounded p-0.5" disabled={busy} onClick={() => onReorder(item.kind, 'dock', 'down')}>
-                  <ArrowDown className="h-3 w-3" />
-                </button>
+                {locked ? (
+                  <>
+                    <span className="p-0.5 text-muted-foreground" title={t.visualEditChromeKitPdpCtaLocked}>
+                      <EyeOff className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="p-0.5" title={t.visualEditChromeKitPdpCtaLocked}>
+                      <Lock className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="p-0.5" />
+                    <span className="p-0.5" />
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="rounded p-0.5"
+                      disabled={busy}
+                      title={t.visualEditChromeKitShopPages}
+                      onClick={() => {
+                        const nextShop = !shopOn
+                        const next = nextShop && pdpOn ? 'both' : nextShop ? 'shop' : pdpOn ? 'pdp' : 'off'
+                        onToggleDock(item.kind, next)
+                      }}
+                    >
+                      {shopOn ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded p-0.5"
+                      disabled={busy}
+                      title={t.visualEditChromeKitPdp}
+                      onClick={() => {
+                        const nextPdp = !pdpOn
+                        const next = shopOn && nextPdp ? 'both' : nextPdp ? 'pdp' : shopOn ? 'shop' : 'off'
+                        onToggleDock(item.kind, next)
+                      }}
+                    >
+                      {pdpOn ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
+                    </button>
+                    <button type="button" className="rounded p-0.5" disabled={busy} onClick={() => onReorder(item.kind, 'dock', 'up')}>
+                      <ArrowUp className="h-3 w-3" />
+                    </button>
+                    <button type="button" className="rounded p-0.5" disabled={busy} onClick={() => onReorder(item.kind, 'dock', 'down')}>
+                      <ArrowDown className="h-3 w-3" />
+                    </button>
+                  </>
+                )}
               </div>
             )
           })}
@@ -3407,9 +3424,10 @@ export function PartnerWebsiteVisualEditorToolbar({
         editKind === 'search-image' ||
         (editKind === 'nav-link' && selection.chromeKind))
   )
+  const isPdpCtaLocked = isPdpDockCtaLocked(selection?.chromeKind || '')
   const showHref =
-    !chromeFaceKind && (showCtaStyle || editKind === 'nav-link' || editKind === 'added-text')
-  const showChromeStyle = chromeFaceKind
+    !chromeFaceKind && !isPdpCtaLocked && (showCtaStyle || editKind === 'nav-link' || editKind === 'added-text')
+  const showChromeStyle = chromeFaceKind && !isPdpCtaLocked
   const showSearchHint = editKind === 'search'
   const showWordmarkHint = editKind === 'wordmark'
   const showDotsHint = editKind === 'dots'
@@ -3419,17 +3437,19 @@ export function PartnerWebsiteVisualEditorToolbar({
   const showAddedBgHint = editKind === 'added-bg'
   const showNavLinkHint = editKind === 'nav-link' && !chromeFaceKind
   const showWidgetColors =
-    chromeFaceKind ||
-    editKind === 'search' ||
-    editKind === 'field' ||
-    editKind === 'badge'
-  const showWidgetIconColor = chromeFaceKind
+    !isPdpCtaLocked &&
+    (chromeFaceKind ||
+      editKind === 'search' ||
+      editKind === 'field' ||
+      editKind === 'badge')
+  const showWidgetIconColor = chromeFaceKind && !isPdpCtaLocked
   const showWidgetTextColor =
-    editKind === 'search' ||
-    editKind === 'search-submit' ||
-    editKind === 'search-image' ||
-    editKind === 'field' ||
-    chromeFaceKind
+    !isPdpCtaLocked &&
+    (editKind === 'search' ||
+      editKind === 'search-submit' ||
+      editKind === 'search-image' ||
+      editKind === 'field' ||
+      chromeFaceKind)
   const showPlaceholderColor = editKind === 'field'
   const showDotColors = editKind === 'dots'
   const chromeLikeKind = chromeFaceKind || editKind === 'search'
@@ -5379,6 +5399,12 @@ export function PartnerWebsiteVisualEditorToolbar({
             <div className="rounded-md border bg-background px-2 py-1.5">
               <p className="text-[11px] font-semibold leading-4">{t.visualEditChromeKitFloat}</p>
               <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitFloatLocked}</p>
+            </div>
+          ) : null}
+          {isPdpCtaLocked && selection ? (
+            <div className="rounded-md border bg-background px-2 py-1.5">
+              <p className="text-[11px] font-semibold leading-4">{t.visualEditChromeKitPdp}</p>
+              <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitPdpCtaLocked}</p>
             </div>
           ) : null}
           {showPinScreen && selection ? (

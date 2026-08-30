@@ -28,9 +28,18 @@ test('extractVisualDocumentStyles keeps shop CSS and fonts, skips editor split',
   assert.equal(css.includes('pw-visual-device-split'), false)
   const inlineCss = extractVisualDocumentCssText(home)
   assert.match(inlineCss, /pw-shop-topbar/)
-  assert.match(inlineCss, /pw-visual-mobile/)
+  assert.equal(inlineCss.includes('pw-visual-mobile'), false)
   assert.equal(inlineCss.includes('<style'), false)
   assert.equal(inlineCss.includes('nanoai-ve-selected'), false)
+})
+
+test('extractVisualDocumentCssText rewrites visual wrapper display:block to contents', () => {
+  const css = extractVisualDocumentCssText(
+    '<style>.pw-visual-desktop{display:block!important}.pw-header{color:red}</style>'
+  )
+  assert.match(css, /\.pw-visual-desktop\{display:contents!important\}/)
+  assert.match(css, /\.pw-header\{color:red\}/)
+  assert.equal(css.includes('{display:block!important}'), false)
 })
 
 test('mergeVisualHomeStylesIntoHtml copies home CSS into target head', () => {
