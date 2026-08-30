@@ -10,6 +10,7 @@ import {
   extractExplicitSkuCandidates,
 } from '@/lib/messaging/partner-inventory-ai-search'
 import { inboundTextLooksLikeAfterSalesNotCheckout } from '@/lib/messaging/partner-ai-purchase-intent'
+import { inboundBodyHasCustomerUploadedImage } from '@/lib/messaging/guest-chat-image'
 import type { PartnerShippingLookupHit, PartnerShippingLookupOrderItem } from '@/lib/messaging/partner-shipping-lookup'
 
 function looksLikeQuotedSkuConsult(text: string): boolean {
@@ -111,6 +112,8 @@ function boundSkuKeys(bound: PartnerBoundOrderSnapshot): string[] {
 export function inboundTextSwitchesOffBoundOrder(text: string, bound: PartnerBoundOrderSnapshot): boolean {
   const t = String(text ?? '').trim()
   if (!t) return false
+  /** Ảnh sản phẩm mới — tư vấn theo ảnh, không giữ mã DH cũ. */
+  if (inboundBodyHasCustomerUploadedImage(t)) return true
   const codes = extractOrderCodesFromText(t)
   if (codes.some((c) => c !== bound.order_code)) return true
   if (/(?:đơn|don)\s*(?:khác|khac|mới\s*nhất|moi\s*nhat)/i.test(t)) return true

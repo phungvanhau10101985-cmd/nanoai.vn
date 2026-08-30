@@ -33,7 +33,7 @@ import {
 export function buildPartnerSiteHtmlChromeCss(): string {
   return `html,body{margin:0;color:var(--pw-text);background:var(--pw-bg)}
 a{color:inherit;text-decoration:none}
-.pw-container{max-width:var(--pw-content,1200px);margin:0 auto;padding:0 20px;box-sizing:border-box}
+.pw-container{max-width:var(--pw-content,1200px);margin:0 auto;padding:0 var(--pw-page-gutter,20px);box-sizing:border-box}
 .pw-topbar{background:var(--pw-primary);color:#fff;font-size:12px;position:relative;z-index:${PW_SCENE_TOPBAR_Z};}
 .pw-topbar-inner{display:flex;justify-content:flex-end;align-items:center;gap:18px;max-width:var(--pw-content,1200px);width:100%;margin:0 auto;padding:8px var(--pw-chrome-inset,60px);box-sizing:border-box}
 .pw-topbar a,.pw-topbar button{color:#fff;text-decoration:none;background:none;border:none;cursor:pointer;font:inherit;padding:0}
@@ -105,7 +105,7 @@ ${buildPartnerSiteAccountPanelCss()}
   .pw-topbar{display:none}
   .pw-header{background:var(--pw-primary);border:none;box-shadow:0 6px 18px color-mix(in srgb, var(--pw-primary) 35%, transparent)}
   .pw-wordmark,.pw-brand{color:#fff}
-  .pw-header-actions .pw-icon-btn:not([data-pw-chrome-float]),.pw-account-btn{color:#fff}
+  .pw-header-actions .pw-icon-btn:not([data-pw-chrome-float]),.pw-header-actions .pw-account-btn,.pw-header .pw-account-btn{color:#fff}
   .pw-cat-btn:not([data-pw-chrome-added]){width:34px;height:34px;padding:0;justify-content:center;border:1.5px solid rgba(255,255,255,.55);background:rgba(255,255,255,.16);color:#fff}
   .pw-cat-btn:not([data-pw-chrome-added]) span{display:none}
   .pw-search-form{border:none;height:36px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.10)}
@@ -298,7 +298,7 @@ ${PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS}
 .pw-shop-nav-row{display:none;justify-content:center;align-items:center;gap:22px;flex-wrap:nowrap;overflow:visible;padding:0 24px 14px;max-width:var(--pw-content);margin:0 auto;position:relative}
 .pw-shop-nav-row a,.pw-shop-nav-row button{font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#374151;background:none;border:none;cursor:pointer;padding:0;white-space:nowrap;flex:0 0 auto}
 .pw-shop-nav-row a.is-sale,.pw-shop-nav-row a.pw-nav-sale{color:#374151}
-.pw-shop-main{max-width:var(--pw-content);margin:0 auto;padding:20px 16px 40px}
+.pw-shop-main{max-width:var(--pw-content);margin:0 auto;padding:20px var(--pw-page-gutter,16px) 40px}
 .pw-shop-main h1{font-size:clamp(1.35rem,2.2vw,1.75rem);font-weight:700;letter-spacing:0;margin:0 0 8px;line-height:1.25;color:var(--pw-text)}
 .pw-shop-info h1{margin:0 0 16px;font-size:clamp(1.4rem,2.5vw,1.8rem);font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--pw-primary)}
 .pw-shop-info p{margin:0 0 12px;color:var(--pw-text);max-width:720px}
@@ -318,12 +318,14 @@ ${PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS}
 .pw-shop-category-tile-placeholder{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--pw-primary),#f3f4f6)}
 .pw-shop-category-tile-name{font-size:13px;font-weight:600;color:var(--pw-text);text-align:center}
 .pw-shop-category-tile-count{font-size:11px;color:#6b7280}
-.pw-shop-grid{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.pw-shop-grid{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch}
 @media(min-width:1280px){.pw-shop-grid{gap:18px;grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(min-width:1440px){.pw-shop-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
-.pw-shop-card{display:flex;flex-direction:column;border:1px solid #f3f4f6;border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 4px 14px rgba(15,23,42,.06)}
+.pw-shop-card{display:flex;flex-direction:column;height:100%;border:1px solid #f3f4f6;border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 4px 14px rgba(15,23,42,.06)}
 .pw-shop-card img{width:100%;aspect-ratio:1;object-fit:cover}
-.pw-shop-card-body{padding:12px;display:grid;gap:8px}
+.pw-shop-card-body{padding:12px;display:flex;flex-direction:column;flex:1 1 auto;gap:6px}
+.pw-shop-card-body h3,.pw-shop-card [data-pw-el="card-name"]{margin:0;font-size:13px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;min-height:2.6em;max-height:2.6em}
+.pw-shop-card-body > .pw-shop-btn{margin-top:auto}
 .pw-shop-price{font-weight:800;color:var(--pw-primary)}
 .pw-shop-btn{display:inline-flex;align-items:center;justify-content:center;padding:11px 20px;border-radius:8px;border:none;background:var(--pw-primary);color:#fff;font-weight:700;cursor:pointer;text-decoration:none;font-size:14px;line-height:1.35;letter-spacing:0;text-transform:none;font-family:inherit}
 .pw-shop-btn:disabled{opacity:.45;cursor:not-allowed;filter:saturate(.75)}
@@ -429,14 +431,14 @@ html[data-pw-edit-device="mobile"] .pw-pdp-actions-inline,html[data-pw-scene-loc
 }
 @media(min-width:768px){
   .pw-pdp-sticky.is-visible{display:flex;position:fixed;left:0;right:0;bottom:58px;z-index:120;align-items:center;justify-content:center;gap:12px;padding:10px 16px;background:#f3f4f6;border-top:1px solid #e5e7eb}
-  .pw-pdp-sticky-nav{display:flex;align-items:center;gap:8px}
-  .pw-pdp-sticky-nav a,.pw-pdp-sticky-nav button{width:56px;display:flex;flex-direction:column;align-items:center;gap:2px;border:none;background:transparent;color:#4b5563;font:inherit;font-size:11px;cursor:pointer;text-decoration:none}
-  .pw-pdp-sticky-nav a.is-try,.pw-pdp-sticky-nav button.is-try{color:var(--pw-primary)}
-  .pw-pdp-sticky-nav button.is-fav[aria-pressed="true"],.pw-pdp-sticky-nav button.is-fav.is-active{color:#e11d48}
-  .pw-pdp-sticky-nav button.is-fav[aria-pressed="true"] svg,.pw-pdp-sticky-nav button.is-fav.is-active svg{fill:currentColor}
-  .pw-pdp-sticky-nav svg{width:${PW_CHROME_W_VAR};height:${PW_CHROME_H_VAR};max-width:${PW_CHROME_W_VAR};max-height:${PW_CHROME_H_VAR}}
-  .pw-pdp-sticky-ctas{display:flex;gap:8px}
-  .pw-pdp-sticky-ctas .pw-shop-btn{min-width:160px;padding:11px 18px;font-weight:600;text-transform:uppercase;border-radius:6px;color:#fff}
+  .pw-pdp-sticky.is-visible .pw-pdp-sticky-nav{display:flex;align-items:center;gap:8px}
+  .pw-pdp-sticky.is-visible .pw-pdp-sticky-nav a,.pw-pdp-sticky.is-visible .pw-pdp-sticky-nav button{width:56px;display:flex;flex-direction:column;align-items:center;gap:2px;border:none;background:transparent;color:#4b5563;font:inherit;font-size:11px;cursor:pointer;text-decoration:none}
+  .pw-pdp-sticky.is-visible .pw-pdp-sticky-nav a.is-try,.pw-pdp-sticky.is-visible .pw-pdp-sticky-nav button.is-try{color:var(--pw-primary)}
+  .pw-pdp-sticky.is-visible .pw-pdp-sticky-nav button.is-fav[aria-pressed="true"],.pw-pdp-sticky.is-visible .pw-pdp-sticky-nav button.is-fav.is-active{color:#e11d48}
+  .pw-pdp-sticky.is-visible .pw-pdp-sticky-nav button.is-fav[aria-pressed="true"] svg,.pw-pdp-sticky.is-visible .pw-pdp-sticky-nav button.is-fav.is-active svg{fill:currentColor}
+  .pw-pdp-sticky.is-visible .pw-pdp-sticky-nav svg{width:${PW_CHROME_W_VAR};height:${PW_CHROME_H_VAR};max-width:${PW_CHROME_W_VAR};max-height:${PW_CHROME_H_VAR}}
+  .pw-pdp-sticky.is-visible .pw-pdp-sticky-ctas{display:flex;gap:8px}
+  .pw-pdp-sticky.is-visible .pw-pdp-sticky-ctas .pw-shop-btn{min-width:160px;padding:11px 18px;font-weight:600;text-transform:uppercase;border-radius:6px;color:#fff}
 }
 @media(min-width:1280px){
   .pw-pdp-sticky.is-visible{bottom:0}
@@ -615,8 +617,6 @@ html[data-pw-scene-lock="desktop"] .pw-pdp-spec-grid,html[data-pw-scene-lock="la
   .pw-shop{padding-bottom:72px}
   html:has([data-pw-page="product"]) .pw-shop-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]),
   html:has([data-pw-page="product"]) .pw-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]),
-  html:has([data-pw-region="gallery"]) .pw-shop-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]),
-  html:has([data-pw-pdp-add-cart]) .pw-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]),
   html[data-pw-page="product"] .pw-shop-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]),
   [data-pw-page="product"] .pw-shop-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]),
   [data-pw-page="product"] .pw-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]){display:none!important}

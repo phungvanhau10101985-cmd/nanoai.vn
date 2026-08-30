@@ -3,7 +3,7 @@
  * Nút Thêm giữa trang (Cửa hàng / Ví quà…) — kéo tọa độ, luôn lớp nổi, mỗi máy một file.
  * Mỗi máy một bản (Desktop ≠ Laptop ≠ Tablet ≠ Mobile).
  */
-import type { WebLocale } from '@/lib/i18n/config'
+import { WEB_LOCALES, type WebLocale } from '@/lib/i18n/config'
 import { PW_HIDDEN_ATTR } from '@/lib/partner-website/shop/stay-scroll-elements'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { partnerSiteHomePath } from '@/lib/partner-website/shop/partner-site-shop-paths'
@@ -98,6 +98,16 @@ export function isPdpDockCtaLocked(kind: string): boolean {
   return kind === 'add-cart' || kind === 'buy-now'
 }
 
+/** Mặt thanh đáy 188 trên trang chi tiết — không hiện trong panel trang chủ. */
+export function isPdpDockFaceKind(kind: string): boolean {
+  return kind === 'try-on' || kind === 'favorite-product' || isPdpDockCtaLocked(kind)
+}
+
+/** Icon trái trên PDP — mặc định 3 ô; có thể đổi sang phần tử dock khác. */
+export const PW_PDP_NAV_MAX = 3
+export const PW_PDP_NAV_ATTR = 'data-pw-pdp-nav'
+export const CHROME_KIT_PDP_NAV_DEFAULT_KINDS = ['home', 'try-on', 'favorite-product'] as const
+
 /** Thanh đáy — seed giống nhau, ẩn hiện độc lập từng máy (chỉ hiện Mobile/Tablet). */
 export const CHROME_KIT_DOCK_ITEMS: ChromeKitDockItem[] = [
   { kind: 'home', slot: 'icon', defaultShow: 'shop' },
@@ -127,6 +137,11 @@ export const CHROME_KIT_FLOAT_ITEMS: ChromeKitFloatItem[] = PW_CHROME_FLOAT_KIND
 const HEAD_ACTION_KIND_SET = new Set(CHROME_KIT_HEAD_ACTION_ITEMS.map((item) => item.kind))
 const DOCK_KIND_SET = new Set(CHROME_KIT_DOCK_ITEMS.map((item) => item.kind))
 const FLOAT_KIND_SET = new Set(CHROME_KIT_FLOAT_ITEMS.map((item) => item.kind))
+
+export function isPdpDockNavKind(kind: string): boolean {
+  if (isPdpDockCtaLocked(kind)) return false
+  return DOCK_KIND_SET.has(kind as VisualEditorChromeWidgetKind)
+}
 
 export function chromeKitHeadGroup(device?: VisualDeviceVariant | null): ChromeKitHeadGroup {
   if (device === 'laptop' || device === 'tablet' || device === 'mobile') return device
@@ -231,20 +246,20 @@ function dockPdpTwoLine(line1: string, line2?: string): string {
   return `<span class="pw-pdp-sticky-copy"><span>${a}</span><span>${escapeText(b)}</span></span>`
 }
 
-function buildDockPdpHomeHtml(locale: WebLocale, siteSlug?: string | null): string {
+export function buildDockPdpHomeHtml(locale: WebLocale, siteSlug?: string | null): string {
   const t = getPartnerSiteShopCopy(locale)
   const href = partnerSiteHomePath(slugOrShop(siteSlug))
-  return `<a href="${href}" ${PW_CHROME_KIT_ATTR}="1" data-pw-chrome-btn="home" ${pwElAttr(PW_EL.navLink)} ${PW_DOCK_SLOT_ATTR}="icon" ${PW_DOCK_SHOW_ATTR}="pdp" ${PW_PDP_HOME_ATTR}="1" aria-label="${escapeText(t.pdpStickyHome)}">${pdpHomeSvg()}${dockPdpTwoLine(t.pdpStickyHomeL1, t.pdpStickyHomeL2)}</a>`
+  return `<a href="${href}" ${PW_CHROME_KIT_ATTR}="1" data-pw-chrome-btn="home" ${pwElAttr(PW_EL.navLink)} ${PW_DOCK_SLOT_ATTR}="icon" ${PW_DOCK_SHOW_ATTR}="pdp" ${PW_PDP_HOME_ATTR}="1" ${PW_PDP_NAV_ATTR}="1" aria-label="${escapeText(t.pdpStickyHome)}">${pdpHomeSvg()}${dockPdpTwoLine(t.pdpStickyHomeL1, t.pdpStickyHomeL2)}</a>`
 }
 
-function buildDockPdpFavoriteHtml(locale: WebLocale): string {
+export function buildDockPdpFavoriteHtml(locale: WebLocale): string {
   const t = getPartnerSiteShopCopy(locale)
-  return `<button type="button" class="is-fav" ${PW_CHROME_KIT_ATTR}="1" data-pw-chrome-btn="favorite-product" ${pwElAttr(PW_EL.wishlist)} ${PW_DOCK_SLOT_ATTR}="icon" ${PW_DOCK_SHOW_ATTR}="pdp" data-pw-favorite data-pw-pdp-favorite="1" data-pw-like-base="0" aria-pressed="false">${pdpHeartSvg()}<span class="pw-pdp-like-copy"><span>${escapeText(t.pdpStickyLikeLabel)}</span><span class="pw-pdp-like-count" data-pw-like-count>0</span></span></button>`
+  return `<button type="button" class="is-fav" ${PW_CHROME_KIT_ATTR}="1" data-pw-chrome-btn="favorite-product" ${pwElAttr(PW_EL.wishlist)} ${PW_DOCK_SLOT_ATTR}="icon" ${PW_DOCK_SHOW_ATTR}="pdp" ${PW_PDP_NAV_ATTR}="1" data-pw-favorite data-pw-pdp-favorite="1" data-pw-like-base="0" aria-pressed="false">${pdpHeartSvg()}<span class="pw-pdp-like-copy"><span>${escapeText(t.pdpStickyLikeLabel)}</span><span class="pw-pdp-like-count" data-pw-like-count>0</span></span></button>`
 }
 
-function buildDockPdpTryOnHtml(locale: WebLocale): string {
+export function buildDockPdpTryOnHtml(locale: WebLocale): string {
   const t = getPartnerSiteShopCopy(locale)
-  return `<button type="button" class="is-try" ${PW_CHROME_KIT_ATTR}="1" data-pw-chrome-btn="try-on" ${PW_DOCK_SLOT_ATTR}="icon" ${PW_DOCK_SHOW_ATTR}="pdp" data-nanoai-try-on>${pdpTryOnSvg()}${dockPdpTwoLine(t.pdpStickyTryOnL1, t.pdpStickyTryOnL2)}</button>`
+  return `<button type="button" class="is-try" ${PW_CHROME_KIT_ATTR}="1" data-pw-chrome-btn="try-on" ${PW_DOCK_SLOT_ATTR}="icon" ${PW_DOCK_SHOW_ATTR}="pdp" ${PW_PDP_NAV_ATTR}="1" data-nanoai-try-on>${pdpTryOnSvg()}${dockPdpTwoLine(t.pdpStickyTryOnL1, t.pdpStickyTryOnL2)}</button>`
 }
 
 function buildDockPdpCtaHtml(kind: 'add-cart' | 'buy-now', locale: WebLocale): string {
@@ -255,21 +270,86 @@ function buildDockPdpCtaHtml(kind: 'add-cart' | 'buy-now', locale: WebLocale): s
   return `<button type="button" class="pw-shop-btn pw-shop-btn-buy" ${PW_CHROME_KIT_ATTR}="1" data-pw-chrome-btn="buy-now" ${pwElAttr(PW_EL.buy)} ${PW_DOCK_SLOT_ATTR}="cta" ${PW_DOCK_SHOW_ATTR}="pdp" ${PW_KIT_LOCK_ATTR}="cta" data-pw-buy data-pw-pdp-buy-now="1">${escapeText(t.pdpBuyNowShort)}</button>`
 }
 
+function buildDockPdpExtraIconHtml(
+  kind: VisualEditorChromeWidgetKind,
+  input: { locale: WebLocale; siteSlug?: string | null; logoUrl?: string | null; chatIconLogoUrl?: string | null }
+): string {
+  if (kind === 'home') return buildDockPdpHomeHtml(input.locale, input.siteSlug)
+  if (kind === 'try-on') return buildDockPdpTryOnHtml(input.locale)
+  if (kind === 'favorite-product') return buildDockPdpFavoriteHtml(input.locale)
+  const raw = buildVisualEditorChromeWidgetHtml({
+    kind,
+    siteSlug: slugOrShop(input.siteSlug),
+    locale: input.locale,
+    style: 'icon-label-below',
+    place: 'nav',
+    logoUrl: input.logoUrl,
+    chatIconLogoUrl: input.chatIconLogoUrl,
+  })
+  if (!raw) return ''
+  return asKitTag(
+    raw,
+    ` ${PW_DOCK_SHOW_ATTR}="pdp" ${PW_HIDDEN_ATTR}="1" ${PW_DOCK_SLOT_ATTR}="icon" ${PW_PDP_NAV_ATTR}="1"`
+  )
+}
+
+export function pdpDockDefaultIconHtmlByLocale(siteSlug?: string | null): Record<
+  WebLocale,
+  Record<(typeof CHROME_KIT_PDP_NAV_DEFAULT_KINDS)[number], string>
+> {
+  return Object.fromEntries(
+    WEB_LOCALES.map((locale) => [
+      locale,
+      {
+        home: buildDockPdpHomeHtml(locale, siteSlug),
+        'try-on': buildDockPdpTryOnHtml(locale),
+        'favorite-product': buildDockPdpFavoriteHtml(locale),
+      },
+    ])
+  ) as Record<WebLocale, Record<(typeof CHROME_KIT_PDP_NAV_DEFAULT_KINDS)[number], string>>
+}
+
+function buildDockPdpNavExtrasHtml(input: {
+  locale: WebLocale
+  siteSlug?: string | null
+  logoUrl?: string | null
+  chatIconLogoUrl?: string | null
+  existing?: Record<string, string>
+}): string {
+  return CHROME_KIT_DOCK_ITEMS.filter(
+    (item) => item.slot === 'icon' && !CHROME_KIT_PDP_NAV_DEFAULT_KINDS.includes(item.kind as (typeof CHROME_KIT_PDP_NAV_DEFAULT_KINDS)[number])
+  )
+    .map((item) => input.existing?.[item.kind] || buildDockPdpExtraIconHtml(item.kind, input))
+    .filter(Boolean)
+    .join('\n      ')
+}
+
 function buildDockPdpFaceHtml(input: {
   locale: WebLocale
   siteSlug?: string | null
+  logoUrl?: string | null
+  chatIconLogoUrl?: string | null
   nav?: { home?: string; tryOn?: string; favorite?: string }
+  extras?: Record<string, string>
   ctas?: { addCart?: string; buyNow?: string }
 }): string {
   const navHome = input.nav?.home || buildDockPdpHomeHtml(input.locale, input.siteSlug)
   const navTry = input.nav?.tryOn || buildDockPdpTryOnHtml(input.locale)
   const navFav = input.nav?.favorite || buildDockPdpFavoriteHtml(input.locale)
+  const extras = buildDockPdpNavExtrasHtml({
+    locale: input.locale,
+    siteSlug: input.siteSlug,
+    logoUrl: input.logoUrl,
+    chatIconLogoUrl: input.chatIconLogoUrl,
+    existing: input.extras,
+  })
   const addCart = stampPdpCtaLockAttrs(input.ctas?.addCart || buildDockPdpCtaHtml('add-cart', input.locale))
   const buyNow = stampPdpCtaLockAttrs(input.ctas?.buyNow || buildDockPdpCtaHtml('buy-now', input.locale))
   return `<div class="pw-pdp-sticky-nav" ${PW_DOCK_SHOW_ATTR}="pdp">
       ${navHome}
       ${navTry}
       ${navFav}
+      ${extras}
     </div>
     <div class="pw-pdp-sticky-ctas" ${PW_DOCK_SHOW_ATTR}="pdp">
       ${addCart}
@@ -343,14 +423,12 @@ export function buildChromeKitFloatHostHtml(input: {
 }
 
 /**
- * Live inlines visual `<body>` into `[data-pw-inline-visual-root]` and hoists dock
- * outside that root — `html:has([data-pw-page])` must also see gallery / PDP CTA
- * leftover in the inline tree, plus `html[data-pw-page]` stamped by the client.
+ * Chỉ nhận diện trang chi tiết bằng `data-pw-page="product"`.
+ * Cấm `:has([data-pw-pdp-add-cart])` / `:has([data-pw-region="gallery"])`:
+ * kit dock mọi trang đều chứa nút Thêm giỏ PDP → trang chủ bị ẩn mặt shop.
  */
 export const PW_PRODUCT_PAGE_CSS_HOSTS = [
   'html:has([data-pw-page="product"])',
-  'html:has([data-pw-region="gallery"])',
-  'html:has([data-pw-pdp-add-cart])',
   'html[data-pw-page="product"]',
   '[data-pw-page="product"]',
 ] as const
@@ -368,14 +446,30 @@ export const PARTNER_SHOP_CHROME_KIT_CSS = `
 .pw-bottom-nav .pw-pdp-sticky-nav,.pw-shop-bottom-nav .pw-pdp-sticky-nav,.pw-bottom-nav .pw-pdp-sticky-ctas,.pw-shop-bottom-nav .pw-pdp-sticky-ctas,
 .pw-bottom-nav [${PW_DOCK_SHOW_ATTR}="pdp"],.pw-shop-bottom-nav [${PW_DOCK_SHOW_ATTR}="pdp"]{display:none!important}
 ${pwProductDockCss(` [${PW_DOCK_SHOW_ATTR}="shop"]`, '{display:none!important}')}
-${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] > a:not([${PW_DOCK_SHOW_ATTR}="pdp"])`, '{display:none!important}')}
-${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] > button:not([${PW_DOCK_SHOW_ATTR}="pdp"])`, '{display:none!important}')}
+${pwProductDockCss(
+  `[${PW_CHROME_KIT_ATTR}="dock"] > a:not([${PW_DOCK_SHOW_ATTR}="pdp"]):not([${PW_DOCK_SHOW_ATTR}="both"])`,
+  '{display:none!important}',
+)}
+${pwProductDockCss(
+  `[${PW_CHROME_KIT_ATTR}="dock"] > button:not([${PW_DOCK_SHOW_ATTR}="pdp"]):not([${PW_DOCK_SHOW_ATTR}="both"])`,
+  '{display:none!important}',
+)}
+${pwProductDockCss(
+  `[${PW_CHROME_KIT_ATTR}="dock"] > [${PW_DOCK_SHOW_ATTR}="pdp"]:not(.pw-pdp-sticky-nav):not(.pw-pdp-sticky-ctas):not([${PW_HIDDEN_ATTR}="1"])`,
+  '{display:flex!important;flex-direction:column;align-items:center;justify-content:center}',
+)}
+${pwProductDockCss(
+  `[${PW_CHROME_KIT_ATTR}="dock"] > [${PW_DOCK_SHOW_ATTR}="both"]:not(.pw-pdp-sticky-nav):not(.pw-pdp-sticky-ctas):not([${PW_HIDDEN_ATTR}="1"])`,
+  '{display:flex!important;flex-direction:column;align-items:center;justify-content:center}',
+)}
 ${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"]`, `{
-  justify-content:flex-start!important;align-items:stretch!important;gap:6px!important;min-height:48px!important;
-  padding:2px 6px calc(2px + env(safe-area-inset-bottom,0px))!important;background:#f3f4f6!important;border-top:1px solid #e5e7eb!important
+  justify-content:flex-start!important;align-items:stretch!important;gap:4px!important;min-height:48px!important;
+  padding:2px 2px calc(2px + env(safe-area-inset-bottom,0px))!important;background:#f3f4f6!important;border-top:1px solid #e5e7eb!important
 }`)}
-${pwProductDockCss(' .pw-pdp-sticky-nav', '{display:flex!important;align-items:stretch;gap:1px;flex:0 0 auto;padding-right:6px;margin-right:2px;border-right:1px solid #e5e7eb}')}
-${pwProductDockCss(' .pw-pdp-sticky-ctas', '{display:flex!important;flex:1;min-width:0;gap:4px}')}
+${pwProductDockCss(' .pw-pdp-sticky-nav', '{display:flex!important;flex-direction:row!important;align-items:stretch;gap:1px;flex:0 0 auto;padding-right:6px;margin-right:2px;border-right:1px solid #e5e7eb}')}
+${pwProductDockCss(' .pw-pdp-sticky-ctas', '{display:flex!important;flex-direction:row!important;flex:1;min-width:0;gap:4px}')}
+${pwProductDockCss(` .pw-pdp-sticky-nav [${PW_HIDDEN_ATTR}="1"]`, '{display:none!important}')}
+${pwProductDockCss(' .pw-pdp-sticky-nav .pw-chrome-cat-wrap:has(> [data-pw-hidden="1"]):not(:has([data-pw-pdp-nav="1"]:not([data-pw-hidden="1"])))', '{display:none!important}')}
 ${pwProductDockCss(` .pw-pdp-sticky-nav [${PW_DOCK_SHOW_ATTR}="pdp"]:not([${PW_HIDDEN_ATTR}="1"])`, '{display:flex!important;flex-direction:column;flex:0 0 44px!important;width:44px!important;gap:2px!important;padding:2px 0!important;font-size:10px!important;line-height:1.05!important;color:#4b5563!important;background:transparent!important}')}
 ${pwProductDockCss(` .pw-pdp-sticky-ctas [${PW_DOCK_SHOW_ATTR}="pdp"]`, '{display:flex!important;flex:1 1 0!important;min-height:40px;align-items:center;justify-content:center;padding:0 8px!important;font-size:11px!important;font-weight:600!important;text-transform:uppercase;border-radius:6px!important;color:#fff!important}')}
 ${pwProductDockCss(' .pw-pdp-sticky-nav svg', '{width:17px!important;height:17px!important;max-width:17px!important;max-height:17px!important}')}
@@ -384,9 +478,27 @@ ${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="buy-now"
 ${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] .is-try`, '{color:var(--pw-primary)!important}')}
 ${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"]`, '{color:#e11d48!important}')}
 ${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"] svg`, '{fill:currentColor!important}')}
-${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] ~ .pw-bottom-nav[data-pw-pdp-bottom]`, '{display:none!important}')}
-${pwProductDockCss('[data-pw-pdp-bottom] ~ .pw-bottom-nav[data-pw-chrome-kit="dock"]', '{display:none!important}')}
-html:has([${PW_CHROME_KIT_ATTR}="dock"]) .pw-pdp-sticky,.pw-shop:has([${PW_CHROME_KIT_ATTR}="dock"]) .pw-pdp-sticky{display:none!important}
+${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] ~ .pw-bottom-nav[data-pw-pdp-bottom]:not([${PW_CHROME_KIT_ATTR}])`, '{display:none!important}')}
+${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] ~ .pw-shop-bottom-nav[data-pw-pdp-bottom]:not([${PW_CHROME_KIT_ATTR}])`, '{display:none!important}')}
+html:has([${PW_CHROME_KIT_ATTR}="dock"]) .pw-pdp-sticky-nav:not([${PW_CHROME_KIT_ATTR}="dock"] .pw-pdp-sticky-nav),
+html:has([${PW_CHROME_KIT_ATTR}="dock"]) .pw-pdp-sticky-ctas:not([${PW_CHROME_KIT_ATTR}="dock"] .pw-pdp-sticky-ctas),
+html[data-pw-page="product"]:has([${PW_CHROME_KIT_ATTR}="dock"]) > body > .pw-pdp-sticky-nav,
+html[data-pw-page="product"]:has([${PW_CHROME_KIT_ATTR}="dock"]) > body > .pw-pdp-sticky-ctas,
+html[data-pw-page="product"]:has([${PW_CHROME_KIT_ATTR}="dock"]) > body > [data-pw-dock-show="pdp"],
+html[data-pw-page="product"]:has([${PW_CHROME_KIT_ATTR}="dock"]) > body > [data-pw-chrome-btn="add-cart"],
+html[data-pw-page="product"]:has([${PW_CHROME_KIT_ATTR}="dock"]) > body > [data-pw-chrome-btn="buy-now"],
+html[data-pw-page="product"]:has([${PW_CHROME_KIT_ATTR}="dock"]) > body > [data-pw-chrome-btn="try-on"],
+html[data-pw-page="product"]:has([${PW_CHROME_KIT_ATTR}="dock"]) > body > [data-pw-chrome-btn="favorite-product"],
+html[data-pw-page="product"] .pw-shop-cat-panel .pw-pdp-sticky-nav,
+html[data-pw-page="product"] .pw-shop-cat-panel .pw-pdp-sticky-ctas,
+html[data-pw-page="product"] .pw-chrome-cat-wrap > .pw-pdp-sticky-nav,
+html[data-pw-page="product"] .pw-chrome-cat-wrap > .pw-pdp-sticky-ctas{display:none!important}
+html:has([${PW_CHROME_KIT_ATTR}="dock"]) nav[data-pw-pdp-bottom]:not([${PW_CHROME_KIT_ATTR}]),
+html:has([${PW_CHROME_KIT_ATTR}="dock"]) nav.pw-pdp-sticky:not([${PW_CHROME_KIT_ATTR}]),
+html:has([${PW_CHROME_KIT_ATTR}="dock"]) div.pw-pdp-sticky,
+.pw-shop:has([${PW_CHROME_KIT_ATTR}="dock"]) nav[data-pw-pdp-bottom]:not([${PW_CHROME_KIT_ATTR}]),
+.pw-shop:has([${PW_CHROME_KIT_ATTR}="dock"]) nav.pw-pdp-sticky:not([${PW_CHROME_KIT_ATTR}]),
+.pw-shop:has([${PW_CHROME_KIT_ATTR}="dock"]) div.pw-pdp-sticky{display:none!important}
 .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"],.pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{
   justify-content:stretch!important;gap:0!important;min-height:56px!important;
   padding:4px 2px calc(4px + env(safe-area-inset-bottom,0px))!important;background:#fff!important;border-top:1px solid var(--pw-border,#e5e7eb)!important
@@ -441,10 +553,161 @@ function resetInflowHeaderSearchOpenTag(tag: string, attrs: string): string {
 
 const HEADER_ACTIONS_RE =
   /<(div)([^>]*class=["'][^"']*\b(?:pw-header-actions|pw-shop-header-actions)\b[^"']*["'][^>]*)>([\s\S]*?)<\/\1>/i
-const BOTTOM_NAV_RE =
-  /<(nav)([^>]*class=["'][^"']*\b(?:pw-bottom-nav|pw-shop-bottom-nav)\b[^"']*["'][^>]*)>([\s\S]*?)<\/\1>/i
+const BOTTOM_NAV_OPEN_RE =
+  /<nav([^>]*class=["'][^"']*\b(?:pw-bottom-nav|pw-shop-bottom-nav)\b[^"']*["'][^>]*)>/gi
+/** Leftover 188 PDP bar only — not kit host, not inner `.pw-pdp-sticky-nav` / `-ctas`. */
 const PDP_BOTTOM_NAV_RE =
-  /<(nav)[^>]*(?:data-pw-pdp-bottom=["']1["']|class=["'][^"']*\bpw-pdp-sticky\b)[^>]*>[\s\S]*?<\/\1>/i
+  /<(nav|div)(?=[^>]*(?:\bdata-pw-pdp-bottom=|["'\s]pw-pdp-sticky["'\s]))(?![^>]*\bdata-pw-chrome-kit=)[^>]*>[\s\S]*?<\/\1>/gi
+
+function isHtmlTagNameEnd(ch: string | undefined): boolean {
+  return ch === ' ' || ch === '>' || ch === '/' || ch === '\n' || ch === '\r' || ch === '\t'
+}
+
+function extractBalancedTag(
+  html: string,
+  tag: string,
+  start: number
+): { full: string; inner: string; open: string; start: number } | null {
+  const openEnd = html.indexOf('>', start)
+  if (openEnd < 0) return null
+  const open = html.slice(start, openEnd + 1)
+  if (/\/\s*>$/.test(open)) return { full: open, inner: '', open, start }
+  const openTok = `<${tag}`
+  const closeTok = `</${tag}>`
+  const lower = html.toLowerCase()
+  let i = openEnd + 1
+  let depth = 1
+  while (i < html.length && depth > 0) {
+    const nextOpen = lower.indexOf(openTok, i)
+    const nextClose = lower.indexOf(closeTok, i)
+    if (nextClose < 0) return null
+    const openIsTag =
+      nextOpen >= 0 &&
+      nextOpen < nextClose &&
+      isHtmlTagNameEnd(lower[nextOpen + openTok.length])
+    if (openIsTag) {
+      depth += 1
+      i = nextOpen + openTok.length
+      continue
+    }
+    depth -= 1
+    i = nextClose + closeTok.length
+  }
+  return { full: html.slice(start, i), inner: html.slice(openEnd + 1, i - closeTok.length), open, start }
+}
+
+function replaceBalancedBottomNavs(
+  html: string,
+  replacer: (attrs: string, inner: string, full: string) => string
+): string {
+  let out = ''
+  let cursor = 0
+  const openRe = new RegExp(BOTTOM_NAV_OPEN_RE.source, 'gi')
+  while (cursor < html.length) {
+    openRe.lastIndex = cursor
+    const found = openRe.exec(html)
+    if (!found || found.index == null) {
+      out += html.slice(cursor)
+      break
+    }
+    const hit = extractBalancedTag(html, 'nav', found.index)
+    if (!hit) {
+      out += html.slice(cursor, found.index + found[0].length)
+      cursor = found.index + found[0].length
+      continue
+    }
+    out += html.slice(cursor, hit.start)
+    out += replacer(found[1] || '', hit.inner, hit.full)
+    cursor = hit.start + hit.full.length
+  }
+  return out
+}
+
+function isLeftoverPdpBarAttrs(attrs: string): boolean {
+  if (new RegExp(`${PW_CHROME_KIT_ATTR}=["']dock["']`, 'i').test(attrs)) return false
+  if (/data-pw-pdp-bottom=/i.test(attrs)) return true
+  return /["'\s]pw-pdp-sticky["'\s]/.test(attrs)
+}
+
+function leftoverPdpBarOpenTag(block: string): string {
+  return block.match(/^<(nav|div)\b[^>]*>/i)?.[0] || ''
+}
+
+function hoistViewportDockToBody(html: string): string {
+  if (!/<\/body>/i.test(html)) return html
+  const docks: string[] = []
+  const out = replaceBalancedBottomNavs(html, (_attrs, _inner, full) => {
+    docks.push(full)
+    return ''
+  })
+  if (!docks.length) return html
+  const picked =
+    docks.find((d) => /data-pw-chrome-kit=["']dock["']/i.test(d) && /pw-pdp-sticky-nav/i.test(d)) ||
+    docks.find((d) => /data-pw-chrome-kit=["']dock["']/i.test(d)) ||
+    docks[docks.length - 1]
+  if (!picked) return html
+  return out.replace(/<\/body>/i, `${picked}\n</body>`)
+}
+
+function keepPdpBarBlock(block: string): boolean {
+  const open = leftoverPdpBarOpenTag(block)
+  return new RegExp(`${PW_CHROME_KIT_ATTR}=["']dock["']`, 'i').test(open)
+}
+
+function isInsideKitDock(html: string, index: number): boolean {
+  const before = html.slice(0, index)
+  const re = /<nav\b[^>]*\bdata-pw-chrome-kit=["']dock["'][^>]*>/gi
+  let lastOpen = -1
+  let found: RegExpExecArray | null
+  while ((found = re.exec(before))) lastOpen = found.index
+  if (lastOpen < 0) return false
+  const hit = extractBalancedTag(html, 'nav', lastOpen)
+  if (!hit) return true
+  return index < hit.start + hit.full.length
+}
+
+function findNextPdpFaceBlock(
+  html: string,
+  className: string,
+  from: number,
+  exact = false
+): { full: string; start: number } | null {
+  const escaped = className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = exact
+    ? new RegExp(`<(div|nav)\\b[^>]*\\bclass=["'][^"']*\\b${escaped}\\b(?![-\\w])[^"']*["'][^>]*>`, 'gi')
+    : new RegExp(`<(div|nav)\\b[^>]*\\b${escaped}\\b[^>]*>`, 'gi')
+  re.lastIndex = from
+  const found = re.exec(html)
+  if (!found || found.index == null) return null
+  const hit = extractBalancedTag(html, (found[1] || 'div').toLowerCase(), found.index)
+  return hit ? { full: hit.full, start: hit.start } : null
+}
+
+/** Leftover 188 face after footer — not the kit dock children. */
+function stripLeftoverPdpFaceOutsideDock(html: string): string {
+  if (!new RegExp(`${PW_CHROME_KIT_ATTR}=["']dock["']`, 'i').test(html)) return html
+  let next = html
+  const specs: Array<{ cls: string; exact?: boolean }> = [
+    { cls: 'pw-pdp-sticky', exact: true },
+    { cls: 'pw-pdp-sticky-ctas' },
+    { cls: 'pw-pdp-sticky-nav' },
+  ]
+  for (const spec of specs) {
+    let from = 0
+    let guard = 0
+    while (guard < 40) {
+      guard += 1
+      const hit = findNextPdpFaceBlock(next, spec.cls, from, spec.exact)
+      if (!hit) break
+      if (isInsideKitDock(next, hit.start)) {
+        from = hit.start + hit.full.length
+        continue
+      }
+      next = `${next.slice(0, hit.start)}${next.slice(hit.start + hit.full.length)}`
+    }
+  }
+  return next
+}
 
 function htmlHasChromeKind(html: string, kind: string): boolean {
   const re = new RegExp(`data-pw-chrome-btn=["']${kind}["']`, 'i')
@@ -674,31 +937,78 @@ function shopHomeAttrs(attrs: string): string {
   return next
 }
 
+function extractBalancedDivByClass(html: string, className: string): { full: string; inner: string; open: string } | null {
+  const openRe = new RegExp(`<div\\b[^>]*\\b${className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b[^>]*>`, 'i')
+  const found = html.match(openRe)
+  if (!found || found.index == null) return null
+  return extractBalancedTag(html, 'div', found.index)
+}
+
+function revealPdpDefaultIcon(block: string, kind: string): string {
+  return block.replace(/<(a|button)(\s[^>]*)>/i, (_m, tag: string, attrs: string) => {
+    let next = String(attrs)
+      .replace(new RegExp(`\\s${PW_HIDDEN_ATTR}=(["'])[^"']*\\1`, 'gi'), '')
+      .replace(new RegExp(`\\s${PW_DOCK_SHOW_ATTR}=(["'])[^"']*\\1`, 'gi'), '')
+    if (!new RegExp(`\\b${PW_PDP_NAV_ATTR}=`, 'i').test(next)) next += ` ${PW_PDP_NAV_ATTR}="1"`
+    if (kind === 'home' && !new RegExp(`\\b${PW_PDP_HOME_ATTR}=`, 'i').test(next)) next += ` ${PW_PDP_HOME_ATTR}="1"`
+    next += ` ${PW_DOCK_SHOW_ATTR}="pdp"`
+    return `<${tag}${next}>`
+  })
+}
+
+function rebuildPdpStickyNavInner(navInner: string, locale: WebLocale, siteSlug?: string | null): string {
+  const blocks: string[] = []
+  CHROME_BTN_BLOCK_RE.lastIndex = 0
+  navInner.replace(CHROME_BTN_BLOCK_RE, (block) => {
+    blocks.push(block)
+    return ''
+  })
+  const defaults: Partial<Record<string, string>> = {}
+  const extraExisting: Record<string, string> = {}
+  for (const block of blocks) {
+    const kind = chromeBtnKindOf(block)
+    if (CHROME_KIT_PDP_NAV_DEFAULT_KINDS.includes(kind as (typeof CHROME_KIT_PDP_NAV_DEFAULT_KINDS)[number])) {
+      if (!defaults[kind]) defaults[kind] = revealPdpDefaultIcon(block, kind)
+      continue
+    }
+    if (kind === 'add-cart' || kind === 'buy-now') continue
+    if (kind && !extraExisting[kind]) extraExisting[kind] = block
+  }
+  const defaultHtml = CHROME_KIT_PDP_NAV_DEFAULT_KINDS.map(
+    (kind) => defaults[kind] || buildDockPdpExtraIconHtml(kind, { locale, siteSlug })
+  )
+  return `${defaultHtml.join('\n      ')}\n      ${buildDockPdpNavExtrasHtml({
+    locale,
+    siteSlug,
+    existing: extraExisting,
+  })}`
+}
+
 export function ensurePdpDockFaceInInner(
   inner: string,
   locale: WebLocale,
   siteSlug?: string | null
 ): string {
   const stamped = stampPdpCtaLockAttrs(inner)
-  if (/\bpw-pdp-sticky-nav\b/.test(stamped) && /\bpw-pdp-sticky-ctas\b/.test(stamped)) {
-    let next = stamped
-    if (!new RegExp(`\\b${PW_PDP_HOME_ATTR}=["']1["']`, 'i').test(next)) {
-      next = next.replace(
-        /(<div\b[^>]*\bpw-pdp-sticky-nav\b[^>]*>)/i,
-        `$1\n      ${buildDockPdpHomeHtml(locale, siteSlug)}`
-      )
-    }
-    return next.replace(
+  const navHit = extractBalancedDivByClass(stamped, 'pw-pdp-sticky-nav')
+  const ctaHit = extractBalancedDivByClass(stamped, 'pw-pdp-sticky-ctas')
+  if (navHit && ctaHit) {
+    const rebuilt = `${navHit.open}\n      ${rebuildPdpStickyNavInner(navHit.inner, locale, siteSlug)}\n    </div>`
+    let next = stamped.replace(navHit.full, rebuilt)
+    next = next.replace(
       /<(a|button)(\s[^>]*data-pw-chrome-btn=["']home["'][^>]*)>/gi,
       (full, tag: string, attrs: string) => {
         if (new RegExp(`\\b${PW_PDP_HOME_ATTR}=`, 'i').test(attrs)) return full
+        if (new RegExp(`\\b${PW_PDP_NAV_ATTR}=`, 'i').test(attrs)) return full
         if (new RegExp(`\\b${PW_DOCK_SHOW_ATTR}=["']pdp["']`, 'i').test(attrs)) return full
         return `<${tag}${shopHomeAttrs(attrs)}>`
       }
     )
+    return next
   }
 
   const blocks: string[] = []
+  CHROME_BTN_BLOCK_RE.lastIndex = 0
   const leftover = stamped
     .replace(CHROME_BTN_BLOCK_RE, (block) => {
       blocks.push(block)
@@ -708,6 +1018,7 @@ export function ensurePdpDockFaceInInner(
     .trim()
 
   const shop: string[] = []
+  const extras: Record<string, string> = {}
   let pdpHome = ''
   let pdpTry = ''
   let pdpFav = ''
@@ -716,6 +1027,7 @@ export function ensurePdpDockFaceInInner(
   for (const block of blocks) {
     const kind = chromeBtnKindOf(block)
     const isPdpHome = new RegExp(`\\b${PW_PDP_HOME_ATTR}=`, 'i').test(block)
+    const isPdpNav = new RegExp(`\\b${PW_PDP_NAV_ATTR}=`, 'i').test(block) || /\bdata-pw-dock-show=["']pdp["']/i.test(block)
     if (kind === 'home' && (isPdpHome || /\bdata-pw-dock-show=["']pdp["']/i.test(block))) {
       pdpHome = block
       continue
@@ -740,6 +1052,10 @@ export function ensurePdpDockFaceInInner(
       shop.push(block.replace(/<(a|button)(\s[^>]*)>/i, (_m, tag: string, attrs: string) => `<${tag}${shopHomeAttrs(attrs)}>`))
       continue
     }
+    if (isPdpNav && isPdpDockNavKind(kind) && !extras[kind]) {
+      extras[kind] = block
+      continue
+    }
     shop.push(block)
   }
 
@@ -747,6 +1063,7 @@ export function ensurePdpDockFaceInInner(
     locale,
     siteSlug,
     nav: { home: pdpHome || undefined, tryOn: pdpTry || undefined, favorite: pdpFav || undefined },
+    extras,
     ctas: { addCart: pdpAdd || undefined, buyNow: pdpBuy || undefined },
   })
   return `${shop.join('\n    ')}${leftover ? `\n    ${leftover}` : ''}\n    ${face}`
@@ -795,10 +1112,8 @@ export function ensurePartnerSiteChromeKitInHtml(
     return `<div${withHostKitGapStyle(withHostKitShiftStyle(withHostKitAttr(attrs, 'actions')))}>${nextInner}</div>`
   })
 
-  const kitDockAlready = new RegExp(`${PW_CHROME_KIT_ATTR}=["']dock["']`, 'i').test(out)
-  out = out.replace(BOTTOM_NAV_RE, (full, _tag: string, attrs: string, inner: string) => {
-    if (/data-pw-pdp-bottom=["']1["']/i.test(attrs) && kitDockAlready) return full
-    if (/data-pw-pdp-bottom=["']1["']/i.test(attrs)) return full
+  out = replaceBalancedBottomNavs(out, (attrs, inner, full) => {
+    if (isLeftoverPdpBarAttrs(attrs)) return full
     let nextInner = stampExistingKitAttrs(inner, 'dock')
     const missing = CHROME_KIT_DOCK_ITEMS.filter((item) => {
       if (item.kind === 'try-on' || item.kind === 'favorite-product' || isPdpDockCtaLocked(item.kind)) {
@@ -827,21 +1142,22 @@ export function ensurePartnerSiteChromeKitInHtml(
   })
 
   const hasKitDock = new RegExp(`${PW_CHROME_KIT_ATTR}=["']dock["']`, 'i').test(out)
+  PDP_BOTTOM_NAV_RE.lastIndex = 0
   if (hasKitDock) {
-    out = out.replace(PDP_BOTTOM_NAV_RE, (block) => {
-      if (/<div\b/i.test(block) && !/data-pw-pdp-bottom=/i.test(block)) return block
-      if (/data-pw-pdp-bottom=["']1["']/i.test(block)) return ''
-      return block
-    })
-  } else if (/data-pw-pdp-bottom=["']1["']/i.test(out)) {
+    out = out.replace(PDP_BOTTOM_NAV_RE, (block) => (keepPdpBarBlock(block) ? block : ''))
+  } else if (/data-pw-pdp-bottom=/i.test(out) || /["'\s]pw-pdp-sticky["'\s]/.test(out)) {
     const dock = `<nav class="pw-bottom-nav pw-shop-bottom-nav" data-pw-region="nav" ${PW_CHROME_KIT_ATTR}="dock">\n    ${buildChromeKitDockHtml({
       locale,
       siteSlug: input.siteSlug,
       logoUrl: input.logoUrl,
       chatIconLogoUrl: input.chatIconLogoUrl,
     })}\n  </nav>`
+    let replaced = false
+    PDP_BOTTOM_NAV_RE.lastIndex = 0
     out = out.replace(PDP_BOTTOM_NAV_RE, (block) => {
-      if (/<div\b/i.test(block) && !/data-pw-pdp-bottom=/i.test(block)) return block
+      if (keepPdpBarBlock(block)) return block
+      if (replaced) return ''
+      replaced = true
       return dock
     })
   }
@@ -853,7 +1169,7 @@ export function ensurePartnerSiteChromeKitInHtml(
     chatIconLogoUrl: input.chatIconLogoUrl,
   })
 
-  return pinMidCanvasTopChromeInHtml(out)
+  return pinMidCanvasTopChromeInHtml(stripLeftoverPdpFaceOutsideDock(hoistViewportDockToBody(out)))
 }
 
 const FLOAT_KIT_HOST_RE =

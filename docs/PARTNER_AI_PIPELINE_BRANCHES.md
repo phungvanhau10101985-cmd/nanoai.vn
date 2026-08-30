@@ -37,6 +37,8 @@ Luồng bắt đầu tại `buildPartnerAiContext` (`src/lib/messaging/partner-a
 | **Page context — mã không có kho, gợi ý theo ảnh** | Trang/embed có `page_context` + ảnh nhưng **không** resolve được dòng kho → vector ảnh ngoài so với kho | `inboundPageSkuMissImageSimilarFallback` | `fetchInventoryRowsSimilarToExternalImageUrl` | `page_context_image_similar_fallback` |
 | **Neo đơn (ảnh CK / tra cứu)** | Giữ **một mã DH** từ ảnh CK (`SEVQR DH…`) hoặc lần tra cứu, tư vấn đúng đơn đó đến khi khách **đổi chủ đề / đơn khác**. **Không** intercept câu hỏi hoàn/hủy/không ưng (đi job `policy_or_order_support`). | `bound_order` trên `raw_payload`; `inboundTextLooksLikeOrderStatusAsk` ≠ `AfterSalesNotCheckout` | `partner-ai-bound-order.ts`, `partner-ai-inbound.ts`, `partner-ai-purchase-intent.ts` | *(intercept trước LLM; không set A/B)* |
 | **Tìm kho mặc định** | Keyword + vector theo tin | Không thuộc các nhánh trên | `invForContext` rộng | *(mặc định)* |
+| **Ảnh khách upload** | OCR/SKU trên ảnh → vector; ≥86% khóa mẫu; dưới 86% carousel | Tin widget có `guest_media` / `[Customer image:]` | `widget-guest-post`, `partner-ai-photo-item-consult` | `image_sku_match` / `image_visual_lock` / vision pick |
+| **Ảnh hậu mãi** | Chỉ khi **caption hoặc tin inbound khách** có ý đổi size/hoàn, hoặc OCR ra vận đơn/CK/screenshot đơn | `classifyAfterSalesImage` — **cấm** lấy chữ «đổi size» từ tin shop | `partner-ai-after-sales-image.ts` | `guest_after_sales_image_reply` |
 
 ## Loại trừ giữa Nhánh A và Nhánh B
 

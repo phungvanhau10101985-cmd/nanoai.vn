@@ -88,6 +88,8 @@ import {
   PW_KIT_GAP_MIN,
   PW_KIT_X_MAX,
   PW_KIT_X_MIN,
+  PW_PDP_NAV_MAX,
+  pdpDockDefaultIconHtmlByLocale,
 } from '../shop/partner-site-chrome-kit'
 import {
   PW_LAST_MEDIA_SRC_ATTR,
@@ -725,6 +727,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   var sceneFocus = -1
   var logoLayerPicked = false
   var editDevice = 'desktop'
+  var PW_PDP_DOCK_DEFAULT_ICONS = ${JSON.stringify(pdpDockDefaultIconHtmlByLocale())}
   var logoDraw = { on: false, dragging: false, x1: 0, y1: 0, x2: 0, y2: 0 }
   var logoCrop = { on: false, live: false, img: null, zoom: 1, panX: 0, panY: 0, startX: 0, startY: 0, baseX: 0, baseY: 0, dragging: false, resize: '', frameW: 80, frameH: 32, viewW: 280, viewH: 112, picW: 280, picH: 112, baseViewW: 280, baseViewH: 112, snap: null }
   var resize = { active: false, startX: 0, startY: 0, startW: 0, startH: 0, startZoom: 1, startLeft: 0, startTop: 0, dir: 'se', mode: 'frame' }
@@ -4524,13 +4527,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (logo) keepHeaderLogoInDefaultSlot(logo)
     } catch (errLogoSeat) {}
     if (!actions) return
+    try { reseatPdpDockButtonsFromHead() } catch (errReseatPdp) {}
     var kitBtns = document.querySelectorAll('[data-pw-chrome-kit="1"][data-pw-chrome-btn], .pw-header-actions [data-pw-chrome-btn], .pw-shop-header-actions [data-pw-chrome-btn]')
     var i
     for (i = 0; i < kitBtns.length; i++) {
       var btn = kitBtns[i]
       if (!btn || isChromeFloatEl(btn)) continue
       if (isAddedChrome(btn) && !(btn.getAttribute && btn.getAttribute('data-pw-chrome-kit') === '1')) continue
-      if (btn.closest && btn.closest('.pw-bottom-nav,.pw-shop-bottom-nav,[data-pw-chrome-kit="dock"],[data-pw-chrome-kit="float"]')) continue
+      if (btn.closest && btn.closest('.pw-bottom-nav,.pw-shop-bottom-nav,[data-pw-chrome-kit="dock"],[data-pw-chrome-kit="float"],[data-pw-live-dock]')) continue
+      if (isPdpDockFaceBtn(btn)) continue
       var kind = chromeKindOf(btn)
       if (kind === 'categories' || kind === 'search' || kind === 'search-image') continue
       var wrap = btn.closest && btn.closest('.pw-account-wrap, .pw-shop-account-wrap')
@@ -4622,9 +4627,12 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var dockRoot = chromeKitDockRoot()
     applyChromeKitShift(headRoot, chromeKitShiftOf(headRoot))
     if (isFinite(chromeKitGapRawOf(headRoot))) applyChromeKitGap(headRoot, chromeKitGapOf(headRoot))
-    function collect(root) {
+    function collect(root, preferPdpDock) {
       if (!root || !root.querySelectorAll) return []
-      var nodes = root.querySelectorAll('[data-pw-chrome-btn]')
+      var nodes = preferPdpDock
+        ? root.querySelectorAll('.pw-pdp-sticky-nav [data-pw-chrome-btn],.pw-pdp-sticky-ctas [data-pw-chrome-btn]')
+        : root.querySelectorAll('[data-pw-chrome-btn]')
+      if (preferPdpDock && (!nodes || !nodes.length)) nodes = root.querySelectorAll('[data-pw-chrome-btn]')
       var out = []
       var seen = {}
       for (var i = 0; i < nodes.length; i++) {
@@ -4633,10 +4641,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         var kind = String(n.getAttribute('data-pw-chrome-btn') || '')
         if (!kind || seen[kind]) continue
         seen[kind] = 1
+        var dockShow = n.getAttribute('data-pw-dock-show') || ''
+        var hidden = n.getAttribute('data-pw-hidden') === '1'
+        if (preferPdpDock && !isPdpDockCtaLockedKind(kind) && dockShow !== 'pdp' && dockShow !== 'both') hidden = true
         out.push({
           kind: kind,
-          hidden: n.getAttribute('data-pw-hidden') === '1',
-          dockShow: n.getAttribute('data-pw-dock-show') || '',
+          hidden: hidden,
+          dockShow: dockShow,
           slot: n.getAttribute('data-pw-dock-slot') || '',
           label: String(n.getAttribute('aria-label') || n.textContent || kind).replace(/\s+/g, ' ').trim()
         })
@@ -4662,7 +4673,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { stack = pwChromeFloatApplyStack() || stack } catch (errStackState) {}
     post('chromeKitState', {
       head: collect(headRoot),
-      dock: collect(dockRoot),
+      dock: collect(dockRoot, isPdpEditorDoc()),
       float: collectFloat(),
       floatRight: stack.right,
       floatBottom: stack.bottom,
@@ -4690,12 +4701,26 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     for (var j = 0; j < extras.length; j++) add(extras[j])
     return out
   }
+  function isPdpEditorDoc() {
+    var html = document.documentElement
+    var body = document.body
+    if (html && html.getAttribute && html.getAttribute('data-pw-page') === 'product') return true
+    if (body && body.getAttribute && body.getAttribute('data-pw-page') === 'product') return true
+    return false
+  }
   function findChromeKitBtn(kind, bar) {
     var k = String(kind || '').replace(/"/g, '')
     if (bar === 'float') return chromeKitFloatBtnsOf(k)[0] || null
-    var root = bar === 'dock'
-      ? document.querySelector('[data-pw-chrome-kit="dock"],.pw-bottom-nav,.pw-shop-bottom-nav')
-      : document.querySelector('[data-pw-chrome-kit="actions"],.pw-header-actions,.pw-shop-header-actions')
+    if (bar === 'dock') {
+      var dock = chromeKitDockRoot()
+      if (!dock || !dock.querySelector) return null
+      if (isPdpEditorDoc()) {
+        var pdp = dock.querySelector('.pw-pdp-sticky-nav [data-pw-chrome-btn="' + k + '"],.pw-pdp-sticky-ctas [data-pw-chrome-btn="' + k + '"]')
+        if (pdp) return pdp
+      }
+      return dock.querySelector('[data-pw-chrome-btn="' + k + '"]')
+    }
+    var root = document.querySelector('[data-pw-chrome-kit="actions"],.pw-header-actions,.pw-shop-header-actions')
     return root && root.querySelector ? root.querySelector('[data-pw-chrome-btn="' + k + '"]') : null
   }
   function listFloatKitItems() {
@@ -4792,11 +4817,53 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function isPdpDockCtaLockedKind(kind) {
     return kind === 'add-cart' || kind === 'buy-now'
   }
+  function pdpStickyNavOf(el) {
+    return el && el.closest ? el.closest('.pw-pdp-sticky-nav') : null
+  }
+  function listPdpNavVisible(nav) {
+    if (!nav || !nav.querySelectorAll) return []
+    var nodes = nav.querySelectorAll('[data-pw-chrome-btn]')
+    var out = []
+    for (var i = 0; i < nodes.length; i++) {
+      if (nodes[i].getAttribute('data-pw-hidden') === '1') continue
+      if (isPdpDockCtaLockedKind(nodes[i].getAttribute('data-pw-chrome-btn'))) continue
+      out.push(nodes[i])
+    }
+    return out
+  }
+  function capPdpNavVisible(nav, keep) {
+    var vis = listPdpNavVisible(nav)
+    var max = ${PW_PDP_NAV_MAX}
+    while (vis.length > max) {
+      var drop = null
+      for (var i = vis.length - 1; i >= 0; i--) {
+        if (vis[i] !== keep) { drop = vis[i]; break }
+      }
+      if (!drop) break
+      drop.setAttribute('data-pw-hidden', '1')
+      vis = listPdpNavVisible(nav)
+    }
+  }
   function setChromeKitDockShow(kind, show) {
     if (isPdpDockCtaLockedKind(kind)) return
     var el = findChromeKitBtn(kind, 'dock')
     if (!el) return
     var next = String(show || 'shop')
+    var nav = pdpStickyNavOf(el)
+    if (nav) {
+      if (next === 'off') {
+        el.setAttribute('data-pw-dock-show', 'pdp')
+        el.setAttribute('data-pw-hidden', '1')
+      } else {
+        el.setAttribute('data-pw-dock-show', 'pdp')
+        el.removeAttribute('data-pw-hidden')
+        capPdpNavVisible(nav, el)
+      }
+      if (el.style) el.style.display = ''
+      post('dirty', {})
+      listChromeKitState()
+      return
+    }
     if (kind === 'home' && el.getAttribute('data-pw-pdp-home') !== '1' && (next === 'pdp' || next === 'both')) {
       next = 'shop'
     }
@@ -11997,6 +12064,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function syncLogoButtons() {
     var keep = {}
+    if (document.documentElement && document.documentElement.getAttribute('data-pw-head-logo-collapsed') === '1') {
+      hideLogoButtons()
+      return
+    }
     var slot = headerLogoUploadSlot()
     if (slot) {
       var box = ensureLogoButton(slot, 0)
@@ -13968,10 +14039,22 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '[data-pw-edit-device="desktop"] .pw-bottom-nav,[data-pw-edit-device="desktop"] .pw-shop-bottom-nav,[data-pw-edit-device="laptop"] .pw-bottom-nav,[data-pw-edit-device="laptop"] .pw-shop-bottom-nav{display:none!important}',
       '[data-pw-edit-device="mobile"] .pw-bottom-nav,[data-pw-edit-device="mobile"] .pw-shop-bottom-nav,[data-pw-edit-device="tablet"] .pw-bottom-nav,[data-pw-edit-device="tablet"] .pw-shop-bottom-nav,.nanoai-ve-mobile .pw-bottom-nav,.nanoai-ve-mobile .pw-shop-bottom-nav,.nanoai-ve-tablet .pw-bottom-nav,.nanoai-ve-tablet .pw-shop-bottom-nav{display:flex!important;position:fixed!important;left:0;right:0;bottom:0;z-index:${PW_SCENE_HEAD_Z}!important}',
       '[data-pw-edit-device="mobile"] [data-pw-page="product"] .pw-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]),[data-pw-edit-device="mobile"] [data-pw-page="product"] .pw-shop-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]),.nanoai-ve-mobile [data-pw-page="product"] .pw-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]),.nanoai-ve-mobile [data-pw-page="product"] .pw-shop-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]){display:none!important}',
+      '[data-pw-edit-device="mobile"] [data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"],[data-pw-edit-device="mobile"] [data-pw-page="product"] .pw-shop-bottom-nav[data-pw-chrome-kit="dock"],[data-pw-edit-device="tablet"] [data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"],[data-pw-edit-device="tablet"] [data-pw-page="product"] .pw-shop-bottom-nav[data-pw-chrome-kit="dock"],.nanoai-ve-mobile [data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"],.nanoai-ve-tablet [data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"]{display:flex!important}',
+      '[data-pw-page="product"] .pw-bottom-nav[data-pw-pdp-bottom]:not([data-pw-chrome-kit]),[data-pw-page="product"] .pw-shop-bottom-nav[data-pw-pdp-bottom]:not([data-pw-chrome-kit]),[data-pw-page="product"] nav.pw-pdp-sticky:not([data-pw-chrome-kit]){display:none!important}',
+      'html[data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"] > [data-pw-dock-show="pdp"]:not(.pw-pdp-sticky-nav):not(.pw-pdp-sticky-ctas):not([data-pw-hidden="1"]),html[data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"] > [data-pw-dock-show="both"]:not(.pw-pdp-sticky-nav):not(.pw-pdp-sticky-ctas):not([data-pw-hidden="1"]),html[data-pw-page="product"] .pw-shop-bottom-nav[data-pw-chrome-kit="dock"] > [data-pw-dock-show="pdp"]:not(.pw-pdp-sticky-nav):not(.pw-pdp-sticky-ctas):not([data-pw-hidden="1"]),html[data-pw-page="product"] .pw-shop-bottom-nav[data-pw-chrome-kit="dock"] > [data-pw-dock-show="both"]:not(.pw-pdp-sticky-nav):not(.pw-pdp-sticky-ctas):not([data-pw-hidden="1"]){display:flex!important;flex-direction:column;align-items:center;justify-content:center}',
+      'html[data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"] .pw-pdp-sticky-nav,html[data-pw-page="product"] .pw-shop-bottom-nav[data-pw-chrome-kit="dock"] .pw-pdp-sticky-nav{display:flex!important;flex-direction:row!important;align-items:stretch}',
+      'html[data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"] .pw-pdp-sticky-ctas,html[data-pw-page="product"] .pw-shop-bottom-nav[data-pw-chrome-kit="dock"] .pw-pdp-sticky-ctas{display:flex!important;flex-direction:row!important;flex:1;min-width:0}',
+      '[data-pw-live-dock]{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100%;z-index:${PW_SCENE_HEAD_Z};pointer-events:none;transform:none!important}',
+      '[data-pw-live-dock]>.pw-bottom-nav,[data-pw-live-dock]>.pw-shop-bottom-nav{position:relative!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;width:100%!important;pointer-events:auto}',
+      '[data-pw-edit-device="mobile"] .pw-bottom-nav,[data-pw-edit-device="tablet"] .pw-bottom-nav,[data-pw-edit-device="mobile"] .pw-shop-bottom-nav,[data-pw-edit-device="tablet"] .pw-shop-bottom-nav{top:auto!important}',
       '.pw-bottom-nav a:not([data-pw-chrome-added]),.pw-shop-bottom-nav a:not([data-pw-chrome-added]),.pw-bottom-nav .pw-icon-btn:not([data-pw-chrome-added]),.pw-shop-bottom-nav .pw-icon-btn:not([data-pw-chrome-added]){flex:1 1 0;min-width:0;min-height:0;width:auto!important;height:auto!important;color:#6b7280;flex-direction:column;align-items:center;justify-content:center;background:transparent!important}',
       '.pw-bottom-nav [data-pw-chrome-added],.pw-shop-bottom-nav [data-pw-chrome-added]{flex:1 1 0;min-width:0;min-height:0;width:auto!important;height:auto!important;flex-direction:column;align-items:center;justify-content:center;background:transparent!important;cursor:grab}',
       '.pw-header,.pw-shop-header,.pw-header-main,.pw-shop-header-inner,.pw-brand-cluster,.pw-shop-brand-cluster{overflow:visible!important}',
-      'html{--pw-block-w:min(calc(var(--pw-scene-w,100%) - 32px),var(--pw-content,1200px));--pw-chrome-inset:calc(var(--pw-block-w) * 0.05)}',
+      'html{--pw-page-gutter:20px;--pw-block-w:min(calc(var(--pw-scene-w,100%) - 32px),var(--pw-content,1200px));--pw-chrome-inset:calc(var(--pw-block-w) * 0.05)}',
+      'html[data-pw-edit-device="mobile"],html[data-pw-scene-lock="mobile"]{--pw-page-gutter:4px;--pw-block-w:min(calc(var(--pw-scene-w,100%) - 8px),var(--pw-content,1200px))}',
+      'html[data-pw-edit-device="mobile"] .pw-container:not(.pw-header-main):not(.pw-shop-header-inner):not(.pw-topbar-inner):not(.pw-nav-main):not(.pw-shop-nav-row),html[data-pw-scene-lock="mobile"] .pw-container:not(.pw-header-main):not(.pw-shop-header-inner):not(.pw-topbar-inner):not(.pw-nav-main):not(.pw-shop-nav-row){padding-left:4px!important;padding-right:4px!important}',
+      'html[data-pw-edit-device="mobile"] .pw-page-shell,html[data-pw-scene-lock="mobile"] .pw-page-shell,html[data-pw-edit-device="mobile"] .pw-shop-main,html[data-pw-scene-lock="mobile"] .pw-shop-main{padding-left:4px!important;padding-right:4px!important}',
+      'html[data-pw-edit-device="mobile"] .pw-page-shell .pw-container:not(.pw-header-main):not(.pw-shop-header-inner):not(.pw-topbar-inner):not(.pw-nav-main):not(.pw-shop-nav-row),html[data-pw-scene-lock="mobile"] .pw-page-shell .pw-container:not(.pw-header-main):not(.pw-shop-header-inner):not(.pw-topbar-inner):not(.pw-nav-main):not(.pw-shop-nav-row),html[data-pw-edit-device="mobile"] .pw-shop-main .pw-container:not(.pw-header-main):not(.pw-shop-header-inner):not(.pw-topbar-inner):not(.pw-nav-main):not(.pw-shop-nav-row),html[data-pw-scene-lock="mobile"] .pw-shop-main .pw-container:not(.pw-header-main):not(.pw-shop-header-inner):not(.pw-topbar-inner):not(.pw-nav-main):not(.pw-shop-nav-row){padding-left:0!important;padding-right:0!important}',
       'html .pw-header-main,html .pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;min-width:0;position:relative!important;max-width:var(--pw-block-w)!important;width:var(--pw-block-w)!important;margin-left:auto!important;margin-right:auto!important;align-self:center!important;box-sizing:border-box;padding-left:var(--pw-chrome-inset,60px)!important;padding-right:var(--pw-chrome-inset,60px)!important}',
       'html .pw-topbar-inner,html .pw-shop-topbar-inner{display:flex!important;justify-content:flex-end!important;align-items:center!important;max-width:var(--pw-block-w)!important;width:var(--pw-block-w)!important;margin-left:auto!important;margin-right:auto!important;align-self:center!important;box-sizing:border-box;padding-left:var(--pw-chrome-inset,60px)!important;padding-right:var(--pw-chrome-inset,60px)!important}',
       'html .pw-nav-main,html .pw-shop-nav-row,html .pw-hero,html .pw-banner,html .pw-shop-hero,html .pw-shop-banner,html [data-pw-region="banner"]{max-width:var(--pw-block-w)!important;width:var(--pw-block-w)!important;margin-left:auto!important;margin-right:auto!important;box-sizing:border-box}',
@@ -14121,11 +14204,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       scrollVeRaf = 0
       positionAllHandles()
       stickHeaderSync()
+      try { if (window.__pwMobileHeadLogoSync) window.__pwMobileHeadLogoSync() } catch (errLogoScroll) {}
       if (hoverNameTarget) paintHoverName(hoverNameTarget)
     }) : 0
     if (!scrollVeRaf) {
       positionAllHandles()
       stickHeaderSync()
+      try { if (window.__pwMobileHeadLogoSync) window.__pwMobileHeadLogoSync() } catch (errLogoScroll2) {}
       if (hoverNameTarget) paintHoverName(hoverNameTarget)
     }
   }
@@ -14197,6 +14282,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { clearAllChatStickHeaders() } catch (errChatStick) {}
     try { resetFullBleedChromePos() } catch (errBleedReset) {}
     try { pinHeaderChromeIcons() } catch (errChromePin) {}
+    try {
+      if (document.body && document.body.getAttribute && document.body.getAttribute('data-pw-page') === 'product' && document.documentElement) {
+        document.documentElement.setAttribute('data-pw-page', 'product')
+      }
+    } catch (errPageStamp) {}
+    try { hoistKitDockToBody() } catch (errHoistDock) {}
+    try { ensurePdpDockFaceInDoc() } catch (errFaceDock) {}
+    try { reseatPdpDockButtonsFromHead() } catch (errReseatDock) {}
+    try { hideLeftoverPdpBottomBars() } catch (errHidePdpBar) {}
     try { seatLockedHeaderRow() } catch (errSeatRow) {}
     try { pinChromeIconBadges(document) } catch (errPin) {}
     try { pwApplyDemoChromeCountBadges(document) } catch (errDemo) {}
@@ -14306,9 +14400,156 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     run()
   }
+  function stampShopPageFromHost(d) {
+    var pk = String((d && d.pageKey) || '').trim()
+    if (pk !== 'product_detail') return
+    if (document.documentElement && document.documentElement.setAttribute) {
+      document.documentElement.setAttribute('data-pw-page', 'product')
+    }
+    if (document.body && document.body.setAttribute) {
+      document.body.setAttribute('data-pw-page', 'product')
+    }
+  }
+  function isPdpDockFaceBtn(el) {
+    if (!el || !el.getAttribute) return false
+    var kind = el.getAttribute('data-pw-chrome-btn') || ''
+    if (kind === 'add-cart' || kind === 'buy-now' || kind === 'try-on' || kind === 'favorite-product') return true
+    if (el.getAttribute('data-pw-kit-lock') === 'cta') return true
+    if (el.getAttribute('data-pw-dock-show') === 'pdp') return true
+    if (el.getAttribute('data-pw-pdp-nav') === '1' || el.getAttribute('data-pw-pdp-home') === '1') return true
+    return false
+  }
+  function ensureEditorLiveDockHost() {
+    var host = document.querySelector('[data-pw-live-dock="1"]')
+    if (host) return host
+    if (!document.body) return null
+    host = document.createElement('div')
+    host.setAttribute('data-pw-live-dock', '1')
+    document.body.appendChild(host)
+    return host
+  }
+  function hoistKitDockToBody() {
+    var dock = document.querySelector('[data-pw-chrome-kit="dock"],.pw-bottom-nav,.pw-shop-bottom-nav')
+    if (!dock || !document.body) return
+    var inHead = dock.closest('header,.pw-header,.pw-shop-header,.pw-header-main,.pw-shop-header-inner,.pw-header-actions,.pw-shop-header-actions')
+    var wrap = dock.closest('[data-pw-visual-device],.pw-visual-desktop,.pw-visual-laptop,.pw-visual-tablet,.pw-visual-mobile')
+    if (!inHead && !wrap && dock.parentNode === document.body) return
+    if (!inHead && !wrap) return
+    var host = ensureEditorLiveDockHost()
+    if (host && dock.parentNode !== host) host.appendChild(dock)
+  }
+  function reseatPdpDockButtonsFromHead() {
+    var dock = document.querySelector('[data-pw-chrome-kit="dock"],.pw-bottom-nav,.pw-shop-bottom-nav')
+    if (!dock) return
+    var faceNav = dock.querySelector('.pw-pdp-sticky-nav')
+    var faceCtas = dock.querySelector('.pw-pdp-sticky-ctas')
+    var nodes = document.querySelectorAll('[data-pw-chrome-btn="add-cart"],[data-pw-chrome-btn="buy-now"],[data-pw-chrome-btn="try-on"],[data-pw-chrome-btn="favorite-product"],[data-pw-kit-lock="cta"],[data-pw-dock-show="pdp"],[data-pw-pdp-nav="1"],[data-pw-pdp-home="1"]')
+    var i
+    for (i = 0; i < nodes.length; i++) {
+      var el = nodes[i]
+      if (!el) continue
+      if (el.closest && el.closest('[data-pw-chrome-kit="dock"],.pw-bottom-nav,.pw-shop-bottom-nav,[data-pw-live-dock]')) continue
+      if (el.closest && el.closest('[data-pw-chrome-kit="float"]')) continue
+      var kind = el.getAttribute('data-pw-chrome-btn') || ''
+      var host = (kind === 'add-cart' || kind === 'buy-now') ? (faceCtas || dock) : (faceNav || dock)
+      if (host && el.parentNode !== host) {
+        try { host.appendChild(el) } catch (errReseat) {}
+      }
+    }
+  }
+  function pdpDockDefaultIconHtml(kind) {
+    var loc = String((document.documentElement && document.documentElement.getAttribute('lang')) || 'vi').slice(0, 2)
+    var pack = PW_PDP_DOCK_DEFAULT_ICONS[loc] || PW_PDP_DOCK_DEFAULT_ICONS.vi
+    return (pack && pack[kind]) || ''
+  }
+  function ensurePdpDockFaceInDoc() {
+    var page =
+      (document.documentElement && document.documentElement.getAttribute('data-pw-page')) ||
+      (document.body && document.body.getAttribute('data-pw-page'))
+    if (page !== 'product') return
+    var dock = document.querySelector('[data-pw-chrome-kit="dock"]')
+    if (!dock) return
+    var nav = dock.querySelector(':scope > .pw-pdp-sticky-nav')
+    var ctas = dock.querySelector(':scope > .pw-pdp-sticky-ctas')
+    if (!nav) {
+      nav = dock.querySelector('.pw-pdp-sticky-nav')
+      if (nav && nav.parentNode !== dock) dock.appendChild(nav)
+    }
+    if (!nav) {
+      nav = document.createElement('div')
+      nav.className = 'pw-pdp-sticky-nav'
+      nav.setAttribute('data-pw-dock-show', 'pdp')
+      dock.appendChild(nav)
+    }
+    if (!ctas) {
+      ctas = dock.querySelector('.pw-pdp-sticky-ctas')
+      if (ctas && ctas.parentNode !== dock) dock.appendChild(ctas)
+    }
+    if (!ctas) {
+      ctas = document.createElement('div')
+      ctas.className = 'pw-pdp-sticky-ctas'
+      ctas.setAttribute('data-pw-dock-show', 'pdp')
+      dock.appendChild(ctas)
+    }
+    var kids = Array.prototype.slice.call(dock.querySelectorAll('[data-pw-chrome-btn]'))
+    var i
+    for (i = 0; i < kids.length; i++) {
+      var el = kids[i]
+      if (!el || !el.getAttribute || !dock.contains(el)) continue
+      if (el.closest && el.closest('[data-pw-chrome-kit="float"]')) continue
+      var kind = el.getAttribute('data-pw-chrome-btn') || ''
+      var show = el.getAttribute('data-pw-dock-show') || ''
+      if (kind === 'add-cart' || kind === 'buy-now') {
+        el.setAttribute('data-pw-dock-show', 'pdp')
+        if (el.parentNode !== ctas) ctas.appendChild(el)
+        continue
+      }
+      if (show === 'pdp' || show === 'both' || kind === 'try-on' || kind === 'favorite-product' || el.getAttribute('data-pw-pdp-home') === '1' || el.getAttribute('data-pw-pdp-nav') === '1') {
+        if (kind === 'home' || show === 'both') el.setAttribute('data-pw-dock-show', 'pdp')
+        if (el.parentNode !== nav) nav.appendChild(el)
+      }
+    }
+    var defaults = ['home', 'try-on', 'favorite-product']
+    for (i = 0; i < defaults.length; i++) {
+      var missingKind = defaults[i]
+      var found = nav.querySelector('[data-pw-chrome-btn="' + missingKind + '"]')
+      if (found) {
+        found.removeAttribute('data-pw-hidden')
+        found.setAttribute('data-pw-dock-show', 'pdp')
+        if (found.parentNode !== nav) nav.appendChild(found)
+        continue
+      }
+      var html = pdpDockDefaultIconHtml(missingKind)
+      if (!html) continue
+      var wrap = document.createElement('div')
+      wrap.innerHTML = html
+      var node = wrap.firstElementChild
+      if (node) nav.appendChild(node)
+    }
+    for (i = defaults.length - 1; i >= 0; i--) {
+      var ordered = nav.querySelector('[data-pw-chrome-btn="' + defaults[i] + '"]')
+      if (ordered) nav.insertBefore(ordered, nav.firstChild)
+    }
+  }
+  function hideLeftoverPdpBottomBars() {
+    var kit = document.querySelector('[data-pw-chrome-kit="dock"]')
+    if (!kit) return
+    var nodes = document.querySelectorAll('nav[data-pw-pdp-bottom],nav.pw-pdp-sticky,div.pw-pdp-sticky,.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas,body > [data-pw-dock-show="pdp"]')
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i]
+      if (!el || el === kit || (el.closest && el.closest('[data-pw-chrome-kit="dock"]'))) continue
+      if (el.getAttribute && el.getAttribute('data-pw-chrome-kit') === 'dock') continue
+      if (el.parentNode) el.parentNode.removeChild(el)
+    }
+  }
   function activateFromHost(d) {
     d = d || {}
     if (d.device === 'mobile' || d.device === 'tablet' || d.device === 'laptop' || d.device === 'desktop') editDevice = d.device
+    stampShopPageFromHost(d)
+    try { hoistKitDockToBody() } catch (errHoistDockHost) {}
+    try { ensurePdpDockFaceInDoc() } catch (errFaceDockHost) {}
+    try { reseatPdpDockButtonsFromHead() } catch (errReseatDockHost) {}
+    try { hideLeftoverPdpBottomBars() } catch (errHidePdpBarHost) {}
     setHoverNameOn()
     activate()
     if (d.vars) applyThemeVars(d.vars)

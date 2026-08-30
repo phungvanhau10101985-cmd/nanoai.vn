@@ -22,7 +22,12 @@ import type { CustomerCareChannel } from '@/lib/customer-care/types'
 import {
   inboundBodyHasCustomerUploadedImage,
   inboundTextHasVisionSelectionHint,
+  previousInboundHasCustomerUploadedImage,
 } from '@/lib/messaging/guest-chat-image'
+import {
+  inboundTextLooksLikeAskSkuOfThisPhotoItem,
+  inboundTextLooksLikeConsultThisPhotoItem,
+} from '@/lib/messaging/partner-ai-photo-item-consult'
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import { runMessagingPartnerAiJobBatch } from '@/lib/messaging/partner-ai-run-jobs'
 import { normalizeWebLocale } from '@/lib/i18n/config'
@@ -337,16 +342,24 @@ export async function handlePartnerInboundForAi(input: {
         : input.inboundBody
     )
     let boundOrder = null as ReturnType<typeof findLatestBoundOrderSnapshot>
+    let transcriptLines: Awaited<ReturnType<typeof fetchCustomerCareTranscriptLinesFromPg>> = null
     if (isPgConfigured()) {
       try {
-        const lines = await fetchCustomerCareTranscriptLinesFromPg(input.conversationId, 16)
-        boundOrder = findLatestBoundOrderSnapshot(lines ?? [])
+        transcriptLines = await fetchCustomerCareTranscriptLinesFromPg(input.conversationId, 16)
+        boundOrder = findLatestBoundOrderSnapshot(transcriptLines ?? [])
       } catch (e) {
         console.warn('[partner-ai-inbound] bound order transcript', e)
       }
     }
+    const photoConsultAfterGuestImage =
+      previousInboundHasCustomerUploadedImage(transcriptLines ?? []) &&
+      (inboundTextLooksLikeConsultThisPhotoItem(probeForLookup) ||
+        inboundTextLooksLikeAskSkuOfThisPhotoItem(probeForLookup))
     const switchOffBound = Boolean(
-      boundOrder && inboundTextSwitchesOffBoundOrder(probeForLookup, boundOrder)
+      boundOrder &&
+        (inboundTextSwitchesOffBoundOrder(probeForLookup, boundOrder) ||
+          inboundBodyHasCustomerUploadedImage(input.inboundBody) ||
+          photoConsultAfterGuestImage)
     )
     const activeBound = boundOrder && !switchOffBound ? boundOrder : null
     const depositAsk = inboundTextLooksLikeDepositConfirmAsk(probeForLookup)

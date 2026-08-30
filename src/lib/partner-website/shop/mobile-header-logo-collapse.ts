@@ -52,7 +52,8 @@ html[data-pw-scene-lock="mobile"]:not([${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"]) ${LO
 html:not([data-pw-edit-device]):not([data-pw-scene-lock]):not([${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"]) ${LOGO_ROW_IS}{opacity:1!important;pointer-events:auto!important}
 html[data-pw-edit-device="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] ${LOGO_ROW_IS},
 html[data-pw-scene-lock="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] ${LOGO_ROW_IS},
-html:not([data-pw-edit-device]):not([data-pw-scene-lock])[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] ${LOGO_ROW_IS}{max-height:0!important;min-height:0!important;opacity:0!important;margin:0!important;pointer-events:none!important}
+html:not([data-pw-edit-device]):not([data-pw-scene-lock])[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] ${LOGO_ROW_IS}{max-height:0!important;min-height:0!important;opacity:0!important;margin:0!important;overflow:hidden!important;pointer-events:none!important}
+html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .nanoai-ve-logo-btn,html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] img[data-pw-logo-empty="1"],html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-logo-frame:has([data-pw-logo-empty="1"]),html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] [data-pw-logo-frame="1"]:has([data-pw-logo-empty="1"]){display:none!important;min-height:0!important;min-width:0!important}
 html[data-pw-edit-device="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-header-main,
 html[data-pw-edit-device="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-shop-header-inner,
 html[data-pw-scene-lock="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-header-main,
@@ -68,9 +69,6 @@ export const PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT = `(function(){
   var collapsed=false;
   var ro=null;
   function html(){return document.documentElement;}
-  function isEditor(){
-    return !!(document.body&&document.body.classList&&document.body.classList.contains('nanoai-ve-active'));
-  }
   function isMobileHead(){
     var el=html();
     var d=(el.getAttribute('data-pw-edit-device')||el.getAttribute('data-pw-scene-lock')||'');
@@ -78,7 +76,11 @@ export const PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT = `(function(){
     if(d==='desktop'||d==='laptop'||d==='tablet')return false;
     return (window.innerWidth||el.clientWidth||0)<768;
   }
-  function scrollY(){return window.scrollY||html().scrollTop||0;}
+  function scrollY(){
+    var se=document.scrollingElement||html();
+    var y=Math.max(window.scrollY||0,window.pageYOffset||0,se&&se.scrollTop||0,html().scrollTop||0);
+    return y;
+  }
   function visibleHeader(){
     var nodes=document.querySelectorAll('${HEADER_SEL}');
     var i;
@@ -119,7 +121,7 @@ export const PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT = `(function(){
     measure();
   }
   function sync(){
-    if(isEditor()||!isMobileHead()){
+    if(!isMobileHead()){
       if(collapsed)setCollapsed(false);
       else measure();
       return;
@@ -129,6 +131,8 @@ export const PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT = `(function(){
       if(y<=EXPAND)setCollapsed(false);
     }else if(y>COLLAPSE){
       setCollapsed(true);
+    }else{
+      measure();
     }
   }
   function onScroll(){sync();}
@@ -136,8 +140,9 @@ export const PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT = `(function(){
     watchHeader();
     sync();
   }
+  try{window.__pwMobileHeadLogoSync=sync;}catch(eSync){}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);
   else boot();
-  window.addEventListener('scroll',onScroll,{passive:true});
+  window.addEventListener('scroll',onScroll,{passive:true,capture:true});
   window.addEventListener('resize',function(){watchHeader();sync();});
 })();`

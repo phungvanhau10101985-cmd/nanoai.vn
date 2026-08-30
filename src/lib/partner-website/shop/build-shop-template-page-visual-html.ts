@@ -81,7 +81,7 @@ function compactDevice(variant: VisualDeviceVariant): boolean {
 }
 
 function pagePad(variant: VisualDeviceVariant): string {
-  if (variant === 'mobile') return '20px 16px 96px'
+  if (variant === 'mobile') return '12px 4px 96px'
   if (variant === 'tablet') return '28px 20px 96px'
   if (variant === 'laptop') return '36px 28px 48px'
   return '44px 32px 56px'

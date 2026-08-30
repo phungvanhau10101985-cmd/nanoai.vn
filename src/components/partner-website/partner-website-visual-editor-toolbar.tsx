@@ -111,11 +111,15 @@ import {
   type VisualEditorChromeWidgetStyle,
 } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import {
+  CHROME_KIT_DOCK_ITEMS,
   CHROME_KIT_FLOAT_ITEMS,
+  CHROME_KIT_PDP_NAV_DEFAULT_KINDS,
   clampChromeKitGap,
   clampChromeKitShift,
   isChromeKitPickerKind,
   isPdpDockCtaLocked,
+  isPdpDockFaceKind,
+  isPdpDockNavKind,
   PW_KIT_GAP_DEFAULT,
   PW_KIT_GAP_MAX,
   PW_KIT_GAP_MIN,
@@ -1014,6 +1018,7 @@ function ChromeKitPanel({
   t,
   locale,
   device,
+  pageKey,
   head,
   dock,
   float,
@@ -1037,6 +1042,7 @@ function ChromeKitPanel({
   t: PartnerWebsiteCopy
   locale: WebLocale
   device: 'desktop' | 'laptop' | 'tablet' | 'mobile'
+  pageKey?: string | null
   head: ChromeKitListItem[]
   dock: ChromeKitListItem[]
   float: ChromeKitListItem[]
@@ -1066,6 +1072,42 @@ function ChromeKitPanel({
           ? t.visualEditChromeKitHeadMobile
           : t.visualEditChromeKitHeadPc
   const showDock = device === 'mobile' || device === 'tablet'
+  const isProductPage = pageKey === 'product_detail'
+  const dockByKind = new Map(dock.map((item) => [item.kind, item]))
+  const dockRows: ChromeKitListItem[] = []
+  const seenDock = new Set<string>()
+  const takeDock = (kind: string, fallbackHidden = true) => {
+    if (seenDock.has(kind)) return
+    seenDock.add(kind)
+    const existing = dockByKind.get(kind)
+    dockRows.push(
+      existing || {
+        kind,
+        hidden: fallbackHidden,
+        dockShow: isProductPage ? 'pdp' : 'shop',
+        slot: isPdpDockCtaLocked(kind) ? 'cta' : 'icon',
+        label: kind,
+      }
+    )
+  }
+  if (isProductPage) {
+    for (const kind of CHROME_KIT_PDP_NAV_DEFAULT_KINDS) takeDock(kind, true)
+    for (const item of CHROME_KIT_DOCK_ITEMS) {
+      if (item.slot === 'icon' && isPdpDockNavKind(item.kind)) takeDock(item.kind, true)
+    }
+    takeDock('add-cart', false)
+    takeDock('buy-now', false)
+  } else {
+    for (const item of dock) {
+      if (!isPdpDockFaceKind(item.kind)) takeDock(item.kind, item.hidden)
+    }
+  }
+  const dockRowHidden = (item: ChromeKitListItem) => {
+    if (isPdpDockCtaLocked(item.kind)) return false
+    if (item.hidden) return true
+    if (!isProductPage) return false
+    return item.dockShow !== 'pdp' && item.dockShow !== 'both'
+  }
   const shift = clampChromeKitShift(headX)
   const gap = clampChromeKitGap(headGap)
   const seenFloat = new Set<string>()
@@ -1270,72 +1312,45 @@ function ChromeKitPanel({
       ))}
       {showDock ? (
         <>
-          <p className="mt-1 px-1 text-[11px] font-semibold">{t.visualEditChromeKitDock}</p>
-          <div className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-1 px-1 text-[9px] text-muted-foreground">
-            <span />
-            <span>{t.visualEditChromeKitShopPages}</span>
-            <span>{t.visualEditChromeKitPdp}</span>
-            <span />
-            <span />
-          </div>
-          {dock.map((item) => {
+          <p className="mt-1 px-1 text-[11px] font-semibold">
+            {isProductPage ? `${t.visualEditChromeKitDock} · ${t.visualEditChromeKitPdp}` : t.visualEditChromeKitDock}
+          </p>
+          {isProductPage ? (
+            <p className="px-1 text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitPdpNavHint}</p>
+          ) : null}
+          {dockRows.map((item) => {
             const locked = isPdpDockCtaLocked(item.kind)
-            const show = item.hidden ? 'off' : item.dockShow || 'shop'
-            const shopOn = locked ? false : show === 'shop' || show === 'both'
-            const pdpOn = locked ? true : show === 'pdp' || show === 'both'
+            const hidden = dockRowHidden(item)
+            const label = isVisualEditorChromeWidgetKind(item.kind)
+              ? chromeWidgetLabel(item.kind, locale)
+              : item.label
+            if (isProductPage && locked) {
+              return (
+                <div
+                  key={`d-${item.kind}`}
+                  className="flex items-center gap-1 rounded px-1 py-0.5 text-[11px]"
+                >
+                  <span className="min-w-0 flex-1 truncate">{label}</span>
+                  <span className="p-0.5" title={t.visualEditChromeKitPdpCtaLocked}>
+                    <Lock className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+              )
+            }
             return (
-              <div key={`d-${item.kind}`} className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/60">
-                <span className="truncate text-[11px]">
-                  {isVisualEditorChromeWidgetKind(item.kind) ? chromeWidgetLabel(item.kind, locale) : item.label}
-                </span>
-                {locked ? (
-                  <>
-                    <span className="p-0.5 text-muted-foreground" title={t.visualEditChromeKitPdpCtaLocked}>
-                      <EyeOff className="h-3.5 w-3.5" />
-                    </span>
-                    <span className="p-0.5" title={t.visualEditChromeKitPdpCtaLocked}>
-                      <Lock className="h-3.5 w-3.5" />
-                    </span>
-                    <span className="p-0.5" />
-                    <span className="p-0.5" />
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      className="rounded p-0.5"
-                      disabled={busy}
-                      title={t.visualEditChromeKitShopPages}
-                      onClick={() => {
-                        const nextShop = !shopOn
-                        const next = nextShop && pdpOn ? 'both' : nextShop ? 'shop' : pdpOn ? 'pdp' : 'off'
-                        onToggleDock(item.kind, next)
-                      }}
-                    >
-                      {shopOn ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded p-0.5"
-                      disabled={busy}
-                      title={t.visualEditChromeKitPdp}
-                      onClick={() => {
-                        const nextPdp = !pdpOn
-                        const next = shopOn && nextPdp ? 'both' : nextPdp ? 'pdp' : shopOn ? 'shop' : 'off'
-                        onToggleDock(item.kind, next)
-                      }}
-                    >
-                      {pdpOn ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
-                    </button>
-                    <button type="button" className="rounded p-0.5" disabled={busy} onClick={() => onReorder(item.kind, 'dock', 'up')}>
-                      <ArrowUp className="h-3 w-3" />
-                    </button>
-                    <button type="button" className="rounded p-0.5" disabled={busy} onClick={() => onReorder(item.kind, 'dock', 'down')}>
-                      <ArrowDown className="h-3 w-3" />
-                    </button>
-                  </>
-                )}
-              </div>
+              <ChromeKitRow
+                key={`d-${item.kind}`}
+                label={label}
+                hidden={hidden}
+                busy={busy}
+                hideLabel={t.visualEditBlockHide}
+                showLabel={t.visualEditBlockShow}
+                onToggle={() =>
+                  onToggleDock(item.kind, hidden ? (isProductPage ? 'pdp' : 'shop') : 'off')
+                }
+                onUp={() => onReorder(item.kind, 'dock', 'up')}
+                onDown={() => onReorder(item.kind, 'dock', 'down')}
+              />
             )
           })}
         </>
@@ -4409,6 +4424,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                     t={t}
                     locale={locale}
                     device={visualDeviceVariantFromHtmlPath(htmlPath)}
+                    pageKey={pageKey}
                     head={chromeKitHead}
                     dock={chromeKitDock}
                     float={chromeKitFloat}

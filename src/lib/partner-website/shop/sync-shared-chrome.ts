@@ -644,11 +644,21 @@ export function isPdpBottomNavHtml(html: string): boolean {
 }
 
 const LIVE_CHROME_OPEN_RE = /<(div)\b(?=[^>]*\bdata-pw-live-chrome\b)[^>]*>/gi
+const LIVE_DOCK_OPEN_RE = /<(div)\b(?=[^>]*\bdata-pw-live-dock\b)[^>]*>/gi
 
 /** Runtime hoist wrapper must not persist — it blocks live hoist and stacks a second header. */
 export function unwrapPersistedLiveChromeHtml(html: string): string {
-  if (!html || !/data-pw-live-chrome/i.test(html)) return html
+  if (!html) return html
   let out = html
+  if (/data-pw-live-dock/i.test(out)) {
+    const docks = extractAllBlocks(out, LIVE_DOCK_OPEN_RE)
+    for (let i = docks.length - 1; i >= 0; i -= 1) {
+      const block = docks[i]
+      const inner = block.html.replace(/^<div\b[^>]*>/i, '').replace(/<\/div>\s*$/i, '')
+      out = out.slice(0, block.start) + inner + out.slice(block.end)
+    }
+  }
+  if (!/data-pw-live-chrome/i.test(out)) return out
   const blocks = extractAllBlocks(out, LIVE_CHROME_OPEN_RE)
   for (let i = blocks.length - 1; i >= 0; i -= 1) {
     const block = blocks[i]

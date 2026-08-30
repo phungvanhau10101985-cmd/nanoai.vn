@@ -775,3 +775,13 @@ test('applySharedChrome unwraps persisted live-chrome and drops a second header'
   assert.equal(dedupeSharedShopHeaders(duplicated).includes('ExtraHead'), false)
 })
 
+test('unwrapPersistedLiveChromeHtml unwraps a live-dock host and keeps the kit nav', () => {
+  const html = `<!DOCTYPE html><html><body>
+<div data-pw-live-dock="1"><nav class="pw-bottom-nav" data-pw-chrome-kit="dock">Dock</nav></div>
+<main>Mid</main>
+</body></html>`
+  const next = unwrapPersistedLiveChromeHtml(html)
+  assert.match(next, /<nav class="pw-bottom-nav" data-pw-chrome-kit="dock">Dock<\/nav>/)
+  assert.doesNotMatch(next, /data-pw-live-dock/)
+})
+

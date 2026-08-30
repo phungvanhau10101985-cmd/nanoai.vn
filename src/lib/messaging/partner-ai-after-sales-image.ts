@@ -288,8 +288,32 @@ function looksLikeOrderChatScreenshot(ocr: string): boolean {
 }
 
 /**
- * Phân loại ảnh hậu mãi từ caption + OCR + ngữ cảnh hội thoại.
+ * Chỉ tin **khách** (`inbound:`) — tin shop hay nhắc «đổi size 1 lần» trong chính sách
+ * không được biến ảnh sản phẩm thành hậu mãi.
+ */
+export function inboundCustomerContextForAfterSales(
+  conversationContext: string,
+  maxInboundLines = 2
+): string {
+  const inbound: string[] = []
+  for (const raw of String(conversationContext ?? '').split(/\n/)) {
+    const line = raw.trim()
+    if (!line) continue
+    const m = /^(?:inbound)\s*:\s*(.*)$/i.exec(line)
+    if (!m) continue
+    inbound.push(norm(m[1] ?? ''))
+  }
+  return inbound.slice(-Math.max(1, maxInboundLines)).join('\n')
+}
+
+function customerSideAfterSalesText(caption: string, conversationContext: string): string {
+  return `${norm(caption)}\n${inboundCustomerContextForAfterSales(conversationContext)}`
+}
+
+/**
+ * Phân loại ảnh hậu mãi từ caption + OCR + **tin khách gần nhất**.
  * Ưu tiên loại chứng từ (vận đơn / trạng thái / cọc) trước ảnh sản phẩm.
+ * Ảnh sản phẩm không caption → tư vấn kho (OCR SKU → vector), không lấy chữ «đổi size» từ tin shop.
  */
 export function classifyAfterSalesImage(input: {
   caption: string
@@ -298,8 +322,7 @@ export function classifyAfterSalesImage(input: {
 }): AfterSalesImageKind {
   const caption = norm(input.caption)
   const ocr = String(input.ocrText ?? '')
-  const ctx = String(input.conversationContext ?? '')
-  const combined = `${caption}\n${ctx}`
+  const customerSide = customerSideAfterSalesText(caption, input.conversationContext)
 
   if (captionLooksLikeSkuProductConsult(caption)) return 'product_consult'
 
@@ -310,7 +333,7 @@ export function classifyAfterSalesImage(input: {
   if (looksLikeDepositNotice(ocr) || looksLikeDepositNotice(caption)) return 'deposit_notice'
   if (looksLikeOrderChatScreenshot(ocr)) return 'order_chat_screenshot'
 
-  if (FIT_ISSUE_RE.test(combined) && !looksLikeShippingStatusNotice(ocr) && !looksLikeDepositNotice(ocr)) {
+  if (FIT_ISSUE_RE.test(customerSide) && !looksLikeShippingStatusNotice(ocr) && !looksLikeDepositNotice(ocr)) {
     return 'fit_issue_product_photo'
   }
 
@@ -320,7 +343,7 @@ export function classifyAfterSalesImage(input: {
   ) {
     return 'shipping_status_notice'
   }
-  if (inboundTextLooksLikeAfterSalesNotCheckout(combined) && ocr.trim().length >= 40) {
+  if (inboundTextLooksLikeAfterSalesNotCheckout(customerSide) && ocr.trim().length >= 40) {
     if (looksLikeReturnWaybill(ocr)) return 'return_waybill'
     if (looksLikeDepositNotice(ocr)) return 'deposit_notice'
     if (looksLikeShippingStatusNotice(ocr) || ORDER_CODE_RE.test(ocr)) return 'shipping_status_notice'
@@ -332,8 +355,8 @@ export function classifyAfterSalesImage(input: {
 export function shouldOcrGuestImageForAfterSales(caption: string, conversationContext: string): boolean {
   if (captionLooksLikeSkuProductConsult(caption)) return false
   const cap = norm(caption)
-  const combined = `${cap}\n${conversationContext}`
-  if (inboundTextLooksLikeAfterSalesNotCheckout(combined) || FIT_ISSUE_RE.test(combined)) return true
+  const customerSide = customerSideAfterSalesText(cap, conversationContext)
+  if (inboundTextLooksLikeAfterSalesNotCheckout(customerSide) || FIT_ISSUE_RE.test(customerSide)) return true
   if (cap.length <= 24) return true
   if (/\b(?:dh|đh|size|sz|cọc|coc|vận|van\s*đơn)\b/i.test(cap)) return true
   return false

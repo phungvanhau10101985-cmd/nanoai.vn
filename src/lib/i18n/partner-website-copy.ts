@@ -290,6 +290,7 @@ export type PartnerWebsiteCopy = {
   visualEditChromeKitShopPages: string
   visualEditChromeKitPdp: string
   visualEditChromeKitPdpCtaLocked: string
+  visualEditChromeKitPdpNavHint: string
   visualEditChromeKitShift: string
   visualEditChromeKitShiftHint: string
   visualEditChromeKitGap: string
@@ -1298,6 +1299,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitPdp: 'Chi tiết SP',
     visualEditChromeKitPdpCtaLocked:
       'Thêm giỏ và Mua trên trang chi tiết cố định giống 188 — không ẩn, không đổi kiểu, không kéo.',
+    visualEditChromeKitPdpNavHint:
+      'Ba icon trái có thể đổi (Trang chủ, Thử đồ, Thích hoặc phần tử khác). Tối đa 3. Thêm giỏ và Mua luôn hiện.',
     visualEditChromeKitShift: 'Lệch ngang',
     visualEditChromeKitShiftHint: 'Cả cụm icon bên phải, vẫn trong hàng. Số âm sang trái, dương sang phải.',
     visualEditChromeKitGap: 'Khoảng cách icon',
@@ -2325,6 +2328,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitPdp: 'Product page',
     visualEditChromeKitPdpCtaLocked:
       'Add to cart and Buy on the product page stay fixed — cannot hide, restyle, or drag.',
+    visualEditChromeKitPdpNavHint:
+      'The 3 left icons can be swapped (Home, Try-on, Like, or another dock item). Max 3. Add to cart and Buy stay on.',
     visualEditChromeKitShift: 'Horizontal shift',
     visualEditChromeKitShiftHint: 'Moves the whole right-side icon cluster in flow. Negative is left, positive is right.',
     visualEditChromeKitGap: 'Icon gap',
@@ -3338,6 +3343,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitShopPages: '其他页面',
     visualEditChromeKitPdp: '商品详情',
     visualEditChromeKitPdpCtaLocked: '商品详情页的加入购物车和购买按钮固定，不能隐藏、改样式或拖动。',
+    visualEditChromeKitPdpNavHint: '左侧最多 3 个图标可更换（首页、试穿、喜欢或其他底栏项）。加入购物车和购买始终显示。',
     visualEditChromeKitShift: '水平偏移',
     visualEditChromeKitShiftHint: '移动右侧整组图标，仍在同一行内。负数向左，正数向右。',
     visualEditChromeKitGap: '图标间距',
@@ -4340,6 +4346,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitShopPages: 'その他のページ',
     visualEditChromeKitPdp: '商品ページ',
     visualEditChromeKitPdpCtaLocked: '商品ページのカート追加と購入は固定です。非表示・スタイル変更・ドラッグはできません。',
+    visualEditChromeKitPdpNavHint:
+      '左の3つのアイコンは差し替え可能です（ホーム、試着、いいね、または他の項目）。最大3つ。カート追加と購入は常に表示。',
     visualEditChromeKitShift: '左右オフセット',
     visualEditChromeKitShiftHint: '右側のアイコン一式を行内で動かします。マイナスは左、プラスは右です。',
     visualEditChromeKitGap: 'アイコン間隔',
@@ -5353,6 +5361,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitShopPages: '다른 페이지',
     visualEditChromeKitPdp: '상품 상세',
     visualEditChromeKitPdpCtaLocked: '상품 상세의 장바구니/구매 버튼은 고정입니다. 숨기기, 스타일 변경, 드래그할 수 없습니다.',
+    visualEditChromeKitPdpNavHint:
+      '왼쪽 아이콘 3개는 바꿀 수 있습니다(홈, 가상 피팅, 좋아요 또는 다른 항목). 최대 3개. 장바구니/구매는 항상 표시됩니다.',
     visualEditChromeKitShift: '좌우 이동',
     visualEditChromeKitShiftHint: '오른쪽 아이콘 묶음 전체를 같은 줄에서 옮깁니다. 음수는 왼쪽, 양수는 오른쪽입니다.',
     visualEditChromeKitGap: '아이콘 간격',

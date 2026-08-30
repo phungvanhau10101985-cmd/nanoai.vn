@@ -6,6 +6,7 @@ import assert from 'node:assert/strict'
 import {
   captionLooksLikeConsultThisPhotoItem,
   findLatestLockedVisionTop,
+  inboundTextLooksLikeAskSkuOfThisPhotoItem,
   inboundTextLooksLikeConsultThisPhotoItem,
   lockedVisionTopFromRaw,
   PHOTO_ITEM_LOCK_MIN_SCORE,
@@ -19,6 +20,10 @@ function main() {
   assert.equal(captionLooksLikeConsultThisPhotoItem('aao thun det kim màu đen .,măc mua hè nóng ko'), true)
   assert.equal(inboundTextLooksLikeConsultThisPhotoItem('áo mình chọn trên mùa hè mặc nóng ko'), true)
   assert.equal(captionLooksLikeConsultThisPhotoItem('xin chao 188'), false)
+  assert.equal(inboundTextLooksLikeAskSkuOfThisPhotoItem('Mã sp mẫu này'), true)
+  assert.equal(inboundTextLooksLikeAskSkuOfThisPhotoItem('Ma san pham mau nay'), true)
+  assert.equal(inboundTextLooksLikeConsultThisPhotoItem('Mã sp mẫu này'), true)
+  assert.equal(inboundTextLooksLikeAskSkuOfThisPhotoItem('DH493 gửi chưa'), false)
 
   /** Tung le: 0.91 ≥ 86% → khóa, không cần gap với #2. */
   assert.equal(shouldLockTopVisionMatch({ topScore: 0.91 }), true)

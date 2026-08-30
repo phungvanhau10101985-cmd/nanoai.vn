@@ -12,12 +12,14 @@ import {
 } from '@/lib/partner-website/shop/mobile-header-logo-collapse'
 import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
 
-test('mobile logo collapse uses 188 hysteresis and skips the editor', () => {
+test('mobile logo collapse uses 188 hysteresis on live and Sửa nhanh', () => {
   assert.equal(PW_MOBILE_LOGO_SCROLL_COLLAPSE_Y, 72)
   assert.equal(PW_MOBILE_LOGO_SCROLL_EXPAND_Y, 28)
   assert.equal(PW_HEAD_LOGO_COLLAPSED_ATTR, 'data-pw-head-logo-collapsed')
   assert.equal(PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID, 'pw-shop-mobile-header-logo')
-  assert.equal(PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT.includes('nanoai-ve-active'), true)
+  assert.equal(PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT.includes('nanoai-ve-active'), false)
+  assert.equal(PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT.includes('__pwMobileHeadLogoSync'), true)
+  assert.equal(PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT.includes('capture:true'), true)
   assert.equal(PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT.includes('</script>'), false)
   assert.equal(PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT.includes('--pw-sticky-head'), true)
   assert.equal(PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT.includes("d==='tablet'"), true)
@@ -35,6 +37,8 @@ test('mobile header stack centers the logo row and keeps toolbar below', () => {
   assert.equal(PW_MOBILE_HEADER_ICON_ONLY_RULES.includes('icon-label-below'), true)
   assert.equal(PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS.includes(`${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"`), true)
   assert.equal(PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS.includes('max-height:0!important'), true)
+  assert.equal(PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS.includes('overflow:hidden!important'), true)
+  assert.equal(PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS.includes('.nanoai-ve-logo-btn'), true)
   assert.equal(PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS.includes(':is('), true)
   assert.equal(
     /html\[[^\]]*\]\s+\.pw-header a\.pw-brand[\s\S]*?,\s*\.pw-header a\[data-pw-logo-home\]/.test(

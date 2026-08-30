@@ -34,6 +34,12 @@ test('shop theme CSS hugs labeled chrome buttons around icon and text', () => {
   assert.match(css, /font-size:var\(--pw-chrome-label,13px\)!important/)
 })
 
+test('shop theme CSS keeps dock account gray, not header white', () => {
+  const css = buildPartnerSiteHtmlChromeCss()
+  assert.match(css, /\.pw-header-actions \.pw-account-btn/)
+  assert.doesNotMatch(css, /(?:,|})\s*\.pw-account-btn\{color:#fff/)
+})
+
 test('shop theme CSS sizes stock bottom-nav icons from chrome vars', () => {
   const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
   assert.match(css, /\.pw-bottom-nav svg\{width:var\(--pw-chrome-w/)

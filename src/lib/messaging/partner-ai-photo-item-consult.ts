@@ -22,9 +22,24 @@ const PHOTO_ITEM_CONSULT_RE = new RegExp(
     String.raw`this\s+(?:one|item|shirt|jacket|bag)`,
     String.raw`tôi\s*muốn\s*xem\s*mẫu\s*này`,
     String.raw`toi\s*muon\s*xem\s*mau\s*nay`,
+    String.raw`(?:mã|ma)\s*(?:sp|sản\s*phẩm|san\s*pham)`,
+    String.raw`(?:sku|product\s*code)`,
   ].join('|'),
   'i'
 )
+
+const ASK_SKU_OF_THIS_PHOTO_RE =
+  /(?:mã|ma)\s*(?:sp|sản\s*phẩm|san\s*pham).{0,24}(?:mẫu|mau|ảnh|anh|hình|hinh|này|nay)|(?:sku|product\s*code).{0,16}(?:this|photo|image)/i
+
+/** «Mã SP mẫu này» — hỏi mã của ảnh vừa gửi, không phải mã đơn DH. */
+export function inboundTextLooksLikeAskSkuOfThisPhotoItem(text: string): boolean {
+  const c = String(text ?? '')
+    .replace(/^📷\s*/u, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!c) return false
+  return ASK_SKU_OF_THIS_PHOTO_RE.test(c)
+}
 
 export function captionLooksLikeConsultThisPhotoItem(caption: string): boolean {
   const c = String(caption ?? '')

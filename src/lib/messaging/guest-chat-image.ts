@@ -259,6 +259,34 @@ export function inboundBodyHasCustomerUploadedImage(body: string): boolean {
   return /\[Customer image:\s*https?:\/\//i.test(body)
 }
 
+export function payloadHasGuestUploadedImage(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
+  const gm = (raw as { guest_media?: { kind?: unknown } }).guest_media
+  return gm?.kind === 'image'
+}
+
+/**
+ * Tin inbound **trước** tin hiện tại (đã nằm cuối transcript) có ảnh khách.
+ * Dùng khi khách gửi ảnh rồi hỏi «mã SP mẫu này» — không neo đơn DH cũ.
+ */
+export function previousInboundHasCustomerUploadedImage(
+  lines: Array<{ direction?: string; body?: string; raw_payload?: unknown }>
+): boolean {
+  let skippedCurrent = false
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const m = lines[i]
+    if (String(m?.direction ?? '') !== 'inbound') continue
+    if (!skippedCurrent) {
+      skippedCurrent = true
+      continue
+    }
+    if (inboundBodyHasCustomerUploadedImage(String(m.body ?? ''))) return true
+    if (payloadHasGuestUploadedImage(m.raw_payload)) return true
+    return false
+  }
+  return false
+}
+
 /** Plain text cho FAQ / AI (kèm URL ảnh nếu có). */
 export function inboundTextForPartnerAi(textBody: string, imagePublicUrl?: string | null): string {
   const caption = textBody.replace(/^📷\s*/u, '').trim()

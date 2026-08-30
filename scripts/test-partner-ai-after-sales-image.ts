@@ -11,6 +11,7 @@ import {
   classifyAfterSalesImage,
   conversationHasSizeExchangeIntent,
   extractAfterSalesCodes,
+  inboundCustomerContextForAfterSales,
   shouldOcrGuestImageForAfterSales,
   skuCandidatesFromOrderProductSku,
 } from '../src/lib/messaging/partner-ai-after-sales-image'
@@ -93,6 +94,34 @@ function main() {
     },
     'fit_issue_product_photo'
   )
+
+  // Ảnh sản phẩm không caption — tin shop cũ nhắc «đổi size» không được coi là khách muốn đổi size
+  const shopPolicyCtx = [
+    'outbound: Dạ anh, về chính sách của shop: hàng sai hình thì được trả lại cọc. Trường hợp không vừa size thì shop hỗ trợ đổi size 1 lần.',
+    'inbound: alo',
+    'inbound: Đặt cọc rồi khi nhận hàng ko ưng mà hủy có dc hoàn lại tiền ko',
+  ].join('\n')
+  expectKind(
+    {
+      caption: '',
+      ocrText: '',
+      conversationContext: shopPolicyCtx,
+    },
+    'product_consult'
+  )
+  expectKind(
+    {
+      caption: '',
+      ocrText: 'Giày tây nam size 42',
+      conversationContext: shopPolicyCtx,
+    },
+    'product_consult'
+  )
+  assert.equal(
+    inboundCustomerContextForAfterSales(shopPolicyCtx),
+    'alo\nĐặt cọc rồi khi nhận hàng ko ưng mà hủy có dc hoàn lại tiền ko'
+  )
+  assert.equal(shouldOcrGuestImageForAfterSales('', shopPolicyCtx), true)
 
   // Tư vấn SP — không đi nhánh hậu mãi
   expectKind(

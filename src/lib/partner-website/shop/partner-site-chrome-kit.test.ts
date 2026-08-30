@@ -22,6 +22,8 @@ import {
   isChromeKitPickerKind,
   isMidCanvasFlowChromeKind,
   isPdpDockCtaLocked,
+  isPdpDockFaceKind,
+  isPdpDockNavKind,
   pinMidCanvasTopChromeInHtml,
 } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import { buildPartnerSiteHeaderHtml } from '@/lib/partner-website/shop/build-partner-site-header-html'
@@ -53,12 +55,46 @@ describe('partner-site-chrome-kit', () => {
     expect(html).toContain('pw-pdp-sticky-ctas')
     expect(html).toContain('data-pw-pdp-home="1"')
     expect(html).toContain('data-pw-kit-lock="cta"')
+    expect(html).toMatch(/data-pw-chrome-btn="account"[^>]*>[\s\S]*?<svg[\s\S]*?<\/svg>/)
     expect(html).toContain('data-pw-chrome-btn="try-on"')
+    expect(html).toContain('data-pw-pdp-nav="1"')
     expect(html).toContain('data-pw-chrome-btn="buy-now"')
     expect(html).toContain('data-pw-pdp-add-cart="1"')
     expect(html).toMatch(/pw-pdp-sticky-copy/)
     expect(CHROME_KIT_DOCK_ITEMS).toHaveLength(16)
     expect(CHROME_KIT_HEAD_ACTION_ITEMS.length).toBeGreaterThanOrEqual(9)
+  })
+
+  it('seeds hidden extra icons in the PDP sticky nav so the left 3 can swap', () => {
+    const html = buildChromeKitDockHtml({ locale: 'vi', siteSlug: 'demo-shop' })
+    const nav = html.match(/<div\b[^>]*\bpw-pdp-sticky-nav\b[^>]*>[\s\S]*?<\/div>/i)?.[0] || ''
+    expect(nav).toContain('data-pw-pdp-home="1"')
+    expect(nav).toContain('data-pw-chrome-btn="try-on"')
+    expect(nav).toContain('data-pw-chrome-btn="favorite-product"')
+    expect(nav).toContain('data-pw-chrome-btn="products"')
+    expect(nav).toContain('data-pw-chrome-btn="cart"')
+    expect(nav).toContain('data-pw-chrome-btn="account"')
+    expect(nav).toContain('data-pw-pdp-nav="1"')
+    expect(nav).toMatch(
+      /data-pw-chrome-btn="products"[^>]*data-pw-hidden="1"|data-pw-hidden="1"[^>]*data-pw-chrome-btn="products"/
+    )
+    const next = ensurePartnerSiteChromeKitInHtml(
+      `<nav class="pw-bottom-nav" data-pw-chrome-kit="dock">
+        <div class="pw-pdp-sticky-nav" data-pw-dock-show="pdp">
+          <a data-pw-chrome-btn="home" data-pw-pdp-home="1" data-pw-dock-show="pdp">Home</a>
+          <button data-pw-chrome-btn="try-on" data-pw-dock-show="pdp">Try</button>
+        </div>
+        <div class="pw-pdp-sticky-ctas" data-pw-dock-show="pdp">
+          <button data-pw-chrome-btn="add-cart" data-pw-kit-lock="cta">Cart</button>
+          <button data-pw-chrome-btn="buy-now" data-pw-kit-lock="cta">Buy</button>
+        </div>
+      </nav>`,
+      { locale: 'vi', siteSlug: 'demo-shop' }
+    )
+    const nextNav = next.match(/<div\b[^>]*\bpw-pdp-sticky-nav\b[^>]*>[\s\S]*?<\/div>/i)?.[0] || ''
+    expect(nextNav).toContain('data-pw-chrome-btn="favorite-product"')
+    expect(nextNav).toContain('data-pw-chrome-btn="products"')
+    expect(nextNav).toContain('data-pw-pdp-nav="1"')
   })
 
   it('seeds a hidden float kit host for chat zalo facebook top', () => {
@@ -96,6 +132,78 @@ describe('partner-site-chrome-kit', () => {
     expect(next).toContain('pw-pdp-sticky-nav')
     expect(next).toContain('data-pw-kit-lock="cta"')
     expect(next).toContain('data-pw-pdp-home="1"')
+  })
+
+  it('does not stuff the PDP face into the nested category nav', () => {
+    const html = `<nav class="pw-bottom-nav" data-pw-chrome-kit="dock">
+      <a data-pw-chrome-btn="home" data-pw-dock-show="shop" href="/">Trang chủ</a>
+      <span class="pw-chrome-cat-wrap">
+        <nav class="pw-shop-cat-panel" data-pw-cat-panel="1"><a href="/c/ao">Áo</a></nav>
+      </span>
+      <a data-pw-chrome-btn="cart" data-pw-dock-show="shop" href="/cart">Giỏ</a>
+    </nav>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop' })
+    const catStart = next.indexOf('pw-shop-cat-panel')
+    const catEnd = next.indexOf('</nav>', catStart)
+    const faceAt = next.indexOf('class="pw-pdp-sticky-nav"')
+    const ctasAt = next.indexOf('class="pw-pdp-sticky-ctas"')
+    expect(catStart).toBeGreaterThan(-1)
+    expect(faceAt).toBeGreaterThan(catEnd)
+    expect(ctasAt).toBeGreaterThan(catEnd)
+    expect(next).toContain('data-pw-kit-lock="cta"')
+    expect(next).toContain('data-pw-pdp-home="1"')
+    const catChunk = next.slice(catStart, catEnd)
+    expect(catChunk).not.toContain('pw-pdp-sticky-nav')
+    expect(catChunk).not.toContain('THÊM GIỎ')
+  })
+
+  it('keeps the kit PDP face when a leftover pdp-bottom bar sits first', () => {
+    const html = `<html><body data-pw-page="product">
+<nav class="pw-bottom-nav pw-pdp-sticky" data-pw-pdp-bottom="1">
+  <div class="pw-pdp-sticky-nav"><a data-pw-chrome-btn="home">Home leftover</a></div>
+  <div class="pw-pdp-sticky-ctas"><button data-pw-chrome-btn="buy-now">Mua leftover</button></div>
+</nav>
+<nav class="pw-bottom-nav" data-pw-chrome-kit="dock">
+  <a data-pw-chrome-btn="home" data-pw-dock-show="shop" href="/">Trang chủ</a>
+  <a data-pw-chrome-btn="products" data-pw-dock-show="shop" href="/c">Sản phẩm</a>
+  <a data-pw-chrome-btn="cart" data-pw-dock-show="shop" href="/cart">Giỏ</a>
+</nav>
+</body></html>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'mobile' })
+    expect(next).not.toContain('data-pw-pdp-bottom="1"')
+    expect(next).not.toContain('Home leftover')
+    expect(next).toContain('data-pw-chrome-kit="dock"')
+    expect(next).toContain('pw-pdp-sticky-nav')
+    expect(next).toContain('pw-pdp-sticky-ctas')
+    expect(next).toContain('data-pw-chrome-btn="try-on"')
+    expect(next).toContain('data-pw-chrome-btn="favorite-product"')
+    expect(next).toContain('data-pw-kit-lock="cta"')
+    expect(next).toContain('data-pw-pdp-home="1"')
+  })
+
+  it('rebuilds leftover incomplete PDP nav so Home Try-on Like sit beside the CTAs', () => {
+    const html = `<nav class="pw-bottom-nav" data-pw-chrome-kit="dock">
+      <div class="pw-pdp-sticky-nav" data-pw-dock-show="pdp">
+        <div class="pw-chrome-cat-wrap">
+          <button data-pw-chrome-btn="categories" data-pw-hidden="1" data-pw-dock-show="pdp">Danh mục</button>
+        </div>
+      </div>
+      <div class="pw-pdp-sticky-ctas" data-pw-dock-show="pdp">
+        <button data-pw-chrome-btn="add-cart">Thêm giỏ</button>
+        <button data-pw-chrome-btn="buy-now">Mua</button>
+      </div>
+    </nav>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop' })
+    const navOpen = next.indexOf('pw-pdp-sticky-nav')
+    const home = next.indexOf('data-pw-pdp-home="1"', navOpen)
+    const tryOn = next.indexOf('data-pw-chrome-btn="try-on"', navOpen)
+    const like = next.indexOf('data-pw-chrome-btn="favorite-product"', navOpen)
+    const extra = next.indexOf('data-pw-chrome-btn="products"', navOpen)
+    expect(home).toBeGreaterThan(navOpen)
+    expect(tryOn).toBeGreaterThan(home)
+    expect(like).toBeGreaterThan(tryOn)
+    if (extra > navOpen) expect(extra).toBeGreaterThan(like)
+    expect(next).toContain('data-pw-kit-lock="cta"')
   })
 
   it('wraps a flat dock into the 188 PDP face and locks add-cart / buy', () => {
@@ -169,6 +277,13 @@ describe('partner-site-chrome-kit', () => {
     expect(isPdpDockCtaLocked('add-cart')).toBe(true)
     expect(isPdpDockCtaLocked('buy-now')).toBe(true)
     expect(isPdpDockCtaLocked('home')).toBe(false)
+    expect(isPdpDockFaceKind('try-on')).toBe(true)
+    expect(isPdpDockFaceKind('favorite-product')).toBe(true)
+    expect(isPdpDockFaceKind('products')).toBe(false)
+    expect(isPdpDockNavKind('home')).toBe(true)
+    expect(isPdpDockNavKind('products')).toBe(true)
+    expect(isPdpDockNavKind('account')).toBe(true)
+    expect(isPdpDockNavKind('add-cart')).toBe(false)
     expect(chromeKitHeadGroup('laptop')).toBe('laptop')
     expect(chromeKitHeadGroup('desktop')).toBe('desktop')
     expect(chromeKitHeadGroup('tablet')).toBe('tablet')
@@ -204,12 +319,20 @@ describe('partner-site-chrome-kit', () => {
     )
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('[data-pw-page="product"]')
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('html:has([data-pw-page="product"])')
-    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('html:has([data-pw-region="gallery"])')
-    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('html:has([data-pw-pdp-add-cart])')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).not.toContain('html:has([data-pw-region="gallery"])')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).not.toContain('html:has([data-pw-pdp-add-cart])')
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('html[data-pw-page="product"]')
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('pw-pdp-sticky-nav')
-    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('html:has([data-pw-chrome-kit="dock"]) .pw-pdp-sticky')
-    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('.pw-shop:has([data-pw-chrome-kit="dock"]) .pw-pdp-sticky')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('.pw-pdp-sticky-nav [data-pw-hidden="1"]')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
+      'html:has([data-pw-chrome-kit="dock"]) nav.pw-pdp-sticky:not([data-pw-chrome-kit])'
+    )
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
+      '.pw-shop:has([data-pw-chrome-kit="dock"]) nav.pw-pdp-sticky:not([data-pw-chrome-kit])'
+    )
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).not.toContain(
+      '[data-pw-pdp-bottom] ~ .pw-bottom-nav[data-pw-chrome-kit="dock"]'
+    )
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('flex:1 1 0')
     expect(PARTNER_SHOP_CHROME_KIT_CSS).not.toMatch(
       /\.pw-bottom-nav\[data-pw-chrome-kit="dock"\]\{display:flex!important/
@@ -217,6 +340,77 @@ describe('partner-site-chrome-kit', () => {
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('[data-pw-chrome-kit="float"]{')
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('display:contents')
     expect(PARTNER_SHOP_CHROME_KIT_CSS).not.toContain('flex-direction:column-reverse')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
+      '[data-pw-chrome-kit="dock"] > [data-pw-dock-show="pdp"]:not(.pw-pdp-sticky-nav):not(.pw-pdp-sticky-ctas):not([data-pw-hidden="1"])'
+    )
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
+      '[data-pw-chrome-kit="dock"] > [data-pw-dock-show="both"]:not(.pw-pdp-sticky-nav):not(.pw-pdp-sticky-ctas):not([data-pw-hidden="1"])'
+    )
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('.pw-pdp-sticky-nav')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('flex-direction:row!important')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
+      '> a:not([data-pw-dock-show="pdp"]):not([data-pw-dock-show="both"])'
+    )
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('body > .pw-pdp-sticky-ctas')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('.pw-shop-cat-panel .pw-pdp-sticky-nav')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
+      '.pw-pdp-sticky-ctas:not([data-pw-chrome-kit="dock"] .pw-pdp-sticky-ctas)'
+    )
+  })
+
+  it('strips leftover in-flow THÊM GIỎ / MUA HÀNG sitting after the footer', () => {
+    const html = `<!DOCTYPE html><html><body data-pw-page="product">
+<main>pdp</main>
+<footer>copy</footer>
+<div class="pw-pdp-sticky-ctas">
+  <button data-pw-chrome-btn="add-cart">THÊM GIỎ leftover</button>
+  <button data-pw-chrome-btn="buy-now">MUA HÀNG leftover</button>
+</div>
+<nav class="pw-bottom-nav" data-pw-chrome-kit="dock">
+  <div class="pw-pdp-sticky-nav" data-pw-dock-show="pdp">
+    <a data-pw-chrome-btn="home" data-pw-pdp-home="1" data-pw-dock-show="pdp">Trang chủ</a>
+    <button data-pw-chrome-btn="try-on" data-pw-dock-show="pdp">Thử đồ</button>
+    <button data-pw-chrome-btn="favorite-product" data-pw-dock-show="pdp">Thích</button>
+  </div>
+  <div class="pw-pdp-sticky-ctas" data-pw-dock-show="pdp">
+    <button data-pw-chrome-btn="add-cart" data-pw-kit-lock="cta">Thêm giỏ</button>
+    <button data-pw-chrome-btn="buy-now" data-pw-kit-lock="cta">Mua hàng</button>
+  </div>
+</nav>
+</body></html>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'mobile' })
+    expect(next).not.toContain('THÊM GIỎ leftover')
+    expect(next).not.toContain('MUA HÀNG leftover')
+    expect(next).toContain('data-pw-kit-lock="cta"')
+    expect(next.match(/class="pw-pdp-sticky-ctas"/g)?.length).toBe(1)
+  })
+
+  it('wraps a flat homepage dock and hoists it out of a device wrapper', () => {
+    const html = `<!DOCTYPE html><html><body>
+<div class="pw-visual-desktop" data-pw-visual-device="desktop">
+<nav class="pw-bottom-nav" data-pw-chrome-kit="dock">
+  <a data-pw-chrome-btn="home" data-pw-dock-show="both" href="/">Trang chủ</a>
+  <a data-pw-chrome-btn="products" data-pw-dock-show="shop" href="/c">Sản phẩm</a>
+  <button data-pw-chrome-btn="try-on" data-pw-dock-show="pdp">Thử</button>
+  <button data-pw-chrome-btn="favorite-product" data-pw-dock-show="pdp">Thích</button>
+  <button data-pw-chrome-btn="add-cart" data-pw-dock-show="pdp">Thêm giỏ</button>
+  <button data-pw-chrome-btn="buy-now" data-pw-dock-show="pdp">Mua</button>
+</nav>
+<p>mid</p>
+</div>
+</body></html>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, {
+      locale: 'vi',
+      siteSlug: 'demo-shop',
+      device: 'mobile',
+    })
+    expect(next).toContain('pw-pdp-sticky-nav')
+    expect(next).toContain('pw-pdp-sticky-ctas')
+    const afterNav = next.slice(next.toLowerCase().lastIndexOf('</nav>'))
+    expect(afterNav.replace(/\s+/g, '')).toMatch(/<\/nav><\/body>/i)
+    expect(next).not.toMatch(
+      /data-pw-visual-device="desktop"[\s\S]*data-pw-chrome-kit="dock"[\s\S]*<\/div>\s*<\/body>/i
+    )
   })
 
   it('keeps head icon shift in-flow on the actions host', () => {
