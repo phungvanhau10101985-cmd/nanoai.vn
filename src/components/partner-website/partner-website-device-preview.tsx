@@ -33,7 +33,6 @@ import {
 } from '@/components/partner-website/partner-website-theme-color-picker'
 import {
   freezeDocumentForVisualEditor,
-  resolveSavedVisualEditorHtml,
   visualHtmlLooksUsable,
 } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
 import {
@@ -65,9 +64,7 @@ import {
   mergeClonesFromSourceHtml,
   seedVisualPageHtmlWithChrome,
 } from '@/lib/partner-website/visual-editor/copy-element-across-pages'
-import { resetChromeFloatUserMoveInHtml } from '@/lib/partner-website/shop/chrome-float-widgets'
 import { preparePartnerVisualHtmlForEditor } from '@/lib/partner-website/shop/render-partner-visual-html'
-import { copyMissingChromeCountBadgeWidgets } from '@/lib/partner-website/shop/chrome-count-badges'
 import { htmlHasShopHeader } from '@/lib/partner-website/shop/sync-shared-chrome'
 import {
   resolvePartnerCategoryDisplayName,
@@ -537,13 +534,6 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       return isolateVisualHtmlForDevice(flushed, variant)
     }
 
-    const seedFrom = (sourceHtml: string): string => {
-      if (variant === 'desktop' || !visualHtmlLooksUsable(sourceHtml)) return ''
-      const isolated = isolateVisualHtmlForDevice(sourceHtml, variant, { stripAddedChrome: true })
-      const prepared = variant === 'laptop' ? resetChromeFloatUserMoveInHtml(isolated) : isolated
-      return withSyncedCountBadges(prepared, variant)
-    }
-
     const websitePick = { htmlSource, project, theme: liveTheme }
     const pageKey = pick?.pageKey ?? previewPageKey
     const cmsSlug = pick?.cmsSlug === undefined ? previewCmsSlug : pick.cmsSlug
@@ -555,12 +545,6 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       if (visualHtmlLooksUsable(exact)) {
         return isolateVisualHtmlForDevice(exact, variant)
       }
-      if (variant === 'tablet') {
-        const fromMobile = seedFrom(resolveVisualPdpShellHtml(websitePick, 'mobile'))
-        if (fromMobile) return fromMobile
-      }
-      const seeded = seedFrom(resolveVisualPdpShellHtml(websitePick, 'desktop'))
-      if (visualHtmlLooksUsable(seeded)) return seeded
       return buildDefaultDemoPdpShellHtml({
         locale,
         siteSlug,
@@ -574,33 +558,21 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       if (visualHtmlLooksUsable(exact)) {
         return isolateVisualHtmlForDevice(exact, variant)
       }
-      if (variant === 'tablet') {
-        const fromMobile = seedFrom(resolveExactVisualProductHtml(websitePick, productId, 'mobile'))
-        if (fromMobile) return fromMobile
-      }
-      return seedFrom(resolveExactVisualProductHtml(websitePick, productId, 'desktop'))
+      return ''
     }
     if (cmsSlug) {
       const exact = resolveExactVisualCmsHtml(websitePick, cmsSlug, variant)
       if (visualHtmlLooksUsable(exact)) {
         return isolateVisualHtmlForDevice(exact, variant)
       }
-      if (variant === 'tablet') {
-        const fromMobile = seedFrom(resolveExactVisualCmsHtml(websitePick, cmsSlug, 'mobile'))
-        if (fromMobile) return fromMobile
-      }
-      return seedFrom(resolveExactVisualCmsHtml(websitePick, cmsSlug, 'desktop'))
+      return ''
     }
     if (categoryPath) {
       const exact = resolveExactVisualCategoryHtml(websitePick, categoryPath, variant)
       if (visualHtmlLooksUsable(exact)) {
         return isolateVisualHtmlForDevice(exact, variant)
       }
-      if (variant === 'tablet') {
-        const fromMobile = seedFrom(resolveExactVisualCategoryHtml(websitePick, categoryPath, 'mobile'))
-        if (fromMobile) return fromMobile
-      }
-      return seedFrom(resolveExactVisualCategoryHtml(websitePick, categoryPath, 'desktop'))
+      return ''
     }
     const exact = resolveExactVisualPageHtml(websitePick, pageKey, variant)
     const homeHtml = resolveExactVisualPageHtml(websitePick, 'home', variant)
@@ -624,20 +596,6 @@ export const PartnerWebsiteDevicePreview = forwardRef<
         return isolateVisualHtmlForDevice(withHomeClones(seeded), variant)
       }
     }
-    if (variant === 'tablet') {
-      const fromMobile = seedFrom(resolveExactVisualPageHtml(websitePick, pageKey, 'mobile'))
-      if (fromMobile) return fromMobile
-    }
-    const desktopPage = resolveExactVisualPageHtml(websitePick, pageKey, 'desktop')
-    const seeded = seedFrom(desktopPage)
-    if (seeded) return seeded
-    if (variant !== 'desktop' && pageKey === 'home' && useVisualHtml) {
-      const home = resolveSavedVisualEditorHtml({ htmlSource, project })
-      return withSyncedCountBadges(
-        isolateVisualHtmlForDevice(home, variant, { stripAddedChrome: true }),
-        variant
-      )
-    }
     if (pageKey !== 'home') {
       return isolateVisualHtmlForDevice(
         resolveSavedVisualPageHtml({
@@ -651,63 +609,6 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       )
     }
     return ''
-  }
-
-  function countBadgeSourceHtmls(variant: VisualDeviceVariant): string[] {
-    const websitePick = { htmlSource, project, theme: liveTheme }
-    const out: string[] = []
-    const push = (html: string) => {
-      if (html.trim() && visualHtmlLooksUsable(html)) out.push(html)
-    }
-    ;(['desktop', 'laptop', 'tablet', 'mobile'] as VisualDeviceVariant[]).forEach((other) => {
-      if (other === variant) return
-      push(flushedHtmlByVariantRef.current[other] || '')
-    })
-    if (previewPageKey === 'product_detail' && !previewCmsSlug && !previewCategoryPath) {
-      ;(['desktop', 'laptop', 'tablet', 'mobile'] as VisualDeviceVariant[]).forEach((other) => {
-        if (other === variant) return
-        push(resolveVisualPdpShellHtml(websitePick, other))
-      })
-      return out
-    }
-    if (previewProductId) {
-      ;(['desktop', 'laptop', 'tablet', 'mobile'] as VisualDeviceVariant[]).forEach((other) => {
-        if (other === variant) return
-        push(resolveExactVisualProductHtml(websitePick, previewProductId, other))
-      })
-      return out
-    }
-    if (previewCmsSlug) {
-      ;(['desktop', 'laptop', 'tablet', 'mobile'] as VisualDeviceVariant[]).forEach((other) => {
-        if (other === variant) return
-        push(resolveExactVisualCmsHtml(websitePick, previewCmsSlug, other))
-      })
-      return out
-    }
-    if (previewCategoryPath) {
-      ;(['desktop', 'laptop', 'tablet', 'mobile'] as VisualDeviceVariant[]).forEach((other) => {
-        if (other === variant) return
-        push(resolveExactVisualCategoryHtml(websitePick, previewCategoryPath, other))
-      })
-      return out
-    }
-    ;(['desktop', 'laptop', 'tablet', 'mobile'] as VisualDeviceVariant[]).forEach((other) => {
-      if (other === variant) return
-      push(resolveExactVisualPageHtml(websitePick, previewPageKey, other))
-    })
-    if (previewPageKey === 'home') {
-      push(resolveSavedVisualEditorHtml({ htmlSource, project }))
-    }
-    return out
-  }
-
-  function withSyncedCountBadges(html: string, variant: VisualDeviceVariant): string {
-    if (!html.trim()) return html
-    let next = html
-    for (const source of countBadgeSourceHtmls(variant)) {
-      next = copyMissingChromeCountBadgeWidgets(source, next, variant)
-    }
-    return isolateVisualHtmlForDevice(next, variant)
   }
 
   function startVisualEdit() {

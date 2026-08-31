@@ -73,5 +73,7 @@ test('live banner CSS keeps Sửa nhanh CTA row when desktop is stamped', () => 
   assert.match(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS, /flex-direction:row!important/)
   assert.match(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS, /html\[data-pw-edit-device="desktop"\] \.pw-hero/)
   assert.match(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS, /html\[data-pw-scene-lock="laptop"\] \.pw-hero/)
-  assert.match(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS, /margin-top:0!important;border-radius:0!important/)
+  assert.match(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS, /margin-top:0!important/)
+  assert.match(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS, /:not\(\[data-pw-image-radius\]\)/)
+  assert.match(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS, /\[data-pw-image-radius="0"\]\{border-radius:0!important\}/)
 })

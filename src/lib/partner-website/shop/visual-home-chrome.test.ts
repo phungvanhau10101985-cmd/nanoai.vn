@@ -5,8 +5,6 @@ import {
   VISUAL_HOME_CHROME_SPLIT_CSS,
   hasVisualHomeChrome,
   pickVisualHomeChrome,
-  visualChromeAfterMain,
-  visualChromeBeforeMain,
   visualHomeChromeByDevice,
   visualHomeChromeForDevice,
 } from '@/lib/partner-website/shop/visual-home-chrome'
@@ -93,7 +91,7 @@ test('VISUAL_HOME_CHROME_SPLIT_CSS uses display:contents so sticky header pins t
   assert.match(VISUAL_HOME_CHROME_SPLIT_CSS, /\.pw-visual-desktop,.pw-visual-laptop,.pw-visual-tablet,.pw-visual-mobile\{display:none!important\}/)
 })
 
-test('pickVisualHomeChrome falls back to desktop when tablet is missing', () => {
+test('pickVisualHomeChrome does not borrow desktop when tablet is missing', () => {
   const byDevice = visualHomeChromeByDevice({
     theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, useVisualHtml: true },
     htmlSource: deskHome,
@@ -102,9 +100,10 @@ test('pickVisualHomeChrome falls back to desktop when tablet is missing', () => 
       files: [{ path: 'index.html', kind: 'html' as const, content: deskHome }],
     },
   })
-  const tablet = pickVisualHomeChrome(byDevice, 'tablet')
-  assert.ok(tablet)
-  assert.match(tablet.header, /DeskHead/)
-  assert.match(visualChromeBeforeMain(tablet), /DeskTop/)
-  assert.match(visualChromeAfterMain(tablet), /DeskFoot/)
+  assert.equal(pickVisualHomeChrome(byDevice, 'tablet'), null)
+  assert.equal(pickVisualHomeChrome(byDevice, 'mobile'), null)
+  assert.equal(pickVisualHomeChrome(byDevice, 'laptop'), null)
+  const desktop = pickVisualHomeChrome(byDevice, 'desktop')
+  assert.ok(desktop)
+  assert.match(desktop.header, /DeskHead/)
 })

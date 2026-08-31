@@ -8,7 +8,6 @@ import { PartnerSiteShopOrdersClient } from '@/components/partner-website/shop/p
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
 import {
-  maybePartnerSiteVisualPage,
   readVisualPreviewDevice,
   type PartnerSiteSearchParams,
 } from '@/components/partner-website/shop/partner-site-visual-html-screen'
@@ -39,13 +38,7 @@ export default async function PartnerSiteOrdersPage({ params, searchParams }: Pr
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
   const device = await readVisualPreviewDevice(searchParams)
-
-  const visual = maybePartnerSiteVisualPage(
-    shop.site,
-    'orders',
-    device
-  )
-  if (visual) return visual
+  // Danh sách đơn / thanh toán cọc là React — không serve orders.html vỏ trống.
 
   return (
     <PartnerSiteShopShell

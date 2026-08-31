@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { fetchShopCheckoutLoginRequiredForPartnerFromPg } from '@/lib/partner-website/shop/shop-checkout-auth'
 import { fetchPartnerPaymentSettingsFromPg } from '@/lib/db/messaging-partner-orders-pg'
+import { fetchPartnerGoogleCustomerReviewsMerchantIdFromPg } from '@/lib/db/messaging-partners-pg'
 import { normalizePartnerShopCurrency } from '@/lib/partner-website/shop/partner-shop-currency'
 
 export const dynamic = 'force-dynamic'
@@ -11,9 +12,10 @@ export async function GET(_request: Request, ctx: { params: Promise<{ slug: stri
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const [checkoutLoginRequired, paymentSettings] = await Promise.all([
+  const [checkoutLoginRequired, paymentSettings, gcrMerchantId] = await Promise.all([
     fetchShopCheckoutLoginRequiredForPartnerFromPg(shop.partnerId),
     fetchPartnerPaymentSettingsFromPg(shop.partnerId),
+    fetchPartnerGoogleCustomerReviewsMerchantIdFromPg(shop.partnerId),
   ])
   return NextResponse.json({
     ok: true,
@@ -32,5 +34,11 @@ export async function GET(_request: Request, ctx: { params: Promise<{ slug: stri
           : Math.max(0, Math.round(paymentSettings.shipping_free_threshold_amount)),
     },
     ewalletAvailable: Boolean(paymentSettings?.ewallet_enabled && String(paymentSettings?.ewallet_qr_url ?? '').trim()),
+    depositPolicy: {
+      mode: paymentSettings?.default_deposit_mode ?? 'percent',
+      percent: Math.max(0, Math.min(100, Math.round(paymentSettings?.default_deposit_percent ?? 30))),
+      fixedAmount: Math.max(0, Math.round(paymentSettings?.default_deposit_amount ?? 0)),
+    },
+    googleCustomerReviewsMerchantId: gcrMerchantId,
   })
 }

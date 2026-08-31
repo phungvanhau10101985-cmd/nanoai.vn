@@ -62,6 +62,16 @@ export function finalizeVisualEditorSave(
     throw new Error('Visual HTML is empty — cannot save')
   }
 
+  const otherDeviceHtml = new Map(
+    input.project.files
+      .filter(
+        (file) =>
+          file.kind === 'html' &&
+          visualDeviceVariantFromHtmlPath(file.path) !== input.visualDevice
+      )
+      .map((file) => [file.path, file.content] as const)
+  )
+
   const withProductShell = input.visualProductId
     ? mergeVisualPageHtmlIntoProject(
         input.project,
@@ -97,18 +107,24 @@ export function finalizeVisualEditorSave(
   )
   const project: PartnerWebsiteProject = {
     ...cloned.project,
-    files: cloned.project.files.map((file) =>
-      file.kind === 'html' &&
-      visualDeviceVariantFromHtmlPath(file.path) === input.visualDevice
-        ? {
-            ...file,
-            content: normalizeVisualCoordinateContract(file.content, {
-              variant: input.visualDevice,
-              writeCanonicalOnly: true,
-            }),
-          }
-        : file
-    ),
+    files: cloned.project.files.flatMap((file) => {
+      if (file.kind !== 'html') return [file]
+      const fileDevice = visualDeviceVariantFromHtmlPath(file.path)
+      if (fileDevice !== input.visualDevice) {
+        const original = otherDeviceHtml.get(file.path)
+        if (original === undefined) return []
+        return original === file.content ? [file] : [{ ...file, content: original }]
+      }
+      return [
+        {
+          ...file,
+          content: normalizeVisualCoordinateContract(file.content, {
+            variant: input.visualDevice,
+            writeCanonicalOnly: true,
+          }),
+        },
+      ]
+    }),
   }
   const canonicalHtml =
     project.files

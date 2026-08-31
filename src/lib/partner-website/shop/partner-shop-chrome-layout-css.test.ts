@@ -147,7 +147,9 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('html [data-pw-region="banner"] [data-pw-el="cta-secondary"]'), true)
   assert.equal(once.includes('html[data-pw-edit-device="desktop"] .pw-hero'), true)
   assert.equal(once.includes('html[data-pw-scene-lock="laptop"] .pw-hero'), true)
-  assert.equal(once.includes('margin-top:0!important;border-radius:0!important'), true)
+  assert.equal(once.includes('margin-top:0!important'), true)
+  assert.equal(once.includes(':not([data-pw-image-radius])'), true)
+  assert.equal(once.includes('[data-pw-image-radius="0"]{border-radius:0!important}'), true)
   assert.equal(once.includes('--pw-scene-w:1440px'), true)
   assert.equal(once.includes('html[data-pw-edit-device="mobile"],html[data-pw-scene-lock="mobile"]{--pw-scene-w:390px}'), true)
   assert.equal(once.includes('margin-left:calc(50% - (var(--pw-scene-w) / 2))!important'), true)
@@ -243,6 +245,7 @@ test('chrome layout css is injected once before </head>', () => {
     ),
     true
   )
+  assert.equal(once.includes('border-radius:var(--pw-image-radius,0px)!important'), true)
   assert.equal(once.includes('html [data-pw-hrow]>[data-pw-added-bg="1"]:not([data-pw-added-bg-slot]){flex:0 0 auto!important'), true)
   assert.equal(once.includes('html[data-pw-edit-device="mobile"] .pw-header-main'), true)
   assert.equal(once.includes('html[data-pw-scene-lock="mobile"] .pw-header-main'), true)

@@ -25,10 +25,11 @@ import {
   type PartnerPaymentSettingsRow,
   updatePartnerOrderCartCheckoutFromPg,
   updatePartnerOrderCheckoutFromPg,
+  updatePartnerOrderDepositQuoteFromPg,
   updatePartnerOrderPaymentVerificationFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
 import { enrichPaymentDisplayFromQrUrl } from '@/lib/messaging/payment-qr-display-enrich'
-import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
+import { fetchMessagingPartnersByIdsFromPg, fetchPartnerGoogleCustomerReviewsMerchantIdFromPg } from '@/lib/db/messaging-partners-pg'
 import {
   fetchPartnerInventoryDefaultForAiFromPg,
   fetchPartnerInventoryRowByProductUrlFromPg,
@@ -1499,3 +1500,85 @@ export async function verifyOrderPaymentProof(input: {
   }
   return { ok: true, order: refreshed, verification }
 }
+
+export async function buildGuestOrderDepositView(input: {
+  partnerId: string
+  order: PartnerOrderRow
+}): Promise<{
+  order: PartnerOrderRow
+  payment_display: PartnerOrderPaymentDisplay | null
+  default_deposit_percent: number
+  google_customer_reviews_merchant_id: number | null
+}> {
+  const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
+  const payment_display = settings ? resolveOrderPaymentDisplay(input.order, settings) : null
+  const gcr = await fetchPartnerGoogleCustomerReviewsMerchantIdFromPg(input.partnerId)
+  return {
+    order: input.order,
+    payment_display,
+    default_deposit_percent: Math.max(1, Math.min(99, Math.round(settings?.default_deposit_percent ?? 30))),
+    google_customer_reviews_merchant_id: gcr,
+  }
+}
+
+/** Đổi mức cọc 30% (hoặc % shop) / 100% trên đơn đang chờ CK — tái tạo QR. */
+export async function updateCartOrderDepositPercent(input: {
+  partnerId: string
+  orderId: string
+  thread: WidgetOrderThreadForCheckout
+  percent: number
+}): Promise<{ ok: true; order: PartnerOrderRow; payment_display: PartnerOrderPaymentDisplay | null } | { error: string }> {
+  const existing = await fetchPartnerOrderDetailForGuestWidgetIfAllowed(
+    input.partnerId,
+    input.orderId,
+    input.thread
+  )
+  if (!existing) return { error: 'Forbidden' }
+  if (existing.status !== 'awaiting_payment' || existing.required_amount <= 0) {
+    return { error: 'Order is not waiting for deposit.' }
+  }
+  if (existing.payment_method === 'ewallet') {
+    return { error: 'E-wallet deposit amount is fixed.' }
+  }
+  const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
+  if (!settings) return { error: 'Shop chưa cài đặt thanh toán.' }
+  const shopPercent = clampPercent(settings.default_deposit_percent ?? 30, 30)
+  const requested = Math.round(Number(input.percent) || shopPercent)
+  const percent = requested >= 100 ? 100 : shopPercent
+  const payable = Math.max(0, Math.round(existing.amount_after_discount || existing.subtotal_amount || 0))
+  const ship = Math.max(0, Math.round(existing.shipping_fee_amount || 0))
+  const requiredAmount =
+    percent >= 100 ? payable + ship : Math.ceil((payable * percent) / 100)
+  let qrUrl = String(existing.payment_qr_url ?? '').trim()
+  if (existing.payment_method !== 'ewallet') {
+    qrUrl = buildOrderPaymentQrBySettings({
+      amount: requiredAmount,
+      paymentReference: existing.payment_reference,
+      accountHolder: settings.account_holder,
+      settings: {
+        sepay_enabled: settings.sepay_enabled,
+        sepay_bank_code: settings.sepay_bank_code,
+        sepay_account_number: settings.sepay_account_number,
+        sepay_qr_template: settings.sepay_qr_template,
+        bank_name: settings.bank_name,
+        bank_bin: settings.bank_bin,
+        account_number: settings.account_number,
+      },
+    })
+    if (!qrUrl) return { error: 'Không tạo được mã QR mới.' }
+  }
+  const updated = await updatePartnerOrderDepositQuoteFromPg({
+    orderId: existing.id,
+    partnerId: input.partnerId,
+    depositPercent: percent,
+    requiredAmount,
+    paymentQrUrl: qrUrl,
+  })
+  if (!updated) return { error: 'Không cập nhật được mức cọc.' }
+  return {
+    ok: true,
+    order: updated,
+    payment_display: resolveOrderPaymentDisplay(updated, settings),
+  }
+}
+

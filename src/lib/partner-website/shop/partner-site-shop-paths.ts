@@ -42,6 +42,18 @@ export function partnerSiteOrdersPath(siteSlug: string, opts?: PathOpts): string
   return partnerSiteHref(siteSlug, '/orders', opts?.customDomain)
 }
 
+/** Chi tiết đơn — COD / sau cọc. */
+export function partnerSiteOrderDetailPath(siteSlug: string, orderId: string, opts?: PathOpts): string {
+  const id = orderId.trim()
+  return partnerSiteHref(siteSlug, `/orders/${encodeURIComponent(id)}`, opts?.customDomain)
+}
+
+/** Trang thanh toán cọc — giống 188 `/account/orders/:id/deposit`. */
+export function partnerSiteOrderDepositPath(siteSlug: string, orderId: string, opts?: PathOpts): string {
+  const id = orderId.trim()
+  return partnerSiteHref(siteSlug, `/orders/${encodeURIComponent(id)}/deposit`, opts?.customDomain)
+}
+
 export function partnerSiteAccountPath(siteSlug: string, opts?: PathOpts): string {
   return partnerSiteHref(siteSlug, '/account', opts?.customDomain)
 }

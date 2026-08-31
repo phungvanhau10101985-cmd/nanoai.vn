@@ -76,19 +76,22 @@ export function parseProjectFilesFromDb(raw: unknown): PartnerWebsiteProject {
   return { entryPath: 'index.html', files: [] }
 }
 
-export function extractIndexHtml(project: PartnerWebsiteProject): string | null {
-  const entry = project.files.find((f) => f.path === project.entryPath && f.kind === 'html')
-  if (entry?.content.trim() && !isSystemHtmlPath(entry.path)) return entry.content.trim()
+function isDesktopHomeHtmlPath(path: string): boolean {
+  const p = path.replace(/\\/g, '/')
+  if (isSystemHtmlPath(p)) return false
+  if (/\.(mobile|tablet|laptop)\.html$/i.test(p)) return false
+  return p === 'index.html' || /(^|\/)index\.html$/i.test(p)
+}
 
+export function extractIndexHtml(project: PartnerWebsiteProject): string | null {
   const indexHtml = project.files.find((f) => f.path === 'index.html' && f.kind === 'html')
   if (indexHtml?.content.trim()) return indexHtml.content.trim()
 
-  // Never fall back to system pages (e.g. 404.html) — template shops store pages in
-  // site.config.json and rely on composed htmlSource for preview/public render.
-  const firstHtml = project.files.find(
-    (f) => f.kind === 'html' && !isSystemHtmlPath(f.path) && f.content.trim()
-  )
-  return firstHtml?.content.trim() || null
+  const entry = project.files.find((f) => f.path === project.entryPath && f.kind === 'html')
+  if (entry?.content.trim() && isDesktopHomeHtmlPath(entry.path)) return entry.content.trim()
+
+  // Never fall back to another machine's file (`index.mobile.html`) or 404.html.
+  return null
 }
 
 /** Inline linked CSS/JS from project into index.html for iframe/public render. */

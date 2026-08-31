@@ -607,6 +607,11 @@ export type Dictionary = {
     shopGoogleAdsIdPlaceholder: string
     shopGoogleAdsInvalidIdToast: string
     shopGoogleAdsSaveButton: string
+    shopGcrMerchantIdLabel: string
+    shopGcrMerchantIdHint: string
+    shopGcrMerchantIdPlaceholder: string
+    shopGcrInvalidIdToast: string
+    shopGcrSaveButton: string
     shopTiktokPixelLabel: string
     shopTiktokPixelHint: string
     shopTiktokPixelPlaceholder: string
@@ -3772,6 +3777,12 @@ const VI_DICTIONARY: Dictionary = {
     shopGoogleAdsIdPlaceholder: 'Ví dụ: AW-123456789',
     shopGoogleAdsInvalidIdToast: 'Mã Google Ads không hợp lệ. Định dạng: AW-XXXXXXXXX',
     shopGoogleAdsSaveButton: 'Lưu mã Google Ads',
+    shopGcrMerchantIdLabel: 'Mã Google Customer Reviews (Merchant ID)',
+    shopGcrMerchantIdHint:
+      'Mã số Merchant Center — hiện hộp thoại đánh giá Google sau khi khách đặt hàng (COD) hoặc sau khi đặt cọc thành công.',
+    shopGcrMerchantIdPlaceholder: 'Ví dụ: 123456789',
+    shopGcrInvalidIdToast: 'Merchant ID không hợp lệ. Chỉ nhập số nguyên dương.',
+    shopGcrSaveButton: 'Lưu Google Customer Reviews',
     shopTiktokPixelLabel: 'TikTok Pixel',
     shopTiktokPixelHint: 'Pixel TikTok Ads — PageView, ViewContent, AddToCart, CompletePayment trên shop.',
     shopTiktokPixelPlaceholder: 'Ví dụ: CXXXXXXXXXXXXXXXXX',
@@ -6949,6 +6960,12 @@ const EN_DICTIONARY: Dictionary = {
     shopGoogleAdsIdPlaceholder: 'Example: AW-123456789',
     shopGoogleAdsInvalidIdToast: 'Invalid Google Ads ID. Expected format: AW-XXXXXXXXX',
     shopGoogleAdsSaveButton: 'Save Google Ads ID',
+    shopGcrMerchantIdLabel: 'Google Customer Reviews merchant ID',
+    shopGcrMerchantIdHint:
+      'Merchant Center numeric ID — shows the Google review opt-in after COD checkout or after a successful deposit.',
+    shopGcrMerchantIdPlaceholder: 'Example: 123456789',
+    shopGcrInvalidIdToast: 'Invalid merchant ID. Enter a positive integer.',
+    shopGcrSaveButton: 'Save Google Customer Reviews',
     shopTiktokPixelLabel: 'TikTok Pixel',
     shopTiktokPixelHint: 'TikTok Ads pixel — PageView, ViewContent, AddToCart, CompletePayment on shop pages.',
     shopTiktokPixelPlaceholder: 'Example: CXXXXXXXXXXXXXXXXX',
@@ -10122,6 +10139,11 @@ const ZH_DICTIONARY: Dictionary = {
     shopGoogleAdsIdPlaceholder: '例如：AW-123456789',
     shopGoogleAdsInvalidIdToast: 'Google Ads ID 无效。格式：AW-XXXXXXXXX',
     shopGoogleAdsSaveButton: '保存 Google Ads ID',
+    shopGcrMerchantIdLabel: 'Google 顾客评价 Merchant ID',
+    shopGcrMerchantIdHint: 'Merchant Center 数字 ID — 货到付款下单后或定金成功后显示 Google 评价弹窗。',
+    shopGcrMerchantIdPlaceholder: '例如：123456789',
+    shopGcrInvalidIdToast: 'Merchant ID 无效。请输入正整数。',
+    shopGcrSaveButton: '保存 Google 顾客评价',
     shopTiktokPixelLabel: 'TikTok Pixel',
     shopTiktokPixelHint: 'TikTok 广告 Pixel — 店铺页面的 PageView、ViewContent、AddToCart、CompletePayment。',
     shopTiktokPixelPlaceholder: '例如：CXXXXXXXXXXXXXXXXX',
@@ -13198,6 +13220,12 @@ const JA_DICTIONARY: Dictionary = {
     shopGoogleAdsIdPlaceholder: '例: AW-123456789',
     shopGoogleAdsInvalidIdToast: 'Google Ads ID の形式が正しくありません。形式: AW-XXXXXXXXX',
     shopGoogleAdsSaveButton: 'Google Ads ID を保存',
+    shopGcrMerchantIdLabel: 'Google カスタマーレビュー Merchant ID',
+    shopGcrMerchantIdHint:
+      'Merchant Center の数字 ID — 代金引換の注文後、またはデポジット完了後に Google の評価ダイアログを表示します。',
+    shopGcrMerchantIdPlaceholder: '例: 123456789',
+    shopGcrInvalidIdToast: 'Merchant ID が正しくありません。正の整数を入力してください。',
+    shopGcrSaveButton: 'Google カスタマーレビューを保存',
     shopTiktokPixelLabel: 'TikTok Pixel',
     shopTiktokPixelHint: 'TikTok 広告 Pixel — ショップで PageView、ViewContent、AddToCart、CompletePayment。',
     shopTiktokPixelPlaceholder: '例: CXXXXXXXXXXXXXXXXX',
@@ -16345,6 +16373,12 @@ const KO_DICTIONARY: Dictionary = {
     shopGoogleAdsIdPlaceholder: '예: AW-123456789',
     shopGoogleAdsInvalidIdToast: 'Google Ads ID 형식이 올바르지 않습니다. 형식: AW-XXXXXXXXX',
     shopGoogleAdsSaveButton: 'Google Ads ID 저장',
+    shopGcrMerchantIdLabel: 'Google 고객 리뷰 Merchant ID',
+    shopGcrMerchantIdHint:
+      'Merchant Center 숫자 ID — 착불 주문 후 또는 보증금 완료 후 Google 리뷰 동의 대화상자를 표시합니다.',
+    shopGcrMerchantIdPlaceholder: '예: 123456789',
+    shopGcrInvalidIdToast: 'Merchant ID가 올바르지 않습니다. 양의 정수를 입력하세요.',
+    shopGcrSaveButton: 'Google 고객 리뷰 저장',
     shopTiktokPixelLabel: 'TikTok Pixel',
     shopTiktokPixelHint: 'TikTok 광고 Pixel — 쇼핑몰 PageView, ViewContent, AddToCart, CompletePayment.',
     shopTiktokPixelPlaceholder: '예: CXXXXXXXXXXXXXXXXX',

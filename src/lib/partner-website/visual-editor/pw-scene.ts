@@ -544,10 +544,31 @@ html [data-pw-region="banner"] [data-pw-el="cta-secondary"][data-pw-chrome-label
 ${pwHostPrefixCss(
   PW_SCENE_WIDE_HOSTS,
   `
-.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,[data-pw-region="banner"]{margin-top:0!important;border-radius:0!important}
+.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,[data-pw-region="banner"]{margin-top:0!important}
+.pw-hero:not([data-pw-image-radius]),.pw-banner:not([data-pw-image-radius]),.pw-shop-hero:not([data-pw-image-radius]),.pw-shop-banner:not([data-pw-image-radius]),[data-pw-region="banner"]:not([data-pw-image-radius]),.pw-hero[data-pw-image-radius="0"],.pw-banner[data-pw-image-radius="0"],.pw-shop-hero[data-pw-image-radius="0"],.pw-shop-banner[data-pw-image-radius="0"],[data-pw-region="banner"][data-pw-image-radius="0"]{border-radius:0!important}
 .pw-btn-hero{border:none!important}
 `
 )}
+}
+`.trim()
+
+/** Sửa nhanh chiều cao / bo góc khối — live đọc attr, không để CSS mẫu kéo về 360px / radius 0. */
+export const PARTNER_SHOP_AUTHORED_BLOCK_CSS = `
+html [data-pw-image-radius]{
+  border-radius:var(--pw-image-radius,0px)!important;
+  overflow:hidden!important
+}
+html [data-pw-region="banner"][data-pw-image-radius] img,
+html .pw-hero[data-pw-image-radius] img,
+html .pw-banner[data-pw-image-radius] img,
+html .pw-shop-hero[data-pw-image-radius] img,
+html .pw-shop-banner[data-pw-image-radius] img,
+html [data-pw-added-banner][data-pw-image-radius] img{
+  border-radius:inherit
+}
+html [data-pw-block-h]:not([data-pw-added-bg]):not([data-pw-added-catalog]):not([data-pw-featured-categories]):not([data-pw-region="catalog"]){
+  min-height:var(--pw-block-h)!important;
+  height:var(--pw-block-h)!important
 }
 `.trim()
 

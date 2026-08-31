@@ -46,6 +46,7 @@ import {
   savePartnerMessagingFacebookMeta,
   savePartnerMessagingGa4,
   savePartnerMessagingGoogleAds,
+  savePartnerMessagingGoogleCustomerReviews,
   savePartnerMessagingTiktokPixel,
   savePartnerMessagingGtmContainer,
   savePartnerMessagingDefaultCurrency,
@@ -405,6 +406,7 @@ export function PartnerMessagingSettingsClient({
   const [metaCapiConfigured, setMetaCapiConfigured] = useState(false)
   const [shopGa4MeasurementId, setShopGa4MeasurementId] = useState('')
   const [googleAdsId, setGoogleAdsId] = useState('')
+  const [gcrMerchantId, setGcrMerchantId] = useState('')
   const [tiktokPixelId, setTiktokPixelId] = useState('')
   const [gtmContainerId, setGtmContainerId] = useState('')
   const [defaultCurrency, setDefaultCurrency] = useState('VND')
@@ -914,6 +916,11 @@ export function PartnerMessagingSettingsClient({
     setMetaCapiToken('')
     setShopGa4MeasurementId((cur.ga4_measurement_id ?? '').trim())
     setGoogleAdsId((cur.google_ads_id ?? '').trim())
+    setGcrMerchantId(
+      cur.google_customer_reviews_merchant_id != null && cur.google_customer_reviews_merchant_id > 0
+        ? String(cur.google_customer_reviews_merchant_id)
+        : ''
+    )
     setTiktokPixelId((cur.tiktok_pixel_id ?? '').trim())
     setGtmContainerId((cur.gtm_container_id ?? '').trim())
     setDefaultCurrency(String(cur.default_currency ?? 'VND').trim().toUpperCase() || 'VND')
@@ -1613,6 +1620,30 @@ export function PartnerMessagingSettingsClient({
       const nextId = googleAdsId.trim().toUpperCase() || null
       setPartners((prev) =>
         prev.map((p) => (p.id === selectedPartnerId ? { ...p, google_ads_id: nextId } : p))
+      )
+      toast({ title: t.saveOk })
+      router.refresh()
+    })
+  }
+
+  const saveGoogleCustomerReviews = () => {
+    if (!selectedPartnerId) return
+    startTransition(async () => {
+      const res = await savePartnerMessagingGoogleCustomerReviews(selectedPartnerId, gcrMerchantId)
+      if ('error' in res && res.error) {
+        if (res.error === 'INVALID_GCR_MERCHANT_ID') {
+          toast({ title: t.shopGcrInvalidIdToast, variant: 'destructive' })
+          return
+        }
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      const parsed = Number(gcrMerchantId.trim())
+      const nextId = Number.isInteger(parsed) && parsed > 0 ? parsed : null
+      setPartners((prev) =>
+        prev.map((p) =>
+          p.id === selectedPartnerId ? { ...p, google_customer_reviews_merchant_id: nextId } : p
+        )
       )
       toast({ title: t.saveOk })
       router.refresh()
@@ -3026,6 +3057,36 @@ export function PartnerMessagingSettingsClient({
                 ) : null}
                 <Button type="button" size="sm" onClick={saveGoogleAds} disabled={pending || !selectedPartnerId || !isOwnerSelected}>
                   {t.shopGoogleAdsSaveButton}
+                </Button>
+              </CardContent>
+            </Card>
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="px-4 py-3 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Google Customer Reviews</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">{t.shopGcrMerchantIdLabel}</Label>
+                  <Input
+                    className="h-9 text-sm"
+                    value={gcrMerchantId}
+                    onChange={(e) => setGcrMerchantId(e.target.value)}
+                    placeholder={t.shopGcrMerchantIdPlaceholder}
+                    autoComplete="off"
+                    inputMode="numeric"
+                  />
+                  <p className="text-[11px] text-muted-foreground">{t.shopGcrMerchantIdHint}</p>
+                </div>
+                {!isOwnerSelected ? (
+                  <p className="text-[11px] text-muted-foreground">{t.integrationsAnalyticsOwnerOnly}</p>
+                ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={saveGoogleCustomerReviews}
+                  disabled={pending || !selectedPartnerId || !isOwnerSelected}
+                >
+                  {t.shopGcrSaveButton}
                 </Button>
               </CardContent>
             </Card>

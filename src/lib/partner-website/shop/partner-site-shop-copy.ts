@@ -258,6 +258,53 @@ export type PartnerSiteShopCopy = {
   depositAmount: string
   paymentReference: string
   depositPolicyNote: string
+  /** Token `{percent}` `{amount}` */
+  cartDepositNote: string
+  depositPageTitle: string
+  /** Token `{code}` */
+  depositPageCode: string
+  depositTotalLabel: string
+  depositNeedLabel: string
+  depositNeedHint: string
+  depositOnDeliveryLabel: string
+  depositOnDeliveryHint: string
+  depositChooseLevel: string
+  /** Token `{percent}` */
+  depositPercentOption: string
+  depositFullOption: string
+  depositUpdating: string
+  depositBankLabel: string
+  depositAccountLabel: string
+  depositHolderLabel: string
+  depositCopyAccount: string
+  depositCopied: string
+  depositTransferContent: string
+  depositCopyContent: string
+  depositTransferHint: string
+  depositQrHint: string
+  depositDownloadQr: string
+  depositPollingHint: string
+  depositLoading: string
+  depositNotFound: string
+  depositNotRequired: string
+  depositWrongStatus: string
+  depositBackToOrders: string
+  depositViewOrder: string
+  orderPayDeposit: string
+  depositSuccessTitle: string
+  depositSuccessLead: string
+  depositSuccessThanks: string
+  depositPaidLabel: string
+  /** Token `{amount}` */
+  depositRemainingHint: string
+  depositStatusPaid: string
+  depositToastTitle: string
+  depositToastBody: string
+  gcrOptInTitle: string
+  gcrOptInHint: string
+  orderConfirmTitle: string
+  orderConfirmLead: string
+  orderConfirmCodNote: string
   productDescriptionTitle: string
   productDetailImagesTitle: string
   productVideoTitle: string
@@ -701,6 +748,51 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     depositAmount: 'Số tiền cọc',
     paymentReference: 'Nội dung chuyển khoản',
     depositPolicyNote: 'Cọc theo cài đặt shop — quét QR hoặc chuyển khoản đúng nội dung.',
+    cartDepositNote:
+      'Đơn này cần đặt cọc {percent}% ({amount}) trước khi xử lý. Số còn lại thanh toán khi nhận hàng.',
+    depositPageTitle: 'Thanh toán cọc đơn hàng',
+    depositPageCode: 'Mã đơn: #{code}',
+    depositTotalLabel: 'Tổng đơn',
+    depositNeedLabel: 'Cần cọc',
+    depositNeedHint: 'Chuyển khoản ngay',
+    depositOnDeliveryLabel: 'Khi nhận hàng',
+    depositOnDeliveryHint: 'Còn lại sau cọc',
+    depositChooseLevel: 'Chọn mức cọc',
+    depositPercentOption: 'Cọc {percent}%',
+    depositFullOption: 'Cọc 100%',
+    depositUpdating: 'Đang cập nhật...',
+    depositBankLabel: 'Ngân hàng thụ hưởng',
+    depositAccountLabel: 'Số tài khoản',
+    depositHolderLabel: 'Chủ tài khoản',
+    depositCopyAccount: 'Chép STK',
+    depositCopied: 'Đã chép',
+    depositTransferContent: 'Nội dung chuyển khoản',
+    depositCopyContent: 'Chép',
+    depositTransferHint: 'Ghi đúng nội dung để xác nhận tự động (SePay).',
+    depositQrHint: 'Quét QR bên phải → đối chiếu STK và nội dung CK. SePay xác nhận nhanh; không thì shop đối soát tay.',
+    depositDownloadQr: 'Tải mã QR',
+    depositPollingHint: 'Trang tự làm mới khi shop nhận được tiền cọc.',
+    depositLoading: 'Đang tải thông tin đơn hàng...',
+    depositNotFound: 'Không tìm thấy đơn hàng.',
+    depositNotRequired: 'Đơn hàng này không yêu cầu đặt cọc.',
+    depositWrongStatus: 'Đơn hàng không ở trạng thái chờ cọc.',
+    depositBackToOrders: 'Quay lại danh sách đơn hàng',
+    depositViewOrder: 'Xem chi tiết đơn hàng',
+    orderPayDeposit: 'Thanh toán cọc',
+    depositSuccessTitle: 'Xác nhận đơn hàng',
+    depositSuccessLead: 'Cảm ơn quý khách đã thanh toán đặt cọc. Chúng tôi đã ghi nhận và gửi email xác nhận tới bạn.',
+    depositSuccessThanks: 'Đội ngũ shop sẽ xử lý đơn và liên hệ khi cần. Quý khách có thể theo dõi tiến độ trong mục chi tiết đơn hàng.',
+    depositPaidLabel: 'Số tiền cọc đã nhận',
+    depositRemainingHint: 'Số còn lại khi nhận hàng: {amount}',
+    depositStatusPaid: 'Đã đặt cọc',
+    depositToastTitle: 'Đã xác nhận thanh toán cọc',
+    depositToastBody: 'Cảm ơn quý khách. Email xác nhận đã được gửi tới hộp thư của bạn (nếu có).',
+    gcrOptInTitle: 'Đánh giá khách hàng qua Google (tùy chọn)',
+    gcrOptInHint:
+      'Google có thể hiện hộp thoại xác nhận — chọn tham gia để sau khi nhận hàng Google gửi email khảo sát. Nếu không thấy, thử tắt chặn quảng cáo hoặc mở trang bằng Chrome/Safari.',
+    orderConfirmTitle: 'Đặt hàng thành công',
+    orderConfirmLead: 'Cảm ơn quý khách. Đơn đã được ghi nhận.',
+    orderConfirmCodNote: 'Đơn này không yêu cầu đặt cọc trước — thanh toán khi nhận hàng.',
     productDescriptionTitle: 'Mô tả sản phẩm',
     productDetailImagesTitle: 'Ảnh chi tiết',
     productVideoTitle: 'Video sản phẩm',
@@ -1137,6 +1229,51 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     depositAmount: 'Deposit amount',
     paymentReference: 'Transfer reference',
     depositPolicyNote: 'Deposit per shop settings — scan QR or transfer with the reference.',
+    cartDepositNote:
+      'This order requires a {percent}% deposit ({amount}) before processing. The rest is paid on delivery.',
+    depositPageTitle: 'Pay order deposit',
+    depositPageCode: 'Order: #{code}',
+    depositTotalLabel: 'Order total',
+    depositNeedLabel: 'Deposit due',
+    depositNeedHint: 'Transfer now',
+    depositOnDeliveryLabel: 'On delivery',
+    depositOnDeliveryHint: 'Balance after deposit',
+    depositChooseLevel: 'Choose deposit amount',
+    depositPercentOption: '{percent}% deposit',
+    depositFullOption: '100% deposit',
+    depositUpdating: 'Updating...',
+    depositBankLabel: 'Beneficiary bank',
+    depositAccountLabel: 'Account number',
+    depositHolderLabel: 'Account holder',
+    depositCopyAccount: 'Copy account',
+    depositCopied: 'Copied',
+    depositTransferContent: 'Transfer content',
+    depositCopyContent: 'Copy',
+    depositTransferHint: 'Use the exact memo so SePay can confirm automatically.',
+    depositQrHint: 'Scan the QR, then check the account and memo. SePay confirms quickly; otherwise the shop matches it manually.',
+    depositDownloadQr: 'Download QR',
+    depositPollingHint: 'This page refreshes when the shop receives the deposit.',
+    depositLoading: 'Loading order…',
+    depositNotFound: 'Order not found.',
+    depositNotRequired: 'This order does not require a deposit.',
+    depositWrongStatus: 'This order is not waiting for a deposit.',
+    depositBackToOrders: 'Back to orders',
+    depositViewOrder: 'View order details',
+    orderPayDeposit: 'Pay deposit',
+    depositSuccessTitle: 'Order confirmed',
+    depositSuccessLead: 'Thank you for paying the deposit. We recorded it and sent a confirmation email if we have your address.',
+    depositSuccessThanks: 'The shop will process the order and contact you if needed. Track progress in order details.',
+    depositPaidLabel: 'Deposit received',
+    depositRemainingHint: 'Balance on delivery: {amount}',
+    depositStatusPaid: 'Deposit paid',
+    depositToastTitle: 'Deposit payment confirmed',
+    depositToastBody: 'Thank you. A confirmation email was sent if we have your address.',
+    gcrOptInTitle: 'Google Customer Reviews (optional)',
+    gcrOptInHint:
+      'Google may show a confirmation dialog — opt in so they email a survey after delivery. If you do not see it, disable ad blockers or open Chrome/Safari.',
+    orderConfirmTitle: 'Order placed',
+    orderConfirmLead: 'Thank you. Your order has been received.',
+    orderConfirmCodNote: 'No deposit is required — pay when the order arrives.',
     productDescriptionTitle: 'Product description',
     productDetailImagesTitle: 'Detail images',
     productVideoTitle: 'Product video',
@@ -1573,6 +1710,49 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     depositAmount: '定金金额',
     paymentReference: '转账备注',
     depositPolicyNote: '按店铺设置支付定金 — 扫码或转账并填写备注。',
+    cartDepositNote: '本单需先支付 {percent}% 定金（{amount}）才会处理。余款货到支付。',
+    depositPageTitle: '支付订单定金',
+    depositPageCode: '订单：#{code}',
+    depositTotalLabel: '订单总额',
+    depositNeedLabel: '应付定金',
+    depositNeedHint: '请立即转账',
+    depositOnDeliveryLabel: '收货时',
+    depositOnDeliveryHint: '定金后余款',
+    depositChooseLevel: '选择定金比例',
+    depositPercentOption: '定金 {percent}%',
+    depositFullOption: '定金 100%',
+    depositUpdating: '正在更新…',
+    depositBankLabel: '收款银行',
+    depositAccountLabel: '账号',
+    depositHolderLabel: '户名',
+    depositCopyAccount: '复制账号',
+    depositCopied: '已复制',
+    depositTransferContent: '转账备注',
+    depositCopyContent: '复制',
+    depositTransferHint: '请填写准确备注以便 SePay 自动确认。',
+    depositQrHint: '扫描右侧二维码并核对账号与备注。SePay 会尽快确认；否则由店铺人工核对。',
+    depositDownloadQr: '下载二维码',
+    depositPollingHint: '店铺收到定金后本页会自动更新。',
+    depositLoading: '正在加载订单…',
+    depositNotFound: '未找到订单。',
+    depositNotRequired: '此订单无需定金。',
+    depositWrongStatus: '此订单不在待付定金状态。',
+    depositBackToOrders: '返回订单列表',
+    depositViewOrder: '查看订单详情',
+    orderPayDeposit: '支付定金',
+    depositSuccessTitle: '订单已确认',
+    depositSuccessLead: '感谢您支付定金。我们已记录并向您发送确认邮件（如有邮箱）。',
+    depositSuccessThanks: '店铺将处理订单，必要时与您联系。可在订单详情中跟踪进度。',
+    depositPaidLabel: '已收定金',
+    depositRemainingHint: '收货时余款：{amount}',
+    depositStatusPaid: '已付定金',
+    depositToastTitle: '已确认定金付款',
+    depositToastBody: '谢谢。如有邮箱，确认邮件已发送。',
+    gcrOptInTitle: 'Google 顾客评价（可选）',
+    gcrOptInHint: 'Google 可能会显示确认框 — 选择参与后，收货后会发送评价邮件。若未看到，请关闭广告拦截或使用 Chrome/Safari。',
+    orderConfirmTitle: '下单成功',
+    orderConfirmLead: '谢谢。订单已收到。',
+    orderConfirmCodNote: '此单无需预付定金 — 货到付款。',
     productDescriptionTitle: '产品描述',
     productDetailImagesTitle: '细节图片',
     productVideoTitle: '产品视频',
@@ -2009,6 +2189,49 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     depositAmount: 'デポジット',
     paymentReference: '振込参照',
     depositPolicyNote: 'ショップ設定に従いデポジットをお支払いください。',
+    cartDepositNote: 'この注文は処理前に {percent}%（{amount}）のデポジットが必要です。残金は受け取り時にお支払いください。',
+    depositPageTitle: '注文デポジットのお支払い',
+    depositPageCode: '注文番号: #{code}',
+    depositTotalLabel: '注文合計',
+    depositNeedLabel: 'デポジット',
+    depositNeedHint: '今すぐ振込',
+    depositOnDeliveryLabel: '受け取り時',
+    depositOnDeliveryHint: 'デポジット後の残金',
+    depositChooseLevel: 'デポジット率を選択',
+    depositPercentOption: 'デポジット {percent}%',
+    depositFullOption: 'デポジット 100%',
+    depositUpdating: '更新中...',
+    depositBankLabel: '振込先銀行',
+    depositAccountLabel: '口座番号',
+    depositHolderLabel: '口座名義',
+    depositCopyAccount: '口座をコピー',
+    depositCopied: 'コピー済み',
+    depositTransferContent: '振込内容',
+    depositCopyContent: 'コピー',
+    depositTransferHint: 'SePay が自動確認できるよう、内容を正確に入力してください。',
+    depositQrHint: '右のQRを読み取り、口座と振込内容を確認してください。SePay が速やかに確認します。',
+    depositDownloadQr: 'QRを保存',
+    depositPollingHint: 'ショップがデポジットを受領するとこのページが更新されます。',
+    depositLoading: '注文を読み込み中…',
+    depositNotFound: '注文が見つかりません。',
+    depositNotRequired: 'この注文にデポジットは不要です。',
+    depositWrongStatus: 'この注文はデポジット待ちではありません。',
+    depositBackToOrders: '注文一覧に戻る',
+    depositViewOrder: '注文詳細を見る',
+    orderPayDeposit: 'デポジットを支払う',
+    depositSuccessTitle: '注文を確認しました',
+    depositSuccessLead: 'デポジットのお支払いありがとうございます。記録し、メールアドレスがあれば確認メールを送りました。',
+    depositSuccessThanks: 'ショップが注文を処理し、必要に応じてご連絡します。進捗は注文詳細で確認できます。',
+    depositPaidLabel: '受領したデポジット',
+    depositRemainingHint: '受け取り時の残金: {amount}',
+    depositStatusPaid: 'デポジット済',
+    depositToastTitle: 'デポジット入金を確認しました',
+    depositToastBody: 'ありがとうございます。メールアドレスがあれば確認メールを送信しました。',
+    gcrOptInTitle: 'Google カスタマーレビュー（任意）',
+    gcrOptInHint: 'Google の確認ダイアログが表示される場合があります。受け取り後にアンケートメールが届きます。表示されない場合は広告ブロッカーをオフにするか Chrome/Safari をお使いください。',
+    orderConfirmTitle: 'ご注文を受け付けました',
+    orderConfirmLead: 'ありがとうございます。ご注文を受け付けました。',
+    orderConfirmCodNote: 'デポジットは不要です。商品受け取り時にお支払いください。',
     productDescriptionTitle: '商品説明',
     productDetailImagesTitle: '詳細画像',
     productVideoTitle: '商品動画',
@@ -2445,6 +2668,49 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     depositAmount: '보증금',
     paymentReference: '입금 참조',
     depositPolicyNote: '샵 설정에 따른 보증금 — QR 또는 참조번호로 입금.',
+    cartDepositNote: '이 주문은 처리 전 {percent}% 보증금({amount})이 필요합니다. 나머지는 수령 시 결제합니다.',
+    depositPageTitle: '주문 보증금 결제',
+    depositPageCode: '주문: #{code}',
+    depositTotalLabel: '주문 합계',
+    depositNeedLabel: '보증금',
+    depositNeedHint: '지금 이체',
+    depositOnDeliveryLabel: '수령 시',
+    depositOnDeliveryHint: '보증금 후 잔액',
+    depositChooseLevel: '보증금 비율 선택',
+    depositPercentOption: '보증금 {percent}%',
+    depositFullOption: '보증금 100%',
+    depositUpdating: '업데이트 중...',
+    depositBankLabel: '입금 은행',
+    depositAccountLabel: '계좌번호',
+    depositHolderLabel: '예금주',
+    depositCopyAccount: '계좌 복사',
+    depositCopied: '복사됨',
+    depositTransferContent: '이체 내용',
+    depositCopyContent: '복사',
+    depositTransferHint: 'SePay가 자동 확인할 수 있도록 내용을 정확히 입력하세요.',
+    depositQrHint: '오른쪽 QR을 스캔한 뒤 계좌와 이체 내용을 확인하세요. SePay가 빠르게 확인합니다.',
+    depositDownloadQr: 'QR 저장',
+    depositPollingHint: '샵이 보증금을 받으면 이 페이지가 새로고침됩니다.',
+    depositLoading: '주문을 불러오는 중…',
+    depositNotFound: '주문을 찾을 수 없습니다.',
+    depositNotRequired: '이 주문은 보증금이 필요 없습니다.',
+    depositWrongStatus: '이 주문은 보증금 대기 상태가 아닙니다.',
+    depositBackToOrders: '주문 목록으로',
+    depositViewOrder: '주문 상세 보기',
+    orderPayDeposit: '보증금 결제',
+    depositSuccessTitle: '주문이 확인되었습니다',
+    depositSuccessLead: '보증금을 내 주셔서 감사합니다. 기록했으며 이메일이 있으면 확인 메일을 보냈습니다.',
+    depositSuccessThanks: '샵이 주문을 처리하고 필요 시 연락드립니다. 진행 상황은 주문 상세에서 확인할 수 있습니다.',
+    depositPaidLabel: '받은 보증금',
+    depositRemainingHint: '수령 시 잔액: {amount}',
+    depositStatusPaid: '보증금 완료',
+    depositToastTitle: '보증금 입금이 확인되었습니다',
+    depositToastBody: '감사합니다. 이메일이 있으면 확인 메일을 보냈습니다.',
+    gcrOptInTitle: 'Google 고객 리뷰 (선택)',
+    gcrOptInHint: 'Google 확인 대화상자가 나타날 수 있습니다. 수령 후 설문 이메일이 발송됩니다. 보이지 않으면 광고 차단을 끄거나 Chrome/Safari를 사용하세요.',
+    orderConfirmTitle: '주문이 접수되었습니다',
+    orderConfirmLead: '감사합니다. 주문이 접수되었습니다.',
+    orderConfirmCodNote: '선결제 보증금이 없습니다 — 수령 시 결제하세요.',
     productDescriptionTitle: '상품 설명',
     productDetailImagesTitle: '상세 이미지',
     productVideoTitle: '상품 영상',

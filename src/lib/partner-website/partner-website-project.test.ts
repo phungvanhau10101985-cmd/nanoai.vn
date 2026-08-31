@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   composeStandaloneHtml,
   defaultProjectFromHtml,
+  extractIndexHtml,
   normalizePartnerWebsiteProject,
 } from '@/lib/partner-website/partner-website-project'
 import { validatePartnerWebsiteSlug } from '@/lib/partner-website/partner-website-slug'
@@ -30,4 +31,30 @@ test('defaultProjectFromHtml wraps single file', () => {
   const p = defaultProjectFromHtml('<html></html>', 'Shop')
   assert.equal(p.entryPath, 'index.html')
   assert.ok(p.files.some((f) => f.path === 'index.html'))
+})
+
+test('extractIndexHtml does not fall back to another device file', () => {
+  assert.equal(
+    extractIndexHtml({
+      entryPath: 'index.html',
+      files: [
+        {
+          path: 'index.mobile.html',
+          kind: 'html',
+          content: '<!DOCTYPE html><html><body>Mobile only</body></html>',
+        },
+      ],
+    }),
+    null
+  )
+  assert.match(
+    extractIndexHtml({
+      entryPath: 'index.html',
+      files: [
+        { path: 'index.html', kind: 'html', content: '<!DOCTYPE html><html><body>Desktop</body></html>' },
+        { path: 'index.mobile.html', kind: 'html', content: '<!DOCTYPE html><html><body>Mobile</body></html>' },
+      ],
+    }) || '',
+    /Desktop/
+  )
 })

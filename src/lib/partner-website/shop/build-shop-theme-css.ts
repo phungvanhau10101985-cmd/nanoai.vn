@@ -334,6 +334,40 @@ ${PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS}
 .pw-shop-btn-outline{background:#fff;color:var(--pw-primary);border:2px solid var(--pw-primary)}
 .pw-shop-btn-cart{background:var(--pw-cart);color:#fff;border:none}
 .pw-shop-btn-buy{background:var(--pw-buy);color:#fff;border:none}
+.pw-shop-deposit{max-width:960px;margin:0 auto;background:var(--pw-bg,#fff);border:1px solid var(--pw-border,#e5e7eb);border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(15,23,42,.04)}
+.pw-shop-deposit-head{background:var(--pw-primary);color:#fff;padding:14px 16px}
+.pw-shop-deposit-head h1{margin:0;font-size:18px;font-weight:800}
+.pw-shop-deposit-head p{margin:4px 0 0;font-size:13px;opacity:.92}
+.pw-shop-deposit-money{display:grid;grid-template-columns:1fr;background:var(--pw-surface,#f8fafc);border-bottom:1px solid var(--pw-border,#e5e7eb)}
+@media(min-width:640px){.pw-shop-deposit-money{grid-template-columns:repeat(3,1fr)}}
+.pw-shop-deposit-money>div{padding:12px 14px;text-align:center}
+@media(min-width:640px){.pw-shop-deposit-money>div{text-align:left;border-right:1px solid var(--pw-border,#e5e7eb)}}
+.pw-shop-deposit-money>div:last-child{border-right:none}
+.pw-shop-deposit-money .k{margin:0;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--pw-muted,#6b7280)}
+.pw-shop-deposit-money .v{margin:2px 0 0;font-size:18px;font-weight:800;color:var(--pw-text,#111);font-variant-numeric:tabular-nums}
+.pw-shop-deposit-money .need .v{color:var(--pw-buy)}
+.pw-shop-deposit-body{display:grid;grid-template-columns:1fr}
+@media(min-width:900px){.pw-shop-deposit-body{grid-template-columns:5fr 7fr}}
+.pw-shop-deposit-col{padding:14px 16px;display:grid;gap:12px}
+.pw-shop-deposit-box{border:1px solid var(--pw-border,#e5e7eb);border-radius:10px;padding:12px;background:var(--pw-bg,#fff)}
+.pw-shop-deposit-box h2,.pw-shop-deposit-box p.lbl{margin:0 0 8px;font-size:14px;font-weight:700}
+.pw-shop-deposit-opts{display:flex;flex-wrap:wrap;gap:16px}
+.pw-shop-deposit-opts label{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+.pw-shop-deposit-row{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:4px 0}
+.pw-shop-deposit-row .k{color:var(--pw-muted,#6b7280)}
+.pw-shop-deposit-row .v{font-weight:600;text-align:right;word-break:break-all}
+.pw-shop-deposit-memo{font-family:ui-monospace,Menlo,monospace;font-weight:800;background:var(--pw-surface,#f3f4f6);border:1px solid var(--pw-border,#e5e7eb);border-radius:8px;padding:10px 12px;word-break:break-all}
+.pw-shop-deposit-qr{display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px}
+.pw-shop-deposit-qr img{width:min(280px,100%);height:auto;border-radius:8px;background:#fff}
+.pw-shop-deposit-hint{margin:0;font-size:12px;line-height:1.45;color:var(--pw-muted,#6b7280)}
+.pw-shop-deposit-success-head{background:linear-gradient(90deg,var(--pw-primary),var(--pw-accent));color:#fff;padding:20px 16px;display:flex;gap:12px;align-items:flex-start}
+.pw-shop-deposit-success-head .mark{flex-shrink:0;width:40px;height:40px;border-radius:999px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center}
+.pw-shop-deposit-success-body{padding:16px;display:grid;gap:12px}
+.pw-shop-deposit-success-card{border:1px solid color-mix(in srgb, var(--pw-primary) 25%, #e5e7eb);background:var(--pw-surface,#f0fdf4);border-radius:10px;padding:14px;font-size:14px}
+.pw-shop-deposit-gcr{border:1px solid var(--pw-border,#e5e7eb);background:var(--pw-surface,#f8fafc);border-radius:10px;padding:14px;font-size:14px}
+.pw-shop-deposit-actions{display:flex;flex-wrap:wrap;gap:8px;padding-top:4px}
+.pw-shop-deposit-toast{margin:0 0 12px;padding:12px 14px;border-radius:10px;background:var(--pw-surface,#ecfdf5);border:1px solid color-mix(in srgb, var(--pw-primary) 30%, #e5e7eb);font-size:14px}
+.pw-shop-deposit-center{min-height:40vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;padding:24px}
 .pw-btn-outline{background:transparent;border-radius:12px;border-style:solid;border-width:2px}
 .pw-shop-auth-panel{margin-top:16px;padding:20px;border:1px solid #d1d5db;border-radius:12px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.05);max-width:480px}
 .pw-shop-auth-panel .pw-shop-btn{width:100%;padding:12px 18px}

@@ -442,6 +442,9 @@ export function PartnerWebsiteDashboardClient({
       })
       const html =
         project.files.find((f) => f.path === htmlPath && f.kind === 'html')?.content ||
+        (project.files.length === 1 && project.files[0]?.kind === 'html'
+          ? project.files[0].content
+          : undefined) ||
         (key === 'home' && device === 'desktop' && !categoryPath && !productId && !cmsSlug
           ? project.files.find((f) => f.path === 'index.html' && f.kind === 'html')?.content
           : undefined) ||

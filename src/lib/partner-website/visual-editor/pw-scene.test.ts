@@ -20,6 +20,7 @@ import {
   PW_SCENE_Z_MAX,
   clampPwSceneIndex,
   isPwSceneIndex,
+  PARTNER_SHOP_AUTHORED_BLOCK_CSS,
   PARTNER_SHOP_BANNER_LIVE_MATCH_CSS,
   PARTNER_SHOP_HROW_CSS,
   PARTNER_SHOP_STACK_FLOW_CSS,
@@ -386,7 +387,12 @@ describe('scene layers inside the editor runtime', () => {
     expect(PARTNER_SHOP_HROW_CSS).toContain('html [data-pw-hrow]>[data-pw-added-bg="1"]:not([data-pw-added-bg-slot]){flex:0 0 auto!important')
     expect(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS).toContain('text-transform:none!important')
     expect(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS).toContain('html[data-pw-edit-device="desktop"] .pw-hero')
-    expect(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS).toContain('margin-top:0!important;border-radius:0!important')
+    expect(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS).toContain('margin-top:0!important')
+    expect(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS).toContain(':not([data-pw-image-radius])')
+    expect(PARTNER_SHOP_BANNER_LIVE_MATCH_CSS).toContain('[data-pw-image-radius="0"]{border-radius:0!important}')
+    expect(PARTNER_SHOP_AUTHORED_BLOCK_CSS).toContain('border-radius:var(--pw-image-radius,0px)!important')
+    expect(script).toContain('pinAuthoredVisualMetricsAll')
+    expect(script).toContain("host.style.setProperty('--pw-image-radius', n + 'px')")
   })
 
   it('moves the whole bottom navigation when a bottom nav item changes scene layer', () => {

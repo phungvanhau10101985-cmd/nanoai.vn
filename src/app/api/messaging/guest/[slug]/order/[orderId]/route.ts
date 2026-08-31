@@ -3,7 +3,11 @@ import {
   commercePartnerErrorResponse,
   resolveCommerceOrderPartnerBySlug,
 } from '@/lib/messaging/resolve-commerce-partner'
-import { fetchPartnerOrderDetailForGuestWidgetIfAllowed } from '@/lib/messaging/guest-chat-ordering'
+import {
+  buildGuestOrderDepositView,
+  fetchPartnerOrderDetailForGuestWidgetIfAllowed,
+  updateCartOrderDepositPercent,
+} from '@/lib/messaging/guest-chat-ordering'
 import { resolveWidgetOrderThreadFromRequest } from '@/lib/messaging/resolve-widget-order-thread'
 import { fetchGuestWidgetConversationIdFromPg } from '@/lib/db/customer-care-pg'
 import {
@@ -35,8 +39,9 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   const order = await fetchPartnerOrderDetailForGuestWidgetIfAllowed(partner.partnerId, oid, thread)
   if (!order) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  const view = await buildGuestOrderDepositView({ partnerId: partner.partnerId, order })
   return NextResponse.json({
-    order,
+    ...view,
     partner_display_name: partner.displayName,
     partner_slug: slug,
   })
@@ -64,8 +69,22 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const body = (await request.json().catch(() => ({}))) as { action?: string; reason?: string }
+  const body = (await request.json().catch(() => ({}))) as { action?: string; reason?: string; percent?: number }
   const action = String(body.action ?? '').trim()
+
+  if (action === 'set_deposit_percent') {
+    const result = await updateCartOrderDepositPercent({
+      partnerId: partner.partnerId,
+      orderId: oid,
+      thread,
+      percent: Number(body.percent),
+    })
+    if ('error' in result) {
+      return NextResponse.json({ error: result.error }, { status: 409 })
+    }
+    const view = await buildGuestOrderDepositView({ partnerId: partner.partnerId, order: result.order })
+    return NextResponse.json({ ok: true, ...view })
+  }
 
   if (action === 'cancel') {
     const reason = String(body.reason ?? '').trim() || 'Khách hàng hủy'

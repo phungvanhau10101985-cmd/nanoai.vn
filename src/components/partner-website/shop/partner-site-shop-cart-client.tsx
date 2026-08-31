@@ -14,9 +14,12 @@ import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-
 import {
   partnerSiteAccountTabPath,
   partnerSiteAddressesApiPath,
-  partnerSiteInfoPath,
+  partnerSiteOrderDepositPath,
+  partnerSiteOrderDetailPath,
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { shouldRedirectToDepositAfterCreate } from '@/lib/partner-website/shop/order-deposit'
+import { markGoogleCustomerReviewsForOrder } from '@/lib/partner-website/shop/google-customer-reviews'
 import {
   emptyPartnerSiteAddressInput,
   formatPartnerSiteAddressLine,
@@ -48,9 +51,13 @@ type Props = {
 
 type OrderSnapshot = {
   id?: string
+  status?: string | null
   payment_qr_url?: string | null
   payment_reference?: string | null
   required_amount?: number | null
+  paid_amount?: number | null
+  deposit_percent?: number | null
+  customer_email?: string | null
   payment_method?: 'cod' | 'bank_transfer' | 'ewallet' | null
   shipping_fee_amount?: number | null
 }
@@ -99,6 +106,11 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     carrierLabel: null,
   })
   const [ewalletAvailable, setEwalletAvailable] = useState(false)
+  const [depositPolicy, setDepositPolicy] = useState<{
+    mode: 'none' | 'percent' | 'fixed_amount'
+    percent: number
+    fixedAmount: number
+  }>({ mode: 'percent', percent: 30, fixedAmount: 0 })
   const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'ewallet'>('bank_transfer')
   const [bookAddresses, setBookAddresses] = useState<PartnerSiteCustomerAddress[]>([])
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null)
@@ -172,6 +184,11 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
             carrierLabel?: string | null
           }
           ewalletAvailable?: boolean
+          depositPolicy?: {
+            mode?: 'none' | 'percent' | 'fixed_amount'
+            percent?: number
+            fixedAmount?: number
+          }
         }) => {
           setCheckoutLoginRequired(json.checkoutLoginRequired !== false)
           setShippingPolicy({
@@ -181,6 +198,12 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
             carrierLabel: String(json.shippingPolicy?.carrierLabel ?? '').trim() || null,
           })
           setEwalletAvailable(json.ewalletAvailable === true)
+          const mode = json.depositPolicy?.mode
+          setDepositPolicy({
+            mode: mode === 'none' || mode === 'fixed_amount' ? mode : 'percent',
+            percent: Math.max(1, Math.min(99, Math.round(json.depositPolicy?.percent ?? 30))),
+            fixedAmount: Math.max(0, Math.round(json.depositPolicy?.fixedAmount ?? 0)),
+          })
         }
       )
       .catch(() => {
@@ -306,6 +329,21 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     return shippingPolicy.feeAmount
   }, [shippingPolicy, payableSubtotal])
   const orderTotal = payableSubtotal + shippingFeeEstimate
+  const depositPreview = useMemo(() => {
+    if (depositPolicy.mode === 'none') return null
+    if (payableSubtotal <= 0) return null
+    if (depositPolicy.mode === 'fixed_amount') {
+      const fixed = depositPolicy.fixedAmount
+      if (fixed > payableSubtotal) {
+        const amount = Math.ceil(payableSubtotal * 0.2)
+        return { percent: 20, amount }
+      }
+      const percent = payableSubtotal > 0 ? Math.round((fixed / payableSubtotal) * 100) : 0
+      return { percent, amount: fixed }
+    }
+    const percent = depositPolicy.percent
+    return { percent, amount: Math.ceil((payableSubtotal * percent) / 100) }
+  }, [depositPolicy, payableSubtotal])
 
   async function saveItems(next: SiteCartLine[]) {
     setItems(next)
@@ -397,13 +435,18 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       }
       setAppliedPromo(null)
       setPromoCodeInput('')
-      if (json.order?.id) {
-        trackPartnerSitePurchase(tracking, {
-          transactionId: json.order.id,
-          value: orderTotal,
-          lines: checkoutLines,
-          customerPhone: orderPhone.trim() || undefined,
-        })
+      const created = json.order ?? null
+      const goDeposit = created?.id ? shouldRedirectToDepositAfterCreate(created) : false
+      if (created?.id) {
+        markGoogleCustomerReviewsForOrder(created.id)
+        if (!goDeposit) {
+          trackPartnerSitePurchase(tracking, {
+            transactionId: created.id,
+            value: orderTotal,
+            lines: checkoutLines,
+            customerPhone: orderPhone.trim() || undefined,
+          })
+        }
       }
       setItems([])
       await fetch(`/api/messaging/guest/${encodeURIComponent(partnerSlug)}/cart`, {
@@ -413,13 +456,14 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
         body: JSON.stringify({ items: [] }),
       })
       await refreshCartCount()
-      // W3.2 — chuyển sang trang cảm ơn (giữ confirmation inline nếu không có mã đơn).
-      if (json.order?.id && typeof window !== 'undefined') {
-        const thankYou = partnerSiteInfoPath(siteSlug, 'thank-you', { customDomain })
-        window.location.assign(`${thankYou}?order=${encodeURIComponent(json.order.id)}`)
+      if (created?.id && typeof window !== 'undefined') {
+        const next = goDeposit
+          ? partnerSiteOrderDepositPath(siteSlug, created.id, { customDomain })
+          : partnerSiteOrderDetailPath(siteSlug, created.id, { customDomain })
+        window.location.assign(next)
         return
       }
-      setCompletedOrder(json.order ?? null)
+      setCompletedOrder(created)
     } finally {
       setCheckoutBusy(false)
     }
@@ -528,6 +572,13 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
           <p style={{ marginTop: 8, fontWeight: 700 }} data-pw-el={PW_EL.price}>
             {t.cartTotalLabel}: {formatVnd(orderTotal)}
           </p>
+          {depositPreview && depositPreview.amount > 0 ? (
+            <p className="pw-shop-muted" style={{ marginTop: 8 }}>
+              {t.cartDepositNote
+                .replace('{percent}', String(depositPreview.percent))
+                .replace('{amount}', formatVnd(depositPreview.amount))}
+            </p>
+          ) : null}
           {ewalletAvailable ? (
             <div style={{ marginTop: 12 }}>
               <p style={{ fontWeight: 600, marginBottom: 6 }}>{t.checkoutPaymentMethodLabel}</p>

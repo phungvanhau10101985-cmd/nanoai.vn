@@ -139,3 +139,42 @@ test('saving another page or device keeps htmlSource mirrored to Desktop index',
   assert.doesNotMatch(htmlSource || '', /Mobile about page/)
 })
 
+test('saving mobile home keeps seeded desktop laptop and tablet files', () => {
+  const desktop = fixture('desktop').replace('>Box<', '>DESKTOP-ORIGIN<')
+  const laptop = fixture('laptop').replace('>Box<', '>LAPTOP-ORIGIN<')
+  const tablet = fixture('tablet').replace('>Box<', '>TABLET-ORIGIN<')
+  const mobileOrigin = fixture('mobile').replace('>Box<', '>MOBILE-ORIGIN<')
+  const mobileEdited = fixture('mobile').replace('>Box<', '>MOBILE-EDITED<')
+  const finalized = finalizeVisualEditorSave({
+    project: {
+      entryPath: 'index.html',
+      files: [
+        { path: 'index.html', kind: 'html', content: desktop },
+        { path: 'index.laptop.html', kind: 'html', content: laptop },
+        { path: 'index.tablet.html', kind: 'html', content: tablet },
+        { path: 'index.mobile.html', kind: 'html', content: mobileOrigin },
+      ],
+    },
+    theme: applyVisualEditThemeFlag(DEFAULT_PARTNER_WEBSITE_THEME, {
+      pageKey: 'home',
+      variant: 'mobile',
+    }),
+    htmlPath: 'index.mobile.html',
+    sourceHtml: mobileEdited,
+    visualDevice: 'mobile',
+  })
+
+  const file = (path: string) =>
+    finalized.project.files.find((entry) => entry.path === path)?.content || ''
+  assert.match(file('index.mobile.html'), /MOBILE-EDITED/)
+  assert.match(file('index.html'), /DESKTOP-ORIGIN/)
+  assert.match(file('index.laptop.html'), /LAPTOP-ORIGIN/)
+  assert.match(file('index.tablet.html'), /TABLET-ORIGIN/)
+  assert.doesNotMatch(file('index.html'), /MOBILE-EDITED/)
+  assert.doesNotMatch(file('index.laptop.html'), /MOBILE-EDITED/)
+  assert.doesNotMatch(file('index.tablet.html'), /MOBILE-EDITED/)
+  const htmlSource = visualHomeHtmlSourceAfterSave(finalized, desktop)
+  assert.match(htmlSource || '', /DESKTOP-ORIGIN/)
+  assert.doesNotMatch(htmlSource || '', /MOBILE-EDITED/)
+})
+

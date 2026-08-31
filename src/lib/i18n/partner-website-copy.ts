@@ -1403,7 +1403,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddRecommendedGrid: 'Lưới đề xuất',
     visualEditAddFeaturedCategories: 'Danh mục nổi bật',
     visualEditAddRelatedGrid: 'Sản phẩm tương tự',
-    visualEditAddOutfitGrid: 'Phối đồ',
+    visualEditAddOutfitGrid: 'Khối phối đồ',
     visualEditGridRowsAsk: 'Hiện sẵn mấy hàng sản phẩm?',
     visualEditGridRowsLabel: 'Số hàng',
     visualEditGridRowsHint: 'Xem thêm sẽ thêm đúng bấy nhiêu hàng.',

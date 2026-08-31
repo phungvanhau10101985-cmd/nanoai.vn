@@ -111,6 +111,7 @@ import {
   updateMessagingPartnerFacebookMetaForOwnerFromPg,
   updateMessagingPartnerGa4ForOwnerFromPg,
   updateMessagingPartnerGoogleAdsForOwnerFromPg,
+  updatePartnerGoogleCustomerReviewsMerchantIdForOwnerFromPg,
   updateMessagingPartnerTiktokPixelForOwnerFromPg,
   updateMessagingPartnerGtmContainerForOwnerFromPg,
   updateMessagingPartnerDefaultCurrencyForOwnerFromPg,
@@ -608,6 +609,32 @@ export async function savePartnerMessagingGoogleAds(partnerId: string, googleAds
     google_ads_id: raw || null,
   })
   if (!ok) return { error: 'Kh├┤ng l╞░u ─æ╞░ß╗úc m├ú Google Ads.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+export async function savePartnerMessagingGoogleCustomerReviews(partnerId: string, merchantIdRaw: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const raw = merchantIdRaw.trim()
+  let merchantId: number | null = null
+  if (raw) {
+    const n = Number(raw)
+    if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) {
+      return { error: 'INVALID_GCR_MERCHANT_ID' as const }
+    }
+    merchantId = n
+  }
+  const ok = await updatePartnerGoogleCustomerReviewsMerchantIdForOwnerFromPg({
+    partner_id: partnerId,
+    owner_user_id: user.id,
+    merchant_id: merchantId,
+  })
+  if (!ok) return { error: 'Không lưu được Merchant ID Google Customer Reviews.' }
   revalidateMessagingDashboard()
   return { ok: true as const }
 }

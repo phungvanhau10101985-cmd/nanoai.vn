@@ -33,14 +33,21 @@ export function isVisualEditorProductGridKind(value: string): value is VisualEdi
   return (VISUAL_EDITOR_PRODUCT_GRID_KINDS as readonly string[]).includes(value)
 }
 
-/** Related + outfit bind the product being viewed — seed on PDP, not Thêm. */
+/** Related + outfit bind the product being viewed — Thêm only on PDP. */
 export const VISUAL_EDITOR_PDP_ONLY_PRODUCT_GRID_KINDS = ['related', 'outfit'] as const
 
-/** Panel Thêm chỉ lưới cá nhân hóa. Catalog / related / outfit seed, không hiện nút. */
-export const VISUAL_EDITOR_PICKER_PRODUCT_GRID_KINDS = [
+/** Lưới cá nhân hóa — Thêm trên mọi trang. Không gồm related / outfit. */
+export const VISUAL_EDITOR_PERSONALIZE_PRODUCT_GRID_KINDS = [
   'recently-viewed',
   'recommended',
   'featured-categories',
+] as const
+
+/** Panel Thêm (+ khe): cá nhân hóa mọi trang; tương tự + phối đồ chỉ PDP. Catalog seed, không nút. */
+export const VISUAL_EDITOR_PICKER_PRODUCT_GRID_KINDS = [
+  ...VISUAL_EDITOR_PERSONALIZE_PRODUCT_GRID_KINDS,
+  'related',
+  'outfit',
 ] as const
 
 export function isPdpOnlyProductGridKind(kind: string): boolean {
@@ -48,7 +55,7 @@ export function isPdpOnlyProductGridKind(kind: string): boolean {
 }
 
 export function isPersonalizeProductGridKind(kind: string): boolean {
-  return (VISUAL_EDITOR_PICKER_PRODUCT_GRID_KINDS as readonly string[]).includes(kind)
+  return (VISUAL_EDITOR_PERSONALIZE_PRODUCT_GRID_KINDS as readonly string[]).includes(kind)
 }
 
 export function productGridKindAllowedOnVisualPage(
@@ -63,8 +70,10 @@ export function productGridKindShownInAddPicker(
   kind: VisualEditorProductGridKind,
   pageKey?: string | null
 ): boolean {
-  if (!isPersonalizeProductGridKind(kind)) return false
-  return productGridKindAllowedOnVisualPage(kind, pageKey)
+  if (kind === 'catalog') return false
+  if (isPersonalizeProductGridKind(kind)) return true
+  if (isPdpOnlyProductGridKind(kind)) return productGridKindAllowedOnVisualPage(kind, pageKey)
+  return false
 }
 
 const TITLE: Record<VisualEditorProductGridKind, Record<WebLocale, string>> = {
@@ -148,7 +157,7 @@ export function productGridWidgetLabel(kind: VisualEditorProductGridKind, locale
   }
   if (kind === 'outfit') {
     return locale === 'vi'
-      ? 'Phối đồ'
+      ? 'Khối phối đồ'
       : locale === 'zh'
         ? '搭配'
         : locale === 'ja'

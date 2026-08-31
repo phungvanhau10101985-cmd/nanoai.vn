@@ -59,6 +59,7 @@ import {
   PW_SCENE_TOPBAR_Z,
   PW_SCENE_Z_MAX,
   pwSceneUnifiedStackCss,
+  PARTNER_SHOP_AUTHORED_BLOCK_CSS,
   PARTNER_SHOP_BANNER_MEDIA_FILL_CSS,
   PARTNER_SHOP_HROW_CSS,
   PARTNER_SHOP_STACK_FLOW_CSS,
@@ -1201,12 +1202,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var n = clampImageRadius(size)
     host.setAttribute('data-pw-image-radius', String(n))
     if (host.style) {
-      host.style.setProperty('border-radius', n + 'px')
+      host.style.setProperty('--pw-image-radius', n + 'px')
+      host.style.setProperty('border-radius', n + 'px', 'important')
       host.style.setProperty('overflow', 'hidden')
     }
     var paint = imageRadiusPaintEl(host)
     if (paint && paint !== host && paint.style) {
-      paint.style.setProperty('border-radius', n + 'px')
+      paint.style.setProperty('border-radius', n + 'px', 'important')
       paint.style.setProperty('overflow', 'hidden')
     }
   }
@@ -9356,6 +9358,30 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       pinKindLockedScene(nodes[i])
     }
   }
+  function pinAuthoredVisualMetricsAll() {
+    var nodes = document.querySelectorAll('[data-pw-image-radius],[data-pw-block-h],[data-pw-block-w]')
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i]
+      if (el.getAttribute && el.getAttribute('data-pw-image-radius') != null) {
+        applyImageRadius(el, parseImageRadius(el))
+      }
+      if (!el.style || isProductGridHost(el)) continue
+      var hRaw = el.getAttribute('data-pw-block-h')
+      var wRaw = el.getAttribute('data-pw-block-w')
+      if (hRaw) {
+        var h = parseInt(hRaw, 10)
+        if (isFinite(h) && h > 0) {
+          el.style.setProperty('--pw-block-h', h + 'px')
+          el.style.setProperty('min-height', h + 'px', 'important')
+          el.style.setProperty('height', h + 'px', 'important')
+        }
+      }
+      if (wRaw) {
+        var w = parseInt(wRaw, 10)
+        if (isFinite(w) && w > 0) el.style.setProperty('--pw-block-w', w + 'px')
+      }
+    }
+  }
   function writeSceneIndex(el, index) {
     if (!el || isFullBleedChrome(el) || isChromeFloatEl(el)) return
     var locked = kindLockedScene(el)
@@ -10791,7 +10817,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       insertInFlowSection(html, 'data-pw-featured-categories')
       return
     }
-    if (isPdpOnlyProductGridHtml(html) && !isProductPage()) return
+    if (isPdpOnlyProductGridHtml(html)) {
+      if (!isProductPage()) return
+      if (/data-pw-outfit/.test(String(html || ''))) {
+        insertInFlowSection(html, 'data-pw-outfit')
+        return
+      }
+      insertInFlowSection(html, 'data-pw-related')
+      return
+    }
     insertInFlowSection(html, 'data-pw-added-catalog')
   }
   function insertBanner(html, opts) {
@@ -14126,7 +14160,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '[data-pw-added-text-slot="1"],[data-pw-added-btn-slot="1"],[data-pw-added-image-slot="1"],[data-pw-added-video-slot="1"],[data-pw-added-chrome-slot="1"]{position:relative!important;display:block!important;width:100%!important;left:auto!important;top:auto!important;margin-left:0!important;margin-right:0!important;box-sizing:border-box;z-index:auto}',
       '[data-pw-added-text-slot="1"]{text-align:center;padding:16px 12px;white-space:normal!important}',
       '[data-pw-added-btn-slot="1"],[data-pw-added-chrome-slot="1"]{display:flex!important;justify-content:center;align-items:center;padding:16px 12px}',
-      '[data-pw-added-image][data-pw-image-radius],[data-pw-info-image][data-pw-image-radius]{overflow:hidden}',
+      '[data-pw-added-image][data-pw-image-radius],[data-pw-info-image][data-pw-image-radius],[data-pw-region="banner"][data-pw-image-radius],.pw-hero[data-pw-image-radius],.pw-banner[data-pw-image-radius]{overflow:hidden}',
+      ${JSON.stringify(PARTNER_SHOP_AUTHORED_BLOCK_CSS)},
       '[data-pw-added-image-slot="1"],[data-pw-added-video-slot="1"]{padding:12px 0;text-align:center}',
       '[data-pw-added-image-slot="1"] > *,[data-pw-added-video-slot="1"] > *{margin-left:auto;margin-right:auto}',
       '.nanoai-ve-highlight[data-pw-added-bg="1"],.nanoai-ve-hover[data-pw-added-bg="1"]{outline:2px dashed #2563eb!important}',
@@ -14454,6 +14489,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { stampAllChromeFloats() } catch (errFloatStamp) {}
     try { pinMidTopChromeAll() } catch (errMidFlow) {}
     try { pinKindLockedScenesAll() } catch (errKindScene) {}
+    try { pinAuthoredVisualMetricsAll() } catch (errAuthored) {}
     try { clearPinScreenLeftovers() } catch (errPinClear) {}
     try { releaseInFlowCatalogChromeAll() } catch (errCatalogFlow) {}
     try { reflowInFlowStackHosts() } catch (errStackFlow) {}

@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -17,7 +18,7 @@ import {
   PARTNER_SITE_ORDER_STATUS_FILTER_KEYS,
   type PartnerSiteOrderStatusFilterKey,
 } from '@/lib/partner-website/shop/partner-site-order-status-filters'
-import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteOrderDepositPath, partnerSiteOrderDetailPath, partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 
@@ -302,13 +303,19 @@ export function PartnerSiteShopOrdersClient({
               </div>
 
               <div className="pw-shop-order-actions">
+                <Link
+                  href={partnerSiteOrderDetailPath(siteSlug, o.id, { customDomain })}
+                  className="pw-shop-btn pw-shop-btn-outline"
+                >
+                  {t.depositViewOrder}
+                </Link>
                 <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => togglePanel(o.id, 'detail')}>
                   {open && panel === 'detail' ? t.orderHideDetail : t.orderDetail}
                 </button>
                 {showPayment && waitingPay ? (
-                  <button type="button" className="pw-shop-btn" onClick={() => togglePanel(o.id, 'payment')}>
-                    {open && panel === 'payment' ? t.orderHidePayment : t.orderViewPayment}
-                  </button>
+                  <Link href={partnerSiteOrderDepositPath(siteSlug, o.id, { customDomain })} className="pw-shop-btn">
+                    {t.orderPayDeposit}
+                  </Link>
                 ) : null}
                 {canTrack ? (
                   <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => togglePanel(o.id, 'track')}>

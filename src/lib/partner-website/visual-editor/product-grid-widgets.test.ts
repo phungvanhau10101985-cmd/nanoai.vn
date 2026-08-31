@@ -20,7 +20,7 @@ test('recognizes product grid kinds', () => {
   assert.equal(isVisualEditorProductGridKind('cart'), false)
 })
 
-test('related and outfit are PDP-only factory kinds; picker is personalize only', () => {
+test('related and outfit are PDP-only picker kinds; personalize stays on every page', () => {
   assert.equal(isPdpOnlyProductGridKind('related'), true)
   assert.equal(isPdpOnlyProductGridKind('outfit'), true)
   assert.equal(isPdpOnlyProductGridKind('catalog'), false)
@@ -33,13 +33,17 @@ test('related and outfit are PDP-only factory kinds; picker is personalize only'
   assert.equal(isPersonalizeProductGridKind('recently-viewed'), true)
   assert.equal(isPersonalizeProductGridKind('recommended'), true)
   assert.equal(isPersonalizeProductGridKind('featured-categories'), true)
+  assert.equal(isPersonalizeProductGridKind('related'), false)
+  assert.equal(isPersonalizeProductGridKind('outfit'), false)
   assert.equal(isPersonalizeProductGridKind('catalog'), false)
   assert.equal(productGridKindShownInAddPicker('recently-viewed', 'home'), true)
   assert.equal(productGridKindShownInAddPicker('recommended', 'product_detail'), true)
   assert.equal(productGridKindShownInAddPicker('featured-categories', 'home'), true)
   assert.equal(productGridKindShownInAddPicker('catalog', 'home'), false)
-  assert.equal(productGridKindShownInAddPicker('related', 'product_detail'), false)
-  assert.equal(productGridKindShownInAddPicker('outfit', 'product_detail'), false)
+  assert.equal(productGridKindShownInAddPicker('related', 'product_detail'), true)
+  assert.equal(productGridKindShownInAddPicker('outfit', 'product_detail'), true)
+  assert.equal(productGridKindShownInAddPicker('related', 'home'), false)
+  assert.equal(productGridKindShownInAddPicker('outfit', 'home'), false)
 })
 
 test('stamps live catalog contract', () => {
@@ -145,5 +149,5 @@ test('stamps outfit pairing strip', () => {
   assert.match(html, /data-pw-grid-rows="1"/)
   assert.match(html, /pw-outfit-all/)
   assert.match(html, /Xem tất cả các nhóm/)
-  assert.equal(productGridWidgetLabel('outfit', 'vi'), 'Phối đồ')
+  assert.equal(productGridWidgetLabel('outfit', 'vi'), 'Khối phối đồ')
 })

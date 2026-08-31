@@ -888,6 +888,54 @@ export async function updatePartnerOrderCartCheckoutFromPg(input: {
   }
 }
 
+export async function updatePartnerOrderDepositQuoteFromPg(input: {
+  orderId: string
+  partnerId: string
+  depositPercent: number
+  requiredAmount: number
+  paymentQrUrl: string
+}): Promise<PartnerOrderRow | null> {
+  if (!isPgConfigured()) return null
+  const oid = String(input.orderId ?? '').trim()
+  const pid = String(input.partnerId ?? '').trim()
+  if (!oid || !pid) return null
+  const percent = Math.max(0, Math.min(100, Math.round(num(input.depositPercent, 30))))
+  const required = Math.max(0, Math.round(num(input.requiredAmount, 0)))
+  const qr = String(input.paymentQrUrl ?? '').trim()
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `update public.messaging_partner_orders
+       set deposit_percent = $3,
+           required_amount = $4::numeric,
+           payment_qr_url = $5,
+           updated_at = now()
+       where id = $1::uuid
+         and partner_id = $2::uuid
+         and status = 'awaiting_payment'
+         and locked_at is null
+       returning id::text, partner_id::text, conversation_id::text, external_thread_id, status,
+                 customer_name, customer_email, customer_phone, shipping_address,
+                 variant_color, variant_size, variant_image_urls, quantity, note,
+                 product_inventory_id::text, product_name, product_image_url, product_url,
+                 unit_price, subtotal_amount,
+                 loyalty_tier_code, loyalty_tier_name, loyalty_discount_percent, loyalty_discount_amount,
+                 birthday_discount_percent, birthday_discount_amount, total_discount_percent, total_discount_amount,
+                 amount_after_discount, deposit_percent, required_amount, paid_amount,
+                 currency, payment_reference, payment_qr_url, verified_note, shipping_status,
+                 created_at, updated_at, verified_at, locked_at, google_sheet_row, google_sheet_row_count,
+                 promo_id::text, promo_code, promo_discount_amount,
+                 coalesce(payment_method, 'cod') as payment_method, coalesce(shipping_fee_amount, 0) as shipping_fee_amount,
+                 coalesce(refund_status, 'none') as refund_status, coalesce(refund_amount, 0) as refund_amount,
+                 coalesce(refund_note, '') as refund_note, refunded_at`,
+      [oid, pid, percent, required, qr]
+    )
+    return row ? mapOrderRow(row) : null
+  } catch (e) {
+    console.warn('[updatePartnerOrderDepositQuoteFromPg]', e)
+    return null
+  }
+}
+
 const ORDER_ROW_SELECT = `select id::text, partner_id::text, conversation_id::text, external_thread_id, status,
               customer_name, customer_email, customer_phone, shipping_address,
               variant_color, variant_size, variant_image_urls, quantity, note,

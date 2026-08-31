@@ -215,9 +215,9 @@ function visualHomeChromeHtml(
     return { html: chrome ? slice(chrome) : '', split: false }
   }
   const desk = byDevice.desktop ? slice(byDevice.desktop) : ''
-  const lap = byDevice.laptop ? slice(byDevice.laptop) : desk
-  const tab = byDevice.tablet ? slice(byDevice.tablet) : lap || desk
-  const mob = byDevice.mobile ? slice(byDevice.mobile) : tab || lap || desk
+  const lap = byDevice.laptop ? slice(byDevice.laptop) : ''
+  const tab = byDevice.tablet ? slice(byDevice.tablet) : ''
+  const mob = byDevice.mobile ? slice(byDevice.mobile) : ''
   const parts: string[] = []
   if (desk) parts.push(`<div class="pw-visual-desktop" data-pw-visual-device="desktop">${desk}</div>`)
   if (lap) parts.push(`<div class="pw-visual-laptop" data-pw-visual-device="laptop">${lap}</div>`)

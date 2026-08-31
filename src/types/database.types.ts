@@ -214,6 +214,7 @@ export interface Database {
           facebook_capi_access_token: string | null
           ga4_measurement_id: string | null
           google_ads_id: string | null
+          google_customer_reviews_merchant_id: number | null
           tiktok_pixel_id: string | null
           gtm_container_id: string | null
           default_currency: string
@@ -243,6 +244,7 @@ export interface Database {
           facebook_capi_access_token?: string | null
           ga4_measurement_id?: string | null
           google_ads_id?: string | null
+          google_customer_reviews_merchant_id?: number | null
           tiktok_pixel_id?: string | null
           gtm_container_id?: string | null
           default_currency?: string
@@ -270,6 +272,7 @@ export interface Database {
           facebook_capi_access_token?: string | null
           ga4_measurement_id?: string | null
           google_ads_id?: string | null
+          google_customer_reviews_merchant_id?: number | null
           tiktok_pixel_id?: string | null
           gtm_container_id?: string | null
           default_currency?: string

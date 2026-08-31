@@ -465,7 +465,7 @@ test('stale flags still copy homepage chrome onto the PDP shell', () => {
     project: { entryPath: 'index.html', files: [] },
   }
   assert.match(resolveExactVisualPageHtml(website, 'home', 'desktop'), /pw-header/)
-  assert.match(resolveExactVisualPageHtml(website, 'home', 'mobile'), /pw-header/)
+  assert.equal(resolveExactVisualPageHtml(website, 'home', 'mobile').trim(), '')
   const pdp = resolveVisualPdpShellHtml(website, 'desktop')
   assert.match(pdp, /data-pw-page="product"/)
   assert.match(pdp, /pw-header/)
@@ -562,15 +562,14 @@ test('compose responsive visual html keeps a single desktop variant as-is', () =
   assert.match(out, /<html[^>]*data-pw-scene-lock="desktop"/)
 })
 
-test('mobile-only visual html does not leak added chrome onto desktop', () => {
+test('mobile-only visual html stays on that device — does not synthesize a desktop twin', () => {
   const mobile =
-    '<!DOCTYPE html><html><body><header class="pw-header"><div class="pw-header-actions"><a data-pw-chrome-added="1" data-pw-chrome-btn="wallet">$</a></div></header></body></html>'
+    '<!DOCTYPE html><html data-pw-edit-device="mobile"><body><header class="pw-header"><div class="pw-header-actions"><a data-pw-chrome-added="1" data-pw-chrome-btn="wallet">$</a></div></header></body></html>'
   const pub = composeResponsiveVisualHtml('', mobile)
-  assert.ok(pub.includes('pw-visual-desktop'))
-  assert.ok(pub.includes('pw-visual-mobile'))
-  assert.ok(pub.includes('data-pw-device="mobile"'))
-  const desktopBody = pub.match(/data-pw-visual-device="desktop"[^>]*>([\s\S]*?)<div class="pw-visual-mobile"/i)?.[1] || ''
-  assert.equal(desktopBody.includes('data-pw-chrome-added'), false)
+  assert.match(pub, /data-pw-chrome-btn="wallet"/)
+  assert.match(pub, /data-pw-edit-device="mobile"/)
+  assert.doesNotMatch(pub, /pw-visual-desktop/)
+  assert.doesNotMatch(pub, /data-pw-edit-device="desktop"/)
 })
 
 test('isolate does not treat nested chrome device wrappers as a composed page', () => {
@@ -597,6 +596,15 @@ test('device isolation returns empty when a composed document lacks that device'
   </body></html>`
 
   assert.equal(isolateVisualHtmlForDevice(desktopOnly, 'mobile'), '')
+})
+
+test('isolate does not reuse a stamped mobile file as desktop', () => {
+  const mobile =
+    '<!DOCTYPE html><html lang="vi" data-pw-edit-device="mobile"><body><header class="pw-header">MobHead</header></body></html>'
+  assert.equal(isolateVisualHtmlForDevice(mobile, 'desktop'), '')
+  assert.equal(isolateVisualHtmlForDevice(mobile, 'laptop'), '')
+  assert.equal(isolateVisualHtmlForDevice(mobile, 'tablet'), '')
+  assert.match(isolateVisualHtmlForDevice(mobile, 'mobile'), /MobHead/)
 })
 
 test('isolate desktop html keeps nested sections from composed page', () => {
@@ -848,6 +856,18 @@ test('ensureVisualHtmlLiveReady unwraps persisted live-chrome so save does not s
   const out = ensureVisualHtmlLiveReady(html, 'mobile')
   assert.doesNotMatch(out, /data-pw-live-chrome/)
   assert.equal((out.match(/<header /g) || []).length, 1)
+})
+
+test('ensureVisualHtmlLiveReady stamps banner height and radius CSS vars from attrs', () => {
+  const html = `<!DOCTYPE html><html><body>
+<section class="pw-hero" data-pw-region="banner" data-pw-block-h="465" data-pw-image-radius="72" style="min-height:360px;border-radius:0">Banner</section>
+</body></html>`
+  const out = ensureVisualHtmlLiveReady(html, 'desktop')
+  assert.match(out, /data-pw-block-h="465"/)
+  assert.match(out, /--pw-block-h:\s*465px/)
+  assert.match(out, /data-pw-image-radius="72"/)
+  assert.match(out, /--pw-image-radius:\s*72px/)
+  assert.match(out, /border-radius:\s*72px/)
 })
 
 test('saving one device html does not replace the other device file', () => {

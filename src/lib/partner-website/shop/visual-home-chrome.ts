@@ -106,16 +106,10 @@ export function pickVisualHomeChrome(
   byDevice: VisualHomeChromeByDevice,
   variant: VisualDeviceVariant
 ): SharedChrome | null {
-  if (variant === 'tablet') {
-    return byDevice.tablet || byDevice.laptop || byDevice.desktop || byDevice.mobile
-  }
-  if (variant === 'mobile') {
-    return byDevice.mobile || byDevice.tablet || byDevice.laptop || byDevice.desktop
-  }
-  if (variant === 'laptop') {
-    return byDevice.laptop || byDevice.desktop || byDevice.tablet || byDevice.mobile
-  }
-  return byDevice.desktop || byDevice.laptop || byDevice.tablet || byDevice.mobile
+  if (variant === 'tablet') return byDevice.tablet
+  if (variant === 'mobile') return byDevice.mobile
+  if (variant === 'laptop') return byDevice.laptop
+  return byDevice.desktop
 }
 
 export function visualChromeBeforeMain(chrome: SharedChrome): string {
@@ -130,18 +124,10 @@ export function pickVisualHomeStyles(
   byDevice: VisualHomeChromeByDevice,
   variant: VisualDeviceVariant | null
 ): string {
-  if (variant === 'tablet') {
-    return byDevice.tabletStyles || byDevice.laptopStyles || byDevice.desktopStyles || byDevice.mobileStyles
-  }
-  if (variant === 'mobile') {
-    return byDevice.mobileStyles || byDevice.tabletStyles || byDevice.laptopStyles || byDevice.desktopStyles
-  }
-  if (variant === 'laptop') {
-    return byDevice.laptopStyles || byDevice.desktopStyles || byDevice.tabletStyles || byDevice.mobileStyles
-  }
-  if (variant === 'desktop') {
-    return byDevice.desktopStyles || byDevice.laptopStyles || byDevice.tabletStyles || byDevice.mobileStyles
-  }
+  if (variant === 'tablet') return byDevice.tabletStyles
+  if (variant === 'mobile') return byDevice.mobileStyles
+  if (variant === 'laptop') return byDevice.laptopStyles
+  if (variant === 'desktop') return byDevice.desktopStyles
   const seen = new Set<string>()
   return [byDevice.desktopStyles, byDevice.laptopStyles, byDevice.tabletStyles, byDevice.mobileStyles]
     .filter((css) => {

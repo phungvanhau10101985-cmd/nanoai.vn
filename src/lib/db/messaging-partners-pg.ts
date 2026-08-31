@@ -59,6 +59,7 @@ function isMissingPartnerProfileColumnError(e: unknown): boolean {
     msg.includes('facebook_capi_access_token') ||
     msg.includes('ga4_measurement_id') ||
     msg.includes('google_ads_id') ||
+    msg.includes('google_customer_reviews_merchant_id') ||
     msg.includes('tiktok_pixel_id') ||
     msg.includes('gtm_container_id') ||
     msg.includes('default_currency') ||
@@ -278,6 +279,59 @@ export async function updateMessagingPartnerGoogleAdsForOwnerFromPg(params: {
     return Boolean(row?.id)
   } catch (e) {
     console.warn('[updateMessagingPartnerGoogleAdsForOwnerFromPg]', e)
+    return false
+  }
+}
+
+export async function fetchPartnerGoogleCustomerReviewsMerchantIdFromPg(
+  partnerId: string
+): Promise<number | null> {
+  if (!isPgConfigured()) return null
+  const pid = safeUuid(partnerId)
+  if (!pid) return null
+  try {
+    const row = await pgQueryOne<{ google_customer_reviews_merchant_id: number | string | null }>(
+      `select google_customer_reviews_merchant_id
+       from public.messaging_partners
+       where id = $1::uuid
+       limit 1`,
+      [pid]
+    )
+    const n = Number(row?.google_customer_reviews_merchant_id ?? 0)
+    return Number.isFinite(n) && Number.isInteger(n) && n > 0 ? n : null
+  } catch (e) {
+    const err = e as { code?: string }
+    if (err?.code === '42703') return null
+    console.warn('[fetchPartnerGoogleCustomerReviewsMerchantIdFromPg]', e)
+    return null
+  }
+}
+
+export async function updatePartnerGoogleCustomerReviewsMerchantIdForOwnerFromPg(params: {
+  partner_id: string
+  owner_user_id: string
+  merchant_id: number | null
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const pid = safeUuid(params.partner_id)
+  const uid = safeOwnerUuid(params.owner_user_id)
+  if (!pid || !uid) return false
+  const id =
+    params.merchant_id != null && Number.isInteger(params.merchant_id) && params.merchant_id > 0
+      ? params.merchant_id
+      : null
+  try {
+    const row = await pgQueryOne<{ id: string }>(
+      `update public.messaging_partners
+       set google_customer_reviews_merchant_id = $3,
+           updated_at = now()
+       where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
+       returning id::text`,
+      [pid, uid, id]
+    )
+    return Boolean(row?.id)
+  } catch (e) {
+    console.warn('[updatePartnerGoogleCustomerReviewsMerchantIdForOwnerFromPg]', e)
     return false
   }
 }
@@ -687,6 +741,7 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
       facebook_pixel_id: string | null
       ga4_measurement_id: string | null
       google_ads_id: string | null
+      google_customer_reviews_merchant_id: number | string | null
       tiktok_pixel_id: string | null
       gtm_container_id: string | null
       default_currency: string | null
@@ -701,6 +756,7 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
               nullif(trim(coalesce(facebook_pixel_id, '')), '') as facebook_pixel_id,
               nullif(trim(coalesce(ga4_measurement_id, '')), '') as ga4_measurement_id,
               nullif(trim(coalesce(google_ads_id, '')), '') as google_ads_id,
+              google_customer_reviews_merchant_id,
               nullif(trim(coalesce(tiktok_pixel_id, '')), '') as tiktok_pixel_id,
               nullif(trim(coalesce(gtm_container_id, '')), '') as gtm_container_id,
               coalesce(nullif(trim(default_currency), ''), 'VND') as default_currency,
@@ -737,6 +793,10 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
       facebook_capi_access_token: null,
       ga4_measurement_id: r.ga4_measurement_id ? String(r.ga4_measurement_id).trim() : null,
       google_ads_id: r.google_ads_id ? String(r.google_ads_id).trim() : null,
+      google_customer_reviews_merchant_id: (() => {
+        const n = Number(r.google_customer_reviews_merchant_id ?? 0)
+        return Number.isFinite(n) && Number.isInteger(n) && n > 0 ? n : null
+      })(),
       tiktok_pixel_id: r.tiktok_pixel_id ? String(r.tiktok_pixel_id).trim() : null,
       gtm_container_id: r.gtm_container_id ? String(r.gtm_container_id).trim() : null,
       default_currency: String(r.default_currency ?? 'VND').trim().toUpperCase() || 'VND',
@@ -802,6 +862,7 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
           facebook_capi_access_token: null,
           ga4_measurement_id: null,
           google_ads_id: null,
+          google_customer_reviews_merchant_id: null,
           tiktok_pixel_id: null,
           gtm_container_id: null,
           default_currency: 'VND',
@@ -901,6 +962,7 @@ export async function fetchMessagingPartnersForDashboardFromPg(
         facebook_capi_access_token: null,
         ga4_measurement_id: r.ga4_measurement_id ? String(r.ga4_measurement_id).trim() : null,
         google_ads_id: null,
+        google_customer_reviews_merchant_id: null,
         tiktok_pixel_id: null,
         gtm_container_id: null,
         default_currency: 'VND',
@@ -1023,6 +1085,7 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
       facebook_capi_access_token: null,
       ga4_measurement_id: null,
       google_ads_id: null,
+      google_customer_reviews_merchant_id: null,
       tiktok_pixel_id: null,
       gtm_container_id: null,
       default_currency: 'VND',
@@ -1075,6 +1138,7 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
           facebook_capi_access_token: null,
           ga4_measurement_id: null,
           google_ads_id: null,
+          google_customer_reviews_merchant_id: null,
           tiktok_pixel_id: null,
           gtm_container_id: null,
           default_currency: 'VND',
@@ -1185,6 +1249,7 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
       facebook_capi_access_token: null,
       ga4_measurement_id: null,
       google_ads_id: null,
+      google_customer_reviews_merchant_id: null,
       tiktok_pixel_id: null,
       gtm_container_id: null,
       default_currency: 'VND',
@@ -1249,6 +1314,7 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
           facebook_capi_access_token: null,
           ga4_measurement_id: null,
           google_ads_id: null,
+          google_customer_reviews_merchant_id: null,
           tiktok_pixel_id: null,
           gtm_container_id: null,
           default_currency: 'VND',

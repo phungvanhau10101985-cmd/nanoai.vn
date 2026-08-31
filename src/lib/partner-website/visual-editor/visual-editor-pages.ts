@@ -38,7 +38,6 @@ import {
 } from '@/lib/partner-website/shop/sync-shared-chrome'
 import {
   PW_SCENE_WIDTH,
-  pwPickAvailableDevice,
   pwScaledFhdDesktopMediaQuery,
   pwSceneWidth,
 } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
@@ -621,9 +620,7 @@ function withCanonicalSharedChrome(
 ): string {
   const trimmed = html.trim()
   if (trimmed.length < 40) return html
-  const homeRaw =
-    readExactVisualPageHtml(website, 'home', variant) ||
-    (variant !== 'desktop' ? readExactVisualPageHtml(website, 'home', 'desktop') : '')
+  const homeRaw = readExactVisualPageHtml(website, 'home', variant)
   if (homeRaw.length < 40) return html
   const home = isolateVisualHtmlForDevice(homeRaw, variant)
   const chrome = fillMissingSharedChromeFloats(
@@ -642,11 +639,6 @@ export function resolveExactVisualPageHtml(
 ): string {
   const raw = readExactVisualPageHtml(website, pageKey, variant)
   if (pageKey === 'home') {
-    if (raw.length >= 40) return raw
-    if (variant !== 'desktop') {
-      const desktop = readExactVisualPageHtml(website, 'home', 'desktop')
-      if (desktop.length >= 40) return isolateVisualHtmlForDevice(desktop, variant)
-    }
     return raw
   }
   if (raw.length < 40) return raw
@@ -861,7 +853,57 @@ export function ensureVisualHtmlLiveReady(html: string, variant?: VisualDeviceVa
     if (variant && !/\bdata-pw-device=/.test(next)) next += ` data-pw-device="${variant}"`
     return next === attrs ? full : `<${tag}${next}>`
   })
-  return dedupeSharedShopHeaders(unwrapPersistedLiveChromeHtml(stripViewportDockChromeGeometry(stamped)))
+  return stampAuthoredVisualMetricsInHtml(
+    dedupeSharedShopHeaders(unwrapPersistedLiveChromeHtml(stripViewportDockChromeGeometry(stamped)))
+  )
+}
+
+function upsertInlineCssProps(attrs: string, props: Record<string, string>): string {
+  const styleMatch = attrs.match(/\sstyle=(["'])([\s\S]*?)\1/i)
+  let css = styleMatch?.[2] || ''
+  const quote = styleMatch?.[1] || '"'
+  for (const [prop, value] of Object.entries(props)) {
+    const escaped = prop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const re = new RegExp(`(?:^|;)\\s*${escaped}\\s*:[^;]*`, 'i')
+    if (re.test(css)) css = css.replace(re, `;${prop}:${value}`)
+    else css = `${css};${prop}:${value}`
+  }
+  css = css.replace(/^;+|;+$/g, '').replace(/;;+/g, ';').trim()
+  if (!css) return attrs.replace(/\sstyle=(["'])([\s\S]*?)\1/i, '')
+  if (styleMatch) {
+    return attrs.replace(/\sstyle=(["'])([\s\S]*?)\1/i, ` style=${quote}${css}${quote}`)
+  }
+  return `${attrs} style="${css.replace(/"/g, '&quot;')}"`
+}
+
+/** Lưu phải giữ --pw-block-h / --pw-image-radius khi đã có attr Sửa nhanh. */
+export function stampAuthoredVisualMetricsInHtml(html: string): string {
+  if (!html) return html
+  return html.replace(/<([a-zA-Z][\w:-]*)(\s[^>]*?)>/g, (full, _tag: string, attrs: string) => {
+    if (!/\bdata-pw-(?:block-h|block-w|image-radius)=/.test(attrs)) return full
+    const props: Record<string, string> = {}
+    const blockH = attrs.match(/\bdata-pw-block-h=["'](\d+)["']/i)?.[1]
+    const isGrid =
+      /\bdata-pw-added-catalog=/.test(attrs) ||
+      /\bdata-pw-featured-categories=/.test(attrs) ||
+      /\bdata-pw-region=["']catalog["']/.test(attrs)
+    if (blockH && !isGrid) {
+      props['--pw-block-h'] = `${blockH}px`
+      props['min-height'] = `${blockH}px`
+      props.height = `${blockH}px`
+    }
+    const blockW = attrs.match(/\bdata-pw-block-w=["'](\d+)["']/i)?.[1]
+    if (blockW) props['--pw-block-w'] = `${blockW}px`
+    const radius = attrs.match(/\bdata-pw-image-radius=["'](\d+)["']/i)?.[1]
+    if (radius != null) {
+      props['--pw-image-radius'] = `${radius}px`
+      props['border-radius'] = `${radius}px`
+      if (Number(radius) > 0) props.overflow = 'hidden'
+    }
+    if (!Object.keys(props).length) return full
+    const next = upsertInlineCssProps(attrs, props)
+    return next === attrs ? full : full.replace(attrs, next)
+  })
 }
 
 function stampVisualAddedChrome(html: string, variant: VisualDeviceVariant): string {
@@ -878,6 +920,14 @@ function stampVisualAddedChrome(html: string, variant: VisualDeviceVariant): str
   return restampChromeCountBadgeWidgets(stampVisualSearchChrome(next, variant), variant)
 }
 
+function stampedVisualDeviceOf(html: string): VisualDeviceVariant | null {
+  const raw =
+    html.match(/<html\b[^>]*\bdata-pw-edit-device=["']([^"']+)["']/i)?.[1]?.trim() ||
+    html.match(/<html\b[^>]*\bdata-pw-scene-lock=["']([^"']+)["']/i)?.[1]?.trim()
+  if (raw === 'mobile' || raw === 'tablet' || raw === 'laptop' || raw === 'desktop') return raw
+  return null
+}
+
 /** Lấy đúng một bản Mobile, Tablet hoặc Desktop từ HTML (kể cả trang đã gộp). */
 export function isolateVisualHtmlForDevice(
   html: string,
@@ -887,6 +937,11 @@ export function isolateVisualHtmlForDevice(
   const trimmed = html.trim()
   if (!trimmed) return ''
   const sliced = extractDeviceWrapperBody(trimmed, variant)
+  const stamped = stampedVisualDeviceOf(trimmed)
+  if (!sliced && !hasDeviceWrappers(trimmed) && stamped && stamped !== variant) {
+    // Standalone file already belongs to another machine — never reuse it as this one.
+    return ''
+  }
   const source = sliced
     ? hoistBodyLevelSceneOverlays(
         hoistBodyLevelChromeFloats(rebuildStandaloneHtml(trimmed, sliced), trimmed, variant),
@@ -1002,20 +1057,14 @@ export function composeResponsiveVisualHtml(
   const mobileRaw = mobileHtml.trim()
   const tabletRaw = tabletHtml.trim()
   const laptopRaw = laptopHtml.trim()
-  let desktop = isolateVisualHtmlForDevice(desktopRaw, 'desktop')
+  const desktop = isolateVisualHtmlForDevice(desktopRaw, 'desktop')
   const mobile = isolateVisualHtmlForDevice(mobileRaw, 'mobile')
   const tablet = isolateVisualHtmlForDevice(tabletRaw, 'tablet')
   const laptop = isolateVisualHtmlForDevice(laptopRaw, 'laptop')
   if (desktop.length >= 40 && mobile.length < 40 && tablet.length < 40 && laptop.length < 40) return desktop
-  if (desktop.length < 40 && laptop.length >= 40) {
-    desktop = isolateVisualHtmlForDevice(stripVisualAddedChrome(laptop, { keepCountBadges: true }), 'desktop')
-  }
-  if (desktop.length < 40 && tablet.length >= 40) {
-    desktop = isolateVisualHtmlForDevice(stripVisualAddedChrome(tablet, { keepCountBadges: true }), 'desktop')
-  }
-  if (desktop.length < 40 && mobile.length >= 40) {
-    desktop = isolateVisualHtmlForDevice(stripVisualAddedChrome(mobile, { keepCountBadges: true }), 'desktop')
-  }
+  if (mobile.length >= 40 && desktop.length < 40 && tablet.length < 40 && laptop.length < 40) return mobile
+  if (tablet.length >= 40 && desktop.length < 40 && mobile.length < 40 && laptop.length < 40) return tablet
+  if (laptop.length >= 40 && desktop.length < 40 && mobile.length < 40 && tablet.length < 40) return laptop
   if (desktop.length < 40 && mobile.length < 40 && tablet.length < 40 && laptop.length < 40) return ''
   const hasMobile = mobile.length >= 40
   const hasTablet = tablet.length >= 40
@@ -1083,11 +1132,8 @@ function servePublicAvailableDeviceHtml(
   requested: VisualDeviceVariant,
   theme?: PartnerWebsiteTheme | null
 ): string {
-  const source = pwPickAvailableDevice(
-    requested,
-    VISUAL_DEVICE_VARIANTS.filter((device) => (exact[device]?.trim().length ?? 0) >= 40)
-  )
-  return source ? servePublicOneDeviceVisualHtml(exact[source] || '', source, theme) : ''
+  const html = exact[requested]?.trim() || ''
+  return html.length >= 40 ? servePublicOneDeviceVisualHtml(html, requested, theme) : ''
 }
 
 export function resolvePublicVisualPageHtml(
@@ -1173,9 +1219,7 @@ function fallbackPdpShellFromHomeChrome(
   website: VisualWebsitePick,
   variant: VisualDeviceVariant
 ): string {
-  const home =
-    resolveExactVisualPageHtml(website, 'home', variant).trim() ||
-    resolveExactVisualPageHtml(website, 'home', 'desktop').trim()
+  const home = resolveExactVisualPageHtml(website, 'home', variant).trim()
   if (home.length < 40 || !htmlHasPartnerVisualChrome(home)) return ''
   const ctx = inferVisualHtmlContext(home)
   const shell = buildDefaultDemoPdpShellHtml({
