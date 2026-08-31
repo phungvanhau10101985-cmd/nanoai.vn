@@ -1,11 +1,11 @@
 /**
  * Product-grid page size — one engine for every shop / device.
- * Visible rows × stamped columns = first paint and each «Tải thêm».
+ * Visible rows × stamped columns = first paint and each «Xem thêm».
  */
 
 export const PW_GRID_ROWS_MIN = 1
 export const PW_GRID_ROWS_MAX = 4
-export const PW_GRID_ROWS_DEFAULT = 2
+export const PW_GRID_ROWS_DEFAULT = 1
 export const PW_GRID_COLS_WIDE = 5
 export const PW_GRID_COLS_NARROW = 2
 export const PW_GRID_PAGE_MAX = 48
@@ -52,6 +52,38 @@ export function inferProductGridRows(input: {
   return PW_GRID_ROWS_DEFAULT
 }
 
+function escapeGridHtml(value: string): string {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+/** In-flow «Xem thêm» + «Xem tất cả các nhóm» — same row under every grid kind. */
+export function productGridActionsHtml(input: {
+  loadMoreLabel: string
+  seeAllLabel: string
+  seeAllHref?: string | null
+  hostClass?: string
+  moreClass?: string
+  moreAttrs?: string
+  allClass?: string
+}): string {
+  const href = String(input.seeAllHref || '#').trim() || '#'
+  const hostClass = input.hostClass || 'pw-grid-actions'
+  const moreClass = input.moreClass || 'pw-grid-more'
+  const allClass = input.allClass || 'pw-grid-all'
+  const moreAttrs = input.moreAttrs || 'data-pw-grid-more'
+  return `<div class="${hostClass}" data-pw-grid-actions>
+    <button type="button" class="${moreClass}" ${moreAttrs}>
+      <span class="pw-grid-more-icon" aria-hidden="true">↻</span>
+      ${escapeGridHtml(input.loadMoreLabel)}
+    </button>
+    <a href="${escapeGridHtml(href)}" class="${allClass}" data-pw-el="section-more">${escapeGridHtml(input.seeAllLabel)}</a>
+  </div>`
+}
+
 /** Shared helpers injected into catalog / personalize / outfit bootstraps. */
 export const PW_PRODUCT_GRID_PAGE_JS = `
 function pwGridDevice(){
@@ -72,7 +104,7 @@ function pwGridRows(el){
   var cols=pwGridCols(el);
   var lim=parseInt(el.getAttribute('data-limit')||'',10);
   if(lim>=1)return Math.max(1,Math.min(4,Math.ceil(lim/Math.max(1,cols))));
-  return 2;
+  return 1;
 }
 function pwGridPageSize(el){
   var cols=pwGridCols(el);
@@ -80,6 +112,6 @@ function pwGridPageSize(el){
   if(raw>=1&&raw<=4)return Math.max(1,Math.min(48,raw*cols));
   var lim=parseInt(el.getAttribute('data-limit')||'',10);
   if(lim>=1)return Math.max(1,Math.min(48,lim));
-  return Math.max(1,Math.min(48,2*cols));
+  return Math.max(1,Math.min(48,1*cols));
 }
 `.trim()

@@ -64,9 +64,11 @@ import { GuestWidgetOrderDetailDialog } from '@/components/messaging/guest-widge
 import { GuestWidgetMyOrdersDialog } from '@/components/messaging/guest-widget-my-orders-dialog'
 import {
   isOpenMyOrdersMessage,
+  isSetPageContextMessage,
   isWidgetTryOnPanelMessage,
   NANOAI_WIDGET_MSG_SOURCE,
 } from '@/lib/messaging/widget-parent-bridge'
+import { resolvePartnerTryOnImageUrl } from '@/lib/partner-website/shop/partner-site-chat-embed'
 import { MessageImagePreviewDialog } from '@/components/messaging/message-image-preview-dialog'
 import { collectGuestOrderDepositConfirmationSplit } from '@/lib/messaging/order-sepay-message-helpers'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
@@ -1738,6 +1740,7 @@ export function PartnerGuestChatClient({
 
   const [tryOnUserFile, setTryOnUserFile] = useState<File | null>(null)
   const [tryOnGarmentFiles, setTryOnGarmentFiles] = useState<SelectedImage[]>([])
+  const [tryOnContextEpoch, setTryOnContextEpoch] = useState(0)
   const [tryOnGarmentPickerOpen, setTryOnGarmentPickerOpen] = useState(false)
   const [tryOnUserPreviewUrl, setTryOnUserPreviewUrl] = useState<string | null>(null)
   const [imageStoragePaths, setImageStoragePaths] = useState<string[]>([])
@@ -2811,8 +2814,29 @@ export function PartnerGuestChatClient({
     const pc = pageContextRef.current
     const imageUrl = pc?.imageUrl?.trim() ?? ''
     if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) {
-      tryOnPageContextGarmentSeededRef.current = true
-      return
+      const inventoryId = pc?.inventoryId?.trim() ?? ''
+      if (!inventoryId || !slug) return
+      let cancelled = false
+      void (async () => {
+        try {
+          const res = await fetch(`/api/site/${encodeURIComponent(slug)}/products/${encodeURIComponent(inventoryId)}`)
+          const json = (await res.json().catch(() => null)) as {
+            product?: { imageUrl?: string; galleryImages?: string[] }
+          } | null
+          const raw =
+            String(json?.product?.imageUrl || '').trim() ||
+            String(json?.product?.galleryImages?.[0] || '').trim()
+          const fetched = resolvePartnerTryOnImageUrl(raw, window.location.href)
+          if (cancelled || !fetched) return
+          pageContextRef.current = { ...(pageContextRef.current || {}), imageUrl: fetched }
+          setTryOnContextEpoch((n) => n + 1)
+        } catch {
+          /* ignore */
+        }
+      })()
+      return () => {
+        cancelled = true
+      }
     }
     const sku = pc?.sku?.trim() ?? ''
     const label = sku
@@ -2839,7 +2863,7 @@ export function PartnerGuestChatClient({
         },
       ]
     })
-  }, [tryOnOpen, closeEmbedTryOnPanel, t.tryOnEmbedGarmentFromPage, t.tryOnEmbedGarmentFromPageWithSku])
+  }, [tryOnOpen, tryOnContextEpoch, closeEmbedTryOnPanel, slug, t.tryOnEmbedGarmentFromPage, t.tryOnEmbedGarmentFromPageWithSku])
 
   useEffect(() => {
     if (skipNextAutoScrollRef.current) {
@@ -3603,6 +3627,30 @@ export function PartnerGuestChatClient({
       const type = (data as { type?: unknown }).type
       if (type === 'OPEN_CART') setCartOpen(true)
       if (type === 'SCROLL_CHAT_BOTTOM') scrollGuestChatToBottomOnce('smooth')
+      if (isSetPageContextMessage(data)) {
+        const raw = {
+          sku: data.sku,
+          imageUrl: data.imageUrl,
+          imageUrl2: data.imageUrl2,
+          productUrl: data.productUrl,
+          inventoryId: data.inventoryId,
+        }
+        const next = sanitizeWidgetPageContextSeed(raw)
+        if (hasWidgetPageContextSeed(next)) {
+          pageContextRef.current = { ...(pageContextRef.current || {}), ...next }
+        }
+        if (data.openTryOn) {
+          setGuestTryOnUrlFlagCache(slug, true)
+          setTryOnOpen(true)
+          setTryOnOpenedViaEmbedQuery(true)
+          setPendingUrlPageContextChip(null)
+        }
+        if (next.imageUrl || next.inventoryId) {
+          tryOnPageContextGarmentSeededRef.current = false
+          setTryOnContextEpoch((n) => n + 1)
+        }
+        return
+      }
       if (isWidgetTryOnPanelMessage(data)) {
         if (data.type === 'CLOSE_TRY_ON_PANEL') {
           closeEmbedTryOnPanel()
@@ -5608,7 +5656,11 @@ export function PartnerGuestChatClient({
 
   const chatPane = (
     <>
-      <Card className="flex h-full min-h-0 flex-col overflow-hidden bg-background rounded-none border-0 shadow-none sm:rounded-2xl sm:border sm:border-border sm:shadow-md">
+      <Card className={`flex h-full min-h-0 flex-col overflow-hidden bg-background ${
+        isEmbedUi || guestInIframe
+          ? 'rounded-none border-0 shadow-none'
+          : 'rounded-none border-0 shadow-none sm:rounded-2xl sm:border sm:border-border sm:shadow-md'
+      }`}>
         <h1 className="sr-only">{shopDisplayName}</h1>
         {isEmbedUi && !guestInIframe ? (
           <div className="relative z-[100] flex shrink-0 flex-nowrap items-center gap-1 overflow-hidden border-b border-border/60 bg-muted/35 px-2 py-1 pointer-events-auto touch-manipulation">
@@ -6998,7 +7050,7 @@ export function PartnerGuestChatClient({
               ) : null}
 
               {tryOnOpen ? (
-                <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-2">
+                <div className="max-h-[min(70dvh,32rem)] space-y-2 overflow-y-auto rounded-lg border border-border/70 bg-muted/20 p-2.5">
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-xs font-medium text-foreground">{t.tryOnTitle}</p>
                     <Button
@@ -7039,7 +7091,7 @@ export function PartnerGuestChatClient({
                       <p className="text-[11px] font-medium text-foreground">{t.tryOnModelPhoto}</p>
                       <button
                         type="button"
-                        className="relative h-14 w-14 overflow-hidden rounded-md border border-border/80 bg-background/70 transition-colors hover:border-violet-400/70"
+                        className="relative aspect-square w-full max-h-36 overflow-hidden rounded-md border border-border/80 bg-background/70 transition-colors hover:border-violet-400/70"
                         disabled={tryOnBusy}
                         onClick={() => tryOnUserInputRef.current?.click()}
                       >
@@ -7047,14 +7099,14 @@ export function PartnerGuestChatClient({
                           <Image
                             src={tryOnUserPreviewUrl}
                             alt=""
-                            width={56}
-                            height={56}
+                            width={144}
+                            height={144}
                             unoptimized
                             className="h-full w-full object-cover"
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                            <ImagePlus className="h-4 w-4" />
+                            <ImagePlus className="h-6 w-6" />
                           </div>
                         )}
                         {tryOnUserPreviewUrl ? (
@@ -7071,27 +7123,29 @@ export function PartnerGuestChatClient({
                           </button>
                         ) : null}
                       </button>
-                      <p className="line-clamp-1 text-[11px] text-muted-foreground">{tryOnUserFile?.name ?? '—'}</p>
+                      {tryOnUserFile?.name ? (
+                        <p className="line-clamp-1 text-[11px] text-muted-foreground">{tryOnUserFile.name}</p>
+                      ) : null}
                     </div>
 
                     <div className="space-y-1">
                       <p className="text-[11px] font-medium text-foreground">
                         {t.tryOnGarmentPhoto} ({tryOnGarmentFiles.length}/{MAX_TRY_ON_GARMENTS})
                       </p>
-                      <div className="grid grid-cols-2 gap-1">
+                      <div className="grid grid-cols-2 gap-1.5">
                         {Array.from({ length: MAX_TRY_ON_GARMENTS }).map((_, idx) => {
                           const item = tryOnGarmentFiles[idx]
                           if (item) {
                             return (
                               <div
                                 key={`${item.file?.name ?? item.sourceUrl ?? `garment-${idx}`}-${idx}`}
-                                className="relative h-12 w-12 overflow-hidden rounded-md border bg-background/70"
+                                className="relative aspect-square w-full overflow-hidden rounded-md border bg-background/70"
                               >
                                 <Image
                                   src={msgImgSrc(item.previewUrl)}
                                   alt=""
-                                  width={48}
-                                  height={48}
+                                  width={96}
+                                  height={96}
                                   unoptimized
                                   className="h-full w-full object-cover"
                                 />
@@ -7111,15 +7165,15 @@ export function PartnerGuestChatClient({
                               <button
                                 key={`add-slot-${idx}`}
                                 type="button"
-                                className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-border/80 bg-background/70 text-muted-foreground transition-colors hover:border-violet-400/70"
+                                className="flex aspect-square w-full items-center justify-center rounded-md border border-dashed border-border/80 bg-background/70 text-muted-foreground transition-colors hover:border-violet-400/70"
                                 disabled={tryOnBusy}
                                 onClick={() => setTryOnGarmentPickerOpen((v) => !v)}
                               >
-                                <ImagePlus className="h-4 w-4" />
+                                <ImagePlus className="h-5 w-5" />
                               </button>
                             )
                           }
-                          return <div key={`empty-slot-${idx}`} className="h-12 w-12 rounded-md border border-dashed border-border/70 bg-background/40" />
+                          return <div key={`empty-slot-${idx}`} className="aspect-square w-full rounded-md border border-dashed border-border/70 bg-background/40" />
                         })}
                       </div>
                       {tryOnGarmentPickerOpen ? (
@@ -7175,11 +7229,11 @@ export function PartnerGuestChatClient({
                       ) : null}
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-1.5">
+                  <div className="flex flex-col gap-2">
                     <Button
                       type="button"
                       size="sm"
-                      className="gap-1.5"
+                      className="h-10 w-full gap-1.5"
                       disabled={tryOnBusy || !tryOnUserFile || tryOnGarmentFiles.length === 0}
                       onClick={() => void runTryOn()}
                     >
@@ -7188,7 +7242,7 @@ export function PartnerGuestChatClient({
                         ? t.tryOnPreparing
                         : t.tryOnGenerateWithCost.replace('{credits}', formatCredits(TRY_ON_COST_2K))}
                     </Button>
-                    <div className="ml-auto flex items-center gap-1.5">
+                    <div className="flex items-center justify-between gap-1.5">
                       <span className="inline-flex h-7 items-center rounded-md border border-border/70 bg-background/70 px-2 text-[10px] font-medium text-muted-foreground sm:text-[11px]">
                         {t.tryOnCreditsBalanceLabel.replace(
                           '{credits}',

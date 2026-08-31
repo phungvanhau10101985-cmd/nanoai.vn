@@ -418,7 +418,14 @@ export const PW_REGION_ELS: Record<PwRegionKind, readonly PwElKind[]> = {
     PW_EL.ctaSecondary,
     PW_EL.dots,
   ],
-  [PW_REGION.categories]: [PW_EL.sectionTitle, PW_EL.card, PW_EL.cardMedia, PW_EL.cardName],
+  [PW_REGION.categories]: [
+    PW_EL.sectionTitle,
+    PW_EL.sectionMore,
+    PW_EL.grid,
+    PW_EL.card,
+    PW_EL.cardMedia,
+    PW_EL.cardName,
+  ],
   [PW_REGION.catalog]: [
     PW_EL.sectionTitle,
     PW_EL.sectionMore,

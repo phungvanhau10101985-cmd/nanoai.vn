@@ -23,6 +23,51 @@ export type PartnerSiteConsultContext = {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const TRY_ON_VIDEO_URL_RE = /\.(mp4|webm|m3u8|mov|mkv|ogv|ogg|avi)(\?|#|$)/i
+const PDP_MAIN_IMG_SEL =
+  '[data-pw-region="gallery"] img[data-pw-el="main-image"],[data-pw-region="gallery"] .pw-pdp-hero-img,[data-pw-region="gallery"] .pw-shop-product-img,[data-pw-el="main-image"]'
+const CHROME_IMG_HOST_SEL =
+  'header,.pw-header,.pw-shop-header,.pw-brand,.pw-footer,.pw-bottom-nav,[data-pw-chrome-kit="float"],[data-pw-chrome-kit="dock"],[data-pw-el="logo"]'
+
+export function isPartnerTryOnVideoUrl(raw: string): boolean {
+  const s = String(raw || '').trim().toLowerCase()
+  if (!s) return false
+  const pathOnly = s.split(/[?#]/)[0] || s
+  if (TRY_ON_VIDEO_URL_RE.test(pathOnly)) return true
+  return /(?:youtube\.com|youtu\.be|vimeo\.com)\//i.test(s)
+}
+
+/** Absolute http(s) image for `ctx_image` — same as 188 / widget `toHttpUrl`. */
+export function resolvePartnerTryOnImageUrl(raw: string, baseHref?: string): string {
+  let next = String(raw || '').trim()
+  if (!next || isPartnerTryOnVideoUrl(next)) return ''
+  if (next.startsWith('//')) next = `https:${next}`
+  if (/^https?:\/\//i.test(next)) return next
+  const base = String(baseHref || '').trim()
+  if (!base) return ''
+  try {
+    const abs = new URL(next, base).href
+    return /^https?:\/\//i.test(abs) && !isPartnerTryOnVideoUrl(abs) ? abs : ''
+  } catch {
+    return ''
+  }
+}
+
+export function withAbsolutePartnerTryOnContext(
+  ctx: PartnerSiteConsultContext,
+  baseHref?: string
+): PartnerSiteConsultContext {
+  const base =
+    baseHref ||
+    (typeof window !== 'undefined' && window.location ? window.location.href : '')
+  return {
+    inventoryId: ctx.inventoryId,
+    sku: ctx.sku,
+    imageUrl: resolvePartnerTryOnImageUrl(ctx.imageUrl || '', base),
+    imageUrl2: resolvePartnerTryOnImageUrl(ctx.imageUrl2 || '', base),
+    productUrl: resolvePartnerTryOnImageUrl(ctx.productUrl || '', base) || ctx.productUrl,
+  }
+}
 
 function chatPathToUrl(chatPath: string): URL {
   const trimmed = chatPath.trim()
@@ -63,11 +108,12 @@ export function buildPartnerSiteConsultEmbedPath(
     u.searchParams.delete(k)
   }
 
-  const sku = (ctx.sku ?? '').trim().slice(0, 128)
-  const imageUrl = (ctx.imageUrl ?? '').trim()
-  const imageUrl2 = (ctx.imageUrl2 ?? '').trim()
-  const productUrl = (ctx.productUrl ?? '').trim()
-  const inventoryId = (ctx.inventoryId ?? '').trim()
+  const abs = withAbsolutePartnerTryOnContext(ctx)
+  const sku = (abs.sku ?? '').trim().slice(0, 128)
+  const imageUrl = (abs.imageUrl ?? '').trim()
+  const imageUrl2 = (abs.imageUrl2 ?? '').trim()
+  const productUrl = (abs.productUrl ?? '').trim()
+  const inventoryId = (abs.inventoryId ?? ctx.inventoryId ?? '').trim()
 
   if (sku) u.searchParams.set('ctx_sku', sku)
   if (imageUrl && /^https?:\/\//i.test(imageUrl)) u.searchParams.set('ctx_image', imageUrl)
@@ -94,12 +140,15 @@ export function productToConsultContext(input: {
   productUrl: string
   galleryImages?: string[]
 }): PartnerSiteConsultContext {
-  const gallery = input.galleryImages?.filter((u) => /^https?:\/\//i.test(u.trim())) ?? []
+  const primary = resolvePartnerTryOnImageUrl(input.imageUrl) || input.imageUrl.trim()
+  const gallery = (input.galleryImages ?? [])
+    .map((u) => resolvePartnerTryOnImageUrl(u) || u.trim())
+    .filter((u) => u && !isPartnerTryOnVideoUrl(u))
   return {
     inventoryId: input.id,
     sku: (input.sku ?? '').trim() || input.id,
-    imageUrl: input.imageUrl.trim(),
-    imageUrl2: gallery.find((u) => u !== input.imageUrl.trim())?.trim(),
+    imageUrl: primary,
+    imageUrl2: gallery.find((u) => u !== primary)?.trim(),
     productUrl: input.productUrl.trim(),
   }
 }
@@ -137,26 +186,109 @@ export type PartnerSiteChatOpenRequest = {
   ctx: PartnerSiteConsultContext
 }
 
-/** Same-document click → open shop chat (inline HTML / React chrome). */
-function consultContextFromNearestProduct(el: Element): PartnerSiteConsultContext {
-  const host =
-    el.closest(
-      '[data-inventory-id],[data-pw-inventory-id],article,.pw-product-card,.pw-shop-card,[data-pw-region="pdp-info"],[data-pw-region="gallery"]'
-    ) || (el.closest('[data-pw-page="product"]') ? el.ownerDocument?.body || null : null)
-  if (!host) return {}
-  const inventoryId =
-    (host.getAttribute('data-inventory-id') || host.getAttribute('data-pw-inventory-id') || '').trim()
-  const img = host.querySelector('img')
-  const link = host.querySelector('a[href*="/products/"]')
-  const href = link?.getAttribute('href') || ''
+function isChromeOrLogoImg(img: Element): boolean {
+  if (img.getAttribute('data-pw-el') === 'logo') return true
+  const cls = ` ${img.className || ''} `
+  if (cls.includes(' pw-logo ') || cls.includes(' pw-chrome-chat-logo ')) return true
+  return Boolean(img.closest(CHROME_IMG_HOST_SEL))
+}
+
+function imgUrlFromEl(img: Element, baseHref: string): string {
+  const src = img.getAttribute('src') || ''
+  const deferred = img.getAttribute('data-pw-deferred-src') || ''
+  const dataSrc = img.getAttribute('data-src') || ''
+  for (const raw of [src, deferred, dataSrc]) {
+    const url = resolvePartnerTryOnImageUrl(raw, baseHref)
+    if (url) return url
+  }
+  return ''
+}
+
+function collectPdpImageUrls(doc: Document, baseHref: string): string[] {
+  const urls: string[] = []
+  const seen = new Set<string>()
+  const push = (url: string) => {
+    if (!url || seen.has(url)) return
+    seen.add(url)
+    urls.push(url)
+  }
+  const colorImg = doc.querySelector('[data-pw-pdp-option="color"] .pw-pdp-pill.is-active img')
+  if (colorImg && !isChromeOrLogoImg(colorImg)) push(imgUrlFromEl(colorImg, baseHref))
+  doc.querySelectorAll(PDP_MAIN_IMG_SEL).forEach((img) => {
+    if (isChromeOrLogoImg(img)) return
+    push(imgUrlFromEl(img, baseHref))
+  })
+  doc.querySelectorAll('[data-pw-region="gallery"] [data-pw-el="thumb"] img').forEach((img) => {
+    if (isChromeOrLogoImg(img)) return
+    push(imgUrlFromEl(img, baseHref))
+  })
+  return urls
+}
+
+function skuFromPdpDocument(doc: Document): string {
+  const stamped = doc.querySelector('[data-nanoai-sku]')?.getAttribute('data-nanoai-sku') || ''
+  if (stamped.trim()) return stamped.trim().slice(0, 128)
+  const skuEl = doc.querySelector('[data-pw-region="pdp-info"] [data-pw-el="sku"],.pw-pdp-sku strong')
+  const text = (skuEl?.textContent || '').replace(/\s+/g, ' ').trim()
+  return text.replace(/^(sku|mã\s*sp)\s*[:：-]?\s*/i, '').slice(0, 128)
+}
+
+function inventoryIdFromPdpDocument(doc: Document, clickEl?: Element | null): string {
+  const hosts = [
+    clickEl?.closest('[data-inventory-id],[data-pw-inventory-id]') || null,
+    doc.querySelector('[data-pw-region="gallery"][data-inventory-id],[data-pw-region="pdp-info"][data-inventory-id]'),
+    doc.body,
+    doc.documentElement,
+  ]
+  for (const host of hosts) {
+    if (!host?.getAttribute) continue
+    const id = (host.getAttribute('data-inventory-id') || host.getAttribute('data-pw-inventory-id') || '').trim()
+    if (UUID_RE.test(id)) return id
+  }
+  return ''
+}
+
+/** PDP đang xem — ảnh gallery / màu đang chọn, không lấy logo header. */
+export function consultContextFromPdpDocument(
+  doc: Document | null | undefined,
+  clickEl?: Element | null
+): PartnerSiteConsultContext {
+  if (!doc) return {}
+  const win = doc.defaultView
+  const baseHref = win?.location?.href || ''
+  const images = collectPdpImageUrls(doc, baseHref)
+  const isProduct =
+    doc.documentElement.getAttribute('data-pw-page') === 'product' ||
+    doc.body?.getAttribute('data-pw-page') === 'product' ||
+    Boolean(doc.querySelector('[data-pw-region="gallery"],[data-pw-region="pdp-info"]'))
+  const pageUrl = isProduct ? resolvePartnerTryOnImageUrl(baseHref, baseHref) : ''
+  const cardHost = clickEl?.closest(
+    '[data-inventory-id],[data-pw-inventory-id],article,.pw-product-card,.pw-shop-card'
+  )
+  if (!isProduct && cardHost) {
+    const cardImg = [...cardHost.querySelectorAll('img')].find((img) => !isChromeOrLogoImg(img))
+    const href = cardHost.querySelector('a[href*="/products/"]')?.getAttribute('href') || ''
+    const inventoryId = (
+      cardHost.getAttribute('data-inventory-id') ||
+      cardHost.getAttribute('data-pw-inventory-id') ||
+      ''
+    ).trim()
+    return {
+      inventoryId: UUID_RE.test(inventoryId) ? inventoryId : '',
+      imageUrl: cardImg ? imgUrlFromEl(cardImg, baseHref) : '',
+      productUrl: resolvePartnerTryOnImageUrl(href, baseHref) || href,
+    }
+  }
   return {
-    inventoryId: UUID_RE.test(inventoryId) ? inventoryId : '',
-    imageUrl: img?.getAttribute('src') || '',
-    productUrl: href,
+    inventoryId: inventoryIdFromPdpDocument(doc, clickEl),
+    sku: skuFromPdpDocument(doc),
+    imageUrl: images[0] || '',
+    imageUrl2: images[1] || '',
+    productUrl: pageUrl,
   }
 }
 
-function mergeConsultContext(primary: PartnerSiteConsultContext, fallback: PartnerSiteConsultContext): PartnerSiteConsultContext {
+export function mergeConsultContext(primary: PartnerSiteConsultContext, fallback: PartnerSiteConsultContext): PartnerSiteConsultContext {
   return {
     inventoryId: primary.inventoryId || fallback.inventoryId,
     sku: primary.sku || fallback.sku,
@@ -177,10 +309,14 @@ export function resolvePartnerSiteChatOpenFromEventTarget(
   if (!el) return null
   if (el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]')) return null
   const mode = partnerSiteChatOpenModeFromEl(el)
-  const ctx = consultContextFromChatOpenEl(el)
+  const fromBtn = consultContextFromChatOpenEl(el)
+  const fromPage = mode === 'try_on' ? consultContextFromPdpDocument(el.ownerDocument, el) : {}
   return {
     mode,
-    ctx: mode === 'try_on' ? mergeConsultContext(ctx, consultContextFromNearestProduct(el)) : ctx,
+    ctx:
+      mode === 'try_on'
+        ? withAbsolutePartnerTryOnContext(mergeConsultContext(fromPage, fromBtn))
+        : fromBtn,
   }
 }
 
@@ -223,26 +359,56 @@ function postOpen(opts){
     }
   }catch(e){}
 }
+function toHttpUrl(raw){
+  var t=String(raw||'').trim();
+  if(!t)return '';
+  if(/\\.(mp4|webm|m3u8|mov)(\\?|#|$)/i.test(t)||/(?:youtube\\.com|youtu\\.be)\\//i.test(t))return '';
+  if(t.indexOf('//')===0)t=location.protocol+t;
+  try{t=new URL(t,location.href).toString();}catch(e){return '';}
+  return /^https?:\\/\\//i.test(t)?t:'';
+}
+function isChromeImg(img){
+  if(!img)return true;
+  if(img.getAttribute&&img.getAttribute('data-pw-el')==='logo')return true;
+  var cls=' '+(img.className||'')+' ';
+  if(cls.indexOf(' pw-logo ')>=0||cls.indexOf(' pw-chrome-chat-logo ')>=0)return true;
+  return !!(img.closest&&img.closest('header,.pw-header,.pw-shop-header,.pw-brand,.pw-footer,.pw-bottom-nav,[data-pw-chrome-kit="float"],[data-pw-chrome-kit="dock"]'));
+}
+function imgUrl(img){
+  if(!img||!img.getAttribute)return '';
+  return toHttpUrl(img.getAttribute('src')||'')||toHttpUrl(img.getAttribute('data-pw-deferred-src')||'')||toHttpUrl(img.getAttribute('data-src')||'');
+}
 function ctxFromEl(el){
   if(!el||!el.getAttribute)return {};
   return {
     inventoryId:el.getAttribute('data-nanoai-inventory')||'',
     sku:el.getAttribute('data-nanoai-sku')||'',
-    imageUrl:el.getAttribute('data-nanoai-image')||'',
-    imageUrl2:el.getAttribute('data-nanoai-image-2')||'',
-    productUrl:el.getAttribute('data-nanoai-product-url')||'',
+    imageUrl:toHttpUrl(el.getAttribute('data-nanoai-image')||''),
+    imageUrl2:toHttpUrl(el.getAttribute('data-nanoai-image-2')||''),
+    productUrl:toHttpUrl(el.getAttribute('data-nanoai-product-url')||''),
   };
 }
-function ctxFromNearestProduct(el){
-  if(!el||!el.closest)return {};
-  var host=el.closest('[data-inventory-id],[data-pw-inventory-id],article,.pw-product-card,.pw-shop-card,[data-pw-region="pdp-info"],[data-pw-region="gallery"]');
-  if(!host&&el.closest('[data-pw-page="product"]'))host=document.body;
-  if(!host)return {};
-  var id=(host.getAttribute('data-inventory-id')||host.getAttribute('data-pw-inventory-id')||'').trim();
-  var img=host.querySelector?host.querySelector('img'):null;
-  var a=host.querySelector?host.querySelector('a[href*="/products/"]'):null;
-  var href=a?a.getAttribute('href')||'':'';
-  return {inventoryId:id,imageUrl:img?img.getAttribute('src')||'':'',productUrl:href};
+function ctxFromPdp(){
+  var urls=[],seen={};
+  function push(u){if(!u||seen[u])return;seen[u]=1;urls.push(u);}
+  var color=document.querySelector('[data-pw-pdp-option="color"] .pw-pdp-pill.is-active img');
+  if(color&&!isChromeImg(color))push(imgUrl(color));
+  document.querySelectorAll('[data-pw-region="gallery"] img[data-pw-el="main-image"],[data-pw-region="gallery"] .pw-pdp-hero-img,[data-pw-region="gallery"] .pw-shop-product-img,[data-pw-el="main-image"]').forEach(function(img){
+    if(!isChromeImg(img))push(imgUrl(img));
+  });
+  document.querySelectorAll('[data-pw-region="gallery"] [data-pw-el="thumb"] img').forEach(function(img){
+    if(!isChromeImg(img))push(imgUrl(img));
+  });
+  var inv='';
+  var hosts=document.querySelectorAll('[data-pw-region="gallery"],[data-pw-region="pdp-info"],body,html');
+  for(var i=0;i<hosts.length;i++){
+    var id=(hosts[i].getAttribute('data-inventory-id')||hosts[i].getAttribute('data-pw-inventory-id')||'').trim();
+    if(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)){inv=id;break;}
+  }
+  var skuEl=document.querySelector('[data-pw-region="pdp-info"] [data-pw-el="sku"],.pw-pdp-sku strong');
+  var sku=skuEl?String(skuEl.textContent||'').replace(/\\s+/g,' ').replace(/^(sku|mã\\s*sp)\\s*[:：-]?\\s*/i,'').trim():'';
+  var isPdp=document.documentElement.getAttribute('data-pw-page')==='product'||(document.body&&document.body.getAttribute('data-pw-page')==='product');
+  return {inventoryId:inv,sku:sku,imageUrl:urls[0]||'',imageUrl2:urls[1]||'',productUrl:isPdp?toHttpUrl(location.href):''};
 }
 document.addEventListener('click',function(ev){
   if(pwShopLiveUiOff())return;
@@ -261,10 +427,12 @@ document.addEventListener('click',function(ev){
   else mode='consult';
   var ctx=ctxFromEl(el);
   if(mode==='try_on'){
-    var near=ctxFromNearestProduct(el);
-    if(!ctx.inventoryId)ctx.inventoryId=near.inventoryId||'';
-    if(!ctx.imageUrl)ctx.imageUrl=near.imageUrl||'';
-    if(!ctx.productUrl)ctx.productUrl=near.productUrl||'';
+    var page=ctxFromPdp();
+    if(!ctx.imageUrl)ctx.imageUrl=page.imageUrl||'';
+    if(!ctx.imageUrl2)ctx.imageUrl2=page.imageUrl2||'';
+    if(!ctx.inventoryId)ctx.inventoryId=page.inventoryId||'';
+    if(!ctx.sku)ctx.sku=page.sku||'';
+    if(!ctx.productUrl)ctx.productUrl=page.productUrl||'';
   }
   postOpen({mode:mode,inventoryId:ctx.inventoryId,sku:ctx.sku,imageUrl:ctx.imageUrl,imageUrl2:ctx.imageUrl2,productUrl:ctx.productUrl});
 },true);

@@ -47,6 +47,7 @@ export function kindLockedSceneFromAttrs(
     attrOf(get, 'data-pw-added-image') === '1' ||
     attrOf(get, 'data-pw-added-video') === '1' ||
     attrOf(get, 'data-pw-added-catalog') === '1' ||
+    attrOf(get, 'data-pw-featured-categories') === '1' ||
     attrOf(get, 'data-pw-added-banner') === '1' ||
     attrOf(get, 'data-pw-related') === '1' ||
     attrOf(get, 'data-pw-outfit') === '1' ||

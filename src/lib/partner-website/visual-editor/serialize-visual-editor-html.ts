@@ -1,4 +1,5 @@
 import { injectPartnerShopChromeLayoutStyles } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
+import { stripAuthorPinScreenInHtml } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import { stampPartnerSiteChromeWidgetHooksInHtml } from '@/lib/partner-website/shop/stamp-partner-site-chrome-widget-hooks'
 import { resetChromeCountBadges } from '@/lib/partner-website/shop/chrome-count-badges'
 import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual-editor/strip-empty-logo-placeholders'
@@ -134,7 +135,6 @@ function refreshMovedElementPlacementsInDocument(
       const fixed =
         el.getAttribute('data-pw-placement') === 'viewport-fixed' ||
         el.getAttribute('data-pw-stay-scroll') === '1' ||
-        el.getAttribute('data-pw-pin-screen') === '1' ||
         el.getAttribute('data-pw-chrome-float') === '1'
       if (
         el.closest(
@@ -308,6 +308,9 @@ function stripEditorAndRuntimeNodes(clone: Element) {
     el.removeAttribute('data-nanoai-ve-selected')
     el.removeAttribute('data-nanoai-ve-ignore')
   })
+  clone.querySelectorAll('[data-pw-grid-preview-hide]').forEach((el) => {
+    el.removeAttribute('data-pw-grid-preview-hide')
+  })
   clone.querySelectorAll('[data-pw-ve-dup-center]').forEach((el) => {
     const pos = el.getAttribute('data-pw-ve-dup-pos')
     const left = el.getAttribute('data-pw-ve-dup-left')
@@ -474,7 +477,9 @@ export function serializeVisualEditorHtml(doc: Document, variant?: VisualDeviceV
   })
   const stored = collapseEmptyInterTagLines(
     sanitizeVisualHtmlForStore(
-      stripExecutableScriptsFromStoredHtml(stampPartnerSiteChromeWidgetHooksInHtml(canonical))
+      stripAuthorPinScreenInHtml(
+        stripExecutableScriptsFromStoredHtml(stampPartnerSiteChromeWidgetHooksInHtml(canonical))
+      )
     )
   )
   if (!variant) return stored

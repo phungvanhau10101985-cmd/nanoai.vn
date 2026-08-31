@@ -17,7 +17,9 @@ import {
   PARTNER_SITE_CHAT_MSG_SOURCE,
   buildPartnerSiteChatEmbedPath,
   buildPartnerSiteConsultEmbedPath,
+  mergeConsultContext,
   resolvePartnerSiteChatOpenFromEventTarget,
+  withAbsolutePartnerTryOnContext,
   type PartnerSiteChatOpenMessage,
   type PartnerSiteConsultContext,
 } from '@/lib/partner-website/shop/partner-site-chat-embed'
@@ -133,7 +135,7 @@ export function PartnerSiteChatWidgetProvider({
   const applyOpenRequest = useCallback(
     (mode: 'default' | 'consult' | 'try_on', ctx: PartnerSiteConsultContext) => {
       if (mode === 'try_on') {
-        openTryOn(ctx)
+        openTryOn(withAbsolutePartnerTryOnContext(mergeConsultContext(ctx, activeProductRef.current || {})))
         return
       }
       if (mode === 'consult' && hasConsultContext(ctx)) {
@@ -197,6 +199,8 @@ export function PartnerSiteChatWidgetProvider({
             closeLabel={t.chatCloseLabel}
             openFullPageLabel={t.chatFullPageLabel}
             languageSelectAriaLabel={t.chatLanguageLabel}
+            ordersLabel={t.chatOrdersLabel}
+            cartLabel={t.chatCartLabel}
             externalOpenRequest={openRequest}
             resolveOpenUrl={resolveOpenUrl}
             hideLauncher={hideLauncher}

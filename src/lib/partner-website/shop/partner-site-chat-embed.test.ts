@@ -2,8 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   PARTNER_SITE_CHAT_OPEN_SELECTOR,
+  buildPartnerSiteConsultEmbedPath,
   buildPartnerSiteLandingChatBridgeScript,
   partnerSiteChatOpenModeFromEl,
+  resolvePartnerTryOnImageUrl,
   stampPartnerSiteChatOpenAttrsInHtml,
 } from '@/lib/partner-website/shop/partner-site-chat-embed'
 
@@ -41,6 +43,31 @@ test('stampPartnerSiteChatOpenAttrsInHtml wires leftover Tư vấn buttons', () 
   assert.match(next, /class="pw-chat-open"/)
   assert.equal(next.includes('data-pw-chrome-btn="chat-zalo"'), true)
   assert.doesNotMatch(next, /chat-zalo[^>]*data-nanoai-open-chat/)
+})
+
+test('try-on embed path puts the product image into ctx_image like 188', () => {
+  assert.equal(resolvePartnerTryOnImageUrl('https://cdn.shop/bag.jpg'), 'https://cdn.shop/bag.jpg')
+  assert.equal(resolvePartnerTryOnImageUrl('/uploads/bag.jpg', 'https://shop.example/site/demo/p/1'), 'https://shop.example/uploads/bag.jpg')
+  assert.equal(resolvePartnerTryOnImageUrl('https://cdn.shop/clip.mp4'), '')
+  const path = buildPartnerSiteConsultEmbedPath(
+    '/messaging/p/demo-shop',
+    { imageUrl: 'https://cdn.shop/bag.jpg', sku: 'BAG-1', inventoryId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' },
+    'try_on',
+    'vi'
+  )
+  assert.match(path, /open_try_on=1/)
+  assert.match(path, /ctx_image=/)
+  assert.match(path, /cdn\.shop%2Fbag\.jpg|cdn\.shop\/bag\.jpg/)
+  assert.match(path, /ctx_sku=BAG-1/)
+})
+
+test('chat bridge try-on reads PDP gallery, not the header logo', () => {
+  const s = buildPartnerSiteLandingChatBridgeScript()
+  assert.match(s, /function ctxFromPdp/)
+  assert.match(s, /data-pw-el="main-image"/)
+  assert.match(s, /pw-pdp-hero-img/)
+  assert.match(s, /function isChromeImg/)
+  assert.match(s, /data-nanoai-image/)
 })
 
 test('stampPartnerSiteChatOpenAttrsInHtml keeps existing open-chat attrs', () => {

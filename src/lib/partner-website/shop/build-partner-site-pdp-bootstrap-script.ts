@@ -123,6 +123,28 @@ function imagesOf(p){
   });
   return out;
 }
+function isTryOnVideo(u){return /\\.(mp4|webm|mov)(\\?|#|$)/i.test(String(u||''));}
+function stampTryOnButtons(p){
+  var imgs=imagesOf(p);
+  var main='',second='';
+  for(var i=0;i<imgs.length;i++){
+    if(isTryOnVideo(imgs[i]))continue;
+    if(!main){main=imgs[i];continue;}
+    if(!second){second=imgs[i];break;}
+  }
+  var live=document.querySelector('[data-pw-region="gallery"] img[data-pw-el="main-image"],[data-pw-region="gallery"] .pw-pdp-hero-img');
+  var liveSrc=live&&live.getAttribute('src')||'';
+  if(liveSrc&&!isTryOnVideo(liveSrc))main=liveSrc;
+  var sku=String(p.sku||'').trim();
+  var id=String(p.id||'').trim();
+  document.querySelectorAll('[data-nanoai-try-on],[data-pw-chrome-btn="try-on"]').forEach(function(el){
+    if(main)el.setAttribute('data-nanoai-image',main);
+    if(second)el.setAttribute('data-nanoai-image-2',second);
+    if(sku)el.setAttribute('data-nanoai-sku',sku);
+    if(id)el.setAttribute('data-nanoai-inventory',id);
+    if(!el.hasAttribute('data-nanoai-try-on'))el.setAttribute('data-nanoai-try-on','');
+  });
+}
 function apply(p){
   var id=String(p.id||'').trim();
   if(!id)return;
@@ -179,6 +201,7 @@ function apply(p){
     '<a href="#pw-pdp-reviews">'+esc(COPY.pdpJumpReviews)+'</a><a href="#pw-pdp-qa">'+esc(COPY.pdpJumpQa)+'</a>';
   document.querySelectorAll('[data-pw-pdp-slot="stats"],.pw-pdp-stats').forEach(function(el){el.innerHTML=statsHtml;});
   paintPdpLikeCounts(likes);
+  stampTryOnButtons(p);
 }
 function paintPdpLikeCounts(likes){
   var n=Math.max(0,Math.round(Number(likes)||0));
@@ -419,6 +442,18 @@ function bindLive(id){
       var host=pill.closest('[data-pw-pdp-option]');
       host.querySelectorAll('.pw-pdp-pill').forEach(function(p){p.classList.remove('is-active');});
       pill.classList.add('is-active');
+      var colorHost=pill.closest('[data-pw-pdp-option="color"]');
+      var colorImg=colorHost&&pill.querySelector('img');
+      var colorSrc=colorImg&&colorImg.getAttribute('src');
+      if(colorSrc){
+        document.querySelectorAll('[data-pw-region="gallery"] img[data-pw-el="main-image"],[data-pw-region="gallery"] .pw-pdp-hero-img,[data-pw-region="gallery"] .pw-shop-product-img').forEach(function(main){
+          main.setAttribute('src',colorSrc);
+          main.classList.remove('pw-pdp-hero-img-hidden');
+        });
+        document.querySelectorAll('[data-nanoai-try-on],[data-pw-chrome-btn="try-on"]').forEach(function(el){
+          el.setAttribute('data-nanoai-image',colorSrc);
+        });
+      }
       return;
     }
     var videoThumb=t.closest('[data-pw-pdp-video-thumb]');
@@ -439,6 +474,9 @@ function bindLive(id){
         document.querySelectorAll('[data-pw-region="gallery"] img[data-pw-el="main-image"],[data-pw-region="gallery"] .pw-pdp-hero-img,[data-pw-region="gallery"] .pw-shop-product-img').forEach(function(main){
           main.setAttribute('src',src);
           main.classList.remove('pw-pdp-hero-img-hidden');
+        });
+        document.querySelectorAll('[data-nanoai-try-on],[data-pw-chrome-btn="try-on"]').forEach(function(el){
+          el.setAttribute('data-nanoai-image',src);
         });
       }
       document.querySelectorAll('[data-pw-pdp-hero-video]').forEach(function(el){el.hidden=true;});

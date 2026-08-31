@@ -13,6 +13,7 @@ import {
   PW_CHROME_FLOAT_DEFAULT_RIGHT_PX,
   PW_CHROME_FLOAT_KINDS,
   clampChromeFloatGap,
+  chromeFloatItemSizeOf,
   clampChromeFloatSize,
   PW_FLOAT_BOTTOM_ATTR,
   PW_FLOAT_GAP_ATTR,
@@ -88,10 +89,15 @@ test('chat Zalo Facebook and top-up are viewport-fixed chrome', () => {
   assert.equal(clampChromeFloatSize(8), 16)
   assert.equal(clampChromeFloatSize(40), 40)
   assert.equal(clampChromeFloatSize(240), 200)
+  assert.equal(chromeFloatItemSizeOf(60, 40), 60)
+  assert.equal(chromeFloatItemSizeOf('', 44), 44)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('pwChromeFloatEnsureCircle'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('pwChromeFloatApplyIconSize'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('pwChromeFloatItemSize'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes('pwChromeFloatApplyIconSize(el,st.size)'), false)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes(PW_FLOAT_SIZE_ATTR), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('--pw-float-size'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('[data-pw-chrome-btn]:not([data-pw-chrome-size])'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('icon-circle'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('[data-pw-chrome-kit="float"] .pw-chrome-icon-wrap svg'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes("querySelector('.pw-chrome-icon-wrap')"), true)

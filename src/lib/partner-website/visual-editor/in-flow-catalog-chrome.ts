@@ -47,6 +47,7 @@ function classNameOf(source: string | Element): string {
 function isInFlowSlot(source: string | Element): boolean {
   if (IN_FLOW_SLOT_ATTRS.some((name) => readAttr(source, name) === '1')) return true
   if (readAttr(source, 'data-pw-added-catalog') === '1') return true
+  if (readAttr(source, 'data-pw-featured-categories') === '1') return true
   if (readAttr(source, 'data-pw-added-banner') === '1') return true
   return hasAttr(source, 'data-pw-hrow')
 }
@@ -154,7 +155,7 @@ export function releaseInFlowStackBlock(el: Element | null | undefined): void {
 export function reflowInFlowStackHosts(root: Element | null | undefined): void {
   if (!root?.querySelectorAll) return
   const nodes = root.querySelectorAll(
-    '[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="catalog"],[data-pw-region="promo"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-categories'
+    '[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="catalog"],[data-pw-region="promo"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-featured-categories],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-categories'
   )
   for (const node of Array.from(nodes)) releaseInFlowStackBlock(node)
 }

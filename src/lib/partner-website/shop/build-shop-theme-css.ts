@@ -107,7 +107,9 @@ ${buildPartnerSiteAccountPanelCss()}
   .pw-wordmark,.pw-brand{color:#fff}
   .pw-header-actions .pw-icon-btn:not([data-pw-chrome-float]),.pw-header-actions .pw-account-btn,.pw-header .pw-account-btn{color:#fff}
   .pw-cat-btn:not([data-pw-chrome-added]){width:34px;height:34px;padding:0;justify-content:center;border:1.5px solid rgba(255,255,255,.55);background:rgba(255,255,255,.16);color:#fff}
-  .pw-cat-btn:not([data-pw-chrome-added]) span{display:none}
+  .pw-cat-btn:not([data-pw-chrome-added])>span:not(.pw-chrome-icon-wrap){display:none}
+  .pw-cat-btn:not([data-pw-chrome-style="text"]):not(.pw-chrome-link) .pw-chrome-icon-wrap{display:inline-flex;width:16px;height:16px}
+  .pw-cat-btn:not([data-pw-chrome-style="text"]):not(.pw-chrome-link) svg{display:block;width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
   .pw-search-form{border:none;height:36px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.10)}
 }
 @media (max-width:1279px){
@@ -575,7 +577,9 @@ html[data-pw-scene-lock="desktop"] .pw-pdp-spec-grid,html[data-pw-scene-lock="la
     background:rgba(255,255,255,.16);
     color:#fff;flex-shrink:0;
   }
-  .pw-shop-cat-btn:not([data-pw-chrome-added]) > span{display:none}
+  .pw-shop-cat-btn:not([data-pw-chrome-added]) > span:not(.pw-chrome-icon-wrap){display:none}
+  .pw-shop-cat-btn:not([data-pw-chrome-style="text"]):not(.pw-chrome-link) .pw-chrome-icon-wrap{display:inline-flex;width:18px;height:18px}
+  .pw-shop-cat-btn:not([data-pw-chrome-style="text"]):not(.pw-chrome-link) svg{display:block;stroke:currentColor;fill:none;stroke-width:2}
   .pw-shop-cat-btn .pw-shop-nav-icon{width:18px;height:18px}
   .pw-shop-search-form{
     border:none;

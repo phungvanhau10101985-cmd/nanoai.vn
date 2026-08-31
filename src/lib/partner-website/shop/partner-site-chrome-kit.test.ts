@@ -19,12 +19,14 @@ import {
   clampChromeKitGap,
   clampChromeKitShift,
   ensurePartnerSiteChromeKitInHtml,
+  stripEscapedHeadChromeLeftoversInHtml,
   isChromeKitPickerKind,
   isMidCanvasFlowChromeKind,
   isPdpDockCtaLocked,
   isPdpDockFaceKind,
   isPdpDockNavKind,
   pinMidCanvasTopChromeInHtml,
+  stripAuthorPinScreenInHtml,
 } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import { buildPartnerSiteHeaderHtml } from '@/lib/partner-website/shop/build-partner-site-header-html'
 
@@ -206,6 +208,32 @@ describe('partner-site-chrome-kit', () => {
     expect(next).toContain('data-pw-kit-lock="cta"')
   })
 
+  it('seeds a shop Home when the dock only has the PDP Home face', () => {
+    const html = `<nav class="pw-bottom-nav" data-pw-chrome-kit="dock">
+      <a data-pw-chrome-btn="products" data-pw-dock-show="shop" href="/c">Sản phẩm</a>
+      <a data-pw-chrome-btn="cart" data-pw-dock-show="shop" href="/cart">Giỏ</a>
+      <a data-pw-chrome-btn="account" data-pw-dock-show="shop" href="/account">Tài khoản</a>
+      <div class="pw-pdp-sticky-nav" data-pw-dock-show="pdp">
+        <a data-pw-chrome-btn="home" data-pw-pdp-home="1" data-pw-dock-show="pdp">Trang chủ</a>
+        <button data-pw-chrome-btn="try-on" data-pw-dock-show="pdp">Thử</button>
+        <button data-pw-chrome-btn="favorite-product" data-pw-dock-show="pdp">Thích</button>
+      </div>
+      <div class="pw-pdp-sticky-ctas" data-pw-dock-show="pdp">
+        <button data-pw-chrome-btn="add-cart">Thêm giỏ</button>
+        <button data-pw-chrome-btn="buy-now">Mua</button>
+      </div>
+    </nav>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'mobile' })
+    const shopHome = next.match(
+      /<(?:a|button)\b[^>]*data-pw-chrome-btn=["']home["'][^>]*>/gi
+    ) || []
+    expect(shopHome.some((tag) => /data-pw-dock-show=["']shop["']/.test(tag) && !/data-pw-pdp-home=/.test(tag))).toBe(
+      true
+    )
+    expect(next).toContain('data-pw-pdp-home="1"')
+    expect((next.match(/data-pw-chrome-btn="home"/g) || []).length).toBeGreaterThanOrEqual(2)
+  })
+
   it('wraps a flat dock into the 188 PDP face and locks add-cart / buy', () => {
     const html = `<nav class="pw-bottom-nav" data-pw-chrome-kit="dock">
       <a data-pw-chrome-btn="home" data-pw-dock-show="both" href="/">Trang chủ</a>
@@ -237,18 +265,29 @@ describe('partner-site-chrome-kit', () => {
     expect(next.indexOf('data-pw-btn-color="#111111"')).toBeGreaterThan(next.indexOf('data-pw-chrome-kit="float"'))
   })
 
-  it('migrates legacy float icons to one shared circle size', () => {
+  it('migrates legacy float icons to circles but keeps each button size', () => {
     const html = `<aside data-pw-chrome-kit="float" data-pw-float-right="16" data-pw-float-stack-bottom="88" data-pw-float-gap="56">
       <button data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-pw-chrome-style="icon" data-pw-chrome-size="22" class="pw-chrome-icon-only">Chat</button>
-      <a data-pw-chrome-btn="chat-zalo" data-pw-chrome-float="1" data-pw-chrome-style="icon-square" data-pw-chrome-size="22">Zalo</a>
+      <a data-pw-chrome-btn="chat-zalo" data-pw-chrome-float="1" data-pw-chrome-style="icon-square" data-pw-chrome-size="48">Zalo</a>
     </aside>`
     const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' })
-    expect(next).toContain('data-pw-float-size="22"')
     expect(next).toMatch(/data-pw-chrome-btn="chat"[^>]*data-pw-chrome-style="icon-circle"/)
     expect(next).toMatch(/data-pw-chrome-btn="chat"[^>]*pw-chrome-icon-circle/)
     expect(next).toMatch(/data-pw-chrome-btn="chat-zalo"[^>]*data-pw-chrome-style="icon-square"/)
     expect(next).toMatch(/data-pw-chrome-btn="chat"[^>]*data-pw-chrome-size="22"/)
+    expect(next).toMatch(/data-pw-chrome-btn="chat-zalo"[^>]*data-pw-chrome-size="48"/)
     expect(next).toContain('data-pw-chrome-btn="topup"')
+  })
+
+  it('does not overwrite saved per-button float sizes when ensuring the kit', () => {
+    const html = `<aside data-pw-chrome-kit="float" data-pw-float-right="16" data-pw-float-stack-bottom="88" data-pw-float-gap="56" data-pw-float-size="44">
+      <button data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-pw-chrome-style="icon-circle" data-pw-chrome-size="60">Chat</button>
+      <a data-pw-chrome-btn="topup" data-pw-chrome-float="1" data-pw-chrome-style="icon-circle" data-pw-chrome-size="28">Top</a>
+    </aside>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' })
+    expect(next).toMatch(/data-pw-chrome-btn="chat"[^>]*data-pw-chrome-size="60"/)
+    expect(next).toMatch(/data-pw-chrome-btn="topup"[^>]*data-pw-chrome-size="28"/)
+    expect(next).not.toMatch(/data-pw-chrome-btn="chat"[^>]*data-pw-chrome-size="44"/)
   })
 
   it('header factory emits kit hosts', () => {
@@ -549,6 +588,61 @@ describe('partner-site-chrome-kit', () => {
     expect(next).toContain('data-pw-user-move="1"')
     expect(next).toContain('data-pw-placement="scene-absolute"')
     expect(next).toContain('width:280px')
+  })
+
+  it('strips escaped Yêu thích and topbar-inner on main but keeps stock topbar', () => {
+    const leftover = `<main class="pw-shop-main" data-pw-scene-root="1">
+<div class="pw-container pw-topbar-inner" data-pw-coordinate-root="scene" data-pw-placement="scene-absolute" style="position: absolute !important; width: 1440px"></div>
+<a href="/site/demo-shop/wishlist" data-pw-el="link" data-pw-chrome-btn="favorites-link" data-pw-device="laptop" data-pw-chrome-count="1" data-pw-chrome-style="text" data-pw-user-move="1" data-pw-chrome-added="1" data-pw-placement="scene-absolute">Yêu thích</a>
+<a href="/site/demo-shop/stores" data-pw-chrome-added="1" data-pw-chrome-btn="stores">Cửa hàng</a>
+</main>`
+    const stripped = stripEscapedHeadChromeLeftoversInHtml(leftover)
+    expect(stripped).not.toContain('favorites-link')
+    expect(stripped).not.toContain('Yêu thích')
+    expect(stripped).not.toContain('pw-topbar-inner')
+    expect(stripped).toContain('data-pw-chrome-btn="stores"')
+    expect(stripped).toContain('Cửa hàng')
+
+    const stock = `<div class="pw-topbar" data-pw-region="topbar"><div class="pw-container pw-topbar-inner">
+      <a href="/contact" data-pw-el="link" data-pw-chrome-btn="contact">Liên hệ</a>
+      <a href="/wishlist" data-pw-el="link" data-pw-chrome-btn="favorites-link">Yêu thích</a>
+      <a href="/account" data-pw-el="link" data-pw-chrome-btn="login">Đăng nhập</a>
+    </div></div>
+    <main><a data-pw-chrome-added="1" data-pw-chrome-btn="login" data-pw-chrome-style="icon-circle">Đăng nhập</a></main>`
+    const kept = stripEscapedHeadChromeLeftoversInHtml(stock)
+    expect(kept).toContain('data-pw-chrome-btn="favorites-link"')
+    expect(kept).toContain('pw-topbar-inner')
+    expect(kept).toContain('data-pw-chrome-btn="contact"')
+    expect(kept).toMatch(/data-pw-chrome-style="icon-circle"[^>]*>Đăng nhập/)
+
+    const viaEnsure = ensurePartnerSiteChromeKitInHtml(
+      `<!DOCTYPE html><html><body>${leftover}<nav class="pw-bottom-nav" data-pw-chrome-kit="dock"></nav></body></html>`,
+      { locale: 'vi', siteSlug: 'demo-shop', device: 'mobile' }
+    )
+    expect(viaEnsure).not.toContain('favorites-link')
+    expect(viaEnsure).not.toContain('pw-topbar-inner')
+    expect(viaEnsure).toContain('data-pw-chrome-btn="stores"')
+  })
+
+  it('strips leftover pin-to-screen but keeps chrome float kit', () => {
+    const html = `<!DOCTYPE html><html><body>
+<nav><a data-pw-el="nav-link" data-pw-pin-screen="1" data-pw-placement="viewport-fixed" data-pw-fixed-x="12">Khuyến mãi</a></nav>
+<aside data-pw-chrome-kit="float"><a data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-pw-pin-screen="1">Chat mua</a></aside>
+</body></html>`
+    const next = stripAuthorPinScreenInHtml(html)
+    expect(next).not.toMatch(/data-pw-el="nav-link"[^>]*data-pw-pin-screen/)
+    expect(next).not.toMatch(/data-pw-el="nav-link"[^>]*viewport-fixed/)
+    expect(next).toContain('Khuyến mãi')
+    expect(next).toContain('data-pw-chrome-float="1"')
+    expect(next).toContain('data-pw-pin-screen="1"')
+
+    const viaEnsure = ensurePartnerSiteChromeKitInHtml(html, {
+      locale: 'vi',
+      siteSlug: 'demo-shop',
+      device: 'mobile',
+    })
+    expect(viaEnsure).not.toMatch(/data-pw-el="nav-link"[^>]*data-pw-pin-screen/)
+    expect(viaEnsure).toContain('data-pw-chrome-kit="float"')
   })
 
   it('pins mid-page store and wallet buttons to the top scene and keeps coordinates', () => {

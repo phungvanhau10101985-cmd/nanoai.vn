@@ -390,6 +390,9 @@ test('bind upgrades a legacy sticky favorite into 188 like-copy without wiping t
     </nav>
   </body>`
   const next = bindLiveProductToPdpHtml(html, { ...PRODUCT_B, likesCount: 121 }, { locale: 'vi', siteSlug: 'demo-shop' })
+  assert.match(next, /data-pw-chrome-btn="try-on"[^>]*data-nanoai-image="https:\/\/new\.example\/shirt\.jpg"/)
+  assert.match(next, /data-nanoai-sku="SHIRT-9"/)
+  assert.match(next, /data-nanoai-inventory="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"/)
   assert.match(next, /pw-pdp-like-icon/)
   assert.match(next, /pw-pdp-like-copy/)
   assert.match(next, /pw-pdp-sticky-copy/)

@@ -378,7 +378,7 @@ export function pwHostPrefixCss(hosts: readonly string[], css: string): string {
 const PW_SCENE_DEVICES = ['mobile', 'tablet', 'laptop', 'desktop'] as const
 
 const PW_CHROME_ADDED_NOT_SEARCH =
-  '[data-pw-chrome-added]:not([data-pw-chrome-count]):not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap)'
+  '[data-pw-chrome-added]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap)'
 
 /**
  * Widget Thêm theo máy: Sửa nhanh / `?pw-device=` / scene-lock thắng `@media` độ rộng tab.
@@ -473,6 +473,7 @@ const STACK_FLOW_HOSTS = [
   '[data-pw-region="promo"]',
   '[data-pw-added-banner]',
   '[data-pw-added-catalog]',
+  '[data-pw-featured-categories]',
   '[data-pw-added-bg-slot]',
   '[data-pw-hrow]',
   '.pw-hero',

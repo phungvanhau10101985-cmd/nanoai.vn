@@ -55,6 +55,8 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('data-pw-stay-layer'), true)
   assert.equal(once.includes('pw-shop-stay-scroll'), true)
   assert.equal(once.includes('[data-pw-hidden="1"]'), true)
+  assert.equal(once.includes('[data-pw-featured-categories]'), true)
+  assert.equal(once.includes('.pw-featured-cat-card'), true)
   assert.equal(once.includes('{display:none!important}'), true)
   assert.equal(once.includes('.pw-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"][data-pw-hidden="1"]'), true)
   assert.equal(once.includes('[data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"])'), true)
@@ -237,7 +239,7 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes(':not([data-pw-added-bg]){width:var(--pw-block-w)!important'), true)
   assert.equal(
     once.includes(
-      'html [data-pw-block-h]:not([data-pw-added-bg]):not([data-pw-added-catalog]):not([data-pw-region="catalog"]){min-height:var(--pw-block-h)!important'
+      'html [data-pw-block-h]:not([data-pw-added-bg]):not([data-pw-added-catalog]):not([data-pw-featured-categories]):not([data-pw-region="catalog"]){min-height:var(--pw-block-h)!important'
     ),
     true
   )
@@ -295,7 +297,9 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('pointer-events:auto!important'), true)
   assert.equal(once.includes('html:not([data-pw-edit-device]):not([data-pw-scene-lock]) [data-pw-chrome-added][data-pw-device="mobile"]'), true)
   assert.equal(once.includes('html[data-pw-edit-device="mobile"] [data-pw-chrome-added]'), true)
-  assert.equal(once.includes('html[data-pw-edit-device="mobile"] .pw-cat-btn:not([data-pw-chrome-added])>span'), true)
+  assert.equal(once.includes('html[data-pw-edit-device="mobile"] .pw-cat-btn:not([data-pw-chrome-added])>span:not(.pw-chrome-icon-wrap)'), true)
+  assert.equal(once.includes('.pw-cat-btn:not([data-pw-chrome-style="text"]):not(.pw-chrome-link) .pw-chrome-icon-wrap'), true)
+  assert.equal(once.includes('.pw-cat-btn:not([data-pw-chrome-style="text"]):not(.pw-chrome-link) svg'), true)
   assert.equal(once.includes('html[data-pw-edit-device="mobile"] .pw-header-actions [data-pw-chrome-btn="cart"]'), true)
   assert.equal(once.includes('pw-shop-mobile-header-logo'), true)
   assert.equal(once.includes('html[data-pw-edit-device="mobile"] header [data-pw-chrome-btn="try-on"]'), true)
@@ -311,7 +315,9 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('data-pw-device="mobile"'), true)
   assert.equal(once.includes('data-pw-device="tablet"'), true)
   assert.equal(once.includes('data-pw-device="laptop"'), true)
-  assert.equal(once.includes(':not([data-pw-chrome-count])'), true)
+  assert.equal(once.includes('[data-pw-chrome-btn="favorites-link"][data-pw-chrome-added]'), true)
+  assert.equal(once.includes('main > .pw-topbar-inner'), true)
+  assert.equal(once.includes(':not([data-pw-chrome-count])'), false)
   assert.equal(once.includes('min-width:768px'), true)
   assert.equal(once.includes('min-width:1280px'), true)
   assert.equal(once.includes('max-width:1279px'), true)

@@ -24,6 +24,7 @@ describe('kind locked scene', () => {
     expect(kindLockedSceneFromAttrs(attrs({ 'data-pw-added-image': '1' }))).toBe(PW_KIND_SCENE_MEDIA)
     expect(kindLockedSceneFromAttrs(attrs({ 'data-pw-added-video': '1' }))).toBe(PW_KIND_SCENE_MEDIA)
     expect(kindLockedSceneFromAttrs(attrs({ 'data-pw-added-catalog': '1' }))).toBe(PW_KIND_SCENE_MEDIA)
+    expect(kindLockedSceneFromAttrs(attrs({ 'data-pw-featured-categories': '1' }))).toBe(PW_KIND_SCENE_MEDIA)
     expect(kindLockedSceneFromAttrs(attrs({ 'data-pw-catalog': '' }))).toBe(PW_KIND_SCENE_MEDIA)
     expect(kindLockedSceneFromAttrs(attrs({ 'data-pw-related': '1' }))).toBe(PW_KIND_SCENE_MEDIA)
     expect(kindLockedSceneFromAttrs(attrs({ 'data-pw-outfit': '1' }))).toBe(PW_KIND_SCENE_MEDIA)

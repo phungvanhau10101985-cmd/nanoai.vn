@@ -21,6 +21,7 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /\/api\/site\/188-com-vn-rl56\/products\/outfit/)
   assert.match(out, /data-pw-personalization-bootstrap/)
   assert.match(out, /\/api\/site\/188-com-vn-rl56\/personalization/)
+  assert.match(out, /\/featured-categories\?limit=/)
   assert.match(out, /data-pw-pdp-bootstrap/)
   assert.match(out, /\/reviews/)
   assert.match(out, /\/questions/)

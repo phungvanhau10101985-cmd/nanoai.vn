@@ -336,6 +336,26 @@ export default async function RootLayout({
             : locale === 'ko'
               ? '언어'
               : 'Ngôn ngữ',
+    ordersLabel:
+      locale === 'en'
+        ? 'Orders'
+        : locale === 'zh'
+          ? '订单'
+          : locale === 'ja'
+            ? '注文'
+            : locale === 'ko'
+              ? '주문'
+              : 'Đơn hàng',
+    cartLabel:
+      locale === 'en'
+        ? 'Cart'
+        : locale === 'zh'
+          ? '购物车'
+          : locale === 'ja'
+            ? 'カート'
+            : locale === 'ko'
+              ? '장바구니'
+              : 'Giỏ hàng',
   }
   const shouldRenderGlobalChatWidget =
     Boolean(hostedChatIframe && hostedChatUrl) &&
@@ -491,6 +511,8 @@ export default async function RootLayout({
                   closeLabel={widgetText.closeLabel}
                   openFullPageLabel={widgetText.openFullPageLabel}
                   languageSelectAriaLabel={widgetText.languageSelectAriaLabel}
+                  ordersLabel={widgetText.ordersLabel}
+                  cartLabel={widgetText.cartLabel}
                 />
               ) : null}
             </DepositCreditProvider>

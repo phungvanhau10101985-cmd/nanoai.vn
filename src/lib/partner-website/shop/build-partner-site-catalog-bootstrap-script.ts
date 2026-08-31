@@ -31,8 +31,8 @@ const COPY: Record<
     viewCta: 'Xem chi tiết',
     addToCart: 'Thêm vào giỏ',
     favorite: 'Thích',
-    seeAll: 'Xem tất cả',
-    loadMore: 'Tải thêm',
+    seeAll: 'Xem tất cả các nhóm',
+    loadMore: 'Xem thêm',
     relatedEmpty: 'Không có sản phẩm khác cùng danh mục.',
     error: 'Không tải được sản phẩm.',
   },
@@ -41,8 +41,8 @@ const COPY: Record<
     viewCta: 'View details',
     addToCart: 'ADD TO CART',
     favorite: 'Favorite',
-    seeAll: 'See all',
-    loadMore: 'Load more',
+    seeAll: 'See all groups',
+    loadMore: 'See more',
     relatedEmpty: 'No other products in this category.',
     error: 'Could not load products.',
   },
@@ -51,8 +51,8 @@ const COPY: Record<
     viewCta: '查看详情',
     addToCart: '加入购物车',
     favorite: '收藏',
-    seeAll: '查看全部',
-    loadMore: '加载更多',
+    seeAll: '查看全部分组',
+    loadMore: '查看更多',
     relatedEmpty: '该分类暂无其他商品。',
     error: '无法加载商品。',
   },
@@ -61,7 +61,7 @@ const COPY: Record<
     viewCta: '詳細を見る',
     addToCart: 'カートに追加',
     favorite: 'お気に入り',
-    seeAll: 'すべて見る',
+    seeAll: 'すべてのグループを見る',
     loadMore: 'もっと見る',
     relatedEmpty: 'このカテゴリに他の商品はありません。',
     error: '商品を読み込めませんでした。',
@@ -71,7 +71,7 @@ const COPY: Record<
     viewCta: '자세히 보기',
     addToCart: '장바구니',
     favorite: '찜',
-    seeAll: '전체 보기',
+    seeAll: '모든 그룹 보기',
     loadMore: '더 보기',
     relatedEmpty: '이 카테고리에 다른 상품이 없습니다.',
     error: '상품을 불러오지 못했습니다.',
@@ -162,8 +162,6 @@ function hideBrokenCardImgs(root){
   }
 }
 function ensureGridMore(el){
-  var see=el.querySelectorAll('[data-pw-el="section-more"],.pw-related-all,.pw-outfit-all');
-  for(var i=0;i<see.length;i++)see[i].hidden=true;
   var actions=el.querySelector('[data-pw-grid-actions],.pw-related-actions,.pw-grid-actions');
   if(!actions){
     actions=document.createElement('div');
@@ -182,6 +180,17 @@ function ensureGridMore(el){
     more.innerHTML='<span class="pw-grid-more-icon" aria-hidden="true">↻</span> '+esc(COPY.loadMore);
     actions.appendChild(more);
   }
+  var see=actions.querySelector('[data-pw-el="section-more"],.pw-related-all,.pw-grid-all');
+  if(!see){
+    see=document.createElement('a');
+    see.className=el.getAttribute('data-pw-related')==='1'?'pw-related-all':'pw-grid-all';
+    see.setAttribute('data-pw-el','section-more');
+    see.textContent=COPY.seeAll;
+    var listing=el.getAttribute('data-pw-listing-href')||PRODUCTS_PATH||'#';
+    see.setAttribute('href',listing);
+    actions.appendChild(see);
+  }
+  see.hidden=false;
   return more;
 }
 function paintMore(el){
@@ -234,6 +243,7 @@ function appendCards(el,products,replace){
 function loadGridPage(el,append){
   if(pwShopLiveUiOff())return;
   if(el.getAttribute('data-pw-personalize'))return;
+  if(el.getAttribute('data-pw-featured-categories')==='1'||el.getAttribute('data-pw-grid-kind')==='featured-categories')return;
   if(el.getAttribute('data-pw-outfit')==='1'||el.getAttribute('data-pw-grid-kind')==='outfit')return;
   var st=el._pwGrid;if(!st||st.loading)return;
   var grid=el.querySelector('[data-pw-grid]');
@@ -337,12 +347,14 @@ export function buildLiveCatalogSectionHtml(input: {
   locale?: WebLocale
   seeAllLabel?: string
 }): string {
-  const rows = Math.max(1, Math.min(4, Math.floor(Number(input.rows) || 2)))
+  const rows = Math.max(1, Math.min(4, Math.floor(Number(input.rows) || 1)))
   const limit = Math.max(1, Math.min(24, input.limit ?? rows * 5))
   const locale = input.locale && input.locale in COPY ? input.locale : 'vi'
   const title = input.title.trim() || (locale === 'en' ? 'Products' : 'Sản phẩm')
   const empty = COPY[locale].empty
   const loadMore = COPY[locale].loadMore
+  const seeAll = input.seeAllLabel || COPY[locale].seeAll
+  const seeAllHref = partnerSiteProductsPath(input.siteSlug)
   return `<section class="pw-catalog pw-section" ${pwRegionAttr(PW_REGION.catalog)} data-pw-section-id="${escapeAttr(input.sectionId)}" data-pw-catalog data-pw-grid-cols="5" data-pw-grid-cols-mobile="2" data-pw-grid-rows="${rows}" data-limit="${limit}" data-sort="default">
   <div class="pw-container" style="padding:16px 20px">
     <h2 ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2>
@@ -352,6 +364,7 @@ export function buildLiveCatalogSectionHtml(input: {
         <span class="pw-grid-more-icon" aria-hidden="true">↻</span>
         ${escapeHtml(loadMore)}
       </button>
+      <a href="${escapeAttr(seeAllHref)}" class="pw-grid-all" ${pwElAttr(PW_EL.sectionMore)}>${escapeHtml(seeAll)}</a>
     </div>
     <p class="pw-catalog-empty pw-personalize-empty" hidden>${escapeHtml(empty)}</p>
   </div>

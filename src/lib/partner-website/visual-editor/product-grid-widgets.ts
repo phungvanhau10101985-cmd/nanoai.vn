@@ -2,12 +2,19 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { buildOutfitProductsSectionHtml } from '@/lib/partner-website/shop/outfit-products'
 import {
+  partnerSiteCategoryHubPath,
+  partnerSiteProductsPath,
+  partnerSiteRecentlyViewedPath,
+} from '@/lib/partner-website/shop/partner-site-shop-paths'
+import {
   clampProductGridRows,
+  productGridActionsHtml,
   productGridColsForDevice,
   productGridPageSize,
   type PartnerProductGridDevice,
 } from '@/lib/partner-website/shop/pw-product-grid-page'
 import { buildRelatedProductsSectionHtml } from '@/lib/partner-website/shop/related-products'
+import { buildVisualEditorFeaturedCategoriesHtml } from '@/lib/partner-website/visual-editor/featured-category-widgets'
 import { PW_KIND_SCENE_MEDIA, pwKindSceneAttr } from '@/lib/partner-website/visual-editor/pw-kind-scene'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
@@ -15,6 +22,7 @@ export const VISUAL_EDITOR_PRODUCT_GRID_KINDS = [
   'catalog',
   'recently-viewed',
   'recommended',
+  'featured-categories',
   'related',
   'outfit',
 ] as const
@@ -25,11 +33,22 @@ export function isVisualEditorProductGridKind(value: string): value is VisualEdi
   return (VISUAL_EDITOR_PRODUCT_GRID_KINDS as readonly string[]).includes(value)
 }
 
-/** Related + outfit bind the product being viewed — Thêm only on PDP. */
+/** Related + outfit bind the product being viewed — seed on PDP, not Thêm. */
 export const VISUAL_EDITOR_PDP_ONLY_PRODUCT_GRID_KINDS = ['related', 'outfit'] as const
+
+/** Panel Thêm chỉ lưới cá nhân hóa. Catalog / related / outfit seed, không hiện nút. */
+export const VISUAL_EDITOR_PICKER_PRODUCT_GRID_KINDS = [
+  'recently-viewed',
+  'recommended',
+  'featured-categories',
+] as const
 
 export function isPdpOnlyProductGridKind(kind: string): boolean {
   return (VISUAL_EDITOR_PDP_ONLY_PRODUCT_GRID_KINDS as readonly string[]).includes(kind)
+}
+
+export function isPersonalizeProductGridKind(kind: string): boolean {
+  return (VISUAL_EDITOR_PICKER_PRODUCT_GRID_KINDS as readonly string[]).includes(kind)
 }
 
 export function productGridKindAllowedOnVisualPage(
@@ -38,6 +57,14 @@ export function productGridKindAllowedOnVisualPage(
 ): boolean {
   if (!isPdpOnlyProductGridKind(kind)) return true
   return String(pageKey || '').trim() === 'product_detail'
+}
+
+export function productGridKindShownInAddPicker(
+  kind: VisualEditorProductGridKind,
+  pageKey?: string | null
+): boolean {
+  if (!isPersonalizeProductGridKind(kind)) return false
+  return productGridKindAllowedOnVisualPage(kind, pageKey)
 }
 
 const TITLE: Record<VisualEditorProductGridKind, Record<WebLocale, string>> = {
@@ -75,6 +102,13 @@ const TITLE: Record<VisualEditorProductGridKind, Record<WebLocale, string>> = {
     zh: '搭配',
     ja: 'コーディネート',
     ko: '코디',
+  },
+  'featured-categories': {
+    vi: 'Danh mục nổi bật',
+    en: 'Featured categories',
+    zh: '精选分类',
+    ja: '注目カテゴリ',
+    ko: '추천 카테고리',
   },
 }
 
@@ -123,6 +157,17 @@ export function productGridWidgetLabel(kind: VisualEditorProductGridKind, locale
             ? '코디'
             : 'Outfit pairing'
   }
+  if (kind === 'featured-categories') {
+    return locale === 'vi'
+      ? 'Danh mục nổi bật'
+      : locale === 'zh'
+        ? '精选分类'
+        : locale === 'ja'
+          ? '注目カテゴリ'
+          : locale === 'ko'
+            ? '추천 카테고리'
+            : 'Featured categories'
+  }
   return locale === 'vi'
     ? 'Lưới đề xuất'
     : locale === 'zh'
@@ -158,13 +203,10 @@ function placeholderCards(count: number, label: string): string {
   return out
 }
 
-function gridMoreButtonHtml(label: string): string {
-  return `<div class="pw-grid-actions" data-pw-grid-actions>
-    <button type="button" class="pw-grid-more" data-pw-grid-more>
-      <span class="pw-grid-more-icon" aria-hidden="true">↻</span>
-      ${escapeHtml(label)}
-    </button>
-  </div>`
+function gridSeeAllHref(kind: VisualEditorProductGridKind, siteSlug: string): string {
+  if (kind === 'recently-viewed') return partnerSiteRecentlyViewedPath(siteSlug)
+  if (kind === 'featured-categories') return partnerSiteCategoryHubPath(siteSlug)
+  return partnerSiteProductsPath(siteSlug)
 }
 
 /** In-flow catalog section for Sửa nhanh «Thêm». Live hydrates via catalog / personalization bootstrap. */
@@ -178,10 +220,19 @@ export function buildVisualEditorProductGridHtml(input: {
 }): string {
   const locale = input.locale && input.locale in TITLE.catalog ? input.locale : 'vi'
   const kind = input.kind
-  const rows = clampProductGridRows(input.rows)
+  const rows = clampProductGridRows(kind === 'featured-categories' ? input.rows ?? 2 : input.rows)
   const cols = productGridColsForDevice(input.device)
   const pageSize = productGridPageSize(rows, cols)
   const limit = Math.max(pageSize, Math.min(48, Math.floor(Number(input.limit) || pageSize)))
+  if (kind === 'featured-categories') {
+    return buildVisualEditorFeaturedCategoriesHtml({
+      siteSlug: input.siteSlug,
+      locale,
+      rows,
+      device: input.device,
+      limit,
+    })
+  }
   if (kind === 'related') {
     return buildRelatedProductsSectionHtml({
       locale,
@@ -208,6 +259,7 @@ export function buildVisualEditorProductGridHtml(input: {
         ? copy.recentlyViewedTitle || TITLE['recently-viewed'][locale]
         : copy.catalogTitle || TITLE.catalog[locale]
   const loadMore = copy.gridLoadMore || copy.loadMore
+  const seeAll = copy.gridSeeAllGroups || copy.relatedSeeAll
   const personalize =
     kind === 'catalog' ? '' : ` data-pw-personalize="${kind === 'recommended' ? 'recommended' : 'recently-viewed'}"`
   const catalogAttr = kind === 'catalog' ? ' data-pw-catalog data-sort="default"' : ''
@@ -219,7 +271,11 @@ export function buildVisualEditorProductGridHtml(input: {
   <div class="pw-container" style="padding:12px 16px 16px">
     <h2 ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2>
     <div data-pw-grid class="pw-product-grid" ${pwElAttr(PW_EL.grid)}>${cards}</div>
-    ${gridMoreButtonHtml(loadMore)}
+    ${productGridActionsHtml({
+      loadMoreLabel: loadMore,
+      seeAllLabel: seeAll,
+      seeAllHref: gridSeeAllHref(kind, input.siteSlug),
+    })}
     <p class="pw-catalog-empty pw-personalize-empty" hidden></p>
   </div>
 </section>`

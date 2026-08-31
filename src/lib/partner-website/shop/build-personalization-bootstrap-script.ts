@@ -1,6 +1,10 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import { PW_SHOP_CARD_IMG_JS } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PW_PRODUCT_GRID_PAGE_JS } from '@/lib/partner-website/shop/pw-product-grid-page'
+import {
+  partnerSiteProductsPath,
+  partnerSiteRecentlyViewedPath,
+} from '@/lib/partner-website/shop/partner-site-shop-paths'
 
 const EMPTY: Record<WebLocale, string> = {
   vi: 'Chưa có sản phẩm phù hợp.',
@@ -35,11 +39,35 @@ const ADD_CART: Record<WebLocale, string> = {
 }
 
 const LOAD_MORE: Record<WebLocale, string> = {
-  vi: 'Tải thêm',
-  en: 'Load more',
-  zh: '加载更多',
-  ja: 'さらに読み込む',
-  ko: '더 불러오기',
+  vi: 'Xem thêm',
+  en: 'See more',
+  zh: '查看更多',
+  ja: 'もっと見る',
+  ko: '더 보기',
+}
+
+const SEE_ALL: Record<WebLocale, string> = {
+  vi: 'Xem tất cả các nhóm',
+  en: 'See all groups',
+  zh: '查看全部分组',
+  ja: 'すべてのグループを見る',
+  ko: '모든 그룹 보기',
+}
+
+const FEATURED_EMPTY: Record<WebLocale, string> = {
+  vi: 'Chưa có danh mục phù hợp.',
+  en: 'No matching categories yet.',
+  zh: '暂无匹配分类。',
+  ja: '該当するカテゴリはまだありません。',
+  ko: '맞는 카테고리가 아직 없습니다.',
+}
+
+const FEATURED_SEE_ALL: Record<WebLocale, string> = {
+  vi: 'Xem tất cả danh mục',
+  en: 'View all categories',
+  zh: '查看全部分类',
+  ja: 'すべてのカテゴリを見る',
+  ko: '모든 카테고리 보기',
 }
 
 const FOR_YOU: Record<WebLocale, string> = {
@@ -67,6 +95,8 @@ export function buildPartnerSitePersonalizationBootstrapScript(input: {
   if (!slug) return ''
   const locale = input.locale in EMPTY ? input.locale : 'en'
   const apiBase = `/api/site/${encodeURIComponent(slug)}/personalization`
+  const productsPath = partnerSiteProductsPath(slug)
+  const viewedPath = partnerSiteRecentlyViewedPath(slug)
   const copy = {
     empty: EMPTY[locale],
     greeting: GREETING[locale],
@@ -75,10 +105,15 @@ export function buildPartnerSitePersonalizationBootstrapScript(input: {
     favorite: FAVORITE[locale],
     forYou: FOR_YOU[locale],
     loadMore: LOAD_MORE[locale],
+    seeAll: SEE_ALL[locale],
+    featuredEmpty: FEATURED_EMPTY[locale],
+    featuredSeeAll: FEATURED_SEE_ALL[locale],
   }
 
   return `<script data-pw-personalization-bootstrap>(function(){
 var API=${JSON.stringify(apiBase)};
+var PRODUCTS_PATH=${JSON.stringify(productsPath)};
+var VIEWED_PATH=${JSON.stringify(viewedPath)};
 var COPY=${JSON.stringify(copy)};
 var SESSION_KEY='app_guest_session_id';
 var SESSION_KEY_LEGACY='nanoai_guest_session_id';
@@ -134,8 +169,6 @@ function renderCard(p,cta,badge){
   return '<article class="pw-product-card" data-pw-el="card" data-inventory-id="'+id+'" data-pw-actions-ready="1"><a class="pw-product-card-media" data-pw-el="card-media" href="'+href+'">'+mark+'<img src="'+img+'" alt="'+name+'" loading="lazy"/></a><div class="pw-product-card-body"><h3 data-pw-el="card-name"><a href="'+href+'">'+name+'</a></h3>'+(p.price_hint?'<p class="pw-price" data-pw-el="card-price">'+p.price_hint+'</p>':'')+'<div class="pw-shop-action-bar">'+cart+'</div></div></article>';
 }
 function ensureGridMore(el){
-  var see=el.querySelectorAll('[data-pw-el="section-more"]');
-  for(var i=0;i<see.length;i++)see[i].hidden=true;
   var actions=el.querySelector('[data-pw-grid-actions],.pw-grid-actions');
   if(!actions){
     actions=document.createElement('div');
@@ -154,6 +187,17 @@ function ensureGridMore(el){
     more.innerHTML='<span class="pw-grid-more-icon" aria-hidden="true">↻</span> '+COPY.loadMore;
     actions.appendChild(more);
   }
+  var see=actions.querySelector('[data-pw-el="section-more"],.pw-grid-all');
+  if(!see){
+    see=document.createElement('a');
+    see.className='pw-grid-all';
+    see.setAttribute('data-pw-el','section-more');
+    see.textContent=COPY.seeAll;
+    var kind=el.getAttribute('data-pw-personalize');
+    see.setAttribute('href',kind==='recently-viewed'?VIEWED_PATH:PRODUCTS_PATH);
+    actions.appendChild(see);
+  }
+  see.hidden=false;
   return more;
 }
 function paintMore(el){
@@ -166,8 +210,37 @@ function personalizePath(el,offset,limit){
   var base=kind==='recommended'?'/recommendations':kind==='favorites'?'/favorites':'/recently-viewed';
   return base+'?limit='+limit+'&offset='+offset;
 }
+function escapeFeat(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+function renderFeaturedTile(t){
+  var href=escapeFeat(t.href||'#');
+  var name=escapeFeat(t.short_name||t.name||'');
+  var img=escapeFeat(t.image_url||'');
+  var media=img?'<img src="'+img+'" alt="'+name+'" loading="lazy"/>':'';
+  return '<a class="pw-featured-cat-card" data-pw-el="card" href="'+href+'"><span class="pw-featured-cat-media" data-pw-el="card-media">'+media+'</span><span data-pw-el="card-name">'+name+'</span></a>';
+}
+function hydrateFeatured(el){
+  var grid=el.querySelector('[data-pw-grid]');
+  var empty=el.querySelector('.pw-featured-cat-empty,.pw-personalize-empty');
+  var see=el.querySelector('[data-pw-el="section-more"]');
+  var limit=typeof pwGridPageSize==='function'?pwGridPageSize(el):10;
+  apiFetch('/featured-categories?limit='+limit).then(function(res){
+    var tiles=(res.j&&res.j.tiles)||[];
+    if(res.j&&res.j.hub_href&&see)see.setAttribute('href',res.j.hub_href);
+    if(see&&!see.textContent)see.textContent=COPY.featuredSeeAll;
+    if(!tiles.length){
+      if(empty){empty.hidden=false;empty.textContent=COPY.featuredEmpty;}
+      el.hidden=false;return;
+    }
+    if(grid)grid.innerHTML=tiles.map(renderFeaturedTile).join('');
+    if(empty)empty.hidden=true;
+    el.hidden=false;
+  }).catch(function(){
+    if(empty){empty.hidden=false;empty.textContent=COPY.featuredEmpty;}
+    el.hidden=false;
+  });
+}
 function loadPersonalizePage(el,append){
-  var kind=el.getAttribute('data-pw-personalize');if(!kind)return;
+  var kind=el.getAttribute('data-pw-personalize');if(!kind||kind==='featured-categories')return;
   var st=el._pwGrid;if(!st||st.loading)return;
   var cta=el.getAttribute('data-cta')||COPY.viewCta;
   var grid=el.querySelector('[data-pw-grid]');var empty=el.querySelector('.pw-personalize-empty');
@@ -221,9 +294,14 @@ function run(){
   applyHeroVariant();
   applyGreeting();
   document.querySelectorAll('[data-pw-personalize]').forEach(function(el){
+    if(el.getAttribute('data-pw-featured-categories')==='1')return;
+    if(el.getAttribute('data-pw-personalize')==='featured-categories')return;
     var grid=el.querySelector('[data-pw-grid]');
     if(!(grid&&grid.children.length)) el.hidden=true;
     hydrateBlock(el);
+  });
+  document.querySelectorAll('[data-pw-featured-categories]').forEach(function(el){
+    hydrateFeatured(el);
   });
   if(!document.documentElement.getAttribute('data-pw-personalize-more-bound')){
     document.documentElement.setAttribute('data-pw-personalize-more-bound','1');

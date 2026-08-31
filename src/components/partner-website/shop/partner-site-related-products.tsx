@@ -8,7 +8,8 @@ import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventor
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
-import { productGridPageSize } from '@/lib/partner-website/shop/pw-product-grid-page'
+import { PW_GRID_ROWS_DEFAULT, productGridPageSize } from '@/lib/partner-website/shop/pw-product-grid-page'
+import { relatedListingHref } from '@/lib/partner-website/shop/related-products'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = {
@@ -27,15 +28,16 @@ export function PartnerSiteRelatedProducts({
   siteSlug,
   locale,
   products,
+  categoryPath,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
-  const [step, setStep] = useState(productGridPageSize(2, 5))
-  const [visible, setVisible] = useState(productGridPageSize(2, 5))
+  const [step, setStep] = useState(productGridPageSize(PW_GRID_ROWS_DEFAULT, 5))
+  const [visible, setVisible] = useState(productGridPageSize(PW_GRID_ROWS_DEFAULT, 5))
 
   useEffect(() => {
     const sync = () => {
-      const next = productGridPageSize(2, relatedColsFromViewport())
+      const next = productGridPageSize(PW_GRID_ROWS_DEFAULT, relatedColsFromViewport())
       setStep(next)
       setVisible((current) => {
         if (current <= next) return Math.min(next, products.length)
@@ -60,7 +62,7 @@ export function PartnerSiteRelatedProducts({
       data-pw-grid-kind="related"
       data-pw-grid-cols="5"
       data-pw-grid-cols-mobile="2"
-      data-pw-grid-rows="2"
+      data-pw-grid-rows={String(PW_GRID_ROWS_DEFAULT)}
     >
       <h3 className="pw-related-title" data-pw-el={PW_EL.sectionTitle}>
         {t.relatedProducts}
@@ -120,6 +122,13 @@ export function PartnerSiteRelatedProducts({
                 {t.gridLoadMore || t.loadMore}
               </button>
             ) : null}
+            <Link
+              className="pw-related-all"
+              data-pw-el={PW_EL.sectionMore}
+              href={relatedListingHref({ siteSlug, categoryPath })}
+            >
+              {t.gridSeeAllGroups || t.relatedSeeAll}
+            </Link>
           </div>
         </>
       ) : (

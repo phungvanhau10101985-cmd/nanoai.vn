@@ -4,6 +4,7 @@ import { PW_OUTFIT_CSS } from '@/lib/partner-website/shop/outfit-products-css'
 import {
   PW_PRODUCT_CARD_MEDIA_RULER_CSS,
   PW_PRODUCT_CATALOG_CARD_FACE_CSS,
+  PW_PRODUCT_GRID_MORE_CSS,
   PW_PRODUCT_GRID_RULER_CSS,
   PW_PRODUCT_STRIP_GRID_CSS,
 } from '@/lib/partner-website/shop/pw-product-grid-ruler'
@@ -58,12 +59,14 @@ test('added product grids hug content and do not keep section padding', () => {
   assert.match(PW_PRODUCT_GRID_RULER_CSS, /padding:8px 0 12px!important/)
 })
 
-test('catalog titles are sized per device and load-more hides see-all', () => {
+test('catalog titles are sized per device and show see-more plus see-all', () => {
   assert.match(PW_PRODUCT_GRID_RULER_CSS, /font-size:1\.125rem!important/)
   assert.match(PW_PRODUCT_GRID_RULER_CSS, /html\[data-pw-edit-device="mobile"\]/)
   assert.match(PW_PRODUCT_GRID_RULER_CSS, /data-pw-grid-more/)
   assert.match(PW_PRODUCT_GRID_RULER_CSS, /\.pw-related-all/)
-  assert.match(PW_PRODUCT_GRID_RULER_CSS, /display:none!important/)
+  assert.match(PW_PRODUCT_GRID_MORE_CSS, /background:var\(--pw-buy\)/)
+  assert.match(PW_PRODUCT_GRID_MORE_CSS, /html \[data-pw-el="section-more"\]\[hidden\]/)
+  assert.doesNotMatch(PW_PRODUCT_GRID_MORE_CSS, /html \[data-pw-catalog\] \[data-pw-el="section-more"\],html \[data-pw-personalize\] \[data-pw-el="section-more"\][\s\S]{0,80}\{display:none!important\}/)
 })
 
 test('related and outfit CSS both ship the shared ruler', () => {

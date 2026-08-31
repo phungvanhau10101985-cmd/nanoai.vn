@@ -83,16 +83,15 @@ function hideBrokenCardImgs(root){
   }
 }
 function ensureActions(el){
-  var actions=el.querySelector('.pw-outfit-actions');
+  var actions=el.querySelector('.pw-outfit-actions,[data-pw-grid-actions]');
   if(!actions){
     actions=document.createElement('div');
-    actions.className='pw-outfit-actions';
+    actions.className='pw-outfit-actions pw-grid-actions';
+    actions.setAttribute('data-pw-grid-actions','1');
     var grid=el.querySelector('[data-pw-grid]');
     if(grid&&grid.parentNode)grid.parentNode.insertBefore(actions,grid.nextSibling);
     else el.appendChild(actions);
   }
-  var see=actions.querySelectorAll('[data-pw-el="section-more"],.pw-outfit-all');
-  for(var s=0;s<see.length;s++)see[s].hidden=true;
   var more=actions.querySelector('[data-pw-outfit-more],[data-pw-grid-more]');
   if(!more){
     more=document.createElement('button');
@@ -103,7 +102,17 @@ function ensureActions(el){
     more.innerHTML='<span class="pw-outfit-more-icon pw-grid-more-icon" aria-hidden="true">↻</span> '+esc(COPY.loadMore);
     actions.appendChild(more);
   }
-  return {more:more};
+  var see=actions.querySelector('[data-pw-el="section-more"],.pw-outfit-all');
+  if(!see){
+    see=document.createElement('a');
+    see.className='pw-outfit-all';
+    see.setAttribute('data-pw-el','section-more');
+    see.textContent=COPY.seeAll;
+    see.setAttribute('href',PRODUCTS_PATH||'#');
+    actions.appendChild(see);
+  }
+  see.hidden=false;
+  return {more:more,see:see};
 }
 function slotOf(st){
   if(!st||!st.slots||!st.slots.length)return null;
@@ -122,6 +131,10 @@ function paintSlice(el){
   hideBrokenCardImgs(grid);
   var ui=ensureActions(el);
   ui.more.hidden=st.visible>=items.length;
+  if(ui.see){
+    ui.see.hidden=false;
+    if(slot&&slot.listingHref)ui.see.setAttribute('href',slot.listingHref);
+  }
   var tabs=el.querySelectorAll('[data-pw-outfit-slot]');
   for(var i=0;i<tabs.length;i++){
     var on=tabs[i].getAttribute('data-pw-outfit-slot')===st.active;

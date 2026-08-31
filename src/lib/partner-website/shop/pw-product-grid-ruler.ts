@@ -38,7 +38,7 @@ const PW_CARD_MEDIA_SEL = [
   'html .pw-outfit-card .pw-product-card-media',
   'html [data-pw-related] [data-pw-el="card-media"]',
   'html [data-pw-outfit] [data-pw-el="card-media"]',
-  'html [data-pw-el="card"] > [data-pw-el="card-media"]',
+  'html [data-pw-el="card"]:not(.pw-featured-cat-card) > [data-pw-el="card-media"]',
 ].join(',')
 
 const PW_CARD_MEDIA_IMG_SEL = suffixEach(PW_CARD_MEDIA_SEL, ' img')
@@ -186,13 +186,14 @@ ${pwCatalogTitleSel('html:not([data-pw-edit-device]):not([data-pw-scene-lock])')
 }
 `.trim()
 
-/** Nút Tải thêm dưới lưới; ẩn «Xem hết / Xem tất cả / Xem sản phẩm». */
+/** Nút Xem thêm + Xem tất cả các nhóm dưới lưới — in-flow, không hoist. */
 export const PW_PRODUCT_GRID_MORE_CSS = `
-html [data-pw-catalog] [data-pw-grid-actions],html [data-pw-personalize] [data-pw-grid-actions],html [data-pw-related] [data-pw-grid-actions],html [data-pw-outfit] [data-pw-grid-actions],html .pw-grid-actions,html .pw-related-actions,html .pw-outfit-actions{margin-top:12px;display:flex;align-items:center;justify-content:center;flex-wrap:wrap}
+html [data-pw-catalog] [data-pw-grid-actions],html [data-pw-personalize] [data-pw-grid-actions],html [data-pw-related] [data-pw-grid-actions],html [data-pw-outfit] [data-pw-grid-actions],html .pw-grid-actions,html .pw-related-actions,html .pw-outfit-actions{margin-top:12px;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px}
 html .pw-grid-more,html [data-pw-grid-more],html .pw-related-more,html .pw-outfit-more{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--pw-surface,#f3f4f6);color:var(--pw-text,#111827);border:1px solid var(--pw-border,#e5e7eb);border-radius:8px;padding:8px 16px;cursor:pointer;font:600 13px/1.2 var(--pw-font-ui),system-ui,sans-serif}
 html .pw-grid-more[hidden],html [data-pw-grid-more][hidden],html .pw-related-more[hidden],html .pw-outfit-more[hidden]{display:none!important}
 html .pw-grid-more-icon,html .pw-related-more-icon,html .pw-outfit-more-icon{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:1px solid var(--pw-border,#d1d5db);border-radius:999px;font-size:12px}
-html [data-pw-catalog] [data-pw-el="section-more"],html [data-pw-personalize] [data-pw-el="section-more"],html [data-pw-related] [data-pw-el="section-more"],html [data-pw-outfit] [data-pw-el="section-more"],html [data-pw-added-catalog] [data-pw-el="section-more"],html .pw-related-all,html .pw-outfit-all{display:none!important}
+html [data-pw-catalog] [data-pw-el="section-more"],html [data-pw-personalize] [data-pw-el="section-more"],html [data-pw-related] [data-pw-el="section-more"],html [data-pw-outfit] [data-pw-el="section-more"],html [data-pw-added-catalog] [data-pw-el="section-more"],html .pw-related-all,html .pw-outfit-all,html .pw-grid-all{display:inline-flex;align-items:center;justify-content:center;padding:8px 16px;border-radius:8px;background:var(--pw-buy);color:#fff!important;font:600 13px/1.2 var(--pw-font-ui),system-ui,sans-serif;text-decoration:none}
+html [data-pw-el="section-more"][hidden],html .pw-related-all[hidden],html .pw-outfit-all[hidden],html .pw-grid-all[hidden]{display:none!important}
 `.trim()
 
 /** Thêm lưới: ôm nội dung, không padding section 48px / không khóa chiều cao khối. */

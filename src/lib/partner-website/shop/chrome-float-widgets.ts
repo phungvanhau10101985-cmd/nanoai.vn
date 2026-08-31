@@ -30,7 +30,7 @@ export const PW_FLOAT_GAP_ATTR = 'data-pw-float-gap'
 export const PW_FLOAT_GAP_MIN = 36
 export const PW_FLOAT_GAP_MAX = 200
 export const PW_FLOAT_GAP_DEFAULT = 56
-/** Cỡ icon nổi chung (px) — mọi nút Chat / Zalo / Facebook / Top cùng một vòng tròn. */
+/** Cỡ fallback trên host khi nút chưa có `data-pw-chrome-size`. Mỗi nút nổi một cỡ riêng. */
 export const PW_FLOAT_SIZE_ATTR = 'data-pw-float-size'
 export const PW_FLOAT_SIZE_MIN = 16
 export const PW_FLOAT_SIZE_MAX = 200
@@ -52,6 +52,14 @@ export function clampChromeFloatSize(raw: unknown): number {
   const n = Math.round(Number(raw))
   if (!Number.isFinite(n)) return PW_FLOAT_SIZE_DEFAULT
   return Math.max(PW_FLOAT_SIZE_MIN, Math.min(PW_FLOAT_SIZE_MAX, n))
+}
+
+/** Cỡ một nút nổi: `data-pw-chrome-size` của chính nút, không lấy cỡ host. */
+export function chromeFloatItemSizeOf(raw: unknown, fallback: unknown = PW_FLOAT_SIZE_DEFAULT): number {
+  if (raw == null || raw === '') return clampChromeFloatSize(fallback)
+  const n = Math.round(Number(raw))
+  if (!Number.isFinite(n)) return clampChromeFloatSize(fallback)
+  return clampChromeFloatSize(n)
 }
 
 /**
@@ -195,6 +203,11 @@ function pwChromeFloatClampSize(n){
   if(n<${PW_FLOAT_SIZE_MIN})n=${PW_FLOAT_SIZE_MIN};
   if(n>${PW_FLOAT_SIZE_MAX})n=${PW_FLOAT_SIZE_MAX};
   return n;
+}
+function pwChromeFloatItemSize(el,fallback){
+  var raw=parseInt(String(el&&el.getAttribute?el.getAttribute('data-pw-chrome-size')||'':''),10);
+  if(isFinite(raw))return pwChromeFloatClampSize(raw);
+  return pwChromeFloatClampSize(fallback==null?${PW_FLOAT_SIZE_DEFAULT}:fallback);
 }
 function pwChromeFloatStackRead(){
   var host=pwChromeFloatKitHost();
@@ -370,7 +383,7 @@ function pwChromeFloatApplyStack(){
   for(var i=0;i<items.length;i++){
     var el=items[i];
     el.setAttribute('data-pw-chrome-float','1');
-    pwChromeFloatApplyIconSize(el,st.size);
+    pwChromeFloatApplyIconSize(el,pwChromeFloatItemSize(el,st.size));
     if(el.getAttribute('data-pw-hidden')==='1'){
       el.removeAttribute('data-pw-user-move');
       continue;
@@ -536,8 +549,14 @@ html [${PW_CHROME_FLOAT_ATTR}="1"][data-pw-hidden="1"],html [data-pw-chrome-kit=
 html[data-pw-edit-device] [${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move]):not([${PW_FLOAT_RIGHT_ATTR}]):not([data-pw-hidden="1"]){
   right:calc((100vw - var(--pw-scene-w,1440px)) / 2 + ${PW_CHROME_FLOAT_DEFAULT_RIGHT_PX}px)!important
 }
-[data-pw-chrome-kit="float"] [data-pw-chrome-btn], [data-pw-chrome-float-host="1"] [data-pw-chrome-btn]{
+[data-pw-chrome-kit="float"] [data-pw-chrome-btn]:not([data-pw-chrome-size]),
+[data-pw-chrome-float-host="1"] [data-pw-chrome-btn]:not([data-pw-chrome-size]){
   --pw-chrome-size:var(--pw-float-size,${PW_FLOAT_SIZE_DEFAULT}px);
+  --pw-chrome-w:var(--pw-chrome-size);
+  --pw-chrome-h:var(--pw-chrome-size)
+}
+[data-pw-chrome-kit="float"] [data-pw-chrome-btn][data-pw-chrome-size],
+[data-pw-chrome-float-host="1"] [data-pw-chrome-btn][data-pw-chrome-size]{
   --pw-chrome-w:var(--pw-chrome-size);
   --pw-chrome-h:var(--pw-chrome-size)
 }

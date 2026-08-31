@@ -155,7 +155,7 @@ import {
 } from '@/lib/partner-website/visual-editor/pw-slider-runtime'
 import {
   buildVisualEditorProductGridHtml,
-  productGridKindAllowedOnVisualPage,
+  productGridKindShownInAddPicker,
   productGridWidgetLabel,
   VISUAL_EDITOR_PRODUCT_GRID_KINDS,
   type VisualEditorProductGridKind,
@@ -289,6 +289,9 @@ export type VisualEditorSelection = {
   logoZoom: number
   isBannerPhoto: boolean
   isSlider: boolean
+  isProductGrid: boolean
+  gridKind: string
+  gridRows: number
   slideWait: number
   slideArrows: boolean
   slideCount: number
@@ -437,6 +440,9 @@ function selectionFromMessage(data: {
   logoZoom?: number
   isBannerPhoto?: boolean
   isSlider?: boolean
+  isProductGrid?: boolean
+  gridKind?: string
+  gridRows?: number
   slideWait?: number
   slideArrows?: boolean
   slideCount?: number
@@ -573,6 +579,9 @@ function selectionFromMessage(data: {
     logoZoom: Number.isFinite(Number(data.logoZoom)) ? Math.max(30, Math.min(400, Number(data.logoZoom))) : 100,
     isBannerPhoto: Boolean(data.isBannerPhoto),
     isSlider: Boolean(data.isSlider),
+    isProductGrid: Boolean(data.isProductGrid),
+    gridKind: String(data.gridKind ?? '').replace(/[^a-z0-9-]/g, ''),
+    gridRows: clampProductGridRows(data.gridRows),
     slideWait: clampPwSliderWait(data.slideWait ?? PW_SLIDER_WAIT_DEFAULT),
     slideArrows: data.slideArrows !== false,
     slideCount: Math.max(0, Math.round(Number(data.slideCount) || 0)),
@@ -903,12 +912,14 @@ type ChromeKitListItem = {
   dockShow: string
   slot: string
   label: string
+  size?: number
   right?: number
   bottom?: number
 }
 
 const FLOATING_PANEL_W = 320
 const FLOATING_PANEL_TOP = 52
+const FLOATING_PANEL_CANVAS_GAP = 12
 
 function defaultFloatingPanelPos(): { x: number; y: number } {
   if (typeof window === 'undefined') return { x: 16, y: FLOATING_PANEL_TOP }
@@ -916,6 +927,14 @@ function defaultFloatingPanelPos(): { x: number; y: number } {
     x: Math.max(8, window.innerWidth - FLOATING_PANEL_W - 16),
     y: FLOATING_PANEL_TOP,
   }
+}
+
+/** Thanh điều hướng — lề trái canvas (chỗ trống bên trái máy xem). */
+function floatingPanelPosLeftOfCanvas(canvas: { left: number; width: number } | null): { x: number; y: number } {
+  if (typeof window === 'undefined') return { x: 16, y: FLOATING_PANEL_TOP }
+  const left = canvas && canvas.width > 0 ? canvas.left : 0
+  const preferred = left > 0 ? left - FLOATING_PANEL_W - FLOATING_PANEL_CANVAS_GAP : 16
+  return clampFloatingPanelPos(preferred, FLOATING_PANEL_TOP, null)
 }
 
 function clampFloatingPanelPos(x: number, y: number, el: HTMLElement | null) {
@@ -1030,9 +1049,8 @@ function ChromeKitPanel({
   floatRight,
   floatBottom,
   floatGap,
-  floatSize,
   onSetFloatStack,
-  onSetFloatSize,
+  onSetFloatItemSize,
   onSelectFloat,
   onReorder,
   onShiftHead,
@@ -1049,7 +1067,6 @@ function ChromeKitPanel({
   floatRight: number
   floatBottom: number
   floatGap: number
-  floatSize: number
   headX: number
   headGap: number
   busy: boolean
@@ -1057,7 +1074,7 @@ function ChromeKitPanel({
   onToggleDock: (kind: string, show: 'shop' | 'pdp' | 'both' | 'off') => void
   onToggleFloat: (kind: string, hidden: boolean) => void
   onSetFloatStack: (right: number, bottom: number, gap: number) => void
-  onSetFloatSize: (size: number) => void
+  onSetFloatItemSize: (kind: string, size: number) => void
   onSelectFloat: (kind: string) => void
   onReorder: (kind: string, bar: 'head' | 'dock' | 'float', dir: 'up' | 'down') => void
   onShiftHead: (x: number) => void
@@ -1101,11 +1118,15 @@ function ChromeKitPanel({
     for (const item of dock) {
       if (!isPdpDockFaceKind(item.kind)) takeDock(item.kind, item.hidden)
     }
+    for (const item of CHROME_KIT_DOCK_ITEMS) {
+      if (isPdpDockFaceKind(item.kind)) continue
+      takeDock(item.kind, true)
+    }
   }
   const dockRowHidden = (item: ChromeKitListItem) => {
     if (isPdpDockCtaLocked(item.kind)) return false
     if (item.hidden) return true
-    if (!isProductPage) return false
+    if (!isProductPage) return item.dockShow === 'pdp'
     return item.dockShow !== 'pdp' && item.dockShow !== 'both'
   }
   const shift = clampChromeKitShift(headX)
@@ -1186,38 +1207,7 @@ function ChromeKitPanel({
           </span>
         </label>
       </div>
-      <label className="flex flex-col gap-1 px-1 text-[10px] text-muted-foreground">
-        <span className="flex items-center justify-between gap-2">
-          <span>{t.visualEditChromeKitFloatSize}</span>
-          <span className="inline-flex items-center gap-1">
-            <input
-              type="number"
-              min={PW_FLOAT_SIZE_MIN}
-              max={PW_FLOAT_SIZE_MAX}
-              step={1}
-              value={clampChromeFloatSize(floatSize)}
-              disabled={busy}
-              onChange={(e) => {
-                if (e.target.value === '') return
-                onSetFloatSize(clampChromeFloatSize(e.target.value))
-              }}
-              className="h-6 w-14 rounded border bg-background px-1 text-right text-[11px] text-foreground"
-            />
-            <span>px</span>
-          </span>
-        </span>
-        <input
-          type="range"
-          min={PW_FLOAT_SIZE_MIN}
-          max={PW_FLOAT_SIZE_MAX}
-          step={1}
-          value={clampChromeFloatSize(floatSize)}
-          disabled={busy}
-          onChange={(e) => onSetFloatSize(clampChromeFloatSize(e.target.value))}
-          className="w-full accent-foreground"
-        />
-        <span className="leading-4">{t.visualEditChromeKitFloatSizeHint}</span>
-      </label>
+      <p className="px-1 text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitFloatSizeHint}</p>
       {floatRows.map((item) => (
         <ChromeKitRow
           key={`f-${item.kind}`}
@@ -1226,6 +1216,9 @@ function ChromeKitPanel({
           busy={busy}
           hideLabel={t.visualEditBlockHide}
           showLabel={t.visualEditBlockShow}
+          size={clampChromeFloatSize(item.size ?? PW_FLOAT_SIZE_DEFAULT)}
+          sizeLabel={t.visualEditChromeKitFloatSize}
+          onSetSize={(size) => onSetFloatItemSize(item.kind, size)}
           onSelect={() => onSelectFloat(item.kind)}
           onToggle={() => onToggleFloat(item.kind, !item.hidden)}
           onUp={() => onReorder(item.kind, 'float', 'up')}
@@ -1365,6 +1358,9 @@ function ChromeKitRow({
   busy,
   hideLabel,
   showLabel,
+  size,
+  sizeLabel,
+  onSetSize,
   onSelect,
   onToggle,
   onUp,
@@ -1375,6 +1371,9 @@ function ChromeKitRow({
   busy: boolean
   hideLabel: string
   showLabel: string
+  size?: number
+  sizeLabel?: string
+  onSetSize?: (size: number) => void
   onSelect?: () => void
   onToggle: () => void
   onUp?: () => void
@@ -1394,6 +1393,26 @@ function ChromeKitRow({
       ) : (
         <span className="min-w-0 flex-1 truncate text-[11px]">{label}</span>
       )}
+      {onSetSize != null && size != null ? (
+        <label className="inline-flex shrink-0 items-center gap-0.5 text-[10px] text-muted-foreground" title={sizeLabel}>
+          <input
+            type="number"
+            min={PW_FLOAT_SIZE_MIN}
+            max={PW_FLOAT_SIZE_MAX}
+            step={1}
+            value={clampChromeFloatSize(size)}
+            disabled={busy}
+            aria-label={sizeLabel || label}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              if (e.target.value === '') return
+              onSetSize(clampChromeFloatSize(e.target.value))
+            }}
+            className="h-6 w-12 rounded border bg-background px-1 text-right text-[11px] text-foreground"
+          />
+          <span>px</span>
+        </label>
+      ) : null}
       <button type="button" className="rounded p-0.5" disabled={busy} onClick={onToggle} title={hidden ? showLabel : hideLabel}>
         {hidden ? <EyeOff className="h-3.5 w-3.5 text-muted-foreground" /> : <Eye className="h-3.5 w-3.5" />}
       </button>
@@ -1482,7 +1501,6 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [chromeKitFloatRight, setChromeKitFloatRight] = useState(PW_CHROME_FLOAT_DEFAULT_RIGHT_PX)
   const [chromeKitFloatBottom, setChromeKitFloatBottom] = useState(PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat)
   const [chromeKitFloatGap, setChromeKitFloatGap] = useState(PW_FLOAT_GAP_DEFAULT)
-  const [chromeKitFloatSize, setChromeKitFloatSize] = useState(PW_FLOAT_SIZE_DEFAULT)
   const [chromeKitHeadX, setChromeKitHeadX] = useState(0)
   const [chromeKitHeadGap, setChromeKitHeadGap] = useState(PW_KIT_GAP_DEFAULT)
   const [panelPos, setPanelPos] = useState<{ x: number; y: number } | null>(null)
@@ -2196,7 +2214,6 @@ export function PartnerWebsiteVisualEditorToolbar({
         setChromeKitFloatRight(clampChromeFloatEdge(data.floatRight ?? PW_CHROME_FLOAT_DEFAULT_RIGHT_PX))
         setChromeKitFloatBottom(clampChromeFloatEdge(data.floatBottom ?? PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat))
         setChromeKitFloatGap(clampChromeFloatGap(data.floatGap ?? PW_FLOAT_GAP_DEFAULT))
-        setChromeKitFloatSize(clampChromeFloatSize(data.floatSize ?? PW_FLOAT_SIZE_DEFAULT))
         setChromeKitHeadX(clampChromeKitShift(data.headX))
         setChromeKitHeadGap(clampChromeKitGap(data.headGap ?? PW_KIT_GAP_DEFAULT))
       }
@@ -2795,6 +2812,9 @@ export function PartnerWebsiteVisualEditorToolbar({
           logoZoom: 100,
           isBannerPhoto: false,
           isSlider: false,
+          isProductGrid: false,
+          gridKind: '',
+          gridRows: 1,
           slideWait: PW_SLIDER_WAIT_DEFAULT,
           slideArrows: true,
           slideCount: 0,
@@ -3186,7 +3206,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       onError(t.visualEditSaveFailed)
       return
     }
-    if (!productGridKindAllowedOnVisualPage(kind, pageKey)) return
+    if (!productGridKindShownInAddPicker(kind, pageKey)) return
     if (insertBgPickPlace) cancelInsertBgPickUi()
     setAddBgAskOpen(false)
     setGridRowsPickKind(null)
@@ -3470,8 +3490,6 @@ export function PartnerWebsiteVisualEditorToolbar({
   const chromeLikeKind = chromeFaceKind || editKind === 'search'
   const showInlineChromeTools = false
   const isKitFloat = Boolean(selection?.isChromeFloat) || isChromeFloatKind(selection?.chromeKind)
-  const isHeaderPinLocked = Boolean(selection?.isHeaderPinLocked)
-  const showPinScreen = Boolean(selection?.canPinScreen) && !isKitFloat && !isHeaderPinLocked
   const showStayScroll = Boolean(selection?.canStayScroll) && !isKitFloat
   const showHideEl = Boolean(selection?.canHide)
   const showStickHeader = Boolean(selection?.canStickHeader && !isKitFloat)
@@ -3840,7 +3858,19 @@ export function PartnerWebsiteVisualEditorToolbar({
   }
 
   const blockPanelTitle =
-    selection?.isSlider
+    selection?.isProductGrid
+      ? selection.gridKind === 'recently-viewed'
+        ? t.visualEditAddRecentlyViewedGrid
+        : selection.gridKind === 'recommended'
+          ? t.visualEditAddRecommendedGrid
+          : selection.gridKind === 'featured-categories'
+            ? t.visualEditAddFeaturedCategories
+          : selection.gridKind === 'related'
+            ? t.visualEditAddRelatedGrid
+            : selection.gridKind === 'outfit'
+              ? t.visualEditAddOutfitGrid
+              : t.visualEditAddProductGrid
+      : selection?.isSlider
       ? t.visualEditAddSlider || bannerWidgetLabel('slider', locale)
       : chromeFaceKind
       ? chromeTitle
@@ -3967,8 +3997,13 @@ export function PartnerWebsiteVisualEditorToolbar({
             title={t.visualEditChromeKit}
             aria-expanded={openPanel === 'chromeKit'}
             onClick={() => {
-              setOpenPanel((cur) => (cur === 'chromeKit' ? 'block' : 'chromeKit'))
-              setPanelPos((pos) => pos || defaultFloatingPanelPos())
+              if (openPanel === 'chromeKit') {
+                setOpenPanel('block')
+                setPanelPos(defaultFloatingPanelPos())
+                return
+              }
+              setOpenPanel('chromeKit')
+              setPanelPos(floatingPanelPosLeftOfCanvas(iframeBox))
               postToIframe(iframeRef.current, 'listChromeKit', {})
             }}
           >
@@ -4272,28 +4307,32 @@ export function PartnerWebsiteVisualEditorToolbar({
                     </div>
                     ) : null}
                     {(addAtGap ? VISUAL_EDITOR_PRODUCT_GRID_KINDS : []).filter((kind) =>
-                      productGridKindAllowedOnVisualPage(kind, pageKey)
+                      productGridKindShownInAddPicker(kind, pageKey)
                     ).map((kind) => {
                       const Icon =
                         kind === 'recently-viewed'
                           ? Clock
                           : kind === 'recommended'
                             ? Sparkles
-                            : kind === 'related'
-                              ? Images
-                              : kind === 'outfit'
-                                ? Shirt
-                                : LayoutGrid
+                            : kind === 'featured-categories'
+                              ? Tag
+                              : kind === 'related'
+                                ? Images
+                                : kind === 'outfit'
+                                  ? Shirt
+                                  : LayoutGrid
                       const labelKey =
                         kind === 'catalog'
                           ? 'visualEditAddProductGrid'
                           : kind === 'recently-viewed'
                             ? 'visualEditAddRecentlyViewedGrid'
-                            : kind === 'related'
-                              ? 'visualEditAddRelatedGrid'
-                              : kind === 'outfit'
-                                ? 'visualEditAddOutfitGrid'
-                                : 'visualEditAddRecommendedGrid'
+                            : kind === 'featured-categories'
+                              ? 'visualEditAddFeaturedCategories'
+                              : kind === 'related'
+                                ? 'visualEditAddRelatedGrid'
+                                : kind === 'outfit'
+                                  ? 'visualEditAddOutfitGrid'
+                                  : 'visualEditAddRecommendedGrid'
                       const rowLabels = [
                         t.visualEditGridRow1,
                         t.visualEditGridRow2,
@@ -4431,7 +4470,6 @@ export function PartnerWebsiteVisualEditorToolbar({
                     floatRight={chromeKitFloatRight}
                     floatBottom={chromeKitFloatBottom}
                     floatGap={chromeKitFloatGap}
-                    floatSize={chromeKitFloatSize}
                     headX={chromeKitHeadX}
                     headGap={chromeKitHeadGap}
                     busy={busy}
@@ -4454,9 +4492,11 @@ export function PartnerWebsiteVisualEditorToolbar({
                       postToIframe(iframeRef.current, 'setChromeKitFloatStack', { right, bottom, gap })
                       setDirty(true)
                     }}
-                    onSetFloatSize={(size) => {
-                      setChromeKitFloatSize(size)
-                      postToIframe(iframeRef.current, 'setChromeKitFloatSize', { size })
+                    onSetFloatItemSize={(kind, size) => {
+                      setChromeKitFloat((prev) =>
+                        prev.map((row) => (row.kind === kind ? { ...row, size } : row))
+                      )
+                      postToIframe(iframeRef.current, 'setChromeKitFloatItemSize', { kind, size })
                       setDirty(true)
                     }}
                     onSelectFloat={(kind) => {
@@ -4767,6 +4807,43 @@ export function PartnerWebsiteVisualEditorToolbar({
               >
                 {t.visualEditLayerImage}
               </Button>
+            </div>
+          ) : null}
+          {selection?.isProductGrid ? (
+            <div className="flex w-full min-w-[12rem] flex-col gap-1.5 rounded-md border bg-background px-2 py-1.5">
+              <p className="text-[11px] font-semibold leading-4">
+                {t.visualEditGridRowsLabel || t.visualEditGridRowsAsk}
+              </p>
+              <div className="grid grid-cols-4 gap-1">
+                {([1, 2, 3, 4] as const).map((rows) => (
+                  <button
+                    key={rows}
+                    type="button"
+                    className={cn(
+                      'rounded border px-1 py-1.5 text-[11px] font-medium leading-4',
+                      selection.gridRows === rows
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'hover:bg-muted'
+                    )}
+                    disabled={busy}
+                    onClick={() => {
+                      postToIframe(iframeRef.current, 'setGridRows', {
+                        rows: clampProductGridRows(rows),
+                      })
+                      setDirty(true)
+                    }}
+                  >
+                    {rows === 1
+                      ? t.visualEditGridRow1
+                      : rows === 2
+                        ? t.visualEditGridRow2
+                        : rows === 3
+                          ? t.visualEditGridRow3
+                          : t.visualEditGridRow4}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditGridRowsHint}</p>
             </div>
           ) : null}
           {selection?.isSlider ? (
@@ -5422,23 +5499,6 @@ export function PartnerWebsiteVisualEditorToolbar({
               <p className="text-[11px] font-semibold leading-4">{t.visualEditChromeKitPdp}</p>
               <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitPdpCtaLocked}</p>
             </div>
-          ) : null}
-          {showPinScreen && selection ? (
-            <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-background px-2 py-1.5">
-              <Switch
-                className="mt-0.5 shrink-0 data-[state=checked]:bg-primary"
-                checked={selection.pinScreen}
-                disabled={busy}
-                onCheckedChange={(on) => {
-                  postToIframe(iframeRef.current, 'setPinScreen', { on })
-                  setDirty(true)
-                }}
-              />
-              <span className="min-w-0">
-                <span className="block text-[11px] font-semibold leading-4">{t.visualEditPinScreen}</span>
-                <span className="block text-[10px] leading-4 text-muted-foreground">{t.visualEditPinScreenHint}</span>
-              </span>
-            </label>
           ) : null}
           {showHideEl && selection && !showBlockTools ? (
             <Button

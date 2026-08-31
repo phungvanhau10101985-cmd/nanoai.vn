@@ -1245,9 +1245,31 @@ export function bindLiveProductToPdpHtml(
     return `${stampRelatedOpenTag(open, product, siteSlug)}${rewriteCatalogRelatedInner(inner, product, locale, siteSlug)}`
   })
   out = ensureMissingPdpSlots(out, product, locale, siteSlug)
+  out = stampTryOnContextInHtml(out, product)
   return applyPdpFavoriteLikeCounts(
     out,
     Math.max(0, Math.round(Number(product.likesCount ?? 0) || 0)),
     locale
+  )
+}
+
+function stampTryOnContextInHtml(html: string, product: LivePdpBindProduct): string {
+  const images = productImages(product).filter((url) => !looksLikeVideoUrl(url))
+  const primary = images[0] || ''
+  const secondary = images[1] || ''
+  const sku = String(product.sku || '').trim()
+  const id = String(product.id || '').trim()
+  if (!primary && !id) return html
+  return html.replace(
+    /<(button|a)\b([^>]*\b(?:data-nanoai-try-on|data-pw-chrome-btn=["']try-on["'])[^>]*)>/gi,
+    (_full, tag: string, attrs: string) => {
+      let next = attrs
+      if (primary) next = setAttr(next, 'data-nanoai-image', primary)
+      if (secondary) next = setAttr(next, 'data-nanoai-image-2', secondary)
+      if (sku) next = setAttr(next, 'data-nanoai-sku', sku)
+      if (id) next = setAttr(next, 'data-nanoai-inventory', id)
+      if (!/\bdata-nanoai-try-on\b/i.test(next)) next += ' data-nanoai-try-on'
+      return `<${tag}${next}>`
+    }
   )
 }

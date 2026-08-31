@@ -289,6 +289,23 @@ test('visual serializer keeps banner and categories in document flow', () => {
   assert.ok(bodyOrder.indexOf('id="cats"') < bodyOrder.indexOf('id="banner"'))
 })
 
+test('visual serializer strips editor-only product-grid row preview hide', () => {
+  const doc = parseForSerializer(`<!doctype html>
+    <html data-pw-edit-device="mobile"><body>
+      <main>
+        <section data-pw-personalize="recently-viewed" data-pw-grid-rows="1">
+          <div data-pw-grid>
+            <article data-pw-el="card">A</article>
+            <article data-pw-el="card" data-pw-grid-preview-hide="1">B</article>
+          </div>
+        </section>
+      </main>
+    </body></html>`)
+  const saved = serializeVisualEditorHtml(doc, 'mobile')
+  assert.match(saved, /data-pw-grid-rows="1"/)
+  assert.doesNotMatch(saved, /data-pw-grid-preview-hide/)
+})
+
 test('visual serializer keeps a floating overlay on the scene root with its scene layer', () => {
   const doc = parseForSerializer(`<!doctype html>
     <html data-pw-edit-device="desktop" data-pw-coordinate-version="4"><body>

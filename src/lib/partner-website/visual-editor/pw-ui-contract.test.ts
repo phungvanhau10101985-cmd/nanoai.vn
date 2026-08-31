@@ -172,6 +172,8 @@ describe('pw ui contract', () => {
     expect(regionAllowsEl(PW_REGION.banner, PW_EL.title)).toBe(true)
     expect(regionAllowsEl(PW_REGION.banner, PW_EL.cardPrice)).toBe(false)
     expect(regionAllowsEl(PW_REGION.catalog, PW_EL.cardBuy)).toBe(true)
+    expect(regionAllowsEl(PW_REGION.categories, PW_EL.grid)).toBe(true)
+    expect(regionAllowsEl(PW_REGION.categories, PW_EL.sectionMore)).toBe(true)
     expect(regionAllowsEl(PW_REGION.header, PW_EL.logo)).toBe(true)
     expect(regionAllowsEl(PW_REGION.content, PW_EL.heading)).toBe(true)
     expect(regionAllowsEl(PW_REGION.content, PW_EL.faqItem)).toBe(true)

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Maximize2, MessageCircle, X } from 'lucide-react'
+import { Maximize2, MessageCircle, Package, ShoppingCart, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
 import { WEB_LOCALES, type WebLocale } from '@/lib/i18n/config'
@@ -9,6 +9,7 @@ import {
   NANOAI_WIDGET_MSG_SOURCE,
   isAllowedHttpNavigationUrl,
   isNavigateTopFromIframe,
+  parseWidgetPageContextFromChatUrl,
 } from '@/lib/messaging/widget-parent-bridge'
 import { readReturnChatIframeHref, writeReturnChatIframeHref } from '@/lib/messaging/widget-embed-session'
 
@@ -102,6 +103,9 @@ type Props = {
   openFullPageLabel: string
   /** `aria-label` cho ô chọn ngôn ngữ. */
   languageSelectAriaLabel: string
+  /** Header giống `nanoai-chat-widget.js` trên web khách 188. */
+  ordersLabel?: string
+  cartLabel?: string
   /** Parent-controlled open (partner site embed parity). */
   externalOpenRequest?: { seq: number; iframeSrc?: string }
   /** Override URL when opening from launcher bubble (e.g. product detail page context). */
@@ -121,6 +125,8 @@ export function FloatingChatWidget({
   closeLabel,
   openFullPageLabel,
   languageSelectAriaLabel,
+  ordersLabel = 'Đơn hàng',
+  cartLabel = 'Giỏ hàng',
   externalOpenRequest,
   resolveOpenUrl,
   hideLauncher = false,
@@ -133,9 +139,17 @@ export function FloatingChatWidget({
   const [uiLocale, setUiLocale] = useState<WebLocale>(() => parseUiLocaleFromChatUrl(chatUrl))
   const [iframeSrc, setIframeSrc] = useState(() => appendStoredGuestIdentity(readReturnChatIframeHref() ?? chatUrl))
   const [loyaltyTierLabel, setLoyaltyTierLabel] = useState('')
+  const [cartCount, setCartCount] = useState(0)
   // Keep NanoAI widget above common social/contact bubbles (e.g. Zalo).
-  const anchorClass = 'bottom-[10.5rem] right-3 md:bottom-6 md:right-4'
+  const launcherAnchorClass = 'bottom-[10.5rem] right-3 md:bottom-6 md:right-4'
   const topLayerClass = 'z-[2147483000]'
+  /** Khớp `nanoai-chat-widget.js`: mobile full-screen 100dvh; desktop góc 340×560. */
+  const openPanelClass = [
+    topLayerClass,
+    'fixed flex flex-col overflow-hidden bg-background shadow-2xl',
+    'inset-0 h-[100dvh] w-screen rounded-none border-0',
+    'md:inset-auto md:bottom-3 md:right-4 md:h-[min(560px,calc(100dvh-24px))] md:w-[min(34vw,340px)] md:rounded-xl md:border md:border-border/60',
+  ].join(' ')
 
   const fullPageUrl = useMemo(() => {
     try {
@@ -170,6 +184,32 @@ export function FloatingChatWidget({
     const all = document.querySelectorAll('[data-nanoai-widget-root]')
     if (all.length > 1 && all[0] !== rootRef.current) setDuplicateMount(true)
   }, [])
+
+  useEffect(() => {
+    if (closed) return
+    const prev = document.body.style.overflow
+    const lock = () => {
+      if (window.innerWidth <= 768) document.body.style.overflow = 'hidden'
+      else document.body.style.overflow = prev
+    }
+    lock()
+    window.addEventListener('resize', lock)
+    return () => {
+      window.removeEventListener('resize', lock)
+      document.body.style.overflow = prev
+    }
+  }, [closed])
+
+  const postPageContextToIframe = useCallback(() => {
+    const win = iframeRef.current?.contentWindow
+    if (!win) return
+    const ctx = parseWidgetPageContextFromChatUrl(iframeSrc, window.location.href)
+    try {
+      win.postMessage({ source: NANOAI_WIDGET_MSG_SOURCE, type: 'SET_PAGE_CONTEXT', ...ctx }, '*')
+    } catch {
+      /* ignore */
+    }
+  }, [iframeSrc])
 
   const applyLocaleToIframe = useCallback(
     (next: WebLocale) => {
@@ -217,6 +257,9 @@ export function FloatingChatWidget({
       if (type === 'GUEST_IDENTITY') {
         storeGuestIdentity(data)
         if (iframeRef.current?.src) writeReturnChatIframeHref(iframeRef.current.src)
+      } else if (type === 'CART_COUNT') {
+        const n = Number((data as { count?: unknown }).count)
+        setCartCount(Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0)
       } else if (type === 'LOYALTY_STATUS') {
         const status = (data as { status?: WidgetLoyaltyStatus }).status
         if (!status || status.enabled === false) {
@@ -229,6 +272,16 @@ export function FloatingChatWidget({
     }
     window.addEventListener('message', onMsg)
     return () => window.removeEventListener('message', onMsg)
+  }, [])
+
+  const postToIframe = useCallback((type: 'OPEN_MY_ORDERS' | 'OPEN_CART') => {
+    const win = iframeRef.current?.contentWindow
+    if (!win) return
+    try {
+      win.postMessage({ source: NANOAI_WIDGET_MSG_SOURCE, type }, '*')
+    } catch {
+      /* ignore */
+    }
   }, [])
 
   const openPanelWithSavedChat = useCallback(() => {
@@ -255,7 +308,7 @@ export function FloatingChatWidget({
         <div ref={rootRef} data-nanoai-widget-root className="contents">
           <button
           type="button"
-          className={`fixed ${anchorClass} ${topLayerClass} h-14 w-14 cursor-pointer overflow-hidden rounded-full border-0 bg-transparent p-0 shadow-lg transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
+          className={`fixed ${launcherAnchorClass} ${topLayerClass} h-14 w-14 cursor-pointer overflow-hidden rounded-full border-0 bg-transparent p-0 shadow-lg transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
           onClick={openPanelWithSavedChat}
           title={openLabel}
           aria-label={openLabel}
@@ -274,7 +327,7 @@ export function FloatingChatWidget({
       <div ref={rootRef} data-nanoai-widget-root className="contents">
         <button
         type="button"
-        className={`fixed ${anchorClass} ${topLayerClass} flex h-14 w-14 cursor-pointer items-center justify-center rounded-full border border-border/40 bg-background/95 p-0 shadow-lg transition hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
+        className={`fixed ${launcherAnchorClass} ${topLayerClass} flex h-14 w-14 cursor-pointer items-center justify-center rounded-full border border-border/40 bg-background/95 p-0 shadow-lg transition hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
         onClick={openPanelWithSavedChat}
         title={openLabel}
         aria-label={openLabel}
@@ -289,7 +342,8 @@ export function FloatingChatWidget({
     <div
       ref={rootRef}
       data-nanoai-widget-root
-      className={`fixed ${anchorClass} ${topLayerClass} flex h-[min(70vh,560px)] w-[min(92vw,380px)] flex-col overflow-hidden rounded-xl border border-border/60 bg-background/95 shadow-2xl backdrop-blur-sm`}
+      data-pw-chat-panel="1"
+      className={openPanelClass}
     >
       <div
         className="flex shrink-0 flex-nowrap items-center gap-1 overflow-hidden border-b border-border/60 bg-muted/40 px-2 py-1 touch-manipulation"
@@ -316,9 +370,36 @@ export function FloatingChatWidget({
           </select>
           <Button
             type="button"
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 shrink-0 border-violet-300/80 bg-violet-50/90 text-violet-950 hover:bg-violet-100/90 dark:border-violet-700 dark:bg-violet-950/45 dark:text-violet-50 dark:hover:bg-violet-900/55"
+            onClick={() => postToIframe('OPEN_MY_ORDERS')}
+            title={ordersLabel}
+            aria-label={ordersLabel}
+          >
+            <Package className="h-3.5 w-3.5" aria-hidden />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="relative h-8 w-8 shrink-0"
+            onClick={() => postToIframe('OPEN_CART')}
+            title={cartLabel}
+            aria-label={`${cartLabel} (${cartCount})`}
+          >
+            <ShoppingCart className="h-3.5 w-3.5" aria-hidden />
+            {cartCount > 0 ? (
+              <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[9px] font-bold leading-none text-white">
+                {cartCount > 99 ? '99+' : cartCount}
+              </span>
+            ) : null}
+          </Button>
+          <Button
+            type="button"
             variant="ghost"
             size="icon"
-            className="h-8 w-8 shrink-0 rounded-full"
+            className="hidden h-8 w-8 shrink-0 rounded-full md:inline-flex"
             onClick={() => {
               openGuestProductDetailUrl(fullPageUrl)
             }}
@@ -343,7 +424,7 @@ export function FloatingChatWidget({
           </Button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden rounded-b-xl">
+      <div className="min-h-0 flex-1 overflow-hidden md:rounded-b-xl">
         <iframe
           key={externalOpenRequest?.seq ? `pw-chat-${externalOpenRequest.seq}` : 'pw-chat-default'}
           ref={iframeRef}
@@ -352,6 +433,7 @@ export function FloatingChatWidget({
           loading={loading}
           referrerPolicy={referrerPolicy}
           className="h-full w-full border-0"
+          onLoad={postPageContextToIframe}
         />
       </div>
     </div>

@@ -80,11 +80,28 @@ const PW_HEAD_PDP_LEFTOVER_SELS = [
   'main > .pw-shop-btn[data-pw-chrome-btn="favorite-product"]',
   'main > .pw-shop-btn[data-pw-chrome-btn="add-cart"]',
   'main > .pw-shop-btn[data-pw-chrome-btn="buy-now"]',
+  'main > .pw-topbar-inner',
+  'main > .pw-shop-topbar-inner',
+  '.pw-shop-main > .pw-topbar-inner',
+  '.pw-shop-main > .pw-shop-topbar-inner',
+  '[data-pw-scene-root] > .pw-topbar-inner',
+  '[data-pw-scene-root] > .pw-shop-topbar-inner',
+  'main > [data-pw-chrome-btn="favorites-link"]',
+  '.pw-shop-main > [data-pw-chrome-btn="favorites-link"]',
+  '[data-pw-scene-root] > [data-pw-chrome-btn="favorites-link"]',
+  '[data-pw-chrome-btn="favorites-link"][data-pw-chrome-added]',
+  '[data-pw-chrome-btn="favorites-link"][data-pw-user-move]',
+  '[data-pw-chrome-btn="favorites-link"][data-pw-device]',
 ]
 
 function prefixHeadPdpLeftover(host: string): string {
   return PW_HEAD_PDP_LEFTOVER_SELS.map((sel) => `${host} ${sel}`).join(',')
 }
+
+/** Yêu thích / topbar-inner thoát lên `main` — ẩn mọi máy (engine còn xóa DOM). */
+export const PW_ESCAPED_HEAD_CHROME_HIDE_CSS = `
+main > .pw-topbar-inner,main > .pw-shop-topbar-inner,.pw-shop-main > .pw-topbar-inner,.pw-shop-main > .pw-shop-topbar-inner,[data-pw-scene-root] > .pw-topbar-inner,[data-pw-scene-root] > .pw-shop-topbar-inner,main > [data-pw-chrome-btn="favorites-link"],.pw-shop-main > [data-pw-chrome-btn="favorites-link"],[data-pw-scene-root] > [data-pw-chrome-btn="favorites-link"],[data-pw-chrome-btn="favorites-link"][data-pw-chrome-added],[data-pw-chrome-btn="favorites-link"][data-pw-user-move],[data-pw-chrome-btn="favorites-link"][data-pw-placement="scene-absolute"],[data-pw-chrome-btn="favorites-link"][data-pw-device]{display:none!important;pointer-events:none!important}
+`.trim()
 
 /** Leftover Thích / Thử đồ / CTA PDP không được ngồi trên head — chỉ thanh đáy / buy box. */
 export const PW_MOBILE_HEADER_PDP_LEFTOVER_HIDE_CSS = `

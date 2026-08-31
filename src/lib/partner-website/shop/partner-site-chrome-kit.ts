@@ -369,6 +369,31 @@ function buildDockPdpFaceHtml(input: {
     </div>`
 }
 
+function buildChromeKitShopDockItemHtml(
+  item: ChromeKitDockItem,
+  input: {
+    locale: WebLocale
+    siteSlug?: string | null
+    logoUrl?: string | null
+    chatIconLogoUrl?: string | null
+    device?: VisualDeviceVariant | null
+  }
+): string {
+  if (item.kind === 'try-on' || item.kind === 'favorite-product' || isPdpDockCtaLocked(item.kind)) return ''
+  const raw = buildVisualEditorChromeWidgetHtml({
+    kind: item.kind,
+    siteSlug: slugOrShop(input.siteSlug),
+    locale: input.locale,
+    style: 'icon-label-below',
+    place: 'nav',
+    logoUrl: input.logoUrl,
+    chatIconLogoUrl: input.chatIconLogoUrl,
+    iconSize: chromeDockIconSizeForDevice(input.device),
+  })
+  if (!raw) return ''
+  return asKitTag(raw, `${dockShowAttr(item.defaultShow)} ${PW_DOCK_SLOT_ATTR}="${item.slot}"`)
+}
+
 export function buildChromeKitDockHtml(input: {
   locale: WebLocale
   siteSlug?: string | null
@@ -376,25 +401,7 @@ export function buildChromeKitDockHtml(input: {
   chatIconLogoUrl?: string | null
   device?: VisualDeviceVariant | null
 }): string {
-  const slug = slugOrShop(input.siteSlug)
-  const iconSize = chromeDockIconSizeForDevice(input.device)
-  const shopItems = CHROME_KIT_DOCK_ITEMS.filter(
-    (item) => item.kind !== 'try-on' && item.kind !== 'favorite-product' && item.kind !== 'add-cart' && item.kind !== 'buy-now'
-  )
-    .map((item) => {
-      const raw = buildVisualEditorChromeWidgetHtml({
-        kind: item.kind,
-        siteSlug: slug,
-        locale: input.locale,
-        style: 'icon-label-below',
-        place: 'nav',
-        logoUrl: input.logoUrl,
-        chatIconLogoUrl: input.chatIconLogoUrl,
-        iconSize,
-      })
-      if (!raw) return ''
-      return asKitTag(raw, `${dockShowAttr(item.defaultShow)} ${PW_DOCK_SLOT_ATTR}="${item.slot}"`)
-    })
+  const shopItems = CHROME_KIT_DOCK_ITEMS.map((item) => buildChromeKitShopDockItemHtml(item, input))
     .filter(Boolean)
     .join('\n    ')
   return `${shopItems}
@@ -726,6 +733,85 @@ function findNextPdpFaceBlock(
   return hit ? { full: hit.full, start: hit.start } : null
 }
 
+function isInsideStockTopbarHtml(html: string, index: number): boolean {
+  const before = html.slice(0, index)
+  const re = /<(div)\b[^>]*>/gi
+  let last = -1
+  let found: RegExpExecArray | null
+  while ((found = re.exec(before))) {
+    const open = found[0]
+    if (/\b(?:pw-topbar-inner|pw-shop-topbar-inner)\b/.test(open)) continue
+    if (/\b(?:pw-topbar|pw-shop-topbar)\b/.test(open) || /\bdata-pw-region=["']topbar["']/.test(open)) {
+      last = found.index
+    }
+  }
+  if (last < 0) return false
+  const hit = extractBalancedTag(html, 'div', last)
+  if (!hit) return true
+  return index > hit.start && index < hit.start + hit.full.length
+}
+
+function isInsideChromeKitHostHtml(html: string, index: number): boolean {
+  const before = html.slice(0, index)
+  const re = /<(aside|div|nav|header)\b[^>]*\bdata-pw-chrome-kit=["'](?:actions|dock|float)["'][^>]*>/gi
+  let last = -1
+  let found: RegExpExecArray | null
+  while ((found = re.exec(before))) last = found.index
+  if (last < 0) return false
+  const tag = before.slice(last).match(/^<(aside|div|nav|header)\b/i)?.[1]?.toLowerCase()
+  if (!tag) return false
+  const hit = extractBalancedTag(html, tag, last)
+  if (!hit) return true
+  return index < hit.start + hit.full.length
+}
+
+function isEscapedTopbarTextLinkAttrs(attrs: string): boolean {
+  if (/\bdata-pw-chrome-kit=["'](?:actions|dock|float)["']/i.test(attrs)) return false
+  const textFace = /\bdata-pw-chrome-style=["']text["']/i.test(attrs) || !/\bdata-pw-chrome-style=/.test(attrs)
+  if (!textFace) return false
+  return (
+    /\bdata-pw-chrome-added=/.test(attrs) ||
+    /\bdata-pw-user-move=/.test(attrs) ||
+    /\bdata-pw-placement=["']scene-absolute["']/i.test(attrs) ||
+    /\bdata-pw-device=/.test(attrs)
+  )
+}
+
+function shouldStripEscapedHeadLink(html: string, index: number, attrs: string, kind: string): boolean {
+  if (isInsideStockTopbarHtml(html, index) || isInsideChromeKitHostHtml(html, index)) return false
+  if (kind === 'favorites-link') return true
+  return isEscapedTopbarTextLinkAttrs(attrs)
+}
+
+/** Topbar / Yêu thích bị kéo lên `main` — leftover máy khác, xóa sạch. */
+export function stripEscapedHeadChromeLeftoversInHtml(html: string): string {
+  if (!html.trim()) return html
+  let next = html.replace(
+    /<(a|button)\b([^>]*\bdata-pw-chrome-btn=["'](favorites-link|login|contact)["'][^>]*)>([\s\S]*?)<\/\1>/gi,
+    (full, _tag: string, attrs: string, kind: string, _inner: string, offset: number) =>
+      shouldStripEscapedHeadLink(html, offset, attrs, kind) ? '' : full
+  )
+  let from = 0
+  for (let guard = 0; guard < 24; guard += 1) {
+    const re = /<(div)\b[^>]*\b(?:pw-topbar-inner|pw-shop-topbar-inner)\b[^>]*>/gi
+    re.lastIndex = from
+    const found = re.exec(next)
+    if (!found || found.index == null) break
+    if (isInsideStockTopbarHtml(next, found.index)) {
+      from = found.index + found[0].length
+      continue
+    }
+    const hit = extractBalancedTag(next, 'div', found.index)
+    if (!hit) {
+      from = found.index + found[0].length
+      continue
+    }
+    next = `${next.slice(0, hit.start)}${next.slice(hit.start + hit.full.length)}`
+    from = hit.start
+  }
+  return next
+}
+
 /** Leftover 188 face after footer — not the kit dock children. */
 function stripLeftoverPdpFaceOutsideDock(html: string): string {
   if (!new RegExp(`${PW_CHROME_KIT_ATTR}=["']dock["']`, 'i').test(html)) return html
@@ -755,6 +841,22 @@ function stripLeftoverPdpFaceOutsideDock(html: string): string {
 function htmlHasChromeKind(html: string, kind: string): boolean {
   const re = new RegExp(`data-pw-chrome-btn=["']${kind}["']`, 'i')
   return re.test(html)
+}
+
+function chromeOpenTagsOfKind(html: string, kind: string): string[] {
+  const re = new RegExp(`<(?:a|button)\\b[^>]*\\bdata-pw-chrome-btn=["']${kind}["'][^>]*>`, 'gi')
+  return html.match(re) || []
+}
+
+function isPdpOnlyDockOpenTag(tag: string): boolean {
+  if (new RegExp(`\\b${PW_PDP_HOME_ATTR}=`, 'i').test(tag)) return true
+  if (new RegExp(`\\b${PW_PDP_NAV_ATTR}=`, 'i').test(tag)) return true
+  return new RegExp(`\\b${PW_DOCK_SHOW_ATTR}=["']pdp["']`, 'i').test(tag)
+}
+
+/** Trang chủ shop — Home trong mặt PDP (`data-pw-pdp-home` / dock-show=pdp) không tính. */
+function htmlHasShopDockKind(html: string, kind: string): boolean {
+  return chromeOpenTagsOfKind(html, kind).some((tag) => !isPdpOnlyDockOpenTag(tag))
 }
 
 function stampExistingKitAttrs(inner: string, bar: 'head' | 'dock' | 'float'): string {
@@ -854,7 +956,7 @@ function floatHostSizeFromAttrs(openAttrs: string): number {
 }
 
 function stampFloatKitFaceAndSize(inner: string, size: number, migrateCircle: boolean): string {
-  const n = clampChromeFloatSize(size)
+  const fallback = clampChromeFloatSize(size)
   return inner.replace(/<(a|button)(\s[^>]*?)>/gi, (full, tag: string, attrs: string) => {
     const kind = attrs.match(/\bdata-pw-chrome-btn=["']([^"']+)["']/i)?.[1] || ''
     if (!FLOAT_KIND_SET.has(kind as PwChromeFloatKind)) return full
@@ -884,11 +986,9 @@ function stampFloatKitFaceAndSize(inner: string, size: number, migrateCircle: bo
         next += ' class="pw-chrome-icon-only pw-chrome-icon-circle"'
       }
     }
-    if (/\bdata-pw-chrome-size=/i.test(next)) {
-      next = next.replace(/\sdata-pw-chrome-size=(["'])[^"']*\1/gi, ` data-pw-chrome-size="${n}"`)
-    } else {
-      next += ` data-pw-chrome-size="${n}"`
-    }
+    const existing = next.match(/\bdata-pw-chrome-size=["'](\d+)["']/i)?.[1]
+    const n = existing ? clampChromeFloatSize(existing) : fallback
+    if (!existing) next += ` data-pw-chrome-size="${n}"`
     next = next.replace(/\sdata-pw-chrome-w=(["'])[^"']*\1/gi, '').replace(/\sdata-pw-chrome-h=(["'])[^"']*\1/gi, '')
     const styleMatch = next.match(/\sstyle=(["'])([\s\S]*?)\1/i)
     const quote = styleMatch?.[1] || '"'
@@ -1100,6 +1200,13 @@ export function ensurePdpDockFaceInInner(
         return `<${tag}${shopHomeAttrs(attrs)}>`
       }
     )
+    if (!htmlHasShopDockKind(next, 'home')) {
+      const shopHome = buildChromeKitShopDockItemHtml(
+        { kind: 'home', slot: 'icon', defaultShow: 'shop' },
+        { locale, siteSlug }
+      )
+      if (shopHome) next = `${shopHome}\n    ${next}`
+    }
     return next
   }
 
@@ -1162,6 +1269,13 @@ export function ensurePdpDockFaceInInner(
     extras,
     ctas: { addCart: pdpAdd || undefined, buyNow: pdpBuy || undefined },
   })
+  if (!shop.some((block) => chromeBtnKindOf(block) === 'home')) {
+    const shopHome = buildChromeKitShopDockItemHtml(
+      { kind: 'home', slot: 'icon', defaultShow: 'shop' },
+      { locale, siteSlug }
+    )
+    if (shopHome) shop.unshift(shopHome)
+  }
   return `${shop.join('\n    ')}${leftover ? `\n    ${leftover}` : ''}\n    ${face}`
 }
 
@@ -1215,24 +1329,23 @@ export function ensurePartnerSiteChromeKitInHtml(
       if (item.kind === 'try-on' || item.kind === 'favorite-product' || isPdpDockCtaLocked(item.kind)) {
         return false
       }
-      return !htmlHasChromeKind(nextInner, item.kind)
+      return !htmlHasShopDockKind(nextInner, item.kind)
     })
     if (missing.length) {
-      const extra = buildChromeKitDockHtml({
-        locale,
-        siteSlug: input.siteSlug,
-        logoUrl: input.logoUrl,
-        chatIconLogoUrl: input.chatIconLogoUrl,
-        device: input.device,
-      })
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => {
-          const kind = line.match(/data-pw-chrome-btn=["']([^"']+)["']/)?.[1]
-          return kind && missing.some((item) => item.kind === kind)
-        })
-        .join('\n    ')
-      if (extra) nextInner = `${nextInner.trim()}\n    ${extra}\n  `
+      const extras = missing
+        .map((item) =>
+          buildChromeKitShopDockItemHtml(item, {
+            locale,
+            siteSlug: input.siteSlug,
+            logoUrl: input.logoUrl,
+            chatIconLogoUrl: input.chatIconLogoUrl,
+            device: input.device,
+          })
+        )
+        .filter(Boolean)
+      const homeExtra = extras.filter((block) => chromeBtnKindOf(block) === 'home').join('\n    ')
+      const restExtra = extras.filter((block) => chromeBtnKindOf(block) !== 'home').join('\n    ')
+      nextInner = [homeExtra, nextInner.trim(), restExtra].filter(Boolean).join('\n    ')
     }
     nextInner = ensurePdpDockFaceInInner(nextInner, locale, input.siteSlug)
     return `<nav${withHostKitAttr(attrs, 'dock')}>${nextInner}</nav>`
@@ -1268,7 +1381,11 @@ export function ensurePartnerSiteChromeKitInHtml(
     device: input.device,
   })
 
-  return pinMidCanvasTopChromeInHtml(stripLeftoverPdpFaceOutsideDock(hoistViewportDockToBody(out)))
+  return stripAuthorPinScreenInHtml(
+    pinMidCanvasTopChromeInHtml(
+      stripEscapedHeadChromeLeftoversInHtml(stripLeftoverPdpFaceOutsideDock(hoistViewportDockToBody(out)))
+    )
+  )
 }
 
 const FLOAT_KIT_HOST_RE =
@@ -1395,6 +1512,24 @@ function stampMidTopOpenTag(openTag: string): string {
 
 function unwrapAddedChromeSlots(html: string): string {
   return html.replace(/<div\b[^>]*\bdata-pw-added-chrome-slot=["']1["'][^>]*>([\s\S]*?)<\/div>/gi, '$1')
+}
+
+/** Gỡ leftover «Nổi trên màn hình». Thanh nổi kit (`data-pw-chrome-float`) giữ nguyên. */
+export function stripAuthorPinScreenInHtml(html: string): string {
+  if (!html.trim() || !/data-pw-pin-screen=/i.test(html)) return html
+  return html.replace(/<([a-zA-Z][\w:-]*)(\s[^>]*?)>/g, (full, tag: string, attrs: string) => {
+    if (!/\bdata-pw-pin-screen=/i.test(attrs)) return full
+    if (/\bdata-pw-chrome-float=["']1["']/i.test(attrs)) return full
+    if (/\bdata-pw-chrome-kit=["']float["']/i.test(attrs)) return full
+    let next = attrs.replace(/\sdata-pw-pin-screen=(["'])[^"']*\1/gi, '')
+    if (!/\bdata-pw-stay-scroll=["']1["']/i.test(next)) {
+      next = next
+        .replace(/\sdata-pw-placement=(["'])viewport-fixed\1/gi, '')
+        .replace(/\sdata-pw-fixed-[xywh]=(["'])[^"']*\1/gi, '')
+        .replace(/\sdata-pw-fixed-anchor=(["'])[^"']*\1/gi, '')
+    }
+    return `<${tag}${next}>`
+  })
 }
 
 /** Nút giữa trang luôn lớp nổi; giữ tọa độ. File máy nào = máy đó — không ẩn theo viewport. */

@@ -12,6 +12,7 @@ import type { PartnerOutfitSuggestions } from '@/lib/partner-website/shop/pdp-ou
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   clampProductGridRows,
+  productGridActionsHtml,
   PW_GRID_COLS_NARROW,
   PW_GRID_COLS_WIDE,
   productGridPageSize,
@@ -132,6 +133,8 @@ export function buildOutfitProductsSectionHtml(input: {
     )
     .join('')
   const loadMore = t.gridLoadMore || t.loadMore
+  const seeAll = t.gridSeeAllGroups || t.outfitSeeAll
+  const seeAllHref = outfitListingHref({ siteSlug: slug })
   return `<section class="pw-outfit pw-catalog" ${pwRegionAttr(PW_REGION.catalog)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="catalog" ${PW_OUTFIT_ATTR}="1" data-pw-grid-kind="outfit" data-pw-grid-cols="${PW_GRID_COLS_WIDE}" data-pw-grid-cols-mobile="${PW_GRID_COLS_NARROW}" data-pw-grid-rows="${rows}" data-limit="${pageSize}"${added}${
     excludeId ? ` data-exclude="${escapeAttr(excludeId)}"` : ''
   }>
@@ -139,12 +142,15 @@ export function buildOutfitProductsSectionHtml(input: {
   <p class="pw-outfit-subtitle">${escapeHtml(t.outfitSubtitle)}</p>
   <div class="pw-outfit-slots" role="tablist" data-pw-outfit-slots aria-label="${escapeAttr(t.outfitSlotsAria)}">${slotHtml}</div>
   <div class="pw-product-grid pw-outfit-grid" style="margin-top:12px" ${pwElAttr(PW_EL.grid)} data-pw-grid>${cardHtml}</div>
-  <div class="pw-outfit-actions pw-grid-actions" data-pw-grid-actions>
-    <button type="button" class="pw-outfit-more pw-grid-more" data-pw-outfit-more data-pw-grid-more>
-      <span class="pw-outfit-more-icon pw-grid-more-icon" aria-hidden="true">↻</span>
-      ${escapeHtml(loadMore)}
-    </button>
-  </div>
+  ${productGridActionsHtml({
+    loadMoreLabel: loadMore,
+    seeAllLabel: seeAll,
+    seeAllHref,
+    hostClass: 'pw-outfit-actions pw-grid-actions',
+    moreClass: 'pw-outfit-more pw-grid-more',
+    moreAttrs: 'data-pw-outfit-more data-pw-grid-more',
+    allClass: 'pw-outfit-all',
+  })}
   <p class="pw-catalog-empty pw-outfit-empty" hidden>${escapeHtml(t.outfitEmpty)}</p>
 </section>`
 }
