@@ -145,6 +145,8 @@ export type PartnerSiteShopCopy = {
   searchError: string
   searchHistoryAria: string
   searchHistoryRemove: string
+  searchHistoryEmpty: string
+  searchHistoryClearAll: string
   relatedProducts: string
   relatedSeeAll: string
   relatedEmpty: string
@@ -590,6 +592,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchError: 'Không tìm được. Thử lại.',
     searchHistoryAria: 'Lịch sử tìm kiếm',
     searchHistoryRemove: 'Xóa',
+    searchHistoryEmpty: 'Chưa có từ khóa tìm kiếm',
+    searchHistoryClearAll: 'Xóa tất cả lịch sử',
     relatedProducts: 'Sản phẩm tương tự',
     relatedSeeAll: 'Xem tất cả các nhóm',
     relatedEmpty: 'Không có sản phẩm khác cùng danh mục.',
@@ -1024,6 +1028,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchError: 'Search failed. Try again.',
     searchHistoryAria: 'Search history',
     searchHistoryRemove: 'Remove',
+    searchHistoryEmpty: 'No recent searches',
+    searchHistoryClearAll: 'Clear all history',
     relatedProducts: 'Similar products',
     relatedSeeAll: 'See all groups',
     relatedEmpty: 'No other products in this category.',
@@ -1458,6 +1464,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchError: '搜索失败，请重试。',
     searchHistoryAria: '搜索历史',
     searchHistoryRemove: '删除',
+    searchHistoryEmpty: '暂无搜索记录',
+    searchHistoryClearAll: '清除全部历史',
     relatedProducts: '相似商品',
     relatedSeeAll: '查看全部分组',
     relatedEmpty: '该分类暂无其他商品。',
@@ -1892,6 +1900,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchError: '検索に失敗しました。',
     searchHistoryAria: '検索履歴',
     searchHistoryRemove: '削除',
+    searchHistoryEmpty: '検索履歴はまだありません',
+    searchHistoryClearAll: '履歴をすべて削除',
     relatedProducts: '類似商品',
     relatedSeeAll: 'すべてのグループを見る',
     relatedEmpty: 'このカテゴリに他の商品はありません。',
@@ -2326,6 +2336,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchError: '검색에 실패했습니다.',
     searchHistoryAria: '검색 기록',
     searchHistoryRemove: '삭제',
+    searchHistoryEmpty: '최근 검색어가 없습니다',
+    searchHistoryClearAll: '검색 기록 모두 삭제',
     relatedProducts: '유사 상품',
     relatedSeeAll: '모든 그룹 보기',
     relatedEmpty: '이 카테고리에 다른 상품이 없습니다.',

@@ -4642,6 +4642,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
             if (isFinite(raw)) return raw
             return ${PW_FLOAT_SIZE_DEFAULT}
           })(),
+          right: (function () {
+            var raw = parseInt(String(it.el.getAttribute('data-pw-float-item-right') || ''), 10)
+            if (isFinite(raw)) return raw
+            try {
+              var st = pwChromeFloatStackRead()
+              if (st && isFinite(st.right)) return st.right
+            } catch (errRight) {}
+            return ${PW_CHROME_FLOAT_DEFAULT_RIGHT_PX}
+          })(),
           label: String(it.el.getAttribute('aria-label') || it.el.textContent || it.kind).replace(/\s+/g, ' ').trim()
         })
       }
@@ -4754,6 +4763,17 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     listChromeKitState()
     if (selected && isChromeFloatEl(selected)) refreshSelect()
   }
+  function setChromeKitFloatItemRight(kind, right) {
+    var targets = chromeKitFloatBtnsOf(kind)
+    if (!targets.length) return
+    for (var i = 0; i < targets.length; i++) {
+      try { pwChromeFloatApplyItemRight(targets[i], right) } catch (errRight) {}
+    }
+    try { pwChromeFloatApplyStack() } catch (errApply) {}
+    post('dirty', {})
+    listChromeKitState()
+    if (selected && isChromeFloatEl(selected)) refreshSelect()
+  }
   function selectChromeKit(kind, bar) {
     var el = findChromeKitBtn(kind, bar)
     if (!el) return
@@ -4830,19 +4850,48 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       vis = listPdpNavVisible(nav)
     }
   }
+  function isShopDockHomeBtn(el) {
+    if (!el || !el.getAttribute) return false
+    if (el.getAttribute('data-pw-chrome-btn') !== 'home') return false
+    if (isPdpDockFaceBtn(el)) return false
+    if (el.closest && el.closest('.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas')) return false
+    return true
+  }
+  function revealShopDockHomeBtn(el) {
+    if (!el || !el.setAttribute) return el
+    try { el.removeAttribute('data-pw-pdp-home') } catch (errPdpHome) {}
+    try { el.removeAttribute('data-pw-pdp-nav') } catch (errPdpNav) {}
+    try { el.removeAttribute('data-pw-hidden') } catch (errHid) {}
+    el.setAttribute('data-pw-chrome-kit', '1')
+    el.setAttribute('data-pw-dock-show', 'shop')
+    el.setAttribute('data-pw-dock-slot', 'icon')
+    if (el.style) {
+      el.style.removeProperty('display')
+      el.style.removeProperty('visibility')
+      el.style.removeProperty('opacity')
+      el.style.display = ''
+    }
+    return el
+  }
   function ensureShopDockHomeBtn() {
     var dock = chromeKitDockRoot()
     if (!dock) return null
     var existing = findChromeKitBtn('home', 'dock')
     if (existing) return existing
+    var el = null
     var pdp = dock.querySelector('[data-pw-pdp-home="1"],.pw-pdp-sticky-nav [data-pw-chrome-btn="home"]')
-    if (!pdp || !pdp.cloneNode) return null
-    var el = pdp.cloneNode(true)
-    try { el.removeAttribute('data-pw-pdp-home') } catch (errPdpHome) {}
-    try { el.removeAttribute('data-pw-pdp-nav') } catch (errPdpNav) {}
-    try { el.removeAttribute('data-pw-hidden') } catch (errHid) {}
-    el.setAttribute('data-pw-dock-show', 'shop')
-    el.setAttribute('data-pw-dock-slot', 'icon')
+    if (pdp && pdp.cloneNode) {
+      el = revealShopDockHomeBtn(pdp.cloneNode(true))
+    }
+    if (!el) {
+      var html = pdpDockDefaultIconHtml('home')
+      if (html) {
+        var wrap = document.createElement('div')
+        wrap.innerHTML = html
+        el = revealShopDockHomeBtn(wrap.firstElementChild)
+      }
+    }
+    if (!el) return null
     var face = dock.querySelector('.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas')
     try {
       if (face) dock.insertBefore(el, face)
@@ -4879,6 +4928,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (next === 'off') {
       el.setAttribute('data-pw-dock-show', 'shop')
       el.setAttribute('data-pw-hidden', '1')
+    } else if (kind === 'home') {
+      revealShopDockHomeBtn(el)
     } else {
       el.setAttribute('data-pw-dock-show', next)
       el.removeAttribute('data-pw-hidden')
@@ -14421,6 +14472,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { restorePdpBuyBoxActionsFromDock() } catch (errRestoreBuy) {}
     try { ensurePdpDockFaceInDoc() } catch (errFaceDock) {}
     try { restorePdpBuyBoxActionsFromDock() } catch (errRestoreBuy2) {}
+    try { if (!isPdpEditorDoc()) ensureShopDockHomeBtn() } catch (errShopHome) {}
     try { reseatStrayPdpBuyBoxToInline() } catch (errReseatBuy) {}
     try { hideLeftoverPdpBottomBars() } catch (errHidePdpBar) {}
     try { seatLockedHeaderRow() } catch (errSeatRow) {}
@@ -14455,6 +14507,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { syncGapPluses() } catch (eGapAct) {}
     try { pwSliderBoot() } catch (eSliderAct) {}
     try { applyProductGridRowsPreviewAll() } catch (eGridPrev) {}
+    try { listChromeKitStateSoon() } catch (errKitAct) {}
   }
   function deactivate() {
     if (scrollVeRaf && window.cancelAnimationFrame) window.cancelAnimationFrame(scrollVeRaf)
@@ -14655,7 +14708,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var dock = document.querySelector('[data-pw-chrome-kit="dock"]')
     if (!dock) return
     var box = document.querySelector('.pw-pdp-actions-inline') || document.querySelector('.pw-pdp-actions')
-    var kinds = ['home', 'try-on', 'favorite-product', 'add-cart', 'buy-now']
+    var kinds = ['try-on', 'favorite-product', 'add-cart', 'buy-now']
     var k
     for (k = 0; k < kinds.length; k++) {
       var kind = kinds[k]
@@ -14668,6 +14721,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       for (i = 0; i < nodes.length; i++) {
         var el = nodes[i]
         if (el === keep) continue
+        if (isShopDockHomeBtn(el)) continue
         if (isPdpBuyBoxActionEl(el) && box) {
           if (!box.contains(el) && !box.querySelector('[data-pw-chrome-btn="' + kind + '"]')) {
             try { box.appendChild(el) } catch (errBox) {}
@@ -15255,6 +15309,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.type === 'setChromeKitFloatPos') setChromeKitFloatStack(d.right, d.bottom, d.gap)
     if (d.type === 'setChromeKitFloatItemSize') setChromeKitFloatItemSize(d.kind, d.size)
     if (d.type === 'setChromeKitFloatSize' && d.kind) setChromeKitFloatItemSize(d.kind, d.size)
+    if (d.type === 'setChromeKitFloatItemRight') setChromeKitFloatItemRight(d.kind, d.right)
     if (d.type === 'selectChromeKit') selectChromeKit(d.kind, d.bar)
     if (d.type === 'setChromeKitShift') setChromeKitShift(d.bar || 'head', d.x)
     if (d.type === 'setChromeKitGap') setChromeKitGap(d.bar || 'head', d.gap)

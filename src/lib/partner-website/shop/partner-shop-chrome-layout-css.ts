@@ -90,22 +90,20 @@ import {
 
 /** Persistent chrome layout — same rules Sửa nhanh uses, kept on the live shop. */
 export const PARTNER_SHOP_SEARCH_HISTORY_CSS = `
-[data-pw-search-history]{display:flex;flex-wrap:nowrap;align-items:center;justify-content:center;gap:inherit;width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
-[data-pw-search-history]::-webkit-scrollbar{display:none}
+.pw-header-search,.pw-shop-search-wrap,[data-pw-el="search"]{overflow:visible!important}
+.pw-header-search > .pw-search-form,.pw-shop-search-wrap > .pw-shop-search-form,.pw-header-search > [data-pw-search-form]{flex:1 1 auto!important;width:100%!important;min-width:0!important}
+[data-pw-search-history]{position:absolute;left:0;right:0;top:100%;margin-top:4px;z-index:400;display:block;width:100%;min-width:0;max-height:min(320px,70vh);overflow-x:hidden;overflow-y:auto;box-sizing:border-box;background:#fff;color:var(--pw-text,#111);border:1px solid var(--pw-border,#e5e7eb);border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.16)}
 [data-pw-search-history][hidden]{display:none!important}
-.pw-nav-main[data-pw-search-history-on]> :not([data-pw-search-history]),
-.pw-shop-nav-row[data-pw-search-history-on]> :not([data-pw-search-history]){display:none!important}
-[data-pw-search-history-item]{display:inline-flex;align-items:center;gap:2px;flex:0 0 auto}
-[data-pw-search-history-q]{text-decoration:none;font-size:inherit;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#374151;background:none;border:none;cursor:pointer;padding:0;white-space:nowrap}
-[data-pw-search-history-q]:hover{color:var(--pw-primary)!important}
-[data-pw-search-history-x]{border:0;background:transparent;color:var(--pw-muted,#6b7280);cursor:pointer;font-size:14px;line-height:1;padding:0 2px}
-body.nanoai-ve-active [data-pw-search-history],
-body.nanoai-ve-active .pw-nav-main[data-pw-search-history-on]> :not([data-pw-search-history]),
-body.nanoai-ve-active .pw-shop-nav-row[data-pw-search-history-on]> :not([data-pw-search-history]){display:none!important}
-body.nanoai-ve-active .pw-nav-main[data-pw-search-history-on]>a,
-body.nanoai-ve-active .pw-shop-nav-row[data-pw-search-history-on]>a,
-body.nanoai-ve-active .pw-nav-main[data-pw-search-history-on]>.pw-nav-pills-host,
-body.nanoai-ve-active .pw-shop-nav-row[data-pw-search-history-on]>.pw-nav-pills-host{display:flex!important}
+[data-pw-search-history-head]{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid var(--pw-border,#e5e7eb);font:600 12px/1.3 var(--pw-font-ui),system-ui,sans-serif;color:var(--pw-text,#111)}
+[data-pw-search-history-empty]{margin:0;padding:16px 12px;text-align:center;font:12px/1.4 var(--pw-font-ui),system-ui,sans-serif;color:var(--pw-muted,#6b7280)}
+[data-pw-search-history-item]{display:flex;align-items:center;gap:4px;padding:0 4px}
+[data-pw-search-history-q]{flex:1 1 auto;min-width:0;min-height:40px;text-align:left;text-decoration:none;font:14px/1.3 var(--pw-font-ui),system-ui,sans-serif;color:var(--pw-text,#111);background:none;border:none;cursor:pointer;padding:8px 8px;border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+[data-pw-search-history-q]:hover{background:var(--pw-surface,#f3f4f6);color:var(--pw-primary)!important}
+[data-pw-search-history-x]{flex:0 0 auto;width:36px;height:36px;border:0;border-radius:8px;background:transparent;color:var(--pw-muted,#6b7280);cursor:pointer;font-size:18px;line-height:1}
+[data-pw-search-history-x]:hover{background:var(--pw-surface,#f3f4f6);color:var(--pw-text,#111)}
+[data-pw-search-history-clear]{display:block;width:calc(100% - 16px);margin:8px;min-height:36px;border:0;border-radius:8px;background:transparent;color:var(--pw-muted,#6b7280);cursor:pointer;font:600 12px/1.3 var(--pw-font-ui),system-ui,sans-serif}
+[data-pw-search-history-clear]:hover{background:var(--pw-surface,#f3f4f6);color:#b91c1c}
+body.nanoai-ve-active [data-pw-search-history]{display:none!important}
 `.trim()
 
 export const PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID = 'pw-shop-chrome-layout'
@@ -209,7 +207,6 @@ const PW_COMPACT_HEADER_RULES = `
 .pw-header-search[data-pw-search-width],.pw-shop-search-wrap[data-pw-search-width]{flex:1 1 0%!important;width:auto!important;min-width:96px!important;max-width:100%!important}
 .pw-header-actions,.pw-shop-header-actions{flex:0 0 auto!important;display:flex!important;flex-wrap:nowrap!important;width:auto!important;max-width:none!important;margin-left:auto!important;gap:var(--pw-kit-gap, ${PW_HEAD_KIT_GAP.mobile}px)!important}
 .pw-nav-main,.pw-shop-nav-row{display:none!important}
-.pw-nav-main[data-pw-search-history-on],.pw-shop-nav-row[data-pw-search-history-on]{display:flex!important;flex-wrap:nowrap!important;justify-content:flex-start!important;align-items:center!important;overflow-x:auto!important;padding:0 10px 8px!important;gap:10px!important}
 .pw-seo-row:not(:empty):not([hidden]){display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;overflow-y:hidden!important}
 .pw-seo-row:empty,.pw-seo-row[hidden],[data-pw-seo-row]:empty,[data-pw-seo-row][hidden]{display:none!important;height:0!important;min-height:0!important;max-height:0!important;padding:0!important;margin:0!important;overflow:hidden!important;border:0!important}
 .pw-topbar,.pw-shop-topbar{display:none!important}
@@ -709,7 +706,6 @@ ${PW_SCENE_UNLOCKED_HTML} .pw-nav-main>a,${PW_SCENE_UNLOCKED_HTML} .pw-nav-main>
 }
 @media (max-width:899px){
 ${PW_SCENE_UNLOCKED_HTML} .pw-nav-main,${PW_SCENE_UNLOCKED_HTML} .pw-shop-nav-row{display:none!important}
-${PW_SCENE_UNLOCKED_HTML} .pw-nav-main[data-pw-search-history-on],${PW_SCENE_UNLOCKED_HTML} .pw-shop-nav-row[data-pw-search-history-on]{display:flex!important}
 }
 @media (min-width:900px) and (max-width:1439px){
 html:not([data-pw-edit-device="desktop"]):not([data-pw-scene-lock="desktop"]) .pw-nav-main,html:not([data-pw-edit-device="desktop"]):not([data-pw-scene-lock="desktop"]) .pw-shop-nav-row{gap:8px!important;padding-left:var(--pw-chrome-inset,60px)!important;padding-right:var(--pw-chrome-inset,60px)!important}

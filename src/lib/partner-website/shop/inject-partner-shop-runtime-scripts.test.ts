@@ -127,17 +127,18 @@ test('search bootstrap opens an image-search popover like 188 (paste / drop / ch
   assert.match(s, /pwShopLiveUiOff/)
 })
 
-test('search bootstrap paints history chips in the nav row and keeps guest queries in localStorage', () => {
+test('search bootstrap paints history panel under the search box and keeps guest queries in localStorage', () => {
   const s = buildPartnerSiteSearchBootstrapScript({ siteSlug: '188-shop', locale: 'vi' })
   assert.match(s, /HISTORY_API/)
   assert.match(s, /\/api\/site\/188-shop\/search\/history/)
   assert.match(s, /pw-search-history:188-shop/)
   assert.match(s, /data-pw-search-history/)
-  assert.match(s, /\.pw-nav-main,\.pw-shop-nav-row/)
+  assert.match(s, /\.pw-header-search,\.pw-shop-search-wrap/)
+  assert.match(s, /openHistory/)
   assert.match(s, /historyLoggedIn/)
   assert.match(s, /readLocalHistory/)
   assert.match(s, /persistHistory/)
-  assert.match(s, /pw-search-history/)
+  assert.match(s, /Xóa tất cả lịch sử/)
   assert.match(s, /Lịch sử tìm kiếm/)
 })
 

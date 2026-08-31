@@ -1,4 +1,10 @@
+import { cookies } from 'next/headers'
 import type { NextRequest } from 'next/server'
+import {
+  MESSAGING_GUEST_ACCOUNT_COOKIE,
+  MESSAGING_GUEST_ACCOUNT_COOKIE_LEGACY,
+  MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE,
+} from '@/lib/messaging/guest-account-session'
 import {
   fetchPartnerInventoryRowsByIdsInOrderFromPg,
   incrementPartnerInventoryLikesCountFromPg,
@@ -18,6 +24,9 @@ import { fetchGuestAccountEmailByIdPg } from '@/lib/db/messaging-guest-pg'
 import { upsertPartnerCustomerProfileByEmailFromPg } from '@/lib/db/messaging-partner-customer-profiles-pg'
 import {
   createGuestSessionId,
+  MESSAGING_GUEST_SESSION_COOKIE,
+  MESSAGING_GUEST_SESSION_COOKIE_LEGACY,
+  MESSAGING_GUEST_SESSION_SYNC_COOKIE,
   readGuestSessionIdFromRequestStrictOrLoose,
 } from '@/lib/messaging/guest-auth-session'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
@@ -94,6 +103,31 @@ export async function resolveSiteVisitorContext(
     })
   }
   return { accountKey, thread, sessionId }
+}
+
+/** RSC — đọc account key khách đã có, không mint session mới. */
+export async function peekSiteVisitorAccountKey(): Promise<string> {
+  const user = await getEmailSessionUser()
+  const jar = cookies()
+  const pick = (...names: string[]) => {
+    for (const name of names) {
+      const value = jar.get(name)?.value?.trim()
+      if (value) return value
+    }
+    return ''
+  }
+  const guestAccount = pick(
+    MESSAGING_GUEST_ACCOUNT_COOKIE,
+    MESSAGING_GUEST_ACCOUNT_COOKIE_LEGACY,
+    MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE
+  )
+  if (guestAccount) return guestAccount
+  if (user?.id) return user.id
+  return pick(
+    MESSAGING_GUEST_SESSION_COOKIE,
+    MESSAGING_GUEST_SESSION_COOKIE_LEGACY,
+    MESSAGING_GUEST_SESSION_SYNC_COOKIE
+  )
 }
 
 export function parsePersonalizationUtm(raw: unknown): PartnerVisitorUtmContext {

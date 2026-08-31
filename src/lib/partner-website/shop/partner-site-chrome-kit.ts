@@ -471,6 +471,10 @@ export const PARTNER_SHOP_CHROME_KIT_CSS = `
 .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"],.pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{flex-wrap:nowrap!important;align-items:stretch}
 .pw-bottom-nav .pw-pdp-sticky-nav,.pw-shop-bottom-nav .pw-pdp-sticky-nav,.pw-bottom-nav .pw-pdp-sticky-ctas,.pw-shop-bottom-nav .pw-pdp-sticky-ctas,
 .pw-bottom-nav [${PW_DOCK_SHOW_ATTR}="pdp"],.pw-shop-bottom-nav [${PW_DOCK_SHOW_ATTR}="pdp"]{display:none!important}
+html:not([data-pw-page="product"]):not(:has([data-pw-page="product"])) .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > [data-pw-chrome-btn="home"]:not([${PW_PDP_HOME_ATTR}]):not([${PW_HIDDEN_ATTR}="1"]):not([${PW_DOCK_SHOW_ATTR}="pdp"]),
+html:not([data-pw-page="product"]):not(:has([data-pw-page="product"])) .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > [data-pw-chrome-btn="home"]:not([${PW_PDP_HOME_ATTR}]):not([${PW_HIDDEN_ATTR}="1"]):not([${PW_DOCK_SHOW_ATTR}="pdp"]){
+  display:flex!important;flex-direction:column;align-items:center;justify-content:center;flex:1 1 0!important;min-width:0!important
+}
 ${pwProductDockCss(` [${PW_DOCK_SHOW_ATTR}="shop"]`, '{display:none!important}')}
 ${pwProductDockCss(
   `[${PW_CHROME_KIT_ATTR}="dock"] > a:not([${PW_DOCK_SHOW_ATTR}="pdp"]):not([${PW_DOCK_SHOW_ATTR}="both"])`,

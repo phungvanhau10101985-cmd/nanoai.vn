@@ -1051,6 +1051,7 @@ function ChromeKitPanel({
   floatGap,
   onSetFloatStack,
   onSetFloatItemSize,
+  onSetFloatItemRight,
   onSelectFloat,
   onReorder,
   onShiftHead,
@@ -1075,6 +1076,7 @@ function ChromeKitPanel({
   onToggleFloat: (kind: string, hidden: boolean) => void
   onSetFloatStack: (right: number, bottom: number, gap: number) => void
   onSetFloatItemSize: (kind: string, size: number) => void
+  onSetFloatItemRight: (kind: string, right: number) => void
   onSelectFloat: (kind: string) => void
   onReorder: (kind: string, bar: 'head' | 'dock' | 'float', dir: 'up' | 'down') => void
   onShiftHead: (x: number) => void
@@ -1219,6 +1221,9 @@ function ChromeKitPanel({
           size={clampChromeFloatSize(item.size ?? PW_FLOAT_SIZE_DEFAULT)}
           sizeLabel={t.visualEditChromeKitFloatSize}
           onSetSize={(size) => onSetFloatItemSize(item.kind, size)}
+          edgeRight={clampChromeFloatEdge(item.right ?? floatRight)}
+          edgeRightLabel={t.visualEditChromeKitFloatRight}
+          onSetEdgeRight={(right) => onSetFloatItemRight(item.kind, right)}
           onSelect={() => onSelectFloat(item.kind)}
           onToggle={() => onToggleFloat(item.kind, !item.hidden)}
           onUp={() => onReorder(item.kind, 'float', 'up')}
@@ -1361,6 +1366,9 @@ function ChromeKitRow({
   size,
   sizeLabel,
   onSetSize,
+  edgeRight,
+  edgeRightLabel,
+  onSetEdgeRight,
   onSelect,
   onToggle,
   onUp,
@@ -1374,6 +1382,9 @@ function ChromeKitRow({
   size?: number
   sizeLabel?: string
   onSetSize?: (size: number) => void
+  edgeRight?: number
+  edgeRightLabel?: string
+  onSetEdgeRight?: (right: number) => void
   onSelect?: () => void
   onToggle: () => void
   onUp?: () => void
@@ -1393,6 +1404,26 @@ function ChromeKitRow({
       ) : (
         <span className="min-w-0 flex-1 truncate text-[11px]">{label}</span>
       )}
+      {onSetEdgeRight != null && edgeRight != null ? (
+        <label className="inline-flex shrink-0 items-center gap-0.5 text-[10px] text-muted-foreground" title={edgeRightLabel}>
+          <input
+            type="number"
+            min={PW_FLOAT_EDGE_MIN}
+            max={PW_FLOAT_EDGE_MAX}
+            step={1}
+            value={clampChromeFloatEdge(edgeRight)}
+            disabled={busy}
+            aria-label={edgeRightLabel || label}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              if (e.target.value === '') return
+              onSetEdgeRight(clampChromeFloatEdge(e.target.value))
+            }}
+            className="h-6 w-12 rounded border bg-background px-1 text-right text-[11px] text-foreground"
+          />
+          <span>px</span>
+        </label>
+      ) : null}
       {onSetSize != null && size != null ? (
         <label className="inline-flex shrink-0 items-center gap-0.5 text-[10px] text-muted-foreground" title={sizeLabel}>
           <input
@@ -4497,6 +4528,13 @@ export function PartnerWebsiteVisualEditorToolbar({
                         prev.map((row) => (row.kind === kind ? { ...row, size } : row))
                       )
                       postToIframe(iframeRef.current, 'setChromeKitFloatItemSize', { kind, size })
+                      setDirty(true)
+                    }}
+                    onSetFloatItemRight={(kind, right) => {
+                      setChromeKitFloat((prev) =>
+                        prev.map((row) => (row.kind === kind ? { ...row, right } : row))
+                      )
+                      postToIframe(iframeRef.current, 'setChromeKitFloatItemRight', { kind, right })
                       setDirty(true)
                     }}
                     onSelectFloat={(kind) => {

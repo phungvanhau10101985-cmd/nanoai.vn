@@ -20,13 +20,13 @@ test('search history prepends newest query and dedupes case-insensitively', () =
   assert.deepEqual(prependSearchQuery('Giày', ['túi', 'giày', 'áo']), ['Giày', 'túi', 'áo'])
 })
 
-test('search history merges lists newest-first and caps at 12', () => {
-  const first = Array.from({ length: 8 }, (_, i) => `q${i}`)
-  const second = Array.from({ length: 8 }, (_, i) => `p${i}`)
+test('search history merges lists newest-first and caps at 20', () => {
+  const first = Array.from({ length: 12 }, (_, i) => `q${i}`)
+  const second = Array.from({ length: 12 }, (_, i) => `p${i}`)
   const merged = mergeSearchQueries(first, second)
   assert.equal(merged.length, PARTNER_SITE_SEARCH_HISTORY_MAX)
   assert.equal(merged[0], 'q0')
-  assert.equal(merged[8], 'p0')
+  assert.equal(merged[12], 'p0')
 })
 
 test('search history removes one query without touching others', () => {

@@ -1,6 +1,5 @@
 import { fetchNanoaiChatProfileFromPg } from '@/lib/db/profiles-repo'
 import { isPgConfigured } from '@/lib/db/pool'
-import { pgQuery } from '@/lib/db/pg-query'
 import {
   fetchDirectProductCountsByCategoryFromPg,
   fetchPartnerCategoriesFlatFromPg,
@@ -23,7 +22,7 @@ import {
   splitPartnerCategoryNavTree,
 } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
 import { inferApparelGenderFromName } from '@/lib/partner-website/shop/partner-site-home-recommendation-mix'
-import { normalizeShopImageUrl } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { resolveCategoryHubTileImages } from '@/lib/partner-website/shop/category-hub-images'
 import {
   partnerSiteCategoryHubPath,
   partnerSiteCategoryPath,
@@ -275,78 +274,6 @@ async function resolveVisitorGender(input: {
   return { gender: null, source: 'recent_views' }
 }
 
-async function fetchCategorySampleImagesFromPg(
-  partnerId: string
-): Promise<Map<string, string[]>> {
-  const out = new Map<string, string[]>()
-  if (!isPgConfigured()) return out
-  try {
-    const rows = await pgQuery<{ category_id: string; image_url: string }>(
-      `select pic.category_id::text as category_id, coalesce(mpi.image_url, '') as image_url
-       from public.messaging_partner_inventory_categories pic
-       join public.messaging_partner_inventory mpi on mpi.id = pic.inventory_id
-       join public.messaging_partner_categories c on c.id = pic.category_id
-       where c.partner_id = $1::uuid
-         and coalesce(mpi.is_active, true) = true
-         and coalesce(mpi.image_url, '') <> ''
-       order by mpi.sort_order asc, mpi.updated_at desc
-       limit 2500`,
-      [partnerId]
-    )
-    for (const row of rows) {
-      const url = normalizeShopImageUrl(row.image_url)
-      if (!url) continue
-      const id = row.category_id.toLowerCase()
-      const list = out.get(id) ?? []
-      if (list.length >= 8) continue
-      if (list.includes(url)) continue
-      list.push(url)
-      out.set(id, list)
-    }
-  } catch (e) {
-    console.warn('[fetchCategorySampleImagesFromPg]', e)
-  }
-  return out
-}
-
-function assignUniqueImages(
-  picked: FeaturedCategoryCandidate[],
-  imagesByCategory: Map<string, string[]>,
-  descendantIds: Map<string, string[]>
-): FeaturedCategoryCandidate[] {
-  const used = new Set<string>()
-  return picked.map((c) => {
-    const own = normalizeShopImageUrl(c.imageUrl)
-    if (own && !used.has(own)) {
-      used.add(own)
-      return { ...c, imageUrl: own }
-    }
-    const ids = [c.id, ...(descendantIds.get(c.id.toLowerCase()) ?? [])]
-    for (const id of ids) {
-      for (const url of imagesByCategory.get(id.toLowerCase()) ?? []) {
-        if (!url || used.has(url)) continue
-        used.add(url)
-        return { ...c, imageUrl: url }
-      }
-    }
-    return { ...c, imageUrl: own }
-  })
-}
-
-function descendantIdMap(tree: PartnerCategoryTreeNode[]): Map<string, string[]> {
-  const out = new Map<string, string[]>()
-  const walk = (node: PartnerCategoryTreeNode): string[] => {
-    const ids: string[] = []
-    for (const child of node.children ?? []) {
-      ids.push(child.id.toLowerCase())
-      ids.push(...walk(child))
-    }
-    out.set(node.id.toLowerCase(), ids)
-    return ids
-  }
-  for (const root of tree) walk(root)
-  return out
-}
 
 export async function getSiteFeaturedCategoryBlock(input: {
   partnerId: string
@@ -417,15 +344,20 @@ export async function getSiteFeaturedCategoryBlock(input: {
     return { ...empty(), gender, gender_label: featuredCategoryGenderLabel(gender), source }
   }
 
-  const images = await fetchCategorySampleImagesFromPg(input.partnerId)
-  const withImages = assignUniqueImages(picked, images, descendantIdMap(tree))
-  const tiles: FeaturedCategoryTile[] = withImages.map((c) => ({
+  const withImages = await resolveCategoryHubTileImages({
+    partnerId: input.partnerId,
+    accountKey: input.accountKey,
+    tree,
+    tiles: picked.map((c) => ({ id: c.id, imageUrl: c.imageUrl })),
+  })
+  const imageById = new Map(withImages.map((t) => [t.id, t.imageUrl]))
+  const tiles: FeaturedCategoryTile[] = picked.map((c) => ({
     id: c.id,
     name: c.name,
     short_name: shortFeaturedCategoryName(c.name),
     path: c.path,
     href: partnerSiteCategoryPath(input.siteSlug, c.path),
-    image_url: c.imageUrl,
+    image_url: imageById.get(c.id) || c.imageUrl,
     product_count: c.productCount,
     level: c.level,
   }))

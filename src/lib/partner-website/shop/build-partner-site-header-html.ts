@@ -189,6 +189,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
       <button type="button" class="pw-search-image-btn" data-pw-image-search data-pw-search-glyph="camera" aria-label="${escapeAttr(search.image)}" title="${escapeAttr(search.image)}"><span class="pw-chrome-icon-wrap">${searchGlyphSvg('camera')}</span></button>
       <button type="submit" class="pw-search-submit" data-pw-search-glyph="lens">${searchGlyphSvg('lens')}<span class="pw-shop-search-submit-label">${escapeHtml(search.button)}</span></button>
     </form>
+    <div data-pw-search-history data-pw-search-history-panel="1" hidden></div>
   </div>`
 
   const categoryLinks = buildCategoryLinks(productsHref, saleHref, input.locale)
@@ -216,7 +217,6 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   </div>
   <nav class="pw-container pw-seo-row" data-pw-seo-row hidden aria-label=""></nav>
   <nav class="pw-container pw-nav-main" ${pwRegionAttr(PW_REGION.nav)} aria-label="Shop">
-    <div data-pw-search-history hidden></div>
     ${categoryLinks}
   </nav>
 </header>`

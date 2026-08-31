@@ -112,12 +112,14 @@ export function PartnerSiteShopSearchBar({
           <Search className="pw-search-default-glyph" strokeWidth={2} />
         </span>
         <input
+          data-pw-search=""
           type="search"
           name="q"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={t.searchPlaceholder}
           aria-label={t.searchPlaceholder}
+          autoComplete="off"
           disabled={busy}
         />
         <button
@@ -135,6 +137,7 @@ export function PartnerSiteShopSearchBar({
           <span className="pw-shop-search-submit-label">{busy ? t.searchSearching : t.searchButton}</span>
         </button>
       </form>
+      <div data-pw-search-history="" data-pw-search-history-panel="1" hidden />
       <input
         ref={fileRef}
         type="file"

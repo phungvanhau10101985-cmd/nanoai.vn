@@ -24,6 +24,8 @@ export const PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX: Record<PwChromeFloatKind, number
 export const PW_FLOAT_EDGE_MIN = 0
 export const PW_FLOAT_EDGE_MAX = 1600
 export const PW_FLOAT_RIGHT_ATTR = 'data-pw-float-right'
+/** Cách phải của một nút nổi — thắng `data-pw-float-right` trên host. */
+export const PW_FLOAT_ITEM_RIGHT_ATTR = 'data-pw-float-item-right'
 export const PW_FLOAT_BOTTOM_ATTR = 'data-pw-float-bottom'
 export const PW_FLOAT_STACK_BOTTOM_ATTR = 'data-pw-float-stack-bottom'
 export const PW_FLOAT_GAP_ATTR = 'data-pw-float-gap'
@@ -60,6 +62,14 @@ export function chromeFloatItemSizeOf(raw: unknown, fallback: unknown = PW_FLOAT
   const n = Math.round(Number(raw))
   if (!Number.isFinite(n)) return clampChromeFloatSize(fallback)
   return clampChromeFloatSize(n)
+}
+
+/** Cách phải một nút nổi: `data-pw-float-item-right` của chính nút, không lấy host. */
+export function chromeFloatItemRightOf(raw: unknown, fallback: unknown = PW_CHROME_FLOAT_DEFAULT_RIGHT_PX): number {
+  if (raw == null || raw === '') return clampChromeFloatEdge(fallback)
+  const n = Math.round(Number(raw))
+  if (!Number.isFinite(n)) return clampChromeFloatEdge(fallback)
+  return clampChromeFloatEdge(n)
 }
 
 /**
@@ -208,6 +218,16 @@ function pwChromeFloatItemSize(el,fallback){
   var raw=parseInt(String(el&&el.getAttribute?el.getAttribute('data-pw-chrome-size')||'':''),10);
   if(isFinite(raw))return pwChromeFloatClampSize(raw);
   return pwChromeFloatClampSize(fallback==null?${PW_FLOAT_SIZE_DEFAULT}:fallback);
+}
+function pwChromeFloatItemRight(el,fallback){
+  var raw=parseInt(String(el&&el.getAttribute?el.getAttribute('${PW_FLOAT_ITEM_RIGHT_ATTR}')||'':''),10);
+  if(isFinite(raw))return pwChromeFloatClampEdge(raw);
+  return pwChromeFloatClampEdge(fallback==null?${PW_CHROME_FLOAT_DEFAULT_RIGHT_PX}:fallback);
+}
+function pwChromeFloatApplyItemRight(el,right){
+  if(!el||!el.setAttribute)return;
+  right=pwChromeFloatClampEdge(right);
+  el.setAttribute('${PW_FLOAT_ITEM_RIGHT_ATTR}',String(right));
 }
 function pwChromeFloatStackRead(){
   var host=pwChromeFloatKitHost();
@@ -388,7 +408,7 @@ function pwChromeFloatApplyStack(){
       el.removeAttribute('data-pw-user-move');
       continue;
     }
-    pwChromeFloatSeatStackItem(el,st.right,st.bottom+vis*st.gap);
+    pwChromeFloatSeatStackItem(el,pwChromeFloatItemRight(el,st.right),st.bottom+vis*st.gap);
     vis+=1;
     if(ve&&el.getAttribute('data-pw-chrome-btn')==='topup'&&el.classList)el.classList.add('${PW_CHROME_TOPUP_ON_CLASS}');
   }

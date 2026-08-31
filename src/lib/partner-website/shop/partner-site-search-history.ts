@@ -1,4 +1,4 @@
-export const PARTNER_SITE_SEARCH_HISTORY_MAX = 12
+export const PARTNER_SITE_SEARCH_HISTORY_MAX = 20
 export const PARTNER_SITE_SEARCH_HISTORY_QUERY_MAX = 80
 export const PW_SEARCH_HISTORY_EVENT = 'pw-search-history'
 

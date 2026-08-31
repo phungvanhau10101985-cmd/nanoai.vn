@@ -24,6 +24,8 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
+import { resolveCategoryHubTileImages } from '@/lib/partner-website/shop/category-hub-images'
+import { peekSiteVisitorAccountKey } from '@/lib/partner-website/shop/partner-site-personalization'
 import {
   readVisualPreviewDevice,
   type PartnerSiteSearchParams,
@@ -68,9 +70,21 @@ export default async function PartnerSiteCategoryHubPage({ params, searchParams 
   ])
   const tree = buildPartnerCategoryTree(prunePartnerCategoriesMissingAncestors(flat ?? []))
   const rolled = rollupPartnerCategoryProductCounts(tree, counts ?? new Map())
-  const tiles = flattenPartnerCategoryTree(tree)
+  const rawTiles = flattenPartnerCategoryTree(tree)
     .filter((cat) => !isPartnerCategoryNavJunkNode(cat))
     .slice(0, 120)
+  const accountKey = await peekSiteVisitorAccountKey()
+  const images = await resolveCategoryHubTileImages({
+    partnerId: shop.partnerId,
+    accountKey,
+    tree,
+    tiles: rawTiles.map((cat) => ({ id: cat.id, imageUrl: cat.imageUrl })),
+  })
+  const imageById = new Map(images.map((t) => [t.id, t.imageUrl]))
+  const tiles = rawTiles.map((cat) => ({
+    ...cat,
+    imageUrl: imageById.get(cat.id) || cat.imageUrl,
+  }))
 
   return (
     <PartnerSiteShopShell
