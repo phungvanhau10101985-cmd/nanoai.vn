@@ -816,6 +816,28 @@ function reviewCardHtml(review: LivePdpBindReview): string {
   return `<article data-pw-el="${PW_EL.card}"><strong data-pw-el="${PW_EL.cardName}">${escText(review.name)}</strong><span class="pw-pdp-star"> ${stars}</span>${title ? `<p style="font-weight:600;margin:6px 0 2px">${escText(title)}</p>` : ''}<p data-pw-el="${PW_EL.body}">${escText(review.body)}</p>${photoHtml}${replyHtml}${useful}</article>`
 }
 
+function fillPdpReviewQaSamples(html: string, product: LivePdpBindProduct): string {
+  let out = html
+  const review = (product.reviews ?? []).find((r) => String(r.body || '').trim())
+  if (review) {
+    const title = String(review.title || '').trim()
+    const sample = `<p><span class="pw-pdp-rq-name">${escText(review.name)}</span>${title ? `<span class="pw-pdp-rq-title"> ${escText(title)}</span>` : ''}</p><p>${escText(review.body)}</p>`
+    out = out.replace(
+      /(<div\b[^>]*data-pw-rq-review-sample[^>]*>)([\s\S]*?)(<\/div>)/i,
+      `$1${sample}$3`
+    )
+  }
+  const question = (product.questions ?? []).find((q) => String(q.body || '').trim())
+  if (question) {
+    const sample = `<p><span class="pw-pdp-rq-name">${escText(question.asker)}</span></p><p>${escText(question.body)}</p>`
+    out = out.replace(
+      /(<div\b[^>]*data-pw-rq-qa-sample[^>]*>)([\s\S]*?)(<\/div>)/i,
+      `$1${sample}$3`
+    )
+  }
+  return out
+}
+
 function stampOutfitOpenTag(open: string, product: LivePdpBindProduct): string {
   let out = open
   if (!/\bdata-pw-outfit\s*=/.test(out)) out = out.replace(/>$/, ' data-pw-outfit="1">')
@@ -1245,6 +1267,7 @@ export function bindLiveProductToPdpHtml(
     return `${stampRelatedOpenTag(open, product, siteSlug)}${rewriteCatalogRelatedInner(inner, product, locale, siteSlug)}`
   })
   out = ensureMissingPdpSlots(out, product, locale, siteSlug)
+  out = fillPdpReviewQaSamples(out, product)
   out = stampTryOnContextInHtml(out, product)
   return applyPdpFavoriteLikeCounts(
     out,

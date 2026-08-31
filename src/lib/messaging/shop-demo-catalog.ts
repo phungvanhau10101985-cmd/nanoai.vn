@@ -434,6 +434,10 @@ export const SHOP_DEMO_PRODUCTS: ShopDemoProduct[] = [
     detailImageUrls: [
       'https://cdn.188.com.vn/site/manual-products/M260809034359C724D5/20260809/gallery-4-a2-1786249733-13c78ee3fe.jpg',
       'https://cdn.188.com.vn/site/manual-products/M260809034359C724D5/20260809/gallery-5-a1-1786249769-ed1f065f7f.jpg',
+      'https://cdn.188.com.vn/site/manual-products/M260809034359C724D5/20260809/color-2-a2-1786247316-246a377c10.jpg',
+      'https://cdn.188.com.vn/site/manual-products/M260809034359C724D5/20260809/gallery-1-a2-1786247712-b45667f642.jpg',
+      'https://cdn.188.com.vn/site/manual-products/M260809034359C724D5/20260809/gallery-2-a1-1786247762-5d5c08fb8c.jpg',
+      'https://cdn.188.com.vn/site/manual-products/M260809034359C724D5/20260809/material-1-a3-1786251749-b5707ab23f.jpg',
     ],
     materialDetailImageUrl:
       'https://cdn.188.com.vn/site/manual-products/M260809034359C724D5/20260809/material-1-a3-1786251749-b5707ab23f.jpg',

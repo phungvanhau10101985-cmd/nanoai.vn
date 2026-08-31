@@ -129,7 +129,6 @@ export function buildDefaultDemoPdpShellHtml(input?: {
     excludeId: p.id,
   })
   const realUseImgs = realUse
-    .slice(0, 1)
     .map((url) => `<img src="${escapeAttr(url)}" alt="${escapeAttr(name)}" loading="lazy" decoding="async" />`)
     .join('')
   const galleryHero = `<div class="pw-pdp-hero" ${pwRegionAttr(PW_REGION.gallery)} data-pw-bg-role="gallery">

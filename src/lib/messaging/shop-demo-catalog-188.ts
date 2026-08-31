@@ -242,38 +242,54 @@ export function shopDemoProductInfo(
   product: ShopDemoProduct,
   extra: ShopDemoCatalogExtra
 ): Record<string, unknown> {
+  const specifications: Record<string, unknown> = {
+    upper_material: product.material,
+    style: extra.style,
+    occasion: extra.occasion,
+    weight_note_vi: extra.weight,
+    material_vi: product.material,
+    features: extra.features,
+  }
+  if (product.sizes.length) {
+    specifications.thong_so_kich_thuoc_vi = `Size ${product.sizes.join(', ')}`
+  }
+  if (product.kind === 'clothing') {
+    specifications.lining_material = 'Lót mỏng'
+  }
+  if (product.kind === 'shoes') {
+    specifications.outsole_material = product.material
+  }
   return {
     product_info: {
       sku: product.sku,
       name: product.name,
       brand: extra.brand,
       origin: DEMO_ORIGIN,
+      chinese_name: extra.chineseName,
       category: {
         level_1: product.category.parent.name,
         level_2: product.category.child.name,
         level_3: extra.l3.name,
       },
     },
-    specifications: {
-      upper_material: product.material,
-      style: extra.style,
-      occasion: extra.occasion,
-      weight_note_vi: extra.weight,
-      material_vi: product.material,
-    },
+    specifications,
     variants: {
       colors: product.colors.map((c) => c.name),
       sizes: product.sizes,
+      stock: product.stockQty,
     },
     target_audience: {
       gender: extra.gender,
       age_range: extra.ageRange,
       wearing_style: extra.style,
+      tinh_nang_noi_bat: extra.features,
     },
     market_info: {
       main_sales_regions: 'Việt Nam',
       export_ready: true,
       season: extra.season,
+      stock: product.stockQty,
+      lead_time_days: 3,
     },
   }
 }

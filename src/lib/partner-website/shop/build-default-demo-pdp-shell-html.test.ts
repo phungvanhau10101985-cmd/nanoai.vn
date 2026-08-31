@@ -105,7 +105,7 @@ test('default desktop shell does not duplicate the mobile hero gallery', () => {
   const mobile = buildDefaultDemoPdpShellHtml({ locale: 'vi', variant: 'mobile' })
   assert.match(mobile, /pw-pdp-hero/)
   assert.doesNotMatch(mobile, /pw-pdp-gallery-desktop/)
-  assert.match(mobile, /data-pw-pdp-bottom="1"/)
+  assert.match(mobile, /data-pw-chrome-kit="dock"/)
   assert.match(mobile, /data-pw-chrome-btn="try-on"/)
   assert.match(mobile, /data-pw-chrome-btn="favorite-product"/)
   assert.match(mobile, /data-pw-chrome-btn="add-cart"/)

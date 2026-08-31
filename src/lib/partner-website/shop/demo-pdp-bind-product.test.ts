@@ -1,0 +1,63 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import { bindLiveProductToPdpHtml } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
+import { buildDefaultDemoPdpShellHtml } from '@/lib/partner-website/shop/build-default-demo-pdp-shell-html'
+import { DEMO_PDP_BIND_PRODUCT } from '@/lib/partner-website/shop/demo-pdp-bind-product'
+
+test('editor demo PDP sample fills every catalog-188 live field', () => {
+  const p = DEMO_PDP_BIND_PRODUCT
+  assert.equal(p.sku, 'DEMO-PDP-001')
+  assert.match(p.name, /Đầm voan/)
+  assert.ok((p.description || '').length > 80)
+  assert.notEqual(p.description, p.consultNote)
+  assert.equal(p.brandName, '188 Fashion')
+  assert.equal(p.origin, 'Trung Quốc')
+  assert.ok(p.material)
+  assert.ok(p.style)
+  assert.ok(p.occasion)
+  assert.ok(p.weight)
+  assert.ok((p.features || []).length >= 2)
+  assert.ok(p.chineseName)
+  assert.ok(p.colorSummary)
+  assert.equal(p.categoryL1, 'Thời trang Nữ')
+  assert.equal(p.categoryL2, 'Đầm Nữ')
+  assert.equal(p.categoryL3, 'Đầm voan trễ vai Nữ')
+  assert.equal((p.breadcrumb || []).length, 3)
+  assert.ok((p.galleryImages || []).length >= 4)
+  assert.ok((p.galleryImages || []).length <= 4)
+  assert.ok((p.detailImages || []).length >= 4)
+  assert.ok((p.realUseImageUrls || []).length >= 2)
+  assert.ok(p.materialImageUrl)
+  assert.ok(p.sizeGuideImageUrl)
+  assert.ok(p.productVideoUrl && /\.mp4(\?|#|$)/i.test(p.productVideoUrl))
+  assert.equal(p.depositPolicy, true)
+  assert.equal(p.stockQty, 4)
+  assert.ok((p.likesCount || 0) > 0)
+  assert.ok((p.purchasesCount || 0) > 0)
+  assert.ok((p.reviewsCount || 0) > 0)
+  assert.ok((p.questionsCount || 0) > 0)
+  assert.ok((p.ratingScore || 0) >= 4)
+  const info = p.productInfo || {}
+  assert.ok(info.product_info)
+  assert.ok(info.specifications)
+  assert.ok(info.variants)
+  assert.ok(info.target_audience)
+  assert.ok(info.market_info)
+  assert.ok((p.sizes || []).includes('S'))
+  assert.ok((p.colors || []).some((c) => c.name === 'Kem'))
+  assert.ok((p.relatedProducts || []).length >= 3)
+  assert.ok((p.outfitSlots || []).some((s) => s.id === 'shoes' && s.items.length > 0))
+  assert.ok((p.outfitSlots || []).some((s) => s.id === 'bag' && s.items.length > 0))
+  assert.match(p.outfitTitle || '', /váy|đầm|món/i)
+})
+
+test('binding the full demo product onto the default shell keeps video, L3, and product_info groups', () => {
+  const html = bindLiveProductToPdpHtml(buildDefaultDemoPdpShellHtml({ locale: 'vi' }), DEMO_PDP_BIND_PRODUCT)
+  assert.match(html, /Đầm voan/)
+  assert.match(html, /DEMO-PDP-001/)
+  assert.match(html, /188 Fashion/)
+  assert.match(html, /Đầm voan trễ vai Nữ/)
+  assert.match(html, /target_audience|Đối tượng khách hàng/)
+  assert.match(html, /G1571_.*\.mp4|data-pw-pdp-video-thumb/)
+  assert.match(html, /data-pw-outfit/)
+})

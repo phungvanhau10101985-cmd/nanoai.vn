@@ -57,6 +57,10 @@ test('each demo product maps every catalog 188 snapshot field', () => {
     assert.ok(info?.variants)
     assert.ok(info?.target_audience)
     assert.ok(info?.market_info)
+    const specs = info?.specifications as Record<string, unknown> | undefined
+    assert.ok(Array.isArray(specs?.features) && specs.features.length >= 2)
+    const market = info?.market_info as Record<string, unknown> | undefined
+    assert.equal(market?.lead_time_days, 3)
   }
 })
 
@@ -101,6 +105,12 @@ test('demo catalog fields hydrate a live PDP row like 188 inventory', () => {
   assert.ok((mapped?.purchasesCount || 0) > 0)
   assert.ok(mapped?.productInfo && typeof mapped.productInfo === 'object')
   assert.ok((mapped?.galleryImages || []).length >= 3)
-  assert.ok((mapped?.detailImages || []).length >= 1)
+  assert.ok((mapped?.detailImages || []).length >= 4)
+  assert.ok(mapped?.chineseName)
+  assert.ok(mapped?.weight)
+  assert.ok((mapped?.features || []).length >= 2)
+  const info = mapped?.productInfo as Record<string, unknown> | undefined
+  assert.ok(info?.target_audience)
+  assert.ok(info?.market_info)
   assert.deepEqual(mapped?.sizes, ['S', 'M', 'L', 'XL'])
 })
