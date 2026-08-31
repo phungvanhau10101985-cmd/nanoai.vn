@@ -516,8 +516,8 @@ function openPdpVariantModal(seed,action){
       st.stockQty=Math.max(0,Math.round(Number(p.stockQty)||0));
       st.showStock=st.stockQty>=1&&st.stockQty<=5;
       st.maxQty=st.stockQty>0?Math.min(99,st.stockQty):99;
-      if(Array.isArray(p.colors)&&p.colors.length)st.colors=p.colors.map(function(c){return {name:String(c.name||'').trim(),img:String(c.img||'')};}).filter(function(c){return c.name;});
-      if(Array.isArray(p.sizes)&&p.sizes.length)st.sizes=p.sizes.map(function(s){return String(s||'').trim();}).filter(Boolean);
+      if(Array.isArray(p.colors))st.colors=p.colors.map(function(c){return {name:String(c.name||'').trim(),img:String(c.img||'')};}).filter(function(c){return c.name;});
+      if(Array.isArray(p.sizes))st.sizes=p.sizes.map(function(s){return String(s||'').trim();}).filter(Boolean);
       if(p.sizeGuideImageUrl)st.sizeGuideHref=st.sizeGuideHref||SIZE_GUIDE_PATH;
     }
     if(opt){
@@ -526,8 +526,8 @@ function openPdpVariantModal(seed,action){
       st.imageUrl=opt.image_url||st.imageUrl;
       st.productUrl=opt.product_url||st.productUrl;
       st.priceHint=opt.price_hint||st.priceHint;
-      if(Array.isArray(opt.colors)&&opt.colors.length)st.colors=opt.colors.map(function(c){return {name:String(c.name||'').trim(),img:String(c.img||'')};}).filter(function(c){return c.name;});
-      if(Array.isArray(opt.sizes)&&opt.sizes.length)st.sizes=opt.sizes.map(function(s){return String(s||'').trim();}).filter(Boolean);
+      if(Array.isArray(opt.colors))st.colors=opt.colors.map(function(c){return {name:String(c.name||'').trim(),img:String(c.img||'')};}).filter(function(c){return c.name;});
+      if(Array.isArray(opt.sizes))st.sizes=opt.sizes.map(function(s){return String(s||'').trim();}).filter(Boolean);
     }
     if(st.colors.length){
       var found=-1;

@@ -4875,10 +4875,25 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     return el
   }
+  function dedupeShopDockHomeBtns() {
+    var dock = chromeKitDockRoot()
+    if (!dock || !dock.querySelectorAll) return null
+    var nodes = dock.querySelectorAll('[data-pw-chrome-btn="home"]')
+    var kept = null
+    var i
+    for (i = 0; i < nodes.length; i++) {
+      var n = nodes[i]
+      if (n.closest && n.closest('.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas')) continue
+      if (isPdpDockFaceBtn(n)) continue
+      if (!kept) { kept = n; continue }
+      try { if (n.parentNode) n.parentNode.removeChild(n) } catch (errDupHome) {}
+    }
+    return kept
+  }
   function ensureShopDockHomeBtn() {
     var dock = chromeKitDockRoot()
     if (!dock) return null
-    var existing = findChromeKitBtn('home', 'dock')
+    var existing = dedupeShopDockHomeBtns() || findChromeKitBtn('home', 'dock')
     if (existing) return existing
     var el = null
     var pdp = dock.querySelector('[data-pw-pdp-home="1"],.pw-pdp-sticky-nav [data-pw-chrome-btn="home"]')
@@ -5429,7 +5444,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     for (var an = 0; an < accountNavs.length; an++) {
       var navTitle = accountNavs[an].querySelector('h2')
       if (navTitle) setAttrIfEmpty(navTitle, 'data-pw-el', 'title')
-      markAll(accountNavs[an], '.pw-shop-account-link-card', 'data-pw-el', 'menu-item')
+      markAll(accountNavs[an], '.pw-shop-account-link-card, .pw-shop-account-nav-item', 'data-pw-el', 'menu-item')
     }
     var accountMains = document.querySelectorAll('[data-pw-region="account-main"]')
     for (var am = 0; am < accountMains.length; am++) {
@@ -14508,7 +14523,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { restorePdpBuyBoxActionsFromDock() } catch (errRestoreBuy) {}
     try { ensurePdpDockFaceInDoc() } catch (errFaceDock) {}
     try { restorePdpBuyBoxActionsFromDock() } catch (errRestoreBuy2) {}
-    try { if (!isPdpEditorDoc()) ensureShopDockHomeBtn() } catch (errShopHome) {}
+    try { if (!isPdpEditorDoc()) { dedupeShopDockHomeBtns(); ensureShopDockHomeBtn() } } catch (errShopHome) {}
     try { reseatStrayPdpBuyBoxToInline() } catch (errReseatBuy) {}
     try { hideLeftoverPdpBottomBars() } catch (errHidePdpBar) {}
     try { seatLockedHeaderRow() } catch (errSeatRow) {}

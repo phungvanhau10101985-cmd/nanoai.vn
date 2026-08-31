@@ -58,6 +58,7 @@ export default async function PartnerSiteLoginPage({ params, searchParams }: Pro
       navJson={shellSite.navJson}
       activeNav="account"
       pageKind={PW_PAGE.account}
+      hideAccountNav
       {...visualHomeChromeShellProps(shellSite, device)}
     >
       <PartnerSiteShopLoginClient

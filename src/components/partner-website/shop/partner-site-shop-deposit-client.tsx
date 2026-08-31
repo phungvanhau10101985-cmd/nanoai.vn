@@ -64,7 +64,7 @@ function CopyButton({ text, label, copiedLabel }: { text: string; label: string;
   return (
     <button
       type="button"
-      className="pw-shop-btn pw-shop-btn-buy"
+      className="pw-shop-btn pw-shop-btn-buy pw-shop-btn-sm"
       onClick={() => {
         const v = text.trim()
         if (!v) return
@@ -404,7 +404,16 @@ export function PartnerSiteShopDepositClient({
           ) : null}
           <div className="pw-shop-deposit-box">
             <p className="lbl">{t.depositBankLabel}</p>
-            <p className="pw-shop-deposit-hint">{t.depositQrHint}</p>
+            {bank ? (
+              <p className="pw-shop-deposit-sepay">
+                {bank.bank_name} · {bank.account_number}
+              </p>
+            ) : paymentDisplay?.kind === 'ewallet' && paymentDisplay.account_number ? (
+              <p className="pw-shop-deposit-sepay">
+                {paymentDisplay.provider_label} · {paymentDisplay.account_number}
+              </p>
+            ) : null}
+            <p className="pw-shop-deposit-instruct">{t.depositQrHint}</p>
             {bank ? (
               <div style={{ marginTop: 10 }}>
                 <div className="pw-shop-deposit-row">
@@ -453,9 +462,10 @@ export function PartnerSiteShopDepositClient({
         </div>
         <div className="pw-shop-deposit-col">
           <div className="pw-shop-deposit-box pw-shop-deposit-qr">
+            <p className="lbl">{t.depositQrTitle}</p>
             {qr ? <img src={qr} alt="QR" /> : null}
             {qr ? (
-              <a href={qr} download={`qr-${code}.png`} className="pw-shop-btn pw-shop-btn-outline" target="_blank" rel="noreferrer">
+              <a href={qr} download={`qr-${code}.png`} className="pw-shop-btn pw-shop-btn-outline pw-shop-btn-sm" target="_blank" rel="noreferrer">
                 {t.depositDownloadQr}
               </a>
             ) : null}

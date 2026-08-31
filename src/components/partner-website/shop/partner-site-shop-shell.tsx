@@ -106,7 +106,9 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { PW_EL, PW_REGION, type PwPageKind } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { PartnerSiteAccountNavLayout } from '@/components/partner-website/shop/partner-site-account-nav-layout'
 import { PartnerSiteContactChannelsFab } from '@/components/partner-website/shop/partner-site-contact-channels-fab'
+import { partnerSitePageShowsAccountNav } from '@/lib/partner-website/shop/partner-site-account-nav'
 import {
   partnerSitePwaScope,
   partnerSitePwaStartUrl,
@@ -134,6 +136,8 @@ type Props = {
   visualChromeByDevice?: VisualHomeChromeByDevice | null
   visualChromeStyles?: string
   previewDevice?: VisualDeviceVariant | null
+  /** Login stays full-width even though pageKind is account. */
+  hideAccountNav?: boolean
   children: React.ReactNode
 }
 
@@ -294,6 +298,7 @@ function PartnerSiteShopShellInner({
   visualChromeByDevice = null,
   visualChromeStyles = '',
   previewDevice = null,
+  hideAccountNav = false,
   children,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
@@ -794,7 +799,19 @@ function PartnerSiteShopShellInner({
       </>
       )}
 
-      <main className="pw-shop-main">{children}</main>
+      <main className="pw-shop-main">
+        {partnerSitePageShowsAccountNav(pageKind, { hideAccountNav }) ? (
+          <PartnerSiteAccountNavLayout
+            siteSlug={siteSlug}
+            locale={locale}
+            unreadNotifications={unreadNotifications}
+          >
+            {children}
+          </PartnerSiteAccountNavLayout>
+        ) : (
+          children
+        )}
+      </main>
 
       {useVisualChrome ? (
         visualAfter?.html ? (

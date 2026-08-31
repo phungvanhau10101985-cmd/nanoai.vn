@@ -259,7 +259,7 @@ function buildDemoPdpBindProduct(): LivePdpBindProduct {
     categoryPath: extra
       ? `${SOURCE.category.parent.slug}/${SOURCE.category.child.slug}/${extra.l3.slug}`
       : `${SOURCE.category.parent.slug}/${SOURCE.category.child.slug}`,
-    sizes: mapped.sizes.length ? mapped.sizes : ['S', 'M', 'L', 'XL'],
+    sizes: mapped.sizes,
     colors: mapped.colors,
     breadcrumb: [
       { name: mapped.categoryL1 || SOURCE.category.parent.name, href: '#' },

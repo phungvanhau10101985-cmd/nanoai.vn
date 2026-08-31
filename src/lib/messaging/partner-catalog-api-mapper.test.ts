@@ -64,4 +64,36 @@ describe('mapInventoryRowToPartnerCatalogProduct', () => {
     expect(product.shop_ready).toBe(false)
     expect(product.nanoai_site_path).toBeNull()
   })
+
+  it('keeps empty sizes_json / colors_json instead of leftover description JSON', () => {
+    const product = mapInventoryRowToPartnerCatalogProduct(
+      {
+        id: 'inv-bag',
+        partner_id: 'p1',
+        name: 'Túi xách',
+        sku: 'A4827',
+        description: '["S","M","L","XL"]',
+        stock_note: JSON.stringify([{ name: 'Đỏ', img: 'https://cdn.example/red.jpg' }]),
+        sizes_json: [],
+        colors_json: [],
+        stock_qty: 500,
+        price_hint: '2.580.000đ',
+        image_url: 'https://cdn.example/bag.jpg',
+        product_url: 'https://shop.example/tui',
+        product_video_url: '',
+        consult_note: '',
+        material_note: '',
+        remarketing_id: 'A857587313162a188A4827',
+        material_detail_image_url: '',
+        real_use_image_url: '',
+        real_use_image_url_2: '',
+        sort_order: 1,
+        is_active: true,
+      } as never,
+      { publishedSiteSlug: 'my-shop' }
+    )
+
+    expect(product.sizes).toEqual([])
+    expect(product.colors).toEqual([])
+  })
 })

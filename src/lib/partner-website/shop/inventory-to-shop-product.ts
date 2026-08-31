@@ -127,14 +127,16 @@ export function hydrateInventoryShopRowFromCatalog188(row: InventoryShopProductR
     product_video_url: firstCatalogText(row.product_video_url, snap.video_link) || row.product_video_url,
     gallery_urls: firstCatalogUrls(row.gallery_urls, snap.images),
     detail_image_urls: firstCatalogUrls(row.detail_image_urls, snap.gallery),
-    sizes_json:
-      Array.isArray(row.sizes_json) && row.sizes_json.length ? row.sizes_json : snap.sizes?.length ? snap.sizes : row.sizes_json,
-    colors_json:
-      Array.isArray(row.colors_json) && row.colors_json.length
-        ? row.colors_json
-        : snapColors.length
-          ? snapColors
-          : row.colors_json,
+    sizes_json: Array.isArray(row.sizes_json)
+      ? row.sizes_json
+      : snap.sizes?.length
+        ? snap.sizes
+        : row.sizes_json,
+    colors_json: Array.isArray(row.colors_json)
+      ? row.colors_json
+      : snapColors.length
+        ? snapColors
+        : row.colors_json,
     brand_name: firstCatalogText(row.brand_name, snap.brand_name) || row.brand_name,
     source_origin: firstCatalogText(row.source_origin, row.origin, snap.origin) || row.source_origin,
     origin: firstCatalogText(row.origin, snap.origin) || row.origin,
@@ -154,14 +156,14 @@ export function hydrateInventoryShopRowFromCatalog188(row: InventoryShopProductR
     price_low_hint: firstCatalogText(row.price_low_hint, snap.pro_lower_price) || row.price_low_hint,
     price_high_hint: firstCatalogText(row.price_high_hint, snap.pro_high_price) || row.price_high_hint,
     catalog_slug: firstCatalogText(row.catalog_slug, snap.slug) || row.catalog_slug,
-    features_json:
-      Array.isArray(row.features_json) && row.features_json.length
-        ? row.features_json
-        : Array.isArray(snap.features) && snap.features.length
-          ? snap.features
-          : row.features_json,
+    features_json: Array.isArray(row.features_json)
+      ? row.features_json
+      : Array.isArray(snap.features) && snap.features.length
+        ? snap.features
+        : row.features_json,
     product_info_json: row.product_info_json ?? snap.product_info,
-    deposit_required: row.deposit_required === true || snap.deposit_require === true,
+    deposit_required:
+      typeof row.deposit_required === 'boolean' ? row.deposit_required : snap.deposit_require === true,
     likes_count: firstCatalogCount(row.likes_count, snap.likes),
     purchases_count: firstCatalogCount(row.purchases_count, snap.purchases),
     reviews_count: firstCatalogCount(row.reviews_count, snap.rating_total),
@@ -365,7 +367,8 @@ export function inventoryRowToLivePdpVariants(row: {
       ? row.sizes_json.map((x) => String(x ?? '').trim()).filter(Boolean)
       : null
   )
-  const structured = Array.isArray(row.colors_json)
+  const hasColorsColumn = Array.isArray(row.colors_json)
+  const structured = hasColorsColumn
     ? row.colors_json
         .map((item) => {
           const c = item as { name?: string; img?: string } | null
@@ -378,7 +381,7 @@ export function inventoryRowToLivePdpVariants(row: {
     : []
   return {
     sizes,
-    colors: structured.length ? structured : parseColorVariantsJson(row.stock_note ?? ''),
+    colors: hasColorsColumn ? structured : parseColorVariantsJson(row.stock_note ?? ''),
   }
 }
 

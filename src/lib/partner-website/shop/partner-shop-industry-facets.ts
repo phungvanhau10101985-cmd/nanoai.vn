@@ -25,12 +25,12 @@ export function partnerShopFacetDefsForIndustry(
 }
 
 /** Same storage as getProductPurchaseOptions: sizes in description JSON array.
- * PS.1 — `structured` (cột `sizes_json` mới) được ưu tiên khi có; `description` chỉ là fallback quy ước cũ. */
+ * PS.1 — cột `sizes_json` thắng kể cả khi mảng rỗng (túi không size). `description` JSON chỉ khi chưa có cột. */
 export function parseInventorySizesForFacet(
   description: string | null | undefined,
   structured?: string[] | null
 ): string[] {
-  if (structured && structured.length) return structured.slice(0, 40)
+  if (Array.isArray(structured)) return structured.slice(0, 40)
   const raw = String(description ?? '').trim()
   if (!raw.startsWith('[')) return []
   try {
@@ -51,7 +51,7 @@ export function parseInventoryColorsForFacet(
   stockNote: string | null | undefined,
   structured?: { name: string; img?: string }[] | null
 ): string[] {
-  if (structured && structured.length) {
+  if (Array.isArray(structured)) {
     return structured
       .map((c) => c.name.trim())
       .filter(Boolean)

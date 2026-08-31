@@ -239,21 +239,21 @@ export function getPartnerSiteAccountMenuItems(input: {
     slug ? partnerSiteAccountTabPath(slug, id, { customDomain: input.customDomain }) : fallback
 
   return [
+    { id: 'account', href: paths.account, label: t.navAccount, isHeader: true },
     {
       id: 'edit-profile',
       href: slug ? partnerSiteAccountEditPath(slug, { customDomain: input.customDomain }) : paths.account,
       label: t.accountEditProfile,
-      isAccent: true,
     },
-    { id: 'cart', href: tab('cart', paths.cart), label: t.navCart },
-    { id: 'orders', href: tab('orders', paths.orders), label: t.navOrders },
+    { id: 'cart', href: paths.cart, label: t.navCart },
+    { id: 'orders', href: paths.orders, label: t.navOrders },
+    { id: 'recently-viewed', href: paths.recentlyViewed, label: t.accountViewedProducts },
+    { id: 'addresses', href: paths.addresses, label: t.accountAddressBook },
     { id: 'wallet', href: tab('wallet', paths.account), label: t.navWallet },
-    { id: 'wishlist', href: tab('wishlist', paths.wishlist), label: t.navFavorites },
-    { id: 'recently-viewed', href: tab('recently-viewed', paths.recentlyViewed), label: t.accountViewedProducts },
-    { id: 'addresses', href: tab('addresses', paths.addresses), label: t.accountAddressBook },
-    { id: 'security', href: tab('security', paths.account), label: t.accountSecurity },
+    { id: 'wishlist', href: paths.wishlist, label: t.navFavorites },
     { id: 'notifications', href: tab('notifications', paths.account), label: t.accountNotifications },
     { id: 'install-app', href: tab('install-app', paths.account), label: t.accountInstallApp },
+    { id: 'security', href: tab('security', paths.account), label: t.accountSecurity },
     { id: 'contact', href: tab('contact', paths.contact), label: getPartnerSiteCategoryNavLabels(input.locale).contact },
     { id: 'logout', href: '#', label: t.navLogout, isLogout: true },
   ]

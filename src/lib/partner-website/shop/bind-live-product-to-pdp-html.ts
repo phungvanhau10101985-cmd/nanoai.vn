@@ -7,6 +7,7 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import {
   formatPartnerShopMoneyVnd,
+  isPartnerFlashSaleActive,
   resolvePartnerEffectiveUnitPrice,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
@@ -704,11 +705,11 @@ function rewriteVariantBlocks(inner: string, product: LivePdpBindProduct, locale
     const blob = `${open}${blockInner}`
     const isColor = /pw-pdp-color|data-pw-pdp-option=["']color["']/.test(blob)
     if (isColor) {
-      if (!colors.length) return `${open}${blockInner}`
+      if (!colors.length) return ''
       colorDone = true
       return `${stampPdpOption(open, 'color')}${colorVariantInner(colors, locale)}`
     }
-    if (!sizes.length) return `${open}${blockInner}`
+    if (!sizes.length) return ''
     sizeDone = true
     return `${stampPdpOption(open, 'size')}${sizeVariantInner(sizes, locale)}`
   })
@@ -770,14 +771,19 @@ function rewritePdpInfoInner(inner: string, product: LivePdpBindProduct, locale:
       `<$1$2>${pdpStatsInnerHtml(product, locale)}</$1>`
     )
   }
+  out = replaceElInner(out, PW_EL.sku, escText(sku))
   if (sku) {
-    out = replaceElInner(out, PW_EL.sku, escText(sku))
     out = out.replace(
       /(<p\b[^>]*\bclass=["'][^"']*\bpw-pdp-sku\b[^>]*>[\s\S]*?<strong[^>]*>)([\s\S]*?)(<\/strong>)/i,
       `$1${escText(sku)}$3`
     )
+  } else {
+    out = out.replace(
+      /(<p\b[^>]*\bclass=["'][^"']*\bpw-pdp-sku\b[^>]*>[\s\S]*?<strong[^>]*>)([\s\S]*?)(<\/strong>)/i,
+      '$1$3'
+    )
   }
-  if (descHtml) out = replaceElInner(out, PW_EL.desc, descHtml)
+  out = replaceElInner(out, PW_EL.desc, descHtml)
   if (price) {
     out = replaceElInner(out, PW_EL.price, (priceInner) => {
       const compareBlock = priceInner.match(
@@ -816,25 +822,29 @@ function reviewCardHtml(review: LivePdpBindReview): string {
   return `<article data-pw-el="${PW_EL.card}"><strong data-pw-el="${PW_EL.cardName}">${escText(review.name)}</strong><span class="pw-pdp-star"> ${stars}</span>${title ? `<p style="font-weight:600;margin:6px 0 2px">${escText(title)}</p>` : ''}<p data-pw-el="${PW_EL.body}">${escText(review.body)}</p>${photoHtml}${replyHtml}${useful}</article>`
 }
 
-function fillPdpReviewQaSamples(html: string, product: LivePdpBindProduct): string {
+function fillPdpReviewQaSamples(html: string, product: LivePdpBindProduct, locale: WebLocale): string {
+  const t = getPartnerSiteShopCopy(locale)
   let out = html
   const review = (product.reviews ?? []).find((r) => String(r.body || '').trim())
-  if (review) {
-    const title = String(review.title || '').trim()
-    const sample = `<p><span class="pw-pdp-rq-name">${escText(review.name)}</span>${title ? `<span class="pw-pdp-rq-title"> ${escText(title)}</span>` : ''}</p><p>${escText(review.body)}</p>`
-    out = out.replace(
-      /(<div\b[^>]*data-pw-rq-review-sample[^>]*>)([\s\S]*?)(<\/div>)/i,
-      `$1${sample}$3`
-    )
-  }
+  const reviewInner = review
+    ? `<p><span class="pw-pdp-rq-name">${escText(review.name)}</span>${
+        String(review.title || '').trim()
+          ? `<span class="pw-pdp-rq-title"> ${escText(String(review.title).trim())}</span>`
+          : ''
+      }</p><p>${escText(review.body)}</p>`
+    : `<p class="pw-shop-muted">${escText(t.reviewsEmpty)}</p>`
+  out = out.replace(
+    /(<div\b[^>]*data-pw-rq-review-sample[^>]*>)([\s\S]*?)(<\/div>)/i,
+    `$1${reviewInner}$3`
+  )
   const question = (product.questions ?? []).find((q) => String(q.body || '').trim())
-  if (question) {
-    const sample = `<p><span class="pw-pdp-rq-name">${escText(question.asker)}</span></p><p>${escText(question.body)}</p>`
-    out = out.replace(
-      /(<div\b[^>]*data-pw-rq-qa-sample[^>]*>)([\s\S]*?)(<\/div>)/i,
-      `$1${sample}$3`
-    )
-  }
+  const qaInner = question
+    ? `<p><span class="pw-pdp-rq-name">${escText(question.asker)}</span></p><p>${escText(question.body)}</p>`
+    : `<p class="pw-shop-muted">${escText(t.qaEmpty)}</p>`
+  out = out.replace(
+    /(<div\b[^>]*data-pw-rq-qa-sample[^>]*>)([\s\S]*?)(<\/div>)/i,
+    `$1${qaInner}$3`
+  )
   return out
 }
 
@@ -855,7 +865,8 @@ function rewriteCatalogOutfitInner(
   let out = inner
   const title = String(product.outfitTitle || '').trim()
   if (title) out = replaceElInner(out, PW_EL.sectionTitle, escText(title))
-  const slots = (product.outfitSlots ?? []).filter((slot) => String(slot?.id || '').trim())
+  if (product.outfitSlots == null) return out
+  const slots = product.outfitSlots.filter((slot) => String(slot?.id || '').trim())
   if (slots.length) {
     const slotHtml = slots
       .map(
@@ -879,13 +890,13 @@ function rewriteCatalogOutfitInner(
       )
     }
     const items = (slots[0]?.items ?? []).filter((item) => String(item?.id || '').trim()).slice(0, 5)
-    if (items.length) {
-      out = replaceFirstGridInner(
-        out,
-        items.map((item) => outfitCardHtml(item, { siteSlug })).join(''),
-        'pw-outfit-grid'
-      )
-    }
+    out = replaceFirstGridInner(
+      out,
+      items.map((item) => outfitCardHtml(item, { siteSlug })).join(''),
+      'pw-outfit-grid'
+    )
+  } else {
+    out = replaceFirstGridInner(out, '', 'pw-outfit-grid')
   }
   return out
 }
@@ -983,14 +994,12 @@ function rewriteCatalogRelatedInner(
       (_full, tag: string, attrs: string) => `<${tag}${setAttr(attrs, 'href', moreHref)}>`
     )
   }
-  const items = (product.relatedProducts ?? []).filter((item) => String(item?.id || '').trim()).slice(0, 5)
-  if (items.length) {
-    out = replaceRelatedCards(
-      out,
-      items.map((item) => relatedCardHtml(item, { siteSlug })).join('')
-    )
-  }
-  return out
+  if (product.relatedProducts == null) return out
+  const items = product.relatedProducts.filter((item) => String(item?.id || '').trim()).slice(0, 5)
+  return replaceRelatedCards(
+    out,
+    items.map((item) => relatedCardHtml(item, { siteSlug })).join('')
+  )
 }
 
 function rewriteReviewsInner(inner: string, product: LivePdpBindProduct): string {
@@ -1075,12 +1084,30 @@ function ensureMissingPdpSlots(
     }
   }
   const { price, compare } = productPriceText(product)
-  if (compare && price && !/pw-pdp-save/.test(out)) {
+  const flashOn = isPartnerFlashSaleActive({
+    priceAmount: product.priceAmount ?? null,
+    salePriceAmount: product.salePriceAmount ?? null,
+    saleStartsAt: product.saleStartsAt ?? null,
+    saleEndsAt: product.saleEndsAt ?? null,
+  })
+  out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'flash')
+  out = out.replace(
+    /<span\b(?=[^>]*\bpw-shop-urgency-badge\b)(?![^>]*data-pw-pdp-slot=["']low-stock["'])[^>]*>[\s\S]*?<\/span>/gi,
+    ''
+  )
+  if (flashOn) {
+    const flash = `<span class="pw-shop-urgency-badge" data-pw-el="${PW_EL.badge}" data-pw-pdp-slot="flash">${escText(t.flashSaleBadge)}</span>`
+    out = out.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>)/i, `$1${flash}`)
+  }
+  out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'savings')
+  out = out.replace(/<p\b[^>]*\bpw-pdp-save\b[^>]*>[\s\S]*?<\/p>/gi, '')
+  if (compare && price) {
     const save = `<p class="pw-pdp-save" data-pw-pdp-slot="savings">${escText(t.pdpSavings.replace('{amount}', compare))}</p>`
     out = out.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>[\s\S]*?<\/div>)/i, `$1${save}`)
   }
   const stock = Number(product.stockQty ?? 0)
-  if (stock > 0 && stock <= 5 && !hasSlot(out, 'low-stock')) {
+  out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'low-stock')
+  if (stock > 0 && stock <= 5) {
     const badge = `<span class="pw-shop-urgency-badge" data-pw-el="${PW_EL.badge}" data-pw-pdp-slot="low-stock">${escText(t.lowStockUrgency.replace('{n}', String(stock)))}</span>`
     out = out.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>[\s\S]*?<\/div>)/i, `$1${badge}`)
   }
@@ -1116,8 +1143,9 @@ function ensureMissingPdpSlots(
       `$1${block}`
     )
   }
+  out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'consult')
   const consult = String(product.consultNote || '').trim()
-  if (consult && !hasSlot(out, 'consult')) {
+  if (consult) {
     const box = `<div data-pw-pdp-slot="consult" style="margin-top:16px;padding:12px;border-radius:12px;background:var(--pw-surface);border:1px solid var(--pw-border)"><p style="margin:0 0 6px;font-weight:700;font-size:13px">${escText(t.pdpConsultNoteTitle)}</p><p class="pw-shop-muted" style="margin:0">${escText(consult)}</p></div>`
     if (/\bdata-pw-el=["']qty["']/.test(out)) {
       out = out.replace(/(<([a-z0-9]+)\b[^>]*\bdata-pw-el=["']qty["'][^>]*>)/i, `${box}$1`)
@@ -1125,7 +1153,8 @@ function ensureMissingPdpSlots(
       out = insertBeforeMainClose(out, box)
     }
   }
-  if (!hasSlot(out, 'deposit') && product.depositPolicy) {
+  out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'deposit')
+  if (product.depositPolicy) {
     const note = `<p class="pw-shop-muted" data-pw-pdp-slot="deposit" style="margin-top:12px;font-size:13px">${escText(t.depositPolicyNote)}</p>`
     if (/class=["'][^"']*\bpw-pdp-actions\b/.test(out)) {
       out = out.replace(/(<[^>]*\bpw-pdp-actions\b[^>]*>)/i, `${note}$1`)
@@ -1267,7 +1296,7 @@ export function bindLiveProductToPdpHtml(
     return `${stampRelatedOpenTag(open, product, siteSlug)}${rewriteCatalogRelatedInner(inner, product, locale, siteSlug)}`
   })
   out = ensureMissingPdpSlots(out, product, locale, siteSlug)
-  out = fillPdpReviewQaSamples(out, product)
+  out = fillPdpReviewQaSamples(out, product, locale)
   out = stampTryOnContextInHtml(out, product)
   return applyPdpFavoriteLikeCounts(
     out,

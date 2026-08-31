@@ -33,6 +33,7 @@ import {
   fillMissingSharedChromeFloats,
   hasSharedChrome,
   hoistBodyLevelChromeFloats,
+  hoistBodyLevelSharedChrome,
   hoistBodyLevelSceneOverlays,
   unwrapPersistedLiveChromeHtml,
 } from '@/lib/partner-website/shop/sync-shared-chrome'
@@ -944,7 +945,11 @@ export function isolateVisualHtmlForDevice(
   }
   const source = sliced
     ? hoistBodyLevelSceneOverlays(
-        hoistBodyLevelChromeFloats(rebuildStandaloneHtml(trimmed, sliced), trimmed, variant),
+        hoistBodyLevelSharedChrome(
+          hoistBodyLevelChromeFloats(rebuildStandaloneHtml(trimmed, sliced), trimmed, variant),
+          trimmed,
+          variant
+        ),
         trimmed,
         variant
       )

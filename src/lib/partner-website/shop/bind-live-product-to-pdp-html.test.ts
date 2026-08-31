@@ -305,6 +305,41 @@ test('bind strips leftover demo material and real-use photos from the shared PDP
   assert.doesNotMatch(fromFactory, /material-1-a3-1786251749/)
 })
 
+test('bind fills live 188 fields only — empty sizes/colors/consult do not keep demo leftovers', () => {
+  const bag = {
+    ...PRODUCT_B,
+    name: 'Túi Xách Tay Nam Da Thật Công Sở',
+    sku: 'A4827',
+    sizes: [] as string[],
+    colors: [
+      { name: 'Màu đen', img: 'https://cdn.example/black.jpg' },
+      { name: 'Màu đỏ cam', img: 'https://cdn.example/orange.jpg' },
+    ],
+    stockQty: 500,
+    depositPolicy: false,
+    relatedProducts: [],
+    outfitSlots: [],
+  }
+  const next = bindLiveProductToPdpHtml(buildDefaultDemoPdpShellHtml({ locale: 'vi' }), bag)
+  assert.match(next, /Túi Xách Tay Nam Da Thật Công Sở/)
+  assert.match(next, /A4827/)
+  assert.match(next, /data-pw-pdp-option-value="Màu đen"/)
+  assert.match(next, /data-pw-pdp-option="color"/)
+  assert.doesNotMatch(next, /data-pw-pdp-option="size"/)
+  assert.doesNotMatch(next, /data-pw-pdp-option-value="S"/)
+  assert.doesNotMatch(next, /data-pw-pdp-option-value="XL"/)
+  assert.doesNotMatch(next, /Phù hợp Nữ 18/)
+  assert.doesNotMatch(next, /data-pw-pdp-slot="consult"/)
+  assert.doesNotMatch(next, /data-pw-pdp-slot="flash"/)
+  assert.doesNotMatch(next, /data-pw-pdp-slot="low-stock"/)
+  assert.doesNotMatch(next, /data-pw-pdp-slot="savings"/)
+  assert.doesNotMatch(next, /data-pw-pdp-slot="deposit"/)
+  assert.doesNotMatch(next, /data-pw-pdp-slot="size-guide"/)
+  assert.doesNotMatch(next, /Form đẹp/)
+  assert.doesNotMatch(next, /Đầm voan/)
+  assert.doesNotMatch(next, /Áo thun nữ cổ thuyền/)
+})
+
 test('bind writes this product material and real-use photos instead of shell leftovers', () => {
   const leftover = `<!DOCTYPE html><html><body data-pw-page="product">
 <section class="pw-shop-product-detail">

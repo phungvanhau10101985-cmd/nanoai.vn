@@ -263,6 +263,33 @@ describe('partner-site-chrome-kit', () => {
     expect(shopHomeTags.some((tag) => /data-pw-hidden=["']1["']/.test(tag))).toBe(false)
   })
 
+  it('keeps a single shop Home when the dock already has two shop Homes', () => {
+    const html = `<nav class="pw-bottom-nav" data-pw-chrome-kit="dock">
+      <a data-pw-chrome-btn="home" data-pw-dock-show="shop" href="/">Trang chủ</a>
+      <a class="pw-icon-btn" data-pw-chrome-btn="home" data-pw-dock-show="shop" href="/">Trang chủ</a>
+      <a data-pw-chrome-btn="products" data-pw-dock-show="shop" href="/c">Sản phẩm</a>
+      <a data-pw-chrome-btn="cart" data-pw-dock-show="shop" href="/cart">Giỏ</a>
+      <a data-pw-chrome-btn="account" data-pw-dock-show="shop" href="/account">Tài khoản</a>
+      <div class="pw-pdp-sticky-nav" data-pw-dock-show="pdp">
+        <a data-pw-chrome-btn="home" data-pw-pdp-home="1" data-pw-dock-show="pdp">Trang chủ</a>
+        <button data-pw-chrome-btn="try-on" data-pw-dock-show="pdp">Thử</button>
+        <button data-pw-chrome-btn="favorite-product" data-pw-dock-show="pdp">Thích</button>
+      </div>
+      <div class="pw-pdp-sticky-ctas" data-pw-dock-show="pdp">
+        <button data-pw-chrome-btn="add-cart">Thêm giỏ</button>
+        <button data-pw-chrome-btn="buy-now">Mua</button>
+      </div>
+    </nav>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'mobile' })
+    const dock = next.match(/<nav\b[^>]*data-pw-chrome-kit=["']dock["'][^>]*>[\s\S]*?<\/nav>/i)?.[0] || next
+    const shopHomeTags = (dock.match(/<(?:a|button)\b[^>]*data-pw-chrome-btn=["']home["'][^>]*>/gi) || []).filter(
+      (tag) => /data-pw-dock-show=["']shop["']/.test(tag) && !/data-pw-pdp-home=/.test(tag)
+    )
+    expect(shopHomeTags).toHaveLength(1)
+    expect(dock).toContain('data-pw-pdp-home="1"')
+    expect((dock.match(/data-pw-chrome-btn="home"/g) || []).length).toBe(2)
+  })
+
   it('wraps a flat dock into the 188 PDP face and locks add-cart / buy', () => {
     const html = `<nav class="pw-bottom-nav" data-pw-chrome-kit="dock">
       <a data-pw-chrome-btn="home" data-pw-dock-show="both" href="/">Trang chủ</a>
@@ -415,6 +442,9 @@ describe('partner-site-chrome-kit', () => {
     expect(PARTNER_SHOP_CHROME_KIT_CSS).not.toContain('flex-direction:column-reverse')
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
       'html:not([data-pw-page="product"]):not(:has([data-pw-page="product"])) .pw-bottom-nav[data-pw-chrome-kit="dock"] > [data-pw-chrome-btn="home"]'
+    )
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
+      '> [data-pw-chrome-btn="home"]:not([data-pw-pdp-home]):not([data-pw-dock-show="pdp"]) ~ [data-pw-chrome-btn="home"]'
     )
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
       '[data-pw-chrome-kit="dock"] > [data-pw-dock-show="pdp"]:not(.pw-pdp-sticky-nav):not(.pw-pdp-sticky-ctas):not([data-pw-hidden="1"])'

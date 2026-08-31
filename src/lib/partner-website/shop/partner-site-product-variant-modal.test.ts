@@ -69,3 +69,10 @@ test('shop-actions injects PDP variant modal before add-to-cart', () => {
   assert.match(script, /Số lượng \(hàng order\)/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /openPdpVariantModal/)
 })
+
+test('variant modal applies empty API size/color arrays instead of leftover DOM pills', () => {
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /if\(Array\.isArray\(p\.sizes\)\)st\.sizes=/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /if\(Array\.isArray\(opt\.sizes\)\)st\.sizes=/)
+  assert.doesNotMatch(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /Array\.isArray\(p\.sizes\)&&p\.sizes\.length/)
+  assert.doesNotMatch(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /Array\.isArray\(opt\.sizes\)&&opt\.sizes\.length/)
+})

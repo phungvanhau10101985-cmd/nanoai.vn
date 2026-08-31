@@ -15,6 +15,7 @@ import {
   mergeVisualPageHtmlIntoProject,
   productVisualShellHtmlPath,
   visualDeviceVariantFromHtmlPath,
+  visualEditorHtmlPath,
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
@@ -25,6 +26,8 @@ type FinalizeVisualEditorSaveInput = {
   sourceHtml: string
   visualDevice: VisualDeviceVariant
   visualProductId?: string
+  /** Desktop home mirror — used when `index.html` is missing so inner-page saves can still stamp chrome. */
+  htmlSource?: string | null
   seedMissingHtml?: (path: string, pageKey: PartnerWebsitePageKey) => string
 }
 
@@ -51,6 +54,19 @@ export function visualHomeHtmlSourceAfterSave(
  * Keeping merge/chrome/clone/canonicalization here lets the route and parity tests
  * execute the exact same save transition without requiring a database in CI.
  */
+function projectWithDeviceHomeFile(
+  project: PartnerWebsiteProject,
+  device: VisualDeviceVariant,
+  htmlSource?: string | null
+): PartnerWebsiteProject {
+  const homePath = visualEditorHtmlPath('home', device)
+  const existing = project.files.find((file) => file.path === homePath && file.kind === 'html')
+  if ((existing?.content || '').trim().length >= 40) return project
+  const fallback = device === 'desktop' ? htmlSource?.trim() || '' : ''
+  if (fallback.length < 40) return project
+  return mergeVisualPageHtmlIntoProject(project, fallback, homePath)
+}
+
 export function finalizeVisualEditorSave(
   input: FinalizeVisualEditorSaveInput
 ): FinalizedVisualEditorSave {
@@ -61,6 +77,12 @@ export function finalizeVisualEditorSave(
   if (canonicalSource.length < 40) {
     throw new Error('Visual HTML is empty — cannot save')
   }
+
+  const projectWithHome = projectWithDeviceHomeFile(
+    input.project,
+    input.visualDevice,
+    input.htmlSource
+  )
 
   const otherDeviceHtml = new Map(
     input.project.files
@@ -74,11 +96,11 @@ export function finalizeVisualEditorSave(
 
   const withProductShell = input.visualProductId
     ? mergeVisualPageHtmlIntoProject(
-        input.project,
+        projectWithHome,
         canonicalSource,
         productVisualShellHtmlPath(input.visualDevice)
       )
-    : input.project
+    : projectWithHome
   const merged = mergeVisualPageHtmlIntoProject(
     withProductShell,
     canonicalSource,

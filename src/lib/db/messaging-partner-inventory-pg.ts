@@ -234,9 +234,14 @@ function parseJsonArrayColumn(raw: unknown): unknown[] {
   return []
 }
 
+function jsonArrayColumnPresent(raw: unknown): boolean {
+  if (Array.isArray(raw)) return true
+  return typeof raw === 'string' && raw.trim().startsWith('[')
+}
+
 function parseColorsJsonColumn(raw: unknown): { name: string; img: string }[] | null {
+  if (!jsonArrayColumnPresent(raw)) return null
   const arr = parseJsonArrayColumn(raw)
-  if (!arr.length) return null
   const out: { name: string; img: string }[] = []
   for (const item of arr) {
     if (typeof item === 'string' && item.trim()) {
@@ -249,14 +254,14 @@ function parseColorsJsonColumn(raw: unknown): { name: string; img: string }[] | 
     const img = typeof o.img === 'string' ? o.img.trim() : typeof o.image_url === 'string' ? o.image_url.trim() : ''
     if (name) out.push({ name, img })
   }
-  return out.length ? out : null
+  return out
 }
 
 function parseSizesJsonColumn(raw: unknown): string[] | null {
-  const arr = parseJsonArrayColumn(raw)
-  if (!arr.length) return null
-  const out = arr.map((x) => String(x ?? '').trim()).filter(Boolean)
-  return out.length ? out : null
+  if (!jsonArrayColumnPresent(raw)) return null
+  return parseJsonArrayColumn(raw)
+    .map((x) => String(x ?? '').trim())
+    .filter(Boolean)
 }
 
 function parseStringArrayColumn(raw: unknown): string[] {

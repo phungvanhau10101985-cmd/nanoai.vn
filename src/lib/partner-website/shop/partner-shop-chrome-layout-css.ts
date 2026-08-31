@@ -530,11 +530,12 @@ ${PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS}
 ${PW_CHROME_COUNT_BADGE_HIDE_CSS}
 .pw-header-actions .pw-icon-btn,.pw-shop-header-actions .pw-icon-btn,.pw-header-actions .pw-shop-icon-btn,.pw-shop-header-actions .pw-shop-icon-btn,.pw-header-actions [data-pw-chrome-btn],.pw-shop-header-actions [data-pw-chrome-btn]{overflow:visible!important}
 .pw-bottom-nav,.pw-shop-bottom-nav{display:flex!important;flex-wrap:nowrap!important;grid-template-columns:none!important;justify-content:space-around;align-items:stretch;overflow:visible;z-index:${PW_SCENE_HEAD_Z}!important;background:#fff}
-.pw-bottom-nav>a,.pw-shop-bottom-nav>a,.pw-bottom-nav .pw-icon-btn,.pw-shop-bottom-nav .pw-icon-btn,.pw-bottom-nav .pw-shop-icon-btn,.pw-shop-bottom-nav .pw-shop-icon-btn,.pw-bottom-nav .pw-account-btn,.pw-shop-bottom-nav .pw-account-btn,[data-pw-chrome-kit="dock"] .pw-account-btn{
+.pw-bottom-nav>a:not([data-pw-pdp-home]):not([data-pw-dock-show="pdp"]),.pw-shop-bottom-nav>a:not([data-pw-pdp-home]):not([data-pw-dock-show="pdp"]),.pw-bottom-nav>.pw-icon-btn,.pw-shop-bottom-nav>.pw-icon-btn,.pw-bottom-nav>.pw-shop-icon-btn,.pw-shop-bottom-nav>.pw-shop-icon-btn,.pw-bottom-nav>.pw-account-btn,.pw-shop-bottom-nav>.pw-account-btn,[data-pw-chrome-kit="dock"]>.pw-account-btn{
   flex:1 1 0!important;min-width:0!important;min-height:0!important;width:auto!important;height:auto!important;
   display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;
   gap:2px!important;padding:6px 2px!important;background:transparent!important;position:relative!important;color:#6b7280!important;overflow:visible!important
 }
+.pw-bottom-nav .pw-account-btn,.pw-shop-bottom-nav .pw-account-btn,[data-pw-chrome-kit="dock"] .pw-account-btn{color:#6b7280!important}
 .pw-bottom-nav>a.is-active,.pw-shop-bottom-nav>a.is-active{color:var(--pw-primary)!important}
 .pw-bottom-nav>a:not([data-pw-chrome-added]),.pw-shop-bottom-nav>a:not([data-pw-chrome-added]){
   transform:none;left:auto;top:auto;right:auto;bottom:auto

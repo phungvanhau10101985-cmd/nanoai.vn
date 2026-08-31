@@ -10,6 +10,7 @@ import {
   htmlHasShopHeader,
   hoistBodyLevelChromeFloats,
   hoistBodyLevelSceneOverlays,
+  hoistBodyLevelSharedChrome,
   syncSharedChromeAcrossProjectFiles,
 } from '@/lib/partner-website/shop/sync-shared-chrome'
 
@@ -569,6 +570,8 @@ test('saving a non-home page keeps deleted chrome widgets deleted', () => {
   const homeHtml = next.files.find((f) => f.path === 'index.html')?.content || ''
   const aboutHtml = next.files.find((f) => f.path === 'about.html')?.content || ''
   assert.equal(homeHtml.includes('data-pw-chrome-btn="products"'), false)
+  assert.match(homeHtml, /data-pw-deleted-chrome-feature="btn:products"/)
+  assert.match(homeHtml, /Home mid/)
   assert.match(aboutHtml, /EditedAboutHead/)
   assert.equal(aboutHtml.includes('data-pw-chrome-btn="products"'), false)
   assert.match(aboutHtml, /data-pw-deleted-chrome-feature="btn:products"/)
@@ -783,5 +786,78 @@ test('unwrapPersistedLiveChromeHtml unwraps a live-dock host and keeps the kit n
   const next = unwrapPersistedLiveChromeHtml(html)
   assert.match(next, /<nav class="pw-bottom-nav" data-pw-chrome-kit="dock">Dock<\/nav>/)
   assert.doesNotMatch(next, /data-pw-live-dock/)
+})
+
+test('extractSharedChrome reads head settings from a live-chrome wrapper', () => {
+  const html = `<!DOCTYPE html><html><body>
+<div data-pw-live-chrome="1"><div data-pw-live-chrome-scale="1">
+<header class="pw-header" data-pw-region="header">
+  <div class="pw-header-actions" data-pw-kit-x="24" data-pw-kit-gap="12" style="--pw-kit-x:24px;--pw-kit-gap:12px">
+    <a data-pw-chrome-btn="cart" data-pw-hidden="1">Cart</a>
+  </div>
+</header>
+</div></div>
+<main>About mid</main>
+</body></html>`
+  const chrome = extractSharedChrome(html)
+  assert.match(chrome.header, /data-pw-kit-x="24"/)
+  assert.match(chrome.header, /data-pw-hidden="1"/)
+  assert.match(chrome.header, /data-pw-chrome-btn="cart"/)
+})
+
+test('saving head kit settings from a non-home page writes the same-device homepage', () => {
+  const homeHtml = `<!DOCTYPE html><html><body>
+<header class="pw-header" data-pw-region="header">
+  <div class="pw-header-actions" data-pw-kit-gap="8">
+    <a data-pw-chrome-btn="account">Account</a>
+    <a data-pw-chrome-btn="cart">Cart</a>
+  </div>
+</header>
+<main>Home mid</main>
+<footer class="pw-footer">Home footer</footer>
+</body></html>`
+  const editedAbout = `<!DOCTYPE html><html><body>
+<header class="pw-header" data-pw-region="header">
+  <div class="pw-header-actions" data-pw-kit-x="24" data-pw-kit-gap="12" style="--pw-kit-x:24px;--pw-kit-gap:12px">
+    <a data-pw-chrome-btn="account">Account</a>
+    <a data-pw-chrome-btn="cart" data-pw-hidden="1">Cart</a>
+  </div>
+</header>
+<main><h1>About shop</h1></main>
+<footer class="pw-footer">Home footer</footer>
+</body></html>`
+  const project = {
+    files: [
+      { path: 'index.html', kind: 'html', content: homeHtml },
+      { path: 'index.laptop.html', kind: 'html', content: homeHtml.replace('Home mid', 'Laptop mid') },
+      { path: 'about.html', kind: 'html', content: about },
+      { path: 'products.html', kind: 'html', content: about.replace('About shop', 'Products mid') },
+    ],
+  }
+  const next = syncSharedChromeAcrossProjectFiles(project, 'about.html', editedAbout)
+  const deskHome = next.files.find((f) => f.path === 'index.html')?.content || ''
+  const laptopHome = next.files.find((f) => f.path === 'index.laptop.html')?.content || ''
+  const aboutHtml = next.files.find((f) => f.path === 'about.html')?.content || ''
+  const productsHtml = next.files.find((f) => f.path === 'products.html')?.content || ''
+  assert.match(deskHome, /data-pw-kit-x="24"/)
+  assert.match(deskHome, /data-pw-hidden="1"/)
+  assert.match(deskHome, /Home mid/)
+  assert.match(aboutHtml, /data-pw-kit-x="24"/)
+  assert.match(aboutHtml, /<h1>About shop<\/h1>/)
+  assert.match(productsHtml, /data-pw-hidden="1"/)
+  assert.match(productsHtml, /Products mid/)
+  assert.doesNotMatch(laptopHome, /data-pw-kit-x="24"/)
+  assert.match(laptopHome, /Laptop mid/)
+})
+
+test('hoistBodyLevelSharedChrome fills a missing header from outside the device wrapper', () => {
+  const composed = `<!DOCTYPE html><html><body>
+<header class="pw-header" data-pw-region="header">BodyHead</header>
+<div class="pw-visual-desktop" data-pw-visual-device="desktop"><main>Desk mid</main></div>
+</body></html>`
+  const isolated = `<!DOCTYPE html><html><body><main>Desk mid</main></body></html>`
+  const next = hoistBodyLevelSharedChrome(isolated, composed, 'desktop')
+  assert.match(next, /BodyHead/)
+  assert.match(next, /Desk mid/)
 })
 

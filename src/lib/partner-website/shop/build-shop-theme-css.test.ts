@@ -10,6 +10,16 @@ import {
 } from '@/lib/partner-website/shop/build-shop-theme-css'
 import { preparePartnerVisualHtmlForEditor } from '@/lib/partner-website/shop/render-partner-visual-html'
 
+test('shop theme CSS keeps desktop account nav as a compact left column', () => {
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(css, /\.pw-shop-account-nav-item\.is-active\{background:var\(--pw-surface\);color:var\(--pw-primary\)/)
+  assert.match(css, /@media\(min-width:768px\)\{\.pw-shop-account-layout\{grid-template-columns:224px minmax\(0,1fr\)/)
+  assert.match(css, /\.pw-shop-cart-actions/)
+  assert.match(css, /\.pw-shop-deposit-head\{background:linear-gradient\(90deg,var\(--pw-primary\),var\(--pw-accent\)/)
+  assert.match(css, /\.pw-shop-deposit-sepay/)
+  assert.match(css, /\.pw-shop-deposit-instruct/)
+})
+
 test('shop theme CSS turns mega L2/L3 hover text to the primary token', () => {
   const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
   assert.match(css, /\.pw-cat-mega-l2:hover,\.pw-cat-mega-l3:hover\{background:var\(--pw-surface\);color:var\(--pw-primary\)!important\}/)

@@ -182,7 +182,7 @@ ${chrome.header}
           <span><strong>${escapeHtml(String(p.purchasesCount ?? 0))}</strong> ${escapeHtml(t.pdpPurchasesLabel)}</span>
         </div>
         <div class="pw-pdp-price-card">
-          <span class="pw-shop-urgency-badge" ${pwElAttr(PW_EL.badge)}>${escapeHtml(t.flashSaleBadge)}</span>
+          <span class="pw-shop-urgency-badge" ${pwElAttr(PW_EL.badge)} data-pw-pdp-slot="flash">${escapeHtml(t.flashSaleBadge)}</span>
           <p class="pw-shop-price" ${pwElAttr(PW_EL.price)}>${escapeHtml(price)}${
             compare
               ? `<span class="pw-pdp-compare" ${pwElAttr(PW_EL.comparePrice)}>${escapeHtml(compare)}</span>`

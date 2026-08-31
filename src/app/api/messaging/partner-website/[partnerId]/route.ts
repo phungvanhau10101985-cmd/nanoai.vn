@@ -689,6 +689,7 @@ export async function PATCH(
           sourceHtml: htmlForVisualSave,
           visualDevice,
           visualProductId,
+          htmlSource: existing.htmlSource,
           seedMissingHtml: (_path, pageKey) =>
             seedVisualPageHtmlWithChrome({
               pageKey,

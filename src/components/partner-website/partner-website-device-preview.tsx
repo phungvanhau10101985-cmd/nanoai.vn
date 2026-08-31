@@ -309,7 +309,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   const canvasWrapRef = useRef<HTMLDivElement>(null)
   const projectRef = useRef<PartnerWebsiteProject | null>(null)
   const freezeLockRef = useRef(false)
-  const flushedHtmlByVariantRef = useRef<Partial<Record<VisualDeviceVariant, string>>>({})
+  const flushedHtmlByKeyRef = useRef<Record<string, string>>({})
   const saveFnRef = useRef<(() => Promise<boolean>) | null>(null)
   const pendingOpenVisualEditRef = useRef(false)
   const visualEditActiveRef = useRef(false)
@@ -520,6 +520,22 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     })
   }
 
+  function visualFlushKey(
+    variant: VisualDeviceVariant,
+    pick?: {
+      pageKey?: PartnerWebsitePageKey
+      categoryPath?: string | null
+      productId?: string | null
+      cmsSlug?: string | null
+    }
+  ): string {
+    const pageKey = pick?.pageKey ?? previewPageKey
+    const cmsSlug = pick?.cmsSlug === undefined ? previewCmsSlug : pick.cmsSlug
+    const categoryPath = pick?.categoryPath === undefined ? previewCategoryPath : pick.categoryPath
+    const productId = pick?.productId === undefined ? previewProductId : pick.productId
+    return `${variant}:${pageKey}:${categoryPath || ''}:${productId || ''}:${cmsSlug || ''}`
+  }
+
   function savedHtmlForVariant(
     variant: VisualDeviceVariant,
     pick?: {
@@ -529,7 +545,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       cmsSlug?: string | null
     }
   ): string {
-    const flushed = flushedHtmlByVariantRef.current[variant]
+    const flushed = flushedHtmlByKeyRef.current[visualFlushKey(variant, pick)]
     if (flushed && visualHtmlLooksUsable(flushed)) {
       return isolateVisualHtmlForDevice(flushed, variant)
     }
@@ -614,7 +630,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   function startVisualEdit() {
     if (!visualEditEnabled || quickEditDisabled || !hasWebsite) return
     if (!onVisualEditSave && !onShopHomeSave) return
-    flushedHtmlByVariantRef.current = {}
+    flushedHtmlByKeyRef.current = {}
     setEditDirty(false)
     const saved = savedHtmlForVariant(editVariant)
     if (visualHtmlLooksUsable(saved)) {
@@ -628,7 +644,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   }
 
   function applyDevice(next: PartnerWebsitePreviewDevice) {
-    flushedHtmlByVariantRef.current = {}
+    flushedHtmlByKeyRef.current = {}
     const nextVariant = visualEditorDeviceVariant(next)
     setEditDirty(false)
     if (visualEditActive) {
@@ -664,7 +680,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     }
     const pick = { pageKey, categoryPath, productId, cmsSlug }
     if (visualEditActive) {
-      flushedHtmlByVariantRef.current = {}
+      flushedHtmlByKeyRef.current = {}
       setEditDirty(false)
       const saved = savedHtmlForVariant(editVariant, pick)
       if (visualHtmlLooksUsable(saved)) {
@@ -699,7 +715,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   }
 
   function exitVisualEdit() {
-    flushedHtmlByVariantRef.current = {}
+    flushedHtmlByKeyRef.current = {}
     freezeLockRef.current = false
     setEditSrcDoc(null)
     setEditDirty(false)
@@ -1292,7 +1308,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                     })
                     const html = nextProject.files.find((f) => f.path === path && f.kind === 'html')?.content
                     if (html && visualHtmlLooksUsable(html)) {
-                      flushedHtmlByVariantRef.current[editVariant] = html
+                      flushedHtmlByKeyRef.current[visualFlushKey(editVariant)] = html
                     }
                     const persisted = await onVisualEditSave(
                       nextProject,
@@ -1309,7 +1325,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                       persisted.htmlPath === path &&
                       visualHtmlLooksUsable(persisted.html)
                     ) {
-                      flushedHtmlByVariantRef.current[editVariant] = persisted.html
+                      flushedHtmlByKeyRef.current[visualFlushKey(editVariant)] = persisted.html
                       setEditSrcDoc(visualEditSrcDoc(persisted.html))
                     }
                     return persisted
@@ -1326,7 +1342,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                 : undefined
             }
             onCancel={() => {
-              flushedHtmlByVariantRef.current = {}
+              flushedHtmlByKeyRef.current = {}
               setVisualEditActive(false)
               setEditDirty(false)
             }}
@@ -1429,7 +1445,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                       })
                       const html = nextProject.files.find((f) => f.path === path && f.kind === 'html')?.content
                       if (html && visualHtmlLooksUsable(html)) {
-                        flushedHtmlByVariantRef.current[editVariant] = html
+                        flushedHtmlByKeyRef.current[visualFlushKey(editVariant)] = html
                       }
                       const persisted = await onVisualEditSave(
                         nextProject,
@@ -1446,7 +1462,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                         persisted.htmlPath === path &&
                         visualHtmlLooksUsable(persisted.html)
                       ) {
-                        flushedHtmlByVariantRef.current[editVariant] = persisted.html
+                        flushedHtmlByKeyRef.current[visualFlushKey(editVariant)] = persisted.html
                         setEditSrcDoc(visualEditSrcDoc(persisted.html))
                       }
                       return persisted

@@ -2,29 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  Bell,
-  ClipboardList,
-  Clock,
-  Copy,
-  Download,
-  Gift,
-  Heart,
-  LayoutDashboard,
-  LogOut,
-  MapPin,
-  MessageCircle,
-  Pencil,
-  Shield,
-  ShoppingBag,
-  UserRound,
-} from 'lucide-react'
+import { Bell, Copy, Download, MessageCircle } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
-import {
-  getPartnerSiteCategoryNavLabels,
-} from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import { shouldPartnerSiteShopSkipAuthSync } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
 import {
   isPartnerSiteAccountTab,
@@ -91,7 +72,6 @@ export function PartnerSiteShopAccountClient({
   initialOrdersFilter = null,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
-  const n = getPartnerSiteCategoryNavLabels(locale)
   const router = useRouter()
   const customDomain = usePartnerSiteCustomDomain()
   const { ready, authResolved, isAuthenticated, authHeaders, captureFromResponse, clearSession } =
@@ -117,15 +97,6 @@ export function PartnerSiteShopAccountClient({
   const [showReAuth, setShowReAuth] = useState(false)
   const { deferredInstall, isStandalone, isIos, promptInstall } = usePartnerPwaInstall()
   const { openChat } = usePartnerSiteChatWidget()
-
-  const navigateTab = useCallback(
-    (tab: AccountTab) => {
-      setActiveTab(tab)
-      const href = partnerSiteAccountTabPath(siteSlug, tab, { customDomain })
-      router.push(href)
-    },
-    [customDomain, router, siteSlug]
-  )
 
   const loadProfile = useCallback(async () => {
     if (shouldPartnerSiteShopSkipAuthSync(siteSlug)) {
@@ -362,80 +333,14 @@ export function PartnerSiteShopAccountClient({
       ? notifications.filter((nItem) => !nItem.readAt).length
       : unreadFromApi
 
-  const tabs: {
-    id: AccountTab
-    label: string
-    Icon: typeof UserRound
-  }[] = [
-    { id: 'overview', label: t.navAccount, Icon: UserRound },
-    { id: 'cart', label: t.navCart, Icon: ShoppingBag },
-    { id: 'orders', label: t.navOrders, Icon: ClipboardList },
-    { id: 'wallet', label: t.navWallet, Icon: Gift },
-    { id: 'wishlist', label: t.navFavorites, Icon: Heart },
-    { id: 'recently-viewed', label: t.accountViewedProducts, Icon: Clock },
-    { id: 'addresses', label: t.accountAddressBook, Icon: MapPin },
-    { id: 'edit-profile', label: t.accountEditProfile, Icon: Pencil },
-    { id: 'security', label: t.accountSecurity, Icon: Shield },
-    { id: 'notifications', label: t.accountNotifications, Icon: Bell },
-    { id: 'install-app', label: t.accountInstallApp, Icon: Download },
-    { id: 'contact', label: n.contact, Icon: MessageCircle },
-  ]
-
   const showAccountShell = authResolved && isAuthenticated && !needsAuth
 
   return (
     <div>
-      <h1 data-pw-el={PW_EL.heading}>{t.navAccount}</h1>
       {!showAccountShell ? <p className="pw-shop-muted">…</p> : null}
 
       {showAccountShell ? (
-        <div className="pw-shop-account-layout">
-          <aside className="pw-shop-account-sidebar" data-pw-region={PW_REGION.accountNav}>
-            <section className="pw-shop-account-links" aria-label={t.accountQuickLinks}>
-              <h2 data-pw-el={PW_EL.title}>{t.accountQuickLinks}</h2>
-              <div className="pw-shop-account-links-grid">
-                {tabs.map(({ id, label, Icon }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    className={`pw-shop-account-link-card${activeTab === id ? ' is-active' : ''}`}
-                    data-pw-el={PW_EL.menuItem}
-                    onClick={() => navigateTab(id)}
-                  >
-                    <Icon className="pw-shop-account-link-icon" aria-hidden="true" strokeWidth={2} />
-                    <span>{label}</span>
-                    {id === 'notifications' && unreadCount > 0 ? (
-                      <span className="pw-shop-cart-badge" style={{ position: 'static', marginLeft: 6 }}>
-                        {unreadCount > 99 ? '99+' : unreadCount}
-                      </span>
-                    ) : null}
-                  </button>
-                ))}
-                {shopAdminHref ? (
-                  <a
-                    href={shopAdminHref}
-                    className="pw-shop-account-link-card is-accent"
-                    data-pw-el={PW_EL.menuItem}
-                    rel="noopener noreferrer"
-                  >
-                    <LayoutDashboard className="pw-shop-account-link-icon" aria-hidden="true" strokeWidth={2} />
-                    <span>{t.accountOpenShopAdmin}</span>
-                  </a>
-                ) : null}
-                <button
-                  type="button"
-                  className="pw-shop-account-link-card is-logout"
-                  data-pw-el={PW_EL.menuItem}
-                  onClick={() => void clearSession()}
-                >
-                  <LogOut className="pw-shop-account-link-icon" aria-hidden="true" strokeWidth={2} />
-                  <span>{t.navLogout}</span>
-                </button>
-              </div>
-            </section>
-          </aside>
-
-          <div className="pw-shop-account-content" data-pw-region={PW_REGION.accountMain}>
+        <>
             {activeTab === 'overview' ? (
               <div className="pw-shop-account-summary">
                 <p className="pw-shop-account-greeting" data-pw-el={PW_EL.heading}>
@@ -761,8 +666,7 @@ export function PartnerSiteShopAccountClient({
                 </button>
               </section>
             ) : null}
-          </div>
-        </div>
+        </>
       ) : null}
     </div>
   )

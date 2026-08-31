@@ -11,6 +11,7 @@ import {
 import { serializeVisualEditorHtml } from './serialize-visual-editor-html'
 import {
   applyVisualEditThemeFlag,
+  resolveExactVisualPageHtml,
   visualEditorHtmlPath,
   type VisualDeviceVariant,
 } from './visual-editor-pages'
@@ -176,5 +177,99 @@ test('saving mobile home keeps seeded desktop laptop and tablet files', () => {
   const htmlSource = visualHomeHtmlSourceAfterSave(finalized, desktop)
   assert.match(htmlSource || '', /DESKTOP-ORIGIN/)
   assert.doesNotMatch(htmlSource || '', /MOBILE-EDITED/)
+})
+
+test('saving head edits from a non-home page updates homepage and overlays back', () => {
+  const desktopHome = `<!DOCTYPE html><html lang="vi" data-pw-edit-device="desktop"><body>
+<header class="pw-header" data-pw-region="header">
+  <div class="pw-header-actions" data-pw-kit-gap="8">
+    <a data-pw-chrome-btn="account">Account</a>
+    <a data-pw-chrome-btn="cart">Cart</a>
+  </div>
+</header>
+<main>Home mid</main>
+<footer class="pw-footer" data-pw-region="footer">Home footer</footer>
+</body></html>`
+  const editedAbout = `<!DOCTYPE html><html lang="vi" data-pw-edit-device="desktop"><body data-pw-page="info">
+<header class="pw-header" data-pw-region="header">
+  <div class="pw-header-actions" data-pw-kit-x="24" data-pw-kit-gap="12" style="--pw-kit-x:24px;--pw-kit-gap:12px">
+    <a data-pw-chrome-btn="account">Account</a>
+    <a data-pw-chrome-btn="cart" data-pw-hidden="1">Cart</a>
+  </div>
+</header>
+<main><h1>About shop</h1></main>
+<footer class="pw-footer" data-pw-region="footer">Home footer</footer>
+</body></html>`
+  const aboutBare = `<!DOCTYPE html><html><body><header class="pw-header">Old</header><main>About old</main></body></html>`
+  const finalized = finalizeVisualEditorSave({
+    project: {
+      entryPath: 'index.html',
+      files: [
+        { path: 'index.html', kind: 'html', content: desktopHome },
+        { path: 'about.html', kind: 'html', content: aboutBare },
+        { path: 'index.laptop.html', kind: 'html', content: desktopHome.replace('Home mid', 'Laptop mid') },
+      ],
+    },
+    theme: applyVisualEditThemeFlag(DEFAULT_PARTNER_WEBSITE_THEME, {
+      pageKey: 'about',
+      variant: 'desktop',
+    }),
+    htmlPath: 'about.html',
+    sourceHtml: editedAbout,
+    visualDevice: 'desktop',
+  })
+  const homeHtml = finalized.project.files.find((f) => f.path === 'index.html')?.content || ''
+  const aboutHtml = finalized.canonicalHtml
+  const laptopHtml = finalized.project.files.find((f) => f.path === 'index.laptop.html')?.content || ''
+  assert.match(homeHtml, /data-pw-kit-x="24"/)
+  assert.match(homeHtml, /data-pw-hidden="1"/)
+  assert.match(homeHtml, /Home mid/)
+  assert.match(aboutHtml, /About shop/)
+  assert.match(visualHomeHtmlSourceAfterSave(finalized, 'stale') || '', /data-pw-kit-x="24"/)
+  assert.doesNotMatch(laptopHtml, /data-pw-kit-x="24"/)
+
+  const overlaid = resolveExactVisualPageHtml(
+    {
+      theme: finalized.theme,
+      project: finalized.project,
+      htmlSource: visualHomeHtmlSourceAfterSave(finalized, desktopHome),
+    },
+    'about',
+    'desktop'
+  )
+  assert.match(overlaid, /data-pw-kit-x="24"/)
+  assert.match(overlaid, /data-pw-hidden="1"/)
+  assert.match(overlaid, /About shop/)
+})
+
+test('saving a non-home page still stamps chrome when homepage only lives in htmlSource', () => {
+  const htmlSource = `<!DOCTYPE html><html><body>
+<header class="pw-header" data-pw-region="header">OldHomeHead</header>
+<main>Home mid</main>
+<footer class="pw-footer">Home footer</footer>
+</body></html>`
+  const editedAbout = `<!DOCTYPE html><html><body data-pw-page="info">
+<header class="pw-header" data-pw-region="header">EditedAboutHead</header>
+<main><h1>About shop</h1></main>
+<footer class="pw-footer">EditedAboutFoot</footer>
+</body></html>`
+  const finalized = finalizeVisualEditorSave({
+    project: {
+      entryPath: 'about.html',
+      files: [{ path: 'about.html', kind: 'html', content: '<html><body>old</body></html>' }],
+    },
+    theme: applyVisualEditThemeFlag(DEFAULT_PARTNER_WEBSITE_THEME, {
+      pageKey: 'about',
+      variant: 'desktop',
+    }),
+    htmlPath: 'about.html',
+    sourceHtml: editedAbout,
+    visualDevice: 'desktop',
+    htmlSource,
+  })
+  const homeHtml = finalized.project.files.find((f) => f.path === 'index.html')?.content || ''
+  assert.match(homeHtml, /EditedAboutHead/)
+  assert.match(homeHtml, /Home mid/)
+  assert.match(visualHomeHtmlSourceAfterSave(finalized, htmlSource) || '', /EditedAboutHead/)
 })
 

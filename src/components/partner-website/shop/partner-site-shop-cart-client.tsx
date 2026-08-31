@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -12,8 +12,9 @@ import {
 } from '@/lib/partner-website/shop/cart-line-utils'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
-  partnerSiteAccountTabPath,
   partnerSiteAddressesApiPath,
+  partnerSiteAddressesPath,
+  partnerSiteHomePath,
   partnerSiteOrderDepositPath,
   partnerSiteOrderDetailPath,
   partnerSiteProductsPath,
@@ -474,79 +475,100 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   }
 
   return (
-    <div>
-      <section className="pw-shop-cart-list" data-pw-region={PW_REGION.cartList}>
+    <div className="pw-shop-cart">
       <h1 data-pw-el={PW_EL.sectionTitle}>{t.cartTitle}</h1>
       {loading ? <p className="pw-shop-muted">…</p> : null}
       {!loading && items.length === 0 ? (
         <p className="pw-shop-muted" data-pw-el={PW_EL.empty}>
           {t.cartEmpty}{' '}
-          <Link href={partnerSiteProductsPath(siteSlug, { customDomain })}>{t.backToShop}</Link>
+          <Link href={partnerSiteProductsPath(siteSlug, { customDomain })}>{t.cartContinueShopping}</Link>
         </p>
       ) : null}
-      <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>
-        {items.map((item) => (
+      {items.length > 0 ? (
+        <div className="pw-shop-cart-layout">
+      <section className="pw-shop-cart-list" data-pw-region={PW_REGION.cartList}>
+      <div className="pw-shop-cart-lines">
+        {items.map((item) => {
+          const lineTotal = parseVndFromPriceHint(item.card.price_hint) * Math.max(1, item.quantity)
+          return (
           <div key={item.id} className="pw-shop-cart-row" data-pw-el={PW_EL.line}>
             <img src={item.card.image_url} alt={item.card.name} data-pw-el={PW_EL.cardMedia} />
-            <div>
+            <div className="pw-shop-cart-row-main">
               <strong data-pw-el={PW_EL.cardName}>{item.card.name}</strong>
               {item.card.price_hint ? <p className="pw-shop-price" data-pw-el={PW_EL.cardPrice}>{item.card.price_hint}</p> : null}
-              {item.color ? <p className="pw-shop-muted">{t.colorLabel}: {item.color}</p> : null}
-              {item.size ? <p className="pw-shop-muted">{t.sizeLabel}: {item.size}</p> : null}
-              <label style={{ display: 'grid', gap: 4, marginTop: 8, maxWidth: 80 }} data-pw-el={PW_EL.qty}>
-                {t.quantity}
-                <input
-                  type="number"
-                  min={1}
-                  max={99}
-                  value={item.quantity}
-                  onChange={(e) => {
-                    const q = Math.max(1, Math.min(99, Number(e.target.value) || 1))
-                    void saveItems(items.map((x) => (x.id === item.id ? { ...x, quantity: q } : x)))
-                  }}
-                />
-              </label>
+              {item.color || item.size ? (
+                <p className="pw-shop-muted">
+                  {item.color ? `${t.colorLabel}: ${item.color}` : ''}
+                  {item.color && item.size ? ' · ' : ''}
+                  {item.size ? `${t.sizeLabel}: ${item.size}` : ''}
+                </p>
+              ) : null}
+              <div className="pw-shop-cart-row-tools">
+                <div className="pw-shop-qty" data-pw-el={PW_EL.qty}>
+                  <button
+                    type="button"
+                    aria-label="-"
+                    disabled={item.quantity <= 1}
+                    onClick={() =>
+                      void saveItems(items.map((x) => (x.id === item.id ? { ...x, quantity: item.quantity - 1 } : x)))
+                    }
+                  >
+                    −
+                  </button>
+                  <span>{item.quantity}</span>
+                  <button
+                    type="button"
+                    aria-label="+"
+                    disabled={item.quantity >= 99}
+                    onClick={() =>
+                      void saveItems(items.map((x) => (x.id === item.id ? { ...x, quantity: item.quantity + 1 } : x)))
+                    }
+                  >
+                    +
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className="pw-shop-cart-remove"
+                  data-pw-el={PW_EL.remove}
+                  onClick={() => void saveItems(items.filter((x) => x.id !== item.id))}
+                >
+                  {t.cartRemove}
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              className="pw-shop-btn pw-shop-btn-outline"
-              data-pw-el={PW_EL.remove}
-              onClick={() => void saveItems(items.filter((x) => x.id !== item.id))}
-            >
-              {t.cartRemove}
-            </button>
+            <p className="pw-shop-cart-line-total">{formatVnd(lineTotal)}</p>
           </div>
-        ))}
+          )
+        })}
       </div>
       </section>
-      {items.length > 0 ? (
-        <div className="pw-shop-cart-summary" data-pw-region={PW_REGION.cartSummary} style={{ marginTop: 24 }}>
+        <div className="pw-shop-cart-summary" data-pw-region={PW_REGION.cartSummary}>
           <p data-pw-el={PW_EL.price}>
             {t.cartSubtotal}: {formatVnd(subtotal)}
           </p>
-          <div style={{ marginTop: 12 }} data-pw-el={PW_EL.coupon}>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>{t.cartPromoLabel}</label>
+          <div className="pw-shop-cart-promo" data-pw-el={PW_EL.coupon}>
+            <label>{t.cartPromoLabel}</label>
             {appliedPromo ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <div className="pw-shop-cart-promo-row">
                 <span className="pw-shop-price">
                   {appliedPromo.code} — {t.cartPromoDiscountLabel} {formatVnd(appliedPromo.discountAmount)}
                 </span>
-                <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={removePromoCode}>
+                <button type="button" className="pw-shop-btn pw-shop-btn-outline pw-shop-btn-sm" onClick={removePromoCode}>
                   {t.cartPromoRemove}
                 </button>
               </div>
             ) : (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div className="pw-shop-cart-promo-row">
                 <input
                   type="text"
                   value={promoCodeInput}
                   onChange={(e) => setPromoCodeInput(e.target.value)}
                   placeholder={t.cartPromoPlaceholder}
-                  style={{ flex: '1 1 200px' }}
                 />
                 <button
                   type="button"
-                  className="pw-shop-btn pw-shop-btn-outline"
+                  className="pw-shop-btn pw-shop-btn-outline pw-shop-btn-sm"
                   disabled={promoBusy || !promoCodeInput.trim()}
                   onClick={() => void applyPromoCode()}
                 >
@@ -554,9 +576,9 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                 </button>
               </div>
             )}
-            {promoMessage ? <p className="pw-shop-muted" style={{ marginTop: 6 }}>{promoMessage}</p> : null}
+            {promoMessage ? <p className="pw-shop-muted">{promoMessage}</p> : null}
           </div>
-          <p className="pw-shop-muted" style={{ marginTop: 8 }}>
+          <p className="pw-shop-muted">
             {shippingFeeEstimate > 0
               ? `${t.cartShippingFeeLabel}: ${formatVnd(shippingFeeEstimate)}`
               : shippingPolicy.feeAmount > 0
@@ -569,21 +591,21 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               ? ` — ${t.cartShippingFreeThresholdHint.replace('{amount}', formatVnd(shippingPolicy.freeThresholdAmount))}`
               : ''}
           </p>
-          <p style={{ marginTop: 8, fontWeight: 700 }} data-pw-el={PW_EL.price}>
+          <p className="pw-shop-cart-grand" data-pw-el={PW_EL.price}>
             {t.cartTotalLabel}: {formatVnd(orderTotal)}
           </p>
           {depositPreview && depositPreview.amount > 0 ? (
-            <p className="pw-shop-muted" style={{ marginTop: 8 }}>
+            <p className="pw-shop-cart-deposit-note">
               {t.cartDepositNote
                 .replace('{percent}', String(depositPreview.percent))
                 .replace('{amount}', formatVnd(depositPreview.amount))}
             </p>
           ) : null}
           {ewalletAvailable ? (
-            <div style={{ marginTop: 12 }}>
-              <p style={{ fontWeight: 600, marginBottom: 6 }}>{t.checkoutPaymentMethodLabel}</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
+            <div className="pw-shop-cart-pay-method">
+              <p>{t.checkoutPaymentMethodLabel}</p>
+              <div className="pw-shop-deposit-opts">
+                <label>
                   <input
                     type="radio"
                     name="payment-method"
@@ -592,7 +614,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                   />
                   {t.checkoutPaymentMethodBank}
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
+                <label>
                   <input
                     type="radio"
                     name="payment-method"
@@ -602,14 +624,12 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                   {t.checkoutPaymentMethodEwallet}
                 </label>
               </div>
-              <p className="pw-shop-muted" style={{ marginTop: 4, fontSize: 12 }}>{t.checkoutPaymentMethodHint}</p>
+              <p className="pw-shop-muted">{t.checkoutPaymentMethodHint}</p>
             </div>
           ) : null}
-          <div className="pw-shop-form" data-pw-region={PW_REGION.form} style={{ marginTop: 20 }}>
+          <div className="pw-shop-form" data-pw-region={PW_REGION.form}>
             {!checkoutLoginRequired ? (
-              <p className="pw-shop-muted" style={{ marginBottom: 12 }}>
-                {t.checkoutGuestHint}
-              </p>
+              <p className="pw-shop-muted">{t.checkoutGuestHint}</p>
             ) : null}
             {isAuthenticated ? (
               <div className="pw-shop-address-pick">
@@ -641,12 +661,12 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                   ))
                 )}
                 <div className="pw-shop-address-form-actions">
-                  <button type="button" className="pw-shop-btn pw-shop-btn-buy" onClick={openAddAddress}>
+                  <button type="button" className="pw-shop-btn pw-shop-btn-buy pw-shop-btn-sm" onClick={openAddAddress}>
                     {t.addressCartAddHint}
                   </button>
                   <Link
-                    href={partnerSiteAccountTabPath(siteSlug, 'addresses', { customDomain })}
-                    className="pw-shop-btn pw-shop-btn-outline"
+                    href={partnerSiteAddressesPath(siteSlug, { customDomain })}
+                    className="pw-shop-btn pw-shop-btn-outline pw-shop-btn-sm"
                   >
                     {t.addressManageBook}
                   </Link>
@@ -672,9 +692,23 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               {t.checkoutNote}
               <textarea rows={2} value={orderNote} onChange={(e) => setOrderNote(e.target.value)} data-pw-el={PW_EL.field} />
             </label>
-            <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={checkoutBusy} onClick={() => void checkout()} data-pw-el={PW_EL.checkout}>
-              {checkoutBusy ? t.cartCheckingOut : t.cartCheckout}
-            </button>
+            <div className="pw-shop-cart-actions">
+              <Link
+                href={partnerSiteHomePath(siteSlug, { customDomain })}
+                className="pw-shop-btn pw-shop-btn-outline"
+              >
+                {t.cartContinueShopping}
+              </Link>
+              <button
+                type="button"
+                className="pw-shop-btn pw-shop-btn-buy"
+                disabled={checkoutBusy}
+                onClick={() => void checkout()}
+                data-pw-el={PW_EL.checkout}
+              >
+                {checkoutBusy ? t.cartCheckingOut : t.cartCheckout}
+              </button>
+            </div>
             {status && !needsAuth ? <p className="pw-shop-muted">{status}</p> : null}
           </div>
           {needsAuth && checkoutLoginRequired ? <p className="pw-shop-muted">{t.checkoutAuthRequired}</p> : null}
@@ -701,6 +735,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               </div>
             </div>
           ) : null}
+        </div>
         </div>
       ) : null}
     </div>

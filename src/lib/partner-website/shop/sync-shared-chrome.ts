@@ -252,6 +252,36 @@ export function hoistBodyLevelChromeFloats(
   return insertBeforeBodyClose(targetHtml, [...picked.values()].join('\n'))
 }
 
+/**
+ * Header/topbar hoisted outside `[data-pw-visual-device]` (live chrome host)
+ * would otherwise vanish when isolating a device wrapper on save.
+ */
+export function hoistBodyLevelSharedChrome(
+  targetHtml: string,
+  sourceHtml: string,
+  variant?: SharedChromeDevice
+): string {
+  if (!targetHtml.trim() || !sourceHtml.trim()) return targetHtml
+  const unwrapped = unwrapPersistedLiveChromeHtml(sourceHtml)
+  const wrappers = extractAllBlocks(unwrapped, DEVICE_WRAP_OPEN_RE)
+  const header = extractFirst(unwrapped, HEADER_RE)
+  const topbar = extractFirst(unwrapped, TOPBAR_RE)
+  const headerOutside = Boolean(header && !wrappers.some((block) => blockInside(header, block)))
+  const topbarOutside = Boolean(topbar && !wrappers.some((block) => blockInside(topbar, block)))
+  const patch: SharedChrome = {
+    topbar:
+      topbarOutside && topbar && !extractFirst(targetHtml, TOPBAR_RE) && !(header && blockInside(topbar, header))
+        ? topbar.html
+        : '',
+    header: headerOutside && header && !extractFirst(targetHtml, HEADER_RE) ? header.html : '',
+    footer: '',
+    bottomNav: '',
+    floats: '',
+  }
+  if (!hasSharedChrome(patch)) return targetHtml
+  return applySharedChrome(targetHtml, patch, variant ? { targetVariant: variant } : undefined)
+}
+
 const SCENE_OVERLAY_OPEN_RE =
   /<(div|p|h[1-6]|span|a|button|section|article|figure|img)\b(?=[^>]*(?:data-pw-added-text=["']1["']|data-pw-added-btn=["']1["']|data-pw-added-bg=["']1["']|data-pw-added-image=["']1["']|data-pw-added-video=["']1["']|data-pw-chrome-added=["']1["']|data-pw-placement=["']scene-absolute["']))[^>]*>/gi
 
@@ -354,14 +384,15 @@ function mergeStandaloneFloatsIntoKit(
 }
 
 export function extractSharedChrome(html: string): SharedChrome {
-  const header = extractFirst(html, HEADER_RE)
-  const footer = extractFirst(html, FOOTER_RE)
-  const bottomNav = extractFirst(html, BOTTOM_RE)
-  const topbar = extractFirst(html, TOPBAR_RE)
+  const source = unwrapPersistedLiveChromeHtml(html)
+  const header = extractFirst(source, HEADER_RE)
+  const footer = extractFirst(source, FOOTER_RE)
+  const bottomNav = extractFirst(source, BOTTOM_RE)
+  const topbar = extractFirst(source, TOPBAR_RE)
   const topbarStandalone = topbar && header && blockInside(topbar, header) ? '' : topbar?.html || ''
-  const occupied = chromeOccupiedBlocks(html)
-  const floatKit = extractFirst(html, FLOAT_KIT_RE)
-  const standalone = extractStandaloneFloatWidgets(html, occupied)
+  const occupied = chromeOccupiedBlocks(source)
+  const floatKit = extractFirst(source, FLOAT_KIT_RE)
+  const standalone = extractStandaloneFloatWidgets(source, occupied)
   return {
     topbar: topbarStandalone,
     header: header?.html || '',
@@ -786,7 +817,7 @@ function fileNameOf(path: string): string {
   return path.replace(/\\/g, '/').split('/').pop() || path
 }
 
-/** Homepage HTML of a device — the only chrome source when syncing. */
+/** Homepage HTML of a device — canonical chrome store. Saving any same-device page writes here. */
 export function isHomeSharedChromePath(path: string): boolean {
   return /^index(\.(laptop|tablet|mobile))?\.html$/i.test(fileNameOf(path))
 }
@@ -802,12 +833,32 @@ function isSystemHtmlPath(path: string): boolean {
   return /(^|\/)404(\.mobile|\.tablet|\.laptop)?\.html$/i.test(path.replace(/\\/g, '/'))
 }
 
+function copyDeletedChromeTombstones(targetHtml: string, sourceHtml: string): string {
+  const keys = deletedChromeFeatureKeys(sourceHtml)
+  if (!keys.size) return targetHtml
+  const already = deletedChromeFeatureKeys(targetHtml)
+  const missing = [...keys].filter((key) => !already.has(key))
+  if (!missing.length) return targetHtml
+  const device =
+    sourceHtml.match(/\bdata-pw-deleted-chrome-feature=["'][^"']+["'][^>]*\bdata-pw-device=["']([^"']+)["']/i)?.[1] ||
+    sourceHtml.match(/\bdata-pw-edit-device=["']([^"']+)["']/i)?.[1] ||
+    ''
+  const spans = missing
+    .map((key) => {
+      const deviceAttr = device ? ` data-pw-device="${device}"` : ''
+      return `<span data-pw-deleted-chrome-feature="${key}"${deviceAttr} hidden></span>`
+    })
+    .join('\n')
+  if (/<\/body>/i.test(targetHtml)) return targetHtml.replace(/<\/body>/i, `${spans}\n</body>`)
+  return `${targetHtml}\n${spans}`
+}
+
 function stampWithHomeChrome(html: string, homeHtml: string, variant: SharedChromeDevice): string {
   const deleted = deletedChromeFeatureKeys(html, homeHtml)
   const chrome = stripDeletedChromeFeatures(extractSharedChrome(homeHtml), deleted)
   if (!hasSharedChrome(chrome)) return html
   const next = applySharedChrome(html, chrome, { targetVariant: variant })
-  return mergeVisualHomeStylesIntoHtml(next, homeHtml)
+  return mergeVisualHomeStylesIntoHtml(copyDeletedChromeTombstones(next, homeHtml), homeHtml)
 }
 
 function readHomeHtmlForVariant<T extends { files: Array<{ path: string; kind: string; content: string }> }>(
@@ -829,37 +880,52 @@ export function syncSharedChromeAcrossProjectFiles<
   const path = sourcePath.trim() || 'index.html'
   const sourceVariant = variantFromHtmlPath(path)
   const sourceIsHome = isHomeSharedChromePath(path)
-  const homeHtml = readHomeHtmlForVariant(project, sourceVariant, path, sourceHtml)
-  const sourceChrome = extractSharedChrome(sourceHtml)
+  const homePath = homeSharedChromePath(sourceVariant)
+  const unwrappedSource = unwrapPersistedLiveChromeHtml(sourceHtml)
+  const homeHtml = readHomeHtmlForVariant(project, sourceVariant, path, unwrappedSource)
+  const sourceChrome = extractSharedChrome(unwrappedSource)
   const chromeSource = hasSharedChrome(sourceChrome)
-    ? sourceHtml
+    ? unwrappedSource
     : homeHtml.length >= 40
       ? homeHtml
       : sourceIsHome
-        ? sourceHtml
+        ? unwrappedSource
         : ''
-  const chrome = extractSharedChrome(chromeSource || sourceHtml)
+  const chrome = extractSharedChrome(chromeSource || unwrappedSource)
   if (!hasSharedChrome(chrome)) {
     const files = project.files.map((file) =>
-      file.path === path && file.kind === 'html' ? { ...file, content: sourceHtml } : file
+      file.path === path && file.kind === 'html' ? { ...file, content: unwrappedSource } : file
     )
     return { ...project, files }
   }
 
+  const nextHome = sourceIsHome
+    ? unwrappedSource
+    : homeHtml.length >= 40
+      ? stampWithHomeChrome(homeHtml, chromeSource || unwrappedSource, sourceVariant)
+      : ''
+  const stampFrom = nextHome || chromeSource || unwrappedSource
+
+  let foundHome = false
   const files = project.files.map((file) => {
-    if (file.path === path && file.kind === 'html') {
-      const content = sourceHtml
-      return content === file.content ? file : { ...file, content }
-    }
-    if (file.kind !== 'html' || !/\.html$/i.test(file.path) || isSystemHtmlPath(file.path)) return file
-    const current = file.content || ''
-    if (!current.trim()) return file
-    const targetVariant = variantFromHtmlPath(file.path)
-    if (targetVariant !== sourceVariant) {
+    if (file.kind !== 'html' || !/\.html$/i.test(file.path) || isSystemHtmlPath(file.path)) {
       return file
     }
-    const next = stampWithHomeChrome(current, chromeSource || sourceHtml, targetVariant)
-    return next === current ? file : { ...file, content: next }
+    const targetVariant = variantFromHtmlPath(file.path)
+    if (targetVariant !== sourceVariant) return file
+    if (file.path === homePath) {
+      foundHome = true
+      if (!nextHome) return file
+      return nextHome === file.content ? file : { ...file, content: nextHome }
+    }
+    const current = file.path === path ? unwrappedSource : file.content || ''
+    if (!current.trim()) return file
+    const next = stampWithHomeChrome(current, stampFrom, targetVariant)
+    const content = next.trim() ? next : current
+    return content === file.content ? file : { ...file, content }
   })
+  if (nextHome && !foundHome) {
+    files.push({ path: homePath, kind: 'html', content: nextHome })
+  }
   return { ...project, files }
 }

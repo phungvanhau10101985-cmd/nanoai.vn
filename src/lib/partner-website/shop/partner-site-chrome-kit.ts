@@ -475,6 +475,10 @@ html:not([data-pw-page="product"]):not(:has([data-pw-page="product"])) .pw-botto
 html:not([data-pw-page="product"]):not(:has([data-pw-page="product"])) .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > [data-pw-chrome-btn="home"]:not([${PW_PDP_HOME_ATTR}]):not([${PW_HIDDEN_ATTR}="1"]):not([${PW_DOCK_SHOW_ATTR}="pdp"]){
   display:flex!important;flex-direction:column;align-items:center;justify-content:center;flex:1 1 0!important;min-width:0!important
 }
+html:not([data-pw-page="product"]):not(:has([data-pw-page="product"])) .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > [data-pw-chrome-btn="home"]:not([${PW_PDP_HOME_ATTR}]):not([${PW_DOCK_SHOW_ATTR}="pdp"]) ~ [data-pw-chrome-btn="home"]:not([${PW_PDP_HOME_ATTR}]):not([${PW_HIDDEN_ATTR}="1"]):not([${PW_DOCK_SHOW_ATTR}="pdp"]),
+html:not([data-pw-page="product"]):not(:has([data-pw-page="product"])) .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > [data-pw-chrome-btn="home"]:not([${PW_PDP_HOME_ATTR}]):not([${PW_DOCK_SHOW_ATTR}="pdp"]) ~ [data-pw-chrome-btn="home"]:not([${PW_PDP_HOME_ATTR}]):not([${PW_HIDDEN_ATTR}="1"]):not([${PW_DOCK_SHOW_ATTR}="pdp"]){
+  display:none!important
+}
 ${pwProductDockCss(` [${PW_DOCK_SHOW_ATTR}="shop"]`, '{display:none!important}')}
 ${pwProductDockCss(
   `[${PW_CHROME_KIT_ATTR}="dock"] > a:not([${PW_DOCK_SHOW_ATTR}="pdp"]):not([${PW_DOCK_SHOW_ATTR}="both"])`,
@@ -1085,11 +1089,35 @@ function shopHomeAttrs(attrs: string): string {
   return next
 }
 
-function extractBalancedDivByClass(html: string, className: string): { full: string; inner: string; open: string } | null {
+function extractBalancedDivByClass(
+  html: string,
+  className: string
+): { full: string; inner: string; open: string; start: number } | null {
   const openRe = new RegExp(`<div\\b[^>]*\\b${className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b[^>]*>`, 'i')
   const found = html.match(openRe)
   if (!found || found.index == null) return null
   return extractBalancedTag(html, 'div', found.index)
+}
+
+/** Một Home shop sibling. Home PDP trong `.pw-pdp-sticky-nav` giữ nguyên. */
+function stripDuplicateShopDockHomes(inner: string): string {
+  const navHit = extractBalancedDivByClass(inner, 'pw-pdp-sticky-nav')
+  const ctaHit = extractBalancedDivByClass(inner, 'pw-pdp-sticky-ctas')
+  const reserved: Array<{ start: number; end: number }> = []
+  if (navHit) reserved.push({ start: navHit.start, end: navHit.start + navHit.full.length })
+  if (ctaHit) reserved.push({ start: ctaHit.start, end: ctaHit.start + ctaHit.full.length })
+  let seen = false
+  CHROME_BTN_BLOCK_RE.lastIndex = 0
+  return inner.replace(CHROME_BTN_BLOCK_RE, (block, _tag: string, offset: number) => {
+    const inReserved = reserved.some((r) => offset >= r.start && offset < r.end)
+    if (inReserved) return block
+    if (chromeBtnKindOf(block) !== 'home') return block
+    const open = block.match(/<[^>]+>/)?.[0] || ''
+    if (isPdpOnlyDockOpenTag(open)) return block
+    if (seen) return ''
+    seen = true
+    return block
+  })
 }
 
 function revealPdpDefaultIcon(block: string, kind: string): string {
@@ -1211,7 +1239,7 @@ export function ensurePdpDockFaceInInner(
       )
       if (shopHome) next = `${shopHome}\n    ${next}`
     }
-    return next
+    return stripDuplicateShopDockHomes(next)
   }
 
   const blocks: string[] = []
@@ -1256,7 +1284,9 @@ export function ensurePdpDockFaceInInner(
       continue
     }
     if (kind === 'home') {
-      shop.push(block.replace(/<(a|button)(\s[^>]*)>/i, (_m, tag: string, attrs: string) => `<${tag}${shopHomeAttrs(attrs)}>`))
+      if (!shop.some((existing) => chromeBtnKindOf(existing) === 'home')) {
+        shop.push(block.replace(/<(a|button)(\s[^>]*)>/i, (_m, tag: string, attrs: string) => `<${tag}${shopHomeAttrs(attrs)}>`))
+      }
       continue
     }
     if (isPdpNav && isPdpDockNavKind(kind) && !extras[kind]) {
@@ -1280,7 +1310,9 @@ export function ensurePdpDockFaceInInner(
     )
     if (shopHome) shop.unshift(shopHome)
   }
-  return `${shop.join('\n    ')}${leftover ? `\n    ${leftover}` : ''}\n    ${face}`
+  return stripDuplicateShopDockHomes(
+    `${shop.join('\n    ')}${leftover ? `\n    ${leftover}` : ''}\n    ${face}`
+  )
 }
 
 /**

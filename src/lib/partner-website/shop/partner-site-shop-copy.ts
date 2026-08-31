@@ -282,6 +282,7 @@ export type PartnerSiteShopCopy = {
   depositCopyContent: string
   depositTransferHint: string
   depositQrHint: string
+  depositQrTitle: string
   depositDownloadQr: string
   depositPollingHint: string
   depositLoading: string
@@ -574,7 +575,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     cartTitle: 'Giỏ hàng',
     cartEmpty: 'Giỏ hàng trống.',
     cartSubtotal: 'Tạm tính',
-    cartCheckout: 'Thanh toán',
+    cartCheckout: 'Đặt hàng',
     cartCheckingOut: 'Đang tạo đơn…',
     cartRemove: 'Xóa',
     cartPromoLabel: 'Mã giảm giá',
@@ -770,6 +771,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     depositCopyContent: 'Chép',
     depositTransferHint: 'Ghi đúng nội dung để xác nhận tự động (SePay).',
     depositQrHint: 'Quét QR bên phải → đối chiếu STK và nội dung CK. SePay xác nhận nhanh; không thì shop đối soát tay.',
+    depositQrTitle: 'Mã QR chuyển khoản',
     depositDownloadQr: 'Tải mã QR',
     depositPollingHint: 'Trang tự làm mới khi shop nhận được tiền cọc.',
     depositLoading: 'Đang tải thông tin đơn hàng...',
@@ -1055,7 +1057,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     cartTitle: 'Shopping cart',
     cartEmpty: 'Your cart is empty.',
     cartSubtotal: 'Subtotal',
-    cartCheckout: 'Checkout',
+    cartCheckout: 'Place order',
     cartCheckingOut: 'Placing order…',
     cartRemove: 'Remove',
     cartPromoLabel: 'Promo code',
@@ -1251,6 +1253,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     depositCopyContent: 'Copy',
     depositTransferHint: 'Use the exact memo so SePay can confirm automatically.',
     depositQrHint: 'Scan the QR, then check the account and memo. SePay confirms quickly; otherwise the shop matches it manually.',
+    depositQrTitle: 'Transfer QR code',
     depositDownloadQr: 'Download QR',
     depositPollingHint: 'This page refreshes when the shop receives the deposit.',
     depositLoading: 'Loading order…',
@@ -1536,7 +1539,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     cartTitle: '购物车',
     cartEmpty: '购物车为空。',
     cartSubtotal: '小计',
-    cartCheckout: '结账',
+    cartCheckout: '下单',
     cartCheckingOut: '正在下单…',
     cartRemove: '删除',
     cartPromoLabel: '优惠码',
@@ -1731,6 +1734,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     depositCopyContent: '复制',
     depositTransferHint: '请填写准确备注以便 SePay 自动确认。',
     depositQrHint: '扫描右侧二维码并核对账号与备注。SePay 会尽快确认；否则由店铺人工核对。',
+    depositQrTitle: '转账二维码',
     depositDownloadQr: '下载二维码',
     depositPollingHint: '店铺收到定金后本页会自动更新。',
     depositLoading: '正在加载订单…',
@@ -2015,7 +2019,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     cartTitle: 'ショッピングカート',
     cartEmpty: 'カートは空です。',
     cartSubtotal: '小計',
-    cartCheckout: 'レジに進む',
+    cartCheckout: '注文する',
     cartCheckingOut: '注文処理中…',
     cartRemove: '削除',
     cartPromoLabel: 'プロモコード',
@@ -2210,6 +2214,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     depositCopyContent: 'コピー',
     depositTransferHint: 'SePay が自動確認できるよう、内容を正確に入力してください。',
     depositQrHint: '右のQRを読み取り、口座と振込内容を確認してください。SePay が速やかに確認します。',
+    depositQrTitle: '振込QRコード',
     depositDownloadQr: 'QRを保存',
     depositPollingHint: 'ショップがデポジットを受領するとこのページが更新されます。',
     depositLoading: '注文を読み込み中…',
@@ -2494,7 +2499,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     cartTitle: '장바구니',
     cartEmpty: '장바구니가 비었습니다.',
     cartSubtotal: '소계',
-    cartCheckout: '결제',
+    cartCheckout: '주문하기',
     cartCheckingOut: '주문 처리 중…',
     cartRemove: '삭제',
     cartPromoLabel: '할인 코드',
@@ -2689,6 +2694,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     depositCopyContent: '복사',
     depositTransferHint: 'SePay가 자동 확인할 수 있도록 내용을 정확히 입력하세요.',
     depositQrHint: '오른쪽 QR을 스캔한 뒤 계좌와 이체 내용을 확인하세요. SePay가 빠르게 확인합니다.',
+    depositQrTitle: '이체 QR 코드',
     depositDownloadQr: 'QR 저장',
     depositPollingHint: '샵이 보증금을 받으면 이 페이지가 새로고침됩니다.',
     depositLoading: '주문을 불러오는 중…',
