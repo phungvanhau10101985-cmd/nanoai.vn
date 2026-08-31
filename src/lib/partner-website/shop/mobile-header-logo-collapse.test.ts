@@ -6,6 +6,7 @@ import {
   PW_HEAD_LOGO_COLLAPSED_ATTR,
   PW_MOBILE_HEADER_ICON_ONLY_RULES,
   PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS,
+  PW_MOBILE_HEADER_PDP_LEFTOVER_HIDE_CSS,
   PW_MOBILE_HEADER_STACK_RULES,
   PW_MOBILE_LOGO_SCROLL_COLLAPSE_Y,
   PW_MOBILE_LOGO_SCROLL_EXPAND_Y,
@@ -23,6 +24,8 @@ test('mobile logo collapse uses 188 hysteresis on live and Sửa nhanh', () => {
   assert.equal(PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT.includes('</script>'), false)
   assert.equal(PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT.includes('--pw-sticky-head'), true)
   assert.equal(PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT.includes("d==='tablet'"), true)
+  assert.equal(PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT.includes('visualViewport'), true)
+  assert.equal(PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT.includes('touchmove'), true)
 })
 
 test('mobile header stack centers the logo row and keeps toolbar below', () => {
@@ -36,10 +39,26 @@ test('mobile header stack centers the logo row and keeps toolbar below', () => {
   assert.equal(PW_MOBILE_HEADER_ICON_ONLY_RULES.includes('.pw-chrome-btn-label'), true)
   assert.equal(PW_MOBILE_HEADER_ICON_ONLY_RULES.includes('icon-label-below'), true)
   assert.equal(PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS.includes(`${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"`), true)
+  assert.equal(PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS.includes('display:none!important'), true)
   assert.equal(PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS.includes('max-height:0!important'), true)
   assert.equal(PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS.includes('overflow:hidden!important'), true)
   assert.equal(PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS.includes('.nanoai-ve-logo-btn'), true)
   assert.equal(PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS.includes(':is('), true)
+  assert.equal(PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS.includes('[data-pw-region="topbar"]'), true)
+  assert.equal(PW_MOBILE_HEADER_PDP_LEFTOVER_HIDE_CSS.includes('header [data-pw-chrome-btn="try-on"]'), true)
+  assert.equal(PW_MOBILE_HEADER_PDP_LEFTOVER_HIDE_CSS.includes('header [data-pw-chrome-btn="favorite-product"]'), true)
+  assert.equal(PW_MOBILE_HEADER_PDP_LEFTOVER_HIDE_CSS.includes('[data-pw-live-chrome] [data-pw-chrome-btn="try-on"]'), true)
+  assert.equal(PW_MOBILE_HEADER_PDP_LEFTOVER_HIDE_CSS.includes('main > .pw-shop-btn[data-pw-chrome-btn="try-on"]'), true)
+  assert.equal(PW_MOBILE_HEADER_PDP_LEFTOVER_HIDE_CSS.includes('main > .pw-shop-btn[data-pw-chrome-btn="favorite-product"]'), true)
+  assert.equal(PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS.includes('header [data-pw-chrome-btn="favorite-product"]'), true)
+  assert.equal(
+    /html\[[^\]]*\]\s+header \[data-pw-chrome-btn="try-on"\][\s\S]*?,\s*header \[data-pw-chrome-btn="favorite-product"\]/.test(
+      PW_MOBILE_HEADER_PDP_LEFTOVER_HIDE_CSS
+    ),
+    false
+  )
+  assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('z-index:200!important'), true)
+  assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('pointer-events:auto!important'), true)
   assert.equal(
     /html\[[^\]]*\]\s+\.pw-header a\.pw-brand[\s\S]*?,\s*\.pw-header a\[data-pw-logo-home\]/.test(
       PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS
@@ -58,6 +77,9 @@ test('chrome layout injects mobile logo script and stack CSS once', () => {
   assert.equal(once.includes('flex-wrap:wrap!important'), true)
   assert.equal(once.includes('.pw-container.pw-header-main'), true)
   assert.equal(once.includes('html[data-pw-edit-device="mobile"] .pw-brand-cluster'), true)
+  assert.equal(once.includes('html[data-pw-edit-device="mobile"] [data-pw-region="topbar"]'), true)
+  assert.equal(once.includes('html[data-pw-edit-device="mobile"] header [data-pw-chrome-btn="try-on"]'), true)
+  assert.equal(once.includes('z-index:200!important'), true)
   assert.equal(once.includes('@media (max-width:767px)'), true)
   assert.equal((once.match(/id="pw-shop-mobile-header-logo"/g) || []).length, 1)
   assert.equal((twice.match(/id="pw-shop-mobile-header-logo"/g) || []).length, 1)

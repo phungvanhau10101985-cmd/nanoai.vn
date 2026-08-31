@@ -8,12 +8,17 @@ import { PW_HIDDEN_ATTR } from '@/lib/partner-website/shop/stay-scroll-elements'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { partnerSiteHomePath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
+  chromeDockIconSizeForDevice,
+  chromeFloatRhythmForDevice,
+  chromeHeadIconSizeForDevice,
+  chromeHeadKitGapForDevice,
+  PW_DOCK_BAR_MIN_H,
+  PW_HEAD_KIT_GAP,
+} from '@/lib/partner-website/shop/chrome-rhythm'
+import {
   clampChromeFloatSize,
-  PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX,
-  PW_CHROME_FLOAT_DEFAULT_RIGHT_PX,
   PW_CHROME_FLOAT_KINDS,
   PW_FLOAT_GAP_ATTR,
-  PW_FLOAT_GAP_DEFAULT,
   PW_FLOAT_RIGHT_ATTR,
   PW_FLOAT_SIZE_ATTR,
   PW_FLOAT_SIZE_DEFAULT,
@@ -45,9 +50,9 @@ export const PW_KIT_X_MAX = 80
 export const PW_KIT_GAP_ATTR = 'data-pw-kit-gap'
 export const PW_KIT_GAP_MIN = 0
 export const PW_KIT_GAP_MAX = 48
-/** Desktop/Laptop hiện đang `gap:2px`. Mobile/Tablet compact đang `gap:0`. */
-export const PW_KIT_GAP_DEFAULT = 2
-export const PW_KIT_GAP_DEFAULT_COMPACT = 0
+/** Desktop seed. Laptop 6 / tablet 6 / mobile 4 — `chromeHeadKitGapForDevice`. */
+export const PW_KIT_GAP_DEFAULT = PW_HEAD_KIT_GAP.desktop
+export const PW_KIT_GAP_DEFAULT_COMPACT = PW_HEAD_KIT_GAP.mobile
 
 export function clampChromeKitShift(raw: unknown): number {
   const n = Math.round(Number(raw))
@@ -149,8 +154,13 @@ export function chromeKitHeadGroup(device?: VisualDeviceVariant | null): ChromeK
 }
 
 export function chromeKitGapDefaultForDevice(device?: VisualDeviceVariant | null): number {
-  const group = chromeKitHeadGroup(device)
-  return group === 'mobile' || group === 'tablet' ? PW_KIT_GAP_DEFAULT_COMPACT : PW_KIT_GAP_DEFAULT
+  return chromeHeadKitGapForDevice(device)
+}
+
+/** Attr host cụm icon phải — seed / reset ghi gap theo máy. */
+export function chromeKitHeadActionsHostAttrs(device?: VisualDeviceVariant | null): string {
+  const gap = chromeKitGapDefaultForDevice(device)
+  return `${PW_CHROME_KIT_ATTR}="actions" ${PW_KIT_GAP_ATTR}="${gap}" style="--pw-kit-gap:${gap}px"`
 }
 
 function chromeKitHeadStyle(group: ChromeKitHeadGroup): 'icon-label-below' | 'icon' {
@@ -217,6 +227,7 @@ export function buildChromeKitHeadActionHtml(input: {
 }): string {
   const group = chromeKitHeadGroup(input.device)
   const slug = slugOrShop(input.siteSlug)
+  const iconSize = chromeHeadIconSizeForDevice(input.device)
   return CHROME_KIT_HEAD_ACTION_ITEMS.map((item) => {
     const raw = buildVisualEditorChromeWidgetHtml({
       kind: item.kind,
@@ -226,6 +237,7 @@ export function buildChromeKitHeadActionHtml(input: {
       place: 'header',
       logoUrl: input.logoUrl,
       chatIconLogoUrl: input.chatIconLogoUrl,
+      iconSize,
     })
     if (!raw) return ''
     return asKitTag(raw, hiddenAttr(item.defaultOn[group]))
@@ -362,8 +374,10 @@ export function buildChromeKitDockHtml(input: {
   siteSlug?: string | null
   logoUrl?: string | null
   chatIconLogoUrl?: string | null
+  device?: VisualDeviceVariant | null
 }): string {
   const slug = slugOrShop(input.siteSlug)
+  const iconSize = chromeDockIconSizeForDevice(input.device)
   const shopItems = CHROME_KIT_DOCK_ITEMS.filter(
     (item) => item.kind !== 'try-on' && item.kind !== 'favorite-product' && item.kind !== 'add-cart' && item.kind !== 'buy-now'
   )
@@ -376,6 +390,7 @@ export function buildChromeKitDockHtml(input: {
         place: 'nav',
         logoUrl: input.logoUrl,
         chatIconLogoUrl: input.chatIconLogoUrl,
+        iconSize,
       })
       if (!raw) return ''
       return asKitTag(raw, `${dockShowAttr(item.defaultShow)} ${PW_DOCK_SLOT_ATTR}="${item.slot}"`)
@@ -391,8 +406,10 @@ export function buildChromeKitFloatHtml(input: {
   siteSlug?: string | null
   logoUrl?: string | null
   chatIconLogoUrl?: string | null
+  device?: VisualDeviceVariant | null
 }): string {
   const slug = slugOrShop(input.siteSlug)
+  const iconSize = chromeFloatRhythmForDevice(input.device).size
   return CHROME_KIT_FLOAT_ITEMS.map((item) => {
     const raw = buildVisualEditorChromeWidgetHtml({
       kind: item.kind,
@@ -402,7 +419,7 @@ export function buildChromeKitFloatHtml(input: {
       place: 'nav',
       logoUrl: input.logoUrl,
       chatIconLogoUrl: input.chatIconLogoUrl,
-      iconSize: PW_FLOAT_SIZE_DEFAULT,
+      iconSize,
     })
     if (!raw) return ''
     return asFloatKitTag(raw, hiddenAttr(item.defaultOn))
@@ -417,9 +434,11 @@ export function buildChromeKitFloatHostHtml(input: {
   logoUrl?: string | null
   chatIconLogoUrl?: string | null
   inner?: string
+  device?: VisualDeviceVariant | null
 }): string {
+  const rhythm = chromeFloatRhythmForDevice(input.device)
   const inner = (input.inner || buildChromeKitFloatHtml(input)).trim()
-  return `<aside class="pw-chrome-float-kit" ${PW_CHROME_KIT_ATTR}="float" data-pw-chrome-float-host="1" ${PW_FLOAT_RIGHT_ATTR}="${PW_CHROME_FLOAT_DEFAULT_RIGHT_PX}" ${PW_FLOAT_STACK_BOTTOM_ATTR}="${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat}" ${PW_FLOAT_GAP_ATTR}="${PW_FLOAT_GAP_DEFAULT}" ${PW_FLOAT_SIZE_ATTR}="${PW_FLOAT_SIZE_DEFAULT}" style="--pw-float-size:${PW_FLOAT_SIZE_DEFAULT}px">\n    ${inner}\n  </aside>`
+  return `<aside class="pw-chrome-float-kit" ${PW_CHROME_KIT_ATTR}="float" data-pw-chrome-float-host="1" ${PW_FLOAT_RIGHT_ATTR}="${rhythm.right}" ${PW_FLOAT_STACK_BOTTOM_ATTR}="${rhythm.bottom}" ${PW_FLOAT_GAP_ATTR}="${rhythm.gap}" ${PW_FLOAT_SIZE_ATTR}="${rhythm.size}" style="--pw-float-size:${rhythm.size}px">\n    ${inner}\n  </aside>`
 }
 
 /**
@@ -441,7 +460,7 @@ function pwProductDockCss(selector: string, body: string): string {
 }
 
 export const PARTNER_SHOP_CHROME_KIT_CSS = `
-.pw-header-actions[${PW_CHROME_KIT_ATTR}="actions"],.pw-shop-header-actions[${PW_CHROME_KIT_ATTR}="actions"]{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;margin-right:0!important;gap:var(--pw-kit-gap, 2px)!important;transform:translateX(var(--pw-kit-x, 0px))!important}
+.pw-header-actions[${PW_CHROME_KIT_ATTR}="actions"],.pw-shop-header-actions[${PW_CHROME_KIT_ATTR}="actions"]{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;margin-right:0!important;gap:var(--pw-kit-gap, ${PW_KIT_GAP_DEFAULT}px)!important;transform:translateX(var(--pw-kit-x, 0px))!important}
 .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"],.pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{flex-wrap:nowrap!important;align-items:stretch}
 .pw-bottom-nav .pw-pdp-sticky-nav,.pw-shop-bottom-nav .pw-pdp-sticky-nav,.pw-bottom-nav .pw-pdp-sticky-ctas,.pw-shop-bottom-nav .pw-pdp-sticky-ctas,
 .pw-bottom-nav [${PW_DOCK_SHOW_ATTR}="pdp"],.pw-shop-bottom-nav [${PW_DOCK_SHOW_ATTR}="pdp"]{display:none!important}
@@ -498,7 +517,25 @@ html[data-pw-page="product"]:has([${PW_CHROME_KIT_ATTR}="dock"]) > body > [data-
 html[data-pw-page="product"] .pw-shop-cat-panel .pw-pdp-sticky-nav,
 html[data-pw-page="product"] .pw-shop-cat-panel .pw-pdp-sticky-ctas,
 html[data-pw-page="product"] .pw-chrome-cat-wrap > .pw-pdp-sticky-nav,
-html[data-pw-page="product"] .pw-chrome-cat-wrap > .pw-pdp-sticky-ctas{display:none!important}
+html[data-pw-page="product"] .pw-chrome-cat-wrap > .pw-pdp-sticky-ctas,
+html[data-pw-page="product"] header [data-pw-chrome-btn="try-on"],
+html[data-pw-page="product"] header [data-pw-chrome-btn="favorite-product"],
+html[data-pw-page="product"] header [data-pw-chrome-btn="add-cart"],
+html[data-pw-page="product"] header [data-pw-chrome-btn="buy-now"],
+html[data-pw-page="product"] header .pw-pdp-sticky-nav,
+html[data-pw-page="product"] header .pw-pdp-sticky-ctas,
+html[data-pw-page="product"] header [data-pw-pdp-nav],
+html[data-pw-page="product"] header [data-pw-dock-show="pdp"],
+html[data-pw-page="product"] .pw-header [data-pw-chrome-btn="try-on"],
+html[data-pw-page="product"] .pw-shop-header [data-pw-chrome-btn="try-on"],
+html[data-pw-page="product"] .pw-header [data-pw-chrome-btn="favorite-product"],
+html[data-pw-page="product"] .pw-shop-header [data-pw-chrome-btn="favorite-product"],
+html[data-pw-page="product"] [data-pw-live-chrome] [data-pw-chrome-btn="try-on"],
+html[data-pw-page="product"] [data-pw-live-chrome] [data-pw-chrome-btn="favorite-product"],
+html[data-pw-page="product"] [data-pw-live-chrome] [data-pw-chrome-btn="add-cart"],
+html[data-pw-page="product"] [data-pw-live-chrome] [data-pw-chrome-btn="buy-now"],
+html[data-pw-page="product"] [data-pw-live-chrome] .pw-pdp-sticky-nav,
+html[data-pw-page="product"] [data-pw-live-chrome] .pw-pdp-sticky-ctas{display:none!important}
 html:has([${PW_CHROME_KIT_ATTR}="dock"]) nav[data-pw-pdp-bottom]:not([${PW_CHROME_KIT_ATTR}]),
 html:has([${PW_CHROME_KIT_ATTR}="dock"]) nav.pw-pdp-sticky:not([${PW_CHROME_KIT_ATTR}]),
 html:has([${PW_CHROME_KIT_ATTR}="dock"]) div.pw-pdp-sticky,
@@ -506,8 +543,8 @@ html:has([${PW_CHROME_KIT_ATTR}="dock"]) div.pw-pdp-sticky,
 .pw-shop:has([${PW_CHROME_KIT_ATTR}="dock"]) nav.pw-pdp-sticky:not([${PW_CHROME_KIT_ATTR}]),
 .pw-shop:has([${PW_CHROME_KIT_ATTR}="dock"]) div.pw-pdp-sticky{display:none!important}
 .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"],.pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{
-  justify-content:stretch!important;gap:0!important;min-height:56px!important;
-  padding:4px 2px calc(4px + env(safe-area-inset-bottom,0px))!important;background:#fff!important;border-top:1px solid var(--pw-border,#e5e7eb)!important
+  justify-content:stretch!important;gap:0!important;min-height:${PW_DOCK_BAR_MIN_H.tablet}px!important;
+  padding:6px 2px calc(6px + env(safe-area-inset-bottom,0px))!important;background:#fff!important;border-top:1px solid var(--pw-border,#e5e7eb)!important
 }
 .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > [${PW_CHROME_KIT_ATTR}="1"]:not([${PW_HIDDEN_ATTR}="1"]),.pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > [${PW_CHROME_KIT_ATTR}="1"]:not([${PW_HIDDEN_ATTR}="1"]){
   flex:1 1 0!important;min-width:0!important;max-width:none!important;width:auto!important
@@ -787,21 +824,22 @@ function writeFloatSizeCss(openAttrs: string, size: number): string {
   return `${openAttrs} style=${quote}${nextCss}${quote}`
 }
 
-function withFloatStackHostAttrs(openAttrs: string): string {
+function withFloatStackHostAttrs(openAttrs: string, device?: VisualDeviceVariant | null): string {
+  const rhythm = chromeFloatRhythmForDevice(device)
   let next = openAttrs
   if (!new RegExp(`\\b${PW_FLOAT_RIGHT_ATTR}=`, 'i').test(next)) {
-    next += ` ${PW_FLOAT_RIGHT_ATTR}="${PW_CHROME_FLOAT_DEFAULT_RIGHT_PX}"`
+    next += ` ${PW_FLOAT_RIGHT_ATTR}="${rhythm.right}"`
   }
   if (!new RegExp(`\\b${PW_FLOAT_STACK_BOTTOM_ATTR}=`, 'i').test(next)) {
-    next += ` ${PW_FLOAT_STACK_BOTTOM_ATTR}="${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat}"`
+    next += ` ${PW_FLOAT_STACK_BOTTOM_ATTR}="${rhythm.bottom}"`
   }
   if (!new RegExp(`\\b${PW_FLOAT_GAP_ATTR}=`, 'i').test(next)) {
-    next += ` ${PW_FLOAT_GAP_ATTR}="${PW_FLOAT_GAP_DEFAULT}"`
+    next += ` ${PW_FLOAT_GAP_ATTR}="${rhythm.gap}"`
   }
   const hadSize = new RegExp(`\\b${PW_FLOAT_SIZE_ATTR}=`, 'i').test(next)
   const fromAttr = next.match(new RegExp(`\\b${PW_FLOAT_SIZE_ATTR}=(["'])([^"']*)\\1`, 'i'))?.[2]
   const fromCss = next.match(/--pw-float-size\s*:\s*(-?\d+(?:\.\d+)?)px/i)?.[1]
-  const size = clampChromeFloatSize(fromAttr ?? fromCss ?? PW_FLOAT_SIZE_DEFAULT)
+  const size = clampChromeFloatSize(fromAttr ?? fromCss ?? rhythm.size)
   if (!hadSize) next += ` ${PW_FLOAT_SIZE_ATTR}="${size}"`
   else {
     next = next.replace(new RegExp(`\\s${PW_FLOAT_SIZE_ATTR}=(["'])[^"']*\\1`, 'i'), ` ${PW_FLOAT_SIZE_ATTR}="${size}"`)
@@ -1185,6 +1223,7 @@ export function ensurePartnerSiteChromeKitInHtml(
         siteSlug: input.siteSlug,
         logoUrl: input.logoUrl,
         chatIconLogoUrl: input.chatIconLogoUrl,
+        device: input.device,
       })
         .split('\n')
         .map((line) => line.trim())
@@ -1209,6 +1248,7 @@ export function ensurePartnerSiteChromeKitInHtml(
       siteSlug: input.siteSlug,
       logoUrl: input.logoUrl,
       chatIconLogoUrl: input.chatIconLogoUrl,
+      device: input.device,
     })}\n  </nav>`
     let replaced = false
     PDP_BOTTOM_NAV_RE.lastIndex = 0
@@ -1225,6 +1265,7 @@ export function ensurePartnerSiteChromeKitInHtml(
     siteSlug: input.siteSlug,
     logoUrl: input.logoUrl,
     chatIconLogoUrl: input.chatIconLogoUrl,
+    device: input.device,
   })
 
   return pinMidCanvasTopChromeInHtml(stripLeftoverPdpFaceOutsideDock(hoistViewportDockToBody(out)))
@@ -1277,6 +1318,7 @@ function ensureChromeKitFloatHost(
     siteSlug?: string | null
     logoUrl?: string | null
     chatIconLogoUrl?: string | null
+    device?: VisualDeviceVariant | null
   }
 ): string {
   const escaped = takeEscapedChromeFloatWidgets(html)
@@ -1305,7 +1347,7 @@ function ensureChromeKitFloatHost(
         .join('\n    ')
       if (extra) inner = `${inner.trim()}\n    ${extra}\n  `
     }
-    const hostAttrs = withFloatStackHostAttrs(withHostKitAttr(hostMatch[2], 'float'))
+    const hostAttrs = withFloatStackHostAttrs(withHostKitAttr(hostMatch[2], 'float'), input.device)
     const size = floatHostSizeFromAttrs(hostAttrs)
     inner = stampFloatKitFaceAndSize(inner, size, migrateCircle)
     const nextHost = `<${hostMatch[1]}${hostAttrs}>${inner}</${hostMatch[1]}>`
@@ -1326,7 +1368,8 @@ function ensureChromeKitFloatHost(
           return kind && missing.some((item) => item.kind === kind)
         })
     : []
-  const inner = stampFloatKitFaceAndSize([...kept, ...extra].filter(Boolean).join('\n    '), PW_FLOAT_SIZE_DEFAULT, true)
+  const seedSize = chromeFloatRhythmForDevice(input.device).size
+  const inner = stampFloatKitFaceAndSize([...kept, ...extra].filter(Boolean).join('\n    '), seedSize, true)
   const host = buildChromeKitFloatHostHtml({ ...input, inner })
   if (/<\/body>/i.test(stripped)) return stripped.replace(/<\/body>/i, `${host}\n</body>`)
   return `${stripped}\n${host}`

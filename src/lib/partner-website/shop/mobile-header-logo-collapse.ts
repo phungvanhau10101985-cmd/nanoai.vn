@@ -19,15 +19,16 @@ export const PW_MOBILE_HEADER_STACK_RULES = `
 .pw-header a.pw-brand:not(:has(img:not([data-pw-logo-empty]))) .pw-wordmark,.pw-shop-header a.pw-shop-brand:not(:has(img:not([data-pw-logo-empty]))) .pw-wordmark,.pw-header a[data-pw-logo-home]:not(:has(img:not([data-pw-logo-empty]))) .pw-wordmark{display:inline-block!important;color:#fff!important;font-weight:800!important;font-size:18px!important;line-height:40px!important;min-height:40px!important}
 body.nanoai-ve-active .pw-header a.pw-brand:has([data-pw-logo-empty]) .pw-wordmark,body.nanoai-ve-active .pw-shop-header a.pw-shop-brand:has([data-pw-logo-empty]) .pw-wordmark,body.nanoai-ve-active .pw-header a[data-pw-logo-home]:has([data-pw-logo-empty]) .pw-wordmark{display:none!important}
 .pw-logo,.pw-shop-logo,.pw-brand .pw-logo-frame img,.pw-shop-brand .pw-logo-frame img,.pw-brand [data-pw-logo-frame="1"] img,.pw-shop-brand [data-pw-logo-frame="1"] img{height:40px!important;width:auto!important;max-height:40px!important;max-width:min(200px,72vw)!important;object-fit:contain!important}
-.pw-cat-btn:not([data-pw-chrome-added]),.pw-shop-cat-btn:not([data-pw-chrome-added]),.pw-brand-cluster [data-pw-chrome-btn="categories"]:not([data-pw-chrome-added]),.pw-shop-brand-cluster [data-pw-chrome-btn="categories"]:not([data-pw-chrome-added]){order:1!important}
+.pw-cat-btn:not([data-pw-chrome-added]),.pw-shop-cat-btn:not([data-pw-chrome-added]),.pw-brand-cluster [data-pw-chrome-btn="categories"]:not([data-pw-chrome-added]),.pw-shop-brand-cluster [data-pw-chrome-btn="categories"]:not([data-pw-chrome-added]),.pw-chrome-cat-wrap{order:1!important;position:relative!important;z-index:200!important;pointer-events:auto!important}
 .pw-header-search,.pw-shop-search-wrap{order:2!important;flex:1 1 0%!important;min-width:96px!important}
 .pw-header-actions,.pw-shop-header-actions{order:3!important;max-width:none!important;overflow:visible!important;margin-left:0!important}
+.pw-brand-cluster,.pw-shop-brand-cluster{pointer-events:auto!important}
 `.trim()
 
 /** Ẩn chữ head trên mobile — thắng leftover `icon-label-below` (`display:block!important`). Dock vẫn có chữ. */
 export const PW_MOBILE_HEADER_ICON_ONLY_RULES = `
 .pw-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"] .pw-chrome-btn-label,.pw-shop-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"] .pw-chrome-btn-label,.pw-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"] .pw-shop-nav-label,.pw-shop-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"] .pw-shop-nav-label,.pw-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"] .pw-shop-icon-label,.pw-shop-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"] .pw-shop-icon-label,.pw-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"] .pw-account-btn-label,.pw-shop-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"] .pw-account-btn-label,.pw-header-actions [data-pw-chrome-btn][data-pw-chrome-style="icon-label-below"]>span:not(.pw-chrome-icon-wrap):not(.pw-cart-badge):not(.pw-shop-cart-badge):not([data-pw-chrome-badge]):not(.pw-chrome-chat-logo),.pw-shop-header-actions [data-pw-chrome-btn][data-pw-chrome-style="icon-label-below"]>span:not(.pw-chrome-icon-wrap):not(.pw-cart-badge):not(.pw-shop-cart-badge):not([data-pw-chrome-badge]):not(.pw-chrome-chat-logo),.pw-header-actions .pw-chrome-label-below .pw-chrome-btn-label,.pw-shop-header-actions .pw-chrome-label-below .pw-chrome-btn-label,.pw-header-actions [data-pw-chrome-btn] .pw-chrome-btn-label,.pw-shop-header-actions [data-pw-chrome-btn] .pw-chrome-btn-label,.pw-header-actions .pw-shop-icon-label,.pw-shop-header-actions .pw-shop-icon-label{display:none!important;font-size:0!important;height:0!important;max-height:0!important;overflow:hidden!important;margin:0!important;padding:0!important}
-.pw-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"],.pw-shop-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"],.pw-header-actions .pw-chrome-label-below,.pw-shop-header-actions .pw-chrome-label-below,.pw-header-actions .pw-shop-icon-btn,.pw-shop-header-actions .pw-shop-icon-btn{flex-direction:row!important;min-width:40px!important;max-width:44px!important;padding:4px!important;gap:0!important}
+.pw-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"],.pw-shop-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"],.pw-header-actions .pw-chrome-label-below,.pw-shop-header-actions .pw-chrome-label-below,.pw-header-actions .pw-shop-icon-btn,.pw-shop-header-actions .pw-shop-icon-btn{flex-direction:row!important;min-width:44px!important;max-width:48px!important;padding:6px!important;gap:0!important}
 `.trim()
 
 const LOGO_ROW_SEL = [
@@ -40,11 +41,59 @@ const LOGO_ROW_SEL = [
 /** Prefix every logo row — do not interpolate a comma list after `html[…]` (later items leak). */
 const LOGO_ROW_IS = `:is(${LOGO_ROW_SEL})`
 
-/** Thắng `html .pw-header-main{flex-wrap:nowrap}` và CSS kéo từ HTML visual. */
+/** Thắng `html .pw-header-main{flex-wrap:nowrap}` và CSS kéo từ HTML visual / Sửa nhanh. */
 export const PW_MOBILE_HEADER_STACK_WIN_CSS = `
-html[data-pw-edit-device="mobile"] .pw-container.pw-header-main,html[data-pw-scene-lock="mobile"] .pw-container.pw-header-main,html[data-pw-edit-device="mobile"] .pw-shop-header-inner,html[data-pw-scene-lock="mobile"] .pw-shop-header-inner{display:flex!important;flex-wrap:wrap!important}
-@media (max-width:767px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-container.pw-header-main,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-shop-header-inner{display:flex!important;flex-wrap:wrap!important}}
+html[data-pw-edit-device="mobile"] .pw-header-main,html[data-pw-edit-device="mobile"] .pw-container.pw-header-main,html[data-pw-edit-device="mobile"] .pw-shop-header-inner,html[data-pw-scene-lock="mobile"] .pw-header-main,html[data-pw-scene-lock="mobile"] .pw-container.pw-header-main,html[data-pw-scene-lock="mobile"] .pw-shop-header-inner,html[data-pw-edit-device="mobile"].nanoai-ve-active .pw-header-main,html[data-pw-edit-device="mobile"] body.nanoai-ve-active .pw-header-main,html[data-pw-edit-device="mobile"] body.nanoai-ve-active .pw-shop-header-inner{display:flex!important;flex-wrap:wrap!important}
+@media (max-width:767px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-header-main,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-container.pw-header-main,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-shop-header-inner{display:flex!important;flex-wrap:wrap!important}}
 `.trim()
+
+/** Ẩn thanh trên (topbar) trên mobile — thắng `display:block;min-height:36px` ở chrome layout / Sửa nhanh. */
+export const PW_MOBILE_HEADER_TOPBAR_HIDE_CSS = `
+html[data-pw-edit-device="mobile"] .pw-topbar,html[data-pw-edit-device="mobile"] .pw-shop-topbar,html[data-pw-edit-device="mobile"] [data-pw-region="topbar"],html[data-pw-scene-lock="mobile"] .pw-topbar,html[data-pw-scene-lock="mobile"] .pw-shop-topbar,html[data-pw-scene-lock="mobile"] [data-pw-region="topbar"]{display:none!important;min-height:0!important;height:0!important;max-height:0!important;overflow:hidden!important;padding:0!important;margin:0!important;border:0!important;pointer-events:none!important}
+@media (max-width:767px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-topbar,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-shop-topbar,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) [data-pw-region="topbar"]{display:none!important;min-height:0!important;height:0!important;max-height:0!important;overflow:hidden!important;padding:0!important;margin:0!important;border:0!important}}
+`.trim()
+
+const PW_HEAD_PDP_LEFTOVER_SELS = [
+  'header [data-pw-chrome-btn="try-on"]',
+  'header [data-pw-chrome-btn="favorite-product"]',
+  'header [data-pw-chrome-btn="add-cart"]',
+  'header [data-pw-chrome-btn="buy-now"]',
+  'header .pw-pdp-sticky-nav',
+  'header .pw-pdp-sticky-ctas',
+  'header [data-pw-pdp-nav]',
+  'header [data-pw-dock-show="pdp"]',
+  '.pw-header [data-pw-chrome-btn="try-on"]',
+  '.pw-shop-header [data-pw-chrome-btn="try-on"]',
+  '.pw-header [data-pw-chrome-btn="favorite-product"]',
+  '.pw-shop-header [data-pw-chrome-btn="favorite-product"]',
+  '.pw-header [data-pw-chrome-btn="add-cart"]',
+  '.pw-shop-header [data-pw-chrome-btn="add-cart"]',
+  '.pw-header [data-pw-chrome-btn="buy-now"]',
+  '.pw-shop-header [data-pw-chrome-btn="buy-now"]',
+  '[data-pw-live-chrome] [data-pw-chrome-btn="try-on"]',
+  '[data-pw-live-chrome] [data-pw-chrome-btn="favorite-product"]',
+  '[data-pw-live-chrome] [data-pw-chrome-btn="add-cart"]',
+  '[data-pw-live-chrome] [data-pw-chrome-btn="buy-now"]',
+  '[data-pw-live-chrome] .pw-pdp-sticky-nav',
+  '[data-pw-live-chrome] .pw-pdp-sticky-ctas',
+  'main > .pw-shop-btn[data-pw-chrome-btn="try-on"]',
+  'main > .pw-shop-btn[data-pw-chrome-btn="favorite-product"]',
+  'main > .pw-shop-btn[data-pw-chrome-btn="add-cart"]',
+  'main > .pw-shop-btn[data-pw-chrome-btn="buy-now"]',
+]
+
+function prefixHeadPdpLeftover(host: string): string {
+  return PW_HEAD_PDP_LEFTOVER_SELS.map((sel) => `${host} ${sel}`).join(',')
+}
+
+/** Leftover Thích / Thử đồ / CTA PDP không được ngồi trên head — chỉ thanh đáy / buy box. */
+export const PW_MOBILE_HEADER_PDP_LEFTOVER_HIDE_CSS = `
+${prefixHeadPdpLeftover('html[data-pw-edit-device="mobile"]')},${prefixHeadPdpLeftover('html[data-pw-scene-lock="mobile"]')}{display:none!important}
+@media (max-width:767px){${prefixHeadPdpLeftover('html:not([data-pw-edit-device]):not([data-pw-scene-lock])')}{display:none!important}}
+`.trim()
+
+const COLLAPSED_LOGO_BOX =
+  'display:none!important;height:0!important;max-height:0!important;min-height:0!important;width:0!important;max-width:0!important;flex:0 0 0%!important;opacity:0!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important;pointer-events:none!important;visibility:hidden!important'
 
 export const PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS = `
 html[data-pw-edit-device="mobile"]:not([${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"]) ${LOGO_ROW_IS},
@@ -52,14 +101,16 @@ html[data-pw-scene-lock="mobile"]:not([${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"]) ${LO
 html:not([data-pw-edit-device]):not([data-pw-scene-lock]):not([${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"]) ${LOGO_ROW_IS}{opacity:1!important;pointer-events:auto!important}
 html[data-pw-edit-device="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] ${LOGO_ROW_IS},
 html[data-pw-scene-lock="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] ${LOGO_ROW_IS},
-html:not([data-pw-edit-device]):not([data-pw-scene-lock])[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] ${LOGO_ROW_IS}{max-height:0!important;min-height:0!important;opacity:0!important;margin:0!important;overflow:hidden!important;pointer-events:none!important}
-html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .nanoai-ve-logo-btn,html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] img[data-pw-logo-empty="1"],html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-logo-frame:has([data-pw-logo-empty="1"]),html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] [data-pw-logo-frame="1"]:has([data-pw-logo-empty="1"]){display:none!important;min-height:0!important;min-width:0!important}
+html:not([data-pw-edit-device]):not([data-pw-scene-lock])[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] ${LOGO_ROW_IS}{${COLLAPSED_LOGO_BOX}}
+html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .nanoai-ve-logo-btn,html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] img[data-pw-logo-empty="1"],html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-logo-frame:has([data-pw-logo-empty="1"]),html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] [data-pw-logo-frame="1"]:has([data-pw-logo-empty="1"]),html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] header .pw-logo-frame:not([data-pw-logo-float]),html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] header [data-pw-logo-frame="1"]:not([data-pw-logo-float]){display:none!important;min-height:0!important;min-width:0!important;height:0!important;width:0!important;pointer-events:none!important}
 html[data-pw-edit-device="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-header-main,
 html[data-pw-edit-device="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-shop-header-inner,
 html[data-pw-scene-lock="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-header-main,
 html[data-pw-scene-lock="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-shop-header-inner,
 html:not([data-pw-edit-device]):not([data-pw-scene-lock])[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-header-main,
 html:not([data-pw-edit-device]):not([data-pw-scene-lock])[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-shop-header-inner{padding-top:4px!important;padding-bottom:6px!important;row-gap:0!important}
+${PW_MOBILE_HEADER_TOPBAR_HIDE_CSS}
+${PW_MOBILE_HEADER_PDP_LEFTOVER_HIDE_CSS}
 `.trim()
 
 export const PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT = `(function(){
@@ -76,9 +127,25 @@ export const PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT = `(function(){
     if(d==='desktop'||d==='laptop'||d==='tablet')return false;
     return (window.innerWidth||el.clientWidth||0)<768;
   }
+  function addScroll(y,n){
+    if(!n)return y;
+    try{
+      var t=n.scrollTop||0;
+      if(t>y)y=t;
+    }catch(eAdd){}
+    return y;
+  }
   function scrollY(){
-    var se=document.scrollingElement||html();
-    var y=Math.max(window.scrollY||0,window.pageYOffset||0,se&&se.scrollTop||0,html().scrollTop||0);
+    var y=Math.max(window.scrollY||0,window.pageYOffset||0);
+    y=addScroll(y,document.scrollingElement);
+    y=addScroll(y,html());
+    y=addScroll(y,document.body);
+    y=addScroll(y,document.querySelector('[data-pw-inline-visual-root]'));
+    y=addScroll(y,document.querySelector('[data-pw-scene-root="1"]'));
+    y=addScroll(y,document.querySelector('main,.pw-shop-main,.pw-shop'));
+    try{
+      if(window.visualViewport&&window.visualViewport.pageTop>y)y=window.visualViewport.pageTop;
+    }catch(eVv){}
     return y;
   }
   function visibleHeader(){
@@ -144,5 +211,9 @@ export const PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT = `(function(){
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);
   else boot();
   window.addEventListener('scroll',onScroll,{passive:true,capture:true});
+  document.addEventListener('scroll',onScroll,{passive:true,capture:true});
+  document.addEventListener('touchmove',onScroll,{passive:true,capture:true});
+  document.addEventListener('wheel',onScroll,{passive:true,capture:true});
+  try{if(window.visualViewport)window.visualViewport.addEventListener('scroll',onScroll,{passive:true});}catch(eVv2){}
   window.addEventListener('resize',function(){watchHeader();sync();});
 })();`

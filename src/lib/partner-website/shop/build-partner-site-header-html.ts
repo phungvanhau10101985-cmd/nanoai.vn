@@ -10,6 +10,7 @@ import {
   PW_CHROME_KIT_ATTR,
   buildChromeKitDockHtml,
   buildChromeKitHeadActionHtml,
+  chromeKitHeadActionsHostAttrs,
 } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
@@ -203,7 +204,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
       </nav>
     </div>
     ${searchBar}
-    <div class="pw-header-actions" ${PW_CHROME_KIT_ATTR}="actions">
+    <div class="pw-header-actions" ${chromeKitHeadActionsHostAttrs(input.device)}>
       ${buildChromeKitHeadActionHtml({
         locale: input.locale,
         siteSlug: siteSlug || null,
@@ -226,6 +227,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
       siteSlug: siteSlug || null,
       logoUrl: logo,
       chatIconLogoUrl: input.chatIconLogoUrl,
+      device: input.device,
     })}
   </nav>`
 

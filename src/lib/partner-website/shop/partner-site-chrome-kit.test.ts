@@ -103,15 +103,15 @@ describe('partner-site-chrome-kit', () => {
     expect(html).toContain('data-pw-float-right="16"')
     expect(html).toContain('data-pw-float-stack-bottom="88"')
     expect(html).toContain('data-pw-float-gap="56"')
-    expect(html).toContain('data-pw-float-size="40"')
-    expect(html).toContain('--pw-float-size:40px')
+    expect(html).toContain('data-pw-float-size="44"')
+    expect(html).toContain('--pw-float-size:44px')
     expect(html).toContain('data-pw-chrome-btn="chat"')
     expect(html).toContain('data-pw-chrome-btn="chat-zalo"')
     expect(html).toContain('data-pw-chrome-btn="topup"')
     expect(html).toContain('data-pw-chrome-float="1"')
     expect(html).toContain('data-pw-chrome-style="icon-circle"')
     expect(html).toContain('pw-chrome-icon-circle')
-    expect(html).toContain('data-pw-chrome-size="40"')
+    expect(html).toContain('data-pw-chrome-size="44"')
     expect(html).toMatch(/data-pw-hidden="1"/)
     expect(html).not.toContain('data-pw-chrome-added="1"')
   })
@@ -259,6 +259,8 @@ describe('partner-site-chrome-kit', () => {
       device: 'desktop',
     })
     expect(header).toContain(`${PW_CHROME_KIT_ATTR}="actions"`)
+    expect(header).toContain(`${PW_KIT_GAP_ATTR}="8"`)
+    expect(header).toContain('data-pw-chrome-size="20"')
     expect(header).toContain('data-pw-chrome-btn="recently-viewed"')
     expect(bottomNav).toContain(`${PW_CHROME_KIT_ATTR}="dock"`)
     expect(bottomNav).toContain('data-pw-chrome-btn="add-cart"')
@@ -292,10 +294,13 @@ describe('partner-site-chrome-kit', () => {
   it('uses icon-below labels on PC head and icon-only on phone', () => {
     const pc = buildChromeKitHeadActionHtml({ locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' })
     const laptop = buildChromeKitHeadActionHtml({ locale: 'vi', siteSlug: 'demo-shop', device: 'laptop' })
+    expect(pc).toContain('data-pw-chrome-size="20"')
+    expect(laptop).toContain('data-pw-chrome-size="18"')
     expect(pc).toContain('data-pw-chrome-style="icon-label-below"')
     expect(laptop).toContain('data-pw-chrome-style="icon-label-below"')
     expect(pc).toMatch(/data-pw-chrome-btn="cart"[^>]*data-pw-chrome-style="icon-label-below"|data-pw-chrome-style="icon-label-below"[^>]*data-pw-chrome-btn="cart"/)
     const mobile = buildChromeKitHeadActionHtml({ locale: 'vi', siteSlug: 'demo-shop', device: 'mobile' })
+    expect(mobile).toContain('data-pw-chrome-size="22"')
     expect(mobile).toMatch(/data-pw-chrome-btn="cart"[^>]*pw-chrome-icon-only|pw-chrome-icon-only[^>]*data-pw-chrome-btn="cart"/)
     expect(mobile).not.toMatch(/data-pw-chrome-btn="cart"[^>]*icon-label-below/)
   })
@@ -361,6 +366,15 @@ describe('partner-site-chrome-kit', () => {
     )
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
       '.pw-pdp-sticky-ctas [data-pw-chrome-btn="add-cart"] ~ [data-pw-chrome-btn="add-cart"]'
+    )
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
+      'html[data-pw-page="product"] header [data-pw-chrome-btn="try-on"]'
+    )
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
+      'html[data-pw-page="product"] header [data-pw-chrome-btn="favorite-product"]'
+    )
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
+      'html[data-pw-page="product"] [data-pw-live-chrome] [data-pw-chrome-btn="try-on"]'
     )
   })
 
@@ -474,10 +488,10 @@ describe('partner-site-chrome-kit', () => {
     expect(clampChromeKitGap(12.4)).toBe(12)
     expect(clampChromeKitGap(99)).toBe(PW_KIT_GAP_MAX)
     expect(chromeKitGapDefaultForDevice('desktop')).toBe(PW_KIT_GAP_DEFAULT)
-    expect(chromeKitGapDefaultForDevice('laptop')).toBe(PW_KIT_GAP_DEFAULT)
-    expect(chromeKitGapDefaultForDevice('tablet')).toBe(PW_KIT_GAP_DEFAULT_COMPACT)
+    expect(chromeKitGapDefaultForDevice('laptop')).toBe(6)
+    expect(chromeKitGapDefaultForDevice('tablet')).toBe(6)
     expect(chromeKitGapDefaultForDevice('mobile')).toBe(PW_KIT_GAP_DEFAULT_COMPACT)
-    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('gap:var(--pw-kit-gap, 2px)')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('gap:var(--pw-kit-gap, 8px)')
     const html = `<header class="pw-header"><div class="pw-header-actions" ${PW_KIT_GAP_ATTR}="16">
       <a data-pw-chrome-btn="cart" href="/cart">Giỏ</a>
     </div></header>`

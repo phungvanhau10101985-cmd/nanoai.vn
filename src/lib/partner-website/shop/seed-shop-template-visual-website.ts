@@ -9,6 +9,7 @@ import { BLANK_SHOP_VISUAL_PAGE_KEYS } from '@/lib/partner-website/shop/build-bl
 import { buildShopTemplatePageVisualHtml } from '@/lib/partner-website/shop/build-shop-template-page-visual-html'
 import { buildDefaultDemoPdpShellHtml } from '@/lib/partner-website/shop/build-default-demo-pdp-shell-html'
 import { ensureFullPartnerSiteFooterInHtml } from '@/lib/partner-website/shop/build-partner-site-footer-html'
+import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import { stampPartnerShopEditorHooksInHtml } from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
 import { applySharedChrome, extractSharedChrome } from '@/lib/partner-website/shop/sync-shared-chrome'
 import { renderTemplateSiteToHtml } from '@/lib/partner-website/template/render-template-html'
@@ -46,7 +47,13 @@ function finishVisualHtml(
     brand: input.brand,
     logoUrl: input.logoUrl,
   })
-  const stamped = stampPartnerShopEditorHooksInHtml(withFooter, { siteSlug: input.siteSlug })
+  const withKit = ensurePartnerSiteChromeKitInHtml(withFooter, {
+    locale: input.locale,
+    siteSlug: input.siteSlug,
+    device: variant,
+    logoUrl: input.logoUrl,
+  })
+  const stamped = stampPartnerShopEditorHooksInHtml(withKit, { siteSlug: input.siteSlug })
   return ensureVisualHtmlLiveReady(stamped, variant)
 }
 

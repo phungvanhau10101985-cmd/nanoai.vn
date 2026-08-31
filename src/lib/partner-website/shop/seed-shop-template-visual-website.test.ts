@@ -47,6 +47,9 @@ test('fashion home seed is stamped and matches live visual contract', () => {
   assert.match(html, /<meta name="description"/)
   assert.match(html, /data-pw-seo-jsonld="website"/)
   assert.match(html, /html\[data-pw-edit-device="desktop"\] \.pw-product-grid/)
+  assert.match(html, /data-pw-kit-gap="8"/)
+  assert.match(html, /data-pw-chrome-size="20"/)
+  assert.match(html, /data-pw-float-size="44"/)
   assert.doesNotMatch(html, /data-pw-header-toggle|data-pw-catalog-bootstrap/)
 })
 
@@ -108,6 +111,10 @@ test('seedShopTemplateVisualWebsite writes every built-in page for all four devi
   assert.ok(productsMobile)
   assert.match(productsMobile.content, /data-pw-grid-cols-mobile="2"/)
   assert.match(productsMobile.content, /grid-template-columns:repeat\(2,/)
+  assert.match(productsMobile.content, /data-pw-kit-gap="4"/)
+  assert.match(productsMobile.content, /data-pw-chrome-size="22"/)
+  assert.match(productsMobile.content, /data-pw-float-size="48"/)
+  assert.match(productsMobile.content, /data-pw-float-gap="64"/)
 
   const about = htmlFiles.find((f) => f.path === visualEditorHtmlPath('about', 'laptop'))
   assert.ok(about)

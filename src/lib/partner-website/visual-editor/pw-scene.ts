@@ -348,6 +348,16 @@ export const PW_SCENE_WIDE_HOSTS = [
   'html[data-pw-scene-lock="desktop"]',
 ] as const
 
+export const PW_SCENE_DESKTOP_HOSTS = [
+  'html[data-pw-edit-device="desktop"]',
+  'html[data-pw-scene-lock="desktop"]',
+] as const
+
+export const PW_SCENE_LAPTOP_HOSTS = [
+  'html[data-pw-edit-device="laptop"]',
+  'html[data-pw-scene-lock="laptop"]',
+] as const
+
 /** Gắn mỗi selector trong khối CSS (không có @media) vào từng host. */
 export function pwHostPrefixCss(hosts: readonly string[], css: string): string {
   const chunks = String(css || '').match(/[^{}]+\{[^{}]*\}/g)
@@ -1016,11 +1026,12 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
       ctas.setAttribute('data-pw-dock-show','pdp');
       dock.appendChild(ctas);
     }
-    var stray=document.querySelectorAll('.pw-pdp-sticky,.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas,[data-pw-pdp-bottom],body > [data-pw-dock-show="pdp"],body > [data-pw-chrome-btn="try-on"],body > [data-pw-chrome-btn="favorite-product"],body > [data-pw-chrome-btn="add-cart"],body > [data-pw-chrome-btn="buy-now"]');
+    var stray=document.querySelectorAll('.pw-pdp-sticky,.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas,[data-pw-pdp-bottom],body > [data-pw-dock-show="pdp"],body > [data-pw-chrome-btn="try-on"],body > [data-pw-chrome-btn="favorite-product"],body > [data-pw-chrome-btn="add-cart"],body > [data-pw-chrome-btn="buy-now"],header [data-pw-chrome-btn="try-on"],header [data-pw-chrome-btn="favorite-product"],header [data-pw-chrome-btn="add-cart"],header [data-pw-chrome-btn="buy-now"],.pw-header [data-pw-chrome-btn="try-on"],.pw-header [data-pw-chrome-btn="favorite-product"],.pw-shop-header [data-pw-chrome-btn="try-on"],.pw-shop-header [data-pw-chrome-btn="favorite-product"],[data-pw-live-chrome] [data-pw-chrome-btn="try-on"],[data-pw-live-chrome] [data-pw-chrome-btn="favorite-product"],[data-pw-live-chrome] [data-pw-chrome-btn="add-cart"],[data-pw-live-chrome] [data-pw-chrome-btn="buy-now"],main > .pw-shop-btn[data-pw-chrome-btn="try-on"],main > .pw-shop-btn[data-pw-chrome-btn="favorite-product"],main > .pw-shop-btn[data-pw-chrome-btn="add-cart"],main > .pw-shop-btn[data-pw-chrome-btn="buy-now"]');
     var i;
     for(i=0;i<stray.length;i++){
       var el=stray[i];
       if(!el||dock.contains(el))continue;
+      if(el.closest&&el.closest('[data-pw-live-dock],.pw-pdp-actions,.pw-pdp-actions-inline'))continue;
       if(el.getAttribute&&el.getAttribute('data-pw-chrome-kit')==='dock')continue;
       if(el.classList&&el.classList.contains('pw-pdp-sticky-nav')){
         try{el.remove()}catch(eN){}
@@ -1048,6 +1059,13 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
         continue;
       }
       var kind=el.getAttribute&&el.getAttribute('data-pw-chrome-btn')||'';
+      var buyBox=document.querySelector('.pw-pdp-actions-inline,.pw-pdp-actions');
+      var isBuyFace=!!(el.classList&&(el.classList.contains('pw-shop-btn')||el.classList.contains('pw-shop-btn-outline')));
+      if(isBuyFace&&buyBox){
+        if(!buyBox.contains(el)&&!buyBox.querySelector('[data-pw-chrome-btn="'+kind+'"]')) buyBox.appendChild(el);
+        else if(!buyBox.contains(el)) try{el.remove()}catch(eBuy){}
+        continue;
+      }
       if(kind==='add-cart'||kind==='buy-now'){
         if(!ctas.querySelector('[data-pw-chrome-btn="'+kind+'"]')) ctas.appendChild(el);
         else try{el.remove()}catch(eB){}
