@@ -6,7 +6,7 @@ import {
   renderPartnerVisualHtmlForPublic,
   selectPartnerVisualHtmlDevice,
 } from '@/lib/partner-website/shop/render-partner-visual-html'
-import { visualHtmlLooksUsable, sanitizeVisualHtmlForStore } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
+import { visualHtmlLooksReadyForEditor, visualHtmlLooksUsable, sanitizeVisualHtmlForStore } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
 import { PW_SCENE_CANVAS_WIDTH, PW_SCENE_DESIGN_WIDTH } from '@/lib/partner-website/visual-editor/pw-scene'
 import {
   addVisualPageKey,
@@ -783,6 +783,60 @@ test('empty visual html is not usable for Sửa nhanh', () => {
     ),
     false
   )
+})
+
+test('empty data-pw-page shell is not ready to freeze Sửa nhanh', () => {
+  assert.equal(
+    visualHtmlLooksReadyForEditor(
+      '<!DOCTYPE html><html><body data-pw-page="home"><main class="pw-shop-main" data-pw-region="content"></main></body></html>'
+    ),
+    false
+  )
+  assert.equal(
+    visualHtmlLooksReadyForEditor('<!DOCTYPE html><html><body><div class="pw-shop">188</div></body></html>'),
+    false
+  )
+  assert.equal(
+    visualHtmlLooksReadyForEditor(
+      '<!DOCTYPE html><html><body data-pw-page="home"><header class="pw-header" data-pw-region="header">Shop</header><main>Home</main></body></html>'
+    ),
+    true
+  )
+  assert.equal(
+    visualHtmlLooksReadyForEditor(
+      '<!DOCTYPE html><html><body data-pw-page="home"><main></main><footer class="pw-footer" data-pw-region="footer" data-pw-footer="full">F</footer></body></html>'
+    ),
+    true
+  )
+})
+
+test('desktop home does not treat an empty htmlSource shell as the shop', () => {
+  const shell =
+    '<!DOCTYPE html><html><body data-pw-page="home"><main class="pw-shop-main" data-pw-region="content"></main></body></html>'
+  const website = {
+    theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, useVisualHtml: true },
+    htmlSource: shell,
+    project: { entryPath: 'index.html', files: [] as Array<{ path: string; kind: 'html'; content: string }> },
+  }
+  assert.equal(resolveExactVisualPageHtml(website, 'home', 'desktop').trim(), '')
+})
+
+test('desktop home prefers index.html chrome over an empty htmlSource shell', () => {
+  const shell =
+    '<!DOCTYPE html><html><body data-pw-page="home"><main class="pw-shop-main"></main></body></html>'
+  const home = `<!DOCTYPE html><html lang="vi"><body data-pw-page="home">
+<header class="pw-header" data-pw-region="header">Shop</header>
+<main>Home</main>
+</body></html>`
+  const website = {
+    theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, useVisualHtml: true },
+    htmlSource: shell,
+    project: {
+      entryPath: 'index.html',
+      files: [{ path: 'index.html', kind: 'html' as const, content: home }],
+    },
+  }
+  assert.match(resolveExactVisualPageHtml(website, 'home', 'desktop'), /pw-header/)
 })
 
 test('sanitizeVisualHtmlForStore strips NUL before persist', () => {

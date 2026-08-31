@@ -1,13 +1,14 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import {
-  partnerSiteProductPath,
-  partnerSiteProductsPath,
+  partnerSiteImageSearchPath,
   partnerSiteSearchHistoryApiPath,
-  partnerSiteSearchImageApiPath,
-  partnerSiteSearchTextApiPath,
+  partnerSiteSearchPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { partnerSiteSearchHistoryStorageKey } from '@/lib/partner-website/shop/partner-site-search-history'
-import { PW_SHOP_CARD_IMG_JS } from '@/lib/partner-website/shop/inventory-shop-detail'
+import {
+  PW_PENDING_IMAGE_EVENT,
+  PW_PENDING_IMAGE_KEY,
+} from '@/lib/partner-website/shop/partner-site-pending-image'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import { searchGlyphSvg } from '@/lib/partner-website/visual-editor/search-cluster-icons'
 
@@ -148,63 +149,22 @@ export function buildPartnerSiteSearchBootstrapScript(input: {
   if (!slug) return ''
   const locale = input.locale in COPY ? input.locale : 'en'
   const copy = COPY[locale]
-  const textApi = partnerSiteSearchTextApiPath(slug)
-  const imageApi = partnerSiteSearchImageApiPath(slug)
   const historyApi = partnerSiteSearchHistoryApiPath(slug)
   const historyLsKey = partnerSiteSearchHistoryStorageKey(slug)
-  const productsPath = partnerSiteProductsPath(slug)
-  const productPathPrefix = partnerSiteProductPath(slug, '__ID__').replace('__ID__', '')
+  const searchPath = partnerSiteSearchPath(slug)
+  const imagePath = partnerSiteImageSearchPath(slug)
 
   return `<script data-pw-search-bootstrap>(function(){
 ${PW_SHOP_LIVE_UI_OFF_FN};
-var TEXT_API=${JSON.stringify(textApi)};
-var IMAGE_API=${JSON.stringify(imageApi)};
+var SEARCH_PATH=${JSON.stringify(searchPath)};
+var IMAGE_PATH=${JSON.stringify(imagePath)};
 var HISTORY_API=${JSON.stringify(historyApi)};
 var HISTORY_LS=${JSON.stringify(historyLsKey)};
-var PRODUCTS_PATH=${JSON.stringify(productsPath)};
-var DETAIL_PREFIX=${JSON.stringify(productPathPrefix)};
+var PENDING_KEY=${JSON.stringify(PW_PENDING_IMAGE_KEY)};
+var PENDING_EVT=${JSON.stringify(PW_PENDING_IMAGE_EVENT)};
 var COPY=${JSON.stringify(copy)};
 var historyLoggedIn=false;
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
-${PW_SHOP_CARD_IMG_JS}
-function ensurePanel(){
-  var el=document.getElementById('pw-search-results');
-  if(el)return el;
-  el=document.createElement('section');
-  el.id='pw-search-results';
-  el.setAttribute('data-pw-search-results','1');
-  el.setAttribute('hidden','');
-  el.innerHTML='<div class="pw-search-results-inner" style="max-width:1200px;margin:1rem auto;padding:1rem"><h2 style="margin:0 0 1rem;font-size:1.25rem"></h2><p class="pw-search-status" style="margin:0 0 .75rem"></p><div class="pw-search-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem"></div></div>';
-  var main=document.querySelector('main,#pw-main,.pw-main')||document.body;
-  main.insertBefore(el, main.firstChild);
-  return el;
-}
-function showStatus(msg,isErr){
-  var panel=ensurePanel();panel.hidden=false;
-  var st=panel.querySelector('.pw-search-status');
-  var h=panel.querySelector('h2');
-  if(h)h.textContent=COPY.results;
-  if(st){st.textContent=msg||'';st.style.color=isErr?'#b91c1c':'';}
-}
-function renderProducts(list){
-  var panel=ensurePanel();panel.hidden=false;
-  var grid=panel.querySelector('.pw-search-grid');if(!grid)return;
-  var h=panel.querySelector('h2');if(h)h.textContent=COPY.results;
-  var st=panel.querySelector('.pw-search-status');if(st)st.textContent='';
-  if(!list||!list.length){grid.innerHTML='';showStatus(COPY.empty,false);return;}
-  grid.innerHTML=list.map(function(p){
-    var id=p.id||p.inventory_id||'';
-    var href=p.detailPath||(id?DETAIL_PREFIX+encodeURIComponent(id):PRODUCTS_PATH);
-    var img=shopImg(p);
-    var name=p.name||'';
-    var price=p.priceHint||p.price_hint||'';
-    return '<a href="'+esc(href)+'" class="pw-search-card" style="display:block;text-decoration:none;color:inherit;border-radius:12px;overflow:hidden;background:#f5f5f5">'
-      +(img?'<img src="'+esc(img)+'" alt="'+esc(name)+'" loading="lazy" style="width:100%;aspect-ratio:1;object-fit:cover;display:block"/>':'')
-      +'<div style="padding:.65rem"><div style="font-weight:600;font-size:.9rem">'+esc(name)+'</div>'
-      +(price?'<div style="color:var(--pw-primary);margin-top:.25rem;font-size:.85rem">'+esc(price)+'</div>':'')
-      +'</div></a>';
-  }).join('');
-}
 var historyList=[];
 var historyOpen=false;
 function searchHistoryWrap(el){
@@ -354,34 +314,74 @@ function loadHistory(){
     })
     .catch(function(){setHistoryList(readLocalHistory());});
 }
+function toPublicPath(p){
+  var s=String(p||'');
+  if(String(location.pathname||'').indexOf('/site/')===0)return s;
+  return s.replace(/^\\/site\\/[^/]+(?=\\/|$)/,'')||'/';
+}
 function runTextSearch(q){
   if(pwShopLiveUiOff())return;
   q=String(q||'').trim();if(q.length<1)return;
   closeHistory();
   persistHistory(q);
-  showStatus(COPY.searching,false);
-  fetch(TEXT_API+'?q='+encodeURIComponent(q)+'&limit=24',{credentials:'same-origin'})
-    .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});})
-    .then(function(res){
-      if(!res.ok||!res.j||!res.j.ok){showStatus((res.j&&res.j.error)||COPY.error,true);return;}
-      renderProducts(res.j.products||[]);
-    })
-    .catch(function(){showStatus(COPY.error,true);});
+  var base=toPublicPath(SEARCH_PATH);
+  var dest=base+(base.indexOf('?')>=0?'&':'?')+'q='+encodeURIComponent(q);
+  location.assign(dest);
 }
-function runImageSearch(file){
+function onImageSearchPage(){
+  var p=String(location.pathname||'').replace(/\\/$/,'');
+  var dest=String(IMAGE_PATH||'').replace(/\\/$/,'');
+  if(p===dest||(dest&&p.indexOf(dest+'/')===0))return true;
+  return /\\/tim-theo-anh$/.test(p);
+}
+function fileToDataUrl(file){
+  return new Promise(function(resolve,reject){
+    var r=new FileReader();
+    r.onload=function(){resolve(String(r.result));};
+    r.onerror=function(){reject(r.error);};
+    r.readAsDataURL(file);
+  });
+}
+function compressFile(file,maxSide,quality){
+  var type=String(file&&file.type||'');
+  if(type.indexOf('image/')!==0||type==='image/gif')return fileToDataUrl(file);
+  if(typeof createImageBitmap!=='function')return fileToDataUrl(file);
+  return createImageBitmap(file).then(function(bitmap){
+    var w=bitmap.width,h=bitmap.height;
+    var scale=Math.min(1,maxSide/Math.max(w,h,1));
+    var cw=Math.max(1,Math.round(w*scale));
+    var ch=Math.max(1,Math.round(h*scale));
+    var canvas=document.createElement('canvas');
+    canvas.width=cw;canvas.height=ch;
+    var ctx=canvas.getContext('2d');
+    if(!ctx){bitmap.close();return fileToDataUrl(file);}
+    ctx.drawImage(bitmap,0,0,cw,ch);
+    bitmap.close();
+    return canvas.toDataURL('image/jpeg',quality);
+  }).catch(function(){return fileToDataUrl(file);});
+}
+function storePendingAndGo(file){
   if(pwShopLiveUiOff())return;
   if(!file)return;
-  showStatus(COPY.searching,false);
-  var fd=new FormData();fd.append('image',file);fd.append('limit','24');
-  fetch(IMAGE_API,{method:'POST',body:fd,credentials:'same-origin'})
-    .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});})
-    .then(function(res){
-      if(!res.ok||!res.j||!res.j.ok){showStatus((res.j&&res.j.error)||COPY.error,true);return;}
-      var list=res.j.products||[];
-      if(!list.length){showStatus(res.j.error||COPY.empty,false);return;}
-      renderProducts(list);
-    })
-    .catch(function(){showStatus(COPY.error,true);});
+  compressFile(file,1280,0.82).then(function(url){
+    try{sessionStorage.setItem(PENDING_KEY,url);return url;}
+    catch(e1){
+      return compressFile(file,960,0.75).then(function(u2){
+        try{sessionStorage.setItem(PENDING_KEY,u2);return u2;}
+        catch(e2){
+          return compressFile(file,800,0.72).then(function(u3){
+            sessionStorage.setItem(PENDING_KEY,u3);return u3;
+          });
+        }
+      });
+    }
+  }).then(function(){
+    if(onImageSearchPage()){
+      try{window.dispatchEvent(new CustomEvent(PENDING_EVT));}catch(e){}
+      return;
+    }
+    location.assign(toPublicPath(IMAGE_PATH));
+  }).catch(function(){location.assign(toPublicPath(IMAGE_PATH));});
 }
 function bindText(){
   var forms=document.querySelectorAll('[data-pw-search-form], form[role="search"]');
@@ -516,7 +516,7 @@ function ensureImageControl(){
   function acceptFile(f){
     if(!f)return;
     hidePop();
-    runImageSearch(f);
+    storePendingAndGo(f);
   }
   function fetchUrl(raw){
     var t=String(raw||'').trim();

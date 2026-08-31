@@ -84,14 +84,18 @@ export function parsePartnerCategoryListingFromSearchParams(
   return parsed
 }
 
-export function partnerCategoryListingHasFilters(q: PartnerCategoryListingQuery): boolean {
+export function partnerCategoryListingHasFilters(
+  q: PartnerCategoryListingQuery,
+  opts?: { defaultSort?: PartnerCategoryListingSort }
+): boolean {
+  const defaultSort = opts?.defaultSort ?? 'newest'
   return (
     q.minPrice !== null ||
     q.maxPrice !== null ||
     Boolean(q.size) ||
     Boolean(q.color) ||
     Boolean(q.styleTag) ||
-    q.sort !== 'newest'
+    q.sort !== defaultSort
   )
 }
 

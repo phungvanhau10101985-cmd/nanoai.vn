@@ -5,7 +5,10 @@ import {
   getPartnerSiteCategoryNavLabels,
   getPartnerSiteShopNavPaths,
 } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
-import { partnerSiteHomePath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import {
+  partnerSiteHomePath,
+  partnerSiteSearchPath,
+} from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
   PW_CHROME_KIT_ATTR,
   buildChromeKitDockHtml,
@@ -182,8 +185,9 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
     ? `<a class="pw-brand" href="${homeHref}"><img class="pw-logo" ${pwElAttr(PW_EL.logo)} src="${escapeAttr(logo)}" alt="${escapeAttr(input.title)}"/><span class="pw-wordmark" ${pwElAttr(PW_EL.wordmark)}>${escapeHtml(input.title)}</span></a>`
     : `<a class="pw-brand" href="${homeHref}"><img class="pw-logo" ${pwElAttr(PW_EL.logo)} data-pw-logo-empty="1" src="${emptyLogoSrc}" alt=""/><span class="pw-wordmark" ${pwElAttr(PW_EL.wordmark)}>${escapeHtml(input.title)}</span></a>`
 
+  const searchAction = siteSlug ? escapeAttr(partnerSiteSearchPath(siteSlug)) : ''
   const searchBar = `<div class="pw-header-search" ${pwElAttr(PW_EL.search)}>
-    <form class="pw-search-form" data-pw-search-form role="search">
+    <form class="pw-search-form" data-pw-search-form role="search"${searchAction ? ` method="get" action="${searchAction}"` : ''}>
       <span class="pw-search-default-icon" aria-hidden="true">${searchGlyphSvg('lens', 'pw-search-default-glyph')}</span>
       <input data-pw-search type="search" name="q" placeholder="${escapeAttr(search.placeholder)}" aria-label="${escapeAttr(search.placeholder)}" autocomplete="off"/>
       <button type="button" class="pw-search-image-btn" data-pw-image-search data-pw-search-glyph="camera" aria-label="${escapeAttr(search.image)}" title="${escapeAttr(search.image)}"><span class="pw-chrome-icon-wrap">${searchGlyphSvg('camera')}</span></button>

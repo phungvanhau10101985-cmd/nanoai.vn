@@ -13,6 +13,12 @@ import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-ke
 import { PARTNER_PUBLIC_INVENTORY_SEARCH_MAX } from '@/lib/messaging/partner-public-search-limits'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
 import type { InventoryCatalog188Fields } from '@/lib/messaging/partner-inventory-catalog-188'
+import {
+  escapeIlikeToken,
+  PARTNER_TEXT_SEARCH_DOCUMENT_SQL,
+  PARTNER_TEXT_SEARCH_DOCUMENT_SQL_FALLBACK,
+  tokenizePartnerTextSearch,
+} from '@/lib/partner-website/shop/partner-site-text-search'
 
 /**
  * W4.10 — giá dạng số tự tính từ `price_hint` mỗi lần ghi (tạo/sửa/import). Dòng cũ chưa
@@ -1493,6 +1499,305 @@ async function fetchPartnerInventoryShopPageFromPgUncached(
       return { rows: [], count: 0 }
     }
     console.warn('[fetchPartnerInventoryShopPageFromPg]', e)
+    return null
+  }
+}
+
+export type PartnerTextSearchInventoryQuery = {
+  offset: number
+  limit: number
+  q: string
+  sort?: PartnerCategoryInventoryQuery['sort']
+  randomSeed?: string
+  minPrice?: number
+  maxPrice?: number
+  size?: string
+  color?: string
+  styleTag?: string
+}
+
+/**
+ * Listing `/?q=` kiểu 188: mọi từ ILIKE trên search_document (không mô tả).
+ * `null` = không pool / lỗi.
+ */
+export async function fetchPartnerInventoryPageByTextSearchFromPg(
+  partnerId: string,
+  query: PartnerTextSearchInventoryQuery
+): Promise<{ rows: MessagingPartnerInventoryRow[]; count: number } | null> {
+  if (!isPgConfigured()) return null
+  const words = tokenizePartnerTextSearch(query.q)
+  if (!words.length) return { rows: [], count: 0 }
+  const off = Math.max(0, Math.floor(query.offset))
+  const lim = Math.max(1, Math.min(96, Math.floor(query.limit)))
+  const cached = await withInventoryShopCache({
+    partnerId,
+    kind: 'shop',
+    suffix: `text:${hashShopCachePayload({
+      off,
+      lim,
+      q: words.join(' ').toLowerCase(),
+      sort: query.sort ?? 'random',
+      minPrice: query.minPrice ?? null,
+      maxPrice: query.maxPrice ?? null,
+      size: query.size ?? '',
+      color: query.color ?? '',
+      styleTag: query.styleTag ?? '',
+      seed: query.sort === 'random' ? query.randomSeed ?? '' : '',
+    })}`,
+    ttlSec: SHOP_LIST_TTL_SEC,
+    load: () => fetchPartnerInventoryPageByTextSearchFromPgUncached(partnerId, query, words),
+  })
+  return cached
+}
+
+async function fetchPartnerInventoryPageByTextSearchFromPgUncached(
+  partnerId: string,
+  query: PartnerTextSearchInventoryQuery,
+  words: string[]
+): Promise<{ rows: MessagingPartnerInventoryRow[]; count: number } | null> {
+  const off = Math.max(0, Math.floor(query.offset))
+  const lim = Math.max(1, Math.min(96, Math.floor(query.limit)))
+  const params: unknown[] = [partnerId]
+  const useRandomSort = query.sort === 'random' || !query.sort
+  let orderBy = 'mpi.created_at desc nulls last, mpi.sort_order asc'
+  if (query.sort === 'name') {
+    orderBy = 'lower(mpi.name) asc, mpi.sort_order asc'
+  } else if (query.sort === 'price_asc') {
+    orderBy = 'mpi.price_amount asc nulls last, mpi.sort_order asc'
+  } else if (query.sort === 'price_desc') {
+    orderBy = 'mpi.price_amount desc nulls last, mpi.sort_order asc'
+  } else if (query.sort === 'oldest') {
+    orderBy = 'mpi.created_at asc nulls last, mpi.sort_order asc'
+  } else if (query.sort === 'views_desc') {
+    orderBy = 'coalesce(mpi.reviews_count, 0) desc, mpi.created_at desc nulls last'
+  } else if (query.sort === 'newest') {
+    orderBy = 'mpi.created_at desc nulls last, mpi.sort_order asc'
+  }
+
+  const conditions = ['mpi.partner_id = $1::uuid', 'coalesce(mpi.is_active, true) = true']
+
+  const pushWordFilters = (haystack: string) => {
+    for (const w of words) {
+      params.push(`%${escapeIlikeToken(w.toLowerCase())}%`)
+      conditions.push(`${haystack} ilike $${params.length} escape chr(92)`)
+    }
+  }
+  pushWordFilters(PARTNER_TEXT_SEARCH_DOCUMENT_SQL)
+
+  const minPrice = typeof query.minPrice === 'number' && Number.isFinite(query.minPrice) ? Math.max(0, query.minPrice) : null
+  const maxPrice = typeof query.maxPrice === 'number' && Number.isFinite(query.maxPrice) ? Math.max(0, query.maxPrice) : null
+  if (minPrice !== null) {
+    params.push(minPrice)
+    conditions.push(`mpi.price_amount >= $${params.length}::numeric`)
+  }
+  if (maxPrice !== null) {
+    params.push(maxPrice)
+    conditions.push(`mpi.price_amount <= $${params.length}::numeric`)
+  }
+  const size = String(query.size ?? '').trim().slice(0, 40)
+  const color = String(query.color ?? '').trim().slice(0, 40)
+  if (size) {
+    params.push(`%"${size.replace(/"/g, '')}"%`)
+    conditions.push(`coalesce(mpi.description, '') like $${params.length}`)
+  }
+  if (color) {
+    params.push(`%"${color.replace(/"/g, '')}"%`)
+    conditions.push(`coalesce(mpi.stock_note, '') like $${params.length}`)
+  }
+  const styleTag = String(query.styleTag ?? '').trim().slice(0, 40)
+  const { styleTagFilterAliases } = await import('@/lib/partner-website/shop/partner-shop-style-tags')
+  const styleAliases = styleTagFilterAliases(styleTag).map((a) => `%${a.toLowerCase()}%`).filter(Boolean)
+  const applyStyleHaystack = (includeCatalog: boolean) => {
+    if (!styleAliases.length) return
+    params.push(styleAliases)
+    const haystack = includeCatalog
+      ? `lower(
+          coalesce(mpi.name, '') || ' ' ||
+          coalesce(mpi.material_note, '') || ' ' ||
+          coalesce(mpi.style, '') || ' ' ||
+          coalesce(mpi.catalog_json::text, '') || ' ' ||
+          coalesce(mpi.product_info_json::text, '') || ' ' ||
+          coalesce(mpi.features_json::text, '') || ' ' ||
+          coalesce(mpi.category_l1, '') || ' ' ||
+          coalesce(mpi.category_l2, '') || ' ' ||
+          coalesce(mpi.category_l3, '')
+        )`
+      : `lower(coalesce(mpi.name, '') || ' ' || coalesce(mpi.material_note, ''))`
+    conditions.push(`${haystack} like any($${params.length}::text[])`)
+  }
+  applyStyleHaystack(true)
+
+  const run = async (whereSql: string, bind: unknown[]) => {
+    const countRow = await pgQueryOne<{ c: number }>(
+      `select count(*)::int as c from public.messaging_partner_inventory mpi where ${whereSql}`,
+      bind
+    )
+    const selectBind = [...bind]
+    let selectOrder = orderBy
+    if (useRandomSort) {
+      selectBind.push(String(query.randomSeed || '0'))
+      selectOrder = `md5(mpi.id::text || $${selectBind.length})`
+    }
+    const limitIdx = selectBind.length + 1
+    const offsetIdx = selectBind.length + 2
+    const rows = await runInventoryShopSelectWithFallback(
+      `where ${whereSql}
+       order by ${selectOrder}
+       limit $${limitIdx} offset $${offsetIdx}`,
+      [...selectBind, lim, off]
+    )
+    return { count: countRow?.c ?? 0, rows: rows.map(mapPgInventoryRow) }
+  }
+
+  try {
+    return await run(conditions.join(' and '), params)
+  } catch (e) {
+    if (isMissingInventoryTableError(e)) return { rows: [], count: 0 }
+    const pgCode = e && typeof e === 'object' ? String((e as { code?: string }).code ?? '') : ''
+    const missingSearchColumn =
+      isMissingCatalog188ColumnError(e) ||
+      isMissingProductStudioColumnError(e) ||
+      isMissingRemarketingIdColumnError(e) ||
+      pgCode === '42703'
+    if (missingSearchColumn) {
+      const fallbackParams: unknown[] = [partnerId]
+      const fallbackConditions = ['mpi.partner_id = $1::uuid', 'coalesce(mpi.is_active, true) = true']
+      for (const w of words) {
+        fallbackParams.push(`%${escapeIlikeToken(w.toLowerCase())}%`)
+        fallbackConditions.push(`${PARTNER_TEXT_SEARCH_DOCUMENT_SQL_FALLBACK} ilike $${fallbackParams.length} escape chr(92)`)
+      }
+      try {
+        return await run(fallbackConditions.join(' and '), fallbackParams)
+      } catch (e2) {
+        if (isMissingInventoryTableError(e2)) return { rows: [], count: 0 }
+        console.warn('[fetchPartnerInventoryPageByTextSearchFromPg]', e2)
+        return null
+      }
+    }
+    if (styleAliases.length && isMissingCatalog188ColumnError(e)) {
+      conditions.pop()
+      params.pop()
+      applyStyleHaystack(false)
+      try {
+        return await run(conditions.join(' and '), params)
+      } catch (e2) {
+        console.warn('[fetchPartnerInventoryPageByTextSearchFromPg]', e2)
+        return null
+      }
+    }
+    console.warn('[fetchPartnerInventoryPageByTextSearchFromPg]', e)
+    return null
+  }
+}
+
+/**
+ * Facet size/màu/kiểu cho tập kết quả `q` (mẫu 500 dòng — cùng cách listing danh mục).
+ */
+export async function fetchPartnerTextSearchFacetCountsFromPg(
+  partnerId: string,
+  q: string
+): Promise<PartnerCategoryFacetCounts | null> {
+  if (!isPgConfigured()) return null
+  const words = tokenizePartnerTextSearch(q)
+  if (!words.length) return { sizes: [], colors: [], styleTags: [] }
+  const params: unknown[] = [partnerId]
+  const conditions = ['mpi.partner_id = $1::uuid', 'coalesce(mpi.is_active, true) = true']
+  for (const w of words) {
+    params.push(`%${escapeIlikeToken(w.toLowerCase())}%`)
+    conditions.push(`${PARTNER_TEXT_SEARCH_DOCUMENT_SQL} ilike $${params.length} escape chr(92)`)
+  }
+  const where = conditions.join(' and ')
+  try {
+    type FacetRow = {
+      name?: string
+      description: string
+      stock_note: string
+      material_note?: string
+      style?: string | null
+      sizes_json?: unknown
+      colors_json?: unknown
+      catalog_json?: unknown
+      product_info_json?: unknown
+      features_json?: unknown
+      category_l1?: string | null
+      category_l2?: string | null
+      category_l3?: string | null
+    }
+    let rows: FacetRow[]
+    try {
+      rows = await pgQuery<FacetRow>(
+        `select coalesce(mpi.name, '') as name,
+                coalesce(mpi.description, '') as description,
+                coalesce(mpi.stock_note, '') as stock_note,
+                coalesce(mpi.material_note, '') as material_note,
+                mpi.style, mpi.sizes_json, mpi.colors_json, mpi.catalog_json,
+                mpi.product_info_json, mpi.features_json,
+                mpi.category_l1, mpi.category_l2, mpi.category_l3
+         from public.messaging_partner_inventory mpi
+         where ${where}
+         limit 500`,
+        params
+      )
+    } catch (e) {
+      if (!isMissingProductStudioColumnError(e) && !isMissingCatalog188ColumnError(e)) throw e
+      rows = await pgQuery<FacetRow>(
+        `select coalesce(mpi.name, '') as name,
+                coalesce(mpi.description, '') as description,
+                coalesce(mpi.stock_note, '') as stock_note,
+                coalesce(mpi.material_note, '') as material_note
+         from public.messaging_partner_inventory mpi
+         where ${where}
+         limit 500`,
+        params
+      )
+    }
+    const {
+      parseInventorySizesForFacet,
+      parseInventoryColorsForFacet,
+    } = await import('@/lib/partner-website/shop/partner-shop-industry-facets')
+    const { styleTagsFromProductText, styleTagsMeetingMinCount } = await import(
+      '@/lib/partner-website/shop/partner-shop-style-tags'
+    )
+    const sizeMap = new Map<string, number>()
+    const colorMap = new Map<string, number>()
+    const styleMap = new Map<string, number>()
+    for (const r of rows) {
+      const structuredSizes = parseSizesJsonColumn(r.sizes_json)
+      const structuredColors = parseColorsJsonColumn(r.colors_json)
+      for (const s of parseInventorySizesForFacet(r.description, structuredSizes)) {
+        sizeMap.set(s, (sizeMap.get(s) ?? 0) + 1)
+      }
+      for (const c of parseInventoryColorsForFacet(r.stock_note, structuredColors)) {
+        colorMap.set(c, (colorMap.get(c) ?? 0) + 1)
+      }
+      for (const tag of styleTagsFromProductText(
+        r.name,
+        r.style,
+        r.material_note,
+        r.features_json,
+        r.product_info_json,
+        r.catalog_json,
+        r.category_l1,
+        r.category_l2,
+        r.category_l3,
+        r.description
+      )) {
+        styleMap.set(tag, (styleMap.get(tag) ?? 0) + 1)
+      }
+    }
+    const toList = (m: Map<string, number>) =>
+      [...m.entries()]
+        .map(([value, count]) => ({ value, count }))
+        .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))
+        .slice(0, 40)
+    return {
+      sizes: toList(sizeMap),
+      colors: toList(colorMap),
+      styleTags: styleTagsMeetingMinCount(styleMap),
+    }
+  } catch (e) {
+    if (isMissingInventoryTableError(e)) return { sizes: [], colors: [], styleTags: [] }
+    console.warn('[fetchPartnerTextSearchFacetCountsFromPg]', e)
     return null
   }
 }

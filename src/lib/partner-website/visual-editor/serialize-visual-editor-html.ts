@@ -12,6 +12,7 @@ import {
   isolateVisualHtmlForDevice,
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import { visualHtmlLooksCompleteForEditor } from '@/lib/partner-website/visual-editor/visual-html-detect'
 import { refreshCloneBoxesInDocument } from '@/lib/partner-website/visual-editor/copy-element-across-pages'
 import {
   isInFlowCatalogChromeElement,
@@ -582,4 +583,9 @@ export function visualHtmlLooksUsable(html: string): boolean {
     text.length >= 4 &&
     /<(h[1-6]|p|div|span|a|img|svg|section|header|main|nav|article)\b/i.test(withoutIframes)
   )
+}
+
+/** Freeze / srcdoc lock — empty `data-pw-page` shell must not win over the real shop HTML. */
+export function visualHtmlLooksReadyForEditor(html: string): boolean {
+  return visualHtmlLooksUsable(html) && visualHtmlLooksCompleteForEditor(html)
 }

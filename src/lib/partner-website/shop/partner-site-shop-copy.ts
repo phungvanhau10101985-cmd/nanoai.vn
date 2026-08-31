@@ -147,6 +147,20 @@ export type PartnerSiteShopCopy = {
   searchHistoryRemove: string
   searchHistoryEmpty: string
   searchHistoryClearAll: string
+  searchForQuery: string
+  imageSearchTitle: string
+  imageSearchHint: string
+  imageSearchUpload: string
+  imageSearchUrlPlaceholder: string
+  imageSearchLoading: string
+  imageSearchResultCount: string
+  imageSearchEmpty: string
+  imageSearchRetry: string
+  imageSearchUrlInvalid: string
+  imageSearchUrlFetchFailed: string
+  imageSearchRevealHint: string
+  imageSearchServiceUnavailable: string
+  imageSearchGeminiError: string
   relatedProducts: string
   relatedSeeAll: string
   relatedEmpty: string
@@ -642,6 +656,22 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryRemove: 'Xóa',
     searchHistoryEmpty: 'Chưa có từ khóa tìm kiếm',
     searchHistoryClearAll: 'Xóa tất cả lịch sử',
+    searchForQuery: 'Kết quả cho “{q}”',
+    imageSearchTitle: 'Tìm theo ảnh',
+    imageSearchHint: 'Tải ảnh, dán link vào ô bên dưới hoặc dán ảnh (Ctrl+V)',
+    imageSearchUpload: 'Tải ảnh',
+    imageSearchUrlPlaceholder: 'Dán link ảnh https://… — tự tìm sau khi dán',
+    imageSearchLoading: 'Đang tìm…',
+    imageSearchResultCount: 'Kết quả ({n})',
+    imageSearchEmpty: 'Chưa có kết quả.',
+    imageSearchRetry: 'Đang thử lại sau lỗi tạm thời…',
+    imageSearchUrlInvalid: 'Link cần bắt đầu bằng http:// hoặc https://',
+    imageSearchUrlFetchFailed: 'Không tải được ảnh từ link (CORS hoặc link không hợp lệ).',
+    imageSearchRevealHint: '{shown} / {total} — kéo xuống để xem thêm',
+    imageSearchServiceUnavailable:
+      'Dịch vụ nhận diện ảnh tạm thời không phản hồi. Vui lòng thử lại sau vài phút, thử ảnh khác hoặc dùng tìm theo chữ.',
+    imageSearchGeminiError:
+      'Dịch vụ nhận diện ảnh tạm báo lỗi. Vui lòng thử lại sau vài giây, thử ảnh nhỏ hơn hoặc dùng tìm theo chữ.',
     relatedProducts: 'Sản phẩm tương tự',
     relatedSeeAll: 'Xem tất cả các nhóm',
     relatedEmpty: 'Không có sản phẩm khác cùng danh mục.',
@@ -1124,6 +1154,22 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryRemove: 'Remove',
     searchHistoryEmpty: 'No recent searches',
     searchHistoryClearAll: 'Clear all history',
+    searchForQuery: 'Results for “{q}”',
+    imageSearchTitle: 'Search by image',
+    imageSearchHint: 'Upload a photo, paste a link, or paste an image (Ctrl+V)',
+    imageSearchUpload: 'Upload photo',
+    imageSearchUrlPlaceholder: 'Paste an image link https://… — searches automatically',
+    imageSearchLoading: 'Searching…',
+    imageSearchResultCount: 'Results ({n})',
+    imageSearchEmpty: 'No results yet.',
+    imageSearchRetry: 'Retrying after a temporary error…',
+    imageSearchUrlInvalid: 'Link must start with http:// or https://',
+    imageSearchUrlFetchFailed: 'Could not load the image from that link (CORS or invalid URL).',
+    imageSearchRevealHint: '{shown} / {total} — scroll down for more',
+    imageSearchServiceUnavailable:
+      'Image recognition is temporarily unavailable. Try again in a few minutes, use another photo, or search by text.',
+    imageSearchGeminiError:
+      'Image recognition hit a temporary error. Try again in a few seconds, use a smaller photo, or search by text.',
     relatedProducts: 'Similar products',
     relatedSeeAll: 'See all groups',
     relatedEmpty: 'No other products in this category.',
@@ -1606,6 +1652,20 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryRemove: '删除',
     searchHistoryEmpty: '暂无搜索记录',
     searchHistoryClearAll: '清除全部历史',
+    searchForQuery: '“{q}” 的搜索结果',
+    imageSearchTitle: '以图搜图',
+    imageSearchHint: '上传图片、粘贴链接，或粘贴图片（Ctrl+V）',
+    imageSearchUpload: '上传图片',
+    imageSearchUrlPlaceholder: '粘贴图片链接 https://… — 粘贴后自动搜索',
+    imageSearchLoading: '搜索中…',
+    imageSearchResultCount: '结果（{n}）',
+    imageSearchEmpty: '暂无结果。',
+    imageSearchRetry: '临时错误，正在重试…',
+    imageSearchUrlInvalid: '链接需以 http:// 或 https:// 开头',
+    imageSearchUrlFetchFailed: '无法从该链接加载图片（跨域或链接无效）。',
+    imageSearchRevealHint: '{shown} / {total} — 向下滚动查看更多',
+    imageSearchServiceUnavailable: '以图搜图服务暂时无响应。请稍后再试、换一张图，或改用文字搜索。',
+    imageSearchGeminiError: '以图搜图暂时出错。请稍后再试、换一张较小的图，或改用文字搜索。',
     relatedProducts: '相似商品',
     relatedSeeAll: '查看全部分组',
     relatedEmpty: '该分类暂无其他商品。',
@@ -2086,6 +2146,22 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryRemove: '削除',
     searchHistoryEmpty: '検索履歴はまだありません',
     searchHistoryClearAll: '履歴をすべて削除',
+    searchForQuery: '「{q}」の検索結果',
+    imageSearchTitle: '画像で検索',
+    imageSearchHint: '写真をアップロード、リンクを貼る、または画像を貼り付け（Ctrl+V）',
+    imageSearchUpload: '写真をアップロード',
+    imageSearchUrlPlaceholder: '画像リンク https://… を貼ると自動検索',
+    imageSearchLoading: '検索中…',
+    imageSearchResultCount: '結果（{n}）',
+    imageSearchEmpty: '結果はまだありません。',
+    imageSearchRetry: '一時エラーのため再試行中…',
+    imageSearchUrlInvalid: 'リンクは http:// または https:// で始めてください',
+    imageSearchUrlFetchFailed: 'そのリンクから画像を読み込めませんでした（CORS または無効な URL）。',
+    imageSearchRevealHint: '{shown} / {total} — 下にスクロールしてもっと見る',
+    imageSearchServiceUnavailable:
+      '画像検索サービスが一時的に応答しません。数分後に再試行するか、別の写真またはテキスト検索をお使いください。',
+    imageSearchGeminiError:
+      '画像検索で一時エラーが発生しました。数秒後に再試行するか、小さい写真またはテキスト検索をお使いください。',
     relatedProducts: '類似商品',
     relatedSeeAll: 'すべてのグループを見る',
     relatedEmpty: 'このカテゴリに他の商品はありません。',
@@ -2566,6 +2642,22 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryRemove: '삭제',
     searchHistoryEmpty: '최근 검색어가 없습니다',
     searchHistoryClearAll: '검색 기록 모두 삭제',
+    searchForQuery: '“{q}” 검색 결과',
+    imageSearchTitle: '이미지로 검색',
+    imageSearchHint: '사진 업로드, 링크 붙여넣기, 또는 이미지 붙여넣기(Ctrl+V)',
+    imageSearchUpload: '사진 업로드',
+    imageSearchUrlPlaceholder: '이미지 링크 https://… 붙여넣으면 자동 검색',
+    imageSearchLoading: '검색 중…',
+    imageSearchResultCount: '결과 ({n})',
+    imageSearchEmpty: '결과가 없습니다.',
+    imageSearchRetry: '일시 오류 후 다시 시도 중…',
+    imageSearchUrlInvalid: '링크는 http:// 또는 https://로 시작해야 합니다',
+    imageSearchUrlFetchFailed: '해당 링크에서 이미지를 불러오지 못했습니다(CORS 또는 잘못된 URL).',
+    imageSearchRevealHint: '{shown} / {total} — 아래로 스크롤해 더 보기',
+    imageSearchServiceUnavailable:
+      '이미지 검색 서비스가 일시적으로 응답하지 않습니다. 잠시 후 다시 시도하거나 다른 사진 또는 텍스트 검색을 사용하세요.',
+    imageSearchGeminiError:
+      '이미지 검색에 일시 오류가 있습니다. 몇 초 후 다시 시도하거나 더 작은 사진 또는 텍스트 검색을 사용하세요.',
     relatedProducts: '유사 상품',
     relatedSeeAll: '모든 그룹 보기',
     relatedEmpty: '이 카테고리에 다른 상품이 없습니다.',

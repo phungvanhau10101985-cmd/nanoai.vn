@@ -11,8 +11,8 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
     locale: 'vi',
   })
   assert.match(out, /data-pw-search-bootstrap/)
-  assert.match(out, /\/api\/site\/188-com-vn-rl56\/search\/text/)
-  assert.match(out, /\/api\/site\/188-com-vn-rl56\/search\/image/)
+  assert.match(out, /\/site\/188-com-vn-rl56\/search/)
+  assert.match(out, /\/site\/188-com-vn-rl56\/tim-theo-anh/)
   assert.match(out, /\/api\/site\/188-com-vn-rl56\/search\/history/)
   assert.match(out, /data-pw-shop-actions-bootstrap/)
   assert.match(out, /data-pw-buy/)
@@ -91,7 +91,7 @@ test('runtime scripts replace stale bootstraps so a new shop still gets current 
     '<script data-pw-search-bootstrap>window.__oldSearch=1</script></body></html>'
   const out = injectPartnerShopRuntimeScriptsIntoHtml(html, { siteSlug: 'hotel-shop', locale: 'vi' })
   assert.equal(out.includes('window.__oldSearch=1'), false)
-  assert.match(out, /\/api\/site\/hotel-shop\/search\/text/)
+  assert.match(out, /\/site\/hotel-shop\/search/)
   assert.equal(out.split('data-pw-search-bootstrap').length, 2)
 })
 
@@ -123,8 +123,22 @@ test('search bootstrap opens an image-search popover like 188 (paste / drop / ch
   assert.match(s, /Tìm theo ảnh/)
   assert.match(s, /Chọn ảnh từ máy/)
   assert.match(s, /data-pw-image-drop/)
-  assert.match(s, /IMAGE_API/)
+  assert.match(s, /IMAGE_PATH/)
+  assert.match(s, /\/site\/188-shop\/tim-theo-anh/)
+  assert.match(s, /storePendingAndGo/)
+  assert.match(s, /pw_pending_image_v1/)
+  assert.doesNotMatch(s, /pw-search-results/)
   assert.match(s, /pwShopLiveUiOff/)
+})
+
+test('search bootstrap navigates to /search?q= like 188 home /?q= (no overlay fetch)', () => {
+  const s = buildPartnerSiteSearchBootstrapScript({ siteSlug: '188-shop', locale: 'vi' })
+  assert.match(s, /SEARCH_PATH/)
+  assert.match(s, /\/site\/188-shop\/search/)
+  assert.match(s, /toPublicPath/)
+  assert.match(s, /location\.assign\(dest\)/)
+  assert.doesNotMatch(s, /\/api\/site\/188-shop\/search\/text/)
+  assert.doesNotMatch(s, /limit','24'/)
 })
 
 test('search bootstrap paints history panel under the search box and keeps guest queries in localStorage', () => {

@@ -15,6 +15,8 @@ export const SHOP_PUBLIC_ROOT_SEGMENTS = new Set([
   'faq',
   'sale',
   'kho-sale',
+  'search',
+  'tim-theo-anh',
   'shipping',
   'returns',
   'privacy',

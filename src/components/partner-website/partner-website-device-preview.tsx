@@ -33,6 +33,7 @@ import {
 } from '@/components/partner-website/partner-website-theme-color-picker'
 import {
   freezeDocumentForVisualEditor,
+  visualHtmlLooksReadyForEditor,
   visualHtmlLooksUsable,
 } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
 import {
@@ -108,6 +109,21 @@ function visualEditStateStorageKey(partnerId: string): string {
 
 function parsePreviewDevice(raw: string | null | undefined): PartnerWebsitePreviewDevice | null {
   return raw === 'mobile' || raw === 'tablet' || raw === 'laptop' || raw === 'desktop' ? raw : null
+}
+
+function visualSrcDocFingerprint(html: string): string {
+  const n = html.length
+  let h = 2166136261
+  const step = Math.max(1, Math.floor(n / 192))
+  for (let i = 0; i < n; i += step) h = Math.imul(h ^ html.charCodeAt(i), 16777619)
+  return `${n}-${h >>> 0}`
+}
+
+/** Replace a white-canvas freeze once the real shop HTML is available. */
+function visualEditorSrcDocShouldUpgrade(current: string, saved: string): boolean {
+  if (!visualHtmlLooksReadyForEditor(saved)) return false
+  if (!visualHtmlLooksReadyForEditor(current)) return true
+  return htmlHasShopHeader(saved) && !htmlHasShopHeader(current)
 }
 
 function safeDecode(raw: string | null | undefined): string | null {
@@ -308,6 +324,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const canvasWrapRef = useRef<HTMLDivElement>(null)
   const projectRef = useRef<PartnerWebsiteProject | null>(null)
+  const srcDocRetryRef = useRef('')
   const freezeLockRef = useRef(false)
   const flushedHtmlByKeyRef = useRef<Record<string, string>>({})
   const saveFnRef = useRef<(() => Promise<boolean>) | null>(null)
@@ -633,7 +650,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     flushedHtmlByKeyRef.current = {}
     setEditDirty(false)
     const saved = savedHtmlForVariant(editVariant)
-    if (visualHtmlLooksUsable(saved)) {
+    if (visualHtmlLooksReadyForEditor(saved)) {
       freezeLockRef.current = true
       setEditSrcDoc(visualEditSrcDoc(saved))
     } else {
@@ -649,7 +666,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     setEditDirty(false)
     if (visualEditActive) {
       const saved = savedHtmlForVariant(nextVariant)
-      if (visualHtmlLooksUsable(saved)) {
+      if (visualHtmlLooksReadyForEditor(saved)) {
         freezeLockRef.current = true
         setEditSrcDoc(visualEditSrcDoc(saved))
       } else {
@@ -683,7 +700,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       flushedHtmlByKeyRef.current = {}
       setEditDirty(false)
       const saved = savedHtmlForVariant(editVariant, pick)
-      if (visualHtmlLooksUsable(saved)) {
+      if (visualHtmlLooksReadyForEditor(saved)) {
         freezeLockRef.current = true
         setEditSrcDoc(visualEditSrcDoc(saved, pick))
       } else {
@@ -781,10 +798,10 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   useEffect(() => {
     if (!visualEditActive) {
       freezeLockRef.current = false
+      srcDocRetryRef.current = ''
       setEditSrcDoc(null)
       return
     }
-    if (freezeLockRef.current || editSrcDoc) return
 
     const saved = savedHtmlForVariant(editVariant)
     if (
@@ -795,9 +812,15 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     ) {
       return
     }
-    if (visualHtmlLooksUsable(saved)) {
+
+    const current = editSrcDoc || ''
+    if (visualEditorSrcDocShouldUpgrade(current, saved)) {
       freezeLockRef.current = true
       setEditSrcDoc(visualEditSrcDoc(saved))
+      return
+    }
+    if (visualHtmlLooksReadyForEditor(current)) {
+      freezeLockRef.current = true
       return
     }
 
@@ -822,7 +845,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       if (!doc?.body || isBlankDoc(doc)) return false
       return Boolean(
         doc.querySelector(
-          '.pw-shop, [data-pw-edit], header.pw-header, header.pw-shop-header, .pw-shop-header, .pw-header, .pw-hero, .pw-shop-main'
+          'header.pw-header, header.pw-shop-header, .pw-header, [data-pw-region="header"], [data-pw-region="banner"], [data-pw-region="catalog"], [data-pw-region="footer"], [data-pw-footer], [data-pw-paper], .pw-hero'
         )
       )
     }
@@ -843,7 +866,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     const freezeFromDoc = (doc: Document | null): boolean => {
       if (cancelled || !doc?.documentElement || isBlankDoc(doc)) return false
       const html = freezeDocumentForVisualEditor(doc, editVariant)
-      if (!visualHtmlLooksUsable(html)) return false
+      if (!visualHtmlLooksReadyForEditor(html)) return false
       freezeLockRef.current = true
       setEditSrcDoc(visualEditSrcDoc(html))
       return true
@@ -862,7 +885,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
 
     const applySavedFallback = () => {
       const fallback = savedHtmlForVariant(editVariant)
-      if (!visualHtmlLooksUsable(fallback)) return false
+      if (!visualHtmlLooksReadyForEditor(fallback)) return false
       freezeLockRef.current = true
       setEditSrcDoc(visualEditSrcDoc(fallback))
       return true
@@ -917,13 +940,48 @@ export const PartnerWebsiteDevicePreview = forwardRef<
 
   useEffect(() => {
     if (!visualEditActive || editDirty) return
-    if (previewPageKey === 'home') return
-    if (htmlHasShopHeader(editSrcDoc || '')) return
     const saved = savedHtmlForVariant(editVariant)
-    if (!visualHtmlLooksUsable(saved)) return
-    const next = visualEditSrcDoc(saved)
-    if (htmlHasShopHeader(next) && next !== editSrcDoc) setEditSrcDoc(next)
+    if (!visualEditorSrcDocShouldUpgrade(editSrcDoc || '', saved)) return
+    freezeLockRef.current = true
+    setEditSrcDoc(visualEditSrcDoc(saved))
   }, [visualEditActive, editDirty, htmlSource, project, liveTheme, previewPageKey, editVariant, editSrcDoc])
+
+  useEffect(() => {
+    if (!visualEditActive || !editSrcDoc || !visualHtmlLooksReadyForEditor(editSrcDoc)) return
+    const iframe = iframeRef.current
+    if (!iframe) return
+    const fingerprint = visualSrcDocFingerprint(editSrcDoc)
+    const onLoad = () => {
+      if (srcDocRetryRef.current === fingerprint) return
+      let doc: Document | null = null
+      try {
+        doc = iframe.contentDocument
+      } catch {
+        return
+      }
+      if (!doc?.body) return
+      const hasShop = Boolean(
+        doc.querySelector(
+          'header.pw-header, header.pw-shop-header, .pw-header, [data-pw-region="header"], [data-pw-region="banner"], [data-pw-region="catalog"], [data-pw-region="footer"], [data-pw-footer], [data-pw-paper]'
+        )
+      )
+      if (hasShop) {
+        srcDocRetryRef.current = fingerprint
+        return
+      }
+      srcDocRetryRef.current = fingerprint
+      try {
+        doc.open()
+        doc.write(editSrcDoc)
+        doc.close()
+      } catch {
+        /* srcdoc write denied */
+      }
+    }
+    iframe.addEventListener('load', onLoad)
+    if (iframe.contentDocument?.readyState === 'complete') onLoad()
+    return () => iframe.removeEventListener('load', onLoad)
+  }, [visualEditActive, editSrcDoc])
 
   const previewSrc = useMemo(() => {
     if (!hasWebsite) return null
@@ -1122,6 +1180,12 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     minWidth: editFrameWidth,
     height: '100%',
   }
+  const editSrcDocIframeKey = editSrcDoc
+    ? `ve-srcdoc-${editVariant}-${previewPageKey}-${visualSrcDocFingerprint(editSrcDoc)}`
+    : previewSrc
+  const editSrcDocToolbarKey = editSrcDoc
+    ? `srcdoc-${editVariant}-${previewPageKey}-${previewCategoryPath || ''}-${previewProductId || ''}-${previewCmsSlug || ''}-${visualSrcDocFingerprint(editSrcDoc)}`
+    : `live-${previewSrc}`
   const catalogPageKeys = VISUAL_EDITOR_PAGE_KEYS.filter((key) => key !== 'collection')
 
   function handlePageSelectChange(next: string) {
@@ -1266,11 +1330,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
             iframeRef={iframeRef}
             projectRef={projectRef}
             active={visualEditActive}
-            documentKey={
-              editSrcDoc
-                ? `srcdoc-${editVariant}-${previewPageKey}-${previewCategoryPath || ''}-${previewProductId || ''}-${previewCmsSlug || ''}`
-                : `live-${previewSrc}`
-            }
+            documentKey={editSrcDocToolbarKey}
             disabled={quickEditDisabled}
             websiteTitle={websiteTitle}
             theme={liveTheme}
@@ -1403,11 +1463,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
               iframeRef={iframeRef}
               projectRef={projectRef}
               active={visualEditActive}
-              documentKey={
-                editSrcDoc
-                  ? `srcdoc-${editVariant}-${previewPageKey}-${previewCategoryPath || ''}-${previewProductId || ''}-${previewCmsSlug || ''}`
-                  : `live-${previewSrc}`
-              }
+              documentKey={editSrcDocToolbarKey}
               disabled={quickEditDisabled || !editSrcDoc}
               websiteTitle={websiteTitle}
               theme={liveTheme}
@@ -1504,7 +1560,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
               style={computerCanvasStyle}
             >
               <iframe
-                key={editSrcDoc ? `ve-srcdoc-${editVariant}-${previewPageKey}` : previewSrc}
+                key={editSrcDocIframeKey}
                 ref={iframeRef}
                 title={t.previewTitle}
                 {...(editSrcDoc ? { srcDoc: editSrcDoc } : { src: previewSrc })}
@@ -1536,7 +1592,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
           style={{ width: editFrameWidth, minWidth: editFrameWidth }}
         >
           <iframe
-            key={editSrcDoc ? `ve-srcdoc-${editVariant}-${previewPageKey}` : previewSrc}
+            key={editSrcDocIframeKey}
             ref={iframeRef}
             title={t.previewTitle}
             {...(editSrcDoc ? { srcDoc: editSrcDoc } : { src: previewSrc })}

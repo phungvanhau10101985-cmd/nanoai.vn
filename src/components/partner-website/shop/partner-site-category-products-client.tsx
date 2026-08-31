@@ -25,7 +25,9 @@ import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-cont
 
 type Props = {
   siteSlug: string
-  categoryId: string
+  categoryId?: string
+  /** 188 `/?q=` listing — omit categoryId. */
+  searchQuery?: string
   locale: WebLocale
   initialProducts: PartnerSiteShopProduct[]
   initialTotal: number
@@ -37,9 +39,17 @@ type Props = {
   }
 }
 
-function listingHref(pathname: string, q: Partial<PartnerCategoryListingQuery>): string {
-  const qs = buildPartnerCategoryListingSearch(q)
-  return qs ? `${pathname}?${qs}` : pathname
+function listingHref(
+  pathname: string,
+  q: Partial<PartnerCategoryListingQuery>,
+  extras?: { searchQ?: string; defaultSort?: PartnerCategoryListingSort }
+): string {
+  const qs = buildPartnerCategoryListingSearch(q, { defaultSort: extras?.defaultSort })
+  const params = new URLSearchParams(qs)
+  const searchQ = extras?.searchQ?.trim()
+  if (searchQ) params.set('q', searchQ)
+  const s = params.toString()
+  return s ? `${pathname}?${s}` : pathname
 }
 
 function formatFilterPriceHint(n: number, locale: WebLocale): string {
@@ -50,6 +60,7 @@ function formatFilterPriceHint(n: number, locale: WebLocale): string {
 export function PartnerSiteCategoryProductsClient({
   siteSlug,
   categoryId,
+  searchQuery,
   locale,
   initialProducts,
   initialTotal,
@@ -62,9 +73,15 @@ export function PartnerSiteCategoryProductsClient({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
+  const isTextSearch = Boolean(searchQuery?.trim())
+  const defaultSort: PartnerCategoryListingSort = isTextSearch ? 'random' : 'newest'
+  const listingExtras = useMemo(
+    () => ({ searchQ: searchQuery?.trim() || undefined, defaultSort }),
+    [defaultSort, searchQuery]
+  )
   const listing = useMemo(
-    () => parsePartnerCategoryListingFromSearchParams(searchParams, { defaultSort: 'newest' }),
-    [searchParams]
+    () => parsePartnerCategoryListingFromSearchParams(searchParams, { defaultSort }),
+    [defaultSort, searchParams]
   )
 
   const [products, setProducts] = useState(initialProducts)
@@ -91,30 +108,31 @@ export function PartnerSiteCategoryProductsClient({
 
   const pushListing = useCallback(
     (next: Partial<PartnerCategoryListingQuery>) => {
-      const dest = listingHref(pathname, { ...listing, page: 1, ...next })
+      const dest = listingHref(pathname, { ...listing, page: 1, ...next }, listingExtras)
       startTransition(() => {
         router.push(dest, { scroll: false })
       })
     },
-    [listing, pathname, router]
+    [listing, listingExtras, pathname, router]
   )
 
   const skipInitialFetch = useMemo(
     () =>
       listing.page === 1 &&
-      listing.sort === 'newest' &&
+      listing.sort === defaultSort &&
       !listing.size &&
       !listing.color &&
       !listing.styleTag &&
       listing.minPrice == null &&
       listing.maxPrice == null,
-    [listing]
+    [defaultSort, listing]
   )
   const skippedRef = useRef(skipInitialFetch)
 
   useEffect(() => {
     const params = new URLSearchParams()
-    params.set('categoryId', categoryId)
+    if (isTextSearch && searchQuery) params.set('q', searchQuery)
+    else if (categoryId) params.set('categoryId', categoryId)
     params.set('offset', String((listing.page - 1) * PARTNER_CATEGORY_PAGE_SIZE))
     params.set('limit', String(PARTNER_CATEGORY_PAGE_SIZE))
     params.set('sort', listing.sort)
@@ -164,7 +182,7 @@ export function PartnerSiteCategoryProductsClient({
     return () => {
       cancelled = true
     }
-  }, [categoryId, listing.color, listing.maxPrice, listing.minPrice, listing.page, listing.randomSeed, listing.size, listing.sort, listing.styleTag, siteSlug])
+  }, [categoryId, isTextSearch, listing.color, listing.maxPrice, listing.minPrice, listing.page, listing.randomSeed, listing.size, listing.sort, listing.styleTag, searchQuery, siteSlug])
 
   const applyPrice = useCallback(() => {
     const min = minLocal.trim() ? Math.max(0, Number(minLocal)) : null
@@ -178,7 +196,7 @@ export function PartnerSiteCategoryProductsClient({
     })
   }, [listing.maxPrice, listing.minPrice, maxLocal, minLocal, pushListing])
 
-  const hasActive = partnerCategoryListingHasFilters(listing)
+  const hasActive = partnerCategoryListingHasFilters(listing, { defaultSort })
   const showBar =
     hasActive ||
     products.length > 0 ||
@@ -313,7 +331,13 @@ export function PartnerSiteCategoryProductsClient({
             <button
               type="button"
               className="pw-shop-filter-clear"
-              onClick={() => startTransition(() => router.push(pathname, { scroll: false }))}
+              onClick={() =>
+                startTransition(() =>
+                  router.push(listingHref(pathname, { page: 1, sort: defaultSort }, listingExtras), {
+                    scroll: false,
+                  })
+                )
+              }
             >
               {t.categoryFilterClear}
             </button>
@@ -353,19 +377,23 @@ export function PartnerSiteCategoryProductsClient({
         {pageCount > 1 ? (
           <nav className="pw-shop-page-nav" aria-label="Pagination">
             {listing.page > 1 ? (
-              <Link href={listingHref(pathname, { ...listing, page: listing.page - 1 })}>{t.categoryPagePrev}</Link>
+              <Link href={listingHref(pathname, { ...listing, page: listing.page - 1 }, listingExtras)}>
+                {t.categoryPagePrev}
+              </Link>
             ) : null}
             {pages.map((p) => (
               <Link
                 key={p}
-                href={listingHref(pathname, { ...listing, page: p })}
+                href={listingHref(pathname, { ...listing, page: p }, listingExtras)}
                 className={p === listing.page ? 'is-current' : undefined}
               >
                 {p}
               </Link>
             ))}
             {listing.page < pageCount ? (
-              <Link href={listingHref(pathname, { ...listing, page: listing.page + 1 })}>{t.categoryPageNext}</Link>
+              <Link href={listingHref(pathname, { ...listing, page: listing.page + 1 }, listingExtras)}>
+                {t.categoryPageNext}
+              </Link>
             ) : null}
           </nav>
         ) : null}

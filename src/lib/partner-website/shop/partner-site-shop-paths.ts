@@ -15,6 +15,18 @@ export function partnerSiteProductsPath(siteSlug: string, opts?: PathOpts): stri
   return partnerSiteHref(siteSlug, '/products', opts?.customDomain)
 }
 
+/** Text search listing — 188 `/?q=`. Live React, not visual HTML. */
+export function partnerSiteSearchPath(siteSlug: string, opts?: PathOpts & { q?: string }): string {
+  const base = partnerSiteHref(siteSlug, '/search', opts?.customDomain)
+  const q = String(opts?.q ?? '').trim()
+  return q ? `${base}?q=${encodeURIComponent(q)}` : base
+}
+
+/** Image search listing — 188 `/tim-theo-anh`. */
+export function partnerSiteImageSearchPath(siteSlug: string, opts?: PathOpts): string {
+  return partnerSiteHref(siteSlug, '/tim-theo-anh', opts?.customDomain)
+}
+
 /** Listing hàng hoàn / thanh lý kho — giống 188 `/kho-sale`. */
 export function partnerSiteKhoSalePath(siteSlug: string, opts?: PathOpts): string {
   return partnerSiteHref(siteSlug, '/kho-sale', opts?.customDomain)

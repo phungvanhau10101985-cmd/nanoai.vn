@@ -47,6 +47,8 @@ import { buildDefaultDemoPdpShellHtml } from '@/lib/partner-website/shop/build-d
 import {
   htmlHasPartnerVisualChrome,
   looksLikeVisualHomeHtml,
+  visualHtmlLooksCompleteForEditor,
+  visualHtmlLooksEmptyEditorShell,
 } from '@/lib/partner-website/visual-editor/visual-html-detect'
 
 /** Pages shown in the dashboard preview picker (real `/site/{slug}/…` routes). */
@@ -570,13 +572,26 @@ function pickDesktopHomeHtml(website: VisualWebsitePick): string {
   if (
     indexHtml.length >= 40 &&
     looksLikeVisualHomeHtml(indexHtml) &&
-    looksLikeSavedVisualDocument(indexHtml)
+    looksLikeSavedVisualDocument(indexHtml) &&
+    visualHtmlLooksCompleteForEditor(indexHtml)
   ) {
     return indexHtml
   }
-  if (source.length >= 40 && looksLikeVisualHomeHtml(source)) return source
-  if (indexHtml.length >= 40) return indexHtml
-  return looksLikeVisualHomeHtml(source) ? source : ''
+  if (source.length >= 40 && looksLikeVisualHomeHtml(source) && visualHtmlLooksCompleteForEditor(source)) {
+    return source
+  }
+  if (indexHtml.length >= 40 && visualHtmlLooksCompleteForEditor(indexHtml)) return indexHtml
+  if (
+    indexHtml.length >= 40 &&
+    looksLikeVisualHomeHtml(indexHtml) &&
+    !visualHtmlLooksEmptyEditorShell(indexHtml)
+  ) {
+    return indexHtml
+  }
+  if (source.length >= 40 && looksLikeVisualHomeHtml(source) && !visualHtmlLooksEmptyEditorShell(source)) {
+    return source
+  }
+  return ''
 }
 
 function readVisualHtmlFile(
