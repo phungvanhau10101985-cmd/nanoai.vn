@@ -31,6 +31,8 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('.pw-chrome-icon-square'), true)
   assert.equal(once.includes('.pw-chrome-icon-circle'), true)
   assert.equal(once.includes('data-pw-chrome-style="icon-circle"'), true)
+  assert.equal(once.includes('data-pw-chrome-style="icon-square"'), true)
+  assert.equal(once.includes('border-radius:10px!important'), true)
   assert.equal(once.includes('[data-pw-chrome-style="text"] .pw-chrome-icon-wrap'), true)
   assert.equal(once.includes('.pw-chrome-link .pw-chrome-icon-wrap'), true)
   assert.equal(once.includes('.pw-header-actions .pw-account-btn'), true)

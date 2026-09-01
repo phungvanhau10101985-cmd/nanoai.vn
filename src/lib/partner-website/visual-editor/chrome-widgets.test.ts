@@ -10,6 +10,7 @@ import {
   PW_STOCK_CHROME_EDIT_CSS,
   PW_CHROME_LABELED_MIN_W_CSS,
   PW_CHROME_ICON_CIRCLE_CSS,
+  PW_CHROME_ICON_SQUARE_CSS,
   PW_CHROME_LABEL_FACE_CSS,
   PW_CHROME_FACE_EXTRAS_CSS,
   PW_CHROME_LABEL_BELOW_CSS,
@@ -584,6 +585,15 @@ test('circle chrome style is a square box with full round corners', () => {
   assert.match(PW_CHROME_ICON_CIRCLE_CSS, /width:var\(--pw-chrome-w,var\(--pw-chrome-size,22px\)\)!important/)
 })
 
+test('square chrome style is the same equal box with rounded corners', () => {
+  assert.match(PW_CHROME_ICON_SQUARE_CSS, /icon-square/)
+  assert.match(PW_CHROME_ICON_SQUARE_CSS, /border-radius:10px!important/)
+  assert.match(PW_CHROME_ICON_SQUARE_CSS, /aspect-ratio:1!important/)
+  assert.match(PW_CHROME_ICON_SQUARE_CSS, /\.pw-chrome-icon-square \.pw-chrome-icon-wrap svg/)
+  assert.match(PW_CHROME_ICON_SQUARE_CSS, /width:var\(--pw-chrome-w,var\(--pw-chrome-size,22px\)\)!important/)
+  assert.match(PW_CHROME_ICON_SQUARE_CSS, /\[data-pw-chrome-radius\]\[data-pw-chrome-style="icon-square"\]/)
+})
+
 test('labeled chrome buttons hug icon and text', () => {
   assert.equal(PW_CHROME_ICON_SIZE_MAX >= 200, true)
   assert.match(PW_CHROME_LABELED_MIN_W_CSS, /width:auto!important/)
@@ -592,6 +602,7 @@ test('labeled chrome buttons hug icon and text', () => {
   assert.match(PW_CHROME_LABELED_MIN_W_CSS, /icon-label-below/)
   assert.match(PW_CHROME_LABELED_MIN_W_CSS, /max-width:none!important/)
   assert.match(PW_CHROME_LABELED_MIN_W_CSS, /font-size:var\(--pw-chrome-label,13px\)!important/)
+  assert.match(PW_CHROME_LABELED_MIN_W_CSS, /:not\(\[data-pw-chrome-style="icon-square"\]\)/)
 })
 
 test('chrome label face CSS sizes stock bottom-nav .pw-shop-icon-label', () => {

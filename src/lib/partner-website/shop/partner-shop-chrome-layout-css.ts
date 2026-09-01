@@ -75,6 +75,7 @@ import {
   PW_STOCK_CHROME_EDIT_CSS,
   PW_CHROME_LABELED_MIN_W_CSS,
   PW_CHROME_ICON_CIRCLE_CSS,
+  PW_CHROME_ICON_SQUARE_CSS,
   PW_CHROME_LABEL_FACE_CSS,
   PW_CHROME_FACE_EXTRAS_CSS,
   PW_CHROME_LABEL_BELOW_CSS,
@@ -566,11 +567,11 @@ ${pwSceneUnifiedStackCss()}
 .pw-bottom-nav .pw-shop-icon-label,.pw-shop-bottom-nav .pw-shop-icon-label,.pw-bottom-nav .pw-chrome-btn-label,.pw-shop-bottom-nav .pw-chrome-btn-label,.pw-bottom-nav .pw-shop-nav-label,.pw-shop-bottom-nav .pw-shop-nav-label,.pw-bottom-nav>a>span:not(.pw-chrome-icon-wrap):not(.pw-cart-badge):not(.pw-shop-cart-badge),.pw-shop-bottom-nav>a>span:not(.pw-chrome-icon-wrap):not(.pw-cart-badge):not(.pw-shop-cart-badge){
   display:block!important;max-width:100%!important;white-space:normal!important;overflow:visible!important;text-overflow:unset!important;text-align:center;line-height:1.15;overflow-wrap:break-word;word-break:break-word
 }
-.pw-header-actions .pw-chrome-icon-only,.pw-shop-header-actions .pw-chrome-icon-only,
-.pw-nav-main .pw-chrome-icon-only,.pw-shop-nav-row .pw-chrome-icon-only,
-[data-pw-chrome-added].pw-chrome-icon-only,
-[data-pw-chrome-btn="chat"].pw-chrome-icon-only,[data-pw-chrome-btn="chat-zalo"].pw-chrome-icon-only,[data-pw-chrome-btn="chat-facebook"].pw-chrome-icon-only,
-.pw-cat-btn.pw-chrome-icon-only,.pw-shop-cat-btn.pw-chrome-icon-only{
+.pw-header-actions .pw-chrome-icon-only:not(.pw-chrome-icon-square):not(.pw-chrome-icon-circle):not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"]),.pw-shop-header-actions .pw-chrome-icon-only:not(.pw-chrome-icon-square):not(.pw-chrome-icon-circle):not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"]),
+.pw-nav-main .pw-chrome-icon-only:not(.pw-chrome-icon-square):not(.pw-chrome-icon-circle):not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"]),.pw-shop-nav-row .pw-chrome-icon-only:not(.pw-chrome-icon-square):not(.pw-chrome-icon-circle):not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"]),
+[data-pw-chrome-added].pw-chrome-icon-only:not(.pw-chrome-icon-square):not(.pw-chrome-icon-circle):not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"]),
+[data-pw-chrome-btn="chat"].pw-chrome-icon-only:not(.pw-chrome-icon-square):not(.pw-chrome-icon-circle):not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"]),[data-pw-chrome-btn="chat-zalo"].pw-chrome-icon-only:not(.pw-chrome-icon-square):not(.pw-chrome-icon-circle):not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"]),[data-pw-chrome-btn="chat-facebook"].pw-chrome-icon-only:not(.pw-chrome-icon-square):not(.pw-chrome-icon-circle):not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"]),
+.pw-cat-btn.pw-chrome-icon-only:not(.pw-chrome-icon-square):not(.pw-chrome-icon-circle):not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"]),.pw-shop-cat-btn.pw-chrome-icon-only:not(.pw-chrome-icon-square):not(.pw-chrome-icon-circle):not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"]){
   width:auto!important;height:auto!important;
   min-width:0!important;min-height:0!important;
   padding:var(--pw-chrome-pad-y,4px) var(--pw-chrome-pad-x,4px)!important;border-radius:999px!important;flex-direction:row!important
@@ -659,7 +660,7 @@ ${PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS}
   width:auto!important;height:auto!important;min-width:0!important;background:transparent!important;
   padding:var(--pw-chrome-pad-y,4px) var(--pw-chrome-pad-x,12px)!important;border-radius:999px!important;font-size:var(--pw-chrome-label,13px)!important
 }
-.pw-bottom-nav .pw-chrome-icon-only,.pw-shop-bottom-nav .pw-chrome-icon-only{
+.pw-bottom-nav .pw-chrome-icon-only:not(.pw-chrome-icon-square):not(.pw-chrome-icon-circle):not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"]),.pw-shop-bottom-nav .pw-chrome-icon-only:not(.pw-chrome-icon-square):not(.pw-chrome-icon-circle):not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"]){
   flex:0 0 auto!important;width:auto!important;height:auto!important;
   min-width:0!important;min-height:0!important;
   padding:var(--pw-chrome-pad-y,4px) var(--pw-chrome-pad-x,4px)!important;border-radius:999px!important;flex-direction:row!important
@@ -695,6 +696,7 @@ ${PW_CHROME_LABEL_FACE_CSS}
 ${PW_CHROME_LABEL_BELOW_CSS}
 ${PW_CHROME_FACE_EXTRAS_CSS}
 ${PW_CHROME_ICON_CIRCLE_CSS}
+${PW_CHROME_ICON_SQUARE_CSS}
 ${PW_LEAD_COUPON_CSS}
 ${PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS}
 .pw-nav-main>a,.pw-nav-main>a.pw-nav-sale,.pw-nav-main>a.is-sale,.pw-nav-main>button,
@@ -853,6 +855,7 @@ ${PARTNER_SHOP_STICK_HEADER_CSS}
 ${PARTNER_SHOP_HIDDEN_CSS}
 ${PARTNER_SHOP_STAY_SCROLL_CSS}
 ${PARTNER_SHOP_CHROME_FLOAT_CSS}
+${PW_CHROME_ICON_SQUARE_CSS}
 ${PARTNER_SHOP_FOOTER_INFLOW_CSS}
 ${PARTNER_SHOP_BANNER_MEDIA_FILL_CSS}
 ${PARTNER_SHOP_STACK_FLOW_CSS}

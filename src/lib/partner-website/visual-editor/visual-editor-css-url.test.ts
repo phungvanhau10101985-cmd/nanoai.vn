@@ -435,6 +435,8 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('[data-pw-chrome-style=\\"icon\\"]')
     expect(s).toContain('[data-pw-chrome-style=\\"icon-square\\"]')
     expect(s).toContain('[data-pw-chrome-style=\\"icon-circle\\"]')
+    expect(s).toContain('border-radius:10px!important')
+    expect(s).toContain('.pw-chrome-icon-square .pw-chrome-icon-wrap')
     expect(s).not.toContain('[data-pw-chrome-style^=\\"icon\\"]')
     expect(s).toContain("setProperty('display', 'none', 'important')")
     expect(s).toContain('adoptChromeLabelEl')

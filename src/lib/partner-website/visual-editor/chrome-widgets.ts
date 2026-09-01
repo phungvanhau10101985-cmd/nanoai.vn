@@ -173,7 +173,8 @@ export const PW_STOCK_CHROME_EDIT_CSS =
   'flex-direction:column!important;align-items:center!important;justify-content:center!important;' +
   'width:auto!important;height:auto!important;min-width:0!important;min-height:0!important;' +
   'padding:var(--pw-chrome-pad-y,4px) 6px!important}' +
-  '.pw-bottom-nav .pw-chrome-icon-only,.pw-shop-bottom-nav .pw-chrome-icon-only{' +
+  '.pw-bottom-nav .pw-chrome-icon-only:not(.pw-chrome-icon-square):not(.pw-chrome-icon-circle):not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"]),' +
+  '.pw-shop-bottom-nav .pw-chrome-icon-only:not(.pw-chrome-icon-square):not(.pw-chrome-icon-circle):not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"]){' +
   'flex:0 0 auto!important;width:auto!important;height:auto!important;' +
   'min-width:0!important;min-height:0!important;' +
   'padding:var(--pw-chrome-pad-y,4px) var(--pw-chrome-pad-x,4px)!important;flex-direction:row!important}' +
@@ -193,9 +194,11 @@ export const PW_CHROME_LABELED_MIN_W_CSS =
   '[data-pw-chrome-btn][data-pw-chrome-style="icon-label-below"],[data-pw-chrome-added][data-pw-chrome-style="icon-label-below"],' +
   '[data-pw-chrome-btn][data-pw-chrome-style="icon-label-left"],[data-pw-chrome-added][data-pw-chrome-style="icon-label-left"],' +
   '[data-pw-chrome-btn][data-pw-chrome-style="text"],[data-pw-chrome-added][data-pw-chrome-style="text"],' +
-  '[data-pw-chrome-btn].pw-chrome-icon-only,[data-pw-chrome-added].pw-chrome-icon-only,' +
-  '[data-pw-chrome-btn][data-pw-chrome-style="icon"],[data-pw-chrome-added][data-pw-chrome-style="icon"],' +
-  '[data-pw-chrome-btn][data-pw-chrome-style="icon-square"],[data-pw-chrome-added][data-pw-chrome-style="icon-square"]{' +
+  '[data-pw-chrome-btn].pw-chrome-icon-only:not(.pw-chrome-icon-square):not(.pw-chrome-icon-circle)' +
+  ':not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"]),' +
+  '[data-pw-chrome-added].pw-chrome-icon-only:not(.pw-chrome-icon-square):not(.pw-chrome-icon-circle)' +
+  ':not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"]),' +
+  '[data-pw-chrome-btn][data-pw-chrome-style="icon"],[data-pw-chrome-added][data-pw-chrome-style="icon"]{' +
   'width:auto!important;min-width:0!important;height:auto!important;min-height:0!important;box-sizing:border-box!important}' +
   '.pw-search-form [data-pw-chrome-btn],.pw-shop-search-form [data-pw-chrome-btn]{width:auto!important;min-width:0!important;height:auto!important;min-height:0!important}' +
   '.pw-chrome-label-below .pw-chrome-btn-label,.pw-chrome-label-below .pw-shop-nav-label,.pw-chrome-label-below .pw-shop-icon-label,' +
@@ -206,6 +209,45 @@ export const PW_CHROME_LABELED_MIN_W_CSS =
   '.pw-chrome-has-label .pw-account-btn-label,' +
   '.pw-chrome-link .pw-chrome-btn-label,.pw-chrome-link .pw-shop-icon-label{' +
   'max-width:none!important;width:auto!important;font-size:var(--pw-chrome-label,13px)!important}'
+
+/** Icon-only rounded square — same equal box as circle, 10px corners (or `--pw-chrome-radius`). */
+export const PW_CHROME_ICON_SQUARE_CSS =
+  '[data-pw-chrome-btn][data-pw-chrome-style="icon-square"],[data-pw-chrome-added][data-pw-chrome-style="icon-square"],' +
+  '[data-pw-el="cat-toggle"][data-pw-chrome-style="icon-square"],' +
+  '[data-pw-chrome-btn].pw-chrome-icon-square,[data-pw-chrome-added].pw-chrome-icon-square,' +
+  '[data-pw-chrome-float="1"][data-pw-chrome-style="icon-square"],[data-pw-chrome-float="1"].pw-chrome-icon-square{' +
+  'border-radius:10px!important;' +
+  'aspect-ratio:1!important;' +
+  'width:calc(max(var(--pw-chrome-w,var(--pw-chrome-size,22px)),var(--pw-chrome-h,var(--pw-chrome-size,22px))) + 16px)!important;' +
+  'height:calc(max(var(--pw-chrome-w,var(--pw-chrome-size,22px)),var(--pw-chrome-h,var(--pw-chrome-size,22px))) + 16px)!important;' +
+  'min-width:calc(max(var(--pw-chrome-w,var(--pw-chrome-size,22px)),var(--pw-chrome-h,var(--pw-chrome-size,22px))) + 16px)!important;' +
+  'min-height:calc(max(var(--pw-chrome-w,var(--pw-chrome-size,22px)),var(--pw-chrome-h,var(--pw-chrome-size,22px))) + 16px)!important;' +
+  'max-width:calc(max(var(--pw-chrome-w,var(--pw-chrome-size,22px)),var(--pw-chrome-h,var(--pw-chrome-size,22px))) + 16px)!important;' +
+  'max-height:calc(max(var(--pw-chrome-w,var(--pw-chrome-size,22px)),var(--pw-chrome-h,var(--pw-chrome-size,22px))) + 16px)!important;' +
+  'padding:0!important;box-sizing:border-box!important;' +
+  'align-items:center!important;justify-content:center!important}' +
+  '.pw-chrome-icon-square .pw-chrome-icon-wrap,[data-pw-chrome-style="icon-square"] .pw-chrome-icon-wrap{' +
+  'width:var(--pw-chrome-w,var(--pw-chrome-size,22px))!important;' +
+  'height:var(--pw-chrome-h,var(--pw-chrome-size,22px))!important;' +
+  'max-width:var(--pw-chrome-w,var(--pw-chrome-size,22px))!important;' +
+  'max-height:var(--pw-chrome-h,var(--pw-chrome-size,22px))!important;' +
+  'border-radius:8px!important}' +
+  '.pw-chrome-icon-square .pw-chrome-icon-wrap svg,[data-pw-chrome-style="icon-square"] .pw-chrome-icon-wrap svg,' +
+  '.pw-chrome-icon-square .pw-chrome-icon-wrap img,[data-pw-chrome-style="icon-square"] .pw-chrome-icon-wrap img,' +
+  '.pw-chrome-icon-square .pw-chrome-chat-logo,[data-pw-chrome-style="icon-square"] .pw-chrome-chat-logo,' +
+  '.pw-chrome-icon-square .pw-chrome-brand-logo,[data-pw-chrome-style="icon-square"] .pw-chrome-brand-logo{' +
+  'width:var(--pw-chrome-w,var(--pw-chrome-size,22px))!important;' +
+  'height:var(--pw-chrome-h,var(--pw-chrome-size,22px))!important;' +
+  'max-width:var(--pw-chrome-w,var(--pw-chrome-size,22px))!important;' +
+  'max-height:var(--pw-chrome-h,var(--pw-chrome-size,22px))!important;' +
+  'border-radius:8px!important}' +
+  '[data-pw-chrome-radius][data-pw-chrome-style="icon-square"],[data-pw-chrome-radius].pw-chrome-icon-square{' +
+  'border-radius:var(--pw-chrome-radius,10px)!important}' +
+  '[data-pw-chrome-radius][data-pw-chrome-style="icon-square"] .pw-chrome-icon-wrap,' +
+  '[data-pw-chrome-radius].pw-chrome-icon-square .pw-chrome-icon-wrap,' +
+  '[data-pw-chrome-radius][data-pw-chrome-style="icon-square"] .pw-chrome-chat-logo,' +
+  '[data-pw-chrome-radius].pw-chrome-icon-square .pw-chrome-chat-logo{' +
+  'border-radius:var(--pw-chrome-radius,8px)!important}'
 
 /** Icon-only circle — equal box + full round. Wins after hug/radius so floats stay a real circle. */
 export const PW_CHROME_ICON_CIRCLE_CSS =

@@ -595,7 +595,7 @@ html[data-pw-edit-device] [${PW_CHROME_FLOAT_ATTR}="1"]:not([data-pw-user-move])
   max-width:var(--pw-chrome-w,var(--pw-float-size,${PW_FLOAT_SIZE_DEFAULT}px))!important;
   max-height:var(--pw-chrome-h,var(--pw-float-size,${PW_FLOAT_SIZE_DEFAULT}px))!important
 }
-[${PW_CHROME_FLOAT_ATTR}="1"].pw-chrome-icon-only:not(.pw-chrome-icon-circle):not([data-pw-chrome-style="icon-circle"]),[${PW_CHROME_FLOAT_ATTR}="1"].pw-chrome-icon-square{
+[${PW_CHROME_FLOAT_ATTR}="1"].pw-chrome-icon-only:not(.pw-chrome-icon-circle):not([data-pw-chrome-style="icon-circle"]):not(.pw-chrome-icon-square):not([data-pw-chrome-style="icon-square"]){
   width:auto!important;height:auto!important;
   min-width:0!important;min-height:0!important;
   padding:var(--pw-chrome-pad-y,4px) var(--pw-chrome-pad-x,4px)!important

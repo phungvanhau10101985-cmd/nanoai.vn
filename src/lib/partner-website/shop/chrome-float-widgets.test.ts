@@ -109,6 +109,8 @@ test('chat Zalo Facebook and top-up are viewport-fixed chrome', () => {
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('--pw-float-size'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('[data-pw-chrome-btn]:not([data-pw-chrome-size])'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('icon-circle'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes(':not(.pw-chrome-icon-square):not([data-pw-chrome-style="icon-square"])'), true)
+  assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('].pw-chrome-icon-square{'), false)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_CSS.includes('[data-pw-chrome-kit="float"] .pw-chrome-icon-wrap svg'), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes("querySelector('.pw-chrome-icon-wrap')"), true)
   assert.equal(PARTNER_SHOP_CHROME_FLOAT_POS_JS.includes("setAttribute('width',String(size))"), true)

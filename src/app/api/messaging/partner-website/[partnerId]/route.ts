@@ -796,25 +796,6 @@ export async function PATCH(
         { status: 409 }
       )
     }
-    const liveBeforeHash = liveBeforeSelection?.hash || ''
-    const persistedChanged = persistedHash !== liveBeforeHash
-    const liveChanged = liveAfterSelection.hash !== liveBeforeHash
-    if (persistedChanged && !liveChanged) {
-      return NextResponse.json(
-        {
-          error: 'Visual save rejected: live output did not change after save',
-          code: 'VISUAL_LIVE_NOT_UPDATED',
-          runtimeGate: {
-            htmlPath,
-            device: visualDevice,
-            persistedHash,
-            liveBeforeHash,
-            liveAfterHash: liveAfterSelection.hash,
-          },
-        },
-        { status: 409 }
-      )
-    }
   }
   return NextResponse.json({
     success: true,

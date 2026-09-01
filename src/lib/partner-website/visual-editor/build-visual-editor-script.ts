@@ -8,6 +8,7 @@ import {
   PW_STOCK_CHROME_EDIT_CSS,
   PW_CHROME_LABELED_MIN_W_CSS,
   PW_CHROME_ICON_CIRCLE_CSS,
+  PW_CHROME_ICON_SQUARE_CSS,
   PW_CHROME_LABEL_FACE_CSS,
   PW_CHROME_FACE_EXTRAS_CSS,
   PW_CHROME_LABEL_BELOW_CSS,
@@ -14573,6 +14574,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       ${JSON.stringify(PW_CHROME_LABEL_BELOW_CSS)},
       ${JSON.stringify(PW_CHROME_FACE_EXTRAS_CSS)},
       ${JSON.stringify(PW_CHROME_ICON_CIRCLE_CSS)},
+      ${JSON.stringify(PW_CHROME_ICON_SQUARE_CSS)},
       ${JSON.stringify(PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS)},
       ${JSON.stringify(
         `.pw-bottom-nav :is(a,button)${PW_CHROME_NOT_ICON_ONLY_SEL} :is(.pw-shop-icon-label,.pw-chrome-btn-label,.pw-shop-nav-label),.pw-shop-bottom-nav :is(a,button)${PW_CHROME_NOT_ICON_ONLY_SEL} :is(.pw-shop-icon-label,.pw-chrome-btn-label,.pw-shop-nav-label){display:block!important;max-width:100%!important;white-space:normal!important;overflow:visible!important;text-overflow:unset!important;color:inherit!important;text-align:center;line-height:1.15;overflow-wrap:break-word;word-break:break-word;font-size:var(--pw-chrome-label,13px)!important}`
@@ -14580,10 +14582,12 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       ${JSON.stringify(PW_CHROME_LABEL_BELOW_CSS)},
       ${JSON.stringify(PW_CHROME_FACE_EXTRAS_CSS)},
       ${JSON.stringify(PW_CHROME_ICON_CIRCLE_CSS)},
+      ${JSON.stringify(PW_CHROME_ICON_SQUARE_CSS)},
       ${JSON.stringify(PARTNER_SHOP_HIDDEN_CSS)},
       '.pw-chrome-label-left,[data-pw-chrome-style="icon-label-left"],.pw-header-actions .pw-chrome-label-left,.pw-shop-header-actions .pw-chrome-label-left,.pw-bottom-nav .pw-chrome-label-left,.pw-shop-bottom-nav .pw-chrome-label-left,[data-pw-chrome-added].pw-chrome-label-left{flex-direction:row!important;align-items:center!important;justify-content:center!important}',
       '.pw-chrome-label-left .pw-chrome-btn-label,.pw-chrome-label-left .pw-shop-nav-label,.pw-chrome-label-left .pw-shop-icon-label{display:inline!important;white-space:nowrap!important;text-align:right!important;max-width:none!important}',
       ${JSON.stringify(PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS)},
+      ${JSON.stringify(PW_CHROME_ICON_SQUARE_CSS)},
       '.pw-bottom-nav .pw-chrome-icon-wrap .pw-cart-badge,.pw-shop-bottom-nav .pw-chrome-icon-wrap .pw-cart-badge,.pw-bottom-nav .pw-chrome-icon-wrap .pw-shop-cart-badge,.pw-shop-bottom-nav .pw-chrome-icon-wrap .pw-shop-cart-badge{position:absolute!important;top:-5px!important;right:-9px!important;left:auto!important;bottom:auto!important;z-index:2}',
       ${JSON.stringify(PW_CHROME_COUNT_BADGE_HIDE_CSS)},
       '.nanoai-ve-active [data-pw-region="banner"].nanoai-ve-photo-edit [data-pw-bg-layer],.nanoai-ve-active .pw-hero.nanoai-ve-photo-edit [data-pw-bg-layer]{z-index:6!important;cursor:grab!important}',
