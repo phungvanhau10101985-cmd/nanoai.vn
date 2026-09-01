@@ -90,6 +90,7 @@ import {
   isGapOnlyChromeAddKind,
   isChromeFloatKind,
   isChromeIconOnlyStyle,
+  isFooterAddChromeKind,
   isVisualEditorChromeWidgetKind,
   PW_CHROME_GAP_MAX,
   PW_CHROME_GAP_MIN,
@@ -284,6 +285,7 @@ export type VisualEditorSelection = {
   isLogo: boolean
   logoFace: 'text' | 'image' | 'empty'
   logoSlot: LogoSlotKind
+  inFooter: boolean
   logoBg: string
   logoBgImage: string
   themePrimary: string
@@ -433,6 +435,7 @@ function selectionFromMessage(data: {
   placeholder?: string
   isBgImage?: boolean
   isLogo?: boolean
+  inFooter?: boolean
   logoFace?: string
   logoSlot?: string
   logoBg?: string
@@ -572,6 +575,7 @@ function selectionFromMessage(data: {
     placeholder: String(data.placeholder ?? ''),
     isBgImage: Boolean(data.isBgImage),
     isLogo: Boolean(data.isLogo),
+    inFooter: Boolean(data.inFooter),
     logoFace: parseLogoFace(data.logoFace),
     logoSlot: parseLogoSlot(data.logoSlot),
     logoBg: String(data.logoBg ?? ''),
@@ -1638,6 +1642,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [insertAnchorPlace, setInsertAnchorPlace] = useState<'left' | 'right' | 'before' | 'after' | null>(
     null
   )
+  const [insertAnchorHost, setInsertAnchorHost] = useState<'footer' | null>(null)
   const [gapUnits, setGapUnits] = useState<VisualEditorGapUnit[]>([])
   const [hGapUnits, setHGapUnits] = useState<VisualEditorHGapUnit[]>([])
   const [hGapActiveIndex, setHGapActiveIndex] = useState(-1)
@@ -1704,6 +1709,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       setInsertBgPickPlace(null)
       setInsertAnchorActive(false)
       setInsertAnchorPlace(null)
+      setInsertAnchorHost(null)
       setGapUnits([])
       setGapActiveIndex(-1)
       return
@@ -1719,6 +1725,7 @@ export function PartnerWebsiteVisualEditorToolbar({
           postToIframe(iframeRef.current, 'clearInsertAnchor')
           setInsertAnchorActive(false)
           setInsertAnchorPlace(null)
+          setInsertAnchorHost(null)
         }
         openBlockPanel()
       }
@@ -2090,6 +2097,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         text?: string
         isBgImage?: boolean
         isLogo?: boolean
+        inFooter?: boolean
         generate?: boolean
         logoFace?: string
         logoSlot?: string
@@ -2296,6 +2304,7 @@ export function PartnerWebsiteVisualEditorToolbar({
               ? place
               : null
           )
+          setInsertAnchorHost(String(data.host || '') === 'footer' ? 'footer' : null)
           setAddBgAskOpen(false)
           setInsertBgPickPlace(null)
           setOpenPanel('add')
@@ -2307,6 +2316,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       if (data.type === 'insertAnchorClear') {
         setInsertAnchorActive(false)
         setInsertAnchorPlace(null)
+        setInsertAnchorHost(null)
       }
       if (data.type === 'chromeDuplicateAsk') {
         const kind = String(data.kind || '')
@@ -2369,6 +2379,7 @@ export function PartnerWebsiteVisualEditorToolbar({
           postToIframe(iframeRef.current, 'clearInsertAnchor')
           setInsertAnchorActive(false)
           setInsertAnchorPlace(null)
+          setInsertAnchorHost(null)
           return
         }
       }
@@ -2903,6 +2914,7 @@ export function PartnerWebsiteVisualEditorToolbar({
           placeholder: '',
           isBgImage: false,
           isLogo: true,
+          inFooter: false,
           logoFace: 'empty',
           logoSlot: 'header',
           logoBg: pick.bgColor,
@@ -3158,7 +3170,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       kind,
       siteSlug: slug,
       locale,
-      style: 'icon-label-left',
+      style: insertAnchorHost === 'footer' ? 'text' : 'icon-label-left',
       logoUrl: kind === 'chat' ? theme?.chatIconLogoUrl || theme?.logoUrl || undefined : undefined,
       chatIconLogoUrl: kind === 'chat' ? theme?.chatIconLogoUrl || undefined : undefined,
       href:
@@ -3175,14 +3187,15 @@ export function PartnerWebsiteVisualEditorToolbar({
     })
     if (!html) return
     if (isGapOnlyChromeAddKind(kind) && !insertAnchorActive) return
-    const host = chromeWidgetHost(kind)
+    if (insertAnchorHost === 'footer' && !isFooterAddChromeKind(kind)) return
+    const host = insertAnchorHost === 'footer' ? 'footer' : chromeWidgetHost(kind)
     pendingChromeDupRef.current = { kind, html, host }
     postToIframe(iframeRef.current, 'insertChromeBtn', {
       kind,
       html,
       host,
-      force: Boolean(opts?.force),
-      atCenter: true,
+      force: Boolean(opts?.force) || insertAnchorHost === 'footer',
+      atCenter: insertAnchorHost !== 'footer',
       useAnchor: insertAnchorActive,
     })
     if (opts?.force) {
@@ -3248,6 +3261,7 @@ export function PartnerWebsiteVisualEditorToolbar({
     if (useAnchor) {
       setInsertAnchorActive(false)
       setInsertAnchorPlace(null)
+      setInsertAnchorHost(null)
     }
     openBlockPanel()
   }
@@ -4005,9 +4019,12 @@ export function PartnerWebsiteVisualEditorToolbar({
                               ? t.visualEditPaperTitle
                             : t.visualEditMenuBlock
   const addAtGap = insertAnchorActive
+  const addAtFooter = insertAnchorHost === 'footer'
   const panelTitle =
     openPanel === 'add'
-      ? addAtGap
+      ? addAtFooter
+        ? t.visualEditAddAtFooter
+        : addAtGap
         ? insertAnchorPlace === 'left' || insertAnchorPlace === 'right'
           ? t.visualEditAddAtSide
           : t.visualEditAddAtGap
@@ -4082,9 +4099,17 @@ export function PartnerWebsiteVisualEditorToolbar({
             aria-expanded={openPanel === 'add'}
             onClick={() => {
               if (openPanel !== 'add') {
-                setInsertAnchorActive(false)
-                setInsertAnchorPlace(null)
-                postToIframe(iframeRef.current, 'clearInsertAnchor')
+                if (selection?.inFooter) {
+                  setInsertAnchorActive(true)
+                  setInsertAnchorPlace('right')
+                  setInsertAnchorHost('footer')
+                  postToIframe(iframeRef.current, 'armFooterAdd', {})
+                } else {
+                  setInsertAnchorActive(false)
+                  setInsertAnchorPlace(null)
+                  setInsertAnchorHost(null)
+                  postToIframe(iframeRef.current, 'clearInsertAnchor')
+                }
               }
               setOpenPanel((cur) => (cur === 'add' ? 'block' : 'add'))
               setPanelPos((pos) => pos || defaultFloatingPanelPos())
@@ -4281,6 +4306,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                           postToIframe(iframeRef.current, 'clearInsertAnchor')
                           setInsertAnchorActive(false)
                           setInsertAnchorPlace(null)
+                          setInsertAnchorHost(null)
                         }
                         openBlockPanel()
                       }
@@ -4289,12 +4315,31 @@ export function PartnerWebsiteVisualEditorToolbar({
                 {openPanel === 'add' ? (
                   <div className="flex flex-col gap-1">
                     <p className="px-2 py-1 text-[10px] leading-4 text-muted-foreground">
-                      {addAtGap ? t.visualEditInsertAtGapHint : t.visualEditAddToolbarHint}
+                      {addAtFooter
+                        ? t.visualEditInsertAtFooterHint
+                        : addAtGap
+                          ? t.visualEditInsertAtGapHint
+                          : t.visualEditAddToolbarHint}
                     </p>
                     {isTextArticlePage ? (
                       <p className="px-2 py-1 text-[10px] leading-4 text-muted-foreground">
                         {t.visualEditArticleEditHint}
                       </p>
+                    ) : null}
+                    {addAtFooter ? (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] font-medium hover:bg-muted"
+                      disabled={busy}
+                      onClick={() => {
+                        postToIframe(iframeRef.current, 'insertFooterLogo', {})
+                        setDirty(true)
+                        openBlockPanel()
+                      }}
+                    >
+                      <ImagePlus className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      {t.visualEditAddFooterLogo}
+                    </button>
                     ) : null}
                     <button
                       type="button"
@@ -4320,7 +4365,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                       {t.visualEditAddImage}
                     </button>
                     ) : null}
-                    {addAtGap ? (
+                    {addAtGap && !addAtFooter ? (
                     <div className="flex flex-col gap-1 px-2 py-1">
                       <label className="flex items-center gap-1.5 text-[11px] font-medium">
                         <Video className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -4378,7 +4423,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                       <MousePointerClick className="h-3.5 w-3.5 shrink-0" aria-hidden />
                       {t.visualEditAddButton}
                     </button>
-                    {addAtGap ? (
+                    {addAtGap && !addAtFooter ? (
                     <button
                       type="button"
                       className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] font-medium hover:bg-muted"
@@ -4391,7 +4436,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                         : t.visualEditAddBanner || bannerWidgetLabel('hero', locale)}
                     </button>
                     ) : null}
-                    {addAtGap ? (
+                    {addAtGap && !addAtFooter ? (
                     <div className="flex flex-col">
                       <button
                         type="button"
@@ -4411,7 +4456,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                       ) : null}
                     </div>
                     ) : null}
-                    {(addAtGap ? VISUAL_EDITOR_PRODUCT_GRID_KINDS : []).filter((kind) =>
+                    {(addAtGap && !addAtFooter ? VISUAL_EDITOR_PRODUCT_GRID_KINDS : []).filter((kind) =>
                       productGridKindShownInAddPicker(kind, pageKey)
                     ).map((kind) => {
                       const Icon =
@@ -4483,7 +4528,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                         </div>
                       )
                     })}
-                    {addAtGap ? (
+                    {addAtGap && !addAtFooter ? (
                     <div className="flex flex-col gap-1 rounded px-2 py-1.5">
                       <button
                         type="button"
@@ -4525,7 +4570,8 @@ export function PartnerWebsiteVisualEditorToolbar({
                     <div className="max-h-48 overflow-y-auto">
                       {VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS.filter(
                         (kind) =>
-                          !isChromeKitPickerKind(kind) && (addAtGap || !isGapOnlyChromeAddKind(kind))
+                          (addAtFooter ? isFooterAddChromeKind(kind) : !isChromeKitPickerKind(kind)) &&
+                          (addAtGap || !isGapOnlyChromeAddKind(kind))
                       ).map((kind) => {
                         const Icon = isLucideIconComponent(CHROME_WIDGET_ICONS[kind])
                           ? CHROME_WIDGET_ICONS[kind]

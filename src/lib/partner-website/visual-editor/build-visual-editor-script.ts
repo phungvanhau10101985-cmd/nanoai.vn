@@ -27,6 +27,8 @@ import {
   PW_IMAGE_RADIUS_MIN,
   PW_IMAGE_RADIUS_MAX,
   chromeKindDefaultLabels,
+  FOOTER_ADD_CHROME_KINDS,
+  PW_FOOTER_ADDED_ATTR,
 } from './chrome-widgets'
 import {
   PW_CHROME_COUNT_BADGE_HIDE_CSS,
@@ -1696,7 +1698,45 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return !!(el && el.closest && el.closest('header, .pw-header, .pw-shop-header'))
   }
   function isInFooter(el) {
-    return !!(el && el.closest && el.closest('footer, .pw-footer, .pw-shop-footer'))
+    return !!(el && el.closest && el.closest('footer, .pw-footer, .pw-shop-footer, [data-pw-region="footer"]'))
+  }
+  function isFooterAddedEl(el) {
+    if (!el || !el.getAttribute) return false
+    if (el.getAttribute('${PW_FOOTER_ADDED_ATTR}') === '1') return true
+    return !!(el.closest && el.closest('[${PW_FOOTER_ADDED_ATTR}="1"]'))
+  }
+  function footerRootEl() {
+    return document.querySelector('[data-pw-region="footer"], footer.pw-footer, footer.pw-shop-footer, .pw-shop-footer, footer')
+  }
+  function isFooterInnerUnit(el) {
+    if (!el || el.nodeType !== 1) return false
+    return hasClassToken(el, 'pw-shop-footer-inner') || hasClassToken(el, 'pw-footer-grid')
+  }
+  function footerInnerEl(from) {
+    var root = from && from.nodeType === 1 ? from : footerRootEl()
+    if (!root) return null
+    if (isFooterInnerUnit(root)) return root
+    var inner = root.querySelector ? root.querySelector('.pw-shop-footer-inner, .pw-footer-grid') : null
+    if (inner) return inner
+    var wrap = root.closest ? root.closest('footer, .pw-footer, .pw-shop-footer, [data-pw-region="footer"]') : null
+    return wrap && wrap.querySelector ? wrap.querySelector('.pw-shop-footer-inner, .pw-footer-grid') : null
+  }
+  function footerInnerCells(inner) {
+    var out = []
+    if (!inner || !inner.children) return out
+    for (var i = 0; i < inner.children.length; i++) {
+      var kid = inner.children[i]
+      if (!kid || kid.nodeType !== 1) continue
+      if (isIgnored(kid) || isEditorChromeNode(kid)) continue
+      out.push(kid)
+    }
+    return out
+  }
+  function isFooterAnchor() {
+    if (!hasInsertAnchor() || !insertAnchor.unit) return false
+    var u = insertAnchor.unit
+    if (isFooterInnerUnit(u) || isFooterAddedEl(u)) return true
+    return isInFooter(u)
   }
   function pwStampDevice() {
     return (editDevice === 'mobile' || editDevice === 'tablet' || editDevice === 'laptop') ? editDevice : 'desktop'
@@ -3858,6 +3898,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function isMidCanvasFlowChromeKind(kind) {
     var kinds = ${JSON.stringify(listMidCanvasFlowChromeKinds())}
+    return kinds.indexOf(String(kind || '')) >= 0
+  }
+  function isFooterAddChromeKind(kind) {
+    var kinds = ${JSON.stringify([...FOOTER_ADD_CHROME_KINDS])}
     return kinds.indexOf(String(kind || '')) >= 0
   }
   function isMidCanvasFlowChromeEl(el) {
@@ -7544,6 +7588,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var first = null
     for (var i = 0; i < nodes.length; i++) {
       if (skipKit && isChromeKitEl(nodes[i])) continue
+      if (isInFooter(nodes[i])) continue
       if (!first) first = nodes[i]
       if (isShown(nodes[i])) return nodes[i]
     }
@@ -8517,6 +8562,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     var existingNow = findExistingChrome(k)
     if (existingNow && isChromeKitEl(existingNow)) existingNow = null
+    if (wantFooterInsert(host)) existingNow = null
     if (existingNow && !force) {
       post('chromeDuplicateAsk', { kind: k })
       return
@@ -8525,6 +8571,21 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     wrap.innerHTML = String(html)
     var node = wrap.firstElementChild
     if (!node) return
+    if (wantFooterInsert(host)) {
+      if (isChromeFloatKind(k) || !isFooterAddChromeKind(k)) {
+        consumeInsertAnchor()
+        return
+      }
+      var footNode = wrapFooterChromeCell(node)
+      if (appendToFooter(footNode)) {
+        selectEl(node)
+        post('dirty', {})
+        consumeInsertAnchor()
+        return
+      }
+      consumeInsertAnchor()
+      return
+    }
     var place = String(host || '')
     if (isChromeFloatKind(k)) place = 'float'
     else if (place !== 'float') place = 'canvas'
@@ -8836,7 +8897,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function setInsertAnchor(place, unit) {
     if (!armInsertAnchor(place, unit)) return
     try { syncGapPluses() } catch (eGap3) {}
-    post('openAddAtGap', { place: insertAnchor.place })
+    post('openAddAtGap', { place: insertAnchor.place, host: isFooterAnchor() ? 'footer' : '' })
   }
   function styleInFlowSlot(node) {
     if (!node || !node.style) return
@@ -8853,6 +8914,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function insertInFlowAtAnchor(node) {
     if (!hasInsertAnchor() || !node) return false
+    if (isFooterAnchor()) return insertInFooterAtAnchor(node)
     var unit = insertAnchor.unit
     var place = insertAnchor.place
     var host = unit.parentNode
@@ -8863,6 +8925,137 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     else if (unit.nextSibling) host.insertBefore(node, unit.nextSibling)
     else host.appendChild(node)
     return true
+  }
+  function wantFooterInsert(host) {
+    if (String(host || '') === 'footer') return true
+    if (hasInsertAnchor() && isFooterAnchor()) return true
+    return !!(selected && isInFooter(selected) && !hasInsertAnchor())
+  }
+  function styleFooterAddedCell(node) {
+    if (!node || !node.style || !node.getAttribute) return
+    if (node.getAttribute('data-pw-added-text') === '1' || node.getAttribute('data-pw-added-text-slot') === '1') {
+      node.style.fontSize = '14px'
+      node.style.fontWeight = '600'
+      node.style.lineHeight = '1.45'
+      node.style.whiteSpace = 'normal'
+      node.style.width = 'auto'
+      node.style.maxWidth = '100%'
+    }
+    if (node.getAttribute('data-pw-added-btn-slot') === '1') {
+      node.style.padding = '0'
+      node.style.textAlign = 'left'
+      node.style.width = 'auto'
+    }
+    if (node.getAttribute('data-pw-added-image-slot') === '1' || node.getAttribute('data-pw-added-image') === '1') {
+      node.style.width = '100%'
+      node.style.maxWidth = '100%'
+      node.style.margin = '0'
+    }
+  }
+  function appendToFooter(node) {
+    if (!node) return false
+    if (hasInsertAnchor() && isFooterAnchor()) return insertInFooterAtAnchor(node)
+    stampFooterAdded(node)
+    styleFooterAddedCell(node)
+    var inner = footerInnerEl(selected) || footerInnerEl()
+    if (!inner) return false
+    inner.appendChild(node)
+    return true
+  }
+  function stampFooterAdded(el) {
+    if (!el || !el.setAttribute) return el
+    el.setAttribute('${PW_FOOTER_ADDED_ATTR}', '1')
+    el.setAttribute('data-pw-edit', '1')
+    try { el.removeAttribute('data-pw-chrome-added') } catch (eAdded) {}
+    try { el.removeAttribute('data-pw-device') } catch (eDev) {}
+    try { el.removeAttribute('data-pw-placement') } catch (ePlace) {}
+    try { el.removeAttribute('data-pw-user-move') } catch (eMove) {}
+    try { el.removeAttribute(SCENE.attr) } catch (eScene) {}
+    if (el.style) {
+      el.style.removeProperty('position')
+      el.style.removeProperty('left')
+      el.style.removeProperty('top')
+      el.style.removeProperty('right')
+      el.style.removeProperty('bottom')
+      el.style.removeProperty('transform')
+      el.style.removeProperty('z-index')
+    }
+    return el
+  }
+  function wrapFooterChromeCell(node) {
+    if (!node) return node
+    try { node.removeAttribute('data-pw-chrome-added') } catch (eStrip) {}
+    try { node.removeAttribute('data-pw-device') } catch (eDev) {}
+    if (!node.getAttribute('data-pw-el')) node.setAttribute('data-pw-el', 'link')
+    if (node.classList) {
+      node.classList.remove('pw-icon-btn', 'pw-shop-icon-btn')
+      node.classList.add('pw-chrome-link')
+    }
+    var col = document.createElement('nav')
+    col.className = 'pw-shop-footer-col pw-footer-col'
+    col.setAttribute('data-pw-el', 'col')
+    stampFooterAdded(col)
+    var ul = document.createElement('ul')
+    var li = document.createElement('li')
+    li.appendChild(node)
+    ul.appendChild(li)
+    col.appendChild(ul)
+    return col
+  }
+  function insertInFooterAtAnchor(node) {
+    if (!hasInsertAnchor() || !node) return false
+    var unit = insertAnchor.unit
+    var place = insertAnchor.place
+    var inner = isFooterInnerUnit(unit) ? unit : footerInnerEl(unit)
+    if (!inner) return false
+    stampFooterAdded(node)
+    styleFooterAddedCell(node)
+    if (isFooterInnerUnit(unit)) {
+      if (place === 'left' || place === 'before') inner.insertBefore(node, inner.firstChild)
+      else inner.appendChild(node)
+      return true
+    }
+    if (!unit.parentNode) return false
+    if (place === 'left' || place === 'before') unit.parentNode.insertBefore(node, unit)
+    else if (unit.nextSibling) unit.parentNode.insertBefore(node, unit.nextSibling)
+    else unit.parentNode.appendChild(node)
+    return true
+  }
+  function armFooterAdd() {
+    var inner = footerInnerEl()
+    if (!inner) return false
+    var cells = footerInnerCells(inner)
+    var unit = cells.length ? cells[cells.length - 1] : inner
+    if (!armInsertAnchor('right', unit)) return false
+    try { syncGapPluses() } catch (eGapFoot) {}
+    post('openAddAtGap', { place: 'right', host: 'footer' })
+    return true
+  }
+  function insertFooterLogo() {
+    var footer = footerRootEl()
+    var inner = footerInnerEl(footer)
+    if (!footer || !inner) return
+    var brand = footer.querySelector('.pw-shop-footer-brand')
+    if (!brand) {
+      brand = document.createElement('div')
+      brand.className = 'pw-shop-footer-brand'
+      stampFooterAdded(brand)
+      if (hasInsertAnchor() && isFooterAnchor()) insertInFooterAtAnchor(brand)
+      else inner.insertBefore(brand, inner.firstChild)
+    }
+    var img = brand.querySelector('img.pw-shop-footer-logo, img.pw-logo, img.pw-shop-logo, img[data-pw-el="logo"]')
+    if (!img) {
+      img = document.createElement('img')
+      img.className = 'pw-shop-footer-logo pw-logo'
+      img.setAttribute('data-pw-logo-slot', 'footer')
+      img.setAttribute('data-pw-logo-empty', '1')
+      img.setAttribute('data-pw-el', 'logo')
+      img.setAttribute('alt', 'logo')
+      brand.insertBefore(img, brand.firstChild)
+    }
+    if (hasInsertAnchor()) consumeInsertAnchor()
+    selectEl(img)
+    post('dirty', {})
   }
   function wrapInFlowSlot(inner, slotAttr) {
     var slot = document.createElement('div')
@@ -8936,6 +9129,20 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         points.push({ cell: cell, side: side })
       }
     }
+    var inner = footerInnerEl()
+    if (inner && isShown(inner)) {
+      var footCells = footerInnerCells(inner)
+      if (!footCells.length) {
+        points.push({ cell: inner, side: 'left' })
+        points.push({ cell: inner, side: 'right' })
+      } else {
+        for (var fi = 0; fi <= footCells.length; fi++) {
+          var fCell = fi < footCells.length ? footCells[fi] : footCells[footCells.length - 1]
+          var fSide = fi < footCells.length ? 'left' : 'right'
+          points.push({ cell: fCell, side: fSide })
+        }
+      }
+    }
     return points
   }
   function listInsertGapUnits() {
@@ -8945,6 +9152,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       var unit = resolveGapUnit(nodes[i])
       if (!unit || seen.indexOf(unit) >= 0) continue
       if (isIgnored(unit) || isEditorChromeNode(unit)) continue
+      if (unit.closest && unit.closest('footer, .pw-footer, .pw-shop-footer, [data-pw-region="footer"]')) continue
       if (unit.closest && unit.closest('#nanoai-ve-gap-pluses,.nanoai-ve-ignore,[data-nanoai-ve-ignore]')) continue
       if (!isShown(unit)) continue
       seen.push(unit)
@@ -9346,6 +9554,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function liftLooseElToSceneHost(el, forcedHost) {
     if (!el || !el.style) return
     if (isChromeFloatEl(el) || isPinScreenOn(el)) return
+    if (isInFooter(el) || isFooterAddedEl(el)) return
     if (isFullBleedChrome(el) || isShopRegionHost(el)) return
     if (isInFlowPdpAction(el) || isStrayPdpBuyBoxBtn(el)) return
     // Scene-absolute overlays live under [data-pw-scene-root]. Body parenting
@@ -9527,6 +9736,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function kindLockedScene(el) {
     if (!el || !el.getAttribute) return null
     if (el.getAttribute('data-pw-chrome-kit')) return null
+    if (isInFooter(el) || isFooterAddedEl(el)) return null
     if (isMidCanvasFlowChromeEl(el) || isAddedBtn(el)) return SCENE.kindLock.chrome
     if (el.getAttribute('data-pw-chrome-added') === '1' && el.getAttribute('data-pw-chrome-btn')) {
       return SCENE.kindLock.chrome
@@ -9560,6 +9770,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     )
     for (var i = 0; i < nodes.length; i++) {
       if (nodes[i].closest && nodes[i].closest('[data-pw-chrome-kit]')) continue
+      if (isInFooter(nodes[i]) || isFooterAddedEl(nodes[i])) continue
       pinKindLockedScene(nodes[i])
     }
   }
@@ -9776,17 +9987,27 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function insertText() {
     var label = (COPY && COPY.addTextPlaceholder) ? String(COPY.addTextPlaceholder) : 'Text'
+    var slot = document.createElement('div')
+    slot.setAttribute('data-pw-added-text', '1')
+    slot.setAttribute('data-pw-added-text-slot', '1')
+    slot.setAttribute('data-pw-edit', '1')
+    slot.textContent = label
+    slot.style.fontSize = '22px'
+    slot.style.fontWeight = '700'
+    slot.style.lineHeight = '1.25'
+    slot.style.whiteSpace = 'normal'
+    slot.style.color = 'inherit'
+    if (wantFooterInsert()) {
+      if (appendToFooter(slot)) {
+        selectEl(slot)
+        post('dirty', {})
+        consumeInsertAnchor()
+        return
+      }
+      consumeInsertAnchor()
+      return
+    }
     if (hasInsertAnchor()) {
-      var slot = document.createElement('div')
-      slot.setAttribute('data-pw-added-text', '1')
-      slot.setAttribute('data-pw-added-text-slot', '1')
-      slot.setAttribute('data-pw-edit', '1')
-      slot.textContent = label
-      slot.style.fontSize = '22px'
-      slot.style.fontWeight = '700'
-      slot.style.lineHeight = '1.25'
-      slot.style.whiteSpace = 'normal'
-      slot.style.color = 'inherit'
       if (insertInFlowAtAnchor(slot)) {
         pinKindLockedScene(slot)
         selectEl(slot)
@@ -9872,12 +10093,22 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     img.style.height = 'auto'
     fig.appendChild(img)
     applyImageRadius(fig, ${PW_IMAGE_RADIUS_DEFAULT})
-    if (hasInsertAnchor()) {
+    if (wantFooterInsert() || hasInsertAnchor()) {
       fig.setAttribute('data-pw-added-image-slot', '1')
       fig.style.maxWidth = '100%'
       fig.style.width = 'min(720px, 92%)'
       fig.style.margin = '12px auto'
-      if (insertInFlowAtAnchor(fig)) {
+      if (wantFooterInsert() && appendToFooter(fig)) {
+        selectEl(fig)
+        post('dirty', {})
+        consumeInsertAnchor()
+        return
+      }
+      if (wantFooterInsert()) {
+        consumeInsertAnchor()
+        return
+      }
+      if (hasInsertAnchor() && insertInFlowAtAnchor(fig)) {
         pinKindLockedScene(fig)
         selectEl(fig)
         post('dirty', {})
@@ -11313,9 +11544,19 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     node.textContent = label
     applyBtnStyle(node, style)
     if (opts && opts.color) applyBtnColor(node, opts.color)
-    if (hasInsertAnchor()) {
+    if (wantFooterInsert() || hasInsertAnchor()) {
       var slot = wrapInFlowSlot(node, 'data-pw-added-btn-slot')
-      if (insertInFlowAtAnchor(slot)) {
+      if (wantFooterInsert() && appendToFooter(slot)) {
+        selectEl(node)
+        post('dirty', {})
+        consumeInsertAnchor()
+        return
+      }
+      if (wantFooterInsert()) {
+        consumeInsertAnchor()
+        return
+      }
+      if (hasInsertAnchor() && insertInFlowAtAnchor(slot)) {
         pinKindLockedScene(node)
         selectEl(node)
         post('dirty', {})
@@ -11652,6 +11893,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!el || el === document.body || el === document.documentElement) return false
     if (isLockedHeadDockChrome(el)) return false
     if (chatEmbedLauncherOf(el)) return false
+    if (isFooterAddedEl(el) || (isInFooter(el) && (isAddedText(el) || isAddedBtn(el) || isAddedChrome(el)))) {
+      return !!(isLogoTarget(el) || isLogoImg(el) || isLogoFrame(el) || isLogoSlot(el))
+    }
     if (isOverlayNode(el) || isInFlowCatalogChrome(el) || (isLockedCatalogEl(el) && !productActionChromeOf(el)) || (isProductCardEl(el) && !productActionChromeOf(el))) return false
     if (isFillImageHost(el) && !isAddedBg(el)) return true
     if (isChromeBgHost(el) || isShopRegionHost(el)) return true
@@ -11663,6 +11907,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (isLockedHeadDockChrome(el)) return false
     if (chatEmbedLauncherOf(el)) return true
     if (canDeleteRegionBlock(el)) return true
+    if (isFooterAddedEl(el)) return true
     if (isCatalogSectionHost(el) || catalogBlockForDelete(el)) return true
     if ((isLockedCatalogEl(el) && !productActionChromeOf(el)) || (isProductCardEl(el) && !productActionChromeOf(el)) || isShopRegionHost(el)) return false
     var delCls = clsOf(el)
@@ -11687,6 +11932,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!el || !el.getAttribute) return false
     if (isChromeKitEl(el) || isChromeFloatEl(el)) return false
     if (el.closest && el.closest('[data-pw-chrome-kit="actions"],[data-pw-chrome-kit="dock"],[data-pw-chrome-kit="float"]')) return false
+    if (isInFooter(el) || isFooterAddedEl(el)) return false
     return !!(
       isAddedChrome(el) ||
       isAddedText(el) ||
@@ -11984,6 +12230,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       })(),
       logoFace: logoFaceOf(logoImgOf(el) || el),
       logoSlot: logoSlotKind(el),
+      inFooter: isInFooter(el),
       logoBg: parseBgColor(el) || sampleSurroundingBg(el),
       logoBgImage: sampleSurroundingBgImage(el),
       themePrimary: themeColors.themePrimary,
@@ -13257,6 +13504,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (frame && (isLogoImg(selected) || isLogoFrame(selected) || selected === frame)) removeEl = frame
     var catWrap = deletingCat ? catWrapOf(selected) : null
     if (catWrap) removeEl = catWrap
+    var footAdded = selected.closest ? selected.closest('[${PW_FOOTER_ADDED_ATTR}="1"]') : null
+    if (footAdded) removeEl = footAdded
     if (!removeEl || !removeEl.parentNode) return
     if (isHeaderChromeEl(selected) || isAddedChrome(selected)) rememberDeletedChromeFeature(selected)
     if (deletingCat && !catWrap) removeOrphanCatPanelNear(removeEl)
@@ -15653,6 +15902,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.type === 'copyToAllPages') copySelectedToAllPages()
     if (d.type === 'setChatIconLogo') setChatIconLogo(d.url)
     if (d.type === 'insertChromeBtn') insertChromeBtn(d.kind, d.html, d.host, d)
+    if (d.type === 'insertFooterLogo') insertFooterLogo()
+    if (d.type === 'armFooterAdd') armFooterAdd()
     if (d.type === 'listChromeKit') listChromeKitState()
     if (d.type === 'setChromeKitHidden') setChromeKitHidden(d.kind, d.bar, !!d.hidden)
     if (d.type === 'setChromeKitDockShow') setChromeKitDockShow(d.kind, d.show)

@@ -1,13 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
-import { outfitSuggestionsToBind } from '@/lib/partner-website/shop/outfit-products'
-import { fetchPartnerOutfitSuggestions } from '@/lib/partner-website/shop/pdp-outfit-suggestions'
-import { shopProductsToRelatedBind } from '@/lib/partner-website/shop/related-products'
-import {
-  fetchRelatedShopProducts,
-  resolveRelatedProductContext,
-} from '@/lib/partner-website/shop/related-products-pg'
+import { fetchRelatedShopProducts, resolveRelatedProductContext } from '@/lib/partner-website/shop/related-products-pg'
 import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
@@ -100,22 +94,6 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
 
   const device = await readVisualPreviewDevice(searchParams)
   const relatedCtx = await resolveRelatedProductContext(shop.partnerId, row.id)
-  const relatedProducts = await fetchRelatedShopProducts({
-    partnerId: shop.partnerId,
-    siteSlug: shop.site.siteSlug,
-    excludeId: row.id,
-    categoryId: relatedCtx.categoryId,
-    limit: 24,
-  })
-  const outfit = outfitSuggestionsToBind(
-    await fetchPartnerOutfitSuggestions({
-      partnerId: shop.partnerId,
-      siteSlug: shop.site.siteSlug,
-      inventoryId: row.id,
-      locale: shop.site.locale,
-      limit: 12,
-    })
-  )
 
   const visual = maybePartnerSiteVisualProductPage(
     shop.site,
@@ -125,12 +103,19 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
       ...product,
       categoryId: relatedCtx.categoryId,
       categoryPath: relatedCtx.categoryPath,
-      relatedProducts: shopProductsToRelatedBind(relatedProducts),
-      outfitTitle: outfit.title,
-      outfitSlots: outfit.slots,
+      relatedProducts: [],
+      outfitSlots: [],
     }
   )
   if (visual) return visual
+
+  const relatedProducts = await fetchRelatedShopProducts({
+    partnerId: shop.partnerId,
+    siteSlug: shop.site.siteSlug,
+    excludeId: row.id,
+    categoryId: relatedCtx.categoryId,
+    limit: 24,
+  })
 
   const sizeGuideImageUrl = await fetchSizeGuideImageUrlForInventoryFromPg(shop.partnerId, row.id)
   const productWithGuide = {

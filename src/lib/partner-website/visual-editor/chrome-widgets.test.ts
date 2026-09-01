@@ -30,9 +30,12 @@ import {
   chromeWidgetLiveHook,
   htmlHasChromeChatMua,
   isChromeFloatKind,
+  isFooterAddChromeKind,
   isGapOnlyChromeAddKind,
   isProductActionChromeKind,
   isVisualEditorChromeWidgetKind,
+  FOOTER_ADD_CHROME_KINDS,
+  PW_FOOTER_ADDED_ATTR,
   VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS,
   VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS,
 } from '@/lib/partner-website/visual-editor/chrome-widgets'
@@ -99,6 +102,30 @@ test('form sections are gap-only adds, not toolbar Thêm', () => {
   assert.equal(isGapOnlyChromeAddKind('coupon'), true)
   assert.equal(isGapOnlyChromeAddKind('stores'), false)
   assert.equal(isGapOnlyChromeAddKind('contact'), false)
+})
+
+test('footer add kinds stay in-flow links, never float or head kit', () => {
+  assert.equal(PW_FOOTER_ADDED_ATTR, 'data-pw-footer-added')
+  assert.ok(FOOTER_ADD_CHROME_KINDS.includes('home'))
+  assert.ok(FOOTER_ADD_CHROME_KINDS.includes('about'))
+  assert.ok(FOOTER_ADD_CHROME_KINDS.includes('contact'))
+  assert.ok(FOOTER_ADD_CHROME_KINDS.includes('privacy'))
+  assert.ok(FOOTER_ADD_CHROME_KINDS.includes('phone'))
+  assert.equal(isFooterAddChromeKind('privacy'), true)
+  assert.equal(isFooterAddChromeKind('chat'), false)
+  assert.equal(isFooterAddChromeKind('chat-zalo'), false)
+  assert.equal(isFooterAddChromeKind('chat-facebook'), false)
+  assert.equal(isFooterAddChromeKind('topup'), false)
+  assert.equal(isFooterAddChromeKind('search'), false)
+  assert.equal(isFooterAddChromeKind('categories'), false)
+  assert.equal(isFooterAddChromeKind('cart'), false)
+  assert.equal(isFooterAddChromeKind('lead-form'), false)
+  assert.equal(isFooterAddChromeKind('coupon'), false)
+  for (const kind of FOOTER_ADD_CHROME_KINDS) {
+    assert.equal(isVisualEditorChromeWidgetKind(kind), true)
+    assert.equal(isChromeFloatKind(kind), false)
+    assert.ok(VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS.includes(kind))
+  }
 })
 
 test('chrome widgets from Thêm land on canvas, float kinds stay float', () => {

@@ -532,7 +532,40 @@ export const VISUAL_EDITOR_CHROME_WIDGET_KINDS = [
 
 export type VisualEditorChromeWidgetKind = (typeof VISUAL_EDITOR_CHROME_WIDGET_KINDS)[number]
 
-export type VisualEditorChromeWidgetHost = 'actions' | 'topbar' | 'mid' | 'nav' | 'float' | 'canvas'
+export type VisualEditorChromeWidgetHost = 'actions' | 'topbar' | 'mid' | 'nav' | 'float' | 'canvas' | 'footer'
+
+/** In-flow footer Thêm — logo/chữ/ảnh/nút + các link này. Không Chat/Zalo/FB/Top, không kit head. */
+export const FOOTER_ADD_CHROME_KINDS = [
+  'home',
+  'products',
+  'sale',
+  'about',
+  'contact',
+  'faq',
+  'shipping',
+  'returns',
+  'payment',
+  'privacy',
+  'terms',
+  'stores',
+  'lookbook',
+  'size-guide',
+  'blog',
+  'account',
+  'orders',
+  'wishlist',
+  'addresses',
+  'phone',
+  'share',
+] as const
+
+export type FooterAddChromeKind = (typeof FOOTER_ADD_CHROME_KINDS)[number]
+
+export const PW_FOOTER_ADDED_ATTR = 'data-pw-footer-added'
+
+export function isFooterAddChromeKind(kind: string): kind is FooterAddChromeKind {
+  return (FOOTER_ADD_CHROME_KINDS as readonly string[]).includes(kind)
+}
 
 export const VISUAL_EDITOR_CHROME_WIDGET_PLACES = ['header', 'mid', 'nav'] as const
 export type VisualEditorChromeWidgetPlace = (typeof VISUAL_EDITOR_CHROME_WIDGET_PLACES)[number]

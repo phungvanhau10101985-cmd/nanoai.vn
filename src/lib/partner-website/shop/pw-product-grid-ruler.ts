@@ -149,7 +149,8 @@ ${PW_STRIP_PRICE_SEL}{margin:0;margin-top:auto;font-size:14px;font-weight:700;co
 /** Catalog / listing / personalize: 2-line name + cart buttons share one baseline. */
 export const PW_PRODUCT_CATALOG_CARD_FACE_CSS = `
 ${PW_CATALOG_GRID_SEL}{align-items:stretch}
-${PW_CATALOG_CARD_SEL}{display:flex!important;flex-direction:column!important;height:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box}
+${PW_CATALOG_CARD_SEL}{display:flex!important;flex-direction:column!important;height:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:rgba(15,23,42,.12)}
+${suffixEach(PW_CATALOG_CARD_SEL.replace(/html /g, 'body:not(.nanoai-ve-active) '), ':active')},${suffixEach(PW_CATALOG_CARD_SEL.replace(/html /g, 'body:not(.nanoai-ve-active) '), '[data-pw-nav="1"]')}{opacity:.72}
 ${PW_CATALOG_BODY_SEL}{display:flex!important;flex-direction:column!important;flex:1 1 auto!important;min-height:0!important;gap:6px!important}
 ${PW_CATALOG_NAME_SEL}{margin:0!important;line-height:1.3!important;display:-webkit-box!important;-webkit-line-clamp:2!important;-webkit-box-orient:vertical!important;overflow:hidden!important;word-break:break-word;overflow-wrap:anywhere;min-height:2.6em;max-height:2.6em}
 ${suffixEach(PW_CATALOG_NAME_SEL, ' a')}{color:inherit;text-decoration:none}

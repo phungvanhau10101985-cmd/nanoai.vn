@@ -203,9 +203,12 @@ export type PartnerWebsiteCopy = {
   visualEditAddWidget: string
   visualEditAddAtGap: string
   visualEditAddAtSide: string
+  visualEditAddAtFooter: string
   visualEditInsertAtGapHint: string
+  visualEditInsertAtFooterHint: string
   visualEditAddToolbarHint: string
   visualEditAddLogo: string
+  visualEditAddFooterLogo: string
   visualEditAddLogoHint: string
   visualEditPanelClose: string
   visualEditMenuTheme: string
@@ -1206,9 +1209,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddWidget: 'Thêm ở giữa',
     visualEditAddAtGap: 'Thêm tại khe này',
     visualEditAddAtSide: 'Thêm bên cạnh',
+    visualEditAddAtFooter: 'Thêm vào chân trang',
     visualEditInsertAtGapHint: 'Chèn vào khe đã chọn (+ trên / dưới / trái / phải).',
+    visualEditInsertAtFooterHint: 'Chèn logo, chữ, ảnh, nút hoặc liên kết vào chân trang máy này. Chat / Zalo / Facebook / Top vẫn ở thanh nổi.',
     visualEditAddToolbarHint: 'Chữ nổi và nút. Ảnh, video, banner, lưới, nền thêm bằng nút + trên trang.',
     visualEditAddLogo: 'Thêm logo',
+    visualEditAddFooterLogo: 'Logo chân trang',
     visualEditAddLogoHint: 'Chọn tỷ lệ khung hình và màu nền, rồi tạo logo. Không cần vẽ khung.',
     visualEditPanelClose: 'Đóng',
     visualEditMenuTheme: 'Màu',
@@ -2241,9 +2247,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddWidget: 'Add in the middle',
     visualEditAddAtGap: 'Add at this gap',
     visualEditAddAtSide: 'Add beside',
+    visualEditAddAtFooter: 'Add to footer',
     visualEditInsertAtGapHint: 'Insert at the selected gap (+ up / down / left / right).',
+    visualEditInsertAtFooterHint: 'Insert a logo, text, image, button, or link into this device’s footer. Chat / Zalo / Facebook / Top stay in the float bar.',
     visualEditAddToolbarHint: 'Floating text and buttons. Add images, videos, banners, and grids with the + marks on the page.',
     visualEditAddLogo: 'Add logo',
+    visualEditAddFooterLogo: 'Footer logo',
     visualEditAddLogoHint: 'Choose an aspect ratio and background color, then create the logo. No need to draw a frame.',
     visualEditPanelClose: 'Close',
     visualEditMenuTheme: 'Colors',
@@ -3272,9 +3281,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddWidget: '添加到中间',
     visualEditAddAtGap: '在此间隙添加',
     visualEditAddAtSide: '在旁边添加',
+    visualEditAddAtFooter: '添加到页脚',
     visualEditInsertAtGapHint: '插入到已选间隙（+ 上 / 下 / 左 / 右）。',
+    visualEditInsertAtFooterHint: '向此设备的页脚插入标志、文字、图片、按钮或链接。Chat / Zalo / Facebook / Top 仍在悬浮栏。',
     visualEditAddToolbarHint: '浮动文字和按钮。图片、视频、横幅、网格请用页面上的 + 添加。',
     visualEditAddLogo: '添加标志',
+    visualEditAddFooterLogo: '页脚标志',
     visualEditAddLogoHint: '选择画面比例和背景色后创建标志，无需再画框。',
     visualEditPanelClose: '关闭',
     visualEditMenuTheme: '颜色',
@@ -4272,9 +4284,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddWidget: '中央に追加',
     visualEditAddAtGap: 'この隙間に追加',
     visualEditAddAtSide: '横に追加',
+    visualEditInsertAtFooterHint: 'この端末のフッターにロゴ・テキスト・画像・ボタン・リンクを挿入します。Chat / Zalo / Facebook / Top は浮きバーのままです。',
+    visualEditAddAtFooter: 'フッターに追加',
     visualEditInsertAtGapHint: '選んだ隙間に挿入します（+ 上 / 下 / 左 / 右）。',
     visualEditAddToolbarHint: '浮き文字とボタン。画像・動画・バナー・グリッドはページ上の + で追加します。',
     visualEditAddLogo: 'ロゴを追加',
+    visualEditAddFooterLogo: 'フッターロゴ',
     visualEditAddLogoHint: '比率と背景色を選んでロゴを作成します。枠を描く必要はありません。',
     visualEditPanelClose: '閉じる',
     visualEditMenuTheme: 'カラー',
@@ -5293,9 +5308,12 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddWidget: '가운데에 추가',
     visualEditAddAtGap: '이 칸에 추가',
     visualEditAddAtSide: '옆에 추가',
+    visualEditAddAtFooter: '푸터에 추가',
     visualEditInsertAtGapHint: '선택한 칸에 넣습니다(+ 위 / 아래 / 왼쪽 / 오른쪽).',
+    visualEditInsertAtFooterHint: '이 기기의 푸터에 로고, 글, 이미지, 버튼 또는 링크를 넣습니다. Chat / Zalo / Facebook / Top 은 떠 있는 막대에 그대로 둡니다.',
     visualEditAddToolbarHint: '떠 있는 글자와 버튼. 이미지, 영상, 배너, 그리드는 페이지의 + 로 추가하세요.',
     visualEditAddLogo: '로고 추가',
+    visualEditAddFooterLogo: '푸터 로고',
     visualEditAddLogoHint: '화면 비율과 배경색을 고른 뒤 로고를 만듭니다. 프레임을 그릴 필요는 없습니다.',
     visualEditPanelClose: '닫기',
     visualEditMenuTheme: '색상',

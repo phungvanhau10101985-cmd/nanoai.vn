@@ -107,6 +107,7 @@ export async function PartnerSiteVisualHtmlScreen({
   device = null,
   infoSeo,
   skipHtmlCache = false,
+  liveProduct = null,
 }: {
   site: Pick<PartnerWebsitePublicRow, 'siteSlug' | 'title' | 'logoUrl' | 'locale' | 'chatPath' | 'theme'>
   html: string
@@ -121,6 +122,8 @@ export async function PartnerSiteVisualHtmlScreen({
   }
   /** PDP bind tồn kho sống — không cache HTML đã gắn 1 SP. */
   skipHtmlCache?: boolean
+  /** Bind tồn kho sau khi chọn đúng 1 máy — không bind 4 file trước khi trả HTML. */
+  liveProduct?: LivePdpBindProduct | null
 }) {
   const headerStore = headers()
   const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
@@ -152,16 +155,6 @@ export async function PartnerSiteVisualHtmlScreen({
     })
   }
 
-  const preparedByDevice: PartnerVisualHtmlByDevice = {}
-  if (htmlByDevice) {
-    await Promise.all(
-      (Object.keys(htmlByDevice) as VisualDeviceVariant[]).map(async (sourceDevice) => {
-        const source = htmlByDevice[sourceDevice]
-        if (!source) return
-        preparedByDevice[sourceDevice] = await prepareOne(source, sourceDevice)
-      })
-    )
-  }
   const requestViewportWidth = Number(
     headerStore.get('sec-ch-viewport-width') || headerStore.get('viewport-width') || 0
   )
@@ -178,6 +171,46 @@ export async function PartnerSiteVisualHtmlScreen({
       : /mobile|iphone|ipod|android/i.test(userAgent)
         ? 'mobile'
         : 'desktop'
+
+  const bindLive = (source: string) =>
+    liveProduct
+      ? bindLiveProductToPdpHtml(source, liveProduct, {
+          locale: site.locale,
+          siteSlug: site.siteSlug,
+        })
+      : source
+
+  if (liveProduct) {
+    const requested = device || inferredRequestDevice
+    const selected = htmlByDevice ? selectPartnerVisualHtmlDevice(htmlByDevice, requested) : null
+    const sourceDevice = selected?.sourceDevice || device || inferredRequestDevice
+    const publicHtml = await prepareOne(bindLive(selected?.html || html), sourceDevice)
+    return (
+      <PartnerSitePublicClient
+        html={publicHtml}
+        allowScripts
+        chatPath={site.chatPath}
+        shopName={site.title}
+        logoUrl={site.logoUrl}
+        locale={site.locale}
+        inlineHtml
+        initialDevice={device || sourceDevice}
+        deviceHtmlAlreadyIsolated
+        hideChatLauncher={site.theme?.hideChatLauncher}
+      />
+    )
+  }
+
+  const preparedByDevice: PartnerVisualHtmlByDevice = {}
+  if (htmlByDevice) {
+    await Promise.all(
+      (Object.keys(htmlByDevice) as VisualDeviceVariant[]).map(async (sourceDevice) => {
+        const source = htmlByDevice[sourceDevice]
+        if (!source) return
+        preparedByDevice[sourceDevice] = await prepareOne(source, sourceDevice)
+      })
+    )
+  }
   const initialSelection = htmlByDevice
     ? selectPartnerVisualHtmlDevice(preparedByDevice, inferredRequestDevice)
     : null
@@ -282,26 +315,15 @@ export function maybePartnerSiteVisualProductPage(
 ) {
   const resolved = resolveVisualTargetForScreen(site, { kind: 'product', productId }, device)
   if (!resolved) return null
-  const bind = (source: string) =>
-    product
-      ? bindLiveProductToPdpHtml(source, product, {
-          locale: site.locale,
-          siteSlug: site.siteSlug,
-        })
-      : source
-  const boundByDevice = resolved.htmlByDevice
-    ? Object.fromEntries(
-        Object.entries(resolved.htmlByDevice).map(([key, source]) => [key, bind(source)])
-      ) as PartnerVisualHtmlByDevice
-    : undefined
   return (
     <PartnerSiteVisualHtmlScreen
       site={site}
-      html={bind(resolved.html)}
-      htmlByDevice={boundByDevice}
+      html={resolved.html}
+      htmlByDevice={resolved.htmlByDevice}
       device={device ? resolved.sourceDevice : null}
       infoSeo={{ pageKey: 'product_detail' }}
       skipHtmlCache
+      liveProduct={product || null}
     />
   )
 }

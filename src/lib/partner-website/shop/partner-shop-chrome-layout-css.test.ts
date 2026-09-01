@@ -104,6 +104,8 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('.pw-seo-row[hidden]'), true)
   assert.equal(once.includes('.pw-seo-row:not(:empty):not([hidden])'), true)
   assert.equal(once.includes('html[data-pw-edit-device="mobile"] .pw-shop-footer-inner'), true)
+  assert.equal(once.includes('[data-pw-footer-added]'), true)
+  assert.equal(once.includes('html .pw-shop-footer-inner>[data-pw-footer-added]'), true)
   assert.equal(once.includes('html [data-pw-region="banner"] img[data-pw-el="media"]'), true)
   assert.equal(once.includes('html [data-pw-slider]'), true)
   assert.equal(once.includes('data-pw-full-slides'), true)
