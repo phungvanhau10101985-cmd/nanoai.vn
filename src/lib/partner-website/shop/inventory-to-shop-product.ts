@@ -13,7 +13,12 @@ import {
   type InventoryShopSourceRow,
 } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { parseInventorySizesForFacet } from '@/lib/partner-website/shop/partner-shop-industry-facets'
-import { isDisplayablePdpScalar, parsePdpProductInfo } from '@/lib/partner-website/shop/pdp-product-info-html'
+import {
+  isDisplayablePdpScalar,
+  isPdpProductInfoJsonBlob,
+  parsePdpProductInfo,
+  shopDisplayConsultNote,
+} from '@/lib/partner-website/shop/pdp-product-info-html'
 import type { LivePdpBindColor } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 
@@ -248,9 +253,10 @@ export function inventoryShopDisplayDescription(row: {
   const consult = (row.consult_note ?? '').trim()
   const desc = (row.description ?? '').trim()
   const stock = (row.stock_note ?? '').trim()
-  if (desc && !desc.startsWith('[')) return desc
-  if (consult) return consult
-  if (stock && !stock.startsWith('[')) return stock
+  if (desc && !desc.startsWith('[') && !isPdpProductInfoJsonBlob(desc)) return desc
+  const consultText = shopDisplayConsultNote(consult)
+  if (consultText) return consultText
+  if (stock && !stock.startsWith('[') && !isPdpProductInfoJsonBlob(stock)) return stock
   return ''
 }
 
@@ -332,7 +338,7 @@ export function inventoryRowToShopProduct(
     features: features.length ? features : null,
     chineseName: textField(row.chinese_name),
     colorSummary: textField(row.color_summary),
-    consultNote: textField(row.consult_note),
+    consultNote: shopDisplayConsultNote(row.consult_note) || null,
     sourceShopName: textField(row.source_shop_name),
     sourceShopNameChinese: textField(row.source_shop_name_chinese),
     priceLowHint: textField(row.price_low_hint),
@@ -344,7 +350,9 @@ export function inventoryRowToShopProduct(
     categoryL2: textField(row.category_l2),
     categoryL3: textField(row.category_l3),
     remarketingId: textField(row.remarketing_id),
-    productInfo: opts?.pdp ? parsePdpProductInfo(row.product_info_json) : null,
+    productInfo: opts?.pdp
+      ? parsePdpProductInfo(row.product_info_json) || parsePdpProductInfo(row.consult_note)
+      : null,
     depositPolicy: row.deposit_required === true,
     likesCount: Math.max(0, Math.round(Number(row.likes_count ?? 0)) || 0),
     purchasesCount: Math.max(0, Math.round(Number(row.purchases_count ?? 0)) || 0),

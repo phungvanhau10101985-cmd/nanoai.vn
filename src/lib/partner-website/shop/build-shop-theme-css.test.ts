@@ -71,6 +71,12 @@ test('HTML chrome CSS colors the factory header used by visual PDP', () => {
   assert.match(css, /\.pw-search-submit\{[^}]*background:var\(--pw-primary\)/)
 })
 
+test('shop theme CSS hides broken PDP images after retry', () => {
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(css, /\[data-pw-pdp-img-broken="1"\]\{display:none!important\}/)
+  assert.match(css, /\[data-pw-pdp-slot="consult"\]\{display:none!important\}/)
+})
+
 test('shop theme CSS lets the stamped device win over @media for PDP gallery', () => {
   const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
   assert.match(css, /html\[data-pw-edit-device="desktop"\] \.pw-pdp-gallery-desktop/)

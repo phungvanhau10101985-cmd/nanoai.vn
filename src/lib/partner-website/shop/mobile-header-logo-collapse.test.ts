@@ -34,6 +34,8 @@ test('mobile header stack centers the logo row and keeps toolbar below', () => {
   assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('order:-1!important'), true)
   assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('flex:1 1 100%!important'), true)
   assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('justify-content:center!important'), true)
+  assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('var(--pw-logo-x, 0px)'), true)
+  assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('var(--pw-logo-y, 0px)'), true)
   assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('data-pw-logo-empty'), true)
   assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('nanoai-ve-active'), true)
   assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('.pw-brand-cluster,.pw-shop-brand-cluster,.pw-chrome-cat-wrap{display:contents!important'), true)

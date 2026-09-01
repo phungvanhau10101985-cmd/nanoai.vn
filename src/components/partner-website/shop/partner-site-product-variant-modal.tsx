@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import {
+  nextShopImageRetrySrc,
+  shopPdpDisplaySrc,
+} from '@/lib/partner-website/shop/inventory-shop-detail'
 import {
   formatPartnerShopMoneyVnd,
   isPartnerFlashSaleActive,
@@ -30,6 +33,18 @@ export type PartnerSiteVariantModalProduct = {
   stockQty?: number | null
   colors?: PartnerSiteVariantModalColor[] | null
   sizes?: string[] | null
+}
+
+function hideBrokenVariantImage(ev: { currentTarget: HTMLImageElement }) {
+  const img = ev.currentTarget
+  const retry = nextShopImageRetrySrc(img.currentSrc || img.getAttribute('src') || '')
+  if (retry && img.getAttribute('data-pw-img-retry') !== '1') {
+    img.setAttribute('data-pw-img-retry', '1')
+    img.src = retry
+    return
+  }
+  img.setAttribute('data-pw-pdp-img-broken', '1')
+  img.hidden = true
 }
 
 type Props = {
@@ -60,7 +75,7 @@ function ColorChips({
   return (
     <div data-pw-variant-chips>
       {colors.map((color, i) => {
-        const src = shopCardDisplaySrc(color.img)
+        const src = shopPdpDisplaySrc(color.img)
         return (
           <button
             key={`${color.name}-${i}`}
@@ -70,7 +85,9 @@ function ColorChips({
             onClick={() => onPick(i)}
           >
             <span data-pw-variant-swatch>
-              {src ? <img src={src} alt="" width={32} height={32} draggable={false} /> : null}
+              {src ? (
+                <img src={src} alt="" width={32} height={32} draggable={false} onError={hideBrokenVariantImage} />
+              ) : null}
             </span>
             <span data-pw-variant-color-name>{color.name}</span>
           </button>
@@ -182,7 +199,7 @@ export function PartnerSiteProductVariantModal({
   const lineLabel =
     unitPrice != null ? formatPartnerShopMoneyVnd(unitPrice * effectiveQty) : priceLabel
   const selectedColor = colorIndex >= 0 ? colors[colorIndex] : null
-  const displayImage = shopCardDisplaySrc(selectedColor?.img || product.imageUrl)
+  const displayImage = shopPdpDisplaySrc(selectedColor?.img || product.imageUrl)
   const sku = String(product.sku || '').trim()
   const name = product.name.trim() || '—'
 
@@ -329,7 +346,7 @@ export function PartnerSiteProductVariantModal({
           </h2>
           <div data-pw-variant-wide>
             <div data-pw-variant-hero>
-              {displayImage ? <img src={displayImage} alt={name} /> : null}
+              {displayImage ? <img src={displayImage} alt={name} onError={hideBrokenVariantImage} /> : null}
             </div>
             <div data-pw-variant-info>
               {sku ? <p data-pw-variant-sku>{copy.sku.replace('{sku}', sku)}</p> : null}
@@ -351,7 +368,7 @@ export function PartnerSiteProductVariantModal({
           <div data-pw-variant-compact>
             <div data-pw-variant-compact-top>
               <div data-pw-variant-thumb>
-                {displayImage ? <img src={displayImage} alt={name} /> : null}
+                {displayImage ? <img src={displayImage} alt={name} onError={hideBrokenVariantImage} /> : null}
               </div>
               <div data-pw-variant-info>
                 {sku ? <p data-pw-variant-sku>{copy.skuShort.replace('{sku}', sku)}</p> : null}

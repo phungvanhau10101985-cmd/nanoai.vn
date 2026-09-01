@@ -127,6 +127,14 @@ import {
   PW_KIT_X_MIN,
 } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import {
+  clampHeaderLogoOffsetX,
+  clampHeaderLogoOffsetY,
+  PW_LOGO_X_MAX,
+  PW_LOGO_X_MIN,
+  PW_LOGO_Y_MAX,
+  PW_LOGO_Y_MIN,
+} from '@/lib/partner-website/shop/header-logo-offset'
+import {
   clampChromeFloatEdge,
   clampChromeFloatGap,
   clampChromeFloatSize,
@@ -1057,6 +1065,9 @@ function ChromeKitPanel({
   onShiftHead,
   headGap,
   onSetHeadGap,
+  logoX,
+  logoY,
+  onSetLogoOffset,
 }: {
   t: PartnerWebsiteCopy
   locale: WebLocale
@@ -1070,6 +1081,8 @@ function ChromeKitPanel({
   floatGap: number
   headX: number
   headGap: number
+  logoX: number
+  logoY: number
   busy: boolean
   onToggleHead: (kind: string, hidden: boolean) => void
   onToggleDock: (kind: string, show: 'shop' | 'pdp' | 'both' | 'off') => void
@@ -1081,6 +1094,7 @@ function ChromeKitPanel({
   onReorder: (kind: string, bar: 'head' | 'dock' | 'float', dir: 'up' | 'down') => void
   onShiftHead: (x: number) => void
   onSetHeadGap: (gap: number) => void
+  onSetLogoOffset: (x: number, y: number) => void
 }) {
   const headTitle =
     device === 'laptop'
@@ -1231,6 +1245,72 @@ function ChromeKitPanel({
         />
       ))}
       <p className="mt-1 px-1 text-[11px] font-semibold">{headTitle}</p>
+      <p className="px-1 text-[11px] font-medium text-foreground">{t.visualEditChromeKitLogoPos}</p>
+      <div className="grid grid-cols-2 gap-2 px-1">
+        <label className="flex flex-col gap-1 text-[10px] text-muted-foreground">
+          <span className="flex items-center justify-between gap-2">
+            <span>{t.visualEditChromeKitLogoX}</span>
+            <span className="inline-flex items-center gap-1">
+              <input
+                type="number"
+                min={PW_LOGO_X_MIN}
+                max={PW_LOGO_X_MAX}
+                step={1}
+                value={clampHeaderLogoOffsetX(logoX)}
+                disabled={busy}
+                onChange={(e) => {
+                  if (e.target.value === '') return
+                  onSetLogoOffset(clampHeaderLogoOffsetX(e.target.value), clampHeaderLogoOffsetY(logoY))
+                }}
+                className="h-6 w-14 rounded border bg-background px-1 text-right text-[11px] text-foreground"
+              />
+              <span>px</span>
+            </span>
+          </span>
+          <input
+            type="range"
+            min={PW_LOGO_X_MIN}
+            max={PW_LOGO_X_MAX}
+            step={1}
+            value={clampHeaderLogoOffsetX(logoX)}
+            disabled={busy}
+            onChange={(e) => onSetLogoOffset(clampHeaderLogoOffsetX(e.target.value), clampHeaderLogoOffsetY(logoY))}
+            className="w-full accent-foreground"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-[10px] text-muted-foreground">
+          <span className="flex items-center justify-between gap-2">
+            <span>{t.visualEditChromeKitLogoY}</span>
+            <span className="inline-flex items-center gap-1">
+              <input
+                type="number"
+                min={PW_LOGO_Y_MIN}
+                max={PW_LOGO_Y_MAX}
+                step={1}
+                value={clampHeaderLogoOffsetY(logoY)}
+                disabled={busy}
+                onChange={(e) => {
+                  if (e.target.value === '') return
+                  onSetLogoOffset(clampHeaderLogoOffsetX(logoX), clampHeaderLogoOffsetY(e.target.value))
+                }}
+                className="h-6 w-14 rounded border bg-background px-1 text-right text-[11px] text-foreground"
+              />
+              <span>px</span>
+            </span>
+          </span>
+          <input
+            type="range"
+            min={PW_LOGO_Y_MIN}
+            max={PW_LOGO_Y_MAX}
+            step={1}
+            value={clampHeaderLogoOffsetY(logoY)}
+            disabled={busy}
+            onChange={(e) => onSetLogoOffset(clampHeaderLogoOffsetX(logoX), clampHeaderLogoOffsetY(e.target.value))}
+            className="w-full accent-foreground"
+          />
+        </label>
+      </div>
+      <p className="px-1 text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitLogoPosHint}</p>
       <label className="flex flex-col gap-1 px-1 text-[10px] text-muted-foreground">
         <span className="flex items-center justify-between gap-2">
           <span>{t.visualEditChromeKitShift}</span>
@@ -1533,6 +1613,8 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [chromeKitFloatBottom, setChromeKitFloatBottom] = useState(PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat)
   const [chromeKitFloatGap, setChromeKitFloatGap] = useState(PW_FLOAT_GAP_DEFAULT)
   const [chromeKitHeadX, setChromeKitHeadX] = useState(0)
+  const [chromeKitLogoX, setChromeKitLogoX] = useState(0)
+  const [chromeKitLogoY, setChromeKitLogoY] = useState(0)
   const [chromeKitHeadGap, setChromeKitHeadGap] = useState(PW_KIT_GAP_DEFAULT)
   const [panelPos, setPanelPos] = useState<{ x: number; y: number } | null>(null)
   const [bgColorPickerOpen, setBgColorPickerOpen] = useState(false)
@@ -2247,6 +2329,8 @@ export function PartnerWebsiteVisualEditorToolbar({
         setChromeKitFloatGap(clampChromeFloatGap(data.floatGap ?? PW_FLOAT_GAP_DEFAULT))
         setChromeKitHeadX(clampChromeKitShift(data.headX))
         setChromeKitHeadGap(clampChromeKitGap(data.headGap ?? PW_KIT_GAP_DEFAULT))
+        setChromeKitLogoX(clampHeaderLogoOffsetX(data.logoX))
+        setChromeKitLogoY(clampHeaderLogoOffsetY(data.logoY))
       }
       if (data.type === 'favoriteNeedHost') {
         onError(t.visualEditFavoriteNeedHost)
@@ -4503,6 +4587,8 @@ export function PartnerWebsiteVisualEditorToolbar({
                     floatGap={chromeKitFloatGap}
                     headX={chromeKitHeadX}
                     headGap={chromeKitHeadGap}
+                    logoX={chromeKitLogoX}
+                    logoY={chromeKitLogoY}
                     busy={busy}
                     onToggleHead={(kind, hidden) => {
                       postToIframe(iframeRef.current, 'setChromeKitHidden', { kind, bar: 'head', hidden })
@@ -4553,6 +4639,12 @@ export function PartnerWebsiteVisualEditorToolbar({
                     onSetHeadGap={(gap) => {
                       setChromeKitHeadGap(gap)
                       postToIframe(iframeRef.current, 'setChromeKitGap', { bar: 'head', gap })
+                      setDirty(true)
+                    }}
+                    onSetLogoOffset={(x, y) => {
+                      setChromeKitLogoX(x)
+                      setChromeKitLogoY(y)
+                      postToIframe(iframeRef.current, 'setHeaderLogoOffset', { x, y })
                       setDirty(true)
                     }}
                   />

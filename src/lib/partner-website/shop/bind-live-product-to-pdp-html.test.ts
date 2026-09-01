@@ -49,6 +49,15 @@ test('bindLiveProductToPdpHtml rewrites locked PDP fields and keeps catalog card
   assert.doesNotMatch(next, /Review for A/)
 })
 
+test('bind writes PDP gallery as original AliCDN URL, not listing 600q90', () => {
+  const broken =
+    'https://img.alicdn.com/img/ibank/2020/688/457/21712754886_2079049757.jpg_600x600q90.jpg'
+  const raw = 'https://img.alicdn.com/img/ibank/2020/688/457/21712754886_2079049757.jpg'
+  const next = bindLiveProductToPdpHtml(SHELL, { ...PRODUCT_B, imageUrl: broken, galleryImages: [broken] })
+  assert.match(next, new RegExp(raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  assert.doesNotMatch(next, /21712754886_2079049757\.jpg_600x600q90\.jpg/)
+})
+
 test('bindLiveProductToPdpHtml hides leftover thumbs when the next product has fewer images', () => {
   const next = bindLiveProductToPdpHtml(SHELL, PRODUCT_B)
   assert.match(next, /data-pw-el="thumb"[^>]*hidden/)
@@ -108,7 +117,7 @@ test('bind puts product video as second gallery thumb like 188', () => {
 test('bind injects missing editor layout slots onto a sparse shell', () => {
   const next = bindLiveProductToPdpHtml(SHELL, DEMO_PDP_BIND_PRODUCT)
   assert.match(next, /id="pw-pdp-qa"/)
-  assert.match(next, /data-pw-pdp-slot="consult"/)
+  assert.doesNotMatch(next, /data-pw-pdp-slot="consult"/)
   assert.match(next, /data-pw-pdp-slot="size-guide"/)
   assert.match(next, /data-pw-region="breadcrumb"/)
   assert.doesNotMatch(next, /data-pw-pdp-slot="video"/)
@@ -358,6 +367,28 @@ test('bind writes this product material and real-use photos instead of shell lef
   assert.match(next, /data-pw-pdp-slot="real-use"/)
   assert.doesNotMatch(next, /material-1-a3-1786251749/)
   assert.doesNotMatch(next, /gallery-1-a2-1786247712/)
+})
+
+test('bind hides buy-box consult and keeps the sentence only in product-info tab', () => {
+  const raw = JSON.stringify({
+    product_info: {
+      sku: 'Q2477',
+      target_audience_suggestion_vi: 'Phù hợp Nữ 18–35 tuổi, yêu thích phong cách ngọt ngào, thanh lịch',
+    },
+  })
+  const leftover = SHELL.replace(
+    '</div>\n<section data-pw-region="reviews">',
+    `<div data-pw-pdp-slot="consult"><p>Gợi ý tư vấn</p><p class="pw-shop-muted" style="margin:0">${raw}</p></div></div>
+<section data-pw-region="reviews">`
+  )
+  const next = bindLiveProductToPdpHtml(leftover, {
+    ...PRODUCT_B,
+    consultNote: raw,
+    productInfo: JSON.parse(raw) as Record<string, unknown>,
+  })
+  assert.doesNotMatch(next, /data-pw-pdp-slot="consult"/)
+  assert.match(next, /Phù hợp Nữ 18–35 tuổi/)
+  assert.doesNotMatch(next, /pw-shop-muted" style="margin:0">\{"product_info"/)
 })
 
 test('bind fills catalog stats, brand, tabs, and every detail photo', () => {

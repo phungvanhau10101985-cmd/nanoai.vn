@@ -295,6 +295,10 @@ export type PartnerWebsiteCopy = {
   visualEditChromeKitShiftHint: string
   visualEditChromeKitGap: string
   visualEditChromeKitGapHint: string
+  visualEditChromeKitLogoPos: string
+  visualEditChromeKitLogoX: string
+  visualEditChromeKitLogoY: string
+  visualEditChromeKitLogoPosHint: string
   visualEditChatIconLogoTitle: string
   visualEditChatIconLogoHint: string
   visualEditChatIconLogoDefaultPrompt: string
@@ -1307,6 +1311,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitShiftHint: 'Cả cụm icon bên phải, vẫn trong hàng. Số âm sang trái, dương sang phải.',
     visualEditChromeKitGap: 'Khoảng cách icon',
     visualEditChromeKitGapHint: 'Khoảng cách giữa các icon cụm phải. Không dời cả cụm.',
+    visualEditChromeKitLogoPos: 'Vị trí logo',
+    visualEditChromeKitLogoX: 'Ngang',
+    visualEditChromeKitLogoY: 'Dọc',
+    visualEditChromeKitLogoPosHint: 'Chỉ máy đang sửa. Kéo logo trên canvas hoặc gõ số. Không đổi máy khác.',
     visualEditChatIconLogoTitle: 'Tạo logo icon Chat mua',
     visualEditChatIconLogoHint:
       'Cùng một logo icon cho mọi máy. Đổi ở đây thì Desktop / Tablet / Mobile đều đổi. Tải ảnh lên hoặc tạo bằng AI.',
@@ -2337,7 +2345,11 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitShift: 'Horizontal shift',
     visualEditChromeKitShiftHint: 'Moves the whole right-side icon cluster in flow. Negative is left, positive is right.',
     visualEditChromeKitGap: 'Icon gap',
-    visualEditChromeKitGapHint: 'Space between the right-side icons. Does not shift the whole cluster.',
+    visualEditChromeKitGapHint: 'Spacing between the right-side icons. Does not move the whole cluster.',
+    visualEditChromeKitLogoPos: 'Logo position',
+    visualEditChromeKitLogoX: 'Horizontal',
+    visualEditChromeKitLogoY: 'Vertical',
+    visualEditChromeKitLogoPosHint: 'This device only. Drag the logo or type px. Other devices stay put.',
     visualEditChatIconLogoTitle: 'Create Chat mua icon logo',
     visualEditChatIconLogoHint:
       'One icon logo for every device. Change it here and Desktop / Tablet / Mobile all update. Upload an image or generate with AI.',
@@ -3354,6 +3366,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitShiftHint: '移动右侧整组图标，仍在同一行内。负数向左，正数向右。',
     visualEditChromeKitGap: '图标间距',
     visualEditChromeKitGapHint: '右侧图标之间的间距。不移动整组。',
+    visualEditChromeKitLogoPos: '标志位置',
+    visualEditChromeKitLogoX: '水平',
+    visualEditChromeKitLogoY: '垂直',
+    visualEditChromeKitLogoPosHint: '仅当前设备。拖动标志或输入 px。其他设备不变。',
     visualEditChatIconLogoTitle: '为「Chat mua」图标生成标志',
     visualEditChatIconLogoHint:
       '所有设备共用同一图标标志。在此更改后，桌面 / 平板 / 手机一并更新。可上传图片或用 AI 生成。',
@@ -4360,6 +4376,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitShiftHint: '右側のアイコン一式を行内で動かします。マイナスは左、プラスは右です。',
     visualEditChromeKitGap: 'アイコン間隔',
     visualEditChromeKitGapHint: '右側アイコン同士の間隔です。グループ全体の位置は変わりません。',
+    visualEditChromeKitLogoPos: 'ロゴ位置',
+    visualEditChromeKitLogoX: '左右',
+    visualEditChromeKitLogoY: '上下',
+    visualEditChromeKitLogoPosHint: '編集中の端末のみ。ロゴをドラッグするか px を入力。他端末は変わりません。',
     visualEditChatIconLogoTitle: 'Chat muaアイコンのロゴを作成',
     visualEditChatIconLogoHint:
       '全端末で同じアイコンロゴを使います。ここで変えるとデスクトップ / タブレット / モバイルが同時に変わります。画像アップロードまたは AI 生成。',
@@ -5377,6 +5397,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitShiftHint: '오른쪽 아이콘 묶음 전체를 같은 줄에서 옮깁니다. 음수는 왼쪽, 양수는 오른쪽입니다.',
     visualEditChromeKitGap: '아이콘 간격',
     visualEditChromeKitGapHint: '오른쪽 아이콘 사이 간격입니다. 묶음 전체 위치는 바꾸지 않습니다.',
+    visualEditChromeKitLogoPos: '로고 위치',
+    visualEditChromeKitLogoX: '가로',
+    visualEditChromeKitLogoY: '세로',
+    visualEditChromeKitLogoPosHint: '지금 기기에만 적용됩니다. 로고를 끌거나 px를 입력하세요. 다른 기기는 그대로입니다.',
     visualEditChatIconLogoTitle: 'Chat mua 아이콘 로고 만들기',
     visualEditChatIconLogoHint:
       '모든 기기에서 같은 아이콘 로고를 씁니다. 여기서 바꾸면 데스크톱 / 태블릿 / 모바일이 함께 바뀝니다. 이미지 업로드 또는 AI 생성.',

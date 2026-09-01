@@ -236,15 +236,16 @@ function variantMoney(n,fallback){
   return String(fallback||'').trim();
 }
 function variantImg(url){
-  if(typeof shopImg==='function')return shopImg({imageUrl:url});
   url=String(url||'').trim();
   if(!url)return '';
   if(url.indexOf('//')===0)url='https:'+url;
+  url=url.replace(/_\\d+x\\d+q\\d+\\.jpg$/i,'');
   try{
     var u=new URL(url,location.origin);
     var host=u.hostname.toLowerCase();
+    if(host==='img.alicdn.com'||host==='gw.alicdn.com')return u.toString();
     if(/alicdn\\.com$/.test(host)||/1688\\.com$/.test(host)||/alibaba\\.com$/.test(host)){
-      if(host!=='img.alicdn.com'&&host!=='gw.alicdn.com'&&/\\.alicdn\\.com$/.test(host))u.hostname='img.alicdn.com';
+      if(/\\.alicdn\\.com$/.test(host))u.hostname='img.alicdn.com';
       return '/api/fetch-image?url='+encodeURIComponent(u.toString());
     }
   }catch(e){}

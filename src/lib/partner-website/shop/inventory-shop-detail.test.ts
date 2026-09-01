@@ -8,6 +8,8 @@ import {
   normalizeShopImageUrl,
   pickShopCardImageRaw,
   shopCardDisplaySrc,
+  shopPdpDisplaySrc,
+  nextShopImageRetrySrc,
 } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 
@@ -27,6 +29,20 @@ test('normalizeShopImageUrl rewrites blocked 188 Bunny host and protocol-relativ
   )
   assert.equal(normalizeShopImageUrl(''), '')
   assert.equal(normalizeShopImageUrl('not-a-url'), '')
+})
+
+test('PDP src keeps AliCDN original and retries then hides broken 600q90 URLs', () => {
+  const broken =
+    'https://img.alicdn.com/img/ibank/2020/688/457/21712754886_2079049757.jpg_600x600q90.jpg'
+  const raw = 'https://img.alicdn.com/img/ibank/2020/688/457/21712754886_2079049757.jpg'
+  assert.equal(shopPdpDisplaySrc(broken), raw)
+  assert.equal(shopPdpDisplaySrc(raw), raw)
+  assert.equal(nextShopImageRetrySrc(broken), raw)
+  assert.equal(
+    nextShopImageRetrySrc(raw),
+    `/api/fetch-image?url=${encodeURIComponent(raw)}`
+  )
+  assert.equal(nextShopImageRetrySrc(`/api/fetch-image?url=${encodeURIComponent(raw)}`), null)
 })
 
 test('shopCardDisplaySrc reads AliCDN like 188 getProductMainImage (img.alicdn + 600q90)', () => {
@@ -172,4 +188,29 @@ test('inventoryRowToShopProduct hydrates empty columns from catalog_json like 18
   assert.deepEqual(product?.sizes, ['M', 'L'])
   assert.equal(product?.colors[0]?.name, 'Đen')
   assert.equal((product?.productInfo as { product_info?: { sku?: string } } | null)?.product_info?.sku, 'SKU-188')
+})
+
+test('PDP consult_note JSON becomes stylist sentence and specs, not a raw dump', () => {
+  const consult = JSON.stringify({
+    product_info: {
+      sku: 'Q2477',
+      target_audience_suggestion_vi: 'Phù hợp Nữ 18–35 tuổi, yêu thích phong cách ngọt ngào, thanh lịch',
+    },
+    specifications: { style: 'Ngọt ngào' },
+  })
+  const product = inventoryRowToShopProduct(
+    'demo-shop',
+    {
+      id: '66666666-6666-4666-8666-666666666666',
+      name: 'Áo sơ mi nữ',
+      image_url: 'https://cdn.example/shirt.jpg',
+      description: '',
+      consult_note: consult,
+    },
+    { pdp: true }
+  )
+  assert.equal(product?.consultNote, 'Phù hợp Nữ 18–35 tuổi, yêu thích phong cách ngọt ngào, thanh lịch')
+  assert.equal(product?.detailDescription, '')
+  assert.doesNotMatch(product?.description || '', /\{"product_info"/)
+  assert.equal((product?.productInfo as { product_info?: { sku?: string } } | null)?.product_info?.sku, 'Q2477')
 })

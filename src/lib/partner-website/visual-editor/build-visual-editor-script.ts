@@ -98,6 +98,12 @@ import {
   pdpDockDefaultIconHtmlByLocale,
 } from '../shop/partner-site-chrome-kit'
 import {
+  PW_LOGO_X_MAX,
+  PW_LOGO_X_MIN,
+  PW_LOGO_Y_MAX,
+  PW_LOGO_Y_MIN,
+} from '../shop/header-logo-offset'
+import {
   PW_LAST_MEDIA_SRC_ATTR,
   PW_MEDIA_HIDDEN_ATTR,
   PW_PAPER_ATTR,
@@ -1859,17 +1865,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function bakeHeaderLogoPlacement(el) {
     if (!el || !isInHeader(el)) return
-    var unit = headerLogoUnit(el) || logoFrameOf(el) || el
-    var r
-    try { r = unit.getBoundingClientRect() } catch (eBake) { r = null }
-    if (r && r.width >= 8 && r.height >= 8) {
-      pinHeaderLogoFloat(unit, { x: r.left, y: r.top, w: r.width, h: r.height })
-    } else {
-      pinHeaderLogoFloat(unit, null)
-    }
-    markUserMoved(unit)
-    var img = logoImgOf(unit) || (isImgEl(el) ? el : null)
-    if (img && img !== unit) markUserMoved(img)
+    keepHeaderLogoInDefaultSlot(logoImgOf(el) || el)
   }
   function headerMainOf(header) {
     if (!header || !header.querySelector) return header || null
@@ -4554,6 +4550,58 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (root.style) root.style.setProperty('--pw-kit-x', n + 'px')
     return n
   }
+  function headerLogoOffsetHost() {
+    var header = document.querySelector('header.pw-header, header.pw-shop-header, .pw-shop-header, header')
+    if (!header) return null
+    return headerBrandLink(header) || header.querySelector('a.pw-brand, a.pw-shop-brand, a[data-pw-logo-home]')
+  }
+  function headerLogoOffsetOf(root) {
+    var el = root || headerLogoOffsetHost()
+    if (!el || !el.getAttribute) return { x: 0, y: 0 }
+    var x = parseInt(String(el.getAttribute('data-pw-logo-x') || ''), 10)
+    var y = parseInt(String(el.getAttribute('data-pw-logo-y') || ''), 10)
+    if (!isFinite(x) && el.style) x = parseInt(String(el.style.getPropertyValue('--pw-logo-x') || ''), 10)
+    if (!isFinite(y) && el.style) y = parseInt(String(el.style.getPropertyValue('--pw-logo-y') || ''), 10)
+    if (!isFinite(x)) x = 0
+    if (!isFinite(y)) y = 0
+    if (x > ${PW_LOGO_X_MAX}) x = ${PW_LOGO_X_MAX}
+    if (x < ${PW_LOGO_X_MIN}) x = ${PW_LOGO_X_MIN}
+    if (y > ${PW_LOGO_Y_MAX}) y = ${PW_LOGO_Y_MAX}
+    if (y < ${PW_LOGO_Y_MIN}) y = ${PW_LOGO_Y_MIN}
+    return { x: x, y: y }
+  }
+  function applyHeaderLogoOffset(xRaw, yRaw) {
+    var el = headerLogoOffsetHost()
+    if (!el) return { x: 0, y: 0 }
+    var x = Math.round(Number(xRaw))
+    var y = Math.round(Number(yRaw))
+    if (!isFinite(x)) x = 0
+    if (!isFinite(y)) y = 0
+    if (x > ${PW_LOGO_X_MAX}) x = ${PW_LOGO_X_MAX}
+    if (x < ${PW_LOGO_X_MIN}) x = ${PW_LOGO_X_MIN}
+    if (y > ${PW_LOGO_Y_MAX}) y = ${PW_LOGO_Y_MAX}
+    if (y < ${PW_LOGO_Y_MIN}) y = ${PW_LOGO_Y_MIN}
+    if (!x) {
+      el.removeAttribute('data-pw-logo-x')
+      if (el.style) el.style.removeProperty('--pw-logo-x')
+    } else {
+      el.setAttribute('data-pw-logo-x', String(x))
+      if (el.style) el.style.setProperty('--pw-logo-x', x + 'px')
+    }
+    if (!y) {
+      el.removeAttribute('data-pw-logo-y')
+      if (el.style) el.style.removeProperty('--pw-logo-y')
+    } else {
+      el.setAttribute('data-pw-logo-y', String(y))
+      if (el.style) el.style.setProperty('--pw-logo-y', y + 'px')
+    }
+    return { x: x, y: y }
+  }
+  function setHeaderLogoOffset(x, y) {
+    applyHeaderLogoOffset(x, y)
+    post('dirty', {})
+    listChromeKitState()
+  }
   function setChromeKitShift(bar, x) {
     var root = bar === 'dock' ? chromeKitDockRoot() : chromeKitHeadRoot()
     applyChromeKitShift(root, x)
@@ -4670,6 +4718,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       floatSize: stack.size,
       headX: chromeKitShiftOf(headRoot),
       headGap: chromeKitGapOf(headRoot),
+      logoX: headerLogoOffsetOf().x,
+      logoY: headerLogoOffsetOf().y,
       device: pwStampDevice()
     })
   }
@@ -4741,8 +4791,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!el || !el.parentNode) return []
     var kids = el.parentNode.children
     var out = []
+    var pdp = !!(el.closest && el.closest('.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas'))
     for (var i = 0; i < kids.length; i++) {
-      if (kids[i] && kids[i].getAttribute && kids[i].getAttribute('data-pw-chrome-btn')) out.push(kids[i])
+      var kid = kids[i]
+      if (!kid || !kid.getAttribute || !kid.getAttribute('data-pw-chrome-btn')) continue
+      if (kid.getAttribute('data-pw-hidden') === '1') continue
+      var kidPdp = !!(kid.closest && kid.closest('.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas'))
+      if (kidPdp !== pdp) continue
+      if (!pdp && isPdpDockFaceBtn(kid)) continue
+      out.push(kid)
     }
     return out
   }
@@ -12583,6 +12640,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       applyLogoTransform(panImg, parseLogoZoom(panImg), pan.x, pan.y)
     }
     try { dedupeHeaderLogos(img) } catch (eDupKeep) {}
+    try { applyHeaderLogoOffset(headerLogoOffsetOf().x, headerLogoOffsetOf().y) } catch (eOffKeep) {}
   }
   function headerLogoHasPinnedBox(el) {
     var unit = headerLogoUnit(el) || logoFrameOf(el) || el
@@ -12860,8 +12918,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         drag.baseX = pan0.x
         drag.baseY = pan0.y
       } else if (isInHeader(selected)) {
-        drag.ready = false
-        return
+        drag.mode = 'logo-slot'
+        var logoOff = headerLogoOffsetOf()
+        drag.baseX = logoOff.x
+        drag.baseY = logoOff.y
       } else {
         drag.mode = 'logo-box'
         var moveEl = logoMoveEl(selected) || selected
@@ -13289,7 +13349,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         try { selected.focus() } catch (err2) {}
       }
     }
-    if (!isLockedHeadDockChrome(selected) && !(isLogoTarget(selected) && isInHeader(selected))) showMoveHandle(selected)
+    if (!isLockedHeadDockChrome(selected)) showMoveHandle(selected)
     if (canDeleteEl(selected) && !isLockedHeadDockChrome(selected)) showDeleteHandle(selected)
     if (canShowResizeHandles(selected) && !isLockedHeadDockChrome(selected)) showResizeHandle(selected)
     if (!isLockedHeadDockChrome(selected)) showAlignGuides(logoMoveEl(selected) || selected)
@@ -13982,12 +14042,14 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var dx2 = e.clientX - drag.startX
     var dy = e.clientY - drag.startY
     var logoDrag = drag.mode
-    if (isLogoTarget(selected) && logoDrag !== 'logo-box' && logoDrag !== 'logo-pan') {
+    if (isLogoTarget(selected) && logoDrag !== 'logo-box' && logoDrag !== 'logo-pan' && logoDrag !== 'logo-slot') {
       var panImg = logoImgOf(selected) || (isLogoImg(selected) ? selected : null)
-      logoDrag = logoCanPan(panImg) ? 'logo-pan' : 'logo-box'
+      logoDrag = isInHeader(selected) ? 'logo-slot' : (logoCanPan(panImg) ? 'logo-pan' : 'logo-box')
     }
     if (logoDrag === 'logo-pan') {
       applyLogoPan(logoImgOf(selected) || selected, drag.baseX + dx2, drag.baseY + dy)
+    } else if (logoDrag === 'logo-slot') {
+      applyHeaderLogoOffset(drag.baseX + dx2, drag.baseY + dy)
     } else if (logoDrag === 'logo-box') {
       var moveEl = (isInHeader(selected) && headerLogoUnit(selected)) || logoMoveEl(selected) || selected
       moveEl.style.transform = 'translate(' + (drag.baseX + dx2) + 'px,' + (drag.baseY + dy) + 'px)'
@@ -14086,6 +14148,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     stayScrollPause(0)
     if (wasDrag && selected && isLogoTarget(selected) && isInHeader(selected) && mode !== 'logo-pan' && !logoCrop.live) {
       try { bakeHeaderLogoPlacement(selected) } catch (eBakeLogo) {}
+      try { listChromeKitState() } catch (eKitLogo) {}
     }
     if (wasDrag && selected && canDragEl(selected)) {
       var translatedPlacementEl = null
@@ -14246,8 +14309,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-active .pw-header [data-pw-chrome-added]:not(.pw-icon-btn):not([data-pw-chrome-btn]),.nanoai-ve-active .pw-shop-header [data-pw-chrome-added]:not(.pw-icon-btn):not([data-pw-chrome-btn]),.nanoai-ve-active header [data-pw-chrome-added]:not(.pw-icon-btn):not([data-pw-chrome-btn]){z-index:90!important}',
       '[data-pw-edit-device="desktop"] .pw-visual-desktop,[data-pw-edit-device="laptop"] .pw-visual-laptop,[data-pw-edit-device="tablet"] .pw-visual-tablet,[data-pw-edit-device="mobile"] .pw-visual-mobile{display:contents!important}',
       '[data-pw-edit-device="desktop"] .pw-visual-laptop,[data-pw-edit-device="desktop"] .pw-visual-tablet,[data-pw-edit-device="desktop"] .pw-visual-mobile,[data-pw-edit-device="laptop"] .pw-visual-desktop,[data-pw-edit-device="laptop"] .pw-visual-tablet,[data-pw-edit-device="laptop"] .pw-visual-mobile,[data-pw-edit-device="tablet"] .pw-visual-desktop,[data-pw-edit-device="tablet"] .pw-visual-laptop,[data-pw-edit-device="tablet"] .pw-visual-mobile,[data-pw-edit-device="mobile"] .pw-visual-desktop,[data-pw-edit-device="mobile"] .pw-visual-laptop,[data-pw-edit-device="mobile"] .pw-visual-tablet{display:none!important}',
-      '[data-pw-edit-device="desktop"] [data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),[data-pw-edit-device="laptop"] [data-pw-chrome-added][data-pw-device="laptop"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),[data-pw-edit-device="tablet"] [data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap),[data-pw-edit-device="mobile"] [data-pw-chrome-added][data-pw-device="mobile"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap){display:inline-flex!important}',
-      '[data-pw-edit-device="desktop"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="desktop"],[data-pw-edit-device="desktop"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="desktop"],[data-pw-edit-device="laptop"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="laptop"],[data-pw-edit-device="laptop"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="laptop"],[data-pw-edit-device="tablet"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="tablet"],[data-pw-edit-device="tablet"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="tablet"],[data-pw-edit-device="mobile"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="mobile"],[data-pw-edit-device="mobile"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="mobile"]{display:flex!important}',
+      '[data-pw-edit-device="desktop"] [data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap):not([data-pw-hidden="1"]),[data-pw-edit-device="laptop"] [data-pw-chrome-added][data-pw-device="laptop"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap):not([data-pw-hidden="1"]),[data-pw-edit-device="tablet"] [data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap):not([data-pw-hidden="1"]),[data-pw-edit-device="mobile"] [data-pw-chrome-added][data-pw-device="mobile"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap):not([data-pw-hidden="1"]){display:inline-flex!important}',
+      '[data-pw-edit-device="desktop"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-hidden="1"]),[data-pw-edit-device="desktop"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="desktop"]:not([data-pw-hidden="1"]),[data-pw-edit-device="laptop"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="laptop"]:not([data-pw-hidden="1"]),[data-pw-edit-device="laptop"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="laptop"]:not([data-pw-hidden="1"]),[data-pw-edit-device="tablet"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-hidden="1"]),[data-pw-edit-device="tablet"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-hidden="1"]),[data-pw-edit-device="mobile"] .pw-bottom-nav [data-pw-chrome-added][data-pw-device="mobile"]:not([data-pw-hidden="1"]),[data-pw-edit-device="mobile"] .pw-shop-bottom-nav [data-pw-chrome-added][data-pw-device="mobile"]:not([data-pw-hidden="1"]){display:flex!important}',
       '.nanoai-ve-active .pw-header a:focus,.nanoai-ve-active .pw-shop-header a:focus,.nanoai-ve-active header a:focus,.nanoai-ve-active .pw-header-actions a:focus,.nanoai-ve-active .pw-shop-header-actions a:focus{outline:none!important}',
       '.nanoai-ve-active .pw-header [data-pw-chrome-btn]:not([data-pw-chrome-added]),.nanoai-ve-active .pw-shop-header [data-pw-chrome-btn]:not([data-pw-chrome-added]),.nanoai-ve-active header [data-pw-chrome-btn]:not([data-pw-chrome-added]),.nanoai-ve-active .pw-header-actions a:not([data-pw-chrome-added]),.nanoai-ve-active .pw-shop-header-actions a:not([data-pw-chrome-added]){cursor:pointer!important}',
       '.nanoai-ve-guide-h{position:absolute;height:1px;background:repeating-linear-gradient(90deg,rgba(37,99,235,.42) 0 6px,transparent 6px 11px)}',
@@ -15363,6 +15426,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.type === 'setChromeKitFloatItemRight') setChromeKitFloatItemRight(d.kind, d.right)
     if (d.type === 'selectChromeKit') selectChromeKit(d.kind, d.bar)
     if (d.type === 'setChromeKitShift') setChromeKitShift(d.bar || 'head', d.x)
+    if (d.type === 'setHeaderLogoOffset') setHeaderLogoOffset(d.x, d.y)
     if (d.type === 'setChromeKitGap') setChromeKitGap(d.bar || 'head', d.gap)
     if (d.type === 'reorderChromeKit') reorderChromeKit(d.kind, d.bar, d.dir)
     if (d.type === 'bringExistingChromeToCenter') bringExistingChromeToCenter(d.kind)

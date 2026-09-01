@@ -62,6 +62,16 @@ test('stay-scroll keeps the element in place without floating overlay', () => {
     ),
     true
   )
+  assert.equal(
+    PARTNER_SHOP_HIDDEN_CSS.includes(
+      '.pw-bottom-nav > a:not([data-pw-pdp-home]):not([data-pw-dock-show="pdp"])[data-pw-hidden="1"]'
+    ),
+    true
+  )
+  assert.equal(
+    PARTNER_SHOP_HIDDEN_CSS.includes('html .pw-bottom-nav[data-pw-chrome-kit="dock"] > a[data-pw-hidden="1"]'),
+    true
+  )
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes('--pw-scene-w'), true)
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes('--pw-scene-zoom'), true)
   assert.equal(PARTNER_SHOP_STAY_SCROLL_SCRIPT.includes('data-pw-inline-visual-root'), true)

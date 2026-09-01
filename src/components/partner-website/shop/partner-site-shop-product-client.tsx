@@ -48,7 +48,10 @@ import {
   pdpDescriptionBodyHtml,
   pdpProductInfoHtml,
 } from '@/lib/partner-website/shop/pdp-product-info-html'
-import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import {
+  nextShopImageRetrySrc,
+  shopPdpDisplaySrc,
+} from '@/lib/partner-website/shop/inventory-shop-detail'
 
 type RatingSummary = { average: number; total: number }
 
@@ -99,6 +102,33 @@ function IconTryOn() {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
     </svg>
   )
+}
+
+function hideBrokenPdpImage(ev: { currentTarget: HTMLImageElement }) {
+  const img = ev.currentTarget
+  const retry = nextShopImageRetrySrc(img.currentSrc || img.getAttribute('src') || '')
+  if (retry && img.getAttribute('data-pw-img-retry') !== '1') {
+    img.setAttribute('data-pw-img-retry', '1')
+    img.src = retry
+    return
+  }
+  img.setAttribute('data-pw-pdp-img-broken', '1')
+  img.hidden = true
+  img.style.display = 'none'
+  const host = img.closest(
+    '[data-pw-el="thumb"],.pw-shop-product-thumb,.pw-pdp-hero-thumbs button,.pw-pdp-color,[data-pw-variant-color]'
+  )
+  if (host instanceof HTMLElement) {
+    host.setAttribute('data-pw-pdp-img-broken', '1')
+    host.hidden = true
+    host.style.display = 'none'
+  }
+  const slot = img.closest(
+    '[data-pw-pdp-slot="detail-images"],[data-pw-pdp-slot="material"],[data-pw-pdp-slot="real-use"],[data-pw-pdp-slot="size-guide"]'
+  )
+  if (slot instanceof HTMLElement && !slot.querySelector('img:not([data-pw-pdp-img-broken])')) {
+    slot.setAttribute('data-pw-pdp-img-broken', '1')
+  }
 }
 
 function IconHeart({ filled }: { filled: boolean }) {
@@ -156,7 +186,7 @@ export function PartnerSiteShopProductClient({
   const rawDisplay =
     (options?.colors.length ? options.colors : product.colors).find((c) => c.name === color)?.img?.trim() ||
     product.imageUrl
-  const displayImage = shopCardDisplaySrc(rawDisplay) || rawDisplay
+  const displayImage = shopPdpDisplaySrc(rawDisplay) || rawDisplay
 
   const consultCtx = useMemo(
     () =>
@@ -191,7 +221,7 @@ export function PartnerSiteShopProductClient({
   }, [])
 
   const galleryImages = (product.galleryImages.length ? product.galleryImages : [product.imageUrl])
-    .map((url) => shopCardDisplaySrc(url))
+    .map((url) => shopPdpDisplaySrc(url))
     .filter(Boolean)
   const videoEmbedUrl = (() => {
     const raw = product.productVideoUrl?.trim()
@@ -236,9 +266,9 @@ export function PartnerSiteShopProductClient({
 
   const detailBody = product.detailDescription.trim() || product.description.trim()
   const showDetailDescription = Boolean(detailBody)
-  const detailImageUrls = product.detailImages.map((url) => shopCardDisplaySrc(url)).filter(Boolean)
-  const materialImageUrl = shopCardDisplaySrc(product.materialImageUrl)
-  const realUseImageUrls = (product.realUseImageUrls ?? []).map((url) => shopCardDisplaySrc(url)).filter(Boolean)
+  const detailImageUrls = product.detailImages.map((url) => shopPdpDisplaySrc(url)).filter(Boolean)
+  const materialImageUrl = shopPdpDisplaySrc(product.materialImageUrl)
+  const realUseImageUrls = (product.realUseImageUrls ?? []).map((url) => shopPdpDisplaySrc(url)).filter(Boolean)
   const attrFields = {
     brandName: product.brandName,
     origin: product.origin,
@@ -466,6 +496,7 @@ export function PartnerSiteShopProductClient({
         }}
         onTouchStart={handleGalleryTouchStart}
         onTouchEnd={handleGalleryTouchEnd}
+        onError={hideBrokenPdpImage}
       />
     )
   }
@@ -572,7 +603,7 @@ export function PartnerSiteShopProductClient({
                 onClick={() => setMediaIndex(i)}
               >
                 {item.kind === 'photo' ? (
-                  <img src={item.url} alt="" loading="lazy" />
+                  <img src={item.url} alt="" loading="lazy" onError={hideBrokenPdpImage} />
                 ) : (
                   <span style={{ display: 'grid', placeItems: 'center', width: '100%', height: '100%', background: '#111', color: '#fff', fontSize: 11 }}>▶</span>
                 )}
@@ -608,7 +639,7 @@ export function PartnerSiteShopProductClient({
                   aria-label={productName}
                 >
                   {item.kind === 'photo' ? (
-                    <img src={item.url} alt="" loading="lazy" />
+                    <img src={item.url} alt="" loading="lazy" onError={hideBrokenPdpImage} />
                   ) : (
                     <span style={{ display: 'grid', placeItems: 'center', width: '100%', height: '100%', background: '#111', color: '#fff', fontSize: 11 }}>▶</span>
                   )}
@@ -749,7 +780,12 @@ export function PartnerSiteShopProductClient({
                   </button>
                 </div>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={product.sizeGuideImageUrl} alt={t.sizeGuideModalTitle} style={{ width: '100%', height: 'auto' }} />
+                <img
+                  src={product.sizeGuideImageUrl}
+                  alt={t.sizeGuideModalTitle}
+                  style={{ width: '100%', height: 'auto' }}
+                  onError={hideBrokenPdpImage}
+                />
               </div>
             </div>
           ) : null}
@@ -765,7 +801,11 @@ export function PartnerSiteShopProductClient({
                     className={`pw-pdp-pill pw-pdp-color${color === c.name ? ' is-active' : ''}`}
                     onClick={() => setColor(c.name)}
                   >
-                    {c.img ? <img src={shopCardDisplaySrc(c.img) || c.img} alt={c.name} /> : c.name}
+                    {c.img ? (
+                      <img src={shopPdpDisplaySrc(c.img) || c.img} alt={c.name} onError={hideBrokenPdpImage} />
+                    ) : (
+                      c.name
+                    )}
                   </button>
                 ))}
               </div>
@@ -868,7 +908,7 @@ export function PartnerSiteShopProductClient({
                   <h2>{t.pdpDetailImagesHeading}</h2>
                   <div className="pw-pdp-detail-photos">
                     {detailImageUrls.map((url) => (
-                      <img key={url} src={url} alt={product.name} loading="lazy" />
+                      <img key={url} src={url} alt={product.name} loading="lazy" onError={hideBrokenPdpImage} />
                     ))}
                   </div>
                 </div>
@@ -878,7 +918,7 @@ export function PartnerSiteShopProductClient({
                 <div data-pw-pdp-slot="material">
                   <h2>{t.pdpMaterialImagesTitle}</h2>
                   <div className="pw-shop-detail-grid">
-                    <img src={materialImageUrl} alt={product.name} loading="lazy" />
+                    <img src={materialImageUrl} alt={product.name} loading="lazy" onError={hideBrokenPdpImage} />
                   </div>
                 </div>
               ) : null}
@@ -887,7 +927,7 @@ export function PartnerSiteShopProductClient({
                   <h2>{t.pdpRealUseImagesTitle}</h2>
                   <div className="pw-shop-detail-grid">
                     {realUseImageUrls.map((url) => (
-                      <img key={url} src={url} alt={product.name} loading="lazy" />
+                      <img key={url} src={url} alt={product.name} loading="lazy" onError={hideBrokenPdpImage} />
                     ))}
                   </div>
                 </div>
@@ -953,6 +993,7 @@ export function PartnerSiteShopProductClient({
             src={activeImage}
             alt={productName}
             className={lightboxZoomed ? 'is-zoomed' : ''}
+            onError={hideBrokenPdpImage}
             onClick={(e) => {
               e.stopPropagation()
               setLightboxZoomed((z) => !z)

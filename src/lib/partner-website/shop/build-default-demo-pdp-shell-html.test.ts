@@ -34,7 +34,7 @@ test('default demo PDP shell includes gallery, sizes, colors, qty, and reviews',
   assert.match(html, /id="pw-pdp-qa"/)
   assert.match(html, /pw-shop-product-video/)
   assert.match(html, /data-pw-pdp-slot="size-guide"/)
-  assert.match(html, /data-pw-pdp-slot="consult"/)
+  assert.doesNotMatch(html, /data-pw-pdp-slot="consult"/)
   assert.match(html, /data-pw-pdp-slot="review-form"/)
   assert.match(html, /data-pw-pdp-slot="low-stock"/)
   assert.match(html, /pw-pdp-save/)
@@ -56,7 +56,7 @@ test('binding the demo product onto the default shell keeps size and color pills
   assert.match(next, /data-pw-pdp-slot="video"/)
 })
 
-test('bind keeps size, color, consult, and actions inside the buy box', () => {
+test('bind keeps size, color, and actions inside the buy box', () => {
   const html = buildDefaultDemoPdpShellHtml({ locale: 'vi', variant: 'desktop' })
   const next = bindLiveProductToPdpHtml(html, DEMO_PDP_BIND_PRODUCT)
   const open = next.match(/<div\b[^>]*\bpw-shop-pdp-info\b[^>]*>/)
@@ -82,7 +82,7 @@ test('bind keeps size, color, consult, and actions inside the buy box', () => {
   const buyBox = slice.slice(0, end)
   assert.match(buyBox, /data-pw-pdp-option="size"/)
   assert.match(buyBox, /data-pw-pdp-option="color"/)
-  assert.match(buyBox, /data-pw-pdp-slot="consult"/)
+  assert.doesNotMatch(buyBox, /data-pw-pdp-slot="consult"/)
   assert.match(buyBox, /pw-pdp-actions/)
   assert.match(buyBox, /data-pw-el="qty"/)
   assert.equal((buyBox.match(/data-pw-pdp-option="color"/g) || []).length, 1)

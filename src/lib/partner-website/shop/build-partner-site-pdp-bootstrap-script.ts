@@ -1,6 +1,7 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { partnerSiteLoginPath, partnerSiteProductApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 
 /**
@@ -79,6 +80,8 @@ export function buildPartnerSitePdpBootstrapScript(input: { siteSlug: string; lo
 ${PW_SHOP_LIVE_UI_OFF_FN};
 if(pwShopLiveUiOff())return;
 if(!document.querySelector('[data-pw-region="pdp-info"],[data-pw-region="gallery"],.pw-pdp'))return;
+${PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS};
+hideBrokenPdpImgs();
 var API_PREFIX=${JSON.stringify(apiPrefix)};
 var EVENTS_API=${JSON.stringify(eventsApi)};
 var LOGIN_PATH=${JSON.stringify(loginPath)};
@@ -202,6 +205,7 @@ function apply(p){
   document.querySelectorAll('[data-pw-pdp-slot="stats"],.pw-pdp-stats').forEach(function(el){el.innerHTML=statsHtml;});
   paintPdpLikeCounts(likes);
   stampTryOnButtons(p);
+  hideBrokenPdpImgs();
 }
 function paintPdpLikeCounts(likes){
   var n=Math.max(0,Math.round(Number(likes)||0));
@@ -289,6 +293,7 @@ function applyOptions(options){
   var colors=(options.colors||[]).map(function(c){return {name:String(c&&c.name||'').trim(),img:String(c&&c.img||'').trim()};}).filter(function(c){return c.name;});
   paintPills('size',sizes);
   paintPills('color',colors);
+  hideBrokenPdpImgs();
 }
 function fmtDate(s){
   try{var d=new Date(s);if(isNaN(d.getTime()))return '';return d.toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit',year:'numeric'});}catch(e){return '';}

@@ -22,6 +22,23 @@ const SECTION_LABELS: Record<string, string> = {
 const FIELD_LABELS: Record<string, Record<WebLocale, string>> = {
   sku: { vi: 'Mã hàng (SKU)', en: 'SKU', zh: '货号', ja: 'SKU', ko: 'SKU' },
   name: { vi: 'Tên sản phẩm', en: 'Name', zh: '名称', ja: '商品名', ko: '상품명' },
+  name_vi: { vi: 'Tên sản phẩm', en: 'Name', zh: '名称', ja: '商品名', ko: '상품명' },
+  display_name: { vi: 'Tên hiển thị', en: 'Display name', zh: '展示名', ja: '表示名', ko: '표시명' },
+  display_name_vi: { vi: 'Tên hiển thị', en: 'Display name', zh: '展示名', ja: '表示名', ko: '표시명' },
+  target_audience_suggestion_vi: {
+    vi: 'Gợi ý tư vấn',
+    en: 'Stylist note',
+    zh: '搭配建议',
+    ja: 'スタイリストメモ',
+    ko: '스타일 노트',
+  },
+  target_audience_suggestion: {
+    vi: 'Gợi ý tư vấn',
+    en: 'Stylist note',
+    zh: '搭配建议',
+    ja: 'スタイリストメモ',
+    ko: '스타일 노트',
+  },
   brand: { vi: 'Thương hiệu', en: 'Brand', zh: '品牌', ja: 'ブランド', ko: '브랜드' },
   origin: { vi: 'Xuất xứ', en: 'Origin', zh: '产地', ja: '原産地', ko: '원산지' },
   category: { vi: 'Danh mục', en: 'Category', zh: '类目', ja: 'カテゴリ', ko: '카테고리' },
@@ -97,6 +114,84 @@ const SPEC_WEB_PRIORITY_KEYS = [
   'occasion',
 ]
 const VARIANT_DISPLAY_PRIORITY = ['sizes', 'colors']
+const PRODUCT_NAME_KEYS = ['display_name_vi', 'display_name', 'name', 'name_vi', 'ten_san_pham']
+const CONSULT_SUGGESTION_KEYS = new Set([
+  'target_audience_suggestion_vi',
+  'target_audience_suggestion',
+  'target_audience_suggestion_en',
+  'goi_y_tu_van',
+  'stylist_note',
+  'suggestion_vi',
+])
+const PRODUCT_INFO_ROOT_KEYS = new Set([
+  'product_info',
+  'specifications',
+  'variants',
+  'target_audience',
+  'market_info',
+  'thong_tin_san_pham',
+  'thong_so_ky_thuat',
+  'phan_loai',
+  'doi_tuong_khach_hang',
+  'thong_tin_thi_truong',
+])
+
+function looksLikeJsonBlob(raw: string): boolean {
+  const t = raw.trim()
+  return (t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'))
+}
+
+export function isPdpProductInfoJsonBlob(raw: unknown): boolean {
+  const s = String(raw ?? '').trim()
+  if (!looksLikeJsonBlob(s)) return false
+  const parsed = parsePdpProductInfo(s)
+  if (!parsed) return false
+  return Object.keys(parsed).some((k) => PRODUCT_INFO_ROOT_KEYS.has(k))
+}
+
+function collectConsultSuggestions(val: unknown, out: string[]): void {
+  if (val == null) return
+  if (Array.isArray(val)) {
+    for (const item of val) collectConsultSuggestions(item, out)
+    return
+  }
+  if (typeof val !== 'object') return
+  for (const [key, child] of Object.entries(val as Record<string, unknown>)) {
+    if (CONSULT_SUGGESTION_KEYS.has(key) && typeof child === 'string' && isDisplayablePdpScalar(child)) {
+      out.push(child.trim())
+      continue
+    }
+    if (key === 'target_audience' && typeof child === 'string' && isDisplayablePdpScalar(child)) {
+      out.push(child.trim())
+      continue
+    }
+    collectConsultSuggestions(child, out)
+  }
+}
+
+/** Ô «Gợi ý tư vấn»: text thường giữ nguyên; JSON catalog 188 chỉ lấy câu đối tượng khách. */
+export function shopDisplayConsultNote(raw: unknown): string {
+  const s = String(raw ?? '').trim()
+  if (!s || !isDisplayablePdpScalar(s)) return ''
+  if (!looksLikeJsonBlob(s)) return s
+  const parsed = parsePdpProductInfo(s)
+  if (!parsed) return ''
+  const hits: string[] = []
+  collectConsultSuggestions(parsed, hits)
+  return [...new Set(hits.map((x) => x.trim()).filter(Boolean))].join(' ').trim()
+}
+
+function collapseProductInfoNameEntries(entries: [string, unknown][]): [string, unknown][] {
+  const nameEntries = entries.filter(([k, v]) => PRODUCT_NAME_KEYS.includes(k) && isDisplayablePdpScalar(v))
+  if (nameEntries.length < 2) return entries
+  const best = nameEntries
+    .map(([k, v]) => [k, displayablePdpText(v)] as const)
+    .sort((a, b) => b[1].length - a[1].length)[0]
+  if (!best?.[1]) return entries
+  return entries
+    .filter(([k]) => !PRODUCT_NAME_KEYS.includes(k))
+    .concat([['name', best[1]]])
+}
 
 export function isDisplayablePdpScalar(val: unknown): boolean {
   if (val === null || val === undefined) return false
@@ -276,6 +371,9 @@ export function pdpProductInfoHtml(
         const title = formatSectionLabel(sectionKey)
         if (typeof sectionVal === 'object' && !Array.isArray(sectionVal)) {
           let entries = Object.entries(sectionVal as Record<string, unknown>)
+          if (sectionKey === 'product_info' || sectionKey === 'thong_tin_san_pham') {
+            entries = collapseProductInfoNameEntries(entries)
+          }
           if (sectionKey === 'variants') {
             entries = entries.filter(([k]) => !VARIANT_TECH_KEYS.has(k))
             entries = orderVariantEntries(entries)
@@ -321,7 +419,7 @@ export function pdpProductInfoHtml(
 /** Mô tả PDP: HTML catalog (pro_content) hoặc text + xuống dòng. */
 export function pdpDescriptionBodyHtml(raw: string): string {
   const t = String(raw || '').trim()
-  if (!t) return ''
+  if (!t || isPdpProductInfoJsonBlob(t)) return ''
   if (!/<[a-z][\s\S]*>/i.test(t)) {
     return t
       .split(/\n{2,}/)

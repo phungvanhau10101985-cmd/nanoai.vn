@@ -213,11 +213,6 @@ ${chrome.header}
           <p style="font-weight:700;margin:0 0 8px;font-size:14px">${escapeHtml(t.colorLabel)}</p>
           <div class="pw-pdp-pills">${colorPills}</div>
         </div>
-        ${
-          p.consultNote
-            ? `<div data-pw-pdp-slot="consult" style="margin-top:16px;padding:12px;border-radius:12px;background:var(--pw-surface);border:1px solid var(--pw-border)"><p style="margin:0 0 6px;font-weight:700;font-size:13px">${escapeHtml(t.pdpConsultNoteTitle)}</p><p class="pw-shop-muted" style="margin:0">${escapeHtml(p.consultNote)}</p></div>`
-            : ''
-        }
         <div style="margin-top:16px">
           <p style="font-weight:700;margin:0 0 8px;font-size:14px">${escapeHtml(t.pdpQtyBuy)}</p>
           <div class="pw-pdp-qty" ${pwElAttr(PW_EL.qty)}><button type="button">−</button><span>1</span><button type="button">+</button></div>

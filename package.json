@@ -38,6 +38,8 @@
     "test:partner-website-parity:unit": "npm run test:partner-website-parity:unit:node && npm run test:partner-website-parity:unit:scene",
     "test:partner-website-parity:browser": "playwright test --config=playwright.partner-website.config.ts",
     "test:partner-website-parity": "npm run test:partner-website-parity:unit && npm run test:partner-website-parity:browser",
+    "pw:shot": "node scripts/pw-ai-screenshot.mjs",
+    "pw:shot:self-test": "node scripts/pw-ai-screenshot.mjs --self-test",
     "backfill:curriculum-lessons": "npx tsx scripts/backfill-curriculum-slides-lessons.ts",
     "backfill:curriculum-lesson-json": "npx tsx scripts/backfill-curriculum-lesson-json.ts",
     "normalize:curriculum-infographics": "npx tsx scripts/normalize-curriculum-infographics.ts",

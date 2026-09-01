@@ -34,6 +34,7 @@ import {
   type VisualEditorChromeWidgetKind,
 } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import { PW_SCENE_MAX_INDEX, pwSceneZ } from '@/lib/partner-website/visual-editor/pw-scene'
+import { stampHeaderLogoOffsetInHtml } from '@/lib/partner-website/shop/header-logo-offset'
 
 export const PW_CHROME_KIT_ATTR = 'data-pw-chrome-kit'
 export const PW_DOCK_SHOW_ATTR = 'data-pw-dock-show'
@@ -561,6 +562,9 @@ html:has([${PW_CHROME_KIT_ATTR}="dock"]) div.pw-pdp-sticky,
   justify-content:stretch!important;gap:0!important;min-height:${PW_DOCK_BAR_MIN_H.tablet}px!important;
   padding:6px 2px calc(6px + env(safe-area-inset-bottom,0px))!important;background:#fff!important;border-top:1px solid var(--pw-border,#e5e7eb)!important
 }
+.pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > [${PW_HIDDEN_ATTR}="1"],.pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > [${PW_HIDDEN_ATTR}="1"],
+html .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > a[${PW_HIDDEN_ATTR}="1"],html .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > a[${PW_HIDDEN_ATTR}="1"],
+html .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > button[${PW_HIDDEN_ATTR}="1"],html .pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > button[${PW_HIDDEN_ATTR}="1"]{display:none!important}
 .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > [${PW_CHROME_KIT_ATTR}="1"]:not([${PW_HIDDEN_ATTR}="1"]),.pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"] > [${PW_CHROME_KIT_ATTR}="1"]:not([${PW_HIDDEN_ATTR}="1"]){
   flex:1 1 0!important;min-width:0!important;max-width:none!important;width:auto!important
 }
@@ -1417,9 +1421,11 @@ export function ensurePartnerSiteChromeKitInHtml(
     device: input.device,
   })
 
-  return stripAuthorPinScreenInHtml(
-    pinMidCanvasTopChromeInHtml(
-      stripEscapedHeadChromeLeftoversInHtml(stripLeftoverPdpFaceOutsideDock(hoistViewportDockToBody(out)))
+  return stampHeaderLogoOffsetInHtml(
+    stripAuthorPinScreenInHtml(
+      pinMidCanvasTopChromeInHtml(
+        stripEscapedHeadChromeLeftoversInHtml(stripLeftoverPdpFaceOutsideDock(hoistViewportDockToBody(out)))
+      )
     )
   )
 }

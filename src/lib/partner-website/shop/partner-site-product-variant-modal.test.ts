@@ -68,6 +68,8 @@ test('shop-actions injects PDP variant modal before add-to-cart', () => {
   assert.match(script, /Thêm vào Giỏ hàng/)
   assert.match(script, /Số lượng \(hàng order\)/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /openPdpVariantModal/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /function variantImg/)
+  assert.doesNotMatch(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /shopImg\(/)
 })
 
 test('variant modal applies empty API size/color arrays instead of leftover DOM pills', () => {

@@ -416,6 +416,8 @@ ${PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS}
 .pw-pdp-hero-video[hidden]{display:none!important}
 .pw-pdp-hero-video-el,.pw-pdp-hero-video iframe,.pw-pdp-hero-video video{width:100%;height:100%;border:0;display:block;object-fit:contain;background:#111}
 .pw-pdp-hero-img.pw-pdp-hero-img-hidden,.pw-shop-product-img.pw-pdp-hero-img-hidden{display:none!important}
+[data-pw-pdp-img-broken="1"]{display:none!important}
+[data-pw-pdp-slot="consult"]{display:none!important}
 .pw-pdp-hero{display:none;position:relative;background:var(--pw-surface)}
 .pw-pdp-hero-img{width:100%;display:block;aspect-ratio:3/4;object-fit:cover;background:var(--pw-surface);cursor:zoom-in;touch-action:pan-y}
 .pw-pdp-hero-count{position:absolute;top:12px;right:12px;z-index:1;padding:4px 10px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;font-weight:600;tabular-nums}

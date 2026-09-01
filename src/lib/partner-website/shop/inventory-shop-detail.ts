@@ -1,5 +1,6 @@
 import { is1688ImageUrl, normalizeAlicdnImageUrl } from '@/lib/fetch-image-1688'
 import { rewriteAllMessagingCdnUrls } from '@/lib/shop188-cdn-url'
+import { isPdpProductInfoJsonBlob } from '@/lib/partner-website/shop/pdp-product-info-html'
 
 export type InventoryShopSourceRow = {
   image_url?: string | null
@@ -116,6 +117,73 @@ export function shopCardDisplaySrc(raw: string | null | undefined): string {
   return display
 }
 
+/** PDP / lightbox — URL gốc, không ép `_600x600q90` (suffix đó hay 404 trên AliCDN). */
+export function shopPdpDisplaySrc(raw: string | null | undefined): string {
+  const url = normalizeShopImageUrl(raw).replace(/_\d+x\d+q\d+\.jpg$/i, '')
+  if (!url) return ''
+  if (url.startsWith('/')) return url
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    if (host === 'img.alicdn.com' || host === 'gw.alicdn.com') return url
+    if (is1688ImageUrl(url)) return `/api/fetch-image?url=${encodeURIComponent(url)}`
+  } catch {
+    /* keep url */
+  }
+  return url
+}
+
+/** Bước thử lại khi `<img>` lỗi: bỏ cỡ thẻ, rồi proxy 1688/AliCDN. Hết thì ẩn. */
+export function nextShopImageRetrySrc(currentSrc: string): string | null {
+  const src = String(currentSrc || '').trim()
+  if (!src) return null
+  if (/_\d+x\d+q\d+\.jpg$/i.test(src)) return src.replace(/_\d+x\d+q\d+\.jpg$/i, '')
+  if (!src.startsWith('/api/fetch-image') && /alicdn\.com|1688\.com|alibaba\.com/i.test(src)) {
+    return `/api/fetch-image?url=${encodeURIComponent(src)}`
+  }
+  return null
+}
+
+export const PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS = `function nextShopImageRetrySrc(src){
+  src=String(src||'').trim();
+  if(!src)return '';
+  if(/_\\d+x\\d+q\\d+\\.jpg$/i.test(src))return src.replace(/_\\d+x\\d+q\\d+\\.jpg$/i,'');
+  if(src.indexOf('/api/fetch-image')!==0&&/alicdn\\.com|1688\\.com|alibaba\\.com/i.test(src)){
+    return '/api/fetch-image?url='+encodeURIComponent(src);
+  }
+  return '';
+}
+function hideBrokenPdpImgs(root){
+  var scope=root||document;
+  var imgs=scope.querySelectorAll('[data-pw-region="gallery"] img,img[data-pw-el="main-image"],[data-pw-pdp-slot="detail-images"] img,[data-pw-pdp-slot="material"] img,[data-pw-pdp-slot="real-use"] img,[data-pw-pdp-slot="size-guide"] img,[data-pw-pdp-option="color"] img,[data-pw-variant-modal] img,.pw-pdp-detail-photos img,.pw-shop-detail-grid img');
+  for(var i=0;i<imgs.length;i++){
+    (function(imgEl){
+      if(imgEl.getAttribute('data-pw-pdp-img-watch')==='1')return;
+      imgEl.setAttribute('data-pw-pdp-img-watch','1');
+      function hide(){
+        imgEl.setAttribute('data-pw-pdp-img-broken','1');
+        imgEl.hidden=true;
+        imgEl.style.display='none';
+        var thumb=imgEl.closest('[data-pw-el="thumb"],.pw-shop-product-thumb,.pw-pdp-hero-thumbs button,.pw-pdp-color');
+        if(thumb){thumb.setAttribute('data-pw-pdp-img-broken','1');thumb.hidden=true;thumb.style.display='none';}
+        var slot=imgEl.closest('[data-pw-pdp-slot="detail-images"],[data-pw-pdp-slot="material"],[data-pw-pdp-slot="real-use"],[data-pw-pdp-slot="size-guide"]');
+        if(slot&&!slot.querySelector('img:not([data-pw-pdp-img-broken])'))slot.setAttribute('data-pw-pdp-img-broken','1');
+      }
+      function retryOrHide(){
+        if(imgEl.getAttribute('data-pw-pdp-img-broken')==='1')return;
+        var next=nextShopImageRetrySrc(imgEl.getAttribute('src')||imgEl.currentSrc||'');
+        if(next&&imgEl.getAttribute('data-pw-img-retry')!=='1'){
+          imgEl.setAttribute('data-pw-img-retry','1');
+          imgEl.setAttribute('src',next);
+          return;
+        }
+        hide();
+      }
+      imgEl.addEventListener('error',retryOrHide);
+      if(imgEl.complete&&imgEl.naturalWidth===0&&(imgEl.currentSrc||imgEl.getAttribute('src')))retryOrHide();
+    })(imgs[i]);
+  }
+}`
+
 /** Injected catalog/outfit/personalize bootstrap — same rewrite as shopCardDisplaySrc. */
 export const PW_SHOP_CARD_IMG_JS = `function shopImg(p){
   function first(arr){
@@ -153,8 +221,10 @@ export function inventoryShopDetailDescription(row: {
   consult_note?: string | null
 }): string {
   const desc = (row.description ?? '').trim()
-  if (desc && !desc.startsWith('[')) return desc
-  return (row.consult_note ?? '').trim()
+  if (desc && !desc.startsWith('[') && !isPdpProductInfoJsonBlob(desc)) return desc
+  const consult = (row.consult_note ?? '').trim()
+  if (!consult || isPdpProductInfoJsonBlob(consult)) return ''
+  return consult
 }
 
 function pushShopImageUrl(out: string[], seen: Set<string>, raw: string): void {

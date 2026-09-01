@@ -10,7 +10,7 @@ import {
   isPartnerFlashSaleActive,
   resolvePartnerEffectiveUnitPrice,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
-import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { shopPdpDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   buildOutfitProductsSectionHtml,
@@ -258,8 +258,8 @@ function replaceElInner(
 }
 
 function productImages(product: LivePdpBindProduct): string[] {
-  const gallery = (product.galleryImages ?? []).map((url) => shopCardDisplaySrc(url)).filter(Boolean)
-  const hero = shopCardDisplaySrc(product.imageUrl)
+  const gallery = (product.galleryImages ?? []).map((url) => shopPdpDisplaySrc(url)).filter(Boolean)
+  const hero = shopPdpDisplaySrc(product.imageUrl)
   const seen = new Set<string>()
   const out: string[] = []
   for (const url of [hero, ...gallery]) {
@@ -582,7 +582,7 @@ export function buildPdpDetailTabsHtml(product: LivePdpBindProduct, locale: WebL
   const t = getPartnerSiteShopCopy(locale)
   const name = product.name || 'Product'
   const desc = pdpDescriptionBodyHtml(String(product.detailDescription || product.description || '').trim())
-  const details = (product.detailImages ?? []).map((url) => shopCardDisplaySrc(url)).filter(Boolean)
+  const details = (product.detailImages ?? []).map((url) => shopPdpDisplaySrc(url)).filter(Boolean)
   const detailImgs = details
     .map(
       (url) =>
@@ -628,7 +628,7 @@ function colorVariantInner(colors: LivePdpBindColor[], locale: WebLocale): strin
   const pills = colors
     .map((c, i) => {
       const name = String(c.name || '').trim()
-      const img = shopCardDisplaySrc(c.img)
+      const img = shopPdpDisplaySrc(c.img)
       const face = img
         ? `<img src="${escAttr(img)}" alt="${escAttr(name)}" />`
         : escText(name)
@@ -1143,16 +1143,8 @@ function ensureMissingPdpSlots(
       `$1${block}`
     )
   }
+  // Buy-box «Gợi ý tư vấn» ẩn — consult_note chỉ dùng tab Thông tin + chat.
   out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'consult')
-  const consult = String(product.consultNote || '').trim()
-  if (consult) {
-    const box = `<div data-pw-pdp-slot="consult" style="margin-top:16px;padding:12px;border-radius:12px;background:var(--pw-surface);border:1px solid var(--pw-border)"><p style="margin:0 0 6px;font-weight:700;font-size:13px">${escText(t.pdpConsultNoteTitle)}</p><p class="pw-shop-muted" style="margin:0">${escText(consult)}</p></div>`
-    if (/\bdata-pw-el=["']qty["']/.test(out)) {
-      out = out.replace(/(<([a-z0-9]+)\b[^>]*\bdata-pw-el=["']qty["'][^>]*>)/i, `${box}$1`)
-    } else {
-      out = insertBeforeMainClose(out, box)
-    }
-  }
   out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'deposit')
   if (product.depositPolicy) {
     const note = `<p class="pw-shop-muted" data-pw-pdp-slot="deposit" style="margin-top:12px;font-size:13px">${escText(t.depositPolicyNote)}</p>`
@@ -1189,7 +1181,7 @@ function ensureMissingPdpSlots(
       '$1 hidden style="display:none">'
     )
   }
-  const material = shopCardDisplaySrc(product.materialImageUrl)
+  const material = shopPdpDisplaySrc(product.materialImageUrl)
   if (material && !hasSlot(out, 'material')) {
     const block = `<div data-pw-pdp-slot="material"><h2>${escText(t.pdpMaterialImagesTitle)}</h2><div class="pw-shop-detail-grid"><img src="${escAttr(material)}" alt="${escAttr(name)}" /></div></div>`
     if (/class=["'][^"']*\bpw-shop-product-detail\b/.test(out)) {
@@ -1199,7 +1191,7 @@ function ensureMissingPdpSlots(
       )
     }
   }
-  const realUse = (product.realUseImageUrls ?? []).map((u) => shopCardDisplaySrc(u)).filter(Boolean)
+  const realUse = (product.realUseImageUrls ?? []).map((u) => shopPdpDisplaySrc(u)).filter(Boolean)
   if (realUse.length && !hasSlot(out, 'real-use')) {
     const imgs = realUse
       .map((url) => `<img src="${escAttr(url)}" alt="${escAttr(name)}" />`)

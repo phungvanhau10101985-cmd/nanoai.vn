@@ -60,6 +60,22 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('{display:none!important}'), true)
   assert.equal(once.includes('.pw-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"][data-pw-hidden="1"]'), true)
   assert.equal(once.includes('[data-pw-chrome-style="icon-label-below"]:not([data-pw-hidden="1"])'), true)
+  assert.equal(
+    once.includes('.pw-bottom-nav>a:not([data-pw-pdp-home]):not([data-pw-dock-show="pdp"]):not([data-pw-hidden="1"])'),
+    true
+  )
+  assert.equal(
+    once.includes('.pw-bottom-nav>a:not([data-pw-pdp-home]):not([data-pw-dock-show="pdp"]){'),
+    false
+  )
+  assert.equal(
+    once.includes("if(el.getAttribute&&el.getAttribute('data-pw-hidden')==='1')return"),
+    true
+  )
+  assert.equal(
+    once.includes('html .pw-bottom-nav[data-pw-chrome-kit="dock"] > a[data-pw-hidden="1"]'),
+    true
+  )
   assert.equal(once.includes('.pw-pdp-actions [data-pw-chrome-btn]'), true)
   assert.equal(once.includes(':not([data-pw-chrome-added]):not([data-pw-stay-scroll])'), true)
   assert.equal(once.includes('z-index:9999!important'), true)
@@ -262,7 +278,8 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes("el.style.setProperty('margin-left','auto','important')"), false)
   assert.equal(once.includes('min-width:180px!important'), true)
   assert.equal(once.includes('max-width:380px!important'), true)
-  assert.equal(once.includes('left:calc(50% - 190px - 50px)!important'), true)
+  assert.equal(once.includes('left:calc(50% - 190px - 50px + var(--pw-logo-x, 0px))!important'), true)
+  assert.equal(once.includes('top:calc(50% + var(--pw-logo-y, 0px))!important'), true)
   assert.equal(once.includes('transform:translate(-100%, -50%)!important'), true)
   assert.equal(once.includes('margin-right:calc(190px + 50px)!important'), false)
   assert.equal(once.includes('flex:1 1 0%!important'), true)

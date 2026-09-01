@@ -425,6 +425,12 @@ describe('partner-site-chrome-kit', () => {
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('pw-pdp-sticky-nav')
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('.pw-pdp-sticky-nav [data-pw-hidden="1"]')
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
+      '.pw-bottom-nav[data-pw-chrome-kit="dock"] > [data-pw-hidden="1"]'
+    )
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
+      'html .pw-bottom-nav[data-pw-chrome-kit="dock"] > a[data-pw-hidden="1"]'
+    )
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
       'html:has([data-pw-chrome-kit="dock"]) nav.pw-pdp-sticky:not([data-pw-chrome-kit])'
     )
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(

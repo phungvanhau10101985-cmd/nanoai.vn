@@ -95,6 +95,13 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain("if (bar === 'float')")
     expect(s).toContain('function chromeKitFloatBtnsOf')
     expect(s).toContain("if (bar === 'float' && el.getAttribute('data-pw-hidden') === '1') return")
+    expect(s).toContain("if (kid.getAttribute('data-pw-hidden') === '1') continue")
+    expect(s).toContain(
+      '.pw-bottom-nav > a:not([data-pw-pdp-home]):not([data-pw-dock-show=\\"pdp\\"])[data-pw-hidden=\\"1\\"]'
+    )
+    expect(s).toContain(
+      '.pw-bottom-nav [data-pw-chrome-added][data-pw-device="mobile"]:not([data-pw-hidden="1"])'
+    )
     expect(s).toContain('revealChromeFloat(el)')
     expect(s).toContain('__pwChromeFloatSync')
     expect(s).toContain('__pwMobileHeadLogoSync')
@@ -141,6 +148,10 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('.pw-pdp-sticky-nav [data-pw-chrome-btn')
     expect(s).toContain("pk !== 'product_detail'")
     expect(s).toContain('setChromeKitShift')
+    expect(s).toContain('setHeaderLogoOffset')
+    expect(s).toContain('data-pw-logo-x')
+    expect(s).toContain("drag.mode = 'logo-slot'")
+    expect(s).toContain('logoX:')
     expect(s).toContain('setChromeKitGap')
     expect(s).toContain('data-pw-kit-gap')
     expect(s).toContain('headGap:')
@@ -913,8 +924,11 @@ describe('visual-editor runtime script', () => {
       '.pw-header-actions [data-pw-chrome-kit=\\"1\\"][data-pw-chrome-style=\\"icon-label-below\\"][data-pw-hidden=\\"1\\"]'
     const belowFace =
       '[data-pw-chrome-style=\\"icon-label-below\\"]:not([data-pw-hidden=\\"1\\"])'
+    const hiddenDockBeat =
+      '.pw-bottom-nav[data-pw-chrome-kit=\\"dock\\"] > a[data-pw-hidden=\\"1\\"]'
     expect(s).toContain(hiddenKitBeat)
     expect(s).toContain(belowFace)
+    expect(s).toContain(hiddenDockBeat)
     expect(s.lastIndexOf(hiddenKitBeat)).toBeGreaterThan(s.lastIndexOf(belowFace))
     expect(s).toContain('dedupeHeaderLogos')
     expect(s).toContain('keepFrame')
@@ -991,9 +1005,11 @@ describe('visual-editor header logo geometry is settled while editing', () => {
     expect(s).toContain('Math.min(headerLogoDeviceWidth(), Math.round(viewW))')
   })
 
-  it('snaps a dropped float logo back inside the header on mouse up', () => {
+  it('keeps header logo in the brand slot after drag, writing per-device offset', () => {
     expect(s).toContain('bakeHeaderLogoPlacement')
-    expect(s).toContain('pinHeaderLogoFloat(unit, { x: r.left, y: r.top, w: r.width, h: r.height })')
+    expect(s).toContain('keepHeaderLogoInDefaultSlot(logoImgOf(el) || el)')
+    expect(s).toContain("drag.mode = 'logo-slot'")
+    expect(s).not.toContain('pinHeaderLogoFloat(unit, { x: r.left, y: r.top, w: r.width, h: r.height })')
   })
 })
 
