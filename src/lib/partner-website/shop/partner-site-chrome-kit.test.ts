@@ -19,6 +19,7 @@ import {
   clampChromeKitGap,
   clampChromeKitShift,
   ensurePartnerSiteChromeKitInHtml,
+  stripDuplicateHeadKitKindsInHtml,
   stripEscapedHeadChromeLeftoversInHtml,
   isChromeKitPickerKind,
   isMidCanvasFlowChromeKind,
@@ -690,6 +691,54 @@ describe('partner-site-chrome-kit', () => {
     expect(viaEnsure).not.toContain('favorites-link')
     expect(viaEnsure).not.toContain('pw-topbar-inner')
     expect(viaEnsure).toContain('data-pw-chrome-btn="stores"')
+  })
+
+  it('drops a duplicate laptop header cart so hide/show lists one Giỏ hàng', () => {
+    const html = `<!DOCTYPE html><html><body>
+<header class="pw-header">
+  <div class="pw-header-actions">
+    <a data-pw-chrome-btn="cart" data-pw-chrome-kit="1" data-pw-chrome-style="icon-label-below" href="/cart">Giỏ kit</a>
+  </div>
+  <div class="pw-header-actions">
+    <a data-pw-chrome-btn="cart" data-pw-chrome-style="icon-label-below" href="/cart">Giỏ leftover</a>
+  </div>
+</header>
+<aside data-pw-chrome-kit="float"><a data-pw-chrome-btn="chat" data-pw-chrome-float="1">Chat mua</a></aside>
+</body></html>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, {
+      locale: 'vi',
+      siteSlug: 'demo-shop',
+      device: 'laptop',
+    })
+    const header = next.match(/<header\b[\s\S]*?<\/header>/i)?.[0] || ''
+    expect(header.match(/data-pw-chrome-btn="cart"/g)).toHaveLength(1)
+    expect(header).toContain('Giỏ kit')
+    expect(header).not.toContain('Giỏ leftover')
+    expect(header.match(/pw-header-actions/g)).toHaveLength(1)
+    expect(next).toContain('data-pw-chrome-float="1"')
+    expect(next).toContain('Chat mua')
+  })
+
+  it('keeps the kit cart when two carts sit in the same header-actions', () => {
+    const html = `<header class="pw-header"><div class="pw-header-actions">
+      <a data-pw-chrome-btn="cart" href="/cart">Leftover</a>
+      <a data-pw-chrome-btn="cart" data-pw-chrome-kit="1" data-pw-chrome-style="icon-label-below" href="/cart">Kit</a>
+    </div></header>`
+    const next = stripDuplicateHeadKitKindsInHtml(html)
+    expect(next.match(/data-pw-chrome-btn="cart"/g)).toHaveLength(1)
+    expect(next).toContain('Kit')
+    expect(next).not.toContain('Leftover')
+  })
+
+  it('does not drop a hidden kit cart in favor of a leftover duplicate', () => {
+    const html = `<header class="pw-header"><div class="pw-header-actions">
+      <a data-pw-chrome-btn="cart" data-pw-hidden="1" data-pw-chrome-kit="1" href="/cart">Kit ẩn</a>
+      <a data-pw-chrome-btn="cart" href="/cart">Leftover hiện</a>
+    </div></header>`
+    const next = stripDuplicateHeadKitKindsInHtml(html)
+    expect(next.match(/data-pw-chrome-btn="cart"/g)).toHaveLength(1)
+    expect(next).toContain('Kit ẩn')
+    expect(next).not.toContain('Leftover hiện')
   })
 
   it('strips leftover pin-to-screen but keeps chrome float kit', () => {

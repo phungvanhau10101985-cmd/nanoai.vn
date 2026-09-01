@@ -400,11 +400,134 @@ function stripHidden(attrs: string): string {
   return next
 }
 
+function dropClassBlocks(html: string, className: string): string {
+  const masked = maskHtmlForTagScan(html)
+  const escaped = className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const openRe = new RegExp(`<([a-z0-9]+)\\b(?=[^>]*\\bclass=["'][^"']*\\b${escaped}\\b)[^>]*>`, 'gi')
+  const chunks: Array<{ start: number; end: number }> = []
+  let match: RegExpExecArray | null
+  while ((match = openRe.exec(masked))) {
+    const tag = (match[1] || 'div').toLowerCase()
+    const start = match.index
+    const openEnd = start + match[0].length
+    const close = closingTagIndex(masked, openEnd, tag)
+    if (close < 0) continue
+    const closeTok = html.slice(close).match(new RegExp(`^</${tag}\\s*>`, 'i'))
+    const end = close + (closeTok?.[0].length ?? `</${tag}>`.length)
+    openRe.lastIndex = end
+    chunks.push({ start, end })
+  }
+  if (!chunks.length) return html
+  let out = ''
+  let cursor = 0
+  for (const chunk of chunks) {
+    out += html.slice(cursor, chunk.start)
+    cursor = chunk.end
+  }
+  return out + html.slice(cursor)
+}
+
+function stripGalleryVariantLeftovers(inner: string): string {
+  let out = dropAttrBlocks(inner, 'data-pw-el', PW_EL.variant)
+  out = dropAttrBlocks(out, 'data-pw-pdp-option', 'color')
+  return dropAttrBlocks(out, 'data-pw-pdp-option', 'size')
+}
+
+/** Generic shop copy / leftover demo line-total — not live inventory. */
+function stripPdpBuyBoxBoilerplate(html: string): string {
+  let out = html.replace(
+    /<p\b[^>]*>[\s\S]*?<\/p>\s*<ul\b[^>]*\bpw-pdp-notes\b[^>]*>[\s\S]*?<\/ul>/gi,
+    ''
+  )
+  out = dropClassBlocks(out, 'pw-pdp-notes')
+  out = dropClassBlocks(out, 'pw-pdp-total')
+  out = dropClassBlocks(out, 'pw-pdp-policy')
+  return out
+}
+
+function findBuyBoxBounds(html: string): { openEnd: number; close: number } | null {
+  const masked = maskHtmlForTagScan(html)
+  const preferred = /<([a-z0-9]+)\b(?=[^>]*\bpw-shop-pdp-info\b)[^>]*>/i.exec(masked)
+  const fallback = preferred
+    ? null
+    : /<([a-z0-9]+)\b(?=[^>]*\bdata-pw-region=["']pdp-info["'])(?![^>]*\bpw-shop-product-detail\b)[^>]*>/i.exec(
+        masked
+      )
+  const match = preferred || fallback
+  if (!match) return null
+  const tag = (match[1] || 'div').toLowerCase()
+  const openEnd = match.index + match[0].length
+  const close = closingTagIndex(masked, openEnd, tag)
+  if (close < 0) return null
+  return { openEnd, close }
+}
+
+function collectOptionBlocks(
+  html: string
+): Array<{ start: number; end: number; kind: 'color' | 'size'; html: string }> {
+  const masked = maskHtmlForTagScan(html)
+  const openRe = /<([a-z0-9]+)\b(?=[^>]*\bdata-pw-pdp-option=["'](color|size)["'])[^>]*>/gi
+  const blocks: Array<{ start: number; end: number; kind: 'color' | 'size'; html: string }> = []
+  let match: RegExpExecArray | null
+  while ((match = openRe.exec(masked))) {
+    const tag = (match[1] || 'div').toLowerCase()
+    const kind = (match[2] === 'color' ? 'color' : 'size') as 'color' | 'size'
+    const start = match.index
+    const openEnd = start + match[0].length
+    const close = closingTagIndex(masked, openEnd, tag)
+    if (close < 0) continue
+    const closeTok = html.slice(close).match(new RegExp(`^</${tag}\\s*>`, 'i'))
+    const end = close + (closeTok?.[0].length ?? `</${tag}>`.length)
+    openRe.lastIndex = end
+    blocks.push({ start, end, kind, html: html.slice(start, end) })
+  }
+  return blocks
+}
+
+function insertHtmlBeforeBuyControls(inner: string, chunk: string): string {
+  if (/\bdata-pw-el=["']qty["']/.test(inner)) {
+    return inner.replace(/(<([a-z0-9]+)\b[^>]*\bdata-pw-el=["']qty["'][^>]*>)/i, `${chunk}$1`)
+  }
+  if (/\bpw-pdp-actions\b/.test(inner)) {
+    return inner.replace(/(<[^>]*\bpw-pdp-actions\b[^>]*>)/i, `${chunk}$1`)
+  }
+  return `${inner}${chunk}`
+}
+
+/** Color/size that leaked under the gallery (grid sibling or inside thumbs) → buy box. */
+function rehomeEscapedPdpOptionsIntoBuyBox(html: string): string {
+  const buy = findBuyBoxBounds(html)
+  if (!buy) return html
+  const blocks = collectOptionBlocks(html)
+  if (!blocks.length) return html
+  const escaped = blocks.filter((b) => b.start < buy.openEnd || b.start >= buy.close)
+  if (!escaped.length) return html
+  const buyInner = html.slice(buy.openEnd, buy.close)
+  const keep: string[] = []
+  const seen = new Set<'color' | 'size'>()
+  if (/data-pw-pdp-option=["']color["']/.test(buyInner)) seen.add('color')
+  if (/data-pw-pdp-option=["']size["']/.test(buyInner)) seen.add('size')
+  for (const block of escaped) {
+    if (seen.has(block.kind)) continue
+    seen.add(block.kind)
+    keep.push(block.html)
+  }
+  let out = html
+  for (const block of [...escaped].sort((a, b) => b.start - a.start)) {
+    out = out.slice(0, block.start) + out.slice(block.end)
+  }
+  if (!keep.length) return out
+  const nextBuy = findBuyBoxBounds(out)
+  if (!nextBuy) return out
+  const nextInner = insertHtmlBeforeBuyControls(out.slice(nextBuy.openEnd, nextBuy.close), keep.join(''))
+  return out.slice(0, nextBuy.openEnd) + nextInner + out.slice(nextBuy.close)
+}
+
 function rewriteGalleryInner(inner: string, product: LivePdpBindProduct): string {
   const images = productImages(product)
   const main = images[0] || ''
   const name = product.name || 'Product'
-  let out = inner.replace(/<img\b([^>]*)>/gi, (full, attrs: string) => {
+  let out = stripGalleryVariantLeftovers(inner).replace(/<img\b([^>]*)>/gi, (full, attrs: string) => {
     if (/\bdata-pw-el=["']thumb["']/.test(attrs)) return full
     const isMain =
       /\bdata-pw-el=["']main-image["']/.test(attrs) ||
@@ -714,14 +837,14 @@ function rewriteVariantBlocks(inner: string, product: LivePdpBindProduct, locale
     return `${stampPdpOption(open, 'size')}${sizeVariantInner(sizes, locale)}`
   })
   const inject: string[] = []
-  if (sizes.length && !sizeDone) {
-    inject.push(
-      `<div style="margin-top:16px" data-pw-el="${PW_EL.variant}" data-pw-pdp-option="size">${sizeVariantInner(sizes, locale)}</div>`
-    )
-  }
   if (colors.length && !colorDone) {
     inject.push(
       `<div style="margin-top:16px" data-pw-el="${PW_EL.variant}" data-pw-pdp-option="color">${colorVariantInner(colors, locale)}</div>`
+    )
+  }
+  if (sizes.length && !sizeDone) {
+    inject.push(
+      `<div style="margin-top:16px" data-pw-el="${PW_EL.variant}" data-pw-pdp-option="size">${sizeVariantInner(sizes, locale)}</div>`
     )
   }
   if (!inject.length) return out
@@ -739,7 +862,12 @@ function rewriteVariantBlocks(inner: string, product: LivePdpBindProduct, locale
   return `${out}${chunk}`
 }
 
-function rewritePdpInfoInner(inner: string, product: LivePdpBindProduct, locale: WebLocale): string {
+function rewritePdpInfoInner(
+  inner: string,
+  product: LivePdpBindProduct,
+  locale: WebLocale,
+  opts?: { variants?: boolean }
+): string {
   const name = escText(product.name || 'Product')
   const sku = String(product.sku || '').trim()
   const descHtml = pdpDescriptionBodyHtml(String(product.detailDescription || product.description || '').trim())
@@ -799,6 +927,7 @@ function rewritePdpInfoInner(inner: string, product: LivePdpBindProduct, locale:
     })
   }
   if (compare) out = replaceElInner(out, PW_EL.comparePrice, escText(compare))
+  if (opts?.variants === false) return out
   return rewriteVariantBlocks(out, product, locale)
 }
 
@@ -1274,12 +1403,15 @@ export function bindLiveProductToPdpHtml(
     return `${stampInventoryIdOnTag(open, id)}${rewriteGalleryInner(inner, product)}`
   })
   out = replaceRegionBlocks(out, PW_REGION.pdpInfo, (inner, open) => {
-    return `${stampInventoryIdOnTag(open, id)}${rewritePdpInfoInner(inner, product, locale)}`
+    const variants = !/\bpw-shop-product-detail\b/.test(open)
+    return `${stampInventoryIdOnTag(open, id)}${rewritePdpInfoInner(inner, product, locale, { variants })}`
   })
   out = replaceRegionBlocks(out, PW_REGION.reviews, (inner, open) => {
     if (/id=["']pw-pdp-qa["']|data-pw-pdp-slot=["']qa["']/.test(open)) return `${open}${inner}`
     return `${open}${rewriteReviewsInner(inner, product)}`
   })
+  out = rehomeEscapedPdpOptionsIntoBuyBox(out)
+  out = stripPdpBuyBoxBoilerplate(out)
   out = replaceRegionBlocks(out, PW_REGION.catalog, (inner, open) => {
     if (isOutfitCatalogOpenTag(open)) {
       return `${stampOutfitOpenTag(open, product)}${rewriteCatalogOutfitInner(inner, product, siteSlug)}`

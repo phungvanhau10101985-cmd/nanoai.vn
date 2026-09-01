@@ -1,6 +1,8 @@
 /**
- * Header logo offset — per-device X/Y from the default slot.
- * Stored on `.pw-brand` in that device's HTML. Chrome sync copies same-device only.
+ * Header / footer logo offset — per-slot, per-device X/Y from the default slot.
+ * Stored on that slot's `<a>` in that device's HTML.
+ * Chrome sync copies header → every header and footer → every footer on the same machine.
+ * Header offset never writes onto footer, and the reverse.
  */
 
 export const PW_LOGO_X_ATTR = 'data-pw-logo-x'
@@ -74,4 +76,28 @@ export function stampHeaderLogoOffsetInHtml(html: string): string {
       return `<a${withBrandLogoOffsetStyle(attrs)}>`
     })
   )
+}
+
+function isFooterLogoAnchorAttrs(attrs: string): boolean {
+  return /\bdata-pw-el=["']logo["']/i.test(attrs) || /\bpw-shop-footer-logo\b/i.test(attrs)
+}
+
+/** Stamp `--pw-logo-*` on footer brand links only — never the header brand. */
+export function stampFooterLogoOffsetInHtml(html: string): string {
+  if (!html || !/<footer\b/i.test(html)) return html
+  return html.replace(/<footer\b[^>]*>[\s\S]*?<\/footer>/gi, (block) => {
+    let next = block.replace(
+      /<a\b([^>]*)>(\s*<img\b[^>]*\bpw-shop-footer-logo\b)/gi,
+      (_m, attrs: string, rest: string) => `<a${withBrandLogoOffsetStyle(attrs)}>${rest}`
+    )
+    next = next.replace(/<a\b([^>]*)>/gi, (full, attrs: string) => {
+      if (!isFooterLogoAnchorAttrs(attrs)) return full
+      return `<a${withBrandLogoOffsetStyle(attrs)}>`
+    })
+    return next
+  })
+}
+
+export function stampChromeLogoOffsetInHtml(html: string): string {
+  return stampFooterLogoOffsetInHtml(stampHeaderLogoOffsetInHtml(html))
 }

@@ -14,10 +14,33 @@ export function htmlHasPartnerVisualChrome(html: string): boolean {
   )
 }
 
+function visualHtmlVisibleText(html: string): string {
+  const body = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1] ?? html
+  return body
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Trang chữ (Điều khoản / bảo mật…) — có bài, không bắt buộc header/banner. */
+export function visualHtmlHasInfoArticleContent(html: string): boolean {
+  const source = html.trim()
+  if (source.length < 40) return false
+  const marked =
+    /\bdata-pw-page=["']info["']/i.test(source) ||
+    /\bdata-pw-(?:info-article|text-article|info-body|info-title)=/i.test(source) ||
+    /\bclass=["'][^"']*\bpw-shop-info\b/i.test(source)
+  if (!marked) return false
+  return visualHtmlVisibleText(source).length >= 12
+}
+
 /**
  * HTML that is safe to freeze into Sửa nhanh. A `data-pw-page` + empty `<main>`
  * is "usable" for storage checks but must not lock the editor on a white canvas.
  * Blank-white canvas still qualifies via footer / paper.
+ * Info/policy articles qualify by body copy — they often have no hero/catalog.
  */
 export function visualHtmlLooksCompleteForEditor(html: string): boolean {
   const source = html.trim()
@@ -27,6 +50,7 @@ export function visualHtmlLooksCompleteForEditor(html: string): boolean {
   if (/\bdata-pw-paper=/i.test(source)) return true
   if (/\bdata-pw-region=["'](banner|catalog|categories|gallery|pdp-info)["']/i.test(source)) return true
   if (/\bclass=["'][^"']*\bpw-header\b/i.test(source)) return true
+  if (visualHtmlHasInfoArticleContent(source)) return true
   return false
 }
 

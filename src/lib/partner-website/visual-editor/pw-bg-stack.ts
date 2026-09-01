@@ -16,6 +16,8 @@ export const PW_BG_CLEARED_CSS = [
 /** Ảnh nền cover — mọi khối nền (main / header / footer / Thêm nền). Sửa nhanh ghi; live đọc. */
 export const PW_PAPER_ATTR = 'data-pw-paper'
 export const PW_PAPER_SRC_ATTR = 'data-pw-paper-src'
+/** Ảnh nhỏ hơn nền đáy → lặp (tile) cho trải đủ. */
+export const PW_PAPER_TILE_ATTR = 'data-pw-paper-tile'
 /** Trọng tâm ảnh nền 0–100. Live đọc CSS var; không khóa center. */
 export const PW_PAPER_POS_X_ATTR = 'data-pw-paper-pos-x'
 export const PW_PAPER_POS_Y_ATTR = 'data-pw-paper-pos-y'
@@ -23,10 +25,98 @@ export const PW_PAPER_POS_Y_ATTR = 'data-pw-paper-pos-y'
 export const PW_LAST_MEDIA_SRC_ATTR = 'data-pw-last-media-src'
 export const PW_MEDIA_HIDDEN_ATTR = 'data-pw-media-hidden'
 export const PW_PAPER_CSS = [
-  `html [${PW_PAPER_ATTR}="image"]{--pw-paper-pos-x:50%;--pw-paper-pos-y:50%;background-size:cover!important;background-position:var(--pw-paper-pos-x,50%) var(--pw-paper-pos-y,50%)!important;background-repeat:no-repeat!important}`,
+  `html [${PW_PAPER_ATTR}="image"]:not([${PW_PAPER_TILE_ATTR}="1"]){--pw-paper-pos-x:50%;--pw-paper-pos-y:50%;background-size:cover!important;background-position:var(--pw-paper-pos-x,50%) var(--pw-paper-pos-y,50%)!important;background-repeat:no-repeat!important}`,
+  `html [${PW_PAPER_ATTR}="image"][${PW_PAPER_TILE_ATTR}="1"]{background-size:auto!important;background-repeat:repeat!important;background-position:var(--pw-paper-pos-x,0%) var(--pw-paper-pos-y,0%)!important}`,
   `html [${PW_PAPER_ATTR}="white"]{background-image:none!important}`,
   `html [${PW_MEDIA_HIDDEN_ATTR}="1"]{opacity:0!important;visibility:hidden!important;pointer-events:none!important}`,
 ].join('')
+
+/** Ảnh gốc nhỏ hơn khung (rộng hoặc cao) → nhân bản trải nền đáy. */
+export function paperImageNeedsTile(naturalW: number, naturalH: number, hostW: number, hostH: number): boolean {
+  if (!(naturalW > 0 && naturalH > 0 && hostW > 8 && hostH > 8)) return false
+  return naturalW < hostW - 1 || naturalH < hostH - 1
+}
+
+/** Live + Sửa nhanh: footer / nền dưới cùng — ảnh nhỏ thì tile. */
+export const PW_PAPER_TILE_RUNTIME_SOURCE = `(function(){
+  var TILE=${JSON.stringify(PW_PAPER_TILE_ATTR)};
+  var PAPER=${JSON.stringify(PW_PAPER_ATTR)};
+  var SRC=${JSON.stringify(PW_PAPER_SRC_ATTR)};
+  function cls(el){return ' '+String(el&&el.className||'')+' ';}
+  function isFooter(el){
+    if(!el||el.nodeType!==1)return false;
+    if(el.getAttribute&&el.getAttribute('data-pw-region')==='footer')return true;
+    var tag=el.tagName?el.tagName.toLowerCase():'';
+    if(tag==='footer')return true;
+    return cls(el).indexOf(' pw-footer ')>=0||cls(el).indexOf(' pw-shop-footer ')>=0;
+  }
+  function isAddedBg(el){return !!(el&&el.getAttribute&&el.getAttribute('data-pw-added-bg')==='1');}
+  function paperSrc(el){
+    if(!el)return '';
+    var stamped=el.getAttribute?String(el.getAttribute(SRC)||'').trim():'';
+    if(stamped)return stamped;
+    var bg='';
+    try{bg=(el.style&&el.style.backgroundImage)||'';}catch(eBg){bg='';}
+    var m=String(bg).match(/url\\((['"]?)([^'")]+)\\1\\)/i);
+    return m?String(m[2]||'').trim():'';
+  }
+  function bottomAddedBg(){
+    var nodes=document.querySelectorAll('[data-pw-added-bg="1"]');
+    var best=null,bestB=-Infinity;
+    for(var i=0;i<nodes.length;i++){
+      if(nodes[i].getAttribute&&nodes[i].getAttribute('data-pw-hidden')==='1')continue;
+      var r=nodes[i].getBoundingClientRect();
+      if(r.bottom>=bestB){bestB=r.bottom;best=nodes[i];}
+    }
+    return best;
+  }
+  function wantsTile(el){
+    if(isFooter(el))return true;
+    return isAddedBg(el)&&el===bottomAddedBg();
+  }
+  function needsTile(nw,nh,hw,hh){
+    if(!(nw>0&&nh>0&&hw>8&&hh>8))return false;
+    return nw<hw-1||nh<hh-1;
+  }
+  function applyFace(el,tile){
+    if(!el)return;
+    if(tile){
+      el.setAttribute(TILE,'1');
+      if(el.getAttribute&&el.getAttribute(PAPER)!=='image')el.setAttribute(PAPER,'image');
+      if(el.style){el.style.backgroundSize='auto';el.style.backgroundRepeat='repeat';}
+    }else{
+      if(el.getAttribute&&el.getAttribute(TILE)==='1')el.removeAttribute(TILE);
+      if(el.style&&el.getAttribute&&el.getAttribute(PAPER)==='image'){
+        el.style.backgroundSize='cover';
+        el.style.backgroundRepeat='no-repeat';
+      }
+    }
+  }
+  function measure(el,url){
+    if(!el||!url||!wantsTile(el))return;
+    var img=new Image();
+    img.onload=function(){
+      var r=el.getBoundingClientRect();
+      applyFace(el,needsTile(img.naturalWidth,img.naturalHeight,r.width,r.height));
+    };
+    img.src=url;
+  }
+  function hydrate(){
+    var hosts=document.querySelectorAll('footer,.pw-footer,.pw-shop-footer,[data-pw-region="footer"],[data-pw-added-bg="1"]');
+    for(var i=0;i<hosts.length;i++){
+      var el=hosts[i];
+      if(!wantsTile(el))continue;
+      var url=paperSrc(el);
+      if(url)measure(el,url);
+    }
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',hydrate);
+  else hydrate();
+})();`
+
+export function buildPartnerSitePaperTileBootstrapScript(): string {
+  return `<script data-pw-paper-tile-bootstrap="1">${PW_PAPER_TILE_RUNTIME_SOURCE}</script>`
+}
 
 export const PW_BG_CANVAS_INDEX = 0
 export const PW_BG_HEADER_Z = 200

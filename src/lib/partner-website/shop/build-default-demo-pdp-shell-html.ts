@@ -83,9 +83,6 @@ export function buildDefaultDemoPdpShellHtml(input?: {
     p.priceAmount != null && effective < p.priceAmount
       ? formatPartnerShopMoneyVnd(p.priceAmount - effective)
       : ''
-  const freeShip = t.pdpShippingFreeFrom.replace('{amount}', formatPartnerShopMoneyVnd(299000))
-  const shippingHref = slug ? escapeAttr(partnerSiteInfoPath(slug, 'shipping')) : '#'
-  const returnsHref = slug ? escapeAttr(partnerSiteInfoPath(slug, 'returns')) : '#'
   const sizeGuideHref = slug ? escapeAttr(partnerSiteInfoPath(slug, 'size-guide')) : '#'
   const homeHref = slug ? escapeAttr(partnerSiteHomePath(slug)) : '#'
   const productsHref = slug ? escapeAttr(partnerSiteProductsPath(slug)) : '#'
@@ -195,10 +192,10 @@ ${chrome.header}
             ? `<span class="pw-shop-urgency-badge" ${pwElAttr(PW_EL.badge)} data-pw-pdp-slot="low-stock">${escapeHtml(t.lowStockUrgency.replace('{n}', String(stock)))}</span>`
             : ''
         }
-        <div class="pw-pdp-policy">${escapeHtml(t.pdpShippingNote.replace('{free}', freeShip))} <a href="${shippingHref}">${escapeHtml(t.pdpShippingPolicyLink)}</a> · <a href="${returnsHref}">${escapeHtml(t.pdpReturnsPolicyLink)}</a></div>
-        <p class="pw-pdp-policy" style="border-top:none;padding-top:0;margin-top:8px"><strong>${escapeHtml(t.pdpServiceLabel)}:</strong> ${escapeHtml(t.pdpServiceNote)}</p>
-        <p style="margin:10px 0 0;font-size:12px;font-weight:700">${escapeHtml(t.pdpNotesTitle)}</p>
-        <ul class="pw-pdp-notes"><li>${escapeHtml(t.pdpNoteFit)}</li><li>${escapeHtml(t.pdpNoteColor)}</li></ul>
+        <div style="margin-top:16px" ${pwElAttr(PW_EL.variant)} data-pw-pdp-option="color">
+          <p style="font-weight:700;margin:0 0 8px;font-size:14px">${escapeHtml(t.colorLabel)}</p>
+          <div class="pw-pdp-pills">${colorPills}</div>
+        </div>
         <div style="margin-top:16px" ${pwElAttr(PW_EL.variant)} data-pw-pdp-option="size">
           <p style="font-weight:700;margin:0 0 8px;font-size:14px">${escapeHtml(t.sizeLabel)}</p>
           <div class="pw-pdp-pills">${sizePills}</div>
@@ -209,16 +206,10 @@ ${chrome.header}
               : `<a href="${sizeGuideHref}" style="display:inline-block;margin-top:8px;font-size:13px">${escapeHtml(t.sizeGuideFallbackLink)}</a>`
           }
         </div>
-        <div style="margin-top:16px" ${pwElAttr(PW_EL.variant)} data-pw-pdp-option="color">
-          <p style="font-weight:700;margin:0 0 8px;font-size:14px">${escapeHtml(t.colorLabel)}</p>
-          <div class="pw-pdp-pills">${colorPills}</div>
-        </div>
         <div style="margin-top:16px">
           <p style="font-weight:700;margin:0 0 8px;font-size:14px">${escapeHtml(t.pdpQtyBuy)}</p>
           <div class="pw-pdp-qty" ${pwElAttr(PW_EL.qty)}><button type="button">−</button><span>1</span><button type="button">+</button></div>
         </div>
-        <div class="pw-pdp-total"><span>${escapeHtml(t.pdpLineTotal)}</span><span class="pw-shop-price" style="font-size:1.15rem">${escapeHtml(price)}</span></div>
-        ${savings ? `<p class="pw-pdp-save">${escapeHtml(t.pdpSavings.replace('{amount}', savings))}</p>` : ''}
         <p class="pw-shop-muted" data-pw-pdp-slot="deposit" style="margin-top:12px;font-size:13px">${escapeHtml(t.depositPolicyNote)}</p>
         <div class="pw-pdp-actions pw-pdp-actions-inline">
           <button type="button" class="pw-shop-btn pw-shop-btn-cart" data-pw-chrome-btn="add-cart" ${pwElAttr(PW_EL.cardCart)} data-pw-add-cart data-pw-pdp-add-cart="1">${escapeHtml(t.addToCart)}</button>

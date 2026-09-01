@@ -7,6 +7,8 @@ import {
   PW_LOGO_X_MIN,
   PW_LOGO_Y_ATTR,
   stampHeaderLogoOffsetInHtml,
+  stampFooterLogoOffsetInHtml,
+  stampChromeLogoOffsetInHtml,
   withBrandLogoOffsetStyle,
 } from '@/lib/partner-website/shop/header-logo-offset'
 import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/partner-site-chrome-kit'
@@ -49,5 +51,32 @@ describe('header logo offset', () => {
     const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'mobile' })
     expect(next).toContain(`${PW_LOGO_X_ATTR}="32"`)
     expect(next).toContain('--pw-logo-x:32px')
+  })
+
+  it('stamps footer offset without copying header offset', () => {
+    const html = `<header class="pw-header"><a class="pw-brand" href="/" ${PW_LOGO_X_ATTR}="24"><img class="pw-logo" alt=""/></a></header><footer class="pw-footer"><a href="/" ${PW_LOGO_X_ATTR}="-12"><img class="pw-shop-footer-logo" alt=""/></a></footer>`
+    const next = stampChromeLogoOffsetInHtml(html)
+    const header = next.slice(0, next.indexOf('<footer'))
+    const footer = next.slice(next.indexOf('<footer'))
+    expect(header).toContain('--pw-logo-x:24px')
+    expect(footer).toContain('--pw-logo-x:-12px')
+    expect(header).not.toContain('--pw-logo-x:-12px')
+    expect(footer).not.toContain('--pw-logo-x:24px')
+  })
+
+  it('stampFooterLogoOffsetInHtml does not write onto header brand', () => {
+    const html = `<header class="pw-header"><a class="pw-brand" href="/" ${PW_LOGO_X_ATTR}="18"><img class="pw-logo" alt=""/></a></header><footer class="pw-footer"><a href="/" ${PW_LOGO_X_ATTR}="9"><img class="pw-shop-footer-logo" alt=""/></a></footer>`
+    const next = stampFooterLogoOffsetInHtml(html)
+    const header = next.slice(0, next.indexOf('<footer'))
+    expect(header).not.toContain('--pw-logo-x')
+    expect(next.slice(next.indexOf('<footer'))).toContain('--pw-logo-x:9px')
+  })
+
+  it('ensure chrome kit keeps per-device footer logo offset', () => {
+    const html = `<header class="pw-header"><div class="pw-header-main"><div class="pw-brand-cluster"><a class="pw-brand" href="/"><img class="pw-logo" alt=""/></a></div><div class="pw-header-actions"><a data-pw-chrome-btn="cart" href="/cart">Giỏ</a></div></div></header><footer class="pw-footer"><div class="pw-shop-footer-brand"><a href="/" ${PW_LOGO_X_ATTR}="16"><img class="pw-shop-footer-logo" alt=""/></a></div></footer>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' })
+    const footer = next.slice(next.indexOf('<footer'))
+    expect(footer).toContain(`${PW_LOGO_X_ATTR}="16"`)
+    expect(footer).toContain('--pw-logo-x:16px')
   })
 })

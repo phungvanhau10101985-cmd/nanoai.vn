@@ -808,6 +808,18 @@ test('empty data-pw-page shell is not ready to freeze Sửa nhanh', () => {
     ),
     true
   )
+  assert.equal(
+    visualHtmlLooksReadyForEditor(
+      '<!DOCTYPE html><html data-pw-edit-device="mobile"><body data-pw-page="info"><main data-pw-region="content"><article data-pw-info-article="1"><h1 data-pw-info-title="1">Điều khoản sử dụng</h1><div data-pw-info-body="1"><p>Shop tuân thủ Google Merchant Center.</p></div></article></main></body></html>'
+    ),
+    true
+  )
+  assert.equal(
+    visualHtmlLooksReadyForEditor(
+      '<!DOCTYPE html><html><body data-pw-page="info"><main data-pw-region="content"></main></body></html>'
+    ),
+    false
+  )
 })
 
 test('desktop home does not treat an empty htmlSource shell as the shop', () => {

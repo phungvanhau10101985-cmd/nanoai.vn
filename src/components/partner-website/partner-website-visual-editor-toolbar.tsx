@@ -45,7 +45,6 @@ import {
   dataUrlToPngFile,
   makeUserLogoColorSwatchDataUrl,
 } from '@/lib/partner-website/visual-editor/logo-generation-context'
-import { useToast } from '@/hooks/use-toast'
 import { persistVisualEditorAdminLogo } from '@/lib/partner-website/visual-editor/persist-visual-editor-admin-logo'
 import { persistVisualEditorChatIconLogo } from '@/lib/partner-website/visual-editor/persist-visual-editor-chat-icon-logo'
 import { buildChatIconLogoPrompt } from '@/lib/partner-website/visual-editor/build-chat-icon-logo-prompt'
@@ -1574,7 +1573,6 @@ export function PartnerWebsiteVisualEditorToolbar({
   onRequestLeave,
 }: Props) {
   const t = getPartnerWebsiteCopy(locale)
-  const { toast } = useToast()
   const themePicks = useMemo(() => shopThemeQuickPicksFromCopy(theme, t), [theme, t])
   const [selection, setSelection] = useState<VisualEditorSelection | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -2335,22 +2333,6 @@ export function PartnerWebsiteVisualEditorToolbar({
       if (data.type === 'favoriteNeedHost') {
         onError(t.visualEditFavoriteNeedHost)
       }
-      if (data.type === 'copyToAllPagesSkip') {
-        const reason = String(data.reason || '')
-        onError(
-          reason === 'chrome'
-            ? t.visualEditCopyAllPagesSkip
-            : reason === 'locked'
-              ? t.visualEditCopyAllPagesLocked
-              : t.visualEditCopyAllPagesNone
-        )
-      }
-      if (data.type === 'copyToAllPagesReady') {
-        void handleSaveHtml('').then((ok) => {
-          if (!ok) return
-          toast({ title: t.visualEditCopyAllPagesDone })
-        })
-      }
       if (data.type === 'html' && data.html && saveWaiterRef.current) {
         void handleSaveHtml(data.html)
       }
@@ -2358,7 +2340,7 @@ export function PartnerWebsiteVisualEditorToolbar({
 
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [active, activateEditor, documentKey, handleSaveHtml, onError, openBlockPanel, t.visualEditAddButtonLabel, t.visualEditCopyAllPagesDone, t.visualEditCopyAllPagesLocked, t.visualEditCopyAllPagesNone, t.visualEditCopyAllPagesSkip, t.visualEditFavoriteNeedHost, toast])
+  }, [active, activateEditor, documentKey, handleSaveHtml, onError, openBlockPanel, t.visualEditAddButtonLabel, t.visualEditFavoriteNeedHost])
 
   useEffect(() => {
     if (!active) return
@@ -2533,6 +2515,10 @@ export function PartnerWebsiteVisualEditorToolbar({
     onAdminLogoChange?.(url)
   }
 
+  function selectedLogoSlot(): 'header' | 'footer' {
+    return selection?.logoSlot === 'footer' ? 'footer' : 'header'
+  }
+
   async function handleUploadAsLogo(files: FileList | null) {
     if (!files?.length || !partnerId) return
     const file = files[0]
@@ -2544,9 +2530,10 @@ export function PartnerWebsiteVisualEditorToolbar({
     setUploadBusy(true)
     try {
       const url = await uploadPartnerImageFile(partnerId, file)
-      postToIframe(iframeRef.current, 'setLogoSrc', { url, allSlots: true })
+      const slot = selectedLogoSlot()
+      postToIframe(iframeRef.current, 'setLogoSrc', { url, slot })
       setDirty(true)
-      await persistAdminLogo(url)
+      if (slot !== 'footer') await persistAdminLogo(url)
       openBlockPanel()
     } catch (e) {
       onError(e instanceof Error ? e.message : t.uploadFailed)
@@ -2568,18 +2555,17 @@ export function PartnerWebsiteVisualEditorToolbar({
     try {
       const url = await uploadPartnerImageFile(partnerId, file)
       if (selection?.isLogo) {
-        postToIframe(iframeRef.current, 'setLogoSrc', {
-          url,
-          allSlots: selection.logoFilledCount === 0,
-        })
+        const slot = selectedLogoSlot()
+        postToIframe(iframeRef.current, 'setLogoSrc', { url, slot })
+        setDirty(true)
+        if (slot !== 'footer') await persistAdminLogo(url)
       } else {
         postToIframe(iframeRef.current, 'setImageSrc', {
           url,
           allSlots: false,
         })
+        setDirty(true)
       }
-      setDirty(true)
-      if (selection?.isLogo) await persistAdminLogo(url)
     } catch (e) {
       onError(e instanceof Error ? e.message : t.uploadFailed)
     } finally {
@@ -2677,6 +2663,7 @@ export function PartnerWebsiteVisualEditorToolbar({
     referenceImageUrls?: string[]
     referenceImageMeta?: Array<{ screenKey: string; label?: string }>
     allSlots?: boolean
+    slot?: 'header' | 'footer'
     lockHeld?: boolean
     genSeq?: number
     target?: 'image' | 'chat-icon'
@@ -2731,12 +2718,13 @@ export function PartnerWebsiteVisualEditorToolbar({
         await applySharedChatIconLogo(json.publicUrl)
       } else {
         if (input.kind === 'logo') {
+          const slot = input.slot === 'footer' ? 'footer' : 'header'
           postToIframe(iframeRef.current, 'setLogoSrc', {
             url: json.publicUrl,
-            allSlots: Boolean(input.allSlots),
+            slot,
           })
           setDirty(true)
-          await persistAdminLogo(json.publicUrl)
+          if (slot !== 'footer') await persistAdminLogo(json.publicUrl)
         } else {
           postToIframe(iframeRef.current, 'setImageSrc', { url: json.publicUrl, allSlots: Boolean(input.allSlots) })
           setDirty(true)
@@ -2832,11 +2820,13 @@ export function PartnerWebsiteVisualEditorToolbar({
     const device: LogoDeviceKind = visualDeviceVariantFromHtmlPath(htmlPath)
     const size = logoSizeFromAspect(logoAspect, device)
     const { bgColor } = logoPickColors()
-    postToIframe(iframeRef.current, 'placeHeaderLogo', {
-      width: size.w,
-      height: size.h,
-      bgColor,
-    })
+    if (selectedLogoSlot() !== 'footer') {
+      postToIframe(iframeRef.current, 'placeHeaderLogo', {
+        width: size.w,
+        height: size.h,
+        bgColor,
+      })
+    }
     openBlockPanel()
     await new Promise((resolve) => window.setTimeout(resolve, 80))
     await handleGenerateAi({ forceLogo: true })
@@ -3018,7 +3008,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         aspectRatio: logoAspect,
         referenceImageUrls: refs,
         referenceImageMeta: meta,
-        allSlots: !selection || selection.logoFilledCount === 0,
+        slot: selection?.logoSlot === 'footer' ? 'footer' : 'header',
         lockHeld: true,
         genSeq: seq,
       })
@@ -4668,23 +4658,6 @@ export function PartnerWebsiteVisualEditorToolbar({
                     ) : null}
                     {selection?.isMidFlowChrome ? (
                       <p className="text-[10px] leading-tight text-muted-foreground">{t.visualEditMidFlowHint}</p>
-                    ) : null}
-                    {selection ? (
-                      <div className="space-y-1">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className={cn(btn, 'w-full justify-start')}
-                          disabled={busy}
-                          title={t.visualEditCopyAllPagesHint}
-                          onClick={() => postToIframe(iframeRef.current, 'copyToAllPages')}
-                        >
-                          <Copy className="h-3 w-3" />
-                          <span className="ml-1">{t.visualEditCopyAllPages}</span>
-                        </Button>
-                        <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditCopyAllPagesHint}</p>
-                      </div>
                     ) : null}
         {showAddedBgHint && selection ? (
           <div className="rounded-md border bg-background px-2 py-1.5">
@@ -6571,12 +6544,12 @@ export function PartnerWebsiteVisualEditorToolbar({
                 {logoActionLabel}
               </Button>
               ) : null}
-              {hasRealLogoSrc ? (
+              {hasRealLogoSrc && !selection.isLogo ? (
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  className={selection.isLogo ? 'h-6 px-1.5 text-[10px]' : btn}
+                  className={btn}
                   disabled={busy}
                   title={t.visualEditApplyLogoAll}
                   onClick={() => {
@@ -6585,8 +6558,8 @@ export function PartnerWebsiteVisualEditorToolbar({
                     void persistAdminLogo(selection.src)
                   }}
                 >
-                  <Images className={cn('h-3 w-3', !selection.isLogo && 'mr-1')} />
-                  {selection.isLogo ? null : t.visualEditApplyLogoAll}
+                  <Images className="mr-1 h-3 w-3" />
+                  {t.visualEditApplyLogoAll}
                 </Button>
               ) : null}
               {selection.isLogo && hasRealLogoSrc ? (

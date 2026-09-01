@@ -34,7 +34,7 @@ import {
   type VisualEditorChromeWidgetKind,
 } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import { PW_SCENE_MAX_INDEX, pwSceneZ } from '@/lib/partner-website/visual-editor/pw-scene'
-import { stampHeaderLogoOffsetInHtml } from '@/lib/partner-website/shop/header-logo-offset'
+import { stampChromeLogoOffsetInHtml } from '@/lib/partner-website/shop/header-logo-offset'
 
 export const PW_CHROME_KIT_ATTR = 'data-pw-chrome-kit'
 export const PW_DOCK_SHOW_ATTR = 'data-pw-dock-show'
@@ -613,8 +613,6 @@ function resetInflowHeaderSearchOpenTag(tag: string, attrs: string): string {
   return `<${tag}${next}>`
 }
 
-const HEADER_ACTIONS_RE =
-  /<(div)([^>]*class=["'][^"']*\b(?:pw-header-actions|pw-shop-header-actions)\b[^"']*["'][^>]*)>([\s\S]*?)<\/\1>/i
 const BOTTOM_NAV_OPEN_RE =
   /<nav([^>]*class=["'][^"']*\b(?:pw-bottom-nav|pw-shop-bottom-nav)\b[^"']*["'][^>]*)>/gi
 /** Leftover 188 PDP bar only — not kit host, not inner `.pw-pdp-sticky-nav` / `-ctas`. */
@@ -673,6 +671,34 @@ function replaceBalancedBottomNavs(
       break
     }
     const hit = extractBalancedTag(html, 'nav', found.index)
+    if (!hit) {
+      out += html.slice(cursor, found.index + found[0].length)
+      cursor = found.index + found[0].length
+      continue
+    }
+    out += html.slice(cursor, hit.start)
+    out += replacer(found[1] || '', hit.inner, hit.full)
+    cursor = hit.start + hit.full.length
+  }
+  return out
+}
+
+function replaceBalancedHeaderActions(
+  html: string,
+  replacer: (attrs: string, inner: string, full: string) => string
+): string {
+  let out = ''
+  let cursor = 0
+  const openRe =
+    /<div([^>]*(?:\b(?:pw-header-actions|pw-shop-header-actions)\b|data-pw-chrome-kit=["']actions["'])[^>]*)>/gi
+  while (cursor < html.length) {
+    openRe.lastIndex = cursor
+    const found = openRe.exec(html)
+    if (!found || found.index == null) {
+      out += html.slice(cursor)
+      break
+    }
+    const hit = extractBalancedTag(html, 'div', found.index)
     if (!hit) {
       out += html.slice(cursor, found.index + found[0].length)
       cursor = found.index + found[0].length
@@ -822,6 +848,184 @@ export function stripEscapedHeadChromeLeftoversInHtml(html: string): string {
     from = hit.start
   }
   return next
+}
+
+const CHROME_BTN_BLOCK_RE =
+  /<(a|button)\b[^>]*\bdata-pw-chrome-btn=["'][^"']+["'][^>]*>[\s\S]*?<\/\1>/gi
+
+function chromeBtnKindOf(block: string): string {
+  return block.match(/\bdata-pw-chrome-btn=["']([^"']+)["']/i)?.[1] || ''
+}
+
+function headKitKindKey(kind: string): string {
+  if (kind === 'favorites-link') return 'wishlist'
+  if (kind === 'orders-link') return 'orders'
+  return kind
+}
+
+function isHeadActionKind(kind: string): boolean {
+  return HEAD_ACTION_KIND_SET.has(headKitKindKey(kind) as VisualEditorChromeWidgetKind)
+}
+
+function headKitKeepScore(block: string): number {
+  let s = 0
+  if (new RegExp(`\\b${PW_CHROME_KIT_ATTR}=["']1["']`, 'i').test(block)) s += 5
+  if (!new RegExp(`\\b${PW_HIDDEN_ATTR}=["']1["']`, 'i').test(block)) s += 3
+  if (!/\bdata-pw-chrome-added=["']1["']/i.test(block)) s += 2
+  if (/\bdata-pw-chrome-style=["']icon-label-below["']/i.test(block)) s += 1
+  return s
+}
+
+/** Một kind một nút trong cụm head (vd. không hai Giỏ hàng). */
+function stripDuplicateHeadKitKinds(inner: string): string {
+  const best = new Map<string, { score: number; offset: number }>()
+  CHROME_BTN_BLOCK_RE.lastIndex = 0
+  inner.replace(CHROME_BTN_BLOCK_RE, (block, _tag: string, offset: number) => {
+    if (/\bdata-pw-chrome-float=["']1["']/i.test(block)) return block
+    const kind = headKitKindKey(chromeBtnKindOf(block))
+    if (!isHeadActionKind(kind)) return block
+    const score = headKitKeepScore(block)
+    const prev = best.get(kind)
+    if (!prev || score > prev.score) best.set(kind, { score, offset })
+    return block
+  })
+  CHROME_BTN_BLOCK_RE.lastIndex = 0
+  return inner.replace(CHROME_BTN_BLOCK_RE, (block, _tag: string, offset: number) => {
+    if (/\bdata-pw-chrome-float=["']1["']/i.test(block)) return block
+    const kind = headKitKindKey(chromeBtnKindOf(block))
+    if (!isHeadActionKind(kind)) return block
+    const keep = best.get(kind)
+    if (keep && keep.offset !== offset) return ''
+    return block
+  })
+}
+
+function inHeadDedupSkipRange(offset: number, ranges: Array<{ start: number; end: number }>): boolean {
+  return ranges.some((range) => offset >= range.start && offset < range.end)
+}
+
+function collectHeadDedupSkipRanges(headerHtml: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = []
+  const openRe =
+    /<(div|nav|aside|section)(?=[^>]*(?:\b(?:pw-topbar|pw-shop-topbar|pw-cat-panel)\b|data-pw-region=["']topbar["']|data-pw-cat-panel|data-pw-chrome-kit=["'](?:dock|float)["']))[^>]*>/gi
+  let found: RegExpExecArray | null
+  while ((found = openRe.exec(headerHtml))) {
+    const tag = (found[1] || 'div').toLowerCase()
+    const hit = extractBalancedTag(headerHtml, tag, found.index)
+    if (!hit) continue
+    ranges.push({ start: hit.start, end: hit.start + hit.full.length })
+    openRe.lastIndex = hit.start + hit.full.length
+  }
+  return ranges
+}
+
+function stripDuplicateHeadKitKindsInHeaderBody(headerHtml: string): string {
+  const skip = collectHeadDedupSkipRanges(headerHtml)
+  const best = new Map<string, { score: number; offset: number }>()
+  CHROME_BTN_BLOCK_RE.lastIndex = 0
+  headerHtml.replace(CHROME_BTN_BLOCK_RE, (block, _tag: string, offset: number) => {
+    if (inHeadDedupSkipRange(offset, skip)) return block
+    if (/\bdata-pw-chrome-float=["']1["']/i.test(block)) return block
+    const kind = headKitKindKey(chromeBtnKindOf(block))
+    if (!isHeadActionKind(kind)) return block
+    const score = headKitKeepScore(block)
+    const prev = best.get(kind)
+    if (!prev || score > prev.score || (score === prev.score && offset < prev.offset)) {
+      best.set(kind, { score, offset })
+    }
+    return block
+  })
+  CHROME_BTN_BLOCK_RE.lastIndex = 0
+  return headerHtml.replace(CHROME_BTN_BLOCK_RE, (block, _tag: string, offset: number) => {
+    if (inHeadDedupSkipRange(offset, skip)) return block
+    if (/\bdata-pw-chrome-float=["']1["']/i.test(block)) return block
+    const kind = headKitKindKey(chromeBtnKindOf(block))
+    if (!isHeadActionKind(kind)) return block
+    const keep = best.get(kind)
+    if (keep && keep.offset !== offset) return ''
+    return block
+  })
+}
+
+function mergeExtraHeaderActionHostsInHeader(headerHtml: string): string {
+  const hosts: Array<{ start: number; full: string; inner: string; open: string }> = []
+  let from = 0
+  while (from < headerHtml.length && hosts.length < 8) {
+    const re =
+      /<div\b[^>]*(?:\b(?:pw-header-actions|pw-shop-header-actions)\b|data-pw-chrome-kit=["']actions["'])[^>]*>/gi
+    re.lastIndex = from
+    const found = re.exec(headerHtml)
+    if (!found || found.index == null) break
+    const hit = extractBalancedTag(headerHtml, 'div', found.index)
+    if (!hit) {
+      from = found.index + found[0].length
+      continue
+    }
+    hosts.push({ start: hit.start, full: hit.full, inner: hit.inner, open: hit.open })
+    from = hit.start + hit.full.length
+  }
+  if (!hosts.length) return headerHtml
+
+  type HeadBtn = { kind: string; score: number; block: string; hostIdx: number; offset: number; headKit: boolean }
+  const items: HeadBtn[] = []
+  hosts.forEach((host, hostIdx) => {
+    CHROME_BTN_BLOCK_RE.lastIndex = 0
+    host.inner.replace(CHROME_BTN_BLOCK_RE, (block, _tag: string, offset: number) => {
+      if (/\bdata-pw-chrome-float=["']1["']/i.test(block)) return block
+      const kind = headKitKindKey(chromeBtnKindOf(block))
+      if (!kind) return block
+      items.push({
+        kind,
+        score: headKitKeepScore(block),
+        block,
+        hostIdx,
+        offset,
+        headKit: isHeadActionKind(kind),
+      })
+      return block
+    })
+  })
+  const best = new Map<string, HeadBtn>()
+  for (const item of items) {
+    if (!item.headKit) continue
+    const prev = best.get(item.kind)
+    if (
+      !prev ||
+      item.score > prev.score ||
+      (item.score === prev.score &&
+        (item.hostIdx < prev.hostIdx || (item.hostIdx === prev.hostIdx && item.offset < prev.offset)))
+    ) {
+      best.set(item.kind, item)
+    }
+  }
+  const emitted = new Set<string>()
+  const kept: string[] = []
+  for (const item of items) {
+    if (item.headKit) {
+      const winner = best.get(item.kind)
+      if (!winner || winner !== item || emitted.has(item.kind)) continue
+      emitted.add(item.kind)
+      kept.push(item.block)
+      continue
+    }
+    if (emitted.has(item.kind)) continue
+    emitted.add(item.kind)
+    kept.push(item.block)
+  }
+  const inner = kept.join('\n      ')
+  const firstFull = `${hosts[0].open}${inner ? `\n      ${inner}\n    ` : ''}</div>`
+  let next = headerHtml
+  for (let i = hosts.length - 1; i >= 1; i -= 1) {
+    next = `${next.slice(0, hosts[i].start)}${next.slice(hosts[i].start + hosts[i].full.length)}`
+  }
+  return `${next.slice(0, hosts[0].start)}${firstFull}${next.slice(hosts[0].start + hosts[0].full.length)}`
+}
+
+export function stripDuplicateHeadKitKindsInHtml(html: string): string {
+  if (!html.trim()) return html
+  return html.replace(/<header\b[^>]*>[\s\S]*?<\/header>/gi, (header) =>
+    stripDuplicateHeadKitKindsInHeaderBody(mergeExtraHeaderActionHostsInHeader(header))
+  )
 }
 
 /** Leftover 188 face after footer — not the kit dock children. */
@@ -1067,13 +1271,6 @@ function withHostKitGapStyle(openAttrs: string): string {
   const fromCss = openAttrs.match(/--pw-kit-gap\s*:\s*(-?\d+(?:\.\d+)?)px/i)?.[1]
   if (fromAttr == null && fromCss == null) return openAttrs
   return writeHostCssVar(openAttrs, PW_KIT_GAP_ATTR, '--pw-kit-gap', clampChromeKitGap(fromAttr ?? fromCss))
-}
-
-const CHROME_BTN_BLOCK_RE =
-  /<(a|button)\b[^>]*\bdata-pw-chrome-btn=["'][^"']+["'][^>]*>[\s\S]*?<\/\1>/gi
-
-function chromeBtnKindOf(block: string): string {
-  return block.match(/\bdata-pw-chrome-btn=["']([^"']+)["']/i)?.[1] || ''
 }
 
 function stampPdpCtaLockAttrs(html: string): string {
@@ -1339,7 +1536,7 @@ export function ensurePartnerSiteChromeKitInHtml(
     resetInflowHeaderSearchOpenTag(tag, attrs)
   )
 
-  out = out.replace(HEADER_ACTIONS_RE, (_full, _tag: string, attrs: string, inner: string) => {
+  out = replaceBalancedHeaderActions(out, (attrs, inner) => {
     let nextInner = stampExistingKitAttrs(inner, 'head')
     const missing = CHROME_KIT_HEAD_ACTION_ITEMS.filter((item) => !htmlHasChromeKind(nextInner, item.kind))
     if (missing.length) {
@@ -1359,6 +1556,7 @@ export function ensurePartnerSiteChromeKitInHtml(
         .join('\n      ')
       if (extra) nextInner = `${nextInner.trim()}\n      ${extra}\n    `
     }
+    nextInner = stripDuplicateHeadKitKinds(nextInner)
     return `<div${withHostKitGapStyle(withHostKitShiftStyle(withHostKitAttr(attrs, 'actions')))}>${nextInner}</div>`
   })
 
@@ -1421,10 +1619,12 @@ export function ensurePartnerSiteChromeKitInHtml(
     device: input.device,
   })
 
-  return stampHeaderLogoOffsetInHtml(
+  return stampChromeLogoOffsetInHtml(
     stripAuthorPinScreenInHtml(
       pinMidCanvasTopChromeInHtml(
-        stripEscapedHeadChromeLeftoversInHtml(stripLeftoverPdpFaceOutsideDock(hoistViewportDockToBody(out)))
+        stripDuplicateHeadKitKindsInHtml(
+          stripEscapedHeadChromeLeftoversInHtml(stripLeftoverPdpFaceOutsideDock(hoistViewportDockToBody(out)))
+        )
       )
     )
   )

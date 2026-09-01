@@ -10,6 +10,7 @@ import {
   PW_LAST_MEDIA_SRC_ATTR,
   PW_MEDIA_HIDDEN_ATTR,
   PW_PAPER_SRC_ATTR,
+  PW_PAPER_TILE_ATTR,
   PW_BG_HEADER_Z,
   PW_BG_INDEX_ATTR,
   PW_BG_REGION_ROLES,
@@ -18,6 +19,7 @@ import {
   isPwBgPaintZRole,
   isPwBgRegionRole,
   parsePwBgStack,
+  paperImageNeedsTile,
   pwBgPaintZ,
   pwBgRoleOrder,
 } from './pw-bg-stack'
@@ -108,6 +110,9 @@ describe('pw bg stack', () => {
     expect(s).toContain('if (isPaperHost(n)) return n')
     expect(s).toContain('if (isPaperHost(walk) && walk === el) return walk')
     expect(s).toContain('applyPaperImage')
+    expect(s).toContain('hydratePaperTiles')
+    expect(s).toContain('syncPaperTile')
+    expect(s).toContain(PW_PAPER_TILE_ATTR)
     expect(s).toContain('applyPaperPan')
     expect(s).toContain('parsePaperPan')
     expect(s).toContain('clearPaperImage')
@@ -154,5 +159,12 @@ describe('pw bg stack', () => {
     expect(PW_LAST_MEDIA_SRC_ATTR).toBe('data-pw-last-media-src')
     expect(PW_MEDIA_HIDDEN_ATTR).toBe('data-pw-media-hidden')
     expect(PW_PAPER_CSS).toContain(`${PW_MEDIA_HIDDEN_ATTR}="1"`)
+    expect(PW_PAPER_TILE_ATTR).toBe('data-pw-paper-tile')
+    expect(PW_PAPER_CSS).toContain(`${PW_PAPER_TILE_ATTR}="1"`)
+    expect(PW_PAPER_CSS).toContain('background-repeat:repeat!important')
+    expect(paperImageNeedsTile(120, 80, 1440, 220)).toBe(true)
+    expect(paperImageNeedsTile(400, 80, 1440, 80)).toBe(true)
+    expect(paperImageNeedsTile(2000, 1200, 1440, 400)).toBe(false)
+    expect(paperImageNeedsTile(0, 80, 1440, 220)).toBe(false)
   })
 })

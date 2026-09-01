@@ -347,6 +347,10 @@ test('bind fills live 188 fields only — empty sizes/colors/consult do not keep
   assert.doesNotMatch(next, /Form đẹp/)
   assert.doesNotMatch(next, /Đầm voan/)
   assert.doesNotMatch(next, /Áo thun nữ cổ thuyền/)
+  assert.doesNotMatch(next, /pw-pdp-total/)
+  assert.doesNotMatch(next, /pw-pdp-notes/)
+  assert.doesNotMatch(next, /pw-pdp-policy/)
+  assert.doesNotMatch(next, /200\.000/)
 })
 
 test('bind writes this product material and real-use photos instead of shell leftovers', () => {
@@ -465,4 +469,70 @@ test('bind upgrades a legacy sticky favorite into 188 like-copy without wiping t
   assert.match(next, /data-pw-like-count[^>]*>121</)
   assert.doesNotMatch(next, /Thích sản phẩm/)
   assert.doesNotMatch(next, /class="is-fav"[^>]*>♡ 121/)
+})
+
+test('bind moves gallery color leftover into the buy box and drops the demo line-total', () => {
+  const leftover = `<!DOCTYPE html><html><body data-pw-page="product">
+<div class="pw-shop-product-layout">
+  <section class="pw-shop-product-gallery" data-pw-region="gallery">
+    <img class="pw-shop-product-img" data-pw-el="main-image" src="https://old.example/a.jpg" alt="Old" />
+    <div class="pw-shop-product-thumbs"></div>
+    <div data-pw-el="variant" data-pw-pdp-option="color">
+      <p>Màu</p>
+      <button type="button" class="pw-pdp-pill pw-pdp-color is-active" data-pw-pdp-option-value="Đen"><img src="https://old.example/black.jpg" alt="Đen" /></button>
+    </div>
+  </section>
+  <div class="pw-shop-pdp-info" data-pw-region="pdp-info">
+    <h1 class="pw-pdp-title" data-pw-el="title">Old bag</h1>
+    <p class="pw-shop-price" data-pw-el="price">2.310.000₫</p>
+    <div class="pw-pdp-policy">Giao hàng toàn quốc leftover</div>
+    <p style="font-weight:700">Lưu ý</p>
+    <ul class="pw-pdp-notes"><li>Kích thước thực tế leftover</li></ul>
+    <div class="pw-pdp-qty" data-pw-el="qty"><span>1</span></div>
+    <div class="pw-pdp-total"><span>Tổng số</span><span class="pw-shop-price">200.000đ</span></div>
+    <div class="pw-pdp-actions"><button data-pw-el="buy">Mua</button></div>
+  </div>
+</div>
+</body></html>`
+  const next = bindLiveProductToPdpHtml(leftover, {
+    ...PRODUCT_B,
+    name: 'Túi xách tay nam da cá sấu',
+    sku: 'SB187',
+    priceAmount: 2310000,
+    colors: [
+      { name: 'Đen', img: 'https://new.example/black.jpg' },
+      { name: 'Nâu', img: 'https://new.example/brown.jpg' },
+    ],
+  })
+  const open = next.match(/<div\b[^>]*\bpw-shop-pdp-info\b[^>]*>/)
+  assert.ok(open && open.index != null)
+  const start = open.index + open[0].length
+  const slice = next.slice(start)
+  const re = /<div\b[^>]*>|<\/div>/gi
+  let depth = 1
+  let end = -1
+  let match: RegExpExecArray | null
+  while ((match = re.exec(slice))) {
+    if (match[0][1] === '/') {
+      depth -= 1
+      if (depth === 0) {
+        end = match.index
+        break
+      }
+    } else {
+      depth += 1
+    }
+  }
+  assert.ok(end >= 0)
+  const buyBox = slice.slice(0, end)
+  assert.match(buyBox, /data-pw-pdp-option="color"/)
+  assert.match(buyBox, /data-pw-pdp-option-value="Đen"/)
+  assert.match(buyBox, /pw-pdp-actions/)
+  const gallery = next.match(/<section\b[^>]*\bpw-shop-product-gallery\b[^>]*>[\s\S]*?<\/section>/i)?.[0] || ''
+  assert.doesNotMatch(gallery, /data-pw-pdp-option="color"/)
+  assert.doesNotMatch(next, /pw-pdp-total/)
+  assert.doesNotMatch(next, /200\.000/)
+  assert.doesNotMatch(next, /pw-pdp-notes/)
+  assert.doesNotMatch(next, /pw-pdp-policy/)
+  assert.doesNotMatch(next, /Tổng số/)
 })

@@ -4,6 +4,7 @@ import {
   buildPartnerSiteChatMuaButtonHtml,
   buildVisualEditorChromeWidgetHtml,
   PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS,
+  PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS,
   PW_CHROME_TOKEN_VARS_CSS,
   PW_SEARCH_IMAGE_IN_FORM_BTN_CSS,
   PW_STOCK_CHROME_EDIT_CSS,
@@ -649,6 +650,17 @@ test('text-only chrome CSS hides leftover icon wrap with !important', () => {
   assert.match(PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS, /\[data-pw-chrome-style="text"\] \.pw-chrome-icon-wrap/)
   assert.match(PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS, /\.pw-chrome-link \.pw-chrome-icon-wrap/)
   assert.match(PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS, /display:none!important/)
+})
+
+test('icon-only chrome CSS hides leftover labels with !important', () => {
+  assert.match(PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS, /\.pw-chrome-icon-only/)
+  assert.match(PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS, /\[data-pw-chrome-style="icon"\]/)
+  assert.match(PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS, /\[data-pw-chrome-style="icon-square"\]/)
+  assert.match(PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS, /\[data-pw-chrome-style="icon-circle"\]/)
+  assert.match(PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS, /\.pw-account-btn-label/)
+  assert.match(PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS, />span:not\(\.pw-chrome-icon-wrap\)/)
+  assert.match(PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS, /display:none!important/)
+  assert.doesNotMatch(PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS, /\[data-pw-chrome-style\^="icon"\]/)
 })
 
 test('chrome widgets emit topbar text links without icon badge', () => {

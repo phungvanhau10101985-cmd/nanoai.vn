@@ -146,7 +146,6 @@ export function PartnerSiteShopProductClient({
   product,
   relatedProducts = [],
   ratingSummary = null,
-  shippingFreeThreshold = null,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const router = useRouter()
@@ -307,8 +306,7 @@ export function PartnerSiteShopProductClient({
     flashActive && product.priceAmount != null && product.salePriceAmount != null && product.priceAmount > product.salePriceAmount
       ? product.priceAmount
       : null
-  const lineTotal = unitPrice != null ? unitPrice * quantity : null
-  const savings = comparePrice != null && unitPrice != null ? (comparePrice - unitPrice) * quantity : 0
+  const savings = comparePrice != null && unitPrice != null ? comparePrice - unitPrice : 0
   const priceLabel = options?.price_hint || product.priceHint
   const productName = options?.name || product.name
   const sku = options?.sku || product.sku
@@ -317,12 +315,6 @@ export function PartnerSiteShopProductClient({
   const categoryHref = product.categoryPath
     ? partnerSiteCategoryPath(siteSlug, product.categoryPath, { customDomain: custom })
     : partnerSiteProductsPath(siteSlug, { customDomain: custom })
-  const shippingHref = partnerSiteInfoPath(siteSlug, 'shipping', { customDomain: custom })
-  const returnsHref = partnerSiteInfoPath(siteSlug, 'returns', { customDomain: custom })
-  const freeShipText =
-    shippingFreeThreshold != null && shippingFreeThreshold > 0
-      ? t.pdpShippingFreeFrom.replace('{amount}', formatPartnerShopMoneyVnd(shippingFreeThreshold))
-      : ''
 
   useEffect(() => {
     void (async () => {
@@ -688,7 +680,7 @@ export function PartnerSiteShopProductClient({
                 ) : null}
               </p>
               {savings > 0 ? (
-                <p className="pw-pdp-save">{t.pdpSavings.replace('{amount}', formatPartnerShopMoneyVnd(savings / quantity))}</p>
+                <p className="pw-pdp-save">{t.pdpSavings.replace('{amount}', formatPartnerShopMoneyVnd(savings))}</p>
               ) : null}
             </div>
           ) : priceLabel ? (
@@ -703,23 +695,30 @@ export function PartnerSiteShopProductClient({
             </span>
           ) : null}
 
-          <div className="pw-pdp-policy">
-            {t.pdpShippingNote.replace('{free}', freeShipText)}{' '}
-            <Link href={shippingHref}>{t.pdpShippingPolicyLink}</Link>
-            {' · '}
-            <Link href={returnsHref}>{t.pdpReturnsPolicyLink}</Link>
-          </div>
-          <p className="pw-pdp-policy" style={{ borderTop: 'none', paddingTop: 0, marginTop: 8 }}>
-            <strong>{t.pdpServiceLabel}:</strong> {t.pdpServiceNote}
-          </p>
-          <p style={{ margin: '10px 0 0', fontSize: 12, fontWeight: 700 }}>{t.pdpNotesTitle}</p>
-          <ul className="pw-pdp-notes">
-            <li>{t.pdpNoteFit}</li>
-            <li>{t.pdpNoteColor}</li>
-          </ul>
+          {colorOptions.length ? (
+            <div style={{ marginTop: 16 }} data-pw-el={PW_EL.variant} data-pw-pdp-option="color">
+              <p style={{ fontWeight: 700, margin: '0 0 8px', fontSize: 14 }}>{t.colorLabel}</p>
+              <div className="pw-pdp-pills">
+                {colorOptions.map((c) => (
+                  <button
+                    key={c.name}
+                    type="button"
+                    className={`pw-pdp-pill pw-pdp-color${color === c.name ? ' is-active' : ''}`}
+                    onClick={() => setColor(c.name)}
+                  >
+                    {c.img ? (
+                      <img src={shopPdpDisplaySrc(c.img) || c.img} alt={c.name} onError={hideBrokenPdpImage} />
+                    ) : (
+                      c.name
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {sizeOptions.length ? (
-            <div style={{ marginTop: 16 }} data-pw-el={PW_EL.variant}>
+            <div style={{ marginTop: 16 }} data-pw-el={PW_EL.variant} data-pw-pdp-option="size">
               <p style={{ fontWeight: 700, margin: '0 0 8px', fontSize: 14 }}>{t.sizeLabel}</p>
               <div className="pw-pdp-pills">
                 {sizeOptions.map((s) => (
@@ -790,43 +789,10 @@ export function PartnerSiteShopProductClient({
             </div>
           ) : null}
 
-          {colorOptions.length ? (
-            <div style={{ marginTop: 16 }} data-pw-el={PW_EL.variant}>
-              <p style={{ fontWeight: 700, margin: '0 0 8px', fontSize: 14 }}>{t.colorLabel}</p>
-              <div className="pw-pdp-pills">
-                {colorOptions.map((c) => (
-                  <button
-                    key={c.name}
-                    type="button"
-                    className={`pw-pdp-pill pw-pdp-color${color === c.name ? ' is-active' : ''}`}
-                    onClick={() => setColor(c.name)}
-                  >
-                    {c.img ? (
-                      <img src={shopPdpDisplaySrc(c.img) || c.img} alt={c.name} onError={hideBrokenPdpImage} />
-                    ) : (
-                      c.name
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
           <div style={{ marginTop: 16 }}>
             <p style={{ fontWeight: 700, margin: '0 0 8px', fontSize: 14 }}>{t.pdpQtyBuy}</p>
             {qtyStepper}
           </div>
-          {lineTotal != null ? (
-            <div className="pw-pdp-total">
-              <span>{t.pdpLineTotal}</span>
-              <span className="pw-shop-price" style={{ fontSize: '1.15rem' }}>
-                {formatPartnerShopMoneyVnd(lineTotal)}
-              </span>
-            </div>
-          ) : null}
-          {savings > 0 ? (
-            <p className="pw-pdp-save">{t.pdpSavings.replace('{amount}', formatPartnerShopMoneyVnd(savings))}</p>
-          ) : null}
 
           {options?.deposit_policy ? (
             <p className="pw-shop-muted" style={{ marginTop: 12, fontSize: 13 }}>

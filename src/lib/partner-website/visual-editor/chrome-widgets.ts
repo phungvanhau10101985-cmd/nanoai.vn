@@ -380,6 +380,31 @@ export const PW_CHROME_FACE_EXTRAS_CSS =
   'white-space:normal!important;width:min-content!important;max-width:min-content!important;' +
   'word-break:keep-all!important;overflow-wrap:normal!important;text-align:center!important}'
 
+/** Icon-only faces — do not use [data-pw-chrome-style^="icon"] (that matches icon-label / icon-label-below). */
+export const PW_CHROME_ICON_ONLY_FACE_SEL =
+  ':is(.pw-chrome-icon-only,[data-pw-chrome-style="icon"],[data-pw-chrome-style="icon-square"],[data-pw-chrome-style="icon-circle"])'
+
+export const PW_CHROME_NOT_ICON_ONLY_SEL =
+  ':not(.pw-chrome-icon-only):not([data-pw-chrome-style="icon"]):not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"])'
+
+const PW_CHROME_ICON_ONLY_LABEL_SEL =
+  ':is(.pw-chrome-btn-label,.pw-shop-nav-label,.pw-shop-icon-label,.pw-account-btn-label,.pw-shop-search-submit-label)'
+
+const PW_CHROME_ICON_ONLY_LOOSE_SPAN_SEL =
+  '>span:not(.pw-chrome-icon-wrap):not(.pw-cart-badge):not(.pw-shop-cart-badge):not(.pw-chrome-chat-logo):not([data-pw-chrome-badge])'
+
+/** Chỉ icon — hide leftover labels even when tablet/dock CSS uses display:inline|block!important. */
+export const PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS =
+  `${PW_CHROME_ICON_ONLY_FACE_SEL} ${PW_CHROME_ICON_ONLY_LABEL_SEL},` +
+  `${PW_CHROME_ICON_ONLY_FACE_SEL}${PW_CHROME_ICON_ONLY_LOOSE_SPAN_SEL},` +
+  `.pw-bottom-nav ${PW_CHROME_ICON_ONLY_FACE_SEL} ${PW_CHROME_ICON_ONLY_LABEL_SEL},` +
+  `.pw-shop-bottom-nav ${PW_CHROME_ICON_ONLY_FACE_SEL} ${PW_CHROME_ICON_ONLY_LABEL_SEL},` +
+  `html[data-pw-edit-device] ${PW_CHROME_ICON_ONLY_FACE_SEL} ${PW_CHROME_ICON_ONLY_LABEL_SEL},` +
+  `html[data-pw-edit-device] ${PW_CHROME_ICON_ONLY_FACE_SEL}${PW_CHROME_ICON_ONLY_LOOSE_SPAN_SEL},` +
+  `html[data-pw-scene-lock] ${PW_CHROME_ICON_ONLY_FACE_SEL} ${PW_CHROME_ICON_ONLY_LABEL_SEL},` +
+  `html[data-pw-scene-lock] ${PW_CHROME_ICON_ONLY_FACE_SEL}${PW_CHROME_ICON_ONLY_LOOSE_SPAN_SEL}` +
+  '{display:none!important;visibility:hidden!important;font-size:0!important;width:0!important;max-width:0!important;height:0!important;max-height:0!important;overflow:hidden!important;flex:0 0 0!important;margin:0!important;padding:0!important;line-height:0!important}'
+
 /** Chỉ chữ — hide leftover wrap/svg even when chrome CSS uses display:inline-flex!important. */
 export const PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS =
   '[data-pw-chrome-style="text"] .pw-chrome-icon-wrap,.pw-chrome-link .pw-chrome-icon-wrap,' +

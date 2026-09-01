@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { adsPlatformPolicyParagraph } from '@/lib/partner-website/shop/partner-site-shop-info-pages'
 import { VISUAL_DEVICE_VARIANTS } from '@/lib/partner-website/visual-editor/visual-editor-pages'
-import { visualHtmlLooksUsable } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
+import { visualHtmlLooksReadyForEditor, visualHtmlLooksUsable } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
 import {
   buildShopTemplatePageVisualHtml,
   isShopTemplateInnerPageKey,
@@ -104,4 +104,21 @@ test('inner-page helper covers commerce and info keys', () => {
   assert.equal(isShopTemplateInnerPageKey('products'), true)
   assert.equal(isShopTemplateInnerPageKey('privacy'), true)
   assert.equal(isShopTemplateInnerPageKey('home'), false)
+})
+
+test('info pages are ready to open in Sửa nhanh without a hero or catalog', () => {
+  for (const pageKey of ['terms', 'privacy', 'shipping'] as const) {
+    for (const variant of VISUAL_DEVICE_VARIANTS) {
+      const html = buildShopTemplatePageVisualHtml({
+        pageKey,
+        variant,
+        locale: 'vi',
+        siteSlug: 'demo-shop',
+        brand: 'Shop Cam',
+      })
+      assert.equal(visualHtmlLooksReadyForEditor(html), true, `${pageKey} ${variant}`)
+      assert.match(html, /data-pw-page="info"/)
+      assert.match(html, /data-pw-info-article/)
+    }
+  }
 })

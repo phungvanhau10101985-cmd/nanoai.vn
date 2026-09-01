@@ -61,7 +61,6 @@ import {
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import {
-  extractPageClones,
   mergeClonesFromSourceHtml,
   seedVisualPageHtmlWithChrome,
 } from '@/lib/partner-website/visual-editor/copy-element-across-pages'
@@ -613,10 +612,14 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       if (pageKey === 'home' || !visualHtmlLooksUsable(homeHtml)) return html
       return mergeClonesFromSourceHtml(html, homeHtml)
     }
-    if (visualHtmlLooksUsable(exact)) {
-      return isolateVisualHtmlForDevice(withHomeClones(exact), variant)
+    const readyIsolated = (html: string) => {
+      if (!visualHtmlLooksUsable(html)) return ''
+      const isolated = isolateVisualHtmlForDevice(withHomeClones(html), variant)
+      return visualHtmlLooksReadyForEditor(isolated) ? isolated : ''
     }
-    if (pageKey !== 'home' && extractPageClones(homeHtml).length) {
+    const fromExact = readyIsolated(exact)
+    if (fromExact) return fromExact
+    if (pageKey !== 'home') {
       const seeded = seedVisualPageHtmlWithChrome({
         pageKey,
         variant,
@@ -625,21 +628,18 @@ export const PartnerWebsiteDevicePreview = forwardRef<
         brand: websiteTitle || siteSlug || 'Shop',
         chromeSourceHtml: homeHtml,
       })
-      if (visualHtmlLooksUsable(seeded)) {
-        return isolateVisualHtmlForDevice(withHomeClones(seeded), variant)
-      }
-    }
-    if (pageKey !== 'home') {
-      return isolateVisualHtmlForDevice(
+      const fromSeed = readyIsolated(seeded)
+      if (fromSeed) return fromSeed
+      const fromSaved = readyIsolated(
         resolveSavedVisualPageHtml({
           pageKey,
           variant,
           htmlSource,
           project,
           theme: liveTheme,
-        }),
-        variant
+        })
       )
+      if (fromSaved) return fromSaved
     }
     return ''
   }
@@ -845,22 +845,23 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       if (!doc?.body || isBlankDoc(doc)) return false
       return Boolean(
         doc.querySelector(
-          'header.pw-header, header.pw-shop-header, .pw-header, [data-pw-region="header"], [data-pw-region="banner"], [data-pw-region="catalog"], [data-pw-region="footer"], [data-pw-footer], [data-pw-paper], .pw-hero'
+          'header.pw-header, header.pw-shop-header, .pw-header, [data-pw-region="header"], [data-pw-region="banner"], [data-pw-region="catalog"], [data-pw-region="footer"], [data-pw-region="content"], [data-pw-footer], [data-pw-paper], [data-pw-page="info"], [data-pw-info-article], [data-pw-text-article], [data-pw-info-body], .pw-hero, .pw-shop-info'
         )
       )
     }
 
     const shopDocFromPreview = (doc: Document | null): Document | null => {
       if (!doc || isBlankDoc(doc)) return null
+      if (pageLooksReady(doc)) return doc
       const inner = doc.querySelector(
-        'iframe[srcdoc], iframe[title="Landing page"]'
+        'iframe[title="Landing page"], iframe[srcdoc]'
       ) as HTMLIFrameElement | null
       if (inner) {
         const innerDoc = inner.contentDocument
         if (!innerDoc || isBlankDoc(innerDoc) || !pageLooksReady(innerDoc)) return null
         return innerDoc
       }
-      return pageLooksReady(doc) ? doc : null
+      return null
     }
 
     const freezeFromDoc = (doc: Document | null): boolean => {

@@ -40,6 +40,8 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /splitNavTree/)
   assert.match(out, /data-pw-slider-bootstrap/)
   assert.match(out, /data-pw-slide-wait/)
+  assert.match(out, /data-pw-paper-tile-bootstrap/)
+  assert.match(out, /data-pw-paper-tile/)
 })
 
 test('editor stamp keeps chrome hooks and strips live API bootstraps', () => {
@@ -48,6 +50,7 @@ test('editor stamp keeps chrome hooks and strips live API bootstraps', () => {
     '<button class="pw-cat-btn">Danh mục</button>' +
     '<script data-pw-chrome-toggle-bootstrap>window.__liveCat=1</script>' +
     '<script data-pw-slider-bootstrap>window.__liveSlider=1</script>' +
+    '<script data-pw-paper-tile-bootstrap>window.__livePaperTile=1</script>' +
     '<script data-pw-search-bootstrap>window.__liveSearch=1</script>' +
     '<script data-pw-lp-buy>window.__liveBuy=1</script>' +
     '<script id="pw-logo-home-link">window.__liveLogo=1</script>' +
@@ -57,6 +60,7 @@ test('editor stamp keeps chrome hooks and strips live API bootstraps', () => {
   assert.doesNotMatch(out, /data-pw-chrome-toggle-bootstrap/)
   assert.doesNotMatch(out, /data-pw-slider-bootstrap/)
   assert.doesNotMatch(out, /window\.__liveSlider=1/)
+  assert.doesNotMatch(out, /data-pw-paper-tile-bootstrap/)
   assert.doesNotMatch(out, /data-pw-search-bootstrap/)
   assert.doesNotMatch(out, /data-pw-personalization-bootstrap/)
   assert.doesNotMatch(out, /data-pw-lp-buy/)

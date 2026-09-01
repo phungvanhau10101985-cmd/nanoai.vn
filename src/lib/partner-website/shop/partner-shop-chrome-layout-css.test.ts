@@ -49,6 +49,8 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('data-pw-pin-screen'), true)
   assert.equal(once.includes('data-pw-bg-cleared'), true)
   assert.equal(once.includes('data-pw-paper'), true)
+  assert.equal(once.includes('data-pw-paper-tile'), true)
+  assert.equal(once.includes('background-repeat:repeat!important'), true)
   assert.equal(once.includes('--pw-paper-pos-x'), true)
   assert.equal(once.includes('background-position:center center!important'), false)
   assert.equal(once.includes('data-pw-stay-scroll'), true)
@@ -281,6 +283,10 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('left:calc(50% - 190px - 50px + var(--pw-logo-x, 0px))!important'), true)
   assert.equal(once.includes('top:calc(50% + var(--pw-logo-y, 0px))!important'), true)
   assert.equal(once.includes('transform:translate(-100%, -50%)!important'), true)
+  assert.equal(once.includes('.pw-footer .pw-shop-footer-brand>a'), true)
+  assert.equal(once.includes('transform:translate(var(--pw-logo-x, 0px), var(--pw-logo-y, 0px))!important'), true)
+  assert.equal(once.includes('.pw-footer .pw-shop-footer-brand>a,.pw-shop-footer .pw-shop-footer-brand>a'), true)
+  assert.equal(once.includes('.pw-footer .pw-header-main a.pw-brand'), false)
   assert.equal(once.includes('margin-right:calc(190px + 50px)!important'), false)
   assert.equal(once.includes('flex:1 1 0%!important'), true)
   assert.equal(once.includes('justify-content:flex-end!important'), true)
@@ -318,6 +324,16 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('html:not([data-pw-edit-device]):not([data-pw-scene-lock]) [data-pw-chrome-added][data-pw-device="mobile"]'), true)
   assert.equal(once.includes('html[data-pw-edit-device="mobile"] [data-pw-chrome-added]'), true)
   assert.equal(once.includes('html[data-pw-edit-device="mobile"] .pw-cat-btn:not([data-pw-chrome-added])>span:not(.pw-chrome-icon-wrap)'), true)
+  assert.equal(
+    once.includes(
+      'html[data-pw-edit-device="tablet"] .pw-cat-btn:not([data-pw-chrome-added]):not(.pw-chrome-icon-only):not([data-pw-chrome-style="icon"])'
+    ),
+    true
+  )
+  assert.equal(once.includes('[data-pw-chrome-style="icon"]'), true)
+  assert.equal(once.includes('.pw-account-btn-label'), true)
+  assert.equal(once.includes('html[data-pw-edit-device] :is(.pw-chrome-icon-only'), true)
+  assert.equal(once.includes('[data-pw-chrome-style^="icon"]'), false)
   assert.equal(once.includes('.pw-cat-btn:not([data-pw-chrome-style="text"]):not(.pw-chrome-link) .pw-chrome-icon-wrap'), true)
   assert.equal(once.includes('.pw-cat-btn:not([data-pw-chrome-style="text"]):not(.pw-chrome-link) svg'), true)
   assert.equal(once.includes('html[data-pw-edit-device="mobile"] .pw-header-actions [data-pw-chrome-btn="cart"]'), true)
