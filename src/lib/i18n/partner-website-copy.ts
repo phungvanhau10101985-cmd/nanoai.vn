@@ -958,6 +958,7 @@ export type PartnerWebsiteCopy = {
   editingContextDefault: string
   editingContextConnected: string
   templateInUseBadge: string
+  templateInUseNow: string
   templateSuggestedBadge: string
   industryLabelFashion: string
   industryLabelHotel: string
@@ -1996,6 +1997,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     editingContextDefault: 'Tạo «{shop}» · {industry} · {template}',
     editingContextConnected: 'Kết nối {host}',
     templateInUseBadge: 'Đang dùng',
+    templateInUseNow: 'Mẫu này đang được dùng',
     templateSuggestedBadge: 'Mặc định ngành',
     industryLabelFashion: 'thời trang',
     industryLabelHotel: 'khách sạn',
@@ -3035,6 +3037,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     editingContextDefault: 'Create «{shop}» · {industry} · {template}',
     editingContextConnected: 'Connected {host}',
     templateInUseBadge: 'In use',
+    templateInUseNow: 'This template is in use',
     templateSuggestedBadge: 'Industry default',
     industryLabelFashion: 'fashion',
     industryLabelHotel: 'hotel',
@@ -4039,6 +4042,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     editingContextDefault: '创建「{shop}」· {industry} · {template}',
     editingContextConnected: '已连接 {host}',
     templateInUseBadge: '使用中',
+    templateInUseNow: '正在使用此模板',
     templateSuggestedBadge: '行业默认',
     industryLabelFashion: '时尚',
     industryLabelHotel: '酒店',
@@ -5061,6 +5065,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     editingContextDefault: '作成「{shop}」· {industry} · {template}',
     editingContextConnected: '接続 {host}',
     templateInUseBadge: '使用中',
+    templateInUseNow: 'このテンプレートを使用中',
     templateSuggestedBadge: '業種の既定',
     industryLabelFashion: 'ファッション',
     industryLabelHotel: 'ホテル',
@@ -6085,6 +6090,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     editingContextDefault: '생성 «{shop}» · {industry} · {template}',
     editingContextConnected: '연결 {host}',
     templateInUseBadge: '사용 중',
+    templateInUseNow: '이 템플릿을 사용 중',
     templateSuggestedBadge: '업종 기본',
     industryLabelFashion: '패션',
     industryLabelHotel: '호텔',

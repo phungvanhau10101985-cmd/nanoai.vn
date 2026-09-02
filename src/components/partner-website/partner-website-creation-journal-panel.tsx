@@ -690,7 +690,11 @@ export function PartnerWebsiteCreationJournalPanel({
                     key={preset.id}
                     className={cn(
                       'overflow-hidden rounded-lg border bg-background transition-colors',
-                      selected ? 'border-orange-500 ring-1 ring-orange-500/20' : 'border-border'
+                      inUse
+                        ? 'border-emerald-500 ring-1 ring-emerald-500/30'
+                        : selected
+                          ? 'border-orange-500 ring-1 ring-orange-500/20'
+                          : 'border-border'
                     )}
                   >
                     <button
@@ -730,24 +734,31 @@ export function PartnerWebsiteCreationJournalPanel({
                         </p>
                       </div>
                     </button>
-                    <div className="flex flex-wrap gap-1.5 border-t border-border/60 px-2 py-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 px-2 py-1.5">
                       <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" asChild>
                         <a href={previewHref} target="_blank" rel="noopener noreferrer">
                           {t.templateGalleryViewSample}
                         </a>
                       </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        disabled={controlsDisabled || setupBrand.trim().length < 2}
-                        onClick={() => void applyTemplate(preset.id)}
-                      >
-                        {busy || buildingSite ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : null}
-                        {homeBuilt ? t.pagePickerChangeTemplate : t.templateGalleryUseTemplate}
-                      </Button>
+                      {inUse ? (
+                        <span className="inline-flex h-7 items-center gap-1 rounded-md bg-emerald-600 px-2 text-xs font-semibold text-white">
+                          <Check className="h-3.5 w-3.5" />
+                          {t.templateInUseNow}
+                        </span>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          disabled={controlsDisabled || setupBrand.trim().length < 2}
+                          onClick={() => void applyTemplate(preset.id)}
+                        >
+                          {busy || buildingSite ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : null}
+                          {homeBuilt ? t.pagePickerChangeTemplate : t.templateGalleryUseTemplate}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 )
