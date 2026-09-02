@@ -33,6 +33,7 @@ import {
 import {
   PW_FOOTER_KIT_ATTR,
   PW_FOOTER_KIT_STOCK,
+  PW_FOOTER_LINK_KIT_MATCHERS,
 } from '../shop/partner-site-footer-kit'
 import {
   PW_CHROME_COUNT_BADGE_HIDE_CSS,
@@ -1738,6 +1739,20 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (shop > n) { best = 'col:shop'; n = shop }
     return n > 0 ? best : ''
   }
+  function inferFooterLinkKit(href) {
+    var s = String(href || '').trim()
+    if (!s || s === '#') return ''
+    var matchers = ${JSON.stringify(PW_FOOTER_LINK_KIT_MATCHERS)}
+    var i
+    for (i = 0; i < matchers.length; i++) {
+      try {
+        if (new RegExp(matchers[i].re, 'i').test(s)) return 'link:' + matchers[i].key
+      } catch (errLinkKit) {}
+    }
+    var path = s.replace(/^https?:\\/\\/[^/]+/i, '').split(/[?#]/)[0]
+    if (path === '/' || /^\\/site\\/[^/]+\\/?$/i.test(path)) return 'link:home'
+    return ''
+  }
   function ensureFooterKitAttrs() {
     var footer = footerRootEl()
     if (!footer || !footer.querySelectorAll) return
@@ -1767,6 +1782,25 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
           break
         }
       }
+    }
+    var usedLinks = {}
+    var links = footer.querySelectorAll('a[data-pw-el="link"]')
+    var extraN = 0
+    for (ci = 0; ci < links.length; ci++) {
+      var link = links[ci]
+      if (link.getAttribute('${PW_FOOTER_ADDED_ATTR}') === '1') continue
+      var linkKind = link.getAttribute('${PW_FOOTER_KIT_ATTR}') || ''
+      if (linkKind) { usedLinks[linkKind] = 1; continue }
+      var guessedLink = inferFooterLinkKit(link.getAttribute('href') || '')
+      if (guessedLink && !usedLinks[guessedLink]) {
+        link.setAttribute('${PW_FOOTER_KIT_ATTR}', guessedLink)
+        usedLinks[guessedLink] = 1
+        continue
+      }
+      extraN += 1
+      while (usedLinks['link:extra-' + extraN]) extraN += 1
+      link.setAttribute('${PW_FOOTER_KIT_ATTR}', 'link:extra-' + extraN)
+      usedLinks['link:extra-' + extraN] = 1
     }
     var extras = footer.querySelectorAll('[${PW_FOOTER_ADDED_ATTR}="1"]')
     var addedI = 0
@@ -4571,6 +4605,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!inHead) return false
     return !!(isHeaderChromeEl(el) || isSearchEl(el) || searchElOf(el) || catToggleElOf(el) || isChromeBtn(el) || isHeaderWidget(el))
   }
+  function isLockedFooterStockEl(el) {
+    if (!el || el.nodeType !== 1) return false
+    if (!isInFooter(el)) return false
+    if (isFooterAddedEl(el)) return false
+    if (isLogoTarget(el) || isLogoImg(el) || isLogoFrame(el) || isLogoSlot(el)) return false
+    return true
+  }
   function isHeaderPinLockedEl(el) {
     if (!el || el.nodeType !== 1) return false
     if (isChromeFloatEl(el) || isChromeFloatKind(chromeKindOf(el))) return false
@@ -4899,31 +4940,41 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       var stock = ${JSON.stringify(PW_FOOTER_KIT_STOCK)}
       var out = []
       var seen = {}
-      var i
-      for (i = 0; i < stock.length; i++) {
-        var el = footer.querySelector('[${PW_FOOTER_KIT_ATTR}="' + stock[i] + '"]')
-        if (!el) continue
-        seen[stock[i]] = 1
+      function pushFooterKit(kind, el) {
+        if (!kind || !el || seen[kind]) return
+        seen[kind] = 1
         out.push({
-          kind: stock[i],
+          kind: kind,
           hidden: el.getAttribute('data-pw-hidden') === '1',
           dockShow: '',
           slot: '',
-          label: String(el.getAttribute('aria-label') || el.textContent || stock[i]).replace(/\\s+/g, ' ').trim()
+          label: String(el.getAttribute('aria-label') || el.textContent || kind).replace(/\\s+/g, ' ').trim()
         })
+      }
+      var i
+      var stockCols = ['col:shop', 'col:shopping', 'col:support', 'col:legal']
+      pushFooterKit('brand', footer.querySelector('[${PW_FOOTER_KIT_ATTR}="brand"]'))
+      for (i = 0; i < stockCols.length; i++) {
+        var colEl = footer.querySelector('[${PW_FOOTER_KIT_ATTR}="' + stockCols[i] + '"]')
+        pushFooterKit(stockCols[i], colEl)
+        if (!colEl || !colEl.querySelectorAll) continue
+        var colLinks = colEl.querySelectorAll('a[data-pw-el="link"], a[${PW_FOOTER_KIT_ATTR}^="link:"]')
+        var li
+        for (li = 0; li < colLinks.length; li++) {
+          var lk = String(colLinks[li].getAttribute('${PW_FOOTER_KIT_ATTR}') || '')
+          if (lk.indexOf('link:') === 0) pushFooterKit(lk, colLinks[li])
+        }
+      }
+      pushFooterKit('copyright', footer.querySelector('[${PW_FOOTER_KIT_ATTR}="copyright"]'))
+      for (i = 0; i < stock.length; i++) {
+        if (seen[stock[i]]) continue
+        pushFooterKit(stock[i], footer.querySelector('[${PW_FOOTER_KIT_ATTR}="' + stock[i] + '"]'))
       }
       var extras = footer.querySelectorAll('[${PW_FOOTER_KIT_ATTR}]')
       for (i = 0; i < extras.length; i++) {
         var kind = String(extras[i].getAttribute('${PW_FOOTER_KIT_ATTR}') || '')
         if (!kind || seen[kind]) continue
-        seen[kind] = 1
-        out.push({
-          kind: kind,
-          hidden: extras[i].getAttribute('data-pw-hidden') === '1',
-          dockShow: '',
-          slot: '',
-          label: String(extras[i].getAttribute('aria-label') || extras[i].textContent || kind).replace(/\\s+/g, ' ').trim()
-        })
+        pushFooterKit(kind, extras[i])
       }
       return out
     }
@@ -7458,7 +7509,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var out = []
     for (var i = 0; i < nodes.length; i++) {
       var el = nodes[i]
-      if (isChromeKitEl(el) || isLockedHeadDockChrome(el) || isChromeFloatEl(el)) continue
+      if (isChromeKitEl(el) || isLockedHeadDockChrome(el) || isLockedFooterStockEl(el) || isChromeFloatEl(el)) continue
       if (el.parentElement && el.parentElement.closest && el.parentElement.closest('[data-pw-hidden="1"]')) continue
       out.push({ id: blockId(el), label: hiddenBlockName(el), place: hiddenBlockPlace(el) })
     }
@@ -7471,6 +7522,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (chatEmbedLauncherOf(el)) return false
     if (isOverlayNode(el)) return false
     if (isFullBleedChrome(el) || isShopRegionHost(el)) return false
+    if (isLockedFooterStockEl(el)) return true
     return isAddedBg(el) || isAddedText(el) || isAddedBtn(el) || isAddedChrome(el) || isChromeBtn(el) || !!(catToggleElOf(el)) || isSearchEl(el) || isContentBlockEl(el)
   }
   function hideSelectedUnitEl(el) {
@@ -7482,6 +7534,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function hideSelectedBlock() {
     if (!selected) return
     if (isLockedHeadDockChrome(selected)) return
+    if (isLockedFooterStockEl(selected)) {
+      hideSelectedUnitEl(selected)
+      clearSelection()
+      post('deselect', {})
+      post('dirty', {})
+      postHidden()
+      try { listChromeKitState() } catch (errFootHide) {}
+      return
+    }
     if (
       isAddedBg(selected) ||
       isAddedText(selected) ||
@@ -12084,6 +12145,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function canDragEl(el) {
     if (!el || el === document.body || el === document.documentElement) return false
     if (isLockedHeadDockChrome(el)) return false
+    if (isLockedFooterStockEl(el)) return false
     if (chatEmbedLauncherOf(el)) return false
     if (isFooterAddedEl(el) || (isInFooter(el) && (isAddedText(el) || isAddedBtn(el) || isAddedChrome(el)))) {
       return !!(isLogoTarget(el) || isLogoImg(el) || isLogoFrame(el) || isLogoSlot(el))
@@ -12097,6 +12159,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!el || el === document.body || el === document.documentElement) return false
     if (isChromeFloatEl(el)) return false
     if (isLockedHeadDockChrome(el)) return false
+    if (isLockedFooterStockEl(el)) return false
     if (chatEmbedLauncherOf(el)) return true
     if (canDeleteRegionBlock(el)) return true
     if (isFooterAddedEl(el)) return true
@@ -12143,6 +12206,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function dragModeFor(el) {
     if (isLockedHeadDockChrome(el)) return ''
+    if (isLockedFooterStockEl(el)) return ''
     if (isChromeKitEl(el) || (el && el.closest && el.closest('[data-pw-chrome-kit="actions"],[data-pw-chrome-kit="dock"]'))) {
       var kitBtn = chromeKitBtnOf(el) || el
       var kp = kitBtn && kitBtn.parentElement
@@ -13927,10 +13991,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         try { selected.focus() } catch (err2) {}
       }
     }
-    if (!isLockedHeadDockChrome(selected)) showMoveHandle(selected)
-    if (canDeleteEl(selected) && !isLockedHeadDockChrome(selected)) showDeleteHandle(selected)
-    if (canShowResizeHandles(selected) && !isLockedHeadDockChrome(selected)) showResizeHandle(selected)
-    if (!isLockedHeadDockChrome(selected)) showAlignGuides(logoMoveEl(selected) || selected)
+    if (!isLockedHeadDockChrome(selected) && !isLockedFooterStockEl(selected)) showMoveHandle(selected)
+    if (canDeleteEl(selected) && !isLockedHeadDockChrome(selected) && !isLockedFooterStockEl(selected)) showDeleteHandle(selected)
+    if (canShowResizeHandles(selected) && !isLockedHeadDockChrome(selected) && !isLockedFooterStockEl(selected)) showResizeHandle(selected)
+    if (!isLockedHeadDockChrome(selected) && !isLockedFooterStockEl(selected)) showAlignGuides(logoMoveEl(selected) || selected)
     syncLayerSwitches()
     syncLogoButtons()
     syncLogoLayerVisual()

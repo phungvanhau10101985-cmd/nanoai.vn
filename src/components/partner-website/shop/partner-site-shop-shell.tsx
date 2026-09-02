@@ -53,6 +53,7 @@ import {
   resolvePartnerSiteNavHref,
   visibleSortedNavLinks,
 } from '@/lib/partner-website/shop/partner-site-nav-footer'
+import { footerLinkKitKind } from '@/lib/partner-website/shop/partner-site-footer-kit'
 import { buildPartnerSiteChromeToggleBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-chrome-toggle-bootstrap-script'
 import { buildPartnerSiteSearchBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-search-bootstrap-script'
 import { buildPartnerSiteShopActionsBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-shop-actions-bootstrap-script'
@@ -868,7 +869,11 @@ function PartnerSiteShopShellInner({
                 <ul>
                   {items.map((item) => (
                     <li key={item.id}>
-                      <Link href={resolvePartnerSiteNavHref(item.hrefKey, paths, infoPath)} data-pw-el={PW_EL.link}>
+                      <Link
+                        href={resolvePartnerSiteNavHref(item.hrefKey, paths, infoPath)}
+                        data-pw-el={PW_EL.link}
+                        data-pw-footer-kit={footerLinkKitKind(item.hrefKey)}
+                      >
                         {footerLabel(item.hrefKey, item.labelOverride)}
                       </Link>
                     </li>

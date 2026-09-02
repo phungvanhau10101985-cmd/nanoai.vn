@@ -31,6 +31,7 @@ test('full footer has four columns and required policy links', () => {
   assert.match(html, /data-pw-footer-kit="brand"/)
   assert.match(html, /data-pw-footer-kit="col:shop"/)
   assert.match(html, /data-pw-footer-kit="copyright"/)
+  assert.match(html, /data-pw-footer-kit="link:shipping"/)
 })
 
 test('skeletal policy-only footer is upgraded when site slug exists', () => {

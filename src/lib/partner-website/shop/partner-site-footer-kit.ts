@@ -1,7 +1,9 @@
 /**
- * Footer kit — ẩn/hiện khối gốc (logo, 4 cột, copyright) như Head.
- * Không thêm phần tử bằng dấu + / Thêm vào chân trang.
+ * Footer kit — ẩn/hiện khối gốc (logo, 4 cột, copyright) + từng link nhỏ như Head.
+ * Không xóa mục stock. Không thêm phần tử bằng dấu + / Thêm vào chân trang.
  */
+import { isPartnerSiteNavHrefKey, type PartnerSiteNavHrefKey } from '@/lib/partner-website/shop/partner-site-nav-footer'
+
 export const PW_FOOTER_KIT_ATTR = 'data-pw-footer-kit'
 
 export const PW_FOOTER_KIT_STOCK = [
@@ -14,6 +16,52 @@ export const PW_FOOTER_KIT_STOCK = [
 ] as const
 
 export type PwFooterKitStockKind = (typeof PW_FOOTER_KIT_STOCK)[number]
+
+export const PW_FOOTER_LINK_KIT_MATCHERS: { key: PartnerSiteNavHrefKey; re: string }[] = [
+  { key: 'size-guide', re: '/size-guide(?:/|$|\\?|#)' },
+  { key: 'sale', re: '/kho-sale(?:/|$|\\?|#)' },
+  { key: 'wishlist', re: '/wishlist(?:/|$|\\?|#)' },
+  { key: 'products', re: '/products(?:/|$|\\?|#)' },
+  { key: 'shipping', re: '/shipping(?:/|$|\\?|#)' },
+  { key: 'returns', re: '/returns(?:/|$|\\?|#)' },
+  { key: 'payment', re: '/payment(?:/|$|\\?|#)' },
+  { key: 'privacy', re: '/privacy(?:/|$|\\?|#)' },
+  { key: 'terms', re: '/terms(?:/|$|\\?|#)' },
+  { key: 'orders', re: '/orders(?:/|$|\\?|#)' },
+  { key: 'account', re: '/account(?:/|$|\\?|#)' },
+  { key: 'contact', re: '/contact(?:/|$|\\?|#)' },
+  { key: 'about', re: '/about(?:/|$|\\?|#)' },
+  { key: 'stores', re: '/stores(?:/|$|\\?|#)' },
+  { key: 'lookbook', re: '/lookbook(?:/|$|\\?|#)' },
+  { key: 'faq', re: '/faq(?:/|$|\\?|#)' },
+  { key: 'cart', re: '/cart(?:/|$|\\?|#)' },
+  { key: 'blog', re: '/blog(?:/|$|\\?|#)' },
+]
+
+export function footerLinkKitKind(hrefKey: PartnerSiteNavHrefKey): `link:${PartnerSiteNavHrefKey}` {
+  return `link:${hrefKey}`
+}
+
+export function footerLinkKitHrefKey(kind: string): PartnerSiteNavHrefKey | null {
+  if (!kind.startsWith('link:')) return null
+  const key = kind.slice(5)
+  return isPartnerSiteNavHrefKey(key) ? key : null
+}
+
+export function isPwFooterKitLinkKind(kind: string): boolean {
+  return footerLinkKitHrefKey(kind) != null || /^link:extra-\d+$/.test(kind)
+}
+
+export function inferFooterLinkKitKind(href: string): `link:${PartnerSiteNavHrefKey}` | null {
+  const raw = String(href || '').trim()
+  if (!raw || raw === '#') return null
+  for (const row of PW_FOOTER_LINK_KIT_MATCHERS) {
+    if (new RegExp(row.re, 'i').test(raw)) return footerLinkKitKind(row.key)
+  }
+  const path = raw.replace(/^https?:\/\/[^/]+/i, '').split(/[?#]/)[0]
+  if (path === '/' || /^\/site\/[^/]+\/?$/i.test(path)) return 'link:home'
+  return null
+}
 
 const COL_KINDS = ['col:shop', 'col:shopping', 'col:support', 'col:legal'] as const
 type FooterColKitKind = (typeof COL_KINDS)[number]
@@ -90,6 +138,27 @@ function stampFooterKitInFooterBlock(block: string): string {
       return `${withKitAttr(full.slice(0, close + 1), kind)}${inner}</nav>`
     }
   )
+  const usedLinks = new Set<string>()
+  next = next.replace(/<a\b([^>]*)>/gi, (full) => {
+    if (/\bdata-pw-footer-kit=/i.test(full)) {
+      const have = /data-pw-footer-kit=["']([^"']+)["']/i.exec(full)
+      if (have?.[1]) usedLinks.add(have[1])
+      return full
+    }
+    if (/\bdata-pw-footer-added=/i.test(full)) return full
+    if (/\bdata-pw-el=["']logo["']/i.test(full)) return full
+    if (!/\bdata-pw-el=["']link["']/i.test(full)) return full
+    const href = /href=["']([^"']*)["']/i.exec(full)?.[1] || ''
+    const inferred = inferFooterLinkKitKind(href)
+    let kind = inferred && !usedLinks.has(inferred) ? inferred : ''
+    if (!kind) {
+      let n = 1
+      while (usedLinks.has(`link:extra-${n}`)) n += 1
+      kind = `link:extra-${n}`
+    }
+    usedLinks.add(kind)
+    return withKitAttr(full, kind)
+  })
   let addedI = 0
   next = next.replace(/<([a-z][a-z0-9]*)(\b[^>]*\bdata-pw-footer-added=["']1["'][^>]*)>/gi, (full) => {
     if (/\bdata-pw-footer-kit=/i.test(full)) return full

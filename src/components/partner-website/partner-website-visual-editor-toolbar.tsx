@@ -19,6 +19,8 @@ import { cn } from '@/lib/utils'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerWebsiteCopy, type PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { getPartnerSiteCategoryNavLabels } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
+import { footerLinkKitHrefKey } from '@/lib/partner-website/shop/partner-site-footer-kit'
 import type {
   PartnerWebsiteCanonicalVisualSave,
   PartnerWebsiteProject,
@@ -935,12 +937,38 @@ type ChromeKitListItem = {
 
 function footerKitRowLabel(kind: string, locale: WebLocale, t: PartnerWebsiteCopy, fallback: string): string {
   const shop = getPartnerSiteShopCopy(locale)
+  const n = getPartnerSiteCategoryNavLabels(locale)
   if (kind === 'brand') return t.visualEditChromeKitFooterBrand
   if (kind === 'copyright') return t.visualEditChromeKitFooterCopyright
   if (kind === 'col:shop') return shop.footerColShop
   if (kind === 'col:shopping') return shop.footerColShopping
   if (kind === 'col:support') return shop.footerColSupport
   if (kind === 'col:legal') return shop.footerColLegal
+  const linkKey = footerLinkKitHrefKey(kind)
+  if (linkKey) {
+    const map: Record<string, string> = {
+      home: shop.navHome,
+      products: shop.navProducts,
+      sale: n.sale,
+      wishlist: shop.navFavorites,
+      cart: shop.navCart,
+      orders: shop.navOrders,
+      account: shop.navAccount,
+      about: n.about,
+      contact: n.contact,
+      faq: n.faq,
+      shipping: n.shipping,
+      returns: n.returns,
+      privacy: n.privacy,
+      terms: n.terms,
+      payment: n.payment,
+      stores: n.stores,
+      lookbook: n.lookbook,
+      'size-guide': n.sizeGuide,
+      blog: n.blog,
+    }
+    return map[linkKey] || fallback.replace(/\s+/g, ' ').trim() || kind
+  }
   const added = fallback.replace(/\s+/g, ' ').trim()
   return added || kind
 }
@@ -1421,6 +1449,7 @@ function ChromeKitPanel({
           key={`ft-${item.kind}`}
           label={footerKitRowLabel(item.kind, locale, t, item.label)}
           hidden={item.hidden}
+          indent={item.kind.startsWith('link:')}
           busy={busy}
           hideLabel={t.visualEditBlockHide}
           showLabel={t.visualEditBlockShow}
@@ -1480,6 +1509,7 @@ function ChromeKitPanel({
 function ChromeKitRow({
   label,
   hidden,
+  indent,
   busy,
   hideLabel,
   showLabel,
@@ -1496,6 +1526,7 @@ function ChromeKitRow({
 }: {
   label: string
   hidden: boolean
+  indent?: boolean
   busy: boolean
   hideLabel: string
   showLabel: string
@@ -1511,7 +1542,7 @@ function ChromeKitRow({
   onDown?: () => void
 }) {
   return (
-    <div className="flex items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/60">
+    <div className={cn('flex items-center gap-1 rounded px-1 py-0.5 hover:bg-muted/60', indent && 'pl-4')}>
       {onSelect ? (
         <button
           type="button"

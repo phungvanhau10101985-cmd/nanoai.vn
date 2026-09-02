@@ -1304,7 +1304,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitDock: 'Thanh đáy',
     visualEditChromeKitFooter: 'Chân trang',
     visualEditChromeKitFooterHint:
-      'Giữ layout gốc. Bật mắt để hiện logo, cột link hoặc copyright. Không thêm phần tử bằng dấu + — khó chỉnh cho đẹp. Mỗi máy một bản.',
+      'Giữ layout gốc. Mục nhỏ (Vận chuyển, Đơn hàng…) không xóa — chỉ ẩn/hiện bằng mắt. Logo, cột và copyright cũng vậy. Không thêm bằng dấu +.',
     visualEditChromeKitFooterBrand: 'Logo / thương hiệu',
     visualEditChromeKitFooterCopyright: 'Copyright',
     visualEditChromeKitFloat: 'Thanh nổi — nút góc màn',
@@ -2348,7 +2348,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitDock: 'Bottom bar',
     visualEditChromeKitFooter: 'Footer',
     visualEditChromeKitFooterHint:
-      'Keep the stock layout. Use the eye to show or hide the logo, link columns, or copyright. Do not add footer pieces with the plus sign. One set per device.',
+      'Keep the stock layout. Small footer links cannot be deleted — use the eye to show or hide them. Same for the logo, columns, and copyright. Do not add footer pieces with the plus sign.',
     visualEditChromeKitFooterBrand: 'Logo / brand',
     visualEditChromeKitFooterCopyright: 'Copyright',
     visualEditChromeKitFloat: 'Floating bar — corner buttons',
@@ -3380,7 +3380,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitHeadMobile: '手机页头',
     visualEditChromeKitDock: '底栏',
     visualEditChromeKitFooter: '页脚',
-    visualEditChromeKitFooterHint: '保持原布局。用眼睛显示或隐藏标志、链接列或版权。不要用加号往页脚插入。每台设备一份。',
+    visualEditChromeKitFooterHint:
+      '保持原布局。页脚小链接不能删除，只能用眼睛显示或隐藏。标志、列和版权同样。不要用加号往页脚插入。',
     visualEditChromeKitFooterBrand: '标志 / 品牌',
     visualEditChromeKitFooterCopyright: '版权',
     visualEditChromeKitFloat: '浮动栏 — 角落按钮',
@@ -4396,7 +4397,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitDock: '下部バー',
     visualEditChromeKitFooter: 'フッター',
     visualEditChromeKitFooterHint:
-      '元のレイアウトを保ちます。目のアイコンでロゴ・列・著作権表示を表示/非表示。プラスでフッターに追加しません。端末ごとに別です。',
+      '元のレイアウトを保ちます。フッターの小さなリンクは削除できません。目のアイコンで表示/非表示。ロゴ・列・著作権も同様。プラスでフッターに追加しません。',
     visualEditChromeKitFooterBrand: 'ロゴ / ブランド',
     visualEditChromeKitFooterCopyright: 'コピーライト',
     visualEditChromeKitFloat: 'フローティングバー — 角のボタン',
@@ -5426,7 +5427,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitDock: '하단 바',
     visualEditChromeKitFooter: '푸터',
     visualEditChromeKitFooterHint:
-      '원래 레이아웃을 유지합니다. 눈으로 로고, 링크 열, 저작권을 표시하거나 숨깁니다. 더하기 기호로 푸터에 넣지 마세요. 기기마다 따로입니다.',
+      '원래 레이아웃을 유지합니다. 푸터의 작은 링크는 삭제할 수 없고 눈으로만 표시/숨깁니다. 로고, 열, 저작권도 같습니다. 더하기 기호로 푸터에 넣지 마세요.',
     visualEditChromeKitFooterBrand: '로고 / 브랜드',
     visualEditChromeKitFooterCopyright: '저작권',
     visualEditChromeKitFloat: '플로팅 바 — 모서리 버튼',

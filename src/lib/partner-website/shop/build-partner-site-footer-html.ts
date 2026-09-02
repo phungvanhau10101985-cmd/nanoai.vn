@@ -16,7 +16,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-nav-footer'
 import { getPartnerSiteCategoryNavLabels, getPartnerSiteShopNavPaths } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import { partnerSiteInfoPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
-import { PW_FOOTER_KIT_ATTR, stampFooterKitInHtml } from '@/lib/partner-website/shop/partner-site-footer-kit'
+import { PW_FOOTER_KIT_ATTR, footerLinkKitKind, stampFooterKitInHtml } from '@/lib/partner-website/shop/partner-site-footer-kit'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export const PW_FOOTER_FULL_ATTR = 'data-pw-footer'
@@ -159,7 +159,7 @@ export function buildPartnerSiteFooterHtml(input: {
       .map((item) => {
         const href = escapeAttr(resolvePartnerSiteNavHref(item.hrefKey, paths, infoPath))
         const label = escapeHtml(footerLabel(locale, item.hrefKey, item.labelOverride))
-        return `<li><a href="${href}" ${pwElAttr(PW_EL.link)}>${label}</a></li>`
+        return `<li><a href="${href}" ${pwElAttr(PW_EL.link)} ${PW_FOOTER_KIT_ATTR}="${footerLinkKitKind(item.hrefKey)}">${label}</a></li>`
       })
       .join('')
     return `<nav class="pw-shop-footer-col pw-footer-col" ${pwElAttr(PW_EL.col)} ${PW_FOOTER_KIT_ATTR}="col:${colId}" aria-label="${escapeAttr(heading)}">

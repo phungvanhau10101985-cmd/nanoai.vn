@@ -126,9 +126,9 @@ html .pw-footer-col,html .pw-shop-footer-col,html .pw-footer-col ul,html .pw-sho
   position:relative!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;
   height:auto!important;min-height:0!important;overflow:visible!important;transform:none!important
 }
-html .pw-footer-col a:not([data-pw-chrome-added]):not([data-pw-chrome-float]):not([data-pw-pin-screen]):not([data-pw-el="logo"]):not(.pw-brand):not(.pw-shop-brand),
-html .pw-shop-footer-col a:not([data-pw-chrome-added]):not([data-pw-chrome-float]):not([data-pw-pin-screen]):not([data-pw-el="logo"]):not(.pw-brand):not(.pw-shop-brand),
-html .pw-footer-col li,html .pw-shop-footer-col li,
+html .pw-footer-col a:not([data-pw-hidden="1"]):not([data-pw-chrome-added]):not([data-pw-chrome-float]):not([data-pw-pin-screen]):not([data-pw-el="logo"]):not(.pw-brand):not(.pw-shop-brand),
+html .pw-shop-footer-col a:not([data-pw-hidden="1"]):not([data-pw-chrome-added]):not([data-pw-chrome-float]):not([data-pw-pin-screen]):not([data-pw-el="logo"]):not(.pw-brand):not(.pw-shop-brand),
+html .pw-footer-col li:not([data-pw-hidden="1"]),html .pw-shop-footer-col li:not([data-pw-hidden="1"]),
 html .pw-footer-col h3,html .pw-shop-footer-col h3,
 html .pw-footer-bar a,html .pw-footer-bar p,html .pw-footer-bar span,
 html .pw-shop-footer-bar a,html .pw-shop-footer-bar p,html .pw-shop-footer-bar span,
@@ -139,6 +139,8 @@ html .pw-footer-bottom a,html .pw-footer-bottom span,html .pw-footer-bottom p{
   height:auto!important;max-height:none!important;min-height:1.45em!important;
   line-height:1.45!important;white-space:normal!important;margin-left:0!important;margin-right:0!important
 }
+html .pw-footer-col [data-pw-hidden="1"],html .pw-shop-footer-col [data-pw-hidden="1"],
+html .pw-footer-col li:has(>[data-pw-hidden="1"]),html .pw-shop-footer-col li:has(>[data-pw-hidden="1"]){display:none!important}
 html .pw-footer:not([data-pw-bg-cleared="1"]):not([data-pw-paper="image"]),html .pw-shop-footer:not([data-pw-bg-cleared="1"]):not([data-pw-paper="image"]){background:var(--pw-footer,#fff)!important}
 html [data-pw-footer-added]{
   position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;

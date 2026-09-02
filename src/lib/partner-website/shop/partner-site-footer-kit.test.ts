@@ -3,6 +3,8 @@ import test from 'node:test'
 import { buildPartnerSiteFooterHtml } from '@/lib/partner-website/shop/build-partner-site-footer-html'
 import {
   inferFooterColumnKitKind,
+  inferFooterLinkKitKind,
+  footerLinkKitKind,
   PW_FOOTER_KIT_ATTR,
   stampFooterKitInHtml,
 } from '@/lib/partner-website/shop/partner-site-footer-kit'
@@ -20,6 +22,9 @@ test('factory footer stamps brand, four columns, copyright', () => {
   assert.match(html, new RegExp(`${PW_FOOTER_KIT_ATTR}="col:support"`))
   assert.match(html, new RegExp(`${PW_FOOTER_KIT_ATTR}="col:legal"`))
   assert.match(html, new RegExp(`${PW_FOOTER_KIT_ATTR}="copyright"`))
+  assert.match(html, new RegExp(`${PW_FOOTER_KIT_ATTR}="link:shipping"`))
+  assert.match(html, new RegExp(`${PW_FOOTER_KIT_ATTR}="link:payment"`))
+  assert.match(html, new RegExp(`${PW_FOOTER_KIT_ATTR}="link:orders"`))
 })
 
 test('stampFooterKitInHtml is idempotent on factory footer', () => {
@@ -58,7 +63,19 @@ test('stampFooterKitInHtml infers columns on leftover full footer', () => {
   assert.match(next, /data-pw-footer-kit="col:support"/)
   assert.match(next, /data-pw-footer-kit="col:legal"/)
   assert.match(next, /data-pw-footer-kit="copyright"/)
+  assert.match(next, /data-pw-footer-kit="link:about"/)
+  assert.match(next, /data-pw-footer-kit="link:products"/)
+  assert.match(next, /data-pw-footer-kit="link:faq"/)
+  assert.match(next, /data-pw-footer-kit="link:privacy"/)
   assert.equal(stampFooterKitInHtml(next), next)
+})
+
+test('inferFooterLinkKitKind reads stock footer hrefs', () => {
+  assert.equal(inferFooterLinkKitKind('/site/x/shipping'), footerLinkKitKind('shipping'))
+  assert.equal(inferFooterLinkKitKind('/site/188.com.vn/156/payment'), footerLinkKitKind('payment'))
+  assert.equal(inferFooterLinkKitKind('/site/x/orders'), footerLinkKitKind('orders'))
+  assert.equal(inferFooterLinkKitKind('/site/demo-shop'), footerLinkKitKind('home'))
+  assert.equal(inferFooterLinkKitKind(''), null)
 })
 
 test('inferFooterColumnKitKind reads policy vs shop hrefs', () => {
