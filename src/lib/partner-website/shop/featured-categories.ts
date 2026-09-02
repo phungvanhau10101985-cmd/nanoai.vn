@@ -159,31 +159,62 @@ export function flattenFeaturedCategoryCandidates(
 
 function scoreCandidate(c: FeaturedCategoryCandidate, viewedNames: string[]): number {
   let score = c.productCount + (c.viewed ? 80 : 0)
-  if (c.level === 2 && c.viewed) score += 60
-  if (c.level === 3 && c.viewed) score -= 20
+  if (c.level === 3 && c.viewed) score += 60
+  if (c.level === 2 && c.viewed) score += 20
   for (const vn of viewedNames) score += tokenOverlapScore(c.name, vn) * 12
   return score
 }
 
-function takeByLevel(
-  sorted: FeaturedCategoryCandidate[],
-  level: 1 | 2 | 3,
-  n: number,
-  used: Set<string>
-): FeaturedCategoryCandidate[] {
-  const out: FeaturedCategoryCandidate[] = []
-  for (const c of sorted) {
-    if (out.length >= n) break
-    if (c.level !== level || used.has(c.id)) continue
-    used.add(c.id)
-    out.push(c)
+/**
+ * L3 chứa SP vừa xem, theo thứ tự xem. Gắn L2 (chưa có L3) → mọi L3 con còn hàng.
+ * Không bung cả cây L1 (quá rộng).
+ */
+export function collectViewedFeaturedL3Ids(input: {
+  candidates: FeaturedCategoryCandidate[]
+  directIds?: Set<string>
+  /** Id danh mục theo thứ tự SP vừa xem (mới nhất trước). */
+  orderedDirectIds?: string[]
+}): string[] {
+  const direct = new Set(
+    [...(input.directIds ?? []), ...(input.orderedDirectIds ?? [])].map((id) => id.toLowerCase())
+  )
+  if (!direct.size) return []
+  const byId = new Map(input.candidates.map((c) => [c.id.toLowerCase(), c]))
+  const out: string[] = []
+  const used = new Set<string>()
+  const add = (id: string) => {
+    const key = id.toLowerCase()
+    const c = byId.get(key)
+    if (!c || c.level !== 3 || used.has(key)) return
+    used.add(key)
+    out.push(c.id)
   }
+  const l3ChildrenOf = (parent: FeaturedCategoryCandidate) =>
+    input.candidates
+      .filter((c) => c.level === 3 && categoryPathIsAncestor(parent.path, c.path))
+      .sort((a, b) => b.productCount - a.productCount)
+  const consider = (rawId: string) => {
+    const c = byId.get(String(rawId || '').toLowerCase())
+    if (!c) return
+    if (c.level === 3) {
+      add(c.id)
+      return
+    }
+    if (c.level !== 2) return
+    const children = l3ChildrenOf(c)
+    if (children.some((ch) => direct.has(ch.id.toLowerCase()))) return
+    for (const ch of children) add(ch.id)
+  }
+  const order = (input.orderedDirectIds?.length ? input.orderedDirectIds : [...direct]).map((id) =>
+    String(id || '').toLowerCase()
+  )
+  for (const id of order) consider(id)
   return out
 }
 
 /**
- * 188 hero mix: half L2 + half L3, then remaining L2/L3, then L1.
- * Gender filter prefers matching branches; unisex fills only if still short.
+ * Mọi ô = L3 chứa SP vừa xem trước. Hết L3 vừa xem thì L3 phổ biến cùng giới, rồi L2 / L1.
+ * Không để ô đầu L2 «Đầm» còn ô cạnh giữ chữ mẫu Túi xách / Giày dép.
  */
 export function pickFeaturedCategoryTiles(input: {
   candidates: FeaturedCategoryCandidate[]
@@ -192,47 +223,53 @@ export function pickFeaturedCategoryTiles(input: {
   limit: number
   /** Id danh mục gắn SP vừa xem — ô này lên trước, rồi mới trám phổ biến. */
   directIds?: Set<string>
+  orderedDirectIds?: string[]
 }): FeaturedCategoryCandidate[] {
   const limit = Math.max(4, Math.min(FEATURED_CATEGORY_TILE_MAX, Math.floor(Number(input.limit) || FEATURED_CATEGORY_TILE_DEFAULT)))
   const viewedNames = input.viewedNames ?? []
-  const recent = pickRecentViewNavPills({
+  const byId = new Map(input.candidates.map((c) => [c.id, c]))
+  const recentL3 = collectViewedFeaturedL3Ids({
     candidates: input.candidates,
     directIds: input.directIds,
-    limit,
+    orderedDirectIds: input.orderedDirectIds,
   })
+  const picked: FeaturedCategoryCandidate[] = []
+  const used = new Set<string>()
+  for (const id of recentL3) {
+    if (picked.length >= limit) break
+    const c = byId.get(id)
+    if (!c || used.has(c.id)) continue
+    used.add(c.id)
+    picked.push(c)
+  }
   const matching = input.gender
     ? input.candidates.filter((c) => c.gender === input.gender)
     : input.candidates
   const unisex = input.gender ? input.candidates.filter((c) => c.gender == null) : []
   const ranked = [...matching].sort((a, b) => scoreCandidate(b, viewedNames) - scoreCandidate(a, viewedNames))
-  const used = new Set(recent.map((c) => c.id))
-  const half = Math.max(2, Math.floor(limit / 2))
-  const needL2 = Math.max(0, half - recent.filter((c) => c.level === 2).length)
-  const needL3 = Math.max(0, half - recent.filter((c) => c.level === 3).length)
-  const picked = [
-    ...recent,
-    ...takeByLevel(ranked, 2, needL2, used),
-    ...takeByLevel(ranked, 3, needL3, used),
-  ]
-  const fill = (pool: FeaturedCategoryCandidate[]) => {
+  const fillLevel = (pool: FeaturedCategoryCandidate[], level: 1 | 2 | 3) => {
     for (const c of pool) {
       if (picked.length >= limit) break
-      if (used.has(c.id)) continue
-      if (c.level !== 2 && c.level !== 3) continue
+      if (c.level !== level || used.has(c.id)) continue
       used.add(c.id)
       picked.push(c)
     }
   }
-  fill(ranked)
-  if (picked.length < limit) fill(unisex.sort((a, b) => scoreCandidate(b, viewedNames) - scoreCandidate(a, viewedNames)))
+  fillLevel(ranked, 3)
   if (picked.length < limit) {
-    for (const c of ranked) {
-      if (picked.length >= limit) break
-      if (used.has(c.id) || c.level !== 1) continue
-      used.add(c.id)
-      picked.push(c)
-    }
+    fillLevel(
+      unisex.sort((a, b) => scoreCandidate(b, viewedNames) - scoreCandidate(a, viewedNames)),
+      3
+    )
   }
+  fillLevel(ranked, 2)
+  if (picked.length < limit) {
+    fillLevel(
+      unisex.sort((a, b) => scoreCandidate(b, viewedNames) - scoreCandidate(a, viewedNames)),
+      2
+    )
+  }
+  fillLevel(ranked, 1)
   if (picked.length < limit && input.gender) {
     for (const c of unisex.sort((a, b) => b.productCount - a.productCount)) {
       if (picked.length >= limit) break
@@ -392,9 +429,13 @@ export async function getSiteFeaturedCategoryBlock(input: {
     ? await fetchInventoryCategorySignalsFromPg(input.partnerId, viewedIds)
     : new Map()
   const viewedCategoryIds = new Set<string>()
+  const orderedDirectIds: string[] = []
   for (const id of viewedIds) {
     const sig = signals.get(id.toLowerCase())
-    if (sig?.subKey) viewedCategoryIds.add(sig.subKey.toLowerCase())
+    if (sig?.subKey) {
+      viewedCategoryIds.add(sig.subKey.toLowerCase())
+      orderedDirectIds.push(sig.subKey)
+    }
     if (sig?.shopKey) viewedCategoryIds.add(sig.shopKey.toLowerCase())
   }
 
@@ -413,6 +454,7 @@ export async function getSiteFeaturedCategoryBlock(input: {
     gender,
     limit,
     directIds: viewedCategoryIds,
+    orderedDirectIds,
   })
   const navPills = tilesFromCandidates(
     input.siteSlug,

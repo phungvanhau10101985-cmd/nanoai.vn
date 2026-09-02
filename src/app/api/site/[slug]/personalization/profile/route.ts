@@ -7,6 +7,10 @@ import {
   resolveSiteVisitorEmail,
   saveSiteVisitorProfile,
 } from '@/lib/partner-website/shop/partner-site-personalization'
+import {
+  parseIsoDateOfBirth,
+  parsePartnerShopGender,
+} from '@/lib/partner-website/shop/partner-site-profile-demographics'
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
 
 export const dynamic = 'force-dynamic'
@@ -67,6 +71,8 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
         customer_name?: unknown
         customer_phone?: unknown
         shipping_address?: unknown
+        gender?: unknown
+        date_of_birth?: unknown
       }
     | null
 
@@ -74,6 +80,8 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
     customerName?: string
     customerPhone?: string
     shippingAddress?: string
+    gender?: ReturnType<typeof parsePartnerShopGender>
+    dateOfBirth?: string | null
   } = {}
   if (body && 'customer_name' in body) {
     patch.customerName = String(body.customer_name ?? '').trim().slice(0, 180)
@@ -84,18 +92,36 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
   if (body && 'shipping_address' in body) {
     patch.shippingAddress = String(body.shipping_address ?? '').trim().slice(0, 500)
   }
+  if (body && 'gender' in body) {
+    patch.gender = parsePartnerShopGender(body.gender)
+  }
+  if (body && 'date_of_birth' in body) {
+    const raw = String(body.date_of_birth ?? '').trim()
+    patch.dateOfBirth = raw ? parseIsoDateOfBirth(raw) : null
+    if (raw && !patch.dateOfBirth) {
+      return jsonSitePersonalization(
+        request,
+        { ok: false, error: 'DOB_INVALID' },
+        400,
+        { sessionId: visitor.sessionId, thread: visitor.thread }
+      )
+    }
+  }
 
-  const ok = await saveSiteVisitorProfile({
+  const saved = await saveSiteVisitorProfile({
     partnerId: shop.partnerId,
     emailNormalized: email,
     emailRaw: email,
+    accountKey: visitor.accountKey,
+    linkedUserId: visitor.thread.linkedUserId,
     ...patch,
   })
-  if (!ok) {
+  if (!saved.ok) {
+    const status = saved.error === 'SAVE_FAILED' ? 500 : 400
     return jsonSitePersonalization(
       request,
-      { ok: false, error: 'SAVE_FAILED' },
-      500,
+      { ok: false, error: saved.error ?? 'SAVE_FAILED' },
+      status,
       { sessionId: visitor.sessionId, thread: visitor.thread }
     )
   }

@@ -1,3 +1,4 @@
+import { fetchPartnerCustomerProfileByEmailFromPg } from '@/lib/db/messaging-partner-customer-profiles-pg'
 import { fetchNanoaiChatProfileFromPg } from '@/lib/db/profiles-repo'
 import {
   fetchActiveInventoryByShopKeysFromPg,
@@ -66,12 +67,30 @@ async function resolveVisitorDemographics(input: {
   partnerId: string
   accountKey: string
   linkedUserId?: string | null
+  loggedIn?: boolean
+  email?: string | null
 }): Promise<{ gender: 'male' | 'female' | null; birthYear: number | null; loggedIn: boolean }> {
-  const loggedIn = Boolean(input.linkedUserId)
+  const loggedIn = input.loggedIn ?? Boolean(input.linkedUserId)
+  const hint = await fetchVisitorProfileHintFromPg({
+    partnerId: input.partnerId,
+    accountKey: input.accountKey,
+  })
+  let gender = hint?.gender ?? null
+  let birthYear = hint?.birthYear ?? null
+  const email = (input.email ?? '').trim().toLowerCase()
+  if (email) {
+    const customer = await fetchPartnerCustomerProfileByEmailFromPg({
+      partnerId: input.partnerId,
+      emailNormalized: email,
+    })
+    gender = customer?.gender ?? gender
+    birthYear = birthYearFromIso(customer?.date_of_birth) ?? birthYear
+  }
   if (input.linkedUserId) {
     const profile = await fetchNanoaiChatProfileFromPg(input.linkedUserId)
-    const gender = profile?.gender === 'male' || profile?.gender === 'female' ? profile.gender : null
-    const birthYear = birthYearFromIso(profile?.birthDate)
+    const fromProfile = profile?.gender === 'male' || profile?.gender === 'female' ? profile.gender : null
+    gender = fromProfile ?? gender
+    birthYear = birthYearFromIso(profile?.birthDate) ?? birthYear
     if (gender) {
       await upsertVisitorProfileHintFromPg({
         partnerId: input.partnerId,
@@ -80,13 +99,8 @@ async function resolveVisitorDemographics(input: {
         birthYear,
       })
     }
-    return { gender, birthYear, loggedIn }
   }
-  const hint = await fetchVisitorProfileHintFromPg({
-    partnerId: input.partnerId,
-    accountKey: input.accountKey,
-  })
-  return { gender: hint?.gender ?? null, birthYear: hint?.birthYear ?? null, loggedIn: false }
+  return { gender, birthYear, loggedIn }
 }
 
 function signalOf(
@@ -256,6 +270,8 @@ export async function getSiteHomeRecommendationBlock(input: {
   siteSlug: string
   accountKey: string
   linkedUserId?: string | null
+  loggedIn?: boolean
+  email?: string | null
   limit?: number
 }): Promise<PartnerSiteHomeRecommendationBlock> {
   const limit = Math.max(1, Math.min(48, Math.floor(Number(input.limit) || HOME_RECOMMENDATION_SHOP_LIMIT)))
@@ -268,6 +284,8 @@ export async function getSiteHomeRecommendationBlock(input: {
     partnerId: input.partnerId,
     accountKey: input.accountKey,
     linkedUserId: input.linkedUserId,
+    loggedIn: input.loggedIn ?? Boolean(input.linkedUserId),
+    email: input.email,
   })
   const seed = Math.floor(Math.random() * 0x7fffffff)
   const shop = await sameCategoryProducts({
@@ -282,7 +300,7 @@ export async function getSiteHomeRecommendationBlock(input: {
   let cohort: PartnerSitePersonalizationProduct[] = []
   let cohortMode: SameAgeGenderCohortMode = demo.loggedIn
     ? demo.gender
-      ? 'profile_incomplete'
+      ? 'gender_peers'
       : 'profile_incomplete'
     : 'requires_login'
   if (demo.loggedIn && !demo.gender) {

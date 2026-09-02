@@ -10,6 +10,15 @@ import {
 } from '@/lib/partner-website/shop/build-shop-theme-css'
 import { preparePartnerVisualHtmlForEditor } from '@/lib/partner-website/shop/render-partner-visual-html'
 
+test('shop theme CSS styles profile form selects and recommendation cohort hint', () => {
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(css, /\.pw-shop-form select/)
+  assert.match(css, /\.pw-shop-form input\[readonly\]/)
+  assert.match(css, /\.pw-cohort-hint/)
+  assert.match(css, /\.pw-cohort-hint-cta\{[^}]*background:var\(--pw-buy\)/)
+  assert.doesNotMatch(css, /\.pw-cohort-hint[^{]*\{[^}]*#ea580c/)
+})
+
 test('shop theme CSS keeps desktop account nav as a compact left column', () => {
   const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
   assert.match(css, /\.pw-shop-account-nav-item\.is-active\{background:var\(--pw-surface\);color:var\(--pw-primary\)/)
@@ -107,6 +116,8 @@ test('shop theme CSS keeps listing filters compact and sticky under the head', (
   assert.match(css, /\.pw-shop-filter-label\{position:absolute/)
   assert.match(css, /\.pw-shop-filter-clear[\s\S]*?color:var\(--pw-primary\)/)
   assert.match(css, /height:32px/)
+  assert.match(css, /\[data-pw-listing-filter-slot\]/)
+  assert.match(css, /html\[data-pw-page="listing"\]\[data-pw-head-compact="1"\] \.pw-nav-main/)
   assert.doesNotMatch(css, /\.pw-shop-filters label\{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600/)
 })
 

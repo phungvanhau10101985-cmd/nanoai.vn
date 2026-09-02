@@ -1260,13 +1260,21 @@ export async function getProductPurchaseOptions(input: {
 export async function getCustomerDeliveryProfile(input: {
   partnerId: string
   emailNormalized: string
-}): Promise<{ customerName: string; customerPhone: string; shippingAddress: string } | null> {
+}): Promise<{
+  customerName: string
+  customerPhone: string
+  shippingAddress: string
+  gender: 'male' | 'female' | null
+  dateOfBirth: string | null
+} | null> {
   const row = await fetchPartnerCustomerProfileByEmailFromPg(input)
   if (!row) return null
   return {
     customerName: row.customer_name,
     customerPhone: row.customer_phone,
     shippingAddress: row.shipping_address,
+    gender: row.gender,
+    dateOfBirth: row.date_of_birth,
   }
 }
 

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { getSiteHomeRecommendationBlock } from '@/lib/partner-website/shop/partner-site-home-recommendation'
-import { resolveSiteVisitorContext } from '@/lib/partner-website/shop/partner-site-personalization'
+import {
+  resolveSiteVisitorContext,
+  resolveSiteVisitorEmail,
+} from '@/lib/partner-website/shop/partner-site-personalization'
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
 
 export const dynamic = 'force-dynamic'
@@ -12,6 +15,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   if (!shop) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
+  const email = await resolveSiteVisitorEmail(request, shop.partnerId, visitor.thread)
+  const loggedIn = Boolean(visitor.thread.linkedUserId || visitor.thread.guestAccountId)
   const offset = Math.max(0, Number(request.nextUrl.searchParams.get('offset') ?? 0) || 0)
   const limit = Math.min(48, Math.max(1, Number(request.nextUrl.searchParams.get('limit') ?? 10) || 10))
   const fetchLimit = Math.min(48, offset + limit + 1)
@@ -20,6 +25,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     siteSlug: shop.site.siteSlug,
     accountKey: visitor.accountKey,
     linkedUserId: visitor.thread.linkedUserId,
+    loggedIn,
+    email,
     limit: fetchLimit,
   })
   const products = block.products.slice(offset, offset + limit)
@@ -36,6 +43,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
       count: products.length,
       personalized: block.personalized,
       cohort_mode: block.cohort_mode,
+      logged_in: loggedIn,
       cohort_badge_product_ids: block.cohort_badge_product_ids,
     },
     200,

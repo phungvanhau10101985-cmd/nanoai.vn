@@ -28,6 +28,13 @@ import { usePartnerSiteChatWidget } from '@/components/partner-website/shop/part
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { usePartnerPwaInstall } from '@/lib/partner-website/shop/partner-site-pwa-install'
 import type { PartnerSiteVisitorProfile } from '@/lib/partner-website/shop/partner-site-personalization'
+import {
+  composeDobWithYear,
+  parseDobParts,
+  parsePartnerShopGender,
+  partnerShopBirthYearOptions,
+  type PartnerShopGender,
+} from '@/lib/partner-website/shop/partner-site-profile-demographics'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type AccountTab = PartnerSiteAccountTab
@@ -52,6 +59,28 @@ type NotificationItem = {
   href: string
   readAt: string | null
   createdAt: string
+}
+
+function applyProfileFields(
+  next: PartnerSiteVisitorProfile | null,
+  setters: {
+    setCustomerName: (v: string) => void
+    setCustomerPhone: (v: string) => void
+    setGender: (v: PartnerShopGender | '') => void
+    setDob: (v: string) => void
+    setBirthYear: (v: string) => void
+    setSavedDobIso: (v: string) => void
+    setContactAddress: (v: string) => void
+  }
+) {
+  setters.setCustomerName(next?.customer_name ?? '')
+  setters.setCustomerPhone(next?.customer_phone ?? '')
+  setters.setGender(parsePartnerShopGender(next?.gender) ?? '')
+  const iso = (next?.date_of_birth ?? '').trim().slice(0, 10)
+  setters.setDob(iso)
+  setters.setSavedDobIso(iso)
+  setters.setBirthYear(parseDobParts(iso)?.year ?? '')
+  setters.setContactAddress(next?.shipping_address ?? '')
 }
 
 type Props = {
@@ -80,6 +109,11 @@ export function PartnerSiteShopAccountClient({
   const [shopAdminHref, setShopAdminHref] = useState<string | null>(null)
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
+  const [gender, setGender] = useState<PartnerShopGender | ''>('')
+  const [dob, setDob] = useState('')
+  const [birthYear, setBirthYear] = useState('')
+  const [savedDobIso, setSavedDobIso] = useState('')
+  const [contactAddress, setContactAddress] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [needsAuth, setNeedsAuth] = useState(false)
@@ -104,6 +138,11 @@ export function PartnerSiteShopAccountClient({
       setShopAdminHref(null)
       setCustomerName('')
       setCustomerPhone('')
+      setGender('')
+      setDob('')
+      setBirthYear('')
+      setSavedDobIso('')
+      setContactAddress('')
       setNeedsAuth(true)
       return null
     }
@@ -120,8 +159,15 @@ export function PartnerSiteShopAccountClient({
     const next = json.profile ?? null
     setProfile(next)
     setShopAdminHref(json.shopAdmin?.href?.trim() || null)
-    setCustomerName(next?.customer_name ?? '')
-    setCustomerPhone(next?.customer_phone ?? '')
+    applyProfileFields(next, {
+      setCustomerName,
+      setCustomerPhone,
+      setGender,
+      setDob,
+      setBirthYear,
+      setSavedDobIso,
+      setContactAddress,
+    })
     setNeedsAuth(!next?.email)
     return next
   }, [authHeaders, captureFromResponse, siteSlug])
@@ -249,14 +295,25 @@ export function PartnerSiteShopAccountClient({
     setSaving(true)
     setStatus('')
     try {
+      const lockedParts = parseDobParts(savedDobIso)
+      let dobToSave = ''
+      if (lockedParts && birthYear) {
+        dobToSave = composeDobWithYear(savedDobIso, birthYear) ?? ''
+      } else if (dob) {
+        dobToSave = dob
+      }
+      const body: Record<string, unknown> = {
+        customer_name: customerName.trim(),
+        customer_phone: customerPhone.trim(),
+        shipping_address: contactAddress.trim(),
+      }
+      if (gender) body.gender = gender
+      if (dobToSave) body.date_of_birth = dobToSave
       const res = await fetch(partnerSitePersonalizationApiPath(siteSlug, 'profile'), {
         method: 'PATCH',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({
-          customer_name: customerName.trim(),
-          customer_phone: customerPhone.trim(),
-        }),
+        body: JSON.stringify(body),
       })
       captureFromResponse(res)
       const json = (await res.json().catch(() => ({}))) as {
@@ -269,6 +326,10 @@ export function PartnerSiteShopAccountClient({
         if (json.requireAuth) {
           setNeedsAuth(true)
           setStatus(t.checkoutAuthRequired)
+        } else if (json.error === 'DOB_DAY_LOCKED') {
+          setStatus(t.accountDobDayLocked)
+        } else if (json.error === 'DOB_INVALID') {
+          setStatus(t.accountDobInvalid)
         } else {
           setStatus(t.accountSaveFailed)
         }
@@ -276,8 +337,15 @@ export function PartnerSiteShopAccountClient({
       }
       if (json.profile) {
         setProfile(json.profile)
-        setCustomerName(json.profile.customer_name ?? '')
-        setCustomerPhone(json.profile.customer_phone ?? '')
+        applyProfileFields(json.profile, {
+          setCustomerName,
+          setCustomerPhone,
+          setGender,
+          setDob,
+          setBirthYear,
+          setSavedDobIso,
+          setContactAddress,
+        })
         setNeedsAuth(false)
       }
       setStatus(t.accountSaved)
@@ -335,6 +403,10 @@ export function PartnerSiteShopAccountClient({
 
   const showAccountShell = authResolved && isAuthenticated && !needsAuth
 
+  const savedDobParts = parseDobParts(savedDobIso)
+  const hasLockedDob = Boolean(savedDobParts)
+  const birthYearOptions = partnerShopBirthYearOptions()
+
   return (
     <div>
       {!showAccountShell ? <p className="pw-shop-muted">…</p> : null}
@@ -361,6 +433,19 @@ export function PartnerSiteShopAccountClient({
                 {profile?.shipping_address ? (
                   <p className="pw-shop-muted">
                     {t.checkoutAddress}: {profile.shipping_address}
+                  </p>
+                ) : null}
+                {profile?.gender ? (
+                  <p className="pw-shop-muted">
+                    {t.accountGender}: {profile.gender === 'male' ? t.accountGenderMale : t.accountGenderFemale}
+                  </p>
+                ) : null}
+                {profile?.date_of_birth ? (
+                  <p className="pw-shop-muted">
+                    {t.accountDob}: {(() => {
+                      const parts = parseDobParts(profile.date_of_birth)
+                      return parts ? `${parts.day}/${parts.month}/${parts.year}` : profile.date_of_birth
+                    })()}
                   </p>
                 ) : null}
                 {shopAdminHref ? (
@@ -475,6 +560,7 @@ export function PartnerSiteShopAccountClient({
             {activeTab === 'edit-profile' ? (
               <section className="pw-shop-account-edit">
                 <h2 data-pw-el={PW_EL.heading}>{t.accountSectionEditProfile}</h2>
+                <p className="pw-shop-muted pw-shop-profile-lead">{t.accountProfileLead}</p>
                 <div className="pw-shop-form" data-pw-region={PW_REGION.form} style={{ marginTop: 16 }}>
                   {profile?.email ? (
                     <label data-pw-el={PW_EL.label}>
@@ -483,16 +569,93 @@ export function PartnerSiteShopAccountClient({
                     </label>
                   ) : null}
                   <label data-pw-el={PW_EL.label}>
-                    {t.checkoutName}
-                    <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} data-pw-el={PW_EL.field} />
-                  </label>
-                  <label data-pw-el={PW_EL.label}>
                     {t.checkoutPhone}
                     <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} data-pw-el={PW_EL.field} />
                   </label>
-                  <button type="button" className="pw-shop-btn" disabled={saving} onClick={() => void saveProfile()} data-pw-el={PW_EL.submit}>
-                    {saving ? '…' : t.accountSave}
-                  </button>
+                  <label data-pw-el={PW_EL.label}>
+                    {t.accountFullName}
+                    <input
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      autoComplete="name"
+                      data-pw-el={PW_EL.field}
+                    />
+                  </label>
+                  <label data-pw-el={PW_EL.label}>
+                    {t.accountGender}
+                    <select
+                      value={gender}
+                      onChange={(e) => setGender(parsePartnerShopGender(e.target.value) ?? '')}
+                      data-pw-el={PW_EL.field}
+                    >
+                      <option value="">{t.accountGenderPlaceholder}</option>
+                      <option value="male">{t.accountGenderMale}</option>
+                      <option value="female">{t.accountGenderFemale}</option>
+                    </select>
+                  </label>
+                  <div className="pw-shop-profile-dob">
+                    <span className="pw-shop-form-label">{t.accountDob}</span>
+                    {hasLockedDob && savedDobParts ? (
+                      <div className="pw-shop-dob-row">
+                        <label className="pw-shop-dob-md" data-pw-el={PW_EL.label}>
+                          {t.accountDobLockedDayMonth}
+                          <input
+                            value={`${savedDobParts.day}/${savedDobParts.month}`}
+                            readOnly
+                            data-pw-el={PW_EL.field}
+                          />
+                        </label>
+                        <label className="pw-shop-dob-year" data-pw-el={PW_EL.label}>
+                          {t.accountDobYear}
+                          <select
+                            value={birthYear}
+                            onChange={(e) => setBirthYear(e.target.value)}
+                            data-pw-el={PW_EL.field}
+                          >
+                            <option value="">{t.accountDobYearPlaceholder}</option>
+                            {birthYearOptions.map((year) => (
+                              <option key={year} value={String(year)}>
+                                {year}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    ) : (
+                      <input
+                        type="date"
+                        value={dob}
+                        onChange={(e) => setDob(e.target.value)}
+                        data-pw-el={PW_EL.field}
+                      />
+                    )}
+                    <p className="pw-shop-form-help">
+                      {hasLockedDob ? t.accountDobHelpLocked : t.accountDobHelpFirst}
+                    </p>
+                  </div>
+                  <label data-pw-el={PW_EL.label}>
+                    {t.accountContactAddress}
+                    <textarea
+                      rows={3}
+                      value={contactAddress}
+                      onChange={(e) => setContactAddress(e.target.value)}
+                      placeholder={t.accountContactAddressPh}
+                      data-pw-el={PW_EL.field}
+                    />
+                  </label>
+                  <div className="pw-shop-form-actions">
+                    <button type="button" className="pw-shop-btn" disabled={saving} onClick={() => void saveProfile()} data-pw-el={PW_EL.submit}>
+                      {saving ? '…' : t.accountSave}
+                    </button>
+                    <button
+                      type="button"
+                      className="pw-shop-btn pw-shop-btn-outline"
+                      disabled={saving}
+                      onClick={() => router.push(partnerSiteAccountTabPath(siteSlug, 'overview', { customDomain }))}
+                    >
+                      {t.accountCancel}
+                    </button>
+                  </div>
                   {status ? <p className="pw-shop-muted">{status}</p> : null}
                 </div>
               </section>

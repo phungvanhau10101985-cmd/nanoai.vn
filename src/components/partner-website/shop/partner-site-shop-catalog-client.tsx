@@ -2,10 +2,9 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
-import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
-import { partnerSiteProductPath, partnerSiteProductsApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteProductsApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import type { WebLocale } from '@/lib/i18n/config'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import {
@@ -26,7 +25,6 @@ type Props = {
 
 export function PartnerSiteShopCatalogClient({
   siteSlug,
-  partnerSlug,
   locale,
   initialProducts,
   initialTotal,
@@ -37,9 +35,7 @@ export function PartnerSiteShopCatalogClient({
   const { tracking } = usePartnerSiteShop()
   const [products, setProducts] = useState(initialProducts)
   const [loading, setLoading] = useState(false)
-  const [searching, setSearching] = useState(false)
   const [offset, setOffset] = useState(initialProducts.length)
-  const [query, setQuery] = useState('')
 
   const loadMore = useCallback(async () => {
     if (loading || products.length >= initialTotal) return
@@ -70,62 +66,9 @@ export function PartnerSiteShopCatalogClient({
     )
   }, [initialProducts, tracking])
 
-  async function runSearch() {
-    const q = query.trim()
-    if (q.length < 2) return
-    setSearching(true)
-    try {
-      const fd = new FormData()
-      fd.set('mode', 'text')
-      fd.set('q', q)
-      const res = await fetch(`/api/messaging/guest/${encodeURIComponent(partnerSlug)}/inventory-vector-search`, {
-        method: 'POST',
-        body: fd,
-        credentials: 'same-origin',
-      })
-      const json = (await res.json()) as { ok?: boolean; cards?: PartnerAiProductCard[] }
-      if (!res.ok || !json.ok || !Array.isArray(json.cards)) return
-      setProducts(
-        json.cards
-          .filter((c) => c.inventory_id)
-          .map((c) => ({
-            id: c.inventory_id!,
-            name: c.name,
-            description: '',
-            detailDescription: '',
-            galleryImages: [],
-            detailImages: [],
-            productVideoUrl: null,
-            priceHint: c.price_hint ?? '',
-            imageUrl: c.image_url,
-            productUrl: c.product_url,
-            sku: c.sku ?? '',
-            detailPath: partnerSiteProductPath(siteSlug, c.inventory_id!, { name: c.name }),
-            stockQty: 0,
-            sizes: [],
-            colors: [],
-          }))
-      )
-    } finally {
-      setSearching(false)
-    }
-  }
-
   return (
     <section data-pw-region={PW_REGION.catalog} data-pw-catalog>
       <h1 data-pw-el={PW_EL.sectionTitle}>{heading || t.catalogTitle}</h1>
-      <div className="pw-shop-toolbar" data-pw-region={PW_REGION.toolbar} style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-        <input
-          type="search"
-          placeholder={t.searchPlaceholder}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          style={{ flex: 1, minWidth: 200, padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
-        />
-        <button type="button" className="pw-shop-btn" disabled={searching} onClick={() => void runSearch()}>
-          {searching ? '…' : t.searchButton}
-        </button>
-      </div>
       {products.length === 0 ? <p className="pw-shop-muted">{t.catalogEmpty}</p> : null}
       <div className="pw-shop-grid" data-pw-el={PW_EL.grid} data-pw-grid style={{ marginTop: 20 }}>
         {products.map((p) => (
@@ -145,7 +88,7 @@ export function PartnerSiteShopCatalogClient({
           </article>
         ))}
       </div>
-      {products.length < initialTotal && !query.trim() ? (
+      {products.length < initialTotal ? (
         <p style={{ marginTop: 24 }}>
           <button type="button" className="pw-shop-btn pw-shop-btn-outline" disabled={loading} onClick={() => void loadMore()}>
             {loading ? '…' : t.loadMore}

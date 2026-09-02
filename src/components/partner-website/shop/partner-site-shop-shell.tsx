@@ -80,6 +80,11 @@ import {
   PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID,
 } from '@/lib/partner-website/shop/mobile-header-logo-collapse'
 import {
+  PARTNER_SHOP_LISTING_HEAD_SCRIPT,
+  PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID,
+  PW_LISTING_FILTER_SLOT_ATTR,
+} from '@/lib/partner-website/shop/listing-head'
+import {
   extractVisualDocumentCssText,
   extractVisualDocumentStyleLinks,
 } from '@/lib/partner-website/shop/merge-visual-home-styles'
@@ -105,7 +110,7 @@ import {
   usePartnerSiteShop,
 } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
-import { PW_EL, PW_REGION, type PwPageKind } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { PW_EL, PW_PAGE, PW_REGION, type PwPageKind } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { PartnerSiteAccountNavLayout } from '@/components/partner-website/shop/partner-site-account-nav-layout'
 import { PartnerSiteContactChannelsFab } from '@/components/partner-website/shop/partner-site-contact-channels-fab'
 import { partnerSitePageShowsAccountNav } from '@/lib/partner-website/shop/partner-site-account-nav'
@@ -179,6 +184,7 @@ function VisualHomeChromeRuntime({
       [PW_STAY_SCROLL_SCRIPT_ID, PARTNER_SHOP_STAY_SCROLL_SCRIPT],
       [PARTNER_SHOP_STICK_HEADER_SCRIPT_ID, PARTNER_SHOP_STICK_HEADER_SCRIPT],
       [PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID, PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT],
+      [PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID, PARTNER_SHOP_LISTING_HEAD_SCRIPT],
     ]
     for (const [id, body] of scripts) {
       if (document.getElementById(id)) continue
@@ -524,6 +530,14 @@ function PartnerSiteShopShellInner({
   const hasCategoryTree = Boolean(categoryTree && categoryTree.length > 0)
   const useVisualChrome = hasVisualHomeChrome(visualChromeByDevice)
   useLayoutEffect(() => {
+    if (pageKind) document.documentElement.setAttribute('data-pw-page', pageKind)
+    if (document.getElementById(PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID)) return
+    const s = document.createElement('script')
+    s.id = PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID
+    s.textContent = PARTNER_SHOP_LISTING_HEAD_SCRIPT
+    document.body.appendChild(s)
+  }, [pageKind])
+  useLayoutEffect(() => {
     const shop = document.querySelector('.pw-shop')
     if (!(shop instanceof HTMLElement)) return
     const apply = () => applyStickyHeadOffset(shop)
@@ -560,9 +574,10 @@ function PartnerSiteShopShellInner({
             id={PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID}
             dangerouslySetInnerHTML={{ __html: PARTNER_SHOP_CHROME_LAYOUT_CSS }}
           />
-          {visualBefore?.split || visualAfter?.split ? (
-            <style dangerouslySetInnerHTML={{ __html: VISUAL_HOME_CHROME_SPLIT_CSS }} />
-          ) : null}
+          <style
+            id="pw-visual-home-chrome-split"
+            dangerouslySetInnerHTML={{ __html: VISUAL_HOME_CHROME_SPLIT_CSS }}
+          />
           {visualBefore?.html ? (
             <div style={{ display: 'contents' }} dangerouslySetInnerHTML={{ __html: visualBefore.html }} />
           ) : null}
@@ -798,6 +813,9 @@ function PartnerSiteShopShellInner({
       </header>
       </>
       )}
+      {pageKind === PW_PAGE.listing ? (
+        <div {...{ [PW_LISTING_FILTER_SLOT_ATTR]: '1' }} className="pw-listing-filter-slot" />
+      ) : null}
 
       <main className="pw-shop-main">
         {partnerSitePageShowsAccountNav(pageKind, { hideAccountNav }) ? (

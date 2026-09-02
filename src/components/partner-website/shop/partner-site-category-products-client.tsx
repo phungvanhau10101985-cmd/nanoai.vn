@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { createPortal } from 'react-dom'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
@@ -22,6 +23,7 @@ import {
   trackPartnerSiteViewItemList,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { PW_LISTING_FILTER_SLOT_ATTR } from '@/lib/partner-website/shop/listing-head'
 
 type Props = {
   siteSlug: string
@@ -205,6 +207,14 @@ export function PartnerSiteCategoryProductsClient({
     facetColors.length > 0 ||
     facetStyleTags.length > 0
   const pageCount = partnerCategoryListingPageCount(total)
+  const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    const find = () => document.querySelector(`[${PW_LISTING_FILTER_SLOT_ATTR}]`)
+    setFilterSlot(find())
+    if (find()) return
+    const id = window.requestAnimationFrame(() => setFilterSlot(find()))
+    return () => window.cancelAnimationFrame(id)
+  }, [])
   const pages = useMemo(() => {
     const out: number[] = []
     const start = Math.max(1, listing.page - 2)
@@ -213,11 +223,10 @@ export function PartnerSiteCategoryProductsClient({
     return out
   }, [listing.page, pageCount])
 
-  return (
-    <div>
-      {showBar ? (
+  const filterBar = showBar ? (
         <div
           className="pw-shop-filters"
+          data-pw-react-filters="1"
           data-pw-region={PW_REGION.filters}
           aria-label={t.categoryFiltersAria}
           aria-busy={isPending || loading || undefined}
@@ -343,7 +352,11 @@ export function PartnerSiteCategoryProductsClient({
             </button>
           ) : null}
         </div>
-      ) : null}
+  ) : null
+
+  return (
+    <div>
+      {filterSlot && filterBar ? createPortal(filterBar, filterSlot) : filterBar}
 
       <section data-pw-region={PW_REGION.catalog} data-pw-catalog>
         {loading || isPending ? (

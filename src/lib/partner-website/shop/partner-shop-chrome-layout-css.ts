@@ -31,6 +31,11 @@ import {
   PW_MOBILE_HEADER_STACK_WIN_CSS,
   PW_MOBILE_HEADER_TOPBAR_HIDE_CSS,
 } from '@/lib/partner-website/shop/mobile-header-logo-collapse'
+import {
+  PARTNER_SHOP_LISTING_HEAD_SCRIPT,
+  PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID,
+  PW_LISTING_HEAD_CSS,
+} from '@/lib/partner-website/shop/listing-head'
 import { PARTNER_SHOP_CHROME_KIT_CSS } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import { injectPartnerShopFontsIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-fonts'
 import { PW_OUTFIT_CSS } from '@/lib/partner-website/shop/outfit-products-css'
@@ -267,6 +272,7 @@ export const PARTNER_SHOP_MOBILE_HEADER_SEARCH_LOCK_CSS = [
   PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS,
   PW_MOBILE_HEADER_PDP_LEFTOVER_HIDE_CSS,
   PW_ESCAPED_HEAD_CHROME_HIDE_CSS,
+  PW_LISTING_HEAD_CSS,
 ].join('')
 
 /** Desktop/Laptop: Danh mục trái | logo mép phải cách ô tìm 50px | ô tìm neo giữa | icon phải. */
@@ -952,6 +958,7 @@ export function injectPartnerShopChromeLayoutCss(html: string): string {
   out = injectNamedScript(out, PARTNER_SHOP_SEARCH_CLAMP_SCRIPT_ID, PARTNER_SHOP_SEARCH_CLAMP_SCRIPT)
   out = injectNamedScript(out, PARTNER_SHOP_IMAGE_ZOOM_SCRIPT_ID, PARTNER_SHOP_IMAGE_ZOOM_SCRIPT)
   out = injectNamedScript(out, PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID, PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT)
+  out = injectNamedScript(out, PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID, PARTNER_SHOP_LISTING_HEAD_SCRIPT)
   return out
 }
 

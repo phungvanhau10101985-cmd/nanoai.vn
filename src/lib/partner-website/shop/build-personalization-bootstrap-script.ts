@@ -3,6 +3,8 @@ import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-
 import { PW_SHOP_CARD_IMG_JS } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PW_PRODUCT_GRID_PAGE_JS } from '@/lib/partner-website/shop/pw-product-grid-page'
 import {
+  partnerSiteAccountEditPath,
+  partnerSiteLoginPath,
   partnerSiteProductsPath,
   partnerSiteRecentlyViewedPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
@@ -87,6 +89,54 @@ const FAVORITE: Record<WebLocale, string> = {
   ko: '찜',
 }
 
+const COHORT_LOGIN: Record<WebLocale, string> = {
+  vi: 'Điền hồ sơ để nhận ưu đãi sinh nhật & sản phẩm có thể bạn thích.',
+  en: 'Add your profile to get birthday offers and products you may like.',
+  zh: '填写资料即可获得生日优惠和个性化推荐。',
+  ja: 'プロフィールを登録すると誕生日特典とおすすめが表示されます。',
+  ko: '프로필을 입력하면 생일 혜택과 추천 상품을 받을 수 있습니다.',
+}
+
+const COHORT_LOGIN_CTA: Record<WebLocale, string> = {
+  vi: 'Đăng nhập nhận ưu đãi',
+  en: 'Sign in for offers',
+  zh: '登录领取优惠',
+  ja: 'ログインして特典を受け取る',
+  ko: '로그인하고 혜택 받기',
+}
+
+const COHORT_PROFILE_LINK: Record<WebLocale, string> = {
+  vi: 'Cập nhật ngày sinh & giới tính',
+  en: 'Add date of birth & gender',
+  zh: '更新生日和性别',
+  ja: '生年月日と性別を更新',
+  ko: '생년월일과 성별 업데이트',
+}
+
+const COHORT_PROFILE_LEAD: Record<WebLocale, string> = {
+  vi: 'để nhận ưu đãi sinh nhật & sản phẩm hợp tuổi, hợp gu.',
+  en: 'to get birthday offers and products that match your age and style.',
+  zh: '即可获得生日优惠和符合年龄、风格的推荐。',
+  ja: 'と誕生日特典・年齢に合うおすすめが届きます。',
+  ko: '하면 생일 혜택과 나이·취향에 맞는 상품을 받을 수 있습니다.',
+}
+
+const COHORT_POPULAR: Record<WebLocale, string> = {
+  vi: 'Sản phẩm nổi bật hôm nay — đăng nhập để cá nhân hoá theo gu của bạn.',
+  en: 'Today’s highlights — sign in to personalize by your taste.',
+  zh: '今日精选 — 登录即可按你的偏好个性化。',
+  ja: '今日のおすすめ — ログインすると好みに合わせて表示されます。',
+  ko: '오늘의 인기 상품 — 로그인하면 취향에 맞게 보여 줍니다.',
+}
+
+const COHORT_EDIT: Record<WebLocale, string> = {
+  vi: 'Sửa tuổi / giới tính',
+  en: 'Edit age / gender',
+  zh: '修改年龄 / 性别',
+  ja: '年齢 / 性別を編集',
+  ko: '나이 / 성별 수정',
+}
+
 /** Inline script: UTM hero, profile greeting, hydrate personalized product grids on /site landing. */
 export function buildPartnerSitePersonalizationBootstrapScript(input: {
   siteSlug: string
@@ -98,6 +148,8 @@ export function buildPartnerSitePersonalizationBootstrapScript(input: {
   const apiBase = `/api/site/${encodeURIComponent(slug)}/personalization`
   const productsPath = partnerSiteProductsPath(slug)
   const viewedPath = partnerSiteRecentlyViewedPath(slug)
+  const loginPath = partnerSiteLoginPath(slug)
+  const profilePath = partnerSiteAccountEditPath(slug)
   const copy = {
     empty: EMPTY[locale],
     greeting: GREETING[locale],
@@ -109,6 +161,12 @@ export function buildPartnerSitePersonalizationBootstrapScript(input: {
     seeAll: SEE_ALL[locale],
     featuredEmpty: FEATURED_EMPTY[locale],
     featuredSeeAll: FEATURED_SEE_ALL[locale],
+    cohortLogin: COHORT_LOGIN[locale],
+    cohortLoginCta: COHORT_LOGIN_CTA[locale],
+    cohortProfileLink: COHORT_PROFILE_LINK[locale],
+    cohortProfileLead: COHORT_PROFILE_LEAD[locale],
+    cohortPopular: COHORT_POPULAR[locale],
+    cohortEdit: COHORT_EDIT[locale],
   }
 
   return `<script data-pw-personalization-bootstrap>(function(){
@@ -116,6 +174,8 @@ ${PW_SHOP_LIVE_UI_OFF_FN};
 var API=${JSON.stringify(apiBase)};
 var PRODUCTS_PATH=${JSON.stringify(productsPath)};
 var VIEWED_PATH=${JSON.stringify(viewedPath)};
+var LOGIN_PATH=${JSON.stringify(loginPath)};
+var PROFILE_PATH=${JSON.stringify(profilePath)};
 var COPY=${JSON.stringify(copy)};
 var SESSION_KEY='app_guest_session_id';
 var SESSION_KEY_LEGACY='nanoai_guest_session_id';
@@ -225,11 +285,10 @@ function renderFeaturedTile(t,circles){
 }
 function featuredCards(el){
   var names=el.querySelectorAll('[data-pw-edit^="categoryName"],[data-pw-el="card-name"]');
-  var cards=[],seen={},i,card;
+  var cards=[],i,card;
   for(i=0;i<names.length;i++){
     card=names[i].closest('[data-pw-el="card"],a,article');
-    if(!card||seen[card])continue;
-    seen[card]=1;
+    if(!card||cards.indexOf(card)>=0)continue;
     cards.push(card);
   }
   if(cards.length)return cards;
@@ -271,8 +330,10 @@ function hydrateFeatured(el){
   var empty=el.querySelector('.pw-featured-cat-empty,.pw-personalize-empty');
   var see=el.querySelector('[data-pw-el="section-more"]');
   var circles=el.classList.contains('pw-categories')||!!el.querySelector('.pw-cat-grid,.pw-cat-card,[data-pw-edit^="categoryName"]');
-  var keepCards=featuredCards(el).length>0;
-  var limit=typeof pwGridPageSize==='function'?pwGridPageSize(el):(keepCards?featuredCards(el).length:10);
+  var cardsNow=featuredCards(el);
+  var keepCards=cardsNow.length>0;
+  var limit=keepCards?cardsNow.length:(typeof pwGridPageSize==='function'?pwGridPageSize(el):10);
+  if(limit<4)limit=4;
   apiFetch('/featured-categories?limit='+limit).then(function(res){
     var tiles=(res.j&&res.j.tiles)||[];
     if(res.j&&res.j.hub_href&&see)see.setAttribute('href',res.j.hub_href);
@@ -290,6 +351,34 @@ function hydrateFeatured(el){
     el.hidden=false;
   });
 }
+function paintCohortHint(el,mode,loggedIn){
+  if(el.getAttribute('data-pw-personalize')!=='recommended')return;
+  var host=el.querySelector('.pw-container')||el;
+  var title=host.querySelector('[data-pw-el="section-title"],h2');
+  var hint=host.querySelector('[data-pw-cohort-hint]');
+  if(!hint){
+    hint=document.createElement('p');
+    hint.className='pw-cohort-hint';
+    hint.setAttribute('data-pw-cohort-hint','1');
+    if(title&&title.parentNode)title.parentNode.insertBefore(hint,title.nextSibling);
+    else host.insertBefore(hint,host.firstChild);
+  }
+  hint.hidden=true;
+  hint.innerHTML='';
+  if(mode==='requires_login'){
+    hint.innerHTML=COPY.cohortLogin+' <a class="pw-cohort-hint-cta" href="'+LOGIN_PATH+'">'+COPY.cohortLoginCta+'</a>';
+    hint.hidden=false;
+  }else if(mode==='profile_incomplete'){
+    hint.innerHTML='<a class="pw-cohort-hint-link" href="'+PROFILE_PATH+'">'+COPY.cohortProfileLink+'</a> '+COPY.cohortProfileLead;
+    hint.hidden=false;
+  }else if(mode==='popular_fallback'&&!loggedIn){
+    hint.innerHTML=COPY.cohortPopular+' <a class="pw-cohort-hint-cta" href="'+LOGIN_PATH+'">'+COPY.cohortLoginCta+'</a>';
+    hint.hidden=false;
+  }else if(loggedIn&&(mode==='exact_cohort'||mode==='gender_peers')){
+    hint.innerHTML='<a class="pw-cohort-hint-link" href="'+PROFILE_PATH+'">'+COPY.cohortEdit+'</a>';
+    hint.hidden=false;
+  }
+}
 function loadPersonalizePage(el,append){
   var kind=el.getAttribute('data-pw-personalize');if(!kind||kind==='featured-categories')return;
   var st=el._pwGrid;if(!st||st.loading)return;
@@ -301,6 +390,7 @@ function loadPersonalizePage(el,append){
     var products=(res.j&&res.j.products)||[];
     var badges={};
     (res.j&&res.j.cohort_badge_product_ids||[]).forEach(function(id){badges[String(id).toLowerCase()]=1;});
+    if(!append)paintCohortHint(el,res.j&&res.j.cohort_mode,!!(res.j&&res.j.logged_in));
     if(!products.length){
       if(!append){
         if(empty){empty.hidden=false;empty.textContent=COPY.empty;}

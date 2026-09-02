@@ -55,7 +55,8 @@ describe('listing native UI contract stamps', () => {
       'utf8'
     )
     expect(catalog).toContain('data-pw-region={PW_REGION.catalog}')
-    expect(catalog).toContain('data-pw-region={PW_REGION.toolbar}')
+    expect(catalog).not.toContain('type="search"')
+    expect(catalog).not.toContain('pw-shop-toolbar')
     expect(catalog).toContain('data-pw-el={PW_EL.sectionTitle}')
     expect(catalog).toContain('data-pw-el={PW_EL.cardBuy}')
     expect(catalog).toContain('data-pw-el={PW_EL.cardPrice}')

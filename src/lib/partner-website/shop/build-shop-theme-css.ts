@@ -6,6 +6,7 @@ import { buildThemeCssVarBlock } from '@/lib/partner-website/template/partner-we
 import { PARTNER_SHOP_CHROME_FLOAT_CSS } from '@/lib/partner-website/shop/chrome-float-widgets'
 import { PW_OUTFIT_CSS } from '@/lib/partner-website/shop/outfit-products-css'
 import { PW_RELATED_CSS } from '@/lib/partner-website/shop/related-products-css'
+import { PW_LISTING_HEAD_CSS } from '@/lib/partner-website/shop/listing-head'
 import { buildPartnerSiteAccountPanelCss } from '@/lib/partner-website/shop/build-partner-site-header-html'
 import { PW_SCENE_HEAD_Z, PW_SCENE_TOPBAR_Z } from '@/lib/partner-website/visual-editor/pw-scene'
 import { PW_CART_ADDED_MODAL_CSS } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
@@ -598,8 +599,22 @@ html[data-pw-scene-lock="desktop"] .pw-pdp-spec-grid,html[data-pw-scene-lock="la
 .pw-shop-cart-summary .pw-shop-form{max-width:none;margin-top:8px}
 .pw-shop-form{display:grid;gap:12px;max-width:480px}
 .pw-shop-form label{display:grid;gap:6px;font-size:15px;font-weight:600;color:var(--pw-text)}
-.pw-shop-form input,.pw-shop-form textarea{padding:11px 12px;border:1px solid #9ca3af;border-radius:8px;font:inherit;font-size:15px;line-height:1.4;color:var(--pw-text);background:#fff}
+.pw-shop-form input,.pw-shop-form textarea,.pw-shop-form select{padding:11px 12px;border:1px solid #9ca3af;border-radius:8px;font:inherit;font-size:15px;line-height:1.4;color:var(--pw-text);background:#fff}
 .pw-shop-form input::placeholder,.pw-shop-form textarea::placeholder{color:#9ca3af}
+.pw-shop-form input[readonly],.pw-shop-form input:read-only{background:#f9fafb;color:#4b5563;cursor:not-allowed}
+.pw-shop-form-label{display:block;font-size:15px;font-weight:600;color:var(--pw-text)}
+.pw-shop-form-help{margin:4px 0 0;font-size:12px;font-weight:400;line-height:1.45;color:#6b7280}
+.pw-shop-profile-lead{margin:8px 0 0;max-width:36rem}
+.pw-shop-profile-dob{display:grid;gap:6px}
+.pw-shop-dob-row{display:flex;flex-wrap:wrap;gap:8px}
+.pw-shop-dob-row .pw-shop-dob-md{flex:1;min-width:7.5rem}
+.pw-shop-dob-row .pw-shop-dob-year{width:8rem}
+.pw-shop-form-actions{display:flex;flex-wrap:wrap;gap:10px;padding-top:4px}
+.pw-cohort-hint{margin:6px 0 10px;font-size:12px;line-height:1.45;color:#4b5563}
+.pw-cohort-hint-link{font-weight:700;color:var(--pw-primary)}
+.pw-cohort-hint-link:hover{text-decoration:underline}
+.pw-cohort-hint-cta{display:inline-flex;align-items:center;border-radius:999px;background:var(--pw-buy);color:#fff;padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap}
+.pw-cohort-hint-cta:hover{filter:brightness(.96);color:#fff}
 .pw-shop-muted{color:#4b5563;font-size:14px;line-height:1.5}
 .pw-shop-footer{background:var(--pw-footer,#fff);color:var(--pw-text,#111827);border-top:1px solid var(--pw-border,#e5e7eb);padding:36px 16px 0;margin-top:40px}
 .pw-shop-footer-inner{max-width:var(--pw-content);margin:0 auto;display:grid;gap:28px 32px;grid-template-columns:1fr}
@@ -730,7 +745,8 @@ ${PW_CHROME_ICON_SQUARE_CSS}
 ${PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS}
 ${PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS}
 ${PW_RELATED_CSS}
-${PW_OUTFIT_CSS}`
+${PW_OUTFIT_CSS}
+${PW_LISTING_HEAD_CSS}`
 }
 
 export const PARTNER_SHOP_THEME_STYLE_ID = 'pw-shop-theme-css'

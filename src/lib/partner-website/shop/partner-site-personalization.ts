@@ -22,6 +22,18 @@ import {
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
 import { fetchGuestAccountEmailByIdPg } from '@/lib/db/messaging-guest-pg'
 import { upsertPartnerCustomerProfileByEmailFromPg } from '@/lib/db/messaging-partner-customer-profiles-pg'
+import { updateNanoaiChatProfilePg } from '@/lib/db/profiles-repo'
+import {
+  upsertVisitorProfileHintFromPg,
+  fetchVisitorProfileHintFromPg,
+} from '@/lib/db/messaging-partner-recommendation-pg'
+import {
+  assertDobChangeAllowed,
+  birthYearFromIso,
+  parseIsoDateOfBirth,
+  parsePartnerShopGender,
+  type PartnerShopGender,
+} from '@/lib/partner-website/shop/partner-site-profile-demographics'
 import {
   createGuestSessionId,
   MESSAGING_GUEST_SESSION_COOKIE,
@@ -58,6 +70,8 @@ export type PartnerSiteVisitorProfile = {
   customer_name: string | null
   customer_phone: string | null
   shipping_address: string | null
+  gender: PartnerShopGender | null
+  date_of_birth: string | null
   auth_mode: 'anonymous' | 'guest_account' | 'linked_user'
   utm: PartnerVisitorUtmContext
 }
@@ -284,6 +298,10 @@ export async function getSiteVisitorProfile(input: {
   }
 
   const greeting_name = delivery?.customerName?.trim() || null
+  const hint = await fetchVisitorProfileHintFromPg({
+    partnerId: input.partnerId,
+    accountKey: input.accountKey,
+  })
 
   return {
     email: email || null,
@@ -291,6 +309,8 @@ export async function getSiteVisitorProfile(input: {
     customer_name: delivery?.customerName?.trim() || null,
     customer_phone: delivery?.customerPhone?.trim() || null,
     shipping_address: delivery?.shippingAddress?.trim() || null,
+    gender: delivery?.gender ?? hint?.gender ?? null,
+    date_of_birth: delivery?.dateOfBirth ?? null,
     auth_mode,
     utm,
   }
@@ -416,20 +436,55 @@ export async function saveSiteVisitorProfile(input: {
   partnerId: string
   emailNormalized: string
   emailRaw?: string | null
+  accountKey?: string | null
+  linkedUserId?: string | null
   customerName?: string
   customerPhone?: string
   shippingAddress?: string
-}): Promise<boolean> {
+  gender?: PartnerShopGender | null
+  dateOfBirth?: string | null
+}): Promise<{ ok: boolean; error?: 'DOB_INVALID' | 'DOB_DAY_LOCKED' | 'SAVE_FAILED' }> {
   const existing = await getCustomerDeliveryProfile({
     partnerId: input.partnerId,
     emailNormalized: input.emailNormalized,
   })
-  return upsertPartnerCustomerProfileByEmailFromPg({
+  const gender = input.gender === undefined ? existing?.gender ?? null : parsePartnerShopGender(input.gender)
+  let dateOfBirth = existing?.dateOfBirth ?? null
+  if (input.dateOfBirth !== undefined) {
+    const next = parseIsoDateOfBirth(input.dateOfBirth)
+    if (input.dateOfBirth && !next) return { ok: false, error: 'DOB_INVALID' }
+    if (next) {
+      const lock = assertDobChangeAllowed(existing?.dateOfBirth, next)
+      if (!lock.ok) return { ok: false, error: lock.code }
+      dateOfBirth = next
+    }
+  }
+  const saved = await upsertPartnerCustomerProfileByEmailFromPg({
     partnerId: input.partnerId,
     emailNormalized: input.emailNormalized,
     emailRaw: input.emailRaw?.trim() || input.emailNormalized,
     customerName: input.customerName ?? existing?.customerName ?? '',
     customerPhone: input.customerPhone ?? existing?.customerPhone ?? '',
     shippingAddress: input.shippingAddress ?? existing?.shippingAddress ?? '',
+    gender,
+    dateOfBirth,
   })
+  if (!saved) return { ok: false, error: 'SAVE_FAILED' }
+
+  const accountKey = (input.accountKey ?? '').trim()
+  if (accountKey && gender) {
+    await upsertVisitorProfileHintFromPg({
+      partnerId: input.partnerId,
+      accountKey,
+      gender,
+      birthYear: birthYearFromIso(dateOfBirth),
+    })
+  }
+  if (input.linkedUserId && gender && dateOfBirth) {
+    await updateNanoaiChatProfilePg(input.linkedUserId, {
+      birthDateIso: dateOfBirth,
+      gender,
+    })
+  }
+  return { ok: true }
 }

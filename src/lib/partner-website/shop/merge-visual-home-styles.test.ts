@@ -40,6 +40,10 @@ test('extractVisualDocumentCssText rewrites visual wrapper display:block to cont
   assert.match(css, /\.pw-visual-desktop\{display:contents!important\}/)
   assert.match(css, /\.pw-header\{color:red\}/)
   assert.equal(css.includes('{display:block!important}'), false)
+  const spaced = extractVisualDocumentCssText(
+    '<style>.pw-visual-mobile { display: block !important }</style>'
+  )
+  assert.match(spaced, /\.pw-visual-mobile\{display:contents!important\}/)
 })
 
 test('mergeVisualHomeStylesIntoHtml copies home CSS into target head', () => {
