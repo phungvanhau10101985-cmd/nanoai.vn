@@ -38,6 +38,7 @@ ${NARROW}{grid-template-columns:repeat(2,minmax(0,1fr))!important}
 @media (max-width:1279px){
 html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] [data-pw-grid]{grid-template-columns:repeat(2,minmax(0,1fr))!important}
 }
+html:not([data-pw-edit-device]) [data-pw-featured-categories]:not([data-pw-featured-live]) [data-pw-el="card"]{visibility:hidden}
 html .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"],
 html .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card{
   position:relative;display:block;min-width:0;min-height:88px;height:88px;

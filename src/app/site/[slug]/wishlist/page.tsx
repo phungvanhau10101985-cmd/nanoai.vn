@@ -6,7 +6,7 @@ import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-part
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopSavedProductsClient } from '@/components/partner-website/shop/partner-site-shop-saved-products-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
-import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
+import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
 import {
   maybePartnerSiteVisualPage,
   readVisualPreviewDevice,
@@ -65,7 +65,7 @@ export default async function PartnerSiteWishlistPage({ params, searchParams }: 
       navJson={shop.site.navJson}
       activeNav="wishlist"
       pageKind={PW_PAGE.account}
-      {...visualHomeChromeShellProps(shop.site, device)}
+      {...(await liveVisualHomeChromeShellProps(shop.site, device))}
     >
       <PartnerSiteShopSavedProductsClient
         siteSlug={shop.site.siteSlug}

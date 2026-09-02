@@ -7,7 +7,7 @@ import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-part
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopCatalogClient } from '@/components/partner-website/shop/partner-site-shop-catalog-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
-import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
+import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
 import { fetchPartnerInventoryActivePageWithCountFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import {
   maybePartnerSiteVisualPage,
@@ -68,7 +68,7 @@ export default async function PartnerSiteProductsPage({ params, searchParams }: 
       navJson={shop.site.navJson}
       activeNav="products"
       pageKind={PW_PAGE.listing}
-      {...visualHomeChromeShellProps(shop.site, device)}
+      {...(await liveVisualHomeChromeShellProps(shop.site, device))}
     >
       <PartnerSiteShopCatalogClient
         siteSlug={shop.site.siteSlug}

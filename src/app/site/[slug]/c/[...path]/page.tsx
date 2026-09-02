@@ -32,7 +32,7 @@ import {
   partnerSiteHomePath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
-import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
+import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
 import { JsonLd } from '@/components/seo-json-ld'
 import {
@@ -191,7 +191,7 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
       navJson={shop.site.navJson}
       activeNav="products"
       pageKind={PW_PAGE.listing}
-      {...visualHomeChromeShellProps(shop.site, device)}
+      {...(await liveVisualHomeChromeShellProps(shop.site, device))}
     >
       <JsonLd data={breadcrumbJsonLd} />
       <JsonLd data={collectionPageJsonLd} />

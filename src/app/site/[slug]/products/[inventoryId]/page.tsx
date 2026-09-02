@@ -10,7 +10,7 @@ import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-part
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopProductClient } from '@/components/partner-website/shop/partner-site-shop-product-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
-import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
+import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { resolvePartnerShopProductByKey } from '@/lib/partner-website/shop/resolve-partner-shop-product-by-key'
 import { buildPartnerSiteProductKey } from '@/lib/partner-website/shop/partner-site-product-slug'
@@ -256,7 +256,7 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
       footerJson={shop.site.footerJson}
       navJson={shop.site.navJson}
       pageKind={PW_PAGE.product}
-      {...visualHomeChromeShellProps(shop.site, device)}
+      {...(await liveVisualHomeChromeShellProps(shop.site, device))}
     >
       <JsonLd data={productJsonLd} />
       {breadcrumbJsonLd ? <JsonLd data={breadcrumbJsonLd} /> : null}

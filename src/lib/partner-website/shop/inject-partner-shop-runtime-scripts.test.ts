@@ -208,6 +208,9 @@ test('chrome toggle bootstrap hydrates the category panel from the public API', 
   assert.match(s, /pwShopLiveUiOff/)
   assert.match(s, /hydratePersonalizedNav/)
   assert.match(s, /FEATURED_NAV_API/)
+  assert.match(s, /applyFeaturedNav/)
+  assert.match(s, /data-pw-nav-live/)
+  assert.match(s, /Promise\.all\(\[catP,navP\]\)/)
   assert.match(s, /nav_pills/)
   assert.doesNotMatch(s, /header\.pw-header,\[data-pw-region="header"\]\.pw-header/)
   // Old bug: srcDoc iframe pathname is not /site/… → bare /account → NanoAI 404.

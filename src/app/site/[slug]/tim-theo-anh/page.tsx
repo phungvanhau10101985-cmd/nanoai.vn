@@ -7,7 +7,7 @@ import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-
 import { PartnerSiteImageSearchClient } from '@/components/partner-website/shop/partner-site-image-search-client'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
-import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
+import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
 import {
   readVisualPreviewDevice,
   type PartnerSiteSearchParams,
@@ -62,7 +62,7 @@ export default async function PartnerSiteImageSearchPage({ params, searchParams 
       navJson={shop.site.navJson}
       activeNav="products"
       pageKind={PW_PAGE.listing}
-      {...visualHomeChromeShellProps(shop.site, device)}
+      {...(await liveVisualHomeChromeShellProps(shop.site, device))}
     >
       <PartnerSiteImageSearchClient siteSlug={shop.site.siteSlug} locale={shop.site.locale} />
     </PartnerSiteShopShell>

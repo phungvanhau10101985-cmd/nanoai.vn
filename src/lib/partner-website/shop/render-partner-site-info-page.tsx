@@ -6,7 +6,7 @@ import { PartnerSiteShopInfoView } from '@/components/partner-website/shop/partn
 import { PartnerSiteShopCatalogClient } from '@/components/partner-website/shop/partner-site-shop-catalog-client'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
-import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
+import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
 import {
   getPartnerSiteInfoPage,
   type PartnerSiteInfoPageKey,
@@ -159,7 +159,7 @@ export async function PartnerSiteInfoPageScreen({
       footerJson={shop.site.footerJson}
       navJson={shop.site.navJson}
       pageKind={pageKey === 'sale' || pageKey === 'lookbook' ? PW_PAGE.listing : PW_PAGE.info}
-      {...visualHomeChromeShellProps(shop.site, device)}
+      {...(await liveVisualHomeChromeShellProps(shop.site, device))}
     >
       <JsonLd data={articleLd} />
       <JsonLd data={breadcrumbLd} />

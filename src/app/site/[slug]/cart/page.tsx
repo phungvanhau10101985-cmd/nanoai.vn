@@ -6,7 +6,7 @@ import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-part
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopCartClient } from '@/components/partner-website/shop/partner-site-shop-cart-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
-import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
+import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
 import {
   readVisualPreviewDevice,
   type PartnerSiteSearchParams,
@@ -54,7 +54,7 @@ export default async function PartnerSiteCartPage({ params, searchParams }: Prop
       navJson={shop.site.navJson}
       activeNav="cart"
       pageKind={PW_PAGE.cart}
-      {...visualHomeChromeShellProps(shop.site, device)}
+      {...(await liveVisualHomeChromeShellProps(shop.site, device))}
     >
       <PartnerSiteShopCartClient
         siteSlug={shop.site.siteSlug}

@@ -14,6 +14,7 @@ test('chrome layout css is injected once before </head>', () => {
   const twice = injectPartnerShopChromeLayoutCss(once)
   assert.equal(once.includes(PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID), true)
   assert.equal(once.includes('data-pw-chat-icon-logo'), true)
+  assert.equal(once.includes('.pw-nav-main:not([data-pw-nav-live])'), true)
   assert.equal(once.includes('[data-pw-added-image][data-pw-image-radius]'), true)
   assert.equal(once.includes('[data-pw-chrome-btn="chat"] .pw-chrome-chat-logo'), true)
   assert.equal(once.includes('--pw-chrome-size:22px'), true)

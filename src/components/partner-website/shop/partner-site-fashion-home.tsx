@@ -68,6 +68,11 @@ type Props = {
   /** W2.3 */
   footerJson?: unknown | null
   navJson?: unknown | null
+  visualChromeByDevice?: import('@/lib/partner-website/shop/visual-home-chrome').VisualHomeChromeByDevice | null
+  visualChromeStyles?: string
+  previewDevice?: import('@/lib/partner-website/visual-editor/visual-editor-pages').VisualDeviceVariant | null
+  initialNavRow?: import('@/lib/partner-website/shop/featured-categories').LiveNavRowItem[]
+  initialShowNavAll?: boolean
 }
 
 function ProductCard({
@@ -407,6 +412,11 @@ export function PartnerSiteFashionHome(props: Props) {
         tracking={props.tracking}
         footerJson={props.footerJson}
         navJson={props.navJson}
+        visualChromeByDevice={props.visualChromeByDevice}
+        visualChromeStyles={props.visualChromeStyles}
+        previewDevice={props.previewDevice}
+        initialNavRow={props.initialNavRow}
+        initialShowNavAll={props.initialShowNavAll}
         activeNav="home"
         pageKind={PW_PAGE.home}
       >

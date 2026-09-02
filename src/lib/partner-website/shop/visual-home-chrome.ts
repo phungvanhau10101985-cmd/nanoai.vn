@@ -1,3 +1,4 @@
+import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import {
@@ -22,6 +23,8 @@ export type VisualHomeChromeWebsite = {
   theme?: PartnerWebsiteTheme | null
   project?: PartnerWebsiteProject | null
   htmlSource?: string | null
+  siteSlug?: string | null
+  locale?: WebLocale | null
 }
 
 export type VisualHomeChromeByDevice = {

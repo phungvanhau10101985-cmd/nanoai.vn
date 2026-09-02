@@ -88,6 +88,7 @@ import {
   extractVisualDocumentCssText,
   extractVisualDocumentStyleLinks,
 } from '@/lib/partner-website/shop/merge-visual-home-styles'
+import type { LiveNavRowItem } from '@/lib/partner-website/shop/featured-categories'
 import {
   VISUAL_HOME_CHROME_SPLIT_CSS,
   hasVisualHomeChrome,
@@ -141,6 +142,9 @@ type Props = {
   visualChromeByDevice?: VisualHomeChromeByDevice | null
   visualChromeStyles?: string
   previewDevice?: VisualDeviceVariant | null
+  /** First paint — hàng pill API, không chữ mẫu Thời trang / Túi xách. */
+  initialNavRow?: LiveNavRowItem[]
+  initialShowNavAll?: boolean
   /** Login stays full-width even though pageKind is account. */
   hideAccountNav?: boolean
   children: React.ReactNode
@@ -305,6 +309,8 @@ function PartnerSiteShopShellInner({
   visualChromeStyles = '',
   previewDevice = null,
   hideAccountNav = false,
+  initialNavRow = [],
+  initialShowNavAll = false,
   children,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
@@ -783,10 +789,18 @@ function PartnerSiteShopShellInner({
           customDomain={customDomain}
           ariaLabel={t.categorySeoRowAria}
         />
-        <nav className="pw-shop-nav-row" data-pw-region={PW_REGION.nav} data-pw-personalize-nav="recent-categories" aria-label="Shop">
-          {hasCategoryTree ? (
+        <nav
+          className="pw-shop-nav-row"
+          data-pw-region={PW_REGION.nav}
+          data-pw-personalize-nav="recent-categories"
+          {...(initialNavRow.length ? { 'data-pw-nav-live': '1' } : {})}
+          aria-label="Shop"
+        >
+          {initialNavRow.length || hasCategoryTree ? (
             <PartnerSiteCategoryNavPills
-              tree={categoryTree!}
+              tree={categoryTree || []}
+              pills={initialNavRow.length ? initialNavRow : undefined}
+              showNavAll={initialNavRow.length ? initialShowNavAll : undefined}
               siteSlug={siteSlug}
               locale={locale}
               productsHref={paths.products}
@@ -797,18 +811,7 @@ function PartnerSiteShopShellInner({
               collapseLabel={t.categoryCollapse}
               customDomain={customDomain}
             />
-          ) : (
-            <>
-              <Link href={paths.products} data-pw-el={PW_EL.navLink}>{n.newArrivals}</Link>
-              <Link href={paths.products} data-pw-el={PW_EL.navLink}>{n.clothing}</Link>
-              <Link href={paths.products} data-pw-el={PW_EL.navLink}>{n.bags}</Link>
-              <Link href={paths.products} data-pw-el={PW_EL.navLink}>{n.shoes}</Link>
-              <Link href={paths.products} data-pw-el={PW_EL.navLink}>{n.accessories}</Link>
-              <Link href={paths.sale} className="is-sale" data-pw-el={PW_EL.navLink}>
-                {n.sale}
-              </Link>
-            </>
-          )}
+          ) : null}
         </nav>
       </header>
       </>

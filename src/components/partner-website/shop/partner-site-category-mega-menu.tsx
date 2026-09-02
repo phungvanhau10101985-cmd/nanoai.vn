@@ -245,6 +245,8 @@ export function PartnerSiteCategorySeoRow(props: {
 
 export function PartnerSiteCategoryNavPills(props: {
   tree: PartnerCategoryTreeNode[]
+  pills?: Array<{ id: string; name: string; href: string; children?: Array<{ id: string; name: string; href: string; children?: Array<{ id: string; name: string; href: string }> }> }>
+  showNavAll?: boolean
   siteSlug: string
   locale: WebLocale
   productsHref: string
@@ -259,7 +261,11 @@ export function PartnerSiteCategoryNavPills(props: {
     () => splitPartnerCategoryNavTree(props.tree, props.locale).menuTree,
     [props.tree, props.locale]
   )
-  const pills = useMemo(() => takePartnerHorizontalNavTree(tree), [tree])
+  const livePills = props.pills
+  const pills = useMemo(
+    () => (livePills?.length ? livePills : takePartnerHorizontalNavTree(tree)),
+    [livePills, tree]
+  )
   const [openId, setOpenId] = useState<string | null>(null)
   const leaveTimer = useRef<number | null>(null)
   const fineHover = usePartnerCategoryFineHover()
@@ -275,7 +281,11 @@ export function PartnerSiteCategoryNavPills(props: {
 
   useEffect(() => () => cancelLeave(), [])
 
-  const openCat = tree.find((n) => n.id === openId) ?? null
+  const openCat = livePills?.length
+    ? livePills.find((n) => n.id === openId) ?? null
+    : tree.find((n) => n.id === openId) ?? null
+  const showNavAll =
+    props.showNavAll ?? (!livePills?.length && tree.length > pills.length)
 
   return (
     <div
@@ -294,6 +304,8 @@ export function PartnerSiteCategoryNavPills(props: {
       {pills.map((l1) => {
         const kids = l1.children ?? []
         const open = openId === l1.id
+        const liveHref = 'href' in l1 && typeof l1.href === 'string' ? l1.href : ''
+        const liveName = 'name' in l1 && typeof l1.name === 'string' && livePills?.length ? l1.name : ''
         return (
           <span
             key={l1.id}
@@ -305,10 +317,11 @@ export function PartnerSiteCategoryNavPills(props: {
               setOpenId(l1.id)
             }}
           >
-            <Link href={hrefOf(l1)} data-pw-el={PW_EL.navLink}>
-              {isPartnerKhoSaleNavNode(l1)
-                ? getPartnerSiteShopCopy(props.locale).khoSaleNavLabel
-                : resolvePartnerCategoryDisplayName(l1, props.locale)}
+            <Link href={liveHref || hrefOf(l1 as PartnerCategoryTreeNode)} data-pw-el={PW_EL.navLink}>
+              {liveName ||
+                (isPartnerKhoSaleNavNode(l1)
+                  ? getPartnerSiteShopCopy(props.locale).khoSaleNavLabel
+                  : resolvePartnerCategoryDisplayName(l1 as PartnerCategoryTreeNode, props.locale))}
             </Link>
             {kids.length ? (
               <button
@@ -329,7 +342,7 @@ export function PartnerSiteCategoryNavPills(props: {
           </span>
         )
       })}
-      {tree.length > pills.length ? (
+      {showNavAll ? (
         <Link
           href={partnerSiteCategoryHubPath(props.siteSlug, { customDomain: props.customDomain })}
           data-pw-el={PW_EL.navLink}
@@ -344,18 +357,32 @@ export function PartnerSiteCategoryNavPills(props: {
       </div>
       {openCat && (openCat.children?.length ?? 0) > 0 ? (
         <div className="pw-nav-flyout-bar">
-          {openCat.children.map((l2) => (
+          {openCat.children.map((l2) => {
+            const l2Href = 'href' in l2 && typeof l2.href === 'string' ? l2.href : hrefOf(l2 as PartnerCategoryTreeNode)
+            const l2Name =
+              livePills?.length && 'name' in l2
+                ? String(l2.name || '')
+                : resolvePartnerCategoryDisplayName(l2 as PartnerCategoryTreeNode, props.locale)
+            return (
             <div key={l2.id} className="pw-cat-mega-l2-col">
-              <Link href={hrefOf(l2)} data-pw-el={PW_EL.navLink} className="pw-cat-mega-l2">
-                {resolvePartnerCategoryDisplayName(l2, props.locale)}
+              <Link href={l2Href} data-pw-el={PW_EL.navLink} className="pw-cat-mega-l2">
+                {l2Name}
               </Link>
-              {(l2.children ?? []).map((l3) => (
-                <Link key={l3.id} href={hrefOf(l3)} data-pw-el={PW_EL.navLink} className="pw-cat-mega-l3">
-                  {resolvePartnerCategoryDisplayName(l3, props.locale)}
+              {(l2.children ?? []).map((l3) => {
+                const l3Href = 'href' in l3 && typeof l3.href === 'string' ? l3.href : hrefOf(l3 as PartnerCategoryTreeNode)
+                const l3Name =
+                  livePills?.length && 'name' in l3
+                    ? String(l3.name || '')
+                    : resolvePartnerCategoryDisplayName(l3 as PartnerCategoryTreeNode, props.locale)
+                return (
+                <Link key={l3.id} href={l3Href} data-pw-el={PW_EL.navLink} className="pw-cat-mega-l3">
+                  {l3Name}
                 </Link>
-              ))}
+                )
+              })}
             </div>
-          ))}
+            )
+          })}
         </div>
       ) : null}
     </div>

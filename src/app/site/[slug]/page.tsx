@@ -13,6 +13,7 @@ import { PartnerSiteFashionHome } from '@/components/partner-website/shop/partne
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
+import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
 import {
   buildPartnerSiteHomeCopy,
   partnerSiteHomeIndustryBadge,
@@ -151,6 +152,7 @@ export default async function PartnerSitePublicPage({ params, searchParams }: Pr
         secondaryCtaLabel={partnerSiteHomeSecondaryCta(shop.site.locale, shop.industryKey)}
         footerJson={shop.site.footerJson}
         navJson={shop.site.navJson}
+        {...(await liveVisualHomeChromeShellProps(shop.site, previewDevice))}
       />
     )
   }

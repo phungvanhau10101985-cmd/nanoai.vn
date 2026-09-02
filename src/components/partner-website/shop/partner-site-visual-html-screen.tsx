@@ -20,6 +20,8 @@ import {
   type PartnerVisualHtmlByDevice,
   type PartnerVisualHtmlTarget,
 } from '@/lib/partner-website/shop/render-partner-visual-html'
+import { bindLiveCategorySurfacesInHtml } from '@/lib/partner-website/shop/bind-live-nav-pills'
+import { loadSiteLiveCategoryBind } from '@/lib/partner-website/shop/load-site-live-category-bind'
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import type { PartnerSiteInfoPageKey } from '@/lib/partner-website/shop/partner-site-shop-info-pages'
@@ -128,6 +130,7 @@ export async function PartnerSiteVisualHtmlScreen({
   const headerStore = headers()
   const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
   const pageKey = String(infoSeo?.pageKey || infoSeo?.cmsSlug || 'page')
+  const liveCategoryBind = await loadSiteLiveCategoryBind(site.siteSlug)
   const prepareOne = async (sourceHtml: string, sourceDevice: VisualDeviceVariant | null) => {
     const prepare = () => {
       const seoHtml = withInfoPageAdvancedSeo(site, sourceHtml, infoSeo)
@@ -140,19 +143,21 @@ export async function PartnerSiteVisualHtmlScreen({
         theme: site.theme,
       })
     }
-    if (skipHtmlCache) return prepare()
-    return withSiteHtmlCache({
-      slug: site.siteSlug,
-      pageKey,
-      device: sourceDevice || 'auto',
-      extra: [
-        onCustomDomain ? 'd1' : 'd0',
-        infoSeo?.datePublished || '',
-        infoSeo?.dateModified || '',
-        infoSeo?.noIndex ? '1' : '0',
-      ].join(':'),
-      load: async () => prepare(),
-    })
+    const cached = skipHtmlCache
+      ? prepare()
+      : await withSiteHtmlCache({
+          slug: site.siteSlug,
+          pageKey,
+          device: sourceDevice || 'auto',
+          extra: [
+            onCustomDomain ? 'd1' : 'd0',
+            infoSeo?.datePublished || '',
+            infoSeo?.dateModified || '',
+            infoSeo?.noIndex ? '1' : '0',
+          ].join(':'),
+          load: async () => prepare(),
+        })
+    return bindLiveCategorySurfacesInHtml(cached, liveCategoryBind)
   }
 
   const requestViewportWidth = Number(

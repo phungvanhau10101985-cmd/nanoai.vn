@@ -7,7 +7,7 @@ import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-part
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopLoginClient } from '@/components/partner-website/shop/partner-site-shop-login-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
-import { visualHomeChromeShellProps } from '@/lib/partner-website/shop/visual-home-chrome'
+import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
 import { readVisualPreviewDevice, type PartnerSiteSearchParams } from '@/components/partner-website/shop/partner-site-visual-html-screen'
 import { PW_PAGE } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
@@ -59,7 +59,7 @@ export default async function PartnerSiteLoginPage({ params, searchParams }: Pro
       activeNav="account"
       pageKind={PW_PAGE.account}
       hideAccountNav
-      {...visualHomeChromeShellProps(shellSite, device)}
+      {...(await liveVisualHomeChromeShellProps(shellSite, device))}
     >
       <PartnerSiteShopLoginClient
         siteSlug={shellSite.siteSlug}

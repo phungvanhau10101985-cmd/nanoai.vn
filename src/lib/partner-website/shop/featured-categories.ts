@@ -19,8 +19,11 @@ import {
 } from '@/lib/partner-website/category/partner-category-types'
 import {
   isPartnerKhoSaleNavNode,
+  partnerCategoryNavHref,
   splitPartnerCategoryNavTree,
+  takePartnerHorizontalNavTree,
 } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
+import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { inferApparelGenderFromName } from '@/lib/partner-website/shop/partner-site-home-recommendation-mix'
 import { resolveCategoryHubTileImages } from '@/lib/partner-website/shop/category-hub-images'
 import {
@@ -60,10 +63,21 @@ export type FeaturedCategoryTile = {
   level: 1 | 2 | 3
 }
 
+/** Hàng pill live — vừa xem hoặc L1 fallback. Cùng shape HTML + React. */
+export type LiveNavRowItem = {
+  id: string
+  name: string
+  href: string
+  children: LiveNavRowItem[]
+}
+
 export type FeaturedCategoryBlock = {
   tiles: FeaturedCategoryTile[]
-  /** Hàng pill header: danh mục chứa SP vừa xem. Rỗng → client dùng L1 phổ biến. */
+  /** Hàng pill header: danh mục chứa SP vừa xem. Rỗng → dùng nav_row L1. */
   nav_pills: FeaturedCategoryTile[]
+  /** Hàng pill đã resolve để first paint (vừa xem hoặc L1). */
+  nav_row: LiveNavRowItem[]
+  show_nav_all: boolean
   gender: FeaturedCategoryGender | null
   gender_label: 'Nam' | 'Nữ' | null
   source: FeaturedCategorySource
@@ -321,6 +335,45 @@ export function pickRecentViewNavPills(input: {
   return out
 }
 
+function treeNodeToLiveNavRow(
+  siteSlug: string,
+  locale: WebLocale,
+  node: PartnerCategoryTreeNode
+): LiveNavRowItem {
+  const kho = isPartnerKhoSaleNavNode(node)
+  const copy = getPartnerSiteShopCopy(locale)
+  return {
+    id: node.id,
+    name: kho ? copy.khoSaleNavLabel : resolvePartnerCategoryDisplayName(node, locale),
+    href: partnerCategoryNavHref(siteSlug, node),
+    children: (node.children || []).map((child) => treeNodeToLiveNavRow(siteSlug, locale, child)),
+  }
+}
+
+export function liveNavRowFromBlockInput(input: {
+  siteSlug: string
+  locale: WebLocale
+  navPills: FeaturedCategoryTile[]
+  tree: PartnerCategoryTreeNode[]
+}): { nav_row: LiveNavRowItem[]; show_nav_all: boolean } {
+  if (input.navPills.length) {
+    return {
+      nav_row: input.navPills.map((tile) => ({
+        id: tile.id,
+        name: tile.short_name || tile.name,
+        href: tile.href,
+        children: [],
+      })),
+      show_nav_all: false,
+    }
+  }
+  const l1 = takePartnerHorizontalNavTree(input.tree)
+  return {
+    nav_row: l1.map((node) => treeNodeToLiveNavRow(input.siteSlug, input.locale, node)),
+    show_nav_all: input.tree.length > l1.length,
+  }
+}
+
 function tilesFromCandidates(
   siteSlug: string,
   picked: FeaturedCategoryCandidate[],
@@ -398,6 +451,8 @@ export async function getSiteFeaturedCategoryBlock(input: {
   const empty = (): FeaturedCategoryBlock => ({
     tiles: [],
     nav_pills: [],
+    nav_row: [],
+    show_nav_all: false,
     gender: null,
     gender_label: null,
     source: 'popular_fallback',
@@ -464,8 +519,22 @@ export async function getSiteFeaturedCategoryBlock(input: {
       limit: NAV_RECENT_VIEW_PILL_LIMIT,
     })
   )
+  const navResolved = liveNavRowFromBlockInput({
+    siteSlug: input.siteSlug,
+    locale,
+    navPills,
+    tree,
+  })
   if (!picked.length) {
-    return { ...empty(), nav_pills: navPills, gender, gender_label: featuredCategoryGenderLabel(gender), source }
+    return {
+      ...empty(),
+      nav_pills: navPills,
+      nav_row: navResolved.nav_row,
+      show_nav_all: navResolved.show_nav_all,
+      gender,
+      gender_label: featuredCategoryGenderLabel(gender),
+      source,
+    }
   }
 
   const withImages = await resolveCategoryHubTileImages({
@@ -481,6 +550,8 @@ export async function getSiteFeaturedCategoryBlock(input: {
   return {
     tiles: [...withImg, ...withoutImg].slice(0, limit),
     nav_pills: navPills,
+    nav_row: navResolved.nav_row,
+    show_nav_all: navResolved.show_nav_all,
     gender,
     gender_label: featuredCategoryGenderLabel(gender),
     source,
