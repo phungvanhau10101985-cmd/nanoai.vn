@@ -23,7 +23,8 @@ import type {
   PartnerWebsiteTemplateRenderInput,
 } from '@/lib/partner-website/template/partner-website-template-types'
 import { getSectionRegistryEntry, isSectionTypeEnabled } from '@/lib/partner-website/template/section-registry'
-import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { BANNER_PLACEHOLDER_SRC } from '@/lib/partner-website/visual-editor/banner-widgets'
+import { PW_EDIT_SLOT, PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { PW_SCENE_HEAD_Z, PW_SCENE_TOPBAR_Z } from '@/lib/partner-website/visual-editor/pw-scene'
 
 function str(v: unknown, fallback = ''): string {
@@ -35,9 +36,8 @@ function renderHero(section: PartnerWebsiteSection, siteSlug?: string): string {
   const subtitle = escapeHtml(str(section.props.subtitle, ''))
   const cta = escapeHtml(str(section.props.ctaText, 'Shop now'))
   const bg = str(section.props.backgroundImage)
-  const bgStyle = bg
-    ? `background-image:linear-gradient(90deg,color-mix(in srgb, var(--pw-primary) 55%, transparent),rgba(0,0,0,.25)),url('${escapeAttr(bg)}');`
-    : ''
+  const mediaSrc = bg || BANNER_PLACEHOLDER_SRC
+  const mediaPlaceholder = bg ? '' : ' data-pw-banner-placeholder="1"'
   const ctaHref = siteSlug?.trim()
     ? escapeAttr(partnerSiteProductsPath(siteSlug.trim()))
     : '#products'
@@ -46,7 +46,9 @@ function renderHero(section: PartnerWebsiteSection, siteSlug?: string): string {
     utmVariants.length > 0
       ? ` data-pw-hero-variants="${escapeAttr(JSON.stringify(utmVariants))}"`
       : ''
-  return `<section class="pw-hero" ${pwRegionAttr(PW_REGION.banner)} style="${bgStyle}"${utmData}>
+  return `<section class="pw-hero" ${pwRegionAttr(PW_REGION.banner)} style="position:relative"${utmData}>
+  <img class="pw-hero-media" ${pwElAttr(PW_EL.media)} data-pw-edit="${PW_EDIT_SLOT.heroImage}" alt="" width="1600" height="720" src="${escapeAttr(mediaSrc)}"${mediaPlaceholder} style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0"/>
+  <div aria-hidden="true" data-pw-banner-wash="1" style="position:absolute;inset:0;background:linear-gradient(90deg,color-mix(in srgb, var(--pw-primary) 55%, transparent),rgba(0,0,0,.25));pointer-events:none;z-index:1"></div>
   <div class="pw-hero-inner pw-container" ${pwElAttr(PW_EL.inner)}>
     <div class="pw-hero-copy" ${pwElAttr(PW_EL.copy)}>
       <h1 ${pwElAttr(PW_EL.title)}>${title}</h1>
@@ -81,10 +83,10 @@ function renderCategories(
     })
     .join('')
   if (!cards) return ''
-  return `<section class="pw-section pw-categories" id="categories" ${pwRegionAttr(PW_REGION.categories)}>
+  return `<section class="pw-section pw-categories" id="categories" ${pwRegionAttr(PW_REGION.categories)} data-pw-featured-categories="1" data-pw-grid-kind="featured-categories">
   <div class="pw-container">
     <h2 class="pw-section-title" ${pwElAttr(PW_EL.sectionTitle)}>${title}</h2>
-    <div class="pw-cat-grid">${cards}</div>
+    <div class="pw-cat-grid" data-pw-grid ${pwElAttr(PW_EL.grid)}>${cards}</div>
   </div>
 </section>`
 }
@@ -459,7 +461,7 @@ ${buildPartnerSiteAccountPanelCss()}
 .pw-mobile-header{display:none}
 .pw-hero{min-height:360px;background:linear-gradient(135deg,var(--pw-primary),var(--pw-accent));background-size:cover;background-position:center;color:#fff;display:flex;align-items:center;border-radius:0;overflow:hidden;position:relative}
 .pw-hero::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at top right,rgba(251,146,60,.35),transparent 55%);pointer-events:none}
-.pw-hero-inner{width:100%;padding:64px 20px;position:relative;z-index:1}
+.pw-hero-inner{width:100%;padding:64px 20px;position:relative;z-index:2}
 .pw-hero-copy{max-width:560px}
 .pw-hero h1{margin:0 0 12px;font-family:var(--pw-font-display);font-size:clamp(2rem,4.5vw,3.4rem);line-height:1.08;letter-spacing:.01em;text-transform:uppercase;font-weight:800}
 .pw-hero-sub{margin:0 0 20px;color:rgba(255,255,255,.92);font-size:1rem}

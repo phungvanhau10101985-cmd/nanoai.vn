@@ -6,6 +6,7 @@ import {
   flattenFeaturedCategoryCandidates,
   inferApparelGenderFromCandidates,
   pickFeaturedCategoryTiles,
+  pickRecentViewNavPills,
   shortFeaturedCategoryName,
   tokenOverlapScore,
   type FeaturedCategoryCandidate,
@@ -136,4 +137,45 @@ test('infers gender from viewed candidates and falls back without gender', () =>
   ]
   const picked = pickFeaturedCategoryTiles({ candidates: mixed, gender: null, limit: 4 })
   assert.equal(picked.length, 2)
+})
+
+test('nav pills are only categories that contain recently viewed products', () => {
+  const candidates: FeaturedCategoryCandidate[] = [
+    { id: 'tui', name: 'Túi xách', path: 'tui-xach', level: 2, productCount: 8, gender: 'female', imageUrl: '', viewed: true },
+    { id: 'giay', name: 'Giày dép', path: 'giay-dep', level: 2, productCount: 5, gender: null, imageUrl: '', viewed: true },
+    { id: 'ao', name: 'Áo', path: 'ao', level: 2, productCount: 99, gender: 'male', imageUrl: '', viewed: false },
+    { id: 'l1', name: 'Thời trang Nữ', path: 'thoi-trang-nu', level: 1, productCount: 40, gender: 'female', imageUrl: '', viewed: true },
+  ]
+  const pills = pickRecentViewNavPills({ candidates, limit: 8 })
+  assert.deepEqual(pills.map((c) => c.id), ['tui', 'giay'])
+  assert.equal(pickRecentViewNavPills({ candidates: candidates.filter((c) => !c.viewed) }).length, 0)
+  const nested: FeaturedCategoryCandidate[] = [
+    { id: 'l2', name: 'Giày dép', path: 'giay-dep', level: 2, productCount: 9, gender: null, imageUrl: '', viewed: true },
+    { id: 'l3', name: 'Giày thể thao', path: 'giay-dep/the-thao', level: 3, productCount: 3, gender: null, imageUrl: '', viewed: true },
+    { id: 'sib', name: 'Sandal', path: 'giay-dep/sandal', level: 3, productCount: 2, gender: null, imageUrl: '', viewed: true },
+  ]
+  assert.deepEqual(
+    pickRecentViewNavPills({ candidates: nested, directIds: new Set(['l2', 'l3']) }).map((c) => c.id),
+    ['l2']
+  )
+})
+
+test('featured tiles put recently viewed categories first then fill popular', () => {
+  const candidates: FeaturedCategoryCandidate[] = [
+    { id: 'tui', name: 'Túi xách', path: 'tui-xach', level: 2, productCount: 4, gender: 'female', imageUrl: '', viewed: true },
+    { id: 'ao', name: 'Áo sơ mi', path: 'ao', level: 2, productCount: 40, gender: 'female', imageUrl: '', viewed: false },
+    { id: 'vay', name: 'Váy', path: 'vay', level: 2, productCount: 30, gender: 'female', imageUrl: '', viewed: false },
+    { id: 'l3a', name: 'túi mini', path: 'tui-xach/mini', level: 3, productCount: 6, gender: 'female', imageUrl: '', viewed: false },
+    { id: 'l3b', name: 'váy midi', path: 'vay/midi', level: 3, productCount: 5, gender: 'female', imageUrl: '', viewed: false },
+    { id: 'nam', name: 'Áo nam', path: 'ao-nam', level: 2, productCount: 99, gender: 'male', imageUrl: '', viewed: false },
+  ]
+  const picked = pickFeaturedCategoryTiles({
+    candidates,
+    gender: 'female',
+    limit: 4,
+    directIds: new Set(['tui']),
+  })
+  assert.equal(picked[0]?.id, 'tui')
+  assert.equal(picked.length, 4)
+  assert.equal(picked.some((c) => c.id === 'nam'), false)
 })

@@ -220,7 +220,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
     </div>
   </div>
   <nav class="pw-container pw-seo-row" data-pw-seo-row hidden aria-label=""></nav>
-  <nav class="pw-container pw-nav-main" ${pwRegionAttr(PW_REGION.nav)} aria-label="Shop">
+  <nav class="pw-container pw-nav-main" ${pwRegionAttr(PW_REGION.nav)} data-pw-personalize-nav="recent-categories" aria-label="Shop">
     ${categoryLinks}
   </nav>
 </header>`

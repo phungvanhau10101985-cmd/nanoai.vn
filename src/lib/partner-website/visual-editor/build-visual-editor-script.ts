@@ -31,6 +31,10 @@ import {
   PW_FOOTER_ADDED_ATTR,
 } from './chrome-widgets'
 import {
+  PW_FOOTER_KIT_ATTR,
+  PW_FOOTER_KIT_STOCK,
+} from '../shop/partner-site-footer-kit'
+import {
   PW_CHROME_COUNT_BADGE_HIDE_CSS,
   PW_CHROME_COUNT_BADGE_RUNTIME_JS,
 } from '../shop/chrome-count-badges'
@@ -1100,6 +1104,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function applyBannerPhoto(host, zoom, panX, panY) {
     if (!host) return
+    try { ensureBannerMediaImg(host) } catch (eEnsurePhoto) {}
     var z = Math.max(0.5, Math.min(3, Number(zoom) || 1))
     var x = Math.max(0, Math.min(100, Number(panX)))
     var y = Math.max(0, Math.min(100, Number(panY)))
@@ -1707,6 +1712,76 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function footerRootEl() {
     return document.querySelector('[data-pw-region="footer"], footer.pw-footer, footer.pw-shop-footer, .pw-shop-footer, footer')
+  }
+  function inferFooterColKit(html) {
+    var s = String(html || '')
+    var shop = 0
+    var shopping = 0
+    var support = 0
+    var legal = 0
+    if (/\\/(privacy|terms)(?:\\/|"|'|\\?|#|\\s|>)/i.test(s)) legal += 4
+    if (/\\/(faq|shipping|returns)(?:\\/|"|'|\\?|#|\\s|>)/i.test(s)) support += 3
+    if (/\\/payment(?:\\/|"|'|\\?|#|\\s|>)/i.test(s)) support += 1
+    if (/\\/(products|kho-sale|wishlist|size-guide)(?:\\/|"|'|\\?|#|\\s|>)/i.test(s)) shopping += 3
+    if (/\\/(about|contact|stores|lookbook|blog)(?:\\/|"|'|\\?|#|\\s|>)/i.test(s)) shop += 3
+    if (/\\/(cart|orders|account)(?:\\/|"|'|\\?|#|\\s|>)/i.test(s)) support += 1
+    var text = s.replace(/<[^>]+>/g, ' ').toLowerCase()
+    if (/chính sách|privacy|terms|ポリシー|정책|政策/.test(text)) legal += 2
+    if (/hỗ trợ|support|サポート|지원|支持/.test(text)) support += 2
+    if (/mua sắm|shopping|ショッピング|쇼핑|购物/.test(text)) shopping += 2
+    if (/cửa hàng|店铺|ショップ|스토어/.test(text) && !/mua sắm|shopping/.test(text)) shop += 2
+    var best = ''
+    var n = 0
+    if (legal > n) { best = 'col:legal'; n = legal }
+    if (support > n) { best = 'col:support'; n = support }
+    if (shopping > n) { best = 'col:shopping'; n = shopping }
+    if (shop > n) { best = 'col:shop'; n = shop }
+    return n > 0 ? best : ''
+  }
+  function ensureFooterKitAttrs() {
+    var footer = footerRootEl()
+    if (!footer || !footer.querySelectorAll) return
+    var brand = footer.querySelector('.pw-shop-footer-brand')
+    if (brand && !brand.getAttribute('${PW_FOOTER_KIT_ATTR}')) brand.setAttribute('${PW_FOOTER_KIT_ATTR}', 'brand')
+    var copy = footer.querySelector('[data-pw-el="copyright"]')
+    if (copy && !copy.getAttribute('${PW_FOOTER_KIT_ATTR}')) copy.setAttribute('${PW_FOOTER_KIT_ATTR}', 'copyright')
+    var used = {}
+    var cols = footer.querySelectorAll('nav.pw-shop-footer-col, nav.pw-footer-col, nav[data-pw-el="col"]')
+    var stockCols = ['col:shop', 'col:shopping', 'col:support', 'col:legal']
+    var ci
+    for (ci = 0; ci < cols.length; ci++) {
+      var col = cols[ci]
+      var have = col.getAttribute('${PW_FOOTER_KIT_ATTR}') || ''
+      if (have) { used[have] = 1; continue }
+      var guess = inferFooterColKit(col.outerHTML || col.innerHTML || '')
+      if (guess && !used[guess]) {
+        col.setAttribute('${PW_FOOTER_KIT_ATTR}', guess)
+        used[guess] = 1
+        continue
+      }
+      var fi
+      for (fi = 0; fi < stockCols.length; fi++) {
+        if (!used[stockCols[fi]]) {
+          col.setAttribute('${PW_FOOTER_KIT_ATTR}', stockCols[fi])
+          used[stockCols[fi]] = 1
+          break
+        }
+      }
+    }
+    var extras = footer.querySelectorAll('[${PW_FOOTER_ADDED_ATTR}="1"]')
+    var addedI = 0
+    for (ci = 0; ci < extras.length; ci++) {
+      if (extras[ci].getAttribute('${PW_FOOTER_KIT_ATTR}')) continue
+      addedI += 1
+      extras[ci].setAttribute('${PW_FOOTER_KIT_ATTR}', 'added:' + addedI)
+    }
+  }
+  function findFooterKitEl(kind) {
+    var k = String(kind || '').replace(/"/g, '')
+    if (!k) return null
+    var footer = footerRootEl()
+    if (!footer || !footer.querySelector) return null
+    return footer.querySelector('[${PW_FOOTER_KIT_ATTR}="' + k + '"]')
   }
   function isFooterInnerUnit(el) {
     if (!el || el.nodeType !== 1) return false
@@ -2366,15 +2441,24 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!vars || typeof vars !== 'object') return
     var names = Object.keys(vars)
     var i
+    var root = document.documentElement
+    var shopBody = document.body
+    for (i = 0; i < names.length; i++) {
+      try { if (root && root.style) root.style.setProperty(names[i], vars[names[i]], 'important') } catch (eRoot) {}
+      try { if (shopBody && shopBody.style) shopBody.style.setProperty(names[i], vars[names[i]], 'important') } catch (eBody) {}
+    }
     var style = document.getElementById('pw-theme-root')
     if (!style) {
       style = document.createElement('style')
       style.id = 'pw-theme-root'
-      ;(document.head || document.documentElement).appendChild(style)
+    }
+    var host = document.head || document.documentElement
+    if (style.parentNode !== host || (host && host.lastElementChild !== style)) {
+      try { host.appendChild(style) } catch (eHost) {}
     }
     var body = []
     for (i = 0; i < names.length; i++) body.push(names[i] + ':' + vars[names[i]] + ' !important')
-    style.textContent = ':root{' + body.join(';') + '}'
+    style.textContent = ':root,html,body{' + body.join(';') + '}'
   }
   function sampleThemeColors() {
     var primary = readThemeVar('--pw-primary')
@@ -4808,10 +4892,46 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     var stack = { right: ${PW_CHROME_FLOAT_DEFAULT_RIGHT_PX}, bottom: ${PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat}, gap: ${PW_FLOAT_GAP_DEFAULT}, size: ${PW_FLOAT_SIZE_DEFAULT} }
     try { stack = pwChromeFloatApplyStack() || stack } catch (errStackState) {}
+    function collectFooter() {
+      try { ensureFooterKitAttrs() } catch (errFootKit) {}
+      var footer = footerRootEl()
+      if (!footer || !footer.querySelector) return []
+      var stock = ${JSON.stringify(PW_FOOTER_KIT_STOCK)}
+      var out = []
+      var seen = {}
+      var i
+      for (i = 0; i < stock.length; i++) {
+        var el = footer.querySelector('[${PW_FOOTER_KIT_ATTR}="' + stock[i] + '"]')
+        if (!el) continue
+        seen[stock[i]] = 1
+        out.push({
+          kind: stock[i],
+          hidden: el.getAttribute('data-pw-hidden') === '1',
+          dockShow: '',
+          slot: '',
+          label: String(el.getAttribute('aria-label') || el.textContent || stock[i]).replace(/\\s+/g, ' ').trim()
+        })
+      }
+      var extras = footer.querySelectorAll('[${PW_FOOTER_KIT_ATTR}]')
+      for (i = 0; i < extras.length; i++) {
+        var kind = String(extras[i].getAttribute('${PW_FOOTER_KIT_ATTR}') || '')
+        if (!kind || seen[kind]) continue
+        seen[kind] = 1
+        out.push({
+          kind: kind,
+          hidden: extras[i].getAttribute('data-pw-hidden') === '1',
+          dockShow: '',
+          slot: '',
+          label: String(extras[i].getAttribute('aria-label') || extras[i].textContent || kind).replace(/\\s+/g, ' ').trim()
+        })
+      }
+      return out
+    }
     post('chromeKitState', {
       head: collect(headRoot),
       dock: collect(dockRoot, isPdpEditorDoc()),
       float: collectFloat(),
+      footer: collectFooter(),
       floatRight: stack.right,
       floatBottom: stack.bottom,
       floatGap: stack.gap,
@@ -4849,6 +4969,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function findChromeKitBtn(kind, bar) {
     var k = String(kind || '').replace(/"/g, '')
+    if (bar === 'footer') return findFooterKitEl(k)
     if (bar === 'float') return chromeKitFloatBtnsOf(k)[0] || null
     if (bar === 'dock') {
       var dock = chromeKitDockRoot()
@@ -4941,6 +5062,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function setChromeKitHidden(kind, bar, hidden) {
     if (bar === 'dock' && isPdpDockCtaLockedKind(kind)) return
+    if (bar === 'footer') {
+      try { ensureFooterKitAttrs() } catch (errFootHid) {}
+    }
     var targets = bar === 'float' ? chromeKitFloatBtnsOf(kind) : []
     if (bar !== 'float') {
       var one = findChromeKitBtn(kind, bar)
@@ -5388,13 +5512,17 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (badge) setAttrIfEmpty(badge, 'data-pw-el', 'badge')
       var dots = banner.querySelector('.pw-hero-dots')
       if (dots) setAttrIfEmpty(dots, 'data-pw-el', 'dots')
-      var media = banner.querySelector('img[data-pw-edit="heroImage"], img[data-pw-el="media"]')
+      var zoomStamp = parseBannerZoom(banner)
+      var panStamp = parseBannerPan(banner)
+      var media = ensureBannerMediaImg(banner) || banner.querySelector('img[data-pw-edit="heroImage"], img[data-pw-el="media"]')
       if (media) {
         setAttrIfEmpty(media, 'data-pw-el', 'media')
+        setAttrIfEmpty(media, 'data-pw-edit', 'heroImage')
         var mediaWrap = media.parentElement
         if (mediaWrap && mediaWrap !== banner && !mediaWrap.querySelector('h1, [data-pw-el="title"], [data-pw-el="copy"]')) {
           setAttrIfEmpty(mediaWrap, 'data-pw-el', 'inner')
         }
+        try { applyBannerPhoto(banner, zoomStamp, panStamp.x, panStamp.y) } catch (eReplayZoom) {}
       }
       if (!copy && title && title.parentElement && title.parentElement !== banner) {
         copy = title.parentElement
@@ -5812,6 +5940,17 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     post('dirty', {})
     refreshSelect()
   }
+  function bannerBlockForDelete(el) {
+    if (!el) return null
+    if (isBannerHostEl(el) || looksLikeBannerHost(el)) return el
+    var host = bannerHostOf(el)
+    if (!host) return null
+    if (isBannerContentEl(el) || isBannerLeafEl(el) || isTextEl(el) || isBtnEl(el) || isMoveBlockEl(el)) return null
+    if (isChromeBtn(el) || isAddedChrome(el) || isAddedText(el) || isAddedBtn(el)) return null
+    if (isBgLayerEl(el) || pwElOf(el) === 'media' || pwElOf(el) === 'dots' || pwElOf(el) === 'inner') return host
+    if (el.classList && el.classList.contains('pw-hero-media')) return host
+    return null
+  }
   function catalogBlockForDelete(el) {
     if (!el) return null
     if (el.getAttribute && el.getAttribute('data-pw-featured-categories') === '1') return el
@@ -6032,7 +6171,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       var firstSlide = slider.querySelector('[data-pw-slide] img[data-pw-el="media"]')
       if (firstSlide) return firstSlide
     }
-    var marked = el.querySelector('img[data-pw-edit="heroImage"], img[data-pw-edit*="hero"], img[data-pw-edit*="banner"]')
+    var marked = el.querySelector('img[data-pw-el="media"], img.pw-hero-media, img[data-pw-edit="heroImage"], img[data-pw-edit*="hero"], img[data-pw-edit*="banner"]')
     if (marked) return marked
     var imgs = el.querySelectorAll('img')
     var br = null
@@ -6044,6 +6183,80 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (r.width >= br.width * 0.55 && r.height >= Math.min(140, br.height * 0.4)) return imgs[i]
     }
     return null
+  }
+  function stripHostBannerBgUrl(el) {
+    if (!el || !el.style) return
+    var cur = ''
+    try { cur = el.style.backgroundImage || '' } catch (eS) { cur = '' }
+    if (!cur || !/url\\(/i.test(cur)) return
+    var leftover = String(cur).replace(/,?\\s*url\\(\\s*(['"]?)[^"')]*\\1\\s*\\)/gi, '').replace(/^,\\s*|,\\s*$/g, '').replace(/,\\s*,/g, ',').trim()
+    if (leftover) el.style.backgroundImage = leftover
+    else el.style.removeProperty('background-image')
+    if (leftover && leftover.indexOf('gradient') >= 0 && !el.querySelector('[data-pw-banner-wash="1"]')) {
+      var wash = document.createElement('div')
+      wash.setAttribute('data-pw-banner-wash', '1')
+      wash.setAttribute('aria-hidden', 'true')
+      wash.style.position = 'absolute'
+      wash.style.inset = '0'
+      wash.style.pointerEvents = 'none'
+      wash.style.zIndex = '1'
+      wash.style.backgroundImage = leftover
+      el.style.removeProperty('background-image')
+      var inner = el.querySelector('.pw-hero-inner, [data-pw-el="inner"]')
+      if (inner) el.insertBefore(wash, inner)
+      else el.appendChild(wash)
+    }
+  }
+  function ensureBannerMediaImg(host) {
+    if (!host || !host.querySelector) return null
+    var slider = host.getAttribute && (host.getAttribute('data-pw-slider') === '1' || host.getAttribute('data-pw-banner-kind') === 'slider' || host.getAttribute('data-pw-full-slides') === '1')
+    if (slider) return heroImgIn(host)
+    var existing = host.querySelector('img[data-pw-el="media"], img.pw-hero-media, img[data-pw-edit="heroImage"]')
+    if (existing) {
+      setAttrIfEmpty(existing, 'data-pw-el', 'media')
+      setAttrIfEmpty(existing, 'data-pw-edit', 'heroImage')
+      if (existing.classList && !existing.classList.contains('pw-hero-media')) existing.classList.add('pw-hero-media')
+      var bgKeep = extractBgUrl(host)
+      var curSrc = existing.getAttribute('src') || ''
+      var isPh = existing.getAttribute('data-pw-banner-placeholder') === '1' || !curSrc
+      if (bgKeep && isPh) {
+        existing.setAttribute('src', bgKeep)
+        existing.removeAttribute('data-pw-banner-placeholder')
+      }
+      if (bgKeep) stripHostBannerBgUrl(host)
+      seatBannerMedia(host, existing)
+      return existing
+    }
+    var found = heroImgIn(host)
+    if (found) {
+      setAttrIfEmpty(found, 'data-pw-el', 'media')
+      setAttrIfEmpty(found, 'data-pw-edit', 'heroImage')
+      if (found.classList && !found.classList.contains('pw-hero-media')) found.classList.add('pw-hero-media')
+      if (extractBgUrl(host)) stripHostBannerBgUrl(host)
+      seatBannerMedia(host, found)
+      return found
+    }
+    var src = extractBgUrl(host)
+    var img = document.createElement('img')
+    img.className = 'pw-hero-media'
+    img.setAttribute('data-pw-el', 'media')
+    img.setAttribute('data-pw-edit', 'heroImage')
+    img.setAttribute('alt', '')
+    img.setAttribute('width', '1600')
+    img.setAttribute('height', '720')
+    if (src) {
+      img.setAttribute('src', src)
+    } else {
+      img.setAttribute('src', ${JSON.stringify(BANNER_PLACEHOLDER_SRC)})
+      img.setAttribute('data-pw-banner-placeholder', '1')
+    }
+    img.style.zIndex = '0'
+    var first = host.firstElementChild
+    if (first) host.insertBefore(img, first)
+    else host.appendChild(img)
+    seatBannerMedia(host, img)
+    if (src) stripHostBannerBgUrl(host)
+    return img
   }
   function canImageLayer(el) {
     if (!el || isLockedCatalogEl(el) || isProductCardEl(el) || isHeroInnerOrCopy(el)) return false
@@ -7313,8 +7526,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       deleteSelectedUnit()
       return
     }
+    var bannerBlock = selected ? bannerBlockForDelete(selected) : null
     var catalogBlock = selected ? catalogBlockForDelete(selected) : null
-    var block = catalogBlock || (selected && isContentBlockEl(selected) ? selected : findContentBlockEl(selected))
+    var block = bannerBlock || catalogBlock || (selected && isContentBlockEl(selected) ? selected : findContentBlockEl(selected))
     if (!block || !block.parentNode) return
     var blockParent = block.parentNode
     blockParent.removeChild(block)
@@ -7546,6 +7760,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       var midHeader = scopedQuery('header.pw-header, header.pw-shop-header') || scopedQuery('header')
       var midNav = document.createElement('nav')
       midNav.className = 'pw-container pw-nav-main'
+      midNav.setAttribute('data-pw-personalize-nav', 'recent-categories')
       midNav.setAttribute('aria-label', 'Shop')
       if (midHeader) midHeader.appendChild(midNav)
       else document.body.insertBefore(midNav, document.body.firstChild)
@@ -8927,9 +9142,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return true
   }
   function wantFooterInsert(host) {
-    if (String(host || '') === 'footer') return true
-    if (hasInsertAnchor() && isFooterAnchor()) return true
-    return !!(selected && isInFooter(selected) && !hasInsertAnchor())
+    return false
   }
   function styleFooterAddedCell(node) {
     if (!node || !node.style || !node.getAttribute) return
@@ -9022,14 +9235,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return true
   }
   function armFooterAdd() {
-    var inner = footerInnerEl()
-    if (!inner) return false
-    var cells = footerInnerCells(inner)
-    var unit = cells.length ? cells[cells.length - 1] : inner
-    if (!armInsertAnchor('right', unit)) return false
-    try { syncGapPluses() } catch (eGapFoot) {}
-    post('openAddAtGap', { place: 'right', host: 'footer' })
-    return true
+    return false
   }
   function insertFooterLogo() {
     var footer = footerRootEl()
@@ -9127,20 +9333,6 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         var cell = ci < cells.length ? cells[ci] : cells[cells.length - 1]
         var side = ci < cells.length ? 'left' : 'right'
         points.push({ cell: cell, side: side })
-      }
-    }
-    var inner = footerInnerEl()
-    if (inner && isShown(inner)) {
-      var footCells = footerInnerCells(inner)
-      if (!footCells.length) {
-        points.push({ cell: inner, side: 'left' })
-        points.push({ cell: inner, side: 'right' })
-      } else {
-        for (var fi = 0; fi <= footCells.length; fi++) {
-          var fCell = fi < footCells.length ? footCells[fi] : footCells[footCells.length - 1]
-          var fSide = fi < footCells.length ? 'left' : 'right'
-          points.push({ cell: fCell, side: fSide })
-        }
       }
     }
     return points
@@ -11909,6 +12101,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (canDeleteRegionBlock(el)) return true
     if (isFooterAddedEl(el)) return true
     if (isCatalogSectionHost(el) || catalogBlockForDelete(el)) return true
+    if (bannerBlockForDelete(el)) return true
     if ((isLockedCatalogEl(el) && !productActionChromeOf(el)) || (isProductCardEl(el) && !productActionChromeOf(el)) || isShopRegionHost(el)) return false
     var delCls = clsOf(el)
     if (delCls.indexOf('pw-topbar-inner') >= 0 || delCls.indexOf('pw-shop-topbar-inner') >= 0) return !!topbarHostOf(el)
@@ -13242,10 +13435,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { syncGapPluses() } catch (eGapPos) {}
     if (!selected) return
     var boxEl = logoMoveEl(selected) || selected
+    var delBox = bannerBlockForDelete(selected) || catalogBlockForDelete(selected) || boxEl
     var mv = document.querySelector('.nanoai-ve-move-handle')
     if (mv) positionMoveHandle(boxEl, mv)
     var del = document.querySelector('.nanoai-ve-delete-handle,.nanoai-ve-chrome-delete')
-    if (del) positionDeleteHandle(boxEl, del)
+    if (del) positionDeleteHandle(delBox, del)
     var handles = document.querySelectorAll('.nanoai-ve-resize-handle')
     if (handles.length && canShowResizeHandles(selected)) {
       var resizeEl = resizeBoxOf(selected)
@@ -13363,7 +13557,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     h.setAttribute('aria-label', 'Remove')
     h.textContent = '+'
     document.body.appendChild(h)
-    positionDeleteHandle(logoMoveEl(el) || el, h)
+    positionDeleteHandle(bannerBlockForDelete(el) || catalogBlockForDelete(el) || logoMoveEl(el) || el, h)
     h.addEventListener('mousedown', function (e) {
       e.preventDefault()
       e.stopPropagation()
@@ -13371,7 +13565,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     h.addEventListener('click', function (e) {
       e.preventDefault()
       e.stopPropagation()
-      if (canDeleteRegionBlock(selected) || (selected && isContentBlockEl(selected))) deleteSelectedBlock()
+      if (canDeleteRegionBlock(selected) || bannerBlockForDelete(selected) || (selected && isContentBlockEl(selected))) deleteSelectedBlock()
       else deleteSelectedUnit()
     })
   }
@@ -13467,7 +13661,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function deleteSelectedUnit() {
     if (!selected) return
     if (removeSelectedRegionBlock()) return
-    if (catalogBlockForDelete(selected)) {
+    if (bannerBlockForDelete(selected) || catalogBlockForDelete(selected)) {
       deleteSelectedBlock()
       return
     }
@@ -15008,6 +15202,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { freezeLiveChromeForEditor() } catch (errFreeze) {}
     try { hideLayerSwitches() } catch (errHide) {}
     try { stampPwUiContract() } catch (errStamp2) {}
+    try { ensureFooterKitAttrs() } catch (errFootKitAct) {}
     try {
       document.documentElement.setAttribute('data-pw-coordinate-version', (coordinateCore() && coordinateCore().version) || '4')
       canonicalSceneRoot()
@@ -15645,17 +15840,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     var bannerHost = bannerHostOf(selected)
     if (bannerHost && !isLogoTarget(selected)) {
-      var photo = heroImgIn(bannerHost)
+      var photo = ensureBannerMediaImg(bannerHost) || heroImgIn(bannerHost)
       if (photo) {
         photo.setAttribute('src', url)
         photo.removeAttribute('srcset')
         photo.removeAttribute('data-pw-banner-placeholder')
         photo.removeAttribute('${PW_MEDIA_HIDDEN_ATTR}')
         try { bannerHost.removeAttribute('${PW_LAST_MEDIA_SRC_ATTR}') } catch (errBanLast) {}
-      } else {
-        var curB = ''
-        try { curB = bannerHost.style.backgroundImage || cs(bannerHost).backgroundImage || '' } catch (eB) { curB = '' }
-        bannerHost.style.backgroundImage = replaceBgUrl(curB, url)
+        var pan = parseBannerPan(bannerHost)
+        applyBannerPhoto(bannerHost, parseBannerZoom(bannerHost), pan.x, pan.y)
       }
       post('dirty', {})
       refreshSelect()
@@ -15668,11 +15861,16 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       selected.style.transform = ''
     } else {
       var paint = isBgLayerEl(selected) && selected.parentElement ? selected.parentElement : selected
-      var photo2 = heroImgIn(paint)
+      var host2 = bannerHostOf(paint) || bannerHostOf(selected)
+      var photo2 = host2 ? ensureBannerMediaImg(host2) : heroImgIn(paint)
       if (photo2) {
         photo2.setAttribute('src', url)
         photo2.removeAttribute('srcset')
         photo2.removeAttribute('data-pw-banner-placeholder')
+        if (host2) {
+          var pan2 = parseBannerPan(host2)
+          applyBannerPhoto(host2, parseBannerZoom(host2), pan2.x, pan2.y)
+        }
       } else {
         var cur = ''
         try { cur = paint.style.backgroundImage || cs(paint).backgroundImage || '' } catch (e) { cur = '' }

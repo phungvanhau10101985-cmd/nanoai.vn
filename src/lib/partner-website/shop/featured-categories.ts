@@ -31,6 +31,9 @@ import {
 export const FEATURED_CATEGORY_TILE_DEFAULT = 10
 export const FEATURED_CATEGORY_TILE_MAX = 20
 export const FEATURED_CATEGORY_ROWS_DEFAULT = 2
+export const NAV_RECENT_VIEW_PILL_LIMIT = 8
+export const PW_PERSONALIZE_NAV_ATTR = 'data-pw-personalize-nav'
+export const PW_PERSONALIZE_NAV_RECENT = 'recent-categories'
 
 export type FeaturedCategoryGender = 'male' | 'female'
 export type FeaturedCategorySource = 'profile_gender' | 'recent_views' | 'popular_fallback'
@@ -59,6 +62,8 @@ export type FeaturedCategoryTile = {
 
 export type FeaturedCategoryBlock = {
   tiles: FeaturedCategoryTile[]
+  /** Hàng pill header: danh mục chứa SP vừa xem. Rỗng → client dùng L1 phổ biến. */
+  nav_pills: FeaturedCategoryTile[]
   gender: FeaturedCategoryGender | null
   gender_label: 'Nam' | 'Nữ' | null
   source: FeaturedCategorySource
@@ -185,19 +190,29 @@ export function pickFeaturedCategoryTiles(input: {
   viewedNames?: string[]
   gender: FeaturedCategoryGender | null
   limit: number
+  /** Id danh mục gắn SP vừa xem — ô này lên trước, rồi mới trám phổ biến. */
+  directIds?: Set<string>
 }): FeaturedCategoryCandidate[] {
   const limit = Math.max(4, Math.min(FEATURED_CATEGORY_TILE_MAX, Math.floor(Number(input.limit) || FEATURED_CATEGORY_TILE_DEFAULT)))
   const viewedNames = input.viewedNames ?? []
+  const recent = pickRecentViewNavPills({
+    candidates: input.candidates,
+    directIds: input.directIds,
+    limit,
+  })
   const matching = input.gender
     ? input.candidates.filter((c) => c.gender === input.gender)
     : input.candidates
   const unisex = input.gender ? input.candidates.filter((c) => c.gender == null) : []
   const ranked = [...matching].sort((a, b) => scoreCandidate(b, viewedNames) - scoreCandidate(a, viewedNames))
-  const used = new Set<string>()
+  const used = new Set(recent.map((c) => c.id))
   const half = Math.max(2, Math.floor(limit / 2))
+  const needL2 = Math.max(0, half - recent.filter((c) => c.level === 2).length)
+  const needL3 = Math.max(0, half - recent.filter((c) => c.level === 3).length)
   const picked = [
-    ...takeByLevel(ranked, 2, half, used),
-    ...takeByLevel(ranked, 3, half, used),
+    ...recent,
+    ...takeByLevel(ranked, 2, needL2, used),
+    ...takeByLevel(ranked, 3, needL3, used),
   ]
   const fill = (pool: FeaturedCategoryCandidate[]) => {
     for (const c of pool) {
@@ -227,6 +242,63 @@ export function pickFeaturedCategoryTiles(input: {
     }
   }
   return picked.slice(0, limit)
+}
+
+function categoryPathIsAncestor(parentPath: string, childPath: string): boolean {
+  const parent = String(parentPath || '').replace(/^\/+|\/+$/g, '')
+  const child = String(childPath || '').replace(/^\/+|\/+$/g, '')
+  if (!parent || !child) return false
+  return child === parent || child.startsWith(`${parent}/`)
+}
+
+/** Hàng nav dưới ô tìm: chỉ danh mục chứa SP vừa xem (L2 → L3 → L1). */
+export function pickRecentViewNavPills(input: {
+  candidates: FeaturedCategoryCandidate[]
+  /** Id danh mục gắn SP vừa xem (không kể con cháu cùng nhánh). */
+  directIds?: Set<string>
+  limit?: number
+}): FeaturedCategoryCandidate[] {
+  const limit = Math.max(1, Math.min(12, Math.floor(Number(input.limit) || NAV_RECENT_VIEW_PILL_LIMIT)))
+  const direct = input.directIds
+  const viewed = input.candidates.filter((c) =>
+    direct?.size ? direct.has(c.id.toLowerCase()) : c.viewed
+  )
+  if (!viewed.length) return []
+  const used = new Set<string>()
+  const out: FeaturedCategoryCandidate[] = []
+  const hasAncestorPicked = (c: FeaturedCategoryCandidate) =>
+    out.some((p) => p.level < c.level && categoryPathIsAncestor(p.path, c.path))
+  const take = (level: 1 | 2 | 3, skipIfCovered: boolean) => {
+    const pool = viewed.filter((c) => c.level === level).sort((a, b) => b.productCount - a.productCount)
+    for (const c of pool) {
+      if (out.length >= limit) break
+      if (used.has(c.id)) continue
+      if (skipIfCovered && (hasAncestorPicked(c) || (level === 1 && out.length))) continue
+      used.add(c.id)
+      out.push(c)
+    }
+  }
+  take(2, false)
+  take(3, true)
+  take(1, true)
+  return out
+}
+
+function tilesFromCandidates(
+  siteSlug: string,
+  picked: FeaturedCategoryCandidate[],
+  imageById?: Map<string, string>
+): FeaturedCategoryTile[] {
+  return picked.map((c) => ({
+    id: c.id,
+    name: c.name,
+    short_name: shortFeaturedCategoryName(c.name),
+    path: c.path,
+    href: partnerSiteCategoryPath(siteSlug, c.path),
+    image_url: imageById?.get(c.id) || c.imageUrl,
+    product_count: c.productCount,
+    level: c.level,
+  }))
 }
 
 export function inferApparelGenderFromCandidates(
@@ -288,6 +360,7 @@ export async function getSiteFeaturedCategoryBlock(input: {
   const hub = partnerSiteCategoryHubPath(input.siteSlug)
   const empty = (): FeaturedCategoryBlock => ({
     tiles: [],
+    nav_pills: [],
     gender: null,
     gender_label: null,
     source: 'popular_fallback',
@@ -339,9 +412,18 @@ export async function getSiteFeaturedCategoryBlock(input: {
     viewedNames: viewedCandidates.map((c) => c.name),
     gender,
     limit,
+    directIds: viewedCategoryIds,
   })
+  const navPills = tilesFromCandidates(
+    input.siteSlug,
+    pickRecentViewNavPills({
+      candidates,
+      directIds: viewedCategoryIds,
+      limit: NAV_RECENT_VIEW_PILL_LIMIT,
+    })
+  )
   if (!picked.length) {
-    return { ...empty(), gender, gender_label: featuredCategoryGenderLabel(gender), source }
+    return { ...empty(), nav_pills: navPills, gender, gender_label: featuredCategoryGenderLabel(gender), source }
   }
 
   const withImages = await resolveCategoryHubTileImages({
@@ -351,20 +433,12 @@ export async function getSiteFeaturedCategoryBlock(input: {
     tiles: picked.map((c) => ({ id: c.id, imageUrl: c.imageUrl })),
   })
   const imageById = new Map(withImages.map((t) => [t.id, t.imageUrl]))
-  const tiles: FeaturedCategoryTile[] = picked.map((c) => ({
-    id: c.id,
-    name: c.name,
-    short_name: shortFeaturedCategoryName(c.name),
-    path: c.path,
-    href: partnerSiteCategoryPath(input.siteSlug, c.path),
-    image_url: imageById.get(c.id) || c.imageUrl,
-    product_count: c.productCount,
-    level: c.level,
-  }))
+  const tiles: FeaturedCategoryTile[] = tilesFromCandidates(input.siteSlug, picked, imageById)
   const withImg = tiles.filter((t) => t.image_url)
   const withoutImg = tiles.filter((t) => !t.image_url)
   return {
     tiles: [...withImg, ...withoutImg].slice(0, limit),
+    nav_pills: navPills,
     gender,
     gender_label: featuredCategoryGenderLabel(gender),
     source,

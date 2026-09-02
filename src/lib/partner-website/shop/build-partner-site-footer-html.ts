@@ -16,6 +16,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-nav-footer'
 import { getPartnerSiteCategoryNavLabels, getPartnerSiteShopNavPaths } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import { partnerSiteInfoPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { PW_FOOTER_KIT_ATTR, stampFooterKitInHtml } from '@/lib/partner-website/shop/partner-site-footer-kit'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export const PW_FOOTER_FULL_ATTR = 'data-pw-footer'
@@ -161,7 +162,7 @@ export function buildPartnerSiteFooterHtml(input: {
         return `<li><a href="${href}" ${pwElAttr(PW_EL.link)}>${label}</a></li>`
       })
       .join('')
-    return `<nav class="pw-shop-footer-col pw-footer-col" ${pwElAttr(PW_EL.col)} aria-label="${escapeAttr(heading)}">
+    return `<nav class="pw-shop-footer-col pw-footer-col" ${pwElAttr(PW_EL.col)} ${PW_FOOTER_KIT_ATTR}="col:${colId}" aria-label="${escapeAttr(heading)}">
       <h3>${escapeHtml(heading)}</h3>
       <ul>${lis}</ul>
     </nav>`
@@ -169,14 +170,14 @@ export function buildPartnerSiteFooterHtml(input: {
 
   return `<footer class="pw-footer pw-shop-footer" ${pwRegionAttr(PW_REGION.footer)} data-pw-bg-role="footer" data-pw-token="footer" ${PW_FOOTER_FULL_ATTR}="${PW_FOOTER_FULL_VALUE}">
   <div class="pw-container pw-footer-grid pw-shop-footer-inner">
-    <div class="pw-shop-footer-brand">
+    <div class="pw-shop-footer-brand" ${PW_FOOTER_KIT_ATTR}="brand">
       ${logo}
       <p class="pw-shop-footer-name">${escapeHtml(brand)}</p>
       <p class="pw-shop-footer-hint">${escapeHtml(t.footerBrandHint)}</p>
     </div>
     ${cols}
   </div>
-  <div class="pw-shop-footer-bar pw-footer-bottom" ${pwElAttr(PW_EL.copyright)}>
+  <div class="pw-shop-footer-bar pw-footer-bottom" ${pwElAttr(PW_EL.copyright)} ${PW_FOOTER_KIT_ATTR}="copyright">
     <p>${escapeHtml(copyright)}</p>
     <p>${escapeHtml(t.footerPaymentHint)}</p>
   </div>
@@ -196,17 +197,17 @@ export function ensureFullPartnerSiteFooterInHtml(
   if (!html.trim()) return html
   const locale = input.locale ?? 'vi'
   const siteSlug = input.siteSlug?.trim() ?? ''
-  if (!siteSlug) return html
+  if (!siteSlug) return stampFooterKitInHtml(html)
   const found = extractFooterRange(html)
-  if (found && !isSkeletalPartnerSiteFooter(found.html)) return html
+  if (found && !isSkeletalPartnerSiteFooter(found.html)) return stampFooterKitInHtml(html)
   const brand = (input.brand?.trim() || inferBrandFromHtml(html, siteSlug || 'Shop')).trim()
   const logoUrl = input.logoUrl?.trim() || inferLogoFromHtml(html)
   const next = buildPartnerSiteFooterHtml({ locale, siteSlug, brand, logoUrl })
   if (!found) {
     const beforeNav = html.search(/<(nav|div)\b[^>]*class=["'][^"']*\b(?:pw-bottom-nav|pw-shop-bottom-nav)/i)
-    if (beforeNav >= 0) return `${html.slice(0, beforeNav)}${next}\n${html.slice(beforeNav)}`
-    if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${next}\n</body>`)
-    return `${html}\n${next}`
+    if (beforeNav >= 0) return stampFooterKitInHtml(`${html.slice(0, beforeNav)}${next}\n${html.slice(beforeNav)}`)
+    if (/<\/body>/i.test(html)) return stampFooterKitInHtml(html.replace(/<\/body>/i, `${next}\n</body>`))
+    return stampFooterKitInHtml(`${html}\n${next}`)
   }
-  return `${html.slice(0, found.start)}${next}${html.slice(found.end)}`
+  return stampFooterKitInHtml(`${html.slice(0, found.start)}${next}${html.slice(found.end)}`)
 }

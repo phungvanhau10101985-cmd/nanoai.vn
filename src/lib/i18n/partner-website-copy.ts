@@ -282,6 +282,10 @@ export type PartnerWebsiteCopy = {
   visualEditChromeKitHeadTablet: string
   visualEditChromeKitHeadMobile: string
   visualEditChromeKitDock: string
+  visualEditChromeKitFooter: string
+  visualEditChromeKitFooterHint: string
+  visualEditChromeKitFooterBrand: string
+  visualEditChromeKitFooterCopyright: string
   visualEditChromeKitFloat: string
   visualEditChromeKitFloatHint: string
   visualEditChromeKitFloatLocked: string
@@ -1292,12 +1296,17 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Mọi nút chức năng sửa giống nhau: kiểu, icon, cỡ, chữ. Việc khách bấm giữ đúng chức năng của nút đang chọn.',
     visualEditChromeKit: 'Thanh điều hướng',
     visualEditChromeKitHint:
-      'Nút nổi (Chat mua, Zalo, Facebook, Top) ở mục Thanh nổi ngay dưới đây — bật mắt để hiện góc màn. Head và thanh đáy cùng panel này. Mỗi máy một bản — không kéo tọa độ. Không còn trên thanh Thêm.',
+      'Nút nổi (Chat mua, Zalo, Facebook, Top) ở mục Thanh nổi ngay dưới đây — bật mắt để hiện góc màn. Head, chân trang và thanh đáy cùng panel này. Chân trang giữ layout gốc — ẩn/hiện, không thêm bằng dấu +. Mỗi máy một bản — không kéo tọa độ. Không còn trên thanh Thêm.',
     visualEditChromeKitHeadPc: 'Head Desktop',
     visualEditChromeKitHeadLaptop: 'Head Laptop',
     visualEditChromeKitHeadTablet: 'Head máy tính bảng',
     visualEditChromeKitHeadMobile: 'Head điện thoại',
     visualEditChromeKitDock: 'Thanh đáy',
+    visualEditChromeKitFooter: 'Chân trang',
+    visualEditChromeKitFooterHint:
+      'Giữ layout gốc. Bật mắt để hiện logo, cột link hoặc copyright. Không thêm phần tử bằng dấu + — khó chỉnh cho đẹp. Mỗi máy một bản.',
+    visualEditChromeKitFooterBrand: 'Logo / thương hiệu',
+    visualEditChromeKitFooterCopyright: 'Copyright',
     visualEditChromeKitFloat: 'Thanh nổi — nút góc màn',
     visualEditChromeKitFloatHint:
       'Bật mắt để hiện. Một cột khóa góc màn — gõ Cách phải / Cách dưới / Khoảng cách. Mỗi nút một cách phải và một cỡ (hai ô px trên hàng đó). Danh sách trên xuống dưới = cột góc màn. ↑ lên trên cột, ↓ xuống dưới. Ẩn thì nút còn lại khít lại. Bấm tên để sửa từng nút. Mỗi máy một bản.',
@@ -2331,12 +2340,17 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Every function button is edited the same way: style, icon, size, label. A live click still runs this button’s own action.',
     visualEditChromeKit: 'Navigation bars',
     visualEditChromeKitHint:
-      'Floating buttons (Shop chat, Zalo, Facebook, Top) are in Floating bar below — turn the eye on to show them. Head and bottom bar are in this same panel. One set per device — no free-drag. They are not on the Add bar.',
+      'Floating buttons (Shop chat, Zalo, Facebook, Top) are in Floating bar below — turn the eye on to show them. Head, footer, and bottom bar are in this same panel. Footer keeps its factory layout — show/hide only, no plus-sign inserts. One set per device — no free-drag. They are not on the Add bar.',
     visualEditChromeKitHeadPc: 'Desktop header',
     visualEditChromeKitHeadLaptop: 'Laptop header',
     visualEditChromeKitHeadTablet: 'Tablet header',
     visualEditChromeKitHeadMobile: 'Phone header',
     visualEditChromeKitDock: 'Bottom bar',
+    visualEditChromeKitFooter: 'Footer',
+    visualEditChromeKitFooterHint:
+      'Keep the stock layout. Use the eye to show or hide the logo, link columns, or copyright. Do not add footer pieces with the plus sign. One set per device.',
+    visualEditChromeKitFooterBrand: 'Logo / brand',
+    visualEditChromeKitFooterCopyright: 'Copyright',
     visualEditChromeKitFloat: 'Floating bar — corner buttons',
     visualEditChromeKitFloatHint:
       'Turn the eye on to show. One locked corner column — type Right / Bottom / Gap. Each button has its own from-right and size (two px boxes on that row). The list top-to-bottom matches the corner column. Up moves toward the top of the column. Hidden buttons close the gap. Click a name to edit that button. One set per device.',
@@ -3359,12 +3373,16 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeWidgetTitle: '店铺功能按钮',
     visualEditChromeWidgetHint: '所有功能按钮用同一套改法：样式、图标、大小、文字。顾客点击仍执行该按钮自己的功能。',
     visualEditChromeKit: '导航栏',
-    visualEditChromeKitHint: '浮动按钮（购买咨询、Zalo、Facebook、回顶）在下方「浮动栏」——点眼睛即可显示。页头和底栏也在此面板。每台设备一份，不拖坐标。不在「添加」栏。',
+    visualEditChromeKitHint: '浮动按钮（购买咨询、Zalo、Facebook、回顶）在下方「浮动栏」——点眼睛即可显示。页头、页脚和底栏也在此面板。页脚保持原布局，只显示/隐藏，不用加号插入。每台设备一份，不拖坐标。不在「添加」栏。',
     visualEditChromeKitHeadPc: '桌面页头',
     visualEditChromeKitHeadLaptop: '笔记本页头',
     visualEditChromeKitHeadTablet: '平板页头',
     visualEditChromeKitHeadMobile: '手机页头',
     visualEditChromeKitDock: '底栏',
+    visualEditChromeKitFooter: '页脚',
+    visualEditChromeKitFooterHint: '保持原布局。用眼睛显示或隐藏标志、链接列或版权。不要用加号往页脚插入。每台设备一份。',
+    visualEditChromeKitFooterBrand: '标志 / 品牌',
+    visualEditChromeKitFooterCopyright: '版权',
     visualEditChromeKitFloat: '浮动栏 — 角落按钮',
     visualEditChromeKitFloatHint: '点眼睛显示。角落一列锁定 — 输入距右 / 距下 / 间距。每个按钮单独距右和尺寸（该行两个 px 框）。列表从上到下与角落列一致。↑ 上移，↓ 下移。隐藏后其余按钮靠拢。点名称可单独编辑。每台设备一份。',
     visualEditChromeKitFloatLocked: '悬浮栏按钮固定为一列。在「导航栏」中显示、隐藏或改顺序，不能拖动坐标。',
@@ -4370,12 +4388,17 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '機能ボタンはどれも同じ直し方です：スタイル・アイコン・サイズ・文字。公開サイトの動作はそのボタンのままです。',
     visualEditChromeKit: 'ナビバー',
     visualEditChromeKitHint:
-      'フローティングボタン（Chat mua、Zalo、Facebook、先頭へ）は下のフローティングバーにあります。目のアイコンで表示します。ヘッダーと下部バーも同じパネル。端末ごとに別。追加バーにはありません。',
+      'フローティングボタン（Chat mua、Zalo、Facebook、先頭へ）は下のフローティングバーにあります。目のアイコンで表示します。ヘッダー・フッター・下部バーも同じパネル。フッターは元のレイアウトのまま表示/非表示のみ。端末ごとに別。追加バーにはありません。',
     visualEditChromeKitHeadPc: 'デスクトップヘッダー',
     visualEditChromeKitHeadLaptop: 'ノートヘッダー',
     visualEditChromeKitHeadTablet: 'タブレットヘッダー',
     visualEditChromeKitHeadMobile: 'スマホヘッダー',
     visualEditChromeKitDock: '下部バー',
+    visualEditChromeKitFooter: 'フッター',
+    visualEditChromeKitFooterHint:
+      '元のレイアウトを保ちます。目のアイコンでロゴ・列・著作権表示を表示/非表示。プラスでフッターに追加しません。端末ごとに別です。',
+    visualEditChromeKitFooterBrand: 'ロゴ / ブランド',
+    visualEditChromeKitFooterCopyright: 'コピーライト',
     visualEditChromeKitFloat: 'フローティングバー — 角のボタン',
     visualEditChromeKitFloatHint:
       '目のアイコンで表示。角の1列に固定 — 右・下・間隔を入力。右余白とサイズはボタンごとにその行の2つの px。リスト上から下は角の列と同じ。↑は上、↓は下。非表示にすると残りが詰まります。名前を押すと個別編集。端末ごとに別です。',
@@ -5395,12 +5418,17 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '기능 버튼은 모두 같은 방식으로 수정합니다: 스타일, 아이콘, 크기, 글자. 고객이 누르면 이 버튼 고유 동작이 유지됩니다.',
     visualEditChromeKit: '탐색 막대',
     visualEditChromeKitHint:
-      '플로팅 버튼(Chat mua, Zalo, Facebook, 맨 위로)은 아래 플로팅 바에 있습니다. 눈을 켜면 모서리에 보입니다. 헤더와 하단 바도 이 패널에 있습니다. 기기마다 따로이며 추가 막대에는 없습니다.',
+      '플로팅 버튼(Chat mua, Zalo, Facebook, 맨 위로)은 아래 플로팅 바에 있습니다. 눈을 켜면 모서리에 보입니다. 헤더, 푸터, 하단 바도 이 패널에 있습니다. 푸터는 원래 레이아웃을 유지하고 표시/숨김만 합니다. 기기마다 따로이며 추가 막대에는 없습니다.',
     visualEditChromeKitHeadPc: '데스크톱 헤더',
     visualEditChromeKitHeadLaptop: '노트북 헤더',
     visualEditChromeKitHeadTablet: '태블릿 헤더',
     visualEditChromeKitHeadMobile: '휴대폰 헤더',
     visualEditChromeKitDock: '하단 바',
+    visualEditChromeKitFooter: '푸터',
+    visualEditChromeKitFooterHint:
+      '원래 레이아웃을 유지합니다. 눈으로 로고, 링크 열, 저작권을 표시하거나 숨깁니다. 더하기 기호로 푸터에 넣지 마세요. 기기마다 따로입니다.',
+    visualEditChromeKitFooterBrand: '로고 / 브랜드',
+    visualEditChromeKitFooterCopyright: '저작권',
     visualEditChromeKitFloat: '플로팅 바 — 모서리 버튼',
     visualEditChromeKitFloatHint:
       '눈을 켜면 보입니다. 모서리 한 열로 고정 — 오른쪽/아래/간격을 입력하세요. 오른쪽 간격과 크기는 버튼마다 그 행의 px 두 칸. 목록 위→아래가 모서리 열과 같습니다. ↑는 위로, ↓는 아래로. 숨기면 나머지 버튼이 붙습니다. 이름을 누르면 개별 편집. 기기마다 따로입니다.',

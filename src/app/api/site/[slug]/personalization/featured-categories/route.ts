@@ -27,6 +27,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     {
       ok: true,
       tiles: block.tiles,
+      nav_pills: block.nav_pills,
       gender: block.gender,
       gender_label: block.gender_label,
       source: block.source,

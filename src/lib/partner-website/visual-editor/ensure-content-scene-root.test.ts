@@ -52,6 +52,8 @@ test('home factory wraps sections in main scene-root, not body', () => {
   assert.match(html, /<main id="pw-main"[^>]*data-pw-scene-root="1"/)
   assert.match(html, /data-pw-scene-origin="content"/)
   assert.match(html, /<header[\s\S]*<\/header>\s*<main /)
+  assert.match(html, /data-pw-region="banner"[\s\S]*data-pw-el="media"/)
+  assert.match(html, /<img class="pw-hero-media"[^>]*src="https:\/\/images\.unsplash\.com/)
 })
 
 test('ensureContentSceneRoot wraps home-without-main and remeasures overlay Y from main', () => {

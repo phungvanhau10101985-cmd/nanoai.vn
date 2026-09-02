@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { parseHTML } from 'linkedom'
 import {
   buildVisualEditorProductGridHtml,
   isPdpOnlyProductGridKind,
@@ -9,6 +10,10 @@ import {
   productGridKindShownInAddPicker,
   productGridWidgetLabel,
 } from '@/lib/partner-website/visual-editor/product-grid-widgets'
+import {
+  ensureFeaturedCategoriesHostInHtml,
+  restoreFeaturedCategorySeedsInDocument,
+} from '@/lib/partner-website/visual-editor/featured-category-widgets'
 
 test('recognizes product grid kinds', () => {
   assert.equal(isVisualEditorProductGridKind('catalog'), true)
@@ -104,6 +109,35 @@ test('stamps featured category tiles for personalization', () => {
   assert.doesNotMatch(html, /data-pw-personalize/)
   assert.doesNotMatch(html, /data-pw-catalog(?:\s|>)/)
   assert.equal(productGridWidgetLabel('featured-categories', 'vi'), 'Danh mục nổi bật')
+})
+
+test('stamps seed pw-categories so live hydrates featured-categories', () => {
+  const seed =
+    '<section class="pw-section pw-categories" data-pw-region="categories"><div class="pw-cat-grid"><a class="pw-cat-card">Túi</a></div></section>'
+  const next = ensureFeaturedCategoriesHostInHtml(seed)
+  assert.match(next, /data-pw-featured-categories="1"/)
+  assert.match(next, /data-pw-grid-kind="featured-categories"/)
+  assert.match(next, /data-pw-grid/)
+  assert.equal(ensureFeaturedCategoriesHostInHtml(next), next)
+})
+
+test('stamps fashion home categoryName slots as featured-categories', () => {
+  const seed =
+    '<section data-pw-region="categories"><span data-pw-edit="categoryName:0" data-pw-el="card-name">Thời trang</span></section>'
+  const next = ensureFeaturedCategoriesHostInHtml(seed)
+  assert.match(next, /data-pw-featured-categories="1"/)
+})
+
+test('restore featured seeds writes sample names back before save', () => {
+  const { document } = parseHTML(
+    '<section><a data-pw-el="card" data-pw-seed-name="Thời trang" data-pw-seed-href="/products" href="/c/giay"><span data-pw-edit="categoryName:0" data-pw-el="card-name">Giày dép</span></a></section>'
+  )
+  restoreFeaturedCategorySeedsInDocument(document)
+  const name = document.querySelector('[data-pw-el="card-name"]')
+  const card = document.querySelector('[data-pw-el="card"]')
+  assert.equal(name?.textContent, 'Thời trang')
+  assert.equal(card?.getAttribute('href'), '/products')
+  assert.equal(card?.hasAttribute('data-pw-seed-name'), false)
 })
 
 test('stamps recently viewed and recommended personalize hooks', () => {

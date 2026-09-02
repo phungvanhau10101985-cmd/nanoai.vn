@@ -507,8 +507,10 @@ html .pw-hero img[data-pw-el="media"],html .pw-banner img[data-pw-el="media"],
 html .pw-shop-hero img[data-pw-el="media"],html .pw-shop-banner img[data-pw-el="media"]{
   position:absolute!important;inset:0!important;left:0!important;top:0!important;right:0!important;bottom:0!important;
   width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;
-  object-fit:cover!important;box-sizing:border-box
+  object-fit:cover!important;box-sizing:border-box;z-index:0
 }
+html [data-pw-banner-wash="1"]{position:absolute;inset:0;pointer-events:none;z-index:1}
+html [data-pw-region="banner"] [data-pw-el="inner"],html .pw-hero-inner,html .pw-banner-inner{position:relative;z-index:2}
 `.trim()
 
 /**

@@ -264,7 +264,7 @@ function FashionHomeInner({
       </section>
 
       {showCategories ? (
-      <section className="mb-12 sm:mb-16" data-pw-region={PW_REGION.categories}>
+      <section className="mb-12 sm:mb-16" data-pw-region={PW_REGION.categories} data-pw-featured-categories="1" data-pw-grid-kind="featured-categories">
         <h2
           data-pw-edit="categoriesTitle"
           data-pw-el={PW_EL.sectionTitle}
@@ -273,7 +273,7 @@ function FashionHomeInner({
         >
           {copy.categoriesTitle}
         </h2>
-        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4 xl:gap-6">
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4 xl:gap-6" data-pw-grid data-pw-el={PW_EL.grid}>
           {copy.categories.map((cat, i) => (
             <Link
               key={cat.name}

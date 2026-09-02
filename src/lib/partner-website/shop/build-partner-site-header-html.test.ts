@@ -34,6 +34,7 @@ describe('listing native UI contract stamps', () => {
     expect(src).toContain('pwRegionAttr(PW_REGION.topbar)')
     expect(src).toContain('pwElAttr(PW_EL.link)')
     expect(src).toContain('pwElAttr(PW_EL.navLink)')
+    expect(src).toContain('data-pw-personalize-nav="recent-categories"')
     expect(src).toContain('data-pw-search-history')
     expect(src).toContain('buildChromeKitHeadActionHtml')
     expect(src).toContain('buildChromeKitDockHtml')

@@ -66,6 +66,7 @@ test('rewrites :root CSS variables in saved HTML', () => {
   assert.match(next, /--pw-primary:#2563eb/)
   assert.match(next, /--pw-buy:#2563eb/)
   assert.match(next, /id="pw-theme-root"/)
+  assert.match(next, /:root,html,body\{/)
   assert.match(next, /--pw-primary:#2563eb !important/)
 })
 

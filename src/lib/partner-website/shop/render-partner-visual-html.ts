@@ -24,6 +24,7 @@ import {
 } from '@/lib/partner-website/shop/build-partner-site-header-html'
 import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import { ensureSearchClusterInHtml } from '@/lib/partner-website/visual-editor/search-cluster-icons'
+import { ensureFeaturedCategoriesHostInHtml } from '@/lib/partner-website/visual-editor/featured-category-widgets'
 import { PW_PAGE_BY_CATALOG_KEY } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { ensurePdpReviewQaCardsInBuyBox } from '@/lib/partner-website/shop/partner-site-pdp-review-qa'
 import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual-editor/strip-empty-logo-placeholders'
@@ -122,7 +123,7 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
   const isProduct =
     input.pageKey === 'product_detail' || /\bdata-pw-page=["']product["']/.test(bodyAttrs)
   const withReviewQa = isProduct ? ensurePdpReviewQaCardsInBuyBox(mediaReady, locale) : mediaReady
-  const withSearch = ensureSearchClusterInHtml(withReviewQa)
+  const withSearch = ensureSearchClusterInHtml(ensureFeaturedCategoriesHostInHtml(withReviewQa))
   const wordmark =
     withSearch.match(/<span\b[^>]*\bpw-wordmark\b[^>]*>([\s\S]*?)<\/span>/i)?.[1]?.replace(/<[^>]+>/g, '').trim() ||
     ''

@@ -768,7 +768,7 @@ function PartnerSiteShopShellInner({
           customDomain={customDomain}
           ariaLabel={t.categorySeoRowAria}
         />
-        <nav className="pw-shop-nav-row" data-pw-region={PW_REGION.nav} aria-label="Shop">
+        <nav className="pw-shop-nav-row" data-pw-region={PW_REGION.nav} data-pw-personalize-nav="recent-categories" aria-label="Shop">
           {hasCategoryTree ? (
             <PartnerSiteCategoryNavPills
               tree={categoryTree!}
@@ -821,7 +821,7 @@ function PartnerSiteShopShellInner({
       <>
       <footer className="pw-shop-footer" data-pw-region={PW_REGION.footer} data-pw-bg-role="footer" data-pw-token="footer" data-pw-footer="full">
         <div className="pw-shop-footer-inner">
-          <div className="pw-shop-footer-brand">
+          <div className="pw-shop-footer-brand" data-pw-footer-kit="brand">
             {logoUrl ? (
               <Link href={paths.home}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -836,7 +836,13 @@ function PartnerSiteShopShellInner({
             if (!items.length) return null
             const heading = footerColumnTitle[colId]
             return (
-              <nav key={colId} className="pw-shop-footer-col" data-pw-el={PW_EL.col} aria-label={heading}>
+              <nav
+                key={colId}
+                className="pw-shop-footer-col"
+                data-pw-el={PW_EL.col}
+                data-pw-footer-kit={`col:${colId}`}
+                aria-label={heading}
+              >
                 <h3>{heading}</h3>
                 <ul>
                   {items.map((item) => (
@@ -851,7 +857,7 @@ function PartnerSiteShopShellInner({
             )
           })}
         </div>
-        <div className="pw-shop-footer-bar" data-pw-el={PW_EL.copyright}>
+        <div className="pw-shop-footer-bar" data-pw-el={PW_EL.copyright} data-pw-footer-kit="copyright">
           <p>
             {t.footerCopyright
               .replace('{year}', String(new Date().getFullYear()))

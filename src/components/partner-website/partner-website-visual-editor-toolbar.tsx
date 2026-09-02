@@ -18,6 +18,7 @@ import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerWebsiteCopy, type PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
+import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import type {
   PartnerWebsiteCanonicalVisualSave,
   PartnerWebsiteProject,
@@ -54,7 +55,12 @@ import {
   type LogoGeminiAspectRatio,
 } from '@/lib/partner-website/visual-editor/gemini-working-aspect'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
-import { isHexColor, resolveShopThemeColors, themeCssVarMap } from '@/lib/partner-website/template/partner-website-theme-tokens'
+import {
+  applyThemeCssVarsToFrameWindow,
+  isHexColor,
+  resolveShopThemeColors,
+  themeCssVarMap,
+} from '@/lib/partner-website/template/partner-website-theme-tokens'
 import {
   cssColorToHex,
   shopThemeQuickPicksFromCopy,
@@ -90,7 +96,6 @@ import {
   isGapOnlyChromeAddKind,
   isChromeFloatKind,
   isChromeIconOnlyStyle,
-  isFooterAddChromeKind,
   isVisualEditorChromeWidgetKind,
   PW_CHROME_GAP_MAX,
   PW_CHROME_GAP_MIN,
@@ -928,6 +933,18 @@ type ChromeKitListItem = {
   bottom?: number
 }
 
+function footerKitRowLabel(kind: string, locale: WebLocale, t: PartnerWebsiteCopy, fallback: string): string {
+  const shop = getPartnerSiteShopCopy(locale)
+  if (kind === 'brand') return t.visualEditChromeKitFooterBrand
+  if (kind === 'copyright') return t.visualEditChromeKitFooterCopyright
+  if (kind === 'col:shop') return shop.footerColShop
+  if (kind === 'col:shopping') return shop.footerColShopping
+  if (kind === 'col:support') return shop.footerColSupport
+  if (kind === 'col:legal') return shop.footerColLegal
+  const added = fallback.replace(/\s+/g, ' ').trim()
+  return added || kind
+}
+
 const FLOATING_PANEL_W = 320
 const FLOATING_PANEL_TOP = 52
 const FLOATING_PANEL_CANVAS_GAP = 12
@@ -1052,11 +1069,13 @@ function ChromeKitPanel({
   head,
   dock,
   float,
+  footer,
   headX,
   busy,
   onToggleHead,
   onToggleDock,
   onToggleFloat,
+  onToggleFooter,
   floatRight,
   floatBottom,
   floatGap,
@@ -1064,6 +1083,7 @@ function ChromeKitPanel({
   onSetFloatItemSize,
   onSetFloatItemRight,
   onSelectFloat,
+  onSelectFooter,
   onReorder,
   onShiftHead,
   headGap,
@@ -1079,6 +1099,7 @@ function ChromeKitPanel({
   head: ChromeKitListItem[]
   dock: ChromeKitListItem[]
   float: ChromeKitListItem[]
+  footer: ChromeKitListItem[]
   floatRight: number
   floatBottom: number
   floatGap: number
@@ -1090,10 +1111,12 @@ function ChromeKitPanel({
   onToggleHead: (kind: string, hidden: boolean) => void
   onToggleDock: (kind: string, show: 'shop' | 'pdp' | 'both' | 'off') => void
   onToggleFloat: (kind: string, hidden: boolean) => void
+  onToggleFooter: (kind: string, hidden: boolean) => void
   onSetFloatStack: (right: number, bottom: number, gap: number) => void
   onSetFloatItemSize: (kind: string, size: number) => void
   onSetFloatItemRight: (kind: string, right: number) => void
   onSelectFloat: (kind: string) => void
+  onSelectFooter: (kind: string) => void
   onReorder: (kind: string, bar: 'head' | 'dock' | 'float', dir: 'up' | 'down') => void
   onShiftHead: (x: number) => void
   onSetHeadGap: (gap: number) => void
@@ -1391,6 +1414,20 @@ function ChromeKitPanel({
           onDown={() => onReorder(item.kind, 'head', 'down')}
         />
       ))}
+      <p className="mt-1 px-1 text-[11px] font-semibold">{t.visualEditChromeKitFooter}</p>
+      <p className="px-1 text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitFooterHint}</p>
+      {footer.map((item) => (
+        <ChromeKitRow
+          key={`ft-${item.kind}`}
+          label={footerKitRowLabel(item.kind, locale, t, item.label)}
+          hidden={item.hidden}
+          busy={busy}
+          hideLabel={t.visualEditBlockHide}
+          showLabel={t.visualEditBlockShow}
+          onSelect={() => onSelectFooter(item.kind)}
+          onToggle={() => onToggleFooter(item.kind, !item.hidden)}
+        />
+      ))}
       {showDock ? (
         <>
           <p className="mt-1 px-1 text-[11px] font-semibold">
@@ -1611,6 +1648,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [chromeKitHead, setChromeKitHead] = useState<ChromeKitListItem[]>([])
   const [chromeKitDock, setChromeKitDock] = useState<ChromeKitListItem[]>([])
   const [chromeKitFloat, setChromeKitFloat] = useState<ChromeKitListItem[]>([])
+  const [chromeKitFooter, setChromeKitFooter] = useState<ChromeKitListItem[]>([])
   const [chromeKitFloatRight, setChromeKitFloatRight] = useState(PW_CHROME_FLOAT_DEFAULT_RIGHT_PX)
   const [chromeKitFloatBottom, setChromeKitFloatBottom] = useState(PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat)
   const [chromeKitFloatGap, setChromeKitFloatGap] = useState(PW_FLOAT_GAP_DEFAULT)
@@ -1963,6 +2001,14 @@ export function PartnerWebsiteVisualEditorToolbar({
   }, [active, pageKey, cmsSlug, activateEditor, iframeRef])
 
   useEffect(() => {
+    if (!active || !theme) return
+    const iframe = iframeRef.current
+    if (!iframe?.contentWindow) return
+    applyThemeCssVarsToFrameWindow(iframe.contentWindow, theme)
+    postToIframe(iframe, 'setTheme', { vars: themeCssVarMap(theme) })
+  }, [active, theme, documentKey, iframeRef])
+
+  useEffect(() => {
     if (active) return
     try {
       iframeEditorWindow(iframeRef.current)?.__nanoaiVeDeactivate?.()
@@ -2304,7 +2350,7 @@ export function PartnerWebsiteVisualEditorToolbar({
               ? place
               : null
           )
-          setInsertAnchorHost(String(data.host || '') === 'footer' ? 'footer' : null)
+          setInsertAnchorHost(null)
           setAddBgAskOpen(false)
           setInsertBgPickPlace(null)
           setOpenPanel('add')
@@ -2329,9 +2375,11 @@ export function PartnerWebsiteVisualEditorToolbar({
         const head = Array.isArray(data.head) ? (data.head as ChromeKitListItem[]) : []
         const dock = Array.isArray(data.dock) ? (data.dock as ChromeKitListItem[]) : []
         const float = Array.isArray(data.float) ? (data.float as ChromeKitListItem[]) : []
+        const footer = Array.isArray(data.footer) ? (data.footer as ChromeKitListItem[]) : []
         setChromeKitHead(head)
         setChromeKitDock(dock)
         setChromeKitFloat(float)
+        setChromeKitFooter(footer)
         setChromeKitFloatRight(clampChromeFloatEdge(data.floatRight ?? PW_CHROME_FLOAT_DEFAULT_RIGHT_PX))
         setChromeKitFloatBottom(clampChromeFloatEdge(data.floatBottom ?? PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat))
         setChromeKitFloatGap(clampChromeFloatGap(data.floatGap ?? PW_FLOAT_GAP_DEFAULT))
@@ -3170,7 +3218,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       kind,
       siteSlug: slug,
       locale,
-      style: insertAnchorHost === 'footer' ? 'text' : 'icon-label-left',
+      style: 'icon-label-left',
       logoUrl: kind === 'chat' ? theme?.chatIconLogoUrl || theme?.logoUrl || undefined : undefined,
       chatIconLogoUrl: kind === 'chat' ? theme?.chatIconLogoUrl || undefined : undefined,
       href:
@@ -3187,15 +3235,15 @@ export function PartnerWebsiteVisualEditorToolbar({
     })
     if (!html) return
     if (isGapOnlyChromeAddKind(kind) && !insertAnchorActive) return
-    if (insertAnchorHost === 'footer' && !isFooterAddChromeKind(kind)) return
-    const host = insertAnchorHost === 'footer' ? 'footer' : chromeWidgetHost(kind)
+    if (insertAnchorHost === 'footer') return
+    const host = chromeWidgetHost(kind)
     pendingChromeDupRef.current = { kind, html, host }
     postToIframe(iframeRef.current, 'insertChromeBtn', {
       kind,
       html,
       host,
-      force: Boolean(opts?.force) || insertAnchorHost === 'footer',
-      atCenter: insertAnchorHost !== 'footer',
+      force: Boolean(opts?.force),
+      atCenter: true,
       useAnchor: insertAnchorActive,
     })
     if (opts?.force) {
@@ -4099,17 +4147,10 @@ export function PartnerWebsiteVisualEditorToolbar({
             aria-expanded={openPanel === 'add'}
             onClick={() => {
               if (openPanel !== 'add') {
-                if (selection?.inFooter) {
-                  setInsertAnchorActive(true)
-                  setInsertAnchorPlace('right')
-                  setInsertAnchorHost('footer')
-                  postToIframe(iframeRef.current, 'armFooterAdd', {})
-                } else {
-                  setInsertAnchorActive(false)
-                  setInsertAnchorPlace(null)
-                  setInsertAnchorHost(null)
-                  postToIframe(iframeRef.current, 'clearInsertAnchor')
-                }
+                setInsertAnchorActive(false)
+                setInsertAnchorPlace(null)
+                setInsertAnchorHost(null)
+                postToIframe(iframeRef.current, 'clearInsertAnchor')
               }
               setOpenPanel((cur) => (cur === 'add' ? 'block' : 'add'))
               setPanelPos((pos) => pos || defaultFloatingPanelPos())
@@ -4570,7 +4611,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                     <div className="max-h-48 overflow-y-auto">
                       {VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS.filter(
                         (kind) =>
-                          (addAtFooter ? isFooterAddChromeKind(kind) : !isChromeKitPickerKind(kind)) &&
+                          !isChromeKitPickerKind(kind) &&
                           (addAtGap || !isGapOnlyChromeAddKind(kind))
                       ).map((kind) => {
                         const Icon = isLucideIconComponent(CHROME_WIDGET_ICONS[kind])
@@ -4618,6 +4659,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                     head={chromeKitHead}
                     dock={chromeKitDock}
                     float={chromeKitFloat}
+                    footer={chromeKitFooter}
                     floatRight={chromeKitFloatRight}
                     floatBottom={chromeKitFloatBottom}
                     floatGap={chromeKitFloatGap}
@@ -4636,6 +4678,13 @@ export function PartnerWebsiteVisualEditorToolbar({
                     }}
                     onToggleFloat={(kind, hidden) => {
                       postToIframe(iframeRef.current, 'setChromeKitHidden', { kind, bar: 'float', hidden })
+                      setDirty(true)
+                    }}
+                    onToggleFooter={(kind, hidden) => {
+                      postToIframe(iframeRef.current, 'setChromeKitHidden', { kind, bar: 'footer', hidden })
+                      setChromeKitFooter((prev) =>
+                        prev.map((row) => (row.kind === kind ? { ...row, hidden } : row))
+                      )
                       setDirty(true)
                     }}
                     onSetFloatStack={(right, bottom, gap) => {
@@ -4661,6 +4710,10 @@ export function PartnerWebsiteVisualEditorToolbar({
                     }}
                     onSelectFloat={(kind) => {
                       postToIframe(iframeRef.current, 'selectChromeKit', { kind, bar: 'float' })
+                      setOpenPanel('block')
+                    }}
+                    onSelectFooter={(kind) => {
+                      postToIframe(iframeRef.current, 'selectChromeKit', { kind, bar: 'footer' })
                       setOpenPanel('block')
                     }}
                     onReorder={(kind, bar, dir) => {

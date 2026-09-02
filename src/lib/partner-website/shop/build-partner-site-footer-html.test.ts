@@ -28,6 +28,9 @@ test('full footer has four columns and required policy links', () => {
   assert.match(html, /\/site\/188-com-vn-rl56\/products/)
   assert.match(html, /Cửa hàng/)
   assert.match(html, /Chính sách/)
+  assert.match(html, /data-pw-footer-kit="brand"/)
+  assert.match(html, /data-pw-footer-kit="col:shop"/)
+  assert.match(html, /data-pw-footer-kit="copyright"/)
 })
 
 test('skeletal policy-only footer is upgraded when site slug exists', () => {

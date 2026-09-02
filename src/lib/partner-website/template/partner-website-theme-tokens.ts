@@ -334,12 +334,23 @@ function buildThemeCssVarImportantBlock(theme: PartnerWebsiteTheme): string {
 }
 
 export const PW_THEME_ROOT_STYLE_ID = 'pw-theme-root'
+const PW_SHOP_THEME_STYLE_ID = 'pw-shop-theme-css'
 
 const EDITOR_STYLE_IDS = new Set(['nanoai-visual-editor-styles', 'pw-shop-chrome-layout', PW_THEME_ROOT_STYLE_ID])
 
+function rootThemeBlockRe(): RegExp {
+  return /:root\s*\{[^}]*--pw-primary:[^}]*\}/gi
+}
+function htmlThemeBlockRe(): RegExp {
+  return /\bhtml\s*\{[^}]*--pw-primary:[^}]*\}/gi
+}
+function bodyThemeBlockRe(): RegExp {
+  return /\bbody\s*\{[^}]*--pw-primary:[^}]*\}/gi
+}
+
 /**
  * Theme contract (W2.3):
- * - Live pick only writes CSS variables on `#pw-theme-root`.
+ * - Live pick writes `--pw-*` on html/body + `#pw-theme-root` + `#pw-shop-theme-css`.
  * - Visual editor paint (`style=""` / added bg / logo) is never rewritten.
  * - Saved HTML chrome rules that still use brand hex are rebound to `var(--pw-*)`.
  */
@@ -408,15 +419,52 @@ export function bindChromeThemeVarsInCss(css: string): string {
   })
 }
 
+function writeThemeVarsOnEl(el: Element | null | undefined, vars: Record<string, string>): void {
+  if (!el || !('style' in el)) return
+  const style = (el as HTMLElement).style
+  if (!style?.setProperty) return
+  for (const [name, value] of Object.entries(vars)) {
+    try {
+      style.setProperty(name, value, 'important')
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function patchRootThemeVarsInCss(css: string, vars: Record<string, string>): string {
+  let next = css
+  next = next.replace(rootThemeBlockRe(), (block) => upsertPwVarsInRootBlock(block, vars))
+  next = next.replace(htmlThemeBlockRe(), (block) => upsertPwVarsInRootBlock(block, vars))
+  next = next.replace(bodyThemeBlockRe(), (block) => upsertPwVarsInRootBlock(block, vars))
+  return next
+}
+
 export function applyThemeCssVarsToDocument(doc: Document, theme: PartnerWebsiteTheme): void {
+  const vars = themeCssVarMap(theme)
+  writeThemeVarsOnEl(doc.documentElement, vars)
+  writeThemeVarsOnEl(doc.body, vars)
+
+  const shopTheme = doc.getElementById(PW_SHOP_THEME_STYLE_ID) as HTMLStyleElement | null
+  if (shopTheme?.textContent) {
+    shopTheme.textContent = patchRootThemeVarsInCss(shopTheme.textContent, vars)
+  }
+  for (const node of Array.from(doc.querySelectorAll('style'))) {
+    const el = node as HTMLStyleElement
+    if (!el.textContent || el.id === PW_THEME_ROOT_STYLE_ID || el.id === PW_SHOP_THEME_STYLE_ID) continue
+    if (EDITOR_STYLE_IDS.has(el.id)) continue
+    if (!/--pw-primary\s*:/.test(el.textContent)) continue
+    el.textContent = patchRootThemeVarsInCss(el.textContent, vars)
+  }
+
   let style = doc.getElementById(PW_THEME_ROOT_STYLE_ID) as HTMLStyleElement | null
   if (!style) {
     style = doc.createElement('style')
     style.id = PW_THEME_ROOT_STYLE_ID
   }
-  style.textContent = `:root{${buildThemeCssVarImportantBlock(theme)}}`
+  style.textContent = `:root,html,body{${buildThemeCssVarImportantBlock(theme)}}`
   const host = doc.head || doc.documentElement
-  if (style.parentNode !== host) host.appendChild(style)
+  if (style.parentNode !== host || host.lastElementChild !== style) host.appendChild(style)
 }
 
 /** Apply theme tokens to a preview frame and same-origin nested shop/landing iframes. */
@@ -469,11 +517,12 @@ function upsertPwVarsInRootBlock(block: string, vars: Record<string, string>): s
 export function rewriteThemeCssVarsInHtml(html: string, theme: PartnerWebsiteTheme): string {
   if (!html.trim()) return html
   const vars = themeCssVarMap(theme)
-  const liveTag = `<style id="${PW_THEME_ROOT_STYLE_ID}">:root{${buildThemeCssVarImportantBlock(theme)}}</style>`
+  const liveTag = `<style id="${PW_THEME_ROOT_STYLE_ID}">:root,html,body{${buildThemeCssVarImportantBlock(theme)}}</style>`
   let out = html
   out = rewriteStyleTagCss(out, (css) => bindChromeThemeVarsInCss(css))
-  out = out.replace(/:root\s*\{[^}]*--pw-primary:[^}]*\}/gi, (block) => upsertPwVarsInRootBlock(block, vars))
-  out = out.replace(/\bhtml\s*\{[^}]*--pw-primary:[^}]*\}/gi, (block) => upsertPwVarsInRootBlock(block, vars))
+  out = out.replace(rootThemeBlockRe(), (block) => upsertPwVarsInRootBlock(block, vars))
+  out = out.replace(htmlThemeBlockRe(), (block) => upsertPwVarsInRootBlock(block, vars))
+  out = out.replace(bodyThemeBlockRe(), (block) => upsertPwVarsInRootBlock(block, vars))
   let replacedThemeRoot = false
   out = out.replace(
     new RegExp(`<style id="${PW_THEME_ROOT_STYLE_ID}">[\\s\\S]*?<\\/style>`, 'gi'),

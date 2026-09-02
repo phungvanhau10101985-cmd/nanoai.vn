@@ -66,6 +66,8 @@ test('live CSS paints added banner from theme tokens', () => {
   assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /var\(--pw-primary\)/)
   assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /var\(--pw-accent\)/)
   assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /::after\{display:none/)
+  assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /data-pw-banner-wash/)
+  assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /img\[data-pw-el="media"\]/)
 })
 
 test('live banner CSS keeps Sửa nhanh CTA row when desktop is stamped', () => {

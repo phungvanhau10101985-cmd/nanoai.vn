@@ -41,6 +41,55 @@ function placeholderTiles(count: number, locale: WebLocale): string {
   return out
 }
 
+/** Stamp seed `pw-categories` / fashion `categoryName:0` so live hydrates the same API. */
+export function ensureFeaturedCategoriesHostInHtml(html: string): string {
+  if (!html) return html
+  let out = html.replace(/<(section|div)\b([^>]*\bpw-categories\b[^>]*)>/gi, (full, tag: string, attrs: string) => {
+    if (/\bdata-pw-featured-categories=/.test(attrs)) return full
+    return `<${tag}${attrs} data-pw-featured-categories="1" data-pw-grid-kind="featured-categories">`
+  })
+  if (/data-pw-edit=["']categoryName:/.test(out)) {
+    out = out.replace(/<(section|div)\b([^>]*\bdata-pw-region=["']categories["'][^>]*)>/gi, (full, tag: string, attrs: string) => {
+      if (/\bdata-pw-featured-categories=/.test(attrs)) return full
+      return `<${tag}${attrs} data-pw-featured-categories="1" data-pw-grid-kind="featured-categories">`
+    })
+  }
+  out = out.replace(/<div\b([^>]*\bpw-cat-grid\b[^>]*)>/gi, (full, attrs: string) => {
+    if (/\bdata-pw-grid(?:[=:\s>]|$)/.test(attrs) || /\bdata-pw-grid=/.test(attrs)) return full
+    return `<div${attrs} data-pw-grid data-pw-el="grid">`
+  })
+  return out
+}
+
+/** Lưu Sửa nhanh: trả tên/ảnh/href mẫu, bỏ chữ vừa hydrate từ API. */
+export function restoreFeaturedCategorySeedsInDocument(root: ParentNode): void {
+  const cards = root.querySelectorAll('[data-pw-seed-name], [data-pw-seed-href], [data-pw-seed-src]')
+  cards.forEach((card) => {
+    const name = card.getAttribute('data-pw-seed-name')
+    const href = card.getAttribute('data-pw-seed-href')
+    const src = card.getAttribute('data-pw-seed-src')
+    if (name != null) {
+      const nameEl = card.querySelector('[data-pw-el="card-name"], [data-pw-edit^="categoryName"]')
+      if (nameEl) nameEl.textContent = name
+    }
+    if (href != null && card.tagName === 'A') {
+      if (href) card.setAttribute('href', href)
+      else card.removeAttribute('href')
+    }
+    if (src != null) {
+      const img = card.querySelector('img')
+      if (img) {
+        if (src) img.setAttribute('src', src)
+        else img.removeAttribute('src')
+      }
+    }
+    card.removeAttribute('data-pw-seed-name')
+    card.removeAttribute('data-pw-seed-href')
+    card.removeAttribute('data-pw-seed-src')
+    if (card.getAttribute('hidden') === '') card.removeAttribute('hidden')
+  })
+}
+
 /** In-flow featured category grid for Sửa nhanh «Thêm». Live hydrates via personalization bootstrap. */
 export function buildVisualEditorFeaturedCategoriesHtml(input: {
   siteSlug: string

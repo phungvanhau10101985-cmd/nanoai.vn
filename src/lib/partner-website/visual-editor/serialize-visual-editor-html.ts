@@ -6,6 +6,7 @@ import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual
 import { pinChromeIconBadges } from '@/lib/partner-website/shop/pin-chrome-icon-badges'
 import { releaseStickHeaderPins } from '@/lib/partner-website/shop/stick-header-elements'
 import { prepareVisualDomForStore } from '@/lib/partner-website/shop/stay-scroll-elements'
+import { restoreFeaturedCategorySeedsInDocument } from '@/lib/partner-website/visual-editor/featured-category-widgets'
 import { stripPartnerInfoPageSeoCoachFromHtml } from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
 import {
   ensureVisualHtmlLiveReady,
@@ -459,6 +460,7 @@ export function serializeVisualEditorHtml(doc: Document, variant?: VisualDeviceV
   refreshMovedElementPlacementsInDocument(doc, variant)
   refreshCloneBoxesInDocument(doc)
   const clone = doc.documentElement.cloneNode(true) as HTMLElement
+  restoreFeaturedCategorySeedsInDocument(clone)
   prepareVisualDomForStore(clone)
   stripEditorAndRuntimeNodes(clone)
   releaseStickHeaderPins(clone)
