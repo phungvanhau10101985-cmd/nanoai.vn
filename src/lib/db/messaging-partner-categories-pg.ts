@@ -807,16 +807,20 @@ export async function fetchPartnerCategoryProductSampleNamesFromPg(
   }
 }
 
-/** Ghi kết quả AI sinh SEO cho 1 danh mục — luôn set `seo_body_generated_at`/`locale` để phân biệt bản AI vs bản merchant tự viết. */
+/** Ghi kết quả AI sinh SEO cho 1 danh mục. Stamp `seo_body_generated_at` chỉ khi ghi `seo_body`. */
 export async function setPartnerCategoryGeneratedSeoFromPg(
   partnerId: string,
   categoryId: string,
-  input: { seoDescription?: string; seoBody?: string; locale: string }
+  input: { seoTitle?: string; seoDescription?: string; seoBody?: string; locale: string }
 ): Promise<PartnerCategoryRow | null> {
   if (!isPgConfigured()) return null
-  const sets: string[] = ['seo_body_generated_at = now()', 'seo_body_generated_locale = $3']
-  const params: unknown[] = [partnerId, categoryId, input.locale]
-  let p = 4
+  const sets: string[] = []
+  const params: unknown[] = [partnerId, categoryId]
+  let p = 3
+  if (input.seoTitle !== undefined) {
+    sets.push(`seo_title = $${p++}`)
+    params.push(input.seoTitle.trim().slice(0, 200))
+  }
   if (input.seoDescription !== undefined) {
     sets.push(`seo_description = $${p++}`)
     params.push(input.seoDescription.trim().slice(0, 500))
@@ -824,7 +828,11 @@ export async function setPartnerCategoryGeneratedSeoFromPg(
   if (input.seoBody !== undefined) {
     sets.push(`seo_body = $${p++}`)
     params.push(input.seoBody.trim().slice(0, 3000))
+    sets.push('seo_body_generated_at = now()')
+    sets.push(`seo_body_generated_locale = $${p++}`)
+    params.push(input.locale)
   }
+  if (sets.length === 0) return fetchPartnerCategoryByIdFromPg(partnerId, categoryId)
   try {
     const row = await pgQueryOne<CategoryDbRow>(
       `update public.messaging_partner_categories

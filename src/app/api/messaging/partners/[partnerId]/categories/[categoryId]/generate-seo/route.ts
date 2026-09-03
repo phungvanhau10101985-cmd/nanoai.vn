@@ -12,7 +12,10 @@ import {
   resolvePartnerCategoryAncestors,
   resolvePartnerCategoryDisplayName,
 } from '@/lib/partner-website/category/partner-category-types'
-import { generatePartnerCategorySeoContent } from '@/lib/partner-website/category/partner-category-seo-ai'
+import {
+  buildPartnerCategorySeoTitle,
+  generatePartnerCategorySeoContent,
+} from '@/lib/partner-website/category/partner-category-seo-ai'
 import { isPgConfigured } from '@/lib/db/pool'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
@@ -60,12 +63,19 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     shopDisplayName: site?.title || category.name,
     locale,
   })
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.error === 'gemini_not_configured' ? 503 : 502 })
+  }
 
   const updated = await setPartnerCategoryGeneratedSeoFromPg(pid, cid, {
+    seoTitle: buildPartnerCategorySeoTitle(
+      resolvePartnerCategoryDisplayName(category, locale),
+      site?.title || category.name
+    ),
     seoDescription: result.description,
     seoBody: result.body,
     locale,
   })
   if (!updated) return NextResponse.json({ error: 'db_error' }, { status: 500 })
-  return NextResponse.json({ success: true, category: updated, usedAi: result.usedAi })
+  return NextResponse.json({ success: true, category: updated, usedAi: true })
 }

@@ -1,4 +1,4 @@
-import { assignInventoryToCategoryFromPg, fetchPartnerCategoryByIdFromPg } from '@/lib/db/messaging-partner-categories-pg'
+import { fetchPartnerCategoryByIdFromPg } from '@/lib/db/messaging-partner-categories-pg'
 import { insertPartnerInventoryFromProductStudioFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import {
   fetchProductStudioJobByIdPg,
@@ -10,7 +10,7 @@ import {
 } from '@/lib/db/messaging-partner-websites-pg'
 import { generateProductStudioDescription } from '@/lib/partner-website/product-studio/product-studio-description-ai'
 import { bootstrapSingleProductLandingForStudio } from '@/lib/partner-website/product-studio/product-studio-ladipage-bridge'
-import { resolveOrCreateProductStudioCategory } from '@/lib/partner-website/product-studio/product-studio-taxonomy-ai'
+import { placeProductStudioInventoryInCategoryTree } from '@/lib/partner-website/product-studio/product-studio-taxonomy-ai'
 import {
   studioPublishMissing,
   type ProductStudioJobPayload,
@@ -182,16 +182,28 @@ export async function publishProductStudioJob(
 
   const warnings: string[] = []
 
-  // PS.8 — AI tự resolve/mở rộng cây danh mục của shop khi merchant không tự chọn category.
-  let categoryId: string | null = payload.categoryId ?? null
-  if (!categoryId) {
-    const taxonomy = await resolveOrCreateProductStudioCategory(partnerId, payload, name)
-    categoryId = taxonomy.categoryId
-    warnings.push(...taxonomy.warnings)
+  // PS.8 — AI 100% và đăng thủ công: khớp cây / tạo L1-L2-L3 không trùng ý định SEO + sinh SEO trang.
+  const taxonomy = await placeProductStudioInventoryInCategoryTree({
+    partnerId,
+    inventoryId,
+    payload,
+    productName: name,
+    preferredCategoryId: payload.categoryId ?? null,
+  })
+  warnings.push(...taxonomy.warnings)
+  if (!taxonomy.ok) {
+    const seoError = taxonomy.error || 'gemini_seo_failed'
+    await updateProductStudioJobPg({
+      partnerId,
+      jobId,
+      status: 'failed',
+      errorMessage: seoError,
+    })
+    return { ok: false, error: seoError }
   }
+  const categoryId = taxonomy.categoryId
   let categoryPath: string | null = null
   if (categoryId) {
-    await assignInventoryToCategoryFromPg(partnerId, inventoryId, categoryId, true)
     const cat = await fetchPartnerCategoryByIdFromPg(partnerId, categoryId)
     categoryPath = cat?.path ?? null
   }

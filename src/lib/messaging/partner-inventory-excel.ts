@@ -83,6 +83,7 @@ export type InventoryExcelInsert = {
   removeFromInventory: boolean
   /** File Excel 41 cột 188 hoặc biến thể đã parse từ file cũ. */
   catalog?: InventoryCatalog188Fields | null
+  /** `legacy` = Excel 12 cột (import web khách, không tạo cây danh mục / SEO `/c`). `188` = đủ cột đăng web. */
   catalogFormat?: 'legacy' | '188'
 }
 

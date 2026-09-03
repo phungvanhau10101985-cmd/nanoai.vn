@@ -58,7 +58,7 @@ async function main() {
     assert(sampleNames.includes('Áo thun cotton basic'), `phải có tên sản phẩm mẫu, thực tế ${JSON.stringify(sampleNames)}`)
     console.log('OK fetchPartnerCategoryProductSampleNamesFromPg: lấy đúng tên sản phẩm gán trực tiếp')
 
-    // 3) generatePartnerCategorySeoContent luôn trả nội dung (Gemini hoặc fallback mẫu).
+    // 3) generatePartnerCategorySeoContent chỉ nhận bản Gemini — không mẫu dự phòng.
     const result = await generatePartnerCategorySeoContent({
       categoryName: 'Áo thun nam',
       breadcrumbNames: ['Áo thun nam'],
@@ -67,9 +67,10 @@ async function main() {
       shopDisplayName: 'W4.12 SEO Auto Test Shop',
       locale: 'vi',
     })
-    assert(result.description.length > 0, 'description AI/fallback không được rỗng')
+    if (!result.ok) throw new Error(`FAIL: Gemini phải sinh SEO: ${JSON.stringify(result)}`)
+    assert(result.description.length > 0, 'description AI không được rỗng')
     assert(result.body.length >= 100, `body phải đủ dài (>=100 ký tự), thực tế ${result.body.length}`)
-    console.log(`OK generatePartnerCategorySeoContent: usedAi=${result.usedAi}, description=${result.description.length} ký tự, body=${result.body.length} ký tự`)
+    console.log(`OK generatePartnerCategorySeoContent: description=${result.description.length} ký tự, body=${result.body.length} ký tự`)
 
     // 4) setPartnerCategoryGeneratedSeoFromPg ghi seo_description/seo_body + đánh dấu generated_at/locale.
     const updated = await setPartnerCategoryGeneratedSeoFromPg(partnerId, categoryId, {

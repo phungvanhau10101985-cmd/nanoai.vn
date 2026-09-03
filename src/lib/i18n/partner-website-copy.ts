@@ -671,6 +671,8 @@ export type PartnerWebsiteCopy = {
   categorySeoAutoGenerateSuccess: string
   categorySeoAutoGenerateSuccessFallback: string
   categorySeoAutoGenerateError: string
+  categorySeoGeminiNotConfigured: string
+  categorySeoGeminiFailed: string
   categorySeoGeneratedBadge: string
   categoryActiveLabel: string
   categorySave: string
@@ -1699,7 +1701,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categorySeoAutoGenerating: 'Đang sinh nội dung…',
     categorySeoAutoGenerateSuccess: 'Đã sinh nội dung SEO bằng AI',
     categorySeoAutoGenerateSuccessFallback: 'Đã điền nội dung SEO mẫu (chưa cấu hình AI)',
-    categorySeoAutoGenerateError: 'Không sinh được nội dung SEO, thử lại sau',
+    categorySeoAutoGenerateError: 'Gemini không sinh được nội dung SEO — đã dừng, không dùng mẫu dự phòng.',
+    categorySeoGeminiNotConfigured: 'Chưa cấu hình Gemini — không sinh được SEO danh mục.',
+    categorySeoGeminiFailed: 'Gemini không viết được nội dung SEO chuẩn — đã dừng.',
     categorySeoGeneratedBadge: 'Do AI sinh',
     categoryActiveLabel: 'Hiển thị trên web',
     categorySave: 'Lưu',
@@ -2744,7 +2748,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categorySeoAutoGenerating: 'Generating…',
     categorySeoAutoGenerateSuccess: 'AI-generated SEO content added',
     categorySeoAutoGenerateSuccessFallback: 'Added sample SEO content (AI not configured)',
-    categorySeoAutoGenerateError: 'Could not generate SEO content, try again later',
+    categorySeoAutoGenerateError: 'Gemini could not write SEO content — stopped, no template fallback.',
+    categorySeoGeminiNotConfigured: 'Gemini is not configured — category SEO was not generated.',
+    categorySeoGeminiFailed: 'Gemini failed to write valid SEO content — stopped.',
     categorySeoGeneratedBadge: 'AI-generated',
     categoryActiveLabel: 'Visible on site',
     categorySave: 'Save',
@@ -3767,7 +3773,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categorySeoAutoGenerating: '生成中…',
     categorySeoAutoGenerateSuccess: '已生成 AI SEO 内容',
     categorySeoAutoGenerateSuccessFallback: '已填入示例 SEO 内容（AI 未配置）',
-    categorySeoAutoGenerateError: '生成失败，请稍后重试',
+    categorySeoAutoGenerateError: 'Gemini 无法生成 SEO 内容 — 已停止，不使用备用模板。',
+    categorySeoGeminiNotConfigured: '未配置 Gemini — 无法生成分类 SEO。',
+    categorySeoGeminiFailed: 'Gemini 未能写出合格 SEO 内容 — 已停止。',
     categorySeoGeneratedBadge: 'AI 生成',
     categoryActiveLabel: '在网站显示',
     categorySave: '保存',
@@ -4790,7 +4798,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categorySeoAutoGenerating: '生成中…',
     categorySeoAutoGenerateSuccess: 'AI生成のSEOコンテンツを追加しました',
     categorySeoAutoGenerateSuccessFallback: 'サンプルのSEOコンテンツを追加しました（AI未設定）',
-    categorySeoAutoGenerateError: '生成に失敗しました。後でもう一度お試しください',
+    categorySeoAutoGenerateError: 'GeminiがSEOを生成できませんでした。テンプレートは使いません。処理を停止しました。',
+    categorySeoGeminiNotConfigured: 'Geminiが未設定のため、カテゴリーSEOを生成できません。',
+    categorySeoGeminiFailed: 'Geminiが有効なSEOを書けませんでした。処理を停止しました。',
     categorySeoGeneratedBadge: 'AI生成',
     categoryActiveLabel: 'サイトに表示',
     categorySave: '保存',
@@ -5820,7 +5830,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categorySeoAutoGenerating: '생성 중…',
     categorySeoAutoGenerateSuccess: 'AI가 생성한 SEO 콘텐츠가 추가되었습니다',
     categorySeoAutoGenerateSuccessFallback: '샘플 SEO 콘텐츠가 추가되었습니다 (AI 미설정)',
-    categorySeoAutoGenerateError: '생성하지 못했습니다. 나중에 다시 시도하세요',
+    categorySeoAutoGenerateError: 'Gemini가 SEO를 생성하지 못했습니다. 템플릿 대체 없이 중단했습니다.',
+    categorySeoGeminiNotConfigured: 'Gemini가 설정되지 않아 카테고리 SEO를 생성할 수 없습니다.',
+    categorySeoGeminiFailed: 'Gemini가 유효한 SEO를 쓰지 못해 중단했습니다.',
     categorySeoGeneratedBadge: 'AI 생성',
     categoryActiveLabel: '사이트에 표시',
     categorySave: '저장',

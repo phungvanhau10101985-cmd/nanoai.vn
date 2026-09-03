@@ -878,15 +878,19 @@ export async function runPartnerExternalCatalogFieldFillJob(params: {
   for (const chunk of chunked(patches, 200)) {
     const ok = await applyPartnerInventoryCatalogPatchFromPg(chunk)
     if (!ok) return { ok: false, code: 'UPSERT_FAILED', detail: 'Catalog field patch failed.' }
-    await linkImportedInventoryToCatalogCategoriesBatch(
+    const linked = await linkImportedInventoryToCatalogCategoriesBatch(
       partnerId,
       chunk.map((p) => ({
         inventoryId: p.id,
         categoryL1: p.catalog.category_l1,
         categoryL2: p.catalog.category_l2,
         categoryL3: p.catalog.category_l3,
+        productName: p.catalog.catalog_json?.name,
       }))
     )
+    if (!linked.ok) {
+      return { ok: false, code: 'UPSERT_FAILED', detail: `Category SEO AI failed (${linked.error}). Sync stopped.` }
+    }
     const priceIds: string[] = []
     const priceAmounts: number[] = []
     for (const p of chunk) {

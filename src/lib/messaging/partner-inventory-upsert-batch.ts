@@ -443,15 +443,19 @@ export async function upsertPartnerInventoryRemarketingIncrementalBatch(
   if (patches.length > 0) {
     const patched = await applyPartnerInventoryCatalogPatchFromPg(patches)
     if (!patched) return { ok: false, error: 'Inventory catalog update failed (Postgres).' }
-    await linkImportedInventoryToCatalogCategoriesBatch(
+    const linked = await linkImportedInventoryToCatalogCategoriesBatch(
       partnerId,
       patches.map((p) => ({
         inventoryId: p.id,
         categoryL1: p.catalog.category_l1,
         categoryL2: p.catalog.category_l2,
         categoryL3: p.catalog.category_l3,
+        productName: p.catalog.catalog_json?.name,
       }))
     )
+    if (!linked.ok) {
+      return { ok: false, error: `Category SEO AI failed (${linked.error}). Import stopped.` }
+    }
   }
 
   const deferEmbeddings = Boolean(options.deferEmbeddings)
@@ -701,15 +705,19 @@ export async function upsertPartnerInventoryBatch(
     if (!patched) {
       return { ok: false, error: 'Inventory catalog update failed (Postgres).' }
     }
-    await linkImportedInventoryToCatalogCategoriesBatch(
+    const linked = await linkImportedInventoryToCatalogCategoriesBatch(
       partnerId,
       patches.map((p) => ({
         inventoryId: p.id,
         categoryL1: p.catalog.category_l1,
         categoryL2: p.catalog.category_l2,
         categoryL3: p.catalog.category_l3,
+        productName: p.catalog.catalog_json?.name,
       }))
     )
+    if (!linked.ok) {
+      return { ok: false, error: `Category SEO AI failed (${linked.error}). Import stopped.` }
+    }
   }
 
   const deferEmbeddings = Boolean(options?.deferEmbeddings)

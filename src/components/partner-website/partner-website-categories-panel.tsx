@@ -133,9 +133,17 @@ export function PartnerWebsiteCategoriesPanel({ t, partnerId, sectionId = 'partn
     (code: string | undefined) => {
       if (code === 'duplicate_slug' || code === 'duplicate_path') return t.categoryErrorDuplicateSlug
       if (code === 'max_depth') return t.categoryErrorMaxDepth
+      if (code === 'gemini_not_configured') return t.categorySeoGeminiNotConfigured
+      if (code === 'gemini_seo_failed') return t.categorySeoGeminiFailed
       return t.categoryErrorGeneric
     },
-    [t.categoryErrorDuplicateSlug, t.categoryErrorMaxDepth, t.categoryErrorGeneric]
+    [
+      t.categoryErrorDuplicateSlug,
+      t.categoryErrorMaxDepth,
+      t.categorySeoGeminiNotConfigured,
+      t.categorySeoGeminiFailed,
+      t.categoryErrorGeneric,
+    ]
   )
 
   const loadTree = useCallback(async () => {
@@ -253,7 +261,7 @@ export function PartnerWebsiteCategoriesPanel({ t, partnerId, sectionId = 'partn
         seoBody: json.category.seoBody,
         seoBodyGeneratedAt: json.category.seoBodyGeneratedAt,
       })
-      onToast(json.usedAi ? t.categorySeoAutoGenerateSuccess : t.categorySeoAutoGenerateSuccessFallback)
+      onToast(t.categorySeoAutoGenerateSuccess)
       await loadTree()
     } catch (e) {
       onToast(e instanceof Error ? e.message : t.categorySeoAutoGenerateError, 'destructive')
