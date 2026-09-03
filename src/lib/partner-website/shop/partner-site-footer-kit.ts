@@ -6,6 +6,9 @@ import { isPartnerSiteNavHrefKey, type PartnerSiteNavHrefKey } from '@/lib/partn
 
 export const PW_FOOTER_KIT_ATTR = 'data-pw-footer-kit'
 
+export const PW_FOOTER_KIT_MOIT = 'moit'
+export const PW_FOOTER_MOIT_HREF = 'https://online.gov.vn/'
+
 export const PW_FOOTER_KIT_STOCK = [
   'brand',
   'col:shop',
@@ -13,6 +16,7 @@ export const PW_FOOTER_KIT_STOCK = [
   'col:support',
   'col:legal',
   'copyright',
+  PW_FOOTER_KIT_MOIT,
 ] as const
 
 export type PwFooterKitStockKind = (typeof PW_FOOTER_KIT_STOCK)[number]
@@ -147,8 +151,18 @@ function stampFooterKitInFooterBlock(block: string): string {
     }
     if (/\bdata-pw-footer-added=/i.test(full)) return full
     if (/\bdata-pw-el=["']logo["']/i.test(full)) return full
+    if (/\bpw-shop-footer-moit\b/i.test(full) || /online\.gov\.vn/i.test(full)) {
+      if (!usedLinks.has(PW_FOOTER_KIT_MOIT)) {
+        usedLinks.add(PW_FOOTER_KIT_MOIT)
+        return withKitAttr(full, PW_FOOTER_KIT_MOIT)
+      }
+    }
     if (!/\bdata-pw-el=["']link["']/i.test(full)) return full
     const href = /href=["']([^"']*)["']/i.exec(full)?.[1] || ''
+    if (/online\.gov\.vn/i.test(href) && !usedLinks.has(PW_FOOTER_KIT_MOIT)) {
+      usedLinks.add(PW_FOOTER_KIT_MOIT)
+      return withKitAttr(full, PW_FOOTER_KIT_MOIT)
+    }
     const inferred = inferFooterLinkKitKind(href)
     let kind = inferred && !usedLinks.has(inferred) ? inferred : ''
     if (!kind) {

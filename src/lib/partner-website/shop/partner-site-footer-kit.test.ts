@@ -22,6 +22,7 @@ test('factory footer stamps brand, four columns, copyright', () => {
   assert.match(html, new RegExp(`${PW_FOOTER_KIT_ATTR}="col:support"`))
   assert.match(html, new RegExp(`${PW_FOOTER_KIT_ATTR}="col:legal"`))
   assert.match(html, new RegExp(`${PW_FOOTER_KIT_ATTR}="copyright"`))
+  assert.match(html, new RegExp(`${PW_FOOTER_KIT_ATTR}="moit"`))
   assert.match(html, new RegExp(`${PW_FOOTER_KIT_ATTR}="link:shipping"`))
   assert.match(html, new RegExp(`${PW_FOOTER_KIT_ATTR}="link:payment"`))
   assert.match(html, new RegExp(`${PW_FOOTER_KIT_ATTR}="link:orders"`))

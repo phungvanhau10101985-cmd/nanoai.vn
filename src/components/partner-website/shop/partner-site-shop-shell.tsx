@@ -53,7 +53,7 @@ import {
   resolvePartnerSiteNavHref,
   visibleSortedNavLinks,
 } from '@/lib/partner-website/shop/partner-site-nav-footer'
-import { footerLinkKitKind } from '@/lib/partner-website/shop/partner-site-footer-kit'
+import { footerLinkKitKind, PW_FOOTER_KIT_MOIT, PW_FOOTER_MOIT_HREF } from '@/lib/partner-website/shop/partner-site-footer-kit'
 import { buildPartnerSiteChromeToggleBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-chrome-toggle-bootstrap-script'
 import { buildPartnerSiteSearchBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-search-bootstrap-script'
 import { buildPartnerSiteShopActionsBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-shop-actions-bootstrap-script'
@@ -890,6 +890,16 @@ function PartnerSiteShopShellInner({
               .replace('{shop}', title)}
           </p>
           <p>{t.footerPaymentHint}</p>
+          <a
+            className="pw-shop-footer-moit"
+            href={PW_FOOTER_MOIT_HREF}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-pw-el={PW_EL.link}
+            data-pw-footer-kit={PW_FOOTER_KIT_MOIT}
+          >
+            {t.footerMoitTitle}
+          </a>
         </div>
       </footer>
 

@@ -32,6 +32,7 @@ import {
 } from './chrome-widgets'
 import {
   PW_FOOTER_KIT_ATTR,
+  PW_FOOTER_KIT_MOIT,
   PW_FOOTER_KIT_STOCK,
   PW_FOOTER_LINK_KIT_MATCHERS,
 } from '../shop/partner-site-footer-kit'
@@ -1263,6 +1264,29 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (isLogoImg(el) || isWordmarkEl(el) || isBrandLink(el)) return true
     return false
   }
+  function isStockChromeLogoEl(el) {
+    if (!el || el.nodeType !== 1) return false
+    if (isFooterAddedEl(el)) return false
+    var kind = logoSlotKind(el)
+    if (kind !== 'header' && kind !== 'footer') return false
+    if (pwElOf(el) === 'logo' || pwElOf(el) === 'wordmark') return true
+    if (isLogoImg(el) || isLogoFrame(el) || isLogoTarget(el) || isWordmarkEl(el) || isWordmarkTextEl(el) || isBrandLink(el)) return true
+    if (hasClassToken(el, 'pw-shop-footer-logo') || hasClassToken(el, 'pw-shop-footer-name')) return true
+    if (el.tagName && el.tagName.toLowerCase() === 'a' && el.querySelector && el.querySelector('img.pw-shop-footer-logo, img[data-pw-el="logo"]')) return true
+    return false
+  }
+  function stockLogoHideHost(el) {
+    if (!el) return el
+    if (isInFooter(el)) {
+      var foot = el.closest ? el.closest('[data-pw-footer-kit="brand"], .pw-shop-footer-brand') : null
+      if (foot) return foot
+    }
+    if (isInHeader(el)) {
+      var brand = el.closest ? el.closest('a.pw-brand, a.pw-shop-brand, a[data-pw-logo-home]') : null
+      if (brand) return brand
+    }
+    return el
+  }
   function isLogoFrame(el) {
     return !!(el && ((el.getAttribute && el.getAttribute('data-pw-logo-frame') === '1') || hasClassToken(el, 'pw-logo-frame')))
   }
@@ -1742,6 +1766,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function inferFooterLinkKit(href) {
     var s = String(href || '').trim()
     if (!s || s === '#') return ''
+    if (/online\\.gov\\.vn/i.test(s)) return '${PW_FOOTER_KIT_MOIT}'
     var matchers = ${JSON.stringify(PW_FOOTER_LINK_KIT_MATCHERS)}
     var i
     for (i = 0; i < matchers.length; i++) {
@@ -1791,6 +1816,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (link.getAttribute('${PW_FOOTER_ADDED_ATTR}') === '1') continue
       var linkKind = link.getAttribute('${PW_FOOTER_KIT_ATTR}') || ''
       if (linkKind) { usedLinks[linkKind] = 1; continue }
+      if ((link.classList && link.classList.contains('pw-shop-footer-moit')) || /online\\.gov\\.vn/i.test(link.getAttribute('href') || '')) {
+        if (!usedLinks['${PW_FOOTER_KIT_MOIT}']) {
+          link.setAttribute('${PW_FOOTER_KIT_ATTR}', '${PW_FOOTER_KIT_MOIT}')
+          usedLinks['${PW_FOOTER_KIT_MOIT}'] = 1
+          continue
+        }
+      }
       var guessedLink = inferFooterLinkKit(link.getAttribute('href') || '')
       if (guessedLink && !usedLinks[guessedLink]) {
         link.setAttribute('${PW_FOOTER_KIT_ATTR}', guessedLink)
@@ -4966,6 +4998,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         }
       }
       pushFooterKit('copyright', footer.querySelector('[${PW_FOOTER_KIT_ATTR}="copyright"]'))
+      pushFooterKit('${PW_FOOTER_KIT_MOIT}', footer.querySelector('[${PW_FOOTER_KIT_ATTR}="${PW_FOOTER_KIT_MOIT}"], a.pw-shop-footer-moit'))
       for (i = 0; i < stock.length; i++) {
         if (seen[stock[i]]) continue
         pushFooterKit(stock[i], footer.querySelector('[${PW_FOOTER_KIT_ATTR}="' + stock[i] + '"]'))
@@ -7523,6 +7556,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (isOverlayNode(el)) return false
     if (isFullBleedChrome(el) || isShopRegionHost(el)) return false
     if (isLockedFooterStockEl(el)) return true
+    if (isStockChromeLogoEl(el)) return true
     return isAddedBg(el) || isAddedText(el) || isAddedBtn(el) || isAddedChrome(el) || isChromeBtn(el) || !!(catToggleElOf(el)) || isSearchEl(el) || isContentBlockEl(el)
   }
   function hideSelectedUnitEl(el) {
@@ -7534,8 +7568,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function hideSelectedBlock() {
     if (!selected) return
     if (isLockedHeadDockChrome(selected)) return
-    if (isLockedFooterStockEl(selected)) {
-      hideSelectedUnitEl(selected)
+    if (isLockedFooterStockEl(selected) || isStockChromeLogoEl(selected)) {
+      hideSelectedUnitEl(isStockChromeLogoEl(selected) ? (stockLogoHideHost(selected) || selected) : selected)
       clearSelection()
       post('deselect', {})
       post('dirty', {})
@@ -12160,6 +12194,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (isChromeFloatEl(el)) return false
     if (isLockedHeadDockChrome(el)) return false
     if (isLockedFooterStockEl(el)) return false
+    if (isStockChromeLogoEl(el)) return false
     if (chatEmbedLauncherOf(el)) return true
     if (canDeleteRegionBlock(el)) return true
     if (isFooterAddedEl(el)) return true
@@ -13613,7 +13648,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function showDeleteHandle(el) {
     hideDeleteHandle()
-    if (!el || !canDeleteEl(el)) return
+    if (!el || !canDeleteEl(el) || isStockChromeLogoEl(el)) return
     var h = document.createElement('button')
     h.type = 'button'
     h.className = 'nanoai-ve-delete-handle nanoai-ve-chrome-delete nanoai-ve-ignore'

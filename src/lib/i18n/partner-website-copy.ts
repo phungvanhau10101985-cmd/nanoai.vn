@@ -286,6 +286,7 @@ export type PartnerWebsiteCopy = {
   visualEditChromeKitFooterHint: string
   visualEditChromeKitFooterBrand: string
   visualEditChromeKitFooterCopyright: string
+  visualEditChromeKitFooterMoit: string
   visualEditChromeKitFloat: string
   visualEditChromeKitFloatHint: string
   visualEditChromeKitFloatLocked: string
@@ -1309,6 +1310,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Giữ layout gốc. Mục nhỏ (Vận chuyển, Đơn hàng…) không xóa — chỉ ẩn/hiện bằng mắt. Logo, cột và copyright cũng vậy. Không thêm bằng dấu +.',
     visualEditChromeKitFooterBrand: 'Logo / thương hiệu',
     visualEditChromeKitFooterCopyright: 'Copyright',
+    visualEditChromeKitFooterMoit: 'Bộ Công Thương',
     visualEditChromeKitFloat: 'Thanh nổi — nút góc màn',
     visualEditChromeKitFloatHint:
       'Bật mắt để hiện. Một cột khóa góc màn — gõ Cách phải / Cách dưới / Khoảng cách. Mỗi nút một cách phải và một cỡ (hai ô px trên hàng đó). Danh sách trên xuống dưới = cột góc màn. ↑ lên trên cột, ↓ xuống dưới. Ẩn thì nút còn lại khít lại. Bấm tên để sửa từng nút. Mỗi máy một bản.',
@@ -2355,6 +2357,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Keep the stock layout. Small footer links cannot be deleted — use the eye to show or hide them. Same for the logo, columns, and copyright. Do not add footer pieces with the plus sign.',
     visualEditChromeKitFooterBrand: 'Logo / brand',
     visualEditChromeKitFooterCopyright: 'Copyright',
+    visualEditChromeKitFooterMoit: 'Ministry of Industry and Trade',
     visualEditChromeKitFloat: 'Floating bar — corner buttons',
     visualEditChromeKitFloatHint:
       'Turn the eye on to show. One locked corner column — type Right / Bottom / Gap. Each button has its own from-right and size (two px boxes on that row). The list top-to-bottom matches the corner column. Up moves toward the top of the column. Hidden buttons close the gap. Click a name to edit that button. One set per device.',
@@ -3390,6 +3393,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '保持原布局。页脚小链接不能删除，只能用眼睛显示或隐藏。标志、列和版权同样。不要用加号往页脚插入。',
     visualEditChromeKitFooterBrand: '标志 / 品牌',
     visualEditChromeKitFooterCopyright: '版权',
+    visualEditChromeKitFooterMoit: '工贸部备案',
     visualEditChromeKitFloat: '浮动栏 — 角落按钮',
     visualEditChromeKitFloatHint: '点眼睛显示。角落一列锁定 — 输入距右 / 距下 / 间距。每个按钮单独距右和尺寸（该行两个 px 框）。列表从上到下与角落列一致。↑ 上移，↓ 下移。隐藏后其余按钮靠拢。点名称可单独编辑。每台设备一份。',
     visualEditChromeKitFloatLocked: '悬浮栏按钮固定为一列。在「导航栏」中显示、隐藏或改顺序，不能拖动坐标。',
@@ -4408,6 +4412,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '元のレイアウトを保ちます。フッターの小さなリンクは削除できません。目のアイコンで表示/非表示。ロゴ・列・著作権も同様。プラスでフッターに追加しません。',
     visualEditChromeKitFooterBrand: 'ロゴ / ブランド',
     visualEditChromeKitFooterCopyright: 'コピーライト',
+    visualEditChromeKitFooterMoit: '商工省届出',
     visualEditChromeKitFloat: 'フローティングバー — 角のボタン',
     visualEditChromeKitFloatHint:
       '目のアイコンで表示。角の1列に固定 — 右・下・間隔を入力。右余白とサイズはボタンごとにその行の2つの px。リスト上から下は角の列と同じ。↑は上、↓は下。非表示にすると残りが詰まります。名前を押すと個別編集。端末ごとに別です。',
@@ -5440,6 +5445,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '원래 레이아웃을 유지합니다. 푸터의 작은 링크는 삭제할 수 없고 눈으로만 표시/숨깁니다. 로고, 열, 저작권도 같습니다. 더하기 기호로 푸터에 넣지 마세요.',
     visualEditChromeKitFooterBrand: '로고 / 브랜드',
     visualEditChromeKitFooterCopyright: '저작권',
+    visualEditChromeKitFooterMoit: '산업통상부',
     visualEditChromeKitFloat: '플로팅 바 — 모서리 버튼',
     visualEditChromeKitFloatHint:
       '눈을 켜면 보입니다. 모서리 한 열로 고정 — 오른쪽/아래/간격을 입력하세요. 오른쪽 간격과 크기는 버튼마다 그 행의 px 두 칸. 목록 위→아래가 모서리 열과 같습니다. ↑는 위로, ↓는 아래로. 숨기면 나머지 버튼이 붙습니다. 이름을 누르면 개별 편집. 기기마다 따로입니다.',

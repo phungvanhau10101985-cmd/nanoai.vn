@@ -518,6 +518,7 @@ export type PartnerSiteShopCopy = {
   /** Tokens `{year}` `{shop}` */
   footerCopyright: string
   footerPaymentHint: string
+  footerMoitTitle: string
   lpExploreProducts: string
   lpViewProducts: string
   lpSuggestedForYou: string
@@ -1036,6 +1037,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     footerBrandHint: 'Mua sắm trực tuyến — sản phẩm đúng mô tả, giao hàng toàn quốc.',
     footerCopyright: '© {year} {shop}. Bảo lưu mọi quyền.',
     footerPaymentHint: 'Thanh toán: COD · Chuyển khoản',
+    footerMoitTitle: 'Đã thông báo với Bộ Công Thương',
     lpExploreProducts: 'Khám phá sản phẩm',
     lpViewProducts: 'Xem sản phẩm',
     lpSuggestedForYou: 'Gợi ý dành cho bạn',
@@ -1551,6 +1553,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     footerBrandHint: 'Shop online — products as described, nationwide delivery.',
     footerCopyright: '© {year} {shop}. All rights reserved.',
     footerPaymentHint: 'Payment: COD · Bank transfer',
+    footerMoitTitle: 'Registered with the Ministry of Industry and Trade',
     lpExploreProducts: 'Explore products',
     lpViewProducts: 'View products',
     lpSuggestedForYou: 'Suggested for you',
@@ -2062,6 +2065,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     footerBrandHint: '在线购物 — 描述相符，全国配送。',
     footerCopyright: '© {year} {shop}。保留所有权利。',
     footerPaymentHint: '支付：货到付款 · 银行转账',
+    footerMoitTitle: '已向工贸部备案',
     lpExploreProducts: '探索商品',
     lpViewProducts: '查看商品',
     lpSuggestedForYou: '为你推荐',
@@ -2575,6 +2579,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     footerBrandHint: 'オンラインショップ — 記載どおりの商品、全国配送。',
     footerCopyright: '© {year} {shop}. 無断転載を禁じます。',
     footerPaymentHint: '支払い：代金引換 · 銀行振込',
+    footerMoitTitle: '商工省へ届出済み',
     lpExploreProducts: '商品を見る',
     lpViewProducts: '商品を見る',
     lpSuggestedForYou: 'あなたへのおすすめ',
@@ -3088,6 +3093,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     footerBrandHint: '온라인 쇼핑 — 설명과 일치하는 상품, 전국 배송.',
     footerCopyright: '© {year} {shop}. 모든 권리 보유.',
     footerPaymentHint: '결제: 착불 · 계좌이체',
+    footerMoitTitle: '산업통상부 신고 완료',
     lpExploreProducts: '상품 둘러보기',
     lpViewProducts: '상품 보기',
     lpSuggestedForYou: '당신을 위한 추천',
