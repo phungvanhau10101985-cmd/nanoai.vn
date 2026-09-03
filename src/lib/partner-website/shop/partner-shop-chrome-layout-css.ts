@@ -97,6 +97,20 @@ import {
   PW_SEARCH_ICON_SIZE,
 } from '@/lib/partner-website/shop/chrome-rhythm'
 
+/** Live mobile: tap logo / Chat mua like a button, not a dragged image. */
+export const PARTNER_SHOP_TAP_CHROME_CSS = `
+a.pw-brand,a.pw-shop-brand,[data-pw-chrome-btn],[data-nanoai-open-chat],.pw-chat-open{
+-webkit-tap-highlight-color:transparent;
+-webkit-touch-callout:none;
+touch-action:manipulation;
+}
+a.pw-brand img,a.pw-shop-brand img,.pw-logo,.pw-chrome-chat-logo,[data-pw-chrome-btn] img,[data-nanoai-open-chat] img{
+-webkit-user-drag:none;
+user-select:none;
+pointer-events:none;
+}
+`
+
 /** Persistent chrome layout — same rules Sửa nhanh uses, kept on the live shop. */
 export const PARTNER_SHOP_SEARCH_HISTORY_CSS = `
 .pw-header-search,.pw-shop-search-wrap,[data-pw-el="search"]{overflow:visible!important}
@@ -897,6 +911,7 @@ ${PARTNER_SHOP_HROW_CSS}
 ${PARTNER_SHOP_SLIDER_CSS}
 ${PARTNER_SHOP_WIDE_HEADER_BALANCE_CSS}
 ${PARTNER_SHOP_SEARCH_HISTORY_CSS}
+${PARTNER_SHOP_TAP_CHROME_CSS}
 ${PW_MOBILE_HEADER_STACK_WIN_CSS}
 ${PW_MOBILE_HEADER_TOPBAR_HIDE_CSS}
 html[data-pw-edit-device="mobile"] .pw-brand-cluster,html[data-pw-edit-device="mobile"] .pw-shop-brand-cluster,html[data-pw-scene-lock="mobile"] .pw-brand-cluster,html[data-pw-scene-lock="mobile"] .pw-shop-brand-cluster{pointer-events:auto!important}

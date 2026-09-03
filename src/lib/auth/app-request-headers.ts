@@ -8,6 +8,8 @@ export const PARTNER_CUSTOM_DOMAIN_HEADER = 'x-partner-custom-domain'
  * của máy đó mà không phải kéo `searchParams` qua từng route.
  */
 export const PARTNER_VISUAL_DEVICE_HEADER = 'x-pw-device'
+/** Live auto: client ghi cookie khi viewport đổi máy, middleware đưa vào header (query `?pw-device=` vẫn thắng). */
+export const PARTNER_LIVE_DEVICE_COOKIE = 'pw-live-device'
 
 export function readPartnerVisualDeviceFromHeaders(get: (name: string) => string | null): string {
   return get(PARTNER_VISUAL_DEVICE_HEADER)?.trim().toLowerCase() || ''

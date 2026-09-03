@@ -31,6 +31,7 @@ import {
   pwResolveCoordinateDevice,
 } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
 import type { PartnerVisualHtmlByDevice } from '@/lib/partner-website/shop/render-partner-visual-html'
+import { PARTNER_LIVE_DEVICE_COOKIE } from '@/lib/auth/app-request-headers'
 
 function hideChatLaunchersInHtml(html: string, hide: boolean): string {
   if (!hide || !html.trim() || html.includes('data-pw-hide-chat-launcher')) return html
@@ -151,7 +152,7 @@ export function PartnerSitePublicClient({
   inlineHtml?: boolean
   /** From `?pw-device=` on the server so the first paint already locks desktop width. */
   initialDevice?: VisualDeviceVariant | null
-  /** Server already returned the exact `?pw-device=` file, so the client should not slice again. */
+  /** Server already returned one machine file, so the client should not slice again. Not a preview lock. */
   deviceHtmlAlreadyIsolated?: boolean
   /** Omit or true = hide legacy embed FAB; false = opt-in to platform bubble. */
   hideChatLauncher?: boolean
@@ -169,7 +170,7 @@ export function PartnerSitePublicClient({
           locale={locale}
           inlineHtml={inlineHtml}
           initialDevice={initialDevice}
-          forceDevice={deviceHtmlAlreadyIsolated ? initialDevice : null}
+          forceDevice={null}
           deviceHtmlAlreadyIsolated={deviceHtmlAlreadyIsolated}
           hideChatLauncher={hideChatLauncher}
         />
@@ -209,11 +210,7 @@ function PartnerSitePublicClientWithParams(props: {
   return (
     <PartnerSitePublicFrame
       {...props}
-      forceDevice={
-        props.deviceHtmlAlreadyIsolated
-          ? props.initialDevice ?? null
-          : readForcedDevice(params)
-      }
+      forceDevice={readForcedDevice(params)}
     />
   )
 }
@@ -258,24 +255,44 @@ function PartnerSitePublicFrame({
     'desktop'
   const [activeDevice, setActiveDevice] = useState<VisualDeviceVariant>(firstDevice)
   useLayoutEffect(() => {
+    const viewportDevice = () =>
+      forceDevice ||
+      pwResolveCoordinateDevice({
+        outerWidth: window.outerWidth || 0,
+        layoutWidth: window.innerWidth || document.documentElement.clientWidth || 0,
+        screenWidth: Math.max(window.screen?.width || 0, window.screen?.availWidth || 0),
+        devicePixelRatio: window.devicePixelRatio || 0,
+      })
     const choose = () => {
-      const requested =
-        forceDevice ||
-        pwResolveCoordinateDevice({
-          outerWidth: window.outerWidth || 0,
-          layoutWidth: window.innerWidth || document.documentElement.clientWidth || 0,
-          screenWidth: Math.max(window.screen?.width || 0, window.screen?.availWidth || 0),
-          devicePixelRatio: window.devicePixelRatio || 0,
-        })
+      const requested = viewportDevice()
       if (!availableDevices.length || availableDevices.includes(requested)) {
         setActiveDevice((current) => (current === requested ? current : requested))
       }
+      if (forceDevice) return
+      if (requested === initialDevice) {
+        try {
+          sessionStorage.removeItem('pw-live-device-reload')
+        } catch {
+          /* private mode */
+        }
+        return
+      }
+      if (!initialDevice || htmlByDevice?.[requested]) return
+      try {
+        const flag = sessionStorage.getItem('pw-live-device-reload')
+        if (flag === requested) return
+        sessionStorage.setItem('pw-live-device-reload', requested)
+      } catch {
+        /* private mode */
+      }
+      document.cookie = `${PARTNER_LIVE_DEVICE_COOKIE}=${requested}; Path=/; Max-Age=1800; SameSite=Lax`
+      window.location.reload()
     }
     choose()
-    if (forceDevice || !availableDevices.length) return
+    if (forceDevice) return
     window.addEventListener('resize', choose)
     return () => window.removeEventListener('resize', choose)
-  }, [availableDevices, forceDevice])
+  }, [availableDevices, forceDevice, htmlByDevice, initialDevice])
   const selectedHtml =
     (htmlByDevice && htmlByDevice[activeDevice]) ||
     (forceDevice && !deviceHtmlAlreadyIsolated

@@ -3,6 +3,7 @@ import {
   APP_LOGIN_NEXT_HEADER,
   APP_LOGIN_NEXT_HEADER_LEGACY,
   PARTNER_CUSTOM_DOMAIN_HEADER,
+  PARTNER_LIVE_DEVICE_COOKIE,
   PARTNER_VISUAL_DEVICE_HEADER,
 } from '@/lib/auth/app-request-headers'
 import { getJwtUserFromRequest } from '@/lib/auth/email-jwt-middleware'
@@ -61,11 +62,23 @@ function refreshEmailSessionCookies(response: NextResponse, request: NextRequest
   response.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, token, opts)
 }
 
-/** Chỉ nhận từ query — xoá header client tự gắn để không giả được bản máy. */
+function parseVisualDeviceToken(raw: string): string {
+  const value = raw.trim().toLowerCase()
+  return value === 'mobile' || value === 'tablet' || value === 'laptop' || value === 'desktop'
+    ? value
+    : ''
+}
+
+/** Query `?pw-device=` thắng. Cookie live (viewport đổi máy) chỉ khi không có query. Xóa header client tự gắn. */
 function applyVisualDeviceHeader(headers: Headers, request: NextRequest) {
-  const raw = request.nextUrl.searchParams.get('pw-device')?.trim().toLowerCase() || ''
-  if (raw === 'mobile' || raw === 'tablet' || raw === 'laptop' || raw === 'desktop') {
-    headers.set(PARTNER_VISUAL_DEVICE_HEADER, raw)
+  const fromQuery = parseVisualDeviceToken(request.nextUrl.searchParams.get('pw-device') || '')
+  if (fromQuery) {
+    headers.set(PARTNER_VISUAL_DEVICE_HEADER, fromQuery)
+    return
+  }
+  const fromCookie = parseVisualDeviceToken(request.cookies.get(PARTNER_LIVE_DEVICE_COOKIE)?.value || '')
+  if (fromCookie) {
+    headers.set(PARTNER_VISUAL_DEVICE_HEADER, fromCookie)
     return
   }
   headers.delete(PARTNER_VISUAL_DEVICE_HEADER)
@@ -101,8 +114,11 @@ function applyCommonResponseHeaders(response: NextResponse, request: NextRequest
       .map((x) => x.trim())
       .filter(Boolean)
   )
-  ;['RSC', 'Next-Router-State-Tree', 'Next-Router-Prefetch', 'Accept-Encoding'].forEach((token) => varyTokens.add(token))
+  ;['RSC', 'Next-Router-State-Tree', 'Next-Router-Prefetch', 'Accept-Encoding', 'Sec-CH-Viewport-Width'].forEach(
+    (token) => varyTokens.add(token)
+  )
   response.headers.set('Vary', Array.from(varyTokens).join(', '))
+  response.headers.append('Accept-CH', 'Sec-CH-Viewport-Width, Sec-CH-DPR')
 
   // Shop consultation surfaces are operational chat UIs, not public SEO pages.
   if (request.nextUrl.pathname.startsWith('/messaging/p/')) {

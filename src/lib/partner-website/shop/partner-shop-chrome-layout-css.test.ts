@@ -17,6 +17,8 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('.pw-nav-main:not([data-pw-nav-live])'), true)
   assert.equal(once.includes('[data-pw-added-image][data-pw-image-radius]'), true)
   assert.equal(once.includes('[data-pw-chrome-btn="chat"] .pw-chrome-chat-logo'), true)
+  assert.equal(once.includes('-webkit-tap-highlight-color:transparent'), true)
+  assert.equal(once.includes('-webkit-user-drag:none'), true)
   assert.equal(once.includes('--pw-chrome-size:22px'), true)
   assert.equal(once.includes('--pw-chrome-w:var(--pw-chrome-size)'), true)
   assert.equal(once.includes('--pw-chrome-h:var(--pw-chrome-size)'), true)
