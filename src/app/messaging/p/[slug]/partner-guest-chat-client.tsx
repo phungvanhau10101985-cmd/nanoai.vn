@@ -3644,6 +3644,11 @@ export function PartnerGuestChatClient({
           setTryOnOpen(true)
           setTryOnOpenedViaEmbedQuery(true)
           setPendingUrlPageContextChip(null)
+        } else if (hasWidgetPageContextSeed(pageContextRef.current)) {
+          closeEmbedTryOnPanel()
+          setPendingUrlPageContextChip(pageContextRef.current)
+          contextSeededRef.current = false
+          attachUrlPageContextRef.current = false
         }
         if (next.imageUrl || next.inventoryId) {
           tryOnPageContextGarmentSeededRef.current = false

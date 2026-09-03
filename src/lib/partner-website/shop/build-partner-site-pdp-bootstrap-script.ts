@@ -127,6 +127,17 @@ function imagesOf(p){
   return out;
 }
 function isTryOnVideo(u){return /\\.(mp4|webm|mov)(\\?|#|$)/i.test(String(u||''));}
+function stampProductGatewayEl(el,main,second,sku,id,tryOn){
+  if(main)el.setAttribute('data-nanoai-image',main);
+  if(second)el.setAttribute('data-nanoai-image-2',second);
+  if(sku)el.setAttribute('data-nanoai-sku',sku);
+  if(id)el.setAttribute('data-nanoai-inventory',id);
+  if(tryOn){
+    if(!el.hasAttribute('data-nanoai-try-on'))el.setAttribute('data-nanoai-try-on','');
+  }else if(!el.hasAttribute('data-nanoai-consult')){
+    el.setAttribute('data-nanoai-consult','');
+  }
+}
 function stampTryOnButtons(p){
   var imgs=imagesOf(p);
   var main='',second='';
@@ -141,11 +152,11 @@ function stampTryOnButtons(p){
   var sku=String(p.sku||'').trim();
   var id=String(p.id||'').trim();
   document.querySelectorAll('[data-nanoai-try-on],[data-pw-chrome-btn="try-on"]').forEach(function(el){
-    if(main)el.setAttribute('data-nanoai-image',main);
-    if(second)el.setAttribute('data-nanoai-image-2',second);
-    if(sku)el.setAttribute('data-nanoai-sku',sku);
-    if(id)el.setAttribute('data-nanoai-inventory',id);
-    if(!el.hasAttribute('data-nanoai-try-on'))el.setAttribute('data-nanoai-try-on','');
+    stampProductGatewayEl(el,main,second,sku,id,true);
+  });
+  document.querySelectorAll('[data-nanoai-open-chat],[data-pw-chrome-btn="chat"]').forEach(function(el){
+    if(el.closest&&el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]'))return;
+    stampProductGatewayEl(el,main,second,sku,id,false);
   });
 }
 function apply(p){
@@ -481,7 +492,8 @@ function bindLive(id){
           main.setAttribute('src',colorSrc);
           main.classList.remove('pw-pdp-hero-img-hidden');
         });
-        document.querySelectorAll('[data-nanoai-try-on],[data-pw-chrome-btn="try-on"]').forEach(function(el){
+        document.querySelectorAll('[data-nanoai-try-on],[data-pw-chrome-btn="try-on"],[data-nanoai-open-chat],[data-pw-chrome-btn="chat"]').forEach(function(el){
+          if(el.closest&&el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]'))return;
           el.setAttribute('data-nanoai-image',colorSrc);
         });
       }
@@ -506,7 +518,8 @@ function bindLive(id){
           main.setAttribute('src',src);
           main.classList.remove('pw-pdp-hero-img-hidden');
         });
-        document.querySelectorAll('[data-nanoai-try-on],[data-pw-chrome-btn="try-on"]').forEach(function(el){
+        document.querySelectorAll('[data-nanoai-try-on],[data-pw-chrome-btn="try-on"],[data-nanoai-open-chat],[data-pw-chrome-btn="chat"]').forEach(function(el){
+          if(el.closest&&el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]'))return;
           el.setAttribute('data-nanoai-image',src);
         });
       }

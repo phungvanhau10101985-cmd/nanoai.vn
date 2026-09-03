@@ -103,6 +103,18 @@ test('shop theme CSS lets the stamped device win over @media for PDP gallery', (
   assert.match(css, /html:not\(:has\(\[data-pw-visual-device\]\)\):not\(:has\(\.pw-pdp-gallery-desktop\)\) \.pw-pdp-hero/)
 })
 
+test('shop theme CSS shows the mobile PDP hero full-bleed at the image natural size', () => {
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(css, /\.pw-pdp-hero-img,\.pw-pdp-hero \[data-pw-el="main-image"\]\{[^}]*height:auto!important/)
+  assert.match(css, /\.pw-pdp-hero-img,\.pw-pdp-hero \[data-pw-el="main-image"\]\{[^}]*aspect-ratio:auto!important/)
+  assert.match(css, /\.pw-pdp-hero-img,\.pw-pdp-hero \[data-pw-el="main-image"\]\{[^}]*object-fit:contain!important/)
+  assert.doesNotMatch(css, /\.pw-pdp-hero-img\{[^}]*aspect-ratio:3\/4/)
+  assert.doesNotMatch(css, /\.pw-pdp-hero-img\{[^}]*object-fit:cover/)
+  assert.match(css, /\.pw-pdp-hero\{display:grid;grid-template-columns:minmax\(0,1fr\);width:calc\(100% \+ 2 \* var\(--pw-page-gutter,4px\)\)/)
+  assert.match(css, /html\[data-pw-edit-device="mobile"\] \.pw-pdp-hero,html\[data-pw-scene-lock="mobile"\] \.pw-pdp-hero/)
+  assert.match(css, /margin-inline:calc\(-1 \* var\(--pw-page-gutter,4px\)\)/)
+})
+
 test('shop theme CSS ships HTML chrome alongside React pw-shop-header', () => {
   const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
   assert.match(css, /\.pw-topbar\{[^}]*background:var\(--pw-primary\)/)

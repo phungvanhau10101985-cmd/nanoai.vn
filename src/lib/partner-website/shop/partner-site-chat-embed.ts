@@ -298,6 +298,29 @@ export function mergeConsultContext(primary: PartnerSiteConsultContext, fallback
   }
 }
 
+export function hasPartnerSiteConsultContext(ctx: PartnerSiteConsultContext | null | undefined): boolean {
+  if (!ctx) return false
+  return Boolean((ctx.sku ?? '').trim() || (ctx.imageUrl ?? '').trim() || (ctx.inventoryId ?? '').trim())
+}
+
+/** Trang chi tiết SP — Chat mua / Thử đồ đọc gallery + SKU đang xem, giống 188. */
+export function isPartnerPdpDocument(doc: Document | null | undefined): boolean {
+  if (!doc) return false
+  const page =
+    doc.documentElement?.getAttribute?.('data-pw-page') ||
+    doc.body?.getAttribute?.('data-pw-page') ||
+    ''
+  if (page === 'product') return true
+  try {
+    return Boolean(
+      doc.querySelector?.('[data-pw-region="gallery"]') &&
+        doc.querySelector?.('[data-pw-region="pdp-info"]')
+    )
+  } catch {
+    return false
+  }
+}
+
 export function resolvePartnerSiteChatOpenFromEventTarget(
   target: EventTarget | null
 ): PartnerSiteChatOpenRequest | null {
@@ -310,14 +333,18 @@ export function resolvePartnerSiteChatOpenFromEventTarget(
   if (el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]')) return null
   const mode = partnerSiteChatOpenModeFromEl(el)
   const fromBtn = consultContextFromChatOpenEl(el)
-  const fromPage = mode === 'try_on' ? consultContextFromPdpDocument(el.ownerDocument, el) : {}
-  return {
-    mode,
-    ctx:
-      mode === 'try_on'
-        ? withAbsolutePartnerTryOnContext(mergeConsultContext(fromPage, fromBtn))
-        : fromBtn,
-  }
+  const doc = el.ownerDocument
+  const onPdp = isPartnerPdpDocument(doc)
+  const fromPage =
+    mode === 'try_on' || mode === 'consult' || onPdp ? consultContextFromPdpDocument(doc, el) : {}
+  const ctx = withAbsolutePartnerTryOnContext(mergeConsultContext(fromPage, fromBtn))
+  const resolvedMode: PartnerSiteChatOpenRequest['mode'] =
+    mode === 'try_on'
+      ? 'try_on'
+      : onPdp && hasPartnerSiteConsultContext(ctx)
+        ? 'consult'
+        : mode
+  return { mode: resolvedMode, ctx }
 }
 
 /** Saved Sửa nhanh HTML may drop `data-nanoai-open-chat` after move/clone — stamp it at serve. */
@@ -388,6 +415,11 @@ function ctxFromEl(el){
     productUrl:toHttpUrl(el.getAttribute('data-nanoai-product-url')||''),
   };
 }
+function isPdpPage(){
+  var page=(document.documentElement&&document.documentElement.getAttribute('data-pw-page'))||(document.body&&document.body.getAttribute('data-pw-page'))||'';
+  if(page==='product')return true;
+  return !!(document.querySelector('[data-pw-region="gallery"]')&&document.querySelector('[data-pw-region="pdp-info"]'));
+}
 function ctxFromPdp(){
   var urls=[],seen={};
   function push(u){if(!u||seen[u])return;seen[u]=1;urls.push(u);}
@@ -407,8 +439,20 @@ function ctxFromPdp(){
   }
   var skuEl=document.querySelector('[data-pw-region="pdp-info"] [data-pw-el="sku"],.pw-pdp-sku strong');
   var sku=skuEl?String(skuEl.textContent||'').replace(/\\s+/g,' ').replace(/^(sku|mã\\s*sp)\\s*[:：-]?\\s*/i,'').trim():'';
-  var isPdp=document.documentElement.getAttribute('data-pw-page')==='product'||(document.body&&document.body.getAttribute('data-pw-page')==='product');
+  var isPdp=isPdpPage();
   return {inventoryId:inv,sku:sku,imageUrl:urls[0]||'',imageUrl2:urls[1]||'',productUrl:isPdp?toHttpUrl(location.href):''};
+}
+function hasCtx(ctx){
+  return !!(ctx&&((ctx.sku||'').trim()||(ctx.imageUrl||'').trim()||(ctx.inventoryId||'').trim()));
+}
+function mergeCtx(page,btn){
+  return {
+    inventoryId:page.inventoryId||btn.inventoryId||'',
+    sku:page.sku||btn.sku||'',
+    imageUrl:page.imageUrl||btn.imageUrl||'',
+    imageUrl2:page.imageUrl2||btn.imageUrl2||'',
+    productUrl:page.productUrl||btn.productUrl||'',
+  };
 }
 document.addEventListener('click',function(ev){
   if(pwShopLiveUiOff())return;
@@ -426,14 +470,11 @@ document.addEventListener('click',function(ev){
   else if(el.classList.contains('pw-fab-chat')||el.hasAttribute('data-nanoai-open-chat'))mode='default';
   else mode='consult';
   var ctx=ctxFromEl(el);
-  if(mode==='try_on'){
-    var page=ctxFromPdp();
-    if(!ctx.imageUrl)ctx.imageUrl=page.imageUrl||'';
-    if(!ctx.imageUrl2)ctx.imageUrl2=page.imageUrl2||'';
-    if(!ctx.inventoryId)ctx.inventoryId=page.inventoryId||'';
-    if(!ctx.sku)ctx.sku=page.sku||'';
-    if(!ctx.productUrl)ctx.productUrl=page.productUrl||'';
+  var onPdp=isPdpPage();
+  if(mode==='try_on'||mode==='consult'||onPdp){
+    ctx=mergeCtx(ctxFromPdp(),ctx);
   }
+  if(mode!=='try_on'&&onPdp&&hasCtx(ctx))mode='consult';
   postOpen({mode:mode,inventoryId:ctx.inventoryId,sku:ctx.sku,imageUrl:ctx.imageUrl,imageUrl2:ctx.imageUrl2,productUrl:ctx.productUrl});
 },true);
 })();</script>`

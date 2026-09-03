@@ -1429,6 +1429,26 @@ export function bindLiveProductToPdpHtml(
   )
 }
 
+function stampProductGatewayAttrs(attrs: string, input: {
+  primary: string
+  secondary: string
+  sku: string
+  id: string
+  tryOn: boolean
+}): string {
+  let next = attrs
+  if (input.primary) next = setAttr(next, 'data-nanoai-image', input.primary)
+  if (input.secondary) next = setAttr(next, 'data-nanoai-image-2', input.secondary)
+  if (input.sku) next = setAttr(next, 'data-nanoai-sku', input.sku)
+  if (input.id) next = setAttr(next, 'data-nanoai-inventory', input.id)
+  if (input.tryOn) {
+    if (!/\bdata-nanoai-try-on\b/i.test(next)) next += ' data-nanoai-try-on'
+  } else if (!/\bdata-nanoai-consult\b/i.test(next)) {
+    next += ' data-nanoai-consult'
+  }
+  return next
+}
+
 function stampTryOnContextInHtml(html: string, product: LivePdpBindProduct): string {
   const images = productImages(product).filter((url) => !looksLikeVideoUrl(url))
   const primary = images[0] || ''
@@ -1436,16 +1456,18 @@ function stampTryOnContextInHtml(html: string, product: LivePdpBindProduct): str
   const sku = String(product.sku || '').trim()
   const id = String(product.id || '').trim()
   if (!primary && !id) return html
-  return html.replace(
+  const ctx = { primary, secondary, sku, id }
+  let out = html.replace(
     /<(button|a)\b([^>]*\b(?:data-nanoai-try-on|data-pw-chrome-btn=["']try-on["'])[^>]*)>/gi,
+    (_full, tag: string, attrs: string) => `<${tag}${stampProductGatewayAttrs(attrs, { ...ctx, tryOn: true })}>`
+  )
+  return out.replace(
+    /<(button|a)\b([^>]*\b(?:data-nanoai-open-chat|data-pw-chrome-btn=["']chat["'])[^>]*)>/gi,
     (_full, tag: string, attrs: string) => {
-      let next = attrs
-      if (primary) next = setAttr(next, 'data-nanoai-image', primary)
-      if (secondary) next = setAttr(next, 'data-nanoai-image-2', secondary)
-      if (sku) next = setAttr(next, 'data-nanoai-sku', sku)
-      if (id) next = setAttr(next, 'data-nanoai-inventory', id)
-      if (!/\bdata-nanoai-try-on\b/i.test(next)) next += ' data-nanoai-try-on'
-      return `<${tag}${next}>`
+      if (/\bdata-pw-chrome-btn=["']chat-(?:zalo|facebook|instagram|whatsapp)["']/i.test(attrs)) {
+        return `<${tag}${attrs}>`
+      }
+      return `<${tag}${stampProductGatewayAttrs(attrs, { ...ctx, tryOn: false })}>`
     }
   )
 }

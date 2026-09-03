@@ -471,6 +471,20 @@ test('bind upgrades a legacy sticky favorite into 188 like-copy without wiping t
   assert.doesNotMatch(next, /class="is-fav"[^>]*>♡ 121/)
 })
 
+test('bind stamps Chat mua on PDP with the same product image/sku as try-on', () => {
+  const html = `<body data-pw-page="product">
+    <button type="button" data-pw-chrome-btn="chat" data-nanoai-open-chat>Chat mua</button>
+    <button type="button" data-pw-chrome-btn="chat-zalo">Zalo</button>
+    <button type="button" class="is-try" data-pw-chrome-btn="try-on">Thử đồ</button>
+  </body>`
+  const next = bindLiveProductToPdpHtml(html, PRODUCT_B)
+  assert.match(next, /data-pw-chrome-btn="chat"[^>]*data-nanoai-image="https:\/\/new\.example\/shirt\.jpg"/)
+  assert.match(next, /data-pw-chrome-btn="chat"[^>]*data-nanoai-sku="SHIRT-9"/)
+  assert.match(next, /data-pw-chrome-btn="chat"[^>]*data-nanoai-consult/)
+  assert.match(next, /data-pw-chrome-btn="try-on"[^>]*data-nanoai-image="https:\/\/new\.example\/shirt\.jpg"/)
+  assert.doesNotMatch(next, /data-pw-chrome-btn="chat-zalo"[^>]*data-nanoai-image/)
+})
+
 test('bind moves gallery color leftover into the buy box and drops the demo line-total', () => {
   const leftover = `<!DOCTYPE html><html><body data-pw-page="product">
 <div class="pw-shop-product-layout">

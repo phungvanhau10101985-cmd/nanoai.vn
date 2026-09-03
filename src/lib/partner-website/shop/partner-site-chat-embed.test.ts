@@ -4,6 +4,8 @@ import {
   PARTNER_SITE_CHAT_OPEN_SELECTOR,
   buildPartnerSiteConsultEmbedPath,
   buildPartnerSiteLandingChatBridgeScript,
+  hasPartnerSiteConsultContext,
+  isPartnerPdpDocument,
   partnerSiteChatOpenModeFromEl,
   resolvePartnerTryOnImageUrl,
   stampPartnerSiteChatOpenAttrsInHtml,
@@ -45,6 +47,25 @@ test('stampPartnerSiteChatOpenAttrsInHtml wires leftover Tư vấn buttons', () 
   assert.doesNotMatch(next, /chat-zalo[^>]*data-nanoai-open-chat/)
 })
 
+test('consult embed path from Chat mua PDP puts sku and image like 188', () => {
+  const path = buildPartnerSiteConsultEmbedPath(
+    '/messaging/p/demo-shop',
+    {
+      imageUrl: 'https://cdn.shop/bag.jpg',
+      sku: 'BAG-1',
+      inventoryId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+      productUrl: 'https://shop.example/site/demo/products/1',
+    },
+    'consult',
+    'vi'
+  )
+  assert.match(path, /ctx_gateway=consult/)
+  assert.match(path, /ctx_source=widget_page/)
+  assert.match(path, /ctx_sku=BAG-1/)
+  assert.match(path, /ctx_image=/)
+  assert.doesNotMatch(path, /open_try_on=1/)
+})
+
 test('try-on embed path puts the product image into ctx_image like 188', () => {
   assert.equal(resolvePartnerTryOnImageUrl('https://cdn.shop/bag.jpg'), 'https://cdn.shop/bag.jpg')
   assert.equal(resolvePartnerTryOnImageUrl('/uploads/bag.jpg', 'https://shop.example/site/demo/p/1'), 'https://shop.example/uploads/bag.jpg')
@@ -68,6 +89,30 @@ test('chat bridge try-on reads PDP gallery, not the header logo', () => {
   assert.match(s, /pw-pdp-hero-img/)
   assert.match(s, /function isChromeImg/)
   assert.match(s, /data-nanoai-image/)
+})
+
+test('chat bridge Chat mua on PDP attaches the viewing product like 188 consult', () => {
+  const s = buildPartnerSiteLandingChatBridgeScript()
+  assert.match(s, /function isPdpPage/)
+  assert.match(s, /function mergeCtx/)
+  assert.match(s, /onPdp&&hasCtx\(ctx\)\)mode='consult'/)
+  assert.equal(hasPartnerSiteConsultContext({ sku: 'BAG-1', imageUrl: 'https://cdn.shop/bag.jpg' }), true)
+  assert.equal(hasPartnerSiteConsultContext({}), false)
+})
+
+test('isPartnerPdpDocument reads data-pw-page=product', () => {
+  const doc = {
+    documentElement: { getAttribute: (name: string) => (name === 'data-pw-page' ? 'product' : '') },
+    body: { getAttribute: () => '' },
+    querySelector: () => null,
+  } as unknown as Document
+  assert.equal(isPartnerPdpDocument(doc), true)
+  const home = {
+    documentElement: { getAttribute: () => 'home' },
+    body: { getAttribute: () => 'home' },
+    querySelector: () => null,
+  } as unknown as Document
+  assert.equal(isPartnerPdpDocument(home), false)
 })
 
 test('stampPartnerSiteChatOpenAttrsInHtml keeps existing open-chat attrs', () => {

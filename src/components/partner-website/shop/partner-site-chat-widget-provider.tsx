@@ -17,6 +17,7 @@ import {
   PARTNER_SITE_CHAT_MSG_SOURCE,
   buildPartnerSiteChatEmbedPath,
   buildPartnerSiteConsultEmbedPath,
+  hasPartnerSiteConsultContext,
   mergeConsultContext,
   resolvePartnerSiteChatOpenFromEventTarget,
   withAbsolutePartnerTryOnContext,
@@ -61,8 +62,7 @@ export function usePartnerSiteActiveProductRegistrar(): ActiveProductRegistrar {
 }
 
 function hasConsultContext(ctx: PartnerSiteConsultContext | null | undefined): boolean {
-  if (!ctx) return false
-  return Boolean((ctx.sku ?? '').trim() || (ctx.imageUrl ?? '').trim() || (ctx.inventoryId ?? '').trim())
+  return hasPartnerSiteConsultContext(ctx)
 }
 
 type Props = {
@@ -134,12 +134,15 @@ export function PartnerSiteChatWidgetProvider({
 
   const applyOpenRequest = useCallback(
     (mode: 'default' | 'consult' | 'try_on', ctx: PartnerSiteConsultContext) => {
+      const merged = withAbsolutePartnerTryOnContext(
+        mergeConsultContext(ctx, activeProductRef.current || {})
+      )
       if (mode === 'try_on') {
-        openTryOn(withAbsolutePartnerTryOnContext(mergeConsultContext(ctx, activeProductRef.current || {})))
+        openTryOn(merged)
         return
       }
-      if (mode === 'consult' && hasConsultContext(ctx)) {
-        openConsult(ctx)
+      if (hasConsultContext(merged) && (mode === 'consult' || mode === 'default')) {
+        openConsult(merged)
         return
       }
       openChat()
