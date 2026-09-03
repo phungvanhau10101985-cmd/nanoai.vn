@@ -201,8 +201,20 @@ export function resolvePartnerVisualHtmlForTarget(
   target: PartnerVisualHtmlTarget,
   device?: VisualDeviceVariant | null
 ): string {
-  const variants = resolvePartnerVisualHtmlVariantsForTarget(website, target)
-  return selectPartnerVisualHtmlDevice(variants, device || 'desktop')?.html || ''
+  const requested = device || 'desktop'
+  return resolveExactPartnerVisualHtmlForTarget(website, target, requested)
+}
+
+/** Live: resolve only the requested machine. Editor/preview tools may still ask for all four. */
+export function resolvePartnerVisualHtmlForDevice(
+  website: VisualWebsite,
+  target: PartnerVisualHtmlTarget,
+  device: VisualDeviceVariant
+): PartnerVisualHtmlSelection | null {
+  const html = resolveExactPartnerVisualHtmlForTarget(website, target, device)
+  return html.trim().length >= 40
+    ? { requestedDevice: device, sourceDevice: device, html }
+    : null
 }
 
 function resolveExactPartnerVisualHtmlForTarget(
@@ -223,7 +235,7 @@ function resolveExactPartnerVisualHtmlForTarget(
     : ''
 }
 
-/** Auto live transports all saved variants, but only one is mounted by the client. */
+/** Editor / rare tools. Live customer view must use `resolvePartnerVisualHtmlForDevice`. */
 export function resolvePartnerVisualHtmlVariantsForTarget(
   website: VisualWebsite,
   target: PartnerVisualHtmlTarget

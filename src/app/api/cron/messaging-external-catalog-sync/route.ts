@@ -20,8 +20,8 @@ const PARTNERS_PER_RUN = Math.max(
 
 /**
  * Ngân sách thời gian cho cả route (< `maxDuration` 600s) — kho lớn (~100k SP) có thể mất vài phút/shop
- * dù đã tải song song. Dừng nhận thêm partner mới khi gần hết ngân sách, để lại cho lượt cron kế tiếp
- * (chạy mỗi 15 phút) thay vì bị nền tảng cắt ngang giữa chừng một lượt đồng bộ.
+ * dù đã tải song song. Cron mặc định **1 lần/ngày** (03:05 VN). Shop chỉ chạy khi đã tới
+ * `catalog_auto_sync_time_vn` và chưa sync trong ngày. Dừng nhận thêm partner khi gần hết ngân sách.
  */
 const RUN_TIME_BUDGET_MS = 560_000
 

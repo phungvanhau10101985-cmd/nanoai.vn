@@ -61,7 +61,7 @@ export default async function PartnerSiteCustomPage({ params, searchParams }: Pr
   if (!page) notFound()
   const device = await readVisualPreviewDevice(searchParams)
 
-  const visual = maybePartnerSiteVisualCmsPage(
+  const visual = await maybePartnerSiteVisualCmsPage(
     shop.site,
     page.slug,
     device

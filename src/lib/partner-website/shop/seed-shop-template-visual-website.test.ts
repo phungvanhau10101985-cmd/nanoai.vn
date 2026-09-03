@@ -203,3 +203,23 @@ test('fillMissingShopVisualDeviceFiles adds other devices without overwriting de
     assert.ok((variants[device] || '').length >= 40, `${device} live after fill`)
   }
 })
+
+test('fillMissingShopVisualDeviceFiles live path can seed only the viewed machine', () => {
+  const filled = fillMissingShopVisualDeviceFiles({
+    project: { entryPath: 'index.html', files: [] },
+    theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, useVisualHtml: false },
+    pages: site.pages,
+    locale: 'vi',
+    siteSlug: 'demo-shop',
+    brand: 'Shop Cam',
+    templateId: preset.templateId,
+    pageKeys: ['home', 'products'],
+    devices: ['mobile'],
+  })
+  const htmlFiles = filled.project.files.filter((file) => file.kind === 'html').map((file) => file.path)
+  assert.ok(htmlFiles.includes('index.mobile.html'))
+  assert.ok(htmlFiles.includes('products.mobile.html'))
+  assert.ok(!htmlFiles.includes('index.html'))
+  assert.ok(!htmlFiles.includes('index.laptop.html'))
+  assert.ok(!htmlFiles.includes('products.html'))
+})

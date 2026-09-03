@@ -159,9 +159,15 @@ export function seedShopTemplateVisualWebsite(input: {
   /** Keep already-saved device files (Đăng web / live). Full seed overwrites. */
   onlyMissing?: boolean
   pageKeys?: PartnerWebsitePageKey[]
+  /** Live: fill only the machine being viewed. Seed / reset still omit this (all 4). */
+  devices?: VisualDeviceVariant[]
 }): { project: PartnerWebsiteProject; theme: PartnerWebsiteTheme; htmlSource: string; changed: boolean } {
   const onlyMissing = input.onlyMissing === true
   const pageKeys = input.pageKeys?.length ? input.pageKeys : SHOP_TEMPLATE_VISUAL_PAGE_KEYS
+  const filteredDevices = input.devices?.length
+    ? VISUAL_DEVICE_VARIANTS.filter((device) => input.devices!.includes(device))
+    : VISUAL_DEVICE_VARIANTS
+  const devices = filteredDevices.length ? filteredDevices : VISUAL_DEVICE_VARIANTS
   let project = input.project
   let theme = { ...input.theme }
   const flagsBefore = visualDeviceFlagSnapshot(theme)
@@ -171,7 +177,7 @@ export function seedShopTemplateVisualWebsite(input: {
   const desktopHomeExisting =
     readProjectVisualHtml(project, 'home', 'desktop') || completeVisualHtml(input.htmlSource || '')
 
-  for (const variant of VISUAL_DEVICE_VARIANTS) {
+  for (const variant of devices) {
     const existing = readProjectVisualHtml(project, 'home', variant)
     const fromComposed =
       !existing && onlyMissing ? composedDeviceSlice(desktopHomeExisting, variant) : ''
@@ -207,7 +213,7 @@ export function seedShopTemplateVisualWebsite(input: {
   for (const pageKey of pageKeys) {
     if (pageKey === 'home') continue
     const desktopPageExisting = readProjectVisualHtml(project, pageKey, 'desktop')
-    for (const variant of VISUAL_DEVICE_VARIANTS) {
+    for (const variant of devices) {
       const existing = readProjectVisualHtml(project, pageKey, variant)
       const fromComposed =
         !existing && onlyMissing ? composedDeviceSlice(desktopPageExisting, variant) : ''
@@ -276,6 +282,7 @@ export function fillMissingShopVisualDeviceFiles(input: {
   chatPath?: string
   htmlSource?: string | null
   pageKeys?: PartnerWebsitePageKey[]
+  devices?: VisualDeviceVariant[]
 }): { project: PartnerWebsiteProject; theme: PartnerWebsiteTheme; htmlSource: string; changed: boolean } {
   if (input.templateId === 'blank-white') {
     return seedBlankShopVisualWebsite({
@@ -287,6 +294,7 @@ export function fillMissingShopVisualDeviceFiles(input: {
       htmlSource: input.htmlSource,
       onlyMissing: true,
       pageKeys: input.pageKeys,
+      devices: input.devices,
     })
   }
   return seedShopTemplateVisualWebsite({
@@ -302,5 +310,6 @@ export function fillMissingShopVisualDeviceFiles(input: {
     htmlSource: input.htmlSource,
     onlyMissing: true,
     pageKeys: input.pageKeys,
+    devices: input.devices,
   })
 }

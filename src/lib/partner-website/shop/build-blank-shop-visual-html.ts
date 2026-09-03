@@ -172,9 +172,14 @@ export function seedBlankShopVisualWebsite(input: {
   htmlSource?: string | null
   onlyMissing?: boolean
   pageKeys?: PartnerWebsitePageKey[]
+  devices?: VisualDeviceVariant[]
 }): { project: PartnerWebsiteProject; theme: PartnerWebsiteTheme; htmlSource: string; changed: boolean } {
   const onlyMissing = input.onlyMissing === true
   const pageKeys = input.pageKeys?.length ? input.pageKeys : BLANK_SHOP_VISUAL_PAGE_KEYS
+  const filteredDevices = input.devices?.length
+    ? VISUAL_DEVICE_VARIANTS.filter((device) => input.devices!.includes(device))
+    : VISUAL_DEVICE_VARIANTS
+  const devices = filteredDevices.length ? filteredDevices : VISUAL_DEVICE_VARIANTS
   let project = input.project
   let theme = { ...input.theme }
   const flagsBefore = [
@@ -200,7 +205,7 @@ export function seedBlankShopVisualWebsite(input: {
         ? desktopHome
         : project.files.find((item) => item.path === visualEditorHtmlPath(pageKey, 'desktop') && item.kind === 'html')
             ?.content || ''
-    for (const variant of VISUAL_DEVICE_VARIANTS) {
+    for (const variant of devices) {
       const path = visualEditorHtmlPath(pageKey, variant)
       const current = project.files.find((item) => item.path === path && item.kind === 'html')?.content || ''
       const existing =

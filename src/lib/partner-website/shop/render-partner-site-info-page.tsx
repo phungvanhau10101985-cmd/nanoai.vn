@@ -80,7 +80,7 @@ export async function PartnerSiteInfoPageScreen({
   const device = await readVisualPreviewDevice()
   const override = await fetchPublishedPartnerStaticPageBySlugFromPg(shop.partnerId, pageKey)
 
-  const visual = maybePartnerSiteVisualPage(
+  const visual = await maybePartnerSiteVisualPage(
     shop.site,
     infoPageKeyToVisualPageKey(pageKey),
     device,

@@ -111,7 +111,7 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
   if (!ctx) notFound()
   const { shop, category, ancestors } = ctx
   const device = await readVisualPreviewDevice(searchParams)
-  const visual = maybePartnerSiteVisualCategoryPage(
+  const visual = await maybePartnerSiteVisualCategoryPage(
     shop.site,
     category.path,
     device

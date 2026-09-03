@@ -15,11 +15,13 @@ import { isPartnerTextArticlePage } from '@/lib/partner-website/pages/partner-te
 import { bindLiveProductToPdpHtml, type LivePdpBindProduct } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
 import {
   preparePartnerVisualHtmlForPublic,
-  resolvePartnerVisualHtmlVariantsForTarget,
+  resolvePartnerVisualHtmlForDevice,
   selectPartnerVisualHtmlDevice,
   type PartnerVisualHtmlByDevice,
   type PartnerVisualHtmlTarget,
 } from '@/lib/partner-website/shop/render-partner-visual-html'
+import { ensureLiveVisualWebsite } from '@/lib/partner-website/shop/load-live-visual-website'
+import { inferLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-live-visual-request-device'
 import { bindLiveCategorySurfacesInHtml } from '@/lib/partner-website/shop/bind-live-nav-pills'
 import { loadSiteLiveCategoryBind } from '@/lib/partner-website/shop/load-site-live-category-bind'
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
@@ -31,7 +33,7 @@ import {
   shouldServeVisualPageHtml,
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
-import { pwResolveCoordinateDevice } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
+export { inferLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-live-visual-request-device'
 
 /** `?pw-device=` from Sửa nhanh → Xem. Every page must serve the file that device saved. */
 export type PartnerSiteSearchParams =
@@ -161,22 +163,7 @@ export async function PartnerSiteVisualHtmlScreen({
     return bindLiveCategorySurfacesInHtml(cached, liveCategoryBind)
   }
 
-  const requestViewportWidth = Number(
-    headerStore.get('sec-ch-viewport-width') || headerStore.get('viewport-width') || 0
-  )
-  const requestDpr = Number(headerStore.get('sec-ch-dpr') || 0)
-  const userAgent = headerStore.get('user-agent') || ''
-  const inferredRequestDevice = Number.isFinite(requestViewportWidth) && requestViewportWidth > 0
-    ? pwResolveCoordinateDevice({
-        outerWidth: requestViewportWidth,
-        layoutWidth: requestViewportWidth,
-        devicePixelRatio: requestDpr,
-      })
-    : /ipad|tablet|kindle|silk/i.test(userAgent)
-      ? 'tablet'
-      : /mobile|iphone|ipod|android/i.test(userAgent)
-        ? 'mobile'
-        : 'desktop'
+  const inferredRequestDevice = inferLiveVisualRequestDevice()
 
   const bindLive = (source: string) =>
     liveProduct
@@ -263,10 +250,14 @@ type PartnerVisualSite = Pick<
   | 'renderMode'
 >
 
-function withFilledVisualDevices(site: PartnerVisualSite, target: PartnerVisualHtmlTarget) {
+function withFilledVisualDevices(
+  site: PartnerVisualSite,
+  target: PartnerVisualHtmlTarget,
+  device: VisualDeviceVariant
+) {
   if (site.renderMode !== 'template') return site
   const filled = fillMissingShopVisualDeviceFiles({
-    project: site.project,
+    project: site.project ?? { entryPath: 'index.html', files: [] },
     theme: site.theme,
     pages: site.pages,
     locale: site.locale,
@@ -277,6 +268,7 @@ function withFilledVisualDevices(site: PartnerVisualSite, target: PartnerVisualH
     chatPath: site.chatPath,
     htmlSource: site.htmlSource,
     pageKeys: pageKeysForVisualTarget(target),
+    devices: [device],
   })
   return {
     ...site,
@@ -289,25 +281,27 @@ function withFilledVisualDevices(site: PartnerVisualSite, target: PartnerVisualH
 function resolveVisualTargetForScreen(
   site: PartnerVisualSite,
   target: PartnerVisualHtmlTarget,
-  device?: VisualDeviceVariant | null
+  device: VisualDeviceVariant
 ): {
   html: string
-  htmlByDevice?: PartnerVisualHtmlByDevice
-  sourceDevice?: VisualDeviceVariant
+  sourceDevice: VisualDeviceVariant
 } | null {
-  const website = withFilledVisualDevices(site, target)
-  const variants = resolvePartnerVisualHtmlVariantsForTarget(website, target)
-  if (device) {
-    const selected = selectPartnerVisualHtmlDevice(variants, device)
-    return selected
-      ? { html: selected.html, sourceDevice: selected.sourceDevice }
-      : null
-  }
-  const initial = selectPartnerVisualHtmlDevice(variants, 'desktop')
-  return initial ? { html: initial.html, htmlByDevice: variants } : null
+  const website = withFilledVisualDevices(site, target, device)
+  const selected = resolvePartnerVisualHtmlForDevice(website, target, device)
+  return selected ? { html: selected.html, sourceDevice: selected.sourceDevice } : null
 }
 
-export function maybePartnerSiteVisualPage(
+async function loadVisualTargetForScreen(
+  site: PartnerVisualSite,
+  target: PartnerVisualHtmlTarget,
+  device?: VisualDeviceVariant | null
+) {
+  const requested = device || inferLiveVisualRequestDevice()
+  const loaded = await ensureLiveVisualWebsite(site, target, requested)
+  return resolveVisualTargetForScreen(loaded, target, requested)
+}
+
+export async function maybePartnerSiteVisualPage(
   site: PartnerVisualSite,
   pageKey: PartnerWebsitePageKey,
   device?: VisualDeviceVariant | null,
@@ -318,51 +312,48 @@ export function maybePartnerSiteVisualPage(
   }
 ) {
   if (!shouldServeVisualPageHtml(pageKey)) return null
-  const resolved = resolveVisualTargetForScreen(site, { kind: 'page', pageKey }, device)
+  const resolved = await loadVisualTargetForScreen(site, { kind: 'page', pageKey }, device)
   if (!resolved) return null
   return (
     <PartnerSiteVisualHtmlScreen
       site={site}
       html={resolved.html}
-      htmlByDevice={resolved.htmlByDevice}
-      device={device ? resolved.sourceDevice : null}
+      device={resolved.sourceDevice}
       infoSeo={{ pageKey, ...infoSeo }}
     />
   )
 }
 
-export function maybePartnerSiteVisualCategoryPage(
+export async function maybePartnerSiteVisualCategoryPage(
   site: PartnerVisualSite,
   categoryPath: string,
   device?: VisualDeviceVariant | null
 ) {
-  const resolved = resolveVisualTargetForScreen(site, { kind: 'category', categoryPath }, device)
+  const resolved = await loadVisualTargetForScreen(site, { kind: 'category', categoryPath }, device)
   if (!resolved) return null
   return (
     <PartnerSiteVisualHtmlScreen
       site={site}
       html={resolved.html}
-      htmlByDevice={resolved.htmlByDevice}
-      device={device ? resolved.sourceDevice : null}
+      device={resolved.sourceDevice}
       infoSeo={{ cmsSlug: `c:${categoryPath}` }}
     />
   )
 }
 
-export function maybePartnerSiteVisualProductPage(
+export async function maybePartnerSiteVisualProductPage(
   site: PartnerVisualSite,
   productId: string,
   device?: VisualDeviceVariant | null,
   product?: LivePdpBindProduct | null
 ) {
-  const resolved = resolveVisualTargetForScreen(site, { kind: 'product', productId }, device)
+  const resolved = await loadVisualTargetForScreen(site, { kind: 'product', productId }, device)
   if (!resolved) return null
   return (
     <PartnerSiteVisualHtmlScreen
       site={site}
       html={resolved.html}
-      htmlByDevice={resolved.htmlByDevice}
-      device={device ? resolved.sourceDevice : null}
+      device={resolved.sourceDevice}
       infoSeo={{ pageKey: 'product_detail' }}
       skipHtmlCache
       liveProduct={product || null}
@@ -370,7 +361,7 @@ export function maybePartnerSiteVisualProductPage(
   )
 }
 
-export function maybePartnerSiteVisualCmsPage(
+export async function maybePartnerSiteVisualCmsPage(
   site: PartnerVisualSite,
   cmsSlug: string,
   device?: VisualDeviceVariant | null,
@@ -380,14 +371,13 @@ export function maybePartnerSiteVisualCmsPage(
     noIndex?: boolean
   }
 ) {
-  const resolved = resolveVisualTargetForScreen(site, { kind: 'cms', cmsSlug }, device)
+  const resolved = await loadVisualTargetForScreen(site, { kind: 'cms', cmsSlug }, device)
   if (!resolved) return null
   return (
     <PartnerSiteVisualHtmlScreen
       site={site}
       html={resolved.html}
-      htmlByDevice={resolved.htmlByDevice}
-      device={device ? resolved.sourceDevice : null}
+      device={resolved.sourceDevice}
       infoSeo={{ cmsSlug, ...infoSeo }}
     />
   )

@@ -1,11 +1,13 @@
 import { bindLiveCategorySurfacesInHtml, type LiveCategoryBind } from '@/lib/partner-website/shop/bind-live-nav-pills'
 import { loadSiteLiveCategoryBind } from '@/lib/partner-website/shop/load-site-live-category-bind'
+import { ensureLiveHomeChromeWebsite } from '@/lib/partner-website/shop/load-live-visual-website'
 import {
   visualHomeChromeShellProps,
   type VisualHomeChromeByDevice,
   type VisualHomeChromeWebsite,
 } from '@/lib/partner-website/shop/visual-home-chrome'
 import type { SharedChrome } from '@/lib/partner-website/shop/sync-shared-chrome'
+import { inferLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-live-visual-request-device'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
 function bindSharedChromeNav(chrome: SharedChrome | null, bind: LiveCategoryBind | null): SharedChrome | null {
@@ -28,7 +30,27 @@ export async function liveVisualHomeChromeShellProps(
   initialNavRow: LiveCategoryBind['navRow']
   initialShowNavAll: boolean
 }> {
-  const props = visualHomeChromeShellProps(website, previewDevice)
+  const device = previewDevice || inferLiveVisualRequestDevice()
+  const siteWithHome = website.siteSlug
+    ? await ensureLiveHomeChromeWebsite(
+        {
+          siteSlug: website.siteSlug,
+          project: website.project,
+          htmlSource: website.htmlSource,
+          theme: website.theme,
+        },
+        device
+      )
+    : website
+  const props = visualHomeChromeShellProps(
+    {
+      ...website,
+      project: siteWithHome.project ?? website.project,
+      htmlSource: siteWithHome.htmlSource ?? website.htmlSource,
+      theme: siteWithHome.theme ?? website.theme,
+    },
+    device
+  )
   const bind = website.siteSlug ? await loadSiteLiveCategoryBind(website.siteSlug) : null
   if (!bind) {
     return { ...props, initialNavRow: [], initialShowNavAll: false }

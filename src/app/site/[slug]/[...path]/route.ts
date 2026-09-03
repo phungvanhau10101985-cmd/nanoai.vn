@@ -75,12 +75,14 @@ export async function GET(
     return new NextResponse('Not found', { status: 404 })
   }
 
-  const site = await fetchPublishedPartnerWebsiteBySlugPg(slug).catch(() => null)
+  const htmlPath = resolveProjectHtmlPath(segments)
+  const site = await fetchPublishedPartnerWebsiteBySlugPg(slug, {
+    projectFiles: htmlPath ? { paths: [htmlPath], includeAssetFiles: true } : 'none',
+  }).catch(() => null)
   if (!site) {
     return new NextResponse('Not found', { status: 404 })
   }
 
-  const htmlPath = resolveProjectHtmlPath(segments)
   const pageHtml =
     htmlPath && htmlPath !== PARTNER_WEBSITE_SYSTEM_404_PATH
       ? htmlFromProjectFile(site.project, htmlPath)

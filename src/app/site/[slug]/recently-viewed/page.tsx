@@ -44,7 +44,7 @@ export default async function PartnerSiteRecentlyViewedPage({ params, searchPara
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
   const device = await readVisualPreviewDevice(searchParams)
-  const visual = maybePartnerSiteVisualPage(
+  const visual = await maybePartnerSiteVisualPage(
     shop.site,
     'recently_viewed',
     device

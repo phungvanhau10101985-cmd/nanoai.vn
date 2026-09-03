@@ -3,11 +3,11 @@
   "crons": [
     {
       "path": "/api/cron/messaging-inventory-embed-backfill",
-      "schedule": "*/5 * * * *"
+      "schedule": "20 20 * * *"
     },
     {
       "path": "/api/cron/messaging-external-catalog-sync",
-      "schedule": "*/15 * * * *"
+      "schedule": "5 20 * * *"
     },
     {
       "path": "/api/cron/messaging-logo-cleanup",

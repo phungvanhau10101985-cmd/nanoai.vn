@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { fetchPartnerIdsSyncedCatalogTodayVnFromPg } from '@/lib/db/messaging-partner-inventory-external-sync-pg'
 import { fetchActivePartnerInventoryScanRowsFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
@@ -6,11 +7,11 @@ import { syncPartnerInventoryTextEmbeddings } from '@/lib/messaging/partner-inve
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 300
+export const maxDuration = 600
 
 const PARTNERS_PER_RUN = Math.max(
   1,
-  Math.min(20, parseInt(process.env.MESSAGING_INVENTORY_EMBED_CRON_PARTNERS_PER_RUN || '3', 10) || 3)
+  Math.min(20, parseInt(process.env.MESSAGING_INVENTORY_EMBED_CRON_PARTNERS_PER_RUN || '12', 10) || 12)
 )
 const PARTNER_SCAN_ROWS = Math.max(
   200,
@@ -20,13 +21,15 @@ const LIMIT_PER_PARTNER = Math.max(
   20,
   Math.min(1000, parseInt(process.env.MESSAGING_INVENTORY_EMBED_CRON_LIMIT_PER_PARTNER || '200', 10) || 200)
 )
+/** Dưới maxDuration 600s — lặp batch đến hết SP thiếu vector (đã có thì bỏ qua). */
+const RUN_TIME_BUDGET_MS = 540_000
 
 type EmbedCronGlobal = typeof globalThis & {
   __messagingInventoryEmbedCronRunning?: boolean
   __messagingInventoryEmbedCronStartedAt?: number
 }
 
-const EMBED_CRON_STALE_MS = 10 * 60 * 1000
+const EMBED_CRON_STALE_MS = 12 * 60 * 1000
 
 function isAuthorized(req: NextRequest): boolean {
   const auth = req.headers.get('authorization')?.trim()
@@ -45,6 +48,62 @@ function isAuthorized(req: NextRequest): boolean {
   return candidates.has(token)
 }
 
+async function collectPartnerIds(): Promise<string[] | null> {
+  const todaySynced = await fetchPartnerIdsSyncedCatalogTodayVnFromPg(PARTNERS_PER_RUN)
+  const inventoryRows = await fetchActivePartnerInventoryScanRowsFromPg(PARTNER_SCAN_ROWS)
+  if (inventoryRows === null && todaySynced.length === 0) return null
+
+  const uniquePartnerIds: string[] = []
+  const seen = new Set<string>()
+  for (const pid of todaySynced) {
+    if (!pid || seen.has(pid)) continue
+    seen.add(pid)
+    uniquePartnerIds.push(pid)
+    if (uniquePartnerIds.length >= PARTNERS_PER_RUN) return uniquePartnerIds
+  }
+  for (const row of inventoryRows ?? []) {
+    const pid = String(row.partner_id ?? '').trim()
+    if (!pid || seen.has(pid)) continue
+    seen.add(pid)
+    uniquePartnerIds.push(pid)
+    if (uniquePartnerIds.length >= PARTNERS_PER_RUN) break
+  }
+  return uniquePartnerIds
+}
+
+async function embedPartnerUntilDone(
+  partnerId: string,
+  startedAt: number
+): Promise<{
+  ok: boolean
+  synced?: number
+  failed?: number
+  skipped?: number
+  error?: string
+  batches?: number
+}> {
+  let synced = 0
+  let failed = 0
+  let skipped = 0
+  let batches = 0
+  while (Date.now() - startedAt < RUN_TIME_BUDGET_MS) {
+    const one = await syncPartnerInventoryEmbeddings(partnerId, { limit: LIMIT_PER_PARTNER, force: false })
+    if (!one.ok) return { ok: false, error: one.error, synced, failed, skipped, batches }
+    const oneText = await syncPartnerInventoryTextEmbeddings(partnerId, {
+      limit: LIMIT_PER_PARTNER,
+      force: false,
+    })
+    if (!oneText.ok) return { ok: false, error: oneText.error, synced, failed, skipped, batches }
+    batches += 1
+    synced += one.synced + oneText.synced
+    failed += one.failed + oneText.failed
+    skipped += one.skipped + oneText.skipped
+    const pending = one.synced + one.failed + oneText.synced + oneText.failed
+    if (pending === 0) break
+  }
+  return { ok: true, synced, failed, skipped, batches }
+}
+
 async function handleCron(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -58,34 +117,25 @@ async function handleCron(req: NextRequest) {
   }
 
   const g = globalThis as EmbedCronGlobal
-  const startedAt = g.__messagingInventoryEmbedCronStartedAt ?? 0
+  const startedAtLock = g.__messagingInventoryEmbedCronStartedAt ?? 0
   if (g.__messagingInventoryEmbedCronRunning) {
-    if (Date.now() - startedAt < EMBED_CRON_STALE_MS) {
+    if (Date.now() - startedAtLock < EMBED_CRON_STALE_MS) {
       return NextResponse.json({
         ok: true,
         skipped: true,
         reason: 'already_running',
-        started_at: startedAt || null,
+        started_at: startedAtLock || null,
       })
     }
   }
   g.__messagingInventoryEmbedCronRunning = true
   g.__messagingInventoryEmbedCronStartedAt = Date.now()
+  const startedAt = Date.now()
 
   try {
-    const inventoryRows = await fetchActivePartnerInventoryScanRowsFromPg(PARTNER_SCAN_ROWS)
-    if (inventoryRows === null) {
+    const uniquePartnerIds = await collectPartnerIds()
+    if (uniquePartnerIds === null) {
       return NextResponse.json({ error: 'Failed to load inventory partners from database.' }, { status: 500 })
-    }
-
-    const uniquePartnerIds: string[] = []
-    const seen = new Set<string>()
-    for (const row of inventoryRows) {
-      const pid = String(row.partner_id ?? '').trim()
-      if (!pid || seen.has(pid)) continue
-      seen.add(pid)
-      uniquePartnerIds.push(pid)
-      if (uniquePartnerIds.length >= PARTNERS_PER_RUN) break
     }
 
     const results: Array<{
@@ -95,41 +145,25 @@ async function handleCron(req: NextRequest) {
       failed?: number
       skipped?: number
       error?: string
+      batches?: number
     }> = []
     let totalSynced = 0
     let totalFailed = 0
     let totalSkipped = 0
 
     for (const partnerId of uniquePartnerIds) {
-      const one = await syncPartnerInventoryEmbeddings(partnerId, { limit: LIMIT_PER_PARTNER, force: false })
-      if (!one.ok) {
-        results.push({ partnerId, ok: false, error: one.error })
-        continue
-      }
-      const oneText = await syncPartnerInventoryTextEmbeddings(partnerId, {
-        limit: LIMIT_PER_PARTNER,
-        force: false,
-      })
-      if (!oneText.ok) {
-        results.push({ partnerId, ok: false, error: oneText.error })
-        continue
-      }
-      totalSynced += one.synced + oneText.synced
-      totalFailed += one.failed + oneText.failed
-      totalSkipped += one.skipped + oneText.skipped
-      results.push({
-        partnerId,
-        ok: true,
-        synced: one.synced + oneText.synced,
-        failed: one.failed + oneText.failed,
-        skipped: one.skipped + oneText.skipped,
-      })
+      if (Date.now() - startedAt >= RUN_TIME_BUDGET_MS) break
+      const one = await embedPartnerUntilDone(partnerId, startedAt)
+      results.push({ partnerId, ...one })
+      totalSynced += one.synced ?? 0
+      totalFailed += one.failed ?? 0
+      totalSkipped += one.skipped ?? 0
     }
 
     return NextResponse.json({
       ok: true,
       partners_scanned: uniquePartnerIds.length,
-      limit_per_partner: LIMIT_PER_PARTNER,
+      limit_per_batch: LIMIT_PER_PARTNER,
       total_synced: totalSynced,
       total_failed: totalFailed,
       total_skipped: totalSkipped,

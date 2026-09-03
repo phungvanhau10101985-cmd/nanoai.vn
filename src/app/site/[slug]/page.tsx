@@ -93,7 +93,7 @@ export default async function PartnerSitePublicPage({ params, searchParams }: Pr
   if (!site) notFound()
 
   const previewDevice = await readVisualPreviewDevice(searchParams)
-  const visual = maybePartnerSiteVisualPage(site, 'home', previewDevice)
+  const visual = await maybePartnerSiteVisualPage(site, 'home', previewDevice)
   if (visual) return visual
 
   const useShopHome = isFullLandingV1Template(site) && site.renderMode === 'template'
@@ -157,17 +157,25 @@ export default async function PartnerSitePublicPage({ params, searchParams }: Pr
     )
   }
 
+  const legacy =
+    (site.htmlSource?.trim().length ?? 0) >= 40 || site.project.files.length
+      ? site
+      : (await fetchPublishedPartnerWebsiteBySlugPg(slug, {
+          allowDraft: true,
+          projectFiles: 'full',
+        }).catch(() => null)) || site
+
   const html = renderPartnerWebsiteHtml({
-    project: site.project,
-    htmlSource: site.htmlSource,
-    chatPath: site.chatPath,
-    siteSlug: site.siteSlug,
-    locale: site.locale,
-    facebookPixelId: site.facebookPixelId,
-    ga4MeasurementId: site.ga4MeasurementId,
-    googleAdsId: site.googleAdsId,
-    tiktokPixelId: site.tiktokPixelId,
-    preferHtmlSource: (site.htmlSource?.trim().length ?? 0) >= 40,
+    project: legacy.project,
+    htmlSource: legacy.htmlSource,
+    chatPath: legacy.chatPath,
+    siteSlug: legacy.siteSlug,
+    locale: legacy.locale,
+    facebookPixelId: legacy.facebookPixelId,
+    ga4MeasurementId: legacy.ga4MeasurementId,
+    googleAdsId: legacy.googleAdsId,
+    tiktokPixelId: legacy.tiktokPixelId,
+    preferHtmlSource: (legacy.htmlSource?.trim().length ?? 0) >= 40,
   })
 
   const headerStore = headers()

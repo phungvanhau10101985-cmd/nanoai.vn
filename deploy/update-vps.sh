@@ -418,6 +418,7 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
   AI_SECRET="$(env_read MESSAGING_PARTNER_AI_CRON_SECRET)"
   CRON_SECRET_FALLBACK="$(env_read CRON_SECRET)"
   INV_SECRET="$(env_read MESSAGING_INVENTORY_EMBED_CRON_SECRET)"
+  CATALOG_SECRET="$(env_read MESSAGING_EXTERNAL_CATALOG_CRON_SECRET)"
   LOGO_SECRET="$(env_read MESSAGING_LOGO_CLEANUP_CRON_SECRET)"
   MKT_SECRET="$(env_read MESSAGING_PARTNER_MARKETING_CRON_SECRET)"
   WEDDING_SECRET="$(env_read WEDDING_REMINDER_CRON_SECRET)"
@@ -425,6 +426,7 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
 
   if [[ -z "${AI_SECRET}" ]]; then AI_SECRET="${CRON_SECRET_FALLBACK}"; fi
   if [[ -z "${INV_SECRET}" ]]; then INV_SECRET="${AI_SECRET}"; fi
+  if [[ -z "${CATALOG_SECRET}" ]]; then CATALOG_SECRET="${INV_SECRET}"; fi
   if [[ -z "${LOGO_SECRET}" ]]; then LOGO_SECRET="${AI_SECRET}"; fi
   if [[ -z "${MKT_SECRET}" ]]; then MKT_SECRET="${AI_SECRET}"; fi
   if [[ -z "${PARTNER_SSL_SECRET}" ]]; then PARTNER_SSL_SECRET="${CRON_SECRET_FALLBACK}"; fi
@@ -439,10 +441,17 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
   fi
 
   if [[ -n "${INV_SECRET}" ]]; then
-    # flock: không chồng lượt embed (curl -m 180 khớp batch nhỏ hơn).
-    ensure_cron "messaging-inventory-embed-backfill" "*/5 * * * * flock -n /tmp/nanoai-cron-locks/inventory-embed.lock -c 'curl -fsS -m 180 -X POST http://127.0.0.1:3000/api/cron/messaging-inventory-embed-backfill -H \"Authorization: Bearer ${INV_SECRET}\"' >> /root/logs/inventory-embed-backfill.log 2>&1"
+    # 1 lần/ngày 03:20 VN — backfill vector ảnh/chữ. flock tránh chồng nếu lượt trước chưa xong.
+    ensure_cron "messaging-inventory-embed-backfill" "20 3 * * * flock -n /tmp/nanoai-cron-locks/inventory-embed.lock -c 'curl -fsS -m 600 -X POST http://127.0.0.1:3000/api/cron/messaging-inventory-embed-backfill -H \"Authorization: Bearer ${INV_SECRET}\"' >> /root/logs/inventory-embed-backfill.log 2>&1"
   else
     echo "  Cảnh báo: thiếu secret inventory cron, bỏ qua cron inventory-embed-backfill."
+  fi
+
+  if [[ -n "${CATALOG_SECRET}" ]]; then
+    # 1 lần/ngày 03:05 VN — dò shop tới hạn (engine đã chốt 1 ngày/shop sau giờ VN).
+    ensure_cron "messaging-external-catalog-sync" "5 3 * * * curl -fsS -m 600 -X POST http://127.0.0.1:3000/api/cron/messaging-external-catalog-sync -H \"Authorization: Bearer ${CATALOG_SECRET}\" >> /root/logs/messaging-external-catalog-sync.log 2>&1"
+  else
+    echo "  Cảnh báo: thiếu secret catalog cron, bỏ qua cron messaging-external-catalog-sync."
   fi
 
   if [[ -n "${LOGO_SECRET}" ]]; then
@@ -471,7 +480,7 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
   fi
 
   echo "  Cron hiện tại:"
-  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-logo-cleanup|partner-marketing-campaign|partner-customer-notifications|wedding-reminder|partner-custom-domain-ssl|vision-" || true
+  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-external-catalog-sync|messaging-logo-cleanup|partner-marketing-campaign|partner-customer-notifications|wedding-reminder|partner-custom-domain-ssl|vision-" || true
 else
   echo "  Bỏ qua (DEPLOY_SETUP_CRONS=${DEPLOY_SETUP_CRONS})."
 fi

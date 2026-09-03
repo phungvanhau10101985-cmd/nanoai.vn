@@ -260,15 +260,44 @@ export async function listPublishedPartnerWebsiteSlugsFromPg(limit = 500): Promi
   }
 }
 
-/** Public site homepage — published only. Shop APIs may use allowDraft. */
+export type PartnerWebsiteProjectFilesLoad =
+  | 'none'
+  | 'full'
+  | { paths: string[]; includeAssetFiles?: boolean }
+
+function resolveProjectFilesLoad(load?: PartnerWebsiteProjectFilesLoad): {
+  mode: 'none' | 'full' | 'paths'
+  paths: string[]
+  includeAssetFiles: boolean
+} {
+  if (!load || load === 'none') return { mode: 'none', paths: [], includeAssetFiles: false }
+  if (load === 'full') return { mode: 'full', paths: [], includeAssetFiles: false }
+  const paths = [
+    ...new Set(
+      load.paths
+        .map((path) => path.replace(/\\/g, '/').replace(/^\/+/, '').trim())
+        .filter((path) => Boolean(path) && !path.includes('..'))
+    ),
+  ]
+  if (!paths.length) return { mode: 'none', paths: [], includeAssetFiles: false }
+  return { mode: 'paths', paths, includeAssetFiles: load.includeAssetFiles === true }
+}
+
+/**
+ * Public / live shop row.
+ * Default `projectFiles: 'none'` — do not JSON.parse the whole `project_files_json` (~all pages × 4 devices).
+ * Live HTML must pass the one file path for the page + machine being viewed.
+ * Sửa nhanh / Lưu / chrome sync still use `fetchPartnerWebsiteByPartnerIdPg` (full blob).
+ */
 export async function fetchPublishedPartnerWebsiteBySlugPg(
   siteSlug: string,
-  options?: { allowDraft?: boolean }
+  options?: { allowDraft?: boolean; projectFiles?: PartnerWebsiteProjectFilesLoad }
 ): Promise<PartnerWebsitePublicRow | null> {
   if (!isPgConfigured()) return null
   const slug = siteSlug.trim().toLowerCase()
   if (!slug) return null
   const allowDraft = Boolean(options?.allowDraft)
+  const filesLoad = resolveProjectFilesLoad(options?.projectFiles)
   try {
     const row = await pgQueryOne<{
       partner_id: string
@@ -293,7 +322,34 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
       nav_json: unknown
       footer_json: unknown
     }>(
-      `select w.partner_id::text, w.site_slug, w.title, w.logo_url, w.html_source, w.project_files_json,
+      `select w.partner_id::text, w.site_slug, w.title, w.logo_url,
+              case when $3::text = 'full' then w.html_source else null end as html_source,
+              case
+                when $3::text = 'full' then w.project_files_json
+                when $3::text = 'paths' then jsonb_build_object(
+                  'entryPath', coalesce(w.project_files_json->>'entryPath', 'index.html'),
+                  'files', coalesce((
+                    select jsonb_agg(elem)
+                    from jsonb_array_elements(
+                      case
+                        when jsonb_typeof(w.project_files_json->'files') = 'array'
+                        then w.project_files_json->'files'
+                        when jsonb_typeof(w.project_files_json) = 'array'
+                        then w.project_files_json
+                        else '[]'::jsonb
+                      end
+                    ) elem
+                    where elem->>'path' = any($4::text[])
+                       or (
+                         $5::boolean and (
+                           (elem->>'path') like 'css/%'
+                           or (elem->>'path') like 'js/%'
+                         )
+                       )
+                  ), '[]'::jsonb)
+                )
+                else null
+              end as project_files_json,
               w.render_mode, w.template_id, w.theme_json, w.pages_json, w.locale,
               w.nav_json, w.footer_json,
               p.slug as partner_slug,
@@ -311,7 +367,7 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
          and coalesce(p.is_active, true) = true
          and p.purge_at is null
        limit 1`,
-      [slug, allowDraft]
+      [slug, allowDraft, filesLoad.mode, filesLoad.paths, filesLoad.includeAssetFiles]
     )
     if (!row) return null
     const templateFields = mapTemplateFieldsFromDb(row)
@@ -340,6 +396,10 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
       tiktokPixelId: row.tiktok_pixel_id,
       gtmContainerId: row.gtm_container_id,
       defaultCurrency: String(row.default_currency ?? 'VND').trim().toUpperCase() || 'VND',
+    }
+
+    if (filesLoad.mode !== 'full') {
+      return { ...publicMeta, htmlSource: row.html_source?.trim() || '' }
     }
 
     const visualHtml = resolveExactVisualHomepageHtml({

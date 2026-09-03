@@ -44,7 +44,7 @@ export default async function PartnerSiteWishlistPage({ params, searchParams }: 
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
   const device = await readVisualPreviewDevice(searchParams)
-  const visual = maybePartnerSiteVisualPage(
+  const visual = await maybePartnerSiteVisualPage(
     shop.site,
     'wishlist',
     device

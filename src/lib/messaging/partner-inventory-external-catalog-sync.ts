@@ -122,10 +122,10 @@ const FETCH_CONCURRENCY = Math.max(
 )
 /** API incremental của 188 quy định `limit=500`. */
 const INCREMENTAL_PAGE_LIMIT = 500
-/** Giới hạn số trang initial sync trong một lượt cron để luôn có checkpoint trước maxDuration 600s. */
+/** Một lượt đêm: đủ trang để kéo hết SP mới (500/trang). Checkpoint nếu hết giờ route. */
 const INITIAL_SYNC_PAGES_PER_RUN = Math.max(
   1,
-  Math.min(25, parseInt(process.env.EXTERNAL_CATALOG_INITIAL_SYNC_PAGES_PER_RUN || '10', 10) || 10)
+  Math.min(200, parseInt(process.env.EXTERNAL_CATALOG_INITIAL_SYNC_PAGES_PER_RUN || '80', 10) || 80)
 )
 /**
  * Ngưỡng an toàn cho toàn bộ vòng lặp tải trang — phải nhỏ hơn `maxDuration` của route gọi hàm này
@@ -764,7 +764,17 @@ export async function runPartnerExternalCatalogSyncJob(params: {
   }
 
   const deferEmbeddings = params.deferEmbeddings !== false
-  const batch = await upsertPartnerInventoryRemarketingIncrementalBatch(partnerId, rows, {
+  const existingRemarketing = new Set<string>()
+  for (const row of listed.rows) {
+    const k = inventoryRemarketingMatchKey(row.remarketing_id)
+    if (k) existingRemarketing.add(k)
+  }
+  /** Mã đã có trong kho NanoAI: bỏ qua (không ghi đè). Chỉ insert mã mới + xóa theo cờ xóa của web khách. */
+  const newRows = rows.filter((row) => {
+    const k = inventoryRemarketingMatchKey(row.remarketing_id)
+    return Boolean(k && !existingRemarketing.has(k))
+  })
+  const batch = await upsertPartnerInventoryRemarketingIncrementalBatch(partnerId, newRows, {
     existingRows: listed.rows,
     deferEmbeddings,
     deleteRemarketingIds: deletedRemarketingIds,

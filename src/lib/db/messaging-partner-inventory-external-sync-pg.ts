@@ -254,6 +254,30 @@ export async function updatePartnerExternalCatalogInitialSyncProgressFromPg(
   }
 }
 
+/** Shop vừa đồng bộ catalog hôm nay (giờ VN) — cron embed 03:20 ưu tiên các shop này. */
+export async function fetchPartnerIdsSyncedCatalogTodayVnFromPg(limit = 20): Promise<string[]> {
+  if (!isPgConfigured()) return []
+  const lim = Math.max(1, Math.min(50, Math.floor(limit) || 20))
+  try {
+    const rows = await pgQuery<{ partner_id: string }>(
+      `select partner_id::text as partner_id
+       from public.messaging_partner_inventory_external_sync_settings
+       where catalog_last_sync_at is not null
+         and (catalog_last_sync_at at time zone 'Asia/Ho_Chi_Minh')::date
+             = (now() at time zone 'Asia/Ho_Chi_Minh')::date
+       order by catalog_last_sync_at desc
+       limit $1`,
+      [lim]
+    )
+    return rows.map((r) => String(r.partner_id ?? '').trim()).filter(Boolean)
+  } catch (e) {
+    const err = e as { code?: string }
+    if (err.code === '42P01' || err.code === '42703') return []
+    console.warn('[fetchPartnerIdsSyncedCatalogTodayVnFromPg]', e)
+    return []
+  }
+}
+
 /** Shop cần chạy cron: initial sync chưa xong hoặc đã tới lịch incremental theo ngày Việt Nam. */
 export async function fetchPartnerIdsDueForExternalCatalogSyncFromPg(
   limit: number

@@ -95,7 +95,7 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
   const device = await readVisualPreviewDevice(searchParams)
   const relatedCtx = await resolveRelatedProductContext(shop.partnerId, row.id)
 
-  const visual = maybePartnerSiteVisualProductPage(
+  const visual = await maybePartnerSiteVisualProductPage(
     shop.site,
     row.id,
     device,

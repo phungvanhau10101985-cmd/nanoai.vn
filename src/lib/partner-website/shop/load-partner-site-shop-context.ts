@@ -21,7 +21,11 @@ async function loadPartnerSiteShopContextUncached(siteSlug: string): Promise<Par
   const slug = siteSlug.trim().toLowerCase()
   if (!slug) return null
   // Draft sites must resolve too: studio preview + catalog/cart hooks run before Publish.
-  const site = await fetchPublishedPartnerWebsiteBySlugPg(slug, { allowDraft: true })
+  // APIs only need partnerId + theme_json — never pull the whole project_files_json blob.
+  const site = await fetchPublishedPartnerWebsiteBySlugPg(slug, {
+    allowDraft: true,
+    projectFiles: 'none',
+  })
   if (!site) return null
   const partner = await resolveActiveMessagingPartnerBySlug(site.partnerSlug)
   if (!partner) return null
