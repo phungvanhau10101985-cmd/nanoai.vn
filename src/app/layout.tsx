@@ -364,6 +364,7 @@ export default async function RootLayout({
     !currentPathname.startsWith("/support-chat") &&
     !currentPathname.startsWith("/hospitality/") &&
     !currentPathname.startsWith("/dashboard/hospitality") &&
+    !currentPathname.startsWith("/dashboard/messaging/inbox") &&
     !currentPathname.startsWith("/thiep-moi-cuoi/");
   const shouldRenderGlobalMetaPixel =
     Boolean(facebookPixelId) &&

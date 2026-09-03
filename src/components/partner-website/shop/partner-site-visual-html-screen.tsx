@@ -25,6 +25,7 @@ import { loadSiteLiveCategoryBind } from '@/lib/partner-website/shop/load-site-l
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import type { PartnerSiteInfoPageKey } from '@/lib/partner-website/shop/partner-site-shop-info-pages'
+import { fillMissingShopVisualDeviceFiles } from '@/lib/partner-website/shop/seed-shop-template-visual-website'
 import {
   parseVisualDeviceQuery,
   shouldServeVisualPageHtml,
@@ -238,11 +239,55 @@ export async function PartnerSiteVisualHtmlScreen({
   )
 }
 
+function pageKeysForVisualTarget(target: PartnerVisualHtmlTarget): PartnerWebsitePageKey[] {
+  if (target.kind === 'page') {
+    return target.pageKey === 'home' ? ['home'] : ['home', target.pageKey]
+  }
+  if (target.kind === 'product') return ['home', 'product_detail']
+  if (target.kind === 'category') return ['home', 'collection']
+  return ['home']
+}
+
+type PartnerVisualSite = Pick<
+  PartnerWebsitePublicRow,
+  | 'theme'
+  | 'project'
+  | 'htmlSource'
+  | 'pages'
+  | 'locale'
+  | 'siteSlug'
+  | 'title'
+  | 'logoUrl'
+  | 'templateId'
+  | 'chatPath'
+  | 'renderMode'
+>
+
+function withFilledVisualDevices(site: PartnerVisualSite, target: PartnerVisualHtmlTarget) {
+  if (site.renderMode !== 'template') return site
+  const filled = fillMissingShopVisualDeviceFiles({
+    project: site.project,
+    theme: site.theme,
+    pages: site.pages,
+    locale: site.locale,
+    siteSlug: site.siteSlug,
+    brand: site.title,
+    logoUrl: site.logoUrl,
+    templateId: site.templateId,
+    chatPath: site.chatPath,
+    htmlSource: site.htmlSource,
+    pageKeys: pageKeysForVisualTarget(target),
+  })
+  return {
+    ...site,
+    project: filled.project,
+    theme: filled.theme,
+    htmlSource: filled.htmlSource || site.htmlSource,
+  }
+}
+
 function resolveVisualTargetForScreen(
-  site: Pick<
-    PartnerWebsitePublicRow,
-    'theme' | 'project' | 'htmlSource'
-  >,
+  site: PartnerVisualSite,
   target: PartnerVisualHtmlTarget,
   device?: VisualDeviceVariant | null
 ): {
@@ -250,7 +295,8 @@ function resolveVisualTargetForScreen(
   htmlByDevice?: PartnerVisualHtmlByDevice
   sourceDevice?: VisualDeviceVariant
 } | null {
-  const variants = resolvePartnerVisualHtmlVariantsForTarget(site, target)
+  const website = withFilledVisualDevices(site, target)
+  const variants = resolvePartnerVisualHtmlVariantsForTarget(website, target)
   if (device) {
     const selected = selectPartnerVisualHtmlDevice(variants, device)
     return selected
@@ -262,10 +308,7 @@ function resolveVisualTargetForScreen(
 }
 
 export function maybePartnerSiteVisualPage(
-  site: Pick<
-    PartnerWebsitePublicRow,
-    'theme' | 'project' | 'htmlSource' | 'siteSlug' | 'title' | 'logoUrl' | 'locale' | 'chatPath'
-  >,
+  site: PartnerVisualSite,
   pageKey: PartnerWebsitePageKey,
   device?: VisualDeviceVariant | null,
   infoSeo?: {
@@ -289,10 +332,7 @@ export function maybePartnerSiteVisualPage(
 }
 
 export function maybePartnerSiteVisualCategoryPage(
-  site: Pick<
-    PartnerWebsitePublicRow,
-    'theme' | 'project' | 'htmlSource' | 'siteSlug' | 'title' | 'logoUrl' | 'locale' | 'chatPath'
-  >,
+  site: PartnerVisualSite,
   categoryPath: string,
   device?: VisualDeviceVariant | null
 ) {
@@ -310,10 +350,7 @@ export function maybePartnerSiteVisualCategoryPage(
 }
 
 export function maybePartnerSiteVisualProductPage(
-  site: Pick<
-    PartnerWebsitePublicRow,
-    'theme' | 'project' | 'htmlSource' | 'siteSlug' | 'title' | 'logoUrl' | 'locale' | 'chatPath'
-  >,
+  site: PartnerVisualSite,
   productId: string,
   device?: VisualDeviceVariant | null,
   product?: LivePdpBindProduct | null
@@ -334,10 +371,7 @@ export function maybePartnerSiteVisualProductPage(
 }
 
 export function maybePartnerSiteVisualCmsPage(
-  site: Pick<
-    PartnerWebsitePublicRow,
-    'theme' | 'project' | 'htmlSource' | 'siteSlug' | 'title' | 'logoUrl' | 'locale' | 'chatPath'
-  >,
+  site: PartnerVisualSite,
   cmsSlug: string,
   device?: VisualDeviceVariant | null,
   infoSeo?: {

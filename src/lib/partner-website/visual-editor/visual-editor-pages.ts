@@ -619,6 +619,10 @@ function readExactVisualPageHtml(
     if (file.length >= 40 && (visualHomeFlagForVariant(website.theme, variant) || htmlHasPartnerVisualChrome(file))) {
       return file
     }
+    const composed = pickDesktopHomeHtml(website)
+    if (composed.length >= 40 && extractDeviceWrapperBody(composed, variant)) {
+      return isolateVisualHtmlForDevice(composed, variant)
+    }
     return ''
   }
   const keys = visualPageKeysForVariant(website.theme, variant)
@@ -626,6 +630,10 @@ function readExactVisualPageHtml(
   if (keys.includes(pageKey)) return file
   if (looksLikeSavedVisualDocument(file)) return file
   if (pageKey === 'product_detail' && file.length >= 40) return file
+  const composed = readVisualHtmlFile(website, pageKey, 'desktop')
+  if (composed.length >= 40 && extractDeviceWrapperBody(composed, variant)) {
+    return isolateVisualHtmlForDevice(composed, variant)
+  }
   return ''
 }
 

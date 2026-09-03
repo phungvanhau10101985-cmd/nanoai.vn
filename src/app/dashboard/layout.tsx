@@ -14,7 +14,7 @@ export const metadata: Metadata = buildMetadata({
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <StepUpOtpProvider scope="account">
-      <div className="container max-w-screen-2xl space-y-4 py-4">
+      <div className="container max-w-screen-2xl space-y-4 py-4 [:is(html[data-shop-inbox])_&]:max-md:flex [:is(html[data-shop-inbox])_&]:max-md:h-[calc(100dvh-var(--site-header-height,3rem)-4.75rem)] [:is(html[data-shop-inbox])_&]:max-md:min-h-0 [:is(html[data-shop-inbox])_&]:max-md:flex-col [:is(html[data-shop-inbox])_&]:max-md:overflow-hidden [:is(html[data-shop-inbox])_&]:max-md:space-y-1 [:is(html[data-shop-inbox])_&]:max-md:px-2 [:is(html[data-shop-inbox])_&]:max-md:py-1">
         <StepUpStatusBanner />
         {children}
       </div>

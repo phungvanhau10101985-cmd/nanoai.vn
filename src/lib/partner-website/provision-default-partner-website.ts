@@ -11,6 +11,7 @@ import { validatePartnerWebsiteSlug } from '@/lib/partner-website/partner-websit
 import { syncPartnerWebsiteFullLandingPg } from '@/lib/partner-website/sync-partner-website-full-landing'
 import { maybeSeedShopDemoInventoryOnWebsiteCreate } from '@/lib/messaging/seed-shop-demo-inventory'
 import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-landing-v1-template'
+import { seedShopTemplateVisualWebsite } from '@/lib/partner-website/shop/seed-shop-template-visual-website'
 
 /**
  * Ensures each messaging partner has a full template landing (landing-v1) ready to use.
@@ -56,6 +57,17 @@ export async function ensureDefaultPartnerWebsitePg(input: {
   })
   const project = syncTemplateToProject(templateSite)
   const chatPath = `/messaging/p/${encodeURIComponent(partner.slug)}`
+  const seeded = seedShopTemplateVisualWebsite({
+    project,
+    theme: templateSite.theme,
+    pages: templateSite.pages,
+    locale: input.locale,
+    siteSlug: siteSlugRaw,
+    brand: title,
+    logoUrl: partner.logoUrl,
+    templateId: templateSite.templateId,
+    chatPath,
+  })
 
   const saved = await upsertPartnerWebsitePg({
     partnerId: pid,
@@ -66,9 +78,10 @@ export async function ensureDefaultPartnerWebsitePg(input: {
     referenceImageUrls: [],
     renderMode: 'template',
     templateId: templateSite.templateId,
-    theme: templateSite.theme,
+    theme: seeded.theme,
     pages: templateSite.pages,
-    project,
+    project: seeded.project,
+    htmlSource: seeded.htmlSource,
     locale: input.locale,
     skipRevision: true,
     changeNote: 'auto_provision_default_landing',

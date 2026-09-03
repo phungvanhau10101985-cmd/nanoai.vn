@@ -5,7 +5,10 @@ import type {
   PartnerWebsitePage,
   PartnerWebsiteTheme,
 } from '@/lib/partner-website/template/partner-website-template-types'
-import { BLANK_SHOP_VISUAL_PAGE_KEYS } from '@/lib/partner-website/shop/build-blank-shop-visual-html'
+import {
+  BLANK_SHOP_VISUAL_PAGE_KEYS,
+  seedBlankShopVisualWebsite,
+} from '@/lib/partner-website/shop/build-blank-shop-visual-html'
 import { buildShopTemplatePageVisualHtml } from '@/lib/partner-website/shop/build-shop-template-page-visual-html'
 import { buildDefaultDemoPdpShellHtml } from '@/lib/partner-website/shop/build-default-demo-pdp-shell-html'
 import { ensureFullPartnerSiteFooterInHtml } from '@/lib/partner-website/shop/build-partner-site-footer-html'
@@ -13,6 +16,7 @@ import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/par
 import { stampPartnerShopEditorHooksInHtml } from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
 import { applySharedChrome, extractSharedChrome } from '@/lib/partner-website/shop/sync-shared-chrome'
 import { renderTemplateSiteToHtml } from '@/lib/partner-website/template/render-template-html'
+import { visualHtmlLooksCompleteForEditor } from '@/lib/partner-website/visual-editor/visual-html-detect'
 import {
   applyVisualEditThemeFlag,
   ensureVisualHtmlLiveReady,
@@ -84,6 +88,39 @@ export function buildShopTemplateHomeVisualHtml(input: {
   return finishVisualHtml(raw, input.variant, input)
 }
 
+function completeVisualHtml(html: string): string {
+  const trimmed = html.trim()
+  return trimmed.length >= 40 && visualHtmlLooksCompleteForEditor(trimmed) ? trimmed : ''
+}
+
+function readProjectVisualHtml(
+  project: PartnerWebsiteProject,
+  pageKey: PartnerWebsitePageKey,
+  variant: VisualDeviceVariant
+): string {
+  const path = visualEditorHtmlPath(pageKey, variant)
+  const file = project.files.find((item) => item.path === path && item.kind === 'html')
+  return completeVisualHtml(file?.content || '')
+}
+
+function composedDeviceSlice(html: string, variant: VisualDeviceVariant): string {
+  if (!html.trim() || !new RegExp(`data-pw-visual-device=["']${variant}["']`, 'i').test(html)) return ''
+  return completeVisualHtml(isolateVisualHtmlForDevice(html, variant))
+}
+
+function visualDeviceFlagSnapshot(theme: PartnerWebsiteTheme): string {
+  return [
+    theme.useVisualHtml ? 'd' : '',
+    theme.useVisualLaptopHtml ? 'l' : '',
+    theme.useVisualTabletHtml ? 't' : '',
+    theme.useVisualMobileHtml ? 'm' : '',
+    (theme.visualPageKeys ?? []).join(','),
+    (theme.visualLaptopPageKeys ?? []).join(','),
+    (theme.visualTabletPageKeys ?? []).join(','),
+    (theme.visualMobilePageKeys ?? []).join(','),
+  ].join('|')
+}
+
 function buildShopTemplatePdpVisualHtml(input: {
   variant: VisualDeviceVariant
   locale: WebLocale
@@ -118,13 +155,37 @@ export function seedShopTemplateVisualWebsite(input: {
   logoUrl?: string | null
   templateId: string
   chatPath?: string
-}): { project: PartnerWebsiteProject; theme: PartnerWebsiteTheme; htmlSource: string } {
+  htmlSource?: string | null
+  /** Keep already-saved device files (Đăng web / live). Full seed overwrites. */
+  onlyMissing?: boolean
+  pageKeys?: PartnerWebsitePageKey[]
+}): { project: PartnerWebsiteProject; theme: PartnerWebsiteTheme; htmlSource: string; changed: boolean } {
+  const onlyMissing = input.onlyMissing === true
+  const pageKeys = input.pageKeys?.length ? input.pageKeys : SHOP_TEMPLATE_VISUAL_PAGE_KEYS
   let project = input.project
   let theme = { ...input.theme }
-  let htmlSource = ''
+  const flagsBefore = visualDeviceFlagSnapshot(theme)
+  let htmlSource = completeVisualHtml(input.htmlSource || '')
+  let changed = false
   const homeByVariant = {} as Record<VisualDeviceVariant, string>
+  const desktopHomeExisting =
+    readProjectVisualHtml(project, 'home', 'desktop') || completeVisualHtml(input.htmlSource || '')
 
   for (const variant of VISUAL_DEVICE_VARIANTS) {
+    const existing = readProjectVisualHtml(project, 'home', variant)
+    const fromComposed =
+      !existing && onlyMissing ? composedDeviceSlice(desktopHomeExisting, variant) : ''
+    const kept = existing || fromComposed
+    if (onlyMissing && kept) {
+      homeByVariant[variant] = kept
+      if (fromComposed) {
+        project = mergeVisualPageHtmlIntoProject(project, fromComposed, visualEditorHtmlPath('home', variant))
+        changed = true
+      }
+      theme = applyVisualEditThemeFlag(theme, { pageKey: 'home', variant })
+      if (variant === 'desktop' && !htmlSource) htmlSource = kept
+      continue
+    }
     const home = buildShopTemplateHomeVisualHtml({
       variant,
       locale: input.locale,
@@ -139,12 +200,26 @@ export function seedShopTemplateVisualWebsite(input: {
     homeByVariant[variant] = home
     project = mergeVisualPageHtmlIntoProject(project, home, visualEditorHtmlPath('home', variant))
     theme = applyVisualEditThemeFlag(theme, { pageKey: 'home', variant })
-    if (variant === 'desktop') htmlSource = home
+    changed = true
+    if (variant === 'desktop') htmlSource = htmlSource || home
   }
 
-  for (const pageKey of SHOP_TEMPLATE_VISUAL_PAGE_KEYS) {
+  for (const pageKey of pageKeys) {
     if (pageKey === 'home') continue
+    const desktopPageExisting = readProjectVisualHtml(project, pageKey, 'desktop')
     for (const variant of VISUAL_DEVICE_VARIANTS) {
+      const existing = readProjectVisualHtml(project, pageKey, variant)
+      const fromComposed =
+        !existing && onlyMissing ? composedDeviceSlice(desktopPageExisting, variant) : ''
+      const kept = existing || fromComposed
+      if (onlyMissing && kept) {
+        if (fromComposed) {
+          project = mergeVisualPageHtmlIntoProject(project, fromComposed, visualEditorHtmlPath(pageKey, variant))
+          changed = true
+        }
+        theme = applyVisualEditThemeFlag(theme, { pageKey, variant })
+        continue
+      }
       const homeHtml = homeByVariant[variant]
       const html =
         pageKey === 'product_detail'
@@ -173,8 +248,59 @@ export function seedShopTemplateVisualWebsite(input: {
             )
       project = mergeVisualPageHtmlIntoProject(project, html, visualEditorHtmlPath(pageKey, variant))
       theme = applyVisualEditThemeFlag(theme, { pageKey, variant })
+      changed = true
     }
   }
 
-  return { project, theme, htmlSource }
+  return {
+    project,
+    theme,
+    htmlSource,
+    changed: changed || visualDeviceFlagSnapshot(theme) !== flagsBefore,
+  }
+}
+
+/**
+ * Đăng web / live: create any missing device files from factory (or split a composed document).
+ * Never overwrite a machine the merchant already saved.
+ */
+export function fillMissingShopVisualDeviceFiles(input: {
+  project: PartnerWebsiteProject
+  theme: PartnerWebsiteTheme
+  pages?: PartnerWebsitePage[]
+  locale: WebLocale
+  siteSlug: string
+  brand: string
+  logoUrl?: string | null
+  templateId?: string
+  chatPath?: string
+  htmlSource?: string | null
+  pageKeys?: PartnerWebsitePageKey[]
+}): { project: PartnerWebsiteProject; theme: PartnerWebsiteTheme; htmlSource: string; changed: boolean } {
+  if (input.templateId === 'blank-white') {
+    return seedBlankShopVisualWebsite({
+      project: input.project,
+      theme: input.theme,
+      locale: input.locale,
+      siteSlug: input.siteSlug,
+      brand: input.brand,
+      htmlSource: input.htmlSource,
+      onlyMissing: true,
+      pageKeys: input.pageKeys,
+    })
+  }
+  return seedShopTemplateVisualWebsite({
+    project: input.project,
+    theme: input.theme,
+    pages: input.pages ?? [],
+    locale: input.locale,
+    siteSlug: input.siteSlug,
+    brand: input.brand,
+    logoUrl: input.logoUrl,
+    templateId: input.templateId || 'landing-v1',
+    chatPath: input.chatPath,
+    htmlSource: input.htmlSource,
+    onlyMissing: true,
+    pageKeys: input.pageKeys,
+  })
 }

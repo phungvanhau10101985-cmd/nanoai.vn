@@ -13,8 +13,10 @@ import { getShopTemplatePreset } from '@/lib/partner-website/template/shop-templ
 import {
   SHOP_TEMPLATE_VISUAL_PAGE_KEYS,
   buildShopTemplateHomeVisualHtml,
+  fillMissingShopVisualDeviceFiles,
   seedShopTemplateVisualWebsite,
 } from './seed-shop-template-visual-website'
+import { resolvePartnerVisualHtmlVariantsForTarget } from '@/lib/partner-website/shop/render-partner-visual-html'
 
 const preset = getShopTemplatePreset('fashion-orange')
 const site = buildDefaultLandingV1Site({
@@ -121,4 +123,83 @@ test('seedShopTemplateVisualWebsite writes every built-in page for all four devi
   assert.match(about.content, /data-pw-info-title/)
   assert.match(about.content, /data-pw-info-body/)
   assert.match(about.content, /data-pw-text-article="1"/)
+})
+
+test('seeded shop live variants include all four devices', () => {
+  const seeded = seedShopTemplateVisualWebsite({
+    project: { entryPath: 'site.config.json', files: [] },
+    theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, useVisualHtml: false },
+    pages: site.pages,
+    locale: 'vi',
+    siteSlug: 'demo-shop',
+    brand: 'Shop Cam',
+    templateId: preset.templateId,
+  })
+  const variants = resolvePartnerVisualHtmlVariantsForTarget(seeded, { kind: 'page', pageKey: 'home' })
+  for (const device of VISUAL_DEVICE_VARIANTS) {
+    const html = variants[device] || ''
+    assert.ok(html.length >= 40, `${device} must be in live htmlByDevice`)
+    assert.match(html, new RegExp(`data-pw-edit-device="${device}"`))
+  }
+})
+
+test('fillMissingShopVisualDeviceFiles adds other devices without overwriting desktop', () => {
+  const seeded = seedShopTemplateVisualWebsite({
+    project: { entryPath: 'site.config.json', files: [] },
+    theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, useVisualHtml: false },
+    pages: site.pages,
+    locale: 'vi',
+    siteSlug: 'demo-shop',
+    brand: 'Shop Cam',
+    templateId: preset.templateId,
+  })
+  const desktopHome = seeded.project.files.find((f) => f.path === 'index.html')?.content || ''
+  assert.ok(desktopHome)
+  const desktopOnly = {
+    project: {
+      entryPath: 'index.html',
+      files: seeded.project.files.filter(
+        (f) => f.kind !== 'html' || (!f.path.includes('.mobile.') && !f.path.includes('.tablet.') && !f.path.includes('.laptop.'))
+      ),
+    },
+    theme: {
+      ...DEFAULT_PARTNER_WEBSITE_THEME,
+      useVisualHtml: true,
+      useVisualMobileHtml: false,
+      useVisualTabletHtml: false,
+      useVisualLaptopHtml: false,
+    },
+    pages: site.pages,
+    locale: 'vi' as const,
+    siteSlug: 'demo-shop',
+    brand: 'Shop Cam',
+    logoUrl: null,
+    templateId: preset.templateId,
+    htmlSource: desktopHome,
+    pageKeys: ['home' as const],
+  }
+  const filled = fillMissingShopVisualDeviceFiles(desktopOnly)
+  assert.equal(filled.changed, true)
+  assert.equal(filled.theme.useVisualMobileHtml, true)
+  assert.equal(filled.theme.useVisualTabletHtml, true)
+  assert.equal(filled.theme.useVisualLaptopHtml, true)
+  const afterDesktop = filled.project.files.find((f) => f.path === 'index.html')?.content || ''
+  assert.equal(afterDesktop, desktopHome)
+  for (const device of ['laptop', 'tablet', 'mobile'] as const) {
+    const file = filled.project.files.find((f) => f.path === visualEditorHtmlPath('home', device))
+    assert.ok(file, `home ${device} must be filled`)
+    assert.match(file.content, new RegExp(`<html[^>]*data-pw-edit-device="${device}"`))
+    assert.doesNotMatch(file.content, /<html[^>]*data-pw-edit-device="desktop"/)
+  }
+  const again = fillMissingShopVisualDeviceFiles({
+    ...desktopOnly,
+    project: filled.project,
+    theme: filled.theme,
+    htmlSource: filled.htmlSource,
+  })
+  assert.equal(again.changed, false)
+  const variants = resolvePartnerVisualHtmlVariantsForTarget(filled, { kind: 'page', pageKey: 'home' })
+  for (const device of VISUAL_DEVICE_VARIANTS) {
+    assert.ok((variants[device] || '').length >= 40, `${device} live after fill`)
+  }
 })

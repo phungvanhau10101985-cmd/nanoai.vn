@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -171,7 +171,6 @@ export function PartnerMessagingInboxClient({
   const [imageStoragePath, setImageStoragePath] = useState<string | null>(null)
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [composerHeight, setComposerHeight] = useState(0)
   const [inboxQuery, setInboxQuery] = useState('')
   const [shopAiComposing, setShopAiComposing] = useState(false)
   const [createChannelOpen, setCreateChannelOpen] = useState(false)
@@ -183,7 +182,6 @@ export function PartnerMessagingInboxClient({
   const initialConversationRef = useRef<string | null>(initialConversationId)
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
-  const composerRef = useRef<HTMLDivElement>(null)
   const messagesScrollRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const latestMessageCreatedAtRef = useRef<string | null>(null)
@@ -194,12 +192,7 @@ export function PartnerMessagingInboxClient({
   const isMobileLayout = useMatchMediaMaxMd()
 
   const selectedConv = selectedConvId ? conversations.find((c) => c.id === selectedConvId) : undefined
-  const messagesBottomInsetPx = selectedConvId
-    ? Math.max(
-        (composerHeight > 0 ? composerHeight : 120) + (isMobileLayout ? 116 : 28),
-        isMobileLayout ? 196 : 96
-      )
-    : undefined
+  const mobileReadingThread = isMobileLayout && Boolean(selectedConvId)
   const selectedPartner = useMemo(
     () => partners.find((p) => p.id === selectedPartnerId) ?? null,
     [partners, selectedPartnerId]
@@ -390,19 +383,20 @@ export function PartnerMessagingInboxClient({
       .finally(() => setLoadingMsgs(false))
   }, [selectedPartnerId, selectedConvId, toast, refreshAiComposing])
 
-  useLayoutEffect(() => {
-    if (!selectedConvId) {
-      setComposerHeight(0)
-      return
+  useEffect(() => {
+    const html = document.documentElement
+    html.dataset.shopInbox = '1'
+    return () => {
+      delete html.dataset.shopInbox
+      delete html.dataset.shopInboxThread
     }
-    const el = composerRef.current
-    if (!el) return
-    const measure = () => setComposerHeight(el.getBoundingClientRect().height)
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [selectedConvId, imagePreviewUrl, draft, uploading])
+  }, [])
+
+  useEffect(() => {
+    const html = document.documentElement
+    if (mobileReadingThread) html.dataset.shopInboxThread = '1'
+    else delete html.dataset.shopInboxThread
+  }, [mobileReadingThread])
 
   useEffect(() => {
     if (!selectedConvId || loadingMsgs) return
@@ -416,10 +410,11 @@ export function PartnerMessagingInboxClient({
       inboxNearBottomRef.current
     if (!shouldScrollToBottom) return
     forceInboxScrollToBottomRef.current = false
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    const scroller = messagesScrollRef.current
+    if (scroller) scroller.scrollTop = scroller.scrollHeight
     didInitialInboxAutoScrollRef.current = true
     inboxNearBottomRef.current = true
-  }, [messages, selectedConvId, loadingMsgs, shopAiComposing, composerHeight])
+  }, [messages, selectedConvId, loadingMsgs, shopAiComposing])
 
   const uploadPartnerImage = async (file: File) => {
     if (!selectedPartnerId) return
@@ -556,7 +551,7 @@ export function PartnerMessagingInboxClient({
   }
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col gap-1 max-md:gap-1.5">
+    <div className="relative flex h-full min-h-0 flex-col gap-1 max-md:gap-0">
       <Dialog
         open={createChannelOpen}
         onOpenChange={(next) => {
@@ -667,7 +662,7 @@ export function PartnerMessagingInboxClient({
         </DialogContent>
       </Dialog>
 
-      {hotelCount > 0 ? (
+      {hotelCount > 0 && !mobileReadingThread ? (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-300/60 bg-violet-50/60 px-3 py-2 text-xs text-violet-950 dark:border-violet-800/50 dark:bg-violet-950/20 dark:text-violet-100">
           <div className="flex items-center gap-2">
             <Building2 className="h-4 w-4 shrink-0" aria-hidden />
@@ -681,7 +676,7 @@ export function PartnerMessagingInboxClient({
         </div>
       ) : null}
 
-      {selectedPartner?.purge_at ? (
+      {selectedPartner?.purge_at && !mobileReadingThread ? (
         <div className="rounded-lg border border-amber-500/50 bg-amber-50/90 px-3 py-2 text-xs text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="flex-1">{t.deleteWorkspaceScheduledBanner}</p>
@@ -699,7 +694,12 @@ export function PartnerMessagingInboxClient({
         </div>
       ) : null}
 
-      <div className="flex shrink-0 flex-col gap-1.5 border-b border-border/40 pb-1.5 md:flex-row md:flex-wrap md:items-center md:gap-1 md:pb-0.5">
+      <div
+        className={cn(
+          'flex shrink-0 flex-col gap-1.5 border-b border-border/40 pb-1.5 md:flex-row md:flex-wrap md:items-center md:gap-1 md:pb-0.5',
+          mobileReadingThread && 'hidden md:flex'
+        )}
+      >
         <Select
           value={selectedPartnerId ?? undefined}
           onValueChange={(v) => {
@@ -892,7 +892,7 @@ export function PartnerMessagingInboxClient({
           ) : (
             <>
               {selectedConv ? (
-                <div className="flex shrink-0 items-center gap-1 border-b border-border/60 bg-background/95 px-1.5 py-1.5 md:gap-1.5 md:px-2 md:py-1">
+                <div className="flex shrink-0 items-center gap-1 border-b border-border/60 bg-background/95 px-1.5 py-1 md:gap-1.5 md:px-2">
                   <Button
                     type="button"
                     variant="ghost"
@@ -927,11 +927,7 @@ export function PartnerMessagingInboxClient({
               ) : null}
               <div
                 ref={messagesScrollRef}
-                className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-2 py-1.5 touch-pan-y sm:px-2.5"
-                style={{
-                  paddingBottom: messagesBottomInsetPx,
-                  scrollPaddingBottom: messagesBottomInsetPx,
-                }}
+                className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-2 py-1.5 pb-2 touch-pan-y sm:px-2.5 max-md:[&_img]:max-h-36"
                 onScroll={(e) => {
                   const el = e.currentTarget
                   const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
@@ -1005,7 +1001,106 @@ export function PartnerMessagingInboxClient({
                     </span>
                   </div>
                 ) : null}
-                <div ref={messagesEndRef} className="h-px w-full shrink-0 scroll-mt-4" aria-hidden />
+                <div ref={messagesEndRef} className="h-px w-full shrink-0" aria-hidden />
+              </div>
+              <div className="shrink-0 border-t border-border bg-background px-1.5 py-1.5 md:px-2 md:py-1.5">
+                <input
+                  ref={galleryInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="hidden"
+                  onChange={onPickGallery}
+                />
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={onPickCamera}
+                />
+                <div className="rounded-md border border-border bg-card shadow-sm transition-[box-shadow] focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-500/15">
+                  {imagePreviewUrl ? (
+                    <div className="relative border-b border-border/50 bg-muted/30 p-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- local preview blob/object URL */}
+                      <img src={imagePreviewUrl} alt="" className="mx-auto max-h-[4.5rem] rounded object-contain" />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="icon"
+                        className="absolute right-1 top-1 h-6 w-6 rounded-full shadow-sm"
+                        onClick={clearAttachment}
+                        disabled={pending || uploading}
+                        aria-label={t.partnerRemoveAttachmentAria}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : null}
+
+                  {imageStoragePath ? (
+                    <p className="border-b border-border/50 px-2 py-0.5 text-[9px] leading-tight text-muted-foreground">{t.partnerCaptionHint}</p>
+                  ) : null}
+
+                  <div className="relative flex items-end gap-0.5 pr-1">
+                    <Textarea
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onPaste={onReplyPaste}
+                      placeholder={t.replyPlaceholder}
+                      rows={isMobileLayout ? 1 : 2}
+                      className="min-h-[2.25rem] flex-1 resize-none rounded-none border-0 bg-card py-1.5 pl-2 pr-2 text-xs leading-snug text-foreground shadow-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[2.875rem] sm:pr-[5.75rem] sm:pb-8 sm:text-[13px]"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          if (!pending && canSend) send()
+                        }
+                      }}
+                    />
+                    <div className="flex shrink-0 items-center gap-px pb-0.5 sm:pointer-events-none sm:absolute sm:bottom-1 sm:right-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="pointer-events-auto h-7 w-7 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        disabled={uploading || pending}
+                        onClick={() => galleryInputRef.current?.click()}
+                        aria-label={t.partnerAttachPhoto}
+                      >
+                        {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="pointer-events-auto h-7 w-7 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        disabled={uploading || pending}
+                        onClick={() => cameraInputRef.current?.click()}
+                        aria-label={t.partnerTakePhoto}
+                      >
+                        <Camera className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        onClick={send}
+                        disabled={pending || !canSend}
+                        className="pointer-events-auto h-7 w-7 rounded-full bg-gradient-to-br from-violet-600 to-violet-700 text-white shadow-sm hover:from-violet-600/95 hover:to-violet-700/95 disabled:opacity-40"
+                        aria-label={t.send}
+                      >
+                        <Send className="h-3.5 w-3.5" aria-hidden />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="hidden flex-wrap items-center justify-between gap-1 border-t border-border/50 px-2 py-0.5 md:flex">
+                    <p className="min-w-0 flex-1 truncate text-[9px] text-muted-foreground">{t.replyKeyboardHint}</p>
+                    {uploading ? <span className="shrink-0 text-[9px] text-muted-foreground">{t.partnerUploading}</span> : null}
+                  </div>
+                  {uploading ? (
+                    <p className="border-t border-border/50 px-2 py-0.5 text-[9px] text-muted-foreground md:hidden">{t.partnerUploading}</p>
+                  ) : null}
+                </div>
               </div>
             </>
           )}
@@ -1045,119 +1140,6 @@ export function PartnerMessagingInboxClient({
           </div>
         </aside>
       </div>
-
-      {selectedConvId ? (
-        <div
-          ref={composerRef}
-          className="fixed bottom-[5.5rem] left-0 right-0 z-[45] border-t border-border bg-background pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_24px_rgba(0,0,0,0.1)] md:bottom-0"
-        >
-          <div className="mx-auto w-full max-w-7xl px-2 py-1.5 sm:px-3 lg:px-5 xl:px-6">
-            <input
-              ref={galleryInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="hidden"
-              onChange={onPickGallery}
-            />
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={onPickCamera}
-            />
-
-            <div className="grid grid-cols-1 md:grid-cols-[270px_minmax(0,1fr)] lg:grid-cols-[34px_270px_minmax(0,1fr)_250px]">
-              <div className="hidden lg:block" />
-              <div className="hidden md:block" />
-              <div className="min-w-0">
-                {/* Khung soạn tin chỉ nằm trong cột giữa */}
-                <div className="rounded-md border border-border bg-card shadow-sm transition-[box-shadow] focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-500/15">
-                  {imagePreviewUrl ? (
-                    <div className="relative border-b border-border/50 bg-muted/30 p-1">
-                      {/* eslint-disable-next-line @next/next/no-img-element -- local preview blob/object URL */}
-                      <img src={imagePreviewUrl} alt="" className="mx-auto max-h-[4.5rem] rounded object-contain" />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="icon"
-                        className="absolute right-1 top-1 h-6 w-6 rounded-full shadow-sm"
-                        onClick={clearAttachment}
-                        disabled={pending || uploading}
-                        aria-label={t.partnerRemoveAttachmentAria}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ) : null}
-
-                  {imageStoragePath ? (
-                    <p className="border-b border-border/50 px-2 py-0.5 text-[9px] leading-tight text-muted-foreground">{t.partnerCaptionHint}</p>
-                  ) : null}
-
-                  <div className="relative">
-                    <Textarea
-                      value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                      onPaste={onReplyPaste}
-                      placeholder={t.replyPlaceholder}
-                      rows={2}
-                      className="min-h-[2.625rem] resize-none rounded-none border-0 bg-card py-1.5 pl-2 pr-[5.75rem] pb-8 text-xs leading-snug text-foreground shadow-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[2.875rem] sm:text-[13px]"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault()
-                          if (!pending && canSend) send()
-                        }
-                      }}
-                    />
-                    <div className="pointer-events-none absolute bottom-1 right-1 flex items-center gap-px">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="pointer-events-auto h-7 w-7 text-muted-foreground hover:bg-muted hover:text-foreground"
-                        disabled={uploading || pending}
-                        onClick={() => galleryInputRef.current?.click()}
-                        aria-label={t.partnerAttachPhoto}
-                      >
-                        {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="pointer-events-auto h-7 w-7 text-muted-foreground hover:bg-muted hover:text-foreground"
-                        disabled={uploading || pending}
-                        onClick={() => cameraInputRef.current?.click()}
-                        aria-label={t.partnerTakePhoto}
-                      >
-                        <Camera className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        onClick={send}
-                        disabled={pending || !canSend}
-                        className="pointer-events-auto h-7 w-7 rounded-full bg-gradient-to-br from-violet-600 to-violet-700 text-white shadow-sm hover:from-violet-600/95 hover:to-violet-700/95 disabled:opacity-40"
-                        aria-label={t.send}
-                      >
-                        <Send className="h-3.5 w-3.5" aria-hidden />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-1 border-t border-border/50 px-2 py-0.5">
-                    <p className="min-w-0 flex-1 truncate text-[9px] text-muted-foreground">{t.replyKeyboardHint}</p>
-                    {uploading ? <span className="shrink-0 text-[9px] text-muted-foreground">{t.partnerUploading}</span> : null}
-                  </div>
-                </div>
-              </div>
-              <div className="hidden lg:block" />
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   )
 }

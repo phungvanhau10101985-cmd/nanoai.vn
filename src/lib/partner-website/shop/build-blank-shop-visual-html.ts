@@ -13,6 +13,7 @@ import {
   type PartnerSiteInfoPageKey,
 } from '@/lib/partner-website/shop/partner-site-shop-info-pages'
 import { partnerSiteHomePath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { visualHtmlLooksCompleteForEditor } from '@/lib/partner-website/visual-editor/visual-html-detect'
 import {
   PW_EL,
   PW_PAGE,
@@ -24,6 +25,7 @@ import {
 } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import {
   applyVisualEditThemeFlag,
+  isolateVisualHtmlForDevice,
   mergeVisualPageHtmlIntoProject,
   VISUAL_DEVICE_VARIANTS,
   visualEditorHtmlPath,
@@ -167,12 +169,58 @@ export function seedBlankShopVisualWebsite(input: {
   locale: WebLocale
   siteSlug: string
   brand: string
-}): { project: PartnerWebsiteProject; theme: PartnerWebsiteTheme; htmlSource: string } {
+  htmlSource?: string | null
+  onlyMissing?: boolean
+  pageKeys?: PartnerWebsitePageKey[]
+}): { project: PartnerWebsiteProject; theme: PartnerWebsiteTheme; htmlSource: string; changed: boolean } {
+  const onlyMissing = input.onlyMissing === true
+  const pageKeys = input.pageKeys?.length ? input.pageKeys : BLANK_SHOP_VISUAL_PAGE_KEYS
   let project = input.project
   let theme = { ...input.theme }
-  let htmlSource = ''
-  for (const pageKey of BLANK_SHOP_VISUAL_PAGE_KEYS) {
+  const flagsBefore = [
+    theme.useVisualHtml ? 'd' : '',
+    theme.useVisualLaptopHtml ? 'l' : '',
+    theme.useVisualTabletHtml ? 't' : '',
+    theme.useVisualMobileHtml ? 'm' : '',
+  ].join('|')
+  let htmlSource =
+    input.htmlSource?.trim().length && visualHtmlLooksCompleteForEditor(input.htmlSource)
+      ? input.htmlSource.trim()
+      : ''
+  let changed = false
+  const desktopHome =
+    project.files.find((item) => item.path === visualEditorHtmlPath('home', 'desktop') && item.kind === 'html')
+      ?.content ||
+    htmlSource ||
+    ''
+
+  for (const pageKey of pageKeys) {
+    const desktopPage =
+      pageKey === 'home'
+        ? desktopHome
+        : project.files.find((item) => item.path === visualEditorHtmlPath(pageKey, 'desktop') && item.kind === 'html')
+            ?.content || ''
     for (const variant of VISUAL_DEVICE_VARIANTS) {
+      const path = visualEditorHtmlPath(pageKey, variant)
+      const current = project.files.find((item) => item.path === path && item.kind === 'html')?.content || ''
+      const existing =
+        current.trim().length >= 40 && visualHtmlLooksCompleteForEditor(current) ? current.trim() : ''
+      const fromComposed =
+        !existing && onlyMissing && new RegExp(`data-pw-visual-device=["']${variant}["']`, 'i').test(desktopPage)
+          ? isolateVisualHtmlForDevice(desktopPage, variant).trim()
+          : ''
+      const kept =
+        existing ||
+        (fromComposed.length >= 40 && visualHtmlLooksCompleteForEditor(fromComposed) ? fromComposed : '')
+      if (onlyMissing && kept) {
+        if (fromComposed && fromComposed === kept) {
+          project = mergeVisualPageHtmlIntoProject(project, kept, path)
+          changed = true
+        }
+        theme = applyVisualEditThemeFlag(theme, { pageKey, variant })
+        if (pageKey === 'home' && variant === 'desktop' && !htmlSource) htmlSource = kept
+        continue
+      }
       const html = buildBlankShopVisualHtml({
         pageKey,
         variant,
@@ -180,11 +228,17 @@ export function seedBlankShopVisualWebsite(input: {
         siteSlug: input.siteSlug,
         brand: input.brand,
       })
-      const path = visualEditorHtmlPath(pageKey, variant)
       project = mergeVisualPageHtmlIntoProject(project, html, path)
       theme = applyVisualEditThemeFlag(theme, { pageKey, variant })
-      if (pageKey === 'home' && variant === 'desktop') htmlSource = html
+      changed = true
+      if (pageKey === 'home' && variant === 'desktop') htmlSource = htmlSource || html
     }
   }
-  return { project, theme, htmlSource }
+  const flagsAfter = [
+    theme.useVisualHtml ? 'd' : '',
+    theme.useVisualLaptopHtml ? 'l' : '',
+    theme.useVisualTabletHtml ? 't' : '',
+    theme.useVisualMobileHtml ? 'm' : '',
+  ].join('|')
+  return { project, theme, htmlSource, changed: changed || flagsAfter !== flagsBefore }
 }

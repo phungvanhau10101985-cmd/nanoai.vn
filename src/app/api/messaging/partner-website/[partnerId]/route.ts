@@ -73,11 +73,13 @@ import {
   shouldPublishVisualPageToCms,
 } from '@/lib/partner-website/pages/sync-info-page-cms'
 import { bumpSiteCache, hashShopCachePayload } from '@/lib/cache/partner-shop-cache'
+import { fillMissingShopVisualDeviceFiles } from '@/lib/partner-website/shop/seed-shop-template-visual-website'
 import {
   resolvePartnerVisualHtmlVariantsForTarget,
   selectPartnerVisualHtmlDevice,
   type PartnerVisualHtmlTarget,
 } from '@/lib/partner-website/shop/render-partner-visual-html'
+import type { PartnerWebsiteRow } from '@/lib/partner-website/partner-website-types'
 
 type VisualLiveGateSelection = {
   hash: string
@@ -101,6 +103,38 @@ function resolveVisualLiveGateSelection(
     hash: hashShopCachePayload(html),
     sourceDevice: selected.sourceDevice,
   }
+}
+
+async function persistFilledVisualDeviceFiles(
+  existing: PartnerWebsiteRow,
+  partnerId: string
+): Promise<PartnerWebsiteRow> {
+  if (existing.renderMode !== 'template') return existing
+  const profile = await fetchPartnerProfileForWebsitePg(partnerId)
+  const chatPath = profile ? `/messaging/p/${encodeURIComponent(profile.slug)}` : undefined
+  const filled = fillMissingShopVisualDeviceFiles({
+    project: existing.project,
+    theme: existing.theme,
+    pages: existing.pages,
+    locale: existing.locale,
+    siteSlug: existing.siteSlug,
+    brand: existing.title,
+    logoUrl: existing.logoUrl,
+    templateId: existing.templateId,
+    chatPath,
+    htmlSource: existing.htmlSource,
+  })
+  if (!filled.changed) return existing
+  return (
+    (await updatePartnerWebsiteDraftPg({
+      partnerId,
+      project: filled.project,
+      theme: filled.theme,
+      htmlSource: filled.htmlSource || existing.htmlSource,
+      chatPath,
+      changeNote: 'publish_fill_device_html',
+    })) ?? existing
+  )
 }
 
 export async function GET(
@@ -511,8 +545,9 @@ export async function PATCH(
       return NextResponse.json({ error: 'Website not found — generate first' }, { status: 404 })
     }
     if (body.action === 'publish') {
+      const ready = await persistFilledVisualDeviceFiles(existing, pid)
       // React storefront shops: one live site (theme/pages). Do not generate a second HTML homepage.
-      if (isFullLandingV1Template(existing)) {
+      if (isFullLandingV1Template(ready)) {
         const updated = await setPartnerWebsitePublishedPg({
           partnerId: pid,
           isPublished: true,
@@ -532,13 +567,13 @@ export async function PATCH(
           publicUrl,
         })
       }
-      const locale = normalizeWebLocale(req.nextUrl.searchParams.get('locale')) ?? existing.locale ?? 'vi'
+      const locale = normalizeWebLocale(req.nextUrl.searchParams.get('locale')) ?? ready.locale ?? 'vi'
       const synced = await syncPartnerWebsiteFullLandingPg({
         partnerId: pid,
         locale,
         refreshHtml: true,
       })
-      const draft = synced.website ?? existing
+      const draft = synced.website ?? ready
       const profile = await fetchPartnerProfileForWebsitePg(pid)
       const chatPath = profile ? `/messaging/p/${encodeURIComponent(profile.slug)}` : undefined
       const html =

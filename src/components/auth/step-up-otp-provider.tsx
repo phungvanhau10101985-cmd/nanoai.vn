@@ -301,7 +301,7 @@ export function StepUpStatusBanner() {
       // keep raw
     }
     return (
-      <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
+      <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100 [:is(html[data-shop-inbox-thread])_&]:max-md:hidden [:is(html[data-shop-inbox])_&]:max-md:px-3 [:is(html[data-shop-inbox])_&]:max-md:py-1 [:is(html[data-shop-inbox])_&]:max-md:text-xs">
         {scope === 'admin'
           ? tr(uiLocale, `Đã xác minh OTP quản trị — hết hạn lúc ${when}.`, `Admin OTP verified — expires at ${when}.`, `管理员OTP已验证 — ${when} 过期。`, `管理者OTP確認済み — ${when} まで有効。`, `관리자 OTP 인증됨 — ${when} 만료.`)
           : tr(uiLocale, `Đã xác minh OTP — hết hạn lúc ${when}.`, `OTP verified — expires at ${when}.`, `OTP已验证 — ${when} 过期。`, `OTP確認済み — ${when} まで有効。`, `OTP 인증됨 — ${when} 만료.`)}
@@ -310,8 +310,8 @@ export function StepUpStatusBanner() {
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-      <span>
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100 [:is(html[data-shop-inbox-thread])_&]:max-md:hidden [:is(html[data-shop-inbox])_&]:max-md:shrink-0 [:is(html[data-shop-inbox])_&]:max-md:px-3 [:is(html[data-shop-inbox])_&]:max-md:py-1 [:is(html[data-shop-inbox])_&]:max-md:text-xs">
+      <span className="min-w-0 [:is(html[data-shop-inbox])_&]:max-md:line-clamp-2">
         {scope === 'admin'
           ? tr(
               uiLocale,
@@ -330,7 +330,7 @@ export function StepUpStatusBanner() {
               '민감한 계정 작업에는 OTP 인증이 필요합니다.'
             )}
       </span>
-      <Button type="button" size="sm" variant="outline" onClick={() => void ensureStepUp()}>
+      <Button type="button" size="sm" variant="outline" className="shrink-0 [:is(html[data-shop-inbox])_&]:max-md:h-7 [:is(html[data-shop-inbox])_&]:max-md:px-2 [:is(html[data-shop-inbox])_&]:max-md:text-[11px]" onClick={() => void ensureStepUp()}>
         {tr(uiLocale, 'Xác minh OTP', 'Verify OTP', '验证OTP', 'OTP確認', 'OTP 인증')}
       </Button>
     </div>

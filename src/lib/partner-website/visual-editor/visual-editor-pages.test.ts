@@ -139,6 +139,26 @@ test('public device selection never borrows another device file', () => {
   })
 })
 
+test('composed homepage still yields each device slice when sibling files are missing', () => {
+  const composed = composeResponsiveVisualHtml(
+    '<!DOCTYPE html><html><body><header class="pw-header" data-pw-region="header">DeskHead</header></body></html>',
+    '<!DOCTYPE html><html><body><header class="pw-header" data-pw-region="header">MobHead</header></body></html>',
+    '<!DOCTYPE html><html><body><header class="pw-header" data-pw-region="header">TabHead</header></body></html>',
+    '<!DOCTYPE html><html><body><header class="pw-header" data-pw-region="header">LapHead</header></body></html>'
+  )
+  const website = {
+    theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, useVisualHtml: true },
+    htmlSource: composed,
+    project: { entryPath: 'index.html', files: [{ path: 'index.html', kind: 'html' as const, content: composed }] },
+  }
+  const mobile = resolveExactVisualPageHtml(website, 'home', 'mobile')
+  const laptop = resolveExactVisualPageHtml(website, 'home', 'laptop')
+  assert.match(mobile, /MobHead/)
+  assert.doesNotMatch(mobile, /DeskHead/)
+  assert.match(laptop, /LapHead/)
+  assert.doesNotMatch(laptop, /DeskHead/)
+})
+
 test('saved visual page html is isolated from homepage', () => {
   const about = '<!DOCTYPE html><html><body><h1>About shop</h1></body></html>'
   const home = '<!DOCTYPE html><html><body><h1>Home</h1></body></html>'
