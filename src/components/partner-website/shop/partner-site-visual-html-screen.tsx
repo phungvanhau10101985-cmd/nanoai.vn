@@ -22,7 +22,7 @@ import {
   type PartnerVisualHtmlTarget,
 } from '@/lib/partner-website/shop/render-partner-visual-html'
 import { ensureLiveVisualWebsite } from '@/lib/partner-website/shop/load-live-visual-website'
-import { inferLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-live-visual-request-device'
+import { inferLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-live-visual-request-device-server'
 import { loadSiteLiveCategoryBind } from '@/lib/partner-website/shop/load-site-live-category-bind'
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
@@ -33,7 +33,7 @@ import {
   shouldServeVisualPageHtml,
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
-export { inferLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-live-visual-request-device'
+export { inferLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-live-visual-request-device-server'
 
 /** `?pw-device=` from Sửa nhanh → Xem. Every page must serve the file that device saved. */
 export type PartnerSiteSearchParams =

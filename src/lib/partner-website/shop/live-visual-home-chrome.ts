@@ -7,7 +7,7 @@ import {
   type VisualHomeChromeWebsite,
 } from '@/lib/partner-website/shop/visual-home-chrome'
 import type { SharedChrome } from '@/lib/partner-website/shop/sync-shared-chrome'
-import { inferLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-live-visual-request-device'
+import { inferLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-live-visual-request-device-server'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
 function bindSharedChromeNav(chrome: SharedChrome | null, bind: LiveCategoryBind | null): SharedChrome | null {
