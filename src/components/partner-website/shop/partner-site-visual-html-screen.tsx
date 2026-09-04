@@ -12,7 +12,8 @@ import {
 } from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
 import { isInfoVisualHtml, visualInfoPageCmsSlug } from '@/lib/partner-website/pages/partner-info-page-visual'
 import { isPartnerTextArticlePage } from '@/lib/partner-website/pages/partner-text-article-page'
-import { bindLiveProductToPdpHtml, type LivePdpBindProduct } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
+import type { LivePdpBindProduct } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
+import { applyLiveVisualOverlays } from '@/lib/partner-website/shop/compose-live-visual-overlays'
 import {
   preparePartnerVisualHtmlForPublic,
   resolvePartnerVisualHtmlForDevice,
@@ -22,7 +23,6 @@ import {
 } from '@/lib/partner-website/shop/render-partner-visual-html'
 import { ensureLiveVisualWebsite } from '@/lib/partner-website/shop/load-live-visual-website'
 import { inferLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-live-visual-request-device'
-import { bindLiveCategorySurfacesInHtml } from '@/lib/partner-website/shop/bind-live-nav-pills'
 import { loadSiteLiveCategoryBind } from '@/lib/partner-website/shop/load-site-live-category-bind'
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
@@ -111,7 +111,6 @@ export async function PartnerSiteVisualHtmlScreen({
   htmlByDevice,
   device = null,
   infoSeo,
-  skipHtmlCache = false,
   liveProduct = null,
 }: {
   site: Pick<PartnerWebsitePublicRow, 'siteSlug' | 'title' | 'logoUrl' | 'locale' | 'chatPath' | 'theme'>
@@ -125,8 +124,6 @@ export async function PartnerSiteVisualHtmlScreen({
     dateModified?: string | null
     noIndex?: boolean
   }
-  /** PDP bind tồn kho sống — không cache HTML đã gắn 1 SP. */
-  skipHtmlCache?: boolean
   /** Bind tồn kho sau khi chọn đúng 1 máy — không bind 4 file trước khi trả HTML. */
   liveProduct?: LivePdpBindProduct | null
 }) {
@@ -134,7 +131,7 @@ export async function PartnerSiteVisualHtmlScreen({
   const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
   const pageKey = String(infoSeo?.pageKey || infoSeo?.cmsSlug || 'page')
   const liveCategoryBind = await loadSiteLiveCategoryBind(site.siteSlug)
-  const prepareOne = async (sourceHtml: string, sourceDevice: VisualDeviceVariant | null) => {
+  const prepareShell = async (sourceHtml: string, sourceDevice: VisualDeviceVariant | null) => {
     const prepare = () => {
       const seoHtml = withInfoPageAdvancedSeo(site, sourceHtml, infoSeo)
       return preparePartnerVisualHtmlForPublic(seoHtml, {
@@ -146,38 +143,35 @@ export async function PartnerSiteVisualHtmlScreen({
         theme: site.theme,
       })
     }
-    const cached = skipHtmlCache
-      ? prepare()
-      : await withSiteHtmlCache({
-          slug: site.siteSlug,
-          pageKey,
-          device: sourceDevice || 'auto',
-          extra: [
-            onCustomDomain ? 'd1' : 'd0',
-            infoSeo?.datePublished || '',
-            infoSeo?.dateModified || '',
-            infoSeo?.noIndex ? '1' : '0',
-          ].join(':'),
-          load: async () => prepare(),
-        })
-    return bindLiveCategorySurfacesInHtml(cached, liveCategoryBind)
+    return withSiteHtmlCache({
+      slug: site.siteSlug,
+      pageKey,
+      device: sourceDevice || 'auto',
+      extra: [
+        onCustomDomain ? 'd1' : 'd0',
+        infoSeo?.datePublished || '',
+        infoSeo?.dateModified || '',
+        infoSeo?.noIndex ? '1' : '0',
+      ].join(':'),
+      load: async () => prepare(),
+    })
   }
 
-  const inferredRequestDevice = inferLiveVisualRequestDevice()
+  const finish = (shell: string) =>
+    applyLiveVisualOverlays(shell, {
+      liveProduct,
+      liveCategoryBind,
+      locale: site.locale,
+      siteSlug: site.siteSlug,
+    })
 
-  const bindLive = (source: string) =>
-    liveProduct
-      ? bindLiveProductToPdpHtml(source, liveProduct, {
-          locale: site.locale,
-          siteSlug: site.siteSlug,
-        })
-      : source
+  const inferredRequestDevice = inferLiveVisualRequestDevice()
 
   if (liveProduct) {
     const requested = device || inferredRequestDevice
     const selected = htmlByDevice ? selectPartnerVisualHtmlDevice(htmlByDevice, requested) : null
     const sourceDevice = selected?.sourceDevice || device || inferredRequestDevice
-    const publicHtml = await prepareOne(bindLive(selected?.html || html), sourceDevice)
+    const publicHtml = finish(await prepareShell(selected?.html || html, sourceDevice))
     return (
       <PartnerSitePublicClient
         html={publicHtml}
@@ -200,14 +194,14 @@ export async function PartnerSiteVisualHtmlScreen({
       (Object.keys(htmlByDevice) as VisualDeviceVariant[]).map(async (sourceDevice) => {
         const source = htmlByDevice[sourceDevice]
         if (!source) return
-        preparedByDevice[sourceDevice] = await prepareOne(source, sourceDevice)
+        preparedByDevice[sourceDevice] = finish(await prepareShell(source, sourceDevice))
       })
     )
   }
   const initialSelection = htmlByDevice
     ? selectPartnerVisualHtmlDevice(preparedByDevice, inferredRequestDevice)
     : null
-  const publicHtml = initialSelection?.html || (await prepareOne(html, device))
+  const publicHtml = initialSelection?.html || finish(await prepareShell(html, device))
 
   return (
     <PartnerSitePublicClient
@@ -355,7 +349,6 @@ export async function maybePartnerSiteVisualProductPage(
       html={resolved.html}
       device={resolved.sourceDevice}
       infoSeo={{ pageKey: 'product_detail' }}
-      skipHtmlCache
       liveProduct={product || null}
     />
   )

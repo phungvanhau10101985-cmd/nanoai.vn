@@ -366,9 +366,13 @@ export function PartnerSiteShopProductClient({
 
   async function toggleFavorite() {
     if (!ready || favoriteBusy) return
+    const inflightKey = product.id.trim().toLowerCase()
+    const host = window as Window & { __pwFavoriteToggleInFlight?: Record<string, Promise<unknown>> }
+    host.__pwFavoriteToggleInFlight = host.__pwFavoriteToggleInFlight || {}
+    if (host.__pwFavoriteToggleInFlight[inflightKey]) return
     setFavoriteBusy(true)
     const wasFavorite = isFavorite
-    try {
+    const req = (async () => {
       const res = await fetch(partnerSitePersonalizationApiPath(siteSlug, 'events'), {
         method: 'POST',
         credentials: 'same-origin',
@@ -385,7 +389,12 @@ export function PartnerSiteShopProductClient({
           setLikesCount((n) => Math.max(0, n + (json.is_favorite && !wasFavorite ? 1 : !json.is_favorite && wasFavorite ? -1 : 0)))
         }
       }
+    })()
+    host.__pwFavoriteToggleInFlight[inflightKey] = req
+    try {
+      await req
     } finally {
+      delete host.__pwFavoriteToggleInFlight[inflightKey]
       setFavoriteBusy(false)
     }
   }

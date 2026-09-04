@@ -244,24 +244,39 @@ export async function isSiteProductFavorite(input: {
   return (state?.favorite_ids ?? []).some((id) => id.toLowerCase() === key)
 }
 
+const favoriteToggleInFlight = new Map<
+  string,
+  Promise<{ is_favorite: boolean; likes_count?: number } | null>
+>()
+
 export async function mutateSiteFavoriteProduct(input: {
   partnerId: string
   accountKey: string
   inventoryId: string
   action: 'add' | 'remove' | 'toggle'
 }): Promise<{ is_favorite: boolean; likes_count?: number } | null> {
-  const result = await mutatePartnerVisitorFavoriteFromPg(input)
-  if (!result) return null
-  let likes_count: number | undefined
-  if (result.changed) {
-    const next = await incrementPartnerInventoryLikesCountFromPg(
-      input.partnerId,
-      input.inventoryId,
-      result.is_favorite ? 1 : -1
-    )
-    if (typeof next === 'number') likes_count = next
-  }
-  return { is_favorite: result.is_favorite, likes_count }
+  const lockKey = `${input.partnerId}:${input.accountKey}:${input.inventoryId.trim().toLowerCase()}:${input.action}`
+  const pending = favoriteToggleInFlight.get(lockKey)
+  if (pending) return pending
+  let work!: Promise<{ is_favorite: boolean; likes_count?: number } | null>
+  work = (async () => {
+    const result = await mutatePartnerVisitorFavoriteFromPg(input)
+    if (!result) return null
+    let likes_count: number | undefined
+    if (result.changed) {
+      const next = await incrementPartnerInventoryLikesCountFromPg(
+        input.partnerId,
+        input.inventoryId,
+        result.is_favorite ? 1 : -1
+      )
+      if (typeof next === 'number') likes_count = next
+    }
+    return { is_favorite: result.is_favorite, likes_count }
+  })().finally(() => {
+    if (favoriteToggleInFlight.get(lockKey) === work) favoriteToggleInFlight.delete(lockKey)
+  })
+  favoriteToggleInFlight.set(lockKey, work)
+  return work
 }
 
 export async function getSiteRecommendedProducts(input: {

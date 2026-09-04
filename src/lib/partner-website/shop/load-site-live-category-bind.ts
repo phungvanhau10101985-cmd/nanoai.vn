@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import { withLiveCategoryBindCache } from '@/lib/cache/partner-shop-cache'
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
 import { getSiteFeaturedCategoryBlock } from '@/lib/partner-website/shop/featured-categories'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
@@ -13,22 +14,31 @@ async function loadSiteLiveCategoryBindUncached(siteSlug: string): Promise<LiveC
     if (!shop) return null
     const accountKey = (await peekSiteVisitorAccountKey()) || 'anonymous'
     const user = await getEmailSessionUser()
-    const block = await getSiteFeaturedCategoryBlock({
+    return await withLiveCategoryBindCache({
       partnerId: shop.partnerId,
-      siteSlug: shop.site.siteSlug,
+      slug: shop.site.siteSlug,
       accountKey,
       linkedUserId: user?.id,
       locale: shop.site.locale,
-      limit: 10,
+      load: async () => {
+        const block = await getSiteFeaturedCategoryBlock({
+          partnerId: shop.partnerId,
+          siteSlug: shop.site.siteSlug,
+          accountKey,
+          linkedUserId: user?.id,
+          locale: shop.site.locale,
+          limit: 10,
+        })
+        return {
+          siteSlug: shop.site.siteSlug,
+          locale: shop.site.locale,
+          navRow: block.nav_row,
+          showNavAll: block.show_nav_all,
+          tiles: block.tiles,
+          hubHref: block.hub_href,
+        }
+      },
     })
-    return {
-      siteSlug: shop.site.siteSlug,
-      locale: shop.site.locale,
-      navRow: block.nav_row,
-      showNavAll: block.show_nav_all,
-      tiles: block.tiles,
-      hubHref: block.hub_href,
-    }
   } catch {
     return null
   }

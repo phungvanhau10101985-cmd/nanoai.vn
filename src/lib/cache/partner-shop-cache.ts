@@ -5,6 +5,8 @@ export const SHOP_LIST_TTL_SEC = 60
 export const SHOP_ITEM_TTL_SEC = 120
 export const SITE_HTML_TTL_SEC = 120
 export const SITE_META_TTL_SEC = 120
+/** Pill + featured tiles are visitor-specific; short so vừa xem still updates. */
+export const LIVE_CATEGORY_BIND_TTL_SEC = 45
 
 function inventoryVerKey(partnerId: string): string {
   return `pw:inv:${partnerId}:ver`
@@ -70,9 +72,40 @@ export async function shopCacheSetJson(key: string, ttlSec: number, value: unkno
   }
 }
 
+export function liveCategoryBindCacheSuffix(input: {
+  slug: string
+  accountKey: string
+  linkedUserId?: string | null
+  locale: string
+}): string {
+  return `bind:${hashShopCachePayload({
+    slug: input.slug.trim().toLowerCase(),
+    accountKey: input.accountKey.trim() || 'anonymous',
+    linkedUserId: String(input.linkedUserId || '').trim(),
+    locale: input.locale,
+  })}`
+}
+
+export async function withLiveCategoryBindCache<T>(input: {
+  partnerId: string
+  slug: string
+  accountKey: string
+  linkedUserId?: string | null
+  locale: string
+  load: () => Promise<T>
+}): Promise<T> {
+  return withInventoryShopCache({
+    partnerId: input.partnerId,
+    kind: 'catbind',
+    suffix: liveCategoryBindCacheSuffix(input),
+    ttlSec: LIVE_CATEGORY_BIND_TTL_SEC,
+    load: input.load,
+  })
+}
+
 export async function withInventoryShopCache<T>(input: {
   partnerId: string
-  kind: 'shop' | 'cat' | 'item'
+  kind: 'shop' | 'cat' | 'item' | 'catbind'
   suffix: string
   ttlSec: number
   load: () => Promise<T>
