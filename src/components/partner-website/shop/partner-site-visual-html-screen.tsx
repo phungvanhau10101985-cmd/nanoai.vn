@@ -141,6 +141,7 @@ export async function PartnerSiteVisualHtmlScreen({
         pageKey: infoSeo?.pageKey,
         cmsSlug: infoSeo?.cmsSlug,
         theme: site.theme,
+        variant: sourceDevice || undefined,
       })
     }
     return withSiteHtmlCache({
@@ -157,12 +158,13 @@ export async function PartnerSiteVisualHtmlScreen({
     })
   }
 
-  const finish = (shell: string) =>
+  const finish = (shell: string, overlayDevice?: VisualDeviceVariant | null) =>
     applyLiveVisualOverlays(shell, {
       liveProduct,
       liveCategoryBind,
       locale: site.locale,
       siteSlug: site.siteSlug,
+      device: overlayDevice,
     })
 
   const inferredRequestDevice = inferLiveVisualRequestDevice()
@@ -171,7 +173,7 @@ export async function PartnerSiteVisualHtmlScreen({
     const requested = device || inferredRequestDevice
     const selected = htmlByDevice ? selectPartnerVisualHtmlDevice(htmlByDevice, requested) : null
     const sourceDevice = selected?.sourceDevice || device || inferredRequestDevice
-    const publicHtml = finish(await prepareShell(selected?.html || html, sourceDevice))
+    const publicHtml = finish(await prepareShell(selected?.html || html, sourceDevice), sourceDevice)
     return (
       <PartnerSitePublicClient
         html={publicHtml}
@@ -194,14 +196,14 @@ export async function PartnerSiteVisualHtmlScreen({
       (Object.keys(htmlByDevice) as VisualDeviceVariant[]).map(async (sourceDevice) => {
         const source = htmlByDevice[sourceDevice]
         if (!source) return
-        preparedByDevice[sourceDevice] = finish(await prepareShell(source, sourceDevice))
+        preparedByDevice[sourceDevice] = finish(await prepareShell(source, sourceDevice), sourceDevice)
       })
     )
   }
   const initialSelection = htmlByDevice
     ? selectPartnerVisualHtmlDevice(preparedByDevice, inferredRequestDevice)
     : null
-  const publicHtml = initialSelection?.html || finish(await prepareShell(html, device))
+  const publicHtml = initialSelection?.html || finish(await prepareShell(html, device), device)
 
   return (
     <PartnerSitePublicClient

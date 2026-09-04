@@ -24,6 +24,7 @@ import {
   PARTNER_SHOP_BANNER_LIVE_MATCH_CSS,
   PARTNER_SHOP_HROW_CSS,
   PARTNER_SHOP_MID_INSERT_GAP_CSS,
+  PARTNER_SHOP_PAGE_FIT_CSS,
   PARTNER_SHOP_STACK_FLOW_CSS,
   PW_MID_INSERT_GAP_ATTR,
   PW_MID_INSERT_GAP_PX,
@@ -212,8 +213,9 @@ describe('pw scene layers', () => {
     expect(pwSceneLiveZoomScale(1920, 1920, 1920, 1440)).toBe(1920 / 1440)
     expect(pwSceneLiveZoomScale(1366, 1366, 1366, 1440)).toBe(1366 / 1440)
     expect(pwSceneLiveZoomScale(390, 390, 390, 390)).toBe(1)
-    expect(pwSceneLiveZoomScale(1152, 1440, 1920, 1440)).toBe(1)
-    expect(pwSceneLiveZoomScale(1536, 1920, 1920, 1440)).toBe(1920 / 1440)
+    expect(pwSceneLiveZoomScale(1152, 1440, 1920, 1440)).toBe(1152 / 1440)
+    expect(pwSceneLiveZoomScale(1536, 1920, 1920, 1440)).toBe(1536 / 1440)
+    expect(pwSceneLiveZoomViewWidth(1536, 1920, 1920)).toBe(1536)
     expect(pwLooksLikeMobileOrTabletUa('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)')).toBe(true)
     expect(pwLooksLikeMobileOrTabletUa('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0')).toBe(false)
     expect(pwSceneLiveZoomViewWidth(390, 1920, 1920, { device: 'mobile' })).toBe(390)
@@ -224,7 +226,7 @@ describe('pw scene layers', () => {
       })
     ).toBe(390)
     expect(pwSceneLiveZoomScale(390, 1920, 1920, 390, { device: 'mobile' })).toBe(1)
-    expect(pwSceneLiveZoomScale(720, 1920, 1920, 1440, { device: 'desktop' })).toBe(1920 / 1440)
+    expect(pwSceneLiveZoomScale(720, 1920, 1920, 1440, { device: 'desktop' })).toBe(720 / 1440)
     expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain('data-pw-banner-pan-y')
     expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain("object-position")
     expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).not.toContain('translate(')
@@ -246,6 +248,7 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function queryDevice(){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("get('pw-device')")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function zoomScale(scenePx,key){')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('if(inner>8&&view>inner)view=inner')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('var mobileish=key===\'mobile\'')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('return 1;')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function hoistLiveChrome(root,scale){')
@@ -519,6 +522,15 @@ describe('scene layers inside the editor runtime', () => {
     expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('[data-pw-region="banner"]')
     expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('position:relative!important')
     expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('z-index:1!important')
+    expect(PARTNER_SHOP_PAGE_FIT_CSS).toContain('[data-pw-region="cart-list"]')
+    expect(PARTNER_SHOP_PAGE_FIT_CSS).toContain('[data-pw-region="account-main"]')
+    expect(PARTNER_SHOP_PAGE_FIT_CSS).toContain('.pw-shop-info img')
+    expect(PARTNER_SHOP_PAGE_FIT_CSS).toContain('max-width:100%;min-width:0')
+    expect(PARTNER_SHOP_PAGE_FIT_CSS).toContain('[data-pw-visual-device="desktop"] [data-pw-region="banner"]')
+    expect(PARTNER_SHOP_PAGE_FIT_CSS).toContain('[data-pw-visual-device="laptop"] .pw-shop-main')
+    expect(PARTNER_SHOP_PAGE_FIT_CSS).not.toMatch(
+      /\[data-pw-visual-device="desktop"\],\[data-pw-visual-device="laptop"\] /
+    )
     expect(PW_MID_INSERT_GAP_PX).toBe(20)
     expect(PARTNER_SHOP_MID_INSERT_GAP_CSS).toContain(`[${PW_MID_INSERT_GAP_ATTR}="1"]`)
     expect(PARTNER_SHOP_MID_INSERT_GAP_CSS).toContain(`margin-top:${PW_MID_INSERT_GAP_PX}px!important`)

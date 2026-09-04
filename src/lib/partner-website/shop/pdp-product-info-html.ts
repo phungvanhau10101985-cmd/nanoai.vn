@@ -432,4 +432,10 @@ export function pdpDescriptionBodyHtml(raw: string): string {
     .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
     .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
     .replace(/\b(?:href|src)\s*=\s*(["'])\s*javascript:[^"']*\1/gi, '')
+    .replace(/<img\b([^>]*)\/?>/gi, (_full, attrs: string) => {
+      let next = attrs
+      if (!/\bloading=/.test(next)) next += ' loading="lazy"'
+      if (!/\bdecoding=/.test(next)) next += ' decoding="async"'
+      return `<img${next}>`
+    })
 }

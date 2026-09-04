@@ -194,10 +194,11 @@ function isChromeOrLogoImg(img: Element): boolean {
 }
 
 function imgUrlFromEl(img: Element, baseHref: string): string {
+  const full = img.getAttribute('data-pw-full-src') || ''
   const src = img.getAttribute('src') || ''
   const deferred = img.getAttribute('data-pw-deferred-src') || ''
   const dataSrc = img.getAttribute('data-src') || ''
-  for (const raw of [src, deferred, dataSrc]) {
+  for (const raw of [full, src, deferred, dataSrc]) {
     const url = resolvePartnerTryOnImageUrl(raw, baseHref)
     if (url) return url
   }

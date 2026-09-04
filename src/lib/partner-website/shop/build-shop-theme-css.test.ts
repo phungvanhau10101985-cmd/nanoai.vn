@@ -106,6 +106,15 @@ test('shop theme CSS narrows desktop/laptop PDP description so white columns mat
   )
 })
 
+test('shop theme CSS keeps desktop/laptop PDP photo frames inside the viewport at 100% zoom', () => {
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(css, /max-width:min\(100%,calc\(56rem \/ var\(--pw-scene-zoom,1\)\)\)/)
+  assert.match(css, /max-height:calc\(70vh \/ var\(--pw-scene-zoom,1\)\)/)
+  assert.match(css, /html:is\(\[data-pw-edit-device="desktop"\],\[data-pw-edit-device="laptop"\]/)
+  assert.match(css, /\.pw-pdp-detail-photos img\{[^}]*max-width:100%/)
+  assert.match(css, /content-visibility:auto/)
+})
+
 test('shop theme CSS hides leftover PDP line-total and keeps buy controls in the right column', () => {
   const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
   assert.match(css, /\.pw-pdp-total,\.pw-pdp-notes/)

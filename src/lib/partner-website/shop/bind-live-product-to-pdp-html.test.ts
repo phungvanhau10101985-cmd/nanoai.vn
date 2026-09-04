@@ -49,12 +49,14 @@ test('bindLiveProductToPdpHtml rewrites locked PDP fields and keeps catalog card
   assert.doesNotMatch(next, /Review for A/)
 })
 
-test('bind writes PDP gallery as original AliCDN URL, not listing 600q90', () => {
+test('bind writes PDP gallery as page-sized AliCDN URL, original kept for try-on', () => {
   const broken =
     'https://img.alicdn.com/img/ibank/2020/688/457/21712754886_2079049757.jpg_600x600q90.jpg'
   const raw = 'https://img.alicdn.com/img/ibank/2020/688/457/21712754886_2079049757.jpg'
   const next = bindLiveProductToPdpHtml(SHELL, { ...PRODUCT_B, imageUrl: broken, galleryImages: [broken] })
-  assert.match(next, new RegExp(raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  assert.match(next, /21712754886_2079049757\.jpg_1200x1200\.jpg/)
+  assert.match(next, /data-pw-full-src="https:\/\/img\.alicdn\.com\/img\/ibank\/2020\/688\/457\/21712754886_2079049757\.jpg"/)
+  assert.match(next, /data-nanoai-image="https:\/\/img\.alicdn\.com\/img\/ibank\/2020\/688\/457\/21712754886_2079049757\.jpg"/)
   assert.doesNotMatch(next, /21712754886_2079049757\.jpg_600x600q90\.jpg/)
 })
 
@@ -145,6 +147,44 @@ test('restoreDeferredPdpGalleryMediaInHtml puts src back on parked gallery image
   const next = restoreDeferredPdpGalleryMediaInHtml(html)
   assert.match(next, /src="https:\/\/cdn\.example\/desk\.jpg"/)
   assert.doesNotMatch(next, /data-pw-deferred-src/)
+})
+
+test('bind parks hidden device gallery after rewrite so Chrome does not download it', () => {
+  const html = `<!DOCTYPE html><html data-pw-edit-device="desktop"><body data-pw-page="product">
+<div class="pw-pdp-hero"><img src="https://old.example/hero.jpg" alt="x" /></div>
+<section data-pw-region="gallery" class="pw-shop-product-gallery pw-pdp-gallery-desktop">
+  <img class="pw-shop-product-img" data-pw-el="main-image" src="https://old.example/desk.jpg" alt="y" />
+</section>
+<div data-pw-region="pdp-info"><h1 class="pw-pdp-title" data-pw-el="title">Old</h1></div>
+</body></html>`
+  const next = bindLiveProductToPdpHtml(html, PRODUCT_B, { device: 'desktop' })
+  assert.match(next, /pw-pdp-gallery-desktop[\s\S]{0,500}src="https:\/\/new\.example\/shirt\.jpg"/)
+  assert.match(next, /data-pw-deferred-src="https:\/\/(?:old|new)\.example\/(?:hero|shirt)\.jpg"/)
+})
+
+test('buy box does not dump pro_content images; tabs skip Q photos already in description', () => {
+  const dress = 'https://img.alicdn.com/img/ibank/O1CN01desc.jpg'
+  const extra = 'https://img.alicdn.com/img/ibank/O1CN01extra.jpg'
+  const html = `<!DOCTYPE html><html><body data-pw-page="product">
+<section data-pw-region="gallery"><img class="pw-pdp-hero-img" data-pw-el="main-image" src="https://old.example/a.jpg" alt="Old" /></section>
+<div data-pw-region="pdp-info">
+  <h1 class="pw-pdp-title" data-pw-el="title">Old</h1>
+  <div data-pw-el="desc"><img src="https://cdn.example/huge-leftover.jpg" alt="leftover" /></div>
+  <button data-pw-pdp-add-cart="1">Add</button>
+</div>
+<section class="pw-shop-product-detail" data-pw-region="pdp-info">
+  <div class="pw-shop-product-detail-body" data-pw-el="desc">old tab</div>
+</section>
+</body></html>`
+  const next = bindLiveProductToPdpHtml(html, {
+    ...PRODUCT_B,
+    detailDescription: `<p>Mô tả</p><img src="${dress}" alt="desc" />`,
+    detailImages: [dress, extra],
+  })
+  assert.doesNotMatch(next, /huge-leftover\.jpg/)
+  assert.match(next, /pw-shop-product-detail-body[\s\S]*O1CN01desc\.jpg_1200x1200\.jpg/)
+  assert.match(next, /data-pw-pdp-slot="detail-images"[\s\S]*O1CN01extra\.jpg_1200x1200\.jpg/)
+  assert.doesNotMatch(next, /detail-images[\s\S]*O1CN01desc\.jpg_1200x1200/)
 })
 
 test('bind restores parked gallery src then rewrites it to the live product', () => {

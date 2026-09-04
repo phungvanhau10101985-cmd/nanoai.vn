@@ -53,6 +53,10 @@ test('pdp description ignores leftover product_info JSON', () => {
   assert.equal(pdpDescriptionBodyHtml(CONSULT_JSON), '')
   assert.equal(isPdpProductInfoJsonBlob(CONSULT_JSON), true)
   assert.match(pdpDescriptionBodyHtml('Vải cotton mềm.\n\nGiặt máy.'), /Vải cotton mềm/)
+  assert.match(
+    pdpDescriptionBodyHtml('<p>Mô tả</p><img src="https://cdn.example/a.jpg" alt="x">'),
+    /loading="lazy"/
+  )
 })
 
 test('pdp specs render JSON groups instead of a raw blob', () => {

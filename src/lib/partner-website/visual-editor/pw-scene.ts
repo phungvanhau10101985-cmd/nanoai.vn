@@ -441,8 +441,10 @@ export function pwLooksLikeMobileOrTabletUa(userAgent: unknown): boolean {
 }
 
 /**
- * Width used to scale the live canvas onto the screen.
- * Desktop/laptop: prefer `outerWidth` so Ctrl +/- does not shrink the canvas.
+ * Width used to scale the live canvas onto the visible CSS viewport.
+ * Prefer `outerWidth` for desktop/laptop so Ctrl +/- / Windows Scale does not
+ * switch machine, then cap to `innerWidth` so the painted canvas never
+ * overflows the visible area (home / listing / PDP / cart / account / info).
  * Mobile/tablet (or phone UA / F12 device mode): use `innerWidth` so a wide
  * desktop chrome window does not scale a 390px scene down to a postage stamp.
  */
@@ -459,17 +461,18 @@ export function pwSceneLiveZoomViewWidth(
   const mobileish =
     device === 'mobile' || device === 'tablet' || pwLooksLikeMobileOrTabletUa(hint?.userAgent)
   if (mobileish && Number.isFinite(inner) && inner > 8) return inner
-  if (Number.isFinite(outer) && outer > 8) return outer
-  if (Number.isFinite(inner) && inner > 8) return inner
-  if (Number.isFinite(screen) && screen > 8) return screen
-  return 0
+  let view = 0
+  if (Number.isFinite(outer) && outer > 8) view = outer
+  else if (Number.isFinite(inner) && inner > 8) view = inner
+  else if (Number.isFinite(screen) && screen > 8) view = screen
+  if (Number.isFinite(inner) && inner > 8 && view > inner) return inner
+  return view
 }
 
 /**
  * Live copies the Sửa nhanh canvas 1:1 then scales it to the CSS viewport.
- * Browser page zoom changes `innerWidth`; Sửa nhanh does not compensate for
- * that inside the iframe, so live desktop must use the stable outer window
- * width first. Phone UA / F12 device mode uses `innerWidth` instead.
+ * Device lock still uses `outerWidth`. Scale never exceeds `innerWidth / sceneW`
+ * so 100% zoom on desktop/laptop does not clip left/right on any page.
  * `sceneW` omitted → 1 (Sửa nhanh iframe is already the canvas).
  */
 export function pwSceneLiveZoomScale(
@@ -520,6 +523,53 @@ const STACK_FLOW_HOSTS = [
 function stackFlowSel(extra = ''): string {
   return STACK_FLOW_HOSTS.map((sel) => `html ${sel}${extra}`).join(',')
 }
+
+const PW_PAGE_FIT_HOSTS = [
+  'html:is([data-pw-edit-device="desktop"],[data-pw-edit-device="laptop"],[data-pw-scene-lock="desktop"],[data-pw-scene-lock="laptop"])',
+  '[data-pw-visual-device="desktop"]',
+  '[data-pw-visual-device="laptop"]',
+] as const
+const PW_PAGE_FIT_UNLOCKED = 'html:not([data-pw-edit-device]):not([data-pw-scene-lock])'
+const PW_PAGE_FIT_FRAMES = [
+  '[data-pw-region="banner"]',
+  '[data-pw-region="categories"]',
+  '[data-pw-region="catalog"]',
+  '[data-pw-region="promo"]',
+  '[data-pw-region="content"]',
+  '[data-pw-region="form"]',
+  '[data-pw-region="gallery"]',
+  '[data-pw-region="pdp-info"]',
+  '[data-pw-region="reviews"]',
+  '[data-pw-region="cart-list"]',
+  '[data-pw-region="cart-summary"]',
+  '[data-pw-region="account-nav"]',
+  '[data-pw-region="account-main"]',
+  '.pw-shop-main',
+  '.pw-shop-account-layout',
+  '.pw-shop-account-content',
+  '.pw-shop-info',
+  '.pw-pdp',
+  '.pw-shop-product-layout',
+]
+const PW_PAGE_FIT_CONTENT_IMGS = [
+  '[data-pw-region="content"] img',
+  '[data-pw-region="promo"] img',
+  '[data-pw-region="form"] img',
+  '[data-pw-info-body] img',
+  '.pw-shop-info img',
+  '.pw-shop-account-content img',
+]
+
+function pwPageFitJoin(prefixes: readonly string[], sels: readonly string[]): string {
+  return prefixes.flatMap((prefix) => sels.map((sel) => `${prefix} ${sel}`)).join(',')
+}
+
+/** Desktop/laptop: khung giữa trang không rộng hơn canvas — mọi trang, không chỉ PDP. */
+export const PARTNER_SHOP_PAGE_FIT_CSS = `
+${pwPageFitJoin(PW_PAGE_FIT_HOSTS, PW_PAGE_FIT_FRAMES)}{max-width:100%;min-width:0;box-sizing:border-box}
+${pwPageFitJoin(PW_PAGE_FIT_HOSTS, PW_PAGE_FIT_CONTENT_IMGS)}{max-width:100%;height:auto;box-sizing:border-box}
+@media(min-width:1280px){${pwPageFitJoin([PW_PAGE_FIT_UNLOCKED], PW_PAGE_FIT_FRAMES)}{max-width:100%;min-width:0;box-sizing:border-box}${pwPageFitJoin([PW_PAGE_FIT_UNLOCKED], PW_PAGE_FIT_CONTENT_IMGS)}{max-width:100%;height:auto;box-sizing:border-box}}
+`.trim()
 
 /** Mảng khối + nền thêm in-flow chiếm chỗ, z dưới head (`PW_SCENE_HEAD_Z`) — kéo/cuộn không trèo head. */
 export const PARTNER_SHOP_STACK_FLOW_CSS = `
@@ -714,7 +764,7 @@ export function pwMediaZoomOriginYPct(top: number, height: number, viewHeight: n
 
 /** Runtime Sửa nhanh + web thật: neo canvas theo trung điểm màn hình. */
 export const PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID = 'pw-shop-scene-center'
-/** Khóa máy theo outerWidth (không đổi khi Ctrl +/-) rồi copy canvas Sửa nhanh phủ viewport. */
+/** Khóa máy theo outerWidth (không đổi khi Ctrl +/-); scale khít innerWidth — không tràn viewport. */
 export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
 (function(){
   var C=window.__pwCoordinate;
@@ -759,6 +809,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     var ua=navigator.userAgent||'';
     var mobileish=key==='mobile'||key==='tablet'||(/ipad|tablet|kindle|silk/i.test(ua))||(/mobile|iphone|ipod|android/i.test(ua)&&!/ipad/i.test(ua));
     var view=mobileish&&inner>8?inner:(outer>8?outer:(inner>8?inner:screenW));
+    if(inner>8&&view>inner)view=inner;
     if(!(view>8)||!(scenePx>8))return 1;
     return C.createMap({device:key,viewportWidth:view}).scale;
   }

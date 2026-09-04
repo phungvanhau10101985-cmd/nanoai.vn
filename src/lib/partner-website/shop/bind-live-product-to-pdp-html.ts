@@ -10,7 +10,14 @@ import {
   isPartnerFlashSaleActive,
   resolvePartnerEffectiveUnitPrice,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
-import { shopPdpDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import {
+  rewritePdpHtmlImagesForPage,
+  shopCardDisplaySrc,
+  shopPdpDisplaySrc,
+  shopPdpImageKey,
+  shopPdpPageSrc,
+} from '@/lib/partner-website/shop/inventory-shop-detail'
+import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   buildOutfitProductsSectionHtml,
@@ -257,17 +264,49 @@ function replaceElInner(
   })
 }
 
-function productImages(product: LivePdpBindProduct): string[] {
-  const gallery = (product.galleryImages ?? []).map((url) => shopPdpDisplaySrc(url)).filter(Boolean)
-  const hero = shopPdpDisplaySrc(product.imageUrl)
+function productImagePairs(product: LivePdpBindProduct): Array<{ page: string; full: string }> {
   const seen = new Set<string>()
-  const out: string[] = []
-  for (const url of [hero, ...gallery]) {
-    if (!url || seen.has(url)) continue
-    seen.add(url)
-    out.push(url)
+  const out: Array<{ page: string; full: string }> = []
+  for (const raw of [product.imageUrl, ...(product.galleryImages ?? [])]) {
+    const full = shopPdpDisplaySrc(raw)
+    const page = shopPdpPageSrc(raw)
+    const key = shopPdpImageKey(full || raw)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    if (!page) continue
+    out.push({ page, full: full || page })
   }
   return out
+}
+
+function productImages(product: LivePdpBindProduct): string[] {
+  return productImagePairs(product).map((item) => item.page)
+}
+
+function productFullImages(product: LivePdpBindProduct): string[] {
+  return productImagePairs(product).map((item) => item.full)
+}
+
+function pdpHtmlDeviceOf(html: string, fallback?: VisualDeviceVariant | null): VisualDeviceVariant | null {
+  const stamped = html.match(
+    /\bdata-pw-(?:edit-device|visual-device|scene-lock)=["'](desktop|laptop|tablet|mobile)["']/i
+  )?.[1]
+  return (stamped as VisualDeviceVariant | undefined) || fallback || null
+}
+
+function stampPdpPageImg(
+  attrs: string,
+  page: string,
+  full: string,
+  alt: string,
+  opts?: { lazy?: boolean }
+): string {
+  let next = setAttr(attrs, 'src', page)
+  next = setAttr(next, 'alt', alt)
+  if (full) next = setAttr(next, 'data-pw-full-src', full)
+  if (opts?.lazy && !/\bloading=/.test(next)) next += ' loading="lazy"'
+  if (!/\bdecoding=/.test(next)) next += ' decoding="async"'
+  return next
 }
 
 function looksLikeVideoUrl(url: string): boolean {
@@ -390,8 +429,9 @@ function productPriceText(product: LivePdpBindProduct): { price: string; compare
   return { price, compare }
 }
 
-function thumbButtonHtml(url: string, name: string): string {
-  return `<button type="button" class="pw-shop-product-thumb" data-pw-el="${PW_EL.thumb}"><img src="${escAttr(url)}" alt="${escAttr(name)}" loading="lazy" /></button>`
+function thumbButtonHtml(url: string, name: string, full?: string): string {
+  const fullAttr = full ? ` data-pw-full-src="${escAttr(full)}"` : ''
+  return `<button type="button" class="pw-shop-product-thumb" data-pw-el="${PW_EL.thumb}"><img src="${escAttr(url)}"${fullAttr} alt="${escAttr(name)}" loading="lazy" decoding="async" /></button>`
 }
 
 function stripHidden(attrs: string): string {
@@ -524,8 +564,9 @@ function rehomeEscapedPdpOptionsIntoBuyBox(html: string): string {
 }
 
 function rewriteGalleryInner(inner: string, product: LivePdpBindProduct): string {
-  const images = productImages(product)
-  const main = images[0] || ''
+  const pairs = productImagePairs(product)
+  const images = pairs.map((item) => item.page)
+  const main = pairs[0]
   const name = product.name || 'Product'
   let out = stripGalleryVariantLeftovers(inner).replace(/<img\b([^>]*)>/gi, (full, attrs: string) => {
     if (/\bdata-pw-el=["']thumb["']/.test(attrs)) return full
@@ -533,7 +574,7 @@ function rewriteGalleryInner(inner: string, product: LivePdpBindProduct): string
       /\bdata-pw-el=["']main-image["']/.test(attrs) ||
       /\bclass=["'][^"']*\b(?:pw-pdp-hero-img|pw-shop-product-img)\b/.test(attrs)
     if (!isMain || !main) return full
-    return `<img${setAttr(setAttr(attrs, 'src', main), 'alt', name)}>`
+    return `<img${stampPdpPageImg(attrs, main.page, main.full, name)}>`
   })
   if (images.length) {
     out = out.replace(
@@ -545,9 +586,9 @@ function rewriteGalleryInner(inner: string, product: LivePdpBindProduct): string
   out = out.replace(
     /<([a-z0-9]+)\b([^>]*\bdata-pw-el=["']thumb["'][^>]*)>([\s\S]*?)<\/\1>/gi,
     (_full, tag: string, attrs: string, thumbInner: string) => {
-      const url = images[thumbIndex]
+      const pair = pairs[thumbIndex]
       thumbIndex += 1
-      if (!url) {
+      if (!pair) {
         let nextAttrs = setAttr(attrs, 'hidden', '')
         if (!/\bstyle=/.test(nextAttrs)) nextAttrs += ' style="display:none"'
         const nextInner = thumbInner.replace(/<img\b([^>]*)>/i, (_img, imgAttrs: string) => {
@@ -556,13 +597,13 @@ function rewriteGalleryInner(inner: string, product: LivePdpBindProduct): string
         return `<${tag}${nextAttrs}>${nextInner}</${tag}>`
       }
       const nextInner = thumbInner.replace(/<img\b([^>]*)>/i, (_img, imgAttrs: string) => {
-        return `<img${setAttr(setAttr(imgAttrs, 'src', url), 'alt', name)}>`
+        return `<img${stampPdpPageImg(imgAttrs, pair.page, pair.full, name, { lazy: true })}>`
       })
       return `<${tag}${stripHidden(attrs)}>${nextInner}</${tag}>`
     }
   )
-  if (thumbIndex < images.length) {
-    const extra = images.slice(thumbIndex).map((url) => thumbButtonHtml(url, name)).join('')
+  if (thumbIndex < pairs.length) {
+    const extra = pairs.slice(thumbIndex).map((pair) => thumbButtonHtml(pair.page, name, pair.full)).join('')
     const thumbsRe =
       /<(nav|div)\b([^>]*\b(?:pw-pdp-hero-thumbs|pw-shop-product-thumbs)\b[^>]*)>([\s\S]*?)<\/\1>/i
     if (thumbsRe.test(out)) {
@@ -577,8 +618,7 @@ function rewriteGalleryInner(inner: string, product: LivePdpBindProduct): string
 }
 
 function ensureGalleryHasVisibleMainImage(inner: string, product: LivePdpBindProduct): string {
-  const images = productImages(product)
-  const main = images[0] || ''
+  const main = productImagePairs(product)[0]
   if (!main) return inner
   const hasVisibleMain =
     /<img\b[^>]*(?:\bdata-pw-el=["']main-image["']|\b(?:pw-pdp-hero-img|pw-shop-product-img)\b)[^>]*\bsrc=(["'])[^"']+\1/i.test(
@@ -591,7 +631,8 @@ function ensureGalleryHasVisibleMainImage(inner: string, product: LivePdpBindPro
   const name = product.name || 'Product'
   const isHero = /\bpw-pdp-hero-count\b|\bpw-pdp-hero-dots\b|\bpw-pdp-hero-thumbs\b/.test(inner)
   const cls = isHero ? 'pw-pdp-hero-img' : 'pw-shop-product-img'
-  return `<img class="${cls}" data-pw-el="${PW_EL.mainImage}" src="${escAttr(main)}" alt="${escAttr(name)}" decoding="async" />${inner}`
+  const fullAttr = main.full ? ` data-pw-full-src="${escAttr(main.full)}"` : ''
+  return `<img class="${cls}" data-pw-el="${PW_EL.mainImage}" src="${escAttr(main.page)}"${fullAttr} alt="${escAttr(name)}" decoding="async" />${inner}`
 }
 
 function insertGalleryVideo(inner: string, product: LivePdpBindProduct): string {
@@ -704,12 +745,19 @@ function pdpAttrFieldsOf(product: LivePdpBindProduct) {
 export function buildPdpDetailTabsHtml(product: LivePdpBindProduct, locale: WebLocale): string {
   const t = getPartnerSiteShopCopy(locale)
   const name = product.name || 'Product'
-  const desc = pdpDescriptionBodyHtml(String(product.detailDescription || product.description || '').trim())
-  const details = (product.detailImages ?? []).map((url) => shopPdpDisplaySrc(url)).filter(Boolean)
+  const desc = rewritePdpHtmlImagesForPage(
+    pdpDescriptionBodyHtml(String(product.detailDescription || product.description || '').trim())
+  )
+  const descKeys = new Set(
+    [...desc.matchAll(/\b(?:src|data-pw-full-src)=["']([^"']+)["']/gi)].map((m) => shopPdpImageKey(m[1]))
+  )
+  const details = (product.detailImages ?? [])
+    .map((url) => ({ page: shopPdpPageSrc(url), full: shopPdpDisplaySrc(url) }))
+    .filter((item) => item.page && !descKeys.has(shopPdpImageKey(item.full || item.page)))
   const detailImgs = details
     .map(
-      (url) =>
-        `<img src="${escAttr(url)}" alt="${escAttr(name)}" loading="lazy" decoding="async" />`
+      (item) =>
+        `<img src="${escAttr(item.page)}"${item.full ? ` data-pw-full-src="${escAttr(item.full)}"` : ''} alt="${escAttr(name)}" loading="lazy" decoding="async" />`
     )
     .join('')
   const attrGrid = pdpAttrGridHtml(pdpAttrFieldsOf(product), t)
@@ -751,9 +799,10 @@ function colorVariantInner(colors: LivePdpBindColor[], locale: WebLocale): strin
   const pills = colors
     .map((c, i) => {
       const name = String(c.name || '').trim()
-      const img = shopPdpDisplaySrc(c.img)
+      const img = shopCardDisplaySrc(c.img)
+      const full = shopPdpDisplaySrc(c.img)
       const face = img
-        ? `<img src="${escAttr(img)}" alt="${escAttr(name)}" />`
+        ? `<img src="${escAttr(img)}"${full ? ` data-pw-full-src="${escAttr(full)}"` : ''} alt="${escAttr(name)}" />`
         : escText(name)
       return `<button type="button" class="pw-pdp-pill pw-pdp-color${i === 0 ? ' is-active' : ''}" data-pw-pdp-option-value="${escAttr(name)}">${face}</button>`
     })
@@ -911,7 +960,11 @@ function rewritePdpInfoInner(
       '$1$3'
     )
   }
-  out = replaceElInner(out, PW_EL.desc, descHtml)
+  if (opts?.variants) {
+    out = replaceElInner(out, PW_EL.desc, /<[a-z][\s\S]*>/i.test(descHtml) ? '' : descHtml)
+  } else {
+    out = replaceElInner(out, PW_EL.desc, rewritePdpHtmlImagesForPage(descHtml))
+  }
   if (price) {
     out = replaceElInner(out, PW_EL.price, (priceInner) => {
       const compareBlock = priceInner.match(
@@ -1310,9 +1363,11 @@ function ensureMissingPdpSlots(
       '$1 hidden style="display:none">'
     )
   }
-  const material = shopPdpDisplaySrc(product.materialImageUrl)
+  const material = shopPdpPageSrc(product.materialImageUrl)
+  const materialFull = shopPdpDisplaySrc(product.materialImageUrl)
   if (material && !hasSlot(out, 'material')) {
-    const block = `<div data-pw-pdp-slot="material"><h2>${escText(t.pdpMaterialImagesTitle)}</h2><div class="pw-shop-detail-grid"><img src="${escAttr(material)}" alt="${escAttr(name)}" /></div></div>`
+    const fullAttr = materialFull ? ` data-pw-full-src="${escAttr(materialFull)}"` : ''
+    const block = `<div data-pw-pdp-slot="material"><h2>${escText(t.pdpMaterialImagesTitle)}</h2><div class="pw-shop-detail-grid"><img src="${escAttr(material)}"${fullAttr} alt="${escAttr(name)}" loading="lazy" decoding="async" /></div></div>`
     if (/class=["'][^"']*\bpw-shop-product-detail\b/.test(out)) {
       out = out.replace(
         /(<([a-z0-9]+)\b[^>]*\bpw-shop-product-detail\b[^>]*>)([\s\S]*?)(<\/\2>)/i,
@@ -1320,10 +1375,15 @@ function ensureMissingPdpSlots(
       )
     }
   }
-  const realUse = (product.realUseImageUrls ?? []).map((u) => shopPdpDisplaySrc(u)).filter(Boolean)
+  const realUse = (product.realUseImageUrls ?? [])
+    .map((u) => ({ page: shopPdpPageSrc(u), full: shopPdpDisplaySrc(u) }))
+    .filter((item) => item.page)
   if (realUse.length && !hasSlot(out, 'real-use')) {
     const imgs = realUse
-      .map((url) => `<img src="${escAttr(url)}" alt="${escAttr(name)}" />`)
+      .map(
+        (item) =>
+          `<img src="${escAttr(item.page)}"${item.full ? ` data-pw-full-src="${escAttr(item.full)}"` : ''} alt="${escAttr(name)}" loading="lazy" decoding="async" />`
+      )
       .join('')
     const block = `<div data-pw-pdp-slot="real-use"><h2>${escText(t.pdpRealUseImagesTitle)}</h2><div class="pw-shop-detail-grid">${imgs}</div></div>`
     if (/class=["'][^"']*\bpw-shop-product-detail\b/.test(out)) {
@@ -1383,7 +1443,7 @@ function ensureMissingPdpSlots(
 export function bindLiveProductToPdpHtml(
   html: string,
   product: LivePdpBindProduct | null | undefined,
-  opts?: { locale?: WebLocale; siteSlug?: string | null }
+  opts?: { locale?: WebLocale; siteSlug?: string | null; device?: VisualDeviceVariant | null }
 ): string {
   const source = html.trim()
   const id = String(product?.id || '').trim()
@@ -1422,6 +1482,8 @@ export function bindLiveProductToPdpHtml(
   out = ensureMissingPdpSlots(out, product, locale, siteSlug)
   out = fillPdpReviewQaSamples(out, product, locale)
   out = stampTryOnContextInHtml(out, product)
+  const device = pdpHtmlDeviceOf(out, opts?.device)
+  if (device) out = deferOffDevicePdpGalleryMedia(out, device)
   return applyPdpFavoriteLikeCounts(
     out,
     Math.max(0, Math.round(Number(product.likesCount ?? 0) || 0)),
@@ -1450,7 +1512,7 @@ function stampProductGatewayAttrs(attrs: string, input: {
 }
 
 function stampTryOnContextInHtml(html: string, product: LivePdpBindProduct): string {
-  const images = productImages(product).filter((url) => !looksLikeVideoUrl(url))
+  const images = productFullImages(product).filter((url) => !looksLikeVideoUrl(url))
   const primary = images[0] || ''
   const secondary = images[1] || ''
   const sku = String(product.sku || '').trim()

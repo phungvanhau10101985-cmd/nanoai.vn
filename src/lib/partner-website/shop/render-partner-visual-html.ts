@@ -115,10 +115,8 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
     chatIconLogoUrl: input.theme?.chatIconLogoUrl,
   })
   const noSeoCoach = stripPartnerInfoPageSeoCoachFromHtml(withChromeKit)
-  const mediaReady =
-    input.runtime === 'authoring' && input.variant
-      ? deferOffDevicePdpGalleryMedia(noSeoCoach, input.variant)
-      : restoreDeferredPdpGalleryMediaInHtml(noSeoCoach)
+  const restored = restoreDeferredPdpGalleryMediaInHtml(noSeoCoach)
+  const mediaReady = input.variant ? deferOffDevicePdpGalleryMedia(restored, input.variant) : restored
   const bodyAttrs = mediaReady.match(/<body\b([^>]*)>/i)?.[1] || ''
   const isProduct =
     input.pageKey === 'product_detail' || /\bdata-pw-page=["']product["']/.test(bodyAttrs)
@@ -187,6 +185,7 @@ export function preparePartnerVisualHtmlForPublic(
     pageKey?: string | null
     cmsSlug?: string | null
     theme?: PartnerWebsiteTheme | null
+    variant?: VisualDeviceVariant | null
   }
 ): string {
   return renderPartnerVisualDocument(html, {
@@ -197,6 +196,7 @@ export function preparePartnerVisualHtmlForPublic(
     onCustomDomain: input.onCustomDomain,
     pageKey: input.pageKey,
     cmsSlug: input.cmsSlug,
+    variant: input.variant || undefined,
   })
 }
 
@@ -283,5 +283,6 @@ export function renderPartnerVisualHtmlForPublic(
     pageKey,
     cmsSlug,
     theme: website.theme,
+    variant: input?.device || undefined,
   })
 }

@@ -32,7 +32,10 @@ test('PDP bootstrap hydrates reviews, Q&A, and options instead of clearing cards
   assert.match(s, /data-pw-stat="likes"/)
   assert.match(s, /hideBrokenPdpImgs/)
   assert.match(s, /data-pw-pdp-img-broken/)
-  assert.match(s, /_\\d\+x\\d\+q\\d\+/)
+  assert.match(s, /_\\d\+x\\d\+\(\?:q\\d\+\)\?/)
+  assert.match(s, /function shopPdpPageSrc/)
+  assert.match(s, /function galleryFaceVisible/)
+  assert.match(s, /pw-shop-product-detail-body/)
 })
 
 test('PDP bootstrap uses shop copy for the requested locale', () => {

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   applyShopAlicdnCardSize,
+  applyShopAlicdnPageSize,
   collectShopProductDetailImages,
   collectShopProductGalleryImages,
   hasValidShopCardImageUrl,
@@ -9,6 +10,8 @@ import {
   pickShopCardImageRaw,
   shopCardDisplaySrc,
   shopPdpDisplaySrc,
+  shopPdpPageSrc,
+  rewritePdpHtmlImagesForPage,
   nextShopImageRetrySrc,
 } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
@@ -35,14 +38,28 @@ test('PDP src keeps AliCDN original and retries then hides broken 600q90 URLs', 
   const broken =
     'https://img.alicdn.com/img/ibank/2020/688/457/21712754886_2079049757.jpg_600x600q90.jpg'
   const raw = 'https://img.alicdn.com/img/ibank/2020/688/457/21712754886_2079049757.jpg'
+  const page = `${raw}_1200x1200.jpg`
   assert.equal(shopPdpDisplaySrc(broken), raw)
   assert.equal(shopPdpDisplaySrc(raw), raw)
+  assert.equal(shopPdpDisplaySrc(page), raw)
+  assert.equal(shopPdpPageSrc(raw), page)
+  assert.equal(shopPdpPageSrc(broken), page)
+  assert.equal(applyShopAlicdnPageSize(raw), page)
   assert.equal(nextShopImageRetrySrc(broken), raw)
+  assert.equal(nextShopImageRetrySrc(page), raw)
   assert.equal(
     nextShopImageRetrySrc(raw),
     `/api/fetch-image?url=${encodeURIComponent(raw)}`
   )
   assert.equal(nextShopImageRetrySrc(`/api/fetch-image?url=${encodeURIComponent(raw)}`), null)
+  assert.equal(
+    nextShopImageRetrySrc(`/api/fetch-image?url=${encodeURIComponent(page)}`),
+    `/api/fetch-image?url=${encodeURIComponent(raw)}`
+  )
+  const rewritten = rewritePdpHtmlImagesForPage(`<img src="${raw}" alt="x">`)
+  assert.match(rewritten, /_1200x1200\.jpg/)
+  assert.match(rewritten, /data-pw-full-src="/)
+  assert.match(rewritten, /loading="lazy"/)
 })
 
 test('shopCardDisplaySrc reads AliCDN like 188 getProductMainImage (img.alicdn + 600q90)', () => {
