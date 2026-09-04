@@ -3670,6 +3670,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const showChatEmbedHint = editKind === 'chat-embed'
   const showAddedBgHint = editKind === 'added-bg'
   const showNavLinkHint = editKind === 'nav-link' && !chromeFaceKind
+  const showNavLinkColors = showNavLinkHint
   const showWidgetColors =
     !isPdpCtaLocked &&
     (chromeFaceKind ||
@@ -3732,7 +3733,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         editKind === 'image' ||
         editKind === 'paper' ||
         selection.isPaper ||
-        selection.isFillHost ||
+        (selection.isFillHost && editKind !== 'nav-link') ||
         selection.isAddedBg ||
         ((selection.isImage || selection.isBgImage || selection.isBannerPhoto) &&
           editKind !== 'chrome' &&
@@ -3854,15 +3855,25 @@ export function PartnerWebsiteVisualEditorToolbar({
     pinnedBgSelectionRef.current = null
   }
   const colorSel =
-    selection?.isBlock || selection?.isAddedBg
+    selection?.isBlock || selection?.isAddedBg || selection?.isFillHost || selection?.isPaper
       ? selection
       : bgColorPickerOpen
         ? pinnedBgSelectionRef.current
         : null
+  const showFillFace = Boolean(
+    selection &&
+      editKind !== 'nav-link' &&
+      (selection.isPaper || selection.isFillHost || selection.isAddedBg || editKind === 'paper')
+  )
   const showBgColorPicker = Boolean(
     colorSel &&
-      (colorSel.isBlock || colorSel.isAddedBg) &&
-      (selection?.isBlock || selection?.isAddedBg || bgColorPickerOpen)
+      !showFillFace &&
+      (colorSel.isBlock || colorSel.isAddedBg || colorSel.isFillHost || colorSel.isPaper) &&
+      (selection?.isBlock ||
+        selection?.isAddedBg ||
+        selection?.isFillHost ||
+        selection?.isPaper ||
+        bgColorPickerOpen)
   )
 
   const btn = compact ? 'h-6 px-1.5 text-[10px]' : 'h-7 px-2 text-xs'
@@ -4799,7 +4810,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         {showBgColorPicker && selection && selection.canClearBg && !selection.isPaper && !selection.isFillHost && editKind !== 'paper' ? (
           <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditRegionBgHint}</p>
         ) : null}
-        {selection && (selection.isPaper || selection.isFillHost || selection.isAddedBg || editKind === 'paper') ? (
+        {showFillFace && selection ? (
           <div className="space-y-1.5 rounded-md border bg-background px-2 py-1.5">
             <p className="text-[11px] font-semibold leading-4">
               {selection.isPaper || editKind === 'paper' ? t.visualEditPaperTitle : t.visualEditBgFillTitle}
@@ -4832,6 +4843,60 @@ export function PartnerWebsiteVisualEditorToolbar({
                 {t.visualEditPaperWhite}
               </Button>
             ) : null}
+            <div className="flex flex-wrap items-center gap-1 text-[10px]">
+              <span className="text-muted-foreground">{t.visualEditBgColor}</span>
+              <ThemeColorConfirmPicker
+                value={
+                  selection.fillMode === 'transparent' || selection.bgCleared
+                    ? 'transparent'
+                    : cssColorToHex(selection.bgColor, '#ffffff')
+                }
+                disabled={busy}
+                compact={compact}
+                okLabel={t.themeColorOk}
+                themePicks={themePicks}
+                allowTransparent
+                transparentLabel={t.visualEditBgTransparent}
+                onConfirm={(color) => {
+                  if (color === 'transparent') {
+                    postToIframe(iframeRef.current, 'clearRegionFill')
+                  } else {
+                    postToIframe(iframeRef.current, 'setBgColor', { color })
+                  }
+                  setDirty(true)
+                }}
+              />
+              {selection.lastMediaSrc ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={cn(btn, 'px-1.5')}
+                  disabled={busy}
+                  title={t.visualEditRestoreLastImage}
+                  onClick={() => {
+                    postToIframe(iframeRef.current, 'restoreLastMedia')
+                    setDirty(true)
+                  }}
+                >
+                  {t.visualEditRestoreLastImage}
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                variant={selection.bgCleared || selection.fillMode === 'transparent' ? 'default' : 'outline'}
+                className={cn(btn, 'px-1.5')}
+                disabled={busy || selection.bgCleared || selection.fillMode === 'transparent'}
+                title={t.visualEditBgTransparent}
+                onClick={() => {
+                  postToIframe(iframeRef.current, 'clearRegionFill')
+                  setDirty(true)
+                }}
+              >
+                {t.visualEditBgTransparent}
+              </Button>
+            </div>
             {selection.fillMode === 'image' ? (
               <div className="space-y-1.5 border-t pt-1.5">
                 <p className="text-[11px] font-semibold leading-4">{t.visualEditBgImagePos}</p>
@@ -4998,9 +5063,51 @@ export function PartnerWebsiteVisualEditorToolbar({
           </Button>
         ) : null}
         {showNavLinkHint && selection ? (
-          <div className="rounded-md border bg-background px-2 py-1.5">
+          <div className="rounded-md border bg-background px-2 py-1.5 space-y-2">
             <p className="text-[11px] font-semibold leading-4">{t.visualEditNavLinkTitle}</p>
             <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditNavLinkHint}</p>
+            {showNavLinkColors ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1 text-[10px]">
+                  <span className="text-muted-foreground">{t.visualEditTextColor}</span>
+                  <ThemeColorConfirmPicker
+                    value={cssColorToHex(selection.textColor || '', '#111827')}
+                    disabled={busy}
+                    compact={compact}
+                    okLabel={t.themeColorOk}
+                    themePicks={themePicks}
+                    onConfirm={(color) => {
+                      postToIframe(iframeRef.current, 'setColor', { color })
+                      setDirty(true)
+                    }}
+                  />
+                </div>
+                <div className="flex items-center gap-1 text-[10px]">
+                  <span className="text-muted-foreground">{t.visualEditAddButtonColor}</span>
+                  <ThemeColorConfirmPicker
+                    value={
+                      selection.btnColor
+                        ? cssColorToHex(selection.btnColor, '#ffffff')
+                        : selection.bgColor
+                          ? cssColorToHex(selection.bgColor, '#ffffff')
+                          : 'transparent'
+                    }
+                    disabled={busy}
+                    compact={compact}
+                    okLabel={t.themeColorOk}
+                    themePicks={themePicks}
+                    allowTransparent
+                    transparentLabel={t.visualEditBgTransparent}
+                    onConfirm={(color) => {
+                      postToIframe(iframeRef.current, 'setButtonColor', {
+                        color: color === 'transparent' ? '' : color,
+                      })
+                      setDirty(true)
+                    }}
+                  />
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
           {showLayerSwitch && selection ? (
@@ -5466,6 +5573,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                 />
               ) : null}
               {hrefField}
+              {showNavLinkColors ? null : (
               <div className="flex items-center gap-1 text-[10px]">
                 <span className="text-muted-foreground">{t.visualEditTextColor}</span>
                 <ThemeColorConfirmPicker
@@ -5477,6 +5585,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                   onConfirm={(color) => postToIframe(iframeRef.current, 'setColor', { color })}
                 />
               </div>
+              )}
               <label className="flex items-center gap-1 text-[10px]">
                 <span className="text-muted-foreground">{t.visualEditFontSize}</span>
                 <input

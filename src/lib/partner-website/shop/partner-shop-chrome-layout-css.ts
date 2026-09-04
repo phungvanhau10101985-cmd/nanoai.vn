@@ -63,6 +63,7 @@ import {
   PARTNER_SHOP_BANNER_LIVE_MATCH_CSS,
   PARTNER_SHOP_BANNER_MEDIA_FILL_CSS,
   PARTNER_SHOP_HROW_CSS,
+  PARTNER_SHOP_MID_INSERT_GAP_CSS,
   PARTNER_SHOP_STACK_FLOW_CSS,
   PW_SCENE_HEAD_Z,
   PW_SCENE_LOGO_Z,
@@ -745,10 +746,15 @@ ${PW_CHROME_ICON_SQUARE_CSS}
 ${PW_LEAD_COUPON_CSS}
 ${PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS}
 .pw-nav-main>a,.pw-nav-main>a.pw-nav-sale,.pw-nav-main>a.is-sale,.pw-nav-main>button,
+.pw-nav-main a,.pw-nav-main a.pw-nav-sale,.pw-nav-main a.is-sale,.pw-nav-main button,
 .pw-shop-nav-row>a,.pw-shop-nav-row>a.pw-nav-sale,.pw-shop-nav-row>a.is-sale,.pw-shop-nav-row>button,
+.pw-shop-nav-row a,.pw-shop-nav-row a.pw-nav-sale,.pw-shop-nav-row a.is-sale,.pw-shop-nav-row button,
+.pw-nav-row-scroll a,.pw-nav-row-scroll button,.pw-nav-pill a,.pw-nav-pill button,
 .pw-cat-panel a,.pw-cat-panel a.pw-nav-sale,.pw-cat-panel a.is-sale,
-.pw-shop-cat-panel a,.pw-shop-cat-panel a.pw-nav-sale,.pw-shop-cat-panel a.is-sale{color:#374151!important}
+.pw-shop-cat-panel a,.pw-shop-cat-panel a.pw-nav-sale,.pw-shop-cat-panel a.is-sale{color:#374151!important;transition:color .15s ease}
 .pw-nav-main>a:hover,.pw-shop-nav-row>a:hover,
+.pw-nav-main a:hover,.pw-nav-main button:hover,.pw-shop-nav-row a:hover,.pw-shop-nav-row button:hover,
+.pw-nav-row-scroll a:hover,.pw-nav-row-scroll button:hover,.pw-nav-pill:hover a,.pw-nav-pill:hover button,
 .pw-cat-panel a:hover,.pw-shop-cat-panel a:hover,[data-pw-cat-panel] a:hover,
 .pw-cat-mega-l2:hover,.pw-cat-mega-l3:hover,
 .pw-cat-mega-l1 a.is-active,.pw-cat-panel a.is-active,.pw-shop-cat-panel a.is-active,[data-pw-cat-panel] a.is-active{
@@ -905,6 +911,7 @@ ${PW_CHROME_ICON_SQUARE_CSS}
 ${PARTNER_SHOP_FOOTER_INFLOW_CSS}
 ${PARTNER_SHOP_BANNER_MEDIA_FILL_CSS}
 ${PARTNER_SHOP_STACK_FLOW_CSS}
+${PARTNER_SHOP_MID_INSERT_GAP_CSS}
 ${PARTNER_SHOP_BANNER_LIVE_MATCH_CSS}
 ${PARTNER_SHOP_AUTHORED_BLOCK_CSS}
 ${PARTNER_SHOP_HROW_CSS}

@@ -168,6 +168,23 @@ function canonicalizeOpeningTag(
     attrs = writeStyle(attrs, style)
     return `<${tag}${attrs}>`
   }
+  const faceColorVars: Array<[string, string]> = [
+    ['data-pw-btn-color', '--pw-btn-color'],
+    ['data-pw-btn-border', '--pw-btn-border'],
+    ['data-pw-btn-text', '--pw-btn-text'],
+    ['data-pw-icon-color', '--pw-icon-color'],
+    ['data-pw-chrome-hover', '--pw-chrome-hover'],
+  ]
+  const isPageLinkFace =
+    /\bdata-pw-el=["'](?:nav-link|link|crumb|section-more|menu-item)["']/i.test(attrs) &&
+    (/\bdata-pw-btn-color=/i.test(attrs) || /\bdata-pw-btn-text=/i.test(attrs))
+  if (isPageLinkFace) {
+    for (const [attr, cssVar] of faceColorVars) {
+      const color = readAttr(attrs, attr).trim()
+      if (color && !style.has(cssVar)) style.set(cssVar, color)
+    }
+    attrs = writeStyle(attrs, style)
+  }
   const isKitFloatBtn =
     /\bdata-pw-chrome-float=["']1["']/i.test(attrs) && /\bdata-pw-chrome-kit=["']1["']/i.test(attrs)
   if (isKitFloatBtn) {
@@ -185,14 +202,7 @@ function canonicalizeOpeningTag(
     for (const name of ['position', 'left', 'top', 'right', 'bottom', 'transform', 'z-index', 'margin']) {
       style.delete(name)
     }
-    const faceVars: Array<[string, string]> = [
-      ['data-pw-btn-color', '--pw-btn-color'],
-      ['data-pw-btn-border', '--pw-btn-border'],
-      ['data-pw-btn-text', '--pw-btn-text'],
-      ['data-pw-icon-color', '--pw-icon-color'],
-      ['data-pw-chrome-hover', '--pw-chrome-hover'],
-    ]
-    for (const [attr, cssVar] of faceVars) {
+    for (const [attr, cssVar] of faceColorVars) {
       const color = readAttr(attrs, attr).trim()
       if (color && !style.has(cssVar)) style.set(cssVar, color)
     }

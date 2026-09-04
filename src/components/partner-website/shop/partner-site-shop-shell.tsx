@@ -28,6 +28,7 @@ import {
 import { PartnerSiteShopSearchBar } from '@/components/partner-website/shop/partner-site-shop-search-bar'
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
 import { PartnerSiteCookieConsentBanner } from '@/components/partner-website/shop/partner-site-cookie-consent-banner'
+import { PartnerSiteBirthGenderPromptModal } from '@/components/partner-website/shop/partner-site-birth-gender-prompt-modal'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   partnerSiteAccountTabPath,
@@ -572,6 +573,7 @@ function PartnerSiteShopShellInner({
     <div className="pw-shop" {...(pageKind ? { 'data-pw-page': pageKind } : {})}>
       <PartnerSiteShopTrackingBootstrap tracking={tracking} />
       <PartnerSiteCookieConsentBanner siteSlug={siteSlug} locale={locale} />
+      <PartnerSiteBirthGenderPromptModal siteSlug={siteSlug} shopTitle={title} locale={locale} />
       <style dangerouslySetInnerHTML={{ __html: buildPartnerSiteShopThemeCss(theme) }} />
       {useVisualChrome ? (
         <>

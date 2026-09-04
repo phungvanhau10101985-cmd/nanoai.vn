@@ -73,7 +73,10 @@ import {
   PARTNER_SHOP_AUTHORED_BLOCK_CSS,
   PARTNER_SHOP_BANNER_MEDIA_FILL_CSS,
   PARTNER_SHOP_HROW_CSS,
+  PARTNER_SHOP_MID_INSERT_GAP_CSS,
   PARTNER_SHOP_STACK_FLOW_CSS,
+  PW_MID_INSERT_GAP_ATTR,
+  PW_MID_INSERT_GAP_PX,
 } from './pw-scene'
 import { PW_KIND_SCENE } from './pw-kind-scene'
 import {
@@ -5930,7 +5933,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     el.style.setProperty('height', 'auto', 'important')
     el.style.setProperty('padding-top', '0', 'important')
     el.style.setProperty('padding-bottom', '0', 'important')
-    el.style.setProperty('margin-top', '0', 'important')
+    if (el.getAttribute('${PW_MID_INSERT_GAP_ATTR}') !== '1') {
+      el.style.setProperty('margin-top', '0', 'important')
+    }
     var box = el.querySelector ? el.querySelector(':scope > .pw-container') : null
     if (box && box.style && !featured) {
       box.style.paddingTop = '12px'
@@ -6403,6 +6408,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function fillHostOf(el) {
     if (!el || el.nodeType !== 1) return null
     if (el === document.body || el === document.documentElement) return null
+    if (isPageLinkPaintEl(el)) return null
     if (isAddedBg(el)) return el
     if (isPaperHost(el)) return el
     var region = el.getAttribute ? el.getAttribute('data-pw-region') : ''
@@ -6648,7 +6654,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       }
     } else if (url) {
       var safe = String(url).replace(/['")]/g, '').trim()
-      if (safe && (isPaperHost(el) || isAddedBg(el))) applyPaperImage(el, safe)
+      if (safe && (isPaperHost(el) || isAddedBg(el) || isFooterFillHost(el) || isRegionFillHost(el))) applyPaperImage(el, safe)
       else if (safe && el.style) {
         el.style.backgroundImage = 'url("' + safe + '")'
         el.style.backgroundSize = 'cover'
@@ -6666,10 +6672,14 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (color) {
       if (el.style) {
         el.style.removeProperty('background')
+        el.style.removeProperty('background-image')
         el.style.backgroundColor = color
       }
       // Chrome CSS: html .pw-footer{background:var(--pw-footer)!important} — inline background loses.
-      if (isFooterFillHost(el) && el.style && el.style.setProperty) el.style.setProperty('--pw-footer', color)
+      if (isFooterFillHost(el) && el.style && el.style.setProperty) {
+        el.style.setProperty('--pw-footer', color)
+        el.style.setProperty('background-image', 'none', 'important')
+      }
     }
   }
   function addedBgLayer(el) {
@@ -9222,6 +9232,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     node.style.marginRight = '0'
     node.style.boxSizing = 'border-box'
   }
+  function applyMidInsertGap(node) {
+    if (!node || !node.setAttribute) return
+    node.setAttribute('${PW_MID_INSERT_GAP_ATTR}', '1')
+    if (!node.style) return
+    node.style.setProperty('margin-top', '${PW_MID_INSERT_GAP_PX}px', 'important')
+    node.style.setProperty('margin-bottom', '${PW_MID_INSERT_GAP_PX}px', 'important')
+  }
   function insertInFlowAtAnchor(node) {
     if (!hasInsertAnchor() || !node) return false
     if (isFooterAnchor()) return insertInFooterAtAnchor(node)
@@ -9231,6 +9248,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!host) return false
     if (isHInsertPlace(place)) return insertBeside(unit, node, place)
     styleInFlowSlot(node)
+    applyMidInsertGap(node)
     if (place === 'before') host.insertBefore(node, unit)
     else if (unit.nextSibling) host.insertBefore(node, unit.nextSibling)
     else host.appendChild(node)
@@ -9594,9 +9612,16 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     stampAddedBgBox(node, null, 120)
     if (isHInsertPlace(place)) {
       if (!insertBeside(unit, node, place)) return
-    } else if (place === 'before') host.insertBefore(node, unit)
-    else if (unit.nextSibling) host.insertBefore(node, unit.nextSibling)
-    else host.appendChild(node)
+    } else if (place === 'before') {
+      applyMidInsertGap(node)
+      host.insertBefore(node, unit)
+    } else if (unit.nextSibling) {
+      applyMidInsertGap(node)
+      host.insertBefore(node, unit.nextSibling)
+    } else {
+      applyMidInsertGap(node)
+      host.appendChild(node)
+    }
     finishInsertedBg(node)
     try { syncGapPluses() } catch (eGap4) {}
   }
@@ -10384,7 +10409,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       fig.setAttribute('data-pw-added-image-slot', '1')
       fig.style.maxWidth = '100%'
       fig.style.width = 'min(720px, 92%)'
-      fig.style.margin = '12px auto'
+      fig.style.margin = '${PW_MID_INSERT_GAP_PX}px auto'
       if (wantFooterInsert() && appendToFooter(fig)) {
         selectEl(fig)
         post('dirty', {})
@@ -10453,7 +10478,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (hasInsertAnchor()) {
       wrap.setAttribute('data-pw-added-video-slot', '1')
       wrap.style.width = 'min(720px, 92%)'
-      wrap.style.margin = '12px auto'
+      wrap.style.margin = '${PW_MID_INSERT_GAP_PX}px auto'
       if (insertInFlowAtAnchor(wrap)) {
         pinKindLockedScene(wrap)
         selectEl(wrap)
@@ -11364,6 +11389,47 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function isCtaPaintEl(el) {
     return !!(el && isBtnEl(el) && !catToggleElOf(el) && !isChromeBtn(el) && !isHeaderWidget(el) && !isSearchEl(el))
   }
+  function isPageLinkPaintEl(el) {
+    if (!el || el.nodeType !== 1) return false
+    if (isWidgetSurfaceEl(el) || isCtaPaintEl(el) || isAddedBtn(el)) return false
+    if (catToggleElOf(el) || isChromeBtn(el) || isHeaderWidget(el) || isSearchEl(el)) return false
+    var role = pwElOf(el)
+    if (role === 'nav-link' || role === 'link' || role === 'crumb' || role === 'section-more' || role === 'menu-item') return true
+    return editKindOf(el) === 'nav-link'
+  }
+  function applyPageLinkBg(el, color) {
+    var c = String(color || '').trim()
+    if (c === 'transparent') c = ''
+    if (!c) {
+      el.removeAttribute('data-pw-btn-color')
+      try {
+        el.style.removeProperty('--pw-btn-color')
+        el.style.removeProperty('background')
+        el.style.removeProperty('background-color')
+        el.style.removeProperty('background-image')
+      } catch (errLinkBgRm) {}
+      return
+    }
+    el.setAttribute('data-pw-btn-color', c)
+    el.style.setProperty('--pw-btn-color', c)
+    el.style.setProperty('background-image', 'none', 'important')
+    el.style.setProperty('background', c, 'important')
+    el.style.setProperty('background-color', c, 'important')
+  }
+  function applyPageLinkText(el, color) {
+    var c = String(color || '').trim()
+    if (!c) {
+      el.removeAttribute('data-pw-btn-text')
+      try {
+        el.style.removeProperty('--pw-btn-text')
+        el.style.removeProperty('color')
+      } catch (errLinkTxRm) {}
+      return
+    }
+    el.setAttribute('data-pw-btn-text', c)
+    el.style.setProperty('--pw-btn-text', c)
+    el.style.setProperty('color', c, 'important')
+  }
   function restoreWidgetColors(root) {
     var scope = root && root.querySelectorAll ? root : document
     var nodes = []
@@ -11384,6 +11450,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var text
     for (i = 0; i < nodes.length; i++) {
       el = nodes[i]
+      if (isPageLinkPaintEl(el)) {
+        bg = el.getAttribute('data-pw-btn-color') || ''
+        text = el.getAttribute('data-pw-btn-text') || ''
+        if (bg) applyPageLinkBg(el, bg)
+        if (text) applyPageLinkText(el, text)
+        continue
+      }
       if (isWidgetSurfaceEl(el) || dotsElOf(el) === el) {
       bg = el.getAttribute('data-pw-btn-color') || ''
       border = el.getAttribute('data-pw-btn-border') || ''
@@ -11458,6 +11531,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!selected) return
     if (isWidgetSurfaceEl(selected)) applyWidgetBg(selected, color)
     else if (isCtaPaintEl(selected)) applyBtnColor(selected, color)
+    else if (isPageLinkPaintEl(selected)) applyPageLinkBg(selected, color)
     else return
     positionAllHandles()
     post('dirty', {})
@@ -11515,6 +11589,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (hasInsertAnchor() && insertInFlowAtAnchor(node)) {
       pinKindLockedScene(node)
       compactAddedProductGrid(node)
+      applyMidInsertGap(node)
       selectEl(node)
       post('dirty', {})
       consumeInsertAnchor()
@@ -12625,7 +12700,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       blockMaxWidth: sceneWidthPx(),
       blockLabel: parentBlock ? blockLabel(parentBlock) : '',
       rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
-      textColor: isWidgetSurfaceEl(el) ? readWidgetTextColor(el) : (cs(searchTypeEl(el)).color || ''),
+      textColor: isWidgetSurfaceEl(el)
+        ? readWidgetTextColor(el)
+        : ((el.getAttribute && el.getAttribute('data-pw-btn-text')) || cs(searchTypeEl(el)).color || ''),
       fontSize: parseFontSizePx(searchTypeEl(el)),
       fontWeight: cs(el).fontWeight || '400',
       textAlign: cs(el).textAlign || 'left',
@@ -15001,7 +15078,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-guide-v{position:absolute;width:1px;background:repeating-linear-gradient(180deg,rgba(37,99,235,.42) 0 6px,transparent 6px 11px)}',
       '.nanoai-ve-guide-h.is-snap,.nanoai-ve-guide-v.is-snap{background:#2563eb;opacity:.85}',
       ${JSON.stringify(PARTNER_SHOP_HIDDEN_CSS)},
-      '.nanoai-ve-active .pw-cat-panel,.nanoai-ve-active .pw-shop-cat-panel,.nanoai-ve-active .pw-account-panel,.nanoai-ve-active .pw-shop-account-panel,.nanoai-ve-active [data-pw-cat-panel],.nanoai-ve-active [data-pw-account-panel],.nanoai-ve-active #pw-search-results,.nanoai-ve-active #pw-image-search-popover,.nanoai-ve-active #pw-lp-buy-modal,.nanoai-ve-active #pw-cart-added-popup,.nanoai-ve-active [data-pw-cart-added-popup],.nanoai-ve-active #pw-variant-modal,.nanoai-ve-active [data-pw-variant-modal]{display:none!important;pointer-events:none!important;visibility:hidden!important}',
+      '.nanoai-ve-active .pw-cat-panel,.nanoai-ve-active .pw-shop-cat-panel,.nanoai-ve-active .pw-account-panel,.nanoai-ve-active .pw-shop-account-panel,.nanoai-ve-active [data-pw-cat-panel],.nanoai-ve-active [data-pw-account-panel],.nanoai-ve-active #pw-search-results,.nanoai-ve-active #pw-image-search-popover,.nanoai-ve-active #pw-lp-buy-modal,.nanoai-ve-active #pw-cart-added-popup,.nanoai-ve-active [data-pw-cart-added-popup],.nanoai-ve-active #pw-variant-modal,.nanoai-ve-active [data-pw-variant-modal],.nanoai-ve-active #pw-birth-gender-prompt,.nanoai-ve-active [data-pw-birth-gender-prompt]{display:none!important;pointer-events:none!important;visibility:hidden!important}',
       '.nanoai-ve-active .pw-nav-main a,.nanoai-ve-active .pw-shop-nav-row a,.nanoai-ve-active .pw-topbar a,.nanoai-ve-active .pw-shop-topbar a,.nanoai-ve-active [data-pw-el="nav-link"],.nanoai-ve-active .pw-topbar [data-pw-el="link"],.nanoai-ve-active .pw-shop-topbar [data-pw-el="link"],.nanoai-ve-active [data-pw-el="cat-toggle"],.nanoai-ve-active .pw-cat-btn,.nanoai-ve-active .pw-shop-cat-btn,.nanoai-ve-active .pw-chrome-cat-wrap{pointer-events:auto!important;position:relative;z-index:200}',
       '.pw-bottom-nav,.pw-shop-bottom-nav{display:flex!important;flex-wrap:nowrap;justify-content:space-around;align-items:stretch;grid-template-columns:none!important}',
       '[data-pw-edit-device="desktop"] .pw-bottom-nav,[data-pw-edit-device="desktop"] .pw-shop-bottom-nav,[data-pw-edit-device="laptop"] .pw-bottom-nav,[data-pw-edit-device="laptop"] .pw-shop-bottom-nav{display:none!important}',
@@ -15032,6 +15109,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       'html [data-pw-block-h]:not([data-pw-added-bg]):not([data-pw-added-catalog]):not([data-pw-featured-categories]):not([data-pw-region="catalog"]){min-height:var(--pw-block-h)!important;height:var(--pw-block-h)!important}',
       ${JSON.stringify(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS)},
       ${JSON.stringify(PARTNER_SHOP_STACK_FLOW_CSS)},
+      ${JSON.stringify(PARTNER_SHOP_MID_INSERT_GAP_CSS)},
       ${JSON.stringify(PARTNER_SHOP_HROW_CSS)},
       ${JSON.stringify(PARTNER_SHOP_SLIDER_CSS)},
       '.pw-brand-cluster,.pw-shop-brand-cluster,.pw-brand:not([data-pw-logo-float]),.pw-shop-brand:not([data-pw-logo-float]),a[data-pw-logo-home]:not([data-pw-logo-float]){position:relative!important;z-index:120!important;flex:0 0 auto!important;overflow:visible!important}',
@@ -16011,6 +16089,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.type === 'setColor' && selected && d.color) {
       if (isWidgetSurfaceEl(selected)) applyWidgetTextColor(selected, d.color)
       else if (isBtnEl(selected) && !isChromeBtn(selected)) applyBtnTextColor(selected, d.color)
+      else if (isPageLinkPaintEl(selected)) applyPageLinkText(selected, d.color)
       else selected.style.color = d.color
       post('dirty', {})
       refreshSelect()

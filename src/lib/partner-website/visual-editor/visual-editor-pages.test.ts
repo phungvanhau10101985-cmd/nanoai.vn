@@ -101,6 +101,13 @@ test('visual editor paths map catalog pages', () => {
   assert.equal(isDesktopBrowserWindow({ outerWidth: VISUAL_MOBILE_PREVIEW_PX }), false)
   assert.equal(isDesktopBrowserWindow({ outerWidth: 0 }), false)
   assert.equal(isDesktopBrowserWindow(null), false)
+  assert.equal(
+    isDesktopBrowserWindow({
+      outerWidth: 1920,
+      navigator: { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)' },
+    }),
+    false
+  )
   assert.equal(VISUAL_MOBILE_PREVIEW_PX, 390)
   assert.equal(VISUAL_TABLET_PREVIEW_PX, 768)
   assert.equal(VISUAL_LAPTOP_PREVIEW_PX, 1280)
@@ -1158,6 +1165,7 @@ test('public visual render gateway serves one device with chrome theme and runti
   assert.match(view, /data-pw-search-bootstrap/)
   assert.match(view, /data-pw-catalog-bootstrap/)
   assert.match(view, /data-pw-personalization-bootstrap/)
+  assert.match(view, /data-pw-birth-gender-prompt-bootstrap/)
   assert.match(view, /id="pw-logo-home-link"/)
   assert.match(view, /--pw-primary:\s*#123456/)
 })
@@ -1178,6 +1186,7 @@ test('editor visual render hydrates read-only slots but excludes mutating live a
   assert.match(edit, /data-pw-cat-toggle/)
   assert.doesNotMatch(edit, /data-pw-search-bootstrap/)
   assert.doesNotMatch(edit, /data-pw-shop-actions-bootstrap/)
+  assert.doesNotMatch(edit, /data-pw-birth-gender-prompt-bootstrap/)
   assert.doesNotMatch(edit, /data-pw-chrome-toggle-bootstrap/)
   assert.match(edit, /data-pw-catalog-bootstrap/)
   assert.match(edit, /data-pw-personalization-bootstrap/)

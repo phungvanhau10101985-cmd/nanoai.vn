@@ -123,9 +123,17 @@ export function visualDevicePreviewFrameStyle(
 /**
  * Docked DevTools shrinks `innerWidth` (CSS viewport) but not `outerWidth` (browser window).
  * Use this so F12 does not switch the composed shop from desktop to tablet.
- * Phones/tablets keep outerWidth below 1280 — do not lock them to desktop.
+ * Device-mode F12 spoofs a phone UA — do not lock that to desktop.
+ * Real phones/tablets keep outerWidth below 1280.
  */
-export function isDesktopBrowserWindow(win?: { outerWidth?: number } | null): boolean {
+export function isDesktopBrowserWindow(
+  win?: { outerWidth?: number; navigator?: { userAgent?: string } } | null
+): boolean {
+  const ua =
+    win?.navigator?.userAgent ??
+    (typeof navigator !== 'undefined' ? navigator.userAgent : '')
+  if (/ipad|tablet|kindle|silk/i.test(ua)) return false
+  if (/mobile|iphone|ipod|android/i.test(ua)) return false
   const outer =
     win?.outerWidth ?? (typeof window !== 'undefined' ? window.outerWidth : 0)
   return (outer || 0) >= VISUAL_DESKTOP_MIN_PX

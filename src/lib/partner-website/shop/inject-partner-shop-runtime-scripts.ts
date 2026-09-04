@@ -10,9 +10,10 @@ import { buildPartnerSiteOutfitBootstrapScript } from '@/lib/partner-website/sho
 import { buildPartnerSiteSliderBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-slider-bootstrap-script'
 import { stampPartnerSiteChromeWidgetHooksInHtml } from '@/lib/partner-website/shop/stamp-partner-site-chrome-widget-hooks'
 import { buildPartnerSitePaperTileBootstrapScript } from '@/lib/partner-website/visual-editor/pw-bg-stack'
+import { buildPartnerSiteBirthGenderPromptScript } from '@/lib/partner-website/shop/build-partner-site-birth-gender-prompt-script'
 
 const PW_RUNTIME_SCRIPT_RE =
-  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|header-toggle|lp-buy)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
+  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|birth-gender-prompt-bootstrap|header-toggle|lp-buy)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
 const PW_RUNTIME_STYLE_RE =
   /<style\b[^>]*\bdata-pw-(?:chrome-toggle-css|search-image-css)\b[^>]*>[\s\S]*?<\/style>/gi
 
@@ -66,7 +67,7 @@ export function injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(
  */
 export function injectPartnerShopRuntimeScriptsIntoHtml(
   html: string,
-  input: { siteSlug?: string; locale?: WebLocale }
+  input: { siteSlug?: string; locale?: WebLocale; shopTitle?: string | null }
 ): string {
   let out = html
   if (!out.trim()) return html
@@ -85,6 +86,11 @@ export function injectPartnerShopRuntimeScriptsIntoHtml(
   out = appendBeforeBody(out, buildPartnerSitePersonalizationBootstrapScript({ siteSlug, locale }))
   out = appendBeforeBody(out, buildPartnerSitePdpBootstrapScript({ siteSlug, locale }))
   out = appendBeforeBody(out, buildPartnerSiteShopActionsBootstrapScript({ siteSlug, locale }))
+  out = appendBeforeBody(out, buildPartnerSiteBirthGenderPromptScript({
+    siteSlug,
+    locale,
+    shopTitle: input.shopTitle,
+  }))
   out = appendBeforeBody(out, buildPartnerSiteChromeToggleBootstrapScript({ siteSlug, locale }))
   out = appendBeforeBody(out, buildPartnerSiteSliderBootstrapScript())
   out = appendBeforeBody(out, buildPartnerSitePaperTileBootstrapScript())

@@ -77,6 +77,8 @@ describe('pw bg stack', () => {
     expect(s).toContain('bakeTranslateToBox')
     expect(s).toContain('insertBgInFlow')
     expect(s).toContain('insertInFlowAtAnchor')
+    expect(s).toContain('function applyMidInsertGap')
+    expect(s).toContain('data-pw-mid-gap')
     expect(s).toContain('setBlockSize')
     expect(s).toContain('function stampAddedBgBox(')
     expect(s).toContain('--pw-added-bg-w')

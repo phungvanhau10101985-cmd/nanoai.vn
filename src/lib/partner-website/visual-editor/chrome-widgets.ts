@@ -391,6 +391,12 @@ export const PW_CHROME_FACE_EXTRAS_CSS =
   '[data-pw-btn-text] .pw-shop-icon-label,[data-pw-btn-text] .pw-account-btn-label,' +
   '[data-pw-btn-text] .pw-shop-search-submit-label,' +
   '[data-pw-btn-text] > span:not(.pw-chrome-icon-wrap):not(.pw-cart-badge):not(.pw-shop-cart-badge):not(.pw-chrome-chat-logo){color:var(--pw-btn-text)!important}' +
+  '[data-pw-el="nav-link"][data-pw-btn-text],[data-pw-el="link"][data-pw-btn-text],' +
+  '[data-pw-el="crumb"][data-pw-btn-text],[data-pw-el="section-more"][data-pw-btn-text],' +
+  '[data-pw-el="menu-item"][data-pw-btn-text]{color:var(--pw-btn-text)!important}' +
+  '[data-pw-el="nav-link"][data-pw-btn-color],[data-pw-el="link"][data-pw-btn-color],' +
+  '[data-pw-el="crumb"][data-pw-btn-color],[data-pw-el="section-more"][data-pw-btn-color],' +
+  '[data-pw-el="menu-item"][data-pw-btn-color]{background:var(--pw-btn-color)!important;background-color:var(--pw-btn-color)!important}' +
   '[data-pw-icon-color]{color:var(--pw-icon-color)}' +
   '[data-pw-icon-color] svg,[data-pw-icon-color] .pw-chrome-icon-wrap{color:var(--pw-icon-color)!important;stroke:var(--pw-icon-color)!important}' +
   '[data-pw-icon-color] svg path,[data-pw-icon-color] svg circle,[data-pw-icon-color] svg line,' +

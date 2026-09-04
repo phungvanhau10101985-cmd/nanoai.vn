@@ -27,9 +27,7 @@ import {
   PARTNER_SHOP_SCENE_CENTER_SCRIPT,
   PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID,
 } from '@/lib/partner-website/visual-editor/pw-scene'
-import {
-  pwResolveCoordinateDevice,
-} from '@/lib/partner-website/visual-editor/pw-coordinate-space'
+import { resolveLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-live-visual-request-device'
 import type { PartnerVisualHtmlByDevice } from '@/lib/partner-website/shop/render-partner-visual-html'
 import { PARTNER_LIVE_DEVICE_COOKIE } from '@/lib/auth/app-request-headers'
 
@@ -257,11 +255,10 @@ function PartnerSitePublicFrame({
   useLayoutEffect(() => {
     const viewportDevice = () =>
       forceDevice ||
-      pwResolveCoordinateDevice({
-        outerWidth: window.outerWidth || 0,
-        layoutWidth: window.innerWidth || document.documentElement.clientWidth || 0,
-        screenWidth: Math.max(window.screen?.width || 0, window.screen?.availWidth || 0),
+      resolveLiveVisualRequestDevice({
+        viewportWidth: window.outerWidth || window.innerWidth || document.documentElement.clientWidth || 0,
         devicePixelRatio: window.devicePixelRatio || 0,
+        userAgent: navigator.userAgent || '',
       })
     const choose = () => {
       const requested = viewportDevice()

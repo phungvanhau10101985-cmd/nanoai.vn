@@ -29,6 +29,7 @@ import {
   writeGuestAuthRememberDevicePreference,
 } from '@/lib/auth/guest-auth-remember-device-client'
 import { getStableEmailTrustedBrowserId } from '@/lib/auth/email-trusted-browser-client'
+import { markPartnerSiteFreshLoginSession } from '@/lib/partner-website/shop/partner-site-birth-gender-prompt-session'
 
 type Props = {
   partnerSlug: string
@@ -115,6 +116,7 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
       skipResumeAndSync: true,
     })
     if (result.ok) {
+      markPartnerSiteFreshLoginSession(siteSlug)
       onAuthed?.()
       return true
     }
@@ -136,7 +138,10 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
     sp.delete(PARTNER_SITE_CUSTOMER_TOKEN_QUERY_KEY)
     const nextPath = `${window.location.pathname}${sp.toString() ? `?${sp.toString()}` : ''}`
     window.history.replaceState(null, '', nextPath)
-    if (ok) onAuthed?.()
+    if (ok) {
+      markPartnerSiteFreshLoginSession(siteSlug)
+      onAuthed?.()
+    }
     return ok
   }, [authHeaders, captureFromResponse, onAuthed, partnerSlug, siteSlug])
 
@@ -160,6 +165,7 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
       const nextPath = `${window.location.pathname}${sp.toString() ? `?${sp.toString()}` : ''}`
       window.history.replaceState(null, '', nextPath)
       if (res.ok && json.ok) {
+        markPartnerSiteFreshLoginSession(siteSlug)
         onAuthed?.()
         return true
       }
@@ -248,6 +254,7 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
       }
       if (json.autoSignedIn) {
         setMessage(t.authSuccess)
+        markPartnerSiteFreshLoginSession(siteSlug)
         onAuthed?.()
         return
       }
@@ -292,6 +299,7 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
         return
       }
       setMessage(t.authSuccess)
+      markPartnerSiteFreshLoginSession(siteSlug)
       onAuthed?.()
     } catch {
       setMessage(t.authFailed)

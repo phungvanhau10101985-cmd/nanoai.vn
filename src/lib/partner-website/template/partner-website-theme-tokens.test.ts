@@ -127,6 +127,19 @@ test('nav links including sale stay ink and do not follow theme', () => {
   assert.match(next, /\.pw-nav-main a\.pw-nav-sale\{color:#374151/)
 })
 
+test('nav link hover and active stay on the primary token', () => {
+  const html =
+    '<html><head><style>.pw-nav-main a:hover{color:#f97316}.pw-nav-main a.pw-nav-sale:hover{color:var(--pw-accent)}.pw-nav-main a.is-active{color:#ea580c}</style></head><body></body></html>'
+  const next = rewriteThemeCssVarsInHtml(html, {
+    ...DEFAULT_PARTNER_WEBSITE_THEME,
+    primaryColor: '#0f766e',
+    buyButtonColor: '#0f766e',
+  })
+  assert.match(next, /\.pw-nav-main a:hover\{color:var\(--pw-primary\)/)
+  assert.match(next, /\.pw-nav-main a\.pw-nav-sale:hover\{color:var\(--pw-primary\)/)
+  assert.match(next, /\.pw-nav-main a\.is-active\{color:var\(--pw-primary\)/)
+})
+
 test('shopThemeQuickPicks exposes live main and supporting theme colors', () => {
   const labels = {
     mainTitle: 'Main',

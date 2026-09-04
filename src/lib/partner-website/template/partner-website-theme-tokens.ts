@@ -367,15 +367,24 @@ const NAV_HOST = String.raw`(?:\.pw-nav-main|\.pw-shop-nav-row|\.pw-cat-panel|\.
 
 function chromeSelectorKind(
   selector: string
-): 'topbar' | 'search-submit' | 'search-form' | 'price' | 'buy' | 'cart' | 'nav-ink' | null {
-  const parts = selector
+): 'topbar' | 'search-submit' | 'search-form' | 'price' | 'buy' | 'cart' | 'nav-ink' | 'nav-hover' | null {
+  const rawParts = selector
     .split(',')
-    .map((part) => part.replace(/::?[a-z-]+/gi, '').trim().toLowerCase())
+    .map((part) => part.trim().toLowerCase())
     .filter(Boolean)
-  if (!parts.length) return null
+  if (!rawParts.length) return null
+  const stripPseudo = (part: string) => part.replace(/::?[a-z-]+/gi, '').trim()
+  const isNavInteractive = (part: string) =>
+    /:(?:hover|active|focus-visible|focus)\b/.test(part) || /\.is-active\b/.test(part)
   const isNavInk = (part: string) =>
     /\.pw-nav-sale\b/.test(part) ||
     new RegExp(`${NAV_HOST}(?:\\s|>).*(?:\\ba\\b|\\bbutton\\b)|${NAV_HOST}$`).test(part)
+  if (rawParts.some(isNavInteractive)) {
+    const inkParts = rawParts.map(stripPseudo).filter(Boolean)
+    if (inkParts.length && inkParts.every(isNavInk)) return 'nav-hover'
+  }
+  const parts = rawParts.map(stripPseudo).filter(Boolean)
+  if (!parts.length) return null
   if (parts.every(isNavInk)) return 'nav-ink'
   const every = (re: RegExp) =>
     parts.every((part) => re.test(part) && !/\s+(a|button|span|svg|img)\b/.test(part.replace(re, ' ')))
@@ -413,6 +422,11 @@ export function bindChromeThemeVarsInCss(css: string): string {
       next = next.replace(
         /color\s*:\s*(?:var\(--pw-[a-z-]+\)|#[0-9a-fA-F]{3,8})/gi,
         `color:${PW_NAV_INK}`
+      )
+    } else if (kind === 'nav-hover') {
+      next = next.replace(
+        /color\s*:\s*(?:var\(--pw-[a-z-]+\)|#[0-9a-fA-F]{3,8})/gi,
+        'color:var(--pw-primary)'
       )
     }
     return `${rawSel}{${next}}`

@@ -70,3 +70,25 @@ export function partnerShopBirthYearOptions(now = new Date()): number[] {
   for (let y = currentYear; y >= currentYear - 100; y -= 1) years.push(y)
   return years
 }
+
+export function daysInCalendarMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate()
+}
+
+export function isValidCalendarDate(year: number, month: number, day: number): boolean {
+  if (month < 1 || month > 12 || day < 1) return false
+  const max = daysInCalendarMonth(year, month)
+  if (day > max) return false
+  const dt = new Date(year, month - 1, day)
+  return dt.getFullYear() === year && dt.getMonth() === month - 1 && dt.getDate() === day
+}
+
+export function partnerShopNeedsBirthOrGender(input: {
+  gender?: unknown
+  date_of_birth?: unknown
+} | null | undefined): boolean {
+  if (!input) return false
+  const hasDob = Boolean(parseIsoDateOfBirth(input.date_of_birth))
+  const hasGender = Boolean(parsePartnerShopGender(input.gender))
+  return !hasDob || !hasGender
+}

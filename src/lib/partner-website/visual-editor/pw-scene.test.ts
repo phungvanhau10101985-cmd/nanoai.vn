@@ -23,7 +23,10 @@ import {
   PARTNER_SHOP_AUTHORED_BLOCK_CSS,
   PARTNER_SHOP_BANNER_LIVE_MATCH_CSS,
   PARTNER_SHOP_HROW_CSS,
+  PARTNER_SHOP_MID_INSERT_GAP_CSS,
   PARTNER_SHOP_STACK_FLOW_CSS,
+  PW_MID_INSERT_GAP_ATTR,
+  PW_MID_INSERT_GAP_PX,
   PARTNER_SHOP_IMAGE_ZOOM_SCRIPT,
   PARTNER_SHOP_SCENE_CENTER_SCRIPT,
   PW_SCENE_MEDIA_ZOOM_SEL,
@@ -41,7 +44,9 @@ import {
   pwSceneLocalOfZ,
   pwSceneLockForAvailableHtml,
   pwSceneLockFromWindowWidth,
+  pwLooksLikeMobileOrTabletUa,
   pwSceneLiveZoomScale,
+  pwSceneLiveZoomViewWidth,
   pwSceneZ,
   resolvePwSceneIndex,
   stepPwSceneZ,
@@ -209,6 +214,17 @@ describe('pw scene layers', () => {
     expect(pwSceneLiveZoomScale(390, 390, 390, 390)).toBe(1)
     expect(pwSceneLiveZoomScale(1152, 1440, 1920, 1440)).toBe(1)
     expect(pwSceneLiveZoomScale(1536, 1920, 1920, 1440)).toBe(1920 / 1440)
+    expect(pwLooksLikeMobileOrTabletUa('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)')).toBe(true)
+    expect(pwLooksLikeMobileOrTabletUa('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0')).toBe(false)
+    expect(pwSceneLiveZoomViewWidth(390, 1920, 1920, { device: 'mobile' })).toBe(390)
+    expect(
+      pwSceneLiveZoomViewWidth(390, 1920, 1920, {
+        device: 'desktop',
+        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+      })
+    ).toBe(390)
+    expect(pwSceneLiveZoomScale(390, 1920, 1920, 390, { device: 'mobile' })).toBe(1)
+    expect(pwSceneLiveZoomScale(720, 1920, 1920, 1440, { device: 'desktop' })).toBe(1920 / 1440)
     expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain('data-pw-banner-pan-y')
     expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain("object-position")
     expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).not.toContain('translate(')
@@ -219,13 +235,18 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain('visualViewport')
     expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain('/scale(?:Y)?\\(\\s*([\\d.]+)/')
     expect(() => new Function(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT)).not.toThrow()
+    expect(() => new Function(PARTNER_SHOP_SCENE_CENTER_SCRIPT)).not.toThrow()
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-scene-lock')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('C.resolveDevice')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('devicePixelRatio:window.devicePixelRatio||0')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("style.setProperty('--pw-scene-w'")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("style.setProperty('--pw-scene-zoom'")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-scene-zoomed')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function uaDevice(){')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function queryDevice(){')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("get('pw-device')")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function zoomScale(scenePx,key){')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('var mobileish=key===\'mobile\'')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('return 1;')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function hoistLiveChrome(root,scale){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('return outside||inside;')
@@ -498,6 +519,10 @@ describe('scene layers inside the editor runtime', () => {
     expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('[data-pw-region="banner"]')
     expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('position:relative!important')
     expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('z-index:1!important')
+    expect(PW_MID_INSERT_GAP_PX).toBe(20)
+    expect(PARTNER_SHOP_MID_INSERT_GAP_CSS).toContain(`[${PW_MID_INSERT_GAP_ATTR}="1"]`)
+    expect(PARTNER_SHOP_MID_INSERT_GAP_CSS).toContain(`margin-top:${PW_MID_INSERT_GAP_PX}px!important`)
+    expect(PARTNER_SHOP_MID_INSERT_GAP_CSS).toContain(`html [data-pw-hrow]>[${PW_MID_INSERT_GAP_ATTR}="1"]`)
     expect(pwSceneUnifiedStackCss()).toContain(
       '[data-pw-scene="2"]:not([data-pw-region="banner"]):not([data-pw-region="categories"])'
     )

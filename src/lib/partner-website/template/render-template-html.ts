@@ -449,8 +449,9 @@ a{color:inherit}
 .pw-search-image-btn{border:none;background:transparent;padding:0;cursor:pointer;font-size:0;line-height:1}
 .pw-search-submit{border:none;background:var(--pw-primary);color:#fff;font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding:0 16px;cursor:pointer;white-space:nowrap}
 .pw-nav-main{display:none;justify-content:center;gap:18px;flex-wrap:wrap;padding:0 0 12px}
-.pw-nav-main a,.pw-nav-main button{text-decoration:none;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#374151;background:none;border:none;cursor:pointer;padding:0}
+.pw-nav-main a,.pw-nav-main button{text-decoration:none;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#374151;background:none;border:none;cursor:pointer;padding:0;transition:color .15s ease}
 .pw-nav-main a.pw-nav-sale,.pw-nav-main a.is-sale{color:#374151}
+.pw-nav-main a:hover,.pw-nav-main button:hover,.pw-nav-pill:hover a{color:var(--pw-primary)}
 .pw-header-actions{margin-left:auto;display:flex;align-items:center;gap:10px}
 ${buildPartnerSiteAccountPanelCss()}
 .pw-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;border:none;background:transparent;color:#374151;text-decoration:none;cursor:pointer;position:relative}

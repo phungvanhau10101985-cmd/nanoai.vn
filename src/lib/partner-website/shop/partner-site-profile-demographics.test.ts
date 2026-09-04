@@ -4,10 +4,13 @@ import {
   assertDobChangeAllowed,
   birthYearFromIso,
   composeDobWithYear,
+  daysInCalendarMonth,
+  isValidCalendarDate,
   parseDobParts,
   parseIsoDateOfBirth,
   parsePartnerShopGender,
   partnerShopBirthYearOptions,
+  partnerShopNeedsBirthOrGender,
 } from '@/lib/partner-website/shop/partner-site-profile-demographics'
 
 test('parses shop gender like 188 (male/female only)', () => {
@@ -35,6 +38,13 @@ test('locks day/month after the first saved birthday', () => {
   assert.equal(composeDobWithYear('1985-10-10', '1991'), '1991-10-10')
   assert.deepEqual(parseDobParts('1985-10-10'), { year: '1985', month: '10', day: '10' })
   assert.equal(birthYearFromIso('1985-10-10'), 1985)
+})
+
+test('calendar helpers and incomplete profile detection match 188 prompt', () => {
+  assert.equal(daysInCalendarMonth(2024, 2), 29)
+  assert.equal(isValidCalendarDate(2023, 2, 29), false)
+  assert.equal(partnerShopNeedsBirthOrGender({ gender: 'male', date_of_birth: '1991-03-08' }), false)
+  assert.equal(partnerShopNeedsBirthOrGender({ gender: '', date_of_birth: '1991-03-08' }), true)
 })
 
 test('birth year dropdown covers current year back 100 years', () => {

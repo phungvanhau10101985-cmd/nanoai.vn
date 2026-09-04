@@ -100,6 +100,7 @@ export function PartnerSiteAccountNavLayout({
   return (
     <div className="pw-shop-account-layout">
       <aside className="pw-shop-account-sidebar" data-pw-region={PW_REGION.accountNav}>
+        <p className="pw-shop-account-nav-kicker">{t.navAccount}</p>
         <nav className="pw-shop-account-nav" aria-label={t.accountQuickLinks}>
           {items.map((item) => {
             const Icon = NAV_ICONS[item.id]
@@ -113,7 +114,9 @@ export function PartnerSiteAccountNavLayout({
                   data-pw-el={PW_EL.menuItem}
                   onClick={onLogout}
                 >
-                  <Icon className="pw-shop-account-nav-icon" aria-hidden="true" strokeWidth={2} />
+                  <span className="pw-shop-account-nav-ico">
+                    <Icon className="pw-shop-account-nav-icon" aria-hidden="true" strokeWidth={2} />
+                  </span>
                   <span>{item.label}</span>
                 </button>
               )
@@ -125,7 +128,9 @@ export function PartnerSiteAccountNavLayout({
                 className={`pw-shop-account-nav-item${active ? ' is-active' : ''}${item.isHeader ? ' is-header' : ''}`}
                 data-pw-el={PW_EL.menuItem}
               >
-                <Icon className="pw-shop-account-nav-icon" aria-hidden="true" strokeWidth={2} />
+                <span className="pw-shop-account-nav-ico">
+                  <Icon className="pw-shop-account-nav-icon" aria-hidden="true" strokeWidth={2} />
+                </span>
                 <span>{item.label}</span>
                 {item.id === 'notifications' && unreadNotifications > 0 ? (
                   <span className="pw-shop-account-nav-badge">
@@ -142,7 +147,9 @@ export function PartnerSiteAccountNavLayout({
               data-pw-el={PW_EL.menuItem}
               rel="noopener noreferrer"
             >
-              <LayoutDashboard className="pw-shop-account-nav-icon" aria-hidden="true" strokeWidth={2} />
+              <span className="pw-shop-account-nav-ico">
+                <LayoutDashboard className="pw-shop-account-nav-icon" aria-hidden="true" strokeWidth={2} />
+              </span>
               <span>{t.accountOpenShopAdmin}</span>
             </a>
           ) : null}

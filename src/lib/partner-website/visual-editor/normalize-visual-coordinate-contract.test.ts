@@ -110,6 +110,23 @@ test('banner and category hosts stay in-flow instead of scene-absolute', () => {
   assert.match(bg, /data-pw-placement="scene-absolute"/)
 })
 
+test('page links keep authored text and fill colors as CSS vars', () => {
+  const html = `<html data-pw-edit-device="mobile"><body>
+    <footer class="pw-footer" data-pw-region="footer">
+      <a href="/site/demo/payment" data-pw-el="link" data-pw-btn-color="#111827" data-pw-btn-text="#ffffff">Thanh toán</a>
+    </footer>
+  </body></html>`
+  const next = normalizeVisualCoordinateContract(html, {
+    variant: 'mobile',
+    writeCanonicalOnly: true,
+  })
+  const link = next.match(/<a\b[^>]*data-pw-el="link"[^>]*>/)?.[0] || ''
+  assert.match(link, /data-pw-btn-color="#111827"/)
+  assert.match(link, /data-pw-btn-text="#ffffff"/)
+  assert.match(link, /--pw-btn-color:#111827/)
+  assert.match(link, /--pw-btn-text:#ffffff/)
+})
+
 test('kit float buttons keep authored colors and drop runtime seat geometry', () => {
   const html = `<html data-pw-edit-device="desktop"><body><main></main>
     <aside data-pw-chrome-kit="float">

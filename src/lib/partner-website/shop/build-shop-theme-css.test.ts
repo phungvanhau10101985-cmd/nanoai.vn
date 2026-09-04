@@ -21,12 +21,25 @@ test('shop theme CSS styles profile form selects and recommendation cohort hint'
 
 test('shop theme CSS keeps desktop account nav as a compact left column', () => {
   const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
-  assert.match(css, /\.pw-shop-account-nav-item\.is-active\{background:var\(--pw-surface\);color:var\(--pw-primary\)/)
-  assert.match(css, /@media\(min-width:768px\)\{\.pw-shop-account-layout\{grid-template-columns:224px minmax\(0,1fr\)/)
+  assert.match(css, /\.pw-shop-account-nav-item\.is-active\{background:#fff;color:var\(--pw-primary\);border-left-color:var\(--pw-primary\)/)
+  assert.match(css, /@media\(min-width:768px\)\{\.pw-shop-account-layout\{grid-template-columns:240px minmax\(0,1fr\)/)
+  assert.match(css, /\.pw-shop-account-nav-item\{[^}]*font-weight:500;font-size:13px;color:#6b7280/)
+  assert.match(css, /\.pw-shop-account-content\{[^}]*background:#fff/)
+  assert.match(css, /\.pw-shop-account-content h1,\.pw-shop-account-links h2,\.pw-shop-account-edit h2\{[^}]*font-size:1\.35rem/)
+  assert.match(css, /\.pw-shop-account-content \.pw-shop-form label/)
   assert.match(css, /\.pw-shop-cart-actions/)
   assert.match(css, /\.pw-shop-deposit-head\{background:linear-gradient\(90deg,var\(--pw-primary\),var\(--pw-accent\)/)
   assert.match(css, /\.pw-shop-deposit-sepay/)
   assert.match(css, /\.pw-shop-deposit-instruct/)
+})
+
+test('shop theme CSS turns header nav pill hover text to the primary token', () => {
+  const chrome = buildPartnerSiteHtmlChromeCss()
+  assert.match(chrome, /\.pw-nav-main a:hover,\.pw-nav-main button:hover,\.pw-nav-pill:hover a/)
+  assert.match(chrome, /color:var\(--pw-primary\)/)
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(css, /\.pw-shop-nav-row a:hover/)
+  assert.match(css, /\.pw-shop-nav-row \.pw-nav-pill:hover a\{color:var\(--pw-primary\)/)
 })
 
 test('shop theme CSS turns mega L2/L3 hover text to the primary token', () => {
@@ -78,6 +91,19 @@ test('HTML chrome CSS colors the factory header used by visual PDP', () => {
   assert.match(css, /\.pw-wordmark\{[^}]*color:var\(--pw-primary\)/)
   assert.match(css, /\.pw-search-form\{[^}]*border:2px solid var\(--pw-primary\)/)
   assert.match(css, /\.pw-search-submit\{[^}]*background:var\(--pw-primary\)/)
+})
+
+test('shop theme CSS narrows desktop/laptop PDP description so white columns match the header', () => {
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(
+    css,
+    /html\[data-pw-edit-device="desktop"\] \.pw-shop-product-detail,html\[data-pw-edit-device="laptop"\] \.pw-shop-product-detail/
+  )
+  assert.match(css, /html\[data-pw-scene-lock="desktop"\] \.pw-shop-product-detail/)
+  assert.match(
+    css,
+    /\.pw-shop-product-detail\{width:100%;max-width:var\(--pw-content,1200px\);margin-left:auto;margin-right:auto/
+  )
 })
 
 test('shop theme CSS hides leftover PDP line-total and keeps buy controls in the right column', () => {

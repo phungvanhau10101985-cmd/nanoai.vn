@@ -139,7 +139,11 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
   const withRuntime =
     input.runtime === 'authoring'
       ? injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(withChrome, { siteSlug, locale })
-      : injectPartnerShopRuntimeScriptsIntoHtml(withChrome, { siteSlug, locale })
+      : injectPartnerShopRuntimeScriptsIntoHtml(withChrome, {
+          siteSlug,
+          locale,
+          shopTitle: wordmark,
+        })
   const themed = input.theme ? rewriteThemeCssVarsInHtml(withRuntime, input.theme) : withRuntime
   const withLogoHome =
     input.runtime === 'authoring' || !siteSlug

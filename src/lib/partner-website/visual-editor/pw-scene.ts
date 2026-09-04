@@ -428,28 +428,62 @@ export function pwSceneDeviceVisibilityCss(): string {
   ].join('')
 }
 
+export type PwSceneLiveZoomHint = {
+  device?: string
+  userAgent?: string
+}
+
+/** Phone / tablet UA — Chrome DevTools device mode spoofs this. */
+export function pwLooksLikeMobileOrTabletUa(userAgent: unknown): boolean {
+  const ua = String(userAgent || '')
+  if (/ipad|tablet|kindle|silk/i.test(ua)) return true
+  return /mobile|iphone|ipod|android/i.test(ua) && !/ipad/i.test(ua)
+}
+
+/**
+ * Width used to scale the live canvas onto the screen.
+ * Desktop/laptop: prefer `outerWidth` so Ctrl +/- does not shrink the canvas.
+ * Mobile/tablet (or phone UA / F12 device mode): use `innerWidth` so a wide
+ * desktop chrome window does not scale a 390px scene down to a postage stamp.
+ */
+export function pwSceneLiveZoomViewWidth(
+  innerWidth: unknown,
+  outerWidth: unknown,
+  screenWidth?: unknown,
+  hint?: PwSceneLiveZoomHint
+): number {
+  const inner = Number(innerWidth)
+  const outer = Number(outerWidth)
+  const screen = Number(screenWidth)
+  const device = String(hint?.device || '')
+  const mobileish =
+    device === 'mobile' || device === 'tablet' || pwLooksLikeMobileOrTabletUa(hint?.userAgent)
+  if (mobileish && Number.isFinite(inner) && inner > 8) return inner
+  if (Number.isFinite(outer) && outer > 8) return outer
+  if (Number.isFinite(inner) && inner > 8) return inner
+  if (Number.isFinite(screen) && screen > 8) return screen
+  return 0
+}
+
 /**
  * Live copies the Sửa nhanh canvas 1:1 then scales it to the CSS viewport.
  * Browser page zoom changes `innerWidth`; Sửa nhanh does not compensate for
- * that inside the iframe, so live must use the stable outer window width first.
+ * that inside the iframe, so live desktop must use the stable outer window
+ * width first. Phone UA / F12 device mode uses `innerWidth` instead.
  * `sceneW` omitted → 1 (Sửa nhanh iframe is already the canvas).
  */
 export function pwSceneLiveZoomScale(
   innerWidth: unknown,
   outerWidth: unknown,
   screenWidth?: unknown,
-  sceneW?: unknown
+  sceneW?: unknown,
+  hint?: PwSceneLiveZoomHint
 ): number {
   const scene = Number(sceneW)
   if (!(scene > 8)) return 1
-  const candidates = [outerWidth, innerWidth, screenWidth]
-  for (const candidate of candidates) {
-    const viewport = Number(candidate)
-    if (Number.isFinite(viewport) && viewport > 8) {
-      return pwUniformSceneScale(viewport, scene)
-    }
-  }
-  return 1
+  const view = pwSceneLiveZoomViewWidth(innerWidth, outerWidth, screenWidth, hint)
+  if (!(view > 8)) return 1
+  return pwUniformSceneScale(view, scene)
 }
 
 /** Biến CSS dùng chung cho Sửa nhanh và trang khách — hai bên phải cùng số. */
@@ -492,6 +526,15 @@ export const PARTNER_SHOP_STACK_FLOW_CSS = `
 ${stackFlowSel()}{position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;float:none!important;z-index:1!important}
 ${stackFlowSel('[data-pw-scene]')}{z-index:1!important}
 ${stackFlowSel('[data-pw-placement="scene-absolute"]')}{position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:1!important}
+`.trim()
+
+/** Thêm ở giữa: tách khối mới với phần trên/dưới một chút, không tạo khe lớn. */
+export const PW_MID_INSERT_GAP_ATTR = 'data-pw-mid-gap'
+export const PW_MID_INSERT_GAP_PX = 20
+
+export const PARTNER_SHOP_MID_INSERT_GAP_CSS = `
+html [${PW_MID_INSERT_GAP_ATTR}="1"]{margin-top:${PW_MID_INSERT_GAP_PX}px!important;margin-bottom:${PW_MID_INSERT_GAP_PX}px!important}
+html [data-pw-hrow]>[${PW_MID_INSERT_GAP_ATTR}="1"]{margin-top:0!important;margin-bottom:0!important}
 `.trim()
 
 export const PARTNER_SHOP_BANNER_MEDIA_FILL_CSS = `
@@ -677,15 +720,28 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
   var C=window.__pwCoordinate;
   var W=C.widths;
   ${PW_ENSURE_CONTENT_SCENE_ROOT_SOURCE}
+  function uaDevice(){
+    var ua=navigator.userAgent||'';
+    if(/ipad|tablet|kindle|silk/i.test(ua))return'tablet';
+    if(/mobile|iphone|ipod|android/i.test(ua))return'mobile';
+    return '';
+  }
+  function queryDevice(){
+    try{
+      var q=new URLSearchParams(window.location.search).get('pw-device');
+      if(q==='mobile'||q==='tablet'||q==='laptop'||q==='desktop')return q;
+    }catch(eQ){}
+    return '';
+  }
   function stamped(){
     var html=document.documentElement;
     return html&&html.getAttribute?String(html.getAttribute('data-pw-edit-device')||''):'';
   }
   function band(){
-    var s=stamped();
+    var s=queryDevice()||(isEditor()?stamped():'')||uaDevice()||stamped();
     return C.resolveDevice({
       forcedDevice:s,
-      outerWidth:window.outerWidth||0,
+      outerWidth:(s==='mobile'||s==='tablet')?(window.innerWidth||0):(window.outerWidth||0),
       layoutWidth:window.innerWidth||(document.documentElement&&document.documentElement.clientWidth)||0,
       screenWidth:window.screen&&Math.max(window.screen.width||0,window.screen.availWidth||0)||0,
       devicePixelRatio:window.devicePixelRatio||0
@@ -700,7 +756,9 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     var inner=window.innerWidth||(document.documentElement&&document.documentElement.clientWidth)||0;
     var outer=window.outerWidth||0;
     var screenW=window.screen&&(window.screen.availWidth||window.screen.width)||0;
-    var view=outer>8?outer:(inner>8?inner:screenW);
+    var ua=navigator.userAgent||'';
+    var mobileish=key==='mobile'||key==='tablet'||(/ipad|tablet|kindle|silk/i.test(ua))||(/mobile|iphone|ipod|android/i.test(ua)&&!/ipad/i.test(ua));
+    var view=mobileish&&inner>8?inner:(outer>8?outer:(inner>8?inner:screenW));
     if(!(view>8)||!(scenePx>8))return 1;
     return C.createMap({device:key,viewportWidth:view}).scale;
   }
