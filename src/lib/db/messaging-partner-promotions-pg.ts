@@ -1,5 +1,6 @@
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import { writePartnerSaleAuditFromPg } from '@/lib/db/messaging-partner-sale-audit-pg'
 import {
   computePromotionDiscountAmount,
   isValidPromotionCode,
@@ -40,6 +41,10 @@ type PromotionDbRow = {
   is_public_redeemable: boolean
   auto_grant_trigger: PromotionAutoGrantTrigger | null
   auto_grant_valid_days: number | null
+  exclude_sale_items?: boolean
+  trigger_idle_hours?: number | null
+  trigger_inactive_days?: number | null
+  trigger_cooldown_days?: number | null
   created_at: unknown
   updated_at: unknown
 }
@@ -58,10 +63,7 @@ type GrantDbRow = {
   used_order_id: string | null
 }
 
-const PROMOTION_SELECT = `id::text, partner_id::text, code, name, coalesce(description, '') as description,
-  discount_type, discount_percent, discount_amount, max_discount_amount, min_subtotal, first_order_only,
-  category_id::text, inventory_id::text, usage_limit, per_user_limit, used_count, valid_from, valid_to,
-  is_active, is_public_redeemable, auto_grant_trigger, auto_grant_valid_days, created_at, updated_at`
+const PROMOTION_SELECT = `*`
 
 const GRANT_SELECT = `id::text, partner_id::text, promotion_id::text, guest_account_id::text, linked_user_id::text,
   source, status, granted_at, expires_at, used_at, used_order_id::text`
@@ -96,6 +98,10 @@ function mapPromotionRow(r: PromotionDbRow): PartnerPromotionRow {
     isPublicRedeemable: r.is_public_redeemable !== false,
     autoGrantTrigger: r.auto_grant_trigger,
     autoGrantValidDays: r.auto_grant_valid_days,
+    excludeSaleItems: r.exclude_sale_items !== false,
+    triggerIdleHours: r.trigger_idle_hours ?? null,
+    triggerInactiveDays: r.trigger_inactive_days ?? null,
+    triggerCooldownDays: r.trigger_cooldown_days ?? null,
     createdAt: String(r.created_at ?? ''),
     updatedAt: String(r.updated_at ?? ''),
   }
@@ -120,6 +126,12 @@ function mapGrantRow(r: GrantDbRow): PromotionGrantRow {
 function isUniqueViolation(e: unknown): boolean {
   if (!e || typeof e !== 'object') return false
   return (e as { code?: string }).code === '23505'
+}
+
+function isMissingSaleParityColumn(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const error = e as { code?: string; message?: string }
+  return error.code === '42703' && /exclude_sale_items|trigger_(idle|inactive|cooldown)_/i.test(error.message ?? '')
 }
 
 export async function fetchPartnerPromotionsForAdminFromPg(input: {
@@ -188,6 +200,10 @@ export type UpsertPromotionInput = {
   isPublicRedeemable?: boolean
   autoGrantTrigger?: PromotionAutoGrantTrigger | null
   autoGrantValidDays?: number | null
+  excludeSaleItems?: boolean
+  triggerIdleHours?: number | null
+  triggerInactiveDays?: number | null
+  triggerCooldownDays?: number | null
 }
 
 export type UpsertPromotionResult =
@@ -211,40 +227,63 @@ export async function insertPartnerPromotionFromPg(
   }
 
   try {
-    const row = await pgQueryOne<PromotionDbRow>(
+    const params = [
+      partnerId,
+      code,
+      name,
+      (input.description ?? '').trim().slice(0, 2000),
+      input.discountType,
+      input.discountType === 'percent' ? input.discountPercent : null,
+      input.discountType === 'fixed_amount' ? input.discountAmount : null,
+      input.maxDiscountAmount ?? null,
+      Math.max(0, input.minSubtotal ?? 0),
+      input.firstOrderOnly ?? false,
+      input.categoryId ?? null,
+      input.inventoryId ?? null,
+      input.usageLimit ?? null,
+      Math.max(1, input.perUserLimit ?? 1),
+      input.validFrom ?? null,
+      input.validTo ?? null,
+      input.isActive !== false,
+      input.isPublicRedeemable !== false,
+      input.autoGrantTrigger ?? null,
+      input.autoGrantValidDays ?? null,
+      input.excludeSaleItems !== false,
+      input.triggerIdleHours ?? null,
+      input.triggerInactiveDays ?? null,
+      input.triggerCooldownDays ?? null,
+    ]
+    let row: PromotionDbRow | null
+    try {
+      row = await pgQueryOne<PromotionDbRow>(
       `insert into public.messaging_partner_promotions (
         partner_id, code, name, description, discount_type, discount_percent, discount_amount,
         max_discount_amount, min_subtotal, first_order_only, category_id, inventory_id, usage_limit,
         per_user_limit, valid_from, valid_to, is_active, is_public_redeemable, auto_grant_trigger,
-        auto_grant_valid_days
+        auto_grant_valid_days, exclude_sale_items, trigger_idle_hours, trigger_inactive_days,
+        trigger_cooldown_days
       ) values (
         $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::uuid, $12::uuid, $13, $14, $15::timestamptz,
-        $16::timestamptz, $17, $18, $19, $20
+        $16::timestamptz, $17, $18, $19, $20, $21, $22, $23, $24
       )
       returning ${PROMOTION_SELECT}`,
-      [
-        partnerId,
-        code,
-        name,
-        (input.description ?? '').trim().slice(0, 2000),
-        input.discountType,
-        input.discountType === 'percent' ? input.discountPercent : null,
-        input.discountType === 'fixed_amount' ? input.discountAmount : null,
-        input.maxDiscountAmount ?? null,
-        Math.max(0, input.minSubtotal ?? 0),
-        input.firstOrderOnly ?? false,
-        input.categoryId ?? null,
-        input.inventoryId ?? null,
-        input.usageLimit ?? null,
-        Math.max(1, input.perUserLimit ?? 1),
-        input.validFrom ?? null,
-        input.validTo ?? null,
-        input.isActive !== false,
-        input.isPublicRedeemable !== false,
-        input.autoGrantTrigger ?? null,
-        input.autoGrantValidDays ?? null,
-      ]
-    )
+        params
+      )
+    } catch (error) {
+      if (!isMissingSaleParityColumn(error)) throw error
+      row = await pgQueryOne<PromotionDbRow>(
+        `insert into public.messaging_partner_promotions (
+          partner_id, code, name, description, discount_type, discount_percent, discount_amount,
+          max_discount_amount, min_subtotal, first_order_only, category_id, inventory_id, usage_limit,
+          per_user_limit, valid_from, valid_to, is_active, is_public_redeemable, auto_grant_trigger,
+          auto_grant_valid_days
+        ) values (
+          $1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::uuid,$12::uuid,$13,$14,
+          $15::timestamptz,$16::timestamptz,$17,$18,$19,$20
+        ) returning *`,
+        params.slice(0, 20)
+      )
+    }
     if (!row) return { ok: false, error: 'db_error' }
     return { ok: true, row: mapPromotionRow(row) }
   } catch (e) {
@@ -292,6 +331,10 @@ export async function updatePartnerPromotionFromPg(
   if (patch.isPublicRedeemable !== undefined) push('is_public_redeemable', patch.isPublicRedeemable)
   if (patch.autoGrantTrigger !== undefined) push('auto_grant_trigger', patch.autoGrantTrigger)
   if (patch.autoGrantValidDays !== undefined) push('auto_grant_valid_days', patch.autoGrantValidDays)
+  if (patch.excludeSaleItems !== undefined) push('exclude_sale_items', patch.excludeSaleItems)
+  if (patch.triggerIdleHours !== undefined) push('trigger_idle_hours', patch.triggerIdleHours)
+  if (patch.triggerInactiveDays !== undefined) push('trigger_inactive_days', patch.triggerInactiveDays)
+  if (patch.triggerCooldownDays !== undefined) push('trigger_cooldown_days', patch.triggerCooldownDays)
 
   if (!sets.length) {
     const row = await fetchPartnerPromotionByIdFromPg(partnerId, promotionId)
@@ -310,6 +353,14 @@ export async function updatePartnerPromotionFromPg(
     return { ok: true, row: mapPromotionRow(row) }
   } catch (e) {
     if (isUniqueViolation(e)) return { ok: false, error: 'duplicate_code' }
+    if (isMissingSaleParityColumn(e)) {
+      const legacyPatch = { ...patch }
+      delete legacyPatch.excludeSaleItems
+      delete legacyPatch.triggerIdleHours
+      delete legacyPatch.triggerInactiveDays
+      delete legacyPatch.triggerCooldownDays
+      return updatePartnerPromotionFromPg(partnerId, promotionId, legacyPatch)
+    }
     console.warn('[updatePartnerPromotionFromPg]', e)
     return { ok: false, error: 'db_error' }
   }
@@ -399,7 +450,12 @@ export async function validatePromotionCodeFromPg(input: {
   partnerId: string
   code: string
   subtotal: number
-  cartLines: Array<{ inventoryId: string; lineSubtotal: number }>
+  cartLines: Array<{
+    inventoryId: string
+    lineSubtotal: number
+    listLineSubtotal?: number
+    isClearance?: boolean
+  }>
   guestAccountId?: string | null
   linkedUserId?: string | null
   emailNormalized?: string | null
@@ -463,9 +519,18 @@ export async function validatePromotionCodeFromPg(input: {
     if (hasPrior) return { ok: false, error: 'first_order_only' }
   }
 
-  let eligibleSubtotal = input.subtotal
+  let eligibleLines = promotion.excludeSaleItems
+    ? input.cartLines.filter(
+        (line) =>
+          !line.isClearance &&
+          (line.listLineSubtotal == null || line.lineSubtotal >= line.listLineSubtotal)
+      )
+    : input.cartLines
+  let eligibleSubtotal = promotion.excludeSaleItems
+    ? eligibleLines.reduce((sum, line) => sum + Math.max(0, line.lineSubtotal), 0)
+    : input.subtotal
   if (promotion.categoryId || promotion.inventoryId) {
-    const ids = input.cartLines.map((l) => l.inventoryId).filter(Boolean)
+    const ids = eligibleLines.map((l) => l.inventoryId).filter(Boolean)
     if (!ids.length) return { ok: false, error: 'no_eligible_items' }
     let matchedIds = new Set<string>()
     if (promotion.inventoryId) {
@@ -482,11 +547,11 @@ export async function validatePromotionCodeFromPg(input: {
         console.warn('[validatePromotionCodeFromPg:category-match]', e)
       }
     }
-    eligibleSubtotal = input.cartLines
-      .filter((l) => matchedIds.has(l.inventoryId))
+    eligibleLines = eligibleLines.filter((l) => matchedIds.has(l.inventoryId))
+    eligibleSubtotal = eligibleLines
       .reduce((sum, l) => sum + Math.max(0, l.lineSubtotal), 0)
-    if (eligibleSubtotal <= 0) return { ok: false, error: 'no_eligible_items' }
   }
+  if (eligibleSubtotal <= 0) return { ok: false, error: 'no_eligible_items' }
 
   const discountAmount = computePromotionDiscountAmount(promotion, eligibleSubtotal)
   return { ok: true, promotion, discountAmount, eligibleSubtotal }
@@ -524,13 +589,18 @@ export async function recordPromotionUsageFromPg(input: {
       : { rows: [] as { id: string }[] }
     const grantId = grant.rows[0]?.id ?? null
 
-    await client.query(
+    const inserted = await client.query<{ id: string }>(
       `insert into public.messaging_partner_promotion_usages (
         partner_id, promotion_id, grant_id, order_id, guest_account_id, linked_user_id, discount_amount
       ) values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::uuid, $7::numeric)
-      on conflict (order_id) do nothing`,
+      on conflict (order_id) do nothing
+      returning id::text`,
       [input.partnerId, input.promotionId, grantId, input.orderId, guestAccountId, linkedUserId, input.discountAmount]
     )
+    if (!inserted.rows[0]) {
+      await client.query('commit')
+      return true
+    }
     await client.query(
       `update public.messaging_partner_promotions set used_count = used_count + 1 where id = $1::uuid`,
       [input.promotionId]
@@ -544,6 +614,17 @@ export async function recordPromotionUsageFromPg(input: {
       )
     }
     await client.query('commit')
+    void writePartnerSaleAuditFromPg({
+      partnerId: input.partnerId,
+      eventType: 'promotion_consumed',
+      entityType: 'promotion_usage',
+      entityId: inserted.rows[0].id,
+      detail: {
+        promotionId: input.promotionId,
+        orderId: input.orderId,
+        discountAmount: Math.max(0, Math.round(input.discountAmount)),
+      },
+    })
     return true
   } catch (e) {
     await client.query('rollback').catch(() => undefined)

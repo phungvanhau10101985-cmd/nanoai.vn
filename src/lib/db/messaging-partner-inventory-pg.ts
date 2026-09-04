@@ -164,6 +164,7 @@ type PgInventoryRaw = {
   real_use_image_url: string
   real_use_image_url_2: string
   is_active: boolean | null
+  is_clearance?: boolean | null
   price_amount: number | string | null
   price_currency: string
   sale_price_amount: number | string | null
@@ -310,6 +311,7 @@ function mapPgInventoryRow(r: PgInventoryRaw): MessagingPartnerInventoryRow {
     real_use_image_url: String(r.real_use_image_url ?? ''),
     real_use_image_url_2: String(r.real_use_image_url_2 ?? ''),
     is_active: r.is_active !== false,
+    is_clearance: r.is_clearance === true,
     price_amount: numOrNull(r.price_amount),
     price_currency: String(r.price_currency ?? 'VND').trim() || 'VND',
     sale_price_amount: numOrNull(r.sale_price_amount),

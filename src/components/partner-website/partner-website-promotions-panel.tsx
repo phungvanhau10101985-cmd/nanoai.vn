@@ -11,6 +11,8 @@ import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { Loader2, Pencil, Plus, Tag, Trash2 } from 'lucide-react'
+import { PartnerSaleCalendarSettingsCard } from '@/components/partner-website/partner-sale-calendar-settings-card'
+import { PartnerSaleAdvancedSettingsCard } from '@/components/partner-website/partner-sale-advanced-settings-card'
 
 /**
  * M2.2 (docs/PARTNER_WEBSITE_AND_LANDING_UPGRADE_188.md) — quản trị khuyến mãi/voucher.
@@ -35,6 +37,12 @@ type PromotionRow = {
   validTo: string | null
   isActive: boolean
   isPublicRedeemable: boolean
+  autoGrantTrigger: 'signup' | 'first_order_delivered' | 'comeback' | 'cart_abandon' | null
+  autoGrantValidDays: number | null
+  excludeSaleItems: boolean
+  triggerIdleHours: number | null
+  triggerInactiveDays: number | null
+  triggerCooldownDays: number | null
 }
 
 type FormState = {
@@ -54,6 +62,12 @@ type FormState = {
   validFrom: string
   validTo: string
   isActive: boolean
+  autoGrantTrigger: PromotionRow['autoGrantTrigger']
+  autoGrantValidDays: string
+  excludeSaleItems: boolean
+  triggerIdleHours: string
+  triggerInactiveDays: string
+  triggerCooldownDays: string
 }
 
 function emptyForm(): FormState {
@@ -74,6 +88,12 @@ function emptyForm(): FormState {
     validFrom: '',
     validTo: '',
     isActive: true,
+    autoGrantTrigger: null,
+    autoGrantValidDays: '',
+    excludeSaleItems: true,
+    triggerIdleHours: '',
+    triggerInactiveDays: '',
+    triggerCooldownDays: '',
   }
 }
 
@@ -95,11 +115,21 @@ function rowToForm(row: PromotionRow): FormState {
     validFrom: row.validFrom ? row.validFrom.slice(0, 10) : '',
     validTo: row.validTo ? row.validTo.slice(0, 10) : '',
     isActive: row.isActive,
+    autoGrantTrigger: row.autoGrantTrigger,
+    autoGrantValidDays: row.autoGrantValidDays != null ? String(row.autoGrantValidDays) : '',
+    excludeSaleItems: row.excludeSaleItems !== false,
+    triggerIdleHours: row.triggerIdleHours != null ? String(row.triggerIdleHours) : '',
+    triggerInactiveDays: row.triggerInactiveDays != null ? String(row.triggerInactiveDays) : '',
+    triggerCooldownDays: row.triggerCooldownDays != null ? String(row.triggerCooldownDays) : '',
   }
 }
 
-function formatVnd(n: number): string {
-  return `${n.toLocaleString('vi-VN')}đ`
+function formatVnd(n: number, locale: WebLocale): string {
+  return new Intl.NumberFormat(locale === 'vi' ? 'vi-VN' : locale, {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(n)
 }
 
 type Props = {
@@ -110,7 +140,39 @@ type Props = {
   onToast?: (message: string, variant?: 'default' | 'destructive') => void
 }
 
-export function PartnerWebsitePromotionsPanel({ t, partnerId, sectionId, onToast }: Props) {
+const AUTO_COPY: Record<WebLocale, {
+  trigger: string
+  none: string
+  signup: string
+  delivered: string
+  comeback: string
+  cart: string
+  validDays: string
+  idleHours: string
+  inactiveDays: string
+  cooldownDays: string
+  excludeSale: string
+  saleCenter: string
+  saleCenterHint: string
+  vouchers: string
+  loyalty: string
+  birthday: string
+  remarketing: string
+  description: string
+  maximum: string
+  minimum: string
+  firstOrder: string
+  walletOnly: string
+}> = {
+  vi: { trigger: 'Tự động cấp', none: 'Không', signup: 'Đăng ký', delivered: 'Đơn đầu giao xong', comeback: 'Quay lại', cart: 'Bỏ giỏ', validDays: 'Hạn dùng (ngày)', idleHours: 'Giỏ chờ (giờ)', inactiveDays: 'Không mua (ngày)', cooldownDays: 'Chờ cấp lại (ngày)', excludeSale: 'Loại trừ hàng đang sale/clearance', saleCenter: 'Trung tâm khuyến mãi', saleCenterHint: 'Quản lý lịch sale, voucher, khách hàng thân thiết, sinh nhật và remarketing.', vouchers: 'Voucher', loyalty: 'Khách hàng thân thiết', birthday: 'Sinh nhật', remarketing: 'Remarketing', description: 'Mô tả', maximum: 'tối đa', minimum: 'tối thiểu', firstOrder: 'đơn đầu tiên', walletOnly: 'chỉ trong ví quà' },
+  en: { trigger: 'Automatic grant', none: 'None', signup: 'Sign up', delivered: 'First delivered order', comeback: 'Comeback', cart: 'Cart abandon', validDays: 'Validity (days)', idleHours: 'Cart idle (hours)', inactiveDays: 'Inactive (days)', cooldownDays: 'Grant cooldown (days)', excludeSale: 'Exclude sale and clearance items', saleCenter: 'Sale Center', saleCenterHint: 'Manage sale calendars, vouchers, loyalty, birthdays, and remarketing.', vouchers: 'Vouchers', loyalty: 'Loyalty', birthday: 'Birthday', remarketing: 'Remarketing', description: 'Description', maximum: 'up to', minimum: 'minimum', firstOrder: 'first order', walletOnly: 'wallet only' },
+  zh: { trigger: '自动发放', none: '无', signup: '注册', delivered: '首单送达', comeback: '回归', cart: '弃购', validDays: '有效期（天）', idleHours: '购物车闲置（小时）', inactiveDays: '未购买（天）', cooldownDays: '发放冷却（天）', excludeSale: '排除促销和清仓商品', saleCenter: '促销中心', saleCenterHint: '管理促销日历、优惠券、会员、生日和再营销。', vouchers: '优惠券', loyalty: '会员忠诚度', birthday: '生日', remarketing: '再营销', description: '描述', maximum: '最高', minimum: '最低', firstOrder: '首单', walletOnly: '仅限礼券包' },
+  ja: { trigger: '自動付与', none: 'なし', signup: '登録', delivered: '初回配送完了', comeback: '再来店', cart: 'カート放棄', validDays: '有効日数', idleHours: 'カート放置（時間）', inactiveDays: '未購入（日）', cooldownDays: '再付与間隔（日）', excludeSale: 'セール・クリアランス商品を除外', saleCenter: 'セールセンター', saleCenterHint: 'セール日程、クーポン、ロイヤルティ、誕生日、リマーケティングを管理します。', vouchers: 'クーポン', loyalty: 'ロイヤルティ', birthday: '誕生日', remarketing: 'リマーケティング', description: '説明', maximum: '上限', minimum: '最低', firstOrder: '初回注文', walletOnly: 'ギフトウォレット限定' },
+  ko: { trigger: '자동 지급', none: '없음', signup: '가입', delivered: '첫 배송 완료', comeback: '재방문', cart: '장바구니 이탈', validDays: '유효 기간(일)', idleHours: '장바구니 대기(시간)', inactiveDays: '미구매(일)', cooldownDays: '재지급 대기(일)', excludeSale: '세일 및 창고 상품 제외', saleCenter: '세일 센터', saleCenterHint: '세일 일정, 쿠폰, 로열티, 생일 및 리마케팅을 관리합니다.', vouchers: '쿠폰', loyalty: '로열티', birthday: '생일', remarketing: '리마케팅', description: '설명', maximum: '최대', minimum: '최소', firstOrder: '첫 주문', walletOnly: '선물 지갑 전용' },
+}
+
+export function PartnerWebsitePromotionsPanel({ locale, t, partnerId, sectionId, onToast }: Props) {
+  const autoT = AUTO_COPY[locale] ?? AUTO_COPY.en
   const [rows, setRows] = useState<PromotionRow[]>([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState<FormState | null>(null)
@@ -161,6 +223,12 @@ export function PartnerWebsitePromotionsPanel({ t, partnerId, sectionId, onToast
         validFrom: form.validFrom ? new Date(form.validFrom).toISOString() : null,
         validTo: form.validTo ? new Date(form.validTo).toISOString() : null,
         isActive: form.isActive,
+        autoGrantTrigger: form.autoGrantTrigger,
+        autoGrantValidDays: form.autoGrantValidDays ? Number(form.autoGrantValidDays) : null,
+        excludeSaleItems: form.excludeSaleItems,
+        triggerIdleHours: form.triggerIdleHours ? Number(form.triggerIdleHours) : null,
+        triggerInactiveDays: form.triggerInactiveDays ? Number(form.triggerInactiveDays) : null,
+        triggerCooldownDays: form.triggerCooldownDays ? Number(form.triggerCooldownDays) : null,
       }
       const res = await fetch(
         form.mode === 'create' ? basePath : `${basePath}/${encodeURIComponent(form.promotionId!)}`,
@@ -210,9 +278,9 @@ export function PartnerWebsitePromotionsPanel({ t, partnerId, sectionId, onToast
           <div>
             <CardTitle className="flex items-center gap-2">
               <Tag className="h-5 w-5" />
-              {t.promotionsTitle}
+              {autoT.saleCenter}
             </CardTitle>
-            <CardDescription>{t.promotionsHint}</CardDescription>
+            <CardDescription>{autoT.saleCenterHint}</CardDescription>
           </div>
           <Button size="sm" onClick={() => setForm(emptyForm())}>
             <Plus className="mr-1 h-4 w-4" />
@@ -221,6 +289,22 @@ export function PartnerWebsitePromotionsPanel({ t, partnerId, sectionId, onToast
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        <nav className="flex flex-wrap gap-2" aria-label={autoT.saleCenter}>
+          <Button size="sm" variant="secondary" type="button">{autoT.vouchers}</Button>
+          <Button size="sm" variant="outline" asChild><a href={`?partner=${encodeURIComponent(partnerId)}&section=loyalty`}>{autoT.loyalty}</a></Button>
+          <Button size="sm" variant="outline" asChild><a href={`?partner=${encodeURIComponent(partnerId)}&section=promotions`}>{autoT.birthday}</a></Button>
+          <Button size="sm" variant="outline" asChild><a href={`?partner=${encodeURIComponent(partnerId)}&section=hub-marketing`}>{autoT.remarketing}</a></Button>
+        </nav>
+        <PartnerSaleCalendarSettingsCard
+          partnerId={partnerId}
+          locale={locale}
+          onToast={onToast}
+        />
+        <PartnerSaleAdvancedSettingsCard
+          partnerId={partnerId}
+          locale={locale}
+          onToast={onToast}
+        />
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Loader2 className="h-4 w-4 animate-spin" /> ...
@@ -237,14 +321,14 @@ export function PartnerWebsitePromotionsPanel({ t, partnerId, sectionId, onToast
                 </div>
                 <p className="mt-1 text-xs text-gray-500">
                   {row.discountType === 'percent'
-                    ? `${row.discountPercent}%${row.maxDiscountAmount ? ` (tối đa ${formatVnd(row.maxDiscountAmount)})` : ''}`
-                    : formatVnd(row.discountAmount ?? 0)}
-                  {row.minSubtotal > 0 ? ` · min ${formatVnd(row.minSubtotal)}` : ''}
+                    ? `${row.discountPercent}%${row.maxDiscountAmount ? ` (${autoT.maximum} ${formatVnd(row.maxDiscountAmount, locale)})` : ''}`
+                    : formatVnd(row.discountAmount ?? 0, locale)}
+                  {row.minSubtotal > 0 ? ` · ${autoT.minimum} ${formatVnd(row.minSubtotal, locale)}` : ''}
                   {' · '}
                   {t.promotionsUsedCount}: {row.usedCount}
                   {row.usageLimit != null ? `/${row.usageLimit}` : ''}
-                  {!row.isPublicRedeemable ? ' · 🎁' : ''}
-                  {row.firstOrderOnly ? ' · 1st order' : ''}
+                  {!row.isPublicRedeemable ? ` · ${autoT.walletOnly}` : ''}
+                  {row.firstOrderOnly ? ` · ${autoT.firstOrder}` : ''}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
@@ -278,7 +362,7 @@ export function PartnerWebsitePromotionsPanel({ t, partnerId, sectionId, onToast
                 <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               </div>
               <div>
-                <Label>Mô tả</Label>
+                <Label>{autoT.description}</Label>
                 <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -342,6 +426,87 @@ export function PartnerWebsitePromotionsPanel({ t, partnerId, sectionId, onToast
                   <Input type="date" value={form.validTo} onChange={(e) => setForm({ ...form, validTo: e.target.value })} />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>{autoT.trigger}</Label>
+                  <select
+                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm"
+                    value={form.autoGrantTrigger ?? ''}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        autoGrantTrigger:
+                          (event.target.value as PromotionRow['autoGrantTrigger']) || null,
+                      })
+                    }
+                  >
+                    <option value="">{autoT.none}</option>
+                    <option value="signup">{autoT.signup}</option>
+                    <option value="first_order_delivered">{autoT.delivered}</option>
+                    <option value="comeback">{autoT.comeback}</option>
+                    <option value="cart_abandon">{autoT.cart}</option>
+                  </select>
+                </div>
+                <div>
+                  <Label>{autoT.validDays}</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={form.autoGrantValidDays}
+                    onChange={(event) =>
+                      setForm({ ...form, autoGrantValidDays: event.target.value })
+                    }
+                  />
+                </div>
+              </div>
+              {form.autoGrantTrigger === 'cart_abandon' ||
+              form.autoGrantTrigger === 'comeback' ? (
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label>
+                      {form.autoGrantTrigger === 'cart_abandon'
+                        ? autoT.idleHours
+                        : autoT.inactiveDays}
+                    </Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={
+                        form.autoGrantTrigger === 'cart_abandon'
+                          ? form.triggerIdleHours
+                          : form.triggerInactiveDays
+                      }
+                      onChange={(event) =>
+                        setForm(
+                          form.autoGrantTrigger === 'cart_abandon'
+                            ? { ...form, triggerIdleHours: event.target.value }
+                            : { ...form, triggerInactiveDays: event.target.value }
+                        )
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>{autoT.cooldownDays}</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={form.triggerCooldownDays}
+                      onChange={(event) =>
+                        setForm({ ...form, triggerCooldownDays: event.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+              ) : null}
+              <label className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2">
+                <span className="text-sm">{autoT.excludeSale}</span>
+                <Switch
+                  checked={form.excludeSaleItems}
+                  onCheckedChange={(excludeSaleItems) =>
+                    setForm({ ...form, excludeSaleItems })
+                  }
+                />
+              </label>
               <label className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2">
                 <span className="text-sm">{t.promotionsFirstOrderOnly}</span>
                 <Switch checked={form.firstOrderOnly} onCheckedChange={(v) => setForm({ ...form, firstOrderOnly: v })} />

@@ -162,6 +162,8 @@ export function buildPartnerSiteShopActionsBootstrapScript(input: {
   const contactApi = partnerSiteContactChannelsApiPath(slug)
   const leadApi = partnerSiteLeadApiPath(slug)
   const couponApi = partnerSitePromotionsValidateApiPath(slug)
+  const googleDiscountApi = `/api/site/${encodeURIComponent(slug)}/promotions/google-discount`
+  const affiliateApi = `/api/site/${encodeURIComponent(slug)}/affiliate`
   const promoLs = partnerSiteAppliedPromoStorageKey(slug)
   const cartPath = partnerSiteCartPath(slug)
   const sizeGuidePath = partnerSiteInfoPath(slug, 'size-guide')
@@ -178,6 +180,8 @@ var NOTIF_API=${JSON.stringify(notifApi)};
 var CONTACT_API=${JSON.stringify(contactApi)};
 var LEAD_API=${JSON.stringify(leadApi)};
 var COUPON_API=${JSON.stringify(couponApi)};
+var GOOGLE_DISCOUNT_API=${JSON.stringify(googleDiscountApi)};
+var AFFILIATE_API=${JSON.stringify(affiliateApi)};
 var PROMO_LS=${JSON.stringify(promoLs)};
 var PRODUCT_API_PREFIX=${JSON.stringify(productApiPrefix)};
 var CART_PATH=${JSON.stringify(cartPath)};
@@ -212,6 +216,32 @@ function productIdFromHref(href){
     var id=decodeURIComponent(path.slice(DETAIL_PREFIX.length).split('/')[0]||'');
     return UUID_RE.test(id)?id:'';
   }catch(e){return '';}
+}
+function captureGoogleDiscount(){
+  if(pwShopLiveUiOff())return;
+  var token='';
+  try{token=(new URL(location.href)).searchParams.get('pv2')||'';}catch(e){}
+  if(!token)return;
+  var inventoryId=productIdFromHref(location.href)||productIdFromHref(location.pathname);
+  if(!inventoryId)return;
+  apiFetch(GOOGLE_DISCOUNT_API,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({token:token,inventoryId:inventoryId})
+  }).then(function(res){
+    if(res.ok)document.dispatchEvent(new CustomEvent('pw-google-discount-locked',{detail:res.j||{}}));
+  }).catch(function(){});
+}
+function captureAffiliate(){
+  if(pwShopLiveUiOff())return;
+  var code='';
+  try{var u=new URL(location.href);code=u.searchParams.get('ref')||u.searchParams.get('affiliate')||'';}catch(e){}
+  if(!code)return;
+  apiFetch(AFFILIATE_API,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({referralCode:code})
+  }).catch(function(){});
 }
 function readProductFromEl(el){
   var id=(el.getAttribute('data-inventory-id')||el.getAttribute('data-pw-inventory-id')||'').trim();
@@ -761,7 +791,7 @@ function runHydrate(forceNetwork){
     window.__pwShopHydrating=false;
   }
 }
-function run(){runHydrate(true);
+function run(){captureGoogleDiscount();captureAffiliate();runHydrate(true);
   if(document.documentElement.getAttribute('data-pw-shop-actions-mo')==='1')return;
   document.documentElement.setAttribute('data-pw-shop-actions-mo','1');
   var moTimer=null;

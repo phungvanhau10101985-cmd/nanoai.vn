@@ -327,6 +327,28 @@ const PartnerMessagingOrdersClient = dynamic(
   { ssr: false, loading: () => sectionLoading }
 )
 
+const LOYALTY_COPY: Record<WebLocale, {
+  title: string
+  hint: string
+  enabled: string
+  spendDays: string
+  cap: string
+  code: string
+  name: string
+  minimumSpend: string
+  discount: string
+  active: string
+  addTier: string
+  loading: string
+  save: string
+}> = {
+  vi: { title: 'Cấu hình khách hàng thân thiết theo shop', hint: 'Mặc định L1–L5 theo chi tiêu 6 tháng. Giảm giá được lưu trên đơn hàng.', enabled: 'Bật hạng thành viên cho shop này', spendDays: 'Số ngày tính chi tiêu', cap: 'Trần tổng giảm giá (%)', code: 'Mã', name: 'Tên', minimumSpend: 'Chi tiêu tối thiểu', discount: 'Giảm (%)', active: 'Bật', addTier: 'Thêm hạng', loading: 'Đang tải...', save: 'Lưu hạng thành viên' },
+  en: { title: 'Shop loyalty settings', hint: 'Default L1–L5 tiers use six-month spend. Discounts are saved on each order.', enabled: 'Enable membership tiers for this shop', spendDays: 'Spend window (days)', cap: 'Total discount cap (%)', code: 'Code', name: 'Name', minimumSpend: 'Minimum spend', discount: 'Discount (%)', active: 'Active', addTier: 'Add tier', loading: 'Loading...', save: 'Save membership tiers' },
+  zh: { title: '店铺会员设置', hint: '默认 L1–L5 按六个月消费计算，折扣会保存到订单中。', enabled: '启用此店铺的会员等级', spendDays: '消费统计天数', cap: '总折扣上限（%）', code: '代码', name: '名称', minimumSpend: '最低消费', discount: '折扣（%）', active: '启用', addTier: '添加等级', loading: '加载中...', save: '保存会员等级' },
+  ja: { title: 'ショップのロイヤルティ設定', hint: '既定の L1～L5 は6か月の購入額で計算し、割引は注文に保存されます。', enabled: 'このショップで会員ランクを有効にする', spendDays: '購入額の集計日数', cap: '合計割引上限（%）', code: 'コード', name: '名称', minimumSpend: '最低購入額', discount: '割引（%）', active: '有効', addTier: 'ランクを追加', loading: '読み込み中...', save: '会員ランクを保存' },
+  ko: { title: '샵 로열티 설정', hint: '기본 L1–L5 등급은 최근 6개월 구매액을 사용하며 할인은 주문에 저장됩니다.', enabled: '이 샵의 회원 등급 사용', spendDays: '구매액 집계 일수', cap: '총 할인 한도(%)', code: '코드', name: '이름', minimumSpend: '최소 구매액', discount: '할인(%)', active: '사용', addTier: '등급 추가', loading: '불러오는 중...', save: '회원 등급 저장' },
+}
+
 export function PartnerMessagingSettingsClient({
   initialPartners,
   locale,
@@ -464,6 +486,7 @@ export function PartnerMessagingSettingsClient({
 
   const tWeb = useMemo(() => getPartnerWebsiteCopy(locale), [locale])
   const dict = useMemo(() => getDictionary(locale), [locale])
+  const loyaltyT = LOYALTY_COPY[locale] ?? LOYALTY_COPY.en
 
   const settingsNavItems = useMemo(() => {
     const items: Array<{
@@ -520,10 +543,10 @@ export function PartnerMessagingSettingsClient({
       },
       { id: 'api', group: 'connect', label: t.messagingSettingsApiHubCardTitle, icon: Plug, visible: isOwnerSelected },
       { id: 'sheets', group: 'connect', label: t.settingsNavSheets, icon: Table, visible: isOwnerSelected },
-      { id: 'loyalty', group: 'customers', label: t.settingsNavLoyalty, icon: Trophy, visible: isOwnerSelected },
+      { id: 'loyalty', group: 'sales', label: t.settingsNavLoyalty, icon: Trophy, visible: isOwnerSelected },
       {
         id: 'promotions',
-        group: 'customers',
+        group: 'sales',
         label: t.settingsNavPromotions,
         icon: Cake,
         visible: Boolean(selectedPartnerId && partnerCanPromotionsPanel(selectedPartner)),
@@ -3586,9 +3609,9 @@ export function PartnerMessagingSettingsClient({
           >
             <Card className="border-border/70 shadow-sm">
               <CardHeader className="px-4 py-3 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Cấu hình loyalty theo shop</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">{loyaltyT.title}</CardTitle>
                 <CardDescription className="text-xs">
-                  Mặc định L1-L5 theo chi tiêu 6 tháng. Giảm giá được lưu snapshot trên đơn hàng.
+                  {loyaltyT.hint}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 px-4 pb-4 pt-0">
@@ -3598,11 +3621,11 @@ export function PartnerMessagingSettingsClient({
                     checked={loyaltyEnabled}
                     onChange={(e) => setLoyaltyEnabled(e.target.checked)}
                   />
-                  Bật hạng thành viên cho shop này
+                  {loyaltyT.enabled}
                 </label>
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium">Số ngày tính chi tiêu</Label>
+                    <Label className="text-xs font-medium">{loyaltyT.spendDays}</Label>
                     <Input
                       className="h-9 text-sm"
                       value={loyaltySpendWindowDays}
@@ -3611,7 +3634,7 @@ export function PartnerMessagingSettingsClient({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium">Trần tổng giảm giá (%)</Label>
+                    <Label className="text-xs font-medium">{loyaltyT.cap}</Label>
                     <Input
                       className="h-9 text-sm"
                       value={loyaltyMaxTotalDiscountPercent}
@@ -3622,11 +3645,11 @@ export function PartnerMessagingSettingsClient({
                 </div>
                 <div className="space-y-2">
                   <div className="grid grid-cols-[0.7fr_1fr_1.3fr_1fr_0.6fr] gap-2 text-[11px] font-medium text-muted-foreground">
-                    <span>Mã</span>
-                    <span>Tên</span>
-                    <span>Chi tiêu tối thiểu</span>
-                    <span>Giảm (%)</span>
-                    <span>Bật</span>
+                    <span>{loyaltyT.code}</span>
+                    <span>{loyaltyT.name}</span>
+                    <span>{loyaltyT.minimumSpend}</span>
+                    <span>{loyaltyT.discount}</span>
+                    <span>{loyaltyT.active}</span>
                   </div>
                   {loyaltyTiers.map((tier, idx) => (
                     <div key={tier.id ?? idx} className="grid grid-cols-[0.7fr_1fr_1.3fr_1fr_0.6fr] gap-2">
@@ -3662,10 +3685,10 @@ export function PartnerMessagingSettingsClient({
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="outline" onClick={addLoyaltyTier} disabled={pending || loyaltyLoading}>
-                    Thêm hạng
+                    {loyaltyT.addTier}
                   </Button>
                   <Button type="button" size="sm" onClick={saveLoyaltySettings} disabled={pending || loyaltyLoading || !selectedPartnerId}>
-                    {loyaltyLoading ? 'Đang tải...' : 'Lưu hạng thành viên'}
+                    {loyaltyLoading ? loyaltyT.loading : loyaltyT.save}
                   </Button>
                 </div>
               </CardContent>

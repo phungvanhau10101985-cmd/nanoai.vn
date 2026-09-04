@@ -32,6 +32,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   })
   if (grants === null) return NextResponse.json({ error: 'Could not load wallet' }, { status: 500 })
 
+  const subtotal = Math.max(0, Number(request.nextUrl.searchParams.get('subtotal') ?? 0) || 0)
+  const now = Date.now()
   const vouchers = grants
     .filter((g) => g.promotion.isActive)
     .map((g) => ({
@@ -46,11 +48,17 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
       source: g.grant.source,
       grantedAt: g.grant.grantedAt,
       expiresAt: g.grant.expiresAt,
+      eligible: subtotal <= 0 || subtotal >= g.promotion.minSubtotal,
+      ineligibleReason:
+        subtotal > 0 && subtotal < g.promotion.minSubtotal ? 'below_min_subtotal' : null,
+      expiresSoon:
+        Boolean(g.grant.expiresAt) &&
+        new Date(g.grant.expiresAt as string).getTime() - now <= 3 * 86_400_000,
     }))
 
   return jsonSitePersonalization(
     request,
-    { ok: true, vouchers },
+    { ok: true, vouchers, badgeCount: vouchers.length },
     200,
     { sessionId: visitor.sessionId, thread: visitor.thread }
   )

@@ -15,6 +15,13 @@ import { findPartnerSearchAliasByKeywordFromPg } from '@/lib/db/messaging-partne
 import { isPgConfigured } from '@/lib/db/pool'
 import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
+import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
+import {
+  applyPartnerSiteSalePrice,
+  resolvePartnerSaleCalendarState,
+} from '@/lib/partner-website/promotions/partner-sale-calendar'
+import { resolvePartnerEffectiveUnitPrice } from '@/lib/partner-website/shop/partner-shop-flash-sale'
+import { pgQuery } from '@/lib/db/pg-query'
 
 export const dynamic = 'force-dynamic'
 
@@ -161,12 +168,61 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   if (!page) return NextResponse.json({ error: 'Could not load products' }, { status: 500 })
 
   const excludeSet = new Set(excludeIds)
+  const saleConfig = await fetchPartnerSaleCalendarConfigFromPg(shop.partnerId)
+  const saleCalendar = resolvePartnerSaleCalendarState({ settings: saleConfig })
+  const clearanceIds = new Set(
+    await pgQuery<{ id: string }>(
+      `select id::text from public.messaging_partner_inventory
+       where partner_id = $1::uuid and is_clearance = true
+         and id = any($2::uuid[])`,
+      [shop.partnerId, page.rows.map((row) => row.id)]
+    )
+      .then((rows) => rows.map((row) => row.id))
+      .catch(() => [])
+  )
   const mapped = page.rows
-    .map((row) => inventoryRowToShopProduct(shop.site.siteSlug, row))
+    .map((row) => {
+      const product = inventoryRowToShopProduct(shop.site.siteSlug, row)
+      return product ? { ...product, isClearance: clearanceIds.has(product.id) } : null
+    })
     .filter((p): p is NonNullable<typeof p> => Boolean(p))
     .filter((p) => !excludeSet.has(p.id))
   const hasMore = mapped.length > limit || offset + limit < page.count
-  const products = mapped.slice(0, limit)
+  const products = mapped.slice(0, limit).map((product) => {
+    const listPrice = Math.max(0, Math.round(product.priceAmount ?? 0))
+    if (listPrice <= 0) return { ...product, siteSalePhase: saleCalendar.phase, siteSalePercent: saleCalendar.discountPercent }
+    const calendarPrice = applyPartnerSiteSalePrice(listPrice, saleCalendar)
+    const clearancePrice =
+      product.isClearance && saleConfig.clearanceEnabled
+        ? Math.max(0, Math.round(listPrice * (1 - saleConfig.clearanceDiscountPercent / 100)))
+        : null
+    const productEffectivePrice =
+      resolvePartnerEffectiveUnitPrice({
+        priceAmount: listPrice,
+        salePriceAmount: product.salePriceAmount ?? null,
+        saleStartsAt: product.saleStartsAt ?? null,
+        saleEndsAt: product.saleEndsAt ?? null,
+      }) ?? listPrice
+    const activePrice =
+      clearancePrice ??
+      (saleCalendar.phase === 'active'
+        ? Math.min(calendarPrice, productEffectivePrice)
+        : null)
+    return {
+      ...product,
+      salePriceAmount: activePrice ?? product.salePriceAmount,
+      saleStartsAt: activePrice != null ? null : product.saleStartsAt,
+      saleEndsAt: activePrice != null ? null : product.saleEndsAt,
+      siteSalePhase: saleCalendar.phase,
+      siteSalePercent: product.isClearance
+        ? saleConfig.clearanceDiscountPercent
+        : saleCalendar.discountPercent,
+      siteSaleExpectedPrice:
+        saleCalendar.phase === 'teaser' && !product.isClearance
+          ? applyPartnerSiteSalePrice(listPrice, { ...saleCalendar, phase: 'active' })
+          : null,
+    }
+  })
 
   if (related && categoryId && UUID_RE.test(categoryId)) {
     const flat = await fetchPartnerCategoriesFlatFromPg(shop.partnerId)
@@ -186,6 +242,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     ok: true,
     source: use188TextSearch ? 'words' : related ? 'related' : 'shop',
     products,
+    saleCalendar,
     hasMore,
     total: products.length < page.rows.length ? products.length : page.count,
     mapped: products.length,

@@ -16,6 +16,14 @@
     {
       "path": "/api/cron/partner-birthday-promo",
       "schedule": "15 2 * * *"
+    },
+    {
+      "path": "/api/cron/partner-promotion-maintenance",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/partner-marketing-campaign",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

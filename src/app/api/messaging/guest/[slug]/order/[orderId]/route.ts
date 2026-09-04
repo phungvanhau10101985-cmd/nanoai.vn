@@ -97,6 +97,15 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
     if (!updated) {
       return NextResponse.json({ error: 'Cannot cancel this order' }, { status: 409 })
     }
+    void import('@/lib/db/messaging-partner-affiliate-pg')
+      .then(({ transitionPartnerAffiliateCommissionFromPg }) =>
+        transitionPartnerAffiliateCommissionFromPg({
+          partnerId: partner.partnerId,
+          orderId: updated.id,
+          state: 'reversed',
+        })
+      )
+      .catch((error) => console.warn('[cancel_order:affiliate]', error))
     await insertPartnerOrderEventFromPg({
       orderId: updated.id,
       eventType: 'status',
@@ -127,6 +136,27 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
     if (!updated) {
       return NextResponse.json({ error: 'Cannot confirm received' }, { status: 409 })
     }
+    void import('@/lib/messaging/partner-promotion-auto-grant')
+      .then(({ processFirstDeliveredOrderPromotion }) =>
+        processFirstDeliveredOrderPromotion({
+          partnerId: partner.partnerId,
+          orderId: updated.id,
+          conversationId: updated.conversation_id,
+          emailNormalized: updated.customer_email,
+        })
+      )
+      .catch((error) =>
+        console.warn('[confirm_received:first-delivered-promotion]', error)
+      )
+    void import('@/lib/db/messaging-partner-affiliate-pg')
+      .then(({ transitionPartnerAffiliateCommissionFromPg }) =>
+        transitionPartnerAffiliateCommissionFromPg({
+          partnerId: partner.partnerId,
+          orderId: updated.id,
+          state: 'confirmed',
+        })
+      )
+      .catch((error) => console.warn('[confirm_received:affiliate]', error))
     await insertPartnerOrderEventFromPg({
       orderId: updated.id,
       eventType: 'shipping_status',

@@ -2,6 +2,7 @@ import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { sqlPartnerMpActorHasPerm } from '@/lib/db/messaging-partner-access-sql'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import type { PartnerStackedDiscountSnapshot } from '@/lib/db/messaging-partner-loyalty-pg'
+import type { PartnerSaleDiscountBreakdown } from '@/lib/partner-website/promotions/partner-sale-pricing'
 
 export type PartnerPaymentSettingsRow = {
   partner_id: string
@@ -635,12 +636,14 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
   /** JSON `string[]` — URL ảnh màu/mẫu đã chọn (tối đa ~8k ký tự). */
   variantImageUrlsJson: string
   quantity: number
+  unitPrice?: number
   note: string
   depositPercent: number
   requiredAmount: number
   paymentReference: string
   paymentQrUrl: string
   discountSnapshot?: PartnerStackedDiscountSnapshot
+  saleBreakdown?: PartnerSaleDiscountBreakdown
   /** W1.4 — lớp giảm giá voucher cho checkout AI chat đơn lẻ, cùng quy ước với `updatePartnerOrderCartCheckoutFromPg`. */
   promo?: { id: string; code: string; discountAmount: number } | null
   /** W1.7 */
@@ -649,7 +652,10 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
 }): Promise<PartnerOrderRow | null> {
   if (!isPgConfigured()) return null
   const qty = Math.max(1, Math.min(99, Math.floor(input.quantity || 1)))
-  const runUpdate = async (depositPercentValue: number): Promise<PartnerOrderRow | null> => {
+  const runUpdate = async (
+    depositPercentValue: number,
+    includeSaleBreakdown = true
+  ): Promise<PartnerOrderRow | null> => {
     const row = await pgQueryOne<Record<string, unknown>>(
       `update public.messaging_partner_orders
        set customer_name = $5,
@@ -662,7 +668,8 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
            note = $12,
            variant_image_urls = $13,
            deposit_percent = $14,
-           subtotal_amount = coalesce(unit_price, 0::numeric) * $15::numeric,
+           unit_price = $33::numeric,
+           subtotal_amount = $33::numeric * $15::numeric,
            required_amount = $16::numeric,
            payment_reference = $17,
            payment_qr_url = $18,
@@ -679,7 +686,14 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
            promo_code = $29,
            promo_discount_amount = $30::numeric,
            payment_method = $31,
-           shipping_fee_amount = $32::numeric,
+           shipping_fee_amount = $32::numeric
+           ${includeSaleBreakdown ? `,
+           discount_breakdown_json = $34::jsonb,
+           list_subtotal_amount = $35::numeric,
+           site_sale_discount_amount = $36::numeric,
+           google_discount_amount = $37::numeric,
+           discount_cap_adjustment_amount = $38::numeric,
+           clearance_subtotal_amount = $39::numeric` : ''},
            status = 'awaiting_payment',
            updated_at = now()
        where id = $1::uuid
@@ -732,6 +746,17 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
         Math.max(0, Math.round(num(input.promo?.discountAmount, 0))),
         input.paymentMethod === 'bank_transfer' || input.paymentMethod === 'ewallet' ? input.paymentMethod : 'cod',
         Math.max(0, Math.round(num(input.shippingFeeAmount, 0))),
+        Math.max(0, Math.round(num(input.unitPrice, 0))),
+        ...(includeSaleBreakdown
+          ? [
+              JSON.stringify(input.saleBreakdown ?? {}),
+              Math.max(0, Math.round(num(input.saleBreakdown?.listSubtotal, 0))),
+              Math.max(0, Math.round(num(input.saleBreakdown?.siteSaleDiscountAmount, 0))),
+              Math.max(0, Math.round(num(input.saleBreakdown?.googleDiscountAmount, 0))),
+              Math.max(0, Math.round(num(input.saleBreakdown?.capAdjustmentAmount, 0))),
+              Math.max(0, Math.round(num(input.saleBreakdown?.clearanceSubtotal, 0))),
+            ]
+          : []),
       ]
     )
     return row ? mapOrderRow(row) : null
@@ -739,6 +764,14 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
   try {
     return await runUpdate(input.depositPercent)
   } catch (e) {
+    if (
+      (e as { code?: string })?.code === '42703' &&
+      /discount_breakdown_json|list_subtotal_amount|site_sale_discount_amount/i.test(
+        String((e as { message?: string })?.message ?? '')
+      )
+    ) {
+      return runUpdate(input.depositPercent, false)
+    }
     if (isLegacyDepositPercentConstraintError(e)) {
       try {
         const fallbackPercent = Math.round(num(input.depositPercent, 30)) === 100 ? 100 : 30
@@ -769,6 +802,7 @@ export async function updatePartnerOrderCartCheckoutFromPg(input: {
   paymentQrUrl: string
   primaryLine: PartnerOrderLineUpsertInput
   discountSnapshot?: PartnerStackedDiscountSnapshot
+  saleBreakdown?: PartnerSaleDiscountBreakdown
   /** W1.4 — lớp giảm giá voucher, TÁCH BIỆT khỏi loyalty/birthday. `amountAfterDiscount` truyền vào
    * đã trừ sẵn khoản này (tính ở `guest-chat-ordering.ts`) — hàm này chỉ lưu lại để hiển thị/báo cáo. */
   promo?: { id: string; code: string; discountAmount: number } | null
@@ -778,7 +812,10 @@ export async function updatePartnerOrderCartCheckoutFromPg(input: {
 }): Promise<PartnerOrderRow | null> {
   if (!isPgConfigured()) return null
   const subtotal = Math.max(0, Math.round(num(input.subtotalAmount, 0)))
-  const runUpdate = async (depositPercentValue: number): Promise<PartnerOrderRow | null> => {
+  const runUpdate = async (
+    depositPercentValue: number,
+    includeSaleBreakdown = true
+  ): Promise<PartnerOrderRow | null> => {
     const row = await pgQueryOne<Record<string, unknown>>(
       `update public.messaging_partner_orders
        set customer_name = $5,
@@ -813,7 +850,14 @@ export async function updatePartnerOrderCartCheckoutFromPg(input: {
            promo_code = $31,
            promo_discount_amount = $32::numeric,
            payment_method = $33,
-           shipping_fee_amount = $34::numeric,
+           shipping_fee_amount = $34::numeric
+           ${includeSaleBreakdown ? `,
+           discount_breakdown_json = $35::jsonb,
+           list_subtotal_amount = $36::numeric,
+           site_sale_discount_amount = $37::numeric,
+           google_discount_amount = $38::numeric,
+           discount_cap_adjustment_amount = $39::numeric,
+           clearance_subtotal_amount = $40::numeric` : ''},
            status = 'awaiting_payment',
            updated_at = now()
        where id = $1::uuid
@@ -868,6 +912,16 @@ export async function updatePartnerOrderCartCheckoutFromPg(input: {
         Math.max(0, Math.round(num(input.promo?.discountAmount, 0))),
         input.paymentMethod === 'bank_transfer' || input.paymentMethod === 'ewallet' ? input.paymentMethod : 'cod',
         Math.max(0, Math.round(num(input.shippingFeeAmount, 0))),
+        ...(includeSaleBreakdown
+          ? [
+              JSON.stringify(input.saleBreakdown ?? {}),
+              Math.max(0, Math.round(num(input.saleBreakdown?.listSubtotal, 0))),
+              Math.max(0, Math.round(num(input.saleBreakdown?.siteSaleDiscountAmount, 0))),
+              Math.max(0, Math.round(num(input.saleBreakdown?.googleDiscountAmount, 0))),
+              Math.max(0, Math.round(num(input.saleBreakdown?.capAdjustmentAmount, 0))),
+              Math.max(0, Math.round(num(input.saleBreakdown?.clearanceSubtotal, 0))),
+            ]
+          : []),
       ]
     )
     return row ? mapOrderRow(row) : null
@@ -875,6 +929,14 @@ export async function updatePartnerOrderCartCheckoutFromPg(input: {
   try {
     return await runUpdate(input.depositPercent)
   } catch (e) {
+    if (
+      (e as { code?: string })?.code === '42703' &&
+      /discount_breakdown_json|list_subtotal_amount|site_sale_discount_amount/i.test(
+        String((e as { message?: string })?.message ?? '')
+      )
+    ) {
+      return runUpdate(input.depositPercent, false)
+    }
     if (isLegacyDepositPercentConstraintError(e)) {
       try {
         const fallbackPercent = Math.round(num(input.depositPercent, 30)) === 100 ? 100 : 30

@@ -1211,6 +1211,37 @@ export async function updateMyMessagingOrderShipping(input: {
     note,
   })
   if (!updated) return { error: 'Khong cap nhat duoc trang thai giao hang.' }
+  if (input.shippingStatus === 'delivered') {
+    void import('@/lib/messaging/partner-promotion-auto-grant')
+      .then(({ processFirstDeliveredOrderPromotion }) =>
+        processFirstDeliveredOrderPromotion({
+          partnerId: updated.partner_id,
+          orderId: updated.id,
+          conversationId: updated.conversation_id,
+          emailNormalized: updated.customer_email,
+        })
+      )
+      .catch((error) =>
+        console.warn('[updateMyMessagingOrderShipping:first-delivered-promotion]', error)
+      )
+  }
+  if (
+    input.shippingStatus === 'delivered' ||
+    input.shippingStatus === 'returned' ||
+    input.shippingStatus === 'cancelled'
+  ) {
+    void import('@/lib/db/messaging-partner-affiliate-pg')
+      .then(({ transitionPartnerAffiliateCommissionFromPg }) =>
+        transitionPartnerAffiliateCommissionFromPg({
+          partnerId: updated.partner_id,
+          orderId: updated.id,
+          state: input.shippingStatus === 'delivered' ? 'confirmed' : 'reversed',
+        })
+      )
+      .catch((error) =>
+        console.warn('[updateMyMessagingOrderShipping:affiliate]', error)
+      )
+  }
   queuePartnerOrderGoogleSheetsSync(updated.partner_id, updated.id)
   await insertPartnerOrderEventFromPg({
     orderId: updated.id,
@@ -1288,6 +1319,17 @@ export async function updateMyMessagingOrderRefund(input: {
     createdBy: user.id,
   })
   if (input.refundStatus === 'refunded') {
+    void import('@/lib/db/messaging-partner-affiliate-pg')
+      .then(({ transitionPartnerAffiliateCommissionFromPg }) =>
+        transitionPartnerAffiliateCommissionFromPg({
+          partnerId: updated.partner_id,
+          orderId: updated.id,
+          state: 'reversed',
+        })
+      )
+      .catch((error) =>
+        console.warn('[updateMyMessagingOrderRefund:affiliate]', error)
+      )
     await insertMessagePg({
       conversationId: updated.conversation_id,
       direction: 'outbound',

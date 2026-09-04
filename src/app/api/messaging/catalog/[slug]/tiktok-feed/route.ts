@@ -5,6 +5,7 @@ import {
   catalogFeedFileResponse,
   loadPartnerCatalogFeedContext,
 } from '@/lib/messaging/partner-catalog-feed-http'
+import { applyPartnerSaleParityToCatalogRows } from '@/lib/messaging/partner-catalog-sale-parity'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -21,7 +22,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   const loaded = await loadPartnerCatalogFeedContext(request, slug)
   if (loaded instanceof Response) return loaded
 
-  const buf = buildTiktokCatalogFeedCsv(loaded.rows, catalogFeedBuildArgs(loaded))
+  const sale = await applyPartnerSaleParityToCatalogRows(loaded.partnerId, loaded.rows)
+  const buf = buildTiktokCatalogFeedCsv(sale.rows, catalogFeedBuildArgs(loaded))
 
   return catalogFeedFileResponse(buf, 'text/csv; charset=utf-8', 'tiktok-catalog.csv')
 }
