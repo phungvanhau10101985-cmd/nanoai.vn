@@ -77,12 +77,14 @@ export function liveCategoryBindCacheSuffix(input: {
   accountKey: string
   linkedUserId?: string | null
   locale: string
+  limit?: number
 }): string {
   return `bind:${hashShopCachePayload({
     slug: input.slug.trim().toLowerCase(),
     accountKey: input.accountKey.trim() || 'anonymous',
     linkedUserId: String(input.linkedUserId || '').trim(),
     locale: input.locale,
+    limit: Number(input.limit) || 0,
   })}`
 }
 
@@ -92,6 +94,7 @@ export async function withLiveCategoryBindCache<T>(input: {
   accountKey: string
   linkedUserId?: string | null
   locale: string
+  limit?: number
   load: () => Promise<T>
 }): Promise<T> {
   return withInventoryShopCache({

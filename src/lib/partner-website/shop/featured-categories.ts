@@ -1,3 +1,4 @@
+import { withLiveCategoryBindCache } from '@/lib/cache/partner-shop-cache'
 import { fetchNanoaiChatProfileFromPg } from '@/lib/db/profiles-repo'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
@@ -437,7 +438,7 @@ async function resolveVisitorGender(input: {
 }
 
 
-export async function getSiteFeaturedCategoryBlock(input: {
+async function getSiteFeaturedCategoryBlockUncached(input: {
   partnerId: string
   siteSlug: string
   accountKey: string
@@ -557,4 +558,26 @@ export async function getSiteFeaturedCategoryBlock(input: {
     source,
     hub_href: hub,
   }
+}
+
+/** Pill + ô danh mục nổi bật — cache 45s / khách. HTML live và API cùng một bản. */
+export async function getSiteFeaturedCategoryBlock(input: {
+  partnerId: string
+  siteSlug: string
+  accountKey: string
+  linkedUserId?: string | null
+  locale?: WebLocale
+  limit?: number
+}): Promise<FeaturedCategoryBlock> {
+  const locale = input.locale && ['vi', 'en', 'zh', 'ja', 'ko'].includes(input.locale) ? input.locale : 'vi'
+  const limit = Math.max(4, Math.min(FEATURED_CATEGORY_TILE_MAX, Math.floor(Number(input.limit) || FEATURED_CATEGORY_TILE_DEFAULT)))
+  return withLiveCategoryBindCache({
+    partnerId: input.partnerId,
+    slug: input.siteSlug,
+    accountKey: input.accountKey,
+    linkedUserId: input.linkedUserId,
+    locale,
+    limit,
+    load: () => getSiteFeaturedCategoryBlockUncached({ ...input, locale, limit }),
+  })
 }

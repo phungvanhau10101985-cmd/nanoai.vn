@@ -27,3 +27,19 @@ test('liveCategoryBindCacheSuffix is per visitor, not per product', () => {
   assert.match(a, /^bind:[0-9a-f]{16}$/)
   assert.equal(LIVE_CATEGORY_BIND_TTL_SEC, 45)
 })
+
+test('liveCategoryBindCacheSuffix includes tile limit', () => {
+  const eight = liveCategoryBindCacheSuffix({
+    slug: '188-com-vn-rl56',
+    accountKey: 'guest-1',
+    locale: 'vi',
+    limit: 8,
+  })
+  const ten = liveCategoryBindCacheSuffix({
+    slug: '188-com-vn-rl56',
+    accountKey: 'guest-1',
+    locale: 'vi',
+    limit: 10,
+  })
+  assert.notEqual(eight, ten)
+})
