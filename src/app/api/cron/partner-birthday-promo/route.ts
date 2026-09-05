@@ -69,7 +69,8 @@ export async function GET(request: NextRequest) {
         skipped += 1
         continue
       }
-      if (!isInBirthdayOfferWindow(daysUntil, dMax, dMin)) {
+      // Sale parity 188: offer is active T-7..T0, but marketing email is sent exactly at T-7.
+      if (!isInBirthdayOfferWindow(daysUntil, dMax, dMin) || daysUntil !== 7) {
         skipped += 1
         continue
       }

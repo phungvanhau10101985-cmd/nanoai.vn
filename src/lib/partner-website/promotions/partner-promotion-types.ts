@@ -40,6 +40,10 @@ export type PartnerPromotionRow = {
   isPublicRedeemable: boolean
   autoGrantTrigger: PromotionAutoGrantTrigger | null
   autoGrantValidDays: number | null
+  excludeSaleItems: boolean
+  triggerIdleHours: number | null
+  triggerInactiveDays: number | null
+  triggerCooldownDays: number | null
   createdAt: string
   updatedAt: string
 }

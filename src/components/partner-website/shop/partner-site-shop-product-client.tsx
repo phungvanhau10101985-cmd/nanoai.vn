@@ -23,11 +23,14 @@ import {
   partnerSiteHomePath,
   partnerSiteInfoPath,
   partnerSitePersonalizationApiPath,
-  partnerSiteProductPath,
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
+import {
+  buildPartnerShopLoginHref,
+  getPartnerShopBrowserReturnLocation,
+} from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
 import {
   shopProductToTrackingProduct,
   trackPartnerSiteAddToCart,
@@ -151,7 +154,7 @@ export function PartnerSiteShopProductClient({
   const router = useRouter()
   const { openConsult, openTryOn } = usePartnerSiteChatWidget()
   const { setActiveProduct } = usePartnerSiteActiveProductRegistrar()
-  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { refreshCartCount, tracking } = usePartnerSiteShop()
   const customDomain = usePartnerSiteCustomDomain()
   const [options, setOptions] = useState<ProductPurchaseOptions | null>(null)
@@ -367,7 +370,7 @@ export function PartnerSiteShopProductClient({
   async function toggleFavorite() {
     if (!ready || favoriteBusy) return
     const inflightKey = product.id.trim().toLowerCase()
-    const host = window as Window & { __pwFavoriteToggleInFlight?: Record<string, Promise<unknown>> }
+    const host = window as Window & { __pwFavoriteToggleInFlight?: Partial<Record<string, Promise<unknown>>> }
     host.__pwFavoriteToggleInFlight = host.__pwFavoriteToggleInFlight || {}
     if (host.__pwFavoriteToggleInFlight[inflightKey]) return
     setFavoriteBusy(true)
@@ -409,11 +412,23 @@ export function PartnerSiteShopProductClient({
     }
   }
 
+  function requirePurchaseLogin(): boolean {
+    if (isAuthenticated) return false
+    window.location.assign(
+      buildPartnerShopLoginHref(
+        siteSlug,
+        getPartnerShopBrowserReturnLocation(siteSlug, { customDomain }),
+        { customDomain }
+      )
+    )
+    return true
+  }
+
   async function addLine(
     redirectToCart: boolean,
     pick?: { color?: string; size?: string; quantity?: number; imageUrl?: string }
   ) {
-    if (!ready || busy) return
+    if (!ready || busy || requirePurchaseLogin()) return
     setBusy(true)
     setMessage('')
     const nextColor = pick?.color ?? color
@@ -810,10 +825,10 @@ export function PartnerSiteShopProductClient({
           ) : null}
 
           <div ref={buyActionsRef} className="pw-pdp-actions pw-pdp-actions-inline">
-            <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => setVariantModalOpen(true)} data-pw-el={PW_EL.cardCart}>
+            <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => { if (!requirePurchaseLogin()) setVariantModalOpen(true) }} data-pw-el={PW_EL.cardCart}>
               {t.addToCart}
             </button>
-            <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => setVariantModalOpen(true)} data-pw-el={PW_EL.buy}>
+            <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => { if (!requirePurchaseLogin()) setVariantModalOpen(true) }} data-pw-el={PW_EL.buy}>
               {t.buyNow}
             </button>
             <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => openConsult(consultCtx)} data-pw-el={PW_EL.cta}>

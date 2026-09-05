@@ -19,7 +19,10 @@ import {
   partnerSiteOrderDetailPath,
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
-import { shouldRedirectToDepositAfterCreate } from '@/lib/partner-website/shop/order-deposit'
+import {
+  partnerOrderPayableTotal,
+  shouldRedirectToDepositAfterCreate,
+} from '@/lib/partner-website/shop/order-deposit'
 import { markGoogleCustomerReviewsForOrder } from '@/lib/partner-website/shop/google-customer-reviews'
 import {
   emptyPartnerSiteAddressInput,
@@ -61,10 +64,91 @@ type OrderSnapshot = {
   customer_email?: string | null
   payment_method?: 'cod' | 'bank_transfer' | 'ewallet' | null
   shipping_fee_amount?: number | null
+  amount_after_discount?: number | null
+  subtotal_amount?: number | null
+}
+
+type CartQuote = {
+  lines: Array<{
+    lineId: string
+    inventoryId: string | null
+    quantity: number
+    listUnitPrice: number
+    effectiveUnitPrice: number
+    isClearance: boolean
+    googleDiscountAmount: number
+  }>
+  breakdown: {
+    listSubtotal: number
+    effectiveSubtotal: number
+    regularListSubtotal: number
+    regularEffectiveSubtotal: number
+    clearanceSubtotal: number
+    siteSaleDiscountAmount: number
+    googleDiscountAmount: number
+    voucherDiscountAmount: number
+    birthdayDiscountAmount: number
+    loyaltyDiscountAmount: number
+    capAdjustmentAmount: number
+    totalDiscountAmount: number
+    amountAfterDiscount: number
+    primaryDiscount: 'voucher' | 'birthday' | null
+    maxDiscountAmount: number
+  }
+  promo: { code: string; name: string; discountAmount: number } | null
+  promoError: string | null
+  birthdayDiscountPercent: number
+  loyalty: {
+    enabled: boolean
+    tierCode: string
+    tierName: string
+    discountPercent: number
+  }
+  shipping: {
+    feeAmount: number
+    configuredFeeAmount: number
+    freeThresholdAmount: number | null
+    carrierLabel: string
+  }
+  orderTotal: number
+}
+
+type WalletVoucher = {
+  code: string
+  name: string
+  description: string
+  eligible: boolean
+  ineligibleReason: string | null
+  expiresSoon: boolean
+  expiresAt: string | null
+}
+
+const CART_SALE_COPY: Record<WebLocale, {
+  selectAll: string
+  selectedCount: string
+  voucherWallet: string
+  noVoucher: string
+  expiresSoon: string
+  saleDiscount: string
+  googleDiscount: string
+  birthdayDiscount: string
+  loyaltyDiscount: string
+  clearanceSubtotal: string
+  regularSubtotal: string
+  capNotice: string
+  selectProduct: string
+  quoteUpdating: string
+}> = {
+  vi: { selectAll: 'Chọn tất cả', selectedCount: 'Đã chọn {selected}/{total} sản phẩm', voucherWallet: 'Voucher của bạn', noVoucher: 'Chưa có voucher phù hợp.', expiresSoon: 'Sắp hết hạn', saleDiscount: 'Sale ngày trùng tháng', googleDiscount: 'Google Shopping', birthdayDiscount: 'Ưu đãi sinh nhật', loyaltyDiscount: 'Hạng thành viên', clearanceSubtotal: 'Thanh lý kho', regularSubtotal: 'Tạm tính hàng thường', capNotice: 'Tổng ưu đãi đã được giới hạn ở 15% giá niêm yết.', selectProduct: 'Chọn sản phẩm', quoteUpdating: 'Đang cập nhật giá…' },
+  en: { selectAll: 'Select all', selectedCount: '{selected} of {total} products selected', voucherWallet: 'Your vouchers', noVoucher: 'No eligible voucher yet.', expiresSoon: 'Expiring soon', saleDiscount: 'Same-day sale', googleDiscount: 'Google Shopping', birthdayDiscount: 'Birthday offer', loyaltyDiscount: 'Membership tier', clearanceSubtotal: 'Clearance', regularSubtotal: 'Regular items subtotal', capNotice: 'Total discounts have been capped at 15% of list price.', selectProduct: 'Select product', quoteUpdating: 'Updating prices…' },
+  zh: { selectAll: '全选', selectedCount: '已选择 {selected}/{total} 件商品', voucherWallet: '您的优惠券', noVoucher: '暂无可用优惠券。', expiresSoon: '即将到期', saleDiscount: '同日促销', googleDiscount: 'Google Shopping', birthdayDiscount: '生日优惠', loyaltyDiscount: '会员等级', clearanceSubtotal: '清仓商品', regularSubtotal: '普通商品小计', capNotice: '总优惠已限制为标价的 15%。', selectProduct: '选择商品', quoteUpdating: '正在更新价格…' },
+  ja: { selectAll: 'すべて選択', selectedCount: '{total}点中{selected}点を選択', voucherWallet: 'お持ちのクーポン', noVoucher: '利用可能なクーポンはありません。', expiresSoon: 'まもなく期限切れ', saleDiscount: '同日セール', googleDiscount: 'Google Shopping', birthdayDiscount: '誕生日特典', loyaltyDiscount: '会員ランク', clearanceSubtotal: '在庫処分', regularSubtotal: '通常商品の小計', capNotice: '割引合計は定価の15%を上限としています。', selectProduct: '商品を選択', quoteUpdating: '価格を更新中…' },
+  ko: { selectAll: '전체 선택', selectedCount: '상품 {total}개 중 {selected}개 선택', voucherWallet: '내 쿠폰', noVoucher: '사용 가능한 쿠폰이 없습니다.', expiresSoon: '곧 만료', saleDiscount: '동일 날짜 세일', googleDiscount: 'Google Shopping', birthdayDiscount: '생일 혜택', loyaltyDiscount: '회원 등급', clearanceSubtotal: '창고 정리', regularSubtotal: '일반 상품 소계', capNotice: '총 할인은 정가의 15%로 제한되었습니다.', selectProduct: '상품 선택', quoteUpdating: '가격 업데이트 중…' },
 }
 
 export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatPath }: Props) {
   const t = getPartnerSiteShopCopy(locale)
+  const saleT = CART_SALE_COPY[locale] ?? CART_SALE_COPY.en
   const customDomain = usePartnerSiteCustomDomain()
   const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { refreshCartCount, tracking } = usePartnerSiteShop()
@@ -82,6 +166,10 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   const [promoCodeInput, setPromoCodeInput] = useState('')
   const [promoBusy, setPromoBusy] = useState(false)
   const [promoMessage, setPromoMessage] = useState('')
+  const [selectedLineIds, setSelectedLineIds] = useState<Set<string>>(new Set())
+  const [quote, setQuote] = useState<CartQuote | null>(null)
+  const [quoteLoading, setQuoteLoading] = useState(false)
+  const [walletVouchers, setWalletVouchers] = useState<WalletVoucher[]>([])
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; name: string; discountAmount: number } | null>(
     () => {
       if (typeof window === 'undefined') return null
@@ -119,6 +207,16 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   const [addressForm, setAddressForm] = useState<PartnerSiteCustomerAddressInput>(emptyPartnerSiteAddressInput())
   const [addressSaving, setAddressSaving] = useState(false)
 
+  useEffect(() => {
+    try {
+      const key = partnerSiteAppliedPromoStorageKey(siteSlug)
+      if (appliedPromo) window.localStorage.setItem(key, JSON.stringify(appliedPromo))
+      else window.localStorage.removeItem(key)
+    } catch {
+      // Storage may be disabled; server quote remains authoritative.
+    }
+  }, [appliedPromo, siteSlug])
+
   const loadAddressBook = useCallback(async () => {
     if (!isAuthenticated) {
       setBookAddresses([])
@@ -143,20 +241,35 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   }, [authHeaders, captureFromResponse, isAuthenticated, siteSlug])
 
   const loadCart = useCallback(async () => {
-    const res = await fetch(`/api/messaging/guest/${encodeURIComponent(partnerSlug)}/cart`, {
+    const res = await fetch(`/api/site/${encodeURIComponent(siteSlug)}/cart`, {
       credentials: 'same-origin',
       headers: authHeaders(),
     })
     captureFromResponse(res)
     const json = (await res.json()) as { items?: SiteCartLine[] }
-    setItems(Array.isArray(json.items) ? json.items : [])
-  }, [authHeaders, captureFromResponse, partnerSlug])
+    const next = Array.isArray(json.items) ? json.items : []
+    setItems(next)
+    setSelectedLineIds((current) => {
+      const valid = new Set(next.filter((item) => current.has(item.id)).map((item) => item.id))
+      return valid.size > 0 ? valid : new Set(next.map((item) => item.id))
+    })
+  }, [authHeaders, captureFromResponse, siteSlug])
 
   useEffect(() => {
     if (!ready) return
+    if (!isAuthenticated) {
+      window.location.assign(
+        buildPartnerShopLoginHref(
+          siteSlug,
+          getPartnerShopBrowserReturnLocation(siteSlug, { customDomain }),
+          { customDomain }
+        )
+      )
+      return
+    }
     setLoading(true)
     void loadCart().finally(() => setLoading(false))
-  }, [loadCart, ready])
+  }, [customDomain, isAuthenticated, loadCart, ready, siteSlug])
 
   useEffect(() => {
     if (!ready) return
@@ -212,15 +325,6 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       })
   }, [siteSlug])
 
-  const subtotal = useMemo(
-    () =>
-      items.reduce((sum, item) => {
-        const unit = parseVndFromPriceHint(item.card.price_hint)
-        return sum + unit * item.quantity
-      }, 0),
-    [items]
-  )
-
   const promoErrorText = useCallback(
     (code: string): string => {
       const map: Record<string, string> = {
@@ -241,38 +345,109 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     [t]
   )
 
+  const selectedItems = useMemo(
+    () => items.filter((item) => selectedLineIds.has(item.id)),
+    [items, selectedLineIds]
+  )
+  const fallbackSubtotal = useMemo(
+    () =>
+      selectedItems.reduce((sum, item) => {
+        const unit = parseVndFromPriceHint(item.card.price_hint)
+        return sum + unit * item.quantity
+      }, 0),
+    [selectedItems]
+  )
+
+  const fetchQuote = useCallback(async (
+    lines: SiteCartLine[],
+    promoCode?: string
+  ): Promise<CartQuote | null> => {
+    if (lines.length === 0) return null
+    const res = await fetch(`/api/site/${encodeURIComponent(siteSlug)}/cart/quote`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({
+        promoCode: promoCode?.trim() || undefined,
+        lines: lines.map((item) => ({
+          lineId: item.id,
+          inventoryId: item.card.inventory_id || '',
+          quantity: item.quantity,
+          fallbackUnitPrice: parseVndFromPriceHint(item.card.price_hint),
+        })),
+      }),
+    })
+    captureFromResponse(res)
+    const json = (await res.json().catch(() => null)) as
+      | ({ ok?: boolean } & CartQuote)
+      | null
+    return res.ok && json?.ok ? json : null
+  }, [authHeaders, captureFromResponse, siteSlug])
+
+  const activePromoCode = appliedPromo?.code ?? ''
+
+  useEffect(() => {
+    if (!ready || loading || selectedItems.length === 0) {
+      setQuote(null)
+      return
+    }
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      setQuoteLoading(true)
+      void fetchQuote(selectedItems, activePromoCode)
+        .then((next) => {
+          if (cancelled) return
+          setQuote(next)
+          if (next?.promoError && activePromoCode) {
+            setPromoMessage(promoErrorText(next.promoError))
+            setAppliedPromo(null)
+          } else if (next?.promo && activePromoCode) {
+            setAppliedPromo(next.promo)
+            setPromoMessage('')
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setQuoteLoading(false)
+        })
+    }, 180)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [activePromoCode, fetchQuote, loading, promoErrorText, ready, selectedItems])
+
+  useEffect(() => {
+    if (!ready || selectedItems.length === 0) {
+      setWalletVouchers([])
+      return
+    }
+    const subtotal = quote?.breakdown.regularEffectiveSubtotal ?? fallbackSubtotal
+    void fetch(
+      `/api/site/${encodeURIComponent(siteSlug)}/promotions/wallet?subtotal=${encodeURIComponent(subtotal)}`,
+      { credentials: 'same-origin', headers: authHeaders() }
+    )
+      .then(async (res) => {
+        captureFromResponse(res)
+        const json = (await res.json().catch(() => ({}))) as { vouchers?: WalletVoucher[] }
+        setWalletVouchers(Array.isArray(json.vouchers) ? json.vouchers : [])
+      })
+      .catch(() => setWalletVouchers([]))
+  }, [authHeaders, captureFromResponse, fallbackSubtotal, quote?.breakdown.regularEffectiveSubtotal, ready, selectedItems.length, siteSlug])
+
   async function applyPromoCode() {
     const code = promoCodeInput.trim()
     if (!code || promoBusy) return
     setPromoBusy(true)
     setPromoMessage('')
     try {
-      const cartLines = items
-        .map((item) => ({
-          inventoryId: item.card.inventory_id || '',
-          lineSubtotal: parseVndFromPriceHint(item.card.price_hint) * item.quantity,
-        }))
-        .filter((l) => l.inventoryId)
-      const res = await fetch(`/api/site/${encodeURIComponent(siteSlug)}/promotions/validate`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ code, cartLines }),
-      })
-      captureFromResponse(res)
-      const json = (await res.json().catch(() => ({}))) as {
-        ok?: boolean
-        error?: string
-        code?: string
-        name?: string
-        discountAmount?: number
-      }
-      if (!json.ok) {
+      const next = await fetchQuote(selectedItems, code)
+      if (!next || next.promoError || !next.promo) {
         setAppliedPromo(null)
-        setPromoMessage(promoErrorText(json.error ?? ''))
+        setPromoMessage(promoErrorText(next?.promoError ?? ''))
         return
       }
-      setAppliedPromo({ code: json.code ?? code, name: json.name ?? '', discountAmount: json.discountAmount ?? 0 })
+      setQuote(next)
+      setAppliedPromo(next.promo)
       setPromoMessage('')
     } finally {
       setPromoBusy(false)
@@ -323,13 +498,20 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     }
   }
 
-  const payableSubtotal = Math.max(0, subtotal - (appliedPromo?.discountAmount ?? 0))
+  const subtotal = quote?.breakdown.effectiveSubtotal ?? fallbackSubtotal
+  const payableSubtotal = quote?.breakdown.amountAfterDiscount ??
+    Math.max(0, subtotal - (appliedPromo?.discountAmount ?? 0))
   const shippingFeeEstimate = useMemo(() => {
+    if (quote) return quote.shipping.feeAmount
     if (shippingPolicy.feeAmount <= 0) return 0
     if (shippingPolicy.freeThresholdAmount != null && payableSubtotal >= shippingPolicy.freeThresholdAmount) return 0
     return shippingPolicy.feeAmount
-  }, [shippingPolicy, payableSubtotal])
-  const orderTotal = payableSubtotal + shippingFeeEstimate
+  }, [quote, shippingPolicy, payableSubtotal])
+  const orderTotal = quote?.orderTotal ?? payableSubtotal + shippingFeeEstimate
+  const quotedLineById = useMemo(
+    () => new Map((quote?.lines ?? []).map((line) => [line.lineId, line])),
+    [quote?.lines]
+  )
   const depositPreview = useMemo(() => {
     if (depositPolicy.mode === 'none') return null
     if (payableSubtotal <= 0) return null
@@ -348,7 +530,8 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
 
   async function saveItems(next: SiteCartLine[]) {
     setItems(next)
-    const res = await fetch(`/api/messaging/guest/${encodeURIComponent(partnerSlug)}/cart`, {
+    setSelectedLineIds((current) => new Set(next.filter((item) => current.has(item.id)).map((item) => item.id)))
+    const res = await fetch(`/api/site/${encodeURIComponent(siteSlug)}/cart`, {
       method: 'PUT',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -359,7 +542,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   }
 
   async function checkout() {
-    if (items.length === 0 || checkoutBusy) return
+    if (selectedItems.length === 0 || checkoutBusy) return
     if (isAuthenticated && bookAddresses.length === 0) {
       setStatus(t.addressCartEmpty)
       return
@@ -371,10 +554,11 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     setCheckoutBusy(true)
     setStatus('')
     setNeedsAuth(false)
-    const checkoutLines = items.map((item) => ({
+    const quoteByLineId = new Map((quote?.lines ?? []).map((line) => [line.lineId, line]))
+    const checkoutLines = selectedItems.map((item) => ({
       itemId: item.card.inventory_id || item.id,
       itemName: item.card.name,
-      value: parseVndFromPriceHint(item.card.price_hint),
+      value: quoteByLineId.get(item.id)?.effectiveUnitPrice ?? parseVndFromPriceHint(item.card.price_hint),
       quantity: item.quantity,
       sku: item.card.sku,
     }))
@@ -398,7 +582,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
             ...(appliedPromo ? { promoCode: appliedPromo.code } : {}),
             ...(ewalletAvailable ? { paymentMethod } : {}),
           },
-          items: items.map((item) => ({
+          items: selectedItems.map((item) => ({
             card: item.card as PartnerAiProductCard,
             color: item.color,
             size: item.size,
@@ -443,18 +627,21 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
         if (!goDeposit) {
           trackPartnerSitePurchase(tracking, {
             transactionId: created.id,
-            value: orderTotal,
+            value: partnerOrderPayableTotal(created),
             lines: checkoutLines,
             customerPhone: orderPhone.trim() || undefined,
           })
         }
       }
-      setItems([])
-      await fetch(`/api/messaging/guest/${encodeURIComponent(partnerSlug)}/cart`, {
+      const checkedOutIds = new Set(selectedItems.map((item) => item.id))
+      const remainingItems = items.filter((item) => !checkedOutIds.has(item.id))
+      setItems(remainingItems)
+      setSelectedLineIds(new Set())
+      await fetch(`/api/site/${encodeURIComponent(siteSlug)}/cart`, {
         method: 'PUT',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ items: [] }),
+        body: JSON.stringify({ items: remainingItems }),
       })
       await refreshCartCount()
       if (created?.id && typeof window !== 'undefined') {
@@ -487,15 +674,53 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       {items.length > 0 ? (
         <div className="pw-shop-cart-layout">
       <section className="pw-shop-cart-list" data-pw-region={PW_REGION.cartList}>
+      <div className="pw-shop-cart-select-all">
+        <label>
+          <input
+            type="checkbox"
+            checked={items.length > 0 && selectedLineIds.size === items.length}
+            onChange={(event) =>
+              setSelectedLineIds(event.target.checked ? new Set(items.map((item) => item.id)) : new Set())
+            }
+          />
+          {saleT.selectAll}
+        </label>
+        <span className="pw-shop-muted">
+          {saleT.selectedCount
+            .replace('{selected}', String(selectedItems.length))
+            .replace('{total}', String(items.length))}
+        </span>
+      </div>
       <div className="pw-shop-cart-lines">
         {items.map((item) => {
-          const lineTotal = parseVndFromPriceHint(item.card.price_hint) * Math.max(1, item.quantity)
+          const lineQuote = quotedLineById.get(item.id)
+          const unitPrice = lineQuote?.effectiveUnitPrice ?? parseVndFromPriceHint(item.card.price_hint)
+          const listUnitPrice = lineQuote?.listUnitPrice ?? unitPrice
+          const lineTotal = unitPrice * Math.max(1, item.quantity)
           return (
-          <div key={item.id} className="pw-shop-cart-row" data-pw-el={PW_EL.line}>
+          <div key={item.id} className={`pw-shop-cart-row${selectedLineIds.has(item.id) ? ' is-selected' : ''}`} data-pw-el={PW_EL.line}>
+            <label className="pw-shop-cart-check" aria-label={saleT.selectProduct}>
+              <input
+                type="checkbox"
+                checked={selectedLineIds.has(item.id)}
+                onChange={(event) =>
+                  setSelectedLineIds((current) => {
+                    const next = new Set(current)
+                    if (event.target.checked) next.add(item.id)
+                    else next.delete(item.id)
+                    return next
+                  })
+                }
+              />
+            </label>
             <img src={item.card.image_url} alt={item.card.name} data-pw-el={PW_EL.cardMedia} />
             <div className="pw-shop-cart-row-main">
               <strong data-pw-el={PW_EL.cardName}>{item.card.name}</strong>
-              {item.card.price_hint ? <p className="pw-shop-price" data-pw-el={PW_EL.cardPrice}>{item.card.price_hint}</p> : null}
+              <p className="pw-shop-price" data-pw-el={PW_EL.cardPrice}>
+                {formatVnd(unitPrice)}
+                {listUnitPrice > unitPrice ? <del className="pw-price-compare"> {formatVnd(listUnitPrice)}</del> : null}
+                {lineQuote?.isClearance ? <span className="pw-shop-address-default"> {saleT.clearanceSubtotal}</span> : null}
+              </p>
               {item.color || item.size ? (
                 <p className="pw-shop-muted">
                   {item.color ? `${t.colorLabel}: ${item.color}` : ''}
@@ -544,11 +769,66 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       </div>
       </section>
         <div className="pw-shop-cart-summary" data-pw-region={PW_REGION.cartSummary}>
+          {quoteLoading ? <p className="pw-shop-muted">{saleT.quoteUpdating}</p> : null}
           <p data-pw-el={PW_EL.price}>
             {t.cartSubtotal}: {formatVnd(subtotal)}
           </p>
+          {quote ? (
+            <div className="pw-shop-cart-discount-breakdown">
+              {quote.breakdown.regularEffectiveSubtotal > 0 ? (
+                <p><span>{saleT.regularSubtotal}</span><strong>{formatVnd(quote.breakdown.regularEffectiveSubtotal)}</strong></p>
+              ) : null}
+              {quote.breakdown.siteSaleDiscountAmount > 0 ? (
+                <p><span>{saleT.saleDiscount}</span><strong>−{formatVnd(quote.breakdown.siteSaleDiscountAmount)}</strong></p>
+              ) : null}
+              {quote.breakdown.googleDiscountAmount > 0 ? (
+                <p><span>{saleT.googleDiscount}</span><strong>−{formatVnd(quote.breakdown.googleDiscountAmount)}</strong></p>
+              ) : null}
+              {quote.breakdown.voucherDiscountAmount > 0 ? (
+                <p><span>{appliedPromo?.name || t.cartPromoDiscountLabel}</span><strong>−{formatVnd(quote.breakdown.voucherDiscountAmount)}</strong></p>
+              ) : null}
+              {quote.breakdown.birthdayDiscountAmount > 0 ? (
+                <p><span>{saleT.birthdayDiscount}</span><strong>−{formatVnd(quote.breakdown.birthdayDiscountAmount)}</strong></p>
+              ) : null}
+              {quote.breakdown.loyaltyDiscountAmount > 0 ? (
+                <p><span>{saleT.loyaltyDiscount}{quote.loyalty.tierName ? ` ${quote.loyalty.tierName}` : ''}</span><strong>−{formatVnd(quote.breakdown.loyaltyDiscountAmount)}</strong></p>
+              ) : null}
+              {quote.breakdown.clearanceSubtotal > 0 ? (
+                <p className="is-clearance"><span>{saleT.clearanceSubtotal}</span><strong>{formatVnd(quote.breakdown.clearanceSubtotal)}</strong></p>
+              ) : null}
+              {quote.breakdown.capAdjustmentAmount > 0 ? <p className="pw-shop-muted">{saleT.capNotice}</p> : null}
+            </div>
+          ) : null}
           <div className="pw-shop-cart-promo" data-pw-el={PW_EL.coupon}>
             <label>{t.cartPromoLabel}</label>
+            {walletVouchers.length > 0 ? (
+              <div className="pw-shop-cart-wallet">
+                <strong>{saleT.voucherWallet}</strong>
+                {walletVouchers.map((voucher) => (
+                  <label key={voucher.code} className={voucher.eligible ? '' : 'is-disabled'}>
+                    <input
+                      type="radio"
+                      name="wallet-voucher"
+                      checked={appliedPromo?.code === voucher.code}
+                      disabled={!voucher.eligible || promoBusy}
+                      onChange={() => {
+                        setPromoCodeInput(voucher.code)
+                        void fetchQuote(selectedItems, voucher.code).then((next) => {
+                          if (next?.promo) {
+                            setQuote(next)
+                            setAppliedPromo(next.promo)
+                            setPromoMessage('')
+                          } else {
+                            setPromoMessage(promoErrorText(next?.promoError ?? voucher.ineligibleReason ?? ''))
+                          }
+                        })
+                      }}
+                    />
+                    <span><b>{voucher.code}</b> — {voucher.name}{voucher.expiresSoon ? ` · ${saleT.expiresSoon}` : ''}</span>
+                  </label>
+                ))}
+              </div>
+            ) : isAuthenticated ? <p className="pw-shop-muted">{saleT.noVoucher}</p> : null}
             {appliedPromo ? (
               <div className="pw-shop-cart-promo-row">
                 <span className="pw-shop-price">
@@ -581,14 +861,14 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
           <p className="pw-shop-muted">
             {shippingFeeEstimate > 0
               ? `${t.cartShippingFeeLabel}: ${formatVnd(shippingFeeEstimate)}`
-              : shippingPolicy.feeAmount > 0
+              : (quote?.shipping.configuredFeeAmount ?? shippingPolicy.feeAmount) > 0
                 ? t.cartShippingFeeFree
                 : t.cartShippingFeeIncluded}
-            {shippingPolicy.carrierLabel
-              ? ` — ${t.shippingCarrierLabel}: ${shippingPolicy.carrierLabel}`
+            {(quote?.shipping.carrierLabel || shippingPolicy.carrierLabel)
+              ? ` — ${t.shippingCarrierLabel}: ${quote?.shipping.carrierLabel || shippingPolicy.carrierLabel}`
               : ''}
-            {shippingPolicy.freeThresholdAmount != null && shippingFeeEstimate > 0
-              ? ` — ${t.cartShippingFreeThresholdHint.replace('{amount}', formatVnd(shippingPolicy.freeThresholdAmount))}`
+            {(quote?.shipping.freeThresholdAmount ?? shippingPolicy.freeThresholdAmount) != null && shippingFeeEstimate > 0
+              ? ` — ${t.cartShippingFreeThresholdHint.replace('{amount}', formatVnd((quote?.shipping.freeThresholdAmount ?? shippingPolicy.freeThresholdAmount) as number))}`
               : ''}
           </p>
           <p className="pw-shop-cart-grand" data-pw-el={PW_EL.price}>
@@ -702,7 +982,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               <button
                 type="button"
                 className="pw-shop-btn pw-shop-btn-buy"
-                disabled={checkoutBusy}
+                disabled={checkoutBusy || quoteLoading || selectedItems.length === 0}
                 onClick={() => void checkout()}
                 data-pw-el={PW_EL.checkout}
               >

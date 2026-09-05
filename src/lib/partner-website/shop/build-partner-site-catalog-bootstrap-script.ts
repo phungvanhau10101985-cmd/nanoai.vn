@@ -104,7 +104,22 @@ var DETAIL_PREFIX=${JSON.stringify(detailPrefix)};
 var PRODUCT_API_PREFIX=${JSON.stringify(productApiPrefix)};
 var CATEGORY_PREFIX=${JSON.stringify(categoryPrefix)};
 var COPY=${JSON.stringify(copy)};
+var LOCALE=${JSON.stringify(locale)};
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+function money(n){var v=Math.max(0,Math.round(Number(n)||0));try{return new Intl.NumberFormat(LOCALE==='vi'?'vi-VN':LOCALE,{style:'currency',currency:'VND',maximumFractionDigits:0}).format(v);}catch(e){return v.toLocaleString()+'₫';}}
+function saleView(p){
+  var list=Number(p&&p.priceAmount),sale=Number(p&&p.salePriceAmount);
+  if(!Number.isFinite(list)||list<=0||!Number.isFinite(sale)||sale<0||sale>=list)return null;
+  var now=Date.now(),start=p.saleStartsAt?Date.parse(p.saleStartsAt):NaN,end=p.saleEndsAt?Date.parse(p.saleEndsAt):NaN;
+  if(Number.isFinite(start)&&now<start)return null;
+  if(Number.isFinite(end)&&now>end)return null;
+  return {price:money(sale),compare:money(list),percent:Math.max(1,Math.round((list-sale)*100/list))};
+}
+function priceHtml(p){
+  var sale=saleView(p);
+  if(sale)return '<span class="pw-price-sale">'+esc(sale.price)+'</span> <del class="pw-price-compare">'+esc(sale.compare)+'</del>';
+  return esc(p.priceHint||'');
+}
 ${PW_PRODUCT_GRID_PAGE_JS}
 ${PW_SHOP_CARD_IMG_JS}
 function renderCard(p, opts){
@@ -112,8 +127,9 @@ function renderCard(p, opts){
   var href=p.detailPath||(id?DETAIL_PREFIX+encodeURIComponent(id):PRODUCTS_PATH);
   var name=esc(p.name||'Product');
   var img=esc(shopImg(p));
-  var price=esc(p.priceHint||'');
-  var badge=(opts&&opts.newBadge)?'<span class="pw-badge-new">NEW</span>':'';
+  var sale=saleView(p);
+  var price=priceHtml(p);
+  var badge=sale?'<span class="pw-badge-new">-'+sale.percent+'%</span>':((opts&&opts.newBadge)?'<span class="pw-badge-new">NEW</span>':'');
   var favBtn='';
   if(id&&opts&&opts.favoriteHtml){
     favBtn=String(opts.favoriteHtml).replace(/data-inventory-id=["'][^"']*["']/gi,'data-inventory-id="'+esc(id)+'"');
@@ -137,7 +153,7 @@ function renderRelatedCard(p){
   var href=p.detailPath||(id?DETAIL_PREFIX+encodeURIComponent(id):PRODUCTS_PATH);
   var name=esc(p.name||'Product');
   var img=esc(shopImg(p));
-  var price=esc(p.priceHint||'');
+  var price=priceHtml(p);
   return '<article class="pw-product-card pw-related-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'"><a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="'+esc(href)+'">'+(img?'<img src="'+img+'" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"/>':'')+'</a><div class="pw-product-card-body pw-related-card-body"><h4 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h4>'+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+'</div></article>';
 }
 function hideBrokenCardImgs(root){

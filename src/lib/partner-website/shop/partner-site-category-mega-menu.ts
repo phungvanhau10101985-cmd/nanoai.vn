@@ -250,7 +250,7 @@ html[data-pw-edit-device="mobile"] .pw-cat-acc,html[data-pw-scene-lock="mobile"]
 html[data-pw-edit-device="mobile"] [data-pw-cat-mega],html[data-pw-scene-lock="mobile"] [data-pw-cat-mega],html[data-pw-cat-face="mobile"] [data-pw-cat-mega],
 html[data-pw-edit-device="mobile"] .pw-cat-mega-sale,html[data-pw-scene-lock="mobile"] .pw-cat-mega-sale,html[data-pw-cat-face="mobile"] .pw-cat-mega-sale{display:none!important}
 html[data-pw-edit-device="mobile"] .pw-cat-panel.is-open.pw-cat-mega,html[data-pw-scene-lock="mobile"] .pw-cat-panel.is-open.pw-cat-mega,html[data-pw-cat-face="mobile"] .pw-cat-panel.is-open.pw-cat-mega,
-html[data-pw-edit-device="mobile"] .pw-shop-cat-panel.pw-cat-mega,html[data-pw-scene-lock="mobile"] .pw-shop-cat-panel.pw-cat-mega,html[data-pw-cat-face="mobile"] .pw-shop-cat-panel.pw-cat-mega,
+html[data-pw-edit-device="mobile"] .pw-shop-cat-panel.is-open.pw-cat-mega,html[data-pw-scene-lock="mobile"] .pw-shop-cat-panel.is-open.pw-cat-mega,html[data-pw-cat-face="mobile"] .pw-shop-cat-panel.is-open.pw-cat-mega,
 html[data-pw-edit-device="mobile"] [data-pw-cat-panel].is-open.pw-cat-mega,html[data-pw-scene-lock="mobile"] [data-pw-cat-panel].is-open.pw-cat-mega,html[data-pw-cat-face="mobile"] [data-pw-cat-panel].is-open.pw-cat-mega{
   position:fixed!important;left:0!important;right:0!important;width:100%!important;min-width:0!important;max-width:100%!important;
   top:var(--pw-cat-sheet-top,56px);border-radius:0 0 12px 12px!important;max-height:70vh;overflow-x:hidden;overflow-y:auto;z-index:99999!important
@@ -282,7 +282,7 @@ html .pw-cat-acc a,html .pw-cat-panel.is-open .pw-cat-acc a,html .pw-shop-cat-pa
   html:not([data-pw-edit-device]):not([data-pw-scene-lock]) [data-pw-cat-mega],
   html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-cat-mega-sale{display:none!important}
   html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-cat-panel.is-open.pw-cat-mega,
-  html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-shop-cat-panel.pw-cat-mega,
+  html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-shop-cat-panel.is-open.pw-cat-mega,
   html:not([data-pw-edit-device]):not([data-pw-scene-lock]) [data-pw-cat-panel].is-open.pw-cat-mega{
     position:fixed!important;left:0!important;right:0!important;width:100%!important;min-width:0!important;max-width:100%!important;
     top:var(--pw-cat-sheet-top,56px);border-radius:0 0 12px 12px!important;max-height:70vh;overflow-x:hidden;overflow-y:auto;z-index:99999!important

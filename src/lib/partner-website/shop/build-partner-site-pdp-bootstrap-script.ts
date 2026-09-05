@@ -110,6 +110,15 @@ function trackView(id){
   apiFetch(EVENTS_API,{method:'POST',body:JSON.stringify({event:'view_product',inventory_id:id})}).catch(function(){});
 }
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+function money(n){var v=Math.max(0,Math.round(Number(n)||0));try{return new Intl.NumberFormat(COPY.locale==='vi'?'vi-VN':COPY.locale,{style:'currency',currency:'VND',maximumFractionDigits:0}).format(v);}catch(e){return v.toLocaleString()+'₫';}}
+function saleView(p){
+  var list=Number(p&&p.priceAmount),sale=Number(p&&p.salePriceAmount);
+  if(!Number.isFinite(list)||list<=0||!Number.isFinite(sale)||sale<0||sale>=list)return null;
+  var now=Date.now(),start=p.saleStartsAt?Date.parse(p.saleStartsAt):NaN,end=p.saleEndsAt?Date.parse(p.saleEndsAt):NaN;
+  if(Number.isFinite(start)&&now<start)return null;
+  if(Number.isFinite(end)&&now>end)return null;
+  return {price:money(sale),compare:money(list),percent:Math.max(1,Math.round((list-sale)*100/list))};
+}
 function productId(){
   var host=document.querySelector('[data-pw-region="pdp-info"],[data-pw-region="gallery"],.pw-pdp,[data-pw-page="product"]');
   var id=(host&&(host.getAttribute('data-inventory-id')||host.getAttribute('data-pw-inventory-id')))||'';
@@ -188,11 +197,22 @@ function apply(p){
     else setText(el,desc);
     rewriteDescImgs(el);
   });
-  var price=String(p.priceHint||'').trim();
+  var sale=saleView(p);
+  var price=sale?sale.price:String(p.priceHint||'').trim();
   if(price)document.querySelectorAll('[data-pw-region="pdp-info"] [data-pw-el="price"]').forEach(function(el){
     var compare=el.querySelector('[data-pw-el="compare-price"]');
-    if(compare){el.childNodes.forEach(function(n){if(n.nodeType===3)n.textContent='';}); el.insertBefore(document.createTextNode(price),el.firstChild);}
+    if(compare){
+      el.childNodes.forEach(function(n){if(n.nodeType===3)n.textContent='';});
+      el.insertBefore(document.createTextNode(price),el.firstChild);
+      compare.textContent=sale?sale.compare:'';
+      compare.style.display=sale?'':'none';
+    }
     else setText(el,price);
+  });
+  document.querySelectorAll('[data-pw-pdp-slot="flash"]').forEach(function(el){
+    if(!sale){el.style.display='none';return;}
+    el.style.display='';
+    el.textContent='-'+sale.percent+'%';
   });
   var imgs=imagesOf(p);
   var main=imgs[0]||'';

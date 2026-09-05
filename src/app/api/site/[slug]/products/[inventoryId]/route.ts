@@ -9,6 +9,13 @@ import {
   resolveSiteVisitorContext,
 } from '@/lib/partner-website/shop/partner-site-personalization'
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
+import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
+import {
+  applyPartnerSiteSalePrice,
+  resolvePartnerSaleCalendarState,
+} from '@/lib/partner-website/promotions/partner-sale-calendar'
+import { resolvePartnerEffectiveUnitPrice } from '@/lib/partner-website/shop/partner-shop-flash-sale'
+import { pgQueryOne } from '@/lib/db/pg-query'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,10 +44,47 @@ export async function GET(
 
   const product = inventoryRowToShopProduct(shop.site.siteSlug, row, { pdp: true })
   if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
+  const [saleConfig, clearanceRow] = await Promise.all([
+    fetchPartnerSaleCalendarConfigFromPg(shop.partnerId),
+    pgQueryOne<{ is_clearance: boolean }>(
+      `select is_clearance from public.messaging_partner_inventory
+       where partner_id = $1::uuid and id = $2::uuid`,
+      [shop.partnerId, id]
+    ).catch(() => null),
+  ])
+  product.isClearance = clearanceRow?.is_clearance === true
+  const saleCalendar = resolvePartnerSaleCalendarState({ settings: saleConfig })
+  const listPrice = Math.max(0, Math.round(product.priceAmount ?? 0))
+  const productEffectivePrice =
+    resolvePartnerEffectiveUnitPrice({
+      priceAmount: listPrice,
+      salePriceAmount: product.salePriceAmount ?? null,
+      saleStartsAt: product.saleStartsAt ?? null,
+      saleEndsAt: product.saleEndsAt ?? null,
+    }) ?? listPrice
+  const forcedSalePrice =
+    listPrice <= 0
+      ? null
+      : product.isClearance && saleConfig.clearanceEnabled
+        ? Math.max(0, Math.round(listPrice * (1 - saleConfig.clearanceDiscountPercent / 100)))
+        : saleCalendar.phase === 'active'
+          ? Math.min(applyPartnerSiteSalePrice(listPrice, saleCalendar), productEffectivePrice)
+          : null
 
   const relatedCtx = await resolveRelatedProductContext(shop.partnerId, id)
   const productWithCategory = {
     ...product,
+    salePriceAmount: forcedSalePrice ?? product.salePriceAmount,
+    saleStartsAt: forcedSalePrice != null ? null : product.saleStartsAt,
+    saleEndsAt: forcedSalePrice != null ? null : product.saleEndsAt,
+    siteSalePhase: saleCalendar.phase,
+    siteSalePercent: product.isClearance
+      ? saleConfig.clearanceDiscountPercent
+      : saleCalendar.discountPercent,
+    siteSaleExpectedPrice:
+      listPrice > 0 && saleCalendar.phase === 'teaser' && !product.isClearance
+        ? applyPartnerSiteSalePrice(listPrice, { ...saleCalendar, phase: 'active' })
+        : null,
     categoryId: relatedCtx.categoryId,
     categoryPath: relatedCtx.categoryPath,
   }
@@ -54,7 +98,7 @@ export async function GET(
 
   return jsonSitePersonalization(
     request,
-    { ok: true, product: productWithCategory, is_favorite: isFavorite },
+    { ok: true, product: productWithCategory, saleCalendar, is_favorite: isFavorite },
     200,
     { sessionId: visitor.sessionId, thread: visitor.thread }
   )

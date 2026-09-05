@@ -35,7 +35,10 @@ import {
   fetchPartnerInventoryRowByProductUrlFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
-import { resolveActiveBirthdayDiscountPercentForLinkedUser } from '@/lib/db/messaging-partner-birthday-promo-pg'
+import {
+  resolveActiveBirthdayDiscountPercentForCustomer,
+  resolveActiveBirthdayDiscountPercentForLinkedUser,
+} from '@/lib/db/messaging-partner-birthday-promo-pg'
 import {
   recordPromotionUsageFromPg,
   validatePromotionCodeFromPg,
@@ -55,7 +58,16 @@ import {
   fetchPartnerCustomerProfileByEmailFromPg,
   upsertPartnerCustomerProfileByEmailFromPg,
 } from '@/lib/db/messaging-partner-customer-profiles-pg'
-import { resolveStackedMessagingDiscountFromPg } from '@/lib/db/messaging-partner-loyalty-pg'
+import {
+  resolvePartnerCustomerLoyaltyStatusFromPg,
+  type PartnerStackedDiscountSnapshot,
+} from '@/lib/db/messaging-partner-loyalty-pg'
+import { resolvePartnerCheckoutPriceLinesFromPg } from '@/lib/db/messaging-partner-sale-pricing-pg'
+import {
+  resolvePartnerSaleDiscountBreakdown,
+  type PartnerSaleDiscountBreakdown,
+} from '@/lib/partner-website/promotions/partner-sale-pricing'
+import { createPartnerAffiliateCommissionForOrderFromPg } from '@/lib/db/messaging-partner-affiliate-pg'
 import { guestAccountEmailMatchesAuthUserFromPg } from '@/lib/db/messaging-guest-pg'
 import { queuePartnerOrderGoogleSheetsSync } from '@/lib/messaging/partner-order-google-sheets-sync'
 import {
@@ -245,6 +257,42 @@ function clampPercent(v: unknown, fallback = 0): number {
 function normalizeMoney(v: unknown): number {
   const n = Math.round(Number(v))
   return Number.isFinite(n) ? Math.max(0, n) : 0
+}
+
+function promotionAccountKey(input: {
+  guestAccountId?: string | null
+  linkedUserId?: string | null
+  fallback?: string | null
+}): string | null {
+  if (input.linkedUserId) return `user:${input.linkedUserId}`
+  if (input.guestAccountId) return `guest:${input.guestAccountId}`
+  const fallback = input.fallback?.trim()
+  return fallback ? `session:${fallback}` : null
+}
+
+function saleBreakdownToLegacySnapshot(input: {
+  breakdown: PartnerSaleDiscountBreakdown
+  loyaltyTierCode: string
+  loyaltyTierName: string
+  birthdayPercent: number
+  loyaltyPercent: number
+}): PartnerStackedDiscountSnapshot {
+  const base = Math.max(1, input.breakdown.regularEffectiveSubtotal)
+  const nonPromoDiscount =
+    input.breakdown.birthdayDiscountAmount + input.breakdown.loyaltyDiscountAmount
+  return {
+    loyaltyTierCode: input.loyaltyTierCode,
+    loyaltyTierName: input.loyaltyTierName,
+    loyaltyDiscountPercent:
+      input.breakdown.loyaltyDiscountAmount > 0 ? input.loyaltyPercent : 0,
+    loyaltyDiscountAmount: input.breakdown.loyaltyDiscountAmount,
+    birthdayDiscountPercent:
+      input.breakdown.birthdayDiscountAmount > 0 ? input.birthdayPercent : 0,
+    birthdayDiscountAmount: input.breakdown.birthdayDiscountAmount,
+    totalDiscountPercent: Math.round((nonPromoDiscount * 10000) / base) / 100,
+    totalDiscountAmount: nonPromoDiscount,
+    amountAfterDiscount: input.breakdown.amountAfterDiscount,
+  }
 }
 
 function resolveRequiredAmountByDepositRule(input: {
@@ -661,49 +709,93 @@ export async function completeOrderCheckout(input: {
     ? buildSepayOrderPaymentReference(oldOrder.id, shopDisplayName)
     : buildStablePaymentReference(oldOrder.id, shopDisplayName)
   const qty = Math.max(1, Math.floor(input.form.quantity || 1))
-  const subtotal = Math.max(0, oldOrder.unit_price) * qty
-  const bdayPct = await resolveActiveBirthdayDiscountPercentForLinkedUser(
-    input.partnerId,
-    input.linkedUserId ?? null
-  )
-  const { snapshot: discountSnapshot } = await resolveStackedMessagingDiscountFromPg({
-    partnerId: input.partnerId,
-    subtotal,
-    birthdayDiscountPercent: bdayPct ?? 0,
-    identity: {
-      emailNormalized: input.form.customerEmail,
+  const identity = {
+    emailNormalized: input.form.customerEmail,
+    linkedUserId: input.linkedUserId ?? null,
+    guestAccountId: input.guestAccountId ?? null,
+  }
+  const [priceLines, bdayPct, loyaltyStatus] = await Promise.all([
+    resolvePartnerCheckoutPriceLinesFromPg({
+      partnerId: input.partnerId,
+      accountKey: promotionAccountKey({
+        linkedUserId: input.linkedUserId,
+        guestAccountId: input.guestAccountId,
+        fallback: input.externalThreadId,
+      }),
+      lines: [{
+        inventoryId: oldOrder.product_inventory_id,
+        quantity: qty,
+        fallbackUnitPrice: oldOrder.unit_price,
+      }],
+    }),
+    resolveActiveBirthdayDiscountPercentForCustomer({
+      partnerId: input.partnerId,
       linkedUserId: input.linkedUserId ?? null,
-      guestAccountId: input.guestAccountId ?? null,
-    },
-  })
-  // W1.4 — voucher là lớp giảm giá TÁCH BIỆT, áp SAU loyalty/birthday, cùng nguyên tắc với
-  // `completeCartCheckout` (backend luôn tính lại, không tin số FE gửi — D.2).
-  let appliedPromo: { id: string; code: string; discountAmount: number } | null = null
+      emailNormalized: input.form.customerEmail,
+    }),
+    resolvePartnerCustomerLoyaltyStatusFromPg({
+      partnerId: input.partnerId,
+      identity,
+    }),
+  ])
+  const priceLine = priceLines[0]
+  const subtotal = (priceLine?.effectiveUnitPrice ?? Math.max(0, oldOrder.unit_price)) * qty
+  const listSubtotal = (priceLine?.listUnitPrice ?? Math.max(0, oldOrder.unit_price)) * qty
+  const loyaltyPct = loyaltyStatus.enabled
+    ? Math.max(0, loyaltyStatus.tier?.discount_percent ?? 0)
+    : 0
+  let validatedPromo: {
+    id: string
+    code: string
+    requestedDiscountAmount: number
+  } | null = null
   const rawPromoCode = (input.form.promoCode ?? '').trim()
   if (rawPromoCode) {
     const cartLinesForPromo = oldOrder.product_inventory_id
-      ? [{ inventoryId: oldOrder.product_inventory_id, lineSubtotal: subtotal }]
+      ? [{
+          inventoryId: oldOrder.product_inventory_id,
+          lineSubtotal: subtotal,
+          listLineSubtotal: listSubtotal,
+          isClearance: priceLine?.isClearance === true,
+        }]
       : []
     const validated = await validatePromotionCodeFromPg({
-      partnerId: input.partnerId,
+    partnerId: input.partnerId,
       code: rawPromoCode,
-      subtotal: discountSnapshot.amountAfterDiscount,
+      subtotal,
       cartLines: cartLinesForPromo,
       guestAccountId: input.guestAccountId ?? null,
       linkedUserId: input.linkedUserId ?? null,
       emailNormalized: input.form.customerEmail,
     })
     if (!validated.ok) return { error: `promo_invalid:${validated.error}` }
-    appliedPromo = {
+    validatedPromo = {
       id: validated.promotion.id,
       code: validated.promotion.code,
-      discountAmount: validated.discountAmount,
+      requestedDiscountAmount: validated.discountAmount,
     }
   }
-  const payableSubtotal = Math.max(0, discountSnapshot.amountAfterDiscount - (appliedPromo?.discountAmount ?? 0))
-  const finalDiscountSnapshot = appliedPromo
-    ? { ...discountSnapshot, amountAfterDiscount: payableSubtotal }
-    : discountSnapshot
+  const saleBreakdown = resolvePartnerSaleDiscountBreakdown({
+    lines: priceLines,
+    voucherDiscountAmount: validatedPromo?.requestedDiscountAmount ?? 0,
+    birthdayDiscountPercent: validatedPromo ? 0 : (bdayPct ?? 0),
+    loyaltyDiscountPercent: loyaltyPct,
+  })
+  const appliedPromo = validatedPromo
+    ? {
+        id: validatedPromo.id,
+        code: validatedPromo.code,
+        discountAmount: saleBreakdown.voucherDiscountAmount,
+      }
+    : null
+  const finalDiscountSnapshot = saleBreakdownToLegacySnapshot({
+    breakdown: saleBreakdown,
+    loyaltyTierCode: loyaltyStatus.tier?.tier_code ?? '',
+    loyaltyTierName: loyaltyStatus.tier?.tier_name ?? '',
+    birthdayPercent: bdayPct ?? 0,
+    loyaltyPercent: loyaltyPct,
+  })
+  const payableSubtotal = saleBreakdown.amountAfterDiscount
   // Deposit is controlled entirely by shop settings; customer cannot override.
   const mode = settings.default_deposit_mode ?? 'percent'
   const percent = clampPercent(settings.default_deposit_percent ?? 30, 30)
@@ -765,12 +857,14 @@ export async function completeOrderCheckout(input: {
     variantSize: trim(input.form.size, 2000),
     variantImageUrlsJson: variantLineImagesToStoredJson(input.form.variantLineImages),
     quantity: qty,
+    unitPrice: priceLine?.effectiveUnitPrice ?? oldOrder.unit_price,
     note: trim(input.form.note, 800),
     depositPercent: calc.appliedPercent,
     requiredAmount: calc.requiredAmount,
     paymentReference,
     paymentQrUrl: qrUrl,
     discountSnapshot: finalDiscountSnapshot,
+    saleBreakdown,
     promo: appliedPromo,
     paymentMethod,
     shippingFeeAmount,
@@ -786,6 +880,16 @@ export async function completeOrderCheckout(input: {
       linkedUserId: input.linkedUserId ?? null,
     })
   }
+  await createPartnerAffiliateCommissionForOrderFromPg({
+    partnerId: input.partnerId,
+    orderId: updated.id,
+    accountKey: promotionAccountKey({
+      linkedUserId: input.linkedUserId,
+      guestAccountId: input.guestAccountId,
+      fallback: input.externalThreadId,
+    }),
+    amountAfterDiscount: updated.amount_after_discount,
+  })
   await syncPrimaryPartnerOrderLineFromOrderFromPg(updated)
   const updatedLines = await fetchPartnerOrderLinesFromPg(updated.id)
   const em = trim(input.form.customerEmail, 180).toLowerCase()
@@ -930,61 +1034,99 @@ export async function completeCartCheckout(input: {
   }
   if (lines.length === 0) return { error: 'Giỏ hàng chưa có sản phẩm hợp lệ.' }
 
-  const subtotal = lines.reduce((sum, line) => {
-    const qty = Math.max(1, Math.min(99, Math.floor(Number(line.quantity) || 1)))
-    const unit = Math.max(0, Math.round(Number(line.unitPrice) || 0))
-    return sum + unit * qty
-  }, 0)
-  const bdayPct = await resolveActiveBirthdayDiscountPercentForLinkedUser(
-    input.partnerId,
-    input.linkedUserId ?? null
-  )
-  const { snapshot: discountSnapshot } = await resolveStackedMessagingDiscountFromPg({
-    partnerId: input.partnerId,
-    subtotal,
-    birthdayDiscountPercent: bdayPct ?? 0,
-    identity: {
-      emailNormalized: input.form.customerEmail,
+  const identity = {
+    emailNormalized: input.form.customerEmail,
+    linkedUserId: input.linkedUserId ?? null,
+    guestAccountId: input.guestAccountId ?? null,
+  }
+  const [priceLines, bdayPct, loyaltyStatus] = await Promise.all([
+    resolvePartnerCheckoutPriceLinesFromPg({
+      partnerId: input.partnerId,
+      accountKey: promotionAccountKey({
+        linkedUserId: input.linkedUserId,
+        guestAccountId: input.guestAccountId,
+        fallback: input.externalThreadId,
+      }),
+      lines: lines.map((line) => ({
+        inventoryId: line.productInventoryId,
+        quantity: line.quantity,
+        fallbackUnitPrice: line.unitPrice,
+      })),
+    }),
+    resolveActiveBirthdayDiscountPercentForCustomer({
+      partnerId: input.partnerId,
       linkedUserId: input.linkedUserId ?? null,
-      guestAccountId: input.guestAccountId ?? null,
-    },
+      emailNormalized: input.form.customerEmail,
+    }),
+    resolvePartnerCustomerLoyaltyStatusFromPg({
+    partnerId: input.partnerId,
+      identity,
+    }),
+  ])
+  priceLines.forEach((priceLine, index) => {
+    if (lines[index]) lines[index].unitPrice = priceLine.effectiveUnitPrice
   })
-
-  // W1.4 — voucher là lớp giảm giá TÁCH BIỆT, áp SAU loyalty/birthday. Backend luôn tính lại từ đầu
-  // (không tin số FE gửi) — xem docs/188_BEHAVIOR_SPEC.md mục D.2.
-  let appliedPromo: { id: string; code: string; discountAmount: number } | null = null
+  const subtotal = priceLines.reduce(
+    (sum, line) => sum + line.effectiveUnitPrice * Math.max(1, Math.floor(line.quantity || 1)),
+    0
+  )
+  const loyaltyPct = loyaltyStatus.enabled
+    ? Math.max(0, loyaltyStatus.tier?.discount_percent ?? 0)
+    : 0
+  let validatedPromo: {
+    id: string
+    code: string
+    requestedDiscountAmount: number
+  } | null = null
   const rawPromoCode = (input.form.promoCode ?? '').trim()
   if (rawPromoCode) {
-    const cartLinesForPromo = lines
-      .filter((l): l is typeof l & { productInventoryId: string } => Boolean(l.productInventoryId))
-      .map((l) => ({
-        inventoryId: l.productInventoryId,
-        lineSubtotal:
-          Math.max(0, Math.round(Number(l.unitPrice) || 0)) *
-          Math.max(1, Math.min(99, Math.floor(Number(l.quantity) || 1))),
-      }))
+    const cartLinesForPromo = priceLines.flatMap((line) => {
+      if (!line.inventoryId) return []
+      const quantity = Math.max(1, Math.floor(line.quantity || 1))
+      return [{
+        inventoryId: line.inventoryId,
+        lineSubtotal: line.effectiveUnitPrice * quantity,
+        listLineSubtotal: line.listUnitPrice * quantity,
+        isClearance: line.isClearance === true,
+      }]
+    })
     const validated = await validatePromotionCodeFromPg({
       partnerId: input.partnerId,
       code: rawPromoCode,
-      subtotal: discountSnapshot.amountAfterDiscount,
+      subtotal,
       cartLines: cartLinesForPromo,
       guestAccountId: input.guestAccountId ?? null,
       linkedUserId: input.linkedUserId ?? null,
       emailNormalized: input.form.customerEmail,
     })
     if (!validated.ok) return { error: `promo_invalid:${validated.error}` }
-    appliedPromo = {
+    validatedPromo = {
       id: validated.promotion.id,
       code: validated.promotion.code,
-      discountAmount: validated.discountAmount,
+      requestedDiscountAmount: validated.discountAmount,
     }
   }
-  const payableSubtotal = Math.max(0, discountSnapshot.amountAfterDiscount - (appliedPromo?.discountAmount ?? 0))
-  // `amount_after_discount` lưu DB phải phản ánh ĐÚNG số tiền cuối cùng (sau cả loyalty/birthday lẫn
-  // promo) — nếu không, deposit tính đúng nhưng field hiển thị lại sai (không đồng bộ).
-  const finalDiscountSnapshot = appliedPromo
-    ? { ...discountSnapshot, amountAfterDiscount: payableSubtotal }
-    : discountSnapshot
+  const saleBreakdown = resolvePartnerSaleDiscountBreakdown({
+    lines: priceLines,
+    voucherDiscountAmount: validatedPromo?.requestedDiscountAmount ?? 0,
+    birthdayDiscountPercent: validatedPromo ? 0 : (bdayPct ?? 0),
+    loyaltyDiscountPercent: loyaltyPct,
+  })
+  const appliedPromo = validatedPromo
+    ? {
+        id: validatedPromo.id,
+        code: validatedPromo.code,
+        discountAmount: saleBreakdown.voucherDiscountAmount,
+      }
+    : null
+  const finalDiscountSnapshot = saleBreakdownToLegacySnapshot({
+    breakdown: saleBreakdown,
+    loyaltyTierCode: loyaltyStatus.tier?.tier_code ?? '',
+    loyaltyTierName: loyaltyStatus.tier?.tier_name ?? '',
+    birthdayPercent: bdayPct ?? 0,
+    loyaltyPercent: loyaltyPct,
+  })
+  const payableSubtotal = saleBreakdown.amountAfterDiscount
   const mode = settings.default_deposit_mode ?? 'percent'
   const percent = clampPercent(settings.default_deposit_percent ?? 30, 30)
   const fixedAmount = normalizeMoney(settings.default_deposit_amount ?? 0)
@@ -1075,6 +1217,7 @@ export async function completeCartCheckout(input: {
     paymentQrUrl: qrUrl,
     primaryLine: first,
     discountSnapshot: finalDiscountSnapshot,
+    saleBreakdown,
     promo: appliedPromo,
     paymentMethod,
     shippingFeeAmount,
@@ -1090,6 +1233,16 @@ export async function completeCartCheckout(input: {
     })
   }
   if (!updated) return { error: 'Không cập nhật được đơn hàng.' }
+  await createPartnerAffiliateCommissionForOrderFromPg({
+    partnerId: input.partnerId,
+    orderId: updated.id,
+    accountKey: promotionAccountKey({
+      linkedUserId: input.linkedUserId,
+      guestAccountId: input.guestAccountId,
+      fallback: input.externalThreadId,
+    }),
+    amountAfterDiscount: updated.amount_after_discount,
+  })
   const savedLines = await fetchPartnerOrderLinesFromPg(updated.id)
   const em = trim(input.form.customerEmail, 180).toLowerCase()
   if (em) {
@@ -1557,24 +1710,21 @@ export async function updateCartOrderDepositPercent(input: {
   const ship = Math.max(0, Math.round(existing.shipping_fee_amount || 0))
   const requiredAmount =
     percent >= 100 ? payable + ship : Math.ceil((payable * percent) / 100)
-  let qrUrl = String(existing.payment_qr_url ?? '').trim()
-  if (existing.payment_method !== 'ewallet') {
-    qrUrl = buildOrderPaymentQrBySettings({
-      amount: requiredAmount,
-      paymentReference: existing.payment_reference,
-      accountHolder: settings.account_holder,
-      settings: {
-        sepay_enabled: settings.sepay_enabled,
-        sepay_bank_code: settings.sepay_bank_code,
-        sepay_account_number: settings.sepay_account_number,
-        sepay_qr_template: settings.sepay_qr_template,
-        bank_name: settings.bank_name,
-        bank_bin: settings.bank_bin,
-        account_number: settings.account_number,
-      },
-    })
-    if (!qrUrl) return { error: 'Không tạo được mã QR mới.' }
-  }
+  const qrUrl = buildOrderPaymentQrBySettings({
+    amount: requiredAmount,
+    paymentReference: existing.payment_reference,
+    accountHolder: settings.account_holder,
+    settings: {
+      sepay_enabled: settings.sepay_enabled,
+      sepay_bank_code: settings.sepay_bank_code,
+      sepay_account_number: settings.sepay_account_number,
+      sepay_qr_template: settings.sepay_qr_template,
+      bank_name: settings.bank_name,
+      bank_bin: settings.bank_bin,
+      account_number: settings.account_number,
+    },
+  })
+  if (!qrUrl) return { error: 'Không tạo được mã QR mới.' }
   const updated = await updatePartnerOrderDepositQuoteFromPg({
     orderId: existing.id,
     partnerId: input.partnerId,

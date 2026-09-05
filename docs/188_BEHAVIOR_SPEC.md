@@ -318,7 +318,7 @@ Flow đầy đủ:
 
 **→ Áp dụng cho NanoAI web:** copy đúng nguyên tắc **"backend luôn tính lại, không tin client"** — đây là nguyên tắc bảo mật quan trọng nhất trong toàn bộ hệ voucher, bắt buộc giữ. Giữ nguyên chuỗi field ghi nhận sử dụng (`PromotionUsage` tương đương) để sau này làm báo cáo hiệu quả voucher (`S0.8`).
 
-### D.3 Auto-grant vào ví — trigger mẫu (tham khảo, không bắt buộc copy tên/mức)
+### D.3 Auto-grant vào ví — baseline bắt buộc của Sale Parity
 
 | Trigger | Mã mẫu | Mức | Hạn dùng |
 |---|---|---|---|
@@ -327,7 +327,7 @@ Flow đầy đủ:
 | Khách cũ quay lại (không mua lâu) | COMEBACK | 10%, cap X | 5 ngày |
 | Bỏ giỏ hàng | CARTSAVE | 5%, cap X | 3 ngày |
 
-**→ Áp dụng cho NanoAI web:** tổng quát hoá thành **bảng cấu hình auto-grant theo shop** (merchant tự bật/tắt từng trigger + tự đặt % và hạn dùng qua `M2.2`), không hardcode tên mã hay mức giảm cố định như 188 — vì mỗi shop có biên lợi nhuận khác nhau.
+**→ Áp dụng cho NanoAI web:** seed đúng mức/hạn 188 cho mọi shop và vẫn cho merchant sửa cấu hình theo `M2.2`. Tên mã/copy lấy brand tenant, không hardcode chữ `188`.
 
 ### D.4 Ví quà hiển thị (`PromotionWalletPanel` → `W5.4`)
 
@@ -335,6 +335,16 @@ Flow đầy đủ:
 - CTA "đủ điều kiện" chỉ **điều hướng sang giỏ hàng** — không tự áp voucher ngay tại trang ví.
 
 **→ Áp dụng cho NanoAI web:** giữ nguyên cách trình bày (rất rõ ràng, đủ thông tin quyết định) — chỉ cải thiện: cho phép **copy mã và tự áp trực tiếp** nếu muốn dùng ở nơi khác (landing/app khác), không chỉ điều hướng giỏ hàng.
+
+### D.5 Contract Sale Parity 188 áp cho mọi tenant
+
+- Sale ngày trùng tháng: ngày `min(tháng, ngày cuối tháng)`, tháng lẻ 6%, tháng chẵn 8%, teaser T-3..T-1 và active theo timezone shop.
+- Sinh nhật: 10% trong T-7..T0; email đúng T-7 và unique theo partner + khách + năm sinh nhật.
+- Auto-grant: welcome 10%/cap 200k/7 ngày; first delivered 5%/cap 100k/14 ngày; comeback 10%/cap 100k/5 ngày; cart abandon 5%/cap 80k/3 ngày.
+- Cart abandon: idle 24 giờ, cooldown 7 ngày. Comeback: 30 ngày không mua, cooldown 30 ngày. Cart abandon thắng comeback.
+- Voucher XOR sinh nhật; loyalty tính trên phần còn lại. Tổng site sale/Google + voucher hoặc sinh nhật + loyalty không vượt 15% giá list.
+- Hàng clearance chỉ dùng giá clearance, không nhận voucher/sinh nhật/loyalty. Shipping tính sau giảm.
+- Google Automated Discount khóa giá 48 giờ. Affiliate và mọi grant/usage chạy idempotent theo tenant/order.
 
 ---
 

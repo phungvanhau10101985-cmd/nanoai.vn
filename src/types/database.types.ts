@@ -979,6 +979,7 @@ export interface Database {
           real_use_image_url: string
           real_use_image_url_2: string
           is_active: boolean
+          is_clearance?: boolean
           price_amount: number | null
           price_currency: string
           sale_price_amount: number | null
@@ -1060,6 +1061,7 @@ export interface Database {
           real_use_image_url?: string
           real_use_image_url_2?: string
           is_active?: boolean
+          is_clearance?: boolean
           price_amount?: number | null
           price_currency?: string
           sale_price_amount?: number | null
@@ -1141,6 +1143,7 @@ export interface Database {
           real_use_image_url?: string
           real_use_image_url_2?: string
           is_active?: boolean
+          is_clearance?: boolean
           price_amount?: number | null
           price_currency?: string
           sale_price_amount?: number | null

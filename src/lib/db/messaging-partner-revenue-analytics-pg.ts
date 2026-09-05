@@ -16,6 +16,21 @@ export type PartnerRevenueSummary = {
   avgOrderValue: number
   estimatedVisitors: number
   estimatedConversionRatePercent: number
+  siteSaleDiscountAmount?: number
+  googleDiscountAmount?: number
+  voucherDiscountAmount?: number
+  birthdayDiscountAmount?: number
+  loyaltyDiscountAmount?: number
+  affiliateLiabilityAmount?: number
+  promotionIssuedCount?: number
+  promotionActiveCount?: number
+  promotionExpiredCount?: number
+  promotionRedeemedCount?: number
+  abandonedRecoveryCount?: number
+  comebackConversionCount?: number
+  birthdayConversionCount?: number
+  siteSaleOrderCount?: number
+  googleActiveLockCount?: number
 }
 
 export type PartnerRevenueByDay = { date: string; revenue: number; orderCount: number }
@@ -77,6 +92,73 @@ export async function fetchPartnerRevenueSummaryFromPg(input: {
          and (updated_at at time zone 'Asia/Ho_Chi_Minh')::date <= $3::date`,
       [input.partnerId, input.dateFrom, input.dateTo]
     ).catch(() => null)
+    const programRow = await pgQueryOne<{
+      issued: number
+      active: number
+      expired: number
+      redeemed: number
+      cart_recovery: number
+      comeback_conversion: number
+      birthday_conversion: number
+      site_sale_orders: number
+      google_active_locks: number
+    }>(
+      `select
+         (select count(*)::int from public.messaging_partner_promotion_grants g
+          where g.partner_id = $1::uuid and g.granted_at::date between $2::date and $3::date) as issued,
+         (select count(*)::int from public.messaging_partner_promotion_grants g
+          where g.partner_id = $1::uuid and g.status = 'active'
+            and (g.expires_at is null or g.expires_at > now())) as active,
+         (select count(*)::int from public.messaging_partner_promotion_grants g
+          where g.partner_id = $1::uuid and g.status = 'expired'
+            and g.granted_at::date between $2::date and $3::date) as expired,
+         (select count(*)::int from public.messaging_partner_promotion_usages u
+          where u.partner_id = $1::uuid and u.created_at::date between $2::date and $3::date) as redeemed,
+         (select count(*)::int
+          from public.messaging_partner_promotion_usages u
+          join public.messaging_partner_promotions p on p.id = u.promotion_id
+          where u.partner_id = $1::uuid and p.auto_grant_trigger = 'cart_abandon'
+            and u.created_at::date between $2::date and $3::date) as cart_recovery,
+         (select count(*)::int
+          from public.messaging_partner_promotion_usages u
+          join public.messaging_partner_promotions p on p.id = u.promotion_id
+          where u.partner_id = $1::uuid and p.auto_grant_trigger = 'comeback'
+            and u.created_at::date between $2::date and $3::date) as comeback_conversion,
+         (select count(*)::int from public.messaging_partner_orders o
+          where o.partner_id = $1::uuid and o.birthday_discount_amount > 0
+            and o.created_at::date between $2::date and $3::date) as birthday_conversion,
+         (select count(*)::int from public.messaging_partner_orders o
+          where o.partner_id = $1::uuid and o.site_sale_discount_amount > 0
+            and o.created_at::date between $2::date and $3::date) as site_sale_orders,
+         (select count(*)::int from public.messaging_partner_google_discount_locks l
+          where l.partner_id = $1::uuid and l.expires_at > now()) as google_active_locks`,
+      [input.partnerId, input.dateFrom, input.dateTo]
+    ).catch(() => null)
+    const saleRow = await pgQueryOne<{
+      site_sale: string | number
+      google_discount: string | number
+      voucher_discount: string | number
+      birthday_discount: string | number
+      loyalty_discount: string | number
+      affiliate_liability: string | number
+    }>(
+      `select
+         coalesce(sum(o.site_sale_discount_amount), 0) as site_sale,
+         coalesce(sum(o.google_discount_amount), 0) as google_discount,
+         coalesce(sum(o.promo_discount_amount), 0) as voucher_discount,
+         coalesce(sum(o.birthday_discount_amount), 0) as birthday_discount,
+         coalesce(sum(o.loyalty_discount_amount), 0) as loyalty_discount,
+         coalesce((
+           select sum(ac.commission_amount)
+           from public.messaging_partner_affiliate_commissions ac
+           where ac.partner_id = $1::uuid and ac.status in ('pending', 'confirmed')
+         ), 0) as affiliate_liability
+       from public.messaging_partner_orders o
+       where o.partner_id = $1::uuid
+         and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date >= $2::date
+         and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date <= $3::date`,
+      [input.partnerId, input.dateFrom, input.dateTo]
+    ).catch(() => null)
 
     const totalRevenue = num(row?.total_revenue, 0)
     const completedOrderCount = row?.completed_order_count ?? 0
@@ -90,6 +172,21 @@ export async function fetchPartnerRevenueSummaryFromPg(input: {
       estimatedVisitors,
       estimatedConversionRatePercent:
         estimatedVisitors > 0 ? Math.round((completedOrderCount / estimatedVisitors) * 1000) / 10 : 0,
+      siteSaleDiscountAmount: num(saleRow?.site_sale, 0),
+      googleDiscountAmount: num(saleRow?.google_discount, 0),
+      voucherDiscountAmount: num(saleRow?.voucher_discount, 0),
+      birthdayDiscountAmount: num(saleRow?.birthday_discount, 0),
+      loyaltyDiscountAmount: num(saleRow?.loyalty_discount, 0),
+      affiliateLiabilityAmount: num(saleRow?.affiliate_liability, 0),
+      promotionIssuedCount: programRow?.issued ?? 0,
+      promotionActiveCount: programRow?.active ?? 0,
+      promotionExpiredCount: programRow?.expired ?? 0,
+      promotionRedeemedCount: programRow?.redeemed ?? 0,
+      abandonedRecoveryCount: programRow?.cart_recovery ?? 0,
+      comebackConversionCount: programRow?.comeback_conversion ?? 0,
+      birthdayConversionCount: programRow?.birthday_conversion ?? 0,
+      siteSaleOrderCount: programRow?.site_sale_orders ?? 0,
+      googleActiveLockCount: programRow?.google_active_locks ?? 0,
     }
   } catch (e) {
     console.warn('[fetchPartnerRevenueSummaryFromPg]', e)

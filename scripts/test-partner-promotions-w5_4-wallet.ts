@@ -39,6 +39,15 @@ async function main() {
     [partnerId, `w54-buyer-${tag}@example.com`]
   )
   const guestAccountId = guestRes.rows[0].id as string
+  const inventoryRes = await pool.query(
+    `insert into public.messaging_partner_inventory
+       (partner_id, name, price_hint, price_amount, image_url, product_url, is_active)
+     values ($1::uuid, 'Quote test product', '1.000.000đ', 1000000,
+             'https://placehold.co/200', $2, true)
+     returning id::text`,
+    [partnerId, `https://example.com/quote-${tag}`]
+  )
+  const inventoryId = String(inventoryRes.rows[0].id)
 
   try {
     // Không đăng nhập -> ví rỗng (không lỗi, đúng như 188: khách vãng lai không có ví).
@@ -65,6 +74,37 @@ async function main() {
     assert(walletJson.vouchers.length === 1 && walletJson.vouchers[0].code === 'GIFT50', `ví phải có đúng 1 voucher GIFT50: ${JSON.stringify(walletJson)}`)
     assert(walletJson.vouchers[0].discountAmount === 50000, 'discountAmount phải đúng 50000')
     console.log('OK GET wallet đã đăng nhập -> hiện đúng voucher đã được tặng qua HTTP thật')
+
+    const quoteRes = await fetch(`${BASE}/api/site/${siteSlug}/cart/quote`, {
+      method: 'POST',
+      headers: { 'x-guest-account-id': guestAccountId, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        promoCode: 'GIFT50',
+        lines: [{
+          lineId: 'line-1',
+          inventoryId,
+          quantity: 1,
+          fallbackUnitPrice: 1_000_000,
+        }],
+      }),
+    })
+    assert(quoteRes.status === 200, `cart quote status ${quoteRes.status}`)
+    const quoteJson = (await quoteRes.json()) as {
+      promo?: { code?: string; discountAmount?: number }
+      breakdown?: { voucherDiscountAmount?: number; amountAfterDiscount?: number }
+      lines?: Array<{ lineId?: string; effectiveUnitPrice?: number }>
+    }
+    assert(quoteJson.promo?.code === 'GIFT50', `quote phải áp GIFT50: ${JSON.stringify(quoteJson)}`)
+    assert(quoteJson.breakdown?.voucherDiscountAmount === 50_000, 'quote phải giảm voucher 50.000đ')
+    assert(quoteJson.breakdown?.amountAfterDiscount === 950_000, 'quote phải còn 950.000đ')
+    assert(quoteJson.lines?.[0]?.lineId === 'line-1', 'quote phải giữ đúng lineId cho UI')
+    console.log('OK POST cart quote -> định giá server + voucher wallet đúng trước checkout')
+
+    const browserPauseMs = Math.max(0, Number(process.env.SMOKE_BROWSER_PAUSE_MS) || 0)
+    if (browserPauseMs > 0) {
+      console.log(`BROWSER_FIXTURE site=${siteSlug} partner=${siteSlug}-partner inventory=${inventoryId}`)
+      await new Promise((resolve) => setTimeout(resolve, browserPauseMs))
+    }
 
     console.log('\n✅ ALL W5.4 (ví quà công khai) CHECKS PASSED')
   } finally {

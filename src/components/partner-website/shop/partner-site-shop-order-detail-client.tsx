@@ -19,8 +19,12 @@ import {
   partnerSiteOrdersPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { formatPartnerSiteOrderStatus } from '@/lib/partner-website/shop/partner-site-order-labels'
+import {
+  PartnerOrderDiscountBreakdown,
+  type PartnerOrderDiscountFields,
+} from '@/components/partner-website/shop/partner-order-discount-breakdown'
 
-type DetailOrder = {
+type DetailOrder = PartnerOrderDiscountFields & {
   id: string
   status: string
   payment_reference?: string | null
@@ -33,6 +37,8 @@ type DetailOrder = {
   shipping_fee_amount?: number | null
   shipping_address?: string | null
   product_name?: string | null
+  promo_code?: string | null
+  loyalty_tier_name?: string | null
 }
 
 type Props = {
@@ -163,6 +169,7 @@ export function PartnerSiteShopOrderDetailClient({ siteSlug, partnerSlug, locale
                 {t.cartShippingFeeLabel}: {formatVnd(ship)}
               </p>
             ) : null}
+            <PartnerOrderDiscountBreakdown locale={locale} order={order} />
             <p>
               {t.cartTotalLabel}: <strong>{formatVnd(payable)}</strong>
             </p>

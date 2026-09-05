@@ -40,7 +40,12 @@ async function main() {
   )
 
   try {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date())
     const res = await fetch(
       `${BASE}/api/messaging/partners/${partnerId}/revenue-analytics?dateFrom=${today}&dateTo=${today}`
     )

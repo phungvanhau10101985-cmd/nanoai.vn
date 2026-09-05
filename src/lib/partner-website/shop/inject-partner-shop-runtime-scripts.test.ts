@@ -19,6 +19,8 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /Nhận ưu đãi sinh nhật/)
   assert.match(out, /data-pw-buy/)
   assert.match(out, /data-pw-catalog-bootstrap/)
+  assert.match(out, /function saleView\(p\)/)
+  assert.match(out, /pw-price-compare/)
   assert.match(out, /data-pw-outfit-bootstrap/)
   assert.match(out, /\/api\/site\/188-com-vn-rl56\/products\/outfit/)
   assert.match(out, /data-pw-personalization-bootstrap/)
@@ -38,6 +40,7 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /pw-cat-card/)
   assert.match(out, /pwShopLiveUiOff/)
   assert.match(out, /data-pw-pdp-bootstrap/)
+  assert.match(out, /data-pw-pdp-slot="flash"/)
   assert.match(out, /\/reviews/)
   assert.match(out, /\/questions/)
   assert.match(out, /\/options/)
@@ -63,6 +66,18 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /data-pw-slide-wait/)
   assert.match(out, /data-pw-paper-tile-bootstrap/)
   assert.match(out, /data-pw-paper-tile/)
+})
+
+test('injected storefront runtime scripts remain valid JavaScript', () => {
+  const out = injectPartnerShopRuntimeScriptsIntoHtml(
+    '<!DOCTYPE html><html><body><main></main></body></html>',
+    { siteSlug: 'sale-parity-shop', locale: 'en' }
+  )
+  const scripts = [...out.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
+  assert.ok(scripts.length > 0)
+  for (const script of scripts) {
+    assert.doesNotThrow(() => new Function(script[1] ?? ''))
+  }
 })
 
 test('editor stamp keeps chrome hooks and strips live API bootstraps', () => {

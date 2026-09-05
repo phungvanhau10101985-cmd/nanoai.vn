@@ -19,6 +19,7 @@ function secureTokenEqual(a: string, b: string): boolean {
 }
 
 export type PartnerCatalogFeedContext = CatalogFeedBuildContext & {
+  partnerId: string
   rows: CatalogFeedInventoryRow[]
 }
 
@@ -68,6 +69,7 @@ export async function loadPartnerCatalogFeedContext(
   }
 
   return {
+    partnerId: partner.id,
     partnerSlug: slug,
     brand: (partner.display_name ?? '').trim() || 'Shop',
     platformOrigin,

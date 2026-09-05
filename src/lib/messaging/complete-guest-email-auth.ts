@@ -105,6 +105,22 @@ export async function completeGuestEmailAuth(params: {
     }
   }
 
+  try {
+    const { processPartnerPromotionTrigger } = await import(
+      '@/lib/messaging/partner-promotion-auto-grant'
+    )
+    await processPartnerPromotionTrigger({
+      partnerId,
+      trigger: 'signup',
+      guestAccountId,
+      linkedUserId: authUserId,
+      emailNormalized: email,
+    })
+  } catch (e) {
+    // Authentication must remain available if promotion maintenance is unavailable.
+    console.warn('[completeGuestEmailAuth] signup promotion skipped', e)
+  }
+
   return {
     authUserId,
     sessionToken,

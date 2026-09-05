@@ -35,6 +35,7 @@ type InventoryShopProductRow = InventoryShopSourceRow & {
   sale_price_amount?: number | null
   sale_starts_at?: string | null
   sale_ends_at?: string | null
+  is_clearance?: boolean | null
   description?: string | null
   sizes_json?: unknown
   sizeGuideImageUrl?: string | null
@@ -208,6 +209,10 @@ export type PartnerSiteShopProduct = {
   salePriceAmount?: number | null
   saleStartsAt?: string | null
   saleEndsAt?: string | null
+  isClearance?: boolean
+  siteSalePhase?: 'off' | 'teaser' | 'active'
+  siteSalePercent?: number
+  siteSaleExpectedPrice?: number | null
   sizes: string[]
   colors: LivePdpBindColor[]
   /** W1.5 — resolved from primary category when available. */
@@ -326,6 +331,7 @@ export function inventoryRowToShopProduct(
         : null,
     saleStartsAt: row.sale_starts_at ? String(row.sale_starts_at) : null,
     saleEndsAt: row.sale_ends_at ? String(row.sale_ends_at) : null,
+    isClearance: row.is_clearance === true,
     sizes: variants.sizes,
     colors: variants.colors,
     sizeGuideImageUrl: row.sizeGuideImageUrl?.trim() || null,
@@ -375,17 +381,18 @@ export function inventoryRowToLivePdpVariants(row: {
       ? row.sizes_json.map((x) => String(x ?? '').trim()).filter(Boolean)
       : null
   )
-  const hasColorsColumn = Array.isArray(row.colors_json)
+  const colorRows = Array.isArray(row.colors_json) ? row.colors_json : null
+  const hasColorsColumn = colorRows != null
   const structured = hasColorsColumn
-    ? row.colors_json
-        .map((item) => {
+    ? colorRows
+        .map((item: unknown) => {
           const c = item as { name?: string; img?: string } | null
           return {
             name: String(c?.name || '').trim(),
             img: String(c?.img || '').trim() || null,
           }
         })
-        .filter((c) => c.name)
+        .filter((c: LivePdpBindColor) => c.name)
     : []
   return {
     sizes,

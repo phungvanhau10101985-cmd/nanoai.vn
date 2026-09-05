@@ -5,6 +5,7 @@ import {
   partnerSiteContactChannelsApiPath,
   partnerSiteInfoPath,
   partnerSiteLeadApiPath,
+  partnerSiteLoginPath,
   partnerSiteNotificationsApiPath,
   partnerSitePersonalizationApiPath,
   partnerSiteProductApiPath,
@@ -162,8 +163,11 @@ export function buildPartnerSiteShopActionsBootstrapScript(input: {
   const contactApi = partnerSiteContactChannelsApiPath(slug)
   const leadApi = partnerSiteLeadApiPath(slug)
   const couponApi = partnerSitePromotionsValidateApiPath(slug)
+  const googleDiscountApi = `/api/site/${encodeURIComponent(slug)}/promotions/google-discount`
+  const affiliateApi = `/api/site/${encodeURIComponent(slug)}/affiliate`
   const promoLs = partnerSiteAppliedPromoStorageKey(slug)
   const cartPath = partnerSiteCartPath(slug)
+  const loginPath = partnerSiteLoginPath(slug)
   const sizeGuidePath = partnerSiteInfoPath(slug, 'size-guide')
   const productApiPrefix = partnerSiteProductApiPath(slug, '__ID__').replace('__ID__', '')
   const detailPrefix = partnerSiteProductPath(slug, '__ID__').replace('__ID__', '')
@@ -178,19 +182,30 @@ var NOTIF_API=${JSON.stringify(notifApi)};
 var CONTACT_API=${JSON.stringify(contactApi)};
 var LEAD_API=${JSON.stringify(leadApi)};
 var COUPON_API=${JSON.stringify(couponApi)};
+var GOOGLE_DISCOUNT_API=${JSON.stringify(googleDiscountApi)};
+var AFFILIATE_API=${JSON.stringify(affiliateApi)};
 var PROMO_LS=${JSON.stringify(promoLs)};
 var PRODUCT_API_PREFIX=${JSON.stringify(productApiPrefix)};
 var CART_PATH=${JSON.stringify(cartPath)};
+var LOGIN_PATH=${JSON.stringify(loginPath)};
 var SIZE_GUIDE_PATH=${JSON.stringify(sizeGuidePath)};
 var DETAIL_PREFIX=${JSON.stringify(detailPrefix)};
 var COPY=${JSON.stringify(copy)};
 var SESSION_KEY='app_guest_session_id';
 var SESSION_KEY_LEGACY='nanoai_guest_session_id';
 var SESSION_HDR='x-guest-session-id';
+var ACCOUNT_KEY='app_guest_account_id';
+var ACCOUNT_KEY_LEGACY='nanoai_guest_account_id';
+var ACCOUNT_HDR='x-guest-account-id';
 var UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function readCookie(n){var p=document.cookie.split(';');for(var i=0;i<p.length;i++){var x=p[i].trim().split('=');if(x[0]===n)return decodeURIComponent(x.slice(1).join('=')||'');}return '';}
 function sessionId(){try{var ls=localStorage.getItem(SESSION_KEY)||localStorage.getItem(SESSION_KEY_LEGACY)||'';if(ls)return ls;}catch(e){}return readCookie('app_guest_session_sync');}
-function authHeaders(){var h={};var s=sessionId();if(s)h[SESSION_HDR]=s;return h;}
+function accountId(){try{var ls=localStorage.getItem(ACCOUNT_KEY)||localStorage.getItem(ACCOUNT_KEY_LEGACY)||'';if(ls)return ls;}catch(e){}return readCookie('app_guest_account_sync')||readCookie(ACCOUNT_KEY);}
+function authHeaders(){var h={};var s=sessionId(),a=accountId();if(s)h[SESSION_HDR]=s;if(a)h[ACCOUNT_HDR]=a;return h;}
+function pageLocation(){try{if(window.top&&window.top.location&&window.top.location.href)return window.top.location;}catch(e){}return location;}
+function purchaseLoginHref(){var loc=pageLocation();var base=loc.pathname.indexOf('/site/')===0?LOGIN_PATH:'/login';return base+'?redirect='+encodeURIComponent(loc.pathname+(loc.search||'')+(loc.hash||''));}
+function navigateShop(url){try{if(window.top&&window.top!==window){window.top.location.assign(url);return;}}catch(e){}location.assign(url);}
+function requirePurchaseLogin(){if(accountId())return false;navigateShop(purchaseLoginHref());return true;}
 function captureSession(res){var sid=res.headers.get(SESSION_HDR);if(sid){try{localStorage.setItem(SESSION_KEY,sid);localStorage.setItem(SESSION_KEY_LEGACY,sid);}catch(e){}}}
 function apiFetch(url,opts){
   opts=opts||{};opts.credentials='same-origin';
@@ -212,6 +227,32 @@ function productIdFromHref(href){
     var id=decodeURIComponent(path.slice(DETAIL_PREFIX.length).split('/')[0]||'');
     return UUID_RE.test(id)?id:'';
   }catch(e){return '';}
+}
+function captureGoogleDiscount(){
+  if(pwShopLiveUiOff())return;
+  var token='';
+  try{token=(new URL(location.href)).searchParams.get('pv2')||'';}catch(e){}
+  if(!token)return;
+  var inventoryId=productIdFromHref(location.href)||productIdFromHref(location.pathname);
+  if(!inventoryId)return;
+  apiFetch(GOOGLE_DISCOUNT_API,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({token:token,inventoryId:inventoryId})
+  }).then(function(res){
+    if(res.ok)document.dispatchEvent(new CustomEvent('pw-google-discount-locked',{detail:res.j||{}}));
+  }).catch(function(){});
+}
+function captureAffiliate(){
+  if(pwShopLiveUiOff())return;
+  var code='';
+  try{var u=new URL(location.href);code=u.searchParams.get('ref')||u.searchParams.get('affiliate')||'';}catch(e){}
+  if(!code)return;
+  apiFetch(AFFILIATE_API,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({referralCode:code})
+  }).catch(function(){});
 }
 function readProductFromEl(el){
   var id=(el.getAttribute('data-inventory-id')||el.getAttribute('data-pw-inventory-id')||'').trim();
@@ -278,6 +319,7 @@ function resolveCartCard(product){
 ${PW_CART_ADDED_MODAL_RUNTIME_JS}
 function addToCart(product, opts){
   opts=opts||{};
+  if(requirePurchaseLogin())return Promise.resolve(false);
   var addedCard=null;
   return resolveCartCard(product).then(function(card){
     if(!card){toast(COPY.error);return null;}
@@ -473,6 +515,7 @@ if(document.documentElement.getAttribute('data-pw-shop-actions-bound')!=='1'){
     var buyBtn=t.closest('[data-pw-buy],[data-pw-chrome-btn="buy-now"]');
     if(addBtn){
       ev.preventDefault();ev.stopPropagation();
+      if(requirePurchaseLogin())return;
       var p=readProductFromEl(addBtn);if(!p){toast(COPY.error);return;}
       if(isPdpCartTrigger(addBtn)){openPdpVariantModal(p,'add');return;}
       addBtn.disabled=true;
@@ -481,6 +524,7 @@ if(document.documentElement.getAttribute('data-pw-shop-actions-bound')!=='1'){
     }
     if(buyBtn){
       ev.preventDefault();ev.stopPropagation();
+      if(requirePurchaseLogin())return;
       var pBuy=readProductFromEl(buyBtn);if(!pBuy){toast(COPY.error);return;}
       if(isPdpCartTrigger(buyBtn)){openPdpVariantModal(pBuy,'buy');return;}
       buyBtn.disabled=true;
@@ -761,7 +805,7 @@ function runHydrate(forceNetwork){
     window.__pwShopHydrating=false;
   }
 }
-function run(){runHydrate(true);
+function run(){captureGoogleDiscount();captureAffiliate();runHydrate(true);
   if(document.documentElement.getAttribute('data-pw-shop-actions-mo')==='1')return;
   document.documentElement.setAttribute('data-pw-shop-actions-mo','1');
   var moTimer=null;
