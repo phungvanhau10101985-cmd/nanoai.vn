@@ -24,4 +24,7 @@ test('mobile category tap toggles even when the pointer can hover', () => {
   })
   assert.match(html, /!hoverCapable\(\)\|\|isMobileCatFace\(\)/)
   assert.match(html, /hoverCapable\(\)&&!isMobileCatFace\(\)&&livePanel/)
+  assert.match(html, /if\(isMegaPanel\(panel\)\|\|isMobileCatFace\(\)\)placeMegaPanel\(btn,panel\)/)
+  assert.match(html, /function adoptCatPanel\(wrap\)/)
+  assert.match(html, /var wrapHit=t\.closest\('\.pw-chrome-cat-wrap'\)/)
 })

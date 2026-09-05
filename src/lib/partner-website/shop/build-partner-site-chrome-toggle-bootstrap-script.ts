@@ -341,7 +341,10 @@ function hoverCapable(){
 function ensureCatWrap(btn){
   if(!btn)return null;
   var existing=btn.closest('.pw-chrome-cat-wrap');
-  if(existing)return existing;
+  if(existing){
+    adoptCatPanel(existing);
+    return existing;
+  }
   var wrap=document.createElement('span');
   wrap.className='pw-chrome-cat-wrap';
   if(isPlacedCatBtn(btn))transferCatBox(btn,wrap);
@@ -349,7 +352,21 @@ function ensureCatWrap(btn){
     btn.parentNode.insertBefore(wrap,btn);
     wrap.appendChild(btn);
   }
+  adoptCatPanel(wrap);
   return wrap;
+}
+function adoptCatPanel(wrap){
+  if(!wrap||!wrap.parentNode||!wrap.parentNode.children)return;
+  var kids=wrap.parentNode.children;
+  var i;
+  for(i=0;i<kids.length;i++){
+    var n=kids[i];
+    if(!n||n===wrap)continue;
+    if(n.matches&&n.matches(panelSel())){
+      wrap.appendChild(n);
+      i--;
+    }
+  }
 }
 function bindMega(panel){
   var items=panel.querySelectorAll('[data-pw-cat-l1]');
@@ -425,6 +442,10 @@ function fillCatPanel(panel,tree){
   panel.setAttribute('data-pw-cat-filled','1');
   bindMega(panel);
   bindAcc(panel);
+  if(panel.classList.contains('is-open')){
+    var owner=panel.__pwOwnerBtn;
+    if(owner)placeMegaPanel(owner,panel);
+  }
 }
 function accChevron(){
   return '<svg class="pw-cat-acc-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>';
@@ -1040,11 +1061,14 @@ function togglePair(btn,panel,otherBtn,otherPanel){
 }
 function toggleCatPair(btn,panel,otherBtn,otherPanel){
   if(!btn||!panel)return;
+  var now=Date.now();
+  if(btn.__pwCatToggleAt&&now-btn.__pwCatToggleAt<80)return;
+  btn.__pwCatToggleAt=now;
   var open=!panel.classList.contains('is-open');
   if(open){
     closeEl(otherBtn,otherPanel);
-    if(isMegaPanel(panel))placeMegaPanel(btn,panel);
-    else panel.classList.add('is-open');
+    if(isMegaPanel(panel)||isMobileCatFace())placeMegaPanel(btn,panel);
+    else placePanelFixed(btn,panel);
     btn.setAttribute('aria-expanded','true');
   }else{
     closeEl(btn,panel);
@@ -1200,6 +1224,10 @@ function bindToggles(){
       var t=e.target;
       if(!t||!t.closest)return;
       var hit=t.closest(catSel());
+      if(!hit){
+        var wrapHit=t.closest('.pw-chrome-cat-wrap');
+        if(wrapHit)hit=wrapHit.querySelector(catSel());
+      }
       if(hit&&!isInsidePanel(hit,panelSel())&&!isInsidePanel(hit,accPanelSel())){
         e.preventDefault();
         e.stopPropagation();

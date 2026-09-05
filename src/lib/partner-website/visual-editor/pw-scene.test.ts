@@ -178,6 +178,8 @@ describe('pw scene layers', () => {
     expect(pwSceneCenterCss()).not.toContain('transform-origin:top left')
     expect(pwSceneCenterCss()).toContain('[data-pw-live-chrome]')
     expect(pwSceneCenterCss()).toContain('[data-pw-live-chrome-scale]')
+    expect(pwSceneCenterCss()).toContain('[data-pw-live-chrome-scale]{width:100%!important')
+    expect(pwSceneCenterCss()).not.toContain('html[data-pw-scene-zoomed="1"] [data-pw-live-chrome-scale]{transform:scale')
     expect(pwSceneCenterCss()).toContain('[data-pw-live-chrome-ph]{display:none!important;height:0!important')
     expect(pwSceneCenterCss()).toContain('[data-pw-live-dock]')
     expect(pwSceneCenterCss()).toContain('[data-pw-live-dock]>.pw-bottom-nav')

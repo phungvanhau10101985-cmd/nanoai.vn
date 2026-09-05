@@ -248,8 +248,8 @@ export const PARTNER_SHOP_LOGO_HOST_SCRIPT = `(function(){
 
 /** Compact header (Sửa nhanh Mobile/Tablet). Live khóa cùng máy phải cùng mặt — không chờ tab hẹp. */
 const PW_COMPACT_HEADER_RULES = `
-.pw-header-main,.pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;column-gap:6px!important;padding:8px 10px!important}
-.pw-header-main,.pw-shop-header-inner{overflow:visible!important;min-width:0!important;max-width:100%!important}
+.pw-header-main,.pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;column-gap:6px!important;width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;padding:8px 10px!important;padding-left:8px!important;padding-right:10px!important}
+.pw-header-main,.pw-shop-header-inner{overflow:visible!important;min-width:0!important}
 .pw-brand-cluster,.pw-shop-brand-cluster{flex:0 0 auto!important;width:auto!important;max-width:200px!important;overflow:visible!important}
 .pw-header a.pw-brand:not([data-pw-logo-float]),.pw-shop-header a.pw-shop-brand:not([data-pw-logo-float]),.pw-header a[data-pw-logo-home]:not([data-pw-logo-float]),.pw-shop-header a[data-pw-logo-home]:not([data-pw-logo-float]){max-width:none!important;overflow:visible!important;transform:translate(var(--pw-logo-x, 0px), var(--pw-logo-y, 0px))!important}
 .pw-header a.pw-brand:has(img:not([data-pw-logo-empty])) .pw-wordmark,.pw-shop-header a.pw-shop-brand:has(img:not([data-pw-logo-empty])) .pw-wordmark,.pw-header a[data-pw-logo-home]:has(img:not([data-pw-logo-empty])) .pw-wordmark{display:none!important}
@@ -553,8 +553,8 @@ export const PARTNER_SHOP_CHROME_LAYOUT_CSS = `
 html{overflow-x:visible!important;max-width:100%}
 body{overflow-x:hidden!important;max-width:100%}
 html{--pw-content:1200px;--pw-page-gutter:20px;--pw-block-w:min(calc(var(--pw-scene-w,100%) - 32px),var(--pw-content,1200px));--pw-chrome-inset:calc(var(--pw-block-w) * 0.05)}
-html[data-pw-edit-device="mobile"],html[data-pw-scene-lock="mobile"]{--pw-page-gutter:4px;--pw-block-w:min(calc(var(--pw-scene-w,100%) - 8px),var(--pw-content,1200px))}
-@media (max-width:767px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]){--pw-page-gutter:4px;--pw-block-w:min(calc(var(--pw-scene-w,100%) - 8px),var(--pw-content,1200px))}}
+html[data-pw-edit-device="mobile"],html[data-pw-scene-lock="mobile"]{--pw-page-gutter:4px;--pw-block-w:min(calc(var(--pw-scene-w,100%) - 8px),var(--pw-content,1200px));--pw-chrome-inset:0px}
+@media (max-width:767px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]){--pw-page-gutter:4px;--pw-block-w:min(calc(var(--pw-scene-w,100%) - 8px),var(--pw-content,1200px));--pw-chrome-inset:0px}}
 html[data-pw-edit-device="mobile"] .pw-container:not(.pw-header-main):not(.pw-shop-header-inner):not(.pw-topbar-inner):not(.pw-nav-main):not(.pw-shop-nav-row),html[data-pw-scene-lock="mobile"] .pw-container:not(.pw-header-main):not(.pw-shop-header-inner):not(.pw-topbar-inner):not(.pw-nav-main):not(.pw-shop-nav-row){padding-left:4px!important;padding-right:4px!important}
 html[data-pw-edit-device="mobile"] .pw-page-shell,html[data-pw-scene-lock="mobile"] .pw-page-shell,html[data-pw-edit-device="mobile"] .pw-shop-main,html[data-pw-scene-lock="mobile"] .pw-shop-main{padding-left:4px!important;padding-right:4px!important}
 html[data-pw-edit-device="mobile"] .pw-page-shell .pw-container:not(.pw-header-main):not(.pw-shop-header-inner):not(.pw-topbar-inner):not(.pw-nav-main):not(.pw-shop-nav-row),html[data-pw-scene-lock="mobile"] .pw-page-shell .pw-container:not(.pw-header-main):not(.pw-shop-header-inner):not(.pw-topbar-inner):not(.pw-nav-main):not(.pw-shop-nav-row),html[data-pw-edit-device="mobile"] .pw-shop-main .pw-container:not(.pw-header-main):not(.pw-shop-header-inner):not(.pw-topbar-inner):not(.pw-nav-main):not(.pw-shop-nav-row),html[data-pw-scene-lock="mobile"] .pw-shop-main .pw-container:not(.pw-header-main):not(.pw-shop-header-inner):not(.pw-topbar-inner):not(.pw-nav-main):not(.pw-shop-nav-row){padding-left:0!important;padding-right:0!important}

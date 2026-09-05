@@ -689,15 +689,15 @@ export const PW_LIVE_DOCK_ATTR = 'data-pw-live-dock'
 
 /**
  * Live inline: sticky header không được nằm trong ancestor có transform.
- * Host sticky không scale; mặt header scale cùng `--pw-scene-zoom`.
+ * Host sticky + mặt header full viewport, không `transform:scale` — vùng bấm = vùng vẽ
+ * (canvas vẫn scale qua `[data-pw-inline-visual-root]`).
  * Thanh đáy / PDP sticky hoist ra [data-pw-live-dock] (fixed đáy viewport, không transform).
  * Thanh nổi kit hoist ra [data-pw-live-fixed-layer] để `position:fixed` không dính canvas scale.
  */
 export function pwSceneLiveChromeCss(): string {
   return [
-    `[${PW_LIVE_CHROME_ATTR}]{position:sticky!important;top:0!important;z-index:${PW_SCENE_HEAD_Z}!important;width:100%;display:flex;flex-direction:column;align-items:center;box-sizing:border-box}`,
-    `[${PW_LIVE_CHROME_SCALE_ATTR}]{width:var(--pw-scene-w)!important;transform-origin:top center;display:flex;flex-direction:column;flex:0 0 auto;box-sizing:border-box}`,
-    `html[data-pw-scene-zoomed="1"] [${PW_LIVE_CHROME_SCALE_ATTR}]{transform:scale(var(--pw-scene-zoom,1))}`,
+    `[${PW_LIVE_CHROME_ATTR}]{position:sticky!important;top:0!important;z-index:${PW_SCENE_HEAD_Z}!important;width:100%;display:flex;flex-direction:column;align-items:stretch;box-sizing:border-box}`,
+    `[${PW_LIVE_CHROME_SCALE_ATTR}]{width:100%!important;max-width:100%!important;transform:none!important;display:flex;flex-direction:column;flex:0 0 auto;box-sizing:border-box}`,
     `[${PW_LIVE_CHROME_ATTR}] .pw-header,[${PW_LIVE_CHROME_ATTR}] .pw-shop-header{position:relative!important;top:auto!important;width:100%!important}`,
     // Sticky chrome already occupies page flow. Do not leave an in-canvas
     // header spacer — scene Y is measured from `main`, not the visual root.
@@ -1020,7 +1020,6 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     var host=root.parentNode||document.body;
     if(!host)return;
     var chrome=currentRuntimeHost(siblingChrome(host),root);
-    var z=scale>0?scale:1;
     var leftover=root.querySelectorAll('[data-pw-live-chrome-ph]');
     var li;
     for(li=0;li<leftover.length;li++){
@@ -1029,11 +1028,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     if(!header){
       if(!chrome)return;
       var inner0=chrome.querySelector('[data-pw-live-chrome-scale]')||chrome;
-      var h0=inner0.offsetHeight||0;
-      if(inner0.style){
-        if(z>1&&h0>0)inner0.style.marginBottom=Math.round((z-1)*h0)+'px';
-        else inner0.style.removeProperty('margin-bottom');
-      }
+      if(inner0.style)inner0.style.removeProperty('margin-bottom');
       return;
     }
     var nodes=[];
@@ -1063,11 +1058,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
         try{inner.appendChild(nodes[i])}catch(eM){}
       }
     }
-    var ih=inner.offsetHeight||0;
-    if(inner.style){
-      if(z>1&&ih>0)inner.style.marginBottom=Math.round((z-1)*ih)+'px';
-      else inner.style.removeProperty('margin-bottom');
-    }
+    if(inner.style)inner.style.removeProperty('margin-bottom');
   }
   function findLiveDockNavs(root){
     if(!root||!root.querySelectorAll)return [];

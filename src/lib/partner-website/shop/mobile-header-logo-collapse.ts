@@ -12,7 +12,7 @@ const HEADER_SEL = 'header.pw-header,header.pw-shop-header,[data-pw-region="head
 
 /** Hàng logo giữa + thu khi `data-pw-head-logo-collapsed`. Chỉ máy mobile. */
 export const PW_MOBILE_HEADER_STACK_RULES = `
-.pw-header-main,.pw-shop-header-inner{display:flex!important;flex-wrap:wrap!important;align-items:center!important;row-gap:4px!important;column-gap:6px!important;padding:6px 8px 8px!important}
+.pw-header-main,.pw-shop-header-inner{display:flex!important;flex-wrap:wrap!important;align-items:center!important;row-gap:4px!important;column-gap:6px!important;width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;padding:8px 10px!important;padding-left:8px!important;padding-right:10px!important}
 .pw-brand-cluster,.pw-shop-brand-cluster{display:contents!important;max-width:none!important;width:auto!important;pointer-events:auto!important}
 .pw-chrome-cat-wrap{display:inline-flex!important;align-items:center!important;justify-content:center!important;flex:0 0 auto!important;width:auto!important;max-width:none!important;order:1!important;position:relative!important;z-index:200!important;pointer-events:auto!important}
 .pw-header a.pw-brand:not([data-pw-logo-float]),.pw-shop-header a.pw-shop-brand:not([data-pw-logo-float]),.pw-header a[data-pw-logo-home]:not([data-pw-logo-float]),.pw-shop-header a[data-pw-logo-home]:not([data-pw-logo-float]){order:-1!important;flex:1 1 100%!important;width:100%!important;max-width:100%!important;justify-content:center!important;align-items:center!important;position:relative!important;z-index:1!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:translate(var(--pw-logo-x, 0px), var(--pw-logo-y, 0px))!important;display:flex!important;min-height:0!important;max-height:44px!important;overflow:visible!important;margin:0!important;transition:max-height .2s ease-out,opacity .2s ease-out,min-height .2s ease-out,margin .2s ease-out!important}
@@ -43,9 +43,12 @@ const LOGO_ROW_SEL = [
 const LOGO_ROW_IS = `:is(${LOGO_ROW_SEL})`
 
 /** Thắng `html .pw-header-main{flex-wrap:nowrap}` và CSS kéo từ HTML visual / Sửa nhanh. */
+const PW_MOBILE_HEADER_STACK_WIN_PROPS =
+  'display:flex!important;flex-wrap:wrap!important;width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;padding:8px 10px!important;padding-left:8px!important;padding-right:10px!important'
+
 export const PW_MOBILE_HEADER_STACK_WIN_CSS = `
-html[data-pw-edit-device="mobile"] .pw-header-main,html[data-pw-edit-device="mobile"] .pw-container.pw-header-main,html[data-pw-edit-device="mobile"] .pw-shop-header-inner,html[data-pw-scene-lock="mobile"] .pw-header-main,html[data-pw-scene-lock="mobile"] .pw-container.pw-header-main,html[data-pw-scene-lock="mobile"] .pw-shop-header-inner,html[data-pw-edit-device="mobile"].nanoai-ve-active .pw-header-main,html[data-pw-edit-device="mobile"] body.nanoai-ve-active .pw-header-main,html[data-pw-edit-device="mobile"] body.nanoai-ve-active .pw-shop-header-inner{display:flex!important;flex-wrap:wrap!important}
-@media (max-width:767px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-header-main,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-container.pw-header-main,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-shop-header-inner{display:flex!important;flex-wrap:wrap!important}}
+html[data-pw-edit-device="mobile"] .pw-header-main,html[data-pw-edit-device="mobile"] .pw-container.pw-header-main,html[data-pw-edit-device="mobile"] .pw-shop-header-inner,html[data-pw-scene-lock="mobile"] .pw-header-main,html[data-pw-scene-lock="mobile"] .pw-container.pw-header-main,html[data-pw-scene-lock="mobile"] .pw-shop-header-inner,html[data-pw-edit-device="mobile"].nanoai-ve-active .pw-header-main,html[data-pw-edit-device="mobile"] body.nanoai-ve-active .pw-header-main,html[data-pw-edit-device="mobile"] body.nanoai-ve-active .pw-shop-header-inner{${PW_MOBILE_HEADER_STACK_WIN_PROPS}}
+@media (max-width:767px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-header-main,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-container.pw-header-main,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-shop-header-inner{${PW_MOBILE_HEADER_STACK_WIN_PROPS}}}
 `.trim()
 
 /** Ẩn thanh trên (topbar) trên mobile — thắng `display:block;min-height:36px` ở chrome layout / Sửa nhanh. */
