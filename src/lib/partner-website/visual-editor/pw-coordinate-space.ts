@@ -23,6 +23,8 @@ export const PW_SCENE_WIDTH: Readonly<Record<PwCoordinateDevice, number>> = {
 
 export type PwPlacementMode = 'flow' | 'scene-absolute' | 'viewport-fixed'
 
+export type PwPoint = { x: number; y: number }
+
 /** Logical box. x/y is the element's center, not its top-left. */
 export type PwSceneBox = PwPoint & {
   width: number

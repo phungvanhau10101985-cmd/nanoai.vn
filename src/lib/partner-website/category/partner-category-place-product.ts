@@ -327,13 +327,16 @@ export async function placeProductStudioInventoryInCategoryTree(input: {
 
   if (!leaf) {
     session.warnings.push('place_category: AI path unused — fallback from product type')
-    leaf = await resolveHintPath(session, fallbackCategoryNamesFromProduct({
+    leaf = await resolveHintPath(session, {
       productName: input.productName,
-      productType: input.payload.productType,
-      gender: input.payload.gender,
-      style: input.payload.style,
-      material: input.payload.material,
-    }), { aiGenerated: true })
+      ...fallbackCategoryNamesFromProduct({
+        productName: input.productName,
+        productType: input.payload.productType,
+        gender: input.payload.gender,
+        style: input.payload.style,
+        material: input.payload.material,
+      }),
+    }, { aiGenerated: true })
   }
 
   if (!leaf) {

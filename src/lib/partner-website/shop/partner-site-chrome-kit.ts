@@ -601,10 +601,8 @@ function resetInflowHeaderSearchOpenTag(tag: string, attrs: string): string {
     const cleaned = String(css)
       .replace(
         /(?:^|;)\s*(?:width|flex|max-width|min-width|margin(?:-left|-right)?|left|top|right|bottom|transform|position|inset)\s*:[^;]*/gi,
-        keepWidth
-          ? (chunk: string) =>
-              /(?:width|flex|max-width|min-width)\s*:/i.test(chunk) ? chunk : ''
-          : ''
+        (chunk: string) =>
+          keepWidth && /(?:width|flex|max-width|min-width)\s*:/i.test(chunk) ? chunk : ''
       )
       .replace(/^;+|;+$/g, '')
       .trim()

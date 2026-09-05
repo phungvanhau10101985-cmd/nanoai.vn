@@ -499,6 +499,8 @@ function selectionFromMessage(data: {
   stayScroll?: boolean
   canHide?: boolean
   canCopyToPages?: boolean
+  isMidFlowChrome?: boolean
+  canTranslate?: boolean
   scene?: number
   scenePos?: string
   sceneCount?: number
@@ -928,8 +930,8 @@ type VisualEditOpenPanel = 'add' | 'logo' | 'theme' | 'block' | 'chromeKit'
 type ChromeKitListItem = {
   kind: string
   hidden: boolean
-  dockShow: string
-  slot: string
+  dockShow?: string
+  slot?: string
   label: string
   size?: number
   right?: number
@@ -1688,7 +1690,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [chromeKitHeadX, setChromeKitHeadX] = useState(0)
   const [chromeKitLogoX, setChromeKitLogoX] = useState(0)
   const [chromeKitLogoY, setChromeKitLogoY] = useState(0)
-  const [chromeKitHeadGap, setChromeKitHeadGap] = useState(PW_KIT_GAP_DEFAULT)
+  const [chromeKitHeadGap, setChromeKitHeadGap] = useState<number>(PW_KIT_GAP_DEFAULT)
   const [panelPos, setPanelPos] = useState<{ x: number; y: number } | null>(null)
   const [bgColorPickerOpen, setBgColorPickerOpen] = useState(false)
   const pinnedBgSelectionRef = useRef<VisualEditorSelection | null>(null)
@@ -2231,6 +2233,15 @@ export function PartnerWebsiteVisualEditorToolbar({
         index?: number
         head?: unknown
         dock?: unknown
+        float?: unknown
+        footer?: unknown
+        floatRight?: number
+        floatBottom?: number
+        floatGap?: number
+        headX?: number
+        headGap?: number
+        logoX?: number
+        logoY?: number
         show?: string
         bar?: string
         dir?: string

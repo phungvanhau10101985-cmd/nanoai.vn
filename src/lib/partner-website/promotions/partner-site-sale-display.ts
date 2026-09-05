@@ -187,7 +187,12 @@ export function applyPartnerSiteSaleToShopProduct<T extends PartnerSiteSaleProdu
   product: T,
   state: PartnerSaleCalendarState,
   opts?: { clearanceEnabled?: boolean; clearancePercent?: number }
-): T {
+): T & {
+  siteSale: PartnerSiteSalePricing | null
+  siteSalePhase: PartnerSaleCalendarState['phase'] | 'off'
+  siteSalePercent: number
+  siteSaleExpectedPrice: number | null
+} {
   const list = Math.max(0, Math.round(product.priceAmount ?? 0))
   const clearance = product.isClearance === true && opts?.clearanceEnabled !== false
   const clearancePct = Math.max(0, Math.round(opts?.clearancePercent ?? 0))

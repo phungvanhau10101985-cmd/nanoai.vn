@@ -35,6 +35,7 @@ import {
   applyChatIconLogoToHtml,
   applyChatIconLogoToProject,
 } from '@/lib/partner-website/visual-editor/apply-chat-icon-logo'
+import type { PartnerWebsiteFileKind } from '@/lib/partner-website/partner-website-types'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
 import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-landing-v1-template'
@@ -89,7 +90,7 @@ type VisualLiveGateSelection = {
 function resolveVisualLiveGateSelection(
   website: {
     theme?: PartnerWebsiteTheme | null
-    project?: { entryPath: string; files: Array<{ path: string; kind: string; content: string }> } | null
+    project?: { entryPath: string; files: Array<{ path: string; kind: PartnerWebsiteFileKind; content: string }> } | null
     htmlSource?: string | null
   },
   target: PartnerVisualHtmlTarget,

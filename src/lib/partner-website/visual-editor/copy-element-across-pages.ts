@@ -209,7 +209,11 @@ export function parseCloneBox(raw: string | null | undefined): CloneBox | null {
   if (value === 'flow') return { mode: 'flow', left: 0, top: 0, width: 0, height: 0, version: 1 }
   const rawParts = value.split(',')
   const parsedVersion = pwParseCoordinateVersion(rawParts[0])
-  const version = parsedVersion || 1
+  const version = (parsedVersion === 2 || parsedVersion === 3 || parsedVersion === 4 ? parsedVersion : 1) as
+    | 1
+    | 2
+    | 3
+    | 4
   const parts = parsedVersion ? rawParts.slice(1) : rawParts
   const mode =
     parts[0] === 'scene-absolute' || parts[0] === 'abs'
@@ -293,17 +297,18 @@ function setOpeningTagAttrs(snippet: string, attrs: Record<string, string>): str
 function applyCloneBoxToSnippet(snippet: string, box: CloneBox | null, sceneWidth = 1440): string {
   if (!box || box.mode === 'flow') return snippet
   const fixed = box.mode === 'viewport-fixed'
-  const legacyNorm = fixed && (box.version === 2 || (box.version < 3 && pwLooksLikeNormalized01(box.left, box.top)))
+  const boxVersion = box.version ?? 1
+  const legacyNorm = fixed && (boxVersion === 2 || (boxVersion < 3 && pwLooksLikeNormalized01(box.left, box.top)))
   let x = box.left
   let y = box.top
   if (!fixed) {
-    if (box.version < 3) x = pwLeftOriginToCenterX(x, sceneWidth)
-    if (box.version < 4) {
+    if (boxVersion < 3) x = pwLeftOriginToCenterX(x, sceneWidth)
+    if (boxVersion < 4) {
       const center = pwTopLeftToElementCenter(x, y, box.width, box.height)
       x = center.x
       y = center.y
     }
-  } else if (!legacyNorm && box.version < 4) {
+  } else if (!legacyNorm && boxVersion < 4) {
     const center = pwTopLeftToElementCenter(x, y, box.width, box.height)
     x = center.x
     y = center.y

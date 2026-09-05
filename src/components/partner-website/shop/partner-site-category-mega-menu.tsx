@@ -357,7 +357,7 @@ export function PartnerSiteCategoryNavPills(props: {
       </div>
       {openCat && (openCat.children?.length ?? 0) > 0 ? (
         <div className="pw-nav-flyout-bar">
-          {openCat.children.map((l2) => {
+          {(openCat.children ?? []).map((l2) => {
             const l2Href = 'href' in l2 && typeof l2.href === 'string' ? l2.href : hrefOf(l2 as PartnerCategoryTreeNode)
             const l2Name =
               livePills?.length && 'name' in l2

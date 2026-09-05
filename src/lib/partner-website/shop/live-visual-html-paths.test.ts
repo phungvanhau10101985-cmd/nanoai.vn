@@ -6,6 +6,7 @@ import {
   projectHasLiveVisualHtmlPaths,
 } from '@/lib/partner-website/shop/live-visual-html-paths'
 import { resolvePartnerVisualHtmlForDevice } from '@/lib/partner-website/shop/render-partner-visual-html'
+import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/partner-website-template-types'
 import { visualEditorHtmlPath } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
 const mobileHome = `<!DOCTYPE html><html><body data-pw-page="home">
@@ -63,7 +64,7 @@ test('mergePartnerWebsiteProjectFiles keeps editor files and overlays the live f
 test('live resolve uses the one loaded machine file — no sibling devices required', () => {
   const selected = resolvePartnerVisualHtmlForDevice(
     {
-      theme: { useVisualMobileHtml: true, visualPageKeys: ['home'] },
+      theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, useVisualMobileHtml: true, visualPageKeys: ['home'] },
       project: {
         entryPath: 'index.mobile.html',
         files: [{ path: 'index.mobile.html', kind: 'html', content: mobileHome }],
