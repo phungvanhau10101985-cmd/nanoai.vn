@@ -1055,7 +1055,7 @@ function bindCatHover(btn){
   if(!wrap||wrap.getAttribute('data-pw-cat-hover-bound'))return;
   wrap.setAttribute('data-pw-cat-hover-bound','1');
   wrap.addEventListener('mouseenter',function(){
-    if(pwShopLiveUiOff()||!hoverCapable())return;
+    if(pwShopLiveUiOff()||!hoverCapable()||isMobileCatFace())return;
     clearCatLeave(btn);
     var livePanel=ensureCatPanel(btn);
     if(livePanel&&!livePanel.querySelector('[data-pw-cat-mega]'))hydrateCats();
@@ -1179,7 +1179,7 @@ function bindToggles(){
       var liveAccBtn=qs(root,accBtnSel());
       var liveAcc=liveAccBtn?qs(root,accPanelSel()):qs(root,accPanelSel());
       if(livePanel&&!livePanel.querySelector('[data-pw-cat-mega]'))hydrateCats();
-      if(hoverCapable()&&livePanel&&livePanel.classList.contains('is-open'))return;
+      if(hoverCapable()&&!isMobileCatFace()&&livePanel&&livePanel.classList.contains('is-open'))return;
       toggleCatPair(cur,livePanel,liveAccBtn,liveAcc);
     });
   }
@@ -1208,7 +1208,7 @@ function bindToggles(){
         var liveAccBtn=qs(root,accBtnSel());
         var liveAcc=liveAccBtn?qs(root,accPanelSel()):qs(root,accPanelSel());
         if(livePanel&&!livePanel.querySelector('[data-pw-cat-mega]'))hydrateCats();
-        if(hoverCapable()&&livePanel&&livePanel.classList.contains('is-open'))return;
+        if(hoverCapable()&&!isMobileCatFace()&&livePanel&&livePanel.classList.contains('is-open'))return;
         toggleCatPair(hit,livePanel,liveAccBtn,liveAcc);
         return;
       }

@@ -16,3 +16,12 @@ test('live category wrapper owns canonical placement instead of offsetting its c
   assert.match(html, /to\.setAttribute\(a,value\)/)
   assert.match(html, /from\.removeAttribute\(a\)/)
 })
+
+test('mobile category tap toggles even when the pointer can hover', () => {
+  const html = buildPartnerSiteChromeToggleBootstrapScript({
+    siteSlug: 'mobile-cat-tap',
+    locale: 'vi',
+  })
+  assert.match(html, /!hoverCapable\(\)\|\|isMobileCatFace\(\)/)
+  assert.match(html, /hoverCapable\(\)&&!isMobileCatFace\(\)&&livePanel/)
+})

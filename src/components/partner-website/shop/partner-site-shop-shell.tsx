@@ -428,9 +428,15 @@ function PartnerSiteShopShellInner({
   useEffect(() => {
     if (!categoriesOpen) return
     const onPointerDown = (event: MouseEvent) => {
-      if (!categoriesRef.current?.contains(event.target as Node)) {
-        setCategoriesOpen(false)
+      const wrap = categoriesRef.current
+      const target = event.target
+      if (wrap && target instanceof Node && wrap.contains(target)) return
+      const path = typeof event.composedPath === 'function' ? event.composedPath() : []
+      if (wrap && path.includes(wrap)) return
+      if (target instanceof Element && target.closest('[data-pw-el="cat-toggle"],[data-pw-cat-toggle],.pw-shop-cat-btn,.pw-cat-btn,[data-pw-chrome-btn="categories"]')) {
+        return
       }
+      setCategoriesOpen(false)
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setCategoriesOpen(false)
@@ -628,6 +634,8 @@ function PartnerSiteShopShellInner({
               type="button"
               className="pw-shop-cat-btn"
               data-pw-el={PW_EL.catToggle}
+              data-pw-chrome-btn="categories"
+              data-pw-cat-toggle="1"
               aria-expanded={categoriesOpen}
               aria-controls="pw-shop-cat-panel"
                 onClick={() => {
@@ -647,7 +655,7 @@ function PartnerSiteShopShellInner({
               />
             ) : null}
             {categoriesOpen ? (
-              <nav id="pw-shop-cat-panel" className="pw-shop-cat-panel pw-cat-mega" aria-label={t.navCategories}>
+              <nav id="pw-shop-cat-panel" className="pw-shop-cat-panel pw-cat-mega is-open" aria-label={t.navCategories}>
                 {hasCategoryTree ? (
                   mobileCatFace ? (
                     <PartnerSiteCategoryMobileAccordion

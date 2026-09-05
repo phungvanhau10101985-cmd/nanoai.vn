@@ -86,6 +86,12 @@ export type PartnerOrderRow = {
   promo_id: string | null
   promo_code: string
   promo_discount_amount: number
+  discount_breakdown_json?: Record<string, unknown>
+  list_subtotal_amount?: number
+  site_sale_discount_amount?: number
+  google_discount_amount?: number
+  discount_cap_adjustment_amount?: number
+  clearance_subtotal_amount?: number
   /** W1.7 — phương thức khách chọn để trả cọc/trả trước (chỉ có ý nghĩa khi required_amount > 0). */
   payment_method: 'cod' | 'bank_transfer' | 'ewallet'
   /** W1.7 — snapshot phí ship lúc đặt hàng. KHÔNG cộng vào amount_after_discount (xem migration). */
@@ -205,6 +211,15 @@ function mapOrderRow(r: Record<string, unknown>): PartnerOrderRow {
     promo_id: r.promo_id ? String(r.promo_id) : null,
     promo_code: String(r.promo_code ?? ''),
     promo_discount_amount: num(r.promo_discount_amount, 0),
+    discount_breakdown_json:
+      r.discount_breakdown_json && typeof r.discount_breakdown_json === 'object'
+        ? (r.discount_breakdown_json as Record<string, unknown>)
+        : {},
+    list_subtotal_amount: num(r.list_subtotal_amount, 0),
+    site_sale_discount_amount: num(r.site_sale_discount_amount, 0),
+    google_discount_amount: num(r.google_discount_amount, 0),
+    discount_cap_adjustment_amount: num(r.discount_cap_adjustment_amount, 0),
+    clearance_subtotal_amount: num(r.clearance_subtotal_amount, 0),
     payment_method: (() => {
       const v = String(r.payment_method ?? 'cod')
       return v === 'bank_transfer' || v === 'ewallet' ? v : 'cod'
@@ -1014,6 +1029,13 @@ const ORDER_ROW_SELECT = `select id::text, partner_id::text, conversation_id::te
               coalesce(refund_note, '') as refund_note, refunded_at
        from public.messaging_partner_orders`
 
+const ORDER_ROW_SELECT_WITH_SALE = ORDER_ROW_SELECT.replace(
+  'coalesce(refund_note, \'\') as refund_note, refunded_at',
+  `coalesce(refund_note, '') as refund_note, refunded_at,
+   discount_breakdown_json, list_subtotal_amount, site_sale_discount_amount,
+   google_discount_amount, discount_cap_adjustment_amount, clearance_subtotal_amount`
+)
+
 /** Đọc đơn theo id + shop — dùng khi khách đổi phiên (guest ↔ đăng nhập) vẫn phải khớp đơn nháp. */
 export async function fetchPartnerOrderByIdForPartnerFromPg(
   partnerId: string,
@@ -1024,12 +1046,23 @@ export async function fetchPartnerOrderByIdForPartnerFromPg(
   const pid = String(partnerId ?? '').trim()
   if (!oid || !pid) return null
   try {
-    const row = await pgQueryOne<Record<string, unknown>>(
-      `${ORDER_ROW_SELECT}
-       where id = $1::uuid and partner_id = $2::uuid
-       limit 1`,
-      [oid, pid]
-    )
+    let row: Record<string, unknown> | null
+    try {
+      row = await pgQueryOne<Record<string, unknown>>(
+        `${ORDER_ROW_SELECT_WITH_SALE}
+         where id = $1::uuid and partner_id = $2::uuid
+         limit 1`,
+        [oid, pid]
+      )
+    } catch (error) {
+      if ((error as { code?: string })?.code !== '42703') throw error
+      row = await pgQueryOne<Record<string, unknown>>(
+        `${ORDER_ROW_SELECT}
+         where id = $1::uuid and partner_id = $2::uuid
+         limit 1`,
+        [oid, pid]
+      )
+    }
     return row ? mapOrderRow(row) : null
   } catch (e) {
     console.warn('[fetchPartnerOrderByIdForPartnerFromPg]', e)

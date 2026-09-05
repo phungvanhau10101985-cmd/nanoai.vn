@@ -119,15 +119,17 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
     const calendarSale = applyPartnerSiteSalePrice(listUnitPrice, calendarState)
     const regularSale = Math.min(listUnitPrice, productSale, calendarSale)
     const googlePrice = lockById.get(row.id)
+    // Parity 188: a valid Google pv2 lock owns line pricing for its 48-hour
+    // lifetime; product/calendar sales are not stacked onto that line.
     const effectiveUnitPrice =
-      googlePrice == null ? regularSale : Math.min(regularSale, googlePrice)
+      googlePrice == null ? regularSale : Math.min(listUnitPrice, googlePrice)
     return {
       inventoryId: row.id,
       quantity: line.quantity,
       listUnitPrice,
       effectiveUnitPrice,
       googleDiscountAmount:
-        googlePrice != null && googlePrice < regularSale ? regularSale - googlePrice : 0,
+        googlePrice != null && googlePrice < listUnitPrice ? listUnitPrice - googlePrice : 0,
     }
   })
 }

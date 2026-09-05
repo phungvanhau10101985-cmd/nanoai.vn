@@ -96,6 +96,25 @@ test('clearance subtotal receives no voucher birthday or loyalty discount', () =
   assert.equal(result.amountAfterDiscount, 400_000)
 })
 
+test('Google line savings scale by quantity and consume the 15 percent budget', () => {
+  const result = resolvePartnerSaleDiscountBreakdown({
+    lines: [{
+      inventoryId: 'google-line',
+      quantity: 2,
+      listUnitPrice: 1_000_000,
+      effectiveUnitPrice: 850_000,
+      googleDiscountAmount: 150_000,
+    }],
+    voucherDiscountAmount: 200_000,
+    loyaltyDiscountPercent: 10,
+  })
+  assert.equal(result.googleDiscountAmount, 300_000)
+  assert.equal(result.siteSaleDiscountAmount, 0)
+  assert.equal(result.voucherDiscountAmount, 0)
+  assert.equal(result.loyaltyDiscountAmount, 0)
+  assert.equal(result.totalDiscountAmount, 300_000)
+})
+
 test('Google pv2 ES256 is tenant-offer checked and lock is capped at 48 hours', () => {
   const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' })
   const header = Buffer.from(JSON.stringify({ alg: 'ES256', typ: 'JWT' })).toString('base64url')

@@ -23,8 +23,12 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { trackPartnerSitePurchase } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
+import {
+  PartnerOrderDiscountBreakdown,
+  type PartnerOrderDiscountFields,
+} from '@/components/partner-website/shop/partner-order-discount-breakdown'
 
-type DepositOrder = {
+type DepositOrder = PartnerOrderDiscountFields & {
   id: string
   status: string
   payment_reference?: string | null
@@ -39,6 +43,8 @@ type DepositOrder = {
   payment_qr_url?: string | null
   payment_method?: string | null
   product_name?: string | null
+  promo_code?: string | null
+  loyalty_tier_name?: string | null
 }
 
 type PaymentDisplay =
@@ -372,6 +378,7 @@ export function PartnerSiteShopDepositClient({
           </p>
         </div>
       </div>
+      <PartnerOrderDiscountBreakdown locale={locale} order={order} />
       <div className="pw-shop-deposit-body">
         <div className="pw-shop-deposit-col">
           {order.payment_method !== 'ewallet' ? (

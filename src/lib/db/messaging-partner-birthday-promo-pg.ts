@@ -19,17 +19,43 @@ export async function resolveActiveBirthdayDiscountPercentForLinkedUser(
   partnerId: string,
   linkedUserId: string | null | undefined
 ): Promise<number | null> {
-  if (!linkedUserId?.trim() || !isPgConfigured()) return null
+  return resolveActiveBirthdayDiscountPercentForCustomer({
+    partnerId,
+    linkedUserId,
+  })
+}
+
+export async function resolveActiveBirthdayDiscountPercentForCustomer(input: {
+  partnerId: string
+  linkedUserId?: string | null
+  emailNormalized?: string | null
+}): Promise<number | null> {
+  const linkedUserId = String(input.linkedUserId ?? '').trim()
+  const email = String(input.emailNormalized ?? '').trim().toLowerCase().slice(0, 180)
+  if ((!linkedUserId && !email) || !isPgConfigured()) return null
+  const partnerId = input.partnerId
   const promo = await fetchBirthdayPromoForPartnerFromPg(partnerId)
   if (!promo?.enabled) return null
   const pct = Math.max(0, Math.min(100, Math.floor(Number(promo.discount_percent) || 0)))
   if (pct <= 0) return null
   try {
-    const row = await pgQueryOne<{ birth_date: string | null }>(
-      `select birth_date::text as birth_date from public.profiles where id = $1::uuid limit 1`,
-      [linkedUserId.trim()]
-    )
-    const bd = String(row?.birth_date ?? '').trim().slice(0, 10)
+    const row = linkedUserId
+      ? await pgQueryOne<{ birth_date: string | null }>(
+          `select birth_date::text as birth_date
+           from public.profiles where id = $1::uuid limit 1`,
+          [linkedUserId]
+        )
+      : null
+    const partnerProfile = !row?.birth_date && email
+      ? await pgQueryOne<{ birth_date: string | null }>(
+          `select date_of_birth::text as birth_date
+           from public.messaging_partner_customer_profiles
+           where partner_id = $1::uuid and email_normalized = $2
+           limit 1`,
+          [partnerId, email]
+        ).catch(() => null)
+      : null
+    const bd = String(row?.birth_date ?? partnerProfile?.birth_date ?? '').trim().slice(0, 10)
     if (!bd) return null
     const daysUntil = daysUntilNextBirthday(bd)
     if (daysUntil == null) return null
@@ -40,7 +66,7 @@ export async function resolveActiveBirthdayDiscountPercentForLinkedUser(
     }
     return pct
   } catch (e) {
-    console.warn('[resolveActiveBirthdayDiscountPercentForLinkedUser]', e)
+    console.warn('[resolveActiveBirthdayDiscountPercentForCustomer]', e)
     return null
   }
 }

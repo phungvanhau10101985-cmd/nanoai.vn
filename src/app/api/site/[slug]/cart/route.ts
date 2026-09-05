@@ -7,12 +7,24 @@ import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site
 
 export const dynamic = 'force-dynamic'
 
+function isSignedIn(visitor: Awaited<ReturnType<typeof resolveSiteVisitorContext>>): boolean {
+  return Boolean(visitor.thread.guestAccountId || visitor.thread.linkedUserId)
+}
+
 export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
+  if (!isSignedIn(visitor)) {
+    return jsonSitePersonalization(
+      request,
+      { ok: false, error: 'AUTH_REQUIRED_CART_LOGIN', requireAuth: true, items: [] },
+      401,
+      { sessionId: visitor.sessionId, thread: visitor.thread }
+    )
+  }
   const items = await fetchMessagingGuestCartFromPg({
     partnerId: shop.partnerId,
     accountKey: visitor.accountKey,
@@ -32,6 +44,14 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ slug: s
   if (!shop) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
+  if (!isSignedIn(visitor)) {
+    return jsonSitePersonalization(
+      request,
+      { ok: false, error: 'AUTH_REQUIRED_CART_LOGIN', requireAuth: true },
+      401,
+      { sessionId: visitor.sessionId, thread: visitor.thread }
+    )
+  }
   const body = (await request.json().catch(() => null)) as { items?: unknown } | null
   const items = sanitizeHeadlessCartItems(body?.items)
   const ok = await upsertMessagingGuestCartFromPg({

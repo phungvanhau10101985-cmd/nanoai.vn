@@ -45,3 +45,13 @@ test('shop-actions injects cart added modal instead of success toast', () => {
   assert.match(script, /Mua sắm tiếp/)
   assert.match(PW_CART_ADDED_MODAL_RUNTIME_JS, /showCartAddedModal/)
 })
+
+test('shop-actions requires a signed-in account before cart or buy actions', () => {
+  const script = buildPartnerSiteShopActionsBootstrapScript({ siteSlug: 'demo-shop', locale: 'vi' })
+  assert.match(script, /function requirePurchaseLogin\(\)/)
+  assert.match(script, /app_guest_account_id/)
+  assert.match(script, /AUTH_REQUIRED_CART_LOGIN|purchaseLoginHref/)
+  assert.match(script, /window\.top\.location\.assign/)
+  assert.match(script, /if\(requirePurchaseLogin\(\)\)return;/)
+  assert.match(script, /redirect=/)
+})

@@ -68,7 +68,10 @@ export function resolvePartnerSaleDiscountBreakdown(
     }
     regularListSubtotal += list
     regularEffectiveSubtotal += effective
-    googleDiscountAmount += Math.min(list - effective, money(line.googleDiscountAmount ?? 0))
+    googleDiscountAmount += Math.min(
+      list - effective,
+      money(line.googleDiscountAmount ?? 0) * quantity
+    )
   }
 
   const priceSaving = Math.max(0, regularListSubtotal - regularEffectiveSubtotal)

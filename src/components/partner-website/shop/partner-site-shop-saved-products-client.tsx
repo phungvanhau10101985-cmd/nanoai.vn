@@ -17,6 +17,10 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
+import {
+  buildPartnerShopLoginHref,
+  getPartnerShopBrowserReturnLocation,
+} from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
 import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
@@ -42,7 +46,7 @@ function toCartCard(p: PartnerSitePersonalizationProduct): PartnerAiProductCard 
 export function PartnerSiteShopSavedProductsClient({ siteSlug, locale, mode }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
-  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { refreshCartCount } = usePartnerSiteShop()
   const [products, setProducts] = useState<PartnerSitePersonalizationProduct[]>([])
   const [loading, setLoading] = useState(true)
@@ -117,6 +121,16 @@ export function PartnerSiteShopSavedProductsClient({ siteSlug, locale, mode }: P
 
   async function addToCart(product: PartnerSitePersonalizationProduct) {
     if (busyId) return
+    if (!isAuthenticated) {
+      window.location.assign(
+        buildPartnerShopLoginHref(
+          siteSlug,
+          getPartnerShopBrowserReturnLocation(siteSlug, { customDomain }),
+          { customDomain }
+        )
+      )
+      return
+    }
     setBusyId(product.inventory_id)
     setMessage('')
     try {

@@ -35,7 +35,10 @@ import {
   fetchPartnerInventoryRowByProductUrlFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
-import { resolveActiveBirthdayDiscountPercentForLinkedUser } from '@/lib/db/messaging-partner-birthday-promo-pg'
+import {
+  resolveActiveBirthdayDiscountPercentForCustomer,
+  resolveActiveBirthdayDiscountPercentForLinkedUser,
+} from '@/lib/db/messaging-partner-birthday-promo-pg'
 import {
   recordPromotionUsageFromPg,
   validatePromotionCodeFromPg,
@@ -725,10 +728,11 @@ export async function completeOrderCheckout(input: {
         fallbackUnitPrice: oldOrder.unit_price,
       }],
     }),
-    resolveActiveBirthdayDiscountPercentForLinkedUser(
-      input.partnerId,
-      input.linkedUserId ?? null
-    ),
+    resolveActiveBirthdayDiscountPercentForCustomer({
+      partnerId: input.partnerId,
+      linkedUserId: input.linkedUserId ?? null,
+      emailNormalized: input.form.customerEmail,
+    }),
     resolvePartnerCustomerLoyaltyStatusFromPg({
       partnerId: input.partnerId,
       identity,
@@ -1049,10 +1053,11 @@ export async function completeCartCheckout(input: {
         fallbackUnitPrice: line.unitPrice,
       })),
     }),
-    resolveActiveBirthdayDiscountPercentForLinkedUser(
-      input.partnerId,
-      input.linkedUserId ?? null
-    ),
+    resolveActiveBirthdayDiscountPercentForCustomer({
+      partnerId: input.partnerId,
+      linkedUserId: input.linkedUserId ?? null,
+      emailNormalized: input.form.customerEmail,
+    }),
     resolvePartnerCustomerLoyaltyStatusFromPg({
     partnerId: input.partnerId,
       identity,
