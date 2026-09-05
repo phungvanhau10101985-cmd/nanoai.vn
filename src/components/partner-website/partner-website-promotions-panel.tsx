@@ -11,8 +11,10 @@ import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { Loader2, Pencil, Plus, Tag, Trash2 } from 'lucide-react'
+import { PartnerFeatureTestCard } from '@/components/partner-website/partner-feature-test-card'
 import { PartnerSaleCalendarSettingsCard } from '@/components/partner-website/partner-sale-calendar-settings-card'
 import { PartnerSaleAdvancedSettingsCard } from '@/components/partner-website/partner-sale-advanced-settings-card'
+import { PartnerMarketingBannerManager } from '@/components/partner-website/partner-marketing-banner-manager'
 
 /**
  * M2.2 (docs/PARTNER_WEBSITE_AND_LANDING_UPGRADE_188.md) — quản trị khuyến mãi/voucher.
@@ -136,6 +138,7 @@ type Props = {
   locale: WebLocale
   t: PartnerWebsiteCopy
   partnerId: string
+  siteSlug?: string | null
   sectionId?: string
   onToast?: (message: string, variant?: 'default' | 'destructive') => void
 }
@@ -164,14 +167,14 @@ const AUTO_COPY: Record<WebLocale, {
   firstOrder: string
   walletOnly: string
 }> = {
-  vi: { trigger: 'Tự động cấp', none: 'Không', signup: 'Đăng ký', delivered: 'Đơn đầu giao xong', comeback: 'Quay lại', cart: 'Bỏ giỏ', validDays: 'Hạn dùng (ngày)', idleHours: 'Giỏ chờ (giờ)', inactiveDays: 'Không mua (ngày)', cooldownDays: 'Chờ cấp lại (ngày)', excludeSale: 'Loại trừ hàng đang sale/clearance', saleCenter: 'Trung tâm khuyến mãi', saleCenterHint: 'Quản lý lịch sale, voucher, khách hàng thân thiết, sinh nhật và remarketing.', vouchers: 'Voucher', loyalty: 'Khách hàng thân thiết', birthday: 'Sinh nhật', remarketing: 'Remarketing', description: 'Mô tả', maximum: 'tối đa', minimum: 'tối thiểu', firstOrder: 'đơn đầu tiên', walletOnly: 'chỉ trong ví quà' },
-  en: { trigger: 'Automatic grant', none: 'None', signup: 'Sign up', delivered: 'First delivered order', comeback: 'Comeback', cart: 'Cart abandon', validDays: 'Validity (days)', idleHours: 'Cart idle (hours)', inactiveDays: 'Inactive (days)', cooldownDays: 'Grant cooldown (days)', excludeSale: 'Exclude sale and clearance items', saleCenter: 'Sale Center', saleCenterHint: 'Manage sale calendars, vouchers, loyalty, birthdays, and remarketing.', vouchers: 'Vouchers', loyalty: 'Loyalty', birthday: 'Birthday', remarketing: 'Remarketing', description: 'Description', maximum: 'up to', minimum: 'minimum', firstOrder: 'first order', walletOnly: 'wallet only' },
+  vi: { trigger: 'Tự động cấp', none: 'Không', signup: 'Đăng ký', delivered: 'Đơn đầu giao xong', comeback: 'Quay lại', cart: 'Bỏ giỏ', validDays: 'Hạn dùng (ngày)', idleHours: 'Giỏ chờ (giờ)', inactiveDays: 'Không mua (ngày)', cooldownDays: 'Chờ cấp lại (ngày)', excludeSale: 'Loại trừ hàng đang sale/clearance', saleCenter: 'Trung tâm khuyến mãi', saleCenterHint: 'Quản lý lịch sale, thử nghiệm CMSN/sale lịch, voucher, khách hàng thân thiết, sinh nhật và remarketing.', vouchers: 'Voucher', loyalty: 'Khách hàng thân thiết', birthday: 'Sinh nhật', remarketing: 'Remarketing', description: 'Mô tả', maximum: 'tối đa', minimum: 'tối thiểu', firstOrder: 'đơn đầu tiên', walletOnly: 'chỉ trong ví quà' },
+  en: { trigger: 'Automatic grant', none: 'None', signup: 'Sign up', delivered: 'First delivered order', comeback: 'Comeback', cart: 'Cart abandon', validDays: 'Validity (days)', idleHours: 'Cart idle (hours)', inactiveDays: 'Inactive (days)', cooldownDays: 'Grant cooldown (days)', excludeSale: 'Exclude sale and clearance items', saleCenter: 'Sale Center', saleCenterHint: 'Manage sale calendars, birthday/sale tests, vouchers, loyalty, birthdays, and remarketing.', vouchers: 'Vouchers', loyalty: 'Loyalty', birthday: 'Birthday', remarketing: 'Remarketing', description: 'Description', maximum: 'up to', minimum: 'minimum', firstOrder: 'first order', walletOnly: 'wallet only' },
   zh: { trigger: '自动发放', none: '无', signup: '注册', delivered: '首单送达', comeback: '回归', cart: '弃购', validDays: '有效期（天）', idleHours: '购物车闲置（小时）', inactiveDays: '未购买（天）', cooldownDays: '发放冷却（天）', excludeSale: '排除促销和清仓商品', saleCenter: '促销中心', saleCenterHint: '管理促销日历、优惠券、会员、生日和再营销。', vouchers: '优惠券', loyalty: '会员忠诚度', birthday: '生日', remarketing: '再营销', description: '描述', maximum: '最高', minimum: '最低', firstOrder: '首单', walletOnly: '仅限礼券包' },
   ja: { trigger: '自動付与', none: 'なし', signup: '登録', delivered: '初回配送完了', comeback: '再来店', cart: 'カート放棄', validDays: '有効日数', idleHours: 'カート放置（時間）', inactiveDays: '未購入（日）', cooldownDays: '再付与間隔（日）', excludeSale: 'セール・クリアランス商品を除外', saleCenter: 'セールセンター', saleCenterHint: 'セール日程、クーポン、ロイヤルティ、誕生日、リマーケティングを管理します。', vouchers: 'クーポン', loyalty: 'ロイヤルティ', birthday: '誕生日', remarketing: 'リマーケティング', description: '説明', maximum: '上限', minimum: '最低', firstOrder: '初回注文', walletOnly: 'ギフトウォレット限定' },
   ko: { trigger: '자동 지급', none: '없음', signup: '가입', delivered: '첫 배송 완료', comeback: '재방문', cart: '장바구니 이탈', validDays: '유효 기간(일)', idleHours: '장바구니 대기(시간)', inactiveDays: '미구매(일)', cooldownDays: '재지급 대기(일)', excludeSale: '세일 및 창고 상품 제외', saleCenter: '세일 센터', saleCenterHint: '세일 일정, 쿠폰, 로열티, 생일 및 리마케팅을 관리합니다.', vouchers: '쿠폰', loyalty: '로열티', birthday: '생일', remarketing: '리마케팅', description: '설명', maximum: '최대', minimum: '최소', firstOrder: '첫 주문', walletOnly: '선물 지갑 전용' },
 }
 
-export function PartnerWebsitePromotionsPanel({ locale, t, partnerId, sectionId, onToast }: Props) {
+export function PartnerWebsitePromotionsPanel({ locale, t, partnerId, siteSlug, sectionId, onToast }: Props) {
   const autoT = AUTO_COPY[locale] ?? AUTO_COPY.en
   const [rows, setRows] = useState<PromotionRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -295,7 +298,18 @@ export function PartnerWebsitePromotionsPanel({ locale, t, partnerId, sectionId,
           <Button size="sm" variant="outline" asChild><a href={`?partner=${encodeURIComponent(partnerId)}&section=promotions`}>{autoT.birthday}</a></Button>
           <Button size="sm" variant="outline" asChild><a href={`?partner=${encodeURIComponent(partnerId)}&section=hub-marketing`}>{autoT.remarketing}</a></Button>
         </nav>
+        <PartnerFeatureTestCard
+          partnerId={partnerId}
+          locale={locale}
+          siteSlug={siteSlug}
+          onToast={onToast}
+        />
         <PartnerSaleCalendarSettingsCard
+          partnerId={partnerId}
+          locale={locale}
+          onToast={onToast}
+        />
+        <PartnerMarketingBannerManager
           partnerId={partnerId}
           locale={locale}
           onToast={onToast}

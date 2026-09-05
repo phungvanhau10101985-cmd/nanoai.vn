@@ -8,8 +8,10 @@ import type { WebLocale } from '@/lib/i18n/config'
 import {
   PW_PERSONALIZE_NAV_ATTR,
   PW_PERSONALIZE_NAV_RECENT,
-  type FeaturedCategoryTile,
-  type LiveNavRowItem,
+} from '@/lib/partner-website/shop/featured-categories-constants'
+import type {
+  FeaturedCategoryTile,
+  LiveNavRowItem,
 } from '@/lib/partner-website/shop/featured-categories'
 import { partnerCategoryNavAllLabel } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
 import { getPartnerSiteCategoryNavLabels } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
@@ -19,6 +21,7 @@ import {
   partnerSiteInfoPath,
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { appendFeaturedMarqueeCloneHtml } from '@/lib/partner-website/visual-editor/featured-category-widgets'
 import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export const PW_NAV_LIVE_ATTR = 'data-pw-nav-live'
@@ -248,9 +251,10 @@ export function bindLiveFeaturedCategoryTilesToHtml(html: string, bind: LiveCate
     html,
     /<([a-z0-9]+)\b(?=[^>]*\bdata-pw-featured-categories=["']1["'])[^>]*>/gi,
     (open, inner) => {
-      const cards = collectCardRanges(inner)
-      if (!cards.length) return { open: stampAttr(open, PW_FEATURED_LIVE_ATTR, '1'), inner }
-      let nextInner = inner
+      const workInner = inner.replace(/<div\b[^>]*\bdata-pw-featured-clone\b[^>]*>[\s\S]*?<\/div>/gi, '')
+      const cards = collectCardRanges(workInner)
+      if (!cards.length) return { open: stampAttr(open, PW_FEATURED_LIVE_ATTR, '1'), inner: workInner }
+      let nextInner = workInner
       for (let i = cards.length - 1; i >= 0; i -= 1) {
         const card = cards[i]
         const tile = bind.tiles[i]
@@ -268,7 +272,7 @@ export function bindLiveFeaturedCategoryTilesToHtml(html: string, bind: LiveCate
           return `<${tag}${next}>`
         }
       )
-      return { open: stampAttr(open, PW_FEATURED_LIVE_ATTR, '1'), inner: nextInner }
+      return { open: stampAttr(open, PW_FEATURED_LIVE_ATTR, '1'), inner: appendFeaturedMarqueeCloneHtml(nextInner) }
     }
   )
 }

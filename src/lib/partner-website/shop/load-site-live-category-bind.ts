@@ -1,6 +1,6 @@
 import { cache } from 'react'
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
-import { getSiteFeaturedCategoryBlock } from '@/lib/partner-website/shop/featured-categories'
+import { FEATURED_CATEGORY_TILE_DEFAULT, getSiteFeaturedCategoryBlock } from '@/lib/partner-website/shop/featured-categories'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { peekSiteVisitorAccountKey } from '@/lib/partner-website/shop/partner-site-personalization'
 import type { LiveCategoryBind } from '@/lib/partner-website/shop/bind-live-nav-pills'
@@ -19,7 +19,7 @@ async function loadSiteLiveCategoryBindUncached(siteSlug: string): Promise<LiveC
       accountKey,
       linkedUserId: user?.id,
       locale: shop.site.locale,
-      limit: 10,
+      limit: FEATURED_CATEGORY_TILE_DEFAULT,
     })
     return {
       siteSlug: shop.site.siteSlug,

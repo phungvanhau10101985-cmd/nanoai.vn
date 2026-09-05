@@ -31,13 +31,23 @@ import {
   partnerSiteCategoryHubPath,
   partnerSiteCategoryPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import {
+  FEATURED_CATEGORY_TILE_DEFAULT,
+  FEATURED_CATEGORY_TILE_MAX,
+  FEATURED_CATEGORY_ROWS_DEFAULT,
+  NAV_RECENT_VIEW_PILL_LIMIT,
+  PW_PERSONALIZE_NAV_ATTR,
+  PW_PERSONALIZE_NAV_RECENT,
+} from '@/lib/partner-website/shop/featured-categories-constants'
 
-export const FEATURED_CATEGORY_TILE_DEFAULT = 10
-export const FEATURED_CATEGORY_TILE_MAX = 20
-export const FEATURED_CATEGORY_ROWS_DEFAULT = 2
-export const NAV_RECENT_VIEW_PILL_LIMIT = 8
-export const PW_PERSONALIZE_NAV_ATTR = 'data-pw-personalize-nav'
-export const PW_PERSONALIZE_NAV_RECENT = 'recent-categories'
+export {
+  FEATURED_CATEGORY_TILE_DEFAULT,
+  FEATURED_CATEGORY_TILE_MAX,
+  FEATURED_CATEGORY_ROWS_DEFAULT,
+  NAV_RECENT_VIEW_PILL_LIMIT,
+  PW_PERSONALIZE_NAV_ATTR,
+  PW_PERSONALIZE_NAV_RECENT,
+}
 
 export type FeaturedCategoryGender = 'male' | 'female'
 export type FeaturedCategorySource = 'profile_gender' | 'recent_views' | 'popular_fallback'

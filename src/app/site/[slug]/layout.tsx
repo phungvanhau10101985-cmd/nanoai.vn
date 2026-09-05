@@ -8,7 +8,7 @@ import {
   FASHION_SHOP_FONT_UI,
 } from '@/lib/partner-website/shop/fashion-shop-design'
 import { PartnerSiteCustomDomainProvider } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
-import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
+import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
   partnerSitePwaIconPath,
   partnerSitePwaManifestPath,
@@ -26,7 +26,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>
 }): Promise<Metadata> {
   const { slug } = await params
-  const site = await fetchPublishedPartnerWebsiteBySlugPg(slug).catch(() => null)
+  const site = (await loadPartnerSiteShopContext(slug).catch(() => null))?.site ?? null
   if (!site) return {}
   const headerStore = headers()
   const customDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
@@ -65,7 +65,7 @@ export default async function PartnerSiteSlugLayout({
   const { slug } = await params
   const headerStore = headers()
   const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
-  const site = await fetchPublishedPartnerWebsiteBySlugPg(slug).catch(() => null)
+  const site = (await loadPartnerSiteShopContext(slug).catch(() => null))?.site ?? null
   const name = site?.title.trim() || site?.partnerDisplayName || ''
   const icon180 = site ? partnerSitePwaIconPath(site.siteSlug, 180, onCustomDomain) : ''
 

@@ -9,7 +9,7 @@ import {
   upsertVisitorProfileHintFromPg,
   type InventoryCategorySignal,
 } from '@/lib/db/messaging-partner-recommendation-pg'
-import { fetchPartnerInventoryRowsByIdsInOrderFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchPartnerInventoryCardsByIdsInOrderFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { fetchPartnerVisitorPersonalizationFromPg } from '@/lib/db/messaging-partner-visitor-personalization-pg'
 import {
   HOME_RECOMMENDATION_COHORT_LIMIT,
@@ -24,16 +24,30 @@ import {
   seededShuffle,
   type SameAgeGenderCohortMode,
 } from '@/lib/partner-website/shop/partner-site-home-recommendation-mix'
-import type { MessagingPartnerInventoryRow } from '@/lib/db/messaging-partner-inventory-pg'
+import type { PartnerInventoryShopCardRow } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { normalizeShopImageUrl } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import type { PartnerSitePersonalizationProduct } from '@/lib/partner-website/shop/partner-site-personalization'
+import { applyPartnerSiteSaleToShopProduct } from '@/lib/partner-website/promotions/partner-site-sale-display'
+import { loadPartnerSiteSaleOverlay } from '@/lib/partner-website/promotions/partner-site-sale-attach'
 
 const HTTP_RE = /^https?:\/\//i
 
+function numberOrNull(value: unknown): number | null {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+function isoOrNull(value: unknown): string | null {
+  if (!value) return null
+  if (value instanceof Date) return value.toISOString()
+  const text = String(value).trim()
+  return text || null
+}
+
 function mapInventoryRowToPersonalizationProduct(
   siteSlug: string,
-  row: MessagingPartnerInventoryRow
+  row: PartnerInventoryShopCardRow
 ): PartnerSitePersonalizationProduct | null {
   const imageUrl = normalizeShopImageUrl(row.image_url)
   if (!imageUrl) return null
@@ -47,6 +61,11 @@ function mapInventoryRowToPersonalizationProduct(
     product_url: HTTP_RE.test(rawProductUrl) ? rawProductUrl : `https://shop.local${detailPath}`,
     detail_path: detailPath,
     sku: (row.sku ?? '').trim() || null,
+    priceAmount: numberOrNull(row.price_amount),
+    salePriceAmount: numberOrNull(row.sale_price_amount),
+    saleStartsAt: isoOrNull(row.sale_starts_at),
+    saleEndsAt: isoOrNull(row.sale_ends_at),
+    isClearance: row.is_clearance === true,
   }
 }
 
@@ -207,7 +226,7 @@ async function cohortProducts(input: {
   const filtered = ids.filter((id) => !input.excludeIds.has(id.toLowerCase()))
   if (!filtered.length) return { products: [], mode }
   const rows =
-    (await fetchPartnerInventoryRowsByIdsInOrderFromPg(
+    (await fetchPartnerInventoryCardsByIdsInOrderFromPg(
       input.partnerId,
       seededShuffle(filtered, input.seed).slice(0, input.limit)
     )) ?? []
@@ -233,7 +252,7 @@ async function popularFallbackProducts(input: {
     excludeIds: input.excludeIds,
     limit: input.limit * 3,
   })
-  const rows = (await fetchPartnerInventoryRowsByIdsInOrderFromPg(input.partnerId, ids)) ?? []
+  const rows = (await fetchPartnerInventoryCardsByIdsInOrderFromPg(input.partnerId, ids)) ?? []
   const signals = await fetchInventoryCategorySignalsFromPg(
     input.partnerId,
     rows.map((row) => row.id)
@@ -353,8 +372,19 @@ export async function getSiteHomeRecommendationBlock(input: {
     .filter((p) => !shopIds.has(p.inventory_id.toLowerCase()))
     .map((p) => p.inventory_id)
 
+  const overlay = await loadPartnerSiteSaleOverlay(input.partnerId).catch(() => null)
+  const products = overlay
+    ? mixed.map((product) => {
+        const sold = applyPartnerSiteSaleToShopProduct(product, overlay.state, {
+          clearanceEnabled: overlay.clearanceEnabled,
+          clearancePercent: overlay.clearancePercent,
+        })
+        return { ...product, ...sold }
+      })
+    : mixed
+
   return {
-    products: mixed,
+    products,
     personalized: viewedIds.length > 0 || Boolean(demo.gender),
     cohort_mode: cohortMode,
     cohort_badge_product_ids: cohortBadge,

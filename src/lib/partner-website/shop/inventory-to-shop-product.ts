@@ -21,6 +21,7 @@ import {
 } from '@/lib/partner-website/shop/pdp-product-info-html'
 import type { LivePdpBindColor } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { normalizePartnerSalePriceAmount } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 
 type InventoryShopProductRow = InventoryShopSourceRow & {
   id: string
@@ -67,6 +68,37 @@ type InventoryShopProductRow = InventoryShopSourceRow & {
   reviews_count?: number | null
   questions_count?: number | null
   rating_score?: number | null
+}
+
+/** Small, denormalized projection used by storefront cards and ID batches. */
+export type PartnerInventoryShopCardRow = {
+  id: string
+  partner_id: string
+  sort_order: number
+  sku: string | null
+  name: string
+  stock_qty: number
+  price_hint: string
+  image_url: string
+  product_url: string
+  remarketing_id: string
+  is_active: boolean
+  is_clearance: boolean
+  price_amount: number | null
+  price_currency: string
+  sale_price_amount: number | null
+  sale_starts_at: string | null
+  sale_ends_at: string | null
+  category_l1: string | null
+  category_l2: string | null
+  category_l3: string | null
+  likes_count: number
+  purchases_count: number
+  reviews_count: number
+  questions_count: number
+  rating_score: number
+  created_at: string
+  updated_at: string
 }
 
 function catalog188SnapshotOf(raw: unknown): Catalog188Snapshot | null {
@@ -213,6 +245,7 @@ export type PartnerSiteShopProduct = {
   siteSalePhase?: 'off' | 'teaser' | 'active'
   siteSalePercent?: number
   siteSaleExpectedPrice?: number | null
+  siteSale?: import('@/lib/partner-website/promotions/partner-site-sale-display').PartnerSiteSalePricing | null
   sizes: string[]
   colors: LivePdpBindColor[]
   /** W1.5 — resolved from primary category when available. */
@@ -325,10 +358,7 @@ export function inventoryRowToShopProduct(
     stockQty: Math.max(0, Math.round(Number(row.stock_qty ?? 0)) || 0),
     priceAmount: row.price_amount != null && Number.isFinite(Number(row.price_amount)) ? Number(row.price_amount) : null,
     priceCurrency: String(row.price_currency ?? 'VND').trim() || 'VND',
-    salePriceAmount:
-      row.sale_price_amount != null && Number.isFinite(Number(row.sale_price_amount))
-        ? Number(row.sale_price_amount)
-        : null,
+    salePriceAmount: normalizePartnerSalePriceAmount(row.sale_price_amount),
     saleStartsAt: row.sale_starts_at ? String(row.sale_starts_at) : null,
     saleEndsAt: row.sale_ends_at ? String(row.sale_ends_at) : null,
     isClearance: row.is_clearance === true,
@@ -365,6 +395,80 @@ export function inventoryRowToShopProduct(
     reviewsCount: Math.max(0, Math.round(Number(row.reviews_count ?? 0)) || 0),
     questionsCount: Math.max(0, Math.round(Number(row.questions_count ?? 0)) || 0),
     ratingScore: Number(row.rating_score ?? 0) || 0,
+  }
+}
+
+/**
+ * Maps the deliberately small storefront SELECT without invoking PDP/catalog
+ * hydration. Card callers must not accidentally make large JSON/media columns
+ * part of their data contract.
+ */
+export function inventoryCardRowToShopProduct(
+  siteSlug: string,
+  row: PartnerInventoryShopCardRow
+): PartnerSiteShopProduct {
+  const name = row.name.trim() || 'Product'
+  const detailPath = partnerSiteProductPath(siteSlug, row.id, { name })
+  const rawImage = normalizeShopImageUrl(row.image_url)
+  const imageUrl =
+    rawImage ||
+    `https://placehold.co/600x600/f1f5f9/64748b?text=${encodeURIComponent(name.slice(0, 18))}`
+  const rawProductUrl = row.product_url.trim()
+  return {
+    id: row.id,
+    name,
+    description: '',
+    detailDescription: '',
+    galleryImages: [imageUrl],
+    detailImages: [],
+    productVideoUrl: null,
+    priceHint: row.price_hint.trim(),
+    imageUrl,
+    productUrl: /^https?:\/\//i.test(rawProductUrl)
+      ? rawProductUrl
+      : `https://shop.local${detailPath}`,
+    sku: row.sku?.trim() || row.remarketing_id.trim(),
+    detailPath,
+    stockQty: Math.max(0, Math.round(Number(row.stock_qty)) || 0),
+    priceAmount:
+      row.price_amount != null && Number.isFinite(Number(row.price_amount))
+        ? Number(row.price_amount)
+        : null,
+    priceCurrency: row.price_currency.trim() || 'VND',
+    salePriceAmount: normalizePartnerSalePriceAmount(row.sale_price_amount),
+    saleStartsAt: row.sale_starts_at,
+    saleEndsAt: row.sale_ends_at,
+    isClearance: row.is_clearance,
+    sizes: [],
+    colors: [],
+    brandName: null,
+    origin: null,
+    material: null,
+    style: null,
+    occasion: null,
+    weight: null,
+    features: null,
+    chineseName: null,
+    colorSummary: null,
+    consultNote: null,
+    sourceShopName: null,
+    sourceShopNameChinese: null,
+    priceLowHint: null,
+    priceHighHint: null,
+    catalogSlug: null,
+    materialImageUrl: null,
+    realUseImageUrls: null,
+    categoryL1: row.category_l1,
+    categoryL2: row.category_l2,
+    categoryL3: row.category_l3,
+    remarketingId: row.remarketing_id || null,
+    productInfo: null,
+    depositPolicy: null,
+    likesCount: Math.max(0, Math.round(Number(row.likes_count)) || 0),
+    purchasesCount: Math.max(0, Math.round(Number(row.purchases_count)) || 0),
+    reviewsCount: Math.max(0, Math.round(Number(row.reviews_count)) || 0),
+    questionsCount: Math.max(0, Math.round(Number(row.questions_count)) || 0),
+    ratingScore: Number(row.rating_score) || 0,
   }
 }
 

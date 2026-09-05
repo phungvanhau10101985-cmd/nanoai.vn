@@ -9,7 +9,7 @@ import {
   fetchPartnerProductQuestionsPageFromPg,
   insertPartnerProductQuestionFromPg,
 } from '@/lib/db/messaging-partner-reviews-pg'
-import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchPartnerInventoryReviewQuestionLookupFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { notifyPartnerOwnerNewQuestion } from '@/lib/messaging/partner-admin-notifications'
 import {
   PUBLIC_REVIEW_QA_PAGE_SIZE,
@@ -36,9 +36,9 @@ export async function GET(
     Math.max(1, Number(url.searchParams.get('pageSize') ?? PUBLIC_REVIEW_QA_PAGE_SIZE) || PUBLIC_REVIEW_QA_PAGE_SIZE)
   )
 
-  const inv = await fetchPartnerInventoryRowByIdForPartnerFromPg(shop.partnerId, inventoryId)
+  const inv = await fetchPartnerInventoryReviewQuestionLookupFromPg(shop.partnerId, inventoryId)
   if (!inv) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  const importGroup = coalesceImportGroup(inv.question_group_id)
+  const importGroup = coalesceImportGroup(inv.questionGroupId)
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
   const result = await fetchPartnerProductQuestionsPageFromPg({
@@ -76,7 +76,7 @@ export async function POST(
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const inv = await fetchPartnerInventoryRowByIdForPartnerFromPg(shop.partnerId, inventoryId)
+  const inv = await fetchPartnerInventoryReviewQuestionLookupFromPg(shop.partnerId, inventoryId)
   if (!inv) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)

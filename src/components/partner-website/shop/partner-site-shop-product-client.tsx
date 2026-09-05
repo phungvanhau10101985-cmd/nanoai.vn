@@ -42,6 +42,11 @@ import {
   formatPartnerShopMoneyVnd,
   isPartnerFlashSaleActive,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
+import {
+  formatPartnerSaleMoney,
+  partnerSiteSaleCopy,
+  resolvePartnerProductSaleFace,
+} from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
 import { PartnerSiteProductVariantModal } from '@/components/partner-website/shop/partner-site-product-variant-modal'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
@@ -53,7 +58,10 @@ import {
 } from '@/lib/partner-website/shop/pdp-product-info-html'
 import {
   nextShopImageRetrySrc,
+  rewritePdpHtmlImagesForPage,
   shopPdpDisplaySrc,
+  shopPdpImageKey,
+  shopPdpPageSrc,
 } from '@/lib/partner-website/shop/inventory-shop-detail'
 
 type RatingSummary = { average: number; total: number }
@@ -168,7 +176,9 @@ export function PartnerSiteShopProductClient({
   const [isFavorite, setIsFavorite] = useState(false)
   const [favoriteBusy, setFavoriteBusy] = useState(false)
   const [likesCount, setLikesCount] = useState(() => Math.max(0, Math.round(Number(product.likesCount ?? 0) || 0)))
-  const [activeImage, setActiveImage] = useState(product.imageUrl)
+  const [activeImage, setActiveImage] = useState(
+    () => shopPdpPageSrc(product.imageUrl) || product.imageUrl
+  )
   const [mediaIndex, setMediaIndex] = useState(0)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxZoomed, setLightboxZoomed] = useState(false)
@@ -178,28 +188,33 @@ export function PartnerSiteShopProductClient({
   const [pdpTab, setPdpTab] = useState<'description' | 'specs'>('description')
   const touchStartXRef = useRef<number | null>(null)
   const buyActionsRef = useRef<HTMLDivElement | null>(null)
-  const flashActive = isPartnerFlashSaleActive({
-    priceAmount: product.priceAmount ?? null,
-    salePriceAmount: product.salePriceAmount ?? null,
-    saleStartsAt: product.saleStartsAt ?? null,
-    saleEndsAt: product.saleEndsAt ?? null,
-  })
+  const saleFace = resolvePartnerProductSaleFace(product)
+  const saleCopy = partnerSiteSaleCopy(locale)
+  const flashActive =
+    saleFace.kind === 'active' ||
+    isPartnerFlashSaleActive({
+      priceAmount: product.priceAmount ?? null,
+      salePriceAmount: product.salePriceAmount ?? null,
+      saleStartsAt: product.saleStartsAt ?? null,
+      saleEndsAt: product.saleEndsAt ?? null,
+    })
 
   const rawDisplay =
     (options?.colors.length ? options.colors : product.colors).find((c) => c.name === color)?.img?.trim() ||
     product.imageUrl
-  const displayImage = shopPdpDisplaySrc(rawDisplay) || rawDisplay
+  const fullDisplayImage = shopPdpDisplaySrc(rawDisplay) || rawDisplay
+  const displayImage = shopPdpPageSrc(rawDisplay) || fullDisplayImage
 
   const consultCtx = useMemo(
     () =>
       productToConsultContext({
         id: product.id,
         sku: options?.sku || product.sku,
-        imageUrl: displayImage,
+        imageUrl: fullDisplayImage,
         productUrl: product.productUrl,
         galleryImages: product.galleryImages,
       }),
-    [displayImage, options?.sku, product.galleryImages, product.id, product.productUrl, product.sku]
+    [fullDisplayImage, options?.sku, product.galleryImages, product.id, product.productUrl, product.sku]
   )
 
   useEffect(() => {
@@ -223,6 +238,9 @@ export function PartnerSiteShopProductClient({
   }, [])
 
   const galleryImages = (product.galleryImages.length ? product.galleryImages : [product.imageUrl])
+    .map((url) => shopPdpPageSrc(url))
+    .filter(Boolean)
+  const galleryFullImages = (product.galleryImages.length ? product.galleryImages : [product.imageUrl])
     .map((url) => shopPdpDisplaySrc(url))
     .filter(Boolean)
   const videoEmbedUrl = (() => {
@@ -268,9 +286,9 @@ export function PartnerSiteShopProductClient({
 
   const detailBody = product.detailDescription.trim() || product.description.trim()
   const showDetailDescription = Boolean(detailBody)
-  const detailImageUrls = product.detailImages.map((url) => shopPdpDisplaySrc(url)).filter(Boolean)
-  const materialImageUrl = shopPdpDisplaySrc(product.materialImageUrl)
-  const realUseImageUrls = (product.realUseImageUrls ?? []).map((url) => shopPdpDisplaySrc(url)).filter(Boolean)
+  const detailImageUrls = product.detailImages.map((url) => shopPdpPageSrc(url)).filter(Boolean)
+  const materialImageUrl = shopPdpPageSrc(product.materialImageUrl)
+  const realUseImageUrls = (product.realUseImageUrls ?? []).map((url) => shopPdpPageSrc(url)).filter(Boolean)
   const attrFields = {
     brandName: product.brandName,
     origin: product.origin,
@@ -287,7 +305,14 @@ export function PartnerSiteShopProductClient({
   }
   const attrGridHtml = pdpAttrGridHtml(attrFields, t)
   const specsHtml = pdpProductInfoHtml(product.productInfo, locale, t, attrFields)
-  const descHtml = pdpDescriptionBodyHtml(detailBody)
+  const descHtml = rewritePdpHtmlImagesForPage(pdpDescriptionBodyHtml(detailBody))
+  const activeFullImage = (() => {
+    if (shopPdpImageKey(activeImage) === shopPdpImageKey(displayImage)) return fullDisplayImage
+    const index = galleryImages.findIndex(
+      (url) => shopPdpImageKey(url) === shopPdpImageKey(activeImage)
+    )
+    return index >= 0 ? galleryFullImages[index] || activeImage : activeImage
+  })()
   const catalogRating = Number(product.ratingScore ?? 0)
   const catalogReviews = Math.max(0, Math.round(Number(product.reviewsCount ?? ratingSummary?.total ?? 0) || 0))
   const catalogSold = Math.max(0, Math.round(Number(product.purchasesCount ?? 0) || 0))
@@ -300,16 +325,21 @@ export function PartnerSiteShopProductClient({
   const colorOptions = options?.colors?.length ? options.colors : product.colors
 
   const unitPrice =
-    flashActive && product.salePriceAmount != null
-      ? product.salePriceAmount
-      : product.priceAmount != null && Number.isFinite(product.priceAmount)
-        ? product.priceAmount
-        : null
-  const comparePrice =
+    saleFace.kind === 'teaser'
+      ? saleFace.displayPrice
+      : saleFace.kind === 'active'
+        ? saleFace.displayPrice
+        : flashActive && product.salePriceAmount != null
+          ? product.salePriceAmount
+          : product.priceAmount != null && Number.isFinite(product.priceAmount)
+            ? product.priceAmount
+            : null
+  const comparePrice = saleFace.kind === 'active' ? saleFace.comparePrice : saleFace.kind === 'teaser' ? null : (
     flashActive && product.priceAmount != null && product.salePriceAmount != null && product.priceAmount > product.salePriceAmount
       ? product.priceAmount
       : null
-  const savings = comparePrice != null && unitPrice != null ? comparePrice - unitPrice : 0
+  )
+  const savings = saleFace.kind ? saleFace.savings : comparePrice != null && unitPrice != null ? comparePrice - unitPrice : 0
   const priceLabel = options?.price_hint || product.priceHint
   const productName = options?.name || product.name
   const sku = options?.sku || product.sku
@@ -504,6 +534,8 @@ export function PartnerSiteShopProductClient({
         className={opts?.hero ? 'pw-pdp-hero-img' : 'pw-shop-product-img'}
         src={media.url}
         alt={productName}
+        decoding="async"
+        fetchPriority="high"
         data-pw-el={PW_EL.mainImage}
         onClick={() => {
           setActiveImage(media.url)
@@ -619,7 +651,7 @@ export function PartnerSiteShopProductClient({
                 onClick={() => setMediaIndex(i)}
               >
                 {item.kind === 'photo' ? (
-                  <img src={item.url} alt="" loading="lazy" onError={hideBrokenPdpImage} />
+                  <img src={item.url} alt="" loading="lazy" decoding="async" onError={hideBrokenPdpImage} />
                 ) : (
                   <span style={{ display: 'grid', placeItems: 'center', width: '100%', height: '100%', background: '#111', color: '#fff', fontSize: 11 }}>▶</span>
                 )}
@@ -655,7 +687,7 @@ export function PartnerSiteShopProductClient({
                   aria-label={productName}
                 >
                   {item.kind === 'photo' ? (
-                    <img src={item.url} alt="" loading="lazy" onError={hideBrokenPdpImage} />
+                    <img src={item.url} alt="" loading="lazy" decoding="async" onError={hideBrokenPdpImage} />
                   ) : (
                     <span style={{ display: 'grid', placeItems: 'center', width: '100%', height: '100%', background: '#111', color: '#fff', fontSize: 11 }}>▶</span>
                   )}
@@ -692,7 +724,37 @@ export function PartnerSiteShopProductClient({
             </span>
           </div>
 
-          {flashActive && product.salePriceAmount != null ? (
+          {saleFace.kind ? (
+            <div className="pw-pdp-price-card">
+              {saleFace.badge ? (
+                <span className={`pw-pdp-sale-pill pw-pdp-sale-pill-${saleFace.kind}`} data-pw-el={PW_EL.badge}>
+                  {saleFace.badge}
+                </span>
+              ) : null}
+              <p className="pw-shop-price" data-pw-el={PW_EL.price}>
+                {formatPartnerSaleMoney(saleFace.displayPrice, locale)}
+                {saleFace.kind === 'teaser' && saleFace.expectedPrice != null ? (
+                  <span className="pw-price-expected" data-pw-el={PW_EL.comparePrice}>
+                    {' → '}
+                    {formatPartnerSaleMoney(saleFace.expectedPrice, locale)}
+                  </span>
+                ) : saleFace.comparePrice != null ? (
+                  <span className="pw-pdp-compare" data-pw-el={PW_EL.comparePrice}>
+                    {formatPartnerSaleMoney(saleFace.comparePrice, locale)}
+                  </span>
+                ) : null}
+              </p>
+              {saleFace.savings > 0 ? (
+                <p className={`pw-pdp-save pw-price-${saleFace.kind === 'teaser' ? 'teaser' : 'save'}`}>
+                  {saleFace.kind === 'teaser'
+                    ? saleCopy.expectedSave
+                        .replace('{pct}', String(saleFace.percent))
+                        .replace('{amount}', formatPartnerSaleMoney(saleFace.savings, locale))
+                    : saleCopy.save.replace('{amount}', formatPartnerSaleMoney(saleFace.savings, locale))}
+                </p>
+              ) : null}
+            </div>
+          ) : flashActive && product.salePriceAmount != null ? (
             <div className="pw-pdp-price-card">
               <span className="pw-shop-urgency-badge" data-pw-el={PW_EL.badge}>{t.flashSaleBadge}</span>
               <p className="pw-shop-price" data-pw-el={PW_EL.price}>
@@ -731,7 +793,14 @@ export function PartnerSiteShopProductClient({
                     onClick={() => setColor(c.name)}
                   >
                     {c.img ? (
-                      <img src={shopPdpDisplaySrc(c.img) || c.img} alt={c.name} onError={hideBrokenPdpImage} />
+                      <img
+                        src={shopPdpPageSrc(c.img) || c.img}
+                        data-pw-full-src={shopPdpDisplaySrc(c.img) || undefined}
+                        alt={c.name}
+                        loading="lazy"
+                        decoding="async"
+                        onError={hideBrokenPdpImage}
+                      />
                     ) : (
                       c.name
                     )}
@@ -804,8 +873,9 @@ export function PartnerSiteShopProductClient({
                 </div>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={product.sizeGuideImageUrl}
+                  src={shopPdpPageSrc(product.sizeGuideImageUrl) || product.sizeGuideImageUrl}
                   alt={t.sizeGuideModalTitle}
+                  decoding="async"
                   style={{ width: '100%', height: 'auto' }}
                   onError={hideBrokenPdpImage}
                 />
@@ -898,7 +968,7 @@ export function PartnerSiteShopProductClient({
                   <h2>{t.pdpDetailImagesHeading}</h2>
                   <div className="pw-pdp-detail-photos">
                     {detailImageUrls.map((url) => (
-                      <img key={url} src={url} alt={product.name} loading="lazy" onError={hideBrokenPdpImage} />
+                      <img key={url} src={url} alt={product.name} loading="lazy" decoding="async" onError={hideBrokenPdpImage} />
                     ))}
                   </div>
                 </div>
@@ -908,7 +978,7 @@ export function PartnerSiteShopProductClient({
                 <div data-pw-pdp-slot="material">
                   <h2>{t.pdpMaterialImagesTitle}</h2>
                   <div className="pw-shop-detail-grid">
-                    <img src={materialImageUrl} alt={product.name} loading="lazy" onError={hideBrokenPdpImage} />
+                    <img src={materialImageUrl} alt={product.name} loading="lazy" decoding="async" onError={hideBrokenPdpImage} />
                   </div>
                 </div>
               ) : null}
@@ -917,7 +987,7 @@ export function PartnerSiteShopProductClient({
                   <h2>{t.pdpRealUseImagesTitle}</h2>
                   <div className="pw-shop-detail-grid">
                     {realUseImageUrls.map((url) => (
-                      <img key={url} src={url} alt={product.name} loading="lazy" onError={hideBrokenPdpImage} />
+                      <img key={url} src={url} alt={product.name} loading="lazy" decoding="async" onError={hideBrokenPdpImage} />
                     ))}
                   </div>
                 </div>
@@ -980,8 +1050,9 @@ export function PartnerSiteShopProductClient({
             </>
           ) : null}
           <img
-            src={activeImage}
+            src={lightboxZoomed ? activeFullImage : activeImage}
             alt={productName}
+            decoding="async"
             className={lightboxZoomed ? 'is-zoomed' : ''}
             onError={hideBrokenPdpImage}
             onClick={(e) => {

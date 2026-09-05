@@ -12,6 +12,10 @@ import {
   qaBuyerAnswerShowsVerifiedBadge,
   reviewShowsVerifiedBadge,
 } from '@/lib/partner-website/reviews/partner-review-types'
+import {
+  shopCardDisplaySrc,
+  shopPdpDisplaySrc,
+} from '@/lib/partner-website/shop/inventory-shop-detail'
 
 type ReviewRow = {
   id: string
@@ -63,6 +67,8 @@ type Props = {
 }
 
 const STARS = [1, 2, 3, 4, 5] as const
+const SUMMARY_PAGE_SIZE = 1
+const MODAL_PAGE_SIZE = 20
 
 function stars(n: number) {
   return STARS.map((i) => (i <= Math.round(n) ? '★' : '☆')).join('')
@@ -98,6 +104,9 @@ export function PartnerSiteProductReviewsQa({
   const [questions, setQuestions] = useState<QuestionRow[]>([])
   const [reviewsTotal, setReviewsTotal] = useState(0)
   const [questionsTotal, setQuestionsTotal] = useState(0)
+  const [reviewsPage, setReviewsPage] = useState(1)
+  const [questionsPage, setQuestionsPage] = useState(1)
+  const [listBusy, setListBusy] = useState(false)
   const [hasReviewed, setHasReviewed] = useState(false)
   const [modal, setModal] = useState<'reviews' | 'qa' | 'write' | null>(null)
   const [rating, setRating] = useState(5)
@@ -117,21 +126,59 @@ export function PartnerSiteProductReviewsQa({
     )
   }, [siteSlug, onCustomDomain])
 
-  const load = useCallback(async () => {
+  const loadSummary = useCallback(async () => {
     const [r, q] = await Promise.all([
-      fetch(`${api}/reviews?page=1&pageSize=100`, { credentials: 'same-origin' }).then((x) => x.json()),
-      fetch(`${api}/questions?page=1&pageSize=100`, { credentials: 'same-origin' }).then((x) => x.json()),
+      fetch(`${api}/reviews?page=1&pageSize=${SUMMARY_PAGE_SIZE}`, { credentials: 'same-origin' }).then((x) => x.json()),
+      fetch(`${api}/questions?page=1&pageSize=${SUMMARY_PAGE_SIZE}`, { credentials: 'same-origin' }).then((x) => x.json()),
     ])
     setReviews(r.reviews ?? [])
     setReviewsTotal(Number(r.total ?? 0))
+    setReviewsPage(1)
     if (r.hasReviewed === true) setHasReviewed(true)
     setQuestions(q.questions ?? [])
     setQuestionsTotal(Number(q.total ?? 0))
+    setQuestionsPage(1)
   }, [api])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    void loadSummary()
+  }, [loadSummary])
+
+  const loadReviewsPage = useCallback(async (page: number, append: boolean) => {
+    setListBusy(true)
+    try {
+      const r = await fetch(`${api}/reviews?page=${page}&pageSize=${MODAL_PAGE_SIZE}`, {
+        credentials: 'same-origin',
+      }).then((x) => x.json())
+      const rows = (r.reviews ?? []) as ReviewRow[]
+      setReviews((prev) => (append ? [...prev, ...rows] : rows))
+      setReviewsTotal(Number(r.total ?? 0))
+      setReviewsPage(page)
+      if (r.hasReviewed === true) setHasReviewed(true)
+    } finally {
+      setListBusy(false)
+    }
+  }, [api])
+
+  const loadQuestionsPage = useCallback(async (page: number, append: boolean) => {
+    setListBusy(true)
+    try {
+      const q = await fetch(`${api}/questions?page=${page}&pageSize=${MODAL_PAGE_SIZE}`, {
+        credentials: 'same-origin',
+      }).then((x) => x.json())
+      const rows = (q.questions ?? []) as QuestionRow[]
+      setQuestions((prev) => (append ? [...prev, ...rows] : rows))
+      setQuestionsTotal(Number(q.total ?? 0))
+      setQuestionsPage(page)
+    } finally {
+      setListBusy(false)
+    }
+  }, [api])
+
+  useEffect(() => {
+    if (modal === 'reviews' || modal === 'write') void loadReviewsPage(1, false)
+    if (modal === 'qa') void loadQuestionsPage(1, false)
+  }, [modal, loadQuestionsPage, loadReviewsPage])
 
   useEffect(() => {
     const applyHash = () => {
@@ -196,7 +243,7 @@ export function PartnerSiteProductReviewsQa({
       setReviewBody('')
       setHasReviewed(true)
       setModal('reviews')
-      await load()
+      await loadReviewsPage(1, false)
     }
   }
 
@@ -217,7 +264,7 @@ export function PartnerSiteProductReviewsQa({
     }
     if (j?.ok) {
       setQaBody('')
-      await load()
+      await loadQuestionsPage(1, false)
     }
   }
 
@@ -245,14 +292,22 @@ export function PartnerSiteProductReviewsQa({
     }
     if (j?.ok) {
       setAnswerDrafts((p) => ({ ...p, [qid]: '' }))
-      await load()
+      await loadQuestionsPage(1, false)
     }
   }
 
   function strip() {
     return (
       <div className="pw-pdp-rq-strip">
-        {productImage ? <img src={productImage} alt="" /> : null}
+        {productImage ? (
+          <img
+            src={shopCardDisplaySrc(productImage) || productImage}
+            data-pw-full-src={shopPdpDisplaySrc(productImage) || undefined}
+            alt=""
+            loading="lazy"
+            decoding="async"
+          />
+        ) : null}
         <div>
           <strong>{productName}</strong>
           {productPrice ? <p className="pw-shop-price" style={{ margin: 0 }}>{productPrice}</p> : null}
@@ -283,7 +338,15 @@ export function PartnerSiteProductReviewsQa({
         {r.imageUrls?.length ? (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {r.imageUrls.map((u) => (
-              <img key={u} src={u} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8 }} />
+              <img
+                key={u}
+                src={shopCardDisplaySrc(u) || u}
+                data-pw-full-src={shopPdpDisplaySrc(u) || undefined}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8 }}
+              />
             ))}
           </div>
         ) : null}
@@ -450,6 +513,16 @@ export function PartnerSiteProductReviewsQa({
               </div>
             ) : null}
             <div className="pw-pdp-rq-list">{reviews.map(reviewBlock)}</div>
+            {reviews.length < reviewsTotal ? (
+              <button
+                type="button"
+                className="pw-shop-btn pw-shop-btn-outline"
+                disabled={listBusy}
+                onClick={() => void loadReviewsPage(reviewsPage + 1, true)}
+              >
+                {t.loadMore}
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -478,6 +551,16 @@ export function PartnerSiteProductReviewsQa({
             )}
             {msg ? <p>{msg}</p> : null}
             <div className="pw-pdp-rq-list">{questions.map(questionBlock)}</div>
+            {questions.length < questionsTotal ? (
+              <button
+                type="button"
+                className="pw-shop-btn pw-shop-btn-outline"
+                disabled={listBusy}
+                onClick={() => void loadQuestionsPage(questionsPage + 1, true)}
+              >
+                {t.loadMore}
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}

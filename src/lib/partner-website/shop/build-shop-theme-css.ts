@@ -12,6 +12,7 @@ import { PW_SCENE_HEAD_Z, PW_SCENE_TOPBAR_Z } from '@/lib/partner-website/visual
 import { PW_CART_ADDED_MODAL_CSS } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
 import { PW_BIRTH_GENDER_PROMPT_CSS } from '@/lib/partner-website/shop/partner-site-birth-gender-prompt'
 import { PW_PRODUCT_VARIANT_MODAL_CSS } from '@/lib/partner-website/shop/partner-site-product-variant-modal'
+import { PW_SITE_SALE_CARD_CSS } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { PARTNER_CATEGORY_MEGA_LAYOUT_CSS } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
 import {
   PW_CHROME_BTN_MIN_H,
@@ -781,7 +782,10 @@ ${PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS}
 ${PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS}
 ${PW_RELATED_CSS}
 ${PW_OUTFIT_CSS}
-${PW_LISTING_HEAD_CSS}`
+${PW_LISTING_HEAD_CSS}
+${PW_SITE_SALE_CARD_CSS}
+.pw-shop-cart-teaser{color:#b45309;font-size:12px;font-weight:600}
+.pw-shop-cart-teaser strong{font-weight:800}`
 }
 
 export const PARTNER_SHOP_THEME_STYLE_ID = 'pw-shop-theme-css'

@@ -103,19 +103,51 @@ export function sniffImageContentType(buf: Buffer): string | null {
   return null
 }
 
-export async function fetchImageWith1688Bypass(url: string): Promise<Buffer> {
+async function readImageResponseBuffer(
+  response: Response,
+  maxBytes: number
+): Promise<Buffer> {
+  const declared = Number(response.headers.get('content-length') || 0)
+  if (declared > maxBytes) throw new Error(`Ảnh vượt giới hạn ${maxBytes} bytes`)
+  if (!response.body) {
+    const buf = Buffer.from(await response.arrayBuffer())
+    if (buf.length > maxBytes) throw new Error(`Ảnh vượt giới hạn ${maxBytes} bytes`)
+    return buf
+  }
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (!value?.length) continue
+    total += value.length
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined)
+      throw new Error(`Ảnh vượt giới hạn ${maxBytes} bytes`)
+    }
+    chunks.push(value)
+  }
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), total)
+}
+
+export async function fetchImageWith1688Bypass(
+  url: string,
+  opts?: { maxBytes?: number; timeoutMs?: number }
+): Promise<Buffer> {
+  const maxBytes = Math.max(32, Math.floor(opts?.maxBytes ?? 25 * 1024 * 1024))
+  const timeoutMs = Math.max(1_000, Math.floor(opts?.timeoutMs ?? 45_000))
   const headers: Record<string, string> = { ...browserLikeImageFetchHeaders }
   if (is1688Url(url)) Object.assign(headers, fetch1688Headers)
 
   const res = await fetch(url, {
-    signal: AbortSignal.timeout(45000),
+    signal: AbortSignal.timeout(timeoutMs),
     redirect: 'follow',
     headers,
   })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const blob = await res.blob()
-  const contentType = (blob.type || '').toLowerCase()
-  const buf = Buffer.from(await blob.arrayBuffer())
+  const contentType = (res.headers.get('content-type') || '').toLowerCase()
+  const buf = await readImageResponseBuffer(res, maxBytes)
 
   if (contentType.startsWith('image/') || isImageBuffer(buf)) return buf
 
@@ -127,12 +159,12 @@ export async function fetchImageWith1688Bypass(url: string): Promise<Buffer> {
     if (imgMatch) {
       const imgUrl = imgMatch.replace(/&amp;/g, '&')
       const imgRes = await fetch(imgUrl, {
-        signal: AbortSignal.timeout(45000),
+        signal: AbortSignal.timeout(timeoutMs),
         redirect: 'follow',
         headers: is1688Url(imgUrl) ? { ...headers, ...fetch1688Headers } : headers,
       })
       if (!imgRes.ok) throw new Error(`HTTP ${imgRes.status} khi tải ảnh từ trang`)
-      const imgBuf = Buffer.from(await imgRes.arrayBuffer())
+      const imgBuf = await readImageResponseBuffer(imgRes, maxBytes)
       if (!isImageBuffer(imgBuf)) throw new Error('Trang không chứa ảnh hợp lệ')
       return imgBuf
     }

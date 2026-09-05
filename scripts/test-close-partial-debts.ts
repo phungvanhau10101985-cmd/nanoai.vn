@@ -60,6 +60,24 @@ async function main() {
     }),
     false
   )
+  assert.equal(
+    isPartnerFlashSaleActive({
+      priceAmount: 200000,
+      salePriceAmount: 0,
+      saleStartsAt: null,
+      saleEndsAt: null,
+    }),
+    false
+  )
+  assert.equal(
+    resolvePartnerEffectiveUnitPrice({
+      priceAmount: 200000,
+      salePriceAmount: 0,
+      saleStartsAt: null,
+      saleEndsAt: null,
+    }),
+    200000
+  )
   console.log('OK W1.4 flash sale helpers')
 
   if (isPgConfigured()) {

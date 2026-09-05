@@ -1,9 +1,9 @@
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import {
-  fetchPartnerInventoryRowsByIdsInOrderFromPg,
-  type MessagingPartnerInventoryRow,
+  fetchPartnerInventoryCardsByIdsInOrderFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
+import type { PartnerInventoryShopCardRow } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { fetchPartnerCategoriesFlatFromPg } from '@/lib/db/messaging-partner-categories-pg'
 import { inferApparelGenderFromName } from '@/lib/partner-website/shop/partner-site-home-recommendation-mix'
 import { mergeSearchQueries } from '@/lib/partner-website/shop/partner-site-search-history'
@@ -96,7 +96,7 @@ export async function fetchActiveInventoryByShopKeysFromPg(input: {
   partnerId: string
   shopKeys: string[]
   limit?: number
-}): Promise<MessagingPartnerInventoryRow[]> {
+}): Promise<PartnerInventoryShopCardRow[]> {
   const keys = [...new Set(input.shopKeys.map((k) => k.trim().toLowerCase()).filter(Boolean))]
   if (!isPgConfigured() || !keys.length) return []
   const lim = Math.max(1, Math.min(1500, Math.floor(Number(input.limit) || 400)))
@@ -122,7 +122,7 @@ export async function fetchActiveInventoryByShopKeysFromPg(input: {
       [input.partnerId, keys, lim]
     )
     return (
-      (await fetchPartnerInventoryRowsByIdsInOrderFromPg(
+      (await fetchPartnerInventoryCardsByIdsInOrderFromPg(
         input.partnerId,
         rows.map((row) => row.id)
       )) ?? []

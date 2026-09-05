@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
+import { fetchImageWith1688Bypass, sniffImageContentType } from '@/lib/fetch-image-1688'
+
+const STOREFRONT_IMAGE_MAX_BYTES = 12 * 1024 * 1024
+const STOREFRONT_IMAGE_TIMEOUT_MS = 20_000
 
 /**
  * API proxy tải ảnh từ URL (vượt chặn 1688/alibaba).
@@ -12,13 +15,19 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const buf = await fetchImageWith1688Bypass(url)
+    const buf = await fetchImageWith1688Bypass(url, {
+      maxBytes: STOREFRONT_IMAGE_MAX_BYTES,
+      timeoutMs: STOREFRONT_IMAGE_TIMEOUT_MS,
+    })
     const ext = url.match(/\.(jpe?g|png|gif|webp)/i)?.[1]?.toLowerCase() || 'png'
-    const contentType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`
+    const contentType =
+      sniffImageContentType(buf) ||
+      (ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`)
     return new NextResponse(new Uint8Array(buf), {
       headers: {
         'Content-Type': contentType,
-        'Cache-Control': 'private, max-age=3600',
+        'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+        'X-Content-Type-Options': 'nosniff',
       },
     })
   } catch (e) {

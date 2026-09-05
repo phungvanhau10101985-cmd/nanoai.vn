@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchPartnerInventoryPageByTextSearchFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchPartnerInventoryCardPageByTextSearchFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { fetchPartnerCategoriesFlatFromPg } from '@/lib/db/messaging-partner-categories-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { matchInventoryForPublicTextSearchApi } from '@/lib/messaging/partner-inventory-text-embedding'
@@ -7,7 +7,7 @@ import {
   getPartnerPublicInventorySearchDefaultLimit,
   PARTNER_PUBLIC_INVENTORY_SEARCH_MAX,
 } from '@/lib/messaging/partner-public-search-limits'
-import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { inventoryCardRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
   partnerSiteCategoryPath,
@@ -134,7 +134,7 @@ async function handleTextSearch(
   }
 
   const page = words.length
-    ? await fetchPartnerInventoryPageByTextSearchFromPg(shop.partnerId, {
+    ? await fetchPartnerInventoryCardPageByTextSearchFromPg(shop.partnerId, {
         offset: 0,
         limit,
         q,
@@ -148,7 +148,7 @@ async function handleTextSearch(
 
   if (page.count > 0) {
     const products = page.rows
-      .map((row) => inventoryRowToShopProduct(shop.site.siteSlug, row))
+      .map((row) => inventoryCardRowToShopProduct(shop.site.siteSlug, row))
       .filter((p): p is NonNullable<typeof p> => Boolean(p))
       .map((p) => ({
         id: p.id,

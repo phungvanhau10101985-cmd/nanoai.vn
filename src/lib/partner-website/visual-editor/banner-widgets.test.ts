@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { parseHTML } from 'linkedom'
 import {
   bannerWidgetLabel,
   buildVisualEditorBannerHtml,
   isVisualEditorBannerKind,
+  restoreMarketingBannerSeedsInDocument,
 } from '@/lib/partner-website/visual-editor/banner-widgets'
 import {
   PARTNER_SHOP_BANNER_LIVE_MATCH_CSS,
@@ -13,6 +15,8 @@ import {
 test('recognizes banner kinds', () => {
   assert.equal(isVisualEditorBannerKind('hero'), true)
   assert.equal(isVisualEditorBannerKind('slider'), true)
+  assert.equal(isVisualEditorBannerKind('birthday'), true)
+  assert.equal(isVisualEditorBannerKind('sale-calendar'), true)
   assert.equal(isVisualEditorBannerKind('catalog'), false)
 })
 
@@ -68,6 +72,40 @@ test('live CSS paints added banner from theme tokens', () => {
   assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /::after\{display:none/)
   assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /data-pw-banner-wash/)
   assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /img\[data-pw-el="media"\]/)
+})
+
+test('stamps birthday and sale-calendar personalize banners', () => {
+  const birthday = buildVisualEditorBannerHtml({ kind: 'birthday', siteSlug: 'demo-shop', locale: 'vi' })
+  assert.match(birthday, /data-pw-region="banner"/)
+  assert.match(birthday, /data-pw-personalize-banner="birthday"/)
+  assert.match(birthday, /data-pw-banner-kind="birthday"/)
+  assert.match(birthday, /data-pw-el="media"/)
+  assert.match(birthday, /aspect-ratio:21\/9/)
+  assert.match(birthday, /var\(--pw-primary\)/)
+  assert.doesNotMatch(birthday, /#f97316|#ea580c|#fff7ed/)
+  assert.equal(bannerWidgetLabel('birthday', 'vi'), 'Banner chúc mừng SN')
+
+  const sale = buildVisualEditorBannerHtml({ kind: 'sale-calendar', siteSlug: 'demo-shop', locale: 'vi' })
+  assert.match(sale, /data-pw-personalize-banner="sale-calendar"/)
+  assert.match(sale, /data-pw-banner-kind="sale-calendar"/)
+  assert.equal(bannerWidgetLabel('sale-calendar', 'vi'), 'Banner sale cùng ngày cùng tháng')
+})
+
+test('save restores marketing banner seed image and drops live greeting', () => {
+  const { document } = parseHTML(
+    '<section data-pw-personalize-banner="sale-calendar" data-pw-seed-src="data:image/svg+xml,seed" data-pw-seed-title="Sale cùng ngày cùng tháng" data-pw-banner-live="1">' +
+      '<img data-pw-el="media" src="https://cdn.example/sale.png"/>' +
+      '<h1 data-pw-el="title">Live title</h1>' +
+      '</section>' +
+      '<p data-pw-banner-greeting="1">Hello</p>'
+  )
+  restoreMarketingBannerSeedsInDocument(document)
+  const section = document.querySelector('[data-pw-personalize-banner]')
+  const img = document.querySelector('img[data-pw-el="media"]')
+  assert.equal(img?.getAttribute('src'), 'data:image/svg+xml,seed')
+  assert.equal(section?.querySelector('[data-pw-el="title"]')?.textContent, 'Sale cùng ngày cùng tháng')
+  assert.equal(section?.hasAttribute('data-pw-banner-live'), false)
+  assert.equal(document.querySelector('[data-pw-banner-greeting]'), null)
 })
 
 test('live banner CSS keeps Sửa nhanh CTA row when desktop is stamped', () => {

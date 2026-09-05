@@ -15,12 +15,21 @@ import {
   pwRegionAttr,
 } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
-export const VISUAL_EDITOR_BANNER_KINDS = ['hero', 'slider'] as const
+export const VISUAL_EDITOR_BANNER_KINDS = ['hero', 'slider', 'birthday', 'sale-calendar'] as const
 
 export type VisualEditorBannerKind = (typeof VISUAL_EDITOR_BANNER_KINDS)[number]
 
+export const VISUAL_EDITOR_PICKER_LIVE_BANNER_KINDS = ['birthday', 'sale-calendar'] as const
+
 export function isVisualEditorBannerKind(value: string): value is VisualEditorBannerKind {
   return (VISUAL_EDITOR_BANNER_KINDS as readonly string[]).includes(value)
+}
+
+export function personalizeBannerKindOf(
+  kind: VisualEditorBannerKind
+): 'birthday' | 'sale-calendar' | null {
+  if (kind === 'birthday' || kind === 'sale-calendar') return kind
+  return null
 }
 
 const COPY: Record<
@@ -101,6 +110,80 @@ const COPY: Record<
       ctaSecondary: '더 보기',
     },
   },
+  birthday: {
+    vi: {
+      badge: 'Sinh nhật',
+      title: 'Chúc mừng sinh nhật',
+      subtitle: 'Quà giảm giá dành riêng cho bạn',
+      cta: 'Nhận quà',
+      ctaSecondary: 'Xem thêm',
+    },
+    en: {
+      badge: 'Birthday',
+      title: 'Happy birthday',
+      subtitle: 'A discount gift just for you',
+      cta: 'Claim gift',
+      ctaSecondary: 'See more',
+    },
+    zh: {
+      badge: '生日',
+      title: '生日快乐',
+      subtitle: '专属折扣礼物',
+      cta: '领取礼物',
+      ctaSecondary: '查看更多',
+    },
+    ja: {
+      badge: '誕生日',
+      title: 'お誕生日おめでとうございます',
+      subtitle: 'あなただけの割引ギフト',
+      cta: 'ギフトを受け取る',
+      ctaSecondary: 'もっと見る',
+    },
+    ko: {
+      badge: '생일',
+      title: '생일을 축하합니다',
+      subtitle: '회원님만을 위한 할인 선물',
+      cta: '선물 받기',
+      ctaSecondary: '더 보기',
+    },
+  },
+  'sale-calendar': {
+    vi: {
+      badge: 'Sale',
+      title: 'Sale cùng ngày cùng tháng',
+      subtitle: 'Ưu đãi đúng hẹn ngày trùng tháng',
+      cta: 'Săn deal',
+      ctaSecondary: 'Xem thêm',
+    },
+    en: {
+      badge: 'Sale',
+      title: 'Same-day same-month sale',
+      subtitle: 'On-time discount when day matches month',
+      cta: 'Shop the sale',
+      ctaSecondary: 'See more',
+    },
+    zh: {
+      badge: '促销',
+      title: '同日同月促销',
+      subtitle: '日期与月份相同即享优惠',
+      cta: '马上抢',
+      ctaSecondary: '查看更多',
+    },
+    ja: {
+      badge: 'セール',
+      title: '同日同月セール',
+      subtitle: '日と月が同じ日だけお得',
+      cta: 'セールを見る',
+      ctaSecondary: 'もっと見る',
+    },
+    ko: {
+      badge: '세일',
+      title: '같은 날짜·월 세일',
+      subtitle: '일과 월이 같은 날만 할인',
+      cta: '세일 보기',
+      ctaSecondary: '더 보기',
+    },
+  },
 }
 
 const LABEL: Record<VisualEditorBannerKind, Record<WebLocale, string>> = {
@@ -117,6 +200,20 @@ const LABEL: Record<VisualEditorBannerKind, Record<WebLocale, string>> = {
     zh: '横向横幅',
     ja: '横スライド',
     ko: '가로 배너',
+  },
+  birthday: {
+    vi: 'Banner chúc mừng SN',
+    en: 'Birthday greeting banner',
+    zh: '生日祝福横幅',
+    ja: '誕生日バナー',
+    ko: '생일 배너',
+  },
+  'sale-calendar': {
+    vi: 'Banner sale cùng ngày cùng tháng',
+    en: 'Same-day same-month sale banner',
+    zh: '同日同月促销横幅',
+    ja: '同日同月セールバナー',
+    ko: '같은 날짜·월 세일 배너',
   },
 }
 
@@ -192,6 +289,31 @@ function bannerCopyHtml(
   </div>`
 }
 
+/** Lưu Sửa nhanh: trả ảnh/chữ mẫu, bỏ ảnh AI vừa hydrate. */
+export function restoreMarketingBannerSeedsInDocument(root: ParentNode): void {
+  root.querySelectorAll('[data-pw-personalize-banner]').forEach((section) => {
+    const src = section.getAttribute('data-pw-seed-src')
+    const title = section.getAttribute('data-pw-seed-title')
+    const subtitle = section.getAttribute('data-pw-seed-subtitle')
+    const img = section.querySelector('img[data-pw-el="media"]')
+    if (src != null && img) {
+      if (src) img.setAttribute('src', src)
+      else img.removeAttribute('src')
+    }
+    const titleEl = section.querySelector('[data-pw-el="title"]')
+    if (title != null && titleEl) titleEl.textContent = title
+    const subEl = section.querySelector('[data-pw-el="subtitle"]')
+    if (subtitle != null && subEl) subEl.textContent = subtitle
+    section.removeAttribute('data-pw-banner-live')
+    section.removeAttribute('data-pw-seed-src')
+    section.removeAttribute('data-pw-seed-title')
+    section.removeAttribute('data-pw-seed-subtitle')
+    section.querySelectorAll('[data-pw-banner-greeting]').forEach((el) => el.remove())
+    const sibling = section.nextElementSibling
+    if (sibling?.getAttribute('data-pw-banner-greeting') === '1') sibling.remove()
+  })
+}
+
 /** In-flow banner section for Sửa nhanh «Thêm». Packaged: media + copy + CTAs + dots. */
 export function buildVisualEditorBannerHtml(input: {
   kind?: VisualEditorBannerKind
@@ -208,6 +330,15 @@ export function buildVisualEditorBannerHtml(input: {
   if (kind === 'slider') {
     return `<section class="pw-hero pw-banner" ${pwRegionAttr(PW_REGION.banner)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="banner" data-pw-added-banner="1" data-pw-banner-kind="slider" data-pw-slider="1" data-pw-slide-wait="${PW_SLIDER_WAIT_DEFAULT}" data-pw-slide-arrows="1" data-pw-slide-index="0" data-pw-image-radius="0" style="position:relative;min-height:360px;overflow:hidden;display:flex;align-items:center;background:linear-gradient(135deg,var(--pw-primary),var(--pw-accent));color:#fff;border-radius:0">
   ${buildSliderSlidesHtml(3)}
+  ${overlay}
+  ${bannerCopyHtml(copy, productsHref, false)}
+</section>`
+  }
+
+  const liveKind = personalizeBannerKindOf(kind)
+  if (liveKind) {
+    return `<section class="pw-hero pw-banner" ${pwRegionAttr(PW_REGION.banner)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="banner" data-pw-added-banner="1" data-pw-banner-kind="${liveKind}" data-pw-personalize-banner="${liveKind}" data-pw-image-radius="0" style="position:relative;aspect-ratio:21/9;overflow:hidden;display:flex;align-items:center;background:linear-gradient(135deg,var(--pw-primary),var(--pw-accent));color:#fff;border-radius:0">
+  <img class="pw-hero-media" ${pwElAttr(PW_EL.media)} ${editAttr(PW_EDIT_SLOT.heroImage)} data-pw-banner-placeholder="1" alt="" width="2100" height="900" src="${BANNER_PLACEHOLDER_SRC}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain"/>
   ${overlay}
   ${bannerCopyHtml(copy, productsHref, false)}
 </section>`

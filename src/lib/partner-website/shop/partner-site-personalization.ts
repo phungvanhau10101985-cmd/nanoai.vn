@@ -6,10 +6,11 @@ import {
   MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE,
 } from '@/lib/messaging/guest-account-session'
 import {
-  fetchPartnerInventoryRowsByIdsInOrderFromPg,
+  fetchPartnerInventoryCardsByIdsInOrderFromPg,
   incrementPartnerInventoryLikesCountFromPg,
   type MessagingPartnerInventoryRow,
 } from '@/lib/db/messaging-partner-inventory-pg'
+import type { PartnerInventoryShopCardRow } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import {
   appendPartnerVisitorEventInventoryIdsFromPg,
   clearPartnerVisitorRecentlyViewedFromPg,
@@ -53,6 +54,14 @@ import { normalizeShopImageUrl } from '@/lib/partner-website/shop/inventory-shop
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { mergePartnerVisitorPersonalizationFromPg } from '@/lib/db/messaging-partner-recommendation-pg'
 import { getSiteHomeRecommendationBlock } from '@/lib/partner-website/shop/partner-site-home-recommendation'
+import {
+  applyPartnerSiteSaleToShopProduct,
+  type PartnerSiteSalePricing,
+} from '@/lib/partner-website/promotions/partner-site-sale-display'
+import {
+  loadPartnerSiteSaleOverlay,
+  type PartnerSiteSaleOverlay,
+} from '@/lib/partner-website/promotions/partner-site-sale-attach'
 
 export type PartnerSitePersonalizationProduct = {
   inventory_id: string
@@ -62,6 +71,15 @@ export type PartnerSitePersonalizationProduct = {
   product_url: string
   detail_path: string
   sku: string | null
+  priceAmount?: number | null
+  salePriceAmount?: number | null
+  saleStartsAt?: string | null
+  saleEndsAt?: string | null
+  isClearance?: boolean
+  siteSalePhase?: 'off' | 'teaser' | 'active'
+  siteSalePercent?: number
+  siteSaleExpectedPrice?: number | null
+  siteSale?: PartnerSiteSalePricing | null
 }
 
 export type PartnerSiteVisitorProfile = {
@@ -160,9 +178,22 @@ export function parsePersonalizationUtm(raw: unknown): PartnerVisitorUtmContext 
   }
 }
 
+function numberOrNull(value: unknown): number | null {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+function isoOrNull(value: unknown): string | null {
+  if (!value) return null
+  if (value instanceof Date) return value.toISOString()
+  const text = String(value).trim()
+  return text || null
+}
+
 export function mapInventoryRowToPersonalizationProduct(
   siteSlug: string,
-  row: MessagingPartnerInventoryRow
+  row: MessagingPartnerInventoryRow | PartnerInventoryShopCardRow,
+  overlay?: PartnerSiteSaleOverlay | null
 ): PartnerSitePersonalizationProduct | null {
   const imageUrl = normalizeShopImageUrl(row.image_url)
   if (!imageUrl) return null
@@ -171,6 +202,43 @@ export function mapInventoryRowToPersonalizationProduct(
   const productUrl = /^https?:\/\//i.test(rawProductUrl)
     ? rawProductUrl
     : `https://shop.local${detailPath}`
+  const priced: Pick<
+    PartnerSitePersonalizationProduct,
+    | 'priceAmount'
+    | 'salePriceAmount'
+    | 'saleStartsAt'
+    | 'saleEndsAt'
+    | 'isClearance'
+    | 'siteSalePhase'
+    | 'siteSalePercent'
+    | 'siteSaleExpectedPrice'
+    | 'siteSale'
+  > = overlay
+    ? applyPartnerSiteSaleToShopProduct(
+        {
+          priceAmount: numberOrNull(row.price_amount),
+          salePriceAmount: numberOrNull(row.sale_price_amount),
+          saleStartsAt: isoOrNull(row.sale_starts_at),
+          saleEndsAt: isoOrNull(row.sale_ends_at),
+          isClearance: row.is_clearance === true,
+        },
+        overlay.state,
+        {
+          clearanceEnabled: overlay.clearanceEnabled,
+          clearancePercent: overlay.clearancePercent,
+        }
+      )
+    : {
+        priceAmount: numberOrNull(row.price_amount),
+        salePriceAmount: numberOrNull(row.sale_price_amount),
+        saleStartsAt: isoOrNull(row.sale_starts_at),
+        saleEndsAt: isoOrNull(row.sale_ends_at),
+        isClearance: row.is_clearance === true,
+        siteSalePhase: undefined,
+        siteSalePercent: undefined,
+        siteSaleExpectedPrice: undefined,
+        siteSale: undefined,
+      }
   return {
     inventory_id: row.id,
     name: (row.name ?? '').trim() || 'Product',
@@ -179,6 +247,15 @@ export function mapInventoryRowToPersonalizationProduct(
     product_url: productUrl,
     detail_path: detailPath,
     sku: (row.sku ?? '').trim() || null,
+    priceAmount: priced.priceAmount,
+    salePriceAmount: priced.salePriceAmount,
+    saleStartsAt: priced.saleStartsAt,
+    saleEndsAt: priced.saleEndsAt,
+    isClearance: priced.isClearance,
+    siteSalePhase: priced.siteSalePhase,
+    siteSalePercent: priced.siteSalePercent,
+    siteSaleExpectedPrice: priced.siteSaleExpectedPrice,
+    siteSale: priced.siteSale,
   }
 }
 
@@ -189,13 +266,14 @@ async function loadProductsByIds(
 ): Promise<PartnerSitePersonalizationProduct[]> {
   const clean = ids.filter((id) => UUID_RE.test(id))
   if (!clean.length) return []
-  const rows = (await fetchPartnerInventoryRowsByIdsInOrderFromPg(partnerId, clean)) ?? []
+  const rows = (await fetchPartnerInventoryCardsByIdsInOrderFromPg(partnerId, clean)) ?? []
+  const overlay = await loadPartnerSiteSaleOverlay(partnerId).catch(() => null)
   const byId = new Map(rows.map((row) => [row.id, row]))
   const out: PartnerSitePersonalizationProduct[] = []
   for (const id of clean) {
     const row = byId.get(id)
     if (!row) continue
-    const mapped = mapInventoryRowToPersonalizationProduct(siteSlug, row)
+    const mapped = mapInventoryRowToPersonalizationProduct(siteSlug, row, overlay)
     if (mapped) out.push(mapped)
   }
   return out

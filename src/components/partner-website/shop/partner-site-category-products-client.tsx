@@ -23,6 +23,10 @@ import {
   trackPartnerSiteViewItemList,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import {
+  PartnerSiteSaleMediaMarks,
+  PartnerSiteSalePriceBlock,
+} from '@/components/partner-website/shop/partner-site-sale-face'
 import { PW_LISTING_FILTER_SLOT_ATTR } from '@/lib/partner-website/shop/listing-head'
 
 type Props = {
@@ -94,6 +98,7 @@ export function PartnerSiteCategoryProductsClient({
   const [facetSizes, setFacetSizes] = useState(initialFacets?.sizes ?? [])
   const [facetColors, setFacetColors] = useState(initialFacets?.colors ?? [])
   const [facetStyleTags, setFacetStyleTags] = useState(initialFacets?.styleTags ?? [])
+  const hasInitialFacets = initialFacets !== undefined
 
   useEffect(() => {
     setMinLocal(listing.minPrice != null ? String(listing.minPrice) : '')
@@ -147,6 +152,7 @@ export function PartnerSiteCategoryProductsClient({
     let cancelled = false
     if (skippedRef.current) {
       skippedRef.current = false
+      if (hasInitialFacets) return
       void fetch(`${partnerSiteProductsApiPath(siteSlug)}?${params.toString()}`, { cache: 'no-store' })
         .then((res) => res.json())
         .then((json: { facets?: { sizes?: Array<{ value: string; count: number }>; colors?: Array<{ value: string; count: number }>; styleTags?: Array<{ value: string; count: number }> } }) => {
@@ -184,7 +190,7 @@ export function PartnerSiteCategoryProductsClient({
     return () => {
       cancelled = true
     }
-  }, [categoryId, isTextSearch, listing.color, listing.maxPrice, listing.minPrice, listing.page, listing.randomSeed, listing.size, listing.sort, listing.styleTag, searchQuery, siteSlug])
+  }, [categoryId, hasInitialFacets, isTextSearch, listing.color, listing.maxPrice, listing.minPrice, listing.page, listing.randomSeed, listing.size, listing.sort, listing.styleTag, searchQuery, siteSlug])
 
   const applyPrice = useCallback(() => {
     const min = minLocal.trim() ? Math.max(0, Number(minLocal)) : null
@@ -209,7 +215,7 @@ export function PartnerSiteCategoryProductsClient({
   const pageCount = partnerCategoryListingPageCount(total)
   const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null)
   useLayoutEffect(() => {
-    const find = () => document.querySelector(`[${PW_LISTING_FILTER_SLOT_ATTR}]`)
+    const find = () => document.querySelector<HTMLElement>(`[${PW_LISTING_FILTER_SLOT_ATTR}]`)
     setFilterSlot(find())
     if (find()) return
     const id = window.requestAnimationFrame(() => setFilterSlot(find()))
@@ -371,14 +377,15 @@ export function PartnerSiteCategoryProductsClient({
           <div className="pw-shop-grid" data-pw-el={PW_EL.grid} data-pw-grid>
             {products.map((p) => (
               <article key={p.id} className="pw-shop-card" data-pw-el={PW_EL.card}>
-                <Link href={p.detailPath} data-pw-el={PW_EL.cardMedia}>
+                <Link href={p.detailPath} data-pw-el={PW_EL.cardMedia} style={{ position: 'relative', display: 'block' }}>
+                  <PartnerSiteSaleMediaMarks product={p} locale={locale} />
                   <img src={p.imageUrl} alt={p.name} loading="lazy" />
                 </Link>
                 <div className="pw-shop-card-body">
                   <Link href={p.detailPath}>
                     <h3 data-pw-el={PW_EL.cardName}>{p.name}</h3>
                   </Link>
-                  {p.priceHint ? <p className="pw-shop-price" data-pw-el={PW_EL.cardPrice}>{p.priceHint}</p> : null}
+                  <PartnerSiteSalePriceBlock product={p} locale={locale} fallback={p.priceHint} />
                   <Link href={p.detailPath} className="pw-shop-btn" style={{ marginTop: 12 }} data-pw-el={PW_EL.cardBuy}>
                     {t.productDetail}
                   </Link>

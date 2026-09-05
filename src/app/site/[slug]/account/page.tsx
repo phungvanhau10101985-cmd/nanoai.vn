@@ -1,6 +1,5 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
@@ -15,10 +14,11 @@ type Props = { params: Promise<{ slug: string }>; searchParams?: PartnerSiteSear
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const site = await fetchPublishedPartnerWebsiteBySlugPg(slug, { allowDraft: true }).catch(() => null)
-  if (!site) {
+  const shop = await loadPartnerSiteShopContext(slug).catch(() => null)
+  if (!shop) {
     return buildMetadata({ title: 'Account', description: 'Account', path: `/site/${slug}/account`, noIndex: true })
   }
+  const site = shop.site
   return buildPartnerSiteMetadata({
     siteSlug: site.siteSlug,
     siteName: site.title,
@@ -34,15 +34,14 @@ export const dynamic = 'force-dynamic'
 /** Account always uses React auth shell — never frozen visual HTML (login form must work). */
 export default async function PartnerSiteAccountPage({ params, searchParams }: Props) {
   const { slug } = await params
-  const site = await fetchPublishedPartnerWebsiteBySlugPg(slug, { allowDraft: true }).catch(() => null)
-  if (!site) notFound()
-
   const shop = await loadPartnerSiteShopContext(slug)
+  if (!shop) notFound()
+  const site = shop.site
   const device = await readVisualPreviewDevice(searchParams)
-  const partnerSlug = shop?.partnerSlug ?? site.partnerSlug
+  const partnerSlug = shop.partnerSlug
   if (!partnerSlug.trim()) notFound()
 
-  const shellSite = shop?.site ?? site
+  const shellSite = site
 
   return (
     <PartnerSiteShopShell

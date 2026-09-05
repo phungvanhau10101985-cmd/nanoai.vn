@@ -6,6 +6,7 @@ import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-heade
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { loadPartnerSiteSaleOverlay, withPartnerSiteSale } from '@/lib/partner-website/promotions/partner-site-sale-attach'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopProductClient } from '@/components/partner-website/shop/partner-site-shop-product-client'
@@ -75,7 +76,11 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
   if (!shop) notFound()
 
   const row = await resolvePartnerShopProductByKey(shop.partnerId, inventoryId)
-  const product = row ? inventoryRowToShopProduct(shop.site.siteSlug, row, { pdp: true }) : null
+  const overlay = await loadPartnerSiteSaleOverlay(shop.partnerId).catch(() => null)
+  const mapped = row ? inventoryRowToShopProduct(shop.site.siteSlug, row, { pdp: true }) : null
+  const product = row && mapped
+    ? withPartnerSiteSale({ ...mapped, isClearance: row.is_clearance === true }, overlay)
+    : null
   if (!row || !product) notFound()
 
   const canonicalKey = buildPartnerSiteProductKey(row.name, row.id)

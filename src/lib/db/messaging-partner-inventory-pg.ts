@@ -13,6 +13,7 @@ import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-ke
 import { PARTNER_PUBLIC_INVENTORY_SEARCH_MAX } from '@/lib/messaging/partner-public-search-limits'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
 import type { InventoryCatalog188Fields } from '@/lib/messaging/partner-inventory-catalog-188'
+import type { PartnerInventoryShopCardRow } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import {
   escapeIlikeToken,
   PARTNER_TEXT_SEARCH_DOCUMENT_SQL,
@@ -121,6 +122,8 @@ function isMissingCatalog188ColumnError(e: unknown): boolean {
       msg.includes('catalog_slug') ||
       msg.includes('product_info_json') ||
       msg.includes('features_json') ||
+      msg.includes('rating_group_id') ||
+      msg.includes('question_group_id') ||
       msg.includes('mpi.style') ||
       msg.includes('.style'))
   )
@@ -376,6 +379,143 @@ function mapPgInventoryRow(r: PgInventoryRaw): MessagingPartnerInventoryRow {
     question_group_id: numOrNull(r.question_group_id),
     created_at: tsIsoReq(r.created_at),
     updated_at: tsIsoReq(r.updated_at),
+  }
+}
+
+type PgInventoryCardRaw = {
+  id: string
+  partner_id: string
+  sort_order: number | string | null
+  sku: string | null
+  name: string | null
+  stock_qty: number | string | null
+  price_hint: string | null
+  image_url: string | null
+  product_url: string | null
+  remarketing_id: string | null
+  is_active: boolean | null
+  is_clearance: boolean | null
+  price_amount: number | string | null
+  price_currency: string | null
+  sale_price_amount: number | string | null
+  sale_starts_at: unknown
+  sale_ends_at: unknown
+  category_l1: string | null
+  category_l2: string | null
+  category_l3: string | null
+  likes_count: number | string | null
+  purchases_count: number | string | null
+  reviews_count: number | string | null
+  questions_count: number | string | null
+  rating_score: number | string | null
+  created_at: unknown
+  updated_at: unknown
+}
+
+function mapPgInventoryCardRow(r: PgInventoryCardRaw): PartnerInventoryShopCardRow {
+  return {
+    id: String(r.id),
+    partner_id: String(r.partner_id),
+    sort_order: num(r.sort_order, 0),
+    sku: r.sku == null ? null : String(r.sku),
+    name: String(r.name ?? ''),
+    stock_qty: num(r.stock_qty, 0),
+    price_hint: String(r.price_hint ?? ''),
+    image_url: String(r.image_url ?? ''),
+    product_url: String(r.product_url ?? ''),
+    remarketing_id: String(r.remarketing_id ?? ''),
+    is_active: r.is_active !== false,
+    is_clearance: r.is_clearance === true,
+    price_amount: numOrNull(r.price_amount),
+    price_currency: String(r.price_currency ?? 'VND').trim() || 'VND',
+    sale_price_amount: numOrNull(r.sale_price_amount),
+    sale_starts_at: tsIso(r.sale_starts_at),
+    sale_ends_at: tsIso(r.sale_ends_at),
+    category_l1: r.category_l1 == null ? null : String(r.category_l1),
+    category_l2: r.category_l2 == null ? null : String(r.category_l2),
+    category_l3: r.category_l3 == null ? null : String(r.category_l3),
+    likes_count: num(r.likes_count, 0),
+    purchases_count: num(r.purchases_count, 0),
+    reviews_count: num(r.reviews_count, 0),
+    questions_count: num(r.questions_count, 0),
+    rating_score: num(r.rating_score, 0),
+    created_at: tsIsoReq(r.created_at),
+    updated_at: tsIsoReq(r.updated_at),
+  }
+}
+
+/** Storefront cards only: no descriptions, PDP media, catalog blobs, or embeddings. */
+const INVENTORY_CARD_SELECT = `select
+  mpi.id::text as id,
+  mpi.partner_id::text as partner_id,
+  mpi.sort_order,
+  mpi.sku,
+  coalesce(mpi.name, '') as name,
+  coalesce(mpi.stock_qty, 0) as stock_qty,
+  coalesce(mpi.price_hint, '') as price_hint,
+  coalesce(mpi.image_url, '') as image_url,
+  coalesce(mpi.product_url, '') as product_url,
+  coalesce(mpi.remarketing_id, '') as remarketing_id,
+  coalesce(mpi.is_active, true) as is_active,
+  coalesce(mpi.is_clearance, false) as is_clearance,
+  mpi.price_amount,
+  coalesce(mpi.price_currency, 'VND') as price_currency,
+  mpi.sale_price_amount,
+  mpi.sale_starts_at,
+  mpi.sale_ends_at,
+  mpi.category_l1,
+  mpi.category_l2,
+  mpi.category_l3,
+  coalesce(mpi.likes_count, 0) as likes_count,
+  coalesce(mpi.purchases_count, 0) as purchases_count,
+  coalesce(mpi.reviews_count, 0) as reviews_count,
+  coalesce(mpi.questions_count, 0) as questions_count,
+  coalesce(mpi.rating_score, 0) as rating_score,
+  mpi.created_at,
+  mpi.updated_at
+from public.messaging_partner_inventory mpi`
+
+/** Old-schema fallback keeps the projection small instead of falling back to the full row SELECT. */
+const INVENTORY_CARD_SELECT_LEGACY = `select
+  mpi.id::text as id,
+  mpi.partner_id::text as partner_id,
+  mpi.sort_order,
+  mpi.sku,
+  coalesce(mpi.name, '') as name,
+  0 as stock_qty,
+  coalesce(mpi.price_hint, '') as price_hint,
+  coalesce(mpi.image_url, '') as image_url,
+  coalesce(mpi.product_url, '') as product_url,
+  ''::text as remarketing_id,
+  coalesce(mpi.is_active, true) as is_active,
+  false as is_clearance,
+  null::numeric as price_amount,
+  'VND'::text as price_currency,
+  null::numeric as sale_price_amount,
+  null::timestamptz as sale_starts_at,
+  null::timestamptz as sale_ends_at,
+  null::text as category_l1,
+  null::text as category_l2,
+  null::text as category_l3,
+  0 as likes_count,
+  0 as purchases_count,
+  0 as reviews_count,
+  0 as questions_count,
+  0 as rating_score,
+  mpi.created_at,
+  mpi.updated_at
+from public.messaging_partner_inventory mpi`
+
+async function runInventoryCardSelectWithFallback(
+  sqlFromSelect: string,
+  params: unknown[]
+): Promise<PgInventoryCardRaw[]> {
+  try {
+    return await pgQuery<PgInventoryCardRaw>(`${INVENTORY_CARD_SELECT}\n${sqlFromSelect}`, params)
+  } catch (e) {
+    const code = e && typeof e === 'object' ? String((e as { code?: string }).code ?? '') : ''
+    if (code !== '42703') throw e
+    return pgQuery<PgInventoryCardRaw>(`${INVENTORY_CARD_SELECT_LEGACY}\n${sqlFromSelect}`, params)
   }
 }
 
@@ -1044,13 +1184,52 @@ export async function fetchPartnerInventoryPageByCategoryFromPg(
     ttlSec: SHOP_LIST_TTL_SEC,
     load: () => fetchPartnerInventoryPageByCategoryFromPgUncached(partnerId, query),
   })
+  return cached as { rows: MessagingPartnerInventoryRow[]; count: number } | null
+}
+
+export async function fetchPartnerInventoryCardPageByCategoryFromPg(
+  partnerId: string,
+  query: PartnerCategoryInventoryQuery
+): Promise<{ rows: PartnerInventoryShopCardRow[]; count: number } | null> {
+  if (!isPgConfigured()) return null
+  const off = Math.max(0, Math.floor(query.offset))
+  const lim = Math.max(1, Math.min(96, Math.floor(query.limit)))
+  const categoryId = query.categoryId.trim()
+  const cached = await withInventoryShopCache({
+    partnerId,
+    kind: 'cat',
+    suffix: `card:${categoryId}:${hashShopCachePayload({
+      off,
+      lim,
+      sort: query.sort ?? 'newest',
+      minPrice: query.minPrice ?? null,
+      maxPrice: query.maxPrice ?? null,
+      size: query.size ?? '',
+      color: query.color ?? '',
+      styleTag: query.styleTag ?? '',
+      material: query.material ?? '',
+      descendants: query.includeDescendants !== false,
+      seed: query.sort === 'random' ? query.randomSeed ?? '' : '',
+    })}`,
+    ttlSec: SHOP_LIST_TTL_SEC,
+    load: () => fetchPartnerInventoryCardPageByCategoryFromPgUncached(partnerId, query),
+  })
   return cached
+}
+
+async function fetchPartnerInventoryCardPageByCategoryFromPgUncached(
+  partnerId: string,
+  query: PartnerCategoryInventoryQuery
+): Promise<{ rows: PartnerInventoryShopCardRow[]; count: number } | null> {
+  const page = await fetchPartnerInventoryPageByCategoryFromPgUncached(partnerId, query, true)
+  return page as { rows: PartnerInventoryShopCardRow[]; count: number } | null
 }
 
 async function fetchPartnerInventoryPageByCategoryFromPgUncached(
   partnerId: string,
-  query: PartnerCategoryInventoryQuery
-): Promise<{ rows: MessagingPartnerInventoryRow[]; count: number } | null> {
+  query: PartnerCategoryInventoryQuery,
+  cardProjection = false
+): Promise<{ rows: Array<MessagingPartnerInventoryRow | PartnerInventoryShopCardRow>; count: number } | null> {
   const off = Math.max(0, Math.floor(query.offset))
   const lim = Math.max(1, Math.min(96, Math.floor(query.limit)))
   const categoryId = query.categoryId.trim()
@@ -1140,13 +1319,18 @@ async function fetchPartnerInventoryPageByCategoryFromPgUncached(
     )
     const limitIdx = params.length + 1
     const offsetIdx = params.length + 2
-    const rows = await runInventoryShopSelectWithFallback(
+    const rows = await (cardProjection ? runInventoryCardSelectWithFallback : runInventoryShopSelectWithFallback)(
       `where ${where}
        order by ${orderBy}
        limit $${limitIdx} offset $${offsetIdx}`,
       [...params, lim, off]
     )
-    return { count: countRow?.c ?? 0, rows: rows.map(mapPgInventoryRow) }
+    return {
+      count: countRow?.c ?? 0,
+      rows: cardProjection
+        ? (rows as PgInventoryCardRaw[]).map(mapPgInventoryCardRow)
+        : (rows as PgInventoryRaw[]).map(mapPgInventoryRow),
+    }
   } catch (e) {
     if (isMissingInventoryTableError(e)) return { rows: [], count: 0 }
     if (styleAliases.length && isMissingCatalog188ColumnError(e)) {
@@ -1161,13 +1345,18 @@ async function fetchPartnerInventoryPageByCategoryFromPgUncached(
         )
         const limitIdx = params.length + 1
         const offsetIdx = params.length + 2
-        const rows = await runInventoryShopSelectWithFallback(
+        const rows = await (cardProjection ? runInventoryCardSelectWithFallback : runInventoryShopSelectWithFallback)(
           `where ${fallbackWhere}
            order by ${orderBy}
            limit $${limitIdx} offset $${offsetIdx}`,
           [...params, lim, off]
         )
-        return { count: countRow?.c ?? 0, rows: rows.map(mapPgInventoryRow) }
+        return {
+          count: countRow?.c ?? 0,
+          rows: cardProjection
+            ? (rows as PgInventoryCardRaw[]).map(mapPgInventoryCardRow)
+            : (rows as PgInventoryRaw[]).map(mapPgInventoryRow),
+        }
       } catch (e2) {
         if (isMissingInventoryTableError(e2)) return { rows: [], count: 0 }
         console.warn('[fetchPartnerInventoryPageByCategoryFromPg]', e2)
@@ -1255,14 +1444,10 @@ export async function fetchPartnerCategoryFacetCountsFromPg(
   try {
     type FacetRow = {
       name?: string
-      description: string
-      stock_note: string
       material_note?: string
       style?: string | null
       sizes_json?: unknown
       colors_json?: unknown
-      catalog_json?: unknown
-      product_info_json?: unknown
       features_json?: unknown
       category_l1?: string | null
       category_l2?: string | null
@@ -1272,11 +1457,8 @@ export async function fetchPartnerCategoryFacetCountsFromPg(
     try {
       rows = await pgQuery<FacetRow>(
         `select coalesce(mpi.name, '') as name,
-                coalesce(mpi.description, '') as description,
-                coalesce(mpi.stock_note, '') as stock_note,
                 coalesce(mpi.material_note, '') as material_note,
-                mpi.style, mpi.sizes_json, mpi.colors_json, mpi.catalog_json,
-                mpi.product_info_json, mpi.features_json,
+                mpi.style, mpi.sizes_json, mpi.colors_json, mpi.features_json,
                 mpi.category_l1, mpi.category_l2, mpi.category_l3
          from public.messaging_partner_inventory mpi
          where mpi.partner_id = $1::uuid
@@ -1289,8 +1471,6 @@ export async function fetchPartnerCategoryFacetCountsFromPg(
       if (!isMissingProductStudioColumnError(e) && !isMissingCatalog188ColumnError(e)) throw e
       rows = await pgQuery<FacetRow>(
         `select coalesce(mpi.name, '') as name,
-                coalesce(mpi.description, '') as description,
-                coalesce(mpi.stock_note, '') as stock_note,
                 coalesce(mpi.material_note, '') as material_note
          from public.messaging_partner_inventory mpi
          where mpi.partner_id = $1::uuid
@@ -1317,10 +1497,10 @@ export async function fetchPartnerCategoryFacetCountsFromPg(
     for (const r of rows) {
       const structuredSizes = parseSizesJsonColumn(r.sizes_json)
       const structuredColors = parseColorsJsonColumn(r.colors_json)
-      for (const s of parseInventorySizesForFacet(r.description, structuredSizes)) {
+      for (const s of parseInventorySizesForFacet('', structuredSizes)) {
         sizeMap.set(s, (sizeMap.get(s) ?? 0) + 1)
       }
-      for (const c of parseInventoryColorsForFacet(r.stock_note, structuredColors)) {
+      for (const c of parseInventoryColorsForFacet('', structuredColors)) {
         colorMap.set(c, (colorMap.get(c) ?? 0) + 1)
       }
       for (const tag of styleTagsFromProductText(
@@ -1328,12 +1508,12 @@ export async function fetchPartnerCategoryFacetCountsFromPg(
         r.style,
         r.material_note,
         r.features_json,
-        r.product_info_json,
-        r.catalog_json,
+        null,
+        null,
         r.category_l1,
         r.category_l2,
         r.category_l3,
-        r.description
+        ''
       )) {
         styleMap.set(tag, (styleMap.get(tag) ?? 0) + 1)
       }
@@ -1390,6 +1570,14 @@ export async function fetchPartnerInventoryActivePageWithCountFromPg(
   return fetchPartnerInventoryShopPageFromPg(partnerId, { offset, limit, sort: 'default' })
 }
 
+export async function fetchPartnerInventoryActiveCardPageWithCountFromPg(
+  partnerId: string,
+  offset: number,
+  limit: number
+): Promise<{ rows: PartnerInventoryShopCardRow[]; count: number } | null> {
+  return fetchPartnerInventoryShopCardPageFromPg(partnerId, { offset, limit, sort: 'default' })
+}
+
 /**
  * Shop catalog page with optional filters (search / collection / sale / ids / sort).
  */
@@ -1400,7 +1588,7 @@ export async function fetchPartnerInventoryShopPageFromPg(
   if (!isPgConfigured()) return null
   const off = Math.max(0, Math.floor(query.offset))
   const lim = Math.max(1, Math.min(48, Math.floor(query.limit)))
-  return withInventoryShopCache({
+  const cached = await withInventoryShopCache({
     partnerId,
     kind: 'shop',
     suffix: hashShopCachePayload({
@@ -1416,12 +1604,47 @@ export async function fetchPartnerInventoryShopPageFromPg(
     ttlSec: SHOP_LIST_TTL_SEC,
     load: () => fetchPartnerInventoryShopPageFromPgUncached(partnerId, query),
   })
+  return cached as { rows: MessagingPartnerInventoryRow[]; count: number } | null
+}
+
+export async function fetchPartnerInventoryShopCardPageFromPg(
+  partnerId: string,
+  query: PartnerInventoryShopListQuery
+): Promise<{ rows: PartnerInventoryShopCardRow[]; count: number } | null> {
+  if (!isPgConfigured()) return null
+  const off = Math.max(0, Math.floor(query.offset))
+  const lim = Math.max(1, Math.min(48, Math.floor(query.limit)))
+  return withInventoryShopCache({
+    partnerId,
+    kind: 'shop',
+    suffix: `card:${hashShopCachePayload({
+      off,
+      lim,
+      q: query.q ?? '',
+      collection: query.collection ?? '',
+      sale: Boolean(query.sale),
+      warehouse: Boolean(query.warehouse),
+      ids: query.ids ?? [],
+      sort: query.sort ?? 'default',
+    })}`,
+    ttlSec: SHOP_LIST_TTL_SEC,
+    load: () => fetchPartnerInventoryShopCardPageFromPgUncached(partnerId, query),
+  })
+}
+
+async function fetchPartnerInventoryShopCardPageFromPgUncached(
+  partnerId: string,
+  query: PartnerInventoryShopListQuery
+): Promise<{ rows: PartnerInventoryShopCardRow[]; count: number } | null> {
+  const page = await fetchPartnerInventoryShopPageFromPgUncached(partnerId, query, true)
+  return page as { rows: PartnerInventoryShopCardRow[]; count: number } | null
 }
 
 async function fetchPartnerInventoryShopPageFromPgUncached(
   partnerId: string,
-  query: PartnerInventoryShopListQuery
-): Promise<{ rows: MessagingPartnerInventoryRow[]; count: number } | null> {
+  query: PartnerInventoryShopListQuery,
+  cardProjection = false
+): Promise<{ rows: Array<MessagingPartnerInventoryRow | PartnerInventoryShopCardRow>; count: number } | null> {
   const off = Math.max(0, Math.floor(query.offset))
   const lim = Math.max(1, Math.min(48, Math.floor(query.limit)))
   const q = String(query.q ?? '').trim().slice(0, 80)
@@ -1486,7 +1709,7 @@ async function fetchPartnerInventoryShopPageFromPgUncached(
 
     const limitIdx = selectParams.length + 1
     const offsetIdx = selectParams.length + 2
-    const rows = await runInventoryShopSelectWithFallback(
+    const rows = await (cardProjection ? runInventoryCardSelectWithFallback : runInventoryShopSelectWithFallback)(
       `where ${where}
        order by ${orderBy}
        limit $${limitIdx} offset $${offsetIdx}`,
@@ -1494,7 +1717,9 @@ async function fetchPartnerInventoryShopPageFromPgUncached(
     )
     return {
       count: countRow?.c ?? 0,
-      rows: rows.map(mapPgInventoryRow),
+      rows: cardProjection
+        ? (rows as PgInventoryCardRaw[]).map(mapPgInventoryCardRow)
+        : (rows as PgInventoryRaw[]).map(mapPgInventoryRow),
     }
   } catch (e) {
     if (isMissingInventoryTableError(e)) {
@@ -1549,14 +1774,53 @@ export async function fetchPartnerInventoryPageByTextSearchFromPg(
     ttlSec: SHOP_LIST_TTL_SEC,
     load: () => fetchPartnerInventoryPageByTextSearchFromPgUncached(partnerId, query, words),
   })
-  return cached
+  return cached as { rows: MessagingPartnerInventoryRow[]; count: number } | null
+}
+
+export async function fetchPartnerInventoryCardPageByTextSearchFromPg(
+  partnerId: string,
+  query: PartnerTextSearchInventoryQuery
+): Promise<{ rows: PartnerInventoryShopCardRow[]; count: number } | null> {
+  if (!isPgConfigured()) return null
+  const words = tokenizePartnerTextSearch(query.q)
+  if (!words.length) return { rows: [], count: 0 }
+  const off = Math.max(0, Math.floor(query.offset))
+  const lim = Math.max(1, Math.min(96, Math.floor(query.limit)))
+  return withInventoryShopCache({
+    partnerId,
+    kind: 'shop',
+    suffix: `card:text:${hashShopCachePayload({
+      off,
+      lim,
+      q: words.join(' ').toLowerCase(),
+      sort: query.sort ?? 'random',
+      minPrice: query.minPrice ?? null,
+      maxPrice: query.maxPrice ?? null,
+      size: query.size ?? '',
+      color: query.color ?? '',
+      styleTag: query.styleTag ?? '',
+      seed: query.sort === 'random' ? query.randomSeed ?? '' : '',
+    })}`,
+    ttlSec: SHOP_LIST_TTL_SEC,
+    load: () => fetchPartnerInventoryCardPageByTextSearchFromPgUncached(partnerId, query, words),
+  })
+}
+
+async function fetchPartnerInventoryCardPageByTextSearchFromPgUncached(
+  partnerId: string,
+  query: PartnerTextSearchInventoryQuery,
+  words: string[]
+): Promise<{ rows: PartnerInventoryShopCardRow[]; count: number } | null> {
+  const page = await fetchPartnerInventoryPageByTextSearchFromPgUncached(partnerId, query, words, true)
+  return page as { rows: PartnerInventoryShopCardRow[]; count: number } | null
 }
 
 async function fetchPartnerInventoryPageByTextSearchFromPgUncached(
   partnerId: string,
   query: PartnerTextSearchInventoryQuery,
-  words: string[]
-): Promise<{ rows: MessagingPartnerInventoryRow[]; count: number } | null> {
+  words: string[],
+  cardProjection = false
+): Promise<{ rows: Array<MessagingPartnerInventoryRow | PartnerInventoryShopCardRow>; count: number } | null> {
   const off = Math.max(0, Math.floor(query.offset))
   const lim = Math.max(1, Math.min(96, Math.floor(query.limit)))
   const params: unknown[] = [partnerId]
@@ -1642,13 +1906,18 @@ async function fetchPartnerInventoryPageByTextSearchFromPgUncached(
     }
     const limitIdx = selectBind.length + 1
     const offsetIdx = selectBind.length + 2
-    const rows = await runInventoryShopSelectWithFallback(
+    const rows = await (cardProjection ? runInventoryCardSelectWithFallback : runInventoryShopSelectWithFallback)(
       `where ${whereSql}
        order by ${selectOrder}
        limit $${limitIdx} offset $${offsetIdx}`,
       [...selectBind, lim, off]
     )
-    return { count: countRow?.c ?? 0, rows: rows.map(mapPgInventoryRow) }
+    return {
+      count: countRow?.c ?? 0,
+      rows: cardProjection
+        ? (rows as PgInventoryCardRaw[]).map(mapPgInventoryCardRow)
+        : (rows as PgInventoryRaw[]).map(mapPgInventoryRow),
+    }
   }
 
   try {
@@ -1712,14 +1981,10 @@ export async function fetchPartnerTextSearchFacetCountsFromPg(
   try {
     type FacetRow = {
       name?: string
-      description: string
-      stock_note: string
       material_note?: string
       style?: string | null
       sizes_json?: unknown
       colors_json?: unknown
-      catalog_json?: unknown
-      product_info_json?: unknown
       features_json?: unknown
       category_l1?: string | null
       category_l2?: string | null
@@ -1729,11 +1994,8 @@ export async function fetchPartnerTextSearchFacetCountsFromPg(
     try {
       rows = await pgQuery<FacetRow>(
         `select coalesce(mpi.name, '') as name,
-                coalesce(mpi.description, '') as description,
-                coalesce(mpi.stock_note, '') as stock_note,
                 coalesce(mpi.material_note, '') as material_note,
-                mpi.style, mpi.sizes_json, mpi.colors_json, mpi.catalog_json,
-                mpi.product_info_json, mpi.features_json,
+                mpi.style, mpi.sizes_json, mpi.colors_json, mpi.features_json,
                 mpi.category_l1, mpi.category_l2, mpi.category_l3
          from public.messaging_partner_inventory mpi
          where ${where}
@@ -1744,8 +2006,6 @@ export async function fetchPartnerTextSearchFacetCountsFromPg(
       if (!isMissingProductStudioColumnError(e) && !isMissingCatalog188ColumnError(e)) throw e
       rows = await pgQuery<FacetRow>(
         `select coalesce(mpi.name, '') as name,
-                coalesce(mpi.description, '') as description,
-                coalesce(mpi.stock_note, '') as stock_note,
                 coalesce(mpi.material_note, '') as material_note
          from public.messaging_partner_inventory mpi
          where ${where}
@@ -1766,10 +2026,10 @@ export async function fetchPartnerTextSearchFacetCountsFromPg(
     for (const r of rows) {
       const structuredSizes = parseSizesJsonColumn(r.sizes_json)
       const structuredColors = parseColorsJsonColumn(r.colors_json)
-      for (const s of parseInventorySizesForFacet(r.description, structuredSizes)) {
+      for (const s of parseInventorySizesForFacet('', structuredSizes)) {
         sizeMap.set(s, (sizeMap.get(s) ?? 0) + 1)
       }
-      for (const c of parseInventoryColorsForFacet(r.stock_note, structuredColors)) {
+      for (const c of parseInventoryColorsForFacet('', structuredColors)) {
         colorMap.set(c, (colorMap.get(c) ?? 0) + 1)
       }
       for (const tag of styleTagsFromProductText(
@@ -1777,12 +2037,12 @@ export async function fetchPartnerTextSearchFacetCountsFromPg(
         r.style,
         r.material_note,
         r.features_json,
-        r.product_info_json,
-        r.catalog_json,
+        null,
+        null,
         r.category_l1,
         r.category_l2,
         r.category_l3,
-        r.description
+        ''
       )) {
         styleMap.set(tag, (styleMap.get(tag) ?? 0) + 1)
       }
@@ -2055,6 +2315,84 @@ export async function fetchPartnerInventoryRowByProductUrlFromPg(
   }
 }
 
+export type PartnerInventoryPurchaseOptionsRow = {
+  sku: string | null
+  name: string
+  image_url: string
+  product_url: string
+  price_hint: string
+  sizes_json: string[] | null
+  colors_json: Array<{ name: string; img: string }> | null
+  description: string
+  stock_note: string
+}
+
+/** Variant modal query: structured options first; legacy text is read only when still needed. */
+export async function fetchPartnerInventoryPurchaseOptionsByProductUrlFromPg(
+  partnerId: string,
+  productUrl: string
+): Promise<PartnerInventoryPurchaseOptionsRow | null> {
+  if (!isPgConfigured()) return null
+  const u = productUrl.trim()
+  if (!u) return null
+  const where =
+    `from public.messaging_partner_inventory
+     where partner_id = $1::uuid
+       and coalesce(is_active, true) = true
+       and coalesce(product_url, '') = $2
+     order by sort_order asc
+     limit 1`
+  try {
+    const row = await pgQueryOne<Omit<PartnerInventoryPurchaseOptionsRow, 'description' | 'stock_note'>>(
+      `select sku, coalesce(name, '') as name, coalesce(image_url, '') as image_url,
+              coalesce(product_url, '') as product_url, coalesce(price_hint, '') as price_hint,
+              sizes_json, colors_json
+       ${where}`,
+      [partnerId, u]
+    )
+    if (!row) return null
+    if (Array.isArray(row.sizes_json) && Array.isArray(row.colors_json)) {
+      return { ...row, description: '', stock_note: '' }
+    }
+    const legacy = await pgQueryOne<{ description: string | null; stock_note: string | null }>(
+      `select coalesce(description, '') as description, coalesce(stock_note, '') as stock_note ${where}`,
+      [partnerId, u]
+    )
+    return {
+      ...row,
+      description: String(legacy?.description ?? ''),
+      stock_note: String(legacy?.stock_note ?? ''),
+    }
+  } catch (e) {
+    const code = e && typeof e === 'object' ? String((e as { code?: string }).code ?? '') : ''
+    if (code !== '42703') {
+      console.warn('[fetchPartnerInventoryPurchaseOptionsByProductUrlFromPg]', e)
+      return null
+    }
+    try {
+      const legacy = await pgQueryOne<{
+        sku: string | null
+        name: string
+        image_url: string
+        product_url: string
+        price_hint: string
+        description: string
+        stock_note: string
+      }>(
+        `select sku, coalesce(name, '') as name, coalesce(image_url, '') as image_url,
+                coalesce(product_url, '') as product_url, coalesce(price_hint, '') as price_hint,
+                coalesce(description, '') as description, coalesce(stock_note, '') as stock_note
+         ${where}`,
+        [partnerId, u]
+      )
+      return legacy ? { ...legacy, sizes_json: null, colors_json: null } : null
+    } catch (fallbackError) {
+      console.warn('[fetchPartnerInventoryPurchaseOptionsByProductUrlFromPg:fallback]', fallbackError)
+      return null
+    }
+  }
+}
+
 /** Khớp dòng kho theo `normalizeProductUrlKey` (URL trên kho có thể khác dấu `/` cuối). */
 export async function fetchPartnerInventoryRowByProductUrlNormKeyFromPg(
   partnerId: string,
@@ -2165,6 +2503,81 @@ export async function fetchPartnerInventoryRowByIdForPartnerFromPg(
       }
     },
   })
+}
+
+export type PartnerInventoryReviewQuestionLookup = {
+  ratingGroupId: number | null
+  questionGroupId: number | null
+}
+
+/** Review/Q&A endpoints need only existence and their two grouping scalars. */
+export async function fetchPartnerInventoryReviewQuestionLookupFromPg(
+  partnerId: string,
+  inventoryId: string
+): Promise<PartnerInventoryReviewQuestionLookup | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{
+      rating_group_id: number | string | null
+      question_group_id: number | string | null
+    }>(
+      `select rating_group_id, question_group_id
+       from public.messaging_partner_inventory
+       where partner_id = $1::uuid and id = $2::uuid
+       limit 1`,
+      [partnerId, inventoryId]
+    )
+    return row
+      ? {
+          ratingGroupId: numOrNull(row.rating_group_id),
+          questionGroupId: numOrNull(row.question_group_id),
+        }
+      : null
+  } catch (e) {
+    if (isMissingCatalog188ColumnError(e)) {
+      const exists = await fetchPartnerInventoryExistsFromPg(partnerId, inventoryId)
+      return exists ? { ratingGroupId: null, questionGroupId: null } : null
+    }
+    console.warn('[fetchPartnerInventoryReviewQuestionLookupFromPg]', e)
+    return null
+  }
+}
+
+export async function fetchPartnerInventoryExistsFromPg(
+  partnerId: string,
+  inventoryId: string
+): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  try {
+    const row = await pgQueryOne<{ ok: boolean }>(
+      `select true as ok from public.messaging_partner_inventory
+       where partner_id = $1::uuid and id = $2::uuid limit 1`,
+      [partnerId, inventoryId]
+    )
+    return row?.ok === true
+  } catch (e) {
+    console.warn('[fetchPartnerInventoryExistsFromPg]', e)
+    return false
+  }
+}
+
+/** Purchase-options endpoint only needs the canonical external product URL. */
+export async function fetchPartnerInventoryProductUrlFromPg(
+  partnerId: string,
+  inventoryId: string
+): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ product_url: string | null }>(
+      `select product_url from public.messaging_partner_inventory
+       where partner_id = $1::uuid and id = $2::uuid limit 1`,
+      [partnerId, inventoryId]
+    )
+    return row ? String(row.product_url ?? '').trim() : null
+  } catch (e) {
+    console.warn('[fetchPartnerInventoryProductUrlFromPg]', e)
+    return null
+  }
 }
 
 /** Resolve `/products/{name-slug}-{uuid8}` via id text prefix (first 8 hex of UUID). */
@@ -2541,6 +2954,34 @@ export async function updatePartnerInventoryTextEmbeddingFieldsFromPg(
 /**
  * Lấy đủ dòng inventory theo thứ tự `ids` (giữ thứ tự để merge với điểm ANN).
  */
+export async function fetchPartnerInventoryCardsByIdsInOrderFromPg(
+  partnerId: string,
+  ids: string[]
+): Promise<PartnerInventoryShopCardRow[] | null> {
+  if (!isPgConfigured() || ids.length === 0) return null
+  const clean = ids.map((x) => x.trim()).filter(Boolean)
+  if (!clean.length) return null
+  return withInventoryShopCache({
+    partnerId,
+    kind: 'shop',
+    suffix: `card:ids:${hashShopCachePayload(clean)}`,
+    ttlSec: SHOP_ITEM_TTL_SEC,
+    load: async () => {
+      try {
+        const rows = await runInventoryCardSelectWithFallback(
+          `where mpi.partner_id = $1::uuid and mpi.id = any($2::uuid[])
+           order by array_position($2::uuid[], mpi.id)`,
+          [partnerId, clean]
+        )
+        return rows.map(mapPgInventoryCardRow)
+      } catch (e) {
+        console.warn('[fetchPartnerInventoryCardsByIdsInOrderFromPg]', e)
+        return null
+      }
+    },
+  })
+}
+
 export async function fetchPartnerInventoryRowsByIdsInOrderFromPg(
   partnerId: string,
   ids: string[]
@@ -2567,6 +3008,40 @@ export async function fetchPartnerInventoryRowsByIdsInOrderFromPg(
       }
     },
   })
+}
+
+export type PartnerInventorySitemapRow = {
+  id: string
+  name: string
+  updatedAt: string | null
+}
+
+/** Sitemap projection: no website project, product bodies, catalog JSON, or embeddings. */
+export async function fetchPartnerInventorySitemapRowsFromPg(
+  partnerId: string,
+  limit: number
+): Promise<PartnerInventorySitemapRow[] | null> {
+  if (!isPgConfigured()) return null
+  const lim = Math.max(1, Math.min(50_000, Math.floor(limit)))
+  try {
+    const rows = await pgQuery<{ id: string; name: string | null; updated_at: unknown }>(
+      `select id::text as id, coalesce(name, '') as name, updated_at
+       from public.messaging_partner_inventory
+       where partner_id = $1::uuid and coalesce(is_active, true) = true
+       order by created_at asc nulls last, id asc
+       limit $2`,
+      [partnerId, lim]
+    )
+    return rows.map((row) => ({
+      id: String(row.id),
+      name: String(row.name ?? ''),
+      updatedAt: tsIso(row.updated_at),
+    }))
+  } catch (e) {
+    if (isMissingInventoryTableError(e)) return []
+    console.warn('[fetchPartnerInventorySitemapRowsFromPg]', e)
+    return null
+  }
 }
 
 /**

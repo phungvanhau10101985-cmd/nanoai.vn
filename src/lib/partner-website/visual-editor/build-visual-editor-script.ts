@@ -95,6 +95,7 @@ import {
 import { searchGlyphPathsJs } from './search-cluster-icons'
 import { chromeGlyphCatalogJs } from './chrome-widget-icons'
 import { CHROME_KIND_INFER_RULES } from './infer-chrome-widget-kind'
+import { PW_FEATURED_MARQUEE_JS } from '../shop/featured-category-marquee-js'
 import { PARTNER_SHOP_FOOTER_INFLOW_CSS, PARTNER_SHOP_WIDE_HEADER_BALANCE_CSS } from '../shop/partner-shop-chrome-layout-css'
 import {
   PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS,
@@ -727,6 +728,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   if (window.__nanoaiVeBound) return
   window.__nanoaiVeBound = 1
   ${PW_SLIDER_ENGINE_JS}
+  ${PW_FEATURED_MARQUEE_JS}
   var selected = null
   var lastInsertButtonAt = 0
   var lastInsertBgAt = 0
@@ -5931,7 +5933,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { el.removeAttribute('data-pw-block-h') } catch (errH) {}
     el.style.removeProperty('--pw-block-h')
     el.style.setProperty('min-height', '0', 'important')
-    el.style.setProperty('height', 'auto', 'important')
+    if (!featured) el.style.setProperty('height', 'auto', 'important')
+    else el.style.removeProperty('height')
     el.style.setProperty('padding-top', '0', 'important')
     el.style.setProperty('padding-bottom', '0', 'important')
     if (el.getAttribute('${PW_MID_INSERT_GAP_ATTR}') !== '1') {
@@ -5983,6 +5986,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function applyProductGridRowsPreview(host) {
     if (!host || !host.querySelector) return
+    if (host.getAttribute && host.getAttribute('data-pw-featured-categories') === '1') return
     var grid = host.querySelector('[data-pw-grid]')
     if (!grid) return
     var page = Math.max(1, Math.min(48, editorGridRows(host) * editorGridCols(host)))
@@ -11591,6 +11595,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       pinKindLockedScene(node)
       compactAddedProductGrid(node)
       applyMidInsertGap(node)
+      try { pwEnsureFeaturedMarquees() } catch (eFeatMqIns) {}
       selectEl(node)
       post('dirty', {})
       consumeInsertAnchor()
@@ -11603,6 +11608,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     else host.appendChild(node)
     pinKindLockedScene(node)
     compactAddedProductGrid(node)
+    try { pwEnsureFeaturedMarquees() } catch (eFeatMqApp) {}
     selectEl(node)
     post('dirty', {})
   }
@@ -15349,6 +15355,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { stampAllChromeFloats() } catch (errFloatStamp) {}
     try { pinMidTopChromeAll() } catch (errMidFlow) {}
     try { pinKindLockedScenesAll() } catch (errKindScene) {}
+    try { pwEnsureFeaturedMarquees() } catch (errFeatMq) {}
     try { pinAuthoredVisualMetricsAll() } catch (errAuthored) {}
     try { clearPinScreenLeftovers() } catch (errPinClear) {}
     try { releaseInFlowCatalogChromeAll() } catch (errCatalogFlow) {}

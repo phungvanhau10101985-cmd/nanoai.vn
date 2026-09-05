@@ -1,12 +1,10 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery } from '@/lib/db/pg-query'
 import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
+import { resolvePartnerStorefrontSaleCalendarFromPg } from '@/lib/db/messaging-partner-feature-test-pg'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
 import { resolvePartnerEffectiveUnitPrice } from '@/lib/partner-website/shop/partner-shop-flash-sale'
-import {
-  applyPartnerSiteSalePrice,
-  resolvePartnerSaleCalendarState,
-} from '@/lib/partner-website/promotions/partner-sale-calendar'
+import { applyPartnerSiteSalePrice } from '@/lib/partner-website/promotions/partner-sale-calendar'
 import type { PartnerSalePriceLine } from '@/lib/partner-website/promotions/partner-sale-pricing'
 
 type InventoryPriceDbRow = {
@@ -38,6 +36,7 @@ export type PartnerCheckoutPriceLineInput = {
 export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
   partnerId: string
   accountKey?: string | null
+  visitorEmail?: string | null
   lines: PartnerCheckoutPriceLineInput[]
   at?: Date
 }): Promise<PartnerSalePriceLine[]> {
@@ -50,7 +49,7 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
       effectiveUnitPrice: money(line.fallbackUnitPrice),
     }))
   }
-  const [rows, config, locks] = await Promise.all([
+  const [rows, config, locks, calendarState] = await Promise.all([
     pgQuery<InventoryPriceDbRow>(
       `select id::text, price_amount, coalesce(price_hint, '') as price_hint,
               sale_price_amount, sale_starts_at, sale_ends_at,
@@ -79,10 +78,14 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
           [input.partnerId, input.accountKey, ids]
         ).catch(() => [])
       : Promise.resolve([]),
+    resolvePartnerStorefrontSaleCalendarFromPg({
+      partnerId: input.partnerId,
+      visitorEmail: input.visitorEmail,
+      at: input.at,
+    }),
   ])
   const byId = new Map(rows.map((row) => [row.id, row]))
   const lockById = new Map(locks.map((row) => [row.inventory_id, money(row.locked_unit_price)]))
-  const calendarState = resolvePartnerSaleCalendarState({ settings: config, at: input.at })
 
   return input.lines.map((line) => {
     const row = line.inventoryId ? byId.get(line.inventoryId) : null

@@ -12,11 +12,12 @@ import { stampPartnerSiteChromeWidgetHooksInHtml } from '@/lib/partner-website/s
 import { buildPartnerSitePaperTileBootstrapScript } from '@/lib/partner-website/visual-editor/pw-bg-stack'
 import { buildPartnerSiteBirthGenderPromptScript } from '@/lib/partner-website/shop/build-partner-site-birth-gender-prompt-script'
 import { buildPartnerSaleCalendarBootstrapScript } from '@/lib/partner-website/shop/build-partner-sale-calendar-bootstrap-script'
+import { buildPartnerMarketingBannerBootstrapScript } from '@/lib/partner-website/shop/build-partner-marketing-banner-bootstrap-script'
 
 const PW_RUNTIME_SCRIPT_RE =
-  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|birth-gender-prompt-bootstrap|sale-calendar-bootstrap|header-toggle|lp-buy)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
+  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|birth-gender-prompt-bootstrap|sale-calendar-bootstrap|marketing-banner-bootstrap|header-toggle|lp-buy)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
 const PW_RUNTIME_STYLE_RE =
-  /<style\b[^>]*\bdata-pw-(?:chrome-toggle-css|search-image-css)\b[^>]*>[\s\S]*?<\/style>/gi
+  /<style\b[^>]*\bdata-pw-(?:chrome-toggle-css|search-image-css|marketing-banner-css)\b[^>]*>[\s\S]*?<\/style>/gi
 
 function stripPartnerShopRuntimeAssets(html: string): string {
   return html.replace(PW_RUNTIME_SCRIPT_RE, '').replace(PW_RUNTIME_STYLE_RE, '')
@@ -28,6 +29,26 @@ function appendBeforeBody(html: string, snippet: string): string {
   if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${chunk}\n</body>`)
   return `${html}\n${chunk}`
 }
+
+function hasRuntimeHook(html: string, pattern: RegExp): boolean {
+  return pattern.test(html)
+}
+
+function runtimeHookMarkup(html: string): string {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+}
+
+const HAS_CATALOG = /\bdata-pw-(?:catalog|related)\b/i
+const HAS_OUTFIT = /\bdata-pw-outfit\b/i
+const HAS_PERSONALIZATION =
+  /\bdata-pw-(?:personalize|featured-categories|greeting|hero-variants)\b|\bclass=["'][^"']*\bpw-categories\b/i
+const HAS_PDP =
+  /\bdata-pw-page=["']product["']|\bdata-pw-region=["'](?:pdp-info|gallery)["']|\bdata-pw-pdp-slot\b/i
+const HAS_MARKETING_BANNER = /\bdata-pw-personalize-banner\b/i
+const HAS_SLIDER = /\bdata-pw-(?:slider|full-slides)\b/i
+const HAS_PAPER = /\bdata-pw-paper\b/i
 
 /** Stamp chrome hooks and drop live API scripts — Sửa nhanh is display-only. */
 export function stampPartnerShopEditorHooksInHtml(
@@ -53,12 +74,33 @@ export function injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(
   const siteSlug = input.siteSlug?.trim() ?? ''
   if (!siteSlug) return out
   const locale = input.locale ?? 'vi'
-  out = appendBeforeBody(out, buildPartnerSiteCatalogBootstrapScript({ siteSlug, locale }))
-  out = appendBeforeBody(out, buildPartnerSiteOutfitBootstrapScript({ siteSlug, locale }))
-  out = appendBeforeBody(out, buildPartnerSitePersonalizationBootstrapScript({ siteSlug, locale }))
-  out = appendBeforeBody(out, buildPartnerSitePdpBootstrapScript({ siteSlug, locale }))
-  out = appendBeforeBody(out, buildPartnerSiteSliderBootstrapScript())
-  out = appendBeforeBody(out, buildPartnerSitePaperTileBootstrapScript())
+  const hookMarkup = runtimeHookMarkup(out)
+  const hooks = {
+    catalog: hasRuntimeHook(hookMarkup, HAS_CATALOG),
+    outfit: hasRuntimeHook(hookMarkup, HAS_OUTFIT),
+    personalization: hasRuntimeHook(hookMarkup, HAS_PERSONALIZATION),
+    marketingBanner: hasRuntimeHook(hookMarkup, HAS_MARKETING_BANNER),
+    pdp: hasRuntimeHook(hookMarkup, HAS_PDP),
+    slider: hasRuntimeHook(hookMarkup, HAS_SLIDER),
+    paper: hasRuntimeHook(hookMarkup, HAS_PAPER),
+  }
+  if (hooks.catalog) {
+    out = appendBeforeBody(out, buildPartnerSiteCatalogBootstrapScript({ siteSlug, locale }))
+  }
+  if (hooks.outfit) {
+    out = appendBeforeBody(out, buildPartnerSiteOutfitBootstrapScript({ siteSlug, locale }))
+  }
+  if (hooks.personalization) {
+    out = appendBeforeBody(out, buildPartnerSitePersonalizationBootstrapScript({ siteSlug, locale }))
+  }
+  if (hooks.marketingBanner) {
+    out = appendBeforeBody(out, buildPartnerMarketingBannerBootstrapScript({ siteSlug, locale }))
+  }
+  if (hooks.pdp) {
+    out = appendBeforeBody(out, buildPartnerSitePdpBootstrapScript({ siteSlug, locale }))
+  }
+  if (hooks.slider) out = appendBeforeBody(out, buildPartnerSiteSliderBootstrapScript())
+  if (hooks.paper) out = appendBeforeBody(out, buildPartnerSitePaperTileBootstrapScript())
   return out
 }
 
@@ -76,25 +118,46 @@ export function injectPartnerShopRuntimeScriptsIntoHtml(
   const siteSlug = input.siteSlug?.trim() ?? ''
   out = stampPartnerSiteChromeWidgetHooksInHtml(out, { siteSlug })
   out = stripPartnerShopRuntimeAssets(out)
+  const hookMarkup = runtimeHookMarkup(out)
+  const hooks = {
+    catalog: hasRuntimeHook(hookMarkup, HAS_CATALOG),
+    outfit: hasRuntimeHook(hookMarkup, HAS_OUTFIT),
+    personalization: hasRuntimeHook(hookMarkup, HAS_PERSONALIZATION),
+    marketingBanner: hasRuntimeHook(hookMarkup, HAS_MARKETING_BANNER),
+    pdp: hasRuntimeHook(hookMarkup, HAS_PDP),
+    slider: hasRuntimeHook(hookMarkup, HAS_SLIDER),
+    paper: hasRuntimeHook(hookMarkup, HAS_PAPER),
+  }
 
   const chatBridge = buildPartnerSiteLandingChatBridgeScript()
   if (chatBridge) out = appendBeforeBody(out, chatBridge)
   if (!siteSlug) return out
 
   out = appendBeforeBody(out, buildPartnerSiteSearchBootstrapScript({ siteSlug, locale }))
-  out = appendBeforeBody(out, buildPartnerSiteCatalogBootstrapScript({ siteSlug, locale }))
-  out = appendBeforeBody(out, buildPartnerSiteOutfitBootstrapScript({ siteSlug, locale }))
-  out = appendBeforeBody(out, buildPartnerSitePersonalizationBootstrapScript({ siteSlug, locale }))
-  out = appendBeforeBody(out, buildPartnerSitePdpBootstrapScript({ siteSlug, locale }))
+  if (hooks.catalog) {
+    out = appendBeforeBody(out, buildPartnerSiteCatalogBootstrapScript({ siteSlug, locale }))
+  }
+  if (hooks.outfit) {
+    out = appendBeforeBody(out, buildPartnerSiteOutfitBootstrapScript({ siteSlug, locale }))
+  }
+  if (hooks.personalization) {
+    out = appendBeforeBody(out, buildPartnerSitePersonalizationBootstrapScript({ siteSlug, locale }))
+  }
+  if (hooks.pdp) {
+    out = appendBeforeBody(out, buildPartnerSitePdpBootstrapScript({ siteSlug, locale }))
+  }
   out = appendBeforeBody(out, buildPartnerSiteShopActionsBootstrapScript({ siteSlug, locale }))
   out = appendBeforeBody(out, buildPartnerSaleCalendarBootstrapScript({ siteSlug, locale }))
+  if (hooks.marketingBanner) {
+    out = appendBeforeBody(out, buildPartnerMarketingBannerBootstrapScript({ siteSlug, locale }))
+  }
   out = appendBeforeBody(out, buildPartnerSiteBirthGenderPromptScript({
     siteSlug,
     locale,
     shopTitle: input.shopTitle,
   }))
   out = appendBeforeBody(out, buildPartnerSiteChromeToggleBootstrapScript({ siteSlug, locale }))
-  out = appendBeforeBody(out, buildPartnerSiteSliderBootstrapScript())
-  out = appendBeforeBody(out, buildPartnerSitePaperTileBootstrapScript())
+  if (hooks.slider) out = appendBeforeBody(out, buildPartnerSiteSliderBootstrapScript())
+  if (hooks.paper) out = appendBeforeBody(out, buildPartnerSitePaperTileBootstrapScript())
   return out
 }

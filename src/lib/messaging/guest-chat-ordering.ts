@@ -32,6 +32,7 @@ import { enrichPaymentDisplayFromQrUrl } from '@/lib/messaging/payment-qr-displa
 import { fetchMessagingPartnersByIdsFromPg, fetchPartnerGoogleCustomerReviewsMerchantIdFromPg } from '@/lib/db/messaging-partners-pg'
 import {
   fetchPartnerInventoryDefaultForAiFromPg,
+  fetchPartnerInventoryPurchaseOptionsByProductUrlFromPg,
   fetchPartnerInventoryRowByProductUrlFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
@@ -722,6 +723,7 @@ export async function completeOrderCheckout(input: {
         guestAccountId: input.guestAccountId,
         fallback: input.externalThreadId,
       }),
+      visitorEmail: input.form.customerEmail,
       lines: [{
         inventoryId: oldOrder.product_inventory_id,
         quantity: qty,
@@ -1047,6 +1049,7 @@ export async function completeCartCheckout(input: {
         guestAccountId: input.guestAccountId,
         fallback: input.externalThreadId,
       }),
+      visitorEmail: input.form.customerEmail,
       lines: lines.map((line) => ({
         inventoryId: line.productInventoryId,
         quantity: line.quantity,
@@ -1372,7 +1375,10 @@ export async function getProductPurchaseOptions(input: {
   productUrl: string
   linkedUserId?: string | null
 }): Promise<ProductPurchaseOptions | null> {
-  const row = await fetchPartnerInventoryRowByProductUrlFromPg(input.partnerId, input.productUrl)
+  const row = await fetchPartnerInventoryPurchaseOptionsByProductUrlFromPg(
+    input.partnerId,
+    input.productUrl
+  )
   if (!row) return null
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
   const mode = settings?.default_deposit_mode ?? 'percent'

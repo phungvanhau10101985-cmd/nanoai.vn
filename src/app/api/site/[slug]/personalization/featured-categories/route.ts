@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
-import { getSiteFeaturedCategoryBlock } from '@/lib/partner-website/shop/featured-categories'
+import { FEATURED_CATEGORY_TILE_DEFAULT, getSiteFeaturedCategoryBlock } from '@/lib/partner-website/shop/featured-categories'
 import { resolveSiteVisitorContext } from '@/lib/partner-website/shop/partner-site-personalization'
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
 
@@ -12,7 +12,10 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   if (!shop) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
-  const limit = Math.min(20, Math.max(4, Number(request.nextUrl.searchParams.get('limit') ?? 10) || 10))
+  const limit = Math.min(
+    20,
+    Math.max(4, Number(request.nextUrl.searchParams.get('limit') ?? FEATURED_CATEGORY_TILE_DEFAULT) || FEATURED_CATEGORY_TILE_DEFAULT)
+  )
   const block = await getSiteFeaturedCategoryBlock({
     partnerId: shop.partnerId,
     siteSlug: shop.site.siteSlug,

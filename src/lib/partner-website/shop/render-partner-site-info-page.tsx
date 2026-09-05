@@ -11,8 +11,8 @@ import {
   getPartnerSiteInfoPage,
   type PartnerSiteInfoPageKey,
 } from '@/lib/partner-website/shop/partner-site-shop-info-pages'
-import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
-import { fetchPartnerInventoryActivePageWithCountFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { inventoryCardRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { fetchPartnerInventoryActiveCardPageWithCountFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { fetchPublishedPartnerStaticPageBySlugFromPg } from '@/lib/db/messaging-partner-static-pages-pg'
 import { splitStaticPageContentToParagraphs } from '@/lib/partner-website/pages/partner-static-page-types'
 import {
@@ -99,9 +99,9 @@ export async function PartnerSiteInfoPageScreen({
 
   let saleCatalog: React.ReactNode = null
   if (pageKey === 'sale') {
-    const page = await fetchPartnerInventoryActivePageWithCountFromPg(shop.partnerId, 0, 24)
+    const page = await fetchPartnerInventoryActiveCardPageWithCountFromPg(shop.partnerId, 0, 24)
     const initialProducts = (page?.rows ?? [])
-      .map((row) => inventoryRowToShopProduct(shop.site.siteSlug, row))
+      .map((row) => inventoryCardRowToShopProduct(shop.site.siteSlug, row))
       .filter((p): p is NonNullable<typeof p> => Boolean(p))
     saleCatalog = (
       <div style={{ marginTop: 28 }}>

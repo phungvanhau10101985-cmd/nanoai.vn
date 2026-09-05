@@ -4,13 +4,14 @@ import type { Metadata } from 'next'
 import { buildMetadata } from '@/lib/seo'
 import { fetchPartnerCategoriesFlatFromPg } from '@/lib/db/messaging-partner-categories-pg'
 import {
-  fetchPartnerInventoryPageByTextSearchFromPg,
-  fetchPartnerInventoryRowsByIdsInOrderFromPg,
+  fetchPartnerInventoryCardPageByTextSearchFromPg,
+  fetchPartnerInventoryCardsByIdsInOrderFromPg,
   fetchPartnerTextSearchFacetCountsFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { matchInventoryForPublicTextSearchApi } from '@/lib/messaging/partner-inventory-text-embedding'
 import { getPartnerPublicInventorySearchDefaultLimit } from '@/lib/messaging/partner-public-search-limits'
-import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { inventoryCardRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { loadPartnerSiteSaleOverlay, withPartnerSiteSale } from '@/lib/partner-website/promotions/partner-site-sale-attach'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import {
@@ -106,7 +107,7 @@ export default async function PartnerSiteTextSearchPage({ params, searchParams }
   }
 
   const page = q
-    ? await fetchPartnerInventoryPageByTextSearchFromPg(shop.partnerId, {
+    ? await fetchPartnerInventoryCardPageByTextSearchFromPg(shop.partnerId, {
         offset: partnerCategoryListingOffset(listing),
         limit: PARTNER_CATEGORY_PAGE_SIZE,
         q,
@@ -120,8 +121,12 @@ export default async function PartnerSiteTextSearchPage({ params, searchParams }
       })
     : { rows: [], count: 0 }
 
+  const overlay = await loadPartnerSiteSaleOverlay(shop.partnerId).catch(() => null)
   let initialProducts = (page?.rows ?? [])
-    .map((row) => inventoryRowToShopProduct(shop.site.siteSlug, row))
+    .map((row) => {
+      const mapped = inventoryCardRowToShopProduct(shop.site.siteSlug, row)
+      return withPartnerSiteSale(mapped, overlay)
+    })
     .filter((p): p is NonNullable<typeof p> => Boolean(p))
   let initialTotal = page?.count ?? initialProducts.length
 
@@ -133,12 +138,15 @@ export default async function PartnerSiteTextSearchPage({ params, searchParams }
       getPartnerPublicInventorySearchDefaultLimit()
     )
     if (vector.ok && vector.matches.length) {
-      const rows = await fetchPartnerInventoryRowsByIdsInOrderFromPg(
+      const rows = await fetchPartnerInventoryCardsByIdsInOrderFromPg(
         shop.partnerId,
         vector.matches.map((m) => m.inventory_id)
       )
       initialProducts = (rows ?? [])
-        .map((row) => inventoryRowToShopProduct(shop.site.siteSlug, row))
+        .map((row) => {
+          const mapped = inventoryCardRowToShopProduct(shop.site.siteSlug, row)
+          return withPartnerSiteSale(mapped, overlay)
+        })
         .filter((p): p is NonNullable<typeof p> => Boolean(p))
       initialTotal = initialProducts.length
     }

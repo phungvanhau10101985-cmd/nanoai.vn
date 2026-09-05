@@ -2,13 +2,14 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
-import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { inventoryCardRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { loadPartnerSiteSaleOverlay, withPartnerSiteSale } from '@/lib/partner-website/promotions/partner-site-sale-attach'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopCatalogClient } from '@/components/partner-website/shop/partner-site-shop-catalog-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
-import { fetchPartnerInventoryShopPageFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchPartnerInventoryShopCardPageFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   readVisualPreviewDevice,
@@ -44,14 +45,18 @@ export default async function PartnerSiteKhoSalePage({ params, searchParams }: P
   if (!shop) notFound()
   const device = await readVisualPreviewDevice(searchParams)
   const t = getPartnerSiteShopCopy(shop.site.locale)
-  const page = await fetchPartnerInventoryShopPageFromPg(shop.partnerId, {
+  const page = await fetchPartnerInventoryShopCardPageFromPg(shop.partnerId, {
     offset: 0,
     limit: 24,
     warehouse: true,
     sort: 'newest',
   })
+  const overlay = await loadPartnerSiteSaleOverlay(shop.partnerId).catch(() => null)
   const initialProducts = (page?.rows ?? [])
-    .map((row) => inventoryRowToShopProduct(shop.site.siteSlug, row))
+    .map((row) => {
+      const mapped = inventoryCardRowToShopProduct(shop.site.siteSlug, row)
+      return withPartnerSiteSale(mapped, overlay)
+    })
     .filter((p): p is NonNullable<typeof p> => Boolean(p))
 
   return (

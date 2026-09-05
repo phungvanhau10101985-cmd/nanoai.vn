@@ -11,6 +11,10 @@ import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-
 import { PW_GRID_ROWS_DEFAULT, productGridPageSize } from '@/lib/partner-website/shop/pw-product-grid-page'
 import { relatedListingHref } from '@/lib/partner-website/shop/related-products'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import {
+  PartnerSiteSaleMediaMarks,
+  PartnerSiteSalePriceBlock,
+} from '@/components/partner-website/shop/partner-site-sale-face'
 
 type Props = {
   siteSlug: string
@@ -80,7 +84,8 @@ export function PartnerSiteRelatedProducts({
               const img = shopCardDisplaySrc(p.imageUrl)
               return (
                 <article key={p.id} className="pw-product-card pw-related-card" data-pw-el={PW_EL.card}>
-                  <Link className="pw-product-card-media" href={href} data-pw-el={PW_EL.cardMedia}>
+                  <Link className="pw-product-card-media" href={href} data-pw-el={PW_EL.cardMedia} style={{ position: 'relative' }}>
+                    <PartnerSiteSaleMediaMarks product={p} locale={locale} />
                     {img ? (
                       <img
                         src={img}
@@ -97,11 +102,7 @@ export function PartnerSiteRelatedProducts({
                     <h4 data-pw-el={PW_EL.cardName}>
                       <Link href={href}>{p.name}</Link>
                     </h4>
-                    {p.priceHint ? (
-                      <p className="pw-price" data-pw-el={PW_EL.cardPrice}>
-                        {p.priceHint}
-                      </p>
-                    ) : null}
+                    <PartnerSiteSalePriceBlock product={p} locale={locale} fallback={p.priceHint} className="pw-price" />
                   </div>
                 </article>
               )

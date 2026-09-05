@@ -44,6 +44,8 @@ import {
 import { PartnerSiteShopOrderConfirmation } from '@/components/partner-website/shop/partner-site-shop-order-confirmation'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { partnerSiteAppliedPromoStorageKey } from '@/lib/partner-website/shop/partner-site-applied-promo'
+import { partnerSiteSaleCopy } from '@/lib/partner-website/promotions/partner-site-sale-display'
+import { PartnerSiteSaleCountdown } from '@/components/partner-website/shop/partner-site-sale-face'
 
 type Props = {
   siteSlug: string
@@ -77,6 +79,7 @@ type CartQuote = {
     effectiveUnitPrice: number
     isClearance: boolean
     googleDiscountAmount: number
+    expectedSaleUnitPrice?: number | null
   }>
   breakdown: {
     listSubtotal: number
@@ -111,6 +114,12 @@ type CartQuote = {
     carrierLabel: string
   }
   orderTotal: number
+  saleCalendar?: {
+    phase: 'off' | 'teaser' | 'active'
+    eventLabel: string
+    discountPercent: number
+    countdownTo?: string | null
+  } | null
 }
 
 type WalletVoucher = {
@@ -149,6 +158,7 @@ const CART_SALE_COPY: Record<WebLocale, {
 export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatPath }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const saleT = CART_SALE_COPY[locale] ?? CART_SALE_COPY.en
+  const siteSaleT = partnerSiteSaleCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
   const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { refreshCartCount, tracking } = usePartnerSiteShop()
@@ -512,6 +522,16 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     () => new Map((quote?.lines ?? []).map((line) => [line.lineId, line])),
     [quote?.lines]
   )
+  const selectedTeaserSavings = useMemo(() => {
+    if (quote?.saleCalendar?.phase !== 'teaser') return 0
+    return selectedItems.reduce((sum, item) => {
+      const line = quotedLineById.get(item.id)
+      const expected = line?.expectedSaleUnitPrice
+      const list = line?.listUnitPrice ?? 0
+      if (expected == null || expected <= 0 || expected >= list) return sum
+      return sum + (list - expected) * Math.max(1, item.quantity)
+    }, 0)
+  }, [quote?.saleCalendar?.phase, quotedLineById, selectedItems])
   const depositPreview = useMemo(() => {
     if (depositPolicy.mode === 'none') return null
     if (payableSubtotal <= 0) return null
@@ -721,6 +741,17 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                 {listUnitPrice > unitPrice ? <del className="pw-price-compare"> {formatVnd(listUnitPrice)}</del> : null}
                 {lineQuote?.isClearance ? <span className="pw-shop-address-default"> {saleT.clearanceSubtotal}</span> : null}
               </p>
+              {lineQuote?.expectedSaleUnitPrice != null &&
+              lineQuote.expectedSaleUnitPrice > 0 &&
+              lineQuote.expectedSaleUnitPrice < listUnitPrice ? (
+                <p className="pw-shop-cart-teaser">
+                  {siteSaleT.expectedPrice} {formatVnd(lineQuote.expectedSaleUnitPrice)}
+                  {' · '}
+                  {siteSaleT.expectedSave
+                    .replace('{pct}', String(quote?.saleCalendar?.discountPercent ?? 0))
+                    .replace('{amount}', formatVnd(listUnitPrice - lineQuote.expectedSaleUnitPrice))}
+                </p>
+              ) : null}
               {item.color || item.size ? (
                 <p className="pw-shop-muted">
                   {item.color ? `${t.colorLabel}: ${item.color}` : ''}
@@ -773,6 +804,30 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
           <p data-pw-el={PW_EL.price}>
             {t.cartSubtotal}: {formatVnd(subtotal)}
           </p>
+          {quote?.saleCalendar?.phase === 'teaser' && selectedTeaserSavings > 0 ? (
+            <div className="pw-shop-cart-teaser" style={{ marginBottom: 8 }}>
+              <p>
+                {siteSaleT.teaserCartHint
+                  .replace('{label}', quote.saleCalendar.eventLabel)
+                  .replace('{pct}', String(quote.saleCalendar.discountPercent))}
+                <strong> ~{formatVnd(selectedTeaserSavings)}</strong>
+              </p>
+              {quote.saleCalendar.countdownTo ? (
+                <PartnerSiteSaleCountdown
+                  countdownTo={quote.saleCalendar.countdownTo}
+                  phase="teaser"
+                  locale={locale}
+                />
+              ) : null}
+            </div>
+          ) : null}
+          {quote?.saleCalendar?.phase === 'active' && quote.saleCalendar.countdownTo ? (
+            <PartnerSiteSaleCountdown
+              countdownTo={quote.saleCalendar.countdownTo}
+              phase="active"
+              locale={locale}
+            />
+          ) : null}
           {quote ? (
             <div className="pw-shop-cart-discount-breakdown">
               {quote.breakdown.regularEffectiveSubtotal > 0 ? (

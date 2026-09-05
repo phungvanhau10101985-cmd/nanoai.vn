@@ -3,13 +3,14 @@ import {
   fetchPartnerCategoriesFlatFromPg,
 } from '@/lib/db/messaging-partner-categories-pg'
 import {
-  fetchPartnerInventoryActivePageWithCountFromPg,
-  fetchPartnerInventoryPageByCategoryFromPg,
+  fetchPartnerInventoryActiveCardPageWithCountFromPg,
+  fetchPartnerInventoryCardPageByCategoryFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import {
-  inventoryRowToShopProduct,
+  inventoryCardRowToShopProduct,
   type PartnerSiteShopProduct,
 } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { loadPartnerSiteSaleOverlay, withPartnerSiteSale } from '@/lib/partner-website/promotions/partner-site-sale-attach'
 import {
   PW_RELATED_LIMIT_DEFAULT,
   type RelatedProductContext,
@@ -41,16 +42,20 @@ export async function fetchRelatedShopProducts(input: {
   const excludeId = String(input.excludeId || '').trim()
   const categoryId = String(input.categoryId || '').trim()
   const page = categoryId
-    ? await fetchPartnerInventoryPageByCategoryFromPg(input.partnerId, {
+    ? await fetchPartnerInventoryCardPageByCategoryFromPg(input.partnerId, {
         offset: 0,
         limit: limit + 1,
         categoryId,
         sort: 'newest',
       })
-    : await fetchPartnerInventoryActivePageWithCountFromPg(input.partnerId, 0, limit + 1)
+    : await fetchPartnerInventoryActiveCardPageWithCountFromPg(input.partnerId, 0, limit + 1)
+  const overlay = await loadPartnerSiteSaleOverlay(input.partnerId).catch(() => null)
   return (page?.rows ?? [])
     .filter((row) => row.id !== excludeId)
-    .map((row) => inventoryRowToShopProduct(input.siteSlug, row))
+    .map((row) => {
+      const mapped = inventoryCardRowToShopProduct(input.siteSlug, row)
+      return withPartnerSiteSale(mapped, overlay)
+    })
     .filter((p): p is PartnerSiteShopProduct => Boolean(p))
     .slice(0, limit)
 }

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { fetchPartnerCategoriesFlatFromPg } from '@/lib/db/messaging-partner-categories-pg'
 import { prunePartnerCategoriesMissingAncestors } from '@/lib/partner-website/category/partner-category-types'
 import { isPartnerCategoryNavJunkNode } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
-import { fetchPartnerInventoryFullListOrderedCreatedFromPg } from '@/lib/db/messaging-partner-inventory-pg'
-import { fetchPartnerWebsiteByPartnerIdPg } from '@/lib/db/messaging-partner-websites-pg'
+import { fetchPartnerInventorySitemapRowsFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
 import { getPublicOriginFromAppRouterHeaders } from '@/lib/auth/public-app-url'
@@ -38,8 +38,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ slug: strin
   if (!shop) {
     return new NextResponse('Not found', { status: 404 })
   }
-  const website = await fetchPartnerWebsiteByPartnerIdPg(shop.partnerId)
-  if (!website?.isPublished) {
+  const published = await fetchPublishedPartnerWebsiteBySlugPg(slug, { projectFiles: 'none' })
+  if (!published) {
     return new NextResponse('Not found', { status: 404 })
   }
 
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ slug: strin
 
   const [categories, products] = await Promise.all([
     fetchPartnerCategoriesFlatFromPg(shop.partnerId, { activeOnly: true }),
-    fetchPartnerInventoryFullListOrderedCreatedFromPg(shop.partnerId),
+    fetchPartnerInventorySitemapRowsFromPg(shop.partnerId, MAX_SITEMAP_PRODUCTS),
   ])
 
   const entries: string[] = [urlEntry(abs('/')), urlEntry(abs('/c'))]
@@ -65,10 +65,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ slug: strin
     entries.push(urlEntry(abs(`/c/${cat.path}`), cat.updatedAt || undefined))
   }
 
-  const activeProducts = (products ?? []).filter((p) => p.is_active !== false).slice(0, MAX_SITEMAP_PRODUCTS)
-  for (const p of activeProducts) {
+  for (const p of products ?? []) {
     const key = buildPartnerSiteProductKey(p.name, p.id)
-    entries.push(urlEntry(abs(`/products/${key}`), p.updated_at || undefined))
+    entries.push(urlEntry(abs(`/products/${key}`), p.updatedAt || undefined))
   }
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>

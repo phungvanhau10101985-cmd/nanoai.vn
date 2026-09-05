@@ -467,6 +467,12 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
     echo "  Cảnh báo: thiếu secret marketing cron, bỏ qua cron partner-marketing-campaign."
   fi
 
+  if [[ -n "${CRON_SECRET_FALLBACK}" ]]; then
+    ensure_cron "partner-marketing-banners" "25 2 * * * curl -fsS -m 300 -X POST http://127.0.0.1:3000/api/cron/partner-marketing-banners -H \"Authorization: Bearer ${CRON_SECRET_FALLBACK}\" >> /root/logs/partner-marketing-banners.log 2>&1"
+  else
+    echo "  Cảnh báo: thiếu CRON_SECRET, bỏ qua cron partner-marketing-banners."
+  fi
+
   if [[ -n "${WEDDING_SECRET}" ]]; then
     ensure_cron "wedding-reminder" "0 8 * * * curl -fsS -m 120 -X GET http://127.0.0.1:3000/api/cron/wedding-reminder -H \"Authorization: Bearer ${WEDDING_SECRET}\" >> /root/logs/wedding-reminder.log 2>&1"
   else
@@ -480,7 +486,7 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
   fi
 
   echo "  Cron hiện tại:"
-  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-external-catalog-sync|messaging-logo-cleanup|partner-marketing-campaign|partner-customer-notifications|wedding-reminder|partner-custom-domain-ssl|vision-" || true
+  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-external-catalog-sync|messaging-logo-cleanup|partner-marketing-campaign|partner-customer-notifications|partner-marketing-banners|wedding-reminder|partner-custom-domain-ssl|vision-" || true
 else
   echo "  Bỏ qua (DEPLOY_SETUP_CRONS=${DEPLOY_SETUP_CRONS})."
 fi

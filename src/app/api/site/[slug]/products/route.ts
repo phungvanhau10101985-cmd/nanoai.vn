@@ -5,23 +5,20 @@ import {
 } from '@/lib/db/messaging-partner-categories-pg'
 import {
   fetchPartnerCategoryFacetCountsFromPg,
-  fetchPartnerInventoryPageByCategoryFromPg,
-  fetchPartnerInventoryPageByTextSearchFromPg,
-  fetchPartnerInventoryShopPageFromPg,
+  fetchPartnerInventoryCardPageByCategoryFromPg,
+  fetchPartnerInventoryCardPageByTextSearchFromPg,
+  fetchPartnerInventoryShopCardPageFromPg,
   fetchPartnerTextSearchFacetCountsFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { partnerShopFacetDefsForIndustry } from '@/lib/partner-website/shop/partner-shop-industry-facets'
 import { findPartnerSearchAliasByKeywordFromPg } from '@/lib/db/messaging-partner-search-aliases-pg'
 import { isPgConfigured } from '@/lib/db/pool'
-import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { inventoryCardRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { toPartnerSiteCardPayload } from '@/lib/partner-website/shop/partner-site-card-payload'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
-import {
-  applyPartnerSiteSalePrice,
-  resolvePartnerSaleCalendarState,
-} from '@/lib/partner-website/promotions/partner-sale-calendar'
-import { resolvePartnerEffectiveUnitPrice } from '@/lib/partner-website/shop/partner-shop-flash-sale'
-import { pgQuery } from '@/lib/db/pg-query'
+import { resolvePartnerStorefrontSaleCalendarForRequest } from '@/lib/partner-website/promotions/partner-feature-test-storefront'
+import { applyPartnerSiteSaleToShopProduct } from '@/lib/partner-website/promotions/partner-site-sale-display'
 
 export const dynamic = 'force-dynamic'
 
@@ -130,7 +127,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     !warehouse &&
     !collection
   const page = use188TextSearch
-    ? await fetchPartnerInventoryPageByTextSearchFromPg(shop.partnerId, {
+    ? await fetchPartnerInventoryCardPageByTextSearchFromPg(shop.partnerId, {
         offset,
         limit: fetchLimit,
         q,
@@ -143,7 +140,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
         styleTag: styleTag || undefined,
       })
     : categoryId && UUID_RE.test(categoryId)
-      ? await fetchPartnerInventoryPageByCategoryFromPg(shop.partnerId, {
+      ? await fetchPartnerInventoryCardPageByCategoryFromPg(shop.partnerId, {
           offset,
           limit: fetchLimit,
           categoryId,
@@ -155,7 +152,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
           color: color || undefined,
           styleTag: styleTag || undefined,
         })
-      : await fetchPartnerInventoryShopPageFromPg(shop.partnerId, {
+      : await fetchPartnerInventoryShopCardPageFromPg(shop.partnerId, {
           offset,
           limit: fetchLimit,
           q: preferIds.length ? undefined : q || undefined,
@@ -169,60 +166,26 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
 
   const excludeSet = new Set(excludeIds)
   const saleConfig = await fetchPartnerSaleCalendarConfigFromPg(shop.partnerId)
-  const saleCalendar = resolvePartnerSaleCalendarState({ settings: saleConfig })
-  const clearanceIds = new Set(
-    await pgQuery<{ id: string }>(
-      `select id::text from public.messaging_partner_inventory
-       where partner_id = $1::uuid and is_clearance = true
-         and id = any($2::uuid[])`,
-      [shop.partnerId, page.rows.map((row) => row.id)]
-    )
-      .then((rows) => rows.map((row) => row.id))
-      .catch(() => [])
-  )
+  const saleCalendar = await resolvePartnerStorefrontSaleCalendarForRequest({
+    request,
+    partnerId: shop.partnerId,
+    settings: saleConfig,
+  })
   const mapped = page.rows
     .map((row) => {
-      const product = inventoryRowToShopProduct(shop.site.siteSlug, row)
-      return product ? { ...product, isClearance: clearanceIds.has(product.id) } : null
+      return inventoryCardRowToShopProduct(shop.site.siteSlug, row)
     })
     .filter((p): p is NonNullable<typeof p> => Boolean(p))
     .filter((p) => !excludeSet.has(p.id))
   const hasMore = mapped.length > limit || offset + limit < page.count
-  const products = mapped.slice(0, limit).map((product) => {
-    const listPrice = Math.max(0, Math.round(product.priceAmount ?? 0))
-    if (listPrice <= 0) return { ...product, siteSalePhase: saleCalendar.phase, siteSalePercent: saleCalendar.discountPercent }
-    const calendarPrice = applyPartnerSiteSalePrice(listPrice, saleCalendar)
-    const clearancePrice =
-      product.isClearance && saleConfig.clearanceEnabled
-        ? Math.max(0, Math.round(listPrice * (1 - saleConfig.clearanceDiscountPercent / 100)))
-        : null
-    const productEffectivePrice =
-      resolvePartnerEffectiveUnitPrice({
-        priceAmount: listPrice,
-        salePriceAmount: product.salePriceAmount ?? null,
-        saleStartsAt: product.saleStartsAt ?? null,
-        saleEndsAt: product.saleEndsAt ?? null,
-      }) ?? listPrice
-    const activePrice =
-      clearancePrice ??
-      (saleCalendar.phase === 'active'
-        ? Math.min(calendarPrice, productEffectivePrice)
-        : null)
-    return {
-      ...product,
-      salePriceAmount: activePrice ?? product.salePriceAmount,
-      saleStartsAt: activePrice != null ? null : product.saleStartsAt,
-      saleEndsAt: activePrice != null ? null : product.saleEndsAt,
-      siteSalePhase: saleCalendar.phase,
-      siteSalePercent: product.isClearance
-        ? saleConfig.clearanceDiscountPercent
-        : saleCalendar.discountPercent,
-      siteSaleExpectedPrice:
-        saleCalendar.phase === 'teaser' && !product.isClearance
-          ? applyPartnerSiteSalePrice(listPrice, { ...saleCalendar, phase: 'active' })
-          : null,
-    }
-  })
+  const products = mapped.slice(0, limit).map((product) =>
+    toPartnerSiteCardPayload(
+      applyPartnerSiteSaleToShopProduct(product, saleCalendar, {
+        clearanceEnabled: saleConfig.clearanceEnabled,
+        clearancePercent: saleConfig.clearanceDiscountPercent,
+      })
+    )
+  )
 
   if (related && categoryId && UUID_RE.test(categoryId)) {
     const flat = await fetchPartnerCategoriesFlatFromPg(shop.partnerId)

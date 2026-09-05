@@ -1,6 +1,5 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
@@ -48,21 +47,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) {
-    const site = await fetchPublishedPartnerWebsiteBySlugPg(slug, { allowDraft: true }).catch(() => null)
-    if (!site) {
-      return buildMetadata({
-        title: 'Account',
-        description: 'Account',
-        path: `/site/${slug}/account/${normalized}`,
-        noIndex: true,
-      })
-    }
-    return buildPartnerSiteMetadata({
-      siteSlug: site.siteSlug,
-      siteName: site.title,
-      title: `${site.title} — Account`,
-      description: site.partnerDisplayName,
-      path: `/account/${normalized}`,
+    return buildMetadata({
+      title: 'Account',
+      description: 'Account',
+      path: `/site/${slug}/account/${normalized}`,
       noIndex: true,
     })
   }
@@ -83,13 +71,12 @@ export default async function PartnerSiteAccountTabPage({ params, searchParams }
   const normalized = tab.trim().toLowerCase()
   if (!isPartnerSiteAccountTab(normalized) || !ROUTE_TABS.has(normalized)) notFound()
 
-  const site = await fetchPublishedPartnerWebsiteBySlugPg(slug, { allowDraft: true }).catch(() => null)
-  if (!site) notFound()
-
   const shop = await loadPartnerSiteShopContext(slug)
-  const partnerSlug = shop?.partnerSlug ?? site.partnerSlug
+  if (!shop) notFound()
+  const site = shop.site
+  const partnerSlug = shop.partnerSlug
   if (!partnerSlug.trim()) notFound()
-  const shellSite = shop?.site ?? site
+  const shellSite = site
   const device = await readVisualPreviewDevice(searchParams)
 
   const sp = (await searchParams) ?? {}

@@ -34,7 +34,7 @@ test('normalizeShopImageUrl rewrites blocked 188 Bunny host and protocol-relativ
   assert.equal(normalizeShopImageUrl('not-a-url'), '')
 })
 
-test('PDP src keeps AliCDN original and retries then hides broken 600q90 URLs', () => {
+test('PDP src keeps AliCDN original metadata and bounds broken-size retries through proxy', () => {
   const broken =
     'https://img.alicdn.com/img/ibank/2020/688/457/21712754886_2079049757.jpg_600x600q90.jpg'
   const raw = 'https://img.alicdn.com/img/ibank/2020/688/457/21712754886_2079049757.jpg'
@@ -45,8 +45,8 @@ test('PDP src keeps AliCDN original and retries then hides broken 600q90 URLs', 
   assert.equal(shopPdpPageSrc(raw), page)
   assert.equal(shopPdpPageSrc(broken), page)
   assert.equal(applyShopAlicdnPageSize(raw), page)
-  assert.equal(nextShopImageRetrySrc(broken), raw)
-  assert.equal(nextShopImageRetrySrc(page), raw)
+  assert.equal(nextShopImageRetrySrc(broken), `/api/fetch-image?url=${encodeURIComponent(raw)}`)
+  assert.equal(nextShopImageRetrySrc(page), `/api/fetch-image?url=${encodeURIComponent(raw)}`)
   assert.equal(
     nextShopImageRetrySrc(raw),
     `/api/fetch-image?url=${encodeURIComponent(raw)}`

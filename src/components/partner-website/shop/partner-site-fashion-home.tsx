@@ -27,6 +27,11 @@ import {
   formatPartnerShopMoneyVnd,
   isPartnerFlashSaleActive,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
+import {
+  PartnerSiteSaleMediaMarks,
+  PartnerSiteSalePriceBlock,
+  partnerProductSaleFaceOf,
+} from '@/components/partner-website/shop/partner-site-sale-face'
 
 export type FashionHomeCategory = {
   name: string
@@ -77,6 +82,7 @@ type Props = {
 
 function ProductCard({
   siteSlug,
+  locale,
   product,
   showNew,
   showFlash,
@@ -84,6 +90,7 @@ function ProductCard({
   customDomain,
 }: {
   siteSlug: string
+  locale: WebLocale
   product: PartnerSiteShopProduct
   showNew?: boolean
   showFlash?: boolean
@@ -91,14 +98,16 @@ function ProductCard({
   customDomain: boolean
 }) {
   const href = partnerSiteProductPath(siteSlug, product.id, { customDomain, name: product.name })
+  const face = partnerProductSaleFaceOf(product)
   const flash =
-    showFlash ||
-    isPartnerFlashSaleActive({
-      priceAmount: product.priceAmount ?? null,
-      salePriceAmount: product.salePriceAmount ?? null,
-      saleStartsAt: product.saleStartsAt ?? null,
-      saleEndsAt: product.saleEndsAt ?? null,
-    })
+    !face.kind &&
+    (showFlash ||
+      isPartnerFlashSaleActive({
+        priceAmount: product.priceAmount ?? null,
+        salePriceAmount: product.salePriceAmount ?? null,
+        saleStartsAt: product.saleStartsAt ?? null,
+        saleEndsAt: product.saleEndsAt ?? null,
+      }))
   const saleLabel =
     flash && product.salePriceAmount != null ? formatPartnerShopMoneyVnd(product.salePriceAmount) : null
   return (
@@ -107,7 +116,8 @@ function ProductCard({
       data-pw-el={PW_EL.card}
     >
       <Link href={href} className="relative aspect-[4/5] overflow-hidden bg-orange-50" data-pw-el={PW_EL.cardMedia}>
-        {showNew ? (
+        <PartnerSiteSaleMediaMarks product={product} locale={locale} />
+        {showNew && !face.kind ? (
           <span className="absolute left-3 top-3 z-10 rounded-md bg-stone-500/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur">
             NEW
           </span>
@@ -134,7 +144,9 @@ function ProductCard({
         <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-stone-800" data-pw-el={PW_EL.cardName}>
           <Link href={href}>{product.name}</Link>
         </h3>
-        {saleLabel ? (
+        {face.kind ? (
+          <PartnerSiteSalePriceBlock product={product} locale={locale} fallback={product.priceHint} className="pw-fh-price" />
+        ) : saleLabel ? (
           <p className="flex flex-wrap items-baseline gap-2">
             <span className="pw-fh-price text-base font-extrabold tracking-tight">{saleLabel}</span>
             {product.priceHint ? (
@@ -329,7 +341,7 @@ function FashionHomeInner({
         </div>
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-5" data-pw-el={PW_EL.grid}>
           {flashSale.slice(0, 8).map((p) => (
-            <ProductCard key={`flash-${p.id}`} siteSlug={siteSlug} product={p} showFlash cta={t.addToCart} customDomain={customDomain} />
+            <ProductCard key={`flash-${p.id}`} siteSlug={siteSlug} locale={locale} product={p} showFlash cta={t.addToCart} customDomain={customDomain} />
           ))}
         </div>
       </section>
@@ -357,7 +369,7 @@ function FashionHomeInner({
         </div>
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-5" data-pw-el={PW_EL.grid}>
           {newArrivals.slice(0, 8).map((p) => (
-            <ProductCard key={p.id} siteSlug={siteSlug} product={p} showNew cta={t.addToCart} customDomain={customDomain} />
+            <ProductCard key={p.id} siteSlug={siteSlug} locale={locale} product={p} showNew cta={t.addToCart} customDomain={customDomain} />
           ))}
         </div>
         {!newArrivals.length ? (
@@ -378,7 +390,7 @@ function FashionHomeInner({
         </h2>
         <div className="relative grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-5" data-pw-el={PW_EL.grid}>
           {(bestSellers.length ? bestSellers : newArrivals).slice(0, 8).map((p) => (
-            <ProductCard key={`best-${p.id}`} siteSlug={siteSlug} product={p} cta={t.addToCart} customDomain={customDomain} />
+            <ProductCard key={`best-${p.id}`} siteSlug={siteSlug} locale={locale} product={p} cta={t.addToCart} customDomain={customDomain} />
           ))}
         </div>
       </section>

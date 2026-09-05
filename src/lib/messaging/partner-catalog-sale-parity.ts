@@ -4,7 +4,7 @@ import {
   resolvePartnerSaleCalendarState,
 } from '@/lib/partner-website/promotions/partner-sale-calendar'
 import type { CatalogFeedInventoryRow } from '@/lib/messaging/catalog-feed-shared'
-import { catalogFeedPriceAmount } from '@/lib/messaging/catalog-feed-shared'
+import { catalogFeedPriceAmount, catalogFeedSalePriceAmount } from '@/lib/messaging/catalog-feed-shared'
 
 export async function applyPartnerSaleParityToCatalogRows(
   partnerId: string,
@@ -32,13 +32,10 @@ export async function applyPartnerSaleParityToCatalogRows(
     }
     if (state.phase !== 'active') return row
     const calendarPrice = applyPartnerSiteSalePrice(listPrice, state)
-    const currentSale = Number(row.sale_price_amount)
+    const currentSale = catalogFeedSalePriceAmount(row, listPrice)
     return {
       ...row,
-      sale_price_amount:
-        Number.isFinite(currentSale) && currentSale >= 0
-          ? Math.min(calendarPrice, currentSale)
-          : calendarPrice,
+      sale_price_amount: currentSale != null ? Math.min(calendarPrice, currentSale) : calendarPrice,
       sale_starts_at: null,
       sale_ends_at: null,
     }

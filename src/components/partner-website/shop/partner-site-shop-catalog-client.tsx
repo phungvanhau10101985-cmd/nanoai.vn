@@ -12,6 +12,10 @@ import {
   trackPartnerSiteViewItemList,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import {
+  PartnerSiteSaleMediaMarks,
+  PartnerSiteSalePriceBlock,
+} from '@/components/partner-website/shop/partner-site-sale-face'
 
 type Props = {
   siteSlug: string
@@ -73,14 +77,15 @@ export function PartnerSiteShopCatalogClient({
       <div className="pw-shop-grid" data-pw-el={PW_EL.grid} data-pw-grid style={{ marginTop: 20 }}>
         {products.map((p) => (
           <article key={p.id} className="pw-shop-card" data-pw-el={PW_EL.card}>
-            <Link href={p.detailPath} data-pw-el={PW_EL.cardMedia}>
+            <Link href={p.detailPath} data-pw-el={PW_EL.cardMedia} style={{ position: 'relative', display: 'block' }}>
+              <PartnerSiteSaleMediaMarks product={p} locale={locale} />
               <img src={p.imageUrl} alt={p.name} loading="lazy" />
             </Link>
             <div className="pw-shop-card-body">
               <Link href={p.detailPath}>
                 <h3 data-pw-el={PW_EL.cardName}>{p.name}</h3>
               </Link>
-              {p.priceHint ? <p className="pw-shop-price" data-pw-el={PW_EL.cardPrice}>{p.priceHint}</p> : null}
+              <PartnerSiteSalePriceBlock product={p} locale={locale} fallback={p.priceHint} />
               <Link href={p.detailPath} className="pw-shop-btn" style={{ marginTop: 12 }} data-pw-el={PW_EL.cardBuy}>
                 {t.productDetail}
               </Link>

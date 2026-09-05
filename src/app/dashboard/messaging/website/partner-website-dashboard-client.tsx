@@ -945,6 +945,7 @@ export function PartnerWebsiteDashboardClient({
               locale={locale}
               t={t}
               partnerId={partnerId}
+              siteSlug={website?.siteSlug}
               sectionId="partner-website-promotions"
               onToast={(message, variant) =>
                 toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })

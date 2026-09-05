@@ -8,9 +8,10 @@ import { fetchPartnerCategoriesFlatFromPg } from '@/lib/db/messaging-partner-cat
 import {
   fetchPartnerCategoryFacetCountsFromPg,
   fetchPartnerCategoryPriceRangeFromPg,
-  fetchPartnerInventoryPageByCategoryFromPg,
+  fetchPartnerInventoryCardPageByCategoryFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
-import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { inventoryCardRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { loadPartnerSiteSaleOverlay, withPartnerSiteSale } from '@/lib/partner-website/promotions/partner-site-sale-attach'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
   prunePartnerCategoriesMissingAncestors,
@@ -122,7 +123,7 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
 
   const listing = parsePartnerCategoryListingFromRecord((searchParams ? await searchParams : {}) ?? {})
   const [page, priceRange, facets] = await Promise.all([
-    fetchPartnerInventoryPageByCategoryFromPg(shop.partnerId, {
+    fetchPartnerInventoryCardPageByCategoryFromPg(shop.partnerId, {
       offset: partnerCategoryListingOffset(listing),
       limit: PARTNER_CATEGORY_PAGE_SIZE,
       categoryId: category.id,
@@ -138,8 +139,12 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
     fetchPartnerCategoryFacetCountsFromPg(shop.partnerId, category.id),
   ])
 
+  const overlay = await loadPartnerSiteSaleOverlay(shop.partnerId).catch(() => null)
   const initialProducts = (page?.rows ?? [])
-    .map((row) => inventoryRowToShopProduct(shop.site.siteSlug, row))
+    .map((row) => {
+      const mapped = inventoryCardRowToShopProduct(shop.site.siteSlug, row)
+      return withPartnerSiteSale(mapped, overlay)
+    })
     .filter((p): p is NonNullable<typeof p> => Boolean(p))
 
   const categoryName = resolvePartnerCategoryDisplayName(category, locale)

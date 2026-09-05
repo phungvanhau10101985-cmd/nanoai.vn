@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, ChevronLeft, ChevronRight, ChevronsLeftRight, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutGrid, LayoutTemplate, Loader2, Lock, LogIn, LogOut, Mail, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Share2, Shield, Shirt, ShoppingBag, Sparkles, Square, Store, Tag, Ticket, Trash2, Truck, Type, Undo2, Upload, User, UserPlus, Video, Wallet, X } from 'lucide-react'
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, ChevronLeft, ChevronRight, ChevronsLeftRight, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, Gift, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutGrid, LayoutTemplate, Loader2, Lock, LogIn, LogOut, Mail, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Percent, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Share2, Shield, Shirt, ShoppingBag, Sparkles, Square, Store, Tag, Ticket, Trash2, Truck, Type, Undo2, Upload, User, UserPlus, Video, Wallet, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -159,6 +159,7 @@ import {
 import {
   buildVisualEditorBannerHtml,
   bannerWidgetLabel,
+  type VisualEditorBannerKind,
 } from '@/lib/partner-website/visual-editor/banner-widgets'
 import {
   clampPwSliderWait,
@@ -3398,6 +3399,22 @@ export function PartnerWebsiteVisualEditorToolbar({
     openBlockPanel()
   }
 
+  function insertLiveBannerWidget(kind: Extract<VisualEditorBannerKind, 'birthday' | 'sale-calendar'>) {
+    if (!insertAnchorActive) return
+    const slug = siteSlug?.trim()
+    if (!slug) {
+      onError(t.visualEditSaveFailed)
+      return
+    }
+    if (insertBgPickPlace) cancelInsertBgPickUi()
+    setAddBgAskOpen(false)
+    const html = buildVisualEditorBannerHtml({ kind, siteSlug: slug, locale })
+    if (!html) return
+    postToIframe(iframeRef.current, 'insertBanner', { html, useAnchor: insertAnchorActive })
+    setDirty(true)
+    openBlockPanel()
+  }
+
   function insertProductGridWidget(kind: VisualEditorProductGridKind, rows: number) {
     if (!insertAnchorActive) return
     const slug = siteSlug?.trim()
@@ -4539,6 +4556,28 @@ export function PartnerWebsiteVisualEditorToolbar({
                         </p>
                       ) : null}
                     </div>
+                    ) : null}
+                    {addAtGap && !addAtFooter ? (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] font-medium hover:bg-muted"
+                      disabled={busy}
+                      onClick={() => insertLiveBannerWidget('birthday')}
+                    >
+                      <Gift className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      {t.visualEditAddBirthdayBanner || bannerWidgetLabel('birthday', locale)}
+                    </button>
+                    ) : null}
+                    {addAtGap && !addAtFooter ? (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] font-medium hover:bg-muted"
+                      disabled={busy}
+                      onClick={() => insertLiveBannerWidget('sale-calendar')}
+                    >
+                      <Percent className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      {t.visualEditAddSaleCalendarBanner || bannerWidgetLabel('sale-calendar', locale)}
+                    </button>
                     ) : null}
                     {(addAtGap && !addAtFooter ? VISUAL_EDITOR_PRODUCT_GRID_KINDS : []).filter((kind) =>
                       productGridKindShownInAddPicker(kind, pageKey)

@@ -1,5 +1,7 @@
+import { getAuthUserEmailFromPg } from '@/lib/db/auth-user-email-pg'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import { resolvePartnerBirthdayFeatureTestPercentFromPg } from '@/lib/db/messaging-partner-feature-test-pg'
 import { daysUntilNextBirthday, isInBirthdayOfferWindow } from '@/lib/messaging/birthday-promo-interest-inventory-ids'
 
 export type MessagingPartnerBirthdayPromoRow = {
@@ -31,44 +33,53 @@ export async function resolveActiveBirthdayDiscountPercentForCustomer(input: {
   emailNormalized?: string | null
 }): Promise<number | null> {
   const linkedUserId = String(input.linkedUserId ?? '').trim()
-  const email = String(input.emailNormalized ?? '').trim().toLowerCase().slice(0, 180)
+  let email = String(input.emailNormalized ?? '').trim().toLowerCase().slice(0, 180)
   if ((!linkedUserId && !email) || !isPgConfigured()) return null
   const partnerId = input.partnerId
   const promo = await fetchBirthdayPromoForPartnerFromPg(partnerId)
-  if (!promo?.enabled) return null
-  const pct = Math.max(0, Math.min(100, Math.floor(Number(promo.discount_percent) || 0)))
-  if (pct <= 0) return null
-  try {
-    const row = linkedUserId
-      ? await pgQueryOne<{ birth_date: string | null }>(
-          `select birth_date::text as birth_date
-           from public.profiles where id = $1::uuid limit 1`,
-          [linkedUserId]
-        )
-      : null
-    const partnerProfile = !row?.birth_date && email
-      ? await pgQueryOne<{ birth_date: string | null }>(
-          `select date_of_birth::text as birth_date
-           from public.messaging_partner_customer_profiles
-           where partner_id = $1::uuid and email_normalized = $2
-           limit 1`,
-          [partnerId, email]
-        ).catch(() => null)
-      : null
-    const bd = String(row?.birth_date ?? partnerProfile?.birth_date ?? '').trim().slice(0, 10)
-    if (!bd) return null
-    const daysUntil = daysUntilNextBirthday(bd)
-    if (daysUntil == null) return null
-    if (
-      !isInBirthdayOfferWindow(daysUntil, promo.offer_days_before_max, promo.offer_days_before_min)
-    ) {
-      return null
+  const configuredPct = Math.max(0, Math.min(100, Math.floor(Number(promo?.discount_percent) || 0)))
+
+  if (promo?.enabled && configuredPct > 0) {
+    try {
+      const row = linkedUserId
+        ? await pgQueryOne<{ birth_date: string | null }>(
+            `select birth_date::text as birth_date
+             from public.profiles where id = $1::uuid limit 1`,
+            [linkedUserId]
+          )
+        : null
+      const partnerProfile = !row?.birth_date && email
+        ? await pgQueryOne<{ birth_date: string | null }>(
+            `select date_of_birth::text as birth_date
+             from public.messaging_partner_customer_profiles
+             where partner_id = $1::uuid and email_normalized = $2
+             limit 1`,
+            [partnerId, email]
+          ).catch(() => null)
+        : null
+      const bd = String(row?.birth_date ?? partnerProfile?.birth_date ?? '').trim().slice(0, 10)
+      if (bd) {
+        const daysUntil = daysUntilNextBirthday(bd)
+        if (
+          daysUntil != null &&
+          isInBirthdayOfferWindow(daysUntil, promo.offer_days_before_max, promo.offer_days_before_min)
+        ) {
+          return configuredPct
+        }
+      }
+    } catch (e) {
+      console.warn('[resolveActiveBirthdayDiscountPercentForCustomer]', e)
     }
-    return pct
-  } catch (e) {
-    console.warn('[resolveActiveBirthdayDiscountPercentForCustomer]', e)
-    return null
   }
+
+  if (!email && linkedUserId) {
+    email = (await getAuthUserEmailFromPg(linkedUserId))?.trim().toLowerCase() ?? ''
+  }
+  return resolvePartnerBirthdayFeatureTestPercentFromPg({
+    partnerId,
+    visitorEmail: email,
+    configuredPercent: configuredPct,
+  })
 }
 
 export async function fetchBirthdayPromoForPartnerFromPg(

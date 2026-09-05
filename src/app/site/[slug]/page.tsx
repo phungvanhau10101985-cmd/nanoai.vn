@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
 import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
-import { fetchPartnerInventoryActivePageWithCountFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchPartnerInventoryActiveCardPageWithCountFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { renderPartnerWebsiteHtml } from '@/lib/partner-website/partner-website-render'
@@ -11,7 +11,8 @@ import { PartnerSitePublicClient } from './partner-site-public-client'
 import { maybePartnerSiteVisualPage, readVisualPreviewDevice } from '@/components/partner-website/shop/partner-site-visual-html-screen'
 import { PartnerSiteFashionHome } from '@/components/partner-website/shop/partner-site-fashion-home'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
-import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { inventoryCardRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { loadPartnerSiteSaleOverlay, withPartnerSiteSale } from '@/lib/partner-website/promotions/partner-site-sale-attach'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
 import {
@@ -33,7 +34,7 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const site = await fetchPublishedPartnerWebsiteBySlugPg(slug).catch(() => null)
+  const site = (await loadPartnerSiteShopContext(slug).catch(() => null))?.site ?? null
   if (!site) {
     return buildMetadata({
       title: 'Website',
@@ -89,7 +90,8 @@ function sampleAsShopProducts(
 
 export default async function PartnerSitePublicPage({ params, searchParams }: Props) {
   const { slug } = await params
-  const site = await fetchPublishedPartnerWebsiteBySlugPg(slug, { allowDraft: true }).catch(() => null)
+  const shopContext = await loadPartnerSiteShopContext(slug).catch(() => null)
+  const site = shopContext?.site ?? null
   if (!site) notFound()
 
   const previewDevice = await readVisualPreviewDevice(searchParams)
@@ -99,13 +101,17 @@ export default async function PartnerSitePublicPage({ params, searchParams }: Pr
   const useShopHome = isFullLandingV1Template(site) && site.renderMode === 'template'
 
   if (useShopHome) {
-    const shop = await loadPartnerSiteShopContext(slug)
+    const shop = shopContext
     if (!shop) notFound()
 
     const bookingEnabled = shop.industryKey === 'hotel'
-    const inv = await fetchPartnerInventoryActivePageWithCountFromPg(shop.partnerId, 0, 16)
+    const inv = await fetchPartnerInventoryActiveCardPageWithCountFromPg(shop.partnerId, 0, 16)
+    const overlay = await loadPartnerSiteSaleOverlay(shop.partnerId).catch(() => null)
     const live = (inv?.rows ?? [])
-      .map((row) => inventoryRowToShopProduct(shop.site.siteSlug, row))
+      .map((row) => {
+        const mapped = inventoryCardRowToShopProduct(shop.site.siteSlug, row)
+        return withPartnerSiteSale(mapped, overlay)
+      })
       .filter((p): p is NonNullable<typeof p> => Boolean(p))
     const fallback = sampleAsShopProducts(shop.site.siteSlug, shop.site.locale)
     const products = live.length ? live : fallback

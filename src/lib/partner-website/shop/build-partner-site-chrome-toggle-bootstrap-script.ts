@@ -703,6 +703,8 @@ function applyFeaturedNav(tree,j){
 }
 function hydratePersonalizedNav(tree){
   if(pwShopLiveUiOff())return;
+  var bound=document.querySelectorAll('.pw-nav-main[data-pw-nav-live="1"],.pw-shop-nav-row[data-pw-nav-live="1"]');
+  if(bound.length){for(var i=0;i<bound.length;i++)bindNavPills(bound[i],tree);return;}
   fetch(FEATURED_NAV_API,{credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){
     applyFeaturedNav(tree,j);
   }).catch(function(){fillNavRows(tree,[],null,false);});

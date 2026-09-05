@@ -192,7 +192,10 @@ export function nextShopImageRetrySrc(currentSrc: string): string | null {
     }
     return null
   }
-  if (ALICDN_SIZE_SUFFIX_RE.test(src)) return src.replace(ALICDN_SIZE_SUFFIX_RE, '')
+  if (ALICDN_SIZE_SUFFIX_RE.test(src)) {
+    const orig = src.replace(ALICDN_SIZE_SUFFIX_RE, '')
+    return orig ? `/api/fetch-image?url=${encodeURIComponent(orig)}` : null
+  }
   if (/alicdn\.com|1688\.com|alibaba\.com/i.test(src)) {
     return `/api/fetch-image?url=${encodeURIComponent(src)}`
   }
@@ -295,7 +298,10 @@ export const PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS = `function nextShopImageRetrySrc(s
     }catch(e){}
     return '';
   }
-  if(/_\\d+x\\d+(?:q\\d+)?\\.jpg$/i.test(src))return src.replace(/_\\d+x\\d+(?:q\\d+)?\\.jpg$/i,'');
+  if(/_\\d+x\\d+(?:q\\d+)?\\.jpg$/i.test(src)){
+    var orig=src.replace(/_\\d+x\\d+(?:q\\d+)?\\.jpg$/i,'');
+    return orig?('/api/fetch-image?url='+encodeURIComponent(orig)):'';
+  }
   if(/alicdn\\.com|1688\\.com|alibaba\\.com/i.test(src)){
     return '/api/fetch-image?url='+encodeURIComponent(src);
   }

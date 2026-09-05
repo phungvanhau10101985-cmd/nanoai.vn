@@ -30,6 +30,8 @@ test('same-day sale uses odd/even month percentage and T-3 teaser', () => {
   assert.equal(teaser.saleDate, '2026-09-09')
   assert.equal(teaser.phase, 'teaser')
   assert.equal(teaser.discountPercent, 6)
+  assert.equal(teaser.eventDate, '2026-09-09')
+  assert.ok(teaser.countdownTo)
 
   const active = resolvePartnerSaleCalendarState({
     settings,

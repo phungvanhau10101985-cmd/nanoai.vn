@@ -11,6 +11,7 @@ import {
   resolveSiteVisitorEmail,
 } from '@/lib/partner-website/shop/partner-site-personalization'
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
+import { resolvePartnerStorefrontSaleCalendarForRequest } from '@/lib/partner-website/promotions/partner-feature-test-storefront'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,11 +68,12 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     linkedUserId: visitor.thread.linkedUserId,
     guestAccountId: visitor.thread.guestAccountId,
   }
-  const [priceLines, birthdayDiscountPercent, loyaltyStatus, paymentSettings] =
+  const [priceLines, birthdayDiscountPercent, loyaltyStatus, paymentSettings, saleCalendar] =
     await Promise.all([
       resolvePartnerCheckoutPriceLinesFromPg({
         partnerId: shop.partnerId,
         accountKey: visitor.accountKey,
+        visitorEmail: emailNormalized,
         lines: validLines,
       }),
       resolveActiveBirthdayDiscountPercentForCustomer({
@@ -84,6 +86,11 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
         identity,
       }),
       fetchPartnerPaymentSettingsFromPg(shop.partnerId),
+      resolvePartnerStorefrontSaleCalendarForRequest({
+        request,
+        partnerId: shop.partnerId,
+        visitorEmail: emailNormalized,
+      }),
     ])
 
   const effectiveSubtotal = priceLines.reduce(
@@ -149,15 +156,26 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     request,
     {
       ok: true,
-      lines: priceLines.map((line, index) => ({
-        lineId: validLines[index]?.lineId ?? String(index),
-        inventoryId: line.inventoryId,
-        quantity: line.quantity,
-        listUnitPrice: line.listUnitPrice,
-        effectiveUnitPrice: line.effectiveUnitPrice,
-        isClearance: line.isClearance === true,
-        googleDiscountAmount: money(line.googleDiscountAmount),
-      })),
+      lines: priceLines.map((line, index) => {
+        const expected =
+          saleCalendar.phase === 'teaser' &&
+          !line.isClearance &&
+          saleCalendar.discountPercent > 0
+            ? Math.max(0, Math.round(line.listUnitPrice * (1 - saleCalendar.discountPercent / 100)))
+            : null
+        return {
+          lineId: validLines[index]?.lineId ?? String(index),
+          inventoryId: line.inventoryId,
+          quantity: line.quantity,
+          listUnitPrice: line.listUnitPrice,
+          effectiveUnitPrice: line.effectiveUnitPrice,
+          isClearance: line.isClearance === true,
+          googleDiscountAmount: money(line.googleDiscountAmount),
+          expectedSaleUnitPrice:
+            expected != null && expected > 0 && expected < line.listUnitPrice ? expected : null,
+        }
+      }),
+      saleCalendar,
       breakdown,
       promo: promo
         ? {

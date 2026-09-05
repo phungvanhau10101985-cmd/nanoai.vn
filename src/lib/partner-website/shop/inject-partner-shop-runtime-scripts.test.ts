@@ -5,7 +5,11 @@ import { buildPartnerSiteSearchBootstrapScript } from '@/lib/partner-website/sho
 import { buildPartnerSiteChromeToggleBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-chrome-toggle-bootstrap-script'
 
 test('runtime scripts wire search, camera, cart badges, chat, and category APIs onto visual HTML', () => {
-  const html = '<!DOCTYPE html><html><body><header></header></body></html>'
+  const html =
+    '<!DOCTYPE html><html data-pw-paper="white"><body data-pw-page="product"><header></header>' +
+    '<main><section data-pw-catalog></section><section data-pw-outfit="1"></section>' +
+    '<section data-pw-personalize="recommended"></section><section data-pw-personalize-banner="birthday"></section>' +
+    '<section data-pw-slider="1"></section><section data-pw-region="pdp-info"></section></main></body></html>'
   const out = injectPartnerShopRuntimeScriptsIntoHtml(html, {
     siteSlug: '188-com-vn-rl56',
     locale: 'vi',
@@ -20,6 +24,12 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /data-pw-buy/)
   assert.match(out, /data-pw-catalog-bootstrap/)
   assert.match(out, /function saleView\(p\)/)
+  assert.match(out, /p\.salePriceAmount==null/)
+  assert.match(out, /sale<=0\|\|sale>=list/)
+  assert.match(out, /pw-badge-sale/)
+  assert.match(out, /sắp diễn ra/)
+  assert.match(out, /data-pw-sale-calendar-banner/)
+  assert.doesNotMatch(out, /sale<0\|\|sale>=list/)
   assert.match(out, /pw-price-compare/)
   assert.match(out, /data-pw-outfit-bootstrap/)
   assert.match(out, /\/api\/site\/188-com-vn-rl56\/products\/outfit/)
@@ -31,6 +41,10 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /\/site\/188-com-vn-rl56\/account\/edit-profile/)
   assert.match(out, /\/featured-categories\?limit=/)
   assert.match(out, /hydrateFeatured/)
+  assert.match(out, /ensureFeaturedMarquee/)
+  assert.match(out, /pwEnsureFeaturedMarquees/)
+  assert.match(out, /data-pw-featured-clone/)
+  assert.match(out, /FEATURED_LIMIT=16/)
   assert.match(out, /paintFeaturedCard/)
   assert.match(out, /cards\.indexOf\(card\)/)
   assert.doesNotMatch(out, /seen\[card\]/)
@@ -66,6 +80,29 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /data-pw-slide-wait/)
   assert.match(out, /data-pw-paper-tile-bootstrap/)
   assert.match(out, /data-pw-paper-tile/)
+  assert.match(out, /data-pw-marketing-banner-bootstrap/)
+  assert.match(out, /\/api\/site\/188-com-vn-rl56\/marketing-banners/)
+  assert.match(out, /data-pw-personalize-banner/)
+  assert.match(out, /kind==='sale-calendar'\?'sale':kind/)
+  assert.match(out, /insertAdjacentElement\('afterend'/)
+})
+
+test('runtime scripts omit page-specific heavy bootstraps when their hooks are absent', () => {
+  const out = injectPartnerShopRuntimeScriptsIntoHtml(
+    '<!DOCTYPE html><html><head><style>[data-pw-pdp-slot]{display:none}.pw-pdp{color:red}' +
+      '[data-pw-catalog]{display:grid}</style></head><body><header><form data-pw-search-form></form></header><main><p>Info</p></main>' +
+      '<nav class="pw-pdp-sticky-nav" data-pw-chrome-kit="dock"></nav></body></html>',
+    { siteSlug: 'plain-shop', locale: 'en' }
+  )
+  assert.doesNotMatch(out, /data-pw-catalog-bootstrap/)
+  assert.doesNotMatch(out, /data-pw-outfit-bootstrap/)
+  assert.doesNotMatch(out, /data-pw-personalization-bootstrap/)
+  assert.doesNotMatch(out, /data-pw-pdp-bootstrap/)
+  assert.doesNotMatch(out, /data-pw-marketing-banner-bootstrap/)
+  assert.doesNotMatch(out, /data-pw-slider-bootstrap/)
+  assert.doesNotMatch(out, /data-pw-paper-tile-bootstrap/)
+  assert.match(out, /data-pw-search-bootstrap/)
+  assert.match(out, /data-pw-shop-actions-bootstrap/)
 })
 
 test('injected storefront runtime scripts remain valid JavaScript', () => {
@@ -89,6 +126,8 @@ test('editor stamp keeps chrome hooks and strips live API bootstraps', () => {
     '<script data-pw-paper-tile-bootstrap>window.__livePaperTile=1</script>' +
     '<script data-pw-search-bootstrap>window.__liveSearch=1</script>' +
     '<script data-pw-lp-buy>window.__liveBuy=1</script>' +
+    '<script data-pw-marketing-banner-bootstrap>window.__liveBanner=1</script>' +
+    '<style data-pw-marketing-banner-css>.x{}</style>' +
     '<script id="pw-logo-home-link">window.__liveLogo=1</script>' +
     '</body></html>'
   const out = stampPartnerShopEditorHooksInHtml(html, { siteSlug: '188-shop' })
@@ -100,6 +139,8 @@ test('editor stamp keeps chrome hooks and strips live API bootstraps', () => {
   assert.doesNotMatch(out, /data-pw-search-bootstrap/)
   assert.doesNotMatch(out, /data-pw-personalization-bootstrap/)
   assert.doesNotMatch(out, /data-pw-birth-gender-prompt-bootstrap/)
+  assert.doesNotMatch(out, /data-pw-marketing-banner-bootstrap/)
+  assert.doesNotMatch(out, /data-pw-marketing-banner-css/)
   assert.doesNotMatch(out, /data-pw-lp-buy/)
   assert.doesNotMatch(out, /id="pw-logo-home-link"/)
   assert.doesNotMatch(out, /window\.__liveCat=1/)

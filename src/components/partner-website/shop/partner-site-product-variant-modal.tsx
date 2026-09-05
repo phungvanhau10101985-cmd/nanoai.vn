@@ -5,11 +5,13 @@ import { createPortal } from 'react-dom'
 import {
   nextShopImageRetrySrc,
   shopPdpDisplaySrc,
+  shopPdpPageSrc,
 } from '@/lib/partner-website/shop/inventory-shop-detail'
 import {
   formatPartnerShopMoneyVnd,
   isPartnerFlashSaleActive,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
+import { resolvePartnerProductSaleFace } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import {
   PRODUCT_VARIANT_MODAL_COPY,
   resolveVariantModalFace,
@@ -75,7 +77,8 @@ function ColorChips({
   return (
     <div data-pw-variant-chips>
       {colors.map((color, i) => {
-        const src = shopPdpDisplaySrc(color.img)
+        const src = shopPdpPageSrc(color.img)
+        const fullSrc = shopPdpDisplaySrc(color.img)
         return (
           <button
             key={`${color.name}-${i}`}
@@ -86,7 +89,17 @@ function ColorChips({
           >
             <span data-pw-variant-swatch>
               {src ? (
-                <img src={src} alt="" width={32} height={32} draggable={false} onError={hideBrokenVariantImage} />
+                <img
+                  src={src}
+                  data-pw-full-src={fullSrc || undefined}
+                  alt=""
+                  width={32}
+                  height={32}
+                  loading="lazy"
+                  decoding="async"
+                  draggable={false}
+                  onError={hideBrokenVariantImage}
+                />
               ) : null}
             </span>
             <span data-pw-variant-color-name>{color.name}</span>
@@ -182,24 +195,29 @@ export function PartnerSiteProductVariantModal({
   const effectiveQty = Math.min(maxQty, Math.max(1, qty))
   const showStock = variantModalShowsLowStock(product.stockQty)
   const stockQty = Math.max(0, Math.round(Number(product.stockQty) || 0))
-  const flashActive = isPartnerFlashSaleActive({
-    priceAmount: product.priceAmount ?? null,
-    salePriceAmount: product.salePriceAmount ?? null,
-    saleStartsAt: product.saleStartsAt ?? null,
-    saleEndsAt: product.saleEndsAt ?? null,
-  })
+  const saleFace = resolvePartnerProductSaleFace(product)
+  const flashActive =
+    saleFace.kind === 'active' ||
+    isPartnerFlashSaleActive({
+      priceAmount: product.priceAmount ?? null,
+      salePriceAmount: product.salePriceAmount ?? null,
+      saleStartsAt: product.saleStartsAt ?? null,
+      saleEndsAt: product.saleEndsAt ?? null,
+    })
   const unitPrice =
-    flashActive && product.salePriceAmount != null
-      ? product.salePriceAmount
-      : product.priceAmount != null && Number.isFinite(product.priceAmount)
-        ? product.priceAmount
-        : null
+    saleFace.kind
+      ? saleFace.displayPrice
+      : flashActive && product.salePriceAmount != null
+        ? product.salePriceAmount
+        : product.priceAmount != null && Number.isFinite(product.priceAmount)
+          ? product.priceAmount
+          : null
   const priceLabel =
     unitPrice != null ? formatPartnerShopMoneyVnd(unitPrice) : String(product.priceHint || '').trim()
   const lineLabel =
     unitPrice != null ? formatPartnerShopMoneyVnd(unitPrice * effectiveQty) : priceLabel
   const selectedColor = colorIndex >= 0 ? colors[colorIndex] : null
-  const displayImage = shopPdpDisplaySrc(selectedColor?.img || product.imageUrl)
+  const displayImage = shopPdpPageSrc(selectedColor?.img || product.imageUrl)
   const sku = String(product.sku || '').trim()
   const name = product.name.trim() || '—'
 

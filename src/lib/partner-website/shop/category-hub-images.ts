@@ -1,6 +1,6 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery } from '@/lib/db/pg-query'
-import { fetchPartnerInventoryRowsByIdsInOrderFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchPartnerInventoryCardsByIdsInOrderFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { fetchPartnerVisitorPersonalizationFromPg } from '@/lib/db/messaging-partner-visitor-personalization-pg'
 import type { PartnerCategoryTreeNode } from '@/lib/partner-website/category/partner-category-types'
 import { normalizeShopImageUrl } from '@/lib/partner-website/shop/inventory-shop-detail'
@@ -231,7 +231,7 @@ export async function resolveCategoryHubTileImages(input: {
   const viewedIds = state?.recently_viewed_ids ?? []
   let viewedImagesByCategory = new Map<string, string[]>()
   if (viewedIds.length) {
-    const rows = (await fetchPartnerInventoryRowsByIdsInOrderFromPg(input.partnerId, viewedIds)) ?? []
+    const rows = (await fetchPartnerInventoryCardsByIdsInOrderFromPg(input.partnerId, viewedIds)) ?? []
     const imagesByInventoryId = new Map<string, string>()
     for (const row of rows) {
       const url = normalizeShopImageUrl(row.image_url)

@@ -2236,16 +2236,16 @@ export function PartnerMessagingSettingsClient({
       ) : (
         <div
           className={cn(
-            'flex flex-col gap-3 lg:flex-row lg:gap-4',
-            activeSection === 'partner-website-editor' ? 'lg:items-stretch lg:gap-3' : 'lg:items-start'
+            'flex flex-col overflow-hidden rounded-xl border border-border/70 lg:flex-row lg:items-stretch',
+            activeSection === 'partner-website-editor' ? 'lg:min-h-[calc(100dvh-8rem)]' : 'lg:min-h-[calc(100dvh-10rem)]'
           )}
         >
           {/* Mobile: hamburger menu */}
-          <div className="lg:hidden">
+          <div className="border-b border-border/60 bg-slate-100 px-3 py-2 dark:bg-slate-900/55 lg:hidden">
             <Button
               variant="outline"
               size="sm"
-              className="w-full justify-between"
+              className="w-full justify-between bg-white/80 dark:bg-slate-950/40"
               onClick={() => setMobileNavOpen(!mobileNavOpen)}
             >
               <span className="flex items-center gap-2 truncate">
@@ -2265,7 +2265,7 @@ export function PartnerMessagingSettingsClient({
               />
             </Button>
             {mobileNavOpen ? (
-              <div className="mt-2 rounded-xl border border-border/70 bg-card/90 p-2 shadow-sm">
+              <div className="mt-2 rounded-lg border border-border/50 bg-white/70 p-2 dark:bg-slate-950/40">
                 <nav className="flex flex-col gap-1" aria-label={t.settingsSidebarTitle}>
                   {sidebarGroups.map((group) => {
                     const items = group.items.filter((item) => item.visible)
@@ -2285,8 +2285,8 @@ export function PartnerMessagingSettingsClient({
                               className={cn(
                                 'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors w-full',
                                 activeSection === item.id
-                                  ? 'bg-violet-500/10 font-medium text-violet-700 dark:text-violet-300'
-                                  : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                                  ? 'bg-violet-500/15 font-medium text-violet-700 dark:text-violet-300'
+                                  : 'text-muted-foreground hover:bg-white hover:text-foreground dark:hover:bg-slate-800/80'
                               )}
                               aria-current={activeSection === item.id ? 'page' : undefined}
                             >
@@ -2306,11 +2306,11 @@ export function PartnerMessagingSettingsClient({
           {/* Desktop: sidebar */}
           <aside
             className={cn(
-              'hidden w-full shrink-0 lg:block',
+              'hidden w-full shrink-0 border-border/60 bg-slate-100 dark:bg-slate-900/55 lg:block lg:border-r',
               activeSection === 'partner-website-editor' ? 'lg:w-48' : 'lg:w-56 xl:w-60'
             )}
           >
-            <div className="rounded-xl border border-border/70 bg-card/90 p-1.5 shadow-sm lg:sticky lg:top-[calc(var(--site-header-height,3.5rem)+0.5rem)]">
+            <div className="p-2 lg:sticky lg:top-[calc(var(--site-header-height,3.5rem)+0.5rem)]">
               <p className="hidden px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground lg:block">
                 {t.settingsSidebarTitle}
               </p>
@@ -2336,8 +2336,8 @@ export function PartnerMessagingSettingsClient({
                             className={cn(
                               'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors w-full',
                               activeSection === item.id
-                                ? 'bg-violet-500/10 font-medium text-violet-700 dark:text-violet-300'
-                                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                                ? 'bg-violet-500/15 font-medium text-violet-700 dark:text-violet-300'
+                                : 'text-muted-foreground hover:bg-white hover:text-foreground dark:hover:bg-slate-800/80'
                             )}
                             aria-current={activeSection === item.id ? 'page' : undefined}
                           >
@@ -2354,8 +2354,10 @@ export function PartnerMessagingSettingsClient({
           </aside>
           <div
             className={cn(
-              'min-w-0 flex-1',
-              activeSection === 'partner-website-editor' && 'flex min-h-[calc(100dvh-8rem)] flex-col'
+              'min-w-0 flex-1 bg-white dark:bg-zinc-950',
+              activeSection === 'partner-website-editor'
+                ? 'flex min-h-[calc(100dvh-8rem)] flex-col p-2 sm:p-3'
+                : 'p-3 sm:p-4 lg:p-5'
             )}
           >
           {activeSection === 'workspace' ? (

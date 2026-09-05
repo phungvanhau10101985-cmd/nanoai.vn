@@ -1,4 +1,6 @@
 import type { WebLocale } from '@/lib/i18n/config'
+import { FEATURED_CATEGORY_TILE_DEFAULT } from '@/lib/partner-website/shop/featured-categories-constants'
+import { PW_FEATURED_MARQUEE_JS } from '@/lib/partner-website/shop/featured-category-marquee-js'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import { PW_SHOP_CARD_IMG_JS } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PW_PRODUCT_GRID_PAGE_JS } from '@/lib/partner-website/shop/pw-product-grid-page'
@@ -8,6 +10,11 @@ import {
   partnerSiteProductsPath,
   partnerSiteRecentlyViewedPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import {
+  PW_SITE_SALE_CARD_CSS,
+  PW_SITE_SALE_VIEW_JS,
+  partnerSiteSaleCopy,
+} from '@/lib/partner-website/promotions/partner-site-sale-display'
 
 const EMPTY: Record<WebLocale, string> = {
   vi: 'Chưa có sản phẩm phù hợp.',
@@ -167,6 +174,10 @@ export function buildPartnerSitePersonalizationBootstrapScript(input: {
     cohortProfileLead: COHORT_PROFILE_LEAD[locale],
     cohortPopular: COHORT_POPULAR[locale],
     cohortEdit: COHORT_EDIT[locale],
+    expectedSave: partnerSiteSaleCopy(locale).expectedSave,
+    save: partnerSiteSaleCopy(locale).save,
+    startsAfter: partnerSiteSaleCopy(locale).startsAfter,
+    remaining: partnerSiteSaleCopy(locale).remaining,
   }
 
   return `<script data-pw-personalization-bootstrap>(function(){
@@ -177,6 +188,8 @@ var VIEWED_PATH=${JSON.stringify(viewedPath)};
 var LOGIN_PATH=${JSON.stringify(loginPath)};
 var PROFILE_PATH=${JSON.stringify(profilePath)};
 var COPY=${JSON.stringify(copy)};
+var FEATURED_LIMIT=${FEATURED_CATEGORY_TILE_DEFAULT};
+${PW_FEATURED_MARQUEE_JS}
 var SESSION_KEY='app_guest_session_id';
 var SESSION_KEY_LEGACY='nanoai_guest_session_id';
 var SESSION_HDR='x-guest-session-id';
@@ -219,16 +232,35 @@ function applyHeroVariant(){
 }
 ${PW_SHOP_CARD_IMG_JS}
 ${PW_PRODUCT_GRID_PAGE_JS}
+function money(n){var v=Math.max(0,Math.round(Number(n)||0));try{return new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND',maximumFractionDigits:0}).format(v);}catch(e){return v.toLocaleString()+'₫';}}
+${PW_SITE_SALE_VIEW_JS}
+function priceHtml(p){
+  var sale=saleView(p);
+  if(!sale)return (p.price_hint||p.priceHint||'').replace(/</g,'&lt;');
+  if(sale.kind==='teaser'){
+    return '<span class="pw-price-sale">'+sale.price+'</span> <span class="pw-price-expected">→ '+sale.expected+'</span><small class="pw-price-teaser">'+(COPY.expectedSave||'').replace('{pct}',String(sale.percent)).replace('{amount}',sale.savings)+'</small>';
+  }
+  return '<span class="pw-price-sale">'+sale.price+'</span> <del class="pw-price-compare">'+sale.compare+'</del>'+(sale.savings?'<small class="pw-price-save">'+(COPY.save||'').replace('{amount}',sale.savings)+'</small>':'');
+}
+function saleBadgeHtml(sale,badge){
+  if(sale&&sale.badge){
+    var chip=sale.countdown?'<span class="pw-sale-chip pw-sale-chip-'+sale.kind+'" data-pw-sale-countdown="'+String(sale.countdown).replace(/"/g,'')+'" data-pw-sale-phase="'+sale.kind+'"></span>':'';
+    return '<span class="pw-badge-sale pw-badge-sale-'+sale.kind+'">'+sale.badge+'</span>'+chip;
+  }
+  return badge?'<span class="pw-for-you-badge">'+COPY.forYou+'</span>':'';
+}
 function renderCard(p,cta,badge){
   var href=p.detail_path||p.product_url||'#';
   var name=(p.name||'').replace(/"/g,'&quot;');
   var id=(p.inventory_id||'').replace(/"/g,'');
   var img=shopImg(p).replace(/"/g,'&quot;');
-  var mark=badge?'<span class="pw-for-you-badge">'+COPY.forYou+'</span>':'';
+  var sale=saleView(p);
+  var mark=saleBadgeHtml(sale,badge);
+  var price=priceHtml(p);
   var cart=id
     ? '<button type="button" class="pw-btn pw-btn-cart" data-pw-el="card-cart" data-pw-add-cart data-inventory-id="'+id+'">'+COPY.addToCart+'</button>'
     : '<a class="pw-btn pw-btn-cart" data-pw-el="card-cart" href="'+href+'">'+(cta||COPY.viewCta)+'</a>';
-  return '<article class="pw-product-card" data-pw-el="card" data-inventory-id="'+id+'" data-pw-actions-ready="1"><a class="pw-product-card-media" data-pw-el="card-media" href="'+href+'">'+mark+'<img src="'+img+'" alt="'+name+'" loading="lazy"/></a><div class="pw-product-card-body"><h3 data-pw-el="card-name"><a href="'+href+'">'+name+'</a></h3>'+(p.price_hint?'<p class="pw-price" data-pw-el="card-price">'+p.price_hint+'</p>':'')+'<div class="pw-shop-action-bar">'+cart+'</div></div></article>';
+  return '<article class="pw-product-card" data-pw-el="card" data-inventory-id="'+id+'" data-pw-actions-ready="1"><a class="pw-product-card-media" data-pw-el="card-media" href="'+href+'">'+mark+'<img src="'+img+'" alt="'+name+'" loading="lazy"/></a><div class="pw-product-card-body"><h3 data-pw-el="card-name"><a href="'+href+'">'+name+'</a></h3>'+(price?'<p class="pw-price" data-pw-el="card-price">'+price+'</p>':'')+'<div class="pw-shop-action-bar">'+cart+'</div></div></article>';
 }
 function ensureGridMore(el){
   var actions=el.querySelector('[data-pw-grid-actions],.pw-grid-actions');
@@ -284,16 +316,21 @@ function renderFeaturedTile(t,circles){
   return '<a class="pw-featured-cat-card" data-pw-el="card" href="'+href+'"><span class="pw-featured-cat-media" data-pw-el="card-media">'+media+'</span><span data-pw-el="card-name">'+name+'</span></a>';
 }
 function featuredCards(el){
-  var names=el.querySelectorAll('[data-pw-edit^="categoryName"],[data-pw-el="card-name"]');
+  var scope=featuredSourceGrid(el)||el;
+  var names=scope.querySelectorAll('[data-pw-edit^="categoryName"],[data-pw-el="card-name"]');
   var cards=[],i,card;
   for(i=0;i<names.length;i++){
     card=names[i].closest('[data-pw-el="card"],a,article');
     if(!card||cards.indexOf(card)>=0)continue;
+    if(card.closest&&card.closest('[data-pw-featured-clone]'))continue;
     cards.push(card);
   }
   if(cards.length)return cards;
-  var nodes=el.querySelectorAll('[data-pw-el="card"],.pw-cat-card,.pw-featured-cat-card');
-  for(i=0;i<nodes.length;i++)cards.push(nodes[i]);
+  var nodes=scope.querySelectorAll('[data-pw-el="card"],.pw-cat-card,.pw-featured-cat-card');
+  for(i=0;i<nodes.length;i++){
+    if(nodes[i].closest&&nodes[i].closest('[data-pw-featured-clone]'))continue;
+    cards.push(nodes[i]);
+  }
   return cards;
 }
 function seedFeaturedCard(card){
@@ -343,14 +380,20 @@ function tilesSignature(tiles){
   return out.join('\\n');
 }
 function hydrateFeatured(el){
-  var grid=el.querySelector('[data-pw-grid],.pw-cat-grid,.pw-featured-cat-grid');
+  var featuredCat=el.classList.contains('pw-featured-cat');
+  var grid=featuredSourceGrid(el);
   var empty=el.querySelector('.pw-featured-cat-empty,.pw-personalize-empty');
   var see=el.querySelector('[data-pw-el="section-more"]');
-  var circles=el.classList.contains('pw-categories')||!!el.querySelector('.pw-cat-grid,.pw-cat-card,[data-pw-edit^="categoryName"]');
+  var circles=!featuredCat&&(el.classList.contains('pw-categories')||!!el.querySelector('.pw-cat-grid,.pw-cat-card,[data-pw-edit^="categoryName"]'));
   var cardsNow=featuredCards(el);
-  var keepCards=cardsNow.length>0;
-  var limit=keepCards?cardsNow.length:(typeof pwGridPageSize==='function'?pwGridPageSize(el):10);
+  var keepCards=!featuredCat&&cardsNow.length>0;
+  var limit=keepCards?cardsNow.length:(typeof pwGridPageSize==='function'?pwGridPageSize(el):FEATURED_LIMIT);
+  if(featuredCat){
+    var attrLimit=parseInt(el.getAttribute('data-limit')||'',10);
+    limit=Math.max(FEATURED_LIMIT,attrLimit>0?attrLimit:0,cardsNow.length);
+  }
   if(limit<4)limit=4;
+  if(featuredCat)ensureFeaturedMarquee(el);
   apiFetch('/featured-categories?limit='+limit).then(function(res){
     var tiles=(res.j&&res.j.tiles)||[];
     if(res.j&&res.j.hub_href&&see)see.setAttribute('href',res.j.hub_href);
@@ -361,16 +404,21 @@ function hydrateFeatured(el){
     }
     if(el.getAttribute('data-pw-featured-live')==='1'&&featuredLiveSignature(el)===tilesSignature(tiles)){
       if(empty)empty.hidden=true;
-      el.hidden=false;return;
+      el.hidden=false;
+      if(featuredCat)ensureFeaturedMarquee(el);
+      return;
     }
-    if(keepCards)paintFeaturedCards(el,tiles);
+    if(featuredCat&&grid)grid.innerHTML=tiles.map(function(t){return renderFeaturedTile(t,false);}).join('');
+    else if(keepCards)paintFeaturedCards(el,tiles);
     else if(grid)grid.innerHTML=tiles.map(function(t){return renderFeaturedTile(t,circles);}).join('');
     if(empty)empty.hidden=true;
     el.setAttribute('data-pw-featured-live','1');
     el.hidden=false;
+    if(featuredCat)ensureFeaturedMarquee(el);
   }).catch(function(){
     if(empty){empty.hidden=false;empty.textContent=COPY.featuredEmpty;}
     el.hidden=false;
+    if(featuredCat)ensureFeaturedMarquee(el);
   });
 }
 function paintCohortHint(el,mode,loggedIn){
@@ -454,7 +502,27 @@ function applyGreeting(){
 function featuredHosts(){
   return document.querySelectorAll('[data-pw-featured-categories],section.pw-categories,.pw-categories,[data-pw-region="categories"]');
 }
+function fmtChip(iso){
+  if(!iso)return '';
+  var t=Date.parse(iso);if(!Number.isFinite(t))return '';
+  var d=t-Date.now();if(d<=0)return '';
+  var s=Math.floor(d/1000),days=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60),sec=s%60;
+  var hms=('0'+h).slice(-2)+':'+('0'+m).slice(-2)+':'+('0'+sec).slice(-2);
+  return days>0?days+'d '+hms:hms;
+}
+function tickSaleChips(){
+  document.querySelectorAll('[data-pw-sale-countdown]').forEach(function(el){
+    var iso=el.getAttribute('data-pw-sale-countdown')||'';
+    var phase=el.getAttribute('data-pw-sale-phase')||'teaser';
+    var left=fmtChip(iso);
+    el.textContent=left?((phase==='active'?COPY.remaining:COPY.startsAfter)+' '+left):'';
+    el.hidden=!left;
+  });
+}
 function run(){
+  if(!document.getElementById('pw-site-sale-css')){var st=document.createElement('style');st.id='pw-site-sale-css';st.textContent=${JSON.stringify(PW_SITE_SALE_CARD_CSS)};document.head.appendChild(st);}
+  tickSaleChips();
+  if(!window.__pwSaleChipTimer)window.__pwSaleChipTimer=setInterval(tickSaleChips,1000);
   var editor=pwShopLiveUiOff();
   if(!editor){
     var utm=parseUtm();
@@ -476,6 +544,7 @@ function run(){
       el.classList.contains('pw-featured-cat')||
       el.querySelector('[data-pw-edit^="categoryName"]')
     ){
+      if(!editor&&el.getAttribute('data-pw-featured-live')==='1')return;
       hydrateFeatured(el);
     }
   });

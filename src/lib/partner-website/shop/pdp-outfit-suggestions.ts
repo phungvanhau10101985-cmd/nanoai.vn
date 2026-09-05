@@ -3,7 +3,7 @@ import {
   fetchPartnerCategoriesFlatFromPg,
 } from '@/lib/db/messaging-partner-categories-pg'
 import {
-  fetchPartnerInventoryPageByCategoryFromPg,
+  fetchPartnerInventoryCardPageByCategoryFromPg,
   fetchPartnerInventoryRowByIdForPartnerFromPg,
   fetchPartnerInventoryRowsByCategoryL1FromPg,
   fetchPartnerInventoryRowsByTokensIlikeAnyFromPg,
@@ -11,6 +11,7 @@ import {
 import type { PartnerCategoryRow } from '@/lib/partner-website/category/partner-category-types'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
+  inventoryCardRowToShopProduct,
   inventoryRowToShopProduct,
   type PartnerSiteShopProduct,
 } from '@/lib/partner-website/shop/inventory-to-shop-product'
@@ -240,7 +241,7 @@ async function buildOutfitSlot(input: {
   }
 
   for (const cat of input.categories) {
-    const page = await fetchPartnerInventoryPageByCategoryFromPg(input.partnerId, {
+    const page = await fetchPartnerInventoryCardPageByCategoryFromPg(input.partnerId, {
       offset: 0,
       limit: Math.min(24, input.limit + 4),
       categoryId: cat.id,
@@ -249,8 +250,7 @@ async function buildOutfitSlot(input: {
     const gender = inferOutfitGender(...categoryAncestorNames(cat, input.categoryById), cat.name)
     for (const row of page?.rows ?? []) {
       if (seen.has(row.id)) continue
-      const product = inventoryRowToShopProduct(input.siteSlug, row)
-      if (!product) continue
+      const product = inventoryCardRowToShopProduct(input.siteSlug, row)
       const role = inferOutfitRole(cat.name, product.name)
       if (role && role !== input.slot) continue
       seen.add(row.id)

@@ -6,6 +6,7 @@ import {
   fetchPartnerOutfitSuggestions,
   parseOutfitSlotParam,
 } from '@/lib/partner-website/shop/pdp-outfit-suggestions'
+import { toPartnerSiteCardPayload } from '@/lib/partner-website/shop/partner-site-card-payload'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +41,10 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     slot,
   })
   const slots = data.slots.map((s) => {
-    const items = s.items.slice(offset, offset + limit)
+    const items = s.items.slice(offset, offset + limit).map((item) => ({
+      ...item,
+      product: toPartnerSiteCardPayload(item.product),
+    }))
     return { ...s, items, hasMore: s.items.length > offset + limit }
   })
 

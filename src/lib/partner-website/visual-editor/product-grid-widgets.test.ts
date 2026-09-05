@@ -11,8 +11,10 @@ import {
   productGridWidgetLabel,
 } from '@/lib/partner-website/visual-editor/product-grid-widgets'
 import {
+  appendFeaturedMarqueeCloneHtml,
   ensureFeaturedCategoriesHostInHtml,
   restoreFeaturedCategorySeedsInDocument,
+  stripFeaturedCategoryMarqueeClonesInDocument,
 } from '@/lib/partner-website/visual-editor/featured-category-widgets'
 
 test('recognizes product grid kinds', () => {
@@ -101,7 +103,10 @@ test('stamps featured category tiles for personalization', () => {
   assert.match(html, /data-pw-featured-categories="1"/)
   assert.match(html, /data-pw-grid-kind="featured-categories"/)
   assert.match(html, /data-pw-grid-rows="2"/)
-  assert.match(html, /data-limit="10"/)
+  assert.match(html, /data-limit="16"/)
+  assert.match(html, /data-pw-featured-viewport="1"/)
+  assert.match(html, /data-pw-featured-marquee="1"/)
+  assert.match(html, /data-pw-featured-clone="1"/)
   assert.match(html, /Xem tất cả danh mục/)
   assert.match(html, /pw-featured-cat-all-icon/)
   assert.match(html, /\/c"/)
@@ -126,6 +131,24 @@ test('stamps fashion home categoryName slots as featured-categories', () => {
     '<section data-pw-region="categories"><span data-pw-edit="categoryName:0" data-pw-el="card-name">Thời trang</span></section>'
   const next = ensureFeaturedCategoriesHostInHtml(seed)
   assert.match(next, /data-pw-featured-categories="1"/)
+})
+
+test('append featured marquee clone duplicates the painted grid', () => {
+  const inner = '<div data-pw-grid><a data-pw-el="card">A</a></div>'
+  const next = appendFeaturedMarqueeCloneHtml(inner)
+  assert.match(next, /data-pw-featured-clone="1"/)
+  assert.equal((next.match(/data-pw-el="card"/g) || []).length, 2)
+  const twice = appendFeaturedMarqueeCloneHtml(next)
+  assert.equal((twice.match(/data-pw-featured-clone/g) || []).length, 1)
+})
+
+test('save strips featured marquee clones', () => {
+  const { document } = parseHTML(
+    '<section class="pw-featured-cat"><div data-pw-grid><a data-pw-el="card">A</a></div><div data-pw-featured-clone="1"><a data-pw-el="card">A</a></div></section>'
+  )
+  stripFeaturedCategoryMarqueeClonesInDocument(document)
+  assert.equal(document.querySelector('[data-pw-featured-clone]'), null)
+  assert.equal(document.querySelectorAll('[data-pw-el="card"]').length, 1)
 })
 
 test('restore featured seeds writes sample names back before save', () => {

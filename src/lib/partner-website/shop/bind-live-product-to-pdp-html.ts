@@ -11,6 +11,12 @@ import {
   resolvePartnerEffectiveUnitPrice,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import {
+  formatPartnerSaleMoney,
+  partnerSiteSaleCopy,
+  resolvePartnerProductSaleFace,
+  type PartnerSiteSalePricing,
+} from '@/lib/partner-website/promotions/partner-site-sale-display'
+import {
   rewritePdpHtmlImagesForPage,
   shopCardDisplaySrc,
   shopPdpDisplaySrc,
@@ -91,6 +97,11 @@ export type LivePdpBindProduct = {
   salePriceAmount?: number | null
   saleStartsAt?: string | null
   saleEndsAt?: string | null
+  isClearance?: boolean
+  siteSalePhase?: 'off' | 'teaser' | 'active' | null
+  siteSalePercent?: number | null
+  siteSaleExpectedPrice?: number | null
+  siteSale?: PartnerSiteSalePricing | null
   imageUrl?: string | null
   galleryImages?: string[] | null
   detailImages?: string[] | null
@@ -249,6 +260,11 @@ function stampInventoryIdOnTag(open: string, id: string): string {
   return open.replace(/>$/, ` data-inventory-id="${escAttr(id)}">`)
 }
 
+function stampPdpServerBoundOnTag(open: string): string {
+  if (/\bdata-pw-pdp-server-bound=/.test(open)) return open
+  return open.replace(/>$/, ' data-pw-pdp-server-bound="1">')
+}
+
 function replaceElInner(
   html: string,
   el: string,
@@ -305,6 +321,7 @@ function stampPdpPageImg(
   next = setAttr(next, 'alt', alt)
   if (full) next = setAttr(next, 'data-pw-full-src', full)
   if (opts?.lazy && !/\bloading=/.test(next)) next += ' loading="lazy"'
+  if (!opts?.lazy && !/\bfetchpriority=/.test(next)) next += ' fetchpriority="high"'
   if (!/\bdecoding=/.test(next)) next += ' decoding="async"'
   return next
 }
@@ -410,7 +427,26 @@ export function deferOffDevicePdpGalleryMedia(
   return out
 }
 
-function productPriceText(product: LivePdpBindProduct): { price: string; compare: string } {
+function productPriceText(product: LivePdpBindProduct): {
+  price: string
+  compare: string
+  expected: boolean
+} {
+  const face = resolvePartnerProductSaleFace(product)
+  if (face.kind === 'teaser') {
+    return {
+      price: formatPartnerShopMoneyVnd(face.displayPrice),
+      compare: face.expectedPrice != null ? `→ ${formatPartnerShopMoneyVnd(face.expectedPrice)}` : '',
+      expected: true,
+    }
+  }
+  if (face.kind === 'active') {
+    return {
+      price: formatPartnerShopMoneyVnd(face.displayPrice),
+      compare: face.comparePrice != null ? formatPartnerShopMoneyVnd(face.comparePrice) : '',
+      expected: false,
+    }
+  }
   const effective = resolvePartnerEffectiveUnitPrice({
     priceAmount: product.priceAmount ?? null,
     salePriceAmount: product.salePriceAmount ?? null,
@@ -426,7 +462,7 @@ function productPriceText(product: LivePdpBindProduct): { price: string; compare
     effective < product.priceAmount
       ? formatPartnerShopMoneyVnd(product.priceAmount)
       : ''
-  return { price, compare }
+  return { price, compare, expected: false }
 }
 
 function thumbButtonHtml(url: string, name: string, full?: string): string {
@@ -632,7 +668,7 @@ function ensureGalleryHasVisibleMainImage(inner: string, product: LivePdpBindPro
   const isHero = /\bpw-pdp-hero-count\b|\bpw-pdp-hero-dots\b|\bpw-pdp-hero-thumbs\b/.test(inner)
   const cls = isHero ? 'pw-pdp-hero-img' : 'pw-shop-product-img'
   const fullAttr = main.full ? ` data-pw-full-src="${escAttr(main.full)}"` : ''
-  return `<img class="${cls}" data-pw-el="${PW_EL.mainImage}" src="${escAttr(main.page)}"${fullAttr} alt="${escAttr(name)}" decoding="async" />${inner}`
+  return `<img class="${cls}" data-pw-el="${PW_EL.mainImage}" src="${escAttr(main.page)}"${fullAttr} alt="${escAttr(name)}" fetchpriority="high" decoding="async" />${inner}`
 }
 
 function insertGalleryVideo(inner: string, product: LivePdpBindProduct): string {
@@ -802,7 +838,7 @@ function colorVariantInner(colors: LivePdpBindColor[], locale: WebLocale): strin
       const img = shopCardDisplaySrc(c.img)
       const full = shopPdpDisplaySrc(c.img)
       const face = img
-        ? `<img src="${escAttr(img)}"${full ? ` data-pw-full-src="${escAttr(full)}"` : ''} alt="${escAttr(name)}" />`
+        ? `<img src="${escAttr(img)}"${full ? ` data-pw-full-src="${escAttr(full)}"` : ''} alt="${escAttr(name)}" loading="lazy" decoding="async" />`
         : escText(name)
       return `<button type="button" class="pw-pdp-pill pw-pdp-color${i === 0 ? ' is-active' : ''}" data-pw-pdp-option-value="${escAttr(name)}">${face}</button>`
     })
@@ -920,7 +956,7 @@ function rewritePdpInfoInner(
   const name = escText(product.name || 'Product')
   const sku = String(product.sku || '').trim()
   const descHtml = pdpDescriptionBodyHtml(String(product.detailDescription || product.description || '').trim())
-  const { price, compare } = productPriceText(product)
+  const { price, compare, expected } = productPriceText(product)
   let out = replaceElInner(inner, PW_EL.title, name)
   out = out.replace(
     /<(h1)([^>]*\bclass=["'][^"']*\bpw-pdp-title\b[^>]*)>([\s\S]*?)<\/\1>/gi,
@@ -973,8 +1009,15 @@ function rewritePdpInfoInner(
       if (!compareBlock) return escText(price)
       const tag = compareBlock[1]
       const attrs = compareBlock[2]
+      const shownAttrs = expected
+        ? setAttr(
+            attrs.replace(/\bhidden\b(?:=(["'])[^"']*\1)?/gi, ''),
+            'class',
+            `${(attrs.match(/\bclass=["']([^"']*)["']/)?.[1] || '').replace(/\bpw-price-expected\b/g, '').trim()} pw-price-expected`.trim()
+          )
+        : attrs
       const compareHtml = compare
-        ? `<${tag}${attrs}>${escText(compare)}</${tag}>`
+        ? `<${tag}${shownAttrs}>${escText(compare)}</${tag}>`
         : `<${tag}${setAttr(attrs, 'hidden', '')} style="display:none"></${tag}>`
       return `${escText(price)}${compareHtml}`
     })
@@ -1210,7 +1253,10 @@ function rewriteReviewsInner(inner: string, product: LivePdpBindProduct): string
 function stampPdpHosts(html: string, id: string): string {
   let out = html.replace(/<body\b([^>]*)>/i, (full, attrs: string) => {
     if (!/\bdata-pw-page=["']product["']/.test(attrs)) return full
-    return stampInventoryIdOnTag(full, id)
+    const stamped = stampInventoryIdOnTag(full, id)
+    return /\bdata-pw-pdp-server-bound=/.test(stamped)
+      ? stamped
+      : stamped.replace(/>$/, ' data-pw-pdp-server-bound="1">')
   })
   out = out.replace(
     /<(div|section|nav|aside)\b([^>]*\b(?:class=["'][^"']*\b(?:pw-pdp|pw-pdp-sticky|pw-shop-pdp-info|pw-shop-product-detail)\b|data-pw-page=["']product["'])[^>]*)>/gi,
@@ -1266,6 +1312,8 @@ function ensureMissingPdpSlots(
     }
   }
   const { price, compare } = productPriceText(product)
+  const face = resolvePartnerProductSaleFace(product)
+  const saleCopy = partnerSiteSaleCopy(locale)
   const flashOn = isPartnerFlashSaleActive({
     priceAmount: product.priceAmount ?? null,
     salePriceAmount: product.salePriceAmount ?? null,
@@ -1277,13 +1325,25 @@ function ensureMissingPdpSlots(
     /<span\b(?=[^>]*\bpw-shop-urgency-badge\b)(?![^>]*data-pw-pdp-slot=["']low-stock["'])[^>]*>[\s\S]*?<\/span>/gi,
     ''
   )
-  if (flashOn) {
+  if (face.kind && face.badge) {
+    const flash = `<span class="pw-pdp-sale-pill pw-pdp-sale-pill-${face.kind}" data-pw-el="${PW_EL.badge}" data-pw-pdp-slot="flash">${escText(face.badge)}</span>`
+    out = out.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>)/i, `$1${flash}`)
+  } else if (flashOn) {
     const flash = `<span class="pw-shop-urgency-badge" data-pw-el="${PW_EL.badge}" data-pw-pdp-slot="flash">${escText(t.flashSaleBadge)}</span>`
     out = out.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>)/i, `$1${flash}`)
   }
   out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'savings')
   out = out.replace(/<p\b[^>]*\bpw-pdp-save\b[^>]*>[\s\S]*?<\/p>/gi, '')
-  if (compare && price) {
+  if (face.kind && face.savings > 0) {
+    const saveText =
+      face.kind === 'teaser'
+        ? saleCopy.expectedSave
+            .replace('{pct}', String(face.percent))
+            .replace('{amount}', formatPartnerSaleMoney(face.savings, locale))
+        : saleCopy.save.replace('{amount}', formatPartnerSaleMoney(face.savings, locale))
+    const save = `<p class="pw-pdp-save pw-price-${face.kind === 'teaser' ? 'teaser' : 'save'}" data-pw-pdp-slot="savings">${escText(saveText)}</p>`
+    out = out.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>[\s\S]*?<\/div>)/i, `$1${save}`)
+  } else if (compare && price && !compare.startsWith('→')) {
     const save = `<p class="pw-pdp-save" data-pw-pdp-slot="savings">${escText(t.pdpSavings.replace('{amount}', compare))}</p>`
     out = out.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>[\s\S]*?<\/div>)/i, `$1${save}`)
   }
@@ -1460,11 +1520,11 @@ export function bindLiveProductToPdpHtml(
     return `${open}${breadcrumbInnerHtml(product, locale, siteSlug)}`
   })
   out = replaceRegionBlocks(out, PW_REGION.gallery, (inner, open) => {
-    return `${stampInventoryIdOnTag(open, id)}${rewriteGalleryInner(inner, product)}`
+    return `${stampPdpServerBoundOnTag(stampInventoryIdOnTag(open, id))}${rewriteGalleryInner(inner, product)}`
   })
   out = replaceRegionBlocks(out, PW_REGION.pdpInfo, (inner, open) => {
     const variants = !/\bpw-shop-product-detail\b/.test(open)
-    return `${stampInventoryIdOnTag(open, id)}${rewritePdpInfoInner(inner, product, locale, { variants })}`
+    return `${stampPdpServerBoundOnTag(stampInventoryIdOnTag(open, id))}${rewritePdpInfoInner(inner, product, locale, { variants })}`
   })
   out = replaceRegionBlocks(out, PW_REGION.reviews, (inner, open) => {
     if (/id=["']pw-pdp-qa["']|data-pw-pdp-slot=["']qa["']/.test(open)) return `${open}${inner}`
@@ -1519,7 +1579,7 @@ function stampTryOnContextInHtml(html: string, product: LivePdpBindProduct): str
   const id = String(product.id || '').trim()
   if (!primary && !id) return html
   const ctx = { primary, secondary, sku, id }
-  let out = html.replace(
+  const out = html.replace(
     /<(button|a)\b([^>]*\b(?:data-nanoai-try-on|data-pw-chrome-btn=["']try-on["'])[^>]*)>/gi,
     (_full, tag: string, attrs: string) => `<${tag}${stampProductGatewayAttrs(attrs, { ...ctx, tryOn: true })}>`
   )
