@@ -57,7 +57,7 @@ test('bind writes PDP gallery as page-sized AliCDN URL, original kept for try-on
   const raw = 'https://img.alicdn.com/img/ibank/2020/688/457/21712754886_2079049757.jpg'
   const next = bindLiveProductToPdpHtml(SHELL, { ...PRODUCT_B, imageUrl: broken, galleryImages: [broken] })
   assert.match(next, /21712754886_2079049757\.jpg_1200x1200\.jpg/)
-  assert.match(next, /data-pw-full-src="https:\/\/img\.alicdn\.com\/img\/ibank\/2020\/688\/457\/21712754886_2079049757\.jpg"/)
+  assert.match(next, new RegExp(`data-pw-full-src="${raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`))
   assert.match(next, /data-nanoai-image="https:\/\/img\.alicdn\.com\/img\/ibank\/2020\/688\/457\/21712754886_2079049757\.jpg"/)
   assert.doesNotMatch(next, /21712754886_2079049757\.jpg_600x600q90\.jpg/)
 })

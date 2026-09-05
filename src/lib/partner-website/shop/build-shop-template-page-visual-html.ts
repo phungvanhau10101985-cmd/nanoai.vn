@@ -21,7 +21,6 @@ import {
   partnerSiteHomePath,
   partnerSiteLeadApiPath,
   partnerSiteOrdersPath,
-  partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
   PW_ARTICLE_KIND_ATTR,

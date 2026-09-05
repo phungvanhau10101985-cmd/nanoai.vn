@@ -37,7 +37,7 @@ function readOffset(openAttrs: string, attr: string, cssVar: string): number {
 function stripOffsetBits(openAttrs: string): { attrs: string; css: string; quote: string; hasStyle: boolean } {
   const styleMatch = openAttrs.match(/\sstyle=(["'])([\s\S]*?)\1/i)
   const quote = styleMatch?.[1] || '"'
-  let css = String(styleMatch?.[2] || '')
+  const css = String(styleMatch?.[2] || '')
     .replace(/(?:^|;)\s*--pw-logo-x\s*:[^;]*/gi, '')
     .replace(/(?:^|;)\s*--pw-logo-y\s*:[^;]*/gi, '')
     .replace(/^;+|;+$/g, '')

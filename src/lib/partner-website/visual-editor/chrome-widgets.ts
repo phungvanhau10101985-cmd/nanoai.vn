@@ -743,9 +743,11 @@ export function isVisualEditorChromeWidgetKind(value: string): value is VisualEd
 
 export function chromeWidgetHost(
   kind: VisualEditorChromeWidgetKind,
-  _style?: VisualEditorChromeWidgetStyle,
-  _place?: VisualEditorChromeWidgetPlace
+  style?: VisualEditorChromeWidgetStyle,
+  place?: VisualEditorChromeWidgetPlace
 ): VisualEditorChromeWidgetHost {
+  void style
+  void place
   if (isChromeFloatKind(kind)) return 'float'
   return 'canvas'
 }

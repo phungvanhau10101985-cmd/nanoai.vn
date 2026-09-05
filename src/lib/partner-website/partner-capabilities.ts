@@ -120,28 +120,33 @@ export function normalizePartnerCapabilities(
 }
 
 /** Site is public when the partner + published site exist — not a dashboard module toggle. */
-export function partnerWebsiteEnabled(_caps?: PartnerCapabilities): boolean {
+export function partnerWebsiteEnabled(_unusedCaps?: PartnerCapabilities): boolean {
+  void _unusedCaps
   return true
 }
 
 /** Cart/checkout APIs follow Sửa nhanh widgets — no second capability gate. */
-export function partnerCommerceCartEnabled(_caps?: PartnerCapabilities): boolean {
+export function partnerCommerceCartEnabled(_unusedCaps?: PartnerCapabilities): boolean {
+  void _unusedCaps
   return true
 }
 
-export function partnerWebsiteProductsEnabled(_caps?: PartnerCapabilities): boolean {
+export function partnerWebsiteProductsEnabled(_unusedCaps?: PartnerCapabilities): boolean {
+  void _unusedCaps
   return true
 }
 
-export function partnerWebsitePersonalizeEnabled(_caps?: PartnerCapabilities): boolean {
+export function partnerWebsitePersonalizeEnabled(_unusedCaps?: PartnerCapabilities): boolean {
+  void _unusedCaps
   return true
 }
 
 /** Booking CTA is industry copy (hotel), not a shop module switch. */
 export function partnerWebsiteBookingEnabled(
-  _caps: PartnerCapabilities | undefined,
+  _unusedCaps: PartnerCapabilities | undefined,
   industryKey?: PartnerIndustryKey
 ): boolean {
+  void _unusedCaps
   return industryKey === 'hotel'
 }
 
@@ -163,8 +168,9 @@ export function capabilitiesToTemplateFlags(caps: PartnerCapabilities): ShopTemp
 /** Preset / Sửa nhanh decides sections. Stored module toggles do not hide widgets. */
 export function mergeTemplateFlagsWithCapabilities(
   presetFlags: ShopTemplatePresetFlags,
-  _caps?: PartnerCapabilities
+  _unusedCaps?: PartnerCapabilities
 ): ShopTemplatePresetFlags {
+  void _unusedCaps
   return { ...presetFlags }
 }
 

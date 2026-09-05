@@ -1133,7 +1133,7 @@ function writeFloatSizeCss(openAttrs: string, size: number): string {
   const n = clampChromeFloatSize(size)
   const styleMatch = openAttrs.match(/\sstyle=(["'])([\s\S]*?)\1/i)
   const quote = styleMatch?.[1] || '"'
-  let css = String(styleMatch?.[2] || '')
+  const css = String(styleMatch?.[2] || '')
     .replace(/(?:^|;)\s*--pw-float-size\s*:[^;]*/gi, '')
     .replace(/^;+|;+$/g, '')
     .trim()
@@ -1208,7 +1208,7 @@ function stampFloatKitFaceAndSize(inner: string, size: number, migrateCircle: bo
     next = next.replace(/\sdata-pw-chrome-w=(["'])[^"']*\1/gi, '').replace(/\sdata-pw-chrome-h=(["'])[^"']*\1/gi, '')
     const styleMatch = next.match(/\sstyle=(["'])([\s\S]*?)\1/i)
     const quote = styleMatch?.[1] || '"'
-    let css = String(styleMatch?.[2] || '')
+    const css = String(styleMatch?.[2] || '')
       .replace(/(?:^|;)\s*--pw-chrome-(?:size|w|h)\s*:[^;]*/gi, '')
       .replace(/^;+|;+$/g, '')
       .trim()
@@ -1228,7 +1228,7 @@ function writeHostCssVar(
 ): string {
   const styleMatch = openAttrs.match(/\sstyle=(["'])([\s\S]*?)\1/i)
   const quote = styleMatch?.[1] || '"'
-  let css = String(styleMatch?.[2] || '')
+  const css = String(styleMatch?.[2] || '')
     .replace(new RegExp(`(?:^|;)\\s*${cssVar}\\s*:[^;]*`, 'gi'), '')
     .replace(/^;+|;+$/g, '')
     .trim()
@@ -1246,7 +1246,7 @@ function withHostKitShiftStyle(openAttrs: string): string {
   const n = clampChromeKitShift(fromAttr ?? fromCss)
   const styleMatch = openAttrs.match(/\sstyle=(["'])([\s\S]*?)\1/i)
   const quote = styleMatch?.[1] || '"'
-  let css = String(styleMatch?.[2] || '')
+  const css = String(styleMatch?.[2] || '')
     .replace(/(?:^|;)\s*--pw-kit-x\s*:[^;]*/gi, '')
     .replace(/^;+|;+$/g, '')
     .trim()
@@ -1715,7 +1715,7 @@ function ensureChromeKitFloatHost(
 
   const kept = [...escaped.widgets.values()]
   const seen = new Set(escaped.widgets.keys())
-  let stripped = escaped.html
+  const stripped = escaped.html
 
   const missing = CHROME_KIT_FLOAT_ITEMS.filter((item) => !seen.has(item.kind))
   const extra = missing.length

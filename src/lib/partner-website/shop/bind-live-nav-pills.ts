@@ -105,20 +105,6 @@ function extractAddedChrome(inner: string): string {
   return kept.join('')
 }
 
-function flyoutColsHtml(kids: LiveNavRowItem[]): string {
-  return kids
-    .map((l2) => {
-      const l3 = (l2.children || [])
-        .map(
-          (child) =>
-            `<a href="${escapeAttr(child.href)}" data-pw-el="${PW_EL.navLink}" class="pw-cat-mega-l3">${escapeHtml(child.name)}</a>`
-        )
-        .join('')
-      return `<div class="pw-cat-mega-l2-col"><a href="${escapeAttr(l2.href)}" data-pw-el="${PW_EL.navLink}" class="pw-cat-mega-l2">${escapeHtml(l2.name)}</a>${l3}</div>`
-    })
-    .join('')
-}
-
 export function buildLiveNavRowInnerHtml(input: {
   row: LiveNavRowItem[]
   locale: WebLocale

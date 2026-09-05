@@ -3352,15 +3352,6 @@ export function PartnerWebsiteVisualEditorToolbar({
     setInsertBgPickPlace(null)
   }
 
-  function startInsertBgPick(place: 'before' | 'after') {
-    setAddBgAskOpen(false)
-    setInsertBgPickPlace(place)
-    postToIframe(iframeRef.current, 'startInsertBgPick', {
-      place,
-      color: addBgColor || '#f3f4f6',
-    })
-  }
-
   function insertBannerWidget() {
     if (!insertAnchorActive) return
     const slug = siteSlug?.trim()

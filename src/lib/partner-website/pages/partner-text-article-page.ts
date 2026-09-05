@@ -1,5 +1,3 @@
-import type { PartnerWebsitePageKey } from '@/lib/partner-website/partner-website-page-catalog'
-
 /**
  * Nhận diện trang chữ dạng blog / chính sách / hướng dẫn (Vận chuyển, Đổi trả, FAQ…).
  * Dùng một nguồn này cho: ô AI viết bài, schema Article, đồng bộ CMS text — tránh nhầm

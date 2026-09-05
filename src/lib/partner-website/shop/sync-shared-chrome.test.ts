@@ -6,7 +6,6 @@ import {
   extractSharedChrome,
   unwrapPersistedLiveChromeHtml,
   fillMissingSharedChromeFloats,
-  hasSharedChrome,
   htmlHasShopHeader,
   hoistBodyLevelChromeFloats,
   hoistBodyLevelSceneOverlays,

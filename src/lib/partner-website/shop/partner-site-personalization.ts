@@ -336,8 +336,7 @@ export async function mutateSiteFavoriteProduct(input: {
   const lockKey = `${input.partnerId}:${input.accountKey}:${input.inventoryId.trim().toLowerCase()}:${input.action}`
   const pending = favoriteToggleInFlight.get(lockKey)
   if (pending) return pending
-  let work!: Promise<{ is_favorite: boolean; likes_count?: number } | null>
-  work = (async () => {
+  const work = (async () => {
     const result = await mutatePartnerVisitorFavoriteFromPg(input)
     if (!result) return null
     let likes_count: number | undefined
