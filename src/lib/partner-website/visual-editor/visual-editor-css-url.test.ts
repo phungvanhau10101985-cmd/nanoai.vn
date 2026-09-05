@@ -757,6 +757,7 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('findCategoriesSelectable')
     expect(s).toContain('pointInEl(selectedBanner')
     expect(s).toContain('[data-pw-region="categories"]')
+    expect(s).toContain('[data-pw-region="categories"]:not(.pw-featured-cat)')
     expect(s).toContain('pwRegionOf(el) === \'categories\'')
     expect(s).toContain('isBannerHostEl')
     expect(s).toContain('.nanoai-ve-highlight[data-pw-region="banner"]')

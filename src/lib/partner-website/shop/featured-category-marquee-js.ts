@@ -1,11 +1,14 @@
 /**
- * Vertical featured-category marquee — same motion as 188 CategoryCatalogMarquee.
- * Shared by live personalization bootstrap and Sửa nhanh. No `${` (editor template literal).
+ * Vertical featured-category marquee. Only `.pw-featured-cat` — never wrap circle cats.
+ * Shared by live bootstrap and Sửa nhanh. No `${` (editor template literal).
  */
 
 export const PW_FEATURED_MARQUEE_JS = `
 function featuredSourceGrid(el){
   if(!el||!el.querySelector)return null;
+  if(el.classList&&el.classList.contains('pw-featured-cat')){
+    return el.querySelector('[data-pw-grid]:not([data-pw-featured-clone]),.pw-featured-cat-grid:not([data-pw-featured-clone])');
+  }
   return el.querySelector('[data-pw-grid]:not([data-pw-featured-clone]),.pw-featured-cat-grid:not([data-pw-featured-clone]),.pw-cat-grid:not([data-pw-featured-clone])');
 }
 function bindFeaturedMarqueePause(viewport){
@@ -18,12 +21,10 @@ function bindFeaturedMarqueePause(viewport){
   viewport.addEventListener('touchcancel',function(){viewport.classList.remove('is-paused');});
 }
 function ensureFeaturedMarquee(el){
-  if(!el||!el.getAttribute)return;
-  if(el.getAttribute('data-pw-featured-categories')!=='1'&&!(el.classList&&el.classList.contains('pw-featured-cat')))return;
-  if(el.classList&&el.classList.contains('pw-categories')&&!el.classList.contains('pw-featured-cat'))return;
+  if(!el||!el.classList||!el.classList.contains('pw-featured-cat'))return;
+  if(el.getAttribute('data-pw-featured-categories')!=='1')return;
   var grid=featuredSourceGrid(el);
   if(!grid)return;
-  if(el.classList&&!el.classList.contains('pw-featured-cat'))el.classList.add('pw-featured-cat');
   var viewport=el.querySelector('[data-pw-featured-viewport],.pw-featured-cat-viewport');
   var marquee=el.querySelector('[data-pw-featured-marquee],.pw-featured-cat-marquee');
   if(!viewport){
@@ -74,14 +75,8 @@ function ensureFeaturedMarquee(el){
   bindFeaturedMarqueePause(viewport);
 }
 function pwEnsureFeaturedMarquees(){
-  var nodes=document.querySelectorAll('.pw-featured-cat[data-pw-featured-categories], [data-pw-featured-categories="1"]');
-  for(var i=0;i<nodes.length;i++){
-    var el=nodes[i];
-    if(el.classList&&el.classList.contains('pw-categories')&&!el.classList.contains('pw-featured-cat'))continue;
-    if(el.classList&&el.classList.contains('pw-featured-cat')||el.querySelector&&el.querySelector('.pw-featured-cat-card,[data-pw-featured-viewport]')){
-      ensureFeaturedMarquee(el);
-    }
-  }
+  var nodes=document.querySelectorAll('.pw-featured-cat[data-pw-featured-categories="1"]');
+  for(var i=0;i<nodes.length;i++)ensureFeaturedMarquee(nodes[i]);
 }
 try{window.pwEnsureFeaturedMarquees=pwEnsureFeaturedMarquees;}catch(ePwFeatMq){}
 `.trim()

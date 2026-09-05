@@ -11595,7 +11595,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       pinKindLockedScene(node)
       compactAddedProductGrid(node)
       applyMidInsertGap(node)
-      try { pwEnsureFeaturedMarquees() } catch (eFeatMqIns) {}
+      if (node.classList && node.classList.contains('pw-featured-cat')) {
+        try { ensureFeaturedMarquee(node) } catch (eFeatMqIns) {}
+      }
       selectEl(node)
       post('dirty', {})
       consumeInsertAnchor()
@@ -11608,7 +11610,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     else host.appendChild(node)
     pinKindLockedScene(node)
     compactAddedProductGrid(node)
-    try { pwEnsureFeaturedMarquees() } catch (eFeatMqApp) {}
+    if (node.classList && node.classList.contains('pw-featured-cat')) {
+      try { ensureFeaturedMarquee(node) } catch (eFeatMqApp) {}
+    }
     selectEl(node)
     post('dirty', {})
   }
@@ -15062,7 +15066,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.pw-product-card-media,[data-pw-el="card-media"]{position:relative}',
       '.pw-product-card-media [data-pw-chrome-btn="favorite-product"],[data-pw-el="card-media"] [data-pw-chrome-btn="favorite-product"]{position:absolute;top:8px;right:8px;z-index:4;background:rgba(255,255,255,.92)!important}',
       '[data-pw-chrome-btn="favorite-product"].is-active svg,[data-pw-chrome-btn="favorite-product"][aria-pressed="true"] svg{fill:#e11d48;stroke:#e11d48}',
-      '.nanoai-ve-active [data-pw-region="categories"],.nanoai-ve-active [data-pw-region="categories"] *,.nanoai-ve-active section.pw-categories,.nanoai-ve-active .pw-categories,.nanoai-ve-active .pw-cat-grid,.nanoai-ve-active .pw-cat-card{pointer-events:auto!important;position:relative;z-index:8}',
+      '.nanoai-ve-active [data-pw-region="categories"]:not(.pw-featured-cat),.nanoai-ve-active [data-pw-region="categories"]:not(.pw-featured-cat) *,.nanoai-ve-active section.pw-categories:not(.pw-featured-cat),.nanoai-ve-active .pw-categories:not(.pw-featured-cat),.nanoai-ve-active .pw-cat-grid:not(.pw-featured-cat-grid),.nanoai-ve-active .pw-cat-card:not(.pw-featured-cat-card){pointer-events:auto!important;position:relative;z-index:8}',
       '.nanoai-ve-active [data-pw-region="categories"][data-pw-catalog-lock="1"],.nanoai-ve-active [data-pw-region="categories"] [data-pw-catalog-lock="1"],.nanoai-ve-active [data-pw-region="categories"] [data-pw-catalog-lock="1"] *{pointer-events:auto!important;cursor:pointer!important}',
       '.nanoai-ve-active .pw-product-card,.nanoai-ve-active .pw-shop-card,.nanoai-ve-active .pw-product-grid,.nanoai-ve-active .pw-shop-grid,.nanoai-ve-active [data-pw-grid]{cursor:default!important}',
       '.nanoai-ve-active .pw-product-card .nanoai-ve-hover,.nanoai-ve-active .pw-shop-card .nanoai-ve-hover,.nanoai-ve-active .pw-btn-cart.nanoai-ve-hover,.nanoai-ve-active [data-pw-add-cart].nanoai-ve-hover{outline:none!important}',
