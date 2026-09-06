@@ -1,10 +1,16 @@
 import type { WebLocale } from '@/lib/i18n/config'
-import { partnerSiteProductsPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import {
+  partnerSiteKhoSalePath,
+  partnerSiteProductsPath,
+} from '@/lib/partner-website/shop/partner-site-shop-paths'
+import {
+  PARTNER_MARKETING_BANNER_CAROUSEL_MS,
+  PARTNER_MARKETING_BANNER_SLIDE_ORDER,
+} from '@/lib/partner-website/promotions/partner-marketing-banner'
 import {
   PW_SLIDER_ARROW_NEXT_HTML,
   PW_SLIDER_ARROW_PREV_HTML,
-  PW_SLIDER_SLIDE_MAX,
-  PW_SLIDER_WAIT_DEFAULT,
+  PW_SLIDER_FULL_ATTR,
 } from '@/lib/partner-website/visual-editor/pw-slider-runtime'
 import { PW_KIND_SCENE_MEDIA, pwKindSceneAttr } from '@/lib/partner-website/visual-editor/pw-kind-scene'
 import {
@@ -239,11 +245,11 @@ const LABEL: Record<VisualEditorBannerKind, Record<WebLocale, string>> = {
     ko: '가로 배너',
   },
   promo: {
-    vi: 'Banner ưu đãi',
-    en: 'Promo banner',
-    zh: '优惠横幅',
-    ja: '特典バナー',
-    ko: '혜택 배너',
+    vi: 'Thêm banner',
+    en: 'Add banner',
+    zh: '添加横幅',
+    ja: 'バナーを追加',
+    ko: '배너 추가',
   },
   birthday: {
     vi: 'Banner chúc mừng SN',
@@ -285,69 +291,202 @@ function editAttr(slot: string): string {
   return `data-pw-edit="${slot}"`
 }
 
+type PromoSlotCopy = { badge: string; title: string; subtitle: string; cta: string; ctaSecondary: string }
+
+const PROMO_SLOT_COPY: Record<(typeof PARTNER_MARKETING_BANNER_SLIDE_ORDER)[number], Record<WebLocale, PromoSlotCopy>> = {
+  birthday: COPY.birthday,
+  sale: COPY['sale-calendar'],
+  warehouse: {
+    vi: {
+      badge: 'Kho',
+      title: 'Sale kho',
+      subtitle: 'Thanh lý hàng tồn — giá clearance',
+      cta: 'Xem kho sale',
+      ctaSecondary: 'Xem thêm',
+    },
+    en: {
+      badge: 'Warehouse',
+      title: 'Warehouse sale',
+      subtitle: 'Clearance stock at warehouse prices',
+      cta: 'Shop clearance',
+      ctaSecondary: 'See more',
+    },
+    zh: {
+      badge: '仓库',
+      title: '仓库特卖',
+      subtitle: '清仓库存，仓库价',
+      cta: '去清仓',
+      ctaSecondary: '查看更多',
+    },
+    ja: {
+      badge: '倉庫',
+      title: '倉庫セール',
+      subtitle: '在庫一掃の倉庫価格',
+      cta: '倉庫セールを見る',
+      ctaSecondary: 'もっと見る',
+    },
+    ko: {
+      badge: '창고',
+      title: '창고 세일',
+      subtitle: '재고 클리어런스 창고가',
+      cta: '창고 세일 보기',
+      ctaSecondary: '더 보기',
+    },
+  },
+  regular: {
+    vi: {
+      badge: 'Shop',
+      title: 'Banner thường',
+      subtitle: 'Ưu đãi và bộ sưu tập của shop',
+      cta: 'Xem thêm',
+      ctaSecondary: 'Mua ngay',
+    },
+    en: {
+      badge: 'Shop',
+      title: 'Regular banner',
+      subtitle: 'Shop offers and collections',
+      cta: 'See more',
+      ctaSecondary: 'Shop now',
+    },
+    zh: {
+      badge: '店铺',
+      title: '普通横幅',
+      subtitle: '店铺优惠与系列',
+      cta: '查看更多',
+      ctaSecondary: '立即购买',
+    },
+    ja: {
+      badge: 'ショップ',
+      title: '通常バナー',
+      subtitle: 'ショップの特典とコレクション',
+      cta: 'もっと見る',
+      ctaSecondary: '今すぐ買う',
+    },
+    ko: {
+      badge: '쇼핑몰',
+      title: '일반 배너',
+      subtitle: '쇼핑몰 혜택과 컬렉션',
+      cta: '더 보기',
+      ctaSecondary: '바로 구매',
+    },
+  },
+}
+
 const SLIDE_ARROW_PREV = PW_SLIDER_ARROW_PREV_HTML
 const SLIDE_ARROW_NEXT = PW_SLIDER_ARROW_NEXT_HTML
+const BANNER_HOST_OPEN_RE =
+  /<(section|div)\b(?=[^>]*\b(?:data-pw-region=["']banner["']|data-pw-personalize-banner=|data-pw-added-banner=["']1["']|data-pw-banner-kind=))[^>]*>/gi
 
-function buildSliderSlidesHtml(count: number): string {
-  const n = Math.min(PW_SLIDER_SLIDE_MAX, Math.max(2, count))
+function bannerCopyHtml(copy: PromoSlotCopy, href: string): string {
+  return `<div class="pw-hero-inner pw-container" ${pwElAttr(PW_EL.inner)} style="position:relative;z-index:2;width:100%;padding:48px 20px;box-sizing:border-box">
+    <div class="pw-hero-copy" ${pwElAttr(PW_EL.copy)} data-pw-banner-copy="1" style="max-width:560px">
+      <span class="pw-hero-badge" ${pwElAttr(PW_EL.badge)} ${editAttr(PW_EDIT_SLOT.heroBadge)} style="display:inline-block;margin-bottom:10px;padding:4px 10px;border-radius:999px;background:var(--pw-accent);color:#fff;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase">${escapeHtml(copy.badge)}</span>
+      <h1 ${pwElAttr(PW_EL.title)} ${editAttr(PW_EDIT_SLOT.heroTitle)} style="margin:0 0 12px;font-size:clamp(1.6rem,4vw,2.6rem);line-height:1.08;font-weight:800">${escapeHtml(copy.title)}</h1>
+      <p class="pw-hero-sub" ${pwElAttr(PW_EL.subtitle)} ${editAttr(PW_EDIT_SLOT.heroSubtitle)} style="margin:0 0 20px;font-size:1rem;color:rgba(255,255,255,.92)">${escapeHtml(copy.subtitle)}</p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+        <a class="pw-btn pw-btn-hero" ${pwElAttr(PW_EL.cta)} ${editAttr(PW_EDIT_SLOT.heroCta)} data-pw-token="buy" href="${href}" style="background:var(--pw-buy,var(--pw-primary));color:#fff">${escapeHtml(copy.cta)}</a>
+        <a class="pw-btn" ${pwElAttr(PW_EL.ctaSecondary)} data-pw-token="primary" href="${href}" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.75)">${escapeHtml(copy.ctaSecondary)}</a>
+      </div>
+    </div>
+  </div>`
+}
+
+function promoSlotHref(slot: (typeof PARTNER_MARKETING_BANNER_SLIDE_ORDER)[number], siteSlug: string): string {
+  return slot === 'warehouse' ? partnerSiteKhoSalePath(siteSlug) : partnerSiteProductsPath(siteSlug)
+}
+
+function buildUnifiedPromoSlidesHtml(siteSlug: string, locale: WebLocale): string {
+  const overlay =
+    '<div aria-hidden="true" style="position:absolute;inset:0;background:linear-gradient(90deg,color-mix(in srgb,var(--pw-text,#111) 35%,transparent),transparent);pointer-events:none;z-index:1"></div>'
   const slides: string[] = []
   const dots: string[] = []
-  for (let i = 0; i < n; i++) {
+  PARTNER_MARKETING_BANNER_SLIDE_ORDER.forEach((slot, i) => {
+    const copy = PROMO_SLOT_COPY[slot][locale]
+    const href = escapeHtml(promoSlotHref(slot, siteSlug))
     const active = i === 0 ? ' data-pw-slide-active="1"' : ''
     slides.push(
-      `<div data-pw-slide="${i}"${active}><img class="pw-hero-media" ${pwElAttr(PW_EL.media)} ${editAttr(PW_EDIT_SLOT.heroImage)} data-pw-banner-placeholder="1" alt="" width="1600" height="720" src="${BANNER_PLACEHOLDER_SRC}"/></div>`
+      `<div data-pw-slide="${i}" data-pw-promo-slot="${slot}"${active}><img class="pw-hero-media" ${pwElAttr(PW_EL.media)} ${editAttr(PW_EDIT_SLOT.heroImage)} data-pw-banner-placeholder="1" alt="" width="2100" height="900" src="${BANNER_PLACEHOLDER_SRC}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain"/>${overlay}${bannerCopyHtml(copy, href)}</div>`
     )
     dots.push(
       `<button type="button" data-pw-slide-to="${i}"${i === 0 ? ' class="is-active"' : ''}></button>`
     )
-  }
+  })
   return `<div data-pw-slides>${slides.join('')}</div>
   ${SLIDE_ARROW_PREV}
   ${SLIDE_ARROW_NEXT}
   <div class="pw-slide-dots" ${pwElAttr(PW_EL.dots)} aria-hidden="true">${dots.join('')}</div>`
 }
 
-function bannerCopyHtml(
-  copy: { badge: string; title: string; subtitle: string; cta: string; ctaSecondary: string },
-  productsHref: string,
-  withHeroDots: boolean
-): string {
-  const dots = withHeroDots
-    ? `<div class="pw-hero-dots" ${pwElAttr(PW_EL.dots)} aria-hidden="true" style="display:flex;gap:6px;margin-top:18px">
-        <span class="is-active" style="width:8px;height:8px;border-radius:50%;background:#fff"></span>
-        <span style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.45)"></span>
-        <span style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.45)"></span>
-      </div>`
-    : ''
-  return `<div class="pw-hero-inner pw-container" ${pwElAttr(PW_EL.inner)} style="position:relative;z-index:2;width:100%;padding:64px 20px;box-sizing:border-box">
-    <div class="pw-hero-copy" ${pwElAttr(PW_EL.copy)} data-pw-banner-copy="1" style="max-width:560px">
-      <span class="pw-hero-badge" ${pwElAttr(PW_EL.badge)} ${editAttr(PW_EDIT_SLOT.heroBadge)} style="display:inline-block;margin-bottom:10px;padding:4px 10px;border-radius:999px;background:var(--pw-accent);color:#fff;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase">${escapeHtml(copy.badge)}</span>
-      <h1 ${pwElAttr(PW_EL.title)} ${editAttr(PW_EDIT_SLOT.heroTitle)} style="margin:0 0 12px;font-size:clamp(2rem,4.5vw,3.2rem);line-height:1.08;font-weight:800">${escapeHtml(copy.title)}</h1>
-      <p class="pw-hero-sub" ${pwElAttr(PW_EL.subtitle)} ${editAttr(PW_EDIT_SLOT.heroSubtitle)} style="margin:0 0 20px;font-size:1rem;color:rgba(255,255,255,.92)">${escapeHtml(copy.subtitle)}</p>
-      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
-        <a class="pw-btn pw-btn-hero" ${pwElAttr(PW_EL.cta)} ${editAttr(PW_EDIT_SLOT.heroCta)} data-pw-token="buy" href="${productsHref}" style="background:var(--pw-buy,var(--pw-primary));color:#fff">${escapeHtml(copy.cta)}</a>
-        <a class="pw-btn" ${pwElAttr(PW_EL.ctaSecondary)} data-pw-token="primary" href="${productsHref}" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.75)">${escapeHtml(copy.ctaSecondary)}</a>
-      </div>
-      ${dots}
-    </div>
-  </div>`
+function findMatchingCloseTag(html: string, from: number, tag: string): number {
+  const re = new RegExp(`<${tag}\\b[^>]*>|</${tag}>`, 'gi')
+  re.lastIndex = from
+  let depth = 1
+  let match: RegExpExecArray | null
+  while ((match = re.exec(html))) {
+    if (match[0].slice(0, 2) === '</') {
+      depth -= 1
+      if (depth === 0) return match.index
+      continue
+    }
+    if (!/\/>$/.test(match[0].trim())) depth += 1
+  }
+  return -1
 }
 
-/** Lưu Sửa nhanh: trả ảnh/chữ mẫu, bỏ ảnh AI vừa hydrate. */
+function findBannerHostRanges(html: string): { start: number; openEnd: number; end: number }[] {
+  const ranges: { start: number; openEnd: number; end: number }[] = []
+  const re = new RegExp(BANNER_HOST_OPEN_RE.source, 'gi')
+  let match: RegExpExecArray | null
+  while ((match = re.exec(html))) {
+    const start = match.index
+    const openEnd = start + match[0].length
+    const close = findMatchingCloseTag(html, openEnd, match[1])
+    if (close < 0) continue
+    const end = close + `</${match[1]}>`.length
+    if (ranges.some((range) => start >= range.start && end <= range.end)) continue
+    ranges.push({ start, openEnd, end })
+    re.lastIndex = end
+  }
+  return ranges
+}
+
+export function isUnifiedPromoBannerHtml(html: string): boolean {
+  return (
+    /\bdata-pw-personalize-banner=["']promo["']/i.test(html) &&
+    /\bdata-pw-slider=["']1["']/i.test(html) &&
+    /\bdata-pw-promo-slot=["']birthday["']/i.test(html) &&
+    /\bdata-pw-promo-slot=["']sale["']/i.test(html) &&
+    /\bdata-pw-promo-slot=["']warehouse["']/i.test(html) &&
+    /\bdata-pw-promo-slot=["']regular["']/i.test(html)
+  )
+}
+
+function applyPreservedBannerHostAttrs(widget: string, oldOpenTag: string): string {
+  const blockH = oldOpenTag.match(/\bdata-pw-block-h=["']([^"']*)["']/i)?.[1]
+  const radius = oldOpenTag.match(/\bdata-pw-image-radius=["']([^"']*)["']/i)?.[1]
+  if (blockH == null && radius == null) return widget
+  return widget.replace(/^<section\b([^>]*)>/i, (_full, attrs: string) => {
+    let next = String(attrs)
+    if (blockH != null) {
+      next = /\bdata-pw-block-h=/.test(next)
+        ? next.replace(/\bdata-pw-block-h=["'][^"']*["']/i, `data-pw-block-h="${blockH}"`)
+        : `${next} data-pw-block-h="${blockH}"`
+      next = /\b--pw-block-h:/.test(next)
+        ? next.replace(/--pw-block-h:[^;"]+/i, `--pw-block-h:${blockH}px`)
+        : next.replace(/style="/i, `style="--pw-block-h:${blockH}px;`)
+    }
+    if (radius != null) {
+      next = /\bdata-pw-image-radius=/.test(next)
+        ? next.replace(/\bdata-pw-image-radius=["'][^"']*["']/i, `data-pw-image-radius="${radius}"`)
+        : `${next} data-pw-image-radius="${radius}"`
+    }
+    return `<section${next}>`
+  })
+}
+
+/** Lưu Sửa nhanh: trả ảnh/chữ mẫu, bỏ carousel live. */
 export function restoreMarketingBannerSeedsInDocument(root: ParentNode): void {
   root.querySelectorAll('[data-pw-personalize-banner]').forEach((section) => {
-    const src = section.getAttribute('data-pw-seed-src')
-    const title = section.getAttribute('data-pw-seed-title')
-    const subtitle = section.getAttribute('data-pw-seed-subtitle')
-    const img = section.querySelector('img[data-pw-el="media"]')
-    if (src != null && img) {
-      if (src) img.setAttribute('src', src)
-      else img.removeAttribute('src')
-    }
-    const titleEl = section.querySelector('[data-pw-el="title"]')
-    if (title != null && titleEl) titleEl.textContent = title
-    const subEl = section.querySelector('[data-pw-el="subtitle"]')
-    if (subtitle != null && subEl) subEl.textContent = subtitle
     section.removeAttribute('data-pw-banner-live')
     section.removeAttribute('data-pw-seed-src')
     section.removeAttribute('data-pw-seed-title')
@@ -355,63 +494,53 @@ export function restoreMarketingBannerSeedsInDocument(root: ParentNode): void {
     section.querySelectorAll('[data-pw-promo-carousel],[data-pw-banner-greeting]').forEach((el) => el.remove())
     const sibling = section.nextElementSibling
     if (sibling?.getAttribute('data-pw-banner-greeting') === '1') sibling.remove()
+    section.querySelectorAll('[data-pw-promo-slot] img[data-pw-el="media"]').forEach((img) => {
+      img.setAttribute('src', BANNER_PLACEHOLDER_SRC)
+      img.setAttribute('data-pw-banner-placeholder', '1')
+    })
   })
 }
 
-/** In-flow banner section for Sửa nhanh «Thêm». Packaged: media + copy + CTAs + dots. */
+/** In-flow banner: one swipe block — CMSN, same-day sale, warehouse, regular. */
 export function buildVisualEditorBannerHtml(input: {
   kind?: VisualEditorBannerKind
   siteSlug: string
   locale?: WebLocale
 }): string {
   const locale = input.locale && input.locale in COPY.hero ? input.locale : 'vi'
-  const kind: VisualEditorBannerKind = input.kind && isVisualEditorBannerKind(input.kind) ? input.kind : 'hero'
-  const copy = COPY[kind][locale]
-  const productsHref = escapeHtml(partnerSiteProductsPath(input.siteSlug))
-  const overlay =
-    '<div aria-hidden="true" style="position:absolute;inset:0;background:linear-gradient(90deg,color-mix(in srgb,var(--pw-text,#111) 35%,transparent),transparent);pointer-events:none;z-index:1"></div>'
-
-  if (kind === 'slider') {
-    return `<section class="pw-hero pw-banner" ${pwRegionAttr(PW_REGION.banner)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="banner" data-pw-added-banner="1" data-pw-banner-kind="slider" data-pw-slider="1" data-pw-slide-wait="${PW_SLIDER_WAIT_DEFAULT}" data-pw-slide-arrows="1" data-pw-slide-index="0" data-pw-image-radius="0" style="position:relative;min-height:360px;overflow:hidden;display:flex;align-items:center;background:linear-gradient(135deg,var(--pw-primary),var(--pw-accent));color:#fff;border-radius:0">
-  ${buildSliderSlidesHtml(3)}
-  ${overlay}
-  ${bannerCopyHtml(copy, productsHref, false)}
-</section>`
-  }
-
-  const liveKind = personalizeBannerKindOf(kind)
-  if (liveKind) {
-    return `<section class="pw-hero pw-banner" ${pwRegionAttr(PW_REGION.banner)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="banner" data-pw-added-banner="1" data-pw-banner-kind="${liveKind}" data-pw-personalize-banner="${liveKind}" data-pw-image-radius="0" style="position:relative;aspect-ratio:21/9;overflow:hidden;display:flex;align-items:center;background:linear-gradient(135deg,var(--pw-primary),var(--pw-accent));color:#fff;border-radius:0">
-  <img class="pw-hero-media" ${pwElAttr(PW_EL.media)} ${editAttr(PW_EDIT_SLOT.heroImage)} data-pw-banner-placeholder="1" alt="" width="2100" height="900" src="${BANNER_PLACEHOLDER_SRC}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain"/>
-  ${overlay}
-  ${bannerCopyHtml(copy, productsHref, false)}
-</section>`
-  }
-
-  return `<section class="pw-hero pw-banner" id="pw-banner-added" ${pwRegionAttr(PW_REGION.banner)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="banner" data-pw-added-banner="1" data-pw-banner-kind="${kind}" data-pw-image-radius="0" style="position:relative;min-height:360px;overflow:hidden;display:flex;align-items:center;background:linear-gradient(135deg,var(--pw-primary),var(--pw-accent));color:#fff;border-radius:0">
-  <img class="pw-hero-media" ${pwElAttr(PW_EL.media)} ${editAttr(PW_EDIT_SLOT.heroImage)} data-pw-banner-placeholder="1" alt="" width="1600" height="720" src="${BANNER_PLACEHOLDER_SRC}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"/>
-  ${overlay}
-  ${bannerCopyHtml(copy, productsHref, true)}
+  void input.kind
+  return `<section class="pw-hero pw-banner" ${pwRegionAttr(PW_REGION.banner)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="banner" data-pw-added-banner="1" data-pw-banner-kind="promo" data-pw-personalize-banner="promo" data-pw-slider="1" ${PW_SLIDER_FULL_ATTR}="1" data-pw-slide-wait="${PARTNER_MARKETING_BANNER_CAROUSEL_MS}" data-pw-slide-arrows="1" data-pw-slide-index="0" data-pw-image-radius="0" style="position:relative;aspect-ratio:21/9;overflow:hidden;display:flex;align-items:center;background:linear-gradient(135deg,var(--pw-primary),var(--pw-accent));color:#fff;border-radius:0">
+  ${buildUnifiedPromoSlidesHtml(input.siteSlug, locale)}
 </section>`
 }
 
-/** Home seed / live: one promo slider host. Skip if a personalize-banner already exists. */
+/** Convert leftover hero/slider/promo hosts into one unified swipe block. Inject on home if missing. */
 export function ensurePromoMarketingBannerInHtml(
   html: string,
   input: { siteSlug: string; locale?: WebLocale; pageKey?: string | null }
 ): string {
   const siteSlug = input.siteSlug.trim()
   if (!html.trim() || !siteSlug) return html
-  const isHome =
-    input.pageKey === 'home' ||
-    /\bdata-pw-page=["']home["']/i.test(html)
-  if (!isHome) return html
-  if (/\bdata-pw-personalize-banner\b/i.test(html)) return html
   const widget = buildVisualEditorBannerHtml({
     kind: 'promo',
     siteSlug,
     locale: input.locale,
   })
+  const ranges = findBannerHostRanges(html)
+  if (ranges.length) {
+    let next = html
+    for (let i = ranges.length - 1; i >= 1; i--) {
+      const extra = ranges[i]
+      next = `${next.slice(0, extra.start)}${next.slice(extra.end)}`
+    }
+    const first = ranges[0]
+    const openTag = next.slice(first.start, first.openEnd)
+    const inner = next.slice(first.openEnd, first.end)
+    if (isUnifiedPromoBannerHtml(`${openTag}${inner}`)) return next
+    return `${next.slice(0, first.start)}${applyPreservedBannerHostAttrs(widget, openTag)}${next.slice(first.end)}`
+  }
+  const isHome = input.pageKey === 'home' || /\bdata-pw-page=["']home["']/i.test(html)
+  if (!isHome) return html
   if (/<\/header>/i.test(html)) return html.replace(/<\/header>/i, `</header>\n${widget}`)
   if (/<main\b[^>]*>/i.test(html)) {
     return html.replace(/<main\b[^>]*>/i, (open) => `${open}\n${widget}`)

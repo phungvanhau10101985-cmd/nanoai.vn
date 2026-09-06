@@ -80,6 +80,9 @@ export type PartnerSitePersonalizationProduct = {
   siteSalePercent?: number
   siteSaleExpectedPrice?: number | null
   siteSale?: PartnerSiteSalePricing | null
+  likesCount?: number
+  purchasesCount?: number
+  ratingScore?: number
 }
 
 export type PartnerSiteVisitorProfile = {
@@ -256,6 +259,9 @@ export function mapInventoryRowToPersonalizationProduct(
     siteSalePercent: priced.siteSalePercent,
     siteSaleExpectedPrice: priced.siteSaleExpectedPrice,
     siteSale: priced.siteSale,
+    likesCount: Math.max(0, Math.round(Number(row.likes_count ?? 0)) || 0),
+    purchasesCount: Math.max(0, Math.round(Number(row.purchases_count ?? 0)) || 0),
+    ratingScore: Number(row.rating_score ?? 0) || 0,
   }
 }
 

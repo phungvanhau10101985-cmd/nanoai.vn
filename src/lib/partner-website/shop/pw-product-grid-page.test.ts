@@ -49,3 +49,16 @@ test('grid actions ship see-more and see-all in flow', () => {
   assert.match(html, /Xem tất cả các nhóm/)
   assert.match(html, /\/site\/demo\/products/)
 })
+
+test('recommended actions omit see-all like 188', () => {
+  const html = productGridActionsHtml({
+    loadMoreLabel: 'Xem thêm',
+    seeAllLabel: 'Xem tất cả các nhóm',
+    seeAllHref: '/site/demo/products',
+    hideSeeAll: true,
+  })
+  assert.match(html, /data-pw-grid-more/)
+  assert.match(html, /Xem thêm/)
+  assert.doesNotMatch(html, /data-pw-el="section-more"/)
+  assert.doesNotMatch(html, /Xem tất cả các nhóm/)
+})

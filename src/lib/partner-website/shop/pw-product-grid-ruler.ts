@@ -5,6 +5,8 @@
  * Never auto-fit: leftover HTML `repeat(auto-fit, minmax(220px,1fr))` must not win.
  */
 
+import { PW_RECOMMENDED_GRID_FACE_CSS } from '@/lib/partner-website/shop/pw-recommended-grid-face'
+
 const PW_STRIP_GRID_PARTS = [
   '[data-pw-related] [data-pw-grid]',
   '[data-pw-related] .pw-product-grid',
@@ -226,4 +228,5 @@ ${PW_PRODUCT_CATALOG_CARD_FACE_CSS}
 ${PW_ADDED_PRODUCT_GRID_COMPACT_CSS}
 ${PW_PRODUCT_GRID_TITLE_CSS}
 ${PW_PRODUCT_GRID_MORE_CSS}
+${PW_RECOMMENDED_GRID_FACE_CSS}
 `.trim()

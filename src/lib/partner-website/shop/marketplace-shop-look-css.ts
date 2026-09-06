@@ -8,6 +8,10 @@ export function isMarketplaceLook(theme: Pick<PartnerWebsiteTheme, 'look'> | nul
   return String(theme?.look || '').trim() === PARTNER_WEBSITE_LOOK_MARKETPLACE
 }
 
+export function htmlHasMarketplaceLook(html: string): boolean {
+  return /\bdata-pw-look=["']marketplace["']/i.test(html)
+}
+
 export function isMarketplaceTemplateId(templateId: string | null | undefined): boolean {
   return String(templateId || '').trim() === 'fashion-marketplace'
 }
@@ -35,7 +39,7 @@ export function injectMarketplaceLookIntoHtml(
   theme?: Pick<PartnerWebsiteTheme, 'look'> | null
 ): string {
   const trimmed = html.trim()
-  if (!trimmed || !isMarketplaceLook(theme)) return html
+  if (!trimmed || !(isMarketplaceLook(theme) || htmlHasMarketplaceLook(trimmed))) return html
   let out = stampPartnerWebsiteLookInHtml(trimmed, PARTNER_WEBSITE_LOOK_MARKETPLACE)
   const tag = `<style id="${PARTNER_MARKETPLACE_LOOK_STYLE_ID}">${buildMarketplaceLookCss()}</style>`
   let replaced = false
@@ -143,7 +147,6 @@ html[data-pw-look="marketplace"] .pw-shop{
 html[data-pw-look="marketplace"] .pw-catalog,
 html[data-pw-look="marketplace"] .pw-featured-cat,
 html[data-pw-look="marketplace"] .pw-hero.pw-banner,
-html[data-pw-look="marketplace"] .pw-marketplace-trust,
 html[data-pw-look="marketplace"] .pw-marketplace-cta{
   background:#fff;
   border:1px solid var(--pw-border,#e5e7eb);
@@ -187,6 +190,7 @@ html[data-pw-look="marketplace"] .pw-footer a:hover,
 html[data-pw-look="marketplace"] .pw-shop-footer a:hover{
   color:#fff;
 }
+.pw-marketplace-home-main,
 html[data-pw-look="marketplace"] .pw-marketplace-home-main{
   display:flex;
   flex-direction:column;
@@ -194,27 +198,42 @@ html[data-pw-look="marketplace"] .pw-marketplace-home-main{
   padding:16px var(--pw-page-gutter,20px) 28px;
   box-sizing:border-box;
 }
+.pw-marketplace-trust,[data-pw-trust-bar="1"],
 html[data-pw-look="marketplace"] .pw-marketplace-trust{
   display:grid;
   grid-template-columns:repeat(3,minmax(0,1fr));
   gap:10px;
   padding:12px;
+  background:#fff;
+  border:1px solid var(--pw-border,#e5e7eb);
+  border-radius:12px;
+  overflow:visible;
+  animation:none!important;
+  transform:none!important;
 }
+.pw-marketplace-trust .pw-marketplace-trust-item,
+.pw-marketplace-trust [data-pw-trust-item],
+[data-pw-trust-bar="1"] .pw-marketplace-trust-item,
 html[data-pw-look="marketplace"] .pw-marketplace-trust-item{
   display:flex;
   align-items:center;
   gap:10px;
   padding:6px;
+  animation:none!important;
+  transform:none!important;
 }
+.pw-marketplace-trust-icon,
 html[data-pw-look="marketplace"] .pw-marketplace-trust-icon{
   width:36px;height:36px;border-radius:999px;flex-shrink:0;
   display:flex;align-items:center;justify-content:center;
   background:color-mix(in srgb,var(--pw-primary) 12%,#fff);
   color:var(--pw-primary);
 }
+.pw-marketplace-trust-item strong,
 html[data-pw-look="marketplace"] .pw-marketplace-trust-item strong{
   display:block;font-size:12px;color:var(--pw-text);
 }
+.pw-marketplace-trust-item [data-pw-el="subtitle"],
 html[data-pw-look="marketplace"] .pw-marketplace-trust-item [data-pw-el="subtitle"]{
   display:block;font-size:11px;color:var(--pw-muted);
 }
@@ -241,6 +260,7 @@ html[data-pw-look="marketplace"] .pw-marketplace-block-title{
   margin:0 0 12px;font-size:1.05rem;font-weight:800;color:var(--pw-text);
 }
 @media (max-width:767px){
+  .pw-marketplace-trust,[data-pw-trust-bar="1"],
   html[data-pw-look="marketplace"] .pw-marketplace-trust{grid-template-columns:1fr;gap:6px}
   html[data-pw-look="marketplace"] .pw-marketplace-cta .pw-newsletter{flex-direction:column}
 }

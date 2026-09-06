@@ -56,7 +56,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ slug: strin
   const entries: string[] = [urlEntry(abs('/')), urlEntry(abs('/c'))]
 
   // W3.2 — trang phụ indexable (bỏ thank-you: noindex / sau checkout).
-  for (const path of ['/about', '/contact', '/faq', '/shipping', '/returns', '/privacy', '/terms', '/payment', '/stores', '/lookbook', '/size-guide', '/blog', '/sale', '/kho-sale'] as const) {
+  for (const path of ['/about', '/contact', '/faq', '/shipping', '/returns', '/privacy', '/terms', '/payment', '/stores', '/lookbook', '/size-guide', '/blog', '/sale', '/kho-sale', '/goi-y-tuoi-gioi'] as const) {
     entries.push(urlEntry(abs(path)))
   }
 

@@ -8,6 +8,32 @@ function isHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(String(value || '').trim())
 }
 
+/** Short token so Chrome refetches same-origin `/pwa-icon` + `/favicon.ico` after a logo change. */
+export function partnerShopFaviconCacheToken(
+  faviconUrl?: string | null,
+  logoUrl?: string | null
+): string {
+  const src = String(faviconUrl || logoUrl || '').trim()
+  if (!src) return ''
+  let hash = 2166136261
+  for (let i = 0; i < src.length; i += 1) {
+    hash ^= src.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0).toString(36)
+}
+
+export function appendPartnerShopFaviconCacheToken(href: string, token: string): string {
+  const url = String(href || '').trim()
+  const key = String(token || '').trim()
+  if (!url || !key) return url
+  return url.includes('?') ? `${url}&v=${encodeURIComponent(key)}` : `${url}?v=${encodeURIComponent(key)}`
+}
+
+function cacheTokenOf(input: { faviconUrl?: string | null; logoUrl?: string | null }): string {
+  return partnerShopFaviconCacheToken(input.faviconUrl, input.logoUrl)
+}
+
 export function resolvePartnerShopFaviconHref(input: {
   siteSlug?: string | null
   customDomain?: boolean
@@ -15,11 +41,17 @@ export function resolvePartnerShopFaviconHref(input: {
   logoUrl?: string | null
 }): string {
   const uploaded = String(input.faviconUrl || '').trim()
-  if (isHttpUrl(uploaded)) return uploaded
+  const token = cacheTokenOf(input)
+  if (isHttpUrl(uploaded)) return appendPartnerShopFaviconCacheToken(uploaded, token)
   const slug = String(input.siteSlug || '').trim()
-  if (slug) return partnerSitePwaIconPath(slug, 32, Boolean(input.customDomain))
+  if (slug) {
+    return appendPartnerShopFaviconCacheToken(
+      partnerSitePwaIconPath(slug, 32, Boolean(input.customDomain)),
+      token
+    )
+  }
   const logo = String(input.logoUrl || '').trim()
-  return isHttpUrl(logo) ? logo : ''
+  return isHttpUrl(logo) ? appendPartnerShopFaviconCacheToken(logo, token) : ''
 }
 
 export function resolvePartnerShopAppleTouchHref(input: {
@@ -29,7 +61,13 @@ export function resolvePartnerShopAppleTouchHref(input: {
   logoUrl?: string | null
 }): string {
   const slug = String(input.siteSlug || '').trim()
-  if (slug) return partnerSitePwaIconPath(slug, 180, Boolean(input.customDomain))
+  const token = cacheTokenOf(input)
+  if (slug) {
+    return appendPartnerShopFaviconCacheToken(
+      partnerSitePwaIconPath(slug, 180, Boolean(input.customDomain)),
+      token
+    )
+  }
   return resolvePartnerShopFaviconHref(input)
 }
 
@@ -52,6 +90,35 @@ export function buildPartnerShopFaviconHeadLinks(input: {
     lines.push(`<link rel="apple-touch-icon" sizes="180x180" href="${escapeAttr(apple)}"/>`)
   }
   return lines.join('\n')
+}
+
+export function buildPartnerShopFaviconMetadataIcons(input: {
+  siteSlug: string
+  customDomain: boolean
+  faviconUrl?: string | null
+  logoUrl?: string | null
+}): {
+  icon: Array<{ url: string; type: string; sizes: string }>
+  shortcut: Array<{ url: string; type: string }>
+  apple: Array<{ url: string; type: string; sizes: string }>
+} {
+  const token = cacheTokenOf(input)
+  const icon32 =
+    resolvePartnerShopFaviconHref(input) ||
+    appendPartnerShopFaviconCacheToken(partnerSitePwaIconPath(input.siteSlug, 32, input.customDomain), token)
+  const icon192 = appendPartnerShopFaviconCacheToken(
+    partnerSitePwaIconPath(input.siteSlug, 192, input.customDomain),
+    token
+  )
+  const icon180 = resolvePartnerShopAppleTouchHref(input)
+  return {
+    icon: [
+      { url: icon32, type: 'image/png', sizes: '32x32' },
+      { url: icon192, type: 'image/png', sizes: '192x192' },
+    ],
+    shortcut: [{ url: icon32, type: 'image/png' }],
+    apple: [{ url: icon180, type: 'image/png', sizes: '180x180' }],
+  }
 }
 
 /** Live + Sửa nhanh: luôn ghi favicon shop, gỡ leftover link icon cũ. */

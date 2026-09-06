@@ -1462,7 +1462,7 @@ export function preserveAndRecolorVisualPageFiles(input: {
   }
 }
 
-const INFO_PAGE_TO_VISUAL: Record<PartnerSiteInfoPageKey, PartnerWebsitePageKey> = {
+const INFO_PAGE_TO_VISUAL: Partial<Record<PartnerSiteInfoPageKey, PartnerWebsitePageKey>> = {
   about: 'about',
   contact: 'contact',
   faq: 'faq',
@@ -1479,8 +1479,8 @@ const INFO_PAGE_TO_VISUAL: Record<PartnerSiteInfoPageKey, PartnerWebsitePageKey>
   blog: 'blog',
 }
 
-export function infoPageKeyToVisualPageKey(pageKey: PartnerSiteInfoPageKey): PartnerWebsitePageKey {
-  return INFO_PAGE_TO_VISUAL[pageKey]
+export function infoPageKeyToVisualPageKey(pageKey: PartnerSiteInfoPageKey): PartnerWebsitePageKey | null {
+  return INFO_PAGE_TO_VISUAL[pageKey] ?? null
 }
 
 export function pageKeyFromSitePath(pathname: string, siteSlug: string): PartnerWebsitePageKey | null {

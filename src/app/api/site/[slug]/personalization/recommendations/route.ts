@@ -19,7 +19,11 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   const loggedIn = Boolean(visitor.thread.linkedUserId || visitor.thread.guestAccountId)
   const offset = Math.max(0, Number(request.nextUrl.searchParams.get('offset') ?? 0) || 0)
   const limit = Math.min(48, Math.max(1, Number(request.nextUrl.searchParams.get('limit') ?? 10) || 10))
-  const fetchLimit = Math.min(48, offset + limit + 1)
+  const sameShopOnly =
+    request.nextUrl.searchParams.get('sameShopOnly') === '1' ||
+    request.nextUrl.searchParams.get('same_shop_only') === '1'
+  const seedRaw = request.nextUrl.searchParams.get('seed')
+  const mixSeed = seedRaw != null && seedRaw !== '' && Number.isFinite(Number(seedRaw)) ? Number(seedRaw) : null
   const block = await getSiteHomeRecommendationBlock({
     partnerId: shop.partnerId,
     siteSlug: shop.site.siteSlug,
@@ -27,24 +31,27 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     linkedUserId: visitor.thread.linkedUserId,
     loggedIn,
     email,
-    limit: fetchLimit,
+    limit,
+    offset,
+    mixSeed,
+    sameShopOnly: sameShopOnly || offset > 0,
   })
-  const products = block.products.slice(offset, offset + limit)
-  const hasMore = block.products.length > offset + limit
 
   return jsonSitePersonalization(
     request,
     {
       ok: true,
-      products,
-      hasMore,
+      products: block.products,
+      hasMore: block.has_more,
       offset,
       limit,
-      count: products.length,
+      count: block.products.length,
       personalized: block.personalized,
       cohort_mode: block.cohort_mode,
       logged_in: loggedIn,
       cohort_badge_product_ids: block.cohort_badge_product_ids,
+      same_shop_seed: block.same_shop_seed,
+      same_shop_used: block.same_shop_used,
     },
     200,
     { sessionId: visitor.sessionId, thread: visitor.thread }

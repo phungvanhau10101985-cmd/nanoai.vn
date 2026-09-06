@@ -167,13 +167,13 @@ function trustRow(locale: WebLocale): string {
   ]
   const cards = items
     .map(
-      (item) => `<div class="pw-marketplace-trust-item">
+      (item) => `<div class="pw-marketplace-trust-item" data-pw-trust-item="1">
   <span class="pw-marketplace-trust-icon">${item.icon}</span>
   <span><strong ${pwElAttr(PW_EL.title)}>${escapeHtml(item.title)}</strong><span ${pwElAttr(PW_EL.subtitle)}>${escapeHtml(item.sub)}</span></span>
 </div>`
     )
     .join('')
-  return `<section class="pw-marketplace-trust" ${pwRegionAttr(PW_REGION.promo)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="promo">${cards}</section>`
+  return `<section class="pw-marketplace-trust" data-pw-trust-bar="1" ${pwRegionAttr(PW_REGION.promo)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="promo">${cards}</section>`
 }
 
 function featuredBlock(input: { siteSlug: string; locale: WebLocale; device: VisualDeviceVariant }): string {
@@ -251,7 +251,7 @@ export function buildMarketplaceShopHomeHtml(input: {
   const productsHref = partnerSiteProductsPath(siteSlug)
   const saleHref = partnerSiteKhoSalePath(siteSlug)
   const slider = buildVisualEditorBannerHtml({
-    kind: 'slider',
+    kind: 'promo',
     siteSlug,
     locale,
   })

@@ -34,6 +34,7 @@ const RESERVED_FIRST_SEGMENTS = new Set([
   'lookbook',
   'size-guide',
   'blog',
+  'goi-y-tuoi-gioi',
 ])
 
 function resolveProjectHtmlPath(segments: string[]): string | null {

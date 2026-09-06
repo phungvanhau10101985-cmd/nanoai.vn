@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   buildPartnerShopFontCss,
   extractVisualHtmlBodyMarkup,
+  extractVisualHtmlLook,
   extractVisualHtmlPageKind,
   injectPartnerShopFontsIntoHtml,
   PARTNER_SHOP_FONT_STYLE_ID,
@@ -42,6 +43,18 @@ test('extractVisualHtmlPageKind reads html then body', () => {
     'product'
   )
   assert.equal(extractVisualHtmlPageKind('<html><body></body></html>'), '')
+})
+
+test('extractVisualHtmlLook reads html then body', () => {
+  assert.equal(
+    extractVisualHtmlLook('<html data-pw-look="marketplace"><body></body></html>'),
+    'marketplace'
+  )
+  assert.equal(
+    extractVisualHtmlLook('<html><body data-pw-look="marketplace"></body></html>'),
+    'marketplace'
+  )
+  assert.equal(extractVisualHtmlLook('<html><body></body></html>'), '')
 })
 
 test('buildPartnerShopFontCss pins UI vs display stacks', () => {

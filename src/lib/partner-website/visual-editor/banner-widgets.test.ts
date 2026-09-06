@@ -5,6 +5,7 @@ import {
   bannerWidgetLabel,
   buildVisualEditorBannerHtml,
   ensurePromoMarketingBannerInHtml,
+  isUnifiedPromoBannerHtml,
   isVisualEditorBannerKind,
   restoreMarketingBannerSeedsInDocument,
   VISUAL_EDITOR_PICKER_LIVE_BANNER_KINDS,
@@ -24,49 +25,42 @@ test('recognizes banner kinds', () => {
   assert.deepEqual([...VISUAL_EDITOR_PICKER_LIVE_BANNER_KINDS], ['promo'])
 })
 
-test('stamps packaged banner contract', () => {
+test('factory always stamps one unified swipe banner', () => {
   const html = buildVisualEditorBannerHtml({ siteSlug: 'demo-shop', locale: 'vi' })
+  assert.equal(isUnifiedPromoBannerHtml(html), true)
   assert.match(html, /data-pw-region="banner"/)
   assert.match(html, /data-pw-bg-role="banner"/)
   assert.match(html, /data-pw-added-banner="1"/)
   assert.match(html, /data-pw-scene="2"/)
-  assert.match(html, /data-pw-el="media"/)
-  assert.match(html, /data-pw-el="copy"/)
-  assert.match(html, /data-pw-el="badge"/)
-  assert.match(html, /data-pw-el="title"/)
-  assert.match(html, /data-pw-el="subtitle"/)
-  assert.match(html, /data-pw-el="cta"/)
-  assert.match(html, /data-pw-el="cta-secondary"/)
-  assert.match(html, /data-pw-el="dots"/)
-  assert.match(html, /data-pw-edit="heroTitle"/)
+  assert.match(html, /data-pw-banner-kind="promo"/)
+  assert.match(html, /data-pw-personalize-banner="promo"/)
+  assert.match(html, /data-pw-slider="1"/)
+  assert.match(html, /data-pw-full-slides="1"/)
+  assert.match(html, /data-pw-slide-wait="6500"/)
+  assert.match(html, /data-pw-promo-slot="birthday"/)
+  assert.match(html, /data-pw-promo-slot="sale"/)
+  assert.match(html, /data-pw-promo-slot="warehouse"/)
+  assert.match(html, /data-pw-promo-slot="regular"/)
+  assert.match(html, /Chúc mừng sinh nhật/)
+  assert.match(html, /Sale cùng ngày cùng tháng/)
+  assert.match(html, /Sale kho/)
+  assert.match(html, /Banner thường/)
+  assert.match(html, /\/site\/demo-shop\/kho-sale/)
   assert.match(html, /\/site\/demo-shop\/products/)
   assert.match(html, /var\(--pw-primary\)/)
   assert.match(html, /var\(--pw-accent\)/)
   assert.match(html, /var\(--pw-buy/)
-  assert.match(html, /data-pw-banner-placeholder="1"/)
-  assert.match(html, /data-pw-image-radius="0"/)
-  assert.match(html, /data-pw-token="buy"/)
+  assert.match(html, /aspect-ratio:21\/9/)
   assert.doesNotMatch(html, /#f97316|#ea580c|#fff7ed|#d1d5db/)
-  assert.equal(bannerWidgetLabel('hero', 'vi'), 'Banner')
+  assert.equal(bannerWidgetLabel('promo', 'vi'), 'Thêm banner')
 })
 
-test('stamps horizontal slider contract', () => {
-  const html = buildVisualEditorBannerHtml({ kind: 'slider', siteSlug: 'demo-shop', locale: 'vi' })
-  assert.match(html, /data-pw-region="banner"/)
-  assert.match(html, /data-pw-slider="1"/)
-  assert.match(html, /data-pw-scene="2"/)
-  assert.match(html, /data-pw-banner-kind="slider"/)
-  assert.match(html, /data-pw-slide-wait="4000"/)
-  assert.match(html, /data-pw-slide-arrows="1"/)
-  assert.match(html, /data-pw-slides/)
-  assert.match(html, /data-pw-slide-prev/)
-  assert.match(html, /data-pw-slide-next/)
-  assert.match(html, /data-pw-slide-to="0"/)
-  assert.match(html, /data-pw-el="dots"/)
-  assert.match(html, /var\(--pw-primary\)/)
-  assert.match(html, /var\(--pw-buy/)
-  assert.doesNotMatch(html, /#f97316|#ea580c|#fff7ed/)
-  assert.equal(bannerWidgetLabel('slider', 'vi'), 'Banner ngang')
+test('hero and slider kinds also emit the unified promo block', () => {
+  const hero = buildVisualEditorBannerHtml({ kind: 'hero', siteSlug: 'demo-shop', locale: 'vi' })
+  const slider = buildVisualEditorBannerHtml({ kind: 'slider', siteSlug: 'demo-shop', locale: 'vi' })
+  assert.equal(isUnifiedPromoBannerHtml(hero), true)
+  assert.equal(isUnifiedPromoBannerHtml(slider), true)
+  assert.doesNotMatch(slider, /data-pw-banner-kind="slider"/)
 })
 
 test('live CSS paints added banner from theme tokens', () => {
@@ -78,62 +72,50 @@ test('live CSS paints added banner from theme tokens', () => {
   assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /img\[data-pw-el="media"\]/)
 })
 
-test('stamps promo personalize banner; leftover birthday/sale kinds still parse', () => {
-  const promo = buildVisualEditorBannerHtml({ kind: 'promo', siteSlug: 'demo-shop', locale: 'vi' })
-  assert.match(promo, /data-pw-region="banner"/)
-  assert.match(promo, /data-pw-personalize-banner="promo"/)
-  assert.match(promo, /data-pw-banner-kind="promo"/)
-  assert.match(promo, /data-pw-el="media"/)
-  assert.match(promo, /aspect-ratio:21\/9/)
-  assert.match(promo, /var\(--pw-primary\)/)
-  assert.doesNotMatch(promo, /#f97316|#ea580c|#fff7ed/)
-  assert.equal(bannerWidgetLabel('promo', 'vi'), 'Banner ưu đãi')
-
-  const birthday = buildVisualEditorBannerHtml({ kind: 'birthday', siteSlug: 'demo-shop', locale: 'vi' })
-  assert.match(birthday, /data-pw-personalize-banner="birthday"/)
-  assert.equal(bannerWidgetLabel('birthday', 'vi'), 'Banner chúc mừng SN')
-
-  const sale = buildVisualEditorBannerHtml({ kind: 'sale-calendar', siteSlug: 'demo-shop', locale: 'vi' })
-  assert.match(sale, /data-pw-personalize-banner="sale-calendar"/)
-  assert.equal(bannerWidgetLabel('sale-calendar', 'vi'), 'Banner sale cùng ngày cùng tháng')
-})
-
-test('save restores marketing banner seed image and drops live carousel', () => {
+test('save restores marketing banner placeholders and drops live carousel', () => {
   const { document } = parseHTML(
-    '<section data-pw-personalize-banner="promo" data-pw-seed-src="data:image/svg+xml,seed" data-pw-seed-title="Ưu đãi dành cho bạn" data-pw-banner-live="1">' +
+    '<section data-pw-personalize-banner="promo" data-pw-banner-live="1">' +
       '<div data-pw-promo-carousel="1"><a href="/kho-sale"><img src="https://cdn.example/live.png"/></a></div>' +
-      '<img data-pw-el="media" src="https://cdn.example/sale.png"/>' +
+      '<div data-pw-promo-slot="birthday"><img data-pw-el="media" src="https://cdn.example/sale.png"/></div>' +
       '<h1 data-pw-el="title">Live title</h1>' +
       '</section>' +
       '<p data-pw-banner-greeting="1">Hello</p>'
   )
   restoreMarketingBannerSeedsInDocument(document)
-  const section = document.querySelector('[data-pw-personalize-banner]')
-  const img = document.querySelector('img[data-pw-el="media"]')
-  assert.equal(img?.getAttribute('src'), 'data:image/svg+xml,seed')
-  assert.equal(section?.querySelector('[data-pw-el="title"]')?.textContent, 'Ưu đãi dành cho bạn')
-  assert.equal(section?.hasAttribute('data-pw-banner-live'), false)
+  const img = document.querySelector('[data-pw-promo-slot] img[data-pw-el="media"]')
+  assert.match(String(img?.getAttribute('src') || ''), /^data:image\/svg\+xml/)
+  assert.equal(document.querySelector('[data-pw-personalize-banner]')?.hasAttribute('data-pw-banner-live'), false)
   assert.equal(document.querySelector('[data-pw-promo-carousel]'), null)
   assert.equal(document.querySelector('[data-pw-banner-greeting]'), null)
 })
 
-test('home seed injects one promo host when missing; skips leftover widgets', () => {
+test('home seed injects one unified host when missing', () => {
   const home = ensurePromoMarketingBannerInHtml(
     '<html><body data-pw-page="home"><header></header><main></main></body></html>',
     { siteSlug: 'demo-shop', locale: 'vi', pageKey: 'home' }
   )
-  assert.match(home, /data-pw-personalize-banner="promo"/)
-  const leftover = ensurePromoMarketingBannerInHtml(
-    '<html><body data-pw-page="home"><header></header><section data-pw-personalize-banner="birthday"></section></body></html>',
-    { siteSlug: 'demo-shop', locale: 'vi', pageKey: 'home' }
-  )
-  assert.match(leftover, /data-pw-personalize-banner="birthday"/)
-  assert.doesNotMatch(leftover, /data-pw-personalize-banner="promo"/)
+  assert.equal(isUnifiedPromoBannerHtml(home), true)
+  assert.equal(home.split('data-pw-personalize-banner="promo"').length - 1, 1)
   const listing = ensurePromoMarketingBannerInHtml(
     '<html><body data-pw-page="listing"><header></header><main></main></body></html>',
     { siteSlug: 'demo-shop', locale: 'vi', pageKey: 'products' }
   )
   assert.doesNotMatch(listing, /data-pw-personalize-banner/)
+})
+
+test('converts leftover hero and extra promo hosts into one unified block', () => {
+  const leftover = ensurePromoMarketingBannerInHtml(
+    '<html><body data-pw-page="home"><header></header>' +
+      '<section class="pw-hero" data-pw-region="banner" data-pw-block-h="465"><h1>sưu tập mới</h1></section>' +
+      '<section data-pw-personalize-banner="birthday"></section>' +
+      '</body></html>',
+    { siteSlug: 'demo-shop', locale: 'vi', pageKey: 'home' }
+  )
+  assert.equal(isUnifiedPromoBannerHtml(leftover), true)
+  assert.match(leftover, /data-pw-block-h="465"/)
+  assert.doesNotMatch(leftover, /sưu tập mới/)
+  assert.doesNotMatch(leftover, /data-pw-personalize-banner="birthday"/)
+  assert.equal(leftover.split('data-pw-region="banner"').length - 1, 1)
 })
 
 test('live banner CSS keeps Sửa nhanh CTA row when desktop is stamped', () => {

@@ -265,7 +265,8 @@ export function partnerSiteInfoPath(
     | 'stores'
     | 'lookbook'
     | 'size-guide'
-    | 'blog',
+    | 'blog'
+    | 'goi-y-tuoi-gioi',
   opts?: PathOpts
 ): string {
   return partnerSiteHref(siteSlug, `/${page}`, opts?.customDomain)

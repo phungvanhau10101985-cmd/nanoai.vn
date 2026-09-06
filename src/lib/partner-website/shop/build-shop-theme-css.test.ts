@@ -17,6 +17,12 @@ test('shop theme CSS styles profile form selects and recommendation cohort hint'
   assert.match(css, /\.pw-cohort-hint/)
   assert.match(css, /\.pw-cohort-hint-cta\{[^}]*background:var\(--pw-buy\)/)
   assert.doesNotMatch(css, /\.pw-cohort-hint[^{]*\{[^}]*#ea580c/)
+  assert.match(css, /\.pw-rec-title/)
+  assert.match(css, /\.pw-rec-actions/)
+  assert.match(css, /\.pw-rec-badge/)
+  assert.match(css, /\.pw-rec-fav/)
+  assert.match(css, /\.pw-rec-picker/)
+  assert.doesNotMatch(css, /\[data-pw-personalize="recommended"\][^{]*\{[^}]*#ea580c/)
 })
 
 test('shop theme CSS keeps desktop account nav as a compact left column', () => {
@@ -180,6 +186,15 @@ test('injecting theme CSS onto the default PDP shell styles the HTML header', ()
   assert.match(out, new RegExp(`id="${PARTNER_SHOP_THEME_STYLE_ID}"`))
   assert.match(out, /\.pw-topbar\{[^}]*background:var\(--pw-primary\)/)
   assert.match(out, /class="pw-header"/)
+})
+
+test('injecting theme CSS keeps marketplace look when HTML already stamped it', () => {
+  const html =
+    '<!DOCTYPE html><html data-pw-look="marketplace"><head></head><body><header class="pw-header"></header></body></html>'
+  const out = injectPartnerShopThemeCss(html, DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(out, /data-pw-look="marketplace"/)
+  assert.match(out, /html\[data-pw-look="marketplace"\] \.pw-header/)
+  assert.match(out, /\.pw-marketplace-trust/)
 })
 
 test('Sửa nhanh PDP receives HTML header colors from the shop theme pack', () => {

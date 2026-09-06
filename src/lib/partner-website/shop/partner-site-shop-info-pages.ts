@@ -63,6 +63,8 @@ export type PartnerSiteInfoPageKey =
   | 'lookbook'
   | 'size-guide'
   | 'blog'
+  /** 188 `/info/goi-y-tuoi-gioi` — vì sao cần tuổi / giới tính trên lưới đề xuất. */
+  | 'goi-y-tuoi-gioi'
 
 export type PartnerSiteInfoBlock = {
   title: string
@@ -522,6 +524,73 @@ const PAGES: Record<PartnerSiteInfoPageKey, Record<WebLocale, PartnerSiteInfoBlo
       paragraphs: ['샵 팁과 소식을 위한 랜딩 페이지입니다. CMS에서 내용을 수정할 수 있습니다.', '여러 글 목록/페이지네이션은 추후 제공됩니다.'],
     },
   },
+  'goi-y-tuoi-gioi': {
+    vi: {
+      title: 'Vì sao cần ngày sinh và giới tính?',
+      paragraphs: [
+        'Shop hỏi hai thông tin này để chăm sóc bạn tốt hơn — không phải để thu thập cho mục đích khác.',
+        'Bạn vẫn mua sắm bình thường nếu chưa điền. Khi bổ sung ngày sinh và giới tính, shop mới gửi ưu đãi sinh nhật và gợi ý hợp tuổi, hợp gu.',
+      ],
+      bullets: [
+        'Ưu đãi & quà tặng dịp sinh nhật — khi hồ sơ có ngày sinh.',
+        'Gợi ý sản phẩm hợp tuổi, hợp gu trên lưới đề xuất (trộn cùng shop nguồn và danh mục cấp 3 bạn vừa xem).',
+        'Ngày sinh và giới tính không hiển thị công khai; chỉ dùng cho ưu đãi và gợi ý trên tài khoản của bạn.',
+        'Bạn có thể cập nhật hoặc chỉnh sửa bất cứ lúc nào trong Hồ sơ.',
+      ],
+    },
+    en: {
+      title: 'Why do we ask for date of birth and gender?',
+      paragraphs: [
+        'The shop asks for these two details to take better care of you — not to collect them for other uses.',
+        'You can still shop without filling them in. Birthday offers and age-matched suggestions appear after you add date of birth and gender.',
+      ],
+      bullets: [
+        'Birthday offers and gifts when your profile has a date of birth.',
+        'Recommendations that mix your age/gender cohort with the same source shop and level-3 categories of items you just viewed.',
+        'Date of birth and gender are not shown publicly; they are only used for offers and suggestions on your account.',
+        'You can update them anytime in your profile.',
+      ],
+    },
+    zh: {
+      title: '为什么需要生日和性别？',
+      paragraphs: [
+        '店铺询问这两项信息是为了更好地服务你，而不是用于其他用途。',
+        '未填写也可以正常购物。补充生日和性别后，才能收到生日优惠和更合适的推荐。',
+      ],
+      bullets: [
+        '资料中有生日即可收到生日优惠。',
+        '推荐会结合同龄同性别、同一来源店铺，以及你最近浏览商品的三级类目。',
+        '生日和性别不会公开显示，仅用于你的优惠与推荐。',
+        '可随时在个人资料中更新。',
+      ],
+    },
+    ja: {
+      title: '生年月日と性別が必要な理由',
+      paragraphs: [
+        'ショップはより良いご案内のためにこの2項目をお伺いします。他の目的では使いません。',
+        '未入力でもお買い物できます。生年月日と性別を追加すると、誕生日特典と年齢に合うおすすめが表示されます。',
+      ],
+      bullets: [
+        'プロフィールに生年月日があると誕生日特典をお届けします。',
+        'おすすめは同年代・同性、同じ仕入れショップ、最近見た商品の第3階層カテゴリを混ぜます。',
+        '生年月日と性別は公開されません。特典とおすすめのみに使います。',
+        'プロフィールからいつでも更新できます。',
+      ],
+    },
+    ko: {
+      title: '생년월일과 성별이 필요한 이유',
+      paragraphs: [
+        '샵은 더 나은 안내를 위해 이 두 정보를 묻습니다. 다른 용도로 수집하지 않습니다.',
+        '입력하지 않아도 쇼핑할 수 있습니다. 생년월일과 성별을 추가하면 생일 혜택과 나이에 맞는 추천이 나타납니다.',
+      ],
+      bullets: [
+        '프로필에 생일이 있으면 생일 혜택을 받을 수 있습니다.',
+        '추천은 같은 나이·성별, 같은 출처 샵, 최근 본 상품의 3단계 카테고리를 섞습니다.',
+        '생년월일과 성별은 공개되지 않으며 혜택과 추천에만 사용됩니다.',
+        '프로필에서 언제든 수정할 수 있습니다.',
+      ],
+    },
+  },
 }
 
 export function getPartnerSiteInfoPage(
@@ -546,4 +615,5 @@ export const PARTNER_SITE_PLATFORM_INFO_KEYS: PartnerSiteInfoPageKey[] = [
   'lookbook',
   'size-guide',
   'blog',
+  'goi-y-tuoi-gioi',
 ]

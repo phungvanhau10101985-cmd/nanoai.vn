@@ -11810,6 +11810,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!hasInsertAnchor() || !isHInsertPlace(place || insertAnchor.place)) return false
     var banner = findBannerUnit(insertAnchor.unit)
     if (!banner) return false
+    if (banner.getAttribute && banner.getAttribute('data-pw-personalize-banner')) return false
     var side = place === 'left' || insertAnchor.place === 'left' ? 'left' : 'right'
     if (isSliderHostEl(banner) && !isFullSlideSlider(banner)) {
       selectEl(banner)
@@ -11875,6 +11876,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function addSlide() {
     var host = sliderHostOf(selected)
     if (!host) return
+    if (host.getAttribute && host.getAttribute('data-pw-personalize-banner')) return
     if (typeof pwSliderPromoteFull === 'function') pwSliderPromoteFull(host)
     var track = host.querySelector('[data-pw-slides]')
     var first = host.querySelector('[data-pw-slide]')
@@ -11895,6 +11897,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function removeSlide() {
     var host = sliderHostOf(selected)
     if (!host) return
+    if (host.getAttribute && host.getAttribute('data-pw-personalize-banner')) return
     var slides = pwSliderSlides(host)
     if (slides.length <= 2) return
     var cur = Number(host.getAttribute('data-pw-slide-index') || 0)
@@ -12571,6 +12574,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         return logoImg ? Math.round(parseLogoZoom(logoImg) * 100) : 100
       })(),
       isSlider: Boolean(sliderHostOf(el)),
+      isPromoBanner: (function () {
+        var sh = sliderHostOf(el) || bannerHostOf(el)
+        return !!(sh && sh.getAttribute && sh.getAttribute('data-pw-personalize-banner'))
+      })(),
       isProductGrid: Boolean(productGridHostOf(el)),
       gridKind: (function () {
         var gh = productGridHostOf(el)

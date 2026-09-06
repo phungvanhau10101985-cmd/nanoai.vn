@@ -453,3 +453,9 @@ test('saved html never keeps the editor runtime state on <body>', () => {
   const clean = '<body class="antialiased"><p>x</p></body>'
   assert.equal(stripVisualEditorRuntimeStateClasses(clean), clean)
 })
+
+test('chrome layout paints marketplace desktop header with the primary token', () => {
+  const html = '<html><head></head><body><header class="pw-header"></header></body></html>'
+  const out = injectPartnerShopChromeLayoutCss(html)
+  assert.match(out, /html\[data-pw-look="marketplace"\] \.pw-header,html\[data-pw-look="marketplace"\] \.pw-shop-header\{background:var\(--pw-primary\)!important/)
+})

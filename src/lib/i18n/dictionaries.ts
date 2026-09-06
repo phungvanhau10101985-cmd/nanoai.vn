@@ -763,6 +763,7 @@ export type Dictionary = {
     settingsNavShopTitle: string
     settingsNavSalesTitle: string
     settingsNavWorkspace: string
+    settingsNavBrandDesc: string
     settingsNavWebsiteEditor: string
     settingsNavConnectTitle: string
     settingsNavCustomersTitle: string
@@ -4026,6 +4027,8 @@ const VI_DICTIONARY: Dictionary = {
     settingsNavShopTitle: 'Cửa hàng',
     settingsNavSalesTitle: 'Bán hàng',
     settingsNavWorkspace: 'Shop & nhân viên',
+    settingsNavBrandDesc:
+      'Tên hiển thị, ngành hàng, logo chat, favicon và logo header / chân trang trên website.',
     settingsNavWebsiteEditor: 'Giao diện web shop',
     settingsNavConnectTitle: 'Kết nối',
     settingsNavCustomersTitle: 'Khách hàng',
@@ -7297,6 +7300,8 @@ const EN_DICTIONARY: Dictionary = {
     settingsNavShopTitle: 'Shop',
     settingsNavSalesTitle: 'Sales',
     settingsNavWorkspace: 'Shop & staff',
+    settingsNavBrandDesc:
+      'Display name, industry, chat logo, favicon, and header / footer logos on the shop website.',
     settingsNavWebsiteEditor: 'Shop website look',
     settingsNavConnectTitle: 'Connections',
     settingsNavCustomersTitle: 'Customers',
@@ -10562,6 +10567,7 @@ const ZH_DICTIONARY: Dictionary = {
     settingsNavShopTitle: '店铺',
     settingsNavSalesTitle: '销售',
     settingsNavWorkspace: '店铺与员工',
+    settingsNavBrandDesc: '显示名称、行业、聊天 Logo、网站 favicon 以及页头/页脚 Logo。',
     settingsNavWebsiteEditor: '店铺网站外观',
     settingsNavConnectTitle: '连接',
     settingsNavCustomersTitle: '客户',
@@ -13741,6 +13747,7 @@ const JA_DICTIONARY: Dictionary = {
     settingsNavShopTitle: 'ショップ',
     settingsNavSalesTitle: '販売',
     settingsNavWorkspace: 'ショップとスタッフ',
+    settingsNavBrandDesc: '表示名、業種、チャットロゴ、ファビコン、サイトのヘッダー／フッターロゴ。',
     settingsNavWebsiteEditor: 'ショップサイトの見た目',
     settingsNavConnectTitle: '連携',
     settingsNavCustomersTitle: 'お客様',
@@ -16984,6 +16991,7 @@ const KO_DICTIONARY: Dictionary = {
     settingsNavShopTitle: '샵',
     settingsNavSalesTitle: '판매',
     settingsNavWorkspace: '매장과 직원',
+    settingsNavBrandDesc: '표시 이름, 업종, 채팅 로고, 파비콘, 사이트 헤더/푸터 로고.',
     settingsNavWebsiteEditor: '쇼핑몰 사이트 디자인',
     settingsNavConnectTitle: '연결',
     settingsNavCustomersTitle: '고객',

@@ -459,6 +459,10 @@ function enhanceCards(){
     if(!id)continue;
     var card=a.closest('article,.pw-product-card,.pw-shop-card')||a.parentElement;
     if(!card||card.getAttribute('data-pw-actions-ready')==='1')continue;
+    if(card.closest&&card.closest('[data-pw-personalize="recommended"]')){
+      card.setAttribute('data-pw-actions-ready','1');
+      continue;
+    }
     card.setAttribute('data-pw-actions-ready','1');
     card.setAttribute('data-inventory-id',id);
     if(card.querySelector('[data-pw-add-cart],[data-pw-favorite]'))continue;

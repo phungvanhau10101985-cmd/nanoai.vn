@@ -6,8 +6,34 @@ export const SAME_CATEGORY_MAX_PER_PAGE = 8
 export const SAME_CATEGORY_STREAK_THRESHOLD = 8
 export const SAME_CATEGORY_STREAK_WEIGHT = 5
 export const SAME_CATEGORY_DOMINANT_MAX = 14
-export const HOME_RECOMMENDATION_SHOP_LIMIT = 12
+/** 188 `get_products_same_shop_as_recent_views` default page. */
+export const HOME_RECOMMENDATION_SHOP_LIMIT = 24
 export const HOME_RECOMMENDATION_COHORT_LIMIT = 30
+/** 188 `SAME_SHOP_MAX_POOL` — candidate cap for (shop TQ, L3) pairs. */
+export const SAME_SHOP_MAX_POOL = 1500
+
+export function normalizeSameShopKey(raw: string | null | undefined): string {
+  return String(raw || '').trim().toLowerCase()
+}
+
+/** 188 `_shop_l3_pair` — both Chinese shop and L3 required. */
+export function shopL3PairKey(shop: string | null | undefined, l3: string | null | undefined): string | null {
+  const shopKey = normalizeSameShopKey(shop)
+  const l3Key = normalizeSameShopKey(l3)
+  if (!shopKey || !l3Key) return null
+  return `${shopKey}\t${l3Key}`
+}
+
+export function allowedShopL3PairsFromRecent(
+  recent: Array<{ shop?: string | null; l3?: string | null }>
+): Set<string> {
+  const out = new Set<string>()
+  for (const item of recent) {
+    const key = shopL3PairKey(item.shop, item.l3)
+    if (key) out.add(key)
+  }
+  return out
+}
 
 export type SameAgeGenderCohortMode =
   | 'requires_login'
@@ -128,13 +154,25 @@ export function pickRoundRobinFromQueues<T>(input: {
   pageSize: number
   maxPer: number
   maxPerOverrides?: Record<string, number>
+  /** 188 page offset — cap per shop resets every `pageSize` items. */
+  offset?: number
 }): T[] {
   const page: T[] = []
-  const counts = new Map<string, number>()
   if (!input.cycle.length) return page
+  const pageSize = Math.max(1, Math.floor(input.pageSize))
+  const skip = Math.max(0, Math.floor(input.offset || 0))
+  const need = skip + pageSize
   let cycleIdx = 0
+  let produced = 0
+  let itemsInPage = 0
   let noProgress = 0
-  while (page.length < input.pageSize) {
+  let counts = new Map<string, number>()
+  while (produced < need) {
+    if (itemsInPage >= pageSize) {
+      counts = new Map()
+      itemsInPage = 0
+      noProgress = 0
+    }
     if (noProgress >= input.cycle.length) break
     const shop = input.cycle[cycleIdx % input.cycle.length]!
     cycleIdx += 1
@@ -144,11 +182,31 @@ export function pickRoundRobinFromQueues<T>(input: {
       noProgress += 1
       continue
     }
-    page.push(queue.shift()!)
+    const item = queue.shift()!
+    if (produced >= skip) page.push(item)
     counts.set(shop, (counts.get(shop) ?? 0) + 1)
+    produced += 1
+    itemsInPage += 1
     noProgress = 0
   }
   return page
+}
+
+/** 188 `appendNewShopProductsToMix` — «Xem thêm» chỉ nối thêm cùng shop, không xáo lại cohort. */
+export function appendNewShopProductsToMix<T extends RecommendationIdentity>(
+  current: T[],
+  shopBatch: T[]
+): T[] {
+  if (!shopBatch.length) return current
+  const seen = new Set(current.map((p) => p.inventoryId.toLowerCase()).filter(Boolean))
+  const extra: T[] = []
+  for (const p of shopBatch) {
+    const id = p.inventoryId.toLowerCase()
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    extra.push(p)
+  }
+  return extra.length ? [...current, ...extra] : current
 }
 
 export function inferApparelGenderFromName(name: string): 'male' | 'female' | null {

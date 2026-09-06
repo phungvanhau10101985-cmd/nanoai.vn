@@ -69,6 +69,7 @@ function infoPagePublicSubpath(pageKey: PartnerWebsitePageKey | null, cmsSlug?: 
     'lookbook',
     'size-guide',
     'blog',
+    'goi-y-tuoi-gioi',
   ]
   if (builtins.includes(slug as PartnerSiteInfoPageKey)) return `/${slug}`
   return `/pages/${encodeURIComponent(slug)}`

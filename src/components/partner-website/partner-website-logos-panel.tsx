@@ -24,6 +24,7 @@ type Props = {
   website: PartnerWebsiteRow | null
   partnerId: string
   sectionId?: string
+  embedded?: boolean
   onToast: (message: string, variant?: 'default' | 'destructive') => void
   onWebsiteRefresh: (website: PartnerWebsiteRow) => void
 }
@@ -40,6 +41,7 @@ export function PartnerWebsiteLogosPanel({
   website,
   partnerId,
   sectionId = 'partner-website-logos',
+  embedded = false,
   onToast,
   onWebsiteRefresh,
 }: Props) {
@@ -183,12 +185,14 @@ export function PartnerWebsiteLogosPanel({
   ]
 
   return (
-    <Card id={sectionId} className="scroll-mt-24">
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-base">{t.logosPanelTitle}</CardTitle>
-        <CardDescription>{t.logosPanelHint}</CardDescription>
+    <Card id={sectionId} className={cn('scroll-mt-24', embedded && 'border-border/70 shadow-sm')}>
+      <CardHeader className={embedded ? 'space-y-1 px-4 py-3 pb-2' : 'space-y-1'}>
+        <CardTitle className={embedded ? 'text-sm font-medium text-muted-foreground' : 'text-base'}>
+          {t.logosPanelTitle}
+        </CardTitle>
+        <CardDescription className={embedded ? 'text-xs' : undefined}>{t.logosPanelHint}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className={embedded ? 'space-y-3 px-4 pb-4 pt-0' : 'space-y-3'}>
         <input
           ref={fileRef}
           type="file"

@@ -85,3 +85,13 @@ export function extractVisualHtmlPageKind(html: string): string {
   const fromBody = trimmed.match(/<body\b[^>]*\bdata-pw-page=["']([^"']+)["']/i)?.[1]
   return fromBody?.trim() || ''
 }
+
+/** `data-pw-look` lives on `<html>` — lost when live inlines body into the Next.js page. */
+export function extractVisualHtmlLook(html: string): string {
+  const trimmed = html.trim()
+  if (!trimmed) return ''
+  const fromHtml = trimmed.match(/<html\b[^>]*\bdata-pw-look=["']([^"']+)["']/i)?.[1]
+  if (fromHtml?.trim()) return fromHtml.trim()
+  const fromBody = trimmed.match(/<body\b[^>]*\bdata-pw-look=["']([^"']+)["']/i)?.[1]
+  return fromBody?.trim() || ''
+}

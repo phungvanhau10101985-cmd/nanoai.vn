@@ -74,6 +74,8 @@ import {
   type PartnerWebsiteAdminSectionId,
 } from '@/lib/partner-website/partner-website-admin-nav'
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
+import { PartnerWebsiteLogosPanel } from '@/components/partner-website/partner-website-logos-panel'
+import type { PartnerWebsiteRow } from '@/lib/partner-website/partner-website-types'
 import { isMarketingEligibleIndustry } from '@/lib/messaging/partner-marketing-segment'
 import {
   Bell,
@@ -301,6 +303,7 @@ function normalizeSettingsSectionParam(value: string | null): SettingsPageSectio
   if (value === 'partner-website-capabilities' || value === 'partner-website-search-aliases') {
     return 'partner-website-editor'
   }
+  if (value === 'partner-website-logos') return 'brand'
   if (isPartnerWebsiteAdminSectionId(value)) return value
   if (isOperationsSectionId(value)) return value
   return null
@@ -485,6 +488,7 @@ export function PartnerMessagingSettingsClient({
   const [websiteSiteSlug, setWebsiteSiteSlug] = useState<string | null>(null)
   const [websitePublished, setWebsitePublished] = useState(false)
   const [websiteLoading, setWebsiteLoading] = useState(false)
+  const [brandWebsite, setBrandWebsite] = useState<PartnerWebsiteRow | null>(null)
 
   const selectedPartner = useMemo(
     () => partners.find((p) => p.id === selectedPartnerId) ?? null,
@@ -752,6 +756,27 @@ export function PartnerMessagingSettingsClient({
     void refreshWebsitePublicUrl()
   }, [refreshWebsitePublicUrl])
 
+  useEffect(() => {
+    if (activeSection !== 'brand' || !selectedPartnerId || !partnerCanWebsiteHub(selectedPartner)) {
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/messaging/partner-website/${encodeURIComponent(selectedPartnerId)}?locale=${encodeURIComponent(locale)}`
+        )
+        const json = (await res.json().catch(() => ({}))) as { website?: PartnerWebsiteRow | null }
+        if (!cancelled) setBrandWebsite(res.ok ? json.website ?? null : null)
+      } catch {
+        if (!cancelled) setBrandWebsite(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [activeSection, locale, selectedPartner, selectedPartnerId])
+
   const selectSettingsSection = useCallback((sectionId: SettingsPageSectionId) => {
     setActiveSection(sectionId)
     const next = new URLSearchParams(window.location.search)
@@ -767,6 +792,11 @@ export function PartnerMessagingSettingsClient({
       `${window.location.pathname}${qs ? `?${qs}` : ''}`
     )
   }, [])
+
+  useEffect(() => {
+    if (sectionParam !== 'partner-website-logos') return
+    selectSettingsSection('brand')
+  }, [sectionParam, selectSettingsSection])
 
   useEffect(() => {
     if (allVisibleSectionIds.length === 0) return
@@ -2615,8 +2645,8 @@ export function PartnerMessagingSettingsClient({
             <SettingsBlock
               id="messaging-brand"
               icon={Palette}
-              title="Thương hiệu & logo"
-              description="Tên hiển thị, ngành hàng và logo dùng trên widget chat."
+              title={t.teamPermWorkspaceBranding}
+              description={t.settingsNavBrandDesc}
             >
             <Card className="border-border/70 shadow-sm">
               <CardHeader className="px-4 py-3 pb-2">
@@ -2821,6 +2851,19 @@ export function PartnerMessagingSettingsClient({
                 ) : null}
               </CardContent>
             </Card>
+            {partnerCanWebsiteHub(selectedPartner) ? (
+              <PartnerWebsiteLogosPanel
+                locale={locale}
+                website={brandWebsite}
+                partnerId={selectedPartnerId}
+                sectionId="messaging-brand-logos"
+                embedded
+                onToast={(message, variant) =>
+                  toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
+                }
+                onWebsiteRefresh={(website) => setBrandWebsite(website)}
+              />
+            ) : null}
             </SettingsBlock>
           ) : null}
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, ChevronLeft, ChevronRight, ChevronsLeftRight, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, Gift, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutGrid, LayoutTemplate, Loader2, Lock, LogIn, LogOut, Mail, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Share2, Shield, Shirt, ShoppingBag, Sparkles, Square, Store, Tag, Ticket, Trash2, Truck, Type, Undo2, Upload, User, UserPlus, Video, Wallet, X } from 'lucide-react'
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutGrid, LayoutTemplate, Loader2, Lock, LogIn, LogOut, Mail, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Share2, Shield, Shirt, ShoppingBag, Sparkles, Square, Store, Tag, Ticket, Trash2, Truck, Type, Undo2, Upload, User, UserPlus, Video, Wallet, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -159,7 +159,6 @@ import {
 import {
   buildVisualEditorBannerHtml,
   bannerWidgetLabel,
-  type VisualEditorBannerKind,
 } from '@/lib/partner-website/visual-editor/banner-widgets'
 import {
   clampPwSliderWait,
@@ -306,6 +305,7 @@ export type VisualEditorSelection = {
   logoZoom: number
   isBannerPhoto: boolean
   isSlider: boolean
+  isPromoBanner: boolean
   isProductGrid: boolean
   gridKind: string
   gridRows: number
@@ -600,6 +600,7 @@ function selectionFromMessage(data: {
     logoZoom: Number.isFinite(Number(data.logoZoom)) ? Math.max(30, Math.min(400, Number(data.logoZoom))) : 100,
     isBannerPhoto: Boolean(data.isBannerPhoto),
     isSlider: Boolean(data.isSlider),
+    isPromoBanner: Boolean(data.isPromoBanner),
     isProductGrid: Boolean(data.isProductGrid),
     gridKind: String(data.gridKind ?? '').replace(/[^a-z0-9-]/g, ''),
     gridRows: clampProductGridRows(data.gridRows),
@@ -3022,6 +3023,7 @@ export function PartnerWebsiteVisualEditorToolbar({
           logoZoom: 100,
           isBannerPhoto: false,
           isSlider: false,
+          isPromoBanner: false,
           isProductGrid: false,
           gridKind: '',
           gridRows: 1,
@@ -3373,45 +3375,7 @@ export function PartnerWebsiteVisualEditorToolbar({
     }
     if (insertBgPickPlace) cancelInsertBgPickUi()
     setAddBgAskOpen(false)
-    const html = buildVisualEditorBannerHtml({ kind: 'hero', siteSlug: slug, locale })
-    if (!html) return
-    postToIframe(iframeRef.current, 'insertBanner', { html, useAnchor: insertAnchorActive })
-    setDirty(true)
-    openBlockPanel()
-  }
-
-  function insertSliderWidget() {
-    if (!insertAnchorActive) return
-    const slug = siteSlug?.trim()
-    if (!slug) {
-      onError(t.visualEditSaveFailed)
-      return
-    }
-    if (insertBgPickPlace) cancelInsertBgPickUi()
-    setAddBgAskOpen(false)
-    const html = buildVisualEditorBannerHtml({ kind: 'slider', siteSlug: slug, locale })
-    if (!html) return
-    postToIframe(iframeRef.current, 'insertBanner', {
-      html,
-      slideHtml: buildVisualEditorBannerHtml({ kind: 'hero', siteSlug: slug, locale }),
-      useAnchor: insertAnchorActive,
-      beside: !insertAnchorActive,
-      mergeSlide: true,
-    })
-    setDirty(true)
-    openBlockPanel()
-  }
-
-  function insertLiveBannerWidget(kind: Extract<VisualEditorBannerKind, 'promo' | 'birthday' | 'sale-calendar'>) {
-    if (!insertAnchorActive) return
-    const slug = siteSlug?.trim()
-    if (!slug) {
-      onError(t.visualEditSaveFailed)
-      return
-    }
-    if (insertBgPickPlace) cancelInsertBgPickUi()
-    setAddBgAskOpen(false)
-    const html = buildVisualEditorBannerHtml({ kind, siteSlug: slug, locale })
+    const html = buildVisualEditorBannerHtml({ kind: 'promo', siteSlug: slug, locale })
     if (!html) return
     postToIframe(iframeRef.current, 'insertBanner', { html, useAnchor: insertAnchorActive })
     setDirty(true)
@@ -4100,8 +4064,8 @@ export function PartnerWebsiteVisualEditorToolbar({
             : selection.gridKind === 'outfit'
               ? t.visualEditAddOutfitGrid
               : t.visualEditAddProductGrid
-      : selection?.isSlider
-      ? t.visualEditAddSlider || bannerWidgetLabel('slider', locale)
+      : selection?.isPromoBanner || selection?.isSlider
+      ? t.visualEditAddBanner || bannerWidgetLabel('promo', locale)
       : chromeFaceKind
       ? chromeTitle
       : editKind === 'added-bg'
@@ -4528,48 +4492,20 @@ export function PartnerWebsiteVisualEditorToolbar({
                       {t.visualEditAddButton}
                     </button>
                     {addAtGap && !addAtFooter ? (
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] font-medium hover:bg-muted"
-                      disabled={busy}
-                      onClick={() => insertBannerWidget()}
-                    >
-                      <Images className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                      {insertAnchorPlace === 'left' || insertAnchorPlace === 'right'
-                        ? t.visualEditAddBannerRegular || t.visualEditAddBanner
-                        : t.visualEditAddBanner || bannerWidgetLabel('hero', locale)}
-                    </button>
-                    ) : null}
-                    {addAtGap && !addAtFooter ? (
                     <div className="flex flex-col">
                       <button
                         type="button"
                         className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] font-medium hover:bg-muted"
                         disabled={busy}
-                        onClick={() => insertSliderWidget()}
+                        onClick={() => insertBannerWidget()}
                       >
-                        <ChevronsLeftRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                        {insertAnchorPlace === 'left' || insertAnchorPlace === 'right'
-                          ? t.visualEditAddSliderPush || t.visualEditAddSlider
-                          : t.visualEditAddSlider || bannerWidgetLabel('slider', locale)}
+                        <Images className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        {t.visualEditAddBanner || bannerWidgetLabel('promo', locale)}
                       </button>
-                      {insertAnchorPlace === 'left' || insertAnchorPlace === 'right' ? (
-                        <p className="px-2 pb-1 pl-7 text-[10px] leading-4 text-muted-foreground">
-                          {t.visualEditAddSliderPushHint}
-                        </p>
-                      ) : null}
+                      <p className="px-2 pb-1 pl-7 text-[10px] leading-4 text-muted-foreground">
+                        {t.visualEditAddBannerHint}
+                      </p>
                     </div>
-                    ) : null}
-                    {addAtGap && !addAtFooter ? (
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-[11px] font-medium hover:bg-muted"
-                      disabled={busy}
-                      onClick={() => insertLiveBannerWidget('promo')}
-                    >
-                      <Gift className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                      {t.visualEditAddPromoBanner || bannerWidgetLabel('promo', locale)}
-                    </button>
                     ) : null}
                     {(addAtGap && !addAtFooter ? VISUAL_EDITOR_PRODUCT_GRID_KINDS : []).filter((kind) =>
                       productGridKindShownInAddPicker(kind, pageKey)
@@ -5253,6 +5189,9 @@ export function PartnerWebsiteVisualEditorToolbar({
                   <ChevronRight className="h-4 w-4" aria-hidden />
                 </button>
               </div>
+              {selection.isPromoBanner ? (
+                <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditAddBannerHint}</p>
+              ) : (
               <div className="flex flex-wrap gap-1">
                 <Button
                   type="button"
@@ -5283,6 +5222,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                   {t.visualEditSliderRemove}
                 </Button>
               </div>
+              )}
               <label className="flex flex-col gap-1 text-[10px]" title={t.visualEditSliderWaitHint}>
                 <span className="flex items-center justify-between gap-2">
                   <span className="font-medium text-foreground">{t.visualEditSliderWait}</span>

@@ -13,8 +13,12 @@ export function buildPartnerMarketingBannerBootstrapScript(input: {
   return `<style data-pw-marketing-banner-css>
 [data-pw-personalize-banner][data-pw-banner-live="1"]{min-height:0!important;aspect-ratio:21/9;overflow:hidden;position:relative}
 [data-pw-personalize-banner][data-pw-banner-live="1"] [data-pw-el="copy"],
-[data-pw-personalize-banner][data-pw-banner-live="1"] [data-pw-el="inner"]{display:none!important}
-[data-pw-personalize-banner][data-pw-banner-live="1"] > img[data-pw-el="media"]{display:none!important}
+[data-pw-personalize-banner][data-pw-banner-live="1"] [data-pw-el="inner"],
+[data-pw-personalize-banner][data-pw-banner-live="1"] [data-pw-slides],
+[data-pw-personalize-banner][data-pw-banner-live="1"] [data-pw-slide-prev],
+[data-pw-personalize-banner][data-pw-banner-live="1"] [data-pw-slide-next],
+[data-pw-personalize-banner][data-pw-banner-live="1"] .pw-slide-dots,
+[data-pw-personalize-banner][data-pw-banner-live="1"] img[data-pw-el="media"]{display:none!important}
 [data-pw-personalize-banner][data-pw-banner-live="off"]{display:none!important}
 [data-pw-banner-greeting]{margin:8px 0 12px;text-align:center;font:600 13px/1.4 system-ui,sans-serif;color:var(--pw-text)}
 [data-pw-promo-carousel]{position:relative;width:100%;aspect-ratio:21/9;overflow:hidden;background:var(--pw-surface,#fff)}

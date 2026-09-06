@@ -27,6 +27,7 @@ export const SHOP_PUBLIC_ROOT_SEGMENTS = new Set([
   'lookbook',
   'size-guide',
   'blog',
+  'goi-y-tuoi-gioi',
   'lp',
   'pages',
   'order-tracking',

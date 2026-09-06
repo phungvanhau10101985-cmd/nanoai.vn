@@ -52,13 +52,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     image: site.logoUrl,
     locale: site.locale,
   })
-  if (site.logoUrl) {
-    base.icons = {
-      icon: [{ url: site.logoUrl }],
-      shortcut: [{ url: site.logoUrl }],
-      apple: [{ url: site.logoUrl }],
-    }
-  }
   return base
 }
 

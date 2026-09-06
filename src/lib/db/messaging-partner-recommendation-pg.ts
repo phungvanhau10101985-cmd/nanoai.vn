@@ -5,7 +5,12 @@ import {
 } from '@/lib/db/messaging-partner-inventory-pg'
 import type { PartnerInventoryShopCardRow } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { fetchPartnerCategoriesFlatFromPg } from '@/lib/db/messaging-partner-categories-pg'
-import { inferApparelGenderFromName } from '@/lib/partner-website/shop/partner-site-home-recommendation-mix'
+import {
+  inferApparelGenderFromName,
+  normalizeSameShopKey,
+  SAME_SHOP_MAX_POOL,
+  shopL3PairKey,
+} from '@/lib/partner-website/shop/partner-site-home-recommendation-mix'
 import { mergeSearchQueries } from '@/lib/partner-website/shop/partner-site-search-history'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -15,6 +20,13 @@ export type InventoryCategorySignal = {
   shopKey: string
   subKey: string
   gender: 'male' | 'female' | null
+}
+
+/** 188 same-shop pool: Chinese source shop + level-3 category text. */
+export type InventorySameShopSignal = {
+  inventoryId: string
+  sourceShopKey: string
+  l3Key: string
 }
 
 export type CohortViewSample = {
@@ -90,6 +102,178 @@ export async function fetchInventoryCategorySignalsFromPg(
     console.warn('[fetchInventoryCategorySignalsFromPg]', e)
   }
   return out
+}
+
+function sourceShopKeyFromRow(row: {
+  source_shop_name_chinese?: string | null
+  catalog_shop_chinese?: string | null
+  source_shop_id?: string | null
+  source_shop_name?: string | null
+}): string {
+  return (
+    normalizeSameShopKey(row.source_shop_name_chinese) ||
+    normalizeSameShopKey(row.catalog_shop_chinese) ||
+    normalizeSameShopKey(row.source_shop_id) ||
+    normalizeSameShopKey(row.source_shop_name)
+  )
+}
+
+function l3KeyFromRow(row: { category_l3?: string | null; catalog_l3?: string | null }): string {
+  return normalizeSameShopKey(row.category_l3) || normalizeSameShopKey(row.catalog_l3)
+}
+
+const SAME_SHOP_SQL_KEY = `lower(trim(coalesce(
+  nullif(trim(coalesce(mpi.source_shop_name_chinese, '')), ''),
+  nullif(trim(coalesce(mpi.catalog_json->>'shop_name_chinese', '')), ''),
+  nullif(trim(coalesce(mpi.source_shop_id, '')), ''),
+  nullif(trim(coalesce(mpi.source_shop_name, '')), '')
+)))`
+
+const SAME_SHOP_SQL_L3 = `lower(trim(coalesce(
+  nullif(trim(coalesce(mpi.category_l3, '')), ''),
+  nullif(trim(coalesce(mpi.catalog_json->>'sub_subcategory', '')), ''),
+  nullif(trim(coalesce(mpi.catalog_json->>'category_l3', '')), '')
+)))`
+
+export async function fetchInventorySameShopSignalsFromPg(
+  partnerId: string,
+  inventoryIds: string[]
+): Promise<Map<string, InventorySameShopSignal>> {
+  const out = new Map<string, InventorySameShopSignal>()
+  const ids = asUuidList(inventoryIds)
+  if (!isPgConfigured() || !ids.length) return out
+  try {
+    const rows = await pgQuery<{
+      id: string
+      source_shop_name_chinese: string | null
+      catalog_shop_chinese: string | null
+      source_shop_id: string | null
+      source_shop_name: string | null
+      category_l3: string | null
+      catalog_l3: string | null
+    }>(
+      `select mpi.id::text as id,
+              mpi.source_shop_name_chinese,
+              mpi.catalog_json->>'shop_name_chinese' as catalog_shop_chinese,
+              mpi.source_shop_id,
+              mpi.source_shop_name,
+              mpi.category_l3,
+              coalesce(mpi.catalog_json->>'sub_subcategory', mpi.catalog_json->>'category_l3') as catalog_l3
+       from public.messaging_partner_inventory mpi
+       where mpi.partner_id = $1::uuid
+         and mpi.id = any($2::uuid[])`,
+      [partnerId, ids]
+    )
+    for (const row of rows) {
+      const sourceShopKey = sourceShopKeyFromRow(row)
+      const l3Key = l3KeyFromRow(row)
+      if (!sourceShopKey && !l3Key) continue
+      out.set(row.id.toLowerCase(), {
+        inventoryId: row.id,
+        sourceShopKey,
+        l3Key,
+      })
+    }
+
+    const missingL3 = ids.filter((id) => !normalizeSameShopKey(out.get(id.toLowerCase())?.l3Key))
+    if (missingL3.length) {
+      const cats = await fetchPartnerCategoriesFlatFromPg(partnerId, { activeOnly: false })
+      const byId = new Map((cats ?? []).map((c) => [c.id.toLowerCase(), c]))
+      const links = await pgQuery<{
+        inventory_id: string
+        category_id: string
+        is_primary: boolean
+      }>(
+        `select pic.inventory_id::text, pic.category_id::text, pic.is_primary
+         from public.messaging_partner_inventory_categories pic
+         join public.messaging_partner_categories c on c.id = pic.category_id
+         where c.partner_id = $1::uuid
+           and pic.inventory_id = any($2::uuid[])`,
+        [partnerId, missingL3]
+      )
+      const best = new Map<string, { name: string; depth: number; primary: boolean }>()
+      for (const link of links) {
+        const cat = byId.get(link.category_id.toLowerCase())
+        const depth = cat?.depth ?? 0
+        if (depth < 3) continue
+        const name = normalizeSameShopKey(cat?.name)
+        if (!name) continue
+        const prev = best.get(link.inventory_id.toLowerCase())
+        if (!prev || (link.is_primary && !prev.primary) || (link.is_primary === prev.primary && depth > prev.depth)) {
+          best.set(link.inventory_id.toLowerCase(), { name, depth, primary: Boolean(link.is_primary) })
+        }
+      }
+      for (const [id, hit] of best) {
+        const prev = out.get(id)
+        out.set(id, {
+          inventoryId: prev?.inventoryId || id,
+          sourceShopKey: prev?.sourceShopKey || '',
+          l3Key: hit.name,
+        })
+      }
+    }
+  } catch (e) {
+    console.warn('[fetchInventorySameShopSignalsFromPg]', e)
+  }
+  return out
+}
+
+export async function fetchActiveInventoryByShopL3PairsFromPg(input: {
+  partnerId: string
+  pairs: Array<{ shop: string; l3: string }>
+  limit?: number
+}): Promise<PartnerInventoryShopCardRow[]> {
+  const shops: string[] = []
+  const l3s: string[] = []
+  const seen = new Set<string>()
+  for (const pair of input.pairs) {
+    const key = shopL3PairKey(pair.shop, pair.l3)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    const [shop, l3] = key.split('\t')
+    if (!shop || !l3) continue
+    shops.push(shop)
+    l3s.push(l3)
+  }
+  if (!isPgConfigured() || !shops.length) return []
+  const lim = Math.max(1, Math.min(SAME_SHOP_MAX_POOL, Math.floor(Number(input.limit) || SAME_SHOP_MAX_POOL)))
+  try {
+    const rows = await pgQuery<{ id: string }>(
+      `with pairs(shop, l3) as (
+         select * from unnest($2::text[], $3::text[]) as t(shop, l3)
+       )
+       select mpi.id::text
+       from public.messaging_partner_inventory mpi
+       join pairs p
+         on ${SAME_SHOP_SQL_KEY} = p.shop
+        and (
+          ${SAME_SHOP_SQL_L3} = p.l3
+          or exists (
+            select 1
+            from public.messaging_partner_inventory_categories pic
+            join public.messaging_partner_categories c on c.id = pic.category_id
+            where pic.inventory_id = mpi.id
+              and c.partner_id = $1::uuid
+              and c.depth >= 3
+              and lower(trim(c.name)) = p.l3
+          )
+        )
+       where mpi.partner_id = $1::uuid
+         and coalesce(mpi.is_active, true) = true
+       order by mpi.id
+       limit $4`,
+      [input.partnerId, shops, l3s, lim]
+    )
+    return (
+      (await fetchPartnerInventoryCardsByIdsInOrderFromPg(
+        input.partnerId,
+        rows.map((row) => row.id)
+      )) ?? []
+    )
+  } catch (e) {
+    console.warn('[fetchActiveInventoryByShopL3PairsFromPg]', e)
+    return []
+  }
 }
 
 export async function fetchActiveInventoryByShopKeysFromPg(input: {

@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import {
   buildMarketplaceLookCss,
+  htmlHasMarketplaceLook,
   injectMarketplaceLookIntoHtml,
   isMarketplaceLook,
   isMarketplaceTemplateId,
@@ -29,6 +30,8 @@ test('marketplace look CSS paints chrome with tokens, not brand hex', () => {
   assert.match(css, /background:var\(--pw-buy\)!important/)
   assert.match(css, /background:var\(--pw-footer/)
   assert.match(css, /color:var\(--pw-buy\)!important/)
+  assert.match(css, /\.pw-marketplace-trust,\[data-pw-trust-bar="1"\]/)
+  assert.match(css, /animation:none!important/)
   assert.doesNotMatch(css, /#ff6b00|#ff3333|#ff8c00/)
 })
 
@@ -40,6 +43,16 @@ test('injectMarketplaceLookIntoHtml stamps look after chrome and skips other the
   assert.match(out, /data-pw-look="marketplace"/)
   assert.match(out, /id="pw-marketplace-look-css"/)
   assert.match(out, /family=Nunito/)
+})
+
+test('injectMarketplaceLookIntoHtml still paints when HTML already has look', () => {
+  const html =
+    '<!DOCTYPE html><html lang="vi" data-pw-look="marketplace"><head></head><body><header class="pw-header"></header><section class="pw-marketplace-trust"></section></body></html>'
+  assert.equal(htmlHasMarketplaceLook(html), true)
+  const out = injectMarketplaceLookIntoHtml(html, { look: undefined })
+  assert.match(out, /id="pw-marketplace-look-css"/)
+  assert.match(out, /data-pw-look="marketplace"/)
+  assert.match(out, /\.pw-marketplace-trust/)
 })
 
 test('marketplace gallery sample is not 188-branded and keeps live hooks', () => {

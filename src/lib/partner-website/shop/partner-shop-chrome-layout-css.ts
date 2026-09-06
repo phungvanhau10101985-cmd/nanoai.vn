@@ -305,6 +305,8 @@ export const PARTNER_SHOP_MOBILE_HEADER_SEARCH_LOCK_CSS = [
     PW_SCENE_WIDE_HOSTS,
     '.pw-nav-main,.pw-shop-nav-row{display:flex!important;flex-wrap:nowrap!important;justify-content:center!important;align-items:center!important}.pw-header,.pw-shop-header{background:#fff!important;border-bottom:1px solid #f3f4f6!important;box-shadow:none!important}'
   ),
+  'html[data-pw-look="marketplace"] .pw-header,html[data-pw-look="marketplace"] .pw-shop-header{background:var(--pw-primary)!important;border-bottom:none!important;box-shadow:0 2px 10px color-mix(in srgb,var(--pw-primary) 35%,transparent)!important}',
+  'html[data-pw-look="marketplace"] .pw-nav-main a,html[data-pw-look="marketplace"] .pw-nav-main button,html[data-pw-look="marketplace"] .pw-shop-nav-row a,html[data-pw-look="marketplace"] .pw-shop-nav-row button{color:#fff!important}',
   `@media (max-width:899px){${pwHostPrefixCss([PW_SCENE_UNLOCKED_HTML], PW_COMPACT_HEADER_RULES)}${pwHostPrefixCss([PW_SCENE_UNLOCKED_HTML], PW_PHONE_HEADER_FACE_RULES)}}`,
   `@media (max-width:767px){${pwHostPrefixCss([PW_SCENE_UNLOCKED_HTML], PW_MOBILE_HEADER_STACK_RULES)}${pwHostPrefixCss([PW_SCENE_UNLOCKED_HTML], PW_MOBILE_HEADER_ICON_ONLY_RULES)}}`,
   PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS,

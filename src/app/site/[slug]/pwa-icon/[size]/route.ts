@@ -36,7 +36,7 @@ export async function GET(
     status: 200,
     headers: {
       'Content-Type': 'image/png',
-      'Cache-Control': size <= 32 ? 'public, max-age=300' : 'public, max-age=3600',
+      'Cache-Control': size <= 32 ? 'public, max-age=60, must-revalidate' : 'public, max-age=3600',
     },
   })
 }

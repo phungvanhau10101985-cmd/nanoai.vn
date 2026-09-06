@@ -14,8 +14,10 @@ import { PW_BIRTH_GENDER_PROMPT_CSS } from '@/lib/partner-website/shop/partner-s
 import { PW_PRODUCT_VARIANT_MODAL_CSS } from '@/lib/partner-website/shop/partner-site-product-variant-modal'
 import { PW_SITE_SALE_CARD_CSS } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { PARTNER_CATEGORY_MEGA_LAYOUT_CSS } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
+import { PW_RECOMMENDED_GRID_FACE_CSS } from '@/lib/partner-website/shop/pw-recommended-grid-face'
 import {
   buildMarketplaceLookCss,
+  htmlHasMarketplaceLook,
   isMarketplaceLook,
   stampPartnerWebsiteLookInHtml,
 } from '@/lib/partner-website/shop/marketplace-shop-look-css'
@@ -699,6 +701,7 @@ html[data-pw-scene-lock="desktop"] .pw-pdp-spec-grid,html[data-pw-scene-lock="la
 .pw-cohort-hint-link:hover{text-decoration:underline}
 .pw-cohort-hint-cta{display:inline-flex;align-items:center;border-radius:999px;background:var(--pw-buy);color:#fff;padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap}
 .pw-cohort-hint-cta:hover{filter:brightness(.96);color:#fff}
+${PW_RECOMMENDED_GRID_FACE_CSS}
 .pw-shop-muted{color:#4b5563;font-size:14px;line-height:1.5}
 .pw-shop-footer{background:var(--pw-footer,#fff);color:var(--pw-text,#111827);border-top:1px solid var(--pw-border,#e5e7eb);padding:36px 16px 0;margin-top:40px}
 .pw-shop-footer-inner{max-width:var(--pw-content);margin:0 auto;display:grid;gap:28px 32px;grid-template-columns:1fr}
@@ -846,10 +849,13 @@ export const PARTNER_SHOP_THEME_STYLE_ID = 'pw-shop-theme-css'
 export function injectPartnerShopThemeCss(html: string, theme?: PartnerWebsiteTheme | null): string {
   const trimmed = html.trim()
   if (!trimmed) return html
-  const source = isMarketplaceLook(theme)
-    ? stampPartnerWebsiteLookInHtml(trimmed, 'marketplace')
-    : trimmed
-  const css = buildPartnerSiteShopThemeCss(theme || DEFAULT_PARTNER_WEBSITE_THEME)
+  const marketplace = isMarketplaceLook(theme) || htmlHasMarketplaceLook(trimmed)
+  const source = marketplace ? stampPartnerWebsiteLookInHtml(trimmed, 'marketplace') : trimmed
+  const css = buildPartnerSiteShopThemeCss(
+    marketplace && !isMarketplaceLook(theme)
+      ? { ...(theme || DEFAULT_PARTNER_WEBSITE_THEME), look: 'marketplace' }
+      : theme || DEFAULT_PARTNER_WEBSITE_THEME
+  )
   const tag = `<style id="${PARTNER_SHOP_THEME_STYLE_ID}">${css}</style>`
   let replaced = false
   let out = source.replace(

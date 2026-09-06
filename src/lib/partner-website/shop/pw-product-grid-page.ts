@@ -60,7 +60,7 @@ function escapeGridHtml(value: string): string {
     .replace(/"/g, '&quot;')
 }
 
-/** In-flow «Xem thêm» + «Xem tất cả các nhóm» — same row under every grid kind. */
+/** In-flow «Xem thêm» + «Xem tất cả các nhóm» — same row under catalog / related / viewed. Recommended (188) is load-more only. */
 export function productGridActionsHtml(input: {
   loadMoreLabel: string
   seeAllLabel: string
@@ -69,18 +69,22 @@ export function productGridActionsHtml(input: {
   moreClass?: string
   moreAttrs?: string
   allClass?: string
+  hideSeeAll?: boolean
 }): string {
   const href = String(input.seeAllHref || '#').trim() || '#'
   const hostClass = input.hostClass || 'pw-grid-actions'
   const moreClass = input.moreClass || 'pw-grid-more'
   const allClass = input.allClass || 'pw-grid-all'
   const moreAttrs = input.moreAttrs || 'data-pw-grid-more'
+  const seeAll = input.hideSeeAll
+    ? ''
+    : `
+    <a href="${escapeGridHtml(href)}" class="${allClass}" data-pw-el="section-more">${escapeGridHtml(input.seeAllLabel)}</a>`
   return `<div class="${hostClass}" data-pw-grid-actions>
     <button type="button" class="${moreClass}" ${moreAttrs}>
       <span class="pw-grid-more-icon" aria-hidden="true">↻</span>
       ${escapeGridHtml(input.loadMoreLabel)}
-    </button>
-    <a href="${escapeGridHtml(href)}" class="${allClass}" data-pw-el="section-more">${escapeGridHtml(input.seeAllLabel)}</a>
+    </button>${seeAll}
   </div>`
 }
 

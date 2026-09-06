@@ -1,13 +1,14 @@
 import { fetchPartnerCustomerProfileByEmailFromPg } from '@/lib/db/messaging-partner-customer-profiles-pg'
 import { fetchNanoaiChatProfileFromPg } from '@/lib/db/profiles-repo'
 import {
-  fetchActiveInventoryByShopKeysFromPg,
+  fetchActiveInventoryByShopL3PairsFromPg,
   fetchCohortViewedInventoryIdsFromPg,
   fetchInventoryCategorySignalsFromPg,
+  fetchInventorySameShopSignalsFromPg,
   fetchPopularInventoryIdsFromPg,
   fetchVisitorProfileHintFromPg,
   upsertVisitorProfileHintFromPg,
-  type InventoryCategorySignal,
+  type InventorySameShopSignal,
 } from '@/lib/db/messaging-partner-recommendation-pg'
 import { fetchPartnerInventoryCardsByIdsInOrderFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { fetchPartnerVisitorPersonalizationFromPg } from '@/lib/db/messaging-partner-visitor-personalization-pg'
@@ -17,11 +18,14 @@ import {
   SAME_CATEGORY_HISTORY_WINDOW,
   SAME_CATEGORY_MAX_PER_PAGE,
   SAME_CATEGORY_RECENT_WINDOW,
+  SAME_SHOP_MAX_POOL,
+  allowedShopL3PairsFromRecent,
   buildWeightedCategoryCycle,
   inferApparelGenderFromName,
   mixShopAndCohortProducts,
   pickRoundRobinFromQueues,
   seededShuffle,
+  shopL3PairKey,
   type SameAgeGenderCohortMode,
 } from '@/lib/partner-website/shop/partner-site-home-recommendation-mix'
 import type { PartnerInventoryShopCardRow } from '@/lib/partner-website/shop/inventory-to-shop-product'
@@ -66,6 +70,9 @@ function mapInventoryRowToPersonalizationProduct(
     saleStartsAt: isoOrNull(row.sale_starts_at),
     saleEndsAt: isoOrNull(row.sale_ends_at),
     isClearance: row.is_clearance === true,
+    likesCount: Math.max(0, Math.round(Number(row.likes_count ?? 0)) || 0),
+    purchasesCount: Math.max(0, Math.round(Number(row.purchases_count ?? 0)) || 0),
+    ratingScore: Number(row.rating_score ?? 0) || 0,
   }
 }
 
@@ -75,6 +82,8 @@ export type PartnerSiteHomeRecommendationBlock = {
   cohort_mode: SameAgeGenderCohortMode
   cohort_badge_product_ids: string[]
   same_shop_seed: number | null
+  same_shop_used: number
+  has_more: boolean
 }
 
 function birthYearFromIso(iso: string | null | undefined): number | null {
@@ -122,64 +131,66 @@ async function resolveVisitorDemographics(input: {
   return { gender, birthYear, loggedIn }
 }
 
-function signalOf(
-  map: Map<string, InventoryCategorySignal>,
-  inventoryId: string
-): InventoryCategorySignal | null {
+function signalOf<T>(map: Map<string, T>, inventoryId: string): T | null {
   return map.get(inventoryId.toLowerCase()) ?? null
 }
 
-async function sameCategoryProducts(input: {
+/** 188: cùng shop Trung Quốc VÀ cùng L3 của 8 SP vừa xem — không lấy cùng shop khác cấp 3. */
+async function sameShopAndL3Products(input: {
   partnerId: string
   siteSlug: string
   viewedIds: string[]
   limit: number
   seed: number
+  offset?: number
 }): Promise<PartnerSitePersonalizationProduct[]> {
   const historyIds = input.viewedIds.slice(0, SAME_CATEGORY_HISTORY_WINDOW)
   if (!historyIds.length) return []
-  const signals = await fetchInventoryCategorySignalsFromPg(input.partnerId, historyIds)
-  const historyKeys = historyIds.map((id) => signalOf(signals, id)?.shopKey || '')
-  const recentKeys = historyIds
-    .slice(0, SAME_CATEGORY_RECENT_WINDOW)
-    .map((id) => signalOf(signals, id)?.shopKey || '')
-  const known = new Set(historyKeys.filter(Boolean))
-  if (!known.size) return []
-  const { cycle, maxPerOverrides } = buildWeightedCategoryCycle(historyKeys, recentKeys, known)
+  const signals = await fetchInventorySameShopSignalsFromPg(input.partnerId, historyIds)
+  const recentIds = historyIds.slice(0, SAME_CATEGORY_RECENT_WINDOW)
+  const allowedPairs = allowedShopL3PairsFromRecent(
+    recentIds.map((id) => {
+      const sig = signalOf(signals, id)
+      return { shop: sig?.sourceShopKey, l3: sig?.l3Key }
+    })
+  )
+  const shopsLower = new Set(
+    [...allowedPairs].map((pair) => pair.split('\t')[0] || '').filter(Boolean)
+  )
+  if (!allowedPairs.size || !shopsLower.size) return []
+
+  const historyShopKeys = historyIds.map((id) => signalOf(signals, id)?.sourceShopKey || '')
+  const recentShopKeys = recentIds.map((id) => signalOf(signals, id)?.sourceShopKey || '')
+  const { cycle, maxPerOverrides } = buildWeightedCategoryCycle(
+    historyShopKeys,
+    recentShopKeys,
+    shopsLower
+  )
   if (!cycle.length) return []
 
-  const recentSubs = new Set(
-    historyIds
-      .slice(0, SAME_CATEGORY_RECENT_WINDOW)
-      .map((id) => signalOf(signals, id)?.subKey || '')
-      .filter(Boolean)
-  )
-  const candidates = await fetchActiveInventoryByShopKeysFromPg({
+  const candidates = await fetchActiveInventoryByShopL3PairsFromPg({
     partnerId: input.partnerId,
-    shopKeys: [...known],
-    limit: 400,
+    pairs: [...allowedPairs].map((pair) => {
+      const [shop, l3] = pair.split('\t')
+      return { shop: shop || '', l3: l3 || '' }
+    }),
+    limit: SAME_SHOP_MAX_POOL,
   })
-  const candidateSignals = await fetchInventoryCategorySignalsFromPg(
+  const candidateSignals = await fetchInventorySameShopSignalsFromPg(
     input.partnerId,
     candidates.map((row) => row.id)
   )
   const queues = new Map<string, PartnerSitePersonalizationProduct[]>()
-  for (const key of known) {
+  for (const shop of shopsLower) {
     const same: PartnerSitePersonalizationProduct[] = []
-    const rest: PartnerSitePersonalizationProduct[] = []
     for (const row of candidates) {
-      const sig = signalOf(candidateSignals, row.id)
-      if (!sig || sig.shopKey !== key) continue
+      const sig = signalOf<InventorySameShopSignal>(candidateSignals, row.id)
+      const pair = shopL3PairKey(sig?.sourceShopKey, sig?.l3Key)
+      if (!sig || sig.sourceShopKey !== shop || !pair || !allowedPairs.has(pair)) continue
       const mapped = mapInventoryRowToPersonalizationProduct(input.siteSlug, row)
-      if (!mapped) continue
-      if (sig.subKey && recentSubs.has(sig.subKey)) same.push(mapped)
-      else rest.push(mapped)
+      if (mapped) same.push(mapped)
     }
-    const queue = [
-      ...seededShuffle(same, input.seed + key.length),
-      ...seededShuffle(rest, input.seed + key.length * 7),
-    ]
-    if (queue.length) queues.set(key, queue)
+    if (same.length) queues.set(shop, seededShuffle(same, input.seed + shop.length))
   }
   return pickRoundRobinFromQueues({
     queues,
@@ -187,6 +198,7 @@ async function sameCategoryProducts(input: {
     pageSize: input.limit,
     maxPer: SAME_CATEGORY_MAX_PER_PAGE,
     maxPerOverrides,
+    offset: input.offset,
   })
 }
 
@@ -292,8 +304,13 @@ export async function getSiteHomeRecommendationBlock(input: {
   loggedIn?: boolean
   email?: string | null
   limit?: number
+  offset?: number
+  mixSeed?: number | null
+  /** 188 «Xem thêm»: chỉ thêm cùng shop TQ + L3, không trộn lại cohort. */
+  sameShopOnly?: boolean
 }): Promise<PartnerSiteHomeRecommendationBlock> {
   const limit = Math.max(1, Math.min(48, Math.floor(Number(input.limit) || HOME_RECOMMENDATION_SHOP_LIMIT)))
+  const offset = Math.max(0, Math.floor(Number(input.offset) || 0))
   const state = await fetchPartnerVisitorPersonalizationFromPg({
     partnerId: input.partnerId,
     accountKey: input.accountKey,
@@ -306,15 +323,50 @@ export async function getSiteHomeRecommendationBlock(input: {
     loggedIn: input.loggedIn ?? Boolean(input.linkedUserId),
     email: input.email,
   })
-  const seed = Math.floor(Math.random() * 0x7fffffff)
-  const shop = await sameCategoryProducts({
+  const seed =
+    input.mixSeed != null && Number.isFinite(Number(input.mixSeed))
+      ? Math.floor(Number(input.mixSeed)) >>> 0
+      : Math.floor(Math.random() * 0x7fffffff)
+  const shopOnly = Boolean(input.sameShopOnly) || offset > 0
+  const shop = await sameShopAndL3Products({
     partnerId: input.partnerId,
     siteSlug: input.siteSlug,
     viewedIds,
-    limit,
+    limit: limit + 1,
     seed,
+    offset: shopOnly ? offset : 0,
   })
+  const hasMoreShop = shop.length > limit
+  const shopPage = shop.slice(0, limit)
   const viewedSet = new Set(viewedIds.map((id) => id.toLowerCase()))
+
+  const applySale = async (rows: PartnerSitePersonalizationProduct[]) => {
+    const overlay = await loadPartnerSiteSaleOverlay(input.partnerId).catch(() => null)
+    if (!overlay) return rows
+    return rows.map((product) => {
+      const sold = applyPartnerSiteSaleToShopProduct(product, overlay.state, {
+        clearanceEnabled: overlay.clearanceEnabled,
+        clearancePercent: overlay.clearancePercent,
+      })
+      return { ...product, ...sold }
+    })
+  }
+
+  if (shopOnly) {
+    return {
+      products: await applySale(shopPage),
+      personalized: viewedIds.length > 0 || Boolean(demo.gender),
+      cohort_mode: demo.loggedIn
+        ? demo.gender
+          ? 'gender_peers'
+          : 'profile_incomplete'
+        : 'requires_login',
+      cohort_badge_product_ids: [],
+      same_shop_seed: seed,
+      same_shop_used: shopPage.length,
+      has_more: hasMoreShop,
+    }
+  }
 
   let cohort: PartnerSitePersonalizationProduct[] = []
   let cohortMode: SameAgeGenderCohortMode = demo.loggedIn
@@ -337,10 +389,10 @@ export async function getSiteHomeRecommendationBlock(input: {
     })
     cohort = sampled.products
     cohortMode = sampled.mode
-    if (!cohort.length && shop.length) {
+    if (!cohort.length && shopPage.length) {
       cohortMode = demo.loggedIn && demo.birthYear == null ? 'profile_incomplete' : sampled.mode
     }
-  } else if (!shop.length) {
+  } else if (!shopPage.length) {
     cohort = await popularFallbackProducts({
       partnerId: input.partnerId,
       siteSlug: input.siteSlug,
@@ -351,7 +403,7 @@ export async function getSiteHomeRecommendationBlock(input: {
     cohortMode = cohort.length ? 'popular_fallback' : 'requires_login'
   }
 
-  if (!shop.length && !cohort.length) {
+  if (!shopPage.length && !cohort.length) {
     cohort = await popularFallbackProducts({
       partnerId: input.partnerId,
       siteSlug: input.siteSlug,
@@ -363,31 +415,22 @@ export async function getSiteHomeRecommendationBlock(input: {
   }
 
   const mixed = mixShopAndCohortProducts(
-    shop.map((p) => ({ ...p, inventoryId: p.inventory_id })),
+    shopPage.map((p) => ({ ...p, inventoryId: p.inventory_id })),
     cohort.map((p) => ({ ...p, inventoryId: p.inventory_id })),
     seed
   ).slice(0, limit)
-  const shopIds = new Set(shop.map((p) => p.inventory_id.toLowerCase()))
+  const shopIds = new Set(shopPage.map((p) => p.inventory_id.toLowerCase()))
   const cohortBadge = mixed
     .filter((p) => !shopIds.has(p.inventory_id.toLowerCase()))
     .map((p) => p.inventory_id)
 
-  const overlay = await loadPartnerSiteSaleOverlay(input.partnerId).catch(() => null)
-  const products = overlay
-    ? mixed.map((product) => {
-        const sold = applyPartnerSiteSaleToShopProduct(product, overlay.state, {
-          clearanceEnabled: overlay.clearanceEnabled,
-          clearancePercent: overlay.clearancePercent,
-        })
-        return { ...product, ...sold }
-      })
-    : mixed
-
   return {
-    products,
+    products: await applySale(mixed),
     personalized: viewedIds.length > 0 || Boolean(demo.gender),
     cohort_mode: cohortMode,
     cohort_badge_product_ids: cohortBadge,
     same_shop_seed: seed,
+    same_shop_used: shopPage.length,
+    has_more: hasMoreShop,
   }
 }

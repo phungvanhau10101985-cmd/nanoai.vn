@@ -80,9 +80,11 @@ export async function PartnerSiteInfoPageScreen({
   const device = await readVisualPreviewDevice()
   const override = await fetchPublishedPartnerStaticPageBySlugFromPg(shop.partnerId, pageKey)
 
-  const visual = await maybePartnerSiteVisualPage(
+  const visualKey = infoPageKeyToVisualPageKey(pageKey)
+  const visual = visualKey
+    ? await maybePartnerSiteVisualPage(
     shop.site,
-    infoPageKeyToVisualPageKey(pageKey),
+    visualKey,
     device,
     override
       ? {
@@ -92,6 +94,7 @@ export async function PartnerSiteInfoPageScreen({
         }
       : { noIndex: pageKey === 'thank-you' }
   )
+    : null
   if (visual) return visual
 
   const activeNav =

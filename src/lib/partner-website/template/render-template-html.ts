@@ -23,8 +23,8 @@ import type {
   PartnerWebsiteTemplateRenderInput,
 } from '@/lib/partner-website/template/partner-website-template-types'
 import { getSectionRegistryEntry, isSectionTypeEnabled } from '@/lib/partner-website/template/section-registry'
-import { BANNER_PLACEHOLDER_SRC } from '@/lib/partner-website/visual-editor/banner-widgets'
-import { PW_EDIT_SLOT, PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { buildVisualEditorBannerHtml } from '@/lib/partner-website/visual-editor/banner-widgets'
+import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { PW_SCENE_HEAD_Z, PW_SCENE_TOPBAR_Z } from '@/lib/partner-website/visual-editor/pw-scene'
 import { buildPartnerShopFaviconHeadLinks } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
 
@@ -32,30 +32,24 @@ function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback
 }
 
-function renderHero(section: PartnerWebsiteSection, siteSlug?: string): string {
+function renderHero(section: PartnerWebsiteSection, input: PartnerWebsiteTemplateRenderInput): string {
+  const siteSlug = input.siteSlug?.trim()
+  if (siteSlug) {
+    return buildVisualEditorBannerHtml({
+      kind: 'promo',
+      siteSlug,
+      locale: input.locale,
+    })
+  }
   const title = escapeHtml(str(section.props.title, 'Welcome'))
   const subtitle = escapeHtml(str(section.props.subtitle, ''))
   const cta = escapeHtml(str(section.props.ctaText, 'Shop now'))
-  const bg = str(section.props.backgroundImage)
-  const mediaSrc = bg || BANNER_PLACEHOLDER_SRC
-  const mediaPlaceholder = bg ? '' : ' data-pw-banner-placeholder="1"'
-  const ctaHref = siteSlug?.trim()
-    ? escapeAttr(partnerSiteProductsPath(siteSlug.trim()))
-    : '#products'
-  const utmVariants = Array.isArray(section.props.utmVariants) ? section.props.utmVariants : []
-  const utmData =
-    utmVariants.length > 0
-      ? ` data-pw-hero-variants="${escapeAttr(JSON.stringify(utmVariants))}"`
-      : ''
-  return `<section class="pw-hero" ${pwRegionAttr(PW_REGION.banner)} style="position:relative"${utmData}>
-  <img class="pw-hero-media" ${pwElAttr(PW_EL.media)} data-pw-edit="${PW_EDIT_SLOT.heroImage}" alt="" width="1600" height="720" src="${escapeAttr(mediaSrc)}"${mediaPlaceholder} style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0"/>
-  <div aria-hidden="true" data-pw-banner-wash="1" style="position:absolute;inset:0;background:linear-gradient(90deg,color-mix(in srgb, var(--pw-primary) 55%, transparent),rgba(0,0,0,.25));pointer-events:none;z-index:1"></div>
+  return `<section class="pw-hero" ${pwRegionAttr(PW_REGION.banner)} style="position:relative">
   <div class="pw-hero-inner pw-container" ${pwElAttr(PW_EL.inner)}>
     <div class="pw-hero-copy" ${pwElAttr(PW_EL.copy)}>
       <h1 ${pwElAttr(PW_EL.title)}>${title}</h1>
       ${subtitle ? `<p class="pw-hero-sub" ${pwElAttr(PW_EL.subtitle)}>${subtitle}</p>` : ''}
-      <a class="pw-btn pw-btn-hero" ${pwElAttr(PW_EL.cta)} href="${ctaHref}">${cta}</a>
-      <div class="pw-hero-dots" ${pwElAttr(PW_EL.dots)} aria-hidden="true"><span class="is-active"></span><span></span><span></span></div>
+      <a class="pw-btn pw-btn-hero" ${pwElAttr(PW_EL.cta)} href="#products">${cta}</a>
     </div>
   </div>
 </section>`
@@ -378,7 +372,7 @@ function renderSection(section: PartnerWebsiteSection, input: PartnerWebsiteTemp
 
   switch (section.type) {
     case 'hero-v1':
-      return renderHero(section, input.siteSlug)
+      return renderHero(section, input)
     case 'categories-v1':
       return renderCategories(section, input)
     case 'trust-bar-v1':

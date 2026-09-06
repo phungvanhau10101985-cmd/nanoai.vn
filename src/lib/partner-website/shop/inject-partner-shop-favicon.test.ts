@@ -7,14 +7,15 @@ import {
 
 describe('inject-partner-shop-favicon', () => {
   it('prefers uploaded favicon over shop logo', () => {
-    expect(
-      resolvePartnerShopFaviconHref({
-        siteSlug: 'shop-a',
-        customDomain: true,
-        faviconUrl: 'https://cdn.example/fav.png',
-        logoUrl: 'https://cdn.example/logo.png',
-      })
-    ).toBe('https://cdn.example/fav.png')
+    const href = resolvePartnerShopFaviconHref({
+      siteSlug: 'shop-a',
+      customDomain: true,
+      faviconUrl: 'https://cdn.example/fav.png',
+      logoUrl: 'https://cdn.example/logo.png',
+    })
+    expect(href.startsWith('https://cdn.example/fav.png')).toBe(true)
+    expect(href).toMatch(/[?&]v=/)
+    expect(href).not.toContain('logo.png')
   })
 
   it('falls back to generated pwa-icon/32', () => {
@@ -25,14 +26,14 @@ describe('inject-partner-shop-favicon', () => {
         faviconUrl: null,
         logoUrl: 'https://cdn.example/logo.png',
       })
-    ).toBe('/pwa-icon/32')
+    ).toMatch(/^\/pwa-icon\/32\?v=[a-z0-9]+$/)
     expect(
       resolvePartnerShopFaviconHref({
         siteSlug: 'shop-a',
         customDomain: false,
         logoUrl: 'https://cdn.example/logo.png',
       })
-    ).toBe('/site/shop-a/pwa-icon/32')
+    ).toMatch(/^\/site\/shop-a\/pwa-icon\/32\?v=[a-z0-9]+$/)
   })
 
   it('replaces leftover icon links in head', () => {

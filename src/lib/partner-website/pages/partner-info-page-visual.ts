@@ -90,6 +90,7 @@ export function cmsSlugToInfoPageKey(slug: string): PartnerSiteInfoPageKey | nul
     'stores',
     'lookbook',
     'blog',
+    'goi-y-tuoi-gioi',
   ]
   return keys.includes(raw as PartnerSiteInfoPageKey) ? (raw as PartnerSiteInfoPageKey) : null
 }

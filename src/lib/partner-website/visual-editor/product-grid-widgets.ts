@@ -212,6 +212,32 @@ function placeholderCards(count: number, label: string): string {
   return out
 }
 
+const REC_BADGE: Record<WebLocale, string> = {
+  vi: 'Đề xuất',
+  en: 'For you',
+  zh: '推荐',
+  ja: 'おすすめ',
+  ko: '추천',
+}
+
+function recommendedPlaceholderCards(count: number, label: string, soldLabel: string, badge: string): string {
+  const n = Math.max(2, Math.min(20, count))
+  let out = ''
+  for (let i = 1; i <= n; i += 1) {
+    out += `<article class="pw-product-card pw-rec-card" ${pwElAttr(PW_EL.card)} data-pw-grid-placeholder="1">
+  <div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} style="background:var(--pw-surface,#f3f4f6)">
+    <span class="pw-rec-badge">${escapeHtml(badge)}</span>
+  </div>
+  <div class="pw-product-card-body">
+    <h3 ${pwElAttr(PW_EL.cardName)}>${escapeHtml(label)} ${i}</h3>
+    <p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>—</p>
+    <div class="pw-rec-stats"><span>★ 0.0</span><span>${escapeHtml(soldLabel)}: 0</span></div>
+  </div>
+</article>`
+  }
+  return out
+}
+
 function gridSeeAllHref(kind: VisualEditorProductGridKind, siteSlug: string): string {
   if (kind === 'recently-viewed') return partnerSiteRecentlyViewedPath(siteSlug)
   if (kind === 'featured-categories') return partnerSiteCategoryHubPath(siteSlug)
@@ -274,16 +300,23 @@ export function buildVisualEditorProductGridHtml(input: {
   const catalogAttr = kind === 'catalog' ? ' data-pw-catalog data-sort="default"' : ''
   const sectionId =
     kind === 'catalog' ? 'pw-grid-catalog' : kind === 'recommended' ? 'pw-grid-recommended' : 'pw-grid-recently-viewed'
-  const cards = placeholderCards(pageSize, title)
+  const rec = kind === 'recommended'
+  const cards = rec
+    ? recommendedPlaceholderCards(pageSize, title, copy.pdpPurchasesLabel || 'Đã bán', REC_BADGE[locale])
+    : placeholderCards(pageSize, title)
+  const titleHtml = rec
+    ? `<div class="pw-rec-head" data-pw-rec-head="1"><div class="pw-rec-head-row"><h2 class="pw-rec-title" ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2></div></div>`
+    : `<h2 ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2>`
 
-  return `<section class="pw-catalog pw-product-grid-section" id="${sectionId}" ${pwRegionAttr(PW_REGION.catalog)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-added-catalog="1" data-pw-grid-kind="${kind}" data-pw-grid-cols="5" data-pw-grid-cols-mobile="2" data-pw-grid-rows="${rows}" data-limit="${pageSize}"${catalogAttr}${personalize} style="margin:0;padding:0;min-height:0;height:auto">
+  return `<section class="pw-catalog pw-product-grid-section${rec ? ' pw-rec-grid' : ''}" id="${sectionId}" ${pwRegionAttr(PW_REGION.catalog)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-added-catalog="1" data-pw-grid-kind="${kind}" data-pw-grid-cols="5" data-pw-grid-cols-mobile="2" data-pw-grid-rows="${rows}" data-limit="${pageSize}"${catalogAttr}${personalize}${rec ? ' data-pw-rec-face="188"' : ''} style="margin:0;padding:0;min-height:0;height:auto">
   <div class="pw-container" style="padding:12px 16px 16px">
-    <h2 ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2>
+    ${titleHtml}
     <div data-pw-grid class="pw-product-grid" ${pwElAttr(PW_EL.grid)}>${cards}</div>
     ${productGridActionsHtml({
       loadMoreLabel: loadMore,
       seeAllLabel: seeAll,
       seeAllHref: gridSeeAllHref(kind, input.siteSlug),
+      hideSeeAll: rec,
     })}
     <p class="pw-catalog-empty pw-personalize-empty" hidden></p>
   </div>

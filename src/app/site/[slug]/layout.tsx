@@ -9,11 +9,8 @@ import {
 } from '@/lib/partner-website/shop/fashion-shop-design'
 import { PartnerSiteCustomDomainProvider } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
-import {
-  partnerSitePwaIconPath,
-  partnerSitePwaManifestPath,
-} from '@/lib/partner-website/shop/partner-site-pwa'
-import { resolvePartnerShopFaviconHref } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
+import { partnerSitePwaManifestPath } from '@/lib/partner-website/shop/partner-site-pwa'
+import { buildPartnerShopFaviconMetadataIcons } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
 
 /** Do not use `next/font/google` here — VPS `next build` fetches fonts.gstatic.com and times out. */
 const shopFontVars = {
@@ -32,15 +29,12 @@ export async function generateMetadata({
   const headerStore = headers()
   const customDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
   const name = site.title.trim() || site.partnerDisplayName || 'Shop'
-  const icon32 =
-    resolvePartnerShopFaviconHref({
-      siteSlug: site.siteSlug,
-      customDomain,
-      faviconUrl: site.theme.faviconUrl,
-      logoUrl: site.logoUrl,
-    }) || partnerSitePwaIconPath(site.siteSlug, 32, customDomain)
-  const icon192 = partnerSitePwaIconPath(site.siteSlug, 192, customDomain)
-  const icon180 = partnerSitePwaIconPath(site.siteSlug, 180, customDomain)
+  const icons = buildPartnerShopFaviconMetadataIcons({
+    siteSlug: site.siteSlug,
+    customDomain,
+    faviconUrl: site.theme.faviconUrl,
+    logoUrl: site.logoUrl,
+  })
 
   return {
     applicationName: name,
@@ -50,14 +44,7 @@ export async function generateMetadata({
       statusBarStyle: 'default',
       title: name,
     },
-    icons: {
-      icon: [
-        { url: icon32, type: 'image/png', sizes: '32x32' },
-        { url: icon192, type: 'image/png', sizes: '192x192' },
-      ],
-      shortcut: [{ url: icon32, type: 'image/png' }],
-      apple: [{ url: icon180, type: 'image/png', sizes: '180x180' }],
-    },
+    icons,
     other: {
       'mobile-web-app-capable': 'yes',
       'apple-mobile-web-app-capable': 'yes',

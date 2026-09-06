@@ -10,7 +10,9 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-info-pages'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
+  partnerSiteAccountEditPath,
   partnerSiteAccountTabPath,
+  partnerSiteHomePath,
   partnerSiteOrdersPath,
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
@@ -68,6 +70,20 @@ export function PartnerSiteShopInfoView({
             <p>{item.a}</p>
           </details>
         ))}
+      {pageKey === 'goi-y-tuoi-gioi' ? (
+        <p style={{ marginTop: 20, display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+          <Link
+            href={partnerSiteAccountEditPath(siteSlug, { customDomain })}
+            className="pw-shop-btn"
+            data-pw-el={PW_EL.cta}
+          >
+            {t.accountEditProfile}
+          </Link>
+          <Link href={partnerSiteHomePath(siteSlug, { customDomain })} className="pw-shop-btn pw-shop-btn-outline" data-pw-el={PW_EL.link}>
+            {t.navHome}
+          </Link>
+        </p>
+      ) : null}
       {pageKey === 'sale' || pageKey === 'contact' ? (
         <p style={{ marginTop: 20 }}>
           <Link href={partnerSiteProductsPath(siteSlug, { customDomain })} className="pw-shop-btn" data-pw-el={PW_EL.cta}>

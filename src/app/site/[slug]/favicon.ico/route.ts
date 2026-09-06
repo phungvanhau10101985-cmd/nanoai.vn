@@ -24,7 +24,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }
     status: 200,
     headers: {
       'Content-Type': 'image/png',
-      'Cache-Control': 'public, max-age=300',
+      'Cache-Control': 'public, max-age=60, must-revalidate',
     },
   })
 }
