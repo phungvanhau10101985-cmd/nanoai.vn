@@ -11,6 +11,8 @@ export const LIVE_CATEGORY_BIND_TTL_SEC = 45
 /** Process L0 when Redis is off — same TTL as the Redis entry; cleared on bump. */
 const MEM_CACHE_MAX = 300
 const memStore = new Map<string, { exp: number; raw: string }>()
+const pendingLoads = new Map<string, Promise<unknown>>()
+const pendingVersions = new Map<string, Promise<number>>()
 
 function forgetMem(prefix?: string): void {
   if (!prefix) {
@@ -80,12 +82,32 @@ export function bumpSiteCacheLater(slug: string | null | undefined): void {
   bumpLater(bumpSiteCache(slug))
 }
 
+async function readVersionOnce(key: string): Promise<number> {
+  const existing = pendingVersions.get(key)
+  if (existing) return existing
+  const pending = redisGetInt(key).finally(() => {
+    if (pendingVersions.get(key) === pending) pendingVersions.delete(key)
+  })
+  pendingVersions.set(key, pending)
+  return pending
+}
+
 async function inventoryVer(partnerId: string): Promise<number> {
-  return redisGetInt(inventoryVerKey(partnerId))
+  return readVersionOnce(inventoryVerKey(partnerId))
 }
 
 async function siteVer(slug: string): Promise<number> {
-  return redisGetInt(siteVerKey(slug))
+  return readVersionOnce(siteVerKey(slug))
+}
+
+async function loadOnce<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const existing = pendingLoads.get(key) as Promise<T> | undefined
+  if (existing) return existing
+  const pending = load().finally(() => {
+    if (pendingLoads.get(key) === pending) pendingLoads.delete(key)
+  })
+  pendingLoads.set(key, pending)
+  return pending
 }
 
 export async function shopCacheGetJson<T>(key: string): Promise<T | null> {
@@ -161,11 +183,13 @@ export async function withInventoryShopCache<T>(input: {
   const partnerId = input.partnerId.trim()
   const ver = await inventoryVer(partnerId)
   const key = `pw:inv:${partnerId}:v${ver}:${input.kind}:${input.suffix}`
-  const hit = await shopCacheGetJson<T>(key)
-  if (hit !== null) return hit
-  const value = await input.load()
-  if (value != null) await shopCacheSetJson(key, input.ttlSec, value)
-  return value
+  return loadOnce(key, async () => {
+    const hit = await shopCacheGetJson<T>(key)
+    if (hit !== null) return hit
+    const value = await input.load()
+    if (value != null) await shopCacheSetJson(key, input.ttlSec, value)
+    return value
+  })
 }
 
 export async function withSiteHtmlCache(input: {
@@ -180,11 +204,13 @@ export async function withSiteHtmlCache(input: {
   const ver = await siteVer(slug)
   const extra = input.extra ? `:${input.extra}` : ''
   const key = `pw:site:${slug}:v${ver}:html:${input.pageKey}:${input.device}${extra}`
-  const hit = await shopCacheGetJson<string>(key)
-  if (typeof hit === 'string' && hit.length >= 40) return hit
-  const value = await input.load()
-  if (value.length >= 40) await shopCacheSetJson(key, SITE_HTML_TTL_SEC, value)
-  return value
+  return loadOnce(key, async () => {
+    const hit = await shopCacheGetJson<string>(key)
+    if (typeof hit === 'string' && hit.length >= 40) return hit
+    const value = await input.load()
+    if (value.length >= 40) await shopCacheSetJson(key, SITE_HTML_TTL_SEC, value)
+    return value
+  })
 }
 
 /** Public storefront metadata/context; never includes project_files_json or visitor state. */
@@ -198,11 +224,13 @@ export async function withSiteMetaCache<T>(input: {
   if (!slug || !suffix) return input.load()
   const ver = await siteVer(slug)
   const key = `pw:site:${slug}:v${ver}:meta:${suffix}`
-  const hit = await shopCacheGetJson<T>(key)
-  if (hit !== null) return hit
-  const value = await input.load()
-  if (value != null) await shopCacheSetJson(key, SITE_META_TTL_SEC, value)
-  return value
+  return loadOnce(key, async () => {
+    const hit = await shopCacheGetJson<T>(key)
+    if (hit !== null) return hit
+    const value = await input.load()
+    if (value != null) await shopCacheSetJson(key, SITE_META_TTL_SEC, value)
+    return value
+  })
 }
 
 /** Extracted home header/footer for React cart/account — not personalized pills. Bust via `bumpSiteCache`. */
@@ -216,9 +244,11 @@ export async function withSiteChromeCache<T>(input: {
   if (!slug || !device) return input.load()
   const ver = await siteVer(slug)
   const key = `pw:site:${slug}:v${ver}:chrome:${device}`
-  const hit = await shopCacheGetJson<T>(key)
-  if (hit !== null) return hit
-  const value = await input.load()
-  if (value != null) await shopCacheSetJson(key, SITE_HTML_TTL_SEC, value)
-  return value
+  return loadOnce(key, async () => {
+    const hit = await shopCacheGetJson<T>(key)
+    if (hit !== null) return hit
+    const value = await input.load()
+    if (value != null) await shopCacheSetJson(key, SITE_HTML_TTL_SEC, value)
+    return value
+  })
 }

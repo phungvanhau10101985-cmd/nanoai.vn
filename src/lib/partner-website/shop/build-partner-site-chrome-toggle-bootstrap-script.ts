@@ -26,6 +26,7 @@ import {
   partnerSiteSessionApiPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
+import { PW_SITE_SALE_MO_SKIP_JS } from '@/lib/partner-website/promotions/partner-site-sale-display'
 
 /**
  * Live HTML shop: open/close category chrome, fill mega menu from
@@ -68,6 +69,7 @@ export function buildPartnerSiteChromeToggleBootstrapScript(input: {
 
   return `<script data-pw-chrome-toggle-bootstrap>(function(){
 ${PW_SHOP_LIVE_UI_OFF_FN};
+${PW_SITE_SALE_MO_SKIP_JS};
 window.__pwChromeToggleBoot=1;
 var SITE_SLUG=${JSON.stringify(slug)};
 var SKIP_AUTH_SYNC_KEY=${JSON.stringify(skipAuthSyncKey)};
@@ -1377,7 +1379,8 @@ function boot(){
 applyLocalAuth();
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 var moTimer=null;
-var mo=typeof MutationObserver!=='undefined'?new MutationObserver(function(){
+var mo=typeof MutationObserver!=='undefined'?new MutationObserver(function(recs){
+  if(pwSaleMoSkip(recs))return;
   if(moTimer)clearTimeout(moTimer);
   moTimer=setTimeout(function(){
     bindToggles();

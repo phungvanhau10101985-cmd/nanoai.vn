@@ -364,6 +364,14 @@ test('chrome layout css is injected once before </head>', () => {
     ),
     true
   )
+  assert.equal(once.includes('html[data-pw-edit-device="tablet"] .pw-header-main'), true)
+  assert.equal(once.includes('html[data-pw-edit-device="tablet"] .pw-brand-cluster'), true)
+  assert.equal(
+    once.includes(
+      'html[data-pw-edit-device="tablet"] .pw-header a.pw-brand:not([data-pw-logo-float])'
+    ),
+    true
+  )
   assert.equal(once.includes('[data-pw-chrome-style="icon"]'), true)
   assert.equal(once.includes('.pw-account-btn-label'), true)
   assert.equal(once.includes('html[data-pw-edit-device] :is(.pw-chrome-icon-only'), true)

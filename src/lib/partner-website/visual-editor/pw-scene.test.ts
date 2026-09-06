@@ -285,6 +285,9 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).not.toContain('ratio>1.04')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("querySelector('.pw-visual-'+k+',[data-pw-visual-device=\"'+k+'\"]')")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function pick(preferred)')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('var s=queryDevice()||stamped()||uaDevice();')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("if(/android/i.test(ua))return /mobile/i.test(ua)?'mobile':'tablet';")
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('touch>1&&/macintosh/i.test(ua)')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('[data-pw-added-bg="1"]')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("sc==='2'||sc==='3'||sc==='4'")
     expect(pwHostPrefixCss(['html[data-pw-edit-device="mobile"]'], '.pw-header-main{padding:8px}')).toBe(

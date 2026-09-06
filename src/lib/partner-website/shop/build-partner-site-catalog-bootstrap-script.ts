@@ -14,6 +14,7 @@ import { PW_PRODUCT_CATALOG_CARD_FACE_CSS } from '@/lib/partner-website/shop/pw-
 import { PW_PRODUCT_GRID_PAGE_JS } from '@/lib/partner-website/shop/pw-product-grid-page'
 import {
   PW_SITE_SALE_CARD_CSS,
+  PW_SITE_SALE_TICK_CHIPS_JS,
   PW_SITE_SALE_VIEW_JS,
   partnerSiteSaleCopy,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
@@ -137,7 +138,7 @@ function priceHtml(p){
 }
 function saleBadgeHtml(sale, opts){
   if(sale&&sale.badge){
-    var chip=sale.countdown?'<span class="pw-sale-chip pw-sale-chip-'+sale.kind+'" data-pw-sale-countdown="'+esc(sale.countdown)+'" data-pw-sale-phase="'+esc(sale.kind)+'"></span>':'';
+    var chip=sale.countdown?'<span class="pw-sale-chip pw-sale-chip-'+sale.kind+'" data-pw-sale-countdown="'+esc(sale.countdown)+'" data-pw-sale-phase="'+esc(sale.kind)+'">'+esc(sale.kind==='active'?COPY.remaining:COPY.startsAfter)+' <span data-pw-sale-hms></span></span>':'';
     return '<span class="pw-badge-sale pw-badge-sale-'+sale.kind+'">'+esc(sale.badge)+'</span>'+chip;
   }
   return (opts&&opts.newBadge)?'<span class="pw-badge-new">NEW</span>':'';
@@ -349,22 +350,9 @@ function ensureStyles(){
     document.head.appendChild(rel);
   }
 }
-function fmtChip(iso){
-  if(!iso)return '';
-  var t=Date.parse(iso);if(!Number.isFinite(t))return '';
-  var d=t-Date.now();if(d<=0)return '';
-  var s=Math.floor(d/1000),days=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60),sec=s%60;
-  var hms=('0'+h).slice(-2)+':'+('0'+m).slice(-2)+':'+('0'+sec).slice(-2);
-  return days>0?days+'d '+hms:hms;
-}
+${PW_SITE_SALE_TICK_CHIPS_JS}
 function tickSaleChips(){
-  document.querySelectorAll('[data-pw-sale-countdown]').forEach(function(el){
-    var iso=el.getAttribute('data-pw-sale-countdown')||'';
-    var phase=el.getAttribute('data-pw-sale-phase')||'teaser';
-    var left=fmtChip(iso);
-    el.textContent=left?((phase==='active'?COPY.remaining:COPY.startsAfter)+' '+left):'';
-    el.hidden=!left;
-  });
+  pwSaleTickChips(COPY.remaining,COPY.startsAfter);
 }
 function run(){
   ensureStyles();

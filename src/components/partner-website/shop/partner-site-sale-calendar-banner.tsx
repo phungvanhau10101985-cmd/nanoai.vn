@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerSaleCalendarState } from '@/lib/partner-website/promotions/partner-sale-calendar'
 import {
@@ -9,6 +9,7 @@ import {
   partnerSiteSaleBannerStorageKey,
   partnerSiteSaleBannerText,
   partnerSiteSaleCopy,
+  writePartnerSaleCountdownNode,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { partnerSiteSaleCalendarApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import type { PwPageKind } from '@/lib/partner-website/visual-editor/pw-ui-contract'
@@ -60,9 +61,14 @@ export function PartnerSiteSaleCalendarBanner({ siteSlug, locale, pageKind, hide
     }
   }, [ready, state, storageKey])
 
-  const [count, setCount] = useState(() => formatPartnerSaleCountdownCompact(state?.countdownTo))
+  const hmsRef = useRef<HTMLElement>(null)
+  const [hasCount, setHasCount] = useState(() => Boolean(formatPartnerSaleCountdownCompact(state?.countdownTo)))
   useEffect(() => {
-    const tick = () => setCount(formatPartnerSaleCountdownCompact(state?.countdownTo))
+    const tick = () => {
+      const next = formatPartnerSaleCountdownCompact(state?.countdownTo) || ''
+      writePartnerSaleCountdownNode(hmsRef.current, next)
+      setHasCount((prev) => (Boolean(next) === prev ? prev : Boolean(next)))
+    }
     tick()
     const id = window.setInterval(tick, 1000)
     return () => window.clearInterval(id)
@@ -79,7 +85,7 @@ export function PartnerSiteSaleCalendarBanner({ siteSlug, locale, pageKind, hide
   )
 
   return (
-    <aside data-pw-sale-calendar-banner="1" data-pw-sale-banner-react="1" data-pw-sale-phase={phase} role="status" aria-live="polite">
+    <aside data-pw-sale-calendar-banner="1" data-pw-sale-banner-react="1" data-pw-sale-phase={phase} role="status" aria-live="off">
       <button
         type="button"
         data-pw-sale-close
@@ -97,9 +103,12 @@ export function PartnerSiteSaleCalendarBanner({ siteSlug, locale, pageKind, hide
       </button>
       <p data-pw-sale-title>{title}</p>
       <p data-pw-sale-msg>{message}</p>
-      {count ? (
+      {hasCount ? (
         <span data-pw-sale-count>
-          {prefix} {count}
+          {prefix}{' '}
+          <strong data-pw-sale-hms ref={hmsRef}>
+            {formatPartnerSaleCountdownCompact(state.countdownTo) || ''}
+          </strong>
         </span>
       ) : null}
     </aside>

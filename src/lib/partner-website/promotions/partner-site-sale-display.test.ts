@@ -11,7 +11,11 @@ import {
   partnerSiteSaleBannerText,
   partnerSiteSaleDateBadgeLabel,
   partnerSiteSalePillText,
+  PW_SITE_SALE_CARD_CSS,
+  PW_SITE_SALE_MO_SKIP_JS,
+  PW_SITE_SALE_TICK_CHIPS_JS,
   resolvePartnerProductSaleFace,
+  writePartnerSaleCountdownNode,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
 
 test('teaser keeps list price and shows expected sale without charging it', () => {
@@ -100,4 +104,16 @@ test('banner copy follows 188 teaser and active wording', () => {
     applyPartnerSiteSaleToShopProduct({ priceAmount: 1_000_000, salePriceAmount: null }, teaser)
   )
   assert.match(String(partnerSiteSalePillText(face, 'vi')), /giảm 6%/)
+})
+
+test('sale countdown tick updates text nodes and skips banner hosts', () => {
+  assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /\.pw-sale-chip\[data-pw-sale-countdown\]/)
+  assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /data-pw-sale-calendar-banner/)
+  assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /nodeValue/)
+  assert.match(PW_SITE_SALE_MO_SKIP_JS, /\[data-pw-sale-hms\]/)
+  assert.match(PW_SITE_SALE_CARD_CSS, /tabular-nums/)
+  const text = { nodeType: 3, nodeValue: '01:00:00', nextSibling: null }
+  const el = { firstChild: text, textContent: '01:00:00' }
+  writePartnerSaleCountdownNode(el as unknown as Element, '00:59:59')
+  assert.equal(text.nodeValue, '00:59:59')
 })

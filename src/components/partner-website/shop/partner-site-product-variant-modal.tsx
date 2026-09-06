@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   nextShopImageRetrySrc,
@@ -17,6 +17,7 @@ import {
   partnerSiteSaleCopy,
   partnerSiteSalePillText,
   resolvePartnerProductSaleFace,
+  writePartnerSaleCountdownNode,
   type PartnerSiteSalePricing,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import {
@@ -151,7 +152,8 @@ export function PartnerSiteProductVariantModal({
   const [colorIndex, setColorIndex] = useState(0)
   const [size, setSize] = useState('')
   const [qty, setQty] = useState(1)
-  const [saleCount, setSaleCount] = useState('')
+  const [hasSaleCount, setHasSaleCount] = useState(false)
+  const saleHmsRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
     setReady(true)
@@ -215,10 +217,14 @@ export function PartnerSiteProductVariantModal({
 
   useEffect(() => {
     if (!open || !showSiteSale || !saleFace.countdownTo) {
-      setSaleCount('')
+      setHasSaleCount(false)
       return
     }
-    const tick = () => setSaleCount(formatPartnerSaleCountdownCompact(saleFace.countdownTo))
+    const tick = () => {
+      const next = formatPartnerSaleCountdownCompact(saleFace.countdownTo) || ''
+      writePartnerSaleCountdownNode(saleHmsRef.current, next)
+      setHasSaleCount((prev) => (Boolean(next) === prev ? prev : Boolean(next)))
+    }
     tick()
     const id = window.setInterval(tick, 1000)
     return () => window.clearInterval(id)
@@ -291,14 +297,16 @@ export function PartnerSiteProductVariantModal({
           {pillText}
         </span>
       ) : null}
-      {saleCount ? (
+      {hasSaleCount ? (
         <div data-pw-variant-sale-count>
           ⏱{' '}
           {(saleFace.kind === 'teaser' ? saleCopy.countdownStarts : saleCopy.countdownLeft).replace(
             '{label}',
             saleFace.eventLabel || (saleFace.kind === 'teaser' ? saleCopy.teaserFallback : saleCopy.activeFallback)
           )}{' '}
-          <strong data-pw-sale-hms>{saleCount}</strong>
+          <strong data-pw-sale-hms ref={saleHmsRef}>
+            {formatPartnerSaleCountdownCompact(saleFace.countdownTo) || ''}
+          </strong>
         </div>
       ) : null}
       <p data-pw-variant-price-label>

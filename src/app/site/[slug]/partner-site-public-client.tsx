@@ -27,7 +27,10 @@ import {
   PARTNER_SHOP_SCENE_CENTER_SCRIPT,
   PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID,
 } from '@/lib/partner-website/visual-editor/pw-scene'
-import { resolveLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-live-visual-request-device'
+import {
+  liveVisualDeviceVisibleInUserAgent,
+  resolveLiveVisualRequestDevice,
+} from '@/lib/partner-website/shop/infer-live-visual-request-device'
 import type { PartnerVisualHtmlByDevice } from '@/lib/partner-website/shop/render-partner-visual-html'
 import { PARTNER_LIVE_DEVICE_COOKIE } from '@/lib/auth/app-request-headers'
 
@@ -253,13 +256,24 @@ function PartnerSitePublicFrame({
     'desktop'
   const [activeDevice, setActiveDevice] = useState<VisualDeviceVariant>(firstDevice)
   useLayoutEffect(() => {
-    const viewportDevice = () =>
-      forceDevice ||
-      resolveLiveVisualRequestDevice({
-        viewportWidth: window.outerWidth || window.innerWidth || document.documentElement.clientWidth || 0,
-        devicePixelRatio: window.devicePixelRatio || 0,
-        userAgent: navigator.userAgent || '',
-      })
+    const viewportDevice = () => {
+      const ua = navigator.userAgent || ''
+      const fromUa = liveVisualDeviceVisibleInUserAgent(ua)
+      const cssWidth =
+        window.innerWidth || document.documentElement.clientWidth || 0
+      return (
+        forceDevice ||
+        resolveLiveVisualRequestDevice({
+          viewportWidth:
+            fromUa === 'mobile' || fromUa === 'tablet'
+              ? cssWidth
+              : window.outerWidth || cssWidth,
+          devicePixelRatio: window.devicePixelRatio || 0,
+          userAgent: ua,
+          maxTouchPoints: navigator.maxTouchPoints || 0,
+        })
+      )
+    }
     const choose = () => {
       const requested = viewportDevice()
       if (!availableDevices.length || availableDevices.includes(requested)) {
@@ -282,7 +296,12 @@ function PartnerSitePublicFrame({
       } catch {
         /* private mode */
       }
-      document.cookie = `${PARTNER_LIVE_DEVICE_COOKIE}=${requested}; Path=/; Max-Age=1800; SameSite=Lax`
+      const uaVisible = liveVisualDeviceVisibleInUserAgent(navigator.userAgent || '')
+      if (uaVisible === 'mobile' || uaVisible === 'tablet') {
+        document.cookie = `${PARTNER_LIVE_DEVICE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`
+      } else {
+        document.cookie = `${PARTNER_LIVE_DEVICE_COOKIE}=${requested}; Path=/; Max-Age=1800; SameSite=Lax`
+      }
       window.location.reload()
     }
     choose()

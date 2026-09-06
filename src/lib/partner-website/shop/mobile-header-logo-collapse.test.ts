@@ -87,6 +87,11 @@ test('chrome layout injects mobile logo script and stack CSS once', () => {
   assert.equal(once.includes('flex-wrap:wrap!important'), true)
   assert.equal(once.includes('.pw-container.pw-header-main'), true)
   assert.equal(once.includes('html[data-pw-edit-device="mobile"] .pw-brand-cluster'), true)
+  assert.equal(once.includes('html[data-pw-edit-device="tablet"] .pw-brand-cluster'), true)
+  assert.equal(
+    once.includes('html[data-pw-edit-device="tablet"] .pw-header a.pw-brand:not([data-pw-logo-float])'),
+    true
+  )
   assert.equal(once.includes('html[data-pw-edit-device="mobile"] [data-pw-region="topbar"]'), true)
   assert.equal(once.includes('html[data-pw-edit-device="mobile"] header [data-pw-chrome-btn="try-on"]'), true)
   assert.equal(once.includes('z-index:200!important'), true)

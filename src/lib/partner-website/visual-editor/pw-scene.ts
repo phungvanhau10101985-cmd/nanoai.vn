@@ -772,8 +772,13 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
   ${PW_ENSURE_CONTENT_SCENE_ROOT_SOURCE}
   function uaDevice(){
     var ua=navigator.userAgent||'';
+    var touch=0;
+    try{touch=Number(navigator.maxTouchPoints||0)}catch(eT){}
     if(/ipad|tablet|kindle|silk/i.test(ua))return'tablet';
-    if(/mobile|iphone|ipod|android/i.test(ua))return'mobile';
+    if(/iphone|ipod/i.test(ua))return'mobile';
+    if(/android/i.test(ua))return /mobile/i.test(ua)?'mobile':'tablet';
+    if(/mobile/i.test(ua))return'mobile';
+    if(touch>1&&/macintosh/i.test(ua))return'tablet';
     return '';
   }
   function queryDevice(){
@@ -788,7 +793,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     return html&&html.getAttribute?String(html.getAttribute('data-pw-edit-device')||''):'';
   }
   function band(){
-    var s=queryDevice()||(isEditor()?stamped():'')||uaDevice()||stamped();
+    var s=queryDevice()||stamped()||uaDevice();
     return C.resolveDevice({
       forcedDevice:s,
       outerWidth:(s==='mobile'||s==='tablet')?(window.innerWidth||0):(window.outerWidth||0),

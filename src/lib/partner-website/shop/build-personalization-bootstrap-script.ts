@@ -12,6 +12,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
   PW_SITE_SALE_CARD_CSS,
+  PW_SITE_SALE_TICK_CHIPS_JS,
   PW_SITE_SALE_VIEW_JS,
   partnerSiteSaleCopy,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
@@ -244,7 +245,7 @@ function priceHtml(p){
 }
 function saleBadgeHtml(sale,badge){
   if(sale&&sale.badge){
-    var chip=sale.countdown?'<span class="pw-sale-chip pw-sale-chip-'+sale.kind+'" data-pw-sale-countdown="'+String(sale.countdown).replace(/"/g,'')+'" data-pw-sale-phase="'+sale.kind+'"></span>':'';
+    var chip=sale.countdown?'<span class="pw-sale-chip pw-sale-chip-'+sale.kind+'" data-pw-sale-countdown="'+String(sale.countdown).replace(/"/g,'')+'" data-pw-sale-phase="'+sale.kind+'">'+(sale.kind==='active'?COPY.remaining:COPY.startsAfter)+' <span data-pw-sale-hms></span></span>':'';
     return '<span class="pw-badge-sale pw-badge-sale-'+sale.kind+'">'+sale.badge+'</span>'+chip;
   }
   return badge?'<span class="pw-for-you-badge">'+COPY.forYou+'</span>':'';
@@ -501,22 +502,9 @@ function applyGreeting(){
 function featuredHosts(){
   return document.querySelectorAll('[data-pw-featured-categories],section.pw-categories,.pw-categories,[data-pw-region="categories"]');
 }
-function fmtChip(iso){
-  if(!iso)return '';
-  var t=Date.parse(iso);if(!Number.isFinite(t))return '';
-  var d=t-Date.now();if(d<=0)return '';
-  var s=Math.floor(d/1000),days=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60),sec=s%60;
-  var hms=('0'+h).slice(-2)+':'+('0'+m).slice(-2)+':'+('0'+sec).slice(-2);
-  return days>0?days+'d '+hms:hms;
-}
+${PW_SITE_SALE_TICK_CHIPS_JS}
 function tickSaleChips(){
-  document.querySelectorAll('[data-pw-sale-countdown]').forEach(function(el){
-    var iso=el.getAttribute('data-pw-sale-countdown')||'';
-    var phase=el.getAttribute('data-pw-sale-phase')||'teaser';
-    var left=fmtChip(iso);
-    el.textContent=left?((phase==='active'?COPY.remaining:COPY.startsAfter)+' '+left):'';
-    el.hidden=!left;
-  });
+  pwSaleTickChips(COPY.remaining,COPY.startsAfter);
 }
 function run(){
   if(!document.getElementById('pw-site-sale-css')){var st=document.createElement('style');st.id='pw-site-sale-css';st.textContent=${JSON.stringify(PW_SITE_SALE_CARD_CSS)};document.head.appendChild(st);}

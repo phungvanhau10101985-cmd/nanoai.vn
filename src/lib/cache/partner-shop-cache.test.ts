@@ -5,6 +5,7 @@ import {
   liveCategoryBindCacheSuffix,
   shopCacheGetJson,
   shopCacheSetJson,
+  withInventoryShopCache,
 } from '@/lib/cache/partner-shop-cache'
 
 test('liveCategoryBindCacheSuffix is per visitor, not per product', () => {
@@ -51,5 +52,47 @@ test('shopCacheGetJson hits in-process memory when Redis is absent', async () =>
   await shopCacheSetJson(key, 60, { ok: 1, slug: 'demo' })
   const hit = await shopCacheGetJson<{ ok: number; slug: string }>(key)
   assert.deepEqual(hit, { ok: 1, slug: 'demo' })
+})
+
+test('concurrent cold cache requests share one backend load', async () => {
+  const partnerId = `test-${Date.now()}-${Math.random()}`
+  let loads = 0
+  const run = () =>
+    withInventoryShopCache({
+      partnerId,
+      kind: 'cat',
+      suffix: 'single-flight',
+      ttlSec: 60,
+      load: async () => {
+        loads += 1
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        return { ok: true }
+      },
+    })
+
+  const results = await Promise.all([run(), run(), run(), run()])
+  assert.equal(loads, 1)
+  assert.deepEqual(results, Array.from({ length: 4 }, () => ({ ok: true })))
+})
+
+test('failed shared load is cleared so a later request can retry', async () => {
+  const partnerId = `test-retry-${Date.now()}-${Math.random()}`
+  let loads = 0
+  const run = () =>
+    withInventoryShopCache({
+      partnerId,
+      kind: 'item',
+      suffix: 'single-flight-retry',
+      ttlSec: 60,
+      load: async () => {
+        loads += 1
+        if (loads === 1) throw new Error('temporary')
+        return { ok: true }
+      },
+    })
+
+  await assert.rejects(() => Promise.all([run(), run()]), /temporary/)
+  assert.deepEqual(await run(), { ok: true })
+  assert.equal(loads, 2)
 })
 

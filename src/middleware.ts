@@ -3,7 +3,6 @@ import {
   APP_LOGIN_NEXT_HEADER,
   APP_LOGIN_NEXT_HEADER_LEGACY,
   PARTNER_CUSTOM_DOMAIN_HEADER,
-  PARTNER_LIVE_DEVICE_COOKIE,
   PARTNER_VISUAL_DEVICE_HEADER,
 } from '@/lib/auth/app-request-headers'
 import { getJwtUserFromRequest } from '@/lib/auth/email-jwt-middleware'
@@ -69,16 +68,11 @@ function parseVisualDeviceToken(raw: string): string {
     : ''
 }
 
-/** Query `?pw-device=` thắng. Cookie live (viewport đổi máy) chỉ khi không có query. Xóa header client tự gắn. */
+/** Query `?pw-device=` thắng. Cookie live không gắn header — phone/tablet UA phải thắng cookie cũ. */
 function applyVisualDeviceHeader(headers: Headers, request: NextRequest) {
   const fromQuery = parseVisualDeviceToken(request.nextUrl.searchParams.get('pw-device') || '')
   if (fromQuery) {
     headers.set(PARTNER_VISUAL_DEVICE_HEADER, fromQuery)
-    return
-  }
-  const fromCookie = parseVisualDeviceToken(request.cookies.get(PARTNER_LIVE_DEVICE_COOKIE)?.value || '')
-  if (fromCookie) {
-    headers.set(PARTNER_VISUAL_DEVICE_HEADER, fromCookie)
     return
   }
   headers.delete(PARTNER_VISUAL_DEVICE_HEADER)

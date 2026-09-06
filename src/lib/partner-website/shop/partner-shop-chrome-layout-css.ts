@@ -287,12 +287,20 @@ const PW_TABLET_HEADER_FACE_RULES = `
 .pw-search-submit .pw-shop-search-submit-label,.pw-shop-search-submit .pw-shop-search-submit-label{display:none!important;font-size:0!important}
 `.trim()
 
+/** Tablet = một hàng (logo cạnh ô tìm). Không mượn hàng logo giữa của mobile. */
+const PW_TABLET_HEADER_LOGO_ROW_RULES = `
+.pw-header-main,.pw-shop-header-inner{flex-wrap:nowrap!important}
+.pw-brand-cluster,.pw-shop-brand-cluster{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;max-width:none!important}
+.pw-header a.pw-brand:not([data-pw-logo-float]),.pw-shop-header a.pw-shop-brand:not([data-pw-logo-float]),.pw-header a[data-pw-logo-home]:not([data-pw-logo-float]),.pw-shop-header a[data-pw-logo-home]:not([data-pw-logo-float]){order:0!important;flex:0 0 auto!important;width:auto!important;max-width:min(180px,30vw)!important;justify-content:flex-start!important;position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:translate(var(--pw-logo-x, 0px), var(--pw-logo-y, 0px))!important}
+`.trim()
+
 export const PARTNER_SHOP_MOBILE_HEADER_SEARCH_LOCK_CSS = [
   pwHostPrefixCss(PW_SCENE_COMPACT_HOSTS, PW_COMPACT_HEADER_RULES),
   pwHostPrefixCss(PW_SCENE_PHONE_HOSTS, PW_PHONE_HEADER_FACE_RULES),
   pwHostPrefixCss(PW_SCENE_PHONE_HOSTS, PW_MOBILE_HEADER_STACK_RULES),
   pwHostPrefixCss(PW_SCENE_PHONE_HOSTS, PW_MOBILE_HEADER_ICON_ONLY_RULES),
   pwHostPrefixCss(PW_SCENE_TABLET_HOSTS, PW_TABLET_HEADER_FACE_RULES),
+  pwHostPrefixCss(PW_SCENE_TABLET_HOSTS, PW_TABLET_HEADER_LOGO_ROW_RULES),
   pwHostPrefixCss(
     PW_SCENE_WIDE_HOSTS,
     '.pw-nav-main,.pw-shop-nav-row{display:flex!important;flex-wrap:nowrap!important;justify-content:center!important;align-items:center!important}.pw-header,.pw-shop-header{background:#fff!important;border-bottom:1px solid #f3f4f6!important;box-shadow:none!important}'

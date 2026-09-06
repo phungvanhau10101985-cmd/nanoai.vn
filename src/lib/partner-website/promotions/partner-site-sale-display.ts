@@ -412,7 +412,7 @@ export const PW_SITE_SALE_CARD_CSS = [
   '.pw-badge-sale{position:absolute;top:8px;left:8px;z-index:2;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;letter-spacing:.02em;line-height:1.2}',
   '.pw-badge-sale-teaser{background:#d97706}',
   '.pw-badge-sale-active{background:#dc2626}',
-  '.pw-sale-chip{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:4px 6px;color:#fff;font:700 10px/1.2 system-ui,sans-serif;text-align:center}',
+  '.pw-sale-chip{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:4px 6px;color:#fff;font:700 10px/1.2 system-ui,sans-serif;text-align:center;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap}',
   '.pw-sale-chip-teaser{background:rgba(180,83,9,.95)}',
   '.pw-sale-chip-active{background:rgba(185,28,28,.95)}',
   '.pw-price-sale{color:var(--pw-primary);font-weight:800}',
@@ -429,7 +429,9 @@ export const PW_SITE_SALE_CARD_CSS = [
   '[data-pw-sale-calendar-banner][data-pw-sale-phase="active"]{background:linear-gradient(90deg,#ffedd5,#fef2f2);color:#7c2d12;border-color:#fdba74}',
   '[data-pw-sale-calendar-banner] [data-pw-sale-title]{margin:0;font:700 13px/1.35 system-ui,sans-serif}',
   '[data-pw-sale-calendar-banner] [data-pw-sale-msg]{margin:2px 0 0;font-size:12px;opacity:.92}',
-  '[data-pw-sale-calendar-banner] [data-pw-sale-count]{margin:4px 0 0;display:block;font:600 12px/1.3 system-ui,sans-serif}',
+  '[data-pw-sale-calendar-banner] [data-pw-sale-count]{margin:4px 0 0;display:block;font:600 12px/1.3 system-ui,sans-serif;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap}',
+  '[data-pw-sale-hms]{display:inline-block;min-width:8ch;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap}',
+  '.pw-sale-count,[data-pw-variant-sale-count]{font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap}',
   '[data-pw-sale-calendar-banner] [data-pw-sale-close]{position:absolute;right:6px;top:6px;width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:inherit;opacity:.7;cursor:pointer;font:600 18px/1 system-ui,sans-serif}',
   '[data-pw-sale-calendar-banner] [data-pw-sale-close]:hover{background:rgba(255,255,255,.55);opacity:1}',
 ].join('')
@@ -464,4 +466,74 @@ function saleView(p){
   if(Number.isFinite(end)&&now>end)return null;
   var livePct=pct>0&&pct<100?pct:Math.max(1,Math.round((list-sale)*100/list));
   return {kind:'active',price:money(sale),compare:money(list),expected:'',percent:livePct,badge:badge||('-'+livePct+'%'),savings:money(list-sale),countdown:countdown};
+}`
+
+/** Update countdown digits without childList (avoids shop hydrate / chrome flicker each second). */
+export function writePartnerSaleCountdownNode(el: Element | null | undefined, next: string) {
+  if (!el) return
+  const text = String(next || '')
+  const node = el.firstChild
+  if (node && node.nodeType === 3 && !node.nextSibling) {
+    if (node.nodeValue !== text) node.nodeValue = text
+    return
+  }
+  if ((el.textContent || '') !== text) el.textContent = text
+}
+
+export const PW_SITE_SALE_MO_SKIP_SEL =
+  '[data-pw-sale-hms],.pw-sale-chip,[data-pw-sale-count],[data-pw-sale-calendar-banner],[data-pw-variant-sale-count]'
+
+export const PW_SITE_SALE_TICK_CHIPS_JS = `function pwSaleSetText(el,next){
+  if(!el)return;
+  next=String(next||'');
+  var n=el.firstChild;
+  if(n&&n.nodeType===3&&!n.nextSibling){
+    if(n.nodeValue!==next)n.nodeValue=next;
+    return;
+  }
+  if((el.textContent||'')===next)return;
+  el.textContent=next;
+}
+function pwSaleFmtChip(iso){
+  if(!iso)return '';
+  var t=Date.parse(iso);if(!Number.isFinite(t))return '';
+  var d=t-Date.now();if(d<=0)return '';
+  var s=Math.floor(d/1000),days=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60),sec=s%60;
+  var hms=('0'+h).slice(-2)+':'+('0'+m).slice(-2)+':'+('0'+sec).slice(-2);
+  return days>0?days+'d '+hms:hms;
+}
+function pwSaleTickChips(remaining,startsAfter){
+  document.querySelectorAll('.pw-sale-chip[data-pw-sale-countdown]').forEach(function(el){
+    if(el.closest&&el.closest('[data-pw-sale-calendar-banner],[data-pw-variant-sale]'))return;
+    var iso=el.getAttribute('data-pw-sale-countdown')||'';
+    var phase=el.getAttribute('data-pw-sale-phase')||'teaser';
+    var left=pwSaleFmtChip(iso);
+    if(!left){
+      if(!el.hidden)el.hidden=true;
+      return;
+    }
+    if(el.hidden)el.hidden=false;
+    var hms=el.querySelector('[data-pw-sale-hms]');
+    if(!hms){
+      el.textContent='';
+      el.appendChild(document.createTextNode(String(phase==='active'?remaining:startsAfter)+' '));
+      hms=document.createElement('span');
+      hms.setAttribute('data-pw-sale-hms','1');
+      hms.appendChild(document.createTextNode(left));
+      el.appendChild(hms);
+      return;
+    }
+    pwSaleSetText(hms,left);
+  });
+}`
+
+export const PW_SITE_SALE_MO_SKIP_JS = `function pwSaleMoSkip(recs){
+  if(!recs||!recs.length)return false;
+  var sel=${JSON.stringify(PW_SITE_SALE_MO_SKIP_SEL)};
+  for(var i=0;i<recs.length;i++){
+    var tg=recs[i].target;
+    var el=tg&&(tg.nodeType===1?tg:tg.parentElement||tg.parentNode);
+    if(!el||!el.closest||!el.closest(sel))return false;
+  }
+  return true;
 }`

@@ -1,6 +1,7 @@
 /** Viewport-fixed chrome: Chat mua / Zalo / Facebook / Top up — đặt đâu nổi đó. */
 
 import { PW_PLACEMENT_ATTR } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
+import { PW_SITE_SALE_MO_SKIP_JS } from '@/lib/partner-website/promotions/partner-site-sale-display'
 
 export const PW_CHROME_FLOAT_ATTR = 'data-pw-chrome-float'
 /** Any Sửa nhanh element pinned to the viewport (scrolls stay, swipe does not drag it). */
@@ -613,6 +614,7 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
     return;
   }
   window.__pwChromeFloatBound = 1;
+  ${PW_SITE_SALE_MO_SKIP_JS}
   var ATTR = '${PW_CHROME_FLOAT_ATTR}';
   var PIN = '${PW_PIN_SCREEN_ATTR}';
   var ON = '${PW_CHROME_TOPUP_ON_CLASS}';
@@ -808,7 +810,8 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
   window.addEventListener('resize', onScroll);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ dedupeFloats(); stamp(); syncTopup(); });
   else syncTopup();
-  var mo=typeof MutationObserver!=='undefined'?new MutationObserver(function(){
+  var mo=typeof MutationObserver!=='undefined'?new MutationObserver(function(recs){
+    if(pwSaleMoSkip(recs))return;
     try{
       if(document.body&&(document.body.classList.contains('nanoai-ve-dragging')||document.querySelector('[data-nanoai-ve-selected][data-pw-chrome-float="1"]'))){
         syncTopup();

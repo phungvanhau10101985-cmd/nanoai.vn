@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
   formatPartnerSaleCountdownCompact,
   formatPartnerSaleMoney,
   partnerSiteSaleCopy,
   resolvePartnerProductSaleFace,
+  writePartnerSaleCountdownNode,
   type PartnerProductSaleFace,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
@@ -27,17 +28,25 @@ export function PartnerSiteSaleCountdown({
   overlay?: boolean
 }) {
   const copy = partnerSiteSaleCopy(locale)
-  const [label, setLabel] = useState(() => formatPartnerSaleCountdownCompact(countdownTo))
+  const hmsRef = useRef<HTMLSpanElement>(null)
+  const [visible, setVisible] = useState(() => Boolean(formatPartnerSaleCountdownCompact(countdownTo)))
   useEffect(() => {
-    const tick = () => setLabel(formatPartnerSaleCountdownCompact(countdownTo))
+    const tick = () => {
+      const next = formatPartnerSaleCountdownCompact(countdownTo) || ''
+      writePartnerSaleCountdownNode(hmsRef.current, next)
+      setVisible((prev) => (Boolean(next) === prev ? prev : Boolean(next)))
+    }
     tick()
     const id = window.setInterval(tick, 1000)
     return () => window.clearInterval(id)
   }, [countdownTo])
-  if (!label) return null
+  if (!visible) return null
   return (
     <span className={overlay ? `pw-sale-chip pw-sale-chip-${phase}` : `pw-sale-count pw-sale-count-${phase}`}>
-      {phase === 'active' ? copy.remaining : copy.startsAfter} {label}
+      {phase === 'active' ? copy.remaining : copy.startsAfter}{' '}
+      <span data-pw-sale-hms ref={hmsRef}>
+        {formatPartnerSaleCountdownCompact(countdownTo) || ''}
+      </span>
     </span>
   )
 }

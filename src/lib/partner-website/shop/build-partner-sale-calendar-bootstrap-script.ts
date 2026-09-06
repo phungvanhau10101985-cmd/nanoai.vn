@@ -2,6 +2,8 @@ import type { WebLocale } from '@/lib/i18n/config'
 import {
   partnerSiteSaleCopy,
   PW_SITE_SALE_CARD_CSS,
+  PW_SITE_SALE_MO_SKIP_JS,
+  PW_SITE_SALE_TICK_CHIPS_JS,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { partnerSiteSaleCalendarApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 
@@ -34,14 +36,8 @@ function shouldShow(){
   if(path==='/'||/^\\/site\\/[^/]+$/.test(path))return false;
   return true;
 }
-function fmtChip(iso){
-  if(!iso)return '';
-  var t=Date.parse(iso);if(!Number.isFinite(t))return '';
-  var d=t-Date.now();if(d<=0)return '';
-  var s=Math.floor(d/1000),days=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60),sec=s%60;
-  var hms=('0'+h).slice(-2)+':'+('0'+m).slice(-2)+':'+('0'+sec).slice(-2);
-  return days>0?days+'d '+hms:hms;
-}
+${PW_SITE_SALE_TICK_CHIPS_JS}
+${PW_SITE_SALE_MO_SKIP_JS}
 function bannerText(s){
   if(!s||!s.enabled||s.phase==='off'||!(s.discountPercent>0))return '';
   var tpl=s.phase==='active'?COPY.activeBanner:COPY.teaserBanner;
@@ -104,20 +100,20 @@ function paint(data){
     el=document.createElement('aside');
     el.setAttribute('data-pw-sale-calendar-banner','1');
     el.setAttribute('role','status');
-    el.setAttribute('aria-live','polite');
+    el.setAttribute('aria-live','off');
   }
   placeEl(el,slot);
   var phase=s.phase==='active'?'active':'teaser';
   el.setAttribute('data-pw-sale-phase',phase);
-  el.setAttribute('data-pw-sale-countdown',s.countdownTo||'');
+  el.setAttribute('data-pw-sale-until',s.countdownTo||'');
+  el.removeAttribute('data-pw-sale-countdown');
   var lead=(s.isTest?'[Test] ':'')+(s.eventLabel||COPY.program||'');
-  var prefix=phase==='active'?COPY.countdownLeft:COPY.countdownStarts;
-  var count=fmtChip(s.countdownTo);
-  var countLine=count?String(prefix||'').replace('{label}',s.eventLabel||COPY.program||'')+' '+count:'';
+  var prefix=String(phase==='active'?COPY.countdownLeft:COPY.countdownStarts||'').replace('{label}',s.eventLabel||COPY.program||'');
+  var count=pwSaleFmtChip(s.countdownTo);
   el.innerHTML='<button type="button" data-pw-sale-close aria-label="'+String(COPY.close||'Close').replace(/"/g,'')+'">×</button>'
     +'<p data-pw-sale-title>'+lead.replace(/</g,'&lt;')+'</p>'
     +'<p data-pw-sale-msg>'+msg.replace(/</g,'&lt;')+'</p>'
-    +(countLine?'<span data-pw-sale-count>'+countLine.replace(/</g,'&lt;')+'</span>':'');
+    +(count?'<span data-pw-sale-count>'+prefix.replace(/</g,'&lt;')+' <strong data-pw-sale-hms>'+count.replace(/</g,'&lt;')+'</strong></span>':'');
   var close=el.querySelector('[data-pw-sale-close]');
   if(close)close.onclick=function(){
     try{sessionStorage.setItem(storageKey(s),'1');}catch(e2){}
@@ -127,23 +123,35 @@ function paint(data){
 function tick(){
   var el=document.querySelector('[data-pw-sale-calendar-banner]');
   if(!el||el.getAttribute('data-pw-sale-banner-react')==='1')return;
-  var iso=el.getAttribute('data-pw-sale-countdown')||'';
-  var phase=el.getAttribute('data-pw-sale-phase')||'teaser';
-  var title=el.querySelector('[data-pw-sale-title]');
-  var label=title?String(title.textContent||'').replace(/^\\[Test\\]\\s*/,''):'';
-  var prefix=phase==='active'?COPY.countdownLeft:COPY.countdownStarts;
-  var count=fmtChip(iso);
+  var iso=el.getAttribute('data-pw-sale-until')||el.getAttribute('data-pw-sale-countdown')||'';
+  var count=pwSaleFmtChip(iso);
   var node=el.querySelector('[data-pw-sale-count]');
+  var hms=el.querySelector('[data-pw-sale-hms]');
   if(!count){if(node)node.remove();return;}
-  var line=String(prefix||'').replace('{label}',label||COPY.program||'')+' '+count;
-  if(!node){node=document.createElement('span');node.setAttribute('data-pw-sale-count','');el.appendChild(node);}
-  node.textContent=line;
+  if(hms){pwSaleSetText(hms,count);return;}
+  if(!node){
+    var phase=el.getAttribute('data-pw-sale-phase')||'teaser';
+    var title=el.querySelector('[data-pw-sale-title]');
+    var label=title?String(title.textContent||'').replace(/^\\[Test\\]\\s*/,''):'';
+    var prefix=String(phase==='active'?COPY.countdownLeft:COPY.countdownStarts||'').replace('{label}',label||COPY.program||'');
+    node=document.createElement('span');
+    node.setAttribute('data-pw-sale-count','');
+    node.appendChild(document.createTextNode(prefix+' '));
+    hms=document.createElement('strong');
+    hms.setAttribute('data-pw-sale-hms','1');
+    hms.appendChild(document.createTextNode(count));
+    node.appendChild(hms);
+    el.appendChild(node);
+    return;
+  }
+  pwSaleSetText(node,count);
 }
 fetch(API,{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null;}).then(function(data){
   paint(data);
   if(!window.__pwSaleBannerTimer)window.__pwSaleBannerTimer=setInterval(tick,1000);
   if(!window.__pwSaleBannerMo && !document.querySelector('[data-pw-live-chrome]')){
-    window.__pwSaleBannerMo=new MutationObserver(function(){
+    window.__pwSaleBannerMo=new MutationObserver(function(recs){
+      if(pwSaleMoSkip(recs))return;
       if(document.querySelector('[data-pw-live-chrome]')){paint(window.__pwSaleBannerData);window.__pwSaleBannerMo.disconnect();}
     });
     window.__pwSaleBannerMo.observe(document.documentElement,{childList:true,subtree:true});

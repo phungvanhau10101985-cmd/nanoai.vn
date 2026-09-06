@@ -531,7 +531,14 @@ function tickVariantSale(){
   var st=window.__pwVariantState;
   if(!st||!st.saleFace||!st.saleFace.countdown)return;
   var el=root.querySelector('[data-pw-variant-sale-count] [data-pw-sale-hms]');
-  if(el)el.textContent=variantFmtChip(st.saleFace.countdown);
+  if(!el)return;
+  var next=variantFmtChip(st.saleFace.countdown);
+  var n=el.firstChild;
+  if(n&&n.nodeType===3&&!n.nextSibling){
+    if(n.nodeValue!==next)n.nodeValue=next;
+    return;
+  }
+  if((el.textContent||'')!==next)el.textContent=next;
 }
 function confirmVariantModal(buyNow){
   var st=window.__pwVariantState;if(!st||st.busy)return;

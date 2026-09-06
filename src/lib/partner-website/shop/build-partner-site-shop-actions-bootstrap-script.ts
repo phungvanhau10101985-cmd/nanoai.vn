@@ -24,7 +24,10 @@ import {
   PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS,
   type ProductVariantModalCopy,
 } from '@/lib/partner-website/shop/partner-site-product-variant-modal'
-import { partnerSiteSaleCopy } from '@/lib/partner-website/promotions/partner-site-sale-display'
+import {
+  partnerSiteSaleCopy,
+  PW_SITE_SALE_MO_SKIP_JS,
+} from '@/lib/partner-website/promotions/partner-site-sale-display'
 
 function variantModalCopyKeys(c: ProductVariantModalCopy) {
   return {
@@ -175,6 +178,7 @@ export function buildPartnerSiteShopActionsBootstrapScript(input: {
 
   return `<script data-pw-shop-actions-bootstrap>(function(){
 ${PW_SHOP_LIVE_UI_OFF_FN};
+${PW_SITE_SALE_MO_SKIP_JS};
 var CART_API=${JSON.stringify(cartApi)};
 var EVENTS_API=${JSON.stringify(eventsApi)};
 var FAV_API=${JSON.stringify(favApi)};
@@ -814,6 +818,7 @@ function run(){captureGoogleDiscount();captureAffiliate();runHydrate(true);
   var moTimer=null;
   var obs=typeof MutationObserver!=='undefined'?new MutationObserver(function(recs){
     if(window.__pwShopHydrating)return;
+    if(pwSaleMoSkip(recs))return;
     if(recs&&recs.length){
       var onlyVe=true;
       for(var ri=0;ri<recs.length;ri++){
