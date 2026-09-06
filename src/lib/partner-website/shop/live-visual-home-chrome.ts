@@ -76,15 +76,16 @@ async function liveVisualHomeChromeShellPropsUncached(
   previewDevice?: VisualDeviceVariant | null
 ): Promise<LiveVisualHomeChromeShellProps> {
   const device = previewDevice || inferLiveVisualRequestDevice()
-  const extracted = website.siteSlug
-    ? await withSiteChromeCache({
-        slug: website.siteSlug,
-        device,
-        load: () => extractHomeChromeForDevice(website, device),
-      }).then((hit) => (isCachedHomeChrome(hit) ? hit : extractHomeChromeForDevice(website, device)))
-    : await extractHomeChromeForDevice(website, device)
-
-  const bind = website.siteSlug ? await loadSiteLiveCategoryBind(website.siteSlug) : null
+  const [extracted, bind] = await Promise.all([
+    website.siteSlug
+      ? withSiteChromeCache({
+          slug: website.siteSlug,
+          device,
+          load: () => extractHomeChromeForDevice(website, device),
+        }).then((hit) => (isCachedHomeChrome(hit) ? hit : extractHomeChromeForDevice(website, device)))
+      : extractHomeChromeForDevice(website, device),
+    website.siteSlug ? loadSiteLiveCategoryBind(website.siteSlug) : Promise.resolve(null),
+  ])
   if (!bind) {
     return { ...extracted, previewDevice: device, initialNavRow: [], initialShowNavAll: false }
   }

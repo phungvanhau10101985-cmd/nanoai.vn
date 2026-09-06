@@ -469,11 +469,13 @@ function PartnerSiteShopShellInner({
   }, [loadCartCount, registerCartLoader])
 
   useEffect(() => {
-    if (!ready) return
+    // The cart screen loads the same payload and updates the shared badge itself.
+    // Avoid sending two identical authenticated cart requests during navigation.
+    if (!ready || activeNav === 'cart') return
     void loadCartCount().then(() => {
       document.dispatchEvent(new Event('pw-cart-updated'))
     })
-  }, [loadCartCount, ready])
+  }, [activeNav, loadCartCount, ready])
 
   useEffect(() => {
     if (!ready || !isAuthenticated) {

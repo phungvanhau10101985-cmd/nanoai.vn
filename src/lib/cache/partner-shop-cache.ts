@@ -187,6 +187,24 @@ export async function withSiteHtmlCache(input: {
   return value
 }
 
+/** Public storefront metadata/context; never includes project_files_json or visitor state. */
+export async function withSiteMetaCache<T>(input: {
+  slug: string
+  suffix: string
+  load: () => Promise<T>
+}): Promise<T> {
+  const slug = input.slug.trim().toLowerCase()
+  const suffix = input.suffix.trim().toLowerCase()
+  if (!slug || !suffix) return input.load()
+  const ver = await siteVer(slug)
+  const key = `pw:site:${slug}:v${ver}:meta:${suffix}`
+  const hit = await shopCacheGetJson<T>(key)
+  if (hit !== null) return hit
+  const value = await input.load()
+  if (value != null) await shopCacheSetJson(key, SITE_META_TTL_SEC, value)
+  return value
+}
+
 /** Extracted home header/footer for React cart/account — not personalized pills. Bust via `bumpSiteCache`. */
 export async function withSiteChromeCache<T>(input: {
   slug: string

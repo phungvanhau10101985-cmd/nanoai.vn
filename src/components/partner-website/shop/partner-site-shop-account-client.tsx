@@ -1,5 +1,6 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell, Copy, Download, MessageCircle } from 'lucide-react'
@@ -19,10 +20,6 @@ import {
   buildPartnerShopLoginHref,
   getPartnerShopBrowserReturnLocation,
 } from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
-import { PartnerSiteShopCartClient } from '@/components/partner-website/shop/partner-site-shop-cart-client'
-import { PartnerSiteShopOrdersClient } from '@/components/partner-website/shop/partner-site-shop-orders-client'
-import { PartnerSiteShopSavedProductsClient } from '@/components/partner-website/shop/partner-site-shop-saved-products-client'
-import { PartnerSiteShopAddressesClient } from '@/components/partner-website/shop/partner-site-shop-addresses-client'
 import { PartnerSitePushEnableCard } from '@/components/partner-website/shop/partner-site-push-enable-card'
 import { usePartnerSiteChatWidget } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
@@ -36,6 +33,35 @@ import {
   type PartnerShopGender,
 } from '@/lib/partner-website/shop/partner-site-profile-demographics'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+
+const PartnerSiteShopCartClient = dynamic(
+  () =>
+    import('@/components/partner-website/shop/partner-site-shop-cart-client').then(
+      (module) => module.PartnerSiteShopCartClient
+    ),
+  { loading: () => <p className="pw-shop-muted">…</p> }
+)
+const PartnerSiteShopOrdersClient = dynamic(
+  () =>
+    import('@/components/partner-website/shop/partner-site-shop-orders-client').then(
+      (module) => module.PartnerSiteShopOrdersClient
+    ),
+  { loading: () => <p className="pw-shop-muted">…</p> }
+)
+const PartnerSiteShopSavedProductsClient = dynamic(
+  () =>
+    import('@/components/partner-website/shop/partner-site-shop-saved-products-client').then(
+      (module) => module.PartnerSiteShopSavedProductsClient
+    ),
+  { loading: () => <p className="pw-shop-muted">…</p> }
+)
+const PartnerSiteShopAddressesClient = dynamic(
+  () =>
+    import('@/components/partner-website/shop/partner-site-shop-addresses-client').then(
+      (module) => module.PartnerSiteShopAddressesClient
+    ),
+  { loading: () => <p className="pw-shop-muted">…</p> }
+)
 
 type AccountTab = PartnerSiteAccountTab
 

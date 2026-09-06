@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import { withSiteMetaCache } from '@/lib/cache/partner-shop-cache'
 import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
 import { fetchPartnerCapabilitiesForPartnerFromPg } from '@/lib/db/messaging-partners-pg'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
@@ -56,7 +57,13 @@ async function loadPartnerSiteShopContextUncached(siteSlug: string): Promise<Par
 const loadPartnerSiteShopContextCached = cache(loadPartnerSiteShopContextUncached)
 
 export function loadPartnerSiteShopContext(siteSlug: string): Promise<PartnerSiteShopContext | null> {
-  return loadPartnerSiteShopContextCached(siteSlug.trim().toLowerCase())
+  const slug = siteSlug.trim().toLowerCase()
+  if (!slug) return Promise.resolve(null)
+  return withSiteMetaCache({
+    slug,
+    suffix: 'shop-context',
+    load: () => loadPartnerSiteShopContextCached(slug),
+  })
 }
 
 export async function loadPartnerSiteCapabilities(siteSlug: string): Promise<PartnerCapabilities | null> {

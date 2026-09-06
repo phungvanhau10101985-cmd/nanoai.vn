@@ -161,7 +161,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   const siteSaleT = partnerSiteSaleCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
   const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
-  const { refreshCartCount, tracking } = usePartnerSiteShop()
+  const { refreshCartCount, setCartCount, tracking } = usePartnerSiteShop()
   const [items, setItems] = useState<SiteCartLine[]>([])
   const [loading, setLoading] = useState(true)
   const [checkoutBusy, setCheckoutBusy] = useState(false)
@@ -259,11 +259,14 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     const json = (await res.json()) as { items?: SiteCartLine[] }
     const next = Array.isArray(json.items) ? json.items : []
     setItems(next)
+    setCartCount(
+      next.reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0)
+    )
     setSelectedLineIds((current) => {
       const valid = new Set(next.filter((item) => current.has(item.id)).map((item) => item.id))
       return valid.size > 0 ? valid : new Set(next.map((item) => item.id))
     })
-  }, [authHeaders, captureFromResponse, siteSlug])
+  }, [authHeaders, captureFromResponse, setCartCount, siteSlug])
 
   useEffect(() => {
     if (!ready) return
