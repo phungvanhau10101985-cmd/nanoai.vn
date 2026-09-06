@@ -26,6 +26,7 @@ import {
 import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import { ensureSearchClusterInHtml } from '@/lib/partner-website/visual-editor/search-cluster-icons'
 import { ensureFeaturedCategoriesHostInHtml } from '@/lib/partner-website/visual-editor/featured-category-widgets'
+import { ensurePromoMarketingBannerInHtml } from '@/lib/partner-website/visual-editor/banner-widgets'
 import { PW_PAGE_BY_CATALOG_KEY } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { ensurePdpReviewQaCardsInBuyBox } from '@/lib/partner-website/shop/partner-site-pdp-review-qa'
 import { stripEmptyLogoPlaceholdersFromHtml } from '@/lib/partner-website/visual-editor/strip-empty-logo-placeholders'
@@ -123,10 +124,15 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
     input.pageKey === 'product_detail' || /\bdata-pw-page=["']product["']/.test(bodyAttrs)
   const withReviewQa = isProduct ? ensurePdpReviewQaCardsInBuyBox(mediaReady, locale) : mediaReady
   const withSearch = ensureSearchClusterInHtml(ensureFeaturedCategoriesHostInHtml(withReviewQa))
+  const withPromo = ensurePromoMarketingBannerInHtml(withSearch, {
+    siteSlug,
+    locale,
+    pageKey: input.pageKey,
+  })
   const wordmark =
-    withSearch.match(/<span\b[^>]*\bpw-wordmark\b[^>]*>([\s\S]*?)<\/span>/i)?.[1]?.replace(/<[^>]+>/g, '').trim() ||
+    withPromo.match(/<span\b[^>]*\bpw-wordmark\b[^>]*>([\s\S]*?)<\/span>/i)?.[1]?.replace(/<[^>]+>/g, '').trim() ||
     ''
-  const withLogoSlot = ensurePartnerSiteHeaderLogoSlotInHtml(withSearch, {
+  const withLogoSlot = ensurePartnerSiteHeaderLogoSlotInHtml(withPromo, {
     logoUrl: input.theme?.logoUrl,
     title: wordmark,
     siteSlug: input.siteSlug,

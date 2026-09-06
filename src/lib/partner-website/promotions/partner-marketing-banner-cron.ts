@@ -13,6 +13,7 @@ export type PartnerMarketingBannerCronResult = {
   partners: number
   birthday: { created: number; reused: number; failed: number }
   sale: { created: number; reused: number; failed: number }
+  warehouse: { created: number; reused: number; failed: number; skipped: number }
 }
 
 function emptyCounts() {
@@ -27,6 +28,7 @@ export async function ensureDailyPartnerMarketingBanners(input?: {
     partners: 0,
     birthday: emptyCounts(),
     sale: emptyCounts(),
+    warehouse: { ...emptyCounts(), skipped: 0 },
   }
   const partnerIds = await listWebsitePartnerIdsForMarketingBannersFromPg(input?.limitPartners ?? 40)
   result.partners = partnerIds.length
@@ -79,32 +81,66 @@ export async function ensureDailyPartnerMarketingBanners(input?: {
     const saleConfig = await fetchPartnerSaleCalendarConfigFromPg(partnerId)
     const upcoming = listUpcomingPartnerSaleEvents({ settings: saleConfig, limit: 12 })
     const saleEvent = upcoming.find((event) => event.sameDayMonth)
-    if (!saleEvent) continue
-    const existingSale = await findActivePartnerMarketingBannerFromPg({
-      partnerId,
-      kind: 'sale',
-      day: saleEvent.day,
-      month: saleEvent.month,
-      discountPercent: saleEvent.discountPercent,
-    })
-    if (existingSale) {
-      result.sale.reused += 1
-      continue
+    if (saleEvent) {
+      const existingSale = await findActivePartnerMarketingBannerFromPg({
+        partnerId,
+        kind: 'sale',
+        day: saleEvent.day,
+        month: saleEvent.month,
+        discountPercent: saleEvent.discountPercent,
+      })
+      if (existingSale) {
+        result.sale.reused += 1
+      } else {
+        const createdSale = await generatePartnerMarketingBanner({
+          partnerId,
+          kind: 'sale',
+          day: saleEvent.day,
+          month: saleEvent.month,
+          discountPercent: saleEvent.discountPercent,
+          actorUserId: ownerUserId,
+          chargeCredits: false,
+        })
+        if (createdSale.ok) {
+          result.sale.created += 1
+          generated += 1
+        } else {
+          result.sale.failed += 1
+        }
+      }
     }
-    const createdSale = await generatePartnerMarketingBanner({
-      partnerId,
-      kind: 'sale',
-      day: saleEvent.day,
-      month: saleEvent.month,
-      discountPercent: saleEvent.discountPercent,
-      actorUserId: ownerUserId,
-      chargeCredits: false,
-    })
-    if (createdSale.ok) {
-      result.sale.created += 1
-      generated += 1
+
+    if (generated >= maxGenerate) break
+    const warehousePct = Math.max(0, Number(saleConfig.clearanceDiscountPercent) || 0)
+    if (!saleConfig.clearanceEnabled || warehousePct <= 0) {
+      result.warehouse.skipped += 1
     } else {
-      result.sale.failed += 1
+      const existingWarehouse = await findActivePartnerMarketingBannerFromPg({
+        partnerId,
+        kind: 'warehouse',
+        day: 0,
+        month: 0,
+        discountPercent: warehousePct,
+      })
+      if (existingWarehouse) {
+        result.warehouse.reused += 1
+      } else {
+        const createdWarehouse = await generatePartnerMarketingBanner({
+          partnerId,
+          kind: 'warehouse',
+          day: 0,
+          month: 0,
+          discountPercent: warehousePct,
+          actorUserId: ownerUserId,
+          chargeCredits: false,
+        })
+        if (createdWarehouse.ok) {
+          result.warehouse.created += 1
+          generated += 1
+        } else {
+          result.warehouse.failed += 1
+        }
+      }
     }
   }
 

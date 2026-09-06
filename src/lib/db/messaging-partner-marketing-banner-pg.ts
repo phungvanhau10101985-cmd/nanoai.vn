@@ -4,14 +4,17 @@ import type {
   PartnerMarketingBannerAdminItem,
   PartnerMarketingBannerKind,
 } from '@/lib/partner-website/promotions/partner-marketing-banner'
-import { partnerMarketingBannerCampaignKey } from '@/lib/partner-website/promotions/partner-marketing-banner'
+import {
+  mapPartnerMarketingBannerKind,
+  partnerMarketingBannerCampaignKey,
+} from '@/lib/partner-website/promotions/partner-marketing-banner'
 
 export type PartnerMarketingBannerAssetRow = PartnerMarketingBannerAdminItem
 
 function mapRow(row: Record<string, unknown>): PartnerMarketingBannerAssetRow {
   return {
     id: String(row.id),
-    kind: row.kind === 'birthday' ? 'birthday' : 'sale',
+    kind: mapPartnerMarketingBannerKind(row.kind),
     campaign_key: String(row.campaign_key ?? ''),
     date_key: String(row.date_key ?? ''),
     discount_percent: Number(row.discount_percent) || 0,
@@ -150,6 +153,21 @@ export async function findActivePartnerMarketingBannerFromPg(input: {
     [input.partnerId, input.kind, key]
   )
   return row ? mapRow(row) : null
+}
+
+export async function listActiveRegularPartnerMarketingBannersFromPg(
+  partnerId: string
+): Promise<PartnerMarketingBannerAssetRow[]> {
+  if (!isPgConfigured()) return []
+  const rows = await pgQuery<Record<string, unknown>>(
+    `select ${SELECT_COLS}
+     from public.messaging_partner_marketing_banner_assets
+     where partner_id = $1::uuid and kind = 'regular'
+       and status = 'ready' and is_active = true and coalesce(image_url, '') <> ''
+     order by created_at asc, version asc`,
+    [partnerId]
+  )
+  return rows.map(mapRow)
 }
 
 export async function findLatestPartnerMarketingBannerFromPg(input: {

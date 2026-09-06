@@ -8,6 +8,7 @@ import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventor
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteHomePersonalizationRails } from '@/components/partner-website/shop/partner-site-home-personalization-rails'
+import { PartnerSiteMarketingBannerCarousel } from '@/components/partner-website/shop/partner-site-marketing-banner-carousel'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   partnerSiteInfoPath,
@@ -218,6 +219,7 @@ function FashionHomeInner({
 
   return (
     <div className={cn('space-y-0', mounted && 'pw-fashion-ready')}>
+      <PartnerSiteMarketingBannerCarousel siteSlug={siteSlug} locale={locale} />
       <section
         className="relative mb-8 overflow-hidden rounded-[1.75rem] sm:mb-12 sm:rounded-[2rem]"
         data-pw-region={PW_REGION.banner}

@@ -20,19 +20,29 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ partne
     kind?: string
     day?: number
     month?: number
+    discountPercent?: number
+    campaignKey?: string
   } | null
   const kind = String(body?.kind ?? '')
-  const day = Number(body?.day)
-  const month = Number(body?.month)
-  if (!isPartnerMarketingBannerKind(kind) || !isValidPartnerMarketingBannerDayMonth(day, month)) {
+  if (!isPartnerMarketingBannerKind(kind)) {
     return NextResponse.json({ error: 'invalid_body' }, { status: 400 })
   }
 
+  let day = Number(body?.day)
+  let month = Number(body?.month)
   let discount = 0
+  const campaignKey = String(body?.campaignKey ?? '').trim() || null
+
   if (kind === 'birthday') {
+    if (!isValidPartnerMarketingBannerDayMonth(day, month)) {
+      return NextResponse.json({ error: 'invalid_body' }, { status: 400 })
+    }
     const promo = await fetchBirthdayPromoForPartnerFromPg(partnerId)
     discount = Math.max(0, Math.min(100, Math.floor(Number(promo?.discount_percent) || 10)))
-  } else {
+  } else if (kind === 'sale') {
+    if (!isValidPartnerMarketingBannerDayMonth(day, month)) {
+      return NextResponse.json({ error: 'invalid_body' }, { status: 400 })
+    }
     const config = await fetchPartnerSaleCalendarConfigFromPg(partnerId)
     const percent = partnerSalePercentForSameDayMonth(config, day, month)
     if (percent == null) {
@@ -42,6 +52,21 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ partne
       )
     }
     discount = percent
+  } else if (kind === 'warehouse') {
+    const config = await fetchPartnerSaleCalendarConfigFromPg(partnerId)
+    const requested = Number(body?.discountPercent)
+    discount = Number.isFinite(requested) && requested > 0
+      ? requested
+      : Number(config.clearanceDiscountPercent) || 0
+    if (discount <= 0 || discount > 80) {
+      return NextResponse.json({ error: 'Giảm giá kho phải từ 0.5–80%.' }, { status: 400 })
+    }
+    day = 0
+    month = 0
+  } else {
+    discount = 0
+    day = 0
+    month = 0
   }
 
   const result = await generatePartnerMarketingBanner({
@@ -50,6 +75,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ partne
     day,
     month,
     discountPercent: discount,
+    campaignKey,
     force: true,
     actorUserId: access.actorId,
     chargeCredits: true,

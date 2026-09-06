@@ -397,6 +397,7 @@ export type PartnerWebsiteCopy = {
   visualEditAddSliderPushHint: string
   visualEditAddBirthdayBanner: string
   visualEditAddSaleCalendarBanner: string
+  visualEditAddPromoBanner: string
   visualEditSliderWait: string
   visualEditSliderWaitHint: string
   visualEditSliderWaitOff: string
@@ -1445,6 +1446,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddSliderPushHint: 'Đẩy banner đang có dạt sang, hai banner trượt ngang — cái này ẩn cái kia hiện.',
     visualEditAddBirthdayBanner: 'Banner chúc mừng SN',
     visualEditAddSaleCalendarBanner: 'Banner sale cùng ngày cùng tháng',
+    visualEditAddPromoBanner: 'Banner ưu đãi',
     visualEditSliderWait: 'Thời gian chờ',
     visualEditSliderWaitHint: 'Kéo để đặt số giây tự lướt. 0 = chỉ bấm mũi tên.',
     visualEditSliderWaitOff: 'Tắt tự lướt',
@@ -2507,6 +2509,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddSliderPushHint: 'Push the current banner aside and slide between them — one hides, the other shows.',
     visualEditAddBirthdayBanner: 'Birthday greeting banner',
     visualEditAddSaleCalendarBanner: 'Same-day same-month sale banner',
+    visualEditAddPromoBanner: 'Promo banner',
     visualEditSliderWait: 'Wait time',
     visualEditSliderWaitHint: 'Seconds before the next slide. 0 = arrows only.',
     visualEditSliderWaitOff: 'Autoplay off',
@@ -3549,6 +3552,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddSliderPushHint: '把现有横幅推到一侧，两张横幅左右滑动，一张隐藏一张显示。',
     visualEditAddBirthdayBanner: '生日祝福横幅',
     visualEditAddSaleCalendarBanner: '同日同月促销横幅',
+    visualEditAddPromoBanner: '优惠横幅',
     visualEditSliderWait: '停留时间',
     visualEditSliderWaitHint: '自动翻到下一张前等待的秒数。0 = 仅用箭头。',
     visualEditSliderWaitOff: '关闭自动播放',
@@ -4589,6 +4593,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddSliderPushHint: '今のバナーを横へ送り、2枚を左右に切り替えます。片方が隠れ、もう片方だけ表示。',
     visualEditAddBirthdayBanner: '誕生日バナー',
     visualEditAddSaleCalendarBanner: '同日同月セールバナー',
+    visualEditAddPromoBanner: '特典バナー',
     visualEditSliderWait: '待ち時間',
     visualEditSliderWaitHint: '次のスライドまでの秒数。0 = 矢印のみ。',
     visualEditSliderWaitOff: '自動オフ',
@@ -5636,6 +5641,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddSliderPushHint: '현재 배너를 옆으로 밀고 두 배너를 가로로 넘깁니다. 하나가 숨고 다른 하나가 보입니다.',
     visualEditAddBirthdayBanner: '생일 배너',
     visualEditAddSaleCalendarBanner: '같은 날짜·월 세일 배너',
+    visualEditAddPromoBanner: '혜택 배너',
     visualEditSliderWait: '대기 시간',
     visualEditSliderWaitHint: '다음 슬라이드까지 초. 0 = 화살표만.',
     visualEditSliderWaitOff: '자동 끄기',

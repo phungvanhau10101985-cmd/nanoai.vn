@@ -2,9 +2,11 @@ import { getAuthUserEmailFromPg } from '@/lib/db/auth-user-email-pg'
 import { fetchBirthdayPromoForPartnerFromPg } from '@/lib/db/messaging-partner-birthday-promo-pg'
 import { fetchPartnerCustomerProfileByEmailFromPg } from '@/lib/db/messaging-partner-customer-profiles-pg'
 import { fetchGuestAccountEmailByIdPg } from '@/lib/db/messaging-guest-pg'
+import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import {
   findActivePartnerMarketingBannerFromPg,
   findTestPartnerBirthdayBannerFromPg,
+  listActiveRegularPartnerMarketingBannersFromPg,
   type PartnerMarketingBannerAssetRow,
 } from '@/lib/db/messaging-partner-marketing-banner-pg'
 import {
@@ -18,10 +20,12 @@ import {
   nextBirthdayIsoFromProfileYmd,
 } from '@/lib/messaging/birthday-promo-interest-inventory-ids'
 import type { WebLocale } from '@/lib/i18n/config'
-import { partnerSiteProductsPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { birthdayPercentForFeatureTest } from '@/lib/partner-website/promotions/partner-feature-test'
 import {
+  composePartnerMarketingBannerSlides,
   partnerMarketingBannerGreeting,
+  partnerMarketingBannerPublicHref,
+  partnerMarketingBannerVisitorCanSeeBirthday,
   type PartnerMarketingBannerPublicItem,
 } from '@/lib/partner-website/promotions/partner-marketing-banner'
 
@@ -47,7 +51,7 @@ function toPublicItem(
     event_date: input.eventDate ?? null,
     greeting: input.greeting ?? null,
     version: row.version,
-    href: partnerSiteProductsPath(input.siteSlug),
+    href: partnerMarketingBannerPublicHref(row.kind, input.siteSlug),
     is_test: input.isTest === true,
     event_label: input.eventLabel ?? null,
   }
@@ -87,6 +91,7 @@ export async function resolvePartnerBirthdayBannerContext(input: {
   if (!promo?.enabled) return null
   const percent = Math.max(0, Math.min(100, Math.floor(Number(promo.discount_percent) || 0)))
   if (percent <= 0) return null
+  if (!partnerMarketingBannerVisitorCanSeeBirthday(input)) return null
 
   let birthDate = ''
   let displayName = ''
@@ -145,7 +150,9 @@ export async function resolveCurrentPartnerMarketingBanners(input: {
   linkedUserId?: string | null
   guestAccountId?: string | null
 }): Promise<PartnerMarketingBannerPublicItem[]> {
-  const items: PartnerMarketingBannerPublicItem[] = []
+  let birthdayItem: PartnerMarketingBannerPublicItem | null = null
+  let saleItem: PartnerMarketingBannerPublicItem | null = null
+  let warehouseItem: PartnerMarketingBannerPublicItem | null = null
   const locale = input.locale ?? 'vi'
   const visitorEmail = await resolveVisitorEmailForBanners({
     partnerId: input.partnerId,
@@ -173,7 +180,7 @@ export async function resolveCurrentPartnerMarketingBanners(input: {
           greeting: partnerMarketingBannerGreeting(locale, birthday.displayName),
         })
       : null
-    if (publicItem) items.push(publicItem)
+    birthdayItem = publicItem
   } else {
     const promo = await fetchBirthdayPromoForPartnerFromPg(input.partnerId)
     const testPercent = await resolvePartnerBirthdayFeatureTestPercentFromPg({
@@ -192,7 +199,7 @@ export async function resolveCurrentPartnerMarketingBanners(input: {
             emailNormalized: visitorEmail,
           })
         : null
-      const publicItem = found
+      birthdayItem = found
         ? toPublicItem(found.asset, {
             siteSlug: input.siteSlug,
             eventDate: found.eventDate,
@@ -201,7 +208,6 @@ export async function resolveCurrentPartnerMarketingBanners(input: {
             eventLabel: `[Test] CMSN ${Number(found.eventDate.slice(8, 10))}/${Number(found.eventDate.slice(5, 7))}`,
           })
         : null
-      if (publicItem) items.push(publicItem)
     }
   }
 
@@ -221,7 +227,7 @@ export async function resolveCurrentPartnerMarketingBanners(input: {
         month,
         discountPercent: sale.discountPercent,
       })
-      const publicItem = asset
+      saleItem = asset
         ? toPublicItem(asset, {
             siteSlug: input.siteSlug,
             eventDate: saleDate,
@@ -230,9 +236,32 @@ export async function resolveCurrentPartnerMarketingBanners(input: {
             eventLabel: sale.eventLabel,
           })
         : null
-      if (publicItem) items.push(publicItem)
     }
   }
 
-  return items
+  const warehouseConfig = await fetchPartnerSaleCalendarConfigFromPg(input.partnerId)
+  const warehousePct = Math.max(0, Number(warehouseConfig.clearanceDiscountPercent) || 0)
+  if (warehouseConfig.clearanceEnabled && warehousePct > 0) {
+    const warehouseAsset = await findActivePartnerMarketingBannerFromPg({
+      partnerId: input.partnerId,
+      kind: 'warehouse',
+      day: 0,
+      month: 0,
+      discountPercent: warehousePct,
+    })
+    warehouseItem = warehouseAsset
+      ? toPublicItem(warehouseAsset, { siteSlug: input.siteSlug })
+      : null
+  }
+
+  const regulars = (await listActiveRegularPartnerMarketingBannersFromPg(input.partnerId))
+    .map((row) => toPublicItem(row, { siteSlug: input.siteSlug }))
+    .filter((item): item is PartnerMarketingBannerPublicItem => Boolean(item))
+
+  return composePartnerMarketingBannerSlides({
+    birthday: birthdayItem,
+    sale: saleItem,
+    warehouse: warehouseItem,
+    regulars,
+  })
 }

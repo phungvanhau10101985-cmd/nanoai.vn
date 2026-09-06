@@ -17,10 +17,11 @@ import { resolveShopThemeColors } from '@/lib/partner-website/template/partner-w
 import {
   buildPartnerMarketingBannerPrompt,
   fallbackPartnerMarketingBannerCopy,
+  newPartnerMarketingBannerRegularCampaignKey,
   PARTNER_MARKETING_BANNER_ASPECT,
   PARTNER_MARKETING_BANNER_CREDIT_COST,
   partnerMarketingBannerCampaignKey,
-  partnerMarketingBannerDateKey,
+  partnerMarketingBannerDateKeyForKind,
   type PartnerMarketingBannerBrand,
   type PartnerMarketingBannerCopy,
   type PartnerMarketingBannerKind,
@@ -76,7 +77,11 @@ export async function generatePartnerMarketingBannerCopy(input: {
     const campaign =
       input.kind === 'sale'
         ? `sale ngày trùng tháng ${input.day}.${input.month}, giảm thật ${input.discountPercent}%`
-        : `sinh nhật khách ngày ${label}, quà giảm giá ${input.discountPercent}%`
+        : input.kind === 'warehouse'
+          ? `sale kho thanh lý, giảm thật ${input.discountPercent}%, hàng hoàn trong kho`
+          : input.kind === 'regular'
+            ? `banner cửa hàng thường, không ghi ngày sale hay phần trăm giảm`
+            : `sinh nhật khách ngày ${label}, quà giảm giá ${input.discountPercent}%`
     const prompt =
       'Bạn là copywriter thương mại điện tử. ' +
       `Sáng tác nội dung mới cho banner ${campaign}. Đây là lần tạo phiên bản ${input.version}. ` +
@@ -132,28 +137,39 @@ async function generateBannerImageBytes(input: {
 export async function generatePartnerMarketingBanner(input: {
   partnerId: string
   kind: PartnerMarketingBannerKind
-  day: number
-  month: number
+  day?: number
+  month?: number
   discountPercent: number
+  campaignKey?: string | null
   force?: boolean
   actorUserId?: string | null
   chargeCredits?: boolean
 }): Promise<{ ok: true; asset: NonNullable<Awaited<ReturnType<typeof completePartnerMarketingBannerAssetFromPg>>> } | { ok: false; error: string; status?: number }> {
-  const key = partnerMarketingBannerCampaignKey(
-    input.kind,
-    input.day,
-    input.month,
-    input.discountPercent
-  )
-  if (!input.force) {
+  const day = Number.isFinite(input.day) ? Number(input.day) : 0
+  const month = Number.isFinite(input.month) ? Number(input.month) : 0
+  const key =
+    input.kind === 'regular'
+      ? String(input.campaignKey ?? '').trim() || newPartnerMarketingBannerRegularCampaignKey()
+      : partnerMarketingBannerCampaignKey(input.kind, day, month, input.discountPercent)
+  if (!input.force && input.kind !== 'regular') {
     const existing = await findActivePartnerMarketingBannerFromPg({
       partnerId: input.partnerId,
       kind: input.kind,
-      day: input.day,
-      month: input.month,
+      day,
+      month,
       discountPercent: input.discountPercent,
     })
     if (existing) return { ok: true, asset: existing }
+  }
+  if (!input.force && input.kind === 'regular' && String(input.campaignKey ?? '').trim()) {
+    const latestSame = await findLatestPartnerMarketingBannerFromPg({
+      partnerId: input.partnerId,
+      kind: 'regular',
+      campaignKey: key,
+    })
+    if (latestSame?.status === 'ready' && latestSame.image_url && latestSame.is_active) {
+      return { ok: true, asset: latestSame }
+    }
   }
   const generating = await findGeneratingPartnerMarketingBannerFromPg({
     partnerId: input.partnerId,
@@ -183,16 +199,16 @@ export async function generatePartnerMarketingBanner(input: {
   const brand = await loadPartnerMarketingBannerBrand(input.partnerId)
   const copy = await generatePartnerMarketingBannerCopy({
     kind: input.kind,
-    day: input.day,
-    month: input.month,
+    day,
+    month,
     discountPercent: input.discountPercent,
     version,
     apiKey,
   })
   const prompt = buildPartnerMarketingBannerPrompt({
     kind: input.kind,
-    day: input.day,
-    month: input.month,
+    day,
+    month,
     discountPercent: input.discountPercent,
     brand,
     copy,
@@ -201,7 +217,7 @@ export async function generatePartnerMarketingBanner(input: {
     partnerId: input.partnerId,
     kind: input.kind,
     campaignKey: key,
-    dateKey: partnerMarketingBannerDateKey(input.day, input.month),
+    dateKey: partnerMarketingBannerDateKeyForKind(input.kind, day, month),
     discountPercent: input.discountPercent,
     prompt,
     model: GEMINI_3_PRO_IMAGE.model,
@@ -251,18 +267,19 @@ export async function generatePartnerMarketingBanner(input: {
 export async function uploadPartnerMarketingBannerImage(input: {
   partnerId: string
   kind: PartnerMarketingBannerKind
-  day: number
-  month: number
+  day?: number
+  month?: number
   discountPercent: number
+  campaignKey?: string | null
   file: Buffer
   contentType: string
 }): Promise<{ ok: true; asset: NonNullable<Awaited<ReturnType<typeof completePartnerMarketingBannerAssetFromPg>>> } | { ok: false; error: string; status?: number }> {
-  const key = partnerMarketingBannerCampaignKey(
-    input.kind,
-    input.day,
-    input.month,
-    input.discountPercent
-  )
+  const day = Number.isFinite(input.day) ? Number(input.day) : 0
+  const month = Number.isFinite(input.month) ? Number(input.month) : 0
+  const key =
+    input.kind === 'regular'
+      ? String(input.campaignKey ?? '').trim() || newPartnerMarketingBannerRegularCampaignKey()
+      : partnerMarketingBannerCampaignKey(input.kind, day, month, input.discountPercent)
   const latest = await findLatestPartnerMarketingBannerFromPg({
     partnerId: input.partnerId,
     kind: input.kind,
@@ -278,7 +295,7 @@ export async function uploadPartnerMarketingBannerImage(input: {
     partnerId: input.partnerId,
     kind: input.kind,
     campaignKey: key,
-    dateKey: partnerMarketingBannerDateKey(input.day, input.month),
+    dateKey: partnerMarketingBannerDateKeyForKind(input.kind, day, month),
     discountPercent: input.discountPercent,
     prompt: 'uploaded',
     model: 'upload',

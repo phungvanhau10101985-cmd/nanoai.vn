@@ -22,9 +22,9 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ partne
   if (!form) return NextResponse.json({ error: 'invalid_body' }, { status: 400 })
   const kind = String(form.get('kind') ?? '')
   const dateKey = String(form.get('dateKey') ?? '')
+  const campaignKey = String(form.get('campaignKey') ?? '').trim() || null
   const file = form.get('file')
-  const parsed = parsePartnerMarketingBannerDateKey(dateKey)
-  if (!isPartnerMarketingBannerKind(kind) || !parsed || !(file instanceof File) || file.size === 0) {
+  if (!isPartnerMarketingBannerKind(kind) || !(file instanceof File) || file.size === 0) {
     return NextResponse.json({ error: 'invalid_body' }, { status: 400 })
   }
   if (file.size > MAX_BYTES) {
@@ -35,13 +35,22 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ partne
     return NextResponse.json({ error: 'invalid_image_type' }, { status: 400 })
   }
 
-  let discount = 10
+  let day = 0
+  let month = 0
+  let discount = 0
+  if (kind === 'birthday' || kind === 'sale') {
+    const parsed = parsePartnerMarketingBannerDateKey(dateKey)
+    if (!parsed) return NextResponse.json({ error: 'invalid_body' }, { status: 400 })
+    day = parsed.day
+    month = parsed.month
+  }
+
   if (kind === 'birthday') {
     const promo = await fetchBirthdayPromoForPartnerFromPg(partnerId)
     discount = Math.max(0, Math.min(100, Math.floor(Number(promo?.discount_percent) || 10)))
-  } else {
+  } else if (kind === 'sale') {
     const config = await fetchPartnerSaleCalendarConfigFromPg(partnerId)
-    const percent = partnerSalePercentForSameDayMonth(config, parsed.day, parsed.month)
+    const percent = partnerSalePercentForSameDayMonth(config, day, month)
     if (percent == null) {
       return NextResponse.json(
         { error: 'Banner sale chỉ áp dụng cho ngày trùng tháng.' },
@@ -49,15 +58,22 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ partne
       )
     }
     discount = percent
+  } else if (kind === 'warehouse') {
+    const config = await fetchPartnerSaleCalendarConfigFromPg(partnerId)
+    discount = Number(config.clearanceDiscountPercent) || 0
+    if (discount <= 0 || discount > 80) {
+      return NextResponse.json({ error: 'Giảm giá kho phải từ 0.5–80%.' }, { status: 400 })
+    }
   }
 
   const bytes = Buffer.from(await file.arrayBuffer())
   const result = await uploadPartnerMarketingBannerImage({
     partnerId,
     kind,
-    day: parsed.day,
-    month: parsed.month,
+    day,
+    month,
     discountPercent: discount,
+    campaignKey,
     file: bytes,
     contentType: type,
   })

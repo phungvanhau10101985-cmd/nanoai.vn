@@ -15,11 +15,11 @@ import {
   pwRegionAttr,
 } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
-export const VISUAL_EDITOR_BANNER_KINDS = ['hero', 'slider', 'birthday', 'sale-calendar'] as const
+export const VISUAL_EDITOR_BANNER_KINDS = ['hero', 'slider', 'promo', 'birthday', 'sale-calendar'] as const
 
 export type VisualEditorBannerKind = (typeof VISUAL_EDITOR_BANNER_KINDS)[number]
 
-export const VISUAL_EDITOR_PICKER_LIVE_BANNER_KINDS = ['birthday', 'sale-calendar'] as const
+export const VISUAL_EDITOR_PICKER_LIVE_BANNER_KINDS = ['promo'] as const
 
 export function isVisualEditorBannerKind(value: string): value is VisualEditorBannerKind {
   return (VISUAL_EDITOR_BANNER_KINDS as readonly string[]).includes(value)
@@ -27,8 +27,8 @@ export function isVisualEditorBannerKind(value: string): value is VisualEditorBa
 
 export function personalizeBannerKindOf(
   kind: VisualEditorBannerKind
-): 'birthday' | 'sale-calendar' | null {
-  if (kind === 'birthday' || kind === 'sale-calendar') return kind
+): 'promo' | 'birthday' | 'sale-calendar' | null {
+  if (kind === 'promo' || kind === 'birthday' || kind === 'sale-calendar') return kind
   return null
 }
 
@@ -107,6 +107,43 @@ const COPY: Record<
       title: '신규 컬렉션',
       subtitle: '새로 들어온 상품을 만나보세요',
       cta: '바로 구매',
+      ctaSecondary: '더 보기',
+    },
+  },
+  promo: {
+    vi: {
+      badge: 'Ưu đãi',
+      title: 'Ưu đãi dành cho bạn',
+      subtitle: 'Sinh nhật, sale ngày trùng tháng, kho thanh lý và banner shop',
+      cta: 'Xem ưu đãi',
+      ctaSecondary: 'Xem thêm',
+    },
+    en: {
+      badge: 'Offers',
+      title: 'Offers for you',
+      subtitle: 'Birthday, same-day sale, warehouse clearance, and shop banners',
+      cta: 'See offers',
+      ctaSecondary: 'See more',
+    },
+    zh: {
+      badge: '优惠',
+      title: '为你准备的优惠',
+      subtitle: '生日、同日促销、清仓与店铺横幅',
+      cta: '查看优惠',
+      ctaSecondary: '查看更多',
+    },
+    ja: {
+      badge: '特典',
+      title: 'あなたへの特典',
+      subtitle: '誕生日、同日セール、倉庫セール、ショップバナー',
+      cta: '特典を見る',
+      ctaSecondary: 'もっと見る',
+    },
+    ko: {
+      badge: '혜택',
+      title: '회원님을 위한 혜택',
+      subtitle: '생일, 같은 날짜 세일, 창고 세일, 쇼핑몰 배너',
+      cta: '혜택 보기',
       ctaSecondary: '더 보기',
     },
   },
@@ -200,6 +237,13 @@ const LABEL: Record<VisualEditorBannerKind, Record<WebLocale, string>> = {
     zh: '横向横幅',
     ja: '横スライド',
     ko: '가로 배너',
+  },
+  promo: {
+    vi: 'Banner ưu đãi',
+    en: 'Promo banner',
+    zh: '优惠横幅',
+    ja: '特典バナー',
+    ko: '혜택 배너',
   },
   birthday: {
     vi: 'Banner chúc mừng SN',
@@ -308,7 +352,7 @@ export function restoreMarketingBannerSeedsInDocument(root: ParentNode): void {
     section.removeAttribute('data-pw-seed-src')
     section.removeAttribute('data-pw-seed-title')
     section.removeAttribute('data-pw-seed-subtitle')
-    section.querySelectorAll('[data-pw-banner-greeting]').forEach((el) => el.remove())
+    section.querySelectorAll('[data-pw-promo-carousel],[data-pw-banner-greeting]').forEach((el) => el.remove())
     const sibling = section.nextElementSibling
     if (sibling?.getAttribute('data-pw-banner-greeting') === '1') sibling.remove()
   })
@@ -349,4 +393,28 @@ export function buildVisualEditorBannerHtml(input: {
   ${overlay}
   ${bannerCopyHtml(copy, productsHref, true)}
 </section>`
+}
+
+/** Home seed / live: one promo slider host. Skip if a personalize-banner already exists. */
+export function ensurePromoMarketingBannerInHtml(
+  html: string,
+  input: { siteSlug: string; locale?: WebLocale; pageKey?: string | null }
+): string {
+  const siteSlug = input.siteSlug.trim()
+  if (!html.trim() || !siteSlug) return html
+  const isHome =
+    input.pageKey === 'home' ||
+    /\bdata-pw-page=["']home["']/i.test(html)
+  if (!isHome) return html
+  if (/\bdata-pw-personalize-banner\b/i.test(html)) return html
+  const widget = buildVisualEditorBannerHtml({
+    kind: 'promo',
+    siteSlug,
+    locale: input.locale,
+  })
+  if (/<\/header>/i.test(html)) return html.replace(/<\/header>/i, `</header>\n${widget}`)
+  if (/<main\b[^>]*>/i.test(html)) {
+    return html.replace(/<main\b[^>]*>/i, (open) => `${open}\n${widget}`)
+  }
+  return html
 }

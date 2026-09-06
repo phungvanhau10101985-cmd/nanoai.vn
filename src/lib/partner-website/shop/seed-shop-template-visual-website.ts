@@ -17,6 +17,7 @@ import { stampPartnerShopEditorHooksInHtml } from '@/lib/partner-website/shop/in
 import { applySharedChrome, extractSharedChrome } from '@/lib/partner-website/shop/sync-shared-chrome'
 import { renderTemplateSiteToHtml } from '@/lib/partner-website/template/render-template-html'
 import { visualHtmlLooksCompleteForEditor } from '@/lib/partner-website/visual-editor/visual-html-detect'
+import { ensurePromoMarketingBannerInHtml } from '@/lib/partner-website/visual-editor/banner-widgets'
 import {
   applyVisualEditThemeFlag,
   ensureVisualHtmlLiveReady,
@@ -58,7 +59,11 @@ function finishVisualHtml(
     logoUrl: input.logoUrl,
   })
   const stamped = stampPartnerShopEditorHooksInHtml(withKit, { siteSlug: input.siteSlug })
-  return ensureVisualHtmlLiveReady(stamped, variant)
+  const withPromo = ensurePromoMarketingBannerInHtml(stamped, {
+    siteSlug: input.siteSlug,
+    locale: input.locale,
+  })
+  return ensureVisualHtmlLiveReady(withPromo, variant)
 }
 
 export function buildShopTemplateHomeVisualHtml(input: {

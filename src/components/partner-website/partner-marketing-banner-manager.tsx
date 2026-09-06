@@ -10,6 +10,7 @@ import type { PartnerMarketingBannerAdminItem } from '@/lib/partner-website/prom
 import {
   PARTNER_MARKETING_BANNER_CREDIT_COST,
   parsePartnerMarketingBannerDateKey,
+  type PartnerMarketingBannerKind,
 } from '@/lib/partner-website/promotions/partner-marketing-banner'
 
 const COPY: Record<
@@ -19,6 +20,8 @@ const COPY: Record<
     hint: string
     birthday: string
     sale: string
+    warehouse: string
+    regular: string
     date: string
     generate: string
     working: string
@@ -37,13 +40,17 @@ const COPY: Record<
     deleted: string
     creditHint: string
     saleDateHint: string
+    warehouseHint: string
+    regularHint: string
   }
 > = {
   vi: {
-    title: 'Ảnh banner AI sale và sinh nhật',
-    hint: 'Tạo ảnh 21:9 bằng AI (Gemini) theo ngày-tháng và % giảm thật. Có thể tải ảnh riêng, chọn phiên bản đang dùng, hoặc xóa. Cron hằng ngày tự tạo khi có khách sắp sinh nhật hoặc sắp tới ngày sale trùng tháng.',
+    title: 'Ảnh banner AI ưu đãi',
+    hint: 'Một slider trang chủ xếp CMSN, rồi sale ngày trùng tháng, rồi sale kho, rồi banner thường. Tạo ảnh 21:9 bằng AI (Gemini) hoặc tải ảnh, chọn phiên bản đang dùng, hoặc xóa. Cron tự tạo CMSN/sale/kho khi đủ điều kiện.',
     birthday: 'Sinh nhật',
     sale: 'Sale trùng ngày-tháng',
+    warehouse: 'Sale kho',
+    regular: 'Banner thường',
     date: 'MM-DD',
     generate: 'Tạo ảnh AI cho ngày này',
     working: 'Đang xử lý…',
@@ -62,12 +69,16 @@ const COPY: Record<
     deleted: 'Đã xóa phiên bản.',
     creditHint: `Tạo AI tốn ${PARTNER_MARKETING_BANNER_CREDIT_COST} credit / ảnh.`,
     saleDateHint: 'Chỉ ngày trùng tháng (01/01 … 12/12).',
+    warehouseHint: 'Ảnh sale kho lưu theo mức % đang bật. Slider hiện khi kho sale bật và % > 0.',
+    regularHint: 'Banner thường luôn nằm cuối slider. Có thể tạo nhiều ảnh, mỗi ảnh một slide.',
   },
   en: {
-    title: 'AI sale and birthday banner images',
-    hint: 'Generate a 21:9 image with AI from the real date and discount. You can also upload, activate a version, or delete. Daily cron creates images when customers have upcoming birthdays or a same-day-month sale.',
+    title: 'AI promo banner images',
+    hint: 'One homepage slider: birthday, then same-day-month sale, then warehouse clearance, then regular banners. Generate a 21:9 image with AI, upload, activate a version, or delete. Daily cron creates birthday, sale, and warehouse images when needed.',
     birthday: 'Birthday',
     sale: 'Same-day-month sale',
+    warehouse: 'Warehouse sale',
+    regular: 'Regular banner',
     date: 'MM-DD',
     generate: 'Generate AI image for this date',
     working: 'Working…',
@@ -86,12 +97,16 @@ const COPY: Record<
     deleted: 'Version deleted.',
     creditHint: `AI generation costs ${PARTNER_MARKETING_BANNER_CREDIT_COST} credits per image.`,
     saleDateHint: 'Same-day-month dates only (01/01 … 12/12).',
+    warehouseHint: 'Warehouse images are stored per discount percent. The slider shows them when clearance is on and percent is above 0.',
+    regularHint: 'Regular banners always sit last in the slider. You can create several; each is one slide.',
   },
   zh: {
-    title: '促销与生日 AI 横幅图片',
-    hint: '按真实日期和折扣用 AI 生成 21:9 图片。也可上传、启用旧版本或删除。每日任务会在有即将生日的顾客或同日同月促销时自动生成。',
+    title: '促销 AI 横幅图片',
+    hint: '首页一个滑块：生日、同日同月促销、清仓、普通横幅。用 AI 生成 21:9 图片，也可上传、启用或删除。每日任务会在需要时生成生日、促销和清仓图。',
     birthday: '生日',
     sale: '同日同月促销',
+    warehouse: '清仓促销',
+    regular: '普通横幅',
     date: 'MM-DD',
     generate: '为该日期生成 AI 图片',
     working: '处理中…',
@@ -110,12 +125,16 @@ const COPY: Record<
     deleted: '已删除该版本。',
     creditHint: `每次 AI 生成消耗 ${PARTNER_MARKETING_BANNER_CREDIT_COST} 积分。`,
     saleDateHint: '仅限同日同月（01/01 … 12/12）。',
+    warehouseHint: '清仓图按折扣百分比保存。开启清仓且折扣大于 0 时滑块会显示。',
+    regularHint: '普通横幅始终排在滑块最后。可创建多张，每张一张幻灯片。',
   },
   ja: {
-    title: 'セール・誕生日の AI バナー画像',
-    hint: '実際の日付と割引率で 21:9 画像を AI 生成。アップロード、版の切替、削除もできます。誕生日が近いお客様や同日同月セールがあると日次ジョブが自動作成します。',
+    title: 'プロモ AI バナー画像',
+    hint: 'トップは1つのスライダー：誕生日、同日同月セール、倉庫セール、通常バナー。21:9 を AI 生成、アップロード、版の切替、削除ができます。日次ジョブは誕生日・セール・倉庫画像を必要時に作ります。',
     birthday: '誕生日',
     sale: '同日同月セール',
+    warehouse: '倉庫セール',
+    regular: '通常バナー',
     date: 'MM-DD',
     generate: 'この日付の AI 画像を作る',
     working: '処理中…',
@@ -134,12 +153,16 @@ const COPY: Record<
     deleted: 'この版を削除しました。',
     creditHint: `AI 生成は 1 枚あたり ${PARTNER_MARKETING_BANNER_CREDIT_COST} クレジットです。`,
     saleDateHint: '同日同月のみ（01/01 … 12/12）。',
+    warehouseHint: '倉庫バナーは割引率ごとに保存。クリアランスがオンで % が 0 より大きいとき表示します。',
+    regularHint: '通常バナーは常にスライダーの最後。複数枚作れ、1枚が1スライドです。',
   },
   ko: {
-    title: '세일·생일 AI 배너 이미지',
-    hint: '실제 날짜와 할인율로 21:9 이미지를 AI 생성합니다. 업로드, 버전 활성화, 삭제도 가능합니다. 생일이 가까운 고객이나 같은 날짜·월 세일이 있으면 일일 작업이 자동 생성합니다.',
+    title: '프로모 AI 배너 이미지',
+    hint: '홈 슬라이더 하나: 생일, 같은 날짜·월 세일, 창고 세일, 일반 배너. 21:9 AI 생성, 업로드, 버전 활성화, 삭제가 가능합니다. 일일 작업은 생일·세일·창고 이미지를 필요할 때 만듭니다.',
     birthday: '생일',
     sale: '같은 날짜·월 세일',
+    warehouse: '창고 세일',
+    regular: '일반 배너',
     date: 'MM-DD',
     generate: '이 날짜의 AI 이미지 만들기',
     working: '처리 중…',
@@ -158,6 +181,8 @@ const COPY: Record<
     deleted: '버전을 삭제했습니다.',
     creditHint: `AI 생성은 이미지당 ${PARTNER_MARKETING_BANNER_CREDIT_COST} 크레딧입니다.`,
     saleDateHint: '같은 날짜·월만 가능합니다 (01/01 … 12/12).',
+    warehouseHint: '창고 배너는 할인율별로 저장됩니다. 창고 세일이 켜지고 %가 0보다 클 때 슬라이더에 나옵니다.',
+    regularHint: '일반 배너는 항상 슬라이더 마지막입니다. 여러 장을 만들 수 있고 한 장이 한 슬라이드입니다.',
   },
 }
 
@@ -175,7 +200,7 @@ type Props = {
 export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Props) {
   const t = COPY[locale] ?? COPY.vi
   const [items, setItems] = useState<PartnerMarketingBannerAdminItem[]>([])
-  const [kind, setKind] = useState<'sale' | 'birthday'>('birthday')
+  const [kind, setKind] = useState<PartnerMarketingBannerKind>('birthday')
   const [dateKey, setDateKey] = useState(defaultDateKey)
   const [loading, setLoading] = useState(true)
   const [working, setWorking] = useState(false)
@@ -213,17 +238,32 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
     return Array.from(result.values())
   }, [items])
 
-  const queueGenerate = async (nextKind: 'sale' | 'birthday', nextDateKey: string) => {
-    const parsed = parsePartnerMarketingBannerDateKey(nextDateKey)
-    if (!parsed) {
-      setError(t.date)
-      return
+  const kindLabel = (value: PartnerMarketingBannerKind) => {
+    if (value === 'birthday') return t.birthday
+    if (value === 'warehouse') return t.warehouse
+    if (value === 'regular') return t.regular
+    return t.sale
+  }
+
+  const queueGenerate = async (
+    nextKind: PartnerMarketingBannerKind,
+    nextDateKey: string,
+    campaignKey?: string | null
+  ) => {
+    let body: Record<string, unknown> = { kind: nextKind }
+    if (nextKind === 'birthday' || nextKind === 'sale') {
+      const parsed = parsePartnerMarketingBannerDateKey(nextDateKey)
+      if (!parsed) {
+        setError(t.date)
+        return
+      }
+      if (nextKind === 'sale' && parsed.day !== parsed.month) {
+        setError(t.saleDateHint)
+        return
+      }
+      body = { ...body, day: parsed.day, month: parsed.month }
     }
-    if (nextKind === 'sale' && parsed.day !== parsed.month) {
-      setError(t.saleDateHint)
-      return
-    }
-    const { day, month } = parsed
+    if (nextKind === 'regular' && campaignKey) body.campaignKey = campaignKey
     setWorking(true)
     setError(null)
     try {
@@ -231,7 +271,7 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: nextKind, day, month }),
+        body: JSON.stringify(body),
       })
       const data = (await res.json().catch(() => null)) as { error?: string } | null
       if (!res.ok) throw new Error(data?.error || t.loadError)
@@ -290,6 +330,7 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
       const form = new FormData()
       form.set('kind', kind)
       form.set('dateKey', dateKey)
+      if (kind === 'regular') form.set('campaignKey', '')
       form.set('file', file)
       const res = await fetch(`${apiBase}/upload`, {
         method: 'POST',
@@ -331,7 +372,7 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
           <select
             value={kind}
             onChange={(event) => {
-              const nextKind = event.target.value as 'sale' | 'birthday'
+              const nextKind = event.target.value as PartnerMarketingBannerKind
               setKind(nextKind)
               if (nextKind === 'sale') {
                 const month = dateKey.slice(0, 2)
@@ -343,6 +384,8 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
           >
             <option value="birthday">{t.birthday}</option>
             <option value="sale">{t.sale}</option>
+            <option value="warehouse">{t.warehouse}</option>
+            <option value="regular">{t.regular}</option>
           </select>
           {kind === 'sale' ? (
             <select
@@ -360,13 +403,17 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
                 )
               })}
             </select>
-          ) : (
+          ) : kind === 'birthday' ? (
             <Input
               value={dateKey}
               onChange={(event) => setDateKey(event.target.value)}
               placeholder={t.date}
               aria-label={t.date}
             />
+          ) : (
+            <p className="flex items-center text-xs text-muted-foreground">
+              {kind === 'warehouse' ? t.warehouseHint : t.regularHint}
+            </p>
           )}
           <Button type="button" disabled={working} onClick={() => void queueGenerate(kind, dateKey)}>
             {working ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -409,8 +456,9 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
                   <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold">
-                        {current.kind === 'birthday' ? t.birthday : t.sale} {current.date_key} · −
-                        {current.discount_percent}%
+                        {kindLabel(current.kind)}
+                        {current.kind === 'birthday' || current.kind === 'sale' ? ` ${current.date_key}` : ''}
+                        {current.kind !== 'regular' ? ` · −${current.discount_percent}%` : ''}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {current.model} · {versions.length} · {current.status}
@@ -423,7 +471,9 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
                         variant="outline"
                         size="sm"
                         disabled={working}
-                        onClick={() => void queueGenerate(current.kind, current.date_key)}
+                        onClick={() =>
+                          void queueGenerate(current.kind, current.date_key, current.campaign_key)
+                        }
                       >
                         {t.regenerate}
                       </Button>

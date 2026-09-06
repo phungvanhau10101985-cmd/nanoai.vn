@@ -1,11 +1,31 @@
-export const PARTNER_MARKETING_BANNER_KINDS = ['sale', 'birthday'] as const
+import {
+  partnerSiteKhoSalePath,
+  partnerSiteProductsPath,
+} from '@/lib/partner-website/shop/partner-site-shop-paths'
+
+export const PARTNER_MARKETING_BANNER_KINDS = ['sale', 'birthday', 'warehouse', 'regular'] as const
 export type PartnerMarketingBannerKind = (typeof PARTNER_MARKETING_BANNER_KINDS)[number]
+
+export const PARTNER_MARKETING_BANNER_SLIDE_ORDER = [
+  'birthday',
+  'sale',
+  'warehouse',
+  'regular',
+] as const
 
 export const PARTNER_MARKETING_BANNER_ASPECT = '21:9'
 export const PARTNER_MARKETING_BANNER_CREDIT_COST = 1.5
+export const PARTNER_MARKETING_BANNER_WAREHOUSE_DATE_KEY = 'kho'
+export const PARTNER_MARKETING_BANNER_REGULAR_DATE_KEY = 'always'
+export const PARTNER_MARKETING_BANNER_CAROUSEL_MS = 6500
 
 export function isPartnerMarketingBannerKind(value: string): value is PartnerMarketingBannerKind {
   return (PARTNER_MARKETING_BANNER_KINDS as readonly string[]).includes(value)
+}
+
+export function mapPartnerMarketingBannerKind(value: unknown): PartnerMarketingBannerKind {
+  const raw = String(value ?? '')
+  return isPartnerMarketingBannerKind(raw) ? raw : 'sale'
 }
 
 export function partnerMarketingBannerPctKey(value: number): string {
@@ -19,11 +39,39 @@ export function partnerMarketingBannerCampaignKey(
   month: number,
   discountPercent: number
 ): string {
+  if (kind === 'warehouse') return `warehouse-p${partnerMarketingBannerPctKey(discountPercent)}`
+  if (kind === 'regular') return `regular-${partnerMarketingBannerPctKey(discountPercent)}`
   return `${kind}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}-p${partnerMarketingBannerPctKey(discountPercent)}`
+}
+
+export function newPartnerMarketingBannerRegularCampaignKey(): string {
+  return `regular-${crypto.randomUUID()}`
 }
 
 export function partnerMarketingBannerDateKey(day: number, month: number): string {
   return `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+export function partnerMarketingBannerDateKeyForKind(
+  kind: PartnerMarketingBannerKind,
+  day: number,
+  month: number
+): string {
+  if (kind === 'warehouse') return PARTNER_MARKETING_BANNER_WAREHOUSE_DATE_KEY
+  if (kind === 'regular') return PARTNER_MARKETING_BANNER_REGULAR_DATE_KEY
+  return partnerMarketingBannerDateKey(day, month)
+}
+
+export function partnerMarketingBannerPublicHref(kind: PartnerMarketingBannerKind, siteSlug: string): string {
+  return kind === 'warehouse' ? partnerSiteKhoSalePath(siteSlug) : partnerSiteProductsPath(siteSlug)
+}
+
+/** CMSN slide is only for logged-in shop accounts (guest account or linked user). */
+export function partnerMarketingBannerVisitorCanSeeBirthday(input: {
+  linkedUserId?: string | null
+  guestAccountId?: string | null
+}): boolean {
+  return Boolean(String(input.linkedUserId ?? '').trim() || String(input.guestAccountId ?? '').trim())
 }
 
 export function parsePartnerMarketingBannerDateKey(raw: string): { day: number; month: number } | null {
@@ -43,13 +91,27 @@ export function isValidPartnerMarketingBannerDayMonth(day: number, month: number
   return probe.getFullYear() === 2000 && probe.getMonth() === month - 1 && probe.getDate() === day
 }
 
-/** Widget attr `sale-calendar` → API/DB kind `sale`. */
+/** Widget attr → API/DB kind. `promo` is the shared slider host, not a DB kind. */
 export function personalizeBannerToApiKind(
   attr: string | null | undefined
 ): PartnerMarketingBannerKind | null {
   if (attr === 'birthday') return 'birthday'
   if (attr === 'sale-calendar' || attr === 'sale') return 'sale'
+  if (attr === 'warehouse') return 'warehouse'
+  if (attr === 'regular') return 'regular'
   return null
+}
+
+export function isPartnerMarketingPromoHostAttr(attr: string | null | undefined): boolean {
+  const value = String(attr ?? '').trim()
+  return (
+    value === 'promo' ||
+    value === 'birthday' ||
+    value === 'sale-calendar' ||
+    value === 'sale' ||
+    value === 'warehouse' ||
+    value === 'regular'
+  )
 }
 
 export function displayPartnerMarketingBannerPct(value: number): string {
@@ -87,7 +149,24 @@ function fallbackCopy(
     { verse: 'Ngày vui rạng rỡ - quà chờ bạn mở', cta: 'MỞ QUÀ SINH NHẬT', art_direction: 'lễ hội thanh lịch, confetti tối giản' },
     { verse: 'Thêm tuổi thêm duyên - nhận liền quà riêng', cta: 'NHẬN QUÀ NGAY', art_direction: 'mềm mại cao cấp, ánh sáng studio' },
   ]
-  const options = kind === 'birthday' ? birthdayOptions : saleOptions
+  const warehouseOptions: PartnerMarketingBannerCopy[] = [
+    { verse: 'Hàng kho giá sốc - chốt liền hôm nay', cta: 'SĂN HÀNG KHO', art_direction: 'lửa nóng cháy hàng, ánh sáng bùng nổ' },
+    { verse: 'Thanh lý gấp - deal lớn trao tay', cta: 'MUA NGAY HÔM NAY', art_direction: 'kho hàng rực lửa, sản phẩm phát sáng' },
+    { verse: 'Kho xả giá mạnh - bỏ lỡ tiếc lâu', cta: 'VÀO KHO SALE', art_direction: 'sân khấu cam đỏ, tương phản cực mạnh' },
+  ]
+  const regularOptions: PartnerMarketingBannerCopy[] = [
+    { verse: 'Hàng mới về shop - chọn ngay hôm nay', cta: 'XEM SHOP NGAY', art_direction: 'editorial sạch, sản phẩm nổi bật' },
+    { verse: 'Phong cách mới - diện liền đừng chờ', cta: 'MUA NGAY', art_direction: 'studio sang, ánh sáng mềm' },
+    { verse: 'Bộ sưu tập đang chờ - vào xem liền', cta: 'KHÁM PHÁ NGAY', art_direction: 'lifestyle hiện đại, tương phản rõ' },
+  ]
+  const options =
+    kind === 'birthday'
+      ? birthdayOptions
+      : kind === 'warehouse'
+        ? warehouseOptions
+        : kind === 'regular'
+          ? regularOptions
+          : saleOptions
   return options[(day + month + version) % options.length]!
 }
 
@@ -139,6 +218,27 @@ export function buildPartnerMarketingBannerPrompt(input: {
       ' Tạo cảm giác khẩn cấp. Đặt toàn bộ chữ quan trọng ở giữa ảnh và đủ lớn để đọc trên điện thoại.'
     )
   }
+  if (input.kind === 'warehouse') {
+    return (
+      shared +
+      ` Bắt buộc ghi nguyên văn: "SALE KHO - GIẢM ${pct}".` +
+      ` Ghi nguyên văn câu sáng tác mới: "${dynamic.verse}".` +
+      ` CTA dạng nút ghi nguyên văn: "${dynamic.cta}".` +
+      ` Định hướng mỹ thuật riêng cho phiên bản này: ${dynamic.art_direction}.` +
+      ' Banner sale kho phải cực ấn tượng, chuyển đổi cao. Không ghi ngày tháng.' +
+      ' Đặt toàn bộ chữ quan trọng ở giữa ảnh và đủ lớn để đọc trên điện thoại.'
+    )
+  }
+  if (input.kind === 'regular') {
+    return (
+      shared +
+      ` Banner cửa hàng thường — không ghi ngày sale, không ghi % giảm, không ghi SALE KHO hay MỪNG SINH NHẬT.` +
+      ` Ghi nguyên văn câu sáng tác mới: "${dynamic.verse}".` +
+      ` CTA dạng nút ghi nguyên văn: "${dynamic.cta}".` +
+      ` Định hướng mỹ thuật riêng cho phiên bản này: ${dynamic.art_direction}.` +
+      ' Đặt toàn bộ chữ quan trọng ở giữa ảnh và đủ lớn để đọc trên điện thoại.'
+    )
+  }
   return (
     shared +
     ` Bắt buộc ghi nguyên văn: "MỪNG SINH NHẬT ${label} - TẶNG ${pct}".` +
@@ -148,6 +248,39 @@ export function buildPartnerMarketingBannerPrompt(input: {
     ' Không ghi tên khách và không ghi năm sinh. Trang trí quà tặng, bánh sinh nhật,' +
     ' confetti vừa đủ, sang trọng và ấm áp. Đặt toàn bộ chữ quan trọng ở giữa ảnh và đủ lớn để đọc trên điện thoại.'
   )
+}
+
+export function partnerMarketingBannerAlt(
+  locale: string,
+  item: { kind: PartnerMarketingBannerKind; date_key: string; discount_percent: number }
+): string {
+  const pct = displayPartnerMarketingBannerPct(item.discount_percent)
+  if (item.kind === 'birthday') {
+    if (locale === 'en') return `Birthday banner ${item.date_key}, gift ${pct}`
+    if (locale === 'zh') return `生日横幅 ${item.date_key}，赠 ${pct}`
+    if (locale === 'ja') return `誕生日バナー ${item.date_key}、${pct} プレゼント`
+    if (locale === 'ko') return `생일 배너 ${item.date_key}, ${pct} 선물`
+    return `Banner mừng sinh nhật ${item.date_key}, tặng ${pct}`
+  }
+  if (item.kind === 'warehouse') {
+    if (locale === 'en') return `Warehouse sale banner, ${pct} off`
+    if (locale === 'zh') return `清仓横幅，减 ${pct}`
+    if (locale === 'ja') return `倉庫セールバナー、${pct} オフ`
+    if (locale === 'ko') return `창고 세일 배너, ${pct} 할인`
+    return `Banner sale kho, giảm ${pct}`
+  }
+  if (item.kind === 'regular') {
+    if (locale === 'en') return 'Shop banner'
+    if (locale === 'zh') return '店铺横幅'
+    if (locale === 'ja') return 'ショップバナー'
+    if (locale === 'ko') return '쇼핑몰 배너'
+    return 'Banner cửa hàng'
+  }
+  if (locale === 'en') return `Sale banner ${item.date_key}, ${pct} off`
+  if (locale === 'zh') return `促销横幅 ${item.date_key}，减 ${pct}`
+  if (locale === 'ja') return `セールバナー ${item.date_key}、${pct} オフ`
+  if (locale === 'ko') return `세일 배너 ${item.date_key}, ${pct} 할인`
+  return `Banner sale ${item.date_key}, giảm ${pct}`
 }
 
 export function partnerMarketingBannerGreeting(locale: string, displayName: string): string {
@@ -173,6 +306,17 @@ export type PartnerMarketingBannerPublicItem = {
   href: string
   is_test?: boolean
   event_label?: string | null
+}
+
+export function composePartnerMarketingBannerSlides(parts: {
+  birthday?: PartnerMarketingBannerPublicItem | null
+  sale?: PartnerMarketingBannerPublicItem | null
+  warehouse?: PartnerMarketingBannerPublicItem | null
+  regulars?: PartnerMarketingBannerPublicItem[]
+}): PartnerMarketingBannerPublicItem[] {
+  return [parts.birthday, parts.sale, parts.warehouse, ...(parts.regulars ?? [])].filter(
+    (item): item is PartnerMarketingBannerPublicItem => Boolean(item)
+  )
 }
 
 export type PartnerMarketingBannerAdminItem = {

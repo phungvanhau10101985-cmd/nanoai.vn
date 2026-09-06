@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CalendarDays, Loader2, Save } from 'lucide-react'
+import { CalendarDays, ImagePlus, Loader2, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerSaleCalendarConfig } from '@/lib/db/messaging-partner-sale-calendar-pg'
+import { partnerMarketingBannerCampaignKey } from '@/lib/partner-website/promotions/partner-marketing-banner'
 
 const COPY: Record<
   WebLocale,
@@ -27,6 +28,13 @@ const COPY: Record<
     save: string
     saved: string
     error: string
+    createWarehouse: string
+    applyWarehouse: string
+    warehouseBannerHint: string
+    warehouseNeedPercent: string
+    warehouseCreated: string
+    warehouseApplied: string
+    warehouseNeedImage: string
   }
 > = {
   vi: {
@@ -44,6 +52,13 @@ const COPY: Record<
     save: 'Lưu chương trình sale',
     saved: 'Đã lưu chương trình sale.',
     error: 'Không lưu được chương trình sale.',
+    createWarehouse: 'Tạo banner sale kho',
+    applyWarehouse: 'Áp dụng banner sale kho',
+    warehouseBannerHint: 'Nhập % rồi tạo ảnh 21:9. Slider trang chủ hiện banner kho sau CMSN và sale ngày trùng tháng.',
+    warehouseNeedPercent: 'Giảm giá kho phải từ 0.5–80%.',
+    warehouseCreated: 'Đã tạo banner sale kho.',
+    warehouseApplied: 'Đã áp dụng banner sale kho.',
+    warehouseNeedImage: 'Chưa có ảnh banner sale kho cho mức % này. Hãy tạo trước.',
   },
   en: {
     title: 'Same-day same-month sale',
@@ -60,6 +75,13 @@ const COPY: Record<
     save: 'Save sale program',
     saved: 'Sale program saved.',
     error: 'Could not save the sale program.',
+    createWarehouse: 'Create warehouse banner',
+    applyWarehouse: 'Apply warehouse banner',
+    warehouseBannerHint: 'Enter a percent then generate a 21:9 image. The homepage slider shows it after birthday and same-day sale.',
+    warehouseNeedPercent: 'Warehouse discount must be 0.5–80%.',
+    warehouseCreated: 'Warehouse banner created.',
+    warehouseApplied: 'Warehouse banner applied.',
+    warehouseNeedImage: 'No warehouse banner image for this percent yet. Generate one first.',
   },
   zh: {
     title: '同日同月促销',
@@ -76,6 +98,13 @@ const COPY: Record<
     save: '保存促销计划',
     saved: '促销计划已保存。',
     error: '无法保存促销计划。',
+    createWarehouse: '生成清仓横幅',
+    applyWarehouse: '应用清仓横幅',
+    warehouseBannerHint: '输入折扣后生成 21:9 图片。首页滑块在生日和同日促销之后显示。',
+    warehouseNeedPercent: '清仓折扣须为 0.5–80%。',
+    warehouseCreated: '已生成清仓横幅。',
+    warehouseApplied: '已应用清仓横幅。',
+    warehouseNeedImage: '该折扣还没有清仓横幅。请先生成。',
   },
   ja: {
     title: '同日同月セール',
@@ -92,6 +121,13 @@ const COPY: Record<
     save: 'セールを保存',
     saved: 'セールを保存しました。',
     error: 'セールを保存できませんでした。',
+    createWarehouse: '倉庫バナーを作成',
+    applyWarehouse: '倉庫バナーを適用',
+    warehouseBannerHint: '% を入力して 21:9 画像を生成。トップのスライダーは誕生日・同日セールの後に表示します。',
+    warehouseNeedPercent: '倉庫割引は 0.5–80% にしてください。',
+    warehouseCreated: '倉庫バナーを作成しました。',
+    warehouseApplied: '倉庫バナーを適用しました。',
+    warehouseNeedImage: 'この割引率の倉庫バナーがありません。先に作成してください。',
   },
   ko: {
     title: '같은 날짜·월 세일',
@@ -108,6 +144,13 @@ const COPY: Record<
     save: '세일 프로그램 저장',
     saved: '세일 프로그램을 저장했습니다.',
     error: '세일 프로그램을 저장하지 못했습니다.',
+    createWarehouse: '창고 배너 만들기',
+    applyWarehouse: '창고 배너 적용',
+    warehouseBannerHint: '%를 입력한 뒤 21:9 이미지를 만듭니다. 홈 슬라이더는 생일·같은 날짜 세일 다음에 보여 줍니다.',
+    warehouseNeedPercent: '창고 할인은 0.5–80%여야 합니다.',
+    warehouseCreated: '창고 배너를 만들었습니다.',
+    warehouseApplied: '창고 배너를 적용했습니다.',
+    warehouseNeedImage: '이 할인율의 창고 배너가 없습니다. 먼저 만드세요.',
   },
 }
 
@@ -126,6 +169,11 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
   const [config, setConfig] = useState<PartnerSaleCalendarConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [bannerWorking, setBannerWorking] = useState(false)
+  const bannersApi = useMemo(
+    () => `/api/messaging/partners/${encodeURIComponent(partnerId)}/marketing-banners`,
+    [partnerId]
+  )
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -157,6 +205,67 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
       if (response.ok) await load()
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function createWarehouseBanner() {
+    const pct = Number(config?.clearanceDiscountPercent)
+    if (!Number.isFinite(pct) || pct <= 0 || pct > 80) {
+      onToast?.(t.warehouseNeedPercent, 'destructive')
+      return
+    }
+    setBannerWorking(true)
+    try {
+      const res = await fetch(`${bannersApi}/regenerate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'warehouse', discountPercent: pct }),
+      })
+      onToast?.(res.ok ? t.warehouseCreated : t.error, res.ok ? 'default' : 'destructive')
+    } finally {
+      setBannerWorking(false)
+    }
+  }
+
+  async function applyWarehouseBanner() {
+    const pct = Number(config?.clearanceDiscountPercent)
+    if (!Number.isFinite(pct) || pct <= 0 || pct > 80) {
+      onToast?.(t.warehouseNeedPercent, 'destructive')
+      return
+    }
+    setBannerWorking(true)
+    try {
+      const listRes = await fetch(`${bannersApi}?kind=warehouse`, { credentials: 'same-origin' })
+      const listBody = (await listRes.json().catch(() => null)) as {
+        items?: Array<{ id: string; campaign_key: string; is_active: boolean; image_url?: string | null; status?: string }>
+      } | null
+      const campaignKey = partnerMarketingBannerCampaignKey('warehouse', 0, 0, pct)
+      const match = (listBody?.items ?? []).find(
+        (item) => item.campaign_key === campaignKey && item.status === 'ready' && item.image_url
+      ) ?? (listBody?.items ?? []).find((item) => item.is_active && item.image_url)
+      if (!match?.id) {
+        onToast?.(t.warehouseNeedImage, 'destructive')
+        return
+      }
+      const activateRes = await fetch(`${bannersApi}/${encodeURIComponent(match.id)}/activate`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      })
+      if (!activateRes.ok) {
+        onToast?.(t.error, 'destructive')
+        return
+      }
+      if (config && !config.clearanceEnabled) {
+        await fetch(api, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...config, clearanceEnabled: true }),
+        })
+        await load()
+      }
+      onToast?.(t.warehouseApplied)
+    } finally {
+      setBannerWorking(false)
     }
   }
 
@@ -254,6 +363,26 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
                 />
               </div>
               {numberField('manualDiscountPercent', t.manualPercent, true)}
+            </div>
+            <p className="text-xs text-muted-foreground">{t.warehouseBannerHint}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={bannerWorking || saving}
+                onClick={() => void createWarehouseBanner()}
+              >
+                {bannerWorking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-2 h-4 w-4" />}
+                {t.createWarehouse}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={bannerWorking || saving}
+                onClick={() => void applyWarehouseBanner()}
+              >
+                {t.applyWarehouse}
+              </Button>
             </div>
             <Button onClick={save} disabled={saving}>
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
