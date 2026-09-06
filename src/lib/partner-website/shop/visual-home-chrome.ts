@@ -57,42 +57,66 @@ function homeHtmlParts(
   }
 }
 
+export function emptyVisualHomeChromeByDevice(): VisualHomeChromeByDevice {
+  return {
+    desktop: null,
+    laptop: null,
+    tablet: null,
+    mobile: null,
+    desktopStyles: '',
+    laptopStyles: '',
+    tabletStyles: '',
+    mobileStyles: '',
+  }
+}
+
+function chromeAndStylesFromParts(parts: { isolated: string; stylesFrom: string; raw: string }): {
+  chrome: SharedChrome | null
+  styles: string
+} {
+  const extracted = parts.isolated
+    ? fillMissingSharedChromeFloats(extractSharedChrome(parts.isolated), parts.raw)
+    : null
+  return {
+    chrome: extracted && hasSharedChrome(extracted) ? extracted : null,
+    styles: extractVisualDocumentStyles(parts.stylesFrom),
+  }
+}
+
 export function visualHomeChromeForDevice(
   website: VisualHomeChromeWebsite,
   variant: VisualDeviceVariant
 ): SharedChrome | null {
-  const parts = homeHtmlParts(website, variant)
-  if (!parts.isolated) return null
-  const chrome = fillMissingSharedChromeFloats(extractSharedChrome(parts.isolated), parts.raw)
-  return hasSharedChrome(chrome) ? chrome : null
+  return chromeAndStylesFromParts(homeHtmlParts(website, variant)).chrome
+}
+
+/** Live React only needs the machine currently viewing — skip parsing the other three HTML files. */
+export function visualHomeChromeByDeviceFor(
+  website: VisualHomeChromeWebsite,
+  variant: VisualDeviceVariant
+): VisualHomeChromeByDevice {
+  const { chrome, styles } = chromeAndStylesFromParts(homeHtmlParts(website, variant))
+  const out = emptyVisualHomeChromeByDevice()
+  if (variant === 'laptop') return { ...out, laptop: chrome, laptopStyles: styles }
+  if (variant === 'tablet') return { ...out, tablet: chrome, tabletStyles: styles }
+  if (variant === 'mobile') return { ...out, mobile: chrome, mobileStyles: styles }
+  return { ...out, desktop: chrome, desktopStyles: styles }
 }
 
 export function visualHomeChromeByDevice(website: VisualHomeChromeWebsite): VisualHomeChromeByDevice {
-  const desktop = homeHtmlParts(website, 'desktop')
-  const laptop = homeHtmlParts(website, 'laptop')
-  const tablet = homeHtmlParts(website, 'tablet')
-  const mobile = homeHtmlParts(website, 'mobile')
-  const desktopChrome = desktop.isolated
-    ? fillMissingSharedChromeFloats(extractSharedChrome(desktop.isolated), desktop.raw)
-    : null
-  const laptopChrome = laptop.isolated
-    ? fillMissingSharedChromeFloats(extractSharedChrome(laptop.isolated), laptop.raw)
-    : null
-  const tabletChrome = tablet.isolated
-    ? fillMissingSharedChromeFloats(extractSharedChrome(tablet.isolated), tablet.raw)
-    : null
-  const mobileChrome = mobile.isolated
-    ? fillMissingSharedChromeFloats(extractSharedChrome(mobile.isolated), mobile.raw)
-    : null
+  const desktop = visualHomeChromeByDeviceFor(website, 'desktop')
+  const laptop = visualHomeChromeByDeviceFor(website, 'laptop')
+  const tablet = visualHomeChromeByDeviceFor(website, 'tablet')
+  const mobile = visualHomeChromeByDeviceFor(website, 'mobile')
   return {
-    desktop: desktopChrome && hasSharedChrome(desktopChrome) ? desktopChrome : null,
-    laptop: laptopChrome && hasSharedChrome(laptopChrome) ? laptopChrome : null,
-    tablet: tabletChrome && hasSharedChrome(tabletChrome) ? tabletChrome : null,
-    mobile: mobileChrome && hasSharedChrome(mobileChrome) ? mobileChrome : null,
-    desktopStyles: extractVisualDocumentStyles(desktop.stylesFrom),
-    laptopStyles: extractVisualDocumentStyles(laptop.stylesFrom),
-    tabletStyles: extractVisualDocumentStyles(tablet.stylesFrom),
-    mobileStyles: extractVisualDocumentStyles(mobile.stylesFrom),
+    desktop: desktop.desktop,
+    laptop: laptop.laptop,
+    tablet: tablet.tablet,
+    mobile: mobile.mobile,
+    desktopStyles: desktop.desktopStyles,
+    laptopStyles: laptop.laptopStyles,
+    tabletStyles: tablet.tabletStyles,
+    mobileStyles: mobile.mobileStyles,
   }
 }
 
@@ -150,7 +174,9 @@ export function visualHomeChromeShellProps(
   visualChromeStyles: string
   previewDevice: VisualDeviceVariant | null
 } {
-  const visualChromeByDevice = visualHomeChromeByDevice(website)
+  const visualChromeByDevice = previewDevice
+    ? visualHomeChromeByDeviceFor(website, previewDevice)
+    : visualHomeChromeByDevice(website)
   return {
     visualChromeByDevice,
     visualChromeStyles: pickVisualHomeStyles(visualChromeByDevice, previewDevice ?? null),

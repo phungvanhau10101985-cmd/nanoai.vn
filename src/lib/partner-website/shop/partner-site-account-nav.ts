@@ -21,6 +21,22 @@ export function normalizePartnerSitePathname(pathname: string): string {
   return path.replace(/\/+$/, '') || '/'
 }
 
+/** Cart / account / login React layout — page chrome flags from the URL, not a remounted shell. */
+export function reactAccountShellNavFromPathname(pathname: string): {
+  pageKind: PwPageKind
+  activeNav: 'cart' | 'account'
+  hideAccountNav: boolean
+} {
+  const path = normalizePartnerSitePathname(pathname)
+  if (path === '/login' || path.startsWith('/login/')) {
+    return { pageKind: PW_PAGE.account, activeNav: 'account', hideAccountNav: true }
+  }
+  if (path === '/cart' || path.startsWith('/cart/')) {
+    return { pageKind: PW_PAGE.cart, activeNav: 'cart', hideAccountNav: false }
+  }
+  return { pageKind: PW_PAGE.account, activeNav: 'account', hideAccountNav: false }
+}
+
 export function partnerSiteAccountNavActiveId(pathname: string): PartnerSiteAccountMenuItemId | null {
   const path = normalizePartnerSitePathname(pathname)
   if (path === '/cart' || path.startsWith('/cart/') || path === '/account/cart') return 'cart'

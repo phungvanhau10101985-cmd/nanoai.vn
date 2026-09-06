@@ -126,7 +126,7 @@ import {
 import { ensurePartnerPwaInstallListener } from '@/lib/partner-website/shop/partner-site-pwa-install'
 import { PW_SHOP_NOTIFICATIONS_REFRESH_EVENT } from '@/lib/partner-website/shop/partner-site-push-subscribe-client'
 
-type Props = {
+export type PartnerSiteShopShellProps = {
   siteSlug: string
   partnerSlug: string
   title: string
@@ -315,7 +315,7 @@ function PartnerSiteShopShellInner({
   initialNavRow = [],
   initialShowNavAll = false,
   children,
-}: Props) {
+}: PartnerSiteShopShellProps) {
   const t = getPartnerSiteShopCopy(locale)
   const n = getPartnerSiteCategoryNavLabels(locale)
   const { openChat } = usePartnerSiteChatWidget()
@@ -523,7 +523,7 @@ function PartnerSiteShopShellInner({
   // -> fallback nhãn cố định cũ bên dưới (W4.3, không phá site đang publish).
   useEffect(() => {
     let cancelled = false
-    fetch(partnerSiteCategoriesApiPath(siteSlug), { cache: 'no-store' })
+    fetch(partnerSiteCategoriesApiPath(siteSlug))
       .then((res) => (res.ok ? res.json() : null))
       .then((json: { tree?: PartnerCategoryTreeNode[]; menuTree?: PartnerCategoryTreeNode[]; seoSizes?: PartnerCategoryTreeNode[] } | null) => {
         if (cancelled) return
@@ -973,7 +973,7 @@ function PartnerSiteShopShellInner({
 }
 
 /** Shared storefront chrome: same header, footer, and bottom nav on every page. Only `children` differs. */
-export function PartnerSiteShopShell(props: Props) {
+export function PartnerSiteShopShell(props: PartnerSiteShopShellProps) {
   return (
     <PartnerSiteChatWidgetProvider
       chatPath={props.chatPath}

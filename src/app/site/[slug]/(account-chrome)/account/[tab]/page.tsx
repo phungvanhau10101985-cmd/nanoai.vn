@@ -3,16 +3,11 @@ import type { Metadata } from 'next'
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
-import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopAccountClient } from '@/components/partner-website/shop/partner-site-shop-account-client'
-import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
-import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
 import {
   isPartnerSiteAccountTab,
   type PartnerSiteAccountTab,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
-import { PW_PAGE } from '@/lib/partner-website/visual-editor/pw-ui-contract'
-import { readVisualPreviewDevice } from '@/components/partner-website/shop/partner-site-visual-html-screen'
 
 type Props = {
   params: Promise<{ slug: string; tab: string }>
@@ -73,39 +68,20 @@ export default async function PartnerSiteAccountTabPage({ params, searchParams }
 
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
-  const site = shop.site
   const partnerSlug = shop.partnerSlug
   if (!partnerSlug.trim()) notFound()
-  const shellSite = site
-  const device = await readVisualPreviewDevice(searchParams)
 
   const sp = (await searchParams) ?? {}
   const ordersFilter = normalized === 'orders' ? sp.tab?.trim() || null : null
 
   return (
-    <PartnerSiteShopShell
-      siteSlug={shellSite.siteSlug}
+    <PartnerSiteShopAccountClient
+      siteSlug={shop.site.siteSlug}
       partnerSlug={partnerSlug}
-      title={shellSite.title}
-      logoUrl={shellSite.logoUrl}
-      theme={shellSite.theme}
-      locale={shellSite.locale}
-      chatPath={shellSite.chatPath}
-      tracking={partnerSiteTrackingFromPublicRow(shellSite)}
-      footerJson={shellSite.footerJson}
-      navJson={shellSite.navJson}
-      activeNav="account"
-      pageKind={PW_PAGE.account}
-      {...(await liveVisualHomeChromeShellProps(shellSite, device))}
-    >
-      <PartnerSiteShopAccountClient
-        siteSlug={shellSite.siteSlug}
-        partnerSlug={partnerSlug}
-        shopTitle={shellSite.title}
-        locale={shellSite.locale}
-        initialTab={normalized}
-        initialOrdersFilter={ordersFilter}
-      />
-    </PartnerSiteShopShell>
+      shopTitle={shop.site.title}
+      locale={shop.site.locale}
+      initialTab={normalized}
+      initialOrdersFilter={ordersFilter}
+    />
   )
 }

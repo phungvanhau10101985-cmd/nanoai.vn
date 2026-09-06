@@ -8,6 +8,38 @@ export const SITE_META_TTL_SEC = 120
 /** Pill + featured tiles are visitor-specific; short so vừa xem still updates. */
 export const LIVE_CATEGORY_BIND_TTL_SEC = 45
 
+/** Process L0 when Redis is off — same TTL as the Redis entry; cleared on bump. */
+const MEM_CACHE_MAX = 300
+const memStore = new Map<string, { exp: number; raw: string }>()
+
+function forgetMem(prefix?: string): void {
+  if (!prefix) {
+    memStore.clear()
+    return
+  }
+  for (const key of [...memStore.keys()]) {
+    if (key.startsWith(prefix)) memStore.delete(key)
+  }
+}
+
+function readMem(key: string): string | null {
+  const row = memStore.get(key)
+  if (!row) return null
+  if (row.exp <= Date.now()) {
+    memStore.delete(key)
+    return null
+  }
+  return row.raw
+}
+
+function writeMem(key: string, ttlSec: number, raw: string): void {
+  if (memStore.size >= MEM_CACHE_MAX) {
+    const oldest = memStore.keys().next().value
+    if (typeof oldest === 'string') memStore.delete(oldest)
+  }
+  memStore.set(key, { exp: Date.now() + Math.max(1, ttlSec) * 1000, raw })
+}
+
 function inventoryVerKey(partnerId: string): string {
   return `pw:inv:${partnerId}:ver`
 }
@@ -24,12 +56,14 @@ export async function bumpInventoryCache(partnerId: string | null | undefined): 
   const id = String(partnerId ?? '').trim()
   if (!id) return
   await redisIncr(inventoryVerKey(id))
+  forgetMem(`pw:inv:${id}:`)
 }
 
 export async function bumpSiteCache(slug: string | null | undefined): Promise<void> {
   const key = String(slug ?? '').trim().toLowerCase()
   if (!key) return
   await redisIncr(siteVerKey(key))
+  forgetMem(`pw:site:${key}:`)
 }
 
 function bumpLater(task: Promise<unknown>): void {
@@ -55,8 +89,17 @@ async function siteVer(slug: string): Promise<number> {
 }
 
 export async function shopCacheGetJson<T>(key: string): Promise<T | null> {
+  const cached = readMem(key)
+  if (cached) {
+    try {
+      return JSON.parse(cached) as T
+    } catch {
+      memStore.delete(key)
+    }
+  }
   const raw = await redisGet(key)
   if (!raw) return null
+  writeMem(key, SHOP_LIST_TTL_SEC, raw)
   try {
     return JSON.parse(raw) as T
   } catch {
@@ -66,7 +109,9 @@ export async function shopCacheGetJson<T>(key: string): Promise<T | null> {
 
 export async function shopCacheSetJson(key: string, ttlSec: number, value: unknown): Promise<void> {
   try {
-    await redisSetEx(key, ttlSec, JSON.stringify(value))
+    const raw = JSON.stringify(value)
+    writeMem(key, ttlSec, raw)
+    await redisSetEx(key, ttlSec, raw)
   } catch (e) {
     console.warn('[partner-shop-cache] set failed', e instanceof Error ? e.message : e)
   }
@@ -139,5 +184,23 @@ export async function withSiteHtmlCache(input: {
   if (typeof hit === 'string' && hit.length >= 40) return hit
   const value = await input.load()
   if (value.length >= 40) await shopCacheSetJson(key, SITE_HTML_TTL_SEC, value)
+  return value
+}
+
+/** Extracted home header/footer for React cart/account — not personalized pills. Bust via `bumpSiteCache`. */
+export async function withSiteChromeCache<T>(input: {
+  slug: string
+  device: string
+  load: () => Promise<T>
+}): Promise<T> {
+  const slug = input.slug.trim().toLowerCase()
+  const device = input.device.trim().toLowerCase()
+  if (!slug || !device) return input.load()
+  const ver = await siteVer(slug)
+  const key = `pw:site:${slug}:v${ver}:chrome:${device}`
+  const hit = await shopCacheGetJson<T>(key)
+  if (hit !== null) return hit
+  const value = await input.load()
+  if (value != null) await shopCacheSetJson(key, SITE_HTML_TTL_SEC, value)
   return value
 }

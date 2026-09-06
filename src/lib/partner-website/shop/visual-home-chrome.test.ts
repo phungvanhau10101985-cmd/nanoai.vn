@@ -6,6 +6,7 @@ import {
   hasVisualHomeChrome,
   pickVisualHomeChrome,
   visualHomeChromeByDevice,
+  visualHomeChromeByDeviceFor,
   visualHomeChromeForDevice,
 } from '@/lib/partner-website/shop/visual-home-chrome'
 
@@ -89,6 +90,27 @@ test('VISUAL_HOME_CHROME_SPLIT_CSS uses display:contents so sticky header pins t
   assert.match(VISUAL_HOME_CHROME_SPLIT_CSS, /\.pw-visual-desktop\{display:contents!important\}/)
   assert.equal(VISUAL_HOME_CHROME_SPLIT_CSS.includes('{display:block!important}'), false)
   assert.match(VISUAL_HOME_CHROME_SPLIT_CSS, /\.pw-visual-desktop,.pw-visual-laptop,.pw-visual-tablet,.pw-visual-mobile\{display:none!important\}/)
+})
+
+test('visualHomeChromeByDeviceFor only fills the requested machine', () => {
+  const website = {
+    theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, useVisualHtml: true, useVisualMobileHtml: true },
+    htmlSource: deskHome,
+    project: {
+      entryPath: 'index.html',
+      files: [
+        { path: 'index.html', kind: 'html' as const, content: deskHome },
+        { path: 'index.mobile.html', kind: 'html' as const, content: mobHome },
+      ],
+    },
+  }
+  const mobile = visualHomeChromeByDeviceFor(website, 'mobile')
+  assert.ok(mobile.mobile)
+  assert.match(mobile.mobile.header, /MobHead/)
+  assert.equal(mobile.desktop, null)
+  assert.equal(mobile.laptop, null)
+  assert.equal(mobile.tablet, null)
+  assert.equal(mobile.desktopStyles, '')
 })
 
 test('pickVisualHomeChrome does not borrow desktop when tablet is missing', () => {

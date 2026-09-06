@@ -5,6 +5,7 @@ import {
   normalizePartnerSitePathname,
   partnerSiteAccountNavActiveId,
   partnerSitePageShowsAccountNav,
+  reactAccountShellNavFromPathname,
 } from '@/lib/partner-website/shop/partner-site-account-nav'
 import { getPartnerSiteAccountMenuItems } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
@@ -34,6 +35,29 @@ test('highlights cart, orders (including deposit), and account overview', () => 
   assert.equal(partnerSiteAccountNavActiveId('/site/demo/orders/DH1'), 'orders')
   assert.equal(partnerSiteAccountNavActiveId('/account'), 'account')
   assert.equal(partnerSiteAccountNavActiveId('/privacy'), null)
+})
+
+test('react account layout maps cart/login/orders from the URL', () => {
+  assert.deepEqual(reactAccountShellNavFromPathname('/site/demo/cart'), {
+    pageKind: PW_PAGE.cart,
+    activeNav: 'cart',
+    hideAccountNav: false,
+  })
+  assert.deepEqual(reactAccountShellNavFromPathname('/login'), {
+    pageKind: PW_PAGE.account,
+    activeNav: 'account',
+    hideAccountNav: true,
+  })
+  assert.deepEqual(reactAccountShellNavFromPathname('/site/demo/orders/DH1/deposit'), {
+    pageKind: PW_PAGE.account,
+    activeNav: 'account',
+    hideAccountNav: false,
+  })
+  assert.deepEqual(reactAccountShellNavFromPathname('/account/wallet'), {
+    pageKind: PW_PAGE.account,
+    activeNav: 'account',
+    hideAccountNav: false,
+  })
 })
 
 test('account menu cart/orders use dedicated routes; cart CTA is place-order', () => {

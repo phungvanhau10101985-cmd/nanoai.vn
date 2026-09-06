@@ -3,6 +3,8 @@ import test from 'node:test'
 import {
   LIVE_CATEGORY_BIND_TTL_SEC,
   liveCategoryBindCacheSuffix,
+  shopCacheGetJson,
+  shopCacheSetJson,
 } from '@/lib/cache/partner-shop-cache'
 
 test('liveCategoryBindCacheSuffix is per visitor, not per product', () => {
@@ -43,3 +45,11 @@ test('liveCategoryBindCacheSuffix includes tile limit', () => {
   })
   assert.notEqual(eight, ten)
 })
+
+test('shopCacheGetJson hits in-process memory when Redis is absent', async () => {
+  const key = `pw:test:mem:${Date.now()}`
+  await shopCacheSetJson(key, 60, { ok: 1, slug: 'demo' })
+  const hit = await shopCacheGetJson<{ ok: number; slug: string }>(key)
+  assert.deepEqual(hit, { ok: 1, slug: 'demo' })
+})
+
