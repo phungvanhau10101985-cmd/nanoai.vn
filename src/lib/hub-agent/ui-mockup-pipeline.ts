@@ -93,7 +93,7 @@ Flat UI design mockup only — return ONE image of the screen, no extra explanat
       upsert: true,
     })
 
-    const d = await deductUserCredits(input.userId, UI_MOCKUP_CREDIT)
+    const d = await deductUserCredits(input.userId, UI_MOCKUP_CREDIT, 'hub-studio-ui')
     if (!d.ok) return { ok: false, error: d.error || 'Không thể trừ credits.' }
 
     return { ok: true, resultUrl: publicUrl, charged: UI_MOCKUP_CREDIT }

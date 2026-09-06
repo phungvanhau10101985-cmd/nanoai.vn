@@ -242,7 +242,7 @@ export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelinePar
     })
     stagedPaths.push(resultImagePath)
 
-    const deduct = await deductUserCredits(billingUserId, cost)
+    const deduct = await deductUserCredits(billingUserId, cost, 'thu-do-online')
     if (!deduct.ok) {
       throw new Error(
         deduct.code === 'INSUFFICIENT_CREDITS'

@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Landmark,
   Wallet,
+  Receipt,
   MessageCircle,
   Code2,
   Globe,
@@ -92,6 +93,24 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
           ko: '완료된 크레딧 충전 내역·집계(SePay / QR).',
         },
         icon: Wallet,
+      },
+      {
+        href: '/admin/credit-spend-stats',
+        title: {
+          vi: 'Thống kê trừ credit',
+          en: 'Credit spend',
+          zh: '积分消耗',
+          ja: '消費統計',
+          ko: '크레딧 사용',
+        },
+        description: {
+          vi: 'Nhật ký trừ credit theo tính năng — ngày, tháng, năm.',
+          en: 'Credit spend ledger by feature — day, month, year.',
+          zh: '按功能记录积分消耗 — 日 / 月 / 年。',
+          ja: '機能別のクレジット消費 — 日 / 月 / 年。',
+          ko: '기능별 크레딧 사용 기록 — 일 / 월 / 년.',
+        },
+        icon: Receipt,
       },
       {
         href: '/admin/customer-care',

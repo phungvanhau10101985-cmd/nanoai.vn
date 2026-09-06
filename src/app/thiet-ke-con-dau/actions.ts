@@ -216,7 +216,7 @@ export async function createStampWithAI(formData: FormData) {
       upsert: true,
     })
 
-    const d = await deductUserCredits(user.id, COST)
+    const d = await deductUserCredits(user.id, COST, 'thiet-ke-con-dau')
     if (!d.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }

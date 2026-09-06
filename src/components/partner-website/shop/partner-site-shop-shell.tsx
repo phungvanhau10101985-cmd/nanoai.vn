@@ -61,6 +61,11 @@ import { buildPartnerSiteSearchBootstrapScript } from '@/lib/partner-website/sho
 import { buildPartnerSiteShopActionsBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-shop-actions-bootstrap-script'
 import { buildPartnerSiteShopThemeCss } from '@/lib/partner-website/shop/build-shop-theme-css'
 import {
+  buildMarketplaceLookCss,
+  isMarketplaceLook,
+  PARTNER_MARKETPLACE_LOOK_STYLE_ID,
+} from '@/lib/partner-website/shop/marketplace-shop-look-css'
+import {
   PARTNER_SHOP_CHROME_FLOAT_SCRIPT,
   PW_CHROME_FLOAT_SCRIPT_ID,
 } from '@/lib/partner-website/shop/chrome-float-widgets'
@@ -556,6 +561,16 @@ function PartnerSiteShopShellInner({
     document.body.appendChild(s)
   }, [pageKind])
   useLayoutEffect(() => {
+    if (isMarketplaceLook(theme)) {
+      document.documentElement.setAttribute('data-pw-look', 'marketplace')
+    } else {
+      document.documentElement.removeAttribute('data-pw-look')
+    }
+    return () => {
+      document.documentElement.removeAttribute('data-pw-look')
+    }
+  }, [theme])
+  useLayoutEffect(() => {
     const shop = document.querySelector('.pw-shop')
     if (!(shop instanceof HTMLElement)) return
     const apply = () => applyStickyHeadOffset(shop)
@@ -593,6 +608,12 @@ function PartnerSiteShopShellInner({
             id={PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID}
             dangerouslySetInnerHTML={{ __html: PARTNER_SHOP_CHROME_LAYOUT_CSS }}
           />
+          {isMarketplaceLook(theme) ? (
+            <style
+              id={PARTNER_MARKETPLACE_LOOK_STYLE_ID}
+              dangerouslySetInnerHTML={{ __html: buildMarketplaceLookCss() }}
+            />
+          ) : null}
           <style
             id="pw-visual-home-chrome-split"
             dangerouslySetInnerHTML={{ __html: VISUAL_HOME_CHROME_SPLIT_CSS }}

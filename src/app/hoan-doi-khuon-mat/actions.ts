@@ -313,7 +313,7 @@ ${NO_TEXT}`
       upsert: true,
     })
 
-    const d = await deductUserCredits(user.id, COST)
+    const d = await deductUserCredits(user.id, COST, 'hoan-doi-khuon-mat')
     if (!d.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }

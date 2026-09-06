@@ -219,7 +219,7 @@ export async function translateDocumentImage(formData: FormData) {
       upsert: true,
     })
 
-    const d = await deductUserCredits(user.id, COST)
+    const d = await deductUserCredits(user.id, COST, 'dich-anh-tai-lieu')
     if (!d.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
@@ -378,7 +378,7 @@ export async function translatePdfDocument(
       userId: user.id,
     })
 
-    const dPage = await deductUserCredits(user.id, COST_PER_PAGE)
+    const dPage = await deductUserCredits(user.id, COST_PER_PAGE, 'dich-anh-tai-lieu')
     if (!dPage.ok) {
       return { error: dPage.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits trong quá trình xử lý.' : dPage.error }
     }
@@ -592,7 +592,7 @@ export async function translateOneImageFromBatch(
     upsert: true,
   })
 
-  const dBatch1 = await deductUserCredits(user.id, COST)
+  const dBatch1 = await deductUserCredits(user.id, COST, 'dich-anh-tai-lieu')
   if (!dBatch1.ok) {
     return { error: dBatch1.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dBatch1.error }
   }
@@ -676,7 +676,7 @@ export async function translateOneImageFromUrl(
     upsert: true,
   })
 
-  const dUrl = await deductUserCredits(user.id, COST)
+  const dUrl = await deductUserCredits(user.id, COST, 'dich-anh-tai-lieu')
   if (!dUrl.ok) {
     return { error: dUrl.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dUrl.error }
   }
@@ -813,7 +813,7 @@ export async function translateDocumentImageBatch(
       upsert: true,
     })
 
-    const dImg = await deductUserCredits(user.id, COST_PER_IMAGE)
+    const dImg = await deductUserCredits(user.id, COST_PER_IMAGE, 'dich-anh-tai-lieu')
     if (!dImg.ok) {
       return { error: dImg.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits trong quá trình xử lý.' : dImg.error }
     }
@@ -1198,7 +1198,7 @@ export async function translateFromExcel(
       upsert: true,
     })
 
-    const dExcel = await deductUserCredits(user.id, COST_PER_IMAGE)
+    const dExcel = await deductUserCredits(user.id, COST_PER_IMAGE, 'dich-anh-tai-lieu')
     if (!dExcel.ok) {
       return { error: dExcel.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits trong quá trình xử lý.' : dExcel.error }
     }

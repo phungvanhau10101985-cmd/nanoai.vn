@@ -108,7 +108,7 @@ export async function runBannerPipeline(input: RunBannerPipelineInput): Promise<
       upsert: true,
     })
 
-    const d = await deductUserCredits(input.userId, COST)
+    const d = await deductUserCredits(input.userId, COST, 'hub-studio-banner')
     if (!d.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { ok: false, error: d.error || 'Kh├┤ng thß╗â trß╗½ credits.' }

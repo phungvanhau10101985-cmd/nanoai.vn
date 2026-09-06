@@ -359,7 +359,7 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
       return { error: 'AI không trả về ảnh hợp lệ.' }
     }
     const actualCost = COST_PER_IMAGE * resultUrls.length
-    const dApply = await deductUserCredits(user.id, actualCost)
+    const dApply = await deductUserCredits(user.id, actualCost, 'thiet-ke-noi-ngoai-that')
     if (!dApply.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: dApply.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dApply.error }
@@ -433,7 +433,7 @@ export async function analyzeInterior(formData: FormData) {
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     const analysisJson = jsonMatch ? jsonMatch[0] : text
 
-    const dAn = await deductUserCredits(user.id, ANALYZE_COST)
+    const dAn = await deductUserCredits(user.id, ANALYZE_COST, 'thiet-ke-noi-ngoai-that-analyze')
     if (!dAn.ok) return { error: dAn.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dAn.error }
 
     revalidatePath('/thiet-ke-noi-ngoai-that')
@@ -527,7 +527,7 @@ export async function processInteriorImage(formData: FormData) {
       upsert: true,
     })
 
-    const dProc = await deductUserCredits(user.id, COST)
+    const dProc = await deductUserCredits(user.id, COST, 'thiet-ke-noi-ngoai-that-process')
     if (!dProc.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: dProc.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dProc.error }

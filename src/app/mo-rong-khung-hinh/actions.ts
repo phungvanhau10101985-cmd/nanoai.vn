@@ -109,7 +109,7 @@ export async function outpaintImage(formData: FormData) {
       upsert: true,
     })
 
-    const deduct = await deductUserCredits(user.id, COST)
+    const deduct = await deductUserCredits(user.id, COST, 'mo-rong-khung-hinh')
     if (!deduct.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return {

@@ -121,7 +121,7 @@ export async function runSharpenPipeline(input: RunSharpenPipelineInput): Promis
       upsert: true,
     })
 
-    const deduct = await deductUserCredits(input.userId, COST)
+    const deduct = await deductUserCredits(input.userId, COST, 'lam-net-anh')
     if (!deduct.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { ok: false, error: deduct.error || 'Không thể trừ credits.' }

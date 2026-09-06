@@ -69,7 +69,7 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
       upsert: true,
     })
 
-    const deduct = await deductUserCredits(user.id, COST)
+    const deduct = await deductUserCredits(user.id, COST, 'xoa-nen-png')
     if (!deduct.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return {

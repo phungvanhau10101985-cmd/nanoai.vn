@@ -204,7 +204,7 @@ Rules:
 
     const lyrics = segments.join('\n\n')
 
-    const dLyrics = await deductUserCredits(user.id, LYRICS_CREDITS)
+    const dLyrics = await deductUserCredits(user.id, LYRICS_CREDITS, 'music-video-lyrics-flash')
     if (!dLyrics.ok) {
       return { error: dLyrics.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dLyrics.error }
     }
@@ -385,7 +385,7 @@ Hard rules:
       return { error: 'Đoạn lời trả về quá ngắn hoặc không đọc được. Thử lại.' }
     }
 
-    const dSeg = await deductUserCredits(user.id, LYRICS_CREDITS)
+    const dSeg = await deductUserCredits(user.id, LYRICS_CREDITS, 'music-video-lyrics-flash')
     if (!dSeg.ok) {
       return { error: dSeg.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dSeg.error }
     }
@@ -556,7 +556,7 @@ export async function createMusicVideoVeo8s(formData: FormData) {
       upsert: true,
     })
 
-    const dClip = await deductUserCredits(user.id, CLIP_CREDITS)
+    const dClip = await deductUserCredits(user.id, CLIP_CREDITS, 'tao-video-veo-music-8s')
     if (!dClip.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: dClip.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : dClip.error }

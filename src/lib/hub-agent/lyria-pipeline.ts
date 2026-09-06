@@ -62,7 +62,7 @@ export async function runLyriaPipeline(input: RunLyriaPipelineInput): Promise<Ru
     return { ok: false, error: `Không đủ credits (cần ${LYRIA3_CHARGE}).` }
   }
 
-  const charged = await deductUserCredits(input.userId, LYRIA3_CHARGE)
+  const charged = await deductUserCredits(input.userId, LYRIA3_CHARGE, 'music-lyria3-generate')
   if (!charged.ok) return { ok: false, error: charged.error || 'Không thể trừ credits.' }
 
   const fullPrompt = `Creative direction from the user:\n${promptRaw}${LYRIA3_DURATION_PROMPT}${INSTRUMENTAL_SUFFIX}`
@@ -77,7 +77,7 @@ export async function runLyriaPipeline(input: RunLyriaPipelineInput): Promise<Ru
 
     const extracted = extractFromResponse(response as { candidates?: Array<{ content?: { parts?: ContentPart[] } }> })
     if (!extracted) {
-      await refundUserCredits(input.userId, LYRIA3_CHARGE)
+      await refundUserCredits(input.userId, LYRIA3_CHARGE, 'music-lyria3-generate')
       return { ok: false, error: 'API không trả về file âm thanh.' }
     }
 
@@ -110,7 +110,7 @@ export async function runLyriaPipeline(input: RunLyriaPipelineInput): Promise<Ru
 
     return { ok: true, resultUrl: publicUrl, charged: LYRIA3_CHARGE }
   } catch (e) {
-    await refundUserCredits(input.userId, LYRIA3_CHARGE)
+    await refundUserCredits(input.userId, LYRIA3_CHARGE, 'music-lyria3-generate')
     const msg = e instanceof Error ? e.message : 'Lỗi gọi Lyria 3.'
     return { ok: false, error: msg }
   }

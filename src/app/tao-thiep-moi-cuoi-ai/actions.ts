@@ -335,7 +335,7 @@ export async function generateWeddingCardImage(formData: FormData) {
       contentType: 'image/png',
       upsert: true,
     })
-    const charge = await deductUserCredits(userId, COST)
+    const charge = await deductUserCredits(userId, COST, 'tao-thiep-moi-cuoi-ai')
     if (!charge.ok) {
       throw new Error(charge.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credit để hoàn tất.' : charge.error)
     }
@@ -346,7 +346,7 @@ export async function generateWeddingCardImage(formData: FormData) {
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     if (typeof charged !== 'undefined' && charged) {
-      await refundUserCredits(userId, COST).catch(() => undefined)
+      await refundUserCredits(userId, COST, 'tao-thiep-moi-cuoi-ai').catch(() => undefined)
     }
     await failWeddingAiImage(imageId, userId, message).catch(() => undefined)
     return { error: `Tạo ảnh thất bại, credit chưa bị trừ nếu AI chưa ra ảnh: ${message}` }

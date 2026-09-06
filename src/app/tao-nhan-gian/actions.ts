@@ -203,7 +203,7 @@ export async function createStickerLabel(formData: FormData) {
       upsert: true,
     })
 
-    const d = await deductUserCredits(user.id, COST)
+    const d = await deductUserCredits(user.id, COST, 'tao-nhan-gian')
     if (!d.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
@@ -380,7 +380,7 @@ export async function createStickerFromPhoto(formData: FormData) {
       upsert: true,
     })
 
-    const d = await deductUserCredits(user.id, COST)
+    const d = await deductUserCredits(user.id, COST, 'tao-nhan-gian')
     if (!d.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }

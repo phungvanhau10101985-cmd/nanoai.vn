@@ -144,7 +144,7 @@ export async function cheAnh(formData: FormData) {
       upsert: true,
     })
 
-    const d = await deductUserCredits(user.id, COST)
+    const d = await deductUserCredits(user.id, COST, 'che-anh')
     if (!d.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }

@@ -282,7 +282,7 @@ export async function step1Build3D(formData: FormData) {
   const sizeStr = houseInfo.houseDepth ? `${houseInfo.houseLength}x${houseInfo.houseDepth}m` : `${houseInfo.houseLength}m`
   const projectName = `Nhà ${sizeStr} ${houseInfo.designStyle} ${houseInfo.floors}t`
 
-  const d = await deductUserCredits(user.id, COST)
+  const d = await deductUserCredits(user.id, COST, 'xay-nha-3d')
   if (!d.ok) {
     return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : d.error }
   }
@@ -409,7 +409,7 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
   const key = `floor_plan_${floorNum}` as const
   steps[key] = { imageUrl: stepImagePublicUrl, approved: false, input }
 
-  const dFp = await deductUserCredits(user.id, COST)
+  const dFp = await deductUserCredits(user.id, COST, 'xay-nha-floorplan')
   if (!dFp.ok) return { error: dFp.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dFp.error }
 
   const projectName = `${sourceProject.name || 'Dự án'} - Chia phòng t${floorNum}`
@@ -496,7 +496,7 @@ export async function stepStructural(sourceProjectId: string, floorNum: number, 
   const key = `structural_${floorNum}` as const
   steps[key] = { imageUrl: stepImagePublicUrl, approved: false }
 
-  const dSt = await deductUserCredits(user.id, COST)
+  const dSt = await deductUserCredits(user.id, COST, 'xay-nha-structural')
   if (!dSt.ok) return { error: dSt.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits.' : dSt.error }
 
   const projectName = `${sourceProject.name || 'Dự án'} - Kết cấu t${floorNum}`

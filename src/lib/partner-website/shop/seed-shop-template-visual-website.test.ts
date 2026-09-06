@@ -223,3 +223,49 @@ test('fillMissingShopVisualDeviceFiles live path can seed only the viewed machin
   assert.ok(!htmlFiles.includes('index.laptop.html'))
   assert.ok(!htmlFiles.includes('products.html'))
 })
+
+test('fashion-marketplace seed stamps look and home API hooks on all four devices', () => {
+  const marketplace = getShopTemplatePreset('fashion-marketplace')
+  const seeded = seedShopTemplateVisualWebsite({
+    project: { entryPath: 'site.config.json', files: [] },
+    theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, ...marketplace.theme },
+    pages: site.pages,
+    locale: 'vi',
+    siteSlug: 'demo-market',
+    brand: 'Shop San',
+    templateId: marketplace.templateId,
+  })
+  assert.equal(seeded.theme.useVisualHtml, true)
+  assert.equal(
+    seeded.project.files.filter((f) => f.kind === 'html').length,
+    SHOP_TEMPLATE_VISUAL_PAGE_KEYS.length * VISUAL_DEVICE_VARIANTS.length
+  )
+  for (const variant of VISUAL_DEVICE_VARIANTS) {
+    const home = seeded.project.files.find((f) => f.path === visualEditorHtmlPath('home', variant))
+    assert.ok(home, `home/${variant}`)
+    assert.match(home.content, /data-pw-look="marketplace"/)
+    assert.match(home.content, /data-pw-region="banner"/)
+    assert.match(home.content, /data-pw-slider="1"/)
+    assert.match(home.content, /data-pw-featured-categories="1"/)
+    assert.match(home.content, /data-pw-catalog/)
+    assert.match(home.content, /data-sort="newest"/)
+    assert.match(home.content, /data-sale="1"/)
+    assert.match(home.content, /data-pw-personalize="recommended"/)
+    assert.match(home.content, /data-pw-personalize="recently-viewed"/)
+    assert.match(home.content, /data-pw-newsletter="1"/)
+    assert.match(home.content, /data-pw-region="header"/)
+    assert.match(home.content, /data-pw-region="footer"/)
+    assert.match(home.content, /data-pw-chrome-kit="dock"/)
+    assert.doesNotMatch(home.content, /188\.com\.vn|Xem là thích/i)
+    assert.match(home.content, /background:var\(--pw-primary\)!important/)
+    assert.doesNotMatch(home.content, /if \(slug\.includes\('188'\)\)/)
+  }
+  const pdp = seeded.project.files.find((f) => f.path === visualEditorHtmlPath('product_detail', 'desktop'))
+  assert.ok(pdp)
+  assert.match(pdp.content, /data-pw-look="marketplace"/)
+  const products = seeded.project.files.find((f) => f.path === visualEditorHtmlPath('products', 'mobile'))
+  assert.ok(products)
+  assert.match(products.content, /data-pw-look="marketplace"/)
+  assert.match(products.content, /data-pw-catalog/)
+})
+

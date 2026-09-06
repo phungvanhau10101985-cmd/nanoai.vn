@@ -4,6 +4,7 @@ import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner
 export type ShopTemplatePresetId =
   | 'commerce-blue'
   | 'fashion-orange'
+  | 'fashion-marketplace'
   | 'hospitality-stay'
   | 'food-warm'
   | 'commerce-minimal'
@@ -14,6 +15,7 @@ export function isShopTemplatePresetId(id: string | null | undefined): id is Sho
   return (
     id === 'commerce-blue' ||
     id === 'fashion-orange' ||
+    id === 'fashion-marketplace' ||
     id === 'hospitality-stay' ||
     id === 'food-warm' ||
     id === 'commerce-minimal' ||
@@ -153,6 +155,44 @@ export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
       mutedColor: '#6b7280',
       fontFamily:
         '"Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+    },
+    flags: COMMERCE_FULL_FLAGS,
+  },
+  {
+    id: 'fashion-marketplace',
+    templateId: 'fashion-marketplace',
+    label: {
+      vi: 'Sàn mua sắm',
+      en: 'Marketplace shop',
+      zh: '购物卖场',
+      ja: 'マーケットプレイス',
+      ko: '마켓플레이스 쇼핑몰',
+    },
+    description: {
+      vi: 'Sàn dày sản phẩm: header màu chính, banner, danh mục, hàng mới, sale, gợi ý, giỏ, chat.',
+      en: 'Dense marketplace: branded header, banners, categories, new arrivals, sale, recommendations, cart, chat.',
+      zh: '卖场布局：品牌顶栏、横幅、分类、新品、特卖、推荐、购物车、聊天。',
+      ja: 'マーケット型：ブランドヘッダー、バナー、カテゴリ、新着、セール、おすすめ、カート、チャット。',
+      ko: '마켓형: 브랜드 헤더, 배너, 카테고리, 신상품, 세일, 추천, 장바구니, 채팅.',
+    },
+    swatch: { primary: '#ff6b00', accent: '#ff8c00', background: '#f5f5f5' },
+    coverImageUrl:
+      'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80',
+    readyToUse: true,
+    theme: {
+      look: 'marketplace',
+      primaryColor: '#ff6b00',
+      accentColor: '#ff8c00',
+      buyButtonColor: '#ff3333',
+      cartButtonColor: '#ff6b00',
+      backgroundColor: '#f5f5f5',
+      textColor: '#1a1a1a',
+      mutedColor: '#6b7280',
+      surfaceColor: '#ffffff',
+      footerColor: '#111827',
+      borderColor: '#e5e7eb',
+      fontFamily:
+        '"Nunito", "Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
     },
     flags: COMMERCE_FULL_FLAGS,
   },

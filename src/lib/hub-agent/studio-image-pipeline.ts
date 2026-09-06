@@ -452,7 +452,7 @@ export async function runStudioImagePipeline(input: {
           contentType: 'image/png',
           upsert: true,
         })
-        const d = await deductUserCredits(input.userId, charged)
+        const d = await deductUserCredits(input.userId, charged, `hub-studio-${input.kind}`)
         if (!d.ok) return { ok: false, error: d.error || 'Không thể trừ credits.' }
         return { ok: true, resultUrl: publicUrl, charged }
       } catch (e) {

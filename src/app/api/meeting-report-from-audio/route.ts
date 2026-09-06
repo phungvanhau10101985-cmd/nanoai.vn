@@ -222,7 +222,7 @@ export async function POST(request: NextRequest) {
     const title = titleForPrompt
 
     const cost = computeMeetingReportCredits(billingDuration)
-    const deducted = await deductUserCredits(user.id, cost)
+    const deducted = await deductUserCredits(user.id, cost, 'meeting-report-audio-unified')
     if (!deducted.ok) {
       if (deducted.code === 'INSUFFICIENT_CREDITS') {
         return NextResponse.json({ error: deducted.error, code: 'INSUFFICIENT_CREDITS' }, { status: 402 })
@@ -233,7 +233,7 @@ export async function POST(request: NextRequest) {
 
     const apiKey = process.env.GOOGLE_API_KEY
     if (!apiKey) {
-      await refundUserCredits(user.id, chargedAmount)
+      await refundUserCredits(user.id, chargedAmount, 'meeting-report-audio-unified')
       chargedAmount = 0
       return NextResponse.json({ error: 'Thiếu cấu hình AI.' }, { status: 500 })
     }
@@ -283,7 +283,7 @@ export async function POST(request: NextRequest) {
           segmentTexts.push(...batch)
         } catch (e) {
           const msg = e instanceof Error ? e.message : 'Gemini error'
-          await refundUserCredits(user.id, chargedAmount)
+          await refundUserCredits(user.id, chargedAmount, 'meeting-report-audio-unified')
           chargedAmount = 0
           return NextResponse.json({ error: msg }, { status: 502 })
         }
@@ -291,7 +291,7 @@ export async function POST(request: NextRequest) {
 
       transcript = segmentTexts.filter(Boolean).join('\n\n').trim()
       if (!transcript) {
-        await refundUserCredits(user.id, chargedAmount)
+        await refundUserCredits(user.id, chargedAmount, 'meeting-report-audio-unified')
         chargedAmount = 0
         return NextResponse.json({ error: 'Phiên âm trống sau khi xử lý từng đoạn.' }, { status: 502 })
       }
@@ -336,14 +336,14 @@ Do not invent facts not supported by the transcript. If something is unclear, sa
         textOut = result.response.text()?.trim() || ''
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Gemini error'
-        await refundUserCredits(user.id, chargedAmount)
+        await refundUserCredits(user.id, chargedAmount, 'meeting-report-audio-unified')
         chargedAmount = 0
         return NextResponse.json({ error: msg }, { status: 502 })
       }
 
       const parsedReport = safeParseReportMarkdownJson(textOut)
       if (!parsedReport) {
-        await refundUserCredits(user.id, chargedAmount)
+        await refundUserCredits(user.id, chargedAmount, 'meeting-report-audio-unified')
         chargedAmount = 0
         return NextResponse.json({ error: 'Không đọc được kết quả từ AI.' }, { status: 502 })
       }
@@ -392,14 +392,14 @@ Do not invent facts not supported by the audio. If something is unclear, say so 
         textOut = result.response.text()?.trim() || ''
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Gemini error'
-        await refundUserCredits(user.id, chargedAmount)
+        await refundUserCredits(user.id, chargedAmount, 'meeting-report-audio-unified')
         chargedAmount = 0
         return NextResponse.json({ error: msg }, { status: 502 })
       }
 
       const parsed = safeParseJson(textOut)
       if (!parsed) {
-        await refundUserCredits(user.id, chargedAmount)
+        await refundUserCredits(user.id, chargedAmount, 'meeting-report-audio-unified')
         chargedAmount = 0
         return NextResponse.json({ error: 'Không đọc được kết quả từ AI.' }, { status: 502 })
       }
@@ -420,7 +420,7 @@ Do not invent facts not supported by the audio. If something is unclear, say so 
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
     if (chargedAmount > 0 && userIdForRefund) {
-      await refundUserCredits(userIdForRefund, chargedAmount)
+      await refundUserCredits(userIdForRefund, chargedAmount, 'meeting-report-audio-unified')
     }
     return NextResponse.json({ error: msg }, { status: 500 })
   }

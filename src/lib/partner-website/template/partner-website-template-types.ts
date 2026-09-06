@@ -18,6 +18,11 @@ export type PartnerWebsiteTheme = {
   footerColor?: string
   borderColor?: string
   fontFamily: string
+  /**
+   * Visual face for chrome + cards. `marketplace` = sàn Shopee/Tiki
+   * (header `--pw-primary`, nền xám, giá `--pw-buy`).
+   */
+  look?: 'marketplace'
   logoUrl?: string | null
   /**
    * Favicon tab trình duyệt + `/favicon.ico` trên domain shop.

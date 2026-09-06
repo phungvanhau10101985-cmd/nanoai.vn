@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ApiStatsDateFilter } from '../api-stats/api-stats-date-filter'
@@ -86,6 +87,11 @@ export default async function AdminCreditDepositStatsPage({
             '完了済みの支払い（payments）のみ。時刻は完了日時、なければ作成日時。',
             '완료된 결제(payments)만 집계. 시각은 완료 시각, 없으면 생성 시각.'
           )}
+        </p>
+        <p className="mt-1 text-sm">
+          <Link href="/admin/credit-spend-stats" className="text-primary underline underline-offset-2 hover:text-primary/80">
+            {tr('Thống kê trừ credit theo tính năng', 'Credit spend by feature', '按功能的积分消耗', '機能別クレジット消費', '기능별 크레딧 사용')}
+          </Link>
         </p>
       </div>
 

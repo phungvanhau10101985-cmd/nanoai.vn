@@ -18,11 +18,14 @@ export function ApiStatsDateFilter({
   defaultFrom,
   defaultTo,
   basePath = '/admin/api-stats',
+  extraQuery,
 }: {
   defaultFrom: string
   defaultTo: string
   /** Trang admin áp dụng query `from`/`to` (mặc định thống kê tổng). */
   basePath?: string
+  /** Query khác (vd. `bucket`) giữ khi đổi khoảng ngày. */
+  extraQuery?: Record<string, string>
 }) {
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const router = useRouter()
@@ -54,11 +57,16 @@ export function ApiStatsDateFilter({
   const applyRange = useCallback(
     (from: string, to: string) => {
       const params = new URLSearchParams()
+      if (extraQuery) {
+        for (const [k, v] of Object.entries(extraQuery)) {
+          if (v) params.set(k, v)
+        }
+      }
       params.set('from', from)
       params.set('to', to)
       router.push(`${basePath}?${params.toString()}`)
     },
-    [router, basePath]
+    [router, basePath, extraQuery]
   )
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -91,6 +99,16 @@ export function ApiStatsDateFilter({
       const end = new Date()
       const start = new Date()
       start.setDate(start.getDate() - 89)
+      return [toYMD(start), toYMD(end)]
+    }},
+    { label: tr('Tháng này', 'This month', '本月', '今月', '이번 달'), getRange: () => {
+      const end = new Date()
+      const start = new Date(end.getFullYear(), end.getMonth(), 1)
+      return [toYMD(start), toYMD(end)]
+    }},
+    { label: tr('Năm nay', 'This year', '今年', '今年', '올해'), getRange: () => {
+      const end = new Date()
+      const start = new Date(end.getFullYear(), 0, 1)
       return [toYMD(start), toYMD(end)]
     }},
   ]

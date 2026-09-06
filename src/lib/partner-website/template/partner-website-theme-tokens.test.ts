@@ -48,6 +48,28 @@ test('preset look maps primary to buy and muted to cart', () => {
   assert.equal(next.buyButtonColor, '#0f766e')
   assert.equal(next.cartButtonColor, '#5eead4')
   assert.equal(next.backgroundColor, '#f0fdfa')
+  assert.equal(next.look, undefined)
+})
+
+test('preset with explicit buy, cart, footer, and look keeps those values', () => {
+  const next = themeFromPresetPartial(DEFAULT_PARTNER_WEBSITE_THEME, {
+    look: 'marketplace',
+    primaryColor: '#ff6b00',
+    accentColor: '#ff8c00',
+    buyButtonColor: '#ff3333',
+    cartButtonColor: '#ff6b00',
+    backgroundColor: '#f5f5f5',
+    textColor: '#1a1a1a',
+    mutedColor: '#6b7280',
+    surfaceColor: '#ffffff',
+    footerColor: '#111827',
+    fontFamily: '"Nunito", sans-serif',
+  })
+  assert.equal(next.look, 'marketplace')
+  assert.equal(next.buyButtonColor, '#ff3333')
+  assert.equal(next.cartButtonColor, '#ff6b00')
+  assert.equal(next.footerColor, '#111827')
+  assert.equal(next.fontFamily, '"Nunito", sans-serif')
 })
 
 test('rejects invalid theme patch', () => {

@@ -1231,7 +1231,7 @@ export async function POST(request: NextRequest) {
 
       const priceCredits = Math.max(0, Number(lesson.price_credits || 0))
       if (priceCredits > 0) {
-        const d = await deductUserCredits(user.id, priceCredits)
+        const d = await deductUserCredits(user.id, priceCredits, 'english-coach-live-lesson-purchase')
         if (!d.ok) {
           if (d.code === 'INSUFFICIENT_CREDITS') {
             let bal = 0

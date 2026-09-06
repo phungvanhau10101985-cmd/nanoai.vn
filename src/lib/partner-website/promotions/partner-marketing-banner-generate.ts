@@ -239,7 +239,7 @@ export async function generatePartnerMarketingBanner(input: {
       upsert: true,
     })
     if (input.chargeCredits && input.actorUserId) {
-      const deducted = await deductUserCredits(input.actorUserId, PARTNER_MARKETING_BANNER_CREDIT_COST)
+      const deducted = await deductUserCredits(input.actorUserId, PARTNER_MARKETING_BANNER_CREDIT_COST, 'partner-marketing-banner')
       if (!deducted.ok) {
         await failPartnerMarketingBannerAssetFromPg({
           id: row.id,

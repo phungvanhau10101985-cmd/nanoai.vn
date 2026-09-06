@@ -10,8 +10,14 @@ import {
   seedBlankShopVisualWebsite,
 } from '@/lib/partner-website/shop/build-blank-shop-visual-html'
 import { buildShopTemplatePageVisualHtml } from '@/lib/partner-website/shop/build-shop-template-page-visual-html'
+import { buildMarketplaceShopHomeHtml } from '@/lib/partner-website/shop/build-marketplace-shop-home-html'
 import { buildDefaultDemoPdpShellHtml } from '@/lib/partner-website/shop/build-default-demo-pdp-shell-html'
 import { ensureFullPartnerSiteFooterInHtml } from '@/lib/partner-website/shop/build-partner-site-footer-html'
+import {
+  isMarketplaceLook,
+  isMarketplaceTemplateId,
+  stampPartnerWebsiteLookInHtml,
+} from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import { stampPartnerShopEditorHooksInHtml } from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
 import { applySharedChrome, extractSharedChrome } from '@/lib/partner-website/shop/sync-shared-chrome'
@@ -43,7 +49,13 @@ function stampHomePageAttr(html: string): string {
 function finishVisualHtml(
   html: string,
   variant: VisualDeviceVariant,
-  input: { locale: WebLocale; siteSlug: string; brand: string; logoUrl?: string | null }
+  input: {
+    locale: WebLocale
+    siteSlug: string
+    brand: string
+    logoUrl?: string | null
+    look?: PartnerWebsiteTheme['look']
+  }
 ): string {
   const isolated = isolateVisualHtmlForDevice(html, variant)
   const withFooter = ensureFullPartnerSiteFooterInHtml(isolated, {
@@ -63,7 +75,8 @@ function finishVisualHtml(
     siteSlug: input.siteSlug,
     locale: input.locale,
   })
-  return ensureVisualHtmlLiveReady(withPromo, variant)
+  const ready = ensureVisualHtmlLiveReady(withPromo, variant)
+  return stampPartnerWebsiteLookInHtml(ready, input.look)
 }
 
 export function buildShopTemplateHomeVisualHtml(input: {
@@ -76,21 +89,34 @@ export function buildShopTemplateHomeVisualHtml(input: {
   theme: PartnerWebsiteTheme
   pages: PartnerWebsitePage[]
   chatPath?: string
+  samplePreview?: boolean
 }): string {
+  const marketplace = isMarketplaceTemplateId(input.templateId) || isMarketplaceLook(input.theme)
   const raw = stampHomePageAttr(
-    renderTemplateSiteToHtml({
-      locale: input.locale,
-      title: input.brand,
-      templateId: input.templateId,
-      theme: input.theme,
-      pages: input.pages,
-      siteSlug: input.siteSlug,
-      logoUrl: input.logoUrl,
-      chatPath: input.chatPath,
-      variant: input.variant,
-    })
+    marketplace
+      ? buildMarketplaceShopHomeHtml({
+          variant: input.variant,
+          locale: input.locale,
+          siteSlug: input.siteSlug,
+          brand: input.brand,
+          logoUrl: input.logoUrl,
+          theme: input.theme,
+          chatPath: input.chatPath,
+          samplePreview: input.samplePreview,
+        })
+      : renderTemplateSiteToHtml({
+          locale: input.locale,
+          title: input.brand,
+          templateId: input.templateId,
+          theme: input.theme,
+          pages: input.pages,
+          siteSlug: input.siteSlug,
+          logoUrl: input.logoUrl,
+          chatPath: input.chatPath,
+          variant: input.variant,
+        })
   )
-  return finishVisualHtml(raw, input.variant, input)
+  return finishVisualHtml(raw, input.variant, { ...input, look: input.theme.look })
 }
 
 function completeVisualHtml(html: string): string {
@@ -133,6 +159,7 @@ function buildShopTemplatePdpVisualHtml(input: {
   brand: string
   logoUrl?: string | null
   homeHtml: string
+  look?: PartnerWebsiteTheme['look']
 }): string {
   const shell = buildDefaultDemoPdpShellHtml({
     locale: input.locale,
@@ -241,6 +268,7 @@ export function seedShopTemplateVisualWebsite(input: {
               brand: input.brand,
               logoUrl: input.logoUrl,
               homeHtml,
+              look: input.theme.look,
             })
           : finishVisualHtml(
               (() => {
@@ -255,7 +283,7 @@ export function seedShopTemplateVisualWebsite(input: {
                 return applySharedChrome(professional, chrome, { targetVariant: variant })
               })(),
               variant,
-              input
+              { ...input, look: input.theme.look }
             )
       project = mergeVisualPageHtmlIntoProject(project, html, visualEditorHtmlPath(pageKey, variant))
       theme = applyVisualEditThemeFlag(theme, { pageKey, variant })

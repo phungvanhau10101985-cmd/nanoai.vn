@@ -1388,7 +1388,7 @@ export async function normalizeMessagingWorkspaceLogo(input: {
   }
   if (!process.env.GOOGLE_API_KEY?.trim()) return { error: 'Missing GOOGLE_API_KEY.' }
 
-  const charged = await deductUserCredits(user.id, LOGO_NORMALIZE_COST)
+  const charged = await deductUserCredits(user.id, LOGO_NORMALIZE_COST, 'messaging-workspace-logo-normalize')
   if (!charged.ok) {
     return { error: charged.code === 'INSUFFICIENT_CREDITS' ? 'Khong du credits.' : charged.error }
   }
@@ -1415,7 +1415,7 @@ export async function normalizeMessagingWorkspaceLogo(input: {
     if (sourceUrl) {
       const imgRes = await fetch(sourceUrl)
       if (!imgRes.ok) {
-        await refundUserCredits(user.id, LOGO_NORMALIZE_COST)
+        await refundUserCredits(user.id, LOGO_NORMALIZE_COST, 'messaging-workspace-logo-normalize')
         return { error: 'Khong tai duoc logo tham chieu.' }
       }
       const buf = Buffer.from(await imgRes.arrayBuffer())
@@ -1444,7 +1444,7 @@ export async function normalizeMessagingWorkspaceLogo(input: {
     )
     const part = result.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!part || !('inlineData' in part) || !part.inlineData?.data) {
-      await refundUserCredits(user.id, LOGO_NORMALIZE_COST)
+      await refundUserCredits(user.id, LOGO_NORMALIZE_COST, 'messaging-workspace-logo-normalize')
       return { error: 'AI khong tra ve anh logo hop le.' }
     }
     const out = Buffer.from(part.inlineData.data, 'base64')
@@ -1460,13 +1460,13 @@ export async function normalizeMessagingWorkspaceLogo(input: {
       createdBy: user.id,
     })
     if (!version) {
-      await refundUserCredits(user.id, LOGO_NORMALIZE_COST)
+      await refundUserCredits(user.id, LOGO_NORMALIZE_COST, 'messaging-workspace-logo-normalize')
       return { error: 'Khong luu duoc phien ban logo.' }
     }
     revalidateMessagingDashboard()
     return { ok: true, version, deductedCredits: charged.charged, creditsRemaining: charged.balance }
   } catch (e) {
-    await refundUserCredits(user.id, LOGO_NORMALIZE_COST)
+    await refundUserCredits(user.id, LOGO_NORMALIZE_COST, 'messaging-workspace-logo-normalize')
     return { error: e instanceof Error ? e.message : 'Tao icon tin nhan that bai.' }
   }
 }

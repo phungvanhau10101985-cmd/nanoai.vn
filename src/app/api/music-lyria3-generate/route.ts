@@ -380,7 +380,7 @@ export async function POST(request: NextRequest) {
     }
 
     const cost = LYRIA3_CHARGE
-    const charged = await deductUserCredits(user.id, cost)
+    const charged = await deductUserCredits(user.id, cost, 'music-lyria3-generate')
     if (!charged.ok) {
       const status = charged.code === 'INSUFFICIENT_CREDITS' ? 402 : 500
       return NextResponse.json({ error: charged.error, code: charged.code }, { status })
@@ -438,7 +438,7 @@ export async function POST(request: NextRequest) {
 
       const extracted = extractFromResponse(response as { candidates?: Array<{ content?: { parts?: ContentPart[] } }> })
       if (!extracted) {
-        await refundUserCredits(user.id, cost)
+        await refundUserCredits(user.id, cost, 'music-lyria3-generate')
         return NextResponse.json(
           { error: 'API không trả về file âm thanh. Thử mô tả khác hoặc kiểm tra quyền model Lyria 3.' },
           { status: 502 }
@@ -456,7 +456,7 @@ export async function POST(request: NextRequest) {
       mimeType = extracted.mimeType
       textParts = extracted.textParts
     } catch (e) {
-      await refundUserCredits(user.id, cost)
+      await refundUserCredits(user.id, cost, 'music-lyria3-generate')
       const msg = e instanceof Error ? e.message : 'Lỗi gọi Lyria 3.'
       return NextResponse.json({ error: msg }, { status: 502 })
     }
@@ -476,7 +476,7 @@ export async function POST(request: NextRequest) {
       })
       audioUrl = publicUrl
     } catch (uploadError: unknown) {
-      await refundUserCredits(user.id, cost)
+      await refundUserCredits(user.id, cost, 'music-lyria3-generate')
       const msg = uploadError instanceof Error ? uploadError.message : 'Không upload được audio.'
       return NextResponse.json({ error: msg }, { status: 500 })
     }

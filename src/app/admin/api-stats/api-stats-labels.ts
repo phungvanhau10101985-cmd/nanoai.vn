@@ -99,6 +99,36 @@ export const STATIC_API_FEATURE_LABELS: Record<string, string> = {
   'worksheet-regenerate-fix-essay-gemini-pro': 'Phiếu BT — sửa tự luận sau verify (Pro)',
   'worksheet-parse-sgk-gemini-pro': 'Phiếu BT — tách câu từ ảnh SGK (Pro)',
   'worksheet-parse-sgk-essay-solution-pro': 'Phiếu BT — sinh lời giải khi parse SGK (Pro)',
+  'curriculum_from_image': 'Giáo trình — tạo từ ảnh',
+  'curriculum_slide_proposal_verify': 'Giáo trình — kiểm tra đề xuất slide',
+  'curriculum_lesson_slide_generate': 'Giáo trình — tạo slide tiết',
+  'curriculum_slide_infographic': 'Giáo trình — infographic slide',
+  'monthly_service_curriculum': 'Gói tháng — giáo trình',
+  'english_coach_live_start': 'Học ngoại ngữ — bắt đầu live',
+  'english_coach_live_unlock': 'Học ngoại ngữ — mở thêm lượt live',
+  'english_coach_preset_start': 'Học ngoại ngữ — bài có sẵn',
+  'english-coach-live-lesson-purchase': 'Học ngoại ngữ — mua bài live',
+  'partner-marketing-banner': 'Shop — banner ưu đãi AI',
+  'hub-studio-banner': 'Hub Studio — banner',
+  'hub-studio-logo': 'Hub Studio — logo',
+  'hub-studio-ui_mockup': 'Hub Studio — mockup UI mobile',
+  'hub-studio-ui_desktop': 'Hub Studio — mockup UI desktop',
+  'hub-studio-product_photo': 'Hub Studio — ảnh sản phẩm',
+  'hub-studio-invitation': 'Hub Studio — thiệp',
+  'hub-studio-lyria_music': 'Hub Studio — nhạc Lyria',
+  'hub-studio-packaging': 'Hub Studio — bao bì',
+  'hub-studio-packaging_face': 'Hub Studio — mặt bao bì',
+  'hub-studio-packaging_mockup': 'Hub Studio — mockup bao bì',
+  'hub-studio-packaging-outpaint': 'Hub Studio — outpaint bao bì',
+  'hub-studio-dieline_pdf': 'Hub Studio — dieline PDF',
+  'hub-studio-bag_dieline_pdf': 'Hub Studio — dieline túi',
+  'hub-studio-barcode': 'Hub Studio — barcode',
+  'hub-studio-interior': 'Hub Studio — nội thất',
+  'hub-studio-story_panel': 'Hub Studio — khung chuyện',
+  'hub-studio-infographic': 'Hub Studio — infographic',
+  'hub-studio-portrait': 'Hub Studio — chân dung',
+  'tao-thiep-moi-cuoi-ai': 'Thiệp mời cưới AI',
+  'unknown': 'Không rõ tính năng',
   'worksheet-solve-sgk-essay-solution-pro': 'Phiếu BT — bù lời giải essay SGK (Pro)',
   'worksheet-step-quiz-gemini-pro': 'Phiếu BT — tạo từng bước: trắc nghiệm (Pro)',
   'worksheet-step-essay-gemini-pro': 'Phiếu BT — tạo từng bước: tự luận (Pro)',
@@ -121,4 +151,15 @@ export function mergeApiFeatureLabelsForLogs(logFeatures: string[]): Record<stri
     ...STATIC_API_FEATURE_LABELS,
     ...buildEnglishCoachFeatureLabelsForLogs(logFeatures),
   }
+}
+
+/** Nhãn tính năng cho nhật ký trừ credit (kể cả key Hub Studio động). */
+export function creditSpendFeatureLabel(feature: string, extra?: Record<string, string>): string {
+  const key = String(feature || '').trim() || 'unknown'
+  const merged = extra ? { ...STATIC_API_FEATURE_LABELS, ...extra } : STATIC_API_FEATURE_LABELS
+  if (merged[key]) return merged[key]
+  if (key.startsWith('hub-studio-')) {
+    return `Hub Studio — ${key.slice('hub-studio-'.length).replace(/_/g, ' ')}`
+  }
+  return key
 }

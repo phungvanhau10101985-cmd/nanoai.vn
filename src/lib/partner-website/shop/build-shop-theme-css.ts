@@ -15,6 +15,11 @@ import { PW_PRODUCT_VARIANT_MODAL_CSS } from '@/lib/partner-website/shop/partner
 import { PW_SITE_SALE_CARD_CSS } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { PARTNER_CATEGORY_MEGA_LAYOUT_CSS } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
 import {
+  buildMarketplaceLookCss,
+  isMarketplaceLook,
+  stampPartnerWebsiteLookInHtml,
+} from '@/lib/partner-website/shop/marketplace-shop-look-css'
+import {
   PW_CHROME_BTN_MIN_H,
   PW_CHROME_H_VAR,
   PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS,
@@ -832,7 +837,7 @@ ${PW_OUTFIT_CSS}
 ${PW_LISTING_HEAD_CSS}
 ${PW_SITE_SALE_CARD_CSS}
 .pw-shop-cart-teaser{color:#b45309;font-size:12px;font-weight:600}
-.pw-shop-cart-teaser strong{font-weight:800}`
+.pw-shop-cart-teaser strong{font-weight:800}${isMarketplaceLook(theme) ? `\n${buildMarketplaceLookCss()}` : ''}`
 }
 
 export const PARTNER_SHOP_THEME_STYLE_ID = 'pw-shop-theme-css'
@@ -841,10 +846,13 @@ export const PARTNER_SHOP_THEME_STYLE_ID = 'pw-shop-theme-css'
 export function injectPartnerShopThemeCss(html: string, theme?: PartnerWebsiteTheme | null): string {
   const trimmed = html.trim()
   if (!trimmed) return html
+  const source = isMarketplaceLook(theme)
+    ? stampPartnerWebsiteLookInHtml(trimmed, 'marketplace')
+    : trimmed
   const css = buildPartnerSiteShopThemeCss(theme || DEFAULT_PARTNER_WEBSITE_THEME)
   const tag = `<style id="${PARTNER_SHOP_THEME_STYLE_ID}">${css}</style>`
   let replaced = false
-  let out = trimmed.replace(
+  let out = source.replace(
     new RegExp(`<style id="${PARTNER_SHOP_THEME_STYLE_ID}">[\\s\\S]*?<\\/style>`, 'gi'),
     () => {
       if (replaced) return ''

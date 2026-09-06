@@ -126,7 +126,7 @@ export async function createLogo(formData: FormData) {
       upsert: true,
     })
 
-    const d = await deductUserCredits(user.id, chargedCreditsForLogoCreate(COST, stripped.removed))
+    const d = await deductUserCredits(user.id, chargedCreditsForLogoCreate(COST, stripped.removed), 'thiet-ke-logo')
     if (!d.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }

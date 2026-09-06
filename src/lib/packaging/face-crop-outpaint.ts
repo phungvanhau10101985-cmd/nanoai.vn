@@ -77,7 +77,7 @@ export async function runFaceCropOutpaint(input: {
       contentType: 'image/png',
       upsert: true,
     })
-    const deduct = await deductUserCredits(input.userId, UI_MOCKUP_CREDIT)
+    const deduct = await deductUserCredits(input.userId, UI_MOCKUP_CREDIT, 'hub-studio-packaging-outpaint')
     if (!deduct.ok) {
       return { ok: false, error: deduct.error || 'Không thể trừ credits.' }
     }

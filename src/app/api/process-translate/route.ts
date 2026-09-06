@@ -228,7 +228,7 @@ async function handleProcessTranslate(request: NextRequest) {
     upsert: true,
   })
 
-  const d = await deductUserCredits(userId, cost)
+  const d = await deductUserCredits(userId, cost, 'dich-anh-tai-lieu')
   if (!d.ok) {
     const errText = d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits' : d.error
     await markTranslateJobFailedPg(resolvedJobId, errText)

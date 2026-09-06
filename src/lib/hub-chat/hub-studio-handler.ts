@@ -6994,7 +6994,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
 
   const shouldChargeChat = !session.presetId || action === 'edit_step'
   if (shouldChargeChat) {
-    const chatCharge = await deductUserCredits(input.userId, HUB_CHAT_CREDIT)
+    const chatCharge = await deductUserCredits(input.userId, HUB_CHAT_CREDIT, 'hub-chat')
     if (!chatCharge.ok) {
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: chatCharge.error }
     }
@@ -8157,7 +8157,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       userMessageId,
     }
   } catch (e) {
-    await refundUserCredits(input.userId, HUB_CHAT_CREDIT)
+    await refundUserCredits(input.userId, HUB_CHAT_CREDIT, 'hub-chat')
     const msg = e instanceof Error ? e.message : t.errorGeneric
     return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: msg }
   }

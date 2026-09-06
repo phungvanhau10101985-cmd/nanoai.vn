@@ -15,6 +15,7 @@ import {
 } from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
 import { injectPartnerShopThemeCss } from '@/lib/partner-website/shop/build-shop-theme-css'
 import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
+import { injectMarketplaceLookIntoHtml } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import { injectPartnerShopFaviconIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
 import { stripPartnerInfoPageSeoCoachFromHtml } from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
 import { ensureAdsPlatformPolicyInHtml } from '@/lib/partner-website/pages/partner-info-page-visual'
@@ -147,10 +148,11 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
     logoUrl: input.theme?.logoUrl,
   })
   const withChrome = injectPartnerShopChromeLayoutCss(withFavicon)
+  const withLook = injectMarketplaceLookIntoHtml(withChrome, input.theme)
   const withRuntime =
     input.runtime === 'authoring'
-      ? injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(withChrome, { siteSlug, locale })
-      : injectPartnerShopRuntimeScriptsIntoHtml(withChrome, {
+      ? injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(withLook, { siteSlug, locale })
+      : injectPartnerShopRuntimeScriptsIntoHtml(withLook, {
           siteSlug,
           locale,
           shopTitle: wordmark,

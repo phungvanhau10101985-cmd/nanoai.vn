@@ -394,6 +394,15 @@ export default async function AdminApiStatsPage({
               '계층 보고서: 그룹→기능→모델'
             )}
           </Link>
+          <Link href="/admin/credit-spend-stats" className="text-primary underline underline-offset-2 hover:text-primary/80">
+            {tr(
+              'Nhật ký trừ credit theo tính năng',
+              'Credit spend ledger by feature',
+              '按功能的积分消耗流水',
+              '機能別クレジット消費ログ',
+              '기능별 크레딧 사용 기록'
+            )}
+          </Link>
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
           {tr(

@@ -462,7 +462,7 @@ export async function POST(request: NextRequest) {
       : 'all'
     const t = getDictionary(locale)
 
-    const charged = await deductUserCredits(user.id, HUB_CHAT_CREDIT)
+    const charged = await deductUserCredits(user.id, HUB_CHAT_CREDIT, 'hub-chat')
     if (!charged.ok) {
       const status = charged.code === 'INSUFFICIENT_CREDITS' ? 402 : 500
       return NextResponse.json({ error: charged.error, code: charged.code }, { status })
@@ -571,7 +571,7 @@ Rules:
 
       const resText = r.response.text()?.trim() ?? ''
       if (!resText) {
-        await refundUserCredits(user.id, HUB_CHAT_CREDIT)
+        await refundUserCredits(user.id, HUB_CHAT_CREDIT, 'hub-chat')
         return NextResponse.json({ error: 'Model không trả lời.' }, { status: 502 })
       }
 
@@ -583,7 +583,7 @@ Rules:
           plan?: unknown
         }
       } catch {
-        await refundUserCredits(user.id, HUB_CHAT_CREDIT)
+        await refundUserCredits(user.id, HUB_CHAT_CREDIT, 'hub-chat')
         return NextResponse.json({ error: 'Phản hồi AI không hợp lệ. Thử lại.' }, { status: 502 })
       }
 
@@ -636,7 +636,7 @@ Rules:
         balance: charged.balance,
       })
     } catch (e) {
-      await refundUserCredits(user.id, HUB_CHAT_CREDIT)
+      await refundUserCredits(user.id, HUB_CHAT_CREDIT, 'hub-chat')
       const msg = e instanceof Error ? e.message : 'Lỗi gọi AI.'
       return NextResponse.json({ error: msg }, { status: 502 })
     }

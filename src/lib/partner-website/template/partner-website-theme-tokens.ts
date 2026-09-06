@@ -291,16 +291,29 @@ export function themeFromPresetPartial(
     presetTheme.mutedColor,
     base.mutedColor || DEFAULT_PARTNER_WEBSITE_THEME.mutedColor
   )
-  return mergeShopThemeColors(base, {
-    primaryColor,
-    accentColor,
-    buyButtonColor: primaryColor,
-    cartButtonColor: mutedColor,
-    backgroundColor,
-    textColor: normalizeHexColor(presetTheme.textColor, base.textColor),
-    mutedColor,
-    surfaceColor: mixHex(backgroundColor, primaryColor, 0.1),
-  })
+  return {
+    ...mergeShopThemeColors(base, {
+      primaryColor,
+      accentColor,
+      buyButtonColor: presetTheme.buyButtonColor
+        ? normalizeHexColor(presetTheme.buyButtonColor, primaryColor)
+        : primaryColor,
+      cartButtonColor: presetTheme.cartButtonColor
+        ? normalizeHexColor(presetTheme.cartButtonColor, mutedColor)
+        : mutedColor,
+      backgroundColor,
+      textColor: normalizeHexColor(presetTheme.textColor, base.textColor),
+      mutedColor,
+      surfaceColor: presetTheme.surfaceColor
+        ? normalizeHexColor(presetTheme.surfaceColor, mixHex(backgroundColor, primaryColor, 0.1))
+        : mixHex(backgroundColor, primaryColor, 0.1),
+      footerColor: presetTheme.footerColor
+        ? normalizeHexColor(presetTheme.footerColor, base.footerColor || '#ffffff')
+        : undefined,
+    }),
+    ...(presetTheme.fontFamily ? { fontFamily: presetTheme.fontFamily } : {}),
+    look: presetTheme.look,
+  }
 }
 
 export function themeCssVarMap(theme: PartnerWebsiteTheme): Record<string, string> {

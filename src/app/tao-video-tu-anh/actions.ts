@@ -187,7 +187,7 @@ export async function createVeoVideo(formData: FormData) {
       upsert: true,
     })
 
-    const d = await deductUserCredits(user.id, COST)
+    const d = await deductUserCredits(user.id, COST, 'tao-video-tu-anh')
     if (!d.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }
@@ -332,7 +332,7 @@ export async function extendVeoVideo(formData: FormData) {
       upsert: true,
     })
 
-    const dExt = await deductUserCredits(user.id, EXTEND_CREDITS)
+    const dExt = await deductUserCredits(user.id, EXTEND_CREDITS, 'tao-video-veo-extend')
     if (!dExt.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: dExt.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : dExt.error }
