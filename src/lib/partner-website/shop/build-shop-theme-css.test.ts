@@ -21,10 +21,11 @@ test('shop theme CSS styles profile form selects and recommendation cohort hint'
 
 test('shop theme CSS keeps desktop account nav as a compact left column', () => {
   const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
-  assert.match(css, /\.pw-shop-account-nav-item\.is-active\{background:#fff;color:var\(--pw-primary\);border-left-color:var\(--pw-primary\)/)
-  assert.match(css, /@media\(min-width:768px\)\{\.pw-shop-account-layout\{grid-template-columns:240px minmax\(0,1fr\)/)
-  assert.match(css, /\.pw-shop-account-nav-item\{[^}]*font-weight:500;font-size:13px;color:#6b7280/)
+  assert.match(css, /\.pw-shop-account-nav-item\.is-active\{background:color-mix\(in srgb,var\(--pw-primary\) 10%,#fff\);color:var\(--pw-primary\);border-left-color:var\(--pw-primary\)/)
+  assert.match(css, /@media\(min-width:768px\)\{\.pw-shop-account-layout\{flex-direction:row;gap:24px/)
+  assert.match(css, /\.pw-shop-account-nav-item\{[^}]*font-weight:500;font-size:14px;color:#374151/)
   assert.match(css, /\.pw-shop-account-content\{[^}]*background:#fff/)
+  assert.match(css, /\.pw-shop-account-hub-mobile\{display:block/)
   assert.match(css, /\.pw-shop-account-content h1,\.pw-shop-account-links h2,\.pw-shop-account-edit h2\{[^}]*font-size:1\.35rem/)
   assert.match(css, /\.pw-shop-account-content \.pw-shop-form label/)
   assert.match(css, /\.pw-shop-cart-actions/)

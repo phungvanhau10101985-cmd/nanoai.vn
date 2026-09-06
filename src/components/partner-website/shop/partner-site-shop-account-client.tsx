@@ -15,6 +15,8 @@ import {
   partnerSitePersonalizationApiPath,
   type PartnerSiteAccountTab,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { PartnerSiteAccountHub } from '@/components/partner-website/shop/partner-site-account-hub'
+import { PartnerSiteAccountSessionActions } from '@/components/partner-website/shop/partner-site-account-session-actions'
 import { PartnerSiteShopAuthPanel } from '@/components/partner-website/shop/partner-site-shop-auth-panel'
 import {
   buildPartnerShopLoginHref,
@@ -440,49 +442,15 @@ export function PartnerSiteShopAccountClient({
       {showAccountShell ? (
         <>
             {activeTab === 'overview' ? (
-              <div className="pw-shop-account-summary">
-                <p className="pw-shop-account-greeting" data-pw-el={PW_EL.heading}>
-                  {t.accountWelcome}
-                  {displayName ? `, ${displayName}` : ''}
-                </p>
-                {loading && !profile ? <p className="pw-shop-muted">…</p> : null}
-                {profile?.email ? (
-                  <p className="pw-shop-muted">
-                    {t.accountEmailLabel}: {profile.email}
-                  </p>
-                ) : null}
-                {profile?.customer_phone ? (
-                  <p className="pw-shop-muted">
-                    {t.checkoutPhone}: {profile.customer_phone}
-                  </p>
-                ) : null}
-                {profile?.shipping_address ? (
-                  <p className="pw-shop-muted">
-                    {t.checkoutAddress}: {profile.shipping_address}
-                  </p>
-                ) : null}
-                {profile?.gender ? (
-                  <p className="pw-shop-muted">
-                    {t.accountGender}: {profile.gender === 'male' ? t.accountGenderMale : t.accountGenderFemale}
-                  </p>
-                ) : null}
-                {profile?.date_of_birth ? (
-                  <p className="pw-shop-muted">
-                    {t.accountDob}: {(() => {
-                      const parts = parseDobParts(profile.date_of_birth)
-                      return parts ? `${parts.day}/${parts.month}/${parts.year}` : profile.date_of_birth
-                    })()}
-                  </p>
-                ) : null}
-                {shopAdminHref ? (
-                  <div className="pw-shop-account-admin-cta">
-                    <p className="pw-shop-muted">{t.accountOpenShopAdminHint}</p>
-                    <a href={shopAdminHref} className="pw-shop-btn" rel="noopener noreferrer">
-                      {t.accountOpenShopAdmin}
-                    </a>
-                  </div>
-                ) : null}
-              </div>
+              <PartnerSiteAccountHub
+                siteSlug={siteSlug}
+                partnerSlug={partnerSlug}
+                locale={locale}
+                profile={profile}
+                shopAdminHref={shopAdminHref}
+                displayName={displayName}
+                unreadNotifications={unreadCount}
+              />
             ) : null}
 
             {activeTab === 'cart' ? (
@@ -683,6 +651,9 @@ export function PartnerSiteShopAccountClient({
                     </button>
                   </div>
                   {status ? <p className="pw-shop-muted">{status}</p> : null}
+                </div>
+                <div className="pw-shop-account-session">
+                  <PartnerSiteAccountSessionActions siteSlug={siteSlug} locale={locale} />
                 </div>
               </section>
             ) : null}

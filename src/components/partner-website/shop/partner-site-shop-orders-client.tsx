@@ -154,8 +154,9 @@ export function PartnerSiteShopOrdersClient({
     setFilter(key)
     if (typeof window === 'undefined') return
     const url = new URL(window.location.href)
-    const onAccountOrders = /\/account\/orders\/?$/.test(url.pathname)
-    if (onAccountOrders) {
+    const path = url.pathname.replace(/\/+$/, '') || '/'
+    const onOrdersList = /\/orders$/.test(path) || /\/account\/orders$/.test(path)
+    if (onOrdersList) {
       if (key === 'all') url.searchParams.delete('tab')
       else url.searchParams.set('tab', key)
       url.hash = ''
@@ -213,7 +214,7 @@ export function PartnerSiteShopOrdersClient({
     <div data-pw-region={PW_REGION.accountMain}>
       <h1 data-pw-el={PW_EL.heading}>{t.ordersTitle}</h1>
 
-      {!loading && orders.length > 0 ? (
+      {!loading ? (
         <div className="pw-shop-order-filters" role="tablist" aria-label={t.ordersFilterAriaLabel}>
           {PARTNER_SITE_ORDER_STATUS_FILTER_KEYS.map((key) => {
             const count = counts[key]
@@ -228,7 +229,7 @@ export function PartnerSiteShopOrdersClient({
                 onClick={() => selectFilter(key)}
               >
                 <span>{filterLabel(key, t)}</span>
-                {count > 0 ? <span className="pw-shop-order-filter-badge">{count}</span> : null}
+                <span className="pw-shop-order-filter-badge">{count}</span>
               </button>
             )
           })}

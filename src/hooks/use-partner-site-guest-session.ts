@@ -213,7 +213,7 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
     }
   }, [siteSlug])
 
-  const clearSession = useCallback(async () => {
+  const clearSession = useCallback(async (opts?: { nextHref?: string }) => {
     sessionRef.current = ''
     accountRef.current = ''
     setIsAuthenticated(false)
@@ -244,6 +244,10 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
       })
     } catch {
       /* ignore */
+    }
+    if (opts?.nextHref) {
+      window.location.assign(opts.nextHref)
+      return
     }
     window.location.reload()
   }, [siteSlug])

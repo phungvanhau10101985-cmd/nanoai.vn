@@ -7,7 +7,7 @@ import {
   partnerSitePageShowsAccountNav,
   reactAccountShellNavFromPathname,
 } from '@/lib/partner-website/shop/partner-site-account-nav'
-import { getPartnerSiteAccountMenuItems } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
+import { getPartnerSiteAccountMenuItems, isPartnerSiteAccountHubRow, isPartnerSiteAccountSidebarItem } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 
 test('account nav shows on cart/account/info, not home/pdp/listing, and login can hide it', () => {
@@ -65,10 +65,30 @@ test('account menu cart/orders use dedicated routes; cart CTA is place-order', (
   const cart = items.find((i) => i.id === 'cart')
   const orders = items.find((i) => i.id === 'orders')
   const account = items.find((i) => i.id === 'account')
+  const wallet = items.find((i) => i.id === 'wallet')
+  const wishlist = items.find((i) => i.id === 'wishlist')
   assert.ok(account)
   assert.match(String(cart?.href), /\/cart$/)
   assert.doesNotMatch(String(cart?.href), /\/account\/cart/)
   assert.match(String(orders?.href), /\/orders$/)
+  assert.equal(wallet?.label, 'Ví quà / Khuyến mãi')
+  assert.equal(wishlist?.label, 'Sản phẩm yêu thích')
+  assert.equal(cart?.emoji, '🛒')
+  const hubIds = items.filter(isPartnerSiteAccountHubRow).map((i) => i.id)
+  assert.deepEqual(hubIds, [
+    'cart',
+    'orders',
+    'recently-viewed',
+    'addresses',
+    'wallet',
+    'notifications',
+    'install-app',
+    'wishlist',
+    'security',
+  ])
+  const sidebarIds = items.filter(isPartnerSiteAccountSidebarItem).map((i) => i.id)
+  assert.ok(!sidebarIds.includes('logout'))
+  assert.ok(!sidebarIds.includes('contact'))
   const t = getPartnerSiteShopCopy('vi')
   assert.equal(t.cartCheckout, 'Đặt hàng')
   assert.equal(getPartnerSiteShopCopy('en').cartCheckout, 'Place order')

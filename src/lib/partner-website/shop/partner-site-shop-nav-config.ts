@@ -34,9 +34,12 @@ export type PartnerSiteAccountMenuItem = {
   id: PartnerSiteAccountMenuItemId
   href: string
   label: string
+  emoji: string
   isHeader?: boolean
   isAccent?: boolean
   isLogout?: boolean
+  /** 188 mobile hub: không lặp Tài khoản / hồ sơ / đăng xuất. */
+  hideOnMobileHub?: boolean
 }
 
 export type PartnerSiteCategoryNavLabels = {
@@ -239,24 +242,113 @@ export function getPartnerSiteAccountMenuItems(input: {
     slug ? partnerSiteAccountTabPath(slug, id, { customDomain: input.customDomain }) : fallback
 
   return [
-    { id: 'account', href: paths.account, label: t.navAccount, isHeader: true },
+    {
+      id: 'account',
+      href: paths.account,
+      label: t.navAccount,
+      emoji: partnerSiteAccountMenuEmoji('account'),
+      isHeader: true,
+      hideOnMobileHub: true,
+    },
     {
       id: 'edit-profile',
       href: slug ? partnerSiteAccountEditPath(slug, { customDomain: input.customDomain }) : paths.account,
       label: t.accountEditProfile,
+      emoji: partnerSiteAccountMenuEmoji('edit-profile'),
+      hideOnMobileHub: true,
     },
-    { id: 'cart', href: paths.cart, label: t.navCart },
-    { id: 'orders', href: paths.orders, label: t.navOrders },
-    { id: 'recently-viewed', href: paths.recentlyViewed, label: t.accountViewedProducts },
-    { id: 'addresses', href: paths.addresses, label: t.accountAddressBook },
-    { id: 'wallet', href: tab('wallet', paths.account), label: t.navWallet },
-    { id: 'wishlist', href: paths.wishlist, label: t.navFavorites },
-    { id: 'notifications', href: tab('notifications', paths.account), label: t.accountNotifications },
-    { id: 'install-app', href: tab('install-app', paths.account), label: t.accountInstallApp },
-    { id: 'security', href: tab('security', paths.account), label: t.accountSecurity },
-    { id: 'contact', href: tab('contact', paths.contact), label: getPartnerSiteCategoryNavLabels(input.locale).contact },
-    { id: 'logout', href: '#', label: t.navLogout, isLogout: true },
+    { id: 'cart', href: paths.cart, label: t.navCart, emoji: partnerSiteAccountMenuEmoji('cart') },
+    { id: 'orders', href: paths.orders, label: t.navOrders, emoji: partnerSiteAccountMenuEmoji('orders') },
+    {
+      id: 'recently-viewed',
+      href: paths.recentlyViewed,
+      label: t.accountViewedProducts,
+      emoji: partnerSiteAccountMenuEmoji('recently-viewed'),
+    },
+    {
+      id: 'addresses',
+      href: paths.addresses,
+      label: t.accountAddressBook,
+      emoji: partnerSiteAccountMenuEmoji('addresses'),
+    },
+    {
+      id: 'wallet',
+      href: tab('wallet', paths.account),
+      label: t.accountMenuWallet,
+      emoji: partnerSiteAccountMenuEmoji('wallet'),
+    },
+    {
+      id: 'notifications',
+      href: tab('notifications', paths.account),
+      label: t.accountNotificationsTitle,
+      emoji: partnerSiteAccountMenuEmoji('notifications'),
+    },
+    {
+      id: 'install-app',
+      href: tab('install-app', paths.account),
+      label: t.accountInstallApp,
+      emoji: partnerSiteAccountMenuEmoji('install-app'),
+    },
+    {
+      id: 'wishlist',
+      href: paths.wishlist,
+      label: t.accountMenuFavorites,
+      emoji: partnerSiteAccountMenuEmoji('wishlist'),
+    },
+    {
+      id: 'security',
+      href: tab('security', paths.account),
+      label: t.accountSecurity,
+      emoji: partnerSiteAccountMenuEmoji('security'),
+    },
+    {
+      id: 'contact',
+      href: tab('contact', paths.contact),
+      label: getPartnerSiteCategoryNavLabels(input.locale).contact,
+      emoji: partnerSiteAccountMenuEmoji('contact'),
+      hideOnMobileHub: true,
+    },
+    {
+      id: 'logout',
+      href: '#',
+      label: t.navLogout,
+      emoji: partnerSiteAccountMenuEmoji('logout'),
+      isLogout: true,
+      hideOnMobileHub: true,
+    },
   ]
+}
+
+/** Cột trái desktop: 188 không hiện Liên hệ / Đăng xuất trong sidebar. */
+export function isPartnerSiteAccountSidebarItem(item: PartnerSiteAccountMenuItem): boolean {
+  return !item.isLogout && item.id !== 'contact'
+}
+
+/** Hub mobile `/account`: list hàng + chevron, không lặp hồ sơ. */
+export function isPartnerSiteAccountHubRow(item: PartnerSiteAccountMenuItem): boolean {
+  return !item.hideOnMobileHub && !item.isHeader && !item.isLogout && item.id !== 'contact'
+}
+
+export function partnerSiteAccountMenuEmoji(
+  id: PartnerSiteAccountMenuItemId | 'admin'
+): string {
+  const map: Record<PartnerSiteAccountMenuItemId | 'admin', string> = {
+    account: '👤',
+    'edit-profile': '✏️',
+    cart: '🛒',
+    orders: '🧾',
+    wallet: '🎁',
+    wishlist: '❤️',
+    'recently-viewed': '🕒',
+    addresses: '📍',
+    security: '🔑',
+    notifications: '🔔',
+    'install-app': '📲',
+    contact: '📞',
+    logout: '🚪',
+    admin: '⚙️',
+  }
+  return map[id]
 }
 
 /** Inline SVG for account dropdown rows (HTML chrome + bootstrap). */

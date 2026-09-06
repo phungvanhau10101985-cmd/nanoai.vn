@@ -31,6 +31,16 @@ export const PARTNER_SITE_ORDER_STATUS_FILTER_KEYS: readonly PartnerSiteOrderSta
   'returned',
 ] as const
 
+/** Hub `/account` mobile — cùng 6 nhóm 188 (không gồm đơn hoàn). */
+export const PARTNER_SITE_ACCOUNT_HUB_ORDER_FILTER_KEYS: readonly PartnerSiteOrderStatusFilterKey[] = [
+  'all',
+  'waiting_payment',
+  'processing',
+  'delivered',
+  'reviewed',
+  'cancelled',
+] as const
+
 export function classifyPartnerSiteOrderStatusBucket(
   order: PartnerSiteOrderFilterInput
 ): PartnerSiteOrderStatusBucket {
