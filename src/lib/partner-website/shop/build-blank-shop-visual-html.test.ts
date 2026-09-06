@@ -32,6 +32,7 @@ test('blank home canvas is white, stamped, and has no stock header or catalog', 
   })
   assert.equal(visualHtmlLooksUsable(html), true)
   assert.match(html, /data-pw-page="home"/)
+  assert.match(html, /data-pw-look="shop"/)
   assert.match(html, /data-pw-region="content"/)
   assert.match(html, /data-pw-region="footer"/)
   assert.match(html, /data-pw-edit-device="desktop"/)

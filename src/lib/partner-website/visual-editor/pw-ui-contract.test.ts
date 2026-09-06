@@ -7,7 +7,10 @@ import {
   PW_EL_ATTR,
   PW_EL_VALUES,
   PW_LIVE_DATA_REGIONS,
+  PW_LIVE_DOCUMENT_ATTRS,
   PW_LOCKED_REGIONS,
+  PW_LOOK,
+  PW_LOOK_ATTR,
   PW_PAGE,
   PW_PAGE_ATTR,
   PW_PAGE_BY_CATALOG_KEY,
@@ -27,6 +30,7 @@ import {
   isPwImageLayerRegion,
   isPwLiveDataRegion,
   isPwLockedRegion,
+  isPwLookKind,
   isPwPageKind,
   isPwRegionKind,
   isPwTokenKind,
@@ -38,6 +42,7 @@ import {
   pwElsForRegion,
   pwHasCap,
   pwIsLiveLocked,
+  pwLookAttr,
   pwPageKindOf,
   pwRegionAttr,
   pwTokenAttr,
@@ -72,6 +77,18 @@ describe('pw ui contract', () => {
     expect(PW_EL.ctaSecondary).toBe('cta-secondary')
     expect(PW_EL.sectionTitle).toBe('section-title')
     expect(PW_EL.cardBuy).toBe('card-buy')
+  })
+
+  it('stamps look codes for every visual face', () => {
+    expect(PW_LOOK.shop).toBe('shop')
+    expect(PW_LOOK.marketplace).toBe('marketplace')
+    expect(PW_LOOK_ATTR).toBe('data-pw-look')
+    expect(pwLookAttr(PW_LOOK.shop)).toBe('data-pw-look="shop"')
+    expect(isPwLookKind('shop')).toBe(true)
+    expect(isPwLookKind('ladipage')).toBe(false)
+    expect(PW_LIVE_DOCUMENT_ATTRS).toContain('data-pw-page')
+    expect(PW_LIVE_DOCUMENT_ATTRS).toContain('data-pw-look')
+    expect(PW_LIVE_DOCUMENT_ATTRS).toContain('data-pw-coordinate-version')
   })
 
   it('rejects unknown codes', () => {

@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   buildPartnerShopFontCss,
   extractVisualHtmlBodyMarkup,
+  extractVisualHtmlDocumentCodes,
   extractVisualHtmlLook,
   extractVisualHtmlPageKind,
   injectPartnerShopFontsIntoHtml,
@@ -55,6 +56,16 @@ test('extractVisualHtmlLook reads html then body', () => {
     'marketplace'
   )
   assert.equal(extractVisualHtmlLook('<html><body></body></html>'), '')
+})
+
+test('extractVisualHtmlDocumentCodes copies live document codes from html tags only', () => {
+  const codes = extractVisualHtmlDocumentCodes(
+    '<html data-pw-page="home" data-pw-look="shop" data-pw-coordinate-version="4" data-pw-edit-device="desktop"><head><style>html[data-pw-look="marketplace"]{}</style></head><body></body></html>'
+  )
+  assert.equal(codes['data-pw-page'], 'home')
+  assert.equal(codes['data-pw-look'], 'shop')
+  assert.equal(codes['data-pw-coordinate-version'], '4')
+  assert.equal(codes['data-pw-edit-device'], undefined)
 })
 
 test('buildPartnerShopFontCss pins UI vs display stacks', () => {

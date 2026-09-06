@@ -19,10 +19,11 @@ export type PartnerWebsiteTheme = {
   borderColor?: string
   fontFamily: string
   /**
-   * Visual face for chrome + cards. `marketplace` = sàn Shopee/Tiki
-   * (header `--pw-primary`, nền xám, giá `--pw-buy`).
+   * Visual face for chrome + cards. Seed always stamps `data-pw-look`.
+   * `marketplace` = sàn (header `--pw-primary`, nền xám, giá `--pw-buy`).
+   * Missing / other = `shop` (fashion-orange, hotel, food, blank).
    */
-  look?: 'marketplace'
+  look?: 'marketplace' | 'shop'
   logoUrl?: string | null
   /**
    * Favicon tab trình duyệt + `/favicon.ico` trên domain shop.

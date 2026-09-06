@@ -186,6 +186,7 @@ test('injecting theme CSS onto the default PDP shell styles the HTML header', ()
   assert.match(out, new RegExp(`id="${PARTNER_SHOP_THEME_STYLE_ID}"`))
   assert.match(out, /\.pw-topbar\{[^}]*background:var\(--pw-primary\)/)
   assert.match(out, /class="pw-header"/)
+  assert.match(out, /data-pw-look="shop"/)
 })
 
 test('injecting theme CSS keeps marketplace look when HTML already stamped it', () => {

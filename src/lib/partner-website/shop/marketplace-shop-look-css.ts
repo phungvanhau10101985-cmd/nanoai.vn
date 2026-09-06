@@ -1,15 +1,33 @@
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
+import { extractVisualHtmlLook } from '@/lib/partner-website/shop/inject-partner-shop-fonts'
+import { PW_LOOK, PW_LOOK_ATTR, type PwLookKind } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
-export const PARTNER_WEBSITE_LOOK_MARKETPLACE = 'marketplace' as const
+export const PARTNER_WEBSITE_LOOK_MARKETPLACE = PW_LOOK.marketplace
+export const PARTNER_WEBSITE_LOOK_SHOP = PW_LOOK.shop
 
-export type PartnerWebsiteLook = typeof PARTNER_WEBSITE_LOOK_MARKETPLACE
+export type PartnerWebsiteLook = PwLookKind
 
 export function isMarketplaceLook(theme: Pick<PartnerWebsiteTheme, 'look'> | null | undefined): boolean {
   return String(theme?.look || '').trim() === PARTNER_WEBSITE_LOOK_MARKETPLACE
 }
 
+/** Only the visual `<html>` / `<body>` attr — not CSS text that mentions the selector. */
 export function htmlHasMarketplaceLook(html: string): boolean {
-  return /\bdata-pw-look=["']marketplace["']/i.test(html)
+  return extractVisualHtmlLook(html) === PARTNER_WEBSITE_LOOK_MARKETPLACE
+}
+
+/** Every visual document stamps a look. Missing / blank / hotel / fashion-orange → `shop`. */
+export function resolvePartnerWebsiteLook(
+  theme?: Pick<PartnerWebsiteTheme, 'look'> | null,
+  html?: string
+): PartnerWebsiteLook {
+  if (isMarketplaceLook(theme) || htmlHasMarketplaceLook(html || '')) {
+    return PARTNER_WEBSITE_LOOK_MARKETPLACE
+  }
+  const raw = String(theme?.look || extractVisualHtmlLook(html || '') || '').trim()
+  return raw === PARTNER_WEBSITE_LOOK_MARKETPLACE
+    ? PARTNER_WEBSITE_LOOK_MARKETPLACE
+    : PARTNER_WEBSITE_LOOK_SHOP
 }
 
 export function isMarketplaceTemplateId(templateId: string | null | undefined): boolean {
@@ -26,10 +44,10 @@ export function stampPartnerWebsiteLookInHtml(html: string, look?: string | null
   if (!html.trim() || !value) return html
   if (!/<html\b/i.test(html)) return html
   return html.replace(/<html\b([^>]*)>/i, (_full, attrs: string) => {
-    if (/\bdata-pw-look=/.test(attrs)) {
-      return `<html${attrs.replace(/\sdata-pw-look=(["'])[^"']*\1/i, ` data-pw-look="${value}"`)}>`
+    if (new RegExp(`\\b${PW_LOOK_ATTR}=`).test(attrs)) {
+      return `<html${attrs.replace(new RegExp(`\\s${PW_LOOK_ATTR}=(["'])[^"']*\\1`, 'i'), ` ${PW_LOOK_ATTR}="${value}"`)}>`
     }
-    return `<html${attrs} data-pw-look="${value}">`
+    return `<html${attrs} ${PW_LOOK_ATTR}="${value}">`
   })
 }
 
@@ -77,10 +95,13 @@ html[data-pw-look="marketplace"],html[data-pw-look="marketplace"] body{
   background:var(--pw-bg)!important;
   font-family:var(--pw-font-ui),"Nunito","Be Vietnam Pro","Segoe UI",system-ui,sans-serif;
 }
+html[data-pw-look="marketplace"] [data-pw-region="header"],
 html[data-pw-look="marketplace"] .pw-header,
 html[data-pw-look="marketplace"] .pw-shop-header,
+html[data-pw-look="marketplace"][data-pw-edit-device] [data-pw-region="header"],
 html[data-pw-look="marketplace"][data-pw-edit-device] .pw-header,
 html[data-pw-look="marketplace"][data-pw-edit-device] .pw-shop-header,
+html[data-pw-look="marketplace"][data-pw-scene-lock] [data-pw-region="header"],
 html[data-pw-look="marketplace"][data-pw-scene-lock] .pw-header,
 html[data-pw-look="marketplace"][data-pw-scene-lock] .pw-shop-header{
   background:var(--pw-primary)!important;
@@ -199,7 +220,9 @@ html[data-pw-look="marketplace"] .pw-marketplace-home-main{
   box-sizing:border-box;
 }
 .pw-marketplace-trust,[data-pw-trust-bar="1"],
-html[data-pw-look="marketplace"] .pw-marketplace-trust{
+[data-pw-region="promo"][data-pw-trust-bar="1"],
+html[data-pw-look="marketplace"] .pw-marketplace-trust,
+html[data-pw-look="marketplace"] [data-pw-trust-bar="1"]{
   display:grid;
   grid-template-columns:repeat(3,minmax(0,1fr));
   gap:10px;
@@ -261,7 +284,9 @@ html[data-pw-look="marketplace"] .pw-marketplace-block-title{
 }
 @media (max-width:767px){
   .pw-marketplace-trust,[data-pw-trust-bar="1"],
-  html[data-pw-look="marketplace"] .pw-marketplace-trust{grid-template-columns:1fr;gap:6px}
+  [data-pw-region="promo"][data-pw-trust-bar="1"],
+  html[data-pw-look="marketplace"] .pw-marketplace-trust,
+  html[data-pw-look="marketplace"] [data-pw-trust-bar="1"]{grid-template-columns:1fr;gap:6px}
   html[data-pw-look="marketplace"] .pw-marketplace-cta .pw-newsletter{flex-direction:column}
 }
 `.trim()

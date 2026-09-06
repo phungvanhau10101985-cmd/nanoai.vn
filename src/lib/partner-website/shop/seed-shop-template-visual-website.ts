@@ -16,6 +16,7 @@ import { ensureFullPartnerSiteFooterInHtml } from '@/lib/partner-website/shop/bu
 import {
   isMarketplaceLook,
   isMarketplaceTemplateId,
+  resolvePartnerWebsiteLook,
   stampPartnerWebsiteLookInHtml,
 } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/partner-site-chrome-kit'
@@ -76,7 +77,7 @@ function finishVisualHtml(
     locale: input.locale,
   })
   const ready = ensureVisualHtmlLiveReady(withPromo, variant)
-  return stampPartnerWebsiteLookInHtml(ready, input.look)
+  return stampPartnerWebsiteLookInHtml(ready, resolvePartnerWebsiteLook({ look: input.look }, ready))
 }
 
 export function buildShopTemplateHomeVisualHtml(input: {

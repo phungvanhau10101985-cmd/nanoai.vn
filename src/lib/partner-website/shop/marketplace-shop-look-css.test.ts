@@ -7,6 +7,7 @@ import {
   injectMarketplaceLookIntoHtml,
   isMarketplaceLook,
   isMarketplaceTemplateId,
+  resolvePartnerWebsiteLook,
 } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import { buildShopTemplateSampleHtml } from '@/lib/partner-website/template/build-shop-template-sample-html'
 import {
@@ -53,6 +54,26 @@ test('injectMarketplaceLookIntoHtml still paints when HTML already has look', ()
   assert.match(out, /id="pw-marketplace-look-css"/)
   assert.match(out, /data-pw-look="marketplace"/)
   assert.match(out, /\.pw-marketplace-trust/)
+})
+
+test('htmlHasMarketplaceLook reads the html tag, not CSS text', () => {
+  assert.equal(
+    htmlHasMarketplaceLook(
+      '<html><head><style>html[data-pw-look="marketplace"]{color:red}</style></head><body></body></html>'
+    ),
+    false
+  )
+})
+
+test('resolvePartnerWebsiteLook defaults every other face to shop', () => {
+  assert.equal(resolvePartnerWebsiteLook(undefined), 'shop')
+  assert.equal(resolvePartnerWebsiteLook({ look: undefined }), 'shop')
+  assert.equal(resolvePartnerWebsiteLook({ look: 'shop' }), 'shop')
+  assert.equal(resolvePartnerWebsiteLook({ look: 'marketplace' }), 'marketplace')
+  assert.equal(
+    resolvePartnerWebsiteLook(undefined, '<html data-pw-look="marketplace"><body></body></html>'),
+    'marketplace'
+  )
 })
 
 test('marketplace gallery sample is not 188-branded and keeps live hooks', () => {

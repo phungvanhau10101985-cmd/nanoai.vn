@@ -64,6 +64,7 @@ import {
   buildMarketplaceLookCss,
   isMarketplaceLook,
   PARTNER_MARKETPLACE_LOOK_STYLE_ID,
+  resolvePartnerWebsiteLook,
 } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import {
   PARTNER_SHOP_CHROME_FLOAT_SCRIPT,
@@ -561,13 +562,12 @@ function PartnerSiteShopShellInner({
     document.body.appendChild(s)
   }, [pageKind])
   useLayoutEffect(() => {
-    if (isMarketplaceLook(theme)) {
-      document.documentElement.setAttribute('data-pw-look', 'marketplace')
-    } else {
-      document.documentElement.removeAttribute('data-pw-look')
-    }
+    const look = resolvePartnerWebsiteLook(theme)
+    document.documentElement.setAttribute('data-pw-look', look)
     return () => {
-      document.documentElement.removeAttribute('data-pw-look')
+      if (document.documentElement.getAttribute('data-pw-look') === look) {
+        document.documentElement.removeAttribute('data-pw-look')
+      }
     }
   }, [theme])
   useLayoutEffect(() => {

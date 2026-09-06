@@ -3,6 +3,11 @@ import {
   FASHION_SHOP_FONT_UI,
   FASHION_SHOP_GOOGLE_FONTS_HREF,
 } from '@/lib/partner-website/shop/fashion-shop-design'
+import {
+  PW_LIVE_DOCUMENT_ATTRS,
+  PW_LOOK_ATTR,
+  PW_PAGE_ATTR,
+} from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export const PARTNER_SHOP_FONT_STYLE_ID = 'pw-shop-fonts'
 export const PARTNER_SHOP_FONT_LINK_ATTR = 'data-pw-shop-fonts'
@@ -76,22 +81,35 @@ export function extractVisualHtmlBodyMarkup(html: string): string {
   return body?.trim() ? body : trimmed
 }
 
+function attrFromOpenTag(tag: string, name: string): string {
+  if (!tag) return ''
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return tag.match(new RegExp(`\\b${escaped}=["']([^"']+)["']`, 'i'))?.[1]?.trim() || ''
+}
+
+/**
+ * Document codes on visual `<html>` / `<body>`. Live inlines body into Next.js —
+ * copy these onto `document.documentElement`. Does not read CSS text.
+ */
+export function extractVisualHtmlDocumentCodes(html: string): Record<string, string> {
+  const trimmed = html.trim()
+  if (!trimmed) return {}
+  const htmlTag = trimmed.match(/<html\b[^>]*>/i)?.[0] || ''
+  const bodyTag = trimmed.match(/<body\b[^>]*>/i)?.[0] || ''
+  const out: Record<string, string> = {}
+  for (const name of PW_LIVE_DOCUMENT_ATTRS) {
+    const value = attrFromOpenTag(htmlTag, name) || attrFromOpenTag(bodyTag, name)
+    if (value) out[name] = value
+  }
+  return out
+}
+
 /** `data-pw-page` lives on `<html>` / `<body>` — lost when only inner body is inlined. */
 export function extractVisualHtmlPageKind(html: string): string {
-  const trimmed = html.trim()
-  if (!trimmed) return ''
-  const fromHtml = trimmed.match(/<html\b[^>]*\bdata-pw-page=["']([^"']+)["']/i)?.[1]
-  if (fromHtml?.trim()) return fromHtml.trim()
-  const fromBody = trimmed.match(/<body\b[^>]*\bdata-pw-page=["']([^"']+)["']/i)?.[1]
-  return fromBody?.trim() || ''
+  return extractVisualHtmlDocumentCodes(html)[PW_PAGE_ATTR] || ''
 }
 
 /** `data-pw-look` lives on `<html>` — lost when live inlines body into the Next.js page. */
 export function extractVisualHtmlLook(html: string): string {
-  const trimmed = html.trim()
-  if (!trimmed) return ''
-  const fromHtml = trimmed.match(/<html\b[^>]*\bdata-pw-look=["']([^"']+)["']/i)?.[1]
-  if (fromHtml?.trim()) return fromHtml.trim()
-  const fromBody = trimmed.match(/<body\b[^>]*\bdata-pw-look=["']([^"']+)["']/i)?.[1]
-  return fromBody?.trim() || ''
+  return extractVisualHtmlDocumentCodes(html)[PW_LOOK_ATTR] || ''
 }

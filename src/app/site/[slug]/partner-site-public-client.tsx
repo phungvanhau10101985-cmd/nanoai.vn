@@ -8,8 +8,7 @@ import { FASHION_SHOP_GOOGLE_FONTS_HREF } from '@/lib/partner-website/shop/fashi
 import {
   buildPartnerShopFontCss,
   extractVisualHtmlBodyMarkup,
-  extractVisualHtmlLook,
-  extractVisualHtmlPageKind,
+  extractVisualHtmlDocumentCodes,
   PARTNER_SHOP_FONT_STYLE_ID,
 } from '@/lib/partner-website/shop/inject-partner-shop-fonts'
 import {
@@ -121,13 +120,19 @@ function PartnerSiteInlineVisualHead({ html }: { html: string }) {
   const links = extractVisualDocumentStyleLinks(html)
   const css = extractVisualDocumentCssText(html)
   const hasGoogleFont = links.some((link) => /fonts\.googleapis\.com/i.test(link.href))
-  const look = extractVisualHtmlLook(html)
+  const codes = extractVisualHtmlDocumentCodes(html)
+  const stampScript = Object.entries(codes)
+    .map(
+      ([name, value]) =>
+        `document.documentElement.setAttribute(${JSON.stringify(name)},${JSON.stringify(value)});`
+    )
+    .join('')
   return (
     <>
-      {look ? (
+      {stampScript ? (
         <script
           dangerouslySetInnerHTML={{
-            __html: `document.documentElement.setAttribute("data-pw-look",${JSON.stringify(look)})`,
+            __html: stampScript,
           }}
         />
       ) : null}
@@ -395,34 +400,29 @@ function PartnerSitePublicFrame({
   }, [centerPreviewWrap, devicePreview, frameLocked, previewFrameStyle.width])
   const previewHtml = hideChatLaunchersInHtml(selectedHtml, hideEmbedFab)
   const revision = visualHtmlRevision(previewHtml, activeDevice)
-  const visualPageKind = extractVisualHtmlPageKind(previewHtml)
-  const visualLook = extractVisualHtmlLook(previewHtml)
+  const visualDocumentCodes = useMemo(() => extractVisualHtmlDocumentCodes(previewHtml), [previewHtml])
+  const visualPageKind = visualDocumentCodes['data-pw-page'] || ''
+  const visualLook = visualDocumentCodes['data-pw-look'] || ''
   useLayoutEffect(() => {
     if (!inlineHtml) return
     const root = document.documentElement
     root.setAttribute('data-pw-edit-device', activeDevice)
     root.setAttribute('data-pw-scene-lock', activeDevice)
-    if (visualLook) root.setAttribute('data-pw-look', visualLook)
-    else root.removeAttribute('data-pw-look')
+    const applied: Array<[string, string]> = []
+    for (const [name, value] of Object.entries(visualDocumentCodes)) {
+      root.setAttribute(name, value)
+      applied.push([name, value])
+    }
     const faviconHref = readVisualHtmlFaviconHref(previewHtml)
     if (faviconHref) applyLiveDocumentFavicon(faviconHref)
     const apply = (window as Window & { __pwSceneCenterApply?: () => void }).__pwSceneCenterApply
     if (typeof apply === 'function') apply()
     return () => {
-      if (!visualLook) return
-      if (root.getAttribute('data-pw-look') === visualLook) root.removeAttribute('data-pw-look')
-    }
-  }, [activeDevice, inlineHtml, previewHtml, selectedHtml, visualLook])
-  useLayoutEffect(() => {
-    if (!inlineHtml || !visualPageKind) return
-    const root = document.documentElement
-    root.setAttribute('data-pw-page', visualPageKind)
-    return () => {
-      if (root.getAttribute('data-pw-page') === visualPageKind) {
-        root.removeAttribute('data-pw-page')
+      for (const [name, value] of applied) {
+        if (root.getAttribute(name) === value) root.removeAttribute(name)
       }
     }
-  }, [inlineHtml, visualPageKind, revision])
+  }, [activeDevice, inlineHtml, previewHtml, visualDocumentCodes])
   /** Live custom domain: never srcDoc-iframe (except `?pw-device=` preview frames). */
   if (inlineHtml && !devicePreview) {
     return (
@@ -441,6 +441,7 @@ function PartnerSitePublicFrame({
           data-pw-inline-visual-root="1"
           data-pw-page={visualPageKind || undefined}
           data-pw-look={visualLook || undefined}
+          data-pw-coordinate-version={visualDocumentCodes['data-pw-coordinate-version'] || undefined}
           data-pw-active-device={activeDevice}
           data-pw-runtime-revision={revision}
           className="bg-white"

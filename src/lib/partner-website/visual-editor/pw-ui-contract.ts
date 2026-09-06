@@ -5,8 +5,10 @@ import { PW_BG_REGION_ROLES } from './pw-bg-stack'
  * Mọi khối gốc bắt buộc `data-pw-region`. Mọi phần tử sửa được bắt buộc `data-pw-el`.
  * Sửa nhanh đọc mã này trước, không đoán bằng class / kích thước / chữ nút.
  *
- * Bốn lớp (không trộn):
+ * Lớp document (mọi giao diện stamp trên `<html>`):
  * - page   = loại trang (home / listing / product / …)
+ * - look   = mặt giao diện (`shop` / `marketplace`) — live copy lên Next.js `<html>`
+ * Lớp khối (không trộn):
  * - region = khối gốc (banner ≠ catalog)
  * - el     = vai trò phần tử trong khối (title / cta / card-price)
  * - edit   = ô nội dung cụ thể (heroTitle / categoryName:0)
@@ -25,6 +27,14 @@ export const PW_PAGE = {
 } as const
 
 export type PwPageKind = (typeof PW_PAGE)[keyof typeof PW_PAGE]
+
+/** Visual face. Every seed stamps one — live CSS keys off this, not class names. */
+export const PW_LOOK = {
+  shop: 'shop',
+  marketplace: 'marketplace',
+} as const
+
+export type PwLookKind = (typeof PW_LOOK)[keyof typeof PW_LOOK]
 
 export const PW_REGION = {
   header: 'header',
@@ -172,18 +182,27 @@ export const PW_EDIT_SLOT = {
 export type PwEditSlotKind = (typeof PW_EDIT_SLOT)[keyof typeof PW_EDIT_SLOT]
 
 export const PW_PAGE_ATTR = 'data-pw-page'
+export const PW_LOOK_ATTR = 'data-pw-look'
 export const PW_REGION_ATTR = 'data-pw-region'
 export const PW_EL_ATTR = 'data-pw-el'
 export const PW_TOKEN_ATTR = 'data-pw-token'
 export const PW_EDIT_ATTR = 'data-pw-edit'
 
+/**
+ * Live inlines `<body>` into Next.js — copy these from visual `<html>` onto the document.
+ * Do not copy `data-pw-edit-device` / `data-pw-scene-lock` (live stamps the active machine).
+ */
+export const PW_LIVE_DOCUMENT_ATTRS = [PW_PAGE_ATTR, PW_LOOK_ATTR, 'data-pw-coordinate-version'] as const
+
 export const PW_PAGE_VALUES = Object.values(PW_PAGE)
+export const PW_LOOK_VALUES = Object.values(PW_LOOK)
 export const PW_REGION_VALUES = Object.values(PW_REGION)
 export const PW_EL_VALUES = Object.values(PW_EL)
 export const PW_CAP_VALUES = Object.values(PW_CAP)
 export const PW_TOKEN_VALUES = Object.values(PW_TOKEN)
 
 const PW_PAGE_SET = new Set<string>(PW_PAGE_VALUES)
+const PW_LOOK_SET = new Set<string>(PW_LOOK_VALUES)
 const PW_REGION_SET = new Set<string>(PW_REGION_VALUES)
 const PW_EL_SET = new Set<string>(PW_EL_VALUES)
 const PW_CAP_SET = new Set<string>(PW_CAP_VALUES)
@@ -191,6 +210,10 @@ const PW_TOKEN_SET = new Set<string>(PW_TOKEN_VALUES)
 
 export function isPwPageKind(raw: string | null | undefined): raw is PwPageKind {
   return PW_PAGE_SET.has(String(raw || ''))
+}
+
+export function isPwLookKind(raw: string | null | undefined): raw is PwLookKind {
+  return PW_LOOK_SET.has(String(raw || ''))
 }
 
 export function isPwRegionKind(raw: string | null | undefined): raw is PwRegionKind {
@@ -211,6 +234,10 @@ export function isPwTokenKind(raw: string | null | undefined): raw is PwTokenKin
 
 export function pwPageAttr(page: PwPageKind): string {
   return `${PW_PAGE_ATTR}="${page}"`
+}
+
+export function pwLookAttr(look: PwLookKind): string {
+  return `${PW_LOOK_ATTR}="${look}"`
 }
 
 export function pwRegionAttr(region: PwRegionKind): string {

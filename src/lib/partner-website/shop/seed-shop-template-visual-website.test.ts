@@ -39,6 +39,7 @@ test('fashion home seed is stamped and matches live visual contract', () => {
   })
   assert.equal(visualHtmlLooksUsable(html), true)
   assert.match(html, /data-pw-page="home"/)
+  assert.match(html, /data-pw-look="shop"/)
   assert.match(html, /data-pw-edit-device="desktop"/)
   assert.match(html, /data-pw-scene-lock="desktop"/)
   assert.match(html, /data-pw-region="header"/)

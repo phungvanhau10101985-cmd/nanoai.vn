@@ -19,6 +19,7 @@ import {
   buildMarketplaceLookCss,
   htmlHasMarketplaceLook,
   isMarketplaceLook,
+  resolvePartnerWebsiteLook,
   stampPartnerWebsiteLookInHtml,
 } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import {
@@ -849,12 +850,13 @@ export const PARTNER_SHOP_THEME_STYLE_ID = 'pw-shop-theme-css'
 export function injectPartnerShopThemeCss(html: string, theme?: PartnerWebsiteTheme | null): string {
   const trimmed = html.trim()
   if (!trimmed) return html
-  const marketplace = isMarketplaceLook(theme) || htmlHasMarketplaceLook(trimmed)
-  const source = marketplace ? stampPartnerWebsiteLookInHtml(trimmed, 'marketplace') : trimmed
+  const look = resolvePartnerWebsiteLook(theme, trimmed)
+  const marketplace = look === 'marketplace' || isMarketplaceLook(theme) || htmlHasMarketplaceLook(trimmed)
+  const source = stampPartnerWebsiteLookInHtml(trimmed, look)
   const css = buildPartnerSiteShopThemeCss(
     marketplace && !isMarketplaceLook(theme)
       ? { ...(theme || DEFAULT_PARTNER_WEBSITE_THEME), look: 'marketplace' }
-      : theme || DEFAULT_PARTNER_WEBSITE_THEME
+      : { ...(theme || DEFAULT_PARTNER_WEBSITE_THEME), look }
   )
   const tag = `<style id="${PARTNER_SHOP_THEME_STYLE_ID}">${css}</style>`
   let replaced = false

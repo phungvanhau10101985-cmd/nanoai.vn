@@ -24,6 +24,10 @@ import {
   pwRegionAttr,
 } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import {
+  PARTNER_WEBSITE_LOOK_SHOP,
+  stampPartnerWebsiteLookInHtml,
+} from '@/lib/partner-website/shop/marketplace-shop-look-css'
+import {
   applyVisualEditThemeFlag,
   isolateVisualHtmlForDevice,
   mergeVisualPageHtmlIntoProject,
@@ -148,7 +152,8 @@ export function buildBlankShopVisualHtml(input: {
       : input.pageKey === 'product_detail'
         ? buildProductMain()
         : buildInfoMain(input.pageKey, input.locale)
-  return `<!DOCTYPE html>
+  return stampPartnerWebsiteLookInHtml(
+    `<!DOCTYPE html>
 <html lang="${escapeAttr(input.locale)}" data-pw-edit-device="${input.variant}" data-pw-scene-lock="${input.variant}">
 <head>
 <meta charset="utf-8" />
@@ -160,7 +165,9 @@ ${main}
 ${buildBlankFooterHtml(chrome)}
 ${buildBlankBottomNavHtml({ ...chrome, pdp: input.pageKey === 'product_detail' })}
 </body>
-</html>`
+</html>`,
+    PARTNER_WEBSITE_LOOK_SHOP
+  )
 }
 
 export function seedBlankShopVisualWebsite(input: {
