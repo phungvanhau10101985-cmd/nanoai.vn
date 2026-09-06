@@ -25,19 +25,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, error: 'database_unavailable' }, { status: 503 })
   }
   const birthday = await runPartnerBirthdayPromoBatchAll()
-  return NextResponse.json({ ok: true, ...birthday })
+  const promotions = await runPartnerPromotionMaintenance()
+  return NextResponse.json({ ok: true, birthday, promotions })
 }
 
 export async function POST(request: NextRequest) {
   return GET(request)
-}
-
-/** Gói daily 188: CMSN T-7 + grant giỏ bỏ / quay lại (kèm mail riêng). */
-export async function runPartnerPromoEmailDailyAll(): Promise<{
-  birthday: Awaited<ReturnType<typeof runPartnerBirthdayPromoBatchAll>>
-  promotions: Awaited<ReturnType<typeof runPartnerPromotionMaintenance>>
-}> {
-  const birthday = await runPartnerBirthdayPromoBatchAll()
-  const promotions = await runPartnerPromotionMaintenance()
-  return { birthday, promotions }
 }

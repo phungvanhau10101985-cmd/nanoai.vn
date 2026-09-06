@@ -59,12 +59,16 @@ test('PDP add/buy opens variant modal; catalog cards do not', () => {
   assert.equal(isPdpCartTriggerForTest({ inPdp: true }), true)
   assert.equal(isPdpCartTriggerForTest({ pageProduct: true }), true)
   assert.equal(isPdpCartTriggerForTest({ inCatalog: true, pageProduct: true }), false)
+  assert.equal(isPdpCartTriggerForTest({ inCatalog: true, inPdp: true }), true)
 })
 
 test('shop-actions injects PDP variant modal before add-to-cart', () => {
   const script = buildPartnerSiteShopActionsBootstrapScript({ siteSlug: 'demo-shop', locale: 'vi' })
   assert.match(script, /openPdpVariantModal/)
   assert.match(script, /isPdpCartTrigger/)
+  assert.match(script, /isPdpProductPage/)
+  assert.match(script, /bindPdpDesktopStickyBar/)
+  assert.match(script, /data-pw-pdp-desktop-sticky/)
   assert.match(script, /data-pw-variant-modal/)
   assert.match(script, /Thêm vào Giỏ hàng/)
   assert.match(script, /Số lượng \(hàng order\)/)
@@ -74,6 +78,10 @@ test('shop-actions injects PDP variant modal before add-to-cart', () => {
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /function variantImg/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /data-pw-variant-sale/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /variantSaleFace/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /bindPdpDesktopStickyBar/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /isPdpBuyBoxHost/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /pw-device/)
+  assert.doesNotMatch(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /adds\[i\]\.closest\('article/)
   assert.doesNotMatch(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /shopImg\(/)
 })
 

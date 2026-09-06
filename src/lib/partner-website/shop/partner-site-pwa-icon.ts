@@ -40,8 +40,13 @@ async function fetchLogoBuffer(logoUrl: string): Promise<Buffer | null> {
 }
 
 async function resizeExactPng(input: Buffer, size: number): Promise<Buffer> {
+  const fit = size <= 48 ? 'contain' : 'cover'
   return sharp(input)
-    .resize(size, size, { fit: 'cover', position: 'centre' })
+    .resize(size, size, {
+      fit,
+      position: 'centre',
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
     .png()
     .toBuffer()
 }

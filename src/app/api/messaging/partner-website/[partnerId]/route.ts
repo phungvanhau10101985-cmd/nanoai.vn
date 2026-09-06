@@ -35,6 +35,11 @@ import {
   applyChatIconLogoToHtml,
   applyChatIconLogoToProject,
 } from '@/lib/partner-website/visual-editor/apply-chat-icon-logo'
+import {
+  applySlotLogoToHtml,
+  applySlotLogoToProject,
+  isPersistableLogoUrl,
+} from '@/lib/partner-website/visual-editor/apply-slot-logo'
 import type { PartnerWebsiteFileKind } from '@/lib/partner-website/partner-website-types'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
@@ -220,6 +225,7 @@ export async function PATCH(
       | 'update_floating_cta'
       | 'update_chat_launcher'
       | 'update_chat_icon_logo'
+      | 'update_logo_slot'
       | 'update_brand'
       | 'update_logo_url'
       | 'clear_logo'
@@ -229,6 +235,7 @@ export async function PATCH(
     floatingCta?: unknown
     hideChatLauncher?: unknown
     chatIconLogoUrl?: string | null
+    logoSlot?: 'favicon' | 'header' | 'footer' | 'chat'
     title?: string
     briefText?: string
     logoUrl?: string | null
@@ -326,6 +333,92 @@ export async function PATCH(
       changeNote: 'update_chat_icon_logo',
     })
     if (!updated) return NextResponse.json({ error: 'Could not save chat icon logo' }, { status: 500 })
+    return NextResponse.json({ success: true, website: updated })
+  }
+
+  if (body.action === 'update_logo_slot') {
+    const existing = await fetchPartnerWebsiteByPartnerIdPg(pid)
+    if (!existing) return NextResponse.json({ error: 'Website not found' }, { status: 404 })
+    const slot = body.logoSlot
+    if (slot !== 'favicon' && slot !== 'header' && slot !== 'footer' && slot !== 'chat') {
+      return NextResponse.json({ error: 'logoSlot required' }, { status: 400 })
+    }
+    const rawUrl = typeof body.logoUrl === 'string' ? body.logoUrl.trim() : ''
+    const clear = body.logoUrl === null || body.logoUrl === ''
+    if (!clear && !isPersistableLogoUrl(rawUrl)) {
+      return NextResponse.json({ error: 'logoUrl required' }, { status: 400 })
+    }
+    const logoUrl = clear ? '' : rawUrl
+
+    if (slot === 'favicon') {
+      const nextTheme: PartnerWebsiteTheme = {
+        ...existing.theme,
+        faviconUrl: logoUrl || null,
+      }
+      const updated = await updatePartnerWebsiteDraftPg({
+        partnerId: pid,
+        theme: nextTheme,
+        skipRevision: true,
+        changeNote: 'update_logo_slot:favicon',
+      })
+      if (!updated) return NextResponse.json({ error: 'Could not save favicon' }, { status: 500 })
+      return NextResponse.json({ success: true, website: updated })
+    }
+
+    if (slot === 'chat') {
+      const htmlLogo =
+        logoUrl ||
+        (typeof existing.logoUrl === 'string' ? existing.logoUrl.trim() : '') ||
+        (typeof existing.theme.logoUrl === 'string' ? existing.theme.logoUrl.trim() : '')
+      const nextTheme: PartnerWebsiteTheme = {
+        ...existing.theme,
+        chatIconLogoUrl: logoUrl || null,
+      }
+      const nextProject = isPersistableLogoUrl(htmlLogo)
+        ? applyChatIconLogoToProject(existing.project, htmlLogo)
+        : existing.project
+      const nextHtmlSource =
+        existing.htmlSource && isPersistableLogoUrl(htmlLogo)
+          ? applyChatIconLogoToHtml(existing.htmlSource, htmlLogo)
+          : existing.htmlSource
+      const updated = await updatePartnerWebsiteDraftPg({
+        partnerId: pid,
+        theme: nextTheme,
+        project: nextProject,
+        htmlSource: nextHtmlSource,
+        skipRevision: true,
+        changeNote: 'update_logo_slot:chat',
+      })
+      if (!updated) return NextResponse.json({ error: 'Could not save logo' }, { status: 500 })
+      return NextResponse.json({ success: true, website: updated })
+    }
+
+    const device = parseVisualDeviceVariant(body.visualDevice)
+    const nextProject = applySlotLogoToProject(
+      existing.project,
+      slot,
+      logoUrl,
+      device,
+      existing.title
+    )
+    const sourceHtml = existing.htmlSource?.trim() || ''
+    const sourceDevice = parseVisualDeviceVariant(
+      sourceHtml.match(/data-pw-edit-device=["']([^"']+)["']/i)?.[1]
+    )
+    const nextHtmlSource =
+      sourceHtml && sourceDevice === device
+        ? applySlotLogoToHtml(sourceHtml, slot, logoUrl, existing.title)
+        : existing.htmlSource
+    const nextTheme: PartnerWebsiteTheme = existing.theme
+    const updated = await updatePartnerWebsiteDraftPg({
+      partnerId: pid,
+      theme: nextTheme,
+      project: nextProject,
+      htmlSource: nextHtmlSource,
+      skipRevision: true,
+      changeNote: `update_logo_slot:${slot}:${device}`,
+    })
+    if (!updated) return NextResponse.json({ error: 'Could not save logo' }, { status: 500 })
     return NextResponse.json({ success: true, website: updated })
   }
 

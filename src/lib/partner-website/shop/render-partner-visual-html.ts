@@ -15,6 +15,7 @@ import {
 } from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
 import { injectPartnerShopThemeCss } from '@/lib/partner-website/shop/build-shop-theme-css'
 import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
+import { injectPartnerShopFaviconIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
 import { stripPartnerInfoPageSeoCoachFromHtml } from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
 import { ensureAdsPlatformPolicyInHtml } from '@/lib/partner-website/pages/partner-info-page-visual'
 import { ensureFullPartnerSiteFooterInHtml } from '@/lib/partner-website/shop/build-partner-site-footer-html'
@@ -133,7 +134,13 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
   const withShopCss = injectPartnerShopThemeCss(withLogoSlot, input.theme)
   const logosReady =
     input.runtime === 'authoring' ? withShopCss : stripEmptyLogoPlaceholdersFromHtml(withShopCss)
-  const withChrome = injectPartnerShopChromeLayoutCss(stampPwPageOnDocumentHtml(logosReady, input.pageKey))
+  const withFavicon = injectPartnerShopFaviconIntoHtml(stampPwPageOnDocumentHtml(logosReady, input.pageKey), {
+    siteSlug,
+    customDomain: Boolean(input.onCustomDomain),
+    faviconUrl: input.theme?.faviconUrl,
+    logoUrl: input.theme?.logoUrl,
+  })
+  const withChrome = injectPartnerShopChromeLayoutCss(withFavicon)
   const withRuntime =
     input.runtime === 'authoring'
       ? injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(withChrome, { siteSlug, locale })

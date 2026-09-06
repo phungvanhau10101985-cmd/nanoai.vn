@@ -4,7 +4,7 @@ export function isPersistableChatIconLogoUrl(url: string): boolean {
   return /^https?:\/\//i.test(String(url || '').trim())
 }
 
-/** Ghi logo icon Chat mua vào theme + mọi HTML máy. Đổi một chỗ = mọi máy. */
+/** Ghi logo icon Chat mua vào theme + mọi HTML máy. Một ảnh dùng chung. */
 export async function persistVisualEditorChatIconLogo(
   partnerId: string,
   chatIconLogoUrl: string

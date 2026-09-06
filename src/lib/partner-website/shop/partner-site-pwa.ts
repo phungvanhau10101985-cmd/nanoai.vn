@@ -3,11 +3,11 @@ import { partnerSiteHomePath } from './partner-site-shop-paths'
 /** Public SW filename on a shop custom domain — must not collide with NanoAI `public/sw.js`. */
 export const PARTNER_SHOP_PWA_SW_PUBLIC_FILE = 'pw-shop-sw.js'
 
-export const PARTNER_PWA_ICON_SIZES = [180, 192, 512] as const
+export const PARTNER_PWA_ICON_SIZES = [32, 180, 192, 512] as const
 export type PartnerPwaIconSize = (typeof PARTNER_PWA_ICON_SIZES)[number]
 
 export function isPartnerPwaIconSize(value: string): value is `${PartnerPwaIconSize}` {
-  return value === '180' || value === '192' || value === '512'
+  return value === '32' || value === '180' || value === '192' || value === '512'
 }
 
 export function partnerPwaManifestColor(value: unknown, fallback: string): string {

@@ -730,6 +730,7 @@ export type Dictionary = {
     messagingSettingsLink: string
     marketingCampaignsLink: string
     notificationsLink: string
+    emailManagementLink: string
     /** Link tới /dashboard/messaging/website */
     messagingWebsiteLink: string
     messagingOrdersLink: string
@@ -1142,6 +1143,97 @@ export type Dictionary = {
     errorEmptySheet: string
     errorNoRecipients: string
     errorInvalidSchedule: string
+  }
+  /** /dashboard/messaging/settings — Quản lý gửi email (warmup + newsletter) */
+  partnerMessagingEmail: {
+    pageTitle: string
+    pageDescription: string
+    tabManage: string
+    tabList: string
+    warmupTitle: string
+    warmupHint: string
+    warmupEnabled: string
+    startLimit: string
+    dailyIncrement: string
+    maxLimit: string
+    maxLimitHint: string
+    saveSettings: string
+    saving: string
+    saved: string
+    smtpMissing: string
+    statsTitle: string
+    warmupDay: string
+    dailyLimit: string
+    sentToday: string
+    birthdayToday: string
+    marketingToday: string
+    remainingToday: string
+    unlimited: string
+    birthdayAllTime: string
+    activeSubscribers: string
+    cronTitle: string
+    birthdayCron: string
+    runBirthdayNow: string
+    runningBirthday: string
+    birthdayRunOk: string
+    channelsTitle: string
+    cartEmail: string
+    comebackEmail: string
+    newsletterWelcome: string
+    testTitle: string
+    testEmail: string
+    testKind: string
+    testBirthday: string
+    testCart: string
+    testComeback: string
+    testNewsletter: string
+    testBroadcast: string
+    sendTest: string
+    testOk: string
+    logTitle: string
+    logEmpty: string
+    logWhen: string
+    logKind: string
+    logTo: string
+    logStatus: string
+    logSubject: string
+    subscribersTitle: string
+    searchPlaceholder: string
+    filterAll: string
+    filterActive: string
+    filterInactive: string
+    importTitle: string
+    importHint: string
+    importTextPlaceholder: string
+    importFile: string
+    importButton: string
+    importing: string
+    importResult: string
+    exportCsv: string
+    composeTitle: string
+    composeHint: string
+    subjectLabel: string
+    bodyLabel: string
+    sendBroadcast: string
+    confirmBroadcast: string
+    broadcasting: string
+    broadcastOk: string
+    noWorkspace: string
+    errorGeneric: string
+    errorSmtp: string
+    errorWarmup: string
+    errorInvalidEmail: string
+    statusSent: string
+    statusFailed: string
+    statusSkipped: string
+    colEmail: string
+    colName: string
+    colSource: string
+    colStatus: string
+    colWhen: string
+    unsubscribe: string
+    active: string
+    inactive: string
   }
   /** /dashboard/messaging — trợ lý AI (chờ nhân viên + LLM / kho) */
   partnerMessagingAi: {
@@ -3906,6 +3998,7 @@ const VI_DICTIONARY: Dictionary = {
     messagingSettingsLink: 'Quản trị',
     marketingCampaignsLink: 'Remarketing chat',
     notificationsLink: 'Thông báo khách web',
+    emailManagementLink: 'Quản lý gửi email',
     messagingWebsiteLink: 'Tạo web & landing',
     messagingOrdersLink: 'Đơn hàng',
     messagingAnalyticsLink: 'Doanh thu',
@@ -4318,6 +4411,96 @@ const VI_DICTIONARY: Dictionary = {
     errorEmptySheet: 'File không có dòng dữ liệu.',
     errorNoRecipients: 'Chưa có khách có tài khoản shop.',
     errorInvalidSchedule: 'Thời điểm gửi không hợp lệ.',
+  },
+  partnerMessagingEmail: {
+    pageTitle: 'Quản lý gửi email',
+    pageDescription: 'Warmup SMTP, email sinh nhật / giỏ / quay lại, danh sách nhận tin và gửi chiến dịch — cùng engine mọi shop.',
+    tabManage: 'Quản lý gửi',
+    tabList: 'Danh sách email',
+    warmupTitle: 'Warmup gửi email',
+    warmupHint: 'Giới hạn số mail mỗi ngày theo shop, tăng dần để bảo vệ SMTP. CMSN được ưu tiên trong hạn mức.',
+    warmupEnabled: 'Bật warmup',
+    startLimit: 'Hạn mức ngày 1',
+    dailyIncrement: 'Tăng mỗi ngày',
+    maxLimit: 'Trần tối đa',
+    maxLimitHint: 'Để trống = không trần.',
+    saveSettings: 'Lưu cài đặt',
+    saving: 'Đang lưu…',
+    saved: 'Đã lưu cài đặt email.',
+    smtpMissing: 'Chưa cấu hình SMTP trên máy chủ — không gửi được email.',
+    statsTitle: 'Hôm nay',
+    warmupDay: 'Ngày warmup',
+    dailyLimit: 'Hạn mức hôm nay',
+    sentToday: 'Đã gửi',
+    birthdayToday: 'Sinh nhật',
+    marketingToday: 'Marketing',
+    remainingToday: 'Còn lại',
+    unlimited: 'Không giới hạn',
+    birthdayAllTime: 'CMSN đã gửi (mọi thời điểm)',
+    activeSubscribers: 'Đang nhận tin',
+    cronTitle: 'Cron sinh nhật T-7',
+    birthdayCron: 'Cho phép cron gửi mail CMSN',
+    runBirthdayNow: 'Chạy batch CMSN ngay',
+    runningBirthday: 'Đang chạy…',
+    birthdayRunOk: 'Đã gửi {sent}, bỏ qua {skipped}, hết hạn mức {deferred}.',
+    channelsTitle: 'Kênh email tự động',
+    cartEmail: 'Email bỏ giỏ',
+    comebackEmail: 'Email quay lại',
+    newsletterWelcome: 'Email chào khi đăng ký nhận tin',
+    testTitle: 'Gửi thử',
+    testEmail: 'Email nhận thử',
+    testKind: 'Loại mail',
+    testBirthday: 'Sinh nhật',
+    testCart: 'Bỏ giỏ',
+    testComeback: 'Quay lại',
+    testNewsletter: 'Chào nhận tin',
+    testBroadcast: 'Chiến dịch (dùng ô soạn bên tab Danh sách)',
+    sendTest: 'Gửi thử',
+    testOk: 'Đã gửi mail thử.',
+    logTitle: 'Log gửi gần đây',
+    logEmpty: 'Chưa có log.',
+    logWhen: 'Thời điểm',
+    logKind: 'Loại',
+    logTo: 'Đến',
+    logStatus: 'Trạng thái',
+    logSubject: 'Tiêu đề',
+    subscribersTitle: 'Người nhận tin',
+    searchPlaceholder: 'Tìm email / tên',
+    filterAll: 'Tất cả',
+    filterActive: 'Đang nhận',
+    filterInactive: 'Đã hủy',
+    importTitle: 'Import email',
+    importHint: 'Mỗi dòng một email. Tự sửa gmail.con / gmial.com. File txt hoặc CSV cột đầu là email.',
+    importTextPlaceholder: 'email1@gmail.com\nemail2@yahoo.com',
+    importFile: 'Hoặc chọn file',
+    importButton: 'Import',
+    importing: 'Đang import…',
+    importResult: 'Hợp lệ {parsed}: thêm {created}, kích hoạt lại {reactivated}, đã có {skipped}. Sửa gõ nhầm {corrected}. Không hợp lệ {invalid}. Trùng trong file {dup}.',
+    exportCsv: 'Xuất CSV',
+    composeTitle: 'Gửi chiến dịch',
+    composeHint: 'Gửi tới mọi email đang nhận tin. Tôn trọng warmup và hủy nhận.',
+    subjectLabel: 'Tiêu đề',
+    bodyLabel: 'Nội dung',
+    sendBroadcast: 'Gửi tới danh sách',
+    confirmBroadcast: 'Gửi tới {count} email đang nhận tin?',
+    broadcasting: 'Đang gửi…',
+    broadcastOk: 'Đã gửi {sent}, bỏ qua {skipped}, lỗi {failed}.',
+    noWorkspace: 'Chưa chọn workspace.',
+    errorGeneric: 'Không thực hiện được.',
+    errorSmtp: 'Chưa cấu hình SMTP.',
+    errorWarmup: 'Hết hạn mức warmup hôm nay.',
+    errorInvalidEmail: 'Email không hợp lệ.',
+    statusSent: 'Đã gửi',
+    statusFailed: 'Lỗi',
+    statusSkipped: 'Bỏ qua',
+    colEmail: 'Email',
+    colName: 'Tên',
+    colSource: 'Nguồn',
+    colStatus: 'Trạng thái',
+    colWhen: 'Đăng ký',
+    unsubscribe: 'Hủy nhận',
+    active: 'Đang nhận',
+    inactive: 'Đã hủy',
   },
   partnerMessagingAi: {
     panelTitle: 'Trợ lý AI tự động',
@@ -7089,6 +7272,7 @@ const EN_DICTIONARY: Dictionary = {
     messagingSettingsLink: 'Admin',
     marketingCampaignsLink: 'Chat remarketing',
     notificationsLink: 'Shop customer alerts',
+    emailManagementLink: 'Email sending',
     messagingWebsiteLink: 'Website & landing',
     messagingOrdersLink: 'Orders',
     messagingAnalyticsLink: 'Revenue',
@@ -7500,6 +7684,96 @@ const EN_DICTIONARY: Dictionary = {
     errorEmptySheet: 'The file has no data rows.',
     errorNoRecipients: 'No customers with a shop account yet.',
     errorInvalidSchedule: 'Invalid send time.',
+  },
+  partnerMessagingEmail: {
+    pageTitle: 'Email sending',
+    pageDescription: 'SMTP warmup, birthday / cart / comeback mail, subscriber list and broadcasts — one engine for every shop.',
+    tabManage: 'Sending',
+    tabList: 'Email list',
+    warmupTitle: 'Email warmup',
+    warmupHint: 'Daily send cap per shop, ramping up to protect SMTP. Birthday mail uses the quota first.',
+    warmupEnabled: 'Enable warmup',
+    startLimit: 'Day-1 cap',
+    dailyIncrement: 'Increase per day',
+    maxLimit: 'Hard cap',
+    maxLimitHint: 'Leave empty for no cap.',
+    saveSettings: 'Save settings',
+    saving: 'Saving…',
+    saved: 'Email settings saved.',
+    smtpMissing: 'SMTP is not configured on the server — emails cannot be sent.',
+    statsTitle: 'Today',
+    warmupDay: 'Warmup day',
+    dailyLimit: 'Today’s cap',
+    sentToday: 'Sent',
+    birthdayToday: 'Birthday',
+    marketingToday: 'Marketing',
+    remainingToday: 'Remaining',
+    unlimited: 'Unlimited',
+    birthdayAllTime: 'Birthday emails sent (all time)',
+    activeSubscribers: 'Active subscribers',
+    cronTitle: 'T-7 birthday cron',
+    birthdayCron: 'Allow cron to send birthday emails',
+    runBirthdayNow: 'Run birthday batch now',
+    runningBirthday: 'Running…',
+    birthdayRunOk: 'Sent {sent}, skipped {skipped}, quota deferred {deferred}.',
+    channelsTitle: 'Automatic email channels',
+    cartEmail: 'Cart-abandon email',
+    comebackEmail: 'Comeback email',
+    newsletterWelcome: 'Welcome email on subscribe',
+    testTitle: 'Test send',
+    testEmail: 'Test recipient',
+    testKind: 'Email type',
+    testBirthday: 'Birthday',
+    testCart: 'Cart abandon',
+    testComeback: 'Comeback',
+    testNewsletter: 'Newsletter welcome',
+    testBroadcast: 'Campaign (use compose on Email list tab)',
+    sendTest: 'Send test',
+    testOk: 'Test email sent.',
+    logTitle: 'Recent send log',
+    logEmpty: 'No log yet.',
+    logWhen: 'When',
+    logKind: 'Kind',
+    logTo: 'To',
+    logStatus: 'Status',
+    logSubject: 'Subject',
+    subscribersTitle: 'Subscribers',
+    searchPlaceholder: 'Search email / name',
+    filterAll: 'All',
+    filterActive: 'Active',
+    filterInactive: 'Unsubscribed',
+    importTitle: 'Import emails',
+    importHint: 'One email per line. Typos like gmail.con / gmial.com are fixed. TXT or CSV first column is email.',
+    importTextPlaceholder: 'email1@gmail.com\nemail2@yahoo.com',
+    importFile: 'Or choose a file',
+    importButton: 'Import',
+    importing: 'Importing…',
+    importResult: 'Valid {parsed}: added {created}, reactivated {reactivated}, already active {skipped}. Typo-fixed {corrected}. Invalid {invalid}. Duplicates in file {dup}.',
+    exportCsv: 'Export CSV',
+    composeTitle: 'Send campaign',
+    composeHint: 'Sends to every active subscriber. Respects warmup and unsubscribe.',
+    subjectLabel: 'Subject',
+    bodyLabel: 'Body',
+    sendBroadcast: 'Send to list',
+    confirmBroadcast: 'Send to {count} active subscribers?',
+    broadcasting: 'Sending…',
+    broadcastOk: 'Sent {sent}, skipped {skipped}, failed {failed}.',
+    noWorkspace: 'No workspace selected.',
+    errorGeneric: 'Could not complete the request.',
+    errorSmtp: 'SMTP is not configured.',
+    errorWarmup: 'Warmup quota for today is used up.',
+    errorInvalidEmail: 'Invalid email.',
+    statusSent: 'Sent',
+    statusFailed: 'Failed',
+    statusSkipped: 'Skipped',
+    colEmail: 'Email',
+    colName: 'Name',
+    colSource: 'Source',
+    colStatus: 'Status',
+    colWhen: 'Subscribed',
+    unsubscribe: 'Unsubscribe',
+    active: 'Active',
+    inactive: 'Unsubscribed',
   },
   partnerMessagingAi: {
     panelTitle: 'AI auto-replies',
@@ -10262,6 +10536,7 @@ const ZH_DICTIONARY: Dictionary = {
     messagingSettingsLink: '管理',
     marketingCampaignsLink: '聊天再营销',
     notificationsLink: '店铺客户通知',
+    emailManagementLink: '邮件发送管理',
     messagingWebsiteLink: '网站与落地页',
     messagingOrdersLink: '订单',
     messagingAnalyticsLink: '营收',
@@ -10657,6 +10932,96 @@ const ZH_DICTIONARY: Dictionary = {
     errorEmptySheet: '文件没有数据行。',
     errorNoRecipients: '尚无已注册店铺账户的客户。',
     errorInvalidSchedule: '发送时间无效。',
+  },
+  partnerMessagingEmail: {
+    pageTitle: '邮件发送管理',
+    pageDescription: 'SMTP 预热、生日/购物车/回流邮件、订阅列表与群发 — 所有店铺同一引擎。',
+    tabManage: '发送管理',
+    tabList: '邮件列表',
+    warmupTitle: '邮件预热',
+    warmupHint: '按店铺限制每日发送量并逐步提高，保护 SMTP。生日邮件优先占用额度。',
+    warmupEnabled: '启用预热',
+    startLimit: '第 1 日上限',
+    dailyIncrement: '每日增加',
+    maxLimit: '最高上限',
+    maxLimitHint: '留空表示无上限。',
+    saveSettings: '保存设置',
+    saving: '保存中…',
+    saved: '已保存邮件设置。',
+    smtpMissing: '服务器未配置 SMTP — 无法发送邮件。',
+    statsTitle: '今日',
+    warmupDay: '预热天数',
+    dailyLimit: '今日上限',
+    sentToday: '已发送',
+    birthdayToday: '生日',
+    marketingToday: '营销',
+    remainingToday: '剩余',
+    unlimited: '不限',
+    birthdayAllTime: '生日邮件累计',
+    activeSubscribers: '订阅中',
+    cronTitle: '生日 T-7 定时任务',
+    birthdayCron: '允许定时任务发送生日邮件',
+    runBirthdayNow: '立即运行生日批次',
+    runningBirthday: '运行中…',
+    birthdayRunOk: '已发送 {sent}，跳过 {skipped}，额度不足 {deferred}。',
+    channelsTitle: '自动邮件渠道',
+    cartEmail: '弃购邮件',
+    comebackEmail: '回流邮件',
+    newsletterWelcome: '订阅欢迎邮件',
+    testTitle: '测试发送',
+    testEmail: '测试收件人',
+    testKind: '邮件类型',
+    testBirthday: '生日',
+    testCart: '弃购',
+    testComeback: '回流',
+    testNewsletter: '订阅欢迎',
+    testBroadcast: '活动（使用列表页撰写框）',
+    sendTest: '发送测试',
+    testOk: '测试邮件已发送。',
+    logTitle: '最近发送记录',
+    logEmpty: '暂无记录。',
+    logWhen: '时间',
+    logKind: '类型',
+    logTo: '收件人',
+    logStatus: '状态',
+    logSubject: '主题',
+    subscribersTitle: '订阅者',
+    searchPlaceholder: '搜索邮箱 / 姓名',
+    filterAll: '全部',
+    filterActive: '订阅中',
+    filterInactive: '已退订',
+    importTitle: '导入邮箱',
+    importHint: '每行一个邮箱。自动修正 gmail.con / gmial.com。TXT 或 CSV 第一列为邮箱。',
+    importTextPlaceholder: 'email1@gmail.com\nemail2@yahoo.com',
+    importFile: '或选择文件',
+    importButton: '导入',
+    importing: '导入中…',
+    importResult: '有效 {parsed}：新增 {created}，重新激活 {reactivated}，已存在 {skipped}。纠错 {corrected}。无效 {invalid}。文件内重复 {dup}。',
+    exportCsv: '导出 CSV',
+    composeTitle: '发送活动',
+    composeHint: '发送给所有订阅中的邮箱。遵守预热与退订。',
+    subjectLabel: '主题',
+    bodyLabel: '正文',
+    sendBroadcast: '发送给列表',
+    confirmBroadcast: '向 {count} 位订阅者发送？',
+    broadcasting: '发送中…',
+    broadcastOk: '已发送 {sent}，跳过 {skipped}，失败 {failed}。',
+    noWorkspace: '未选择工作区。',
+    errorGeneric: '无法完成操作。',
+    errorSmtp: '未配置 SMTP。',
+    errorWarmup: '今日预热额度已用完。',
+    errorInvalidEmail: '邮箱无效。',
+    statusSent: '已发送',
+    statusFailed: '失败',
+    statusSkipped: '跳过',
+    colEmail: '邮箱',
+    colName: '姓名',
+    colSource: '来源',
+    colStatus: '状态',
+    colWhen: '订阅时间',
+    unsubscribe: '退订',
+    active: '订阅中',
+    inactive: '已退订',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 自动回复',
@@ -13349,6 +13714,7 @@ const JA_DICTIONARY: Dictionary = {
     messagingSettingsLink: '管理',
     marketingCampaignsLink: 'チャットリマーケティング',
     notificationsLink: 'ショップ顧客通知',
+    emailManagementLink: 'メール送信管理',
     messagingWebsiteLink: 'Web・ランディング',
     messagingOrdersLink: '注文',
     messagingAnalyticsLink: '売上',
@@ -13754,6 +14120,96 @@ const JA_DICTIONARY: Dictionary = {
     errorEmptySheet: 'データ行がありません。',
     errorNoRecipients: 'ショップアカウントのあるお客様がいません。',
     errorInvalidSchedule: '送信日時が無効です。',
+  },
+  partnerMessagingEmail: {
+    pageTitle: 'メール送信管理',
+    pageDescription: 'SMTP ウォームアップ、誕生日/カゴ落ち/復帰メール、配信リストと一斉送信 — 全ショップ共通エンジン。',
+    tabManage: '送信管理',
+    tabList: 'メールリスト',
+    warmupTitle: 'メールウォームアップ',
+    warmupHint: 'ショップごとに1日の送信上限を設け、SMTP を守るため段階的に増やします。誕生日メールが先に枠を使います。',
+    warmupEnabled: 'ウォームアップを有効',
+    startLimit: '1日目の上限',
+    dailyIncrement: '1日ごとの増加',
+    maxLimit: '最大上限',
+    maxLimitHint: '空欄で上限なし。',
+    saveSettings: '設定を保存',
+    saving: '保存中…',
+    saved: 'メール設定を保存しました。',
+    smtpMissing: 'サーバーに SMTP が未設定です — メールを送れません。',
+    statsTitle: '本日',
+    warmupDay: 'ウォームアップ日数',
+    dailyLimit: '本日の上限',
+    sentToday: '送信済み',
+    birthdayToday: '誕生日',
+    marketingToday: 'マーケティング',
+    remainingToday: '残り',
+    unlimited: '無制限',
+    birthdayAllTime: '誕生日メール累計',
+    activeSubscribers: '配信中',
+    cronTitle: '誕生日 T-7 定期実行',
+    birthdayCron: '定期実行で誕生日メールを送る',
+    runBirthdayNow: '誕生日バッチを今すぐ実行',
+    runningBirthday: '実行中…',
+    birthdayRunOk: '送信 {sent}、スキップ {skipped}、枠不足 {deferred}。',
+    channelsTitle: '自動メール',
+    cartEmail: 'カゴ落ちメール',
+    comebackEmail: '復帰メール',
+    newsletterWelcome: '登録時のウェルカムメール',
+    testTitle: 'テスト送信',
+    testEmail: 'テスト宛先',
+    testKind: 'メール種別',
+    testBirthday: '誕生日',
+    testCart: 'カゴ落ち',
+    testComeback: '復帰',
+    testNewsletter: 'ウェルカム',
+    testBroadcast: 'キャンペーン（リストタブの本文を使用）',
+    sendTest: 'テスト送信',
+    testOk: 'テストメールを送信しました。',
+    logTitle: '最近の送信ログ',
+    logEmpty: 'ログはまだありません。',
+    logWhen: '日時',
+    logKind: '種別',
+    logTo: '宛先',
+    logStatus: '状態',
+    logSubject: '件名',
+    subscribersTitle: '購読者',
+    searchPlaceholder: 'メール / 名前で検索',
+    filterAll: 'すべて',
+    filterActive: '配信中',
+    filterInactive: '配信停止',
+    importTitle: 'メールをインポート',
+    importHint: '1行1メール。gmail.con / gmial.com などを自動修正。TXT または CSV の1列目がメールです。',
+    importTextPlaceholder: 'email1@gmail.com\nemail2@yahoo.com',
+    importFile: 'またはファイルを選択',
+    importButton: 'インポート',
+    importing: 'インポート中…',
+    importResult: '有効 {parsed}：追加 {created}、再有効化 {reactivated}、既存 {skipped}。誤字修正 {corrected}。無効 {invalid}。ファイル内重複 {dup}。',
+    exportCsv: 'CSV を出力',
+    composeTitle: 'キャンペーン送信',
+    composeHint: '配信中の全アドレスへ送信します。ウォームアップと配信停止を守ります。',
+    subjectLabel: '件名',
+    bodyLabel: '本文',
+    sendBroadcast: 'リストへ送信',
+    confirmBroadcast: '配信中 {count} 件に送信しますか？',
+    broadcasting: '送信中…',
+    broadcastOk: '送信 {sent}、スキップ {skipped}、失敗 {failed}。',
+    noWorkspace: 'ワークスペースが未選択です。',
+    errorGeneric: '処理できませんでした。',
+    errorSmtp: 'SMTP が未設定です。',
+    errorWarmup: '本日のウォームアップ枠を使い切りました。',
+    errorInvalidEmail: 'メールアドレスが無効です。',
+    statusSent: '送信済み',
+    statusFailed: '失敗',
+    statusSkipped: 'スキップ',
+    colEmail: 'メール',
+    colName: '名前',
+    colSource: 'ソース',
+    colStatus: '状態',
+    colWhen: '登録日',
+    unsubscribe: '配信停止',
+    active: '配信中',
+    inactive: '配信停止',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 自動返信',
@@ -16501,6 +16957,7 @@ const KO_DICTIONARY: Dictionary = {
     messagingSettingsLink: '관리',
     marketingCampaignsLink: '채팅 리마케팅',
     notificationsLink: '쇼핑몰 고객 알림',
+    emailManagementLink: '이메일 발송 관리',
     messagingWebsiteLink: '웹·랜딩',
     messagingOrdersLink: '주문',
     messagingAnalyticsLink: '매출',
@@ -16905,6 +17362,96 @@ const KO_DICTIONARY: Dictionary = {
     errorEmptySheet: '데이터 행이 없습니다.',
     errorNoRecipients: '샵 계정이 있는 고객이 없습니다.',
     errorInvalidSchedule: '발송 시각이 올바르지 않습니다.',
+  },
+  partnerMessagingEmail: {
+    pageTitle: '이메일 발송 관리',
+    pageDescription: 'SMTP 워밍업, 생일/장바구니/재방문 메일, 구독 목록과 일괄 발송 — 모든 쇼핑몰 동일 엔진.',
+    tabManage: '발송 관리',
+    tabList: '이메일 목록',
+    warmupTitle: '이메일 워밍업',
+    warmupHint: '쇼핑몰별 일일 발송 한도를 두고 SMTP를 보호하기 위해 점차 늘립니다. 생일 메일이 한도를 먼저 사용합니다.',
+    warmupEnabled: '워밍업 사용',
+    startLimit: '1일차 한도',
+    dailyIncrement: '매일 증가',
+    maxLimit: '최대 한도',
+    maxLimitHint: '비워 두면 상한 없음.',
+    saveSettings: '설정 저장',
+    saving: '저장 중…',
+    saved: '이메일 설정을 저장했습니다.',
+    smtpMissing: '서버에 SMTP가 설정되지 않아 메일을 보낼 수 없습니다.',
+    statsTitle: '오늘',
+    warmupDay: '워밍업 일차',
+    dailyLimit: '오늘 한도',
+    sentToday: '발송',
+    birthdayToday: '생일',
+    marketingToday: '마케팅',
+    remainingToday: '남은 수량',
+    unlimited: '제한 없음',
+    birthdayAllTime: '생일 메일 누적',
+    activeSubscribers: '구독 중',
+    cronTitle: '생일 T-7 크론',
+    birthdayCron: '크론이 생일 메일을 보내도록 허용',
+    runBirthdayNow: '생일 배치 지금 실행',
+    runningBirthday: '실행 중…',
+    birthdayRunOk: '발송 {sent}, 건너뜀 {skipped}, 한도 부족 {deferred}.',
+    channelsTitle: '자동 메일 채널',
+    cartEmail: '장바구니 이탈 메일',
+    comebackEmail: '재방문 메일',
+    newsletterWelcome: '구독 환영 메일',
+    testTitle: '테스트 발송',
+    testEmail: '테스트 수신자',
+    testKind: '메일 종류',
+    testBirthday: '생일',
+    testCart: '장바구니 이탈',
+    testComeback: '재방문',
+    testNewsletter: '구독 환영',
+    testBroadcast: '캠페인(목록 탭 작성란 사용)',
+    sendTest: '테스트 보내기',
+    testOk: '테스트 메일을 보냈습니다.',
+    logTitle: '최근 발송 로그',
+    logEmpty: '로그가 없습니다.',
+    logWhen: '시각',
+    logKind: '종류',
+    logTo: '수신',
+    logStatus: '상태',
+    logSubject: '제목',
+    subscribersTitle: '구독자',
+    searchPlaceholder: '이메일 / 이름 검색',
+    filterAll: '전체',
+    filterActive: '구독 중',
+    filterInactive: '수신 거부',
+    importTitle: '이메일 가져오기',
+    importHint: '한 줄에 이메일 하나. gmail.con / gmial.com 등을 자동 수정. TXT 또는 CSV 첫 열이 이메일입니다.',
+    importTextPlaceholder: 'email1@gmail.com\nemail2@yahoo.com',
+    importFile: '또는 파일 선택',
+    importButton: '가져오기',
+    importing: '가져오는 중…',
+    importResult: '유효 {parsed}: 추가 {created}, 재활성화 {reactivated}, 이미 있음 {skipped}. 오타 수정 {corrected}. 무효 {invalid}. 파일 내 중복 {dup}.',
+    exportCsv: 'CSV 내보내기',
+    composeTitle: '캠페인 발송',
+    composeHint: '구독 중인 모든 주소로 보냅니다. 워밍업과 수신 거부를 지킵니다.',
+    subjectLabel: '제목',
+    bodyLabel: '본문',
+    sendBroadcast: '목록으로 보내기',
+    confirmBroadcast: '구독 중 {count}명에게 보낼까요?',
+    broadcasting: '보내는 중…',
+    broadcastOk: '발송 {sent}, 건너뜀 {skipped}, 실패 {failed}.',
+    noWorkspace: '워크스페이스가 선택되지 않았습니다.',
+    errorGeneric: '처리할 수 없습니다.',
+    errorSmtp: 'SMTP가 설정되지 않았습니다.',
+    errorWarmup: '오늘 워밍업 한도를 모두 사용했습니다.',
+    errorInvalidEmail: '이메일이 올바르지 않습니다.',
+    statusSent: '발송됨',
+    statusFailed: '실패',
+    statusSkipped: '건너뜀',
+    colEmail: '이메일',
+    colName: '이름',
+    colSource: '출처',
+    colStatus: '상태',
+    colWhen: '구독일',
+    unsubscribe: '수신 거부',
+    active: '구독 중',
+    inactive: '수신 거부',
   },
   partnerMessagingAi: {
     panelTitle: 'AI 자동 답장',

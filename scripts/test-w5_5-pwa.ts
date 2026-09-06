@@ -26,8 +26,8 @@ function main() {
     '/site/my-shop/sw.js'
   )
   assert.equal(
-    mapPartnerCustomDomainPathToInternal('my-shop', '/pwa-icon/192'),
-    '/site/my-shop/pwa-icon/192'
+    mapPartnerCustomDomainPathToInternal('my-shop', '/favicon.ico'),
+    '/site/my-shop/favicon.ico'
   )
   assert.equal(mapPartnerInternalPathToPublic('my-shop', '/site/my-shop/sw.js'), '/pw-shop-sw.js')
 

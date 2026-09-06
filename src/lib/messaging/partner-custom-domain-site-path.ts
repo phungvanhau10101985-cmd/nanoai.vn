@@ -35,6 +35,7 @@ export const SHOP_PUBLIC_ROOT_SEGMENTS = new Set([
   'sw.js',
   'pw-shop-sw.js',
   'pwa-icon',
+  'favicon.ico',
 ])
 
 export function partnerSiteInternalPrefix(siteSlug: string): string {

@@ -32,6 +32,7 @@ import { PartnerWebsiteCustomersPanel } from '@/components/partner-website/partn
 import { PartnerWebsiteStaticPagesPanel } from '@/components/partner-website/partner-website-static-pages-panel'
 import { PartnerWebsiteLandingsPanel } from '@/components/partner-website/partner-website-landings-panel'
 import { PartnerWebsiteFloatingCtaPanel } from '@/components/partner-website/partner-website-floating-cta-panel'
+import { PartnerWebsiteLogosPanel } from '@/components/partner-website/partner-website-logos-panel'
 import { PartnerWebsiteRevisionMenu } from '@/components/partner-website/partner-website-revision-menu'
 import { PartnerWebsiteResetDialog } from '@/components/partner-website/partner-website-reset-dialog'
 import { PartnerCustomDomainSettingsCard } from '@/app/dashboard/messaging/partner-custom-domain-settings-card'
@@ -885,6 +886,19 @@ export function PartnerWebsiteDashboardClient({
                 />
               </CardContent>
             </Card>
+            </div>
+
+            <div className={sectionWrapClass('partner-website-logos')}>
+            <PartnerWebsiteLogosPanel
+              locale={locale}
+              website={website}
+              partnerId={partnerId}
+              sectionId="partner-website-logos"
+              onToast={(message, variant) =>
+                toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
+              }
+              onWebsiteRefresh={handleWebsiteRefresh}
+            />
             </div>
 
             <div className={sectionWrapClass('partner-website-categories')}>

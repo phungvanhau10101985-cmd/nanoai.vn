@@ -1789,6 +1789,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!footer || !footer.querySelectorAll) return
     var brand = footer.querySelector('.pw-shop-footer-brand')
     if (brand && !brand.getAttribute('${PW_FOOTER_KIT_ATTR}')) brand.setAttribute('${PW_FOOTER_KIT_ATTR}', 'brand')
+    var news = footer.querySelector('form.pw-newsletter, [data-pw-newsletter]')
+    if (news && !news.getAttribute('${PW_FOOTER_KIT_ATTR}')) news.setAttribute('${PW_FOOTER_KIT_ATTR}', 'newsletter')
     var copy = footer.querySelector('[data-pw-el="copyright"]')
     if (copy && !copy.getAttribute('${PW_FOOTER_KIT_ATTR}')) copy.setAttribute('${PW_FOOTER_KIT_ATTR}', 'copyright')
     var used = {}
@@ -4992,6 +4994,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       var i
       var stockCols = ['col:shop', 'col:shopping', 'col:support', 'col:legal']
       pushFooterKit('brand', footer.querySelector('[${PW_FOOTER_KIT_ATTR}="brand"]'))
+      pushFooterKit('newsletter', footer.querySelector('[${PW_FOOTER_KIT_ATTR}="newsletter"], form.pw-newsletter, [data-pw-newsletter]'))
       for (i = 0; i < stockCols.length; i++) {
         var colEl = footer.querySelector('[${PW_FOOTER_KIT_ATTR}="' + stockCols[i] + '"]')
         pushFooterKit(stockCols[i], colEl)

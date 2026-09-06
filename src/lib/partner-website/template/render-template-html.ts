@@ -26,6 +26,7 @@ import { getSectionRegistryEntry, isSectionTypeEnabled } from '@/lib/partner-web
 import { BANNER_PLACEHOLDER_SRC } from '@/lib/partner-website/visual-editor/banner-widgets'
 import { PW_EDIT_SLOT, PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { PW_SCENE_HEAD_Z, PW_SCENE_TOPBAR_Z } from '@/lib/partner-website/visual-editor/pw-scene'
+import { buildPartnerShopFaviconHeadLinks } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
 
 function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback
@@ -677,9 +678,11 @@ export function renderTemplateSiteToHtml(input: PartnerWebsiteTemplateRenderInpu
     ? buildPartnerSitePersonalizationBootstrapScript({ siteSlug, locale: input.locale })
     : ''
 
-  const faviconLink = logo
-    ? `<link rel="icon" href="${escapeAttr(logo)}"/>`
-    : ''
+  const faviconLink = buildPartnerShopFaviconHeadLinks({
+    siteSlug,
+    faviconUrl: input.theme.faviconUrl,
+    logoUrl: logo,
+  })
   const hero = sections.find((s) => s.type === 'hero-v1')
   const seoDescription = str(hero?.props.subtitle, input.title)
   const skipLabel =

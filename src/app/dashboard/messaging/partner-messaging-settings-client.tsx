@@ -87,6 +87,7 @@ import {
   Globe,
   Database,
   Loader2,
+  Mail,
   Megaphone,
   Menu,
   Package,
@@ -172,6 +173,12 @@ function partnerCanMarketingHub(p: MessagingPartnerDashboardRow | null | undefin
   return Boolean(p.staff_permissions?.marketing_campaigns)
 }
 
+function partnerCanEmailHub(p: MessagingPartnerDashboardRow | null | undefined): boolean {
+  if (!p) return false
+  if (p.dashboard_access === 'owner') return true
+  return Boolean(p.staff_permissions?.marketing_campaigns || p.staff_permissions?.website)
+}
+
 function partnerCanWebsiteHub(p: MessagingPartnerDashboardRow | null | undefined): boolean {
   if (!p) return false
   if (p.dashboard_access === 'owner') return true
@@ -182,6 +189,15 @@ function partnerCanInventoryPanel(p: MessagingPartnerDashboardRow | null | undef
   if (!p) return false
   if (p.dashboard_access === 'owner') return true
   return Boolean(p.staff_permissions?.inventory)
+}
+
+const SETTINGS_SIDEBAR_SURFACE = 'bg-zinc-700 text-white dark:bg-zinc-800'
+
+function settingsSidebarNavItemClass(active: boolean): string {
+  return cn(
+    'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-white transition-colors',
+    active ? 'bg-white/20 font-medium' : 'text-white/90 hover:bg-white/10 hover:text-white'
+  )
 }
 type LogoVersionRow = {
   id: string
@@ -258,7 +274,7 @@ const MESSAGING_SETTINGS_SECTION_IDS = [
 ] as const
 
 type MessagingSettingsSectionId = (typeof MESSAGING_SETTINGS_SECTION_IDS)[number]
-const OPERATIONS_SECTION_IDS = ['hub-notifications', 'hub-marketing', 'hub-orders'] as const
+const OPERATIONS_SECTION_IDS = ['hub-notifications', 'hub-marketing', 'hub-orders', 'hub-email'] as const
 type OperationsSectionId = (typeof OPERATIONS_SECTION_IDS)[number]
 type SettingsPageSectionId = MessagingSettingsSectionId | PartnerWebsiteAdminSectionId | OperationsSectionId
 
@@ -278,6 +294,7 @@ function normalizeSettingsSectionParam(value: string | null): SettingsPageSectio
   if (value === 'notifications') return 'hub-notifications'
   if (value === 'marketing') return 'hub-marketing'
   if (value === 'orders') return 'hub-orders'
+  if (value === 'email') return 'hub-email'
   if (value != null && (MESSAGING_SETTINGS_SECTION_IDS as readonly string[]).includes(value)) {
     return value as MessagingSettingsSectionId
   }
@@ -315,6 +332,14 @@ const PartnerMarketingCampaignsClient = dynamic(
   () =>
     import('@/app/dashboard/messaging/partner-marketing-campaigns-client').then(
       (mod) => mod.PartnerMarketingCampaignsClient
+    ),
+  { ssr: false, loading: () => sectionLoading }
+)
+
+const PartnerEmailManagementClient = dynamic(
+  () =>
+    import('@/app/dashboard/messaging/partner-email-management-client').then(
+      (mod) => mod.PartnerEmailManagementClient
     ),
   { ssr: false, loading: () => sectionLoading }
 )
@@ -613,6 +638,12 @@ export function PartnerMessagingSettingsClient({
         label: t.marketingCampaignsLink,
         icon: Megaphone,
         visible: Boolean(selectedPartnerId && partnerCanMarketingHub(selectedPartner)),
+      },
+      {
+        id: 'hub-email' as const,
+        label: t.emailManagementLink,
+        icon: Mail,
+        visible: Boolean(selectedPartnerId && partnerCanEmailHub(selectedPartner)),
       },
     ]
   }, [selectedPartner, selectedPartnerId, t])
@@ -2241,11 +2272,11 @@ export function PartnerMessagingSettingsClient({
           )}
         >
           {/* Mobile: hamburger menu */}
-          <div className="border-b border-border/60 bg-slate-100 px-3 py-2 dark:bg-slate-900/55 lg:hidden">
+          <div className={cn('border-b border-white/10 px-3 py-2 lg:hidden', SETTINGS_SIDEBAR_SURFACE)}>
             <Button
               variant="outline"
               size="sm"
-              className="w-full justify-between bg-white/80 dark:bg-slate-950/40"
+              className="w-full justify-between border-white/20 bg-white/10 text-white hover:bg-white/15 hover:text-white"
               onClick={() => setMobileNavOpen(!mobileNavOpen)}
             >
               <span className="flex items-center gap-2 truncate">
@@ -2265,14 +2296,14 @@ export function PartnerMessagingSettingsClient({
               />
             </Button>
             {mobileNavOpen ? (
-              <div className="mt-2 rounded-lg border border-border/50 bg-white/70 p-2 dark:bg-slate-950/40">
+              <div className="mt-2 rounded-lg border border-white/15 bg-white/5 p-2">
                 <nav className="flex flex-col gap-1" aria-label={t.settingsSidebarTitle}>
                   {sidebarGroups.map((group) => {
                     const items = group.items.filter((item) => item.visible)
                     if (items.length === 0) return null
                     return (
                       <div key={group.id}>
-                        <p className="mt-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <p className="mt-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/55">
                           {group.title}
                         </p>
                         {items.map((item) => {
@@ -2282,12 +2313,7 @@ export function PartnerMessagingSettingsClient({
                               key={item.id}
                               type="button"
                               onClick={() => { selectSettingsSection(item.id); setMobileNavOpen(false) }}
-                              className={cn(
-                                'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors w-full',
-                                activeSection === item.id
-                                  ? 'bg-violet-500/15 font-medium text-violet-700 dark:text-violet-300'
-                                  : 'text-muted-foreground hover:bg-white hover:text-foreground dark:hover:bg-slate-800/80'
-                              )}
+                              className={settingsSidebarNavItemClass(activeSection === item.id)}
                               aria-current={activeSection === item.id ? 'page' : undefined}
                             >
                               <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
@@ -2306,12 +2332,13 @@ export function PartnerMessagingSettingsClient({
           {/* Desktop: sidebar */}
           <aside
             className={cn(
-              'hidden w-full shrink-0 border-border/60 bg-slate-100 dark:bg-slate-900/55 lg:block lg:border-r',
+              'hidden w-full shrink-0 border-white/10 lg:block lg:border-r',
+              SETTINGS_SIDEBAR_SURFACE,
               activeSection === 'partner-website-editor' ? 'lg:w-48' : 'lg:w-56 xl:w-60'
             )}
           >
             <div className="p-2 lg:sticky lg:top-[calc(var(--site-header-height,3.5rem)+0.5rem)]">
-              <p className="hidden px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground lg:block">
+              <p className="hidden px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-white/70 lg:block">
                 {t.settingsSidebarTitle}
               </p>
               <nav
@@ -2323,7 +2350,7 @@ export function PartnerMessagingSettingsClient({
                   if (items.length === 0) return null
                   return (
                     <div key={group.id}>
-                      <p className="mt-1 hidden px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground lg:block">
+                      <p className="mt-1 hidden px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/55 lg:block">
                         {group.title}
                       </p>
                       {items.map((item) => {
@@ -2333,12 +2360,7 @@ export function PartnerMessagingSettingsClient({
                             key={item.id}
                             type="button"
                             onClick={() => selectSettingsSection(item.id)}
-                            className={cn(
-                              'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors w-full',
-                              activeSection === item.id
-                                ? 'bg-violet-500/15 font-medium text-violet-700 dark:text-violet-300'
-                                : 'text-muted-foreground hover:bg-white hover:text-foreground dark:hover:bg-slate-800/80'
-                            )}
+                            className={settingsSidebarNavItemClass(activeSection === item.id)}
                             aria-current={activeSection === item.id ? 'page' : undefined}
                           >
                             <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
@@ -3838,6 +3860,17 @@ export function PartnerMessagingSettingsClient({
                 locale={locale}
                 lockedPartnerId={selectedPartnerId}
                 hidePartnerPicker
+              />
+            </div>
+          ) : null}
+
+          {activeSection === 'hub-email' && selectedPartnerId && partnerCanEmailHub(selectedPartner) ? (
+            <div id="messaging-email" className="scroll-mt-4">
+              <PartnerEmailManagementClient
+                key={selectedPartnerId}
+                initialPartners={[selectedPartner!]}
+                t={dict.partnerMessagingEmail}
+                lockedPartnerId={selectedPartnerId}
               />
             </div>
           ) : null}

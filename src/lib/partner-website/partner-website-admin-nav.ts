@@ -3,6 +3,7 @@ import type { PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import {
   FolderTree,
   Globe,
+  Image,
   LayoutTemplate,
   Mail,
   MessageSquareQuote,
@@ -15,6 +16,7 @@ import {
 
 export const PARTNER_WEBSITE_ADMIN_SECTION_IDS = [
   'partner-website-editor',
+  'partner-website-logos',
   'partner-website-categories',
   'partner-website-reviews-qa',
   'partner-website-customers',
@@ -36,6 +38,7 @@ export type PartnerWebsiteAdminNavItem = {
 
 const NAV_ICONS: Record<PartnerWebsiteAdminSectionId, ComponentType<{ className?: string }>> = {
   'partner-website-editor': Globe,
+  'partner-website-logos': Image,
   'partner-website-categories': FolderTree,
   'partner-website-reviews-qa': MessageSquareQuote,
   'partner-website-customers': Users,
@@ -63,6 +66,7 @@ export function buildPartnerWebsiteAdminNavItems(
 ): PartnerWebsiteAdminNavItem[] {
   const labels: Record<PartnerWebsiteAdminSectionId, string> = {
     'partner-website-editor': mainWebsiteLabel,
+    'partner-website-logos': t.logosPanelTitle,
     'partner-website-categories': t.categoriesTitle,
     'partner-website-reviews-qa': t.reviewsAdminTitle,
     'partner-website-customers': t.customersTitle,

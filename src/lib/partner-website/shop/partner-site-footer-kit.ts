@@ -9,8 +9,11 @@ export const PW_FOOTER_KIT_ATTR = 'data-pw-footer-kit'
 export const PW_FOOTER_KIT_MOIT = 'moit'
 export const PW_FOOTER_MOIT_HREF = 'https://online.gov.vn/'
 
+export const PW_FOOTER_KIT_NEWSLETTER = 'newsletter'
+
 export const PW_FOOTER_KIT_STOCK = [
   'brand',
+  'newsletter',
   'col:shop',
   'col:shopping',
   'col:support',
@@ -113,6 +116,9 @@ function withKitAttr(openTag: string, kind: string): string {
 
 function stampFooterKitInFooterBlock(block: string): string {
   let next = block.replace(/<div\b([^>]*\bpw-shop-footer-brand\b[^>]*)>/gi, (full) => withKitAttr(full, 'brand'))
+  next = next.replace(/<(form|div)\b([^>]*\b(?:pw-newsletter|data-pw-newsletter)[^>]*)>/gi, (full) =>
+    withKitAttr(full, 'newsletter')
+  )
   next = next.replace(/<(div|p|section)\b([^>]*\bdata-pw-el=["']copyright["'][^>]*)>/gi, (full) =>
     withKitAttr(full, 'copyright')
   )

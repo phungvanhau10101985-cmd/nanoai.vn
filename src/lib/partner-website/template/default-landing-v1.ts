@@ -581,6 +581,9 @@ export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): P
     borderColor: typeof o.borderColor === 'string' ? o.borderColor : base.borderColor,
     fontFamily: typeof o.fontFamily === 'string' ? o.fontFamily : base.fontFamily,
     logoUrl: typeof o.logoUrl === 'string' ? o.logoUrl : logoUrl ?? base.logoUrl ?? null,
+    ...(typeof o.faviconUrl === 'string' && o.faviconUrl.trim()
+      ? { faviconUrl: o.faviconUrl.trim() }
+      : {}),
     ...(o.useVisualHtml === true ? { useVisualHtml: true } : {}),
     ...(o.useVisualMobileHtml === true ? { useVisualMobileHtml: true } : {}),
     ...(o.useVisualTabletHtml === true ? { useVisualTabletHtml: true } : {}),

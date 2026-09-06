@@ -702,6 +702,10 @@ html[data-pw-scene-lock="desktop"] .pw-pdp-spec-grid,html[data-pw-scene-lock="la
 .pw-shop-footer-brand{overflow:visible}
 .pw-shop-footer-name{margin:0 0 8px;font-weight:800;font-size:1.05rem;line-height:1.3;color:#111827;font-family:var(--pw-font-display),var(--pw-font-ui),sans-serif}
 .pw-shop-footer-hint{margin:0;max-width:280px;font-size:13px;line-height:1.65;color:#4b5563}
+.pw-newsletter{display:flex;gap:0;margin-top:10px;max-width:280px}
+.pw-newsletter input{flex:1;min-width:0;border:1px solid var(--pw-border,#e5e7eb);border-right:none;border-radius:6px 0 0 6px;padding:10px 12px;font:inherit;background:var(--pw-surface,#f9fafb);color:var(--pw-text,#111827)}
+.pw-newsletter button{border:none;background:var(--pw-primary);color:#fff;padding:0 14px;border-radius:0 6px 6px 0;font-weight:800;cursor:pointer;white-space:nowrap}
+.pw-newsletter [data-pw-newsletter-status]{flex-basis:100%;margin:8px 0 0;font-size:12px;color:var(--pw-muted,#6b7280)}
 .pw-shop-footer-col h3{margin:0 0 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#111827}
 .pw-shop-footer-col ul{list-style:none;margin:0;padding:0;display:grid;gap:2px}
 .pw-shop-footer-col a{display:inline-flex;align-items:center;min-height:36px;font-size:14px;color:#4b5563}

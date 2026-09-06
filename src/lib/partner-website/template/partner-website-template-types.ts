@@ -20,6 +20,11 @@ export type PartnerWebsiteTheme = {
   fontFamily: string
   logoUrl?: string | null
   /**
+   * Favicon tab trình duyệt + `/favicon.ico` trên domain shop.
+   * Độc lập logo header / footer / Chat mua. Thiếu thì engine tạo từ logoUrl.
+   */
+  faviconUrl?: string | null
+  /**
    * When true, preview/public prefer saved project/htmlSource from visual «Sửa nhanh»
    * instead of re-rendering from template pages.
    */
@@ -135,4 +140,5 @@ export const DEFAULT_PARTNER_WEBSITE_THEME: PartnerWebsiteTheme = {
   fontFamily:
     '"Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
   logoUrl: null,
+  faviconUrl: null,
 }

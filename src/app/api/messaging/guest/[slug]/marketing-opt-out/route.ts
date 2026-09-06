@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { insertMarketingOptOutFromPg } from '@/lib/db/messaging-partner-marketing-campaigns-pg'
+import { deactivateNewsletterSubscriberFromPg } from '@/lib/db/messaging-partner-email-management-pg'
 import { verifyMarketingOptOutToken } from '@/lib/messaging/marketing-opt-out-token'
 import { isPgConfigured } from '@/lib/db/pool'
 
@@ -50,6 +51,12 @@ async function handleOptOut(slug: string, token: string): Promise<{ ok: boolean;
       title: 'Không thực hiện được / Failed',
       message: 'Vui lòng thử lại sau. Please try again later.',
     }
+  }
+  if (payload.email) {
+    await deactivateNewsletterSubscriberFromPg({
+      partnerId: payload.partnerId,
+      email: payload.email,
+    })
   }
 
   return {

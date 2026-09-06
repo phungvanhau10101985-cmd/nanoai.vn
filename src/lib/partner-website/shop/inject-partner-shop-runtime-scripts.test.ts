@@ -330,3 +330,13 @@ test('shop actions bootstrap hydrates Zalo\/Facebook from contact-channels API',
   assert.match(s, /pointerdown/)
   assert.match(s, /location\.assign/)
 })
+
+test('live runtime injects newsletter subscribe bootstrap when footer form is present', () => {
+  const html =
+    '<!DOCTYPE html><html><body><footer class="pw-footer"><form class="pw-newsletter" data-pw-newsletter="1"></form></footer></body></html>'
+  const out = injectPartnerShopRuntimeScriptsIntoHtml(html, { siteSlug: 'demo-shop', locale: 'vi' })
+  assert.match(out, /data-pw-newsletter-bootstrap/)
+  assert.match(out, /\/api\/site\/demo-shop\/newsletter/)
+  const editor = stampPartnerShopEditorHooksInHtml(out, { siteSlug: 'demo-shop' })
+  assert.doesNotMatch(editor, /data-pw-newsletter-bootstrap/)
+})

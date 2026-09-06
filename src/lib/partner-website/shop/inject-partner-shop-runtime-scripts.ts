@@ -13,9 +13,10 @@ import { buildPartnerSitePaperTileBootstrapScript } from '@/lib/partner-website/
 import { buildPartnerSiteBirthGenderPromptScript } from '@/lib/partner-website/shop/build-partner-site-birth-gender-prompt-script'
 import { buildPartnerSaleCalendarBootstrapScript } from '@/lib/partner-website/shop/build-partner-sale-calendar-bootstrap-script'
 import { buildPartnerMarketingBannerBootstrapScript } from '@/lib/partner-website/shop/build-partner-marketing-banner-bootstrap-script'
+import { buildPartnerSiteNewsletterBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-newsletter-bootstrap-script'
 
 const PW_RUNTIME_SCRIPT_RE =
-  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|birth-gender-prompt-bootstrap|sale-calendar-bootstrap|marketing-banner-bootstrap|header-toggle|lp-buy)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
+  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|birth-gender-prompt-bootstrap|sale-calendar-bootstrap|marketing-banner-bootstrap|newsletter-bootstrap|header-toggle|lp-buy)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
 const PW_RUNTIME_STYLE_RE =
   /<style\b[^>]*\bdata-pw-(?:chrome-toggle-css|search-image-css|marketing-banner-css)\b[^>]*>[\s\S]*?<\/style>/gi
 
@@ -49,6 +50,7 @@ const HAS_PDP =
 const HAS_MARKETING_BANNER = /\bdata-pw-personalize-banner\b/i
 const HAS_SLIDER = /\bdata-pw-(?:slider|full-slides)\b/i
 const HAS_PAPER = /\bdata-pw-paper\b/i
+const HAS_NEWSLETTER = /\bdata-pw-newsletter\b|\bclass=["'][^"']*\bpw-newsletter\b/i
 
 /** Stamp chrome hooks and drop live API scripts — Sửa nhanh is display-only. */
 export function stampPartnerShopEditorHooksInHtml(
@@ -127,6 +129,7 @@ export function injectPartnerShopRuntimeScriptsIntoHtml(
     pdp: hasRuntimeHook(hookMarkup, HAS_PDP),
     slider: hasRuntimeHook(hookMarkup, HAS_SLIDER),
     paper: hasRuntimeHook(hookMarkup, HAS_PAPER),
+    newsletter: hasRuntimeHook(hookMarkup, HAS_NEWSLETTER),
   }
 
   const chatBridge = buildPartnerSiteLandingChatBridgeScript()
@@ -159,5 +162,8 @@ export function injectPartnerShopRuntimeScriptsIntoHtml(
   out = appendBeforeBody(out, buildPartnerSiteChromeToggleBootstrapScript({ siteSlug, locale }))
   if (hooks.slider) out = appendBeforeBody(out, buildPartnerSiteSliderBootstrapScript())
   if (hooks.paper) out = appendBeforeBody(out, buildPartnerSitePaperTileBootstrapScript())
+  if (hooks.newsletter) {
+    out = appendBeforeBody(out, buildPartnerSiteNewsletterBootstrapScript({ siteSlug, locale }))
+  }
   return out
 }

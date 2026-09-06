@@ -189,6 +189,7 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ partner
       chatUrl: shopUrl,
       discountPercent: extras.birthdayPercent,
       nextBirthdayLabel,
+      partnerId,
     })
     out.birthday.testEmailSent = mail.ok
     out.birthday.testEmailError = mail.ok ? null : mail.error

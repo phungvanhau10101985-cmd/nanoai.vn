@@ -1,4 +1,4 @@
-export type MessagingSettingsOperationsSection = 'hub-notifications' | 'hub-marketing' | 'hub-orders'
+export type MessagingSettingsOperationsSection = 'hub-notifications' | 'hub-marketing' | 'hub-orders' | 'hub-email'
 
 export function messagingSettingsSectionHref(
   section: MessagingSettingsOperationsSection,

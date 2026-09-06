@@ -15,6 +15,17 @@ export type PartnerWebsiteCopy = {
   logoGenerateHint: string
   logoRequired: string
   logoRemove: string
+  logosPanelTitle: string
+  logosPanelHint: string
+  logosFaviconLabel: string
+  logosFaviconHint: string
+  logosHeaderLabel: string
+  logosFooterLabel: string
+  logosChatLabel: string
+  logosChatHint: string
+  logosEmpty: string
+  logosSaved: string
+  logosSaveError: string
   imageInvalidType: string
   uploadFailed: string
   generateSuccess: string
@@ -287,6 +298,7 @@ export type PartnerWebsiteCopy = {
   visualEditChromeKitFooterBrand: string
   visualEditChromeKitFooterCopyright: string
   visualEditChromeKitFooterMoit: string
+  visualEditChromeKitFooterNewsletter: string
   visualEditChromeKitFloat: string
   visualEditChromeKitFloatHint: string
   visualEditChromeKitFloatLocked: string
@@ -1027,6 +1039,18 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logoGenerateHint: 'Tải logo shop (tuỳ chọn). Không dùng AI tạo logo.',
     logoRequired: 'Vui lòng tải logo trước khi tiếp tục.',
     logoRemove: 'Xóa logo',
+    logosPanelTitle: 'Quản lý logo & favicon',
+    logosPanelHint:
+      'Favicon và Chat mua dùng chung mọi máy. Logo header và chân trang đổi độc lập từng máy.',
+    logosFaviconLabel: 'Favicon tab trình duyệt',
+    logosFaviconHint: 'Ảnh vuông PNG. Hiện trên tab Chrome và /favicon.ico của tên miền shop.',
+    logosHeaderLabel: 'Logo header',
+    logosFooterLabel: 'Logo chân trang',
+    logosChatLabel: 'Logo Chat mua',
+    logosChatHint: 'Một ảnh dùng chung Desktop, Laptop, Tablet và Mobile.',
+    logosEmpty: 'Chưa có ảnh',
+    logosSaved: 'Đã lưu logo.',
+    logosSaveError: 'Không lưu được logo.',
     imageInvalidType: 'Chỉ chấp nhận file ảnh.',
     uploadFailed: 'Tải ảnh thất bại.',
     generateSuccess: 'Đã áp giao diện mẫu',
@@ -1313,6 +1337,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitFooterBrand: 'Logo / thương hiệu',
     visualEditChromeKitFooterCopyright: 'Copyright',
     visualEditChromeKitFooterMoit: 'Bộ Công Thương',
+    visualEditChromeKitFooterNewsletter: 'Đăng ký nhận tin',
     visualEditChromeKitFloat: 'Thanh nổi — nút góc màn',
     visualEditChromeKitFloatHint:
       'Bật mắt để hiện. Một cột khóa góc màn — gõ Cách phải / Cách dưới / Khoảng cách. Mỗi nút một cách phải và một cỡ (hai ô px trên hàng đó). Danh sách trên xuống dưới = cột góc màn. ↑ lên trên cột, ↓ xuống dưới. Ẩn thì nút còn lại khít lại. Bấm tên để sửa từng nút. Mỗi máy một bản.',
@@ -2077,6 +2102,18 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logoGenerateHint: 'Upload a shop logo (optional). AI logo generation is disabled.',
     logoRequired: 'Please upload a logo before continuing.',
     logoRemove: 'Remove logo',
+    logosPanelTitle: 'Logo & favicon',
+    logosPanelHint:
+      'Favicon and Chat mua share one image across devices. Header and footer logos are independent per device.',
+    logosFaviconLabel: 'Browser tab favicon',
+    logosFaviconHint: 'Square PNG. Shown on the Chrome tab and /favicon.ico on the shop domain.',
+    logosHeaderLabel: 'Header logo',
+    logosFooterLabel: 'Footer logo',
+    logosChatLabel: 'Chat button logo',
+    logosChatHint: 'One image for Desktop, Laptop, Tablet, and Mobile.',
+    logosEmpty: 'No image yet',
+    logosSaved: 'Logo saved.',
+    logosSaveError: 'Could not save logo.',
     imageInvalidType: 'Images only.',
     uploadFailed: 'Upload failed.',
     generateSuccess: 'Web project created',
@@ -2362,6 +2399,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitFooterBrand: 'Logo / brand',
     visualEditChromeKitFooterCopyright: 'Copyright',
     visualEditChromeKitFooterMoit: 'Ministry of Industry and Trade',
+    visualEditChromeKitFooterNewsletter: 'Newsletter signup',
     visualEditChromeKitFloat: 'Floating bar — corner buttons',
     visualEditChromeKitFloatHint:
       'Turn the eye on to show. One locked corner column — type Right / Bottom / Gap. Each button has its own from-right and size (two px boxes on that row). The list top-to-bottom matches the corner column. Up moves toward the top of the column. Hidden buttons close the gap. Click a name to edit that button. One set per device.',
@@ -3126,6 +3164,17 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logoGenerateHint: '可上传店铺 Logo（可选）。已关闭 AI 生成 Logo。',
     logoRequired: '请先上传 Logo。',
     logoRemove: '删除 Logo',
+    logosPanelTitle: 'Logo 与 favicon',
+    logosPanelHint: 'Favicon 和购物聊天共用一张图（所有设备）。页头与页脚 Logo 按设备独立设置。',
+    logosFaviconLabel: '浏览器标签 favicon',
+    logosFaviconHint: '正方形 PNG。用于 Chrome 标签和店铺域名的 /favicon.ico。',
+    logosHeaderLabel: '页头 Logo',
+    logosFooterLabel: '页脚 Logo',
+    logosChatLabel: '购物聊天 Logo',
+    logosChatHint: 'Desktop、Laptop、平板、手机共用一张图。',
+    logosEmpty: '暂无图片',
+    logosSaved: '已保存 Logo。',
+    logosSaveError: '无法保存 Logo。',
     imageInvalidType: '仅支持图片文件。',
     uploadFailed: '上传失败。',
     generateSuccess: '已创建网页项目',
@@ -3400,6 +3449,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitFooterBrand: '标志 / 品牌',
     visualEditChromeKitFooterCopyright: '版权',
     visualEditChromeKitFooterMoit: '工贸部备案',
+    visualEditChromeKitFooterNewsletter: '订阅邮件',
     visualEditChromeKitFloat: '浮动栏 — 角落按钮',
     visualEditChromeKitFloatHint: '点眼睛显示。角落一列锁定 — 输入距右 / 距下 / 间距。每个按钮单独距右和尺寸（该行两个 px 框）。列表从上到下与角落列一致。↑ 上移，↓ 下移。隐藏后其余按钮靠拢。点名称可单独编辑。每台设备一份。',
     visualEditChromeKitFloatLocked: '悬浮栏按钮固定为一列。在「导航栏」中显示、隐藏或改顺序，不能拖动坐标。',
@@ -4139,6 +4189,17 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logoGenerateHint: 'ショップロゴをアップロード（任意）。AIロゴ生成は無効です。',
     logoRequired: '続ける前にロゴをアップロードしてください。',
     logoRemove: 'ロゴを削除',
+    logosPanelTitle: 'ロゴとファビコン',
+    logosPanelHint: 'ファビコンとチャット購入は全端末で共通。ヘッダーとフッターのロゴは端末ごとに独立です。',
+    logosFaviconLabel: 'ブラウザタブのファビコン',
+    logosFaviconHint: '正方形のPNG。Chromeのタブとショップドメインの /favicon.ico に使います。',
+    logosHeaderLabel: 'ヘッダーロゴ',
+    logosFooterLabel: 'フッターロゴ',
+    logosChatLabel: 'チャット購入ロゴ',
+    logosChatHint: 'Desktop・Laptop・タブレット・モバイルで同じ画像。',
+    logosEmpty: '画像なし',
+    logosSaved: 'ロゴを保存しました。',
+    logosSaveError: 'ロゴを保存できませんでした。',
     imageInvalidType: '画像ファイルのみ。',
     uploadFailed: 'アップロードに失敗しました。',
     generateSuccess: 'プロジェクトを作成しました',
@@ -4421,6 +4482,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitFooterBrand: 'ロゴ / ブランド',
     visualEditChromeKitFooterCopyright: 'コピーライト',
     visualEditChromeKitFooterMoit: '商工省届出',
+    visualEditChromeKitFooterNewsletter: 'メール登録',
     visualEditChromeKitFloat: 'フローティングバー — 角のボタン',
     visualEditChromeKitFloatHint:
       '目のアイコンで表示。角の1列に固定 — 右・下・間隔を入力。右余白とサイズはボタンごとにその行の2つの px。リスト上から下は角の列と同じ。↑は上、↓は下。非表示にすると残りが詰まります。名前を押すと個別編集。端末ごとに別です。',
@@ -5174,6 +5236,17 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logoGenerateHint: '샵 로고를 업로드하세요(선택). AI 로고 생성은 비활성화되었습니다.',
     logoRequired: '계속하려면 로고를 업로드하세요.',
     logoRemove: '로고 삭제',
+    logosPanelTitle: '로고와 파비콘',
+    logosPanelHint: '파비콘과 구매 채팅은 모든 기기에서 같은 이미지입니다. 헤더와 푸터 로고는 기기마다 따로 설정합니다.',
+    logosFaviconLabel: '브라우저 탭 파비콘',
+    logosFaviconHint: '정사각 PNG. 크롬 탭과 샵 도메인의 /favicon.ico 에 사용됩니다.',
+    logosHeaderLabel: '헤더 로고',
+    logosFooterLabel: '푸터 로고',
+    logosChatLabel: '구매 채팅 로고',
+    logosChatHint: 'Desktop, Laptop, 태블릿, 모바일에서 같은 이미지.',
+    logosEmpty: '이미지 없음',
+    logosSaved: '로고를 저장했습니다.',
+    logosSaveError: '로고를 저장하지 못했습니다.',
     imageInvalidType: '이미지 파일만 가능합니다.',
     uploadFailed: '업로드 실패.',
     generateSuccess: '프로젝트가 생성되었습니다',
@@ -5456,6 +5529,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitFooterBrand: '로고 / 브랜드',
     visualEditChromeKitFooterCopyright: '저작권',
     visualEditChromeKitFooterMoit: '산업통상부',
+    visualEditChromeKitFooterNewsletter: '뉴스레터 구독',
     visualEditChromeKitFloat: '플로팅 바 — 모서리 버튼',
     visualEditChromeKitFloatHint:
       '눈을 켜면 보입니다. 모서리 한 열로 고정 — 오른쪽/아래/간격을 입력하세요. 오른쪽 간격과 크기는 버튼마다 그 행의 px 두 칸. 목록 위→아래가 모서리 열과 같습니다. ↑는 위로, ↓는 아래로. 숨기면 나머지 버튼이 붙습니다. 이름을 누르면 개별 편집. 기기마다 따로입니다.',

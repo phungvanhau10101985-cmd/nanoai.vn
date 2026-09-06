@@ -122,6 +122,41 @@ export function isSkeletalPartnerSiteFooter(footerHtml: string): boolean {
   return cols <= 1 || links < 8
 }
 
+export function buildFooterNewsletterFormHtml(locale: WebLocale): string {
+  const t = getPartnerSiteShopCopy(locale)
+  return `<form class="pw-newsletter" data-pw-newsletter="1" data-pw-region="form" ${PW_FOOTER_KIT_ATTR}="newsletter" novalidate>
+  <input type="email" name="email" data-pw-el="field" autocomplete="email" placeholder="${escapeAttr(t.footerNewsletterPlaceholder)}" required />
+  <button type="submit" data-pw-el="submit">${escapeHtml(t.footerNewsletterSubmit)}</button>
+</form>`
+}
+
+function injectNewsletterIntoFooterBlock(block: string, locale: WebLocale): string {
+  if (/\bdata-pw-newsletter=|\bclass=["'][^"']*\bpw-newsletter\b/i.test(block)) {
+    if (!new RegExp(`${PW_FOOTER_KIT_ATTR}=["']newsletter["']`, 'i').test(block)) {
+      return block.replace(/<(form|div)\b([^>]*\bpw-newsletter\b[^>]*)>/i, (tag) =>
+        /\bdata-pw-footer-kit=/i.test(tag) ? tag : tag.replace(/>$/, ` ${PW_FOOTER_KIT_ATTR}="newsletter">`)
+      )
+    }
+    return block
+  }
+  const form = buildFooterNewsletterFormHtml(locale)
+  if (/<p class="pw-shop-footer-hint">/i.test(block)) {
+    return block.replace(/(<p class="pw-shop-footer-hint">[\s\S]*?<\/p>)/i, `$1\n      ${form}`)
+  }
+  if (/data-pw-footer-kit=["']brand["']/i.test(block)) {
+    return block.replace(
+      /(<div class="pw-shop-footer-brand"[^>]*>)([\s\S]*?)(<\/div>)/i,
+      (_, open, inner, close) => `${open}${inner}${form}${close}`
+    )
+  }
+  return block
+}
+
+export function ensureFooterNewsletterInHtml(html: string, locale: WebLocale = 'vi'): string {
+  if (!html || !/<footer\b/i.test(html)) return html
+  return html.replace(/<footer\b[^>]*>[\s\S]*?<\/footer>/gi, (block) => injectNewsletterIntoFooterBlock(block, locale))
+}
+
 export function buildFooterMoitButtonHtml(locale: WebLocale): string {
   const t = getPartnerSiteShopCopy(locale)
   return `<a class="pw-shop-footer-moit" href="${escapeAttr(PW_FOOTER_MOIT_HREF)}" target="_blank" rel="noopener noreferrer" ${pwElAttr(PW_EL.link)} ${PW_FOOTER_KIT_ATTR}="${PW_FOOTER_KIT_MOIT}">${escapeHtml(t.footerMoitTitle)}</a>`
@@ -222,6 +257,7 @@ export function buildPartnerSiteFooterHtml(input: {
       ${logo}
       <p class="pw-shop-footer-name">${escapeHtml(brand)}</p>
       <p class="pw-shop-footer-hint">${escapeHtml(t.footerBrandHint)}</p>
+      ${buildFooterNewsletterFormHtml(locale)}
     </div>
     ${cols}
   </div>
@@ -231,6 +267,10 @@ export function buildPartnerSiteFooterHtml(input: {
     ${buildFooterMoitButtonHtml(locale)}
   </div>
 </footer>`
+}
+
+function finishFooterKit(html: string, locale: WebLocale): string {
+  return ensureFooterNewsletterInHtml(ensureFooterMoitBadgeInHtml(stampFooterKitInHtml(html), locale), locale)
 }
 
 /** Upgrade blank / policy-only footers. Keep a footer already marked full. */
@@ -246,10 +286,10 @@ export function ensureFullPartnerSiteFooterInHtml(
   if (!html.trim()) return html
   const locale = input.locale ?? 'vi'
   const siteSlug = input.siteSlug?.trim() ?? ''
-  if (!siteSlug) return ensureFooterMoitBadgeInHtml(stampFooterKitInHtml(html), locale)
+  if (!siteSlug) return finishFooterKit(html, locale)
   const found = extractFooterRange(html)
   if (found && !isSkeletalPartnerSiteFooter(found.html)) {
-    return ensureFooterMoitBadgeInHtml(stampFooterKitInHtml(html), locale)
+    return finishFooterKit(html, locale)
   }
   const brand = (input.brand?.trim() || inferBrandFromHtml(html, siteSlug || 'Shop')).trim()
   const logoUrl = input.logoUrl?.trim() || inferLogoFromHtml(html)
@@ -257,12 +297,12 @@ export function ensureFullPartnerSiteFooterInHtml(
   if (!found) {
     const beforeNav = html.search(/<(nav|div)\b[^>]*class=["'][^"']*\b(?:pw-bottom-nav|pw-shop-bottom-nav)/i)
     if (beforeNav >= 0) {
-      return ensureFooterMoitBadgeInHtml(stampFooterKitInHtml(`${html.slice(0, beforeNav)}${next}\n${html.slice(beforeNav)}`), locale)
+      return finishFooterKit(`${html.slice(0, beforeNav)}${next}\n${html.slice(beforeNav)}`, locale)
     }
     if (/<\/body>/i.test(html)) {
-      return ensureFooterMoitBadgeInHtml(stampFooterKitInHtml(html.replace(/<\/body>/i, `${next}\n</body>`)), locale)
+      return finishFooterKit(html.replace(/<\/body>/i, `${next}\n</body>`), locale)
     }
-    return ensureFooterMoitBadgeInHtml(stampFooterKitInHtml(`${html}\n${next}`), locale)
+    return finishFooterKit(`${html}\n${next}`, locale)
   }
-  return ensureFooterMoitBadgeInHtml(stampFooterKitInHtml(`${html.slice(0, found.start)}${next}${html.slice(found.end)}`), locale)
+  return finishFooterKit(`${html.slice(0, found.start)}${next}${html.slice(found.end)}`, locale)
 }

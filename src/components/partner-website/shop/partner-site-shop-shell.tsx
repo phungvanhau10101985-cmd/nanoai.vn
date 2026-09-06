@@ -29,6 +29,7 @@ import { PartnerSiteShopSearchBar } from '@/components/partner-website/shop/part
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
 import { PartnerSiteCookieConsentBanner } from '@/components/partner-website/shop/partner-site-cookie-consent-banner'
 import { PartnerSiteBirthGenderPromptModal } from '@/components/partner-website/shop/partner-site-birth-gender-prompt-modal'
+import { PartnerSiteNewsletterForm } from '@/components/partner-website/shop/partner-site-newsletter-form'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   partnerSiteAccountTabPath,
@@ -871,6 +872,7 @@ function PartnerSiteShopShellInner({
             ) : null}
             <p className="pw-shop-footer-name">{title}</p>
             <p className="pw-shop-footer-hint">{t.footerBrandHint}</p>
+            <PartnerSiteNewsletterForm siteSlug={siteSlug} locale={locale} />
           </div>
           {PARTNER_SITE_FOOTER_COLUMN_ORDER.map((colId) => {
             const items = footerGroups[colId]

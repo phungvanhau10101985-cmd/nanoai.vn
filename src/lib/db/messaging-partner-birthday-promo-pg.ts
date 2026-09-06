@@ -140,24 +140,49 @@ export async function upsertBirthdayPromoForPartnerFromPg(input: {
   }
 }
 
+const AUTH_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function authUserIdFromRecipientKey(key: string): string | null {
+  if (!key.startsWith('user:')) return null
+  const id = key.slice(5)
+  return AUTH_UUID_RE.test(id) ? id : null
+}
+
 /**
  * Đặt chỗ gửi email (insert trước khi SMTP). Trả về true nếu giành được slot (chưa gửi campaign này).
  * Dùng cùng releaseBirthdayEmailSlotFromPg nếu gửi thất bại để cron sau retry được.
  */
 export async function tryClaimBirthdayEmailSlotFromPg(input: {
   partnerId: string
-  recipientUserId: string
+  recipientKey: string
   campaignKey: string
+  recipientEmail?: string | null
+  /** @deprecated dùng recipientKey */
+  recipientUserId?: string
 }): Promise<boolean> {
   if (!isPgConfigured()) return false
+  const recipientKey = (input.recipientKey || (input.recipientUserId ? `user:${input.recipientUserId}` : '')).slice(
+    0,
+    160
+  )
+  if (!recipientKey) return false
+  const userId = authUserIdFromRecipientKey(recipientKey)
   try {
     const pool = getPgPool()
     const r = await pool.query<{ id: string }>(
-      `insert into public.messaging_partner_birthday_email_sent (partner_id, recipient_user_id, campaign_key)
-       values ($1::uuid, $2::uuid, $3)
-       on conflict (partner_id, recipient_user_id, campaign_key) do nothing
+      `insert into public.messaging_partner_birthday_email_sent
+         (partner_id, recipient_key, recipient_user_id, recipient_email, campaign_key)
+       values ($1::uuid, $2, $3::uuid, $4, $5)
+       on conflict (partner_id, recipient_key, campaign_key) do nothing
        returning id::text`,
-      [input.partnerId, input.recipientUserId, input.campaignKey.slice(0, 64)]
+      [
+        input.partnerId,
+        recipientKey,
+        userId,
+        (input.recipientEmail || '').trim().toLowerCase().slice(0, 180) || null,
+        input.campaignKey.slice(0, 64),
+      ]
     )
     return r.rowCount === 1
   } catch (e) {
@@ -168,16 +193,23 @@ export async function tryClaimBirthdayEmailSlotFromPg(input: {
 
 export async function releaseBirthdayEmailSlotFromPg(input: {
   partnerId: string
-  recipientUserId: string
+  recipientKey: string
   campaignKey: string
+  /** @deprecated dùng recipientKey */
+  recipientUserId?: string
 }): Promise<boolean> {
   if (!isPgConfigured()) return false
+  const recipientKey = (input.recipientKey || (input.recipientUserId ? `user:${input.recipientUserId}` : '')).slice(
+    0,
+    160
+  )
+  if (!recipientKey) return false
   try {
     const pool = getPgPool()
     await pool.query(
       `delete from public.messaging_partner_birthday_email_sent
-       where partner_id = $1::uuid and recipient_user_id = $2::uuid and campaign_key = $3`,
-      [input.partnerId, input.recipientUserId, input.campaignKey.slice(0, 64)]
+       where partner_id = $1::uuid and recipient_key = $2 and campaign_key = $3`,
+      [input.partnerId, recipientKey, input.campaignKey.slice(0, 64)]
     )
     return true
   } catch (e) {
@@ -186,11 +218,13 @@ export async function releaseBirthdayEmailSlotFromPg(input: {
   }
 }
 
-/** Khách đã chat (linked_user_id) + có ngày sinh trên profiles. */
+/** Khách shop (hồ sơ + linked user) có ngày sinh và email. */
 export type BirthdayEligibleUserRow = {
-  user_id: string
+  recipient_key: string
+  user_id: string | null
   birth_date: string
   email: string
+  customer_name: string
 }
 
 export async function listPartnersWithBirthdayPromoEnabledFromPg(): Promise<
@@ -219,7 +253,25 @@ export async function listBirthdayEligibleUsersForPartnerFromPg(
 ): Promise<BirthdayEligibleUserRow[] | null> {
   if (!isPgConfigured()) return null
   try {
-    const rows = await pgQuery<{ user_id: string; birth_date: string; email: string }>(
+    const shopRows = await pgQuery<{
+      email: string
+      birth_date: string
+      customer_name: string | null
+    }>(
+      `select lower(trim(email_normalized)) as email,
+              date_of_birth::text as birth_date,
+              nullif(trim(customer_name), '') as customer_name
+       from public.messaging_partner_customer_profiles
+       where partner_id = $1::uuid
+         and date_of_birth is not null
+         and coalesce(trim(email_normalized), '') <> ''`,
+      [partnerId]
+    )
+    const linkedRows = await pgQuery<{
+      user_id: string
+      birth_date: string
+      email: string
+    }>(
       `select distinct on (p.id)
         p.id::text as user_id,
         p.birth_date::text as birth_date,
@@ -234,15 +286,39 @@ export async function listBirthdayEligibleUsersForPartnerFromPg(
        order by p.id, c.updated_at desc nulls last`,
       [partnerId]
     )
-    const out: BirthdayEligibleUserRow[] = []
-    for (const r of rows) {
+    const byEmail = new Map<string, BirthdayEligibleUserRow>()
+    for (const r of shopRows) {
+      const em = String(r.email ?? '').trim().toLowerCase()
+      const bd = String(r.birth_date ?? '').trim().slice(0, 10)
+      if (!em || !bd) continue
+      byEmail.set(em, {
+        recipient_key: `email:${em}`,
+        user_id: null,
+        birth_date: bd,
+        email: em,
+        customer_name: String(r.customer_name ?? '').trim(),
+      })
+    }
+    for (const r of linkedRows) {
       const em = String(r.email ?? '').trim().toLowerCase()
       const bd = String(r.birth_date ?? '').trim().slice(0, 10)
       const uid = String(r.user_id ?? '').trim()
       if (!em || !bd || !uid) continue
-      out.push({ user_id: uid, birth_date: bd, email: em })
+      const existing = byEmail.get(em)
+      if (existing) {
+        existing.user_id = uid
+        existing.recipient_key = `user:${uid}`
+        continue
+      }
+      byEmail.set(em, {
+        recipient_key: `user:${uid}`,
+        user_id: uid,
+        birth_date: bd,
+        email: em,
+        customer_name: '',
+      })
     }
-    return out
+    return [...byEmail.values()]
   } catch (e) {
     console.warn('[listBirthdayEligibleUsersForPartnerFromPg]', e)
     return null

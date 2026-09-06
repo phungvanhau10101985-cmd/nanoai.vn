@@ -944,6 +944,7 @@ function footerKitRowLabel(kind: string, locale: WebLocale, t: PartnerWebsiteCop
   if (kind === 'brand') return t.visualEditChromeKitFooterBrand
   if (kind === 'copyright') return t.visualEditChromeKitFooterCopyright
   if (kind === 'moit') return t.visualEditChromeKitFooterMoit
+  if (kind === 'newsletter') return t.visualEditChromeKitFooterNewsletter
   if (kind === 'col:shop') return shop.footerColShop
   if (kind === 'col:shopping') return shop.footerColShopping
   if (kind === 'col:support') return shop.footerColSupport

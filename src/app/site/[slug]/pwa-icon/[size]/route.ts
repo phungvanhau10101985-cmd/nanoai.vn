@@ -26,7 +26,7 @@ export async function GET(
 
   const purpose = new URL(req.url).searchParams.get('purpose')?.trim().toLowerCase()
   const png = await buildPartnerPwaIconPng({
-    logoUrl: shop.site.logoUrl,
+    logoUrl: shop.site.theme.faviconUrl?.trim() || shop.site.logoUrl,
     size,
     backgroundColor: partnerPwaManifestColor(shop.site.theme.backgroundColor, '#ffffff'),
     maskable: purpose === 'maskable',
@@ -36,7 +36,7 @@ export async function GET(
     status: 200,
     headers: {
       'Content-Type': 'image/png',
-      'Cache-Control': 'public, max-age=3600',
+      'Cache-Control': size <= 32 ? 'public, max-age=300' : 'public, max-age=3600',
     },
   })
 }

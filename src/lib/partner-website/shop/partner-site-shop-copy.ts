@@ -527,6 +527,10 @@ export type PartnerSiteShopCopy = {
   footerCopyright: string
   footerPaymentHint: string
   footerMoitTitle: string
+  footerNewsletterPlaceholder: string
+  footerNewsletterSubmit: string
+  footerNewsletterOk: string
+  footerNewsletterError: string
   lpExploreProducts: string
   lpViewProducts: string
   lpSuggestedForYou: string
@@ -1054,6 +1058,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     footerCopyright: '© {year} {shop}. Bảo lưu mọi quyền.',
     footerPaymentHint: 'Thanh toán: COD · Chuyển khoản',
     footerMoitTitle: 'Đã thông báo với Bộ Công Thương',
+    footerNewsletterPlaceholder: 'Email nhận tin',
+    footerNewsletterSubmit: 'Đăng ký',
+    footerNewsletterOk: 'Đã đăng ký nhận tin.',
+    footerNewsletterError: 'Email không hợp lệ hoặc chưa gửi được. Thử lại nhé.',
     lpExploreProducts: 'Khám phá sản phẩm',
     lpViewProducts: 'Xem sản phẩm',
     lpSuggestedForYou: 'Gợi ý dành cho bạn',
@@ -1578,6 +1586,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     footerCopyright: '© {year} {shop}. All rights reserved.',
     footerPaymentHint: 'Payment: COD · Bank transfer',
     footerMoitTitle: 'Registered with the Ministry of Industry and Trade',
+    footerNewsletterPlaceholder: 'Email for updates',
+    footerNewsletterSubmit: 'Subscribe',
+    footerNewsletterOk: 'You’re subscribed.',
+    footerNewsletterError: 'That email looks invalid. Please try again.',
     lpExploreProducts: 'Explore products',
     lpViewProducts: 'View products',
     lpSuggestedForYou: 'Suggested for you',
@@ -2098,6 +2110,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     footerCopyright: '© {year} {shop}。保留所有权利。',
     footerPaymentHint: '支付：货到付款 · 银行转账',
     footerMoitTitle: '已向工贸部备案',
+    footerNewsletterPlaceholder: '订阅邮箱',
+    footerNewsletterSubmit: '订阅',
+    footerNewsletterOk: '已订阅邮件。',
+    footerNewsletterError: '邮箱无效，请重试。',
     lpExploreProducts: '探索商品',
     lpViewProducts: '查看商品',
     lpSuggestedForYou: '为你推荐',
@@ -2620,6 +2636,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     footerCopyright: '© {year} {shop}. 無断転載を禁じます。',
     footerPaymentHint: '支払い：代金引換 · 銀行振込',
     footerMoitTitle: '商工省へ届出済み',
+    footerNewsletterPlaceholder: 'メールアドレス',
+    footerNewsletterSubmit: '登録',
+    footerNewsletterOk: '配信登録が完了しました。',
+    footerNewsletterError: 'メールアドレスが正しくありません。',
     lpExploreProducts: '商品を見る',
     lpViewProducts: '商品を見る',
     lpSuggestedForYou: 'あなたへのおすすめ',
@@ -3142,6 +3162,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     footerCopyright: '© {year} {shop}. 모든 권리 보유.',
     footerPaymentHint: '결제: 착불 · 계좌이체',
     footerMoitTitle: '산업통상부 신고 완료',
+    footerNewsletterPlaceholder: '뉴스레터 이메일',
+    footerNewsletterSubmit: '구독',
+    footerNewsletterOk: '구독이 완료되었습니다.',
+    footerNewsletterError: '이메일이 올바르지 않습니다. 다시 시도해 주세요.',
     lpExploreProducts: '상품 둘러보기',
     lpViewProducts: '상품 보기',
     lpSuggestedForYou: '당신을 위한 추천',

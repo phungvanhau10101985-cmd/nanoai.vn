@@ -6,6 +6,13 @@ import {
 } from '@/lib/db/messaging-partner-promotions-pg'
 import { insertPartnerCustomerNotificationFromPg } from '@/lib/db/messaging-partner-customer-notifications-pg'
 import { writePartnerSaleAuditFromPg } from '@/lib/db/messaging-partner-sale-audit-pg'
+import { ensurePartnerEmailSendSettingsFromPg } from '@/lib/db/messaging-partner-email-management-pg'
+import {
+  resolvePartnerCustomerEmail,
+  resolvePartnerShopEmailContext,
+  sendPartnerCartAbandonEmail,
+  sendPartnerComebackEmail,
+} from '@/lib/messaging/partner-promo-email'
 import type {
   PartnerPromotionRow,
   PromotionAutoGrantTrigger,
@@ -17,6 +24,7 @@ type CandidateIdentity = {
   linkedUserId: string | null
   emailNormalized: string | null
   cartUpdatedAt?: string
+  cartItems?: unknown
 }
 
 type AutoPromotionDbRow = {
@@ -29,6 +37,8 @@ type AutoPromotionDbRow = {
   trigger_idle_hours: number | null
   trigger_inactive_days: number | null
   trigger_cooldown_days: number | null
+  discount_percent: number | null
+  max_discount_amount: number | null
 }
 
 function identityKey(input: {
@@ -49,7 +59,9 @@ async function activeAutoPromotion(
   return pgQueryOne<AutoPromotionDbRow>(
     `select id::text, partner_id::text, code, name, auto_grant_trigger,
             auto_grant_valid_days, trigger_idle_hours, trigger_inactive_days,
-            trigger_cooldown_days
+            trigger_cooldown_days,
+            discount_percent::float8 as discount_percent,
+            max_discount_amount::float8 as max_discount_amount
      from public.messaging_partner_promotions
      where partner_id = $1::uuid and auto_grant_trigger = $2 and is_active = true
        and (valid_from is null or valid_from <= now())
@@ -142,13 +154,63 @@ async function notifyGrant(input: {
     body: `${input.promotionName} – mã ${input.code}`,
     href: '/account/wallet',
     expiresAt: input.expiresAt,
-    emailStatus: 'pending',
+    emailStatus: 'none',
     pushStatus: 'pending',
   })
   if (!row) return
   void import('@/lib/messaging/partner-customer-notification-push')
     .then((module) => module.deliverPendingPartnerNotificationPush(row))
     .catch((error) => console.warn('[notifyPromotionGrant:push]', error))
+}
+
+async function sendDedicatedAutoGrantEmail(input: {
+  promotion: AutoPromotionDbRow
+  identity: CandidateIdentity
+}): Promise<void> {
+  const settings = await ensurePartnerEmailSendSettingsFromPg(input.promotion.partner_id)
+  if (input.promotion.auto_grant_trigger === 'cart_abandon' && settings && !settings.cart_abandon_email_enabled) {
+    return
+  }
+  if (input.promotion.auto_grant_trigger === 'comeback' && settings && !settings.comeback_email_enabled) {
+    return
+  }
+  const resolved = await resolvePartnerCustomerEmail({
+    partnerId: input.promotion.partner_id,
+    guestAccountId: input.identity.guestAccountId,
+    linkedUserId: input.identity.linkedUserId,
+    emailNormalized: input.identity.emailNormalized,
+  })
+  if (!resolved) return
+  const ctx = await resolvePartnerShopEmailContext(input.promotion.partner_id)
+  if (!ctx) return
+  const recipientKey = input.identity.identityKey || `email:${resolved.email}`
+  const pct = Math.max(0, Math.min(100, Math.floor(Number(input.promotion.discount_percent) || 0)))
+  const maxAmt = Math.max(0, Math.floor(Number(input.promotion.max_discount_amount) || 0))
+  const days = Math.max(1, Number(input.promotion.auto_grant_valid_days) || 3)
+  if (input.promotion.auto_grant_trigger === 'cart_abandon') {
+    await sendPartnerCartAbandonEmail({
+      ctx,
+      toEmail: resolved.email,
+      customerName: resolved.name,
+      promoCode: input.promotion.code,
+      discountPercent: pct,
+      maxDiscountAmount: maxAmt,
+      validDays: days,
+      cartItems: input.identity.cartItems,
+      recipientKey,
+    })
+    return
+  }
+  await sendPartnerComebackEmail({
+    ctx,
+    toEmail: resolved.email,
+    customerName: resolved.name,
+    promoCode: input.promotion.code,
+    discountPercent: pct,
+    maxDiscountAmount: maxAmt,
+    validDays: days,
+    recipientKey,
+  })
 }
 
 async function grantClaimedPromotion(input: {
@@ -188,6 +250,15 @@ async function grantClaimedPromotion(input: {
     code: input.promotion.code,
     expiresAt: grant.expiresAt,
   })
+  if (
+    input.promotion.auto_grant_trigger === 'cart_abandon' ||
+    input.promotion.auto_grant_trigger === 'comeback'
+  ) {
+    void sendDedicatedAutoGrantEmail({
+      promotion: input.promotion,
+      identity: input.identity,
+    }).catch((error) => console.warn('[autoGrantDedicatedEmail]', error))
+  }
   void writePartnerSaleAuditFromPg({
     partnerId: input.promotion.partner_id,
     eventType: 'promotion_auto_granted',
@@ -272,13 +343,18 @@ async function listCartAbandonCandidates(promotion: AutoPromotionDbRow): Promise
     linked_user_id: string | null
     email_normalized: string | null
     cart_updated_at: string
+    cart_items: unknown
   }>(
     `select
        c.account_key as identity_key,
        conv.guest_account_id::text,
        conv.linked_user_id::text,
-       null::text as email_normalized,
-       c.updated_at::text as cart_updated_at
+       coalesce(
+         ga.email_normalized,
+         nullif(lower(trim(prof.email_normalized)), '')
+       ) as email_normalized,
+       c.updated_at::text as cart_updated_at,
+       c.cart_items
      from public.messaging_guest_carts c
      left join lateral (
        select cc.guest_account_id, cc.linked_user_id
@@ -289,6 +365,12 @@ async function listCartAbandonCandidates(promotion: AutoPromotionDbRow): Promise
        order by cc.updated_at desc
        limit 1
      ) conv on true
+     left join public.messaging_guest_accounts ga
+       on ga.partner_id = c.partner_id and ga.id = conv.guest_account_id
+     left join public.messaging_partner_customer_profiles prof
+       on prof.partner_id = c.partner_id and (
+         (ga.email_normalized is not null and prof.email_normalized = ga.email_normalized)
+       )
      where c.partner_id = $1::uuid
        and jsonb_typeof(c.cart_items) = 'array'
        and jsonb_array_length(c.cart_items) > 0
@@ -308,6 +390,7 @@ async function listCartAbandonCandidates(promotion: AutoPromotionDbRow): Promise
       linkedUserId: row.linked_user_id,
       emailNormalized: row.email_normalized,
       cartUpdatedAt: row.cart_updated_at,
+      cartItems: row.cart_items,
     }))
   )
 }
@@ -368,7 +451,9 @@ async function runPartnerPromotionMaintenanceUnlocked(): Promise<PartnerPromotio
   const promotions = await pgQuery<AutoPromotionDbRow>(
     `select pr.id::text, pr.partner_id::text, pr.code, pr.name, pr.auto_grant_trigger,
             pr.auto_grant_valid_days, pr.trigger_idle_hours, pr.trigger_inactive_days,
-            pr.trigger_cooldown_days
+            pr.trigger_cooldown_days,
+            pr.discount_percent::float8 as discount_percent,
+            pr.max_discount_amount::float8 as max_discount_amount
      from public.messaging_partner_promotions pr
      join public.messaging_partners p on p.id = pr.partner_id
      where p.is_active = true and pr.is_active = true

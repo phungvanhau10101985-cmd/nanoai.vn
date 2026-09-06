@@ -229,12 +229,42 @@ export function PartnerSiteShopProductClient({
   useEffect(() => {
     const el = buyActionsRef.current
     if (!el || typeof IntersectionObserver === 'undefined') return
+    const wideSticky = () => {
+      let queryDevice = ''
+      try {
+        queryDevice = new URLSearchParams(window.location.search).get('pw-device') || ''
+      } catch {
+        queryDevice = ''
+      }
+      const lock = String(
+        document.documentElement.getAttribute('data-pw-edit-device') ||
+          document.documentElement.getAttribute('data-pw-scene-lock') ||
+          queryDevice ||
+          ''
+      ).toLowerCase()
+      if (lock === 'desktop' || lock === 'laptop') return true
+      if (lock === 'mobile' || lock === 'tablet') return false
+      return window.matchMedia('(min-width:1280px)').matches
+    }
+    const paint = (show: boolean) => {
+      setStickyBuyVisible(show)
+      if (wideSticky() && show) document.documentElement.setAttribute('data-pw-pdp-desktop-sticky', '1')
+      else document.documentElement.removeAttribute('data-pw-pdp-desktop-sticky')
+    }
     const observer = new IntersectionObserver(
-      ([entry]) => setStickyBuyVisible(!entry.isIntersecting),
-      { rootMargin: '0px 0px -20% 0px' }
+      ([entry]) => paint(wideSticky() ? !entry.isIntersecting : false),
+      { root: null, threshold: 0.1 }
     )
     observer.observe(el)
-    return () => observer.disconnect()
+    const onResize = () => {
+      if (!wideSticky()) paint(false)
+    }
+    window.addEventListener('resize', onResize, { passive: true })
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', onResize)
+      document.documentElement.removeAttribute('data-pw-pdp-desktop-sticky')
+    }
   }, [])
 
   const galleryImages = (product.galleryImages.length ? product.galleryImages : [product.imageUrl])
@@ -597,10 +627,10 @@ export function PartnerSiteShopProductClient({
         </button>
       </nav>
       <div className="pw-pdp-sticky-ctas">
-        <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => setVariantModalOpen(true)} data-pw-el={PW_EL.cardCart}>
+        <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => setVariantModalOpen(true)} data-pw-el={PW_EL.cardCart} data-pw-add-cart data-pw-pdp-add-cart="1">
           {t.pdpAddToCartShort}
         </button>
-        <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => setVariantModalOpen(true)} data-pw-el={PW_EL.buy}>
+        <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => setVariantModalOpen(true)} data-pw-el={PW_EL.buy} data-pw-buy data-pw-pdp-buy-now="1">
           {t.pdpBuyNowShort}
         </button>
       </div>
@@ -608,7 +638,7 @@ export function PartnerSiteShopProductClient({
   )
 
   return (
-    <div className="pw-pdp">
+    <div className="pw-pdp" data-inventory-id={product.id} data-pw-page="product">
       {crumbNames.length ? (
         <nav className="pw-shop-breadcrumb" data-pw-region={PW_REGION.breadcrumb} data-pw-pdp-slot="breadcrumb">
           <Link href={homeHref} data-pw-el={PW_EL.link}>
@@ -895,10 +925,10 @@ export function PartnerSiteShopProductClient({
           ) : null}
 
           <div ref={buyActionsRef} className="pw-pdp-actions pw-pdp-actions-inline">
-            <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => { if (!requirePurchaseLogin()) setVariantModalOpen(true) }} data-pw-el={PW_EL.cardCart}>
+            <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => { if (!requirePurchaseLogin()) setVariantModalOpen(true) }} data-pw-el={PW_EL.cardCart} data-pw-add-cart data-pw-pdp-add-cart="1">
               {t.addToCart}
             </button>
-            <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => { if (!requirePurchaseLogin()) setVariantModalOpen(true) }} data-pw-el={PW_EL.buy}>
+            <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => { if (!requirePurchaseLogin()) setVariantModalOpen(true) }} data-pw-el={PW_EL.buy} data-pw-buy data-pw-pdp-buy-now="1">
               {t.buyNow}
             </button>
             <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => openConsult(consultCtx)} data-pw-el={PW_EL.cta}>
