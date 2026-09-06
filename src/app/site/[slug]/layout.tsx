@@ -9,7 +9,10 @@ import {
 } from '@/lib/partner-website/shop/fashion-shop-design'
 import { PartnerSiteCustomDomainProvider } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
-import { partnerSitePwaManifestPath } from '@/lib/partner-website/shop/partner-site-pwa'
+import {
+  partnerSitePwaIconPath,
+  partnerSitePwaManifestPath,
+} from '@/lib/partner-website/shop/partner-site-pwa'
 import { buildPartnerShopFaviconMetadataIcons } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
 
 /** Do not use `next/font/google` here — VPS `next build` fetches fonts.gstatic.com and times out. */
