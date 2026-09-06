@@ -32,8 +32,15 @@ export function PartnerSiteSaleCountdown({
   const [visible, setVisible] = useState(() => Boolean(formatPartnerSaleCountdownCompact(countdownTo)))
   useEffect(() => {
     const tick = () => {
+      const host = hmsRef.current
+      if (host) {
+        const box = host.getBoundingClientRect()
+        const vh = window.innerHeight || 0
+        const vw = window.innerWidth || 0
+        if (box.bottom <= 0 || box.right <= 0 || box.top >= vh || box.left >= vw) return
+      }
       const next = formatPartnerSaleCountdownCompact(countdownTo) || ''
-      writePartnerSaleCountdownNode(hmsRef.current, next)
+      writePartnerSaleCountdownNode(host, next)
       setVisible((prev) => (Boolean(next) === prev ? prev : Boolean(next)))
     }
     tick()

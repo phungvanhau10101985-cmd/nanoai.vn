@@ -65,8 +65,15 @@ export function PartnerSiteSaleCalendarBanner({ siteSlug, locale, pageKind, hide
   const [hasCount, setHasCount] = useState(() => Boolean(formatPartnerSaleCountdownCompact(state?.countdownTo)))
   useEffect(() => {
     const tick = () => {
+      const host = hmsRef.current
+      if (host) {
+        const box = host.getBoundingClientRect()
+        const vh = window.innerHeight || 0
+        const vw = window.innerWidth || 0
+        if (box.bottom <= 0 || box.right <= 0 || box.top >= vh || box.left >= vw) return
+      }
       const next = formatPartnerSaleCountdownCompact(state?.countdownTo) || ''
-      writePartnerSaleCountdownNode(hmsRef.current, next)
+      writePartnerSaleCountdownNode(host, next)
       setHasCount((prev) => (Boolean(next) === prev ? prev : Boolean(next)))
     }
     tick()

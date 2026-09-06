@@ -95,7 +95,7 @@ test('banner copy follows 188 teaser and active wording', () => {
   })
   assert.match(String(partnerSiteSaleBannerText(teaser, 'vi')), /sắp diễn ra/)
   assert.match(String(partnerSiteSaleBannerText(active, 'vi')), /đang diễn ra/)
-  assert.equal(partnerSiteSaleBannerShowsOnPage('home'), false)
+  assert.equal(partnerSiteSaleBannerShowsOnPage('home'), true)
   assert.equal(partnerSiteSaleBannerShowsOnPage('landing'), false)
   assert.equal(partnerSiteSaleBannerShowsOnPage('listing'), true)
   assert.equal(partnerSiteSaleBannerShowsOnPage('product'), true)
@@ -110,8 +110,11 @@ test('sale countdown tick updates text nodes and skips banner hosts', () => {
   assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /\.pw-sale-chip\[data-pw-sale-countdown\]/)
   assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /data-pw-sale-calendar-banner/)
   assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /nodeValue/)
+  assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /pwSaleInView/)
   assert.match(PW_SITE_SALE_MO_SKIP_JS, /\[data-pw-sale-hms\]/)
   assert.match(PW_SITE_SALE_CARD_CSS, /tabular-nums/)
+  assert.match(PW_SITE_SALE_CARD_CSS, /contain:layout style paint/)
+  assert.match(PW_SITE_SALE_CARD_CSS, /min-width:11ch/)
   const text = { nodeType: 3, nodeValue: '01:00:00', nextSibling: null }
   const el = { firstChild: text, textContent: '01:00:00' }
   writePartnerSaleCountdownNode(el as unknown as Element, '00:59:59')

@@ -18,7 +18,7 @@ export function buildPartnerSaleCalendarBootstrapScript(input: {
   return `<script data-pw-sale-calendar-bootstrap>(function(){
 if(typeof pwShopLiveUiOff==='function'&&pwShopLiveUiOff())return;
 var API=${JSON.stringify(api)},COPY=${JSON.stringify(copy)};
-var PAGES={listing:1,product:1,cart:1,account:1,info:1};
+var PAGES={home:1,listing:1,product:1,cart:1,account:1,info:1};
 function pageKind(){
   var html=document.documentElement;
   var page=String(html.getAttribute('data-pw-page')||document.body.getAttribute('data-pw-page')||'');
@@ -30,10 +30,11 @@ function pageKind(){
 }
 function shouldShow(){
   var page=pageKind();
-  if(page==='home'||page==='landing')return false;
+  if(page==='landing')return false;
+  if(page==='home')return true;
   if(PAGES[page])return true;
   var path=(location.pathname||'/').replace(/\\/+$/,'')||'/';
-  if(path==='/'||/^\\/site\\/[^/]+$/.test(path))return false;
+  if(path==='/'||/^\\/site\\/[^/]+$/.test(path))return true;
   return true;
 }
 ${PW_SITE_SALE_TICK_CHIPS_JS}
@@ -57,23 +58,37 @@ function ensureCss(){
   document.head.appendChild(st);
 }
 function hostSlot(){
+  var visual=document.querySelector('[data-pw-inline-visual-root]');
   var chrome=document.querySelector('[data-pw-live-chrome]');
   if(chrome&&chrome.parentNode)return {parent:chrome.parentNode,after:chrome};
+  if(visual&&visual.parentNode)return {parent:visual.parentNode,before:visual};
   var header=document.querySelector('header.pw-header,header.pw-shop-header,[data-pw-region="header"]');
-  if(header&&header.parentNode){
-    var n=header.nextElementSibling;
-    var last=header;
-    if(n&&(n.getAttribute('data-pw-region')==='nav'||/(^|\\s)(pw-nav-main|pw-shop-nav-row)(\\s|$)/.test(n.className||''))) last=n;
-    return {parent:last.parentNode,after:last};
+  if(header){
+    var scaled=header.closest&&header.closest('[data-pw-inline-visual-root]');
+    if(scaled&&scaled.parentNode)return {parent:scaled.parentNode,before:scaled};
+    if(header.parentNode){
+      var n=header.nextElementSibling;
+      var last=header;
+      if(n&&(n.getAttribute('data-pw-region')==='nav'||/(^|\\s)(pw-nav-main|pw-shop-nav-row)(\\s|$)/.test(n.className||''))) last=n;
+      return {parent:last.parentNode,after:last};
+    }
   }
   var filter=document.querySelector('[data-pw-listing-filter-slot]');
   var main=document.querySelector('main,.pw-shop-main,[data-pw-scene-root="1"]');
   var before=filter||main;
-  if(before&&before.parentNode)return {parent:before.parentNode,before:before};
+  if(before&&before.parentNode){
+    var mainScaled=before.closest&&before.closest('[data-pw-inline-visual-root]');
+    if(mainScaled&&mainScaled.parentNode)return {parent:mainScaled.parentNode,before:mainScaled};
+    return {parent:before.parentNode,before:before};
+  }
   return null;
 }
 function placeEl(el,slot){
   if(!el||!slot||!slot.parent)return;
+  var visual=document.querySelector('[data-pw-inline-visual-root]');
+  if(visual&&visual.contains(el)&&el!==visual&&visual.parentNode){
+    visual.parentNode.insertBefore(el,visual);
+  }
   if(slot.after){
     var next=slot.after.nextSibling;
     if(next!==el)slot.parent.insertBefore(el,next);
@@ -123,6 +138,7 @@ function paint(data){
 function tick(){
   var el=document.querySelector('[data-pw-sale-calendar-banner]');
   if(!el||el.getAttribute('data-pw-sale-banner-react')==='1')return;
+  if(typeof pwSaleInView==='function'&&!pwSaleInView(el))return;
   var iso=el.getAttribute('data-pw-sale-until')||el.getAttribute('data-pw-sale-countdown')||'';
   var count=pwSaleFmtChip(iso);
   var node=el.querySelector('[data-pw-sale-count]');

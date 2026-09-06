@@ -367,9 +367,9 @@ export function partnerSiteSaleBannerText(state: PartnerSaleCalendarState, local
   return template.replace('{label}', state.eventLabel).replace('{pct}', String(state.discountPercent))
 }
 
-const SALE_BANNER_PAGES = new Set(['listing', 'product', 'cart', 'account', 'info'])
+const SALE_BANNER_PAGES = new Set(['home', 'listing', 'product', 'cart', 'account', 'info'])
 
-/** Thanh thông báo dưới head — trang chủ / landing dùng banner 21:9, không dùng strip này. */
+/** Thanh thông báo dưới head — mọi trang shop kể cả trang chủ. Landing chiến dịch không dùng strip. */
 export function partnerSiteSaleBannerShowsOnPage(page: string | null | undefined): boolean {
   return SALE_BANNER_PAGES.has(String(page || '').trim().toLowerCase())
 }
@@ -412,7 +412,7 @@ export const PW_SITE_SALE_CARD_CSS = [
   '.pw-badge-sale{position:absolute;top:8px;left:8px;z-index:2;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;letter-spacing:.02em;line-height:1.2}',
   '.pw-badge-sale-teaser{background:#d97706}',
   '.pw-badge-sale-active{background:#dc2626}',
-  '.pw-sale-chip{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:4px 6px;color:#fff;font:700 10px/1.2 system-ui,sans-serif;text-align:center;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap}',
+  '.pw-sale-chip{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:4px 6px;color:#fff;font:700 10px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;text-align:center;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap;overflow:hidden;contain:layout style paint;isolation:isolate;transform:translateZ(0);pointer-events:none}',
   '.pw-sale-chip-teaser{background:rgba(180,83,9,.95)}',
   '.pw-sale-chip-active{background:rgba(185,28,28,.95)}',
   '.pw-price-sale{color:var(--pw-primary);font-weight:800}',
@@ -424,14 +424,14 @@ export const PW_SITE_SALE_CARD_CSS = [
   '.pw-pdp-sale-pill{display:inline-flex;align-items:center;gap:6px;margin:0 0 8px;padding:4px 10px;border-radius:999px;color:#fff;font:700 12px/1.2 system-ui,sans-serif}',
   '.pw-pdp-sale-pill-teaser{background:#d97706}',
   '.pw-pdp-sale-pill-active{background:#dc2626}',
-  '[data-pw-sale-calendar-banner]{position:relative;z-index:2;display:block;width:100%;box-sizing:border-box;padding:8px 40px 8px 12px;border-bottom:1px solid #fde68a;font:400 13px/1.4 system-ui,sans-serif}',
+  '[data-pw-sale-calendar-banner]{position:relative;z-index:2;display:block;width:100%;box-sizing:border-box;padding:8px 40px 8px 12px;border-bottom:1px solid #fde68a;font:400 13px/1.4 system-ui,sans-serif;contain:layout style paint;isolation:isolate;transform:translateZ(0);flex-shrink:0}',
   '[data-pw-sale-calendar-banner][data-pw-sale-phase="teaser"]{background:linear-gradient(90deg,#fffbeb,#fff7ed);color:#78350f;border-color:#fde68a}',
   '[data-pw-sale-calendar-banner][data-pw-sale-phase="active"]{background:linear-gradient(90deg,#ffedd5,#fef2f2);color:#7c2d12;border-color:#fdba74}',
   '[data-pw-sale-calendar-banner] [data-pw-sale-title]{margin:0;font:700 13px/1.35 system-ui,sans-serif}',
   '[data-pw-sale-calendar-banner] [data-pw-sale-msg]{margin:2px 0 0;font-size:12px;opacity:.92}',
-  '[data-pw-sale-calendar-banner] [data-pw-sale-count]{margin:4px 0 0;display:block;font:600 12px/1.3 system-ui,sans-serif;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap}',
-  '[data-pw-sale-hms]{display:inline-block;min-width:8ch;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap}',
-  '.pw-sale-count,[data-pw-variant-sale-count]{font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap}',
+  '[data-pw-sale-calendar-banner] [data-pw-sale-count]{margin:4px 0 0;display:block;min-height:1.3em;font:600 12px/1.3 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap;overflow:hidden;contain:layout style paint}',
+  '[data-pw-sale-hms]{display:inline-block;min-width:11ch;font:inherit;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap;contain:layout style paint}',
+  '.pw-sale-count,[data-pw-variant-sale-count]{font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}',
   '[data-pw-sale-calendar-banner] [data-pw-sale-close]{position:absolute;right:6px;top:6px;width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:inherit;opacity:.7;cursor:pointer;font:600 18px/1 system-ui,sans-serif}',
   '[data-pw-sale-calendar-banner] [data-pw-sale-close]:hover{background:rgba(255,255,255,.55);opacity:1}',
 ].join('')
@@ -502,9 +502,16 @@ function pwSaleFmtChip(iso){
   var hms=('0'+h).slice(-2)+':'+('0'+m).slice(-2)+':'+('0'+sec).slice(-2);
   return days>0?days+'d '+hms:hms;
 }
+function pwSaleInView(el){
+  if(!el||!el.getBoundingClientRect)return true;
+  var r=el.getBoundingClientRect();
+  var h=window.innerHeight||0,w=window.innerWidth||0;
+  return r.bottom>0&&r.right>0&&r.top<h&&r.left<w;
+}
 function pwSaleTickChips(remaining,startsAfter){
   document.querySelectorAll('.pw-sale-chip[data-pw-sale-countdown]').forEach(function(el){
     if(el.closest&&el.closest('[data-pw-sale-calendar-banner],[data-pw-variant-sale]'))return;
+    if(!pwSaleInView(el))return;
     var iso=el.getAttribute('data-pw-sale-countdown')||'';
     var phase=el.getAttribute('data-pw-sale-phase')||'teaser';
     var left=pwSaleFmtChip(iso);
