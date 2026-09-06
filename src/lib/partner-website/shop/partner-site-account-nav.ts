@@ -13,6 +13,19 @@ export function partnerSitePageShowsAccountNav(
   return pageKind === PW_PAGE.cart || pageKind === PW_PAGE.account || pageKind === PW_PAGE.info
 }
 
+/**
+ * Render the non-sensitive account shell during SSR/hydration. Mobile browsers can defer
+ * hydration until the first touch; gating the whole menu on an effect leaves a frozen "…".
+ */
+export function shouldRenderPartnerSiteAccountShell(input: {
+  authResolved: boolean
+  isAuthenticated: boolean
+  needsAuth: boolean
+}): boolean {
+  if (!input.authResolved) return true
+  return input.isAuthenticated && !input.needsAuth
+}
+
 /** Strip `/site/{slug}` so custom-domain `/cart` and platform `/site/x/cart` match the same item. */
 export function normalizePartnerSitePathname(pathname: string): string {
   const raw = String(pathname || '/').split(/[?#]/)[0] || '/'

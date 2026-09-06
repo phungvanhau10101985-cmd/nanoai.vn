@@ -6,6 +6,7 @@ import {
   partnerSiteAccountNavActiveId,
   partnerSitePageShowsAccountNav,
   reactAccountShellNavFromPathname,
+  shouldRenderPartnerSiteAccountShell,
 } from '@/lib/partner-website/shop/partner-site-account-nav'
 import { getPartnerSiteAccountMenuItems, isPartnerSiteAccountHubRow, isPartnerSiteAccountSidebarItem } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
@@ -19,6 +20,33 @@ test('account nav shows on cart/account/info, not home/pdp/listing, and login ca
   assert.equal(partnerSitePageShowsAccountNav(PW_PAGE.listing), false)
   assert.equal(partnerSitePageShowsAccountNav(PW_PAGE.landing), false)
   assert.equal(partnerSitePageShowsAccountNav(PW_PAGE.account, { hideAccountNav: true }), false)
+})
+
+test('account shell is server-rendered before mobile hydration resolves', () => {
+  assert.equal(
+    shouldRenderPartnerSiteAccountShell({
+      authResolved: false,
+      isAuthenticated: false,
+      needsAuth: false,
+    }),
+    true
+  )
+  assert.equal(
+    shouldRenderPartnerSiteAccountShell({
+      authResolved: true,
+      isAuthenticated: true,
+      needsAuth: false,
+    }),
+    true
+  )
+  assert.equal(
+    shouldRenderPartnerSiteAccountShell({
+      authResolved: true,
+      isAuthenticated: false,
+      needsAuth: false,
+    }),
+    false
+  )
 })
 
 test('normalizes /site/{slug} and custom-domain paths the same', () => {

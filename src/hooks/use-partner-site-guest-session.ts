@@ -68,6 +68,16 @@ function persistAccountId(accountId: string) {
 type GuestSessionBootstrap = { sessionId: string; accountId: string }
 
 const guestSessionBootstrapBySlug = new Map<string, Promise<GuestSessionBootstrap>>()
+const PARTNER_SITE_GUEST_SESSION_CHANGE_EVENT = 'pw-partner-site-guest-session-change'
+
+function notifyGuestSessionChange(siteSlug: string) {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(
+    new CustomEvent(PARTNER_SITE_GUEST_SESSION_CHANGE_EVENT, {
+      detail: { siteSlug: siteSlug.trim().toLowerCase() },
+    })
+  )
+}
 
 function clearGuestSessionBootstrap(siteSlug: string) {
   guestSessionBootstrapBySlug.delete(siteSlug.trim().toLowerCase())
@@ -150,6 +160,7 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
       setIsAuthenticated(true)
       persistAccountId(aid)
       clearPartnerSiteShopSkipAuthSync(siteSlug)
+      notifyGuestSessionChange(siteSlug)
     },
     [siteSlug]
   )
@@ -170,8 +181,53 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
 
   useEffect(() => {
     let cancelled = false
-    sessionRef.current = readStoredSessionId()
-    accountRef.current = readStoredAccountId()
+    const normalizedSlug = siteSlug.trim().toLowerCase()
+    const syncFromStorage = (resolveMissing = false) => {
+      if (cancelled) return
+      sessionRef.current = readStoredSessionId()
+      const skip = shouldPartnerSiteShopSkipAuthSync(siteSlug)
+      accountRef.current = skip ? '' : readStoredAccountId()
+      if (skip) {
+        setIsAuthenticated(false)
+        setReady(true)
+        setAuthResolved(true)
+      } else if (accountRef.current) {
+        setIsAuthenticated(true)
+        setReady(true)
+        setAuthResolved(true)
+      } else if (resolveMissing) {
+        setIsAuthenticated(false)
+        setReady(true)
+        setAuthResolved(true)
+      }
+    }
+    const onSessionChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ siteSlug?: string }>).detail
+      if (detail?.siteSlug && detail.siteSlug !== normalizedSlug) return
+      syncFromStorage(true)
+    }
+    const onStorage = (event: StorageEvent) => {
+      if (
+        event.key &&
+        event.key !== MESSAGING_GUEST_SESSION_STORAGE_KEY &&
+        event.key !== MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY &&
+        event.key !== MESSAGING_GUEST_ACCOUNT_STORAGE_KEY &&
+        event.key !== MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY
+      ) {
+        return
+      }
+      syncFromStorage(true)
+    }
+    const onPageShow = () => syncFromStorage()
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') syncFromStorage()
+    }
+    window.addEventListener(PARTNER_SITE_GUEST_SESSION_CHANGE_EVENT, onSessionChange)
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('pageshow', onPageShow)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    syncFromStorage()
     const skipAuthSync = shouldPartnerSiteShopSkipAuthSync(siteSlug)
     if (skipAuthSync) {
       accountRef.current = ''
@@ -210,6 +266,10 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
 
     return () => {
       cancelled = true
+      window.removeEventListener(PARTNER_SITE_GUEST_SESSION_CHANGE_EVENT, onSessionChange)
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('pageshow', onPageShow)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [siteSlug])
 
@@ -221,6 +281,7 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
     setAuthResolved(true)
     clearGuestSessionBootstrap(siteSlug)
     markPartnerSiteShopSkipAuthSync(siteSlug)
+    notifyGuestSessionChange(siteSlug)
     try {
       window.localStorage.removeItem(MESSAGING_GUEST_SESSION_STORAGE_KEY)
       window.localStorage.removeItem(MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY)

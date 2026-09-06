@@ -7,6 +7,7 @@ import { Bell, Copy, Download, MessageCircle } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { shouldRenderPartnerSiteAccountShell } from '@/lib/partner-website/shop/partner-site-account-nav'
 import { shouldPartnerSiteShopSkipAuthSync } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
 import {
   isPartnerSiteAccountTab,
@@ -429,7 +430,11 @@ export function PartnerSiteShopAccountClient({
       ? notifications.filter((nItem) => !nItem.readAt).length
       : unreadFromApi
 
-  const showAccountShell = authResolved && isAuthenticated && !needsAuth
+  const showAccountShell = shouldRenderPartnerSiteAccountShell({
+    authResolved,
+    isAuthenticated,
+    needsAuth,
+  })
 
   const savedDobParts = parseDobParts(savedDobIso)
   const hasLockedDob = Boolean(savedDobParts)

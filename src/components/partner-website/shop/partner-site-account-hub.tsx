@@ -76,12 +76,13 @@ export function PartnerSiteAccountHub({
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
-  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { ready, isAuthenticated, authHeaders, captureFromResponse } =
+    usePartnerSiteGuestSession(siteSlug)
   const [orders, setOrders] = useState<OrderLite[]>([])
   const [walletCount, setWalletCount] = useState(0)
 
   useEffect(() => {
-    if (!ready) return
+    if (!ready || !isAuthenticated) return
     void fetch(`/api/messaging/guest/${encodeURIComponent(partnerSlug)}/orders`, {
       credentials: 'same-origin',
       headers: authHeaders(),
@@ -102,7 +103,7 @@ export function PartnerSiteAccountHub({
       })
       .then((json: { vouchers?: WalletVoucher[] }) => setWalletCount(Array.isArray(json.vouchers) ? json.vouchers.length : 0))
       .catch(() => setWalletCount(0))
-  }, [authHeaders, captureFromResponse, partnerSlug, ready, siteSlug])
+  }, [authHeaders, captureFromResponse, isAuthenticated, partnerSlug, ready, siteSlug])
 
   const counts = useMemo(() => countPartnerSiteOrdersByStatusFilter(orders), [orders])
   const hubItems = getPartnerSiteAccountMenuItems({ siteSlug, locale, customDomain }).filter(
