@@ -161,8 +161,8 @@ export function buildPartnerSiteShopActionsBootstrapScript(input: {
   const copy = COPY[locale]
   const cartApi = partnerSiteCartApiPath(slug)
   const eventsApi = partnerSitePersonalizationApiPath(slug, 'events')
-  const favApi = `${partnerSitePersonalizationApiPath(slug, 'favorites')}?limit=48`
-  const recentApi = `${partnerSitePersonalizationApiPath(slug, 'recently-viewed')}?limit=48`
+  const favApi = `${partnerSitePersonalizationApiPath(slug, 'favorites')}?idsOnly=1`
+  const recentApi = `${partnerSitePersonalizationApiPath(slug, 'recently-viewed')}?idsOnly=1`
   const notifApi = partnerSiteNotificationsApiPath(slug, { unread: true })
   const contactApi = partnerSiteContactChannelsApiPath(slug)
   const leadApi = partnerSiteLeadApiPath(slug)
@@ -434,10 +434,18 @@ function hydrateFavoriteButtons(force){
     window.__pwFavoriteFetchInFlight=false;
     if(!res.ok)return;
     var ids={};
-    var products=(res.j&&res.j.products)||[];
-    for(var i=0;i<products.length;i++){
-      var id=String(products[i]&&products[i].inventory_id||'').toLowerCase();
-      if(id)ids[id]=1;
+    var rawIds=(res.j&&res.j.ids)||[];
+    if(rawIds.length){
+      for(var i=0;i<rawIds.length;i++){
+        var id=String(rawIds[i]||'').toLowerCase();
+        if(id)ids[id]=1;
+      }
+    }else{
+      var products=(res.j&&res.j.products)||[];
+      for(var p=0;p<products.length;p++){
+        var pid=String(products[p]&&products[p].inventory_id||'').toLowerCase();
+        if(pid)ids[pid]=1;
+      }
     }
     window.__pwFavoriteIdsCache=ids;
     paintFavoriteButtons(ids);

@@ -22,11 +22,10 @@ function HomeRail({
   apiTail: string
 }) {
   const customDomain = usePartnerSiteCustomDomain()
-  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const [products, setProducts] = useState<PartnerSitePersonalizationProduct[]>([])
 
   useEffect(() => {
-    if (!ready) return
     let cancelled = false
     fetch(partnerSitePersonalizationApiPath(siteSlug, apiTail), {
       credentials: 'same-origin',
@@ -45,7 +44,7 @@ function HomeRail({
     return () => {
       cancelled = true
     }
-  }, [apiTail, authHeaders, captureFromResponse, ready, siteSlug])
+  }, [apiTail, authHeaders, captureFromResponse, siteSlug])
 
   if (!products.length) return null
 

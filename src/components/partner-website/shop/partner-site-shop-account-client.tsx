@@ -24,10 +24,14 @@ import {
   getPartnerShopBrowserReturnLocation,
 } from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
 import { PartnerSitePushEnableCard } from '@/components/partner-website/shop/partner-site-push-enable-card'
+import { PartnerSiteShopSavedProductsClient } from '@/components/partner-website/shop/partner-site-shop-saved-products-client'
 import { usePartnerSiteChatWidget } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { usePartnerPwaInstall } from '@/lib/partner-website/shop/partner-site-pwa-install'
-import type { PartnerSiteVisitorProfile } from '@/lib/partner-website/shop/partner-site-personalization'
+import type {
+  PartnerSitePersonalizationProduct,
+  PartnerSiteVisitorProfile,
+} from '@/lib/partner-website/shop/partner-site-personalization'
 import {
   composeDobWithYear,
   parseDobParts,
@@ -48,13 +52,6 @@ const PartnerSiteShopOrdersClient = dynamic(
   () =>
     import('@/components/partner-website/shop/partner-site-shop-orders-client').then(
       (module) => module.PartnerSiteShopOrdersClient
-    ),
-  { loading: () => <p className="pw-shop-muted">…</p> }
-)
-const PartnerSiteShopSavedProductsClient = dynamic(
-  () =>
-    import('@/components/partner-website/shop/partner-site-shop-saved-products-client').then(
-      (module) => module.PartnerSiteShopSavedProductsClient
     ),
   { loading: () => <p className="pw-shop-muted">…</p> }
 )
@@ -119,6 +116,7 @@ type Props = {
   locale: WebLocale
   initialTab?: AccountTab
   initialOrdersFilter?: string | null
+  initialSavedProducts?: PartnerSitePersonalizationProduct[]
 }
 
 export function PartnerSiteShopAccountClient({
@@ -127,6 +125,7 @@ export function PartnerSiteShopAccountClient({
   shopTitle,
   locale,
   initialTab = 'overview',
+  initialSavedProducts,
   initialOrdersFilter = null,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
@@ -536,6 +535,7 @@ export function PartnerSiteShopAccountClient({
                 siteSlug={siteSlug}
                 locale={locale}
                 mode="favorites"
+                initialProducts={initialSavedProducts}
               />
             ) : null}
 
@@ -544,6 +544,7 @@ export function PartnerSiteShopAccountClient({
                 siteSlug={siteSlug}
                 locale={locale}
                 mode="recently-viewed"
+                initialProducts={initialSavedProducts}
               />
             ) : null}
 

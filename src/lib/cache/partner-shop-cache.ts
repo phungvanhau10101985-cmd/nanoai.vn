@@ -4,6 +4,8 @@ import { redisGet, redisGetInt, redisIncr, redisSetEx } from '@/lib/cache/redis'
 export const SHOP_LIST_TTL_SEC = 60
 export const SHOP_ITEM_TTL_SEC = 120
 export const SITE_HTML_TTL_SEC = 120
+/** Extracted header/footer — busted by `bumpSiteCache` / siteVer, so a longer TTL is safe. */
+export const SITE_CHROME_TTL_SEC = 1800
 export const SITE_META_TTL_SEC = 120
 /** Pill + featured tiles are visitor-specific; short so vừa xem still updates. */
 export const LIVE_CATEGORY_BIND_TTL_SEC = 45
@@ -248,7 +250,7 @@ export async function withSiteChromeCache<T>(input: {
     const hit = await shopCacheGetJson<T>(key)
     if (hit !== null) return hit
     const value = await input.load()
-    if (value != null) await shopCacheSetJson(key, SITE_HTML_TTL_SEC, value)
+    if (value != null) await shopCacheSetJson(key, SITE_CHROME_TTL_SEC, value)
     return value
   })
 }

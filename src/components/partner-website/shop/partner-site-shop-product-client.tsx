@@ -415,13 +415,15 @@ export function PartnerSiteShopProductClient({
 
   useEffect(() => {
     if (!ready) return
-    void fetch(partnerSitePersonalizationApiPath(siteSlug, `favorites?limit=48`), {
+    void fetch(partnerSitePersonalizationApiPath(siteSlug, 'favorites?idsOnly=1'), {
       credentials: 'same-origin',
       headers: authHeaders(),
     })
       .then((res) => res.json())
-      .then((json: { products?: { inventory_id?: string }[] }) => {
-        const ids = (json.products ?? []).map((p) => p.inventory_id?.toLowerCase()).filter(Boolean)
+      .then((json: { ids?: string[]; products?: { inventory_id?: string }[] }) => {
+        const fromIds = Array.isArray(json.ids) ? json.ids : []
+        const fromProducts = (json.products ?? []).map((p) => p.inventory_id).filter(Boolean)
+        const ids = [...fromIds, ...fromProducts].map((id) => String(id).toLowerCase())
         setIsFavorite(ids.includes(product.id.toLowerCase()))
       })
       .catch(() => {})

@@ -4,6 +4,7 @@ import { PartnerSiteShopSavedProductsClient } from '@/components/partner-website
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
+import { loadSiteSavedProductsForRequest } from '@/lib/partner-website/shop/partner-site-personalization'
 
 type Props = { params: Promise<{ slug: string }> }
 
@@ -34,12 +35,18 @@ export default async function PartnerSiteWishlistPage({ params }: Props) {
   const { slug } = await params
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
+  const initialProducts = await loadSiteSavedProductsForRequest({
+    partnerId: shop.partnerId,
+    siteSlug: shop.site.siteSlug,
+    mode: 'favorites',
+  })
 
   return (
     <PartnerSiteShopSavedProductsClient
       siteSlug={shop.site.siteSlug}
       locale={shop.site.locale}
       mode="favorites"
+      initialProducts={initialProducts}
     />
   )
 }

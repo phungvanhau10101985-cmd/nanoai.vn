@@ -279,6 +279,23 @@ async function loadProductsByIds(
   return out
 }
 
+export function isPersonalizationIdsOnlyRequest(searchParams: URLSearchParams): boolean {
+  if (searchParams.get('idsOnly') === '1' || searchParams.get('countOnly') === '1') return true
+  return searchParams.get('limit') === '0'
+}
+
+export async function getSitePersonalizationInventoryIds(input: {
+  partnerId: string
+  accountKey: string
+  kind: 'favorites' | 'recently-viewed'
+}): Promise<string[]> {
+  const state = await fetchPartnerVisitorPersonalizationFromPg({
+    partnerId: input.partnerId,
+    accountKey: input.accountKey,
+  })
+  return input.kind === 'favorites' ? (state?.favorite_ids ?? []) : (state?.recently_viewed_ids ?? [])
+}
+
 export async function getSiteRecentlyViewedProducts(input: {
   partnerId: string
   siteSlug: string
@@ -286,11 +303,11 @@ export async function getSiteRecentlyViewedProducts(input: {
   limit?: number
 }): Promise<PartnerSitePersonalizationProduct[]> {
   const lim = Math.max(1, Math.min(48, Math.floor(Number(input.limit) || 8)))
-  const state = await fetchPartnerVisitorPersonalizationFromPg({
+  const ids = await getSitePersonalizationInventoryIds({
     partnerId: input.partnerId,
     accountKey: input.accountKey,
+    kind: 'recently-viewed',
   })
-  const ids = state?.recently_viewed_ids ?? []
   return (await loadProductsByIds(input.partnerId, input.siteSlug, ids)).slice(0, lim)
 }
 
@@ -301,12 +318,37 @@ export async function getSiteFavoriteProducts(input: {
   limit?: number
 }): Promise<PartnerSitePersonalizationProduct[]> {
   const lim = Math.max(1, Math.min(48, Math.floor(Number(input.limit) || 8)))
-  const state = await fetchPartnerVisitorPersonalizationFromPg({
+  const ids = await getSitePersonalizationInventoryIds({
     partnerId: input.partnerId,
     accountKey: input.accountKey,
+    kind: 'favorites',
   })
-  const ids = state?.favorite_ids ?? []
   return (await loadProductsByIds(input.partnerId, input.siteSlug, ids)).slice(0, lim)
+}
+
+/** RSC first paint for vừa xem / yêu thích — no client "…" wait. */
+export async function loadSiteSavedProductsForRequest(input: {
+  partnerId: string
+  siteSlug: string
+  mode: 'favorites' | 'recently-viewed'
+  limit?: number
+}): Promise<PartnerSitePersonalizationProduct[]> {
+  const accountKey = (await peekSiteVisitorAccountKey()).trim()
+  if (!accountKey) return []
+  if (input.mode === 'favorites') {
+    return getSiteFavoriteProducts({
+      partnerId: input.partnerId,
+      siteSlug: input.siteSlug,
+      accountKey,
+      limit: input.limit ?? 48,
+    })
+  }
+  return getSiteRecentlyViewedProducts({
+    partnerId: input.partnerId,
+    siteSlug: input.siteSlug,
+    accountKey,
+    limit: input.limit ?? 48,
+  })
 }
 
 export async function isSiteProductFavorite(input: {

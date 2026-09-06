@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { clearPartnerVisitorRecentlyViewedFromPg } from '@/lib/db/messaging-partner-visitor-personalization-pg'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
+  getSitePersonalizationInventoryIds,
   getSiteRecentlyViewedProducts,
+  isPersonalizationIdsOnlyRequest,
   resolveSiteVisitorContext,
 } from '@/lib/partner-website/shop/partner-site-personalization'
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
@@ -16,6 +18,20 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
   const offset = Math.max(0, Number(request.nextUrl.searchParams.get('offset') ?? 0) || 0)
+  const idsOnly = isPersonalizationIdsOnlyRequest(request.nextUrl.searchParams)
+  if (idsOnly) {
+    const ids = await getSitePersonalizationInventoryIds({
+      partnerId: shop.partnerId,
+      accountKey: visitor.accountKey,
+      kind: 'recently-viewed',
+    })
+    return jsonSitePersonalization(
+      request,
+      { ok: true, products: [], ids, hasMore: false, offset: 0, limit: 0, count: ids.length, total: ids.length },
+      200,
+      { sessionId: visitor.sessionId, thread: visitor.thread }
+    )
+  }
   const limit = Math.min(48, Math.max(1, Number(request.nextUrl.searchParams.get('limit') ?? 10) || 10))
   const peeked = await getSiteRecentlyViewedProducts({
     partnerId: shop.partnerId,

@@ -49,9 +49,8 @@ function homeHtmlParts(
   if (raw.length < 40) return { isolated: '', stylesFrom: '', raw: '' }
   const isolated = isolateVisualHtmlForDevice(raw, variant)
   const chromeHtml = isolated.length >= 40 ? isolated : raw
-  const ensured = ensurePartnerSiteChromeKitInHtml(chromeHtml, { device: variant })
   return {
-    isolated: ensured.length >= 40 ? ensured : chromeHtml,
+    isolated: chromeHtml,
     stylesFrom: preferredVisualHomeStyleSource(chromeHtml, raw),
     raw,
   }
@@ -70,15 +69,30 @@ export function emptyVisualHomeChromeByDevice(): VisualHomeChromeByDevice {
   }
 }
 
-function chromeAndStylesFromParts(parts: { isolated: string; stylesFrom: string; raw: string }): {
+function chromeAndStylesFromParts(
+  parts: { isolated: string; stylesFrom: string; raw: string },
+  variant: VisualDeviceVariant
+): {
   chrome: SharedChrome | null
   styles: string
 } {
   const extracted = parts.isolated
     ? fillMissingSharedChromeFloats(extractSharedChrome(parts.isolated), parts.raw)
     : null
+  if (!extracted || !hasSharedChrome(extracted)) {
+    return { chrome: null, styles: extractVisualDocumentStyles(parts.stylesFrom) }
+  }
+  const slim = [extracted.topbar, extracted.header, extracted.footer, extracted.bottomNav, extracted.floats]
+    .filter(Boolean)
+    .join('\n')
+  const ensured = slim
+    ? fillMissingSharedChromeFloats(
+        extractSharedChrome(ensurePartnerSiteChromeKitInHtml(slim, { device: variant })),
+        slim
+      )
+    : extracted
   return {
-    chrome: extracted && hasSharedChrome(extracted) ? extracted : null,
+    chrome: ensured && hasSharedChrome(ensured) ? ensured : extracted,
     styles: extractVisualDocumentStyles(parts.stylesFrom),
   }
 }
@@ -87,7 +101,7 @@ export function visualHomeChromeForDevice(
   website: VisualHomeChromeWebsite,
   variant: VisualDeviceVariant
 ): SharedChrome | null {
-  return chromeAndStylesFromParts(homeHtmlParts(website, variant)).chrome
+  return chromeAndStylesFromParts(homeHtmlParts(website, variant), variant).chrome
 }
 
 /** Live React only needs the machine currently viewing — skip parsing the other three HTML files. */
@@ -95,7 +109,7 @@ export function visualHomeChromeByDeviceFor(
   website: VisualHomeChromeWebsite,
   variant: VisualDeviceVariant
 ): VisualHomeChromeByDevice {
-  const { chrome, styles } = chromeAndStylesFromParts(homeHtmlParts(website, variant))
+  const { chrome, styles } = chromeAndStylesFromParts(homeHtmlParts(website, variant), variant)
   const out = emptyVisualHomeChromeByDevice()
   if (variant === 'laptop') return { ...out, laptop: chrome, laptopStyles: styles }
   if (variant === 'tablet') return { ...out, tablet: chrome, tabletStyles: styles }

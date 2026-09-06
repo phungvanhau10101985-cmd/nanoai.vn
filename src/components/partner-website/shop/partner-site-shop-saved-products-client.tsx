@@ -30,6 +30,7 @@ type Props = {
   siteSlug: string
   locale: WebLocale
   mode: Mode
+  initialProducts?: PartnerSitePersonalizationProduct[]
 }
 
 function toCartCard(p: PartnerSitePersonalizationProduct): PartnerAiProductCard {
@@ -43,13 +44,20 @@ function toCartCard(p: PartnerSitePersonalizationProduct): PartnerAiProductCard 
   }
 }
 
-export function PartnerSiteShopSavedProductsClient({ siteSlug, locale, mode }: Props) {
+export function PartnerSiteShopSavedProductsClient({
+  siteSlug,
+  locale,
+  mode,
+  initialProducts,
+}: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
-  const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { refreshCartCount } = usePartnerSiteShop()
-  const [products, setProducts] = useState<PartnerSitePersonalizationProduct[]>([])
-  const [loading, setLoading] = useState(true)
+  const [products, setProducts] = useState<PartnerSitePersonalizationProduct[]>(
+    () => initialProducts ?? []
+  )
+  const [loading, setLoading] = useState(initialProducts == null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [cartAdded, setCartAdded] = useState<{ name: string; imageUrl?: string | null } | null>(null)
@@ -69,10 +77,15 @@ export function PartnerSiteShopSavedProductsClient({ siteSlug, locale, mode }: P
   }, [apiTail, authHeaders, captureFromResponse, siteSlug])
 
   useEffect(() => {
-    if (!ready) return
-    setLoading(true)
-    void load().finally(() => setLoading(false))
-  }, [load, ready])
+    let cancelled = false
+    if (initialProducts == null) setLoading(true)
+    void load().finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [initialProducts, isAuthenticated, load])
 
   async function toggleFavorite(product: PartnerSitePersonalizationProduct) {
     if (busyId) return

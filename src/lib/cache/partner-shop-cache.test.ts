@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   LIVE_CATEGORY_BIND_TTL_SEC,
+  SITE_CHROME_TTL_SEC,
   liveCategoryBindCacheSuffix,
   shopCacheGetJson,
   shopCacheSetJson,
@@ -29,6 +30,7 @@ test('liveCategoryBindCacheSuffix is per visitor, not per product', () => {
   assert.notEqual(a, otherGuest)
   assert.match(a, /^bind:[0-9a-f]{16}$/)
   assert.equal(LIVE_CATEGORY_BIND_TTL_SEC, 45)
+  assert.equal(SITE_CHROME_TTL_SEC, 1800)
 })
 
 test('liveCategoryBindCacheSuffix includes tile limit', () => {

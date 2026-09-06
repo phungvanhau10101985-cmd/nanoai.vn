@@ -4,6 +4,7 @@ import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { PartnerSiteShopAccountClient } from '@/components/partner-website/shop/partner-site-shop-account-client'
+import { loadSiteSavedProductsForRequest } from '@/lib/partner-website/shop/partner-site-personalization'
 import {
   isPartnerSiteAccountTab,
   type PartnerSiteAccountTab,
@@ -73,6 +74,14 @@ export default async function PartnerSiteAccountTabPage({ params, searchParams }
 
   const sp = (await searchParams) ?? {}
   const ordersFilter = normalized === 'orders' ? sp.tab?.trim() || null : null
+  const initialSavedProducts =
+    normalized === 'wishlist' || normalized === 'recently-viewed'
+      ? await loadSiteSavedProductsForRequest({
+          partnerId: shop.partnerId,
+          siteSlug: shop.site.siteSlug,
+          mode: normalized === 'wishlist' ? 'favorites' : 'recently-viewed',
+        })
+      : undefined
 
   return (
     <PartnerSiteShopAccountClient
@@ -82,6 +91,7 @@ export default async function PartnerSiteAccountTabPage({ params, searchParams }
       locale={shop.site.locale}
       initialTab={normalized}
       initialOrdersFilter={ordersFilter}
+      initialSavedProducts={initialSavedProducts}
     />
   )
 }

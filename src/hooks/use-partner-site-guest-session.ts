@@ -195,6 +195,9 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
         setIsAuthenticated(true)
         setReady(true)
         setAuthResolved(true)
+      } else if (sessionRef.current) {
+        setIsAuthenticated(false)
+        setReady(true)
       } else if (resolveMissing) {
         setIsAuthenticated(false)
         setReady(true)
@@ -238,6 +241,9 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
       setIsAuthenticated(true)
       setReady(true)
       setAuthResolved(true)
+    } else if (sessionRef.current) {
+      setIsAuthenticated(false)
+      setReady(true)
     }
     void sharedGuestSessionBootstrap(siteSlug)
       .then((result) => {
