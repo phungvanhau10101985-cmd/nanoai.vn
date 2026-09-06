@@ -1,6 +1,7 @@
 /**
  * Vertical featured-category marquee. Only `.pw-featured-cat` — never wrap circle cats.
  * Shared by live bootstrap and Sửa nhanh. No `${` (editor template literal).
+ * Idempotent: do not remount an existing in-marquee clone (restarts CSS animation).
  */
 
 export const PW_FEATURED_MARQUEE_JS = `
@@ -11,16 +12,37 @@ function featuredSourceGrid(el){
   }
   return el.querySelector('[data-pw-grid]:not([data-pw-featured-clone]),.pw-featured-cat-grid:not([data-pw-featured-clone]),.pw-cat-grid:not([data-pw-featured-clone])');
 }
+function featuredVisibleCards(grid){
+  var visible=0,nodes=grid.querySelectorAll('[data-pw-el="card"],.pw-featured-cat-card'),i;
+  for(i=0;i<nodes.length;i++){
+    if(nodes[i].hidden||nodes[i].getAttribute('hidden')!=null)continue;
+    visible+=1;
+  }
+  return visible;
+}
+function stripFeaturedCloneEditorAttrs(root){
+  if(!root||!root.querySelectorAll)return;
+  var edits=root.querySelectorAll('[data-pw-edit],[data-pw-seed-name],[data-pw-seed-href],[data-pw-seed-src],[data-pw-grid-placeholder]');
+  for(var i=0;i<edits.length;i++){
+    edits[i].removeAttribute('data-pw-edit');
+    edits[i].removeAttribute('data-pw-seed-name');
+    edits[i].removeAttribute('data-pw-seed-href');
+    edits[i].removeAttribute('data-pw-seed-src');
+    edits[i].removeAttribute('data-pw-grid-placeholder');
+  }
+}
+function syncFeaturedMarqueeClone(grid,clone){
+  if(!grid||!clone)return;
+  clone.innerHTML=grid.innerHTML;
+  stripFeaturedCloneEditorAttrs(clone);
+}
 function bindFeaturedMarqueePause(viewport){
   if(!viewport||viewport.getAttribute('data-pw-featured-pause-bound')==='1')return;
   viewport.setAttribute('data-pw-featured-pause-bound','1');
   viewport.addEventListener('mouseenter',function(){viewport.classList.add('is-paused');});
   viewport.addEventListener('mouseleave',function(){viewport.classList.remove('is-paused');});
-  viewport.addEventListener('touchstart',function(){viewport.classList.add('is-paused');},{passive:true});
-  viewport.addEventListener('touchend',function(){viewport.classList.remove('is-paused');});
-  viewport.addEventListener('touchcancel',function(){viewport.classList.remove('is-paused');});
 }
-function ensureFeaturedMarquee(el){
+function ensureFeaturedMarquee(el,forceSync){
   if(!el||!el.classList||!el.classList.contains('pw-featured-cat'))return;
   if(el.getAttribute('data-pw-featured-categories')!=='1')return;
   var grid=featuredSourceGrid(el);
@@ -46,32 +68,34 @@ function ensureFeaturedMarquee(el){
   }else if(grid.parentNode!==marquee){
     marquee.appendChild(grid);
   }
-  var olds=marquee.querySelectorAll('[data-pw-featured-clone]');
-  for(var r=0;r<olds.length;r++)olds[r].remove();
-  var visible=0,nodes=grid.querySelectorAll('[data-pw-el="card"],.pw-featured-cat-card'),i;
-  for(i=0;i<nodes.length;i++){
-    if(nodes[i].hidden||nodes[i].getAttribute('hidden')!=null)continue;
-    visible+=1;
+  var leftovers=el.querySelectorAll('[data-pw-featured-clone]'),r;
+  for(r=0;r<leftovers.length;r++){
+    if(leftovers[r].parentNode!==marquee)leftovers[r].remove();
   }
-  if(visible<4)return;
-  var clone=grid.cloneNode(true);
+  var inMarquee=marquee.querySelectorAll('[data-pw-featured-clone]');
+  for(r=1;r<inMarquee.length;r++)inMarquee[r].remove();
+  var visible=featuredVisibleCards(grid);
+  var clone=marquee.querySelector('[data-pw-featured-clone]');
+  if(visible<4){
+    if(clone)clone.remove();
+    marquee.removeAttribute('data-pw-featured-marquee-on');
+    return;
+  }
+  if(clone){
+    if(forceSync)syncFeaturedMarqueeClone(grid,clone);
+    if(marquee.getAttribute('data-pw-featured-marquee-on')!=='1')marquee.setAttribute('data-pw-featured-marquee-on','1');
+    bindFeaturedMarqueePause(viewport);
+    return;
+  }
+  clone=grid.cloneNode(true);
   clone.removeAttribute('data-pw-grid');
   clone.removeAttribute('data-pw-el');
   clone.classList.remove('pw-featured-cat-grid');
   clone.setAttribute('data-pw-featured-clone','1');
   clone.setAttribute('aria-hidden','true');
-  var edits=clone.querySelectorAll('[data-pw-edit],[data-pw-seed-name],[data-pw-seed-href],[data-pw-seed-src],[data-pw-grid-placeholder],[data-pw-el]');
-  for(i=0;i<edits.length;i++){
-    edits[i].removeAttribute('data-pw-edit');
-    edits[i].removeAttribute('data-pw-seed-name');
-    edits[i].removeAttribute('data-pw-seed-href');
-    edits[i].removeAttribute('data-pw-seed-src');
-    edits[i].removeAttribute('data-pw-grid-placeholder');
-    if(edits[i].getAttribute('data-pw-el')==='card'||edits[i].getAttribute('data-pw-el')==='card-name'||edits[i].getAttribute('data-pw-el')==='card-media'||edits[i].getAttribute('data-pw-el')==='grid'){
-      edits[i].removeAttribute('data-pw-el');
-    }
-  }
+  stripFeaturedCloneEditorAttrs(clone);
   marquee.appendChild(clone);
+  marquee.setAttribute('data-pw-featured-marquee-on','1');
   bindFeaturedMarqueePause(viewport);
 }
 function pwEnsureFeaturedMarquees(){

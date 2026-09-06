@@ -18,7 +18,7 @@ const KIND_SET = new Set<string>(CHROME_COUNT_BADGE_KINDS)
 
 export function chromeCountBadgeKindFromHref(href: string): ChromeCountBadgeKind | null {
   const raw = href.trim()
-  if (!raw || raw.startsWith('javascript:')) return null
+  if (!raw || raw === '#' || raw.startsWith('javascript:')) return null
   let path = raw.split('?')[0]?.split('#')[0] || ''
   try {
     if (/^https?:\/\//i.test(path) || path.startsWith('//')) {
@@ -41,6 +41,10 @@ export function chromeCountBadgeKindFromAttr(kind: string, href?: string): Chrom
   const raw = kind.trim().toLowerCase()
   const mapped = raw === 'favorites-link' ? 'wishlist' : raw
   if (KIND_SET.has(mapped)) return mapped as ChromeCountBadgeKind
+  // Explicit chrome kind (categories / account / chat…) is never a count badge.
+  // Do not fall through to href — empty href + new URL('', location) on /cart
+  // used to stamp the cart count onto the hamburger.
+  if (raw) return null
   return href ? chromeCountBadgeKindFromHref(href) : null
 }
 
@@ -249,7 +253,10 @@ function pwChromeCountKind(el){
   var k=String(el.getAttribute('data-pw-chrome-btn')||'').replace(/[^a-z0-9-]/g,'');
   if(k==='favorites-link')k='wishlist';
   if(k==='cart'||k==='notifications'||k==='recently-viewed'||k==='wishlist')return k;
-  var href=String(el.getAttribute('href')||'');
+  if(k)return '';
+  if(el.getAttribute('data-pw-el')==='cat-toggle'||el.getAttribute('data-pw-cat-toggle')!=null)return '';
+  var href=String(el.getAttribute('href')||'').trim();
+  if(!href||href==='#'||href.indexOf('javascript:')===0)return '';
   try{href=new URL(href,location.href).pathname||href;}catch(errHref){}
   href=String(href).split('?')[0].split('#')[0].toLowerCase();
   if(/\\/cart\\/?$/.test(href)||/\\/account\\/cart\\/?$/.test(href))return 'cart';
@@ -276,6 +283,16 @@ function pwStampChromeCountKinds(root){
     if(!kind)continue;
     if(!el.getAttribute('data-pw-chrome-btn'))el.setAttribute('data-pw-chrome-btn',kind);
     if(!el.getAttribute('data-pw-chrome-count'))el.setAttribute('data-pw-chrome-count','1');
+  }
+}
+function pwClearNonCountChromeBadges(root){
+  var nodes=pwChromeCountHosts(root);
+  for(var i=0;i<nodes.length;i++){
+    var el=nodes[i];
+    if(pwChromeCountKind(el))continue;
+    if(el.getAttribute&&el.getAttribute('data-pw-chrome-count')==='1')el.removeAttribute('data-pw-chrome-count');
+    var stray=el.querySelector?el.querySelector('[data-pw-chrome-badge],.pw-cart-badge,.pw-shop-cart-badge'):null;
+    if(stray){stray.setAttribute('hidden','');stray.textContent='0';stray.removeAttribute('data-pw-badge-demo');}
   }
 }
 function pwEnsureChromeCountBadge(el){

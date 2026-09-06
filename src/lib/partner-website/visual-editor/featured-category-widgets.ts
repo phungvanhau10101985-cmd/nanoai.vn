@@ -72,7 +72,7 @@ export function stripFeaturedCategoryMarqueeClonesInDocument(root: ParentNode): 
   root.querySelectorAll('[data-pw-featured-clone]').forEach((el) => el.remove())
 }
 
-/** Live first paint: nhân lưới để animation 188 chạy ngay, không đợi JS. */
+/** Live first paint: nhân lưới trong marquee để animation chạy ngay, không đợi JS. */
 export function appendFeaturedMarqueeCloneHtml(inner: string): string {
   if (!inner) return inner
   const stripped = inner.replace(/<div\b[^>]*\bdata-pw-featured-clone\b[^>]*>[\s\S]*?<\/div>/gi, '')
@@ -81,7 +81,22 @@ export function appendFeaturedMarqueeCloneHtml(inner: string): string {
   if (!match) return stripped
   const cards = match[2] || ''
   const clone = `<div class="pw-featured-cat-grid" data-pw-featured-clone="1" aria-hidden="true">${cards}</div>`
-  return stripped.replace(gridRe, `${match[0]}${clone}`)
+  const pair = `${match[0]}${clone}`
+  const hasMarquee = /data-pw-featured-marquee|pw-featured-cat-marquee/.test(stripped)
+  const withClone = stripped.replace(gridRe, pair)
+  if (hasMarquee) {
+    return withClone.replace(
+      /(<div\b[^>]*(?:data-pw-featured-marquee|pw-featured-cat-marquee)[^>]*)(>)/i,
+      (_full, open: string, close: string) =>
+        /\bdata-pw-featured-marquee-on=/.test(open)
+          ? `${open}${close}`
+          : `${open} data-pw-featured-marquee-on="1"${close}`
+    )
+  }
+  return withClone.replace(
+    pair,
+    `<div class="pw-featured-cat-viewport" data-pw-featured-viewport="1"><div class="pw-featured-cat-marquee" data-pw-featured-marquee="1" data-pw-featured-marquee-on="1">${pair}</div></div>`
+  )
 }
 
 /** Lưu Sửa nhanh: trả tên/ảnh/href mẫu, bỏ chữ vừa hydrate từ API. */
@@ -141,7 +156,7 @@ export function buildVisualEditorFeaturedCategoriesHtml(input: {
   return `<section class="pw-featured-cat" ${pwRegionAttr(PW_REGION.categories)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-featured-categories="1" data-pw-grid-kind="featured-categories" data-pw-grid-cols="5" data-pw-grid-cols-mobile="2" data-pw-grid-rows="${rows}" data-limit="${limit}" style="margin:0;padding:0">
   <div class="pw-featured-cat-inner">
     <div class="pw-featured-cat-viewport" data-pw-featured-viewport="1">
-      <div class="pw-featured-cat-marquee" data-pw-featured-marquee="1">
+      <div class="pw-featured-cat-marquee" data-pw-featured-marquee="1" data-pw-featured-marquee-on="1">
         <div data-pw-grid class="pw-featured-cat-grid" ${pwElAttr(PW_EL.grid)}>${tiles}</div>
         <div class="pw-featured-cat-grid" data-pw-featured-clone="1" aria-hidden="true">${cloneTiles}</div>
       </div>

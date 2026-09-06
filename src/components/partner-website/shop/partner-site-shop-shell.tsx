@@ -115,6 +115,7 @@ import {
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { PW_EL, PW_PAGE, PW_REGION, type PwPageKind } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { PartnerSiteAccountNavLayout } from '@/components/partner-website/shop/partner-site-account-nav-layout'
+import { PartnerSiteSaleCalendarBanner } from '@/components/partner-website/shop/partner-site-sale-calendar-banner'
 import { PartnerSiteContactChannelsFab } from '@/components/partner-website/shop/partner-site-contact-channels-fab'
 import { partnerSitePageShowsAccountNav } from '@/lib/partner-website/shop/partner-site-account-nav'
 import {
@@ -827,6 +828,12 @@ function PartnerSiteShopShellInner({
       </header>
       </>
       )}
+      <PartnerSiteSaleCalendarBanner
+        siteSlug={siteSlug}
+        locale={locale}
+        pageKind={pageKind}
+        hideOnAuth={hideAccountNav}
+      />
       {pageKind === PW_PAGE.listing ? (
         <div {...{ [PW_LISTING_FILTER_SLOT_ATTR]: '1' }} className="pw-listing-filter-slot" />
       ) : null}

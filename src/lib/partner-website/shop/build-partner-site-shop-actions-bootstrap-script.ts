@@ -24,6 +24,7 @@ import {
   PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS,
   type ProductVariantModalCopy,
 } from '@/lib/partner-website/shop/partner-site-product-variant-modal'
+import { partnerSiteSaleCopy } from '@/lib/partner-website/promotions/partner-site-sale-display'
 
 function variantModalCopyKeys(c: ProductVariantModalCopy) {
   return {
@@ -191,6 +192,7 @@ var LOGIN_PATH=${JSON.stringify(loginPath)};
 var SIZE_GUIDE_PATH=${JSON.stringify(sizeGuidePath)};
 var DETAIL_PREFIX=${JSON.stringify(detailPrefix)};
 var COPY=${JSON.stringify(copy)};
+var SALE_COPY=${JSON.stringify(partnerSiteSaleCopy(locale))};
 var SESSION_KEY='app_guest_session_id';
 var SESSION_KEY_LEGACY='nanoai_guest_session_id';
 var SESSION_HDR='x-guest-session-id';
@@ -744,6 +746,7 @@ function bindShareLeadCoupon(){
 function hydrateChromeBadges(force){
   pinChromeIconBadges();
   pwStampChromeCountKinds(document);
+  pwClearNonCountChromeBadges(document);
   if(window.__pwChromeBadgeCache&&!force){
     var c=window.__pwChromeBadgeCache;
     pwSetChromeCountBadgeByKind('cart',c.cart);

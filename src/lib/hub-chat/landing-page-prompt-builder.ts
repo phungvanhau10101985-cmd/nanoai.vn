@@ -159,5 +159,5 @@ ${discoveryBlock ? `Brand brief:\n${discoveryBlock}` : ''}
 
 Project: ${projectTitle}
 
-Output: one clean brand logo on transparent or white background — vector-like, readable at small sizes in a website header. No mockup scene, no extra text besides the brand mark.`
+Output: one clean brand logo on a simple solid background so the background can be cut out to a transparent PNG — vector-like, readable at small sizes in a website header. Isolated mark only. No mockup scene, no extra text besides the brand mark.`
 }

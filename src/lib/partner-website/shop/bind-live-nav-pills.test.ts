@@ -57,7 +57,7 @@ test('bindLiveNavPillsToHtml replaces seed nav and stamps live', () => {
 })
 
 test('bindLiveCategorySurfacesInHtml paints featured tiles and stamps live', () => {
-  const source = `<section data-pw-featured-categories="1">
+  const source = `<section class="pw-featured-cat" data-pw-featured-categories="1">
     <div data-pw-grid>
       <a class="pw-featured-cat-card" data-pw-el="card" href="#"><span data-pw-el="card-media"></span><span data-pw-el="card-name">Áo sơ mi</span></a>
       <a class="pw-featured-cat-card" data-pw-el="card" href="#"><span data-pw-el="card-name">Giày tây</span></a>
@@ -71,4 +71,6 @@ test('bindLiveCategorySurfacesInHtml paints featured tiles and stamps live', () 
   assert.match(out, /hidden/)
   assert.match(out, /href="\/site\/demo-shop\/c"/)
   assert.match(out, /data-pw-featured-clone="1"/)
+  assert.match(out, /data-pw-featured-viewport="1"/)
+  assert.match(out, /data-pw-featured-marquee-on="1"/)
 })

@@ -14,14 +14,19 @@ import { uploadTryOnImagePublic, getTryOnPublicUrlFromPath } from '@/lib/storage
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { normalizeLogoAspectRatioForGemini } from '@/lib/partner-website/visual-editor/gemini-working-aspect'
+import {
+  chargedCreditsForLogoCreate,
+  requiredCreditsForLogoCreate,
+  stripLogoBackgroundToTransparentPng,
+} from '@/lib/remove-background-png'
 
 const LOGO_COSTS = { '2K': 1.5, '4K': 3 } as const
 const toTenths = (value: number) => Math.round(value * 10)
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
-const PROMPT_BASE = `Thiết kế logo thương hiệu chuyên nghiệp, độc đáo, dễ nhận diện. Phong cách hiện đại, tối giản, dễ mở rộng kích thước. Chỉ trả về ảnh kết quả, không chèn chữ.`
+const PROMPT_BASE = `Thiết kế logo thương hiệu chuyên nghiệp, độc đáo, dễ nhận diện. Phong cách hiện đại, tối giản, dễ mở rộng kích thước. Vẽ mark trên nền đặc một màu (không mockup, không khung) để hệ thống xóa nền thành PNG trong suốt. Chỉ trả về ảnh kết quả, không chèn chữ.`
 
-/** Thiết kế logo thương hiệu. 2K: 1,5 credit, 4K: 3 credit. */
+/** Thiết kế logo thương hiệu + xóa nền PNG (Gemini mask). 2K: 3 credit, 4K: 4,5 credit. */
 export async function createLogo(formData: FormData) {
   if (!formData || typeof formData.get !== 'function') {
     return { error: 'Dữ liệu không hợp lệ. Vui lòng thử lại.' }
@@ -37,6 +42,7 @@ export async function createLogo(formData: FormData) {
   }
 
   const COST = LOGO_COSTS[imageQuality]
+  const TOTAL_COST = requiredCreditsForLogoCreate(COST)
 
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
@@ -48,8 +54,8 @@ export async function createLogo(formData: FormData) {
   } catch {
     return { error: 'Không đọc được số dư credits.' }
   }
-  if (toTenths(openBalance) < toTenths(COST)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(COST)} credits, hiện có ${formatCredits(openBalance)}.` }
+  if (toTenths(openBalance) < toTenths(TOTAL_COST)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(TOTAL_COST)} credits (tạo logo + xóa nền PNG), hiện có ${formatCredits(openBalance)}.` }
   }
 
   const timestamp = Date.now()
@@ -107,14 +113,20 @@ export async function createLogo(formData: FormData) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không trả về ảnh hợp lệ.' }
     }
-    const resultBuffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
+    const resultBufferRaw = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
+    const stripped = await stripLogoBackgroundToTransparentPng({
+      apiKey,
+      userId: user.id,
+      feature: 'thiet-ke-logo-remove-bg',
+      imageBuffer: resultBufferRaw,
+    })
     const resultPath = `results/${user.id}/logo_${Date.now()}.png`
-    const { publicUrl: logoResultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
+    const { publicUrl: logoResultPublicUrl } = await uploadTryOnImagePublic(resultPath, stripped.buffer, {
       contentType: 'image/png',
       upsert: true,
     })
 
-    const d = await deductUserCredits(user.id, COST)
+    const d = await deductUserCredits(user.id, chargedCreditsForLogoCreate(COST, stripped.removed))
     if (!d.ok) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }

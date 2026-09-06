@@ -52,7 +52,7 @@ export default function ThietKeLogoClientPage() {
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const cost = imageQuality === '2K' ? 1.5 : 3
+  const cost = imageQuality === '2K' ? 3 : 4.5
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -111,7 +111,7 @@ export default function ThietKeLogoClientPage() {
           setStep('RESULT')
           toast({
             title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
-            description: tr('Logo đã được tạo.', 'Logo has been generated.', 'Logo 已生成。', 'ロゴを生成しました。', '로고가 생성되었습니다.'),
+            description: tr('Logo đã được tạo (nền trong suốt).', 'Logo has been generated (transparent background).', 'Logo 已生成（透明背景）。', 'ロゴを生成しました（背景透過）。', '로고가 생성되었습니다(투명 배경).'),
             duration: 3000,
           })
         },
@@ -150,7 +150,7 @@ export default function ThietKeLogoClientPage() {
       <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">{tr('Thiết kế logo thương hiệu', 'Brand Logo Design', '品牌 Logo 设计', 'ブランドロゴデザイン', '브랜드 로고 디자인')}</h1>
-          <p className="text-muted-foreground mt-1">{tr('Mô tả thương hiệu, tải ảnh tham khảo. AI tạo logo chuyên nghiệp. 1,5-3 credits/ảnh.', 'Describe your brand, upload references, and let AI create professional logos. 1.5-3 credits/image.', '描述品牌并上传参考图，AI 生成专业 Logo。1.5-3 credits/张。', 'ブランド説明と参考画像でAIがロゴを生成。1.5-3 credits/枚。', '브랜드 설명과 참고 이미지로 AI가 로고를 생성합니다. 1.5-3 credits/장.')}</p>
+          <p className="text-muted-foreground mt-1">{tr('Mô tả thương hiệu, tải ảnh tham khảo. AI tạo logo rồi xóa nền PNG (Gemini). 2K: 3 credits (1,5 tạo + 1,5 xóa nền); 4K: 4,5 credits.', 'Describe your brand, upload references. AI creates the logo then removes the background (Gemini). 2K: 3 credits (1.5 generate + 1.5 remove BG); 4K: 4.5 credits.', '描述品牌并上传参考图。AI 生成 Logo 后抠透明 PNG（Gemini）。2K：3 credits（1.5 生成 + 1.5 抠图）；4K：4.5 credits。', 'ブランド説明と参考画像。AIがロゴを生成し背景を透過PNGにします（Gemini）。2K：3クレジット（生成1.5＋切り抜き1.5）；4K：4.5クレジット。', '브랜드 설명과 참고 이미지. AI가 로고를 만든 뒤 배경을 투명 PNG로 지웁니다(Gemini). 2K: 3 크레딧(생성 1.5 + 배경 1.5); 4K: 4.5 크레딧.')}</p>
         </div>
 
         {step === 'UPLOAD' && (
@@ -234,7 +234,7 @@ export default function ThietKeLogoClientPage() {
                           imageQuality === '2K' ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
                         }`}
                       >
-                        2K (1,5)
+                        2K (3)
                       </button>
                       <button
                         type="button"
@@ -243,7 +243,7 @@ export default function ThietKeLogoClientPage() {
                           imageQuality === '4K' ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
                         }`}
                       >
-                        4K (3)
+                        4K (4,5)
                       </button>
                     </div>
                   </div>
@@ -254,9 +254,9 @@ export default function ThietKeLogoClientPage() {
                       disabled={!note.trim() && !image.file}
                       className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-amber-600 hover:bg-amber-700 text-white"
                     >
-                      <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo logo', 'Create logo', '生成 Logo', 'ロゴを作成', '로고 생성')} ({imageQuality === '2K' ? '1,5' : '3'} credit)
+                      <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo logo', 'Create logo', '生成 Logo', 'ロゴを作成', '로고 생성')} ({imageQuality === '2K' ? '3' : '4,5'} credit)
                     </Button>
-                    <p className="text-[10px] text-center text-muted-foreground mt-2">* {tr('Thời gian: 15–45 giây', 'Time: 15–45 seconds', '时间：15–45 秒', '時間：15–45秒', '시간: 15–45초')}</p>
+                    <p className="text-[10px] text-center text-muted-foreground mt-2">* {tr('Thời gian: 20–70 giây (gồm xóa nền PNG)', 'Time: 20–70 seconds (includes transparent PNG)', '时间：20–70 秒（含透明 PNG）', '時間：20–70秒（透過PNG含む）', '시간: 20–70초(투명 PNG 포함)')}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -270,7 +270,7 @@ export default function ThietKeLogoClientPage() {
               <ImageProcessingLoader
                 mode="logo"
                 title={tr('Đang thiết kế logo', 'Designing logo', '正在设计 Logo', 'ロゴをデザイン中', '로고 디자인 중')}
-                description={tr('AI đang tạo logo thương hiệu chuyên nghiệp', 'AI is creating professional brand logo', 'AI 正在生成专业品牌 Logo', 'AIがプロのロゴを生成中', 'AI가 전문 브랜드 로고를 생성 중입니다')}
+                description={tr('AI đang tạo logo rồi xóa nền thành PNG trong suốt', 'AI is creating the logo then cutting the background to a transparent PNG', 'AI 正在生成 Logo 并抠成透明 PNG', 'AIがロゴを生成し背景を透過PNGにします', 'AI가 로고를 만든 뒤 배경을 투명 PNG로 지웁니다')}
                 imagePreview={image.preview}
               />
             </CardContent>
@@ -281,7 +281,7 @@ export default function ThietKeLogoClientPage() {
           <Card className="border shadow-sm bg-white/80 backdrop-blur">
             <CardHeader>
               <CardTitle>{tr('Kết quả logo', 'Logo result', 'Logo 结果', 'ロゴ結果', '로고 결과')}</CardTitle>
-              <CardDescription>{tr('Logo đã được tạo.', 'Logo has been generated.', 'Logo 已生成。', 'ロゴを生成しました。', '로고가 생성되었습니다.')}</CardDescription>
+              <CardDescription>{tr('Logo PNG nền trong suốt.', 'Transparent PNG logo.', '透明背景 PNG Logo。', '背景透過PNGロゴ。', '투명 배경 PNG 로고.')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
@@ -303,7 +303,7 @@ export default function ThietKeLogoClientPage() {
                 </div>
               </div>
               <div
-                className="max-w-md mx-auto rounded-lg border overflow-hidden bg-white p-8"
+                className="max-w-md mx-auto rounded-lg border overflow-hidden p-8 bg-[linear-gradient(45deg,#eee_25%,transparent_25%,transparent_75%,#eee_75%,#eee),linear-gradient(45deg,#eee_25%,transparent_25%,transparent_75%,#eee_75%,#eee)] bg-[length:24px_24px] bg-[position:0_0,12px_12px]"
                 style={{ aspectRatio: aspectRatio.replace(':', '/') }}
               >
                 <ImagePreview src={resultUrl} alt={tr('Logo', 'Logo', 'Logo', 'ロゴ', '로고')} className="w-full h-full object-contain" printReadyAspectRatio={aspectRatio} />

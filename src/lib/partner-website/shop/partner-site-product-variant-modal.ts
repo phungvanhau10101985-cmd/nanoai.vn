@@ -152,6 +152,22 @@ export const PW_PRODUCT_VARIANT_MODAL_CSS = `
 [data-pw-variant-sku]{margin:0;font:400 11px/1.35 system-ui,sans-serif;color:#6b7280}
 [data-pw-variant-name]{margin:0;font:500 14px/1.25 system-ui,sans-serif;color:#111827;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 [data-pw-variant-price]{margin:4px 0 0;font:800 24px/1.2 system-ui,sans-serif;color:var(--pw-buy)}
+[data-pw-variant-sale]{display:flex;flex-direction:column;gap:6px;margin:6px 0 2px}
+[data-pw-variant-sale-pill]{display:inline-flex;align-items:center;gap:6px;width:fit-content;padding:4px 10px;border-radius:999px;color:#fff;font:700 11px/1.2 system-ui,sans-serif}
+[data-pw-variant-sale][data-pw-sale-phase="teaser"] [data-pw-variant-sale-pill]{background:#d97706}
+[data-pw-variant-sale][data-pw-sale-phase="active"] [data-pw-variant-sale-pill]{background:#dc2626}
+[data-pw-variant-sale-count]{display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:8px;font:600 12px/1.35 system-ui,sans-serif}
+[data-pw-variant-sale][data-pw-sale-phase="teaser"] [data-pw-variant-sale-count]{border:1px solid #fde68a;background:#fffbeb;color:#78350f}
+[data-pw-variant-sale][data-pw-sale-phase="active"] [data-pw-variant-sale-count]{border:1px solid #fecaca;background:#fef2f2;color:#7f1d1d}
+[data-pw-variant-price-label]{margin:0;font:600 11px/1.2 system-ui,sans-serif;color:#6b7280;text-transform:uppercase;letter-spacing:.04em}
+[data-pw-variant-price-row]{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 8px}
+[data-pw-variant-expected],[data-pw-variant-save-chip]{display:inline-flex;align-items:baseline;gap:4px;border-radius:999px;padding:4px 8px;font:600 11px/1.2 system-ui,sans-serif}
+[data-pw-variant-expected]{border:1px solid #a7f3d0;background:#ecfdf5;color:#065f46}
+[data-pw-variant-save-chip]{background:#fff;color:#92400e;box-shadow:inset 0 0 0 1px #fde68a}
+[data-pw-variant-sale][data-pw-sale-phase="active"] [data-pw-variant-save-chip]{color:#047857;box-shadow:inset 0 0 0 1px #a7f3d0}
+[data-pw-variant-compare]{font:600 12px/1.2 system-ui,sans-serif;color:#6b7280;text-decoration:line-through}
+[data-pw-variant-pct]{border-radius:4px;background:#ef4444;color:#fff;font:700 11px/1.2 system-ui,sans-serif;padding:2px 6px}
+[data-pw-variant-total-save]{display:block;margin-top:2px;font:600 11px/1.3 system-ui,sans-serif;color:#059669;text-align:right}
 [data-pw-variant-stock]{margin:4px 0 0;font:400 11px/1.35 system-ui,sans-serif;color:#b45309;display:flex;align-items:center;gap:4px}
 [data-pw-variant-stock][hidden]{display:none!important}
 [data-pw-variant-stock-icon]{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:999px;background:#fef3c7;color:#d97706;font-size:10px;flex-shrink:0}
@@ -177,7 +193,7 @@ export const PW_PRODUCT_VARIANT_MODAL_CSS = `
 [data-pw-variant-qty]{width:40px;text-align:center;font:600 16px/1.2 system-ui,sans-serif;color:#111827}
 [data-pw-variant-total]{display:flex;align-items:baseline;justify-content:space-between;border:1px solid #f3f4f6;background:#f9fafb;border-radius:8px;padding:8px 12px;margin-top:10px}
 [data-pw-variant-total-label]{font:600 12px/1.3 system-ui,sans-serif;color:#111827}
-[data-pw-variant-total-price]{font:700 18px/1.2 system-ui,sans-serif;color:var(--pw-buy)}
+[data-pw-variant-total-price]{display:flex;flex-direction:column;align-items:flex-end;font:700 18px/1.2 system-ui,sans-serif;color:var(--pw-buy)}
 [data-pw-variant-foot]{position:sticky;bottom:0;z-index:2;background:#fff;border-top:1px solid #e5e7eb;padding:12px;display:flex;flex-direction:row;gap:8px}
 [data-pw-variant-add],[data-pw-variant-buy]{flex:1;display:inline-flex;align-items:center;justify-content:center;padding:14px 12px;border:0;border-radius:12px;font:600 14px/1.2 system-ui,sans-serif;color:#fff;cursor:pointer}
 [data-pw-variant-add]{background:var(--pw-cart,#6b7280)}
@@ -190,6 +206,11 @@ export const PW_PRODUCT_VARIANT_MODAL_CSS = `
 [data-pw-variant-compact] [data-pw-variant-sku]{font-size:10px;margin-bottom:2px}
 [data-pw-variant-compact] [data-pw-variant-name]{margin-bottom:4px}
 [data-pw-variant-compact] [data-pw-variant-price]{font-size:20px}
+[data-pw-variant-compact] [data-pw-variant-sale]{gap:4px;margin:4px 0 0}
+[data-pw-variant-compact] [data-pw-variant-sale-pill]{font-size:10px;padding:3px 8px}
+[data-pw-variant-compact] [data-pw-variant-sale-count]{font-size:11px;padding:6px 8px}
+[data-pw-variant-compact] [data-pw-variant-price-label]{font-size:10px}
+[data-pw-variant-compact] [data-pw-variant-expected],[data-pw-variant-compact] [data-pw-variant-save-chip]{font-size:10px;padding:3px 6px}
 [data-pw-variant-compact] [data-pw-variant-stock]{font-size:10px}
 [data-pw-variant-compact] [data-pw-variant-stock-icon]{width:14px;height:14px}
 [data-pw-variant-compact] [data-pw-variant-label]{font-size:11px}
@@ -234,6 +255,66 @@ function variantMoney(n,fallback){
     try{return new Intl.NumberFormat('vi-VN').format(Math.round(amt))+'\\u00a0₫';}catch(e){return String(Math.round(amt))+' ₫';}
   }
   return String(fallback||'').trim();
+}
+function saleCopy(){return typeof SALE_COPY==='object'&&SALE_COPY?SALE_COPY:{};}
+function variantSaleFace(p){
+  if(!p)return null;
+  var list=Math.max(0,Math.round(Number(p.priceAmount)||0));
+  var site=p.siteSale||{};
+  var phase=String(site.phase||p.siteSalePhase||'');
+  var pct=Math.max(0,Math.round(Number(site.percent||p.siteSalePercent||0)||0));
+  var expected=Number(site.expectedSalePrice||p.siteSaleExpectedPrice);
+  var countdown=site.countdownTo||'';
+  var label=String(site.eventLabel||'');
+  if(phase==='teaser'&&list>0&&pct>0&&Number.isFinite(expected)&&expected>0&&expected<list){
+    return {kind:'teaser',display:list,compare:0,expected:Math.round(expected),percent:pct,savings:list-Math.round(expected),countdown:countdown,label:label};
+  }
+  if(phase!=='active')return null;
+  var sale=Number(p.salePriceAmount);
+  if(!Number.isFinite(sale)||sale<=0||list<=0||sale>=list)return null;
+  return {kind:'active',display:Math.round(sale),compare:list,expected:0,percent:pct,savings:list-Math.round(sale),countdown:countdown,label:label};
+}
+function variantFmtChip(iso){
+  if(!iso)return '';
+  var t=Date.parse(iso);if(!Number.isFinite(t))return '';
+  var d=t-Date.now();if(d<=0)return '';
+  var s=Math.floor(d/1000),days=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60),sec=s%60;
+  var hms=('0'+h).slice(-2)+':'+('0'+m).slice(-2)+':'+('0'+sec).slice(-2);
+  return days>0?days+'d '+hms:hms;
+}
+function variantSaleHtml(st){
+  var face=st.saleFace;if(!face||(face.kind!=='teaser'&&face.kind!=='active'))return '';
+  var sc=saleCopy();
+  var fallback=face.kind==='teaser'?sc.teaserFallback:sc.activeFallback;
+  var label=face.label||fallback||'';
+  var pillTpl=face.kind==='active'?sc.activePill:sc.teaserPill;
+  var pill=String(pillTpl||'').replace('{label}',label).replace('{pct}',String(face.percent));
+  var prefix=String((face.kind==='active'?sc.countdownLeft:sc.countdownStarts)||'').replace('{label}',label);
+  var count=variantFmtChip(face.countdown);
+  var price=variantMoney(face.display,st.priceHint);
+  var expected=face.kind==='teaser'&&face.expected?variantMoney(face.expected,''):'';
+  var saveAmt=variantMoney(face.savings,'');
+  var save=saveAmt?String((face.kind==='teaser'?sc.teaserSave:sc.save)||'').replace('{amount}',saveAmt):'';
+  var priceLabel=face.kind==='teaser'?sc.listPriceLabel:sc.offerPriceLabel;
+  return '<div data-pw-variant-sale data-pw-sale-phase="'+face.kind+'">'
+    +(pill?'<span data-pw-variant-sale-pill>'+(face.kind==='teaser'?'⏳ ':'🔥 ')+variantEsc(pill)+'</span>':'')
+    +(count?'<div data-pw-variant-sale-count>⏱ '+variantEsc(prefix)+' <strong data-pw-sale-hms>'+variantEsc(count)+'</strong></div>':'')
+    +(priceLabel?'<p data-pw-variant-price-label>'+variantEsc(priceLabel)+'</p>':'')
+    +'<div data-pw-variant-price-row>'
+    +(price?'<p data-pw-variant-price>'+variantEsc(price)+'</p>':'')
+    +(expected?'<span data-pw-variant-expected><span>'+variantEsc(sc.expectedPrice||'')+'</span> '+variantEsc(expected)+'</span>':'')
+    +(face.kind==='active'&&face.compare?'<span data-pw-variant-compare>'+variantEsc(variantMoney(face.compare,''))+'</span>':'')
+    +(save?'<span data-pw-variant-save-chip>'+variantEsc(save)+'</span>':'')
+    +(face.percent?'<span data-pw-variant-pct>-'+face.percent+'%</span>':'')
+    +'</div></div>';
+}
+function variantTotalSaveHtml(st){
+  var face=st.saleFace;if(!face||!(face.savings>0))return '';
+  var sc=saleCopy();
+  var amt=variantMoney(face.savings*st.qty,'');
+  if(!amt)return '';
+  var text=String((face.kind==='teaser'?sc.teaserSave:sc.save)||'').replace('{amount}',amt);
+  return text?'<span data-pw-variant-total-save>'+variantEsc(text)+'</span>':'';
 }
 function variantImg(url){
   url=String(url||'').trim();
@@ -379,7 +460,7 @@ function variantQtyWide(st){
     +'<span data-pw-variant-qty>'+st.qty+'</span>'
     +'<button type="button" data-pw-variant-step data-delta="1"'+plusDis+'>+</button>'
     +'</div>'
-    +'<div data-pw-variant-total><span data-pw-variant-total-label>'+variantEsc(String(COPY.variantLineTotal||'').replace('{n}',String(st.qty)))+'</span><span data-pw-variant-total-price>'+variantEsc(st.lineLabel)+'</span></div>'
+    +'<div data-pw-variant-total><span data-pw-variant-total-label>'+variantEsc(String(COPY.variantLineTotal||'').replace('{n}',String(st.qty)))+'</span><span data-pw-variant-total-price>'+variantEsc(st.lineLabel)+variantTotalSaveHtml(st)+'</span></div>'
     +'</div>';
 }
 function variantQtyCompact(st){
@@ -393,7 +474,7 @@ function variantQtyCompact(st){
     +'<span data-pw-variant-qty>'+st.qty+'</span>'
     +'<button type="button" data-pw-variant-step data-delta="1"'+plusDis+'>+</button>'
     +'</div>'+remain+'</div>'
-    +'<div data-pw-variant-total><span data-pw-variant-total-label>'+variantEsc(String(COPY.variantLineTotal||'').replace('{n}',String(st.qty)))+'</span><span data-pw-variant-total-price>'+variantEsc(st.lineLabel)+'</span></div>'
+    +'<div data-pw-variant-total><span data-pw-variant-total-label>'+variantEsc(String(COPY.variantLineTotal||'').replace('{n}',String(st.qty)))+'</span><span data-pw-variant-total-price>'+variantEsc(st.lineLabel)+variantTotalSaveHtml(st)+'</span></div>'
     +'</div>';
 }
 function paintVariantModal(){
@@ -405,7 +486,8 @@ function paintVariantModal(){
   st.lineLabel=unit>0?variantMoney(unit*st.qty,st.priceHint):st.priceHint;
   var skuFull=st.sku?String(COPY.variantSku||'').replace('{sku}',st.sku):'';
   var skuShort=st.sku?String(COPY.variantSkuShort||'').replace('{sku}',st.sku):'';
-  var price=unit>0?variantMoney(unit,st.priceHint):st.priceHint;
+  var saleBlock=variantSaleHtml(st);
+  var price=saleBlock?'':(unit>0?variantMoney(unit,st.priceHint):st.priceHint);
   var title=root.querySelector('#pw-variant-title');
   if(title)title.textContent=COPY.variantTitle||COPY.productDetail||'';
   var closeBtn=root.querySelector('[data-pw-variant-close]');
@@ -417,6 +499,7 @@ function paintVariantModal(){
       +'<div data-pw-variant-info>'
       +(skuFull?'<p data-pw-variant-sku>'+variantEsc(skuFull)+'</p>':'')
       +'<p data-pw-variant-name>'+variantEsc(st.name)+'</p>'
+      +saleBlock
       +(price?'<p data-pw-variant-price>'+variantEsc(price)+'</p>':'')
       +variantStockHtml(st,false)
       +variantColorHtml(st,false)
@@ -430,6 +513,7 @@ function paintVariantModal(){
       +'<div data-pw-variant-info>'
       +(skuShort?'<p data-pw-variant-sku>'+variantEsc(skuShort)+'</p>':'')
       +'<p data-pw-variant-name>'+variantEsc(st.name)+'</p>'
+      +saleBlock
       +(price?'<p data-pw-variant-price>'+variantEsc(price)+'</p>':'')
       +variantStockHtml(st,true)
       +'</div></div>'
@@ -440,6 +524,14 @@ function paintVariantModal(){
   if(add){add.textContent=COPY.variantAdd||COPY.addToCart;add.disabled=!!st.busy;}
   if(buy){buy.textContent=COPY.variantBuy||COPY.buyNow;buy.disabled=!!st.busy;}
   root.setAttribute('data-pw-variant-face',variantModalFace());
+}
+function tickVariantSale(){
+  var root=document.getElementById('pw-variant-modal');
+  if(!root||root.hasAttribute('hidden'))return;
+  var st=window.__pwVariantState;
+  if(!st||!st.saleFace||!st.saleFace.countdown)return;
+  var el=root.querySelector('[data-pw-variant-sale-count] [data-pw-sale-hms]');
+  if(el)el.textContent=variantFmtChip(st.saleFace.countdown);
 }
 function confirmVariantModal(buyNow){
   var st=window.__pwVariantState;if(!st||st.busy)return;
@@ -493,12 +585,14 @@ function openPdpVariantModal(seed,action){
     sizeGuideHref:typeof SIZE_GUIDE_PATH==='string'?SIZE_GUIDE_PATH:'',
     busy:true,
     action:action||'both',
-    lineLabel:seed.price_hint||''
+    lineLabel:seed.price_hint||'',
+    saleFace:null
   };
   root.setAttribute('data-pw-prev-overflow',document.body.style.overflow||'');
   document.body.style.overflow='hidden';
   root.removeAttribute('hidden');
   paintVariantModal();
+  if(!window.__pwVariantSaleTimer)window.__pwVariantSaleTimer=setInterval(tickVariantSale,1000);
   var optUrl=PRODUCT_API_PREFIX+encodeURIComponent(id)+'/options';
   Promise.all([
     apiFetch(PRODUCT_API_PREFIX+encodeURIComponent(id)),
@@ -513,7 +607,9 @@ function openPdpVariantModal(seed,action){
       st.imageUrl=p.imageUrl||st.imageUrl;
       st.productUrl=p.productUrl||st.productUrl;
       st.priceHint=p.priceHint||st.priceHint;
-      st.unitPrice=Number(p.salePriceAmount||p.priceAmount||0)||0;
+      st.saleFace=variantSaleFace(p);
+      if(st.saleFace)st.unitPrice=st.saleFace.display;
+      else st.unitPrice=Number(p.salePriceAmount||p.priceAmount||0)||0;
       st.stockQty=Math.max(0,Math.round(Number(p.stockQty)||0));
       st.showStock=st.stockQty>=1&&st.stockQty<=5;
       st.maxQty=st.stockQty>0?Math.min(99,st.stockQty):99;

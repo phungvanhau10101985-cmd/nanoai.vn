@@ -11,7 +11,14 @@ import {
   formatPartnerShopMoneyVnd,
   isPartnerFlashSaleActive,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
-import { resolvePartnerProductSaleFace } from '@/lib/partner-website/promotions/partner-site-sale-display'
+import {
+  formatPartnerSaleCountdownCompact,
+  formatPartnerSaleMoney,
+  partnerSiteSaleCopy,
+  partnerSiteSalePillText,
+  resolvePartnerProductSaleFace,
+  type PartnerSiteSalePricing,
+} from '@/lib/partner-website/promotions/partner-site-sale-display'
 import {
   PRODUCT_VARIANT_MODAL_COPY,
   resolveVariantModalFace,
@@ -32,6 +39,11 @@ export type PartnerSiteVariantModalProduct = {
   salePriceAmount?: number | null
   saleStartsAt?: string | null
   saleEndsAt?: string | null
+  isClearance?: boolean
+  siteSalePhase?: 'off' | 'teaser' | 'active' | null
+  siteSalePercent?: number | null
+  siteSaleExpectedPrice?: number | null
+  siteSale?: PartnerSiteSalePricing | null
   stockQty?: number | null
   colors?: PartnerSiteVariantModalColor[] | null
   sizes?: string[] | null
@@ -139,6 +151,7 @@ export function PartnerSiteProductVariantModal({
   const [colorIndex, setColorIndex] = useState(0)
   const [size, setSize] = useState('')
   const [qty, setQty] = useState(1)
+  const [saleCount, setSaleCount] = useState('')
 
   useEffect(() => {
     setReady(true)
@@ -196,6 +209,21 @@ export function PartnerSiteProductVariantModal({
   const showStock = variantModalShowsLowStock(product.stockQty)
   const stockQty = Math.max(0, Math.round(Number(product.stockQty) || 0))
   const saleFace = resolvePartnerProductSaleFace(product)
+  const saleCopy = partnerSiteSaleCopy(locale)
+  const siteSaleKind = product.siteSale?.phase ?? (product.siteSalePhase === 'teaser' || product.siteSalePhase === 'active' ? product.siteSalePhase : null)
+  const showSiteSale = (siteSaleKind === 'teaser' || siteSaleKind === 'active') && saleFace.kind === siteSaleKind
+
+  useEffect(() => {
+    if (!open || !showSiteSale || !saleFace.countdownTo) {
+      setSaleCount('')
+      return
+    }
+    const tick = () => setSaleCount(formatPartnerSaleCountdownCompact(saleFace.countdownTo))
+    tick()
+    const id = window.setInterval(tick, 1000)
+    return () => window.clearInterval(id)
+  }, [open, showSiteSale, saleFace.countdownTo])
+  const pillText = showSiteSale ? partnerSiteSalePillText(saleFace, locale) : null
   const flashActive =
     saleFace.kind === 'active' ||
     isPartnerFlashSaleActive({
@@ -216,6 +244,14 @@ export function PartnerSiteProductVariantModal({
     unitPrice != null ? formatPartnerShopMoneyVnd(unitPrice) : String(product.priceHint || '').trim()
   const lineLabel =
     unitPrice != null ? formatPartnerShopMoneyVnd(unitPrice * effectiveQty) : priceLabel
+  const lineSavings = showSiteSale && saleFace.savings > 0 ? saleFace.savings * effectiveQty : 0
+  const lineSaveText =
+    lineSavings > 0
+      ? (saleFace.kind === 'teaser' ? saleCopy.teaserSave : saleCopy.save).replace(
+          '{amount}',
+          formatPartnerSaleMoney(lineSavings, locale)
+        )
+      : ''
   const selectedColor = colorIndex >= 0 ? colors[colorIndex] : null
   const displayImage = shopPdpPageSrc(selectedColor?.img || product.imageUrl)
   const sku = String(product.sku || '').trim()
@@ -246,6 +282,62 @@ export function PartnerSiteProductVariantModal({
         </a>
       )
     ) : null
+
+  const priceBlock = showSiteSale ? (
+    <div data-pw-variant-sale data-pw-sale-phase={saleFace.kind || undefined}>
+      {pillText ? (
+        <span data-pw-variant-sale-pill>
+          {saleFace.kind === 'teaser' ? '⏳ ' : '🔥 '}
+          {pillText}
+        </span>
+      ) : null}
+      {saleCount ? (
+        <div data-pw-variant-sale-count>
+          ⏱{' '}
+          {(saleFace.kind === 'teaser' ? saleCopy.countdownStarts : saleCopy.countdownLeft).replace(
+            '{label}',
+            saleFace.eventLabel || (saleFace.kind === 'teaser' ? saleCopy.teaserFallback : saleCopy.activeFallback)
+          )}{' '}
+          <strong data-pw-sale-hms>{saleCount}</strong>
+        </div>
+      ) : null}
+      <p data-pw-variant-price-label>
+        {saleFace.kind === 'teaser' ? saleCopy.listPriceLabel : saleCopy.offerPriceLabel}
+      </p>
+      <div data-pw-variant-price-row>
+        {priceLabel ? <p data-pw-variant-price>{priceLabel}</p> : null}
+        {saleFace.kind === 'teaser' && saleFace.expectedPrice != null ? (
+          <span data-pw-variant-expected>
+            <span>{saleCopy.expectedPrice}</span> {formatPartnerSaleMoney(saleFace.expectedPrice, locale)}
+          </span>
+        ) : null}
+        {saleFace.kind === 'active' && saleFace.comparePrice != null ? (
+          <span data-pw-variant-compare>{formatPartnerSaleMoney(saleFace.comparePrice, locale)}</span>
+        ) : null}
+        {saleFace.savings > 0 ? (
+          <span data-pw-variant-save-chip>
+            {(saleFace.kind === 'teaser' ? saleCopy.teaserSave : saleCopy.save).replace(
+              '{amount}',
+              formatPartnerSaleMoney(saleFace.savings, locale)
+            )}
+          </span>
+        ) : null}
+        {saleFace.percent > 0 ? <span data-pw-variant-pct>-{saleFace.percent}%</span> : null}
+      </div>
+    </div>
+  ) : priceLabel ? (
+    <p data-pw-variant-price>{priceLabel}</p>
+  ) : null
+
+  const lineTotal = (
+    <div data-pw-variant-total>
+      <span data-pw-variant-total-label>{copy.lineTotal.replace('{n}', String(effectiveQty))}</span>
+      <span data-pw-variant-total-price>
+        {lineLabel}
+        {lineSaveText ? <span data-pw-variant-total-save>{lineSaveText}</span> : null}
+      </span>
+    </div>
+  )
 
   const colorSection = colors.length ? (
     <div data-pw-variant-section>
@@ -298,10 +390,7 @@ export function PartnerSiteProductVariantModal({
           +
         </button>
       </div>
-      <div data-pw-variant-total>
-        <span data-pw-variant-total-label>{copy.lineTotal.replace('{n}', String(effectiveQty))}</span>
-        <span data-pw-variant-total-price>{lineLabel}</span>
-      </div>
+      {lineTotal}
     </div>
   )
 
@@ -334,10 +423,7 @@ export function PartnerSiteProductVariantModal({
           </span>
         ) : null}
       </div>
-      <div data-pw-variant-total>
-        <span data-pw-variant-total-label>{copy.lineTotal.replace('{n}', String(effectiveQty))}</span>
-        <span data-pw-variant-total-price>{lineLabel}</span>
-      </div>
+      {lineTotal}
     </div>
   )
 
@@ -369,7 +455,7 @@ export function PartnerSiteProductVariantModal({
             <div data-pw-variant-info>
               {sku ? <p data-pw-variant-sku>{copy.sku.replace('{sku}', sku)}</p> : null}
               <p data-pw-variant-name>{name}</p>
-              {priceLabel ? <p data-pw-variant-price>{priceLabel}</p> : null}
+              {priceBlock}
               {showStock ? (
                 <p data-pw-variant-stock>
                   <span data-pw-variant-stock-icon aria-hidden>
@@ -391,7 +477,7 @@ export function PartnerSiteProductVariantModal({
               <div data-pw-variant-info>
                 {sku ? <p data-pw-variant-sku>{copy.skuShort.replace('{sku}', sku)}</p> : null}
                 <p data-pw-variant-name>{name}</p>
-                {priceLabel ? <p data-pw-variant-price>{priceLabel}</p> : null}
+                {priceBlock}
                 {showStock ? (
                   <p data-pw-variant-stock>
                     <span data-pw-variant-stock-icon aria-hidden>

@@ -65,10 +65,17 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('[data-pw-featured-categories]'), true)
   assert.equal(once.includes('.pw-featured-cat-card'), true)
   assert.equal(once.includes('pw-featured-cat-marquee-vertical'), true)
-  assert.equal(once.includes('translateY(-50%)'), true)
+  assert.equal(once.includes('translate3d(0,-50%,0)'), true)
   assert.equal(once.includes('pw-featured-cat-tile-shine'), false)
   assert.equal(once.includes('data-pw-featured-clone'), true)
   assert.equal(once.includes('html .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card-name"]'), true)
+  assert.equal(
+    once.includes(
+      'html .pw-featured-cat[data-pw-featured-categories] [data-pw-grid],\nhtml .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-clone]{\n  display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important'
+    ),
+    true
+  )
+  assert.equal(once.includes('data-pw-featured-marquee-on="1"'), true)
   assert.equal(once.includes('left:38%!important'), true)
   assert.equal(once.includes('{display:none!important}'), true)
   assert.equal(once.includes('.pw-header-actions [data-pw-chrome-kit="1"][data-pw-chrome-style="icon-label-below"][data-pw-hidden="1"]'), true)

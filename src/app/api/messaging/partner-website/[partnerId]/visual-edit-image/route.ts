@@ -5,7 +5,7 @@ import { runStudioImagePipeline } from '@/lib/hub-agent/studio-image-pipeline'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 import { normalizeLogoAspectRatioForGemini } from '@/lib/partner-website/visual-editor/gemini-working-aspect'
 
-export const maxDuration = 120
+export const maxDuration = 180
 
 export async function POST(
   req: NextRequest,

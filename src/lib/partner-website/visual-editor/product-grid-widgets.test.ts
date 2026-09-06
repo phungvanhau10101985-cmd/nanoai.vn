@@ -106,7 +106,9 @@ test('stamps featured category tiles for personalization', () => {
   assert.match(html, /data-limit="16"/)
   assert.match(html, /data-pw-featured-viewport="1"/)
   assert.match(html, /data-pw-featured-marquee="1"/)
+  assert.match(html, /data-pw-featured-marquee-on="1"/)
   assert.match(html, /data-pw-featured-clone="1"/)
+  assert.match(html, /data-pw-grid-cols-mobile="2"/)
   assert.match(html, /Xem tất cả danh mục/)
   assert.match(html, /pw-featured-cat-all-icon/)
   assert.match(html, /pw-featured-cat-media/)
@@ -140,9 +142,13 @@ test('append featured marquee clone duplicates the painted grid', () => {
   const inner = '<div data-pw-grid><a data-pw-el="card">A</a></div>'
   const next = appendFeaturedMarqueeCloneHtml(inner)
   assert.match(next, /data-pw-featured-clone="1"/)
+  assert.match(next, /data-pw-featured-viewport="1"/)
+  assert.match(next, /data-pw-featured-marquee="1"/)
+  assert.match(next, /data-pw-featured-marquee-on="1"/)
   assert.equal((next.match(/data-pw-el="card"/g) || []).length, 2)
   const twice = appendFeaturedMarqueeCloneHtml(next)
   assert.equal((twice.match(/data-pw-featured-clone/g) || []).length, 1)
+  assert.equal((twice.match(/data-pw-featured-viewport/g) || []).length, 1)
 })
 
 test('save strips featured marquee clones', () => {

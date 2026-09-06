@@ -41,32 +41,53 @@ export type PartnerProductSaleFace = {
   eventLabel: string | null
 }
 
-export const PARTNER_SITE_SALE_COPY: Record<
-  WebLocale,
-  {
-    teaserBanner: string
-    activeBanner: string
-    daysLeft: string
-    expectedPrice: string
-    expectedSave: string
-    save: string
-    startsAfter: string
-    remaining: string
-    teaserCartHint: string
-    ended: string
-  }
-> = {
+export type PartnerSiteSaleCopy = {
+  teaserBanner: string
+  activeBanner: string
+  daysLeft: string
+  expectedPrice: string
+  expectedSave: string
+  teaserSave: string
+  save: string
+  startsAfter: string
+  remaining: string
+  countdownStarts: string
+  countdownLeft: string
+  teaserCartHint: string
+  ended: string
+  teaserPill: string
+  activePill: string
+  teaserFallback: string
+  activeFallback: string
+  listPriceLabel: string
+  offerPriceLabel: string
+  close: string
+  program: string
+}
+
+export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
   vi: {
     teaserBanner: '{label} sắp diễn ra — giảm {pct}% trong ngày sale',
     activeBanner: '{label} đang diễn ra — giảm {pct}% toàn website',
     daysLeft: '{n} ngày nữa',
     expectedPrice: 'Giá sale dự kiến',
     expectedSave: 'Sắp giảm {pct}% — tiết kiệm ~{amount}',
+    teaserSave: 'Tiết kiệm dự kiến ~{amount}',
     save: 'Tiết kiệm {amount}',
     startsAfter: 'bắt đầu sau',
     remaining: 'còn',
+    countdownStarts: '{label} bắt đầu sau',
+    countdownLeft: '{label} — còn',
     teaserCartHint: 'Tiết kiệm dự kiến khi sale {label} (-{pct}%)',
     ended: 'Đã kết thúc',
+    teaserPill: '{label} — giảm {pct}% trong ngày sale',
+    activePill: '{label} — giảm {pct}%',
+    teaserFallback: 'Sắp sale',
+    activeFallback: 'Sale ngày trùng tháng',
+    listPriceLabel: 'Giá gốc',
+    offerPriceLabel: 'Giá ưu đãi',
+    close: 'Đóng',
+    program: 'Chương trình sale',
   },
   en: {
     teaserBanner: '{label} is coming — {pct}% off on sale day',
@@ -74,11 +95,22 @@ export const PARTNER_SITE_SALE_COPY: Record<
     daysLeft: '{n} days left',
     expectedPrice: 'Expected sale price',
     expectedSave: 'Coming {pct}% off — save ~{amount}',
+    teaserSave: 'Expected savings ~{amount}',
     save: 'Save {amount}',
     startsAfter: 'starts in',
     remaining: 'left',
+    countdownStarts: '{label} starts in',
+    countdownLeft: '{label} —',
     teaserCartHint: 'Expected savings when {label} starts (-{pct}%)',
     ended: 'Ended',
+    teaserPill: '{label} — {pct}% off on sale day',
+    activePill: '{label} — {pct}% off',
+    teaserFallback: 'Sale coming',
+    activeFallback: 'Same-day sale',
+    listPriceLabel: 'List price',
+    offerPriceLabel: 'Sale price',
+    close: 'Close',
+    program: 'Site sale',
   },
   zh: {
     teaserBanner: '{label}即将开始 — 活动日全站减{pct}%',
@@ -86,11 +118,22 @@ export const PARTNER_SITE_SALE_COPY: Record<
     daysLeft: '还有{n}天',
     expectedPrice: '预计促销价',
     expectedSave: '即将减{pct}% — 约省{amount}',
+    teaserSave: '预计节省 ~{amount}',
     save: '节省 {amount}',
     startsAfter: '开始倒计时',
     remaining: '剩余',
+    countdownStarts: '{label}开始倒计时',
+    countdownLeft: '{label} — 剩余',
     teaserCartHint: '{label}开始后预计节省 (-{pct}%)',
     ended: '已结束',
+    teaserPill: '{label} — 活动日减{pct}%',
+    activePill: '{label} — 减{pct}%',
+    teaserFallback: '即将促销',
+    activeFallback: '同日促销',
+    listPriceLabel: '原价',
+    offerPriceLabel: '优惠价',
+    close: '关闭',
+    program: '全站促销',
   },
   ja: {
     teaserBanner: '{label}まもなく開催 — 当日{pct}%オフ',
@@ -98,11 +141,22 @@ export const PARTNER_SITE_SALE_COPY: Record<
     daysLeft: 'あと{n}日',
     expectedPrice: '予定セール価格',
     expectedSave: 'まもなく{pct}%オフ — 約{amount}お得',
+    teaserSave: '予定のお得額 ~{amount}',
     save: '{amount} お得',
     startsAfter: '開始まで',
     remaining: '残り',
+    countdownStarts: '{label}開始まで',
+    countdownLeft: '{label} — 残り',
     teaserCartHint: '{label}開始時の予定節約額 (-{pct}%)',
     ended: '終了しました',
+    teaserPill: '{label} — 当日{pct}%オフ',
+    activePill: '{label} — {pct}%オフ',
+    teaserFallback: 'まもなくセール',
+    activeFallback: '同日セール',
+    listPriceLabel: '定価',
+    offerPriceLabel: 'セール価格',
+    close: '閉じる',
+    program: 'サイトセール',
   },
   ko: {
     teaserBanner: '{label} 곧 시작 — 세일 당일 {pct}% 할인',
@@ -110,11 +164,22 @@ export const PARTNER_SITE_SALE_COPY: Record<
     daysLeft: '{n}일 남음',
     expectedPrice: '예정 세일가',
     expectedSave: '곧 {pct}% 할인 — 약 {amount} 절약',
+    teaserSave: '예상 절약 ~{amount}',
     save: '{amount} 절약',
     startsAfter: '시작까지',
     remaining: '남음',
+    countdownStarts: '{label} 시작까지',
+    countdownLeft: '{label} — 남은 시간',
     teaserCartHint: '{label} 시작 시 예상 절약 (-{pct}%)',
     ended: '종료됨',
+    teaserPill: '{label} — 세일 당일 {pct}% 할인',
+    activePill: '{label} — {pct}% 할인',
+    teaserFallback: '세일 예정',
+    activeFallback: '동일 날짜 세일',
+    listPriceLabel: '정가',
+    offerPriceLabel: '할인가',
+    close: '닫기',
+    program: '사이트 세일',
   },
 }
 
@@ -302,6 +367,35 @@ export function partnerSiteSaleBannerText(state: PartnerSaleCalendarState, local
   return template.replace('{label}', state.eventLabel).replace('{pct}', String(state.discountPercent))
 }
 
+const SALE_BANNER_PAGES = new Set(['listing', 'product', 'cart', 'account', 'info'])
+
+/** Thanh thông báo dưới head — trang chủ / landing dùng banner 21:9, không dùng strip này. */
+export function partnerSiteSaleBannerShowsOnPage(page: string | null | undefined): boolean {
+  return SALE_BANNER_PAGES.has(String(page || '').trim().toLowerCase())
+}
+
+export function partnerSiteSaleBannerStorageKey(state: {
+  eventDate?: string | null
+  phase?: string | null
+}): string {
+  const date = String(state.eventDate || 'none').slice(0, 10)
+  const phase = String(state.phase || 'off')
+  return `pw_site_sale_banner_${date}_${phase}`
+}
+
+export function partnerSiteSalePillText(
+  face: Pick<PartnerProductSaleFace, 'kind' | 'percent' | 'eventLabel'>,
+  locale: WebLocale
+): string | null {
+  if (face.kind !== 'teaser' && face.kind !== 'active') return null
+  if (!(face.percent > 0)) return null
+  const copy = partnerSiteSaleCopy(locale)
+  const label =
+    String(face.eventLabel || '').trim() || (face.kind === 'teaser' ? copy.teaserFallback : copy.activeFallback)
+  const tpl = face.kind === 'active' ? copy.activePill : copy.teaserPill
+  return tpl.replace('{label}', label).replace('{pct}', String(face.percent))
+}
+
 export function formatPartnerSaleMoney(amount: number, locale: WebLocale) {
   try {
     return new Intl.NumberFormat(locale === 'vi' ? 'vi-VN' : locale, {
@@ -330,6 +424,14 @@ export const PW_SITE_SALE_CARD_CSS = [
   '.pw-pdp-sale-pill{display:inline-flex;align-items:center;gap:6px;margin:0 0 8px;padding:4px 10px;border-radius:999px;color:#fff;font:700 12px/1.2 system-ui,sans-serif}',
   '.pw-pdp-sale-pill-teaser{background:#d97706}',
   '.pw-pdp-sale-pill-active{background:#dc2626}',
+  '[data-pw-sale-calendar-banner]{position:relative;z-index:2;display:block;width:100%;box-sizing:border-box;padding:8px 40px 8px 12px;border-bottom:1px solid #fde68a;font:400 13px/1.4 system-ui,sans-serif}',
+  '[data-pw-sale-calendar-banner][data-pw-sale-phase="teaser"]{background:linear-gradient(90deg,#fffbeb,#fff7ed);color:#78350f;border-color:#fde68a}',
+  '[data-pw-sale-calendar-banner][data-pw-sale-phase="active"]{background:linear-gradient(90deg,#ffedd5,#fef2f2);color:#7c2d12;border-color:#fdba74}',
+  '[data-pw-sale-calendar-banner] [data-pw-sale-title]{margin:0;font:700 13px/1.35 system-ui,sans-serif}',
+  '[data-pw-sale-calendar-banner] [data-pw-sale-msg]{margin:2px 0 0;font-size:12px;opacity:.92}',
+  '[data-pw-sale-calendar-banner] [data-pw-sale-count]{margin:4px 0 0;display:block;font:600 12px/1.3 system-ui,sans-serif}',
+  '[data-pw-sale-calendar-banner] [data-pw-sale-close]{position:absolute;right:6px;top:6px;width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:inherit;opacity:.7;cursor:pointer;font:600 18px/1 system-ui,sans-serif}',
+  '[data-pw-sale-calendar-banner] [data-pw-sale-close]:hover{background:rgba(255,255,255,.55);opacity:1}',
 ].join('')
 
 export const PW_SITE_SALE_VIEW_JS = `function siteSaleBadge(p,pct){

@@ -8,6 +8,8 @@ import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { FeatureSeoSection } from '@/components/feature-seo-section'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 
+export const maxDuration = 180
+
 const seo = getFeatureSeo('thiet-ke-logo')
 
 export const metadata: Metadata = buildMetadata({

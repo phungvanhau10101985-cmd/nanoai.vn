@@ -7,8 +7,10 @@ import {
 import {
   applyPartnerSiteSaleToShopProduct,
   buildPartnerSiteSalePricing,
+  partnerSiteSaleBannerShowsOnPage,
   partnerSiteSaleBannerText,
   partnerSiteSaleDateBadgeLabel,
+  partnerSiteSalePillText,
   resolvePartnerProductSaleFace,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
 
@@ -89,4 +91,13 @@ test('banner copy follows 188 teaser and active wording', () => {
   })
   assert.match(String(partnerSiteSaleBannerText(teaser, 'vi')), /sắp diễn ra/)
   assert.match(String(partnerSiteSaleBannerText(active, 'vi')), /đang diễn ra/)
+  assert.equal(partnerSiteSaleBannerShowsOnPage('home'), false)
+  assert.equal(partnerSiteSaleBannerShowsOnPage('landing'), false)
+  assert.equal(partnerSiteSaleBannerShowsOnPage('listing'), true)
+  assert.equal(partnerSiteSaleBannerShowsOnPage('product'), true)
+  assert.equal(partnerSiteSaleBannerShowsOnPage('cart'), true)
+  const face = resolvePartnerProductSaleFace(
+    applyPartnerSiteSaleToShopProduct({ priceAmount: 1_000_000, salePriceAmount: null }, teaser)
+  )
+  assert.match(String(partnerSiteSalePillText(face, 'vi')), /giảm 6%/)
 })

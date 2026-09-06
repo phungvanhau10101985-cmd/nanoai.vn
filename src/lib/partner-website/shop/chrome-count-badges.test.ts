@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import vm from 'node:vm'
 import {
   chromeCountBadgeKindFromAttr,
   chromeCountBadgeKindFromHref,
+  chromeCountBadgeKindFromHtmlSnippet,
   chromeCountBadgeKindFromLabel,
   copyMissingChromeCountBadgeWidgets,
   DEMO_CHROME_COUNT_BADGES,
@@ -22,6 +24,25 @@ test('chrome count badge infers kind from shop routes', () => {
   assert.equal(chromeCountBadgeKindFromHref('/products'), null)
 })
 
+test('category / account chrome never inherit a cart count from the page URL', () => {
+  assert.equal(chromeCountBadgeKindFromAttr('categories'), null)
+  assert.equal(chromeCountBadgeKindFromAttr('categories', '/site/x/cart'), null)
+  assert.equal(chromeCountBadgeKindFromAttr('account', '/cart'), null)
+  assert.equal(chromeCountBadgeKindFromAttr('chat', '/site/x/cart'), null)
+  assert.equal(chromeCountBadgeKindFromHref(''), null)
+  assert.equal(chromeCountBadgeKindFromHref('#'), null)
+  assert.equal(
+    chromeCountBadgeKindFromHtmlSnippet(
+      '<button class="pw-cat-btn" data-pw-chrome-btn="categories" data-pw-el="cat-toggle" data-pw-cat-toggle="1">Danh mục</button>'
+    ),
+    null
+  )
+  assert.match(PW_CHROME_COUNT_BADGE_RUNTIME_JS, /if\(k\)return ''/)
+  assert.match(PW_CHROME_COUNT_BADGE_RUNTIME_JS, /getAttribute\('data-pw-el'\)==='cat-toggle'/)
+  assert.match(PW_CHROME_COUNT_BADGE_RUNTIME_JS, /href==='#'\|\|href.indexOf\('javascript:'\)===0/)
+  assert.match(PW_CHROME_COUNT_BADGE_RUNTIME_JS, /pwClearNonCountChromeBadges/)
+})
+
 test('chrome count badge maps widget attrs and formats counts', () => {
   assert.equal(chromeCountBadgeKindFromAttr('favorites-link'), 'wishlist')
   assert.equal(chromeCountBadgeKindFromAttr('cart'), 'cart')
@@ -37,6 +58,27 @@ test('chrome count badge maps widget attrs and formats counts', () => {
   assert.equal(DEMO_CHROME_COUNT_BADGES.notifications, 3)
   assert.equal(DEMO_CHROME_COUNT_BADGES.cart, 2)
   assert.equal(DEMO_CHROME_COUNT_BADGES['recently-viewed'], 4)
+})
+
+test('runtime kind ignores empty href on /cart so the category button stays unbadged', () => {
+  const run = (el: { getAttribute: (name: string) => string | null }, path: string) => {
+    const ctx: { location: { href: string }; result?: string; el: typeof el; URL: typeof URL } = {
+      location: { href: `https://shop.example${path}` },
+      el,
+      URL,
+    }
+    vm.runInNewContext(`${PW_CHROME_COUNT_BADGE_RUNTIME_JS}\nresult = pwChromeCountKind(el)`, ctx)
+    return ctx.result
+  }
+  const attr = (map: Record<string, string>) => ({
+    getAttribute: (name: string) => (name in map ? map[name] : null),
+  })
+  assert.equal(run(attr({ 'data-pw-chrome-btn': 'categories' }), '/site/x/cart'), '')
+  assert.equal(run(attr({ 'data-pw-el': 'cat-toggle', 'data-pw-cat-toggle': '1' }), '/site/x/cart'), '')
+  assert.equal(run(attr({ href: '' }), '/site/x/cart'), '')
+  assert.equal(run(attr({ 'data-pw-chrome-btn': 'chat' }), '/site/x/cart'), '')
+  assert.equal(run(attr({ 'data-pw-chrome-btn': 'cart', href: '/site/x/cart' }), '/site/x/cart'), 'cart')
+  assert.equal(run(attr({ href: '/site/x/cart' }), '/products'), 'cart')
 })
 
 test('chrome count badge runtime js can stamp demo numbers', () => {

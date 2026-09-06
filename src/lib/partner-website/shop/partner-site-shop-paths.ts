@@ -50,6 +50,10 @@ export function partnerSiteCartApiPath(siteSlug: string): string {
   return `/api/site/${encodeURIComponent(siteSlug.trim())}/cart`
 }
 
+export function partnerSiteSaleCalendarApiPath(siteSlug: string): string {
+  return `/api/site/${encodeURIComponent(siteSlug.trim())}/sale-calendar`
+}
+
 export function partnerSiteOrdersPath(siteSlug: string, opts?: PathOpts): string {
   return partnerSiteHref(siteSlug, '/orders', opts?.customDomain)
 }

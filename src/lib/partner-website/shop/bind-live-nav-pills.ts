@@ -258,7 +258,10 @@ export function bindLiveFeaturedCategoryTilesToHtml(html: string, bind: LiveCate
           return `<${tag}${next}>`
         }
       )
-      return { open: stampAttr(open, PW_FEATURED_LIVE_ATTR, '1'), inner: appendFeaturedMarqueeCloneHtml(nextInner) }
+      const innerOut = /\bpw-featured-cat\b/.test(open)
+        ? appendFeaturedMarqueeCloneHtml(nextInner)
+        : nextInner
+      return { open: stampAttr(open, PW_FEATURED_LIVE_ATTR, '1'), inner: innerOut }
     }
   )
 }

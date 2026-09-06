@@ -13,7 +13,11 @@ import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { normalizeLogoAspectRatioForGemini } from '@/lib/partner-website/visual-editor/gemini-working-aspect'
 import { stripPackagingFaceTechnicalMeasurementsFromVisualPrompt } from '@/lib/packaging/face-print-prompt'
 import { normalizePanelArtworkToPrintSize } from '@/lib/packaging/panel-artwork-fit'
-import { stripBackground } from '@/lib/remove-background'
+import {
+  chargedCreditsForLogoCreate,
+  requiredCreditsForLogoCreate,
+  stripLogoBackgroundToTransparentPng,
+} from '@/lib/remove-background-png'
 
 const toTenths = (value: number) => Math.round(value * 10)
 
@@ -72,7 +76,7 @@ async function buildPromptSpec(
         prompt: `Design a professional LOGO mark for: ${projectEn}.
 Brief: ${briefEn}
 ${styleNote}
-Clean vector-like logo on a simple solid background so the background can be cut out. Isolated mark only, no mockup scene, no extra text borders.`,
+Clean vector-like logo on a simple solid background so the background can be cut out to a transparent PNG (same engine as /xoa-nen-png). Isolated mark only, no mockup scene, no extra text borders.`,
       }
     case 'banner':
       return {
@@ -301,8 +305,10 @@ export async function runStudioImagePipeline(input: {
   } catch {
     return { ok: false, error: 'Không đọc được số dư credits.' }
   }
-  if (toTenths(balance) < toTenths(UI_MOCKUP_CREDIT)) {
-    return { ok: false, error: `Không đủ credits (cần ${UI_MOCKUP_CREDIT}).` }
+  const requiredCredits =
+    input.kind === 'logo' ? requiredCreditsForLogoCreate(UI_MOCKUP_CREDIT) : UI_MOCKUP_CREDIT
+  if (toTenths(balance) < toTenths(requiredCredits)) {
+    return { ok: false, error: `Không đủ credits (cần ${requiredCredits}).` }
   }
 
   const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
@@ -429,16 +435,26 @@ export async function runStudioImagePipeline(input: {
               input.printSizeMm!.heightMm
             )
           : resultBufferRaw
-        const resultBuffer =
-          input.kind === 'logo' ? Buffer.from(await stripBackground(normalizedBuffer)) : normalizedBuffer
+        let resultBuffer = normalizedBuffer
+        let charged = UI_MOCKUP_CREDIT
+        if (input.kind === 'logo') {
+          const stripped = await stripLogoBackgroundToTransparentPng({
+            apiKey,
+            userId: input.userId,
+            feature: 'hub-studio-logo-remove-bg',
+            imageBuffer: normalizedBuffer,
+          })
+          resultBuffer = stripped.buffer
+          charged = chargedCreditsForLogoCreate(UI_MOCKUP_CREDIT, stripped.removed)
+        }
         const resultPath = `results/${input.userId}/studio_${input.kind}_${Date.now()}.png`
         const { publicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
           contentType: 'image/png',
           upsert: true,
         })
-        const d = await deductUserCredits(input.userId, UI_MOCKUP_CREDIT)
+        const d = await deductUserCredits(input.userId, charged)
         if (!d.ok) return { ok: false, error: d.error || 'Không thể trừ credits.' }
-        return { ok: true, resultUrl: publicUrl, charged: UI_MOCKUP_CREDIT }
+        return { ok: true, resultUrl: publicUrl, charged }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         lastError = msg

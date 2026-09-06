@@ -4,26 +4,15 @@ import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cl
 import { getUserForCreditAction } from '@/lib/auth'
 import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { revalidatePath } from 'next/cache'
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
-import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
-import { buildTransparentPngFromMask } from '@/lib/mask-to-transparent'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
-import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { buildTransparentPngWithGeminiMask, REMOVE_BG_PNG_CREDIT } from '@/lib/remove-background-png'
 
-const REMOVE_BG_COST = 1.5
+const REMOVE_BG_COST = REMOVE_BG_PNG_CREDIT
 const toTenths = (value: number) => Math.round(value * 10)
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
-
-const MASK_PROMPT = `Create a precise segmentation mask for this image.
-Return ONLY one grayscale mask image:
-- White = KEEP: main subject, product, people, text, important content, textured/gradient areas.
-- Black = REMOVE: only unimportant solid/flat color elements – plain backgrounds, decorative borders, flat color blocks, empty areas. Do NOT remove product, text, or main subject.
-- Brand logos: do NOT remove background from logo areas. Keep logo + its background block together as one unit (no transparency around logos).
-- Preserve fine details (hair, fur, edges) with smooth anti-aliased boundaries.
-- No color, no text, no extra graphics in the mask output.`
 
 export async function removeBackgroundToTransparentPng(formData: FormData) {
   if (!formData || typeof formData.get !== 'function') {
@@ -61,37 +50,18 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
   const { apiKey } = await requireGoogleApiKeyForUser(user.id)
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: '2K' },
-    },
-  })
-
   const inputBuffer = Buffer.from(await image.arrayBuffer())
-  const imagePart = { inlineData: { data: inputBuffer.toString('base64'), mimeType: image.type || 'image/png' } }
-  const safetySettings = [
-    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-  ]
 
   try {
-    const gemResult = await model.generateContent([MASK_PROMPT, imagePart], { safetySettings })
-    const response = gemResult.response
-    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'xoa-nen-png', user.id, '2K')
-
-    const maskPart = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
-    if (!maskPart || !('inlineData' in maskPart)) {
-      await deleteTryOnHistoryRowAndStorage(historyItem.id)
-      return { error: 'AI không trả về ảnh mask hợp lệ.' }
-    }
-
-    const maskBuffer = Buffer.from((maskPart as { inlineData: { data: string } }).inlineData.data, 'base64')
-    const transparentPngBuffer = await buildTransparentPngFromMask(inputBuffer, maskBuffer)
+    const transparentPngBuffer = await buildTransparentPngWithGeminiMask({
+      apiKey,
+      userId: user.id,
+      feature: 'xoa-nen-png',
+      imageBuffer: inputBuffer,
+      mimeType: image.type || 'image/png',
+      variant: 'product',
+      imageSize: '2K',
+    })
 
     const resultPath = `results/${user.id}/remove_bg_${Date.now()}.png`
     const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, transparentPngBuffer, {
@@ -119,6 +89,9 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
     const msg = e instanceof Error ? e.message : String(e)
     if (/no module named PIL|ModuleNotFoundError: No module named 'PIL'/i.test(msg)) {
       return { error: 'Thiếu thư viện Pillow trên server Python. Cài: pip install pillow' }
+    }
+    if (/AI không trả về ảnh mask hợp lệ/i.test(msg)) {
+      return { error: msg }
     }
     if (/500|Internal Server Error|Internal error/i.test(msg)) {
       return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }
