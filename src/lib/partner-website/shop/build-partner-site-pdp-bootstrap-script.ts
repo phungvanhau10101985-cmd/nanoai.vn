@@ -202,7 +202,7 @@ function apply(p){
   });
   var desc=String(p.detailDescription||p.description||'').trim();
   if(desc)document.querySelectorAll('.pw-shop-product-detail-body[data-pw-el="desc"],[data-pw-pdp-tabpanel="description"] [data-pw-el="desc"]').forEach(function(el){
-    if(/<[a-z][\s\S]*>/i.test(desc))el.innerHTML=desc;
+    if(/<[a-z][\s\S]*>/i.test(desc))el.innerHTML=typeof rewritePdpHtmlString==='function'?rewritePdpHtmlString(desc):desc;
     else setText(el,desc);
     rewriteDescImgs(el);
   });

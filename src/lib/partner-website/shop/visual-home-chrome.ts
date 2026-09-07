@@ -69,6 +69,31 @@ export function emptyVisualHomeChromeByDevice(): VisualHomeChromeByDevice {
   }
 }
 
+const CHROME_PRODUCT_CDN_RE = /alicdn\.com|alicdn\.net|tbcdn\.cn|1688\.com|alibaba\.com/i
+const CHROME_KEEP_LOGO_RE =
+  /data-pw-logo-slot|pw-chrome-chat-logo|pw-shop-footer-logo|\bclass=["'][^"']*\bpw-logo\b/i
+
+/** Header/footer on React pages must not load leftover catalog / AliCDN product photos. */
+export function stripProductPhotosFromChromeHtml(html: string): string {
+  if (!html || !/<img\b/i.test(html)) return html
+  return html.replace(/<img\b[^>]*>/gi, (tag) => {
+    const src = tag.match(/\bsrc=["']([^"']*)["']/i)?.[1] || ''
+    if (!CHROME_PRODUCT_CDN_RE.test(src) && !CHROME_PRODUCT_CDN_RE.test(tag)) return tag
+    if (CHROME_KEEP_LOGO_RE.test(tag)) return tag
+    return ''
+  })
+}
+
+function slimChromePhotos(chrome: SharedChrome): SharedChrome {
+  return {
+    topbar: stripProductPhotosFromChromeHtml(chrome.topbar),
+    header: stripProductPhotosFromChromeHtml(chrome.header),
+    footer: stripProductPhotosFromChromeHtml(chrome.footer),
+    bottomNav: stripProductPhotosFromChromeHtml(chrome.bottomNav),
+    floats: stripProductPhotosFromChromeHtml(chrome.floats),
+  }
+}
+
 function chromeAndStylesFromParts(
   parts: { isolated: string; stylesFrom: string; raw: string },
   variant: VisualDeviceVariant
@@ -91,8 +116,9 @@ function chromeAndStylesFromParts(
         slim
       )
     : extracted
+  const chrome = ensured && hasSharedChrome(ensured) ? ensured : extracted
   return {
-    chrome: ensured && hasSharedChrome(ensured) ? ensured : extracted,
+    chrome: chrome ? slimChromePhotos(chrome) : null,
     styles: extractVisualDocumentStyles(parts.stylesFrom),
   }
 }

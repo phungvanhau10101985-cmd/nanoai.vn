@@ -23,6 +23,7 @@ import {
   trackPartnerSiteViewItemList,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import {
   PartnerSiteSaleMediaMarks,
   PartnerSiteSalePriceBlock,
@@ -379,7 +380,7 @@ export function PartnerSiteCategoryProductsClient({
               <article key={p.id} className="pw-shop-card" data-pw-el={PW_EL.card}>
                 <Link href={p.detailPath} data-pw-el={PW_EL.cardMedia} style={{ position: 'relative', display: 'block' }}>
                   <PartnerSiteSaleMediaMarks product={p} locale={locale} />
-                  <img src={p.imageUrl} alt={p.name} loading="lazy" />
+                  <img src={shopCardDisplaySrc(p.imageUrl) || p.imageUrl} alt={p.name} loading="lazy" decoding="async" />
                 </Link>
                 <div className="pw-shop-card-body">
                   <Link href={p.detailPath}>

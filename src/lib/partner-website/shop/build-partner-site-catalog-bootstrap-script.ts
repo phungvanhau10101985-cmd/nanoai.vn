@@ -212,12 +212,8 @@ function hideBrokenCardImgs(root){
       function retryOrHide(){
         if(imgEl.getAttribute('data-pw-img-retry')==='1'){imgEl.style.visibility='hidden';return;}
         imgEl.setAttribute('data-pw-img-retry','1');
-        var src=imgEl.getAttribute('src')||'';
-        if(/_600x600q90\\.jpg$/i.test(src)){imgEl.setAttribute('src','/api/fetch-image?url='+encodeURIComponent(src.replace(/_600x600q90\\.jpg$/i,'')));return;}
-        if(src.indexOf('/api/fetch-image')!==0&&/alicdn\\.com|1688\\.com|alibaba\\.com/.test(src)){
-          imgEl.setAttribute('src','/api/fetch-image?url='+encodeURIComponent(src));
-          return;
-        }
+        var next=typeof nextShopImageRetrySrc==='function'?nextShopImageRetrySrc(imgEl.getAttribute('src')||''):'';
+        if(next){imgEl.setAttribute('src',next);return;}
         imgEl.style.visibility='hidden';
       }
       imgEl.addEventListener('load',function(){this.style.visibility='';});

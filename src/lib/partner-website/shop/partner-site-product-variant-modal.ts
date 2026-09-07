@@ -337,18 +337,23 @@ function variantTotalSaveHtml(st){
   var text=String((face.kind==='teaser'?sc.teaserSave:sc.save)||'').replace('{program}',face.label||'').replace('{amount}',amt);
   return text?'<span data-pw-variant-total-save>'+variantEsc(text)+'</span>':'';
 }
-function variantImg(url){
+function variantImg(url, page){
   url=String(url||'').trim();
   if(!url)return '';
   if(url.indexOf('//')===0)url='https:'+url;
-  url=url.replace(/_\\d+x\\d+q\\d+\\.jpg$/i,'');
   try{
     var u=new URL(url,location.origin);
     var host=u.hostname.toLowerCase();
-    if(host==='img.alicdn.com'||host==='gw.alicdn.com')return u.toString();
-    if(/alicdn\\.com$/.test(host)||/1688\\.com$/.test(host)||/alibaba\\.com$/.test(host)){
-      if(/\\.alicdn\\.com$/.test(host))u.hostname='img.alicdn.com';
-      return '/api/fetch-image?url='+encodeURIComponent(u.toString());
+    if(host!=='img.alicdn.com'&&host!=='gw.alicdn.com'&&/\\.alicdn\\.com$/.test(host)){u.hostname='img.alicdn.com';host='img.alicdn.com';url=u.toString();}
+    if(/alicdn\\.com$|alicdn\\.net$|tbcdn\\.cn$/.test(host)&&url.indexOf('gw.alicdn.com/mt/')<0){
+      var m=/\\.jpg/i.exec(url);
+      if(m) url=url.slice(0,m.index+4);
+      url=url.replace(/_\\d+x\\d+(?:q\\d+)?\\.jpg$/i,'');
+      url=url+(page?'_1200x1200.jpg':'_600x600q90.jpg');
+    }
+    if(host==='img.alicdn.com'||host==='gw.alicdn.com')return url;
+    if(/alicdn\\.com$|1688\\.com$|alibaba\\.com$/.test(host)){
+      return '/api/fetch-image?url='+encodeURIComponent(url);
     }
   }catch(e){}
   return url;
@@ -502,7 +507,7 @@ function paintVariantModal(){
   var st=window.__pwVariantState;if(!st)return;
   var root=ensureVariantModal();
   var color=st.colors[st.colorIndex]||null;
-  var img=variantImg((color&&color.img)||st.imageUrl);
+  var img=variantImg((color&&color.img)||st.imageUrl,true);
   var unit=st.unitPrice>0?st.unitPrice:0;
   st.lineLabel=unit>0?variantMoney(unit*st.qty,st.priceHint):st.priceHint;
   var skuFull=st.sku?String(COPY.variantSku||'').replace('{sku}',st.sku):'';
@@ -623,7 +628,7 @@ function openPdpVariantModal(seed,action){
   if(!window.__pwVariantSaleTimer)window.__pwVariantSaleTimer=setInterval(tickVariantSale,1000);
   var optUrl=PRODUCT_API_PREFIX+encodeURIComponent(id)+'/options';
   Promise.all([
-    apiFetch(PRODUCT_API_PREFIX+encodeURIComponent(id)),
+    apiFetch(PRODUCT_API_PREFIX+encodeURIComponent(id)+'?view=buy'),
     apiFetch(optUrl).catch(function(){return {ok:false,j:{}};})
   ]).then(function(pair){
     var st=window.__pwVariantState;if(!st||st.inventoryId!==id)return;

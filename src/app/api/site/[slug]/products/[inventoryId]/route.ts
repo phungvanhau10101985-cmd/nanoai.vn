@@ -40,7 +40,8 @@ export async function GET(
     return NextResponse.json({ error: 'Product not found' }, { status: 404 })
   }
 
-  const product = inventoryRowToShopProduct(shop.site.siteSlug, row, { pdp: true })
+  const isBuyView = request.nextUrl.searchParams.get('view') === 'buy'
+  const product = inventoryRowToShopProduct(shop.site.siteSlug, row, { pdp: !isBuyView })
   if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
   const [saleConfig, clearanceRow] = await Promise.all([
     fetchPartnerSaleCalendarConfigFromPg(shop.partnerId),
@@ -77,6 +78,20 @@ export async function GET(
     }),
   ])
   const flashed = faced[0]
+  if (isBuyView) {
+    return jsonSitePersonalization(
+      request,
+      {
+        ok: true,
+        product: flashed,
+        saleCalendar,
+        birthdayOffer: birthdayPercent > 0 ? { percent: birthdayPercent } : null,
+        is_favorite: false,
+      },
+      200,
+      { sessionId: visitor.sessionId, thread: visitor.thread }
+    )
+  }
   const relatedCtx = await resolveRelatedProductContext(shop.partnerId, id)
   const productWithCategory = {
     ...flashed,

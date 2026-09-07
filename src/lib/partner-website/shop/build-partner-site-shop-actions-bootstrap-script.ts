@@ -312,7 +312,7 @@ function uuid(){
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0,v=c==='x'?r:(r&0x3|0x8);return v.toString(16);});
 }
 function resolveCartCard(product){
-  return apiFetch(PRODUCT_API_PREFIX+encodeURIComponent(product.inventory_id)).then(function(res){
+  return apiFetch(PRODUCT_API_PREFIX+encodeURIComponent(product.inventory_id)+'?view=buy').then(function(res){
     var p=res.j&&res.j.product;
     if(!res.ok||!p)return null;
     var card={name:p.name||product.name,image_url:p.imageUrl||product.image_url,product_url:p.productUrl||product.product_url,inventory_id:p.id||product.inventory_id};

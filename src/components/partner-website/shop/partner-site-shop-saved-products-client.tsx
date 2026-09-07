@@ -23,6 +23,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
 import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 
 type Mode = 'favorites' | 'recently-viewed'
 
@@ -216,7 +217,7 @@ export function PartnerSiteShopSavedProductsClient({
           return (
             <article key={p.inventory_id} className="pw-shop-card" data-pw-el={PW_EL.card}>
               <Link href={href} data-pw-el={PW_EL.cardMedia}>
-                <img src={p.image_url} alt={p.name} />
+                <img src={shopCardDisplaySrc(p.image_url) || p.image_url} alt={p.name} loading="lazy" decoding="async" />
               </Link>
               <div className="pw-shop-card-body">
                 <Link href={href} style={{ textDecoration: 'none', color: 'inherit' }}>

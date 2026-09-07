@@ -129,3 +129,28 @@ test('pickVisualHomeChrome does not borrow desktop when tablet is missing', () =
   assert.ok(desktop)
   assert.match(desktop.header, /DeskHead/)
 })
+
+test('visual home chrome strips leftover AliCDN product photos and keeps logo', () => {
+  const home = `<!DOCTYPE html><html><body>
+<header class="pw-shop-header" data-pw-region="header">
+<a class="pw-brand" href="/"><img class="pw-logo" data-pw-logo-slot="header" src="https://img.alicdn.com/img/logo.png" alt="logo"></a>
+<img src="https://img.alicdn.com/img/ibank/O1CN01product.jpg" alt="sp">
+</header>
+<footer class="pw-shop-footer" data-pw-region="footer">Foot</footer>
+</body></html>`
+  const chrome = visualHomeChromeForDevice(
+    {
+      theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, useVisualHtml: true },
+      htmlSource: home,
+      project: {
+        entryPath: 'index.html',
+        files: [{ path: 'index.html', kind: 'html' as const, content: home }],
+      },
+    },
+    'desktop'
+  )
+  assert.ok(chrome)
+  assert.match(chrome.header, /data-pw-logo-slot="header"/)
+  assert.match(chrome.header, /pw-logo/)
+  assert.equal(chrome.header.includes('O1CN01product'), false)
+})

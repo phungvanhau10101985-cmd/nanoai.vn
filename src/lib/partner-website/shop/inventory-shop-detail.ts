@@ -180,24 +180,23 @@ export function shopPdpPageSrc(raw: string | null | undefined): string {
   return displayShopImageUrl(applyShopAlicdnPageSize(url))
 }
 
-/** Bước thử lại khi `<img>` lỗi: bỏ cỡ trang/thẻ, rồi proxy 1688/AliCDN. Hết thì ẩn. */
+/**
+ * One retry only: proxy the *current* display URL (keep `_600x600` / `_1200x1200`).
+ * Never strip the size suffix — originals are several MB and decode to gigabytes in Chrome.
+ * `data-pw-full-src` still holds the original for zoom / Thử đồ / Chat mua.
+ */
 export function nextShopImageRetrySrc(currentSrc: string): string | null {
   const src = String(currentSrc || '').trim()
   if (!src) return null
-  if (src.startsWith('/api/fetch-image')) {
-    const { inner } = unwrapShopFetchImageUrl(src)
-    if (ALICDN_SIZE_SUFFIX_RE.test(inner)) {
-      const orig = inner.replace(ALICDN_SIZE_SUFFIX_RE, '')
-      return orig ? `/api/fetch-image?url=${encodeURIComponent(orig)}` : null
-    }
-    return null
+  const { proxied, inner } = unwrapShopFetchImageUrl(src)
+  if (proxied || !inner) return null
+  let next = inner
+  if (ALICDN_HOST_RE.test(next) && !ALICDN_SIZE_SUFFIX_RE.test(next) && !/gw\.alicdn\.com\/mt\//i.test(next)) {
+    next = applyShopAlicdnCardSize(next)
   }
-  if (ALICDN_SIZE_SUFFIX_RE.test(src)) {
-    const orig = src.replace(ALICDN_SIZE_SUFFIX_RE, '')
-    return orig ? `/api/fetch-image?url=${encodeURIComponent(orig)}` : null
-  }
-  if (/alicdn\.com|1688\.com|alibaba\.com/i.test(src)) {
-    return `/api/fetch-image?url=${encodeURIComponent(src)}`
+  if (!/^https?:\/\//i.test(next) && !next.startsWith('//')) return null
+  if (/alicdn\.com|alicdn\.net|tbcdn\.cn|1688\.com|alibaba\.com/i.test(next)) {
+    return `/api/fetch-image?url=${encodeURIComponent(next)}`
   }
   return null
 }
@@ -263,6 +262,23 @@ function shopPdpPageSrc(raw){
 function pdpImgFullSrc(el){
   return (el&&(el.getAttribute('data-pw-full-src')||el.getAttribute('src')))||'';
 }
+function rewritePdpHtmlString(html){
+  if(!html||String(html).indexOf('<img')<0)return html;
+  return String(html).replace(/<img\\b([^>]*)\\/?>/gi,function(_full,attrs){
+    var m=String(attrs||'').match(/(?:^|\\s)src=(["'])([^"']*)\\1/i);
+    var src=m&&m[2]||'';
+    var next=attrs||'';
+    if(src&&src.indexOf('data:')!==0){
+      var full=shopPdpOrigSrc(src)||src;
+      var page=shopPdpPageSrc(src)||src;
+      next=next.replace(/(?:^|\\s)src=(["'])[^"']*\\1/i,' src="'+String(page).replace(/"/g,'&quot;')+'"');
+      if(!/\\bdata-pw-full-src=/.test(next)&&full)next+=' data-pw-full-src="'+String(full).replace(/"/g,'&quot;')+'"';
+    }
+    if(!/\\bloading=/.test(next))next+=' loading="lazy"';
+    if(!/\\bdecoding=/.test(next))next+=' decoding="async"';
+    return '<img'+next+'>';
+  });
+}
 function rewriteDescImgs(root){
   if(!root||!root.querySelectorAll)return;
   root.querySelectorAll('img').forEach(function(img){
@@ -286,27 +302,25 @@ function galleryFaceVisible(el){
   return true;
 }`
 
-export const PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS = `function nextShopImageRetrySrc(src){
+export const PW_SHOP_IMAGE_RETRY_JS = `function nextShopImageRetrySrc(src){
   src=String(src||'').trim();
   if(!src)return '';
-  if(src.indexOf('/api/fetch-image')===0){
-    try{
-      var inner=decodeURIComponent((src.split('url=')[1]||'').split('&')[0]||'');
-      if(/_\\d+x\\d+(?:q\\d+)?\\.jpg$/i.test(inner)){
-        return '/api/fetch-image?url='+encodeURIComponent(inner.replace(/_\\d+x\\d+(?:q\\d+)?\\.jpg$/i,''));
-      }
-    }catch(e){}
-    return '';
+  if(src.indexOf('/api/fetch-image')===0)return '';
+  var inner=src;
+  if(/alicdn\\.com|alicdn\\.net|tbcdn\\.cn/i.test(inner)&&!/_\\d+x\\d+(?:q\\d+)?\\.jpg$/i.test(inner)&&inner.indexOf('gw.alicdn.com/mt/')<0){
+    var m=/\\.jpg/i.exec(inner);
+    if(m) inner=inner.slice(0,m.index+4);
+    inner=inner.replace(/\\.webp\\.jpg$/i,'.webp').replace(/\\.png\\.jpg$/i,'.png');
+    inner=inner.replace(/_\\d+x\\d+(?:q\\d+)?\\.jpg$/i,'')+'_600x600q90.jpg';
   }
-  if(/_\\d+x\\d+(?:q\\d+)?\\.jpg$/i.test(src)){
-    var orig=src.replace(/_\\d+x\\d+(?:q\\d+)?\\.jpg$/i,'');
-    return orig?('/api/fetch-image?url='+encodeURIComponent(orig)):'';
-  }
-  if(/alicdn\\.com|1688\\.com|alibaba\\.com/i.test(src)){
-    return '/api/fetch-image?url='+encodeURIComponent(src);
+  if(/^https?:\\/\\//i.test(inner)&&/alicdn\\.com|alicdn\\.net|tbcdn\\.cn|1688\\.com|alibaba\\.com/i.test(inner)){
+    return '/api/fetch-image?url='+encodeURIComponent(inner);
   }
   return '';
-}
+}`
+
+export const PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS = `${PW_SHOP_IMAGE_RETRY_JS}
+
 function hideBrokenPdpImgs(root){
   var scope=root||document;
   var imgs=scope.querySelectorAll('[data-pw-region="gallery"] img,img[data-pw-el="main-image"],[data-pw-pdp-slot="detail-images"] img,[data-pw-pdp-slot="material"] img,[data-pw-pdp-slot="real-use"] img,[data-pw-pdp-slot="size-guide"] img,[data-pw-pdp-option="color"] img,[data-pw-variant-modal] img,.pw-pdp-detail-photos img,.pw-shop-detail-grid img,.pw-shop-product-detail-body img');
@@ -340,7 +354,8 @@ function hideBrokenPdpImgs(root){
 }`
 
 /** Injected catalog/outfit/personalize bootstrap — same rewrite as shopCardDisplaySrc. */
-export const PW_SHOP_CARD_IMG_JS = `function shopImg(p){
+export const PW_SHOP_CARD_IMG_JS = `${PW_SHOP_IMAGE_RETRY_JS}
+function shopImg(p){
   function first(arr){
     if(!arr||!arr.length)return '';
     for(var i=0;i<arr.length;i++){var x=String(arr[i]||'').trim();if(x&&x!=='0'&&x!=='-'&&x.toLowerCase()!=='null')return x;}

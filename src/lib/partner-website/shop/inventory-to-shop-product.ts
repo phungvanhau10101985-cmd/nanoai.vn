@@ -10,6 +10,8 @@ import {
   inventoryShopProductVideoUrl,
   normalizeShopImageUrl,
   pickShopCardImageRaw,
+  rewritePdpHtmlImagesForPage,
+  shopCardDisplaySrc,
   type InventoryShopSourceRow,
 } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { parseInventorySizesForFacet } from '@/lib/partner-website/shop/partner-shop-industry-facets'
@@ -322,9 +324,12 @@ export function inventoryRowToShopProduct(
     firstValidShopImageUrl(row.image_url, galleryImages[0]) ||
     galleryImages[0] ||
     ''
+  const isPdp = opts?.pdp === true
   // Prefer a reachable https image; otherwise keep a visible placeholder so catalog is not empty.
   const imageUrl = rawImage
-    ? rawImage
+    ? isPdp
+      ? rawImage
+      : shopCardDisplaySrc(rawImage) || rawImage
     : `https://placehold.co/600x600/f1f5f9/64748b?text=${encodeURIComponent(name.slice(0, 18))}`
   const rawProductUrl = (row.product_url ?? '').trim()
   // Chat inventory often omits product_url — shop detail path is enough.
@@ -340,18 +345,26 @@ export function inventoryRowToShopProduct(
   const features = Array.isArray(row.features_json)
     ? row.features_json.map((x) => String(x ?? '').trim()).filter((x) => isDisplayablePdpScalar(x))
     : []
+  const sizedColors = variants.colors.map((c) => ({
+    ...c,
+    img: c.img ? shopCardDisplaySrc(c.img) || c.img : c.img,
+  }))
   return {
     id: row.id,
     name,
-    description: inventoryShopDisplayDescription(row),
-    detailDescription: inventoryShopDetailDescription(row),
-    galleryImages: galleryImages.length
-      ? galleryImages
-      : /^https?:\/\//i.test(rawImage)
-        ? [rawImage]
-        : [imageUrl],
-    detailImages: collectShopProductDetailImages(row),
-    productVideoUrl: inventoryShopProductVideoUrl(row),
+    description: isPdp ? rewritePdpHtmlImagesForPage(inventoryShopDisplayDescription(row)) : '',
+    detailDescription: isPdp ? rewritePdpHtmlImagesForPage(inventoryShopDetailDescription(row)) : '',
+    galleryImages: isPdp
+      ? galleryImages.length
+        ? galleryImages
+        : /^https?:\/\//i.test(rawImage)
+          ? [rawImage]
+          : [imageUrl]
+      : imageUrl
+        ? [imageUrl]
+        : [],
+    detailImages: isPdp ? collectShopProductDetailImages(row) : [],
+    productVideoUrl: isPdp ? inventoryShopProductVideoUrl(row) : null,
     priceHint: (row.price_hint ?? '').trim(),
     imageUrl,
     productUrl,
@@ -365,7 +378,7 @@ export function inventoryRowToShopProduct(
     saleEndsAt: row.sale_ends_at ? String(row.sale_ends_at) : null,
     isClearance: row.is_clearance === true,
     sizes: variants.sizes,
-    colors: variants.colors,
+    colors: sizedColors,
     sizeGuideImageUrl: row.sizeGuideImageUrl?.trim() || null,
     brandName: textField(row.brand_name),
     origin: textField(row.source_origin) || textField(row.origin),
@@ -376,14 +389,14 @@ export function inventoryRowToShopProduct(
     features: features.length ? features : null,
     chineseName: textField(row.chinese_name),
     colorSummary: textField(row.color_summary),
-    consultNote: shopDisplayConsultNote(row.consult_note) || null,
+    consultNote: isPdp ? shopDisplayConsultNote(row.consult_note) || null : null,
     sourceShopName: textField(row.source_shop_name),
     sourceShopNameChinese: textField(row.source_shop_name_chinese),
     priceLowHint: textField(row.price_low_hint),
     priceHighHint: textField(row.price_high_hint),
     catalogSlug: textField(row.catalog_slug),
-    materialImageUrl: collectShopProductMaterialImageUrl(row),
-    realUseImageUrls: collectShopProductRealUseImages(row),
+    materialImageUrl: isPdp ? collectShopProductMaterialImageUrl(row) : null,
+    realUseImageUrls: isPdp ? collectShopProductRealUseImages(row) : null,
     categoryL1: textField(row.category_l1),
     categoryL2: textField(row.category_l2),
     categoryL3: textField(row.category_l3),
@@ -412,7 +425,9 @@ export function inventoryCardRowToShopProduct(
   const name = row.name.trim() || 'Product'
   const detailPath = partnerSiteProductPath(siteSlug, row.id, { name })
   const rawImage = normalizeShopImageUrl(row.image_url)
+  const sized = shopCardDisplaySrc(rawImage)
   const imageUrl =
+    sized ||
     rawImage ||
     `https://placehold.co/600x600/f1f5f9/64748b?text=${encodeURIComponent(name.slice(0, 18))}`
   const rawProductUrl = row.product_url.trim()
@@ -509,7 +524,7 @@ export function inventoryRowToLivePdpVariants(row: {
 export function shopProductToCartCard(product: PartnerSiteShopProduct): PartnerAiProductCard {
   const card: PartnerAiProductCard = {
     name: product.name,
-    image_url: product.imageUrl,
+    image_url: shopCardDisplaySrc(product.imageUrl) || product.imageUrl,
     product_url: product.productUrl,
     inventory_id: product.id,
   }
@@ -522,7 +537,7 @@ export function inventoryRowToCartCard(
   row: InventoryShopSourceRow & { id: string; name?: string | null; price_hint?: string | null; sku?: string | null; product_url?: string | null }
 ): PartnerAiProductCard | null {
   const name = (row.name ?? '').trim() || 'Product'
-  const image_url = (row.image_url ?? '').trim()
+  const image_url = shopCardDisplaySrc(row.image_url) || (row.image_url ?? '').trim()
   if (!/^https?:\/\//i.test(image_url)) return null
   const rawProductUrl = (row.product_url ?? '').trim()
   const product_url = /^https?:\/\//i.test(rawProductUrl)

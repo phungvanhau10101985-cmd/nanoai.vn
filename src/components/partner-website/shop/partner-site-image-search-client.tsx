@@ -16,6 +16,7 @@ import {
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { partnerSiteSearchImageApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 
 type Hit = {
   id?: string
@@ -406,13 +407,13 @@ export function PartnerSiteImageSearchClient({
               {revealed.map((p, i) => {
                 const id = String(p.id || p.inventory_id || '')
                 const href = p.detailPath || '#'
-                const img = p.imageUrl || p.image_url || ''
+                const img = shopCardDisplaySrc(p.imageUrl || p.image_url || '') || p.imageUrl || p.image_url || ''
                 const name = p.name || ''
                 const price = p.priceHint || p.price_hint || ''
                 return (
                   <article key={id || `${name}-${i}`} className="pw-shop-card" data-pw-el={PW_EL.card}>
                     <Link href={href} data-pw-el={PW_EL.cardMedia}>
-                      {img ? <img src={img} alt={name} loading="lazy" /> : null}
+                      {img ? <img src={img} alt={name} loading="lazy" decoding="async" /> : null}
                     </Link>
                     <div className="pw-shop-card-body">
                       <Link href={href}>

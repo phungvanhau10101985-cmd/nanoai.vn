@@ -21,6 +21,7 @@ import {
 import { partnerSiteOrderDepositPath, partnerSiteOrderDetailPath, partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 
 type OrderRow = {
   id: string
@@ -268,7 +269,7 @@ export function PartnerSiteShopOrdersClient({
             <li key={o.id} className="pw-shop-order-card" data-pw-el={PW_EL.card}>
               <div className="pw-shop-order-card-head">
                 {o.product_image_url ? (
-                  <img src={o.product_image_url} alt={o.product_name ?? ''} className="pw-shop-order-thumb" />
+                  <img src={shopCardDisplaySrc(o.product_image_url) || o.product_image_url} alt={o.product_name ?? ''} className="pw-shop-order-thumb" loading="lazy" decoding="async" />
                 ) : null}
                 <div className="pw-shop-order-card-main">
                   <strong>{o.product_name || t.orderIdLabel}</strong>

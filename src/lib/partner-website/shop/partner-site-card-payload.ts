@@ -1,3 +1,4 @@
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 
 /** Public list payload. Keep PDP-only text, galleries, options and product-info out. */
@@ -6,7 +7,7 @@ export function toPartnerSiteCardPayload(product: PartnerSiteShopProduct) {
     id: product.id,
     name: product.name,
     priceHint: product.priceHint,
-    imageUrl: product.imageUrl,
+    imageUrl: shopCardDisplaySrc(product.imageUrl) || product.imageUrl,
     productUrl: product.productUrl,
     sku: product.sku,
     detailPath: product.detailPath,

@@ -39,23 +39,18 @@ test('PDP src keeps AliCDN original metadata and bounds broken-size retries thro
     'https://img.alicdn.com/img/ibank/2020/688/457/21712754886_2079049757.jpg_600x600q90.jpg'
   const raw = 'https://img.alicdn.com/img/ibank/2020/688/457/21712754886_2079049757.jpg'
   const page = `${raw}_1200x1200.jpg`
+  const card = `${raw}_600x600q90.jpg`
   assert.equal(shopPdpDisplaySrc(broken), raw)
   assert.equal(shopPdpDisplaySrc(raw), raw)
   assert.equal(shopPdpDisplaySrc(page), raw)
   assert.equal(shopPdpPageSrc(raw), page)
   assert.equal(shopPdpPageSrc(broken), page)
   assert.equal(applyShopAlicdnPageSize(raw), page)
-  assert.equal(nextShopImageRetrySrc(broken), `/api/fetch-image?url=${encodeURIComponent(raw)}`)
-  assert.equal(nextShopImageRetrySrc(page), `/api/fetch-image?url=${encodeURIComponent(raw)}`)
-  assert.equal(
-    nextShopImageRetrySrc(raw),
-    `/api/fetch-image?url=${encodeURIComponent(raw)}`
-  )
+  assert.equal(nextShopImageRetrySrc(broken), `/api/fetch-image?url=${encodeURIComponent(broken)}`)
+  assert.equal(nextShopImageRetrySrc(page), `/api/fetch-image?url=${encodeURIComponent(page)}`)
+  assert.equal(nextShopImageRetrySrc(raw), `/api/fetch-image?url=${encodeURIComponent(card)}`)
   assert.equal(nextShopImageRetrySrc(`/api/fetch-image?url=${encodeURIComponent(raw)}`), null)
-  assert.equal(
-    nextShopImageRetrySrc(`/api/fetch-image?url=${encodeURIComponent(page)}`),
-    `/api/fetch-image?url=${encodeURIComponent(raw)}`
-  )
+  assert.equal(nextShopImageRetrySrc(`/api/fetch-image?url=${encodeURIComponent(page)}`), null)
   const rewritten = rewritePdpHtmlImagesForPage(`<img src="${raw}" alt="x">`)
   assert.match(rewritten, /_1200x1200\.jpg/)
   assert.match(rewritten, /data-pw-full-src="/)
@@ -230,4 +225,28 @@ test('PDP consult_note JSON becomes stylist sentence and specs, not a raw dump',
   assert.equal(product?.detailDescription, '')
   assert.doesNotMatch(product?.description || '', /\{"product_info"/)
   assert.equal((product?.productInfo as { product_info?: { sku?: string } } | null)?.product_info?.sku, 'Q2477')
+})
+
+test('non-PDP mapper omits description gallery video productInfo and sizes card image', () => {
+  const raw = 'https://img.alicdn.com/img/ibank/O1CN01buy.jpg'
+  const product = inventoryRowToShopProduct('demo-shop', {
+    id: '77777777-7777-4777-8777-777777777777',
+    name: 'Túi',
+    image_url: raw,
+    description: `<img src="${raw}"> huge PDP html`,
+    detail_image_urls: ['https://cdn.example/d1.jpg'],
+    gallery_urls: ['https://cdn.example/g1.jpg'],
+    product_info_json: { product_info: { sku: 'BUY' } },
+    sizes_json: ['M'],
+    colors_json: [{ name: 'Đen', img: `${raw}_600x600q90.jpg` }],
+  })
+  assert.equal(product?.description, '')
+  assert.equal(product?.detailDescription, '')
+  assert.deepEqual(product?.detailImages, [])
+  assert.equal(product?.productVideoUrl, null)
+  assert.equal(product?.productInfo, null)
+  assert.equal(product?.imageUrl, `${raw}_600x600q90.jpg`)
+  assert.deepEqual(product?.galleryImages, [product?.imageUrl])
+  assert.deepEqual(product?.sizes, ['M'])
+  assert.equal(product?.colors[0]?.name, 'Đen')
 })

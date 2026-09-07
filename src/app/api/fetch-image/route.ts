@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchImageWith1688Bypass, sniffImageContentType } from '@/lib/fetch-image-1688'
 
-const STOREFRONT_IMAGE_MAX_BYTES = 12 * 1024 * 1024
+/** Display thumbs/page sizes are well under 1MB. Originals (5–20MB) must not pass. */
+const STOREFRONT_IMAGE_MAX_BYTES = 2.5 * 1024 * 1024
 const STOREFRONT_IMAGE_TIMEOUT_MS = 20_000
 
 /**

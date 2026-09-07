@@ -52,6 +52,7 @@ import {
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { PartnerSiteSaleCountdown } from '@/components/partner-website/shop/partner-site-sale-face'
 import { nextPartnerSaleRefreshDelayMs } from '@/lib/partner-website/promotions/partner-sale-pricing'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 
 type Props = {
   siteSlug: string
@@ -1184,7 +1185,13 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                 }
               />
             </label>
-            <img src={item.card.image_url} alt={item.card.name} data-pw-el={PW_EL.cardMedia} />
+            <img
+              src={shopCardDisplaySrc(item.card.image_url) || item.card.image_url}
+              alt={item.card.name}
+              loading="lazy"
+              decoding="async"
+              data-pw-el={PW_EL.cardMedia}
+            />
             <div className="pw-shop-cart-row-main">
               <strong data-pw-el={PW_EL.cardName}>{item.card.name}</strong>
               {chipLabel ? (

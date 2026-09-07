@@ -24,6 +24,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { cn } from '@/lib/utils'
 import { PW_EL, PW_PAGE, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import {
   formatPartnerShopMoneyVnd,
   isPartnerFlashSaleActive,
@@ -131,7 +132,7 @@ function ProductCard({
         {product.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={product.imageUrl}
+            src={shopCardDisplaySrc(product.imageUrl) || product.imageUrl}
             alt={product.name}
             className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
             loading="lazy"
@@ -311,7 +312,7 @@ function FashionHomeInner({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     data-pw-edit={`categoryImage:${i}`}
-                    src={cat.imageUrl}
+                    src={shopCardDisplaySrc(cat.imageUrl) || cat.imageUrl}
                     alt=""
                     className="h-full w-full object-cover transition duration-700 group-hover:scale-110"
                     loading="lazy"

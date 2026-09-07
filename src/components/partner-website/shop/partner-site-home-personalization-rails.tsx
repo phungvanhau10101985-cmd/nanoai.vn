@@ -11,6 +11,7 @@ import {
   partnerSiteProductPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 
 function HomeRail({
   siteSlug,
@@ -67,7 +68,7 @@ function HomeRail({
               <span className="relative block aspect-[4/5] overflow-hidden bg-[var(--pw-surface)]">
                 {p.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                  <img src={shopCardDisplaySrc(p.image_url) || p.image_url} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
                 ) : null}
               </span>
               <span className="block p-3">
