@@ -25,11 +25,19 @@ type InventoryPriceDbRow = {
 type GoogleLockDbRow = {
   inventory_id: string
   locked_unit_price: string | number
+  expires_at: unknown
 }
 
 function money(value: unknown): number {
   const n = Number(value)
   return Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0
+}
+
+function isoTimestamp(value: unknown): string | null {
+  if (!value) return null
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value.toISOString()
+  const t = Date.parse(String(value))
+  return Number.isFinite(t) ? new Date(t).toISOString() : null
 }
 
 export type PartnerCheckoutPriceLineInput = {
@@ -76,7 +84,7 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
     fetchPartnerSaleCalendarConfigFromPg(input.partnerId),
     input.accountKey
       ? pgQuery<GoogleLockDbRow>(
-          `select inventory_id::text, locked_unit_price
+          `select inventory_id::text, locked_unit_price, expires_at
            from public.messaging_partner_google_discount_locks
            where partner_id = $1::uuid and account_key = $2 and expires_at > now()
              and inventory_id = any($3::uuid[])`,
@@ -95,7 +103,12 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
     }),
   ])
   const byId = new Map(rows.map((row) => [row.id, row]))
-  const lockById = new Map(locks.map((row) => [row.inventory_id, money(row.locked_unit_price)]))
+  const lockById = new Map(
+    locks.map((row) => [
+      row.inventory_id,
+      { price: money(row.locked_unit_price), expiresAt: isoTimestamp(row.expires_at) },
+    ])
+  )
 
   return input.lines.map((line) => {
     const row = line.inventoryId ? byId.get(line.inventoryId) : null
@@ -133,23 +146,34 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
     const calendarSale = applyPartnerSiteSalePrice(listUnitPrice, calendarState)
     const regularSale = Math.min(listUnitPrice, productSale, calendarSale)
     const flashPercent = partnerFlashSalePercentForLine(flashAssignment, row.id)
+    const nowMs = input.at?.getTime() ?? Date.now()
+    const flashActive =
+      Boolean(flashPercent) &&
+      (!flashAssignment.slot?.endAt || flashAssignment.slot.endAt.getTime() > nowMs)
     const flashSale = applyPartnerFlashSaleUnitPrice({
       listUnitPrice,
       currentEffective: regularSale,
       isClearance: row.is_clearance,
       inventoryId: row.id,
       assignment: flashAssignment,
+      now: input.at,
     })
-    const googlePrice = lockById.get(row.id)
+    const googleLock = lockById.get(row.id)
+    const googlePrice = googleLock?.price
     // Parity 188: a valid Google pv2 lock owns line pricing for its 48-hour
     // lifetime; product/calendar/flash sales are not stacked onto that line.
     const effectiveUnitPrice =
       googlePrice == null ? flashSale : Math.min(listUnitPrice, googlePrice)
     let priceKind: PartnerSalePriceKind = 'list'
     if (googlePrice != null && googlePrice < listUnitPrice) priceKind = 'google'
-    else if (flashPercent) priceKind = 'flash'
+    else if (flashActive) priceKind = 'flash'
     else if (calendarSale < listUnitPrice && calendarSale <= productSale) priceKind = 'calendar'
     else if (productSale < listUnitPrice) priceKind = 'inventory'
+    let countdownTo: string | null = null
+    if (priceKind === 'google') countdownTo = googleLock?.expiresAt ?? null
+    else if (priceKind === 'flash') countdownTo = isoTimestamp(flashAssignment.slot.endAt)
+    else if (priceKind === 'calendar') countdownTo = calendarState.countdownTo
+    else if (priceKind === 'inventory') countdownTo = isoTimestamp(row.sale_ends_at)
     return {
       inventoryId: row.id,
       quantity: line.quantity,
@@ -159,6 +183,7 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
         googlePrice != null && googlePrice < listUnitPrice ? listUnitPrice - googlePrice : 0,
       priceKind,
       flashPercent: priceKind === 'flash' ? flashPercent : null,
+      countdownTo,
     }
   })
 }

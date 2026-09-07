@@ -5,6 +5,7 @@ import {
 } from '@/lib/partner-website/promotions/partner-sale-calendar'
 import {
   formatPartnerShopMoneyVnd,
+  isPartnerFlashSaleActive,
   normalizePartnerSalePriceAmount,
   resolvePartnerEffectiveUnitPrice,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
@@ -361,6 +362,20 @@ export function buildPartnerSiteSalePricing(
   }
 }
 
+function earliestIsoTimestamp(values: Array<string | null | undefined>): string | null {
+  let best: number | null = null
+  let bestIso: string | null = null
+  for (const raw of values) {
+    const t = Date.parse(String(raw || ''))
+    if (!Number.isFinite(t)) continue
+    if (best == null || t < best) {
+      best = t
+      bestIso = new Date(t).toISOString()
+    }
+  }
+  return bestIso
+}
+
 export function applyPartnerSiteSaleToShopProduct<T extends PartnerSiteSaleProductInput>(
   product: T,
   state: PartnerSaleCalendarState,
@@ -374,20 +389,23 @@ export function applyPartnerSiteSaleToShopProduct<T extends PartnerSiteSaleProdu
   const list = Math.max(0, Math.round(product.priceAmount ?? 0))
   const clearance = product.isClearance === true && opts?.clearanceEnabled !== false
   const clearancePct = Math.max(0, Math.round(opts?.clearancePercent ?? 0))
-  const flash =
+  const inventoryEffective =
     resolvePartnerEffectiveUnitPrice({
       priceAmount: list,
       salePriceAmount: product.salePriceAmount ?? null,
       saleStartsAt: product.saleStartsAt ?? null,
       saleEndsAt: product.saleEndsAt ?? null,
     }) ?? list
+  const inventoryOnSale = inventoryEffective > 0 && inventoryEffective < list
   if (clearance && list > 0 && clearancePct > 0) {
     const clearancePrice = Math.max(0, Math.round(list * (1 - clearancePct / 100)))
     const display = clearancePrice < list ? clearancePrice : list
     const savings = Math.max(0, list - display)
     return {
       ...product,
-      salePriceAmount: display < list ? display : product.salePriceAmount,
+      salePriceAmount: display < list ? display : null,
+      saleStartsAt: null,
+      saleEndsAt: null,
       siteSalePhase: 'off',
       siteSalePercent: clearancePct,
       siteSaleExpectedPrice: null,
@@ -409,15 +427,21 @@ export function applyPartnerSiteSaleToShopProduct<T extends PartnerSiteSaleProdu
     }
   }
   const siteSale = list > 0 ? buildPartnerSiteSalePricing(list, state) : null
-  const activePrice =
-    state.phase === 'active' && siteSale
-      ? Math.min(siteSale.displayPrice, flash)
-      : null
+  const calendarCharging =
+    state.phase === 'active' && Boolean(siteSale) && (siteSale?.displayPrice ?? list) < list
+  const charged = calendarCharging && siteSale
+    ? Math.min(siteSale.displayPrice, inventoryEffective)
+    : inventoryEffective
+  const chargedOnSale = charged > 0 && charged < list
+  const endCandidates: Array<string | null | undefined> = []
+  if (calendarCharging) endCandidates.push(state.countdownTo)
+  if (inventoryOnSale) endCandidates.push(product.saleEndsAt)
+  const saleEndsAt = chargedOnSale ? earliestIsoTimestamp(endCandidates) : null
   return {
     ...product,
-    salePriceAmount: activePrice ?? product.salePriceAmount,
-    saleStartsAt: activePrice != null ? null : product.saleStartsAt,
-    saleEndsAt: activePrice != null ? null : product.saleEndsAt,
+    salePriceAmount: chargedOnSale ? charged : null,
+    saleStartsAt: calendarCharging ? null : inventoryOnSale ? product.saleStartsAt ?? null : null,
+    saleEndsAt,
     siteSalePhase: state.phase,
     siteSalePercent: siteSale?.percent ?? state.discountPercent,
     siteSaleExpectedPrice: siteSale?.expectedSalePrice ?? null,
@@ -488,7 +512,30 @@ export function resolvePartnerProductSaleFace(
     }
   }
   const sale = normalizePartnerSalePriceAmount(product.salePriceAmount)
-  if (sale != null && list > 0 && sale < list) {
+  const nowMs = Date.now()
+  const countdownMs = site?.countdownTo ? Date.parse(String(site.countdownTo)) : NaN
+  const overlayRunning =
+    phase === 'active' &&
+    (promoKind === 'flash' || promoKind === 'calendar') &&
+    (!Number.isFinite(countdownMs) || nowMs < countdownMs)
+  const overlayExpired =
+    (promoKind === 'flash' || promoKind === 'calendar') &&
+    Number.isFinite(countdownMs) &&
+    nowMs >= countdownMs
+  const inventoryRunning = isPartnerFlashSaleActive(
+    {
+      priceAmount: list,
+      salePriceAmount: product.salePriceAmount ?? null,
+      saleStartsAt: product.saleStartsAt ?? null,
+      saleEndsAt: product.saleEndsAt ?? null,
+    },
+    nowMs
+  )
+  const canChargeSale =
+    promoKind === 'clearance' ||
+    overlayRunning ||
+    (inventoryRunning && !overlayExpired && promoKind !== 'flash')
+  if (sale != null && list > 0 && sale < list && canChargeSale) {
     const livePct =
       percent > 0 && percent < 100 ? percent : Math.max(1, Math.round(((list - sale) * 100) / list))
     return {
@@ -511,7 +558,8 @@ export function resolvePartnerProductSaleFace(
           locale,
         }) ??
         `-${livePct}%`,
-      countdownTo: promoKind === 'clearance' ? null : site?.countdownTo ?? null,
+      countdownTo:
+        promoKind === 'clearance' ? null : site?.countdownTo ?? product.saleEndsAt ?? null,
       eventLabel: programLabel,
     }
   }
@@ -652,13 +700,18 @@ function saleView(p){
   if(p.salePriceAmount==null||p.salePriceAmount==='')return null;
   var sale=Number(p.salePriceAmount);
   if(!Number.isFinite(sale)||sale<=0||sale>=list)return null;
-  if(promoKind!=='clearance'&&promoKind!=='flash'&&promoKind!=='calendar'){
-    var now=Date.now(),start=p.saleStartsAt?Date.parse(p.saleStartsAt):NaN,end=p.saleEndsAt?Date.parse(p.saleEndsAt):NaN;
+  var now=Date.now();
+  if(promoKind!=='clearance'&&phase==='active'&&countdown){
+    var ct=Date.parse(countdown);
+    if(Number.isFinite(ct)&&now>=ct)return null;
+  }
+  if(promoKind!=='clearance'){
+    var start=p.saleStartsAt?Date.parse(p.saleStartsAt):NaN,end=p.saleEndsAt?Date.parse(p.saleEndsAt):NaN;
     if(Number.isFinite(start)&&now<start)return null;
-    if(Number.isFinite(end)&&now>end)return null;
+    if(Number.isFinite(end)&&now>=end)return null;
   }
   var livePct=pct>0&&pct<100?pct:Math.max(1,Math.round((list-sale)*100/list));
-  return {kind:'active',promoKind:promoKind,price:money(sale),compare:money(list),expected:'',percent:livePct,badge:badge||siteSaleBadge(p,livePct)||('-'+livePct+'%'),savings:money(list-sale),countdown:promoKind==='clearance'?'':countdown};
+  return {kind:'active',promoKind:promoKind,price:money(sale),compare:money(list),expected:'',percent:livePct,badge:badge||siteSaleBadge(p,livePct)||('-'+livePct+'%'),savings:money(list-sale),countdown:promoKind==='clearance'?'':countdown||p.saleEndsAt||''};
 }`
 
 /** Update countdown digits without childList (avoids shop hydrate / chrome flicker each second). */

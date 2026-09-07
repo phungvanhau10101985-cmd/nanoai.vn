@@ -18,6 +18,8 @@ export type PartnerSalePriceLine = {
   /** Source of the charged unit price. Flash vs calendar must not share one cart label. */
   priceKind?: PartnerSalePriceKind
   flashPercent?: number | null
+  /** When this line's charged sale ends; cart must re-quote and return to list price. */
+  countdownTo?: string | null
 }
 
 export type PartnerSaleDiscountInput = {
@@ -52,6 +54,22 @@ export type PartnerSaleDiscountBreakdown = {
 
 function money(value: number): number {
   return Math.max(0, Math.round(Number.isFinite(value) ? value : 0))
+}
+
+/** Delay until the soonest sale window ends. Null if nothing is expiring. */
+export function nextPartnerSaleRefreshDelayMs(
+  timestamps: Array<string | null | undefined>,
+  nowMs = Date.now()
+): number | null {
+  let soonest: number | null = null
+  for (const raw of timestamps) {
+    const t = Date.parse(String(raw || ''))
+    if (!Number.isFinite(t)) continue
+    if (t <= nowMs) return 250
+    if (soonest == null || t < soonest) soonest = t
+  }
+  if (soonest == null) return null
+  return Math.max(250, Math.min(soonest - nowMs, 2_147_000_000))
 }
 
 function percent(value: number | undefined): number {

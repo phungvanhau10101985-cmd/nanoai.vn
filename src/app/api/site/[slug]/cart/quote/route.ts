@@ -24,6 +24,7 @@ type QuoteLineInput = {
   inventoryId?: string
   quantity?: number
   fallbackUnitPrice?: number
+  selected?: boolean
 }
 
 function money(value: unknown): number {
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
           ? line.inventoryId
           : null,
       quantity: Math.max(1, Math.min(99, Math.floor(Number(line.quantity) || 1))),
+      selected: line.selected !== false,
       // A public quote must never accept the browser's price as authoritative.
       // Inventory `price_amount` / `price_hint` is the only source in production.
       fallbackUnitPrice: 0,
@@ -96,7 +98,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       }),
     ])
 
-  const effectiveSubtotal = priceLines.reduce(
+  const billedPriceLines = priceLines.filter((_, index) => validLines[index]?.selected !== false)
+  const effectiveSubtotal = billedPriceLines.reduce(
     (sum, line) => sum + line.effectiveUnitPrice * line.quantity,
     0
   )
@@ -105,12 +108,12 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     | { id: string; code: string; name: string; requestedDiscountAmount: number }
     | null = null
   let promoError: string | null = null
-  if (promoCode) {
+  if (promoCode && billedPriceLines.length > 0) {
     const result = await validatePromotionCodeFromPg({
       partnerId: shop.partnerId,
       code: promoCode,
       subtotal: effectiveSubtotal,
-      cartLines: priceLines.flatMap((line) => {
+      cartLines: billedPriceLines.flatMap((line) => {
         if (!line.inventoryId) return []
         return [{
           inventoryId: line.inventoryId,
@@ -139,7 +142,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     ? Math.max(0, loyaltyStatus.tier?.discount_percent ?? 0)
     : 0
   const breakdown = resolvePartnerSaleDiscountBreakdown({
-    lines: priceLines,
+    lines: billedPriceLines,
     voucherDiscountAmount: promo?.requestedDiscountAmount ?? 0,
     birthdayDiscountPercent: promo ? 0 : (birthdayDiscountPercent ?? 0),
     loyaltyDiscountPercent,
@@ -209,6 +212,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
           googleDiscountAmount: money(line.googleDiscountAmount),
           priceKind: line.priceKind ?? (line.isClearance ? 'clearance' : 'list'),
           flashPercent: line.flashPercent ?? null,
+          countdownTo: line.countdownTo ?? null,
           saleBadge,
           expectedSaleUnitPrice:
             expected != null && expected > 0 && expected < line.listUnitPrice ? expected : null,

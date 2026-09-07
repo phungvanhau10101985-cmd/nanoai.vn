@@ -50,6 +50,7 @@ import {
   partnerSiteSaleCopy,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { PartnerSiteSaleCountdown } from '@/components/partner-website/shop/partner-site-sale-face'
+import { nextPartnerSaleRefreshDelayMs } from '@/lib/partner-website/promotions/partner-sale-pricing'
 
 type Props = {
   siteSlug: string
@@ -87,6 +88,7 @@ type CartQuote = {
     priceKind?: 'flash' | 'calendar' | 'google' | 'clearance' | 'inventory' | 'list'
     flashPercent?: number | null
     saleBadge?: string | null
+    countdownTo?: string | null
   }>
   breakdown: {
     listSubtotal: number
@@ -330,6 +332,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   const [selectedLineIds, setSelectedLineIds] = useState<Set<string>>(new Set())
   const [quote, setQuote] = useState<CartQuote | null>(null)
   const [quoteLoading, setQuoteLoading] = useState(false)
+  const [saleRefreshAt, setSaleRefreshAt] = useState(0)
   const [walletVouchers, setWalletVouchers] = useState<WalletVoucher[]>([])
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; name: string; discountAmount: number } | null>(
     () => {
@@ -506,14 +509,16 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   const fallbackSubtotal = useMemo(
     () =>
       selectedItems.reduce((sum, item) => {
-        const unit = parseVndFromPriceHint(item.card.price_hint)
+        const quoted = quote?.lines.find((line) => line.lineId === item.id)
+        const unit = quoted?.effectiveUnitPrice ?? parseVndFromPriceHint(item.card.price_hint)
         return sum + unit * item.quantity
       }, 0),
-    [selectedItems]
+    [quote?.lines, selectedItems]
   )
 
   const fetchQuote = useCallback(async (
     lines: SiteCartLine[],
+    selectedIds: Set<string>,
     promoCode?: string
   ): Promise<CartQuote | null> => {
     if (lines.length === 0) return null
@@ -527,6 +532,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
           lineId: item.id,
           inventoryId: item.card.inventory_id || '',
           quantity: item.quantity,
+          selected: selectedIds.has(item.id),
           fallbackUnitPrice: parseVndFromPriceHint(item.card.price_hint),
         })),
       }),
@@ -540,10 +546,11 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
 
   const requestQuote = useCallback(async (
     lines: SiteCartLine[],
+    selectedIds: Set<string>,
     promoCode?: string
   ): Promise<CartQuote | null | undefined> => {
     const gen = ++quoteGenRef.current
-    const next = await fetchQuote(lines, promoCode)
+    const next = await fetchQuote(lines, selectedIds, promoCode)
     if (gen !== quoteGenRef.current) return undefined
     return next
   }, [fetchQuote])
@@ -614,7 +621,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   }, [appliedPromo?.code])
 
   useEffect(() => {
-    if (!ready || loading || selectedItems.length === 0) {
+    if (!ready || loading || items.length === 0) {
       setQuote(null)
       return
     }
@@ -626,8 +633,13 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     const walletHit = activePromoCode
       ? walletVouchers.find((item) => item.code.toLowerCase() === activePromoCode.toLowerCase())
       : undefined
-    const codeToQuote = walletHit && !walletHit.eligible ? '' : activePromoCode
-    if (activePromoCode && !codeToQuote) {
+    const codeToQuote =
+      selectedItems.length === 0
+        ? ''
+        : walletHit && !walletHit.eligible
+          ? ''
+          : activePromoCode
+    if (activePromoCode && selectedItems.length > 0 && !codeToQuote) {
       setAppliedPromo(null)
       setSelectedWalletCode('')
       setPromoCodeInput('')
@@ -637,7 +649,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     let cancelled = false
     const timer = window.setTimeout(() => {
       setQuoteLoading(true)
-      void requestQuote(selectedItems, codeToQuote)
+      void requestQuote(items, selectedLineIds, codeToQuote)
         .then((next) => {
           if (cancelled || next === undefined) return
           applyQuoteResult(next, codeToQuote, true)
@@ -650,7 +662,41 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [activePromoCode, applyQuoteResult, loading, promoBusy, ready, requestQuote, selectedItems, walletVouchers])
+  }, [
+    activePromoCode,
+    applyQuoteResult,
+    items,
+    loading,
+    promoBusy,
+    ready,
+    requestQuote,
+    saleRefreshAt,
+    selectedItems.length,
+    selectedLineIds,
+    walletVouchers,
+  ])
+
+  useEffect(() => {
+    const delay = nextPartnerSaleRefreshDelayMs([
+      quote?.saleCalendar?.countdownTo,
+      ...(quote?.lines ?? []).map((line) => line.countdownTo),
+    ])
+    if (delay == null) return
+    const timer = window.setTimeout(() => setSaleRefreshAt(Date.now()), delay)
+    return () => window.clearTimeout(timer)
+  }, [quote])
+
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'visible') setSaleRefreshAt(Date.now())
+    }
+    document.addEventListener('visibilitychange', refresh)
+    window.addEventListener('pageshow', refresh)
+    return () => {
+      document.removeEventListener('visibilitychange', refresh)
+      window.removeEventListener('pageshow', refresh)
+    }
+  }, [])
 
   useEffect(() => {
     if (!ready || selectedItems.length === 0) {
@@ -696,7 +742,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     setPromoCodeInput(trimmed)
     setSelectedWalletCode(wallet?.code || trimmed)
     try {
-      const next = await requestQuote(selectedItems, trimmed)
+      const next = await requestQuote(items, selectedLineIds, trimmed)
       if (next === undefined) return
       applyQuoteResult(next, trimmed)
       skipAutoQuoteRef.current = true

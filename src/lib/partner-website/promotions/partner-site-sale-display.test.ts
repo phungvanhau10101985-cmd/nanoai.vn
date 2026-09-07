@@ -78,11 +78,29 @@ test('flash sale uses Flash sale -N% badge', () => {
       expectedSalePrice: null,
       eventLabel: 'Flash sale',
       eventDate: null,
-      countdownTo: '2026-09-07T04:10:00.000Z',
+      countdownTo: '2099-09-07T04:10:00.000Z',
     },
   })
   assert.equal(face.kind, 'active')
   assert.equal(face.badge, 'Flash sale -5%')
+  const expired = resolvePartnerProductSaleFace({
+    priceAmount: 1_000_000,
+    salePriceAmount: 950_000,
+    siteSale: {
+      kind: 'flash',
+      listPrice: 1_000_000,
+      displayPrice: 950_000,
+      savingsAmount: 50_000,
+      percent: 5,
+      phase: 'active',
+      expectedSalePrice: null,
+      eventLabel: 'Flash sale',
+      eventDate: null,
+      countdownTo: '2020-09-07T04:10:00.000Z',
+    },
+  })
+  assert.equal(expired.kind, null)
+  assert.equal(expired.displayPrice, 1_000_000)
 })
 
 test('salePriceAmount 0 is not a discount', () => {
@@ -172,4 +190,39 @@ test('sale countdown tick updates text nodes and skips banner hosts', () => {
   const el = { firstChild: text, textContent: '01:00:00' }
   writePartnerSaleCountdownNode(el as unknown as Element, '00:59:59')
   assert.equal(text.nodeValue, '00:59:59')
+})
+
+test('expired inventory sale window returns the list price on storefront and cart overlay', () => {
+  const off = resolvePartnerSaleCalendarState({
+    settings: defaultPartnerSaleCalendarSettings(),
+    at: new Date('2026-09-20T05:00:00.000Z'),
+  })
+  assert.equal(off.phase, 'off')
+  const expired = applyPartnerSiteSaleToShopProduct(
+    {
+      priceAmount: 1_000_000,
+      salePriceAmount: 800_000,
+      saleStartsAt: '2020-01-01T00:00:00.000Z',
+      saleEndsAt: '2020-01-02T00:00:00.000Z',
+    },
+    off
+  )
+  assert.equal(expired.salePriceAmount, null)
+  const expiredFace = resolvePartnerProductSaleFace(expired)
+  assert.equal(expiredFace.kind, null)
+  assert.equal(expiredFace.displayPrice, 1_000_000)
+
+  const live = applyPartnerSiteSaleToShopProduct(
+    {
+      priceAmount: 1_000_000,
+      salePriceAmount: 800_000,
+      saleStartsAt: '2020-01-01T00:00:00.000Z',
+      saleEndsAt: '2099-01-01T00:00:00.000Z',
+    },
+    off
+  )
+  assert.equal(live.salePriceAmount, 800_000)
+  const liveFace = resolvePartnerProductSaleFace(live)
+  assert.equal(liveFace.kind, 'active')
+  assert.equal(liveFace.displayPrice, 800_000)
 })

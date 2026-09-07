@@ -46,6 +46,7 @@ test('pickEvenShopProducts round-robins shops', () => {
 
 test('flash replaces calendar price and skips clearance', () => {
   const endAt = new Date('2026-09-07T04:10:00.000Z')
+  const now = new Date('2026-09-07T04:05:00.000Z').getTime()
   const assignment = {
     productIds: ['sku-1'],
     percentById: { 'sku-1': 6 },
@@ -69,7 +70,8 @@ test('flash replaces calendar price and skips clearance', () => {
         countdownTo: null,
       },
     },
-    assignment
+    assignment,
+    now
   )
   assert.equal(priced.siteSale?.kind, 'flash')
   assert.equal(priced.salePriceAmount, 940_000)
@@ -79,7 +81,8 @@ test('flash replaces calendar price and skips clearance', () => {
   assert.equal(flash.kind, 'flash')
   const clearance = applyPartnerFlashSaleToProduct(
     { id: 'sku-1', priceAmount: 1_000_000, isClearance: true },
-    assignment
+    assignment,
+    now
   )
   assert.equal(clearance.siteSale, undefined)
   assert.equal(partnerSiteSaleDateBadgeLabel({ percent: 5, kind: 'flash' }), 'Flash sale -5%')
@@ -99,6 +102,7 @@ test('flash unit price replaces calendar instead of stacking min', () => {
     currentEffective: calendarEightPercent,
     inventoryId: 'sku-1',
     assignment,
+    now: new Date('2026-09-07T04:05:00.000Z'),
   })
   assert.equal(flashed, 950_000)
   assert.equal(
@@ -108,6 +112,17 @@ test('flash unit price replaces calendar instead of stacking min', () => {
       isClearance: true,
       inventoryId: 'sku-1',
       assignment,
+      now: new Date('2026-09-07T04:05:00.000Z'),
+    }),
+    calendarEightPercent
+  )
+  assert.equal(
+    applyPartnerFlashSaleUnitPrice({
+      listUnitPrice: list,
+      currentEffective: calendarEightPercent,
+      inventoryId: 'sku-1',
+      assignment,
+      now: new Date('2026-09-07T04:10:00.000Z'),
     }),
     calendarEightPercent
   )

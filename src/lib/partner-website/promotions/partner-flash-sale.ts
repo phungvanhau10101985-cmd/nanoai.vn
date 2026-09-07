@@ -260,9 +260,10 @@ export function applyPartnerFlashSaleToProduct<
     siteSalePercent?: number | null
     siteSaleExpectedPrice?: number | null
   },
->(product: T, assignment: PartnerFlashSaleAssignment | null | undefined): T {
+>(product: T, assignment: PartnerFlashSaleAssignment | null | undefined, nowMs = Date.now()): T {
   if (!assignment?.productIds.length) return product
   if (product.isClearance === true) return product
+  if (assignment.slot.endAt.getTime() <= nowMs) return product
   const id = partnerFlashSaleProductId(product)
   if (!id) return product
   const percent = assignment.percentById[id] ?? assignment.percentById[partnerFlashSaleProductId({ id })]
@@ -291,8 +292,9 @@ export function applyPartnerFlashSaleToProduct<
 
 export function applyPartnerFlashSaleToProducts<T extends Parameters<typeof applyPartnerFlashSaleToProduct>[0]>(
   products: T[],
-  assignment: PartnerFlashSaleAssignment | null | undefined
+  assignment: PartnerFlashSaleAssignment | null | undefined,
+  nowMs = Date.now()
 ): T[] {
   if (!assignment?.productIds.length) return products
-  return products.map((product) => applyPartnerFlashSaleToProduct(product, assignment))
+  return products.map((product) => applyPartnerFlashSaleToProduct(product, assignment, nowMs))
 }

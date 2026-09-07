@@ -8,6 +8,7 @@ import {
 } from '@/lib/partner-website/promotions/partner-sale-calendar'
 import {
   PARTNER_ORDER_MAX_DISCOUNT_PERCENT,
+  nextPartnerSaleRefreshDelayMs,
   resolvePartnerSaleDiscountBreakdown,
 } from '@/lib/partner-website/promotions/partner-sale-pricing'
 import {
@@ -162,6 +163,13 @@ test('Google line savings scale by quantity and consume the 15 percent budget', 
   assert.equal(result.voucherDiscountAmount, 0)
   assert.equal(result.loyaltyDiscountAmount, 0)
   assert.equal(result.totalDiscountAmount, 300_000)
+})
+
+test('nextPartnerSaleRefreshDelayMs fires when a sale window has ended', () => {
+  const now = Date.parse('2026-09-07T04:10:00.000Z')
+  assert.equal(nextPartnerSaleRefreshDelayMs(['2026-09-07T05:00:00.000Z'], now), 50 * 60 * 1000)
+  assert.equal(nextPartnerSaleRefreshDelayMs(['2026-09-07T04:09:59.000Z'], now), 250)
+  assert.equal(nextPartnerSaleRefreshDelayMs([null, ''], now), null)
 })
 
 test('Google pv2 ES256 is tenant-offer checked and lock is capped at 48 hours', () => {

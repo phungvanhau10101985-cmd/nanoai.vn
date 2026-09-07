@@ -275,7 +275,7 @@ export async function overlayPartnerFlashSaleOnProducts<
     enabled: config?.flashSaleEnabled !== false,
   })
   if (!assignment.productIds.length) return input.products
-  return input.products.map((product) => applyPartnerFlashSaleToProduct(product, assignment))
+  return input.products.map((product) => applyPartnerFlashSaleToProduct(product, assignment, input.now?.getTime()))
 }
 
 export function partnerFlashSalePercentForLine(
@@ -294,8 +294,13 @@ export function applyPartnerFlashSaleUnitPrice(input: {
   isClearance?: boolean
   inventoryId?: string | null
   assignment: PartnerFlashSaleAssignment | null | undefined
+  now?: Date
 }): number {
   if (input.isClearance) return input.currentEffective
+  const nowMs = input.now?.getTime() ?? Date.now()
+  if (input.assignment?.slot?.endAt && input.assignment.slot.endAt.getTime() <= nowMs) {
+    return input.currentEffective
+  }
   const percent = partnerFlashSalePercentForLine(input.assignment, input.inventoryId)
   if (!percent) return input.currentEffective
   const flash = applyPartnerFlashPercentToPrice(input.listUnitPrice, percent, input.assignment?.slot.endAt ?? null)

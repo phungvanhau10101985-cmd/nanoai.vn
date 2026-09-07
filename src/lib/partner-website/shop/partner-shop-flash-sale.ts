@@ -34,7 +34,7 @@ export const PW_SALE_VIEW_JS = `function saleView(p){
   if(!Number.isFinite(list)||list<=0||!Number.isFinite(sale)||sale<=0||sale>=list)return null;
   var now=Date.now(),start=p.saleStartsAt?Date.parse(p.saleStartsAt):NaN,end=p.saleEndsAt?Date.parse(p.saleEndsAt):NaN;
   if(Number.isFinite(start)&&now<start)return null;
-  if(Number.isFinite(end)&&now>end)return null;
+  if(Number.isFinite(end)&&now>=end)return null;
   return {price:money(sale),compare:money(list),percent:Math.max(1,Math.round((list-sale)*100/list))};
 }`
 
