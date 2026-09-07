@@ -99,7 +99,7 @@ function ProductCard({
   customDomain: boolean
 }) {
   const href = partnerSiteProductPath(siteSlug, product.id, { customDomain, name: product.name })
-  const face = partnerProductSaleFaceOf(product)
+  const face = partnerProductSaleFaceOf(product, locale)
   const flash =
     !face.kind &&
     (showFlash ||

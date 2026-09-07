@@ -60,10 +60,10 @@ import {
   type PartnerSiteSalePricing,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import {
+  applyPartnerStorefrontSaleFaces,
   loadPartnerSiteSaleOverlay,
   type PartnerSiteSaleOverlay,
 } from '@/lib/partner-website/promotions/partner-site-sale-attach'
-import { overlayPartnerFlashSaleOnProducts } from '@/lib/db/messaging-partner-flash-sale-pg'
 
 export type PartnerSitePersonalizationProduct = {
   inventory_id: string
@@ -82,6 +82,7 @@ export type PartnerSitePersonalizationProduct = {
   siteSalePercent?: number
   siteSaleExpectedPrice?: number | null
   siteSale?: PartnerSiteSalePricing | null
+  birthdayOfferPercent?: number
   likesCount?: number
   purchasesCount?: number
   ratingScore?: number
@@ -274,9 +275,29 @@ export function mapInventoryRowToPersonalizationProduct(
     siteSalePercent: priced.siteSalePercent,
     siteSaleExpectedPrice: priced.siteSaleExpectedPrice,
     siteSale: priced.siteSale,
+    birthdayOfferPercent: 0,
     likesCount: Math.max(0, Math.round(Number(row.likes_count ?? 0)) || 0),
     purchasesCount: Math.max(0, Math.round(Number(row.purchases_count ?? 0)) || 0),
     ratingScore: Number(row.rating_score ?? 0) || 0,
+  }
+}
+
+export async function resolvePartnerStorefrontSaleIdentity(partnerId: string): Promise<{
+  accountKey: string | null
+  linkedUserId: string | null
+  emailNormalized: string | null
+}> {
+  const accountKey = (await peekSiteVisitorAccountKey()).trim() || null
+  const sessionUser = await getEmailSessionUser()
+  const sessionEmail = sessionUser?.email?.trim().toLowerCase() || null
+  const guestEmail =
+    !sessionEmail && accountKey && UUID_RE.test(accountKey)
+      ? (await fetchGuestAccountEmailByIdPg(partnerId, accountKey).catch(() => null))?.emailNormalized ?? null
+      : null
+  return {
+    accountKey,
+    linkedUserId: sessionUser?.id ?? null,
+    emailNormalized: sessionEmail || guestEmail,
   }
 }
 
@@ -284,7 +305,11 @@ async function loadProductsByIds(
   partnerId: string,
   siteSlug: string,
   ids: string[],
-  accountKey?: string | null
+  opts?: {
+    accountKey?: string | null
+    linkedUserId?: string | null
+    emailNormalized?: string | null
+  }
 ): Promise<PartnerSitePersonalizationProduct[]> {
   const clean = ids.filter((id) => UUID_RE.test(id))
   if (!clean.length) return []
@@ -295,15 +320,16 @@ async function loadProductsByIds(
   for (const id of clean) {
     const row = byId.get(id)
     if (!row) continue
-    const mapped = mapInventoryRowToPersonalizationProduct(siteSlug, row, overlay)
+    const mapped = mapInventoryRowToPersonalizationProduct(siteSlug, row)
     if (mapped) out.push(mapped)
   }
-  if (!accountKey || !out.length) return out
-  return overlayPartnerFlashSaleOnProducts({
+  if (!out.length) return out
+  return applyPartnerStorefrontSaleFaces(out, {
     partnerId,
-    accountKey,
-    timezone: overlay?.state.timezone,
-    products: out,
+    accountKey: opts?.accountKey,
+    linkedUserId: opts?.linkedUserId,
+    emailNormalized: opts?.emailNormalized,
+    overlay,
   })
 }
 
@@ -329,6 +355,8 @@ export async function getSiteRecentlyViewedProducts(input: {
   siteSlug: string
   accountKey: string
   limit?: number
+  linkedUserId?: string | null
+  emailNormalized?: string | null
 }): Promise<PartnerSitePersonalizationProduct[]> {
   const lim = Math.max(1, Math.min(48, Math.floor(Number(input.limit) || 8)))
   const ids = await getSitePersonalizationInventoryIds({
@@ -336,7 +364,13 @@ export async function getSiteRecentlyViewedProducts(input: {
     accountKey: input.accountKey,
     kind: 'recently-viewed',
   })
-  return (await loadProductsByIds(input.partnerId, input.siteSlug, ids, input.accountKey)).slice(0, lim)
+  return (
+    await loadProductsByIds(input.partnerId, input.siteSlug, ids, {
+      accountKey: input.accountKey,
+      linkedUserId: input.linkedUserId,
+      emailNormalized: input.emailNormalized,
+    })
+  ).slice(0, lim)
 }
 
 export async function getSiteFavoriteProducts(input: {
@@ -344,6 +378,8 @@ export async function getSiteFavoriteProducts(input: {
   siteSlug: string
   accountKey: string
   limit?: number
+  linkedUserId?: string | null
+  emailNormalized?: string | null
 }): Promise<PartnerSitePersonalizationProduct[]> {
   const lim = Math.max(1, Math.min(48, Math.floor(Number(input.limit) || 8)))
   const ids = await getSitePersonalizationInventoryIds({
@@ -351,7 +387,13 @@ export async function getSiteFavoriteProducts(input: {
     accountKey: input.accountKey,
     kind: 'favorites',
   })
-  return (await loadProductsByIds(input.partnerId, input.siteSlug, ids, input.accountKey)).slice(0, lim)
+  return (
+    await loadProductsByIds(input.partnerId, input.siteSlug, ids, {
+      accountKey: input.accountKey,
+      linkedUserId: input.linkedUserId,
+      emailNormalized: input.emailNormalized,
+    })
+  ).slice(0, lim)
 }
 
 /** RSC first paint for vừa xem / yêu thích — no client "…" wait. */
@@ -361,20 +403,24 @@ export async function loadSiteSavedProductsForRequest(input: {
   mode: 'favorites' | 'recently-viewed'
   limit?: number
 }): Promise<PartnerSitePersonalizationProduct[]> {
-  const accountKey = (await peekSiteVisitorAccountKey()).trim()
-  if (!accountKey) return []
+  const identity = await resolvePartnerStorefrontSaleIdentity(input.partnerId)
+  if (!identity.accountKey) return []
   if (input.mode === 'favorites') {
     return getSiteFavoriteProducts({
       partnerId: input.partnerId,
       siteSlug: input.siteSlug,
-      accountKey,
+      accountKey: identity.accountKey,
+      linkedUserId: identity.linkedUserId,
+      emailNormalized: identity.emailNormalized,
       limit: input.limit ?? 48,
     })
   }
   return getSiteRecentlyViewedProducts({
     partnerId: input.partnerId,
     siteSlug: input.siteSlug,
-    accountKey,
+    accountKey: identity.accountKey,
+    linkedUserId: identity.linkedUserId,
+    emailNormalized: identity.emailNormalized,
     limit: input.limit ?? 48,
   })
 }

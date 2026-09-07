@@ -6,7 +6,10 @@ import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-heade
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
-import { loadPartnerSiteSaleOverlay, withPartnerSiteSale } from '@/lib/partner-website/promotions/partner-site-sale-attach'
+import { applyPartnerStorefrontSaleFaces, loadPartnerSiteSaleOverlay } from '@/lib/partner-website/promotions/partner-site-sale-attach'
+import { peekSiteVisitorAccountKey } from '@/lib/partner-website/shop/partner-site-personalization'
+import { getEmailSessionUser } from '@/lib/auth/email-session-user'
+import { fetchGuestAccountEmailByIdPg } from '@/lib/db/messaging-guest-pg'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopProductClient } from '@/components/partner-website/shop/partner-site-shop-product-client'
@@ -78,8 +81,26 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
   const row = await resolvePartnerShopProductByKey(shop.partnerId, inventoryId)
   const overlay = await loadPartnerSiteSaleOverlay(shop.partnerId).catch(() => null)
   const mapped = row ? inventoryRowToShopProduct(shop.site.siteSlug, row, { pdp: true }) : null
-  const product = row && mapped
-    ? withPartnerSiteSale({ ...mapped, isClearance: row.is_clearance === true }, overlay)
+  const accountKey = await peekSiteVisitorAccountKey()
+  const sessionUser = await getEmailSessionUser()
+  const guestEmail = sessionUser?.email?.trim()
+    ? sessionUser.email.trim().toLowerCase()
+    : /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accountKey)
+      ? (await fetchGuestAccountEmailByIdPg(shop.partnerId, accountKey).catch(() => null))?.emailNormalized
+      : null
+  const product = mapped
+    ? (
+        await applyPartnerStorefrontSaleFaces(
+          [{ ...mapped, isClearance: row?.is_clearance === true }],
+          {
+            partnerId: shop.partnerId,
+            accountKey,
+            linkedUserId: sessionUser?.id ?? null,
+            emailNormalized: guestEmail,
+            overlay,
+          }
+        )
+      )[0]
     : null
   if (!row || !product) notFound()
 
@@ -120,6 +141,9 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
     excludeId: row.id,
     categoryId: relatedCtx.categoryId,
     limit: 24,
+    accountKey,
+    linkedUserId: sessionUser?.id ?? null,
+    emailNormalized: guestEmail,
   })
 
   const sizeGuideImageUrl = await fetchSizeGuideImageUrlForInventoryFromPg(shop.partnerId, row.id)

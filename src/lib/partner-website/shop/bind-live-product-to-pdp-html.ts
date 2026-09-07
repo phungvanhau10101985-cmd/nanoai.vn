@@ -12,6 +12,7 @@ import {
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import {
   formatPartnerSaleMoney,
+  partnerSiteBirthdayCheckoutHint,
   partnerSiteSaleCopy,
   resolvePartnerProductSaleFace,
   type PartnerSiteSalePricing,
@@ -102,6 +103,7 @@ export type LivePdpBindProduct = {
   siteSalePercent?: number | null
   siteSaleExpectedPrice?: number | null
   siteSale?: PartnerSiteSalePricing | null
+  birthdayOfferPercent?: number | null
   imageUrl?: string | null
   galleryImages?: string[] | null
   detailImages?: string[] | null
@@ -1312,7 +1314,7 @@ function ensureMissingPdpSlots(
     }
   }
   const { price, compare } = productPriceText(product)
-  const face = resolvePartnerProductSaleFace(product)
+  const face = resolvePartnerProductSaleFace(product, locale)
   const saleCopy = partnerSiteSaleCopy(locale)
   const flashOn = isPartnerFlashSaleActive({
     priceAmount: product.priceAmount ?? null,
@@ -1326,7 +1328,7 @@ function ensureMissingPdpSlots(
     ''
   )
   if (face.kind && face.badge) {
-    const flash = `<span class="pw-pdp-sale-pill pw-pdp-sale-pill-${face.kind}" data-pw-el="${PW_EL.badge}" data-pw-pdp-slot="flash">${escText(face.badge)}</span>`
+    const flash = `<span class="pw-pdp-sale-pill pw-pdp-sale-pill-${face.kind}${face.promoKind ? ` pw-pdp-sale-pill-${face.promoKind}` : ''}" data-pw-el="${PW_EL.badge}" data-pw-pdp-slot="flash">${escText(face.badge)}</span>`
     out = out.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>)/i, `$1${flash}`)
   } else if (flashOn) {
     const flash = `<span class="pw-shop-urgency-badge" data-pw-el="${PW_EL.badge}" data-pw-pdp-slot="flash">${escText(t.flashSaleBadge)}</span>`
@@ -1346,6 +1348,13 @@ function ensureMissingPdpSlots(
   } else if (compare && price && !compare.startsWith('→')) {
     const save = `<p class="pw-pdp-save" data-pw-pdp-slot="savings">${escText(t.pdpSavings.replace('{amount}', compare))}</p>`
     out = out.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>[\s\S]*?<\/div>)/i, `$1${save}`)
+  }
+  out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'birthday')
+  out = out.replace(/<p\b[^>]*\bpw-pdp-birthday-hint\b[^>]*>[\s\S]*?<\/p>/gi, '')
+  const birthdayHint = product.isClearance === true ? null : partnerSiteBirthdayCheckoutHint(product.birthdayOfferPercent, locale)
+  if (birthdayHint) {
+    const hint = `<p class="pw-pdp-birthday-hint" data-pw-pdp-slot="birthday">${escText(birthdayHint)}</p>`
+    out = out.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>[\s\S]*?<\/div>)/i, `$1${hint}`)
   }
   const stock = Number(product.stockQty ?? 0)
   out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'low-stock')

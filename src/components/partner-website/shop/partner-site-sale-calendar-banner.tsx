@@ -5,6 +5,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerSaleCalendarState } from '@/lib/partner-website/promotions/partner-sale-calendar'
 import {
   formatPartnerSaleCountdownCompact,
+  partnerSiteBirthdayBannerText,
   partnerSiteSaleBannerShowsOnPage,
   partnerSiteSaleBannerStorageKey,
   partnerSiteSaleBannerText,
@@ -25,6 +26,7 @@ export function PartnerSiteSaleCalendarBanner({ siteSlug, locale, pageKind, hide
   const copy = partnerSiteSaleCopy(locale)
   const visiblePage = partnerSiteSaleBannerShowsOnPage(pageKind) && !hideOnAuth
   const [state, setState] = useState<PartnerSaleCalendarState | null>(null)
+  const [birthdayPercent, setBirthdayPercent] = useState(0)
   const [closed, setClosed] = useState(false)
   const [ready, setReady] = useState(false)
 
@@ -37,6 +39,7 @@ export function PartnerSiteSaleCalendarBanner({ siteSlug, locale, pageKind, hide
         if (cancelled) return
         const next = data?.state as PartnerSaleCalendarState | undefined
         setState(next && next.phase !== 'off' ? next : null)
+        setBirthdayPercent(Math.max(0, Math.round(Number(data?.birthdayOffer?.percent) || 0)))
         setReady(true)
       })
       .catch(() => {
@@ -47,19 +50,22 @@ export function PartnerSiteSaleCalendarBanner({ siteSlug, locale, pageKind, hide
     }
   }, [siteSlug, visiblePage])
 
-  const storageKey = useMemo(
-    () => partnerSiteSaleBannerStorageKey({ eventDate: state?.eventDate, phase: state?.phase }),
-    [state?.eventDate, state?.phase]
-  )
+  const storageKey = useMemo(() => {
+    if (state && state.phase !== 'off') {
+      return partnerSiteSaleBannerStorageKey({ eventDate: state.eventDate, phase: state.phase })
+    }
+    if (birthdayPercent > 0) return `pw_site_sale_banner_birthday_${birthdayPercent}`
+    return 'pw_site_sale_banner_off'
+  }, [state, birthdayPercent])
 
   useEffect(() => {
-    if (!ready || !state) return
+    if (!ready || (!state && birthdayPercent <= 0)) return
     try {
       setClosed(sessionStorage.getItem(storageKey) === '1')
     } catch {
       setClosed(false)
     }
-  }, [ready, state, storageKey])
+  }, [ready, state, birthdayPercent, storageKey])
 
   const hmsRef = useRef<HTMLElement>(null)
   const [hasCount, setHasCount] = useState(() => Boolean(formatPartnerSaleCountdownCompact(state?.countdownTo)))
@@ -81,15 +87,20 @@ export function PartnerSiteSaleCalendarBanner({ siteSlug, locale, pageKind, hide
     return () => window.clearInterval(id)
   }, [state?.countdownTo])
 
-  if (!visiblePage || !ready || !state || closed) return null
-  const message = partnerSiteSaleBannerText(state, locale)
-  if (!message) return null
-  const phase = state.phase === 'active' ? 'active' : 'teaser'
-  const title = `${state.isTest ? '[Test] ' : ''}${state.eventLabel || copy.program}`
-  const prefix = (phase === 'active' ? copy.countdownLeft : copy.countdownStarts).replace(
-    '{label}',
-    state.eventLabel || copy.program
-  )
+  if (!visiblePage || !ready || closed) return null
+  const message = state ? partnerSiteSaleBannerText(state, locale) : null
+  const birthdayMsg = partnerSiteBirthdayBannerText(birthdayPercent, locale)
+  if (!message && !birthdayMsg) return null
+  const phase = state?.phase === 'active' ? 'active' : state?.phase === 'teaser' ? 'teaser' : 'active'
+  const title = state
+    ? `${state.isTest ? '[Test] ' : ''}${state.eventLabel || copy.program}`
+    : copy.program
+  const prefix = state
+    ? (phase === 'active' ? copy.countdownLeft : copy.countdownStarts).replace(
+        '{label}',
+        state.eventLabel || copy.program
+      )
+    : ''
 
   return (
     <aside data-pw-sale-calendar-banner="1" data-pw-sale-banner-react="1" data-pw-sale-phase={phase} role="status" aria-live="off">
@@ -101,6 +112,9 @@ export function PartnerSiteSaleCalendarBanner({ siteSlug, locale, pageKind, hide
           setClosed(true)
           try {
             sessionStorage.setItem(storageKey, '1')
+            if (birthdayPercent > 0 && state) {
+              sessionStorage.setItem(`pw_site_sale_banner_birthday_${birthdayPercent}`, '1')
+            }
           } catch {
             /* noop */
           }
@@ -109,8 +123,9 @@ export function PartnerSiteSaleCalendarBanner({ siteSlug, locale, pageKind, hide
         ×
       </button>
       <p data-pw-sale-title>{title}</p>
-      <p data-pw-sale-msg>{message}</p>
-      {hasCount ? (
+      {message ? <p data-pw-sale-msg>{message}</p> : null}
+      {birthdayMsg ? <p data-pw-sale-msg data-pw-birthday-msg="1">{birthdayMsg}</p> : null}
+      {hasCount && state?.countdownTo ? (
         <span data-pw-sale-count>
           {prefix}{' '}
           <strong data-pw-sale-hms ref={hmsRef}>

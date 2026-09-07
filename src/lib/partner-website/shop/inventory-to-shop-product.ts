@@ -246,6 +246,8 @@ export type PartnerSiteShopProduct = {
   siteSalePercent?: number
   siteSaleExpectedPrice?: number | null
   siteSale?: import('@/lib/partner-website/promotions/partner-site-sale-display').PartnerSiteSalePricing | null
+  /** Cart-level CMSN % — display-only; does not change unit price. */
+  birthdayOfferPercent?: number
   sizes: string[]
   colors: LivePdpBindColor[]
   /** W1.5 — resolved from primary category when available. */

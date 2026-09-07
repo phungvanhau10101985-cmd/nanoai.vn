@@ -47,8 +47,14 @@ function bannerText(s){
 function storageKey(s){
   return 'pw_site_sale_banner_'+String((s&&s.eventDate)||'none').slice(0,10)+'_'+String((s&&s.phase)||'off');
 }
+function birthdayKey(pct){
+  return 'pw_site_sale_banner_birthday_'+String(pct||0);
+}
 function dismissed(s){
   try{return sessionStorage.getItem(storageKey(s))==='1';}catch(e){return false;}
+}
+function dismissedBirthday(pct){
+  try{return sessionStorage.getItem(birthdayKey(pct))==='1';}catch(e){return false;}
 }
 function ensureCss(){
   if(document.getElementById('pw-site-sale-css'))return;
@@ -99,14 +105,17 @@ function placeEl(el,slot){
 function paint(data){
   window.__pwSaleBannerData=data;
   var s=data&&data.state;
+  var bdayPct=Math.max(0,Math.round(Number(data&&data.birthdayOffer&&data.birthdayOffer.percent||0)||0));
+  var bdayMsg=bdayPct>0&&!dismissedBirthday(bdayPct)?String(COPY.birthdayBanner||'').replace('{pct}',String(bdayPct)):'';
   var old=document.querySelector('[data-pw-sale-calendar-banner]');
   if(old&&old.getAttribute('data-pw-sale-banner-react')==='1')return;
-  if(!shouldShow()||!s||s.phase==='off'||dismissed(s)){
+  var hasCal=s&&s.phase&&s.phase!=='off'&&!dismissed(s);
+  if(!shouldShow()||(!hasCal&&!bdayMsg)){
     if(old&&old.getAttribute('data-pw-sale-banner-react')!=='1')old.remove();
     return;
   }
-  var msg=bannerText(s);
-  if(!msg){if(old&&old.getAttribute('data-pw-sale-banner-react')!=='1')old.remove();return;}
+  var msg=hasCal?bannerText(s):'';
+  if(!msg&&!bdayMsg){if(old&&old.getAttribute('data-pw-sale-banner-react')!=='1')old.remove();return;}
   ensureCss();
   var slot=hostSlot();
   if(!slot)return;
@@ -118,20 +127,24 @@ function paint(data){
     el.setAttribute('aria-live','off');
   }
   placeEl(el,slot);
-  var phase=s.phase==='active'?'active':'teaser';
+  var phase=hasCal?(s.phase==='active'?'active':'teaser'):'active';
   el.setAttribute('data-pw-sale-phase',phase);
-  el.setAttribute('data-pw-sale-until',s.countdownTo||'');
+  el.setAttribute('data-pw-sale-until',hasCal&&s.countdownTo?s.countdownTo:'');
   el.removeAttribute('data-pw-sale-countdown');
-  var lead=(s.isTest?'[Test] ':'')+(s.eventLabel||COPY.program||'');
-  var prefix=String(phase==='active'?COPY.countdownLeft:COPY.countdownStarts||'').replace('{label}',s.eventLabel||COPY.program||'');
-  var count=pwSaleFmtChip(s.countdownTo);
+  var lead=hasCal?(s.isTest?'[Test] ':'')+(s.eventLabel||COPY.program||''):(COPY.program||'');
+  var prefix=hasCal?String(phase==='active'?COPY.countdownLeft:COPY.countdownStarts||'').replace('{label}',s.eventLabel||COPY.program||''):'';
+  var count=hasCal?pwSaleFmtChip(s.countdownTo):'';
   el.innerHTML='<button type="button" data-pw-sale-close aria-label="'+String(COPY.close||'Close').replace(/"/g,'')+'">×</button>'
     +'<p data-pw-sale-title>'+lead.replace(/</g,'&lt;')+'</p>'
-    +'<p data-pw-sale-msg>'+msg.replace(/</g,'&lt;')+'</p>'
+    +(msg?'<p data-pw-sale-msg>'+msg.replace(/</g,'&lt;')+'</p>':'')
+    +(bdayMsg?'<p data-pw-sale-msg data-pw-birthday-msg="1">'+bdayMsg.replace(/</g,'&lt;')+'</p>':'')
     +(count?'<span data-pw-sale-count>'+prefix.replace(/</g,'&lt;')+' <strong data-pw-sale-hms>'+count.replace(/</g,'&lt;')+'</strong></span>':'');
   var close=el.querySelector('[data-pw-sale-close]');
   if(close)close.onclick=function(){
-    try{sessionStorage.setItem(storageKey(s),'1');}catch(e2){}
+    try{
+      if(s&&s.phase&&s.phase!=='off')sessionStorage.setItem(storageKey(s),'1');
+      if(bdayPct>0)sessionStorage.setItem(birthdayKey(bdayPct),'1');
+    }catch(e2){}
     el.remove();
   };
 }

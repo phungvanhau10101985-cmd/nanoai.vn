@@ -10,7 +10,7 @@ import {
   inventoryCardRowToShopProduct,
   type PartnerSiteShopProduct,
 } from '@/lib/partner-website/shop/inventory-to-shop-product'
-import { loadPartnerSiteSaleOverlay, withPartnerSiteSale } from '@/lib/partner-website/promotions/partner-site-sale-attach'
+import { applyPartnerStorefrontSaleFaces, loadPartnerSiteSaleOverlay } from '@/lib/partner-website/promotions/partner-site-sale-attach'
 import {
   PW_RELATED_LIMIT_DEFAULT,
   type RelatedProductContext,
@@ -37,6 +37,9 @@ export async function fetchRelatedShopProducts(input: {
   excludeId: string
   categoryId?: string | null
   limit?: number
+  accountKey?: string | null
+  linkedUserId?: string | null
+  emailNormalized?: string | null
 }): Promise<PartnerSiteShopProduct[]> {
   const limit = Math.min(48, Math.max(1, Math.floor(input.limit ?? PW_RELATED_LIMIT_DEFAULT)))
   const excludeId = String(input.excludeId || '').trim()
@@ -50,12 +53,16 @@ export async function fetchRelatedShopProducts(input: {
       })
     : await fetchPartnerInventoryActiveCardPageWithCountFromPg(input.partnerId, 0, limit + 1)
   const overlay = await loadPartnerSiteSaleOverlay(input.partnerId).catch(() => null)
-  return (page?.rows ?? [])
+  const mapped = (page?.rows ?? [])
     .filter((row) => row.id !== excludeId)
-    .map((row) => {
-      const mapped = inventoryCardRowToShopProduct(input.siteSlug, row)
-      return withPartnerSiteSale(mapped, overlay)
-    })
+    .map((row) => inventoryCardRowToShopProduct(input.siteSlug, row))
     .filter((p): p is PartnerSiteShopProduct => Boolean(p))
     .slice(0, limit)
+  return applyPartnerStorefrontSaleFaces(mapped, {
+    partnerId: input.partnerId,
+    accountKey: input.accountKey,
+    linkedUserId: input.linkedUserId,
+    emailNormalized: input.emailNormalized,
+    overlay,
+  })
 }

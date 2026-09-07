@@ -44,6 +44,7 @@ import {
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import {
   formatPartnerSaleMoney,
+  partnerSiteBirthdayCheckoutHint,
   partnerSiteSaleCopy,
   resolvePartnerProductSaleFace,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
@@ -188,8 +189,12 @@ export function PartnerSiteShopProductClient({
   const [pdpTab, setPdpTab] = useState<'description' | 'specs'>('description')
   const touchStartXRef = useRef<number | null>(null)
   const buyActionsRef = useRef<HTMLDivElement | null>(null)
-  const saleFace = resolvePartnerProductSaleFace(product)
+  const saleFace = resolvePartnerProductSaleFace(product, locale)
   const saleCopy = partnerSiteSaleCopy(locale)
+  const birthdayHint =
+    product.isClearance === true
+      ? null
+      : partnerSiteBirthdayCheckoutHint(product.birthdayOfferPercent, locale)
   const flashActive =
     saleFace.kind === 'active' ||
     isPartnerFlashSaleActive({
@@ -759,7 +764,7 @@ export function PartnerSiteShopProductClient({
           {saleFace.kind ? (
             <div className="pw-pdp-price-card">
               {saleFace.badge ? (
-                <span className={`pw-pdp-sale-pill pw-pdp-sale-pill-${saleFace.kind}`} data-pw-el={PW_EL.badge}>
+                <span className={`pw-pdp-sale-pill pw-pdp-sale-pill-${saleFace.kind}${saleFace.promoKind ? ` pw-pdp-sale-pill-${saleFace.promoKind}` : ''}`} data-pw-el={PW_EL.badge}>
                   {saleFace.badge}
                 </span>
               ) : null}
@@ -785,6 +790,7 @@ export function PartnerSiteShopProductClient({
                     : saleCopy.save.replace('{amount}', formatPartnerSaleMoney(saleFace.savings, locale))}
                 </p>
               ) : null}
+              {birthdayHint ? <p className="pw-pdp-birthday-hint">{birthdayHint}</p> : null}
             </div>
           ) : flashActive && product.salePriceAmount != null ? (
             <div className="pw-pdp-price-card">
@@ -800,10 +806,16 @@ export function PartnerSiteShopProductClient({
               {savings > 0 ? (
                 <p className="pw-pdp-save">{t.pdpSavings.replace('{amount}', formatPartnerShopMoneyVnd(savings))}</p>
               ) : null}
+              {birthdayHint ? <p className="pw-pdp-birthday-hint">{birthdayHint}</p> : null}
             </div>
           ) : priceLabel ? (
             <div className="pw-pdp-price-card">
               <p className="pw-shop-price" data-pw-el={PW_EL.price}>{priceLabel}</p>
+              {birthdayHint ? <p className="pw-pdp-birthday-hint">{birthdayHint}</p> : null}
+            </div>
+          ) : birthdayHint ? (
+            <div className="pw-pdp-price-card">
+              <p className="pw-pdp-birthday-hint">{birthdayHint}</p>
             </div>
           ) : null}
 

@@ -103,6 +103,12 @@ export function buildPartnerSiteCatalogBootstrapScript(input: {
     startsAfter: saleCopy.startsAfter,
     remaining: saleCopy.remaining,
     flashRemaining: saleCopy.flashRemaining,
+    birthdayCheckoutHint: saleCopy.birthdayCheckoutHint,
+    birthdayBadge: saleCopy.birthdayBadge,
+    flashBadge: saleCopy.flashBadge,
+    clearanceBadge: saleCopy.clearanceBadge,
+    calendarBadge: saleCopy.calendarBadge,
+    clearanceName: saleCopy.clearanceName,
   }
   const api = partnerSiteProductsApiPath(slug)
   const productsPath = partnerSiteProductsPath(slug)
@@ -131,19 +137,30 @@ function money(n){var v=Math.max(0,Math.round(Number(n)||0));try{return new Intl
 ${PW_SITE_SALE_VIEW_JS}
 function priceHtml(p){
   var sale=saleView(p);
-  if(!sale)return esc(p.priceHint||'');
+  var bdayPct=Math.max(0,Math.round(Number(p.birthdayOfferPercent||(p.birthdayOffer&&p.birthdayOffer.percent)||0)||0));
+  var bday=bdayPct>0&&p.isClearance!==true?String(COPY.birthdayCheckoutHint||'').replace('{pct}',String(bdayPct)):'';
+  var extra=bday?'<small class="pw-price-birthday">'+esc(bday)+'</small>':'';
+  if(!sale)return esc(p.priceHint||'')+extra;
   if(sale.kind==='teaser'){
-    return '<span class="pw-price-sale">'+esc(sale.price)+'</span> <span class="pw-price-expected">→ '+esc(sale.expected)+'</span><small class="pw-price-teaser">'+esc((COPY.expectedSave||'').replace('{pct}',String(sale.percent)).replace('{amount}',sale.savings))+'</small>';
+    return '<span class="pw-price-sale">'+esc(sale.price)+'</span> <span class="pw-price-expected">→ '+esc(sale.expected)+'</span><small class="pw-price-teaser">'+esc((COPY.expectedSave||'').replace('{pct}',String(sale.percent)).replace('{amount}',sale.savings))+'</small>'+extra;
   }
-  return '<span class="pw-price-sale">'+esc(sale.price)+'</span> <del class="pw-price-compare">'+esc(sale.compare)+'</del>'+(sale.savings?'<small class="pw-price-save">'+esc((COPY.save||'').replace('{amount}',sale.savings))+'</small>':'');
+  return '<span class="pw-price-sale">'+esc(sale.price)+'</span> <del class="pw-price-compare">'+esc(sale.compare)+'</del>'+(sale.savings?'<small class="pw-price-save">'+esc((COPY.save||'').replace('{amount}',sale.savings))+'</small>':'')+extra;
 }
-function saleBadgeHtml(sale, opts){
+function saleBadgeHtml(sale, opts, p){
+  var out='';
   if(sale&&sale.badge){
     var chipLabel=sale.promoKind==='flash'?COPY.flashRemaining:(sale.kind==='active'?COPY.remaining:COPY.startsAfter);
-    var chip=sale.countdown?'<span class="pw-sale-chip pw-sale-chip-'+sale.kind+'" data-pw-sale-countdown="'+esc(sale.countdown)+'" data-pw-sale-phase="'+esc(sale.kind)+'" data-pw-sale-kind="'+(sale.promoKind||'')+'">'+esc(chipLabel)+' <span data-pw-sale-hms></span></span>':'';
-    return '<span class="pw-badge-sale pw-badge-sale-'+sale.kind+'">'+esc(sale.badge)+'</span>'+chip;
+    var chip=sale.countdown&&sale.promoKind!=='clearance'?'<span class="pw-sale-chip pw-sale-chip-'+sale.kind+'" data-pw-sale-countdown="'+esc(sale.countdown)+'" data-pw-sale-phase="'+esc(sale.kind)+'" data-pw-sale-kind="'+(sale.promoKind||'')+'">'+esc(chipLabel)+' <span data-pw-sale-hms></span></span>':'';
+    out='<span class="pw-badge-sale pw-badge-sale-'+sale.kind+(sale.promoKind?' pw-badge-sale-'+sale.promoKind:'')+'">'+esc(sale.badge)+'</span>'+chip;
+  }else if(opts&&opts.newBadge){
+    out='<span class="pw-badge-new">NEW</span>';
   }
-  return (opts&&opts.newBadge)?'<span class="pw-badge-new">NEW</span>':'';
+  var bdayPct=Math.max(0,Math.round(Number((p&&p.birthdayOfferPercent)||(p&&p.birthdayOffer&&p.birthdayOffer.percent)||0)||0));
+  if(bdayPct>0&&!(p&&p.isClearance===true)){
+    var bdayBadge=String(COPY.birthdayBadge||'').replace('{pct}',String(bdayPct));
+    if(bdayBadge)out+='<span class="pw-badge-birthday">'+esc(bdayBadge)+'</span>';
+  }
+  return out;
 }
 ${PW_PRODUCT_GRID_PAGE_JS}
 ${PW_SHOP_CARD_IMG_JS}
@@ -154,7 +171,7 @@ function renderCard(p, opts){
   var img=esc(shopImg(p));
   var sale=saleView(p);
   var price=priceHtml(p);
-  var badge=saleBadgeHtml(sale,opts);
+  var badge=saleBadgeHtml(sale,opts,p);
   var favBtn='';
   if(id&&opts&&opts.favoriteHtml){
     favBtn=String(opts.favoriteHtml).replace(/data-inventory-id=["'][^"']*["']/gi,'data-inventory-id="'+esc(id)+'"');

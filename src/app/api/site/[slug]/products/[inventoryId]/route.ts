@@ -7,12 +7,12 @@ import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-part
 import {
   isSiteProductFavorite,
   resolveSiteVisitorContext,
+  resolveSiteVisitorEmail,
 } from '@/lib/partner-website/shop/partner-site-personalization'
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
 import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import { resolvePartnerStorefrontSaleCalendarForRequest } from '@/lib/partner-website/promotions/partner-feature-test-storefront'
-import { overlayPartnerFlashSaleOnProducts } from '@/lib/db/messaging-partner-flash-sale-pg'
-import { applyPartnerSiteSaleToShopProduct } from '@/lib/partner-website/promotions/partner-site-sale-display'
+import { applyPartnerStorefrontSaleFaces, loadPartnerStorefrontBirthdayPercent } from '@/lib/partner-website/promotions/partner-site-sale-attach'
 import { pgQueryOne } from '@/lib/db/pg-query'
 
 export const dynamic = 'force-dynamic'
@@ -57,18 +57,26 @@ export async function GET(
     settings: saleConfig,
   })
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
-  const sold = applyPartnerSiteSaleToShopProduct(product, saleCalendar, {
-    clearanceEnabled: saleConfig.clearanceEnabled,
-    clearancePercent: saleConfig.clearanceDiscountPercent,
-  })
-  const flashed = (
-    await overlayPartnerFlashSaleOnProducts({
+  const emailNormalized = await resolveSiteVisitorEmail(request, shop.partnerId, visitor.thread)
+  const [faced, birthdayPercent] = await Promise.all([
+    applyPartnerStorefrontSaleFaces([product], {
       partnerId: shop.partnerId,
       accountKey: visitor.accountKey,
-      timezone: saleConfig.timezone,
-      products: [sold],
-    })
-  )[0]
+      linkedUserId: visitor.thread.linkedUserId,
+      emailNormalized,
+      overlay: {
+        state: saleCalendar,
+        clearanceEnabled: saleConfig.clearanceEnabled,
+        clearancePercent: saleConfig.clearanceDiscountPercent,
+      },
+    }),
+    loadPartnerStorefrontBirthdayPercent({
+      partnerId: shop.partnerId,
+      linkedUserId: visitor.thread.linkedUserId,
+      emailNormalized,
+    }),
+  ])
+  const flashed = faced[0]
   const relatedCtx = await resolveRelatedProductContext(shop.partnerId, id)
   const productWithCategory = {
     ...flashed,
@@ -83,7 +91,7 @@ export async function GET(
 
   return jsonSitePersonalization(
     request,
-    { ok: true, product: productWithCategory, saleCalendar, is_favorite: isFavorite },
+    { ok: true, product: productWithCategory, saleCalendar, birthdayOffer: birthdayPercent > 0 ? { percent: birthdayPercent } : null, is_favorite: isFavorite },
     200,
     { sessionId: visitor.sessionId, thread: visitor.thread }
   )

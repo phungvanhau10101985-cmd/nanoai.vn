@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { listPartnerFlashSaleBlockFromPg } from '@/lib/db/messaging-partner-flash-sale-pg'
 import { applyPartnerFlashSaleToProduct } from '@/lib/partner-website/promotions/partner-flash-sale'
-import { loadPartnerSiteSaleOverlay } from '@/lib/partner-website/promotions/partner-site-sale-attach'
+import { attachPartnerBirthdayOffer } from '@/lib/partner-website/promotions/partner-site-sale-display'
+import { loadPartnerSiteSaleOverlay, loadPartnerStorefrontBirthdayPercent } from '@/lib/partner-website/promotions/partner-site-sale-attach'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
   mapInventoryRowToPersonalizationProduct,
   resolveSiteVisitorContext,
+  resolveSiteVisitorEmail,
 } from '@/lib/partner-website/shop/partner-site-personalization'
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
 
@@ -17,7 +19,15 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   if (!shop) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
-  const overlay = await loadPartnerSiteSaleOverlay(shop.partnerId).catch(() => null)
+  const [overlay, emailNormalized] = await Promise.all([
+    loadPartnerSiteSaleOverlay(shop.partnerId).catch(() => null),
+    resolveSiteVisitorEmail(request, shop.partnerId, visitor.thread),
+  ])
+  const birthdayPercent = await loadPartnerStorefrontBirthdayPercent({
+    partnerId: shop.partnerId,
+    linkedUserId: visitor.thread.linkedUserId,
+    emailNormalized,
+  })
   const block = await listPartnerFlashSaleBlockFromPg({
     partnerId: shop.partnerId,
     accountKey: visitor.accountKey,
@@ -26,7 +36,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   const products = block.rows
     .map((row) => {
       const mapped = mapInventoryRowToPersonalizationProduct(shop.site.siteSlug, row, overlay)
-      return mapped ? applyPartnerFlashSaleToProduct(mapped, block.assignment) : null
+      if (!mapped) return null
+      return attachPartnerBirthdayOffer(applyPartnerFlashSaleToProduct(mapped, block.assignment), birthdayPercent)
     })
     .filter((product): product is NonNullable<typeof product> => Boolean(product))
 

@@ -41,6 +41,7 @@ import {
   resolveActiveBirthdayDiscountPercentForLinkedUser,
 } from '@/lib/db/messaging-partner-birthday-promo-pg'
 import {
+  expireWorthlessPromotionGrantsForCustomerFromPg,
   recordPromotionUsageFromPg,
   validatePromotionCodeFromPg,
 } from '@/lib/db/messaging-partner-promotions-pg'
@@ -882,6 +883,12 @@ export async function completeOrderCheckout(input: {
       linkedUserId: input.linkedUserId ?? null,
     })
   }
+  await expireWorthlessPromotionGrantsForCustomerFromPg({
+    partnerId: input.partnerId,
+    guestAccountId: input.guestAccountId ?? null,
+    linkedUserId: input.linkedUserId ?? null,
+    emailNormalized: trim(input.form.customerEmail, 180).toLowerCase() || null,
+  })
   await createPartnerAffiliateCommissionForOrderFromPg({
     partnerId: input.partnerId,
     orderId: updated.id,
@@ -1233,6 +1240,14 @@ export async function completeCartCheckout(input: {
       discountAmount: appliedPromo.discountAmount,
       guestAccountId: input.guestAccountId ?? null,
       linkedUserId: input.linkedUserId ?? null,
+    })
+  }
+  if (updated) {
+    await expireWorthlessPromotionGrantsForCustomerFromPg({
+      partnerId: input.partnerId,
+      guestAccountId: input.guestAccountId ?? null,
+      linkedUserId: input.linkedUserId ?? null,
+      emailNormalized: trim(input.form.customerEmail, 180).toLowerCase() || null,
     })
   }
   if (!updated) return { error: 'Không cập nhật được đơn hàng.' }

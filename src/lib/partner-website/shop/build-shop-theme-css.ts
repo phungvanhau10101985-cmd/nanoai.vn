@@ -670,13 +670,18 @@ html[data-pw-scene-lock="desktop"] .pw-pdp-spec-grid,html[data-pw-scene-lock="la
 @media(min-width:960px){.pw-shop-cart-summary{position:sticky;top:calc(var(--pw-sticky-head,72px) + 12px)}}
 .pw-shop-cart-discount-breakdown{display:grid;gap:6px;padding:10px 0;border-block:1px solid var(--pw-border)}
 .pw-shop-cart-discount-breakdown p{display:flex;justify-content:space-between;gap:12px;margin:0;font-size:13px}
-.pw-shop-cart-discount-breakdown p:not(.is-clearance) strong{color:var(--pw-buy)}
+.pw-shop-cart-discount-breakdown p:not(.is-clearance):not(.pw-shop-cart-cap-meter):not(.pw-shop-cart-promo-msg) strong{color:var(--pw-buy)}
 .pw-shop-cart-discount-breakdown .is-clearance{padding:8px;border-radius:8px;background:var(--pw-surface)}
+.pw-shop-cart-programs{display:flex;flex-wrap:wrap;gap:6px}
+.pw-shop-cart-programs span{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:var(--pw-surface);border:1px solid var(--pw-border);color:var(--pw-primary);font-size:11px;font-weight:700}
+.pw-shop-cart-line-badge{margin-left:6px;padding:2px 6px;border-radius:4px;background:#dc2626;color:#fff;font-size:10px;font-weight:800;letter-spacing:.02em}
+.pw-shop-cart-cap-meter{color:var(--pw-muted);font-size:12px!important;font-weight:600}
 .pw-shop-cart-promo label{display:block;font-weight:700;margin-bottom:6px;font-size:13px}
 .pw-shop-cart-wallet{display:grid;gap:7px;margin-bottom:10px;padding:10px;border:1px solid var(--pw-border);border-radius:9px;background:var(--pw-surface)}
 .pw-shop-cart-wallet>label{display:flex;align-items:flex-start;gap:8px;margin:0;font-weight:500;cursor:pointer}
-.pw-shop-cart-wallet>label.is-disabled{opacity:.55}
+.pw-shop-cart-wallet>label.is-disabled{opacity:.55;cursor:not-allowed}
 .pw-shop-cart-wallet>label.is-selected{color:var(--pw-primary)}
+.pw-shop-cart-wallet-reason{display:block;margin-top:2px;font-size:11px;font-weight:500;font-style:normal;color:#b45309}
 .pw-shop-cart-promo-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .pw-shop-cart-promo-row input{flex:1 1 140px;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font:inherit;font-size:14px}
 .pw-shop-cart-promo-msg{margin:6px 0 0;font-size:13px;line-height:1.45}

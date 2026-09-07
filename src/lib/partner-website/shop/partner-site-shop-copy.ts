@@ -3185,3 +3185,20 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
 export function getPartnerSiteShopCopy(locale: WebLocale): PartnerSiteShopCopy {
   return COPY[locale] ?? COPY.en
 }
+
+export function shopPromoErrorMessage(t: PartnerSiteShopCopy, code: string): string {
+  const map: Record<string, string> = {
+    not_found: t.promoErrorNotFound,
+    invalid_code: t.promoErrorNotFound,
+    inactive: t.promoErrorInactive,
+    not_started: t.promoErrorNotStarted,
+    expired: t.promoErrorExpired,
+    below_min_subtotal: t.promoErrorBelowMinSubtotal,
+    usage_limit_reached: t.promoErrorUsageLimitReached,
+    per_user_limit_reached: t.promoErrorPerUserLimitReached,
+    first_order_only: t.promoErrorFirstOrderOnly,
+    no_eligible_items: t.promoErrorNoEligibleItems,
+    grant_required: t.promoErrorGrantRequired,
+  }
+  return map[code] ?? t.promoErrorGeneric
+}

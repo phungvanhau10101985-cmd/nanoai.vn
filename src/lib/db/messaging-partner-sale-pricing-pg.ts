@@ -8,8 +8,9 @@ import { applyPartnerSiteSalePrice } from '@/lib/partner-website/promotions/part
 import {
   applyPartnerFlashSaleUnitPrice,
   getPartnerFlashSaleAssignmentFromPg,
+  partnerFlashSalePercentForLine,
 } from '@/lib/db/messaging-partner-flash-sale-pg'
-import type { PartnerSalePriceLine } from '@/lib/partner-website/promotions/partner-sale-pricing'
+import type { PartnerSalePriceKind, PartnerSalePriceLine } from '@/lib/partner-website/promotions/partner-sale-pricing'
 
 type InventoryPriceDbRow = {
   id: string
@@ -119,6 +120,7 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
           Math.round(listUnitPrice * (1 - config.clearanceDiscountPercent / 100))
         ),
         isClearance: true,
+        priceKind: 'clearance',
       }
     }
     const productSale =
@@ -130,6 +132,7 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
       }, input.at?.getTime()) ?? listUnitPrice
     const calendarSale = applyPartnerSiteSalePrice(listUnitPrice, calendarState)
     const regularSale = Math.min(listUnitPrice, productSale, calendarSale)
+    const flashPercent = partnerFlashSalePercentForLine(flashAssignment, row.id)
     const flashSale = applyPartnerFlashSaleUnitPrice({
       listUnitPrice,
       currentEffective: regularSale,
@@ -142,6 +145,11 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
     // lifetime; product/calendar/flash sales are not stacked onto that line.
     const effectiveUnitPrice =
       googlePrice == null ? flashSale : Math.min(listUnitPrice, googlePrice)
+    let priceKind: PartnerSalePriceKind = 'list'
+    if (googlePrice != null && googlePrice < listUnitPrice) priceKind = 'google'
+    else if (flashPercent) priceKind = 'flash'
+    else if (calendarSale < listUnitPrice && calendarSale <= productSale) priceKind = 'calendar'
+    else if (productSale < listUnitPrice) priceKind = 'inventory'
     return {
       inventoryId: row.id,
       quantity: line.quantity,
@@ -149,6 +157,8 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
       effectiveUnitPrice,
       googleDiscountAmount:
         googlePrice != null && googlePrice < listUnitPrice ? listUnitPrice - googlePrice : 0,
+      priceKind,
+      flashPercent: priceKind === 'flash' ? flashPercent : null,
     }
   })
 }

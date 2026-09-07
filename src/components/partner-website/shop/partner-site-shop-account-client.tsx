@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Bell, Copy, Download, MessageCircle } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
-import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { getPartnerSiteShopCopy, shopPromoErrorMessage } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { shouldRenderPartnerSiteAccountShell } from '@/lib/partner-website/shop/partner-site-account-nav'
 import { shouldPartnerSiteShopSkipAuthSync } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
 import {
@@ -75,6 +75,8 @@ type WalletVoucher = {
   maxDiscountAmount: number | null
   minSubtotal: number
   expiresAt: string | null
+  eligible?: boolean
+  ineligibleReason?: string | null
 }
 
 type NotificationItem = {
@@ -492,7 +494,14 @@ export function PartnerSiteShopAccountClient({
                     <div
                       key={v.code}
                       data-pw-el={PW_EL.card}
-                      style={{ border: '1px dashed #d1d5db', borderRadius: 12, padding: 16, display: 'grid', gap: 6 }}
+                      style={{
+                        border: '1px dashed #d1d5db',
+                        borderRadius: 12,
+                        padding: 16,
+                        display: 'grid',
+                        gap: 6,
+                        opacity: v.eligible === false ? 0.7 : 1,
+                      }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                         <strong>{v.name}</strong>
@@ -504,6 +513,11 @@ export function PartnerSiteShopAccountClient({
                       {v.minSubtotal > 0 ? (
                         <p className="pw-shop-muted" style={{ margin: 0, fontSize: 13 }}>
                           {t.walletMinSubtotalNote} {v.minSubtotal.toLocaleString('vi-VN')}đ
+                        </p>
+                      ) : null}
+                      {v.eligible === false && v.ineligibleReason ? (
+                        <p className="pw-shop-cart-promo-msg is-error" style={{ margin: 0, fontSize: 13 }}>
+                          {shopPromoErrorMessage(t, v.ineligibleReason)}
                         </p>
                       ) : null}
                       {v.expiresAt ? (

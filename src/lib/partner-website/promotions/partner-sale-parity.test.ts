@@ -52,6 +52,53 @@ test('sale day is clamped to last day for defensive month handling', () => {
   assert.equal(active.discountPercent, 7)
 })
 
+test('flash and calendar savings are split but still share the 15 percent budget', () => {
+  const result = resolvePartnerSaleDiscountBreakdown({
+    lines: [
+      {
+        inventoryId: 'flash',
+        quantity: 1,
+        listUnitPrice: 1_000_000,
+        effectiveUnitPrice: 950_000,
+        priceKind: 'flash',
+        flashPercent: 5,
+      },
+      {
+        inventoryId: 'calendar',
+        quantity: 1,
+        listUnitPrice: 1_000_000,
+        effectiveUnitPrice: 940_000,
+        priceKind: 'calendar',
+      },
+    ],
+    birthdayDiscountPercent: 10,
+  })
+  assert.equal(result.flashSaleDiscountAmount, 50_000)
+  assert.equal(result.calendarSaleDiscountAmount, 60_000)
+  assert.equal(result.siteSaleDiscountAmount, 110_000)
+  assert.equal(result.maxDiscountAmount, 300_000)
+  assert.equal(result.birthdayDiscountAmount, 189_000)
+  assert.equal(result.amountAfterDiscount, 1_701_000)
+})
+
+test('inventory window savings are not labeled as calendar sale', () => {
+  const result = resolvePartnerSaleDiscountBreakdown({
+    lines: [
+      {
+        inventoryId: 'inventory',
+        quantity: 1,
+        listUnitPrice: 1_000_000,
+        effectiveUnitPrice: 900_000,
+        priceKind: 'inventory',
+      },
+    ],
+  })
+  assert.equal(result.inventorySaleDiscountAmount, 100_000)
+  assert.equal(result.calendarSaleDiscountAmount, 0)
+  assert.equal(result.flashSaleDiscountAmount, 0)
+  assert.equal(result.siteSaleDiscountAmount, 100_000)
+})
+
 test('voucher excludes birthday, loyalty uses remainder and total is capped at 15 percent', () => {
   const result = resolvePartnerSaleDiscountBreakdown({
     lines: [

@@ -16,8 +16,10 @@ export type PartnerSiteSaleProductInput = {
   isClearance?: boolean
 }
 
+export type PartnerSiteSalePromoKind = 'flash' | 'calendar' | 'clearance'
+
 export type PartnerSiteSalePricing = {
-  kind?: 'flash' | 'calendar' | null
+  kind?: PartnerSiteSalePromoKind | null
   listPrice: number
   displayPrice: number
   savingsAmount: number
@@ -31,6 +33,7 @@ export type PartnerSiteSalePricing = {
 
 export type PartnerProductSaleFace = {
   kind: 'teaser' | 'active' | null
+  promoKind: PartnerSiteSalePromoKind | null
   listPrice: number
   displayPrice: number
   comparePrice: number | null
@@ -56,6 +59,13 @@ export type PartnerSiteSaleCopy = {
   countdownStarts: string
   countdownLeft: string
   teaserCartHint: string
+  birthdayCheckoutHint: string
+  birthdayBanner: string
+  birthdayBadge: string
+  flashBadge: string
+  clearanceBadge: string
+  calendarBadge: string
+  clearanceName: string
   ended: string
   teaserPill: string
   activePill: string
@@ -82,11 +92,18 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     countdownStarts: '{label} bắt đầu sau',
     countdownLeft: '{label} — còn',
     teaserCartHint: 'Tiết kiệm dự kiến khi sale {label} (-{pct}%)',
+    birthdayCheckoutHint: 'CMSN {pct}% khi thanh toán',
+    birthdayBanner: 'Sale CMSN {pct}% — áp dụng tự động khi thanh toán, không cộng voucher',
+    birthdayBadge: 'CMSN -{pct}%',
+    flashBadge: 'Flash sale -{pct}%',
+    clearanceBadge: 'Sale thanh lý kho -{pct}%',
+    calendarBadge: 'Sale {date} - {pct}%',
+    clearanceName: 'Sale thanh lý kho',
     ended: 'Đã kết thúc',
     teaserPill: '{label} — giảm {pct}% trong ngày sale',
     activePill: '{label} — giảm {pct}%',
     teaserFallback: 'Sắp sale',
-    activeFallback: 'Sale ngày trùng tháng',
+    activeFallback: 'Sale cùng ngày tháng',
     listPriceLabel: 'Giá gốc',
     offerPriceLabel: 'Giá ưu đãi',
     close: 'Đóng',
@@ -106,6 +123,13 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     countdownStarts: '{label} starts in',
     countdownLeft: '{label} —',
     teaserCartHint: 'Expected savings when {label} starts (-{pct}%)',
+    birthdayCheckoutHint: 'CMSN {pct}% off at checkout',
+    birthdayBanner: 'CMSN {pct}% off — applied automatically at checkout, not stacked with a voucher',
+    birthdayBadge: 'CMSN -{pct}%',
+    flashBadge: 'Flash sale -{pct}%',
+    clearanceBadge: 'Warehouse sale -{pct}%',
+    calendarBadge: 'Sale {date} - {pct}%',
+    clearanceName: 'Warehouse sale',
     ended: 'Ended',
     teaserPill: '{label} — {pct}% off on sale day',
     activePill: '{label} — {pct}% off',
@@ -130,6 +154,13 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     countdownStarts: '{label}开始倒计时',
     countdownLeft: '{label} — 剩余',
     teaserCartHint: '{label}开始后预计节省 (-{pct}%)',
+    birthdayCheckoutHint: 'CMSN 结账再减 {pct}%',
+    birthdayBanner: 'CMSN {pct}% — 结账自动减免，不与优惠券叠加',
+    birthdayBadge: 'CMSN -{pct}%',
+    flashBadge: 'Flash sale -{pct}%',
+    clearanceBadge: '仓库清仓 -{pct}%',
+    calendarBadge: 'Sale {date} - {pct}%',
+    clearanceName: '仓库清仓',
     ended: '已结束',
     teaserPill: '{label} — 活动日减{pct}%',
     activePill: '{label} — 减{pct}%',
@@ -154,6 +185,13 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     countdownStarts: '{label}開始まで',
     countdownLeft: '{label} — 残り',
     teaserCartHint: '{label}開始時の予定節約額 (-{pct}%)',
+    birthdayCheckoutHint: 'CMSN 会計時 {pct}% オフ',
+    birthdayBanner: 'CMSN {pct}% — 会計時に自動適用（クーポンと併用不可）',
+    birthdayBadge: 'CMSN -{pct}%',
+    flashBadge: 'Flash sale -{pct}%',
+    clearanceBadge: '倉庫セール -{pct}%',
+    calendarBadge: 'Sale {date} - {pct}%',
+    clearanceName: '倉庫セール',
     ended: '終了しました',
     teaserPill: '{label} — 当日{pct}%オフ',
     activePill: '{label} — {pct}%オフ',
@@ -178,6 +216,13 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     countdownStarts: '{label} 시작까지',
     countdownLeft: '{label} — 남은 시간',
     teaserCartHint: '{label} 시작 시 예상 절약 (-{pct}%)',
+    birthdayCheckoutHint: 'CMSN 결제 시 {pct}% 할인',
+    birthdayBanner: 'CMSN {pct}% — 결제 시 자동 적용, 쿠폰과 중복 불가',
+    birthdayBadge: 'CMSN -{pct}%',
+    flashBadge: 'Flash sale -{pct}%',
+    clearanceBadge: '창고 세일 -{pct}%',
+    calendarBadge: 'Sale {date} - {pct}%',
+    clearanceName: '창고 세일',
     ended: '종료됨',
     teaserPill: '{label} — 세일 당일 {pct}% 할인',
     activePill: '{label} — {pct}% 할인',
@@ -192,6 +237,37 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
 
 export function partnerSiteSaleCopy(locale: WebLocale) {
   return PARTNER_SITE_SALE_COPY[locale] ?? PARTNER_SITE_SALE_COPY.en
+}
+
+export function normalizePartnerBirthdayOfferPercent(value: unknown): number {
+  const n = Math.max(0, Math.min(100, Math.round(Number(value) || 0)))
+  return n > 0 && n < 100 ? n : 0
+}
+
+export function partnerSiteBirthdayBadgeText(percent: unknown, locale: WebLocale): string | null {
+  const pct = normalizePartnerBirthdayOfferPercent(percent)
+  if (!pct) return null
+  return partnerSiteSaleCopy(locale).birthdayBadge.replace('{pct}', String(pct))
+}
+
+export function partnerSiteBirthdayCheckoutHint(percent: unknown, locale: WebLocale): string | null {
+  const pct = normalizePartnerBirthdayOfferPercent(percent)
+  if (!pct) return null
+  return partnerSiteSaleCopy(locale).birthdayCheckoutHint.replace('{pct}', String(pct))
+}
+
+export function partnerSiteBirthdayBannerText(percent: unknown, locale: WebLocale): string | null {
+  const pct = normalizePartnerBirthdayOfferPercent(percent)
+  if (!pct) return null
+  return partnerSiteSaleCopy(locale).birthdayBanner.replace('{pct}', String(pct))
+}
+
+export function attachPartnerBirthdayOffer<T extends { isClearance?: boolean }>(
+  product: T,
+  percent: unknown
+): T & { birthdayOfferPercent: number } {
+  const pct = product.isClearance === true ? 0 : normalizePartnerBirthdayOfferPercent(percent)
+  return { ...product, birthdayOfferPercent: pct }
 }
 
 export function formatPartnerSaleCountdownParts(targetIso: string | null | undefined, nowMs = Date.now()) {
@@ -217,21 +293,47 @@ export function formatPartnerSaleCountdownCompact(targetIso: string | null | und
   return parts.days > 0 ? `${parts.days}d ${hms}` : hms
 }
 
+export function formatPartnerSaleDayMonth(
+  eventDate?: string | null,
+  eventLabel?: string | null
+): string | null {
+  const date = String(eventDate ?? '').slice(0, 10)
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
+  if (ymd) return `${Number(ymd[3])}/${Number(ymd[2])}`
+  const fromLabel = String(eventLabel ?? '').match(/(\d{1,2})\/(\d{1,2})/)
+  if (fromLabel) return `${fromLabel[1]}/${fromLabel[2]}`
+  return null
+}
+
+export function partnerSiteSalePromoKindOf(input: {
+  kind?: string | null
+  eventLabel?: string | null
+  isClearance?: boolean
+}): PartnerSiteSalePromoKind | null {
+  const kind = String(input.kind || '').toLowerCase()
+  if (kind === 'flash' || kind === 'calendar' || kind === 'clearance') return kind
+  if (input.isClearance === true) return 'clearance'
+  if (String(input.eventLabel || '').trim().toLowerCase() === 'flash sale') return 'flash'
+  if (formatPartnerSaleDayMonth(null, input.eventLabel)) return 'calendar'
+  return null
+}
+
 export function partnerSiteSaleDateBadgeLabel(input: {
   percent: number
   eventDate?: string | null
   eventLabel?: string | null
   kind?: string | null
+  isClearance?: boolean
+  locale?: WebLocale
 }): string | null {
   const pct = Math.max(0, Math.round(Number(input.percent) || 0))
   if (pct <= 0 || pct >= 100) return null
-  if (String(input.kind || '').toLowerCase() === 'flash') return `FLASH -${pct}%`
-  if (String(input.eventLabel || '').trim().toLowerCase() === 'flash sale') return `FLASH -${pct}%`
-  const date = String(input.eventDate ?? '').slice(0, 10)
-  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
-  if (ymd) return `${Number(ymd[3])}/${Number(ymd[2])} - ${pct}%`
-  const fromLabel = String(input.eventLabel ?? '').match(/(\d{1,2})\/(\d{1,2})/)
-  if (fromLabel) return `${fromLabel[1]}/${fromLabel[2]} - ${pct}%`
+  const copy = partnerSiteSaleCopy(input.locale ?? 'vi')
+  const promo = partnerSiteSalePromoKindOf(input)
+  if (promo === 'flash') return copy.flashBadge.replace('{pct}', String(pct))
+  if (promo === 'clearance') return copy.clearanceBadge.replace('{pct}', String(pct))
+  const date = formatPartnerSaleDayMonth(input.eventDate, input.eventLabel)
+  if (date) return copy.calendarBadge.replace('{date}', date).replace('{pct}', String(pct))
   return `-${pct}%`
 }
 
@@ -281,13 +383,29 @@ export function applyPartnerSiteSaleToShopProduct<T extends PartnerSiteSaleProdu
     }) ?? list
   if (clearance && list > 0 && clearancePct > 0) {
     const clearancePrice = Math.max(0, Math.round(list * (1 - clearancePct / 100)))
+    const display = clearancePrice < list ? clearancePrice : list
+    const savings = Math.max(0, list - display)
     return {
       ...product,
-      salePriceAmount: clearancePrice < list ? clearancePrice : product.salePriceAmount,
+      salePriceAmount: display < list ? display : product.salePriceAmount,
       siteSalePhase: 'off',
       siteSalePercent: clearancePct,
       siteSaleExpectedPrice: null,
-      siteSale: null,
+      siteSale:
+        savings > 0
+          ? {
+              kind: 'clearance',
+              listPrice: list,
+              displayPrice: display,
+              savingsAmount: savings,
+              percent: clearancePct,
+              phase: 'active',
+              expectedSalePrice: null,
+              eventLabel: null,
+              eventDate: null,
+              countdownTo: null,
+            }
+          : null,
     }
   }
   const siteSale = list > 0 ? buildPartnerSiteSalePricing(list, state) : null
@@ -307,31 +425,57 @@ export function applyPartnerSiteSaleToShopProduct<T extends PartnerSiteSaleProdu
   }
 }
 
-export function resolvePartnerProductSaleFace(product: {
-  priceAmount?: number | null
-  salePriceAmount?: number | null
-  saleStartsAt?: string | null
-  saleEndsAt?: string | null
-  isClearance?: boolean
-  siteSalePhase?: 'off' | 'teaser' | 'active' | null
-  siteSalePercent?: number | null
-  siteSaleExpectedPrice?: number | null
-  siteSale?: PartnerSiteSalePricing | null
-}): PartnerProductSaleFace {
+export function resolvePartnerProductSaleFace(
+  product: {
+    priceAmount?: number | null
+    salePriceAmount?: number | null
+    saleStartsAt?: string | null
+    saleEndsAt?: string | null
+    isClearance?: boolean
+    siteSalePhase?: 'off' | 'teaser' | 'active' | null
+    siteSalePercent?: number | null
+    siteSaleExpectedPrice?: number | null
+    siteSale?: PartnerSiteSalePricing | null
+  },
+  locale: WebLocale = 'vi'
+): PartnerProductSaleFace {
   const list = Math.max(0, Math.round(Number(product.priceAmount) || 0))
   const site = product.siteSale
+  const promoKind = partnerSiteSalePromoKindOf({
+    kind: site?.kind,
+    eventLabel: site?.eventLabel,
+    isClearance: product.isClearance === true,
+  })
   const phase = site?.phase ?? product.siteSalePhase ?? 'off'
   const percent = site?.percent ?? product.siteSalePercent ?? 0
   const expected = site?.expectedSalePrice ?? product.siteSaleExpectedPrice ?? null
+  const copy = partnerSiteSaleCopy(locale)
+  const programLabel =
+    promoKind === 'clearance'
+      ? copy.clearanceName
+      : promoKind === 'flash'
+        ? 'Flash sale'
+        : site?.eventLabel ?? null
   const badge = partnerSiteSaleDateBadgeLabel({
     percent,
     eventDate: site?.eventDate,
     eventLabel: site?.eventLabel,
-    kind: site?.kind,
+    kind: site?.kind ?? promoKind,
+    isClearance: product.isClearance === true,
+    locale,
   })
-  if (phase === 'teaser' && list > 0 && percent > 0 && expected != null && expected > 0 && expected < list) {
+  if (
+    promoKind !== 'clearance' &&
+    phase === 'teaser' &&
+    list > 0 &&
+    percent > 0 &&
+    expected != null &&
+    expected > 0 &&
+    expected < list
+  ) {
     return {
       kind: 'teaser',
+      promoKind: promoKind ?? 'calendar',
       listPrice: list,
       displayPrice: list,
       comparePrice: null,
@@ -340,26 +484,40 @@ export function resolvePartnerProductSaleFace(product: {
       savings: Math.max(0, list - Math.round(expected)),
       badge,
       countdownTo: site?.countdownTo ?? null,
-      eventLabel: site?.eventLabel ?? null,
+      eventLabel: programLabel,
     }
   }
   const sale = normalizePartnerSalePriceAmount(product.salePriceAmount)
   if (sale != null && list > 0 && sale < list) {
+    const livePct =
+      percent > 0 && percent < 100 ? percent : Math.max(1, Math.round(((list - sale) * 100) / list))
     return {
       kind: 'active',
+      promoKind: promoKind,
       listPrice: list,
       displayPrice: sale,
       comparePrice: list,
       expectedPrice: null,
-      percent: percent > 0 && percent < 100 ? percent : Math.max(1, Math.round(((list - sale) * 100) / list)),
+      percent: livePct,
       savings: list - sale,
-      badge: badge ?? `-${Math.max(1, Math.round(((list - sale) * 100) / list))}%`,
-      countdownTo: site?.countdownTo ?? null,
-      eventLabel: site?.eventLabel ?? null,
+      badge:
+        badge ??
+        partnerSiteSaleDateBadgeLabel({
+          percent: livePct,
+          eventDate: site?.eventDate,
+          eventLabel: site?.eventLabel,
+          kind: site?.kind ?? promoKind,
+          isClearance: product.isClearance === true,
+          locale,
+        }) ??
+        `-${livePct}%`,
+      countdownTo: promoKind === 'clearance' ? null : site?.countdownTo ?? null,
+      eventLabel: programLabel,
     }
   }
   return {
     kind: null,
+    promoKind: null,
     listPrice: list,
     displayPrice: list,
     comparePrice: null,
@@ -396,11 +554,14 @@ export function partnerSiteSaleBannerStorageKey(state: {
 }
 
 export function partnerSiteSalePillText(
-  face: Pick<PartnerProductSaleFace, 'kind' | 'percent' | 'eventLabel'>,
+  face: Pick<PartnerProductSaleFace, 'kind' | 'promoKind' | 'percent' | 'eventLabel' | 'badge'>,
   locale: WebLocale
 ): string | null {
   if (face.kind !== 'teaser' && face.kind !== 'active') return null
   if (!(face.percent > 0)) return null
+  if (face.promoKind === 'flash' || face.promoKind === 'clearance') {
+    return String(face.badge || '').trim() || null
+  }
   const copy = partnerSiteSaleCopy(locale)
   const label =
     String(face.eventLabel || '').trim() || (face.kind === 'teaser' ? copy.teaserFallback : copy.activeFallback)
@@ -421,9 +582,10 @@ export function formatPartnerSaleMoney(amount: number, locale: WebLocale) {
 }
 
 export const PW_SITE_SALE_CARD_CSS = [
-  '.pw-badge-sale{position:absolute;top:8px;left:8px;z-index:2;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;letter-spacing:.02em;line-height:1.2}',
+  '.pw-badge-sale{position:absolute;top:8px;left:8px;z-index:2;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;letter-spacing:.02em;line-height:1.2;max-width:calc(100% - 52px);white-space:normal}',
   '.pw-badge-sale-teaser{background:#d97706}',
   '.pw-badge-sale-active{background:#dc2626}',
+  '.pw-badge-sale-clearance,.pw-pdp-sale-pill-clearance{background:#57534e}',
   '.pw-sale-chip{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:4px 6px;color:#fff;font:700 10px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;text-align:center;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap;overflow:hidden;contain:layout style paint;isolation:isolate;transform:translateZ(0);pointer-events:none}',
   '.pw-sale-chip-teaser{background:rgba(180,83,9,.95)}',
   '.pw-sale-chip-active{background:rgba(185,28,28,.95)}',
@@ -436,6 +598,10 @@ export const PW_SITE_SALE_CARD_CSS = [
   '.pw-pdp-sale-pill{display:inline-flex;align-items:center;gap:6px;margin:0 0 8px;padding:4px 10px;border-radius:999px;color:#fff;font:700 12px/1.2 system-ui,sans-serif}',
   '.pw-pdp-sale-pill-teaser{background:#d97706}',
   '.pw-pdp-sale-pill-active{background:#dc2626}',
+  '.pw-badge-birthday{position:absolute;top:8px;right:8px;z-index:2;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;letter-spacing:.02em;line-height:1.2;background:var(--pw-primary)}',
+  '.pw-price-birthday{display:block;margin-top:2px;font-size:11px;font-weight:600;color:var(--pw-primary)}',
+  '.pw-pdp-birthday-hint{display:inline-flex;align-items:center;margin:0 0 8px;padding:4px 10px;border-radius:999px;background:var(--pw-surface);color:var(--pw-primary);border:1px solid var(--pw-border);font:700 12px/1.2 system-ui,sans-serif}',
+  '[data-pw-variant-birthday]{display:block;margin:4px 0 0;font:600 12px/1.35 system-ui,sans-serif;color:var(--pw-primary)}',
   '[data-pw-sale-calendar-banner]{position:relative;z-index:2;display:block;width:100%;box-sizing:border-box;padding:8px 40px 8px 12px;border-bottom:1px solid #fde68a;font:400 13px/1.4 system-ui,sans-serif;contain:layout style paint;isolation:isolate;transform:translateZ(0);flex-shrink:0}',
   '[data-pw-sale-calendar-banner][data-pw-sale-phase="teaser"]{background:linear-gradient(90deg,#fffbeb,#fff7ed);color:#78350f;border-color:#fde68a}',
   '[data-pw-sale-calendar-banner][data-pw-sale-phase="active"]{background:linear-gradient(90deg,#ffedd5,#fef2f2);color:#7c2d12;border-color:#fdba74}',
@@ -448,16 +614,26 @@ export const PW_SITE_SALE_CARD_CSS = [
   '[data-pw-sale-calendar-banner] [data-pw-sale-close]:hover{background:rgba(255,255,255,.55);opacity:1}',
 ].join('')
 
-export const PW_SITE_SALE_VIEW_JS = `function siteSaleBadge(p,pct){
+export const PW_SITE_SALE_VIEW_JS = `function kindOfSale(site,p){
+  var kind=String((site&&site.kind)||'');
+  var label=String((site&&(site.eventLabel||site.event_label))||'');
+  if(kind==='flash'||label.toLowerCase()==='flash sale')return 'flash';
+  if(kind==='clearance'||(p&&p.isClearance===true))return 'clearance';
+  if(kind==='calendar')return 'calendar';
+  if(/(\\d{1,2})\\/(\\d{1,2})/.test(label))return 'calendar';
+  return '';
+}
+function siteSaleBadge(p,pct){
   var site=p&&p.siteSale||{};
-  var kind=String(site.kind||'');
+  var kind=kindOfSale(site,p);
   var date=String(site.eventDate||site.event_date||'');
   var label=String(site.eventLabel||site.event_label||'');
-  if(kind==='flash'||label.toLowerCase()==='flash sale')return 'FLASH -'+pct+'%';
+  if(kind==='flash')return String((typeof COPY==='object'&&COPY&&COPY.flashBadge)||'Flash sale -{pct}%').replace('{pct}',pct);
+  if(kind==='clearance')return String((typeof COPY==='object'&&COPY&&COPY.clearanceBadge)||'Sale thanh lý kho -{pct}%').replace('{pct}',pct);
   var m=/^(\\d{4})-(\\d{2})-(\\d{2})/.exec(date);
-  if(m)return Number(m[3])+'/'+Number(m[2])+' - '+pct+'%';
-  var lm=label.match(/(\\d{1,2})\\/(\\d{1,2})/);
-  if(lm)return lm[1]+'/'+lm[2]+' - '+pct+'%';
+  var dm=m?Number(m[3])+'/'+Number(m[2]):'';
+  if(!dm){var lm=label.match(/(\\d{1,2})\\/(\\d{1,2})/);if(lm)dm=lm[1]+'/'+lm[2];}
+  if(dm)return String((typeof COPY==='object'&&COPY&&COPY.calendarBadge)||'Sale {date} - {pct}%').replace('{date}',dm).replace('{pct}',pct);
   return pct>0?'-'+pct+'%':'';
 }
 function saleView(p){
@@ -468,25 +644,21 @@ function saleView(p){
   var pct=Math.max(0,Math.round(Number(site.percent||p.siteSalePercent||0)||0));
   var expected=Number(site.expectedSalePrice||site.expected_sale_price||p.siteSaleExpectedPrice);
   var countdown=site.countdownTo||site.countdown_to||'';
-  var promoKind=kindOfSale(site);
+  var promoKind=kindOfSale(site,p);
   var badge=pct>0&&pct<100?siteSaleBadge(p,pct):'';
-  if(phase==='teaser'&&pct>0&&pct<100&&Number.isFinite(expected)&&expected>0&&expected<list){
-    return {kind:'teaser',promoKind:promoKind,price:money(list),expected:money(expected),compare:'',percent:pct,badge:badge,savings:money(list-expected),countdown:countdown};
+  if(promoKind!=='clearance'&&phase==='teaser'&&pct>0&&pct<100&&Number.isFinite(expected)&&expected>0&&expected<list){
+    return {kind:'teaser',promoKind:promoKind||'calendar',price:money(list),expected:money(expected),compare:'',percent:pct,badge:badge,savings:money(list-expected),countdown:countdown};
   }
   if(p.salePriceAmount==null||p.salePriceAmount==='')return null;
   var sale=Number(p.salePriceAmount);
   if(!Number.isFinite(sale)||sale<=0||sale>=list)return null;
-  var now=Date.now(),start=p.saleStartsAt?Date.parse(p.saleStartsAt):NaN,end=p.saleEndsAt?Date.parse(p.saleEndsAt):NaN;
-  if(Number.isFinite(start)&&now<start)return null;
-  if(Number.isFinite(end)&&now>end)return null;
+  if(promoKind!=='clearance'&&promoKind!=='flash'&&promoKind!=='calendar'){
+    var now=Date.now(),start=p.saleStartsAt?Date.parse(p.saleStartsAt):NaN,end=p.saleEndsAt?Date.parse(p.saleEndsAt):NaN;
+    if(Number.isFinite(start)&&now<start)return null;
+    if(Number.isFinite(end)&&now>end)return null;
+  }
   var livePct=pct>0&&pct<100?pct:Math.max(1,Math.round((list-sale)*100/list));
-  return {kind:'active',promoKind:promoKind,price:money(sale),compare:money(list),expected:'',percent:livePct,badge:badge||('-'+livePct+'%'),savings:money(list-sale),countdown:countdown};
-}
-function kindOfSale(site){
-  var kind=String((site&&site.kind)||'');
-  var label=String((site&&(site.eventLabel||site.event_label))||'');
-  if(kind==='flash'||label.toLowerCase()==='flash sale')return 'flash';
-  return '';
+  return {kind:'active',promoKind:promoKind,price:money(sale),compare:money(list),expected:'',percent:livePct,badge:badge||siteSaleBadge(p,livePct)||('-'+livePct+'%'),savings:money(list-sale),countdown:promoKind==='clearance'?'':countdown};
 }`
 
 /** Update countdown digits without childList (avoids shop hydrate / chrome flicker each second). */

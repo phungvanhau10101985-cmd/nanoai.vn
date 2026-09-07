@@ -3,7 +3,8 @@ import type { Metadata } from 'next'
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { inventoryCardRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
-import { loadPartnerSiteSaleOverlay, withPartnerSiteSale } from '@/lib/partner-website/promotions/partner-site-sale-attach'
+import { applyPartnerStorefrontSaleFaces, loadPartnerSiteSaleOverlay } from '@/lib/partner-website/promotions/partner-site-sale-attach'
+import { resolvePartnerStorefrontSaleIdentity } from '@/lib/partner-website/shop/partner-site-personalization'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopCatalogClient } from '@/components/partner-website/shop/partner-site-shop-catalog-client'
@@ -52,12 +53,15 @@ export default async function PartnerSiteProductsPage({ params, searchParams }: 
 
   const page = await fetchPartnerInventoryActiveCardPageWithCountFromPg(shop.partnerId, 0, 24)
   const overlay = await loadPartnerSiteSaleOverlay(shop.partnerId).catch(() => null)
-  const initialProducts = (page?.rows ?? [])
-    .map((row) => {
-      const mapped = inventoryCardRowToShopProduct(shop.site.siteSlug, row)
-      return withPartnerSiteSale(mapped, overlay)
-    })
+  const identity = await resolvePartnerStorefrontSaleIdentity(shop.partnerId)
+  const mapped = (page?.rows ?? [])
+    .map((row) => inventoryCardRowToShopProduct(shop.site.siteSlug, row))
     .filter((p): p is NonNullable<typeof p> => Boolean(p))
+  const initialProducts = await applyPartnerStorefrontSaleFaces(mapped, {
+    partnerId: shop.partnerId,
+    ...identity,
+    overlay,
+  })
 
   return (
     <PartnerSiteShopShell

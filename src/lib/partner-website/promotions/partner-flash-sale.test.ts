@@ -82,7 +82,7 @@ test('flash replaces calendar price and skips clearance', () => {
     assignment
   )
   assert.equal(clearance.siteSale, undefined)
-  assert.equal(partnerSiteSaleDateBadgeLabel({ percent: 5, kind: 'flash' }), 'FLASH -5%')
+  assert.equal(partnerSiteSaleDateBadgeLabel({ percent: 5, kind: 'flash' }), 'Flash sale -5%')
 })
 
 test('flash unit price replaces calendar instead of stacking min', () => {

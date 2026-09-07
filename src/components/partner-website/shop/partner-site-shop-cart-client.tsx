@@ -10,7 +10,7 @@ import {
   parseVndFromPriceHint,
   type SiteCartLine,
 } from '@/lib/partner-website/shop/cart-line-utils'
-import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { getPartnerSiteShopCopy, shopPromoErrorMessage } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   partnerSiteAddressesApiPath,
   partnerSiteAddressesPath,
@@ -44,7 +44,11 @@ import {
 import { PartnerSiteShopOrderConfirmation } from '@/components/partner-website/shop/partner-site-shop-order-confirmation'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { partnerSiteAppliedPromoStorageKey } from '@/lib/partner-website/shop/partner-site-applied-promo'
-import { partnerSiteSaleCopy } from '@/lib/partner-website/promotions/partner-site-sale-display'
+import {
+  formatPartnerSaleDayMonth,
+  partnerSiteBirthdayCheckoutHint,
+  partnerSiteSaleCopy,
+} from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { PartnerSiteSaleCountdown } from '@/components/partner-website/shop/partner-site-sale-face'
 
 type Props = {
@@ -80,6 +84,9 @@ type CartQuote = {
     isClearance: boolean
     googleDiscountAmount: number
     expectedSaleUnitPrice?: number | null
+    priceKind?: 'flash' | 'calendar' | 'google' | 'clearance' | 'inventory' | 'list'
+    flashPercent?: number | null
+    saleBadge?: string | null
   }>
   breakdown: {
     listSubtotal: number
@@ -88,6 +95,9 @@ type CartQuote = {
     regularEffectiveSubtotal: number
     clearanceSubtotal: number
     siteSaleDiscountAmount: number
+    flashSaleDiscountAmount?: number
+    calendarSaleDiscountAmount?: number
+    inventorySaleDiscountAmount?: number
     googleDiscountAmount: number
     voucherDiscountAmount: number
     birthdayDiscountAmount: number
@@ -114,6 +124,7 @@ type CartQuote = {
     carrierLabel: string
   }
   orderTotal: number
+  birthdayOffer?: { percent: number } | null
   saleCalendar?: {
     phase: 'off' | 'teaser' | 'active'
     eventLabel: string
@@ -138,22 +149,149 @@ const CART_SALE_COPY: Record<WebLocale, {
   voucherWallet: string
   noVoucher: string
   expiresSoon: string
+  listSubtotal: string
+  flashDiscount: string
   saleDiscount: string
+  inventoryDiscount: string
   googleDiscount: string
   birthdayDiscount: string
+  birthdayPaused: string
   loyaltyDiscount: string
   clearanceSubtotal: string
-  regularSubtotal: string
+  merchandise: string
+  capMeter: string
   capNotice: string
   capReachedVoucher: string
   selectProduct: string
   quoteUpdating: string
+  runningPrograms: string
 }> = {
-  vi: { selectAll: 'Chọn tất cả', selectedCount: 'Đã chọn {selected}/{total} sản phẩm', voucherWallet: 'Voucher của bạn', noVoucher: 'Chưa có voucher phù hợp.', expiresSoon: 'Sắp hết hạn', saleDiscount: 'Sale ngày trùng tháng', googleDiscount: 'Google Shopping', birthdayDiscount: 'Ưu đãi sinh nhật', loyaltyDiscount: 'Hạng thành viên', clearanceSubtotal: 'Thanh lý kho', regularSubtotal: 'Tạm tính hàng thường', capNotice: 'Tổng ưu đãi đã được giới hạn ở 15% giá niêm yết.', capReachedVoucher: 'Không thêm được mã này vì đơn đã đạt trần ưu đãi 15% giá niêm yết.', selectProduct: 'Chọn sản phẩm', quoteUpdating: 'Đang cập nhật giá…' },
-  en: { selectAll: 'Select all', selectedCount: '{selected} of {total} products selected', voucherWallet: 'Your vouchers', noVoucher: 'No eligible voucher yet.', expiresSoon: 'Expiring soon', saleDiscount: 'Same-day sale', googleDiscount: 'Google Shopping', birthdayDiscount: 'Birthday offer', loyaltyDiscount: 'Membership tier', clearanceSubtotal: 'Clearance', regularSubtotal: 'Regular items subtotal', capNotice: 'Total discounts have been capped at 15% of list price.', capReachedVoucher: 'This code cannot add more savings because the order has already reached the 15% discount cap.', selectProduct: 'Select product', quoteUpdating: 'Updating prices…' },
-  zh: { selectAll: '全选', selectedCount: '已选择 {selected}/{total} 件商品', voucherWallet: '您的优惠券', noVoucher: '暂无可用优惠券。', expiresSoon: '即将到期', saleDiscount: '同日促销', googleDiscount: 'Google Shopping', birthdayDiscount: '生日优惠', loyaltyDiscount: '会员等级', clearanceSubtotal: '清仓商品', regularSubtotal: '普通商品小计', capNotice: '总优惠已限制为标价的 15%。', capReachedVoucher: '订单优惠已达标价 15% 上限，无法再叠加此优惠码。', selectProduct: '选择商品', quoteUpdating: '正在更新价格…' },
-  ja: { selectAll: 'すべて選択', selectedCount: '{total}点中{selected}点を選択', voucherWallet: 'お持ちのクーポン', noVoucher: '利用可能なクーポンはありません。', expiresSoon: 'まもなく期限切れ', saleDiscount: '同日セール', googleDiscount: 'Google Shopping', birthdayDiscount: '誕生日特典', loyaltyDiscount: '会員ランク', clearanceSubtotal: '在庫処分', regularSubtotal: '通常商品の小計', capNotice: '割引合計は定価の15%を上限としています。', capReachedVoucher: '注文の割引が定価の15%上限に達しているため、このコードは追加できません。', selectProduct: '商品を選択', quoteUpdating: '価格を更新中…' },
-  ko: { selectAll: '전체 선택', selectedCount: '상품 {total}개 중 {selected}개 선택', voucherWallet: '내 쿠폰', noVoucher: '사용 가능한 쿠폰이 없습니다.', expiresSoon: '곧 만료', saleDiscount: '동일 날짜 세일', googleDiscount: 'Google Shopping', birthdayDiscount: '생일 혜택', loyaltyDiscount: '회원 등급', clearanceSubtotal: '창고 정리', regularSubtotal: '일반 상품 소계', capNotice: '총 할인은 정가의 15%로 제한되었습니다.', capReachedVoucher: '주문이 이미 정가 15% 할인 한도에 도달해 이 코드를 더 적용할 수 없습니다.', selectProduct: '상품 선택', quoteUpdating: '가격 업데이트 중…' },
+  vi: {
+    selectAll: 'Chọn tất cả',
+    selectedCount: 'Đã chọn {selected}/{total} sản phẩm',
+    voucherWallet: 'Voucher của bạn',
+    noVoucher: 'Chưa có voucher phù hợp.',
+    expiresSoon: 'Sắp hết hạn',
+    listSubtotal: 'Giá niêm yết',
+    flashDiscount: 'Flash sale',
+    saleDiscount: 'Sale {date}',
+    inventoryDiscount: 'Giảm giá sản phẩm',
+    googleDiscount: 'Google Shopping',
+    birthdayDiscount: 'Sale CMSN {pct}%',
+    birthdayPaused: 'CMSN tạm tắt vì đang dùng voucher',
+    loyaltyDiscount: 'Hạng thành viên',
+    clearanceSubtotal: 'Sale thanh lý kho',
+    merchandise: 'Tiền hàng',
+    capMeter: 'Trần ưu đãi 15%: đã dùng {used} / {max}',
+    capNotice: 'Tổng ưu đãi đã được giới hạn ở 15% giá niêm yết.',
+    capReachedVoucher: 'Không thêm được mã này vì đơn đã đạt trần ưu đãi 15% giá niêm yết.',
+    selectProduct: 'Chọn sản phẩm',
+    quoteUpdating: 'Đang cập nhật giá…',
+    runningPrograms: 'Chương trình đang áp dụng',
+  },
+  en: {
+    selectAll: 'Select all',
+    selectedCount: '{selected} of {total} products selected',
+    voucherWallet: 'Your vouchers',
+    noVoucher: 'No eligible voucher yet.',
+    expiresSoon: 'Expiring soon',
+    listSubtotal: 'List price',
+    flashDiscount: 'Flash sale',
+    saleDiscount: 'Sale {date}',
+    inventoryDiscount: 'Product sale',
+    googleDiscount: 'Google Shopping',
+    birthdayDiscount: 'CMSN {pct}%',
+    birthdayPaused: 'CMSN paused while a voucher is applied',
+    loyaltyDiscount: 'Membership tier',
+    clearanceSubtotal: 'Warehouse sale',
+    merchandise: 'Merchandise',
+    capMeter: '15% discount cap: {used} of {max} used',
+    capNotice: 'Total discounts have been capped at 15% of list price.',
+    capReachedVoucher: 'This code cannot add more savings because the order has already reached the 15% discount cap.',
+    selectProduct: 'Select product',
+    quoteUpdating: 'Updating prices…',
+    runningPrograms: 'Active offers',
+  },
+  zh: {
+    selectAll: '全选',
+    selectedCount: '已选择 {selected}/{total} 件商品',
+    voucherWallet: '您的优惠券',
+    noVoucher: '暂无可用优惠券。',
+    expiresSoon: '即将到期',
+    listSubtotal: '标价',
+    flashDiscount: 'Flash sale',
+    saleDiscount: 'Sale {date}',
+    inventoryDiscount: '商品促销',
+    googleDiscount: 'Google Shopping',
+    birthdayDiscount: 'CMSN {pct}%',
+    birthdayPaused: '已使用优惠券，CMSN 暂停',
+    loyaltyDiscount: '会员等级',
+    clearanceSubtotal: '仓库清仓',
+    merchandise: '商品金额',
+    capMeter: '优惠上限 15%：已用 {used} / {max}',
+    capNotice: '总优惠已限制为标价的 15%。',
+    capReachedVoucher: '订单优惠已达标价 15% 上限，无法再叠加此优惠码。',
+    selectProduct: '选择商品',
+    quoteUpdating: '正在更新价格…',
+    runningPrograms: '进行中的优惠',
+  },
+  ja: {
+    selectAll: 'すべて選択',
+    selectedCount: '{total}点中{selected}点を選択',
+    voucherWallet: 'お持ちのクーポン',
+    noVoucher: '利用可能なクーポンはありません。',
+    expiresSoon: 'まもなく期限切れ',
+    listSubtotal: '定価',
+    flashDiscount: 'Flash sale',
+    saleDiscount: 'Sale {date}',
+    inventoryDiscount: '商品セール',
+    googleDiscount: 'Google Shopping',
+    birthdayDiscount: 'CMSN {pct}%',
+    birthdayPaused: 'クーポン利用中のため CMSN は停止',
+    loyaltyDiscount: '会員ランク',
+    clearanceSubtotal: '倉庫セール',
+    merchandise: '商品代金',
+    capMeter: '割引上限15%：{used} / {max} 使用',
+    capNotice: '割引合計は定価の15%を上限としています。',
+    capReachedVoucher: '注文の割引が定価の15%上限に達しているため、このコードは追加できません。',
+    selectProduct: '商品を選択',
+    quoteUpdating: '価格を更新中…',
+    runningPrograms: '適用中の特典',
+  },
+  ko: {
+    selectAll: '전체 선택',
+    selectedCount: '상품 {total}개 중 {selected}개 선택',
+    voucherWallet: '내 쿠폰',
+    noVoucher: '사용 가능한 쿠폰이 없습니다.',
+    expiresSoon: '곧 만료',
+    listSubtotal: '정가',
+    flashDiscount: 'Flash sale',
+    saleDiscount: 'Sale {date}',
+    inventoryDiscount: '상품 세일',
+    googleDiscount: 'Google Shopping',
+    birthdayDiscount: 'CMSN {pct}%',
+    birthdayPaused: '쿠폰 사용 중이라 CMSN이 일시 중지됨',
+    loyaltyDiscount: '회원 등급',
+    clearanceSubtotal: '창고 세일',
+    merchandise: '상품 금액',
+    capMeter: '할인 한도 15%: {used} / {max} 사용',
+    capNotice: '총 할인은 정가의 15%로 제한되었습니다.',
+    capReachedVoucher: '주문이 이미 정가 15% 할인 한도에 도달해 이 코드를 더 적용할 수 없습니다.',
+    selectProduct: '상품 선택',
+    quoteUpdating: '가격 업데이트 중…',
+    runningPrograms: '진행 중인 혜택',
+  },
+}
+
+function calendarSaleProgramName(
+  template: string,
+  calendar?: { eventLabel?: string; eventDate?: string | null; saleDate?: string | null } | null
+): string {
+  const label = String(calendar?.eventLabel || '').trim()
+  if (label) return label
+  const date = formatPartnerSaleDayMonth(calendar?.eventDate || calendar?.saleDate, null)
+  if (date) return template.replace('{date}', date)
+  return template.replace('{date}', '').replace(/\s+/g, ' ').trim()
 }
 
 function voucherBlockedByDiscountCap(quote: CartQuote): boolean {
@@ -351,25 +489,15 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       })
   }, [siteSlug])
 
-  const promoErrorText = useCallback(
-    (code: string): string => {
-      const map: Record<string, string> = {
-        not_found: t.promoErrorNotFound,
-        invalid_code: t.promoErrorNotFound,
-        inactive: t.promoErrorInactive,
-        not_started: t.promoErrorNotStarted,
-        expired: t.promoErrorExpired,
-        below_min_subtotal: t.promoErrorBelowMinSubtotal,
-        usage_limit_reached: t.promoErrorUsageLimitReached,
-        per_user_limit_reached: t.promoErrorPerUserLimitReached,
-        first_order_only: t.promoErrorFirstOrderOnly,
-        no_eligible_items: t.promoErrorNoEligibleItems,
-        grant_required: t.promoErrorGrantRequired,
-      }
-      return map[code] ?? t.promoErrorGeneric
-    },
-    [t]
-  )
+  const promoErrorText = useCallback((code: string): string => shopPromoErrorMessage(t, code), [t])
+
+  const unapplyPromo = useCallback((message: string, kind: 'error' | 'warn' | '' = 'error') => {
+    setAppliedPromo(null)
+    setSelectedWalletCode('')
+    setPromoCodeInput('')
+    setPromoMessage(message)
+    setPromoMessageKind(kind)
+  }, [])
 
   const selectedItems = useMemo(
     () => items.filter((item) => selectedLineIds.has(item.id)),
@@ -420,38 +548,50 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     return next
   }, [fetchQuote])
 
-  const applyQuoteResult = useCallback((next: CartQuote | null, requestedCode: string) => {
+  const applyQuoteResult = useCallback((next: CartQuote | null, requestedCode: string, fromAuto = false) => {
     if (!requestedCode) {
       setQuote(next)
       return
     }
     if (!next) {
-      setAppliedPromo(null)
-      setPromoMessage(t.promoErrorGeneric)
-      setPromoMessageKind('error')
+      if (fromAuto) {
+        setAppliedPromo(null)
+        setSelectedWalletCode('')
+        setPromoCodeInput('')
+        setPromoMessage('')
+        setPromoMessageKind('')
+        return
+      }
+      unapplyPromo(t.promoErrorGeneric)
       return
     }
     setQuote(next)
     if (next.promoError) {
-      setAppliedPromo(null)
-      setPromoMessage(promoErrorText(next.promoError))
-      setPromoMessageKind('error')
+      if (fromAuto) {
+        setAppliedPromo(null)
+        setSelectedWalletCode('')
+        setPromoCodeInput('')
+        setPromoMessage('')
+        setPromoMessageKind('')
+        return
+      }
+      unapplyPromo(promoErrorText(next.promoError))
       return
     }
     if (voucherBlockedByDiscountCap(next) && next.promo) {
       setAppliedPromo(next.promo)
+      setSelectedWalletCode(next.promo.code)
       setPromoMessage(saleT.capReachedVoucher)
       setPromoMessageKind('warn')
       return
     }
     if (next.promo && next.breakdown.voucherDiscountAmount <= 0) {
-      setAppliedPromo(null)
-      setPromoMessage(t.promoErrorNoEligibleItems)
-      setPromoMessageKind('error')
+      unapplyPromo(t.promoErrorNoEligibleItems)
       return
     }
     if (next.promo) {
       setAppliedPromo(next.promo)
+      setSelectedWalletCode(next.promo.code)
       if (next.breakdown.capAdjustmentAmount > 0) {
         setPromoMessage(saleT.capNotice)
         setPromoMessageKind('warn')
@@ -461,10 +601,8 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       }
       return
     }
-    setAppliedPromo(null)
-    setPromoMessage(t.promoErrorGeneric)
-    setPromoMessageKind('error')
-  }, [promoErrorText, saleT.capNotice, saleT.capReachedVoucher, t.promoErrorGeneric, t.promoErrorNoEligibleItems])
+    unapplyPromo(t.promoErrorGeneric)
+  }, [promoErrorText, saleT.capNotice, saleT.capReachedVoucher, t.promoErrorGeneric, t.promoErrorNoEligibleItems, unapplyPromo])
 
   const activePromoCode = appliedPromo?.code ?? ''
 
@@ -485,13 +623,24 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       skipAutoQuoteRef.current = false
       return
     }
+    const walletHit = activePromoCode
+      ? walletVouchers.find((item) => item.code.toLowerCase() === activePromoCode.toLowerCase())
+      : undefined
+    const codeToQuote = walletHit && !walletHit.eligible ? '' : activePromoCode
+    if (activePromoCode && !codeToQuote) {
+      setAppliedPromo(null)
+      setSelectedWalletCode('')
+      setPromoCodeInput('')
+      setPromoMessage('')
+      setPromoMessageKind('')
+    }
     let cancelled = false
     const timer = window.setTimeout(() => {
       setQuoteLoading(true)
-      void requestQuote(selectedItems, activePromoCode)
+      void requestQuote(selectedItems, codeToQuote)
         .then((next) => {
           if (cancelled || next === undefined) return
-          applyQuoteResult(next, activePromoCode)
+          applyQuoteResult(next, codeToQuote, true)
         })
         .finally(() => {
           if (!cancelled) setQuoteLoading(false)
@@ -501,7 +650,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [activePromoCode, applyQuoteResult, loading, promoBusy, ready, requestQuote, selectedItems])
+  }, [activePromoCode, applyQuoteResult, loading, promoBusy, ready, requestQuote, selectedItems, walletVouchers])
 
   useEffect(() => {
     if (!ready || selectedItems.length === 0) {
@@ -521,16 +670,24 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       .catch(() => setWalletVouchers([]))
   }, [authHeaders, captureFromResponse, fallbackSubtotal, quote?.breakdown.regularEffectiveSubtotal, ready, selectedItems.length, siteSlug])
 
+  useEffect(() => {
+    if (!appliedPromo?.code || walletVouchers.length === 0) return
+    const wallet = walletVouchers.find((item) => item.code.toLowerCase() === appliedPromo.code.toLowerCase())
+    if (wallet && !wallet.eligible) {
+      setAppliedPromo(null)
+      setSelectedWalletCode('')
+      setPromoCodeInput('')
+      setPromoMessage('')
+      setPromoMessageKind('')
+    }
+  }, [appliedPromo?.code, walletVouchers])
+
   async function applyPromoCodeValue(code: string) {
     const trimmed = code.trim()
     if (!trimmed || promoBusy) return
     const wallet = walletVouchers.find((item) => item.code.toLowerCase() === trimmed.toLowerCase())
     if (wallet && !wallet.eligible) {
-      setSelectedWalletCode(wallet.code)
-      setPromoCodeInput(wallet.code)
-      setAppliedPromo(null)
-      setPromoMessage(promoErrorText(wallet.ineligibleReason ?? ''))
-      setPromoMessageKind('error')
+      unapplyPromo(promoErrorText(wallet.ineligibleReason ?? ''))
       return
     }
     setPromoBusy(true)
@@ -618,10 +775,45 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       const line = quotedLineById.get(item.id)
       const expected = line?.expectedSaleUnitPrice
       const list = line?.listUnitPrice ?? 0
+      const effective = line?.effectiveUnitPrice ?? list
+      if (effective < list) return sum
       if (expected == null || expected <= 0 || expected >= list) return sum
       return sum + (list - expected) * Math.max(1, item.quantity)
     }, 0)
   }, [quote?.saleCalendar?.phase, quotedLineById, selectedItems])
+  const flashSaleAmount = Math.max(0, Math.round(quote?.breakdown.flashSaleDiscountAmount ?? 0))
+  const siteSaleAmount = Math.max(0, Math.round(quote?.breakdown.siteSaleDiscountAmount ?? 0))
+  const calendarKnown = quote?.breakdown.calendarSaleDiscountAmount
+  const inventoryKnown = quote?.breakdown.inventorySaleDiscountAmount
+  const calendarSaleAmount = Math.max(
+    0,
+    Math.round(
+      calendarKnown ?? (inventoryKnown == null ? Math.max(0, siteSaleAmount - flashSaleAmount) : 0)
+    )
+  )
+  const inventorySaleAmount = Math.max(
+    0,
+    Math.round(inventoryKnown ?? Math.max(0, siteSaleAmount - flashSaleAmount - calendarSaleAmount))
+  )
+  const birthdayPercent = Math.max(0, Math.round(quote?.birthdayDiscountPercent || quote?.birthdayOffer?.percent || 0))
+  const birthdayAmount = Math.max(0, Math.round(quote?.breakdown.birthdayDiscountAmount ?? 0))
+  const birthdayPaused = birthdayPercent > 0 && (quote?.breakdown.voucherDiscountAmount ?? 0) > 0
+  const birthdayHintOnly =
+    birthdayPercent > 0 &&
+    birthdayAmount <= 0 &&
+    !birthdayPaused &&
+    (quote?.breakdown.regularListSubtotal ?? 0) > 0 &&
+    (quote?.breakdown.capAdjustmentAmount ?? 0) <= 0
+  const calendarProgramName = calendarSaleProgramName(saleT.saleDiscount, quote?.saleCalendar)
+  const runningProgramLabels = [
+    flashSaleAmount > 0 ? saleT.flashDiscount : '',
+    quote?.saleCalendar?.phase === 'active' && (calendarSaleAmount > 0 || quote.saleCalendar.discountPercent > 0)
+      ? calendarProgramName
+      : '',
+    inventorySaleAmount > 0 ? saleT.inventoryDiscount : '',
+    birthdayAmount > 0 || birthdayHintOnly ? saleT.birthdayDiscount.replace('{pct}', String(birthdayPercent)) : '',
+    (quote?.breakdown.clearanceSubtotal ?? 0) > 0 ? saleT.clearanceSubtotal : '',
+  ].filter(Boolean)
   const depositPreview = useMemo(() => {
     if (depositPolicy.mode === 'none') return null
     if (payableSubtotal <= 0) return null
@@ -829,11 +1021,15 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               <p className="pw-shop-price" data-pw-el={PW_EL.cardPrice}>
                 {formatVnd(unitPrice)}
                 {listUnitPrice > unitPrice ? <del className="pw-price-compare"> {formatVnd(listUnitPrice)}</del> : null}
-                {lineQuote?.isClearance ? <span className="pw-shop-address-default"> {saleT.clearanceSubtotal}</span> : null}
+                {lineQuote?.saleBadge ? <span className="pw-shop-cart-line-badge"> {lineQuote.saleBadge}</span> : null}
+                {lineQuote?.isClearance && !lineQuote?.saleBadge ? (
+                  <span className="pw-shop-address-default"> {saleT.clearanceSubtotal}</span>
+                ) : null}
               </p>
               {lineQuote?.expectedSaleUnitPrice != null &&
               lineQuote.expectedSaleUnitPrice > 0 &&
-              lineQuote.expectedSaleUnitPrice < listUnitPrice ? (
+              lineQuote.expectedSaleUnitPrice < listUnitPrice &&
+              !(listUnitPrice > unitPrice) ? (
                 <p className="pw-shop-cart-teaser">
                   {siteSaleT.expectedPrice} {formatVnd(lineQuote.expectedSaleUnitPrice)}
                   {' · '}
@@ -891,9 +1087,13 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       </section>
         <div className="pw-shop-cart-summary" data-pw-region={PW_REGION.cartSummary}>
           {quoteLoading ? <p className="pw-shop-muted">{saleT.quoteUpdating}</p> : null}
-          <p data-pw-el={PW_EL.price}>
-            {t.cartSubtotal}: {formatVnd(subtotal)}
-          </p>
+          {runningProgramLabels.length > 0 ? (
+            <div className="pw-shop-cart-programs" aria-label={saleT.runningPrograms}>
+              {runningProgramLabels.map((label) => (
+                <span key={label}>{label}</span>
+              ))}
+            </div>
+          ) : null}
           {quote?.saleCalendar?.phase === 'teaser' && selectedTeaserSavings > 0 ? (
             <div className="pw-shop-cart-teaser" style={{ marginBottom: 8 }}>
               <p>
@@ -920,20 +1120,30 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
           ) : null}
           {quote ? (
             <div className="pw-shop-cart-discount-breakdown">
-              {quote.breakdown.regularEffectiveSubtotal > 0 ? (
-                <p><span>{saleT.regularSubtotal}</span><strong>{formatVnd(quote.breakdown.regularEffectiveSubtotal)}</strong></p>
+              {quote.breakdown.regularListSubtotal > 0 ? (
+                <p><span>{saleT.listSubtotal}</span><strong>{formatVnd(quote.breakdown.regularListSubtotal)}</strong></p>
               ) : null}
-              {quote.breakdown.siteSaleDiscountAmount > 0 ? (
-                <p><span>{saleT.saleDiscount}</span><strong>−{formatVnd(quote.breakdown.siteSaleDiscountAmount)}</strong></p>
+              {flashSaleAmount > 0 ? (
+                <p><span>{saleT.flashDiscount}</span><strong>−{formatVnd(flashSaleAmount)}</strong></p>
+              ) : null}
+              {calendarSaleAmount > 0 ? (
+                <p><span>{calendarProgramName}</span><strong>−{formatVnd(calendarSaleAmount)}</strong></p>
+              ) : null}
+              {inventorySaleAmount > 0 ? (
+                <p><span>{saleT.inventoryDiscount}</span><strong>−{formatVnd(inventorySaleAmount)}</strong></p>
               ) : null}
               {quote.breakdown.googleDiscountAmount > 0 ? (
                 <p><span>{saleT.googleDiscount}</span><strong>−{formatVnd(quote.breakdown.googleDiscountAmount)}</strong></p>
               ) : null}
               {quote.breakdown.voucherDiscountAmount > 0 ? (
-                <p><span>{appliedPromo?.name || t.cartPromoDiscountLabel}</span><strong>−{formatVnd(quote.breakdown.voucherDiscountAmount)}</strong></p>
+                <p><span>{appliedPromo?.name || appliedPromo?.code || t.cartPromoDiscountLabel}</span><strong>−{formatVnd(quote.breakdown.voucherDiscountAmount)}</strong></p>
               ) : null}
-              {quote.breakdown.birthdayDiscountAmount > 0 ? (
-                <p><span>{saleT.birthdayDiscount}</span><strong>−{formatVnd(quote.breakdown.birthdayDiscountAmount)}</strong></p>
+              {birthdayAmount > 0 ? (
+                <p><span>{saleT.birthdayDiscount.replace('{pct}', String(birthdayPercent || ''))}</span><strong>−{formatVnd(birthdayAmount)}</strong></p>
+              ) : birthdayPaused ? (
+                <p className="pw-shop-cart-promo-msg is-warn">{saleT.birthdayPaused}</p>
+              ) : birthdayHintOnly ? (
+                <p className="pw-shop-muted"><span>{partnerSiteBirthdayCheckoutHint(birthdayPercent, locale)}</span></p>
               ) : null}
               {quote.breakdown.loyaltyDiscountAmount > 0 ? (
                 <p><span>{saleT.loyaltyDiscount}{quote.loyalty.tierName ? ` ${quote.loyalty.tierName}` : ''}</span><strong>−{formatVnd(quote.breakdown.loyaltyDiscountAmount)}</strong></p>
@@ -941,18 +1151,30 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               {quote.breakdown.clearanceSubtotal > 0 ? (
                 <p className="is-clearance"><span>{saleT.clearanceSubtotal}</span><strong>{formatVnd(quote.breakdown.clearanceSubtotal)}</strong></p>
               ) : null}
+              <p><span>{saleT.merchandise}</span><strong>{formatVnd(quote.breakdown.amountAfterDiscount)}</strong></p>
+              {quote.breakdown.maxDiscountAmount > 0 && quote.breakdown.totalDiscountAmount > 0 ? (
+                <p className="pw-shop-cart-cap-meter">
+                  {saleT.capMeter
+                    .replace('{used}', formatVnd(quote.breakdown.totalDiscountAmount))
+                    .replace('{max}', formatVnd(quote.breakdown.maxDiscountAmount))}
+                </p>
+              ) : null}
               {quote.breakdown.capAdjustmentAmount > 0 && promoMessageKind !== 'warn' ? (
                 <p className="pw-shop-cart-promo-msg is-warn">{saleT.capNotice}</p>
               ) : null}
             </div>
-          ) : null}
+          ) : (
+            <p data-pw-el={PW_EL.price}>
+              {t.cartSubtotal}: {formatVnd(subtotal)}
+            </p>
+          )}
           <div className="pw-shop-cart-promo" data-pw-el={PW_EL.coupon}>
             <label>{t.cartPromoLabel}</label>
             {walletVouchers.length > 0 ? (
               <div className="pw-shop-cart-wallet">
                 <strong>{saleT.voucherWallet}</strong>
                 {walletVouchers.map((voucher) => {
-                  const selectedCode = (appliedPromo?.code || selectedWalletCode).trim().toLowerCase()
+                  const selectedCode = (appliedPromo?.code || (promoBusy ? selectedWalletCode : '')).trim().toLowerCase()
                   const isChecked = selectedCode === voucher.code.toLowerCase()
                   return (
                   <label
@@ -963,19 +1185,29 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                       type="radio"
                       name="wallet-voucher"
                       checked={isChecked}
-                      disabled={promoBusy}
+                      disabled={promoBusy || !voucher.eligible}
                       onChange={() => {}}
                       onClick={() => {
+                        if (!voucher.eligible) return
+                        if (isChecked) {
+                          removePromoCode()
+                          return
+                        }
                         void applyPromoCodeValue(voucher.code)
                       }}
                     />
-                    <span><b>{voucher.code}</b> — {voucher.name}{voucher.expiresSoon ? ` · ${saleT.expiresSoon}` : ''}</span>
+                    <span>
+                      <b>{voucher.code}</b> — {voucher.name}{voucher.expiresSoon ? ` · ${saleT.expiresSoon}` : ''}
+                      {!voucher.eligible && voucher.ineligibleReason ? (
+                        <em className="pw-shop-cart-wallet-reason">{promoErrorText(voucher.ineligibleReason)}</em>
+                      ) : null}
+                    </span>
                   </label>
                   )
                 })}
               </div>
             ) : isAuthenticated ? <p className="pw-shop-muted">{saleT.noVoucher}</p> : null}
-            {appliedPromo || selectedWalletCode ? (
+            {appliedPromo || (promoBusy && selectedWalletCode) ? (
               <div className="pw-shop-cart-promo-row">
                 <span className="pw-shop-price">
                   {promoBusy

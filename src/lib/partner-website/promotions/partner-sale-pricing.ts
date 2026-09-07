@@ -1,5 +1,13 @@
 export const PARTNER_ORDER_MAX_DISCOUNT_PERCENT = 15
 
+export type PartnerSalePriceKind =
+  | 'flash'
+  | 'calendar'
+  | 'google'
+  | 'clearance'
+  | 'inventory'
+  | 'list'
+
 export type PartnerSalePriceLine = {
   inventoryId: string | null
   quantity: number
@@ -7,6 +15,9 @@ export type PartnerSalePriceLine = {
   effectiveUnitPrice: number
   isClearance?: boolean
   googleDiscountAmount?: number
+  /** Source of the charged unit price. Flash vs calendar must not share one cart label. */
+  priceKind?: PartnerSalePriceKind
+  flashPercent?: number | null
 }
 
 export type PartnerSaleDiscountInput = {
@@ -22,7 +33,12 @@ export type PartnerSaleDiscountBreakdown = {
   regularListSubtotal: number
   regularEffectiveSubtotal: number
   clearanceSubtotal: number
+  /** Flash + calendar + inventory-window residual (non-Google). Kept for order snapshots. */
   siteSaleDiscountAmount: number
+  flashSaleDiscountAmount: number
+  calendarSaleDiscountAmount: number
+  /** Product sale window leftover — not same-day-same-month, not flash. */
+  inventorySaleDiscountAmount: number
   googleDiscountAmount: number
   voucherDiscountAmount: number
   birthdayDiscountAmount: number
@@ -55,6 +71,9 @@ export function resolvePartnerSaleDiscountBreakdown(
   let regularEffectiveSubtotal = 0
   let clearanceSubtotal = 0
   let googleDiscountAmount = 0
+  let flashSaleDiscountAmount = 0
+  let calendarSaleDiscountAmount = 0
+  let inventorySaleDiscountAmount = 0
 
   for (const line of input.lines) {
     const quantity = Math.max(1, Math.min(99, Math.floor(line.quantity || 1)))
@@ -68,15 +87,31 @@ export function resolvePartnerSaleDiscountBreakdown(
     }
     regularListSubtotal += list
     regularEffectiveSubtotal += effective
-    googleDiscountAmount += Math.min(
-      list - effective,
+    const lineSaving = Math.max(0, list - effective)
+    const googleLine = Math.min(
+      lineSaving,
       money(line.googleDiscountAmount ?? 0) * quantity
     )
+    googleDiscountAmount += googleLine
+    const residual = Math.max(0, lineSaving - googleLine)
+    if (residual <= 0) continue
+    if (line.priceKind === 'flash') flashSaleDiscountAmount += residual
+    else if (line.priceKind === 'calendar') calendarSaleDiscountAmount += residual
+    else inventorySaleDiscountAmount += residual
   }
 
   const priceSaving = Math.max(0, regularListSubtotal - regularEffectiveSubtotal)
   googleDiscountAmount = Math.min(priceSaving, googleDiscountAmount)
   const siteSaleDiscountAmount = Math.max(0, priceSaving - googleDiscountAmount)
+  flashSaleDiscountAmount = Math.min(siteSaleDiscountAmount, flashSaleDiscountAmount)
+  calendarSaleDiscountAmount = Math.min(
+    Math.max(0, siteSaleDiscountAmount - flashSaleDiscountAmount),
+    calendarSaleDiscountAmount
+  )
+  inventorySaleDiscountAmount = Math.max(
+    0,
+    siteSaleDiscountAmount - flashSaleDiscountAmount - calendarSaleDiscountAmount
+  )
   const requestedVoucher = Math.min(regularEffectiveSubtotal, money(input.voucherDiscountAmount ?? 0))
   const requestedBirthday =
     requestedVoucher > 0
@@ -128,6 +163,9 @@ export function resolvePartnerSaleDiscountBreakdown(
     regularEffectiveSubtotal,
     clearanceSubtotal,
     siteSaleDiscountAmount,
+    flashSaleDiscountAmount,
+    calendarSaleDiscountAmount,
+    inventorySaleDiscountAmount,
     googleDiscountAmount,
     voucherDiscountAmount,
     birthdayDiscountAmount,

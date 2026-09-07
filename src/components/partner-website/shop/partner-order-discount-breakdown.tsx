@@ -14,11 +14,14 @@ export type PartnerOrderDiscountFields = {
   discount_cap_adjustment_amount?: number | null
   clearance_subtotal_amount?: number | null
   amount_after_discount?: number | null
+  discount_breakdown_json?: Record<string, unknown> | null
 }
 
 const COPY: Record<WebLocale, {
   list: string
+  flash: string
   siteSale: string
+  inventorySale: string
   google: string
   voucher: string
   birthday: string
@@ -27,11 +30,11 @@ const COPY: Record<WebLocale, {
   afterDiscount: string
   capped: string
 }> = {
-  vi: { list: 'Giá niêm yết', siteSale: 'Sale ngày trùng tháng', google: 'Google Shopping', voucher: 'Voucher', birthday: 'Ưu đãi sinh nhật', loyalty: 'Hạng thành viên', clearance: 'Thanh lý kho', afterDiscount: 'Tiền hàng sau ưu đãi', capped: 'Ưu đãi đã áp dụng trần 15% giá niêm yết.' },
-  en: { list: 'List price', siteSale: 'Same-day sale', google: 'Google Shopping', voucher: 'Voucher', birthday: 'Birthday offer', loyalty: 'Membership tier', clearance: 'Clearance', afterDiscount: 'Merchandise after discounts', capped: 'Discounts were capped at 15% of list price.' },
-  zh: { list: '标价', siteSale: '同日促销', google: 'Google Shopping', voucher: '优惠券', birthday: '生日优惠', loyalty: '会员等级', clearance: '清仓商品', afterDiscount: '优惠后商品金额', capped: '优惠已按标价的 15% 封顶。' },
-  ja: { list: '定価', siteSale: '同日セール', google: 'Google Shopping', voucher: 'クーポン', birthday: '誕生日特典', loyalty: '会員ランク', clearance: '在庫処分', afterDiscount: '割引後の商品金額', capped: '割引は定価の15%を上限として適用されました。' },
-  ko: { list: '정가', siteSale: '동일 날짜 세일', google: 'Google Shopping', voucher: '쿠폰', birthday: '생일 혜택', loyalty: '회원 등급', clearance: '창고 정리', afterDiscount: '할인 후 상품 금액', capped: '할인은 정가의 15% 한도로 적용되었습니다.' },
+  vi: { list: 'Giá niêm yết', flash: 'Flash sale', siteSale: 'Sale cùng ngày tháng', inventorySale: 'Giảm giá sản phẩm', google: 'Google Shopping', voucher: 'Voucher', birthday: 'Sale CMSN', loyalty: 'Hạng thành viên', clearance: 'Sale thanh lý kho', afterDiscount: 'Tiền hàng sau ưu đãi', capped: 'Ưu đãi đã áp dụng trần 15% giá niêm yết.' },
+  en: { list: 'List price', flash: 'Flash sale', siteSale: 'Same-day sale', inventorySale: 'Product sale', google: 'Google Shopping', voucher: 'Voucher', birthday: 'CMSN', loyalty: 'Membership tier', clearance: 'Warehouse sale', afterDiscount: 'Merchandise after discounts', capped: 'Discounts were capped at 15% of list price.' },
+  zh: { list: '标价', flash: 'Flash sale', siteSale: '同日促销', inventorySale: '商品促销', google: 'Google Shopping', voucher: '优惠券', birthday: 'CMSN', loyalty: '会员等级', clearance: '仓库清仓', afterDiscount: '优惠后商品金额', capped: '优惠已按标价的 15% 封顶。' },
+  ja: { list: '定価', flash: 'Flash sale', siteSale: '同日セール', inventorySale: '商品セール', google: 'Google Shopping', voucher: 'クーポン', birthday: 'CMSN', loyalty: '会員ランク', clearance: '倉庫セール', afterDiscount: '割引後の商品金額', capped: '割引は定価の15%を上限として適用されました。' },
+  ko: { list: '정가', flash: 'Flash sale', siteSale: '동일 날짜 세일', inventorySale: '상품 세일', google: 'Google Shopping', voucher: '쿠폰', birthday: 'CMSN', loyalty: '회원 등급', clearance: '창고 세일', afterDiscount: '할인 후 상품 금액', capped: '할인은 정가의 15% 한도로 적용되었습니다.' },
 }
 
 function amount(value: number | null | undefined): number {
@@ -44,8 +47,31 @@ export function PartnerOrderDiscountBreakdown(props: {
   order: PartnerOrderDiscountFields
 }) {
   const t = COPY[props.locale] ?? COPY.en
+  const json = props.order.discount_breakdown_json || {}
+  const siteSale = amount(props.order.site_sale_discount_amount)
+  const hasSplit =
+    typeof json.flashSaleDiscountAmount === 'number' ||
+    typeof json.calendarSaleDiscountAmount === 'number' ||
+    typeof json.inventorySaleDiscountAmount === 'number'
+  const flashAmount = amount(typeof json.flashSaleDiscountAmount === 'number' ? json.flashSaleDiscountAmount : 0)
+  const calendarAmount = amount(
+    typeof json.calendarSaleDiscountAmount === 'number'
+      ? json.calendarSaleDiscountAmount
+      : hasSplit
+        ? 0
+        : siteSale
+  )
+  const inventoryAmount = amount(
+    typeof json.inventorySaleDiscountAmount === 'number'
+      ? json.inventorySaleDiscountAmount
+      : hasSplit
+        ? Math.max(0, siteSale - flashAmount - calendarAmount)
+        : 0
+  )
   const rows = [
-    { label: t.siteSale, value: amount(props.order.site_sale_discount_amount) },
+    { label: t.flash, value: flashAmount },
+    { label: t.siteSale, value: calendarAmount },
+    { label: t.inventorySale, value: inventoryAmount },
     { label: t.google, value: amount(props.order.google_discount_amount) },
     {
       label: props.order.promo_code

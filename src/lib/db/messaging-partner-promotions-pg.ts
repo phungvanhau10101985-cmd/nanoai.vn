@@ -2,6 +2,11 @@ import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { writePartnerSaleAuditFromPg } from '@/lib/db/messaging-partner-sale-audit-pg'
 import {
+  assessPromotionCustomerEligibility,
+  isPermanentlyUnusablePromoError,
+  promotionToCustomerEligibilityFields,
+} from '@/lib/partner-website/promotions/partner-promotion-eligibility'
+import {
   computePromotionDiscountAmount,
   isValidPromotionCode,
   normalizePromotionCode,
@@ -380,7 +385,7 @@ export async function deletePartnerPromotionFromPg(partnerId: string, promotionI
   }
 }
 
-/** `true` nếu khách CHƯA từng có đơn nào (mọi trạng thái) tại shop này — điều kiện `first_order_only`. */
+/** `true` nếu khách đã có đơn chưa hủy tại shop này — điều kiện `first_order_only` (khớp 188, bỏ đơn cancelled). */
 export async function checkCustomerHasPriorOrderFromPg(input: {
   partnerId: string
   guestAccountId?: string | null
@@ -399,6 +404,7 @@ export async function checkCustomerHasPriorOrderFromPg(input: {
          from public.messaging_partner_orders o
          left join public.customer_care_conversations c on c.id = o.conversation_id
          where o.partner_id = $1::uuid
+           and o.status <> 'cancelled'
            and (
              ($2::uuid is not null and c.guest_account_id = $2::uuid)
              or ($3::uuid is not null and c.linked_user_id = $3::uuid)
@@ -412,6 +418,35 @@ export async function checkCustomerHasPriorOrderFromPg(input: {
     console.warn('[checkCustomerHasPriorOrderFromPg]', e)
     return false
   }
+}
+
+export async function fetchPromotionUsageCountsForCustomerFromPg(input: {
+  promotionIds: string[]
+  guestAccountId?: string | null
+  linkedUserId?: string | null
+}): Promise<Map<string, number>> {
+  const counts = new Map<string, number>()
+  const guestAccountId = input.guestAccountId ?? null
+  const linkedUserId = input.linkedUserId ?? null
+  const ids = input.promotionIds.filter(Boolean)
+  if (!isPgConfigured() || ids.length === 0 || (!guestAccountId && !linkedUserId)) return counts
+  try {
+    const rows = await pgQuery<{ promotion_id: string; c: number }>(
+      `select promotion_id::text, count(*)::int as c
+       from public.messaging_partner_promotion_usages
+       where promotion_id = any($1::uuid[])
+         and (
+           ($2::uuid is not null and guest_account_id = $2::uuid)
+           or ($3::uuid is not null and linked_user_id = $3::uuid)
+         )
+       group by promotion_id`,
+      [ids, guestAccountId, linkedUserId]
+    )
+    for (const row of rows) counts.set(row.promotion_id, Number(row.c) || 0)
+  } catch (e) {
+    console.warn('[fetchPromotionUsageCountsForCustomerFromPg]', e)
+  }
+  return counts
 }
 
 async function fetchActiveGrantForPromotionFromPg(input: {
@@ -474,24 +509,24 @@ export async function validatePromotionCodeFromPg(input: {
   })
   if (!row) return { ok: false, error: 'not_found' }
   const promotion = mapPromotionRow(row)
-
-  if (!promotion.isActive) return { ok: false, error: 'inactive' }
-  const now = Date.now()
-  if (promotion.validFrom && new Date(promotion.validFrom).getTime() > now) return { ok: false, error: 'not_started' }
-  if (promotion.validTo && new Date(promotion.validTo).getTime() < now) return { ok: false, error: 'expired' }
-  if (input.subtotal < promotion.minSubtotal) return { ok: false, error: 'below_min_subtotal' }
-  if (promotion.usageLimit != null && promotion.usedCount >= promotion.usageLimit) {
-    return { ok: false, error: 'usage_limit_reached' }
-  }
-
   const guestAccountId = input.guestAccountId ?? null
   const linkedUserId = input.linkedUserId ?? null
+  const fields = promotionToCustomerEligibilityFields(promotion)
+
+  const scheduleError = assessPromotionCustomerEligibility({
+    ...fields,
+    subtotal: input.subtotal,
+    hasPriorOrder: false,
+    usedByCustomerCount: null,
+  })
+  if (scheduleError) return { ok: false, error: scheduleError }
 
   if (!promotion.isPublicRedeemable) {
     const grant = await fetchActiveGrantForPromotionFromPg({ promotionId: promotion.id, guestAccountId, linkedUserId })
     if (!grant) return { ok: false, error: 'grant_required' }
   }
 
+  let usedByCustomerCount: number | null = null
   if (guestAccountId || linkedUserId) {
     try {
       const usageRow = await pgQueryOne<{ c: number }>(
@@ -503,21 +538,27 @@ export async function validatePromotionCodeFromPg(input: {
            )`,
         [promotion.id, guestAccountId, linkedUserId]
       )
-      if ((usageRow?.c ?? 0) >= promotion.perUserLimit) return { ok: false, error: 'per_user_limit_reached' }
+      usedByCustomerCount = usageRow?.c ?? 0
     } catch (e) {
       console.warn('[validatePromotionCodeFromPg:per-user-limit]', e)
     }
   }
 
-  if (promotion.firstOrderOnly) {
-    const hasPrior = await checkCustomerHasPriorOrderFromPg({
-      partnerId: input.partnerId,
-      guestAccountId,
-      linkedUserId,
-      emailNormalized: input.emailNormalized,
-    })
-    if (hasPrior) return { ok: false, error: 'first_order_only' }
-  }
+  const hasPrior = promotion.firstOrderOnly
+    ? await checkCustomerHasPriorOrderFromPg({
+        partnerId: input.partnerId,
+        guestAccountId,
+        linkedUserId,
+        emailNormalized: input.emailNormalized,
+      })
+    : false
+  const customerError = assessPromotionCustomerEligibility({
+    ...fields,
+    subtotal: input.subtotal,
+    hasPriorOrder: hasPrior,
+    usedByCustomerCount,
+  })
+  if (customerError) return { ok: false, error: customerError }
 
   let eligibleLines = promotion.excludeSaleItems
     ? input.cartLines.filter(
@@ -699,5 +740,62 @@ export async function fetchActivePromotionGrantsForCustomerFromPg(input: {
   } catch (e) {
     console.warn('[fetchActivePromotionGrantsForCustomerFromPg]', e)
     return null
+  }
+}
+
+/**
+ * Gỡ khỏi ví các grant không còn giá trị dùng: đơn đầu tiên đã qua, hết lượt theo khách,
+ * mã inactive/hết hạn. Giữ mã chỉ tạm chưa đủ min đơn.
+ */
+export async function expireWorthlessPromotionGrantsForCustomerFromPg(input: {
+  partnerId: string
+  guestAccountId?: string | null
+  linkedUserId?: string | null
+  emailNormalized?: string | null
+}): Promise<number> {
+  const grants = await fetchActivePromotionGrantsForCustomerFromPg({
+    partnerId: input.partnerId,
+    guestAccountId: input.guestAccountId,
+    linkedUserId: input.linkedUserId,
+  })
+  if (!grants?.length) return 0
+  const [hasPriorOrder, usageCounts] = await Promise.all([
+    checkCustomerHasPriorOrderFromPg({
+      partnerId: input.partnerId,
+      guestAccountId: input.guestAccountId,
+      linkedUserId: input.linkedUserId,
+      emailNormalized: input.emailNormalized,
+    }),
+    fetchPromotionUsageCountsForCustomerFromPg({
+      promotionIds: grants.map((g) => g.promotion.id),
+      guestAccountId: input.guestAccountId,
+      linkedUserId: input.linkedUserId,
+    }),
+  ])
+  const expireIds = grants
+    .filter((g) =>
+      isPermanentlyUnusablePromoError(
+        assessPromotionCustomerEligibility({
+          ...promotionToCustomerEligibilityFields(g.promotion),
+          hasPriorOrder,
+          usedByCustomerCount: usageCounts.get(g.promotion.id) ?? 0,
+          subtotal: 0,
+        })
+      )
+    )
+    .map((g) => g.grant.id)
+  if (!expireIds.length) return 0
+  try {
+    const rows = await pgQuery<{ id: string }>(
+      `update public.messaging_partner_promotion_grants
+       set status = 'expired'
+       where status = 'active' and id = any($1::uuid[])
+       returning id::text`,
+      [expireIds]
+    )
+    return rows.length
+  } catch (e) {
+    console.warn('[expireWorthlessPromotionGrantsForCustomerFromPg]', e)
+    return 0
   }
 }

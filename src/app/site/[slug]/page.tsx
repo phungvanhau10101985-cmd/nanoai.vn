@@ -12,7 +12,8 @@ import { maybePartnerSiteVisualPage, readVisualPreviewDevice } from '@/component
 import { PartnerSiteFashionHome } from '@/components/partner-website/shop/partner-site-fashion-home'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { inventoryCardRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
-import { loadPartnerSiteSaleOverlay, withPartnerSiteSale } from '@/lib/partner-website/promotions/partner-site-sale-attach'
+import { applyPartnerStorefrontSaleFaces, loadPartnerSiteSaleOverlay } from '@/lib/partner-website/promotions/partner-site-sale-attach'
+import { resolvePartnerStorefrontSaleIdentity } from '@/lib/partner-website/shop/partner-site-personalization'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
 import {
@@ -100,12 +101,15 @@ export default async function PartnerSitePublicPage({ params, searchParams }: Pr
     const bookingEnabled = shop.industryKey === 'hotel'
     const inv = await fetchPartnerInventoryActiveCardPageWithCountFromPg(shop.partnerId, 0, 16)
     const overlay = await loadPartnerSiteSaleOverlay(shop.partnerId).catch(() => null)
-    const live = (inv?.rows ?? [])
-      .map((row) => {
-        const mapped = inventoryCardRowToShopProduct(shop.site.siteSlug, row)
-        return withPartnerSiteSale(mapped, overlay)
-      })
+    const identity = await resolvePartnerStorefrontSaleIdentity(shop.partnerId)
+    const mapped = (inv?.rows ?? [])
+      .map((row) => inventoryCardRowToShopProduct(shop.site.siteSlug, row))
       .filter((p): p is NonNullable<typeof p> => Boolean(p))
+    const live = await applyPartnerStorefrontSaleFaces(mapped, {
+      partnerId: shop.partnerId,
+      ...identity,
+      overlay,
+    })
     const fallback = sampleAsShopProducts(shop.site.siteSlug, shop.site.locale)
     const products = live.length ? live : fallback
     const newArrivals = products.slice(0, 8)

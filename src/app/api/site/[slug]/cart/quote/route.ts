@@ -12,6 +12,8 @@ import {
 } from '@/lib/partner-website/shop/partner-site-personalization'
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
 import { resolvePartnerStorefrontSaleCalendarForRequest } from '@/lib/partner-website/promotions/partner-feature-test-storefront'
+import { DEFAULT_WEB_LOCALE, normalizeWebLocale } from '@/lib/i18n/config'
+import { partnerSiteSaleDateBadgeLabel } from '@/lib/partner-website/promotions/partner-site-sale-display'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,6 +70,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     linkedUserId: visitor.thread.linkedUserId,
     guestAccountId: visitor.thread.guestAccountId,
   }
+  const locale = normalizeWebLocale(shop.site.locale) ?? DEFAULT_WEB_LOCALE
   const [priceLines, birthdayDiscountPercent, loyaltyStatus, paymentSettings, saleCalendar] =
     await Promise.all([
       resolvePartnerCheckoutPriceLinesFromPg({
@@ -157,12 +160,45 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     {
       ok: true,
       lines: priceLines.map((line, index) => {
+        const alreadyDiscounted = line.effectiveUnitPrice < line.listUnitPrice
         const expected =
           saleCalendar.phase === 'teaser' &&
           !line.isClearance &&
+          !alreadyDiscounted &&
+          line.priceKind !== 'flash' &&
+          line.priceKind !== 'google' &&
           saleCalendar.discountPercent > 0
             ? Math.max(0, Math.round(line.listUnitPrice * (1 - saleCalendar.discountPercent / 100)))
             : null
+        const saleBadge =
+          line.priceKind === 'flash'
+            ? partnerSiteSaleDateBadgeLabel({
+                percent: line.flashPercent ?? 0,
+                kind: 'flash',
+                eventLabel: 'Flash sale',
+                locale,
+              })
+            : line.priceKind === 'calendar' && saleCalendar.discountPercent > 0
+              ? partnerSiteSaleDateBadgeLabel({
+                  percent: saleCalendar.discountPercent,
+                  eventDate: saleCalendar.eventDate ?? saleCalendar.saleDate,
+                  eventLabel: saleCalendar.eventLabel,
+                  kind: 'calendar',
+                  locale,
+                })
+              : line.isClearance === true && alreadyDiscounted
+                ? partnerSiteSaleDateBadgeLabel({
+                    percent: Math.max(
+                      1,
+                      Math.round(
+                        ((line.listUnitPrice - line.effectiveUnitPrice) * 100) / Math.max(1, line.listUnitPrice)
+                      )
+                    ),
+                    kind: 'clearance',
+                    isClearance: true,
+                    locale,
+                  })
+                : null
         return {
           lineId: validLines[index]?.lineId ?? String(index),
           inventoryId: line.inventoryId,
@@ -171,11 +207,18 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
           effectiveUnitPrice: line.effectiveUnitPrice,
           isClearance: line.isClearance === true,
           googleDiscountAmount: money(line.googleDiscountAmount),
+          priceKind: line.priceKind ?? (line.isClearance ? 'clearance' : 'list'),
+          flashPercent: line.flashPercent ?? null,
+          saleBadge,
           expectedSaleUnitPrice:
             expected != null && expected > 0 && expected < line.listUnitPrice ? expected : null,
         }
       }),
       saleCalendar,
+      birthdayOffer:
+        (birthdayDiscountPercent ?? 0) > 0
+          ? { percent: birthdayDiscountPercent ?? 0 }
+          : null,
       breakdown,
       promo: promo
         ? {

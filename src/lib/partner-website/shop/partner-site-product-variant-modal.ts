@@ -261,18 +261,28 @@ function variantSaleFace(p){
   if(!p)return null;
   var list=Math.max(0,Math.round(Number(p.priceAmount)||0));
   var site=p.siteSale||{};
+  var kind=String(site.kind||'');
+  if(!kind&&p.isClearance===true)kind='clearance';
+  if(!kind&&String(site.eventLabel||'').toLowerCase()==='flash sale')kind='flash';
   var phase=String(site.phase||p.siteSalePhase||'');
   var pct=Math.max(0,Math.round(Number(site.percent||p.siteSalePercent||0)||0));
   var expected=Number(site.expectedSalePrice||p.siteSaleExpectedPrice);
-  var countdown=site.countdownTo||'';
+  var countdown=kind==='clearance'?'':(site.countdownTo||'');
+  var sc=saleCopy();
   var label=String(site.eventLabel||'');
-  if(phase==='teaser'&&list>0&&pct>0&&Number.isFinite(expected)&&expected>0&&expected<list){
-    return {kind:'teaser',display:list,compare:0,expected:Math.round(expected),percent:pct,savings:list-Math.round(expected),countdown:countdown,label:label};
+  if(kind==='clearance')label=String(sc.clearanceName||label||'Sale thanh lý kho');
+  if(kind==='flash')label=label||'Flash sale';
+  if(kind!=='clearance'&&phase==='teaser'&&list>0&&pct>0&&Number.isFinite(expected)&&expected>0&&expected<list){
+    return {kind:'teaser',promoKind:kind||'calendar',display:list,compare:0,expected:Math.round(expected),percent:pct,savings:list-Math.round(expected),countdown:countdown,label:label,badge:String(sc.calendarBadge||'Sale {date} - {pct}%').replace('{date}',label.replace(/^Sale\\s+/i,'')).replace('{pct}',String(pct))};
   }
-  if(phase!=='active')return null;
+  if(phase!=='active'&&kind!=='clearance'&&kind!=='flash')return null;
   var sale=Number(p.salePriceAmount);
   if(!Number.isFinite(sale)||sale<=0||list<=0||sale>=list)return null;
-  return {kind:'active',display:Math.round(sale),compare:list,expected:0,percent:pct,savings:list-Math.round(sale),countdown:countdown,label:label};
+  var livePct=pct>0&&pct<100?pct:Math.max(1,Math.round((list-sale)*100/list));
+  var badge=kind==='flash'?String(sc.flashBadge||'Flash sale -{pct}%').replace('{pct}',String(livePct))
+    :kind==='clearance'?String(sc.clearanceBadge||'Sale thanh lý kho -{pct}%').replace('{pct}',String(livePct))
+    :'';
+  return {kind:'active',promoKind:kind||'calendar',display:Math.round(sale),compare:list,expected:0,percent:livePct,savings:list-Math.round(sale),countdown:countdown,label:label,badge:badge};
 }
 function variantFmtChip(iso){
   if(!iso)return '';
@@ -287,10 +297,11 @@ function variantSaleHtml(st){
   var sc=saleCopy();
   var fallback=face.kind==='teaser'?sc.teaserFallback:sc.activeFallback;
   var label=face.label||fallback||'';
-  var pillTpl=face.kind==='active'?sc.activePill:sc.teaserPill;
-  var pill=String(pillTpl||'').replace('{label}',label).replace('{pct}',String(face.percent));
+  var pill=face.promoKind==='flash'||face.promoKind==='clearance'
+    ? (face.badge||'')
+    : String((face.kind==='active'?sc.activePill:sc.teaserPill)||'').replace('{label}',label).replace('{pct}',String(face.percent));
   var prefix=String((face.kind==='active'?sc.countdownLeft:sc.countdownStarts)||'').replace('{label}',label);
-  var count=variantFmtChip(face.countdown);
+  var count=face.promoKind==='clearance'?'':variantFmtChip(face.countdown);
   var price=variantMoney(face.display,st.priceHint);
   var expected=face.kind==='teaser'&&face.expected?variantMoney(face.expected,''):'';
   var saveAmt=variantMoney(face.savings,'');
@@ -306,7 +317,16 @@ function variantSaleHtml(st){
     +(face.kind==='active'&&face.compare?'<span data-pw-variant-compare>'+variantEsc(variantMoney(face.compare,''))+'</span>':'')
     +(save?'<span data-pw-variant-save-chip>'+variantEsc(save)+'</span>':'')
     +(face.percent?'<span data-pw-variant-pct>-'+face.percent+'%</span>':'')
-    +'</div></div>';
+    +'</div>'
+    +variantBirthdayHtml(st.product)
+    +'</div>';
+}
+function variantBirthdayHtml(p){
+  if(!p||p.isClearance===true)return '';
+  var pct=Math.max(0,Math.round(Number(p.birthdayOfferPercent||(p.birthdayOffer&&p.birthdayOffer.percent)||0)||0));
+  if(!(pct>0))return '';
+  var text=String((saleCopy().birthdayCheckoutHint)||'').replace('{pct}',String(pct));
+  return text?'<span data-pw-variant-birthday>'+variantEsc(text)+'</span>':'';
 }
 function variantTotalSaveHtml(st){
   var face=st.saleFace;if(!face||!(face.savings>0))return '';
@@ -609,6 +629,7 @@ function openPdpVariantModal(seed,action){
     var p=pair[0]&&pair[0].j&&pair[0].j.product;
     var opt=pair[1]&&pair[1].j&&pair[1].j.options;
     if(p){
+      st.product=p;
       st.name=p.name||st.name;
       st.sku=p.sku||st.sku;
       st.imageUrl=p.imageUrl||st.imageUrl;

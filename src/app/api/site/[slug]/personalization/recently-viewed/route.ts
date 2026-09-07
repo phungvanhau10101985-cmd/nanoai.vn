@@ -6,6 +6,7 @@ import {
   getSiteRecentlyViewedProducts,
   isPersonalizationIdsOnlyRequest,
   resolveSiteVisitorContext,
+  resolveSiteVisitorEmail,
 } from '@/lib/partner-website/shop/partner-site-personalization'
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
 
@@ -33,10 +34,13 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     )
   }
   const limit = Math.min(48, Math.max(1, Number(request.nextUrl.searchParams.get('limit') ?? 10) || 10))
+  const emailNormalized = await resolveSiteVisitorEmail(request, shop.partnerId, visitor.thread)
   const peeked = await getSiteRecentlyViewedProducts({
     partnerId: shop.partnerId,
     siteSlug: shop.site.siteSlug,
     accountKey: visitor.accountKey,
+    linkedUserId: visitor.thread.linkedUserId,
+    emailNormalized,
     limit: Math.min(48, offset + limit + 1),
   })
   const products = peeked.slice(offset, offset + limit)

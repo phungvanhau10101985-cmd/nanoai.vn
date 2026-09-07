@@ -6,7 +6,10 @@ import {
 } from '@/lib/partner-website/promotions/partner-sale-calendar'
 import {
   applyPartnerSiteSaleToShopProduct,
+  attachPartnerBirthdayOffer,
   buildPartnerSiteSalePricing,
+  partnerSiteBirthdayCheckoutHint,
+  partnerSiteBirthdayBadgeText,
   partnerSiteSaleBannerShowsOnPage,
   partnerSiteSaleBannerText,
   partnerSiteSaleDateBadgeLabel,
@@ -38,7 +41,7 @@ test('teaser keeps list price and shows expected sale without charging it', () =
   assert.equal(face.kind, 'teaser')
   assert.equal(face.displayPrice, 1_000_000)
   assert.equal(face.expectedPrice, 940_000)
-  assert.equal(face.badge, '9/9 - 6%')
+  assert.equal(face.badge, 'Sale 9/9 - 6%')
 })
 
 test('active sale charges discounted price and uses date badge', () => {
@@ -56,12 +59,12 @@ test('active sale charges discounted price and uses date badge', () => {
   assert.equal(face.kind, 'active')
   assert.equal(face.displayPrice, 940_000)
   assert.equal(face.comparePrice, 1_000_000)
-  assert.equal(face.badge, '9/9 - 6%')
+  assert.equal(face.badge, 'Sale 9/9 - 6%')
 })
 
-test('flash sale uses FLASH -N% badge', () => {
-  assert.equal(partnerSiteSaleDateBadgeLabel({ percent: 5, kind: 'flash' }), 'FLASH -5%')
-  assert.equal(partnerSiteSaleDateBadgeLabel({ percent: 6, eventLabel: 'Flash sale' }), 'FLASH -6%')
+test('flash sale uses Flash sale -N% badge', () => {
+  assert.equal(partnerSiteSaleDateBadgeLabel({ percent: 5, kind: 'flash' }), 'Flash sale -5%')
+  assert.equal(partnerSiteSaleDateBadgeLabel({ percent: 6, eventLabel: 'Flash sale' }), 'Flash sale -6%')
   const face = resolvePartnerProductSaleFace({
     priceAmount: 1_000_000,
     salePriceAmount: 950_000,
@@ -79,7 +82,7 @@ test('flash sale uses FLASH -N% badge', () => {
     },
   })
   assert.equal(face.kind, 'active')
-  assert.equal(face.badge, 'FLASH -5%')
+  assert.equal(face.badge, 'Flash sale -5%')
 })
 
 test('salePriceAmount 0 is not a discount', () => {
@@ -103,8 +106,11 @@ test('clearance does not stack site sale', () => {
     state,
     { clearanceEnabled: true, clearancePercent: 60 }
   )
-  assert.equal(product.siteSale, null)
+  assert.equal(product.siteSale?.kind, 'clearance')
   assert.equal(product.salePriceAmount, 400_000)
+  const face = resolvePartnerProductSaleFace(product)
+  assert.equal(face.badge, 'Sale thanh lý kho -60%')
+  assert.equal(face.promoKind, 'clearance')
 })
 
 test('banner copy follows 188 teaser and active wording', () => {
@@ -127,6 +133,30 @@ test('banner copy follows 188 teaser and active wording', () => {
     applyPartnerSiteSaleToShopProduct({ priceAmount: 1_000_000, salePriceAmount: null }, teaser)
   )
   assert.match(String(partnerSiteSalePillText(face, 'vi')), /giảm 6%/)
+})
+
+test('birthday offer is a checkout hint and does not change unit price', () => {
+  const state = resolvePartnerSaleCalendarState({
+    settings: defaultPartnerSaleCalendarSettings(),
+    at: new Date('2026-09-09T05:00:00.000Z'),
+  })
+  const product = applyPartnerSiteSaleToShopProduct(
+    { priceAmount: 1_000_000, salePriceAmount: null },
+    state
+  )
+  const withBirthday = attachPartnerBirthdayOffer(product, 10)
+  assert.equal(withBirthday.salePriceAmount, 940_000)
+  assert.equal(withBirthday.birthdayOfferPercent, 10)
+  const face = resolvePartnerProductSaleFace(withBirthday)
+  assert.equal(face.displayPrice, 940_000)
+  assert.match(String(partnerSiteBirthdayCheckoutHint(10, 'vi')), /CMSN/)
+  assert.match(String(partnerSiteBirthdayCheckoutHint(10, 'vi')), /thanh toán/)
+  assert.equal(partnerSiteBirthdayBadgeText(10, 'vi'), 'CMSN -10%')
+  const clearance = attachPartnerBirthdayOffer(
+    { priceAmount: 1_000_000, isClearance: true, salePriceAmount: 400_000 },
+    10
+  )
+  assert.equal(clearance.birthdayOfferPercent, 0)
 })
 
 test('sale countdown tick updates text nodes and skips banner hosts', () => {

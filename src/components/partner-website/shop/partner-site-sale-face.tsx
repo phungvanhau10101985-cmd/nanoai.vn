@@ -5,6 +5,8 @@ import type { WebLocale } from '@/lib/i18n/config'
 import {
   formatPartnerSaleCountdownCompact,
   formatPartnerSaleMoney,
+  partnerSiteBirthdayBadgeText,
+  partnerSiteBirthdayCheckoutHint,
   partnerSiteSaleCopy,
   resolvePartnerProductSaleFace,
   writePartnerSaleCountdownNode,
@@ -14,6 +16,8 @@ import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type SaleProduct = Parameters<typeof resolvePartnerProductSaleFace>[0] & {
   priceHint?: string | null
+  birthdayOfferPercent?: number | null
+  isClearance?: boolean
 }
 
 export function PartnerSiteSaleCountdown({
@@ -66,7 +70,7 @@ export function PartnerSiteSaleBadge({
   className?: string
 }) {
   if (!face.kind || !face.badge) return null
-  return <span className={`pw-badge-sale pw-badge-sale-${face.kind} ${className}`.trim()}>{face.badge}</span>
+  return <span className={`pw-badge-sale pw-badge-sale-${face.kind}${face.promoKind ? ` pw-badge-sale-${face.promoKind}` : ''} ${className}`.trim()}>{face.badge}</span>
 }
 
 export function PartnerSiteSalePriceBlock({
@@ -80,13 +84,18 @@ export function PartnerSiteSalePriceBlock({
   fallback?: string | null
   className?: string
 }) {
-  const face = resolvePartnerProductSaleFace(product)
+  const face = resolvePartnerProductSaleFace(product, locale)
   const copy = partnerSiteSaleCopy(locale)
+  const birthdayHint =
+    product.isClearance === true
+      ? null
+      : partnerSiteBirthdayCheckoutHint(product.birthdayOfferPercent, locale)
   if (!face.kind) {
     const text = fallback || ''
-    return text ? (
+    return text || birthdayHint ? (
       <p className={className} data-pw-el={PW_EL.cardPrice}>
         {text}
+        {birthdayHint ? <small className="pw-price-birthday">{birthdayHint}</small> : null}
       </p>
     ) : null
   }
@@ -102,6 +111,7 @@ export function PartnerSiteSalePriceBlock({
             .replace('{pct}', String(face.percent))
             .replace('{amount}', formatPartnerSaleMoney(face.savings, locale))}
         </small>
+        {birthdayHint ? <small className="pw-price-birthday">{birthdayHint}</small> : null}
       </p>
     )
   }
@@ -116,6 +126,7 @@ export function PartnerSiteSalePriceBlock({
           {copy.save.replace('{amount}', formatPartnerSaleMoney(face.savings, locale))}
         </small>
       ) : null}
+      {birthdayHint ? <small className="pw-price-birthday">{birthdayHint}</small> : null}
     </p>
   )
 }
@@ -127,18 +138,23 @@ export function PartnerSiteSaleMediaMarks({
   product: SaleProduct
   locale: WebLocale
 }) {
-  const face = resolvePartnerProductSaleFace(product)
-  if (!face.kind || !face.badge) return null
+  const face = resolvePartnerProductSaleFace(product, locale)
+  const birthdayBadge =
+    product.isClearance === true
+      ? null
+      : partnerSiteBirthdayBadgeText(product.birthdayOfferPercent, locale)
+  if (!face.kind && !birthdayBadge) return null
   return (
     <>
-      <PartnerSiteSaleBadge face={face} />
-      {face.countdownTo ? (
+      {face.kind && face.badge ? <PartnerSiteSaleBadge face={face} /> : null}
+      {birthdayBadge ? <span className="pw-badge-birthday">{birthdayBadge}</span> : null}
+      {face.kind && face.countdownTo ? (
         <PartnerSiteSaleCountdown countdownTo={face.countdownTo} phase={face.kind} locale={locale} overlay />
       ) : null}
     </>
   )
 }
 
-export function partnerProductSaleFaceOf(product: SaleProduct) {
-  return resolvePartnerProductSaleFace(product)
+export function partnerProductSaleFaceOf(product: SaleProduct, locale: WebLocale = 'vi') {
+  return resolvePartnerProductSaleFace(product, locale)
 }

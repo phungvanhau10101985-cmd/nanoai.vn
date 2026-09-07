@@ -2371,17 +2371,12 @@ export function PartnerMessagingSettingsClient({
             onClick={() => setMobileNavOpen(false)}
           />
         ) : null}
-        <div
-          className={cn(
-            'flex flex-col rounded-xl border border-border/70 lg:flex-row lg:items-stretch lg:overflow-hidden',
-            'lg:sticky lg:top-[calc(var(--site-header-height,3.5rem)+3.5rem)] lg:z-20 lg:h-[calc(100dvh-var(--site-header-height,3.5rem)-3.5rem)] lg:w-full lg:min-h-0'
-          )}
-        >
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:gap-3">
           <aside
             id="shop-admin-sidebar"
             className={cn(
               'fixed inset-y-0 left-0 z-[80] flex h-[100svh] max-h-[100svh] w-[min(18.5rem,calc(100vw-2.5rem))] flex-col overflow-hidden border-white/10 shadow-xl transition-transform duration-200 ease-out',
-              'lg:static lg:z-auto lg:h-full lg:max-h-none lg:shrink-0 lg:translate-x-0 lg:shadow-none lg:border-r',
+              'lg:sticky lg:inset-auto lg:left-auto lg:top-[calc(var(--site-header-height,3.5rem)+4.25rem)] lg:z-20 lg:h-auto lg:max-h-[calc(100dvh-var(--site-header-height,3.5rem)-5.25rem)] lg:shrink-0 lg:self-start lg:translate-x-0 lg:rounded-xl lg:border lg:border-border/70 lg:shadow-none',
               mobileNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
               SETTINGS_SIDEBAR_SURFACE,
               activeSection === 'partner-website-editor' ? 'lg:w-48' : 'lg:w-56 xl:w-60'
@@ -2462,10 +2457,10 @@ export function PartnerMessagingSettingsClient({
           </aside>
           <div
             className={cn(
-              'min-w-0 flex-1 bg-white dark:bg-zinc-950',
+              'min-w-0 flex-1 rounded-xl border border-border/70 bg-white dark:bg-zinc-950',
               activeSection === 'partner-website-editor'
-                ? 'flex min-h-0 flex-col overflow-hidden p-2 sm:p-3'
-                : 'min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain p-3 sm:p-4 lg:p-5'
+                ? 'flex min-h-0 flex-col p-2 sm:p-3'
+                : 'p-3 sm:p-4 lg:p-5'
             )}
           >
           {activeSection === 'workspace' ? (

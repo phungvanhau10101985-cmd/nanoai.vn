@@ -11,7 +11,8 @@ import {
 import { matchInventoryForPublicTextSearchApi } from '@/lib/messaging/partner-inventory-text-embedding'
 import { getPartnerPublicInventorySearchDefaultLimit } from '@/lib/messaging/partner-public-search-limits'
 import { inventoryCardRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
-import { loadPartnerSiteSaleOverlay, withPartnerSiteSale } from '@/lib/partner-website/promotions/partner-site-sale-attach'
+import { applyPartnerStorefrontSaleFaces, loadPartnerSiteSaleOverlay } from '@/lib/partner-website/promotions/partner-site-sale-attach'
+import { resolvePartnerStorefrontSaleIdentity } from '@/lib/partner-website/shop/partner-site-personalization'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import {
@@ -122,12 +123,15 @@ export default async function PartnerSiteTextSearchPage({ params, searchParams }
     : { rows: [], count: 0 }
 
   const overlay = await loadPartnerSiteSaleOverlay(shop.partnerId).catch(() => null)
-  let initialProducts = (page?.rows ?? [])
-    .map((row) => {
-      const mapped = inventoryCardRowToShopProduct(shop.site.siteSlug, row)
-      return withPartnerSiteSale(mapped, overlay)
-    })
+  const identity = await resolvePartnerStorefrontSaleIdentity(shop.partnerId)
+  const mappedRows = (page?.rows ?? [])
+    .map((row) => inventoryCardRowToShopProduct(shop.site.siteSlug, row))
     .filter((p): p is NonNullable<typeof p> => Boolean(p))
+  let initialProducts = await applyPartnerStorefrontSaleFaces(mappedRows, {
+    partnerId: shop.partnerId,
+    ...identity,
+    overlay,
+  })
   let initialTotal = page?.count ?? initialProducts.length
 
   // Vector chỉ khi word-search chạy xong và total = 0 (188). Lỗi SQL (`page == null`) không được coi là 0 hit.
@@ -142,12 +146,14 @@ export default async function PartnerSiteTextSearchPage({ params, searchParams }
         shop.partnerId,
         vector.matches.map((m) => m.inventory_id)
       )
-      initialProducts = (rows ?? [])
-        .map((row) => {
-          const mapped = inventoryCardRowToShopProduct(shop.site.siteSlug, row)
-          return withPartnerSiteSale(mapped, overlay)
-        })
+      const vectorMapped = (rows ?? [])
+        .map((row) => inventoryCardRowToShopProduct(shop.site.siteSlug, row))
         .filter((p): p is NonNullable<typeof p> => Boolean(p))
+      initialProducts = await applyPartnerStorefrontSaleFaces(vectorMapped, {
+        partnerId: shop.partnerId,
+        ...identity,
+        overlay,
+      })
       initialTotal = initialProducts.length
     }
   }

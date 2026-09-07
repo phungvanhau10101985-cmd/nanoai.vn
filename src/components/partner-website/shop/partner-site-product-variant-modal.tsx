@@ -14,6 +14,7 @@ import {
 import {
   formatPartnerSaleCountdownCompact,
   formatPartnerSaleMoney,
+  partnerSiteBirthdayCheckoutHint,
   partnerSiteSaleCopy,
   partnerSiteSalePillText,
   resolvePartnerProductSaleFace,
@@ -45,6 +46,7 @@ export type PartnerSiteVariantModalProduct = {
   siteSalePercent?: number | null
   siteSaleExpectedPrice?: number | null
   siteSale?: PartnerSiteSalePricing | null
+  birthdayOfferPercent?: number | null
   stockQty?: number | null
   colors?: PartnerSiteVariantModalColor[] | null
   sizes?: string[] | null
@@ -210,10 +212,11 @@ export function PartnerSiteProductVariantModal({
   const effectiveQty = Math.min(maxQty, Math.max(1, qty))
   const showStock = variantModalShowsLowStock(product.stockQty)
   const stockQty = Math.max(0, Math.round(Number(product.stockQty) || 0))
-  const saleFace = resolvePartnerProductSaleFace(product)
+  const saleFace = resolvePartnerProductSaleFace(product, locale)
   const saleCopy = partnerSiteSaleCopy(locale)
-  const siteSaleKind = product.siteSale?.phase ?? (product.siteSalePhase === 'teaser' || product.siteSalePhase === 'active' ? product.siteSalePhase : null)
-  const showSiteSale = (siteSaleKind === 'teaser' || siteSaleKind === 'active') && saleFace.kind === siteSaleKind
+  const showSiteSale =
+    saleFace.kind === 'teaser' ||
+    saleFace.kind === 'active'
 
   useEffect(() => {
     if (!open || !showSiteSale || !saleFace.countdownTo) {
@@ -332,9 +335,25 @@ export function PartnerSiteProductVariantModal({
         ) : null}
         {saleFace.percent > 0 ? <span data-pw-variant-pct>-{saleFace.percent}%</span> : null}
       </div>
+      {product.isClearance !== true && partnerSiteBirthdayCheckoutHint(product.birthdayOfferPercent, locale) ? (
+        <span data-pw-variant-birthday>
+          {partnerSiteBirthdayCheckoutHint(product.birthdayOfferPercent, locale)}
+        </span>
+      ) : null}
     </div>
   ) : priceLabel ? (
-    <p data-pw-variant-price>{priceLabel}</p>
+    <>
+      <p data-pw-variant-price>{priceLabel}</p>
+      {product.isClearance !== true && partnerSiteBirthdayCheckoutHint(product.birthdayOfferPercent, locale) ? (
+        <span data-pw-variant-birthday>
+          {partnerSiteBirthdayCheckoutHint(product.birthdayOfferPercent, locale)}
+        </span>
+      ) : null}
+    </>
+  ) : product.isClearance !== true && partnerSiteBirthdayCheckoutHint(product.birthdayOfferPercent, locale) ? (
+    <span data-pw-variant-birthday>
+      {partnerSiteBirthdayCheckoutHint(product.birthdayOfferPercent, locale)}
+    </span>
   ) : null
 
   const lineTotal = (
