@@ -1189,6 +1189,9 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
           const teaserUnitSavings = isTeaserLine && expectedUnit != null ? listUnitPrice - expectedUnit : 0
           const birthdayLineSave = cartBirthdayLineSave(item, lineQuote, birthdayPercent)
           const birthdayLineSaveText = partnerSiteBirthdaySaveText(birthdayLineSave, locale)
+          const programName =
+            cartLineProgramName(lineQuote, quote?.saleCalendar, locale, saleT.inventoryDiscount) ||
+            calendarProgramName
           const chipKind =
             lineQuote?.priceKind === 'flash'
               ? 'flash'
