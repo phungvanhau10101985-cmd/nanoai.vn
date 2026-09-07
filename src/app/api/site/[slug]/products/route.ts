@@ -20,6 +20,7 @@ import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner
 import { resolvePartnerStorefrontSaleCalendarForRequest } from '@/lib/partner-website/promotions/partner-feature-test-storefront'
 import { peekSiteVisitorAccountKeyFromRequest, resolveSiteVisitorEmail } from '@/lib/partner-website/shop/partner-site-personalization'
 import { applyPartnerStorefrontSaleFaces } from '@/lib/partner-website/promotions/partner-site-sale-attach'
+import { partnerSiteBirthdayOfferJson } from '@/lib/partner-website/promotions/partner-site-sale-display'
 
 export const dynamic = 'force-dynamic'
 
@@ -195,7 +196,9 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     overlay,
   })
   const products = withFaces.map((product) => toPartnerSiteCardPayload(product))
-  const birthdayPercent = Math.max(0, ...withFaces.map((p) => p.birthdayOfferPercent || 0))
+  const birthdayOffer = partnerSiteBirthdayOfferJson(
+    withFaces.find((p) => (p.birthdayOfferPercent || 0) > 0)
+  )
 
   if (related && categoryId && UUID_RE.test(categoryId)) {
     const flat = await fetchPartnerCategoriesFlatFromPg(shop.partnerId)
@@ -216,7 +219,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     source: use188TextSearch ? 'words' : related ? 'related' : 'shop',
     products,
     saleCalendar,
-    birthdayOffer: birthdayPercent > 0 ? { percent: birthdayPercent } : null,
+    birthdayOffer,
     hasMore,
     total: products.length < page.rows.length ? products.length : page.count,
     mapped: products.length,

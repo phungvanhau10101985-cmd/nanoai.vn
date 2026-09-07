@@ -458,15 +458,18 @@ function PartnerSiteShopShellInner({
   }, [categoriesOpen])
 
   const loadCartCount = useCallback(async (): Promise<number> => {
-    const res = await fetch(partnerSiteCartApiPath(siteSlug), {
+    const res = await fetch(partnerSiteCartApiPath(siteSlug, { countOnly: true }), {
       credentials: 'same-origin',
       headers: authHeaders(),
     })
     captureFromResponse(res)
-    const json = (await res.json().catch(() => ({}))) as { items?: Array<{ quantity?: number }> }
-    const count = Array.isArray(json.items)
-      ? json.items.reduce((sum, item) => sum + Math.max(0, Number(item?.quantity) || 1), 0)
-      : 0
+    const json = (await res.json().catch(() => ({}))) as { count?: number; items?: Array<{ quantity?: number }> }
+    const count =
+      typeof json.count === 'number'
+        ? Math.max(0, Math.round(json.count) || 0)
+        : Array.isArray(json.items)
+          ? json.items.reduce((sum, item) => sum + Math.max(0, Number(item?.quantity) || 1), 0)
+          : 0
     setCartCount(count)
     return count
   }, [authHeaders, captureFromResponse, setCartCount, siteSlug])
@@ -532,24 +535,34 @@ function PartnerSiteShopShellInner({
   // -> fallback nhãn cố định cũ bên dưới (W4.3, không phá site đang publish).
   useEffect(() => {
     let cancelled = false
-    fetch(partnerSiteCategoriesApiPath(siteSlug))
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json: { tree?: PartnerCategoryTreeNode[]; menuTree?: PartnerCategoryTreeNode[]; seoSizes?: PartnerCategoryTreeNode[] } | null) => {
-        if (cancelled) return
-        const split = splitPartnerCategoryNavTree(json?.tree ?? json?.menuTree ?? [], locale)
-        setCategoryTree(split.menuTree)
-        setSeoSizeNodes(split.seoSizeNodes)
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCategoryTree([])
-          setSeoSizeNodes([])
-        }
-      })
+    const load = () => {
+      fetch(partnerSiteCategoriesApiPath(siteSlug))
+        .then((res) => (res.ok ? res.json() : null))
+        .then((json: { tree?: PartnerCategoryTreeNode[]; menuTree?: PartnerCategoryTreeNode[]; seoSizes?: PartnerCategoryTreeNode[] } | null) => {
+          if (cancelled) return
+          const split = splitPartnerCategoryNavTree(json?.tree ?? json?.menuTree ?? [], locale)
+          setCategoryTree(split.menuTree)
+          setSeoSizeNodes(split.seoSizeNodes)
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setCategoryTree([])
+            setSeoSizeNodes([])
+          }
+        })
+    }
+    const deferNav = pageKind === 'cart' || pageKind === 'account'
+    let timer = 0
+    if (!deferNav || categoriesOpen) {
+      load()
+    } else {
+      timer = window.setTimeout(load, 1200)
+    }
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
     }
-  }, [locale, siteSlug])
+  }, [categoriesOpen, locale, pageKind, siteSlug])
 
   const hasCategoryTree = Boolean(categoryTree && categoryTree.length > 0)
   const useVisualChrome = hasVisualHomeChrome(visualChromeByDevice)

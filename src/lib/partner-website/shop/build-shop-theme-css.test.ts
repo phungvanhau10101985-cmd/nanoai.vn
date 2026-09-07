@@ -210,3 +210,12 @@ test('Sửa nhanh PDP receives HTML header colors from the shop theme pack', () 
   assert.match(out, /\.pw-search-submit\{[^}]*background:var\(--pw-primary\)/)
   assert.match(out, /class="pw-header"/)
 })
+
+test('shop theme CSS keeps mobile cart totals on a full-width row, not the 22px checkbox column', () => {
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(css, /\.pw-shop-cart-row\{[^}]*grid-template-columns:24px 72px minmax\(0,1fr\) minmax\(0,auto\)/)
+  assert.match(css, /\.pw-shop-cart-line-total-wrap\{grid-column:1\/-1/)
+  assert.match(css, /html\[data-pw-edit-device="mobile"\],html\[data-pw-scene-lock="mobile"\]/)
+  assert.match(css, /\.pw-shop-cart-row\[data-pw-cart-qty="1"\] \.pw-shop-cart-line-total-wrap\{display:none\}/)
+  assert.doesNotMatch(css, /\.pw-shop-cart-line-total\{grid-column:3;justify-self:end\}/)
+})

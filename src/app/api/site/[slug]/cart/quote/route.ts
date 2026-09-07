@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchPartnerPaymentSettingsFromPg } from '@/lib/db/messaging-partner-orders-pg'
-import { resolveActiveBirthdayDiscountPercentForCustomer } from '@/lib/db/messaging-partner-birthday-promo-pg'
+import { resolveActiveBirthdayOfferForCustomer } from '@/lib/db/messaging-partner-birthday-promo-pg'
 import { resolvePartnerCustomerLoyaltyStatusFromPg } from '@/lib/db/messaging-partner-loyalty-pg'
 import { validatePromotionCodeFromPg } from '@/lib/db/messaging-partner-promotions-pg'
+import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import { resolvePartnerCheckoutPriceLinesFromPg } from '@/lib/db/messaging-partner-sale-pricing-pg'
-import { resolvePartnerSaleDiscountBreakdown } from '@/lib/partner-website/promotions/partner-sale-pricing'
+import { partnerSaleLiveCountdownTo, resolvePartnerSaleDiscountBreakdown } from '@/lib/partner-website/promotions/partner-sale-pricing'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
   resolveSiteVisitorContext,
@@ -13,7 +14,7 @@ import {
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
 import { resolvePartnerStorefrontSaleCalendarForRequest } from '@/lib/partner-website/promotions/partner-feature-test-storefront'
 import { DEFAULT_WEB_LOCALE, normalizeWebLocale } from '@/lib/i18n/config'
-import { partnerSiteSaleCopy, partnerSiteSaleDateBadgeLabel } from '@/lib/partner-website/promotions/partner-site-sale-display'
+import { partnerSiteSaleCopy, partnerSiteSaleDateBadgeLabel, partnerSiteBirthdayOfferJson } from '@/lib/partner-website/promotions/partner-site-sale-display'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,30 +74,36 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     guestAccountId: visitor.thread.guestAccountId,
   }
   const locale = normalizeWebLocale(shop.site.locale) ?? DEFAULT_WEB_LOCALE
-  const [priceLines, birthdayDiscountPercent, loyaltyStatus, paymentSettings, saleCalendar] =
+  const saleConfig = await fetchPartnerSaleCalendarConfigFromPg(shop.partnerId)
+  const saleCalendar = await resolvePartnerStorefrontSaleCalendarForRequest({
+    request,
+    partnerId: shop.partnerId,
+    visitorEmail: emailNormalized,
+    settings: saleConfig,
+  })
+  const [priceLines, birthdayOfferRow, loyaltyStatus, paymentSettings] =
     await Promise.all([
       resolvePartnerCheckoutPriceLinesFromPg({
         partnerId: shop.partnerId,
         accountKey: visitor.accountKey,
         visitorEmail: emailNormalized,
         lines: validLines,
+        saleConfig,
+        calendarState: saleCalendar,
       }),
-      resolveActiveBirthdayDiscountPercentForCustomer({
+      resolveActiveBirthdayOfferForCustomer({
         partnerId: shop.partnerId,
         linkedUserId: visitor.thread.linkedUserId,
         emailNormalized,
+        timezone: saleCalendar.timezone,
       }),
       resolvePartnerCustomerLoyaltyStatusFromPg({
         partnerId: shop.partnerId,
         identity,
       }),
       fetchPartnerPaymentSettingsFromPg(shop.partnerId),
-      resolvePartnerStorefrontSaleCalendarForRequest({
-        request,
-        partnerId: shop.partnerId,
-        visitorEmail: emailNormalized,
-      }),
     ])
+  const birthdayDiscountPercent = birthdayOfferRow?.percent ?? 0
 
   const billedPriceLines = priceLines.filter((_, index) => validLines[index]?.selected !== false)
   const effectiveSubtotal = billedPriceLines.reduce(
@@ -223,18 +230,18 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
           googleDiscountAmount: money(line.googleDiscountAmount),
           priceKind: line.priceKind ?? (line.isClearance ? 'clearance' : 'list'),
           flashPercent: line.flashPercent ?? null,
-          countdownTo: line.countdownTo ?? null,
+          countdownTo: partnerSaleLiveCountdownTo(line.countdownTo),
           saleBadge,
           programName,
           expectedSaleUnitPrice:
             expected != null && expected > 0 && expected < line.listUnitPrice ? expected : null,
         }
       }),
-      saleCalendar,
-      birthdayOffer:
-        (birthdayDiscountPercent ?? 0) > 0
-          ? { percent: birthdayDiscountPercent ?? 0 }
-          : null,
+      saleCalendar: {
+        ...saleCalendar,
+        countdownTo: partnerSaleLiveCountdownTo(saleCalendar.countdownTo),
+      },
+      birthdayOffer: partnerSiteBirthdayOfferJson(birthdayOfferRow),
       breakdown,
       promo: promo
         ? {

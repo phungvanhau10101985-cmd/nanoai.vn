@@ -10,6 +10,8 @@ import {
   buildPartnerSiteSalePricing,
   partnerSiteBirthdayCheckoutHint,
   partnerSiteBirthdayBadgeText,
+  partnerSiteBirthdayDisplaySavings,
+  partnerSiteBirthdaySaveText,
   partnerSiteSaleBannerShowsOnPage,
   partnerSiteSaleBannerText,
   partnerSiteSaleCountdownPrefix,
@@ -202,11 +204,35 @@ test('birthday offer is a checkout hint and does not change unit price', () => {
   const withBirthday = attachPartnerBirthdayOffer(product, 10)
   assert.equal(withBirthday.salePriceAmount, 940_000)
   assert.equal(withBirthday.birthdayOfferPercent, 10)
+  assert.equal(withBirthday.birthdayOfferEndsAt, null)
+  assert.deepEqual(withBirthday.birthdayOffer, { percent: 10, countdownTo: null })
   const face = resolvePartnerProductSaleFace(withBirthday)
   assert.equal(face.displayPrice, 940_000)
   assert.match(String(partnerSiteBirthdayCheckoutHint(10, 'vi')), /CMSN/)
   assert.match(String(partnerSiteBirthdayCheckoutHint(10, 'vi')), /thanh toán/)
   assert.equal(partnerSiteBirthdayBadgeText(10, 'vi'), 'CMSN -10%')
+  assert.match(String(partnerSiteBirthdaySaveText(157_000, 'vi')), /tiết kiệm/)
+  assert.equal(
+    partnerSiteBirthdayDisplaySavings({
+      listUnitPrice: 1_570_000,
+      chargedUnitPrice: 1_570_000,
+      percent: 10,
+      siteSalePhase: 'teaser',
+    }),
+    157_000
+  )
+  assert.equal(
+    partnerSiteBirthdayDisplaySavings({
+      listUnitPrice: 1_570_000,
+      chargedUnitPrice: 1_475_800,
+      percent: 10,
+      siteSalePhase: 'active',
+    }),
+    141_300
+  )
+  const dated = attachPartnerBirthdayOffer(product, { percent: 10, countdownTo: '2099-09-09T16:59:59.999Z' })
+  assert.equal(dated.birthdayOfferEndsAt, '2099-09-09T16:59:59.999Z')
+  assert.deepEqual(dated.birthdayOffer, { percent: 10, countdownTo: '2099-09-09T16:59:59.999Z' })
   const clearance = attachPartnerBirthdayOffer(
     { priceAmount: 1_000_000, isClearance: true, salePriceAmount: 400_000 },
     10
@@ -217,6 +243,8 @@ test('birthday offer is a checkout hint and does not change unit price', () => {
 test('sale countdown tick updates text nodes and skips banner hosts', () => {
   assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /\.pw-sale-chip\[data-pw-sale-countdown\]/)
   assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /data-pw-sale-calendar-banner/)
+  assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /pw-pdp-birthday-count/)
+  assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /birthdayEndsAfter/)
   assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /nodeValue/)
   assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /pwSaleInView/)
   assert.match(PW_SITE_SALE_MO_SKIP_JS, /\[data-pw-sale-hms\]/)

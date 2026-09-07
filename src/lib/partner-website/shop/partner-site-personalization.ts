@@ -83,6 +83,8 @@ export type PartnerSitePersonalizationProduct = {
   siteSaleExpectedPrice?: number | null
   siteSale?: PartnerSiteSalePricing | null
   birthdayOfferPercent?: number
+  birthdayOfferEndsAt?: string | null
+  birthdayOffer?: { percent: number; countdownTo: string | null } | null
   likesCount?: number
   purchasesCount?: number
   ratingScore?: number
@@ -276,6 +278,8 @@ export function mapInventoryRowToPersonalizationProduct(
     siteSaleExpectedPrice: priced.siteSaleExpectedPrice,
     siteSale: priced.siteSale,
     birthdayOfferPercent: 0,
+    birthdayOfferEndsAt: null,
+    birthdayOffer: null,
     likesCount: Math.max(0, Math.round(Number(row.likes_count ?? 0)) || 0),
     purchasesCount: Math.max(0, Math.round(Number(row.purchases_count ?? 0)) || 0),
     ratingScore: Number(row.rating_score ?? 0) || 0,

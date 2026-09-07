@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { listPartnerFlashSaleBlockFromPg } from '@/lib/db/messaging-partner-flash-sale-pg'
 import { applyPartnerFlashSaleToProduct } from '@/lib/partner-website/promotions/partner-flash-sale'
 import { attachPartnerBirthdayOffer } from '@/lib/partner-website/promotions/partner-site-sale-display'
-import { loadPartnerSiteSaleOverlay, loadPartnerStorefrontBirthdayPercent } from '@/lib/partner-website/promotions/partner-site-sale-attach'
+import { loadPartnerSiteSaleOverlay, loadPartnerStorefrontBirthdayOffer } from '@/lib/partner-website/promotions/partner-site-sale-attach'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
   mapInventoryRowToPersonalizationProduct,
@@ -23,10 +23,11 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     loadPartnerSiteSaleOverlay(shop.partnerId).catch(() => null),
     resolveSiteVisitorEmail(request, shop.partnerId, visitor.thread),
   ])
-  const birthdayPercent = await loadPartnerStorefrontBirthdayPercent({
+  const birthdayOffer = await loadPartnerStorefrontBirthdayOffer({
     partnerId: shop.partnerId,
     linkedUserId: visitor.thread.linkedUserId,
     emailNormalized,
+    timezone: overlay?.state.timezone,
   })
   const block = await listPartnerFlashSaleBlockFromPg({
     partnerId: shop.partnerId,
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     .map((row) => {
       const mapped = mapInventoryRowToPersonalizationProduct(shop.site.siteSlug, row, overlay)
       if (!mapped) return null
-      return attachPartnerBirthdayOffer(applyPartnerFlashSaleToProduct(mapped, block.assignment), birthdayPercent)
+      return attachPartnerBirthdayOffer(applyPartnerFlashSaleToProduct(mapped, block.assignment), birthdayOffer)
     })
     .filter((product): product is NonNullable<typeof product> => Boolean(product))
 

@@ -594,7 +594,9 @@ function pinChromeIconBadges(){
   }
 }
 ${PW_CHROME_COUNT_BADGE_RUNTIME_JS}
-function cartQty(items){
+function cartQty(payload){
+  if(payload&&typeof payload.count==='number')return Math.max(0,Math.round(Number(payload.count))||0);
+  var items=Array.isArray(payload)?payload:payload&&payload.items;
   if(!Array.isArray(items))return 0;
   var n=0;
   for(var i=0;i<items.length;i++) n+=Math.max(0,Number(items[i]&&items[i].quantity)||1);
@@ -781,9 +783,9 @@ function hydrateChromeBadges(force){
       pwApplyDemoChromeCountBadges(document);
     }
   }
-  apiFetch(CART_API).then(function(res){
+  apiFetch(CART_API+(CART_API.indexOf('?')>=0?'&':'?')+'countOnly=1').then(function(res){
     if(res.ok){
-      got.cart=cartQty(res.j&&res.j.items);
+      got.cart=cartQty(res.j);
       pwSetChromeCountBadgeByKind('cart',got.cart);
     }
   }).catch(function(){}).then(finish);

@@ -56,20 +56,43 @@ function money(value: number): number {
   return Math.max(0, Math.round(Number.isFinite(value) ? value : 0))
 }
 
-/** Delay until the soonest sale window ends. Null if nothing is expiring. */
+export const PARTNER_SALE_REFRESH_AFTER_END_MS = 250
+export const PARTNER_SALE_REFRESH_STALE_AFTER_MS = 8_000
+
+/** Keep countdown only while the window is still in the future. */
+export function partnerSaleLiveCountdownTo(
+  raw: string | null | undefined,
+  nowMs = Date.now()
+): string | null {
+  if (!raw) return null
+  const t = Date.parse(String(raw))
+  if (!Number.isFinite(t) || t <= nowMs) return null
+  return raw
+}
+
+/**
+ * Delay until the soonest live window ends.
+ * A stamp that just ended refreshes once; older past stamps are ignored so
+ * the cart does not poll every 250ms after Flash sale (or any window) closes.
+ */
 export function nextPartnerSaleRefreshDelayMs(
   timestamps: Array<string | null | undefined>,
   nowMs = Date.now()
 ): number | null {
   let soonest: number | null = null
+  let justEnded = false
   for (const raw of timestamps) {
     const t = Date.parse(String(raw || ''))
     if (!Number.isFinite(t)) continue
-    if (t <= nowMs) return 250
+    if (t <= nowMs) {
+      if (nowMs - t < PARTNER_SALE_REFRESH_STALE_AFTER_MS) justEnded = true
+      continue
+    }
     if (soonest == null || t < soonest) soonest = t
   }
+  if (justEnded) return PARTNER_SALE_REFRESH_AFTER_END_MS
   if (soonest == null) return null
-  return Math.max(250, Math.min(soonest - nowMs, 2_147_000_000))
+  return Math.max(PARTNER_SALE_REFRESH_AFTER_END_MS, Math.min(soonest - nowMs, 2_147_000_000))
 }
 
 function percent(value: number | undefined): number {

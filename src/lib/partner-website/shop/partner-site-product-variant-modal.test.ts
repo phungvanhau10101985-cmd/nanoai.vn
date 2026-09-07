@@ -6,6 +6,7 @@ import { buildPartnerSiteShopThemeCss } from '@/lib/partner-website/shop/build-s
 import { buildPartnerSiteShopActionsBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-shop-actions-bootstrap-script'
 import {
   isPdpCartTriggerForTest,
+  isPdpWideStickyViewport,
   PRODUCT_VARIANT_MODAL_COPY,
   PW_PRODUCT_VARIANT_MODAL_CSS,
   PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS,
@@ -55,17 +56,29 @@ test('variant modal does not block purchase when stock is unset', () => {
   assert.equal(variantModalShowsLowStock(9), false)
 })
 
-test('PDP add/buy opens variant modal; catalog cards do not', () => {
+test('PDP sticky / mobile buy box opens variant modal; desktop buy box and catalog do not', () => {
   assert.equal(isPdpCartTriggerForTest({ inPdp: true }), true)
+  assert.equal(isPdpCartTriggerForTest({ inPdp: true, wideViewport: true }), false)
+  assert.equal(isPdpCartTriggerForTest({ inSticky: true }), true)
+  assert.equal(isPdpCartTriggerForTest({ inSticky: true, wideViewport: true }), true)
   assert.equal(isPdpCartTriggerForTest({ pageProduct: true }), true)
+  assert.equal(isPdpCartTriggerForTest({ pageProduct: true, wideViewport: true }), false)
   assert.equal(isPdpCartTriggerForTest({ inCatalog: true, pageProduct: true }), false)
   assert.equal(isPdpCartTriggerForTest({ inCatalog: true, inPdp: true }), true)
+  assert.equal(isPdpCartTriggerForTest({ inCatalog: true, inPdp: true, wideViewport: true }), false)
+  assert.equal(isPdpWideStickyViewport({ editDevice: 'desktop' }), true)
+  assert.equal(isPdpWideStickyViewport({ sceneLock: 'laptop' }), true)
+  assert.equal(isPdpWideStickyViewport({ queryDevice: 'tablet' }), false)
+  assert.equal(isPdpWideStickyViewport({ queryDevice: 'mobile' }), false)
+  assert.equal(isPdpWideStickyViewport({ minWidth1280: true }), true)
+  assert.equal(isPdpWideStickyViewport({ minWidth1280: false }), false)
 })
 
 test('shop-actions injects PDP variant modal before add-to-cart', () => {
   const script = buildPartnerSiteShopActionsBootstrapScript({ siteSlug: 'demo-shop', locale: 'vi' })
   assert.match(script, /openPdpVariantModal/)
   assert.match(script, /isPdpCartTrigger/)
+  assert.match(script, /isPdpStickyCartTrigger/)
   assert.match(script, /isPdpProductPage/)
   assert.match(script, /bindPdpDesktopStickyBar/)
   assert.match(script, /data-pw-pdp-desktop-sticky/)
@@ -80,9 +93,18 @@ test('shop-actions injects PDP variant modal before add-to-cart', () => {
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /_600x600q90\.jpg/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /_1200x1200\.jpg/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /data-pw-variant-sale/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /variantBirthdayHtml/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /birthdaySave/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /birthdayEndsAfter/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /variantListAmount/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /__pwBirthdayOffer/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /variantSaleFace/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /bindPdpDesktopStickyBar/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /isPdpBuyBoxHost/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /isPdpStickyCartTrigger/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /if\(isPdpWideStickyViewport\(\)\)return false/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /isPdpStickyCartTrigger/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /if\(isPdpWideStickyViewport\(\)\)return false/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /pw-device/)
   assert.doesNotMatch(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /adds\[i\]\.closest\('article/)
   assert.doesNotMatch(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /shopImg\(/)

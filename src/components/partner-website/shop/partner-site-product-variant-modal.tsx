@@ -14,16 +14,17 @@ import {
 import {
   formatPartnerSaleCountdownCompact,
   formatPartnerSaleMoney,
-  partnerSiteBirthdayCheckoutHint,
   partnerSiteSaleCopy,
   partnerSiteSaleFill,
   partnerSiteSalePillText,
   partnerSiteSaleProgramName,
   partnerSiteSaleSaveText,
+  resolvePartnerBirthdayOfferFace,
   resolvePartnerProductSaleFace,
   writePartnerSaleCountdownNode,
   type PartnerSiteSalePricing,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
+import { PartnerSiteBirthdayOfferBlock } from '@/components/partner-website/shop/partner-site-sale-face'
 import {
   PRODUCT_VARIANT_MODAL_COPY,
   resolveVariantModalFace,
@@ -50,9 +51,18 @@ export type PartnerSiteVariantModalProduct = {
   siteSaleExpectedPrice?: number | null
   siteSale?: PartnerSiteSalePricing | null
   birthdayOfferPercent?: number | null
+  birthdayOfferEndsAt?: string | null
+  birthdayOffer?: { percent?: number | null; countdownTo?: string | null } | null
   stockQty?: number | null
   colors?: PartnerSiteVariantModalColor[] | null
   sizes?: string[] | null
+}
+
+function variantListFromProduct(product: PartnerSiteVariantModalProduct) {
+  const n = Math.max(0, Math.round(Number(product.priceAmount) || 0))
+  if (n > 0) return n
+  const digits = String(product.priceHint || '').replace(/[^\d]/g, '')
+  return Math.max(0, Math.round(Number(digits) || 0))
 }
 
 function hideBrokenVariantImage(ev: { currentTarget: HTMLImageElement }) {
@@ -259,6 +269,31 @@ export function PartnerSiteProductVariantModal({
   const lineSavings = showSiteSale && saleFace.savings > 0 ? saleFace.savings * effectiveQty : 0
   const lineSaveText =
     lineSavings > 0 ? partnerSiteSaleSaveText(saleFace, locale, { amount: lineSavings, surface: 'detail' }) : ''
+  const listUnitPrice = variantListFromProduct(product)
+  const birthdayFace = resolvePartnerBirthdayOfferFace({
+    locale,
+    birthdayOfferPercent: product.birthdayOfferPercent,
+    birthdayOfferEndsAt: product.birthdayOfferEndsAt,
+    birthdayOffer: product.birthdayOffer,
+    isClearance: product.isClearance,
+    listUnitPrice,
+    chargedUnitPrice: unitPrice ?? listUnitPrice,
+    quantity: effectiveQty,
+    siteSalePhase: saleFace.kind === 'teaser' ? 'teaser' : saleFace.kind === 'active' ? 'active' : 'off',
+  })
+  const birthdayBlock = (
+    <PartnerSiteBirthdayOfferBlock
+      locale={locale}
+      birthdayOfferPercent={product.birthdayOfferPercent}
+      birthdayOfferEndsAt={product.birthdayOfferEndsAt}
+      birthdayOffer={product.birthdayOffer}
+      isClearance={product.isClearance}
+      listUnitPrice={listUnitPrice}
+      chargedUnitPrice={unitPrice ?? listUnitPrice}
+      quantity={effectiveQty}
+      siteSalePhase={saleFace.kind === 'teaser' ? 'teaser' : saleFace.kind === 'active' ? 'active' : 'off'}
+    />
+  )
   const selectedColor = colorIndex >= 0 ? colors[colorIndex] : null
   const displayImage = shopPdpPageSrc(selectedColor?.img || product.imageUrl)
   const sku = String(product.sku || '').trim()
@@ -333,26 +368,14 @@ export function PartnerSiteProductVariantModal({
         ) : null}
         {saleFace.percent > 0 ? <span data-pw-variant-pct>-{saleFace.percent}%</span> : null}
       </div>
-      {product.isClearance !== true && partnerSiteBirthdayCheckoutHint(product.birthdayOfferPercent, locale) ? (
-        <span data-pw-variant-birthday>
-          {partnerSiteBirthdayCheckoutHint(product.birthdayOfferPercent, locale)}
-        </span>
-      ) : null}
+      {birthdayBlock}
     </div>
   ) : priceLabel ? (
     <>
       <p data-pw-variant-price>{priceLabel}</p>
-      {product.isClearance !== true && partnerSiteBirthdayCheckoutHint(product.birthdayOfferPercent, locale) ? (
-        <span data-pw-variant-birthday>
-          {partnerSiteBirthdayCheckoutHint(product.birthdayOfferPercent, locale)}
-        </span>
-      ) : null}
+      {birthdayBlock}
     </>
-  ) : product.isClearance !== true && partnerSiteBirthdayCheckoutHint(product.birthdayOfferPercent, locale) ? (
-    <span data-pw-variant-birthday>
-      {partnerSiteBirthdayCheckoutHint(product.birthdayOfferPercent, locale)}
-    </span>
-  ) : null
+  ) : birthdayBlock
 
   const lineTotal = (
     <div data-pw-variant-total>
@@ -360,6 +383,9 @@ export function PartnerSiteProductVariantModal({
       <span data-pw-variant-total-price>
         {lineLabel}
         {lineSaveText ? <span data-pw-variant-total-save>{lineSaveText}</span> : null}
+        {birthdayFace?.saveText ? (
+          <span data-pw-variant-total-birthday>{birthdayFace.saveText}</span>
+        ) : null}
       </span>
     </div>
   )

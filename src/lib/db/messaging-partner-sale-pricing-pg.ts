@@ -1,10 +1,10 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery } from '@/lib/db/pg-query'
-import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
+import { fetchPartnerSaleCalendarConfigFromPg, type PartnerSaleCalendarConfig } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import { resolvePartnerStorefrontSaleCalendarFromPg } from '@/lib/db/messaging-partner-feature-test-pg'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
 import { resolvePartnerEffectiveUnitPrice } from '@/lib/partner-website/shop/partner-shop-flash-sale'
-import { applyPartnerSiteSalePrice } from '@/lib/partner-website/promotions/partner-sale-calendar'
+import { applyPartnerSiteSalePrice, type PartnerSaleCalendarState } from '@/lib/partner-website/promotions/partner-sale-calendar'
 import {
   applyPartnerFlashSaleUnitPrice,
   getPartnerFlashSaleAssignmentFromPg,
@@ -52,6 +52,8 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
   visitorEmail?: string | null
   lines: PartnerCheckoutPriceLineInput[]
   at?: Date
+  saleConfig?: PartnerSaleCalendarConfig | null
+  calendarState?: PartnerSaleCalendarState | null
 }): Promise<PartnerSalePriceLine[]> {
   const ids = [...new Set(input.lines.map((line) => line.inventoryId).filter((id): id is string => Boolean(id)))]
   if (!isPgConfigured() || ids.length === 0) {
@@ -62,7 +64,8 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
       effectiveUnitPrice: money(line.fallbackUnitPrice),
     }))
   }
-  const [rows, config, locks, calendarState, flashAssignment] = await Promise.all([
+  const config = input.saleConfig ?? (await fetchPartnerSaleCalendarConfigFromPg(input.partnerId))
+  const [rows, locks, calendarState, flashAssignment] = await Promise.all([
     pgQuery<InventoryPriceDbRow>(
       `select id::text, price_amount, coalesce(price_hint, '') as price_hint,
               sale_price_amount, sale_starts_at, sale_ends_at,
@@ -81,7 +84,6 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
         [input.partnerId, ids]
       )
     }),
-    fetchPartnerSaleCalendarConfigFromPg(input.partnerId),
     input.accountKey
       ? pgQuery<GoogleLockDbRow>(
           `select inventory_id::text, locked_unit_price, expires_at
@@ -91,15 +93,20 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
           [input.partnerId, input.accountKey, ids]
         ).catch(() => [])
       : Promise.resolve([]),
-    resolvePartnerStorefrontSaleCalendarFromPg({
-      partnerId: input.partnerId,
-      visitorEmail: input.visitorEmail,
-      at: input.at,
-    }),
+    input.calendarState
+      ? Promise.resolve(input.calendarState)
+      : resolvePartnerStorefrontSaleCalendarFromPg({
+          partnerId: input.partnerId,
+          visitorEmail: input.visitorEmail,
+          settings: config,
+          at: input.at,
+        }),
     getPartnerFlashSaleAssignmentFromPg({
       partnerId: input.partnerId,
       accountKey: input.accountKey,
+      timezone: config.timezone,
       now: input.at,
+      enabled: config.flashSaleEnabled,
     }),
   ])
   const byId = new Map(rows.map((row) => [row.id, row]))

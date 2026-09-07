@@ -12,7 +12,8 @@ import {
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
 import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import { resolvePartnerStorefrontSaleCalendarForRequest } from '@/lib/partner-website/promotions/partner-feature-test-storefront'
-import { applyPartnerStorefrontSaleFaces, loadPartnerStorefrontBirthdayPercent } from '@/lib/partner-website/promotions/partner-site-sale-attach'
+import { applyPartnerStorefrontSaleFaces } from '@/lib/partner-website/promotions/partner-site-sale-attach'
+import { partnerSiteBirthdayOfferJson } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { pgQueryOne } from '@/lib/db/pg-query'
 
 export const dynamic = 'force-dynamic'
@@ -59,25 +60,19 @@ export async function GET(
   })
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
   const emailNormalized = await resolveSiteVisitorEmail(request, shop.partnerId, visitor.thread)
-  const [faced, birthdayPercent] = await Promise.all([
-    applyPartnerStorefrontSaleFaces([product], {
-      partnerId: shop.partnerId,
-      accountKey: visitor.accountKey,
-      linkedUserId: visitor.thread.linkedUserId,
-      emailNormalized,
-      overlay: {
-        state: saleCalendar,
-        clearanceEnabled: saleConfig.clearanceEnabled,
-        clearancePercent: saleConfig.clearanceDiscountPercent,
-      },
-    }),
-    loadPartnerStorefrontBirthdayPercent({
-      partnerId: shop.partnerId,
-      linkedUserId: visitor.thread.linkedUserId,
-      emailNormalized,
-    }),
-  ])
+  const faced = await applyPartnerStorefrontSaleFaces([product], {
+    partnerId: shop.partnerId,
+    accountKey: visitor.accountKey,
+    linkedUserId: visitor.thread.linkedUserId,
+    emailNormalized,
+    overlay: {
+      state: saleCalendar,
+      clearanceEnabled: saleConfig.clearanceEnabled,
+      clearancePercent: saleConfig.clearanceDiscountPercent,
+    },
+  })
   const flashed = faced[0]
+  const birthdayOffer = partnerSiteBirthdayOfferJson(flashed)
   if (isBuyView) {
     return jsonSitePersonalization(
       request,
@@ -85,7 +80,7 @@ export async function GET(
         ok: true,
         product: flashed,
         saleCalendar,
-        birthdayOffer: birthdayPercent > 0 ? { percent: birthdayPercent } : null,
+        birthdayOffer,
         is_favorite: false,
       },
       200,
@@ -106,7 +101,7 @@ export async function GET(
 
   return jsonSitePersonalization(
     request,
-    { ok: true, product: productWithCategory, saleCalendar, birthdayOffer: birthdayPercent > 0 ? { percent: birthdayPercent } : null, is_favorite: isFavorite },
+    { ok: true, product: productWithCategory, saleCalendar, birthdayOffer, is_favorite: isFavorite },
     200,
     { sessionId: visitor.sessionId, thread: visitor.thread }
   )

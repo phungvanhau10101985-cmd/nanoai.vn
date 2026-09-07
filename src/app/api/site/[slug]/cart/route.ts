@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchMessagingGuestCartFromPg, upsertMessagingGuestCartFromPg } from '@/lib/db/messaging-guest-cart-pg'
 import { sanitizeHeadlessCartItems } from '@/lib/messaging/partner-headless-cart-utils'
+import {
+  cartLinesQuantity,
+  parseSiteCartLines,
+} from '@/lib/partner-website/shop/cart-line-utils'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { resolveSiteVisitorContext } from '@/lib/partner-website/shop/partner-site-personalization'
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
@@ -20,19 +24,26 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   if (!isSignedIn(visitor)) {
     return jsonSitePersonalization(
       request,
-      { ok: false, error: 'AUTH_REQUIRED_CART_LOGIN', requireAuth: true, items: [] },
+      { ok: false, error: 'AUTH_REQUIRED_CART_LOGIN', requireAuth: true, items: [], count: 0 },
       401,
       { sessionId: visitor.sessionId, thread: visitor.thread }
     )
   }
-  const items = await fetchMessagingGuestCartFromPg({
+  const raw = await fetchMessagingGuestCartFromPg({
     partnerId: shop.partnerId,
     accountKey: visitor.accountKey,
   })
+  const items = parseSiteCartLines(raw)
+  const count = cartLinesQuantity(items)
+  const countOnly =
+    request.nextUrl.searchParams.get('countOnly') === '1' ||
+    request.nextUrl.searchParams.get('idsOnly') === '1'
 
   return jsonSitePersonalization(
     request,
-    { ok: true, items: Array.isArray(items) ? items : [], sync: true },
+    countOnly
+      ? { ok: true, count, items: count > 0 ? [{ quantity: count }] : [], sync: true }
+      : { ok: true, items, count, sync: true },
     200,
     { sessionId: visitor.sessionId, thread: visitor.thread }
   )

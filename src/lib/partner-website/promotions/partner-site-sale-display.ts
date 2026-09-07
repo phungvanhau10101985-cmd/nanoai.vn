@@ -9,6 +9,7 @@ import {
   normalizePartnerSalePriceAmount,
   resolvePartnerEffectiveUnitPrice,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
+import { resolvePartnerSaleDiscountBreakdown } from '@/lib/partner-website/promotions/partner-sale-pricing'
 export type PartnerSiteSaleProductInput = {
   priceAmount?: number | null
   salePriceAmount?: number | null
@@ -64,6 +65,8 @@ export type PartnerSiteSaleCopy = {
   birthdayBanner: string
   birthdayBadge: string
   birthdayAtCheckout: string
+  birthdaySave: string
+  birthdayEndsAfter: string
   flashBadge: string
   flashName: string
   clearanceBadge: string
@@ -103,6 +106,8 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     birthdayBanner: 'Sale CMSN {pct}% — áp dụng tự động khi thanh toán, không cộng voucher',
     birthdayBadge: 'CMSN -{pct}%',
     birthdayAtCheckout: 'CMSN -{pct}% ở tổng đơn',
+    birthdaySave: 'CMSN: tiết kiệm {amount}',
+    birthdayEndsAfter: 'CMSN hết hạn sau',
     flashBadge: 'Flash sale -{pct}%',
     flashName: 'Flash sale',
     clearanceBadge: 'Sale thanh lý kho -{pct}%',
@@ -140,6 +145,8 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     birthdayBanner: 'CMSN {pct}% off — applied automatically at checkout, not stacked with a voucher',
     birthdayBadge: 'CMSN -{pct}%',
     birthdayAtCheckout: 'CMSN -{pct}% at checkout',
+    birthdaySave: 'CMSN: save {amount}',
+    birthdayEndsAfter: 'CMSN ends in',
     flashBadge: 'Flash sale -{pct}%',
     flashName: 'Flash sale',
     clearanceBadge: 'Warehouse sale -{pct}%',
@@ -177,6 +184,8 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     birthdayBanner: 'CMSN {pct}% — 结账自动减免，不与优惠券叠加',
     birthdayBadge: 'CMSN -{pct}%',
     birthdayAtCheckout: 'CMSN -{pct}% 结账减免',
+    birthdaySave: 'CMSN: 节省 {amount}',
+    birthdayEndsAfter: 'CMSN 截止',
     flashBadge: 'Flash sale -{pct}%',
     flashName: 'Flash sale',
     clearanceBadge: '仓库清仓 -{pct}%',
@@ -214,6 +223,8 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     birthdayBanner: 'CMSN {pct}% — 会計時に自動適用（クーポンと併用不可）',
     birthdayBadge: 'CMSN -{pct}%',
     birthdayAtCheckout: 'CMSN -{pct}%（会計時）',
+    birthdaySave: 'CMSN：{amount} お得',
+    birthdayEndsAfter: 'CMSN 終了まで',
     flashBadge: 'Flash sale -{pct}%',
     flashName: 'Flash sale',
     clearanceBadge: '倉庫セール -{pct}%',
@@ -251,6 +262,8 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     birthdayBanner: 'CMSN {pct}% — 결제 시 자동 적용, 쿠폰과 중복 불가',
     birthdayBadge: 'CMSN -{pct}%',
     birthdayAtCheckout: 'CMSN -{pct}% 결제 시',
+    birthdaySave: 'CMSN: {amount} 절약',
+    birthdayEndsAfter: 'CMSN 종료까지',
     flashBadge: 'Flash sale -{pct}%',
     flashName: 'Flash sale',
     clearanceBadge: '창고 세일 -{pct}%',
@@ -392,12 +405,142 @@ export function partnerSiteBirthdayBannerText(percent: unknown, locale: WebLocal
   return partnerSiteSaleCopy(locale).birthdayBanner.replace('{pct}', String(pct))
 }
 
+export function normalizePartnerBirthdayOfferCountdownTo(value: unknown): string | null {
+  const raw = String(value ?? '').trim()
+  if (!raw) return null
+  const ms = Date.parse(raw)
+  return Number.isFinite(ms) && ms > Date.now() - 60_000 ? new Date(ms).toISOString() : null
+}
+
+export type PartnerSiteBirthdayOfferJson = {
+  percent: number
+  countdownTo: string | null
+}
+
+export function partnerSiteBirthdayOfferJson(input: {
+  percent?: unknown
+  countdownTo?: string | null
+  birthdayOfferPercent?: number | null
+  birthdayOfferEndsAt?: string | null
+  isClearance?: boolean
+} | null | undefined): PartnerSiteBirthdayOfferJson | null {
+  if (!input || input.isClearance === true) return null
+  const pct = normalizePartnerBirthdayOfferPercent(input.percent ?? input.birthdayOfferPercent)
+  if (!pct) return null
+  return {
+    percent: pct,
+    countdownTo: normalizePartnerBirthdayOfferCountdownTo(input.countdownTo ?? input.birthdayOfferEndsAt),
+  }
+}
+
+/** CMSN stacked on one line after Flash/calendar, then 15% list cap. Teaser uses list (not expected sale). */
+export function partnerSiteBirthdayDisplaySavings(input: {
+  listUnitPrice: number
+  chargedUnitPrice: number
+  quantity?: number
+  percent: unknown
+  isClearance?: boolean
+  siteSalePhase?: 'off' | 'teaser' | 'active' | null
+}): number {
+  if (input.isClearance === true) return 0
+  const pct = normalizePartnerBirthdayOfferPercent(input.percent)
+  if (!pct) return 0
+  const list = Math.max(0, Math.round(Number(input.listUnitPrice) || 0))
+  const chargedRaw = Math.max(0, Math.round(Number(input.chargedUnitPrice) || 0))
+  const charged =
+    input.siteSalePhase === 'teaser' || chargedRaw <= 0
+      ? list
+      : Math.min(list > 0 ? list : chargedRaw, chargedRaw)
+  if (list <= 0 && charged <= 0) return 0
+  const qty = Math.max(1, Math.min(99, Math.floor(Number(input.quantity) || 1)))
+  return resolvePartnerSaleDiscountBreakdown({
+    lines: [
+      {
+        inventoryId: null,
+        quantity: qty,
+        listUnitPrice: list || charged,
+        effectiveUnitPrice: charged || list,
+      },
+    ],
+    birthdayDiscountPercent: pct,
+  }).birthdayDiscountAmount
+}
+
+export function partnerSiteBirthdaySaveText(amount: unknown, locale: WebLocale): string | null {
+  const n = Math.max(0, Math.round(Number(amount) || 0))
+  if (!(n > 0)) return null
+  return partnerSiteSaleFill(partnerSiteSaleCopy(locale).birthdaySave, {
+    amount: formatPartnerSaleMoney(n, locale),
+  })
+}
+
+export function resolvePartnerBirthdayOfferFace(input: {
+  percent?: unknown
+  countdownTo?: string | null
+  birthdayOfferPercent?: number | null
+  birthdayOfferEndsAt?: string | null
+  birthdayOffer?: { percent?: unknown; countdownTo?: string | null } | null
+  isClearance?: boolean
+  listUnitPrice: number
+  chargedUnitPrice: number
+  quantity?: number
+  siteSalePhase?: 'off' | 'teaser' | 'active' | null
+  locale: WebLocale
+}): {
+  percent: number
+  hint: string | null
+  saveText: string | null
+  savings: number
+  countdownTo: string | null
+} | null {
+  if (input.isClearance === true) return null
+  const pct = normalizePartnerBirthdayOfferPercent(
+    input.percent ?? input.birthdayOfferPercent ?? input.birthdayOffer?.percent
+  )
+  if (!pct) return null
+  const savings = partnerSiteBirthdayDisplaySavings({
+    listUnitPrice: input.listUnitPrice,
+    chargedUnitPrice: input.chargedUnitPrice,
+    quantity: input.quantity,
+    percent: pct,
+    isClearance: false,
+    siteSalePhase: input.siteSalePhase,
+  })
+  return {
+    percent: pct,
+    hint: partnerSiteBirthdayCheckoutHint(pct, input.locale),
+    saveText: partnerSiteBirthdaySaveText(savings, input.locale),
+    savings,
+    countdownTo: normalizePartnerBirthdayOfferCountdownTo(
+      input.countdownTo ?? input.birthdayOfferEndsAt ?? input.birthdayOffer?.countdownTo
+    ),
+  }
+}
+
 export function attachPartnerBirthdayOffer<T extends { isClearance?: boolean }>(
   product: T,
-  percent: unknown
-): T & { birthdayOfferPercent: number } {
+  percentOrOffer: unknown,
+  countdownTo?: string | null
+): T & {
+  birthdayOfferPercent: number
+  birthdayOfferEndsAt: string | null
+  birthdayOffer: PartnerSiteBirthdayOfferJson | null
+} {
+  let percent: unknown = percentOrOffer
+  let ends = countdownTo ?? null
+  if (percentOrOffer && typeof percentOrOffer === 'object' && !Array.isArray(percentOrOffer)) {
+    const offer = percentOrOffer as { percent?: unknown; countdownTo?: string | null }
+    percent = offer.percent
+    ends = offer.countdownTo ?? ends
+  }
   const pct = product.isClearance === true ? 0 : normalizePartnerBirthdayOfferPercent(percent)
-  return { ...product, birthdayOfferPercent: pct }
+  const countdown = pct > 0 ? normalizePartnerBirthdayOfferCountdownTo(ends) : null
+  return {
+    ...product,
+    birthdayOfferPercent: pct,
+    birthdayOfferEndsAt: countdown,
+    birthdayOffer: pct > 0 ? { percent: pct, countdownTo: countdown } : null,
+  }
 }
 
 export function formatPartnerSaleCountdownParts(targetIso: string | null | undefined, nowMs = Date.now()) {
@@ -785,8 +928,11 @@ export const PW_SITE_SALE_CARD_CSS = [
   '.pw-pdp-cap-note{margin:0 0 8px;font:500 11px/1.4 system-ui,sans-serif;color:#92400e}',
   '.pw-badge-birthday{position:absolute;top:8px;right:8px;z-index:2;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;letter-spacing:.02em;line-height:1.2;background:#db2777}',
   '.pw-price-birthday{display:block;margin-top:2px;font-size:11px;font-weight:600;color:#db2777}',
-  '.pw-pdp-birthday-hint{display:inline-flex;align-items:center;margin:0 0 8px;padding:4px 10px;border-radius:999px;background:#fdf2f8;color:#be185d;border:1px solid #fbcfe8;font:700 12px/1.2 system-ui,sans-serif}',
-  '[data-pw-variant-birthday]{display:block;margin:4px 0 0;font:600 12px/1.35 system-ui,sans-serif;color:var(--pw-primary)}',
+  '.pw-pdp-birthday-hint{display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin:0 0 8px;padding:8px 10px;border-radius:10px;background:#fdf2f8;color:#be185d;border:1px solid #fbcfe8;font:700 12px/1.35 system-ui,sans-serif}',
+  '.pw-pdp-birthday-count,[data-pw-variant-birthday-count]{display:inline-flex;align-items:center;gap:4px;font:600 12px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;color:#9d174d}',
+  '[data-pw-variant-birthday]{display:flex;flex-direction:column;gap:4px;margin:6px 0 0;font:600 12px/1.35 system-ui,sans-serif;color:#be185d}',
+  '[data-pw-variant-birthday-save],[data-pw-variant-total-birthday],.pw-pdp-birthday-hint span{font-weight:700;color:#be185d}',
+  '.pw-pdp-birthday-hint{display:flex;flex-direction:column;gap:4px;margin:6px 0 0}',
   '[data-pw-sale-calendar-banner]{position:relative;z-index:2;display:block;width:100%;box-sizing:border-box;padding:8px 40px 8px 12px;border-bottom:1px solid #fde68a;font:400 13px/1.4 system-ui,sans-serif;contain:layout style paint;isolation:isolate;transform:translateZ(0);flex-shrink:0}',
   '[data-pw-sale-calendar-banner][data-pw-sale-phase="teaser"]{background:linear-gradient(90deg,#fffbeb,#fff7ed);color:#78350f;border-color:#fde68a}',
   '[data-pw-sale-calendar-banner][data-pw-sale-phase="active"]{background:linear-gradient(90deg,#ffedd5,#fef2f2);color:#7c2d12;border-color:#fdba74}',
@@ -896,7 +1042,7 @@ function pwSaleInView(el){
   return r.bottom>0&&r.right>0&&r.top<h&&r.left<w;
 }
 function pwSaleTickChips(remaining,startsAfter,flashRemaining,countdownStarts,countdownLeft){
-  document.querySelectorAll('.pw-sale-chip[data-pw-sale-countdown],.pw-pdp-sale-timer[data-pw-sale-countdown],.pw-shop-cart-line-count[data-pw-sale-countdown]').forEach(function(el){
+  document.querySelectorAll('.pw-sale-chip[data-pw-sale-countdown],.pw-pdp-sale-timer[data-pw-sale-countdown],.pw-shop-cart-line-count[data-pw-sale-countdown],.pw-pdp-birthday-count[data-pw-sale-countdown],[data-pw-variant-birthday-count][data-pw-sale-countdown]').forEach(function(el){
     if(el.closest&&el.closest('[data-pw-sale-calendar-banner],[data-pw-variant-sale]'))return;
     if(!pwSaleInView(el))return;
     var iso=el.getAttribute('data-pw-sale-countdown')||'';
@@ -909,7 +1055,9 @@ function pwSaleTickChips(remaining,startsAfter,flashRemaining,countdownStarts,co
       return;
     }
     if(el.hidden)el.hidden=false;
-    var prefix=promo==='flash'&&flashRemaining?flashRemaining
+    var bdayEnds=typeof COPY==='object'&&COPY&&COPY.birthdayEndsAfter?String(COPY.birthdayEndsAfter):'';
+    var prefix=promo==='birthday'&&bdayEnds?bdayEnds
+      :promo==='flash'&&flashRemaining?flashRemaining
       :(label&&countdownStarts&&countdownLeft?String(phase==='active'?countdownLeft:countdownStarts).replace('{label}',label)
       :String(phase==='active'?remaining:startsAfter));
     var hms=el.querySelector('[data-pw-sale-hms]');

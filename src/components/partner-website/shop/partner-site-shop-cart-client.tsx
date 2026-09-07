@@ -7,7 +7,10 @@ import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-ca
 import type { WebLocale } from '@/lib/i18n/config'
 import {
   formatVnd,
+  parseSiteCartLines,
   parseVndFromPriceHint,
+  cartLinesQuantity,
+  cartLinesSignature,
   type SiteCartLine,
 } from '@/lib/partner-website/shop/cart-line-utils'
 import { getPartnerSiteShopCopy, shopPromoErrorMessage } from '@/lib/partner-website/shop/partner-site-shop-copy'
@@ -47,6 +50,8 @@ import { partnerSiteAppliedPromoStorageKey } from '@/lib/partner-website/shop/pa
 import {
   formatPartnerSaleDayMonth,
   partnerSiteBirthdayCheckoutHint,
+  partnerSiteBirthdayDisplaySavings,
+  partnerSiteBirthdaySaveText,
   partnerSiteSaleCopy,
   partnerSiteSaleFill,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
@@ -60,6 +65,7 @@ type Props = {
   shopTitle?: string
   locale: WebLocale
   chatPath: string
+  initialItems?: SiteCartLine[] | null
 }
 
 type OrderSnapshot = {
@@ -129,7 +135,7 @@ type CartQuote = {
     carrierLabel: string
   }
   orderTotal: number
-  birthdayOffer?: { percent: number } | null
+  birthdayOffer?: { percent: number; countdownTo?: string | null } | null
   saleCalendar?: {
     phase: 'off' | 'teaser' | 'active'
     eventLabel: string
@@ -392,15 +398,35 @@ function voucherBlockedByDiscountCap(quote: CartQuote): boolean {
   )
 }
 
-export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatPath }: Props) {
+function cartBirthdayLineSave(
+  item: SiteCartLine,
+  line: CartQuote['lines'][number] | undefined,
+  percent: number
+): number {
+  if (!(percent > 0) || line?.isClearance) return 0
+  const hint = parseVndFromPriceHint(item.card.price_hint)
+  const list = line?.listUnitPrice && line.listUnitPrice > 0 ? line.listUnitPrice : hint
+  const charged = line?.effectiveUnitPrice && line.effectiveUnitPrice > 0 ? line.effectiveUnitPrice : list
+  const teaser = Boolean(line?.expectedSaleUnitPrice) && charged >= list
+  return partnerSiteBirthdayDisplaySavings({
+    listUnitPrice: list,
+    chargedUnitPrice: teaser ? list : charged,
+    quantity: Math.max(1, item.quantity),
+    percent,
+    isClearance: line?.isClearance,
+    siteSalePhase: teaser ? 'teaser' : list > charged ? 'active' : 'off',
+  })
+}
+
+export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatPath, initialItems = null }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const saleT = CART_SALE_COPY[locale] ?? CART_SALE_COPY.en
   const siteSaleT = partnerSiteSaleCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
   const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { refreshCartCount, setCartCount, tracking } = usePartnerSiteShop()
-  const [items, setItems] = useState<SiteCartLine[]>([])
-  const [loading, setLoading] = useState(true)
+  const [items, setItems] = useState<SiteCartLine[]>(() => initialItems ?? [])
+  const [loading, setLoading] = useState(initialItems == null)
   const [checkoutBusy, setCheckoutBusy] = useState(false)
   const [needsAuth, setNeedsAuth] = useState(false)
   const [checkoutLoginRequired, setCheckoutLoginRequired] = useState(true)
@@ -417,9 +443,11 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   const [selectedWalletCode, setSelectedWalletCode] = useState('')
   const quoteGenRef = useRef(0)
   const skipAutoQuoteRef = useRef(false)
-  const [selectedLineIds, setSelectedLineIds] = useState<Set<string>>(new Set())
+  const lastPastSaleKeyRef = useRef('')
+  const [selectedLineIds, setSelectedLineIds] = useState<Set<string>>(
+    () => new Set((initialItems ?? []).map((item) => item.id))
+  )
   const [quote, setQuote] = useState<CartQuote | null>(null)
-  const [quoteLoading, setQuoteLoading] = useState(false)
   const [saleRefreshAt, setSaleRefreshAt] = useState(0)
   const [walletVouchers, setWalletVouchers] = useState<WalletVoucher[]>([])
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; name: string; discountAmount: number } | null>(
@@ -499,11 +527,10 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     })
     captureFromResponse(res)
     const json = (await res.json()) as { items?: SiteCartLine[] }
-    const next = Array.isArray(json.items) ? json.items : []
-    setItems(next)
-    setCartCount(
-      next.reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0)
-    )
+    const next = parseSiteCartLines(json.items)
+    const nextSig = cartLinesSignature(next)
+    setItems((prev) => (cartLinesSignature(prev) === nextSig ? prev : next))
+    setCartCount(cartLinesQuantity(next))
     setSelectedLineIds((current) => {
       const valid = new Set(next.filter((item) => current.has(item.id)).map((item) => item.id))
       return valid.size > 0 ? valid : new Set(next.map((item) => item.id))
@@ -522,13 +549,19 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       )
       return
     }
-    setLoading(true)
-    void loadCart().finally(() => setLoading(false))
-  }, [customDomain, isAuthenticated, loadCart, ready, siteSlug])
+    const blocking = initialItems == null
+    if (blocking) setLoading(true)
+    void loadCart().finally(() => {
+      if (blocking) setLoading(false)
+    })
+  }, [customDomain, initialItems, isAuthenticated, loadCart, ready, siteSlug])
 
   useEffect(() => {
     if (!ready) return
-    void loadAddressBook()
+    const timer = window.setTimeout(() => {
+      void loadAddressBook()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [loadAddressBook, ready])
 
   const selectedAddress = bookAddresses.find((addr) => addr.id === selectedAddressId) ?? null
@@ -542,42 +575,45 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
 
   useEffect(() => {
     if (!siteSlug) return
-    void fetch(`/api/site/${encodeURIComponent(siteSlug)}/shop-config`, { credentials: 'same-origin' })
-      .then((res) => res.json())
-      .then(
-        (json: {
-          checkoutLoginRequired?: boolean
-          shippingPolicy?: {
-            feeAmount?: number
-            freeThresholdAmount?: number | null
-            carrierLabel?: string | null
+    const timer = window.setTimeout(() => {
+      void fetch(`/api/site/${encodeURIComponent(siteSlug)}/shop-config`, { credentials: 'same-origin' })
+        .then((res) => res.json())
+        .then(
+          (json: {
+            checkoutLoginRequired?: boolean
+            shippingPolicy?: {
+              feeAmount?: number
+              freeThresholdAmount?: number | null
+              carrierLabel?: string | null
+            }
+            ewalletAvailable?: boolean
+            depositPolicy?: {
+              mode?: 'none' | 'percent' | 'fixed_amount'
+              percent?: number
+              fixedAmount?: number
+            }
+          }) => {
+            setCheckoutLoginRequired(json.checkoutLoginRequired !== false)
+            setShippingPolicy({
+              feeAmount: Math.max(0, Math.round(json.shippingPolicy?.feeAmount ?? 0)),
+              freeThresholdAmount:
+                json.shippingPolicy?.freeThresholdAmount == null ? null : Math.max(0, Math.round(json.shippingPolicy.freeThresholdAmount)),
+              carrierLabel: String(json.shippingPolicy?.carrierLabel ?? '').trim() || null,
+            })
+            setEwalletAvailable(json.ewalletAvailable === true)
+            const mode = json.depositPolicy?.mode
+            setDepositPolicy({
+              mode: mode === 'none' || mode === 'fixed_amount' ? mode : 'percent',
+              percent: Math.max(1, Math.min(99, Math.round(json.depositPolicy?.percent ?? 30))),
+              fixedAmount: Math.max(0, Math.round(json.depositPolicy?.fixedAmount ?? 0)),
+            })
           }
-          ewalletAvailable?: boolean
-          depositPolicy?: {
-            mode?: 'none' | 'percent' | 'fixed_amount'
-            percent?: number
-            fixedAmount?: number
-          }
-        }) => {
-          setCheckoutLoginRequired(json.checkoutLoginRequired !== false)
-          setShippingPolicy({
-            feeAmount: Math.max(0, Math.round(json.shippingPolicy?.feeAmount ?? 0)),
-            freeThresholdAmount:
-              json.shippingPolicy?.freeThresholdAmount == null ? null : Math.max(0, Math.round(json.shippingPolicy.freeThresholdAmount)),
-            carrierLabel: String(json.shippingPolicy?.carrierLabel ?? '').trim() || null,
-          })
-          setEwalletAvailable(json.ewalletAvailable === true)
-          const mode = json.depositPolicy?.mode
-          setDepositPolicy({
-            mode: mode === 'none' || mode === 'fixed_amount' ? mode : 'percent',
-            percent: Math.max(1, Math.min(99, Math.round(json.depositPolicy?.percent ?? 30))),
-            fixedAmount: Math.max(0, Math.round(json.depositPolicy?.fixedAmount ?? 0)),
-          })
-        }
-      )
-      .catch(() => {
-        setCheckoutLoginRequired(true)
-      })
+        )
+        .catch(() => {
+          setCheckoutLoginRequired(true)
+        })
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [siteSlug])
 
   const promoErrorText = useCallback((code: string): string => shopPromoErrorMessage(t, code), [t])
@@ -735,17 +771,14 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       setPromoMessageKind('')
     }
     let cancelled = false
+    const delayMs = quote ? 180 : 0
     const timer = window.setTimeout(() => {
-      setQuoteLoading(true)
       void requestQuote(items, selectedLineIds, codeToQuote)
         .then((next) => {
           if (cancelled || next === undefined) return
           applyQuoteResult(next, codeToQuote, true)
         })
-        .finally(() => {
-          if (!cancelled) setQuoteLoading(false)
-        })
-    }, 180)
+    }, delayMs)
     return () => {
       cancelled = true
       window.clearTimeout(timer)
@@ -765,12 +798,23 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   ])
 
   useEffect(() => {
-    const delay = nextPartnerSaleRefreshDelayMs([
+    const stamps = [
       quote?.saleCalendar?.countdownTo,
+      quote?.birthdayOffer?.countdownTo,
       ...(quote?.lines ?? []).map((line) => line.countdownTo),
-    ])
+    ]
+    const delay = nextPartnerSaleRefreshDelayMs(stamps)
     if (delay == null) return
-    const timer = window.setTimeout(() => setSaleRefreshAt(Date.now()), delay)
+    const now = Date.now()
+    const pastKey = stamps
+      .filter((stamp): stamp is string => Boolean(stamp) && Date.parse(String(stamp)) <= now)
+      .sort()
+      .join('|')
+    if (delay <= 250 && pastKey && lastPastSaleKeyRef.current === pastKey) return
+    const timer = window.setTimeout(() => {
+      if (pastKey) lastPastSaleKeyRef.current = pastKey
+      setSaleRefreshAt(Date.now())
+    }, delay)
     return () => window.clearTimeout(timer)
   }, [quote])
 
@@ -787,11 +831,11 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   }, [])
 
   useEffect(() => {
-    if (!ready || selectedItems.length === 0) {
-      setWalletVouchers([])
+    if (!ready || selectedItems.length === 0 || !quote) {
+      if (selectedItems.length === 0) setWalletVouchers([])
       return
     }
-    const subtotal = quote?.breakdown.regularEffectiveSubtotal ?? fallbackSubtotal
+    const subtotal = quote.breakdown.regularEffectiveSubtotal ?? fallbackSubtotal
     void fetch(
       `/api/site/${encodeURIComponent(siteSlug)}/promotions/wallet?subtotal=${encodeURIComponent(subtotal)}`,
       { credentials: 'same-origin', headers: authHeaders() }
@@ -931,13 +975,12 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   )
   const birthdayPercent = Math.max(0, Math.round(quote?.birthdayDiscountPercent || quote?.birthdayOffer?.percent || 0))
   const birthdayAmount = Math.max(0, Math.round(quote?.breakdown.birthdayDiscountAmount ?? 0))
+  const birthdayEndsAt = quote?.birthdayOffer?.countdownTo ?? null
+  const birthdayDisplayTotal = selectedItems.reduce(
+    (sum, item) => sum + cartBirthdayLineSave(item, quotedLineById.get(item.id), birthdayPercent),
+    0
+  )
   const birthdayPaused = birthdayPercent > 0 && (quote?.breakdown.voucherDiscountAmount ?? 0) > 0
-  const birthdayHintOnly =
-    birthdayPercent > 0 &&
-    birthdayAmount <= 0 &&
-    !birthdayPaused &&
-    (quote?.breakdown.regularListSubtotal ?? 0) > 0 &&
-    (quote?.breakdown.capAdjustmentAmount ?? 0) <= 0
   const calendarProgramName = calendarSaleProgramName(saleT.saleDiscount, quote?.saleCalendar)
   const runningProgramLabels = [
     flashSaleAmount > 0 ? saleT.flashDiscount : '',
@@ -945,7 +988,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       ? calendarProgramName
       : '',
     inventorySaleAmount > 0 ? saleT.inventoryDiscount : '',
-    birthdayAmount > 0 || birthdayHintOnly ? saleT.birthdayDiscount.replace('{pct}', String(birthdayPercent)) : '',
+    birthdayPercent > 0 && !birthdayPaused ? saleT.birthdayDiscount.replace('{pct}', String(birthdayPercent)) : '',
     (quote?.breakdown.clearanceSubtotal ?? 0) > 0 ? saleT.clearanceSubtotal : '',
   ].filter(Boolean)
   const depositPreview = useMemo(() => {
@@ -1100,7 +1143,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   return (
     <div className="pw-shop-cart">
       <h1 data-pw-el={PW_EL.sectionTitle}>{t.cartTitle}</h1>
-      {loading ? <p className="pw-shop-muted">…</p> : null}
+      {loading && items.length === 0 ? <p className="pw-shop-muted">…</p> : null}
       {!loading && items.length === 0 ? (
         <p className="pw-shop-muted" data-pw-el={PW_EL.empty}>
           {t.cartEmpty}{' '}
@@ -1128,7 +1171,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
         </span>
       </div>
       <div className="pw-shop-cart-lines">
-        {items.map((item) => {
+        {items.map((item, index) => {
           const lineQuote = quotedLineById.get(item.id)
           const unitPrice = lineQuote?.effectiveUnitPrice ?? parseVndFromPriceHint(item.card.price_hint)
           const listUnitPrice = lineQuote?.listUnitPrice ?? unitPrice
@@ -1144,7 +1187,8 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
           const isTeaserLine = expectedUnit != null && !(listUnitPrice > unitPrice)
           const unitSavings = listUnitPrice > unitPrice ? listUnitPrice - unitPrice : 0
           const teaserUnitSavings = isTeaserLine && expectedUnit != null ? listUnitPrice - expectedUnit : 0
-          const programName = cartLineProgramName(lineQuote, quote?.saleCalendar, locale, saleT.inventoryDiscount)
+          const birthdayLineSave = cartBirthdayLineSave(item, lineQuote, birthdayPercent)
+          const birthdayLineSaveText = partnerSiteBirthdaySaveText(birthdayLineSave, locale)
           const chipKind =
             lineQuote?.priceKind === 'flash'
               ? 'flash'
@@ -1170,7 +1214,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               ? saleT.clearanceSubtotal
               : ''
           return (
-          <div key={item.id} className={`pw-shop-cart-row${selectedLineIds.has(item.id) ? ' is-selected' : ''}`} data-pw-el={PW_EL.line}>
+          <div key={item.id} className={`pw-shop-cart-row${selectedLineIds.has(item.id) ? ' is-selected' : ''}`} data-pw-el={PW_EL.line} data-pw-cart-qty={qty}>
             <label className="pw-shop-cart-check" aria-label={saleT.selectProduct}>
               <input
                 type="checkbox"
@@ -1188,7 +1232,10 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
             <img
               src={shopCardDisplaySrc(item.card.image_url) || item.card.image_url}
               alt={item.card.name}
-              loading="lazy"
+              width={72}
+              height={72}
+              loading={index < 2 ? 'eager' : 'lazy'}
+              fetchPriority={index === 0 ? 'high' : undefined}
               decoding="async"
               data-pw-el={PW_EL.cardMedia}
             />
@@ -1200,6 +1247,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                   {birthdayPercent > 0 && !lineQuote?.isClearance ? (
                     <span className="pw-shop-cart-chip pw-shop-cart-chip-birthday">
                       {partnerSiteSaleFill(saleT.birthdayAtCheckout, { pct: birthdayPercent })}
+                      {birthdayLineSave > 0 ? ` · ${formatVnd(birthdayLineSave)}` : ''}
                     </span>
                   ) : null}
                 </div>
@@ -1207,6 +1255,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                 <div className="pw-shop-cart-line-chips">
                   <span className="pw-shop-cart-chip pw-shop-cart-chip-birthday">
                     {partnerSiteSaleFill(saleT.birthdayAtCheckout, { pct: birthdayPercent })}
+                    {birthdayLineSave > 0 ? ` · ${formatVnd(birthdayLineSave)}` : ''}
                   </span>
                 </div>
               ) : null}
@@ -1255,6 +1304,25 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                     </p>
                   ) : null}
                 </>
+              ) : null}
+              {birthdayPercent > 0 && !lineQuote?.isClearance ? (
+                <div className="pw-shop-cart-birthday">
+                  {birthdayLineSaveText ? (
+                    <p className="pw-shop-cart-line-save is-birthday">{birthdayLineSaveText}</p>
+                  ) : null}
+                  {birthdayEndsAt ? (
+                    <p className="pw-shop-cart-line-count pw-shop-cart-birthday-count">
+                      ⏱{' '}
+                      <PartnerSiteSaleCountdown
+                        countdownTo={birthdayEndsAt}
+                        phase="active"
+                        locale={locale}
+                        eventLabel="CMSN"
+                        prefix={siteSaleT.birthdayEndsAfter}
+                      />
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
               {item.color || item.size ? (
                 <p className="pw-shop-muted">
@@ -1322,6 +1390,9 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                   </p>
                 </>
               ) : null}
+              {birthdayLineSaveText ? (
+                <p className="pw-shop-cart-line-save is-birthday">{birthdayLineSaveText}</p>
+              ) : null}
             </div>
           </div>
           )
@@ -1329,7 +1400,6 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       </div>
       </section>
         <div className="pw-shop-cart-summary" data-pw-region={PW_REGION.cartSummary}>
-          {quoteLoading ? <p className="pw-shop-muted">{saleT.quoteUpdating}</p> : null}
           {runningProgramLabels.length > 0 ? (
             <div className="pw-shop-cart-programs" aria-label={saleT.runningPrograms}>
               {runningProgramLabels.map((label) => (
@@ -1408,8 +1478,26 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                 <p className="is-birthday"><span>{saleT.birthdayDiscount.replace('{pct}', String(birthdayPercent || ''))}</span><strong>−{formatVnd(birthdayAmount)}</strong></p>
               ) : birthdayPaused ? (
                 <p className="pw-shop-cart-promo-msg is-warn">{saleT.birthdayPaused}</p>
-              ) : birthdayHintOnly ? (
-                <p className="is-birthday"><span>{partnerSiteBirthdayCheckoutHint(birthdayPercent, locale)}</span></p>
+              ) : birthdayPercent > 0 && !birthdayPaused ? (
+                <p className="is-birthday">
+                  <span>
+                    {partnerSiteBirthdaySaveText(birthdayDisplayTotal, locale) ||
+                      partnerSiteBirthdayCheckoutHint(birthdayPercent, locale)}
+                  </span>
+                  {birthdayDisplayTotal > 0 ? <strong>{formatVnd(birthdayDisplayTotal)}</strong> : null}
+                </p>
+              ) : null}
+              {birthdayPercent > 0 && !birthdayPaused && birthdayEndsAt ? (
+                <p className="is-birthday pw-shop-cart-birthday-count">
+                  ⏱{' '}
+                  <PartnerSiteSaleCountdown
+                    countdownTo={birthdayEndsAt}
+                    phase="active"
+                    locale={locale}
+                    eventLabel="CMSN"
+                    prefix={siteSaleT.birthdayEndsAfter}
+                  />
+                </p>
               ) : null}
               {quote.breakdown.loyaltyDiscountAmount > 0 ? (
                 <p className="is-loyalty"><span>{saleT.loyaltyDiscount}{quote.loyalty.tierName ? ` ${quote.loyalty.tierName}` : ''}</span><strong>−{formatVnd(quote.breakdown.loyaltyDiscountAmount)}</strong></p>
@@ -1656,7 +1744,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               <button
                 type="button"
                 className="pw-shop-btn pw-shop-btn-buy"
-                disabled={checkoutBusy || quoteLoading || selectedItems.length === 0}
+                disabled={checkoutBusy || !quote || selectedItems.length === 0}
                 onClick={() => void checkout()}
                 data-pw-el={PW_EL.checkout}
               >

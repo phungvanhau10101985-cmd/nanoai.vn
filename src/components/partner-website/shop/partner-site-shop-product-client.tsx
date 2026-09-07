@@ -44,16 +44,16 @@ import {
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import {
   formatPartnerSaleMoney,
-  partnerSiteBirthdayCheckoutHint,
   partnerSiteSaleCopy,
   partnerSiteSaleExpectedPriceText,
   partnerSiteSaleProgramName,
   partnerSiteSaleSaveText,
   resolvePartnerProductSaleFace,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
-import { PartnerSiteSaleCountdown } from '@/components/partner-website/shop/partner-site-sale-face'
+import { PartnerSiteBirthdayOfferBlock, PartnerSiteSaleCountdown } from '@/components/partner-website/shop/partner-site-sale-face'
 import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
 import { PartnerSiteProductVariantModal } from '@/components/partner-website/shop/partner-site-product-variant-modal'
+import { readPdpWideStickyViewport } from '@/lib/partner-website/shop/partner-site-product-variant-modal'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import {
   displayablePdpText,
@@ -195,10 +195,20 @@ export function PartnerSiteShopProductClient({
   const buyActionsRef = useRef<HTMLDivElement | null>(null)
   const saleFace = resolvePartnerProductSaleFace(product, locale)
   const saleCopy = partnerSiteSaleCopy(locale)
-  const birthdayHint =
-    product.isClearance === true
-      ? null
-      : partnerSiteBirthdayCheckoutHint(product.birthdayOfferPercent, locale)
+  const birthdayBlock = (
+    <PartnerSiteBirthdayOfferBlock
+      locale={locale}
+      birthdayOfferPercent={product.birthdayOfferPercent}
+      birthdayOfferEndsAt={product.birthdayOfferEndsAt}
+      birthdayOffer={product.birthdayOffer}
+      isClearance={product.isClearance}
+      listUnitPrice={saleFace.listPrice}
+      chargedUnitPrice={saleFace.kind === 'teaser' ? saleFace.listPrice : saleFace.displayPrice}
+      quantity={quantity}
+      siteSalePhase={saleFace.kind === 'teaser' ? 'teaser' : saleFace.kind === 'active' ? 'active' : 'off'}
+      className="pw-pdp-birthday-hint"
+    />
+  )
   const flashActive =
     saleFace.kind === 'active' ||
     isPartnerFlashSaleActive({
@@ -238,23 +248,7 @@ export function PartnerSiteShopProductClient({
   useEffect(() => {
     const el = buyActionsRef.current
     if (!el || typeof IntersectionObserver === 'undefined') return
-    const wideSticky = () => {
-      let queryDevice = ''
-      try {
-        queryDevice = new URLSearchParams(window.location.search).get('pw-device') || ''
-      } catch {
-        queryDevice = ''
-      }
-      const lock = String(
-        document.documentElement.getAttribute('data-pw-edit-device') ||
-          document.documentElement.getAttribute('data-pw-scene-lock') ||
-          queryDevice ||
-          ''
-      ).toLowerCase()
-      if (lock === 'desktop' || lock === 'laptop') return true
-      if (lock === 'mobile' || lock === 'tablet') return false
-      return window.matchMedia('(min-width:1280px)').matches
-    }
+    const wideSticky = () => readPdpWideStickyViewport()
     const paint = (show: boolean) => {
       setStickyBuyVisible(show)
       if (wideSticky() && show) document.documentElement.setAttribute('data-pw-pdp-desktop-sticky', '1')
@@ -495,6 +489,20 @@ export function PartnerSiteShopProductClient({
     return true
   }
 
+  function onInlinePdpCart(redirectToCart: boolean) {
+    if (requirePurchaseLogin()) return
+    if (readPdpWideStickyViewport()) {
+      void addLine(redirectToCart)
+      return
+    }
+    setVariantModalOpen(true)
+  }
+
+  function onStickyPdpCart() {
+    if (requirePurchaseLogin()) return
+    setVariantModalOpen(true)
+  }
+
   async function addLine(
     redirectToCart: boolean,
     pick?: { color?: string; size?: string; quantity?: number; imageUrl?: string }
@@ -638,10 +646,10 @@ export function PartnerSiteShopProductClient({
         </button>
       </nav>
       <div className="pw-pdp-sticky-ctas">
-        <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => setVariantModalOpen(true)} data-pw-el={PW_EL.cardCart} data-pw-add-cart data-pw-pdp-add-cart="1">
+        <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => onStickyPdpCart()} data-pw-el={PW_EL.cardCart} data-pw-add-cart data-pw-pdp-add-cart="1">
           {t.pdpAddToCartShort}
         </button>
-        <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => setVariantModalOpen(true)} data-pw-el={PW_EL.buy} data-pw-buy data-pw-pdp-buy-now="1">
+        <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => onStickyPdpCart()} data-pw-el={PW_EL.buy} data-pw-buy data-pw-pdp-buy-now="1">
           {t.pdpBuyNowShort}
         </button>
       </div>
@@ -814,7 +822,7 @@ export function PartnerSiteShopProductClient({
                   {partnerSiteSaleSaveText(saleFace, locale, { surface: 'detail' })}
                 </p>
               ) : null}
-              {birthdayHint ? <p className="pw-pdp-birthday-hint">{birthdayHint}</p> : null}
+              {birthdayBlock}
             </div>
           ) : flashActive && product.salePriceAmount != null ? (
             <div className="pw-pdp-price-card">
@@ -830,16 +838,16 @@ export function PartnerSiteShopProductClient({
               {savings > 0 ? (
                 <p className="pw-pdp-save">{t.pdpSavings.replace('{amount}', formatPartnerShopMoneyVnd(savings))}</p>
               ) : null}
-              {birthdayHint ? <p className="pw-pdp-birthday-hint">{birthdayHint}</p> : null}
+              {birthdayBlock}
             </div>
           ) : priceLabel ? (
             <div className="pw-pdp-price-card">
               <p className="pw-shop-price" data-pw-el={PW_EL.price}>{priceLabel}</p>
-              {birthdayHint ? <p className="pw-pdp-birthday-hint">{birthdayHint}</p> : null}
+              {birthdayBlock}
             </div>
-          ) : birthdayHint ? (
+          ) : product.isClearance !== true && (product.birthdayOfferPercent || 0) > 0 ? (
             <div className="pw-pdp-price-card">
-              <p className="pw-pdp-birthday-hint">{birthdayHint}</p>
+              {birthdayBlock}
             </div>
           ) : null}
 
@@ -963,10 +971,10 @@ export function PartnerSiteShopProductClient({
           ) : null}
 
           <div ref={buyActionsRef} className="pw-pdp-actions pw-pdp-actions-inline">
-            <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => { if (!requirePurchaseLogin()) setVariantModalOpen(true) }} data-pw-el={PW_EL.cardCart} data-pw-add-cart data-pw-pdp-add-cart="1">
+            <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => onInlinePdpCart(false)} data-pw-el={PW_EL.cardCart} data-pw-add-cart data-pw-pdp-add-cart="1">
               {t.addToCart}
             </button>
-            <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => { if (!requirePurchaseLogin()) setVariantModalOpen(true) }} data-pw-el={PW_EL.buy} data-pw-buy data-pw-pdp-buy-now="1">
+            <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => onInlinePdpCart(true)} data-pw-el={PW_EL.buy} data-pw-buy data-pw-pdp-buy-now="1">
               {t.buyNow}
             </button>
             <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => openConsult(consultCtx)} data-pw-el={PW_EL.cta}>

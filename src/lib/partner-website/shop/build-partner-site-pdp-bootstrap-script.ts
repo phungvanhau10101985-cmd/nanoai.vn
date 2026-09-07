@@ -37,6 +37,9 @@ export function buildPartnerSitePdpBootstrapScript(input: { siteSlug: string; lo
     flashRemaining: saleCopy.flashRemaining,
     teaserFallback: saleCopy.teaserFallback,
     activeFallback: saleCopy.activeFallback,
+    birthdayCheckoutHint: saleCopy.birthdayCheckoutHint,
+    birthdaySave: saleCopy.birthdaySave,
+    birthdayEndsAfter: saleCopy.birthdayEndsAfter,
     sizeLabel: t.sizeLabel,
     colorLabel: t.colorLabel,
     pdpBrandLabel: t.pdpBrandLabel,
@@ -127,6 +130,43 @@ function trackView(id){
 }
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
 function money(n){var v=Math.max(0,Math.round(Number(n)||0));try{return new Intl.NumberFormat(COPY.locale==='vi'?'vi-VN':COPY.locale,{style:'currency',currency:'VND',maximumFractionDigits:0}).format(v);}catch(e){return v.toLocaleString()+'₫';}}
+function pdpBirthdayCount(iso){
+  if(!iso)return '';
+  var t=Date.parse(iso);if(!Number.isFinite(t))return '';
+  var d=t-Date.now();if(d<=0)return '';
+  var s=Math.floor(d/1000),days=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60),sec=s%60;
+  var hms=('0'+h).slice(-2)+':'+('0'+m).slice(-2)+':'+('0'+sec).slice(-2);
+  return days>0?days+'d '+hms:hms;
+}
+function paintPdpBirthday(p){
+  var card=document.querySelector('.pw-pdp-price-card');
+  if(!card||!p)return;
+  var slot=card.querySelector('[data-pw-pdp-slot="birthday"]');
+  var offer=p.birthdayOffer||window.__pwBirthdayOffer||null;
+  var pct=Math.max(0,Math.round(Number(p.birthdayOfferPercent||(offer&&offer.percent)||0)||0));
+  var ends=String(p.birthdayOfferEndsAt||(offer&&(offer.countdownTo||offer.endsAt))||'').trim();
+  if(p.isClearance===true||!(pct>0)){if(slot)slot.remove();return;}
+  var sale=saleView(p);
+  var list=Math.max(0,Math.round(Number(p.priceAmount)||0));
+  if(!(list>0))list=Math.max(0,Math.round(Number(String(p.priceHint||'').replace(/[^\\d]/g,''))||0));
+  var charged=sale&&sale.kind==='active'&&Number(p.salePriceAmount)>0?Math.round(Number(p.salePriceAmount)):list;
+  var requested=Math.round(charged*pct/100);
+  var cap=Math.round((list||charged)*15/100);
+  var lineSave=Math.max(0,(list||charged)-charged);
+  var saveAmt=Math.max(0,Math.min(requested,Math.max(0,cap-lineSave)));
+  var hint=String(COPY.birthdayCheckoutHint||'').replace('{pct}',String(pct));
+  var save=saveAmt?String(COPY.birthdaySave||'').replace('{amount}',money(saveAmt)):'';
+  var count=pdpBirthdayCount(ends);
+  if(!slot){
+    slot=document.createElement('p');
+    slot.className='pw-pdp-birthday-hint';
+    slot.setAttribute('data-pw-pdp-slot','birthday');
+    card.appendChild(slot);
+  }
+  slot.style.display='';
+  slot.innerHTML=(hint?'<span>'+esc(hint)+'</span>':'')+(save?'<span>'+esc(save)+'</span>':'')
+    +(count?'<span class="pw-pdp-birthday-count" data-pw-sale-countdown="'+esc(ends)+'" data-pw-sale-phase="active" data-pw-sale-kind="birthday">⏱ '+esc(COPY.birthdayEndsAfter||'')+' <strong data-pw-sale-hms>'+esc(count)+'</strong></span>':'');
+}
 ${PW_SITE_SALE_VIEW_JS}
 function productId(){
   var host=document.querySelector('[data-pw-region="pdp-info"],[data-pw-region="gallery"],.pw-pdp,[data-pw-page="product"]');
@@ -283,6 +323,7 @@ function apply(p){
       ?(COPY.teaserSave||COPY.expectedSave||'').replace('{program}',sale.program||'').replace('{pct}',String(sale.percent)).replace('{amount}',sale.savings)
       :(COPY.save||'').replace('{program}',sale.program||'').replace('{amount}',sale.savings);
   });
+  paintPdpBirthday(p);
   var imgs=imagesOf(p);
   var main=imgs[0]||'';
   if(main){
@@ -776,7 +817,21 @@ trackView(id);
 bindLive(id);
 if(!document.querySelector('[data-pw-pdp-server-bound="1"]')){
   fetch(API_PREFIX+encodeURIComponent(id),{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
-    if(j&&j.product)apply(j.product);
+    if(j&&j.product){
+      if(j.birthdayOffer){
+        j.product.birthdayOffer=j.birthdayOffer;
+        if(j.birthdayOffer.percent)j.product.birthdayOfferPercent=j.birthdayOffer.percent;
+        j.product.birthdayOfferEndsAt=j.birthdayOffer.countdownTo||j.birthdayOffer.endsAt||j.product.birthdayOfferEndsAt||'';
+      }
+      apply(j.product);
+    }
+  }).catch(function(){});
+} else {
+  fetch(API_PREFIX+encodeURIComponent(id)+'?view=buy',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
+    if(!j)return;
+    var p=j.product||{};
+    if(j.birthdayOffer)p.birthdayOffer=j.birthdayOffer;
+    paintPdpBirthday(p);
   }).catch(function(){});
 }
 })();</script>`

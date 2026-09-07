@@ -23,6 +23,8 @@ export function toPartnerSiteCardPayload(product: PartnerSiteShopProduct) {
     siteSaleExpectedPrice: product.siteSaleExpectedPrice ?? null,
     siteSale: product.siteSale ?? null,
     birthdayOfferPercent: product.birthdayOfferPercent ?? 0,
+    birthdayOfferEndsAt: product.birthdayOfferEndsAt ?? null,
+    birthdayOffer: product.birthdayOffer ?? null,
     categoryId: product.categoryId ?? null,
     categoryPath: product.categoryPath ?? null,
     categoryL1: product.categoryL1 ?? null,

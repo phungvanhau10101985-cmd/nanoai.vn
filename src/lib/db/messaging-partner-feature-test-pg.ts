@@ -196,11 +196,11 @@ async function upsertPartnerFeatureTestFromPg(input: {
   }
 }
 
-export async function resolvePartnerBirthdayFeatureTestPercentFromPg(input: {
+export async function resolvePartnerBirthdayFeatureTestOfferFromPg(input: {
   partnerId: string
   visitorEmail?: string | null
   configuredPercent?: number | null
-}): Promise<number | null> {
+}): Promise<{ percent: number; countdownTo: string } | null> {
   const email = normalizeFeatureTestEmail(input.visitorEmail)
   if (!email) return null
   const rows = await listActivePartnerFeatureTestsFromPg(input.partnerId)
@@ -209,7 +209,23 @@ export async function resolvePartnerBirthdayFeatureTestPercentFromPg(input: {
     email
   )
   if (!match) return null
-  return birthdayPercentForFeatureTest(input.configuredPercent)
+  const countdownTo = match.birthdayPromoExpiresAt
+    ? new Date(match.birthdayPromoExpiresAt).toISOString()
+    : ''
+  if (!countdownTo || Number.isNaN(Date.parse(countdownTo))) return null
+  return {
+    percent: birthdayPercentForFeatureTest(input.configuredPercent),
+    countdownTo,
+  }
+}
+
+export async function resolvePartnerBirthdayFeatureTestPercentFromPg(input: {
+  partnerId: string
+  visitorEmail?: string | null
+  configuredPercent?: number | null
+}): Promise<number | null> {
+  const offer = await resolvePartnerBirthdayFeatureTestOfferFromPg(input)
+  return offer?.percent ?? null
 }
 
 export async function resolvePartnerStorefrontSaleCalendarFromPg(input: {

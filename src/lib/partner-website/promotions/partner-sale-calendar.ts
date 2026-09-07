@@ -117,6 +117,62 @@ function saleCountdownTo(phase: PartnerSaleCalendarState['phase'], saleDate: Loc
   return new Date(start.getTime() + 86_400_000 - 1).toISOString()
 }
 
+/** Exclusive end of a local calendar day (23:59:59.999 in `timezone`). */
+export function partnerLocalDateEndIso(
+  ymd: string,
+  timezone: string = PARTNER_SALE_DEFAULT_TIMEZONE
+): string | null {
+  const value = parseYmd(ymd)
+  if (!value) return null
+  const tz = validTimezone(timezone)
+  const start = localMidnightUtc(value, tz)
+  return new Date(start.getTime() + 86_400_000 - 1).toISOString()
+}
+
+/** Next birthday YYYY-MM-DD in shop timezone (Feb 29 → Feb 28 on non-leap years). */
+export function nextBirthdayYmdInTimezone(
+  birthDateYmd: string,
+  timezone: string = PARTNER_SALE_DEFAULT_TIMEZONE,
+  at = new Date()
+): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthDateYmd.trim())
+  if (!match) return null
+  const month = Number(match[2])
+  const day = Number(match[3])
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null
+  const tz = validTimezone(timezone)
+  const today = localYmd(at, tz)
+  const clampDay = (year: number) => Math.min(day, daysInMonth(year, month))
+  let cand: LocalYmd = { year: today.year, month, day: clampDay(today.year) }
+  if (ordinal(cand) < ordinal(today)) {
+    cand = { year: today.year + 1, month, day: clampDay(today.year + 1) }
+  }
+  return ymdText(cand)
+}
+
+export function daysUntilBirthdayInTimezone(
+  birthDateYmd: string,
+  timezone: string = PARTNER_SALE_DEFAULT_TIMEZONE,
+  at = new Date()
+): number | null {
+  const next = nextBirthdayYmdInTimezone(birthDateYmd, timezone, at)
+  const nextYmd = parseYmd(next)
+  if (!nextYmd) return null
+  const today = localYmd(at, validTimezone(timezone))
+  return ordinal(nextYmd) - ordinal(today)
+}
+
+/** CMSN window ends at the end of birthday day (T0) in shop timezone. */
+export function partnerBirthdayOfferCountdownTo(input: {
+  birthDateYmd: string
+  timezone?: string | null
+  now?: Date
+}): string | null {
+  const timezone = validTimezone(input.timezone || PARTNER_SALE_DEFAULT_TIMEZONE)
+  const next = nextBirthdayYmdInTimezone(input.birthDateYmd, timezone, input.now)
+  return next ? partnerLocalDateEndIso(next, timezone) : null
+}
+
 function testMonthDiscountPercent(settings: PartnerSaleCalendarSettings, month: number): number {
   const rule = settings.monthRules[month]
   const fallback = month % 2 === 0 ? settings.evenMonthDiscountPercent : settings.oddMonthDiscountPercent

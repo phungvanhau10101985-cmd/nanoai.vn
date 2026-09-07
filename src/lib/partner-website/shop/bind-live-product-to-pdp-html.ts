@@ -11,12 +11,13 @@ import {
   resolvePartnerEffectiveUnitPrice,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import {
-  partnerSiteBirthdayCheckoutHint,
+  formatPartnerSaleCountdownCompact,
   partnerSiteSaleCopy,
   partnerSiteSaleCountdownPrefix,
   partnerSiteSaleExpectedPriceText,
   partnerSiteSaleProgramName,
   partnerSiteSaleSaveText,
+  resolvePartnerBirthdayOfferFace,
   resolvePartnerProductSaleFace,
   type PartnerSiteSalePricing,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
@@ -107,6 +108,8 @@ export type LivePdpBindProduct = {
   siteSaleExpectedPrice?: number | null
   siteSale?: PartnerSiteSalePricing | null
   birthdayOfferPercent?: number | null
+  birthdayOfferEndsAt?: string | null
+  birthdayOffer?: { percent?: number | null; countdownTo?: string | null } | null
   imageUrl?: string | null
   galleryImages?: string[] | null
   detailImages?: string[] | null
@@ -1377,9 +1380,27 @@ function ensureMissingPdpSlots(
   }
   out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'birthday')
   out = out.replace(/<p\b[^>]*\bpw-pdp-birthday-hint\b[^>]*>[\s\S]*?<\/p>/gi, '')
-  const birthdayHint = product.isClearance === true ? null : partnerSiteBirthdayCheckoutHint(product.birthdayOfferPercent, locale)
-  if (birthdayHint) {
-    const hint = `<p class="pw-pdp-birthday-hint" data-pw-pdp-slot="birthday">${escText(birthdayHint)}</p>`
+  const birthdayFace = resolvePartnerBirthdayOfferFace({
+    locale,
+    birthdayOfferPercent: product.birthdayOfferPercent,
+    birthdayOfferEndsAt: product.birthdayOfferEndsAt,
+    birthdayOffer: product.birthdayOffer,
+    isClearance: product.isClearance === true,
+    listUnitPrice: face.listPrice,
+    chargedUnitPrice: face.kind === 'teaser' ? face.listPrice : face.displayPrice,
+    quantity: 1,
+    siteSalePhase: face.kind === 'teaser' ? 'teaser' : face.kind === 'active' ? 'active' : 'off',
+  })
+  if (birthdayFace) {
+    const copy = partnerSiteSaleCopy(locale)
+    const count = birthdayFace.countdownTo
+      ? formatPartnerSaleCountdownCompact(birthdayFace.countdownTo)
+      : ''
+    const countHtml =
+      birthdayFace.countdownTo && count
+        ? `<span class="pw-pdp-birthday-count" data-pw-sale-countdown="${escText(birthdayFace.countdownTo)}" data-pw-sale-phase="active" data-pw-sale-kind="birthday">⏱ ${escText(copy.birthdayEndsAfter)} <strong data-pw-sale-hms>${escText(count)}</strong></span>`
+        : ''
+    const hint = `<p class="pw-pdp-birthday-hint" data-pw-pdp-slot="birthday">${birthdayFace.hint ? `<span>${escText(birthdayFace.hint)}</span>` : ''}${birthdayFace.saveText ? `<span>${escText(birthdayFace.saveText)}</span>` : ''}${countHtml}</p>`
     out = out.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>[\s\S]*?<\/div>)/i, `$1${hint}`)
   }
   const stock = Number(product.stockQty ?? 0)

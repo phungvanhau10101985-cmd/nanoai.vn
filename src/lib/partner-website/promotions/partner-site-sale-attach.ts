@@ -1,6 +1,6 @@
 import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import { resolvePartnerStorefrontSaleCalendarFromPg } from '@/lib/db/messaging-partner-feature-test-pg'
-import { resolveActiveBirthdayDiscountPercentForCustomer } from '@/lib/db/messaging-partner-birthday-promo-pg'
+import { resolveActiveBirthdayOfferForCustomer } from '@/lib/db/messaging-partner-birthday-promo-pg'
 import { overlayPartnerFlashSaleOnProducts } from '@/lib/db/messaging-partner-flash-sale-pg'
 import {
   applyPartnerSiteSaleToShopProduct,
@@ -28,23 +28,39 @@ export async function loadPartnerSiteSaleOverlay(partnerId: string): Promise<Par
   }
 }
 
+export async function loadPartnerStorefrontBirthdayOffer(input: {
+  partnerId: string
+  linkedUserId?: string | null
+  emailNormalized?: string | null
+  timezone?: string | null
+}): Promise<{ percent: number; countdownTo: string | null }> {
+  const offer = await resolveActiveBirthdayOfferForCustomer({
+    partnerId: input.partnerId,
+    linkedUserId: input.linkedUserId,
+    emailNormalized: input.emailNormalized,
+    timezone: input.timezone,
+  })
+  if (!offer) return { percent: 0, countdownTo: null }
+  return { percent: Math.max(0, Math.round(Number(offer.percent) || 0)), countdownTo: offer.countdownTo }
+}
+
 export async function loadPartnerStorefrontBirthdayPercent(input: {
   partnerId: string
   linkedUserId?: string | null
   emailNormalized?: string | null
+  timezone?: string | null
 }): Promise<number> {
-  const percent = await resolveActiveBirthdayDiscountPercentForCustomer({
-    partnerId: input.partnerId,
-    linkedUserId: input.linkedUserId,
-    emailNormalized: input.emailNormalized,
-  })
-  return Math.max(0, Math.round(Number(percent) || 0))
+  return (await loadPartnerStorefrontBirthdayOffer(input)).percent
 }
 
 export function withPartnerBirthdayOffer<T extends { isClearance?: boolean }>(
   product: T,
-  percent: number | null | undefined
-): T & { birthdayOfferPercent: number } {
+  percent: number | { percent?: unknown; countdownTo?: string | null } | null | undefined
+): T & {
+  birthdayOfferPercent: number
+  birthdayOfferEndsAt: string | null
+  birthdayOffer: { percent: number; countdownTo: string | null } | null
+} {
   return attachPartnerBirthdayOffer(product, percent)
 }
 
@@ -70,7 +86,15 @@ export async function applyPartnerStorefrontSaleFaces<T extends PartnerSiteSaleP
     emailNormalized?: string | null
     overlay?: PartnerSiteSaleOverlay | null
   }
-): Promise<Array<T & { birthdayOfferPercent: number }>> {
+): Promise<
+  Array<
+    T & {
+      birthdayOfferPercent: number
+      birthdayOfferEndsAt: string | null
+      birthdayOffer: { percent: number; countdownTo: string | null } | null
+    }
+  >
+> {
   if (!products.length) return []
   const overlay = input.overlay ?? (await loadPartnerSiteSaleOverlay(input.partnerId).catch(() => null))
   const sold = overlay
@@ -81,18 +105,19 @@ export async function applyPartnerStorefrontSaleFaces<T extends PartnerSiteSaleP
         })
       )
     : products
-  const [withFlash, birthdayPercent] = await Promise.all([
+  const [withFlash, birthdayOffer] = await Promise.all([
     overlayPartnerFlashSaleOnProducts({
       partnerId: input.partnerId,
       accountKey: input.accountKey,
       timezone: overlay?.state.timezone,
       products: sold,
     }),
-    loadPartnerStorefrontBirthdayPercent({
+    loadPartnerStorefrontBirthdayOffer({
       partnerId: input.partnerId,
       linkedUserId: input.linkedUserId,
       emailNormalized: input.emailNormalized,
+      timezone: overlay?.state.timezone,
     }),
   ])
-  return withFlash.map((product) => attachPartnerBirthdayOffer(product, birthdayPercent))
+  return withFlash.map((product) => attachPartnerBirthdayOffer(product, birthdayOffer))
 }

@@ -46,8 +46,9 @@ export function partnerSiteCartPath(siteSlug: string, opts?: PathOpts): string {
 }
 
 /** Same-platform shop cart (no Bearer / partner slug). */
-export function partnerSiteCartApiPath(siteSlug: string): string {
-  return `/api/site/${encodeURIComponent(siteSlug.trim())}/cart`
+export function partnerSiteCartApiPath(siteSlug: string, opts?: { countOnly?: boolean }): string {
+  const base = `/api/site/${encodeURIComponent(siteSlug.trim())}/cart`
+  return opts?.countOnly ? `${base}?countOnly=1` : base
 }
 
 export function partnerSiteSaleCalendarApiPath(siteSlug: string): string {

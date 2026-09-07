@@ -4,6 +4,8 @@ import { generateKeyPairSync, sign } from 'node:crypto'
 import {
   applyPartnerSiteSalePrice,
   defaultPartnerSaleCalendarSettings,
+  partnerBirthdayOfferCountdownTo,
+  partnerLocalDateEndIso,
   resolvePartnerSaleCalendarState,
 } from '@/lib/partner-website/promotions/partner-sale-calendar'
 import {
@@ -41,6 +43,18 @@ test('same-day sale uses odd/even month percentage and T-3 teaser', () => {
   assert.equal(active.phase, 'active')
   assert.equal(active.discountPercent, 8)
   assert.equal(applyPartnerSiteSalePrice(100_000, active), 92_000)
+})
+
+test('CMSN offer ends at the end of birthday day in shop timezone', () => {
+  assert.equal(partnerLocalDateEndIso('2026-09-09', 'Asia/Ho_Chi_Minh'), '2026-09-09T16:59:59.999Z')
+  assert.equal(
+    partnerBirthdayOfferCountdownTo({
+      birthDateYmd: '2000-09-09',
+      timezone: 'Asia/Ho_Chi_Minh',
+      now: new Date('2026-09-07T05:00:00.000Z'),
+    }),
+    '2026-09-09T16:59:59.999Z'
+  )
 })
 
 test('sale day is clamped to last day for defensive month handling', () => {
@@ -170,6 +184,15 @@ test('nextPartnerSaleRefreshDelayMs fires when a sale window has ended', () => {
   assert.equal(nextPartnerSaleRefreshDelayMs(['2026-09-07T05:00:00.000Z'], now), 50 * 60 * 1000)
   assert.equal(nextPartnerSaleRefreshDelayMs(['2026-09-07T04:09:59.000Z'], now), 250)
   assert.equal(nextPartnerSaleRefreshDelayMs([null, ''], now), null)
+  assert.equal(nextPartnerSaleRefreshDelayMs(['2026-09-07T04:00:00.000Z'], now), null)
+  assert.equal(
+    nextPartnerSaleRefreshDelayMs(['2026-09-07T04:00:00.000Z', '2026-09-07T05:00:00.000Z'], now),
+    50 * 60 * 1000
+  )
+  assert.equal(
+    nextPartnerSaleRefreshDelayMs(['2026-09-07T04:09:59.000Z', '2026-09-07T05:00:00.000Z'], now),
+    250
+  )
 })
 
 test('Google pv2 ES256 is tenant-offer checked and lock is capped at 48 hours', () => {

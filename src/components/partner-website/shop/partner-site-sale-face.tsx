@@ -7,8 +7,10 @@ import {
   formatPartnerSaleMoney,
   partnerSiteBirthdayBadgeText,
   partnerSiteBirthdayCheckoutHint,
+  partnerSiteSaleCopy,
   partnerSiteSaleCountdownPrefix,
   partnerSiteSaleSaveText,
+  resolvePartnerBirthdayOfferFace,
   resolvePartnerProductSaleFace,
   writePartnerSaleCountdownNode,
   type PartnerProductSaleFace,
@@ -29,6 +31,7 @@ export function PartnerSiteSaleCountdown({
   overlay,
   eventLabel,
   promoKind,
+  prefix: prefixOverride,
 }: {
   countdownTo: string | null | undefined
   phase: 'teaser' | 'active'
@@ -36,8 +39,11 @@ export function PartnerSiteSaleCountdown({
   overlay?: boolean
   eventLabel?: string | null
   promoKind?: PartnerSiteSalePromoKind | string | null
+  prefix?: string | null
 }) {
-  const prefix = partnerSiteSaleCountdownPrefix({ phase, promoKind, eventLabel }, locale)
+  const prefix =
+    String(prefixOverride || '').trim() ||
+    partnerSiteSaleCountdownPrefix({ phase, promoKind, eventLabel }, locale)
   const chipClass =
     promoKind === 'flash' ? 'flash' : phase
   const hmsRef = useRef<HTMLSpanElement>(null)
@@ -67,6 +73,68 @@ export function PartnerSiteSaleCountdown({
         {formatPartnerSaleCountdownCompact(countdownTo) || ''}
       </span>
     </span>
+  )
+}
+
+export function PartnerSiteBirthdayOfferBlock({
+  locale,
+  percent,
+  countdownTo,
+  listUnitPrice,
+  chargedUnitPrice,
+  quantity = 1,
+  isClearance,
+  siteSalePhase,
+  birthdayOfferPercent,
+  birthdayOfferEndsAt,
+  birthdayOffer,
+  className = '',
+}: {
+  locale: WebLocale
+  percent?: unknown
+  countdownTo?: string | null
+  listUnitPrice: number
+  chargedUnitPrice: number
+  quantity?: number
+  isClearance?: boolean
+  siteSalePhase?: 'off' | 'teaser' | 'active' | null
+  birthdayOfferPercent?: number | null
+  birthdayOfferEndsAt?: string | null
+  birthdayOffer?: { percent?: unknown; countdownTo?: string | null } | null
+  className?: string
+}) {
+  const face = resolvePartnerBirthdayOfferFace({
+    locale,
+    percent,
+    countdownTo,
+    listUnitPrice,
+    chargedUnitPrice,
+    quantity,
+    isClearance,
+    siteSalePhase,
+    birthdayOfferPercent,
+    birthdayOfferEndsAt,
+    birthdayOffer,
+  })
+  if (!face) return null
+  const copy = partnerSiteSaleCopy(locale)
+  return (
+    <div data-pw-variant-birthday className={className || undefined}>
+      {face.hint ? <span data-pw-variant-birthday-hint>{face.hint}</span> : null}
+      {face.saveText ? <span data-pw-variant-birthday-save>{face.saveText}</span> : null}
+      {face.countdownTo ? (
+        <span data-pw-variant-birthday-count>
+          ⏱{' '}
+          <PartnerSiteSaleCountdown
+            countdownTo={face.countdownTo}
+            phase="active"
+            locale={locale}
+            eventLabel="CMSN"
+            prefix={copy.birthdayEndsAfter}
+          />
+        </span>
+      ) : null}
+    </div>
   )
 }
 

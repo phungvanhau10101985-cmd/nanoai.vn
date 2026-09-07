@@ -104,6 +104,7 @@ function placeEl(el,slot){
 }
 function paint(data){
   window.__pwSaleBannerData=data;
+  window.__pwBirthdayOffer=data&&data.birthdayOffer||null;
   var s=data&&data.state;
   var bdayPct=Math.max(0,Math.round(Number(data&&data.birthdayOffer&&data.birthdayOffer.percent||0)||0));
   var bdayMsg=bdayPct>0&&!dismissedBirthday(bdayPct)?String(COPY.birthdayBanner||'').replace('{pct}',String(bdayPct)):'';
@@ -150,6 +151,9 @@ function paint(data){
 }
 function tick(){
   var el=document.querySelector('[data-pw-sale-calendar-banner]');
+  if(typeof pwSaleTickChips==='function'){
+    pwSaleTickChips(COPY.remaining,COPY.startsAfter,COPY.flashRemaining,COPY.countdownStarts,COPY.countdownLeft);
+  }
   if(!el||el.getAttribute('data-pw-sale-banner-react')==='1')return;
   if(typeof pwSaleInView==='function'&&!pwSaleInView(el))return;
   var iso=el.getAttribute('data-pw-sale-until')||el.getAttribute('data-pw-sale-countdown')||'';

@@ -21,6 +21,7 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /data-pw-shop-actions-bootstrap/)
   assert.match(out, /\/personalization\/favorites\?idsOnly=1/)
   assert.match(out, /\/personalization\/recently-viewed\?idsOnly=1/)
+  assert.match(out, /countOnly=1/)
   assert.doesNotMatch(out, /\/personalization\/favorites\?limit=48/)
   assert.doesNotMatch(out, /\/personalization\/recently-viewed\?limit=48/)
   assert.match(out, /data-pw-birth-gender-prompt-bootstrap/)

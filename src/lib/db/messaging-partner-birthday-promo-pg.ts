@@ -1,8 +1,18 @@
 import { getAuthUserEmailFromPg } from '@/lib/db/auth-user-email-pg'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
-import { resolvePartnerBirthdayFeatureTestPercentFromPg } from '@/lib/db/messaging-partner-feature-test-pg'
-import { daysUntilNextBirthday, isInBirthdayOfferWindow } from '@/lib/messaging/birthday-promo-interest-inventory-ids'
+import { resolvePartnerBirthdayFeatureTestOfferFromPg } from '@/lib/db/messaging-partner-feature-test-pg'
+import { isInBirthdayOfferWindow } from '@/lib/messaging/birthday-promo-interest-inventory-ids'
+import {
+  daysUntilBirthdayInTimezone,
+  partnerBirthdayOfferCountdownTo,
+  PARTNER_SALE_DEFAULT_TIMEZONE,
+} from '@/lib/partner-website/promotions/partner-sale-calendar'
+
+export type PartnerActiveBirthdayOffer = {
+  percent: number
+  countdownTo: string
+}
 
 export type MessagingPartnerBirthdayPromoRow = {
   partner_id: string
@@ -27,15 +37,17 @@ export async function resolveActiveBirthdayDiscountPercentForLinkedUser(
   })
 }
 
-export async function resolveActiveBirthdayDiscountPercentForCustomer(input: {
+export async function resolveActiveBirthdayOfferForCustomer(input: {
   partnerId: string
   linkedUserId?: string | null
   emailNormalized?: string | null
-}): Promise<number | null> {
+  timezone?: string | null
+}): Promise<PartnerActiveBirthdayOffer | null> {
   const linkedUserId = String(input.linkedUserId ?? '').trim()
   let email = String(input.emailNormalized ?? '').trim().toLowerCase().slice(0, 180)
   if ((!linkedUserId && !email) || !isPgConfigured()) return null
   const partnerId = input.partnerId
+  const timezone = input.timezone?.trim() || PARTNER_SALE_DEFAULT_TIMEZONE
   const promo = await fetchBirthdayPromoForPartnerFromPg(partnerId)
   const configuredPct = Math.max(0, Math.min(100, Math.floor(Number(promo?.discount_percent) || 0)))
 
@@ -59,27 +71,38 @@ export async function resolveActiveBirthdayDiscountPercentForCustomer(input: {
         : null
       const bd = String(row?.birth_date ?? partnerProfile?.birth_date ?? '').trim().slice(0, 10)
       if (bd) {
-        const daysUntil = daysUntilNextBirthday(bd)
+        const daysUntil = daysUntilBirthdayInTimezone(bd, timezone)
         if (
           daysUntil != null &&
           isInBirthdayOfferWindow(daysUntil, promo.offer_days_before_max, promo.offer_days_before_min)
         ) {
-          return configuredPct
+          const countdownTo = partnerBirthdayOfferCountdownTo({ birthDateYmd: bd, timezone })
+          if (countdownTo) return { percent: configuredPct, countdownTo }
         }
       }
     } catch (e) {
-      console.warn('[resolveActiveBirthdayDiscountPercentForCustomer]', e)
+      console.warn('[resolveActiveBirthdayOfferForCustomer]', e)
     }
   }
 
   if (!email && linkedUserId) {
     email = (await getAuthUserEmailFromPg(linkedUserId))?.trim().toLowerCase() ?? ''
   }
-  return resolvePartnerBirthdayFeatureTestPercentFromPg({
+  return resolvePartnerBirthdayFeatureTestOfferFromPg({
     partnerId,
     visitorEmail: email,
     configuredPercent: configuredPct,
   })
+}
+
+export async function resolveActiveBirthdayDiscountPercentForCustomer(input: {
+  partnerId: string
+  linkedUserId?: string | null
+  emailNormalized?: string | null
+  timezone?: string | null
+}): Promise<number | null> {
+  const offer = await resolveActiveBirthdayOfferForCustomer(input)
+  return offer?.percent ?? null
 }
 
 export async function fetchBirthdayPromoForPartnerFromPg(
