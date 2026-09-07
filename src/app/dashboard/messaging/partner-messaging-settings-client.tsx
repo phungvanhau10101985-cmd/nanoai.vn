@@ -204,6 +204,11 @@ function settingsSidebarNavItemClass(active: boolean): string {
     active ? 'bg-white/20 font-medium' : 'text-white/90 hover:bg-white/10 hover:text-white'
   )
 }
+
+function scrollMessagingSettingsToPageTop() {
+  if (typeof window === 'undefined') return
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+}
 type LogoVersionRow = {
   id: string
   partner_id: string
@@ -813,6 +818,7 @@ export function PartnerMessagingSettingsClient({
       '',
       `${window.location.pathname}${qs ? `?${qs}` : ''}`
     )
+    requestAnimationFrame(scrollMessagingSettingsToPageTop)
   }, [])
 
   useEffect(() => {
@@ -833,6 +839,7 @@ export function PartnerMessagingSettingsClient({
       '',
       `${window.location.pathname}${qs ? `?${qs}` : ''}`
     )
+    requestAnimationFrame(scrollMessagingSettingsToPageTop)
   }, [activeSection, allVisibleSectionIds])
 
   const facebookConnectHref = useMemo(() => {

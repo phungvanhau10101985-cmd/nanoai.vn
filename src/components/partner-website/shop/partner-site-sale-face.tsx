@@ -7,10 +7,12 @@ import {
   formatPartnerSaleMoney,
   partnerSiteBirthdayBadgeText,
   partnerSiteBirthdayCheckoutHint,
-  partnerSiteSaleCopy,
+  partnerSiteSaleCountdownPrefix,
+  partnerSiteSaleSaveText,
   resolvePartnerProductSaleFace,
   writePartnerSaleCountdownNode,
   type PartnerProductSaleFace,
+  type PartnerSiteSalePromoKind,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
@@ -25,13 +27,19 @@ export function PartnerSiteSaleCountdown({
   phase,
   locale,
   overlay,
+  eventLabel,
+  promoKind,
 }: {
   countdownTo: string | null | undefined
   phase: 'teaser' | 'active'
   locale: WebLocale
   overlay?: boolean
+  eventLabel?: string | null
+  promoKind?: PartnerSiteSalePromoKind | string | null
 }) {
-  const copy = partnerSiteSaleCopy(locale)
+  const prefix = partnerSiteSaleCountdownPrefix({ phase, promoKind, eventLabel }, locale)
+  const chipClass =
+    promoKind === 'flash' ? 'flash' : phase
   const hmsRef = useRef<HTMLSpanElement>(null)
   const [visible, setVisible] = useState(() => Boolean(formatPartnerSaleCountdownCompact(countdownTo)))
   useEffect(() => {
@@ -53,8 +61,8 @@ export function PartnerSiteSaleCountdown({
   }, [countdownTo])
   if (!visible) return null
   return (
-    <span className={overlay ? `pw-sale-chip pw-sale-chip-${phase}` : `pw-sale-count pw-sale-count-${phase}`}>
-      {phase === 'active' ? copy.remaining : copy.startsAfter}{' '}
+    <span className={overlay ? `pw-sale-chip pw-sale-chip-${chipClass}` : `pw-sale-count pw-sale-count-${phase}`}>
+      {prefix}{' '}
       <span data-pw-sale-hms ref={hmsRef}>
         {formatPartnerSaleCountdownCompact(countdownTo) || ''}
       </span>
@@ -85,7 +93,6 @@ export function PartnerSiteSalePriceBlock({
   className?: string
 }) {
   const face = resolvePartnerProductSaleFace(product, locale)
-  const copy = partnerSiteSaleCopy(locale)
   const birthdayHint =
     product.isClearance === true
       ? null
@@ -106,11 +113,7 @@ export function PartnerSiteSalePriceBlock({
         {face.expectedPrice != null ? (
           <span className="pw-price-expected"> → {formatPartnerSaleMoney(face.expectedPrice, locale)}</span>
         ) : null}
-        <small className="pw-price-teaser">
-          {copy.expectedSave
-            .replace('{pct}', String(face.percent))
-            .replace('{amount}', formatPartnerSaleMoney(face.savings, locale))}
-        </small>
+        <small className="pw-price-teaser">{partnerSiteSaleSaveText(face, locale, { surface: 'card' })}</small>
         {birthdayHint ? <small className="pw-price-birthday">{birthdayHint}</small> : null}
       </p>
     )
@@ -122,9 +125,7 @@ export function PartnerSiteSalePriceBlock({
         <del className="pw-price-compare">{formatPartnerSaleMoney(face.comparePrice, locale)}</del>
       ) : null}
       {face.savings > 0 ? (
-        <small className="pw-price-save">
-          {copy.save.replace('{amount}', formatPartnerSaleMoney(face.savings, locale))}
-        </small>
+        <small className="pw-price-save">{partnerSiteSaleSaveText(face, locale, { surface: 'detail' })}</small>
       ) : null}
       {birthdayHint ? <small className="pw-price-birthday">{birthdayHint}</small> : null}
     </p>
@@ -148,8 +149,15 @@ export function PartnerSiteSaleMediaMarks({
     <>
       {face.kind && face.badge ? <PartnerSiteSaleBadge face={face} /> : null}
       {birthdayBadge ? <span className="pw-badge-birthday">{birthdayBadge}</span> : null}
-      {face.kind && face.countdownTo ? (
-        <PartnerSiteSaleCountdown countdownTo={face.countdownTo} phase={face.kind} locale={locale} overlay />
+      {face.kind && face.countdownTo && face.promoKind !== 'clearance' ? (
+        <PartnerSiteSaleCountdown
+          countdownTo={face.countdownTo}
+          phase={face.kind}
+          locale={locale}
+          overlay
+          eventLabel={face.eventLabel}
+          promoKind={face.promoKind}
+        />
       ) : null}
     </>
   )

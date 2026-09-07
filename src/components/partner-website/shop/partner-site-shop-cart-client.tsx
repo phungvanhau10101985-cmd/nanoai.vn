@@ -48,6 +48,7 @@ import {
   formatPartnerSaleDayMonth,
   partnerSiteBirthdayCheckoutHint,
   partnerSiteSaleCopy,
+  partnerSiteSaleFill,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { PartnerSiteSaleCountdown } from '@/components/partner-website/shop/partner-site-sale-face'
 import { nextPartnerSaleRefreshDelayMs } from '@/lib/partner-website/promotions/partner-sale-pricing'
@@ -88,6 +89,7 @@ type CartQuote = {
     priceKind?: 'flash' | 'calendar' | 'google' | 'clearance' | 'inventory' | 'list'
     flashPercent?: number | null
     saleBadge?: string | null
+    programName?: string | null
     countdownTo?: string | null
   }>
   breakdown: {
@@ -132,6 +134,8 @@ type CartQuote = {
     eventLabel: string
     discountPercent: number
     countdownTo?: string | null
+    eventDate?: string | null
+    saleDate?: string | null
   } | null
 }
 
@@ -152,7 +156,11 @@ const CART_SALE_COPY: Record<WebLocale, {
   noVoucher: string
   expiresSoon: string
   listSubtotal: string
+  listUnit: string
+  comingSoon: string
+  birthdayAtCheckout: string
   flashDiscount: string
+  flashAlreadyDeducted: string
   saleDiscount: string
   inventoryDiscount: string
   googleDiscount: string
@@ -161,6 +169,13 @@ const CART_SALE_COPY: Record<WebLocale, {
   loyaltyDiscount: string
   clearanceSubtotal: string
   merchandise: string
+  regularGoods: string
+  regularSubtotal: string
+  warehouseList: string
+  warehouseSubtotal: string
+  savedOnRegular: string
+  grandTotal: string
+  expectedLine: string
   capMeter: string
   capNotice: string
   capReachedVoucher: string
@@ -174,16 +189,27 @@ const CART_SALE_COPY: Record<WebLocale, {
     voucherWallet: 'Voucher của bạn',
     noVoucher: 'Chưa có voucher phù hợp.',
     expiresSoon: 'Sắp hết hạn',
-    listSubtotal: 'Giá niêm yết',
+    listSubtotal: 'Giá gốc',
+    listUnit: 'Giá gốc',
+    comingSoon: 'Sắp {program} -{pct}%',
+    birthdayAtCheckout: 'CMSN -{pct}% ở tổng đơn',
     flashDiscount: 'Flash sale',
+    flashAlreadyDeducted: '{program} ({amount} đã trừ trên giá SP)',
     saleDiscount: 'Sale {date}',
     inventoryDiscount: 'Giảm giá sản phẩm',
     googleDiscount: 'Google Shopping',
-    birthdayDiscount: 'Sale CMSN {pct}%',
-    birthdayPaused: 'CMSN tạm tắt vì đang dùng voucher',
-    loyaltyDiscount: 'Hạng thành viên',
+    birthdayDiscount: 'CMSN {pct}%',
+    birthdayPaused: 'Đang dùng mã — CMSN tạm tắt (chọn một trong hai).',
+    loyaltyDiscount: 'Giảm giá hạng',
     clearanceSubtotal: 'Sale thanh lý kho',
     merchandise: 'Tiền hàng',
+    regularGoods: 'Hàng thường',
+    regularSubtotal: 'Tạm tính hàng thường',
+    warehouseList: 'Giá gốc (thanh lý)',
+    warehouseSubtotal: 'Tạm tính thanh lý kho',
+    savedOnRegular: 'Đã tiết kiệm {amount} trên hàng thường.',
+    grandTotal: 'Tổng thanh toán',
+    expectedLine: 'Dự kiến {amount}',
     capMeter: 'Trần ưu đãi 15%: đã dùng {used} / {max}',
     capNotice: 'Tổng ưu đãi đã được giới hạn ở 15% giá niêm yết.',
     capReachedVoucher: 'Không thêm được mã này vì đơn đã đạt trần ưu đãi 15% giá niêm yết.',
@@ -198,15 +224,26 @@ const CART_SALE_COPY: Record<WebLocale, {
     noVoucher: 'No eligible voucher yet.',
     expiresSoon: 'Expiring soon',
     listSubtotal: 'List price',
+    listUnit: 'List price',
+    comingSoon: 'Coming {program} -{pct}%',
+    birthdayAtCheckout: 'CMSN -{pct}% at checkout',
     flashDiscount: 'Flash sale',
+    flashAlreadyDeducted: '{program} ({amount} already off the item price)',
     saleDiscount: 'Sale {date}',
     inventoryDiscount: 'Product sale',
     googleDiscount: 'Google Shopping',
     birthdayDiscount: 'CMSN {pct}%',
-    birthdayPaused: 'CMSN paused while a voucher is applied',
-    loyaltyDiscount: 'Membership tier',
+    birthdayPaused: 'A voucher is applied — CMSN is paused (choose one).',
+    loyaltyDiscount: 'Tier discount',
     clearanceSubtotal: 'Warehouse sale',
     merchandise: 'Merchandise',
+    regularGoods: 'Regular items',
+    regularSubtotal: 'Regular subtotal',
+    warehouseList: 'List price (clearance)',
+    warehouseSubtotal: 'Clearance subtotal',
+    savedOnRegular: 'Saved {amount} on regular items.',
+    grandTotal: 'Amount due',
+    expectedLine: 'Expected {amount}',
     capMeter: '15% discount cap: {used} of {max} used',
     capNotice: 'Total discounts have been capped at 15% of list price.',
     capReachedVoucher: 'This code cannot add more savings because the order has already reached the 15% discount cap.',
@@ -220,16 +257,27 @@ const CART_SALE_COPY: Record<WebLocale, {
     voucherWallet: '您的优惠券',
     noVoucher: '暂无可用优惠券。',
     expiresSoon: '即将到期',
-    listSubtotal: '标价',
+    listSubtotal: '原价',
+    listUnit: '原价',
+    comingSoon: '即将 {program} -{pct}%',
+    birthdayAtCheckout: 'CMSN -{pct}% 结账减免',
     flashDiscount: 'Flash sale',
+    flashAlreadyDeducted: '{program}（{amount} 已从单价扣除）',
     saleDiscount: 'Sale {date}',
     inventoryDiscount: '商品促销',
     googleDiscount: 'Google Shopping',
     birthdayDiscount: 'CMSN {pct}%',
-    birthdayPaused: '已使用优惠券，CMSN 暂停',
-    loyaltyDiscount: '会员等级',
+    birthdayPaused: '已使用优惠券，CMSN 暂停（二者选一）。',
+    loyaltyDiscount: '会员等级减免',
     clearanceSubtotal: '仓库清仓',
     merchandise: '商品金额',
+    regularGoods: '普通商品',
+    regularSubtotal: '普通商品小计',
+    warehouseList: '原价（清仓）',
+    warehouseSubtotal: '清仓小计',
+    savedOnRegular: '普通商品已省 {amount}。',
+    grandTotal: '应付总额',
+    expectedLine: '预计 {amount}',
     capMeter: '优惠上限 15%：已用 {used} / {max}',
     capNotice: '总优惠已限制为标价的 15%。',
     capReachedVoucher: '订单优惠已达标价 15% 上限，无法再叠加此优惠码。',
@@ -244,15 +292,26 @@ const CART_SALE_COPY: Record<WebLocale, {
     noVoucher: '利用可能なクーポンはありません。',
     expiresSoon: 'まもなく期限切れ',
     listSubtotal: '定価',
+    listUnit: '定価',
+    comingSoon: 'まもなく {program} -{pct}%',
+    birthdayAtCheckout: 'CMSN -{pct}%（会計時）',
     flashDiscount: 'Flash sale',
+    flashAlreadyDeducted: '{program}（{amount} は単価から減額済）',
     saleDiscount: 'Sale {date}',
     inventoryDiscount: '商品セール',
     googleDiscount: 'Google Shopping',
     birthdayDiscount: 'CMSN {pct}%',
-    birthdayPaused: 'クーポン利用中のため CMSN は停止',
-    loyaltyDiscount: '会員ランク',
+    birthdayPaused: 'クーポン利用中のため CMSN は停止（いずれか一方）。',
+    loyaltyDiscount: 'ランク割引',
     clearanceSubtotal: '倉庫セール',
     merchandise: '商品代金',
+    regularGoods: '通常商品',
+    regularSubtotal: '通常小計',
+    warehouseList: '定価（倉庫）',
+    warehouseSubtotal: '倉庫小計',
+    savedOnRegular: '通常商品で {amount} お得。',
+    grandTotal: 'お支払い合計',
+    expectedLine: '予定 {amount}',
     capMeter: '割引上限15%：{used} / {max} 使用',
     capNotice: '割引合計は定価の15%を上限としています。',
     capReachedVoucher: '注文の割引が定価の15%上限に達しているため、このコードは追加できません。',
@@ -267,15 +326,26 @@ const CART_SALE_COPY: Record<WebLocale, {
     noVoucher: '사용 가능한 쿠폰이 없습니다.',
     expiresSoon: '곧 만료',
     listSubtotal: '정가',
+    listUnit: '정가',
+    comingSoon: '곧 {program} -{pct}%',
+    birthdayAtCheckout: 'CMSN -{pct}% 결제 시',
     flashDiscount: 'Flash sale',
+    flashAlreadyDeducted: '{program} ({amount} 단가에서 이미 차감)',
     saleDiscount: 'Sale {date}',
     inventoryDiscount: '상품 세일',
     googleDiscount: 'Google Shopping',
     birthdayDiscount: 'CMSN {pct}%',
-    birthdayPaused: '쿠폰 사용 중이라 CMSN이 일시 중지됨',
-    loyaltyDiscount: '회원 등급',
+    birthdayPaused: '쿠폰 사용 중이라 CMSN이 일시 중지됨 (둘 중 하나).',
+    loyaltyDiscount: '등급 할인',
     clearanceSubtotal: '창고 세일',
     merchandise: '상품 금액',
+    regularGoods: '일반 상품',
+    regularSubtotal: '일반 소계',
+    warehouseList: '정가 (청산)',
+    warehouseSubtotal: '청산 소계',
+    savedOnRegular: '일반 상품에서 {amount} 절약.',
+    grandTotal: '결제 금액',
+    expectedLine: '예정 {amount}',
     capMeter: '할인 한도 15%: {used} / {max} 사용',
     capNotice: '총 할인은 정가의 15%로 제한되었습니다.',
     capReachedVoucher: '주문이 이미 정가 15% 할인 한도에 도달해 이 코드를 더 적용할 수 없습니다.',
@@ -294,6 +364,23 @@ function calendarSaleProgramName(
   const date = formatPartnerSaleDayMonth(calendar?.eventDate || calendar?.saleDate, null)
   if (date) return template.replace('{date}', date)
   return template.replace('{date}', '').replace(/\s+/g, ' ').trim()
+}
+
+function cartLineProgramName(
+  line: CartQuote['lines'][number] | undefined,
+  calendar: CartQuote['saleCalendar'],
+  locale: WebLocale,
+  inventoryLabel: string
+): string {
+  const named = String(line?.programName || '').trim()
+  if (named) return named
+  const copy = partnerSiteSaleCopy(locale)
+  if (line?.priceKind === 'flash') return copy.flashName
+  if (line?.isClearance) return copy.clearanceName
+  if (line?.priceKind === 'google') return copy.googleName
+  if (line?.priceKind === 'calendar') return calendar?.eventLabel || copy.activeFallback
+  if (line?.priceKind === 'inventory') return inventoryLabel
+  return calendar?.eventLabel || copy.program
 }
 
 function voucherBlockedByDiscountCap(quote: CartQuote): boolean {
@@ -1044,7 +1131,43 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
           const lineQuote = quotedLineById.get(item.id)
           const unitPrice = lineQuote?.effectiveUnitPrice ?? parseVndFromPriceHint(item.card.price_hint)
           const listUnitPrice = lineQuote?.listUnitPrice ?? unitPrice
-          const lineTotal = unitPrice * Math.max(1, item.quantity)
+          const qty = Math.max(1, item.quantity)
+          const lineTotal = unitPrice * qty
+          const listLineTotal = listUnitPrice * qty
+          const expectedUnit =
+            lineQuote?.expectedSaleUnitPrice != null &&
+            lineQuote.expectedSaleUnitPrice > 0 &&
+            lineQuote.expectedSaleUnitPrice < listUnitPrice
+              ? lineQuote.expectedSaleUnitPrice
+              : null
+          const isTeaserLine = expectedUnit != null && !(listUnitPrice > unitPrice)
+          const unitSavings = listUnitPrice > unitPrice ? listUnitPrice - unitPrice : 0
+          const teaserUnitSavings = isTeaserLine && expectedUnit != null ? listUnitPrice - expectedUnit : 0
+          const programName = cartLineProgramName(lineQuote, quote?.saleCalendar, locale, saleT.inventoryDiscount)
+          const chipKind =
+            lineQuote?.priceKind === 'flash'
+              ? 'flash'
+              : lineQuote?.isClearance
+                ? 'clearance'
+                : lineQuote?.priceKind === 'google'
+                  ? 'google'
+                  : isTeaserLine
+                    ? 'teaser'
+                    : lineQuote?.priceKind === 'calendar'
+                      ? 'calendar'
+                      : lineQuote?.saleBadge
+                        ? 'calendar'
+                        : ''
+          const chipLabel = lineQuote?.saleBadge
+            ? isTeaserLine
+              ? partnerSiteSaleFill(saleT.comingSoon, {
+                  program: programName,
+                  pct: quote?.saleCalendar?.discountPercent ?? 0,
+                })
+              : lineQuote.saleBadge
+            : lineQuote?.isClearance
+              ? saleT.clearanceSubtotal
+              : ''
           return (
           <div key={item.id} className={`pw-shop-cart-row${selectedLineIds.has(item.id) ? ' is-selected' : ''}`} data-pw-el={PW_EL.line}>
             <label className="pw-shop-cart-check" aria-label={saleT.selectProduct}>
@@ -1064,25 +1187,67 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
             <img src={item.card.image_url} alt={item.card.name} data-pw-el={PW_EL.cardMedia} />
             <div className="pw-shop-cart-row-main">
               <strong data-pw-el={PW_EL.cardName}>{item.card.name}</strong>
+              {chipLabel ? (
+                <div className="pw-shop-cart-line-chips">
+                  <span className={`pw-shop-cart-chip pw-shop-cart-chip-${chipKind}`}>{chipLabel}</span>
+                  {birthdayPercent > 0 && !lineQuote?.isClearance ? (
+                    <span className="pw-shop-cart-chip pw-shop-cart-chip-birthday">
+                      {partnerSiteSaleFill(saleT.birthdayAtCheckout, { pct: birthdayPercent })}
+                    </span>
+                  ) : null}
+                </div>
+              ) : birthdayPercent > 0 && !lineQuote?.isClearance ? (
+                <div className="pw-shop-cart-line-chips">
+                  <span className="pw-shop-cart-chip pw-shop-cart-chip-birthday">
+                    {partnerSiteSaleFill(saleT.birthdayAtCheckout, { pct: birthdayPercent })}
+                  </span>
+                </div>
+              ) : null}
               <p className="pw-shop-price" data-pw-el={PW_EL.cardPrice}>
+                {isTeaserLine ? <span className="pw-shop-cart-kicker">{saleT.listUnit}</span> : null}
                 {formatVnd(unitPrice)}
                 {listUnitPrice > unitPrice ? <del className="pw-price-compare"> {formatVnd(listUnitPrice)}</del> : null}
-                {lineQuote?.saleBadge ? <span className="pw-shop-cart-line-badge"> {lineQuote.saleBadge}</span> : null}
-                {lineQuote?.isClearance && !lineQuote?.saleBadge ? (
-                  <span className="pw-shop-address-default"> {saleT.clearanceSubtotal}</span>
-                ) : null}
               </p>
-              {lineQuote?.expectedSaleUnitPrice != null &&
-              lineQuote.expectedSaleUnitPrice > 0 &&
-              lineQuote.expectedSaleUnitPrice < listUnitPrice &&
-              !(listUnitPrice > unitPrice) ? (
-                <p className="pw-shop-cart-teaser">
-                  {siteSaleT.expectedPrice} {formatVnd(lineQuote.expectedSaleUnitPrice)}
-                  {' · '}
-                  {siteSaleT.expectedSave
-                    .replace('{pct}', String(quote?.saleCalendar?.discountPercent ?? 0))
-                    .replace('{amount}', formatVnd(listUnitPrice - lineQuote.expectedSaleUnitPrice))}
-                </p>
+              {isTeaserLine && expectedUnit != null ? (
+                <>
+                  <p className="pw-shop-cart-line-expected">
+                    {partnerSiteSaleFill(siteSaleT.expectedPrice, { program: programName })} {formatVnd(expectedUnit)}
+                  </p>
+                  <p className="pw-shop-cart-line-save is-teaser">
+                    {partnerSiteSaleFill(siteSaleT.teaserSave, {
+                      program: programName,
+                      amount: formatVnd(teaserUnitSavings),
+                    })}
+                  </p>
+                  {lineQuote?.countdownTo ? (
+                    <p className="pw-shop-cart-line-count">
+                      <PartnerSiteSaleCountdown
+                        countdownTo={lineQuote.countdownTo}
+                        phase="teaser"
+                        locale={locale}
+                        eventLabel={programName}
+                        promoKind={lineQuote.priceKind === 'flash' ? 'flash' : 'calendar'}
+                      />
+                    </p>
+                  ) : null}
+                </>
+              ) : unitSavings > 0 ? (
+                <>
+                  <p className="pw-shop-cart-line-save">
+                    {partnerSiteSaleFill(siteSaleT.save, { program: programName, amount: formatVnd(unitSavings) })}
+                  </p>
+                  {lineQuote?.countdownTo && lineQuote.priceKind !== 'clearance' ? (
+                    <p className="pw-shop-cart-line-count">
+                      <PartnerSiteSaleCountdown
+                        countdownTo={lineQuote.countdownTo}
+                        phase="active"
+                        locale={locale}
+                        eventLabel={programName}
+                        promoKind={lineQuote.priceKind === 'flash' ? 'flash' : 'calendar'}
+                      />
+                    </p>
+                  ) : null}
+                </>
               ) : null}
               {item.color || item.size ? (
                 <p className="pw-shop-muted">
@@ -1125,7 +1290,32 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                 </button>
               </div>
             </div>
-            <p className="pw-shop-cart-line-total">{formatVnd(lineTotal)}</p>
+            <div className="pw-shop-cart-line-total-wrap">
+              <p className="pw-shop-cart-line-total">{formatVnd(lineTotal)}</p>
+              {isTeaserLine && expectedUnit != null ? (
+                <>
+                  <p className="pw-shop-cart-line-expected">{partnerSiteSaleFill(saleT.expectedLine, { amount: formatVnd(expectedUnit * qty) })}</p>
+                  <p className="pw-shop-cart-line-save is-teaser">
+                    {partnerSiteSaleFill(siteSaleT.teaserSave, {
+                      program: programName,
+                      amount: formatVnd(teaserUnitSavings * qty),
+                    })}
+                  </p>
+                </>
+              ) : unitSavings > 0 ? (
+                <>
+                  {listLineTotal > lineTotal ? (
+                    <p className="pw-shop-cart-line-compare">{formatVnd(listLineTotal)}</p>
+                  ) : null}
+                  <p className="pw-shop-cart-line-save">
+                    {partnerSiteSaleFill(siteSaleT.save, {
+                      program: programName,
+                      amount: formatVnd(unitSavings * qty),
+                    })}
+                  </p>
+                </>
+              ) : null}
+            </div>
           </div>
           )
         })}
@@ -1153,6 +1343,8 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                   countdownTo={quote.saleCalendar.countdownTo}
                   phase="teaser"
                   locale={locale}
+                  eventLabel={quote.saleCalendar.eventLabel}
+                  promoKind="calendar"
                 />
               ) : null}
             </div>
@@ -1162,42 +1354,79 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               countdownTo={quote.saleCalendar.countdownTo}
               phase="active"
               locale={locale}
+              eventLabel={quote.saleCalendar.eventLabel}
+              promoKind="calendar"
             />
           ) : null}
           {quote ? (
             <div className="pw-shop-cart-discount-breakdown">
               {quote.breakdown.regularListSubtotal > 0 ? (
+                <p className="pw-shop-cart-section">{saleT.regularGoods}</p>
+              ) : null}
+              {quote.breakdown.regularListSubtotal > quote.breakdown.regularEffectiveSubtotal ? (
+                <p className="is-list"><span>{saleT.listSubtotal}</span><strong>{formatVnd(quote.breakdown.regularListSubtotal)}</strong></p>
+              ) : quote.breakdown.regularListSubtotal > 0 ? (
                 <p><span>{saleT.listSubtotal}</span><strong>{formatVnd(quote.breakdown.regularListSubtotal)}</strong></p>
               ) : null}
               {flashSaleAmount > 0 ? (
-                <p><span>{saleT.flashDiscount}</span><strong>−{formatVnd(flashSaleAmount)}</strong></p>
+                <p className="is-flash">
+                  <span>
+                    {partnerSiteSaleFill(saleT.flashAlreadyDeducted, {
+                      program: saleT.flashDiscount,
+                      amount: formatVnd(flashSaleAmount),
+                    })}
+                  </span>
+                  <strong>−{formatVnd(flashSaleAmount)}</strong>
+                </p>
               ) : null}
               {calendarSaleAmount > 0 ? (
-                <p><span>{calendarProgramName}</span><strong>−{formatVnd(calendarSaleAmount)}</strong></p>
+                <p className="is-calendar">
+                  <span>
+                    {calendarProgramName}
+                    {quote.saleCalendar?.discountPercent ? ` (-${quote.saleCalendar.discountPercent}%)` : ''}
+                  </span>
+                  <strong>−{formatVnd(calendarSaleAmount)}</strong>
+                </p>
               ) : null}
               {inventorySaleAmount > 0 ? (
                 <p><span>{saleT.inventoryDiscount}</span><strong>−{formatVnd(inventorySaleAmount)}</strong></p>
               ) : null}
               {quote.breakdown.googleDiscountAmount > 0 ? (
-                <p><span>{saleT.googleDiscount}</span><strong>−{formatVnd(quote.breakdown.googleDiscountAmount)}</strong></p>
+                <p className="is-google"><span>{saleT.googleDiscount}</span><strong>−{formatVnd(quote.breakdown.googleDiscountAmount)}</strong></p>
               ) : null}
               {quote.breakdown.voucherDiscountAmount > 0 ? (
-                <p><span>{appliedPromo?.name || appliedPromo?.code || t.cartPromoDiscountLabel}</span><strong>−{formatVnd(quote.breakdown.voucherDiscountAmount)}</strong></p>
+                <p className="is-voucher"><span>{appliedPromo?.name || appliedPromo?.code || t.cartPromoDiscountLabel}</span><strong>−{formatVnd(quote.breakdown.voucherDiscountAmount)}</strong></p>
               ) : null}
               {birthdayAmount > 0 ? (
-                <p><span>{saleT.birthdayDiscount.replace('{pct}', String(birthdayPercent || ''))}</span><strong>−{formatVnd(birthdayAmount)}</strong></p>
+                <p className="is-birthday"><span>{saleT.birthdayDiscount.replace('{pct}', String(birthdayPercent || ''))}</span><strong>−{formatVnd(birthdayAmount)}</strong></p>
               ) : birthdayPaused ? (
                 <p className="pw-shop-cart-promo-msg is-warn">{saleT.birthdayPaused}</p>
               ) : birthdayHintOnly ? (
-                <p className="pw-shop-muted"><span>{partnerSiteBirthdayCheckoutHint(birthdayPercent, locale)}</span></p>
+                <p className="is-birthday"><span>{partnerSiteBirthdayCheckoutHint(birthdayPercent, locale)}</span></p>
               ) : null}
               {quote.breakdown.loyaltyDiscountAmount > 0 ? (
-                <p><span>{saleT.loyaltyDiscount}{quote.loyalty.tierName ? ` ${quote.loyalty.tierName}` : ''}</span><strong>−{formatVnd(quote.breakdown.loyaltyDiscountAmount)}</strong></p>
+                <p className="is-loyalty"><span>{saleT.loyaltyDiscount}{quote.loyalty.tierName ? ` ${quote.loyalty.tierName}` : ''}</span><strong>−{formatVnd(quote.breakdown.loyaltyDiscountAmount)}</strong></p>
+              ) : null}
+              {quote.breakdown.regularListSubtotal > 0 ? (
+                <p>
+                  <span>{saleT.regularSubtotal}</span>
+                  <strong>{formatVnd(Math.max(0, quote.breakdown.amountAfterDiscount - quote.breakdown.clearanceSubtotal))}</strong>
+                </p>
               ) : null}
               {quote.breakdown.clearanceSubtotal > 0 ? (
-                <p className="is-clearance"><span>{saleT.clearanceSubtotal}</span><strong>{formatVnd(quote.breakdown.clearanceSubtotal)}</strong></p>
+                <div className="is-clearance">
+                  <p className="pw-shop-cart-section">{saleT.clearanceSubtotal}</p>
+                  <p>
+                    <span>{saleT.warehouseSubtotal}</span>
+                    <strong>{formatVnd(quote.breakdown.clearanceSubtotal)}</strong>
+                  </p>
+                </div>
               ) : null}
-              <p><span>{saleT.merchandise}</span><strong>{formatVnd(quote.breakdown.amountAfterDiscount)}</strong></p>
+              {quote.breakdown.regularListSubtotal > 0 && quote.breakdown.totalDiscountAmount > 0 ? (
+                <p className="pw-shop-cart-saved">
+                  {partnerSiteSaleFill(saleT.savedOnRegular, { amount: formatVnd(quote.breakdown.totalDiscountAmount) })}
+                </p>
+              ) : null}
               {quote.breakdown.maxDiscountAmount > 0 && quote.breakdown.totalDiscountAmount > 0 ? (
                 <p className="pw-shop-cart-cap-meter">
                   {saleT.capMeter
@@ -1310,7 +1539,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               : ''}
           </p>
           <p className="pw-shop-cart-grand" data-pw-el={PW_EL.price}>
-            {t.cartTotalLabel}: {formatVnd(orderTotal)}
+            {saleT.grandTotal}: {formatVnd(orderTotal)}
           </p>
           {depositPreview && depositPreview.amount > 0 ? (
             <p className="pw-shop-cart-deposit-note">

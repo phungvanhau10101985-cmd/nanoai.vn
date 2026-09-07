@@ -626,6 +626,7 @@ test('labeled chrome buttons hug icon and text', () => {
   assert.match(PW_CHROME_LABELED_MIN_W_CSS, /width:auto!important/)
   assert.match(PW_CHROME_LABELED_MIN_W_CSS, /min-width:0!important/)
   assert.match(PW_CHROME_LABELED_MIN_W_CSS, /height:auto!important/)
+  assert.match(PW_CHROME_LABELED_MIN_W_CSS, /data-pw-kit-lock="cta"/)
   assert.match(PW_CHROME_LABELED_MIN_W_CSS, /icon-label-below/)
   assert.match(PW_CHROME_LABELED_MIN_W_CSS, /max-width:none!important/)
   assert.match(PW_CHROME_LABELED_MIN_W_CSS, /font-size:var\(--pw-chrome-label,13px\)!important/)

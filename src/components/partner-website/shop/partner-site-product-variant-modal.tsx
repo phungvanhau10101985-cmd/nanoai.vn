@@ -16,7 +16,10 @@ import {
   formatPartnerSaleMoney,
   partnerSiteBirthdayCheckoutHint,
   partnerSiteSaleCopy,
+  partnerSiteSaleFill,
   partnerSiteSalePillText,
+  partnerSiteSaleProgramName,
+  partnerSiteSaleSaveText,
   resolvePartnerProductSaleFace,
   writePartnerSaleCountdownNode,
   type PartnerSiteSalePricing,
@@ -255,12 +258,7 @@ export function PartnerSiteProductVariantModal({
     unitPrice != null ? formatPartnerShopMoneyVnd(unitPrice * effectiveQty) : priceLabel
   const lineSavings = showSiteSale && saleFace.savings > 0 ? saleFace.savings * effectiveQty : 0
   const lineSaveText =
-    lineSavings > 0
-      ? (saleFace.kind === 'teaser' ? saleCopy.teaserSave : saleCopy.save).replace(
-          '{amount}',
-          formatPartnerSaleMoney(lineSavings, locale)
-        )
-      : ''
+    lineSavings > 0 ? partnerSiteSaleSaveText(saleFace, locale, { amount: lineSavings, surface: 'detail' }) : ''
   const selectedColor = colorIndex >= 0 ? colors[colorIndex] : null
   const displayImage = shopPdpPageSrc(selectedColor?.img || product.imageUrl)
   const sku = String(product.sku || '').trim()
@@ -319,19 +317,19 @@ export function PartnerSiteProductVariantModal({
         {priceLabel ? <p data-pw-variant-price>{priceLabel}</p> : null}
         {saleFace.kind === 'teaser' && saleFace.expectedPrice != null ? (
           <span data-pw-variant-expected>
-            <span>{saleCopy.expectedPrice}</span> {formatPartnerSaleMoney(saleFace.expectedPrice, locale)}
+            <span>
+              {partnerSiteSaleFill(saleCopy.expectedPrice, {
+                program: partnerSiteSaleProgramName(saleFace, locale),
+              })}
+            </span>{' '}
+            {formatPartnerSaleMoney(saleFace.expectedPrice, locale)}
           </span>
         ) : null}
         {saleFace.kind === 'active' && saleFace.comparePrice != null ? (
           <span data-pw-variant-compare>{formatPartnerSaleMoney(saleFace.comparePrice, locale)}</span>
         ) : null}
         {saleFace.savings > 0 ? (
-          <span data-pw-variant-save-chip>
-            {(saleFace.kind === 'teaser' ? saleCopy.teaserSave : saleCopy.save).replace(
-              '{amount}',
-              formatPartnerSaleMoney(saleFace.savings, locale)
-            )}
-          </span>
+          <span data-pw-variant-save-chip>{partnerSiteSaleSaveText(saleFace, locale, { surface: 'detail' })}</span>
         ) : null}
         {saleFace.percent > 0 ? <span data-pw-variant-pct>-{saleFace.percent}%</span> : null}
       </div>

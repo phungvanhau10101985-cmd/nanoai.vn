@@ -27,7 +27,16 @@ export function buildPartnerSitePdpBootstrapScript(input: { siteSlug: string; lo
     locale,
     expectedPrice: saleCopy.expectedPrice,
     expectedSave: saleCopy.expectedSave,
+    teaserSave: saleCopy.teaserSave,
     save: saleCopy.save,
+    flashName: saleCopy.flashName,
+    clearanceName: saleCopy.clearanceName,
+    currentPrice: saleCopy.currentPrice,
+    countdownStarts: saleCopy.countdownStarts,
+    countdownLeft: saleCopy.countdownLeft,
+    flashRemaining: saleCopy.flashRemaining,
+    teaserFallback: saleCopy.teaserFallback,
+    activeFallback: saleCopy.activeFallback,
     sizeLabel: t.sizeLabel,
     colorLabel: t.colorLabel,
     pdpBrandLabel: t.pdpBrandLabel,
@@ -221,14 +230,58 @@ function apply(p){
     el.style.display='';
     el.className=(el.className||'').replace(/pw-pdp-sale-pill\\S*/g,'');
     el.classList.add('pw-pdp-sale-pill','pw-pdp-sale-pill-'+(sale.kind||'active'));
+    if(sale.promoKind)el.classList.add('pw-pdp-sale-pill-'+sale.promoKind);
     el.textContent=sale.badge;
   });
+  var card=document.querySelector('.pw-pdp-price-card');
+  var timer=card&&card.querySelector('[data-pw-pdp-slot="sale-timer"]');
+  if(sale&&sale.countdown&&sale.promoKind!=='clearance'){
+    var prefix=sale.promoKind==='flash'?String(COPY.flashRemaining||'')
+      :String((sale.kind==='active'?COPY.countdownLeft:COPY.countdownStarts)||'').replace('{label}',sale.program||'');
+    if(!timer&&card){
+      timer=document.createElement('div');
+      timer.setAttribute('data-pw-pdp-slot','sale-timer');
+      var flashEl=card.querySelector('[data-pw-pdp-slot="flash"]');
+      if(flashEl&&flashEl.nextSibling)card.insertBefore(timer,flashEl.nextSibling);
+      else if(flashEl)card.appendChild(timer);
+      else card.insertBefore(timer,card.firstChild);
+    }
+    if(timer){
+      timer.style.display='';
+      timer.className='pw-pdp-sale-timer pw-pdp-sale-timer-'+(sale.promoKind==='flash'?'flash':sale.kind);
+      timer.setAttribute('data-pw-sale-countdown',sale.countdown);
+      timer.setAttribute('data-pw-sale-phase',sale.kind||'');
+      timer.setAttribute('data-pw-sale-kind',sale.promoKind||'');
+      timer.setAttribute('data-pw-sale-label',sale.program||'');
+      timer.innerHTML='⏱ '+esc(prefix)+' <span data-pw-sale-hms></span>';
+    }
+  }else if(timer){
+    timer.style.display='none';
+  }
+  var kicker=card&&card.querySelector('[data-pw-pdp-slot="price-kicker"]');
+  if(sale){
+    if(!kicker&&card){
+      kicker=document.createElement('p');
+      kicker.className='pw-pdp-price-kicker';
+      kicker.setAttribute('data-pw-pdp-slot','price-kicker');
+      var after=timer||card.querySelector('[data-pw-pdp-slot="flash"]');
+      if(after&&after.nextSibling)card.insertBefore(kicker,after.nextSibling);
+      else if(after)card.appendChild(kicker);
+      else card.insertBefore(kicker,card.firstChild);
+    }
+    if(kicker){
+      kicker.style.display='';
+      kicker.textContent=sale.kind==='teaser'?String(COPY.currentPrice||''):(sale.program||'');
+    }
+  }else if(kicker){
+    kicker.style.display='none';
+  }
   document.querySelectorAll('[data-pw-pdp-slot="savings"]').forEach(function(el){
     if(!sale){el.style.display='none';return;}
     el.style.display='';
     el.textContent=sale.kind==='teaser'
-      ?(COPY.expectedSave||'').replace('{pct}',String(sale.percent)).replace('{amount}',sale.savings)
-      :(COPY.save||'').replace('{amount}',sale.savings);
+      ?(COPY.teaserSave||COPY.expectedSave||'').replace('{program}',sale.program||'').replace('{pct}',String(sale.percent)).replace('{amount}',sale.savings)
+      :(COPY.save||'').replace('{program}',sale.program||'').replace('{amount}',sale.savings);
   });
   var imgs=imagesOf(p);
   var main=imgs[0]||'';

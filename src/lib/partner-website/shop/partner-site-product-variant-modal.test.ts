@@ -73,7 +73,7 @@ test('shop-actions injects PDP variant modal before add-to-cart', () => {
   assert.match(script, /Thêm vào Giỏ hàng/)
   assert.match(script, /Số lượng \(hàng order\)/)
   assert.match(script, /SALE_COPY/)
-  assert.match(script, /Tiết kiệm dự kiến/)
+  assert.match(script, /tiết kiệm dự kiến/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /openPdpVariantModal/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /function variantImg/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /data-pw-variant-sale/)

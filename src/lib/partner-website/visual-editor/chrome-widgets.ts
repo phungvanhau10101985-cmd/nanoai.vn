@@ -200,6 +200,8 @@ export const PW_CHROME_LABELED_MIN_W_CSS =
   ':not([data-pw-chrome-style="icon-square"]):not([data-pw-chrome-style="icon-circle"]),' +
   '[data-pw-chrome-btn][data-pw-chrome-style="icon"],[data-pw-chrome-added][data-pw-chrome-style="icon"]{' +
   'width:auto!important;min-width:0!important;height:auto!important;min-height:0!important;box-sizing:border-box!important}' +
+  'html [data-pw-chrome-btn][data-pw-kit-lock="cta"],html [data-pw-kit-lock="cta"].pw-shop-btn{' +
+  'height:auto!important;min-height:40px!important;max-height:none!important}' +
   '.pw-search-form [data-pw-chrome-btn],.pw-shop-search-form [data-pw-chrome-btn]{width:auto!important;min-width:0!important;height:auto!important;min-height:0!important}' +
   '.pw-chrome-label-below .pw-chrome-btn-label,.pw-chrome-label-below .pw-shop-nav-label,.pw-chrome-label-below .pw-shop-icon-label,' +
   '.pw-chrome-label-below .pw-account-btn-label,' +

@@ -46,8 +46,12 @@ import {
   formatPartnerSaleMoney,
   partnerSiteBirthdayCheckoutHint,
   partnerSiteSaleCopy,
+  partnerSiteSaleExpectedPriceText,
+  partnerSiteSaleProgramName,
+  partnerSiteSaleSaveText,
   resolvePartnerProductSaleFace,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
+import { PartnerSiteSaleCountdown } from '@/components/partner-website/shop/partner-site-sale-face'
 import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
 import { PartnerSiteProductVariantModal } from '@/components/partner-website/shop/partner-site-product-variant-modal'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
@@ -765,29 +769,49 @@ export function PartnerSiteShopProductClient({
             <div className="pw-pdp-price-card">
               {saleFace.badge ? (
                 <span className={`pw-pdp-sale-pill pw-pdp-sale-pill-${saleFace.kind}${saleFace.promoKind ? ` pw-pdp-sale-pill-${saleFace.promoKind}` : ''}`} data-pw-el={PW_EL.badge}>
+                  {saleFace.kind === 'teaser' ? '⏳ ' : saleFace.promoKind === 'flash' ? '⚡ ' : saleFace.promoKind === 'clearance' ? '🏷️ ' : '🔥 '}
                   {saleFace.badge}
                 </span>
               ) : null}
+              {saleFace.countdownTo && saleFace.promoKind !== 'clearance' ? (
+                <div
+                  className={`pw-pdp-sale-timer pw-pdp-sale-timer-${saleFace.promoKind === 'flash' ? 'flash' : saleFace.kind}`}
+                  data-pw-pdp-slot="sale-timer"
+                >
+                  <PartnerSiteSaleCountdown
+                    countdownTo={saleFace.countdownTo}
+                    phase={saleFace.kind}
+                    locale={locale}
+                    eventLabel={saleFace.eventLabel}
+                    promoKind={saleFace.promoKind}
+                  />
+                </div>
+              ) : null}
+              <p className="pw-pdp-price-kicker">
+                {saleFace.kind === 'teaser'
+                  ? saleCopy.currentPrice
+                  : partnerSiteSaleProgramName(saleFace, locale)}
+              </p>
               <p className="pw-shop-price" data-pw-el={PW_EL.price}>
                 {formatPartnerSaleMoney(saleFace.displayPrice, locale)}
                 {saleFace.kind === 'teaser' && saleFace.expectedPrice != null ? (
                   <span className="pw-price-expected" data-pw-el={PW_EL.comparePrice}>
-                    {' → '}
-                    {formatPartnerSaleMoney(saleFace.expectedPrice, locale)}
+                    {' '}
+                    {partnerSiteSaleExpectedPriceText(
+                      partnerSiteSaleProgramName(saleFace, locale),
+                      saleFace.expectedPrice,
+                      locale
+                    )}
                   </span>
                 ) : saleFace.comparePrice != null ? (
                   <span className="pw-pdp-compare" data-pw-el={PW_EL.comparePrice}>
-                    {formatPartnerSaleMoney(saleFace.comparePrice, locale)}
+                    {saleCopy.listPriceLabel} {formatPartnerSaleMoney(saleFace.comparePrice, locale)}
                   </span>
                 ) : null}
               </p>
               {saleFace.savings > 0 ? (
                 <p className={`pw-pdp-save pw-price-${saleFace.kind === 'teaser' ? 'teaser' : 'save'}`}>
-                  {saleFace.kind === 'teaser'
-                    ? saleCopy.expectedSave
-                        .replace('{pct}', String(saleFace.percent))
-                        .replace('{amount}', formatPartnerSaleMoney(saleFace.savings, locale))
-                    : saleCopy.save.replace('{amount}', formatPartnerSaleMoney(saleFace.savings, locale))}
+                  {partnerSiteSaleSaveText(saleFace, locale, { surface: 'detail' })}
                 </p>
               ) : null}
               {birthdayHint ? <p className="pw-pdp-birthday-hint">{birthdayHint}</p> : null}

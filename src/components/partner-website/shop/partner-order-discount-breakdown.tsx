@@ -30,11 +30,11 @@ const COPY: Record<WebLocale, {
   afterDiscount: string
   capped: string
 }> = {
-  vi: { list: 'Giá niêm yết', flash: 'Flash sale', siteSale: 'Sale cùng ngày tháng', inventorySale: 'Giảm giá sản phẩm', google: 'Google Shopping', voucher: 'Voucher', birthday: 'Sale CMSN', loyalty: 'Hạng thành viên', clearance: 'Sale thanh lý kho', afterDiscount: 'Tiền hàng sau ưu đãi', capped: 'Ưu đãi đã áp dụng trần 15% giá niêm yết.' },
-  en: { list: 'List price', flash: 'Flash sale', siteSale: 'Same-day sale', inventorySale: 'Product sale', google: 'Google Shopping', voucher: 'Voucher', birthday: 'CMSN', loyalty: 'Membership tier', clearance: 'Warehouse sale', afterDiscount: 'Merchandise after discounts', capped: 'Discounts were capped at 15% of list price.' },
-  zh: { list: '标价', flash: 'Flash sale', siteSale: '同日促销', inventorySale: '商品促销', google: 'Google Shopping', voucher: '优惠券', birthday: 'CMSN', loyalty: '会员等级', clearance: '仓库清仓', afterDiscount: '优惠后商品金额', capped: '优惠已按标价的 15% 封顶。' },
-  ja: { list: '定価', flash: 'Flash sale', siteSale: '同日セール', inventorySale: '商品セール', google: 'Google Shopping', voucher: 'クーポン', birthday: 'CMSN', loyalty: '会員ランク', clearance: '倉庫セール', afterDiscount: '割引後の商品金額', capped: '割引は定価の15%を上限として適用されました。' },
-  ko: { list: '정가', flash: 'Flash sale', siteSale: '동일 날짜 세일', inventorySale: '상품 세일', google: 'Google Shopping', voucher: '쿠폰', birthday: 'CMSN', loyalty: '회원 등급', clearance: '창고 세일', afterDiscount: '할인 후 상품 금액', capped: '할인은 정가의 15% 한도로 적용되었습니다.' },
+  vi: { list: 'Giá gốc', flash: 'Flash sale', siteSale: 'Sale cùng ngày tháng', inventorySale: 'Giảm giá sản phẩm', google: 'Google Shopping', voucher: 'Voucher', birthday: 'CMSN', loyalty: 'Giảm giá hạng', clearance: 'Sale thanh lý kho', afterDiscount: 'Tạm tính hàng thường', capped: 'Ưu đãi đã áp dụng trần 15% giá gốc.' },
+  en: { list: 'List price', flash: 'Flash sale', siteSale: 'Same-day sale', inventorySale: 'Product sale', google: 'Google Shopping', voucher: 'Voucher', birthday: 'CMSN', loyalty: 'Tier discount', clearance: 'Warehouse sale', afterDiscount: 'Regular subtotal', capped: 'Discounts were capped at 15% of list price.' },
+  zh: { list: '原价', flash: 'Flash sale', siteSale: '同日促销', inventorySale: '商品促销', google: 'Google Shopping', voucher: '优惠券', birthday: 'CMSN', loyalty: '会员等级减免', clearance: '仓库清仓', afterDiscount: '普通商品小计', capped: '优惠已按原价的 15% 封顶。' },
+  ja: { list: '定価', flash: 'Flash sale', siteSale: '同日セール', inventorySale: '商品セール', google: 'Google Shopping', voucher: 'クーポン', birthday: 'CMSN', loyalty: 'ランク割引', clearance: '倉庫セール', afterDiscount: '通常小計', capped: '割引は定価の15%を上限として適用されました。' },
+  ko: { list: '정가', flash: 'Flash sale', siteSale: '동일 날짜 세일', inventorySale: '상품 세일', google: 'Google Shopping', voucher: '쿠폰', birthday: 'CMSN', loyalty: '등급 할인', clearance: '창고 세일', afterDiscount: '일반 소계', capped: '할인은 정가의 15% 한도로 적용되었습니다.' },
 }
 
 function amount(value: number | null | undefined): number {
@@ -68,9 +68,11 @@ export function PartnerOrderDiscountBreakdown(props: {
         ? Math.max(0, siteSale - flashAmount - calendarAmount)
         : 0
   )
+  const calendarLabel =
+    String(json.eventLabel || json.calendarEventLabel || '').trim() || t.siteSale
   const rows = [
     { label: t.flash, value: flashAmount },
-    { label: t.siteSale, value: calendarAmount },
+    { label: calendarLabel, value: calendarAmount },
     { label: t.inventorySale, value: inventoryAmount },
     { label: t.google, value: amount(props.order.google_discount_amount) },
     {

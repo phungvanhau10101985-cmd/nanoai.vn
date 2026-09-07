@@ -13,7 +13,7 @@ import {
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
 import { resolvePartnerStorefrontSaleCalendarForRequest } from '@/lib/partner-website/promotions/partner-feature-test-storefront'
 import { DEFAULT_WEB_LOCALE, normalizeWebLocale } from '@/lib/i18n/config'
-import { partnerSiteSaleDateBadgeLabel } from '@/lib/partner-website/promotions/partner-site-sale-display'
+import { partnerSiteSaleCopy, partnerSiteSaleDateBadgeLabel } from '@/lib/partner-website/promotions/partner-site-sale-display'
 
 export const dynamic = 'force-dynamic'
 
@@ -173,6 +173,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
           saleCalendar.discountPercent > 0
             ? Math.max(0, Math.round(line.listUnitPrice * (1 - saleCalendar.discountPercent / 100)))
             : null
+        const copy = partnerSiteSaleCopy(locale)
         const saleBadge =
           line.priceKind === 'flash'
             ? partnerSiteSaleDateBadgeLabel({
@@ -202,6 +203,16 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
                     locale,
                   })
                 : null
+        const programName =
+          line.priceKind === 'flash'
+            ? copy.flashName
+            : line.priceKind === 'calendar'
+              ? saleCalendar.eventLabel
+              : line.isClearance === true
+                ? copy.clearanceName
+                : line.priceKind === 'google'
+                  ? copy.googleName
+                  : null
         return {
           lineId: validLines[index]?.lineId ?? String(index),
           inventoryId: line.inventoryId,
@@ -214,6 +225,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
           flashPercent: line.flashPercent ?? null,
           countdownTo: line.countdownTo ?? null,
           saleBadge,
+          programName,
           expectedSaleUnitPrice:
             expected != null && expected > 0 && expected < line.listUnitPrice ? expected : null,
         }

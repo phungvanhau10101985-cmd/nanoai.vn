@@ -38,7 +38,9 @@ test('PDP bootstrap hydrates reviews, Q&A, and options instead of clearing cards
   assert.match(s, /pw-shop-product-detail-body/)
   assert.match(s, /SUMMARY_PAGE_SIZE=1/)
   assert.match(s, /REVIEW_PAGE_SIZE=20/)
-  assert.match(s, /data-pw-pdp-server-bound/)
+  assert.match(s, /data-pw-pdp-slot=['"]sale-timer['"]/)
+  assert.match(s, /data-pw-pdp-slot=['"]price-kicker['"]/)
+  assert.match(s, /countdownStarts/)
   assert.doesNotMatch(s, /pageSize=100/)
 })
 

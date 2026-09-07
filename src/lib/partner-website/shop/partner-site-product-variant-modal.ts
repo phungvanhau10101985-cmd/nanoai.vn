@@ -305,15 +305,16 @@ function variantSaleHtml(st){
   var price=variantMoney(face.display,st.priceHint);
   var expected=face.kind==='teaser'&&face.expected?variantMoney(face.expected,''):'';
   var saveAmt=variantMoney(face.savings,'');
-  var save=saveAmt?String((face.kind==='teaser'?sc.teaserSave:sc.save)||'').replace('{amount}',saveAmt):'';
+  var save=saveAmt?String((face.kind==='teaser'?sc.teaserSave:sc.save)||'').replace('{program}',label).replace('{amount}',saveAmt):'';
+  var expectedLabel=String(sc.expectedPrice||'').replace('{program}',label);
   var priceLabel=face.kind==='teaser'?sc.listPriceLabel:sc.offerPriceLabel;
   return '<div data-pw-variant-sale data-pw-sale-phase="'+face.kind+'">'
-    +(pill?'<span data-pw-variant-sale-pill>'+(face.kind==='teaser'?'⏳ ':'🔥 ')+variantEsc(pill)+'</span>':'')
+    +(pill?'<span data-pw-variant-sale-pill>'+(face.kind==='teaser'?'⏳ ':face.promoKind==='flash'?'⚡ ':'🔥 ')+variantEsc(pill)+'</span>':'')
     +(count?'<div data-pw-variant-sale-count>⏱ '+variantEsc(prefix)+' <strong data-pw-sale-hms>'+variantEsc(count)+'</strong></div>':'')
     +(priceLabel?'<p data-pw-variant-price-label>'+variantEsc(priceLabel)+'</p>':'')
     +'<div data-pw-variant-price-row>'
     +(price?'<p data-pw-variant-price>'+variantEsc(price)+'</p>':'')
-    +(expected?'<span data-pw-variant-expected><span>'+variantEsc(sc.expectedPrice||'')+'</span> '+variantEsc(expected)+'</span>':'')
+    +(expected?'<span data-pw-variant-expected><span>'+variantEsc(expectedLabel)+'</span> '+variantEsc(expected)+'</span>':'')
     +(face.kind==='active'&&face.compare?'<span data-pw-variant-compare>'+variantEsc(variantMoney(face.compare,''))+'</span>':'')
     +(save?'<span data-pw-variant-save-chip>'+variantEsc(save)+'</span>':'')
     +(face.percent?'<span data-pw-variant-pct>-'+face.percent+'%</span>':'')
@@ -333,7 +334,7 @@ function variantTotalSaveHtml(st){
   var sc=saleCopy();
   var amt=variantMoney(face.savings*st.qty,'');
   if(!amt)return '';
-  var text=String((face.kind==='teaser'?sc.teaserSave:sc.save)||'').replace('{amount}',amt);
+  var text=String((face.kind==='teaser'?sc.teaserSave:sc.save)||'').replace('{program}',face.label||'').replace('{amount}',amt);
   return text?'<span data-pw-variant-total-save>'+variantEsc(text)+'</span>':'';
 }
 function variantImg(url){

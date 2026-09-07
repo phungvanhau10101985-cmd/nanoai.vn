@@ -63,10 +63,16 @@ export type PartnerSiteSaleCopy = {
   birthdayCheckoutHint: string
   birthdayBanner: string
   birthdayBadge: string
+  birthdayAtCheckout: string
   flashBadge: string
+  flashName: string
   clearanceBadge: string
   calendarBadge: string
   clearanceName: string
+  googleName: string
+  comingSoonBadge: string
+  currentPrice: string
+  capNotePdp: string
   ended: string
   teaserPill: string
   activePill: string
@@ -83,10 +89,10 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     teaserBanner: '{label} sắp diễn ra — giảm {pct}% trong ngày sale',
     activeBanner: '{label} đang diễn ra — giảm {pct}% toàn website',
     daysLeft: '{n} ngày nữa',
-    expectedPrice: 'Giá sale dự kiến',
-    expectedSave: 'Sắp giảm {pct}% — tiết kiệm ~{amount}',
-    teaserSave: 'Tiết kiệm dự kiến ~{amount}',
-    save: 'Tiết kiệm {amount}',
+    expectedPrice: 'Giá {program} dự kiến',
+    expectedSave: 'Sắp {program} — tiết kiệm ~{amount}',
+    teaserSave: '{program}: tiết kiệm dự kiến ~{amount}',
+    save: '{program}: tiết kiệm {amount}',
     startsAfter: 'bắt đầu sau',
     remaining: 'còn',
     flashRemaining: 'Flash sale — còn',
@@ -96,10 +102,16 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     birthdayCheckoutHint: 'CMSN {pct}% khi thanh toán',
     birthdayBanner: 'Sale CMSN {pct}% — áp dụng tự động khi thanh toán, không cộng voucher',
     birthdayBadge: 'CMSN -{pct}%',
+    birthdayAtCheckout: 'CMSN -{pct}% ở tổng đơn',
     flashBadge: 'Flash sale -{pct}%',
+    flashName: 'Flash sale',
     clearanceBadge: 'Sale thanh lý kho -{pct}%',
     calendarBadge: 'Sale {date} - {pct}%',
     clearanceName: 'Sale thanh lý kho',
+    googleName: 'Google Shopping',
+    comingSoonBadge: 'Sắp {program} -{pct}%',
+    currentPrice: 'Giá hiện tại',
+    capNotePdp: 'Tổng ưu đãi tối đa 15% giá gốc — giá đang hiển thị đã khớp lúc thanh toán.',
     ended: 'Đã kết thúc',
     teaserPill: '{label} — giảm {pct}% trong ngày sale',
     activePill: '{label} — giảm {pct}%',
@@ -114,10 +126,10 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     teaserBanner: '{label} is coming — {pct}% off on sale day',
     activeBanner: '{label} is live — {pct}% off sitewide',
     daysLeft: '{n} days left',
-    expectedPrice: 'Expected sale price',
-    expectedSave: 'Coming {pct}% off — save ~{amount}',
-    teaserSave: 'Expected savings ~{amount}',
-    save: 'Save {amount}',
+    expectedPrice: 'Expected {program} price',
+    expectedSave: 'Coming {program} — save ~{amount}',
+    teaserSave: '{program}: expected savings ~{amount}',
+    save: '{program}: save {amount}',
     startsAfter: 'starts in',
     remaining: 'left',
     flashRemaining: 'Flash sale —',
@@ -127,10 +139,16 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     birthdayCheckoutHint: 'CMSN {pct}% off at checkout',
     birthdayBanner: 'CMSN {pct}% off — applied automatically at checkout, not stacked with a voucher',
     birthdayBadge: 'CMSN -{pct}%',
+    birthdayAtCheckout: 'CMSN -{pct}% at checkout',
     flashBadge: 'Flash sale -{pct}%',
+    flashName: 'Flash sale',
     clearanceBadge: 'Warehouse sale -{pct}%',
     calendarBadge: 'Sale {date} - {pct}%',
     clearanceName: 'Warehouse sale',
+    googleName: 'Google Shopping',
+    comingSoonBadge: 'Coming {program} -{pct}%',
+    currentPrice: 'Current price',
+    capNotePdp: 'Total offers are capped at 15% of list price — the price shown already matches checkout.',
     ended: 'Ended',
     teaserPill: '{label} — {pct}% off on sale day',
     activePill: '{label} — {pct}% off',
@@ -145,10 +163,10 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     teaserBanner: '{label}即将开始 — 活动日全站减{pct}%',
     activeBanner: '{label}进行中 — 全站减{pct}%',
     daysLeft: '还有{n}天',
-    expectedPrice: '预计促销价',
-    expectedSave: '即将减{pct}% — 约省{amount}',
-    teaserSave: '预计节省 ~{amount}',
-    save: '节省 {amount}',
+    expectedPrice: '预计{program}价',
+    expectedSave: '即将 {program} — 约省{amount}',
+    teaserSave: '{program}：预计节省 ~{amount}',
+    save: '{program}：节省 {amount}',
     startsAfter: '开始倒计时',
     remaining: '剩余',
     flashRemaining: 'Flash sale — 剩余',
@@ -158,10 +176,16 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     birthdayCheckoutHint: 'CMSN 结账再减 {pct}%',
     birthdayBanner: 'CMSN {pct}% — 结账自动减免，不与优惠券叠加',
     birthdayBadge: 'CMSN -{pct}%',
+    birthdayAtCheckout: 'CMSN -{pct}% 结账减免',
     flashBadge: 'Flash sale -{pct}%',
+    flashName: 'Flash sale',
     clearanceBadge: '仓库清仓 -{pct}%',
     calendarBadge: 'Sale {date} - {pct}%',
     clearanceName: '仓库清仓',
+    googleName: 'Google Shopping',
+    comingSoonBadge: '即将 {program} -{pct}%',
+    currentPrice: '当前价格',
+    capNotePdp: '优惠合计不超过原价 15% — 当前显示价已与结账一致。',
     ended: '已结束',
     teaserPill: '{label} — 活动日减{pct}%',
     activePill: '{label} — 减{pct}%',
@@ -176,10 +200,10 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     teaserBanner: '{label}まもなく開催 — 当日{pct}%オフ',
     activeBanner: '{label}開催中 — 全品{pct}%オフ',
     daysLeft: 'あと{n}日',
-    expectedPrice: '予定セール価格',
-    expectedSave: 'まもなく{pct}%オフ — 約{amount}お得',
-    teaserSave: '予定のお得額 ~{amount}',
-    save: '{amount} お得',
+    expectedPrice: '予定の{program}価格',
+    expectedSave: 'まもなく {program} — 約{amount}お得',
+    teaserSave: '{program}：予定のお得額 ~{amount}',
+    save: '{program}：{amount} お得',
     startsAfter: '開始まで',
     remaining: '残り',
     flashRemaining: 'Flash sale — 残り',
@@ -189,10 +213,16 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     birthdayCheckoutHint: 'CMSN 会計時 {pct}% オフ',
     birthdayBanner: 'CMSN {pct}% — 会計時に自動適用（クーポンと併用不可）',
     birthdayBadge: 'CMSN -{pct}%',
+    birthdayAtCheckout: 'CMSN -{pct}%（会計時）',
     flashBadge: 'Flash sale -{pct}%',
+    flashName: 'Flash sale',
     clearanceBadge: '倉庫セール -{pct}%',
     calendarBadge: 'Sale {date} - {pct}%',
     clearanceName: '倉庫セール',
+    googleName: 'Google Shopping',
+    comingSoonBadge: 'まもなく {program} -{pct}%',
+    currentPrice: '現在の価格',
+    capNotePdp: '優待合計は定価の15%が上限 — 表示価格は会計時と同じです。',
     ended: '終了しました',
     teaserPill: '{label} — 当日{pct}%オフ',
     activePill: '{label} — {pct}%オフ',
@@ -207,10 +237,10 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     teaserBanner: '{label} 곧 시작 — 세일 당일 {pct}% 할인',
     activeBanner: '{label} 진행 중 — 전 상품 {pct}% 할인',
     daysLeft: '{n}일 남음',
-    expectedPrice: '예정 세일가',
-    expectedSave: '곧 {pct}% 할인 — 약 {amount} 절약',
-    teaserSave: '예상 절약 ~{amount}',
-    save: '{amount} 절약',
+    expectedPrice: '예정 {program} 가격',
+    expectedSave: '곧 {program} — 약 {amount} 절약',
+    teaserSave: '{program}: 예상 절약 ~{amount}',
+    save: '{program}: {amount} 절약',
     startsAfter: '시작까지',
     remaining: '남음',
     flashRemaining: 'Flash sale — 남은 시간',
@@ -220,10 +250,16 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     birthdayCheckoutHint: 'CMSN 결제 시 {pct}% 할인',
     birthdayBanner: 'CMSN {pct}% — 결제 시 자동 적용, 쿠폰과 중복 불가',
     birthdayBadge: 'CMSN -{pct}%',
+    birthdayAtCheckout: 'CMSN -{pct}% 결제 시',
     flashBadge: 'Flash sale -{pct}%',
+    flashName: 'Flash sale',
     clearanceBadge: '창고 세일 -{pct}%',
     calendarBadge: 'Sale {date} - {pct}%',
     clearanceName: '창고 세일',
+    googleName: 'Google Shopping',
+    comingSoonBadge: '곧 {program} -{pct}%',
+    currentPrice: '현재 가격',
+    capNotePdp: '혜택 합계는 정가의 15% 한도 — 표시 가격은 결제와 같습니다.',
     ended: '종료됨',
     teaserPill: '{label} — 세일 당일 {pct}% 할인',
     activePill: '{label} — {pct}% 할인',
@@ -238,6 +274,99 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
 
 export function partnerSiteSaleCopy(locale: WebLocale) {
   return PARTNER_SITE_SALE_COPY[locale] ?? PARTNER_SITE_SALE_COPY.en
+}
+
+export function partnerSiteSaleFill(
+  template: string,
+  vars: { program?: string | null; pct?: number | string | null; amount?: string | null; date?: string | null; label?: string | null }
+): string {
+  return String(template || '')
+    .replace('{program}', String(vars.program ?? '').trim())
+    .replace('{pct}', String(vars.pct ?? ''))
+    .replace('{amount}', String(vars.amount ?? ''))
+    .replace('{date}', String(vars.date ?? ''))
+    .replace('{label}', String(vars.label ?? vars.program ?? '').trim())
+}
+
+export function partnerSiteSaleProgramName(
+  input: {
+    promoKind?: PartnerSiteSalePromoKind | string | null
+    eventLabel?: string | null
+    kind?: PartnerProductSaleFace['kind']
+  },
+  locale: WebLocale = 'vi'
+): string {
+  const copy = partnerSiteSaleCopy(locale)
+  const promo = partnerSiteSalePromoKindOf({
+    kind: input.promoKind,
+    eventLabel: input.eventLabel,
+  })
+  if (promo === 'flash') return copy.flashName
+  if (promo === 'clearance') return copy.clearanceName
+  const label = String(input.eventLabel || '').trim()
+  if (label) return label
+  return input.kind === 'teaser' ? copy.teaserFallback : copy.activeFallback
+}
+
+export function partnerSiteStackedSaleProgramLabel(
+  input: {
+    promoKind?: PartnerSiteSalePromoKind | string | null
+    eventLabel?: string | null
+    kind?: PartnerProductSaleFace['kind']
+    birthday?: boolean
+  },
+  locale: WebLocale = 'vi'
+): string {
+  const main = partnerSiteSaleProgramName(input, locale)
+  if (input.birthday && partnerSiteSalePromoKindOf(input) !== 'clearance') {
+    return `${main} + CMSN`
+  }
+  return main
+}
+
+export function partnerSiteSaleSaveText(
+  face: Pick<PartnerProductSaleFace, 'kind' | 'promoKind' | 'eventLabel' | 'savings'>,
+  locale: WebLocale,
+  opts?: { amount?: number; surface?: 'card' | 'detail'; birthday?: boolean }
+): string {
+  const copy = partnerSiteSaleCopy(locale)
+  const program = partnerSiteStackedSaleProgramLabel(
+    { ...face, birthday: opts?.birthday === true },
+    locale
+  )
+  const amount = formatPartnerSaleMoney(opts?.amount ?? face.savings, locale)
+  if (face.kind === 'teaser') {
+    const tpl = opts?.surface === 'card' ? copy.expectedSave : copy.teaserSave
+    return partnerSiteSaleFill(tpl, { program, amount })
+  }
+  return partnerSiteSaleFill(copy.save, { program, amount })
+}
+
+export function partnerSiteSaleExpectedPriceText(
+  program: string,
+  amount: number,
+  locale: WebLocale
+): string {
+  const copy = partnerSiteSaleCopy(locale)
+  return `${partnerSiteSaleFill(copy.expectedPrice, { program })} ${formatPartnerSaleMoney(amount, locale)}`
+}
+
+export function partnerSiteSaleCountdownPrefix(
+  input: {
+    phase: 'teaser' | 'active'
+    promoKind?: PartnerSiteSalePromoKind | string | null
+    eventLabel?: string | null
+  },
+  locale: WebLocale
+): string {
+  const copy = partnerSiteSaleCopy(locale)
+  if (input.promoKind === 'flash') return copy.flashRemaining
+  const program = partnerSiteSaleProgramName(
+    { promoKind: input.promoKind, eventLabel: input.eventLabel, kind: input.phase },
+    locale
+  )
+  const tpl = input.phase === 'active' ? copy.countdownLeft : copy.countdownStarts
+  return partnerSiteSaleFill(tpl, { label: program, program })
 }
 
 export function normalizePartnerBirthdayOfferPercent(value: unknown): number {
@@ -633,10 +762,12 @@ export const PW_SITE_SALE_CARD_CSS = [
   '.pw-badge-sale{position:absolute;top:8px;left:8px;z-index:2;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;letter-spacing:.02em;line-height:1.2;max-width:calc(100% - 52px);white-space:normal}',
   '.pw-badge-sale-teaser{background:#d97706}',
   '.pw-badge-sale-active{background:#dc2626}',
-  '.pw-badge-sale-clearance,.pw-pdp-sale-pill-clearance{background:#57534e}',
+  '.pw-badge-sale-flash,.pw-pdp-sale-pill-flash{background:#e11d48}',
+  '.pw-badge-sale-clearance,.pw-pdp-sale-pill-clearance{background:#b45309}',
   '.pw-sale-chip{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:4px 6px;color:#fff;font:700 10px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;text-align:center;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap;overflow:hidden;contain:layout style paint;isolation:isolate;transform:translateZ(0);pointer-events:none}',
   '.pw-sale-chip-teaser{background:rgba(180,83,9,.95)}',
   '.pw-sale-chip-active{background:rgba(185,28,28,.95)}',
+  '.pw-sale-chip-flash{background:rgba(225,29,72,.95)}',
   '.pw-price-sale{color:var(--pw-primary);font-weight:800}',
   '.pw-price-compare{margin-left:6px;color:#9ca3af;font-weight:500;text-decoration:line-through}',
   '.pw-price-expected{display:inline;margin-left:6px;color:#047857;font-weight:700}',
@@ -646,9 +777,15 @@ export const PW_SITE_SALE_CARD_CSS = [
   '.pw-pdp-sale-pill{display:inline-flex;align-items:center;gap:6px;margin:0 0 8px;padding:4px 10px;border-radius:999px;color:#fff;font:700 12px/1.2 system-ui,sans-serif}',
   '.pw-pdp-sale-pill-teaser{background:#d97706}',
   '.pw-pdp-sale-pill-active{background:#dc2626}',
-  '.pw-badge-birthday{position:absolute;top:8px;right:8px;z-index:2;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;letter-spacing:.02em;line-height:1.2;background:var(--pw-primary)}',
-  '.pw-price-birthday{display:block;margin-top:2px;font-size:11px;font-weight:600;color:var(--pw-primary)}',
-  '.pw-pdp-birthday-hint{display:inline-flex;align-items:center;margin:0 0 8px;padding:4px 10px;border-radius:999px;background:var(--pw-surface);color:var(--pw-primary);border:1px solid var(--pw-border);font:700 12px/1.2 system-ui,sans-serif}',
+  '.pw-pdp-sale-timer{display:flex;align-items:center;gap:6px;margin:0 0 8px;padding:8px 10px;border-radius:10px;font:600 12px/1.35 system-ui,sans-serif}',
+  '.pw-pdp-sale-timer-teaser{border:1px solid #fde68a;background:#fffbeb;color:#78350f}',
+  '.pw-pdp-sale-timer-active{border:1px solid #fecaca;background:#fef2f2;color:#7f1d1d}',
+  '.pw-pdp-sale-timer-flash{border:1px solid #fecdd3;background:#fff1f2;color:#9f1239}',
+  '.pw-pdp-price-kicker{margin:0 0 4px;font:700 11px/1.2 system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:#6b7280}',
+  '.pw-pdp-cap-note{margin:0 0 8px;font:500 11px/1.4 system-ui,sans-serif;color:#92400e}',
+  '.pw-badge-birthday{position:absolute;top:8px;right:8px;z-index:2;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;letter-spacing:.02em;line-height:1.2;background:#db2777}',
+  '.pw-price-birthday{display:block;margin-top:2px;font-size:11px;font-weight:600;color:#db2777}',
+  '.pw-pdp-birthday-hint{display:inline-flex;align-items:center;margin:0 0 8px;padding:4px 10px;border-radius:999px;background:#fdf2f8;color:#be185d;border:1px solid #fbcfe8;font:700 12px/1.2 system-ui,sans-serif}',
   '[data-pw-variant-birthday]{display:block;margin:4px 0 0;font:600 12px/1.35 system-ui,sans-serif;color:var(--pw-primary)}',
   '[data-pw-sale-calendar-banner]{position:relative;z-index:2;display:block;width:100%;box-sizing:border-box;padding:8px 40px 8px 12px;border-bottom:1px solid #fde68a;font:400 13px/1.4 system-ui,sans-serif;contain:layout style paint;isolation:isolate;transform:translateZ(0);flex-shrink:0}',
   '[data-pw-sale-calendar-banner][data-pw-sale-phase="teaser"]{background:linear-gradient(90deg,#fffbeb,#fff7ed);color:#78350f;border-color:#fde68a}',
@@ -694,8 +831,12 @@ function saleView(p){
   var countdown=site.countdownTo||site.countdown_to||'';
   var promoKind=kindOfSale(site,p);
   var badge=pct>0&&pct<100?siteSaleBadge(p,pct):'';
+  var program=promoKind==='flash'?String((typeof COPY==='object'&&COPY&&COPY.flashName)||'Flash sale')
+    :promoKind==='clearance'?String((typeof COPY==='object'&&COPY&&COPY.clearanceName)||'Sale thanh lý kho')
+    :String(site.eventLabel||site.event_label||'');
+  if(!program)program=phase==='teaser'?String((typeof COPY==='object'&&COPY&&COPY.teaserFallback)||'Sắp sale'):String((typeof COPY==='object'&&COPY&&COPY.activeFallback)||'Sale cùng ngày tháng');
   if(promoKind!=='clearance'&&phase==='teaser'&&pct>0&&pct<100&&Number.isFinite(expected)&&expected>0&&expected<list){
-    return {kind:'teaser',promoKind:promoKind||'calendar',price:money(list),expected:money(expected),compare:'',percent:pct,badge:badge,savings:money(list-expected),countdown:countdown};
+    return {kind:'teaser',promoKind:promoKind||'calendar',program:program,price:money(list),expected:money(expected),compare:'',percent:pct,badge:badge,savings:money(list-expected),countdown:countdown};
   }
   if(p.salePriceAmount==null||p.salePriceAmount==='')return null;
   var sale=Number(p.salePriceAmount);
@@ -711,7 +852,7 @@ function saleView(p){
     if(Number.isFinite(end)&&now>=end)return null;
   }
   var livePct=pct>0&&pct<100?pct:Math.max(1,Math.round((list-sale)*100/list));
-  return {kind:'active',promoKind:promoKind,price:money(sale),compare:money(list),expected:'',percent:livePct,badge:badge||siteSaleBadge(p,livePct)||('-'+livePct+'%'),savings:money(list-sale),countdown:promoKind==='clearance'?'':countdown||p.saleEndsAt||''};
+  return {kind:'active',promoKind:promoKind,program:program,price:money(sale),compare:money(list),expected:'',percent:livePct,badge:badge||siteSaleBadge(p,livePct)||('-'+livePct+'%'),savings:money(list-sale),countdown:promoKind==='clearance'?'':countdown||p.saleEndsAt||''};
 }`
 
 /** Update countdown digits without childList (avoids shop hydrate / chrome flicker each second). */
@@ -727,7 +868,7 @@ export function writePartnerSaleCountdownNode(el: Element | null | undefined, ne
 }
 
 export const PW_SITE_SALE_MO_SKIP_SEL =
-  '[data-pw-sale-hms],.pw-sale-chip,[data-pw-sale-count],[data-pw-sale-calendar-banner],[data-pw-variant-sale-count]'
+  '[data-pw-sale-hms],.pw-sale-chip,[data-pw-sale-count],[data-pw-sale-calendar-banner],[data-pw-variant-sale-count],.pw-pdp-sale-timer,.pw-shop-cart-line-count'
 
 export const PW_SITE_SALE_TICK_CHIPS_JS = `function pwSaleSetText(el,next){
   if(!el)return;
@@ -754,20 +895,23 @@ function pwSaleInView(el){
   var h=window.innerHeight||0,w=window.innerWidth||0;
   return r.bottom>0&&r.right>0&&r.top<h&&r.left<w;
 }
-function pwSaleTickChips(remaining,startsAfter,flashRemaining){
-  document.querySelectorAll('.pw-sale-chip[data-pw-sale-countdown]').forEach(function(el){
+function pwSaleTickChips(remaining,startsAfter,flashRemaining,countdownStarts,countdownLeft){
+  document.querySelectorAll('.pw-sale-chip[data-pw-sale-countdown],.pw-pdp-sale-timer[data-pw-sale-countdown],.pw-shop-cart-line-count[data-pw-sale-countdown]').forEach(function(el){
     if(el.closest&&el.closest('[data-pw-sale-calendar-banner],[data-pw-variant-sale]'))return;
     if(!pwSaleInView(el))return;
     var iso=el.getAttribute('data-pw-sale-countdown')||'';
     var phase=el.getAttribute('data-pw-sale-phase')||'teaser';
     var promo=el.getAttribute('data-pw-sale-kind')||'';
+    var label=el.getAttribute('data-pw-sale-label')||'';
     var left=pwSaleFmtChip(iso);
     if(!left){
       if(!el.hidden)el.hidden=true;
       return;
     }
     if(el.hidden)el.hidden=false;
-    var prefix=promo==='flash'&&flashRemaining?flashRemaining:String(phase==='active'?remaining:startsAfter);
+    var prefix=promo==='flash'&&flashRemaining?flashRemaining
+      :(label&&countdownStarts&&countdownLeft?String(phase==='active'?countdownLeft:countdownStarts).replace('{label}',label)
+      :String(phase==='active'?remaining:startsAfter));
     var hms=el.querySelector('[data-pw-sale-hms]');
     if(!hms){
       el.textContent='';

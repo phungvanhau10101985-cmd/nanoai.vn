@@ -11,9 +11,12 @@ import {
   resolvePartnerEffectiveUnitPrice,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import {
-  formatPartnerSaleMoney,
   partnerSiteBirthdayCheckoutHint,
   partnerSiteSaleCopy,
+  partnerSiteSaleCountdownPrefix,
+  partnerSiteSaleExpectedPriceText,
+  partnerSiteSaleProgramName,
+  partnerSiteSaleSaveText,
   resolvePartnerProductSaleFace,
   type PartnerSiteSalePricing,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
@@ -429,16 +432,23 @@ export function deferOffDevicePdpGalleryMedia(
   return out
 }
 
-function productPriceText(product: LivePdpBindProduct): {
+function productPriceText(product: LivePdpBindProduct, locale: WebLocale = 'vi'): {
   price: string
   compare: string
   expected: boolean
 } {
-  const face = resolvePartnerProductSaleFace(product)
+  const face = resolvePartnerProductSaleFace(product, locale)
   if (face.kind === 'teaser') {
     return {
       price: formatPartnerShopMoneyVnd(face.displayPrice),
-      compare: face.expectedPrice != null ? `→ ${formatPartnerShopMoneyVnd(face.expectedPrice)}` : '',
+      compare:
+        face.expectedPrice != null
+          ? partnerSiteSaleExpectedPriceText(
+              partnerSiteSaleProgramName(face, locale),
+              face.expectedPrice,
+              locale
+            )
+          : '',
       expected: true,
     }
   }
@@ -958,7 +968,7 @@ function rewritePdpInfoInner(
   const name = escText(product.name || 'Product')
   const sku = String(product.sku || '').trim()
   const descHtml = pdpDescriptionBodyHtml(String(product.detailDescription || product.description || '').trim())
-  const { price, compare, expected } = productPriceText(product)
+  const { price, compare, expected } = productPriceText(product, locale)
   let out = replaceElInner(inner, PW_EL.title, name)
   out = out.replace(
     /<(h1)([^>]*\bclass=["'][^"']*\bpw-pdp-title\b[^>]*)>([\s\S]*?)<\/\1>/gi,
@@ -1313,9 +1323,8 @@ function ensureMissingPdpSlots(
       )
     }
   }
-  const { price, compare } = productPriceText(product)
+  const { price, compare } = productPriceText(product, locale)
   const face = resolvePartnerProductSaleFace(product, locale)
-  const saleCopy = partnerSiteSaleCopy(locale)
   const flashOn = isPartnerFlashSaleActive({
     priceAmount: product.priceAmount ?? null,
     salePriceAmount: product.salePriceAmount ?? null,
@@ -1327,22 +1336,39 @@ function ensureMissingPdpSlots(
     /<span\b(?=[^>]*\bpw-shop-urgency-badge\b)(?![^>]*data-pw-pdp-slot=["']low-stock["'])[^>]*>[\s\S]*?<\/span>/gi,
     ''
   )
-  if (face.kind && face.badge) {
-    const flash = `<span class="pw-pdp-sale-pill pw-pdp-sale-pill-${face.kind}${face.promoKind ? ` pw-pdp-sale-pill-${face.promoKind}` : ''}" data-pw-el="${PW_EL.badge}" data-pw-pdp-slot="flash">${escText(face.badge)}</span>`
-    out = out.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>)/i, `$1${flash}`)
-  } else if (flashOn) {
-    const flash = `<span class="pw-shop-urgency-badge" data-pw-el="${PW_EL.badge}" data-pw-pdp-slot="flash">${escText(t.flashSaleBadge)}</span>`
-    out = out.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>)/i, `$1${flash}`)
+  {
+    let lead = ''
+    if (face.kind && face.badge) {
+      lead += `<span class="pw-pdp-sale-pill pw-pdp-sale-pill-${face.kind}${face.promoKind ? ` pw-pdp-sale-pill-${face.promoKind}` : ''}" data-pw-el="${PW_EL.badge}" data-pw-pdp-slot="flash">${escText(face.badge)}</span>`
+    } else if (flashOn) {
+      lead += `<span class="pw-shop-urgency-badge" data-pw-el="${PW_EL.badge}" data-pw-pdp-slot="flash">${escText(t.flashSaleBadge)}</span>`
+    }
+    out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'sale-timer')
+    out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'price-kicker')
+    out = out.replace(/<p\b[^>]*\bpw-pdp-price-kicker\b[^>]*>[\s\S]*?<\/p>/gi, '')
+    if (face.kind && face.countdownTo && face.promoKind !== 'clearance') {
+      const prefix = partnerSiteSaleCountdownPrefix(
+        { phase: face.kind, promoKind: face.promoKind, eventLabel: face.eventLabel },
+        locale
+      )
+      const timerClass = face.promoKind === 'flash' ? 'flash' : face.kind
+      lead += `<div class="pw-pdp-sale-timer pw-pdp-sale-timer-${timerClass}" data-pw-pdp-slot="sale-timer" data-pw-sale-countdown="${escText(face.countdownTo)}" data-pw-sale-phase="${escText(face.kind)}" data-pw-sale-kind="${escText(face.promoKind || '')}" data-pw-sale-label="${escText(face.eventLabel || '')}">⏱ ${escText(prefix)} <span data-pw-sale-hms></span></div>`
+    }
+    if (face.kind) {
+      const kickerText =
+        face.kind === 'teaser'
+          ? partnerSiteSaleCopy(locale).currentPrice
+          : partnerSiteSaleProgramName(face, locale)
+      lead += `<p class="pw-pdp-price-kicker" data-pw-pdp-slot="price-kicker">${escText(kickerText)}</p>`
+    }
+    if (lead) {
+      out = out.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>)/i, `$1${lead}`)
+    }
   }
   out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'savings')
   out = out.replace(/<p\b[^>]*\bpw-pdp-save\b[^>]*>[\s\S]*?<\/p>/gi, '')
   if (face.kind && face.savings > 0) {
-    const saveText =
-      face.kind === 'teaser'
-        ? saleCopy.expectedSave
-            .replace('{pct}', String(face.percent))
-            .replace('{amount}', formatPartnerSaleMoney(face.savings, locale))
-        : saleCopy.save.replace('{amount}', formatPartnerSaleMoney(face.savings, locale))
+    const saveText = partnerSiteSaleSaveText(face, locale, { surface: 'detail' })
     const save = `<p class="pw-pdp-save pw-price-${face.kind === 'teaser' ? 'teaser' : 'save'}" data-pw-pdp-slot="savings">${escText(saveText)}</p>`
     out = out.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>[\s\S]*?<\/div>)/i, `$1${save}`)
   } else if (compare && price && !compare.startsWith('→')) {

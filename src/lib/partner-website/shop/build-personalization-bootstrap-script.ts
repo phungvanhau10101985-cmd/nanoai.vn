@@ -280,12 +280,19 @@ export function buildPartnerSitePersonalizationBootstrapScript(input: {
     flashTimer: FLASH_TIMER[locale],
     remaining: partnerSiteSaleCopy(locale).remaining,
     flashRemaining: partnerSiteSaleCopy(locale).flashRemaining,
+    countdownStarts: partnerSiteSaleCopy(locale).countdownStarts,
+    countdownLeft: partnerSiteSaleCopy(locale).countdownLeft,
     expectedSave: partnerSiteSaleCopy(locale).expectedSave,
+    teaserSave: partnerSiteSaleCopy(locale).teaserSave,
     save: partnerSiteSaleCopy(locale).save,
     startsAfter: partnerSiteSaleCopy(locale).startsAfter,
     flashBadge: partnerSiteSaleCopy(locale).flashBadge,
+    flashName: partnerSiteSaleCopy(locale).flashName,
     clearanceBadge: partnerSiteSaleCopy(locale).clearanceBadge,
+    clearanceName: partnerSiteSaleCopy(locale).clearanceName,
     calendarBadge: partnerSiteSaleCopy(locale).calendarBadge,
+    teaserFallback: partnerSiteSaleCopy(locale).teaserFallback,
+    activeFallback: partnerSiteSaleCopy(locale).activeFallback,
     birthdayCheckoutHint: partnerSiteSaleCopy(locale).birthdayCheckoutHint,
     birthdayBadge: partnerSiteSaleCopy(locale).birthdayBadge,
   }
@@ -351,15 +358,16 @@ function priceHtml(p){
   var sale=saleView(p);
   if(!sale)return (p.price_hint||p.priceHint||'').replace(/</g,'&lt;');
   if(sale.kind==='teaser'){
-    return '<span class="pw-price-sale">'+sale.price+'</span> <span class="pw-price-expected">→ '+sale.expected+'</span><small class="pw-price-teaser">'+(COPY.expectedSave||'').replace('{pct}',String(sale.percent)).replace('{amount}',sale.savings)+'</small>';
+    return '<span class="pw-price-sale">'+sale.price+'</span> <span class="pw-price-expected">→ '+sale.expected+'</span><small class="pw-price-teaser">'+(COPY.expectedSave||'').replace('{program}',sale.program||'').replace('{pct}',String(sale.percent)).replace('{amount}',sale.savings)+'</small>';
   }
-  return '<span class="pw-price-sale">'+sale.price+'</span> <del class="pw-price-compare">'+sale.compare+'</del>'+(sale.savings?'<small class="pw-price-save">'+(COPY.save||'').replace('{amount}',sale.savings)+'</small>':'');
+  return '<span class="pw-price-sale">'+sale.price+'</span> <del class="pw-price-compare">'+sale.compare+'</del>'+(sale.savings?'<small class="pw-price-save">'+(COPY.save||'').replace('{program}',sale.program||'').replace('{amount}',sale.savings)+'</small>':'');
 }
 function saleBadgeHtml(sale,badge,p){
   var out='';
   if(sale&&sale.badge){
-    var chipLabel=sale.promoKind==='flash'?COPY.flashRemaining:(sale.kind==='active'?COPY.remaining:COPY.startsAfter);
-    var chip=sale.countdown&&sale.promoKind!=='clearance'?'<span class="pw-sale-chip pw-sale-chip-'+sale.kind+'" data-pw-sale-countdown="'+String(sale.countdown).replace(/"/g,'')+'" data-pw-sale-phase="'+sale.kind+'" data-pw-sale-kind="'+(sale.promoKind||'')+'">'+chipLabel+' <span data-pw-sale-hms></span></span>':'';
+    var chipKind=sale.promoKind==='flash'?'flash':sale.kind;
+    var chipLabel=sale.promoKind==='flash'?COPY.flashRemaining:String((sale.kind==='active'?COPY.countdownLeft:COPY.countdownStarts)||'').replace('{label}',sale.program||'');
+    var chip=sale.countdown&&sale.promoKind!=='clearance'?'<span class="pw-sale-chip pw-sale-chip-'+chipKind+'" data-pw-sale-countdown="'+String(sale.countdown).replace(/"/g,'')+'" data-pw-sale-phase="'+sale.kind+'" data-pw-sale-kind="'+(sale.promoKind||'')+'" data-pw-sale-label="'+(sale.program||'').replace(/"/g,'')+'">'+chipLabel+' <span data-pw-sale-hms></span></span>':'';
     out='<span class="pw-badge-sale pw-badge-sale-'+sale.kind+(sale.promoKind?' pw-badge-sale-'+sale.promoKind:'')+'">'+sale.badge+'</span>'+chip;
   } else if(badge){
     out='<span class="pw-for-you-badge">'+COPY.forYou+'</span>';
@@ -867,7 +875,7 @@ function featuredHosts(){
 }
 ${PW_SITE_SALE_TICK_CHIPS_JS}
 function tickSaleChips(){
-  pwSaleTickChips(COPY.remaining,COPY.startsAfter,COPY.flashRemaining);
+  pwSaleTickChips(COPY.remaining,COPY.startsAfter,COPY.flashRemaining,COPY.countdownStarts,COPY.countdownLeft);
   document.querySelectorAll('[data-pw-personalize="flash-sale"]').forEach(function(el){
     if(el.hidden)return;
     var timer=el.querySelector('[data-pw-flash-timer]');

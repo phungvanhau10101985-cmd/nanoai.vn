@@ -99,16 +99,22 @@ export function buildPartnerSiteCatalogBootstrapScript(input: {
   const copy = {
     ...COPY[locale],
     expectedSave: saleCopy.expectedSave,
+    teaserSave: saleCopy.teaserSave,
     save: saleCopy.save,
     startsAfter: saleCopy.startsAfter,
     remaining: saleCopy.remaining,
     flashRemaining: saleCopy.flashRemaining,
+    countdownStarts: saleCopy.countdownStarts,
+    countdownLeft: saleCopy.countdownLeft,
     birthdayCheckoutHint: saleCopy.birthdayCheckoutHint,
     birthdayBadge: saleCopy.birthdayBadge,
     flashBadge: saleCopy.flashBadge,
+    flashName: saleCopy.flashName,
     clearanceBadge: saleCopy.clearanceBadge,
     calendarBadge: saleCopy.calendarBadge,
     clearanceName: saleCopy.clearanceName,
+    teaserFallback: saleCopy.teaserFallback,
+    activeFallback: saleCopy.activeFallback,
   }
   const api = partnerSiteProductsApiPath(slug)
   const productsPath = partnerSiteProductsPath(slug)
@@ -142,15 +148,16 @@ function priceHtml(p){
   var extra=bday?'<small class="pw-price-birthday">'+esc(bday)+'</small>':'';
   if(!sale)return esc(p.priceHint||'')+extra;
   if(sale.kind==='teaser'){
-    return '<span class="pw-price-sale">'+esc(sale.price)+'</span> <span class="pw-price-expected">→ '+esc(sale.expected)+'</span><small class="pw-price-teaser">'+esc((COPY.expectedSave||'').replace('{pct}',String(sale.percent)).replace('{amount}',sale.savings))+'</small>'+extra;
+    return '<span class="pw-price-sale">'+esc(sale.price)+'</span> <span class="pw-price-expected">→ '+esc(sale.expected)+'</span><small class="pw-price-teaser">'+esc((COPY.expectedSave||'').replace('{program}',sale.program||'').replace('{pct}',String(sale.percent)).replace('{amount}',sale.savings))+'</small>'+extra;
   }
-  return '<span class="pw-price-sale">'+esc(sale.price)+'</span> <del class="pw-price-compare">'+esc(sale.compare)+'</del>'+(sale.savings?'<small class="pw-price-save">'+esc((COPY.save||'').replace('{amount}',sale.savings))+'</small>':'')+extra;
+  return '<span class="pw-price-sale">'+esc(sale.price)+'</span> <del class="pw-price-compare">'+esc(sale.compare)+'</del>'+(sale.savings?'<small class="pw-price-save">'+esc((COPY.save||'').replace('{program}',sale.program||'').replace('{amount}',sale.savings))+'</small>':'')+extra;
 }
 function saleBadgeHtml(sale, opts, p){
   var out='';
   if(sale&&sale.badge){
-    var chipLabel=sale.promoKind==='flash'?COPY.flashRemaining:(sale.kind==='active'?COPY.remaining:COPY.startsAfter);
-    var chip=sale.countdown&&sale.promoKind!=='clearance'?'<span class="pw-sale-chip pw-sale-chip-'+sale.kind+'" data-pw-sale-countdown="'+esc(sale.countdown)+'" data-pw-sale-phase="'+esc(sale.kind)+'" data-pw-sale-kind="'+(sale.promoKind||'')+'">'+esc(chipLabel)+' <span data-pw-sale-hms></span></span>':'';
+    var chipKind=sale.promoKind==='flash'?'flash':sale.kind;
+    var chipLabel=sale.promoKind==='flash'?COPY.flashRemaining:String((sale.kind==='active'?COPY.countdownLeft:COPY.countdownStarts)||'').replace('{label}',sale.program||'');
+    var chip=sale.countdown&&sale.promoKind!=='clearance'?'<span class="pw-sale-chip pw-sale-chip-'+chipKind+'" data-pw-sale-countdown="'+esc(sale.countdown)+'" data-pw-sale-phase="'+esc(sale.kind)+'" data-pw-sale-kind="'+(sale.promoKind||'')+'" data-pw-sale-label="'+esc(sale.program||'')+'">'+esc(chipLabel)+' <span data-pw-sale-hms></span></span>':'';
     out='<span class="pw-badge-sale pw-badge-sale-'+sale.kind+(sale.promoKind?' pw-badge-sale-'+sale.promoKind:'')+'">'+esc(sale.badge)+'</span>'+chip;
   }else if(opts&&opts.newBadge){
     out='<span class="pw-badge-new">NEW</span>';
@@ -371,7 +378,7 @@ function ensureStyles(){
 }
 ${PW_SITE_SALE_TICK_CHIPS_JS}
 function tickSaleChips(){
-  pwSaleTickChips(COPY.remaining,COPY.startsAfter,COPY.flashRemaining);
+  pwSaleTickChips(COPY.remaining,COPY.startsAfter,COPY.flashRemaining,COPY.countdownStarts,COPY.countdownLeft);
 }
 function run(){
   ensureStyles();

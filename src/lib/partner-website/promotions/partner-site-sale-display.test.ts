@@ -12,8 +12,11 @@ import {
   partnerSiteBirthdayBadgeText,
   partnerSiteSaleBannerShowsOnPage,
   partnerSiteSaleBannerText,
+  partnerSiteSaleCountdownPrefix,
   partnerSiteSaleDateBadgeLabel,
   partnerSiteSalePillText,
+  partnerSiteSaleProgramName,
+  partnerSiteSaleSaveText,
   PW_SITE_SALE_CARD_CSS,
   PW_SITE_SALE_MO_SKIP_JS,
   PW_SITE_SALE_TICK_CHIPS_JS,
@@ -151,6 +154,40 @@ test('banner copy follows 188 teaser and active wording', () => {
     applyPartnerSiteSaleToShopProduct({ priceAmount: 1_000_000, salePriceAmount: null }, teaser)
   )
   assert.match(String(partnerSiteSalePillText(face, 'vi')), /giảm 6%/)
+})
+
+test('sale copy names the program, savings, and countdown prefix', () => {
+  const teaser = resolvePartnerSaleCalendarState({
+    settings: defaultPartnerSaleCalendarSettings(),
+    at: new Date('2026-09-06T05:00:00.000Z'),
+  })
+  const teaserFace = resolvePartnerProductSaleFace(
+    applyPartnerSiteSaleToShopProduct({ priceAmount: 1_000_000, salePriceAmount: null }, teaser)
+  )
+  assert.equal(partnerSiteSaleProgramName(teaserFace), 'Sale 9/9')
+  assert.match(partnerSiteSaleSaveText(teaserFace, 'vi', { surface: 'card' }), /Sắp Sale 9\/9/)
+  assert.match(partnerSiteSaleSaveText(teaserFace, 'vi', { surface: 'detail' }), /Sale 9\/9: tiết kiệm dự kiến/)
+  assert.match(partnerSiteSaleCountdownPrefix({ phase: 'teaser', eventLabel: 'Sale 9/9' }, 'vi'), /Sale 9\/9 bắt đầu sau/)
+  const flashFace = resolvePartnerProductSaleFace({
+    priceAmount: 1_000_000,
+    salePriceAmount: 950_000,
+    siteSale: {
+      kind: 'flash',
+      listPrice: 1_000_000,
+      displayPrice: 950_000,
+      savingsAmount: 50_000,
+      percent: 5,
+      phase: 'active',
+      expectedSalePrice: null,
+      eventLabel: 'Flash sale',
+      eventDate: null,
+      countdownTo: '2099-09-07T04:10:00.000Z',
+    },
+  })
+  assert.match(partnerSiteSaleSaveText(flashFace, 'vi'), /Flash sale: tiết kiệm/)
+  assert.match(PW_SITE_SALE_CARD_CSS, /pw-badge-sale-flash/)
+  assert.match(PW_SITE_SALE_CARD_CSS, /#e11d48/)
+  assert.match(PW_SITE_SALE_CARD_CSS, /#db2777/)
 })
 
 test('birthday offer is a checkout hint and does not change unit price', () => {
