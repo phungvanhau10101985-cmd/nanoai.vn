@@ -11,6 +11,7 @@ import {
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
 import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import { resolvePartnerStorefrontSaleCalendarForRequest } from '@/lib/partner-website/promotions/partner-feature-test-storefront'
+import { overlayPartnerFlashSaleOnProducts } from '@/lib/db/messaging-partner-flash-sale-pg'
 import { applyPartnerSiteSaleToShopProduct } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { pgQueryOne } from '@/lib/db/pg-query'
 
@@ -55,17 +56,25 @@ export async function GET(
     partnerId: shop.partnerId,
     settings: saleConfig,
   })
+  const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
+  const sold = applyPartnerSiteSaleToShopProduct(product, saleCalendar, {
+    clearanceEnabled: saleConfig.clearanceEnabled,
+    clearancePercent: saleConfig.clearanceDiscountPercent,
+  })
+  const flashed = (
+    await overlayPartnerFlashSaleOnProducts({
+      partnerId: shop.partnerId,
+      accountKey: visitor.accountKey,
+      timezone: saleConfig.timezone,
+      products: [sold],
+    })
+  )[0]
   const relatedCtx = await resolveRelatedProductContext(shop.partnerId, id)
   const productWithCategory = {
-    ...applyPartnerSiteSaleToShopProduct(product, saleCalendar, {
-      clearanceEnabled: saleConfig.clearanceEnabled,
-      clearancePercent: saleConfig.clearanceDiscountPercent,
-    }),
+    ...flashed,
     categoryId: relatedCtx.categoryId,
     categoryPath: relatedCtx.categoryPath,
   }
-
-  const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
   const isFavorite = await isSiteProductFavorite({
     partnerId: shop.partnerId,
     accountKey: visitor.accountKey,

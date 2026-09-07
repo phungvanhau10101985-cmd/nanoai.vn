@@ -1,6 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { ComponentType, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
@@ -77,12 +78,12 @@ import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { PartnerWebsiteLogosPanel } from '@/components/partner-website/partner-website-logos-panel'
 import type { PartnerWebsiteRow } from '@/lib/partner-website/partner-website-types'
 import { isMarketingEligibleIndustry } from '@/lib/messaging/partner-marketing-segment'
+import { MessagingDashboardNavLinks } from '@/app/dashboard/messaging/messaging-dashboard-nav-links'
 import {
   Bell,
   Bot,
   Building2,
   Cake,
-  ChevronDown,
   ClipboardList,
   CreditCard,
   ExternalLink,
@@ -96,6 +97,7 @@ import {
   Palette,
   Plug,
   RefreshCw,
+  Settings,
   Share2,
   Table,
   TrendingUp,
@@ -103,6 +105,7 @@ import {
   Trash2,
   Truck,
   Upload,
+  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -197,7 +200,7 @@ const SETTINGS_SIDEBAR_SURFACE = 'bg-zinc-700 text-white dark:bg-zinc-800'
 
 function settingsSidebarNavItemClass(active: boolean): string {
   return cn(
-    'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-white transition-colors',
+    'flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-white transition-colors lg:px-2.5 lg:py-1.5',
     active ? 'bg-white/20 font-medium' : 'text-white/90 hover:bg-white/10 hover:text-white'
   )
 }
@@ -512,6 +515,25 @@ export function PartnerMessagingSettingsClient({
     normalizedSectionParam ?? 'workspace'
   )
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+
+  useEffect(() => {
+    if (!mobileNavOpen) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileNavOpen(false)
+    }
+    const onResize = () => {
+      if (window.matchMedia('(min-width: 1024px)').matches) setMobileNavOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('resize', onResize)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('resize', onResize)
+    }
+  }, [mobileNavOpen])
 
   const tWeb = useMemo(() => getPartnerWebsiteCopy(locale), [locale])
   const dict = useMemo(() => getDictionary(locale), [locale])
@@ -2090,7 +2112,7 @@ export function PartnerMessagingSettingsClient({
   }
 
   return (
-    <div className="w-full space-y-3">
+    <div className="flex w-full flex-col gap-3">
       <Dialog open={fbPagePickerOpen} onOpenChange={setFbPagePickerOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -2175,39 +2197,84 @@ export function PartnerMessagingSettingsClient({
         </DialogContent>
       </Dialog>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="ghost" size="sm" className="h-8 px-2.5" onClick={refreshPartners} disabled={pending}>
-          <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-          {t.refresh}
-        </Button>
-        {selectedPartnerId && partnerCanWebsiteHub(selectedPartner) ? (
-          websiteLoading ? (
-            <Button type="button" variant="outline" size="sm" className="ml-auto h-8 gap-1.5" disabled>
-              <Globe className="h-3.5 w-3.5 animate-pulse" aria-hidden />
-              …
-            </Button>
-          ) : websitePublicUrl ? (
-            <Button asChild variant="outline" size="sm" className="ml-auto h-8 gap-1.5">
-              <a href={websitePublicUrl} target="_blank" rel="noopener noreferrer">
-                <Globe className="h-3.5 w-3.5" aria-hidden />
-                {t.settingsOpenWebsiteButton}
-                <ExternalLink className="h-3 w-3 opacity-70" aria-hidden />
-              </a>
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="ml-auto h-8 gap-1.5"
-              onClick={() => selectSettingsSection('partner-website-editor')}
-            >
-              <Globe className="h-3.5 w-3.5" aria-hidden />
-              {websiteHasProject ? t.settingsManageWebsiteButton : t.settingsCreateWebsiteButton}
-            </Button>
-          )
+      <header className="sticky top-[var(--site-header-height,3rem)] z-40 flex items-center gap-2 rounded-xl border border-border/70 bg-card/95 px-3 py-2 shadow-sm backdrop-blur-md sm:px-4 md:top-[var(--site-header-height,3.5rem)] lg:h-14">
+        {partners.length > 0 ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-9 w-9 shrink-0 lg:hidden"
+            aria-label={dict.menu.openMenu}
+            aria-expanded={mobileNavOpen}
+            aria-controls="shop-admin-sidebar"
+            onClick={() => setMobileNavOpen(true)}
+          >
+            <Menu className="h-5 w-5" aria-hidden />
+          </Button>
         ) : null}
-      </div>
+        <h1 className="flex min-w-0 flex-1 items-center gap-2 text-base font-semibold tracking-tight sm:text-lg">
+          <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400 sm:flex">
+            <Settings className="h-4 w-4" aria-hidden />
+          </span>
+          <span className="truncate leading-snug">{t.messagingSettingsPageTitle}</span>
+        </h1>
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9"
+            onClick={refreshPartners}
+            disabled={pending}
+            aria-label={t.refresh}
+            title={t.refresh}
+          >
+            <RefreshCw className="h-4 w-4" aria-hidden />
+          </Button>
+          {selectedPartnerId && partnerCanWebsiteHub(selectedPartner) ? (
+            websiteLoading ? (
+              <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 px-2.5" disabled>
+                <Globe className="h-3.5 w-3.5 animate-pulse" aria-hidden />
+                <span className="hidden sm:inline">…</span>
+              </Button>
+            ) : websitePublicUrl ? (
+              <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 px-2.5">
+                <a href={websitePublicUrl} target="_blank" rel="noopener noreferrer">
+                  <Globe className="h-3.5 w-3.5" aria-hidden />
+                  <span className="hidden sm:inline">{t.settingsOpenWebsiteButton}</span>
+                  <ExternalLink className="h-3 w-3 opacity-70" aria-hidden />
+                </a>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 px-2.5"
+                onClick={() => selectSettingsSection('partner-website-editor')}
+              >
+                <Globe className="h-3.5 w-3.5" aria-hidden />
+                <span className="hidden sm:inline">
+                  {websiteHasProject ? t.settingsManageWebsiteButton : t.settingsCreateWebsiteButton}
+                </span>
+              </Button>
+            )
+          ) : null}
+          <div className="hidden lg:flex lg:items-center lg:gap-2">
+            <MessagingDashboardNavLinks
+              inboxLabel={t.goToInbox}
+              settingsLabel={t.messagingSettingsLink}
+              ordersLabel={t.messagingOrdersLink}
+              analyticsLabel={t.messagingAnalyticsLink}
+              active="settings"
+              partnerId={selectedPartnerId ?? undefined}
+            />
+            <Button variant="outline" size="sm" className="h-8" asChild>
+              <Link href="/dashboard">{dict.menu.dashboard}</Link>
+            </Button>
+          </div>
+        </div>
+      </header>
 
       {partners.length === 0 ? (
         <>
@@ -2295,101 +2362,67 @@ export function PartnerMessagingSettingsClient({
         </Card>
         </>
       ) : (
+        <>
+        {mobileNavOpen ? (
+          <button
+            type="button"
+            className="fixed inset-0 z-[70] m-0 bg-black/45 backdrop-blur-[1px] lg:hidden"
+            aria-label={t.settingsCloseSidebar}
+            onClick={() => setMobileNavOpen(false)}
+          />
+        ) : null}
         <div
           className={cn(
-            'flex flex-col overflow-hidden rounded-xl border border-border/70 lg:flex-row lg:items-stretch',
-            activeSection === 'partner-website-editor' ? 'lg:min-h-[calc(100dvh-8rem)]' : 'lg:min-h-[calc(100dvh-10rem)]'
+            'flex flex-col rounded-xl border border-border/70 lg:flex-row lg:items-stretch lg:overflow-hidden',
+            'lg:sticky lg:top-[calc(var(--site-header-height,3.5rem)+3.5rem)] lg:z-20 lg:h-[calc(100dvh-var(--site-header-height,3.5rem)-3.5rem)] lg:w-full lg:min-h-0'
           )}
         >
-          {/* Mobile: hamburger menu */}
-          <div className={cn('border-b border-white/10 px-3 py-2 lg:hidden', SETTINGS_SIDEBAR_SURFACE)}>
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full justify-between border-white/20 bg-white/10 text-white hover:bg-white/15 hover:text-white"
-              onClick={() => setMobileNavOpen(!mobileNavOpen)}
-            >
-              <span className="flex items-center gap-2 truncate">
-                <Menu className="h-4 w-4 shrink-0" />
-                <span className="truncate">{
-                  settingsNavItems.find((item) => item.id === activeSection)?.label
-                  ?? settingsWebsiteNavItems.find((item) => item.sectionId === activeSection)?.label
-                  ?? settingsOperationsNavItems.find((item) => item.id === activeSection)?.label
-                  ?? t.settingsSidebarTitle
-                }</span>
-              </span>
-              <ChevronDown
-                className={cn(
-                  'h-4 w-4 shrink-0 transition-transform duration-200',
-                  mobileNavOpen && 'rotate-180'
-                )}
-              />
-            </Button>
-            {mobileNavOpen ? (
-              <div className="mt-2 rounded-lg border border-white/15 bg-white/5 p-2">
-                <nav className="flex flex-col gap-1" aria-label={t.settingsSidebarTitle}>
-                  {sidebarGroups.map((group) => {
-                    const items = group.items.filter((item) => item.visible)
-                    if (items.length === 0) return null
-                    return (
-                      <div key={group.id}>
-                        <p className="mt-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/55">
-                          {group.title}
-                        </p>
-                        {items.map((item) => {
-                          const NavIcon = item.icon
-                          return (
-                            <button
-                              key={item.id}
-                              type="button"
-                              onClick={() => { selectSettingsSection(item.id); setMobileNavOpen(false) }}
-                              className={settingsSidebarNavItemClass(activeSection === item.id)}
-                              aria-current={activeSection === item.id ? 'page' : undefined}
-                            >
-                              <NavIcon className="h-4 w-4 shrink-0" aria-hidden />
-                              <span className="truncate">{item.label}</span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )
-                  })}
-                </nav>
-              </div>
-            ) : null}
-          </div>
-
-          {/* Desktop: sidebar */}
           <aside
+            id="shop-admin-sidebar"
             className={cn(
-              'hidden w-full shrink-0 border-white/10 lg:block lg:border-r',
+              'fixed inset-y-0 left-0 z-[80] flex h-[100svh] max-h-[100svh] w-[min(18.5rem,calc(100vw-2.5rem))] flex-col overflow-hidden border-white/10 shadow-xl transition-transform duration-200 ease-out',
+              'lg:static lg:z-auto lg:h-full lg:max-h-none lg:shrink-0 lg:translate-x-0 lg:shadow-none lg:border-r',
+              mobileNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
               SETTINGS_SIDEBAR_SURFACE,
               activeSection === 'partner-website-editor' ? 'lg:w-48' : 'lg:w-56 xl:w-60'
             )}
           >
-            <div className="p-2 lg:sticky lg:top-[calc(var(--site-header-height,3.5rem)+0.5rem)]">
-              <p className="hidden px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-white/70 lg:block">
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-3 py-3 lg:px-2 lg:py-2">
+              <p className="min-w-0 truncate text-base font-bold text-white lg:px-2 lg:text-[11px] lg:font-semibold lg:uppercase lg:tracking-wide lg:text-white/70">
                 {t.settingsSidebarTitle}
               </p>
-              <nav
-                className="hidden gap-1 lg:flex lg:flex-col"
-                aria-label={t.settingsSidebarTitle}
+              <button
+                type="button"
+                className="rounded-lg p-2 text-white/80 hover:bg-white/10 hover:text-white lg:hidden"
+                aria-label={t.settingsCloseSidebar}
+                onClick={() => setMobileNavOpen(false)}
               >
-                {sidebarGroups.map((group) => {
-                  const items = group.items.filter((item) => item.visible)
-                  if (items.length === 0) return null
-                  return (
-                    <div key={group.id}>
-                      <p className="mt-1 hidden px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/55 lg:block">
-                        {group.title}
-                      </p>
+                <X className="h-5 w-5" aria-hidden />
+              </button>
+            </div>
+            <nav
+              className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 py-3 pb-6 lg:py-2 lg:pb-4"
+              aria-label={t.settingsSidebarTitle}
+            >
+              {sidebarGroups.map((group) => {
+                const items = group.items.filter((item) => item.visible)
+                if (items.length === 0) return null
+                return (
+                  <div key={group.id} className="mb-3 last:mb-1">
+                    <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/55">
+                      {group.title}
+                    </p>
+                    <div className="flex flex-col gap-0.5">
                       {items.map((item) => {
                         const NavIcon = item.icon
                         return (
                           <button
                             key={item.id}
                             type="button"
-                            onClick={() => selectSettingsSection(item.id)}
+                            onClick={() => {
+                              selectSettingsSection(item.id)
+                              setMobileNavOpen(false)
+                            }}
                             className={settingsSidebarNavItemClass(activeSection === item.id)}
                             aria-current={activeSection === item.id ? 'page' : undefined}
                           >
@@ -2399,17 +2432,40 @@ export function PartnerMessagingSettingsClient({
                         )
                       })}
                     </div>
-                  )
-                })}
-              </nav>
+                  </div>
+                )
+              })}
+            </nav>
+            <div className="shrink-0 space-y-0.5 border-t border-white/10 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:hidden">
+              <Link
+                href={`/dashboard/messaging/inbox${selectedPartnerId ? `?partner=${encodeURIComponent(selectedPartnerId)}` : ''}`}
+                onClick={() => setMobileNavOpen(false)}
+                className="block rounded-lg px-3 py-2.5 text-sm text-white/90 hover:bg-white/10 hover:text-white"
+              >
+                {t.goToInbox}
+              </Link>
+              <Link
+                href={`/dashboard/messaging/analytics${selectedPartnerId ? `?partner=${encodeURIComponent(selectedPartnerId)}` : ''}`}
+                onClick={() => setMobileNavOpen(false)}
+                className="block rounded-lg px-3 py-2.5 text-sm text-white/90 hover:bg-white/10 hover:text-white"
+              >
+                {t.messagingAnalyticsLink}
+              </Link>
+              <Link
+                href="/dashboard"
+                onClick={() => setMobileNavOpen(false)}
+                className="block rounded-lg px-3 py-2.5 text-sm text-white/90 hover:bg-white/10 hover:text-white"
+              >
+                {dict.menu.dashboard}
+              </Link>
             </div>
           </aside>
           <div
             className={cn(
               'min-w-0 flex-1 bg-white dark:bg-zinc-950',
               activeSection === 'partner-website-editor'
-                ? 'flex min-h-[calc(100dvh-8rem)] flex-col p-2 sm:p-3'
-                : 'p-3 sm:p-4 lg:p-5'
+                ? 'flex min-h-0 flex-col overflow-hidden p-2 sm:p-3'
+                : 'min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain p-3 sm:p-4 lg:p-5'
             )}
           >
           {activeSection === 'workspace' ? (
@@ -3932,6 +3988,7 @@ export function PartnerMessagingSettingsClient({
           ) : null}
           </div>
         </div>
+        </>
       )}
     </div>
   )

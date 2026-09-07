@@ -6,6 +6,7 @@
  */
 
 import { PW_RECOMMENDED_GRID_FACE_CSS } from '@/lib/partner-website/shop/pw-recommended-grid-face'
+import { PW_FLASH_SALE_GRID_FACE_CSS } from '@/lib/partner-website/shop/pw-flash-sale-grid-face'
 
 const PW_STRIP_GRID_PARTS = [
   '[data-pw-related] [data-pw-grid]',
@@ -229,4 +230,5 @@ ${PW_ADDED_PRODUCT_GRID_COMPACT_CSS}
 ${PW_PRODUCT_GRID_TITLE_CSS}
 ${PW_PRODUCT_GRID_MORE_CSS}
 ${PW_RECOMMENDED_GRID_FACE_CSS}
+${PW_FLASH_SALE_GRID_FACE_CSS}
 `.trim()

@@ -102,6 +102,7 @@ export function buildPartnerSiteCatalogBootstrapScript(input: {
     save: saleCopy.save,
     startsAfter: saleCopy.startsAfter,
     remaining: saleCopy.remaining,
+    flashRemaining: saleCopy.flashRemaining,
   }
   const api = partnerSiteProductsApiPath(slug)
   const productsPath = partnerSiteProductsPath(slug)
@@ -138,7 +139,8 @@ function priceHtml(p){
 }
 function saleBadgeHtml(sale, opts){
   if(sale&&sale.badge){
-    var chip=sale.countdown?'<span class="pw-sale-chip pw-sale-chip-'+sale.kind+'" data-pw-sale-countdown="'+esc(sale.countdown)+'" data-pw-sale-phase="'+esc(sale.kind)+'">'+esc(sale.kind==='active'?COPY.remaining:COPY.startsAfter)+' <span data-pw-sale-hms></span></span>':'';
+    var chipLabel=sale.promoKind==='flash'?COPY.flashRemaining:(sale.kind==='active'?COPY.remaining:COPY.startsAfter);
+    var chip=sale.countdown?'<span class="pw-sale-chip pw-sale-chip-'+sale.kind+'" data-pw-sale-countdown="'+esc(sale.countdown)+'" data-pw-sale-phase="'+esc(sale.kind)+'" data-pw-sale-kind="'+(sale.promoKind||'')+'">'+esc(chipLabel)+' <span data-pw-sale-hms></span></span>':'';
     return '<span class="pw-badge-sale pw-badge-sale-'+sale.kind+'">'+esc(sale.badge)+'</span>'+chip;
   }
   return (opts&&opts.newBadge)?'<span class="pw-badge-new">NEW</span>':'';
@@ -352,7 +354,7 @@ function ensureStyles(){
 }
 ${PW_SITE_SALE_TICK_CHIPS_JS}
 function tickSaleChips(){
-  pwSaleTickChips(COPY.remaining,COPY.startsAfter);
+  pwSaleTickChips(COPY.remaining,COPY.startsAfter,COPY.flashRemaining);
 }
 function run(){
   ensureStyles();

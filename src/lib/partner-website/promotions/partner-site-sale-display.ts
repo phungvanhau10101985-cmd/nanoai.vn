@@ -17,6 +17,7 @@ export type PartnerSiteSaleProductInput = {
 }
 
 export type PartnerSiteSalePricing = {
+  kind?: 'flash' | 'calendar' | null
   listPrice: number
   displayPrice: number
   savingsAmount: number
@@ -51,6 +52,7 @@ export type PartnerSiteSaleCopy = {
   save: string
   startsAfter: string
   remaining: string
+  flashRemaining: string
   countdownStarts: string
   countdownLeft: string
   teaserCartHint: string
@@ -76,6 +78,7 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     save: 'Tiết kiệm {amount}',
     startsAfter: 'bắt đầu sau',
     remaining: 'còn',
+    flashRemaining: 'Flash sale — còn',
     countdownStarts: '{label} bắt đầu sau',
     countdownLeft: '{label} — còn',
     teaserCartHint: 'Tiết kiệm dự kiến khi sale {label} (-{pct}%)',
@@ -99,6 +102,7 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     save: 'Save {amount}',
     startsAfter: 'starts in',
     remaining: 'left',
+    flashRemaining: 'Flash sale —',
     countdownStarts: '{label} starts in',
     countdownLeft: '{label} —',
     teaserCartHint: 'Expected savings when {label} starts (-{pct}%)',
@@ -122,6 +126,7 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     save: '节省 {amount}',
     startsAfter: '开始倒计时',
     remaining: '剩余',
+    flashRemaining: 'Flash sale — 剩余',
     countdownStarts: '{label}开始倒计时',
     countdownLeft: '{label} — 剩余',
     teaserCartHint: '{label}开始后预计节省 (-{pct}%)',
@@ -145,6 +150,7 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     save: '{amount} お得',
     startsAfter: '開始まで',
     remaining: '残り',
+    flashRemaining: 'Flash sale — 残り',
     countdownStarts: '{label}開始まで',
     countdownLeft: '{label} — 残り',
     teaserCartHint: '{label}開始時の予定節約額 (-{pct}%)',
@@ -168,6 +174,7 @@ export const PARTNER_SITE_SALE_COPY: Record<WebLocale, PartnerSiteSaleCopy> = {
     save: '{amount} 절약',
     startsAfter: '시작까지',
     remaining: '남음',
+    flashRemaining: 'Flash sale — 남은 시간',
     countdownStarts: '{label} 시작까지',
     countdownLeft: '{label} — 남은 시간',
     teaserCartHint: '{label} 시작 시 예상 절약 (-{pct}%)',
@@ -214,9 +221,12 @@ export function partnerSiteSaleDateBadgeLabel(input: {
   percent: number
   eventDate?: string | null
   eventLabel?: string | null
+  kind?: string | null
 }): string | null {
   const pct = Math.max(0, Math.round(Number(input.percent) || 0))
   if (pct <= 0 || pct >= 100) return null
+  if (String(input.kind || '').toLowerCase() === 'flash') return `FLASH -${pct}%`
+  if (String(input.eventLabel || '').trim().toLowerCase() === 'flash sale') return `FLASH -${pct}%`
   const date = String(input.eventDate ?? '').slice(0, 10)
   const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
   if (ymd) return `${Number(ymd[3])}/${Number(ymd[2])} - ${pct}%`
@@ -245,6 +255,7 @@ export function buildPartnerSiteSalePricing(
     eventLabel: state.eventLabel,
     eventDate: state.eventDate ?? state.saleDate,
     countdownTo: state.countdownTo,
+    kind: 'calendar',
   }
 }
 
@@ -316,6 +327,7 @@ export function resolvePartnerProductSaleFace(product: {
     percent,
     eventDate: site?.eventDate,
     eventLabel: site?.eventLabel,
+    kind: site?.kind,
   })
   if (phase === 'teaser' && list > 0 && percent > 0 && expected != null && expected > 0 && expected < list) {
     return {
@@ -438,8 +450,10 @@ export const PW_SITE_SALE_CARD_CSS = [
 
 export const PW_SITE_SALE_VIEW_JS = `function siteSaleBadge(p,pct){
   var site=p&&p.siteSale||{};
+  var kind=String(site.kind||'');
   var date=String(site.eventDate||site.event_date||'');
   var label=String(site.eventLabel||site.event_label||'');
+  if(kind==='flash'||label.toLowerCase()==='flash sale')return 'FLASH -'+pct+'%';
   var m=/^(\\d{4})-(\\d{2})-(\\d{2})/.exec(date);
   if(m)return Number(m[3])+'/'+Number(m[2])+' - '+pct+'%';
   var lm=label.match(/(\\d{1,2})\\/(\\d{1,2})/);
@@ -454,9 +468,10 @@ function saleView(p){
   var pct=Math.max(0,Math.round(Number(site.percent||p.siteSalePercent||0)||0));
   var expected=Number(site.expectedSalePrice||site.expected_sale_price||p.siteSaleExpectedPrice);
   var countdown=site.countdownTo||site.countdown_to||'';
+  var promoKind=kindOfSale(site);
   var badge=pct>0&&pct<100?siteSaleBadge(p,pct):'';
   if(phase==='teaser'&&pct>0&&pct<100&&Number.isFinite(expected)&&expected>0&&expected<list){
-    return {kind:'teaser',price:money(list),expected:money(expected),compare:'',percent:pct,badge:badge,savings:money(list-expected),countdown:countdown};
+    return {kind:'teaser',promoKind:promoKind,price:money(list),expected:money(expected),compare:'',percent:pct,badge:badge,savings:money(list-expected),countdown:countdown};
   }
   if(p.salePriceAmount==null||p.salePriceAmount==='')return null;
   var sale=Number(p.salePriceAmount);
@@ -465,7 +480,13 @@ function saleView(p){
   if(Number.isFinite(start)&&now<start)return null;
   if(Number.isFinite(end)&&now>end)return null;
   var livePct=pct>0&&pct<100?pct:Math.max(1,Math.round((list-sale)*100/list));
-  return {kind:'active',price:money(sale),compare:money(list),expected:'',percent:livePct,badge:badge||('-'+livePct+'%'),savings:money(list-sale),countdown:countdown};
+  return {kind:'active',promoKind:promoKind,price:money(sale),compare:money(list),expected:'',percent:livePct,badge:badge||('-'+livePct+'%'),savings:money(list-sale),countdown:countdown};
+}
+function kindOfSale(site){
+  var kind=String((site&&site.kind)||'');
+  var label=String((site&&(site.eventLabel||site.event_label))||'');
+  if(kind==='flash'||label.toLowerCase()==='flash sale')return 'flash';
+  return '';
 }`
 
 /** Update countdown digits without childList (avoids shop hydrate / chrome flicker each second). */
@@ -508,22 +529,24 @@ function pwSaleInView(el){
   var h=window.innerHeight||0,w=window.innerWidth||0;
   return r.bottom>0&&r.right>0&&r.top<h&&r.left<w;
 }
-function pwSaleTickChips(remaining,startsAfter){
+function pwSaleTickChips(remaining,startsAfter,flashRemaining){
   document.querySelectorAll('.pw-sale-chip[data-pw-sale-countdown]').forEach(function(el){
     if(el.closest&&el.closest('[data-pw-sale-calendar-banner],[data-pw-variant-sale]'))return;
     if(!pwSaleInView(el))return;
     var iso=el.getAttribute('data-pw-sale-countdown')||'';
     var phase=el.getAttribute('data-pw-sale-phase')||'teaser';
+    var promo=el.getAttribute('data-pw-sale-kind')||'';
     var left=pwSaleFmtChip(iso);
     if(!left){
       if(!el.hidden)el.hidden=true;
       return;
     }
     if(el.hidden)el.hidden=false;
+    var prefix=promo==='flash'&&flashRemaining?flashRemaining:String(phase==='active'?remaining:startsAfter);
     var hms=el.querySelector('[data-pw-sale-hms]');
     if(!hms){
       el.textContent='';
-      el.appendChild(document.createTextNode(String(phase==='active'?remaining:startsAfter)+' '));
+      el.appendChild(document.createTextNode(prefix+' '));
       hms=document.createElement('span');
       hms.setAttribute('data-pw-sale-hms','1');
       hms.appendChild(document.createTextNode(left));

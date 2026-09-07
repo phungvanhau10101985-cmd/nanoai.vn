@@ -5,6 +5,10 @@ import { resolvePartnerStorefrontSaleCalendarFromPg } from '@/lib/db/messaging-p
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
 import { resolvePartnerEffectiveUnitPrice } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import { applyPartnerSiteSalePrice } from '@/lib/partner-website/promotions/partner-sale-calendar'
+import {
+  applyPartnerFlashSaleUnitPrice,
+  getPartnerFlashSaleAssignmentFromPg,
+} from '@/lib/db/messaging-partner-flash-sale-pg'
 import type { PartnerSalePriceLine } from '@/lib/partner-website/promotions/partner-sale-pricing'
 
 type InventoryPriceDbRow = {
@@ -49,7 +53,7 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
       effectiveUnitPrice: money(line.fallbackUnitPrice),
     }))
   }
-  const [rows, config, locks, calendarState] = await Promise.all([
+  const [rows, config, locks, calendarState, flashAssignment] = await Promise.all([
     pgQuery<InventoryPriceDbRow>(
       `select id::text, price_amount, coalesce(price_hint, '') as price_hint,
               sale_price_amount, sale_starts_at, sale_ends_at,
@@ -82,6 +86,11 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
       partnerId: input.partnerId,
       visitorEmail: input.visitorEmail,
       at: input.at,
+    }),
+    getPartnerFlashSaleAssignmentFromPg({
+      partnerId: input.partnerId,
+      accountKey: input.accountKey,
+      now: input.at,
     }),
   ])
   const byId = new Map(rows.map((row) => [row.id, row]))
@@ -121,11 +130,18 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
       }, input.at?.getTime()) ?? listUnitPrice
     const calendarSale = applyPartnerSiteSalePrice(listUnitPrice, calendarState)
     const regularSale = Math.min(listUnitPrice, productSale, calendarSale)
+    const flashSale = applyPartnerFlashSaleUnitPrice({
+      listUnitPrice,
+      currentEffective: regularSale,
+      isClearance: row.is_clearance,
+      inventoryId: row.id,
+      assignment: flashAssignment,
+    })
     const googlePrice = lockById.get(row.id)
     // Parity 188: a valid Google pv2 lock owns line pricing for its 48-hour
-    // lifetime; product/calendar sales are not stacked onto that line.
+    // lifetime; product/calendar/flash sales are not stacked onto that line.
     const effectiveUnitPrice =
-      googlePrice == null ? regularSale : Math.min(listUnitPrice, googlePrice)
+      googlePrice == null ? flashSale : Math.min(listUnitPrice, googlePrice)
     return {
       inventoryId: row.id,
       quantity: line.quantity,

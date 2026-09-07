@@ -23,6 +23,7 @@ import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/par
 import { stampPartnerShopEditorHooksInHtml } from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
 import { applySharedChrome, extractSharedChrome } from '@/lib/partner-website/shop/sync-shared-chrome'
 import { renderTemplateSiteToHtml } from '@/lib/partner-website/template/render-template-html'
+import { ensureHomeFlashSaleBlockInHtml } from '@/lib/partner-website/visual-editor/product-grid-widgets'
 import { visualHtmlLooksCompleteForEditor } from '@/lib/partner-website/visual-editor/visual-html-detect'
 import { ensurePromoMarketingBannerInHtml } from '@/lib/partner-website/visual-editor/banner-widgets'
 import {
@@ -117,7 +118,11 @@ export function buildShopTemplateHomeVisualHtml(input: {
           variant: input.variant,
         })
   )
-  return finishVisualHtml(raw, input.variant, { ...input, look: input.theme.look })
+  return ensureHomeFlashSaleBlockInHtml(finishVisualHtml(raw, input.variant, { ...input, look: input.theme.look }), {
+    siteSlug: input.siteSlug,
+    locale: input.locale,
+    device: input.variant,
+  })
 }
 
 function completeVisualHtml(html: string): string {

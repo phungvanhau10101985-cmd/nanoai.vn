@@ -412,6 +412,8 @@ export type PartnerWebsiteCopy = {
   visualEditAddProductGrid: string
   visualEditAddRecentlyViewedGrid: string
   visualEditAddRecommendedGrid: string
+  visualEditAddFlashSaleGrid: string
+  visualEditAddFlashSaleHint: string
   visualEditAddFeaturedCategories: string
   visualEditAddRelatedGrid: string
   visualEditAddOutfitGrid: string
@@ -1462,6 +1464,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddProductGrid: 'Lưới sản phẩm',
     visualEditAddRecentlyViewedGrid: 'Lưới đã xem',
     visualEditAddRecommendedGrid: 'Lưới đề xuất',
+    visualEditAddFlashSaleGrid: 'Flash sale',
+    visualEditAddFlashSaleHint: '12 deal / 10 phút, cùng shop TQ và danh mục vừa xem.',
     visualEditAddFeaturedCategories: 'Danh mục nổi bật',
     visualEditAddRelatedGrid: 'Sản phẩm tương tự',
     visualEditAddOutfitGrid: 'Khối phối đồ',
@@ -2526,6 +2530,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddProductGrid: 'Product grid',
     visualEditAddRecentlyViewedGrid: 'Recently viewed grid',
     visualEditAddRecommendedGrid: 'Recommended grid',
+    visualEditAddFlashSaleGrid: 'Flash sale',
+    visualEditAddFlashSaleHint: '12 deals / 10 minutes from the same Chinese shop and recently viewed category.',
     visualEditAddFeaturedCategories: 'Featured categories',
     visualEditAddRelatedGrid: 'Similar products',
     visualEditAddOutfitGrid: 'Outfit pairing',
@@ -3570,6 +3576,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddProductGrid: '商品网格',
     visualEditAddRecentlyViewedGrid: '最近浏览网格',
     visualEditAddRecommendedGrid: '推荐网格',
+    visualEditAddFlashSaleGrid: '限时抢购',
+    visualEditAddFlashSaleHint: '每轮 10 分钟最多 12 个特惠，来自刚看过的中国店铺与三级类目。',
     visualEditAddFeaturedCategories: '精选分类',
     visualEditAddRelatedGrid: '相似商品',
     visualEditAddOutfitGrid: '搭配',
@@ -4612,6 +4620,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddProductGrid: '商品グリッド',
     visualEditAddRecentlyViewedGrid: '閲覧履歴グリッド',
     visualEditAddRecommendedGrid: 'おすすめグリッド',
+    visualEditAddFlashSaleGrid: 'フラッシュセール',
+    visualEditAddFlashSaleHint: '10分で最大12件。最近見た中国ショップと同じカテゴリ。',
     visualEditAddFeaturedCategories: '注目カテゴリ',
     visualEditAddRelatedGrid: '類似商品',
     visualEditAddOutfitGrid: 'コーディネート',
@@ -5661,6 +5671,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddProductGrid: '상품 그리드',
     visualEditAddRecentlyViewedGrid: '최근 본 그리드',
     visualEditAddRecommendedGrid: '추천 그리드',
+    visualEditAddFlashSaleGrid: '플래시 세일',
+    visualEditAddFlashSaleHint: '10분마다 최대 12개, 최근 본 중국 샵·카테고리.',
     visualEditAddFeaturedCategories: '추천 카테고리',
     visualEditAddRelatedGrid: '유사 상품',
     visualEditAddOutfitGrid: '코디',

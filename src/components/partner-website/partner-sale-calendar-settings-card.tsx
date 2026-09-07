@@ -35,6 +35,17 @@ const COPY: Record<
     warehouseCreated: string
     warehouseApplied: string
     warehouseNeedImage: string
+    flashTitle: string
+    flashHint: string
+    flashOn: string
+    flashOff: string
+    flashOnAria: string
+    flashOffAria: string
+    flashOffNote: string
+    flashOnNote: string
+    flashSavedOn: string
+    flashSavedOff: string
+    flashError: string
   }
 > = {
   vi: {
@@ -59,6 +70,18 @@ const COPY: Record<
     warehouseCreated: 'Đã tạo banner sale kho.',
     warehouseApplied: 'Đã áp dụng banner sale kho.',
     warehouseNeedImage: 'Chưa có ảnh banner sale kho cho mức % này. Hãy tạo trước.',
+    flashTitle: 'Flash sale',
+    flashHint:
+      'Khối FLASH SALE trang chủ: tối đa 12 deal / 10 phút, cùng shop Trung Quốc và danh mục vừa xem. Tắt = ẩn khối và không giảm giá flash trên sản phẩm / giỏ hàng.',
+    flashOn: 'Đang bật',
+    flashOff: 'Đang tắt',
+    flashOnAria: 'Tắt Flash sale',
+    flashOffAria: 'Bật Flash sale',
+    flashOffNote: 'Flash sale đang tắt trên toàn shop. Bấm Đang tắt để bật lại.',
+    flashOnNote: 'Đang chạy: giảm 5–6% trên đúng mã trong lượt. Hết lượt mất giảm. Không áp dụng hàng kho thanh lý.',
+    flashSavedOn: 'Đã bật Flash sale',
+    flashSavedOff: 'Đã tắt Flash sale',
+    flashError: 'Không lưu được Flash sale.',
   },
   en: {
     title: 'Same-day same-month sale',
@@ -82,6 +105,18 @@ const COPY: Record<
     warehouseCreated: 'Warehouse banner created.',
     warehouseApplied: 'Warehouse banner applied.',
     warehouseNeedImage: 'No warehouse banner image for this percent yet. Generate one first.',
+    flashTitle: 'Flash sale',
+    flashHint:
+      'Homepage FLASH SALE block: up to 12 deals / 10 minutes from the same Chinese shop and recently viewed category. Off hides the block and removes flash discounts on products and cart.',
+    flashOn: 'On',
+    flashOff: 'Off',
+    flashOnAria: 'Turn off Flash sale',
+    flashOffAria: 'Turn on Flash sale',
+    flashOffNote: 'Flash sale is off for the whole shop. Tap Off to turn it back on.',
+    flashOnNote: 'Live: 5–6% off assigned SKUs this round. Discount ends with the round. Not on warehouse clearance.',
+    flashSavedOn: 'Flash sale is on',
+    flashSavedOff: 'Flash sale is off',
+    flashError: 'Could not save Flash sale.',
   },
   zh: {
     title: '同日同月促销',
@@ -105,6 +140,18 @@ const COPY: Record<
     warehouseCreated: '已生成清仓横幅。',
     warehouseApplied: '已应用清仓横幅。',
     warehouseNeedImage: '该折扣还没有清仓横幅。请先生成。',
+    flashTitle: '限时抢购',
+    flashHint:
+      '首页 FLASH SALE：每轮 10 分钟最多 12 个特惠，来自刚看过的中国店铺与三级类目。关闭后隐藏区块，商品/购物车不再享受闪购折扣。',
+    flashOn: '已开启',
+    flashOff: '已关闭',
+    flashOnAria: '关闭限时抢购',
+    flashOffAria: '开启限时抢购',
+    flashOffNote: '全店已关闭限时抢购。点「已关闭」可重新开启。',
+    flashOnNote: '当前轮次对指定商品减 5–6%。本轮结束即恢复原价。清仓商品不适用。',
+    flashSavedOn: '已开启限时抢购',
+    flashSavedOff: '已关闭限时抢购',
+    flashError: '无法保存限时抢购。',
   },
   ja: {
     title: '同日同月セール',
@@ -128,6 +175,18 @@ const COPY: Record<
     warehouseCreated: '倉庫バナーを作成しました。',
     warehouseApplied: '倉庫バナーを適用しました。',
     warehouseNeedImage: 'この割引率の倉庫バナーがありません。先に作成してください。',
+    flashTitle: 'フラッシュセール',
+    flashHint:
+      'トップの FLASH SALE：10分で最大12件。最近見た中国ショップと同じカテゴリ。オフにするとブロック非表示、商品・カートの割引も停止します。',
+    flashOn: 'オン',
+    flashOff: 'オフ',
+    flashOnAria: 'フラッシュセールをオフ',
+    flashOffAria: 'フラッシュセールをオン',
+    flashOffNote: 'ショップ全体でオフです。「オフ」を押すと再オンできます。',
+    flashOnNote: 'このラウンドの対象SKUは5–6%オフ。終了で割引終了。倉庫クリアランスは対象外。',
+    flashSavedOn: 'フラッシュセールをオンにしました',
+    flashSavedOff: 'フラッシュセールをオフにしました',
+    flashError: 'フラッシュセールを保存できませんでした。',
   },
   ko: {
     title: '같은 날짜·월 세일',
@@ -151,6 +210,18 @@ const COPY: Record<
     warehouseCreated: '창고 배너를 만들었습니다.',
     warehouseApplied: '창고 배너를 적용했습니다.',
     warehouseNeedImage: '이 할인율의 창고 배너가 없습니다. 먼저 만드세요.',
+    flashTitle: '플래시 세일',
+    flashHint:
+      '홈 FLASH SALE: 10분마다 최대 12개, 최근 본 중국 샵·카테고리. 끄면 블록이 숨고 상품/장바구니 플래시 할인도 중지됩니다.',
+    flashOn: '켜짐',
+    flashOff: '꺼짐',
+    flashOnAria: '플래시 세일 끄기',
+    flashOffAria: '플래시 세일 켜기',
+    flashOffNote: '전체 샵에서 플래시 세일이 꺼져 있습니다. 꺼짐을 눌러 다시 켜세요.',
+    flashOnNote: '이번 라운드 지정 SKU 5–6% 할인. 라운드가 끝나면 할인 종료. 창고 클리어런스 제외.',
+    flashSavedOn: '플래시 세일을 켰습니다',
+    flashSavedOff: '플래시 세일을 껐습니다',
+    flashError: '플래시 세일을 저장하지 못했습니다.',
   },
 }
 
@@ -169,6 +240,7 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
   const [config, setConfig] = useState<PartnerSaleCalendarConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [flashSaving, setFlashSaving] = useState(false)
   const [bannerWorking, setBannerWorking] = useState(false)
   const bannersApi = useMemo(
     () => `/api/messaging/partners/${encodeURIComponent(partnerId)}/marketing-banners`,
@@ -191,6 +263,27 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
   useEffect(() => {
     void load()
   }, [load])
+
+  async function toggleFlashSaleEnabled() {
+    if (!config || flashSaving) return
+    const next = config.flashSaleEnabled === false
+    setFlashSaving(true)
+    try {
+      const response = await fetch(api, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...config, flashSaleEnabled: next }),
+      })
+      if (response.ok) {
+        setConfig({ ...config, flashSaleEnabled: next })
+        onToast?.(next ? t.flashSavedOn : t.flashSavedOff)
+      } else {
+        onToast?.(t.flashError, 'destructive')
+      }
+    } finally {
+      setFlashSaving(false)
+    }
+  }
 
   async function save() {
     if (!config || saving) return
@@ -318,6 +411,39 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
           <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
         ) : (
           <>
+            <div
+              id="flash-sale"
+              className="space-y-3 rounded-xl border border-red-100 bg-red-50/40 p-4"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-gray-900">{t.flashTitle}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t.flashHint}</p>
+                </div>
+                <button
+                  type="button"
+                  className={`rounded-lg px-4 py-2 text-sm font-medium ${
+                    config.flashSaleEnabled !== false
+                      ? 'bg-red-600 text-white hover:bg-red-700'
+                      : 'bg-gray-300 text-gray-800 hover:bg-gray-400'
+                  } disabled:opacity-60`}
+                  disabled={flashSaving}
+                  aria-pressed={config.flashSaleEnabled !== false}
+                  aria-label={config.flashSaleEnabled !== false ? t.flashOnAria : t.flashOffAria}
+                  onClick={() => void toggleFlashSaleEnabled()}
+                >
+                  {flashSaving ? <Loader2 className="mr-2 inline h-4 w-4 animate-spin" /> : null}
+                  {config.flashSaleEnabled !== false ? t.flashOn : t.flashOff}
+                </button>
+              </div>
+              {config.flashSaleEnabled === false ? (
+                <div className="rounded-lg border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-gray-700">
+                  {t.flashOffNote}
+                </div>
+              ) : (
+                <p className="text-xs text-red-800">{t.flashOnNote}</p>
+              )}
+            </div>
             <div className="flex items-center justify-between gap-3">
               <Label htmlFor="sale-enabled">{t.enabled}</Label>
               <Switch

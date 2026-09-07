@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import type { NextRequest } from 'next/server'
+import { readGuestAccountIdFromRequest } from '@/lib/messaging/guest-account-session'
 import {
   MESSAGING_GUEST_ACCOUNT_COOKIE,
   MESSAGING_GUEST_ACCOUNT_COOKIE_LEGACY,
@@ -62,6 +63,7 @@ import {
   loadPartnerSiteSaleOverlay,
   type PartnerSiteSaleOverlay,
 } from '@/lib/partner-website/promotions/partner-site-sale-attach'
+import { overlayPartnerFlashSaleOnProducts } from '@/lib/db/messaging-partner-flash-sale-pg'
 
 export type PartnerSitePersonalizationProduct = {
   inventory_id: string
@@ -138,6 +140,19 @@ export async function resolveSiteVisitorContext(
     })
   }
   return { accountKey, thread, sessionId }
+}
+
+/** API listing — đọc identity đã có, không mint session (crawler không tạo giỏ ẩn). */
+export async function peekSiteVisitorAccountKeyFromRequest(
+  request: NextRequest
+): Promise<string | null> {
+  const guest = readGuestAccountIdFromRequest(request)
+  if (guest) return guest
+  if (!requestSkipsPartnerSiteShopAuthResume(request)) {
+    const user = await getEmailSessionUser()
+    if (user?.id) return user.id
+  }
+  return readGuestSessionIdFromRequestStrictOrLoose(request)
 }
 
 /** RSC — đọc account key khách đã có, không mint session mới. */
@@ -268,7 +283,8 @@ export function mapInventoryRowToPersonalizationProduct(
 async function loadProductsByIds(
   partnerId: string,
   siteSlug: string,
-  ids: string[]
+  ids: string[],
+  accountKey?: string | null
 ): Promise<PartnerSitePersonalizationProduct[]> {
   const clean = ids.filter((id) => UUID_RE.test(id))
   if (!clean.length) return []
@@ -282,7 +298,13 @@ async function loadProductsByIds(
     const mapped = mapInventoryRowToPersonalizationProduct(siteSlug, row, overlay)
     if (mapped) out.push(mapped)
   }
-  return out
+  if (!accountKey || !out.length) return out
+  return overlayPartnerFlashSaleOnProducts({
+    partnerId,
+    accountKey,
+    timezone: overlay?.state.timezone,
+    products: out,
+  })
 }
 
 export function isPersonalizationIdsOnlyRequest(searchParams: URLSearchParams): boolean {
@@ -314,7 +336,7 @@ export async function getSiteRecentlyViewedProducts(input: {
     accountKey: input.accountKey,
     kind: 'recently-viewed',
   })
-  return (await loadProductsByIds(input.partnerId, input.siteSlug, ids)).slice(0, lim)
+  return (await loadProductsByIds(input.partnerId, input.siteSlug, ids, input.accountKey)).slice(0, lim)
 }
 
 export async function getSiteFavoriteProducts(input: {
@@ -329,7 +351,7 @@ export async function getSiteFavoriteProducts(input: {
     accountKey: input.accountKey,
     kind: 'favorites',
   })
-  return (await loadProductsByIds(input.partnerId, input.siteSlug, ids)).slice(0, lim)
+  return (await loadProductsByIds(input.partnerId, input.siteSlug, ids, input.accountKey)).slice(0, lim)
 }
 
 /** RSC first paint for vừa xem / yêu thích — no client "…" wait. */

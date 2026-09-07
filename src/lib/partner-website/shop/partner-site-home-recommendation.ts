@@ -32,6 +32,7 @@ import type { PartnerInventoryShopCardRow } from '@/lib/partner-website/shop/inv
 import { normalizeShopImageUrl } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import type { PartnerSitePersonalizationProduct } from '@/lib/partner-website/shop/partner-site-personalization'
+import { overlayPartnerFlashSaleOnProducts } from '@/lib/db/messaging-partner-flash-sale-pg'
 import { applyPartnerSiteSaleToShopProduct } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { loadPartnerSiteSaleOverlay } from '@/lib/partner-website/promotions/partner-site-sale-attach'
 
@@ -342,13 +343,20 @@ export async function getSiteHomeRecommendationBlock(input: {
 
   const applySale = async (rows: PartnerSitePersonalizationProduct[]) => {
     const overlay = await loadPartnerSiteSaleOverlay(input.partnerId).catch(() => null)
-    if (!overlay) return rows
-    return rows.map((product) => {
-      const sold = applyPartnerSiteSaleToShopProduct(product, overlay.state, {
-        clearanceEnabled: overlay.clearanceEnabled,
-        clearancePercent: overlay.clearancePercent,
-      })
-      return { ...product, ...sold }
+    const sold = overlay
+      ? rows.map((product) => {
+          const next = applyPartnerSiteSaleToShopProduct(product, overlay.state, {
+            clearanceEnabled: overlay.clearanceEnabled,
+            clearancePercent: overlay.clearancePercent,
+          })
+          return { ...product, ...next }
+        })
+      : rows
+    return overlayPartnerFlashSaleOnProducts({
+      partnerId: input.partnerId,
+      accountKey: input.accountKey,
+      timezone: overlay?.state.timezone,
+      products: sold,
     })
   }
 

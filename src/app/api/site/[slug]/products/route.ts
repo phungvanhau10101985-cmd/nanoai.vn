@@ -18,7 +18,9 @@ import { toPartnerSiteCardPayload } from '@/lib/partner-website/shop/partner-sit
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import { resolvePartnerStorefrontSaleCalendarForRequest } from '@/lib/partner-website/promotions/partner-feature-test-storefront'
+import { overlayPartnerFlashSaleOnProducts } from '@/lib/db/messaging-partner-flash-sale-pg'
 import { applyPartnerSiteSaleToShopProduct } from '@/lib/partner-website/promotions/partner-site-sale-display'
+import { peekSiteVisitorAccountKeyFromRequest } from '@/lib/partner-website/shop/partner-site-personalization'
 
 export const dynamic = 'force-dynamic'
 
@@ -178,14 +180,23 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     .filter((p): p is NonNullable<typeof p> => Boolean(p))
     .filter((p) => !excludeSet.has(p.id))
   const hasMore = mapped.length > limit || offset + limit < page.count
-  const products = mapped.slice(0, limit).map((product) =>
-    toPartnerSiteCardPayload(
-      applyPartnerSiteSaleToShopProduct(product, saleCalendar, {
-        clearanceEnabled: saleConfig.clearanceEnabled,
-        clearancePercent: saleConfig.clearanceDiscountPercent,
-      })
-    )
+  const sold = mapped.slice(0, limit).map((product) =>
+    applyPartnerSiteSaleToShopProduct(product, saleCalendar, {
+      clearanceEnabled: saleConfig.clearanceEnabled,
+      clearancePercent: saleConfig.clearanceDiscountPercent,
+    })
   )
+  const accountKey = await peekSiteVisitorAccountKeyFromRequest(request)
+  const withFlash =
+    accountKey && saleConfig.flashSaleEnabled !== false
+      ? await overlayPartnerFlashSaleOnProducts({
+          partnerId: shop.partnerId,
+          accountKey,
+          timezone: saleConfig.timezone,
+          products: sold,
+        })
+      : sold
+  const products = withFlash.map((product) => toPartnerSiteCardPayload(product))
 
   if (related && categoryId && UUID_RE.test(categoryId)) {
     const flat = await fetchPartnerCategoriesFlatFromPg(shop.partnerId)

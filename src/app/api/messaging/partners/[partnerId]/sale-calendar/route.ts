@@ -54,6 +54,7 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ partner
       clearanceEnabled: body.clearanceEnabled ?? current.clearanceEnabled,
       clearanceDiscountPercent:
         body.clearanceDiscountPercent ?? current.clearanceDiscountPercent,
+      flashSaleEnabled: body.flashSaleEnabled ?? current.flashSaleEnabled,
     },
     monthRules: body.monthRules ?? current.monthRules,
   })
@@ -68,6 +69,7 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ partner
         enabled: body.enabled ?? current.enabled,
         timezone: body.timezone ?? current.timezone,
         teaserDays: body.teaserDays ?? current.teaserDays,
+        flashSaleEnabled: body.flashSaleEnabled ?? current.flashSaleEnabled,
       },
     })
   }

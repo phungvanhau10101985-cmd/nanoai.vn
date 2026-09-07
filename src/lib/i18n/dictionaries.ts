@@ -755,6 +755,8 @@ export type Dictionary = {
     customerCareShopSetupGuideBody: string
     /** Sidebar trang /dashboard/messaging/settings */
     settingsSidebarTitle: string
+    /** Nút X / lớp phủ đóng drawer quản trị (mobile) */
+    settingsCloseSidebar: string
     /** Nhóm link vận hành (Marketing, Đơn hàng) trên sidebar Quản trị */
     settingsNavOperationsTitle: string
     settingsNavOperationsDesc: string
@@ -4021,6 +4023,7 @@ const VI_DICTIONARY: Dictionary = {
     customerCareShopSetupGuideBody:
       'Bước 1 — Vào Bảng điều khiển → Nhắn tin → Quản trị (trang này).\n\nBước 2 — Ở mục «Tạo workspace nhắn tin», nhập tên hiển thị, tên thương hiệu, chọn ngành; có thể dán URL logo hoặc tải ảnh lên.\n\nBước 3 — Nhấn «Tạo mới». Đây là workspace của shop: mọi tin từ Facebook Page, Zalo OA, chat trên NanoAI và chat nhúng trên web shop đều vào cùng một inbox.\n\nBước 4 — Sau đó kết nối kênh (Facebook/Zalo), sao chép liên kết chat hoặc mã nhúng iframe, và tùy chọn bật trợ lý AI cùng kho hàng ngay trên trang quản trị này.',
     settingsSidebarTitle: 'Danh mục quản trị',
+    settingsCloseSidebar: 'Đóng menu quản trị',
     settingsNavOperationsTitle: 'Vận hành',
     settingsNavOperationsDesc: 'Đơn hàng, thông báo khách và chiến dịch marketing.',
     settingsNavWebsiteTitle: 'Quản trị website',
@@ -7294,6 +7297,7 @@ const EN_DICTIONARY: Dictionary = {
     messagingSettingsApiHubCardBody:
       'Hosted URL, iframe snippet, embed endpoint, keys, and developer docs now live on the API integration page — they are no longer shown on this settings screen.',
     settingsSidebarTitle: 'Admin menu',
+    settingsCloseSidebar: 'Close admin menu',
     settingsNavOperationsTitle: 'Operations',
     settingsNavOperationsDesc: 'Orders, customer notifications, and marketing campaigns.',
     settingsNavWebsiteTitle: 'Website admin',
@@ -10561,6 +10565,7 @@ const ZH_DICTIONARY: Dictionary = {
     customerCareShopSetupGuideBody:
       '第 1 步 — 打开 控制台 → 消息 → 渠道与 AI 设置（本页）。\n\n第 2 步 — 在「创建消息工作区」中填写显示名称、品牌名称、选择行业；可填写 logo 链接或上传图片。\n\n第 3 步 — 点击「创建」。即店铺工作区：来自 Facebook 公共主页、Zalo OA、NanoAI 托管聊天与网站嵌入聊天的消息会进入同一收件箱。\n\n第 4 步 — 随后连接渠道（Facebook/Zalo）、复制托管聊天链接或 iframe 代码，并可在本页选择开启 AI 助手与库存。',
     settingsSidebarTitle: '管理目录',
+    settingsCloseSidebar: '关闭管理菜单',
     settingsNavOperationsTitle: '日常运营',
     settingsNavOperationsDesc: '订单、客户通知与营销活动。',
     settingsNavWebsiteTitle: '网站管理',
@@ -13741,6 +13746,7 @@ const JA_DICTIONARY: Dictionary = {
     customerCareShopSetupGuideBody:
       '手順 1 — ダッシュボード → メッセージ → チャネル・AI 設定（このページ）を開きます。\n\n手順 2 — 「メッセージワークスペースを作成」に表示名・ブランド名・業種を入力します。ロゴは URL の入力または画像アップロードが可能です。\n\n手順 3 — 「作成」をクリックします。これが店舗ワークスペースです。Facebook ページ、Zalo OA、NanoAI 上のチャット、サイト埋め込みチャットのメッセージはすべて同じ受信箱に入ります。\n\n手順 4 — 続けてチャネル（Facebook/Zalo）を接続し、ホストされたチャットリンクまたは iframe コードをコピーし、同じ設定画面で AI アシスタントや在庫を任意で有効にします。',
     settingsSidebarTitle: '管理メニュー',
+    settingsCloseSidebar: '管理メニューを閉じる',
     settingsNavOperationsTitle: '運用',
     settingsNavOperationsDesc: '注文、お客様通知、マーケティング。',
     settingsNavWebsiteTitle: 'Web管理',
@@ -16985,6 +16991,7 @@ const KO_DICTIONARY: Dictionary = {
     customerCareShopSetupGuideBody:
       '1단계 — 대시보드 → 메시지 → 채널·AI 설정(이 페이지)으로 이동합니다.\n\n2단계 — «메시징 워크스페이스 만들기»에서 표시 이름, 브랜드 이름, 업종을 입력합니다. 로고는 URL을 넣거나 이미지를 업로드할 수 있습니다.\n\n3단계 — «만들기»를 누릅니다. 이것이 매장 워크스페이스입니다. Facebook 페이지, Zalo OA, NanoAI 호스팅 채팅, 사이트에 임베드한 채팅의 메시지가 모두 같은 받은편지함으로 들어옵니다.\n\n4단계 — 이어서 채널(Facebook/Zalo)을 연결하고 호스팅 채팅 링크 또는 iframe 코드를 복사한 뒤, 같은 설정 페이지에서 AI 어시스트와 재고를 선택적으로 켤 수 있습니다.',
     settingsSidebarTitle: '관리 메뉴',
+    settingsCloseSidebar: '관리 메뉴 닫기',
     settingsNavOperationsTitle: '운영',
     settingsNavOperationsDesc: '주문, 고객 알림, 마케팅 캠페인.',
     settingsNavWebsiteTitle: '웹사이트 관리',

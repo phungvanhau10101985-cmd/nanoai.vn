@@ -59,6 +59,29 @@ test('active sale charges discounted price and uses date badge', () => {
   assert.equal(face.badge, '9/9 - 6%')
 })
 
+test('flash sale uses FLASH -N% badge', () => {
+  assert.equal(partnerSiteSaleDateBadgeLabel({ percent: 5, kind: 'flash' }), 'FLASH -5%')
+  assert.equal(partnerSiteSaleDateBadgeLabel({ percent: 6, eventLabel: 'Flash sale' }), 'FLASH -6%')
+  const face = resolvePartnerProductSaleFace({
+    priceAmount: 1_000_000,
+    salePriceAmount: 950_000,
+    siteSale: {
+      kind: 'flash',
+      listPrice: 1_000_000,
+      displayPrice: 950_000,
+      savingsAmount: 50_000,
+      percent: 5,
+      phase: 'active',
+      expectedSalePrice: null,
+      eventLabel: 'Flash sale',
+      eventDate: null,
+      countdownTo: '2026-09-07T04:10:00.000Z',
+    },
+  })
+  assert.equal(face.kind, 'active')
+  assert.equal(face.badge, 'FLASH -5%')
+})
+
 test('salePriceAmount 0 is not a discount', () => {
   const face = resolvePartnerProductSaleFace({
     priceAmount: 200_000,

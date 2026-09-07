@@ -16,6 +16,7 @@ type SettingsDbRow = {
   clearance_discount_percent: string | number
   manual_sale_date: unknown
   manual_discount_percent: string | number | null
+  flash_sale_enabled?: boolean | null
 }
 
 type MonthDbRow = {
@@ -41,6 +42,7 @@ export type PartnerSaleCalendarConfig = PartnerSaleCalendarSettings & {
   partnerId: string
   clearanceEnabled: boolean
   clearanceDiscountPercent: number
+  flashSaleEnabled: boolean
 }
 
 export async function fetchPartnerSaleCalendarConfigFromPg(
@@ -53,6 +55,7 @@ export async function fetchPartnerSaleCalendarConfigFromPg(
       partnerId,
       clearanceEnabled: true,
       clearanceDiscountPercent: 20,
+      flashSaleEnabled: true,
     }
   }
   const [row, monthRows] = await Promise.all([
@@ -60,11 +63,23 @@ export async function fetchPartnerSaleCalendarConfigFromPg(
       `select partner_id::text, enabled, timezone, teaser_days,
               odd_month_discount_percent, even_month_discount_percent,
               clearance_enabled, clearance_discount_percent,
-              manual_sale_date, manual_discount_percent
+              manual_sale_date, manual_discount_percent,
+              coalesce(flash_sale_enabled, true) as flash_sale_enabled
        from public.messaging_partner_sale_calendar_settings
        where partner_id = $1::uuid`,
       [partnerId]
-    ).catch(() => null),
+    ).catch((error) => {
+      if ((error as { code?: string })?.code !== '42703') return null
+      return pgQueryOne<SettingsDbRow>(
+        `select partner_id::text, enabled, timezone, teaser_days,
+                odd_month_discount_percent, even_month_discount_percent,
+                clearance_enabled, clearance_discount_percent,
+                manual_sale_date, manual_discount_percent
+         from public.messaging_partner_sale_calendar_settings
+         where partner_id = $1::uuid`,
+        [partnerId]
+      ).catch(() => null)
+    }),
     pgQuery<MonthDbRow>(
       `select month_no, enabled, discount_percent
        from public.messaging_partner_sale_calendar_month_rules
@@ -92,6 +107,7 @@ export async function fetchPartnerSaleCalendarConfigFromPg(
     monthRules,
     clearanceEnabled: row?.clearance_enabled !== false,
     clearanceDiscountPercent: numberValue(row?.clearance_discount_percent, 20),
+    flashSaleEnabled: row?.flash_sale_enabled !== false,
   }
 }
 
@@ -101,8 +117,42 @@ export async function upsertPartnerSaleCalendarConfigFromPg(input: {
   monthRules?: PartnerSaleCalendarSettings['monthRules']
 }): Promise<boolean> {
   if (!isPgConfigured()) return false
-  await pgQuery(
-    `insert into public.messaging_partner_sale_calendar_settings (
+  try {
+    await pgQuery(
+      `insert into public.messaging_partner_sale_calendar_settings (
+       partner_id, enabled, timezone, teaser_days, odd_month_discount_percent,
+       even_month_discount_percent, clearance_enabled, clearance_discount_percent,
+       manual_sale_date, manual_discount_percent, flash_sale_enabled, updated_at
+     ) values ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9::date,$10,$11,now())
+     on conflict (partner_id) do update set
+       enabled = excluded.enabled, timezone = excluded.timezone,
+       teaser_days = excluded.teaser_days,
+       odd_month_discount_percent = excluded.odd_month_discount_percent,
+       even_month_discount_percent = excluded.even_month_discount_percent,
+       clearance_enabled = excluded.clearance_enabled,
+       clearance_discount_percent = excluded.clearance_discount_percent,
+       manual_sale_date = excluded.manual_sale_date,
+       manual_discount_percent = excluded.manual_discount_percent,
+       flash_sale_enabled = excluded.flash_sale_enabled,
+       updated_at = now()`,
+      [
+        input.partnerId,
+        input.settings.enabled,
+        input.settings.timezone,
+        input.settings.teaserDays,
+        input.settings.oddMonthDiscountPercent,
+        input.settings.evenMonthDiscountPercent,
+        input.settings.clearanceEnabled,
+        input.settings.clearanceDiscountPercent,
+        input.settings.manualSaleDate,
+        input.settings.manualDiscountPercent,
+        input.settings.flashSaleEnabled !== false,
+      ]
+    )
+  } catch (error) {
+    if ((error as { code?: string })?.code !== '42703') throw error
+    await pgQuery(
+      `insert into public.messaging_partner_sale_calendar_settings (
        partner_id, enabled, timezone, teaser_days, odd_month_discount_percent,
        even_month_discount_percent, clearance_enabled, clearance_discount_percent,
        manual_sale_date, manual_discount_percent, updated_at
@@ -117,19 +167,20 @@ export async function upsertPartnerSaleCalendarConfigFromPg(input: {
        manual_sale_date = excluded.manual_sale_date,
        manual_discount_percent = excluded.manual_discount_percent,
        updated_at = now()`,
-    [
-      input.partnerId,
-      input.settings.enabled,
-      input.settings.timezone,
-      input.settings.teaserDays,
-      input.settings.oddMonthDiscountPercent,
-      input.settings.evenMonthDiscountPercent,
-      input.settings.clearanceEnabled,
-      input.settings.clearanceDiscountPercent,
-      input.settings.manualSaleDate,
-      input.settings.manualDiscountPercent,
-    ]
-  )
+      [
+        input.partnerId,
+        input.settings.enabled,
+        input.settings.timezone,
+        input.settings.teaserDays,
+        input.settings.oddMonthDiscountPercent,
+        input.settings.evenMonthDiscountPercent,
+        input.settings.clearanceEnabled,
+        input.settings.clearanceDiscountPercent,
+        input.settings.manualSaleDate,
+        input.settings.manualDiscountPercent,
+      ]
+    )
+  }
   for (const [monthText, rule] of Object.entries(input.monthRules ?? {})) {
     const month = Number(monthText)
     if (!rule || month < 1 || month > 12) continue

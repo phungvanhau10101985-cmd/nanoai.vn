@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -145,14 +145,23 @@ const CART_SALE_COPY: Record<WebLocale, {
   clearanceSubtotal: string
   regularSubtotal: string
   capNotice: string
+  capReachedVoucher: string
   selectProduct: string
   quoteUpdating: string
 }> = {
-  vi: { selectAll: 'Chọn tất cả', selectedCount: 'Đã chọn {selected}/{total} sản phẩm', voucherWallet: 'Voucher của bạn', noVoucher: 'Chưa có voucher phù hợp.', expiresSoon: 'Sắp hết hạn', saleDiscount: 'Sale ngày trùng tháng', googleDiscount: 'Google Shopping', birthdayDiscount: 'Ưu đãi sinh nhật', loyaltyDiscount: 'Hạng thành viên', clearanceSubtotal: 'Thanh lý kho', regularSubtotal: 'Tạm tính hàng thường', capNotice: 'Tổng ưu đãi đã được giới hạn ở 15% giá niêm yết.', selectProduct: 'Chọn sản phẩm', quoteUpdating: 'Đang cập nhật giá…' },
-  en: { selectAll: 'Select all', selectedCount: '{selected} of {total} products selected', voucherWallet: 'Your vouchers', noVoucher: 'No eligible voucher yet.', expiresSoon: 'Expiring soon', saleDiscount: 'Same-day sale', googleDiscount: 'Google Shopping', birthdayDiscount: 'Birthday offer', loyaltyDiscount: 'Membership tier', clearanceSubtotal: 'Clearance', regularSubtotal: 'Regular items subtotal', capNotice: 'Total discounts have been capped at 15% of list price.', selectProduct: 'Select product', quoteUpdating: 'Updating prices…' },
-  zh: { selectAll: '全选', selectedCount: '已选择 {selected}/{total} 件商品', voucherWallet: '您的优惠券', noVoucher: '暂无可用优惠券。', expiresSoon: '即将到期', saleDiscount: '同日促销', googleDiscount: 'Google Shopping', birthdayDiscount: '生日优惠', loyaltyDiscount: '会员等级', clearanceSubtotal: '清仓商品', regularSubtotal: '普通商品小计', capNotice: '总优惠已限制为标价的 15%。', selectProduct: '选择商品', quoteUpdating: '正在更新价格…' },
-  ja: { selectAll: 'すべて選択', selectedCount: '{total}点中{selected}点を選択', voucherWallet: 'お持ちのクーポン', noVoucher: '利用可能なクーポンはありません。', expiresSoon: 'まもなく期限切れ', saleDiscount: '同日セール', googleDiscount: 'Google Shopping', birthdayDiscount: '誕生日特典', loyaltyDiscount: '会員ランク', clearanceSubtotal: '在庫処分', regularSubtotal: '通常商品の小計', capNotice: '割引合計は定価の15%を上限としています。', selectProduct: '商品を選択', quoteUpdating: '価格を更新中…' },
-  ko: { selectAll: '전체 선택', selectedCount: '상품 {total}개 중 {selected}개 선택', voucherWallet: '내 쿠폰', noVoucher: '사용 가능한 쿠폰이 없습니다.', expiresSoon: '곧 만료', saleDiscount: '동일 날짜 세일', googleDiscount: 'Google Shopping', birthdayDiscount: '생일 혜택', loyaltyDiscount: '회원 등급', clearanceSubtotal: '창고 정리', regularSubtotal: '일반 상품 소계', capNotice: '총 할인은 정가의 15%로 제한되었습니다.', selectProduct: '상품 선택', quoteUpdating: '가격 업데이트 중…' },
+  vi: { selectAll: 'Chọn tất cả', selectedCount: 'Đã chọn {selected}/{total} sản phẩm', voucherWallet: 'Voucher của bạn', noVoucher: 'Chưa có voucher phù hợp.', expiresSoon: 'Sắp hết hạn', saleDiscount: 'Sale ngày trùng tháng', googleDiscount: 'Google Shopping', birthdayDiscount: 'Ưu đãi sinh nhật', loyaltyDiscount: 'Hạng thành viên', clearanceSubtotal: 'Thanh lý kho', regularSubtotal: 'Tạm tính hàng thường', capNotice: 'Tổng ưu đãi đã được giới hạn ở 15% giá niêm yết.', capReachedVoucher: 'Không thêm được mã này vì đơn đã đạt trần ưu đãi 15% giá niêm yết.', selectProduct: 'Chọn sản phẩm', quoteUpdating: 'Đang cập nhật giá…' },
+  en: { selectAll: 'Select all', selectedCount: '{selected} of {total} products selected', voucherWallet: 'Your vouchers', noVoucher: 'No eligible voucher yet.', expiresSoon: 'Expiring soon', saleDiscount: 'Same-day sale', googleDiscount: 'Google Shopping', birthdayDiscount: 'Birthday offer', loyaltyDiscount: 'Membership tier', clearanceSubtotal: 'Clearance', regularSubtotal: 'Regular items subtotal', capNotice: 'Total discounts have been capped at 15% of list price.', capReachedVoucher: 'This code cannot add more savings because the order has already reached the 15% discount cap.', selectProduct: 'Select product', quoteUpdating: 'Updating prices…' },
+  zh: { selectAll: '全选', selectedCount: '已选择 {selected}/{total} 件商品', voucherWallet: '您的优惠券', noVoucher: '暂无可用优惠券。', expiresSoon: '即将到期', saleDiscount: '同日促销', googleDiscount: 'Google Shopping', birthdayDiscount: '生日优惠', loyaltyDiscount: '会员等级', clearanceSubtotal: '清仓商品', regularSubtotal: '普通商品小计', capNotice: '总优惠已限制为标价的 15%。', capReachedVoucher: '订单优惠已达标价 15% 上限，无法再叠加此优惠码。', selectProduct: '选择商品', quoteUpdating: '正在更新价格…' },
+  ja: { selectAll: 'すべて選択', selectedCount: '{total}点中{selected}点を選択', voucherWallet: 'お持ちのクーポン', noVoucher: '利用可能なクーポンはありません。', expiresSoon: 'まもなく期限切れ', saleDiscount: '同日セール', googleDiscount: 'Google Shopping', birthdayDiscount: '誕生日特典', loyaltyDiscount: '会員ランク', clearanceSubtotal: '在庫処分', regularSubtotal: '通常商品の小計', capNotice: '割引合計は定価の15%を上限としています。', capReachedVoucher: '注文の割引が定価の15%上限に達しているため、このコードは追加できません。', selectProduct: '商品を選択', quoteUpdating: '価格を更新中…' },
+  ko: { selectAll: '전체 선택', selectedCount: '상품 {total}개 중 {selected}개 선택', voucherWallet: '내 쿠폰', noVoucher: '사용 가능한 쿠폰이 없습니다.', expiresSoon: '곧 만료', saleDiscount: '동일 날짜 세일', googleDiscount: 'Google Shopping', birthdayDiscount: '생일 혜택', loyaltyDiscount: '회원 등급', clearanceSubtotal: '창고 정리', regularSubtotal: '일반 상품 소계', capNotice: '총 할인은 정가의 15%로 제한되었습니다.', capReachedVoucher: '주문이 이미 정가 15% 할인 한도에 도달해 이 코드를 더 적용할 수 없습니다.', selectProduct: '상품 선택', quoteUpdating: '가격 업데이트 중…' },
+}
+
+function voucherBlockedByDiscountCap(quote: CartQuote): boolean {
+  return Boolean(
+    quote.promo &&
+    quote.breakdown.voucherDiscountAmount <= 0 &&
+    quote.breakdown.capAdjustmentAmount > 0
+  )
 }
 
 export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatPath }: Props) {
@@ -176,6 +185,10 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   const [promoCodeInput, setPromoCodeInput] = useState('')
   const [promoBusy, setPromoBusy] = useState(false)
   const [promoMessage, setPromoMessage] = useState('')
+  const [promoMessageKind, setPromoMessageKind] = useState<'error' | 'warn' | ''>('')
+  const [selectedWalletCode, setSelectedWalletCode] = useState('')
+  const quoteGenRef = useRef(0)
+  const skipAutoQuoteRef = useRef(false)
   const [selectedLineIds, setSelectedLineIds] = useState<Set<string>>(new Set())
   const [quote, setQuote] = useState<CartQuote | null>(null)
   const [quoteLoading, setQuoteLoading] = useState(false)
@@ -397,27 +410,88 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     return res.ok && json?.ok ? json : null
   }, [authHeaders, captureFromResponse, siteSlug])
 
+  const requestQuote = useCallback(async (
+    lines: SiteCartLine[],
+    promoCode?: string
+  ): Promise<CartQuote | null | undefined> => {
+    const gen = ++quoteGenRef.current
+    const next = await fetchQuote(lines, promoCode)
+    if (gen !== quoteGenRef.current) return undefined
+    return next
+  }, [fetchQuote])
+
+  const applyQuoteResult = useCallback((next: CartQuote | null, requestedCode: string) => {
+    if (!requestedCode) {
+      setQuote(next)
+      return
+    }
+    if (!next) {
+      setAppliedPromo(null)
+      setPromoMessage(t.promoErrorGeneric)
+      setPromoMessageKind('error')
+      return
+    }
+    setQuote(next)
+    if (next.promoError) {
+      setAppliedPromo(null)
+      setPromoMessage(promoErrorText(next.promoError))
+      setPromoMessageKind('error')
+      return
+    }
+    if (voucherBlockedByDiscountCap(next) && next.promo) {
+      setAppliedPromo(next.promo)
+      setPromoMessage(saleT.capReachedVoucher)
+      setPromoMessageKind('warn')
+      return
+    }
+    if (next.promo && next.breakdown.voucherDiscountAmount <= 0) {
+      setAppliedPromo(null)
+      setPromoMessage(t.promoErrorNoEligibleItems)
+      setPromoMessageKind('error')
+      return
+    }
+    if (next.promo) {
+      setAppliedPromo(next.promo)
+      if (next.breakdown.capAdjustmentAmount > 0) {
+        setPromoMessage(saleT.capNotice)
+        setPromoMessageKind('warn')
+      } else {
+        setPromoMessage('')
+        setPromoMessageKind('')
+      }
+      return
+    }
+    setAppliedPromo(null)
+    setPromoMessage(t.promoErrorGeneric)
+    setPromoMessageKind('error')
+  }, [promoErrorText, saleT.capNotice, saleT.capReachedVoucher, t.promoErrorGeneric, t.promoErrorNoEligibleItems])
+
   const activePromoCode = appliedPromo?.code ?? ''
+
+  useEffect(() => {
+    if (appliedPromo?.code) {
+      setSelectedWalletCode(appliedPromo.code)
+      setPromoCodeInput((current) => current.trim() ? current : appliedPromo.code)
+    }
+  }, [appliedPromo?.code])
 
   useEffect(() => {
     if (!ready || loading || selectedItems.length === 0) {
       setQuote(null)
       return
     }
+    if (promoBusy) return
+    if (skipAutoQuoteRef.current) {
+      skipAutoQuoteRef.current = false
+      return
+    }
     let cancelled = false
     const timer = window.setTimeout(() => {
       setQuoteLoading(true)
-      void fetchQuote(selectedItems, activePromoCode)
+      void requestQuote(selectedItems, activePromoCode)
         .then((next) => {
-          if (cancelled) return
-          setQuote(next)
-          if (next?.promoError && activePromoCode) {
-            setPromoMessage(promoErrorText(next.promoError))
-            setAppliedPromo(null)
-          } else if (next?.promo && activePromoCode) {
-            setAppliedPromo(next.promo)
-            setPromoMessage('')
-          }
+          if (cancelled || next === undefined) return
+          applyQuoteResult(next, activePromoCode)
         })
         .finally(() => {
           if (!cancelled) setQuoteLoading(false)
@@ -427,7 +501,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [activePromoCode, fetchQuote, loading, promoErrorText, ready, selectedItems])
+  }, [activePromoCode, applyQuoteResult, loading, promoBusy, ready, requestQuote, selectedItems])
 
   useEffect(() => {
     if (!ready || selectedItems.length === 0) {
@@ -447,30 +521,43 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       .catch(() => setWalletVouchers([]))
   }, [authHeaders, captureFromResponse, fallbackSubtotal, quote?.breakdown.regularEffectiveSubtotal, ready, selectedItems.length, siteSlug])
 
-  async function applyPromoCode() {
-    const code = promoCodeInput.trim()
-    if (!code || promoBusy) return
+  async function applyPromoCodeValue(code: string) {
+    const trimmed = code.trim()
+    if (!trimmed || promoBusy) return
+    const wallet = walletVouchers.find((item) => item.code.toLowerCase() === trimmed.toLowerCase())
+    if (wallet && !wallet.eligible) {
+      setSelectedWalletCode(wallet.code)
+      setPromoCodeInput(wallet.code)
+      setAppliedPromo(null)
+      setPromoMessage(promoErrorText(wallet.ineligibleReason ?? ''))
+      setPromoMessageKind('error')
+      return
+    }
     setPromoBusy(true)
     setPromoMessage('')
+    setPromoMessageKind('')
+    setPromoCodeInput(trimmed)
+    setSelectedWalletCode(wallet?.code || trimmed)
     try {
-      const next = await fetchQuote(selectedItems, code)
-      if (!next || next.promoError || !next.promo) {
-        setAppliedPromo(null)
-        setPromoMessage(promoErrorText(next?.promoError ?? ''))
-        return
-      }
-      setQuote(next)
-      setAppliedPromo(next.promo)
-      setPromoMessage('')
+      const next = await requestQuote(selectedItems, trimmed)
+      if (next === undefined) return
+      applyQuoteResult(next, trimmed)
+      skipAutoQuoteRef.current = true
     } finally {
       setPromoBusy(false)
     }
   }
 
+  function applyPromoCode() {
+    void applyPromoCodeValue(promoCodeInput)
+  }
+
   function removePromoCode() {
     setAppliedPromo(null)
     setPromoCodeInput('')
+    setSelectedWalletCode('')
     setPromoMessage('')
+    setPromoMessageKind('')
   }
 
   function openAddAddress() {
@@ -854,7 +941,9 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               {quote.breakdown.clearanceSubtotal > 0 ? (
                 <p className="is-clearance"><span>{saleT.clearanceSubtotal}</span><strong>{formatVnd(quote.breakdown.clearanceSubtotal)}</strong></p>
               ) : null}
-              {quote.breakdown.capAdjustmentAmount > 0 ? <p className="pw-shop-muted">{saleT.capNotice}</p> : null}
+              {quote.breakdown.capAdjustmentAmount > 0 && promoMessageKind !== 'warn' ? (
+                <p className="pw-shop-cart-promo-msg is-warn">{saleT.capNotice}</p>
+              ) : null}
             </div>
           ) : null}
           <div className="pw-shop-cart-promo" data-pw-el={PW_EL.coupon}>
@@ -862,35 +951,38 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
             {walletVouchers.length > 0 ? (
               <div className="pw-shop-cart-wallet">
                 <strong>{saleT.voucherWallet}</strong>
-                {walletVouchers.map((voucher) => (
-                  <label key={voucher.code} className={voucher.eligible ? '' : 'is-disabled'}>
+                {walletVouchers.map((voucher) => {
+                  const selectedCode = (appliedPromo?.code || selectedWalletCode).trim().toLowerCase()
+                  const isChecked = selectedCode === voucher.code.toLowerCase()
+                  return (
+                  <label
+                    key={voucher.code}
+                    className={`${voucher.eligible ? '' : 'is-disabled'}${isChecked ? ' is-selected' : ''}`}
+                  >
                     <input
                       type="radio"
                       name="wallet-voucher"
-                      checked={appliedPromo?.code === voucher.code}
-                      disabled={!voucher.eligible || promoBusy}
-                      onChange={() => {
-                        setPromoCodeInput(voucher.code)
-                        void fetchQuote(selectedItems, voucher.code).then((next) => {
-                          if (next?.promo) {
-                            setQuote(next)
-                            setAppliedPromo(next.promo)
-                            setPromoMessage('')
-                          } else {
-                            setPromoMessage(promoErrorText(next?.promoError ?? voucher.ineligibleReason ?? ''))
-                          }
-                        })
+                      checked={isChecked}
+                      disabled={promoBusy}
+                      onChange={() => {}}
+                      onClick={() => {
+                        void applyPromoCodeValue(voucher.code)
                       }}
                     />
                     <span><b>{voucher.code}</b> — {voucher.name}{voucher.expiresSoon ? ` · ${saleT.expiresSoon}` : ''}</span>
                   </label>
-                ))}
+                  )
+                })}
               </div>
             ) : isAuthenticated ? <p className="pw-shop-muted">{saleT.noVoucher}</p> : null}
-            {appliedPromo ? (
+            {appliedPromo || selectedWalletCode ? (
               <div className="pw-shop-cart-promo-row">
                 <span className="pw-shop-price">
-                  {appliedPromo.code} — {t.cartPromoDiscountLabel} {formatVnd(appliedPromo.discountAmount)}
+                  {promoBusy
+                    ? `${appliedPromo?.code || selectedWalletCode} — ${t.cartPromoApplying}`
+                    : appliedPromo && appliedPromo.discountAmount > 0
+                      ? `${appliedPromo.code} — ${t.cartPromoDiscountLabel} ${formatVnd(appliedPromo.discountAmount)}`
+                      : appliedPromo?.code || selectedWalletCode}
                 </span>
                 <button type="button" className="pw-shop-btn pw-shop-btn-outline pw-shop-btn-sm" onClick={removePromoCode}>
                   {t.cartPromoRemove}
@@ -903,18 +995,28 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                   value={promoCodeInput}
                   onChange={(e) => setPromoCodeInput(e.target.value)}
                   placeholder={t.cartPromoPlaceholder}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      applyPromoCode()
+                    }
+                  }}
                 />
                 <button
                   type="button"
                   className="pw-shop-btn pw-shop-btn-outline pw-shop-btn-sm"
                   disabled={promoBusy || !promoCodeInput.trim()}
-                  onClick={() => void applyPromoCode()}
+                  onClick={() => applyPromoCode()}
                 >
                   {promoBusy ? t.cartPromoApplying : t.cartPromoApply}
                 </button>
               </div>
             )}
-            {promoMessage ? <p className="pw-shop-muted">{promoMessage}</p> : null}
+            {promoMessage ? (
+              <p className={`pw-shop-cart-promo-msg${promoMessageKind === 'error' ? ' is-error' : promoMessageKind === 'warn' ? ' is-warn' : ''}`}>
+                {promoMessage}
+              </p>
+            ) : null}
           </div>
           <p className="pw-shop-muted">
             {shippingFeeEstimate > 0

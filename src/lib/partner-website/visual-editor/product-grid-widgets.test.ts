@@ -3,6 +3,7 @@ import test from 'node:test'
 import { parseHTML } from 'linkedom'
 import {
   buildVisualEditorProductGridHtml,
+  ensureHomeFlashSaleBlockInHtml,
   isPdpOnlyProductGridKind,
   isPersonalizeProductGridKind,
   isVisualEditorProductGridKind,
@@ -21,6 +22,7 @@ test('recognizes product grid kinds', () => {
   assert.equal(isVisualEditorProductGridKind('catalog'), true)
   assert.equal(isVisualEditorProductGridKind('recently-viewed'), true)
   assert.equal(isVisualEditorProductGridKind('recommended'), true)
+  assert.equal(isVisualEditorProductGridKind('flash-sale'), true)
   assert.equal(isVisualEditorProductGridKind('featured-categories'), true)
   assert.equal(isVisualEditorProductGridKind('related'), true)
   assert.equal(isVisualEditorProductGridKind('outfit'), true)
@@ -39,12 +41,14 @@ test('related and outfit are PDP-only picker kinds; personalize stays on every p
   assert.equal(productGridKindAllowedOnVisualPage('recommended', 'collection'), true)
   assert.equal(isPersonalizeProductGridKind('recently-viewed'), true)
   assert.equal(isPersonalizeProductGridKind('recommended'), true)
+  assert.equal(isPersonalizeProductGridKind('flash-sale'), true)
   assert.equal(isPersonalizeProductGridKind('featured-categories'), true)
   assert.equal(isPersonalizeProductGridKind('related'), false)
   assert.equal(isPersonalizeProductGridKind('outfit'), false)
   assert.equal(isPersonalizeProductGridKind('catalog'), false)
   assert.equal(productGridKindShownInAddPicker('recently-viewed', 'home'), true)
   assert.equal(productGridKindShownInAddPicker('recommended', 'product_detail'), true)
+  assert.equal(productGridKindShownInAddPicker('flash-sale', 'home'), true)
   assert.equal(productGridKindShownInAddPicker('featured-categories', 'home'), true)
   assert.equal(productGridKindShownInAddPicker('catalog', 'home'), false)
   assert.equal(productGridKindShownInAddPicker('related', 'product_detail'), true)
@@ -195,6 +199,31 @@ test('stamps recently viewed and recommended personalize hooks', () => {
   assert.equal(productGridWidgetLabel('recommended', 'vi'), 'Lưới đề xuất')
 })
 
+test('stamps flash sale personalize hook like 188', () => {
+  const html = buildVisualEditorProductGridHtml({
+    kind: 'flash-sale',
+    siteSlug: 'demo-shop',
+    locale: 'vi',
+    rows: 3,
+    device: 'desktop',
+  })
+  assert.match(html, /data-pw-personalize="flash-sale"/)
+  assert.match(html, /data-pw-grid-kind="flash-sale"/)
+  assert.match(html, /data-pw-region="catalog"/)
+  assert.match(html, /data-pw-scene="2"/)
+  assert.match(html, /FLASH SALE/)
+  assert.match(html, /data-pw-flash-head/)
+  assert.match(html, /data-pw-flash-sub/)
+  assert.match(html, /data-pw-flash-timer/)
+  assert.match(html, /data-pw-grid-rows="3"/)
+  assert.match(html, /data-limit="12"/)
+  assert.match(html, /pw-rec-card/)
+  assert.doesNotMatch(html, /pw-rec-badge/)
+  assert.doesNotMatch(html, /data-pw-grid-more/)
+  assert.doesNotMatch(html, /Xem tất cả các nhóm/)
+  assert.equal(productGridWidgetLabel('flash-sale', 'vi'), 'Flash sale')
+})
+
 test('stamps related products strip', () => {
   const html = buildVisualEditorProductGridHtml({ kind: 'related', siteSlug: 'demo-shop', locale: 'vi' })
   assert.match(html, /data-pw-related="1"/)
@@ -223,4 +252,29 @@ test('stamps outfit pairing strip', () => {
   assert.match(html, /pw-outfit-all/)
   assert.match(html, /Xem tất cả các nhóm/)
   assert.equal(productGridWidgetLabel('outfit', 'vi'), 'Khối phối đồ')
+})
+
+test('ensureHomeFlashSaleBlockInHtml inserts after banner once', () => {
+  const page = `<html><body><main>
+<section data-pw-region="banner"><h1>Hero</h1></section>
+<section data-pw-region="categories">Cats</section>
+</main></body></html>`
+  const once = ensureHomeFlashSaleBlockInHtml(page, { siteSlug: 'demo-shop', locale: 'vi', device: 'desktop' })
+  assert.match(once, /data-pw-personalize="flash-sale"/)
+  assert.match(once, /data-limit="12"/)
+  const bannerIdx = once.indexOf('data-pw-region="banner"')
+  const flashIdx = once.indexOf('data-pw-personalize="flash-sale"')
+  const catsIdx = once.indexOf('data-pw-region="categories"')
+  assert.ok(bannerIdx >= 0 && flashIdx > bannerIdx && catsIdx > flashIdx)
+  const twice = ensureHomeFlashSaleBlockInHtml(once, { siteSlug: 'demo-shop', locale: 'vi' })
+  assert.equal(twice.split('data-pw-personalize="flash-sale"').length, 2)
+})
+
+test('ensureHomeFlashSaleBlockInHtml ignores CSS selectors in <style>', () => {
+  const page = `<html><head><style>html [data-pw-personalize="flash-sale"] .pw-flash-head{display:flex}</style></head><body><main>
+<section data-pw-region="banner"><h1>Hero</h1></section>
+</main></body></html>`
+  const out = ensureHomeFlashSaleBlockInHtml(page, { siteSlug: 'demo-shop', locale: 'vi', device: 'desktop' })
+  assert.match(out, /<section[^>]*data-pw-personalize="flash-sale"/)
+  assert.match(out, /data-limit="12"/)
 })

@@ -1,4 +1,5 @@
 import type { WebLocale } from '@/lib/i18n/config'
+import { FLASH_SALE_MAX_COUNT } from '@/lib/partner-website/promotions/partner-flash-sale'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { buildOutfitProductsSectionHtml } from '@/lib/partner-website/shop/outfit-products'
 import {
@@ -22,6 +23,7 @@ export const VISUAL_EDITOR_PRODUCT_GRID_KINDS = [
   'catalog',
   'recently-viewed',
   'recommended',
+  'flash-sale',
   'featured-categories',
   'related',
   'outfit',
@@ -40,6 +42,7 @@ export const VISUAL_EDITOR_PDP_ONLY_PRODUCT_GRID_KINDS = ['related', 'outfit'] a
 export const VISUAL_EDITOR_PERSONALIZE_PRODUCT_GRID_KINDS = [
   'recently-viewed',
   'recommended',
+  'flash-sale',
   'featured-categories',
 ] as const
 
@@ -97,6 +100,13 @@ const TITLE: Record<VisualEditorProductGridKind, Record<WebLocale, string>> = {
     zh: '猜你喜欢',
     ja: 'あなたへのおすすめ',
     ko: '이런 상품은 어때요',
+  },
+  'flash-sale': {
+    vi: 'FLASH SALE',
+    en: 'FLASH SALE',
+    zh: 'FLASH SALE',
+    ja: 'FLASH SALE',
+    ko: 'FLASH SALE',
   },
   related: {
     vi: 'Sản phẩm tương tự',
@@ -177,6 +187,17 @@ export function productGridWidgetLabel(kind: VisualEditorProductGridKind, locale
             ? '추천 카테고리'
             : 'Featured categories'
   }
+  if (kind === 'flash-sale') {
+    return locale === 'vi'
+      ? 'Flash sale'
+      : locale === 'zh'
+        ? '限时抢购'
+        : locale === 'ja'
+          ? 'フラッシュセール'
+          : locale === 'ko'
+            ? '플래시 세일'
+            : 'Flash sale'
+  }
   return locale === 'vi'
     ? 'Lưới đề xuất'
     : locale === 'zh'
@@ -226,7 +247,7 @@ function recommendedPlaceholderCards(count: number, label: string, soldLabel: st
   for (let i = 1; i <= n; i += 1) {
     out += `<article class="pw-product-card pw-rec-card" ${pwElAttr(PW_EL.card)} data-pw-grid-placeholder="1">
   <div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} style="background:var(--pw-surface,#f3f4f6)">
-    <span class="pw-rec-badge">${escapeHtml(badge)}</span>
+    ${badge ? `<span class="pw-rec-badge">${escapeHtml(badge)}</span>` : ''}
   </div>
   <div class="pw-product-card-body">
     <h3 ${pwElAttr(PW_EL.cardName)}>${escapeHtml(label)} ${i}</h3>
@@ -255,10 +276,15 @@ export function buildVisualEditorProductGridHtml(input: {
 }): string {
   const locale = input.locale && input.locale in TITLE.catalog ? input.locale : 'vi'
   const kind = input.kind
-  const rows = clampProductGridRows(kind === 'featured-categories' ? input.rows ?? 2 : input.rows)
+  const rows = clampProductGridRows(
+    kind === 'featured-categories' ? input.rows ?? 2 : kind === 'flash-sale' ? input.rows ?? 3 : input.rows
+  )
   const cols = productGridColsForDevice(input.device)
   const pageSize = productGridPageSize(rows, cols)
-  const limit = Math.max(pageSize, Math.min(48, Math.floor(Number(input.limit) || pageSize)))
+  const limit =
+    kind === 'flash-sale'
+      ? FLASH_SALE_MAX_COUNT
+      : Math.max(pageSize, Math.min(48, Math.floor(Number(input.limit) || pageSize)))
   if (kind === 'featured-categories') {
     return buildVisualEditorFeaturedCategoriesHtml({
       siteSlug: input.siteSlug,
@@ -287,38 +313,99 @@ export function buildVisualEditorProductGridHtml(input: {
     })
   }
   const copy = getPartnerSiteShopCopy(locale)
+  const flash = kind === 'flash-sale'
   const title =
     kind === 'recommended'
       ? copy.homeYouMayLike || TITLE.recommended[locale]
+      : kind === 'flash-sale'
+        ? TITLE['flash-sale'][locale]
       : kind === 'recently-viewed'
         ? copy.recentlyViewedTitle || TITLE['recently-viewed'][locale]
         : copy.catalogTitle || TITLE.catalog[locale]
   const loadMore = copy.gridLoadMore || copy.loadMore
   const seeAll = copy.gridSeeAllGroups || copy.relatedSeeAll
   const personalize =
-    kind === 'catalog' ? '' : ` data-pw-personalize="${kind === 'recommended' ? 'recommended' : 'recently-viewed'}"`
+    kind === 'catalog'
+      ? ''
+      : ` data-pw-personalize="${kind === 'recommended' ? 'recommended' : kind === 'flash-sale' ? 'flash-sale' : 'recently-viewed'}"`
   const catalogAttr = kind === 'catalog' ? ' data-pw-catalog data-sort="default"' : ''
   const sectionId =
-    kind === 'catalog' ? 'pw-grid-catalog' : kind === 'recommended' ? 'pw-grid-recommended' : 'pw-grid-recently-viewed'
+    kind === 'catalog'
+      ? 'pw-grid-catalog'
+      : kind === 'recommended'
+        ? 'pw-grid-recommended'
+        : kind === 'flash-sale'
+          ? 'pw-grid-flash-sale'
+          : 'pw-grid-recently-viewed'
   const rec = kind === 'recommended'
-  const cards = rec
-    ? recommendedPlaceholderCards(pageSize, title, copy.pdpPurchasesLabel || 'Đã bán', REC_BADGE[locale])
-    : placeholderCards(pageSize, title)
-  const titleHtml = rec
+  const cards =
+    rec || flash
+      ? recommendedPlaceholderCards(
+          flash ? FLASH_SALE_MAX_COUNT : pageSize,
+          title,
+          copy.pdpPurchasesLabel || 'Đã bán',
+          rec ? REC_BADGE[locale] : ''
+        )
+      : placeholderCards(pageSize, title)
+  const flashSub: Record<WebLocale, string> = {
+    vi: '12 deal / 10 phút, cùng shop TQ và danh mục vừa xem. Hết lượt mất giảm — chốt giỏ ngay.',
+    en: '12 deals / 10 minutes, same Chinese shop and recently viewed category. Discount ends with the round — checkout now.',
+    zh: '每轮 10 分钟最多 12 个特惠，来自刚看过的中国店铺与三级类目。本轮结束即恢复原价。',
+    ja: '10分で最大12件。最近見た中国ショップと同じカテゴリ。ラウンド終了で割引終了。',
+    ko: '10분마다 최대 12개, 최근 본 중국 샵·카테고리. 라운드가 끝나면 할인이 사라집니다.',
+  }
+  const titleHtml = flash
+    ? `<div class="pw-flash-head" data-pw-flash-head="1"><div class="pw-flash-copy"><h2 class="pw-flash-title" ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2><p class="pw-flash-sub" data-pw-flash-sub="1">${escapeHtml(flashSub[locale])}</p></div><p class="pw-flash-timer" data-pw-flash-timer="1" hidden role="timer"></p></div>`
+    : rec
     ? `<div class="pw-rec-head" data-pw-rec-head="1"><div class="pw-rec-head-row"><h2 class="pw-rec-title" ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2></div></div>`
     : `<h2 ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2>`
 
-  return `<section class="pw-catalog pw-product-grid-section${rec ? ' pw-rec-grid' : ''}" id="${sectionId}" ${pwRegionAttr(PW_REGION.catalog)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-added-catalog="1" data-pw-grid-kind="${kind}" data-pw-grid-cols="5" data-pw-grid-cols-mobile="2" data-pw-grid-rows="${rows}" data-limit="${pageSize}"${catalogAttr}${personalize}${rec ? ' data-pw-rec-face="188"' : ''} style="margin:0;padding:0;min-height:0;height:auto">
+  return `<section class="pw-catalog pw-product-grid-section${rec ? ' pw-rec-grid' : ''}${flash ? ' pw-flash-sale-grid pw-rec-grid' : ''}" id="${sectionId}" ${pwRegionAttr(PW_REGION.catalog)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-added-catalog="1" data-pw-grid-kind="${kind}" data-pw-grid-cols="5" data-pw-grid-cols-mobile="2" data-pw-grid-rows="${rows}" data-limit="${limit}"${catalogAttr}${personalize}${rec ? ' data-pw-rec-face="188"' : ''}${flash ? ' data-pw-flash-face="188"' : ''} style="margin:0;padding:0;min-height:0;height:auto">
   <div class="pw-container" style="padding:12px 16px 16px">
     ${titleHtml}
     <div data-pw-grid class="pw-product-grid" ${pwElAttr(PW_EL.grid)}>${cards}</div>
-    ${productGridActionsHtml({
-      loadMoreLabel: loadMore,
-      seeAllLabel: seeAll,
-      seeAllHref: gridSeeAllHref(kind, input.siteSlug),
-      hideSeeAll: rec,
-    })}
+    ${
+      flash
+        ? ''
+        : productGridActionsHtml({
+            loadMoreLabel: loadMore,
+            seeAllLabel: seeAll,
+            seeAllHref: gridSeeAllHref(kind, input.siteSlug),
+            hideSeeAll: rec,
+          })
+    }
     <p class="pw-catalog-empty pw-personalize-empty" hidden></p>
   </div>
 </section>`
+}
+
+/** Seed / reset home: FLASH SALE after banner, like 188 after hero. Keep merchant-saved block. */
+function htmlHasFlashSaleBlock(html: string): boolean {
+  return /<[a-z][^>]*\bdata-pw-personalize=["']flash-sale["']/i.test(html)
+}
+
+export function ensureHomeFlashSaleBlockInHtml(
+  html: string,
+  input: {
+    siteSlug: string
+    locale?: WebLocale
+    device?: PartnerProductGridDevice | string | null
+  }
+): string {
+  if (!html.trim()) return html
+  if (htmlHasFlashSaleBlock(html)) return html
+  const block = buildVisualEditorProductGridHtml({
+    kind: 'flash-sale',
+    siteSlug: input.siteSlug,
+    locale: input.locale,
+    device: input.device,
+  })
+  if (!block) return html
+  const withBanner = html.replace(
+    /(<section\b[^>]*data-pw-region=["']banner["'][\s\S]*?<\/section>)/i,
+    `$1\n${block}`
+  )
+  if (withBanner !== html) return withBanner
+  if (/<main\b/i.test(html)) return html.replace(/<main\b([^>]*)>/i, `<main$1>\n${block}`)
+  return html
 }
