@@ -4,7 +4,6 @@
  * Not warehouse clearance. Flash replaces calendar site-sale on those SKUs.
  */
 
-import { createHash } from 'node:crypto'
 import { PARTNER_SALE_DEFAULT_TIMEZONE } from '@/lib/partner-website/promotions/partner-sale-calendar'
 import type { PartnerSiteSalePricing } from '@/lib/partner-website/promotions/partner-site-sale-display'
 
@@ -110,10 +109,15 @@ export function partnerFlashSaleIdentityKey(accountKey: string | null | undefine
   return key || null
 }
 
+/** FNV-1a 32-bit — isomorphic (visual editor client cannot import `node:crypto`). */
 export function partnerFlashSaleStableSeed(...parts: unknown[]): number {
   const raw = parts.map((p) => String(p)).join('|')
-  const digest = createHash('md5').update(raw, 'utf8').digest('hex')
-  return Number.parseInt(digest.slice(0, 8), 16)
+  let hash = 2166136261
+  for (let i = 0; i < raw.length; i += 1) {
+    hash ^= raw.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return hash >>> 0
 }
 
 export function partnerFlashSalePercentForProduct(productId: string, slotKey: string): number {
