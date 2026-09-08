@@ -73,6 +73,7 @@ test('applyLiveVisualOverlays binds product then keeps live pills and featured t
   assert.doesNotMatch(out, /Áo sơ mi/)
   assert.match(out, /https:\/\/cdn\.example\/sale\.png/)
   assert.match(out, /data-pw-banner-live="1"/)
+  assert.doesNotMatch(out, /Bộ sưu tập mới/)
 })
 
 test('applyLiveVisualOverlays without product still paints visitor pills', () => {
@@ -86,4 +87,5 @@ test('applyLiveVisualOverlays without product still paints visitor pills', () =>
   assert.match(out, /Đầm/)
   assert.doesNotMatch(out, /Thời trang/)
   assert.match(out, /https:\/\/cdn\.example\/sale\.png/)
+  assert.doesNotMatch(out, /Bộ sưu tập mới/)
 })

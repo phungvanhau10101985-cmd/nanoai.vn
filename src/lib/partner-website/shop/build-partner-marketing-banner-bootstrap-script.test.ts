@@ -11,13 +11,23 @@ test('bootstrap paints N slides on the first host and turns leftover widgets off
   assert.match(html, /display:block!important/)
   assert.match(html, /\[data-pw-promo-carousel\]\{position:absolute;inset:0/)
   assert.doesNotMatch(html, /\[data-pw-personalize-banner\]\[data-pw-banner-live="1"\]\{min-height:0!important/)
+  assert.doesNotMatch(
+    html,
+    /\[data-pw-personalize-banner\]\[data-pw-banner-live="1"\]:not\(\[data-pw-block-h\]\) \[data-pw-promo-carousel\]\{position:relative/
+  )
+  assert.match(html, /\[data-pw-promo-carousel\] img\{position:absolute!important/)
   assert.match(html, /object-fit:contain/)
+  assert.match(html, /nextShopImageRetrySrc/)
+  assert.match(html, /data-pw-banner-img-broken/)
   assert.match(html, /function firstHost/)
   assert.match(html, /data-pw-hidden/)
   assert.match(html, /var host=firstHost\(nodes\)/)
   assert.match(html, /data-pw-banner-live','off'/)
   assert.match(html, /data-pw-personalize-banner','promo'/)
+  assert.match(html, /data-pw-marketing-banner-css/)
   assert.match(html, /data-pw-promo-carousel/)
+  assert.match(html, /opacity:1/)
+  assert.doesNotMatch(html, /transition:opacity/)
   assert.match(html, /items\.forEach\(function\(item,i\)/)
   assert.match(html, /data-pw-promo-slide/)
   assert.match(html, /data-pw-promo-prev/)

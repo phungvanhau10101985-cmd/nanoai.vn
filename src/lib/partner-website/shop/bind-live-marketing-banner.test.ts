@@ -42,8 +42,9 @@ test('bindLiveMarketingBannersToHtml stamps live carousel on first host', () => 
   assert.match(out, /data-pw-banner-live="1"/)
   assert.match(out, /https:\/\/cdn\.example\/sale\.png/)
   assert.match(out, /data-pw-promo-carousel/)
-  assert.match(out, /Bộ sưu tập mới/)
-  assert.match(out, /data-pw-banner-placeholder/)
+  assert.doesNotMatch(out, /Bộ sưu tập mới/)
+  assert.doesNotMatch(out, /data-pw-banner-placeholder/)
+  assert.doesNotMatch(out, /data-pw-slides/)
 })
 
 test('bindLiveMarketingBannersToHtml hides leftover hosts and empty lists', () => {

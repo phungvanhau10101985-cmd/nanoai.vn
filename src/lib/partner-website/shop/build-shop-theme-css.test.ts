@@ -186,11 +186,16 @@ test('shop theme CSS keeps listing filters compact and sticky under the head', (
 
 test('injecting theme CSS onto the default PDP shell styles the HTML header', () => {
   const html = buildDefaultDemoPdpShellHtml({ locale: 'vi' })
-  const out = injectPartnerShopThemeCss(html, DEFAULT_PARTNER_WEBSITE_THEME)
+  const out = injectPartnerShopThemeCss(html, {
+    ...DEFAULT_PARTNER_WEBSITE_THEME,
+    primaryColor: '#0f766e',
+  })
   assert.match(out, new RegExp(`id="${PARTNER_SHOP_THEME_STYLE_ID}"`))
   assert.match(out, /\.pw-topbar\{[^}]*background:var\(--pw-primary\)/)
   assert.match(out, /class="pw-header"/)
   assert.match(out, /data-pw-look="shop"/)
+  assert.match(out, /<meta name="theme-color" content="#0f766e"\/>/)
+  assert.doesNotMatch(out, /theme-color" content="#f97316"/)
 })
 
 test('injecting theme CSS keeps marketplace look when HTML already stamped it', () => {

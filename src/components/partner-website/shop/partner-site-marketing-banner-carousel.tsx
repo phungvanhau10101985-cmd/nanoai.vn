@@ -8,7 +8,7 @@ import {
   partnerMarketingBannerAlt,
   type PartnerMarketingBannerPublicItem,
 } from '@/lib/partner-website/promotions/partner-marketing-banner'
-import { shopBannerDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { shopBannerDisplaySrc, nextShopImageRetrySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 
 type Props = {
   siteSlug: string
@@ -127,7 +127,16 @@ export function PartnerSiteMarketingBannerCarousel({ siteSlug, locale }: Props) 
               className="block h-full w-full object-contain"
               loading={index === activeIndex ? 'eager' : 'lazy'}
               decoding="async"
-              onError={() => setItems((current) => current.filter((candidate) => candidate.id !== item.id))}
+              onError={(event) => {
+                const img = event.currentTarget
+                const next = nextShopImageRetrySrc(img.getAttribute('src') || img.currentSrc || '')
+                if (next && img.getAttribute('data-pw-img-retry') !== '1') {
+                  img.setAttribute('data-pw-img-retry', '1')
+                  img.src = next
+                  return
+                }
+                setItems((current) => current.filter((candidate) => candidate.id !== item.id))
+              }}
             />
           </Link>
         ))}

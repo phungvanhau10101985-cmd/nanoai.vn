@@ -2,7 +2,10 @@ import {
   DEFAULT_PARTNER_WEBSITE_THEME,
   type PartnerWebsiteTheme,
 } from '@/lib/partner-website/template/partner-website-template-types'
-import { buildThemeCssVarBlock } from '@/lib/partner-website/template/partner-website-theme-tokens'
+import {
+  buildThemeCssVarBlock,
+  upsertShopBrowserThemeColorInHtml,
+} from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { PARTNER_SHOP_CHROME_FLOAT_CSS } from '@/lib/partner-website/shop/chrome-float-widgets'
 import { PW_OUTFIT_CSS } from '@/lib/partner-website/shop/outfit-products-css'
 import { PW_RELATED_CSS } from '@/lib/partner-website/shop/related-products-css'
@@ -911,11 +914,11 @@ export function injectPartnerShopThemeCss(html: string, theme?: PartnerWebsiteTh
   const look = resolvePartnerWebsiteLook(theme, trimmed)
   const marketplace = look === 'marketplace' || isMarketplaceLook(theme) || htmlHasMarketplaceLook(trimmed)
   const source = stampPartnerWebsiteLookInHtml(trimmed, look)
-  const css = buildPartnerSiteShopThemeCss(
+  const resolved =
     marketplace && !isMarketplaceLook(theme)
-      ? { ...(theme || DEFAULT_PARTNER_WEBSITE_THEME), look: 'marketplace' }
+      ? { ...(theme || DEFAULT_PARTNER_WEBSITE_THEME), look: 'marketplace' as const }
       : { ...(theme || DEFAULT_PARTNER_WEBSITE_THEME), look }
-  )
+  const css = buildPartnerSiteShopThemeCss(resolved)
   const tag = `<style id="${PARTNER_SHOP_THEME_STYLE_ID}">${css}</style>`
   let replaced = false
   let out = source.replace(
@@ -931,5 +934,5 @@ export function injectPartnerShopThemeCss(html: string, theme?: PartnerWebsiteTh
     else if (/<html[^>]*>/i.test(out)) out = out.replace(/<html[^>]*>/i, (m) => `${m}\n<head>${tag}</head>`)
     else out = `${tag}\n${out}`
   }
-  return out
+  return upsertShopBrowserThemeColorInHtml(out, resolved)
 }

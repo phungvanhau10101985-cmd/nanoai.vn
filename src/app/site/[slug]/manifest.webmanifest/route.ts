@@ -29,7 +29,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
     status: 200,
     headers: {
       'Content-Type': 'application/manifest+json; charset=utf-8',
-      'Cache-Control': 'public, max-age=300',
+      'Cache-Control': 'public, max-age=0, must-revalidate',
     },
   })
 }

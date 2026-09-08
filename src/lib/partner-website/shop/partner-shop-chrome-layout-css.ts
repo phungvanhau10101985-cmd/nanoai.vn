@@ -71,6 +71,7 @@ import {
   PW_SCENE_TOPBAR_Z,
 } from '@/lib/partner-website/visual-editor/pw-scene'
 import { PARTNER_SHOP_SLIDER_CSS } from '@/lib/partner-website/visual-editor/pw-slider-runtime'
+import { PARTNER_MARKETING_BANNER_LIVE_CSS } from '@/lib/partner-website/shop/build-partner-marketing-banner-bootstrap-script'
 import {
   PW_CHROME_BTN_MIN_H,
   PW_CHROME_H_VAR,
@@ -776,14 +777,20 @@ ${PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS}
 }
 .pw-header,.pw-shop-header{position:sticky!important;top:0!important;z-index:${PW_SCENE_HEAD_Z}!important;display:flex!important;flex-direction:column!important}
 html:not([data-pw-edit-device]) .pw-nav-main:not([data-pw-nav-live]),html:not([data-pw-edit-device]) .pw-shop-nav-row:not([data-pw-nav-live]){visibility:hidden}
+body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live="off"]){
+  background:var(--pw-surface,#fff)!important;
+  color:inherit!important
+}
 body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live="off"]) [data-pw-slides],
 body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live="off"]) [data-pw-el="copy"],
 body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live="off"]) [data-pw-el="inner"],
 body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live="off"]) [data-pw-slide-prev],
 body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live="off"]) [data-pw-slide-next],
 body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live="off"]) .pw-slide-dots,
-body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live="off"]) img[data-pw-el="media"]{display:none!important}
-body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live]){background:var(--pw-surface,#fff)!important}
+body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live="off"]) img[data-pw-el="media"],
+body:not(.nanoai-ve-active) [data-pw-banner-placeholder]{display:none!important}
+body:not(.nanoai-ve-active) [data-pw-featured-categories]:not([data-pw-featured-live]) [data-pw-el="card"],
+body:not(.nanoai-ve-active) [data-pw-featured-categories]:not([data-pw-featured-live]) [data-pw-el="card-name"]{visibility:hidden}
 body:not(.nanoai-ve-active) [data-pw-grid-placeholder]{visibility:hidden!important}
 html .pw-nav-main,html .pw-shop-nav-row{width:var(--pw-block-w)!important;max-width:var(--pw-block-w)!important;margin-left:auto!important;margin-right:auto!important;align-self:center!important;flex:0 0 auto!important;box-sizing:border-box;padding-left:var(--pw-chrome-inset,60px)!important;padding-right:var(--pw-chrome-inset,60px)!important}
 @media (min-width:900px){
@@ -974,6 +981,7 @@ ${PARTNER_SHOP_BANNER_LIVE_MATCH_CSS}
 ${PARTNER_SHOP_AUTHORED_BLOCK_CSS}
 ${PARTNER_SHOP_HROW_CSS}
 ${PARTNER_SHOP_SLIDER_CSS}
+${PARTNER_MARKETING_BANNER_LIVE_CSS}
 ${PARTNER_SHOP_WIDE_HEADER_BALANCE_CSS}
 ${PARTNER_SHOP_SEARCH_HISTORY_CSS}
 ${PARTNER_SHOP_TAP_CHROME_CSS}

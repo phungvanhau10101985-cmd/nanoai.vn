@@ -496,6 +496,17 @@ export function shopBrowserThemeColorMetaTag(
   return `<meta name="theme-color" content="${shopBrowserChromeColor(theme)}"/>`
 }
 
+/** Same media keys as the NanoAI root layout so nested shop viewport replaces white/black, not appends orange leftovers. */
+export function shopBrowserThemeColorViewportItems(
+  theme?: Pick<PartnerWebsiteTheme, 'primaryColor'> | string | null
+): Array<{ media: '(prefers-color-scheme: light)' | '(prefers-color-scheme: dark)'; color: string }> {
+  const color = shopBrowserChromeColor(theme)
+  return [
+    { media: '(prefers-color-scheme: light)', color },
+    { media: '(prefers-color-scheme: dark)', color },
+  ]
+}
+
 export function extractShopBrowserThemeColorFromHtml(html: string): string {
   const fromMeta =
     html.match(/<meta\b[^>]*\bname=["']theme-color["'][^>]*\bcontent=["']([^"']+)["']/i)?.[1] ||
@@ -533,16 +544,19 @@ export function applyShopBrowserThemeColorToDocument(
   const hex = shopBrowserChromeColor(theme)
   const head = doc.head
   if (!head) return
-  const nodes = Array.from(head.querySelectorAll('meta[name="theme-color"]')) as HTMLMetaElement[]
-  let meta = nodes[0]
-  for (const extra of nodes.slice(1)) extra.remove()
-  if (!meta) {
-    meta = doc.createElement('meta')
+  for (const node of Array.from(head.querySelectorAll('meta[name="theme-color"]'))) {
+    node.remove()
+  }
+  const insert = (media?: string) => {
+    const meta = doc.createElement('meta')
     meta.setAttribute('name', 'theme-color')
+    if (media) meta.setAttribute('media', media)
+    meta.setAttribute('content', hex)
     head.insertBefore(meta, head.firstChild)
   }
-  meta.removeAttribute('media')
-  meta.setAttribute('content', hex)
+  insert('(prefers-color-scheme: dark)')
+  insert('(prefers-color-scheme: light)')
+  insert()
 }
 
 export function applyThemeCssVarsToDocument(doc: Document, theme: PartnerWebsiteTheme): void {

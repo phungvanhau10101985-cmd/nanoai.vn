@@ -115,6 +115,8 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /data-pw-paper-tile-bootstrap/)
   assert.match(out, /data-pw-paper-tile/)
   assert.match(out, /data-pw-marketing-banner-bootstrap/)
+  assert.match(out, /data-pw-marketing-banner-css/)
+  assert.match(out, /<style data-pw-marketing-banner-css>[\s\S]*<\/style>\s*<\/head>/)
   assert.match(out, /\/api\/site\/188-com-vn-rl56\/marketing-banners/)
   assert.match(out, /data-pw-personalize-banner="birthday"/)
   assert.match(out, /var WAIT=6500/)

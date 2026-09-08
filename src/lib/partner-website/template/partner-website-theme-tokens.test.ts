@@ -13,6 +13,7 @@ import {
   SHOP_AUX_CART_SWATCHES,
   SHOP_MAIN_COLOR_SWATCHES,
   shopBrowserChromeColor,
+  shopBrowserThemeColorViewportItems,
   shopThemeQuickPicks,
   themeFromAuxCartSwatch,
   themeFromMainSwatch,
@@ -275,4 +276,13 @@ test('upserts a single theme-color tag when the document had none', () => {
   assert.equal(twice, once)
   assert.equal((once.match(/name="theme-color"/g) || []).length, 1)
   assert.equal(extractShopBrowserThemeColorFromHtml(once), '#0f766e')
+})
+
+test('shop viewport theme-color uses the same light/dark media keys as the NanoAI root layout', () => {
+  const items = shopBrowserThemeColorViewportItems({ primaryColor: '#0f766e' })
+  assert.deepEqual(items, [
+    { media: '(prefers-color-scheme: light)', color: '#0f766e' },
+    { media: '(prefers-color-scheme: dark)', color: '#0f766e' },
+  ])
+  assert.notEqual(items[0].color, DEFAULT_PARTNER_WEBSITE_THEME.primaryColor)
 })

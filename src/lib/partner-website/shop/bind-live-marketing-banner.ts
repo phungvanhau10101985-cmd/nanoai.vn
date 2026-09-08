@@ -65,6 +65,17 @@ function stripLiveCarouselAndGreeting(inner: string): string {
   return withoutCarousel.replace(/<p\b[^>]*\bdata-pw-banner-greeting\b[^>]*>[\s\S]*?<\/p>/gi, '')
 }
 
+/** Live first paint must not include seed slides / «Bộ sưu tập mới». Lưu restores placeholders. */
+function stripSeedBannerChrome(inner: string): string {
+  let out = stripLiveCarouselAndGreeting(inner)
+  out = stripMatchingOpen(out, /<(div)\b(?=[^>]*\bdata-pw-slides\b)[^>]*>/i)
+  out = out.replace(/<(button|a)\b[^>]*\bdata-pw-slide-(?:prev|next)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
+  out = out.replace(/<div\b[^>]*\b(?:class=["'][^"']*\bpw-slide-dots\b|data-pw-el=["']dots["'])[^>]*>[\s\S]*?<\/div>/gi, '')
+  out = out.replace(/<(div|h[1-6]|p|span|a)\b[^>]*\bdata-pw-el=["'](?:copy|inner|title|subtitle|badge|cta|cta-secondary)["'][^>]*>[\s\S]*?<\/\1>/gi, '')
+  out = out.replace(/<img\b[^>]*\bdata-pw-el=["']media["'][^>]*>/gi, '')
+  return out
+}
+
 function findPersonalizeBannerRanges(
   html: string
 ): Array<{ start: number; openEnd: number; close: number; end: number; tag: string }> {
@@ -146,7 +157,7 @@ export function bindLiveMarketingBannersToHtml(
     const open = html.slice(range.start, range.openEnd)
     let inner = html.slice(range.openEnd, range.close)
     const closeTok = html.slice(range.close, range.end)
-    inner = stripLiveCarouselAndGreeting(inner)
+    inner = stripSeedBannerChrome(inner)
     if (i === liveIndex && items.length) {
       chunks.push(
         stampAttr(stampAttr(open, PW_BANNER_LIVE_ATTR, '1'), 'data-pw-personalize-banner', 'promo')

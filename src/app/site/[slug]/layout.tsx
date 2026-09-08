@@ -14,7 +14,12 @@ import {
   partnerSitePwaManifestPath,
 } from '@/lib/partner-website/shop/partner-site-pwa'
 import { buildPartnerShopFaviconMetadataIcons } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
-import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-website-theme-tokens'
+import {
+  shopBrowserChromeColor,
+  shopBrowserThemeColorViewportItems,
+} from '@/lib/partner-website/template/partner-website-theme-tokens'
+
+export const dynamic = 'force-dynamic'
 
 /** Do not use `next/font/google` here — VPS `next build` fetches fonts.gstatic.com and times out. */
 const shopFontVars = {
@@ -42,7 +47,11 @@ export async function generateMetadata({
 
   return {
     applicationName: name,
-    manifest: partnerSitePwaManifestPath(site.siteSlug, customDomain),
+    manifest: partnerSitePwaManifestPath(
+      site.siteSlug,
+      customDomain,
+      shopBrowserChromeColor(site.theme).slice(1)
+    ),
     appleWebApp: {
       capable: true,
       statusBarStyle: 'default',
@@ -62,6 +71,8 @@ export async function generateViewport({
 }: {
   params: Promise<{ slug: string }>
 }): Promise<Viewport> {
+  const headerStore = headers()
+  void headerStore
   const { slug } = await params
   const site = (await loadPartnerSiteShopContext(slug).catch(() => null))?.site ?? null
   return {
@@ -70,7 +81,7 @@ export async function generateViewport({
     minimumScale: 1,
     maximumScale: 5,
     viewportFit: 'cover',
-    themeColor: site ? shopBrowserChromeColor(site.theme) : '#ffffff',
+    themeColor: shopBrowserThemeColorViewportItems(site ? site.theme : '#ffffff'),
   }
 }
 
@@ -87,10 +98,18 @@ export default async function PartnerSiteSlugLayout({
   const site = (await loadPartnerSiteShopContext(slug).catch(() => null))?.site ?? null
   const name = site?.title.trim() || site?.partnerDisplayName || ''
   const icon180 = site ? partnerSitePwaIconPath(site.siteSlug, 180, onCustomDomain) : ''
+  const chromeColor = site ? shopBrowserChromeColor(site.theme) : ''
 
   return (
     <PartnerSiteCustomDomainProvider active={onCustomDomain}>
       <head>
+        {chromeColor ? (
+          <>
+            <meta name="theme-color" content={chromeColor} />
+            <meta name="theme-color" media="(prefers-color-scheme: light)" content={chromeColor} />
+            <meta name="theme-color" media="(prefers-color-scheme: dark)" content={chromeColor} />
+          </>
+        ) : null}
         <script
           dangerouslySetInnerHTML={{
             __html:

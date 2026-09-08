@@ -20,9 +20,20 @@ export function partnerSitePwaStartUrl(siteSlug: string, customDomain: boolean):
   return customDomain || home.endsWith('/') ? home : `${home}/`
 }
 
-export function partnerSitePwaManifestPath(siteSlug: string, customDomain: boolean): string {
-  if (customDomain) return '/manifest.webmanifest'
-  return `/site/${encodeURIComponent(siteSlug.trim())}/manifest.webmanifest`
+export function partnerSitePwaManifestPath(
+  siteSlug: string,
+  customDomain: boolean,
+  bust?: string | null
+): string {
+  const base = customDomain
+    ? '/manifest.webmanifest'
+    : `/site/${encodeURIComponent(siteSlug.trim())}/manifest.webmanifest`
+  const token = String(bust ?? '')
+    .trim()
+    .replace(/^#/, '')
+    .toLowerCase()
+  if (!/^[0-9a-f]{3,8}$/.test(token)) return base
+  return `${base}?c=${token}`
 }
 
 export function partnerSitePwaSwPath(siteSlug: string, customDomain: boolean): string {

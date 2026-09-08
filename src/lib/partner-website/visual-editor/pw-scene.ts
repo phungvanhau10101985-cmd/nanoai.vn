@@ -674,10 +674,10 @@ export const PW_SCENE_MEDIA_ZOOM_SEL = [
   '[data-pw-region="promo"] img[data-pw-el="media"]',
   '[data-pw-region="content"] img[data-pw-el="media"]',
   '[data-pw-region="content"] img[data-pw-el="image"]',
-  '.pw-hero img:not(.pw-logo):not(.pw-shop-logo):not(.pw-chrome-chat-logo)',
-  '.pw-banner img:not(.pw-logo):not(.pw-shop-logo)',
-  '.pw-shop-hero img:not(.pw-shop-logo)',
-  '.pw-shop-banner img:not(.pw-shop-logo)',
+  '.pw-hero img[data-pw-el="media"],.pw-hero img[data-pw-banner-zoom]',
+  '.pw-banner img[data-pw-el="media"],.pw-banner img[data-pw-banner-zoom]',
+  '.pw-shop-hero img[data-pw-el="media"],.pw-shop-hero img[data-pw-banner-zoom]',
+  '.pw-shop-banner img[data-pw-el="media"],.pw-shop-banner img[data-pw-banner-zoom]',
   '[data-pw-bg-layer="1"] img',
   'img[data-pw-banner-zoom]',
 ].join(',')
@@ -1533,8 +1533,16 @@ export const PARTNER_SHOP_IMAGE_ZOOM_SCRIPT = `(function(){
     if(ay!=null&&ay!==''){var py=parseFloat(ay);if(isFinite(py))y=Math.max(0,Math.min(100,py));}
     return {x:x,y:y};
   }
+  function livePromoHost(el){
+    if(!el||el.nodeType!==1)return false;
+    if(el.getAttribute&&el.getAttribute('data-pw-banner-live')==='1')return true;
+    if(el.closest&&el.closest('[data-pw-banner-live="1"],[data-pw-promo-carousel]'))return true;
+    if(el.querySelector&&el.querySelector('[data-pw-promo-carousel],[data-pw-promo-slide]'))return true;
+    return false;
+  }
   function applyImg(img,z,pan,box){
     if(!img||!img.style)return;
+    if(livePromoHost(img)||(img.closest&&img.closest('[data-pw-promo-carousel],[data-pw-promo-slide]')))return;
     var host=box||(img.parentElement||img);
     var x=pan&&isFinite(pan.x)?pan.x:50;
     var y=pan&&isFinite(pan.y)?pan.y:50;
@@ -1569,6 +1577,7 @@ export const PARTNER_SHOP_IMAGE_ZOOM_SCRIPT = `(function(){
     img.style.setProperty('max-height','none');
   }
   function applyHost(host){
+    if(livePromoHost(host))return;
     var z=parseZ(host);
     var pan=parsePan(host);
     var img=host.querySelector&&host.querySelector('img[data-pw-el="media"],img[data-pw-banner-zoom],img[data-pw-edit*="hero"],img[data-pw-edit*="banner"]');

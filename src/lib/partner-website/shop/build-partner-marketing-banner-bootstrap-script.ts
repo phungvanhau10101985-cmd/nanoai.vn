@@ -1,17 +1,13 @@
 import type { WebLocale } from '@/lib/i18n/config'
-import { PW_SHOP_BANNER_IMG_JS } from '@/lib/partner-website/shop/inventory-shop-detail'
+import {
+  PW_SHOP_BANNER_IMG_JS,
+  PW_SHOP_IMAGE_RETRY_JS,
+} from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import { PARTNER_MARKETING_BANNER_CAROUSEL_MS } from '@/lib/partner-website/promotions/partner-marketing-banner'
 
-export function buildPartnerMarketingBannerBootstrapScript(input: {
-  siteSlug: string
-  locale: WebLocale
-}): string {
-  const slug = input.siteSlug.trim()
-  if (!slug) return ''
-  const api = `/api/site/${encodeURIComponent(slug)}/marketing-banners`
-  const locale = JSON.stringify(input.locale)
-  return `<style data-pw-marketing-banner-css>
+/** Head CSS so first paint already hides seed and styles the live carousel. */
+export const PARTNER_MARKETING_BANNER_LIVE_CSS = `
 [data-pw-personalize-banner][data-pw-banner-live="1"]{display:block!important;flex-shrink:0;width:100%;aspect-ratio:21/9;overflow:hidden;position:relative}
 [data-pw-personalize-banner][data-pw-banner-live="1"] [data-pw-el="copy"],
 [data-pw-personalize-banner][data-pw-banner-live="1"] [data-pw-el="inner"],
@@ -22,21 +18,33 @@ export function buildPartnerMarketingBannerBootstrapScript(input: {
 [data-pw-personalize-banner][data-pw-banner-live="1"] img[data-pw-el="media"]{display:none!important}
 [data-pw-personalize-banner][data-pw-banner-live="off"]{display:none!important}
 [data-pw-banner-greeting]{margin:8px 0 12px;text-align:center;font:600 13px/1.4 system-ui,sans-serif;color:var(--pw-text)}
-[data-pw-promo-carousel]{position:absolute;inset:0;width:100%;height:100%;overflow:hidden;background:var(--pw-surface,#fff)}
-[data-pw-personalize-banner][data-pw-banner-live="1"]:not([data-pw-block-h]) [data-pw-promo-carousel]{position:relative;inset:auto;aspect-ratio:21/9}
-[data-pw-promo-carousel] a{position:absolute;inset:0;display:block;opacity:0;pointer-events:none;transition:opacity .3s}
-[data-pw-promo-carousel] a.is-active{opacity:1;pointer-events:auto;z-index:1}
-[data-pw-promo-carousel] img{width:100%;height:100%;object-fit:contain;display:block;background:var(--pw-surface,#fff)}
+[data-pw-promo-carousel]{position:absolute;inset:0;width:100%;height:100%;overflow:hidden;z-index:1;background:var(--pw-surface,#fff)}
+[data-pw-promo-carousel] a{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;display:block!important;opacity:0;pointer-events:none;overflow:hidden;transform:none!important}
+[data-pw-promo-carousel] a.is-active{opacity:1!important;pointer-events:auto;z-index:1}
+[data-pw-promo-carousel] img{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:contain!important;display:block!important;transform:none!important;background:var(--pw-surface,#fff)}
 [data-pw-promo-nav]{position:absolute;top:50%;z-index:2;transform:translateY(-50%);border:0;border-radius:999px;background:color-mix(in srgb,var(--pw-surface,#fff) 92%,transparent);color:var(--pw-primary);padding:6px 10px;font-size:18px;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.12);cursor:pointer}
 [data-pw-promo-prev]{left:8px}
 [data-pw-promo-next]{right:8px}
 [data-pw-promo-dots]{position:absolute;bottom:8px;left:50%;z-index:2;transform:translateX(-50%);display:flex;gap:6px}
 [data-pw-promo-dots] button{width:6px;height:6px;border-radius:999px;border:0;background:color-mix(in srgb,#fff 90%,transparent);padding:0;cursor:pointer;box-shadow:0 0 0 1px rgba(0,0,0,.08)}
 [data-pw-promo-dots] button.is-active{width:20px;background:var(--pw-primary)}
+`.trim()
+
+export function buildPartnerMarketingBannerBootstrapScript(input: {
+  siteSlug: string
+  locale: WebLocale
+}): string {
+  const slug = input.siteSlug.trim()
+  if (!slug) return ''
+  const api = `/api/site/${encodeURIComponent(slug)}/marketing-banners`
+  const locale = JSON.stringify(input.locale)
+  return `<style data-pw-marketing-banner-css>
+${PARTNER_MARKETING_BANNER_LIVE_CSS}
 </style>
 <script data-pw-marketing-banner-bootstrap>(function(){
 ${PW_SHOP_LIVE_UI_OFF_FN};
 ${PW_SHOP_BANNER_IMG_JS};
+${PW_SHOP_IMAGE_RETRY_JS};
 var API=${JSON.stringify(api)};
 var LOCALE=${locale};
 var WAIT=${PARTNER_MARKETING_BANNER_CAROUSEL_MS};
@@ -136,14 +144,28 @@ function wireCarousel(host,box,items){
       if(swipe){ev.preventDefault();swipe=false;}
     });
     var img=links[s].querySelector('img');
-    if(img)img.addEventListener('error',function(){
-      var a=this.parentNode;
-      if(a&&a.parentNode)a.parentNode.removeChild(a);
-      var left=box.querySelectorAll('a[data-pw-promo-slide]');
-      items=itemsFromDom(box);
-      if(!items.length)hideHost(host);
-      else show(Math.min(index,items.length-1));
-    });
+    if(img)(function(imgEl){
+      function dropSlide(){
+        var a=imgEl.parentNode;
+        if(a&&a.parentNode)a.parentNode.removeChild(a);
+        items=itemsFromDom(box);
+        if(!items.length)hideHost(host);
+        else show(Math.min(index,items.length-1));
+      }
+      function retryOrDrop(){
+        if(imgEl.getAttribute('data-pw-banner-img-broken')==='1')return;
+        var next=nextShopImageRetrySrc(imgEl.getAttribute('src')||imgEl.currentSrc||'');
+        if(next&&imgEl.getAttribute('data-pw-img-retry')!=='1'){
+          imgEl.setAttribute('data-pw-img-retry','1');
+          imgEl.src=next;
+          return;
+        }
+        imgEl.setAttribute('data-pw-banner-img-broken','1');
+        dropSlide();
+      }
+      imgEl.addEventListener('error',retryOrDrop);
+      if(imgEl.complete&&imgEl.naturalWidth===0&&(imgEl.currentSrc||imgEl.getAttribute('src')))retryOrDrop();
+    })(img);
   }
   var prev=box.querySelector('[data-pw-promo-prev]');
   var next=box.querySelector('[data-pw-promo-next]');

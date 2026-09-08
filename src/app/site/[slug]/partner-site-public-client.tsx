@@ -131,8 +131,16 @@ function PartnerSiteInlineVisualHead({ html }: { html: string }) {
         `document.documentElement.setAttribute(${JSON.stringify(name)},${JSON.stringify(value)});`
     )
     .join('')
+  const themeColor = extractShopBrowserThemeColorFromHtml(html)
   return (
     <>
+      {themeColor ? (
+        <>
+          <meta name="theme-color" content={themeColor} />
+          <meta name="theme-color" media="(prefers-color-scheme: light)" content={themeColor} />
+          <meta name="theme-color" media="(prefers-color-scheme: dark)" content={themeColor} />
+        </>
+      ) : null}
       {stampScript ? (
         <script
           dangerouslySetInnerHTML={{

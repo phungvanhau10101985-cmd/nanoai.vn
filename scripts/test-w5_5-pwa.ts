@@ -19,6 +19,11 @@ function main() {
   assert.equal(partnerSitePwaSwPath('my-shop', false), '/site/my-shop/sw.js')
   assert.equal(partnerSitePwaManifestPath('my-shop', true), '/manifest.webmanifest')
   assert.equal(partnerSitePwaManifestPath('my-shop', false), '/site/my-shop/manifest.webmanifest')
+  assert.equal(
+    partnerSitePwaManifestPath('my-shop', false, '0f766e'),
+    '/site/my-shop/manifest.webmanifest?c=0f766e'
+  )
+  assert.equal(partnerSitePwaManifestPath('my-shop', true, '#0F766E'), '/manifest.webmanifest?c=0f766e')
   assert.equal(partnerSitePwaIconPath('my-shop', 192, false), '/site/my-shop/pwa-icon/192')
 
   assert.equal(

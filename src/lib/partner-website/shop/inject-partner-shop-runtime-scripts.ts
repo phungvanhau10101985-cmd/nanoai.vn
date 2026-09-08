@@ -31,6 +31,20 @@ function appendBeforeBody(html: string, snippet: string): string {
   return `${html}\n${chunk}`
 }
 
+function appendInHead(html: string, snippet: string): string {
+  const chunk = snippet.trim()
+  if (!chunk) return html
+  if (/<\/head>/i.test(html)) return html.replace(/<\/head>/i, `${chunk}\n</head>`)
+  if (/<html\b[^>]*>/i.test(html)) return html.replace(/<html\b[^>]*>/i, (m) => `${m}<head>${chunk}</head>`)
+  return `${chunk}\n${html}`
+}
+
+function injectMarketingBannerRuntime(html: string, snippet: string): string {
+  const style = snippet.match(/<style\b[^>]*\bdata-pw-marketing-banner-css\b[\s\S]*?<\/style>/i)?.[0] || ''
+  const script = snippet.replace(/<style\b[^>]*\bdata-pw-marketing-banner-css\b[\s\S]*?<\/style>/i, '')
+  return appendBeforeBody(appendInHead(html, style), script)
+}
+
 function hasRuntimeHook(html: string, pattern: RegExp): boolean {
   return pattern.test(html)
 }
@@ -96,7 +110,7 @@ export function injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(
     out = appendBeforeBody(out, buildPartnerSitePersonalizationBootstrapScript({ siteSlug, locale }))
   }
   if (hooks.marketingBanner) {
-    out = appendBeforeBody(out, buildPartnerMarketingBannerBootstrapScript({ siteSlug, locale }))
+    out = injectMarketingBannerRuntime(out, buildPartnerMarketingBannerBootstrapScript({ siteSlug, locale }))
   }
   if (hooks.pdp) {
     out = appendBeforeBody(out, buildPartnerSitePdpBootstrapScript({ siteSlug, locale }))
@@ -152,7 +166,7 @@ export function injectPartnerShopRuntimeScriptsIntoHtml(
   out = appendBeforeBody(out, buildPartnerSiteShopActionsBootstrapScript({ siteSlug, locale }))
   out = appendBeforeBody(out, buildPartnerSaleCalendarBootstrapScript({ siteSlug, locale }))
   if (hooks.marketingBanner) {
-    out = appendBeforeBody(out, buildPartnerMarketingBannerBootstrapScript({ siteSlug, locale }))
+    out = injectMarketingBannerRuntime(out, buildPartnerMarketingBannerBootstrapScript({ siteSlug, locale }))
   }
   out = appendBeforeBody(out, buildPartnerSiteBirthGenderPromptScript({
     siteSlug,
