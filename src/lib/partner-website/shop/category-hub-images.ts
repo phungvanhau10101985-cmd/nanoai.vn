@@ -3,7 +3,14 @@ import { pgQuery } from '@/lib/db/pg-query'
 import { fetchPartnerInventoryCardsByIdsInOrderFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { fetchPartnerVisitorPersonalizationFromPg } from '@/lib/db/messaging-partner-visitor-personalization-pg'
 import type { PartnerCategoryTreeNode } from '@/lib/partner-website/category/partner-category-types'
-import { normalizeShopImageUrl } from '@/lib/partner-website/shop/inventory-shop-detail'
+import {
+  normalizeShopImageUrl,
+  shopCardDisplaySrc,
+} from '@/lib/partner-website/shop/inventory-shop-detail'
+
+function cardImageUrl(raw: string | null | undefined): string {
+  return shopCardDisplaySrc(raw) || normalizeShopImageUrl(raw)
+}
 
 export type CategoryHubImageTile = {
   id: string
@@ -69,7 +76,7 @@ export function buildViewedImagesByCategory(input: {
   const out = new Map<string, string[]>()
   for (const rawId of input.viewedIds) {
     const inv = lowerId(rawId)
-    const url = normalizeShopImageUrl(input.imagesByInventoryId.get(inv) || '')
+    const url = cardImageUrl(input.imagesByInventoryId.get(inv) || '')
     if (!url) continue
     const cats = input.categoryIdsByInventoryId.get(inv) ?? []
     for (const cat of cats) {
@@ -124,7 +131,7 @@ export function assignCategoryHubImages(input: {
 }): CategoryHubImageTile[] {
   const used = new Set<string>()
   return input.tiles.map((tile) => {
-    const own = normalizeShopImageUrl(tile.imageUrl)
+    const own = cardImageUrl(tile.imageUrl)
     if (own) {
       used.add(own)
       return { ...tile, imageUrl: own }
@@ -162,7 +169,7 @@ export async function fetchCategorySampleImagesFromPg(partnerId: string): Promis
       [partnerId]
     )
     for (const row of rows) {
-      const url = normalizeShopImageUrl(row.image_url)
+      const url = cardImageUrl(row.image_url)
       if (!url) continue
       const id = lowerId(row.category_id)
       const list = out.get(id) ?? []
@@ -234,7 +241,7 @@ export async function resolveCategoryHubTileImages(input: {
     const rows = (await fetchPartnerInventoryCardsByIdsInOrderFromPg(input.partnerId, viewedIds)) ?? []
     const imagesByInventoryId = new Map<string, string>()
     for (const row of rows) {
-      const url = normalizeShopImageUrl(row.image_url)
+      const url = cardImageUrl(row.image_url)
       if (url) imagesByInventoryId.set(lowerId(row.id), url)
     }
     const categoryIdsByInventoryId = await fetchInventoryCategoryIdsFromPg(input.partnerId, viewedIds)

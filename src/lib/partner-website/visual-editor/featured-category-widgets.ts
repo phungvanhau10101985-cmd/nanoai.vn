@@ -80,7 +80,14 @@ export function appendFeaturedMarqueeCloneHtml(inner: string): string {
   const match = stripped.match(gridRe)
   if (!match) return stripped
   const cards = match[2] || ''
-  const clone = `<div class="pw-featured-cat-grid" data-pw-featured-clone="1" aria-hidden="true">${cards}</div>`
+  const cloneCards = cards.replace(/<img\b([^>]*)>/gi, (_full, attrs: string) => {
+    let next = String(attrs || '')
+    if (!/\bloading\s*=/.test(next)) next += ' loading="lazy"'
+    if (!/\bdecoding\s*=/.test(next)) next += ' decoding="async"'
+    if (!/\bfetchpriority\s*=/.test(next)) next += ' fetchpriority="low"'
+    return `<img${next}>`
+  })
+  const clone = `<div class="pw-featured-cat-grid" data-pw-featured-clone="1" aria-hidden="true">${cloneCards}</div>`
   const pair = `${match[0]}${clone}`
   const hasMarquee = /data-pw-featured-marquee|pw-featured-cat-marquee/.test(stripped)
   const withClone = stripped.replace(gridRe, pair)

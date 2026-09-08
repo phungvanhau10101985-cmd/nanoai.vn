@@ -8,6 +8,7 @@ import {
   partnerMarketingBannerAlt,
   type PartnerMarketingBannerPublicItem,
 } from '@/lib/partner-website/promotions/partner-marketing-banner'
+import { shopBannerDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 
 type Props = {
   siteSlug: string
@@ -118,12 +119,13 @@ export function PartnerSiteMarketingBannerCarousel({ siteSlug, locale }: Props) 
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={item.image_url}
+              src={index === activeIndex || index === (activeIndex + 1) % items.length ? shopBannerDisplaySrc(item.image_url) || item.image_url : undefined}
+              data-pw-src={shopBannerDisplaySrc(item.image_url) || item.image_url}
               alt={partnerMarketingBannerAlt(locale, item)}
               width={2100}
               height={900}
               className="block h-full w-full object-contain"
-              loading="eager"
+              loading={index === activeIndex ? 'eager' : 'lazy'}
               decoding="async"
               onError={() => setItems((current) => current.filter((candidate) => candidate.id !== item.id))}
             />

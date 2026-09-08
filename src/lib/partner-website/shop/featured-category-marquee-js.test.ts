@@ -10,6 +10,8 @@ test('featured marquee runtime matches 188 vertical loop', () => {
   assert.match(PW_FEATURED_MARQUEE_JS, /\.pw-featured-cat\[data-pw-featured-categories="1"\]/)
   assert.match(PW_FEATURED_MARQUEE_JS, /el\.querySelectorAll\('\[data-pw-featured-clone\]'\)/)
   assert.match(PW_FEATURED_MARQUEE_JS, /function syncFeaturedMarqueeClone/)
+  assert.match(PW_FEATURED_MARQUEE_JS, /function softenFeaturedCloneImgs/)
+  assert.match(PW_FEATURED_MARQUEE_JS, /fetchpriority/)
   assert.match(PW_FEATURED_MARQUEE_JS, /forceSync/)
   assert.match(PW_FEATURED_MARQUEE_JS, /data-pw-featured-marquee-on/)
   assert.doesNotMatch(PW_FEATURED_MARQUEE_JS, /getAttribute\('data-pw-el'\)==='card-name'/)

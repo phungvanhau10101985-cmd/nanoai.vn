@@ -74,3 +74,19 @@ test('bindLiveCategorySurfacesInHtml paints featured tiles and stamps live', () 
   assert.match(out, /data-pw-featured-viewport="1"/)
   assert.match(out, /data-pw-featured-marquee-on="1"/)
 })
+
+test('bindLiveCategorySurfacesInHtml sizes AliCDN featured tile images', () => {
+  const raw = 'https://img.alicdn.com/img/ibank/O1CN01dam.jpg'
+  const source = `<section class="pw-featured-cat" data-pw-featured-categories="1">
+    <div data-pw-grid>
+      <a class="pw-featured-cat-card" data-pw-el="card" href="#"><span data-pw-el="card-media"></span><span data-pw-el="card-name">Áo sơ mi</span></a>
+    </div>
+  </section>`
+  const out = bindLiveCategorySurfacesInHtml(source, {
+    ...bind,
+    tiles: [{ ...bind.tiles[0]!, image_url: raw }],
+  })
+  assert.match(out, /img\.alicdn\.com\/img\/ibank\/O1CN01dam\.jpg_600x600q90\.jpg/)
+  assert.match(out, /loading="lazy"/)
+  assert.match(out, /decoding="async"/)
+})

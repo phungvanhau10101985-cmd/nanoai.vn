@@ -26,6 +26,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { inferApparelGenderFromName } from '@/lib/partner-website/shop/partner-site-home-recommendation-mix'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { resolveCategoryHubTileImages } from '@/lib/partner-website/shop/category-hub-images'
 import {
   partnerSiteCategoryHubPath,
@@ -390,16 +391,19 @@ function tilesFromCandidates(
   picked: FeaturedCategoryCandidate[],
   imageById?: Map<string, string>
 ): FeaturedCategoryTile[] {
-  return picked.map((c) => ({
-    id: c.id,
-    name: c.name,
-    short_name: shortFeaturedCategoryName(c.name),
-    path: c.path,
-    href: partnerSiteCategoryPath(siteSlug, c.path),
-    image_url: imageById?.get(c.id) || c.imageUrl,
-    product_count: c.productCount,
-    level: c.level,
-  }))
+  return picked.map((c) => {
+    const raw = imageById?.get(c.id) || c.imageUrl
+    return {
+      id: c.id,
+      name: c.name,
+      short_name: shortFeaturedCategoryName(c.name),
+      path: c.path,
+      href: partnerSiteCategoryPath(siteSlug, c.path),
+      image_url: shopCardDisplaySrc(raw) || raw,
+      product_count: c.productCount,
+      level: c.level,
+    }
+  })
 }
 
 export function inferApparelGenderFromCandidates(

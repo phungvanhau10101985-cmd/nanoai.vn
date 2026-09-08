@@ -32,6 +32,7 @@ test('buildLiveMarketingBannerCarouselHtml paints live slides not seed copy', ()
   assert.match(html, /data-pw-promo-carousel="1"/)
   assert.match(html, /https:\/\/cdn\.example\/sale\.png/)
   assert.match(html, /data-pw-kind="sale"/)
+  assert.match(html, /loading="eager"/)
   assert.doesNotMatch(html, /Bộ sưu tập mới/)
   assert.doesNotMatch(html, /data-pw-el="media"/)
 })
@@ -78,4 +79,20 @@ test('bindLiveMarketingBannersToHtml inserts greeting after the host', () => {
   }
   const out = bindLiveMarketingBannersToHtml(seed, [birthday], 'vi')
   assert.match(out, /<\/section><p data-pw-banner-greeting="1">Món quà sinh nhật dành riêng cho An<\/p>/)
+})
+
+test('live banner uses page-sized AliCDN src and defers inactive slides', () => {
+  const raw = 'https://img.alicdn.com/img/ibank/O1CN01banner.jpg'
+  const html = buildLiveMarketingBannerCarouselHtml(
+    [
+      { ...sale, image_url: raw },
+      { ...sale, id: 'sale-2', image_url: 'https://cdn.example/two.png' },
+    ],
+    'vi'
+  )
+  assert.match(html, /img\.alicdn\.com\/img\/ibank\/O1CN01banner\.jpg_1200x1200\.jpg/)
+  assert.match(html, /loading="eager"/)
+  assert.match(html, /data-pw-src="https:\/\/cdn\.example\/two\.png"/)
+  assert.match(html, /loading="lazy"/)
+  assert.doesNotMatch(html, /<img src="https:\/\/cdn\.example\/two\.png"/)
 })

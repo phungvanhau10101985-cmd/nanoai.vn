@@ -11,6 +11,7 @@ import {
   shopCardDisplaySrc,
   shopPdpDisplaySrc,
   shopPdpPageSrc,
+  shopBannerDisplaySrc,
   rewritePdpHtmlImagesForPage,
   nextShopImageRetrySrc,
 } from '@/lib/partner-website/shop/inventory-shop-detail'
@@ -65,6 +66,8 @@ test('shopCardDisplaySrc reads AliCDN like 188 getProductMainImage (img.alicdn +
     'https://img.alicdn.com/img/ibank/O1CN01a.jpg_600x600q90.jpg'
   )
   assert.equal(shopCardDisplaySrc('https://cdn.188.com.vn/site/ok.jpg'), 'https://cdn.188.com.vn/site/ok.jpg')
+  assert.equal(shopBannerDisplaySrc(dress), `${dress}_1200x1200.jpg`)
+  assert.equal(shopBannerDisplaySrc('https://cdn.example/sale.png'), 'https://cdn.example/sale.png')
   assert.equal(hasValidShopCardImageUrl('0'), false)
   assert.equal(hasValidShopCardImageUrl('https://188.com.vn'), false)
   assert.equal(

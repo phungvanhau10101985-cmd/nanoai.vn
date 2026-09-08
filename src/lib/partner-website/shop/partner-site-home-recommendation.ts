@@ -29,7 +29,7 @@ import {
   type SameAgeGenderCohortMode,
 } from '@/lib/partner-website/shop/partner-site-home-recommendation-mix'
 import type { PartnerInventoryShopCardRow } from '@/lib/partner-website/shop/inventory-to-shop-product'
-import { normalizeShopImageUrl } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import type { PartnerSitePersonalizationProduct } from '@/lib/partner-website/shop/partner-site-personalization'
 import { applyPartnerStorefrontSaleFaces, loadPartnerSiteSaleOverlay } from '@/lib/partner-website/promotions/partner-site-sale-attach'
@@ -52,7 +52,7 @@ function mapInventoryRowToPersonalizationProduct(
   siteSlug: string,
   row: PartnerInventoryShopCardRow
 ): PartnerSitePersonalizationProduct | null {
-  const imageUrl = normalizeShopImageUrl(row.image_url)
+  const imageUrl = shopCardDisplaySrc(row.image_url)
   if (!imageUrl) return null
   const detailPath = partnerSiteProductPath(siteSlug, row.id, { name: (row.name ?? '').trim() || 'Product' })
   const rawProductUrl = (row.product_url ?? '').trim()

@@ -5,6 +5,7 @@ import {
   getPartnerPublicInventorySearchDefaultLimit,
   PARTNER_PUBLIC_INVENTORY_SEARCH_MAX,
 } from '@/lib/messaging/partner-public-search-limits'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 
@@ -89,8 +90,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       inventory_id: c.inventoryId,
       name: c.name,
       sku: c.sku,
-      imageUrl: c.image_url,
-      image_url: c.image_url,
+      imageUrl: shopCardDisplaySrc(c.image_url) || c.image_url,
+      image_url: shopCardDisplaySrc(c.image_url) || c.image_url,
       productUrl: c.product_url ?? null,
       product_url: c.product_url ?? null,
       priceHint: c.price_hint?.trim() ? c.price_hint.trim() : null,
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       score: c.score ?? null,
       detailPath: partnerSiteProductPath(siteSlug, c.inventoryId, { name: c.name }),
       color_variants: c.color_variants ?? [],
-      color_image_urls: c.color_image_urls ?? [],
+      color_image_urls: (c.color_image_urls ?? []).map((url) => shopCardDisplaySrc(url) || url),
     })),
     error: candidates.length > 0 ? null : geminiResult.error ?? null,
   })

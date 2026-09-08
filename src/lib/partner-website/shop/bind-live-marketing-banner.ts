@@ -5,6 +5,7 @@
 
 import { escapeAttr, escapeHtml } from '@/lib/packaging/mockup-share-html'
 import type { WebLocale } from '@/lib/i18n/config'
+import { shopBannerDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import {
   partnerMarketingBannerAlt,
   type PartnerMarketingBannerPublicItem,
@@ -96,12 +97,14 @@ export function buildLiveMarketingBannerCarouselHtml(
     .map((item, i) => {
       const alt = escapeAttr(partnerMarketingBannerAlt(locale, item))
       const href = escapeAttr(item.href || '#')
-      const src = escapeAttr(item.image_url)
+      const src = escapeAttr(shopBannerDisplaySrc(item.image_url) || item.image_url)
       const greeting = escapeAttr(item.greeting || '')
       const kind = escapeAttr(item.kind)
       const active = i === 0 ? ' class="is-active"' : ''
       const tab = i === 0 ? '0' : '-1'
-      return `<a data-pw-promo-slide="1" data-pw-kind="${kind}" data-pw-greeting="${greeting}" href="${href}" aria-label="${alt}" tabindex="${tab}"${active}><img src="${src}" alt="${alt}" width="2100" height="900" loading="eager" decoding="async"/></a>`
+      const loading = i === 0 ? 'eager' : 'lazy'
+      const srcAttr = i === 0 ? ` src="${src}"` : ` data-pw-src="${src}"`
+      return `<a data-pw-promo-slide="1" data-pw-kind="${kind}" data-pw-greeting="${greeting}" href="${href}" aria-label="${alt}" tabindex="${tab}"${active}><img${srcAttr} alt="${alt}" width="2100" height="900" loading="${loading}" decoding="async"/></a>`
     })
     .join('')
   let chrome = ''

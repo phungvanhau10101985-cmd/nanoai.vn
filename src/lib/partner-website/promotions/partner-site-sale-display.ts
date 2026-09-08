@@ -1014,7 +1014,7 @@ export function writePartnerSaleCountdownNode(el: Element | null | undefined, ne
 }
 
 export const PW_SITE_SALE_MO_SKIP_SEL =
-  '[data-pw-sale-hms],.pw-sale-chip,[data-pw-sale-count],[data-pw-sale-calendar-banner],[data-pw-variant-sale-count],.pw-pdp-sale-timer,.pw-shop-cart-line-count'
+  '[data-pw-sale-hms],.pw-sale-chip,[data-pw-sale-count],[data-pw-sale-calendar-banner],[data-pw-variant-sale-count],.pw-pdp-sale-timer,.pw-shop-cart-line-count,[data-pw-flash-hms],[data-pw-flash-timer],[data-pw-promo-carousel],[data-pw-banner-greeting]'
 
 export const PW_SITE_SALE_TICK_CHIPS_JS = `function pwSaleSetText(el,next){
   if(!el)return;

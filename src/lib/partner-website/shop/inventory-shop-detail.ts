@@ -166,6 +166,11 @@ export function shopPdpDisplaySrc(raw: string | null | undefined): string {
   return displayShopImageUrl(url)
 }
 
+/** Banner 21:9 trên storefront — AliCDN `_1200x1200` vừa viewport; không decode file gốc. */
+export function shopBannerDisplaySrc(raw: string | null | undefined): string {
+  return shopPdpPageSrc(raw)
+}
+
 /** Ảnh hiện trên PDP: AliCDN `_1200x1200.jpg` vừa khung; gốc giữ ở `data-pw-full-src`. */
 export function shopPdpPageSrc(raw: string | null | undefined): string {
   const url = normalizeShopImageUrl(raw)
@@ -351,6 +356,33 @@ function hideBrokenPdpImgs(root){
       if(imgEl.complete&&imgEl.naturalWidth===0&&(imgEl.currentSrc||imgEl.getAttribute('src')))retryOrHide();
     })(imgs[i]);
   }
+}`
+
+/** Injected marketing-banner bootstrap — same rewrite as shopBannerDisplaySrc. */
+export const PW_SHOP_BANNER_IMG_JS = `function shopBannerImg(raw){
+  var u=String(raw||'').trim();
+  if(!u)return '';
+  if(u.charAt(0)==='/'&&u.indexOf('/api/fetch-image')!==0)return u;
+  var inner=u;
+  var proxied=u.indexOf('/api/fetch-image')===0;
+  if(proxied){
+    try{inner=decodeURIComponent((u.split('url=')[1]||'').split('&')[0]||'');}catch(e){return u;}
+  }
+  if(inner.indexOf('//')===0)inner='https:'+inner;
+  try{
+    var host=new URL(inner).hostname.toLowerCase();
+    if(/alicdn\\.com$|alicdn\\.net$|tbcdn\\.cn$/.test(host)&&inner.indexOf('gw.alicdn.com/mt/')<0){
+      var base=inner;
+      var j=base.search(/\\.jpg/i);
+      if(j>=0)base=base.slice(0,j+4);
+      base=base.replace(/\\.webp\\.jpg$/i,'.webp').replace(/\\.png\\.jpg$/i,'.png');
+      base=base.replace(/_\\d+x\\d+(?:q\\d+)?\\.jpg$/i,'');
+      var page=base+'_1200x1200.jpg';
+      if(proxied||(host!=='img.alicdn.com'&&host!=='gw.alicdn.com'))return '/api/fetch-image?url='+encodeURIComponent(page);
+      return page;
+    }
+  }catch(e){}
+  return u;
 }`
 
 /** Injected catalog/outfit/personalize bootstrap — same rewrite as shopCardDisplaySrc. */

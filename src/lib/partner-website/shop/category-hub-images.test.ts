@@ -129,3 +129,14 @@ test('avoids reusing the same sample image when another is available', () => {
   assert.notEqual(assigned[0]?.imageUrl, assigned[1]?.imageUrl)
   assert.ok(assigned.every((t) => t.imageUrl.startsWith('https://cdn.example/')))
 })
+
+test('assignCategoryHubImages sizes AliCDN product photos for tiles', () => {
+  const raw = 'https://img.alicdn.com/img/ibank/O1CN01hub.jpg'
+  const assigned = assignCategoryHubImages({
+    tiles: [{ id: 'a', imageUrl: raw }],
+    descendantIds: new Map(),
+    viewedImagesByCategory: new Map(),
+    sampleImagesByCategory: new Map(),
+  })
+  assert.equal(assigned[0]?.imageUrl, `${raw}_600x600q90.jpg`)
+})

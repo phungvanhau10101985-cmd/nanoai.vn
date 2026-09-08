@@ -20,6 +20,7 @@ import {
   isInBirthdayOfferWindow,
   nextBirthdayIsoFromProfileYmd,
 } from '@/lib/messaging/birthday-promo-interest-inventory-ids'
+import { shopBannerDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import type { WebLocale } from '@/lib/i18n/config'
 import { birthdayPercentForFeatureTest } from '@/lib/partner-website/promotions/partner-feature-test'
 import {
@@ -48,7 +49,7 @@ function toPublicItem(
     campaign_key: row.campaign_key,
     date_key: row.date_key,
     discount_percent: row.discount_percent,
-    image_url: row.image_url,
+    image_url: shopBannerDisplaySrc(row.image_url) || row.image_url,
     aspect_ratio: row.aspect_ratio,
     event_date: input.eventDate ?? null,
     greeting: input.greeting ?? null,

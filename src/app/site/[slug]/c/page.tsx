@@ -25,6 +25,7 @@ import {
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
 import { resolveCategoryHubTileImages } from '@/lib/partner-website/shop/category-hub-images'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { peekSiteVisitorAccountKey } from '@/lib/partner-website/shop/partner-site-personalization'
 import {
   readVisualPreviewDevice,
@@ -83,7 +84,7 @@ export default async function PartnerSiteCategoryHubPage({ params, searchParams 
   const imageById = new Map(images.map((t) => [t.id, t.imageUrl]))
   const tiles = rawTiles.map((cat) => ({
     ...cat,
-    imageUrl: imageById.get(cat.id) || cat.imageUrl,
+    imageUrl: shopCardDisplaySrc(imageById.get(cat.id) || cat.imageUrl) || imageById.get(cat.id) || cat.imageUrl,
   }))
 
   return (
@@ -123,7 +124,7 @@ export default async function PartnerSiteCategoryHubPage({ params, searchParams 
                   data-pw-el={PW_EL.card}
                 >
                   {cat.imageUrl ? (
-                    <img src={cat.imageUrl} alt={name} loading="lazy" data-pw-el={PW_EL.cardMedia} />
+                    <img src={shopCardDisplaySrc(cat.imageUrl) || cat.imageUrl} alt={name} loading="lazy" decoding="async" data-pw-el={PW_EL.cardMedia} />
                   ) : (
                     <span className="pw-shop-category-tile-placeholder" data-pw-el={PW_EL.cardMedia} />
                   )}

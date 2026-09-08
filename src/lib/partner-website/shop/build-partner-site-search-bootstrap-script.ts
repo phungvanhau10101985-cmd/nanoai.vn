@@ -10,6 +10,7 @@ import {
   PW_PENDING_IMAGE_KEY,
 } from '@/lib/partner-website/shop/partner-site-pending-image'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
+import { PW_SITE_SALE_MO_SKIP_JS } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { searchGlyphSvg } from '@/lib/partner-website/visual-editor/search-cluster-icons'
 
 const COPY: Record<
@@ -156,6 +157,7 @@ export function buildPartnerSiteSearchBootstrapScript(input: {
 
   return `<script data-pw-search-bootstrap>(function(){
 ${PW_SHOP_LIVE_UI_OFF_FN};
+${PW_SITE_SALE_MO_SKIP_JS};
 var SEARCH_PATH=${JSON.stringify(searchPath)};
 var IMAGE_PATH=${JSON.stringify(imagePath)};
 var HISTORY_API=${JSON.stringify(historyApi)};
@@ -605,11 +607,15 @@ if(!document.documentElement.getAttribute('data-pw-search-history-doc')){
   });
 }
 var imgMoT=null;
-var imgMo=typeof MutationObserver!=='undefined'?new MutationObserver(function(){
-  if(imgMoT)clearTimeout(imgMoT);
-  imgMoT=setTimeout(function(){bindText();ensureImageControl();},120);
-}):null;
-if(imgMo)imgMo.observe(document.documentElement,{childList:true,subtree:true});
+if(!window.__pwSearchMo){
+  window.__pwSearchMo=1;
+  var imgMo=typeof MutationObserver!=='undefined'?new MutationObserver(function(recs){
+    if(pwSaleMoSkip(recs))return;
+    if(imgMoT)clearTimeout(imgMoT);
+    imgMoT=setTimeout(function(){bindText();ensureImageControl();},120);
+  }):null;
+  if(imgMo)imgMo.observe(document.documentElement,{childList:true,subtree:true});
+}
 })();</script>
 <style data-pw-search-image-css>
 #pw-image-search-popover{background:#fff;border:1px solid var(--pw-border,#e5e7eb);border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.16);padding:14px;color:var(--pw-text,#111);font:13px/1.4 system-ui,sans-serif}

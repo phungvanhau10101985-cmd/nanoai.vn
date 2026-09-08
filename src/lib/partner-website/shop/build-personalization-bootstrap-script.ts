@@ -460,8 +460,8 @@ function escapeFeat(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'
 function renderFeaturedTile(t,circles){
   var href=escapeFeat(t.href||'#');
   var name=escapeFeat(t.short_name||t.name||'');
-  var img=escapeFeat(t.image_url||'');
-  var media=img?'<img src="'+img+'" alt="'+name+'" loading="lazy"/>':'';
+  var img=escapeFeat(shopImg(t)||t.image_url||'');
+  var media=img?'<img src="'+img+'" alt="'+name+'" loading="lazy" decoding="async"/>':'';
   if(circles){
     return '<a class="pw-cat-card" data-pw-el="card" href="'+href+'"><span class="pw-cat-media" data-pw-el="card-media">'+media+'</span><span class="pw-cat-label" data-pw-el="card-name">'+name+'</span></a>';
   }
@@ -497,12 +497,17 @@ function paintFeaturedCard(card,tile){
   seedFeaturedCard(card);
   var name=String((tile&&(tile.short_name||tile.name))||'').trim();
   var href=String((tile&&tile.href)||'').trim()||'#';
-  var imgUrl=String((tile&&tile.image_url)||'').trim();
+  var imgUrl=shopImg(tile)||String((tile&&tile.image_url)||'').trim();
   if(card.tagName==='A')card.setAttribute('href',href);
   var nameEl=card.querySelector('[data-pw-el="card-name"],[data-pw-edit^="categoryName"]');
   if(nameEl)nameEl.textContent=name;
   var img=card.querySelector('[data-pw-el="card-media"] img, img');
-  if(img&&imgUrl){img.setAttribute('src',imgUrl);img.setAttribute('alt',name);}
+  if(img&&imgUrl){
+    img.setAttribute('src',imgUrl);
+    img.setAttribute('alt',name);
+    if(!img.getAttribute('loading'))img.setAttribute('loading','lazy');
+    if(!img.getAttribute('decoding'))img.setAttribute('decoding','async');
+  }
   card.hidden=false;
 }
 function paintFeaturedCards(el,tiles){

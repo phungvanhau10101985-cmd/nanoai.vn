@@ -1378,19 +1378,22 @@ function boot(){
 }
 applyLocalAuth();
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
-var moTimer=null;
-var mo=typeof MutationObserver!=='undefined'?new MutationObserver(function(recs){
-  if(pwSaleMoSkip(recs))return;
-  if(moTimer)clearTimeout(moTimer);
-  moTimer=setTimeout(function(){
-    bindToggles();
-    var panels=document.querySelectorAll(panelSel());
-    var need=false,i;
-    for(i=0;i<panels.length;i++){if(!panels[i].querySelector('a')){need=true;break;}}
-    if(need)hydrateCats();
-  },100);
-}):null;
-if(mo)mo.observe(document.documentElement,{childList:true,subtree:true});
+if(!window.__pwChromeToggleMo){
+  window.__pwChromeToggleMo=1;
+  var moTimer=null;
+  var mo=typeof MutationObserver!=='undefined'?new MutationObserver(function(recs){
+    if(pwSaleMoSkip(recs))return;
+    if(moTimer)clearTimeout(moTimer);
+    moTimer=setTimeout(function(){
+      bindToggles();
+      var panels=document.querySelectorAll(panelSel());
+      var need=false,i;
+      for(i=0;i<panels.length;i++){if(!panels[i].querySelector('a')){need=true;break;}}
+      if(need)hydrateCats();
+    },100);
+  }):null;
+  if(mo)mo.observe(document.documentElement,{childList:true,subtree:true});
+}
 })();</script>
 <style data-pw-chrome-toggle-css>
 .pw-chrome-cat-wrap,.pw-account-wrap,.pw-shop-account-wrap,.pw-chrome-account-wrap{position:relative;display:inline-flex;align-items:center}

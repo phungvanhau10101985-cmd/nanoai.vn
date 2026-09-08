@@ -248,6 +248,8 @@ test('sale countdown tick updates text nodes and skips banner hosts', () => {
   assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /nodeValue/)
   assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /pwSaleInView/)
   assert.match(PW_SITE_SALE_MO_SKIP_JS, /\[data-pw-sale-hms\]/)
+  assert.match(PW_SITE_SALE_MO_SKIP_JS, /\[data-pw-flash-hms\]/)
+  assert.match(PW_SITE_SALE_MO_SKIP_JS, /\[data-pw-promo-carousel\]/)
   assert.match(PW_SITE_SALE_CARD_CSS, /tabular-nums/)
   assert.match(PW_SITE_SALE_CARD_CSS, /contain:layout style paint/)
   assert.match(PW_SITE_SALE_CARD_CSS, /min-width:11ch/)

@@ -8,6 +8,7 @@ import {
   PARTNER_PUBLIC_INVENTORY_SEARCH_MAX,
 } from '@/lib/messaging/partner-public-search-limits'
 import { inventoryCardRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
   partnerSiteCategoryPath,
@@ -48,8 +49,8 @@ function mapVectorProducts(
     inventory_id: m.inventory_id,
     name: m.name,
     sku: m.sku,
-    imageUrl: m.image_url,
-    image_url: m.image_url,
+    imageUrl: shopCardDisplaySrc(m.image_url) || m.image_url,
+    image_url: shopCardDisplaySrc(m.image_url) || m.image_url,
     productUrl: m.product_url ?? null,
     product_url: m.product_url ?? null,
     priceHint: null as string | null,

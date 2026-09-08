@@ -21,6 +21,7 @@ import {
   partnerSiteInfoPath,
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { appendFeaturedMarqueeCloneHtml } from '@/lib/partner-website/visual-editor/featured-category-widgets'
 import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
@@ -173,7 +174,7 @@ export function bindLiveNavPillsToHtml(html: string, bind: LiveCategoryBind): st
 function paintFeaturedCardHtml(cardHtml: string, tile: FeaturedCategoryTile): string {
   const name = escapeHtml(tile.short_name || tile.name)
   const href = escapeAttr(tile.href || '#')
-  const imgUrl = String(tile.image_url || '').trim()
+  const imgUrl = shopCardDisplaySrc(tile.image_url) || String(tile.image_url || '').trim()
   let out = cardHtml.replace(/\shidden(?:="")?(?=\s|>)/gi, '')
   out = out.replace(/\sdata-pw-grid-placeholder(?:="[^"]*")?/gi, '')
   if (/^<a\b/i.test(out)) {
@@ -198,13 +199,15 @@ function paintFeaturedCardHtml(cardHtml: string, tile: FeaturedCategoryTile): st
         next = /\balt\s*=/.test(next)
           ? next.replace(/\balt\s*=\s*(["'])[\s\S]*?\1/i, ` alt="${name}"`)
           : `${next} alt="${name}"`
+        if (!/\bloading\s*=/.test(next)) next += ' loading="lazy"'
+        if (!/\bdecoding\s*=/.test(next)) next += ' decoding="async"'
         return `<img${next}>`
       })
     } else {
       out = out.replace(
         /<([a-z0-9]+)\b([^>]*\bdata-pw-el=["']card-media["'][^>]*)>([\s\S]*?)<\/\1>/i,
         (_full, tag: string, attrs: string) =>
-          `<${tag}${attrs}><img src="${escapeAttr(imgUrl)}" alt="${name}" loading="lazy"/></${tag}>`
+          `<${tag}${attrs}><img src="${escapeAttr(imgUrl)}" alt="${name}" loading="lazy" decoding="async"/></${tag}>`
       )
     }
   }
