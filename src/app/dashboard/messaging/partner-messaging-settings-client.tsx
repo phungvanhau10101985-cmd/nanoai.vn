@@ -2468,7 +2468,7 @@ export function PartnerMessagingSettingsClient({
               activeSection === 'partner-website-editor'
                 ? 'flex min-h-0 flex-col p-2 sm:p-3'
                 : activeSection === 'hub-orders'
-                  ? 'min-w-0 overflow-x-hidden p-3 sm:p-4 lg:p-5'
+                  ? 'min-w-0 overflow-x-auto p-3 sm:p-4 lg:overflow-x-hidden lg:p-5'
                   : 'p-3 sm:p-4 lg:p-5'
             )}
           >

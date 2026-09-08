@@ -277,6 +277,114 @@ function OrdersAdminTablePane({
   )
 }
 
+function OrdersAdminMobileList({
+  rows,
+  t,
+  locale,
+  consultedMap,
+  onToggleConsulted,
+  onOpenDetail,
+  onOpenPayment,
+}: {
+  rows: OrderRow[]
+  t: OrdersT
+  locale: WebLocale
+  consultedMap: Record<string, boolean>
+  onToggleConsulted: (orderId: string, next: boolean) => void
+  onOpenDetail: (order: OrderRow) => void
+  onOpenPayment: (order: OrderRow) => void
+}) {
+  return (
+    <ul className="divide-y divide-gray-100 dark:divide-zinc-700">
+      {rows.map((order) => {
+        const expects = partnerAdminExpectsDeposit(order)
+        const needDeposit = partnerAdminNeedsDepositStage(order)
+        const payKey = partnerAdminPayBadgeKey(order)
+        return (
+          <li key={order.id} className="px-3 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="break-all font-mono text-xs font-semibold leading-snug text-gray-900 dark:text-zinc-50">
+                  {orderCodeDisplay(order)}
+                </p>
+                <p className="mt-1 truncate font-medium text-gray-900 dark:text-zinc-50">{order.customer_name || '—'}</p>
+                <p className="text-xs text-gray-500">{order.customer_phone || '—'}</p>
+              </div>
+              <label className="flex shrink-0 flex-col items-center gap-1 pt-0.5 text-[11px] leading-none text-gray-500">
+                <input
+                  type="checkbox"
+                  checked={Boolean(consultedMap[order.id])}
+                  onChange={(e) => onToggleConsulted(order.id, e.target.checked)}
+                  className="h-5 w-5 cursor-pointer rounded border-gray-300 text-[#ea580c] focus:ring-[#ea580c]"
+                  aria-label={t.consultedAria}
+                />
+                {t.tableColConsultedShort}
+              </label>
+            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+              <div>
+                <dt className="text-xs text-gray-500">{t.tableColSubtotal}</dt>
+                <dd className="font-semibold tabular-nums">
+                  {formatVnd(order.amount_after_discount || order.subtotal_amount, locale)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-gray-500">{t.tableColDueOnDeliveryShort}</dt>
+                <dd className="font-semibold tabular-nums">
+                  {formatVnd(partnerAdminAmountDueOnDelivery(order), locale)}
+                </dd>
+              </div>
+              <div className="col-span-2">
+                <dt className="text-xs text-gray-500">{t.tableColDeposit}</dt>
+                <dd className="text-xs leading-snug">
+                  {expects ? (
+                    <>
+                      {t.depositNeed}: {formatVnd(order.required_amount, locale)}
+                      {' · '}
+                      {t.depositPaid}: {formatVnd(order.paid_amount, locale)}
+                    </>
+                  ) : (
+                    <span className="text-green-600">{t.depositNotRequired}</span>
+                  )}
+                </dd>
+              </div>
+            </dl>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="inline-block rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-zinc-700">{stageLabel(t, order)}</span>
+              <span
+                className={`inline-block rounded px-1.5 py-0.5 text-xs ${
+                  payKey === 'paid' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+                }`}
+              >
+                {payLabel(t, order)}
+              </span>
+              <span className="text-xs text-gray-500">{formatDate(order.created_at, locale)}</span>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+                onClick={() => onOpenDetail(order)}
+              >
+                {t.tableDetails}
+              </button>
+              {needDeposit && !partnerAdminOrderIsCancelled(order) ? (
+                <button
+                  type="button"
+                  onClick={() => onOpenPayment(order)}
+                  className="rounded-lg px-3 py-2 text-sm font-medium text-white bg-[#ea580c] hover:bg-[#c2410c]"
+                >
+                  {t.btnConfirmDeposit}
+                </button>
+              ) : null}
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 export function PartnerMessagingOrdersClient({
   initialPartners,
   ordersT,
@@ -327,6 +435,7 @@ export function PartnerMessagingOrdersClient({
   const [revenueReport, setRevenueReport] = useState<PartnerOrderAdminRevenueReport | null>(null)
   const [revenueLoading, setRevenueLoading] = useState(false)
   const [revenueError, setRevenueError] = useState<string | null>(null)
+  const [revenueExpanded, setRevenueExpanded] = useState(false)
 
   const partnerIdArg = selectedPartnerId === 'all' ? '' : selectedPartnerId
   const lifecycleForQuery: PartnerAdminLifecycleTab = statusFilter || activeTab
@@ -678,10 +787,10 @@ export function PartnerMessagingOrdersClient({
         </div>
       ) : null}
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 lg:mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-zinc-50">{t.pageTitle}</h1>
-          <p className="text-gray-600 dark:text-zinc-400">{t.pageDescription}</p>
+          <h1 className="text-xl font-bold text-gray-900 lg:text-2xl dark:text-zinc-50">{t.pageTitle}</h1>
+          <p className="text-sm text-gray-600 lg:text-base dark:text-zinc-400">{t.pageDescription}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {hidePartnerPicker ? null : (
@@ -715,31 +824,42 @@ export function PartnerMessagingOrdersClient({
       </div>
 
       {kpi ? (
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-          <div className="rounded-lg bg-white p-4 shadow dark:bg-zinc-800">
-            <p className="text-sm text-gray-500">{t.statOrders}</p>
-            <p className="text-2xl font-bold">{kpi.totalOrders}</p>
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:mb-6 lg:grid-cols-4 lg:gap-4">
+          <div className="rounded-lg bg-white p-3 shadow lg:p-4 dark:bg-zinc-800">
+            <p className="text-xs text-gray-500 lg:text-sm">{t.statOrders}</p>
+            <p className="text-xl font-bold lg:text-2xl">{kpi.totalOrders}</p>
           </div>
-          <div className="rounded-lg bg-white p-4 shadow dark:bg-zinc-800">
-            <p className="text-sm text-gray-500">{t.kpiTodayRevenue}</p>
-            <p className="text-2xl font-bold text-green-600">{formatVnd(kpi.todayRevenue, locale)}</p>
+          <div className="rounded-lg bg-white p-3 shadow lg:p-4 dark:bg-zinc-800">
+            <p className="text-xs text-gray-500 lg:text-sm">{t.kpiTodayRevenue}</p>
+            <p className="text-xl font-bold text-green-600 lg:text-2xl">{formatVnd(kpi.todayRevenue, locale)}</p>
           </div>
-          <div className="rounded-lg bg-white p-4 shadow dark:bg-zinc-800">
-            <p className="text-sm text-gray-500">{t.kpiWaitingDeposit}</p>
-            <p className="text-2xl font-bold text-orange-600">{kpi.waitingDepositOrders}</p>
+          <div className="rounded-lg bg-white p-3 shadow lg:p-4 dark:bg-zinc-800">
+            <p className="text-xs text-gray-500 lg:text-sm">{t.kpiWaitingDeposit}</p>
+            <p className="text-xl font-bold text-orange-600 lg:text-2xl">{kpi.waitingDepositOrders}</p>
           </div>
-          <div className="rounded-lg bg-white p-4 shadow dark:bg-zinc-800">
-            <p className="text-sm text-gray-500">{t.kpiShippingNow}</p>
-            <p className="text-2xl font-bold">{kpi.shippingOrders}</p>
+          <div className="rounded-lg bg-white p-3 shadow lg:p-4 dark:bg-zinc-800">
+            <p className="text-xs text-gray-500 lg:text-sm">{t.kpiShippingNow}</p>
+            <p className="text-xl font-bold lg:text-2xl">{kpi.shippingOrders}</p>
           </div>
         </div>
       ) : null}
 
-      <section className="mb-6 overflow-hidden rounded-lg bg-white shadow dark:bg-zinc-800" aria-label={t.revenueReportTitle}>
-        <div className="border-b px-4 py-3 dark:border-zinc-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-50">{t.revenueReportTitle}</h2>
-          <p className="mt-0.5 text-sm text-gray-500">{t.revenueReportDesc}</p>
+      <section className="mb-4 overflow-hidden rounded-lg bg-white shadow lg:mb-6 dark:bg-zinc-800" aria-label={t.revenueReportTitle}>
+        <div className="flex items-start justify-between gap-2 border-b px-4 py-3 dark:border-zinc-700">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-50">{t.revenueReportTitle}</h2>
+            <p className="mt-0.5 hidden text-sm text-gray-500 lg:block">{t.revenueReportDesc}</p>
+          </div>
+          <button
+            type="button"
+            className="shrink-0 rounded-lg border px-3 py-1.5 text-sm lg:hidden dark:border-zinc-600"
+            aria-expanded={revenueExpanded}
+            onClick={() => setRevenueExpanded((open) => !open)}
+          >
+            {revenueExpanded ? t.collapseRow : t.expandRow}
+          </button>
         </div>
+        <div className={revenueExpanded ? 'block' : 'hidden lg:block'}>
         <div className="flex flex-wrap gap-2 border-b px-4 py-3 dark:border-zinc-700">
           {(
             [
@@ -957,10 +1077,11 @@ export function PartnerMessagingOrdersClient({
             <p className="text-sm text-gray-500">{t.revenuePickPeriod}</p>
           ) : null}
         </div>
+        </div>
       </section>
 
       <div className="min-w-0 overflow-hidden rounded-lg bg-white shadow dark:bg-zinc-800">
-        <div className="flex flex-wrap gap-2 border-b p-2 dark:border-zinc-700">
+        <div className="flex gap-2 overflow-x-auto border-b p-2 lg:flex-wrap lg:overflow-visible dark:border-zinc-700">
           {PARTNER_ADMIN_LIFECYCLE_TABS.map(({ key }) => (
             <button
               key={key}
@@ -969,7 +1090,7 @@ export function PartnerMessagingOrdersClient({
                 setActiveTab(key)
                 setStatusFilter('')
               }}
-              className={`rounded-lg px-3 py-2 text-sm font-medium ${
+              className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${
                 activeTab === key && !statusFilter
                   ? 'bg-[#ea580c] text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-zinc-700 dark:text-zinc-200'
@@ -980,18 +1101,18 @@ export function PartnerMessagingOrdersClient({
           ))}
         </div>
 
-        <div className="flex flex-wrap gap-3 p-4">
+        <div className="flex flex-wrap gap-2 p-3 lg:gap-3 lg:p-4">
           <input
             type="text"
             placeholder={t.searchPlaceholder}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border px-3 py-2 sm:w-64 dark:border-zinc-600 dark:bg-zinc-900"
+            className="w-full rounded-lg border px-3 py-2 lg:w-64 dark:border-zinc-600 dark:bg-zinc-900"
           />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter((e.target.value || '') as PartnerAdminLifecycleTab | '')}
-            className="w-full rounded-lg border px-3 py-2 sm:w-40 dark:border-zinc-600 dark:bg-zinc-900"
+            className="min-w-[9.5rem] flex-1 rounded-lg border px-3 py-2 lg:w-40 lg:flex-none dark:border-zinc-600 dark:bg-zinc-900"
           >
             <option value="">{t.filterShippingLabel}</option>
             {PARTNER_ADMIN_LIFECYCLE_TABS.slice(1).map(({ key }) => (
@@ -1003,7 +1124,7 @@ export function PartnerMessagingOrdersClient({
           <select
             value={paymentFilter}
             onChange={(e) => setPaymentFilter((e.target.value || '') as PartnerAdminPaymentFilter)}
-            className="w-full rounded-lg border px-3 py-2 sm:w-40 dark:border-zinc-600 dark:bg-zinc-900"
+            className="min-w-[9.5rem] flex-1 rounded-lg border px-3 py-2 lg:w-40 lg:flex-none dark:border-zinc-600 dark:bg-zinc-900"
           >
             <option value="">{t.filterPaymentShort}</option>
             <option value="pending">{t.badgePayAwaiting}</option>
@@ -1042,6 +1163,19 @@ export function PartnerMessagingOrdersClient({
         ) : rows.length === 0 ? (
           <div className="p-8 text-center text-gray-500">{t.emptyList}</div>
         ) : (
+          <>
+          <div className="lg:hidden">
+            <OrdersAdminMobileList
+              rows={rows}
+              t={t}
+              locale={locale}
+              consultedMap={consultedMap}
+              onToggleConsulted={toggleConsulted}
+              onOpenDetail={openDetail}
+              onOpenPayment={openPaymentModal}
+            />
+          </div>
+          <div className="hidden lg:block">
           <OrdersAdminTablePane
             syncKey={`${rows.length}:${listPage}:${listPageSize}:${activeTab}:${statusFilter}:${paymentFilter}:${appliedSearch}`}
             ariaLabel={t.tableHScrollAria}
@@ -1172,9 +1306,11 @@ export function PartnerMessagingOrdersClient({
               </tbody>
             </table>
           </OrdersAdminTablePane>
+          </div>
+          </>
         )}
         {!loading && filteredTotal > 0 ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-4 py-3 text-sm text-gray-600 dark:border-zinc-700">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-3 py-3 text-sm text-gray-600 lg:px-4 dark:border-zinc-700">
             <span>
               {t.paginationSummary
                 .replace('{from}', String(displayFrom))
@@ -1184,12 +1320,12 @@ export function PartnerMessagingOrdersClient({
                 .replace('{pages}', String(totalPages))}
               {appliedSearch ? t.paginationSearchHint.replace('{q}', appliedSearch) : ''}
             </span>
-            <div className="flex items-center gap-2">
+            <div className="grid w-full grid-cols-4 gap-2 lg:flex lg:w-auto lg:items-center">
               <button
                 type="button"
                 onClick={() => setListPage(1)}
                 disabled={listPage <= 1 || pending}
-                className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
+                className="rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-center hover:bg-gray-50 disabled:opacity-40 lg:py-1.5 dark:border-zinc-600 dark:bg-zinc-800"
               >
                 {t.paginationFirst}
               </button>
@@ -1197,7 +1333,7 @@ export function PartnerMessagingOrdersClient({
                 type="button"
                 onClick={() => setListPage((p) => Math.max(1, p - 1))}
                 disabled={listPage <= 1 || pending}
-                className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
+                className="rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-center hover:bg-gray-50 disabled:opacity-40 lg:py-1.5 dark:border-zinc-600 dark:bg-zinc-800"
               >
                 {t.paginationPrev}
               </button>
@@ -1205,7 +1341,7 @@ export function PartnerMessagingOrdersClient({
                 type="button"
                 onClick={() => setListPage((p) => Math.min(totalPages, p + 1))}
                 disabled={listPage >= totalPages || pending}
-                className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
+                className="rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-center hover:bg-gray-50 disabled:opacity-40 lg:py-1.5 dark:border-zinc-600 dark:bg-zinc-800"
               >
                 {t.paginationNext}
               </button>
@@ -1213,7 +1349,7 @@ export function PartnerMessagingOrdersClient({
                 type="button"
                 onClick={() => setListPage(totalPages)}
                 disabled={listPage >= totalPages || pending}
-                className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
+                className="rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-center hover:bg-gray-50 disabled:opacity-40 lg:py-1.5 dark:border-zinc-600 dark:bg-zinc-800"
               >
                 {t.paginationLast}
               </button>
@@ -1223,13 +1359,16 @@ export function PartnerMessagingOrdersClient({
       </div>
 
       {detailOpen && selectedOrder ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDetailOpen(false)}>
+        <div
+          className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/50 lg:items-center lg:p-4"
+          onClick={() => setDetailOpen(false)}
+        >
           <div
-            className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-xl dark:bg-zinc-900"
+            className="relative flex h-[100dvh] max-h-[100dvh] w-full max-w-4xl flex-col overflow-hidden rounded-none bg-white shadow-xl lg:h-auto lg:max-h-[90vh] lg:rounded-xl dark:bg-zinc-900"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-100 bg-white px-6 py-4 dark:border-zinc-700 dark:bg-zinc-900">
-              <h2 className="min-w-0 flex-1 pr-2 text-xl font-bold leading-tight text-gray-900 dark:text-zinc-50">{t.modalTitle}</h2>
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-100 bg-white px-4 py-3 lg:px-6 lg:py-4 dark:border-zinc-700 dark:bg-zinc-900">
+              <h2 className="min-w-0 flex-1 pr-2 text-lg font-bold leading-tight text-gray-900 lg:text-xl dark:text-zinc-50">{t.modalTitle}</h2>
               <button
                 type="button"
                 aria-label={t.btnClose}
@@ -1241,7 +1380,7 @@ export function PartnerMessagingOrdersClient({
                 </svg>
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-6">
               <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <p className="text-sm text-gray-500">{t.customerCodeLabel}</p>
@@ -1430,7 +1569,7 @@ export function PartnerMessagingOrdersClient({
                 ) : null}
               </div>
 
-              <div className="flex flex-wrap gap-2 border-t pt-4">
+              <div className="flex flex-wrap gap-2 border-t pt-4 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
                 {partnerAdminNeedsDepositStage(selectedOrder) && !partnerAdminOrderIsCancelled(selectedOrder) ? (
                   <button
                     type="button"
@@ -1522,8 +1661,11 @@ export function PartnerMessagingOrdersClient({
       ) : null}
 
       {paymentOpen && selectedOrder ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setPaymentOpen(false)}>
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-zinc-900" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 lg:items-center lg:p-4" onClick={() => setPaymentOpen(false)}>
+          <div
+            className="w-full max-w-md rounded-t-xl bg-white p-4 shadow-xl lg:rounded-xl lg:p-6 dark:bg-zinc-900"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 className="mb-4 text-xl font-bold">{t.confirmDepositTitle}</h2>
             <p className="mb-2">
               {t.confirmDepositBody
@@ -1545,7 +1687,7 @@ export function PartnerMessagingOrdersClient({
                 className="w-full rounded-lg border px-3 py-2 dark:border-zinc-600 dark:bg-zinc-800"
               />
             </div>
-            <div className="flex flex-wrap justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
               <button type="button" onClick={() => setPaymentOpen(false)} className="rounded-lg border px-4 py-2 hover:bg-gray-50">
                 {t.btnCancelModal}
               </button>
