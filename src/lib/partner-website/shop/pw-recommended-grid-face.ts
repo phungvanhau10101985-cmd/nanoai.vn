@@ -42,7 +42,7 @@ html [data-pw-personalize="recommended"] .pw-cohort-hint{margin:6px 0 4px;font-s
 html [data-pw-personalize="recommended"] .pw-cohort-hint-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 html [data-pw-personalize="recommended"] .pw-product-card,
 html [data-pw-personalize="recommended"] [data-pw-el="card"]{
-border-radius:12px;border:1px solid #f3f4f6;box-shadow:0 1px 2px rgba(15,23,42,.04);background:#fff;overflow:hidden;transition:border-color .15s,box-shadow .15s
+position:relative;border-radius:12px;border:1px solid #f3f4f6;box-shadow:0 1px 2px rgba(15,23,42,.04);background:#fff;overflow:hidden;transition:border-color .15s,box-shadow .15s
 }
 html body:not(.nanoai-ve-active) [data-pw-personalize="recommended"] .pw-product-card:hover{
 border-color:color-mix(in srgb,var(--pw-primary) 28%,#e5e7eb);box-shadow:0 8px 20px rgba(15,23,42,.08)
@@ -62,8 +62,10 @@ html [data-pw-personalize="recommended"] .pw-rec-stats{display:flex;justify-cont
 html [data-pw-personalize="recommended"] .pw-rec-badge{
 position:absolute;left:8px;top:8px;z-index:2;max-width:calc(100% - 3rem);border-radius:6px;background:var(--pw-primary);color:#fff;padding:2px 6px;font-size:9px;font-weight:700;line-height:1.2;box-shadow:0 1px 4px rgba(15,23,42,.12)
 }
+html [data-pw-personalize="recommended"] .pw-product-card-media .pw-rec-fav,
+html [data-pw-personalize="recommended"] [data-pw-el="card-media"] .pw-rec-fav,
 html [data-pw-personalize="recommended"] .pw-rec-fav{
-position:absolute;top:4px;right:4px;z-index:3;display:inline-flex;width:44px;height:44px;align-items:center;justify-content:center;border:none;border-radius:999px;background:rgba(255,255,255,.92);color:#4b5563;cursor:pointer;padding:0
+position:absolute;top:4px;right:4px;z-index:4;display:inline-flex;width:44px;height:44px;align-items:center;justify-content:center;border:none;border-radius:999px;background:rgba(255,255,255,.92);color:#4b5563;cursor:pointer;padding:0;pointer-events:auto
 }
 html [data-pw-personalize="recommended"] .pw-rec-fav svg{width:16px;height:16px;display:block}
 html [data-pw-personalize="recommended"] .pw-rec-fav:hover,

@@ -29,7 +29,7 @@ html[data-pw-scene-lock="mobile"] [data-pw-personalize="flash-sale"] [data-pw-gr
 html[data-pw-scene-lock="tablet"] [data-pw-personalize="flash-sale"] [data-pw-grid]{gap:12px!important}
 html [data-pw-personalize="flash-sale"] .pw-product-card,
 html [data-pw-personalize="flash-sale"] [data-pw-el="card"]{
-border-radius:12px;border:1px solid #f3f4f6;box-shadow:0 1px 2px rgba(15,23,42,.04);background:#fff;overflow:hidden;transition:border-color .15s,box-shadow .15s
+position:relative;border-radius:12px;border:1px solid #f3f4f6;box-shadow:0 1px 2px rgba(15,23,42,.04);background:#fff;overflow:hidden;transition:border-color .15s,box-shadow .15s
 }
 html body:not(.nanoai-ve-active) [data-pw-personalize="flash-sale"] .pw-product-card:hover{
 border-color:color-mix(in srgb,var(--pw-primary) 28%,#e5e7eb);box-shadow:0 8px 20px rgba(15,23,42,.08)
@@ -46,8 +46,10 @@ html [data-pw-personalize="flash-sale"] .pw-shop-action-bar,
 html [data-pw-personalize="flash-sale"] .pw-product-card-body > [data-pw-el="card-cart"],
 html [data-pw-personalize="flash-sale"] .pw-product-card-body > [data-pw-el="card-buy"]{display:none!important}
 html [data-pw-personalize="flash-sale"] .pw-rec-stats{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:#6b7280;margin-top:2px}
+html [data-pw-personalize="flash-sale"] .pw-product-card-media .pw-rec-fav,
+html [data-pw-personalize="flash-sale"] [data-pw-el="card-media"] .pw-rec-fav,
 html [data-pw-personalize="flash-sale"] .pw-rec-fav{
-position:absolute;top:4px;right:4px;z-index:3;display:inline-flex;width:44px;height:44px;align-items:center;justify-content:center;border:none;border-radius:999px;background:rgba(255,255,255,.92);color:#4b5563;cursor:pointer;padding:0
+position:absolute;top:4px;right:4px;z-index:4;display:inline-flex;width:44px;height:44px;align-items:center;justify-content:center;border:none;border-radius:999px;background:rgba(255,255,255,.92);color:#4b5563;cursor:pointer;padding:0;pointer-events:auto
 }
 html [data-pw-personalize="flash-sale"] .pw-rec-fav svg{width:16px;height:16px;display:block}
 html [data-pw-personalize="flash-sale"] .pw-rec-fav:hover,

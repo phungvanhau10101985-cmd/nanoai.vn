@@ -65,6 +65,8 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /Hôm nay bạn muốn xem gì/)
   assert.match(out, /pw-rec-fav/)
   assert.match(out, /renderRecommendedCard/)
+  assert.match(out, /\+mark\+fav\+'<img/)
+  assert.doesNotMatch(out, /<\/a>'\+fav\+'<div class="pw-product-card-body"/)
   assert.match(out, /\/site\/188-com-vn-rl56\/account\/edit-profile/)
   assert.match(out, /\/site\/188-com-vn-rl56\/goi-y-tuoi-gioi/)
   assert.match(out, /var HELP_PATH=/)

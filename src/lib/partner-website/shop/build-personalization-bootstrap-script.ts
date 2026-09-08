@@ -386,7 +386,7 @@ function renderRecommendedCard(p,badge){
   if(!isFinite(rating))rating=0;
   var sold=Math.max(0,Math.round(Number(p.purchasesCount!=null?p.purchasesCount:p.purchases_count)||0));
   var fav='<button type="button" class="pw-rec-fav" data-pw-favorite data-inventory-id="'+id+'" aria-pressed="false" aria-label="'+COPY.favorite+'">'+recHeartSvg()+'</button>';
-  return '<article class="pw-product-card pw-rec-card" data-pw-el="card" data-inventory-id="'+id+'" data-pw-actions-ready="1"><a class="pw-product-card-media" data-pw-el="card-media" href="'+href+'">'+mark+'<img src="'+img+'" alt="'+name+'" loading="lazy"/></a>'+fav+'<div class="pw-product-card-body"><h3 data-pw-el="card-name"><a href="'+href+'">'+name+'</a></h3>'+(price?'<p class="pw-price" data-pw-el="card-price">'+price+'</p>':'')+'<div class="pw-rec-stats"><span>★ '+rating.toFixed(1)+'</span><span>'+COPY.recSold+': '+sold+'</span></div></div></article>';
+  return '<article class="pw-product-card pw-rec-card" data-pw-el="card" data-inventory-id="'+id+'" data-pw-actions-ready="1"><a class="pw-product-card-media" data-pw-el="card-media" href="'+href+'">'+mark+fav+'<img src="'+img+'" alt="'+name+'" loading="lazy"/></a><div class="pw-product-card-body"><h3 data-pw-el="card-name"><a href="'+href+'">'+name+'</a></h3>'+(price?'<p class="pw-price" data-pw-el="card-price">'+price+'</p>':'')+'<div class="pw-rec-stats"><span>★ '+rating.toFixed(1)+'</span><span>'+COPY.recSold+': '+sold+'</span></div></div></article>';
 }
 function renderCard(p,cta,badge,recommended){
   if(recommended)return renderRecommendedCard(p,badge);

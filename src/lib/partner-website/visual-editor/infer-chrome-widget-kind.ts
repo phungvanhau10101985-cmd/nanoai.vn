@@ -299,13 +299,13 @@ export function canonChromeWidgetKind(kind: string): string {
 export function inferChromeWidgetKindFromHints(input: ChromeKindHints): string {
   if (input.openChat) return 'chat'
   if (input.tryOn) return 'try-on'
-  if (input.favorite) return 'favorite-product'
+  const cls = norm(input.className)
+  if (input.favorite && !cls.includes('pw-rec-fav')) return 'favorite-product'
   if (input.addCart) return 'add-cart'
   if (input.buyNow) return 'buy-now'
 
   const href = String(input.href || '').trim()
   const hrefLow = href.toLowerCase()
-  const cls = norm(input.className)
   const label = norm(input.label)
   const channel = norm(input.contactChannel)
 

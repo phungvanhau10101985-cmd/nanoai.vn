@@ -131,3 +131,22 @@ test('info and chat kinds from href or channel', () => {
   assert.equal(inferChromeWidgetKindFromHints({ href: '#', label: 'Đăng xuất' }), 'logout')
   assert.equal(inferChromeWidgetKindFromHints({ href: '#', label: 'Đăng ký' }), 'register')
 })
+
+test('card overlay heart is not a chrome favorite-product widget', () => {
+  assert.equal(
+    inferChromeWidgetKindFromHints({
+      favorite: true,
+      className: 'pw-rec-fav',
+      label: 'Thích',
+    }),
+    ''
+  )
+  assert.equal(
+    inferChromeWidgetKindFromHints({
+      favorite: true,
+      className: 'pw-icon-btn',
+      label: 'Thích sản phẩm',
+    }),
+    'favorite-product'
+  )
+})

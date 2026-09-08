@@ -8,6 +8,8 @@ import {
   PW_PRODUCT_GRID_RULER_CSS,
   PW_PRODUCT_STRIP_GRID_CSS,
 } from '@/lib/partner-website/shop/pw-product-grid-ruler'
+import { PW_FLASH_SALE_GRID_FACE_CSS } from '@/lib/partner-website/shop/pw-flash-sale-grid-face'
+import { PW_RECOMMENDED_GRID_FACE_CSS } from '@/lib/partner-website/shop/pw-recommended-grid-face'
 import { PW_RELATED_CSS } from '@/lib/partner-website/shop/related-products-css'
 
 test('strip grid ruler locks 5 desktop / 2 mobile by data-pw attr, not auto-fit', () => {
@@ -17,6 +19,14 @@ test('strip grid ruler locks 5 desktop / 2 mobile by data-pw attr, not auto-fit'
   assert.match(PW_PRODUCT_STRIP_GRID_CSS, /html\[data-pw-scene-lock="mobile"\]/)
   assert.match(PW_PRODUCT_STRIP_GRID_CSS, /grid-template-columns:repeat\(2,minmax\(0,1fr\)\)!important/)
   assert.doesNotMatch(PW_PRODUCT_STRIP_GRID_CSS, /auto-fit|auto-fill/)
+})
+
+test('rec and flash-sale cards are the containing block for the favorite overlay', () => {
+  assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /\{position:relative;display:flex!important/)
+  assert.match(PW_FLASH_SALE_GRID_FACE_CSS, /\[data-pw-personalize="flash-sale"\] \.pw-product-card,[\s\S]*?\{[\s\S]*?position:relative/)
+  assert.match(PW_RECOMMENDED_GRID_FACE_CSS, /\[data-pw-personalize="recommended"\] \.pw-product-card,[\s\S]*?\{[\s\S]*?position:relative/)
+  assert.match(PW_FLASH_SALE_GRID_FACE_CSS, /\.pw-rec-fav\{[\s\S]*?position:absolute;top:4px;right:4px/)
+  assert.match(PW_RECOMMENDED_GRID_FACE_CSS, /\.pw-rec-fav\{[\s\S]*?position:absolute;top:4px;right:4px/)
 })
 
 test('catalog cards clamp names to two lines and pin cart buttons to one row', () => {

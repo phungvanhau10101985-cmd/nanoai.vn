@@ -3076,7 +3076,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (tag !== 'a' && tag !== 'button') return ''
     if (el.getAttribute('data-nanoai-open-chat') != null) return 'chat'
     if (el.getAttribute('data-nanoai-try-on') != null) return 'try-on'
-    if (el.getAttribute('data-pw-favorite') != null) return 'favorite-product'
+    if (el.getAttribute('data-pw-favorite') != null) {
+      if (clsOf(el).indexOf('pw-rec-fav') >= 0) return ''
+      if (el.closest && el.closest('.pw-rec-card, .pw-rec-fav')) return ''
+      return 'favorite-product'
+    }
     if (el.getAttribute('data-pw-add-cart') != null) return 'add-cart'
     if (el.getAttribute('data-pw-buy') != null) return 'buy-now'
     var href = String(el.getAttribute('href') || '').trim().toLowerCase()
