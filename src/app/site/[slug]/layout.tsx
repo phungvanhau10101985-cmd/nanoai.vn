@@ -98,18 +98,10 @@ export default async function PartnerSiteSlugLayout({
   const site = (await loadPartnerSiteShopContext(slug).catch(() => null))?.site ?? null
   const name = site?.title.trim() || site?.partnerDisplayName || ''
   const icon180 = site ? partnerSitePwaIconPath(site.siteSlug, 180, onCustomDomain) : ''
-  const chromeColor = site ? shopBrowserChromeColor(site.theme) : ''
 
   return (
-    <PartnerSiteCustomDomainProvider active={onCustomDomain}>
+    <>
       <head>
-        {chromeColor ? (
-          <>
-            <meta name="theme-color" content={chromeColor} />
-            <meta name="theme-color" media="(prefers-color-scheme: light)" content={chromeColor} />
-            <meta name="theme-color" media="(prefers-color-scheme: dark)" content={chromeColor} />
-          </>
-        ) : null}
         <script
           dangerouslySetInnerHTML={{
             __html:
@@ -119,8 +111,10 @@ export default async function PartnerSiteSlugLayout({
         {name ? <meta name="apple-mobile-web-app-title" content={name} /> : null}
         {icon180 ? <link rel="apple-touch-icon" href={icon180} /> : null}
       </head>
-      <PartnerSiteShopPushBoot siteSlug={site?.siteSlug || slug} />
-      <div style={shopFontVars}>{children}</div>
-    </PartnerSiteCustomDomainProvider>
+      <PartnerSiteCustomDomainProvider active={onCustomDomain}>
+        <PartnerSiteShopPushBoot siteSlug={site?.siteSlug || slug} />
+        <div style={shopFontVars}>{children}</div>
+      </PartnerSiteCustomDomainProvider>
+    </>
   )
 }

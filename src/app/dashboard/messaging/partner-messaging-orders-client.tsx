@@ -188,12 +188,7 @@ function stageLabel(t: OrdersT, r: OrderRow): string {
 }
 
 function payLabel(t: OrdersT, r: OrderRow): string {
-  const key = partnerAdminPayBadgeKey({
-    status: r.status,
-    shipping_status: r.shipping_status,
-    required_amount: r.required_amount,
-    paid_amount: r.paid_amount,
-  })
+  const key = partnerAdminPayBadgeKey(r)
   if (key === 'cancelled') return t.statusCancelled
   if (key === 'deposit_paid') return t.badgePayPartial
   if (key === 'paid') return t.badgePayDone

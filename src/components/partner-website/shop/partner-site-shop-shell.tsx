@@ -107,10 +107,7 @@ import {
   type VisualHomeChromeByDevice,
 } from '@/lib/partner-website/shop/visual-home-chrome'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
-import {
-  applyShopBrowserThemeColorToDocument,
-  shopBrowserChromeColor,
-} from '@/lib/partner-website/template/partner-website-theme-tokens'
+import { applyShopBrowserThemeColorToDocument } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { htmlHasChromeChatMua } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
@@ -611,13 +608,8 @@ function PartnerSiteShopShellInner({
     useVisualChrome && visualChromeByDevice
       ? visualHomeChromeHtml(visualChromeByDevice, previewDevice, 'after')
       : null
-  const chromeColor = shopBrowserChromeColor(theme)
-
   return (
     <div className="pw-shop" {...(pageKind ? { 'data-pw-page': pageKind } : {})}>
-      <meta name="theme-color" content={chromeColor} />
-      <meta name="theme-color" media="(prefers-color-scheme: light)" content={chromeColor} />
-      <meta name="theme-color" media="(prefers-color-scheme: dark)" content={chromeColor} />
       <PartnerSiteShopTrackingBootstrap tracking={tracking} />
       <PartnerSiteCookieConsentBanner siteSlug={siteSlug} locale={locale} />
       <PartnerSiteBirthGenderPromptModal siteSlug={siteSlug} shopTitle={title} locale={locale} />

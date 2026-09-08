@@ -1,12 +1,13 @@
 import * as XLSX from 'xlsx'
 import type { PartnerOrderAdminRow } from '@/lib/db/messaging-partner-orders-pg'
+import { partnerAdminPayBadgeKey } from '@/lib/messaging/partner-admin-orders-lifecycle'
 
-function paymentStatusVi(s: PartnerOrderAdminRow['status']): string {
-  if (s === 'awaiting_payment') return 'Chờ thanh toán'
-  if (s === 'payment_checking') return 'Đang đối chiếu'
-  if (s === 'paid_verified') return 'Đã xác nhận thanh toán'
-  if (s === 'pending_manual_review') return 'Cần duyệt tay'
-  return 'Đã hủy'
+function paymentStatusVi(r: PartnerOrderAdminRow): string {
+  const key = partnerAdminPayBadgeKey(r)
+  if (key === 'cancelled') return 'Đã hủy'
+  if (key === 'deposit_paid') return 'Đã đặt cọc'
+  if (key === 'paid') return 'Đã thanh toán đủ'
+  return 'Chờ thanh toán'
 }
 
 function shippingStatusVi(s: PartnerOrderAdminRow['shipping_status']): string {
@@ -67,7 +68,7 @@ export function buildPartnerOrdersXlsxBuffer(rows: PartnerOrderAdminRow[]): Buff
     r.id,
     r.payment_reference,
     r.partner_display_name,
-    paymentStatusVi(r.status),
+    paymentStatusVi(r),
     shippingStatusVi(r.shipping_status),
     r.customer_name,
     r.customer_email,

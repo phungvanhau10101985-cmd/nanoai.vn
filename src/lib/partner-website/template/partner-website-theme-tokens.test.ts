@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { parseHTML } from 'linkedom'
 
 import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/partner-website-template-types'
 import {
+  applyShopBrowserThemeColorToDocument,
   darkenHex,
   extractShopBrowserThemeColorFromHtml,
   hexesClose,
   parseThemeColorPatch,
+  PW_BROWSER_THEME_COLOR_ATTR,
   resolveShopThemeColors,
   rewriteThemeCssVarsInHtml,
   SHOP_AUX_BG_SWATCHES,
@@ -305,4 +308,23 @@ test('shop viewport theme-color uses the same light/dark media keys as the NanoA
     { media: '(prefers-color-scheme: dark)', color: '#0f766e' },
   ])
   assert.notEqual(items[0].color, DEFAULT_PARTNER_WEBSITE_THEME.primaryColor)
+})
+
+test('applyShopBrowserThemeColorToDocument patches existing metas in place and does not remove them', () => {
+  const { document } = parseHTML(
+    '<!doctype html><html><head><meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff"/></head><body></body></html>'
+  )
+  const original = document.head.querySelector('meta[name="theme-color"]')
+  applyShopBrowserThemeColorToDocument(document, '#0f766e')
+  assert.equal(original?.parentNode, document.head)
+  assert.equal(original?.getAttribute('content'), '#0f766e')
+  const owned = document.head.querySelectorAll(`meta[name="theme-color"][${PW_BROWSER_THEME_COLOR_ATTR}="1"]`)
+  assert.equal(owned.length, 3)
+  applyShopBrowserThemeColorToDocument(document, '#2563eb')
+  assert.equal(
+    document.head.querySelectorAll(`meta[name="theme-color"][${PW_BROWSER_THEME_COLOR_ATTR}="1"]`).length,
+    3
+  )
+  assert.equal(original?.parentNode, document.head)
+  assert.equal(original?.getAttribute('content'), '#2563eb')
 })

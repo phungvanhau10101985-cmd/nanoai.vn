@@ -120,13 +120,7 @@ function visualHtmlRevision(html: string, device: VisualDeviceVariant): string {
   return `${device}:${html.length}:${hash >>> 0}`
 }
 
-function PartnerSiteInlineVisualHead({
-  html,
-  browserThemeColor,
-}: {
-  html: string
-  browserThemeColor?: string
-}) {
+function PartnerSiteInlineVisualHead({ html }: { html: string }) {
   const links = extractVisualDocumentStyleLinks(html)
   const css = extractVisualDocumentCssText(html)
   const hasGoogleFont = links.some((link) => /fonts\.googleapis\.com/i.test(link.href))
@@ -137,16 +131,8 @@ function PartnerSiteInlineVisualHead({
         `document.documentElement.setAttribute(${JSON.stringify(name)},${JSON.stringify(value)});`
     )
     .join('')
-  const themeColor = browserThemeColor || extractShopBrowserThemeColorFromHtml(html)
   return (
     <>
-      {themeColor ? (
-        <>
-          <meta name="theme-color" content={themeColor} />
-          <meta name="theme-color" media="(prefers-color-scheme: light)" content={themeColor} />
-          <meta name="theme-color" media="(prefers-color-scheme: dark)" content={themeColor} />
-        </>
-      ) : null}
       {stampScript ? (
         <script
           dangerouslySetInnerHTML={{
@@ -464,7 +450,7 @@ function PartnerSitePublicFrame({
         listenLandingPostMessage
         hideLauncher={hideEmbedFab}
       >
-        <PartnerSiteInlineVisualHead html={previewHtml} browserThemeColor={browserThemeColor} />
+        <PartnerSiteInlineVisualHead html={previewHtml} />
         <PartnerSiteInlineVisualScripts revision={revision} />
         <div
           key={revision}

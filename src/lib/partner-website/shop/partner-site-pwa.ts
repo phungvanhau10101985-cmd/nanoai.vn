@@ -79,7 +79,7 @@ export function buildPartnerShopWebManifest(input: {
     name,
     short_name: name.slice(0, 24),
     description: (input.description || name).trim() || name,
-    id: `nanoai-shop:${slug}`,
+    id: startUrl,
     start_url: startUrl,
     scope: partnerSitePwaScope(startUrl),
     display: 'standalone',

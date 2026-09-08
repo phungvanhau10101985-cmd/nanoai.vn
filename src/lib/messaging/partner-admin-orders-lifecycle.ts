@@ -95,6 +95,17 @@ export function partnerAdminAmountDueOnDelivery(r: PartnerAdminOrderLifecycleInp
   return Math.max(0, base - paid)
 }
 
+/** SQL remaining COD — cùng công thức `partnerAdminAmountDueOnDelivery`. */
+export function partnerAdminAmountDueOnDeliverySql(): string {
+  return `greatest(
+    0,
+    (case
+      when coalesce(o.amount_after_discount, 0) > 0 then coalesce(o.amount_after_discount, 0)
+      else coalesce(o.subtotal_amount, 0)
+    end) - coalesce(o.paid_amount, 0)
+  )`
+}
+
 export function partnerAdminMatchesLifecycleTab(
   r: PartnerAdminOrderLifecycleInput,
   tab: PartnerAdminLifecycleTab
@@ -125,17 +136,9 @@ export function partnerAdminMatchesPaymentFilter(
   if (filter === 'failed') {
     return r.latest_proof_status === 'failed' || partnerAdminOrderIsCancelled(r)
   }
-  const dk = partnerAdminDepositKind(r)
-  if (filter === 'paid') {
-    return dk === 'full' && r.status === 'paid_verified' && !partnerAdminOrderIsCancelled(r)
-  }
-  if (filter === 'deposit_paid') {
-    if (partnerAdminOrderIsCancelled(r)) return false
-    return dk === 'partial' || (dk === 'full' && r.status !== 'paid_verified' && partnerAdminExpectsDeposit(r))
-  }
-  if (filter === 'pending') {
-    if (partnerAdminOrderIsCancelled(r)) return false
-    return dk === 'none' || r.status === 'awaiting_payment' || r.status === 'payment_checking'
+  const key = partnerAdminPayBadgeKey(r)
+  if (filter === 'paid' || filter === 'deposit_paid' || filter === 'pending') {
+    return key === filter
   }
   return true
 }
@@ -144,13 +147,12 @@ export function partnerAdminPayBadgeKey(
   r: PartnerAdminOrderLifecycleInput
 ): 'cancelled' | 'pending' | 'deposit_paid' | 'paid' {
   if (partnerAdminOrderIsCancelled(r)) return 'cancelled'
-  const dk = partnerAdminDepositKind(r)
-  if (dk === 'none') return 'pending'
-  if (dk === 'partial') return 'deposit_paid'
-  if (r.status === 'awaiting_payment' || r.status === 'payment_checking' || r.status === 'pending_manual_review') {
-    return 'pending'
-  }
-  return 'paid'
+  const paid = Math.max(0, Math.round(r.paid_amount || 0))
+  const due = partnerAdminAmountDueOnDelivery(r)
+  // Cọc 30% đã thu nhưng còn COD khi nhận → «Đã đặt cọc», không phải thanh toán hết.
+  if (due <= 0 && paid > 0) return 'paid'
+  if (paid > 0) return 'deposit_paid'
+  return 'pending'
 }
 
 export function partnerAdminStageBadgeKey(
@@ -239,6 +241,8 @@ export function partnerAdminLifecycleSql(tab: PartnerAdminLifecycleTab): string 
 
 export function partnerAdminPaymentFilterSql(filter: PartnerAdminPaymentFilter): string {
   if (!filter) return 'true'
+  const notCancelled = `o.status <> 'cancelled' and coalesce(o.shipping_status, 'pending') <> 'cancelled'`
+  const due = partnerAdminAmountDueOnDeliverySql()
   if (filter === 'failed') {
     return `(o.status = 'cancelled' or coalesce(o.shipping_status, 'pending') = 'cancelled' or exists (
       select 1 from public.messaging_partner_payment_proofs p
@@ -246,21 +250,10 @@ export function partnerAdminPaymentFilterSql(filter: PartnerAdminPaymentFilter):
     ))`
   }
   if (filter === 'paid') {
-    return `(o.status = 'paid_verified' and o.status <> 'cancelled' and coalesce(o.shipping_status, 'pending') <> 'cancelled')`
+    return `(${notCancelled} and coalesce(o.paid_amount, 0) > 0 and ${due} <= 0)`
   }
   if (filter === 'deposit_paid') {
-    return `(
-      o.status <> 'cancelled' and coalesce(o.shipping_status, 'pending') <> 'cancelled'
-      and coalesce(o.required_amount, 0) > 0
-      and coalesce(o.paid_amount, 0) > 0
-      and (coalesce(o.paid_amount, 0) < coalesce(o.required_amount, 0) or o.status <> 'paid_verified')
-    )`
+    return `(${notCancelled} and coalesce(o.paid_amount, 0) > 0 and ${due} > 0)`
   }
-  return `(
-    o.status <> 'cancelled' and coalesce(o.shipping_status, 'pending') <> 'cancelled'
-    and (
-      coalesce(o.paid_amount, 0) <= 0
-      or o.status in ('awaiting_payment', 'payment_checking')
-    )
-  )`
+  return `(${notCancelled} and coalesce(o.paid_amount, 0) <= 0)`
 }

@@ -44,7 +44,7 @@ function main() {
     themeColor: '#b45309',
     locale: 'vi',
   })
-  assert.equal(manifest.id, 'nanoai-shop:my-shop')
+  assert.equal(manifest.id, '/')
   assert.equal(manifest.start_url, '/')
   assert.equal(manifest.scope, '/')
   assert.equal(manifest.name, 'Áo Cưới Hồng')
@@ -58,6 +58,17 @@ function main() {
     true
   )
   assert.equal(icons.every((icon) => icon.src.startsWith('/pwa-icon/') && icon.type === 'image/png'), true)
+
+  const pathManifest = buildPartnerShopWebManifest({
+    siteSlug: 'my-shop',
+    name: 'Áo Cưới Hồng',
+    customDomain: false,
+    backgroundColor: '#fff8f0',
+    themeColor: '#b45309',
+    locale: 'vi',
+  })
+  assert.equal(pathManifest.id, pathManifest.start_url)
+  assert.equal(pathManifest.start_url, '/site/my-shop/')
 
   console.log('test-w5_5-pwa: ok')
 }

@@ -562,6 +562,14 @@ export function upsertShopBrowserThemeColorInHtml(
   return `${tag}${out}`
 }
 
+/** Marks metas this helper created — never `remove()` React/Next `theme-color` nodes. */
+export const PW_BROWSER_THEME_COLOR_ATTR = 'data-pw-theme-color'
+
+function themeColorMetaMedia(el: Element): string {
+  return (el.getAttribute('media') || '').trim()
+}
+
+/** Android / PWA status bar. Never `remove()` existing metas — React/Next own some of them. */
 export function applyShopBrowserThemeColorToDocument(
   doc: Document,
   theme?: Pick<PartnerWebsiteTheme, 'primaryColor'> | string | null
@@ -569,19 +577,27 @@ export function applyShopBrowserThemeColorToDocument(
   const hex = shopBrowserChromeColor(theme)
   const head = doc.head
   if (!head) return
-  for (const node of Array.from(head.querySelectorAll('meta[name="theme-color"]'))) {
-    node.remove()
+  const wanted = ['(prefers-color-scheme: dark)', '(prefers-color-scheme: light)', ''] as const
+  const all = Array.from(head.querySelectorAll('meta[name="theme-color"]'))
+  for (const node of all) {
+    node.setAttribute('content', hex)
   }
-  const insert = (media?: string) => {
+  for (const media of wanted) {
+    const owned = all.find(
+      (el) => el.getAttribute(PW_BROWSER_THEME_COLOR_ATTR) === '1' && themeColorMetaMedia(el) === media
+    )
+    if (owned) {
+      owned.setAttribute('content', hex)
+      continue
+    }
     const meta = doc.createElement('meta')
     meta.setAttribute('name', 'theme-color')
+    meta.setAttribute(PW_BROWSER_THEME_COLOR_ATTR, '1')
     if (media) meta.setAttribute('media', media)
     meta.setAttribute('content', hex)
-    head.insertBefore(meta, head.firstChild)
+    head.appendChild(meta)
+    all.push(meta)
   }
-  insert('(prefers-color-scheme: dark)')
-  insert('(prefers-color-scheme: light)')
-  insert()
 }
 
 export function applyThemeCssVarsToDocument(doc: Document, theme: PartnerWebsiteTheme): void {

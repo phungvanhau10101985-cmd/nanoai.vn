@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   monthInputToDateRange,
   partnerAdminAmountDueOnDelivery,
+  partnerAdminAmountDueOnDeliverySql,
   partnerAdminLifecycleSql,
   partnerAdminMatchesLifecycleTab,
   partnerAdminMatchesPaymentFilter,
@@ -10,6 +11,7 @@ import {
   partnerAdminOrderIsCancelled,
   partnerAdminOrderIsReturned,
   partnerAdminPayBadgeKey,
+  partnerAdminPaymentFilterSql,
   partnerAdminStageBadgeKey,
   type PartnerAdminOrderLifecycleInput,
 } from './partner-admin-orders-lifecycle'
@@ -94,9 +96,49 @@ test('payment filter: pending / deposit_paid / paid', () => {
   assert.equal(partnerAdminMatchesPaymentFilter(partial, 'deposit_paid'), true)
   assert.equal(partnerAdminPayBadgeKey(partial), 'deposit_paid')
 
-  const paid = row({ status: 'paid_verified', required_amount: 30000, paid_amount: 30000 })
+  const depositPaid = row({
+    status: 'paid_verified',
+    required_amount: 255000,
+    paid_amount: 255000,
+    amount_after_discount: 850000,
+    subtotal_amount: 850000,
+  })
+  assert.equal(partnerAdminAmountDueOnDelivery(depositPaid), 595000)
+  assert.equal(partnerAdminNeedsDepositStage(depositPaid), false)
+  assert.equal(partnerAdminMatchesLifecycleTab(depositPaid, 'waiting_ship'), true)
+  assert.equal(partnerAdminMatchesLifecycleTab(depositPaid, 'waiting_deposit'), false)
+  assert.equal(partnerAdminPayBadgeKey(depositPaid), 'deposit_paid')
+  assert.equal(partnerAdminMatchesPaymentFilter(depositPaid, 'deposit_paid'), true)
+  assert.equal(partnerAdminMatchesPaymentFilter(depositPaid, 'paid'), false)
+
+  const paid = row({
+    status: 'paid_verified',
+    required_amount: 100000,
+    paid_amount: 100000,
+    amount_after_discount: 100000,
+    subtotal_amount: 100000,
+  })
   assert.equal(partnerAdminMatchesPaymentFilter(paid, 'paid'), true)
   assert.equal(partnerAdminPayBadgeKey(paid), 'paid')
+
+  const codUnpaid = row({
+    status: 'paid_verified',
+    required_amount: 0,
+    paid_amount: 0,
+    amount_after_discount: 100000,
+    subtotal_amount: 100000,
+  })
+  assert.equal(partnerAdminPayBadgeKey(codUnpaid), 'pending')
+  assert.equal(partnerAdminMatchesPaymentFilter(codUnpaid, 'paid'), false)
+})
+
+test('payment SQL treats remaining COD as deposit_paid, not fully paid', () => {
+  const paidSql = partnerAdminPaymentFilterSql('paid')
+  const depositSql = partnerAdminPaymentFilterSql('deposit_paid')
+  assert.match(paidSql, /paid_amount/)
+  assert.match(paidSql, /amount_after_discount/)
+  assert.match(depositSql, /paid_amount/)
+  assert.equal(partnerAdminAmountDueOnDeliverySql().includes('amount_after_discount'), true)
 })
 
 test('month range and lifecycle SQL are safe fragments', () => {
