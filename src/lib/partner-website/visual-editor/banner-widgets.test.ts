@@ -9,10 +9,12 @@ import {
   isVisualEditorBannerKind,
   restoreMarketingBannerSeedsInDocument,
   VISUAL_EDITOR_PICKER_LIVE_BANNER_KINDS,
+  PW_BANNER_FIT_TO_MEDIA_JS,
 } from '@/lib/partner-website/visual-editor/banner-widgets'
 import {
   PARTNER_SHOP_BANNER_LIVE_MATCH_CSS,
   PARTNER_SHOP_BANNER_MEDIA_FILL_CSS,
+  PARTNER_SHOP_MID_INSERT_GAP_CSS,
 } from '@/lib/partner-website/visual-editor/pw-scene'
 
 test('recognizes banner kinds', () => {
@@ -50,7 +52,7 @@ test('factory always stamps one unified swipe banner', () => {
   assert.match(html, /var\(--pw-primary\)/)
   assert.match(html, /var\(--pw-accent\)/)
   assert.match(html, /var\(--pw-buy/)
-  assert.match(html, /aspect-ratio:21\/9/)
+  assert.doesNotMatch(html, /aspect-ratio:21\/9/)
   assert.doesNotMatch(html, /#f97316|#ea580c|#fff7ed|#d1d5db/)
   assert.equal(bannerWidgetLabel('promo', 'vi'), 'Thêm banner')
 })
@@ -70,6 +72,23 @@ test('live CSS paints added banner from theme tokens', () => {
   assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /::after\{display:none/)
   assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /data-pw-banner-wash/)
   assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /img\[data-pw-el="media"\]/)
+  assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /--pw-banner-ratio,21\/9/)
+  assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /aspect-ratio:var\(--pw-banner-ratio,21\/9\)!important/)
+  assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /margin-top:4px!important/)
+  assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /margin-bottom:0!important/)
+  assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /border-top-left-radius:0!important/)
+  assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /html\[data-pw-page="home"\] \.pw-shop-main/)
+  assert.match(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS, /position:absolute!important;inset:0!important/)
+  assert.match(PARTNER_SHOP_MID_INSERT_GAP_CSS, /data-pw-region="banner"\]\[data-pw-mid-gap="1"\]/)
+})
+
+test('banner frame follows the visible image aspect', () => {
+  assert.match(PW_BANNER_FIT_TO_MEDIA_JS, /function pwBannerFitHostToMedia/)
+  assert.match(PW_BANNER_FIT_TO_MEDIA_JS, /function pwBannerClearAuthoredSize/)
+  assert.match(PW_BANNER_FIT_TO_MEDIA_JS, /--pw-banner-ratio/)
+  assert.match(PW_BANNER_FIT_TO_MEDIA_JS, /naturalWidth/)
+  assert.match(PW_BANNER_FIT_TO_MEDIA_JS, /data-pw-mid-gap/)
+  assert.match(PW_BANNER_FIT_TO_MEDIA_JS, /function pwBannerFitAll/)
 })
 
 test('save restores marketing banner placeholders and drops live carousel', () => {
@@ -106,13 +125,14 @@ test('home seed injects one unified host when missing', () => {
 test('converts leftover hero and extra promo hosts into one unified block', () => {
   const leftover = ensurePromoMarketingBannerInHtml(
     '<html><body data-pw-page="home"><header></header>' +
-      '<section class="pw-hero" data-pw-region="banner" data-pw-block-h="465"><h1>sưu tập mới</h1></section>' +
+      '<section class="pw-hero" data-pw-region="banner" data-pw-block-h="465" data-pw-image-radius="12"><h1>sưu tập mới</h1></section>' +
       '<section data-pw-personalize-banner="birthday"></section>' +
       '</body></html>',
     { siteSlug: 'demo-shop', locale: 'vi', pageKey: 'home' }
   )
   assert.equal(isUnifiedPromoBannerHtml(leftover), true)
-  assert.match(leftover, /data-pw-block-h="465"/)
+  assert.doesNotMatch(leftover, /data-pw-block-h="465"/)
+  assert.match(leftover, /data-pw-image-radius="12"/)
   assert.doesNotMatch(leftover, /sưu tập mới/)
   assert.doesNotMatch(leftover, /data-pw-personalize-banner="birthday"/)
   assert.equal(leftover.split('data-pw-region="banner"').length - 1, 1)

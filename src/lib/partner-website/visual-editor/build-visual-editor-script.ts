@@ -82,6 +82,7 @@ import {
 import { PW_KIND_SCENE } from './pw-kind-scene'
 import {
   BANNER_PLACEHOLDER_SRC,
+  PW_BANNER_FIT_TO_MEDIA_JS,
 } from './banner-widgets'
 import {
   PARTNER_SHOP_SLIDER_CSS,
@@ -1138,6 +1139,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       img.style.transformOrigin = Math.round(x) + '% ' + Math.round(y) + '%'
       img.style.transform = z === 1 ? 'none' : ('scale(' + z + ')')
     }
+    try { pwBannerFitHostToMedia(host, true) } catch (errFitBanner) {}
   }
   function panBannerPhoto(host, px, py) {
     applyBannerPhoto(host, parseBannerZoom(host), px, py)
@@ -7127,6 +7129,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return core ? core.device(raw) : (raw || 'desktop')
   }
   ${PW_ENSURE_CONTENT_SCENE_ROOT_SOURCE}
+  ${PW_BANNER_FIT_TO_MEDIA_JS}
   function canonicalSceneRoot() {
     var visual = visibleVisualRoot()
     if (!visual || !visual.querySelector) visual = document.body
@@ -7360,9 +7363,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function sizeBlockHostOf(el) {
     if (!el || el.nodeType !== 1) return null
     if (isAddedBg(el)) return el
-    if (isBannerHostEl(el)) return el
-    var banner = bannerHostOf(el)
-    if (banner) return banner
+    if (isBannerHostEl(el) || bannerHostOf(el)) return null
     if (isContentBlockEl(el) && !isChromeBlock(el)) return el
     var block = findContentBlockEl(el)
     if (block && !isChromeBlock(block)) return block
@@ -7417,6 +7418,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function applyBlockSize(el, width, height, live) {
     if (!el) return
+    if (isBannerHostEl(el) || bannerHostOf(el)) {
+      try { pwBannerFitHostToMedia(bannerHostOf(el) || el, true) } catch (errBannerSize) {}
+      return
+    }
     if (isAddedBg(el)) {
       applyAddedBgSize(el, width, height, live)
       return
@@ -9246,6 +9251,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function applyMidInsertGap(node) {
     if (!node || !node.setAttribute) return
+    if (isBannerHostEl(node) || looksLikeBannerHost(node) || (node.getAttribute && node.getAttribute('data-pw-added-banner') === '1')) {
+      try { node.removeAttribute('${PW_MID_INSERT_GAP_ATTR}') } catch (errBannerGap) {}
+      if (node.style) {
+        node.style.removeProperty('margin-top')
+        node.style.removeProperty('margin-bottom')
+      }
+      try { pwBannerFitHostToMedia(node, true) } catch (errBannerFitGap) {}
+      return
+    }
     node.setAttribute('${PW_MID_INSERT_GAP_ATTR}', '1')
     if (!node.style) return
     node.style.setProperty('margin-top', '${PW_MID_INSERT_GAP_PX}px', 'important')
@@ -10105,7 +10119,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (el.getAttribute && el.getAttribute('data-pw-image-radius') != null) {
         applyImageRadius(el, parseImageRadius(el))
       }
-      if (!el.style || isProductGridHost(el)) continue
+      if (!el.style || isProductGridHost(el) || isBannerHostEl(el) || bannerHostOf(el)) continue
       var hRaw = el.getAttribute('data-pw-block-h')
       var wRaw = el.getAttribute('data-pw-block-w')
       if (hRaw) {
@@ -12616,6 +12630,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         if (isBannerLeafEl(el) || isMoveBlockEl(el) || isTextEl(el) || isBtnEl(el)) return false
         return isBgLayerEl(el) || pwElOf(el) === 'media' || el === h || (layerMode === 'image' && !isBannerContentEl(el))
       })(),
+      isBanner: Boolean(isBannerHostEl(el) || bannerHostOf(el) || looksLikeBannerHost(el)),
       bannerZoom: (function () {
         var h = bannerHostOf(el)
         return h ? Math.round(parseBannerZoom(h) * 100) : 100
@@ -13933,9 +13948,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (isLockedHeadDockChrome(el)) return []
     if (isSearchEl(el)) return ['e']
     if (isLogoTarget(el) || isLogoFrame(el)) return ['se']
-    if (isBannerPhotoTarget(el) && layerMode === 'image') return ['se']
+    if (isBannerPhotoTarget(el) || isBannerHostEl(el) || bannerHostOf(el)) return []
     if (isAddedBg(el)) return isInFlowAddedSlot(el) ? ['sl', 'sr'] : ['sl', 'sr', 'e', 'se']
-    if (isBannerHostEl(el) && layerMode === 'block') return ['s', 'e']
     if (isImgEl(el) || isBgLayerEl(el)) return ['se']
     return []
   }
@@ -13952,8 +13966,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function resizeModeFor(el) {
     if (isSearchEl(el)) return 'search-width'
-    if (isBannerPhotoTarget(el) && layerMode === 'image') return 'banner-zoom'
-    if (isAddedBg(el) || (isBannerHostEl(el) && layerMode === 'block')) return 'surface-size'
+    if (isBannerPhotoTarget(el) || isBannerHostEl(el) || bannerHostOf(el)) return 'banner-zoom'
+    if (isAddedBg(el)) return 'surface-size'
     return 'frame'
   }
   function positionResizeHandle(box, h) {
@@ -14725,7 +14739,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       showLogoDrawRect()
       return
     }
-    if (resize.active && selected && (isSearchEl(selected) || isAddedBg(selected) || isImgEl(selected) || isLogoFrame(selected) || isLogoTarget(selected) || isBgLayerEl(selected) || isBannerPhotoTarget(selected) || (isBannerHostEl(selected) && layerMode === 'block'))) {
+    if (resize.active && selected && (isSearchEl(selected) || isAddedBg(selected) || isImgEl(selected) || isLogoFrame(selected) || isLogoTarget(selected) || isBgLayerEl(selected)) && !(isBannerHostEl(selected) || bannerHostOf(selected))) {
       var dx = e.clientX - resize.startX
       var dy = e.clientY - resize.startY
       if (resize.mode === 'search-width' || isSearchEl(selected)) {
@@ -15130,8 +15144,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       'html .pw-header-main,html .pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;min-width:0;position:relative!important;max-width:var(--pw-block-w)!important;width:var(--pw-block-w)!important;margin-left:auto!important;margin-right:auto!important;align-self:center!important;box-sizing:border-box;padding-left:var(--pw-chrome-inset,60px)!important;padding-right:var(--pw-chrome-inset,60px)!important}',
       'html .pw-topbar-inner,html .pw-shop-topbar-inner{display:flex!important;justify-content:flex-end!important;align-items:center!important;max-width:var(--pw-block-w)!important;width:var(--pw-block-w)!important;margin-left:auto!important;margin-right:auto!important;align-self:center!important;box-sizing:border-box;padding-left:var(--pw-chrome-inset,60px)!important;padding-right:var(--pw-chrome-inset,60px)!important}',
       'html .pw-nav-main,html .pw-shop-nav-row,html .pw-hero,html .pw-banner,html .pw-shop-hero,html .pw-shop-banner,html [data-pw-region="banner"]{max-width:var(--pw-block-w)!important;width:var(--pw-block-w)!important;margin-left:auto!important;margin-right:auto!important;box-sizing:border-box}',
-      'html [data-pw-block-w]:not([data-pw-region="header"]):not([data-pw-region="nav"]):not([data-pw-region="topbar"]):not([data-pw-region="footer"]):not([data-pw-added-bg]){width:var(--pw-block-w)!important;max-width:100%!important;margin-left:auto!important;margin-right:auto!important;box-sizing:border-box}',
-      'html [data-pw-block-h]:not([data-pw-added-bg]):not([data-pw-added-catalog]):not([data-pw-featured-categories]):not([data-pw-region="catalog"]){min-height:var(--pw-block-h)!important;height:var(--pw-block-h)!important}',
+      'html [data-pw-block-w]:not([data-pw-region="header"]):not([data-pw-region="nav"]):not([data-pw-region="topbar"]):not([data-pw-region="footer"]):not([data-pw-added-bg]):not([data-pw-region="banner"]){width:var(--pw-block-w)!important;max-width:100%!important;margin-left:auto!important;margin-right:auto!important;box-sizing:border-box}',
+      'html [data-pw-block-h]:not([data-pw-added-bg]):not([data-pw-added-catalog]):not([data-pw-featured-categories]):not([data-pw-region="catalog"]):not([data-pw-region="banner"]){min-height:var(--pw-block-h)!important;height:var(--pw-block-h)!important}',
       ${JSON.stringify(PARTNER_SHOP_BANNER_MEDIA_FILL_CSS)},
       ${JSON.stringify(PARTNER_SHOP_PAGE_FIT_CSS)},
       ${JSON.stringify(PARTNER_SHOP_STACK_FLOW_CSS)},
@@ -15375,6 +15389,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { pinKindLockedScenesAll() } catch (errKindScene) {}
     try { pwEnsureFeaturedMarquees() } catch (errFeatMq) {}
     try { pinAuthoredVisualMetricsAll() } catch (errAuthored) {}
+    try { pwBannerFitAll(true) } catch (errBannerFit) {}
     try { clearPinScreenLeftovers() } catch (errPinClear) {}
     try { releaseInFlowCatalogChromeAll() } catch (errCatalogFlow) {}
     try { reflowInFlowStackHosts() } catch (errStackFlow) {}

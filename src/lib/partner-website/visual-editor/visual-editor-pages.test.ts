@@ -951,13 +951,13 @@ test('ensureVisualHtmlLiveReady unwraps persisted live-chrome so save does not s
   assert.equal((out.match(/<header /g) || []).length, 1)
 })
 
-test('ensureVisualHtmlLiveReady stamps banner height and radius CSS vars from attrs', () => {
+test('ensureVisualHtmlLiveReady stamps banner radius CSS vars and ignores authored height', () => {
   const html = `<!DOCTYPE html><html><body>
 <section class="pw-hero" data-pw-region="banner" data-pw-block-h="465" data-pw-image-radius="72" style="min-height:360px;border-radius:0">Banner</section>
 </body></html>`
   const out = ensureVisualHtmlLiveReady(html, 'desktop')
   assert.match(out, /data-pw-block-h="465"/)
-  assert.match(out, /--pw-block-h:\s*465px/)
+  assert.doesNotMatch(out, /--pw-block-h:\s*465px/)
   assert.match(out, /data-pw-image-radius="72"/)
   assert.match(out, /--pw-image-radius:\s*72px/)
   assert.match(out, /border-radius:\s*72px/)

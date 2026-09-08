@@ -5,10 +5,11 @@ import {
 } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import { PARTNER_MARKETING_BANNER_CAROUSEL_MS } from '@/lib/partner-website/promotions/partner-marketing-banner'
+import { PW_BANNER_FIT_TO_MEDIA_JS } from '@/lib/partner-website/visual-editor/banner-widgets'
 
 /** Head CSS so first paint already hides seed and styles the live carousel. */
 export const PARTNER_MARKETING_BANNER_LIVE_CSS = `
-[data-pw-personalize-banner][data-pw-banner-live="1"]{display:block!important;flex-shrink:0;width:100%;aspect-ratio:21/9;overflow:hidden;position:relative}
+[data-pw-personalize-banner][data-pw-banner-live="1"]{display:block!important;flex-shrink:0;width:100%;aspect-ratio:var(--pw-banner-ratio,21/9)!important;height:auto!important;min-height:0!important;overflow:hidden;position:relative}
 [data-pw-personalize-banner][data-pw-banner-live="1"] [data-pw-el="copy"],
 [data-pw-personalize-banner][data-pw-banner-live="1"] [data-pw-el="inner"],
 [data-pw-personalize-banner][data-pw-banner-live="1"] [data-pw-slides],
@@ -21,7 +22,7 @@ export const PARTNER_MARKETING_BANNER_LIVE_CSS = `
 [data-pw-promo-carousel]{position:absolute;inset:0;width:100%;height:100%;overflow:hidden;z-index:1;background:var(--pw-surface,#fff)}
 [data-pw-promo-carousel] a{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;display:block!important;opacity:0;pointer-events:none;overflow:hidden;transform:none!important}
 [data-pw-promo-carousel] a.is-active{opacity:1!important;pointer-events:auto;z-index:1}
-[data-pw-promo-carousel] img{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:contain!important;display:block!important;transform:none!important;background:var(--pw-surface,#fff)}
+[data-pw-promo-carousel] img{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:cover!important;display:block!important;transform:none!important}
 [data-pw-promo-nav]{position:absolute;top:50%;z-index:2;transform:translateY(-50%);border:0;border-radius:999px;background:color-mix(in srgb,var(--pw-surface,#fff) 92%,transparent);color:var(--pw-primary);padding:6px 10px;font-size:18px;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.12);cursor:pointer}
 [data-pw-promo-prev]{left:8px}
 [data-pw-promo-next]{right:8px}
@@ -45,6 +46,7 @@ ${PARTNER_MARKETING_BANNER_LIVE_CSS}
 ${PW_SHOP_LIVE_UI_OFF_FN};
 ${PW_SHOP_BANNER_IMG_JS};
 ${PW_SHOP_IMAGE_RETRY_JS};
+${PW_BANNER_FIT_TO_MEDIA_JS};
 var API=${JSON.stringify(api)};
 var LOCALE=${locale};
 var WAIT=${PARTNER_MARKETING_BANNER_CAROUSEL_MS};
@@ -137,6 +139,7 @@ function wireCarousel(host,box,items){
       }
       greet.textContent=text;
     }else if(greet)greet.remove();
+    pwBannerFitHostToMedia(host);
   }
   var links=box.querySelectorAll('a[data-pw-promo-slide]');
   for(var s=0;s<links.length;s++){

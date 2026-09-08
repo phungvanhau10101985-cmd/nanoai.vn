@@ -142,6 +142,7 @@ function pwSliderGo(host, index){
     if (d === i) dots[d].classList.add('is-active');
     else dots[d].classList.remove('is-active');
   }
+  try { if (typeof pwBannerFitHostToMedia === 'function') pwBannerFitHostToMedia(host, true); } catch (eFit) {}
 }
 function pwSliderClearTimer(host){
   if (!pwSliderTimers || !host) return;

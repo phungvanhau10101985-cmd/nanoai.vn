@@ -296,10 +296,10 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('[data-pw-mid-gap="1"]'), true)
   assert.equal(once.includes('margin-top:20px!important'), true)
   assert.equal(once.includes('html [data-pw-block-w]:not([data-pw-region="header"])'), true)
-  assert.equal(once.includes(':not([data-pw-added-bg]){width:var(--pw-block-w)!important'), true)
+  assert.equal(once.includes(':not([data-pw-added-bg]):not([data-pw-region="banner"]){width:var(--pw-block-w)!important'), true)
   assert.equal(
     once.includes(
-      'html [data-pw-block-h]:not([data-pw-added-bg]):not([data-pw-added-catalog]):not([data-pw-featured-categories]):not([data-pw-region="catalog"]){min-height:var(--pw-block-h)!important'
+      'html [data-pw-block-h]:not([data-pw-added-bg]):not([data-pw-added-catalog]):not([data-pw-featured-categories]):not([data-pw-region="catalog"]):not([data-pw-region="banner"]){min-height:var(--pw-block-h)!important'
     ),
     true
   )

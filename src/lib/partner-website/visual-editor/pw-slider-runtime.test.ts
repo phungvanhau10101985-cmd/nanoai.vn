@@ -38,6 +38,7 @@ test('merges sliding banner only beside an existing banner', () => {
 test('live slider engine skips promo marketing banner hosts', () => {
   assert.match(PW_SLIDER_ENGINE_JS, /pwSliderSkipLivePromo/)
   assert.match(PW_SLIDER_ENGINE_JS, /data-pw-personalize-banner/)
+  assert.match(PW_SLIDER_ENGINE_JS, /pwBannerFitHostToMedia/)
 })
 
 test('editor script boots slider and accepts wait/arrow messages', () => {
@@ -53,6 +54,7 @@ test('editor script boots slider and accepts wait/arrow messages', () => {
   assert.match(s, /convertHeroToFullSlider/)
   assert.match(s, /data-pw-full-slides/)
   assert.match(s, /pwSliderPromoteFull/)
+  assert.match(s, /pwBannerFitHostToMedia/)
   assert.match(s, /translate3d/)
   assert.doesNotThrow(() => {
     // eslint-disable-next-line no-new-func

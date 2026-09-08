@@ -6,7 +6,7 @@ test('bootstrap paints N slides on the first host and turns leftover widgets off
   const html = buildPartnerMarketingBannerBootstrapScript({ siteSlug: 'demo-shop', locale: 'vi' })
   assert.match(html, /\/api\/site\/demo-shop\/marketing-banners/)
   assert.match(html, /var WAIT=6500/)
-  assert.match(html, /aspect-ratio:21\/9/)
+  assert.match(html, /aspect-ratio:var\(--pw-banner-ratio,21\/9\)!important/)
   assert.match(html, /flex-shrink:0/)
   assert.match(html, /display:block!important/)
   assert.match(html, /\[data-pw-promo-carousel\]\{position:absolute;inset:0/)
@@ -16,7 +16,8 @@ test('bootstrap paints N slides on the first host and turns leftover widgets off
     /\[data-pw-personalize-banner\]\[data-pw-banner-live="1"\]:not\(\[data-pw-block-h\]\) \[data-pw-promo-carousel\]\{position:relative/
   )
   assert.match(html, /\[data-pw-promo-carousel\] img\{position:absolute!important/)
-  assert.match(html, /object-fit:contain/)
+  assert.match(html, /object-fit:cover/)
+  assert.match(html, /pwBannerFitHostToMedia/)
   assert.match(html, /nextShopImageRetrySrc/)
   assert.match(html, /data-pw-banner-img-broken/)
   assert.match(html, /function firstHost/)

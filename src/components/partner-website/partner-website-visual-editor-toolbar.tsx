@@ -304,6 +304,7 @@ export type VisualEditorSelection = {
   logoCropY: number
   logoZoom: number
   isBannerPhoto: boolean
+  isBanner: boolean
   isSlider: boolean
   isPromoBanner: boolean
   isProductGrid: boolean
@@ -457,6 +458,7 @@ function selectionFromMessage(data: {
   logoCropY?: number
   logoZoom?: number
   isBannerPhoto?: boolean
+  isBanner?: boolean
   isSlider?: boolean
   isPromoBanner?: boolean
   isProductGrid?: boolean
@@ -600,6 +602,7 @@ function selectionFromMessage(data: {
     logoCropY: Number.isFinite(Number(data.logoCropY)) ? Number(data.logoCropY) : 0,
     logoZoom: Number.isFinite(Number(data.logoZoom)) ? Math.max(30, Math.min(400, Number(data.logoZoom))) : 100,
     isBannerPhoto: Boolean(data.isBannerPhoto),
+    isBanner: Boolean(data.isBanner),
     isSlider: Boolean(data.isSlider),
     isPromoBanner: Boolean(data.isPromoBanner),
     isProductGrid: Boolean(data.isProductGrid),
@@ -2196,6 +2199,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         logoCropY?: number
         logoZoom?: number
         isBannerPhoto?: boolean
+        isBanner?: boolean
         bannerZoom?: number
         hasImageLayer?: boolean
         hasParentBlock?: boolean
@@ -3023,6 +3027,7 @@ export function PartnerWebsiteVisualEditorToolbar({
           logoCropY: 0,
           logoZoom: 100,
           isBannerPhoto: false,
+          isBanner: false,
           isSlider: false,
           isPromoBanner: false,
           isProductGrid: false,
@@ -5304,7 +5309,12 @@ export function PartnerWebsiteVisualEditorToolbar({
               <span className="w-8 shrink-0 tabular-nums text-muted-foreground">{selection.bannerZoom}%</span>
             </label>
           ) : null}
-          {(selection?.canSizeBlock || selection?.isAddedBg) && !chromeLikeKind ? (
+          {(selection?.canSizeBlock || selection?.isAddedBg) &&
+          !chromeLikeKind &&
+          !selection?.isPromoBanner &&
+          !selection?.isSlider &&
+          !selection?.isBannerPhoto &&
+          !selection?.isBanner ? (
             <div className="flex w-full min-w-[12rem] flex-col gap-1.5 rounded-md border bg-background px-2 py-1.5">
               <p className="text-[10px] leading-4 text-muted-foreground">
                 {selection.isAddedBg ? t.visualEditBgSizeHint : t.visualEditBlockSizeHint}

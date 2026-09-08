@@ -919,7 +919,11 @@ export function stampAuthoredVisualMetricsInHtml(html: string): string {
       /\bdata-pw-added-catalog=/.test(attrs) ||
       /\bdata-pw-featured-categories=/.test(attrs) ||
       /\bdata-pw-region=["']catalog["']/.test(attrs)
-    if (blockH && !isGrid) {
+    const isBanner =
+      /\bdata-pw-region=["']banner["']/.test(attrs) ||
+      /\bdata-pw-added-banner=/.test(attrs) ||
+      /\bdata-pw-personalize-banner=/.test(attrs)
+    if (blockH && !isGrid && !isBanner) {
       props['--pw-block-h'] = `${blockH}px`
       props['min-height'] = `${blockH}px`
       props.height = `${blockH}px`

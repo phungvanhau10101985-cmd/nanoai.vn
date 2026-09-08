@@ -374,11 +374,60 @@ const PROMO_SLOT_COPY: Record<(typeof PARTNER_MARKETING_BANNER_SLIDE_ORDER)[numb
 
 const SLIDE_ARROW_PREV = PW_SLIDER_ARROW_PREV_HTML
 const SLIDE_ARROW_NEXT = PW_SLIDER_ARROW_NEXT_HTML
+
+/** Frame height follows the visible image. Width stays the content column. */
+export const PW_BANNER_FIT_TO_MEDIA_JS = `
+function pwBannerMediaImgOf(host){
+  if(!host||!host.querySelector)return null;
+  return host.querySelector('[data-pw-promo-carousel] a.is-active img')
+    || host.querySelector('[data-pw-slide-active="1"] img[data-pw-el="media"]')
+    || host.querySelector('[data-pw-slide-active="1"] img')
+    || host.querySelector('img[data-pw-el="media"]:not([data-pw-banner-placeholder])')
+    || host.querySelector('img[data-pw-el="media"]')
+    || host.querySelector('img.pw-hero-media');
+}
+function pwBannerClearAuthoredSize(host){
+  if(!host)return;
+  try{host.removeAttribute('data-pw-block-h')}catch(eH){}
+  try{host.removeAttribute('data-pw-block-w')}catch(eW){}
+  try{host.removeAttribute('data-pw-mid-gap')}catch(eG){}
+  if(!host.style)return;
+  host.style.removeProperty('height');
+  host.style.removeProperty('min-height');
+  host.style.removeProperty('max-height');
+  host.style.removeProperty('--pw-block-h');
+  host.style.removeProperty('--pw-block-w');
+  host.style.removeProperty('width');
+  host.style.removeProperty('max-width');
+  host.style.removeProperty('margin-top');
+  host.style.removeProperty('margin-bottom');
+  host.style.removeProperty('aspect-ratio');
+}
+function pwBannerFitHostToMedia(host,persist){
+  if(!host||!host.style)return;
+  if(persist!==false)pwBannerClearAuthoredSize(host);
+  var img=pwBannerMediaImgOf(host);
+  if(!img)return;
+  function apply(){
+    var nw=img.naturalWidth||0, nh=img.naturalHeight||0;
+    if(!(nw>4&&nh>4))return;
+    if(persist!==false)pwBannerClearAuthoredSize(host);
+    host.style.setProperty('--pw-banner-ratio', nw+' / '+nh);
+  }
+  if(img.complete&&img.naturalWidth>4)apply();
+  else img.addEventListener('load',apply,{once:true});
+}
+function pwBannerFitAll(persist){
+  var nodes=document.querySelectorAll('[data-pw-region="banner"],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner');
+  for(var i=0;i<nodes.length;i++)pwBannerFitHostToMedia(nodes[i],persist);
+}
+`.trim()
+
 const BANNER_HOST_OPEN_RE =
   /<(section|div)\b(?=[^>]*\b(?:data-pw-region=["']banner["']|data-pw-personalize-banner=|data-pw-added-banner=["']1["']|data-pw-banner-kind=))[^>]*>/gi
 
 function bannerCopyHtml(copy: PromoSlotCopy, href: string): string {
-  return `<div class="pw-hero-inner pw-container" ${pwElAttr(PW_EL.inner)} style="position:relative;z-index:2;width:100%;padding:48px 20px;box-sizing:border-box">
+  return `<div class="pw-hero-inner pw-container" ${pwElAttr(PW_EL.inner)} style="position:absolute;inset:0;z-index:2;width:100%;height:100%;padding:48px 20px;box-sizing:border-box">
     <div class="pw-hero-copy" ${pwElAttr(PW_EL.copy)} data-pw-banner-copy="1" style="max-width:560px">
       <span class="pw-hero-badge" ${pwElAttr(PW_EL.badge)} ${editAttr(PW_EDIT_SLOT.heroBadge)} style="display:inline-block;margin-bottom:10px;padding:4px 10px;border-radius:999px;background:var(--pw-accent);color:#fff;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase">${escapeHtml(copy.badge)}</span>
       <h1 ${pwElAttr(PW_EL.title)} ${editAttr(PW_EDIT_SLOT.heroTitle)} style="margin:0 0 12px;font-size:clamp(1.6rem,4vw,2.6rem);line-height:1.08;font-weight:800">${escapeHtml(copy.title)}</h1>
@@ -462,24 +511,13 @@ export function isUnifiedPromoBannerHtml(html: string): boolean {
 }
 
 function applyPreservedBannerHostAttrs(widget: string, oldOpenTag: string): string {
-  const blockH = oldOpenTag.match(/\bdata-pw-block-h=["']([^"']*)["']/i)?.[1]
   const radius = oldOpenTag.match(/\bdata-pw-image-radius=["']([^"']*)["']/i)?.[1]
-  if (blockH == null && radius == null) return widget
+  if (radius == null) return widget
   return widget.replace(/^<section\b([^>]*)>/i, (_full, attrs: string) => {
     let next = String(attrs)
-    if (blockH != null) {
-      next = /\bdata-pw-block-h=/.test(next)
-        ? next.replace(/\bdata-pw-block-h=["'][^"']*["']/i, `data-pw-block-h="${blockH}"`)
-        : `${next} data-pw-block-h="${blockH}"`
-      next = /\b--pw-block-h:/.test(next)
-        ? next.replace(/--pw-block-h:[^;"]+/i, `--pw-block-h:${blockH}px`)
-        : next.replace(/style="/i, `style="--pw-block-h:${blockH}px;`)
-    }
-    if (radius != null) {
-      next = /\bdata-pw-image-radius=/.test(next)
-        ? next.replace(/\bdata-pw-image-radius=["'][^"']*["']/i, `data-pw-image-radius="${radius}"`)
-        : `${next} data-pw-image-radius="${radius}"`
-    }
+    next = /\bdata-pw-image-radius=/.test(next)
+      ? next.replace(/\bdata-pw-image-radius=["'][^"']*["']/i, `data-pw-image-radius="${radius}"`)
+      : `${next} data-pw-image-radius="${radius}"`
     return `<section${next}>`
   })
 }
@@ -509,7 +547,7 @@ export function buildVisualEditorBannerHtml(input: {
 }): string {
   const locale = input.locale && input.locale in COPY.hero ? input.locale : 'vi'
   void input.kind
-  return `<section class="pw-hero pw-banner" ${pwRegionAttr(PW_REGION.banner)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="banner" data-pw-added-banner="1" data-pw-banner-kind="promo" data-pw-personalize-banner="promo" data-pw-slider="1" ${PW_SLIDER_FULL_ATTR}="1" data-pw-slide-wait="${PARTNER_MARKETING_BANNER_CAROUSEL_MS}" data-pw-slide-arrows="1" data-pw-slide-index="0" data-pw-image-radius="0" style="position:relative;aspect-ratio:21/9;overflow:hidden;display:flex;align-items:center;background:linear-gradient(135deg,var(--pw-primary),var(--pw-accent));color:#fff;border-radius:0">
+  return `<section class="pw-hero pw-banner" ${pwRegionAttr(PW_REGION.banner)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="banner" data-pw-added-banner="1" data-pw-banner-kind="promo" data-pw-personalize-banner="promo" data-pw-slider="1" ${PW_SLIDER_FULL_ATTR}="1" data-pw-slide-wait="${PARTNER_MARKETING_BANNER_CAROUSEL_MS}" data-pw-slide-arrows="1" data-pw-slide-index="0" data-pw-image-radius="0" style="position:relative;overflow:hidden;display:flex;align-items:center;background:linear-gradient(135deg,var(--pw-primary),var(--pw-accent));color:#fff;border-radius:0">
   ${buildUnifiedPromoSlidesHtml(input.siteSlug, locale)}
 </section>`
 }
