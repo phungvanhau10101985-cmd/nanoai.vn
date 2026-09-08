@@ -589,6 +589,8 @@ export async function PATCH(
       changeNote: 'update_theme_colors',
     })
     if (!updated) return NextResponse.json({ error: 'Could not save theme colors' }, { status: 500 })
+    revalidatePath(`/site/${updated.siteSlug}`)
+    await bumpSiteCache(updated.siteSlug)
     const publicUrl = await resolvePartnerWebsitePublicUrl({
       partnerId: pid,
       siteSlug: updated.siteSlug,

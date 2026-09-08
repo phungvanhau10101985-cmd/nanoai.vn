@@ -27,6 +27,7 @@ import { isPartnerFlashSaleActive } from '@/lib/partner-website/shop/partner-sho
 import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-landing-v1-template'
 import { injectPartnerCustomDomainLinkRewriteScript } from '@/lib/partner-website/shop/inject-partner-custom-domain-link-script'
 import { injectPartnerLogoHomeLinkScript } from '@/lib/partner-website/shop/inject-partner-logo-home-link'
+import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-website-theme-tokens'
 
 type Props = {
   params: Promise<{ slug: string }>
@@ -199,6 +200,7 @@ export default async function PartnerSitePublicPage({ params, searchParams }: Pr
       inlineHtml={onCustomDomain}
       initialDevice={previewDevice}
       hideChatLauncher={site.theme?.hideChatLauncher}
+      browserThemeColor={shopBrowserChromeColor(site.theme)}
     />
   )
 }

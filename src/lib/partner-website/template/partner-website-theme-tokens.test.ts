@@ -278,6 +278,15 @@ test('upserts a single theme-color tag when the document had none', () => {
   assert.equal(extractShopBrowserThemeColorFromHtml(once), '#0f766e')
 })
 
+test('browser chrome extraction prefers the live theme block over stale preset metadata', () => {
+  const html =
+    '<html><head><meta name="theme-color" content="#f97316"/>' +
+    '<style>:root{--pw-primary:#f97316}</style>' +
+    '<style id="pw-theme-root">:root,html,body{--pw-primary:#2563eb !important}</style>' +
+    '</head><body></body></html>'
+  assert.equal(extractShopBrowserThemeColorFromHtml(html), '#2563eb')
+})
+
 test('shop viewport theme-color uses the same light/dark media keys as the NanoAI root layout', () => {
   const items = shopBrowserThemeColorViewportItems({ primaryColor: '#0f766e' })
   assert.deepEqual(items, [

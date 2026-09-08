@@ -29,6 +29,7 @@ import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partne
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import type { PartnerSiteInfoPageKey } from '@/lib/partner-website/shop/partner-site-shop-info-pages'
 import { fillMissingShopVisualDeviceFiles } from '@/lib/partner-website/shop/seed-shop-template-visual-website'
+import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import {
   parseVisualDeviceQuery,
   shouldServeVisualPageHtml,
@@ -192,6 +193,7 @@ export async function PartnerSiteVisualHtmlScreen({
         initialDevice={device || sourceDevice}
         deviceHtmlAlreadyIsolated
         hideChatLauncher={site.theme?.hideChatLauncher}
+        browserThemeColor={shopBrowserChromeColor(site.theme)}
       />
     )
   }
@@ -224,6 +226,7 @@ export async function PartnerSiteVisualHtmlScreen({
       initialDevice={device || initialSelection?.sourceDevice || null}
       deviceHtmlAlreadyIsolated={Boolean(device)}
       hideChatLauncher={site.theme?.hideChatLauncher}
+      browserThemeColor={shopBrowserChromeColor(site.theme)}
     />
   )
 }

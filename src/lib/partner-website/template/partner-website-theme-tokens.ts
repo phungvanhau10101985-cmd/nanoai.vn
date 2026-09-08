@@ -508,14 +508,27 @@ export function shopBrowserThemeColorViewportItems(
 }
 
 export function extractShopBrowserThemeColorFromHtml(html: string): string {
-  const fromMeta =
-    html.match(/<meta\b[^>]*\bname=["']theme-color["'][^>]*\bcontent=["']([^"']+)["']/i)?.[1] ||
-    html.match(/<meta\b[^>]*\bcontent=["']([^"']+)["'][^>]*\bname=["']theme-color["']/i)?.[1] ||
+  const liveThemeBlock =
+    html.match(new RegExp(`<style\\b[^>]*\\bid=["']${PW_THEME_ROOT_STYLE_ID}["'][^>]*>([\\s\\S]*?)<\\/style>`, 'i'))?.[1] ||
     ''
-  const trimmed = fromMeta.trim()
-  if (isHexColor(trimmed)) return normalizeHexColor(trimmed, trimmed)
-  const fromVar = html.match(/--pw-primary\s*:\s*(#[0-9a-fA-F]{3,8})\b/)?.[1] || ''
-  if (isHexColor(fromVar)) return normalizeHexColor(fromVar, fromVar)
+  const livePrimary = liveThemeBlock.match(/--pw-primary\s*:\s*(#[0-9a-fA-F]{3,8})\b/)?.[1] || ''
+  if (isHexColor(livePrimary)) return normalizeHexColor(livePrimary, livePrimary)
+
+  const metaColors = Array.from(
+    html.matchAll(
+      /<meta\b(?=[^>]*\bname=["']theme-color["'])(?=[^>]*\bcontent=["']([^"']+)["'])[^>]*>/gi
+    ),
+    (match) => match[1]?.trim() || ''
+  ).filter(isHexColor)
+  const fromMeta = metaColors.at(-1) || ''
+  if (fromMeta) return normalizeHexColor(fromMeta, fromMeta)
+
+  const vars = Array.from(
+    html.matchAll(/--pw-primary\s*:\s*(#[0-9a-fA-F]{3,8})\b/gi),
+    (match) => match[1] || ''
+  ).filter(isHexColor)
+  const fromVar = vars.at(-1) || ''
+  if (fromVar) return normalizeHexColor(fromVar, fromVar)
   return ''
 }
 

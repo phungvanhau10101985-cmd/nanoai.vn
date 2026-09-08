@@ -14,6 +14,7 @@ import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner
 import {
   buildThemeCssVarBlock,
   rewriteThemeCssVarsInHtml,
+  shopBrowserChromeColor,
 } from '@/lib/partner-website/template/partner-website-theme-tokens'
 
 type Props = {
@@ -107,6 +108,7 @@ export default async function PartnerLandingPublicPage({ params }: Props) {
       logoUrl={landing.logoUrl}
       locale={landing.locale}
       hideChatLauncher={website?.theme?.hideChatLauncher}
+      browserThemeColor={website?.theme ? shopBrowserChromeColor(website.theme) : undefined}
     />
   )
 }

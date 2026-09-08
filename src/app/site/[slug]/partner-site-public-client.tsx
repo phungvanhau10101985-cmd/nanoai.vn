@@ -120,7 +120,13 @@ function visualHtmlRevision(html: string, device: VisualDeviceVariant): string {
   return `${device}:${html.length}:${hash >>> 0}`
 }
 
-function PartnerSiteInlineVisualHead({ html }: { html: string }) {
+function PartnerSiteInlineVisualHead({
+  html,
+  browserThemeColor,
+}: {
+  html: string
+  browserThemeColor?: string
+}) {
   const links = extractVisualDocumentStyleLinks(html)
   const css = extractVisualDocumentCssText(html)
   const hasGoogleFont = links.some((link) => /fonts\.googleapis\.com/i.test(link.href))
@@ -131,7 +137,7 @@ function PartnerSiteInlineVisualHead({ html }: { html: string }) {
         `document.documentElement.setAttribute(${JSON.stringify(name)},${JSON.stringify(value)});`
     )
     .join('')
-  const themeColor = extractShopBrowserThemeColorFromHtml(html)
+  const themeColor = browserThemeColor || extractShopBrowserThemeColorFromHtml(html)
   return (
     <>
       {themeColor ? (
@@ -192,6 +198,7 @@ export function PartnerSitePublicClient({
   initialDevice = null,
   deviceHtmlAlreadyIsolated = false,
   hideChatLauncher,
+  browserThemeColor,
 }: {
   html: string
   htmlByDevice?: PartnerVisualHtmlByDevice
@@ -208,6 +215,8 @@ export function PartnerSitePublicClient({
   deviceHtmlAlreadyIsolated?: boolean
   /** Omit or true = hide legacy embed FAB; false = opt-in to platform bubble. */
   hideChatLauncher?: boolean
+  /** Canonical shop theme color; saved visual HTML may still contain stale preset metadata. */
+  browserThemeColor?: string
 }) {
   return (
     <Suspense
@@ -225,6 +234,7 @@ export function PartnerSitePublicClient({
           forceDevice={null}
           deviceHtmlAlreadyIsolated={deviceHtmlAlreadyIsolated}
           hideChatLauncher={hideChatLauncher}
+          browserThemeColor={browserThemeColor}
         />
       }
     >
@@ -240,6 +250,7 @@ export function PartnerSitePublicClient({
         initialDevice={initialDevice}
         deviceHtmlAlreadyIsolated={deviceHtmlAlreadyIsolated}
         hideChatLauncher={hideChatLauncher}
+        browserThemeColor={browserThemeColor}
       />
     </Suspense>
   )
@@ -257,6 +268,7 @@ function PartnerSitePublicClientWithParams(props: {
   initialDevice?: VisualDeviceVariant | null
   deviceHtmlAlreadyIsolated?: boolean
   hideChatLauncher?: boolean
+  browserThemeColor?: string
 }) {
   const params = useSearchParams()
   return (
@@ -280,6 +292,7 @@ function PartnerSitePublicFrame({
   forceDevice,
   deviceHtmlAlreadyIsolated = false,
   hideChatLauncher,
+  browserThemeColor,
 }: {
   html: string
   htmlByDevice?: PartnerVisualHtmlByDevice
@@ -293,6 +306,7 @@ function PartnerSitePublicFrame({
   forceDevice: VisualDeviceVariant | null
   deviceHtmlAlreadyIsolated?: boolean
   hideChatLauncher?: boolean
+  browserThemeColor?: string
 }) {
   const availableDevices = useMemo(
     () =>
@@ -416,9 +430,9 @@ function PartnerSitePublicFrame({
   const visualPageKind = visualDocumentCodes['data-pw-page'] || ''
   const visualLook = visualDocumentCodes['data-pw-look'] || ''
   useLayoutEffect(() => {
-    const themeColor = extractShopBrowserThemeColorFromHtml(previewHtml)
+    const themeColor = browserThemeColor || extractShopBrowserThemeColorFromHtml(previewHtml)
     if (themeColor) applyShopBrowserThemeColorToDocument(document, themeColor)
-  }, [previewHtml])
+  }, [browserThemeColor, previewHtml])
   useLayoutEffect(() => {
     if (!inlineHtml) return
     const root = document.documentElement
@@ -450,7 +464,7 @@ function PartnerSitePublicFrame({
         listenLandingPostMessage
         hideLauncher={hideEmbedFab}
       >
-        <PartnerSiteInlineVisualHead html={previewHtml} />
+        <PartnerSiteInlineVisualHead html={previewHtml} browserThemeColor={browserThemeColor} />
         <PartnerSiteInlineVisualScripts revision={revision} />
         <div
           key={revision}

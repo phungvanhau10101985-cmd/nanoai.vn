@@ -87,7 +87,7 @@ function itemsFromDom(box){
     var img=a.querySelector('img');
     out.push({
       href:a.getAttribute('href')||'#',
-      greeting:a.getAttribute('data-pw-greeting')||'',
+      greeting:a.getAttribute('data-pw-promo-greeting')||'',
       image_url:img?img.getAttribute('src')||img.getAttribute('data-pw-src')||'':'',
       kind:a.getAttribute('data-pw-kind')||'regular',
       date_key:'',
@@ -222,7 +222,7 @@ function paintCarousel(host,items){
     var a=document.createElement('a');
     a.setAttribute('data-pw-promo-slide','1');
     a.setAttribute('data-pw-kind',item.kind||'regular');
-    a.setAttribute('data-pw-greeting',item.greeting||'');
+    a.setAttribute('data-pw-promo-greeting',item.greeting||'');
     a.href=item.href||'#';
     a.setAttribute('aria-label',altOf(item));
     if(i===0)a.className='is-active';

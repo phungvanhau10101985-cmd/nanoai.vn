@@ -855,7 +855,7 @@ function hydrateBlock(el){
   loadPersonalizePage(el,false);
 }
 function applyGreeting(){
-  var el=document.querySelector('[data-pw-greeting]');if(!el)return;
+  var el=document.querySelector('[data-pw-greeting]:not([data-pw-promo-slide])');if(!el)return;
   apiFetch('/profile').then(function(res){
     var name=res.j&&res.j.profile&&res.j.profile.greeting_name;
     if(name)el.textContent=COPY.greeting+', '+name;

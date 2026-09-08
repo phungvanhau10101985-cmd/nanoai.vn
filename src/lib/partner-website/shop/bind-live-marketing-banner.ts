@@ -115,7 +115,7 @@ export function buildLiveMarketingBannerCarouselHtml(
       const tab = i === 0 ? '0' : '-1'
       const loading = i === 0 ? 'eager' : 'lazy'
       const srcAttr = i === 0 ? ` src="${src}"` : ` data-pw-src="${src}"`
-      return `<a data-pw-promo-slide="1" data-pw-kind="${kind}" data-pw-greeting="${greeting}" href="${href}" aria-label="${alt}" tabindex="${tab}"${active}><img${srcAttr} alt="${alt}" width="2100" height="900" loading="${loading}" decoding="async"/></a>`
+      return `<a data-pw-promo-slide="1" data-pw-kind="${kind}" data-pw-promo-greeting="${greeting}" href="${href}" aria-label="${alt}" tabindex="${tab}"${active}><img${srcAttr} alt="${alt}" width="2100" height="900" loading="${loading}" decoding="async"/></a>`
     })
     .join('')
   let chrome = ''
