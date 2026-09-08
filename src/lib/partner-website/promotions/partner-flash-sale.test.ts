@@ -80,11 +80,11 @@ test('flash replaces calendar price and skips clearance', () => {
   assert.equal(flash.displayPrice, 950_000)
   assert.equal(flash.kind, 'flash')
   const clearance = applyPartnerFlashSaleToProduct(
-    { id: 'sku-1', priceAmount: 1_000_000, isClearance: true },
+    { id: 'sku-1', priceAmount: 1_000_000, isClearance: true, siteSale: null },
     assignment,
     now
   )
-  assert.equal(clearance.siteSale, undefined)
+  assert.equal(clearance.siteSale, null)
   assert.equal(partnerSiteSaleDateBadgeLabel({ percent: 5, kind: 'flash' }), 'Flash sale -5%')
 })
 

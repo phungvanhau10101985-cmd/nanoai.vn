@@ -458,6 +458,7 @@ function selectionFromMessage(data: {
   logoZoom?: number
   isBannerPhoto?: boolean
   isSlider?: boolean
+  isPromoBanner?: boolean
   isProductGrid?: boolean
   gridKind?: string
   gridRows?: number

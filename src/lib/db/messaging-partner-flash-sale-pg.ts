@@ -231,7 +231,7 @@ export async function listPartnerFlashSaleBlockFromPg(input: {
   now?: Date
 }): Promise<{
   assignment: PartnerFlashSaleAssignment
-  rows: Awaited<ReturnType<typeof fetchPartnerInventoryCardsByIdsInOrderFromPg>>
+  rows: NonNullable<Awaited<ReturnType<typeof fetchPartnerInventoryCardsByIdsInOrderFromPg>>>
   enabled: boolean
 }> {
   const config = await fetchPartnerSaleCalendarConfigFromPg(input.partnerId).catch(() => null)
@@ -266,13 +266,14 @@ export async function overlayPartnerFlashSaleOnProducts<
 }): Promise<T[]> {
   if (!input.products.length) return input.products
   const config = await fetchPartnerSaleCalendarConfigFromPg(input.partnerId).catch(() => null)
-  if (config?.flashSaleEnabled === false) return input.products
+  const flashOn = config == null || config.flashSaleEnabled
+  if (!flashOn) return input.products
   const assignment = await getPartnerFlashSaleAssignmentFromPg({
     partnerId: input.partnerId,
     accountKey: input.accountKey,
     timezone: input.timezone || config?.timezone,
     now: input.now,
-    enabled: config?.flashSaleEnabled !== false,
+    enabled: flashOn,
   })
   if (!assignment.productIds.length) return input.products
   return input.products.map((product) => applyPartnerFlashSaleToProduct(product, assignment, input.now?.getTime()))

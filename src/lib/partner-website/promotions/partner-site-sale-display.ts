@@ -517,7 +517,7 @@ export function resolvePartnerBirthdayOfferFace(input: {
   }
 }
 
-export function attachPartnerBirthdayOffer<T extends { isClearance?: boolean }>(
+export function attachPartnerBirthdayOffer<T>(
   product: T,
   percentOrOffer: unknown,
   countdownTo?: string | null
@@ -533,7 +533,10 @@ export function attachPartnerBirthdayOffer<T extends { isClearance?: boolean }>(
     percent = offer.percent
     ends = offer.countdownTo ?? ends
   }
-  const pct = product.isClearance === true ? 0 : normalizePartnerBirthdayOfferPercent(percent)
+  const pct =
+    (product as { isClearance?: boolean }).isClearance === true
+      ? 0
+      : normalizePartnerBirthdayOfferPercent(percent)
   const countdown = pct > 0 ? normalizePartnerBirthdayOfferCountdownTo(ends) : null
   return {
     ...product,
