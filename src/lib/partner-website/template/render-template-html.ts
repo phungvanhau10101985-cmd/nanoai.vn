@@ -700,6 +700,7 @@ ${buildShopVisualSeoHead({
   description: seoDescription,
   locale: input.locale,
   imageUrl: logo || str(hero?.props.backgroundImage) || null,
+  themeColor: input.theme.primaryColor,
 })}
 ${faviconLink}
 <link rel="preconnect" href="https://fonts.googleapis.com"/>

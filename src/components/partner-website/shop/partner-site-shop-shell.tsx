@@ -107,6 +107,7 @@ import {
   type VisualHomeChromeByDevice,
 } from '@/lib/partner-website/shop/visual-home-chrome'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
+import { applyShopBrowserThemeColorToDocument } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { htmlHasChromeChatMua } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
@@ -577,6 +578,7 @@ function PartnerSiteShopShellInner({
   useLayoutEffect(() => {
     const look = resolvePartnerWebsiteLook(theme)
     document.documentElement.setAttribute('data-pw-look', look)
+    applyShopBrowserThemeColorToDocument(document, theme)
     return () => {
       if (document.documentElement.getAttribute('data-pw-look') === look) {
         document.documentElement.removeAttribute('data-pw-look')

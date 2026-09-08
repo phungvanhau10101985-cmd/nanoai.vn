@@ -131,6 +131,11 @@ export function bindLiveMarketingBannersToHtml(
   if (!html || items == null) return html
   const ranges = findPersonalizeBannerRanges(html)
   if (!ranges.length) return html
+  const primary = ranges.findIndex((range) => {
+    const open = html.slice(range.start, range.openEnd)
+    return !/\bdata-pw-hidden=["']1["']/i.test(open)
+  })
+  const liveIndex = primary >= 0 ? primary : 0
   const chunks: string[] = []
   let cursor = 0
   ranges.forEach((range, i) => {
@@ -139,7 +144,7 @@ export function bindLiveMarketingBannersToHtml(
     let inner = html.slice(range.openEnd, range.close)
     const closeTok = html.slice(range.close, range.end)
     inner = stripLiveCarouselAndGreeting(inner)
-    if (i === 0 && items.length) {
+    if (i === liveIndex && items.length) {
       chunks.push(
         stampAttr(stampAttr(open, PW_BANNER_LIVE_ATTR, '1'), 'data-pw-personalize-banner', 'promo')
       )
@@ -156,7 +161,7 @@ export function bindLiveMarketingBannersToHtml(
       chunks.push(closeTok)
     }
     cursor = range.end
-    if (i === 0) {
+    if (i === liveIndex) {
       const rest = html.slice(cursor)
       const leftover = rest.match(/^\s*<p\b[^>]*\bdata-pw-banner-greeting\b[^>]*>[\s\S]*?<\/p>/i)
       if (leftover) cursor += leftover[0].length

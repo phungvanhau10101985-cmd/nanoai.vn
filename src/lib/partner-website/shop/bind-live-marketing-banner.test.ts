@@ -55,6 +55,15 @@ test('bindLiveMarketingBannersToHtml hides leftover hosts and empty lists', () =
   assert.match(one, /data-pw-banner-live="off"/)
 })
 
+test('bindLiveMarketingBannersToHtml paints the visible host when the first is hidden', () => {
+  const hidden =
+    '<section data-pw-personalize-banner="promo" data-pw-hidden="1">hidden</section>' + seed
+  const out = bindLiveMarketingBannersToHtml(hidden, [sale], 'vi')
+  assert.match(out, /data-pw-hidden="1"[^>]*data-pw-banner-live="off"/)
+  assert.match(out, /data-pw-banner-live="1"/)
+  assert.match(out, /https:\/\/cdn\.example\/sale\.png/)
+})
+
 test('bindLiveMarketingBannersToHtml skips when items were not resolved', () => {
   const out = bindLiveMarketingBannersToHtml(seed, null, 'vi')
   assert.equal(out, seed)

@@ -33,6 +33,10 @@ import {
 } from '@/lib/partner-website/shop/infer-live-visual-request-device'
 import type { PartnerVisualHtmlByDevice } from '@/lib/partner-website/shop/render-partner-visual-html'
 import { PARTNER_LIVE_DEVICE_COOKIE } from '@/lib/auth/app-request-headers'
+import {
+  applyShopBrowserThemeColorToDocument,
+  extractShopBrowserThemeColorFromHtml,
+} from '@/lib/partner-website/template/partner-website-theme-tokens'
 
 function hideChatLaunchersInHtml(html: string, hide: boolean): string {
   if (!hide || !html.trim() || html.includes('data-pw-hide-chat-launcher')) return html
@@ -403,6 +407,10 @@ function PartnerSitePublicFrame({
   const visualDocumentCodes = useMemo(() => extractVisualHtmlDocumentCodes(previewHtml), [previewHtml])
   const visualPageKind = visualDocumentCodes['data-pw-page'] || ''
   const visualLook = visualDocumentCodes['data-pw-look'] || ''
+  useLayoutEffect(() => {
+    const themeColor = extractShopBrowserThemeColorFromHtml(previewHtml)
+    if (themeColor) applyShopBrowserThemeColorToDocument(document, themeColor)
+  }, [previewHtml])
   useLayoutEffect(() => {
     if (!inlineHtml) return
     const root = document.documentElement

@@ -4,6 +4,7 @@ import { fetchPartnerCustomerProfileByEmailFromPg } from '@/lib/db/messaging-par
 import { fetchGuestAccountEmailByIdPg } from '@/lib/db/messaging-guest-pg'
 import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import {
+  findActivePartnerMarketingBannerByKindFromPg,
   findActivePartnerMarketingBannerFromPg,
   findTestPartnerBirthdayBannerFromPg,
   listActiveRegularPartnerMarketingBannersFromPg,
@@ -26,6 +27,7 @@ import {
   partnerMarketingBannerGreeting,
   partnerMarketingBannerPublicHref,
   partnerMarketingBannerVisitorCanSeeBirthday,
+  partnerSaleBannerLookupDate,
   type PartnerMarketingBannerPublicItem,
 } from '@/lib/partner-website/promotions/partner-marketing-banner'
 
@@ -215,28 +217,30 @@ export async function resolveCurrentPartnerMarketingBanners(input: {
     partnerId: input.partnerId,
     visitorEmail,
   })
-  if (sale.phase !== 'off') {
-    const saleDate = sale.saleDate
-    const month = Number(saleDate.slice(5, 7))
-    const day = Number(saleDate.slice(8, 10))
-    if (day === month) {
-      const asset = await findActivePartnerMarketingBannerFromPg({
+  const saleLookup = partnerSaleBannerLookupDate(sale)
+  if (saleLookup) {
+    let asset = await findActivePartnerMarketingBannerFromPg({
+      partnerId: input.partnerId,
+      kind: 'sale',
+      day: saleLookup.day,
+      month: saleLookup.month,
+      discountPercent: sale.discountPercent,
+    })
+    if (!asset && sale.isTest) {
+      asset = await findActivePartnerMarketingBannerByKindFromPg({
         partnerId: input.partnerId,
         kind: 'sale',
-        day,
-        month,
-        discountPercent: sale.discountPercent,
       })
-      saleItem = asset
-        ? toPublicItem(asset, {
-            siteSlug: input.siteSlug,
-            eventDate: saleDate,
-            greeting: sale.isTest ? sale.eventLabel : null,
-            isTest: sale.isTest,
-            eventLabel: sale.eventLabel,
-          })
-        : null
     }
+    saleItem = asset
+      ? toPublicItem(asset, {
+          siteSlug: input.siteSlug,
+          eventDate: sale.saleDate,
+          greeting: sale.isTest ? sale.eventLabel : null,
+          isTest: sale.isTest,
+          eventLabel: sale.eventLabel,
+        })
+      : null
   }
 
   const warehouseConfig = await fetchPartnerSaleCalendarConfigFromPg(input.partnerId)

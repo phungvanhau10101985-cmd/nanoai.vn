@@ -319,6 +319,24 @@ export function composePartnerMarketingBannerSlides(parts: {
   )
 }
 
+/**
+ * Which sale-banner date to load. Real calendar only uses same-day-month.
+ * Feature-test teaser/active often lands on a random day (today / today+N) —
+ * still load that month's 9/9-style asset so the slider is not empty.
+ */
+export function partnerSaleBannerLookupDate(input: {
+  phase: 'off' | 'teaser' | 'active'
+  saleDate: string
+  isTest?: boolean
+}): { day: number; month: number } | null {
+  if (input.phase === 'off') return null
+  const month = Number(String(input.saleDate).slice(5, 7))
+  const day = Number(String(input.saleDate).slice(8, 10))
+  if (day === month && month >= 1 && month <= 12) return { day, month }
+  if (input.isTest && month >= 1 && month <= 12) return { day: month, month }
+  return null
+}
+
 export type PartnerMarketingBannerAdminItem = {
   id: string
   kind: PartnerMarketingBannerKind

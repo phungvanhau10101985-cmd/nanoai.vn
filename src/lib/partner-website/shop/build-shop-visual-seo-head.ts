@@ -1,5 +1,6 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import { escapeAttr, escapeHtml } from '@/lib/packaging/mockup-share-html'
+import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-website-theme-tokens'
 
 export type ShopVisualSeoPageKind = 'website' | 'article'
 
@@ -20,6 +21,8 @@ export function buildShopVisualSeoHead(input: {
   noIndex?: boolean
   keywords?: string[]
   imageUrl?: string | null
+  /** Hex `--pw-primary`. Browsers ignore `var()` in `theme-color`. */
+  themeColor?: string | null
 }): string {
   const title = escapeHtml(input.title.trim().slice(0, 70) || 'Shop')
   const description = escapeAttr(shopVisualSeoDescription(input.description, input.title))
@@ -39,7 +42,7 @@ export function buildShopVisualSeoHead(input: {
     `<meta name="description" content="${description}"/>`,
     `<meta name="robots" content="${robots}"/>`,
     keywords ? `<meta name="keywords" content="${escapeAttr(keywords.slice(0, 400))}"/>` : '',
-    `<meta name="theme-color" content="var(--pw-primary,#111827)"/>`,
+    `<meta name="theme-color" content="${escapeAttr(shopBrowserChromeColor(input.themeColor))}"/>`,
     `<meta property="og:type" content="${ogType}"/>`,
     `<meta property="og:title" content="${escapeAttr(input.title.trim().slice(0, 70))}"/>`,
     `<meta property="og:description" content="${description}"/>`,

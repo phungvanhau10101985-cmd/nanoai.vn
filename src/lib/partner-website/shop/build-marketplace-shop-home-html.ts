@@ -316,6 +316,7 @@ ${buildShopVisualSeoHead({
   description: copy.seoDescription,
   locale,
   imageUrl: logo || null,
+  themeColor: input.theme.primaryColor,
 })}
 ${faviconLink}
 <link rel="preconnect" href="https://fonts.googleapis.com"/>

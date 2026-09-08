@@ -213,6 +213,7 @@ test('Sửa nhanh PDP receives HTML header colors from the shop theme pack', () 
   assert.match(out, /\.pw-topbar\{[^}]*background:var\(--pw-primary\)/)
   assert.match(out, /\.pw-search-submit\{[^}]*background:var\(--pw-primary\)/)
   assert.match(out, /class="pw-header"/)
+  assert.match(out, /<meta name="theme-color" content="#f97316"\/>/)
 })
 
 test('shop theme CSS keeps mobile cart totals on a full-width row, not the 22px checkbox column', () => {

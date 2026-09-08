@@ -4,6 +4,7 @@ import test from 'node:test'
 import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/partner-website-template-types'
 import {
   darkenHex,
+  extractShopBrowserThemeColorFromHtml,
   hexesClose,
   parseThemeColorPatch,
   resolveShopThemeColors,
@@ -11,10 +12,12 @@ import {
   SHOP_AUX_BG_SWATCHES,
   SHOP_AUX_CART_SWATCHES,
   SHOP_MAIN_COLOR_SWATCHES,
+  shopBrowserChromeColor,
   shopThemeQuickPicks,
   themeFromAuxCartSwatch,
   themeFromMainSwatch,
   themeFromPresetPartial,
+  upsertShopBrowserThemeColorInHtml,
 } from '@/lib/partner-website/template/partner-website-theme-tokens'
 
 test('resolves missing buy from primary and cart from supporting gray', () => {
@@ -244,4 +247,32 @@ test('shopThemeQuickPicks exposes live main and supporting theme colors', () => 
   const presetsOnly = shopThemeQuickPicks(null, labels)
   assert.equal(presetsOnly.main[0].hex, SHOP_MAIN_COLOR_SWATCHES[0].hex)
   assert.equal(presetsOnly.main.length, SHOP_MAIN_COLOR_SWATCHES.length)
+})
+
+test('browser chrome color is the primary hex, never a CSS variable', () => {
+  assert.equal(shopBrowserChromeColor('#0F766E'), '#0f766e')
+  assert.equal(shopBrowserChromeColor({ primaryColor: '#0f766e' }), '#0f766e')
+  assert.equal(shopBrowserChromeColor('var(--pw-primary)'), DEFAULT_PARTNER_WEBSITE_THEME.primaryColor)
+})
+
+test('rewrites leftover theme-color meta to the live primary hex', () => {
+  const html =
+    '<html><head><meta name="theme-color" content="var(--pw-primary,#111827)"/><style>:root{--pw-primary:#f97316}</style></head><body></body></html>'
+  const next = rewriteThemeCssVarsInHtml(html, {
+    ...DEFAULT_PARTNER_WEBSITE_THEME,
+    primaryColor: '#0f766e',
+    buyButtonColor: '#0f766e',
+  })
+  assert.match(next, /<meta name="theme-color" content="#0f766e"\/>/)
+  assert.doesNotMatch(next, /theme-color" content="var\(/)
+  assert.doesNotMatch(next, /theme-color" content="#f97316"/)
+  assert.equal(extractShopBrowserThemeColorFromHtml(next), '#0f766e')
+})
+
+test('upserts a single theme-color tag when the document had none', () => {
+  const once = upsertShopBrowserThemeColorInHtml('<html><head></head><body></body></html>', '#0f766e')
+  const twice = upsertShopBrowserThemeColorInHtml(once, '#0f766e')
+  assert.equal(twice, once)
+  assert.equal((once.match(/name="theme-color"/g) || []).length, 1)
+  assert.equal(extractShopBrowserThemeColorFromHtml(once), '#0f766e')
 })

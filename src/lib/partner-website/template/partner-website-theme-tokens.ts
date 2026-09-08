@@ -480,6 +480,71 @@ function patchRootThemeVarsInCss(css: string, vars: Record<string, string>): str
   return next
 }
 
+const THEME_COLOR_META_RE = /<meta\b[^>]*\bname=(["'])theme-color\1[^>]*>\s*/gi
+
+/** Android / PWA status bar — browsers ignore `var(--pw-*)` in `theme-color`. */
+export function shopBrowserChromeColor(
+  theme?: Pick<PartnerWebsiteTheme, 'primaryColor'> | string | null
+): string {
+  const raw = typeof theme === 'string' || theme == null ? theme : theme.primaryColor
+  return normalizeHexColor(raw, DEFAULT_PARTNER_WEBSITE_THEME.primaryColor)
+}
+
+export function shopBrowserThemeColorMetaTag(
+  theme?: Pick<PartnerWebsiteTheme, 'primaryColor'> | string | null
+): string {
+  return `<meta name="theme-color" content="${shopBrowserChromeColor(theme)}"/>`
+}
+
+export function extractShopBrowserThemeColorFromHtml(html: string): string {
+  const fromMeta =
+    html.match(/<meta\b[^>]*\bname=["']theme-color["'][^>]*\bcontent=["']([^"']+)["']/i)?.[1] ||
+    html.match(/<meta\b[^>]*\bcontent=["']([^"']+)["'][^>]*\bname=["']theme-color["']/i)?.[1] ||
+    ''
+  const trimmed = fromMeta.trim()
+  if (isHexColor(trimmed)) return normalizeHexColor(trimmed, trimmed)
+  const fromVar = html.match(/--pw-primary\s*:\s*(#[0-9a-fA-F]{3,8})\b/)?.[1] || ''
+  if (isHexColor(fromVar)) return normalizeHexColor(fromVar, fromVar)
+  return ''
+}
+
+export function upsertShopBrowserThemeColorInHtml(
+  html: string,
+  theme?: Pick<PartnerWebsiteTheme, 'primaryColor'> | string | null
+): string {
+  if (!html.trim()) return html
+  const tag = `${shopBrowserThemeColorMetaTag(theme)}\n`
+  let found = false
+  const out = html.replace(THEME_COLOR_META_RE, () => {
+    if (found) return ''
+    found = true
+    return tag
+  })
+  if (found) return out
+  if (/<\/head>/i.test(out)) return out.replace(/<\/head>/i, `${tag}</head>`)
+  if (/<head\b[^>]*>/i.test(out)) return out.replace(/<head\b[^>]*>/i, (m) => `${m}\n${tag}`)
+  return `${tag}${out}`
+}
+
+export function applyShopBrowserThemeColorToDocument(
+  doc: Document,
+  theme?: Pick<PartnerWebsiteTheme, 'primaryColor'> | string | null
+): void {
+  const hex = shopBrowserChromeColor(theme)
+  const head = doc.head
+  if (!head) return
+  const nodes = Array.from(head.querySelectorAll('meta[name="theme-color"]')) as HTMLMetaElement[]
+  let meta = nodes[0]
+  for (const extra of nodes.slice(1)) extra.remove()
+  if (!meta) {
+    meta = doc.createElement('meta')
+    meta.setAttribute('name', 'theme-color')
+    head.insertBefore(meta, head.firstChild)
+  }
+  meta.removeAttribute('media')
+  meta.setAttribute('content', hex)
+}
+
 export function applyThemeCssVarsToDocument(doc: Document, theme: PartnerWebsiteTheme): void {
   const vars = themeCssVarMap(theme)
   writeThemeVarsOnEl(doc.documentElement, vars)
@@ -505,6 +570,7 @@ export function applyThemeCssVarsToDocument(doc: Document, theme: PartnerWebsite
   style.textContent = `:root,html,body{${buildThemeCssVarImportantBlock(theme)}}`
   const host = doc.head || doc.documentElement
   if (style.parentNode !== host || host.lastElementChild !== style) host.appendChild(style)
+  applyShopBrowserThemeColorToDocument(doc, theme)
 }
 
 /** Apply theme tokens to a preview frame and same-origin nested shop/landing iframes. */
@@ -572,11 +638,11 @@ export function rewriteThemeCssVarsInHtml(html: string, theme: PartnerWebsiteThe
       return liveTag
     }
   )
-  if (replacedThemeRoot) return out
+  if (replacedThemeRoot) return upsertShopBrowserThemeColorInHtml(out, theme)
   if (/<\/head>/i.test(out)) {
-    return out.replace(/<\/head>/i, `${liveTag}</head>`)
+    return upsertShopBrowserThemeColorInHtml(out.replace(/<\/head>/i, `${liveTag}</head>`), theme)
   }
-  return `${liveTag}${out}`
+  return upsertShopBrowserThemeColorInHtml(`${liveTag}${out}`, theme)
 }
 
 export function parseThemeColorPatch(raw: unknown): Partial<ResolvedShopThemeColors> | null {

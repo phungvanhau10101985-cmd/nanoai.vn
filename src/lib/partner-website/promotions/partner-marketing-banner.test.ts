@@ -14,6 +14,7 @@ import {
   partnerMarketingBannerGreeting,
   partnerMarketingBannerPublicHref,
   partnerMarketingBannerVisitorCanSeeBirthday,
+  partnerSaleBannerLookupDate,
   personalizeBannerToApiKind,
   PARTNER_MARKETING_BANNER_CAROUSEL_MS,
   PARTNER_MARKETING_BANNER_REGULAR_DATE_KEY,
@@ -91,6 +92,29 @@ test('upcoming sale events skip past days in the current month', () => {
   assert.equal(events[0]?.eventDate, '2026-10-10')
   assert.equal(events[0]?.sameDayMonth, true)
   assert.equal(events[0]?.discountPercent, 8)
+})
+
+test('sale banner lookup uses same-day-month, and test days map to that month', () => {
+  assert.deepEqual(
+    partnerSaleBannerLookupDate({ phase: 'teaser', saleDate: '2026-09-09' }),
+    { day: 9, month: 9 }
+  )
+  assert.equal(
+    partnerSaleBannerLookupDate({ phase: 'off', saleDate: '2026-09-09' }),
+    null
+  )
+  assert.equal(
+    partnerSaleBannerLookupDate({ phase: 'active', saleDate: '2026-09-08' }),
+    null
+  )
+  assert.deepEqual(
+    partnerSaleBannerLookupDate({ phase: 'active', saleDate: '2026-09-08', isTest: true }),
+    { day: 9, month: 9 }
+  )
+  assert.deepEqual(
+    partnerSaleBannerLookupDate({ phase: 'teaser', saleDate: '2026-09-11', isTest: true }),
+    { day: 9, month: 9 }
+  )
 })
 
 test('sale calendar teaser/active still resolve independently of banners', () => {

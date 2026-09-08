@@ -7,6 +7,7 @@ import type {
 import {
   mapPartnerMarketingBannerKind,
   partnerMarketingBannerCampaignKey,
+  partnerMarketingBannerDateKeyForKind,
 } from '@/lib/partner-website/promotions/partner-marketing-banner'
 
 export type PartnerMarketingBannerAssetRow = PartnerMarketingBannerAdminItem
@@ -151,6 +152,35 @@ export async function findActivePartnerMarketingBannerFromPg(input: {
      order by version desc
      limit 1`,
     [input.partnerId, input.kind, key]
+  )
+  if (row) return mapRow(row)
+  if (input.kind === 'regular') return null
+  const dateKey = partnerMarketingBannerDateKeyForKind(input.kind, input.day, input.month)
+  const fallback = await pgQueryOne<Record<string, unknown>>(
+    `select ${SELECT_COLS}
+     from public.messaging_partner_marketing_banner_assets
+     where partner_id = $1::uuid and kind = $2 and date_key = $3
+       and status = 'ready' and is_active = true and coalesce(image_url, '') <> ''
+     order by version desc
+     limit 1`,
+    [input.partnerId, input.kind, dateKey]
+  )
+  return fallback ? mapRow(fallback) : null
+}
+
+export async function findActivePartnerMarketingBannerByKindFromPg(input: {
+  partnerId: string
+  kind: PartnerMarketingBannerKind
+}): Promise<PartnerMarketingBannerAssetRow | null> {
+  if (!isPgConfigured()) return null
+  const row = await pgQueryOne<Record<string, unknown>>(
+    `select ${SELECT_COLS}
+     from public.messaging_partner_marketing_banner_assets
+     where partner_id = $1::uuid and kind = $2
+       and status = 'ready' and is_active = true and coalesce(image_url, '') <> ''
+     order by generated_at desc nulls last, version desc
+     limit 1`,
+    [input.partnerId, input.kind]
   )
   return row ? mapRow(row) : null
 }

@@ -11,7 +11,7 @@ export function buildPartnerMarketingBannerBootstrapScript(input: {
   const api = `/api/site/${encodeURIComponent(slug)}/marketing-banners`
   const locale = JSON.stringify(input.locale)
   return `<style data-pw-marketing-banner-css>
-[data-pw-personalize-banner][data-pw-banner-live="1"]{min-height:0!important;aspect-ratio:21/9;overflow:hidden;position:relative}
+[data-pw-personalize-banner][data-pw-banner-live="1"]{display:block!important;flex-shrink:0;width:100%;aspect-ratio:21/9;overflow:hidden;position:relative}
 [data-pw-personalize-banner][data-pw-banner-live="1"] [data-pw-el="copy"],
 [data-pw-personalize-banner][data-pw-banner-live="1"] [data-pw-el="inner"],
 [data-pw-personalize-banner][data-pw-banner-live="1"] [data-pw-slides],
@@ -21,7 +21,8 @@ export function buildPartnerMarketingBannerBootstrapScript(input: {
 [data-pw-personalize-banner][data-pw-banner-live="1"] img[data-pw-el="media"]{display:none!important}
 [data-pw-personalize-banner][data-pw-banner-live="off"]{display:none!important}
 [data-pw-banner-greeting]{margin:8px 0 12px;text-align:center;font:600 13px/1.4 system-ui,sans-serif;color:var(--pw-text)}
-[data-pw-promo-carousel]{position:relative;width:100%;aspect-ratio:21/9;overflow:hidden;background:var(--pw-surface,#fff)}
+[data-pw-promo-carousel]{position:absolute;inset:0;width:100%;height:100%;overflow:hidden;background:var(--pw-surface,#fff)}
+[data-pw-personalize-banner][data-pw-banner-live="1"]:not([data-pw-block-h]) [data-pw-promo-carousel]{position:relative;inset:auto;aspect-ratio:21/9}
 [data-pw-promo-carousel] a{position:absolute;inset:0;display:block;opacity:0;pointer-events:none;transition:opacity .3s}
 [data-pw-promo-carousel] a.is-active{opacity:1;pointer-events:auto;z-index:1}
 [data-pw-promo-carousel] img{width:100%;height:100%;object-fit:contain;display:block;background:var(--pw-surface,#fff)}
@@ -232,13 +233,21 @@ function paintCarousel(host,items){
   host.insertBefore(box,host.firstChild);
   wireCarousel(host,box,items);
 }
-function hideExtraHosts(nodes){
-  for(var n=1;n<nodes.length;n++){
+function hideExtraHosts(nodes, keep){
+  for(var n=0;n<nodes.length;n++){
+    if(nodes[n]===keep)continue;
     seed(nodes[n]);
     nodes[n].setAttribute('data-pw-banner-live','off');
     var extraGreet=greetingOf(nodes[n]);
     if(extraGreet)extraGreet.remove();
   }
+}
+function firstHost(nodes){
+  for(var i=0;i<nodes.length;i++){
+    if(nodes[i].getAttribute('data-pw-hidden')==='1')continue;
+    return nodes[i];
+  }
+  return nodes[0]||null;
 }
 function apply(data){
   var items=data&&data.items?data.items:[];
@@ -248,8 +257,10 @@ function apply(data){
     for(var e=0;e<nodes.length;e++)seed(nodes[e]);
     return;
   }
-  hideExtraHosts(nodes);
-  paintCarousel(nodes[0],items);
+  var host=firstHost(nodes);
+  if(!host)return;
+  hideExtraHosts(nodes, host);
+  paintCarousel(host,items);
 }
 function boot(){
   var nodes=document.querySelectorAll('[data-pw-personalize-banner]');
@@ -258,10 +269,11 @@ function boot(){
     for(var e=0;e<nodes.length;e++)seed(nodes[e]);
     return;
   }
-  var host=nodes[0];
+  var host=firstHost(nodes);
+  if(!host)return;
   var live=host.getAttribute('data-pw-banner-live');
   if(live==='1'||live==='off'){
-    hideExtraHosts(nodes);
+    hideExtraHosts(nodes, host);
     if(live==='1'){
       var box=host.querySelector('[data-pw-promo-carousel]');
       if(box)wireCarousel(host,box,itemsFromDom(box));

@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { headers } from 'next/headers'
 import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
 import { PartnerSiteShopPushBoot } from '@/components/partner-website/shop/partner-site-shop-push-boot'
@@ -14,6 +14,7 @@ import {
   partnerSitePwaManifestPath,
 } from '@/lib/partner-website/shop/partner-site-pwa'
 import { buildPartnerShopFaviconMetadataIcons } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
+import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-website-theme-tokens'
 
 /** Do not use `next/font/google` here — VPS `next build` fetches fonts.gstatic.com and times out. */
 const shopFontVars = {
@@ -53,6 +54,23 @@ export async function generateMetadata({
       'apple-mobile-web-app-capable': 'yes',
       'apple-mobile-web-app-title': name,
     },
+  }
+}
+
+export async function generateViewport({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}): Promise<Viewport> {
+  const { slug } = await params
+  const site = (await loadPartnerSiteShopContext(slug).catch(() => null))?.site ?? null
+  return {
+    width: 'device-width',
+    initialScale: 1,
+    minimumScale: 1,
+    maximumScale: 5,
+    viewportFit: 'cover',
+    themeColor: site ? shopBrowserChromeColor(site.theme) : '#ffffff',
   }
 }
 
