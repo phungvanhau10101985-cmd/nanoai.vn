@@ -776,6 +776,15 @@ ${PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS}
 }
 .pw-header,.pw-shop-header{position:sticky!important;top:0!important;z-index:${PW_SCENE_HEAD_Z}!important;display:flex!important;flex-direction:column!important}
 html:not([data-pw-edit-device]) .pw-nav-main:not([data-pw-nav-live]),html:not([data-pw-edit-device]) .pw-shop-nav-row:not([data-pw-nav-live]){visibility:hidden}
+body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live="off"]) [data-pw-slides],
+body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live="off"]) [data-pw-el="copy"],
+body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live="off"]) [data-pw-el="inner"],
+body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live="off"]) [data-pw-slide-prev],
+body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live="off"]) [data-pw-slide-next],
+body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live="off"]) .pw-slide-dots,
+body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live="off"]) img[data-pw-el="media"]{display:none!important}
+body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live]){background:var(--pw-surface,#fff)!important}
+body:not(.nanoai-ve-active) [data-pw-grid-placeholder]{visibility:hidden!important}
 html .pw-nav-main,html .pw-shop-nav-row{width:var(--pw-block-w)!important;max-width:var(--pw-block-w)!important;margin-left:auto!important;margin-right:auto!important;align-self:center!important;flex:0 0 auto!important;box-sizing:border-box;padding-left:var(--pw-chrome-inset,60px)!important;padding-right:var(--pw-chrome-inset,60px)!important}
 @media (min-width:900px){
 ${PW_SCENE_UNLOCKED_HTML} .pw-nav-main,${PW_SCENE_UNLOCKED_HTML} .pw-shop-nav-row{display:flex!important;flex-wrap:nowrap!important;justify-content:center!important;align-items:center!important;gap:12px!important;overflow-x:auto!important;padding-left:var(--pw-chrome-inset,60px)!important;padding-right:var(--pw-chrome-inset,60px)!important}

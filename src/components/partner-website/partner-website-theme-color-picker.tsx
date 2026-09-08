@@ -127,9 +127,10 @@ export function PartnerWebsiteThemeColorPicker({
   layout?: 'stack' | 'bar'
 }) {
   const resolved = useMemo(() => resolveShopThemeColors(theme), [theme])
+  const marketplace = String(theme.look || '').trim() === 'marketplace'
   const themePicks = useMemo(() => shopThemeQuickPicksFromCopy(theme, t), [theme, t])
   const mainFields: RoleField[] = [
-    { key: 'primaryColor', label: t.themeColorPrimary },
+    { key: 'primaryColor', label: marketplace ? t.themeColorPrimaryMarketplace : t.themeColorPrimary },
     { key: 'accentColor', label: t.themeColorAccent },
     { key: 'buyButtonColor', label: t.themeColorBuy },
     { key: 'cartButtonColor', label: t.themeColorCart },
@@ -143,6 +144,10 @@ export function PartnerWebsiteThemeColorPicker({
   ]
 
   function patchRole(key: ShopThemeColorRole, hex: string) {
+    if (key === 'primaryColor') {
+      onLiveChange(themeFromMainSwatch(theme, hex))
+      return
+    }
     onLiveChange(mergeShopThemeColors(theme, { [key]: hex }))
   }
 
@@ -253,7 +258,9 @@ export function PartnerWebsiteThemeColorPicker({
             {t.themeColorTitle}
           </p>
           {compact ? null : (
-            <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{t.themeColorHint}</p>
+            <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+              {marketplace ? t.themeColorHintMarketplace : t.themeColorHint}
+            </p>
           )}
         </div>
         {saving ? (
@@ -266,29 +273,54 @@ export function PartnerWebsiteThemeColorPicker({
 
       {compact ? null : (
         <div className="overflow-hidden rounded-md border bg-white shadow-sm" aria-hidden>
-          <div className="h-2" style={{ background: resolved.primaryColor }} />
-          <div
-            className="flex items-center justify-between gap-2 px-2 py-1.5"
-            style={{ background: resolved.backgroundColor }}
-          >
-            <span className="text-[10px] font-bold" style={{ color: resolved.primaryColor }}>
-              Aa
-            </span>
-            <div className="flex gap-1">
-              <span
-                className="rounded px-1.5 py-0.5 text-[9px] font-bold text-white"
-                style={{ background: resolved.cartButtonColor }}
-              >
-                {t.themeColorCart}
-              </span>
-              <span
-                className="rounded px-1.5 py-0.5 text-[9px] font-bold text-white"
-                style={{ background: resolved.buyButtonColor }}
-              >
-                {t.themeColorBuy}
-              </span>
+          {marketplace ? (
+            <div
+              className="flex items-center justify-between gap-2 px-2 py-2"
+              style={{ background: resolved.primaryColor }}
+            >
+              <span className="text-[10px] font-bold text-white">Aa</span>
+              <div className="flex gap-1">
+                <span
+                  className="rounded px-1.5 py-0.5 text-[9px] font-bold text-white"
+                  style={{ background: resolved.cartButtonColor }}
+                >
+                  {t.themeColorCart}
+                </span>
+                <span
+                  className="rounded px-1.5 py-0.5 text-[9px] font-bold text-white"
+                  style={{ background: resolved.buyButtonColor }}
+                >
+                  {t.themeColorBuy}
+                </span>
+              </div>
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="h-2" style={{ background: resolved.primaryColor }} />
+              <div
+                className="flex items-center justify-between gap-2 px-2 py-1.5"
+                style={{ background: resolved.backgroundColor }}
+              >
+                <span className="text-[10px] font-bold" style={{ color: resolved.primaryColor }}>
+                  Aa
+                </span>
+                <div className="flex gap-1">
+                  <span
+                    className="rounded px-1.5 py-0.5 text-[9px] font-bold text-white"
+                    style={{ background: resolved.cartButtonColor }}
+                  >
+                    {t.themeColorCart}
+                  </span>
+                  <span
+                    className="rounded px-1.5 py-0.5 text-[9px] font-bold text-white"
+                    style={{ background: resolved.buyButtonColor }}
+                  >
+                    {t.themeColorBuy}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 

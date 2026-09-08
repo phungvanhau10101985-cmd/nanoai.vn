@@ -61,9 +61,10 @@ test('ignores a saved look when template id is not a shop preset', () => {
   )
 })
 
-test('presetIdFromTemplateId maps stored template_id to a shop preset', () => {
+test('presetIdFromTemplateId maps stored template_id or short code to a shop preset', () => {
   assert.equal(presetIdFromTemplateId('fashion-orange'), 'fashion-orange')
   assert.equal(presetIdFromTemplateId('blank-white'), 'blank-white')
+  assert.equal(presetIdFromTemplateId('GD03'), 'fashion-marketplace')
   assert.equal(presetIdFromTemplateId('landing-v1'), null)
 })
 

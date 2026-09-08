@@ -347,15 +347,8 @@ export function buildVisualEditorProductGridHtml(input: {
           rec ? REC_BADGE[locale] : ''
         )
       : placeholderCards(pageSize, title)
-  const flashSub: Record<WebLocale, string> = {
-    vi: '12 deal / 10 phút, cùng shop TQ và danh mục vừa xem. Hết lượt mất giảm — chốt giỏ ngay.',
-    en: '12 deals / 10 minutes, same Chinese shop and recently viewed category. Discount ends with the round — checkout now.',
-    zh: '每轮 10 分钟最多 12 个特惠，来自刚看过的中国店铺与三级类目。本轮结束即恢复原价。',
-    ja: '10分で最大12件。最近見た中国ショップと同じカテゴリ。ラウンド終了で割引終了。',
-    ko: '10분마다 최대 12개, 최근 본 중국 샵·카테고리. 라운드가 끝나면 할인이 사라집니다.',
-  }
   const titleHtml = flash
-    ? `<div class="pw-flash-head" data-pw-flash-head="1"><div class="pw-flash-copy"><h2 class="pw-flash-title" ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2><p class="pw-flash-sub" data-pw-flash-sub="1">${escapeHtml(flashSub[locale])}</p></div><p class="pw-flash-timer" data-pw-flash-timer="1" hidden role="timer"></p></div>`
+    ? `<div class="pw-flash-head" data-pw-flash-head="1"><div class="pw-flash-copy"><h2 class="pw-flash-title" ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2></div><p class="pw-flash-timer" data-pw-flash-timer="1" hidden role="timer"></p></div>`
     : rec
     ? `<div class="pw-rec-head" data-pw-rec-head="1"><div class="pw-rec-head-row"><h2 class="pw-rec-title" ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2></div></div>`
     : `<h2 ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2>`

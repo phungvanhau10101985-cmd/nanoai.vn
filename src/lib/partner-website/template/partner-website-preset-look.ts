@@ -1,5 +1,5 @@
 import type { ShopTemplatePresetId } from '@/lib/partner-website/template/shop-template-presets'
-import { isShopTemplatePresetId } from '@/lib/partner-website/template/shop-template-presets'
+import { resolveShopTemplatePresetId } from '@/lib/partner-website/template/shop-template-presets'
 
 export type PresetLookSwitchPlan =
   | { action: 'restore'; snapshotOutgoing: true }
@@ -16,8 +16,8 @@ export function planPresetLookSwitch(input: {
   targetPresetId: string
   hasSavedTargetLook: boolean
 }): PresetLookSwitchPlan {
-  const current = isShopTemplatePresetId(input.currentPresetId) ? input.currentPresetId : null
-  const target = isShopTemplatePresetId(input.targetPresetId) ? input.targetPresetId : null
+  const current = resolveShopTemplatePresetId(input.currentPresetId)
+  const target = resolveShopTemplatePresetId(input.targetPresetId)
   if (!target) {
     return { action: 'generate', snapshotOutgoing: Boolean(current) }
   }
@@ -29,5 +29,5 @@ export function planPresetLookSwitch(input: {
 }
 
 export function presetIdFromTemplateId(templateId: string | null | undefined): ShopTemplatePresetId | null {
-  return isShopTemplatePresetId(templateId) ? templateId : null
+  return resolveShopTemplatePresetId(templateId)
 }

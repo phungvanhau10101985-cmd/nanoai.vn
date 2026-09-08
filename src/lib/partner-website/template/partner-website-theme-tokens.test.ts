@@ -12,11 +12,12 @@ import {
   SHOP_AUX_CART_SWATCHES,
   SHOP_MAIN_COLOR_SWATCHES,
   shopThemeQuickPicks,
+  themeFromAuxCartSwatch,
   themeFromMainSwatch,
   themeFromPresetPartial,
 } from '@/lib/partner-website/template/partner-website-theme-tokens'
 
-test('resolves buy/cart from primary/muted when missing', () => {
+test('resolves missing buy from primary and cart from supporting gray', () => {
   const resolved = resolveShopThemeColors({
     ...DEFAULT_PARTNER_WEBSITE_THEME,
     buyButtonColor: undefined,
@@ -25,18 +26,34 @@ test('resolves buy/cart from primary/muted when missing', () => {
     mutedColor: '#64748b',
   })
   assert.equal(resolved.buyButtonColor, '#2563eb')
-  assert.equal(resolved.cartButtonColor, '#64748b')
+  assert.equal(resolved.cartButtonColor, '#6b7280')
 })
 
 test('main swatch updates primary, accent, and buy button', () => {
-  const next = themeFromMainSwatch(DEFAULT_PARTNER_WEBSITE_THEME, '#2563eb')
+  const next = themeFromMainSwatch(
+    { ...DEFAULT_PARTNER_WEBSITE_THEME, cartButtonColor: '#6b7280' },
+    '#2563eb'
+  )
   assert.equal(next.primaryColor, '#2563eb')
   assert.equal(next.buyButtonColor, '#2563eb')
+  assert.equal(next.cartButtonColor, '#6b7280')
   assert.equal(next.accentColor, darkenHex('#2563eb', 0.12))
   assert.equal(hexesClose(next.accentColor || '', '#2563eb'), false)
 })
 
-test('preset look maps primary to buy and muted to cart', () => {
+test('marketplace main swatch also syncs cart and keeps a lighter accent', () => {
+  const next = themeFromMainSwatch(
+    { ...DEFAULT_PARTNER_WEBSITE_THEME, look: 'marketplace', cartButtonColor: '#ff6b00' },
+    '#2563eb'
+  )
+  assert.equal(next.primaryColor, '#2563eb')
+  assert.equal(next.buyButtonColor, '#2563eb')
+  assert.equal(next.cartButtonColor, '#2563eb')
+  assert.equal(next.look, 'marketplace')
+  assert.equal(hexesClose(next.accentColor || '', '#2563eb'), false)
+})
+
+test('preset look maps primary to buy and supporting gray to cart', () => {
   const next = themeFromPresetPartial(DEFAULT_PARTNER_WEBSITE_THEME, {
     primaryColor: '#0f766e',
     accentColor: '#14b8a6',
@@ -46,9 +63,19 @@ test('preset look maps primary to buy and muted to cart', () => {
   })
   assert.equal(next.primaryColor, '#0f766e')
   assert.equal(next.buyButtonColor, '#0f766e')
-  assert.equal(next.cartButtonColor, '#5eead4')
+  assert.equal(next.cartButtonColor, '#6b7280')
+  assert.equal(next.mutedColor, '#5eead4')
   assert.equal(next.backgroundColor, '#f0fdfa')
   assert.equal(next.look, undefined)
+})
+
+test('aux cart swatch does not recolor muted text', () => {
+  const next = themeFromAuxCartSwatch(
+    { ...DEFAULT_PARTNER_WEBSITE_THEME, mutedColor: '#5eead4', cartButtonColor: '#6b7280' },
+    '#1e3a5f'
+  )
+  assert.equal(next.cartButtonColor, '#1e3a5f')
+  assert.equal(next.mutedColor, '#5eead4')
 })
 
 test('preset with explicit buy, cart, footer, and look keeps those values', () => {

@@ -4,6 +4,7 @@ import { buildVisualEditorScript } from '@/lib/partner-website/visual-editor/bui
 import {
   clampPwSliderWait,
   PARTNER_SHOP_SLIDER_CSS,
+  PW_SLIDER_ENGINE_JS,
   PW_SLIDER_FULL_ATTR,
   PW_SLIDER_WAIT_DEFAULT,
   shouldMergeBannerAsSlide,
@@ -32,6 +33,11 @@ test('merges sliding banner only beside an existing banner', () => {
   assert.equal(shouldMergeBannerAsSlide({ mergeSlide: true, place: 'after', neighborIsBanner: true }), false)
   assert.equal(shouldMergeBannerAsSlide({ mergeSlide: true, place: 'right', neighborIsBanner: false }), false)
   assert.equal(shouldMergeBannerAsSlide({ mergeSlide: false, place: 'right', neighborIsBanner: true }), false)
+})
+
+test('live slider engine skips promo marketing banner hosts', () => {
+  assert.match(PW_SLIDER_ENGINE_JS, /pwSliderSkipLivePromo/)
+  assert.match(PW_SLIDER_ENGINE_JS, /data-pw-personalize-banner/)
 })
 
 test('editor script boots slider and accepts wait/arrow messages', () => {

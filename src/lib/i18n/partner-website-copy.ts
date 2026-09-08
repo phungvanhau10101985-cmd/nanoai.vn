@@ -951,11 +951,13 @@ export type PartnerWebsiteCopy = {
   setupStep2Hint: string
   themeColorTitle: string
   themeColorHint: string
+  themeColorHintMarketplace: string
   themeColorMainTitle: string
   themeColorAuxTitle: string
   themeColorAuxBgTitle: string
   themeColorAuxCartTitle: string
   themeColorPrimary: string
+  themeColorPrimaryMarketplace: string
   themeColorAccent: string
   themeColorBuy: string
   themeColorCart: string
@@ -2015,11 +2017,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     setupStep2Hint: 'Xem mẫu rồi dùng. Chọn mẫu hoặc màu — preview đổi ngay.',
     themeColorTitle: 'Màu giao diện',
     themeColorHint: 'Chọn màu chính và màu phụ trợ — web đổi ngay, rồi tự lưu.',
+    themeColorHintMarketplace:
+      'Đổi màu chính — header, danh mục nổi bật, nút tìm, giá và giỏ đổi cùng lúc. Chỉnh từng ô nếu muốn tách.',
     themeColorMainTitle: 'Màu chính',
     themeColorAuxTitle: 'Màu phụ trợ',
     themeColorAuxBgTitle: 'Nền trang',
     themeColorAuxCartTitle: 'Nút thêm giỏ',
     themeColorPrimary: 'Màu chính (header, giá)',
+    themeColorPrimaryMarketplace: 'Màu chính (header, danh mục, tìm, giá, giỏ)',
     themeColorAccent: 'Màu nhấn',
     themeColorBuy: 'Nút mua hàng',
     themeColorCart: 'Thêm giỏ',
@@ -3082,11 +3087,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     setupStep2Hint: 'Preview, then apply. Picking a look or color updates the site immediately.',
     themeColorTitle: 'Site colors',
     themeColorHint: 'Pick main and supporting colors — the site updates live, then saves.',
+    themeColorHintMarketplace:
+      'Change the main color — header, featured categories, search, prices, and cart update together. Tune each role to split them.',
     themeColorMainTitle: 'Main colors',
     themeColorAuxTitle: 'Supporting colors',
     themeColorAuxBgTitle: 'Page background',
     themeColorAuxCartTitle: 'Add to cart button',
     themeColorPrimary: 'Primary (header, price)',
+    themeColorPrimaryMarketplace: 'Primary (header, categories, search, price, cart)',
     themeColorAccent: 'Accent',
     themeColorBuy: 'Buy button',
     themeColorCart: 'Add to cart',
@@ -4113,11 +4121,13 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     setupStep2Hint: '先预览再应用。点选外观或颜色后网站立即更新。',
     themeColorTitle: '网站配色',
     themeColorHint: '选择主色与辅助色 — 网站即时变化并自动保存。',
+    themeColorHintMarketplace: '改主色后顶栏、分类、搜索、价格与购物车一起变。再单独调某一项即可拆开。',
     themeColorMainTitle: '主色',
     themeColorAuxTitle: '辅助色',
     themeColorAuxBgTitle: '页面背景',
     themeColorAuxCartTitle: '加入购物车按钮',
     themeColorPrimary: '主色（顶栏、价格）',
+    themeColorPrimaryMarketplace: '主色（顶栏、分类、搜索、价格、购物车）',
     themeColorAccent: '强调色',
     themeColorBuy: '购买按钮',
     themeColorCart: '加入购物车',
@@ -5162,11 +5172,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     setupStep2Hint: 'プレビューして適用。デザインや色を選ぶとすぐ反映されます。',
     themeColorTitle: 'サイトの色',
     themeColorHint: 'メイン色と補助色を選ぶと、サイトがすぐ変わり保存されます。',
+    themeColorHintMarketplace:
+      'メイン色を変えるとヘッダー・カテゴリ・検索・価格・カートが同時に変わります。個別に分けることもできます。',
     themeColorMainTitle: 'メイン色',
     themeColorAuxTitle: '補助色',
     themeColorAuxBgTitle: 'ページ背景',
     themeColorAuxCartTitle: 'カート追加ボタン',
     themeColorPrimary: 'メイン（ヘッダー・価格）',
+    themeColorPrimaryMarketplace: 'メイン（ヘッダー・カテゴリ・検索・価格・カート）',
     themeColorAccent: 'アクセント',
     themeColorBuy: '購入ボタン',
     themeColorCart: 'カートに追加',
@@ -6213,11 +6226,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     setupStep2Hint: '미리 본 뒤 적용. 디자인이나 색을 고르면 바로 바뀝니다.',
     themeColorTitle: '사이트 색상',
     themeColorHint: '메인 색과 보조 색을 고르면 사이트가 바로 바뀌고 저장됩니다.',
+    themeColorHintMarketplace:
+      '메인 색을 바꾸면 헤더, 카테고리, 검색, 가격, 장바구니가 함께 바뀝니다. 역할별로 따로 조정할 수 있습니다.',
     themeColorMainTitle: '메인 색',
     themeColorAuxTitle: '보조 색',
     themeColorAuxBgTitle: '페이지 배경',
     themeColorAuxCartTitle: '장바구니 버튼',
     themeColorPrimary: '메인 (헤더, 가격)',
+    themeColorPrimaryMarketplace: '메인 (헤더, 카테고리, 검색, 가격, 장바구니)',
     themeColorAccent: '강조색',
     themeColorBuy: '구매 버튼',
     themeColorCart: '장바구니 담기',

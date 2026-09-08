@@ -1472,8 +1472,8 @@ if(mo)mo.observe(document.documentElement,{childList:true,subtree:true});
 .pw-nav-chevron{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;border:none;background:transparent;color:inherit;cursor:pointer;font-size:10px;line-height:1}
 .pw-nav-flyout-bar{position:absolute;left:0;right:0;top:100%;z-index:80;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px 16px;max-height:min(60vh,420px);overflow-x:hidden;overflow-y:auto;padding:12px 16px;background:#fff;border:1px solid #e5e7eb;border-radius:0 0 12px 12px;box-shadow:0 12px 32px rgba(15,23,42,.12);text-align:left;width:100%;max-width:100%;box-sizing:border-box}
 ${PARTNER_CATEGORY_MEGA_LAYOUT_CSS}
-.pw-account-panel.is-open a.is-header,.pw-shop-account-panel.is-open a.is-header{background:#eff6ff;color:#2563eb;border-left:3px solid #2563eb;font-weight:700}
-.pw-account-panel.is-open a.is-accent,.pw-shop-account-panel.is-open a.is-accent{background:var(--pw-surface,#f3f4f6);color:var(--pw-accent,#ea580c);border-left:3px solid var(--pw-primary,#2563eb);font-weight:700}
+.pw-account-panel.is-open a.is-header,.pw-shop-account-panel.is-open a.is-header{background:color-mix(in srgb,var(--pw-primary) 12%,#fff);color:var(--pw-primary);border-left:3px solid var(--pw-primary);font-weight:700}
+.pw-account-panel.is-open a.is-accent,.pw-shop-account-panel.is-open a.is-accent{background:var(--pw-surface,#f3f4f6);color:var(--pw-accent);border-left:3px solid var(--pw-primary);font-weight:700}
 [data-pw-chrome-btn="account"][role="button"],[data-pw-account-toggle]{cursor:pointer}
 </style>`
 }

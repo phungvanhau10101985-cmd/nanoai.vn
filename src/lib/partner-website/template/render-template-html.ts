@@ -529,15 +529,15 @@ ${buildPartnerSiteAccountPanelCss()}
 .pw-gallery-item img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px}
 .pw-footer{background:var(--pw-footer,#fff);color:var(--pw-text,#111827);border-top:1px solid var(--pw-border,#e5e7eb);padding:40px 0 0;margin-top:40px}
 .pw-footer-grid{display:grid;gap:28px;grid-template-columns:repeat(4,minmax(0,1fr));padding-bottom:28px}
-.pw-footer-col h3{margin:0 0 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#111827}
-.pw-footer-col p{display:block;color:#4b5563;font-size:14px;line-height:1.65;margin:0 0 10px;padding:0}
-.pw-footer-col a,.pw-footer-link-btn{display:flex;align-items:center;color:#4b5563;text-decoration:none;font-size:14px;margin:0;padding:8px 0;min-height:36px;background:none;border:none;cursor:pointer;font:inherit;text-align:left}
-.pw-footer-col a:hover,.pw-footer-link-btn:hover{color:var(--pw-primary)}
+.pw-footer-col h3{margin:0 0 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:inherit}
+.pw-footer-col p{display:block;color:inherit;opacity:.78;font-size:14px;line-height:1.65;margin:0 0 10px;padding:0}
+.pw-footer-col a,.pw-footer-link-btn{display:flex;align-items:center;color:inherit;opacity:.88;text-decoration:none;font-size:14px;margin:0;padding:8px 0;min-height:36px;background:none;border:none;cursor:pointer;font:inherit;text-align:left}
+.pw-footer-col a:hover,.pw-footer-link-btn:hover{color:var(--pw-primary);opacity:1}
 .pw-footer-news-hint{opacity:.85}
 .pw-newsletter{display:flex;gap:0;margin-top:10px}
 .pw-newsletter input{flex:1;border:1px solid #e5e7eb;border-right:none;border-radius:6px 0 0 6px;padding:10px 12px;font:inherit;background:#f9fafb}
 .pw-newsletter button{border:none;background:var(--pw-primary);color:#fff;padding:0 14px;border-radius:0 6px 6px 0;font-weight:800;cursor:pointer}
-.pw-footer-bottom{border-top:1px solid #e5e7eb;padding:16px 0 20px;color:#6b7280}
+.pw-footer-bottom{border-top:1px solid color-mix(in srgb,currentColor 18%,transparent);padding:16px 0 20px;color:inherit;opacity:.8}
 .pw-footer-bottom-inner{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.85}
 .pw-bottom-nav{display:none}
 .pw-fab-chat{position:fixed;right:16px;bottom:84px;z-index:9999;width:52px;height:52px;border-radius:50%;background:var(--pw-accent);color:#fff;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;font-size:22px;box-shadow:0 8px 24px rgba(0,0,0,.2)}

@@ -161,8 +161,13 @@ function pwSliderRestart(host){
     pwSliderGo(host, cur + 1);
   }, wait));
 }
+function pwSliderSkipLivePromo(host){
+  if (pwSliderEditorOn()) return false;
+  return !!(host && host.getAttribute && host.getAttribute('data-pw-personalize-banner'));
+}
 function pwSliderBind(host){
   if (!host || host._pwSliderBound) return;
+  if (pwSliderSkipLivePromo(host)) return;
   host._pwSliderBound = 1;
   host.addEventListener('click', function(ev){
     if (pwSliderEditorOn()) return;
@@ -186,6 +191,9 @@ function pwSliderBind(host){
 }
 function pwSliderBoot(){
   var nodes = document.querySelectorAll('[data-pw-slider="1"],[data-pw-banner-kind="slider"]');
-  for (var i = 0; i < nodes.length; i++) pwSliderBind(nodes[i]);
+  for (var i = 0; i < nodes.length; i++) {
+    if (pwSliderSkipLivePromo(nodes[i])) continue;
+    pwSliderBind(nodes[i]);
+  }
 }
 `.trim()

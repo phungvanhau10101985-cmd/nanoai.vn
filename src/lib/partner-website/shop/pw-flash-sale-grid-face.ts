@@ -14,7 +14,7 @@ font-size:16px!important;line-height:1.3!important;font-weight:700!important;let
 }
 html [data-pw-personalize="flash-sale"] .pw-flash-sub,
 html [data-pw-personalize="flash-sale"] [data-pw-flash-sub]{
-margin:4px 0 0;font-size:12px;line-height:1.4;color:#4b5563;max-width:36rem
+display:none!important
 }
 html [data-pw-personalize="flash-sale"] .pw-flash-timer,
 html [data-pw-personalize="flash-sale"] [data-pw-flash-timer]{

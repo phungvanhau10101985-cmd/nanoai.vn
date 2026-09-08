@@ -120,6 +120,8 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /var host=nodes\[0\]/)
   assert.match(out, /data-pw-banner-live','off'/)
   assert.match(out, /data-pw-promo-carousel/)
+  assert.match(out, /function boot\(\)/)
+  assert.match(out, /live==='1'\|\|live==='off'/)
   assert.match(out, /insertAdjacentElement\('afterend'/)
   assert.doesNotMatch(out, /kind==='sale-calendar'\?'sale':kind/)
 })

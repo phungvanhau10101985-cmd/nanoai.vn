@@ -163,14 +163,6 @@ const FLASH_TITLE: Record<WebLocale, string> = {
   ko: 'FLASH SALE',
 }
 
-const FLASH_SUB: Record<WebLocale, string> = {
-  vi: '12 deal / 10 phút, cùng shop TQ và danh mục vừa xem. Hết lượt mất giảm — chốt giỏ ngay.',
-  en: '12 deals / 10 minutes, same Chinese shop and recently viewed category. Discount ends with the round — checkout now.',
-  zh: '每轮 10 分钟最多 12 个特惠，来自刚看过的中国店铺与三级类目。本轮结束即恢复原价。',
-  ja: '10分で最大12件。最近見た中国ショップと同じカテゴリ。ラウンド終了で割引終了。',
-  ko: '10분마다 최대 12개, 최근 본 중국 샵·카테고리. 라운드가 끝나면 할인이 사라집니다.',
-}
-
 const FLASH_TIMER: Record<WebLocale, string> = {
   vi: 'Kết thúc lượt sau',
   en: 'Round ends in',
@@ -276,7 +268,6 @@ export function buildPartnerSitePersonalizationBootstrapScript(input: {
     recPickerError: REC_PICKER_ERROR[locale],
     recSold: REC_SOLD[locale],
     flashTitle: FLASH_TITLE[locale],
-    flashSub: FLASH_SUB[locale],
     flashTimer: FLASH_TIMER[locale],
     remaining: partnerSiteSaleCopy(locale).remaining,
     flashRemaining: partnerSiteSaleCopy(locale).flashRemaining,
@@ -723,6 +714,9 @@ function formatFlashHms(iso){
 }
 function paintFlashHead(el,countdownTo){
   var host=el.querySelector('.pw-container')||el;
+  host.querySelectorAll('[data-pw-flash-sub], .pw-flash-sub').forEach(function(n){
+    n.remove();
+  });
   var head=host.querySelector('[data-pw-flash-head]');
   if(!head){
     head=document.createElement('div');
@@ -736,14 +730,6 @@ function paintFlashHead(el,countdownTo){
       title.classList.add('pw-flash-title');
       copy.appendChild(title);
     }
-    var sub=host.querySelector('[data-pw-flash-sub]');
-    if(!sub){
-      sub=document.createElement('p');
-      sub.className='pw-flash-sub';
-      sub.setAttribute('data-pw-flash-sub','1');
-      sub.textContent=COPY.flashSub||'';
-    }
-    copy.appendChild(sub);
     head.appendChild(copy);
   }
   var timer=head.querySelector('[data-pw-flash-timer]');

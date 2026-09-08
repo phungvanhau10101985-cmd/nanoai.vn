@@ -24,6 +24,7 @@ import {
 import { ensureLiveVisualWebsite } from '@/lib/partner-website/shop/load-live-visual-website'
 import { inferLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-live-visual-request-device-server'
 import { loadSiteLiveCategoryBind } from '@/lib/partner-website/shop/load-site-live-category-bind'
+import { loadSiteLiveMarketingBanners } from '@/lib/partner-website/shop/load-site-live-marketing-banners'
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import type { PartnerSiteInfoPageKey } from '@/lib/partner-website/shop/partner-site-shop-info-pages'
@@ -131,7 +132,10 @@ export async function PartnerSiteVisualHtmlScreen({
   const headerStore = headers()
   const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
   const pageKey = String(infoSeo?.pageKey || infoSeo?.cmsSlug || 'page')
-  const liveCategoryBind = await loadSiteLiveCategoryBind(site.siteSlug)
+  const [liveCategoryBind, liveMarketingBanners] = await Promise.all([
+    loadSiteLiveCategoryBind(site.siteSlug),
+    loadSiteLiveMarketingBanners(site.siteSlug),
+  ])
   const prepareShell = async (sourceHtml: string, sourceDevice: VisualDeviceVariant | null) => {
     const prepare = () => {
       const seoHtml = withInfoPageAdvancedSeo(site, sourceHtml, infoSeo)
@@ -163,6 +167,7 @@ export async function PartnerSiteVisualHtmlScreen({
     applyLiveVisualOverlays(shell, {
       liveProduct,
       liveCategoryBind,
+      liveMarketingBanners,
       locale: site.locale,
       siteSlug: site.siteSlug,
       device: overlayDevice,

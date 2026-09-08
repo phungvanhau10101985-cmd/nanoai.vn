@@ -1,5 +1,6 @@
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { extractVisualHtmlLook } from '@/lib/partner-website/shop/inject-partner-shop-fonts'
+import { resolveShopTemplatePresetId } from '@/lib/partner-website/template/shop-template-presets'
 import { PW_LOOK, PW_LOOK_ATTR, type PwLookKind } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export const PARTNER_WEBSITE_LOOK_MARKETPLACE = PW_LOOK.marketplace
@@ -31,7 +32,7 @@ export function resolvePartnerWebsiteLook(
 }
 
 export function isMarketplaceTemplateId(templateId: string | null | undefined): boolean {
-  return String(templateId || '').trim() === 'fashion-marketplace'
+  return resolveShopTemplatePresetId(templateId) === 'fashion-marketplace'
 }
 
 export const PARTNER_MARKETPLACE_LOOK_STYLE_ID = 'pw-marketplace-look-css'
@@ -166,19 +167,24 @@ html[data-pw-look="marketplace"] .pw-shop{
   background:var(--pw-bg)!important;
 }
 html[data-pw-look="marketplace"] .pw-catalog,
-html[data-pw-look="marketplace"] .pw-featured-cat,
-html[data-pw-look="marketplace"] .pw-hero.pw-banner,
-html[data-pw-look="marketplace"] .pw-marketplace-cta{
-  background:#fff;
+html[data-pw-look="marketplace"] .pw-hero.pw-banner{
+  background:var(--pw-surface,#fff);
   border:1px solid var(--pw-border,#e5e7eb);
   border-radius:12px;
   overflow:hidden;
+}
+html[data-pw-look="marketplace"] .pw-featured-cat{
+  background:var(--pw-primary)!important;
+  border:none;
+  border-radius:12px;
+  overflow:hidden;
+  color:#fff;
 }
 html[data-pw-look="marketplace"] .pw-product-card{
   border:1px solid var(--pw-border,#f3f4f6);
   border-radius:8px;
   box-shadow:none;
-  background:#fff;
+  background:var(--pw-surface,#fff);
 }
 html[data-pw-look="marketplace"] .pw-product-card:hover{
   border-color:color-mix(in srgb,var(--pw-primary) 45%,var(--pw-border,#e5e7eb));
@@ -198,17 +204,25 @@ html[data-pw-look="marketplace"] .pw-shop-footer{
 }
 html[data-pw-look="marketplace"] .pw-footer h3,
 html[data-pw-look="marketplace"] .pw-footer .pw-footer-col h3,
-html[data-pw-look="marketplace"] .pw-shop-footer h3{
+html[data-pw-look="marketplace"] .pw-shop-footer h3,
+html[data-pw-look="marketplace"] .pw-shop-footer-col h3,
+html[data-pw-look="marketplace"] .pw-shop-footer-name{
   color:#fff;
 }
 html[data-pw-look="marketplace"] .pw-footer a,
 html[data-pw-look="marketplace"] .pw-footer p,
 html[data-pw-look="marketplace"] .pw-footer-col a,
-html[data-pw-look="marketplace"] .pw-shop-footer a{
+html[data-pw-look="marketplace"] .pw-shop-footer a,
+html[data-pw-look="marketplace"] .pw-shop-footer-col a,
+html[data-pw-look="marketplace"] .pw-shop-footer-hint,
+html[data-pw-look="marketplace"] .pw-shop-footer-bar,
+html[data-pw-look="marketplace"] .pw-shop-footer-bar p{
   color:#d1d5db;
+  opacity:1;
 }
 html[data-pw-look="marketplace"] .pw-footer a:hover,
-html[data-pw-look="marketplace"] .pw-shop-footer a:hover{
+html[data-pw-look="marketplace"] .pw-shop-footer a:hover,
+html[data-pw-look="marketplace"] .pw-shop-footer-col a:hover{
   color:#fff;
 }
 .pw-marketplace-home-main,
@@ -227,7 +241,7 @@ html[data-pw-look="marketplace"] [data-pw-trust-bar="1"]{
   grid-template-columns:repeat(3,minmax(0,1fr));
   gap:10px;
   padding:12px;
-  background:#fff;
+  background:var(--pw-surface,#fff);
   border:1px solid var(--pw-border,#e5e7eb);
   border-radius:12px;
   overflow:visible;

@@ -70,6 +70,11 @@ export const SHOP_AUX_CART_SWATCHES: ShopColorSwatch[] = [
   { id: 'brown', hex: '#9a3412' },
 ]
 
+/** Shop looks keep this cart gray when the brand swatch changes. Marketplace cart follows primary. */
+export const SHOP_DEFAULT_CART_COLOR = '#6b7280'
+export const SHOP_DEFAULT_FOOTER_COLOR = '#ffffff'
+export const MARKETPLACE_DEFAULT_FOOTER_COLOR = '#111827'
+
 export function normalizeHexColor(raw: string | null | undefined, fallback: string): string {
   const v = String(raw ?? '').trim()
   if (HEX6.test(v)) return `#${v.slice(1).toLowerCase()}`
@@ -215,7 +220,7 @@ export function resolveShopThemeColors(theme: PartnerWebsiteTheme): ResolvedShop
     primaryColor,
     accentColor,
     buyButtonColor: normalizeHexColor(theme.buyButtonColor, primaryColor),
-    cartButtonColor: normalizeHexColor(theme.cartButtonColor, mutedColor || '#6b7280'),
+    cartButtonColor: normalizeHexColor(theme.cartButtonColor, SHOP_DEFAULT_CART_COLOR),
     backgroundColor,
     textColor,
     mutedColor,
@@ -238,15 +243,22 @@ export function mergeShopThemeColors(
   return next
 }
 
+/**
+ * Brand cascade for every look (GD01–GD08 + templates after):
+ * primary → accent + buy + surface wash.
+ * Marketplace also sets cart = primary. Shop looks keep the supporting cart gray.
+ */
 export function themeFromMainSwatch(
   base: PartnerWebsiteTheme,
   hex: string
 ): PartnerWebsiteTheme {
   const primaryColor = normalizeHexColor(hex, base.primaryColor)
+  const marketplace = String(base.look || '').trim() === 'marketplace'
   return mergeShopThemeColors(base, {
     primaryColor,
-    accentColor: darkenHex(primaryColor, 0.12),
+    accentColor: marketplace ? mixHex(primaryColor, '#ffffff', 0.18) : darkenHex(primaryColor, 0.12),
     buyButtonColor: primaryColor,
+    cartButtonColor: marketplace ? primaryColor : undefined,
     surfaceColor: mixHex('#ffffff', primaryColor, 0.08),
   })
 }
@@ -267,10 +279,9 @@ export function themeFromAuxCartSwatch(
   base: PartnerWebsiteTheme,
   hex: string
 ): PartnerWebsiteTheme {
-  const cartButtonColor = normalizeHexColor(hex, base.cartButtonColor || '#6b7280')
+  const cartButtonColor = normalizeHexColor(hex, base.cartButtonColor || SHOP_DEFAULT_CART_COLOR)
   return mergeShopThemeColors(base, {
     cartButtonColor,
-    mutedColor: cartButtonColor,
   })
 }
 
@@ -299,8 +310,10 @@ export function themeFromPresetPartial(
         ? normalizeHexColor(presetTheme.buyButtonColor, primaryColor)
         : primaryColor,
       cartButtonColor: presetTheme.cartButtonColor
-        ? normalizeHexColor(presetTheme.cartButtonColor, mutedColor)
-        : mutedColor,
+        ? normalizeHexColor(presetTheme.cartButtonColor, SHOP_DEFAULT_CART_COLOR)
+        : presetTheme.look === 'marketplace'
+          ? primaryColor
+          : SHOP_DEFAULT_CART_COLOR,
       backgroundColor,
       textColor: normalizeHexColor(presetTheme.textColor, base.textColor),
       mutedColor,

@@ -15,6 +15,8 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes(PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID), true)
   assert.equal(once.includes('data-pw-chat-icon-logo'), true)
   assert.equal(once.includes('.pw-nav-main:not([data-pw-nav-live])'), true)
+  assert.equal(once.includes('body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live])'), true)
+  assert.equal(once.includes('body:not(.nanoai-ve-active) [data-pw-grid-placeholder]'), true)
   assert.equal(once.includes('[data-pw-added-image][data-pw-image-radius]'), true)
   assert.equal(once.includes('[data-pw-chrome-btn="chat"] .pw-chrome-chat-logo'), true)
   assert.equal(once.includes('-webkit-tap-highlight-color:transparent'), true)

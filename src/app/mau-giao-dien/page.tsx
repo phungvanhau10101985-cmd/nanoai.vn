@@ -75,6 +75,9 @@ export default async function ShopTemplateGalleryPage() {
                 <div className="space-y-3 p-4 sm:p-5">
                   <div>
                     <h2 className="text-lg font-semibold text-slate-900">
+                      <span className="mr-2 inline-block rounded bg-slate-900 px-1.5 py-0.5 align-middle font-mono text-[11px] font-bold tracking-wide text-white">
+                        {preset.code}
+                      </span>
                       {shopTemplatePresetLabel(preset, locale)}
                     </h2>
                     <p className="mt-1 text-sm leading-relaxed text-slate-600">

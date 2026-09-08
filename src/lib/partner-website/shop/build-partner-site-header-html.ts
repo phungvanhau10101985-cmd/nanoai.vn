@@ -118,12 +118,12 @@ export function buildPartnerSiteAccountPanelCss(): string {
 .pw-account-panel.is-open{display:grid;gap:2px}
 .pw-account-panel a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:600;color:#374151;text-decoration:none}
 .pw-account-panel a:hover{background:var(--pw-surface);color:var(--pw-primary)}
-.pw-account-panel a.is-header{background:#eff6ff;color:#2563eb;border-left:3px solid #2563eb;border-radius:8px 8px 8px 6px;font-weight:700}
-.pw-account-panel a.is-header:hover{background:#dbeafe;color:#1d4ed8}
+.pw-account-panel a.is-header{background:color-mix(in srgb,var(--pw-primary) 12%,#fff);color:var(--pw-primary);border-left:3px solid var(--pw-primary);border-radius:8px 8px 8px 6px;font-weight:700}
+.pw-account-panel a.is-header:hover{background:color-mix(in srgb,var(--pw-primary) 22%,#fff);color:var(--pw-primary)}
 .pw-account-panel a.is-accent{background:var(--pw-surface);color:var(--pw-accent);border-left:3px solid var(--pw-primary);border-radius:8px 8px 8px 6px;font-weight:700}
 .pw-account-panel a.is-accent:hover{background:var(--pw-surface);color:var(--pw-primary)}
 .pw-account-panel svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0}
-.pw-account-panel a.is-header svg{color:#2563eb}
+.pw-account-panel a.is-header svg{color:var(--pw-primary)}
 .pw-account-panel a.is-accent svg{color:var(--pw-accent)}
 .pw-account-btn{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 10px;border-radius:999px;border:none;background:transparent;color:#374151;font:inherit;font-size:13px;font-weight:700;cursor:pointer;position:relative}
 .pw-account-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2}

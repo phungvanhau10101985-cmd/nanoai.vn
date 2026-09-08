@@ -1,5 +1,10 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
+import {
+  MARKETPLACE_DEFAULT_FOOTER_COLOR,
+  SHOP_DEFAULT_CART_COLOR,
+  SHOP_DEFAULT_FOOTER_COLOR,
+} from '@/lib/partner-website/template/partner-website-theme-tokens'
 
 export type ShopTemplatePresetId =
   | 'commerce-blue'
@@ -10,6 +15,17 @@ export type ShopTemplatePresetId =
   | 'commerce-minimal'
   | 'soft-neutral'
   | 'blank-white'
+
+/** Short UI / chat code — user says `GD03`, agent opens that preset. */
+export type ShopTemplatePresetCode =
+  | 'GD01'
+  | 'GD02'
+  | 'GD03'
+  | 'GD04'
+  | 'GD05'
+  | 'GD06'
+  | 'GD07'
+  | 'GD08'
 
 export function isShopTemplatePresetId(id: string | null | undefined): id is ShopTemplatePresetId {
   return (
@@ -22,6 +38,32 @@ export function isShopTemplatePresetId(id: string | null | undefined): id is Sho
     id === 'soft-neutral' ||
     id === 'blank-white'
   )
+}
+
+export function isShopTemplatePresetCode(raw: string | null | undefined): raw is ShopTemplatePresetCode {
+  const code = String(raw || '').trim().toUpperCase()
+  return (
+    code === 'GD01' ||
+    code === 'GD02' ||
+    code === 'GD03' ||
+    code === 'GD04' ||
+    code === 'GD05' ||
+    code === 'GD06' ||
+    code === 'GD07' ||
+    code === 'GD08'
+  )
+}
+
+/** Accepts stored `template_id` (`fashion-marketplace`) or short code (`GD03`). */
+export function resolveShopTemplatePresetId(
+  raw: string | null | undefined
+): ShopTemplatePresetId | null {
+  const v = String(raw || '').trim()
+  if (isShopTemplatePresetId(v)) return v
+  const code = v.toUpperCase()
+  if (!isShopTemplatePresetCode(code)) return null
+  const found = SHOP_TEMPLATE_PRESETS.find((p) => p.code === code)
+  return found?.id ?? null
 }
 
 export type ShopTemplatePresetFlags = {
@@ -39,6 +81,8 @@ export type ShopTemplatePresetFlags = {
 
 export type ShopTemplatePreset = {
   id: ShopTemplatePresetId
+  /** Short code shown on the gallery card (`GD03`). Never reuse. */
+  code: ShopTemplatePresetCode
   /** Stored as template_id for the chosen look (renders via landing-v1 sections). */
   templateId: string
   label: Record<WebLocale, string>
@@ -92,10 +136,30 @@ const HOSPITALITY_FLAGS: ShopTemplatePresetFlags = {
   categories: false,
 }
 
+/** Fill buy / cart / footer so every preset follows the shared `--pw-*` color frame. */
+function withShopColorFrame(theme: Partial<PartnerWebsiteTheme>): Partial<PartnerWebsiteTheme> {
+  const primary = theme.primaryColor
+  const marketplace = theme.look === 'marketplace'
+  return {
+    ...theme,
+    ...(primary
+      ? {
+          buyButtonColor: theme.buyButtonColor || primary,
+          cartButtonColor:
+            theme.cartButtonColor || (marketplace ? primary : SHOP_DEFAULT_CART_COLOR),
+        }
+      : {}),
+    footerColor:
+      theme.footerColor ||
+      (marketplace ? MARKETPLACE_DEFAULT_FOOTER_COLOR : SHOP_DEFAULT_FOOTER_COLOR),
+  }
+}
+
 /** Platform presets — any industry can apply; Sửa nhanh / HTML decides which widgets stay. */
-export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
+const SHOP_TEMPLATE_PRESET_SOURCES: ShopTemplatePreset[] = [
   {
     id: 'commerce-blue',
+    code: 'GD01',
     templateId: 'commerce-blue',
     label: {
       vi: 'Shop đa ngành (xanh)',
@@ -128,6 +192,7 @@ export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
   },
   {
     id: 'fashion-orange',
+    code: 'GD02',
     templateId: 'fashion-orange',
     label: {
       vi: 'Shop thời trang cam',
@@ -160,6 +225,7 @@ export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
   },
   {
     id: 'fashion-marketplace',
+    code: 'GD03',
     templateId: 'fashion-marketplace',
     label: {
       vi: 'Sàn mua sắm',
@@ -198,6 +264,7 @@ export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
   },
   {
     id: 'hospitality-stay',
+    code: 'GD04',
     templateId: 'hospitality-stay',
     label: {
       vi: 'Khách sạn / lưu trú',
@@ -230,6 +297,7 @@ export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
   },
   {
     id: 'food-warm',
+    code: 'GD05',
     templateId: 'food-warm',
     label: {
       vi: 'Quán ăn / F&B (ấm)',
@@ -262,6 +330,7 @@ export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
   },
   {
     id: 'commerce-minimal',
+    code: 'GD06',
     templateId: 'commerce-minimal',
     label: {
       vi: 'Shop tối giản',
@@ -294,6 +363,7 @@ export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
   },
   {
     id: 'soft-neutral',
+    code: 'GD07',
     templateId: 'soft-neutral',
     label: {
       vi: 'Trung tính mềm',
@@ -326,6 +396,7 @@ export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
   },
   {
     id: 'blank-white',
+    code: 'GD08',
     templateId: 'blank-white',
     label: {
       vi: 'Canvas trắng',
@@ -362,10 +433,16 @@ export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = [
   },
 ]
 
+export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = SHOP_TEMPLATE_PRESET_SOURCES.map((preset) => ({
+  ...preset,
+  theme: withShopColorFrame(preset.theme),
+}))
+
 export const DEFAULT_SHOP_TEMPLATE_PRESET_ID: ShopTemplatePresetId = 'commerce-blue'
 
 export function getShopTemplatePreset(id: string | null | undefined): ShopTemplatePreset {
-  const found = SHOP_TEMPLATE_PRESETS.find((p) => p.id === id)
+  const resolved = resolveShopTemplatePresetId(id)
+  const found = SHOP_TEMPLATE_PRESETS.find((p) => p.id === resolved)
   return found ?? SHOP_TEMPLATE_PRESETS[0]!
 }
 
@@ -375,6 +452,10 @@ export function listShopTemplatePresets(): ShopTemplatePreset[] {
 
 export function shopTemplatePresetLabel(preset: ShopTemplatePreset, locale: WebLocale): string {
   return preset.label[locale] || preset.label.en
+}
+
+export function shopTemplatePresetHeading(preset: ShopTemplatePreset, locale: WebLocale): string {
+  return `${preset.code} · ${shopTemplatePresetLabel(preset, locale)}`
 }
 
 export function shopTemplatePresetDescription(preset: ShopTemplatePreset, locale: WebLocale): string {

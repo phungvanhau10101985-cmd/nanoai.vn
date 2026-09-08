@@ -19,6 +19,7 @@ import {
   isShopTemplatePresetId,
   listShopTemplatePresets,
   shopTemplatePresetDescription,
+  shopTemplatePresetHeading,
   shopTemplatePresetLabel,
   suggestedShopTemplatePresetForIndustry,
   type ShopTemplatePresetId,
@@ -520,7 +521,7 @@ export function PartnerWebsiteCreationJournalPanel({
   const controlsDisabled = busy || disabled || buildingSite || initBusy
   const shopName = setupBrand.trim() || defaultBrandName?.trim() || partnerTitle.trim() || 'Shop'
   const industryText = industryLabel(t, industryKey)
-  const contextTemplate = shopTemplatePresetLabel(
+  const contextTemplate = shopTemplatePresetHeading(
     shopPresets.find((p) => p.id === (appliedPresetId ?? suggestedPresetId)) ?? shopPresets[0]!,
     locale
   )
@@ -727,6 +728,9 @@ export function PartnerWebsiteCreationJournalPanel({
                       </div>
                       <div className="space-y-0.5 px-2 py-1.5">
                         <p className="text-[13px] font-semibold leading-snug">
+                          <span className="mr-1.5 inline-block rounded bg-slate-900 px-1 py-px font-mono text-[10px] font-bold tracking-wide text-white">
+                            {preset.code}
+                          </span>
                           {shopTemplatePresetLabel(preset, locale)}
                         </p>
                         <p className="line-clamp-2 text-[10px] leading-snug text-muted-foreground">

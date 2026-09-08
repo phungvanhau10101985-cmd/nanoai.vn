@@ -38,6 +38,10 @@ test('shop theme CSS keeps desktop account nav as a compact left column', () => 
   assert.match(css, /\.pw-shop-deposit-head\{background:linear-gradient\(90deg,var\(--pw-primary\),var\(--pw-accent\)/)
   assert.match(css, /\.pw-shop-deposit-sepay/)
   assert.match(css, /\.pw-shop-deposit-instruct/)
+  assert.match(css, /\.pw-shop-deposit-instruct\{[^}]*color:var\(--pw-primary\)/)
+  assert.doesNotMatch(css, /\.pw-shop-account-panel a\.is-header\{[^}]*#2563eb/)
+  assert.match(css, /\.pw-shop-footer-col h3\{[^}]*color:inherit/)
+  assert.match(css, /\.pw-shop-card\{[^}]*background:var\(--pw-surface/)
 })
 
 test('shop theme CSS turns header nav pill hover text to the primary token', () => {
