@@ -637,6 +637,11 @@ test('chrome label face CSS sizes stock bottom-nav .pw-shop-icon-label', () => {
   assert.match(PW_CHROME_LABEL_FACE_CSS, /\.pw-shop-icon-label/)
   assert.match(PW_CHROME_LABEL_FACE_CSS, /\.pw-bottom-nav \.pw-shop-icon-label/)
   assert.match(PW_CHROME_LABEL_FACE_CSS, /font-size:var\(--pw-chrome-label,13px\)!important/)
+  assert.match(PW_CHROME_LABEL_FACE_CSS, /\.pw-pdp-sticky-nav a,\.pw-pdp-sticky-nav button\{font-size:10px!important\}/)
+  assert.doesNotMatch(
+    PW_CHROME_LABEL_FACE_CSS,
+    /\.pw-pdp-sticky-nav a,\.pw-pdp-sticky-nav button\{font-size:var\(--pw-chrome-label,13px\)!important\}/
+  )
 })
 
 test('chrome label-below CSS wins row layout for every chrome host', () => {

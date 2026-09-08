@@ -841,7 +841,11 @@ function pdpBuyBoxActionsEl(){
   return document.querySelector('[data-pw-region="pdp-info"] [data-pw-pdp-add-cart],.pw-shop-pdp-info [data-pw-pdp-add-cart]');
 }
 function bindPdpDesktopStickyBar(){
-  if(typeof pwShopLiveUiOff==='function'&&pwShopLiveUiOff()){setPdpDesktopSticky(false);return;}
+  if(typeof pwShopLiveUiOff==='function'&&pwShopLiveUiOff()){
+    if(isPdpProductPage()&&isPdpWideStickyViewport())setPdpDesktopSticky(true);
+    else setPdpDesktopSticky(false);
+    return;
+  }
   stampPdpBuyBoxCartHooks();
   if(!isPdpProductPage()){setPdpDesktopSticky(false);return;}
   var actions=pdpBuyBoxActionsEl();

@@ -222,9 +222,18 @@ import {
   fetchPartnerOrdersForOwnerFromPg,
   fetchPartnerOrdersForOwnerExportFromPg,
   fetchPartnerOrderStatsForOwnerFromPg,
+  fetchPartnerOrderAdminKpiFromPg,
+  fetchPartnerOrderAdminTabCountsFromPg,
+  fetchPartnerOrderAdminRevenueFromPg,
+  fetchPartnerOrdersAdminPageFromPg,
+  fetchPartnerOrderLinesForOwnerFromPg,
   insertPartnerOrderEventFromPg,
   type PartnerOrderAdminRow,
   type PartnerOrderOwnerStats,
+  type PartnerOrderAdminKpi,
+  type PartnerOrderAdminTabCounts,
+  type PartnerOrderAdminRevenueReport,
+  type PartnerOrderLineRow,
   type PartnerOrderEventRow,
   upsertPartnerPaymentSettingsFromPg,
   fetchPartnerOrderForOwnerFromPg,
@@ -233,6 +242,7 @@ import {
   updatePartnerOrderShippingStatusForOwnerFromPg,
   updatePartnerOrderRefundForOwnerFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
+import type { PartnerAdminLifecycleTab, PartnerAdminPaymentFilter } from '@/lib/messaging/partner-admin-orders-lifecycle'
 import {
   fetchPartnerLoyaltyDashboardForActorFromPg,
   updatePartnerLoyaltyDashboardForActorFromPg,
@@ -1053,7 +1063,112 @@ export async function listMyMessagingOrders(input?: {
   return { rows, stats }
 }
 
-export type { PartnerOrderOwnerStats }
+export type { PartnerOrderOwnerStats, PartnerOrderAdminKpi, PartnerOrderAdminTabCounts, PartnerOrderAdminRevenueReport, PartnerOrderLineRow }
+
+const ADMIN_LIFECYCLE_TABS: PartnerAdminLifecycleTab[] = [
+  'all',
+  'waiting_deposit',
+  'waiting_ship',
+  'shipping',
+  'delivered',
+  'completed',
+  'returned',
+  'cancelled',
+]
+
+function normalizeAdminLifecycleTab(v: unknown): PartnerAdminLifecycleTab {
+  const s = String(v ?? '').trim()
+  return ADMIN_LIFECYCLE_TABS.includes(s as PartnerAdminLifecycleTab) ? (s as PartnerAdminLifecycleTab) : 'all'
+}
+
+function normalizeAdminPaymentFilter(v: unknown): PartnerAdminPaymentFilter {
+  const s = String(v ?? '').trim()
+  if (s === 'pending' || s === 'deposit_paid' || s === 'paid' || s === 'failed') return s
+  return ''
+}
+
+export async function listMyMessagingOrdersAdminPage(input?: {
+  partnerId?: string
+  q?: string
+  lifecycleTab?: PartnerAdminLifecycleTab
+  paymentFilter?: PartnerAdminPaymentFilter
+  skip?: number
+  limit?: number
+}): Promise<
+  | {
+      rows: PartnerOrderAdminRow[]
+      filteredTotal: number
+      kpi: PartnerOrderAdminKpi
+      tabCounts: PartnerOrderAdminTabCounts
+    }
+  | { error: string }
+> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const partnerId = input?.partnerId?.trim() || null
+  const q = String(input?.q ?? '').trim().slice(0, 120)
+  const lifecycleTab = normalizeAdminLifecycleTab(input?.lifecycleTab)
+  const paymentFilter = normalizeAdminPaymentFilter(input?.paymentFilter)
+  const skip = Math.max(0, Math.floor(Number(input?.skip) || 0))
+  const limit = Math.max(25, Math.min(100, Math.floor(Number(input?.limit) || 100)))
+  const [page, kpi, tabCounts] = await Promise.all([
+    fetchPartnerOrdersAdminPageFromPg({
+      ownerUserId: user.id,
+      partnerId,
+      q,
+      lifecycleTab,
+      paymentFilter,
+      skip,
+      limit,
+    }),
+    fetchPartnerOrderAdminKpiFromPg({ ownerUserId: user.id, partnerId }),
+    fetchPartnerOrderAdminTabCountsFromPg({
+      ownerUserId: user.id,
+      partnerId,
+    }),
+  ])
+  if (page === null || kpi === null || tabCounts === null) return { error: 'Khong tai duoc don hang.' }
+  return { rows: page.rows, filteredTotal: page.filteredTotal, kpi, tabCounts }
+}
+
+export async function fetchMyMessagingOrderRevenueReport(input: {
+  partnerId?: string
+  dateFrom: string
+  dateTo: string
+  periodLabel: string
+}): Promise<{ report: PartnerOrderAdminRevenueReport } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const report = await fetchPartnerOrderAdminRevenueFromPg({
+    ownerUserId: user.id,
+    partnerId: input.partnerId?.trim() || null,
+    dateFrom: String(input.dateFrom ?? '').trim(),
+    dateTo: String(input.dateTo ?? '').trim(),
+    periodLabel: String(input.periodLabel ?? '').trim().slice(0, 120),
+  })
+  if (!report) return { error: 'Khong tai duoc bao cao doanh thu.' }
+  return { report }
+}
+
+export async function listMyMessagingOrderLines(input: {
+  orderId: string
+}): Promise<{ rows: PartnerOrderLineRow[] } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  if (!isValidUuidString(input.orderId)) return { error: 'Invalid order id.' }
+  const rows = await fetchPartnerOrderLinesForOwnerFromPg({
+    ownerUserId: user.id,
+    orderId: input.orderId,
+  })
+  if (rows === null) return { error: 'Khong tai duoc san pham.' }
+  return { rows }
+}
 
 /** Xuß║Ñt tß║Ñt cß║ú ─æ╞ín khß╗¢p bß╗Ö lß╗ìc (workspace + trß║íng th├íi) ra file .xlsx ΓÇö tß╗æi ─æa theo biß║┐n m├┤i tr╞░ß╗¥ng / 50k d├▓ng. */
 export async function exportMyMessagingOrdersExcel(input?: {

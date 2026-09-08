@@ -116,6 +116,8 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('.is-fav,.pw-shop-bottom-nav[data-pw-pdp-bottom] .is-fav{color:#e11d48!important}'), false)
   assert.match(once, /is-fav\[aria-pressed="true"\]/)
   assert.match(once, /pw-pdp-like-copy/)
+  assert.match(once, /\.pw-bottom-nav\[data-pw-pdp-bottom\] \.pw-pdp-sticky-nav a/)
+  assert.match(once, /align-items:center!important;justify-content:center!important;flex:0 0 44px/)
   assert.equal(once.includes('[data-pw-region="gallery"]'), true)
   assert.equal(once.includes('.pw-shop-footer-col a:not([data-pw-hidden="1"]):not([data-pw-chrome-added])'), true)
   assert.equal(once.includes('html .pw-footer-col li:has(>[data-pw-hidden="1"])'), true)

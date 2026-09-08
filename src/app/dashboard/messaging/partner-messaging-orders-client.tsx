@@ -2,43 +2,53 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { Banknote, ClipboardList, Download, ExternalLink, Layers, Loader2, PiggyBank, Receipt, RefreshCw, Wallet } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Download } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
-import { cn } from '@/lib/utils'
+import { parsePartnerOrderVariantImageUrls } from '@/lib/messaging/partner-order-variant-images'
+import {
+  PARTNER_ADMIN_LIFECYCLE_TABS,
+  PARTNER_ADMIN_ORDERS_DEFAULT_PAGE_SIZE,
+  monthInputToDateRange,
+  partnerAdminAmountDueOnDelivery,
+  partnerAdminExpectsDeposit,
+  partnerAdminNeedsDepositStage,
+  partnerAdminOrderIsCancelled,
+  partnerAdminPayBadgeKey,
+  partnerAdminStageBadgeKey,
+  todayIsoVn,
+  weekRangeIsoVn,
+  yearRangeIso,
+  type PartnerAdminLifecycleTab,
+  type PartnerAdminPaymentFilter,
+} from '@/lib/messaging/partner-admin-orders-lifecycle'
 import type { Database } from '@/types/database.types'
 import {
   confirmMyMessagingOrderDeposit,
   exportMyMessagingOrdersExcel,
+  fetchMyMessagingOrderRevenueReport,
   listMyMessagingOrderEvents,
-  listMyMessagingOrders,
+  listMyMessagingOrderLines,
+  listMyMessagingOrdersAdminPage,
+  updateMyMessagingOrderRefund,
   updateMyMessagingOrderShipping,
   updateMyMessagingOrderStatus,
-  updateMyMessagingOrderRefund,
-  type PartnerOrderOwnerStats,
+  type PartnerOrderAdminKpi,
+  type PartnerOrderAdminRevenueReport,
+  type PartnerOrderAdminTabCounts,
+  type PartnerOrderLineRow,
 } from '@/app/dashboard/messaging/actions'
 
 const LS_CONSULT_FLAG = 'nano_messaging_orders_consult_v1'
-const LS_REVIEW_FLAG = 'nano_messaging_orders_review_v1'
+const ACCENT = 'bg-[#ea580c] text-white hover:bg-[#c2410c]'
 
 type PartnerRow = Database['public']['Tables']['messaging_partners']['Row']
 type OrderStatus = 'awaiting_payment' | 'payment_checking' | 'paid_verified' | 'pending_manual_review' | 'cancelled'
-
-function messagingOrderShopTemplate(template: string, partnerDisplayName: string): string {
-  const name = (partnerDisplayName ?? '').trim() || 'Shop'
-  return template.replace(/\{shop\}/g, name)
-}
+type OrdersT = Dictionary['partnerMessagingOrders']
+type RevenueReportMode = 'day' | 'week' | 'month' | 'year' | 'range'
 
 type OrderRow = {
   id: string
@@ -57,33 +67,21 @@ type OrderRow = {
   product_url: string
   quantity: number
   subtotal_amount: number
-  loyalty_tier_code?: string
-  loyalty_tier_name?: string
-  loyalty_discount_percent?: number
-  loyalty_discount_amount?: number
-  birthday_discount_percent?: number
-  birthday_discount_amount?: number
-  total_discount_percent?: number
-  total_discount_amount?: number
   amount_after_discount?: number
   required_amount: number
   paid_amount: number
   variant_color: string
   variant_size: string
+  variant_image_urls?: string
   product_inventory_id: string | null
   note: string
   payment_reference: string
-  payment_qr_url: string
   verified_note: string
   shipping_status: 'pending' | 'confirmed' | 'packing' | 'shipping' | 'delivered' | 'returned' | 'cancelled'
-  locked_at: string | null
   created_at: string
   latest_proof_image_url: string | null
   latest_proof_status: 'pending' | 'verified' | 'failed' | 'manual_review' | null
-  latest_proof_reason: string | null
-  /** W1.7 */
-  payment_method?: 'cod' | 'bank_transfer' | 'ewallet'
-  shipping_fee_amount?: number
+  has_customer_review?: boolean
   refund_status?: 'none' | 'requested' | 'refunded'
   refund_amount?: number
   refund_note?: string
@@ -96,13 +94,26 @@ type OrderEventRow = {
   title: string
   detail: string
   source: string
-  created_by: string
   created_at: string
 }
 
-type OrdersT = Dictionary['partnerMessagingOrders']
+type RevenueFilterState = {
+  date: string
+  dateFrom: string
+  dateTo: string
+  year: string
+  month: string
+  preset: string | null
+}
 
-type LifecycleTab = 'all' | 'await_deposit' | 'await_ship' | 'await_receive' | 'received' | 'reviewed' | 'cancelled'
+const EMPTY_REVENUE_FILTER: RevenueFilterState = {
+  date: '',
+  dateFrom: '',
+  dateTo: '',
+  year: String(new Date().getFullYear()),
+  month: '',
+  preset: null,
+}
 
 function loadBoolMap(key: string): Record<string, boolean> {
   if (typeof window === 'undefined') return {}
@@ -121,7 +132,7 @@ function saveBoolMap(key: string, m: Record<string, boolean>) {
   try {
     localStorage.setItem(key, JSON.stringify(m))
   } catch {
-    /* ignore quota */
+    /* ignore */
   }
 }
 
@@ -133,106 +144,18 @@ function intlLocaleTag(locale: WebLocale): string {
   return 'vi-VN'
 }
 
-function money(v: number, locale: WebLocale): string {
-  return `${new Intl.NumberFormat(intlLocaleTag(locale)).format(Math.max(0, Math.round(v || 0)))}đ`
+function formatVnd(v: number, locale: WebLocale): string {
+  return new Intl.NumberFormat(intlLocaleTag(locale), {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(Math.max(0, Math.round(v || 0)))
 }
 
-function statusLabel(t: OrdersT, s: OrderStatus): string {
-  if (s === 'awaiting_payment') return t.statusAwaitingPayment
-  if (s === 'payment_checking') return t.statusPaymentChecking
-  if (s === 'paid_verified') return t.statusPaidVerified
-  if (s === 'pending_manual_review') return t.statusPendingManualReview
-  return t.statusCancelled
-}
-
-function shippingLabel(t: OrdersT, s: OrderRow['shipping_status']): string {
-  if (s === 'pending') return t.shippingPending
-  if (s === 'confirmed') return t.shippingConfirmed
-  if (s === 'packing') return t.shippingPacking
-  if (s === 'shipping') return t.shippingShipping
-  if (s === 'delivered') return t.shippingDelivered
-  if (s === 'returned') return t.shippingReturned
-  return t.shippingCancelled
-}
-
-type DepositKind = 'none' | 'partial' | 'full'
-
-function depositKind(r: OrderRow): DepositKind {
-  const req = Math.max(0, Math.round(r.required_amount || 0))
-  const paid = Math.max(0, Math.round(r.paid_amount || 0))
-  if (req <= 0) return 'full'
-  if (paid >= req) return 'full'
-  if (paid > 0) return 'partial'
-  return 'none'
-}
-
-function depositLabelText(t: OrdersT, k: DepositKind): string {
-  if (k === 'full') return t.depositFull
-  if (k === 'partial') return t.depositPartial
-  return t.depositNone
-}
-
-function proofReceiptShort(t: OrdersT, s: OrderRow['latest_proof_status']): string {
-  if (s === 'verified') return t.proofReceiptShortVerified
-  if (s === 'manual_review') return t.proofReceiptShortManual
-  if (s === 'failed') return t.proofReceiptShortFailed
-  if (s === 'pending') return t.proofReceiptShortPending
-  return t.proofReceiptShortNone
-}
-
-function isOrderCancelled(r: OrderRow): boolean {
-  return r.status === 'cancelled' || r.shipping_status === 'cancelled' || r.shipping_status === 'returned'
-}
-
-function needsDepositStage(r: OrderRow): boolean {
-  if (isOrderCancelled(r)) return false
-  const req = Math.max(0, Math.round(r.required_amount || 0))
-  const paid = Math.max(0, Math.round(r.paid_amount || 0))
-  if (req > 0 && paid >= req) {
-    return r.status !== 'paid_verified'
-  }
-  if (depositKind(r) !== 'full') return true
-  if (r.status === 'awaiting_payment' || r.status === 'payment_checking' || r.status === 'pending_manual_review') return true
-  return false
-}
-
-function matchesLifecycleTab(r: OrderRow, tab: LifecycleTab, reviewed: Record<string, boolean>): boolean {
-  if (tab === 'all') return true
-  if (tab === 'cancelled') return isOrderCancelled(r)
-  if (tab === 'reviewed') return Boolean(reviewed[r.id])
-  if (isOrderCancelled(r)) return false
-  if (tab === 'received') return r.shipping_status === 'delivered' && !reviewed[r.id]
-  if (tab === 'await_receive') return r.shipping_status === 'shipping'
-  if (tab === 'await_ship') {
-    if (r.shipping_status === 'shipping' || r.shipping_status === 'delivered') return false
-    return !needsDepositStage(r)
-  }
-  if (tab === 'await_deposit') {
-    if (r.shipping_status === 'shipping' || r.shipping_status === 'delivered') return false
-    return needsDepositStage(r)
-  }
-  return true
-}
-
-function primaryStageBadgeLabel(t: OrdersT, r: OrderRow): string {
-  if (isOrderCancelled(r)) return t.statusCancelled
-  if (r.shipping_status === 'delivered') return t.shippingDelivered
-  if (r.shipping_status === 'shipping') return t.shippingShipping
-  const req = Math.max(0, Math.round(r.required_amount || 0))
-  const paid = Math.max(0, Math.round(r.paid_amount || 0))
-  if (req > 0 && paid >= req && r.status !== 'paid_verified') return t.statusPaymentChecking
-  if (needsDepositStage(r)) return t.tabAwaitDeposit
-  return t.tabAwaitShip
-}
-
-function payBadgeLabel(t: OrdersT, r: OrderRow): string {
-  if (isOrderCancelled(r)) return t.statusCancelled
-  const dk = depositKind(r)
-  if (dk === 'none') return t.badgePayAwaiting
-  if (dk === 'partial') return t.badgePayPartial
-  if (r.status === 'awaiting_payment' || r.status === 'payment_checking' || r.status === 'pending_manual_review')
-    return t.badgePayAwaiting
-  return t.badgePayDone
+function formatDate(s: string, locale: WebLocale): string {
+  const d = new Date(s)
+  const tag = intlLocaleTag(locale)
+  return `${d.toLocaleDateString(tag)} ${d.toLocaleTimeString(tag, { hour: '2-digit', minute: '2-digit' })}`
 }
 
 function orderCodeDisplay(r: OrderRow): string {
@@ -241,41 +164,57 @@ function orderCodeDisplay(r: OrderRow): string {
   return `#${r.id.replace(/-/g, '').slice(0, 6).toUpperCase()}`
 }
 
-function codRemainder(r: OrderRow): number {
-  const sub = Math.max(0, Math.round(r.amount_after_discount || r.subtotal_amount || 0))
-  const paid = Math.max(0, Math.round(r.paid_amount || 0))
-  return Math.max(0, sub - paid)
+function tabTitle(t: OrdersT, key: PartnerAdminLifecycleTab): string {
+  if (key === 'all') return t.tabAll
+  if (key === 'waiting_deposit') return t.tabAwaitDeposit
+  if (key === 'waiting_ship') return t.tabAwaitShip
+  if (key === 'shipping') return t.tabAwaitReceive
+  if (key === 'delivered') return t.tabReceived
+  if (key === 'completed') return t.tabReviewed
+  if (key === 'returned') return t.tabReturned
+  return t.tabCancelled
 }
 
-const LIFECYCLE_TABS: { id: LifecycleTab }[] = [
-  { id: 'all' },
-  { id: 'await_deposit' },
-  { id: 'await_ship' },
-  { id: 'await_receive' },
-  { id: 'received' },
-  { id: 'reviewed' },
-  { id: 'cancelled' },
-]
+function stageLabel(t: OrdersT, r: OrderRow): string {
+  const key = partnerAdminStageBadgeKey({
+    status: r.status,
+    shipping_status: r.shipping_status,
+    required_amount: r.required_amount,
+    paid_amount: r.paid_amount,
+    has_customer_review: r.has_customer_review,
+  })
+  if (key === 'cancelled') return t.statusCancelled
+  return tabTitle(t, key)
+}
 
-function tabTitle(t: OrdersT, id: LifecycleTab): string {
-  switch (id) {
-    case 'all':
-      return t.tabAll
-    case 'await_deposit':
-      return t.tabAwaitDeposit
-    case 'await_ship':
-      return t.tabAwaitShip
-    case 'await_receive':
-      return t.tabAwaitReceive
-    case 'received':
-      return t.tabReceived
-    case 'reviewed':
-      return t.tabReviewed
-    case 'cancelled':
-      return t.tabCancelled
-    default:
-      return t.tabAll
-  }
+function payLabel(t: OrdersT, r: OrderRow): string {
+  const key = partnerAdminPayBadgeKey({
+    status: r.status,
+    shipping_status: r.shipping_status,
+    required_amount: r.required_amount,
+    paid_amount: r.paid_amount,
+  })
+  if (key === 'cancelled') return t.statusCancelled
+  if (key === 'deposit_paid') return t.badgePayPartial
+  if (key === 'paid') return t.badgePayDone
+  return t.badgePayAwaiting
+}
+
+function tabCount(counts: PartnerOrderAdminTabCounts | null, key: PartnerAdminLifecycleTab): number | null {
+  if (!counts) return null
+  if (key === 'all') return counts.totalOrders
+  if (key === 'waiting_deposit') return counts.waitingDepositOrders
+  if (key === 'waiting_ship') return counts.waitingShipOrders
+  if (key === 'shipping') return counts.shippingOrders
+  if (key === 'delivered') return counts.deliveredOrders
+  if (key === 'completed') return counts.completedOrders
+  if (key === 'returned') return counts.returnedOrders
+  return counts.cancelledOrders
+}
+
+function lineImage(line: PartnerOrderLineRow, fallback: string): string {
+  const fromVariant = parsePartnerOrderVariantImageUrls(line.variant_image_urls)[0]
+  return (fromVariant || line.product_image_url || fallback || '').trim()
 }
 
 export function PartnerMessagingOrdersClient({
@@ -293,31 +232,58 @@ export function PartnerMessagingOrdersClient({
 }) {
   const { toast } = useToast()
   const [pending, startTransition] = useTransition()
-  const [rows, setRows] = useState<OrderRow[]>([])
-  const [selectedPartnerId, setSelectedPartnerId] = useState<string>(lockedPartnerId?.trim() || 'all')
-  const /** YYYY-MM-DD */ [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-  const [query, setQuery] = useState('')
-  const [lifecycleTab, setLifecycleTab] = useState<LifecycleTab>('all')
-  const [filterShipping, setFilterShipping] = useState<'all' | OrderRow['shipping_status']>('all')
-  const [filterPayment, setFilterPayment] = useState<'all' | OrderStatus>('all')
-  const [consultedMap, setConsultedMap] = useState<Record<string, boolean>>({})
-  const [reviewedMap, setReviewedMap] = useState<Record<string, boolean>>({})
-
-  const [noteByOrder, setNoteByOrder] = useState<Record<string, string>>({})
-  // W1.7 — hoàn tiền thủ công (không có cổng thanh toán thật nào tự động hoàn).
-  const [refundNoteByOrder, setRefundNoteByOrder] = useState<Record<string, string>>({})
-  const [refundAmountByOrder, setRefundAmountByOrder] = useState<Record<string, string>>({})
-  const [detailModalOrderId, setDetailModalOrderId] = useState<string | null>(null)
-  const [eventsByOrder, setEventsByOrder] = useState<Record<string, OrderEventRow[]>>({})
-  const [stats, setStats] = useState<PartnerOrderOwnerStats | null>(null)
-
-  const tag = intlLocaleTag(locale)
   const t = ordersT
+  const tag = intlLocaleTag(locale)
+
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string>(lockedPartnerId?.trim() || 'all')
+  const [rows, setRows] = useState<OrderRow[]>([])
+  const [filteredTotal, setFilteredTotal] = useState(0)
+  const [kpi, setKpi] = useState<PartnerOrderAdminKpi | null>(null)
+  const [tabCounts, setTabCounts] = useState<PartnerOrderAdminTabCounts | null>(null)
+  const [listPage, setListPage] = useState(1)
+  const [listPageSize, setListPageSize] = useState(PARTNER_ADMIN_ORDERS_DEFAULT_PAGE_SIZE)
+  const [activeTab, setActiveTab] = useState<PartnerAdminLifecycleTab>('all')
+  const [search, setSearch] = useState('')
+  const [appliedSearch, setAppliedSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<PartnerAdminLifecycleTab | ''>('')
+  const [paymentFilter, setPaymentFilter] = useState<PartnerAdminPaymentFilter>('')
+  const [consultedMap, setConsultedMap] = useState<Record<string, boolean>>({})
+  const [pageToast, setPageToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
+
+  const [selectedOrder, setSelectedOrder] = useState<OrderRow | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [paymentOpen, setPaymentOpen] = useState(false)
+  const [paymentNote, setPaymentNote] = useState('')
+  const [noteByOrder, setNoteByOrder] = useState<Record<string, string>>({})
+  const [eventsByOrder, setEventsByOrder] = useState<Record<string, OrderEventRow[]>>({})
+  const [linesByOrder, setLinesByOrder] = useState<Record<string, PartnerOrderLineRow[]>>({})
+
+  const [revenueMode, setRevenueMode] = useState<RevenueReportMode>('day')
+  const [revenueFilter, setRevenueFilter] = useState<RevenueFilterState>(() => ({
+    ...EMPTY_REVENUE_FILTER,
+    date: todayIsoVn(),
+    preset: 'today',
+  }))
+  const [revenueReport, setRevenueReport] = useState<PartnerOrderAdminRevenueReport | null>(null)
+  const [revenueLoading, setRevenueLoading] = useState(false)
+  const [revenueError, setRevenueError] = useState<string | null>(null)
+
+  const partnerIdArg = selectedPartnerId === 'all' ? '' : selectedPartnerId
+  const lifecycleForQuery: PartnerAdminLifecycleTab = statusFilter || activeTab
+
+  const showPageToast = (type: 'ok' | 'err', msg: string) => {
+    setPageToast({ type, msg })
+    window.setTimeout(() => setPageToast(null), 3000)
+  }
 
   useEffect(() => {
     setConsultedMap(loadBoolMap(LS_CONSULT_FLAG))
-    setReviewedMap(loadBoolMap(LS_REVIEW_FLAG))
+    const params = new URLSearchParams(window.location.search)
+    const q = (params.get('q') || params.get('highlight') || '').trim()
+    if (q) {
+      setSearch(q)
+      setAppliedSearch(q)
+    }
   }, [])
 
   useEffect(() => {
@@ -325,52 +291,264 @@ export function PartnerMessagingOrdersClient({
     if (locked && locked !== selectedPartnerId) setSelectedPartnerId(locked)
   }, [lockedPartnerId, selectedPartnerId])
 
-  const toggleConsulted = useCallback((orderId: string, next: boolean) => {
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setAppliedSearch(search.trim())
+      setListPage(1)
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [search])
+
+  useEffect(() => {
+    setListPage(1)
+  }, [activeTab, statusFilter, paymentFilter, listPageSize, selectedPartnerId])
+
+  const loadOrders = useCallback(() => {
+    startTransition(async () => {
+      const skip = (listPage - 1) * listPageSize
+      const res = await listMyMessagingOrdersAdminPage({
+        partnerId: partnerIdArg,
+        q: appliedSearch,
+        lifecycleTab: lifecycleForQuery,
+        paymentFilter,
+        skip,
+        limit: listPageSize,
+      })
+      if ('error' in res && res.error) {
+        showPageToast('err', res.error)
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      if ('rows' in res) {
+        const maxPage = Math.max(1, Math.ceil(res.filteredTotal / listPageSize))
+        if (res.filteredTotal > 0 && listPage > maxPage) {
+          setListPage(maxPage)
+          return
+        }
+        setRows(res.rows as unknown as OrderRow[])
+        setFilteredTotal(res.filteredTotal)
+        setKpi(res.kpi)
+        setTabCounts(res.tabCounts)
+      }
+    })
+  }, [appliedSearch, lifecycleForQuery, listPage, listPageSize, partnerIdArg, paymentFilter, toast])
+
+  useEffect(() => {
+    loadOrders()
+  }, [loadOrders])
+
+  const loadRevenue = useCallback(
+    async (mode: RevenueReportMode, filter: RevenueFilterState) => {
+      setRevenueLoading(true)
+      setRevenueError(null)
+      let from = ''
+      let to = ''
+      let label = ''
+      if (mode === 'day') {
+        if (!filter.date) {
+          setRevenueError(t.revenueNeedDay)
+          setRevenueLoading(false)
+          return
+        }
+        from = to = filter.date
+        label = filter.preset === 'today' ? t.revenueToday : filter.date
+      } else if (mode === 'week') {
+        if (filter.preset !== 'this_week' && filter.preset !== 'last_week') {
+          setRevenueError(t.revenueNeedWeek)
+          setRevenueLoading(false)
+          return
+        }
+        const range = weekRangeIsoVn(filter.preset)
+        from = range.from
+        to = range.to
+        label = filter.preset === 'this_week' ? t.revenueThisWeek : t.revenueLastWeek
+      } else if (mode === 'month') {
+        if (filter.preset === 'this_month' || filter.preset === 'last_month') {
+          const now = todayIsoVn()
+          const [y, m] = now.split('-').map(Number)
+          const month = filter.preset === 'this_month' ? m : m === 1 ? 12 : m - 1
+          const year = filter.preset === 'this_month' ? y : m === 1 ? y - 1 : y
+          const packed = `${year}-${String(month).padStart(2, '0')}`
+          const range = monthInputToDateRange(packed)
+          if (!range) {
+            setRevenueError(t.revenueInvalidMonth)
+            setRevenueLoading(false)
+            return
+          }
+          from = range.from
+          to = range.to
+          label = filter.preset === 'this_month' ? t.revenueThisMonth : t.revenueLastMonth
+        } else if (filter.month) {
+          const range = monthInputToDateRange(filter.month)
+          if (!range) {
+            setRevenueError(t.revenueInvalidMonth)
+            setRevenueLoading(false)
+            return
+          }
+          from = range.from
+          to = range.to
+          label = filter.month
+        } else {
+          setRevenueError(t.revenueNeedMonth)
+          setRevenueLoading(false)
+          return
+        }
+      } else if (mode === 'year') {
+        const y = Number(filter.year)
+        if (!Number.isFinite(y) || y < 1970 || y > 2100) {
+          setRevenueError(t.revenueNeedYear)
+          setRevenueLoading(false)
+          return
+        }
+        const range = yearRangeIso(y)
+        from = range.from
+        to = range.to
+        label = String(y)
+      } else {
+        from = filter.dateFrom.trim()
+        to = (filter.dateTo || filter.dateFrom).trim()
+        if (!from) {
+          setRevenueError(t.revenueNeedRange)
+          setRevenueLoading(false)
+          return
+        }
+        label = to && to !== from ? `${from} → ${to}` : from
+      }
+      const res = await fetchMyMessagingOrderRevenueReport({
+        partnerId: partnerIdArg,
+        dateFrom: from,
+        dateTo: to || from,
+        periodLabel: label,
+      })
+      if ('error' in res && res.error) {
+        setRevenueReport(null)
+        setRevenueError(res.error)
+      } else if ('report' in res) {
+        setRevenueReport(res.report)
+      }
+      setRevenueLoading(false)
+    },
+    [partnerIdArg, t]
+  )
+
+  useEffect(() => {
+    void loadRevenue('day', { ...EMPTY_REVENUE_FILTER, date: todayIsoVn(), preset: 'today' })
+  }, [loadRevenue])
+
+  const toggleConsulted = (orderId: string, next: boolean) => {
     setConsultedMap((prev) => {
       const n = { ...prev, [orderId]: next }
       saveBoolMap(LS_CONSULT_FLAG, n)
       return n
     })
-  }, [])
+  }
 
-  const toggleReviewed = useCallback((orderId: string, next: boolean) => {
-    setReviewedMap((prev) => {
-      const n = { ...prev, [orderId]: next }
-      saveBoolMap(LS_REVIEW_FLAG, n)
-      return n
-    })
-  }, [])
+  const copyCustomerAddress = async (address: string | undefined | null) => {
+    const text = address?.trim()
+    if (!text) {
+      showPageToast('err', t.noAddress)
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(text)
+      showPageToast('ok', t.toastAddressCopied)
+    } catch {
+      showPageToast('err', t.toastAddressCopyFailed)
+    }
+  }
 
-  const loadOrders = () => {
-    startTransition(async () => {
-      const res = await listMyMessagingOrders({
-        partnerId: selectedPartnerId === 'all' ? '' : selectedPartnerId,
-        status: '',
-        createdFrom: dateFrom.trim() || undefined,
-        createdTo: dateTo.trim() || undefined,
-        limit: 200,
+  const openDetail = (order: OrderRow) => {
+    setSelectedOrder(order)
+    setDetailOpen(true)
+    if (eventsByOrder[order.id] === undefined) {
+      startTransition(async () => {
+        const res = await listMyMessagingOrderEvents({ orderId: order.id, limit: 60 })
+        if ('rows' in res) {
+          setEventsByOrder((prev) => ({ ...prev, [order.id]: (res.rows ?? []) as unknown as OrderEventRow[] }))
+        } else {
+          setEventsByOrder((prev) => ({ ...prev, [order.id]: [] }))
+        }
       })
+    }
+    if (linesByOrder[order.id] === undefined) {
+      startTransition(async () => {
+        const res = await listMyMessagingOrderLines({ orderId: order.id })
+        if ('rows' in res) setLinesByOrder((prev) => ({ ...prev, [order.id]: res.rows }))
+        else setLinesByOrder((prev) => ({ ...prev, [order.id]: [] }))
+      })
+    }
+  }
+
+  const openPaymentModal = (order: OrderRow) => {
+    setSelectedOrder(order)
+    setPaymentNote(noteByOrder[order.id] ?? '')
+    setPaymentOpen(true)
+  }
+
+  const confirmDepositManual = (orderId: string) => {
+    startTransition(async () => {
+      const note = (noteByOrder[orderId] ?? paymentNote).trim()
+      const res = await confirmMyMessagingOrderDeposit({ orderId, verifiedNote: note })
       if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
+        showPageToast('err', res.error)
         return
       }
-      if ('rows' in res && 'stats' in res) {
-        setRows((res.rows ?? []) as unknown as OrderRow[])
-        setStats(res.stats)
+      showPageToast('ok', t.toastStatusUpdated)
+      setPaymentOpen(false)
+      setDetailOpen(false)
+      loadOrders()
+    })
+  }
+
+  const setStatus = (orderId: string, status: OrderStatus) => {
+    startTransition(async () => {
+      const note = (noteByOrder[orderId] ?? '').trim()
+      const res = await updateMyMessagingOrderStatus({ orderId, status, verifiedNote: note })
+      if ('error' in res && res.error) {
+        showPageToast('err', res.error)
+        return
       }
+      showPageToast('ok', t.toastStatusUpdated)
+      loadOrders()
+    })
+  }
+
+  const setShipping = (orderId: string, shippingStatus: OrderRow['shipping_status']) => {
+    startTransition(async () => {
+      const note = (noteByOrder[orderId] ?? '').trim()
+      const res = await updateMyMessagingOrderShipping({ orderId, shippingStatus, note })
+      if ('error' in res && res.error) {
+        showPageToast('err', res.error)
+        return
+      }
+      showPageToast('ok', t.toastShippingUpdated)
+      loadOrders()
+    })
+  }
+
+  const markRefunded = (orderId: string, amount: number) => {
+    startTransition(async () => {
+      const res = await updateMyMessagingOrderRefund({
+        orderId,
+        refundStatus: 'refunded',
+        refundAmount: Math.max(0, Math.round(amount || 0)),
+        refundNote: t.btnRefundDeposit,
+      })
+      if ('error' in res && res.error) {
+        showPageToast('err', res.error)
+        return
+      }
+      showPageToast('ok', t.toastRefundUpdated)
+      setDetailOpen(false)
+      loadOrders()
     })
   }
 
   const exportExcel = () => {
     startTransition(async () => {
-      const res = await exportMyMessagingOrdersExcel({
-        partnerId: selectedPartnerId === 'all' ? '' : selectedPartnerId,
-        status: filterPayment === 'all' ? '' : filterPayment,
-        createdFrom: dateFrom.trim() || undefined,
-        createdTo: dateTo.trim() || undefined,
-      })
+      const res = await exportMyMessagingOrdersExcel({ partnerId: partnerIdArg })
       if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
+        showPageToast('err', res.error)
         return
       }
       if (!('ok' in res) || !res.ok) return
@@ -386,975 +564,924 @@ export function PartnerMessagingOrdersClient({
       a.download = res.filename
       a.click()
       URL.revokeObjectURL(url)
-      toast({
-        title: t.toastExportDone
-          .replace('{count}', res.count.toLocaleString(tag))
-          .replace('{filename}', res.filename),
-      })
-    })
-  }
-
-  useEffect(() => {
-    loadOrders()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPartnerId, dateFrom, dateTo])
-
-  const baseFiltered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return rows.filter((r) => {
-      if (filterShipping !== 'all' && r.shipping_status !== filterShipping) return false
-      if (filterPayment !== 'all' && r.status !== filterPayment) return false
-      if (!q) return true
-      return (
-        (r.payment_reference || '').toLowerCase().includes(q) ||
-        r.product_name.toLowerCase().includes(q) ||
-        (r.order_items_summary || '').toLowerCase().includes(q) ||
-        (r.customer_name || '').toLowerCase().includes(q) ||
-        (r.customer_phone || '').toLowerCase().includes(q) ||
-        r.id.toLowerCase().includes(q)
+      showPageToast(
+        'ok',
+        t.toastExportDone.replace('{count}', res.count.toLocaleString(tag)).replace('{filename}', res.filename)
       )
     })
-  }, [rows, query, filterShipping, filterPayment])
-
-  const tabCounts = useMemo(() => {
-    const m: Record<LifecycleTab, number> = {
-      all: baseFiltered.length,
-      await_deposit: 0,
-      await_ship: 0,
-      await_receive: 0,
-      received: 0,
-      reviewed: 0,
-      cancelled: 0,
-    }
-    for (const r of baseFiltered) {
-      for (const x of LIFECYCLE_TABS) {
-        if (x.id === 'all') continue
-        if (matchesLifecycleTab(r, x.id, reviewedMap)) m[x.id] += 1
-      }
-    }
-    return m
-  }, [baseFiltered, reviewedMap])
-
-  const displayRows = useMemo(() => {
-    if (lifecycleTab === 'all') return baseFiltered
-    return baseFiltered.filter((r) => matchesLifecycleTab(r, lifecycleTab, reviewedMap))
-  }, [baseFiltered, lifecycleTab, reviewedMap])
-
-  const clearTableFilters = () => {
-    setQuery('')
-    setFilterShipping('all')
-    setFilterPayment('all')
-    setLifecycleTab('all')
   }
 
-  const setStatus = (orderId: string, status: OrderStatus) => {
-    startTransition(async () => {
-      const note = (noteByOrder[orderId] ?? '').trim()
-      const res = await updateMyMessagingOrderStatus({ orderId, status, verifiedNote: note })
-      if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
-        return
-      }
-      toast({ title: t.toastStatusUpdated })
-      setEventsByOrder((prev) => {
-        if (prev[orderId] === undefined) return prev
-        const n = { ...prev }
-        delete n[orderId]
-        return n
-      })
-      loadOrders()
-    })
-  }
+  const totalPages = Math.max(1, Math.ceil(filteredTotal / listPageSize))
+  const displayFrom = filteredTotal === 0 ? 0 : (listPage - 1) * listPageSize + 1
+  const displayTo = Math.min(listPage * listPageSize, filteredTotal)
+  const loading = pending && rows.length === 0
 
-  const confirmDepositManual = (orderId: string) => {
-    startTransition(async () => {
-      const note = (noteByOrder[orderId] ?? '').trim()
-      const res = await confirmMyMessagingOrderDeposit({ orderId, verifiedNote: note })
-      if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
-        return
-      }
-      toast({ title: t.toastStatusUpdated })
-      setEventsByOrder((prev) => {
-        if (prev[orderId] === undefined) return prev
-        const n = { ...prev }
-        delete n[orderId]
-        return n
-      })
-      loadOrders()
-    })
-  }
-
-  const markRefunded = (orderId: string) => {
-    startTransition(async () => {
-      const note = (refundNoteByOrder[orderId] ?? '').trim()
-      const amountRaw = (refundAmountByOrder[orderId] ?? '').replace(/[^\d]/g, '')
-      const amount = Math.max(0, Math.round(Number(amountRaw) || 0))
-      const res = await updateMyMessagingOrderRefund({
-        orderId,
-        refundStatus: 'refunded',
-        refundAmount: amount,
-        refundNote: note,
-      })
-      if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
-        return
-      }
-      toast({ title: t.toastRefundUpdated })
-      loadOrders()
-      if (detailModalOrderId === orderId) {
-        const evt = await listMyMessagingOrderEvents({ orderId, limit: 60 })
-        if ('rows' in evt) {
-          setEventsByOrder((prev) => ({ ...prev, [orderId]: (evt.rows ?? []) as unknown as OrderEventRow[] }))
-        }
-      }
-    })
-  }
-
-  const nextShippingStatus = (s: OrderRow['shipping_status']): OrderRow['shipping_status'] | null => {
-    if (s === 'pending') return 'confirmed'
-    if (s === 'confirmed') return 'packing'
-    if (s === 'packing') return 'shipping'
-    if (s === 'shipping') return 'delivered'
-    return null
-  }
-
-  const setShipping = (orderId: string, shippingStatus: OrderRow['shipping_status']) => {
-    startTransition(async () => {
-      const note = (noteByOrder[orderId] ?? '').trim()
-      const res = await updateMyMessagingOrderShipping({
-        orderId,
-        shippingStatus,
-        note,
-      })
-      if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
-        return
-      }
-      toast({ title: t.toastShippingUpdated })
-      loadOrders()
-      if (detailModalOrderId === orderId) {
-        const evt = await listMyMessagingOrderEvents({ orderId, limit: 60 })
-        if ('rows' in evt) {
-          setEventsByOrder((prev) => ({ ...prev, [orderId]: (evt.rows ?? []) as unknown as OrderEventRow[] }))
-        }
-      }
-    })
-  }
-
-  useEffect(() => {
-    const oid = detailModalOrderId
-    if (!oid || eventsByOrder[oid] !== undefined) return
-    startTransition(async () => {
-      const res = await listMyMessagingOrderEvents({ orderId: oid, limit: 60 })
-      if ('rows' in res) {
-        setEventsByOrder((prev) => ({ ...prev, [oid]: (res.rows ?? []) as unknown as OrderEventRow[] }))
-      } else {
-        setEventsByOrder((prev) => ({ ...prev, [oid]: [] }))
-      }
-    })
-  }, [eventsByOrder, detailModalOrderId])
-
-  const detailOrder = useMemo(
-    () => (detailModalOrderId ? rows.find((x) => x.id === detailModalOrderId) ?? null : null),
-    [rows, detailModalOrderId]
-  )
+  const detailLines = selectedOrder ? linesByOrder[selectedOrder.id] : undefined
+  const productLines: PartnerOrderLineRow[] = useMemo(() => {
+    if (!selectedOrder) return []
+    if (detailLines && detailLines.length > 0) return detailLines
+    return [
+      {
+        id: selectedOrder.id,
+        order_id: selectedOrder.id,
+        product_inventory_id: selectedOrder.product_inventory_id,
+        product_name: selectedOrder.product_name,
+        product_image_url: selectedOrder.product_image_url,
+        product_url: selectedOrder.product_url,
+        unit_price: Math.round(
+          (selectedOrder.amount_after_discount || selectedOrder.subtotal_amount || 0) / Math.max(1, selectedOrder.quantity)
+        ),
+        quantity: selectedOrder.quantity,
+        line_subtotal: Math.round(selectedOrder.amount_after_discount || selectedOrder.subtotal_amount || 0),
+        variant_color: selectedOrder.variant_color,
+        variant_size: selectedOrder.variant_size,
+        variant_image_urls: selectedOrder.variant_image_urls || '',
+        note: selectedOrder.note,
+        sort_order: 0,
+        created_at: selectedOrder.created_at,
+        updated_at: selectedOrder.created_at,
+      },
+    ]
+  }, [detailLines, selectedOrder])
 
   return (
-    <div className="space-y-3 md:space-y-4">
-      <Card className="overflow-hidden border-border/80 shadow-sm">
-        <CardContent className="space-y-3 p-3 sm:p-4">
-          <div className="flex flex-wrap items-end gap-2 sm:gap-3">
-            {hidePartnerPicker ? null : (
-            <div className="flex min-w-[180px] flex-1 flex-col gap-1">
-              <Label className="text-[11px] font-medium text-muted-foreground">{t.allWorkspaces}</Label>
-              <Select value={selectedPartnerId} onValueChange={setSelectedPartnerId}>
-                <SelectTrigger className="h-9 w-full sm:max-w-[280px]">
-                  <SelectValue placeholder={t.allWorkspaces} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t.allWorkspaces}</SelectItem>
-                  {initialPartners.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.display_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            )}
-            <div className="flex flex-wrap gap-2 sm:gap-3">
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="messaging-orders-date-from" className="text-[11px] font-medium text-muted-foreground">
-                  {t.filterCreatedFrom}
-                </Label>
-                <Input
-                  id="messaging-orders-date-from"
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="h-9 w-[140px] sm:w-[150px]"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="messaging-orders-date-to" className="text-[11px] font-medium text-muted-foreground">
-                  {t.filterCreatedTo}
-                </Label>
-                <Input
-                  id="messaging-orders-date-to"
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="h-9 w-[140px] sm:w-[150px]"
-                />
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="h-9 px-3"
-                onClick={() => exportExcel()}
-                disabled={pending}
-                title={t.exportExcelTitle}
-              >
-                <Download className="mr-1.5 h-3.5 w-3.5" />
-                {t.exportExcel}
-              </Button>
-              <Button type="button" variant="outline" size="sm" className="h-9 px-3" onClick={loadOrders} disabled={pending}>
-                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                {t.reload}
-              </Button>
-            </div>
-          </div>
+    <div className="-m-3 bg-slate-100 p-4 sm:-m-4 sm:p-6 lg:-m-5 dark:bg-zinc-900">
+      {pageToast ? (
+        <div
+          className={`fixed top-24 right-4 z-[100] max-w-[min(20rem,calc(100vw-2rem))] px-4 py-2 rounded-lg shadow-lg sm:right-6 ${
+            pageToast.type === 'ok' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          {pageToast.msg}
+        </div>
+      ) : null}
 
-          {stats ? (
-            <div className="border-t border-border/60 pt-3">
-              <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                <Layers className="h-3.5 w-3.5 shrink-0 text-violet-600 dark:text-violet-400" aria-hidden />
-                {t.summaryTitle}
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-                <div className="rounded-lg border border-border/70 bg-muted/15 px-2.5 py-2">
-                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
-                    <ClipboardList className="h-3 w-3 shrink-0" aria-hidden />
-                    {t.statOrders}
-                  </div>
-                  <p className="mt-0.5 text-lg font-semibold tabular-nums tracking-tight">{stats.orderCount.toLocaleString(tag)}</p>
-                </div>
-                <div className="rounded-lg border border-border/70 bg-muted/15 px-2.5 py-2">
-                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
-                    <Receipt className="h-3 w-3 shrink-0" aria-hidden />
-                    {t.statSubtotal}
-                  </div>
-                  <p className="mt-0.5 text-base font-semibold tabular-nums leading-snug">{money(stats.sumSubtotalVnd, locale)}</p>
-                </div>
-                <div className="rounded-lg border border-border/70 bg-muted/15 px-2.5 py-2">
-                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
-                    <PiggyBank className="h-3 w-3 shrink-0" aria-hidden />
-                    {t.statRequired}
-                  </div>
-                  <p className="mt-0.5 text-base font-semibold tabular-nums leading-snug">{money(stats.sumRequiredVnd, locale)}</p>
-                </div>
-                <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/[0.06] px-2.5 py-2 dark:bg-emerald-500/10">
-                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-300">
-                    <Wallet className="h-3 w-3 shrink-0" aria-hidden />
-                    {t.statPaid}
-                  </div>
-                  <p className="mt-0.5 text-base font-semibold tabular-nums text-emerald-900 dark:text-emerald-100">{money(stats.sumPaidVnd, locale)}</p>
-                </div>
-                <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-2.5 py-2 dark:bg-amber-500/10 sm:col-span-2 lg:col-span-1">
-                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-amber-900 dark:text-amber-200">
-                    <Banknote className="h-3 w-3 shrink-0" aria-hidden />
-                    {t.statOutstanding}
-                  </div>
-                  <p className="mt-0.5 text-base font-semibold tabular-nums">{money(stats.sumOutstandingVnd, locale)}</p>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="border-t border-border/60 pt-3">
-            <div className="rounded-lg bg-muted/40 p-1 dark:bg-muted/25">
-              <div className="-mx-0.5 flex gap-0.5 overflow-x-auto px-0.5 [scrollbar-width:thin]">
-                {LIFECYCLE_TABS.map(({ id }) => {
-                  const active = lifecycleTab === id
-                  const count = tabCounts[id]
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => setLifecycleTab(id)}
-                      className={cn(
-                        'shrink-0 rounded-md px-2.5 py-1.5 text-left text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-1 sm:text-sm',
-                        active
-                          ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/20'
-                          : 'border border-transparent text-muted-foreground hover:bg-background hover:text-foreground'
-                      )}
-                    >
-                      <span className="whitespace-nowrap">
-                        {tabTitle(t, id)}{' '}
-                        <span className={cn('tabular-nums', active ? 'text-white/90' : 'text-muted-foreground')}>
-                          ({count.toLocaleString(tag)})
-                        </span>
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t.searchPlaceholder}
-              className="h-9 min-w-0 flex-1 sm:min-w-[200px]"
-            />
-            <div className="flex flex-wrap gap-2">
-              <Select value={filterShipping} onValueChange={(v) => setFilterShipping(v as typeof filterShipping)}>
-                <SelectTrigger className="h-9 w-full min-w-[160px] sm:w-[180px]">
-                  <SelectValue placeholder={t.filterShippingLabel} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t.filterShippingLabel}</SelectItem>
-                  <SelectItem value="pending">{t.shippingPending}</SelectItem>
-                  <SelectItem value="confirmed">{t.shippingConfirmed}</SelectItem>
-                  <SelectItem value="packing">{t.shippingPacking}</SelectItem>
-                  <SelectItem value="shipping">{t.shippingShipping}</SelectItem>
-                  <SelectItem value="delivered">{t.shippingDelivered}</SelectItem>
-                  <SelectItem value="returned">{t.shippingReturned}</SelectItem>
-                  <SelectItem value="cancelled">{t.shippingCancelled}</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={filterPayment} onValueChange={(v) => setFilterPayment(v as typeof filterPayment)}>
-                <SelectTrigger className="h-9 w-full min-w-[160px] sm:w-[180px]">
-                  <SelectValue placeholder={t.filterPaymentShort} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t.allStatuses}</SelectItem>
-                  <SelectItem value="awaiting_payment">{t.statusAwaitingPayment}</SelectItem>
-                  <SelectItem value="payment_checking">{t.statusPaymentChecking}</SelectItem>
-                  <SelectItem value="pending_manual_review">{t.statusPendingManualReview}</SelectItem>
-                  <SelectItem value="paid_verified">{t.statusPaidVerified}</SelectItem>
-                  <SelectItem value="cancelled">{t.statusCancelled}</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button type="button" variant="outline" size="sm" className="h-9 text-xs" onClick={clearTableFilters}>
-                {t.clearTableFilters}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="min-w-0 space-y-2">
-          {rows.length >= 200 ? (
-            <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">{t.listCapNote}</p>
-          ) : null}
-          {displayRows.length === 0 ? (
-            <Card className="border-dashed border-border/80 bg-muted/20 shadow-none">
-              <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                {rows.length === 0 ? t.emptyList : t.emptyFiltered}
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm">
-              <div className="max-h-[min(72vh,820px)] overflow-auto [scrollbar-gutter:stable]">
-                <table className="w-full caption-bottom text-sm">
-                  <TableHeader className="sticky top-0 z-10 border-b border-border bg-muted/95 backdrop-blur-sm dark:bg-muted/90">
-                    <TableRow className="border-b-0 hover:bg-transparent">
-                      <TableHead className="whitespace-nowrap bg-muted/95 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground dark:bg-muted/90">
-                        {t.tableColOrderCode}
-                      </TableHead>
-                      <TableHead
-                        className="w-14 bg-muted/95 py-3 text-center text-[10px] font-semibold uppercase leading-tight text-muted-foreground dark:bg-muted/90 sm:w-16 sm:text-xs"
-                        title={t.consultLocalHint}
-                      >
-                        {t.tableColConsulted}
-                      </TableHead>
-                      <TableHead className="min-w-[128px] bg-muted/95 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground dark:bg-muted/90">
-                        {t.tableColCustomer}
-                      </TableHead>
-                      <TableHead className="whitespace-nowrap bg-muted/95 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground dark:bg-muted/90">
-                        {t.tableColSubtotal}
-                      </TableHead>
-                      <TableHead className="hidden whitespace-nowrap bg-muted/95 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:table-cell dark:bg-muted/90">
-                        {t.tableColDepositRequired}
-                      </TableHead>
-                      <TableHead className="hidden whitespace-nowrap bg-muted/95 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:table-cell dark:bg-muted/90">
-                        {t.tableColPaidAmount}
-                      </TableHead>
-                      <TableHead className="hidden min-w-[118px] bg-muted/95 py-3 text-right text-xs font-semibold uppercase leading-snug tracking-wide text-muted-foreground sm:table-cell dark:bg-muted/90">
-                        {t.tableColDueOnDelivery}
-                      </TableHead>
-                      <TableHead className="min-w-[140px] bg-muted/95 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground dark:bg-muted/90">
-                        {t.tableColStatus}
-                      </TableHead>
-                      <TableHead className="whitespace-nowrap bg-muted/95 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground dark:bg-muted/90">
-                        {t.tableColOrderDate}
-                      </TableHead>
-                      <TableHead className="min-w-[120px] bg-muted/95 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground dark:bg-muted/90">
-                        {t.tableColActions}
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                  {displayRows.map((r) => {
-                    const needDeposit = needsDepositStage(r)
-                    const rowActive = detailModalOrderId === r.id
-                    return (
-                      <TableRow
-                        key={r.id}
-                        className={cn(
-                          'group border-border/60 transition-colors',
-                          rowActive ? 'bg-violet-500/[0.08] dark:bg-violet-500/10' : 'even:bg-muted/25 hover:bg-muted/40'
-                        )}
-                      >
-                          <TableCell className="align-top font-mono text-xs font-semibold text-foreground">{orderCodeDisplay(r)}</TableCell>
-                          <TableCell className="align-top text-center">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(consultedMap[r.id])}
-                              onChange={(e) => toggleConsulted(r.id, e.target.checked)}
-                              className="h-4 w-4 cursor-pointer rounded border-input accent-violet-600"
-                              aria-label={t.consultedAria}
-                            />
-                          </TableCell>
-                          <TableCell className="align-top">
-                            <div className="max-w-[200px] font-medium leading-snug [overflow-wrap:anywhere]">{r.customer_name || '—'}</div>
-                            <div className="mt-0.5 text-xs text-muted-foreground tabular-nums">{r.customer_phone || '—'}</div>
-                          </TableCell>
-                          <TableCell className="align-top text-right text-sm font-semibold tabular-nums text-foreground">{money(r.subtotal_amount, locale)}</TableCell>
-                          <TableCell className="hidden align-top text-right text-sm tabular-nums text-foreground sm:table-cell">
-                            {money(r.required_amount, locale)}
-                          </TableCell>
-                          <TableCell className="hidden align-top text-right text-sm tabular-nums text-foreground sm:table-cell">
-                            {money(r.paid_amount, locale)}
-                          </TableCell>
-                          <TableCell className="hidden align-top text-right text-sm font-medium tabular-nums text-foreground sm:table-cell">
-                            {money(codRemainder(r), locale)}
-                          </TableCell>
-                          <TableCell className="align-top">
-                            <div className="flex max-w-[220px] flex-wrap gap-1">
-                              <Badge variant="secondary" className="whitespace-normal border-transparent px-2 py-0.5 text-[11px] font-medium leading-snug">
-                                {primaryStageBadgeLabel(t, r)}
-                              </Badge>
-                              <Badge
-                                variant="outline"
-                                className="whitespace-normal border-orange-200/80 bg-orange-50 px-2 py-0.5 text-[11px] font-medium leading-snug text-orange-900 dark:border-orange-900/50 dark:bg-orange-950/50 dark:text-orange-100"
-                              >
-                                {payBadgeLabel(t, r)}
-                              </Badge>
-                            </div>
-                            <div className="mt-1.5 space-y-1 text-[11px] text-muted-foreground sm:hidden">
-                              <div className="flex justify-between gap-3 tabular-nums">
-                                <span className="shrink-0 text-[10px] uppercase tracking-wide">{t.tableColDepositRequired}</span>
-                                <span className="text-right font-medium text-foreground">{money(r.required_amount, locale)}</span>
-                              </div>
-                              <div className="flex justify-between gap-3 tabular-nums">
-                                <span className="shrink-0 text-[10px] uppercase tracking-wide">{t.tableColPaidAmount}</span>
-                                <span className="text-right font-medium text-foreground">{money(r.paid_amount, locale)}</span>
-                              </div>
-                              <div className="flex justify-between gap-3 tabular-nums">
-                                <span className="shrink-0 leading-tight text-[10px] uppercase tracking-wide">{t.tableColDueOnDelivery}</span>
-                                <span className="text-right font-medium text-foreground">{money(codRemainder(r), locale)}</span>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="align-top text-xs tabular-nums text-muted-foreground">
-                            {new Date(r.created_at).toLocaleString(tag, { dateStyle: 'short', timeStyle: 'short' })}
-                          </TableCell>
-                          <TableCell className="align-top text-right">
-                            <div className="flex flex-col items-end gap-2">
-                              <button
-                                type="button"
-                                className="text-sm font-medium text-violet-600 hover:text-violet-700 hover:underline dark:text-violet-400 dark:hover:text-violet-300"
-                                onClick={() => setDetailModalOrderId(r.id)}
-                              >
-                                {t.tableDetails}
-                              </button>
-                              {needDeposit && !isOrderCancelled(r) ? (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  className="h-8 min-w-[7rem] bg-orange-500 text-white shadow-sm hover:bg-orange-600"
-                                  disabled={pending}
-                                  onClick={() => confirmDepositManual(r.id)}
-                                >
-                                  {t.btnConfirmDeposit}
-                                </Button>
-                              ) : null}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                    )
-                  })}
-                </TableBody>
-                </table>
-              </div>
-            </div>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-zinc-50">{t.pageTitle}</h1>
+          <p className="text-gray-600 dark:text-zinc-400">{t.pageDescription}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {hidePartnerPicker ? null : (
+            <select
+              value={selectedPartnerId}
+              onChange={(e) => setSelectedPartnerId(e.target.value)}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800"
+            >
+              <option value="all">{t.allWorkspaces}</option>
+              {initialPartners.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.display_name}
+                </option>
+              ))}
+            </select>
           )}
+          <button
+            type="button"
+            onClick={() => exportExcel()}
+            disabled={pending}
+            title={t.exportExcelTitle}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+          >
+            <Download className="h-3.5 w-3.5" aria-hidden />
+            {t.exportExcel}
+          </button>
+          <button type="button" onClick={() => loadOrders()} className={`rounded-lg px-4 py-2 ${ACCENT}`}>
+            {t.reload}
+          </button>
+        </div>
       </div>
 
-      <Dialog
-        open={detailModalOrderId !== null}
-        onOpenChange={(open) => {
-          if (!open) setDetailModalOrderId(null)
-        }}
-      >
-        <DialogContent className="flex max-h-[92vh] max-w-[min(42rem,calc(100vw-1.25rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2.5 sm:px-4 sm:py-3">
-            <DialogHeader className="space-y-0 pb-1 pr-9 text-left">
-              <DialogTitle className="text-base font-semibold leading-snug">{t.modalTitle}</DialogTitle>
-            </DialogHeader>
-            {detailModalOrderId && !detailOrder ? (
-              <p className="mt-2 text-sm text-muted-foreground">{t.modalOrderUnavailable}</p>
-            ) : null}
-            {detailOrder
-              ? (() => {
-                  const d = detailOrder
-                  const dk = depositKind(d)
-                  const sepay = isSepayStyleOrderPayment(d)
-                  const needDep = needsDepositStage(d)
-                  const addr = (d.shipping_address ?? '').trim()
+      {kpi ? (
+        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div className="rounded-lg bg-white p-4 shadow dark:bg-zinc-800">
+            <p className="text-sm text-gray-500">{t.statOrders}</p>
+            <p className="text-2xl font-bold">{kpi.totalOrders}</p>
+          </div>
+          <div className="rounded-lg bg-white p-4 shadow dark:bg-zinc-800">
+            <p className="text-sm text-gray-500">{t.kpiTodayRevenue}</p>
+            <p className="text-2xl font-bold text-green-600">{formatVnd(kpi.todayRevenue, locale)}</p>
+          </div>
+          <div className="rounded-lg bg-white p-4 shadow dark:bg-zinc-800">
+            <p className="text-sm text-gray-500">{t.kpiWaitingDeposit}</p>
+            <p className="text-2xl font-bold text-orange-600">{kpi.waitingDepositOrders}</p>
+          </div>
+          <div className="rounded-lg bg-white p-4 shadow dark:bg-zinc-800">
+            <p className="text-sm text-gray-500">{t.kpiShippingNow}</p>
+            <p className="text-2xl font-bold">{kpi.shippingOrders}</p>
+          </div>
+        </div>
+      ) : null}
+
+      <section className="mb-6 overflow-hidden rounded-lg bg-white shadow dark:bg-zinc-800" aria-label={t.revenueReportTitle}>
+        <div className="border-b px-4 py-3 dark:border-zinc-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-50">{t.revenueReportTitle}</h2>
+          <p className="mt-0.5 text-sm text-gray-500">{t.revenueReportDesc}</p>
+        </div>
+        <div className="flex flex-wrap gap-2 border-b px-4 py-3 dark:border-zinc-700">
+          {(
+            [
+              ['day', t.revenueModeDay],
+              ['week', t.revenueModeWeek],
+              ['month', t.revenueModeMonth],
+              ['year', t.revenueModeYear],
+              ['range', t.revenueModeRange],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                setRevenueMode(key)
+                setRevenueError(null)
+                if (key === 'day') {
+                  const next = { ...EMPTY_REVENUE_FILTER, date: todayIsoVn(), preset: 'today' }
+                  setRevenueFilter(next)
+                  void loadRevenue('day', next)
+                  return
+                }
+                setRevenueFilter(EMPTY_REVENUE_FILTER)
+                setRevenueReport(null)
+              }}
+              className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                revenueMode === key
+                  ? 'border-[#ea580c] bg-[#ea580c] text-white'
+                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-end gap-3 border-b bg-gray-50/80 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900/40">
+          {revenueMode === 'day' ? (
+            <>
+              <label className="text-sm text-gray-700 dark:text-zinc-300">
+                {t.revenuePickDay}
+                <input
+                  type="date"
+                  value={revenueFilter.date}
+                  onChange={(e) => {
+                    const next = { ...EMPTY_REVENUE_FILTER, date: e.target.value, preset: null }
+                    setRevenueFilter(next)
+                    if (e.target.value) void loadRevenue('day', next)
+                  }}
+                  className="mt-1 block rounded-lg border border-gray-200 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = { ...EMPTY_REVENUE_FILTER, date: todayIsoVn(), preset: 'today' }
+                  setRevenueFilter(next)
+                  void loadRevenue('day', next)
+                }}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
+              >
+                {t.revenueToday}
+              </button>
+            </>
+          ) : null}
+          {revenueMode === 'week' ? (
+            <>
+              {(['this_week', 'last_week'] as const).map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => {
+                    const next = { ...EMPTY_REVENUE_FILTER, preset }
+                    setRevenueFilter(next)
+                    void loadRevenue('week', next)
+                  }}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                    revenueFilter.preset === preset
+                      ? 'border-emerald-600 bg-emerald-600 text-white'
+                      : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-zinc-600 dark:bg-zinc-800'
+                  }`}
+                >
+                  {preset === 'this_week' ? t.revenueThisWeek : t.revenueLastWeek}
+                </button>
+              ))}
+            </>
+          ) : null}
+          {revenueMode === 'month' ? (
+            <>
+              {(['this_month', 'last_month'] as const).map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => {
+                    const next = { ...EMPTY_REVENUE_FILTER, preset }
+                    setRevenueFilter(next)
+                    void loadRevenue('month', next)
+                  }}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                    revenueFilter.preset === preset
+                      ? 'border-emerald-600 bg-emerald-600 text-white'
+                      : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-zinc-600 dark:bg-zinc-800'
+                  }`}
+                >
+                  {preset === 'this_month' ? t.revenueThisMonth : t.revenueLastMonth}
+                </button>
+              ))}
+              <label className="text-sm text-gray-700 dark:text-zinc-300">
+                {t.revenuePickMonth}
+                <input
+                  type="month"
+                  value={revenueFilter.month}
+                  onChange={(e) => setRevenueFilter({ ...EMPTY_REVENUE_FILTER, month: e.target.value, preset: null })}
+                  className="mt-1 block rounded-lg border border-gray-200 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={!revenueFilter.month}
+                onClick={() => void loadRevenue('month', revenueFilter)}
+                className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {t.revenueViewMonth}
+              </button>
+            </>
+          ) : null}
+          {revenueMode === 'year' ? (
+            <>
+              <label className="text-sm text-gray-700 dark:text-zinc-300">
+                {t.revenueYear}
+                <input
+                  type="number"
+                  min={1970}
+                  max={2100}
+                  value={revenueFilter.year}
+                  onChange={(e) => setRevenueFilter({ ...EMPTY_REVENUE_FILTER, year: e.target.value, preset: null })}
+                  className="mt-1 block w-28 rounded-lg border border-gray-200 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void loadRevenue('year', revenueFilter)}
+                className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+              >
+                {t.revenueViewYear}
+              </button>
+            </>
+          ) : null}
+          {revenueMode === 'range' ? (
+            <>
+              <label className="text-sm text-gray-700 dark:text-zinc-300">
+                {t.filterCreatedFrom}
+                <input
+                  type="date"
+                  value={revenueFilter.dateFrom}
+                  onChange={(e) => setRevenueFilter((prev) => ({ ...prev, dateFrom: e.target.value, preset: null }))}
+                  className="mt-1 block rounded-lg border border-gray-200 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+                />
+              </label>
+              <label className="text-sm text-gray-700 dark:text-zinc-300">
+                {t.filterCreatedTo}
+                <input
+                  type="date"
+                  value={revenueFilter.dateTo}
+                  onChange={(e) => setRevenueFilter((prev) => ({ ...prev, dateTo: e.target.value, preset: null }))}
+                  className="mt-1 block rounded-lg border border-gray-200 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={!revenueFilter.dateFrom}
+                onClick={() => void loadRevenue('range', revenueFilter)}
+                className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {t.revenueViewRange}
+              </button>
+            </>
+          ) : null}
+        </div>
+        <div className="p-4">
+          {revenueError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{revenueError}</div>
+          ) : null}
+          {revenueLoading ? <p className="text-sm text-gray-500">{t.revenueLoading}</p> : null}
+          {!revenueLoading && revenueReport ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4 sm:col-span-3 dark:border-zinc-700 dark:bg-zinc-900/40">
+                <p className="text-sm text-gray-500">{t.revenuePeriod}</p>
+                <p className="text-base font-semibold text-gray-900 dark:text-zinc-50">
+                  {revenueReport.periodLabel || '—'}
+                  {revenueReport.dateFrom && revenueReport.dateTo && revenueReport.dateFrom !== revenueReport.dateTo ? (
+                    <span className="ml-2 text-sm font-normal text-gray-500">
+                      ({revenueReport.dateFrom} → {revenueReport.dateTo})
+                    </span>
+                  ) : null}
+                </p>
+              </div>
+              <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-4 dark:border-emerald-900/40">
+                <p className="text-sm text-gray-600">{t.revenueAmount}</p>
+                <p className="text-2xl font-bold text-emerald-700">{formatVnd(revenueReport.totalRevenue, locale)}</p>
+              </div>
+              <div className="rounded-lg border border-gray-100 p-4 dark:border-zinc-700">
+                <p className="text-sm text-gray-600">{t.revenueOrderCount}</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-zinc-50">{revenueReport.totalOrders}</p>
+              </div>
+              <div className="rounded-lg border border-gray-100 p-4 dark:border-zinc-700">
+                <p className="text-sm text-gray-600">{t.statusCancelled}</p>
+                <p className="text-lg font-semibold text-gray-800 dark:text-zinc-200">
+                  {t.revenueCancelledReturned
+                    .replace('{cancelled}', String(revenueReport.cancelledOrders))
+                    .replace('{returned}', String(revenueReport.returnedOrders))}
+                </p>
+              </div>
+            </div>
+          ) : !revenueError && !revenueLoading ? (
+            <p className="text-sm text-gray-500">{t.revenuePickPeriod}</p>
+          ) : null}
+        </div>
+      </section>
+
+      <div className="rounded-lg bg-white shadow dark:bg-zinc-800">
+        <div className="flex flex-wrap gap-2 border-b p-2 dark:border-zinc-700">
+          {PARTNER_ADMIN_LIFECYCLE_TABS.map(({ key }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                setActiveTab(key)
+                setStatusFilter('')
+              }}
+              className={`rounded-lg px-3 py-2 text-sm font-medium ${
+                activeTab === key && !statusFilter
+                  ? 'bg-[#ea580c] text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-zinc-700 dark:text-zinc-200'
+              }`}
+            >
+              {tabTitle(t, key)} ({tabCount(tabCounts, key) ?? '—'})
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap gap-3 p-4">
+          <input
+            type="text"
+            placeholder={t.searchPlaceholder}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-lg border px-3 py-2 sm:w-64 dark:border-zinc-600 dark:bg-zinc-900"
+          />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter((e.target.value || '') as PartnerAdminLifecycleTab | '')}
+            className="w-full rounded-lg border px-3 py-2 sm:w-40 dark:border-zinc-600 dark:bg-zinc-900"
+          >
+            <option value="">{t.filterShippingLabel}</option>
+            {PARTNER_ADMIN_LIFECYCLE_TABS.slice(1).map(({ key }) => (
+              <option key={key} value={key}>
+                {tabTitle(t, key)}
+              </option>
+            ))}
+          </select>
+          <select
+            value={paymentFilter}
+            onChange={(e) => setPaymentFilter((e.target.value || '') as PartnerAdminPaymentFilter)}
+            className="w-full rounded-lg border px-3 py-2 sm:w-40 dark:border-zinc-600 dark:bg-zinc-900"
+          >
+            <option value="">{t.filterPaymentShort}</option>
+            <option value="pending">{t.badgePayAwaiting}</option>
+            <option value="deposit_paid">{t.badgePayPartial}</option>
+            <option value="paid">{t.badgePayDone}</option>
+            <option value="failed">{t.filterPayFailed}</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => {
+              setSearch('')
+              setAppliedSearch('')
+              setStatusFilter('')
+              setPaymentFilter('')
+              setActiveTab('all')
+              setListPage(1)
+            }}
+            className="rounded-lg border px-3 py-2 hover:bg-gray-50 dark:border-zinc-600 dark:hover:bg-zinc-700"
+          >
+            {t.clearTableFilters}
+          </button>
+          <select
+            value={listPageSize}
+            onChange={(e) => setListPageSize(Number(e.target.value))}
+            className="w-36 rounded-lg border px-3 py-2 dark:border-zinc-600 dark:bg-zinc-900"
+            aria-label={t.pageSizeAria}
+          >
+            <option value={25}>{t.pageSize25}</option>
+            <option value={50}>{t.pageSize50}</option>
+            <option value={100}>{t.pageSize100}</option>
+          </select>
+        </div>
+
+        <div className="overflow-x-auto">
+          {loading ? (
+            <div className="p-8 text-center text-gray-500">{t.loadingOrders}</div>
+          ) : (
+            <table className="w-full text-left">
+              <thead className="border-b bg-gray-50 dark:border-zinc-700 dark:bg-zinc-900">
+                <tr>
+                  <th className="p-3 font-medium">{t.tableColOrderCode}</th>
+                  <th className="w-28 p-3 text-center font-medium" title={t.consultLocalHint}>
+                    {t.tableColConsulted}
+                  </th>
+                  <th className="p-3 font-medium">{t.tableColCustomer}</th>
+                  <th className="p-3 font-medium">{t.tableColSubtotal}</th>
+                  <th className="p-3 font-medium">{t.tableColDeposit}</th>
+                  <th
+                    className="min-w-[8.5rem] max-w-[11rem] p-3 align-bottom font-medium leading-snug"
+                    title={t.tableColDueOnDelivery}
+                  >
+                    {t.tableColDueOnDelivery}
+                  </th>
+                  <th className="p-3 font-medium">{t.tableColStatus}</th>
+                  <th className="whitespace-nowrap p-3 font-medium">{t.tableColPayment}</th>
+                  <th className="p-3 font-medium">{t.tableColOrderDate}</th>
+                  <th className="p-3 font-medium">{t.tableColActions}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((order) => {
+                  const needDeposit = partnerAdminNeedsDepositStage(order)
+                  const expects = partnerAdminExpectsDeposit(order)
+                  const payKey = partnerAdminPayBadgeKey(order)
                   return (
-                    <div className="mt-2 space-y-2 text-sm sm:space-y-2.5">
-                      <div className="space-y-1 border-b border-border/60 pb-2">
-                        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="min-w-0 space-y-0.5">
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0">
-                              <span className="break-words text-base font-bold tabular-nums tracking-tight text-foreground sm:text-lg">
-                                {orderCodeDisplay(d)}
-                              </span>
-                              <span className="text-[11px] tabular-nums text-muted-foreground">
-                                {new Date(d.created_at).toLocaleString(tag, { dateStyle: 'short', timeStyle: 'short' })}
-                              </span>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-x-1.5 text-[10px] leading-tight text-muted-foreground">
-                              <span>
-                                {t.labelWorkspace}:{' '}
-                                <span className="font-medium text-foreground">{d.partner_display_name || d.partner_id}</span>
-                              </span>
-                            </div>
-                            <p className="break-all font-mono text-[10px] leading-snug text-muted-foreground">
-                              {t.modalInternalIdLine.replace('{id}', d.id)}
-                            </p>
-                          </div>
-                          <div className="flex max-w-full flex-wrap gap-1 sm:max-w-[min(100%,22rem)] sm:justify-end">
-                            <Badge variant="secondary" className="h-auto min-h-0 whitespace-normal px-1.5 py-0 text-[10px] font-medium leading-tight">
-                              {primaryStageBadgeLabel(t, d)}
-                            </Badge>
-                            <Badge
-                              variant="outline"
-                              className="h-auto min-h-0 whitespace-normal border-orange-200/80 bg-orange-50 px-1.5 py-0 text-[10px] font-medium leading-tight text-orange-900 dark:border-orange-900/50 dark:bg-orange-950/50 dark:text-orange-100"
-                            >
-                              {payBadgeLabel(t, d)}
-                            </Badge>
-                            <Badge variant="secondary" className="h-auto min-h-0 whitespace-normal px-1.5 py-0 text-[10px] font-medium leading-tight">
-                              {statusLabel(t, d.status)}
-                            </Badge>
-                            <Badge variant="outline" className="h-auto min-h-0 whitespace-normal px-1.5 py-0 text-[10px] font-medium leading-tight">
-                              {shippingLabel(t, d.shipping_status)}
-                            </Badge>
-                            {d.locked_at ? (
-                              <Badge className="h-auto min-h-0 whitespace-normal bg-emerald-600 px-1.5 py-0 text-[10px] hover:bg-emerald-600">
-                                {t.orderLocked}
-                              </Badge>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="rounded-lg border border-amber-200/55 bg-gradient-to-b from-amber-500/[0.08] to-muted/5 p-1.5 dark:border-amber-900/45 dark:from-amber-950/35 dark:to-transparent sm:p-2">
-                        <div className="flex flex-col gap-2">
-                          <div className="rounded-lg border border-violet-200/80 bg-violet-50/60 p-2 dark:border-violet-900/45 dark:bg-violet-950/25 sm:p-2.5">
-                            <div className="flex flex-wrap items-center justify-between gap-1.5">
-                              <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-950 dark:text-violet-200">
-                                {t.modalShippingAddressHeading}
-                              </p>
-                              {addr ? (
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  size="sm"
-                                  className="h-7 shrink-0 px-2 text-[11px]"
-                                  onClick={async () => {
-                                    try {
-                                      await navigator.clipboard.writeText(d.shipping_address)
-                                      toast({ title: t.toastAddressCopied })
-                                    } catch {
-                                      toast({ title: t.toastAddressCopyFailed, variant: 'destructive' })
-                                    }
-                                  }}
-                                >
-                                  {t.modalCopyAddress}
-                                </Button>
-                              ) : null}
-                            </div>
-                            <p className="mt-1 text-sm font-medium leading-snug text-foreground [overflow-wrap:anywhere]">{addr || '—'}</p>
-                          </div>
-
-                          <div className="rounded-lg border border-border/75 bg-muted/15 p-2 dark:bg-muted/10 sm:p-2.5">
-                            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{t.modalProductsHeading}</p>
-                            <div className="flex gap-2 sm:gap-2.5">
-                              <div className="shrink-0">
-                                {d.product_image_url ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={resolveExternalImageDisplayUrl(d.product_image_url)}
-                                    alt=""
-                                    className="h-14 w-14 rounded-md border border-border/60 object-cover sm:h-16 sm:w-16"
-                                  />
-                                ) : (
-                                  <div className="h-14 w-14 rounded-md border border-dashed border-border/70 bg-muted/30 sm:h-16 sm:w-16" />
-                                )}
-                              </div>
-                              <div className="min-w-0 flex-1 space-y-0.5">
-                                <p className="text-sm font-semibold leading-snug text-orange-800 dark:text-orange-200 [overflow-wrap:anywhere]">
-                                  {(d.order_item_count ?? 1) > 1
-                                    ? `${d.order_item_count} sản phẩm`
-                                    : d.product_name}
-                                </p>
-                                {(d.order_item_count ?? 1) > 1 && d.order_items_summary ? (
-                                  <p className="whitespace-pre-wrap text-[11px] leading-snug text-muted-foreground">
-                                    {d.order_items_summary}
-                                  </p>
-                                ) : null}
-                                {d.product_inventory_id ? (
-                                  <p className="text-[11px] text-muted-foreground">
-                                    {t.modalSkuPrefix} {d.product_inventory_id}
-                                  </p>
-                                ) : null}
-                                <div className="flex flex-wrap gap-x-2 gap-y-0 text-[11px] text-muted-foreground">
-                                  {d.variant_color?.trim() ? (
-                                    <span>
-                                      {t.modalColor}: <span className="text-foreground">{d.variant_color}</span>
-                                    </span>
-                                  ) : null}
-                                  {d.variant_size?.trim() ? (
-                                    <span>
-                                      {t.modalSize}: <span className="text-foreground">{d.variant_size}</span>
-                                    </span>
-                                  ) : null}
-                                  <span>
-                                    {t.modalQty}: <span className="tabular-nums text-foreground">{d.quantity}</span>
-                                  </span>
-                                </div>
-                                {d.product_url ? (
-                                  <a
-                                    href={d.product_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    title={d.product_url}
-                                    className="mt-0.5 inline-flex max-w-full items-center gap-1 text-[11px] font-medium text-violet-600 hover:underline dark:text-violet-400"
-                                  >
-                                    <span className="min-w-0 truncate">{t.openProduct}</span>
-                                    <ExternalLink className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
-                                  </a>
-                                ) : null}
-                                {d.note?.trim() ? (
-                                  <p className="border-t border-border/50 pt-1 text-[11px] leading-snug text-muted-foreground">
-                                    <span className="font-medium text-foreground">{t.modalOrderNoteLabel}:</span> {d.note}
-                                  </p>
-                                ) : null}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="rounded-md border border-amber-200/90 bg-amber-50/95 px-2.5 py-2 dark:border-amber-900/55 dark:bg-amber-950/35 sm:px-3 sm:py-2.5">
-                            <div className="mb-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] leading-snug">
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  'h-auto min-h-0 px-1.5 py-0 text-[10px] font-medium leading-tight',
-                                  dk === 'full' &&
-                                    'border-emerald-600/45 bg-emerald-50 text-emerald-950 dark:bg-emerald-950/40 dark:text-emerald-50',
-                                  dk === 'partial' &&
-                                    'border-amber-600/50 bg-amber-50 text-amber-950 dark:bg-amber-950/40 dark:text-amber-50',
-                                  dk === 'none' && 'border-border bg-background/80 text-muted-foreground'
-                                )}
-                              >
-                                {depositLabelText(t, dk)}
-                              </Badge>
-                              <span className="text-muted-foreground" aria-hidden>
-                                ·
-                              </span>
-                              <span
-                                className={cn('font-semibold', sepay ? 'text-violet-900 dark:text-violet-100' : 'text-amber-950 dark:text-amber-50')}
-                              >
-                                {sepay ? messagingOrderShopTemplate(t.pathSepay, d.partner_display_name) : t.pathManual}
-                              </span>
-                              <span className="text-muted-foreground" aria-hidden>
-                                ·
-                              </span>
-                              {sepay ? (
-                                <span className="line-clamp-2 max-w-[min(100%,28rem)] text-muted-foreground">
-                                  {messagingOrderShopTemplate(t.sepayAutoHint, d.partner_display_name)}
-                                </span>
-                              ) : (
-                                <span className="font-medium text-foreground">{proofReceiptShort(t, d.latest_proof_status)}</span>
-                              )}
-                            </div>
-                            <p className="text-xs font-semibold text-amber-950 dark:text-amber-100">{t.modalPaymentHeading}</p>
-                            <div className="mt-1.5 space-y-1">
-                              <div className="flex items-baseline justify-between gap-2 text-sm">
-                                <span className="text-muted-foreground">{t.modalOrderTotal}</span>
-                                <span className="font-semibold tabular-nums text-foreground">{money(d.subtotal_amount, locale)}</span>
-                              </div>
-                              {Number(d.total_discount_amount || 0) > 0 ? (
-                                <>
-                                  <div className="flex items-baseline justify-between gap-2 text-sm">
-                                    <span className="text-muted-foreground">
-                                      Giảm giá
-                                      {d.loyalty_tier_name || d.loyalty_tier_code
-                                        ? ` (${d.loyalty_tier_name || d.loyalty_tier_code})`
-                                        : ''}
-                                    </span>
-                                    <span className="font-medium tabular-nums text-emerald-700 dark:text-emerald-300">
-                                      -{money(Number(d.total_discount_amount || 0), locale)}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-baseline justify-between gap-2 text-sm">
-                                    <span className="text-muted-foreground">Tổng sau giảm</span>
-                                    <span className="font-semibold tabular-nums text-foreground">
-                                      {money(Number(d.amount_after_discount || 0), locale)}
-                                    </span>
-                                  </div>
-                                </>
-                              ) : null}
-                              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0 text-sm">
-                                <span>
-                                  <span className="text-muted-foreground">{t.modalDepositNeed}:</span>{' '}
-                                  <span className="font-medium tabular-nums text-foreground">{money(d.required_amount, locale)}</span>
-                                </span>
-                                <span>
-                                  <span className="text-muted-foreground">{t.modalDepositDeposited}:</span>{' '}
-                                  <span className="font-medium tabular-nums text-foreground">{money(d.paid_amount, locale)}</span>
-                                </span>
-                              </div>
-                              <div className="border-t border-amber-200/70 pt-1.5 dark:border-amber-800/50">
-                                <p className="text-[11px] leading-snug text-muted-foreground">{t.modalCodAfterDeposit}</p>
-                                <p className="mt-0.5 text-lg font-bold tabular-nums text-red-600 dark:text-red-400">
-                                  {money(codRemainder(d), locale)}
-                                </p>
-                              </div>
-                              {needDep && !isOrderCancelled(d) ? (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  className="mt-1.5 h-8 bg-orange-500 px-3 text-xs text-white shadow-sm hover:bg-orange-600"
-                                  disabled={pending}
-                                  onClick={() => confirmDepositManual(d.id)}
-                                >
-                                  {t.btnConfirmDeposit}
-                                </Button>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2 border-t border-border/60 pt-2.5">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{t.modalContactSectionTitle}</p>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border/60 bg-muted/10 p-2 dark:bg-muted/5">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(consultedMap[d.id])}
-                              onChange={(e) => toggleConsulted(d.id, e.target.checked)}
-                              className="mt-0.5 h-4 w-4 shrink-0 rounded border-input accent-violet-600"
-                            />
-                            <span className="leading-snug">{t.modalConsultedCustomer}</span>
-                          </label>
-                          <div className="space-y-1 rounded-lg border border-border/50 bg-background/80 px-2 py-2 dark:bg-background/40">
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{t.labelCustomer}</p>
-                            <p className="text-sm font-semibold leading-snug [overflow-wrap:anywhere]">{d.customer_name || '—'}</p>
-                            <p className="tabular-nums text-xs text-muted-foreground">{d.customer_phone || '—'}</p>
-                            {d.customer_email ? (
-                              <p className="break-all text-xs leading-snug text-muted-foreground">{d.customer_email}</p>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-
-                      <label className="flex cursor-pointer items-center gap-2">
+                    <tr key={order.id} className="border-b hover:bg-gray-50 dark:border-zinc-700 dark:hover:bg-zinc-900/50">
+                      <td className="p-3 font-mono text-sm">{orderCodeDisplay(order)}</td>
+                      <td className="p-3 text-center">
                         <input
                           type="checkbox"
-                          checked={Boolean(reviewedMap[d.id])}
-                          onChange={(e) => toggleReviewed(d.id, e.target.checked)}
-                          className="h-4 w-4 rounded border-input accent-violet-600"
+                          checked={Boolean(consultedMap[order.id])}
+                          onChange={(e) => toggleConsulted(order.id, e.target.checked)}
+                          className="h-4 w-4 cursor-pointer rounded border-gray-300 text-[#ea580c] focus:ring-[#ea580c]"
+                          aria-label={t.consultedAria}
                         />
-                        <span>{t.reviewedAria}</span>
-                      </label>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        {d.product_url ? (
-                          <Button type="button" variant="outline" size="sm" asChild>
-                            <a href={d.product_url} target="_blank" rel="noopener noreferrer">
-                              {t.openProduct}
-                            </a>
-                          </Button>
-                        ) : null}
-                        {d.latest_proof_image_url ? (
-                          <Button type="button" variant="outline" size="sm" asChild>
-                            <a href={d.latest_proof_image_url} target="_blank" rel="noopener noreferrer">
-                              {t.openProofImage}
-                            </a>
-                          </Button>
-                        ) : null}
-                        <Button type="button" variant="outline" size="sm" asChild>
-                          <Link
-                            href={`/dashboard/messaging/inbox?partner=${encodeURIComponent(d.partner_id)}&conversation=${encodeURIComponent(d.conversation_id)}`}
-                          >
-                            {t.openInbox}
-                          </Link>
-                        </Button>
-                      </div>
-
-                      <div className="grid gap-2 md:grid-cols-[1fr_auto_auto_auto]">
-                        <Input
-                          value={noteByOrder[d.id] ?? d.verified_note ?? ''}
-                          onChange={(e) => setNoteByOrder((prev) => ({ ...prev, [d.id]: e.target.value }))}
-                          placeholder={t.notePlaceholder}
-                          className="h-9"
-                        />
-                        <Button type="button" size="sm" onClick={() => confirmDepositManual(d.id)} disabled={pending}>
-                          {t.btnConfirmPaid}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => setStatus(d.id, 'pending_manual_review')}
-                          disabled={pending}
-                        >
-                          {t.btnMarkManualReview}
-                        </Button>
-                        <Button type="button" size="sm" variant="destructive" onClick={() => setStatus(d.id, 'cancelled')} disabled={pending}>
-                          {t.btnCancelOrder}
-                        </Button>
-                      </div>
-
-                      <div className="grid gap-2 md:grid-cols-[1fr_auto_auto]">
-                        {nextShippingStatus(d.shipping_status) ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => {
-                              const next = nextShippingStatus(d.shipping_status)
-                              if (next) setShipping(d.id, next)
-                            }}
-                            disabled={pending}
-                          >
-                            → {shippingLabel(t, nextShippingStatus(d.shipping_status) ?? d.shipping_status)}
-                          </Button>
-                        ) : null}
-                        <Select
-                          value={d.shipping_status}
-                          onValueChange={(v) =>
-                            setShipping(
-                              d.id,
-                              v === 'pending' ||
-                                v === 'confirmed' ||
-                                v === 'packing' ||
-                                v === 'shipping' ||
-                                v === 'delivered' ||
-                                v === 'returned' ||
-                                v === 'cancelled'
-                                ? (v as OrderRow['shipping_status'])
-                                : 'pending'
-                            )
-                          }
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pending">{t.shippingPending}</SelectItem>
-                            <SelectItem value="confirmed">{t.shippingConfirmed}</SelectItem>
-                            <SelectItem value="packing">{t.shippingPacking}</SelectItem>
-                            <SelectItem value="shipping">{t.shippingShipping}</SelectItem>
-                            <SelectItem value="delivered">{t.shippingDelivered}</SelectItem>
-                            <SelectItem value="returned">{t.shippingReturned}</SelectItem>
-                            <SelectItem value="cancelled">{t.shippingCancelled}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button type="button" size="sm" variant="outline" asChild>
-                          <Link
-                            href={`/dashboard/messaging/inbox?partner=${encodeURIComponent(d.partner_id)}&conversation=${encodeURIComponent(d.conversation_id)}`}
-                          >
-                            {t.openChat}
-                          </Link>
-                        </Button>
-                      </div>
-
-                      <div className="space-y-2 border-t border-border/60 pt-4">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          {t.refundSectionTitle}
-                          {d.refund_status === 'refunded' ? (
-                            <Badge variant="secondary" className="ml-2 align-middle">
-                              {t.refundSectionTitle}: {new Intl.NumberFormat('vi-VN').format(d.refund_amount ?? 0)}đ
-                            </Badge>
-                          ) : null}
-                        </p>
-                        {d.refund_status !== 'refunded' ? (
-                          <div className="grid gap-2 md:grid-cols-[160px_1fr_auto]">
-                            <Input
-                              value={refundAmountByOrder[d.id] ?? ''}
-                              onChange={(e) =>
-                                setRefundAmountByOrder((prev) => ({ ...prev, [d.id]: e.target.value.replace(/[^\d]/g, '') }))
-                              }
-                              placeholder={t.refundAmountLabel}
-                              className="h-9"
-                            />
-                            <Input
-                              value={refundNoteByOrder[d.id] ?? ''}
-                              onChange={(e) => setRefundNoteByOrder((prev) => ({ ...prev, [d.id]: e.target.value }))}
-                              placeholder={t.refundNoteLabel}
-                              className="h-9"
-                            />
-                            <Button type="button" size="sm" variant="secondary" onClick={() => markRefunded(d.id)} disabled={pending}>
-                              {t.btnMarkRefunded}
-                            </Button>
-                          </div>
-                        ) : d.refund_note ? (
-                          <p className="text-xs text-muted-foreground">{d.refund_note}</p>
-                        ) : null}
-                      </div>
-
-                      <div className="border-t border-border/60 pt-4">
-                        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.timelineTitle}</p>
-                        {eventsByOrder[d.id] === undefined ? (
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
-                            <span>{t.timelineLoading}</span>
-                          </div>
-                        ) : (eventsByOrder[d.id] ?? []).length === 0 ? (
-                          <p className="leading-relaxed text-muted-foreground">{t.timelineNoEvents}</p>
+                      </td>
+                      <td className="p-3">
+                        <div className="font-medium">{order.customer_name || '—'}</div>
+                        <div className="text-sm text-gray-500">{order.customer_phone || '—'}</div>
+                      </td>
+                      <td className="p-3 font-semibold">
+                        {formatVnd(order.amount_after_discount || order.subtotal_amount, locale)}
+                      </td>
+                      <td className="p-3 text-sm">
+                        {expects ? (
+                          <>
+                            {t.depositNeed}: {formatVnd(order.required_amount, locale)}
+                            <br />
+                            {t.depositPaid}: {formatVnd(order.paid_amount, locale)}
+                          </>
                         ) : (
-                          <div className="max-h-[min(280px,40vh)] space-y-2.5 overflow-y-auto pr-1 [scrollbar-gutter:stable]">
-                            {(eventsByOrder[d.id] ?? []).map((e) => (
-                              <div key={e.id} className="rounded-lg border border-border/70 bg-card/50 p-3 shadow-sm">
-                                <p className="text-xs font-semibold leading-snug text-foreground">{e.title}</p>
-                                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{e.detail}</p>
-                                <p className="mt-2 text-[10px] tabular-nums text-muted-foreground">
-                                  {new Date(e.created_at).toLocaleString(tag, { dateStyle: 'short', timeStyle: 'short' })} · {e.source}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
+                          <span className="text-green-600">{t.depositNotRequired}</span>
                         )}
-                      </div>
-                    </div>
+                      </td>
+                      <td className="whitespace-nowrap p-3 text-sm font-semibold tabular-nums text-gray-900 dark:text-zinc-50">
+                        {formatVnd(partnerAdminAmountDueOnDelivery(order), locale)}
+                      </td>
+                      <td className="p-3">
+                        <span className="rounded bg-gray-100 px-2 py-1 text-sm dark:bg-zinc-700">{stageLabel(t, order)}</span>
+                      </td>
+                      <td className="p-3">
+                        <span
+                          className={`rounded px-2 py-1 text-sm ${
+                            payKey === 'paid' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+                          }`}
+                        >
+                          {payLabel(t, order)}
+                        </span>
+                      </td>
+                      <td className="p-3 text-sm text-gray-600">{formatDate(order.created_at, locale)}</td>
+                      <td className="p-3">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            className="text-sm text-blue-600 hover:underline"
+                            onClick={() => openDetail(order)}
+                          >
+                            {t.tableDetails}
+                          </button>
+                          {needDeposit && !partnerAdminOrderIsCancelled(order) ? (
+                            <button
+                              type="button"
+                              onClick={() => openPaymentModal(order)}
+                              className="rounded px-2 py-1 text-sm text-white bg-[#ea580c] hover:bg-[#c2410c]"
+                            >
+                              {t.btnConfirmDeposit}
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
                   )
-                })()
-              : null}
+                })}
+              </tbody>
+            </table>
+          )}
+          {!loading && rows.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">{t.emptyList}</div>
+          ) : null}
+          {!loading && filteredTotal > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-4 py-3 text-sm text-gray-600 dark:border-zinc-700">
+              <span>
+                {t.paginationSummary
+                  .replace('{from}', String(displayFrom))
+                  .replace('{to}', String(displayTo))
+                  .replace('{total}', String(filteredTotal))
+                  .replace('{page}', String(listPage))
+                  .replace('{pages}', String(totalPages))}
+                {appliedSearch ? t.paginationSearchHint.replace('{q}', appliedSearch) : ''}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setListPage(1)}
+                  disabled={listPage <= 1 || pending}
+                  className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
+                >
+                  {t.paginationFirst}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setListPage((p) => Math.max(1, p - 1))}
+                  disabled={listPage <= 1 || pending}
+                  className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
+                >
+                  {t.paginationPrev}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setListPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={listPage >= totalPages || pending}
+                  className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
+                >
+                  {t.paginationNext}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setListPage(totalPages)}
+                  disabled={listPage >= totalPages || pending}
+                  className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
+                >
+                  {t.paginationLast}
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {detailOpen && selectedOrder ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDetailOpen(false)}>
+          <div
+            className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-xl dark:bg-zinc-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-100 bg-white px-6 py-4 dark:border-zinc-700 dark:bg-zinc-900">
+              <h2 className="min-w-0 flex-1 pr-2 text-xl font-bold leading-tight text-gray-900 dark:text-zinc-50">{t.modalTitle}</h2>
+              <button
+                type="button"
+                aria-label={t.btnClose}
+                onClick={() => setDetailOpen(false)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+              <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-sm text-gray-500">{t.customerCodeLabel}</p>
+                  <p className="text-lg font-semibold tracking-wide">{orderCodeDisplay(selectedOrder)}</p>
+                  <p className="mt-1 text-xs text-gray-500">{t.internalIdLabel.replace('{id}', selectedOrder.id)}</p>
+                  <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-gray-800 dark:text-zinc-200">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(consultedMap[selectedOrder.id])}
+                      onChange={(e) => toggleConsulted(selectedOrder.id, e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-[#ea580c] focus:ring-[#ea580c]"
+                    />
+                    <span>{t.modalConsultedCustomer}</span>
+                  </label>
+                  <p className="mt-2 text-sm text-gray-600">{formatDate(selectedOrder.created_at, locale)}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm text-gray-500">{t.labelCustomer}</p>
+                  <p className="font-medium">{selectedOrder.customer_name || '—'}</p>
+                  <p className="text-sm">{selectedOrder.customer_phone || '—'}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <p className="text-sm text-gray-500">{t.modalShippingAddressHeading}</p>
+                    <button
+                      type="button"
+                      onClick={() => void copyCustomerAddress(selectedOrder.shipping_address)}
+                      disabled={!selectedOrder.shipping_address?.trim()}
+                      className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 disabled:opacity-45"
+                    >
+                      {t.modalCopyAddress}
+                    </button>
+                  </div>
+                  <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-gray-800 dark:text-zinc-200">
+                    {selectedOrder.shipping_address?.trim() || <span className="italic text-gray-400">{t.noAddress}</span>}
+                  </p>
+                  <p className="mt-2 text-sm">
+                    {stageLabel(t, selectedOrder)} / {payLabel(t, selectedOrder)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/70 p-4">
+                <p className="mb-3 text-sm font-semibold text-amber-900">{t.modalPaymentHeading}</p>
+                <dl className="grid gap-2 text-sm">
+                  <div className="flex flex-wrap justify-between gap-x-4 gap-y-1">
+                    <dt className="text-gray-600">{t.modalOrderTotal}</dt>
+                    <dd className="font-semibold tabular-nums text-gray-900">
+                      {formatVnd(selectedOrder.amount_after_discount || selectedOrder.subtotal_amount, locale)}
+                    </dd>
+                  </div>
+                  {partnerAdminExpectsDeposit(selectedOrder) ? (
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                      <dt className="shrink-0 text-gray-600">{t.tableColDeposit}</dt>
+                      <dd className="text-right font-medium tabular-nums text-gray-900">
+                        <span>
+                          {t.depositNeed}: {formatVnd(selectedOrder.required_amount, locale)}
+                        </span>
+                        <span className="mx-1.5 font-normal text-gray-400">·</span>
+                        <span>
+                          {t.depositPaid}: {formatVnd(selectedOrder.paid_amount, locale)}
+                        </span>
+                      </dd>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap justify-between gap-x-4 gap-y-1">
+                      <dt className="text-gray-600">{t.tableColDeposit}</dt>
+                      <dd className="font-medium text-green-700">{t.depositNotRequired}</dd>
+                    </div>
+                  )}
+                  <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-amber-200/80 pt-2">
+                    <dt className="shrink-0 font-medium text-gray-800">
+                      {t.paymentWhenReceive}
+                      {partnerAdminExpectsDeposit(selectedOrder) ? (
+                        <span className="hidden font-normal text-gray-500 sm:inline"> ({t.modalCodAfterDeposit})</span>
+                      ) : null}
+                    </dt>
+                    <dd className="font-semibold tabular-nums text-red-700">
+                      {formatVnd(partnerAdminAmountDueOnDelivery(selectedOrder), locale)}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div className="mb-4 overflow-x-auto">
+                <h3 className="mb-2 font-semibold">{t.modalProductsHeading}</h3>
+                <table className="w-full min-w-[560px] text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="w-[140px] min-w-[140px] py-2 text-left font-medium text-gray-600">{t.modalColImage}</th>
+                      <th className="py-2 text-left font-medium text-gray-600">{t.modalColProduct}</th>
+                      <th className="whitespace-nowrap py-2 text-right font-medium text-gray-600">{t.colQty}</th>
+                      <th className="whitespace-nowrap py-2 text-right font-medium text-gray-600">{t.colUnitPrice}</th>
+                      <th className="whitespace-nowrap py-2 text-right font-medium text-gray-600">{t.colLineTotal}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productLines.map((item) => {
+                      const img = lineImage(item, selectedOrder.product_image_url)
+                      const href = item.product_url?.trim() || ''
+                      return (
+                        <tr key={item.id} className="border-b align-top">
+                          <td className="py-2 pr-2 align-middle">
+                            {img ? (
+                              <a href={img} target="_blank" rel="noopener noreferrer" className="inline-block rounded-lg">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={resolveExternalImageDisplayUrl(img)}
+                                  alt=""
+                                  className="block h-32 w-32 shrink-0 rounded-lg border border-gray-100 bg-gray-50 object-cover"
+                                  width={128}
+                                  height={128}
+                                />
+                              </a>
+                            ) : (
+                              <div className="h-32 w-32 rounded-lg border border-dashed border-gray-200 bg-gray-50" />
+                            )}
+                          </td>
+                          <td className="min-w-0 py-2 pr-2">
+                            <div className="font-medium leading-snug text-gray-900">
+                              {href ? (
+                                <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#ea580c] hover:underline">
+                                  {item.product_name}
+                                </a>
+                              ) : (
+                                item.product_name
+                              )}
+                            </div>
+                            <div className="mt-1.5 space-y-0.5 text-xs text-gray-600">
+                              {item.product_inventory_id ? <p>{t.skuLabel.replace('{sku}', item.product_inventory_id)}</p> : null}
+                              {item.variant_color?.trim() ? (
+                                <p>
+                                  {t.modalColor}: {item.variant_color}
+                                </p>
+                              ) : null}
+                              {item.variant_size?.trim() ? (
+                                <p>
+                                  {t.modalSize}: {item.variant_size}
+                                </p>
+                              ) : null}
+                              {href ? (
+                                <p className="break-all">
+                                  <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline">
+                                    {href.replace(/^https?:\/\//, '')}
+                                  </a>
+                                </p>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className="whitespace-nowrap py-2 text-right">{item.quantity}</td>
+                          <td className="whitespace-nowrap py-2 text-right">{formatVnd(item.unit_price, locale)}</td>
+                          <td className="whitespace-nowrap py-2 text-right font-medium">{formatVnd(item.line_subtotal, locale)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+                <h3 className="mb-2 font-semibold text-blue-900">{t.timelineHeading}</h3>
+                {eventsByOrder[selectedOrder.id] === undefined ? (
+                  <p className="text-sm text-gray-500">{t.timelineLoading}</p>
+                ) : (eventsByOrder[selectedOrder.id] ?? []).length ? (
+                  <ul className="mb-4 space-y-2">
+                    {(eventsByOrder[selectedOrder.id] ?? []).map((ev, idx, arr) => {
+                      const isLatest = idx === 0
+                      return (
+                        <li key={ev.id} className="flex items-start gap-2 text-sm">
+                          <span
+                            className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
+                              isLatest ? 'bg-[#ea580c]' : idx < arr.length ? 'bg-green-500' : 'bg-gray-300'
+                            }`}
+                          />
+                          <span className={isLatest ? 'font-medium text-[#ea580c]' : 'text-gray-700'}>
+                            {ev.title}
+                            {ev.detail ? <span className="block text-xs font-normal text-gray-500">{ev.detail}</span> : null}
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                ) : (
+                  <p className="mb-4 text-sm text-gray-500">{t.timelineEmpty}</p>
+                )}
+                {isSepayStyleOrderPayment(selectedOrder) ? (
+                  <p className="text-xs text-gray-600">{t.sepayAutoHint.replace(/\{shop\}/g, selectedOrder.partner_display_name || 'Shop')}</p>
+                ) : null}
+              </div>
+
+              <div className="flex flex-wrap gap-2 border-t pt-4">
+                {partnerAdminNeedsDepositStage(selectedOrder) && !partnerAdminOrderIsCancelled(selectedOrder) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDetailOpen(false)
+                      openPaymentModal(selectedOrder)
+                    }}
+                    className={`rounded-lg px-4 py-2 ${ACCENT}`}
+                  >
+                    {t.btnConfirmDeposit}
+                  </button>
+                ) : null}
+                {!partnerAdminNeedsDepositStage(selectedOrder) &&
+                selectedOrder.shipping_status !== 'shipping' &&
+                selectedOrder.shipping_status !== 'delivered' &&
+                !partnerAdminOrderIsCancelled(selectedOrder) ? (
+                  <button
+                    type="button"
+                    onClick={() => setShipping(selectedOrder.id, 'shipping')}
+                    className="rounded-lg bg-gray-200 px-4 py-2 text-gray-800 hover:bg-gray-300"
+                  >
+                    {t.btnMarkShipping}
+                  </button>
+                ) : null}
+                {selectedOrder.shipping_status === 'delivered' && !selectedOrder.has_customer_review ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      showPageToast('ok', t.toastStatusUpdated)
+                      setDetailOpen(false)
+                    }}
+                    className={`rounded-lg px-4 py-2 ${ACCENT}`}
+                  >
+                    {t.btnComplete}
+                  </button>
+                ) : null}
+                {!partnerAdminOrderIsCancelled(selectedOrder) && selectedOrder.shipping_status !== 'returned' ? (
+                  <button
+                    type="button"
+                    onClick={() => setStatus(selectedOrder.id, 'cancelled')}
+                    className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+                  >
+                    {t.btnCancelOrder}
+                  </button>
+                ) : null}
+                {selectedOrder.paid_amount > 0 &&
+                !partnerAdminOrderIsCancelled(selectedOrder) &&
+                selectedOrder.refund_status !== 'refunded' ? (
+                  <button
+                    type="button"
+                    onClick={() => markRefunded(selectedOrder.id, selectedOrder.paid_amount || 0)}
+                    className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-red-700 hover:bg-red-100"
+                  >
+                    {t.btnRefundDeposit}
+                  </button>
+                ) : null}
+                {['shipping', 'delivered'].includes(selectedOrder.shipping_status) ? (
+                  <button
+                    type="button"
+                    onClick={() => setShipping(selectedOrder.id, 'returned')}
+                    className="rounded-lg bg-orange-600 px-4 py-2 text-white hover:bg-orange-700"
+                  >
+                    {t.btnApproveReturn}
+                  </button>
+                ) : null}
+                <Link
+                  href={`/dashboard/messaging/inbox?partner=${encodeURIComponent(selectedOrder.partner_id)}&conversation=${encodeURIComponent(selectedOrder.conversation_id)}`}
+                  className="rounded-lg border px-4 py-2 hover:bg-gray-50"
+                >
+                  {t.openInbox}
+                </Link>
+                {selectedOrder.latest_proof_image_url ? (
+                  <a
+                    href={selectedOrder.latest_proof_image_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-lg border px-4 py-2 hover:bg-gray-50"
+                  >
+                    {t.openProofImage}
+                  </a>
+                ) : null}
+                <button type="button" onClick={() => setDetailOpen(false)} className="rounded-lg border px-4 py-2 hover:bg-gray-50">
+                  {t.btnClose}
+                </button>
+              </div>
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      ) : null}
+
+      {paymentOpen && selectedOrder ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setPaymentOpen(false)}>
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-zinc-900" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-4 text-xl font-bold">{t.confirmDepositTitle}</h2>
+            <p className="mb-2">
+              {t.confirmDepositBody
+                .replace('{code}', orderCodeDisplay(selectedOrder))
+                .replace('{amount}', formatVnd(selectedOrder.required_amount, locale))}
+            </p>
+            <p className="mb-2 text-sm text-amber-600">{t.confirmDepositNoTxn}</p>
+            <p className="mb-3 text-sm text-gray-600">{t.confirmDepositManualHint}</p>
+            <div className="mb-4">
+              <label className="mb-1 block text-sm font-medium">{t.confirmDepositNoteLabel}</label>
+              <textarea
+                rows={3}
+                placeholder={t.confirmDepositNotePlaceholder}
+                value={paymentNote}
+                onChange={(e) => {
+                  setPaymentNote(e.target.value)
+                  setNoteByOrder((prev) => ({ ...prev, [selectedOrder.id]: e.target.value }))
+                }}
+                className="w-full rounded-lg border px-3 py-2 dark:border-zinc-600 dark:bg-zinc-800"
+              />
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => setPaymentOpen(false)} className="rounded-lg border px-4 py-2 hover:bg-gray-50">
+                {t.btnCancelModal}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentOpen(false)
+                  setStatus(selectedOrder.id, 'cancelled')
+                }}
+                className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+              >
+                {t.btnRejectDeposit}
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => confirmDepositManual(selectedOrder.id)}
+                className="rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                {t.btnConfirmDeposit}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

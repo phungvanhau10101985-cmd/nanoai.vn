@@ -160,6 +160,7 @@ export function PartnerSiteShopAccountClient({
   const [unreadFromApi, setUnreadFromApi] = useState(0)
   const [showReAuth, setShowReAuth] = useState(false)
   const { deferredInstall, isStandalone, isIos, promptInstall } = usePartnerPwaInstall()
+  const [installAppError, setInstallAppError] = useState(false)
   const { openChat } = usePartnerSiteChatWidget()
 
   const loadProfile = useCallback(async () => {
@@ -417,7 +418,9 @@ export function PartnerSiteShopAccountClient({
   }
 
   async function handleInstallApp() {
-    await promptInstall()
+    setInstallAppError(false)
+    const outcome = await promptInstall()
+    if (outcome === 'failed') setInstallAppError(true)
   }
 
   const displayName =
@@ -825,10 +828,13 @@ export function PartnerSiteShopAccountClient({
                     {t.accountInstallAppButton}
                   </button>
                 ) : null}
+                {!isStandalone && installAppError ? (
+                  <p className="pw-shop-muted" style={{ marginTop: 12 }}>{t.accountInstallAppFailed}</p>
+                ) : null}
                 {!isStandalone && isIos ? (
                   <p className="pw-shop-muted" style={{ marginTop: 12 }}>{t.accountInstallAppIosTip}</p>
                 ) : null}
-                {!isStandalone && !isIos && !deferredInstall ? (
+                {!isStandalone && !isIos && !deferredInstall && !installAppError ? (
                   <p className="pw-shop-muted" style={{ marginTop: 12 }}>{t.accountInstallAppManualTip}</p>
                 ) : null}
               </section>

@@ -484,6 +484,14 @@ describe('partner-site-chrome-kit', () => {
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
       'html[data-pw-page="product"] [data-pw-live-chrome] [data-pw-chrome-btn="try-on"]'
     )
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toMatch(
+      /\.pw-pdp-sticky-nav \[data-pw-dock-show="pdp"\]:not\(\[data-pw-hidden="1"\]\)\{[^}]*align-items:center!important/
+    )
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toMatch(
+      /\.pw-pdp-sticky-nav \[data-pw-dock-show="pdp"\]:not\(\[data-pw-hidden="1"\]\)\{[^}]*justify-content:center!important/
+    )
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('.pw-pdp-sticky-nav .pw-pdp-sticky-copy>span')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('white-space:nowrap!important')
   })
 
   it('drops buy-box duplicate try-on / add-cart from the PDP dock face', () => {

@@ -333,14 +333,15 @@ export const PW_CHROME_LABEL_BELOW_CSS =
   'html .pw-shop-header-actions [data-pw-chrome-added][data-pw-chrome-style="icon-label-below"] .pw-account-btn-label{' +
   'display:block!important;text-align:center!important;white-space:nowrap!important;max-width:none!important}'
 
-/** Cỡ chữ — stock thanh đáy / PDP dùng .pw-shop-icon-label, không bị font-size:10px khóa. */
+/** Cỡ chữ — stock thanh đáy shop dùng .pw-shop-icon-label. Mặt PDP (2 dòng 188) giữ 10px. */
 export const PW_CHROME_LABEL_FACE_CSS =
   '[data-pw-chrome-btn], [data-pw-chrome-added], [data-pw-el="cat-toggle"]{' +
   'font-size:var(--pw-chrome-label,13px)}' +
   '.pw-bottom-nav>a,.pw-shop-bottom-nav>a,.pw-bottom-nav .pw-icon-btn,.pw-shop-bottom-nav .pw-icon-btn,' +
-  '.pw-bottom-nav .pw-shop-icon-btn,.pw-shop-bottom-nav .pw-shop-icon-btn,' +
-  '.pw-pdp-sticky-nav a,.pw-pdp-sticky-nav button{' +
+  '.pw-bottom-nav .pw-shop-icon-btn,.pw-shop-bottom-nav .pw-shop-icon-btn{' +
   'font-size:var(--pw-chrome-label,13px)!important}' +
+  '.pw-pdp-sticky-nav a,.pw-pdp-sticky-nav button{' +
+  'font-size:10px!important}' +
   '[data-pw-chrome-btn] .pw-chrome-btn-label,[data-pw-chrome-added] .pw-chrome-btn-label,' +
   '[data-pw-chrome-btn] .pw-shop-nav-label,[data-pw-chrome-added] .pw-shop-nav-label,' +
   '[data-pw-chrome-btn] .pw-shop-icon-label,[data-pw-chrome-added] .pw-shop-icon-label,' +
@@ -348,10 +349,11 @@ export const PW_CHROME_LABEL_FACE_CSS =
   '[data-pw-el="cat-toggle"] .pw-chrome-btn-label,[data-pw-el="cat-toggle"] .pw-shop-nav-label,' +
   '.pw-bottom-nav .pw-shop-icon-label,.pw-shop-bottom-nav .pw-shop-icon-label,' +
   '.pw-bottom-nav .pw-chrome-btn-label,.pw-shop-bottom-nav .pw-chrome-btn-label,' +
-  '.pw-bottom-nav .pw-shop-nav-label,.pw-shop-bottom-nav .pw-shop-nav-label,' +
+  '.pw-bottom-nav .pw-shop-nav-label,.pw-shop-bottom-nav .pw-shop-nav-label{' +
+  'font-size:var(--pw-chrome-label,13px)!important;line-height:1.15}' +
   '.pw-pdp-sticky-nav .pw-shop-icon-label,.pw-pdp-sticky-nav .pw-chrome-btn-label,' +
-  '.pw-pdp-sticky-nav .pw-shop-nav-label{' +
-  'font-size:var(--pw-chrome-label,13px)!important;line-height:1.15}'
+  '.pw-pdp-sticky-nav .pw-shop-nav-label,.pw-pdp-sticky-nav .pw-pdp-sticky-copy,.pw-pdp-sticky-nav .pw-pdp-like-copy{' +
+  'font-size:10px!important;line-height:1.1}'
 
 /** Bold / gap / radius / hover / chữ ngang–dọc — mọi nút chức năng. */
 export const PW_CHROME_FACE_EXTRAS_CSS =

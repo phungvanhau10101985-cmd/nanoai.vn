@@ -333,3 +333,19 @@ test('visual serializer keeps a floating overlay on the scene root with its scen
   assert.match(tag, /data-pw-box-y="200"/)
   assert.equal(doc.querySelector('#float')?.parentElement, scene)
 })
+
+test('visual serializer strips editor-only PDP desktop sticky stamp', () => {
+  const saved = serializeVisualEditorHtml(
+    parseForSerializer(`<!doctype html>
+      <html data-pw-edit-device="desktop" data-pw-page="product" data-pw-pdp-desktop-sticky="1">
+        <body data-pw-page="product">
+          <main></main>
+          <nav class="pw-bottom-nav" data-pw-chrome-kit="dock">Dock</nav>
+        </body>
+      </html>`),
+    'desktop'
+  )
+  const htmlTag = saved.match(/<html\b[^>]*>/i)?.[0] || ''
+  assert.doesNotMatch(htmlTag, /data-pw-pdp-desktop-sticky/)
+  assert.match(saved, /data-pw-chrome-kit="dock"/)
+})

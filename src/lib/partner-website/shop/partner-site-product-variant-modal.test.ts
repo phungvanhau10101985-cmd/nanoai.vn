@@ -100,6 +100,7 @@ test('shop-actions injects PDP variant modal before add-to-cart', () => {
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /__pwBirthdayOffer/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /variantSaleFace/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /bindPdpDesktopStickyBar/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /pwShopLiveUiOff\(\)\)\{[\s\S]*?setPdpDesktopSticky\(true\)/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /isPdpBuyBoxHost/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /isPdpStickyCartTrigger/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /if\(isPdpWideStickyViewport\(\)\)return false/)

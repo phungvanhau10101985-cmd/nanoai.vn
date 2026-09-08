@@ -243,6 +243,10 @@ function restoreDeferredPdpGalleryMedia(clone: Element) {
 
 function stripEditorAndRuntimeNodes(clone: Element) {
   restoreDeferredPdpGalleryMedia(clone)
+  if (clone instanceof HTMLElement) clone.removeAttribute('data-pw-pdp-desktop-sticky')
+  clone.querySelectorAll('[data-pw-pdp-desktop-sticky]').forEach((el) => {
+    el.removeAttribute('data-pw-pdp-desktop-sticky')
+  })
   removeRuntimeNode(clone.querySelector(`#${EDITOR_STYLE_ID}`))
   removeRuntimeNode(clone.querySelector(`#${EDITOR_SCRIPT_ID}`))
   removeRuntimeNode(clone.querySelector('#nanoai-ve-hover-name'))

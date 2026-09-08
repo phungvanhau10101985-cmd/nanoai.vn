@@ -16,6 +16,8 @@ import { PW_KIND_SCENE_MEDIA, pwKindSceneAttr } from '@/lib/partner-website/visu
 import {
   PW_EDIT_SLOT,
   PW_EL,
+  PW_PAGE,
+  PW_PAGE_BY_CATALOG_KEY,
   PW_REGION,
   pwElAttr,
   pwRegionAttr,
@@ -552,6 +554,21 @@ export function buildVisualEditorBannerHtml(input: {
 </section>`
 }
 
+function attrFromOpenTag(tag: string, name: string): string {
+  if (!tag) return ''
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return tag.match(new RegExp(`\\b${escaped}=["']([^"']+)["']`, 'i'))?.[1]?.trim() || ''
+}
+
+/** Home = catalog key / `<html>` / `<body>` stamp. Never scan CSS or chrome leftovers. */
+export function isHomeVisualDocument(html: string, pageKey?: string | null): boolean {
+  const mapped = pageKey ? PW_PAGE_BY_CATALOG_KEY[pageKey] || pageKey : ''
+  if (mapped) return mapped === PW_PAGE.home
+  const htmlTag = html.match(/<html\b[^>]*>/i)?.[0] || ''
+  const bodyTag = html.match(/<body\b[^>]*>/i)?.[0] || ''
+  return attrFromOpenTag(htmlTag, 'data-pw-page') === PW_PAGE.home || attrFromOpenTag(bodyTag, 'data-pw-page') === PW_PAGE.home
+}
+
 /** Convert leftover hero/slider/promo hosts into one unified swipe block. Inject on home if missing. */
 export function ensurePromoMarketingBannerInHtml(
   html: string,
@@ -559,6 +576,7 @@ export function ensurePromoMarketingBannerInHtml(
 ): string {
   const siteSlug = input.siteSlug.trim()
   if (!html.trim() || !siteSlug) return html
+  if (!isHomeVisualDocument(html, input.pageKey)) return html
   const widget = buildVisualEditorBannerHtml({
     kind: 'promo',
     siteSlug,
@@ -577,8 +595,6 @@ export function ensurePromoMarketingBannerInHtml(
     if (isUnifiedPromoBannerHtml(`${openTag}${inner}`)) return next
     return `${next.slice(0, first.start)}${applyPreservedBannerHostAttrs(widget, openTag)}${next.slice(first.end)}`
   }
-  const isHome = input.pageKey === 'home' || /\bdata-pw-page=["']home["']/i.test(html)
-  if (!isHome) return html
   if (/<\/header>/i.test(html)) return html.replace(/<\/header>/i, `</header>\n${widget}`)
   if (/<main\b[^>]*>/i.test(html)) {
     return html.replace(/<main\b[^>]*>/i, (open) => `${open}\n${widget}`)

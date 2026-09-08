@@ -6,6 +6,7 @@
 import { escapeAttr, escapeHtml } from '@/lib/packaging/mockup-share-html'
 import type { WebLocale } from '@/lib/i18n/config'
 import { shopBannerDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { extractVisualHtmlPageKind } from '@/lib/partner-website/shop/inject-partner-shop-fonts'
 import {
   partnerMarketingBannerAlt,
   type PartnerMarketingBannerPublicItem,
@@ -137,12 +138,30 @@ export function buildLiveMarketingBannerCarouselHtml(
   return `<div data-pw-promo-carousel="1" aria-label="${escapeAttr(aria)}">${slides}${chrome}</div>`
 }
 
+/** PDP must not keep the home 21:9 sale slider — Sửa nhanh chi tiết không có khối này. */
+export function stripPersonalizeBannerHostsInHtml(html: string): string {
+  if (!html) return html
+  const ranges = findPersonalizeBannerRanges(html)
+  if (!ranges.length) return html
+  let out = html
+  for (let i = ranges.length - 1; i >= 0; i--) {
+    const range = ranges[i]
+    let end = range.end
+    const greet = out.slice(end).match(/^\s*<p\b[^>]*\bdata-pw-banner-greeting\b[^>]*>[\s\S]*?<\/p>/i)
+    if (greet) end += greet[0].length
+    out = `${out.slice(0, range.start)}${out.slice(end)}`
+  }
+  return out
+}
+
 export function bindLiveMarketingBannersToHtml(
   html: string,
   items: PartnerMarketingBannerPublicItem[] | null | undefined,
   locale: WebLocale
 ): string {
-  if (!html || items == null) return html
+  if (!html) return html
+  if (extractVisualHtmlPageKind(html) === 'product') return stripPersonalizeBannerHostsInHtml(html)
+  if (items == null) return html
   const ranges = findPersonalizeBannerRanges(html)
   if (!ranges.length) return html
   const primary = ranges.findIndex((range) => {

@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   bindLiveMarketingBannersToHtml,
   buildLiveMarketingBannerCarouselHtml,
+  stripPersonalizeBannerHostsInHtml,
 } from '@/lib/partner-website/shop/bind-live-marketing-banner'
 import type { PartnerMarketingBannerPublicItem } from '@/lib/partner-website/promotions/partner-marketing-banner'
 
@@ -71,6 +72,21 @@ test('bindLiveMarketingBannersToHtml paints the visible host when the first is h
 test('bindLiveMarketingBannersToHtml skips when items were not resolved', () => {
   const out = bindLiveMarketingBannersToHtml(seed, null, 'vi')
   assert.equal(out, seed)
+})
+
+test('PDP live strips leftover home promo hosts instead of painting sale slides', () => {
+  const pdp =
+    '<html><body data-pw-page="product"><header></header>' +
+    seed +
+    '<p data-pw-banner-greeting="1">Hi</p><main>PDP</main></body></html>'
+  const stripped = stripPersonalizeBannerHostsInHtml(pdp)
+  assert.doesNotMatch(stripped, /data-pw-personalize-banner/)
+  assert.doesNotMatch(stripped, /data-pw-banner-greeting/)
+  assert.match(stripped, /PDP/)
+  const out = bindLiveMarketingBannersToHtml(pdp, [sale], 'vi')
+  assert.doesNotMatch(out, /https:\/\/cdn\.example\/sale\.png/)
+  assert.doesNotMatch(out, /data-pw-personalize-banner/)
+  assert.match(out, /PDP/)
 })
 
 test('bindLiveMarketingBannersToHtml inserts greeting after the host', () => {

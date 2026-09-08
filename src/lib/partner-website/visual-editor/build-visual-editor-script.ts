@@ -15121,6 +15121,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-active .pw-nav-main a,.nanoai-ve-active .pw-shop-nav-row a,.nanoai-ve-active .pw-topbar a,.nanoai-ve-active .pw-shop-topbar a,.nanoai-ve-active [data-pw-el="nav-link"],.nanoai-ve-active .pw-topbar [data-pw-el="link"],.nanoai-ve-active .pw-shop-topbar [data-pw-el="link"],.nanoai-ve-active [data-pw-el="cat-toggle"],.nanoai-ve-active .pw-cat-btn,.nanoai-ve-active .pw-shop-cat-btn,.nanoai-ve-active .pw-chrome-cat-wrap{pointer-events:auto!important;position:relative;z-index:200}',
       '.pw-bottom-nav,.pw-shop-bottom-nav{display:flex!important;flex-wrap:nowrap;justify-content:space-around;align-items:stretch;grid-template-columns:none!important}',
       '[data-pw-edit-device="desktop"] .pw-bottom-nav,[data-pw-edit-device="desktop"] .pw-shop-bottom-nav,[data-pw-edit-device="laptop"] .pw-bottom-nav,[data-pw-edit-device="laptop"] .pw-shop-bottom-nav{display:none!important}',
+      'html[data-pw-edit-device="desktop"][data-pw-page="product"] body.nanoai-ve-active .pw-bottom-nav[data-pw-chrome-kit="dock"],html[data-pw-edit-device="laptop"][data-pw-page="product"] body.nanoai-ve-active .pw-bottom-nav[data-pw-chrome-kit="dock"],html[data-pw-edit-device="desktop"][data-pw-page="product"] body.nanoai-ve-active .pw-shop-bottom-nav[data-pw-chrome-kit="dock"],html[data-pw-edit-device="laptop"][data-pw-page="product"] body.nanoai-ve-active .pw-shop-bottom-nav[data-pw-chrome-kit="dock"],html[data-pw-edit-device="desktop"] body.nanoai-ve-active[data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"],html[data-pw-edit-device="laptop"] body.nanoai-ve-active[data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"]{display:flex!important;position:fixed!important;left:0;right:0;bottom:0;z-index:${PW_SCENE_HEAD_Z}!important}',
+      'html[data-pw-edit-device="desktop"][data-pw-page="product"] body.nanoai-ve-active [data-pw-live-dock],html[data-pw-edit-device="laptop"][data-pw-page="product"] body.nanoai-ve-active [data-pw-live-dock],html[data-pw-edit-device="desktop"] body.nanoai-ve-active[data-pw-page="product"] [data-pw-live-dock],html[data-pw-edit-device="laptop"] body.nanoai-ve-active[data-pw-page="product"] [data-pw-live-dock]{display:flex!important}',
       '[data-pw-edit-device="mobile"] .pw-bottom-nav,[data-pw-edit-device="mobile"] .pw-shop-bottom-nav,[data-pw-edit-device="tablet"] .pw-bottom-nav,[data-pw-edit-device="tablet"] .pw-shop-bottom-nav,.nanoai-ve-mobile .pw-bottom-nav,.nanoai-ve-mobile .pw-shop-bottom-nav,.nanoai-ve-tablet .pw-bottom-nav,.nanoai-ve-tablet .pw-shop-bottom-nav{display:flex!important;position:fixed!important;left:0;right:0;bottom:0;z-index:${PW_SCENE_HEAD_Z}!important}',
       '[data-pw-edit-device="mobile"] [data-pw-page="product"] .pw-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]),[data-pw-edit-device="mobile"] [data-pw-page="product"] .pw-shop-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]),.nanoai-ve-mobile [data-pw-page="product"] .pw-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]),.nanoai-ve-mobile [data-pw-page="product"] .pw-shop-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]){display:none!important}',
       '[data-pw-edit-device="mobile"] [data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"],[data-pw-edit-device="mobile"] [data-pw-page="product"] .pw-shop-bottom-nav[data-pw-chrome-kit="dock"],[data-pw-edit-device="tablet"] [data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"],[data-pw-edit-device="tablet"] [data-pw-page="product"] .pw-shop-bottom-nav[data-pw-chrome-kit="dock"],.nanoai-ve-mobile [data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"],.nanoai-ve-tablet [data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"]{display:flex!important}',
@@ -15529,9 +15531,18 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function stampShopPageFromHost(d) {
     var pk = String((d && d.pageKey) || '').trim()
-    if (pk !== 'product_detail') return
-    if (document.documentElement && document.documentElement.setAttribute) {
-      document.documentElement.setAttribute('data-pw-page', 'product')
+    var html = document.documentElement
+    var isPdp = pk === 'product_detail'
+    var device = String((d && d.device) || (html && html.getAttribute && html.getAttribute('data-pw-edit-device')) || '').toLowerCase()
+    var wide = device === 'desktop' || device === 'laptop'
+    if (!isPdp) {
+      if (html && html.removeAttribute) html.removeAttribute('data-pw-pdp-desktop-sticky')
+      return
+    }
+    if (html && html.setAttribute) {
+      html.setAttribute('data-pw-page', 'product')
+      if (wide) html.setAttribute('data-pw-pdp-desktop-sticky', '1')
+      else html.removeAttribute('data-pw-pdp-desktop-sticky')
     }
     if (document.body && document.body.setAttribute) {
       document.body.setAttribute('data-pw-page', 'product')

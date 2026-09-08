@@ -3,6 +3,12 @@ import { sqlPartnerMpActorHasPerm } from '@/lib/db/messaging-partner-access-sql'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import type { PartnerStackedDiscountSnapshot } from '@/lib/db/messaging-partner-loyalty-pg'
 import type { PartnerSaleDiscountBreakdown } from '@/lib/partner-website/promotions/partner-sale-pricing'
+import {
+  partnerAdminLifecycleSql,
+  partnerAdminPaymentFilterSql,
+  type PartnerAdminLifecycleTab,
+  type PartnerAdminPaymentFilter,
+} from '@/lib/messaging/partner-admin-orders-lifecycle'
 
 export type PartnerPaymentSettingsRow = {
   partner_id: string
@@ -1487,6 +1493,7 @@ export type PartnerOrderAdminRow = PartnerOrderRow & {
   latest_proof_image_url: string | null
   latest_proof_status: 'pending' | 'verified' | 'failed' | 'manual_review' | null
   latest_proof_reason: string | null
+  has_customer_review?: boolean
 }
 
 /** Tổng hợp đơn chat (cùng bộ lọc workspace + trạng thái với danh sách; không giới hạn 200 dòng). */
@@ -1595,6 +1602,7 @@ function mapOrderAdminRow(r: Record<string, unknown>): PartnerOrderAdminRow {
     latest_proof_image_url: r.latest_proof_image_url ? String(r.latest_proof_image_url) : null,
     latest_proof_status: r.latest_proof_status ? (String(r.latest_proof_status) as PartnerOrderAdminRow['latest_proof_status']) : null,
     latest_proof_reason: r.latest_proof_reason ? String(r.latest_proof_reason) : null,
+    has_customer_review: Boolean(r.has_customer_review),
   }
 }
 
@@ -1667,6 +1675,295 @@ export async function fetchPartnerOrdersForOwnerFromPg(input: {
     console.error('[fetchPartnerOrdersForOwnerFromPg]', e)
     return null
   }
+}
+
+const ORDER_TOTAL_EXPR = `coalesce(nullif(o.amount_after_discount, 0), o.subtotal_amount, 0)`
+
+function escapeIlikeQuery(q: string): string {
+  return q.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+}
+
+export type PartnerOrderAdminKpi = {
+  totalOrders: number
+  todayRevenue: number
+  waitingDepositOrders: number
+  shippingOrders: number
+}
+
+export type PartnerOrderAdminTabCounts = {
+  totalOrders: number
+  waitingDepositOrders: number
+  waitingShipOrders: number
+  shippingOrders: number
+  deliveredOrders: number
+  completedOrders: number
+  returnedOrders: number
+  cancelledOrders: number
+}
+
+export type PartnerOrderAdminRevenueReport = {
+  periodLabel: string
+  dateFrom: string | null
+  dateTo: string | null
+  totalRevenue: number
+  totalOrders: number
+  cancelledOrders: number
+  returnedOrders: number
+}
+
+export type PartnerOrderAdminPage = {
+  rows: PartnerOrderAdminRow[]
+  filteredTotal: number
+}
+
+export async function fetchPartnerOrderAdminKpiFromPg(input: {
+  ownerUserId: string
+  partnerId?: string | null
+}): Promise<PartnerOrderAdminKpi | null> {
+  if (!isPgConfigured()) return null
+  const partnerId = String(input.partnerId ?? '').trim()
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `select
+          count(*) filter (where (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date = (now() at time zone 'Asia/Ho_Chi_Minh')::date)::int as today_orders,
+          coalesce(sum(${ORDER_TOTAL_EXPR}) filter (where (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date = (now() at time zone 'Asia/Ho_Chi_Minh')::date), 0)::double precision as today_revenue,
+          count(*) filter (where ${partnerAdminLifecycleSql('waiting_deposit')}
+            and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date = (now() at time zone 'Asia/Ho_Chi_Minh')::date)::int as waiting_deposit,
+          count(*) filter (where ${partnerAdminLifecycleSql('shipping')}
+            and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date = (now() at time zone 'Asia/Ho_Chi_Minh')::date)::int as shipping
+       from public.messaging_partner_orders o
+       join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
+       where ($2::uuid is null or o.partner_id = $2::uuid)`,
+      [input.ownerUserId, partnerId || null]
+    )
+    const n = (k: string) => Math.max(0, Math.floor(Number(row?.[k]) || 0))
+    return {
+      totalOrders: n('today_orders'),
+      todayRevenue: Math.round(Number(row?.today_revenue) || 0),
+      waitingDepositOrders: n('waiting_deposit'),
+      shippingOrders: n('shipping'),
+    }
+  } catch (e) {
+    console.error('[fetchPartnerOrderAdminKpiFromPg]', e)
+    return null
+  }
+}
+
+export async function fetchPartnerOrderAdminTabCountsFromPg(input: {
+  ownerUserId: string
+  partnerId?: string | null
+  q?: string | null
+  paymentFilter?: PartnerAdminPaymentFilter | null
+}): Promise<PartnerOrderAdminTabCounts | null> {
+  if (!isPgConfigured()) return null
+  const partnerId = String(input.partnerId ?? '').trim()
+  const q = String(input.q ?? '').trim()
+  const paySql = partnerAdminPaymentFilterSql((input.paymentFilter || '') as PartnerAdminPaymentFilter)
+  const searchSql = q
+    ? `and (
+         coalesce(o.payment_reference, '') ilike $3 escape '\\'
+         or coalesce(o.customer_name, '') ilike $3 escape '\\'
+         or coalesce(o.customer_phone, '') ilike $3 escape '\\'
+         or coalesce(o.product_name, '') ilike $3 escape '\\'
+         or o.id::text ilike $3 escape '\\'
+       )`
+    : ''
+  const like = q ? `%${escapeIlikeQuery(q)}%` : null
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `select
+          count(*)::int as total_orders,
+          count(*) filter (where ${partnerAdminLifecycleSql('waiting_deposit')})::int as waiting_deposit,
+          count(*) filter (where ${partnerAdminLifecycleSql('waiting_ship')})::int as waiting_ship,
+          count(*) filter (where ${partnerAdminLifecycleSql('shipping')})::int as shipping,
+          count(*) filter (where ${partnerAdminLifecycleSql('delivered')})::int as delivered,
+          count(*) filter (where ${partnerAdminLifecycleSql('completed')})::int as completed,
+          count(*) filter (where ${partnerAdminLifecycleSql('returned')})::int as returned,
+          count(*) filter (where ${partnerAdminLifecycleSql('cancelled')})::int as cancelled
+       from public.messaging_partner_orders o
+       join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
+       where ($2::uuid is null or o.partner_id = $2::uuid)
+         and ${paySql}
+         ${searchSql}`,
+      q ? [input.ownerUserId, partnerId || null, like] : [input.ownerUserId, partnerId || null]
+    )
+    const n = (k: string) => Math.max(0, Math.floor(Number(row?.[k]) || 0))
+    return {
+      totalOrders: n('total_orders'),
+      waitingDepositOrders: n('waiting_deposit'),
+      waitingShipOrders: n('waiting_ship'),
+      shippingOrders: n('shipping'),
+      deliveredOrders: n('delivered'),
+      completedOrders: n('completed'),
+      returnedOrders: n('returned'),
+      cancelledOrders: n('cancelled'),
+    }
+  } catch (e) {
+    console.error('[fetchPartnerOrderAdminTabCountsFromPg]', e)
+    return null
+  }
+}
+
+export async function fetchPartnerOrderAdminRevenueFromPg(input: {
+  ownerUserId: string
+  partnerId?: string | null
+  dateFrom: string
+  dateTo: string
+  periodLabel: string
+}): Promise<PartnerOrderAdminRevenueReport | null> {
+  if (!isPgConfigured()) return null
+  const partnerId = String(input.partnerId ?? '').trim()
+  const from = parseOrderDateFilterParam(input.dateFrom)
+  const to = parseOrderDateFilterParam(input.dateTo)
+  if (!from || !to) return null
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `select
+          count(*)::int as total_orders,
+          coalesce(sum(${ORDER_TOTAL_EXPR}), 0)::double precision as total_revenue,
+          count(*) filter (where ${partnerAdminLifecycleSql('cancelled')})::int as cancelled,
+          count(*) filter (where ${partnerAdminLifecycleSql('returned')})::int as returned
+       from public.messaging_partner_orders o
+       join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
+       where ($2::uuid is null or o.partner_id = $2::uuid)
+         and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date >= $3::date
+         and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date <= $4::date`,
+      [input.ownerUserId, partnerId || null, from, to]
+    )
+    const n = (k: string) => Math.max(0, Math.floor(Number(row?.[k]) || 0))
+    return {
+      periodLabel: input.periodLabel,
+      dateFrom: from,
+      dateTo: to,
+      totalRevenue: Math.round(Number(row?.total_revenue) || 0),
+      totalOrders: n('total_orders'),
+      cancelledOrders: n('cancelled'),
+      returnedOrders: n('returned'),
+    }
+  } catch (e) {
+    console.error('[fetchPartnerOrderAdminRevenueFromPg]', e)
+    return null
+  }
+}
+
+const ORDER_ADMIN_LIST_SELECT = `o.id::text, o.partner_id::text, o.conversation_id::text, o.external_thread_id, o.status,
+              o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
+              o.variant_color, o.variant_size, o.variant_image_urls, o.quantity, o.note,
+              o.product_inventory_id::text, o.product_name, o.product_image_url, o.product_url,
+              o.unit_price, o.subtotal_amount,
+              o.loyalty_tier_code, o.loyalty_tier_name, o.loyalty_discount_percent, o.loyalty_discount_amount,
+              o.birthday_discount_percent, o.birthday_discount_amount, o.total_discount_percent, o.total_discount_amount,
+              o.amount_after_discount, o.deposit_percent, o.required_amount, o.paid_amount,
+              o.currency, o.payment_reference, o.payment_qr_url, o.verified_note, o.shipping_status,
+              o.created_at, o.updated_at, o.verified_at, o.locked_at, o.google_sheet_row, o.google_sheet_row_count,
+              o.promo_id::text, o.promo_code, o.promo_discount_amount,
+              coalesce(o.payment_method, 'cod') as payment_method, coalesce(o.shipping_fee_amount, 0) as shipping_fee_amount,
+              coalesce(o.refund_status, 'none') as refund_status, coalesce(o.refund_amount, 0) as refund_amount,
+              coalesce(o.refund_note, '') as refund_note, o.refunded_at,
+              coalesce(mp.display_name, '') as partner_display_name,
+              coalesce(ls.order_item_count, 1) as order_item_count,
+              coalesce(ls.order_items_summary, '') as order_items_summary,
+              lp.image_url as latest_proof_image_url,
+              lp.verification_status as latest_proof_status,
+              lp.verification_reason as latest_proof_reason,
+              exists (
+                select 1 from public.messaging_partner_product_reviews rv
+                where rv.order_id = o.id and coalesce(rv.is_imported, false) = false and coalesce(rv.is_active, true) = true
+              ) as has_customer_review`
+
+const ORDER_ADMIN_LIST_JOINS = `from public.messaging_partner_orders o
+       join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
+       left join lateral (
+         select count(*)::int as order_item_count,
+                string_agg(
+                  concat(l.product_name, ' x', l.quantity,
+                         case when nullif(trim(l.variant_color), '') is not null then concat(' - ', l.variant_color) else '' end,
+                         case when nullif(trim(l.variant_size), '') is not null then concat(' - size ', l.variant_size) else '' end),
+                  E'\\n' order by l.sort_order asc, l.created_at asc, l.id asc
+                ) as order_items_summary
+         from public.messaging_partner_order_lines l
+         where l.order_id = o.id
+       ) ls on true
+       left join lateral (
+         select image_url, verification_status, verification_reason
+         from public.messaging_partner_payment_proofs p
+         where p.order_id = o.id
+         order by p.created_at desc
+         limit 1
+       ) lp on true`
+
+export async function fetchPartnerOrdersAdminPageFromPg(input: {
+  ownerUserId: string
+  partnerId?: string | null
+  q?: string | null
+  lifecycleTab?: PartnerAdminLifecycleTab | null
+  paymentFilter?: PartnerAdminPaymentFilter | null
+  skip?: number
+  limit?: number
+}): Promise<PartnerOrderAdminPage | null> {
+  if (!isPgConfigured()) return null
+  const partnerId = String(input.partnerId ?? '').trim()
+  const q = String(input.q ?? '').trim()
+  const tab = (input.lifecycleTab || 'all') as PartnerAdminLifecycleTab
+  const pay = (input.paymentFilter || '') as PartnerAdminPaymentFilter
+  const lim = Math.max(25, Math.min(100, Math.floor(Number(input.limit) || 100)))
+  const skip = Math.max(0, Math.floor(Number(input.skip) || 0))
+  const lifeSql = partnerAdminLifecycleSql(tab)
+  const paySql = partnerAdminPaymentFilterSql(pay)
+  const searchSql = q
+    ? `and (
+         coalesce(o.payment_reference, '') ilike $3 escape '\\'
+         or coalesce(o.customer_name, '') ilike $3 escape '\\'
+         or coalesce(o.customer_phone, '') ilike $3 escape '\\'
+         or coalesce(o.product_name, '') ilike $3 escape '\\'
+         or o.id::text ilike $3 escape '\\'
+       )`
+    : ''
+  const like = q ? `%${escapeIlikeQuery(q)}%` : null
+  const countParams = q ? [input.ownerUserId, partnerId || null, like] : [input.ownerUserId, partnerId || null]
+  const listParams = q
+    ? [input.ownerUserId, partnerId || null, like, lim, skip]
+    : [input.ownerUserId, partnerId || null, lim, skip]
+  const limitIdx = q ? '$4' : '$3'
+  const skipIdx = q ? '$5' : '$4'
+  try {
+    const countRow = await pgQueryOne<{ filtered_total: number }>(
+      `select count(*)::int as filtered_total
+       from public.messaging_partner_orders o
+       join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
+       where ($2::uuid is null or o.partner_id = $2::uuid)
+         and ${lifeSql}
+         and ${paySql}
+         ${searchSql}`,
+      countParams
+    )
+    const filteredTotal = Math.max(0, Math.floor(Number(countRow?.filtered_total) || 0))
+    const rows = await pgQuery<Record<string, unknown>>(
+      `select ${ORDER_ADMIN_LIST_SELECT}
+       ${ORDER_ADMIN_LIST_JOINS}
+       where ($2::uuid is null or o.partner_id = $2::uuid)
+         and ${lifeSql}
+         and ${paySql}
+         ${searchSql}
+       order by o.created_at desc
+       limit ${limitIdx} offset ${skipIdx}`,
+      listParams
+    )
+    return { rows: rows.map(mapOrderAdminRow), filteredTotal }
+  } catch (e) {
+    console.error('[fetchPartnerOrdersAdminPageFromPg]', e)
+    return null
+  }
+}
+
+export async function fetchPartnerOrderLinesForOwnerFromPg(input: {
+  ownerUserId: string
+  orderId: string
+}): Promise<PartnerOrderLineRow[] | null> {
+  if (!isPgConfigured()) return null
+  const order = await fetchPartnerOrderForOwnerFromPg(input.ownerUserId, input.orderId)
+  if (!order) return null
+  return fetchPartnerOrderLinesFromPg(order.id)
 }
 
 const _exportMaxParsed = parseInt(process.env.MESSAGING_PARTNER_ORDERS_EXPORT_MAX || '50000', 10)

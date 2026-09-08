@@ -1168,8 +1168,11 @@ function ChromeKitPanel({
         : device === 'mobile'
           ? t.visualEditChromeKitHeadMobile
           : t.visualEditChromeKitHeadPc
-  const showDock = device === 'mobile' || device === 'tablet'
   const isProductPage = pageKey === 'product_detail'
+  const showDock =
+    device === 'mobile' ||
+    device === 'tablet' ||
+    (isProductPage && (device === 'desktop' || device === 'laptop'))
   const dockByKind = new Map(dock.map((item) => [item.kind, item]))
   const dockRows: ChromeKitListItem[] = []
   const seenDock = new Set<string>()

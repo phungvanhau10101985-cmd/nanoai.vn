@@ -5,6 +5,7 @@ import {
   bannerWidgetLabel,
   buildVisualEditorBannerHtml,
   ensurePromoMarketingBannerInHtml,
+  isHomeVisualDocument,
   isUnifiedPromoBannerHtml,
   isVisualEditorBannerKind,
   restoreMarketingBannerSeedsInDocument,
@@ -120,6 +121,31 @@ test('home seed injects one unified host when missing', () => {
     { siteSlug: 'demo-shop', locale: 'vi', pageKey: 'products' }
   )
   assert.doesNotMatch(listing, /data-pw-personalize-banner/)
+})
+
+test('product detail does not inherit the home 21:9 promo slider', () => {
+  const pdp = `<!DOCTYPE html><html>
+<head><style>html[data-pw-page="home"] .pw-shop-main{padding-top:0}</style></head>
+<body data-pw-page="product">
+<header></header>
+<main class="pw-shop-main"></main>
+</body></html>`
+  assert.equal(isHomeVisualDocument(pdp, 'product_detail'), false)
+  assert.equal(isHomeVisualDocument(pdp), false)
+  const out = ensurePromoMarketingBannerInHtml(pdp, {
+    siteSlug: 'demo-shop',
+    locale: 'vi',
+    pageKey: 'product_detail',
+  })
+  assert.doesNotMatch(out, /data-pw-personalize-banner/)
+  const leftover = ensurePromoMarketingBannerInHtml(
+    '<html><body data-pw-page="product"><header></header>' +
+      '<section class="pw-hero" data-pw-region="banner"><h1>sưu tập mới</h1></section>' +
+      '</body></html>',
+    { siteSlug: 'demo-shop', locale: 'vi', pageKey: 'product_detail' }
+  )
+  assert.doesNotMatch(leftover, /data-pw-personalize-banner/)
+  assert.match(leftover, /sưu tập mới/)
 })
 
 test('converts leftover hero and extra promo hosts into one unified block', () => {

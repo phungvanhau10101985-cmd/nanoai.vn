@@ -159,6 +159,7 @@ export async function PartnerSiteVisualHtmlScreen({
         infoSeo?.datePublished || '',
         infoSeo?.dateModified || '',
         infoSeo?.noIndex ? '1' : '0',
+        'promo-home-1',
       ].join(':'),
       load: async () => prepare(),
     })

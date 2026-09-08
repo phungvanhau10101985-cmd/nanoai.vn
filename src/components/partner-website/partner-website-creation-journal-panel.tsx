@@ -498,6 +498,9 @@ export function PartnerWebsiteCreationJournalPanel({
       setBuildSteps([])
       setBuildCompletedStepIds([])
       setBuildFailedStepId(null)
+    } catch (e) {
+      setBuildFailedStepId('apply')
+      onError(e instanceof Error ? e.message : t.errorGeneric)
     } finally {
       setBuildingSite(false)
       setBuildStatusLabel('')

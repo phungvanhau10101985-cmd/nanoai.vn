@@ -57,6 +57,7 @@ function finishVisualHtml(
     brand: string
     logoUrl?: string | null
     look?: PartnerWebsiteTheme['look']
+    pageKey?: PartnerWebsitePageKey | null
   }
 ): string {
   const isolated = isolateVisualHtmlForDevice(html, variant)
@@ -76,6 +77,7 @@ function finishVisualHtml(
   const withPromo = ensurePromoMarketingBannerInHtml(stamped, {
     siteSlug: input.siteSlug,
     locale: input.locale,
+    pageKey: input.pageKey,
   })
   const ready = ensureVisualHtmlLiveReady(withPromo, variant)
   return stampPartnerWebsiteLookInHtml(ready, resolvePartnerWebsiteLook({ look: input.look }, ready))
@@ -118,7 +120,9 @@ export function buildShopTemplateHomeVisualHtml(input: {
           variant: input.variant,
         })
   )
-  return ensureHomeFlashSaleBlockInHtml(finishVisualHtml(raw, input.variant, { ...input, look: input.theme.look }), {
+  return ensureHomeFlashSaleBlockInHtml(
+    finishVisualHtml(raw, input.variant, { ...input, look: input.theme.look, pageKey: 'home' }),
+    {
     siteSlug: input.siteSlug,
     locale: input.locale,
     device: input.variant,
@@ -176,7 +180,7 @@ function buildShopTemplatePdpVisualHtml(input: {
   })
   const chrome = extractSharedChrome(input.homeHtml)
   const withChrome = applySharedChrome(shell, chrome, { targetVariant: input.variant })
-  return finishVisualHtml(withChrome, input.variant, input)
+  return finishVisualHtml(withChrome, input.variant, { ...input, pageKey: 'product_detail' })
 }
 
 /**
@@ -289,7 +293,7 @@ export function seedShopTemplateVisualWebsite(input: {
                 return applySharedChrome(professional, chrome, { targetVariant: variant })
               })(),
               variant,
-              { ...input, look: input.theme.look }
+              { ...input, look: input.theme.look, pageKey }
             )
       project = mergeVisualPageHtmlIntoProject(project, html, visualEditorHtmlPath(pageKey, variant))
       theme = applyVisualEditThemeFlag(theme, { pageKey, variant })

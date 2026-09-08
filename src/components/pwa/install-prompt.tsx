@@ -79,11 +79,17 @@ export function InstallPrompt() {
   }, [])
 
   const handleInstall = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt()
-      const { outcome } = await deferredPrompt.userChoice
+    if (!deferredPrompt) return
+    const choicePromise = deferredPrompt.userChoice
+    // Chrome/Edge may reject prompt() after the user accepts while still installing.
+    void Promise.resolve(deferredPrompt.prompt()).catch(() => undefined)
+    try {
+      const { outcome } = await choicePromise
       if (outcome === 'accepted') setShowPrompt(false)
+    } catch {
+      /* Install may still succeed; hide only when the dialog was accepted. */
     }
+    setDeferredPrompt(null)
   }
 
   if (isStandalone || !showPrompt) return null

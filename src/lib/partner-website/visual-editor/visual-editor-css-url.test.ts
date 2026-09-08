@@ -149,7 +149,11 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain("if (!preferPdpDock && n.closest && n.closest('.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas')) continue")
     expect(s).toContain('if (!preferPdpDock && isPdpDockFaceBtn(n)) continue')
     expect(s).toContain('.pw-pdp-sticky-nav [data-pw-chrome-btn')
-    expect(s).toContain("pk !== 'product_detail'")
+    expect(s).toContain("pk === 'product_detail'")
+    expect(s).toContain("html.setAttribute('data-pw-pdp-desktop-sticky', '1')")
+    expect(s).toContain(
+      'html[data-pw-edit-device="desktop"][data-pw-page="product"] body.nanoai-ve-active .pw-bottom-nav[data-pw-chrome-kit="dock"]'
+    )
     expect(s).toContain('setChromeKitShift')
     expect(s).toContain('setHeaderLogoOffset')
     expect(s).toContain('data-pw-logo-x')

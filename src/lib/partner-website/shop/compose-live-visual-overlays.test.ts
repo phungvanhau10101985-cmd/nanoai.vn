@@ -71,8 +71,8 @@ test('applyLiveVisualOverlays binds product then keeps live pills and featured t
   assert.match(out, /Đầm maxi/)
   assert.doesNotMatch(out, /Thời trang/)
   assert.doesNotMatch(out, /Áo sơ mi/)
-  assert.match(out, /https:\/\/cdn\.example\/sale\.png/)
-  assert.match(out, /data-pw-banner-live="1"/)
+  assert.doesNotMatch(out, /data-pw-personalize-banner/)
+  assert.doesNotMatch(out, /https:\/\/cdn\.example\/sale\.png/)
   assert.doesNotMatch(out, /Bộ sưu tập mới/)
 })
 
@@ -86,6 +86,19 @@ test('applyLiveVisualOverlays without product still paints visitor pills', () =>
   assert.match(out, /Old bag/)
   assert.match(out, /Đầm/)
   assert.doesNotMatch(out, /Thời trang/)
+  assert.doesNotMatch(out, /data-pw-personalize-banner/)
+  assert.doesNotMatch(out, /https:\/\/cdn\.example\/sale\.png/)
+})
+
+test('applyLiveVisualOverlays paints the 21:9 promo slider on home', () => {
+  const home = SHELL.replace('data-pw-page="product"', 'data-pw-page="home"')
+  const out = applyLiveVisualOverlays(home, {
+    liveCategoryBind: bind,
+    liveMarketingBanners: banners,
+    locale: 'vi',
+    siteSlug: 'demo-shop',
+  })
   assert.match(out, /https:\/\/cdn\.example\/sale\.png/)
+  assert.match(out, /data-pw-banner-live="1"/)
   assert.doesNotMatch(out, /Bộ sưu tập mới/)
 })

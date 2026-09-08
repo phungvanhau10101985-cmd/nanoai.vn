@@ -274,6 +274,7 @@ test('fashion-marketplace seed stamps look and home API hooks on all four device
   const pdp = seeded.project.files.find((f) => f.path === visualEditorHtmlPath('product_detail', 'desktop'))
   assert.ok(pdp)
   assert.match(pdp.content, /data-pw-look="marketplace"/)
+  assert.doesNotMatch(pdp.content, /data-pw-personalize-banner/)
   const products = seeded.project.files.find((f) => f.path === visualEditorHtmlPath('products', 'mobile'))
   assert.ok(products)
   assert.match(products.content, /data-pw-look="marketplace"/)

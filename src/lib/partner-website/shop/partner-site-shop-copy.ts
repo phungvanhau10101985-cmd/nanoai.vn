@@ -421,6 +421,7 @@ export type PartnerSiteShopCopy = {
   accountInstallAppButton: string
   accountInstallAppIosTip: string
   accountInstallAppInstalled: string
+  accountInstallAppFailed: string
   accountInstallAppManualTip: string
   orderStatusLabel: string
   orderStatusAwaitingPayment: string
@@ -953,6 +954,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountInstallAppButton: 'Cài đặt',
     accountInstallAppIosTip: 'Trên iPhone/iPad: chạm Share → «Thêm vào MH chính».',
     accountInstallAppInstalled: 'Ứng dụng đã được cài trên thiết bị này.',
+    accountInstallAppFailed: 'Không cài được ứng dụng. Thử lại từ menu trình duyệt, hoặc tải lại trang rồi bấm Cài đặt.',
     accountInstallAppManualTip: 'Mở menu trình duyệt và chọn «Cài đặt ứng dụng» hoặc «Thêm vào màn hình chính».',
     orderStatusLabel: 'Trạng thái',
     orderStatusAwaitingPayment: 'Chờ thanh toán',
@@ -1481,6 +1483,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountInstallAppButton: 'Install',
     accountInstallAppIosTip: 'On iPhone/iPad: tap Share → “Add to Home Screen”.',
     accountInstallAppInstalled: 'The app is already installed on this device.',
+    accountInstallAppFailed: 'Could not install the app. Try again from the browser menu, or reload and tap Install.',
     accountInstallAppManualTip: 'Open your browser menu and choose “Install app” or “Add to Home Screen”.',
     orderStatusLabel: 'Status',
     orderStatusAwaitingPayment: 'Awaiting payment',
@@ -2005,6 +2008,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountInstallAppButton: '安装',
     accountInstallAppIosTip: '在 iPhone/iPad：点分享 →「添加到主屏幕」。',
     accountInstallAppInstalled: '此设备已安装该应用。',
+    accountInstallAppFailed: '无法安装应用。请从浏览器菜单重试，或刷新页面后再点安装。',
     accountInstallAppManualTip: '打开浏览器菜单，选择「安装应用」或「添加到主屏幕」。',
     orderStatusLabel: '状态',
     orderStatusAwaitingPayment: '待付款',
@@ -2531,6 +2535,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountInstallAppButton: 'インストール',
     accountInstallAppIosTip: 'iPhone/iPad：共有 →「ホーム画面に追加」。',
     accountInstallAppInstalled: 'この端末にはすでにインストール済みです。',
+    accountInstallAppFailed: 'アプリをインストールできませんでした。ブラウザのメニューから再試行するか、再読み込みしてインストールを押してください。',
     accountInstallAppManualTip: 'ブラウザのメニューから「アプリをインストール」または「ホーム画面に追加」を選んでください。',
     orderStatusLabel: 'ステータス',
     orderStatusAwaitingPayment: '支払い待ち',
@@ -3057,6 +3062,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountInstallAppButton: '설치',
     accountInstallAppIosTip: 'iPhone/iPad: 공유 → «홈 화면에 추가».',
     accountInstallAppInstalled: '이 기기에 이미 설치되어 있습니다.',
+    accountInstallAppFailed: '앱을 설치하지 못했습니다. 브라우저 메뉴에서 다시 시도하거나, 새로고침 후 설치를 누르세요.',
     accountInstallAppManualTip: '브라우저 메뉴에서 «앱 설치» 또는 «홈 화면에 추가»를 선택하세요.',
     orderStatusLabel: '상태',
     orderStatusAwaitingPayment: '결제 대기',
