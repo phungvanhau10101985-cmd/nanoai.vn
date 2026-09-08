@@ -765,10 +765,17 @@ ${PW_CHROME_TEXT_ONLY_HIDE_ICON_CSS}
 .pw-cat-panel a,.pw-cat-panel a.pw-nav-sale,.pw-cat-panel a.is-sale,
 .pw-shop-cat-panel a,.pw-shop-cat-panel a.pw-nav-sale,.pw-shop-cat-panel a.is-sale{color:#374151!important;transition:color .15s ease}
 .pw-nav-main>a:hover,.pw-shop-nav-row>a:hover,
-.pw-nav-main a:hover,.pw-nav-main button:hover,.pw-shop-nav-row a:hover,.pw-shop-nav-row button:hover,
-.pw-nav-row-scroll a:hover,.pw-nav-row-scroll button:hover,.pw-nav-pill:hover a,.pw-nav-pill:hover button,
+.pw-nav-main .pw-nav-row-scroll>a:hover,.pw-shop-nav-row .pw-nav-row-scroll>a:hover,
+.pw-nav-main .pw-nav-row-scroll>button:hover,.pw-shop-nav-row .pw-nav-row-scroll>button:hover,
+.pw-nav-main .pw-nav-pill>a:hover,.pw-shop-nav-row .pw-nav-pill>a:hover,
+.pw-nav-main .pw-nav-pill>button:hover,.pw-shop-nav-row .pw-nav-pill>button:hover,
+.pw-nav-main .pw-nav-pill:hover>a,.pw-shop-nav-row .pw-nav-pill:hover>a,
+.pw-nav-main .pw-nav-pill:hover>button,.pw-shop-nav-row .pw-nav-pill:hover>button{
+  color:#374151!important
+}
 .pw-cat-panel a:hover,.pw-shop-cat-panel a:hover,[data-pw-cat-panel] a:hover,
 .pw-cat-mega-l2:hover,.pw-cat-mega-l3:hover,
+.pw-nav-flyout-bar a:hover,.pw-nav-flyout-bar button:hover,
 .pw-cat-mega-l1 a.is-active,.pw-cat-panel a.is-active,.pw-shop-cat-panel a.is-active,[data-pw-cat-panel] a.is-active{
   color:var(--pw-primary)!important
 }

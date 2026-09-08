@@ -44,13 +44,19 @@ test('shop theme CSS keeps desktop account nav as a compact left column', () => 
   assert.match(css, /\.pw-shop-card\{[^}]*background:var\(--pw-surface/)
 })
 
-test('shop theme CSS turns header nav pill hover text to the primary token', () => {
+test('shop theme CSS keeps header nav pill hover ink so it stays visible on a primary header', () => {
   const chrome = buildPartnerSiteHtmlChromeCss()
-  assert.match(chrome, /\.pw-nav-main a:hover,\.pw-nav-main button:hover,\.pw-nav-pill:hover a/)
-  assert.match(chrome, /color:var\(--pw-primary\)/)
+  assert.match(chrome, /\.pw-nav-main>a:hover/)
+  assert.match(chrome, /\.pw-nav-main \.pw-nav-row-scroll>a:hover/)
+  assert.match(chrome, /color:#374151/)
+  assert.doesNotMatch(
+    chrome,
+    /\.pw-nav-main a:hover,\.pw-nav-main button:hover,\.pw-nav-pill:hover a[^{]*\{color:var\(--pw-primary\)/
+  )
   const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
-  assert.match(css, /\.pw-shop-nav-row a:hover/)
-  assert.match(css, /\.pw-shop-nav-row \.pw-nav-pill:hover a\{color:var\(--pw-primary\)/)
+  assert.match(css, /\.pw-shop-nav-row>a:hover/)
+  assert.match(css, /\.pw-shop-nav-row \.pw-nav-pill:hover>a\{color:#374151/)
+  assert.match(css, /\.pw-shop-nav-row \.pw-nav-flyout-bar a:hover\{color:var\(--pw-primary\)/)
 })
 
 test('shop theme CSS turns mega L2/L3 hover text to the primary token', () => {

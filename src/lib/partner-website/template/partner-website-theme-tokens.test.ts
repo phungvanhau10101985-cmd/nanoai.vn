@@ -180,7 +180,7 @@ test('nav links including sale stay ink and do not follow theme', () => {
   assert.match(next, /\.pw-nav-main a\.pw-nav-sale\{color:#374151/)
 })
 
-test('nav link hover and active stay on the primary token', () => {
+test('header nav link hover stays ink; active still uses the primary token', () => {
   const html =
     '<html><head><style>.pw-nav-main a:hover{color:#f97316}.pw-nav-main a.pw-nav-sale:hover{color:var(--pw-accent)}.pw-nav-main a.is-active{color:#ea580c}</style></head><body></body></html>'
   const next = rewriteThemeCssVarsInHtml(html, {
@@ -188,9 +188,20 @@ test('nav link hover and active stay on the primary token', () => {
     primaryColor: '#0f766e',
     buyButtonColor: '#0f766e',
   })
-  assert.match(next, /\.pw-nav-main a:hover\{color:var\(--pw-primary\)/)
-  assert.match(next, /\.pw-nav-main a\.pw-nav-sale:hover\{color:var\(--pw-primary\)/)
+  assert.match(next, /\.pw-nav-main a:hover\{color:#374151/)
+  assert.match(next, /\.pw-nav-main a\.pw-nav-sale:hover\{color:#374151/)
   assert.match(next, /\.pw-nav-main a\.is-active\{color:var\(--pw-primary\)/)
+})
+
+test('marketplace header nav hover keeps white instead of the primary token', () => {
+  const html =
+    '<html><head><style>html[data-pw-look="marketplace"] .pw-nav-main .pw-nav-pill>a:hover{color:#fff!important}</style></head><body></body></html>'
+  const next = rewriteThemeCssVarsInHtml(html, {
+    ...DEFAULT_PARTNER_WEBSITE_THEME,
+    primaryColor: '#f97316',
+  })
+  assert.match(next, /\.pw-nav-main \.pw-nav-pill>a:hover\{color:#fff/)
+  assert.doesNotMatch(next, /\.pw-nav-pill>a:hover\{color:var\(--pw-primary\)/)
 })
 
 test('shopThemeQuickPicks exposes live main and supporting theme colors', () => {

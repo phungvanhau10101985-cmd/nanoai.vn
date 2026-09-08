@@ -954,6 +954,8 @@ export type Dictionary = {
     tabCancelled: string
     tableColOrderCode: string
     tableColConsulted: string
+    /** Tiêu đề cột tư vấn rút gọn trên bảng desktop */
+    tableColConsultedShort: string
     tableColCustomer: string
     tableColSubtotal: string
     /** Theo cấu hình đơn (khoản cọc / thanh toán ngay) */
@@ -962,6 +964,10 @@ export type Dictionary = {
     tableColPaidAmount: string
     /** max(0, tổng tiền hàng − đã thanh toán) */
     tableColDueOnDelivery: string
+    /** Tiêu đề cột còn thu rút gọn trên bảng desktop */
+    tableColDueOnDeliveryShort: string
+    /** Thanh cuộn ngang phía trên bảng đơn */
+    tableHScrollAria: string
     tableColStatus: string
     tableColOrderDate: string
     tableColActions: string
@@ -4303,11 +4309,14 @@ const VI_DICTIONARY: Dictionary = {
     tabCancelled: 'Đã hủy',
     tableColOrderCode: 'Mã đơn',
     tableColConsulted: 'Đã liên hệ tư vấn',
+    tableColConsultedShort: 'Tư vấn',
     tableColCustomer: 'Khách hàng',
     tableColSubtotal: 'Tổng tiền',
     tableColDepositRequired: 'Tiền cọc cần thu',
     tableColPaidAmount: 'Đã thanh toán',
     tableColDueOnDelivery: 'Số tiền cần thanh toán khi nhận hàng',
+    tableColDueOnDeliveryShort: 'Còn thu khi nhận',
+    tableHScrollAria: 'Cuộn ngang danh sách đơn hàng',
     tableColStatus: 'Trạng thái',
     tableColOrderDate: 'Ngày đặt',
     tableColActions: 'Thao tác',
@@ -7655,11 +7664,14 @@ const EN_DICTIONARY: Dictionary = {
     tabCancelled: 'Cancelled',
     tableColOrderCode: 'Order #',
     tableColConsulted: 'Consult done',
+    tableColConsultedShort: 'Consult',
     tableColCustomer: 'Customer',
     tableColSubtotal: 'Order total',
     tableColDepositRequired: 'Deposit due',
     tableColPaidAmount: 'Paid',
     tableColDueOnDelivery: 'Balance on delivery',
+    tableColDueOnDeliveryShort: 'Due on delivery',
+    tableHScrollAria: 'Scroll orders table horizontally',
     tableColStatus: 'Status',
     tableColOrderDate: 'Placed',
     tableColActions: 'Actions',
@@ -10986,11 +10998,14 @@ const ZH_DICTIONARY: Dictionary = {
     tabCancelled: '已取消',
     tableColOrderCode: '订单号',
     tableColConsulted: '已咨询',
+    tableColConsultedShort: '咨询',
     tableColCustomer: '客户',
     tableColSubtotal: '货款合计',
     tableColDepositRequired: '应付定金',
     tableColPaidAmount: '已付金额',
     tableColDueOnDelivery: '收货时剩余',
+    tableColDueOnDeliveryShort: '货到应付',
+    tableHScrollAria: '横向滚动订单表',
     tableColStatus: '状态',
     tableColOrderDate: '下单时间',
     tableColActions: '操作',
@@ -14249,11 +14264,14 @@ const JA_DICTIONARY: Dictionary = {
     tabCancelled: 'キャンセル',
     tableColOrderCode: '注文番号',
     tableColConsulted: '相談済',
+    tableColConsultedShort: '相談',
     tableColCustomer: 'お客様',
     tableColSubtotal: '商品合計',
     tableColDepositRequired: '手付金（請求）',
     tableColPaidAmount: '入金済',
     tableColDueOnDelivery: '着払い残高',
+    tableColDueOnDeliveryShort: '着払い',
+    tableHScrollAria: '注文表を横スクロール',
     tableColStatus: 'ステータス',
     tableColOrderDate: '注文日時',
     tableColActions: '操作',
@@ -17570,11 +17588,14 @@ const KO_DICTIONARY: Dictionary = {
     tabCancelled: '취소됨',
     tableColOrderCode: '주문번호',
     tableColConsulted: '상담 완료',
+    tableColConsultedShort: '상담',
     tableColCustomer: '고객',
     tableColSubtotal: '상품 합계',
     tableColDepositRequired: '예치금(청구)',
     tableColPaidAmount: '결제 완료액',
     tableColDueOnDelivery: '수령 시 잔액',
+    tableColDueOnDeliveryShort: '수령 잔액',
+    tableHScrollAria: '주문 표 가로 스크롤',
     tableColStatus: '상태',
     tableColOrderDate: '주문일시',
     tableColActions: '작업',

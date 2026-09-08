@@ -389,11 +389,16 @@ function rewriteStyleTagCss(html: string, rewriteCss: (css: string) => string): 
 }
 
 const PW_NAV_INK = '#374151'
-const NAV_HOST = String.raw`(?:\.pw-nav-main|\.pw-shop-nav-row|\.pw-cat-panel|\.pw-shop-cat-panel)`
+const NAV_HOST = String.raw`(?:\.pw-nav-main|\.pw-shop-nav-row|\.pw-cat-panel|\.pw-shop-cat-panel|\.pw-nav-pill|\.pw-nav-row-scroll)`
+const HEADER_NAV_ROW = String.raw`(?:\.pw-nav-main|\.pw-shop-nav-row|\.pw-nav-pill|\.pw-nav-row-scroll)`
+
+function isWhiteNavColorDecl(decl: string): boolean {
+  return /#fff(?:fff)?\b/i.test(decl)
+}
 
 function chromeSelectorKind(
   selector: string
-): 'topbar' | 'search-submit' | 'search-form' | 'price' | 'buy' | 'cart' | 'nav-ink' | 'nav-hover' | null {
+): 'topbar' | 'search-submit' | 'search-form' | 'price' | 'buy' | 'cart' | 'nav-ink' | 'nav-hover' | 'nav-row-hover' | null {
   const rawParts = selector
     .split(',')
     .map((part) => part.trim().toLowerCase())
@@ -405,9 +410,16 @@ function chromeSelectorKind(
   const isNavInk = (part: string) =>
     /\.pw-nav-sale\b/.test(part) ||
     new RegExp(`${NAV_HOST}(?:\\s|>).*(?:\\ba\\b|\\bbutton\\b)|${NAV_HOST}$`).test(part)
+  const isHeaderNavRow = (part: string) =>
+    new RegExp(HEADER_NAV_ROW).test(part) &&
+    !/\.pw-cat-panel|\.pw-shop-cat-panel|\.pw-nav-flyout-bar|\.pw-cat-mega/.test(part)
+  const isHoverOnly = (part: string) => /:hover\b/.test(part) && !/\.is-active\b/.test(part)
   if (rawParts.some(isNavInteractive)) {
     const inkParts = rawParts.map(stripPseudo).filter(Boolean)
-    if (inkParts.length && inkParts.every(isNavInk)) return 'nav-hover'
+    if (inkParts.length && inkParts.every((part) => isNavInk(part) || isHeaderNavRow(part))) {
+      if (rawParts.every(isHoverOnly) && inkParts.every(isHeaderNavRow)) return 'nav-row-hover'
+      return 'nav-hover'
+    }
   }
   const parts = rawParts.map(stripPseudo).filter(Boolean)
   if (!parts.length) return null
@@ -444,10 +456,10 @@ export function bindChromeThemeVarsInCss(css: string): string {
       next = next.replace(/background(?:-color)?\s*:\s*#[0-9a-fA-F]{3,8}/gi, 'background:var(--pw-cart)')
     } else if (kind === 'buy') {
       next = next.replace(/background(?:-color)?\s*:\s*#[0-9a-fA-F]{3,8}/gi, 'background:var(--pw-buy)')
-    } else if (kind === 'nav-ink') {
+    } else if (kind === 'nav-ink' || kind === 'nav-row-hover') {
       next = next.replace(
         /color\s*:\s*(?:var\(--pw-[a-z-]+\)|#[0-9a-fA-F]{3,8})/gi,
-        `color:${PW_NAV_INK}`
+        (decl) => (isWhiteNavColorDecl(decl) ? decl : `color:${PW_NAV_INK}`)
       )
     } else if (kind === 'nav-hover') {
       next = next.replace(

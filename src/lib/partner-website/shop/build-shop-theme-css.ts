@@ -107,7 +107,8 @@ a{color:inherit;text-decoration:none}
 .pw-nav-flyout-bar{position:absolute;left:0;right:0;top:100%;z-index:80;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px 16px;max-height:min(60vh,420px);overflow-x:hidden;overflow-y:auto;padding:12px 16px;background:#fff;border:1px solid var(--pw-border,#e5e7eb);border-radius:0 0 12px 12px;box-shadow:0 12px 32px rgba(15,23,42,.12);text-align:left;width:100%;max-width:100%;box-sizing:border-box}
 .pw-nav-flyout-bar[hidden]{display:none!important}
 .pw-nav-main a,.pw-nav-main button{text-decoration:none;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#374151;background:none;border:none;cursor:pointer;padding:0;white-space:nowrap;flex:0 0 auto;transition:color .15s ease}
-.pw-nav-main a:hover,.pw-nav-main button:hover,.pw-nav-pill:hover a,.pw-nav-pill:hover button{color:var(--pw-primary)}
+.pw-nav-main>a:hover,.pw-nav-main .pw-nav-row-scroll>a:hover,.pw-nav-main .pw-nav-pill>a:hover,.pw-nav-main .pw-nav-pill>button:hover,.pw-nav-main .pw-nav-pill:hover>a,.pw-nav-main .pw-nav-pill:hover>button{color:#374151}
+.pw-nav-flyout-bar a:hover,.pw-nav-flyout-bar button:hover{color:var(--pw-primary)}
 .pw-header-actions{margin-left:auto;display:flex;align-items:center;gap:10px}
 ${buildPartnerSiteAccountPanelCss()}
 .pw-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;border:none;background:transparent;color:#374151;text-decoration:none;cursor:pointer;position:relative}
@@ -403,7 +404,8 @@ ${PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS}
 .pw-shop-nav-row{display:none;justify-content:center;align-items:center;gap:22px;flex-wrap:nowrap;overflow:visible;padding:0 24px 14px;max-width:var(--pw-content);margin:0 auto;position:relative}
 .pw-shop-nav-row a,.pw-shop-nav-row button{font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#374151;background:none;border:none;cursor:pointer;padding:0;white-space:nowrap;flex:0 0 auto;transition:color .15s ease}
 .pw-shop-nav-row a.is-sale,.pw-shop-nav-row a.pw-nav-sale{color:#374151}
-.pw-shop-nav-row a:hover,.pw-shop-nav-row button:hover,.pw-shop-nav-row .pw-nav-pill:hover a{color:var(--pw-primary)}
+.pw-shop-nav-row>a:hover,.pw-shop-nav-row .pw-nav-row-scroll>a:hover,.pw-shop-nav-row .pw-nav-pill>a:hover,.pw-shop-nav-row .pw-nav-pill>button:hover,.pw-shop-nav-row .pw-nav-pill:hover>a{color:#374151}
+.pw-shop-nav-row .pw-nav-flyout-bar a:hover{color:var(--pw-primary)}
 .pw-shop-main{max-width:var(--pw-content);margin:0 auto;padding:20px var(--pw-page-gutter,16px) 40px}
 .pw-shop-main h1{font-size:clamp(1.35rem,2.2vw,1.75rem);font-weight:700;letter-spacing:0;margin:0 0 8px;line-height:1.25;color:var(--pw-text)}
 .pw-shop-info h1{margin:0 0 16px;font-size:clamp(1.4rem,2.5vw,1.8rem);font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--pw-primary)}

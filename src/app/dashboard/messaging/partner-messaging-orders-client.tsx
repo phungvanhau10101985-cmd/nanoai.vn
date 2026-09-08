@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Download } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
@@ -215,6 +215,71 @@ function tabCount(counts: PartnerOrderAdminTabCounts | null, key: PartnerAdminLi
 function lineImage(line: PartnerOrderLineRow, fallback: string): string {
   const fromVariant = parsePartnerOrderVariantImageUrls(line.variant_image_urls)[0]
   return (fromVariant || line.product_image_url || fallback || '').trim()
+}
+
+/** Thanh cuộn ngang trên đỉnh bảng + khung bảng khít viewport (không phải cuối 100 dòng). */
+function OrdersAdminTablePane({
+  children,
+  syncKey,
+  ariaLabel,
+}: {
+  children: ReactNode
+  syncKey: string
+  ariaLabel: string
+}) {
+  const topRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const spacerRef = useRef<HTMLDivElement>(null)
+  const [hasHOverflow, setHasHOverflow] = useState(false)
+
+  const measure = useCallback(() => {
+    const body = bodyRef.current
+    const spacer = spacerRef.current
+    if (!body || !spacer) return
+    spacer.style.width = `${body.scrollWidth}px`
+    setHasHOverflow(body.scrollWidth > body.clientWidth + 1)
+  }, [])
+
+  useLayoutEffect(() => {
+    measure()
+    const body = bodyRef.current
+    if (!body) return
+    const ro = new ResizeObserver(measure)
+    ro.observe(body)
+    const table = body.querySelector('table')
+    if (table) ro.observe(table)
+    return () => ro.disconnect()
+  }, [measure, syncKey])
+
+  return (
+    <div className="min-w-0">
+      <div
+        ref={topRef}
+        className={`overflow-x-auto overflow-y-hidden bg-gray-100 [scrollbar-color:#9ca3af_#e5e7eb] [scrollbar-width:auto] dark:bg-zinc-900 dark:[scrollbar-color:#71717a_#27272a] [&::-webkit-scrollbar]:h-3.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-400 ${
+          hasHOverflow ? 'h-5' : 'hidden'
+        }`}
+        onScroll={() => {
+          const top = topRef.current
+          const body = bodyRef.current
+          if (top && body && body.scrollLeft !== top.scrollLeft) body.scrollLeft = top.scrollLeft
+        }}
+        aria-label={ariaLabel}
+      >
+        <div ref={spacerRef} className="h-px" />
+      </div>
+      <div
+        ref={bodyRef}
+        className="max-h-[min(62vh,calc(100dvh-12rem))] overflow-auto overscroll-contain"
+        onScroll={() => {
+          const top = topRef.current
+          const body = bodyRef.current
+          if (top && body && top.scrollLeft !== body.scrollLeft) top.scrollLeft = body.scrollLeft
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  )
 }
 
 export function PartnerMessagingOrdersClient({
@@ -899,7 +964,7 @@ export function PartnerMessagingOrdersClient({
         </div>
       </section>
 
-      <div className="rounded-lg bg-white shadow dark:bg-zinc-800">
+      <div className="min-w-0 overflow-hidden rounded-lg bg-white shadow dark:bg-zinc-800">
         <div className="flex flex-wrap gap-2 border-b p-2 dark:border-zinc-700">
           {PARTNER_ADMIN_LIFECYCLE_TABS.map(({ key }) => (
             <button
@@ -977,30 +1042,54 @@ export function PartnerMessagingOrdersClient({
           </select>
         </div>
 
-        <div className="overflow-x-auto">
-          {loading ? (
-            <div className="p-8 text-center text-gray-500">{t.loadingOrders}</div>
-          ) : (
-            <table className="w-full text-left">
-              <thead className="border-b bg-gray-50 dark:border-zinc-700 dark:bg-zinc-900">
+        {loading ? (
+          <div className="p-8 text-center text-gray-500">{t.loadingOrders}</div>
+        ) : rows.length === 0 ? (
+          <div className="p-8 text-center text-gray-500">{t.emptyList}</div>
+        ) : (
+          <OrdersAdminTablePane
+            syncKey={`${rows.length}:${listPage}:${listPageSize}:${activeTab}:${statusFilter}:${paymentFilter}:${appliedSearch}`}
+            ariaLabel={t.tableHScrollAria}
+          >
+            <table className="w-full border-separate border-spacing-0 text-left text-sm">
+              <thead>
                 <tr>
-                  <th className="p-3 font-medium">{t.tableColOrderCode}</th>
-                  <th className="w-28 p-3 text-center font-medium" title={t.consultLocalHint}>
-                    {t.tableColConsulted}
+                  <th className="sticky left-0 top-0 z-30 whitespace-nowrap border-b bg-gray-50 px-2 py-2 font-medium dark:border-zinc-700 dark:bg-zinc-900">
+                    {t.tableColOrderCode}
                   </th>
-                  <th className="p-3 font-medium">{t.tableColCustomer}</th>
-                  <th className="p-3 font-medium">{t.tableColSubtotal}</th>
-                  <th className="p-3 font-medium">{t.tableColDeposit}</th>
                   <th
-                    className="min-w-[8.5rem] max-w-[11rem] p-3 align-bottom font-medium leading-snug"
+                    className="sticky top-0 z-20 w-16 border-b bg-gray-50 px-2 py-2 text-center text-xs font-medium leading-tight dark:border-zinc-700 dark:bg-zinc-900"
+                    title={t.tableColConsulted}
+                  >
+                    {t.tableColConsultedShort}
+                  </th>
+                  <th className="sticky top-0 z-20 min-w-[8rem] border-b bg-gray-50 px-2 py-2 font-medium dark:border-zinc-700 dark:bg-zinc-900">
+                    {t.tableColCustomer}
+                  </th>
+                  <th className="sticky top-0 z-20 whitespace-nowrap border-b bg-gray-50 px-2 py-2 font-medium dark:border-zinc-700 dark:bg-zinc-900">
+                    {t.tableColSubtotal}
+                  </th>
+                  <th className="sticky top-0 z-20 min-w-[7.5rem] border-b bg-gray-50 px-2 py-2 font-medium dark:border-zinc-700 dark:bg-zinc-900">
+                    {t.tableColDeposit}
+                  </th>
+                  <th
+                    className="sticky top-0 z-20 min-w-[6.5rem] max-w-[8rem] border-b bg-gray-50 px-2 py-2 text-xs font-medium leading-tight dark:border-zinc-700 dark:bg-zinc-900"
                     title={t.tableColDueOnDelivery}
                   >
-                    {t.tableColDueOnDelivery}
+                    {t.tableColDueOnDeliveryShort}
                   </th>
-                  <th className="p-3 font-medium">{t.tableColStatus}</th>
-                  <th className="whitespace-nowrap p-3 font-medium">{t.tableColPayment}</th>
-                  <th className="p-3 font-medium">{t.tableColOrderDate}</th>
-                  <th className="p-3 font-medium">{t.tableColActions}</th>
+                  <th className="sticky top-0 z-20 whitespace-nowrap border-b bg-gray-50 px-2 py-2 font-medium dark:border-zinc-700 dark:bg-zinc-900">
+                    {t.tableColStatus}
+                  </th>
+                  <th className="sticky top-0 z-20 whitespace-nowrap border-b bg-gray-50 px-2 py-2 font-medium dark:border-zinc-700 dark:bg-zinc-900">
+                    {t.tableColPayment}
+                  </th>
+                  <th className="sticky top-0 z-20 whitespace-nowrap border-b bg-gray-50 px-2 py-2 font-medium dark:border-zinc-700 dark:bg-zinc-900">
+                    {t.tableColOrderDate}
+                  </th>
+                  <th className="sticky right-0 top-0 z-30 whitespace-nowrap border-b bg-gray-50 px-2 py-2 font-medium shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.18)] dark:border-zinc-700 dark:bg-zinc-900">
+                    {t.tableColActions}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -1009,9 +1098,11 @@ export function PartnerMessagingOrdersClient({
                   const expects = partnerAdminExpectsDeposit(order)
                   const payKey = partnerAdminPayBadgeKey(order)
                   return (
-                    <tr key={order.id} className="border-b hover:bg-gray-50 dark:border-zinc-700 dark:hover:bg-zinc-900/50">
-                      <td className="p-3 font-mono text-sm">{orderCodeDisplay(order)}</td>
-                      <td className="p-3 text-center">
+                    <tr key={order.id} className="group hover:bg-gray-50 dark:hover:bg-zinc-900/50">
+                      <td className="sticky left-0 z-10 whitespace-nowrap border-b bg-white px-2 py-2 font-mono text-xs shadow-[4px_0_8px_-6px_rgba(0,0,0,0.12)] group-hover:bg-gray-50 dark:border-zinc-700 dark:bg-zinc-800 dark:group-hover:bg-zinc-900/80">
+                        {orderCodeDisplay(order)}
+                      </td>
+                      <td className="border-b px-2 py-2 text-center dark:border-zinc-700">
                         <input
                           type="checkbox"
                           checked={Boolean(consultedMap[order.id])}
@@ -1020,14 +1111,16 @@ export function PartnerMessagingOrdersClient({
                           aria-label={t.consultedAria}
                         />
                       </td>
-                      <td className="p-3">
-                        <div className="font-medium">{order.customer_name || '—'}</div>
-                        <div className="text-sm text-gray-500">{order.customer_phone || '—'}</div>
+                      <td className="border-b px-2 py-2 dark:border-zinc-700">
+                        <div className="max-w-[10rem] truncate font-medium" title={order.customer_name || undefined}>
+                          {order.customer_name || '—'}
+                        </div>
+                        <div className="text-xs text-gray-500">{order.customer_phone || '—'}</div>
                       </td>
-                      <td className="p-3 font-semibold">
+                      <td className="whitespace-nowrap border-b px-2 py-2 font-semibold tabular-nums dark:border-zinc-700">
                         {formatVnd(order.amount_after_discount || order.subtotal_amount, locale)}
                       </td>
-                      <td className="p-3 text-sm">
+                      <td className="border-b px-2 py-2 text-xs leading-snug dark:border-zinc-700">
                         {expects ? (
                           <>
                             {t.depositNeed}: {formatVnd(order.required_amount, locale)}
@@ -1038,27 +1131,31 @@ export function PartnerMessagingOrdersClient({
                           <span className="text-green-600">{t.depositNotRequired}</span>
                         )}
                       </td>
-                      <td className="whitespace-nowrap p-3 text-sm font-semibold tabular-nums text-gray-900 dark:text-zinc-50">
+                      <td className="whitespace-nowrap border-b px-2 py-2 text-sm font-semibold tabular-nums text-gray-900 dark:border-zinc-700 dark:text-zinc-50">
                         {formatVnd(partnerAdminAmountDueOnDelivery(order), locale)}
                       </td>
-                      <td className="p-3">
-                        <span className="rounded bg-gray-100 px-2 py-1 text-sm dark:bg-zinc-700">{stageLabel(t, order)}</span>
+                      <td className="border-b px-2 py-2 dark:border-zinc-700">
+                        <span className="inline-block whitespace-nowrap rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-zinc-700">
+                          {stageLabel(t, order)}
+                        </span>
                       </td>
-                      <td className="p-3">
+                      <td className="border-b px-2 py-2 dark:border-zinc-700">
                         <span
-                          className={`rounded px-2 py-1 text-sm ${
+                          className={`inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs ${
                             payKey === 'paid' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
                           }`}
                         >
                           {payLabel(t, order)}
                         </span>
                       </td>
-                      <td className="p-3 text-sm text-gray-600">{formatDate(order.created_at, locale)}</td>
-                      <td className="p-3">
-                        <div className="flex gap-2">
+                      <td className="whitespace-nowrap border-b px-2 py-2 text-xs text-gray-600 dark:border-zinc-700">
+                        {formatDate(order.created_at, locale)}
+                      </td>
+                      <td className="sticky right-0 z-10 border-b bg-white px-2 py-2 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.18)] group-hover:bg-gray-50 dark:border-zinc-700 dark:bg-zinc-800 dark:group-hover:bg-zinc-900/80">
+                        <div className="flex flex-nowrap items-center gap-1.5">
                           <button
                             type="button"
-                            className="text-sm text-blue-600 hover:underline"
+                            className="whitespace-nowrap text-xs text-blue-600 hover:underline"
                             onClick={() => openDetail(order)}
                           >
                             {t.tableDetails}
@@ -1067,7 +1164,7 @@ export function PartnerMessagingOrdersClient({
                             <button
                               type="button"
                               onClick={() => openPaymentModal(order)}
-                              className="rounded px-2 py-1 text-sm text-white bg-[#ea580c] hover:bg-[#c2410c]"
+                              className="whitespace-nowrap rounded px-1.5 py-0.5 text-xs text-white bg-[#ea580c] hover:bg-[#c2410c]"
                             >
                               {t.btnConfirmDeposit}
                             </button>
@@ -1079,58 +1176,55 @@ export function PartnerMessagingOrdersClient({
                 })}
               </tbody>
             </table>
-          )}
-          {!loading && rows.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">{t.emptyList}</div>
-          ) : null}
-          {!loading && filteredTotal > 0 ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-4 py-3 text-sm text-gray-600 dark:border-zinc-700">
-              <span>
-                {t.paginationSummary
-                  .replace('{from}', String(displayFrom))
-                  .replace('{to}', String(displayTo))
-                  .replace('{total}', String(filteredTotal))
-                  .replace('{page}', String(listPage))
-                  .replace('{pages}', String(totalPages))}
-                {appliedSearch ? t.paginationSearchHint.replace('{q}', appliedSearch) : ''}
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setListPage(1)}
-                  disabled={listPage <= 1 || pending}
-                  className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
-                >
-                  {t.paginationFirst}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setListPage((p) => Math.max(1, p - 1))}
-                  disabled={listPage <= 1 || pending}
-                  className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
-                >
-                  {t.paginationPrev}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setListPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={listPage >= totalPages || pending}
-                  className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
-                >
-                  {t.paginationNext}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setListPage(totalPages)}
-                  disabled={listPage >= totalPages || pending}
-                  className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
-                >
-                  {t.paginationLast}
-                </button>
-              </div>
+          </OrdersAdminTablePane>
+        )}
+        {!loading && filteredTotal > 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-4 py-3 text-sm text-gray-600 dark:border-zinc-700">
+            <span>
+              {t.paginationSummary
+                .replace('{from}', String(displayFrom))
+                .replace('{to}', String(displayTo))
+                .replace('{total}', String(filteredTotal))
+                .replace('{page}', String(listPage))
+                .replace('{pages}', String(totalPages))}
+              {appliedSearch ? t.paginationSearchHint.replace('{q}', appliedSearch) : ''}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setListPage(1)}
+                disabled={listPage <= 1 || pending}
+                className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
+              >
+                {t.paginationFirst}
+              </button>
+              <button
+                type="button"
+                onClick={() => setListPage((p) => Math.max(1, p - 1))}
+                disabled={listPage <= 1 || pending}
+                className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
+              >
+                {t.paginationPrev}
+              </button>
+              <button
+                type="button"
+                onClick={() => setListPage((p) => Math.min(totalPages, p + 1))}
+                disabled={listPage >= totalPages || pending}
+                className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
+              >
+                {t.paginationNext}
+              </button>
+              <button
+                type="button"
+                onClick={() => setListPage(totalPages)}
+                disabled={listPage >= totalPages || pending}
+                className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
+              >
+                {t.paginationLast}
+              </button>
             </div>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
 
       {detailOpen && selectedOrder ? (

@@ -152,11 +152,25 @@ html[data-pw-look="marketplace"] .pw-shop-nav-row a,
 html[data-pw-look="marketplace"] .pw-shop-nav-row button{
   color:#fff!important;
 }
-html[data-pw-look="marketplace"] .pw-nav-main a:hover,
-html[data-pw-look="marketplace"] .pw-nav-main button:hover,
-html[data-pw-look="marketplace"] .pw-shop-nav-row a:hover{
+html[data-pw-look="marketplace"] .pw-nav-main>a:hover,
+html[data-pw-look="marketplace"] .pw-shop-nav-row>a:hover,
+html[data-pw-look="marketplace"] .pw-nav-main .pw-nav-row-scroll>a:hover,
+html[data-pw-look="marketplace"] .pw-shop-nav-row .pw-nav-row-scroll>a:hover,
+html[data-pw-look="marketplace"] .pw-nav-main .pw-nav-row-scroll>button:hover,
+html[data-pw-look="marketplace"] .pw-shop-nav-row .pw-nav-row-scroll>button:hover,
+html[data-pw-look="marketplace"] .pw-nav-main .pw-nav-pill>a:hover,
+html[data-pw-look="marketplace"] .pw-shop-nav-row .pw-nav-pill>a:hover,
+html[data-pw-look="marketplace"] .pw-nav-main .pw-nav-pill>button:hover,
+html[data-pw-look="marketplace"] .pw-shop-nav-row .pw-nav-pill>button:hover,
+html[data-pw-look="marketplace"] .pw-nav-main .pw-nav-pill:hover>a,
+html[data-pw-look="marketplace"] .pw-shop-nav-row .pw-nav-pill:hover>a{
   color:#fff!important;
-  opacity:.88;
+  opacity:1;
+}
+html[data-pw-look="marketplace"] .pw-nav-flyout-bar a,
+html[data-pw-look="marketplace"] .pw-nav-flyout-bar button{
+  color:#374151!important;
+  opacity:1;
 }
 html[data-pw-look="marketplace"] .pw-shop-main,
 html[data-pw-look="marketplace"] .pw-page-shell,

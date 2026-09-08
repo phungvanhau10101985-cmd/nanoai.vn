@@ -446,7 +446,8 @@ a{color:inherit}
 .pw-nav-main{display:none;justify-content:center;gap:18px;flex-wrap:wrap;padding:0 0 12px}
 .pw-nav-main a,.pw-nav-main button{text-decoration:none;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#374151;background:none;border:none;cursor:pointer;padding:0;transition:color .15s ease}
 .pw-nav-main a.pw-nav-sale,.pw-nav-main a.is-sale{color:#374151}
-.pw-nav-main a:hover,.pw-nav-main button:hover,.pw-nav-pill:hover a{color:var(--pw-primary)}
+.pw-nav-main>a:hover,.pw-nav-main .pw-nav-row-scroll>a:hover,.pw-nav-main .pw-nav-pill>a:hover,.pw-nav-main .pw-nav-pill:hover>a{color:#374151}
+.pw-nav-flyout-bar a:hover{color:var(--pw-primary)}
 .pw-header-actions{margin-left:auto;display:flex;align-items:center;gap:10px}
 ${buildPartnerSiteAccountPanelCss()}
 .pw-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;border:none;background:transparent;color:#374151;text-decoration:none;cursor:pointer;position:relative}
