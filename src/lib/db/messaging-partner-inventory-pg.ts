@@ -3074,6 +3074,54 @@ export async function fetchPartnerInventoryFullListOrderedCreatedFromPg(
   }
 }
 
+export type InventoryRemarketingKeyRow = {
+  id: string
+  remarketing_id: string | null
+}
+
+const INVENTORY_REMARKETING_KEY_PAGE = 8000
+
+/**
+ * Chỉ id + remarketing_id — đối soát GET kho khách. Không kéo mô tả/gallery/catalog_json/embedding.
+ * `null` = lỗi pool/SQL.
+ */
+export async function fetchPartnerInventoryRemarketingKeysFromPg(
+  partnerId: string
+): Promise<InventoryRemarketingKeyRow[] | null> {
+  if (!isPgConfigured()) return null
+  const pid = String(partnerId ?? '').trim()
+  if (!pid) return []
+  const all: InventoryRemarketingKeyRow[] = []
+  let from = 0
+  try {
+    while (true) {
+      const rows = await pgQuery<{ id: string; remarketing_id: string | null }>(
+        `select mpi.id::text as id, mpi.remarketing_id
+         from public.messaging_partner_inventory mpi
+         where mpi.partner_id = $1::uuid
+         order by mpi.id asc
+         limit $2 offset $3`,
+        [pid, INVENTORY_REMARKETING_KEY_PAGE, from]
+      )
+      if (rows.length === 0) break
+      for (const r of rows) {
+        all.push({
+          id: String(r.id ?? '').trim(),
+          remarketing_id: r.remarketing_id == null ? null : String(r.remarketing_id),
+        })
+      }
+      if (rows.length < INVENTORY_REMARKETING_KEY_PAGE) break
+      from += INVENTORY_REMARKETING_KEY_PAGE
+    }
+    return all.filter((r) => r.id)
+  } catch (e) {
+    const err = e as { code?: string }
+    if (err.code === '42P01' || err.code === '42703') return []
+    console.warn('[fetchPartnerInventoryRemarketingKeysFromPg]', e)
+    return null
+  }
+}
+
 /** `true` nếu chạy xong; `false` = không pool hoặc lỗi. */
 export async function deletePartnerInventoryByIdsForPartnerFromPg(
   partnerId: string,

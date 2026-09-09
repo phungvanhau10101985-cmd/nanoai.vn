@@ -1,6 +1,7 @@
 /**
  * Đồng bộ kho từ REST danh sách SP khách (GET products_list_url) + bảng map trường.
- * Snapshot chỉ theo Remarketing/content ID: thêm mã mới, xóa mã hết trong feed, không cập nhật nội dung khi mã đã tồn tại.
+ * GET job: mã đã có → bỏ qua (không ghi đè); mã mới → insert; xóa chỉ khi API khách đánh dấu xóa.
+ * Không nạp full dòng kho — chỉ id + remarketing_id.
  */
 
 import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
@@ -12,13 +13,14 @@ import {
   validateInventoryProductUrl,
 } from '@/lib/messaging/partner-inventory-excel'
 import type { InventoryExternalSyncMapKey } from '@/lib/messaging/partner-inventory-external-sync-defaults'
-import { applyPartnerInventoryCatalogPatchFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { applyPartnerInventoryCatalogPatchFromPg, fetchPartnerInventoryRemarketingKeysFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { getPgPool } from '@/lib/db/pool'
 import {
   fetchMessagingPartnerOwnerUserIdFromPg,
   fetchMessagingPartnersByIdsFromPg,
 } from '@/lib/db/messaging-partners-pg'
 import {
+  fetchPartnerIdsDueForExternalCatalogSyncFromPg,
   fetchPartnerInventoryExternalSyncSettingsFromPg,
   updatePartnerExternalCatalogInitialSyncProgressFromPg,
   updatePartnerExternalCatalogSyncMetaFromPg,
@@ -29,10 +31,7 @@ import {
   type ExternalCatalogSyncReportStats,
 } from '@/lib/messaging/partner-inventory-external-catalog-sync-notify'
 import { linkImportedInventoryToCatalogCategoriesBatch } from '@/lib/messaging/partner-inventory-import-categories'
-import {
-  listPartnerInventoryRows,
-  upsertPartnerInventoryRemarketingIncrementalBatch,
-} from '@/lib/messaging/partner-inventory-upsert-batch'
+import { applyPartnerInventoryExternalCatalogGetBatch } from '@/lib/messaging/partner-inventory-upsert-batch'
 
 /**
  * Snapshot GET kho khách: khóa là remarketing_id (sau trim).
@@ -749,33 +748,27 @@ export async function runPartnerExternalCatalogSyncJob(params: {
     return out
   }
 
-  const listed = await listPartnerInventoryRows(partnerId)
-  if (!listed.ok) {
+  const existingKeys = await fetchPartnerInventoryRemarketingKeysFromPg(partnerId)
+  if (existingKeys === null) {
     await updatePartnerExternalCatalogSyncMetaFromPg(partnerId, {
-      error: formatExternalCatalogSyncErrorForStorage('LIST_INVENTORY_FAILED', listed.error),
+      error: formatExternalCatalogSyncErrorForStorage(
+        'LIST_INVENTORY_FAILED',
+        'Could not load inventory remarketing keys from Postgres.'
+      ),
     })
     const out: ExternalCatalogSyncOutcome = {
       ok: false,
       code: 'LIST_INVENTORY_FAILED',
-      detail: listed.error,
+      detail: 'Could not load inventory remarketing keys from Postgres.',
     }
     await sendReport(out)
     return out
   }
 
   const deferEmbeddings = params.deferEmbeddings !== false
-  const existingRemarketing = new Set<string>()
-  for (const row of listed.rows) {
-    const k = inventoryRemarketingMatchKey(row.remarketing_id)
-    if (k) existingRemarketing.add(k)
-  }
-  /** Mã đã có trong kho NanoAI: bỏ qua (không ghi đè). Chỉ insert mã mới + xóa theo cờ xóa của web khách. */
-  const newRows = rows.filter((row) => {
-    const k = inventoryRemarketingMatchKey(row.remarketing_id)
-    return Boolean(k && !existingRemarketing.has(k))
-  })
-  const batch = await upsertPartnerInventoryRemarketingIncrementalBatch(partnerId, newRows, {
-    existingRows: listed.rows,
+  /** Mã đã có → bỏ qua (không ghi đè). Chỉ insert mã mới + xóa theo cờ xóa của web khách. */
+  const batch = await applyPartnerInventoryExternalCatalogGetBatch(partnerId, rows, {
+    existingKeys,
     deferEmbeddings,
     deleteRemarketingIds: deletedRemarketingIds,
   })
@@ -816,6 +809,66 @@ export async function runPartnerExternalCatalogSyncJob(params: {
   }
   await sendReport(out)
   return out
+}
+
+export const EXTERNAL_CATALOG_CRON_PARTNERS_PER_RUN = Math.max(
+  1,
+  Math.min(
+    20,
+    parseInt(process.env.MESSAGING_EXTERNAL_CATALOG_CRON_PARTNERS_PER_RUN || '6', 10) || 6
+  )
+)
+
+/** Ngân sách thời gian cho một lượt cron (< timeout 600s). */
+export const EXTERNAL_CATALOG_CRON_TIME_BUDGET_MS = 560_000
+
+export type DueExternalCatalogSyncRunResult = {
+  ok: true
+  partners_run: number
+  partners_deferred_next_run: number
+  results: Array<{ partnerId: string; outcome: ExternalCatalogSyncOutcome }>
+}
+
+/**
+ * Chạy các shop tới hạn auto-sync (cùng luật cron HTTP). Dùng CLI ngoài process Next.js.
+ */
+export async function runDuePartnerExternalCatalogSyncJobs(options?: {
+  partnersPerRun?: number
+  timeBudgetMs?: number
+}): Promise<DueExternalCatalogSyncRunResult> {
+  const partnersPerRun = Math.max(
+    1,
+    Math.min(20, Math.floor(options?.partnersPerRun ?? EXTERNAL_CATALOG_CRON_PARTNERS_PER_RUN) || 6)
+  )
+  const timeBudgetMs = Math.max(
+    10_000,
+    Math.floor(options?.timeBudgetMs ?? EXTERNAL_CATALOG_CRON_TIME_BUDGET_MS) ||
+      EXTERNAL_CATALOG_CRON_TIME_BUDGET_MS
+  )
+  const partnerIds = await fetchPartnerIdsDueForExternalCatalogSyncFromPg(partnersPerRun)
+  const results: Array<{ partnerId: string; outcome: ExternalCatalogSyncOutcome }> = []
+  const startedAt = Date.now()
+  let skippedForBudget = 0
+
+  for (const partnerId of partnerIds) {
+    if (Date.now() - startedAt > timeBudgetMs) {
+      skippedForBudget += 1
+      continue
+    }
+    const outcome = await runPartnerExternalCatalogSyncJob({
+      partnerId,
+      deferEmbeddings: true,
+      reportSource: 'cron',
+    })
+    results.push({ partnerId, outcome })
+  }
+
+  return {
+    ok: true,
+    partners_run: results.length,
+    partners_deferred_next_run: skippedForBudget,
+    results,
+  }
 }
 
 function chunked<T>(items: T[], size: number): T[][] {

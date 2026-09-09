@@ -1,29 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchPartnerIdsDueForExternalCatalogSyncFromPg } from '@/lib/db/messaging-partner-inventory-external-sync-pg'
 import { isPgConfigured } from '@/lib/db/pool'
-import {
-  runPartnerExternalCatalogSyncJob,
-  type ExternalCatalogSyncOutcome,
-} from '@/lib/messaging/partner-inventory-external-catalog-sync'
+import { runDuePartnerExternalCatalogSyncJobs } from '@/lib/messaging/partner-inventory-external-catalog-sync'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 600
-
-const PARTNERS_PER_RUN = Math.max(
-  1,
-  Math.min(
-    20,
-    parseInt(process.env.MESSAGING_EXTERNAL_CATALOG_CRON_PARTNERS_PER_RUN || '6', 10) || 6
-  )
-)
-
-/**
- * Ngân sách thời gian cho cả route (< `maxDuration` 600s) — kho lớn (~100k SP) có thể mất vài phút/shop
- * dù đã tải song song. Cron mặc định **1 lần/ngày** (03:05 VN). Shop chỉ chạy khi đã tới
- * `catalog_auto_sync_time_vn` và chưa sync trong ngày. Dừng nhận thêm partner khi gần hết ngân sách.
- */
-const RUN_TIME_BUDGET_MS = 560_000
 
 function isAuthorized(req: NextRequest): boolean {
   const auth = req.headers.get('authorization')?.trim()
@@ -54,30 +35,8 @@ async function handleCron(req: NextRequest) {
     )
   }
 
-  const partnerIds = await fetchPartnerIdsDueForExternalCatalogSyncFromPg(PARTNERS_PER_RUN)
-  const results: Array<{ partnerId: string; outcome: ExternalCatalogSyncOutcome }> = []
-  const startedAt = Date.now()
-  let skippedForBudget = 0
-
-  for (const partnerId of partnerIds) {
-    if (Date.now() - startedAt > RUN_TIME_BUDGET_MS) {
-      skippedForBudget += 1
-      continue
-    }
-    const outcome = await runPartnerExternalCatalogSyncJob({
-      partnerId,
-      deferEmbeddings: true,
-      reportSource: 'cron',
-    })
-    results.push({ partnerId, outcome })
-  }
-
-  return NextResponse.json({
-    ok: true,
-    partners_run: results.length,
-    partners_deferred_next_run: skippedForBudget,
-    results,
-  })
+  const result = await runDuePartnerExternalCatalogSyncJobs()
+  return NextResponse.json(result)
 }
 
 export async function GET(req: NextRequest) {

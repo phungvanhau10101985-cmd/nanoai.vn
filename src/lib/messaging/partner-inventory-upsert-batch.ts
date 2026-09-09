@@ -8,6 +8,10 @@ import {
   upsertPartnerInventoryChunkFromPg,
   type InventoryCatalogPatchRow,
 } from '@/lib/db/messaging-partner-inventory-pg'
+import {
+  planExternalCatalogGetWrites,
+  type InventoryRemarketingKeyRow,
+} from '@/lib/messaging/partner-inventory-external-catalog-get-plan'
 import { emptyInventoryCatalogRowFields } from '@/lib/messaging/partner-inventory-catalog-188'
 import { linkImportedInventoryToCatalogCategoriesBatch } from '@/lib/messaging/partner-inventory-import-categories'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -318,6 +322,102 @@ async function upsertPartnerInventoryRemarketingSnapshotBatch(
       inventoryIds: ids,
       force: false,
     })
+  }
+
+  return { ok: true, inserted, updated: 0, deleted, embeddingsDeferred: deferEmbeddings }
+}
+
+/**
+ * GET kho khách: không nạp full dòng. Mã đã có → bỏ qua; mã mới → insert; xóa theo cờ API khách.
+ * Không ghi đè nội dung SKU đã có (khác IncrementalBatch).
+ */
+export async function applyPartnerInventoryExternalCatalogGetBatch(
+  partnerId: string,
+  incoming: InventoryExcelInsert[],
+  options: {
+    existingKeys: InventoryRemarketingKeyRow[]
+    deferEmbeddings?: boolean
+    deleteRemarketingIds?: string[]
+  }
+): Promise<
+  | { ok: true; inserted: number; updated: number; deleted: number; embeddingsDeferred: boolean }
+  | { ok: false; error: string }
+> {
+  if (!isPgConfigured()) {
+    return { ok: false, error: 'Postgres (DATABASE_URL) is not configured.' }
+  }
+  const now = new Date().toISOString()
+  const plan = planExternalCatalogGetWrites({
+    incoming,
+    existingKeys: options.existingKeys,
+    deleteRemarketingIds: options.deleteRemarketingIds ?? [],
+  })
+
+  let inserted = 0
+  const deleted = plan.deleteIds.length
+  const changedIds = new Set<string>(plan.deleteIds)
+  const plannedInserts = new Map<string, InventoryInsert>()
+  const catalogPatches = new Map<string, InventoryCatalogPatchRow>()
+
+  for (const r of plan.insertRows) {
+    const rk = inventoryRemarketingMatchKey(r.remarketing_id)
+    if (!rk) continue
+    const base: InventoryUpsertBase = {
+      name: r.name,
+      sku: r.sku,
+      description: r.description,
+      stock_note: r.stock_note,
+      stock_qty: r.stock_qty,
+      price_hint: r.price_hint,
+      image_url: r.image_url,
+      product_url: r.product_url,
+      product_video_url: r.product_video_url,
+      consult_note: r.consult_note,
+      remarketing_id: rk,
+      sort_order: r.sort_order,
+      is_active: r.is_active,
+      updated_at: now,
+    }
+    const newId = randomUUID()
+    plannedInserts.set(rk, { id: newId, partner_id: partnerId, ...base, created_at: now })
+    if (r.catalog) catalogPatches.set(newId, { id: newId, partnerId, catalog: r.catalog })
+    inserted += 1
+    changedIds.add(newId)
+  }
+
+  for (const ids of chunked(plan.deleteIds, WRITE_CHUNK_SIZE)) {
+    const ok = await deletePartnerInventoryByIdsForPartnerFromPg(partnerId, ids)
+    if (!ok) return { ok: false, error: 'Inventory delete failed (Postgres).' }
+  }
+  for (const rowsChunk of chunked(Array.from(plannedInserts.values()), WRITE_CHUNK_SIZE)) {
+    const ok = await insertPartnerInventoryChunkFromPg(rowsChunk)
+    if (!ok) return { ok: false, error: 'Inventory insert failed (Postgres).' }
+  }
+
+  const patches = Array.from(catalogPatches.values())
+  if (patches.length > 0) {
+    const patched = await applyPartnerInventoryCatalogPatchFromPg(patches)
+    if (!patched) return { ok: false, error: 'Inventory catalog update failed (Postgres).' }
+    const linked = await linkImportedInventoryToCatalogCategoriesBatch(
+      partnerId,
+      patches.map((p) => ({
+        inventoryId: p.id,
+        categoryL1: p.catalog.category_l1,
+        categoryL2: p.catalog.category_l2,
+        categoryL3: p.catalog.category_l3,
+        productName: p.catalog.catalog_json?.name,
+      }))
+    )
+    if (!linked.ok) {
+      return { ok: false, error: `Category SEO AI failed (${linked.error}). Import stopped.` }
+    }
+  }
+
+  const deferEmbeddings = Boolean(options.deferEmbeddings)
+  if (changedIds.size > 0 && !deferEmbeddings) {
+    const ids = Array.from(changedIds)
+    await syncPartnerInventoryEmbeddings(partnerId, { inventoryIds: ids, force: false })
+    await syncPartnerInventoryTextEmbeddings(partnerId, { inventoryIds: ids, force: false })
   }
 
   return { ok: true, inserted, updated: 0, deleted, embeddingsDeferred: deferEmbeddings }
