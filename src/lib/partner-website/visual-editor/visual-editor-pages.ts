@@ -45,6 +45,10 @@ import {
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 import { buildDefaultDemoPdpShellHtml } from '@/lib/partner-website/shop/build-default-demo-pdp-shell-html'
 import {
+  resolvePartnerWebsiteLook,
+  stampPartnerWebsiteLookInHtml,
+} from '@/lib/partner-website/shop/marketplace-shop-look-css'
+import {
   htmlHasPartnerVisualChrome,
   looksLikeVisualHomeHtml,
   visualHtmlLooksCompleteForEditor,
@@ -213,12 +217,13 @@ export function visualEditorPreviewPath(
     if (key) return `/site/${encodeURIComponent(slug)}/products/${encodeURIComponent(key)}`
     return `/site/${encodeURIComponent(slug)}/products`
   }
-  if (pageKey === 'collection' && categoryPath?.trim()) {
-    const segs = normalizeVisualCategoryPath(categoryPath)
+  if (pageKey === 'collection') {
+    const segs = normalizeVisualCategoryPath(categoryPath || '')
       .split('/')
       .filter(Boolean)
       .map((s) => encodeURIComponent(s))
-    return `/site/${encodeURIComponent(slug)}/c/${segs.join('/')}`
+    if (segs.length) return `/site/${encodeURIComponent(slug)}/c/${segs.join('/')}`
+    return `/site/${encodeURIComponent(slug)}/c`
   }
   const route = visualEditorRoutePath(pageKey)
   return `/site/${encodeURIComponent(slug)}${route}`
@@ -344,7 +349,9 @@ export function visualEditorTargetHtmlPath(input: {
 }): string {
   if (input.cmsSlug) return cmsVisualHtmlPath(input.cmsSlug, input.variant)
   if (input.productId) return productVisualHtmlPath(input.productId, input.variant)
-  if (input.categoryPath) return categoryVisualHtmlPath(input.categoryPath, input.variant)
+  if (input.pageKey === 'collection' || input.categoryPath) {
+    return visualEditorHtmlPath('collection', input.variant)
+  }
   return visualEditorHtmlPath(input.pageKey, input.variant)
 }
 
@@ -440,37 +447,7 @@ export function applyVisualEditThemeFlag(
     }
   }
   if (categoryPath) {
-    if (variant === 'mobile') {
-      return {
-        ...theme,
-        visualMobileCategoryPaths: addVisualCategoryPath(
-          normalizeVisualCategoryPaths(theme.visualMobileCategoryPaths),
-          categoryPath
-        ),
-      }
-    }
-    if (variant === 'tablet') {
-      return {
-        ...theme,
-        visualTabletCategoryPaths: addVisualCategoryPath(
-          normalizeVisualCategoryPaths(theme.visualTabletCategoryPaths),
-          categoryPath
-        ),
-      }
-    }
-    if (variant === 'laptop') {
-      return {
-        ...theme,
-        visualLaptopCategoryPaths: addVisualCategoryPath(
-          normalizeVisualCategoryPaths(theme.visualLaptopCategoryPaths),
-          categoryPath
-        ),
-      }
-    }
-    return {
-      ...theme,
-      visualCategoryPaths: addVisualCategoryPath(normalizeVisualCategoryPaths(theme.visualCategoryPaths), categoryPath),
-    }
+    return applyVisualEditThemeFlag(theme, { pageKey: 'collection', variant })
   }
   if (pageKey === 'home') {
     if (variant === 'mobile') return { ...theme, useVisualMobileHtml: true }
@@ -510,16 +487,6 @@ function visualPageKeysForVariant(
   if (variant === 'tablet') return theme?.visualTabletPageKeys ?? []
   if (variant === 'laptop') return theme?.visualLaptopPageKeys ?? []
   return theme?.visualPageKeys ?? []
-}
-
-function visualCategoryPathsForVariant(
-  theme: PartnerWebsiteTheme | null | undefined,
-  variant: VisualDeviceVariant
-): string[] {
-  if (variant === 'mobile') return theme?.visualMobileCategoryPaths ?? []
-  if (variant === 'tablet') return theme?.visualTabletCategoryPaths ?? []
-  if (variant === 'laptop') return theme?.visualLaptopCategoryPaths ?? []
-  return theme?.visualCategoryPaths ?? []
 }
 
 function visualProductIdsForVariant(
@@ -661,7 +628,11 @@ function withCanonicalSharedChrome(
   )
   if (!hasSharedChrome(chrome)) return html
   const next = applySharedChrome(trimmed, chrome, { targetVariant: variant })
-  return mergeVisualHomeStylesIntoHtml(next, preferredVisualHomeStyleSource(home, homeRaw))
+  const withHomeStyles = mergeVisualHomeStylesIntoHtml(next, preferredVisualHomeStyleSource(home, homeRaw))
+  return stampPartnerWebsiteLookInHtml(
+    withHomeStyles,
+    resolvePartnerWebsiteLook(website.theme, home.length >= 40 ? home : homeRaw)
+  )
 }
 
 export function resolveExactVisualPageHtml(
@@ -1190,20 +1161,24 @@ export function resolvePublicVisualPageHtml(
   return servePublicAvailableDeviceHtml(exact, variant || 'desktop', website.theme)
 }
 
-export function resolveExactVisualCategoryHtml(
+/** Shared category listing layout for Sửa nhanh — one page per device, not per `/c/{path}`. */
+export function resolveVisualCategoryShellHtml(
   website: VisualWebsitePick,
-  categoryPath: string,
   variant: VisualDeviceVariant = 'desktop'
 ): string {
-  const path = normalizeVisualCategoryPath(categoryPath)
-  if (!path) return ''
-  const keys = visualCategoryPathsForVariant(website.theme, variant)
-  const htmlPath = categoryVisualHtmlPath(path, variant)
-  const file = website.project?.files.find((f) => f.path === htmlPath && f.kind === 'html')
-  const raw = file?.content?.trim() || ''
-  if (raw.length < 40) return ''
-  if (!keys.includes(path) && !looksLikeSavedVisualDocument(raw)) return ''
-  return withCanonicalSharedChrome(raw, website, variant)
+  const shell = readExactVisualPageHtml(website, 'collection', variant).trim()
+  if (shell.length >= 40) return withCanonicalSharedChrome(shell, website, variant)
+  const products = readExactVisualPageHtml(website, 'products', variant).trim()
+  if (products.length >= 40) return withCanonicalSharedChrome(products, website, variant)
+  return ''
+}
+
+export function resolveExactVisualCategoryHtml(
+  website: VisualWebsitePick,
+  _categoryPath: string,
+  variant: VisualDeviceVariant = 'desktop'
+): string {
+  return resolveVisualCategoryShellHtml(website, variant)
 }
 
 export function resolvePublicVisualCategoryHtml(

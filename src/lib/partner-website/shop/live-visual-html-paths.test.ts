@@ -33,6 +33,11 @@ test('liveVisualHtmlPathsForTarget maps one page + one machine', () => {
   assert.ok(productPaths.includes(visualEditorHtmlPath('product_detail', 'laptop')))
   assert.ok(productPaths.includes('index.laptop.html'))
   assert.equal(productPaths.length, 3)
+  assert.deepEqual(liveVisualHtmlPathsForTarget({ kind: 'category', categoryPath: 'ao/nam' }, 'desktop'), [
+    'collection.html',
+    'products.html',
+    'index.html',
+  ])
 })
 
 test('projectHasLiveVisualHtmlPaths requires the viewed file only', () => {
@@ -76,5 +81,7 @@ test('live resolve uses the one loaded machine file — no sibling devices requi
   assert.ok(selected)
   assert.equal(selected?.sourceDevice, 'mobile')
   assert.match(selected?.html || '', /Home mobile/)
-  assert.doesNotMatch(selected?.html || '', /data-pw-visual-device="desktop"/)
+  assert.match(selected?.html || '', /data-pw-edit-device="mobile"/)
+  assert.doesNotMatch(selected?.html || '', /<html[^>]*data-pw-edit-device="desktop"/)
+  assert.doesNotMatch(selected?.html || '', /<div[^>]*data-pw-visual-device="desktop"/)
 })

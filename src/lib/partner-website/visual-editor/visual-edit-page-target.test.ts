@@ -40,6 +40,10 @@ test('chat / search / categories chrome do not jump pages', () => {
     pageKey: 'about',
   })
   assert.equal(visualEditSelectValueFromTarget({ kind: 'page', pageKey: 'about' }), 'about')
+  assert.equal(
+    visualEditSelectValueFromTarget({ kind: 'category', categoryPath: 'thoi-trang/ao' }),
+    'collection'
+  )
 })
 
 test('selection prefers href then chrome kind', () => {
@@ -81,4 +85,15 @@ test('logo selection always opens homepage Sửa nhanh', () => {
   )
   assert.deepEqual(visualEditTargetFromSelection({ isLogo: true }), { kind: 'page', pageKey: 'home' })
   assert.equal(visualEditSelectValueFromTarget({ kind: 'page', pageKey: 'home' }), 'home')
+})
+
+test('category href opens the shared listing shell in Sửa nhanh', () => {
+  assert.deepEqual(visualEditTargetFromHref(`/site/${SLUG}/c/thoi-trang-nu/ao`, SLUG), {
+    kind: 'category',
+    categoryPath: 'thoi-trang-nu/ao',
+  })
+  assert.equal(
+    visualEditSelectValueFromTarget({ kind: 'category', categoryPath: 'thoi-trang-nu/ao' }),
+    'collection'
+  )
 })

@@ -285,7 +285,7 @@ test('fashion-marketplace seed stamps look and home API hooks on all four device
     const home = seeded.project.files.find((f) => f.path === visualEditorHtmlPath('home', variant))
     assert.ok(home, `home/${variant}`)
     const homeChrome = extractSharedChrome(home.content)
-    for (const pageKey of ['products', 'product_detail', 'about', 'cart', 'account'] as const) {
+    for (const pageKey of ['products', 'collection', 'product_detail', 'about', 'cart', 'account'] as const) {
       const file = seeded.project.files.find((f) => f.path === visualEditorHtmlPath(pageKey, variant))
       assert.ok(file, `${pageKey}/${variant}`)
       const chrome = extractSharedChrome(file.content)

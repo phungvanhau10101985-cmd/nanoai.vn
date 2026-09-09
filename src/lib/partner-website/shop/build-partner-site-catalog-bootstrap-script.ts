@@ -280,9 +280,11 @@ function queryFor(el,offset,limit){
   var sort=(el.getAttribute('data-sort')||'default').trim()||'default';
   var sale=el.getAttribute('data-sale');
   var collection=(el.getAttribute('data-collection')||'').trim();
+  var cat=(el.getAttribute('data-category-id')||'').trim();
   var q='?limit='+page+'&offset='+off+'&sort='+encodeURIComponent(sort);
   if(sale==='1'||sale==='true')q+='&sale=1';
   if(collection)q+='&collection='+encodeURIComponent(collection);
+  if(cat && sale!=='1' && sale!=='true' && !collection)q+='&categoryId='+encodeURIComponent(cat);
   return q;
 }
 function appendCards(el,products,replace){

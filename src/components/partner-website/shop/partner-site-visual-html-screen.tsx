@@ -13,6 +13,7 @@ import {
 import { isInfoVisualHtml, visualInfoPageCmsSlug } from '@/lib/partner-website/pages/partner-info-page-visual'
 import { isPartnerTextArticlePage } from '@/lib/partner-website/pages/partner-text-article-page'
 import type { LivePdpBindProduct } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
+import type { LiveCategoryListingBind } from '@/lib/partner-website/shop/bind-live-category-listing-to-html'
 import { applyLiveVisualOverlays } from '@/lib/partner-website/shop/compose-live-visual-overlays'
 import {
   preparePartnerVisualHtmlForPublic,
@@ -115,6 +116,7 @@ export async function PartnerSiteVisualHtmlScreen({
   device = null,
   infoSeo,
   liveProduct = null,
+  liveListing = null,
 }: {
   site: Pick<PartnerWebsitePublicRow, 'siteSlug' | 'title' | 'logoUrl' | 'locale' | 'chatPath' | 'theme'>
   html: string
@@ -129,6 +131,8 @@ export async function PartnerSiteVisualHtmlScreen({
   }
   /** Bind tồn kho sau khi chọn đúng 1 máy — không bind 4 file trước khi trả HTML. */
   liveProduct?: LivePdpBindProduct | null
+  /** Bind tên / breadcrumb / categoryId listing — cùng vỏ collection.html cho mọi `/c/{path}`. */
+  liveListing?: LiveCategoryListingBind | null
 }) {
   const headerStore = headers()
   const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
@@ -168,6 +172,7 @@ export async function PartnerSiteVisualHtmlScreen({
   const finish = (shell: string, overlayDevice?: VisualDeviceVariant | null) =>
     applyLiveVisualOverlays(shell, {
       liveProduct,
+      liveListing,
       liveCategoryBind,
       liveMarketingBanners,
       locale: site.locale,
@@ -177,7 +182,7 @@ export async function PartnerSiteVisualHtmlScreen({
 
   const inferredRequestDevice = inferLiveVisualRequestDevice()
 
-  if (liveProduct) {
+  if (liveProduct || liveListing) {
     const requested = device || inferredRequestDevice
     const selected = htmlByDevice ? selectPartnerVisualHtmlDevice(htmlByDevice, requested) : null
     const sourceDevice = selected?.sourceDevice || device || inferredRequestDevice
@@ -333,7 +338,8 @@ export async function maybePartnerSiteVisualPage(
 export async function maybePartnerSiteVisualCategoryPage(
   site: PartnerVisualSite,
   categoryPath: string,
-  device?: VisualDeviceVariant | null
+  device?: VisualDeviceVariant | null,
+  liveListing?: LiveCategoryListingBind | null
 ) {
   const resolved = await loadVisualTargetForScreen(site, { kind: 'category', categoryPath }, device)
   if (!resolved) return null
@@ -342,7 +348,8 @@ export async function maybePartnerSiteVisualCategoryPage(
       site={site}
       html={resolved.html}
       device={resolved.sourceDevice}
-      infoSeo={{ cmsSlug: `c:${categoryPath}` }}
+      infoSeo={{ pageKey: 'collection' }}
+      liveListing={liveListing || null}
     />
   )
 }

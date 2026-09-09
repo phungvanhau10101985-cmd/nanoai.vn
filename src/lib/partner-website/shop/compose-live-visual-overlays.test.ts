@@ -90,6 +90,29 @@ test('applyLiveVisualOverlays without product still paints visitor pills', () =>
   assert.doesNotMatch(out, /https:\/\/cdn\.example\/sale\.png/)
 })
 
+test('applyLiveVisualOverlays binds listing title onto the shared category shell', () => {
+  const listing = `<!DOCTYPE html><html><head><title>Bộ sưu tập</title></head>
+<body data-pw-page="listing">
+<main>
+<header class="pw-page-head"><h1 data-pw-el="heading">Bộ sưu tập</h1></header>
+<section data-pw-catalog data-sort="default"><div data-pw-grid></div></section>
+</main></body></html>`
+  const out = applyLiveVisualOverlays(listing, {
+    liveListing: {
+      id: '11111111-1111-4111-8111-111111111111',
+      path: 'ao-blouse',
+      name: 'áo blouse nữ',
+    },
+    liveCategoryBind: bind,
+    liveMarketingBanners: banners,
+    locale: 'vi',
+    siteSlug: 'demo-shop',
+  })
+  assert.match(out, /áo blouse nữ/)
+  assert.match(out, /data-category-id="11111111-1111-4111-8111-111111111111"/)
+  assert.doesNotMatch(out, /<h1 data-pw-el="heading">Bộ sưu tập<\/h1>/)
+})
+
 test('applyLiveVisualOverlays paints the 21:9 promo slider on home', () => {
   const home = SHELL.replace('data-pw-page="product"', 'data-pw-page="home"')
   const out = applyLiveVisualOverlays(home, {

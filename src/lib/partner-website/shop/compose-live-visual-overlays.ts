@@ -2,6 +2,10 @@ import { bindLiveCategorySurfacesInHtml } from '@/lib/partner-website/shop/bind-
 import type { LiveCategoryBind } from '@/lib/partner-website/shop/bind-live-nav-pills'
 import { bindLiveMarketingBannersToHtml } from '@/lib/partner-website/shop/bind-live-marketing-banner'
 import {
+  bindLiveCategoryListingToHtml,
+  type LiveCategoryListingBind,
+} from '@/lib/partner-website/shop/bind-live-category-listing-to-html'
+import {
   bindLiveProductToPdpHtml,
   type LivePdpBindProduct,
 } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
@@ -11,12 +15,13 @@ import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/vi
 
 /**
  * Overlays on a cached visual shell. Order is fixed:
- * product bind first, then visitor pills/tiles/banners so first paint is not leftover demo.
+ * product / listing bind first, then visitor pills/tiles/banners so first paint is not leftover demo.
  */
 export function applyLiveVisualOverlays(
   preparedShell: string,
   input: {
     liveProduct?: LivePdpBindProduct | null
+    liveListing?: LiveCategoryListingBind | null
     liveCategoryBind?: LiveCategoryBind | null
     liveMarketingBanners?: PartnerMarketingBannerPublicItem[] | null
     locale: WebLocale
@@ -31,6 +36,12 @@ export function applyLiveVisualOverlays(
         device: input.device,
       })
     : preparedShell
-  const withCategories = bindLiveCategorySurfacesInHtml(withProduct, input.liveCategoryBind ?? null)
+  const withListing = input.liveListing
+    ? bindLiveCategoryListingToHtml(withProduct, input.liveListing, {
+        locale: input.locale,
+        siteSlug: input.siteSlug,
+      })
+    : withProduct
+  const withCategories = bindLiveCategorySurfacesInHtml(withListing, input.liveCategoryBind ?? null)
   return bindLiveMarketingBannersToHtml(withCategories, input.liveMarketingBanners, input.locale)
 }

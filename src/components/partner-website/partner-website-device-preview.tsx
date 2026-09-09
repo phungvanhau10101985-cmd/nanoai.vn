@@ -42,7 +42,7 @@ import {
   isVisualEditorPageKey,
   pageKeyFromSitePath,
   productKeyFromSitePath,
-  resolveExactVisualCategoryHtml,
+  resolveVisualCategoryShellHtml,
   resolveExactVisualCmsHtml,
   resolveExactVisualPageHtml,
   isolateVisualHtmlForDevice,
@@ -599,12 +599,11 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       }
       return ''
     }
-    if (categoryPath) {
-      const exact = resolveExactVisualCategoryHtml(websitePick, categoryPath, variant)
+    if (pageKey === 'collection' || categoryPath) {
+      const exact = resolveVisualCategoryShellHtml(websitePick, variant)
       if (visualHtmlLooksUsable(exact)) {
         return isolateVisualHtmlForDevice(exact, variant)
       }
-      return ''
     }
     const exact = resolveExactVisualPageHtml(websitePick, pageKey, variant)
     const homeHtml = resolveExactVisualPageHtml(websitePick, 'home', variant)
@@ -683,14 +682,14 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     const productId: string | null = null
     const productKey: string | null = null
     let cmsSlug: string | null = null
-    if (next.startsWith('c:')) {
+    if (next.startsWith('c:') || next === 'collection') {
       pageKey = 'collection'
-      categoryPath = next.slice(2)
+      categoryPath = null
     } else if (next.startsWith('p:') || next === 'product_detail') {
       pageKey = 'product_detail'
     } else if (next.startsWith('cms:')) {
       cmsSlug = next.slice(4)
-    } else if (isVisualEditorPageKey(next) && next !== 'collection') {
+    } else if (isVisualEditorPageKey(next)) {
       pageKey = next
     } else {
       return
@@ -715,6 +714,10 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     setPreviewCmsSlug(cmsSlug)
   }
 
+  const listingLiveCategoryPath =
+    previewPageKey === 'collection' ? previewCategoryPath || categoryOptions[0]?.path || null : previewCategoryPath
+  const collectionSaveCategoryPath = previewPageKey === 'collection' ? null : previewCategoryPath
+
   function openLiveViewNow() {
     const slug = siteSlug?.trim()
     if (!slug) return
@@ -722,7 +725,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       `${visualEditorPreviewPath(
         slug,
         previewPageKey,
-        previewCategoryPath,
+        listingLiveCategoryPath,
         previewPageKey === 'product_detail' ? productOptions[0]?.key || null : previewProductKey,
         previewCmsSlug
       )}?v=${Date.now()}`,
@@ -994,7 +997,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
         : previewProductKey
     if (siteSlug?.trim()) {
       return appendVisualDeviceQuery(
-        `${visualEditorPreviewPath(siteSlug.trim(), previewPageKey, previewCategoryPath, seedProductKey, previewCmsSlug)}?v=${v}`,
+        `${visualEditorPreviewPath(siteSlug.trim(), previewPageKey, listingLiveCategoryPath, seedProductKey, previewCmsSlug)}?v=${v}`,
         deviceQuery
       )
     }
@@ -1003,7 +1006,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       `/api/messaging/partner-website/${encodeURIComponent(partnerId)}/preview?v=${v}`,
       deviceQuery
     )
-  }, [partnerId, hasWebsite, previewVersion, siteSlug, previewPageKey, previewCategoryPath, previewProductKey, previewCmsSlug, device, productOptions])
+  }, [partnerId, hasWebsite, previewVersion, siteSlug, previewPageKey, listingLiveCategoryPath, previewProductKey, previewCmsSlug, device, productOptions])
 
   useEffect(() => {
     const iframe = iframeRef.current
@@ -1024,13 +1027,13 @@ export const PartnerWebsiteDevicePreview = forwardRef<
         }
         const cat = categoryPathFromSitePath(path, slug)
         if (cat) {
-          if (previewPageKey !== 'collection' || previewCategoryPath !== cat) {
+          if (previewPageKey !== 'collection') {
             setPreviewPageKey('collection')
-            setPreviewCategoryPath(cat)
             setPreviewProductId(null)
             setPreviewProductKey(null)
             setPreviewCmsSlug(null)
           }
+          if (previewCategoryPath !== cat) setPreviewCategoryPath(cat)
           return
         }
         const productKey = productKeyFromSitePath(path, slug)
@@ -1088,8 +1091,8 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   const canVisualEdit = visualEditEnabled && Boolean(onVisualEditSave || onShopHomeSave)
   const pageSelectValue = previewCmsSlug
     ? `cms:${previewCmsSlug}`
-    : previewCategoryPath
-      ? `c:${previewCategoryPath}`
+    : previewPageKey === 'collection'
+      ? 'collection'
       : previewPageKey
   const pdpLiveProductKey =
     previewPageKey === 'product_detail' ? productOptions[0]?.key || null : previewProductKey
@@ -1187,7 +1190,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   const editSrcDocToolbarKey = editSrcDoc
     ? `srcdoc-${editVariant}-${previewPageKey}-${previewCategoryPath || ''}-${previewProductId || ''}-${previewCmsSlug || ''}-${visualSrcDocFingerprint(editSrcDoc)}`
     : `live-${previewSrc}`
-  const catalogPageKeys = VISUAL_EDITOR_PAGE_KEYS.filter((key) => key !== 'collection')
+  const catalogPageKeys = VISUAL_EDITOR_PAGE_KEYS
 
   function handlePageSelectChange(next: string) {
     if (next === pageSelectValue) return
@@ -1205,19 +1208,6 @@ export const PartnerWebsiteDevicePreview = forwardRef<
           {pageLabels[key]?.title ?? key}
         </option>
       ))}
-      <optgroup label={t.visualEditCategoryGroup}>
-        {categoryOptions.length ? (
-          categoryOptions.map((cat) => (
-            <option key={cat.path} value={`c:${cat.path}`}>
-              {`${'· '.repeat(Math.max(0, cat.depth))}${cat.name}`}
-            </option>
-          ))
-        ) : (
-          <option value="" disabled>
-            {t.visualEditCategoryEmpty}
-          </option>
-        )}
-      </optgroup>
       <optgroup label={t.visualEditCmsGroup}>
         {cmsOptions.length ? (
           cmsOptions.map((page) => (
@@ -1338,7 +1328,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
             htmlPath={visualEditorTargetHtmlPath({
               pageKey: previewPageKey,
               variant: editVariant,
-              categoryPath: previewCategoryPath,
+              categoryPath: collectionSaveCategoryPath,
               productId: visualTargetProductId,
               cmsSlug: previewCmsSlug,
             })}
@@ -1351,7 +1341,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                 ? `${visualEditorPreviewPath(
                     siteSlug.trim(),
                     previewPageKey,
-                    previewCategoryPath,
+                    listingLiveCategoryPath,
                     pdpLiveProductKey,
                     previewCmsSlug
                   )}?v=${encodeURIComponent(previewVersion || '0')}`
@@ -1363,7 +1353,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                     const path = visualEditorTargetHtmlPath({
                       pageKey: previewPageKey,
                       variant: editVariant,
-                      categoryPath: previewCategoryPath,
+                      categoryPath: collectionSaveCategoryPath,
                       productId: visualTargetProductId,
                       cmsSlug: previewCmsSlug,
                     })
@@ -1376,7 +1366,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                       previewPageKey,
                       editVariant,
                       {
-                      categoryPath: previewCategoryPath,
+                      categoryPath: collectionSaveCategoryPath,
                       productId: visualTargetProductId,
                       cmsSlug: previewCmsSlug,
                       }
@@ -1471,7 +1461,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
               htmlPath={visualEditorTargetHtmlPath({
                 pageKey: previewPageKey,
                 variant: editVariant,
-                categoryPath: previewCategoryPath,
+                categoryPath: collectionSaveCategoryPath,
                 productId: visualTargetProductId,
                 cmsSlug: previewCmsSlug,
               })}
@@ -1484,7 +1474,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                   ? `${visualEditorPreviewPath(
                       siteSlug.trim(),
                       previewPageKey,
-                      previewCategoryPath,
+                      listingLiveCategoryPath,
                       pdpLiveProductKey,
                       previewCmsSlug
                     )}?v=${encodeURIComponent(previewVersion || '0')}`
@@ -1496,7 +1486,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                       const path = visualEditorTargetHtmlPath({
                         pageKey: previewPageKey,
                         variant: editVariant,
-                        categoryPath: previewCategoryPath,
+                        categoryPath: collectionSaveCategoryPath,
                         productId: visualTargetProductId,
                         cmsSlug: previewCmsSlug,
                       })
@@ -1509,7 +1499,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
                         previewPageKey,
                         editVariant,
                         {
-                        categoryPath: previewCategoryPath,
+                        categoryPath: collectionSaveCategoryPath,
                         productId: visualTargetProductId,
                         cmsSlug: previewCmsSlug,
                         }

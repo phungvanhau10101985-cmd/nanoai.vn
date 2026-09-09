@@ -53,7 +53,6 @@ import {
 import { normalizePartnerWebsitePageKey } from '@/lib/partner-website/partner-website-page-catalog'
 import {
   applyVisualEditThemeFlag,
-  categoryVisualHtmlPath,
   cmsVisualHtmlPath,
   normalizeVisualCategoryPath,
   normalizeVisualCategoryPaths,
@@ -745,18 +744,19 @@ export async function PATCH(
     ? productVisualHtmlPath(visualProductId, visualDevice)
     : visualCmsSlug
       ? cmsVisualHtmlPath(visualCmsSlug, visualDevice)
-      : visualCategoryPath
-        ? categoryVisualHtmlPath(visualCategoryPath, visualDevice)
-        : visualEditorHtmlPath(visualPageKey, visualDevice)
-  const isDynamicVisualTarget = Boolean(visualProductId || visualCmsSlug || visualCategoryPath)
+      : visualEditorHtmlPath(
+          visualCategoryPath ? 'collection' : visualPageKey,
+          visualDevice
+        )
+  const isDynamicVisualTarget = Boolean(visualProductId || visualCmsSlug)
   const visualTarget: PartnerVisualHtmlTarget | null =
     body.visualEdited === true
       ? visualProductId
         ? { kind: 'product', productId: visualProductId }
         : visualCmsSlug
           ? { kind: 'cms', cmsSlug: visualCmsSlug }
-          : visualCategoryPath
-            ? { kind: 'category', categoryPath: visualCategoryPath }
+          : visualCategoryPath || visualPageKey === 'collection'
+            ? { kind: 'page', pageKey: 'collection' }
             : { kind: 'page', pageKey: visualPageKey }
       : null
   const liveBeforeSelection =

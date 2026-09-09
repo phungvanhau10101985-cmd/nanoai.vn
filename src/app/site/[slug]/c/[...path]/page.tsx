@@ -113,14 +113,20 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
   if (!ctx) notFound()
   const { shop, category, ancestors } = ctx
   const device = await readVisualPreviewDevice(searchParams)
-  const visual = await maybePartnerSiteVisualCategoryPage(
-    shop.site,
-    category.path,
-    device
-  )
-  if (visual) return visual
-  const t = getPartnerSiteShopCopy(shop.site.locale)
   const locale = shop.site.locale
+  const visual = await maybePartnerSiteVisualCategoryPage(shop.site, category.path, device, {
+    id: category.id,
+    path: category.path,
+    name: resolvePartnerCategoryDisplayName(category, locale),
+    description: resolvePartnerCategoryDisplayDescription(category, locale),
+    seoBody: category.seoBody,
+    ancestors: ancestors.map((a) => ({
+      path: a.path,
+      name: resolvePartnerCategoryDisplayName(a, locale),
+    })),
+  })
+  if (visual) return visual
+  const t = getPartnerSiteShopCopy(locale)
 
   const listing = parsePartnerCategoryListingFromRecord((searchParams ? await searchParams : {}) ?? {})
   const [page, priceRange, facets] = await Promise.all([

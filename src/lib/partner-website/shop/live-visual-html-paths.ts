@@ -1,7 +1,6 @@
 import type { PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
 import type { PartnerVisualHtmlTarget } from '@/lib/partner-website/shop/render-partner-visual-html'
 import {
-  categoryVisualHtmlPath,
   cmsVisualHtmlPath,
   productVisualHtmlPath,
   productVisualShellHtmlPath,
@@ -39,7 +38,11 @@ export function liveVisualHtmlPathsForTarget(
     ])
   }
   if (target.kind === 'category') {
-    return uniquePaths([categoryVisualHtmlPath(target.categoryPath, device), home])
+    return uniquePaths([
+      visualEditorHtmlPath('collection', device),
+      visualEditorHtmlPath('products', device),
+      home,
+    ])
   }
   return uniquePaths([cmsVisualHtmlPath(target.cmsSlug, device), home])
 }

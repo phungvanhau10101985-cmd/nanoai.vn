@@ -36,6 +36,7 @@ import {
   resolveExactVisualCmsHtml,
   resolveExactVisualPageHtml,
   resolveExactVisualProductHtml,
+  resolveVisualCategoryShellHtml,
   resolveVisualPdpShellHtml,
   resolvePublicVisualPageHtml,
   resolveVisualProductIdFromKey,
@@ -46,6 +47,7 @@ import {
   visualEditorDeviceVariant,
   visualEditorHtmlPath,
   visualEditorPreviewPath,
+  visualEditorTargetHtmlPath,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
 test('scene layers use the same design width as the device preview', () => {
@@ -67,6 +69,14 @@ test('visual editor paths map catalog pages', () => {
   assert.equal(visualEditorHtmlPath('home', 'mobile'), 'index.mobile.html')
   assert.equal(visualEditorHtmlPath('home', 'tablet'), 'index.tablet.html')
   assert.equal(visualEditorHtmlPath('home', 'laptop'), 'index.laptop.html')
+  assert.equal(
+    visualEditorTargetHtmlPath({ pageKey: 'collection', variant: 'desktop', categoryPath: 'ao-nam' }),
+    'collection.html'
+  )
+  assert.equal(
+    visualEditorTargetHtmlPath({ pageKey: 'collection', variant: 'mobile' }),
+    'collection.mobile.html'
+  )
   assert.equal(visualEditorHtmlPath('about', 'mobile'), 'about.mobile.html')
   assert.equal(visualEditorHtmlPath('about', 'tablet'), 'about.tablet.html')
   assert.equal(visualEditorHtmlPath('about', 'laptop'), 'about.laptop.html')
@@ -74,7 +84,11 @@ test('visual editor paths map catalog pages', () => {
   assert.equal(visualEditorDeviceVariant('tablet'), 'tablet')
   assert.equal(visualEditorDeviceVariant('laptop'), 'laptop')
   assert.equal(visualEditorDeviceVariant('desktop'), 'desktop')
-  assert.equal(visualEditorPreviewPath('188-shop', 'home'), '/site/188-shop')
+  assert.equal(visualEditorPreviewPath('188-shop', 'collection'), '/site/188-shop/c')
+  assert.equal(
+    visualEditorPreviewPath('188-shop', 'collection', 'thoi-trang/ao'),
+    '/site/188-shop/c/thoi-trang/ao'
+  )
   assert.equal(appendVisualDeviceQuery('/site/188-shop/products', 'mobile'), '/site/188-shop/products?pw-device=mobile')
   assert.equal(appendVisualDeviceQuery('/site/188-shop/products', 'tablet'), '/site/188-shop/products?pw-device=tablet')
   assert.equal(appendVisualDeviceQuery('/site/188-shop?v=1', 'desktop'), '/site/188-shop?v=1&pw-device=desktop')
@@ -380,7 +394,7 @@ test('a canonical Sửa nhanh page file remains live when a legacy flag is missi
   assert.equal(out, about)
 })
 
-test('canonical category and CMS files remain live when legacy flags are missing', () => {
+test('canonical collection shell and CMS files remain live when legacy flags are missing', () => {
   const category = `<!DOCTYPE html><html><body data-pw-page="listing"><main data-pw-region="catalog">Saved category</main></body></html>`
   const cms = `<!DOCTYPE html><html><body data-pw-page="info"><main data-pw-region="content">Saved CMS</main></body></html>`
   const website = {
@@ -388,7 +402,7 @@ test('canonical category and CMS files remain live when legacy flags are missing
     project: {
       entryPath: 'index.html',
       files: [
-        { path: 'c/ao.html', kind: 'html' as const, content: category },
+        { path: 'collection.html', kind: 'html' as const, content: category },
         { path: 'cms/huong-dan.html', kind: 'html' as const, content: cms },
       ],
     },
@@ -433,21 +447,71 @@ test('pageKeyFromSitePath maps shop routes', () => {
   )
 })
 
-test('category visual html is isolated per path', () => {
-  const html = '<!DOCTYPE html><html><body><h1>Ao nam</h1></body></html>'
+test('category listing uses one shared shell for every path', () => {
+  const shell = '<!DOCTYPE html><html><body data-pw-page="listing"><h1>Listing shell</h1></body></html>'
+  const leftover = '<!DOCTYPE html><html><body><h1>Ao nam leftover</h1></body></html>'
   const website = {
     theme: {
       ...DEFAULT_PARTNER_WEBSITE_THEME,
+      visualPageKeys: ['collection'],
       visualCategoryPaths: ['ao-nam'],
     },
     htmlSource: null,
     project: {
       entryPath: 'site.config.json',
-      files: [{ path: 'c/ao-nam.html', kind: 'html' as const, content: html }],
+      files: [
+        { path: 'collection.html', kind: 'html' as const, content: shell },
+        { path: 'c/ao-nam.html', kind: 'html' as const, content: leftover },
+      ],
     },
   }
-  assert.equal(resolveExactVisualCategoryHtml(website, 'ao-nam'), html)
-  assert.equal(resolveExactVisualCategoryHtml(website, 'tui'), '')
+  assert.match(resolveExactVisualCategoryHtml(website, 'ao-nam'), /Listing shell/)
+  assert.match(resolveExactVisualCategoryHtml(website, 'tui'), /Listing shell/)
+  assert.match(resolveVisualCategoryShellHtml(website, 'desktop'), /Listing shell/)
+  assert.doesNotMatch(resolveExactVisualCategoryHtml(website, 'ao-nam'), /leftover/)
+})
+
+test('shared category shell copies homepage header and marketplace look', () => {
+  const home = `<!DOCTYPE html><html data-pw-look="marketplace"><body data-pw-page="home">
+<header class="pw-header" data-pw-region="header">HOMEHEAD</header>
+<main>Home</main>
+<footer class="pw-footer" data-pw-region="footer">HOMEFOOT</footer>
+</body></html>`
+  const listing = `<!DOCTYPE html><html><body data-pw-page="listing">
+<header class="pw-header" data-pw-region="header">OLDHEAD</header>
+<main><h1>Listing</h1></main>
+<footer class="pw-footer" data-pw-region="footer">OLDFOOT</footer>
+</body></html>`
+  const website = {
+    theme: {
+      ...DEFAULT_PARTNER_WEBSITE_THEME,
+      look: 'marketplace' as const,
+      useVisualHtml: true,
+      visualPageKeys: ['collection'],
+    },
+    htmlSource: home,
+    project: {
+      entryPath: 'index.html',
+      files: [
+        { path: 'index.html', kind: 'html' as const, content: home },
+        { path: 'collection.html', kind: 'html' as const, content: listing },
+      ],
+    },
+  }
+  const html = resolveExactVisualCategoryHtml(website, 'ao-blouse')
+  assert.match(html, /HOMEHEAD/)
+  assert.doesNotMatch(html, /OLDHEAD/)
+  assert.match(html, /data-pw-look="marketplace"/)
+})
+
+test('saving a category listing flags the shared collection shell', () => {
+  const next = applyVisualEditThemeFlag(DEFAULT_PARTNER_WEBSITE_THEME, {
+    pageKey: 'collection',
+    variant: 'desktop',
+    categoryPath: 'ao-nam',
+  })
+  assert.deepEqual(next.visualPageKeys, ['collection'])
+  assert.deepEqual(next.visualCategoryPaths ?? [], [])
 })
 
 test('generic product detail html is not served for every PDP', () => {

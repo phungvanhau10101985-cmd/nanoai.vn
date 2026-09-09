@@ -81,7 +81,7 @@ export function visualEditTargetFromSelection(input: {
 /** Same values as the Sửa nhanh page <select>. */
 export function visualEditSelectValueFromTarget(target: VisualEditPageTarget): string {
   if (target.kind === 'cms') return `cms:${target.cmsSlug}`
-  if (target.kind === 'category') return `c:${target.categoryPath}`
+  if (target.kind === 'category') return 'collection'
   if (target.kind === 'product') return `p:${target.productKey}`
   return target.pageKey
 }
