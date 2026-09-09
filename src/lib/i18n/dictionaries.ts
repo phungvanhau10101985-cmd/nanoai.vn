@@ -4133,7 +4133,7 @@ const VI_DICTIONARY: Dictionary = {
     sepayHmacKeepHint: 'Chưa lưu Secret Key HMAC. Webhook shop vẫn nhận theo token; bật HMAC trên SePay thì dán whsec_ vào đây.',
     settingsNavShipping: 'Cài đặt vận chuyển',
     settingsNavShippingDesc:
-      'Phí ship, đơn vị vận chuyển, địa chỉ hoàn hàng và cổng API tra cứu đơn trên web shop (NanoAI gọi khi khách hỏi đơn / mã vận).',
+      'Hai phần: (1) quản lý vận chuyển/COD web shop (EMS, đối soát, hoàn hàng); (2) cổng API tra cứu đơn của website khách khác hệ thống.',
     settingsNavShippingFeeTitle: 'Phí vận chuyển (đơn trên chat)',
     settingsShippingOpenFromPayment: 'Phí ship, đơn vị vận chuyển, địa chỉ hoàn và cổng tra cứu đơn → Quản lý vận chuyển',
     settingsNavShippingSaveFee: 'Lưu phí vận chuyển',
@@ -7487,7 +7487,7 @@ const EN_DICTIONARY: Dictionary = {
     sepayHmacKeepHint: 'No HMAC Secret Key saved yet. The shop webhook still accepts the token; paste whsec_ here after you enable HMAC on SePay.',
     settingsNavShipping: 'Shipping settings',
     settingsNavShippingDesc:
-      'Shipping fees, carrier label, return address, and the shop shipping-lookup API (NanoAI calls it when customers ask about orders / tracking).',
+      'Two parts: (1) this shop’s shipping/COD ops (EMS, settlement, returns); (2) shipping-lookup API for a customer website on another system.',
     settingsNavShippingFeeTitle: 'Shipping fee (chat orders)',
     settingsShippingOpenFromPayment: 'Shipping fee, carrier, return address, and lookup API → Shipping management',
     settingsNavShippingSaveFee: 'Save shipping fees',
@@ -10834,7 +10834,7 @@ const ZH_DICTIONARY: Dictionary = {
     sepayHmacKeepHint: '尚未保存 HMAC Secret Key。店铺 webhook 仍按 token 接收；在 SePay 启用 HMAC 后请把 whsec_ 粘贴到这里。',
     settingsNavShipping: '物流设置',
     settingsNavShippingDesc:
-      '运费、承运商标签、退货地址，以及店铺物流查询 API（顾客询问订单/运单时由 NanoAI 调用）。',
+      '两部分：（1）本店物流/货到付款（EMS、对账、退件）；（2）其他系统客户网站的物流查询 API。',
     settingsNavShippingFeeTitle: '运费（聊天订单）',
     settingsShippingOpenFromPayment: '运费、承运商、退货地址与查询接口 → 物流管理',
     settingsNavShippingSaveFee: '保存运费',
@@ -14095,7 +14095,7 @@ const JA_DICTIONARY: Dictionary = {
     sepayHmacKeepHint: 'HMAC Secret Key は未保存です。店舗 webhook は token で受信します。SePay で HMAC を有効にしたら whsec_ をここに貼ってください。',
     settingsNavShipping: '配送設定',
     settingsNavShippingDesc:
-      '送料、配送業者、返送先住所、ショップの配送照会 API（注文・追跡の問い合わせ時に NanoAI が呼び出します）。',
+      '2部構成：（1）自店の配送/代引運用（EMS・照合・返品）；（2）別システムの顧客サイト向け配送照会 API。',
     settingsNavShippingFeeTitle: '送料（チャット注文）',
     settingsShippingOpenFromPayment: '送料・配送業者・返送先・照会 API → 配送管理',
     settingsNavShippingSaveFee: '送料を保存',
@@ -17420,7 +17420,7 @@ const KO_DICTIONARY: Dictionary = {
     sepayHmacKeepHint: 'HMAC Secret Key가 아직 없습니다. 매장 웹훅은 token으로 수신됩니다. SePay에서 HMAC을 켠 뒤 whsec_를 여기에 붙여 넣으세요.',
     settingsNavShipping: '배송 설정',
     settingsNavShippingDesc:
-      '배송비, 운송사, 반송 주소, 쇼핑몰 배송 조회 API(고객이 주문/운송장을 물을 때 NanoAI가 호출).',
+      '두 부분: (1) 이 샵의 배송/착불 운영(EMS, 대사, 반품); (2) 다른 시스템 고객 사이트 배송 조회 API.',
     settingsNavShippingFeeTitle: '배송비(채팅 주문)',
     settingsShippingOpenFromPayment: '배송비, 운송사, 반송 주소, 조회 API → 배송 관리',
     settingsNavShippingSaveFee: '배송비 저장',

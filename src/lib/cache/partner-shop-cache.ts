@@ -245,7 +245,7 @@ export async function withSiteChromeCache<T>(input: {
   const device = input.device.trim().toLowerCase()
   if (!slug || !device) return input.load()
   const ver = await siteVer(slug)
-  const key = `pw:site:${slug}:v${ver}:chrome:${device}`
+  const key = `pw:site:${slug}:v${ver}:chrome2:${device}`
   return loadOnce(key, async () => {
     const hit = await shopCacheGetJson<T>(key)
     if (hit !== null) return hit

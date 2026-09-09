@@ -24,8 +24,6 @@ import { ProductStudioManualDialog } from '@/components/partner-website/product-
 import {
   deletePartnerInventoryItem,
   getPartnerAiBundle,
-  getPartnerBirthdayPromoSettings,
-  savePartnerBirthdayPromoSettings,
   getPartnerInventoryEmbeddingStats,
   getPartnerInventoryTextEmbeddingStats,
   triggerPartnerInventoryEmbeddingSync,
@@ -62,7 +60,7 @@ import { buildGuestConsultChatAbsoluteUrl, buildGuestConsultChatPath } from '@/l
 import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
 import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
-import { Bot, Cake, Copy, Download, FileSpreadsheet, Image as ImageIcon, Package, RefreshCw, Search, Sparkles, Truck, Upload } from 'lucide-react'
+import { Bot, Copy, Download, FileSpreadsheet, Image as ImageIcon, Package, RefreshCw, Search, Sparkles, Truck, Upload } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 
 type AiT = Dictionary['partnerMessagingAi']
@@ -219,6 +217,7 @@ export function PartnerAiSettingsPanel({
   panelMode = 'full',
   panelTitle,
   panelDescription,
+  shippingSections = 'all',
 }: {
   partnerId: string
   /** Slug workspace — `/messaging/p/{slug}` (link tư vấn kèm ảnh SP). */
@@ -231,14 +230,17 @@ export function PartnerAiSettingsPanel({
   panelMode?: AiPanelMode
   panelTitle?: string
   panelDescription?: string
+  /** Khi panelMode=shipping-only: chỉ địa chỉ hoàn, chỉ cổng API, hoặc cả hai. */
+  shippingSections?: 'all' | 'return-address' | 'lookup'
 }) {
   const { toast } = useToast()
   const [pending, startTransition] = useTransition()
   const isShippingOnly = panelMode === 'shipping-only'
+  const showReturnAddress = !isShippingOnly || shippingSections !== 'lookup'
+  const showShippingLookup = !isShippingOnly || shippingSections !== 'return-address'
   const showSettingsTab = panelMode === 'full' || panelMode === 'ai-only' || isShippingOnly
   const showInventoryTab = panelMode === 'full' || panelMode === 'inventory-only'
   const showUsageTab = panelMode === 'full' || panelMode === 'usage-only'
-  const hideBirthdayPromo = panelMode !== 'full'
   const [activeTab, setActiveTab] = useState<'settings' | 'inv' | 'usage'>(() =>
     panelMode === 'inventory-only' ? 'inv' : panelMode === 'usage-only' ? 'usage' : 'settings'
   )
@@ -279,17 +281,6 @@ export function PartnerAiSettingsPanel({
   const [embeddingSyncing, setEmbeddingSyncing] = useState(false)
   const [form, setForm] = useState<FormState>(() => defaultsFromSettings(null))
   const formRef = useRef<FormState>(form)
-  const [bdayEnabled, setBdayEnabled] = useState(false)
-  const [bdayDiscountPct, setBdayDiscountPct] = useState(10)
-  const [bdayDaysMax, setBdayDaysMax] = useState(7)
-  const [bdayDaysMin, setBdayDaysMin] = useState(1)
-  const bdayPersistRef = useRef({
-    enabled: false,
-    discountPct: 10,
-    daysMax: 7,
-    daysMin: 1,
-  })
-  const bdayDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loadSeqRef = useRef(0)
   const autoEmbedSyncStateRef = useRef<{ running: boolean; lastRunAt: number; partnerId: string | null }>({
     running: false,
@@ -389,13 +380,10 @@ export function PartnerAiSettingsPanel({
     setEmbeddingStats(null)
     setTextEmbeddingStats(null)
     return (async () => {
-      const [bundleRes, embeddingRes, textEmbeddingRes, bdayRes] = await Promise.all([
+      const [bundleRes, embeddingRes, textEmbeddingRes] = await Promise.all([
         getPartnerAiBundle(partnerId),
         getPartnerInventoryEmbeddingStats(partnerId),
         getPartnerInventoryTextEmbeddingStats(partnerId),
-        hideBirthdayPromo
-          ? Promise.resolve({ settings: null as null })
-          : getPartnerBirthdayPromoSettings(partnerId),
       ])
       if (seq !== loadSeqRef.current) return
 
@@ -415,13 +403,6 @@ export function PartnerAiSettingsPanel({
         setLoadErr(bundleRes.error)
         toast({ title: t.loadError, description: bundleRes.error, variant: 'destructive' })
         return
-      }
-      if (!hideBirthdayPromo && !('error' in bdayRes) && bdayRes && 'settings' in bdayRes && bdayRes.settings) {
-        const bs = bdayRes.settings
-        setBdayEnabled(Boolean(bs.enabled))
-        setBdayDiscountPct(Math.max(0, Math.min(100, Number(bs.discount_percent) || 10)))
-        setBdayDaysMax(Math.max(1, Math.min(120, Number(bs.offer_days_before_max) || 7)))
-        setBdayDaysMin(Math.max(1, Math.min(120, Number(bs.offer_days_before_min) || 1)))
       }
       if ('settings' in bundleRes) {
         const next = defaultsFromSettings(bundleRes.settings ?? null)
@@ -450,7 +431,7 @@ export function PartnerAiSettingsPanel({
             }
       await loadUsageAnalyticsWithSeq(seq, usageQuery)
     })()
-  }, [partnerId, t.loadError, toast, loadUsageAnalyticsWithSeq, hideBirthdayPromo])
+  }, [partnerId, t.loadError, toast, loadUsageAnalyticsWithSeq])
 
   useEffect(() => {
     load()
@@ -459,90 +440,6 @@ export function PartnerAiSettingsPanel({
   useEffect(() => {
     formRef.current = form
   }, [form])
-
-  useEffect(() => {
-    bdayPersistRef.current = {
-      enabled: bdayEnabled,
-      discountPct: bdayDiscountPct,
-      daysMax: bdayDaysMax,
-      daysMin: bdayDaysMin,
-    }
-  }, [bdayEnabled, bdayDiscountPct, bdayDaysMax, bdayDaysMin])
-
-  useEffect(() => {
-    return () => {
-      if (bdayDebounceTimerRef.current) {
-        clearTimeout(bdayDebounceTimerRef.current)
-        bdayDebounceTimerRef.current = null
-      }
-    }
-  }, [])
-
-  const applyBirthdaySettingsFromServer = useCallback((bs: {
-    enabled?: boolean
-    discount_percent?: number
-    offer_days_before_max?: number
-    offer_days_before_min?: number
-  }) => {
-    if (typeof bs.enabled === 'boolean') setBdayEnabled(bs.enabled)
-    if (bs.discount_percent != null) {
-      setBdayDiscountPct(Math.max(0, Math.min(100, Number(bs.discount_percent) || 10)))
-    }
-    if (bs.offer_days_before_max != null) {
-      setBdayDaysMax(Math.max(1, Math.min(120, Number(bs.offer_days_before_max) || 7)))
-    }
-    if (bs.offer_days_before_min != null) {
-      setBdayDaysMin(Math.max(1, Math.min(120, Number(bs.offer_days_before_min) || 1)))
-    }
-  }, [])
-
-  /** Không bọc trong startTransition(async): React không theo dõi promise; transition + pending còn có thể khóa UI giữa chừng. */
-  const flushBirthdayPromoSave = useCallback(
-    (payload: {
-      enabled: boolean
-      discountPercent: number
-      offerDaysBeforeMax: number
-      offerDaysBeforeMin: number
-    }) => {
-      void (async () => {
-        try {
-          const res = await savePartnerBirthdayPromoSettings(partnerId, payload)
-          if ('error' in res && res.error) {
-            toast({ title: res.error, variant: 'destructive' })
-            await load()
-            return
-          }
-          const verify = await getPartnerBirthdayPromoSettings(partnerId)
-          if (!('error' in verify) && verify && 'settings' in verify && verify.settings) {
-            applyBirthdaySettingsFromServer(verify.settings)
-          }
-          toast({ title: saveOkMessage })
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e)
-          toast({
-            title: msg || 'Lưu cài đặt sinh nhật thất bại.',
-            variant: 'destructive',
-          })
-          await load()
-        }
-      })()
-    },
-    [partnerId, saveOkMessage, toast, load, applyBirthdaySettingsFromServer]
-  )
-
-  const scheduleBirthdayPromoSaveDebounced = useCallback(() => {
-    if (bdayDebounceTimerRef.current) clearTimeout(bdayDebounceTimerRef.current)
-    bdayDebounceTimerRef.current = setTimeout(() => {
-      bdayDebounceTimerRef.current = null
-      const s = bdayPersistRef.current
-      flushBirthdayPromoSave({
-        enabled: s.enabled,
-        discountPercent: s.discountPct,
-        offerDaysBeforeMax: s.daysMax,
-        offerDaysBeforeMin: s.daysMin,
-      })
-    }, 450)
-  }, [flushBirthdayPromoSave])
 
   const persistPartial = useCallback(
     (partial: Partial<FormState>) => {
@@ -926,6 +823,7 @@ export function PartnerAiSettingsPanel({
             </>
             ) : null}
 
+            {showReturnAddress ? (
             <div className="space-y-2">
               <Label htmlFor="ai-after-sales-return-address">{t.afterSalesReturnAddressLabel}</Label>
               <p className="text-xs text-muted-foreground">{t.afterSalesReturnAddressHint}</p>
@@ -937,10 +835,13 @@ export function PartnerAiSettingsPanel({
                 onChange={(e) =>
                   setForm((f) => ({ ...f, after_sales_return_address: e.target.value }))
                 }
+                onBlur={(e) => persistPartial({ after_sales_return_address: e.target.value })}
                 className="resize-y min-h-[96px]"
               />
             </div>
+            ) : null}
 
+            {showShippingLookup ? (
             <div className="space-y-3 rounded-lg border border-border/80 bg-muted/20 p-4">
               <div className="space-y-1">
                 <Label>{t.shippingLookupTitle}</Label>
@@ -961,6 +862,7 @@ export function PartnerAiSettingsPanel({
                   placeholder={t.shippingLookupUrlPlaceholder}
                   value={form.shipping_lookup_url}
                   onChange={(e) => setForm((f) => ({ ...f, shipping_lookup_url: e.target.value }))}
+                  onBlur={(e) => persistPartial({ shipping_lookup_url: e.target.value.trim() })}
                 />
               </div>
               <div className="space-y-2">
@@ -1033,105 +935,10 @@ export function PartnerAiSettingsPanel({
                 ) : null}
               </div>
             </div>
+            ) : null}
 
             {!isShippingOnly ? (
             <>
-            {!hideBirthdayPromo ? (
-            <div className="rounded-lg border border-violet-200/80 bg-violet-50/50 p-4 dark:border-violet-900/50 dark:bg-violet-950/20">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                    <Cake className="h-4 w-4 text-violet-600" aria-hidden />
-                    Chúc mừng sinh nhật — email &amp; ưu đãi
-                  </div>
-                  <p className="text-xs text-muted-foreground max-w-xl">
-                    Gửi email cho khách đã chat, đã đăng nhập (email/Google) và có ngày sinh trên tài khoản, trong
-                    khoảng ngày trước sinh nhật bạn chọn (mặc định 7 ngày = 1 tuần). Trong thời gian đó, giá các sản phẩm trong kho trên chat được
-                    giảm theo % bạn cài — tự động khi đặt qua chat, không cần mã; khách đăng nhập sẽ thấy tin chúc mừng trong chat. Email kèm link mở chat và gợi ý sản phẩm
-                    khách đã quan tâm / đặt. Cron chạy hằng ngày (cần SMTP).
-                  </p>
-                </div>
-                <Switch
-                  checked={bdayEnabled}
-                  onCheckedChange={(c) => {
-                    if (bdayDebounceTimerRef.current) {
-                      clearTimeout(bdayDebounceTimerRef.current)
-                      bdayDebounceTimerRef.current = null
-                    }
-                    setBdayEnabled(c)
-                    bdayPersistRef.current.enabled = c
-                    flushBirthdayPromoSave({
-                      enabled: c,
-                      discountPercent: bdayPersistRef.current.discountPct,
-                      offerDaysBeforeMax: bdayPersistRef.current.daysMax,
-                      offerDaysBeforeMin: bdayPersistRef.current.daysMin,
-                    })
-                  }}
-                  disabled={pending || !settingsLoaded}
-                  aria-label="Bật chương trình sinh nhật"
-                />
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="bday-pct">Giảm giá (%)</Label>
-                  <Input
-                    id="bday-pct"
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={bdayDiscountPct}
-                    onChange={(e) => {
-                      const v = Math.max(0, Math.min(100, Math.floor(Number(e.target.value) || 0)))
-                      setBdayDiscountPct(v)
-                      bdayPersistRef.current.discountPct = v
-                      scheduleBirthdayPromoSaveDebounced()
-                    }}
-                    disabled={pending || !settingsLoaded}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="bday-max">Trước SN — từ (ngày)</Label>
-                  <Input
-                    id="bday-max"
-                    type="number"
-                    min={1}
-                    max={120}
-                    title="Số ngày trước sinh nhật — mốc xa (vd 7 = một tuần)"
-                    value={bdayDaysMax}
-                    onChange={(e) => {
-                      const v = Math.max(1, Math.min(120, Math.floor(Number(e.target.value) || 7)))
-                      setBdayDaysMax(v)
-                      bdayPersistRef.current.daysMax = v
-                      scheduleBirthdayPromoSaveDebounced()
-                    }}
-                    disabled={pending || !settingsLoaded}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="bday-min">Trước SN — đến (ngày)</Label>
-                  <Input
-                    id="bday-min"
-                    type="number"
-                    min={1}
-                    max={120}
-                    title="Số ngày trước sinh nhật — mốc gần (vd 1 = đến hôm trước sinh nhật)"
-                    value={bdayDaysMin}
-                    onChange={(e) => {
-                      const v = Math.max(1, Math.min(120, Math.floor(Number(e.target.value) || 1)))
-                      setBdayDaysMin(v)
-                      bdayPersistRef.current.daysMin = v
-                      scheduleBirthdayPromoSaveDebounced()
-                    }}
-                    disabled={pending || !settingsLoaded}
-                  />
-                </div>
-              </div>
-              <p className="mt-2 text-[11px] text-muted-foreground">
-                Công tắc và các số trên được lưu tự động (ô số lưu sau khi bạn ngừng gõ ~0,5 giây).
-              </p>
-            </div>
-            ) : null}
-
             <div className="space-y-2">
               <Label htmlFor="ai-guest-purchase-flow">{t.guestPurchaseFlowLabel}</Label>
               <p className="text-xs text-muted-foreground">{t.guestPurchaseFlowHint}</p>

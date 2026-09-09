@@ -37,6 +37,18 @@ export function isMarketplaceTemplateId(templateId: string | null | undefined): 
 
 export const PARTNER_MARKETPLACE_LOOK_STYLE_ID = 'pw-marketplace-look-css'
 
+/** React pages stamp look on `.pw-shop` — live home copies it onto `<html>`. Same CSS both places. */
+export const MARKETPLACE_LOOK_SCOPE =
+  ':is(html[data-pw-look="marketplace"],.pw-shop[data-pw-look="marketplace"])'
+
+export function scopeMarketplaceLookCss(css: string): string {
+  if (!css) return css
+  return css.replace(
+    /html\[data-pw-look=(["'])marketplace\1\]/g,
+    MARKETPLACE_LOOK_SCOPE
+  )
+}
+
 export const MARKETPLACE_GOOGLE_FONTS_HREF =
   'https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Nunito:wght@400;600;700;800;900&display=swap'
 
@@ -87,7 +99,7 @@ export function injectMarketplaceLookIntoHtml(
  * Uses `--pw-*` so the color picker still drives the look.
  */
 export function buildMarketplaceLookCss(): string {
-  return `
+  const css = `
 html[data-pw-look="marketplace"]{
   --pw-font-ui:"Nunito","Be Vietnam Pro","Segoe UI",system-ui,sans-serif;
   --pw-font-display:"Nunito","Be Vietnam Pro","Segoe UI",system-ui,sans-serif;
@@ -213,7 +225,7 @@ html[data-pw-look="marketplace"] [data-pw-el="card-price"]{
 html[data-pw-look="marketplace"] .pw-footer,
 html[data-pw-look="marketplace"] .pw-shop-footer{
   background:var(--pw-footer,#111827)!important;
-  color:#e5e7eb;
+  color:var(--pw-footer-ink,#e5e7eb);
   border-top:none;
 }
 html[data-pw-look="marketplace"] .pw-footer h3,
@@ -231,7 +243,7 @@ html[data-pw-look="marketplace"] .pw-shop-footer-col a,
 html[data-pw-look="marketplace"] .pw-shop-footer-hint,
 html[data-pw-look="marketplace"] .pw-shop-footer-bar,
 html[data-pw-look="marketplace"] .pw-shop-footer-bar p{
-  color:#d1d5db;
+  color:var(--pw-footer-ink,#d1d5db);
   opacity:1;
 }
 html[data-pw-look="marketplace"] .pw-footer a:hover,
@@ -318,4 +330,5 @@ html[data-pw-look="marketplace"] .pw-marketplace-block-title{
   html[data-pw-look="marketplace"] .pw-marketplace-cta .pw-newsletter{flex-direction:column}
 }
 `.trim()
+  return scopeMarketplaceLookCss(css)
 }

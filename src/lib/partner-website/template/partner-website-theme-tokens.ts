@@ -120,6 +120,25 @@ export function mixHex(hex: string, withHex: string, amount: number): string {
   return toHex(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t)
 }
 
+export function hexRelativeLuminance(hex: string): number {
+  const rgb = parseRgb(hex)
+  if (!rgb) return 1
+  const lin = (c: number) => {
+    const s = c / 255
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+  }
+  return 0.2126 * lin(rgb.r) + 0.7152 * lin(rgb.g) + 0.0722 * lin(rgb.b)
+}
+
+/** Light copy on a dark `--pw-footer`; otherwise body text. */
+export const SHOP_FOOTER_LIGHT_INK = '#e5e7eb'
+
+export function shopFooterInkColor(footerHex: string, textHex: string): string {
+  return hexRelativeLuminance(footerHex) < 0.42
+    ? SHOP_FOOTER_LIGHT_INK
+    : normalizeHexColor(textHex, '#111827')
+}
+
 export function hexesClose(a: string, b: string): boolean {
   return normalizeHexColor(a, '') === normalizeHexColor(b, '')
 }
@@ -342,6 +361,7 @@ export function themeCssVarMap(theme: PartnerWebsiteTheme): Record<string, strin
     '--pw-surface': c.surfaceColor,
     '--pw-border': c.borderColor,
     '--pw-footer': c.footerColor,
+    '--pw-footer-ink': shopFooterInkColor(c.footerColor, c.textColor),
   }
 }
 

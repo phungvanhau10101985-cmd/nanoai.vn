@@ -68,6 +68,7 @@ type Props = {
   navJson?: unknown | null
   visualChromeByDevice?: import('@/lib/partner-website/shop/visual-home-chrome').VisualHomeChromeByDevice | null
   visualChromeStyles?: string
+  chromeLook?: import('@/lib/partner-website/shop/marketplace-shop-look-css').PartnerWebsiteLook | null
   previewDevice?: import('@/lib/partner-website/visual-editor/visual-editor-pages').VisualDeviceVariant | null
   initialNavRow?: import('@/lib/partner-website/shop/featured-categories').LiveNavRowItem[]
   initialShowNavAll?: boolean
@@ -357,6 +358,7 @@ export function PartnerSiteFashionHome(props: Props) {
         navJson={props.navJson}
         visualChromeByDevice={props.visualChromeByDevice}
         visualChromeStyles={props.visualChromeStyles}
+        chromeLook={props.chromeLook}
         previewDevice={props.previewDevice}
         initialNavRow={props.initialNavRow}
         initialShowNavAll={props.initialShowNavAll}

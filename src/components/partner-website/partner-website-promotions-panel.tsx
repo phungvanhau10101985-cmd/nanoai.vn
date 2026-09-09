@@ -8,9 +8,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { getDictionary } from '@/lib/i18n/dictionaries'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { Loader2, Pencil, Plus, Tag, Trash2 } from 'lucide-react'
+import { PartnerBirthdayPromoSettingsCard } from '@/app/dashboard/messaging/partner-birthday-promo-settings-card'
 import { PartnerFeatureTestCard } from '@/components/partner-website/partner-feature-test-card'
 import { PartnerSaleCalendarSettingsCard } from '@/components/partner-website/partner-sale-calendar-settings-card'
 import { PartnerSaleAdvancedSettingsCard } from '@/components/partner-website/partner-sale-advanced-settings-card'
@@ -176,6 +178,7 @@ const AUTO_COPY: Record<WebLocale, {
 
 export function PartnerWebsitePromotionsPanel({ locale, t, partnerId, siteSlug, sectionId, onToast }: Props) {
   const autoT = AUTO_COPY[locale] ?? AUTO_COPY.en
+  const dict = getDictionary(locale)
   const [rows, setRows] = useState<PromotionRow[]>([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState<FormState | null>(null)
@@ -198,6 +201,16 @@ export function PartnerWebsitePromotionsPanel({ locale, t, partnerId, siteSlug, 
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('section') !== 'promotions' && window.location.hash !== '#partner-website-birthday') return
+    const timer = window.setTimeout(() => {
+      document.getElementById('partner-website-birthday')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 200)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   function errorText(code: string): string {
     if (code === 'duplicate_code') return t.promotionsErrorDuplicateCode
@@ -295,9 +308,27 @@ export function PartnerWebsitePromotionsPanel({ locale, t, partnerId, siteSlug, 
         <nav className="flex flex-wrap gap-2" aria-label={autoT.saleCenter}>
           <Button size="sm" variant="secondary" type="button">{autoT.vouchers}</Button>
           <Button size="sm" variant="outline" asChild><a href={`?partner=${encodeURIComponent(partnerId)}&section=loyalty`}>{autoT.loyalty}</a></Button>
-          <Button size="sm" variant="outline" asChild><a href={`?partner=${encodeURIComponent(partnerId)}&section=promotions`}>{autoT.birthday}</a></Button>
+          <Button
+            size="sm"
+            variant="outline"
+            type="button"
+            onClick={() =>
+              document.getElementById('partner-website-birthday')?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+              })
+            }
+          >
+            {autoT.birthday}
+          </Button>
           <Button size="sm" variant="outline" asChild><a href={`?partner=${encodeURIComponent(partnerId)}&section=hub-marketing`}>{autoT.remarketing}</a></Button>
         </nav>
+        <PartnerBirthdayPromoSettingsCard
+          id="partner-website-birthday"
+          partnerId={partnerId}
+          t={dict.partnerMessagingAi}
+          saveOkMessage={dict.partnerMessaging.saveOk}
+        />
         <PartnerFeatureTestCard
           partnerId={partnerId}
           locale={locale}

@@ -1,10 +1,19 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
+import { injectPartnerShopThemeCss } from '@/lib/partner-website/shop/build-shop-theme-css'
+import { ensureFullPartnerSiteFooterInHtml } from '@/lib/partner-website/shop/build-partner-site-footer-html'
 import {
   extractVisualDocumentStyles,
   preferredVisualHomeStyleSource,
 } from '@/lib/partner-website/shop/merge-visual-home-styles'
+import {
+  injectMarketplaceLookIntoHtml,
+  resolvePartnerWebsiteLook,
+  type PartnerWebsiteLook,
+} from '@/lib/partner-website/shop/marketplace-shop-look-css'
+import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
+import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import {
   extractSharedChrome,
   fillMissingSharedChromeFloats,
@@ -40,6 +49,30 @@ export type VisualHomeChromeByDevice = {
 /** Same four-device split as composed visual HTML — visible wrappers are `display:contents`. */
 export const VISUAL_HOME_CHROME_SPLIT_CSS = VISUAL_FOUR_DEVICE_SPLIT_CSS
 
+/** Same look inject as Sửa nhanh / live home so React cart/wishlist chrome is not raw HTML. */
+function prepareHomeChromeSourceHtml(
+  html: string,
+  website: VisualHomeChromeWebsite,
+  variant: VisualDeviceVariant
+): string {
+  if (html.trim().length < 40) return html
+  const withFooter = ensureFullPartnerSiteFooterInHtml(html, {
+    locale: website.locale ?? 'vi',
+    siteSlug: website.siteSlug,
+    logoUrl: website.theme?.logoUrl,
+  })
+  const withKit = ensurePartnerSiteChromeKitInHtml(withFooter, {
+    locale: website.locale ?? 'vi',
+    siteSlug: website.siteSlug,
+    device: variant,
+    logoUrl: website.theme?.logoUrl,
+    chatIconLogoUrl: website.theme?.chatIconLogoUrl,
+  })
+  const withTheme = injectPartnerShopThemeCss(withKit, website.theme)
+  const withChrome = injectPartnerShopChromeLayoutCss(withTheme)
+  return injectMarketplaceLookIntoHtml(withChrome, website.theme)
+}
+
 function homeHtmlParts(
   website: VisualHomeChromeWebsite,
   variant: VisualDeviceVariant
@@ -48,11 +81,19 @@ function homeHtmlParts(
   if (raw.length < 40) return { isolated: '', stylesFrom: '', raw: '' }
   const isolated = isolateVisualHtmlForDevice(raw, variant)
   const chromeHtml = isolated.length >= 40 ? isolated : raw
+  const prepared = prepareHomeChromeSourceHtml(chromeHtml, website, variant)
   return {
-    isolated: chromeHtml,
-    stylesFrom: preferredVisualHomeStyleSource(chromeHtml, raw),
-    raw,
+    isolated: prepared,
+    stylesFrom: preferredVisualHomeStyleSource(prepared, raw),
+    raw: prepared,
   }
+}
+
+export function visualHomeChromeLookFor(
+  website: VisualHomeChromeWebsite,
+  variant: VisualDeviceVariant
+): PartnerWebsiteLook {
+  return resolvePartnerWebsiteLook(website.theme, homeHtmlParts(website, variant).isolated)
 }
 
 export function emptyVisualHomeChromeByDevice(): VisualHomeChromeByDevice {
@@ -203,13 +244,16 @@ export function visualHomeChromeShellProps(
   visualChromeByDevice: VisualHomeChromeByDevice
   visualChromeStyles: string
   previewDevice: VisualDeviceVariant | null
+  chromeLook: PartnerWebsiteLook
 } {
   const visualChromeByDevice = previewDevice
     ? visualHomeChromeByDeviceFor(website, previewDevice)
     : visualHomeChromeByDevice(website)
+  const lookDevice = previewDevice || 'desktop'
   return {
     visualChromeByDevice,
     visualChromeStyles: pickVisualHomeStyles(visualChromeByDevice, previewDevice ?? null),
     previewDevice: previewDevice ?? null,
+    chromeLook: visualHomeChromeLookFor(website, lookDevice),
   }
 }

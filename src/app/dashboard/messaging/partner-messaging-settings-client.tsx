@@ -28,11 +28,9 @@ import {
   getMessagingWorkspaceLoyaltySettings,
   getMessagingWorkspacePaymentSettings,
   getPartnerChannelStatus,
-  listMessagingWorkspaceLogoVersions,
   listMyMessagingPartners,
   inviteMessagingPartnerStaffByEmail,
   listMessagingPartnerStaffForOwner,
-  normalizeMessagingWorkspaceLogo,
   removeMessagingPartnerStaffMember,
   requestMessagingWorkspaceDeletionOtp,
   saveMessagingWorkspaceGoogleSheetsSettings,
@@ -40,7 +38,6 @@ import {
   saveMessagingWorkspacePaymentSettings,
   savePartnerFacebookChannel,
   savePartnerZaloChannel,
-  setMessagingWorkspaceActiveLogo,
   updateMessagingPartnerStaffMemberPermissions,
   updateMessagingWorkspaceProfile,
   getPartnerMessagingFacebookMeta,
@@ -62,7 +59,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { PartnerAiSettingsPanel } from '@/app/dashboard/messaging/partner-ai-settings-panel'
-import { PartnerBirthdayPromoSettingsCard } from '@/app/dashboard/messaging/partner-birthday-promo-settings-card'
+import { PartnerShopShippingOpsPanel } from '@/app/dashboard/messaging/partner-shop-shipping-ops-panel'
 import { PartnerCustomDomainSettingsCard } from '@/app/dashboard/messaging/partner-custom-domain-settings-card'
 import { PartnerApiIntegrationWorkspace } from '@/components/integration/partner-api-integration-workspace'
 import { PartnerSiteLoginGuide } from '@/components/integration/partner-site-login-guide'
@@ -75,6 +72,7 @@ import {
   type PartnerWebsiteAdminSectionId,
 } from '@/lib/partner-website/partner-website-admin-nav'
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
+import { partnerShippingOpsCopy } from '@/lib/i18n/partner-shipping-ops-copy'
 import { PartnerWebsiteLogosPanel } from '@/components/partner-website/partner-website-logos-panel'
 import type { PartnerWebsiteRow } from '@/lib/partner-website/partner-website-types'
 import { isMarketingEligibleIndustry } from '@/lib/messaging/partner-marketing-segment'
@@ -83,7 +81,6 @@ import {
   Bell,
   Bot,
   Building2,
-  Cake,
   ClipboardList,
   CreditCard,
   ExternalLink,
@@ -158,12 +155,6 @@ function partnerCanAiUsagePanel(p: MessagingPartnerDashboardRow | null | undefin
   return Boolean(p.staff_permissions?.ai_settings || p.staff_permissions?.usage_reports)
 }
 
-function partnerCanPromotionsPanel(p: MessagingPartnerDashboardRow | null | undefined): boolean {
-  if (!p) return false
-  if (p.dashboard_access === 'owner') return true
-  return Boolean(p.staff_permissions?.ai_settings)
-}
-
 function partnerCanOrdersHub(p: MessagingPartnerDashboardRow | null | undefined): boolean {
   if (!p) return false
   if (p.industry_key === 'hotel') return false
@@ -208,19 +199,6 @@ function settingsSidebarNavItemClass(active: boolean): string {
 function scrollMessagingSettingsToPageTop() {
   if (typeof window === 'undefined') return
   window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
-}
-type LogoVersionRow = {
-  id: string
-  partner_id: string
-  source_logo_url: string
-  normalized_logo_url: string
-  model: string
-  prompt: string
-  status: 'done' | 'failed'
-  charged_credits: number
-  is_active: boolean
-  created_by: string | null
-  created_at: string
 }
 type T = Dictionary['partnerMessaging']
 type TAi = Dictionary['partnerMessagingAi']
@@ -277,7 +255,6 @@ const MESSAGING_SETTINGS_SECTION_IDS = [
   'shipping',
   'sheets',
   'loyalty',
-  'promotions',
   'api',
   'ai',
   'ai-usage',
@@ -312,6 +289,7 @@ function normalizeSettingsSectionParam(value: string | null): SettingsPageSectio
     return 'partner-website-editor'
   }
   if (value === 'partner-website-logos') return 'brand'
+  if (value === 'promotions') return 'partner-website-promotions'
   if (isPartnerWebsiteAdminSectionId(value)) return value
   if (isOperationsSectionId(value)) return value
   return null
@@ -426,13 +404,8 @@ export function PartnerMessagingSettingsClient({
   const [fbPagePickerOpen, setFbPagePickerOpen] = useState(false)
   const [fbPagePicking, setFbPagePicking] = useState(false)
   const [pending, startTransition] = useTransition()
-  const [logoBusy, setLogoBusy] = useState(false)
   const [logoUploading, setLogoUploading] = useState(false)
-  const [messagingIconHint, setMessagingIconHint] = useState('')
-  const [messagingIconRefUrl, setMessagingIconRefUrl] = useState('')
-  const [messagingIconRefUploading, setMessagingIconRefUploading] = useState(false)
   const [channelSnap, setChannelSnap] = useState<ChannelSnap | null>(null)
-  const [logoVersions, setLogoVersions] = useState<LogoVersionRow[]>([])
   const [showAddWorkspace, setShowAddWorkspace] = useState(false)
   const [paymentBankName, setPaymentBankName] = useState('')
   const [paymentAccountNumber, setPaymentAccountNumber] = useState('')
@@ -514,6 +487,7 @@ export function PartnerMessagingSettingsClient({
     [partners]
   )
   const isOwnerSelected = selectedPartner?.dashboard_access === 'owner'
+  const canShippingOps = Boolean(selectedPartnerId && partnerAllowsPerm(selectedPartner, 'orders'))
   const sectionParam = searchParams.get('section')
   const normalizedSectionParam = normalizeSettingsSectionParam(sectionParam)
   const [activeSection, setActiveSection] = useState<SettingsPageSectionId>(() =>
@@ -568,7 +542,7 @@ export function PartnerMessagingSettingsClient({
         visible: Boolean(selectedPartnerId && partnerCanInventoryPanel(selectedPartner)),
       },
       { id: 'payment', group: 'sales', label: t.settingsNavPayment, icon: CreditCard, visible: isOwnerSelected },
-      { id: 'shipping', group: 'sales', label: t.settingsNavShipping, icon: Truck, visible: isOwnerSelected },
+      { id: 'shipping', group: 'sales', label: t.settingsNavShipping, icon: Truck, visible: canShippingOps },
       {
         id: 'channels',
         group: 'connect',
@@ -600,13 +574,6 @@ export function PartnerMessagingSettingsClient({
       { id: 'api', group: 'connect', label: t.messagingSettingsApiHubCardTitle, icon: Plug, visible: isOwnerSelected },
       { id: 'sheets', group: 'connect', label: t.settingsNavSheets, icon: Table, visible: isOwnerSelected },
       { id: 'loyalty', group: 'sales', label: t.settingsNavLoyalty, icon: Trophy, visible: isOwnerSelected },
-      {
-        id: 'promotions',
-        group: 'sales',
-        label: t.settingsNavPromotions,
-        icon: Cake,
-        visible: Boolean(selectedPartnerId && partnerCanPromotionsPanel(selectedPartner)),
-      },
       {
         id: 'ai',
         group: 'ai',
@@ -825,6 +792,19 @@ export function PartnerMessagingSettingsClient({
     if (sectionParam !== 'partner-website-logos') return
     selectSettingsSection('brand')
   }, [sectionParam, selectSettingsSection])
+
+  useEffect(() => {
+    if (sectionParam !== 'promotions') return
+    setActiveSection('partner-website-promotions')
+    const next = new URLSearchParams(window.location.search)
+    next.set('section', 'partner-website-promotions')
+    const qs = next.toString()
+    window.history.replaceState(
+      window.history.state ?? {},
+      '',
+      `${window.location.pathname}${qs ? `?${qs}` : ''}#partner-website-birthday`
+    )
+  }, [sectionParam])
 
   useEffect(() => {
     if (allVisibleSectionIds.length === 0) return
@@ -1229,31 +1209,6 @@ export function PartnerMessagingSettingsClient({
     )
   }, [paymentSePayWebhookToken, partners, selectedPartnerId])
 
-  const loadLogoVersions = useCallback(() => {
-    if (!selectedPartnerId) {
-      setLogoVersions([])
-      return
-    }
-    void (async () => {
-      const res = await listMessagingWorkspaceLogoVersions(selectedPartnerId)
-      if ('error' in res && res.error) return
-      if ('rows' in res) setLogoVersions((res.rows ?? []) as LogoVersionRow[])
-    })()
-  }, [selectedPartnerId])
-
-  useEffect(() => {
-    if (!selectedPartnerId) {
-      setLogoVersions([])
-      return
-    }
-    const p = partners.find((x) => x.id === selectedPartnerId)
-    if (!partnerAllowsPerm(p ?? null, 'workspace_branding')) {
-      setLogoVersions([])
-      return
-    }
-    loadLogoVersions()
-  }, [loadLogoVersions, partners, selectedPartnerId])
-
   const createWs = () => {
     if (!workspaceName.trim() || !workspaceBrandName.trim()) return
     startTransition(async () => {
@@ -1456,92 +1411,6 @@ export function PartnerMessagingSettingsClient({
     if (!logo) return
     startTransition(async () => {
       await persistWorkspaceProfile({ logoUrl: logo, silent: true })
-    })
-  }
-
-  const uploadIconRefFile = async (file: File) => {
-    if (!selectedPartnerId) return
-    if (!file || file.size <= 0) return
-    const isImage = /^image\//i.test(file.type || '')
-    if (!isImage) {
-      toast({ title: 'Chi chap nhan file anh.', variant: 'destructive' })
-      return
-    }
-    setMessagingIconRefUploading(true)
-    try {
-      const fd = new FormData()
-      fd.set('partnerId', selectedPartnerId)
-      fd.set('file', file)
-      const res = await fetch('/api/messaging/partner/image', {
-        method: 'POST',
-        credentials: 'same-origin',
-        body: fd,
-      })
-      const data = (await res.json().catch(() => null)) as { publicUrl?: string; error?: string } | null
-      if (!res.ok || !data?.publicUrl) {
-        toast({ title: data?.error || 'Upload anh tham chieu that bai.', variant: 'destructive' })
-        return
-      }
-      setMessagingIconRefUrl(data.publicUrl)
-      toast({ title: 'Da tai anh logo tham chieu.' })
-    } catch {
-      toast({ title: 'Upload anh tham chieu that bai.', variant: 'destructive' })
-    } finally {
-      setMessagingIconRefUploading(false)
-    }
-  }
-
-  const createMessagingIcon = () => {
-    if (!selectedPartnerId) return
-    const hint = messagingIconHint.trim()
-    const source = messagingIconRefUrl.trim()
-    if (!hint && !source) {
-      toast({
-        title: 'Can nhap goi y text hoac anh logo tham chieu — it nhat mot trong hai.',
-        variant: 'destructive',
-      })
-      return
-    }
-    const confirmMsg =
-      hint && source
-        ? 'Tao icon tin nhan se tru 1.5 credits. Dung goi y text va anh logo lam tham chieu. Ban co dong y?'
-        : source
-          ? 'Tao icon tin nhan se tru 1.5 credits. Chi dung anh logo lam tham chieu. Ban co dong y?'
-          : 'Tao icon tin nhan se tru 1.5 credits. Chi dung goi y text. Ban co dong y?'
-    if (!window.confirm(confirmMsg)) return
-    setLogoBusy(true)
-    startTransition(async () => {
-      const res = await normalizeMessagingWorkspaceLogo({
-        partnerId: selectedPartnerId,
-        sourceLogoUrl: source || undefined,
-        iconHint: hint || undefined,
-      })
-      if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
-        setLogoBusy(false)
-        return
-      }
-      if ('ok' in res && res.ok) {
-        toast({
-          title: `Da tao icon tin nhan (-${res.deductedCredits} credits). Con lai ${res.creditsRemaining}.`,
-        })
-        await loadLogoVersions()
-      }
-      setLogoBusy(false)
-    })
-  }
-
-  const applyLogoVersion = (versionId: string) => {
-    if (!selectedPartnerId) return
-    startTransition(async () => {
-      const res = await setMessagingWorkspaceActiveLogo(selectedPartnerId, versionId)
-      if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
-        return
-      }
-      await refreshPartners()
-      await loadLogoVersions()
-      toast({ title: 'Da chon logo dang su dung.' })
     })
   }
 
@@ -2812,110 +2681,12 @@ export function PartnerMessagingSettingsClient({
                 </div>
               </CardContent>
             </Card>
-            <Card className="border-border/70 shadow-sm">
-              <CardHeader className="px-4 py-3 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Tao icon tin nhan</CardTitle>
-                <CardDescription className="text-xs">
-                  Can co it nhat mot trong hai: goi y text hoac anh logo tham chieu. Ca hai deu tuy chon — co mot la
-                  du.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 px-4 pb-4 pt-0">
-                <div className="space-y-2">
-                  <Label htmlFor="ws-icon-hint">Goi y tao icon (tuy chon)</Label>
-                  <Textarea
-                    id="ws-icon-hint"
-                    value={messagingIconHint}
-                    onChange={(e) => setMessagingIconHint(e.target.value)}
-                    placeholder="Vi du: icon mau cam, chu 188 noi bat, phong cach hien dai, de doc o kich thuoc nho..."
-                    rows={3}
-                    className="resize-y text-sm"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="ws-icon-ref">Anh logo tham chieu (tuy chon)</Label>
-                  <Input
-                    id="ws-icon-ref"
-                    value={messagingIconRefUrl}
-                    onChange={(e) => setMessagingIconRefUrl(e.target.value)}
-                    placeholder="https://..."
-                  />
-                  <div className="flex items-center gap-2">
-                    <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs hover:bg-muted">
-                      <Upload className="h-3.5 w-3.5" aria-hidden />
-                      {messagingIconRefUploading ? 'Dang tai anh...' : 'Upload anh tham chieu'}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        disabled={messagingIconRefUploading || !selectedPartnerId}
-                        onChange={(e) => {
-                          const f = e.target.files?.[0]
-                          e.currentTarget.value = ''
-                          if (f) void uploadIconRefFile(f)
-                        }}
-                      />
-                    </label>
-                    {messagingIconRefUrl.trim() ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src={messagingIconRefUrl.trim()}
-                        alt=""
-                        className="h-10 w-10 rounded border object-contain bg-white"
-                      />
-                    ) : null}
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={createMessagingIcon}
-                  disabled={
-                    pending ||
-                    logoBusy ||
-                    !selectedPartnerId ||
-                    !(messagingIconHint.trim() || messagingIconRefUrl.trim())
-                  }
-                >
-                  {logoBusy ? 'Dang tao icon tin nhan...' : 'Tao icon tin nhan (1.5 credits)'}
-                </Button>
-                {logoVersions.length > 0 ? (
-                  <div className="space-y-2 rounded-md border border-border/70 p-3">
-                    <p className="text-xs font-medium text-muted-foreground">Cac phien ban icon tin nhan da tao</p>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {logoVersions.map((lv) => (
-                        <div key={lv.id} className="rounded border p-2">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={lv.normalized_logo_url}
-                            alt=""
-                            className="h-14 w-14 rounded border object-contain bg-white"
-                          />
-                          <p className="mt-1 text-[11px] text-muted-foreground">
-                            {lv.is_active ? 'Dang su dung' : `Phi ${lv.charged_credits} credits`}
-                          </p>
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="mt-1 h-7 px-2 text-[11px]"
-                            variant={lv.is_active ? 'outline' : 'default'}
-                            disabled={pending || lv.is_active}
-                            onClick={() => applyLogoVersion(lv.id)}
-                          >
-                            {lv.is_active ? 'Dang su dung' : 'Dung logo nay'}
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
             {partnerCanWebsiteHub(selectedPartner) ? (
               <PartnerWebsiteLogosPanel
                 locale={locale}
                 website={brandWebsite}
                 partnerId={selectedPartnerId}
+                shopTitle={workspaceBrandName || brandWebsite?.title || selectedPartner?.brand_name || ''}
                 sectionId="messaging-brand-logos"
                 embedded
                 onToast={(message, variant) =>
@@ -3554,13 +3325,18 @@ export function PartnerMessagingSettingsClient({
           </SettingsBlock>
           ) : null}
 
-          {activeSection === 'shipping' && isOwnerSelected ? (
+          {activeSection === 'shipping' && canShippingOps ? (
           <SettingsBlock
             id="messaging-shipping"
             icon={Truck}
             title={t.settingsNavShipping}
             description={t.settingsNavShippingDesc}
           >
+            <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 px-4 py-3">
+              <p className="text-sm font-medium">{partnerShippingOpsCopy(locale).shopPartTitle}</p>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">{partnerShippingOpsCopy(locale).shopPartHint}</p>
+            </div>
+            {isOwnerSelected ? (
             <Card className="border-border/70 shadow-sm">
               <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">{t.settingsNavShippingFeeTitle}</CardTitle>
@@ -3604,9 +3380,10 @@ export function PartnerMessagingSettingsClient({
                 </Button>
               </CardContent>
             </Card>
-            {selectedPartnerId ? (
+            ) : null}
+            {selectedPartnerId && isOwnerSelected ? (
               <PartnerAiSettingsPanel
-                key={`${selectedPartnerId}-shipping`}
+                key={`${selectedPartnerId}-shipping-return`}
                 partnerId={selectedPartnerId}
                 partnerChatSlug={selectedPartner?.slug?.trim() ?? ''}
                 locale={locale}
@@ -3614,9 +3391,34 @@ export function PartnerMessagingSettingsClient({
                 saveOkMessage={t.saveOk}
                 aiModelId={partnerAiLlmModel}
                 panelMode="shipping-only"
-                panelTitle={tAi.shippingLookupTitle}
-                panelDescription={tAi.shippingLookupHint}
+                shippingSections="return-address"
+                panelTitle={tAi.afterSalesReturnAddressLabel}
+                panelDescription={tAi.afterSalesReturnAddressHint}
               />
+            ) : null}
+            {selectedPartnerId ? (
+              <PartnerShopShippingOpsPanel partnerId={selectedPartnerId} locale={locale} />
+            ) : null}
+            {isOwnerSelected && selectedPartnerId ? (
+              <>
+                <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 px-4 py-3">
+                  <p className="text-sm font-medium">{partnerShippingOpsCopy(locale).lookupPartTitle}</p>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">{partnerShippingOpsCopy(locale).lookupPartHint}</p>
+                </div>
+                <PartnerAiSettingsPanel
+                  key={`${selectedPartnerId}-shipping-lookup`}
+                  partnerId={selectedPartnerId}
+                  partnerChatSlug={selectedPartner?.slug?.trim() ?? ''}
+                  locale={locale}
+                  t={tAi}
+                  saveOkMessage={t.saveOk}
+                  aiModelId={partnerAiLlmModel}
+                  panelMode="shipping-only"
+                  shippingSections="lookup"
+                  panelTitle={tAi.shippingLookupTitle}
+                  panelDescription={tAi.shippingLookupHint}
+                />
+              </>
             ) : null}
           </SettingsBlock>
           ) : null}
@@ -3820,22 +3622,6 @@ export function PartnerMessagingSettingsClient({
                 </div>
               </CardContent>
             </Card>
-          </SettingsBlock>
-          ) : null}
-
-          {activeSection === 'promotions' && selectedPartnerId && partnerCanPromotionsPanel(selectedPartner) ? (
-          <SettingsBlock
-            id="messaging-promotions"
-            icon={Cake}
-            title={t.settingsNavPromotions}
-            description={t.settingsNavPromotionsDesc}
-          >
-            <PartnerBirthdayPromoSettingsCard
-              key={selectedPartnerId}
-              partnerId={selectedPartnerId}
-              t={tAi}
-              saveOkMessage={t.saveOk}
-            />
           </SettingsBlock>
           ) : null}
 

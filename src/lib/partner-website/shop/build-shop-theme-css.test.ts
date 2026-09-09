@@ -209,7 +209,7 @@ test('injecting theme CSS keeps marketplace look when HTML already stamped it', 
     '<!DOCTYPE html><html data-pw-look="marketplace"><head></head><body><header class="pw-header"></header></body></html>'
   const out = injectPartnerShopThemeCss(html, DEFAULT_PARTNER_WEBSITE_THEME)
   assert.match(out, /data-pw-look="marketplace"/)
-  assert.match(out, /html\[data-pw-look="marketplace"\] \.pw-header/)
+  assert.match(out, /:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\]\) \.pw-header/)
   assert.match(out, /\.pw-marketplace-trust/)
 })
 

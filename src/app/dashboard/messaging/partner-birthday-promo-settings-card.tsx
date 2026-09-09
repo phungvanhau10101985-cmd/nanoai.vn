@@ -7,10 +7,6 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
-import {
-  getPartnerBirthdayPromoSettings,
-  savePartnerBirthdayPromoSettings,
-} from '@/app/dashboard/messaging/actions'
 import { Cake, Loader2 } from 'lucide-react'
 
 type TAi = Dictionary['partnerMessagingAi']
@@ -19,10 +15,12 @@ export function PartnerBirthdayPromoSettingsCard({
   partnerId,
   t,
   saveOkMessage,
+  id,
 }: {
   partnerId: string
   t: TAi
   saveOkMessage: string
+  id?: string
 }) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
@@ -59,17 +57,21 @@ export function PartnerBirthdayPromoSettingsCard({
     []
   )
 
+  const apiPath = `/api/messaging/partners/${encodeURIComponent(partnerId)}/birthday-promo`
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await getPartnerBirthdayPromoSettings(partnerId)
-      if (!('error' in res) && res.settings) {
-        applyFromServer(res.settings)
+      const res = await fetch(apiPath)
+      const json = (await res.json().catch(() => null)) as { settings?: Parameters<typeof applyFromServer>[0]; error?: string } | null
+      if (json?.settings) applyFromServer(json.settings)
+      else if (!res.ok) {
+        toast({ title: json?.error || t.birthdayPromoSaveFailed, variant: 'destructive' })
       }
     } finally {
       setLoading(false)
     }
-  }, [applyFromServer, partnerId])
+  }, [apiPath, applyFromServer, t.birthdayPromoSaveFailed, toast])
 
   useEffect(() => {
     void load()
@@ -99,14 +101,21 @@ export function PartnerBirthdayPromoSettingsCard({
     }) => {
       void (async () => {
         try {
-          const res = await savePartnerBirthdayPromoSettings(partnerId, payload)
-          if ('error' in res && res.error) {
-            toast({ title: res.error, variant: 'destructive' })
+          const res = await fetch(apiPath, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+          const json = (await res.json().catch(() => null)) as {
+            settings?: Parameters<typeof applyFromServer>[0]
+            error?: string
+          } | null
+          if (!res.ok || !json?.settings) {
+            toast({ title: json?.error || t.birthdayPromoSaveFailed, variant: 'destructive' })
             await load()
             return
           }
-          const verify = await getPartnerBirthdayPromoSettings(partnerId)
-          if (!('error' in verify) && verify.settings) applyFromServer(verify.settings)
+          applyFromServer(json.settings)
           toast({ title: saveOkMessage })
         } catch (e) {
           toast({
@@ -117,7 +126,7 @@ export function PartnerBirthdayPromoSettingsCard({
         }
       })()
     },
-    [applyFromServer, load, partnerId, saveOkMessage, t.birthdayPromoSaveFailed, toast]
+    [apiPath, applyFromServer, load, saveOkMessage, t.birthdayPromoSaveFailed, toast]
   )
 
   const scheduleDebouncedSave = useCallback(() => {
@@ -136,7 +145,7 @@ export function PartnerBirthdayPromoSettingsCard({
 
   if (loading) {
     return (
-      <Card className="border-border/70 shadow-sm">
+      <Card id={id} className="scroll-mt-4 border-border/70 shadow-sm">
         <CardContent className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           …
@@ -146,7 +155,10 @@ export function PartnerBirthdayPromoSettingsCard({
   }
 
   return (
-    <Card className="border-violet-200/80 bg-violet-50/40 shadow-sm dark:border-violet-900/40 dark:bg-violet-950/20">
+    <Card
+      id={id}
+      className="scroll-mt-4 border-violet-200/80 bg-violet-50/40 shadow-sm dark:border-violet-900/40 dark:bg-violet-950/20"
+    >
       <CardHeader className="px-4 py-3 pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <Cake className="h-4 w-4 text-violet-600" aria-hidden />

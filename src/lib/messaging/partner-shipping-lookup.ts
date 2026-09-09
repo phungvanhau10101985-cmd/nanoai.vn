@@ -341,8 +341,13 @@ export async function lookupPartnerShippingFromPg(
   const auth = await fetchMessagingPartnerShippingLookupAuthFromPg(partnerId)
   const url = auth?.shipping_lookup_url?.trim() ?? ''
   const apiKey = auth?.shipping_lookup_api_key?.trim() ?? ''
-  if (!url || !apiKey) return null
-  return lookupPartnerShipping({ url, apiKey, query })
+  if (url && apiKey) return lookupPartnerShipping({ url, apiKey, query })
+  try {
+    const { lookupLocalPartnerShipping } = await import('@/lib/messaging/shipping/local-shipping-lookup')
+    return await lookupLocalPartnerShipping(partnerId, query)
+  } catch {
+    return null
+  }
 }
 
 function formatItemsLine(items: PartnerShippingLookupOrderItem[], loc: string): string {

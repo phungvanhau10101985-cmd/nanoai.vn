@@ -537,7 +537,7 @@ ${buildPartnerSiteAccountPanelCss()}
 .pw-center{text-align:center}
 .pw-gallery{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
 .pw-gallery-item img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px}
-.pw-footer{background:var(--pw-footer,#fff);color:var(--pw-text,#111827);border-top:1px solid var(--pw-border,#e5e7eb);padding:40px 0 0;margin-top:40px}
+.pw-footer{background:var(--pw-footer,#fff);color:var(--pw-footer-ink,var(--pw-text,#111827));border-top:1px solid var(--pw-border,#e5e7eb);padding:40px 0 0;margin-top:40px}
 .pw-footer-grid{display:grid;gap:28px;grid-template-columns:repeat(4,minmax(0,1fr));padding-bottom:28px}
 .pw-footer-col h3{margin:0 0 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:inherit}
 .pw-footer-col p{display:block;color:inherit;opacity:.78;font-size:14px;line-height:1.65;margin:0 0 10px;padding:0}

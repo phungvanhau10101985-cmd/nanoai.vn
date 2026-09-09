@@ -80,6 +80,8 @@ export type PartnerOrderRow = {
   payment_qr_url: string
   verified_note: string
   shipping_status: 'pending' | 'confirmed' | 'packing' | 'shipping' | 'delivered' | 'returned' | 'cancelled'
+  tracking_number: string
+  shipping_provider: string
   created_at: string
   updated_at: string
   verified_at: string | null
@@ -200,6 +202,8 @@ function mapOrderRow(r: Record<string, unknown>): PartnerOrderRow {
     payment_qr_url: String(r.payment_qr_url ?? ''),
     verified_note: String(r.verified_note ?? ''),
     shipping_status: String(r.shipping_status ?? 'pending') as PartnerOrderRow['shipping_status'],
+    tracking_number: String(r.tracking_number ?? ''),
+    shipping_provider: String(r.shipping_provider ?? ''),
     created_at: String(r.created_at ?? ''),
     updated_at: String(r.updated_at ?? ''),
     verified_at: r.verified_at ? String(r.verified_at) : null,

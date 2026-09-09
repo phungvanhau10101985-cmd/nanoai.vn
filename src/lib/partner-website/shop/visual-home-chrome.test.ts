@@ -8,6 +8,7 @@ import {
   visualHomeChromeByDevice,
   visualHomeChromeByDeviceFor,
   visualHomeChromeForDevice,
+  visualHomeChromeLookFor,
 } from '@/lib/partner-website/shop/visual-home-chrome'
 
 const deskHome = `<!DOCTYPE html><html><body>
@@ -153,4 +154,29 @@ test('visual home chrome strips leftover AliCDN product photos and keeps logo', 
   assert.match(chrome.header, /data-pw-logo-slot="header"/)
   assert.match(chrome.header, /pw-logo/)
   assert.equal(chrome.header.includes('O1CN01product'), false)
+})
+
+test('visual home chrome copies marketplace look CSS onto React pages of that machine', () => {
+  const home = `<!DOCTYPE html><html data-pw-look="marketplace"><head></head><body>
+<header class="pw-header" data-pw-region="header">DeskHead</header>
+<footer class="pw-footer" data-pw-region="footer">DeskFoot</footer>
+</body></html>`
+  const website = {
+    theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, look: 'marketplace' as const, useVisualHtml: true },
+    htmlSource: home,
+    project: {
+      entryPath: 'index.html',
+      files: [{ path: 'index.html', kind: 'html' as const, content: home }],
+    },
+  }
+  const byDevice = visualHomeChromeByDeviceFor(website, 'desktop')
+  assert.equal(visualHomeChromeLookFor(website, 'desktop'), 'marketplace')
+  assert.match(byDevice.desktopStyles, /pw-marketplace-look-css|pw-look/)
+  assert.match(
+    byDevice.desktopStyles,
+    /:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\]\)/
+  )
+  assert.match(byDevice.desktopStyles, /background:var\(--pw-primary\)!important/)
+  assert.ok(byDevice.desktop)
+  assert.match(byDevice.desktop.header, /DeskHead/)
 })

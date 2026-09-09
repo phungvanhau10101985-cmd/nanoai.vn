@@ -6398,6 +6398,18 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (tag === 'footer') return true
     return hasClassToken(el, 'pw-footer') || hasClassToken(el, 'pw-shop-footer')
   }
+  function footerInkForColor(color) {
+    var hex = String(color || '').trim()
+    var m = hex.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+    if (!m) return ''
+    var h = m[1]
+    if (h.length === 3) h = h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2)
+    var r = parseInt(h.slice(0, 2), 16) / 255
+    var g = parseInt(h.slice(2, 4), 16) / 255
+    var b = parseInt(h.slice(4, 6), 16) / 255
+    var lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    return lum < 0.45 ? '#e5e7eb' : ''
+  }
   function regionFillTarget(el) {
     if (!el || isHeaderChromeEl(el) || isChromeBtn(el) || isSearchEl(el) || isAddedBg(el)) return null
     if (isRegionFillHost(el)) return el
@@ -6618,7 +6630,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (el.style) {
       el.style.removeProperty('background')
       el.style.removeProperty('background-color')
-      if (isFooterFillHost(el)) el.style.removeProperty('--pw-footer')
+      if (isFooterFillHost(el)) {
+        el.style.removeProperty('--pw-footer')
+        el.style.removeProperty('--pw-footer-ink')
+      }
     }
   }
   function clearRegionFill(el) {
@@ -6692,6 +6707,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       // Chrome CSS: html .pw-footer{background:var(--pw-footer)!important} — inline background loses.
       if (isFooterFillHost(el) && el.style && el.style.setProperty) {
         el.style.setProperty('--pw-footer', color)
+        var ink = footerInkForColor(color)
+        if (ink) el.style.setProperty('--pw-footer-ink', ink)
+        else el.style.removeProperty('--pw-footer-ink')
         el.style.setProperty('background-image', 'none', 'important')
       }
     }

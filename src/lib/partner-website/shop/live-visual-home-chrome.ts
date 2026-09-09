@@ -6,9 +6,11 @@ import { ensureLiveHomeChromeWebsite } from '@/lib/partner-website/shop/load-liv
 import {
   pickVisualHomeStyles,
   visualHomeChromeByDeviceFor,
+  visualHomeChromeLookFor,
   type VisualHomeChromeByDevice,
   type VisualHomeChromeWebsite,
 } from '@/lib/partner-website/shop/visual-home-chrome'
+import type { PartnerWebsiteLook } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import type { SharedChrome } from '@/lib/partner-website/shop/sync-shared-chrome'
 import { inferLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-live-visual-request-device-server'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
@@ -17,6 +19,7 @@ export type LiveVisualHomeChromeShellProps = {
   visualChromeByDevice: VisualHomeChromeByDevice
   visualChromeStyles: string
   previewDevice: VisualDeviceVariant | null
+  chromeLook: PartnerWebsiteLook
   initialNavRow: LiveCategoryBind['navRow']
   initialShowNavAll: boolean
 }
@@ -24,6 +27,7 @@ export type LiveVisualHomeChromeShellProps = {
 type CachedHomeChrome = {
   visualChromeByDevice: VisualHomeChromeByDevice
   visualChromeStyles: string
+  chromeLook: PartnerWebsiteLook
 }
 
 function bindSharedChromeNav(chrome: SharedChrome | null, bind: LiveCategoryBind | null): SharedChrome | null {
@@ -38,7 +42,11 @@ function bindSharedChromeNav(chrome: SharedChrome | null, bind: LiveCategoryBind
 function isCachedHomeChrome(value: unknown): value is CachedHomeChrome {
   if (!value || typeof value !== 'object') return false
   const row = value as CachedHomeChrome
-  return Boolean(row.visualChromeByDevice) && typeof row.visualChromeStyles === 'string'
+  return (
+    Boolean(row.visualChromeByDevice) &&
+    typeof row.visualChromeStyles === 'string' &&
+    (row.chromeLook === 'marketplace' || row.chromeLook === 'shop')
+  )
 }
 
 async function extractHomeChromeForDevice(
@@ -65,9 +73,16 @@ async function extractHomeChromeForDevice(
     },
     device
   )
+  const chromeWebsite = {
+    ...website,
+    project: siteWithHome.project ?? website.project,
+    htmlSource: siteWithHome.htmlSource ?? website.htmlSource,
+    theme: siteWithHome.theme ?? website.theme,
+  }
   return {
     visualChromeByDevice,
     visualChromeStyles: pickVisualHomeStyles(visualChromeByDevice, device),
+    chromeLook: visualHomeChromeLookFor(chromeWebsite, device),
   }
 }
 

@@ -670,6 +670,8 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('unstampFooterInFlowChrome')
     expect(s).toContain('.pw-shop-footer-col a:not([data-pw-hidden=')
     expect(s).toContain('html .pw-footer-col li:has(>[data-pw-hidden=')
+    expect(s).toContain('html .pw-footer,html .pw-shop-footer{color:var(--pw-footer-ink,var(--pw-text,#111827))!important}')
+    expect(s).toContain('function footerInkForColor(color)')
     expect(s).toContain('liftLooseElToSceneHost(node)')
     expect(s).toContain('if (isLogoTarget(el) && (isInHeader(el) || isInFooter(el))) return')
     expect(s).toContain('nanoai-ve-move-handle')

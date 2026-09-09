@@ -62,9 +62,10 @@ import { buildPartnerSiteShopActionsBootstrapScript } from '@/lib/partner-websit
 import { buildPartnerSiteShopThemeCss } from '@/lib/partner-website/shop/build-shop-theme-css'
 import {
   buildMarketplaceLookCss,
-  isMarketplaceLook,
   PARTNER_MARKETPLACE_LOOK_STYLE_ID,
+  PARTNER_WEBSITE_LOOK_MARKETPLACE,
   resolvePartnerWebsiteLook,
+  type PartnerWebsiteLook,
 } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import {
   PARTNER_SHOP_CHROME_FLOAT_SCRIPT,
@@ -152,6 +153,8 @@ export type PartnerSiteShopShellProps = {
   /** Homepage visual HTML chrome, copied onto every React shop page of that device. */
   visualChromeByDevice?: VisualHomeChromeByDevice | null
   visualChromeStyles?: string
+  /** GD03 look from homepage HTML + theme — React pages stamp `.pw-shop`, not only `<html>`. */
+  chromeLook?: PartnerWebsiteLook | null
   previewDevice?: VisualDeviceVariant | null
   /** First paint — hàng pill API, không chữ mẫu Thời trang / Túi xách. */
   initialNavRow?: LiveNavRowItem[]
@@ -318,6 +321,7 @@ function PartnerSiteShopShellInner({
   footerJson = null,
   visualChromeByDevice = null,
   visualChromeStyles = '',
+  chromeLook = null,
   previewDevice = null,
   hideAccountNav = false,
   initialNavRow = [],
@@ -566,6 +570,12 @@ function PartnerSiteShopShellInner({
   }, [categoriesOpen, locale, pageKind, siteSlug])
 
   const hasCategoryTree = Boolean(categoryTree && categoryTree.length > 0)
+  const shopLook = resolvePartnerWebsiteLook(
+    theme,
+    chromeLook === PARTNER_WEBSITE_LOOK_MARKETPLACE
+      ? '<html data-pw-look="marketplace"></html>'
+      : undefined
+  )
   const useVisualChrome = hasVisualHomeChrome(visualChromeByDevice)
   useLayoutEffect(() => {
     if (pageKind) document.documentElement.setAttribute('data-pw-page', pageKind)
@@ -576,15 +586,14 @@ function PartnerSiteShopShellInner({
     document.body.appendChild(s)
   }, [pageKind])
   useLayoutEffect(() => {
-    const look = resolvePartnerWebsiteLook(theme)
-    document.documentElement.setAttribute('data-pw-look', look)
+    document.documentElement.setAttribute('data-pw-look', shopLook)
     applyShopBrowserThemeColorToDocument(document, theme)
     return () => {
-      if (document.documentElement.getAttribute('data-pw-look') === look) {
+      if (document.documentElement.getAttribute('data-pw-look') === shopLook) {
         document.documentElement.removeAttribute('data-pw-look')
       }
     }
-  }, [theme])
+  }, [shopLook, theme])
   useLayoutEffect(() => {
     const shop = document.querySelector('.pw-shop')
     if (!(shop instanceof HTMLElement)) return
@@ -609,7 +618,7 @@ function PartnerSiteShopShellInner({
       ? visualHomeChromeHtml(visualChromeByDevice, previewDevice, 'after')
       : null
   return (
-    <div className="pw-shop" {...(pageKind ? { 'data-pw-page': pageKind } : {})}>
+    <div className="pw-shop" data-pw-look={shopLook} {...(pageKind ? { 'data-pw-page': pageKind } : {})}>
       <PartnerSiteShopTrackingBootstrap tracking={tracking} />
       <PartnerSiteCookieConsentBanner siteSlug={siteSlug} locale={locale} />
       <PartnerSiteBirthGenderPromptModal siteSlug={siteSlug} shopTitle={title} locale={locale} />
@@ -622,7 +631,7 @@ function PartnerSiteShopShellInner({
             id={PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID}
             dangerouslySetInnerHTML={{ __html: PARTNER_SHOP_CHROME_LAYOUT_CSS }}
           />
-          {isMarketplaceLook(theme) ? (
+          {shopLook === PARTNER_WEBSITE_LOOK_MARKETPLACE ? (
             <style
               id={PARTNER_MARKETPLACE_LOOK_STYLE_ID}
               dangerouslySetInnerHTML={{ __html: buildMarketplaceLookCss() }}
@@ -638,6 +647,12 @@ function PartnerSiteShopShellInner({
         </>
       ) : (
       <>
+      {shopLook === PARTNER_WEBSITE_LOOK_MARKETPLACE ? (
+        <style
+          id={PARTNER_MARKETPLACE_LOOK_STYLE_ID}
+          dangerouslySetInnerHTML={{ __html: buildMarketplaceLookCss() }}
+        />
+      ) : null}
       <div className="pw-shop-topbar" data-pw-region={PW_REGION.topbar}>
         <div className="pw-shop-topbar-inner">
           <Link href={partnerSiteAccountTabPath(siteSlug, 'contact', { customDomain })} data-pw-el={PW_EL.link}>{n.contact}</Link>

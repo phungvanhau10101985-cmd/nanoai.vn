@@ -1473,6 +1473,34 @@ export async function listMessagingWorkspaceLogoVersions(partnerId: string) {
   return { rows }
 }
 
+export async function recordGeneratedPartnerChatIcon(input: {
+  partnerId: string
+  logoUrl: string
+  sourceLogoUrl?: string
+  prompt: string
+  chargedCredits: number
+}) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerStaffGate(user.id, input.partnerId, 'workspace_branding')
+  if ('error' in gate) return { error: gate.error }
+  const logoUrl = normalizeLogoUrl(input.logoUrl)
+  if (!logoUrl) return { error: 'logoUrl required' }
+  const version = await insertPartnerLogoVersionFromPg({
+    partnerId: input.partnerId,
+    sourceLogoUrl: normalizeLogoUrl(input.sourceLogoUrl ?? '') ?? '',
+    normalizedLogoUrl: logoUrl,
+    model: GEMINI_3_PRO_IMAGE.model,
+    prompt: String(input.prompt || '').trim().slice(0, 4000),
+    chargedCredits: Number.isFinite(input.chargedCredits) ? input.chargedCredits : 0,
+    createdBy: user.id,
+  })
+  if (!version) return { error: 'Khong luu duoc phien ban logo.' }
+  revalidateMessagingDashboard()
+  return { ok: true, version }
+}
+
 export async function setMessagingWorkspaceActiveLogo(partnerId: string, versionId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
