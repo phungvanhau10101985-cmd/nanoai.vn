@@ -188,9 +188,6 @@ export function LandingAiSectionsView({
                   <p className="font-semibold text-[var(--pw-primary)]" data-pw-el={PW_EL.cardPrice}>
                     {p.priceAmount ? formatVnd(p.priceAmount) : p.priceHint || ''}
                   </p>
-                  <span className="inline-flex items-center pt-1 text-sm font-semibold text-[var(--pw-primary)]" data-pw-el={PW_EL.cardCart}>
-                    {shop.addToCart}
-                  </span>
                 </div>
               </Link>
             ))}

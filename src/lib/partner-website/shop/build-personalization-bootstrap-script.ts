@@ -43,14 +43,6 @@ const VIEW_CTA: Record<WebLocale, string> = {
   ko: '자세히 보기',
 }
 
-const ADD_CART: Record<WebLocale, string> = {
-  vi: 'Thêm vào giỏ',
-  en: 'Add to cart',
-  zh: '加入购物车',
-  ja: 'カートに追加',
-  ko: '장바구니',
-}
-
 const LOAD_MORE: Record<WebLocale, string> = {
   vi: 'Xem thêm',
   en: 'See more',
@@ -246,7 +238,6 @@ export function buildPartnerSitePersonalizationBootstrapScript(input: {
     empty: EMPTY[locale],
     greeting: GREETING[locale],
     viewCta: VIEW_CTA[locale],
-    addToCart: ADD_CART[locale],
     favorite: FAVORITE[locale],
     forYou: FOR_YOU[locale],
     loadMore: LOAD_MORE[locale],
@@ -373,6 +364,16 @@ function saleBadgeHtml(sale,badge,p){
 function recHeartSvg(){
   return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>';
 }
+function listingStatsHtml(p){
+  var rating=Number(p.ratingScore!=null?p.ratingScore:p.rating_score);
+  if(!isFinite(rating))rating=0;
+  var sold=Math.max(0,Math.round(Number(p.purchasesCount!=null?p.purchasesCount:p.purchases_count)||0));
+  return '<div class="pw-rec-stats"><span>★ '+rating.toFixed(1)+'</span><span>'+COPY.recSold+': '+sold+'</span></div>';
+}
+function listingFavHtml(id){
+  if(!id)return '';
+  return '<button type="button" class="pw-rec-fav" data-pw-favorite data-inventory-id="'+id+'" aria-pressed="false" aria-label="'+COPY.favorite+'">'+recHeartSvg()+'</button>';
+}
 function renderRecommendedCard(p,badge){
   var href=p.detail_path||p.product_url||'#';
   var name=(p.name||'').replace(/"/g,'&quot;');
@@ -382,11 +383,8 @@ function renderRecommendedCard(p,badge){
   var mark=saleBadgeHtml(sale,false,p);
   if(badge)mark='<span class="pw-rec-badge">'+COPY.recBadge+'</span>'+mark;
   var price=priceHtml(p);
-  var rating=Number(p.ratingScore!=null?p.ratingScore:p.rating_score);
-  if(!isFinite(rating))rating=0;
-  var sold=Math.max(0,Math.round(Number(p.purchasesCount!=null?p.purchasesCount:p.purchases_count)||0));
-  var fav='<button type="button" class="pw-rec-fav" data-pw-favorite data-inventory-id="'+id+'" aria-pressed="false" aria-label="'+COPY.favorite+'">'+recHeartSvg()+'</button>';
-  return '<article class="pw-product-card pw-rec-card" data-pw-el="card" data-inventory-id="'+id+'" data-pw-actions-ready="1"><a class="pw-product-card-media" data-pw-el="card-media" href="'+href+'">'+mark+fav+'<img src="'+img+'" alt="'+name+'" loading="lazy"/></a><div class="pw-product-card-body"><h3 data-pw-el="card-name"><a href="'+href+'">'+name+'</a></h3>'+(price?'<p class="pw-price" data-pw-el="card-price">'+price+'</p>':'')+'<div class="pw-rec-stats"><span>★ '+rating.toFixed(1)+'</span><span>'+COPY.recSold+': '+sold+'</span></div></div></article>';
+  var fav=listingFavHtml(id);
+  return '<article class="pw-product-card pw-rec-card" data-pw-el="card" data-inventory-id="'+id+'" data-pw-actions-ready="1"><a class="pw-product-card-media" data-pw-el="card-media" href="'+href+'">'+mark+fav+'<img src="'+img+'" alt="'+name+'" loading="lazy"/></a><div class="pw-product-card-body"><h3 data-pw-el="card-name"><a href="'+href+'">'+name+'</a></h3>'+(price?'<p class="pw-price" data-pw-el="card-price">'+price+'</p>':'')+listingStatsHtml(p)+'</div></article>';
 }
 function renderCard(p,cta,badge,recommended){
   if(recommended)return renderRecommendedCard(p,badge);
@@ -397,10 +395,8 @@ function renderCard(p,cta,badge,recommended){
   var sale=saleView(p);
   var mark=saleBadgeHtml(sale,badge,p);
   var price=priceHtml(p);
-  var cart=id
-    ? '<button type="button" class="pw-btn pw-btn-cart" data-pw-el="card-cart" data-pw-add-cart data-inventory-id="'+id+'">'+COPY.addToCart+'</button>'
-    : '<a class="pw-btn pw-btn-cart" data-pw-el="card-cart" href="'+href+'">'+(cta||COPY.viewCta)+'</a>';
-  return '<article class="pw-product-card" data-pw-el="card" data-inventory-id="'+id+'" data-pw-actions-ready="1"><a class="pw-product-card-media" data-pw-el="card-media" href="'+href+'">'+mark+'<img src="'+img+'" alt="'+name+'" loading="lazy"/></a><div class="pw-product-card-body"><h3 data-pw-el="card-name"><a href="'+href+'">'+name+'</a></h3>'+(price?'<p class="pw-price" data-pw-el="card-price">'+price+'</p>':'')+'<div class="pw-shop-action-bar">'+cart+'</div></div></article>';
+  var fav=listingFavHtml(id);
+  return '<article class="pw-product-card" data-pw-el="card" data-inventory-id="'+id+'" data-pw-actions-ready="1"><a class="pw-product-card-media" data-pw-el="card-media" href="'+href+'">'+mark+fav+'<img src="'+img+'" alt="'+name+'" loading="lazy"/></a><div class="pw-product-card-body"><h3 data-pw-el="card-name"><a href="'+href+'">'+name+'</a></h3>'+(price?'<p class="pw-price" data-pw-el="card-price">'+price+'</p>':'')+listingStatsHtml(p)+'</div></article>';
 }
 function ensureGridMore(el){
   var actions=el.querySelector('[data-pw-grid-actions],.pw-grid-actions');

@@ -23,9 +23,8 @@ const COPY: Record<
   WebLocale,
   {
     empty: string
-    viewCta: string
-    addToCart: string
     favorite: string
+    sold: string
     seeAll: string
     loadMore: string
     relatedEmpty: string
@@ -34,9 +33,8 @@ const COPY: Record<
 > = {
   vi: {
     empty: 'Chưa có sản phẩm trong kho shop.',
-    viewCta: 'Xem chi tiết',
-    addToCart: 'Thêm vào giỏ',
     favorite: 'Thích',
+    sold: 'Đã bán',
     seeAll: 'Xem tất cả các nhóm',
     loadMore: 'Xem thêm',
     relatedEmpty: 'Không có sản phẩm khác cùng danh mục.',
@@ -44,9 +42,8 @@ const COPY: Record<
   },
   en: {
     empty: 'No products in the shop inventory yet.',
-    viewCta: 'View details',
-    addToCart: 'ADD TO CART',
     favorite: 'Favorite',
+    sold: 'Sold',
     seeAll: 'See all groups',
     loadMore: 'See more',
     relatedEmpty: 'No other products in this category.',
@@ -54,9 +51,8 @@ const COPY: Record<
   },
   zh: {
     empty: '店铺库存暂无商品。',
-    viewCta: '查看详情',
-    addToCart: '加入购物车',
     favorite: '收藏',
+    sold: '已售',
     seeAll: '查看全部分组',
     loadMore: '查看更多',
     relatedEmpty: '该分类暂无其他商品。',
@@ -64,9 +60,8 @@ const COPY: Record<
   },
   ja: {
     empty: 'ショップの在庫に商品がありません。',
-    viewCta: '詳細を見る',
-    addToCart: 'カートに追加',
     favorite: 'お気に入り',
+    sold: '販売',
     seeAll: 'すべてのグループを見る',
     loadMore: 'もっと見る',
     relatedEmpty: 'このカテゴリに他の商品はありません。',
@@ -74,9 +69,8 @@ const COPY: Record<
   },
   ko: {
     empty: '샵 재고에 상품이 없습니다.',
-    viewCta: '자세히 보기',
-    addToCart: '장바구니',
     favorite: '찜',
+    sold: '판매',
     seeAll: '모든 그룹 보기',
     loadMore: '더 보기',
     relatedEmpty: '이 카테고리에 다른 상품이 없습니다.',
@@ -171,6 +165,19 @@ function saleBadgeHtml(sale, opts, p){
 }
 ${PW_PRODUCT_GRID_PAGE_JS}
 ${PW_SHOP_CARD_IMG_JS}
+function listingHeartSvg(){
+  return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>';
+}
+function listingFavHtml(id){
+  if(!id)return '';
+  return '<button type="button" class="pw-rec-fav" data-pw-favorite data-inventory-id="'+esc(id)+'" aria-pressed="false" aria-label="'+esc(COPY.favorite)+'">'+listingHeartSvg()+'</button>';
+}
+function listingStatsHtml(p){
+  var rating=Number(p.ratingScore!=null?p.ratingScore:p.rating_score);
+  if(!isFinite(rating))rating=0;
+  var sold=Math.max(0,Math.round(Number(p.purchasesCount!=null?p.purchasesCount:p.purchases_count)||0));
+  return '<div class="pw-rec-stats"><span>★ '+rating.toFixed(1)+'</span><span>'+esc(COPY.sold)+': '+sold+'</span></div>';
+}
 function renderCard(p, opts){
   var id=String(p.id||'').trim();
   var href=p.detailPath||(id?DETAIL_PREFIX+encodeURIComponent(id):PRODUCTS_PATH);
@@ -183,13 +190,11 @@ function renderCard(p, opts){
   if(id&&opts&&opts.favoriteHtml){
     favBtn=String(opts.favoriteHtml).replace(/data-inventory-id=["'][^"']*["']/gi,'data-inventory-id="'+esc(id)+'"');
     if(favBtn.indexOf('data-inventory-id=')<0)favBtn=favBtn.replace(/<(button|a)\\b/i,'<$1 data-inventory-id="'+esc(id)+'"');
-  }else if(id&&opts&&opts.favorite){
-    favBtn='<button type="button" class="pw-icon-btn pw-shop-icon-btn pw-chrome-has-label pw-chrome-label-below" data-pw-chrome-btn="favorite-product" data-pw-chrome-added="1" data-pw-favorite data-inventory-id="'+esc(id)+'" aria-pressed="false" aria-label="'+esc(COPY.favorite)+'" title="'+esc(COPY.favorite)+'"><span class="pw-chrome-icon-wrap"><svg class="pw-shop-nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></span><span class="pw-shop-nav-label pw-chrome-btn-label">'+esc(COPY.favorite)+'</span></button>';
+    if(favBtn.indexOf('pw-rec-fav')<0)favBtn=favBtn.replace(/class="/,'class="pw-rec-fav ');
+  }else{
+    favBtn=listingFavHtml(id);
   }
-  var cartBtn=id
-    ? '<button type="button" class="pw-btn pw-btn-cart" ${pwElAttr(PW_EL.cardCart)} data-pw-add-cart data-inventory-id="'+esc(id)+'">'+COPY.addToCart+'</button>'
-    : '<a class="pw-btn pw-btn-cart" ${pwElAttr(PW_EL.cardCart)} href="'+esc(href)+'">'+COPY.viewCta+'</a>';
-  return '<article class="pw-product-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'" data-pw-actions-ready="1"><a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="'+esc(href)+'">'+badge+favBtn+'<img src="'+img+'" alt="'+name+'" loading="lazy"/></a><div class="pw-product-card-body"><h3 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h3>'+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+'<div class="pw-shop-action-bar">'+cartBtn+'</div></div></article>';
+  return '<article class="pw-product-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'" data-pw-actions-ready="1"><a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="'+esc(href)+'">'+badge+favBtn+'<img src="'+img+'" alt="'+name+'" loading="lazy"/></a><div class="pw-product-card-body"><h3 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h3>'+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+listingStatsHtml(p)+'</div></article>';
 }
 function isRelated(el){
   return el.getAttribute('data-pw-related')==='1'||el.getAttribute('data-pw-grid-kind')==='related';
@@ -203,7 +208,7 @@ function renderRelatedCard(p){
   var name=esc(p.name||'Product');
   var img=esc(shopImg(p));
   var price=priceHtml(p);
-  return '<article class="pw-product-card pw-related-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'"><a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="'+esc(href)+'">'+(img?'<img src="'+img+'" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"/>':'')+'</a><div class="pw-product-card-body pw-related-card-body"><h4 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h4>'+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+'</div></article>';
+  return '<article class="pw-product-card pw-related-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'"><a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="'+esc(href)+'">'+(img?'<img src="'+img+'" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"/>':'')+listingFavHtml(id)+'</a><div class="pw-product-card-body pw-related-card-body"><h4 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h4>'+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+listingStatsHtml(p)+'</div></article>';
 }
 function hideBrokenCardImgs(root){
   var imgs=(root||document).querySelectorAll('.pw-product-card-media img,[data-pw-el="card-media"] img');
@@ -288,10 +293,9 @@ function appendCards(el,products,replace){
     html=products.map(renderRelatedCard).join('');
   }else{
     var newBadge=el.getAttribute('data-new-badge')==='1';
-    var favOn=el.getAttribute('data-pw-card-favorite')==='1'||!!el.querySelector('[data-pw-chrome-btn="favorite-product"],template[data-pw-card-favorite-tpl]');
     var favTpl=el.querySelector('template[data-pw-card-favorite-tpl]');
     var favoriteHtml=favTpl&&favTpl.innerHTML?favTpl.innerHTML:'';
-    html=products.map(function(p){return renderCard(p,{newBadge:newBadge,favorite:favOn,favoriteHtml:favoriteHtml});}).join('');
+    html=products.map(function(p){return renderCard(p,{newBadge:newBadge,favorite:true,favoriteHtml:favoriteHtml});}).join('');
   }
   if(replace)grid.innerHTML=html;
   else{

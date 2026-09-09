@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { PARTNER_PUBLIC_INVENTORY_SEARCH_MAX } from '@/lib/messaging/partner-public-search-limits'
@@ -16,7 +15,7 @@ import {
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { partnerSiteSearchImageApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
-import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { PartnerSiteListingProductCard } from '@/components/partner-website/shop/partner-site-listing-product-card'
 
 type Hit = {
   id?: string
@@ -27,6 +26,20 @@ type Hit = {
   priceHint?: string | null
   price_hint?: string | null
   detailPath?: string
+  ratingScore?: number | null
+  rating_score?: number | null
+  purchasesCount?: number | null
+  purchases_count?: number | null
+  priceAmount?: number | null
+  salePriceAmount?: number | null
+  saleStartsAt?: string | null
+  saleEndsAt?: string | null
+  isClearance?: boolean
+  siteSalePhase?: 'off' | 'teaser' | 'active' | null
+  siteSalePercent?: number | null
+  siteSaleExpectedPrice?: number | null
+  siteSale?: unknown
+  birthdayOfferPercent?: number | null
 }
 
 const RETRY_AFTER_MS = 2500
@@ -406,26 +419,13 @@ export function PartnerSiteImageSearchClient({
             <div className="pw-shop-grid" data-pw-el={PW_EL.grid} data-pw-grid>
               {revealed.map((p, i) => {
                 const id = String(p.id || p.inventory_id || '')
-                const href = p.detailPath || '#'
-                const img = shopCardDisplaySrc(p.imageUrl || p.image_url || '') || p.imageUrl || p.image_url || ''
-                const name = p.name || ''
-                const price = p.priceHint || p.price_hint || ''
                 return (
-                  <article key={id || `${name}-${i}`} className="pw-shop-card" data-pw-el={PW_EL.card}>
-                    <Link href={href} data-pw-el={PW_EL.cardMedia}>
-                      {img ? <img src={img} alt={name} loading="lazy" decoding="async" /> : null}
-                    </Link>
-                    <div className="pw-shop-card-body">
-                      <Link href={href}>
-                        <h3 data-pw-el={PW_EL.cardName}>{name}</h3>
-                      </Link>
-                      {price ? (
-                        <p className="pw-shop-price" data-pw-el={PW_EL.cardPrice}>
-                          {price}
-                        </p>
-                      ) : null}
-                    </div>
-                  </article>
+                  <PartnerSiteListingProductCard
+                    key={id || `${p.name || 'hit'}-${i}`}
+                    locale={locale}
+                    product={p}
+                    href={p.detailPath || '#'}
+                  />
                 )
               })}
             </div>

@@ -23,6 +23,7 @@ import {
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_KIND_SCENE_MEDIA, pwKindSceneAttr } from '@/lib/partner-website/visual-editor/pw-kind-scene'
+import { listingCardFavHtml, listingCardStatsHtml } from '@/lib/partner-website/shop/listing-card-html'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export const PW_OUTFIT_ATTR = 'data-pw-outfit'
@@ -34,6 +35,8 @@ export type OutfitProductCard = {
   imageUrl: string
   priceHint?: string | null
   reason?: string | null
+  ratingScore?: number | null
+  purchasesCount?: number | null
 }
 
 export function outfitSuggestionsToBind(data: PartnerOutfitSuggestions | null | undefined): {
@@ -53,6 +56,8 @@ export function outfitSuggestionsToBind(data: PartnerOutfitSuggestions | null | 
         imageUrl: item.product.imageUrl,
         priceHint: item.product.priceHint || null,
         reason: item.reasons[0] || null,
+        ratingScore: item.product.ratingScore ?? 0,
+        purchasesCount: item.product.purchasesCount ?? 0,
       })),
     })),
   }
@@ -65,6 +70,8 @@ export function shopProductsToOutfitBind(products: PartnerSiteShopProduct[], rea
     imageUrl: p.imageUrl,
     priceHint: p.priceHint || null,
     reason: reason || null,
+    ratingScore: p.ratingScore ?? 0,
+    purchasesCount: p.purchasesCount ?? 0,
   }))
 }
 
@@ -83,7 +90,10 @@ export function isOutfitCatalogOpenTag(open: string): boolean {
   return /\bdata-pw-grid-kind\s*=\s*(["']?)outfit\1/.test(open)
 }
 
-export function outfitCardHtml(item: OutfitProductCard, opts?: { siteSlug?: string | null }): string {
+export function outfitCardHtml(
+  item: OutfitProductCard,
+  opts?: { siteSlug?: string | null; favoriteLabel?: string; soldLabel?: string }
+): string {
   const slug = String(opts?.siteSlug || '').trim()
   const href = slug && item.id ? escapeAttr(partnerSiteProductPath(slug, item.id, { name: item.name })) : '#'
   const price = String(item.priceHint || '').trim()
@@ -92,12 +102,19 @@ export function outfitCardHtml(item: OutfitProductCard, opts?: { siteSlug?: stri
   const media = imageUrl
     ? `<img src="${escapeAttr(imageUrl)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />`
     : ''
+  const fav = listingCardFavHtml(item.id, opts?.favoriteLabel || 'Thích')
+  const stats = listingCardStatsHtml({
+    rating: item.ratingScore,
+    sold: item.purchasesCount,
+    soldLabel: opts?.soldLabel || 'Đã bán',
+  })
   return `<article class="pw-product-card pw-outfit-card" ${pwElAttr(PW_EL.card)} data-inventory-id="${escapeAttr(item.id)}">
-  <a class="pw-product-card-media" href="${href}" ${pwElAttr(PW_EL.cardMedia)}>${media}</a>
+  <a class="pw-product-card-media" href="${href}" ${pwElAttr(PW_EL.cardMedia)}>${media}${fav}</a>
   <div class="pw-product-card-body pw-outfit-card-body">
     <h4 ${pwElAttr(PW_EL.cardName)}><a href="${href}">${escapeHtml(item.name)}</a></h4>
     ${reason ? `<p class="pw-outfit-reason">${escapeHtml(reason)}</p>` : ''}
     ${price ? `<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>${escapeHtml(price)}</p>` : ''}
+    ${stats}
   </div>
 </article>`
 }
@@ -120,8 +137,16 @@ export function buildOutfitProductsSectionHtml(input: {
   const slug = String(input.siteSlug || '').trim()
   const cards = (input.cards ?? []).filter((c) => String(c?.id || '').trim())
   const cardHtml = cards.length
-    ? cards.map((item) => outfitCardHtml(item, { siteSlug: slug })).join('')
-    : placeholderOutfitCards(pageSize, t.outfitTitleFallback)
+    ? cards
+        .map((item) =>
+          outfitCardHtml(item, {
+            siteSlug: slug,
+            favoriteLabel: t.favoriteAdd,
+            soldLabel: t.pdpPurchasesLabel,
+          })
+        )
+        .join('')
+    : placeholderOutfitCards(pageSize, t.outfitTitleFallback, t.favoriteAdd, t.pdpPurchasesLabel)
   const excludeId = String(input.excludeId || '').trim()
   const added = input.added ? ' data-pw-added-catalog="1"' : ''
   const title = outfitSectionTitle(input.role ?? null, locale)
@@ -155,14 +180,15 @@ export function buildOutfitProductsSectionHtml(input: {
 </section>`
 }
 
-function placeholderOutfitCards(count: number, label: string): string {
+function placeholderOutfitCards(count: number, label: string, favoriteLabel: string, soldLabel: string): string {
   let out = ''
   for (let i = 1; i <= count; i += 1) {
     out += `<article class="pw-product-card pw-outfit-card" ${pwElAttr(PW_EL.card)} data-pw-grid-placeholder="1">
-  <div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} style="background:var(--pw-surface,#f3f4f6)"></div>
+  <div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} style="background:var(--pw-surface,#f3f4f6)">${listingCardFavHtml('', favoriteLabel)}</div>
   <div class="pw-product-card-body pw-outfit-card-body">
     <h4 ${pwElAttr(PW_EL.cardName)}>${escapeHtml(label)} ${i}</h4>
     <p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>—</p>
+    ${listingCardStatsHtml({ soldLabel })}
   </div>
 </article>`
   }

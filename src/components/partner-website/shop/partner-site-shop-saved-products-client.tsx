@@ -4,26 +4,17 @@ import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { WebLocale } from '@/lib/i18n/config'
-import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
-import { mergeSiteCartLine, type SiteCartLine } from '@/lib/partner-website/shop/cart-line-utils'
 import type { PartnerSitePersonalizationProduct } from '@/lib/partner-website/shop/partner-site-personalization'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
-  partnerSiteCartApiPath,
   partnerSiteCartPath,
   partnerSitePersonalizationApiPath,
   partnerSiteProductPath,
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
-import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
-import {
-  buildPartnerShopLoginHref,
-  getPartnerShopBrowserReturnLocation,
-} from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
-import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
+import { PartnerSiteListingProductCard } from '@/components/partner-website/shop/partner-site-listing-product-card'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
-import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 
 type Mode = 'favorites' | 'recently-viewed'
 
@@ -32,17 +23,6 @@ type Props = {
   locale: WebLocale
   mode: Mode
   initialProducts?: PartnerSitePersonalizationProduct[]
-}
-
-function toCartCard(p: PartnerSitePersonalizationProduct): PartnerAiProductCard {
-  return {
-    name: p.name,
-    image_url: p.image_url,
-    product_url: p.product_url,
-    price_hint: p.price_hint || undefined,
-    inventory_id: p.inventory_id,
-    sku: p.sku || undefined,
-  }
 }
 
 export function PartnerSiteShopSavedProductsClient({
@@ -54,14 +34,12 @@ export function PartnerSiteShopSavedProductsClient({
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
   const { isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
-  const { refreshCartCount } = usePartnerSiteShop()
   const [products, setProducts] = useState<PartnerSitePersonalizationProduct[]>(
     () => initialProducts ?? []
   )
   const [loading, setLoading] = useState(initialProducts == null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [message, setMessage] = useState('')
-  const [cartAdded, setCartAdded] = useState<{ name: string; imageUrl?: string | null } | null>(null)
 
   const title = mode === 'favorites' ? t.wishlistTitle : t.recentlyViewedTitle
   const empty = mode === 'favorites' ? t.wishlistEmpty : t.recentlyViewedEmpty
@@ -133,55 +111,6 @@ export function PartnerSiteShopSavedProductsClient({
     }
   }
 
-  async function addToCart(product: PartnerSitePersonalizationProduct) {
-    if (busyId) return
-    if (!isAuthenticated) {
-      window.location.assign(
-        buildPartnerShopLoginHref(
-          siteSlug,
-          getPartnerShopBrowserReturnLocation(siteSlug, { customDomain }),
-          { customDomain }
-        )
-      )
-      return
-    }
-    setBusyId(product.inventory_id)
-    setMessage('')
-    try {
-      const cartRes = await fetch(partnerSiteCartApiPath(siteSlug), {
-        credentials: 'same-origin',
-        headers: authHeaders(),
-      })
-      captureFromResponse(cartRes)
-      const cartJson = (await cartRes.json().catch(() => ({}))) as { items?: SiteCartLine[] }
-      const existing = Array.isArray(cartJson.items) ? cartJson.items : []
-      const line: SiteCartLine = {
-        id: crypto.randomUUID(),
-        card: toCartCard(product),
-        quantity: 1,
-        color: '',
-        size: '',
-        note: '',
-      }
-      const merged = mergeSiteCartLine(existing, line)
-      const saveRes = await fetch(partnerSiteCartApiPath(siteSlug), {
-        method: 'PUT',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ items: merged }),
-      })
-      captureFromResponse(saveRes)
-      if (!saveRes.ok) {
-        setMessage(t.authFailed)
-        return
-      }
-      await refreshCartCount()
-      setCartAdded({ name: product.name, imageUrl: product.image_url })
-    } finally {
-      setBusyId(null)
-    }
-  }
-
   return (
     <section data-pw-region={PW_REGION.catalog} data-pw-catalog>
       <div className="pw-shop-page-head">
@@ -215,36 +144,16 @@ export function PartnerSiteShopSavedProductsClient({
             })
           const busy = busyId === p.inventory_id
           return (
-            <article key={p.inventory_id} className="pw-shop-card" data-pw-el={PW_EL.card}>
-              <Link href={href} data-pw-el={PW_EL.cardMedia}>
-                <img src={shopCardDisplaySrc(p.image_url) || p.image_url} alt={p.name} loading="lazy" decoding="async" />
-              </Link>
-              <div className="pw-shop-card-body">
-                <Link href={href} style={{ textDecoration: 'none', color: 'inherit' }}>
-                  <strong data-pw-el={PW_EL.cardName}>{p.name}</strong>
-                </Link>
-                {p.price_hint ? <p className="pw-shop-price" data-pw-el={PW_EL.cardPrice}>{p.price_hint}</p> : null}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-                  <button
-                    type="button"
-                    className="pw-shop-btn"
-                    disabled={busy}
-                    data-pw-el={PW_EL.cardCart}
-                    onClick={() => void addToCart(p)}
-                  >
-                    {t.addToCart}
-                  </button>
-                  <button
-                    type="button"
-                    className="pw-shop-btn pw-shop-btn-outline"
-                    disabled={busy}
-                    onClick={() => void toggleFavorite(p)}
-                  >
-                    {mode === 'favorites' ? t.favoriteRemove : t.favoriteAdd}
-                  </button>
-                </div>
-              </div>
-            </article>
+            <PartnerSiteListingProductCard
+              key={p.inventory_id}
+              locale={locale}
+              product={p}
+              href={href}
+              favorited={mode === 'favorites'}
+              onFavorite={() => {
+                if (!busy) void toggleFavorite(p)
+              }}
+            />
           )
         })}
       </div>
@@ -255,18 +164,6 @@ export function PartnerSiteShopSavedProductsClient({
           </Link>
         </p>
       ) : null}
-      <PartnerSiteCartAddedModal
-        open={Boolean(cartAdded)}
-        item={cartAdded}
-        cartHref={partnerSiteCartPath(siteSlug, { customDomain })}
-        copy={{
-          cartAddedTitle: t.cartAddedTitle,
-          cartGoToCart: t.cartGoToCart,
-          cartContinueShopping: t.cartContinueShopping,
-          cartAddedClose: t.cartAddedClose,
-        }}
-        onClose={() => setCartAdded(null)}
-      />
     </section>
   )
 }

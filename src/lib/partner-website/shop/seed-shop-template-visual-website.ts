@@ -21,7 +21,12 @@ import {
 } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import { stampPartnerShopEditorHooksInHtml } from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
-import { applySharedChrome, extractSharedChrome } from '@/lib/partner-website/shop/sync-shared-chrome'
+import { mergeVisualHomeStylesIntoHtml } from '@/lib/partner-website/shop/merge-visual-home-styles'
+import {
+  applySharedChrome,
+  extractSharedChrome,
+  hasSharedChrome,
+} from '@/lib/partner-website/shop/sync-shared-chrome'
 import { renderTemplateSiteToHtml } from '@/lib/partner-website/template/render-template-html'
 import { ensureHomeFlashSaleBlockInHtml } from '@/lib/partner-website/visual-editor/product-grid-widgets'
 import { visualHtmlLooksCompleteForEditor } from '@/lib/partner-website/visual-editor/visual-html-detect'
@@ -162,6 +167,20 @@ function visualDeviceFlagSnapshot(theme: PartnerWebsiteTheme): string {
   ].join('|')
 }
 
+/** Copy homepage head/footer/dock/float last so kit cannot reshape chrome. */
+function applyHomeSharedChrome(
+  html: string,
+  homeHtml: string,
+  variant: VisualDeviceVariant
+): string {
+  const chrome = extractSharedChrome(homeHtml)
+  if (!hasSharedChrome(chrome)) return html
+  return mergeVisualHomeStylesIntoHtml(
+    applySharedChrome(html, chrome, { targetVariant: variant }),
+    homeHtml
+  )
+}
+
 function buildShopTemplatePdpVisualHtml(input: {
   variant: VisualDeviceVariant
   locale: WebLocale
@@ -171,16 +190,18 @@ function buildShopTemplatePdpVisualHtml(input: {
   homeHtml: string
   look?: PartnerWebsiteTheme['look']
 }): string {
-  const shell = buildDefaultDemoPdpShellHtml({
-    locale: input.locale,
-    siteSlug: input.siteSlug,
-    variant: input.variant,
-    title: input.brand,
-    logoUrl: input.logoUrl,
-  })
-  const chrome = extractSharedChrome(input.homeHtml)
-  const withChrome = applySharedChrome(shell, chrome, { targetVariant: input.variant })
-  return finishVisualHtml(withChrome, input.variant, { ...input, pageKey: 'product_detail' })
+  const shell = finishVisualHtml(
+    buildDefaultDemoPdpShellHtml({
+      locale: input.locale,
+      siteSlug: input.siteSlug,
+      variant: input.variant,
+      title: input.brand,
+      logoUrl: input.logoUrl,
+    }),
+    input.variant,
+    { ...input, pageKey: 'product_detail' }
+  )
+  return applyHomeSharedChrome(shell, input.homeHtml, input.variant)
 }
 
 /**
@@ -280,20 +301,20 @@ export function seedShopTemplateVisualWebsite(input: {
               homeHtml,
               look: input.theme.look,
             })
-          : finishVisualHtml(
-              (() => {
-                const professional = buildShopTemplatePageVisualHtml({
+          : applyHomeSharedChrome(
+              finishVisualHtml(
+                buildShopTemplatePageVisualHtml({
                   pageKey,
                   variant,
                   locale: input.locale,
                   siteSlug: input.siteSlug,
                   brand: input.brand,
-                })
-                const chrome = extractSharedChrome(homeHtml)
-                return applySharedChrome(professional, chrome, { targetVariant: variant })
-              })(),
-              variant,
-              { ...input, look: input.theme.look, pageKey }
+                }),
+                variant,
+                { ...input, look: input.theme.look, pageKey }
+              ),
+              homeHtml,
+              variant
             )
       project = mergeVisualPageHtmlIntoProject(project, html, visualEditorHtmlPath(pageKey, variant))
       theme = applyVisualEditThemeFlag(theme, { pageKey, variant })

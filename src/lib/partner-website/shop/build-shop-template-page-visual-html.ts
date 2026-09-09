@@ -7,6 +7,7 @@ import {
   shopVisualSeoDescription,
 } from '@/lib/partner-website/shop/build-shop-visual-seo-head'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { listingCardFavHtml, listingCardStatsHtml } from '@/lib/partner-website/shop/listing-card-html'
 import {
   ensureAdsPlatformPolicyParagraphs,
   getPartnerSiteInfoPage,
@@ -199,14 +200,15 @@ function breadcrumbHtml(input: {
 </nav>`
 }
 
-function placeholderCards(count: number, label: string): string {
+function placeholderCards(count: number, label: string, favoriteLabel: string, soldLabel: string): string {
   let out = ''
   for (let i = 1; i <= count; i += 1) {
     out += `<article class="pw-product-card" ${pwElAttr(PW_EL.card)} data-pw-grid-placeholder="1">
-  <div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} style="background:var(--pw-surface,#f3f4f6)"></div>
+  <div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} style="background:var(--pw-surface,#f3f4f6)">${listingCardFavHtml('', favoriteLabel)}</div>
   <div class="pw-product-card-body">
     <h3 ${pwElAttr(PW_EL.cardName)}>${escapeHtml(label)}</h3>
     <p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>—</p>
+    ${listingCardStatsHtml({ soldLabel })}
   </div>
 </article>`
   }
@@ -278,7 +280,7 @@ function buildListingMain(
   </div>
   <section class="pw-catalog pw-section" ${pwRegionAttr(PW_REGION.catalog)} data-pw-grid-kind="catalog" data-pw-grid-cols="${cols}" data-pw-grid-cols-mobile="2" data-limit="${limit}"${catalogAttr}>
     <h2 class="pw-visually-hidden" ${pwElAttr(PW_EL.sectionTitle)}>${escapeHtml(title)}</h2>
-    <div data-pw-grid class="pw-product-grid" ${pwElAttr(PW_EL.grid)}>${placeholderCards(limit, title)}</div>
+    <div data-pw-grid class="pw-product-grid" ${pwElAttr(PW_EL.grid)}>${placeholderCards(limit, title, shop.favoriteAdd, shop.pdpPurchasesLabel)}</div>
     <p class="pw-catalog-empty pw-personalize-empty" hidden>${escapeHtml(shop.catalogEmpty)}</p>
   </section>
 </main>`

@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { fetchPartnerInventoryCardsByIdsInOrderFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { geminiProductSearchFromImageBufferViaVectorDb } from '@/lib/messaging/partner-gemini-image-search'
 import {
   getPartnerPublicInventorySearchDefaultLimit,
   PARTNER_PUBLIC_INVENTORY_SEARCH_MAX,
 } from '@/lib/messaging/partner-public-search-limits'
+import { resolvePartnerStorefrontSaleCalendarForRequest } from '@/lib/partner-website/promotions/partner-feature-test-storefront'
+import { applyPartnerStorefrontSaleFaces } from '@/lib/partner-website/promotions/partner-site-sale-attach'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { inventoryCardRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
+import { toPartnerSiteCardPayload } from '@/lib/partner-website/shop/partner-site-card-payload'
+import {
+  peekSiteVisitorAccountKeyFromRequest,
+  resolveSiteVisitorEmail,
+} from '@/lib/partner-website/shop/partner-site-personalization'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 
 export const dynamic = 'force-dynamic'
@@ -81,26 +91,71 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   })
   const candidates = geminiResult.candidates
   const siteSlug = shop.site.siteSlug
+  const ids = candidates.map((c) => c.inventoryId).filter(Boolean)
+  const rows = ids.length ? await fetchPartnerInventoryCardsByIdsInOrderFromPg(shop.partnerId, ids) : []
+  const mapped = (rows ?? [])
+    .map((row) => inventoryCardRowToShopProduct(siteSlug, row))
+    .filter((p): p is NonNullable<typeof p> => Boolean(p))
+  const saleConfig = await fetchPartnerSaleCalendarConfigFromPg(shop.partnerId).catch(() => null)
+  let withFaces = mapped
+  if (saleConfig) {
+    const [saleCalendar, accountKey, emailNormalized] = await Promise.all([
+      resolvePartnerStorefrontSaleCalendarForRequest({
+        request,
+        partnerId: shop.partnerId,
+        settings: saleConfig,
+      }),
+      peekSiteVisitorAccountKeyFromRequest(request),
+      resolveSiteVisitorEmail(request, shop.partnerId),
+    ])
+    withFaces = await applyPartnerStorefrontSaleFaces(mapped, {
+      partnerId: shop.partnerId,
+      accountKey,
+      emailNormalized,
+      overlay: {
+        state: saleCalendar,
+        clearanceEnabled: saleConfig.clearanceEnabled,
+        clearancePercent: saleConfig.clearanceDiscountPercent,
+      },
+    })
+  }
+  const byId = new Map(withFaces.map((p) => [p.id, p]))
 
   return NextResponse.json({
     ok: true,
     source: 'image_vector',
-    products: candidates.map((c) => ({
-      id: c.inventoryId,
-      inventory_id: c.inventoryId,
-      name: c.name,
-      sku: c.sku,
-      imageUrl: shopCardDisplaySrc(c.image_url) || c.image_url,
-      image_url: shopCardDisplaySrc(c.image_url) || c.image_url,
-      productUrl: c.product_url ?? null,
-      product_url: c.product_url ?? null,
-      priceHint: c.price_hint?.trim() ? c.price_hint.trim() : null,
-      price_hint: c.price_hint?.trim() ? c.price_hint.trim() : null,
-      score: c.score ?? null,
-      detailPath: partnerSiteProductPath(siteSlug, c.inventoryId, { name: c.name }),
-      color_variants: c.color_variants ?? [],
-      color_image_urls: (c.color_image_urls ?? []).map((url) => shopCardDisplaySrc(url) || url),
-    })),
+    products: candidates.map((c) => {
+      const hydrated = byId.get(c.inventoryId)
+      if (hydrated) {
+        return {
+          ...toPartnerSiteCardPayload(hydrated),
+          inventory_id: hydrated.id,
+          image_url: shopCardDisplaySrc(hydrated.imageUrl) || hydrated.imageUrl,
+          price_hint: hydrated.priceHint || null,
+          score: c.score ?? null,
+          color_variants: c.color_variants ?? [],
+          color_image_urls: (c.color_image_urls ?? []).map((url) => shopCardDisplaySrc(url) || url),
+        }
+      }
+      return {
+        id: c.inventoryId,
+        inventory_id: c.inventoryId,
+        name: c.name,
+        sku: c.sku,
+        imageUrl: shopCardDisplaySrc(c.image_url) || c.image_url,
+        image_url: shopCardDisplaySrc(c.image_url) || c.image_url,
+        productUrl: c.product_url ?? null,
+        product_url: c.product_url ?? null,
+        priceHint: c.price_hint?.trim() ? c.price_hint.trim() : null,
+        price_hint: c.price_hint?.trim() ? c.price_hint.trim() : null,
+        ratingScore: 0,
+        purchasesCount: 0,
+        score: c.score ?? null,
+        detailPath: partnerSiteProductPath(siteSlug, c.inventoryId, { name: c.name }),
+        color_variants: c.color_variants ?? [],
+        color_image_urls: (c.color_image_urls ?? []).map((url) => shopCardDisplaySrc(url) || url),
+      }
+    }),
     error: candidates.length > 0 ? null : geminiResult.error ?? null,
   })
 }

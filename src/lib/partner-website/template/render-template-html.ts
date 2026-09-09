@@ -5,6 +5,8 @@ import {
   buildPartnerSiteHeaderHtml,
 } from '@/lib/partner-website/shop/build-partner-site-header-html'
 import { buildPartnerSiteFooterHtml } from '@/lib/partner-website/shop/build-partner-site-footer-html'
+import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { listingCardFavHtml, listingCardStatsHtml } from '@/lib/partner-website/shop/listing-card-html'
 import { partnerSiteProductsPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
   FASHION_SHOP_FONT_DISPLAY,
@@ -88,7 +90,7 @@ function renderCategories(
 
 function renderStaticProductCards(
   products: unknown[],
-  opts: { showNew: boolean; hrefFallback: string; limit: number }
+  opts: { showNew: boolean; hrefFallback: string; limit: number; favoriteLabel: string; soldLabel: string }
 ): string {
   return products
     .slice(0, opts.limit)
@@ -99,15 +101,19 @@ function renderStaticProductCards(
       const detailPath = str(o.detailPath)
       const href = detailPath ? escapeAttr(detailPath) : opts.hrefFallback
       const name = escapeHtml(str(o.name))
-      return `<article class="pw-product-card" ${pwElAttr(PW_EL.card)}>
+      const id = str(o.id || o.inventory_id)
+      const rating = Number(o.ratingScore ?? o.rating_score)
+      const sold = Number(o.purchasesCount ?? o.purchases_count)
+      return `<article class="pw-product-card" ${pwElAttr(PW_EL.card)}${id ? ` data-inventory-id="${escapeAttr(id)}"` : ''}>
         <a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="${href}">
           ${opts.showNew ? '<span class="pw-badge-new">NEW</span>' : ''}
+          ${listingCardFavHtml(id, opts.favoriteLabel)}
           ${img ? `<img src="${escapeAttr(img)}" alt="${escapeAttr(str(o.name))}" loading="lazy"/>` : '<div class="pw-product-ph"></div>'}
         </a>
         <div class="pw-product-card-body">
           <h3 ${pwElAttr(PW_EL.cardName)}><a href="${href}">${name}</a></h3>
           ${str(o.price) ? `<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>${escapeHtml(str(o.price))}</p>` : ''}
-          <a class="pw-btn pw-btn-cart" ${pwElAttr(PW_EL.cardCart)} href="${href}">${escapeHtml(str(o.ctaText, 'Add to cart'))}</a>
+          ${listingCardStatsHtml({ rating, sold, soldLabel: opts.soldLabel })}
         </div>
       </article>`
     })
@@ -132,10 +138,13 @@ function renderProducts(section: PartnerWebsiteSection, input: PartnerWebsiteTem
   const titleClass = variant === 'best-sellers' ? 'pw-section-title pw-section-title-light' : 'pw-section-title'
   const products = Array.isArray(section.props.products) ? section.props.products : []
   const chatHref = input.chatPath?.trim() ? escapeAttr(input.chatPath) : '#products'
+  const shopCopy = getPartnerSiteShopCopy(input.locale)
   const fallbackCards = renderStaticProductCards(products, {
     showNew,
     hrefFallback: chatHref,
     limit,
+    favoriteLabel: shopCopy.favoriteAdd,
+    soldLabel: shopCopy.pdpPurchasesLabel,
   })
 
   if (useLive) {

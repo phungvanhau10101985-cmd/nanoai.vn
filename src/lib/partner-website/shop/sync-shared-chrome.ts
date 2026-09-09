@@ -115,6 +115,11 @@ function extractStandaloneFloatWidgets(
     const end = close + (closeTok?.[0].length ?? `</${tag}>`.length)
     FLOAT_WIDGET_OPEN_RE.lastIndex = end
     if (occupied.some((block) => start >= block.start && end <= block.end)) continue
+    // Listing/account pages have `<header class="pw-page-head">`. Chat mua in the
+    // shop head is still inside `<header>` even when HEADER_RE occupied is short.
+    const before = html.slice(0, start).toLowerCase()
+    if (before.lastIndexOf('<header') > before.lastIndexOf('</header>')) continue
+    if (before.lastIndexOf('<footer') > before.lastIndexOf('</footer>')) continue
     const snippet = html.slice(start, end)
     if (/\bdata-pw-float-dup=["']1["']/i.test(snippet)) continue
     const kind = floatWidgetKind(snippet)
@@ -423,8 +428,7 @@ function restampChromeDevice(html: string, variant: SharedChromeDevice): string 
   return html.replace(/<(a|button|div)\b([^>]*)>/gi, (full, tag: string, attrs: string) => {
     const isAdded = /\bdata-pw-chrome-added="1"/i.test(attrs)
     const isCount = /\bdata-pw-chrome-count=/i.test(attrs)
-    const isBtn = /\bdata-pw-chrome-btn=/i.test(attrs)
-    if (!isAdded && !isCount && !isBtn) return full
+    if (!isAdded && !isCount) return full
     let next = attrs
     if (/\bdata-pw-device=/.test(next)) {
       next = next.replace(/\sdata-pw-device=(["'])[^"']*\1/gi, ` data-pw-device="${variant}"`)
@@ -796,7 +800,8 @@ export function applySharedChrome(
   if (floats.trim()) {
     const existingKit = extractFirst(out, FLOAT_KIT_RE)
     if (existingKit) out = replaceRange(out, existingKit, '')
-    out = stripStandaloneFloatWidgets(out)
+    // Keep Chat mua (and other float-kinds) that already live in copied header/dock.
+    out = stripStandaloneFloatWidgets(out, occupied)
     out = insertBeforeBodyClose(out, floats)
   } else {
     // Chat mua still lives in header: drop page-local Top up / Zalo leftovers in the middle.

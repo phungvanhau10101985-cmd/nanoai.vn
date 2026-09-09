@@ -28,6 +28,9 @@ test('outfit factory stamps complementary grid contract', () => {
   assert.match(html, /Xem tất cả các nhóm/)
   assert.doesNotMatch(html, /data-pw-el="card-cart"/)
   assert.doesNotMatch(html, /data-pw-el="card-buy"/)
+  assert.match(html, /pw-rec-fav/)
+  assert.match(html, /pw-rec-stats/)
+  assert.match(html, /Đã bán/)
 })
 
 test('outfit live cards keep a square media slot and do not leak name as img alt', () => {
@@ -39,6 +42,8 @@ test('outfit live cards keep a square media slot and do not leak name as img alt
     ],
   })
   assert.match(html, /class="pw-product-card-media"/)
+  assert.match(html, /pw-rec-fav/)
+  assert.match(html, /pw-rec-stats/)
   assert.doesNotMatch(html, /alt="Túi xách nữ"/)
   assert.match(html, /Túi xách nữ/)
 })

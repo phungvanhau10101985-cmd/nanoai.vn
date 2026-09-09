@@ -54,6 +54,51 @@ test('applySharedChrome drops leftover listing floats when home chrome lives in 
   assert.equal(next.includes('Zalo leftover'), false)
 })
 
+test('applySharedChrome keeps header Chat mua when the listing has a page-head header', () => {
+  const homeBoth = `<!DOCTYPE html><html><body>
+<header class="pw-header" data-pw-region="header"><div class="pw-header-actions">
+  <a data-pw-chrome-btn="cart" data-pw-chrome-count="1">Giỏ</a>
+  <button type="button" data-pw-hidden="1" data-pw-chrome-btn="chat" data-pw-chrome-kit="1" data-nanoai-open-chat>Chat mua</button>
+</div></header>
+<main>Home</main>
+<footer class="pw-footer" data-pw-region="footer">Home footer</footer>
+<aside data-pw-chrome-kit="float"><button type="button" data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-nanoai-open-chat>Chat mua</button></aside>
+</body></html>`
+  const listing = `<!DOCTYPE html><html><body>
+<main><header class="pw-page-head"><h1>Products</h1></header></main>
+<footer class="pw-footer" data-pw-region="footer">Old footer</footer>
+<aside data-pw-chrome-kit="float"><button type="button" data-pw-chrome-btn="chat" data-pw-chrome-float="1">Old float</button></aside>
+</body></html>`
+  const homeChrome = extractSharedChrome(homeBoth)
+  const next = applySharedChrome(listing, homeChrome)
+  assert.equal(extractSharedChrome(next).header, homeChrome.header)
+  assert.match(next, /<h1>Products<\/h1>/)
+  assert.match(extractSharedChrome(next).header, /data-pw-chrome-btn="chat"/)
+})
+
+test('applySharedChrome keeps homepage header Chat mua when float kit also has chat', () => {
+  const homeBoth = `<!DOCTYPE html><html><body>
+<header class="pw-header" data-pw-region="header"><div class="pw-header-actions">
+  <a data-pw-chrome-btn="cart" data-pw-chrome-count="1">Giỏ</a>
+  <button type="button" data-pw-hidden="1" data-pw-chrome-btn="chat" data-pw-chrome-kit="1" data-nanoai-open-chat>Chat mua</button>
+</div></header>
+<main>Home</main>
+<footer class="pw-footer" data-pw-region="footer">Home footer</footer>
+<aside data-pw-chrome-kit="float"><button type="button" data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-nanoai-open-chat>Chat mua</button></aside>
+</body></html>`
+  const listing = `<!DOCTYPE html><html><body>
+<main><h1>Products</h1></main>
+<footer class="pw-footer" data-pw-region="footer">Old footer</footer>
+<aside data-pw-chrome-kit="float"><button type="button" data-pw-chrome-btn="chat" data-pw-chrome-float="1">Old float</button></aside>
+</body></html>`
+  const homeChrome = extractSharedChrome(homeBoth)
+  const next = applySharedChrome(listing, homeChrome)
+  assert.equal(extractSharedChrome(next).header, homeChrome.header)
+  assert.match(next, /<h1>Products<\/h1>/)
+  assert.equal((next.match(/data-pw-chrome-btn="chat"/g) || []).length, 2)
+  assert.equal(next.includes('Old float'), false)
+})
+
 test('sync copies homepage topup onto other same-device pages', () => {
   const homeWithTopup = `<!DOCTYPE html><html><body>
 <header class="pw-header" data-pw-region="header"><a class="pw-brand">HomeLogo</a></header>

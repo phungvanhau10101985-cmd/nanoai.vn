@@ -1147,7 +1147,7 @@ test('public visual render gateway serves one device with chrome theme and runti
           path: 'index.mobile.html',
           kind: 'html' as const,
           content:
-            '<!DOCTYPE html><html><body><header class="pw-header"><img class="pw-logo" src="/logo.png"/></header><h1>Mob home</h1></body></html>',
+            '<!DOCTYPE html><html><body><header class="pw-header"><img class="pw-logo" src="/logo.png"/></header><h1>Mob home</h1><section data-pw-catalog></section></body></html>',
         },
       ],
     },
@@ -1172,7 +1172,7 @@ test('public visual render gateway serves one device with chrome theme and runti
 
 test('editor visual render hydrates read-only slots but excludes mutating live actions', () => {
   const html =
-    '<!DOCTYPE html><html><body><header class="pw-header"><div class="pw-header-actions"><a data-pw-chrome-added="1" data-pw-chrome-btn="chat">Chat</a><button class="pw-cat-btn">Danh mục</button></div></header><h1>Tablet edit</h1></body></html>'
+    '<!DOCTYPE html><html><body data-pw-page="product"><header class="pw-header"><div class="pw-header-actions"><a data-pw-chrome-added="1" data-pw-chrome-btn="chat">Chat</a><button class="pw-cat-btn">Danh mục</button></div></header><h1>Tablet edit</h1><section data-pw-catalog data-pw-personalize="recommended" data-pw-slider="1"></section></body></html>'
   const edit = preparePartnerVisualHtmlForEditor(html, {
     variant: 'tablet',
     theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, primaryColor: '#654321' },

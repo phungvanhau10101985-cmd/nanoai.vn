@@ -17,6 +17,7 @@ import {
 import { buildRelatedProductsSectionHtml } from '@/lib/partner-website/shop/related-products'
 import { buildVisualEditorFeaturedCategoriesHtml } from '@/lib/partner-website/visual-editor/featured-category-widgets'
 import { PW_KIND_SCENE_MEDIA, pwKindSceneAttr } from '@/lib/partner-website/visual-editor/pw-kind-scene'
+import { listingCardFavHtml, listingCardStatsHtml } from '@/lib/partner-website/shop/listing-card-html'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export const VISUAL_EDITOR_PRODUCT_GRID_KINDS = [
@@ -218,15 +219,16 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;')
 }
 
-function placeholderCards(count: number, label: string): string {
+function placeholderCards(count: number, label: string, favoriteLabel: string, soldLabel: string): string {
   const n = Math.max(2, Math.min(20, count))
   let out = ''
   for (let i = 1; i <= n; i += 1) {
     out += `<article class="pw-product-card" ${pwElAttr(PW_EL.card)} data-pw-grid-placeholder="1">
-  <div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} style="background:var(--pw-surface,#f3f4f6)"></div>
+  <div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} style="background:var(--pw-surface,#f3f4f6)">${listingCardFavHtml('', favoriteLabel)}</div>
   <div class="pw-product-card-body">
     <h3 ${pwElAttr(PW_EL.cardName)}>${escapeHtml(label)} ${i}</h3>
     <p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>—</p>
+    ${listingCardStatsHtml({ soldLabel })}
   </div>
 </article>`
   }
@@ -241,13 +243,14 @@ const REC_BADGE: Record<WebLocale, string> = {
   ko: '추천',
 }
 
-function recommendedPlaceholderCards(count: number, label: string, soldLabel: string, badge: string): string {
+function recommendedPlaceholderCards(count: number, label: string, soldLabel: string, badge: string, favoriteLabel: string): string {
   const n = Math.max(2, Math.min(20, count))
   let out = ''
   for (let i = 1; i <= n; i += 1) {
     out += `<article class="pw-product-card pw-rec-card" ${pwElAttr(PW_EL.card)} data-pw-grid-placeholder="1">
   <div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} style="background:var(--pw-surface,#f3f4f6)">
     ${badge ? `<span class="pw-rec-badge">${escapeHtml(badge)}</span>` : ''}
+    ${listingCardFavHtml('', favoriteLabel)}
   </div>
   <div class="pw-product-card-body">
     <h3 ${pwElAttr(PW_EL.cardName)}>${escapeHtml(label)} ${i}</h3>
@@ -344,9 +347,10 @@ export function buildVisualEditorProductGridHtml(input: {
           flash ? FLASH_SALE_MAX_COUNT : pageSize,
           title,
           copy.pdpPurchasesLabel || 'Đã bán',
-          rec ? REC_BADGE[locale] : ''
+          rec ? REC_BADGE[locale] : '',
+          copy.favoriteAdd || 'Thích'
         )
-      : placeholderCards(pageSize, title)
+      : placeholderCards(pageSize, title, copy.favoriteAdd || 'Thích', copy.pdpPurchasesLabel || 'Đã bán')
   const titleHtml = flash
     ? `<div class="pw-flash-head" data-pw-flash-head="1"><div class="pw-flash-copy"><h2 class="pw-flash-title" ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2></div><p class="pw-flash-timer" data-pw-flash-timer="1" hidden role="timer"></p></div>`
     : rec

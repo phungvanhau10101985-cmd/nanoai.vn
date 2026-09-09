@@ -16,6 +16,8 @@ import {
   fillMissingShopVisualDeviceFiles,
   seedShopTemplateVisualWebsite,
 } from './seed-shop-template-visual-website'
+import { extractSharedChrome } from '@/lib/partner-website/shop/sync-shared-chrome'
+import { visualHomeChromeForDevice } from '@/lib/partner-website/shop/visual-home-chrome'
 import { resolvePartnerVisualHtmlVariantsForTarget } from '@/lib/partner-website/shop/render-partner-visual-html'
 
 const preset = getShopTemplatePreset('fashion-orange')
@@ -279,5 +281,27 @@ test('fashion-marketplace seed stamps look and home API hooks on all four device
   assert.ok(products)
   assert.match(products.content, /data-pw-look="marketplace"/)
   assert.match(products.content, /data-pw-catalog/)
+  for (const variant of VISUAL_DEVICE_VARIANTS) {
+    const home = seeded.project.files.find((f) => f.path === visualEditorHtmlPath('home', variant))
+    assert.ok(home, `home/${variant}`)
+    const homeChrome = extractSharedChrome(home.content)
+    for (const pageKey of ['products', 'product_detail', 'about', 'cart', 'account'] as const) {
+      const file = seeded.project.files.find((f) => f.path === visualEditorHtmlPath(pageKey, variant))
+      assert.ok(file, `${pageKey}/${variant}`)
+      const chrome = extractSharedChrome(file.content)
+      assert.equal(chrome.header, homeChrome.header, `${pageKey}/${variant} header must match home`)
+      assert.match(file.content, /background:var\(--pw-primary\)!important/)
+    }
+    const reactChrome = visualHomeChromeForDevice(
+      {
+        theme: seeded.theme,
+        project: seeded.project,
+        htmlSource: seeded.htmlSource,
+      },
+      variant
+    )
+    assert.ok(reactChrome)
+    assert.equal(reactChrome.header, homeChrome.header, `React ${variant} chrome must keep home header`)
+  }
 })
 

@@ -116,17 +116,54 @@ const PW_CATALOG_NAME_SEL = [
   'html .pw-shop-card-body h3',
 ].join(',')
 
-const PW_CATALOG_ACTION_SEL = [
+const PW_CATALOG_PRICE_SEL = [
+  'html .pw-product-card-body > .pw-price',
+  'html .pw-product-card-body > [data-pw-el="card-price"]',
+  'html .pw-shop-card-body > .pw-price',
+  'html .pw-shop-card-body > .pw-shop-price',
+  'html .pw-shop-card-body > [data-pw-el="card-price"]',
+].join(',')
+
+/** Listing/home cards: no add-to-cart. PDP buy box / dock keep `data-pw-pdp-add-cart`. */
+const PW_CATALOG_CART_HIDE_SEL = [
   'html .pw-product-card .pw-shop-action-bar',
   'html .pw-shop-card .pw-shop-action-bar',
   'html [data-pw-catalog] .pw-shop-action-bar',
   'html [data-pw-personalize] .pw-shop-action-bar',
   'html [data-pw-added-catalog] .pw-shop-action-bar',
-  'html .pw-product-card-body > [data-pw-el="card-cart"]',
+  'html .pw-product-card [data-pw-el="card-cart"]',
+  'html .pw-shop-card [data-pw-el="card-cart"]',
+  'html [data-pw-catalog] [data-pw-el="card-cart"]',
+  'html [data-pw-personalize] [data-pw-el="card-cart"]',
+  'html [data-pw-added-catalog] [data-pw-el="card-cart"]',
+  'html [data-pw-el="card"] [data-pw-el="card-cart"]',
+  'html .pw-product-card [data-pw-add-cart]:not([data-pw-pdp-add-cart])',
+  'html .pw-shop-card [data-pw-add-cart]:not([data-pw-pdp-add-cart])',
+  'html .pw-product-card .pw-btn-cart',
+  'html .pw-shop-card .pw-btn-cart',
+  'html .pw-fh-cta[data-pw-el="card-cart"]',
+].join(',')
+
+/** Listing cards: no «Chi tiết sản phẩm» / leftover Mua. PDP keeps `data-pw-el="buy"`. */
+const PW_CATALOG_DETAIL_HIDE_SEL = [
   'html .pw-product-card-body > [data-pw-el="card-buy"]',
-  'html .pw-shop-card-body > [data-pw-el="card-cart"]',
   'html .pw-shop-card-body > [data-pw-el="card-buy"]',
+  'html [data-pw-catalog] [data-pw-el="card"] [data-pw-el="card-buy"]',
+  'html [data-pw-personalize] [data-pw-el="card"] [data-pw-el="card-buy"]',
+  'html [data-pw-added-catalog] [data-pw-el="card"] [data-pw-el="card-buy"]',
+  'html .pw-product-card-body > .pw-shop-btn',
   'html .pw-shop-card-body > .pw-shop-btn',
+  'html .pw-product-card-body > .pw-btn:not(.pw-rec-fav)',
+  'html .pw-shop-card-body > .pw-btn:not(.pw-rec-fav)',
+].join(',')
+
+const PW_LISTING_FAV_SEL = [
+  'html .pw-product-card-media .pw-rec-fav',
+  'html .pw-shop-card [data-pw-el="card-media"] .pw-rec-fav',
+  'html [data-pw-catalog] [data-pw-el="card-media"] .pw-rec-fav',
+  'html [data-pw-personalize] [data-pw-el="card-media"] .pw-rec-fav',
+  'html [data-pw-added-catalog] [data-pw-el="card-media"] .pw-rec-fav',
+  'html .pw-rec-fav',
 ].join(',')
 
 /** Desktop/laptop 5 · mobile/tablet 2. Attribute selectors beat leftover class/auto-fit CSS. */
@@ -149,15 +186,22 @@ ${PW_STRIP_NAME_SEL} a{color:inherit;text-decoration:none}
 ${PW_STRIP_PRICE_SEL}{margin:0;margin-top:auto;font-size:14px;font-weight:700;color:var(--pw-primary)}
 `.trim()
 
-/** Catalog / listing / personalize: 2-line name + cart buttons share one baseline. */
+/** Catalog / listing / personalize: 2-line name; 188 SimpleProductCard (heart + ★ + Đã bán); no listing CTA. */
 export const PW_PRODUCT_CATALOG_CARD_FACE_CSS = `
 ${PW_CATALOG_GRID_SEL}{align-items:stretch}
 ${PW_CATALOG_CARD_SEL}{position:relative;display:flex!important;flex-direction:column!important;height:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:rgba(15,23,42,.12)}
 ${suffixEach(PW_CATALOG_CARD_SEL.replace(/html /g, 'body:not(.nanoai-ve-active) '), ':active')},${suffixEach(PW_CATALOG_CARD_SEL.replace(/html /g, 'body:not(.nanoai-ve-active) '), '[data-pw-nav="1"]')}{opacity:.72}
-${PW_CATALOG_BODY_SEL}{display:flex!important;flex-direction:column!important;flex:1 1 auto!important;min-height:0!important;gap:6px!important}
-${PW_CATALOG_NAME_SEL}{margin:0!important;line-height:1.3!important;display:-webkit-box!important;-webkit-line-clamp:2!important;-webkit-box-orient:vertical!important;overflow:hidden!important;word-break:break-word;overflow-wrap:anywhere;min-height:2.6em;max-height:2.6em}
+${PW_CATALOG_BODY_SEL}{display:flex!important;flex-direction:column!important;flex:1 1 auto!important;min-height:0!important;gap:4px!important;padding:8px!important}
+${PW_CATALOG_NAME_SEL}{margin:0!important;font-size:12px!important;font-weight:500!important;line-height:1.25!important;display:-webkit-box!important;-webkit-line-clamp:2!important;-webkit-box-orient:vertical!important;overflow:hidden!important;word-break:break-word;overflow-wrap:anywhere;min-height:2rem;max-height:2rem}
 ${suffixEach(PW_CATALOG_NAME_SEL, ' a')}{color:inherit;text-decoration:none}
-${PW_CATALOG_ACTION_SEL}{margin-top:auto!important;width:100%!important}
+${PW_CATALOG_PRICE_SEL}{margin-top:0!important;font-size:14px;font-weight:700}
+html .pw-rec-stats{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:#6b7280;margin-top:2px}
+${PW_LISTING_FAV_SEL}{position:absolute;top:4px;right:4px;z-index:4;display:inline-flex;width:44px;height:44px;align-items:center;justify-content:center;border:none;border-radius:999px;background:rgba(255,255,255,.92);color:#4b5563;cursor:pointer;padding:0;pointer-events:auto}
+html .pw-rec-fav svg{width:16px;height:16px;display:block}
+html .pw-rec-fav:hover,html .pw-rec-fav[aria-pressed="true"],html .pw-rec-fav.is-active{background:#ef4444;color:#fff}
+html .pw-rec-fav[aria-pressed="true"] svg,html .pw-rec-fav.is-active svg{fill:#fff;stroke:#fff}
+html .pw-rec-fav .pw-chrome-btn-label,html .pw-rec-fav .pw-shop-nav-label{display:none!important}
+${PW_CATALOG_CART_HIDE_SEL},${PW_CATALOG_DETAIL_HIDE_SEL}{display:none!important}
 `.trim()
 
 const PW_CATALOG_TITLE_PARTS = [

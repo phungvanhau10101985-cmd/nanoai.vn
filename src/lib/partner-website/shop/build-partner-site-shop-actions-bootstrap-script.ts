@@ -148,8 +148,8 @@ const COPY: Record<
 }
 
 /**
- * Same-platform shop: wire [data-pw-add-cart] / [data-pw-buy] / [data-pw-favorite] and
- * auto-enhance product cards that link to /site/{slug}/products/{uuid}.
+ * Same-platform shop: wire [data-pw-add-cart] / [data-pw-buy] / [data-pw-favorite].
+ * Listing cards do not get an injected add-to-cart button — PDP buy box / dock only.
  */
 export function buildPartnerSiteShopActionsBootstrapScript(input: {
   siteSlug: string
@@ -465,12 +465,6 @@ function enhanceCards(){
     }
     card.setAttribute('data-pw-actions-ready','1');
     card.setAttribute('data-inventory-id',id);
-    if(card.querySelector('[data-pw-add-cart],[data-pw-favorite]'))continue;
-    var bar=document.createElement('div');
-    bar.className='pw-shop-action-bar';
-    bar.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin-top:8px';
-    bar.innerHTML='<button type="button" class="pw-btn pw-btn-sm pw-btn-accent" data-pw-add-cart data-inventory-id="'+id+'">'+COPY.addToCart+'</button><button type="button" class="pw-btn pw-btn-sm" data-pw-favorite data-inventory-id="'+id+'" aria-pressed="false">'+COPY.favoriteAdd+'</button>';
-    card.appendChild(bar);
   }
 }
 function productCardFromEl(el){

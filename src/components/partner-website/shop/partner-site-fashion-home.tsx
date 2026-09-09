@@ -24,16 +24,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { cn } from '@/lib/utils'
 import { PW_EL, PW_PAGE, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
-import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
-import {
-  formatPartnerShopMoneyVnd,
-  isPartnerFlashSaleActive,
-} from '@/lib/partner-website/shop/partner-shop-flash-sale'
-import {
-  PartnerSiteSaleMediaMarks,
-  PartnerSiteSalePriceBlock,
-  partnerProductSaleFaceOf,
-} from '@/components/partner-website/shop/partner-site-sale-face'
+import { PartnerSiteListingProductCard } from '@/components/partner-website/shop/partner-site-listing-product-card'
 
 export type FashionHomeCategory = {
   name: string
@@ -87,8 +78,6 @@ function ProductCard({
   locale,
   product,
   showNew,
-  showFlash,
-  cta,
   customDomain,
 }: {
   siteSlug: string
@@ -96,78 +85,17 @@ function ProductCard({
   product: PartnerSiteShopProduct
   showNew?: boolean
   showFlash?: boolean
-  cta: string
   customDomain: boolean
 }) {
   const href = partnerSiteProductPath(siteSlug, product.id, { customDomain, name: product.name })
-  const face = partnerProductSaleFaceOf(product, locale)
-  const flash =
-    !face.kind &&
-    (showFlash ||
-      isPartnerFlashSaleActive({
-        priceAmount: product.priceAmount ?? null,
-        salePriceAmount: product.salePriceAmount ?? null,
-        saleStartsAt: product.saleStartsAt ?? null,
-        saleEndsAt: product.saleEndsAt ?? null,
-      }))
-  const saleLabel =
-    flash && product.salePriceAmount != null ? formatPartnerShopMoneyVnd(product.salePriceAmount) : null
   return (
-    <article
-      className="group relative flex flex-col overflow-hidden rounded-2xl border border-orange-100/80 bg-white shadow-[0_10px_40px_-20px_rgba(234,88,12,.45)] transition duration-500 hover:-translate-y-1 hover:shadow-[0_24px_50px_-24px_rgba(234,88,12,.55)]"
-      data-pw-el={PW_EL.card}
-    >
-      <Link href={href} className="relative aspect-[4/5] overflow-hidden bg-orange-50" data-pw-el={PW_EL.cardMedia}>
-        <PartnerSiteSaleMediaMarks product={product} locale={locale} />
-        {showNew && !face.kind ? (
-          <span className="absolute left-3 top-3 z-10 rounded-md bg-stone-500/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur">
-            NEW
-          </span>
-        ) : null}
-        {flash ? (
-          <span className="absolute right-3 top-3 z-10 rounded-md bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
-            SALE
-          </span>
-        ) : null}
-        {product.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={shopCardDisplaySrc(product.imageUrl) || product.imageUrl}
-            alt={product.name}
-            className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
-            loading="lazy"
-          />
-        ) : (
-          <div className="h-full w-full bg-gradient-to-br from-orange-200 to-amber-100" />
-        )}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
-      </Link>
-      <div className="flex flex-1 flex-col gap-2 p-3.5 sm:p-4">
-        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-stone-800" data-pw-el={PW_EL.cardName}>
-          <Link href={href}>{product.name}</Link>
-        </h3>
-        {face.kind ? (
-          <PartnerSiteSalePriceBlock product={product} locale={locale} fallback={product.priceHint} className="pw-fh-price" />
-        ) : saleLabel ? (
-          <p className="flex flex-wrap items-baseline gap-2">
-            <span className="pw-fh-price text-base font-extrabold tracking-tight">{saleLabel}</span>
-            {product.priceHint ? (
-              <span className="text-xs text-stone-400 line-through">{product.priceHint}</span>
-            ) : null}
-          </p>
-        ) : product.priceHint ? (
-          <p className="pw-fh-price text-base font-extrabold tracking-tight">{product.priceHint}</p>
-        ) : null}
-        <Link
-          href={href}
-          className="pw-fh-cta mt-auto inline-flex w-full items-center justify-center gap-1 rounded-xl px-3 py-2.5 text-xs font-extrabold uppercase tracking-[0.08em] transition"
-          data-pw-el={PW_EL.cardCart}
-        >
-          {cta}
-          <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
-      </div>
-    </article>
+    <PartnerSiteListingProductCard
+      locale={locale}
+      product={product}
+      href={href}
+      newBadge={showNew}
+      className="pw-shop-card pw-product-card"
+    />
   )
 }
 
@@ -344,7 +272,7 @@ function FashionHomeInner({
         </div>
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-5" data-pw-el={PW_EL.grid}>
           {flashSale.slice(0, 8).map((p) => (
-            <ProductCard key={`flash-${p.id}`} siteSlug={siteSlug} locale={locale} product={p} showFlash cta={t.addToCart} customDomain={customDomain} />
+            <ProductCard key={`flash-${p.id}`} siteSlug={siteSlug} locale={locale} product={p} showFlash customDomain={customDomain} />
           ))}
         </div>
       </section>
@@ -372,7 +300,7 @@ function FashionHomeInner({
         </div>
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-5" data-pw-el={PW_EL.grid}>
           {newArrivals.slice(0, 8).map((p) => (
-            <ProductCard key={p.id} siteSlug={siteSlug} locale={locale} product={p} showNew cta={t.addToCart} customDomain={customDomain} />
+            <ProductCard key={p.id} siteSlug={siteSlug} locale={locale} product={p} showNew customDomain={customDomain} />
           ))}
         </div>
         {!newArrivals.length ? (
@@ -393,7 +321,7 @@ function FashionHomeInner({
         </h2>
         <div className="relative grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-5" data-pw-el={PW_EL.grid}>
           {(bestSellers.length ? bestSellers : newArrivals).slice(0, 8).map((p) => (
-            <ProductCard key={`best-${p.id}`} siteSlug={siteSlug} locale={locale} product={p} cta={t.addToCart} customDomain={customDomain} />
+            <ProductCard key={`best-${p.id}`} siteSlug={siteSlug} locale={locale} product={p} customDomain={customDomain} />
           ))}
         </div>
       </section>

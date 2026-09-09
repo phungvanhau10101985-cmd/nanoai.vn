@@ -74,6 +74,8 @@ test('stamps live catalog contract', () => {
   assert.doesNotMatch(html, /(?:^|[\s"'])pw-section(?:[\s"']|$)/)
   assert.match(html, /min-height:0/)
   assert.match(html, /padding:12px 16px 16px/)
+  assert.doesNotMatch(html, /data-pw-el="card-cart"/)
+  assert.doesNotMatch(html, /data-pw-add-cart/)
 })
 
 test('chosen rows set page size for the device', () => {
@@ -174,6 +176,21 @@ test('restore featured seeds writes sample names back before save', () => {
   assert.equal(name?.textContent, 'Thời trang')
   assert.equal(card?.getAttribute('href'), '/products')
   assert.equal(card?.hasAttribute('data-pw-seed-name'), false)
+})
+
+test('catalog and recently-viewed placeholders use 188 listing heart and sold stats', () => {
+  const catalog = buildVisualEditorProductGridHtml({ kind: 'catalog', siteSlug: 'demo-shop', locale: 'vi' })
+  const viewed = buildVisualEditorProductGridHtml({
+    kind: 'recently-viewed',
+    siteSlug: 'demo-shop',
+    locale: 'vi',
+  })
+  assert.match(catalog, /pw-rec-fav/)
+  assert.match(catalog, /pw-rec-stats/)
+  assert.match(catalog, /Đã bán/)
+  assert.doesNotMatch(catalog, /Chi tiết sản phẩm/)
+  assert.match(viewed, /pw-rec-fav/)
+  assert.match(viewed, /pw-rec-stats/)
 })
 
 test('stamps recently viewed and recommended personalize hooks', () => {

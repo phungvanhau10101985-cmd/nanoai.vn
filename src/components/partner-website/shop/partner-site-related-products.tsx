@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
-import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
@@ -11,10 +10,7 @@ import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-
 import { PW_GRID_ROWS_DEFAULT, productGridPageSize } from '@/lib/partner-website/shop/pw-product-grid-page'
 import { relatedListingHref } from '@/lib/partner-website/shop/related-products'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
-import {
-  PartnerSiteSaleMediaMarks,
-  PartnerSiteSalePriceBlock,
-} from '@/components/partner-website/shop/partner-site-sale-face'
+import { PartnerSiteListingProductCard } from '@/components/partner-website/shop/partner-site-listing-product-card'
 
 type Props = {
   siteSlug: string
@@ -81,30 +77,14 @@ export function PartnerSiteRelatedProducts({
           >
             {shown.map((p) => {
               const href = partnerSiteProductPath(siteSlug, p.id, { customDomain, name: p.name })
-              const img = shopCardDisplaySrc(p.imageUrl)
               return (
-                <article key={p.id} className="pw-product-card pw-related-card" data-pw-el={PW_EL.card}>
-                  <Link className="pw-product-card-media" href={href} data-pw-el={PW_EL.cardMedia} style={{ position: 'relative' }}>
-                    <PartnerSiteSaleMediaMarks product={p} locale={locale} />
-                    {img ? (
-                      <img
-                        src={img}
-                        alt=""
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                        onError={(event) => {
-                          event.currentTarget.style.visibility = 'hidden'
-                        }}
-                      />
-                    ) : null}
-                  </Link>
-                  <div className="pw-product-card-body pw-related-card-body">
-                    <h4 data-pw-el={PW_EL.cardName}>
-                      <Link href={href}>{p.name}</Link>
-                    </h4>
-                    <PartnerSiteSalePriceBlock product={p} locale={locale} fallback={p.priceHint} className="pw-price" />
-                  </div>
-                </article>
+                <PartnerSiteListingProductCard
+                  key={p.id}
+                  locale={locale}
+                  product={p}
+                  href={href}
+                  className="pw-product-card pw-related-card"
+                />
               )
             })}
           </div>

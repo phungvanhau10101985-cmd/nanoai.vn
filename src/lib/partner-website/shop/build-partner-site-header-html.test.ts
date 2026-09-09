@@ -58,8 +58,9 @@ describe('listing native UI contract stamps', () => {
     expect(catalog).not.toContain('type="search"')
     expect(catalog).not.toContain('pw-shop-toolbar')
     expect(catalog).toContain('data-pw-el={PW_EL.sectionTitle}')
-    expect(catalog).toContain('data-pw-el={PW_EL.cardBuy}')
-    expect(catalog).toContain('data-pw-el={PW_EL.cardPrice}')
+    expect(catalog).toContain('PartnerSiteListingProductCard')
+    expect(catalog).not.toContain('data-pw-el={PW_EL.cardBuy}')
+    expect(catalog).not.toContain('t.productDetail')
 
     const category = readFileSync(
       join(here, '../../../components/partner-website/shop/partner-site-category-products-client.tsx'),
@@ -69,7 +70,9 @@ describe('listing native UI contract stamps', () => {
     expect(category).toContain('data-pw-region={PW_REGION.toolbar}')
     expect(category).toContain('data-pw-el={PW_EL.facet}')
     expect(category).toContain('data-pw-el={PW_EL.sort}')
-    expect(category).toContain('data-pw-el={PW_EL.cardBuy}')
+    expect(category).toContain('PartnerSiteListingProductCard')
+    expect(category).not.toContain('data-pw-el={PW_EL.cardBuy}')
+    expect(category).not.toContain('t.productDetail')
   })
 
   it('stamps React PDP gallery, buy box, reviews, and related catalog', () => {
@@ -131,7 +134,9 @@ describe('listing native UI contract stamps', () => {
       'utf8'
     )
     expect(saved).toContain('data-pw-region={PW_REGION.catalog}')
-    expect(saved).toContain('data-pw-el={PW_EL.cardCart}')
+    expect(saved).toContain('data-pw-el={PW_EL.card}')
+    expect(saved).toContain('data-pw-el={PW_EL.cardName}')
+    expect(saved).not.toContain('data-pw-el={PW_EL.cardCart}')
 
     const addresses = readFileSync(
       join(here, '../../../components/partner-website/shop/partner-site-shop-addresses-client.tsx'),

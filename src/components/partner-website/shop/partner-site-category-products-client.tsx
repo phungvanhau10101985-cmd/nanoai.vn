@@ -23,11 +23,7 @@ import {
   trackPartnerSiteViewItemList,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
-import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
-import {
-  PartnerSiteSaleMediaMarks,
-  PartnerSiteSalePriceBlock,
-} from '@/components/partner-website/shop/partner-site-sale-face'
+import { PartnerSiteListingProductCard } from '@/components/partner-website/shop/partner-site-listing-product-card'
 import { PW_LISTING_FILTER_SLOT_ATTR } from '@/lib/partner-website/shop/listing-head'
 
 type Props = {
@@ -377,21 +373,7 @@ export function PartnerSiteCategoryProductsClient({
         ) : (
           <div className="pw-shop-grid" data-pw-el={PW_EL.grid} data-pw-grid>
             {products.map((p) => (
-              <article key={p.id} className="pw-shop-card" data-pw-el={PW_EL.card}>
-                <Link href={p.detailPath} data-pw-el={PW_EL.cardMedia} style={{ position: 'relative', display: 'block' }}>
-                  <PartnerSiteSaleMediaMarks product={p} locale={locale} />
-                  <img src={shopCardDisplaySrc(p.imageUrl) || p.imageUrl} alt={p.name} loading="lazy" decoding="async" />
-                </Link>
-                <div className="pw-shop-card-body">
-                  <Link href={p.detailPath}>
-                    <h3 data-pw-el={PW_EL.cardName}>{p.name}</h3>
-                  </Link>
-                  <PartnerSiteSalePriceBlock product={p} locale={locale} fallback={p.priceHint} />
-                  <Link href={p.detailPath} className="pw-shop-btn" style={{ marginTop: 12 }} data-pw-el={PW_EL.cardBuy}>
-                    {t.productDetail}
-                  </Link>
-                </div>
-              </article>
+              <PartnerSiteListingProductCard key={p.id} locale={locale} product={p} href={p.detailPath} />
             ))}
           </div>
         )}

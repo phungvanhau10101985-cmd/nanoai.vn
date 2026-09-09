@@ -29,6 +29,8 @@ export function buildPartnerSiteOutfitBootstrapScript(input: {
     seeAll: t.outfitSeeAll,
     loadMore: t.gridLoadMore || t.loadMore,
     slotsAria: t.outfitSlotsAria,
+    favorite: t.favoriteAdd,
+    sold: t.pdpPurchasesLabel,
   }
 
   return `<script data-pw-outfit-bootstrap>(function(){
@@ -51,6 +53,19 @@ function outfitLayout(){
   if(d==='desktop'||d==='laptop')return 'desktop';
   return window.innerWidth>=1280?'desktop':'mobile';
 }
+function listingHeartSvg(){
+  return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>';
+}
+function listingFavHtml(id){
+  if(!id)return '';
+  return '<button type="button" class="pw-rec-fav" data-pw-favorite data-inventory-id="'+esc(id)+'" aria-pressed="false" aria-label="'+esc(COPY.favorite)+'">'+listingHeartSvg()+'</button>';
+}
+function listingStatsHtml(p){
+  var rating=Number(p.ratingScore!=null?p.ratingScore:p.rating_score);
+  if(!isFinite(rating))rating=0;
+  var sold=Math.max(0,Math.round(Number(p.purchasesCount!=null?p.purchasesCount:p.purchases_count)||0));
+  return '<div class="pw-rec-stats"><span>★ '+rating.toFixed(1)+'</span><span>'+esc(COPY.sold)+': '+sold+'</span></div>';
+}
 function renderCard(item){
   var p=item&&item.product?item.product:item||{};
   var id=String(p.id||'').trim();
@@ -59,7 +74,7 @@ function renderCard(item){
   var img=esc(shopImg(p));
   var price=esc(p.priceHint||'');
   var reason=esc((item&&item.reasons&&item.reasons[0])||'');
-  return '<article class="pw-product-card pw-outfit-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'"><a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="'+esc(href)+'">'+(img?'<img src="'+img+'" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"/>':'')+'</a><div class="pw-product-card-body pw-outfit-card-body"><h4 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h4>'+(reason?'<p class="pw-outfit-reason">'+reason+'</p>':'')+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+'</div></article>';
+  return '<article class="pw-product-card pw-outfit-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'" data-pw-actions-ready="1"><a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="'+esc(href)+'">'+(img?'<img src="'+img+'" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"/>':'')+listingFavHtml(id)+'</a><div class="pw-product-card-body pw-outfit-card-body"><h4 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h4>'+(reason?'<p class="pw-outfit-reason">'+reason+'</p>':'')+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+listingStatsHtml(p)+'</div></article>';
 }
 function hideBrokenCardImgs(root){
   var imgs=(root||document).querySelectorAll('.pw-product-card-media img,[data-pw-el="card-media"] img');

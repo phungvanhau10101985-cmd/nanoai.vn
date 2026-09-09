@@ -11,6 +11,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsitePageKey } from '@/lib/partner-website/partner-website-page-catalog'
 import { buildBlankShopVisualHtml } from '@/lib/partner-website/shop/build-blank-shop-visual-html'
 import { buildShopTemplatePageVisualHtml } from '@/lib/partner-website/shop/build-shop-template-page-visual-html'
+import { mergeVisualHomeStylesIntoHtml } from '@/lib/partner-website/shop/merge-visual-home-styles'
 import {
   applySharedChrome,
   extractSharedChrome,
@@ -200,7 +201,10 @@ export function seedVisualPageHtmlWithChrome(input: {
       })
   const chrome = extractSharedChrome(input.chromeSourceHtml)
   if (!hasSharedChrome(chrome)) return inner
-  return applySharedChrome(inner, chrome, { targetVariant: input.variant })
+  return mergeVisualHomeStylesIntoHtml(
+    applySharedChrome(inner, chrome, { targetVariant: input.variant }),
+    input.chromeSourceHtml
+  )
 }
 
 export function parseCloneBox(raw: string | null | undefined): CloneBox | null {

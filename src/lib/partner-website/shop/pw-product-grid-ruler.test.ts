@@ -29,13 +29,18 @@ test('rec and flash-sale cards are the containing block for the favorite overlay
   assert.match(PW_RECOMMENDED_GRID_FACE_CSS, /\.pw-rec-fav\{[\s\S]*?position:absolute;top:4px;right:4px/)
 })
 
-test('catalog cards clamp names to two lines and pin cart buttons to one row', () => {
+test('catalog cards clamp names to two lines and hide listing add-to-cart', () => {
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /\[data-pw-catalog\] \[data-pw-el="card-name"\]/)
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /\.pw-product-card \[data-pw-el="card-name"\]/)
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /-webkit-line-clamp:2!important/)
-  assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /max-height:2\.6em/)
+  assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /max-height:2rem/)
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /\.pw-product-card \.pw-shop-action-bar/)
-  assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /margin-top:auto!important/)
+  assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /\[data-pw-el="card-cart"\]/)
+  assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /\[data-pw-el="card-buy"\]/)
+  assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /\[data-pw-add-cart\]:not\(\[data-pw-pdp-add-cart\]\)/)
+  assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /display:none!important/)
+  assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /\.pw-rec-fav/)
+  assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /\.pw-rec-stats/)
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /align-items:stretch/)
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /touch-action:manipulation/)
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /data-pw-nav="1"/)
