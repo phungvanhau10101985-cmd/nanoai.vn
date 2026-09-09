@@ -12,6 +12,7 @@ import {
 import { inboundTextLooksLikeAfterSalesNotCheckout } from '@/lib/messaging/partner-ai-purchase-intent'
 import { inboundBodyHasCustomerUploadedImage } from '@/lib/messaging/guest-chat-image'
 import type { PartnerShippingLookupHit, PartnerShippingLookupOrderItem } from '@/lib/messaging/partner-shipping-lookup'
+import { isSequentialShopOrderCode } from '@/lib/messaging/shop-payment-reference'
 
 function looksLikeQuotedSkuConsult(text: string): boolean {
   const t = String(text ?? '').trim()
@@ -33,7 +34,8 @@ export type PartnerBoundOrderSnapshot = {
 }
 
 const ORDER_CODE_RE = /\b((?:DH|ĐH|DC|ĐC|dh|đh|dc|đc)\s*[-_]?\s*\d{2,})\b/gi
-const SEVQR_ORDER_RE = /SEVQR\s*((?:DH|ĐH|DC|ĐC)?\s*[-_]?\s*\d{2,})/i
+const SEVQR_ORDER_RE = /SEVQR\s+([A-Z0-9]{4,32})/i
+const SHOP_SEQ_TOKEN_RE = /\b([A-Z0-9]{5,20})\b/gi
 
 function locPrefix(uiLocale: string | null | undefined): string {
   return String(uiLocale ?? '')
@@ -43,7 +45,12 @@ function locPrefix(uiLocale: string | null | undefined): string {
 }
 
 function compactOrderCode(raw: string): string {
-  return raw.replace(/[\s_-]+/g, '').toUpperCase().replace(/^ĐH/, 'DH').replace(/^ĐC/, 'DC')
+  return raw.replace(/[\s_-]+/g, '').toUpperCase().replace(/^ĐH/, 'DH').replace(/^ĐC/, 'DC').replace(/^SEVQR/, '')
+}
+
+function isRecognizedShopOrderCode(c: string): boolean {
+  if (/^D[HC]\d{2,}$/.test(c)) return true
+  return isSequentialShopOrderCode(c)
 }
 
 export function extractOrderCodesFromText(text: string): string[] {
@@ -52,7 +59,7 @@ export function extractOrderCodesFromText(text: string): string[] {
   const add = (raw: string) => {
     let c = compactOrderCode(raw)
     if (/^\d{2,}$/.test(c)) c = `DH${c}`
-    if (!/^D[HC]\d{2,}$/.test(c)) return
+    if (!isRecognizedShopOrderCode(c)) return
     if (out.some((x) => x === c)) return
     out.push(c)
   }
@@ -60,6 +67,9 @@ export function extractOrderCodesFromText(text: string): string[] {
   if (sev?.[1]) add(sev[1])
   for (const m of t.matchAll(ORDER_CODE_RE)) {
     if (m[1]) add(m[1])
+  }
+  for (const m of t.matchAll(SHOP_SEQ_TOKEN_RE)) {
+    if (m[1] && isSequentialShopOrderCode(m[1])) add(m[1])
   }
   return out
 }

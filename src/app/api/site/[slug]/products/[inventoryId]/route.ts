@@ -15,6 +15,8 @@ import { resolvePartnerStorefrontSaleCalendarForRequest } from '@/lib/partner-we
 import { applyPartnerStorefrontSaleFaces } from '@/lib/partner-website/promotions/partner-site-sale-attach'
 import { partnerSiteBirthdayOfferJson } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { pgQueryOne } from '@/lib/db/pg-query'
+import { fetchSourceStockInventoryByIdFromPg } from '@/lib/db/messaging-partner-source-stock-pg'
+import { enqueueProductViewStockCheckIfNeeded } from '@/lib/messaging/source-stock-check/worker'
 
 export const dynamic = 'force-dynamic'
 
@@ -87,6 +89,23 @@ export async function GET(
       { sessionId: visitor.sessionId, thread: visitor.thread }
     )
   }
+  void (async () => {
+    try {
+      const mini = await fetchSourceStockInventoryByIdFromPg(shop.partnerId, id)
+      if (!mini) return
+      await enqueueProductViewStockCheckIfNeeded({
+        partnerId: shop.partnerId,
+        inventoryId: id,
+        productUrl: mini.product_url,
+        status: mini.source_stock_status,
+        checkedAt: mini.source_stock_checked_at,
+        nextCheckAt: mini.source_stock_next_check_at,
+      })
+    } catch {
+      /* PDP không chờ kiểm tra nguồn */
+    }
+  })()
+
   const relatedCtx = await resolveRelatedProductContext(shop.partnerId, id)
   const productWithCategory = {
     ...flashed,

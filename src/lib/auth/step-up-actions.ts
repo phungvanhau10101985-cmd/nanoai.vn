@@ -47,81 +47,96 @@ function otpEmailBody(otp: string, scope: StepUpScope): { text: string; html: st
 export async function checkStepUpSessionAction(
   scope: StepUpScope
 ): Promise<{ active: boolean; expiresAt?: string } | { error: string }> {
-  const gate = await resolveUserForScope(scope)
-  if ('error' in gate) return { error: gate.error ?? 'Unauthorized.' }
-  const session = await fetchActiveStepUpSessionFromPg(gate.user.id, scope)
-  if (!session) return { active: false }
-  return { active: true, expiresAt: session.expiresAt }
+  try {
+    const gate = await resolveUserForScope(scope)
+    if ('error' in gate) return { error: gate.error ?? 'Unauthorized.' }
+    const session = await fetchActiveStepUpSessionFromPg(gate.user.id, scope)
+    if (!session) return { active: false }
+    return { active: true, expiresAt: session.expiresAt }
+  } catch (e) {
+    console.error('[checkStepUpSessionAction]', e)
+    return { error: 'Không kiểm tra được phiên OTP.' }
+  }
 }
 
 export async function requestStepUpOtpAction(
   scope: StepUpScope
 ): Promise<{ ok: true; debugOtp?: string } | { error: string }> {
-  const gate = await resolveUserForScope(scope)
-  if ('error' in gate) return { error: gate.error ?? 'Unauthorized.' }
+  try {
+    const gate = await resolveUserForScope(scope)
+    if ('error' in gate) return { error: gate.error ?? 'Unauthorized.' }
 
-  const email = gate.user.email?.trim()
-  if (!email) return { error: 'Tài khoản chưa có email — không gửi được OTP.' }
-  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+    const email = gate.user.email?.trim()
+    if (!email) return { error: 'Tài khoản chưa có email — không gửi được OTP.' }
+    if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
 
-  const debugOtpEnabled = process.env.EMAIL_AUTH_DEBUG_OTP === '1'
-  const smtpReady = isSmtpConfigured()
+    const debugOtpEnabled = process.env.EMAIL_AUTH_DEBUG_OTP === '1'
+    const smtpReady = isSmtpConfigured()
 
-  if (!smtpReady && !debugOtpEnabled) {
-    return { error: 'Máy chủ chưa cấu hình gửi email (SMTP).' }
-  }
+    if (!smtpReady && !debugOtpEnabled) {
+      return { error: 'Máy chủ chưa cấu hình gửi email (SMTP).' }
+    }
 
-  if (await isStepUpOtpCooldownActiveFromPg(gate.user.id, scope)) {
-    return { error: 'Vui lòng đợi vài chục giây trước khi gửi lại mã.' }
-  }
+    if (await isStepUpOtpCooldownActiveFromPg(gate.user.id, scope)) {
+      return { error: 'Vui lòng đợi vài chục giây trước khi gửi lại mã.' }
+    }
 
-  const otp = generateStepUpOtp6()
-  const otpHash = hashStepUpOtp(gate.user.id, scope, otp)
-  const saved = await replaceStepUpOtpFromPg({
-    userId: gate.user.id,
-    scope,
-    otpHash,
-  })
-  if (!saved) return { error: 'Không lưu được mã xác nhận.' }
+    const otp = generateStepUpOtp6()
+    const otpHash = hashStepUpOtp(gate.user.id, scope, otp)
+    const saved = await replaceStepUpOtpFromPg({
+      userId: gate.user.id,
+      scope,
+      otpHash,
+    })
+    if (!saved) return { error: 'Không lưu được mã xác nhận.' }
 
-  if (!smtpReady) {
-    console.info('[requestStepUpOtpAction] debug OTP (no SMTP):', otp)
-    return { ok: true, debugOtp: otp }
-  }
-
-  const mail = otpEmailBody(otp, scope)
-  const sent = await sendSmtpMail({
-    to: email,
-    subject: otpEmailSubject(scope),
-    text: mail.text,
-    html: mail.html,
-  })
-
-  if (!sent.ok) {
-    if (debugOtpEnabled) {
-      console.info('[requestStepUpOtpAction] debug OTP (SMTP failed):', otp, sent.error)
+    if (!smtpReady) {
+      console.info('[requestStepUpOtpAction] debug OTP (no SMTP):', otp)
       return { ok: true, debugOtp: otp }
     }
-    await clearStepUpOtpFromPg(gate.user.id, scope)
-    return { error: 'Không gửi được email. Kiểm tra SMTP hoặc thử lại sau.' }
-  }
 
-  return { ok: true, ...(debugOtpEnabled ? { debugOtp: otp } : {}) }
+    const mail = otpEmailBody(otp, scope)
+    const sent = await sendSmtpMail({
+      to: email,
+      subject: otpEmailSubject(scope),
+      text: mail.text,
+      html: mail.html,
+    })
+
+    if (!sent.ok) {
+      if (debugOtpEnabled) {
+        console.info('[requestStepUpOtpAction] debug OTP (SMTP failed):', otp, sent.error)
+        return { ok: true, debugOtp: otp }
+      }
+      await clearStepUpOtpFromPg(gate.user.id, scope)
+      return { error: 'Không gửi được email. Kiểm tra SMTP hoặc thử lại sau.' }
+    }
+
+    return { ok: true, ...(debugOtpEnabled ? { debugOtp: otp } : {}) }
+  } catch (e) {
+    console.error('[requestStepUpOtpAction]', e)
+    return { error: 'Không gửi được OTP. Thử lại sau.' }
+  }
 }
 
 export async function verifyStepUpOtpAction(
   scope: StepUpScope,
   otpRaw: string
 ): Promise<{ ok: true; expiresAt: string } | { error: string }> {
-  const gate = await resolveUserForScope(scope)
-  if ('error' in gate) return { error: gate.error ?? 'Unauthorized.' }
-  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  try {
+    const gate = await resolveUserForScope(scope)
+    if ('error' in gate) return { error: gate.error ?? 'Unauthorized.' }
+    if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
 
-  const verified = await verifyStepUpOtpAndCreateSessionFromPg({
-    userId: gate.user.id,
-    scope,
-    otpRaw,
-  })
-  if (!verified) return { error: 'Mã OTP không đúng hoặc đã hết hạn.' }
-  return { ok: true, expiresAt: verified.expiresAt }
+    const verified = await verifyStepUpOtpAndCreateSessionFromPg({
+      userId: gate.user.id,
+      scope,
+      otpRaw,
+    })
+    if (!verified) return { error: 'Mã OTP không đúng hoặc đã hết hạn.' }
+    return { ok: true, expiresAt: verified.expiresAt }
+  } catch (e) {
+    console.error('[verifyStepUpOtpAction]', e)
+    return { error: 'Không xác minh được OTP. Thử lại sau.' }
+  }
 }

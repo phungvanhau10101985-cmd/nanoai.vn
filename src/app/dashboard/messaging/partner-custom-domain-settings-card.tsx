@@ -97,7 +97,7 @@ export function PartnerCustomDomainSettingsCard({
     try {
       const res = await getMessagingPartnerCustomDomainSettings(partnerId)
       if ('error' in res && res.error) {
-        toast({ title: res.error, variant: 'destructive' })
+        toast({ title: res.error === 'LOAD_FAILED' ? t.customDomainSaveFailed : res.error, variant: 'destructive' })
         return
       }
       if ('domain' in res) {
@@ -113,10 +113,12 @@ export function PartnerCustomDomainSettingsCard({
           setShopLoginPath(res.shopSso.externalShopLoginPath || '/dang-nhap')
         }
       }
+    } catch {
+      toast({ title: t.customDomainSaveFailed, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
-  }, [partnerId, toast])
+  }, [partnerId, t.customDomainSaveFailed, toast])
 
   useEffect(() => {
     void load()
@@ -145,30 +147,41 @@ export function PartnerCustomDomainSettingsCard({
 
   const saveDomain = () => {
     startTransition(async () => {
-      const res = await runWithStepUp(() =>
-        saveMessagingPartnerCustomDomainSettings({
-          partnerId,
-          hostname,
-          useForChat,
-          useForSite,
-        })
-      )
-      if ('error' in res && res.error) {
-        if (isStepUpRequiredError(res)) return
-        if (res.error === 'INVALID_HOSTNAME') {
-          toast({ title: t.customDomainInvalidHostname, variant: 'destructive' })
+      try {
+        const res = await runWithStepUp(() =>
+          saveMessagingPartnerCustomDomainSettings({
+            partnerId,
+            hostname,
+            useForChat,
+            useForSite,
+          })
+        )
+        if ('error' in res && res.error) {
+          if (isStepUpRequiredError(res)) return
+          if (res.error === 'INVALID_HOSTNAME') {
+            toast({ title: t.customDomainInvalidHostname, variant: 'destructive' })
+            return
+          }
+          if (res.error === 'HOSTNAME_TAKEN') {
+            toast({ title: t.customDomainHostnameTaken, variant: 'destructive' })
+            return
+          }
+          toast({
+            title: res.error === 'SAVE_FAILED' ? t.customDomainSaveFailed : String(res.error),
+            variant: 'destructive',
+          })
           return
         }
-        toast({ title: String(res.error), variant: 'destructive' })
-        return
+        if ('domain' in res && res.domain) {
+          setDomain(res.domain)
+          setCnameTarget(res.cnameTarget)
+        }
+        toast({ title: t.customDomainSavedOk })
+        onDomainChanged?.()
+        void load()
+      } catch {
+        toast({ title: t.customDomainSaveFailed, variant: 'destructive' })
       }
-      if ('domain' in res && res.domain) {
-        setDomain(res.domain)
-        setCnameTarget(res.cnameTarget)
-      }
-      toast({ title: t.customDomainSavedOk })
-      onDomainChanged?.()
-      void load()
     })
   }
 
@@ -229,16 +242,25 @@ export function PartnerCustomDomainSettingsCard({
 
   const removeDomain = () => {
     startTransition(async () => {
-      const res = await runWithStepUp(() => removeMessagingPartnerCustomDomain(partnerId))
-      if ('error' in res && res.error) {
-        if (!isStepUpRequiredError(res)) toast({ title: String(res.error), variant: 'destructive' })
-        return
+      try {
+        const res = await runWithStepUp(() => removeMessagingPartnerCustomDomain(partnerId))
+        if ('error' in res && res.error) {
+          if (!isStepUpRequiredError(res)) {
+            toast({
+              title: res.error === 'SAVE_FAILED' ? t.customDomainSaveFailed : String(res.error),
+              variant: 'destructive',
+            })
+          }
+          return
+        }
+        setDomain(null)
+        setHostname('')
+        toast({ title: t.customDomainRemovedOk })
+        onDomainChanged?.()
+        void load()
+      } catch {
+        toast({ title: t.customDomainSaveFailed, variant: 'destructive' })
       }
-      setDomain(null)
-      setHostname('')
-      toast({ title: t.customDomainRemovedOk })
-      onDomainChanged?.()
-      void load()
     })
   }
 

@@ -247,6 +247,12 @@ if [[ -f "package-lock.json" ]]; then
 else
   npm install
 fi
+if [[ "${DEPLOY_SKIP_PLAYWRIGHT:-}" == "1" ]]; then
+  echo "  Bỏ qua Playwright Chromium (DEPLOY_SKIP_PLAYWRIGHT=1)."
+else
+  echo "  Playwright Chromium (cào listing Vipomall/PandaMall)…"
+  npx playwright install chromium || echo "  Cảnh báo: npx playwright install chromium thất bại — cào listing sẽ lỗi Executable doesn't exist."
+fi
 echo "  DONE [5/15]"
 
 echo "[6/15] Apply SQL migrations (new + modified)"
@@ -434,6 +440,9 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
 
   if [[ -n "${AI_SECRET}" ]]; then
     ensure_cron "messaging-partner-ai" "* * * * * curl -fsS -m 90 -X POST http://127.0.0.1:3000/api/cron/messaging-partner-ai -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/messaging-partner-ai.log 2>&1"
+    ensure_cron "listing-import-resume" "* * * * * curl -fsS -m 120 -X POST http://127.0.0.1:3000/api/cron/listing-import-resume -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/listing-import-resume.log 2>&1"
+    ensure_cron "source-stock-check" "* * * * * curl -fsS -m 120 -X POST http://127.0.0.1:3000/api/cron/source-stock-check -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/source-stock-check.log 2>&1"
+    ensure_cron "image-localization-resume" "* * * * * curl -fsS -m 120 -X POST http://127.0.0.1:3000/api/cron/image-localization-resume -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/image-localization-resume.log 2>&1"
   else
     echo "  Cảnh báo: thiếu MESSAGING_PARTNER_AI_CRON_SECRET/CRON_SECRET, bỏ qua cron messaging-partner-ai."
   fi

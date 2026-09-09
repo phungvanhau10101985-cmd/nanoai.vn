@@ -13,6 +13,7 @@ import {
   shouldRedirectToDepositAfterCreate,
 } from '@/lib/partner-website/shop/order-deposit'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { displayShopOrderCode } from '@/lib/messaging/shop-payment-reference'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import {
   partnerSiteOrderDepositPath,
@@ -120,7 +121,7 @@ export function PartnerSiteShopOrderDetailClient({ siteSlug, partnerSlug, locale
     )
   }
 
-  const code = (order.payment_reference || order.id).trim()
+  const code = displayShopOrderCode((order.payment_reference || '').trim()) || order.id.trim()
   const payable = partnerOrderPayableTotal({
     amount_after_discount: order.amount_after_discount ?? order.subtotal_amount,
     shipping_fee_amount: order.shipping_fee_amount,

@@ -269,6 +269,20 @@ function isOperationsSectionId(value: string | null | undefined): value is Opera
   return Boolean(value && (OPERATIONS_SECTION_IDS as readonly string[]).includes(value))
 }
 
+function isKnownSettingsPageSectionId(value: string | null | undefined): value is SettingsPageSectionId {
+  if (!value) return false
+  return (
+    (MESSAGING_SETTINGS_SECTION_IDS as readonly string[]).includes(value) ||
+    isPartnerWebsiteAdminSectionId(value) ||
+    isOperationsSectionId(value)
+  )
+}
+
+function liveSettingsSearchParams(): URLSearchParams {
+  if (typeof window === 'undefined') return new URLSearchParams()
+  return new URLSearchParams(window.location.search)
+}
+
 function normalizeSettingsSectionParam(value: string | null): SettingsPageSectionId | null {
   if (
     value === 'analytics' ||
@@ -771,22 +785,32 @@ export function PartnerMessagingSettingsClient({
     }
   }, [activeSection, locale, selectedPartner, selectedPartnerId])
 
+  const writeSettingsSearch = useCallback(
+    (mutate: (params: URLSearchParams) => void) => {
+      const next = liveSettingsSearchParams()
+      mutate(next)
+      const qs = next.toString()
+      const href = qs ? `${pathname}?${qs}` : pathname
+      const current = `${window.location.pathname}${window.location.search}`
+      if (current === href) return
+      router.replace(href, { scroll: false })
+    },
+    [pathname, router]
+  )
+
   const selectSettingsSection = useCallback((sectionId: SettingsPageSectionId) => {
     setActiveSection(sectionId)
-    const next = new URLSearchParams(window.location.search)
-    next.set('section', sectionId)
+    writeSettingsSearch((next) => {
+      next.set('section', sectionId)
+      if (sectionId === 'partner-website-editor') {
+        stripPartnerWebsiteVisualEditActiveParam(next)
+      }
+    })
     if (sectionId === 'partner-website-editor') {
-      stripPartnerWebsiteVisualEditActiveParam(next)
       requestPartnerWebsiteShowPreview()
     }
-    const qs = next.toString()
-    window.history.replaceState(
-      window.history.state ?? {},
-      '',
-      `${window.location.pathname}${qs ? `?${qs}` : ''}`
-    )
     requestAnimationFrame(scrollMessagingSettingsToPageTop)
-  }, [])
+  }, [writeSettingsSearch])
 
   useEffect(() => {
     if (sectionParam !== 'partner-website-logos') return
@@ -796,31 +820,35 @@ export function PartnerMessagingSettingsClient({
   useEffect(() => {
     if (sectionParam !== 'promotions') return
     setActiveSection('partner-website-promotions')
-    const next = new URLSearchParams(window.location.search)
-    next.set('section', 'partner-website-promotions')
-    const qs = next.toString()
-    window.history.replaceState(
-      window.history.state ?? {},
-      '',
-      `${window.location.pathname}${qs ? `?${qs}` : ''}#partner-website-birthday`
-    )
-  }, [sectionParam])
+    writeSettingsSearch((next) => {
+      next.set('section', 'partner-website-promotions')
+    })
+    if (typeof window !== 'undefined' && window.location.hash !== '#partner-website-birthday') {
+      window.location.hash = 'partner-website-birthday'
+    }
+  }, [sectionParam, writeSettingsSearch])
 
   useEffect(() => {
-    if (allVisibleSectionIds.length === 0) return
+    if (normalizedSectionParam === activeSection) return
+    if (!isKnownSettingsPageSectionId(activeSection)) return
+    if (activeSection === 'workspace' && !normalizedSectionParam) return
+    writeSettingsSearch((next) => {
+      next.set('section', activeSection)
+    })
+  }, [activeSection, normalizedSectionParam, writeSettingsSearch])
+
+  useEffect(() => {
+    if (!selectedPartner) return
     if (allVisibleSectionIds.includes(activeSection)) return
+    if (isKnownSettingsPageSectionId(activeSection)) return
+    if (allVisibleSectionIds.length === 0) return
     const fallback = allVisibleSectionIds[0] ?? 'workspace'
+    if (fallback === activeSection) return
     setActiveSection(fallback)
-    const next = new URLSearchParams(window.location.search)
-    next.set('section', fallback)
-    const qs = next.toString()
-    window.history.replaceState(
-      window.history.state ?? {},
-      '',
-      `${window.location.pathname}${qs ? `?${qs}` : ''}`
-    )
-    requestAnimationFrame(scrollMessagingSettingsToPageTop)
-  }, [activeSection, allVisibleSectionIds])
+    writeSettingsSearch((next) => {
+      next.set('section', fallback)
+    })
+  }, [activeSection, allVisibleSectionIds, selectedPartner, writeSettingsSearch])
 
   const facebookConnectHref = useMemo(() => {
     if (!selectedPartnerId) return '#'
@@ -849,22 +877,24 @@ export function PartnerMessagingSettingsClient({
   const setSelectedPartnerAndPersist = useCallback(
     (partnerId: string | null) => {
       setSelectedPartnerId(partnerId)
-      const next = new URLSearchParams(searchParams.toString())
+      const live = liveSettingsSearchParams()
       if (!partnerId) {
-        if (!next.has('partner')) return
-        next.delete('partner')
-      } else {
-        const current = searchParams.get('partner')
-        if (current === partnerId) return
-        next.set('partner', partnerId)
+        if (!live.has('partner')) return
+        writeSettingsSearch((next) => {
+          next.delete('partner')
+        })
+        return
       }
-      const qs = next.toString()
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+      if (live.get('partner') === partnerId) return
+      writeSettingsSearch((next) => {
+        next.set('partner', partnerId)
+      })
     },
-    [pathname, router, searchParams]
+    [writeSettingsSearch]
   )
 
   useEffect(() => {
+    if (partners.length === 0) return
     if (selectedPartnerId && partners.some((p) => p.id === selectedPartnerId)) return
     const fallback = queryPartnerId && partners.some((p) => p.id === queryPartnerId) ? queryPartnerId : partners[0]?.id ?? null
     if (fallback !== selectedPartnerId) setSelectedPartnerId(fallback)
@@ -911,10 +941,9 @@ export function PartnerMessagingSettingsClient({
     if (!status) return
     const cur = partners.find((p) => p.id === selectedPartnerId) ?? null
     if (!partnerAllowsPerm(cur, 'integrations_channels')) {
-      const next = new URLSearchParams(searchParams.toString())
-      next.delete('fb_oauth')
-      const qs = next.toString()
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+      writeSettingsSearch((next) => {
+        next.delete('fb_oauth')
+      })
       return
     }
     const statusText: Record<string, { title: string; destructive?: boolean }> = {
@@ -938,11 +967,10 @@ export function PartnerMessagingSettingsClient({
     } else if (!mapped.destructive) {
       loadChannelStatus()
     }
-    const next = new URLSearchParams(searchParams.toString())
-    next.delete('fb_oauth')
-    const qs = next.toString()
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-  }, [loadChannelStatus, loadFacebookPendingPages, partners, pathname, router, searchParams, selectedPartnerId, toast])
+    writeSettingsSearch((next) => {
+      next.delete('fb_oauth')
+    })
+  }, [loadChannelStatus, loadFacebookPendingPages, partners, selectedPartnerId, toast, writeSettingsSearch])
 
   const refreshPartners = useCallback(() => {
     startTransition(async () => {
@@ -1958,6 +1986,7 @@ export function PartnerMessagingSettingsClient({
   }
 
   useEffect(() => {
+    if (activeSection !== 'payment') return
     if (!selectedPartnerId || !isOwnerSelected || paymentHydratingRef.current) return
     const nextSnapshot = paymentSnapshot(selectedPartnerId)
     if (nextSnapshot === paymentLastSavedSnapshotRef.current) return
@@ -1969,7 +1998,7 @@ export function PartnerMessagingSettingsClient({
     return () => {
       if (paymentAutoSaveTimerRef.current) clearTimeout(paymentAutoSaveTimerRef.current)
     }
-  }, [isOwnerSelected, paymentSnapshot, persistPaymentSettings, selectedPartnerId])
+  }, [activeSection, isOwnerSelected, paymentSnapshot, persistPaymentSettings, selectedPartnerId])
 
   useEffect(() => {
     return () => {

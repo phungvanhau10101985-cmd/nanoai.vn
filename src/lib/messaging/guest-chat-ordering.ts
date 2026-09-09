@@ -16,6 +16,7 @@ import {
   insertPartnerOrderDraftFromPg,
   insertPartnerOrderEventFromPg,
   insertPartnerPaymentProofFromPg,
+  allocateNextPartnerShopOrderCodeFromPg,
   parseVndAmountFromText,
   replacePartnerOrderLinesFromPg,
   syncPrimaryPartnerOrderLineFromOrderFromPg,
@@ -54,7 +55,11 @@ import {
   emailCustomerOrderPaymentManualReview,
   emailCustomerOrderPaymentVerified,
 } from '@/lib/messaging/partner-order-customer-email'
-import { buildSepayOrderPaymentReference, buildStablePaymentReference } from '@/lib/messaging/shop-payment-reference'
+import {
+  buildSepayOrderPaymentReference,
+  buildStablePaymentReference,
+  sepayTransferContentFromOrderCode,
+} from '@/lib/messaging/shop-payment-reference'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
 import {
   fetchPartnerCustomerProfileByEmailFromPg,
@@ -457,7 +462,7 @@ function buildOrderPaymentQrBySettings(input: {
       acc: String(input.settings.sepay_account_number ?? '').trim(),
       bank: String(input.settings.sepay_bank_code ?? '').trim(),
       amount: Math.max(0, Math.round(input.amount || 0)),
-      des: input.paymentReference,
+      des: sepayTransferContentFromOrderCode(input.paymentReference),
       template: input.settings.sepay_qr_template === 'qronly' ? 'qronly' : 'compact',
     })
   }
@@ -494,6 +499,22 @@ function partnerPaymentDisplayFromSettings(settings: PartnerPaymentSettingsRow):
     account_number: String(settings.account_number ?? '').trim(),
     account_holder: String(settings.account_holder ?? '').trim(),
   }
+}
+
+async function resolveCheckoutPaymentReference(input: {
+  partnerId: string
+  shopDisplayName: string
+  existingReference: string
+  orderId: string
+  useSepayQr: boolean
+}): Promise<string> {
+  const existing = String(input.existingReference || '').trim()
+  if (existing) return existing
+  const allocated = await allocateNextPartnerShopOrderCodeFromPg(input.partnerId, input.shopDisplayName)
+  if (allocated) return allocated
+  return input.useSepayQr
+    ? buildSepayOrderPaymentReference(input.orderId, input.shopDisplayName)
+    : buildStablePaymentReference(input.orderId, input.shopDisplayName)
 }
 
 /** W1.7 — thông tin ví điện tử hiển thị cho khách, chỉ có khi shop bật + đã cấu hình đủ. */
@@ -707,9 +728,13 @@ export async function completeOrderCheckout(input: {
     settings.sepay_enabled === true &&
     Boolean(String(settings.sepay_bank_code ?? '').trim()) &&
     Boolean(String(settings.sepay_account_number ?? '').trim())
-  const paymentReference = useSepayQr
-    ? buildSepayOrderPaymentReference(oldOrder.id, shopDisplayName)
-    : buildStablePaymentReference(oldOrder.id, shopDisplayName)
+  const paymentReference = await resolveCheckoutPaymentReference({
+    partnerId: input.partnerId,
+    shopDisplayName,
+    existingReference: oldOrder.payment_reference,
+    orderId: oldOrder.id,
+    useSepayQr,
+  })
   const qty = Math.max(1, Math.floor(input.form.quantity || 1))
   const identity = {
     emailNormalized: input.form.customerEmail,
@@ -1174,9 +1199,13 @@ export async function completeCartCheckout(input: {
     settings.sepay_enabled === true &&
     Boolean(String(settings.sepay_bank_code ?? '').trim()) &&
     Boolean(String(settings.sepay_account_number ?? '').trim())
-  const paymentReference = useSepayQr
-    ? buildSepayOrderPaymentReference(draft.id, shopDisplayName)
-    : buildStablePaymentReference(draft.id, shopDisplayName)
+  const paymentReference = await resolveCheckoutPaymentReference({
+    partnerId: input.partnerId,
+    shopDisplayName,
+    existingReference: draft.payment_reference,
+    orderId: draft.id,
+    useSepayQr,
+  })
   let qrUrl = ''
   if (calc.requiredAmount > 0) {
     if (paymentMethod === 'ewallet') {

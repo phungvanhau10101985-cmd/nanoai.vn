@@ -225,6 +225,7 @@ export interface Database {
           partner_capabilities: unknown
           external_shop_origin: string | null
           external_shop_login_path: string
+          shop_order_seq: number
           created_at: string
           updated_at: string
         }
@@ -253,6 +254,7 @@ export interface Database {
           contact_messenger_url?: string | null
           contact_instagram_url?: string | null
           partner_capabilities?: unknown
+          shop_order_seq?: number
           created_at?: string
           updated_at?: string
         }
@@ -281,6 +283,7 @@ export interface Database {
           contact_messenger_url?: string | null
           contact_instagram_url?: string | null
           partner_capabilities?: unknown
+          shop_order_seq?: number
           created_at?: string
           updated_at?: string
         }
@@ -1038,6 +1041,16 @@ export interface Database {
           price_high_hint: string | null
           rating_group_id: number | null
           question_group_id: number | null
+          source_stock_status?: string
+          source_stock_checked_at?: string | null
+          source_stock_next_check_at?: string | null
+          source_stock_error?: string | null
+          source_stock_check_platform?: string | null
+          admin_source_batch_scanned_at?: string | null
+          image_localization_status?: string
+          image_localization_language?: string | null
+          image_localized_at?: string | null
+          image_localization_error?: string | null
           created_at: string
           updated_at: string
         }
@@ -1120,6 +1133,16 @@ export interface Database {
           price_high_hint?: string | null
           rating_group_id?: number | null
           question_group_id?: number | null
+          source_stock_status?: string
+          source_stock_checked_at?: string | null
+          source_stock_next_check_at?: string | null
+          source_stock_error?: string | null
+          source_stock_check_platform?: string | null
+          admin_source_batch_scanned_at?: string | null
+          image_localization_status?: string
+          image_localization_language?: string | null
+          image_localized_at?: string | null
+          image_localization_error?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1202,7 +1225,302 @@ export interface Database {
           price_high_hint?: string | null
           rating_group_id?: number | null
           question_group_id?: number | null
+          source_stock_status?: string
+          source_stock_checked_at?: string | null
+          source_stock_next_check_at?: string | null
+          source_stock_error?: string | null
+          source_stock_check_platform?: string | null
+          admin_source_batch_scanned_at?: string | null
+          image_localization_status?: string
+          image_localization_language?: string | null
+          image_localized_at?: string | null
+          image_localization_error?: string | null
           created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      messaging_partner_source_stock_worker_state: {
+        Row: {
+          partner_id: string
+          paused: boolean
+          updated_at: string | null
+          checking_inventory_id: string | null
+          checking_started_at: string | null
+          last_done_inventory_id: string | null
+          last_done_finished_at: string | null
+          last_done_source_stock_status: string | null
+          last_products_commit_ok: boolean | null
+          last_products_commit_at: string | null
+          last_products_commit_detail: string | null
+        }
+        Insert: {
+          partner_id: string
+          paused?: boolean
+          updated_at?: string | null
+          checking_inventory_id?: string | null
+          checking_started_at?: string | null
+          last_done_inventory_id?: string | null
+          last_done_finished_at?: string | null
+          last_done_source_stock_status?: string | null
+          last_products_commit_ok?: boolean | null
+          last_products_commit_at?: string | null
+          last_products_commit_detail?: string | null
+        }
+        Update: {
+          partner_id?: string
+          paused?: boolean
+          updated_at?: string | null
+          checking_inventory_id?: string | null
+          checking_started_at?: string | null
+          last_done_inventory_id?: string | null
+          last_done_finished_at?: string | null
+          last_done_source_stock_status?: string | null
+          last_products_commit_ok?: boolean | null
+          last_products_commit_at?: string | null
+          last_products_commit_detail?: string | null
+        }
+        Relationships: []
+      }
+      messaging_partner_image_localization_jobs: {
+        Row: {
+          job_id: string
+          partner_id: string
+          status: string
+          phase: string | null
+          message: string | null
+          payload_json: Json | null
+          current: number | null
+          total: number | null
+          done: number | null
+          failed: number | null
+          skipped: number | null
+          percent: number | null
+          current_product_id: string | null
+          cancel_requested: boolean
+          queue_product_ids: Json | null
+          processed_product_ids: Json | null
+          job_queue_truncated: boolean | null
+          recent_results: Json | null
+          skipped_product_reports: Json | null
+          language: string | null
+          force: boolean | null
+          dry_run: boolean | null
+          gemini_mode: string | null
+          local_image_only: boolean | null
+          resume_count: number | null
+          created_by: string | null
+          created_at: string | null
+          updated_at: string | null
+          started_at: string | null
+          finished_at: string | null
+        }
+        Insert: {
+          job_id: string
+          partner_id: string
+          status?: string
+          phase?: string | null
+          message?: string | null
+          payload_json?: Json | null
+          current?: number | null
+          total?: number | null
+          done?: number | null
+          failed?: number | null
+          skipped?: number | null
+          percent?: number | null
+          current_product_id?: string | null
+          cancel_requested?: boolean
+          queue_product_ids?: Json | null
+          processed_product_ids?: Json | null
+          job_queue_truncated?: boolean | null
+          recent_results?: Json | null
+          skipped_product_reports?: Json | null
+          language?: string | null
+          force?: boolean | null
+          dry_run?: boolean | null
+          gemini_mode?: string | null
+          local_image_only?: boolean | null
+          resume_count?: number | null
+          created_by?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          started_at?: string | null
+          finished_at?: string | null
+        }
+        Update: {
+          job_id?: string
+          partner_id?: string
+          status?: string
+          phase?: string | null
+          message?: string | null
+          payload_json?: Json | null
+          current?: number | null
+          total?: number | null
+          done?: number | null
+          failed?: number | null
+          skipped?: number | null
+          percent?: number | null
+          current_product_id?: string | null
+          cancel_requested?: boolean
+          queue_product_ids?: Json | null
+          processed_product_ids?: Json | null
+          job_queue_truncated?: boolean | null
+          recent_results?: Json | null
+          skipped_product_reports?: Json | null
+          language?: string | null
+          force?: boolean | null
+          dry_run?: boolean | null
+          gemini_mode?: string | null
+          local_image_only?: boolean | null
+          resume_count?: number | null
+          created_by?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          started_at?: string | null
+          finished_at?: string | null
+        }
+        Relationships: []
+      }
+      messaging_partner_image_localization_settings: {
+        Row: {
+          partner_id: string
+          deepseek_off_peak_only: boolean
+          updated_at: string | null
+        }
+        Insert: {
+          partner_id: string
+          deepseek_off_peak_only?: boolean
+          updated_at?: string | null
+        }
+        Update: {
+          partner_id?: string
+          deepseek_off_peak_only?: boolean
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      messaging_partner_listing_import_drafts: {
+        Row: {
+          id: string
+          partner_id: string
+          job_id: string
+          source: string
+          source_url: string
+          source_offer_id: string | null
+          status: string
+          message: string | null
+          errors: Json
+          warnings: Json
+          raw_payload: Json | null
+          product_data: Json | null
+          published_inventory_id: string | null
+          created_at: string
+          updated_at: string
+          finished_at: string | null
+        }
+        Insert: {
+          id?: string
+          partner_id: string
+          job_id: string
+          source?: string
+          source_url?: string
+          source_offer_id?: string | null
+          status?: string
+          message?: string | null
+          errors?: Json
+          warnings?: Json
+          raw_payload?: Json | null
+          product_data?: Json | null
+          published_inventory_id?: string | null
+          created_at?: string
+          updated_at?: string
+          finished_at?: string | null
+        }
+        Update: {
+          id?: string
+          partner_id?: string
+          job_id?: string
+          source?: string
+          source_url?: string
+          source_offer_id?: string | null
+          status?: string
+          message?: string | null
+          errors?: Json
+          warnings?: Json
+          raw_payload?: Json | null
+          product_data?: Json | null
+          published_inventory_id?: string | null
+          created_at?: string
+          updated_at?: string
+          finished_at?: string | null
+        }
+        Relationships: []
+      }
+      messaging_partner_listing_import_queue_revocations: {
+        Row: {
+          partner_id: string
+          queue_token: string
+          revoked_at: string
+        }
+        Insert: {
+          partner_id: string
+          queue_token: string
+          revoked_at?: string
+        }
+        Update: {
+          partner_id?: string
+          queue_token?: string
+          revoked_at?: string
+        }
+        Relationships: []
+      }
+      messaging_partner_listing_import_queues: {
+        Row: {
+          partner_id: string
+          queue_token: string
+          payload_json: Json
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          partner_id: string
+          queue_token: string
+          payload_json?: Json
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          partner_id?: string
+          queue_token?: string
+          payload_json?: Json
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      messaging_partner_listing_import_settings: {
+        Row: {
+          partner_id: string
+          cookie_json: Json
+          pandamall_username: string
+          pandamall_password: string
+          updated_at: string
+        }
+        Insert: {
+          partner_id: string
+          cookie_json?: Json
+          pandamall_username?: string
+          pandamall_password?: string
+          updated_at?: string
+        }
+        Update: {
+          partner_id?: string
+          cookie_json?: Json
+          pandamall_username?: string
+          pandamall_password?: string
           updated_at?: string
         }
         Relationships: []

@@ -29,6 +29,29 @@ export type PartnerCustomDomainResolveRow = {
   use_for_site: boolean
 }
 
+export type UpsertPartnerCustomDomainResult =
+  | { ok: true; row: PartnerCustomDomainRow }
+  | { ok: false; error: 'hostname_taken' | 'save_failed' }
+
+const DOMAIN_RETURNING = `id, partner_id, hostname, verification_token,
+            dns_verified_at, ssl_status, ssl_provisioned_at, ssl_last_error,
+            use_for_chat, use_for_site, created_at, updated_at`
+
+function pgErrCode(e: unknown): string | null {
+  if (!e || typeof e !== 'object') return null
+  const code = (e as { code?: unknown }).code
+  return typeof code === 'string' ? code : null
+}
+
+export function isHostnameUniqueViolation(e: unknown): boolean {
+  if (pgErrCode(e) !== '23505') return false
+  const constraint = String((e as { constraint?: unknown }).constraint ?? '').toLowerCase()
+  const message = String((e as { message?: unknown }).message ?? '').toLowerCase()
+  const detail = String((e as { detail?: unknown }).detail ?? '').toLowerCase()
+  if (constraint.includes('partner') && !constraint.includes('hostname')) return false
+  return constraint.includes('hostname') || message.includes('hostname') || detail.includes('hostname')
+}
+
 function mapRow(r: Record<string, unknown>): PartnerCustomDomainRow {
   return {
     id: String(r.id),
@@ -50,14 +73,42 @@ export async function fetchPartnerCustomDomainByPartnerIdPg(
   partnerId: string
 ): Promise<PartnerCustomDomainRow | null> {
   if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `select ${DOMAIN_RETURNING}
+       from public.messaging_partner_custom_domains
+       where partner_id = $1::uuid
+       limit 1`,
+      [partnerId]
+    )
+    return row ? mapRow(row) : null
+  } catch (e) {
+    console.error('[fetchPartnerCustomDomainByPartnerIdPg]', e)
+    return null
+  }
+}
+
+async function updatePartnerCustomDomainRowPg(input: {
+  partnerId: string
+  hostname: string
+  verificationToken: string
+  useForChat: boolean
+  useForSite: boolean
+}): Promise<PartnerCustomDomainRow | null> {
   const row = await pgQueryOne<Record<string, unknown>>(
-    `select id, partner_id, hostname, verification_token,
-            dns_verified_at, ssl_status, ssl_provisioned_at, ssl_last_error,
-            use_for_chat, use_for_site, created_at, updated_at
-     from public.messaging_partner_custom_domains
+    `update public.messaging_partner_custom_domains set
+       hostname = $2,
+       verification_token = $3,
+       use_for_chat = $4,
+       use_for_site = $5,
+       dns_verified_at = null,
+       ssl_status = 'pending',
+       ssl_provisioned_at = null,
+       ssl_last_error = null,
+       updated_at = timezone('utc', now())
      where partner_id = $1::uuid
-     limit 1`,
-    [partnerId]
+     returning ${DOMAIN_RETURNING}`,
+    [input.partnerId, input.hostname, input.verificationToken, input.useForChat, input.useForSite]
   )
   return row ? mapRow(row) : null
 }
@@ -68,28 +119,37 @@ export async function upsertPartnerCustomDomainPg(input: {
   verificationToken: string
   useForChat: boolean
   useForSite: boolean
-}): Promise<PartnerCustomDomainRow | null> {
-  if (!isPgConfigured()) return null
-  const row = await pgQueryOne<Record<string, unknown>>(
-    `insert into public.messaging_partner_custom_domains
-       (partner_id, hostname, verification_token, use_for_chat, use_for_site, updated_at)
-     values ($1::uuid, $2, $3, $4, $5, timezone('utc', now()))
-     on conflict (partner_id) do update set
-       hostname = excluded.hostname,
-       verification_token = excluded.verification_token,
-       use_for_chat = excluded.use_for_chat,
-       use_for_site = excluded.use_for_site,
-       dns_verified_at = null,
-       ssl_status = 'pending',
-       ssl_provisioned_at = null,
-       ssl_last_error = null,
-       updated_at = timezone('utc', now())
-     returning id, partner_id, hostname, verification_token,
-               dns_verified_at, ssl_status, ssl_provisioned_at, ssl_last_error,
-               use_for_chat, use_for_site, created_at, updated_at`,
-    [input.partnerId, input.hostname, input.verificationToken, input.useForChat, input.useForSite]
-  )
-  return row ? mapRow(row) : null
+}): Promise<UpsertPartnerCustomDomainResult> {
+  if (!isPgConfigured()) return { ok: false, error: 'save_failed' }
+  try {
+    const updated = await updatePartnerCustomDomainRowPg(input)
+    if (updated) return { ok: true, row: updated }
+
+    const inserted = await pgQueryOne<Record<string, unknown>>(
+      `insert into public.messaging_partner_custom_domains
+         (partner_id, hostname, verification_token, use_for_chat, use_for_site, updated_at)
+       values ($1::uuid, $2, $3, $4, $5, timezone('utc', now()))
+       returning ${DOMAIN_RETURNING}`,
+      [input.partnerId, input.hostname, input.verificationToken, input.useForChat, input.useForSite]
+    )
+    if (inserted) return { ok: true, row: mapRow(inserted) }
+    return { ok: false, error: 'save_failed' }
+  } catch (e) {
+    if (isHostnameUniqueViolation(e)) {
+      return { ok: false, error: 'hostname_taken' }
+    }
+    if (pgErrCode(e) === '23505') {
+      try {
+        const raced = await updatePartnerCustomDomainRowPg(input)
+        if (raced) return { ok: true, row: raced }
+      } catch (retryErr) {
+        if (isHostnameUniqueViolation(retryErr)) return { ok: false, error: 'hostname_taken' }
+        console.error('[upsertPartnerCustomDomainPg] retry', retryErr)
+      }
+    }
+    console.error('[upsertPartnerCustomDomainPg]', e)
+    return { ok: false, error: 'save_failed' }
+  }
 }
 
 export async function updatePartnerCustomDomainVerificationPg(input: {

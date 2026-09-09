@@ -181,3 +181,55 @@ export function catalogFeedUtf8Tsv(lines: string[]): Buffer {
   const body = `${lines.join('\n')}\n`
   return Buffer.from(body, 'utf8')
 }
+
+function parseCatalogWeightNumber(raw: string): number | null {
+  const t = raw.trim().replace(',', '.')
+  if (!t) return null
+  const n = Number(t)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return n
+}
+
+function formatCatalogWeightGrams(grams: number): string {
+  const rounded = Math.round(grams * 1000) / 1000
+  const text = Number.isInteger(rounded) ? String(rounded) : String(rounded)
+  return `${text} g`
+}
+
+/**
+ * Google / Meta / TikTok `shipping_weight` = `{value} {unit}`.
+ * Trọng lượng vận chuyển hàng shop lưu theo **gram (g)**, không mặc định kg.
+ * Số trần (vd. 500) → `500 g`. Chuỗi đã có kg thì đổi sang g.
+ */
+export function catalogFeedShippingWeight(row: Pick<CatalogFeedInventoryRow, 'weight'>): string {
+  const raw = String(row.weight ?? '').trim()
+  if (!raw) return ''
+
+  const lbOz = raw.match(/^([\d.,]+)\s*(lb|lbs|oz|ounce|ounces|pound|pounds)\s*$/i)
+  if (lbOz) {
+    const n = parseCatalogWeightNumber(lbOz[1])
+    if (n == null) return ''
+    const unit = /oz|ounce/i.test(lbOz[2]) ? 'oz' : 'lb'
+    return `${n} ${unit}`
+  }
+
+  const kg = raw.match(/^([\d.,]+)\s*(kg|kgs|kilogram|kilograms)\s*$/i)
+  if (kg) {
+    const n = parseCatalogWeightNumber(kg[1])
+    if (n == null) return ''
+    return formatCatalogWeightGrams(n * 1000)
+  }
+
+  const grams = raw.match(/^([\d.,]+)\s*(g|gr|gram|grams)\s*$/i)
+  if (grams) {
+    const n = parseCatalogWeightNumber(grams[1])
+    if (n == null) return ''
+    return formatCatalogWeightGrams(n)
+  }
+
+  const n = parseCatalogWeightNumber(raw)
+  if (n == null) return ''
+  // Số thập phân < 20: file mẫu cũ ghi 0.5 / 0.8 như kg → đổi sang gram.
+  if (n < 20 && !Number.isInteger(n)) return formatCatalogWeightGrams(n * 1000)
+  return formatCatalogWeightGrams(n)
+}

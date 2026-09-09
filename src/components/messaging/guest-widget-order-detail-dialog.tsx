@@ -10,7 +10,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
-import { guestFacingOrderRef } from '@/lib/messaging/widget-order-ref-display'
+import { guestFacingOrderRef, guestFacingTransferMemo } from '@/lib/messaging/widget-order-ref-display'
 import { GuestWidgetOrderDepositPanel, guestOrderNeedsDepositUi } from '@/components/messaging/guest-widget-order-deposit-panel'
 import { OrderVariantImagesRow } from '@/components/messaging/order-variant-images-row'
 import { OrderVariantLinesDetail } from '@/components/messaging/order-variant-lines-detail'
@@ -160,7 +160,7 @@ export function GuestWidgetOrderDetailDialog({
 
   const img = row ? resolveExternalImageDisplayUrl(row.product_image_url.trim()) : ''
   const showImg = row && /^https?:\/\//i.test(img)
-  const refMemo = row?.payment_reference.trim() ?? ''
+  const refMemo = row ? guestFacingTransferMemo(row) : ''
   const displayOrderRef = row ? guestFacingOrderRef(row) : ''
   const showSeparateTransferMemo = Boolean(
     row && refMemo && displayOrderRef && refMemo.toUpperCase() !== displayOrderRef.toUpperCase()

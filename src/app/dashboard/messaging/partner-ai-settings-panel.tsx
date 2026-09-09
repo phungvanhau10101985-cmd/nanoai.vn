@@ -55,6 +55,9 @@ import {
   type PartnerAiUsageQuery,
 } from '@/app/dashboard/messaging/actions'
 import { PartnerInventoryExternalSyncCard } from '@/app/dashboard/messaging/partner-inventory-external-sync-card'
+import { PartnerListingImportCard } from '@/app/dashboard/messaging/partner-listing-import-card'
+import { PartnerSourceStockCheckCard } from '@/app/dashboard/messaging/partner-source-stock-check-card'
+import { PartnerImageLocalizationCard } from '@/app/dashboard/messaging/partner-image-localization-card'
 import { PartnerInventoryEmbeddingErrorsPanel } from '@/app/dashboard/messaging/partner-inventory-embedding-errors-panel'
 import { buildGuestConsultChatAbsoluteUrl, buildGuestConsultChatPath } from '@/lib/messaging/build-guest-consult-chat-link'
 import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
@@ -251,6 +254,7 @@ export function PartnerAiSettingsPanel({
   const [inventoryPageSize, setInventoryPageSize] = useState(120)
   const [inventoryPage, setInventoryPage] = useState(0)
   const [inventoryLoadingMore, setInventoryLoadingMore] = useState(false)
+  const [selectedInventoryIds, setSelectedInventoryIds] = useState<Set<string>>(() => new Set())
   const [tokenUsageRows, setTokenUsageRows] = useState<PartnerAiTokenUsageStatRowWithCostEstimate[]>([])
   const [tokenUsageKindRows, setTokenUsageKindRows] = useState<PartnerAiTokenUsageKindStatRow[]>([])
   const [tokenDailyRows, setTokenDailyRows] = useState<PartnerAiTokenDailyStatRow[]>([])
@@ -375,6 +379,7 @@ export function PartnerAiSettingsPanel({
     setLoadErr(null)
     setSettingsLoaded(false)
     setInventory([])
+    setSelectedInventoryIds(new Set())
     setInventoryTotalCount(0)
     setInventoryPage(0)
     setEmbeddingStats(null)
@@ -1110,11 +1115,31 @@ export function PartnerAiSettingsPanel({
               refreshKey={embeddingErrorsRefreshKey}
             />
             <PartnerInventoryExternalSyncCard partnerId={partnerId} t={t} toast={toast} />
+            <PartnerListingImportCard partnerId={partnerId} t={t} />
+            <PartnerSourceStockCheckCard partnerId={partnerId} t={t} />
+            <PartnerImageLocalizationCard partnerId={partnerId} t={t} selectedInventoryIds={selectedInventoryIds} />
             <InventoryEditor
               partnerId={partnerId}
               partnerChatSlug={partnerChatSlug}
               t={t}
               rows={inventory}
+              selectedIds={selectedInventoryIds}
+              onToggleSelected={(id) => {
+                setSelectedInventoryIds((prev) => {
+                  const next = new Set(prev)
+                  if (next.has(id)) next.delete(id)
+                  else next.add(id)
+                  return next
+                })
+              }}
+              onToggleAllVisible={(ids, selectAll) => {
+                setSelectedInventoryIds((prev) => {
+                  const next = new Set(prev)
+                  if (selectAll) ids.forEach((id) => next.add(id))
+                  else ids.forEach((id) => next.delete(id))
+                  return next
+                })
+              }}
               onChanged={load}
               onImportCompleted={runEmbeddingSync}
               saveOkMessage={saveOkMessage}
@@ -2120,6 +2145,9 @@ function InventoryEditor({
   partnerChatSlug,
   t,
   rows,
+  selectedIds,
+  onToggleSelected,
+  onToggleAllVisible,
   onChanged,
   onImportCompleted,
   saveOkMessage,
@@ -2135,6 +2163,9 @@ function InventoryEditor({
   partnerChatSlug: string
   t: AiT
   rows: InvRow[]
+  selectedIds: Set<string>
+  onToggleSelected: (id: string) => void
+  onToggleAllVisible: (ids: string[], selectAll: boolean) => void
   onChanged: () => void
   onImportCompleted?: () => void
   saveOkMessage: string
@@ -2670,12 +2701,39 @@ function InventoryEditor({
         <p className="text-sm text-muted-foreground">
           {vectorFilterActive ? t.inventoryVectorSearchNoResults : t.emptyInventory}
         </p>
-      ) : null}
+      ) : (
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={displayRows.length > 0 && displayRows.every((r) => selectedIds.has(r.id))}
+            ref={(el) => {
+              if (!el) return
+              const n = displayRows.filter((r) => selectedIds.has(r.id)).length
+              el.indeterminate = n > 0 && n < displayRows.length
+            }}
+            onChange={() => {
+              const all = displayRows.length > 0 && displayRows.every((r) => selectedIds.has(r.id))
+              onToggleAllVisible(
+                displayRows.map((r) => r.id),
+                !all
+              )
+            }}
+          />
+          {t.imageLocSelectProduct}
+        </label>
+      )}
       <ul className="space-y-2 max-h-[36vh] overflow-y-auto pr-1">
         {displayRows.map((r) => (
           <li key={r.id} className="rounded-lg border bg-card p-3 text-sm shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="flex min-w-0 gap-2">
+                <input
+                  type="checkbox"
+                  className="mt-1 shrink-0"
+                  checked={selectedIds.has(r.id)}
+                  onChange={() => onToggleSelected(r.id)}
+                  aria-label={t.imageLocSelectProduct}
+                />
                 {(() => {
                   const iu = r.image_url?.trim() ?? ''
                   const show =
@@ -2697,6 +2755,22 @@ function InventoryEditor({
                   {r.sku ? (
                     <Badge variant="outline" className="text-[10px] font-mono font-normal">
                       {r.sku}
+                    </Badge>
+                  ) : null}
+                  {r.image_localization_status && r.image_localization_status !== 'pending' ? (
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] font-normal ${
+                        r.image_localization_status === 'localized'
+                          ? 'border-emerald-300 text-emerald-800'
+                          : r.image_localization_status === 'failed'
+                            ? 'border-red-300 text-red-800'
+                            : r.image_localization_status === 'processing'
+                              ? 'border-violet-300 text-violet-800'
+                              : ''
+                      }`}
+                    >
+                      {r.image_localization_status}
                     </Badge>
                   ) : null}
                 </div>

@@ -8,6 +8,7 @@ import {
   looksLikeEmsTrackingCode,
   parseEmsExportRows,
 } from './ems-excel'
+import * as XLSX from 'xlsx'
 import { parseCodSettlementRows } from './ems-cod-settlement'
 import type { PartnerEmsRecord } from './ems-types'
 import { accumulateOpsStats, deliveryBucket, hasCod, matchesEmsSyncChip, matchesOpsBucket, periodKey, vnCalendarParts } from './shipping-ops'
@@ -61,9 +62,22 @@ describe('partner EMS shipping excel/ops', () => {
     assert.equal(parsed.rows[0].product_code.includes('H9441'), true)
   })
 
+  it('uses gram weight header TRONG_LUONG (g) on the EMS sample', () => {
+    const sample = buildEmsShipmentSampleXlsx()
+    const wb = XLSX.read(sample.bytes, { type: 'buffer' })
+    const sheet = wb.Sheets[wb.SheetNames[0]]
+    const rows = XLSX.utils.sheet_to_json<(unknown | null)[]>(sheet, { header: 1, raw: true })
+    const header = (rows[0] || []).map((c) => String(c || ''))
+    assert.equal(header[2], 'TRONG_LUONG (g)')
+    assert.equal(Number(rows[1]?.[2]), 500)
+    assert.equal(Number(rows[2]?.[2]), 800)
+  })
+
   it('extracts DH/DC order codes and EMS tracking', () => {
     assert.equal(extractOrderCodeFromRecipient('Nguyen Van A DH033'), 'DH033')
+    assert.equal(extractOrderCodeFromRecipient('188COMVN01'), '188COMVN01')
     assert.equal(isShopOrderCode('DC42'), true)
+    assert.equal(isShopOrderCode('188COMVN01'), true)
     assert.equal(looksLikeEmsTrackingCode('EE123456789VN'), true)
     assert.equal(looksLikeEmsTrackingCode('not-a-code'), false)
   })

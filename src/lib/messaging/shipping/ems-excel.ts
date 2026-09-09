@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx'
+import { isSequentialShopOrderCode } from '@/lib/messaging/shop-payment-reference'
 
 const ORDER_CODE_RE = /\b(DH\d+)\b/i
 const DC_CODE_RE = /\b(DC\d+)\b/i
@@ -19,7 +20,7 @@ const INVALID_ORDER_PLACEHOLDERS = new Set([
 const SHOP_EXPORT_HEADERS: Record<string, string[]> = {
   reference_code: ['MA_VAN_DON'],
   product_name: ['TEN_SP'],
-  weight: ['TRONG_LUONG'],
+  weight: ['TRONG_LUONG', 'TRONG_LUONG_(G)', 'TRONG_LUONG(G)', 'KHOI_LUONG'],
   customer_name: ['TEN_KH'],
   address: ['DIA_CHI_KH'],
   phone: ['SDT_KH', 'SDT'],
@@ -181,6 +182,9 @@ function normalizeExternalOrderCode(code: string): string | null {
   if (dh?.[1]) return dh[1].toUpperCase()
   const dc = DC_CODE_RE.exec(text)
   if (dc?.[1]) return dc[1].toUpperCase()
+  if (isSequentialShopOrderCode(text)) {
+    return text.replace(/[\s_-]+/g, '').toUpperCase().replace(/^SEVQR/, '')
+  }
   if (/^[A-Z]{1,4}\d{2,}$/.test(text)) return text
   return null
 }
@@ -194,7 +198,12 @@ export function extractOrderCodeFromRecipient(text: string | null | undefined): 
 export function isShopOrderCode(orderCode: string | null | undefined): boolean {
   const text = (orderCode || '').trim().toUpperCase()
   if (!text) return false
-  return Boolean(ORDER_CODE_RE.exec(text) || DC_CODE_RE.exec(text) || /^[A-Z]{1,6}\d{2,}$/.test(text))
+  return Boolean(
+    ORDER_CODE_RE.exec(text) ||
+      DC_CODE_RE.exec(text) ||
+      isSequentialShopOrderCode(text) ||
+      /^[A-Z]{1,6}\d{2,}$/.test(text)
+  )
 }
 
 function resolveOrderCode(input: {
@@ -380,12 +389,12 @@ function aoaToXlsx(aoa: unknown[][], sheetName: string): Buffer {
 
 export function buildEmsShipmentSampleXlsx(): { bytes: Buffer; filename: string } {
   const todayNote =
-    'Cột A: mã vận đơn EMS · I: mã đơn shop (DHxxx/DCxxx) · G: COD · D: tên khách · H: mã SP kho. Import lần 2: mã cột A đã có thì cập nhật, mã mới thì thêm dòng.'
+    'Cột A: mã vận đơn EMS · I: mã đơn shop (DHxxx/DCxxx) · G: COD · D: tên khách · H: mã SP kho · TRONG_LUONG đơn vị gram (g), không phải kg. Import lần 2: mã cột A đã có thì cập nhật, mã mới thì thêm dòng.'
   const bytes = aoaToXlsx(
     [
-      ['MA_VAN_DON', 'TEN_SP', 'TRONG_LUONG', 'TEN_KH', 'DIA_CHI_KH', 'SDT_KH', 'COD', 'MA_SP', 'DON_HANG'],
-      ['EE123456789VN', 'Áo thun nam', 0.5, 'Nguyễn Văn A', '123 Đường ABC, Q.1, TP.HCM', '0901234567', 150000, 'H9441/1/xl', 'DH131'],
-      ['EE987654321VN', 'Quần jean', 0.8, 'Trần Thị B', '456 Đường XYZ, Q.3, TP.HCM', '0912345678', 0, 'H0723/40/3', 'DC42'],
+      ['MA_VAN_DON', 'TEN_SP', 'TRONG_LUONG (g)', 'TEN_KH', 'DIA_CHI_KH', 'SDT_KH', 'COD', 'MA_SP', 'DON_HANG'],
+      ['EE123456789VN', 'Áo thun nam', 500, 'Nguyễn Văn A', '123 Đường ABC, Q.1, TP.HCM', '0901234567', 150000, 'H9441/1/xl', 'DH131'],
+      ['EE987654321VN', 'Quần jean', 800, 'Trần Thị B', '456 Đường XYZ, Q.3, TP.HCM', '0912345678', 0, 'H0723/40/3', 'DC42'],
       [todayNote],
     ],
     'Gui EMS',

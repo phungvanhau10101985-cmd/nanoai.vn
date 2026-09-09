@@ -255,8 +255,13 @@ export async function verifyPartnerCustomDomainApexARecord(
 export async function verifyPartnerCustomDomainDns(
   hostname: string
 ): Promise<PartnerCustomDomainDnsCheck> {
-  const evidence = await collectDnsEvidence(hostname)
-  return evaluatePartnerCustomDomainDns(evidence)
+  try {
+    const evidence = await collectDnsEvidence(hostname)
+    return evaluatePartnerCustomDomainDns(evidence)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { ok: false, detail: msg || 'DNS lookup failed.', transient: true }
+  }
 }
 
 /** Thử HTTPS tới hostname — xác nhận SSL đang hoạt động (cert hợp lệ qua proxy). */

@@ -2,6 +2,11 @@
 
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
+import {
+  bankTransferMemoFromPaymentReference,
+  displayShopOrderCode,
+} from '@/lib/messaging/shop-payment-reference'
 import { formatVnd } from '@/lib/partner-website/shop/cart-line-utils'
 
 type OrderSnapshot = {
@@ -24,7 +29,13 @@ type Props = {
 export function PartnerSiteShopOrderConfirmation({ locale, order, chatPath }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const qr = order.payment_qr_url?.trim() ?? ''
-  const ref = order.payment_reference?.trim() ?? ''
+  const rawRef = order.payment_reference?.trim() ?? ''
+  const isSepay = isSepayStyleOrderPayment({
+    payment_qr_url: qr,
+    payment_reference: rawRef,
+  })
+  const orderCode = displayShopOrderCode(rawRef)
+  const ref = bankTransferMemoFromPaymentReference(rawRef, isSepay) || orderCode
   const required = Number(order.required_amount ?? 0)
   const isEwallet = order.payment_method === 'ewallet'
   const shippingFee = Number(order.shipping_fee_amount ?? 0)
@@ -32,7 +43,11 @@ export function PartnerSiteShopOrderConfirmation({ locale, order, chatPath }: Pr
   return (
     <div style={{ marginTop: 24, padding: 20, border: '1px solid #e2e8f0', borderRadius: 12, background: '#f8fafc' }}>
       <h2>{t.checkoutSuccess}</h2>
-      {order.id ? <p className="pw-shop-muted">{t.orderIdLabel}: {order.id}</p> : null}
+      {orderCode || order.id ? (
+        <p className="pw-shop-muted">
+          {t.orderIdLabel}: {orderCode || order.id}
+        </p>
+      ) : null}
       {shippingFee > 0 ? (
         <p className="pw-shop-muted">
           {t.cartShippingFeeLabel}: {formatVnd(shippingFee)}

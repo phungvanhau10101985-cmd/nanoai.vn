@@ -30,6 +30,7 @@ import {
   catalogFeedIsInStock,
   catalogFeedItemId,
   catalogFeedPriceAmount,
+  catalogFeedShippingWeight,
   catalogFeedTitle,
   catalogFeedUtf8Tsv,
   formatCatalogFeedPrice,
@@ -126,7 +127,7 @@ function rowToTsvLine(row: CatalogFeedInventoryRow, ctx: CatalogFeedBuildContext
     catalogFeedColor(row),
     catalogFeedSize(row),
     catalogFeedMaterial(row),
-    '',
+    catalogFeedShippingWeight(row),
     catalogFeedItemGroupId(row),
     catalogFeedVideoUrl(row),
   ].map(tsvEscapeCell)

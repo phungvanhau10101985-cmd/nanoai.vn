@@ -4,6 +4,7 @@
  */
 
 import { fetchMessagingPartnerShippingLookupAuthFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
+import { isSequentialShopOrderCode } from '@/lib/messaging/shop-payment-reference'
 
 export type ShippingLookupQueryType = 'order_code' | 'phone' | 'ems_code' | 'q'
 
@@ -69,7 +70,7 @@ export function normalizeVnMobileDigits(raw: string): string | null {
   return local
 }
 
-/** DH/DC → order_code; mã …VN → ems_code; SĐT VN → phone; còn lại q. */
+/** DH/DC / mã shop+số → order_code; mã …VN → ems_code; SĐT VN → phone; còn lại q. */
 export function classifyShippingLookupQuery(raw: string): ShippingLookupQuery | null {
   const s = String(raw ?? '').trim()
   if (!s) return null
@@ -77,6 +78,13 @@ export function classifyShippingLookupQuery(raw: string): ShippingLookupQuery | 
   if (order) {
     const compact = order[1].replace(/[\s_-]+/g, '').toUpperCase().replace(/^ĐH/, 'DH').replace(/^ĐC/, 'DC')
     return { type: 'order_code', value: compact }
+  }
+  const compactAll = s
+    .replace(/[\s_-]+/g, '')
+    .toUpperCase()
+    .replace(/^SEVQR/, '')
+  if (isSequentialShopOrderCode(compactAll) || isSequentialShopOrderCode(s)) {
+    return { type: 'order_code', value: compactAll.replace(/^SEVQR/, '') }
   }
   const ems = s.match(EMS_OR_VNPOST_RE)
   if (ems) return { type: 'ems_code', value: ems[1].toUpperCase() }
@@ -98,6 +106,11 @@ export function extractShippingLookupQuery(
   if (!t.trim()) return null
   const order = t.match(ORDER_CODE_RE)
   if (order) return classifyShippingLookupQuery(order[1])
+  const sev = t.match(/SEVQR\s+([A-Z0-9]{4,32})/i)
+  if (sev?.[1] && isSequentialShopOrderCode(sev[1])) return classifyShippingLookupQuery(sev[1])
+  for (const m of t.matchAll(/\b([A-Z0-9]{5,20})\b/gi)) {
+    if (m[1] && isSequentialShopOrderCode(m[1])) return classifyShippingLookupQuery(m[1])
+  }
   const ems = t.match(EMS_OR_VNPOST_RE)
   if (ems) return classifyShippingLookupQuery(ems[1])
   const ho = t.match(HO_TRACK_RE)

@@ -6,6 +6,7 @@ import { buildTiktokCatalogFeedCsv, TIKTOK_CATALOG_CSV_HEADERS } from '../src/li
 import { catalogFeedGender } from '../src/lib/messaging/catalog-feed-enrichment'
 import {
   catalogFeedItemId,
+  catalogFeedShippingWeight,
   pickCatalogProductLandingLink,
   type CatalogFeedInventoryRow,
 } from '../src/lib/messaging/catalog-feed-shared'
@@ -67,6 +68,7 @@ function row(partial: Partial<CatalogFeedInventoryRow> & Pick<CatalogFeedInvento
     product_studio_job_id: null,
     created_at: '2026-01-01T00:00:00.000Z',
     updated_at: '2026-01-01T00:00:00.000Z',
+    weight: '500',
     ...partial,
   }
 }
@@ -98,6 +100,13 @@ function main() {
   assert(catalogFeedGender(row({ id: 'inv-1', name: 'Áo nữ' }), '') === 'female', 'gender nữ')
   assert(catalogFeedGender(row({ id: 'inv-1', name: 'Áo Việt Nam' }), '') === '', 'không nhầm Việt Nam → male')
   console.log('OK gender suy luận từ tên (không nhầm Việt Nam)')
+
+  assert(catalogFeedShippingWeight({ weight: '500' }) === '500 g', 'số trần = gram')
+  assert(catalogFeedShippingWeight({ weight: '0.5' }) === '500 g', '0.5 kg cũ → gram')
+  assert(catalogFeedShippingWeight({ weight: '0.8 kg' }) === '800 g', 'kg tường minh → gram')
+  assert(catalogFeedShippingWeight({ weight: '350 g' }) === '350 g', 'đã có g thì giữ')
+  assert(!catalogFeedShippingWeight({ weight: '500' }).toLowerCase().includes('kg'), 'không mặc định kg')
+  console.log('OK shipping_weight đơn vị gram, không phải kg')
 
   const link = pickCatalogProductLandingLink(row({ id: '00073cac-aaaa-bbbb-cccc-ddddeeeeffff' }), {
     platformOrigin: 'https://nanoai.vn',
@@ -137,6 +146,8 @@ function main() {
   assert(gmcText.includes('Đen'), 'Google thiếu color')
   assert(gmcText.includes('S, M, L'), 'Google thiếu size')
   assert(gmcText.includes('Da bò thật'), 'Google thiếu material')
+  assert(gmcText.includes('500 g'), 'Google shipping_weight phải là gram')
+  assert(!/\t500 kg\t/.test(gmcText), 'Google shipping_weight không được mặc định kg')
   assert(gmcText.includes('yes'), 'Google thiếu identifier_exists=yes khi có SKU')
   assert(gmcText.includes('2026-08-01T00:00+0700/2026-08-31T23:59+0700'), 'Google thiếu sale_price_effective_date')
   assert(!gmcText.includes('inv-skip'), 'Google không được gồm SP tắt')

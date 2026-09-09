@@ -9,6 +9,11 @@ import {
   type PartnerAdminLifecycleTab,
   type PartnerAdminPaymentFilter,
 } from '@/lib/messaging/partner-admin-orders-lifecycle'
+import {
+  coreShopOrderCode,
+  formatShopSequentialOrderCode,
+  paymentReferenceLookupKeys,
+} from '@/lib/messaging/shop-payment-reference'
 
 export type PartnerPaymentSettingsRow = {
   partner_id: string
@@ -567,6 +572,37 @@ export async function syncPrimaryPartnerOrderLineFromOrderFromPg(order: PartnerO
       sortOrder: 0,
     },
   ])
+}
+
+/**
+ * Cấp mã đơn ngắn theo tên shop (188COMVN01…) — atomic `shop_order_seq`.
+ * Đơn cũ giữ nguyên `payment_reference`; chỉ đơn mới gọi hàm này.
+ */
+export async function allocateNextPartnerShopOrderCodeFromPg(
+  partnerId: string,
+  shopDisplayName: string
+): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  const pid = String(partnerId ?? '').trim()
+  if (!pid) return null
+  try {
+    const row = await pgQueryOne<{ shop_order_seq: number }>(
+      `update public.messaging_partners
+       set shop_order_seq = coalesce(shop_order_seq, 0) + 1,
+           updated_at = now()
+       where id = $1::uuid
+       returning shop_order_seq`,
+      [pid]
+    )
+    const seq = Number(row?.shop_order_seq)
+    if (!Number.isFinite(seq) || seq < 1) return null
+    return formatShopSequentialOrderCode(shopDisplayName, seq)
+  } catch (e) {
+    const err = e as { code?: string } | null
+    if (err?.code === '42703') return null
+    console.warn('[allocateNextPartnerShopOrderCodeFromPg]', e)
+    return null
+  }
 }
 
 export async function insertPartnerOrderDraftFromPg(input: {
@@ -1193,7 +1229,8 @@ export async function fetchPartnerOrderForPublicTrackingFromPg(
   const code = String(orderCode ?? '').trim()
   const phoneDigits = normalizePhoneDigits(phone)
   if (!pid || !code || phoneDigits.length < 8) return null
-  const codeUpper = code.toUpperCase()
+  const refKeys = paymentReferenceLookupKeys(code)
+  if (refKeys.length === 0) return null
   const phoneTail = phoneDigits.slice(-9)
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
@@ -1201,7 +1238,7 @@ export async function fetchPartnerOrderForPublicTrackingFromPg(
        where partner_id = $1::uuid
          and (
            id::text = $2
-           or upper(trim(payment_reference)) = $3
+           or upper(trim(payment_reference)) = any($3::text[])
          )
          and (
            regexp_replace(coalesce(customer_phone, ''), '\\D', '', 'g') = $4
@@ -1209,7 +1246,7 @@ export async function fetchPartnerOrderForPublicTrackingFromPg(
          )
        order by created_at desc
        limit 1`,
-      [pid, code, codeUpper, phoneDigits, phoneTail]
+      [pid, code, refKeys, phoneDigits, phoneTail]
     )
     return row ? mapOrderRow(row) : null
   } catch (e) {
@@ -1225,16 +1262,16 @@ export async function fetchPartnerOrderByPaymentReferenceForPartnerFromPg(
 ): Promise<PartnerOrderRow | null> {
   if (!isPgConfigured()) return null
   const pid = String(partnerId ?? '').trim()
-  const ref = String(paymentReference ?? '').trim().toUpperCase()
-  if (!pid || !ref) return null
+  const keys = paymentReferenceLookupKeys(paymentReference)
+  if (!pid || keys.length === 0) return null
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
       `${ORDER_ROW_SELECT}
        where partner_id = $1::uuid
-         and upper(trim(payment_reference)) = $2
+         and upper(trim(payment_reference)) = any($2::text[])
        order by created_at desc
        limit 1`,
-      [pid, ref]
+      [pid, keys]
     )
     return row ? mapOrderRow(row) : null
   } catch (e) {
@@ -1394,6 +1431,8 @@ export async function fetchPartnerOrderByPaymentReferenceFromPg(
   | null
 > {
   if (!isPgConfigured()) return null
+  const keys = paymentReferenceLookupKeys(paymentReferenceUpper)
+  if (keys.length === 0) return null
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
       `select o.id::text, o.conversation_id::text, o.payment_reference, o.required_amount,
@@ -1403,10 +1442,10 @@ export async function fetchPartnerOrderByPaymentReferenceFromPg(
        from public.messaging_partner_orders o
        left join public.messaging_partner_payment_settings ps on ps.partner_id = o.partner_id
        where o.partner_id = $1::uuid
-         and upper(trim(o.payment_reference)) = $2
+         and upper(trim(o.payment_reference)) = any($2::text[])
        order by o.created_at desc
        limit 1`,
-      [partnerId, paymentReferenceUpper]
+      [partnerId, keys]
     )
     if (!row) return null
     return {
@@ -1687,6 +1726,15 @@ function escapeIlikeQuery(q: string): string {
   return q.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
 }
 
+function adminOrderSearchNeedle(q: string): string {
+  const t = String(q || '').trim()
+  if (/^SEVQR\s*/i.test(t)) {
+    const core = coreShopOrderCode(t)
+    return core || t
+  }
+  return t
+}
+
 export type PartnerOrderAdminKpi = {
   totalOrders: number
   todayRevenue: number
@@ -1772,7 +1820,7 @@ export async function fetchPartnerOrderAdminTabCountsFromPg(input: {
          or o.id::text ilike $3 escape '\\'
        )`
     : ''
-  const like = q ? `%${escapeIlikeQuery(q)}%` : null
+  const like = q ? `%${escapeIlikeQuery(adminOrderSearchNeedle(q))}%` : null
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
       `select
@@ -1923,7 +1971,7 @@ export async function fetchPartnerOrdersAdminPageFromPg(input: {
          or o.id::text ilike $3 escape '\\'
        )`
     : ''
-  const like = q ? `%${escapeIlikeQuery(q)}%` : null
+  const like = q ? `%${escapeIlikeQuery(adminOrderSearchNeedle(q))}%` : null
   const countParams = q ? [input.ownerUserId, partnerId || null, like] : [input.ownerUserId, partnerId || null]
   const listParams = q
     ? [input.ownerUserId, partnerId || null, like, lim, skip]

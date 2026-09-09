@@ -105,6 +105,21 @@ function isMissingPriceAmountColumnError(e: unknown): boolean {
   return msg.includes('price_amount') && msg.includes('messaging_partner_inventory')
 }
 
+/** Bản địa hóa ảnh — DB chưa áp migration `image_localization_*`. */
+function isMissingImageLocalizationColumnError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const err = e as { code?: string; message?: string }
+  if (err.code !== '42703') return false
+  const msg = String(err.message ?? '').toLowerCase()
+  return (
+    msg.includes('messaging_partner_inventory') &&
+    (msg.includes('image_localization_status') ||
+      msg.includes('image_localization_language') ||
+      msg.includes('image_localized_at') ||
+      msg.includes('image_localization_error'))
+  )
+}
+
 /** Catalog 188 — DB chưa áp migration `catalog_json` / brand / deposit… */
 function isMissingCatalog188ColumnError(e: unknown): boolean {
   if (!e || typeof e !== 'object') return false
@@ -226,6 +241,10 @@ type PgInventoryRaw = {
   price_high_hint?: string | null
   rating_group_id?: number | string | null
   question_group_id?: number | string | null
+  image_localization_status?: string | null
+  image_localization_language?: string | null
+  image_localized_at?: unknown
+  image_localization_error?: string | null
   created_at: unknown
   updated_at: unknown
 }
@@ -377,6 +396,11 @@ function mapPgInventoryRow(r: PgInventoryRaw): MessagingPartnerInventoryRow {
     price_high_hint: r.price_high_hint != null ? String(r.price_high_hint) : null,
     rating_group_id: numOrNull(r.rating_group_id),
     question_group_id: numOrNull(r.question_group_id),
+    image_localization_status: r.image_localization_status != null ? String(r.image_localization_status) : undefined,
+    image_localization_language:
+      r.image_localization_language != null ? String(r.image_localization_language) : undefined,
+    image_localized_at: tsIso(r.image_localized_at) ?? undefined,
+    image_localization_error: r.image_localization_error != null ? String(r.image_localization_error) : undefined,
     created_at: tsIsoReq(r.created_at),
     updated_at: tsIsoReq(r.updated_at),
   }
@@ -598,6 +622,10 @@ const INVENTORY_PAGE_SELECT_WITH_PRODUCT_STUDIO = `select
   mpi.price_high_hint,
   mpi.rating_group_id,
   mpi.question_group_id,
+  mpi.image_localization_status,
+  mpi.image_localization_language,
+  mpi.image_localized_at,
+  mpi.image_localization_error,
   mpi.created_at,
   mpi.updated_at
 from public.messaging_partner_inventory mpi`
@@ -1018,6 +1046,10 @@ const INVENTORY_PAGE_SELECT_PRE_CATALOG = INVENTORY_PAGE_SELECT_WITH_PRODUCT_STU
   /\n  mpi\.catalog_json,[\s\S]*mpi\.question_group_id,/,
   ''
 )
+const INVENTORY_PAGE_SELECT_PRE_IMAGE_LOC = INVENTORY_PAGE_SELECT_WITH_PRODUCT_STUDIO.replace(
+  /\n  mpi\.image_localization_status,\n  mpi\.image_localization_language,\n  mpi\.image_localized_at,\n  mpi\.image_localization_error,/,
+  ''
+)
 const INVENTORY_SHOP_SELECT_PRE_CATALOG = INVENTORY_SHOP_SELECT_WITH_PRODUCT_STUDIO.replace(
   /\n  mpi\.catalog_json,[\s\S]*mpi\.question_group_id,/,
   ''
@@ -1060,7 +1092,21 @@ async function runInventorySelectWithStockQtyFallback(
   try {
     return await pgQuery<PgInventoryRaw>(`${INVENTORY_PAGE_SELECT_WITH_PRODUCT_STUDIO}\n${sqlFromSelect}`, params)
   } catch (e0) {
-    if (isMissingCatalog188ColumnError(e0)) {
+    if (isMissingImageLocalizationColumnError(e0)) {
+      try {
+        return await pgQuery<PgInventoryRaw>(`${INVENTORY_PAGE_SELECT_PRE_IMAGE_LOC}\n${sqlFromSelect}`, params)
+      } catch (eLoc) {
+        if (isMissingCatalog188ColumnError(eLoc)) {
+          try {
+            return await pgQuery<PgInventoryRaw>(`${INVENTORY_PAGE_SELECT_PRE_CATALOG}\n${sqlFromSelect}`, params)
+          } catch (e1) {
+            if (!isMissingProductStudioColumnError(e1)) throw e1
+          }
+        } else if (!isMissingProductStudioColumnError(eLoc)) {
+          throw eLoc
+        }
+      }
+    } else if (isMissingCatalog188ColumnError(e0)) {
       try {
         return await pgQuery<PgInventoryRaw>(`${INVENTORY_PAGE_SELECT_PRE_CATALOG}\n${sqlFromSelect}`, params)
       } catch (e1) {

@@ -16,6 +16,11 @@ import {
   shouldShowDepositSuccessPage,
 } from '@/lib/partner-website/shop/order-deposit'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
+import {
+  bankTransferMemoFromPaymentReference,
+  displayShopOrderCode,
+} from '@/lib/messaging/shop-payment-reference'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import {
   partnerSiteOrderDetailPath,
@@ -248,7 +253,13 @@ export function PartnerSiteShopDepositClient({
     )
   }
 
-  const code = (order.payment_reference || order.id).trim()
+  const rawRef = (order.payment_reference || '').trim()
+  const code = displayShopOrderCode(rawRef) || order.id.trim()
+  const isSepay = isSepayStyleOrderPayment({
+    payment_qr_url: order.payment_qr_url,
+    payment_reference: rawRef,
+  })
+  const transferMemo = bankTransferMemoFromPaymentReference(rawRef, isSepay) || code
   const payable = partnerOrderPayableTotal({
     amount_after_discount: order.amount_after_discount ?? order.subtotal_amount,
     shipping_fee_amount: order.shipping_fee_amount,
@@ -454,12 +465,12 @@ export function PartnerSiteShopDepositClient({
               </div>
             ) : null}
           </div>
-          {code ? (
+          {transferMemo ? (
             <div className="pw-shop-deposit-box">
               <p className="lbl">{t.depositTransferContent}</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                <span className="pw-shop-deposit-memo">{code}</span>
-                <CopyButton text={code} label={t.depositCopyContent} copiedLabel={t.depositCopied} />
+                <span className="pw-shop-deposit-memo">{transferMemo}</span>
+                <CopyButton text={transferMemo} label={t.depositCopyContent} copiedLabel={t.depositCopied} />
               </div>
               <p className="pw-shop-deposit-hint" style={{ marginTop: 8 }}>
                 {t.depositTransferHint}

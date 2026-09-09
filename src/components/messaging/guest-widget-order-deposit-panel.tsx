@@ -8,6 +8,7 @@ import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
 import { enrichPaymentDisplayFromQrUrl } from '@/lib/messaging/payment-qr-display-enrich'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import { sepayQrUrlForDownload } from '@/lib/sepay-qr'
+import { bankTransferMemoFromPaymentReference } from '@/lib/messaging/shop-payment-reference'
 
 function displayBankName(raw: string): string {
   return raw.replace(/\s*\(BIN\s+\d+\)\s*$/i, '').trim() || raw.trim()
@@ -93,6 +94,7 @@ export function GuestWidgetOrderDepositPanel({
     payment_qr_url: order.payment_qr_url,
     payment_reference: order.payment_reference,
   })
+  const transferMemo = bankTransferMemoFromPaymentReference(ref, isSepay)
   const brand = shopDisplayName.trim() || 'Shop'
 
   return (
@@ -110,8 +112,8 @@ export function GuestWidgetOrderDepositPanel({
             monospace
           />
         ) : null}
-        {ref ? (
-          <CompactCopyRow label="Nội dung CK" value={<span className="font-mono">{ref}</span>} copyText={ref} monospace />
+        {transferMemo ? (
+          <CompactCopyRow label="Nội dung CK" value={<span className="font-mono">{transferMemo}</span>} copyText={transferMemo} monospace />
         ) : null}
       </div>
       <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">

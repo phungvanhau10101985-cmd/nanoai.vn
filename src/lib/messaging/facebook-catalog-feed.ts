@@ -29,6 +29,7 @@ import {
   catalogFeedIsInStock,
   catalogFeedItemId,
   catalogFeedPriceAmount,
+  catalogFeedShippingWeight,
   catalogFeedTitle,
   catalogFeedUtf8Csv,
   csvEscapeCell,
@@ -120,7 +121,7 @@ function rowToCsvLine(row: CatalogFeedInventoryRow, ctx: CatalogFeedBuildContext
     c4,
     catalogFeedInternalLabel(row, productType),
     catalogFeedVideoUrl(row),
-    '',
+    catalogFeedShippingWeight(row),
   ].map(csvEscapeCell)
 
   return cells.join(',')

@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -58,7 +59,7 @@ export function StepUpOtpProvider({ scope, children }: { scope: StepUpScope; chi
   const [otpStep, setOtpStep] = useState<'send' | 'confirm'>('send')
   const [otpInput, setOtpInput] = useState('')
   const [busy, setBusy] = useState(false)
-  const [pendingResolve, setPendingResolve] = useState<((ok: boolean) => void) | null>(null)
+  const pendingResolveRef = useRef<((ok: boolean) => void) | null>(null)
 
   useEffect(() => {
     const sync = () => setUiLocale(readWebLocaleFromDocumentCookie())
@@ -88,14 +89,15 @@ export function StepUpOtpProvider({ scope, children }: { scope: StepUpScope; chi
 
   const finishEnsure = useCallback(
     (ok: boolean) => {
+      const resolve = pendingResolveRef.current
+      pendingResolveRef.current = null
       setDialogOpen(false)
       setOtpInput('')
       setOtpStep('send')
-      pendingResolve?.(ok)
-      setPendingResolve(null)
+      resolve?.(ok)
       if (ok) void refreshSession()
     },
-    [pendingResolve, refreshSession]
+    [refreshSession]
   )
 
   const ensureStepUp = useCallback(async (): Promise<boolean> => {
@@ -106,7 +108,7 @@ export function StepUpOtpProvider({ scope, children }: { scope: StepUpScope; chi
       return true
     }
     return new Promise<boolean>((resolve) => {
-      setPendingResolve(() => resolve)
+      pendingResolveRef.current = resolve
       setOtpStep('send')
       setOtpInput('')
       setDialogOpen(true)
@@ -128,41 +130,57 @@ export function StepUpOtpProvider({ scope, children }: { scope: StepUpScope; chi
 
   const sendOtp = async () => {
     setBusy(true)
-    const res = await requestStepUpOtpAction(scope)
-    setBusy(false)
-    if ('error' in res) {
-      toast({ title: tr(uiLocale, 'Lỗi', 'Error', '错误', 'エラー', '오류'), description: res.error, variant: 'destructive' })
-      return
-    }
-    const debugOtp = 'debugOtp' in res ? String(res.debugOtp ?? '').replace(/\D/g, '').slice(0, 6) : ''
-    if (debugOtp) {
-      setOtpInput(debugOtp)
+    try {
+      const res = await requestStepUpOtpAction(scope)
+      if ('error' in res) {
+        toast({ title: tr(uiLocale, 'Lỗi', 'Error', '错误', 'エラー', '오류'), description: res.error, variant: 'destructive' })
+        return
+      }
+      const debugOtp = 'debugOtp' in res ? String(res.debugOtp ?? '').replace(/\D/g, '').slice(0, 6) : ''
+      if (debugOtp) {
+        setOtpInput(debugOtp)
+        toast({
+          title: tr(uiLocale, 'OTP dev', 'Dev OTP', '开发OTP', '開発OTP', 'Dev OTP'),
+          description: tr(
+            uiLocale,
+            `Mã OTP (dev): ${debugOtp} — đã điền sẵn, bấm Xác minh.`,
+            `Dev OTP: ${debugOtp} — prefilled, click Verify.`,
+            `开发 OTP：${debugOtp} — 已填入，请点击验证。`,
+            `開発 OTP: ${debugOtp} — 入力済み、確認を押してください。`,
+            `Dev OTP: ${debugOtp} — 입력됨, 인증을 누르세요.`
+          ),
+        })
+        setOtpStep('confirm')
+        return
+      }
       toast({
-        title: tr(uiLocale, 'OTP dev', 'Dev OTP', '开发OTP', '開発OTP', 'Dev OTP'),
+        title: tr(uiLocale, 'Đã gửi OTP', 'OTP sent', '已发送OTP', 'OTPを送信しました', 'OTP 전송됨'),
         description: tr(
           uiLocale,
-          `Mã OTP (dev): ${debugOtp} — đã điền sẵn, bấm Xác minh.`,
-          `Dev OTP: ${debugOtp} — prefilled, click Verify.`,
-          `开发 OTP：${debugOtp} — 已填入，请点击验证。`,
-          `開発 OTP: ${debugOtp} — 入力済み、確認を押してください。`,
-          `Dev OTP: ${debugOtp} — 입력됨, 인증을 누르세요.`
+          'Kiểm tra email đăng nhập của bạn.',
+          'Check your login email.',
+          '请查收登录邮箱。',
+          'ログインメールを確認してください。',
+          '로그인 이메일을 확인하세요.'
         ),
       })
       setOtpStep('confirm')
-      return
+    } catch {
+      toast({
+        title: tr(uiLocale, 'Lỗi', 'Error', '错误', 'エラー', '오류'),
+        description: tr(
+          uiLocale,
+          'Không gửi được OTP. Thử lại sau.',
+          'Could not send OTP. Try again later.',
+          '无法发送 OTP，请稍后重试。',
+          'OTP を送信できません。後でもう一度お試しください。',
+          'OTP를 보낼 수 없습니다. 나중에 다시 시도하세요.'
+        ),
+        variant: 'destructive',
+      })
+    } finally {
+      setBusy(false)
     }
-    toast({
-      title: tr(uiLocale, 'Đã gửi OTP', 'OTP sent', '已发送OTP', 'OTPを送信しました', 'OTP 전송됨'),
-      description: tr(
-        uiLocale,
-        'Kiểm tra email đăng nhập của bạn.',
-        'Check your login email.',
-        '请查收登录邮箱。',
-        'ログインメールを確認してください。',
-        '로그인 이메일을 확인하세요.'
-      ),
-    })
-    setOtpStep('confirm')
   }
 
   const verifyOtp = async () => {
@@ -176,24 +194,40 @@ export function StepUpOtpProvider({ scope, children }: { scope: StepUpScope; chi
       return
     }
     setBusy(true)
-    const res = await verifyStepUpOtpAction(scope, otp)
-    setBusy(false)
-    if ('error' in res) {
-      toast({ title: tr(uiLocale, 'Lỗi', 'Error', '错误', 'エラー', '오류'), description: res.error, variant: 'destructive' })
-      return
+    try {
+      const res = await verifyStepUpOtpAction(scope, otp)
+      if ('error' in res) {
+        toast({ title: tr(uiLocale, 'Lỗi', 'Error', '错误', 'エラー', '오류'), description: res.error, variant: 'destructive' })
+        return
+      }
+      toast({
+        title: tr(uiLocale, 'Xác minh thành công', 'Verified', '验证成功', '確認完了', '인증 완료'),
+        description: tr(
+          uiLocale,
+          'Bạn có thể thực hiện thao tác nhạy cảm trong 15 phút.',
+          'You can perform sensitive actions for 15 minutes.',
+          '15分钟内可执行敏感操作。',
+          '15分間、機密操作が可能です。',
+          '15분 동안 민감한 작업을 수행할 수 있습니다.'
+        ),
+      })
+      finishEnsure(true)
+    } catch {
+      toast({
+        title: tr(uiLocale, 'Lỗi', 'Error', '错误', 'エラー', '오류'),
+        description: tr(
+          uiLocale,
+          'Không xác minh được OTP. Thử lại sau.',
+          'Could not verify OTP. Try again later.',
+          '无法验证 OTP，请稍后重试。',
+          'OTP を確認できません。後でもう一度お試しください。',
+          'OTP를 확인할 수 없습니다. 나중에 다시 시도하세요.'
+        ),
+        variant: 'destructive',
+      })
+    } finally {
+      setBusy(false)
     }
-    toast({
-      title: tr(uiLocale, 'Xác minh thành công', 'Verified', '验证成功', '確認完了', '인증 완료'),
-      description: tr(
-        uiLocale,
-        'Bạn có thể thực hiện thao tác nhạy cảm trong 15 phút.',
-        'You can perform sensitive actions for 15 minutes.',
-        '15分钟内可执行敏感操作。',
-        '15分間、機密操作が可能です。',
-        '15분 동안 민감한 작업을 수행할 수 있습니다.'
-      ),
-    })
-    finishEnsure(true)
   }
 
   const value = useMemo(
@@ -231,7 +265,7 @@ export function StepUpOtpProvider({ scope, children }: { scope: StepUpScope; chi
       <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {
-          if (!open && pendingResolve) finishEnsure(false)
+          if (!open && pendingResolveRef.current) finishEnsure(false)
           else setDialogOpen(open)
         }}
       >

@@ -40,7 +40,10 @@ function boundDh453(): PartnerBoundOrderSnapshot {
 
 function main() {
   assert.deepEqual(extractOrderCodesFromText('SEVQR DH453'), ['DH453'])
+  assert.deepEqual(extractOrderCodesFromText('SEVQR 188COMVN01'), ['188COMVN01'])
+  assert.deepEqual(extractOrderCodesFromText('Đơn 188COMVN01 gửi chưa shop'), ['188COMVN01'])
   assert.equal(looksLikeBankTransferReceipt('Giao dịch thành công!\nSEVQR DH453\nVCB Digibank'), true)
+  assert.equal(looksLikeBankTransferReceipt('Giao dịch thành công!\nSEVQR 188COMVN01\nVCB Digibank'), true)
   assert.equal(looksLikeBankTransferReceipt('Hàng đang được giao\nĐơn hàng DH349\nHO3082606'), false)
 
   const b = boundDh453()

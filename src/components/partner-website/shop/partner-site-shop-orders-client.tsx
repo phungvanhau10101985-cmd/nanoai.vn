@@ -6,6 +6,7 @@ import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-sessi
 import type { WebLocale } from '@/lib/i18n/config'
 import { formatVnd } from '@/lib/partner-website/shop/cart-line-utils'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { displayShopOrderCode } from '@/lib/messaging/shop-payment-reference'
 import {
   formatPartnerSiteOrderDate,
   formatPartnerSiteOrderStatus,
@@ -248,7 +249,7 @@ export function PartnerSiteShopOrdersClient({
         {visibleOrders.map((o) => {
           const open = openId === o.id
           const qr = o.payment_qr_url?.trim() ?? ''
-          const ref = o.payment_reference?.trim() ?? ''
+          const ref = displayShopOrderCode(o.payment_reference?.trim() ?? '')
           const showPayment = Boolean(qr || ref || (o.required_amount != null && o.required_amount > 0))
           const waitingPay = o.status === 'awaiting_payment' || o.status === 'payment_checking'
           const canTrack =

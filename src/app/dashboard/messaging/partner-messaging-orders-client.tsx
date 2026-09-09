@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
+import { displayShopOrderCode } from '@/lib/messaging/shop-payment-reference'
 import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 import { parsePartnerOrderVariantImageUrls } from '@/lib/messaging/partner-order-variant-images'
 import {
@@ -160,7 +161,7 @@ function formatDate(s: string, locale: WebLocale): string {
 
 function orderCodeDisplay(r: OrderRow): string {
   const ref = (r.payment_reference ?? '').trim()
-  if (ref) return ref
+  if (ref) return displayShopOrderCode(ref)
   return `#${r.id.replace(/-/g, '').slice(0, 6).toUpperCase()}`
 }
 

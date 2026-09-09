@@ -88,7 +88,7 @@ export const CATALOG_188_VI_HEADERS: Record<Catalog188ExcelColumn, string> = {
   Color: 'màu sắc',
   Occasion: 'Dịp',
   Features: 'Tính năng',
-  Weight: 'Trọng lượng',
+  Weight: 'Trọng lượng (g)',
   product_info: 'Thông tin sản phẩm',
   chinese_name: 'Tên tiếng trung',
   shop_name_chinese: 'Shop Trung Quốc',

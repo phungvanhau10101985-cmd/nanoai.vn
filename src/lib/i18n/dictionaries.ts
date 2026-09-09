@@ -839,6 +839,8 @@ export type Dictionary = {
     customDomainPreviewPendingTitle: string
     customDomainPreviewPendingHint: string
     customDomainInvalidHostname: string
+    customDomainHostnameTaken: string
+    customDomainSaveFailed: string
     customDomainSavedOk: string
     customDomainRemovedOk: string
     shopSsoSectionTitle: string
@@ -1516,6 +1518,155 @@ export type Dictionary = {
     /** Nút/link tới /dashboard/api-integration — Open Catalog */
     inventoryOpenApiLink: string
     inventoryOpenApiHint: string
+    listingImportTitle: string
+    listingImportIntro: string
+    listingImportCookieTitle: string
+    listingImportCookieHint: string
+    listingImportCookiePaste: string
+    listingImportCookieSave: string
+    listingImportCookieClear: string
+    listingImportPandamallUser: string
+    listingImportPandamallPass: string
+    listingImportPandamallPassKeep: string
+    listingImportDraftEditHint: string
+    sourceStockTitle: string
+    sourceStockIntro: string
+    sourceStockApiError: string
+    sourceStockClose: string
+    sourceStockDomainLabel: string
+    sourceStockDomainCssbuy: string
+    sourceStockDomainVipomall: string
+    sourceStockTestHeading: string
+    sourceStockTestHint: string
+    sourceStockTestRunning: string
+    sourceStockTestRun: string
+    sourceStockTestPlaceholder: string
+    sourceStockEligible: string
+    sourceStockIneligible: string
+    sourceStockMerged: string
+    sourceStockWorkerHeading: string
+    sourceStockOn: string
+    sourceStockOff: string
+    sourceStockPauseFlag: string
+    sourceStockDaemon: string
+    sourceStockRunning: string
+    sourceStockIdle: string
+    sourceStockWorkerLoading: string
+    sourceStockWriting: string
+    sourceStockPause: string
+    sourceStockResume: string
+    sourceStockPausedOk: string
+    sourceStockResumedOk: string
+    sourceStockChecking: string
+    sourceStockCheckingHint: string
+    sourceStockCheckingEmpty: string
+    sourceStockLastDone: string
+    sourceStockLastDoneHint: string
+    sourceStockLastDoneEmpty: string
+    sourceStockUpcoming: string
+    sourceStockUpcomingHint: string
+    sourceStockUpcomingEmpty: string
+    sourceStockRefreshingQueue: string
+    sourceStockRefreshQueue: string
+    sourceStockRefreshingReport: string
+    sourceStockRefreshReport: string
+    sourceStockResetPdp: string
+    sourceStockStatTotal: string
+    sourceStockStatEligible: string
+    sourceStockStatTraffic: string
+    sourceStockStatCooldown: string
+    sourceStockStatNever: string
+    sourceStockStatRescan: string
+    sourceStockStatNoPdp: string
+    sourceStockTtlHint: string
+    sourceStockReportHeading: string
+    sourceStockCountTtl: string
+    sourceStockCountChecked: string
+    sourceStockCountOos: string
+    sourceStockCountIn: string
+    sourceStockCountQtyPos: string
+    sourceStockCountQtyZero: string
+    sourceStockOosTable: string
+    sourceStockSelectAll: string
+    sourceStockClearSel: string
+    sourceStockDeleteDb: string
+    sourceStockClearFlag: string
+    sourceStockRecheck: string
+    sourceStockDeleteAllWindow: string
+    sourceStockClearAllWindow: string
+    sourceStockRecheckAllWindow: string
+    sourceStockColName: string
+    sourceStockColQty: string
+    sourceStockOosEmpty: string
+    sourceStockInTable: string
+    sourceStockInEmpty: string
+    sourceStockTtlTable: string
+    sourceStockTtlEmpty: string
+    sourceStockResetTitle: string
+    sourceStockResetBody: string
+    sourceStockResetType: string
+    sourceStockCancel: string
+    sourceStockResetting: string
+    sourceStockResetConfirm: string
+    sourceStockResetOk: string
+    sourceStockDeleteTitle: string
+    sourceStockDeleteBody: string
+    sourceStockDeleting: string
+    sourceStockDeleteConfirm: string
+    sourceStockDeletedOk: string
+    sourceStockClearedOk: string
+    sourceStockRecheckOk: string
+    imageLocTitle: string
+    imageLocIntro: string
+    imageLocRefresh: string
+    imageLocAiOffBanner: string
+    imageLocBulkHint: string
+    imageLocModeLabel: string
+    imageLocModeLocal: string
+    imageLocModeLocalHint: string
+    imageLocModeGemini: string
+    imageLocModeGeminiHint: string
+    imageLocModeOpenai: string
+    imageLocModeOpenaiHint: string
+    imageLocNeedSelect: string
+    imageLocAiOff: string
+    imageLocCustomModel: string
+    imageLocGeminiModel: string
+    imageLocGeminiModelHint: string
+    imageLocGeminiSize: string
+    imageLocGeminiSizeHint: string
+    imageLocEnvDefault: string
+    imageLocOpenaiModel: string
+    imageLocOpenaiOut: string
+    imageLocLanguage: string
+    imageLocLangVi: string
+    imageLocLangEn: string
+    imageLocLangTh: string
+    imageLocLangId: string
+    imageLocSelectedOnly: string
+    imageLocForce: string
+    imageLocStatPending: string
+    imageLocStatDone: string
+    imageLocStatError: string
+    imageLocStatSkip: string
+    imageLocStatRun: string
+    imageLocOffPeak: string
+    imageLocOffPeakHint: string
+    imageLocPeakWaitTitle: string
+    imageLocPeakNowTitle: string
+    imageLocStart: string
+    imageLocStarting: string
+    imageLocStartMore: string
+    imageLocQueued: string
+    imageLocJobsHeading: string
+    imageLocJobsEmpty: string
+    imageLocJobsLoading: string
+    imageLocCancelGraceful: string
+    imageLocCancelForce: string
+    imageLocDelete: string
+    imageLocDeleteTerminal: string
+    imageLocSelectRequired: string
+    imageLocSelectProduct: string
     inventoryExternalSyncTitle: string
     inventoryExternalSyncIntro: string
     inventoryExternalSyncReconcileHint: string
@@ -4199,6 +4350,8 @@ const VI_DICTIONARY: Dictionary = {
     customDomainPreviewPendingHint:
       'Nút «Xem web» và link bên dưới dùng tên miền này. Trang chỉ mở được sau khi CNAME đúng và SSL hoạt động.',
     customDomainInvalidHostname: 'Tên miền không hợp lệ (không dùng nanoai.vn hoặc localhost).',
+    customDomainHostnameTaken: 'Tên miền này đã được shop khác đăng ký.',
+    customDomainSaveFailed: 'Không lưu được tên miền. Thử lại sau.',
     customDomainSavedOk: 'Đã lưu tên miền — hãy cấu hình CNAME rồi kiểm tra.',
     customDomainRemovedOk: 'Đã gỡ tên miền riêng.',
     shopSsoSectionTitle: 'Đăng nhập Google trên website shop',
@@ -4876,6 +5029,159 @@ const VI_DICTIONARY: Dictionary = {
     inventoryOpenApiLink: 'Hướng dẫn tích hợp API',
     inventoryOpenApiHint:
       'Backend website shop có thể đẩy kho vào NanoAI bằng JSON (chuẩn Open Catalog, tên trường gần Shopee). Cùng khóa Bearer với API tìm ảnh; không cần Vision.',
+    listingImportTitle: 'Cào listing Taobao / 1688',
+    listingImportIntro:
+      'Dán HTML listing Taobao/Tmall/1688 (cùng mặt admin 188), chọn dòng, lấy thông tin qua Vipomall/PandaMall, rồi đăng lên kho shop. Mọi workspace cùng một engine — không khóa slug 188.',
+    listingImportCookieTitle: 'Cookie scrape + tài khoản PandaMall',
+    listingImportCookieHint:
+      'Dán JSON cookie Chrome (EditThisCookie / Cookie-Editor) khi đã đăng nhập vipomall.vn / pandamall.vn. Không dùng cookie shop NanoAI.',
+    listingImportCookiePaste: 'JSON cookie',
+    listingImportCookieSave: 'Lưu cookie',
+    listingImportCookieClear: 'Xóa cookie workspace',
+    listingImportPandamallUser: 'Tài khoản PandaMall',
+    listingImportPandamallPass: 'Mật khẩu PandaMall',
+    listingImportPandamallPassKeep: 'Để trống = giữ mật khẩu đã lưu',
+    listingImportDraftEditHint: 'Sửa tên/danh mục trên modal này rồi đăng, hoặc dùng bảng Kho hàng bên dưới.',
+    sourceStockTitle: 'Kiểm tra nguồn hàng',
+    sourceStockIntro:
+      'Worker CSSBuy → Vipomall → PandaMall. Có nút giỏ/mua (kể cả disabled) = còn hàng. Cloudflare/CAPTCHA trên một nền thì thử nền tiếp. Cả ba bị chặn = blocked. Hết hàng → tồn kho 0; về hàng sau OOS → 500. Mọi workspace cùng engine.',
+    sourceStockApiError: 'Lỗi API kiểm tra nguồn',
+    sourceStockClose: 'Đóng',
+    sourceStockDomainLabel: 'Lọc hàng đợi / báo cáo theo miền URL',
+    sourceStockDomainCssbuy: 'CSSBuy (và 1688/Taobao quy đổi)',
+    sourceStockDomainVipomall: 'Vipomall',
+    sourceStockTestHeading: 'Thử URL (không ghi DB)',
+    sourceStockTestHint: 'Dán 1688 / Taobao / Tmall / CSSBuy / Vipomall / PandaMall. Worker chạy CSSBuy trước, rồi Vipomall, rồi PandaMall.',
+    sourceStockTestRunning: 'Đang mở Playwright…',
+    sourceStockTestRun: 'Thử URL',
+    sourceStockTestPlaceholder: 'https://detail.1688.com/offer/… hoặc cssbuy.com/item-…',
+    sourceStockEligible: 'Đủ điều kiện worker',
+    sourceStockIneligible: 'Không đủ điều kiện',
+    sourceStockMerged: 'Kết luận',
+    sourceStockWorkerHeading: 'Worker kiểm tra nguồn',
+    sourceStockOn: 'bật',
+    sourceStockOff: 'tắt',
+    sourceStockPauseFlag: 'Pause DB',
+    sourceStockDaemon: 'Daemon',
+    sourceStockRunning: 'đang chạy',
+    sourceStockIdle: 'đang nghỉ',
+    sourceStockWorkerLoading: 'Đang đọc trạng thái worker…',
+    sourceStockWriting: 'Đang ghi…',
+    sourceStockPause: 'Tạm dừng',
+    sourceStockResume: 'Tiếp tục',
+    sourceStockPausedOk: 'Đã tạm dừng worker của workspace này.',
+    sourceStockResumedOk: 'Đã tiếp tục worker của workspace này.',
+    sourceStockChecking: 'Đang kiểm',
+    sourceStockCheckingHint: 'SP Playwright đang mở.',
+    sourceStockCheckingEmpty: 'Không có SP đang kiểm.',
+    sourceStockLastDone: 'Vừa xong',
+    sourceStockLastDoneHint: 'Lần commit kho gần nhất.',
+    sourceStockLastDoneEmpty: 'Chưa có lần kiểm trong process này.',
+    sourceStockUpcoming: 'Tiếp theo',
+    sourceStockUpcomingHint: 'Ưu tiên RAM rồi hàng DB đến hạn.',
+    sourceStockUpcomingEmpty: 'Hàng chờ trống hoặc đang pause.',
+    sourceStockRefreshingQueue: 'Đang tải hàng đợi…',
+    sourceStockRefreshQueue: 'Làm mới hàng đợi',
+    sourceStockRefreshingReport: 'Đang tải báo cáo…',
+    sourceStockRefreshReport: 'Làm mới báo cáo 30 ngày',
+    sourceStockResetPdp: 'Reset chu kỳ PDP',
+    sourceStockStatTotal: 'Trong phạm vi',
+    sourceStockStatEligible: 'Đủ ĐK',
+    sourceStockStatTraffic: 'Có PDP 30 ngày',
+    sourceStockStatCooldown: 'TTL / cooldown',
+    sourceStockStatNever: 'Chưa quét',
+    sourceStockStatRescan: 'Hết TTL',
+    sourceStockStatNoPdp: 'Chưa PDP',
+    sourceStockTtlHint: 'TTL batch {n} ngày. Hết hàng → stock_qty=0; về hàng sau OOS → 500.',
+    sourceStockReportHeading: 'Báo cáo {n} ngày',
+    sourceStockCountTtl: 'Đóng dấu TTL',
+    sourceStockCountChecked: 'Đã kiểm',
+    sourceStockCountOos: 'Hết hàng nguồn',
+    sourceStockCountIn: 'Còn hàng nguồn',
+    sourceStockCountQtyPos: 'Tồn > 0',
+    sourceStockCountQtyZero: 'Tồn ≤ 0',
+    sourceStockOosTable: 'Hết hàng nguồn (cửa sổ)',
+    sourceStockSelectAll: 'Chọn trang này',
+    sourceStockClearSel: 'Bỏ chọn',
+    sourceStockDeleteDb: 'Xóa khỏi kho',
+    sourceStockClearFlag: 'Xóa cờ OOS',
+    sourceStockRecheck: 'Kiểm lại',
+    sourceStockDeleteAllWindow: 'Xóa tất cả OOS cửa sổ',
+    sourceStockClearAllWindow: 'Gỡ cờ (tất cả)',
+    sourceStockRecheckAllWindow: 'Kiểm lại (tất cả)',
+    sourceStockColName: 'Tên',
+    sourceStockColQty: 'Tồn',
+    sourceStockOosEmpty: 'Không có SP hết hàng nguồn trong cửa sổ.',
+    sourceStockInTable: 'Còn hàng nguồn (mẫu)',
+    sourceStockInEmpty: 'Không có mẫu còn hàng.',
+    sourceStockTtlTable: 'Đóng dấu TTL gần đây',
+    sourceStockTtlEmpty: 'Không có dấu TTL trong cửa sổ.',
+    sourceStockResetTitle: 'Reset chu kỳ kiểm tra nguồn',
+    sourceStockResetBody:
+      'Đưa source_stock về unknown (bỏ queued/checking), xóa hàng RAM. Worker sẽ quét lại SP đủ điều kiện. Gõ đúng cụm xác nhận.',
+    sourceStockResetType: 'Gõ',
+    sourceStockCancel: 'Hủy',
+    sourceStockResetting: 'Đang reset…',
+    sourceStockResetConfirm: 'Reset',
+    sourceStockResetOk: 'Đã reset {n} sản phẩm.',
+    sourceStockDeleteTitle: 'Xóa sản phẩm khỏi kho?',
+    sourceStockDeleteBody: 'Xóa {n} dòng khỏi kho workspace này. Không hoàn tác.',
+    sourceStockDeleting: 'Đang xóa…',
+    sourceStockDeleteConfirm: 'Xóa',
+    sourceStockDeletedOk: 'Đã xóa {n} dòng.',
+    sourceStockClearedOk: 'Đã xóa cờ hết hàng nguồn.',
+    sourceStockRecheckOk: 'Đã đưa vào hàng kiểm lại.',
+    imageLocTitle: 'Bản địa hóa ảnh',
+    imageLocIntro: 'Xử lý ảnh cột O/P/Q/T: biến thể, thư viện, ảnh chi tiết và ảnh chính cho sản phẩm chưa bản địa hóa.',
+    imageLocRefresh: 'Làm mới trạng thái',
+    imageLocAiOffBanner: 'Đang chỉ bật pipeline DeepSeek + vẽ local (OCR → dịch → vẽ chữ). Gemini / GPT ảnh tạm tắt trên server.',
+    imageLocBulkHint: 'Chạy hàng loạt (không chọn SP): chỉ DeepSeek + vẽ local. Gemini API / GPT Image chỉ bật khi đã tick chọn sản phẩm trong bảng.',
+    imageLocModeLabel: 'Sinh/sửa ảnh (chữ Trung → bản địa)',
+    imageLocModeLocal: 'DeepSeek + vẽ local (không AI ảnh Gemini/GPT)',
+    imageLocModeLocalHint: 'OCR (Vision) → DeepSeek dịch → vẽ local chữ trên ảnh. Không cần key Gemini/OpenAI.',
+    imageLocModeGemini: 'Gemini API (GEMINI_API_KEY)',
+    imageLocModeGeminiHint: 'Bảng size & giặt tẩy được dịch qua API, không xóa. Cần GEMINI_API_KEY.',
+    imageLocModeOpenai: 'OpenAI GPT Image (OPENAI_API_KEY)',
+    imageLocModeOpenaiHint: 'API /v1/images/edits. Cần OPENAI_API_KEY.',
+    imageLocNeedSelect: 'chọn SP trong bảng',
+    imageLocAiOff: 'tạm tắt',
+    imageLocCustomModel: 'Tùy chỉnh…',
+    imageLocGeminiModel: 'Chọn nhanh model Gemini',
+    imageLocGeminiModelHint: 'Để trống = model mặc định trên server (.env).',
+    imageLocGeminiSize: 'Độ phân giải (imageSize)',
+    imageLocGeminiSizeHint: 'Chỉ 2K và 4K.',
+    imageLocEnvDefault: 'Mặc định (.env)',
+    imageLocOpenaiModel: 'Chọn nhanh model GPT Image',
+    imageLocOpenaiOut: 'Đầu ra — chất lượng & kích thước',
+    imageLocLanguage: 'Ngôn ngữ bản địa',
+    imageLocLangVi: 'Tiếng Việt',
+    imageLocLangEn: 'English',
+    imageLocLangTh: 'Thai',
+    imageLocLangId: 'Indonesian',
+    imageLocSelectedOnly: 'Chỉ chạy {n} sản phẩm đang chọn',
+    imageLocForce: 'Chạy lại cả ảnh đã xử lý',
+    imageLocStatPending: 'Pending',
+    imageLocStatDone: 'Done',
+    imageLocStatError: 'Error',
+    imageLocStatSkip: 'Bỏ qua',
+    imageLocStatRun: 'Đang chạy',
+    imageLocOffPeak: 'Chờ giờ thấp điểm DeepSeek',
+    imageLocOffPeakHint: 'Bật: job chờ hết giờ cao điểm (08–11h, 13–17h VN) rồi mới OCR/DeepSeek. Tắt: chạy ngay dù giá ×2.',
+    imageLocPeakWaitTitle: 'Giờ cao điểm DeepSeek — job sẽ chờ',
+    imageLocPeakNowTitle: 'Giờ cao điểm DeepSeek — giá ×2',
+    imageLocStart: 'Chạy bản địa hóa ảnh',
+    imageLocStarting: 'Đang gửi job…',
+    imageLocStartMore: 'Chạy thêm job ảnh',
+    imageLocQueued: 'Đã xếp hàng bản địa hóa ảnh.',
+    imageLocJobsHeading: 'Tiến trình job',
+    imageLocJobsEmpty: 'Không có job trên server. Bấm Chạy bản địa hóa ảnh để bắt đầu — job vẫn chạy nền khi đóng trình duyệt.',
+    imageLocJobsLoading: 'Đang tải job từ server…',
+    imageLocCancelGraceful: 'Hủy sau SP hiện tại',
+    imageLocCancelForce: 'Hủy ngay',
+    imageLocDelete: 'Xóa',
+    imageLocDeleteTerminal: 'Xóa job đã xong',
+    imageLocSelectRequired: 'Chọn sản phẩm trong bảng kho trước khi dùng Gemini/GPT.',
+    imageLocSelectProduct: 'Chọn sản phẩm để bản địa hóa',
     inventoryExternalSyncTitle: 'Tích hợp kho web khách → kho NanoAI',
     inventoryExternalSyncIntro:
       'So khớp từng trường kho trên NanoAI với tên trường JSON trên API kho khách (dùng dấu chấm cho object lồng, ví dụ product_info). Link trang sản phẩm lấy từ trường map tới slug — hỗ trợ URL đầy đủ. Lưu để backend/script đồng bộ Open Catalog dùng thống nhất.',
@@ -7552,6 +7858,8 @@ const EN_DICTIONARY: Dictionary = {
     customDomainPreviewPendingHint:
       'The «View web» button and link below use this domain. The site opens only after CNAME is correct and SSL is active.',
     customDomainInvalidHostname: 'Invalid hostname (cannot use nanoai.vn or localhost).',
+    customDomainHostnameTaken: 'This domain is already registered by another shop.',
+    customDomainSaveFailed: 'Could not save the domain. Try again later.',
     customDomainSavedOk: 'Domain saved — configure CNAME then verify.',
     customDomainRemovedOk: 'Custom domain removed.',
     shopSsoSectionTitle: 'Google sign-in on shop website',
@@ -8233,6 +8541,159 @@ const EN_DICTIONARY: Dictionary = {
     inventoryOpenApiLink: 'API integration guide',
     inventoryOpenApiHint:
       'Your shop backend can push inventory to NanoAI with JSON (Open Catalog schema, Shopee-like field names). Same Bearer key as image search; Vision is not required.',
+    listingImportTitle: 'Scrape Taobao / 1688 listings',
+    listingImportIntro:
+      'Paste Taobao/Tmall/1688 listing HTML (same as 188 admin), pick rows, fetch via Vipomall/PandaMall, then publish to this shop inventory. One engine for every workspace.',
+    listingImportCookieTitle: 'Scraper cookies + PandaMall account',
+    listingImportCookieHint:
+      'Paste Chrome cookie JSON (EditThisCookie / Cookie-Editor) while logged into vipomall.vn / pandamall.vn. Do not use NanoAI shop cookies.',
+    listingImportCookiePaste: 'Cookie JSON',
+    listingImportCookieSave: 'Save cookies',
+    listingImportCookieClear: 'Clear workspace cookies',
+    listingImportPandamallUser: 'PandaMall username',
+    listingImportPandamallPass: 'PandaMall password',
+    listingImportPandamallPassKeep: 'Leave blank to keep the saved password',
+    listingImportDraftEditHint: 'Edit name/category in this modal then publish, or use the inventory table below.',
+    sourceStockTitle: 'Source stock check',
+    sourceStockIntro:
+      'Worker CSSBuy → Vipomall → PandaMall. A cart/buy button (even disabled) means in stock. Cloudflare/CAPTCHA on one platform falls through. All three blocked = blocked. OOS → stock 0; back in stock after OOS → 500. Same engine for every workspace.',
+    sourceStockApiError: 'Source-stock API error',
+    sourceStockClose: 'Close',
+    sourceStockDomainLabel: 'Filter queue / report by URL domain',
+    sourceStockDomainCssbuy: 'CSSBuy (and coerced 1688/Taobao)',
+    sourceStockDomainVipomall: 'Vipomall',
+    sourceStockTestHeading: 'Test URL (no DB write)',
+    sourceStockTestHint: 'Paste 1688 / Taobao / Tmall / CSSBuy / Vipomall / PandaMall. Worker tries CSSBuy, then Vipomall, then PandaMall.',
+    sourceStockTestRunning: 'Opening Playwright…',
+    sourceStockTestRun: 'Test URL',
+    sourceStockTestPlaceholder: 'https://detail.1688.com/offer/… or cssbuy.com/item-…',
+    sourceStockEligible: 'Eligible for worker',
+    sourceStockIneligible: 'Not eligible',
+    sourceStockMerged: 'Merged result',
+    sourceStockWorkerHeading: 'Source-stock worker',
+    sourceStockOn: 'on',
+    sourceStockOff: 'off',
+    sourceStockPauseFlag: 'DB pause',
+    sourceStockDaemon: 'Daemon',
+    sourceStockRunning: 'running',
+    sourceStockIdle: 'idle',
+    sourceStockWorkerLoading: 'Loading worker state…',
+    sourceStockWriting: 'Saving…',
+    sourceStockPause: 'Pause',
+    sourceStockResume: 'Resume',
+    sourceStockPausedOk: 'Paused this workspace worker.',
+    sourceStockResumedOk: 'Resumed this workspace worker.',
+    sourceStockChecking: 'Checking',
+    sourceStockCheckingHint: 'Product Playwright is opening.',
+    sourceStockCheckingEmpty: 'Nothing is being checked.',
+    sourceStockLastDone: 'Last done',
+    sourceStockLastDoneHint: 'Latest inventory commit.',
+    sourceStockLastDoneEmpty: 'No check in this process yet.',
+    sourceStockUpcoming: 'Next',
+    sourceStockUpcomingHint: 'RAM queue first, then due DB rows.',
+    sourceStockUpcomingEmpty: 'Queue empty or paused.',
+    sourceStockRefreshingQueue: 'Refreshing queue…',
+    sourceStockRefreshQueue: 'Refresh queue',
+    sourceStockRefreshingReport: 'Loading report…',
+    sourceStockRefreshReport: 'Refresh 30-day report',
+    sourceStockResetPdp: 'Reset PDP cycle',
+    sourceStockStatTotal: 'In scope',
+    sourceStockStatEligible: 'Eligible',
+    sourceStockStatTraffic: 'PDP in 30 days',
+    sourceStockStatCooldown: 'TTL / cooldown',
+    sourceStockStatNever: 'Never scanned',
+    sourceStockStatRescan: 'TTL expired',
+    sourceStockStatNoPdp: 'No PDP yet',
+    sourceStockTtlHint: 'Batch TTL {n} days. OOS → stock_qty=0; back in stock after OOS → 500.',
+    sourceStockReportHeading: '{n}-day report',
+    sourceStockCountTtl: 'TTL stamped',
+    sourceStockCountChecked: 'Checked',
+    sourceStockCountOos: 'Source OOS',
+    sourceStockCountIn: 'Source in stock',
+    sourceStockCountQtyPos: 'Qty > 0',
+    sourceStockCountQtyZero: 'Qty ≤ 0',
+    sourceStockOosTable: 'Source OOS (window)',
+    sourceStockSelectAll: 'Select this page',
+    sourceStockClearSel: 'Clear selection',
+    sourceStockDeleteDb: 'Delete from inventory',
+    sourceStockClearFlag: 'Clear OOS flag',
+    sourceStockRecheck: 'Recheck',
+    sourceStockDeleteAllWindow: 'Delete all OOS in window',
+    sourceStockClearAllWindow: 'Clear flags (all)',
+    sourceStockRecheckAllWindow: 'Recheck (all)',
+    sourceStockColName: 'Name',
+    sourceStockColQty: 'Qty',
+    sourceStockOosEmpty: 'No source-OOS products in this window.',
+    sourceStockInTable: 'In-stock samples',
+    sourceStockInEmpty: 'No in-stock samples.',
+    sourceStockTtlTable: 'Recent TTL stamps',
+    sourceStockTtlEmpty: 'No TTL stamps in this window.',
+    sourceStockResetTitle: 'Reset source-stock cycle',
+    sourceStockResetBody:
+      'Sets source_stock back to unknown (skips queued/checking) and clears the RAM queue. The worker will rescan eligible products. Type the confirmation phrase.',
+    sourceStockResetType: 'Type',
+    sourceStockCancel: 'Cancel',
+    sourceStockResetting: 'Resetting…',
+    sourceStockResetConfirm: 'Reset',
+    sourceStockResetOk: 'Reset {n} products.',
+    sourceStockDeleteTitle: 'Delete products from inventory?',
+    sourceStockDeleteBody: 'Delete {n} rows from this workspace inventory. This cannot be undone.',
+    sourceStockDeleting: 'Deleting…',
+    sourceStockDeleteConfirm: 'Delete',
+    sourceStockDeletedOk: 'Deleted {n} rows.',
+    sourceStockClearedOk: 'Cleared source OOS flags.',
+    sourceStockRecheckOk: 'Queued for recheck.',
+    imageLocTitle: 'Image localization',
+    imageLocIntro: 'Process O/P/Q/T images: color variants, gallery, detail photos, and the main image for products not yet localized.',
+    imageLocRefresh: 'Refresh status',
+    imageLocAiOffBanner: 'Only the DeepSeek + local-draw pipeline is on (OCR → translate → overlay). Gemini / GPT image edits are disabled on the server.',
+    imageLocBulkHint: 'Bulk runs (no products selected) use DeepSeek + local draw only. Gemini API / GPT Image unlock after you tick products in the table.',
+    imageLocModeLabel: 'Generate/edit images (Chinese text → localized)',
+    imageLocModeLocal: 'DeepSeek + local draw (no Gemini/GPT image models)',
+    imageLocModeLocalHint: 'Vision OCR → DeepSeek translation → overlay text. No Gemini/OpenAI key needed.',
+    imageLocModeGemini: 'Gemini API (GEMINI_API_KEY)',
+    imageLocModeGeminiHint: 'Size charts and laundry-care images are translated via API, not deleted. Needs GEMINI_API_KEY.',
+    imageLocModeOpenai: 'OpenAI GPT Image (OPENAI_API_KEY)',
+    imageLocModeOpenaiHint: 'Uses /v1/images/edits. Needs OPENAI_API_KEY.',
+    imageLocNeedSelect: 'select products in the table',
+    imageLocAiOff: 'disabled',
+    imageLocCustomModel: 'Custom…',
+    imageLocGeminiModel: 'Gemini model preset',
+    imageLocGeminiModelHint: 'Leave empty to use the server default (.env).',
+    imageLocGeminiSize: 'Resolution (imageSize)',
+    imageLocGeminiSizeHint: '2K and 4K only.',
+    imageLocEnvDefault: 'Default (.env)',
+    imageLocOpenaiModel: 'GPT Image model preset',
+    imageLocOpenaiOut: 'Output — quality & size',
+    imageLocLanguage: 'Target language',
+    imageLocLangVi: 'Vietnamese',
+    imageLocLangEn: 'English',
+    imageLocLangTh: 'Thai',
+    imageLocLangId: 'Indonesian',
+    imageLocSelectedOnly: 'Run only the {n} selected products',
+    imageLocForce: 'Re-run images already processed',
+    imageLocStatPending: 'Pending',
+    imageLocStatDone: 'Done',
+    imageLocStatError: 'Error',
+    imageLocStatSkip: 'Skipped',
+    imageLocStatRun: 'Running',
+    imageLocOffPeak: 'Wait for DeepSeek off-peak hours',
+    imageLocOffPeakHint: 'On: jobs wait until peak hours end (08–11 and 13–17 VN) before OCR/DeepSeek. Off: run immediately at 2× token price.',
+    imageLocPeakWaitTitle: 'DeepSeek peak hours — job will wait',
+    imageLocPeakNowTitle: 'DeepSeek peak hours — 2× price',
+    imageLocStart: 'Run image localization',
+    imageLocStarting: 'Queuing job…',
+    imageLocStartMore: 'Start another image job',
+    imageLocQueued: 'Image localization job queued.',
+    imageLocJobsHeading: 'Job progress',
+    imageLocJobsEmpty: 'No jobs on the server. Click Run image localization to start — jobs keep running after you close the browser.',
+    imageLocJobsLoading: 'Loading jobs from the server…',
+    imageLocCancelGraceful: 'Cancel after current product',
+    imageLocCancelForce: 'Cancel now',
+    imageLocDelete: 'Delete',
+    imageLocDeleteTerminal: 'Delete finished jobs',
+    imageLocSelectRequired: 'Select products in the inventory table before using Gemini/GPT.',
+    imageLocSelectProduct: 'Select product for localization',
     inventoryExternalSyncTitle: 'Integrate customer catalog → NanoAI inventory',
     inventoryExternalSyncIntro:
       'Map each NanoAI inventory field to a JSON field path on your shop catalog API (use dots for nested objects, e.g. product_info). The product page URL comes from the field mapped to slug — a full absolute URL is supported. Saved mapping is used consistently when syncing via Open Catalog.',
@@ -10890,6 +11351,8 @@ const ZH_DICTIONARY: Dictionary = {
     customDomainPreviewPendingTitle: '网站链接（等待 DNS / SSL）',
     customDomainPreviewPendingHint: '「查看网站」按钮和下方链接使用此域名。CNAME 正确且 SSL 生效后才能打开。',
     customDomainInvalidHostname: '主机名无效（不可使用 nanoai.vn 或 localhost）。',
+    customDomainHostnameTaken: '该域名已被其他店铺注册。',
+    customDomainSaveFailed: '无法保存域名，请稍后重试。',
     customDomainSavedOk: '已保存 — 请配置 CNAME 后验证。',
     customDomainRemovedOk: '已移除自定义域名。',
     shopSsoSectionTitle: '店铺网站 Google 登录',
@@ -11555,6 +12018,158 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryOpenApiLink: 'API 集成说明',
     inventoryOpenApiHint:
       '店铺后端可用 JSON 将库存推送到 NanoAI（Open Catalog，字段命名接近 Shopee）。与以图搜商品共用 Bearer；无需 Vision。',
+    listingImportTitle: '抓取 Taobao / 1688 列表',
+    listingImportIntro:
+      '粘贴 Taobao/Tmall/1688 列表 HTML（与 188 后台相同），勾选行，经 Vipomall/PandaMall 抓取后再发布到本店库存。每个店铺同一引擎。',
+    listingImportCookieTitle: '抓取 Cookie + PandaMall 账号',
+    listingImportCookieHint:
+      '粘贴已登录 vipomall.vn / pandamall.vn 的 Chrome Cookie JSON（EditThisCookie / Cookie-Editor）。不要使用 NanoAI 店铺 Cookie。',
+    listingImportCookiePaste: 'Cookie JSON',
+    listingImportCookieSave: '保存 Cookie',
+    listingImportCookieClear: '清除本店 Cookie',
+    listingImportPandamallUser: 'PandaMall 账号',
+    listingImportPandamallPass: 'PandaMall 密码',
+    listingImportPandamallPassKeep: '留空则保留已保存密码',
+    listingImportDraftEditHint: '在此弹窗改名称/类目后发布，或使用下方库存表。',
+    sourceStockTitle: '货源库存检查',
+    sourceStockIntro:
+      'Worker：CSSBuy → Vipomall → PandaMall。有购物车/购买按钮（即使禁用）= 有货。某一平台 Cloudflare/验证码则试下一平台。三平台都被拦 = blocked。缺货 → 库存 0；OOS 后重新有货 → 500。每个店铺同一引擎。',
+    sourceStockApiError: '货源检查 API 错误',
+    sourceStockClose: '关闭',
+    sourceStockDomainLabel: '按 URL 域名筛选队列/报表',
+    sourceStockDomainCssbuy: 'CSSBuy（及换算的 1688/淘宝）',
+    sourceStockDomainVipomall: 'Vipomall',
+    sourceStockTestHeading: '试 URL（不写库）',
+    sourceStockTestHint: '粘贴 1688 / 淘宝 / 天猫 / CSSBuy / Vipomall / PandaMall。Worker 先 CSSBuy，再 Vipomall，再 PandaMall。',
+    sourceStockTestRunning: '正在打开 Playwright…',
+    sourceStockTestRun: '试 URL',
+    sourceStockTestPlaceholder: 'https://detail.1688.com/offer/… 或 cssbuy.com/item-…',
+    sourceStockEligible: '符合 Worker 条件',
+    sourceStockIneligible: '不符合条件',
+    sourceStockMerged: '结论',
+    sourceStockWorkerHeading: '货源检查 Worker',
+    sourceStockOn: '开',
+    sourceStockOff: '关',
+    sourceStockPauseFlag: '数据库暂停',
+    sourceStockDaemon: '守护进程',
+    sourceStockRunning: '运行中',
+    sourceStockIdle: '空闲',
+    sourceStockWorkerLoading: '正在读取 Worker 状态…',
+    sourceStockWriting: '正在保存…',
+    sourceStockPause: '暂停',
+    sourceStockResume: '继续',
+    sourceStockPausedOk: '已暂停本店 Worker。',
+    sourceStockResumedOk: '已继续本店 Worker。',
+    sourceStockChecking: '检查中',
+    sourceStockCheckingHint: 'Playwright 正在打开该商品。',
+    sourceStockCheckingEmpty: '当前没有正在检查的商品。',
+    sourceStockLastDone: '刚完成',
+    sourceStockLastDoneHint: '最近一次库存提交。',
+    sourceStockLastDoneEmpty: '本进程尚未检查过。',
+    sourceStockUpcoming: '下一个',
+    sourceStockUpcomingHint: '先内存队列，再到期的数据库行。',
+    sourceStockUpcomingEmpty: '队列为空或已暂停。',
+    sourceStockRefreshingQueue: '正在刷新队列…',
+    sourceStockRefreshQueue: '刷新队列',
+    sourceStockRefreshingReport: '正在加载报表…',
+    sourceStockRefreshReport: '刷新 30 天报表',
+    sourceStockResetPdp: '重置 PDP 周期',
+    sourceStockStatTotal: '范围内',
+    sourceStockStatEligible: '符合条件',
+    sourceStockStatTraffic: '30 天有 PDP',
+    sourceStockStatCooldown: 'TTL / 冷却',
+    sourceStockStatNever: '从未扫描',
+    sourceStockStatRescan: 'TTL 已过',
+    sourceStockStatNoPdp: '尚无 PDP',
+    sourceStockTtlHint: '批次 TTL {n} 天。缺货 → stock_qty=0；OOS 后重新有货 → 500。',
+    sourceStockReportHeading: '{n} 天报表',
+    sourceStockCountTtl: 'TTL 盖章',
+    sourceStockCountChecked: '已检查',
+    sourceStockCountOos: '货源缺货',
+    sourceStockCountIn: '货源有货',
+    sourceStockCountQtyPos: '库存 > 0',
+    sourceStockCountQtyZero: '库存 ≤ 0',
+    sourceStockOosTable: '货源缺货（窗口）',
+    sourceStockSelectAll: '选择本页',
+    sourceStockClearSel: '取消选择',
+    sourceStockDeleteDb: '从库存删除',
+    sourceStockClearFlag: '清除缺货标记',
+    sourceStockRecheck: '再检查',
+    sourceStockDeleteAllWindow: '删除窗口内全部缺货',
+    sourceStockClearAllWindow: '清除全部标记',
+    sourceStockRecheckAllWindow: '全部再检',
+    sourceStockColName: '名称',
+    sourceStockColQty: '库存',
+    sourceStockOosEmpty: '该窗口没有货源缺货商品。',
+    sourceStockInTable: '有货样本',
+    sourceStockInEmpty: '没有有货样本。',
+    sourceStockTtlTable: '近期 TTL 盖章',
+    sourceStockTtlEmpty: '该窗口没有 TTL 盖章。',
+    sourceStockResetTitle: '重置货源检查周期',
+    sourceStockResetBody: '将 source_stock 设回 unknown（跳过 queued/checking），并清空内存队列。Worker 会重新扫描符合条件的商品。请输入确认短语。',
+    sourceStockResetType: '输入',
+    sourceStockCancel: '取消',
+    sourceStockResetting: '正在重置…',
+    sourceStockResetConfirm: '重置',
+    sourceStockResetOk: '已重置 {n} 件商品。',
+    sourceStockDeleteTitle: '从库存删除商品？',
+    sourceStockDeleteBody: '从本店库存删除 {n} 行。无法撤销。',
+    sourceStockDeleting: '正在删除…',
+    sourceStockDeleteConfirm: '删除',
+    sourceStockDeletedOk: '已删除 {n} 行。',
+    sourceStockClearedOk: '已清除货源缺货标记。',
+    sourceStockRecheckOk: '已加入再检查队列。',
+    imageLocTitle: '图片本地化',
+    imageLocIntro: '处理 O/P/Q/T 列图片：颜色变体、图库、详情图和主图（尚未本地化的商品）。',
+    imageLocRefresh: '刷新状态',
+    imageLocAiOffBanner: '当前仅开启 DeepSeek + 本地绘制（OCR → 翻译 → 叠字）。服务器已关闭 Gemini / GPT 图像编辑。',
+    imageLocBulkHint: '批量运行（未勾选商品）仅用 DeepSeek + 本地绘制。勾选表格中的商品后才可使用 Gemini API / GPT Image。',
+    imageLocModeLabel: '生成/编辑图片（中文 → 本地语言）',
+    imageLocModeLocal: 'DeepSeek + 本地绘制（不使用 Gemini/GPT 图像模型）',
+    imageLocModeLocalHint: 'Vision OCR → DeepSeek 翻译 → 本地叠字。无需 Gemini/OpenAI 密钥。',
+    imageLocModeGemini: 'Gemini API（GEMINI_API_KEY）',
+    imageLocModeGeminiHint: '尺码表与洗涤说明通过 API 翻译，不会删除。需要 GEMINI_API_KEY。',
+    imageLocModeOpenai: 'OpenAI GPT Image（OPENAI_API_KEY）',
+    imageLocModeOpenaiHint: '调用 /v1/images/edits。需要 OPENAI_API_KEY。',
+    imageLocNeedSelect: '请在表格中选择商品',
+    imageLocAiOff: '已关闭',
+    imageLocCustomModel: '自定义…',
+    imageLocGeminiModel: 'Gemini 模型快捷选择',
+    imageLocGeminiModelHint: '留空则使用服务器默认（.env）。',
+    imageLocGeminiSize: '分辨率（imageSize）',
+    imageLocGeminiSizeHint: '仅 2K 和 4K。',
+    imageLocEnvDefault: '默认（.env）',
+    imageLocOpenaiModel: 'GPT Image 模型快捷选择',
+    imageLocOpenaiOut: '输出 — 质量与尺寸',
+    imageLocLanguage: '目标语言',
+    imageLocLangVi: '越南语',
+    imageLocLangEn: '英语',
+    imageLocLangTh: '泰语',
+    imageLocLangId: '印尼语',
+    imageLocSelectedOnly: '仅运行已选的 {n} 件商品',
+    imageLocForce: '重新处理已本地化的图片',
+    imageLocStatPending: '待处理',
+    imageLocStatDone: '完成',
+    imageLocStatError: '错误',
+    imageLocStatSkip: '跳过',
+    imageLocStatRun: '进行中',
+    imageLocOffPeak: '等待 DeepSeek 低峰时段',
+    imageLocOffPeakHint: '开启：任务等到高峰（越南 08–11、13–17）结束后再 OCR/DeepSeek。关闭：立即运行（token 价格 ×2）。',
+    imageLocPeakWaitTitle: 'DeepSeek 高峰 — 任务将等待',
+    imageLocPeakNowTitle: 'DeepSeek 高峰 — 价格 ×2',
+    imageLocStart: '开始图片本地化',
+    imageLocStarting: '正在排队…',
+    imageLocStartMore: '再开一个图片任务',
+    imageLocQueued: '图片本地化任务已排队。',
+    imageLocJobsHeading: '任务进度',
+    imageLocJobsEmpty: '服务器上没有任务。点击开始图片本地化 — 关闭浏览器后任务仍会继续。',
+    imageLocJobsLoading: '正在从服务器加载任务…',
+    imageLocCancelGraceful: '当前商品完成后取消',
+    imageLocCancelForce: '立即取消',
+    imageLocDelete: '删除',
+    imageLocDeleteTerminal: '删除已结束任务',
+    imageLocSelectRequired: '使用 Gemini/GPT 前请先在库存表中选择商品。',
+    imageLocSelectProduct: '选择要本地化的商品',
     inventoryExternalSyncTitle: '对接顾客网站库存 → NanoAI 店铺库存',
     inventoryExternalSyncIntro:
       '将 NanoAI 库存各字段映射为顾客库存 API 的 JSON 字段路径（嵌套用点号，例如 product_info）。商品页链接来自映射到 slug 的字段，可为完整绝对 URL。保存后用于 Open Catalog 同步时保持一致。',
@@ -14155,6 +14770,8 @@ const JA_DICTIONARY: Dictionary = {
     customDomainPreviewPendingHint:
       '「サイトを見る」と下のリンクはこのドメインを使用します。CNAME と SSL 完了後に開けます。',
     customDomainInvalidHostname: '無効なホスト名（nanoai.vn や localhost は不可）。',
+    customDomainHostnameTaken: 'このドメインは別のショップに登録済みです。',
+    customDomainSaveFailed: 'ドメインを保存できません。後でもう一度お試しください。',
     customDomainSavedOk: '保存しました — CNAME 設定後に確認してください。',
     customDomainRemovedOk: '独自ドメインを削除しました。',
     shopSsoSectionTitle: 'ショップサイトの Google ログイン',
@@ -14833,6 +15450,159 @@ const JA_DICTIONARY: Dictionary = {
     inventoryOpenApiLink: 'API 連携ガイド',
     inventoryOpenApiHint:
       '店舗バックエンドから JSON で在庫を NanoAI に同期できます（Open Catalog、Shopee 風フィールド名）。画像検索と同じ Bearer。Vision は不要です。',
+    listingImportTitle: 'Taobao / 1688 リスティング取得',
+    listingImportIntro:
+      'Taobao/Tmall/1688 のリスト HTML を貼り（188 管理画面と同じ）、行を選んで Vipomall/PandaMall で取得し、この店舗在庫へ公開します。全ワークスペース共通エンジンです。',
+    listingImportCookieTitle: 'スクレイプ Cookie + PandaMall アカウント',
+    listingImportCookieHint:
+      'vipomall.vn / pandamall.vn にログインした Chrome の Cookie JSON（EditThisCookie / Cookie-Editor）を貼ってください。NanoAI 店舗の Cookie は使わないでください。',
+    listingImportCookiePaste: 'Cookie JSON',
+    listingImportCookieSave: 'Cookie を保存',
+    listingImportCookieClear: 'ワークスペースの Cookie を削除',
+    listingImportPandamallUser: 'PandaMall ユーザー名',
+    listingImportPandamallPass: 'PandaMall パスワード',
+    listingImportPandamallPassKeep: '空欄なら保存済みパスワードを維持',
+    listingImportDraftEditHint: 'このモーダルで名・カテゴリを直して公開するか、下の在庫表を使います。',
+    sourceStockTitle: '仕入元在庫チェック',
+    sourceStockIntro:
+      'Worker は CSSBuy → Vipomall → PandaMall。カート/購入ボタンがあれば（disabled でも）在庫あり。1 プラットフォームの Cloudflare/CAPTCHA は次へ。3 つとも遮断 = blocked。欠品 → 在庫 0。欠品後に復活 → 500。全ワークスペース同一エンジン。',
+    sourceStockApiError: '仕入元チェック API エラー',
+    sourceStockClose: '閉じる',
+    sourceStockDomainLabel: 'URL ドメインでキュー/レポートを絞る',
+    sourceStockDomainCssbuy: 'CSSBuy（換算した 1688/Taobao 含む）',
+    sourceStockDomainVipomall: 'Vipomall',
+    sourceStockTestHeading: 'URL テスト（DB に書かない）',
+    sourceStockTestHint: '1688 / Taobao / Tmall / CSSBuy / Vipomall / PandaMall を貼り付け。Worker は CSSBuy → Vipomall → PandaMall。',
+    sourceStockTestRunning: 'Playwright を開いています…',
+    sourceStockTestRun: 'URL を試す',
+    sourceStockTestPlaceholder: 'https://detail.1688.com/offer/… または cssbuy.com/item-…',
+    sourceStockEligible: 'Worker 対象',
+    sourceStockIneligible: '対象外',
+    sourceStockMerged: '結論',
+    sourceStockWorkerHeading: '仕入元チェック Worker',
+    sourceStockOn: 'オン',
+    sourceStockOff: 'オフ',
+    sourceStockPauseFlag: 'DB 一時停止',
+    sourceStockDaemon: 'デーモン',
+    sourceStockRunning: '実行中',
+    sourceStockIdle: '待機',
+    sourceStockWorkerLoading: 'Worker 状態を読み込み中…',
+    sourceStockWriting: '保存中…',
+    sourceStockPause: '一時停止',
+    sourceStockResume: '再開',
+    sourceStockPausedOk: 'このワークスペースの Worker を一時停止しました。',
+    sourceStockResumedOk: 'このワークスペースの Worker を再開しました。',
+    sourceStockChecking: '確認中',
+    sourceStockCheckingHint: 'Playwright が商品を開いています。',
+    sourceStockCheckingEmpty: '確認中の商品はありません。',
+    sourceStockLastDone: '直前',
+    sourceStockLastDoneHint: '直近の在庫コミット。',
+    sourceStockLastDoneEmpty: 'このプロセスでは未確認です。',
+    sourceStockUpcoming: '次',
+    sourceStockUpcomingHint: 'RAM キュー優先、その後期限到来の DB 行。',
+    sourceStockUpcomingEmpty: 'キューが空か一時停止中です。',
+    sourceStockRefreshingQueue: 'キュー更新中…',
+    sourceStockRefreshQueue: 'キューを更新',
+    sourceStockRefreshingReport: 'レポート読込中…',
+    sourceStockRefreshReport: '30 日レポートを更新',
+    sourceStockResetPdp: 'PDP 周期をリセット',
+    sourceStockStatTotal: '対象範囲',
+    sourceStockStatEligible: '対象',
+    sourceStockStatTraffic: '30 日 PDP あり',
+    sourceStockStatCooldown: 'TTL / クールダウン',
+    sourceStockStatNever: '未スキャン',
+    sourceStockStatRescan: 'TTL 切れ',
+    sourceStockStatNoPdp: 'PDP なし',
+    sourceStockTtlHint: 'バッチ TTL {n} 日。欠品 → stock_qty=0。欠品後の復活 → 500。',
+    sourceStockReportHeading: '{n} 日レポート',
+    sourceStockCountTtl: 'TTL 押印',
+    sourceStockCountChecked: '確認済み',
+    sourceStockCountOos: '仕入元欠品',
+    sourceStockCountIn: '仕入元在庫あり',
+    sourceStockCountQtyPos: '在庫 > 0',
+    sourceStockCountQtyZero: '在庫 ≤ 0',
+    sourceStockOosTable: '仕入元欠品（期間）',
+    sourceStockSelectAll: 'このページを選択',
+    sourceStockClearSel: '選択解除',
+    sourceStockDeleteDb: '在庫から削除',
+    sourceStockClearFlag: '欠品フラグを消す',
+    sourceStockRecheck: '再チェック',
+    sourceStockDeleteAllWindow: '期間内の欠品を全削除',
+    sourceStockClearAllWindow: 'フラグ解除（全部）',
+    sourceStockRecheckAllWindow: '再チェック（全部）',
+    sourceStockColName: '名前',
+    sourceStockColQty: '在庫',
+    sourceStockOosEmpty: 'この期間に仕入元欠品はありません。',
+    sourceStockInTable: '在庫ありサンプル',
+    sourceStockInEmpty: '在庫ありサンプルはありません。',
+    sourceStockTtlTable: '最近の TTL 押印',
+    sourceStockTtlEmpty: 'この期間に TTL 押印はありません。',
+    sourceStockResetTitle: '仕入元チェック周期をリセット',
+    sourceStockResetBody:
+      'source_stock を unknown に戻し（queued/checking は除外）、RAM キューを空にします。対象商品を再スキャンします。確認フレーズを入力してください。',
+    sourceStockResetType: '入力',
+    sourceStockCancel: 'キャンセル',
+    sourceStockResetting: 'リセット中…',
+    sourceStockResetConfirm: 'リセット',
+    sourceStockResetOk: '{n} 件をリセットしました。',
+    sourceStockDeleteTitle: '在庫から商品を削除しますか？',
+    sourceStockDeleteBody: 'このワークスペースの在庫から {n} 行を削除します。元に戻せません。',
+    sourceStockDeleting: '削除中…',
+    sourceStockDeleteConfirm: '削除',
+    sourceStockDeletedOk: '{n} 行を削除しました。',
+    sourceStockClearedOk: '仕入元欠品フラグを消しました。',
+    sourceStockRecheckOk: '再チェック待ちに入れました。',
+    imageLocTitle: '画像のローカライズ',
+    imageLocIntro: 'O/P/Q/T 列の画像（カラーバリエーション、ギャラリー、詳細、メイン）を未処理商品向けに処理します。',
+    imageLocRefresh: '状態を更新',
+    imageLocAiOffBanner: '現在は DeepSeek + ローカル描画のみ（OCR → 翻訳 → 重ね書き）。サーバーで Gemini / GPT 画像編集はオフです。',
+    imageLocBulkHint: '一括実行（商品未選択）は DeepSeek + ローカル描画のみ。表で商品を選択すると Gemini API / GPT Image が使えます。',
+    imageLocModeLabel: '画像の生成/編集（中国語 → 現地語）',
+    imageLocModeLocal: 'DeepSeek + ローカル描画（Gemini/GPT 画像モデルなし）',
+    imageLocModeLocalHint: 'Vision OCR → DeepSeek 翻訳 → ローカル重ね書き。Gemini/OpenAI キー不要。',
+    imageLocModeGemini: 'Gemini API（GEMINI_API_KEY）',
+    imageLocModeGeminiHint: 'サイズ表・洗濯表示は API で翻訳し、削除しません。GEMINI_API_KEY が必要です。',
+    imageLocModeOpenai: 'OpenAI GPT Image（OPENAI_API_KEY）',
+    imageLocModeOpenaiHint: '/v1/images/edits を使用。OPENAI_API_KEY が必要です。',
+    imageLocNeedSelect: '表で商品を選択',
+    imageLocAiOff: '無効',
+    imageLocCustomModel: 'カスタム…',
+    imageLocGeminiModel: 'Gemini モデルのクイック選択',
+    imageLocGeminiModelHint: '空欄ならサーバー既定（.env）を使います。',
+    imageLocGeminiSize: '解像度（imageSize）',
+    imageLocGeminiSizeHint: '2K と 4K のみ。',
+    imageLocEnvDefault: '既定（.env）',
+    imageLocOpenaiModel: 'GPT Image モデルのクイック選択',
+    imageLocOpenaiOut: '出力 — 品質とサイズ',
+    imageLocLanguage: '対象言語',
+    imageLocLangVi: 'ベトナム語',
+    imageLocLangEn: '英語',
+    imageLocLangTh: 'タイ語',
+    imageLocLangId: 'インドネシア語',
+    imageLocSelectedOnly: '選択中の {n} 件だけ実行',
+    imageLocForce: '処理済み画像も再実行',
+    imageLocStatPending: '未処理',
+    imageLocStatDone: '完了',
+    imageLocStatError: 'エラー',
+    imageLocStatSkip: 'スキップ',
+    imageLocStatRun: '実行中',
+    imageLocOffPeak: 'DeepSeek オフピークまで待つ',
+    imageLocOffPeakHint: 'オン：ピーク（ベトナム 08–11 / 13–17）終了後に OCR/DeepSeek。オフ：すぐ実行（トークン 2 倍）。',
+    imageLocPeakWaitTitle: 'DeepSeek ピーク — ジョブは待機します',
+    imageLocPeakNowTitle: 'DeepSeek ピーク — 料金 2 倍',
+    imageLocStart: '画像ローカライズを実行',
+    imageLocStarting: 'ジョブを送信中…',
+    imageLocStartMore: '別の画像ジョブを開始',
+    imageLocQueued: '画像ローカライズジョブをキューに入れました。',
+    imageLocJobsHeading: 'ジョブの進捗',
+    imageLocJobsEmpty: 'サーバー上にジョブはありません。実行を押すと開始し、ブラウザを閉じても継続します。',
+    imageLocJobsLoading: 'サーバーからジョブを読み込み中…',
+    imageLocCancelGraceful: '現在の商品の後でキャンセル',
+    imageLocCancelForce: '今すぐキャンセル',
+    imageLocDelete: '削除',
+    imageLocDeleteTerminal: '完了ジョブを削除',
+    imageLocSelectRequired: 'Gemini/GPT を使う前に在庫表で商品を選択してください。',
+    imageLocSelectProduct: 'ローカライズする商品を選択',
     inventoryExternalSyncTitle: '顧客サイトのカタログを NanoAI 在庫へ連携',
     inventoryExternalSyncIntro:
       'NanoAI の各在庫フィールドを、顧客側カタログ API の JSON パスに対応させます（ネストはドット区切り、例 product_info）。商品ページの URL は slug に対応づけたフィールドから取得できます（完全な絶対 URL 可）。保存すると Open Catalog 同期で統一して利用できます。',
@@ -17480,6 +18250,8 @@ const KO_DICTIONARY: Dictionary = {
     customDomainPreviewPendingHint:
       '「웹 보기」 버튼과 아래 링크는 이 도메인을 사용합니다. CNAME과 SSL이 활성화된 후에 열립니다.',
     customDomainInvalidHostname: '잘못된 호스트명(nanoai.vn·localhost 불가).',
+    customDomainHostnameTaken: '이 도메인은 다른 스토어에 이미 등록되어 있습니다.',
+    customDomainSaveFailed: '도메인을 저장할 수 없습니다. 나중에 다시 시도하세요.',
     customDomainSavedOk: '저장됨 — CNAME 설정 후 확인하세요.',
     customDomainRemovedOk: '맞춤 도메인을 제거했습니다.',
     shopSsoSectionTitle: '쇼핑몰 Google 로그인',
@@ -18154,6 +18926,159 @@ const KO_DICTIONARY: Dictionary = {
     inventoryOpenApiLink: 'API 연동 안내',
     inventoryOpenApiHint:
       '매장 백엔드에서 JSON으로 재고를 NanoAI에 동기화할 수 있습니다(Open Catalog, Shopee 스타일 필드명). 이미지 검색과 동일 Bearer. Vision 불필요.',
+    listingImportTitle: 'Taobao / 1688 리스팅 수집',
+    listingImportIntro:
+      'Taobao/Tmall/1688 목록 HTML을 붙여 넣고(188 관리와 동일) 행을 고른 뒤 Vipomall/PandaMall로 가져와 이 매장 재고에 게시합니다. 모든 워크스페이스가 같은 엔진입니다.',
+    listingImportCookieTitle: '스크레이프 쿠키 + PandaMall 계정',
+    listingImportCookieHint:
+      'vipomall.vn / pandamall.vn 에 로그인한 Chrome 쿠키 JSON(EditThisCookie / Cookie-Editor)을 붙여 넣으세요. NanoAI 매장 쿠키는 쓰지 마세요.',
+    listingImportCookiePaste: '쿠키 JSON',
+    listingImportCookieSave: '쿠키 저장',
+    listingImportCookieClear: '워크스페이스 쿠키 삭제',
+    listingImportPandamallUser: 'PandaMall 계정',
+    listingImportPandamallPass: 'PandaMall 비밀번호',
+    listingImportPandamallPassKeep: '비워 두면 저장된 비밀번호 유지',
+    listingImportDraftEditHint: '이 모달에서 이름/카테고리를 고친 뒤 게시하거나 아래 재고 표를 쓰세요.',
+    sourceStockTitle: '공급원 재고 확인',
+    sourceStockIntro:
+      'Worker: CSSBuy → Vipomall → PandaMall. 장바구니/구매 버튼(비활성 포함)이 있으면 재고 있음. 한 플랫폼 Cloudflare/CAPTCHA면 다음으로. 셋 다 차단 = blocked. 품절 → 재고 0, 품절 후 재입고 → 500. 모든 워크스페이스 동일 엔진.',
+    sourceStockApiError: '공급원 확인 API 오류',
+    sourceStockClose: '닫기',
+    sourceStockDomainLabel: 'URL 도메인으로 대기열/보고서 필터',
+    sourceStockDomainCssbuy: 'CSSBuy (변환된 1688/Taobao 포함)',
+    sourceStockDomainVipomall: 'Vipomall',
+    sourceStockTestHeading: 'URL 테스트 (DB 기록 없음)',
+    sourceStockTestHint: '1688 / Taobao / Tmall / CSSBuy / Vipomall / PandaMall을 붙여 넣으세요. Worker는 CSSBuy → Vipomall → PandaMall.',
+    sourceStockTestRunning: 'Playwright 여는 중…',
+    sourceStockTestRun: 'URL 테스트',
+    sourceStockTestPlaceholder: 'https://detail.1688.com/offer/… 또는 cssbuy.com/item-…',
+    sourceStockEligible: 'Worker 대상',
+    sourceStockIneligible: '대상 아님',
+    sourceStockMerged: '결론',
+    sourceStockWorkerHeading: '공급원 확인 Worker',
+    sourceStockOn: '켜짐',
+    sourceStockOff: '꺼짐',
+    sourceStockPauseFlag: 'DB 일시 중지',
+    sourceStockDaemon: '데몬',
+    sourceStockRunning: '실행 중',
+    sourceStockIdle: '대기',
+    sourceStockWorkerLoading: 'Worker 상태 불러오는 중…',
+    sourceStockWriting: '저장 중…',
+    sourceStockPause: '일시 중지',
+    sourceStockResume: '재개',
+    sourceStockPausedOk: '이 워크스페이스 Worker를 일시 중지했습니다.',
+    sourceStockResumedOk: '이 워크스페이스 Worker를 재개했습니다.',
+    sourceStockChecking: '확인 중',
+    sourceStockCheckingHint: 'Playwright가 상품을 여는 중입니다.',
+    sourceStockCheckingEmpty: '확인 중인 상품이 없습니다.',
+    sourceStockLastDone: '방금 완료',
+    sourceStockLastDoneHint: '최근 재고 커밋.',
+    sourceStockLastDoneEmpty: '이 프로세스에서 아직 확인하지 않았습니다.',
+    sourceStockUpcoming: '다음',
+    sourceStockUpcomingHint: 'RAM 대기열 우선, 그다음 기한이 된 DB 행.',
+    sourceStockUpcomingEmpty: '대기열이 비었거나 일시 중지됨.',
+    sourceStockRefreshingQueue: '대기열 새로고침 중…',
+    sourceStockRefreshQueue: '대기열 새로고침',
+    sourceStockRefreshingReport: '보고서 불러오는 중…',
+    sourceStockRefreshReport: '30일 보고서 새로고침',
+    sourceStockResetPdp: 'PDP 주기 재설정',
+    sourceStockStatTotal: '범위 안',
+    sourceStockStatEligible: '대상',
+    sourceStockStatTraffic: '30일 PDP',
+    sourceStockStatCooldown: 'TTL / 쿨다운',
+    sourceStockStatNever: '미스캔',
+    sourceStockStatRescan: 'TTL 만료',
+    sourceStockStatNoPdp: 'PDP 없음',
+    sourceStockTtlHint: '배치 TTL {n}일. 품절 → stock_qty=0. 품절 후 재입고 → 500.',
+    sourceStockReportHeading: '{n}일 보고서',
+    sourceStockCountTtl: 'TTL 스탬프',
+    sourceStockCountChecked: '확인됨',
+    sourceStockCountOos: '공급원 품절',
+    sourceStockCountIn: '공급원 재고',
+    sourceStockCountQtyPos: '재고 > 0',
+    sourceStockCountQtyZero: '재고 ≤ 0',
+    sourceStockOosTable: '공급원 품절(기간)',
+    sourceStockSelectAll: '이 페이지 선택',
+    sourceStockClearSel: '선택 해제',
+    sourceStockDeleteDb: '재고에서 삭제',
+    sourceStockClearFlag: '품절 플래그 지우기',
+    sourceStockRecheck: '다시 확인',
+    sourceStockDeleteAllWindow: '기간 내 품절 모두 삭제',
+    sourceStockClearAllWindow: '플래그 해제 (전체)',
+    sourceStockRecheckAllWindow: '다시 확인 (전체)',
+    sourceStockColName: '이름',
+    sourceStockColQty: '재고',
+    sourceStockOosEmpty: '이 기간에 공급원 품절 상품이 없습니다.',
+    sourceStockInTable: '재고 있음 샘플',
+    sourceStockInEmpty: '재고 있음 샘플이 없습니다.',
+    sourceStockTtlTable: '최근 TTL 스탬프',
+    sourceStockTtlEmpty: '이 기간에 TTL 스탬프가 없습니다.',
+    sourceStockResetTitle: '공급원 확인 주기 재설정',
+    sourceStockResetBody:
+      'source_stock을 unknown으로 되돌리고(queued/checking 제외) RAM 대기열을 비웁니다. Worker가 대상 상품을 다시 스캔합니다. 확인 문구를 입력하세요.',
+    sourceStockResetType: '입력',
+    sourceStockCancel: '취소',
+    sourceStockResetting: '재설정 중…',
+    sourceStockResetConfirm: '재설정',
+    sourceStockResetOk: '{n}개 상품을 재설정했습니다.',
+    sourceStockDeleteTitle: '재고에서 상품을 삭제할까요?',
+    sourceStockDeleteBody: '이 워크스페이스 재고에서 {n}행을 삭제합니다. 되돌릴 수 없습니다.',
+    sourceStockDeleting: '삭제 중…',
+    sourceStockDeleteConfirm: '삭제',
+    sourceStockDeletedOk: '{n}행을 삭제했습니다.',
+    sourceStockClearedOk: '공급원 품절 플래그를 지웠습니다.',
+    sourceStockRecheckOk: '다시 확인 대기열에 넣었습니다.',
+    imageLocTitle: '이미지 현지화',
+    imageLocIntro: '아직 현지화되지 않은 상품의 O/P/Q/T 이미지(색상 변형, 갤러리, 상세, 대표 이미지)를 처리합니다.',
+    imageLocRefresh: '상태 새로고침',
+    imageLocAiOffBanner: '지금은 DeepSeek + 로컬 그리기만 켜져 있습니다(OCR → 번역 → 오버레이). 서버에서 Gemini / GPT 이미지 편집은 꺼져 있습니다.',
+    imageLocBulkHint: '일괄 실행(상품 미선택)은 DeepSeek + 로컬 그리기만 사용합니다. 표에서 상품을 선택해야 Gemini API / GPT Image를 쓸 수 있습니다.',
+    imageLocModeLabel: '이미지 생성/수정(중국어 → 현지 언어)',
+    imageLocModeLocal: 'DeepSeek + 로컬 그리기(Gemini/GPT 이미지 모델 없음)',
+    imageLocModeLocalHint: 'Vision OCR → DeepSeek 번역 → 로컬 오버레이. Gemini/OpenAI 키가 필요 없습니다.',
+    imageLocModeGemini: 'Gemini API(GEMINI_API_KEY)',
+    imageLocModeGeminiHint: '사이즈표·세탁 안내 이미지는 API로 번역하고 삭제하지 않습니다. GEMINI_API_KEY가 필요합니다.',
+    imageLocModeOpenai: 'OpenAI GPT Image(OPENAI_API_KEY)',
+    imageLocModeOpenaiHint: '/v1/images/edits를 사용합니다. OPENAI_API_KEY가 필요합니다.',
+    imageLocNeedSelect: '표에서 상품 선택',
+    imageLocAiOff: '꺼짐',
+    imageLocCustomModel: '사용자 지정…',
+    imageLocGeminiModel: 'Gemini 모델 빠른 선택',
+    imageLocGeminiModelHint: '비우면 서버 기본값(.env)을 씁니다.',
+    imageLocGeminiSize: '해상도(imageSize)',
+    imageLocGeminiSizeHint: '2K와 4K만 지원합니다.',
+    imageLocEnvDefault: '기본값(.env)',
+    imageLocOpenaiModel: 'GPT Image 모델 빠른 선택',
+    imageLocOpenaiOut: '출력 — 품질과 크기',
+    imageLocLanguage: '대상 언어',
+    imageLocLangVi: '베트남어',
+    imageLocLangEn: '영어',
+    imageLocLangTh: '태국어',
+    imageLocLangId: '인도네시아어',
+    imageLocSelectedOnly: '선택한 {n}개 상품만 실행',
+    imageLocForce: '이미 처리된 이미지도 다시 실행',
+    imageLocStatPending: '대기',
+    imageLocStatDone: '완료',
+    imageLocStatError: '오류',
+    imageLocStatSkip: '건너뜀',
+    imageLocStatRun: '실행 중',
+    imageLocOffPeak: 'DeepSeek 비피크 시간까지 대기',
+    imageLocOffPeakHint: '켜기: 피크(베트남 08–11, 13–17)가 끝난 뒤 OCR/DeepSeek. 끄기: 바로 실행(토큰 2배).',
+    imageLocPeakWaitTitle: 'DeepSeek 피크 — 작업이 대기합니다',
+    imageLocPeakNowTitle: 'DeepSeek 피크 — 요금 2배',
+    imageLocStart: '이미지 현지화 실행',
+    imageLocStarting: '작업 대기열에 넣는 중…',
+    imageLocStartMore: '이미지 작업 하나 더 시작',
+    imageLocQueued: '이미지 현지화 작업을 대기열에 넣었습니다.',
+    imageLocJobsHeading: '작업 진행',
+    imageLocJobsEmpty: '서버에 작업이 없습니다. 실행을 누르면 시작되며 브라우저를 닫아도 계속됩니다.',
+    imageLocJobsLoading: '서버에서 작업을 불러오는 중…',
+    imageLocCancelGraceful: '현재 상품 후 취소',
+    imageLocCancelForce: '지금 취소',
+    imageLocDelete: '삭제',
+    imageLocDeleteTerminal: '끝난 작업 삭제',
+    imageLocSelectRequired: 'Gemini/GPT를 쓰려면 재고 표에서 상품을 먼저 선택하세요.',
+    imageLocSelectProduct: '현지화할 상품 선택',
     inventoryExternalSyncTitle: '고객 카탈로그 → NanoAI 재고 연동',
     inventoryExternalSyncIntro:
       'NanoAI 재고 필드를 고객 카탈로그 API의 JSON 경로에 매핑합니다(중첩은 점으로, 예: product_info). 상품 페이지 링크는 slug에 매핑된 필드에서 가져오며 전체 절대 URL을 지원합니다. 저장하면 Open Catalog 동기화에서 동일하게 사용합니다.',

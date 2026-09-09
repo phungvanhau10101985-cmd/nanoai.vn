@@ -12,6 +12,10 @@ import { youtubeThumbnailUrl } from '@/lib/messaging/guest-product-video'
 import { enrichPaymentDisplayFromQrUrl } from '@/lib/messaging/payment-qr-display-enrich'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import { sepayQrUrlForDownload } from '@/lib/sepay-qr'
+import {
+  bankTransferMemoFromPaymentReference,
+  displayShopOrderCode,
+} from '@/lib/messaging/shop-payment-reference'
 import { MessageTextWithLinks } from '@/components/messaging/message-text-with-links'
 import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
@@ -273,6 +277,8 @@ function OrderPaymentPanel({
   const sepayWebhookOnly = Boolean(orderId && orderPaymentProof?.sepayWebhookOrderIds?.has(orderId))
   const depositDone = chatOrderDepositResolved(orderStatus, paidInThread)
   const isSepay = isSepayStyleOrderPayment({ payment_qr_url: qrUrl, payment_reference: ref })
+  const transferMemo = bankTransferMemoFromPaymentReference(ref, isSepay)
+  const orderCodeLabel = displayShopOrderCode(ref) || ref
   const shopBrand = shopDisplayName.trim() || 'Shop'
   const showProofCta =
     orderPaymentProof &&
@@ -370,11 +376,11 @@ function OrderPaymentPanel({
                 onViolet={onViolet}
               />
             ) : null}
-            {ref ? (
+            {transferMemo ? (
               <CompactPaymentField
                 label="Nội dung CK"
-                value={<span className="font-mono">{ref}</span>}
-                copyText={ref}
+                value={<span className="font-mono">{transferMemo}</span>}
+                copyText={transferMemo}
                 monospace
                 onViolet={onViolet}
               />
@@ -494,7 +500,7 @@ function OrderPaymentPanel({
                     Đang tải ảnh và đối chiếu…
                   </>
                 ) : (
-                  <>Gửi ảnh giao dịch{ref ? ` · ${ref}` : ''}</>
+                  <>Gửi ảnh giao dịch{orderCodeLabel ? ` · ${orderCodeLabel}` : ''}</>
                 )}
               </Button>
             ) : null}

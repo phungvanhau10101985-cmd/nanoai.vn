@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import type { WidgetOrderListRow } from '@/lib/db/messaging-partner-orders-pg'
-import { guestFacingOrderRef } from '@/lib/messaging/widget-order-ref-display'
+import { guestFacingOrderRef, guestFacingTransferMemo } from '@/lib/messaging/widget-order-ref-display'
 import { OrderVariantImagesRow } from '@/components/messaging/order-variant-images-row'
 import { OrderVariantLinesDetail } from '@/components/messaging/order-variant-lines-detail'
 import { parsePartnerOrderVariantLines } from '@/lib/messaging/partner-order-variant-lines'
@@ -192,7 +192,7 @@ function OrderRow({
   const created = row.created_at ? new Date(row.created_at).toLocaleString() : ''
   const img = row.product_image_url.trim()
   const showImg = /^https?:\/\//i.test(img)
-  const refMemo = row.payment_reference.trim()
+  const refMemo = guestFacingTransferMemo(row)
   const displayOrderRef = guestFacingOrderRef(row)
   const showSeparateTransferMemo = Boolean(
     refMemo && displayOrderRef && refMemo.toUpperCase() !== displayOrderRef.toUpperCase()
