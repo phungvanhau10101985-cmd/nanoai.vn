@@ -277,7 +277,8 @@ function OrdersAdminTablePane({
   )
 }
 
-function OrdersAdminMobileList({
+function OrdersAdminOrdersTable({
+  pinned,
   rows,
   t,
   locale,
@@ -286,6 +287,7 @@ function OrdersAdminMobileList({
   onOpenDetail,
   onOpenPayment,
 }: {
+  pinned: boolean
   rows: OrderRow[]
   t: OrdersT
   locale: WebLocale
@@ -294,94 +296,181 @@ function OrdersAdminMobileList({
   onOpenDetail: (order: OrderRow) => void
   onOpenPayment: (order: OrderRow) => void
 }) {
+  const th = pinned
+    ? 'sticky top-0 z-20 whitespace-nowrap border-b bg-gray-50 px-2 py-2 font-medium dark:border-zinc-700 dark:bg-zinc-900'
+    : 'p-3 font-medium'
+  const td = pinned ? 'border-b px-2 py-2 dark:border-zinc-700' : 'p-3'
   return (
-    <ul className="divide-y divide-gray-100 dark:divide-zinc-700">
-      {rows.map((order) => {
-        const expects = partnerAdminExpectsDeposit(order)
-        const needDeposit = partnerAdminNeedsDepositStage(order)
-        const payKey = partnerAdminPayBadgeKey(order)
-        return (
-          <li key={order.id} className="px-3 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="break-all font-mono text-xs font-semibold leading-snug text-gray-900 dark:text-zinc-50">
-                  {orderCodeDisplay(order)}
-                </p>
-                <p className="mt-1 truncate font-medium text-gray-900 dark:text-zinc-50">{order.customer_name || '—'}</p>
-                <p className="text-xs text-gray-500">{order.customer_phone || '—'}</p>
-              </div>
-              <label className="flex shrink-0 flex-col items-center gap-1 pt-0.5 text-[11px] leading-none text-gray-500">
+    <table
+      className={
+        pinned
+          ? 'w-full border-separate border-spacing-0 text-left text-sm'
+          : 'w-full min-w-[1080px] text-left'
+      }
+    >
+      <thead className={pinned ? undefined : 'border-b bg-gray-50 dark:border-zinc-700 dark:bg-zinc-900'}>
+        <tr>
+          <th
+            className={
+              pinned
+                ? 'sticky left-0 top-0 z-30 whitespace-nowrap border-b bg-gray-50 px-2 py-2 font-medium dark:border-zinc-700 dark:bg-zinc-900'
+                : th
+            }
+          >
+            {t.tableColOrderCode}
+          </th>
+          <th
+            className={
+              pinned
+                ? 'sticky top-0 z-20 w-16 border-b bg-gray-50 px-2 py-2 text-center text-xs font-medium leading-tight dark:border-zinc-700 dark:bg-zinc-900'
+                : 'w-28 p-3 text-center font-medium'
+            }
+            title={t.tableColConsulted}
+          >
+            {pinned ? t.tableColConsultedShort : t.tableColConsulted}
+          </th>
+          <th className={pinned ? `${th} min-w-[8rem]` : th}>{t.tableColCustomer}</th>
+          <th className={th}>{t.tableColSubtotal}</th>
+          <th className={pinned ? `${th} min-w-[7.5rem]` : th}>{t.tableColDeposit}</th>
+          <th
+            className={
+              pinned
+                ? 'sticky top-0 z-20 min-w-[6.5rem] max-w-[8rem] border-b bg-gray-50 px-2 py-2 text-xs font-medium leading-tight dark:border-zinc-700 dark:bg-zinc-900'
+                : 'min-w-[8.5rem] max-w-[11rem] p-3 align-bottom font-medium leading-snug'
+            }
+            title={t.tableColDueOnDelivery}
+          >
+            {pinned ? t.tableColDueOnDeliveryShort : t.tableColDueOnDelivery}
+          </th>
+          <th className={th}>{t.tableColStatus}</th>
+          <th className={pinned ? th : `${th} whitespace-nowrap`}>{t.tableColPayment}</th>
+          <th className={th}>{t.tableColOrderDate}</th>
+          <th
+            className={
+              pinned
+                ? 'sticky right-0 top-0 z-30 whitespace-nowrap border-b bg-gray-50 px-2 py-2 font-medium shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.18)] dark:border-zinc-700 dark:bg-zinc-900'
+                : th
+            }
+          >
+            {t.tableColActions}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((order) => {
+          const needDeposit = partnerAdminNeedsDepositStage(order)
+          const expects = partnerAdminExpectsDeposit(order)
+          const payKey = partnerAdminPayBadgeKey(order)
+          return (
+            <tr key={order.id} className={pinned ? 'group hover:bg-gray-50 dark:hover:bg-zinc-900/50' : 'border-b hover:bg-gray-50 dark:border-zinc-700 dark:hover:bg-zinc-900/50'}>
+              <td
+                className={
+                  pinned
+                    ? 'sticky left-0 z-10 whitespace-nowrap border-b bg-white px-2 py-2 font-mono text-xs shadow-[4px_0_8px_-6px_rgba(0,0,0,0.12)] group-hover:bg-gray-50 dark:border-zinc-700 dark:bg-zinc-800 dark:group-hover:bg-zinc-900/80'
+                    : 'p-3 font-mono text-sm'
+                }
+              >
+                {orderCodeDisplay(order)}
+              </td>
+              <td className={`${td} text-center`}>
                 <input
                   type="checkbox"
                   checked={Boolean(consultedMap[order.id])}
                   onChange={(e) => onToggleConsulted(order.id, e.target.checked)}
-                  className="h-5 w-5 cursor-pointer rounded border-gray-300 text-[#ea580c] focus:ring-[#ea580c]"
+                  className="h-4 w-4 cursor-pointer rounded border-gray-300 text-[#ea580c] focus:ring-[#ea580c]"
                   aria-label={t.consultedAria}
                 />
-                {t.tableColConsultedShort}
-              </label>
-            </div>
-            <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-              <div>
-                <dt className="text-xs text-gray-500">{t.tableColSubtotal}</dt>
-                <dd className="font-semibold tabular-nums">
-                  {formatVnd(order.amount_after_discount || order.subtotal_amount, locale)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-gray-500">{t.tableColDueOnDeliveryShort}</dt>
-                <dd className="font-semibold tabular-nums">
-                  {formatVnd(partnerAdminAmountDueOnDelivery(order), locale)}
-                </dd>
-              </div>
-              <div className="col-span-2">
-                <dt className="text-xs text-gray-500">{t.tableColDeposit}</dt>
-                <dd className="text-xs leading-snug">
-                  {expects ? (
-                    <>
-                      {t.depositNeed}: {formatVnd(order.required_amount, locale)}
-                      {' · '}
-                      {t.depositPaid}: {formatVnd(order.paid_amount, locale)}
-                    </>
-                  ) : (
-                    <span className="text-green-600">{t.depositNotRequired}</span>
-                  )}
-                </dd>
-              </div>
-            </dl>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <span className="inline-block rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-zinc-700">{stageLabel(t, order)}</span>
-              <span
-                className={`inline-block rounded px-1.5 py-0.5 text-xs ${
-                  payKey === 'paid' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
-                }`}
-              >
-                {payLabel(t, order)}
-              </span>
-              <span className="text-xs text-gray-500">{formatDate(order.created_at, locale)}</span>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
-                onClick={() => onOpenDetail(order)}
-              >
-                {t.tableDetails}
-              </button>
-              {needDeposit && !partnerAdminOrderIsCancelled(order) ? (
-                <button
-                  type="button"
-                  onClick={() => onOpenPayment(order)}
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-white bg-[#ea580c] hover:bg-[#c2410c]"
+              </td>
+              <td className={td}>
+                <div
+                  className={pinned ? 'max-w-[10rem] truncate font-medium' : 'font-medium'}
+                  title={order.customer_name || undefined}
                 >
-                  {t.btnConfirmDeposit}
-                </button>
-              ) : null}
-            </div>
-          </li>
-        )
-      })}
-    </ul>
+                  {order.customer_name || '—'}
+                </div>
+                <div className={pinned ? 'text-xs text-gray-500' : 'text-sm text-gray-500'}>{order.customer_phone || '—'}</div>
+              </td>
+              <td className={`${td} whitespace-nowrap font-semibold tabular-nums`}>
+                {formatVnd(order.amount_after_discount || order.subtotal_amount, locale)}
+              </td>
+              <td className={`${td} ${pinned ? 'text-xs leading-snug' : 'text-sm'}`}>
+                {expects ? (
+                  <>
+                    {t.depositNeed}: {formatVnd(order.required_amount, locale)}
+                    <br />
+                    {t.depositPaid}: {formatVnd(order.paid_amount, locale)}
+                  </>
+                ) : (
+                  <span className="text-green-600">{t.depositNotRequired}</span>
+                )}
+              </td>
+              <td className={`${td} whitespace-nowrap font-semibold tabular-nums text-gray-900 dark:text-zinc-50 ${pinned ? 'text-sm' : 'text-sm'}`}>
+                {formatVnd(partnerAdminAmountDueOnDelivery(order), locale)}
+              </td>
+              <td className={td}>
+                <span
+                  className={
+                    pinned
+                      ? 'inline-block whitespace-nowrap rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-zinc-700'
+                      : 'rounded bg-gray-100 px-2 py-1 text-sm dark:bg-zinc-700'
+                  }
+                >
+                  {stageLabel(t, order)}
+                </span>
+              </td>
+              <td className={td}>
+                <span
+                  className={
+                    pinned
+                      ? `inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs ${
+                          payKey === 'paid' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+                        }`
+                      : `rounded px-2 py-1 text-sm ${
+                          payKey === 'paid' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+                        }`
+                  }
+                >
+                  {payLabel(t, order)}
+                </span>
+              </td>
+              <td className={`${td} whitespace-nowrap ${pinned ? 'text-xs text-gray-600' : 'text-sm text-gray-600'}`}>
+                {formatDate(order.created_at, locale)}
+              </td>
+              <td
+                className={
+                  pinned
+                    ? 'sticky right-0 z-10 border-b bg-white px-2 py-2 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.18)] group-hover:bg-gray-50 dark:border-zinc-700 dark:bg-zinc-800 dark:group-hover:bg-zinc-900/80'
+                    : td
+                }
+              >
+                <div className={pinned ? 'flex flex-nowrap items-center gap-1.5' : 'flex gap-2'}>
+                  <button
+                    type="button"
+                    className={pinned ? 'whitespace-nowrap text-xs text-blue-600 hover:underline' : 'text-sm text-blue-600 hover:underline'}
+                    onClick={() => onOpenDetail(order)}
+                  >
+                    {t.tableDetails}
+                  </button>
+                  {needDeposit && !partnerAdminOrderIsCancelled(order) ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenPayment(order)}
+                      className={
+                        pinned
+                          ? 'whitespace-nowrap rounded px-1.5 py-0.5 text-xs text-white bg-[#ea580c] hover:bg-[#c2410c]'
+                          : 'rounded px-2 py-1 text-sm text-white bg-[#ea580c] hover:bg-[#c2410c]'
+                      }
+                    >
+                      {t.btnConfirmDeposit}
+                    </button>
+                  ) : null}
+                </div>
+              </td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
   )
 }
 
@@ -774,7 +863,7 @@ export function PartnerMessagingOrdersClient({
   }, [detailLines, selectedOrder])
 
   return (
-    <div className="-m-3 bg-slate-100 p-4 sm:-m-4 sm:p-6 lg:-m-5 dark:bg-zinc-900">
+    <div className="min-w-0 -m-3 bg-slate-100 p-4 sm:-m-4 sm:p-6 lg:-m-5 dark:bg-zinc-900">
       {pageToast ? (
         <div
           className={`fixed top-24 right-4 z-[100] max-w-[min(20rem,calc(100vw-2rem))] px-4 py-2 rounded-lg shadow-lg sm:right-6 ${
@@ -1081,7 +1170,7 @@ export function PartnerMessagingOrdersClient({
       </section>
 
       <div className="min-w-0 overflow-hidden rounded-lg bg-white shadow dark:bg-zinc-800">
-        <div className="flex gap-2 overflow-x-auto border-b p-2 lg:flex-wrap lg:overflow-visible dark:border-zinc-700">
+        <div className="flex flex-wrap gap-2 border-b p-2 dark:border-zinc-700">
           {PARTNER_ADMIN_LIFECYCLE_TABS.map(({ key }) => (
             <button
               key={key}
@@ -1090,7 +1179,7 @@ export function PartnerMessagingOrdersClient({
                 setActiveTab(key)
                 setStatusFilter('')
               }}
-              className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${
+              className={`rounded-lg px-3 py-2 text-sm font-medium ${
                 activeTab === key && !statusFilter
                   ? 'bg-[#ea580c] text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-zinc-700 dark:text-zinc-200'
@@ -1101,18 +1190,18 @@ export function PartnerMessagingOrdersClient({
           ))}
         </div>
 
-        <div className="flex flex-wrap gap-2 p-3 lg:gap-3 lg:p-4">
+        <div className="flex flex-wrap gap-3 p-4">
           <input
             type="text"
             placeholder={t.searchPlaceholder}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border px-3 py-2 lg:w-64 dark:border-zinc-600 dark:bg-zinc-900"
+            className="w-64 max-w-full rounded-lg border px-3 py-2 dark:border-zinc-600 dark:bg-zinc-900"
           />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter((e.target.value || '') as PartnerAdminLifecycleTab | '')}
-            className="min-w-[9.5rem] flex-1 rounded-lg border px-3 py-2 lg:w-40 lg:flex-none dark:border-zinc-600 dark:bg-zinc-900"
+            className="w-40 max-w-full rounded-lg border px-3 py-2 dark:border-zinc-600 dark:bg-zinc-900"
           >
             <option value="">{t.filterShippingLabel}</option>
             {PARTNER_ADMIN_LIFECYCLE_TABS.slice(1).map(({ key }) => (
@@ -1124,7 +1213,7 @@ export function PartnerMessagingOrdersClient({
           <select
             value={paymentFilter}
             onChange={(e) => setPaymentFilter((e.target.value || '') as PartnerAdminPaymentFilter)}
-            className="min-w-[9.5rem] flex-1 rounded-lg border px-3 py-2 lg:w-40 lg:flex-none dark:border-zinc-600 dark:bg-zinc-900"
+            className="w-40 max-w-full rounded-lg border px-3 py-2 dark:border-zinc-600 dark:bg-zinc-900"
           >
             <option value="">{t.filterPaymentShort}</option>
             <option value="pending">{t.badgePayAwaiting}</option>
@@ -1164,153 +1253,42 @@ export function PartnerMessagingOrdersClient({
           <div className="p-8 text-center text-gray-500">{t.emptyList}</div>
         ) : (
           <>
-          <div className="lg:hidden">
-            <OrdersAdminMobileList
-              rows={rows}
-              t={t}
-              locale={locale}
-              consultedMap={consultedMap}
-              onToggleConsulted={toggleConsulted}
-              onOpenDetail={openDetail}
-              onOpenPayment={openPaymentModal}
-            />
-          </div>
-          <div className="hidden lg:block">
-          <OrdersAdminTablePane
-            syncKey={`${rows.length}:${listPage}:${listPageSize}:${activeTab}:${statusFilter}:${paymentFilter}:${appliedSearch}`}
-            ariaLabel={t.tableHScrollAria}
-          >
-            <table className="w-full border-separate border-spacing-0 text-left text-sm">
-              <thead>
-                <tr>
-                  <th className="sticky left-0 top-0 z-30 whitespace-nowrap border-b bg-gray-50 px-2 py-2 font-medium dark:border-zinc-700 dark:bg-zinc-900">
-                    {t.tableColOrderCode}
-                  </th>
-                  <th
-                    className="sticky top-0 z-20 w-16 border-b bg-gray-50 px-2 py-2 text-center text-xs font-medium leading-tight dark:border-zinc-700 dark:bg-zinc-900"
-                    title={t.tableColConsulted}
-                  >
-                    {t.tableColConsultedShort}
-                  </th>
-                  <th className="sticky top-0 z-20 min-w-[8rem] border-b bg-gray-50 px-2 py-2 font-medium dark:border-zinc-700 dark:bg-zinc-900">
-                    {t.tableColCustomer}
-                  </th>
-                  <th className="sticky top-0 z-20 whitespace-nowrap border-b bg-gray-50 px-2 py-2 font-medium dark:border-zinc-700 dark:bg-zinc-900">
-                    {t.tableColSubtotal}
-                  </th>
-                  <th className="sticky top-0 z-20 min-w-[7.5rem] border-b bg-gray-50 px-2 py-2 font-medium dark:border-zinc-700 dark:bg-zinc-900">
-                    {t.tableColDeposit}
-                  </th>
-                  <th
-                    className="sticky top-0 z-20 min-w-[6.5rem] max-w-[8rem] border-b bg-gray-50 px-2 py-2 text-xs font-medium leading-tight dark:border-zinc-700 dark:bg-zinc-900"
-                    title={t.tableColDueOnDelivery}
-                  >
-                    {t.tableColDueOnDeliveryShort}
-                  </th>
-                  <th className="sticky top-0 z-20 whitespace-nowrap border-b bg-gray-50 px-2 py-2 font-medium dark:border-zinc-700 dark:bg-zinc-900">
-                    {t.tableColStatus}
-                  </th>
-                  <th className="sticky top-0 z-20 whitespace-nowrap border-b bg-gray-50 px-2 py-2 font-medium dark:border-zinc-700 dark:bg-zinc-900">
-                    {t.tableColPayment}
-                  </th>
-                  <th className="sticky top-0 z-20 whitespace-nowrap border-b bg-gray-50 px-2 py-2 font-medium dark:border-zinc-700 dark:bg-zinc-900">
-                    {t.tableColOrderDate}
-                  </th>
-                  <th className="sticky right-0 top-0 z-30 whitespace-nowrap border-b bg-gray-50 px-2 py-2 font-medium shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.18)] dark:border-zinc-700 dark:bg-zinc-900">
-                    {t.tableColActions}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((order) => {
-                  const needDeposit = partnerAdminNeedsDepositStage(order)
-                  const expects = partnerAdminExpectsDeposit(order)
-                  const payKey = partnerAdminPayBadgeKey(order)
-                  return (
-                    <tr key={order.id} className="group hover:bg-gray-50 dark:hover:bg-zinc-900/50">
-                      <td className="sticky left-0 z-10 whitespace-nowrap border-b bg-white px-2 py-2 font-mono text-xs shadow-[4px_0_8px_-6px_rgba(0,0,0,0.12)] group-hover:bg-gray-50 dark:border-zinc-700 dark:bg-zinc-800 dark:group-hover:bg-zinc-900/80">
-                        {orderCodeDisplay(order)}
-                      </td>
-                      <td className="border-b px-2 py-2 text-center dark:border-zinc-700">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(consultedMap[order.id])}
-                          onChange={(e) => toggleConsulted(order.id, e.target.checked)}
-                          className="h-4 w-4 cursor-pointer rounded border-gray-300 text-[#ea580c] focus:ring-[#ea580c]"
-                          aria-label={t.consultedAria}
-                        />
-                      </td>
-                      <td className="border-b px-2 py-2 dark:border-zinc-700">
-                        <div className="max-w-[10rem] truncate font-medium" title={order.customer_name || undefined}>
-                          {order.customer_name || '—'}
-                        </div>
-                        <div className="text-xs text-gray-500">{order.customer_phone || '—'}</div>
-                      </td>
-                      <td className="whitespace-nowrap border-b px-2 py-2 font-semibold tabular-nums dark:border-zinc-700">
-                        {formatVnd(order.amount_after_discount || order.subtotal_amount, locale)}
-                      </td>
-                      <td className="border-b px-2 py-2 text-xs leading-snug dark:border-zinc-700">
-                        {expects ? (
-                          <>
-                            {t.depositNeed}: {formatVnd(order.required_amount, locale)}
-                            <br />
-                            {t.depositPaid}: {formatVnd(order.paid_amount, locale)}
-                          </>
-                        ) : (
-                          <span className="text-green-600">{t.depositNotRequired}</span>
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap border-b px-2 py-2 text-sm font-semibold tabular-nums text-gray-900 dark:border-zinc-700 dark:text-zinc-50">
-                        {formatVnd(partnerAdminAmountDueOnDelivery(order), locale)}
-                      </td>
-                      <td className="border-b px-2 py-2 dark:border-zinc-700">
-                        <span className="inline-block whitespace-nowrap rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-zinc-700">
-                          {stageLabel(t, order)}
-                        </span>
-                      </td>
-                      <td className="border-b px-2 py-2 dark:border-zinc-700">
-                        <span
-                          className={`inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs ${
-                            payKey === 'paid' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
-                          }`}
-                        >
-                          {payLabel(t, order)}
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap border-b px-2 py-2 text-xs text-gray-600 dark:border-zinc-700">
-                        {formatDate(order.created_at, locale)}
-                      </td>
-                      <td className="sticky right-0 z-10 border-b bg-white px-2 py-2 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.18)] group-hover:bg-gray-50 dark:border-zinc-700 dark:bg-zinc-800 dark:group-hover:bg-zinc-900/80">
-                        <div className="flex flex-nowrap items-center gap-1.5">
-                          <button
-                            type="button"
-                            className="whitespace-nowrap text-xs text-blue-600 hover:underline"
-                            onClick={() => openDetail(order)}
-                          >
-                            {t.tableDetails}
-                          </button>
-                          {needDeposit && !partnerAdminOrderIsCancelled(order) ? (
-                            <button
-                              type="button"
-                              onClick={() => openPaymentModal(order)}
-                              className="whitespace-nowrap rounded px-1.5 py-0.5 text-xs text-white bg-[#ea580c] hover:bg-[#c2410c]"
-                            >
-                              {t.btnConfirmDeposit}
-                            </button>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </OrdersAdminTablePane>
-          </div>
+            <div
+              className="w-full min-w-0 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] lg:hidden"
+              aria-label={t.tableHScrollAria}
+            >
+              <OrdersAdminOrdersTable
+                pinned={false}
+                rows={rows}
+                t={t}
+                locale={locale}
+                consultedMap={consultedMap}
+                onToggleConsulted={toggleConsulted}
+                onOpenDetail={openDetail}
+                onOpenPayment={openPaymentModal}
+              />
+            </div>
+            <div className="hidden lg:block">
+              <OrdersAdminTablePane
+                syncKey={`${rows.length}:${listPage}:${listPageSize}:${activeTab}:${statusFilter}:${paymentFilter}:${appliedSearch}`}
+                ariaLabel={t.tableHScrollAria}
+              >
+                <OrdersAdminOrdersTable
+                  pinned
+                  rows={rows}
+                  t={t}
+                  locale={locale}
+                  consultedMap={consultedMap}
+                  onToggleConsulted={toggleConsulted}
+                  onOpenDetail={openDetail}
+                  onOpenPayment={openPaymentModal}
+                />
+              </OrdersAdminTablePane>
+            </div>
           </>
         )}
         {!loading && filteredTotal > 0 ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-3 py-3 text-sm text-gray-600 lg:px-4 dark:border-zinc-700">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-4 py-3 text-sm text-gray-600 dark:border-zinc-700">
             <span>
               {t.paginationSummary
                 .replace('{from}', String(displayFrom))
@@ -1320,12 +1298,12 @@ export function PartnerMessagingOrdersClient({
                 .replace('{pages}', String(totalPages))}
               {appliedSearch ? t.paginationSearchHint.replace('{q}', appliedSearch) : ''}
             </span>
-            <div className="grid w-full grid-cols-4 gap-2 lg:flex lg:w-auto lg:items-center">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setListPage(1)}
                 disabled={listPage <= 1 || pending}
-                className="rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-center hover:bg-gray-50 disabled:opacity-40 lg:py-1.5 dark:border-zinc-600 dark:bg-zinc-800"
+                className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
               >
                 {t.paginationFirst}
               </button>
@@ -1333,7 +1311,7 @@ export function PartnerMessagingOrdersClient({
                 type="button"
                 onClick={() => setListPage((p) => Math.max(1, p - 1))}
                 disabled={listPage <= 1 || pending}
-                className="rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-center hover:bg-gray-50 disabled:opacity-40 lg:py-1.5 dark:border-zinc-600 dark:bg-zinc-800"
+                className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
               >
                 {t.paginationPrev}
               </button>
@@ -1341,7 +1319,7 @@ export function PartnerMessagingOrdersClient({
                 type="button"
                 onClick={() => setListPage((p) => Math.min(totalPages, p + 1))}
                 disabled={listPage >= totalPages || pending}
-                className="rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-center hover:bg-gray-50 disabled:opacity-40 lg:py-1.5 dark:border-zinc-600 dark:bg-zinc-800"
+                className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
               >
                 {t.paginationNext}
               </button>
@@ -1349,7 +1327,7 @@ export function PartnerMessagingOrdersClient({
                 type="button"
                 onClick={() => setListPage(totalPages)}
                 disabled={listPage >= totalPages || pending}
-                className="rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-center hover:bg-gray-50 disabled:opacity-40 lg:py-1.5 dark:border-zinc-600 dark:bg-zinc-800"
+                className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 hover:bg-gray-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800"
               >
                 {t.paginationLast}
               </button>
