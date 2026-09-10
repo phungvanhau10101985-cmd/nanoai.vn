@@ -985,6 +985,7 @@ function footerKitRowLabel(kind: string, locale: WebLocale, t: PartnerWebsiteCop
 }
 
 const FLOATING_PANEL_W = 320
+const CHROME_KIT_PANEL_W = 560
 const FLOATING_PANEL_TOP = 52
 const FLOATING_PANEL_CANVAS_GAP = 12
 
@@ -1000,8 +1001,12 @@ function defaultFloatingPanelPos(): { x: number; y: number } {
 function floatingPanelPosLeftOfCanvas(canvas: { left: number; width: number } | null): { x: number; y: number } {
   if (typeof window === 'undefined') return { x: 16, y: FLOATING_PANEL_TOP }
   const left = canvas && canvas.width > 0 ? canvas.left : 0
-  const preferred = left > 0 ? left - FLOATING_PANEL_W - FLOATING_PANEL_CANVAS_GAP : 16
-  return clampFloatingPanelPos(preferred, FLOATING_PANEL_TOP, null)
+  const panelWidth = Math.min(CHROME_KIT_PANEL_W, window.innerWidth - 16)
+  const preferred = left > 0 ? left - panelWidth - FLOATING_PANEL_CANVAS_GAP : 16
+  return {
+    x: Math.min(Math.max(8, preferred), Math.max(8, window.innerWidth - panelWidth - 8)),
+    y: FLOATING_PANEL_TOP,
+  }
 }
 
 function clampFloatingPanelPos(x: number, y: number, el: HTMLElement | null) {
@@ -1022,6 +1027,7 @@ function VisualEditFloatingPanel({
   pos,
   onPosChange,
   onClose,
+  wide = false,
   children,
 }: {
   title: string
@@ -1030,6 +1036,7 @@ function VisualEditFloatingPanel({
   pos: { x: number; y: number }
   onPosChange: (next: { x: number; y: number }) => void
   onClose?: () => void
+  wide?: boolean
   children: ReactNode
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
@@ -1062,7 +1069,10 @@ function VisualEditFloatingPanel({
   return (
     <div
       ref={panelRef}
-      className="fixed z-[130] flex w-[20rem] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-lg border bg-background shadow-lg"
+      className={cn(
+        'fixed z-[130] flex max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-lg border bg-background shadow-lg',
+        wide ? 'w-[35rem]' : 'w-[20rem]'
+      )}
       style={{ left: pos.x, top: pos.y }}
       role="dialog"
       aria-label={title}
@@ -1095,7 +1105,9 @@ function VisualEditFloatingPanel({
           </Button>
         ) : null}
       </div>
-      <div className="max-h-[min(70vh,28rem)] overflow-y-auto p-2">{children}</div>
+      <div className={cn('overflow-y-auto', wide ? 'max-h-[calc(100vh-4.75rem)] p-3' : 'max-h-[min(70vh,28rem)] p-2')}>
+        {children}
+      </div>
     </div>
   )
 }
@@ -1237,9 +1249,42 @@ function ChromeKitPanel({
   }
   const usedTopbar = new Set(topbar.map((row) => chromeKitTopbarKindKey(row.kind)))
   const topbarAddKinds = CHROME_KIT_TOPBAR_ADD_KINDS.filter((kind) => !usedTopbar.has(chromeKitTopbarKindKey(kind)))
+  const [section, setSection] = useState<'topbar' | 'head' | 'float' | 'footer' | 'dock'>('topbar')
+  const activeSection = section === 'dock' && !showDock ? 'topbar' : section
+  const sections = [
+    { id: 'topbar' as const, label: t.visualEditChromeKitTopbar },
+    { id: 'head' as const, label: headTitle },
+    { id: 'float' as const, label: t.visualEditChromeKitFloat },
+    ...(showDock ? [{ id: 'dock' as const, label: t.visualEditChromeKitDock }] : []),
+    { id: 'footer' as const, label: t.visualEditChromeKitFooter },
+  ]
   return (
-    <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto">
-      <p className="px-1 text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitHint}</p>
+    <div className="flex flex-col gap-2">
+      <p className="rounded-md bg-muted/50 px-3 py-2 text-[10px] leading-4 text-muted-foreground">
+        {t.visualEditChromeKitHint}
+      </p>
+      <div
+        className={cn(
+          'grid grid-cols-2 gap-1 rounded-lg border bg-muted/30 p-1',
+          showDock ? 'sm:grid-cols-5' : 'sm:grid-cols-4'
+        )}
+      >
+        {sections.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={cn(
+              'min-w-0 truncate rounded-md px-2 py-1.5 text-[10px] font-medium transition-colors',
+              activeSection === item.id ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-background/70'
+            )}
+            onClick={() => setSection(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      {activeSection === 'float' ? (
+        <div className="rounded-lg border p-2">
       <p className="mt-0.5 px-1 text-[11px] font-semibold">{t.visualEditChromeKitFloat}</p>
       <p className="px-1 text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitFloatHint}</p>
       <div className="grid grid-cols-3 gap-1 px-1">
@@ -1322,8 +1367,13 @@ function ChromeKitPanel({
           onDown={() => onReorder(item.kind, 'float', 'down')}
         />
       ))}
+        </div>
+      ) : null}
+      {activeSection === 'topbar' ? (
+        <div className="rounded-lg border p-2">
       <p className="mt-1 px-1 text-[11px] font-semibold">{t.visualEditChromeKitTopbar}</p>
       <p className="px-1 text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitTopbarHint}</p>
+      <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
       {topbar.map((item) => (
         <ChromeKitRow
           key={`tb-${item.kind}`}
@@ -1338,8 +1388,9 @@ function ChromeKitPanel({
           onDown={() => onReorder(item.kind, 'topbar', 'down')}
         />
       ))}
+      </div>
       {topbarAddKinds.length ? (
-        <label className="flex flex-col gap-1 px-1 text-[10px] text-muted-foreground">
+        <label className="mt-2 flex flex-col gap-1 border-t px-1 pt-2 text-[10px] text-muted-foreground">
           <span>{t.visualEditChromeKitTopbarAdd}</span>
           <select
             disabled={busy}
@@ -1363,6 +1414,10 @@ function ChromeKitPanel({
           </select>
         </label>
       ) : null}
+        </div>
+      ) : null}
+      {activeSection === 'head' ? (
+        <div className="rounded-lg border p-2">
       <p className="mt-1 px-1 text-[11px] font-semibold">{headTitle}</p>
       <p className="px-1 text-[11px] font-medium text-foreground">{t.visualEditChromeKitLogoPos}</p>
       <div className="grid grid-cols-2 gap-2 px-1">
@@ -1507,6 +1562,10 @@ function ChromeKitPanel({
           onDown={() => onReorder(item.kind, 'head', 'down')}
         />
       ))}
+        </div>
+      ) : null}
+      {activeSection === 'footer' ? (
+        <div className="rounded-lg border p-2">
       <p className="mt-1 px-1 text-[11px] font-semibold">{t.visualEditChromeKitFooter}</p>
       <p className="px-1 text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitFooterHint}</p>
       {footer.map((item) => (
@@ -1522,50 +1581,54 @@ function ChromeKitPanel({
           onToggle={() => onToggleFooter(item.kind, !item.hidden)}
         />
       ))}
-      {showDock ? (
-        <>
+        </div>
+      ) : null}
+      {showDock && activeSection === 'dock' ? (
+        <div className="rounded-lg border p-2">
           <p className="mt-1 px-1 text-[11px] font-semibold">
             {isProductPage ? `${t.visualEditChromeKitDock} · ${t.visualEditChromeKitPdp}` : t.visualEditChromeKitDock}
           </p>
           {isProductPage ? (
             <p className="px-1 text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitPdpNavHint}</p>
           ) : null}
-          {dockRows.map((item) => {
-            const locked = isPdpDockCtaLocked(item.kind)
-            const hidden = dockRowHidden(item)
-            const label = isVisualEditorChromeWidgetKind(item.kind)
-              ? chromeWidgetLabel(item.kind, locale)
-              : item.label
-            if (isProductPage && locked) {
+          <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+            {dockRows.map((item) => {
+              const locked = isPdpDockCtaLocked(item.kind)
+              const hidden = dockRowHidden(item)
+              const label = isVisualEditorChromeWidgetKind(item.kind)
+                ? chromeWidgetLabel(item.kind, locale)
+                : item.label
+              if (isProductPage && locked) {
+                return (
+                  <div
+                    key={`d-${item.kind}`}
+                    className="flex items-center gap-1 rounded px-1 py-0.5 text-[11px]"
+                  >
+                    <span className="min-w-0 flex-1 truncate">{label}</span>
+                    <span className="p-0.5" title={t.visualEditChromeKitPdpCtaLocked}>
+                      <Lock className="h-3.5 w-3.5" />
+                    </span>
+                  </div>
+                )
+              }
               return (
-                <div
+                <ChromeKitRow
                   key={`d-${item.kind}`}
-                  className="flex items-center gap-1 rounded px-1 py-0.5 text-[11px]"
-                >
-                  <span className="min-w-0 flex-1 truncate">{label}</span>
-                  <span className="p-0.5" title={t.visualEditChromeKitPdpCtaLocked}>
-                    <Lock className="h-3.5 w-3.5" />
-                  </span>
-                </div>
+                  label={label}
+                  hidden={hidden}
+                  busy={busy}
+                  hideLabel={t.visualEditBlockHide}
+                  showLabel={t.visualEditBlockShow}
+                  onToggle={() =>
+                    onToggleDock(item.kind, hidden ? (isProductPage ? 'pdp' : 'shop') : 'off')
+                  }
+                  onUp={() => onReorder(item.kind, 'dock', 'up')}
+                  onDown={() => onReorder(item.kind, 'dock', 'down')}
+                />
               )
-            }
-            return (
-              <ChromeKitRow
-                key={`d-${item.kind}`}
-                label={label}
-                hidden={hidden}
-                busy={busy}
-                hideLabel={t.visualEditBlockHide}
-                showLabel={t.visualEditBlockShow}
-                onToggle={() =>
-                  onToggleDock(item.kind, hidden ? (isProductPage ? 'pdp' : 'shop') : 'off')
-                }
-                onUp={() => onReorder(item.kind, 'dock', 'up')}
-                onDown={() => onReorder(item.kind, 'dock', 'down')}
-              />
-            )
-          })}
-        </>
+            })}
+          </div>
+        </div>
       ) : null}
     </div>
   )
@@ -2297,6 +2360,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         dock?: unknown
         float?: unknown
         footer?: unknown
+        topbar?: unknown
         floatRight?: number
         floatBottom?: number
         floatGap?: number
@@ -4421,6 +4485,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                 closeLabel={openPanel === 'block' ? undefined : t.visualEditPanelClose}
                 pos={panelPos}
                 onPosChange={setPanelPos}
+                wide={openPanel === 'chromeKit'}
                 onClose={
                   openPanel === 'block'
                     ? undefined

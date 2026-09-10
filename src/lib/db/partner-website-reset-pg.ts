@@ -1,4 +1,5 @@
 import { createHash, randomInt } from 'node:crypto'
+import { bumpSiteCacheLater } from '@/lib/cache/partner-shop-cache'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { fetchPartnerWebsiteByPartnerIdPg } from '@/lib/db/messaging-partner-websites-pg'
@@ -143,8 +144,68 @@ export type PartnerWebsiteResetDeleteResult =
   | { ok: true }
   | { ok: false; reason: 'otp' | 'db'; message: string }
 
-function isPgInvalidPageError(e: unknown): boolean {
-  return Boolean(e && typeof e === 'object' && 'code' in e && (e as { code?: string }).code === 'XX001')
+function pgErrCode(e: unknown): string | null {
+  if (!e || typeof e !== 'object') return null
+  const code = (e as { code?: unknown }).code
+  return typeof code === 'string' ? code : null
+}
+
+function pgErrMessage(e: unknown): string {
+  if (!e || typeof e !== 'object') return typeof e === 'string' ? e : ''
+  const message = (e as { message?: unknown }).message
+  return typeof message === 'string' ? message : String(e)
+}
+
+export function isPgInvalidPageError(e: unknown): boolean {
+  if (pgErrCode(e) === 'XX001') return true
+  return /invalid page/i.test(pgErrMessage(e))
+}
+
+export function isPgJsonbTooLargeError(e: unknown): boolean {
+  if (pgErrCode(e) === '54000') return true
+  return /jsonb[\s\S]*exceeds the maximum/i.test(pgErrMessage(e))
+}
+
+export function partnerWebsiteResetPgErrorMessage(e: unknown): string {
+  if (isPgInvalidPageError(e)) {
+    return 'Không reset được vì bảng lưu tạm website bị hỏng trên Postgres (XX001). Gửi lại OTP rồi xác nhận.'
+  }
+  if (isPgJsonbTooLargeError(e)) {
+    return 'Không reset được vì bản web quá lớn để lưu tạm. Gửi lại OTP rồi xác nhận.'
+  }
+  const code = pgErrCode(e)
+  if (code === '57014' || /statement timeout|canceling statement/i.test(pgErrMessage(e))) {
+    return 'Không reset được vì thao tác lưu tạm quá lâu. Gửi lại OTP rồi xác nhận.'
+  }
+  return 'Không reset được website do lỗi cơ sở dữ liệu. Thử lại sau.'
+}
+
+/** Current website + landings + looks. Never jsonb_agg full revision HTML (hits 256MB jsonb limit). */
+function resetTrashPayloadSql(includeLookFiles: boolean): string {
+  const looks = includeLookFiles
+    ? `coalesce(
+         (select jsonb_agg(to_jsonb(pl) order by pl.preset_id)
+          from public.messaging_partner_website_preset_looks pl
+          where pl.partner_id = s.partner_id),
+         '[]'::jsonb
+       )`
+    : `coalesce(
+         (select jsonb_agg((to_jsonb(pl) - 'project_files_json' - 'html_source') order by pl.preset_id)
+          from public.messaging_partner_website_preset_looks pl
+          where pl.partner_id = s.partner_id),
+         '[]'::jsonb
+       )`
+  return `jsonb_build_object(
+             'website', to_jsonb(s),
+             'revisions', '[]'::jsonb,
+             'landings', coalesce(
+               (select jsonb_agg(to_jsonb(l) order by l.created_at)
+                from public.messaging_partner_landing_pages l
+                where l.partner_id = s.partner_id),
+               '[]'::jsonb
+             ),
+             'presetLooks', ${looks}
+           )`
 }
 
 /**
@@ -164,40 +225,8 @@ async function clearPartnerWebsiteResetTrashRow(partnerId: string): Promise<void
   }
 }
 
-/**
- * Verify OTP → snapshot website (+ revisions + landings) into 7-day trash → delete live site.
- */
-export async function verifyPartnerWebsiteResetOtpAndDeleteFromPg(params: {
-  partnerId: string
-  ownerUserId: string
-  otp: string
-}): Promise<PartnerWebsiteResetDeleteResult> {
-  if (!isPgConfigured()) return { ok: false, reason: 'db', message: 'DATABASE_URL is not set.' }
-  const pid = safeUuid(params.partnerId)
-  const uid = safeUuid(params.ownerUserId)
-  if (!pid || !uid) return { ok: false, reason: 'otp', message: 'Mã OTP không đúng hoặc đã hết hạn.' }
-  const otp = params.otp.replace(/\D/g, '').trim()
-  if (otp.length !== 6) return { ok: false, reason: 'otp', message: 'Mã OTP không đúng hoặc đã hết hạn.' }
-  const tryHash = hashPartnerWebsiteResetOtp(pid, uid, otp)
-  try {
-    const otpOk = await pgQueryOne<{ ok: boolean }>(
-      `select exists(
-         select 1 from public.messaging_partner_website_reset_otps o
-         where o.partner_id = $1::uuid
-           and o.owner_user_id = $2::uuid
-           and o.expires_at > now()
-           and o.otp_hash = $3
-       ) as ok`,
-      [pid, uid, tryHash]
-    )
-    if (otpOk?.ok !== true) {
-      return { ok: false, reason: 'otp', message: 'Mã OTP không đúng hoặc đã hết hạn.' }
-    }
-
-    await clearPartnerWebsiteResetTrashRow(pid)
-
-    const row = await pgQueryOne<{ deleted: boolean }>(
-      `with verified as (
+export function resetTrashAndDeleteSql(includeLookFiles: boolean): string {
+  return `with verified as (
          delete from public.messaging_partner_website_reset_otps o
          where o.partner_id = $1::uuid
            and o.owner_user_id = $2::uuid
@@ -223,27 +252,7 @@ export async function verifyPartnerWebsiteResetOtpAndDeleteFromPg(params: {
          select
            s.partner_id,
            $2::uuid,
-           jsonb_build_object(
-             'website', to_jsonb(s),
-             'revisions', coalesce(
-               (select jsonb_agg(to_jsonb(r) order by r.created_at)
-                from public.messaging_partner_website_revisions r
-                where r.partner_id = s.partner_id),
-               '[]'::jsonb
-             ),
-             'landings', coalesce(
-               (select jsonb_agg(to_jsonb(l) order by l.created_at)
-                from public.messaging_partner_landing_pages l
-                where l.partner_id = s.partner_id),
-               '[]'::jsonb
-             ),
-             'presetLooks', coalesce(
-               (select jsonb_agg(to_jsonb(pl) order by pl.preset_id)
-                from public.messaging_partner_website_preset_looks pl
-                where pl.partner_id = s.partner_id),
-               '[]'::jsonb
-             )
-           ),
+           ${resetTrashPayloadSql(includeLookFiles)},
            timezone('utc'::text, now()),
            timezone('utc'::text, now()) + ($4::int * interval '1 day'),
            null
@@ -254,32 +263,78 @@ export async function verifyPartnerWebsiteResetOtpAndDeleteFromPg(params: {
          delete from public.messaging_partner_website_revisions r
          where r.partner_id = $1::uuid
            and exists (select 1 from snap)
+         returning r.id
        ),
        del_site as (
          delete from public.messaging_partner_websites w
          where w.partner_id = $1::uuid
            and exists (select 1 from snap)
-         returning w.id
+         returning w.site_slug
        )
-       select exists(select 1 from snap) as deleted`,
-      [pid, uid, tryHash, PARTNER_WEBSITE_RESET_TRASH_DAYS]
+       select exists(select 1 from snap) as deleted,
+              (select site_slug from del_site limit 1) as site_slug,
+              (select count(*)::int from del_revisions) as dropped_revisions`
+}
+
+/**
+ * Verify OTP → snapshot current website (+ landings + looks) into 7-day trash → delete live site.
+ * Revision HTML history is not copied (jsonb 256MB cap).
+ */
+export async function verifyPartnerWebsiteResetOtpAndDeleteFromPg(params: {
+  partnerId: string
+  ownerUserId: string
+  otp: string
+}): Promise<PartnerWebsiteResetDeleteResult> {
+  if (!isPgConfigured()) return { ok: false, reason: 'db', message: 'DATABASE_URL is not set.' }
+  const pid = safeUuid(params.partnerId)
+  const uid = safeUuid(params.ownerUserId)
+  if (!pid || !uid) return { ok: false, reason: 'otp', message: 'Mã OTP không đúng hoặc đã hết hạn.' }
+  const otp = params.otp.replace(/\D/g, '').trim()
+  if (otp.length !== 6) return { ok: false, reason: 'otp', message: 'Mã OTP không đúng hoặc đã hết hạn.' }
+  const tryHash = hashPartnerWebsiteResetOtp(pid, uid, otp)
+  const sqlArgs = [pid, uid, tryHash, PARTNER_WEBSITE_RESET_TRASH_DAYS]
+  try {
+    const otpOk = await pgQueryOne<{ ok: boolean }>(
+      `select exists(
+         select 1 from public.messaging_partner_website_reset_otps o
+         where o.partner_id = $1::uuid
+           and o.owner_user_id = $2::uuid
+           and o.expires_at > now()
+           and o.otp_hash = $3
+       ) as ok`,
+      [pid, uid, tryHash]
     )
-    if (row?.deleted === true) return { ok: true }
+    if (otpOk?.ok !== true) {
+      return { ok: false, reason: 'otp', message: 'Mã OTP không đúng hoặc đã hết hạn.' }
+    }
+
+    await clearPartnerWebsiteResetTrashRow(pid)
+
+    let row: { deleted: boolean; site_slug?: string | null } | null = null
+    try {
+      row = await pgQueryOne<{ deleted: boolean; site_slug: string | null }>(
+        resetTrashAndDeleteSql(true),
+        sqlArgs
+      )
+    } catch (e) {
+      if (!isPgJsonbTooLargeError(e)) throw e
+      console.warn('[verifyPartnerWebsiteResetOtpAndDeleteFromPg] jsonb too large — retry without look files')
+      row = await pgQueryOne<{ deleted: boolean; site_slug: string | null }>(
+        resetTrashAndDeleteSql(false),
+        sqlArgs
+      )
+    }
+    if (row?.deleted === true) {
+      bumpSiteCacheLater(row.site_slug)
+      return { ok: true }
+    }
     return { ok: false, reason: 'otp', message: 'Mã OTP không đúng hoặc đã hết hạn.' }
   } catch (e) {
     console.warn('[verifyPartnerWebsiteResetOtpAndDeleteFromPg]', e)
-    if (isPgInvalidPageError(e)) {
-      return {
-        ok: false,
-        reason: 'db',
-        message:
-          'Không reset được vì bảng lưu tạm website bị hỏng trên Postgres (XX001). Gửi lại OTP rồi xác nhận.',
-      }
-    }
     return {
       ok: false,
       reason: 'db',
-      message: 'Không reset được website do lỗi cơ sở dữ liệu. Thử lại sau.',
+      message: partnerWebsiteResetPgErrorMessage(e),
     }
   }
 }
@@ -346,7 +401,7 @@ export async function restorePartnerWebsiteFromResetTrashPg(params: {
          id, partner_id, site_slug, title, brief_text, logo_url,
          reference_image_urls, project_files_json, html_source, locale,
          is_published, published_at, source_thread_id,
-         render_mode, template_id, theme_json, pages_json,
+         render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
          creation_journal_json, created_at, updated_at
        )
        values (
@@ -358,8 +413,9 @@ export async function restorePartnerWebsiteFromResetTrashPg(params: {
          coalesce($14, 'legacy'), coalesce($15, 'custom-mockup-v1'),
          coalesce($16::jsonb, '{}'::jsonb),
          coalesce($17::jsonb, '[]'::jsonb),
-         coalesce($18::jsonb, null),
-         coalesce($19::timestamptz, timezone('utc'::text, now())),
+         $18::jsonb, $19::jsonb,
+         coalesce($20::jsonb, null),
+         coalesce($21::timestamptz, timezone('utc'::text, now())),
          timezone('utc'::text, now())
        )`,
       [
@@ -380,6 +436,8 @@ export async function restorePartnerWebsiteFromResetTrashPg(params: {
         w.template_id ?? 'custom-mockup-v1',
         JSON.stringify(w.theme_json ?? {}),
         JSON.stringify(w.pages_json ?? []),
+        w.nav_json != null ? JSON.stringify(w.nav_json) : null,
+        w.footer_json != null ? JSON.stringify(w.footer_json) : null,
         w.creation_journal_json != null ? JSON.stringify(w.creation_journal_json) : null,
         w.created_at ?? null,
       ]
@@ -492,6 +550,7 @@ export async function restorePartnerWebsiteFromResetTrashPg(params: {
 
     const website = await fetchPartnerWebsiteByPartnerIdPg(pid)
     if (!website) return { ok: false, error: 'Khôi phục xong nhưng không đọc lại được website.' }
+    bumpSiteCacheLater(website.siteSlug)
     return { ok: true, website }
   } catch (e) {
     console.warn('[restorePartnerWebsiteFromResetTrashPg]', e)
