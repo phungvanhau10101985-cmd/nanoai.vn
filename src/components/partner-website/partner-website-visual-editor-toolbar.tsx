@@ -121,9 +121,13 @@ import {
   CHROME_KIT_DOCK_ITEMS,
   CHROME_KIT_FLOAT_ITEMS,
   CHROME_KIT_PDP_NAV_DEFAULT_KINDS,
+  CHROME_KIT_TOPBAR_ADD_KINDS,
+  buildChromeKitTopbarItemHtml,
+  chromeKitTopbarKindKey,
   clampChromeKitGap,
   clampChromeKitShift,
   isChromeKitPickerKind,
+  isChromeKitTopbarAddKind,
   isPdpDockCtaLocked,
   isPdpDockFaceKind,
   isPdpDockNavKind,
@@ -1108,12 +1112,15 @@ function ChromeKitPanel({
   dock,
   float,
   footer,
+  topbar,
   headX,
   busy,
   onToggleHead,
   onToggleDock,
   onToggleFloat,
   onToggleFooter,
+  onToggleTopbar,
+  onAddTopbar,
   floatRight,
   floatBottom,
   floatGap,
@@ -1122,6 +1129,7 @@ function ChromeKitPanel({
   onSetFloatItemRight,
   onSelectFloat,
   onSelectFooter,
+  onSelectTopbar,
   onReorder,
   onShiftHead,
   headGap,
@@ -1138,6 +1146,7 @@ function ChromeKitPanel({
   dock: ChromeKitListItem[]
   float: ChromeKitListItem[]
   footer: ChromeKitListItem[]
+  topbar: ChromeKitListItem[]
   floatRight: number
   floatBottom: number
   floatGap: number
@@ -1150,12 +1159,15 @@ function ChromeKitPanel({
   onToggleDock: (kind: string, show: 'shop' | 'pdp' | 'both' | 'off') => void
   onToggleFloat: (kind: string, hidden: boolean) => void
   onToggleFooter: (kind: string, hidden: boolean) => void
+  onToggleTopbar: (kind: string, hidden: boolean) => void
+  onAddTopbar: (kind: VisualEditorChromeWidgetKind) => void
   onSetFloatStack: (right: number, bottom: number, gap: number) => void
   onSetFloatItemSize: (kind: string, size: number) => void
   onSetFloatItemRight: (kind: string, right: number) => void
   onSelectFloat: (kind: string) => void
   onSelectFooter: (kind: string) => void
-  onReorder: (kind: string, bar: 'head' | 'dock' | 'float', dir: 'up' | 'down') => void
+  onSelectTopbar: (kind: string) => void
+  onReorder: (kind: string, bar: 'head' | 'dock' | 'float' | 'topbar', dir: 'up' | 'down') => void
   onShiftHead: (x: number) => void
   onSetHeadGap: (gap: number) => void
   onSetLogoOffset: (x: number, y: number) => void
@@ -1226,6 +1238,8 @@ function ChromeKitPanel({
     seenFloat.add(item.kind)
     floatRows.push({ kind: item.kind, hidden: true, label: item.kind })
   }
+  const usedTopbar = new Set(topbar.map((row) => chromeKitTopbarKindKey(row.kind)))
+  const topbarAddKinds = CHROME_KIT_TOPBAR_ADD_KINDS.filter((kind) => !usedTopbar.has(chromeKitTopbarKindKey(kind)))
   return (
     <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto">
       <p className="px-1 text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitHint}</p>
@@ -1311,6 +1325,47 @@ function ChromeKitPanel({
           onDown={() => onReorder(item.kind, 'float', 'down')}
         />
       ))}
+      <p className="mt-1 px-1 text-[11px] font-semibold">{t.visualEditChromeKitTopbar}</p>
+      <p className="px-1 text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitTopbarHint}</p>
+      {topbar.map((item) => (
+        <ChromeKitRow
+          key={`tb-${item.kind}`}
+          label={isVisualEditorChromeWidgetKind(item.kind) ? chromeWidgetLabel(item.kind, locale) : item.label}
+          hidden={item.hidden}
+          busy={busy}
+          hideLabel={t.visualEditBlockHide}
+          showLabel={t.visualEditBlockShow}
+          onSelect={() => onSelectTopbar(item.kind)}
+          onToggle={() => onToggleTopbar(item.kind, !item.hidden)}
+          onUp={() => onReorder(item.kind, 'topbar', 'up')}
+          onDown={() => onReorder(item.kind, 'topbar', 'down')}
+        />
+      ))}
+      {topbarAddKinds.length ? (
+        <label className="flex flex-col gap-1 px-1 text-[10px] text-muted-foreground">
+          <span>{t.visualEditChromeKitTopbarAdd}</span>
+          <select
+            disabled={busy}
+            defaultValue=""
+            onChange={(e) => {
+              const kind = e.target.value
+              e.target.value = ''
+              if (!isChromeKitTopbarAddKind(kind)) return
+              onAddTopbar(kind)
+            }}
+            className="h-7 rounded border bg-background px-1 text-[11px] text-foreground"
+          >
+            <option value="" disabled>
+              {t.visualEditChromeKitTopbarAdd}
+            </option>
+            {topbarAddKinds.map((kind) => (
+              <option key={kind} value={kind}>
+                {chromeWidgetLabel(kind, locale)}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <p className="mt-1 px-1 text-[11px] font-semibold">{headTitle}</p>
       <p className="px-1 text-[11px] font-medium text-foreground">{t.visualEditChromeKitLogoPos}</p>
       <div className="grid grid-cols-2 gap-2 px-1">
@@ -1693,6 +1748,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [chromeKitDock, setChromeKitDock] = useState<ChromeKitListItem[]>([])
   const [chromeKitFloat, setChromeKitFloat] = useState<ChromeKitListItem[]>([])
   const [chromeKitFooter, setChromeKitFooter] = useState<ChromeKitListItem[]>([])
+  const [chromeKitTopbar, setChromeKitTopbar] = useState<ChromeKitListItem[]>([])
   const [chromeKitFloatRight, setChromeKitFloatRight] = useState(PW_CHROME_FLOAT_DEFAULT_RIGHT_PX)
   const [chromeKitFloatBottom, setChromeKitFloatBottom] = useState(PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat)
   const [chromeKitFloatGap, setChromeKitFloatGap] = useState(PW_FLOAT_GAP_DEFAULT)
@@ -1752,11 +1808,11 @@ export function PartnerWebsiteVisualEditorToolbar({
   const scriptInjectedRef = useRef(false)
   const lastLogoKeyRef = useRef('')
   const promptTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const logoIdeaRef = useRef<HTMLTextAreaElement>(null)
   const aiLockRef = useRef(false)
   const aiAbortRef = useRef<AbortController | null>(null)
   const aiGenSeqRef = useRef(0)
   const saveWaiterRef = useRef<{ resolve: (ok: boolean) => void } | null>(null)
-  const generateLogoRef = useRef<() => Promise<void>>(async () => {})
 
   function abortInFlightAiImage() {
     try {
@@ -2188,7 +2244,6 @@ export function PartnerWebsiteVisualEditorToolbar({
         isBgImage?: boolean
         isLogo?: boolean
         inFooter?: boolean
-        generate?: boolean
         logoFace?: string
         logoSlot?: string
         logoBg?: string
@@ -2284,12 +2339,10 @@ export function PartnerWebsiteVisualEditorToolbar({
           })
         }
         if (data.type === 'logoCreate' && next.isLogo) {
-          requestAnimationFrame(() => promptTextareaRef.current?.focus())
-          if (data.generate) {
-            window.setTimeout(() => {
-              void generateLogoRef.current()
-            }, 80)
-          }
+          window.setTimeout(() => {
+            logoIdeaRef.current?.focus()
+            logoIdeaRef.current?.scrollIntoView({ block: 'nearest' })
+          }, 50)
         }
         if (data.type === 'logoUpload') {
           window.setTimeout(() => logoFileRef.current?.click(), 0)
@@ -2430,10 +2483,12 @@ export function PartnerWebsiteVisualEditorToolbar({
         const dock = Array.isArray(data.dock) ? (data.dock as ChromeKitListItem[]) : []
         const float = Array.isArray(data.float) ? (data.float as ChromeKitListItem[]) : []
         const footer = Array.isArray(data.footer) ? (data.footer as ChromeKitListItem[]) : []
+        const topbar = Array.isArray(data.topbar) ? (data.topbar as ChromeKitListItem[]) : []
         setChromeKitHead(head)
         setChromeKitDock(dock)
         setChromeKitFloat(float)
         setChromeKitFooter(footer)
+        setChromeKitTopbar(topbar)
         setChromeKitFloatRight(clampChromeFloatEdge(data.floatRight ?? PW_CHROME_FLOAT_DEFAULT_RIGHT_PX))
         setChromeKitFloatBottom(clampChromeFloatEdge(data.floatBottom ?? PW_CHROME_FLOAT_DEFAULT_BOTTOM_PX.chat))
         setChromeKitFloatGap(clampChromeFloatGap(data.floatGap ?? PW_FLOAT_GAP_DEFAULT))
@@ -2928,23 +2983,6 @@ export function PartnerWebsiteVisualEditorToolbar({
     }
   }
 
-  async function handleCreateLogoFromPanel() {
-    if (!partnerId || aiLockRef.current) return
-    const device: LogoDeviceKind = visualDeviceVariantFromHtmlPath(htmlPath)
-    const size = logoSizeFromAspect(logoAspect, device)
-    const { bgColor } = logoPickColors()
-    if (selectedLogoSlot() !== 'footer') {
-      postToIframe(iframeRef.current, 'placeHeaderLogo', {
-        width: size.w,
-        height: size.h,
-        bgColor,
-      })
-    }
-    openBlockPanel()
-    await new Promise((resolve) => window.setTimeout(resolve, 80))
-    await handleGenerateAi({ forceLogo: true })
-  }
-
   async function handleGenerateAi(opts?: { forceLogo?: boolean }) {
     if (!partnerId) return
     const asLogo = Boolean(opts?.forceLogo || selection?.isLogo)
@@ -3179,7 +3217,6 @@ export function PartnerWebsiteVisualEditorToolbar({
       referenceImageUrl: referenceImageUrl || undefined,
     })
   }
-  generateLogoRef.current = handleCreateLogoFromPanel
 
   function commitHref(next: string) {
     const kind = selection?.editKind
@@ -3549,6 +3586,35 @@ export function PartnerWebsiteVisualEditorToolbar({
   )
   const logoCreateFields = (
     <div className="grid w-full min-w-0 gap-1">
+      <label className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-[10px] text-muted-foreground">{t.visualEditLogoIdeaLabel}</span>
+        <textarea
+          ref={logoIdeaRef}
+          value={aiPrompt}
+          onChange={(e) => setAiPrompt(e.target.value)}
+          placeholder={t.visualEditLogoPromptPlaceholder}
+          rows={compact ? 2 : 3}
+          disabled={busy}
+          className={cn(
+            'w-full min-w-0 rounded-md border bg-background px-2 py-1 resize-y',
+            compact ? 'text-[10px]' : 'text-xs'
+          )}
+        />
+      </label>
+      <Button
+        type="button"
+        size="sm"
+        className={cn(
+          compact ? 'h-6 px-1.5 text-[10px]' : 'h-7 px-2 text-xs',
+          'w-full justify-center'
+        )}
+        disabled={busy}
+        title={logoActionLabel}
+        onClick={() => void handleGenerateAi()}
+      >
+        {aiBusy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
+        {logoActionLabel}
+      </Button>
       <div className="flex flex-wrap gap-0.5" title={t.visualEditLogoAspect}>
         {LOGO_GEMINI_ASPECT_RATIOS.map((aspect) => (
           <button
@@ -3602,14 +3668,6 @@ export function PartnerWebsiteVisualEditorToolbar({
         onChange={(e) => setLogoInkText(e.target.value)}
       />
       <div className="flex min-w-0 items-center gap-1">
-        <input
-          type="text"
-          value={aiPrompt}
-          onChange={(e) => setAiPrompt(e.target.value)}
-          placeholder={t.visualEditLogoIdeaLabel}
-          disabled={busy}
-          className="h-6 min-w-0 flex-1 rounded border bg-background px-1.5 text-[10px]"
-        />
         {refUrl ? <img src={refUrl} alt="" className="h-6 w-8 rounded border bg-white object-contain" /> : null}
         <Button
           type="button"
@@ -4694,6 +4752,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                     dock={chromeKitDock}
                     float={chromeKitFloat}
                     footer={chromeKitFooter}
+                    topbar={chromeKitTopbar}
                     floatRight={chromeKitFloatRight}
                     floatBottom={chromeKitFloatBottom}
                     floatGap={chromeKitFloatGap}
@@ -4719,6 +4778,24 @@ export function PartnerWebsiteVisualEditorToolbar({
                       setChromeKitFooter((prev) =>
                         prev.map((row) => (row.kind === kind ? { ...row, hidden } : row))
                       )
+                      setDirty(true)
+                    }}
+                    onToggleTopbar={(kind, hidden) => {
+                      postToIframe(iframeRef.current, 'setChromeKitHidden', { kind, bar: 'topbar', hidden })
+                      setChromeKitTopbar((prev) =>
+                        prev.map((row) => (row.kind === kind ? { ...row, hidden } : row))
+                      )
+                      setDirty(true)
+                    }}
+                    onAddTopbar={(kind) => {
+                      const slug = siteSlug?.trim()
+                      if (!slug) {
+                        onError(t.visualEditSaveFailed)
+                        return
+                      }
+                      const html = buildChromeKitTopbarItemHtml({ kind, locale, siteSlug: slug })
+                      if (!html) return
+                      postToIframe(iframeRef.current, 'addChromeKitTopbar', { kind, html })
                       setDirty(true)
                     }}
                     onSetFloatStack={(right, bottom, gap) => {
@@ -4748,6 +4825,10 @@ export function PartnerWebsiteVisualEditorToolbar({
                     }}
                     onSelectFooter={(kind) => {
                       postToIframe(iframeRef.current, 'selectChromeKit', { kind, bar: 'footer' })
+                      setOpenPanel('block')
+                    }}
+                    onSelectTopbar={(kind) => {
+                      postToIframe(iframeRef.current, 'selectChromeKit', { kind, bar: 'topbar' })
                       setOpenPanel('block')
                     }}
                     onReorder={(kind, bar, dir) => {
@@ -6767,23 +6848,6 @@ export function PartnerWebsiteVisualEditorToolbar({
                     ? t.visualEditPaperPickImage
                     : t.visualEditReplaceImage}
               </Button>
-              {selection.isLogo ? (
-              <Button
-                type="button"
-                size="sm"
-                className="h-6 px-1.5 text-[10px]"
-                disabled={busy}
-                title={logoActionLabel}
-                onClick={() => void handleGenerateAi()}
-              >
-                {aiBusy ? (
-                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                ) : (
-                  <Sparkles className="mr-1 h-3 w-3" />
-                )}
-                {logoActionLabel}
-              </Button>
-              ) : null}
               {hasRealLogoSrc && !selection.isLogo ? (
                 <Button
                   type="button"

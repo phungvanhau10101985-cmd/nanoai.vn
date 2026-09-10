@@ -175,10 +175,10 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   const emptyLogoSrc =
     'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
 
-  const topbar = `<div class="pw-topbar" ${pwRegionAttr(PW_REGION.topbar)}><div class="pw-container pw-topbar-inner">
-      <a href="${contactHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="contact">${escapeHtml(n.contact)}</a>
-      <a href="${wishlistHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="favorites-link">${escapeHtml(shop.navFavorites)}</a>
-      <a href="${loginHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="login">${escapeHtml(n.login)}</a>
+  const topbar = `<div class="pw-topbar" ${pwRegionAttr(PW_REGION.topbar)} ${PW_CHROME_KIT_ATTR}="topbar"><div class="pw-container pw-topbar-inner">
+      <a href="${contactHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="contact" data-pw-chrome-style="text" ${PW_CHROME_KIT_ATTR}="1">${escapeHtml(n.contact)}</a>
+      <a href="${wishlistHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="favorites-link" data-pw-chrome-style="text" ${PW_CHROME_KIT_ATTR}="1">${escapeHtml(shop.navFavorites)}</a>
+      <a href="${loginHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="login" data-pw-chrome-style="text" ${PW_CHROME_KIT_ATTR}="1">${escapeHtml(n.login)}</a>
     </div></div>`
 
   const brandBlock = logo

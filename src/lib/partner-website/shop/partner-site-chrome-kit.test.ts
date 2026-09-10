@@ -14,6 +14,7 @@ import {
   PW_KIT_X_MIN,
   buildChromeKitDockHtml,
   buildChromeKitHeadActionHtml,
+  buildChromeKitTopbarItemHtml,
   chromeKitGapDefaultForDevice,
   chromeKitHeadGroup,
   clampChromeKitGap,
@@ -355,7 +356,8 @@ describe('partner-site-chrome-kit', () => {
       device: 'desktop',
     })
     expect(header).toContain(`${PW_CHROME_KIT_ATTR}="actions"`)
-    expect(header).toContain(`${PW_KIT_GAP_ATTR}="8"`)
+    expect(header).toContain(`${PW_CHROME_KIT_ATTR}="topbar"`)
+    expect(header).toContain(`${PW_KIT_GAP_ATTR}="33"`)
     expect(header).toContain('data-pw-chrome-size="20"')
     expect(header).toContain('data-pw-chrome-btn="recently-viewed"')
     expect(bottomNav).toContain(`${PW_CHROME_KIT_ATTR}="dock"`)
@@ -604,10 +606,10 @@ describe('partner-site-chrome-kit', () => {
     expect(clampChromeKitGap(12.4)).toBe(12)
     expect(clampChromeKitGap(99)).toBe(PW_KIT_GAP_MAX)
     expect(chromeKitGapDefaultForDevice('desktop')).toBe(PW_KIT_GAP_DEFAULT)
-    expect(chromeKitGapDefaultForDevice('laptop')).toBe(6)
+    expect(chromeKitGapDefaultForDevice('laptop')).toBe(33)
     expect(chromeKitGapDefaultForDevice('tablet')).toBe(6)
     expect(chromeKitGapDefaultForDevice('mobile')).toBe(PW_KIT_GAP_DEFAULT_COMPACT)
-    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('gap:var(--pw-kit-gap, 8px)')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('gap:var(--pw-kit-gap, 33px)')
     const html = `<header class="pw-header"><div class="pw-header-actions" ${PW_KIT_GAP_ATTR}="16">
       <a data-pw-chrome-btn="cart" href="/cart">Giỏ</a>
     </div></header>`
@@ -620,10 +622,24 @@ describe('partner-site-chrome-kit', () => {
       </div></header>`,
       { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' }
     )
-    expect(fromCssOnly).toContain(`${PW_KIT_GAP_ATTR}="8"`)
-    expect(fromCssOnly).toContain('--pw-kit-gap:8px')
+    expect(fromCssOnly).toContain(`${PW_KIT_GAP_ATTR}="33"`)
+    expect(fromCssOnly).toContain('--pw-kit-gap:33px')
     expect(fromCssOnly).toContain(`${PW_KIT_X_ATTR}="-12"`)
     expect(fromCssOnly).toContain('--pw-kit-x:-12px')
+    const laptopLegacy = ensurePartnerSiteChromeKitInHtml(
+      `<header class="pw-header"><div class="pw-header-actions" ${PW_KIT_GAP_ATTR}="6">
+        <a data-pw-chrome-btn="cart" href="/cart">Giỏ</a>
+      </div></header>`,
+      { locale: 'vi', siteSlug: 'demo-shop', device: 'laptop' }
+    )
+    expect(laptopLegacy).toContain(`${PW_KIT_GAP_ATTR}="33"`)
+    const tabletGap = ensurePartnerSiteChromeKitInHtml(
+      `<header class="pw-header"><div class="pw-header-actions" ${PW_KIT_GAP_ATTR}="6">
+        <a data-pw-chrome-btn="cart" href="/cart">Giỏ</a>
+      </div></header>`,
+      { locale: 'vi', siteSlug: 'demo-shop', device: 'tablet' }
+    )
+    expect(tabletGap).toContain(`${PW_KIT_GAP_ATTR}="6"`)
     const zero = ensurePartnerSiteChromeKitInHtml(
       `<header class="pw-header"><div class="pw-header-actions" ${PW_KIT_GAP_ATTR}="0">
         <a data-pw-chrome-btn="cart" href="/cart">Giỏ</a>
@@ -640,6 +656,25 @@ describe('partner-site-chrome-kit', () => {
     )
     expect(untouched).not.toContain(PW_KIT_GAP_ATTR)
     expect(untouched).not.toContain('--pw-kit-gap')
+  })
+
+  it('bumps leftover desktop head icon size 26 to 20 without touching custom or other devices', () => {
+    const desktop = ensurePartnerSiteChromeKitInHtml(
+      `<header class="pw-header"><div class="pw-header-actions">
+        <a data-pw-chrome-btn="cart" data-pw-chrome-size="26" style="--pw-chrome-size:26px" href="/cart">Giỏ</a>
+        <a data-pw-chrome-btn="account" data-pw-chrome-size="24" style="--pw-chrome-size:24px" href="/account">Tài khoản</a>
+      </div></header>`,
+      { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' }
+    )
+    expect(desktop).toMatch(/data-pw-chrome-btn="cart"[^>]*data-pw-chrome-size="20"/)
+    expect(desktop).toMatch(/data-pw-chrome-btn="account"[^>]*data-pw-chrome-size="24"/)
+    const laptop = ensurePartnerSiteChromeKitInHtml(
+      `<header class="pw-header"><div class="pw-header-actions">
+        <a data-pw-chrome-btn="cart" data-pw-chrome-size="18" href="/cart">Giỏ</a>
+      </div></header>`,
+      { locale: 'vi', siteSlug: 'demo-shop', device: 'laptop' }
+    )
+    expect(laptop).toMatch(/data-pw-chrome-btn="cart"[^>]*data-pw-chrome-size="18"/)
   })
 
   it('resets leftover drag on in-flow header search so it can sit in the middle', () => {
@@ -790,5 +825,39 @@ describe('partner-site-chrome-kit', () => {
     expect(next).not.toContain('data-pw-device="desktop"')
     expect(next).toContain('Cửa hàng')
     expect(next).toContain('Ví quà')
+  })
+
+  it('stamps topbar kit and builds text links without device coords', () => {
+    const seeded = buildPartnerSiteHeaderHtml({
+      locale: 'vi',
+      title: 'Demo',
+      siteSlug: 'demo-shop',
+      device: 'desktop',
+    }).header
+    expect(seeded).toContain(`${PW_CHROME_KIT_ATTR}="topbar"`)
+    expect(seeded).toContain('data-pw-chrome-btn="contact"')
+    expect(seeded).toContain('data-pw-chrome-btn="favorites-link"')
+    expect(seeded).toContain('data-pw-chrome-btn="login"')
+
+    const html = `<!DOCTYPE html><html><body>
+<header class="pw-header">
+  <div class="pw-topbar" data-pw-region="topbar"><div class="pw-container pw-topbar-inner">
+    <a href="/contact" data-pw-el="link" data-pw-chrome-btn="contact">Liên hệ</a>
+    <a href="/login" data-pw-el="link" data-pw-chrome-btn="login">Đăng nhập</a>
+  </div></div>
+</header>
+</body></html>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' })
+    expect(next).toContain(`${PW_CHROME_KIT_ATTR}="topbar"`)
+    expect(next).toMatch(/data-pw-chrome-btn="contact"[^>]*data-pw-chrome-kit="1"|data-pw-chrome-kit="1"[^>]*data-pw-chrome-btn="contact"/)
+    expect(next).toContain('data-pw-chrome-style="text"')
+
+    const faq = buildChromeKitTopbarItemHtml({ kind: 'faq', locale: 'vi', siteSlug: 'demo-shop' })
+    expect(faq).toContain('data-pw-chrome-btn="faq"')
+    expect(faq).toContain(`${PW_CHROME_KIT_ATTR}="1"`)
+    expect(faq).toContain('data-pw-chrome-style="text"')
+    expect(faq).not.toContain('data-pw-chrome-added')
+    expect(faq).not.toContain('data-pw-device')
+    expect(faq).not.toContain('data-pw-scene')
   })
 })

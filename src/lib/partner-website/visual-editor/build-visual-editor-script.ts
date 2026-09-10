@@ -4686,6 +4686,81 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     return document.querySelector('[data-pw-chrome-kit="actions"],.pw-header-actions,.pw-shop-header-actions')
   }
+  function chromeKitTopbarKindKey(kind) {
+    var k = String(kind || '')
+    if (k === 'wishlist' || k === 'favorites-link') return 'favorites-link'
+    if (k === 'orders' || k === 'orders-link') return 'orders-link'
+    return k
+  }
+  function chromeKitTopbarRoot() {
+    return scopedQuery('[data-pw-chrome-kit="topbar"],.pw-topbar,.pw-shop-topbar')
+  }
+  function chromeKitTopbarInner(create) {
+    var host = chromeKitTopbarRoot()
+    if (!host && create) {
+      ensureChromeHost('topbar')
+      host = chromeKitTopbarRoot()
+    }
+    if (!host) return null
+    var inner = host.querySelector ? host.querySelector('.pw-topbar-inner,.pw-shop-topbar-inner') : null
+    return inner || host
+  }
+  function stampChromeKitTopbarNode(node) {
+    if (!node || !node.setAttribute) return
+    try { node.removeAttribute('data-pw-chrome-added') } catch (errAdded) {}
+    try { node.removeAttribute('data-pw-device') } catch (errDev) {}
+    try { node.removeAttribute('data-pw-chrome-place') } catch (errPlace) {}
+    try { node.removeAttribute('data-pw-user-move') } catch (errMove) {}
+    try { node.removeAttribute('data-pw-placement') } catch (errPlc) {}
+    try { node.removeAttribute('draggable') } catch (errDrag) {}
+    node.setAttribute('data-pw-chrome-kit', '1')
+    if (!node.getAttribute('data-pw-chrome-style')) node.setAttribute('data-pw-chrome-style', 'text')
+    if (!node.getAttribute('data-pw-el')) node.setAttribute('data-pw-el', 'link')
+  }
+  function addChromeKitTopbar(kind, html) {
+    var k = String(kind || '').replace(/[^a-z0-9-]/g, '')
+    if (!k || !html) return
+    var key = chromeKitTopbarKindKey(k)
+    var inner = chromeKitTopbarInner(true)
+    if (!inner || !inner.appendChild) return
+    var existing = inner.querySelectorAll ? inner.querySelectorAll('[data-pw-chrome-btn]') : []
+    var i
+    for (i = 0; i < existing.length; i++) {
+      if (chromeKitTopbarKindKey(existing[i].getAttribute('data-pw-chrome-btn') || '') === key) return
+    }
+    var wrap = document.createElement('div')
+    wrap.innerHTML = String(html)
+    var node = wrap.firstElementChild
+    if (!node) return
+    stampChromeKitTopbarNode(node)
+    inner.appendChild(node)
+    post('dirty', {})
+    listChromeKitState()
+    selectEl(node)
+  }
+  function collectTopbarKit() {
+    var inner = chromeKitTopbarInner(false)
+    if (!inner || !inner.querySelectorAll) return []
+    var nodes = inner.querySelectorAll('[data-pw-chrome-btn]')
+    var out = []
+    var seen = {}
+    var i
+    for (i = 0; i < nodes.length; i++) {
+      var n = nodes[i]
+      var kind = String(n.getAttribute('data-pw-chrome-btn') || '')
+      var key = chromeKitTopbarKindKey(kind)
+      if (!kind || seen[key]) continue
+      seen[key] = 1
+      out.push({
+        kind: kind,
+        hidden: n.getAttribute('data-pw-hidden') === '1',
+        dockShow: '',
+        slot: '',
+        label: String(n.getAttribute('aria-label') || n.textContent || kind).replace(/\\s+/g, ' ').trim()
+      })
+    }
+    return out
+  }
   function clearLockedHeaderRowPlacement(el) {
     if (!el || !el.style) return
     try { el.removeAttribute('data-pw-user-move') } catch (errMove) {}
@@ -5031,6 +5106,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       dock: collect(dockRoot, isPdpEditorDoc()),
       float: collectFloat(),
       footer: collectFooter(),
+      topbar: collectTopbarKit(),
       floatRight: stack.right,
       floatBottom: stack.bottom,
       floatGap: stack.gap,
@@ -5070,6 +5146,17 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var k = String(kind || '').replace(/"/g, '')
     if (bar === 'footer') return findFooterKitEl(k)
     if (bar === 'float') return chromeKitFloatBtnsOf(k)[0] || null
+    if (bar === 'topbar') {
+      var topInner = chromeKitTopbarInner(false)
+      if (!topInner || !topInner.querySelectorAll) return null
+      var topHits = topInner.querySelectorAll('[data-pw-chrome-btn]')
+      var ti
+      var key = chromeKitTopbarKindKey(k)
+      for (ti = 0; ti < topHits.length; ti++) {
+        if (chromeKitTopbarKindKey(topHits[ti].getAttribute('data-pw-chrome-btn') || '') === key) return topHits[ti]
+      }
+      return null
+    }
     if (bar === 'dock') {
       var dock = chromeKitDockRoot()
       if (!dock || !dock.querySelector) return null
@@ -7879,10 +7966,19 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     if (place === 'topbar') {
       var inner = scopedQuery('.pw-topbar-inner, .pw-shop-topbar-inner')
-      if (inner) return inner
+      if (inner) {
+        var host = inner.closest ? inner.closest('.pw-topbar,.pw-shop-topbar,[data-pw-region="topbar"],[data-pw-chrome-kit="topbar"]') : null
+        if (host && host.setAttribute) {
+          host.setAttribute('data-pw-chrome-kit', 'topbar')
+          if (!host.getAttribute('data-pw-region')) host.setAttribute('data-pw-region', 'topbar')
+        }
+        return inner
+      }
       var header = scopedQuery('header.pw-header, header.pw-shop-header') || scopedQuery('header')
       var bar = document.createElement('div')
       bar.className = 'pw-topbar'
+      bar.setAttribute('data-pw-region', 'topbar')
+      bar.setAttribute('data-pw-chrome-kit', 'topbar')
       var wrapInner = document.createElement('div')
       wrapInner.className = 'pw-container pw-topbar-inner'
       bar.appendChild(wrapInner)
@@ -13127,7 +13223,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         selectEl(target)
         var payload = buildPayload(target)
         if (act === 'upload') post('logoUpload', payload)
-        else post('logoCreate', Object.assign(payload, { generate: true }))
+        else post('logoCreate', payload)
       })
     }
     box.setAttribute('data-ve-logo-idx', String(idx))
@@ -16349,6 +16445,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.type === 'copyToAllPages') copySelectedToAllPages()
     if (d.type === 'setChatIconLogo') setChatIconLogo(d.url)
     if (d.type === 'insertChromeBtn') insertChromeBtn(d.kind, d.html, d.host, d)
+    if (d.type === 'addChromeKitTopbar') addChromeKitTopbar(d.kind, d.html)
     if (d.type === 'insertFooterLogo') insertFooterLogo()
     if (d.type === 'armFooterAdd') armFooterAdd()
     if (d.type === 'listChromeKit') listChromeKitState()

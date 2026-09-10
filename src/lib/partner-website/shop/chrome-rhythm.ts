@@ -21,11 +21,21 @@ export const PW_HEAD_ICON_SIZE = {
 
 /** Gap flex giữa icon cụm phải head (px). */
 export const PW_HEAD_KIT_GAP = {
-  desktop: 8,
-  laptop: 6,
+  desktop: 33,
+  laptop: 33,
   tablet: 6,
   mobile: 4,
 } as const
+
+/** Seed cũ — leftover HTML cùng số này được nâng lên nhịp mới. Sửa tay khác số thì giữ. */
+export const PW_HEAD_ICON_SIZE_LEGACY: Partial<Record<ChromeRhythmDevice, number>> = {
+  desktop: 26,
+}
+
+export const PW_HEAD_KIT_GAP_LEGACY: Partial<Record<ChromeRhythmDevice, number>> = {
+  desktop: 8,
+  laptop: 6,
+}
 
 /** Ô tìm: kính / camera (px). */
 export const PW_SEARCH_ICON_SIZE = {
@@ -81,6 +91,22 @@ export function chromeHeadIconSizeForDevice(device?: VisualDeviceVariant | null)
 
 export function chromeHeadKitGapForDevice(device?: VisualDeviceVariant | null): number {
   return PW_HEAD_KIT_GAP[chromeRhythmDevice(device)]
+}
+
+export function chromeHeadIconSizeFromLegacy(raw: unknown, device?: VisualDeviceVariant | null): number {
+  const current = chromeHeadIconSizeForDevice(device)
+  const n = Math.round(Number(raw))
+  const legacy = PW_HEAD_ICON_SIZE_LEGACY[chromeRhythmDevice(device)]
+  if (legacy != null && n === legacy) return current
+  return n
+}
+
+export function chromeHeadKitGapFromLegacy(raw: unknown, device?: VisualDeviceVariant | null): number {
+  const current = chromeHeadKitGapForDevice(device)
+  const n = Math.round(Number(raw))
+  const legacy = PW_HEAD_KIT_GAP_LEGACY[chromeRhythmDevice(device)]
+  if (legacy != null && n === legacy) return current
+  return n
 }
 
 export function chromeDockIconSizeForDevice(device?: VisualDeviceVariant | null): number {

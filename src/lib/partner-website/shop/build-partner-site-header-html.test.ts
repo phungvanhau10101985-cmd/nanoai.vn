@@ -32,6 +32,7 @@ describe('listing native UI contract stamps', () => {
   it('stamps header HTML topbar and nav links', () => {
     const src = readShop('build-partner-site-header-html.ts')
     expect(src).toContain('pwRegionAttr(PW_REGION.topbar)')
+    expect(src).toContain('${PW_CHROME_KIT_ATTR}="topbar"')
     expect(src).toContain('pwElAttr(PW_EL.link)')
     expect(src).toContain('pwElAttr(PW_EL.navLink)')
     expect(src).toContain('data-pw-personalize-nav="recent-categories"')

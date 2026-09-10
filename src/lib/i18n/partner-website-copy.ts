@@ -308,6 +308,9 @@ export type PartnerWebsiteCopy = {
   visualEditChromeKitHeadLaptop: string
   visualEditChromeKitHeadTablet: string
   visualEditChromeKitHeadMobile: string
+  visualEditChromeKitTopbar: string
+  visualEditChromeKitTopbarHint: string
+  visualEditChromeKitTopbarAdd: string
   visualEditChromeKitDock: string
   visualEditChromeKitFooter: string
   visualEditChromeKitFooterHint: string
@@ -1363,11 +1366,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Mọi nút chức năng sửa giống nhau: kiểu, icon, cỡ, chữ. Việc khách bấm giữ đúng chức năng của nút đang chọn.',
     visualEditChromeKit: 'Thanh điều hướng',
     visualEditChromeKitHint:
-      'Nút nổi (Chat mua, Zalo, Facebook, Top) ở mục Thanh nổi ngay dưới đây — bật mắt để hiện góc màn. Head, chân trang và thanh đáy cùng panel này. Chân trang giữ layout gốc — ẩn/hiện, không thêm bằng dấu +. Mỗi máy một bản — không kéo tọa độ. Không còn trên thanh Thêm.',
+      'Nút nổi (Chat mua, Zalo, Facebook, Top) ở mục Thanh nổi ngay dưới đây — bật mắt để hiện góc màn. Thanh trên, Head, chân trang và thanh đáy cùng panel này. Thanh trên: ẩn/hiện + thêm nút chữ (không kéo tọa độ). Chân trang giữ layout gốc — ẩn/hiện, không thêm bằng dấu +. Mỗi máy một bản. Không còn trên thanh Thêm.',
     visualEditChromeKitHeadPc: 'Head Desktop',
     visualEditChromeKitHeadLaptop: 'Head Laptop',
     visualEditChromeKitHeadTablet: 'Head máy tính bảng',
     visualEditChromeKitHeadMobile: 'Head điện thoại',
+    visualEditChromeKitTopbar: 'Thanh trên',
+    visualEditChromeKitTopbarHint:
+      'Thanh chữ trên cùng (Liên hệ, Đăng nhập…). Hiện Desktop/Laptop; Mobile/Tablet CSS ẩn. Thêm nút chức năng chữ tại đây — không kéo tọa độ, không dùng thanh Thêm.',
+    visualEditChromeKitTopbarAdd: 'Thêm nút lên thanh trên',
     visualEditChromeKitDock: 'Thanh đáy',
     visualEditChromeKitFooter: 'Chân trang',
     visualEditChromeKitFooterHint:
@@ -2448,11 +2455,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Every function button is edited the same way: style, icon, size, label. A live click still runs this button’s own action.',
     visualEditChromeKit: 'Navigation bars',
     visualEditChromeKitHint:
-      'Floating buttons (Shop chat, Zalo, Facebook, Top) are in Floating bar below — turn the eye on to show them. Head, footer, and bottom bar are in this same panel. Footer keeps its factory layout — show/hide only, no plus-sign inserts. One set per device — no free-drag. They are not on the Add bar.',
+      'Floating buttons (Shop chat, Zalo, Facebook, Top) are in Floating bar below — turn the eye on to show them. Top bar, head, footer, and bottom bar are in this same panel. Top bar: show/hide and add text links (no free-drag). Footer keeps its factory layout — show/hide only, no plus-sign inserts. One set per device. They are not on the Add bar.',
     visualEditChromeKitHeadPc: 'Desktop header',
     visualEditChromeKitHeadLaptop: 'Laptop header',
     visualEditChromeKitHeadTablet: 'Tablet header',
     visualEditChromeKitHeadMobile: 'Phone header',
+    visualEditChromeKitTopbar: 'Top bar',
+    visualEditChromeKitTopbarHint:
+      'Text strip above the header (Contact, Sign in…). Visible on Desktop/Laptop; Mobile/Tablet CSS-hide it. Add function text links here — no free-drag, not on the Add bar.',
+    visualEditChromeKitTopbarAdd: 'Add a button to the top bar',
     visualEditChromeKitDock: 'Bottom bar',
     visualEditChromeKitFooter: 'Footer',
     visualEditChromeKitFooterHint:
@@ -3521,11 +3532,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeWidgetTitle: '店铺功能按钮',
     visualEditChromeWidgetHint: '所有功能按钮用同一套改法：样式、图标、大小、文字。顾客点击仍执行该按钮自己的功能。',
     visualEditChromeKit: '导航栏',
-    visualEditChromeKitHint: '浮动按钮（购买咨询、Zalo、Facebook、回顶）在下方「浮动栏」——点眼睛即可显示。页头、页脚和底栏也在此面板。页脚保持原布局，只显示/隐藏，不用加号插入。每台设备一份，不拖坐标。不在「添加」栏。',
+    visualEditChromeKitHint: '浮动按钮（购买咨询、Zalo、Facebook、回顶）在下方「浮动栏」——点眼睛即可显示。顶栏、页头、页脚和底栏也在此面板。顶栏可显示/隐藏并添加文字按钮（不拖坐标）。页脚保持原布局，只显示/隐藏，不用加号插入。每台设备一份。不在「添加」栏。',
     visualEditChromeKitHeadPc: '桌面页头',
     visualEditChromeKitHeadLaptop: '笔记本页头',
     visualEditChromeKitHeadTablet: '平板页头',
     visualEditChromeKitHeadMobile: '手机页头',
+    visualEditChromeKitTopbar: '顶栏',
+    visualEditChromeKitTopbarHint:
+      '页头上方的文字条（联系、登录…）。桌面/笔记本显示；手机/平板用 CSS 隐藏。在此添加文字功能按钮——不拖坐标，不用「添加」栏。',
+    visualEditChromeKitTopbarAdd: '向顶栏添加按钮',
     visualEditChromeKitDock: '底栏',
     visualEditChromeKitFooter: '页脚',
     visualEditChromeKitFooterHint:
@@ -4576,11 +4591,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '機能ボタンはどれも同じ直し方です：スタイル・アイコン・サイズ・文字。公開サイトの動作はそのボタンのままです。',
     visualEditChromeKit: 'ナビバー',
     visualEditChromeKitHint:
-      'フローティングボタン（Chat mua、Zalo、Facebook、先頭へ）は下のフローティングバーにあります。目のアイコンで表示します。ヘッダー・フッター・下部バーも同じパネル。フッターは元のレイアウトのまま表示/非表示のみ。端末ごとに別。追加バーにはありません。',
+      'フローティングボタン（Chat mua、Zalo、Facebook、先頭へ）は下のフローティングバーにあります。目のアイコンで表示します。トップバー・ヘッダー・フッター・下部バーも同じパネル。トップバーは表示/非表示と文字リンク追加（座標ドラッグなし）。フッターは元のレイアウトのまま表示/非表示のみ。端末ごとに別。追加バーにはありません。',
     visualEditChromeKitHeadPc: 'デスクトップヘッダー',
     visualEditChromeKitHeadLaptop: 'ノートヘッダー',
     visualEditChromeKitHeadTablet: 'タブレットヘッダー',
     visualEditChromeKitHeadMobile: 'スマホヘッダー',
+    visualEditChromeKitTopbar: 'トップバー',
+    visualEditChromeKitTopbarHint:
+      'ヘッダー上の文字バー（お問い合わせ、ログイン…）。Desktop/Laptop で表示、Mobile/Tablet は CSS で非表示。ここに文字の機能ボタンを追加。座標ドラッグなし、追加バーは使いません。',
+    visualEditChromeKitTopbarAdd: 'トップバーにボタンを追加',
     visualEditChromeKitDock: '下部バー',
     visualEditChromeKitFooter: 'フッター',
     visualEditChromeKitFooterHint:
@@ -5646,11 +5665,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '기능 버튼은 모두 같은 방식으로 수정합니다: 스타일, 아이콘, 크기, 글자. 고객이 누르면 이 버튼 고유 동작이 유지됩니다.',
     visualEditChromeKit: '탐색 막대',
     visualEditChromeKitHint:
-      '플로팅 버튼(Chat mua, Zalo, Facebook, 맨 위로)은 아래 플로팅 바에 있습니다. 눈을 켜면 모서리에 보입니다. 헤더, 푸터, 하단 바도 이 패널에 있습니다. 푸터는 원래 레이아웃을 유지하고 표시/숨김만 합니다. 기기마다 따로이며 추가 막대에는 없습니다.',
+      '플로팅 버튼(Chat mua, Zalo, Facebook, 맨 위로)은 아래 플로팅 바에 있습니다. 눈을 켜면 모서리에 보입니다. 상단 바, 헤더, 푸터, 하단 바도 이 패널에 있습니다. 상단 바는 표시/숨김과 텍스트 버튼 추가(좌표 드래그 없음)입니다. 푸터는 원래 레이아웃을 유지하고 표시/숨김만 합니다. 기기마다 따로이며 추가 막대에는 없습니다.',
     visualEditChromeKitHeadPc: '데스크톱 헤더',
     visualEditChromeKitHeadLaptop: '노트북 헤더',
     visualEditChromeKitHeadTablet: '태블릿 헤더',
     visualEditChromeKitHeadMobile: '휴대폰 헤더',
+    visualEditChromeKitTopbar: '상단 바',
+    visualEditChromeKitTopbarHint:
+      '헤더 위 텍스트 줄(연락처, 로그인…). Desktop/Laptop에서 보이고 Mobile/Tablet은 CSS로 숨깁니다. 여기에 텍스트 기능 버튼을 추가하세요. 좌표 드래그 없음, 추가 막대는 쓰지 않습니다.',
+    visualEditChromeKitTopbarAdd: '상단 바에 버튼 추가',
     visualEditChromeKitDock: '하단 바',
     visualEditChromeKitFooter: '푸터',
     visualEditChromeKitFooterHint:

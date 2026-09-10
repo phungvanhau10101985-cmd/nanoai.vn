@@ -11,7 +11,9 @@ import {
   chromeDockIconSizeForDevice,
   chromeFloatRhythmForDevice,
   chromeHeadIconSizeForDevice,
+  chromeHeadIconSizeFromLegacy,
   chromeHeadKitGapForDevice,
+  chromeHeadKitGapFromLegacy,
   PW_DOCK_BAR_MIN_H,
   PW_HEAD_KIT_GAP,
 } from '@/lib/partner-website/shop/chrome-rhythm'
@@ -25,7 +27,7 @@ import {
   PW_FLOAT_STACK_BOTTOM_ATTR,
   type PwChromeFloatKind,
 } from '@/lib/partner-website/shop/chrome-float-widgets'
-import { PW_EL, pwElAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import {
   buildVisualEditorChromeWidgetHtml,
@@ -51,7 +53,7 @@ export const PW_KIT_X_MAX = 80
 export const PW_KIT_GAP_ATTR = 'data-pw-kit-gap'
 export const PW_KIT_GAP_MIN = 0
 export const PW_KIT_GAP_MAX = 48
-/** Desktop seed. Laptop 6 / tablet 6 / mobile 4 — `chromeHeadKitGapForDevice`. */
+/** Desktop/Laptop seed. Tablet 6 / mobile 4 — `chromeHeadKitGapForDevice`. */
 export const PW_KIT_GAP_DEFAULT = PW_HEAD_KIT_GAP.desktop
 export const PW_KIT_GAP_DEFAULT_COMPACT = PW_HEAD_KIT_GAP.mobile
 
@@ -140,9 +142,59 @@ export const CHROME_KIT_FLOAT_ITEMS: ChromeKitFloatItem[] = PW_CHROME_FLOAT_KIND
   defaultOn: false,
 }))
 
+/** Thanh trên (topbar) — chữ Liên hệ / Đăng nhập / Yêu thích sẵn; Thêm nút chức năng trên Sửa nhanh. */
+export const CHROME_KIT_TOPBAR_STOCK_KINDS = ['contact', 'favorites-link', 'login'] as const
+
+export type ChromeKitTopbarKind = VisualEditorChromeWidgetKind
+
+/** Nút chữ được thêm lên thanh trên — không search / categories / float / PDP CTA. */
+export const CHROME_KIT_TOPBAR_ADD_KINDS: VisualEditorChromeWidgetKind[] = [
+  'contact',
+  'login',
+  'register',
+  'logout',
+  'favorites-link',
+  'orders-link',
+  'account',
+  'cart',
+  'recently-viewed',
+  'notifications',
+  'wallet',
+  'addresses',
+  'order-tracking',
+  'edit-profile',
+  'home',
+  'products',
+  'sale',
+  'about',
+  'faq',
+  'shipping',
+  'returns',
+  'privacy',
+  'terms',
+  'payment',
+  'stores',
+  'lookbook',
+  'size-guide',
+  'blog',
+  'phone',
+  'share',
+]
+
 const HEAD_ACTION_KIND_SET = new Set(CHROME_KIT_HEAD_ACTION_ITEMS.map((item) => item.kind))
 const DOCK_KIND_SET = new Set(CHROME_KIT_DOCK_ITEMS.map((item) => item.kind))
 const FLOAT_KIND_SET = new Set(CHROME_KIT_FLOAT_ITEMS.map((item) => item.kind))
+const TOPBAR_ADD_KIND_SET = new Set(CHROME_KIT_TOPBAR_ADD_KINDS)
+
+export function isChromeKitTopbarAddKind(kind: string): kind is VisualEditorChromeWidgetKind {
+  return TOPBAR_ADD_KIND_SET.has(kind as VisualEditorChromeWidgetKind)
+}
+
+export function chromeKitTopbarKindKey(kind: string): string {
+  if (kind === 'wishlist' || kind === 'favorites-link') return 'favorites-link'
+  if (kind === 'orders' || kind === 'orders-link') return 'orders-link'
+  return kind
+}
 
 export function isPdpDockNavKind(kind: string): boolean {
   if (isPdpDockCtaLocked(kind)) return false
@@ -200,6 +252,63 @@ function asKitTag(html: string, extras: string): string {
     .replace(/\sdata-pw-chrome-added=(["'])1\1/gi, ` ${PW_CHROME_KIT_ATTR}="1"`)
     .replace(/\sdata-pw-chrome-float=(["'])1\1/gi, '')
     .replace(/<(a|button)\b/i, (open) => `${open}${extras}`)
+}
+
+/** Nút chữ trên thanh trên — kit, không tọa độ, không `data-pw-device`. */
+export function asChromeKitTopbarTag(html: string): string {
+  let next = asKitTag(html, '')
+    .replace(/\sdata-pw-device=(["'])[^"']*\1/gi, '')
+    .replace(/\sdata-pw-chrome-place=(["'])[^"']*\1/gi, '')
+    .replace(/\sdata-pw-user-move=(["'])[^"']*\1/gi, '')
+    .replace(/\sdata-pw-placement=(["'])[^"']*\1/gi, '')
+    .replace(/\sdata-pw-scene=(["'])[^"']*\1/gi, '')
+    .replace(/\sdata-pw-z=(["'])[^"']*\1/gi, '')
+    .replace(/\sdraggable=(["'])[^"']*\1/gi, '')
+  if (!/\bdata-pw-el=/.test(next)) {
+    next = next.replace(/<(a|button)\b/i, (open) => `${open} ${pwElAttr(PW_EL.link)}`)
+  }
+  if (!/\bdata-pw-chrome-style=/.test(next)) {
+    next = next.replace(/<(a|button)\b/i, (open) => `${open} data-pw-chrome-style="text"`)
+  }
+  return next
+}
+
+export function buildChromeKitTopbarItemHtml(input: {
+  kind: VisualEditorChromeWidgetKind
+  locale: WebLocale
+  siteSlug?: string | null
+}): string {
+  if (!isChromeKitTopbarAddKind(input.kind)) return ''
+  const raw = buildVisualEditorChromeWidgetHtml({
+    kind: input.kind,
+    siteSlug: slugOrShop(input.siteSlug),
+    locale: input.locale,
+    style: 'text',
+    place: 'header',
+  })
+  if (!raw) return ''
+  return asChromeKitTopbarTag(raw)
+}
+
+export function buildChromeKitTopbarInnerHtml(input: {
+  locale: WebLocale
+  siteSlug?: string | null
+}): string {
+  return CHROME_KIT_TOPBAR_STOCK_KINDS.map((kind) =>
+    buildChromeKitTopbarItemHtml({ kind, locale: input.locale, siteSlug: input.siteSlug })
+  )
+    .filter(Boolean)
+    .join('\n      ')
+}
+
+export function buildChromeKitTopbarHtml(input: {
+  locale: WebLocale
+  siteSlug?: string | null
+}): string {
+  const inner = buildChromeKitTopbarInnerHtml(input)
+  return `<div class="pw-topbar" ${pwRegionAttr(PW_REGION.topbar)} ${PW_CHROME_KIT_ATTR}="topbar"><div class="pw-container pw-topbar-inner">
+      ${inner}
+    </div></div>`
 }
 
 function asFloatKitTag(html: string, extras: string): string {
@@ -686,6 +795,62 @@ function replaceBalancedBottomNavs(
   return out
 }
 
+const TOPBAR_HOST_OPEN_RE =
+  /<(div)([^>]*(?:class=["'][^"']*\b(?:pw-topbar|pw-shop-topbar)(?![-\w])[^"']*["']|data-pw-region=["']topbar["']|data-pw-chrome-kit=["']topbar["'])[^>]*)>/gi
+
+function replaceBalancedTopbars(
+  html: string,
+  replacer: (attrs: string, inner: string, full: string) => string
+): string {
+  let out = ''
+  let cursor = 0
+  const openRe = new RegExp(TOPBAR_HOST_OPEN_RE.source, 'gi')
+  while (cursor < html.length) {
+    openRe.lastIndex = cursor
+    const found = openRe.exec(html)
+    if (!found || found.index == null) {
+      out += html.slice(cursor)
+      break
+    }
+    const hit = extractBalancedTag(html, 'div', found.index)
+    if (!hit) {
+      out += html.slice(cursor, found.index + found[0].length)
+      cursor = found.index + found[0].length
+      continue
+    }
+    out += html.slice(cursor, hit.start)
+    out += replacer(found[2] || '', hit.inner, hit.full)
+    cursor = hit.start + hit.full.length
+  }
+  return out
+}
+
+function withTopbarHostAttrs(openAttrs: string): string {
+  let next = withHostKitAttr(openAttrs, 'topbar')
+  if (!/\bdata-pw-region=/i.test(next)) next += ` ${pwRegionAttr(PW_REGION.topbar)}`
+  return next
+}
+
+function ensureChromeKitTopbarHost(
+  html: string,
+  input: { locale: WebLocale; siteSlug?: string | null }
+): string {
+  let found = false
+  const next = replaceBalancedTopbars(html, (attrs, inner) => {
+    found = true
+    let nextInner = stampExistingKitAttrs(inner, 'topbar')
+    if (!/\bdata-pw-chrome-btn=/i.test(nextInner)) {
+      nextInner = `\n      <div class="pw-container pw-topbar-inner">\n      ${buildChromeKitTopbarInnerHtml(input)}\n    </div>\n    `
+    }
+    return `<div${withTopbarHostAttrs(attrs)}>${nextInner}</div>`
+  })
+  if (found) return next
+  const headerOpen = html.match(/<header\b[^>]*>/i)
+  if (!headerOpen || headerOpen.index == null) return html
+  const insertAt = headerOpen.index + headerOpen[0].length
+  return `${html.slice(0, insertAt)}\n  ${buildChromeKitTopbarHtml(input)}\n${html.slice(insertAt)}`
+}
+
 function replaceBalancedHeaderActions(
   html: string,
   replacer: (attrs: string, inner: string, full: string) => string
@@ -1078,13 +1243,38 @@ function htmlHasShopDockKind(html: string, kind: string): boolean {
   return chromeOpenTagsOfKind(html, kind).some((tag) => !isPdpOnlyDockOpenTag(tag))
 }
 
-function stampExistingKitAttrs(inner: string, bar: 'head' | 'dock' | 'float'): string {
+function rewriteOpenTagChromeSize(attrs: string, n: number): string {
+  let next = attrs
+  if (/\bdata-pw-chrome-size=/i.test(next)) {
+    next = next.replace(/\sdata-pw-chrome-size=(["'])[^"']*\1/gi, ` data-pw-chrome-size="${n}"`)
+  } else {
+    next += ` data-pw-chrome-size="${n}"`
+  }
+  next = next.replace(/\sdata-pw-chrome-w=(["'])[^"']*\1/gi, '').replace(/\sdata-pw-chrome-h=(["'])[^"']*\1/gi, '')
+  const styleMatch = next.match(/\sstyle=(["'])([\s\S]*?)\1/i)
+  const quote = styleMatch?.[1] || '"'
+  const css = String(styleMatch?.[2] || '')
+    .replace(/(?:^|;)\s*--pw-chrome-(?:size|w|h)\s*:[^;]*/gi, '')
+    .replace(/^;+|;+$/g, '')
+    .trim()
+  const sizeCss = `--pw-chrome-size:${n}px;--pw-chrome-w:${n}px;--pw-chrome-h:${n}px`
+  const nextCss = css ? `${css};${sizeCss}` : sizeCss
+  if (styleMatch) return next.replace(/\sstyle=(["'])([\s\S]*?)\1/i, ` style=${quote}${nextCss}${quote}`)
+  return `${next} style=${quote}${nextCss}${quote}`
+}
+
+function stampExistingKitAttrs(
+  inner: string,
+  bar: 'head' | 'dock' | 'float' | 'topbar',
+  device?: VisualDeviceVariant | null
+): string {
   return inner.replace(/<(a|button)(\s[^>]*?)>/gi, (full, tag: string, attrs: string) => {
     const kind = attrs.match(/\bdata-pw-chrome-btn=["']([^"']+)["']/i)?.[1] || ''
     if (!kind) return full
     if (bar === 'head' && !HEAD_ACTION_KIND_SET.has(kind as VisualEditorChromeWidgetKind)) return full
     if (bar === 'dock' && !DOCK_KIND_SET.has(kind as VisualEditorChromeWidgetKind)) return full
     if (bar === 'float' && !FLOAT_KIND_SET.has(kind as PwChromeFloatKind)) return full
+    if (bar === 'topbar' && !isChromeKitTopbarAddKind(kind)) return full
     let next = attrs
       .replace(/\sdata-pw-chrome-added=(["'])[^"']*\1/gi, '')
       .replace(/\sdata-pw-user-move=(["'])[^"']*\1/gi, '')
@@ -1095,6 +1285,13 @@ function stampExistingKitAttrs(inner: string, bar: 'head' | 'dock' | 'float'): s
       next = next.replace(/\sdata-pw-chrome-float=(["'])[^"']*\1/gi, '')
     } else if (!/\bdata-pw-chrome-float=/i.test(next)) {
       next += ' data-pw-chrome-float="1"'
+    }
+    if (bar === 'topbar') {
+      next = next
+        .replace(/\sdata-pw-device=(["'])[^"']*\1/gi, '')
+        .replace(/\sdata-pw-chrome-place=(["'])[^"']*\1/gi, '')
+      if (!/\bdata-pw-chrome-style=/i.test(next)) next += ' data-pw-chrome-style="text"'
+      if (!/\bdata-pw-el=/i.test(next)) next += ` ${pwElAttr(PW_EL.link)}`
     }
     if (!new RegExp(`\\b${PW_CHROME_KIT_ATTR}=`, 'i').test(next)) next += ` ${PW_CHROME_KIT_ATTR}="1"`
     if (bar === 'dock') {
@@ -1121,11 +1318,20 @@ function stampExistingKitAttrs(inner: string, bar: 'head' | 'dock' | 'float'): s
         .trim()
       return cleaned ? ` style=${q}${cleaned}${q}` : ''
     })
+    if (bar === 'head') {
+      const existing = next.match(/\bdata-pw-chrome-size=["'](\d+)["']/i)?.[1]
+      const fromCss = next.match(/--pw-chrome-size\s*:\s*(-?\d+(?:\.\d+)?)px/i)?.[1]
+      const raw = existing ?? fromCss
+      if (raw != null) {
+        const bumped = chromeHeadIconSizeFromLegacy(raw, device)
+        if (Math.round(Number(raw)) !== bumped) next = rewriteOpenTagChromeSize(next, bumped)
+      }
+    }
     return `<${tag}${next}>`
   })
 }
 
-function withHostKitAttr(openAttrs: string, value: 'actions' | 'dock' | 'float'): string {
+function withHostKitAttr(openAttrs: string, value: 'actions' | 'dock' | 'float' | 'topbar'): string {
   if (new RegExp(`\\b${PW_CHROME_KIT_ATTR}=`, 'i').test(openAttrs)) {
     return openAttrs.replace(new RegExp(`\\s${PW_CHROME_KIT_ATTR}=(["'])[^"']*\\1`, 'i'), ` ${PW_CHROME_KIT_ATTR}="${value}"`)
   }
@@ -1269,11 +1475,16 @@ function withHostKitShiftStyle(openAttrs: string): string {
 }
 
 /** Gắn `--pw-kit-gap` từ `data-pw-kit-gap` — 0 vẫn ghi (khác lệch ngang). Không invent nếu HTML chưa có. */
-function withHostKitGapStyle(openAttrs: string): string {
+function withHostKitGapStyle(openAttrs: string, device?: VisualDeviceVariant | null): string {
   const fromAttr = openAttrs.match(new RegExp(`\\b${PW_KIT_GAP_ATTR}=(["'])([^"']*)\\1`, 'i'))?.[2]
   const fromCss = openAttrs.match(/--pw-kit-gap\s*:\s*(-?\d+(?:\.\d+)?)px/i)?.[1]
   if (fromAttr == null && fromCss == null) return openAttrs
-  return writeHostCssVar(openAttrs, PW_KIT_GAP_ATTR, '--pw-kit-gap', clampChromeKitGap(fromAttr ?? fromCss))
+  return writeHostCssVar(
+    openAttrs,
+    PW_KIT_GAP_ATTR,
+    '--pw-kit-gap',
+    clampChromeKitGap(chromeHeadKitGapFromLegacy(fromAttr ?? fromCss, device))
+  )
 }
 
 function stampPdpCtaLockAttrs(html: string): string {
@@ -1540,7 +1751,7 @@ export function ensurePartnerSiteChromeKitInHtml(
   )
 
   out = replaceBalancedHeaderActions(out, (attrs, inner) => {
-    let nextInner = stampExistingKitAttrs(inner, 'head')
+    let nextInner = stampExistingKitAttrs(inner, 'head', input.device)
     const missing = CHROME_KIT_HEAD_ACTION_ITEMS.filter((item) => !htmlHasChromeKind(nextInner, item.kind))
     if (missing.length) {
       const extra = buildChromeKitHeadActionHtml({
@@ -1560,7 +1771,7 @@ export function ensurePartnerSiteChromeKitInHtml(
       if (extra) nextInner = `${nextInner.trim()}\n      ${extra}\n    `
     }
     nextInner = stripDuplicateHeadKitKinds(nextInner)
-    return `<div${withHostKitGapStyle(withHostKitShiftStyle(withHostKitAttr(attrs, 'actions')))}>${nextInner}</div>`
+    return `<div${withHostKitGapStyle(withHostKitShiftStyle(withHostKitAttr(attrs, 'actions')), input.device)}>${nextInner}</div>`
   })
 
   out = replaceBalancedBottomNavs(out, (attrs, inner, full) => {
@@ -1613,6 +1824,8 @@ export function ensurePartnerSiteChromeKitInHtml(
       return dock
     })
   }
+
+  out = ensureChromeKitTopbarHost(out, { locale, siteSlug: input.siteSlug })
 
   out = ensureChromeKitFloatHost(out, {
     locale,

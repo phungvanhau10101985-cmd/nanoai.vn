@@ -318,7 +318,7 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('left:50%!important'), true)
   assert.equal(once.includes('transform:translate(-50%,-50%)!important'), true)
   assert.equal(once.includes('transform:translateX(var(--pw-kit-x, 0px))'), true)
-  assert.equal(once.includes('gap:var(--pw-kit-gap, 8px)'), true)
+  assert.equal(once.includes('gap:var(--pw-kit-gap, 33px)'), true)
   assert.equal(once.includes('gap:var(--pw-kit-gap, 4px)'), true)
   assert.equal(once.includes("el.style.removeProperty('position')"), true)
   assert.equal(once.includes("el.style.setProperty('margin-left','auto','important')"), false)

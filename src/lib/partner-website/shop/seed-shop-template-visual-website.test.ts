@@ -59,7 +59,7 @@ test('fashion home seed is stamped and matches live visual contract', () => {
   assert.match(html, /<meta name="description"/)
   assert.match(html, /data-pw-seo-jsonld="website"/)
   assert.match(html, /html\[data-pw-edit-device="desktop"\] \.pw-product-grid/)
-  assert.match(html, /data-pw-kit-gap="8"/)
+  assert.match(html, /data-pw-kit-gap="33"/)
   assert.match(html, /data-pw-chrome-size="20"/)
   assert.match(html, /data-pw-float-size="44"/)
   assert.doesNotMatch(html, /data-pw-header-toggle|data-pw-catalog-bootstrap/)
@@ -133,6 +133,8 @@ test('seedShopTemplateVisualWebsite writes every built-in page for all four devi
   assert.match(about.content, /data-pw-info-title/)
   assert.match(about.content, /data-pw-info-body/)
   assert.match(about.content, /data-pw-text-article="1"/)
+  assert.match(about.content, /data-pw-kit-gap="33"/)
+  assert.match(about.content, /data-pw-chrome-size="18"/)
 })
 
 test('seeded shop live variants include all four devices', () => {
