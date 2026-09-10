@@ -186,7 +186,7 @@ test('shop theme CSS keeps listing filters compact and sticky under the head', (
   assert.match(css, /\.pw-shop-filter-clear[\s\S]*?color:var\(--pw-primary\)/)
   assert.match(css, /height:32px/)
   assert.match(css, /\[data-pw-listing-filter-slot\]/)
-  assert.match(css, /html\[data-pw-page="listing"\]\[data-pw-head-compact="1"\] \.pw-nav-main/)
+  assert.match(css, /html\[data-pw-head-compact="1"\] \.pw-nav-main/)
   assert.doesNotMatch(css, /\.pw-shop-filters label\{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600/)
 })
 

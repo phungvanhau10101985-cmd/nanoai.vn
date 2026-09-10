@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -145,14 +145,35 @@ async function loadSuggestProducts(siteSlug: string): Promise<{ products: Sugges
   return { products: out.slice(0, 8), fromViewed }
 }
 
+function focusComposeInput(el: HTMLInputElement | null) {
+  if (!el) return
+  try {
+    el.focus({ preventScroll: true })
+  } catch {
+    try {
+      el.focus()
+    } catch {
+      /* ignore */
+    }
+  }
+  try {
+    const len = el.value.length
+    el.setSelectionRange(len, len)
+  } catch {
+    /* iOS older */
+  }
+}
+
 export function PartnerSiteMobileSearchClient({
   siteSlug,
   locale,
   shopTitle,
+  onClose,
 }: {
   siteSlug: string
   locale: WebLocale
   shopTitle: string
+  onClose?: () => void
 }) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
@@ -208,21 +229,20 @@ export function PartnerSiteMobileSearchClient({
     }
   }, [])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = inputRef.current
     if (!el) return
-    const focus = () => {
-      el.focus({ preventScroll: true })
-      const len = el.value.length
-      try {
-        el.setSelectionRange(len, len)
-      } catch {
-        /* iOS older */
-      }
-    }
+    const focus = () => focusComposeInput(el)
     focus()
-    const timer = window.setTimeout(focus, 50)
-    return () => window.clearTimeout(timer)
+    const timers = [0, 50, 120, 320].map((ms) => window.setTimeout(focus, ms))
+    const onShow = () => focus()
+    window.addEventListener('pageshow', onShow)
+    document.addEventListener('visibilitychange', onShow)
+    return () => {
+      for (const id of timers) window.clearTimeout(id)
+      window.removeEventListener('pageshow', onShow)
+      document.removeEventListener('visibilitychange', onShow)
+    }
   }, [])
 
   const readLocalHistory = useCallback((): string[] => {
@@ -358,6 +378,10 @@ export function PartnerSiteMobileSearchClient({
   )
 
   const handleBack = () => {
+    if (onClose) {
+      onClose()
+      return
+    }
     if (typeof window !== 'undefined' && window.history.length <= 1) {
       router.push(partnerSiteHomePath(siteSlug, { customDomain }))
       return
@@ -459,7 +483,7 @@ export function PartnerSiteMobileSearchClient({
             <input
               ref={inputRef}
               data-pw-search-compose="1"
-              type="search"
+              type="text"
               name="q"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -468,6 +492,7 @@ export function PartnerSiteMobileSearchClient({
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
+              autoFocus
               enterKeyHint="search"
               inputMode="search"
               aria-label={placeholder}
@@ -478,7 +503,7 @@ export function PartnerSiteMobileSearchClient({
                 className="pw-mobile-search-clear"
                 onClick={() => {
                   setSearchTerm('')
-                  inputRef.current?.focus()
+                  focusComposeInput(inputRef.current)
                 }}
                 aria-label={t.searchClearQuery}
               >

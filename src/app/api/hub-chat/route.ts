@@ -24,6 +24,7 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 import { isValidHubStudioMessage } from '@/lib/hub-chat/hub-studio-message'
 import { handleHubStudio, type HubStudioAction } from '@/lib/hub-chat/hub-studio-handler'
+import { parseLogoStripBackgroundFlag } from '@/lib/remove-background-png'
 import { presetTitle } from '@/lib/hub-chat/hub-studio-presets'
 import { reconcilePackagingProcessSteps } from '@/lib/packaging/face-print-style'
 import { applyStudioSessionLabels } from '@/lib/packaging/packaging-face-labels'
@@ -251,6 +252,7 @@ export async function POST(request: NextRequest) {
       menuVenueName?: string
       landingSectionCopy?: string
       landingLogoBrief?: string
+      stripBackground?: boolean | string | number | null
       landingPublishedShareUrl?: string
       landingPublishedShareToken?: string
       landingHtmlSource?: string
@@ -330,6 +332,10 @@ export async function POST(request: NextRequest) {
         body?.landingSectionCopy !== undefined ? String(body.landingSectionCopy) : undefined
       const landingLogoBrief =
         body?.landingLogoBrief !== undefined ? String(body.landingLogoBrief) : undefined
+      const stripBackground =
+        body?.stripBackground === undefined
+          ? undefined
+          : parseLogoStripBackgroundFlag(body.stripBackground)
       const landingPublishedShareUrl =
         body?.landingPublishedShareUrl !== undefined
           ? String(body.landingPublishedShareUrl)
@@ -409,6 +415,7 @@ export async function POST(request: NextRequest) {
         menuVenueName,
         landingSectionCopy,
         landingLogoBrief,
+        stripBackground,
         landingPublishedShareUrl,
         landingPublishedShareToken,
         landingHtmlSource,

@@ -315,6 +315,7 @@ export type Dictionary = {
     studioLandingLogoWrongStep: string
     studioLandingLogoNeedBrief: string
     studioLandingLogoGenerated: string
+    studioLogoStripBg: string
     studioUploadBtn: string
     studioImagesUploaded: string
     studioMusicCredit: string
@@ -3743,6 +3744,7 @@ const VI_DICTIONARY: Dictionary = {
     studioLandingLogoWrongStep: 'Logo landing chỉ dùng sau khi hoàn tất brief thương hiệu.',
     studioLandingLogoNeedBrief: 'Nhập prompt logo (wordmark, icon, màu…) hoặc hoàn tất tên thương hiệu ở brief trước.',
     studioLandingLogoGenerated: 'Đã tạo logo — ghép vào header preview landing.',
+    studioLogoStripBg: 'Xóa nền (PNG trong suốt, +1.5 credits)',
     studioUploadBtn: 'Tải ảnh lên',
     studioImagesUploaded: 'Đã tải {n} ảnh. Mô tả yêu cầu cho bước tiếp theo.',
     studioMusicCredit: 'Nhạc: {n} credits',
@@ -7207,6 +7209,7 @@ const EN_DICTIONARY: Dictionary = {
     studioLandingLogoWrongStep: 'Landing logo is available after the brand brief is complete.',
     studioLandingLogoNeedBrief: 'Enter a logo prompt (wordmark, icon, colors…) or complete the brand name in the brief first.',
     studioLandingLogoGenerated: 'Logo created — composited on the landing preview header.',
+    studioLogoStripBg: 'Remove background (transparent PNG, +1.5 credits)',
     studioUploadBtn: 'Upload images',
     studioImagesUploaded: 'Uploaded {n} image(s). Describe requirements for the next step.',
     studioMusicCredit: 'Music: {n} credits',
@@ -10712,6 +10715,7 @@ const ZH_DICTIONARY: Dictionary = {
     studioLandingLogoWrongStep: '完成品牌简报后才可设置落地页 logo。',
     studioLandingLogoNeedBrief: '请输入 logo 提示（字标、图标、配色…）或先在简报中填写品牌名称。',
     studioLandingLogoGenerated: 'Logo 已生成 — 已合成到落地页预览页眉。',
+    studioLogoStripBg: '抠透明背景（透明 PNG，+1.5 积分）',
     studioUploadBtn: '上传图片',
     studioImagesUploaded: '已上传 {n} 张图片。请描述下一步需求。',
     studioMusicCredit: '音乐：{n} 积分',
@@ -14110,6 +14114,7 @@ const JA_DICTIONARY: Dictionary = {
     studioLandingLogoWrongStep: 'ブランド brief 完了後にランディングロゴを設定できます。',
     studioLandingLogoNeedBrief: 'ロゴプロンプト（ワードマーク、アイコン、配色…）を入力するか、brief のブランド名を先に入力してください。',
     studioLandingLogoGenerated: 'ロゴを生成しました — ランディングプレビューヘッダーに合成されます。',
+    studioLogoStripBg: '背景を削除（透過 PNG、+1.5 クレジット）',
     studioUploadBtn: '画像をアップロード',
     studioImagesUploaded: '{n} 枚アップロードしました。次のステップの要件を説明してください。',
     studioMusicCredit: '音楽：{n} クレジット',
@@ -17591,6 +17596,7 @@ const KO_DICTIONARY: Dictionary = {
     studioLandingLogoWrongStep: '브랜드 brief 완료 후 랜딩 로고를 설정할 수 있습니다.',
     studioLandingLogoNeedBrief: '로고 프롬프트(워드마크, 아이콘, 색상…)를 입력하거나 brief의 브랜드명을 먼저 입력하세요.',
     studioLandingLogoGenerated: '로고가 생성되었습니다 — 랜딩 미리보기 헤더에 합성됩니다.',
+    studioLogoStripBg: '배경 제거 (투명 PNG, +1.5 크레딧)',
     studioUploadBtn: '이미지 업로드',
     studioImagesUploaded: '{n}장 업로드됨. 다음 단계 요구사항을 설명하세요.',
     studioMusicCredit: '음악: {n} 크레딧',

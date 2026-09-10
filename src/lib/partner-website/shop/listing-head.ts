@@ -1,6 +1,7 @@
 /**
- * Listing `/c` `/search` — bộ lọc dính head; cuộn thì head mỏng.
- * Một engine mọi shop. Không hoist trong Sửa nhanh.
+ * Head rút gọn khi cuộn — mọi trang shop (home / listing / PDP / giỏ / tài khoản / info).
+ * Ẩn topbar + pill + hàng SEO; giữ Danh mục, ô tìm, nút head. Listing thêm bộ lọc dính head.
+ * Một engine mọi shop. Không compact trong Sửa nhanh.
  */
 
 export const PW_HEAD_COMPACT_ATTR = 'data-pw-head-compact'
@@ -9,16 +10,47 @@ export const PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID = 'pw-shop-listing-head'
 export const PW_LISTING_HEAD_COLLAPSE_Y = 72
 export const PW_LISTING_HEAD_EXPAND_Y = 28
 
+const COMPACT_HOSTS = [
+  `html[${PW_HEAD_COMPACT_ATTR}="1"]`,
+  `html[${PW_HEAD_COMPACT_ATTR}="1"]:not([data-pw-edit-device]):not([data-pw-scene-lock])`,
+  `html[data-pw-page][${PW_HEAD_COMPACT_ATTR}="1"]`,
+  `html[data-pw-edit-device][${PW_HEAD_COMPACT_ATTR}="1"]`,
+  `html[data-pw-scene-lock][${PW_HEAD_COMPACT_ATTR}="1"]`,
+  `.pw-shop[${PW_HEAD_COMPACT_ATTR}="1"]`,
+] as const
+
+function compactSel(parts: string): string {
+  return parts
+    .split(',')
+    .map((sel) => sel.trim())
+    .filter(Boolean)
+    .flatMap((sel) => COMPACT_HOSTS.map((host) => `${host} ${sel}`))
+    .join(',')
+}
+
+const COMPACT_HIDE_SEL = compactSel(
+  '.pw-nav-main,.pw-shop-nav-row,[data-pw-personalize-nav],[data-pw-seo-row],.pw-seo-row,.pw-topbar,.pw-shop-topbar,[data-pw-region="topbar"]',
+)
+const COMPACT_MAIN_SEL = compactSel('.pw-header-main,.pw-shop-header-inner')
+const COMPACT_LOGO_SEL = compactSel('.pw-logo,.pw-shop-logo')
+const COMPACT_FRAME_SEL = compactSel('.pw-logo-frame,[data-pw-logo-frame="1"]')
+const COMPACT_FRAME_IMG_SEL = compactSel(
+  '.pw-logo-frame .pw-logo,.pw-logo-frame .pw-shop-logo,[data-pw-logo-frame="1"] img',
+)
+const COMPACT_FILTER_SEL = compactSel(
+  `[${PW_LISTING_FILTER_SLOT_ATTR}] .pw-shop-filters,[${PW_LISTING_FILTER_SLOT_ATTR}] .pw-page-filters`,
+)
+
 export const PW_LISTING_HEAD_CSS = `
 [${PW_LISTING_FILTER_SLOT_ATTR}]:empty{display:none!important;height:0!important;border:0!important;padding:0!important;margin:0!important}
 [${PW_LISTING_FILTER_SLOT_ATTR}]{position:sticky;top:var(--pw-sticky-head,56px);z-index:499;display:block;width:100%;box-sizing:border-box;background:var(--pw-bg,#fff);border-bottom:1px solid var(--pw-border,#e5e7eb)}
 [${PW_LISTING_FILTER_SLOT_ATTR}] .pw-shop-filters,[${PW_LISTING_FILTER_SLOT_ATTR}] .pw-page-filters,[${PW_LISTING_FILTER_SLOT_ATTR}] [data-pw-region="filters"]{position:static!important;top:auto!important;z-index:auto!important;margin:0 auto!important;padding:6px var(--pw-page-gutter,20px)!important;max-width:var(--pw-content,1200px);box-shadow:none!important;border-bottom:none!important;background:transparent!important}
-html[data-pw-page="listing"][data-pw-head-compact="1"] .pw-nav-main,html[data-pw-page="listing"][data-pw-head-compact="1"] .pw-shop-nav-row,html[data-pw-page="listing"][data-pw-head-compact="1"] [data-pw-seo-row],html[data-pw-page="listing"][data-pw-head-compact="1"] .pw-topbar,html[data-pw-page="listing"][data-pw-head-compact="1"] .pw-shop-topbar{display:none!important;min-height:0!important;height:0!important;max-height:0!important;overflow:hidden!important;padding:0!important;margin:0!important;border:0!important}
-html[data-pw-page="listing"][data-pw-head-compact="1"] .pw-header-main,html[data-pw-page="listing"][data-pw-head-compact="1"] .pw-shop-header-inner{padding-top:4px!important;padding-bottom:4px!important;min-height:48px!important}
-html[data-pw-page="listing"][data-pw-head-compact="1"] .pw-logo,html[data-pw-page="listing"][data-pw-head-compact="1"] .pw-shop-logo{height:28px!important;max-height:28px!important}
-html[data-pw-page="listing"][data-pw-head-compact="1"] .pw-logo-frame,html[data-pw-page="listing"][data-pw-head-compact="1"] [data-pw-logo-frame="1"]{width:var(--pw-logo-box-w,140px)!important;height:var(--pw-logo-box-h,36px)!important;max-height:none!important}
-html[data-pw-page="listing"][data-pw-head-compact="1"] .pw-logo-frame .pw-logo,html[data-pw-page="listing"][data-pw-head-compact="1"] .pw-logo-frame .pw-shop-logo,html[data-pw-page="listing"][data-pw-head-compact="1"] [data-pw-logo-frame="1"] img{height:100%!important;width:100%!important;max-height:none!important}
-html[data-pw-page="listing"][data-pw-head-compact="1"] [${PW_LISTING_FILTER_SLOT_ATTR}] .pw-shop-filters,html[data-pw-page="listing"][data-pw-head-compact="1"] [${PW_LISTING_FILTER_SLOT_ATTR}] .pw-page-filters{padding-top:4px!important;padding-bottom:4px!important}
+${COMPACT_HIDE_SEL}{display:none!important;min-height:0!important;height:0!important;max-height:0!important;overflow:hidden!important;padding:0!important;margin:0!important;border:0!important}
+${COMPACT_MAIN_SEL}{padding-top:4px!important;padding-bottom:4px!important;min-height:48px!important}
+${COMPACT_LOGO_SEL}{height:28px!important;max-height:28px!important}
+${COMPACT_FRAME_SEL}{width:var(--pw-logo-box-w,140px)!important;height:var(--pw-logo-box-h,36px)!important;max-height:none!important}
+${COMPACT_FRAME_IMG_SEL}{height:100%!important;width:100%!important;max-height:none!important}
+${COMPACT_FILTER_SEL}{padding-top:4px!important;padding-bottom:4px!important}
 `.trim()
 
 const HEADER_SEL = 'header.pw-header,header.pw-shop-header,[data-pw-region="header"]'
@@ -74,6 +106,10 @@ export const PARTNER_SHOP_LISTING_HEAD_SCRIPT = `(function(){
     }
     return null;
   }
+  function canCompact(){
+    if(editor())return false;
+    return !!visibleHeader();
+  }
   function measure(){
     var header=visibleHeader();
     var h=header?Math.round(header.getBoundingClientRect().height):0;
@@ -109,14 +145,21 @@ export const PARTNER_SHOP_LISTING_HEAD_SCRIPT = `(function(){
   }
   function setCompact(next){
     compact=next;
-    if(next)html().setAttribute(ATTR,'1');
-    else html().removeAttribute(ATTR);
+    var root=html();
+    var shop=document.querySelector('.pw-shop');
+    if(next){
+      root.setAttribute(ATTR,'1');
+      if(shop)shop.setAttribute(ATTR,'1');
+    }else{
+      root.removeAttribute(ATTR);
+      if(shop)shop.removeAttribute(ATTR);
+    }
     measure();
     try{if(typeof window.__pwMobileHeadLogoSync==='function')window.__pwMobileHeadLogoSync();}catch(eSync){}
   }
   function sync(){
     hoistFilters();
-    if(!isListing()||editor()){
+    if(!canCompact()){
       if(compact)setCompact(false);
       else measure();
       return;

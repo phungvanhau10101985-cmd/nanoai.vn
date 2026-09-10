@@ -1247,7 +1247,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
         if(btn.parentNode!==ctas) ctas.appendChild(btn);
         continue;
       }
-      if(show==='pdp'||bk==='try-on'||bk==='favorite-product'||btn.getAttribute('data-pw-pdp-home')==='1'||btn.getAttribute('data-pw-pdp-nav')==='1'){
+      if(show==='pdp'||bk==='favorite-product'||btn.getAttribute('data-pw-pdp-home')==='1'||btn.getAttribute('data-pw-pdp-nav')==='1'){
         if(btn.parentNode!==nav) nav.appendChild(btn);
       }
     }

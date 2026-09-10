@@ -824,7 +824,12 @@ function PartnerSiteShopShellInner({
             )}
           </div>
 
-          <PartnerSiteShopSearchBar siteSlug={siteSlug} locale={locale} previewDevice={previewDevice} />
+          <PartnerSiteShopSearchBar
+            siteSlug={siteSlug}
+            locale={locale}
+            previewDevice={previewDevice}
+            shopTitle={title}
+          />
 
           <div className="pw-shop-header-actions">
             <Link

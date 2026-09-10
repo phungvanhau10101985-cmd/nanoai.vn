@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getUserForCreditAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
 import { runStudioImagePipeline } from '@/lib/hub-agent/studio-image-pipeline'
+import { parseLogoStripBackgroundFlag } from '@/lib/remove-background-png'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 import { normalizeLogoAspectRatioForGemini } from '@/lib/partner-website/visual-editor/gemini-working-aspect'
 
@@ -35,6 +36,7 @@ export async function POST(
     title?: string
     kind?: string
     aspectRatio?: string
+    stripBackground?: boolean | string | number | null
   }
   const prompt = String(body.prompt ?? '').trim()
   if (prompt.length < 4) {
@@ -72,6 +74,8 @@ export async function POST(
     productImageUrls: kind === 'logo' ? undefined : refs.length ? refs : undefined,
     aspectRatio,
     verbatimPrompt: kind === 'logo',
+    stripBackground:
+      kind === 'logo' ? parseLogoStripBackgroundFlag(body.stripBackground) : undefined,
   })
 
   if (!result.ok) {

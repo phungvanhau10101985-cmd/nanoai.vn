@@ -86,6 +86,40 @@ describe('partner-site-chrome-kit', () => {
     expect(CHROME_KIT_HEAD_ACTION_ITEMS.length).toBeGreaterThanOrEqual(9)
   })
 
+  it('seeds a hidden shop try-on on the dock, separate from the PDP face', () => {
+    const html = buildChromeKitDockHtml({ locale: 'vi', siteSlug: 'demo-shop' })
+    const nav = html.match(/<div\b[^>]*\bpw-pdp-sticky-nav\b[^>]*>[\s\S]*?<\/div>/i)?.[0] || ''
+    const shopChunk = html.slice(0, html.indexOf('pw-pdp-sticky-nav'))
+    expect(shopChunk).toMatch(
+      /data-pw-chrome-btn="try-on"[^>]*data-pw-dock-show="shop"|data-pw-dock-show="shop"[^>]*data-pw-chrome-btn="try-on"/
+    )
+    expect(shopChunk).toMatch(
+      /data-pw-chrome-btn="try-on"[^>]*data-pw-hidden="1"|data-pw-hidden="1"[^>]*data-pw-chrome-btn="try-on"/
+    )
+    expect(shopChunk).toContain('data-nanoai-try-on')
+    expect(nav).toMatch(
+      /data-pw-chrome-btn="try-on"[^>]*data-pw-dock-show="pdp"|data-pw-dock-show="pdp"[^>]*data-pw-chrome-btn="try-on"/
+    )
+    expect(nav).toContain('data-pw-pdp-nav="1"')
+    const next = ensurePartnerSiteChromeKitInHtml(
+      `<nav class="pw-bottom-nav" data-pw-chrome-kit="dock">
+        <a data-pw-chrome-btn="home" data-pw-dock-show="shop">Home</a>
+        <div class="pw-pdp-sticky-nav" data-pw-dock-show="pdp">
+          <a data-pw-chrome-btn="home" data-pw-pdp-home="1" data-pw-dock-show="pdp">Home</a>
+          <button data-pw-chrome-btn="try-on" data-pw-dock-show="pdp" data-pw-pdp-nav="1">Thử</button>
+        </div>
+      </nav>`,
+      { locale: 'vi', siteSlug: 'demo-shop' }
+    )
+    const nextNav = next.match(/<div\b[^>]*\bpw-pdp-sticky-nav\b[^>]*>[\s\S]*?<\/div>/i)?.[0] || ''
+    const nextShop = next.slice(0, next.indexOf('pw-pdp-sticky-nav'))
+    expect(nextShop).toMatch(
+      /data-pw-chrome-btn="try-on"[^>]*data-pw-dock-show="shop"|data-pw-dock-show="shop"[^>]*data-pw-chrome-btn="try-on"/
+    )
+    expect(nextNav).toContain('data-pw-chrome-btn="try-on"')
+    expect(nextNav).toContain('data-pw-pdp-nav="1"')
+  })
+
   it('seeds hidden extra icons in the PDP sticky nav so the left 3 can swap', () => {
     const html = buildChromeKitDockHtml({ locale: 'vi', siteSlug: 'demo-shop' })
     const nav = html.match(/<div\b[^>]*\bpw-pdp-sticky-nav\b[^>]*>[\s\S]*?<\/div>/i)?.[0] || ''
@@ -397,7 +431,7 @@ describe('partner-site-chrome-kit', () => {
     expect(isPdpDockCtaLocked('add-cart')).toBe(true)
     expect(isPdpDockCtaLocked('buy-now')).toBe(true)
     expect(isPdpDockCtaLocked('home')).toBe(false)
-    expect(isPdpDockFaceKind('try-on')).toBe(true)
+    expect(isPdpDockFaceKind('try-on')).toBe(false)
     expect(isPdpDockFaceKind('favorite-product')).toBe(true)
     expect(isPdpDockFaceKind('products')).toBe(false)
     expect(isPdpDockNavKind('home')).toBe(true)

@@ -48,11 +48,13 @@ export default function ThietKeLogoClientPage() {
   const [image, setImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
   const [aspectRatio, setAspectRatio] = useState<string>('1:1')
+  const [stripBg, setStripBg] = useState(true)
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const cost = imageQuality === '2K' ? 3 : 4.5
+  const generateCost = imageQuality === '2K' ? 1.5 : 3
+  const cost = stripBg ? generateCost + 1.5 : generateCost
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -93,6 +95,7 @@ export default function ThietKeLogoClientPage() {
     formData.append('imageQuality', imageQuality)
     formData.append('aspectRatio', aspectRatio)
     formData.append('note', note)
+    formData.append('stripBackground', stripBg ? '1' : '0')
     if (image.file) formData.append('image', image.file)
     try {
       const result = await createLogo(formData)
@@ -111,7 +114,9 @@ export default function ThietKeLogoClientPage() {
           setStep('RESULT')
           toast({
             title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
-            description: tr('Logo đã được tạo (nền trong suốt).', 'Logo has been generated (transparent background).', 'Logo 已生成（透明背景）。', 'ロゴを生成しました（背景透過）。', '로고가 생성되었습니다(투명 배경).'),
+            description: stripBg
+              ? tr('Logo đã được tạo (nền trong suốt).', 'Logo has been generated (transparent background).', 'Logo 已生成（透明背景）。', 'ロゴを生成しました（背景透過）。', '로고가 생성되었습니다(투명 배경).')
+              : tr('Logo đã được tạo.', 'Logo has been generated.', 'Logo 已生成。', 'ロゴを生成しました。', '로고가 생성되었습니다.'),
             duration: 3000,
           })
         },
@@ -234,7 +239,7 @@ export default function ThietKeLogoClientPage() {
                           imageQuality === '2K' ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
                         }`}
                       >
-                        2K (3)
+                        2K (1,5)
                       </button>
                       <button
                         type="button"
@@ -243,10 +248,19 @@ export default function ThietKeLogoClientPage() {
                           imageQuality === '4K' ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
                         }`}
                       >
-                        4K (4,5)
+                        4K (3)
                       </button>
                     </div>
                   </div>
+                  <label className="flex items-start gap-2 text-xs leading-4">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={stripBg}
+                      onChange={(e) => setStripBg(e.target.checked)}
+                    />
+                    <span>{tr('Xóa nền (PNG trong suốt, +1.5 credits)', 'Remove background (transparent PNG, +1.5 credits)', '抠透明背景（透明 PNG，+1.5 积分）', '背景を削除（透過 PNG、+1.5 クレジット）', '배경 제거 (투명 PNG, +1.5 크레딧)')}</span>
+                  </label>
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-amber-200 text-amber-700 hover:bg-amber-50" />
                     <Button
@@ -254,9 +268,11 @@ export default function ThietKeLogoClientPage() {
                       disabled={!note.trim() && !image.file}
                       className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-amber-600 hover:bg-amber-700 text-white"
                     >
-                      <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo logo', 'Create logo', '生成 Logo', 'ロゴを作成', '로고 생성')} ({imageQuality === '2K' ? '3' : '4,5'} credit)
+                      <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo logo', 'Create logo', '生成 Logo', 'ロゴを作成', '로고 생성')} ({cost} credit)
                     </Button>
-                    <p className="text-[10px] text-center text-muted-foreground mt-2">* {tr('Thời gian: 20–70 giây (gồm xóa nền PNG)', 'Time: 20–70 seconds (includes transparent PNG)', '时间：20–70 秒（含透明 PNG）', '時間：20–70秒（透過PNG含む）', '시간: 20–70초(투명 PNG 포함)')}</p>
+                    <p className="text-[10px] text-center text-muted-foreground mt-2">* {stripBg
+                      ? tr('Thời gian: 20–70 giây (gồm xóa nền PNG)', 'Time: 20–70 seconds (includes transparent PNG)', '时间：20–70 秒（含透明 PNG）', '時間：20–70秒（透過PNG含む）', '시간: 20–70초(투명 PNG 포함)')
+                      : tr('Thời gian: 20–70 giây', 'Time: 20–70 seconds', '时间：20–70 秒', '時間：20–70秒', '시간: 20–70초')}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -270,7 +286,11 @@ export default function ThietKeLogoClientPage() {
               <ImageProcessingLoader
                 mode="logo"
                 title={tr('Đang thiết kế logo', 'Designing logo', '正在设计 Logo', 'ロゴをデザイン中', '로고 디자인 중')}
-                description={tr('AI đang tạo logo rồi xóa nền thành PNG trong suốt', 'AI is creating the logo then cutting the background to a transparent PNG', 'AI 正在生成 Logo 并抠成透明 PNG', 'AIがロゴを生成し背景を透過PNGにします', 'AI가 로고를 만든 뒤 배경을 투명 PNG로 지웁니다')}
+                description={
+                  stripBg
+                    ? tr('AI đang tạo logo rồi xóa nền thành PNG trong suốt', 'AI is creating the logo then cutting the background to a transparent PNG', 'AI 正在生成 Logo 并抠成透明 PNG', 'AIがロゴを生成し背景を透過PNGにします', 'AI가 로고를 만든 뒤 배경을 투명 PNG로 지웁니다')
+                    : tr('AI đang tạo logo', 'AI is creating the logo', 'AI 正在生成 Logo', 'AIがロゴを生成しています', 'AI가 로고를 만들고 있습니다')
+                }
                 imagePreview={image.preview}
               />
             </CardContent>

@@ -39,6 +39,7 @@ import {
   applySlotLogoToHtml,
   applySlotLogoToProject,
   isPersistableLogoUrl,
+  withChatIconLogoFromProject,
 } from '@/lib/partner-website/visual-editor/apply-slot-logo'
 import type { PartnerWebsiteFileKind } from '@/lib/partner-website/partner-website-types'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
@@ -832,7 +833,13 @@ export async function PATCH(
             }),
         })
       : null
-  const themeForSave = finalizedVisual?.theme ?? theme
+  const themeForSave = finalizedVisual
+    ? withChatIconLogoFromProject(
+        finalizedVisual.theme,
+        finalizedVisual.project,
+        visualHomeHtmlSourceAfterSave(finalizedVisual, existing.htmlSource)
+      )
+    : theme
   const projectToSave = finalizedVisual?.project ?? project
   const visualHtmlToPersist =
     body.visualEdited === true && (finalizedVisual?.canonicalHtml.length ?? 0) >= 40

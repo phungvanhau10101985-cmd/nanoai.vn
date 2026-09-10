@@ -289,7 +289,7 @@ const PW_PHONE_HEADER_FACE_RULES = `
 .pw-search-submit,.pw-shop-search-submit{min-width:${PW_SEARCH_FORM_HEIGHT.mobile}px!important;padding:0 10px!important}
 .pw-header-actions,.pw-shop-header-actions{flex:0 0 auto!important;min-width:36px!important;max-width:46%!important;overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:none}
 .pw-header-actions::-webkit-scrollbar,.pw-shop-header-actions::-webkit-scrollbar{width:0;height:0}
-.pw-header-actions [data-pw-chrome-btn="cart"],.pw-shop-header-actions [data-pw-chrome-btn="cart"]{order:-1!important}
+.pw-header-actions > *,.pw-shop-header-actions > *{order:0!important}
 .pw-header-actions [data-pw-chrome-kit="1"] .pw-chrome-btn-label,.pw-shop-header-actions [data-pw-chrome-kit="1"] .pw-chrome-btn-label,.pw-header-actions [data-pw-chrome-kit="1"] .pw-shop-nav-label,.pw-shop-header-actions [data-pw-chrome-kit="1"] .pw-shop-nav-label,.pw-header-actions [data-pw-chrome-kit="1"] .pw-account-btn-label,.pw-shop-header-actions [data-pw-chrome-kit="1"] .pw-account-btn-label{display:none!important}
 .pw-header-actions [data-pw-chrome-kit="1"],.pw-shop-header-actions [data-pw-chrome-kit="1"]{min-width:44px!important;min-height:44px!important;padding:6px!important}
 `.trim()

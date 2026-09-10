@@ -1,9 +1,11 @@
 'use client'
 
 import { Camera, Search } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type SyntheticEvent } from 'react'
+import { flushSync } from 'react-dom'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { PartnerSiteMobileSearchClient } from '@/components/partner-website/shop/partner-site-mobile-search-client'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
@@ -53,10 +55,12 @@ export function PartnerSiteShopSearchBar({
   siteSlug,
   locale,
   previewDevice = null,
+  shopTitle = '',
 }: {
   siteSlug: string
   locale: WebLocale
   previewDevice?: VisualDeviceVariant | null
+  shopTitle?: string
 }) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
@@ -66,6 +70,7 @@ export function PartnerSiteShopSearchBar({
   const [busy, setBusy] = useState(false)
   const composeMobile = usePartnerShopMobileSearchComposeFace(previewDevice)
   const [qHint, setQHint] = useState('')
+  const [composeOpen, setComposeOpen] = useState(false)
 
   useEffect(() => {
     try {
@@ -80,10 +85,20 @@ export function PartnerSiteShopSearchBar({
     q: qHint || q,
   })
 
+  function openCompose(e: SyntheticEvent) {
+    const native = e.nativeEvent as MouseEvent | PointerEvent | KeyboardEvent
+    if ('button' in native && native.button !== 0) return
+    if ('ctrlKey' in native && (native.ctrlKey || native.metaKey || native.shiftKey || native.altKey)) return
+    e.preventDefault()
+    if (composeOpen) return
+    flushSync(() => setComposeOpen(true))
+  }
+
   function goText(e?: React.FormEvent) {
     e?.preventDefault()
     if (composeMobile) {
-      router.push(composeHref)
+      if (composeOpen) return
+      flushSync(() => setComposeOpen(true))
       return
     }
     const query = q.trim()
@@ -111,7 +126,14 @@ export function PartnerSiteShopSearchBar({
           <Search className="pw-search-default-glyph" strokeWidth={2} />
         </span>
         {composeMobile ? (
-          <Link href={composeHref} target="_top" className="pw-shop-search-compose" aria-label={t.searchComposeOpen}>
+          <Link
+            href={composeHref}
+            target="_top"
+            className="pw-shop-search-compose"
+            aria-label={t.searchComposeOpen}
+            onPointerDown={openCompose}
+            onClick={openCompose}
+          >
             <span className={shown ? 'pw-shop-search-compose-q' : undefined}>{shown || t.searchPlaceholder}</span>
           </Link>
         ) : (
@@ -138,7 +160,14 @@ export function PartnerSiteShopSearchBar({
           <Camera className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
         </button>
         {composeMobile ? (
-          <Link href={composeHref} target="_top" className="pw-shop-search-submit" aria-label={t.searchComposeOpen}>
+          <Link
+            href={composeHref}
+            target="_top"
+            className="pw-shop-search-submit"
+            aria-label={t.searchComposeOpen}
+            onPointerDown={openCompose}
+            onClick={openCompose}
+          >
             <Search className="pw-shop-search-submit-icon" aria-hidden="true" strokeWidth={2.4} />
             <span className="pw-shop-search-submit-label">{t.searchButton}</span>
           </Link>
@@ -162,6 +191,14 @@ export function PartnerSiteShopSearchBar({
           e.target.value = ''
         }}
       />
+      {composeOpen ? (
+        <PartnerSiteMobileSearchClient
+          siteSlug={siteSlug}
+          locale={locale}
+          shopTitle={shopTitle}
+          onClose={() => setComposeOpen(false)}
+        />
+      ) : null}
     </div>
   )
 }

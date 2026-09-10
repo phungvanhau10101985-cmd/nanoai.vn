@@ -15,6 +15,7 @@ import { stripPackagingFaceTechnicalMeasurementsFromVisualPrompt } from '@/lib/p
 import { normalizePanelArtworkToPrintSize } from '@/lib/packaging/panel-artwork-fit'
 import {
   chargedCreditsForLogoCreate,
+  parseLogoStripBackgroundFlag,
   requiredCreditsForLogoCreate,
   stripLogoBackgroundToTransparentPng,
 } from '@/lib/remove-background-png'
@@ -274,6 +275,8 @@ export async function runStudioImagePipeline(input: {
   printSizeMm?: { widthMm: number; heightMm: number }
   /** Use brief as the full image prompt — skip template wrap + normalizeToEnglish (landing page). */
   verbatimPrompt?: boolean
+  /** Logo only: checkbox «Xóa nền». Default true. */
+  stripBackground?: boolean
 }): Promise<StudioImageResult> {
   const refUrls = input.referenceImageUrls ?? []
   const productUrls = input.productImageUrls ?? []
@@ -305,8 +308,12 @@ export async function runStudioImagePipeline(input: {
   } catch {
     return { ok: false, error: 'Không đọc được số dư credits.' }
   }
+  const stripLogoBackground =
+    input.kind === 'logo' ? parseLogoStripBackgroundFlag(input.stripBackground) : false
   const requiredCredits =
-    input.kind === 'logo' ? requiredCreditsForLogoCreate(UI_MOCKUP_CREDIT) : UI_MOCKUP_CREDIT
+    input.kind === 'logo'
+      ? requiredCreditsForLogoCreate(UI_MOCKUP_CREDIT, stripLogoBackground)
+      : UI_MOCKUP_CREDIT
   if (toTenths(balance) < toTenths(requiredCredits)) {
     return { ok: false, error: `Không đủ credits (cần ${requiredCredits}).` }
   }
@@ -353,6 +360,12 @@ export async function runStudioImagePipeline(input: {
     } else if (input.kind === 'logo' && meta?.screenKey === 'logo_style') {
       caption =
         'LOGO STYLE REFERENCE — follow typography and icon shapes only. Do NOT copy colors from this image (use the user-picked colors). Do NOT copy margins, letterboxing, a white/cream footer bar, or canvas padding from this image. Do NOT copy a wide horizontal lockup into a square or other mismatched frame; rearrange to fill the requested aspect ratio at the largest size:'
+    } else if (input.kind === 'logo' && meta?.screenKey === 'chat_icon_shop_mark') {
+      caption =
+        'SHOP BRAND MARK only — extract COLORS and a simple symbol/letter/number. Place that mark at the TOP of a NEW circular consult STAMP (thick ring, white interior, large SOLID "tư vấn", smaller SOLID "nhắn tin"). Do NOT copy this image’s composition: no shopping-bag as the whole icon, no wide header lockup, no outline-only line art:'
+    } else if (input.kind === 'logo' && meta?.screenKey === 'chat_icon_style') {
+      caption =
+        'CIRCULAR CHAT BADGE STYLE — match this round-stamp treatment: thick ring, white interior, shop mark on top, large SOLID "tư vấn", smaller SOLID "nhắn tin". Reuse colors and marks. Do NOT turn it into a shopping-bag outline or pale line art:'
     } else if (input.kind === 'logo') {
       caption = `Logo reference ${i + 1} — use as visual direction for the new logo (colors, lettering, mark), not a mockup scene:`
     } else if (input.kind === 'packaging_face') {
@@ -437,7 +450,7 @@ export async function runStudioImagePipeline(input: {
           : resultBufferRaw
         let resultBuffer = normalizedBuffer
         let charged = UI_MOCKUP_CREDIT
-        if (input.kind === 'logo') {
+        if (input.kind === 'logo' && stripLogoBackground) {
           const stripped = await stripLogoBackgroundToTransparentPng({
             apiKey,
             userId: input.userId,

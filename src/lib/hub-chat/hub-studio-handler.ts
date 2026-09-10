@@ -468,6 +468,7 @@ export type HubStudioHandlerInput = {
   menuVenueName?: string
   landingSectionCopy?: string
   landingLogoBrief?: string
+  stripBackground?: boolean
   landingPublishedShareUrl?: string
   landingPublishedShareToken?: string
   landingHtmlSource?: string
@@ -1451,7 +1452,8 @@ async function generateAsset(
   generationPrompt: string,
   screenKey: string,
   screenLabel: string,
-  locale: WebLocale
+  locale: WebLocale,
+  opts?: { stripBackground?: boolean }
 ): Promise<{ session: HubStudioSession; studio: HubStudioMessagePayload; chargedImage: number; error?: string }> {
   const effectiveScreenKey =
     session.presetId === 'landing_page'
@@ -2191,6 +2193,7 @@ async function generateAsset(
     productImageUrls: productUrls.length ? productUrls : undefined,
     printSizeMm,
     verbatimPrompt: isLandingFull,
+    stripBackground: generator === 'logo' ? opts?.stripBackground : undefined,
   }
 
   let gen: Awaited<ReturnType<typeof runStudioImagePipeline>> | null = null
@@ -4068,7 +4071,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       generationPrompt,
       stepKey,
       label,
-      input.locale
+      input.locale,
+      { stripBackground: input.stripBackground }
     )
     session = generated.session
     studio = generated.studio
@@ -5420,6 +5424,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       referenceImageUrls: [],
       referenceImageMeta: [],
       aspectRatio: '1:1',
+      stripBackground: input.stripBackground,
     })
     if (!gen.ok) {
       return {
@@ -6868,7 +6873,15 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     const label = stepLabel(session, screenKey, input.locale)
     const sessionBeforeGenerate = session
     const reEditFace = isPackagingFaceReEdit(sessionBeforeGenerate, screenKey)
-    const genResult = await generateAsset(input.userId, session, prompt, screenKey, label, input.locale)
+    const genResult = await generateAsset(
+      input.userId,
+      session,
+      prompt,
+      screenKey,
+      label,
+      input.locale,
+      { stripBackground: input.stripBackground }
+    )
     if (genResult.error) {
       return { ok: false, reply: genResult.error, session, threadId: input.threadId, chargedChat: 0, error: genResult.error }
     }

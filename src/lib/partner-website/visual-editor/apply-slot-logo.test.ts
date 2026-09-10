@@ -4,6 +4,7 @@ import {
   applySlotLogoToProject,
   extractLogoInventoryFromProject,
   extractSlotLogoUrlFromHtml,
+  withChatIconLogoFromProject,
 } from './apply-slot-logo'
 
 const HEADER = 'https://cdn.example/header.png'
@@ -106,5 +107,54 @@ describe('apply-slot-logo', () => {
     expect(inv.header.desktop).toBe(HEADER)
     expect(inv.header.mobile).toBe('https://cdn.example/mobile-h.png')
     expect(inv.footer.desktop).toBe(FOOTER)
+  })
+
+  it('reads framed header, footer without slot attr, and /uploads src', () => {
+    const framed = `<header class="pw-header" data-pw-region="header">
+  <span class="pw-logo-frame" data-pw-logo-frame="1">
+    <img class="pw-logo" data-pw-el="logo" src="/uploads/header.png" alt=""/>
+  </span>
+</header>
+<footer class="pw-footer" data-pw-region="footer">
+  <div class="pw-shop-footer-brand"><img class="pw-shop-footer-logo" src="/uploads/footer.png" alt=""/></div>
+</footer>`
+    expect(extractSlotLogoUrlFromHtml(framed, 'header')).toBe('/uploads/header.png')
+    expect(extractSlotLogoUrlFromHtml(framed, 'footer')).toBe('/uploads/footer.png')
+  })
+
+  it('skips empty placeholder then keeps the filled header logo', () => {
+    const html = `<header>
+      <img class="pw-logo" data-pw-logo-empty="1" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt=""/>
+      <img class="pw-logo" data-pw-logo-slot="header" src="${HEADER}" alt=""/>
+    </header>`
+    expect(extractSlotLogoUrlFromHtml(html, 'header')).toBe(HEADER)
+  })
+
+  it('decodes HTML entities in src', () => {
+    const html = `<header><img class="pw-logo" src="https://cdn.example/header.png?v=1&amp;w=40" data-pw-logo-slot="header"/></header>`
+    expect(extractSlotLogoUrlFromHtml(html, 'header')).toBe('https://cdn.example/header.png?v=1&w=40')
+  })
+
+  it('reads desktop home from htmlSource when project files omit index.html', () => {
+    const inv = extractLogoInventoryFromProject(
+      {
+        entryPath: 'index.html',
+        files: [{ path: '404.html', kind: 'html', content: '<html></html>' }],
+      },
+      null,
+      null,
+      { htmlSource: headerHtml }
+    )
+    expect(inv.header.desktop).toBe(HEADER)
+    expect(inv.footer.desktop).toBe(FOOTER)
+    expect(inv.chatUrl).toBe(CHAT)
+  })
+
+  it('copies chat icon from HTML into theme after Sửa nhanh save', () => {
+    const next = withChatIconLogoFromProject(
+      { chatIconLogoUrl: null },
+      { entryPath: 'index.html', files: [{ path: 'index.html', kind: 'html', content: headerHtml }] }
+    )
+    expect(next.chatIconLogoUrl).toBe(CHAT)
   })
 })

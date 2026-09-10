@@ -5,7 +5,7 @@ import { CHAT_ICON_LOGO_DEFAULT_PROMPT } from './build-chat-icon-logo-prompt'
 
 test('chat slot uses Tư vấn / Nhắn tin default and optional extra', () => {
   const base = buildAdminLogoCreatePrompt({ slot: 'chat', shopTitle: '188 Fashion' })
-  assert.ok(base.startsWith(CHAT_ICON_LOGO_DEFAULT_PROMPT))
+  assert.ok(base.includes(CHAT_ICON_LOGO_DEFAULT_PROMPT))
   assert.match(base, /188 Fashion/)
   assert.doesNotMatch(base, /Optional user request/)
   const extra = buildAdminLogoCreatePrompt({

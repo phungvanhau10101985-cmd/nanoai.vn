@@ -5316,7 +5316,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       }
       return null
     }
-    var root = document.querySelector('[data-pw-chrome-kit="actions"],.pw-header-actions,.pw-shop-header-actions')
+    var root = chromeKitHeadRoot()
     return root && root.querySelector ? root.querySelector('[data-pw-chrome-btn="' + k + '"]') : null
   }
   function listFloatKitItems() {
@@ -5338,17 +5338,21 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return listFloatKitItems().slice().reverse()
   }
   function chromeKitBtnSiblings(el) {
-    if (!el || !el.parentNode) return []
-    var kids = el.parentNode.children
+    var unit = chromeReorderUnit(el) || el
+    if (!unit || !unit.parentNode) return []
+    var kids = unit.parentNode.children
     var out = []
     var pdp = !!(el.closest && el.closest('.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas'))
     for (var i = 0; i < kids.length; i++) {
       var kid = kids[i]
-      if (!kid || !kid.getAttribute || !kid.getAttribute('data-pw-chrome-btn')) continue
-      if (kid.getAttribute('data-pw-hidden') === '1') continue
-      var kidPdp = !!(kid.closest && kid.closest('.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas'))
+      if (!kid || kid.nodeType !== 1) continue
+      var btn = kid.getAttribute && kid.getAttribute('data-pw-chrome-btn')
+        ? kid
+        : (kid.querySelector ? kid.querySelector('[data-pw-chrome-btn]') : null)
+      if (!btn || !btn.getAttribute) continue
+      var kidPdp = !!(btn.closest && btn.closest('.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas'))
       if (kidPdp !== pdp) continue
-      if (!pdp && isPdpDockFaceBtn(kid)) continue
+      if (!pdp && isPdpDockFaceBtn(btn)) continue
       out.push(kid)
     }
     return out
@@ -5631,16 +5635,21 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     var el = findChromeKitBtn(kind, bar)
     if (!el || !el.parentNode) return
+    var unit = chromeReorderUnit(el) || el
     var row = chromeKitBtnSiblings(el)
     var idx = -1
     for (var i = 0; i < row.length; i++) {
-      if (row[i] === el) { idx = i; break }
+      if (row[i] === unit || row[i] === el || (row[i].contains && row[i].contains(el))) { idx = i; break }
     }
     if (idx < 0) return
     var other = dir === 'up' ? row[idx - 1] : row[idx + 1]
     if (!other) return
-    if (dir === 'up') el.parentNode.insertBefore(el, other)
-    else el.parentNode.insertBefore(other, el)
+    var host = unit.parentNode
+    if (!host) return
+    if (unit.style) unit.style.removeProperty('order')
+    if (other.style) other.style.removeProperty('order')
+    if (dir === 'up') host.insertBefore(unit, other)
+    else host.insertBefore(other, unit)
     post('dirty', {})
     listChromeKitState()
   }
@@ -15861,10 +15870,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function isPdpDockFaceBtn(el) {
     if (!el || !el.getAttribute) return false
     var kind = el.getAttribute('data-pw-chrome-btn') || ''
-    if (kind === 'add-cart' || kind === 'buy-now' || kind === 'try-on' || kind === 'favorite-product') return true
+    if (kind === 'add-cart' || kind === 'buy-now' || kind === 'favorite-product') return true
     if (el.getAttribute('data-pw-kit-lock') === 'cta') return true
     if (el.getAttribute('data-pw-dock-show') === 'pdp') return true
     if (el.getAttribute('data-pw-pdp-nav') === '1' || el.getAttribute('data-pw-pdp-home') === '1') return true
+    if (el.closest && el.closest('.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas')) return true
     return false
   }
   function ensureEditorLiveDockHost() {
@@ -16250,7 +16260,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         if (el.parentNode !== ctas) ctas.appendChild(el)
         continue
       }
-      if (show === 'pdp' || show === 'both' || kind === 'try-on' || kind === 'favorite-product' || el.getAttribute('data-pw-pdp-home') === '1' || el.getAttribute('data-pw-pdp-nav') === '1') {
+      if (show === 'pdp' || show === 'both' || kind === 'favorite-product' || el.getAttribute('data-pw-pdp-home') === '1' || el.getAttribute('data-pw-pdp-nav') === '1') {
         if (kind === 'home' || show === 'both') el.setAttribute('data-pw-dock-show', 'pdp')
         if (el.parentNode !== nav) nav.appendChild(el)
       }

@@ -82,7 +82,7 @@ export function HubLandingComposedPreview({
   onLogoBriefChange?: (value: string) => void
   onUploadLogo?: (files: FileList) => void | Promise<void>
   onRemoveLogo?: () => void | Promise<void>
-  onGenerateLogo?: (brief: string) => void | Promise<void>
+  onGenerateLogo?: (brief: string, stripBackground?: boolean) => void | Promise<void>
 }) {
   const t = COPY[locale]
   const section = sections[0]

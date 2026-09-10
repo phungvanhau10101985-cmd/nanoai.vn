@@ -31,13 +31,28 @@ export function isPersistableLogoUrl(url: string): boolean {
   return /^https?:\/\//i.test(String(url || '').trim())
 }
 
+export function decodeLogoSrc(src: string): string {
+  return String(src || '')
+    .trim()
+    .replace(/&amp;/g, '&')
+    .replace(/&#x2f;/gi, '/')
+    .replace(/&#47;/g, '/')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+}
+
 function isFilledLogoSrc(src: string): boolean {
-  const s = String(src || '').trim()
-  return s.length > 4 && !s.startsWith('data:image/') && /^https?:\/\//i.test(s)
+  const s = decodeLogoSrc(src)
+  if (s.length < 5) return false
+  if (/^data:image\/gif/i.test(s)) return false
+  if (s.startsWith('data:image/')) return false
+  if (/^https?:\/\//i.test(s)) return true
+  return /^\/(?!\/)/.test(s)
 }
 
 function readSrc(tag: string): string {
-  return tag.match(/\bsrc=["']([^"']*)["']/i)?.[1] || ''
+  const raw = tag.match(/\bsrc=["']([^"']*)["']/i)?.[1] || ''
+  return decodeLogoSrc(raw)
 }
 
 function isChatLogoTag(tag: string): boolean {
@@ -45,7 +60,10 @@ function isChatLogoTag(tag: string): boolean {
 }
 
 function isFooterLogoTag(tag: string): boolean {
-  return /\bpw-shop-footer-logo\b/.test(tag) || /data-pw-logo-slot=["']footer["']/.test(tag)
+  return (
+    /\bpw-shop-footer-logo\b/.test(tag) ||
+    /data-pw-logo-slot=["']footer["']/.test(tag)
+  )
 }
 
 function isHeaderLogoTag(tag: string): boolean {
@@ -60,8 +78,10 @@ function setLogoImgSrc(tag: string, src: string): string {
     ? tag.replace(/\bsrc=["'][^"']*["']/i, `src="${src}"`)
     : tag.replace(/<img\b/i, `<img src="${src}"`)
   out = out.replace(/\s*data-pw-logo-empty=["'][^"']*["']/gi, '')
-  if (src) {
-    if (!/\bdata-pw-logo-slot=/.test(out) && isHeaderLogoTag(out)) {
+  if (src && !/\bdata-pw-logo-slot=/.test(out)) {
+    if (isFooterLogoTag(out)) {
+      out = out.replace(/<img\b/i, '<img data-pw-logo-slot="footer"')
+    } else if (isHeaderLogoTag(out)) {
       out = out.replace(/<img\b/i, '<img data-pw-logo-slot="header"')
     }
   }
@@ -141,13 +161,43 @@ function injectFooterLogo(inner: string, src: string, alt: string): string {
 function extractFromImgs(chunk: string, pred: (tag: string) => boolean): string {
   const re = /<img\b[^>]*>/gi
   let m: RegExpExecArray | null
+  let leftoverEmpty = ''
   while ((m = re.exec(chunk))) {
     const tag = m[0]
     if (!pred(tag)) continue
     const src = readSrc(tag)
-    if (isFilledLogoSrc(src)) return src
+    if (!isFilledLogoSrc(src)) continue
+    if (/\bdata-pw-logo-empty=["']1["']/i.test(tag)) {
+      if (!leftoverEmpty) leftoverEmpty = src
+      continue
+    }
+    return src
   }
-  return ''
+  return leftoverEmpty
+}
+
+function extractRegionChunk(html: string, region: 'header' | 'footer'): string {
+  const tag = region
+  const tagged = html.match(new RegExp(`<${tag}\\b[\\s\\S]*?</${tag}>`, 'i'))?.[0]
+  if (tagged) return tagged
+  const byRegion = html.match(
+    new RegExp(
+      `<(header|footer|div|section)\\b[^>]*data-pw-region=["']${region}["'][^>]*>[\\s\\S]*?</\\1>`,
+      'i'
+    )
+  )?.[0]
+  if (byRegion) return byRegion
+  const cls = region === 'header' ? '(?:pw-header|pw-shop-header)' : '(?:pw-footer|pw-shop-footer)'
+  return (
+    html.match(
+      new RegExp(`<(header|footer|div|section)\\b[^>]*\\bclass=["'][^"']*\\b${cls}\\b[^>]*>[\\s\\S]*?</\\1>`, 'i')
+    )?.[0] || ''
+  )
+}
+
+function isFooterRegionLogoTag(tag: string): boolean {
+  if (isChatLogoTag(tag)) return false
+  return isFooterLogoTag(tag) || isHeaderLogoTag(tag)
 }
 
 export function extractSlotLogoUrlFromHtml(html: string, slot: PartnerWebsiteHtmlLogoSlot): string {
@@ -156,11 +206,16 @@ export function extractSlotLogoUrlFromHtml(html: string, slot: PartnerWebsiteHtm
     return extractFromImgs(html, isChatLogoTag)
   }
   if (slot === 'footer') {
-    const footer = html.match(/<footer\b[\s\S]*?<\/footer>/i)?.[0] || html
-    return extractFromImgs(footer, isFooterLogoTag)
+    const footer = extractRegionChunk(html, 'footer') || html
+    return (
+      extractFromImgs(footer, isFooterLogoTag) ||
+      extractFromImgs(footer, isFooterRegionLogoTag)
+    )
   }
-  const header = html.match(/<header\b[\s\S]*?<\/header>/i)?.[0] || html
-  return extractFromImgs(header, isHeaderLogoTag)
+  const header = extractRegionChunk(html, 'header')
+  const fromHeader = header ? extractFromImgs(header, isHeaderLogoTag) : ''
+  if (fromHeader) return fromHeader
+  return extractFromImgs(html, (tag) => /data-pw-logo-slot=["']header["']/i.test(tag) && !isChatLogoTag(tag))
 }
 
 export function emptyLogoInventory(): PartnerWebsiteLogoInventory {
@@ -178,19 +233,38 @@ export function emptyLogoInventory(): PartnerWebsiteLogoInventory {
   }
 }
 
+function isHomeHtmlPath(path: string): boolean {
+  return /(^|\/)index(?:\.(?:mobile|tablet|laptop))?\.html$/i.test(path)
+}
+
 export function extractLogoInventoryFromProject(
   project: PartnerWebsiteProject | null | undefined,
   faviconUrl?: string | null,
-  chatIconLogoUrl?: string | null
+  chatIconLogoUrl?: string | null,
+  opts?: { htmlSource?: string | null; logoUrl?: string | null }
 ): PartnerWebsiteLogoInventory {
   const out = emptyLogoInventory()
   out.faviconUrl = String(faviconUrl || '').trim()
-  out.chatUrl = String(chatIconLogoUrl || '').trim()
-  if (!project?.files?.length) return out
-  for (const file of project.files) {
-    if (file.kind !== 'html') continue
+  const themeChat = decodeLogoSrc(String(chatIconLogoUrl || '').trim())
+  out.chatUrl = isFilledLogoSrc(themeChat) ? themeChat : ''
+  const files: Array<{ path: string; content: string }> = []
+  if (project?.files?.length) {
+    for (const file of project.files) {
+      if (file.kind !== 'html' || !file.content?.trim()) continue
+      files.push({ path: file.path, content: file.content })
+    }
+  }
+  const htmlSource = opts?.htmlSource?.trim() || ''
+  const hasDesktopHome = files.some(
+    (f) => isHomeHtmlPath(f.path) && visualDeviceVariantFromHtmlPath(f.path) === 'desktop'
+  )
+  if (htmlSource && !hasDesktopHome) {
+    files.unshift({ path: 'index.html', content: htmlSource })
+  }
+  files.sort((a, b) => Number(isHomeHtmlPath(b.path)) - Number(isHomeHtmlPath(a.path)))
+  for (const file of files) {
     const device = visualDeviceVariantFromHtmlPath(file.path)
-    const isHome = /(^|\/)index(?:\.(?:mobile|tablet|laptop))?\.html$/i.test(file.path)
+    const isHome = isHomeHtmlPath(file.path)
     for (const slot of PARTNER_WEBSITE_DEVICE_LOGO_SLOTS) {
       if (out[slot][device] && !isHome) continue
       const url = extractSlotLogoUrlFromHtml(file.content, slot)
@@ -201,7 +275,55 @@ export function extractLogoInventoryFromProject(
       if (chat) out.chatUrl = chat
     }
   }
+  if (htmlSource) {
+    if (!out.header.desktop) {
+      const h = extractSlotLogoUrlFromHtml(htmlSource, 'header')
+      if (h) out.header.desktop = h
+    }
+    if (!out.footer.desktop) {
+      const f = extractSlotLogoUrlFromHtml(htmlSource, 'footer')
+      if (f) out.footer.desktop = f
+    }
+    if (!out.chatUrl) {
+      const c = extractSlotLogoUrlFromHtml(htmlSource, 'chat')
+      if (c) out.chatUrl = c
+    }
+  }
+  const fallback = decodeLogoSrc(String(opts?.logoUrl || '').trim())
+  if (isFilledLogoSrc(fallback)) {
+    for (const device of ['desktop', 'laptop', 'tablet', 'mobile'] as VisualDeviceVariant[]) {
+      if (!out.header[device]) out.header[device] = fallback
+    }
+  }
   return out
+}
+
+export function extractLogoInventoryFromWebsite(website: {
+  project?: PartnerWebsiteProject | null
+  htmlSource?: string | null
+  logoUrl?: string | null
+  theme?: { faviconUrl?: string | null; chatIconLogoUrl?: string | null; logoUrl?: string | null } | null
+}): PartnerWebsiteLogoInventory {
+  return extractLogoInventoryFromProject(
+    website?.project,
+    website?.theme?.faviconUrl,
+    website?.theme?.chatIconLogoUrl,
+    {
+      htmlSource: website?.htmlSource,
+      logoUrl: website?.theme?.logoUrl || website?.logoUrl,
+    }
+  )
+}
+
+/** After Sửa nhanh Lưu: Chat mua in HTML is the source — copy into theme so Quản lý logo matches. */
+export function withChatIconLogoFromProject<T extends { chatIconLogoUrl?: string | null }>(
+  theme: T,
+  project: PartnerWebsiteProject | null | undefined,
+  htmlSource?: string | null
+): T {
+  const inv = extractLogoInventoryFromProject(project, null, theme.chatIconLogoUrl, { htmlSource })
+  if (!inv.chatUrl || inv.chatUrl === String(theme.chatIconLogoUrl || '').trim()) return theme
+  return { ...theme, chatIconLogoUrl: inv.chatUrl }
 }
 
 export function applySlotLogoToHtml(

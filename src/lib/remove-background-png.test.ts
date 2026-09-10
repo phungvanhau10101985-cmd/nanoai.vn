@@ -4,6 +4,7 @@ import {
   PRODUCT_REMOVE_BG_MASK_PROMPT,
   REMOVE_BG_PNG_CREDIT,
   chargedCreditsForLogoCreate,
+  parseLogoStripBackgroundFlag,
   removeBgMaskPrompt,
   requiredCreditsForLogoCreate,
 } from './remove-background-png-prompts'
@@ -26,11 +27,24 @@ describe('removeBgMaskPrompt', () => {
   })
 })
 
+describe('logo strip-background flag', () => {
+  it('defaults to on when the checkbox value is missing', () => {
+    expect(parseLogoStripBackgroundFlag(undefined)).toBe(true)
+    expect(parseLogoStripBackgroundFlag('')).toBe(true)
+    expect(parseLogoStripBackgroundFlag('1')).toBe(true)
+    expect(parseLogoStripBackgroundFlag('0')).toBe(false)
+    expect(parseLogoStripBackgroundFlag(false)).toBe(false)
+  })
+})
+
 describe('logo remove-bg credits', () => {
-  it('requires generate + xoa-nen-png 1.5 up front', () => {
+  it('adds xoa-nen-png 1.5 only when the strip checkbox is on', () => {
     expect(REMOVE_BG_PNG_CREDIT).toBe(1.5)
     expect(requiredCreditsForLogoCreate(1.5)).toBe(3)
     expect(requiredCreditsForLogoCreate(3)).toBe(4.5)
+    expect(requiredCreditsForLogoCreate(1.5, true)).toBe(3)
+    expect(requiredCreditsForLogoCreate(1.5, false)).toBe(1.5)
+    expect(requiredCreditsForLogoCreate(3, false)).toBe(3)
   })
 
   it('charges remove-bg only when the Gemini mask succeeded', () => {

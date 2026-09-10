@@ -35,6 +35,7 @@ const COPY: Record<
     historyTitle: string
     historyEmpty: string
     historyClear: string
+    back: string
   }
 > = {
   vi: {
@@ -56,6 +57,7 @@ const COPY: Record<
     historyTitle: 'Lịch sử tìm kiếm',
     historyEmpty: 'Chưa có từ khóa tìm kiếm',
     historyClear: 'Xóa tất cả lịch sử',
+    back: 'Quay lại',
   },
   en: {
     searching: 'Searching…',
@@ -76,6 +78,7 @@ const COPY: Record<
     historyTitle: 'Search history',
     historyEmpty: 'No recent searches',
     historyClear: 'Clear all history',
+    back: 'Back',
   },
   zh: {
     searching: '搜索中…',
@@ -96,6 +99,7 @@ const COPY: Record<
     historyTitle: '搜索历史',
     historyEmpty: '暂无搜索记录',
     historyClear: '清除全部历史',
+    back: '返回',
   },
   ja: {
     searching: '検索中…',
@@ -116,6 +120,7 @@ const COPY: Record<
     historyTitle: '検索履歴',
     historyEmpty: '検索履歴はまだありません',
     historyClear: '履歴をすべて削除',
+    back: '戻る',
   },
   ko: {
     searching: '검색 중…',
@@ -136,6 +141,7 @@ const COPY: Record<
     historyTitle: '검색 기록',
     historyEmpty: '최근 검색어가 없습니다',
     historyClear: '검색 기록 모두 삭제',
+    back: '뒤로',
   },
 }
 
@@ -200,6 +206,7 @@ function writeLocalHistory(list){
 function setHistoryList(list){
   historyList=dedupeHistory(list);
   if(historyOpen)renderHistory();
+  if(document.getElementById('pw-mobile-search-overlay'))renderComposeHistory();
 }
 function ensureHistoryHost(){
   var wrap=searchHistoryWrap(document.activeElement)||searchHistoryWrap(searchHistoryInput());
@@ -360,13 +367,122 @@ function onMobileComposePage(){
   var p=publicPathname().replace(/\\/$/,'');
   return /\\/tim-kiem$/.test(p);
 }
+function composePlaceholder(){
+  var n=document.querySelector('.pw-search-compose span,.pw-shop-search-compose span');
+  return n&&n.textContent?String(n.textContent).trim():'';
+}
+function focusComposeInput(el){
+  if(!el)return;
+  try{el.focus({preventScroll:true});}catch(e0){try{el.focus();}catch(e1){}}
+  try{var len=String(el.value||'').length;el.setSelectionRange(len,len);}catch(e2){}
+}
+function closeMobileComposeOverlay(fromPop){
+  var el=document.getElementById('pw-mobile-search-overlay');
+  if(el&&el.parentNode)el.parentNode.removeChild(el);
+  try{document.body.style.removeProperty('overflow');}catch(e){}
+  if(!fromPop&&window.__pwComposePushed){
+    window.__pwComposePushed=0;
+    try{history.back();}catch(e2){}
+    return;
+  }
+  window.__pwComposePushed=0;
+}
+function renderComposeHistory(){
+  var host=document.querySelector('#pw-mobile-search-overlay [data-pw-compose-history]');
+  if(!host)return;
+  var list=historyList&&historyList.length?historyList:readLocalHistory();
+  if(!list.length){
+    host.innerHTML='<p class="pw-mobile-search-muted">'+esc(COPY.historyEmpty)+'</p>';
+    return;
+  }
+  var html='<div class="pw-mobile-search-chips">';
+  for(var i=0;i<list.length;i++){
+    html+='<div class="pw-mobile-search-chip"><button type="button" data-pw-compose-q="'+esc(list[i])+'">'+esc(list[i])+'</button></div>';
+  }
+  host.innerHTML=html+'</div>';
+}
+function ensureComposeOverlayCss(){
+  if(document.getElementById('pw-mobile-search-overlay-css'))return;
+  var s=document.createElement('style');
+  s.id='pw-mobile-search-overlay-css';
+  s.textContent='.pw-mobile-search-overlay{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;background:#fff;color:var(--pw-text,#111)}'
+    +'.pw-mobile-search-overlay .pw-mobile-search-head{flex:0 0 auto;background:#fff;border-bottom:1px solid var(--pw-border,#f3f4f6);padding-top:env(safe-area-inset-top,0px)}'
+    +'.pw-mobile-search-overlay .pw-mobile-search-form{display:flex;align-items:center;gap:6px;padding:8px}'
+    +'.pw-mobile-search-overlay .pw-mobile-search-back{flex:0 0 auto;width:44px;height:44px;border:0;background:transparent;border-radius:12px}'
+    +'.pw-mobile-search-overlay .pw-mobile-search-field{flex:1 1 auto;min-width:0;height:44px;display:flex;align-items:stretch;overflow:hidden;border-radius:12px;background:#f3f4f6;box-shadow:inset 0 0 0 1px var(--pw-border,#e5e7eb)}'
+    +'.pw-mobile-search-overlay .pw-mobile-search-field input{flex:1 1 auto;min-width:0;height:100%;border:0;background:transparent;font-size:16px;padding:0 8px;outline:none}'
+    +'.pw-mobile-search-overlay .pw-mobile-search-camera,.pw-mobile-search-overlay .pw-mobile-search-go{flex:0 0 auto;width:44px;border:0}'
+    +'.pw-mobile-search-overlay .pw-mobile-search-camera{border-left:1px solid var(--pw-border,#e5e7eb);background:transparent}'
+    +'.pw-mobile-search-overlay .pw-mobile-search-go{background:var(--pw-primary);color:#fff}'
+    +'.pw-mobile-search-overlay .pw-mobile-search-body{flex:1 1 auto;overflow-y:auto;padding:12px}'
+    +'.pw-mobile-search-overlay .pw-mobile-search-body h2{margin:0 0 8px;font-size:14px;font-weight:700}'
+    +'.pw-mobile-search-overlay .pw-mobile-search-muted{font-size:12px;color:var(--pw-muted,#6b7280)}'
+    +'.pw-mobile-search-overlay .pw-mobile-search-chips{display:flex;flex-wrap:wrap;gap:8px}'
+    +'.pw-mobile-search-overlay .pw-mobile-search-chip button{border:0;background:#f3f4f6;border-radius:999px;padding:8px 12px;font-size:13px}';
+  document.head.appendChild(s);
+}
 function goMobileCompose(q){
   if(pwShopLiveUiOff())return;
-  if(onMobileComposePage())return;
-  var base=toPublicPath(COMPOSE_PATH);
-  var term=String(q||'').trim();
-  var dest=term?base+(base.indexOf('?')>=0?'&':'?')+'q='+encodeURIComponent(term):base;
-  goShopLocation(dest);
+  var existing=document.getElementById('pw-mobile-search-overlay');
+  if(existing){
+    focusComposeInput(existing.querySelector('[data-pw-search-compose]'));
+    return;
+  }
+  if(onMobileComposePage()){
+    focusComposeInput(document.querySelector('[data-pw-search-compose]'));
+    return;
+  }
+  ensureComposeOverlayCss();
+  var wrap=document.createElement('div');
+  wrap.id='pw-mobile-search-overlay';
+  wrap.className='pw-mobile-search-overlay pw-mobile-search';
+  wrap.setAttribute('data-pw-mobile-compose-overlay','1');
+  var ph=esc(composePlaceholder());
+  var term=String(q||'');
+  wrap.innerHTML='<header class="pw-mobile-search-head"><form class="pw-mobile-search-form">'
+    +'<button type="button" class="pw-mobile-search-back" data-pw-compose-back aria-label="'+esc(COPY.back)+'">'
+    +'<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg></button>'
+    +'<div class="pw-mobile-search-field"><input data-pw-search-compose="1" type="text" name="q" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" autofocus placeholder="'+ph+'" value="'+esc(term)+'"/></div>'
+    +'<button type="button" class="pw-mobile-search-camera" data-pw-compose-cam aria-label="'+esc(COPY.imageBtn)+'">'
+    +'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="14" r="3.5"/></svg></button>'
+    +'<button type="submit" class="pw-mobile-search-go" aria-label="'+esc(COPY.results)+'">'
+    +'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg></button>'
+    +'</form></header><div class="pw-mobile-search-body"><section><h2>'+esc(COPY.historyTitle)+'</h2><div data-pw-compose-history></div></section></div>';
+  document.body.appendChild(wrap);
+  try{document.body.style.overflow='hidden';}catch(eLock){}
+  var input=wrap.querySelector('[data-pw-search-compose]');
+  focusComposeInput(input);
+  var form=wrap.querySelector('form');
+  form.addEventListener('submit',function(e){
+    e.preventDefault();
+    runTextSearch(input&&input.value);
+  });
+  wrap.querySelector('[data-pw-compose-back]').addEventListener('click',function(e){
+    e.preventDefault();
+    closeMobileComposeOverlay(false);
+  });
+  wrap.querySelector('[data-pw-compose-cam]').addEventListener('click',function(e){
+    e.preventDefault();
+    var file=document.querySelector('input[data-pw-image-search-input]');
+    if(file)file.click();
+  });
+  wrap.addEventListener('click',function(e){
+    var b=e.target&&e.target.closest&&e.target.closest('[data-pw-compose-q]');
+    if(!b)return;
+    e.preventDefault();
+    runTextSearch(b.getAttribute('data-pw-compose-q'));
+  });
+  renderComposeHistory();
+  var dest=toPublicPath(COMPOSE_PATH);
+  var t=String(q||'').trim();
+  if(t)dest=dest+(dest.indexOf('?')>=0?'&':'?')+'q='+encodeURIComponent(t);
+  try{history.pushState({pwMobileCompose:1},'',dest);window.__pwComposePushed=1;}catch(ePush){}
+}
+if(!window.__pwComposePop){
+  window.__pwComposePop=1;
+  window.addEventListener('popstate',function(){
+    if(document.getElementById('pw-mobile-search-overlay'))closeMobileComposeOverlay(true);
+  });
 }
 function runTextSearch(q){
   if(pwShopLiveUiOff())return;
@@ -457,16 +573,8 @@ function bindText(){
     input.setAttribute('data-pw-search-bound','1');
     input.setAttribute('aria-haspopup','listbox');
     input.setAttribute('aria-expanded','false');
-    if(isMobileSearchComposeFace()&&!onMobileComposePage()){
-      input.setAttribute('readonly','readonly');
-      input.setAttribute('inputmode','none');
-    }
-    if(isMobileSearchComposeFace()&&!onMobileComposePage()){
-      try{input.setAttribute('readonly','readonly');input.setAttribute('inputmode','none');}catch(errLock){}
-    }
     input.addEventListener('focus',function(){
       if(isMobileSearchComposeFace()&&!onMobileComposePage()){
-        try{input.blur();}catch(err){}
         goMobileCompose(input.value);
         return;
       }
@@ -487,10 +595,6 @@ function bindText(){
     if(hi&&!hi.getAttribute('data-pw-search-bound')&&!hi.getAttribute('data-pw-search-compose')){
       hi.setAttribute('data-pw-search','1');
       hi.setAttribute('data-pw-search-bound','1');
-      if(isMobileSearchComposeFace()&&!onMobileComposePage()){
-        hi.setAttribute('readonly','readonly');
-        hi.setAttribute('inputmode','none');
-      }
       var form=hi.closest('form');
       if(form){
         form.setAttribute('data-pw-search-form','1');
@@ -693,14 +797,22 @@ if(!document.documentElement.getAttribute('data-pw-search-history-doc')){
   });
   document.addEventListener('pointerdown',function(e){
     if(pwShopLiveUiOff())return;
-    if(!isMobileSearchComposeFace()||onMobileComposePage())return;
+    if(!isMobileSearchComposeFace())return;
     var t=e.target;
     if(!t||!t.closest)return;
     if(t.closest(imageBtnSel()))return;
-    if(t.closest('[data-pw-search-compose],.pw-mobile-search,.pw-search-compose,.pw-shop-search-compose'))return;
+    if(t.closest('#pw-mobile-search-overlay,.pw-mobile-search-overlay'))return;
+    if(t.closest('[data-pw-search-compose]'))return;
+    if(e.ctrlKey||e.metaKey||e.shiftKey||e.altKey||(e.button&&e.button!==0))return;
+    var compose=t.closest('.pw-search-compose,.pw-shop-search-compose,a[href*="/tim-kiem"]');
+    if(compose){
+      e.preventDefault();
+      goMobileCompose('');
+      return;
+    }
+    if(onMobileComposePage())return;
     var wrap=t.closest('.pw-header-search,.pw-shop-search-wrap,[data-pw-el="search"],[data-pw-search-form],.pw-search-form,.pw-shop-search-form');
     if(!wrap)return;
-    if(wrap.querySelector('.pw-search-compose,.pw-shop-search-compose,a[href*="/tim-kiem"]'))return;
     var input=wrap.querySelector('[data-pw-search], input[type="search"], input[name="q"]');
     if(input&&input.getAttribute('data-pw-search-compose'))return;
     e.preventDefault();
@@ -708,14 +820,22 @@ if(!document.documentElement.getAttribute('data-pw-search-history-doc')){
   },true);
   document.addEventListener('click',function(e){
     if(pwShopLiveUiOff())return;
-    if(!isMobileSearchComposeFace()||onMobileComposePage())return;
+    if(!isMobileSearchComposeFace())return;
     var t=e.target;
     if(!t||!t.closest)return;
     if(t.closest(imageBtnSel()))return;
-    if(t.closest('[data-pw-search-compose],.pw-mobile-search,.pw-search-compose,.pw-shop-search-compose'))return;
+    if(t.closest('#pw-mobile-search-overlay,.pw-mobile-search-overlay'))return;
+    if(t.closest('[data-pw-search-compose]'))return;
+    if(e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;
+    var compose=t.closest('.pw-search-compose,.pw-shop-search-compose,a[href*="/tim-kiem"]');
+    if(compose){
+      e.preventDefault();
+      goMobileCompose('');
+      return;
+    }
+    if(onMobileComposePage())return;
     var wrap=t.closest('.pw-header-search,.pw-shop-search-wrap,[data-pw-el="search"],[data-pw-search-form],.pw-search-form,.pw-shop-search-form');
     if(!wrap)return;
-    if(wrap.querySelector('.pw-search-compose,.pw-shop-search-compose,a[href*="/tim-kiem"]'))return;
     var input=wrap.querySelector('[data-pw-search], input[type="search"], input[name="q"]');
     if(input&&input.getAttribute('data-pw-search-compose'))return;
     e.preventDefault();

@@ -36,7 +36,7 @@ import {
   visualHtmlLooksUsable,
 } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
 import { inferVisualEditImageKind, shouldUseCurrentImageAsRef } from '@/lib/partner-website/visual-editor/visual-editor-css-url'
-import { buildAiImageColorFacts, mergeAiImageColorPrompt } from '@/lib/partner-website/visual-editor/merge-ai-image-color-prompt'
+import { mergeAiImageColorPrompt } from '@/lib/partner-website/visual-editor/merge-ai-image-color-prompt'
 import {
   logoSizeFromAspect,
   mergeLogoSlotPrompt,
@@ -49,9 +49,17 @@ import {
   dataUrlToPngFile,
   makeUserLogoColorSwatchDataUrl,
 } from '@/lib/partner-website/visual-editor/logo-generation-context'
-import { persistVisualEditorAdminLogo } from '@/lib/partner-website/visual-editor/persist-visual-editor-admin-logo'
+import {
+  persistVisualEditorAdminLogo,
+  persistVisualEditorSlotLogo,
+} from '@/lib/partner-website/visual-editor/persist-visual-editor-admin-logo'
 import { persistVisualEditorChatIconLogo } from '@/lib/partner-website/visual-editor/persist-visual-editor-chat-icon-logo'
-import { buildChatIconLogoPrompt } from '@/lib/partner-website/visual-editor/build-chat-icon-logo-prompt'
+import {
+  buildChatIconInkFacts,
+  buildChatIconLogoPrompt,
+  collectChatIconStyleReferencesFromForm,
+  resolveChatIconStyleReferenceUrl,
+} from '@/lib/partner-website/visual-editor/build-chat-icon-logo-prompt'
 import {
   DEFAULT_LOGO_GEMINI_ASPECT_RATIO,
   LOGO_GEMINI_ASPECT_RATIOS,
@@ -1902,6 +1910,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [bgColorPickerOpen, setBgColorPickerOpen] = useState(false)
   const pinnedBgSelectionRef = useRef<VisualEditorSelection | null>(null)
   const [logoAspect, setLogoAspect] = useState<LogoGeminiAspectRatio>(DEFAULT_LOGO_GEMINI_ASPECT_RATIO)
+  const [logoStripBg, setLogoStripBg] = useState(true)
   const [logoBgChoice, setLogoBgChoice] = useState<'theme' | 'white' | 'custom'>('theme')
   const [logoBgCustom, setLogoBgCustom] = useState('#c2410c')
   const [logoInkChoice, setLogoInkChoice] = useState<'white' | 'theme' | 'custom'>('white')
@@ -2844,6 +2853,19 @@ export function PartnerWebsiteVisualEditorToolbar({
     onAdminLogoChange?.(url)
   }
 
+  async function persistSlotLogo(url: string, slot: 'header' | 'footer' = selectedLogoSlot()) {
+    const result = await persistVisualEditorSlotLogo(partnerId, {
+      slot,
+      logoUrl: url,
+      visualDevice: visualDeviceVariantFromHtmlPath(htmlPath),
+    })
+    if (!result.ok) {
+      onError(result.error || t.visualEditSaveFailed)
+      return
+    }
+    if (slot === 'header') onAdminLogoChange?.(url)
+  }
+
   function selectedLogoSlot(): 'header' | 'footer' {
     return selection?.logoSlot === 'footer' ? 'footer' : 'header'
   }
@@ -2862,7 +2884,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       const slot = selectedLogoSlot()
       postToIframe(iframeRef.current, 'setLogoSrc', { url, slot })
       setDirty(true)
-      if (slot !== 'footer') await persistAdminLogo(url)
+      await persistSlotLogo(url, slot)
       openBlockPanel()
     } catch (e) {
       onError(e instanceof Error ? e.message : t.uploadFailed)
@@ -2887,7 +2909,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         const slot = selectedLogoSlot()
         postToIframe(iframeRef.current, 'setLogoSrc', { url, slot })
         setDirty(true)
-        if (slot !== 'footer') await persistAdminLogo(url)
+        await persistSlotLogo(url, slot)
       } else {
         postToIframe(iframeRef.current, 'setImageSrc', {
           url,
@@ -2996,6 +3018,7 @@ export function PartnerWebsiteVisualEditorToolbar({
     lockHeld?: boolean
     genSeq?: number
     target?: 'image' | 'chat-icon'
+    stripBackground?: boolean
   }) {
     if (!partnerId || (!input.lockHeld && aiLockRef.current)) return
     const prompt = input.prompt.trim()
@@ -3033,6 +3056,7 @@ export function PartnerWebsiteVisualEditorToolbar({
             title: websiteTitle || 'Partner website',
             kind: input.kind,
             aspectRatio: input.aspectRatio,
+            stripBackground: input.kind === 'logo' ? Boolean(input.stripBackground ?? logoStripBg) : undefined,
           }),
         }
       )
@@ -3053,7 +3077,7 @@ export function PartnerWebsiteVisualEditorToolbar({
             slot,
           })
           setDirty(true)
-          if (slot !== 'footer') await persistAdminLogo(json.publicUrl)
+          await persistSlotLogo(json.publicUrl, slot)
         } else {
           postToIframe(iframeRef.current, 'setImageSrc', { url: json.publicUrl, allSlots: Boolean(input.allSlots) })
           setDirty(true)
@@ -3113,24 +3137,27 @@ export function PartnerWebsiteVisualEditorToolbar({
     aiLockRef.current = true
     setAiBusy(true)
     try {
-      const styleRef = refUrl.trim()
-      const refs = styleRef && /^https?:\/\//i.test(styleRef) ? [styleRef] : []
+      const styleRefs = collectChatIconStyleReferencesFromForm({
+        formRef: refUrl.trim(),
+        shopLogoUrl: theme?.logoUrl,
+        chatIconUrl: theme?.chatIconLogoUrl || selection?.src,
+      })
+      const refs = styleRefs.urls
       await requestGeneratedImage({
         prompt: buildChatIconLogoPrompt({
           shopTitle: websiteTitle || 'Shop',
           extra: chatIconPrompt,
           hasReference: refs.length > 0,
-          colorFacts: buildAiImageColorFacts({ main: aiImageColor, accent: aiImageAccent }),
+          colorFacts: buildChatIconInkFacts({ main: aiImageColor, accent: aiImageAccent }),
         }),
         kind: 'logo',
         aspectRatio: '1:1',
-        referenceImageUrls: refs,
-        referenceImageMeta: refs.length
-          ? [{ screenKey: 'chat_icon_style', label: 'Chat mua icon style reference' }]
-          : undefined,
+        referenceImageUrls: refs.length ? refs : undefined,
+        referenceImageMeta: styleRefs.meta.length ? styleRefs.meta : undefined,
         target: 'chat-icon',
         lockHeld: true,
         genSeq: seq,
+        stripBackground: logoStripBg,
       })
     } catch (e) {
       if (!(e instanceof Error && e.name === 'AbortError')) {
@@ -3326,6 +3353,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         slot: selection?.logoSlot === 'footer' ? 'footer' : 'header',
         lockHeld: true,
         genSeq: seq,
+        stripBackground: logoStripBg,
       })
       } catch (e) {
         if (!(e instanceof Error && e.name === 'AbortError')) {
@@ -3749,6 +3777,9 @@ export function PartnerWebsiteVisualEditorToolbar({
     <div className="grid w-full min-w-0 gap-1">
       <label className="flex min-w-0 flex-col gap-0.5">
         <span className="text-[10px] text-muted-foreground">{t.visualEditLogoIdeaLabel}</span>
+        <p className="rounded-md bg-muted/70 px-2 py-1 text-[10px] leading-4 text-foreground">
+          {t.visualEditLogoDefaultPrompt.replace('{shop}', websiteTitle || 'Shop')}
+        </p>
         <textarea
           ref={logoIdeaRef}
           value={aiPrompt}
@@ -3761,6 +3792,16 @@ export function PartnerWebsiteVisualEditorToolbar({
             compact ? 'text-[10px]' : 'text-xs'
           )}
         />
+      </label>
+      <label className="flex items-start gap-1.5 text-[10px] leading-4">
+        <input
+          type="checkbox"
+          className="mt-0.5"
+          checked={logoStripBg}
+          disabled={busy}
+          onChange={(e) => setLogoStripBg(e.target.checked)}
+        />
+        <span>{t.visualEditLogoStripBg}</span>
       </label>
       <Button
         type="button"
@@ -6597,7 +6638,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                 <p className="text-[11px] font-semibold leading-4">{t.visualEditChatIconLogoTitle}</p>
                 <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditChatIconLogoHint}</p>
                 <p className="rounded-md bg-muted/70 px-2 py-1 text-[10px] leading-4 text-foreground">
-                  {t.visualEditChatIconLogoDefaultPrompt}
+                  {t.visualEditChatIconLogoDefaultPrompt.replace('{shop}', websiteTitle || 'Shop')}
                 </p>
                 {theme?.chatIconLogoUrl || selection.src ? (
                   <img
@@ -6645,7 +6686,16 @@ export function PartnerWebsiteVisualEditorToolbar({
                   </div>
                 </div>
                 <div className="flex min-w-0 items-center gap-1">
-                  {refUrl ? <img src={refUrl} alt="" className="h-7 w-7 rounded-full border bg-white object-cover" /> : null}
+                  {(() => {
+                    const preview = resolveChatIconStyleReferenceUrl({
+                      userRef: refUrl.trim(),
+                      shopLogoUrl: theme?.logoUrl,
+                      chatIconUrl: theme?.chatIconLogoUrl || selection.src,
+                    })
+                    return preview ? (
+                      <img src={preview} alt="" className="h-7 w-7 rounded-full border bg-white object-cover" />
+                    ) : null
+                  })()}
                   <Button
                     type="button"
                     size="sm"
@@ -6675,6 +6725,16 @@ export function PartnerWebsiteVisualEditorToolbar({
                     </Button>
                   ) : null}
                 </div>
+                <label className="flex items-start gap-1.5 text-[10px] leading-4">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={logoStripBg}
+                    disabled={busy}
+                    onChange={(e) => setLogoStripBg(e.target.checked)}
+                  />
+                  <span>{t.visualEditLogoStripBg}</span>
+                </label>
                 <div className="flex min-w-0 flex-wrap items-center gap-1">
                   <Button
                     type="button"

@@ -125,9 +125,9 @@ export function isPdpDockCtaLocked(kind: string): boolean {
   return kind === 'add-cart' || kind === 'buy-now'
 }
 
-/** Mặt thanh đáy 188 trên trang chi tiết — không hiện trong panel trang chủ. */
+/** Mặt thanh đáy 188 trên trang chi tiết — không hiện trong panel trang chủ. Thử đồ shop vẫn có trong list. */
 export function isPdpDockFaceKind(kind: string): boolean {
-  return kind === 'try-on' || kind === 'favorite-product' || isPdpDockCtaLocked(kind)
+  return kind === 'favorite-product' || isPdpDockCtaLocked(kind)
 }
 
 /** Icon trái trên PDP — mặc định 3 ô; có thể đổi sang phần tử dock khác. */
@@ -145,11 +145,11 @@ export const CHROME_KIT_DOCK_ITEMS: ChromeKitDockItem[] = [
   { kind: 'sale', slot: 'icon', defaultShow: 'off' },
   { kind: 'wishlist', slot: 'icon', defaultShow: 'off' },
   { kind: 'recently-viewed', slot: 'icon', defaultShow: 'off' },
+  { kind: 'try-on', slot: 'icon', defaultShow: 'off' },
   { kind: 'chat', slot: 'icon', defaultShow: 'off' },
   { kind: 'notifications', slot: 'icon', defaultShow: 'off' },
   { kind: 'orders', slot: 'icon', defaultShow: 'off' },
   { kind: 'contact', slot: 'icon', defaultShow: 'off' },
-  { kind: 'try-on', slot: 'icon', defaultShow: 'pdp' },
   { kind: 'favorite-product', slot: 'icon', defaultShow: 'pdp' },
   { kind: 'add-cart', slot: 'cta', defaultShow: 'pdp' },
   { kind: 'buy-now', slot: 'cta', defaultShow: 'pdp' },
@@ -545,7 +545,7 @@ function buildChromeKitShopDockItemHtml(
     device?: VisualDeviceVariant | null
   }
 ): string {
-  if (item.kind === 'try-on' || item.kind === 'favorite-product' || isPdpDockCtaLocked(item.kind)) return ''
+  if (item.kind === 'favorite-product' || isPdpDockCtaLocked(item.kind)) return ''
   const raw = buildVisualEditorChromeWidgetHtml({
     kind: item.kind,
     siteSlug: slugOrShop(input.siteSlug),
@@ -1452,7 +1452,8 @@ function stampExistingKitAttrs(
       const spec = CHROME_KIT_DOCK_ITEMS.find((item) => item.kind === kind)
       const isPdpHome = new RegExp(`\\b${PW_PDP_HOME_ATTR}=`, 'i').test(next)
       if (spec && !new RegExp(`\\b${PW_DOCK_SHOW_ATTR}=`, 'i').test(next)) {
-        if (isPdpDockCtaLocked(kind) || kind === 'try-on' || kind === 'favorite-product' || isPdpHome) {
+        const isPdpNavBtn = new RegExp(`\\b${PW_PDP_NAV_ATTR}=`, 'i').test(next)
+        if (isPdpDockCtaLocked(kind) || kind === 'favorite-product' || isPdpHome || isPdpNavBtn) {
           next += ` ${PW_DOCK_SHOW_ATTR}="pdp"`
         } else {
           next += spec.defaultShow === 'off' ? ` ${PW_DOCK_SHOW_ATTR}="shop"` : ` ${PW_DOCK_SHOW_ATTR}="${spec.defaultShow === 'both' ? 'shop' : spec.defaultShow}"`
@@ -1879,8 +1880,10 @@ export function ensurePdpDockFaceInInner(
       continue
     }
     if (kind === 'try-on') {
-      if (!isBuyBoxActionBlock(block) && (!pdpTry || isPreferredPdpNavBlock(block))) pdpTry = block
-      continue
+      if (isPdpOnlyDockOpenTag(block) || isPreferredPdpNavBlock(block)) {
+        if (!isBuyBoxActionBlock(block) && (!pdpTry || isPreferredPdpNavBlock(block))) pdpTry = block
+        continue
+      }
     }
     if (kind === 'favorite-product') {
       if (!isBuyBoxActionBlock(block) && (!pdpFav || isPreferredPdpNavBlock(block))) pdpFav = block
@@ -1978,7 +1981,7 @@ export function ensurePartnerSiteChromeKitInHtml(
     if (isLeftoverPdpBarAttrs(attrs)) return full
     let nextInner = stampExistingKitAttrs(inner, 'dock')
     const missing = CHROME_KIT_DOCK_ITEMS.filter((item) => {
-      if (item.kind === 'try-on' || item.kind === 'favorite-product' || isPdpDockCtaLocked(item.kind)) {
+      if (item.kind === 'favorite-product' || isPdpDockCtaLocked(item.kind)) {
         return false
       }
       return !htmlHasShopDockKind(nextInner, item.kind)

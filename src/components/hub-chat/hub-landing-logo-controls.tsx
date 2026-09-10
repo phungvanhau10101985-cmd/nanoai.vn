@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { ImagePlus, Loader2, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ const COPY: Record<
     logoUploadBtn: string
     logoRemoveBtn: string
     logoGenerateBtn: string
+    logoStripBg: string
   }
 > = {
   vi: {
@@ -28,6 +29,7 @@ const COPY: Record<
     logoUploadBtn: 'Tải logo',
     logoRemoveBtn: 'Xóa logo',
     logoGenerateBtn: 'Tạo logo AI',
+    logoStripBg: 'Xóa nền (PNG trong suốt, +1.5 credits)',
   },
   en: {
     logoLabel: 'Landing header logo',
@@ -38,6 +40,7 @@ const COPY: Record<
     logoUploadBtn: 'Upload logo',
     logoRemoveBtn: 'Remove logo',
     logoGenerateBtn: 'Generate logo',
+    logoStripBg: 'Remove background (transparent PNG, +1.5 credits)',
   },
   zh: {
     logoLabel: '落地页页眉 Logo',
@@ -48,6 +51,7 @@ const COPY: Record<
     logoUploadBtn: '上传 Logo',
     logoRemoveBtn: '删除 Logo',
     logoGenerateBtn: 'AI 生成 Logo',
+    logoStripBg: '抠透明背景（透明 PNG，+1.5 积分）',
   },
   ja: {
     logoLabel: 'ランディングヘッダーロゴ',
@@ -58,6 +62,7 @@ const COPY: Record<
     logoUploadBtn: 'ロゴをアップロード',
     logoRemoveBtn: 'ロゴを削除',
     logoGenerateBtn: 'AI でロゴ生成',
+    logoStripBg: '背景を削除（透過 PNG、+1.5 クレジット）',
   },
   ko: {
     logoLabel: '랜딩 헤더 로고',
@@ -68,6 +73,7 @@ const COPY: Record<
     logoUploadBtn: '로고 업로드',
     logoRemoveBtn: '로고 삭제',
     logoGenerateBtn: 'AI 로고 생성',
+    logoStripBg: '배경 제거 (투명 PNG, +1.5 크레딧)',
   },
 }
 
@@ -88,10 +94,11 @@ export function HubLandingLogoControls({
   onLogoBriefChange: (value: string) => void
   onUploadLogo?: (files: FileList) => void | Promise<void>
   onRemoveLogo?: () => void | Promise<void>
-  onGenerateLogo?: (brief: string) => void | Promise<void>
+  onGenerateLogo?: (brief: string, stripBackground: boolean) => void | Promise<void>
 }) {
   const t = COPY[locale]
   const fileRef = useRef<HTMLInputElement>(null)
+  const [stripBg, setStripBg] = useState(true)
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-indigo-200/70 bg-white/90 p-3 dark:border-indigo-900/40 dark:bg-slate-900/70">
@@ -124,6 +131,16 @@ export function HubLandingLogoControls({
             className="h-9 text-sm"
           />
           <p className="text-[11px] leading-snug text-muted-foreground">{t.logoBriefGuide}</p>
+          <label className="flex items-start gap-2 text-[11px] leading-4">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={stripBg}
+              disabled={busy}
+              onChange={(e) => setStripBg(e.target.checked)}
+            />
+            <span>{t.logoStripBg}</span>
+          </label>
         </div>
         <div className="flex flex-wrap gap-2">
           <input
@@ -152,7 +169,7 @@ export function HubLandingLogoControls({
             size="sm"
             disabled={busy || !onGenerateLogo}
             className="bg-indigo-600 hover:bg-indigo-700"
-            onClick={() => void onGenerateLogo?.(logoBrief.trim())}
+            onClick={() => void onGenerateLogo?.(logoBrief.trim(), stripBg)}
           >
             {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1 h-3.5 w-3.5" />}
             {t.logoGenerateBtn}

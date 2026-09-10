@@ -25,8 +25,19 @@ export function removeBgMaskPrompt(variant: RemoveBgMaskVariant): string {
   return variant === 'logo' ? LOGO_REMOVE_BG_MASK_PROMPT : PRODUCT_REMOVE_BG_MASK_PROMPT
 }
 
-export function requiredCreditsForLogoCreate(logoCost: number): number {
-  return logoCost + REMOVE_BG_PNG_CREDIT
+/** Checkbox «Xóa nền»: thiếu / không rõ → mặc định bật (giữ hành vi cũ). */
+export function parseLogoStripBackgroundFlag(value: unknown, defaultValue = true): boolean {
+  if (value === undefined || value === null || value === '') return defaultValue
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  const s = String(value).trim().toLowerCase()
+  if (['0', 'false', 'off', 'no', 'unchecked'].includes(s)) return false
+  if (['1', 'true', 'on', 'yes', 'checked'].includes(s)) return true
+  return defaultValue
+}
+
+export function requiredCreditsForLogoCreate(logoCost: number, stripBackground = true): number {
+  return stripBackground ? logoCost + REMOVE_BG_PNG_CREDIT : logoCost
 }
 
 export function chargedCreditsForLogoCreate(logoCost: number, removedBg: boolean): number {

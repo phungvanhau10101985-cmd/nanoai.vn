@@ -13,6 +13,7 @@ export {
   PRODUCT_REMOVE_BG_MASK_PROMPT,
   REMOVE_BG_PNG_CREDIT,
   chargedCreditsForLogoCreate,
+  parseLogoStripBackgroundFlag,
   removeBgMaskPrompt,
   requiredCreditsForLogoCreate,
 } from '@/lib/remove-background-png-prompts'

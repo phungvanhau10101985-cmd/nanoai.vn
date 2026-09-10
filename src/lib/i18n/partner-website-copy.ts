@@ -32,6 +32,7 @@ export type PartnerWebsiteCopy = {
   logosCreatePromptPlaceholder: string
   logosCreateRefLabel: string
   logosCreateRefUpload: string
+  logosStripBg: string
   logosCreateCost: string
   logosCreateBusy: string
   logosCreateConfirm: string
@@ -42,6 +43,9 @@ export type PartnerWebsiteCopy = {
   logosVersionUse: string
   logosVersionCost: string
   logosChatDefaultPrompt: string
+  logosFaviconDefaultPrompt: string
+  logosHeaderDefaultPrompt: string
+  logosFooterDefaultPrompt: string
   imageInvalidType: string
   uploadFailed: string
   generateSuccess: string
@@ -208,6 +212,7 @@ export type PartnerWebsiteCopy = {
   visualEditApplyLogoAll: string
   visualEditLogoHint: string
   visualEditLogoPromptLabel: string
+  visualEditLogoDefaultPrompt: string
   visualEditLogoPromptPlaceholder: string
   visualEditLogoReferenceLabel: string
   visualEditLogoReferenceHint: string
@@ -257,6 +262,7 @@ export type PartnerWebsiteCopy = {
   visualEditLogoColorHexPlaceholder: string
   visualEditLogoInkTextPlaceholder: string
   visualEditLogoIdeaLabel: string
+  visualEditLogoStripBg: string
   visualEditAddText: string
   visualEditAddImage: string
   visualEditAddVideo: string
@@ -1083,21 +1089,29 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logosSaved: 'Đã lưu logo.',
     logosSaveError: 'Không lưu được logo.',
     logosCreate: 'Tạo mới',
-    logosCreateHint: 'Gợi ý text và ảnh tham khảo đều tùy chọn. Có một là đủ; để trống thì dùng gợi ý mặc định.',
+    logosCreateHint: 'Gợi ý thêm và ảnh tham khảo đều tùy chọn. Để trống thì dùng prompt sẵn theo tên shop.',
     logosCreatePromptLabel: 'Gợi ý thêm (tùy chọn)',
     logosCreatePromptPlaceholder: 'Ví dụ: icon màu cam, chữ 188 nổi bật, phong cách hiện đại, dễ đọc ở kích thước nhỏ…',
     logosCreateRefLabel: 'Ảnh tham khảo (tùy chọn)',
     logosCreateRefUpload: 'Tải ảnh tham khảo',
-    logosCreateCost: 'Tạo mới (1.5 + 1.5 credits xóa nền PNG)',
+    logosStripBg: 'Xóa nền (PNG trong suốt, +1.5 credits)',
+    logosCreateCost: 'Tạo mới ({credits} credits)',
     logosCreateBusy: 'Đang tạo logo…',
-    logosCreateConfirm: 'Tạo logo sẽ trừ 1.5 credits (cộng 1.5 nếu xóa nền PNG thành công). Bạn có đồng ý?',
+    logosCreateConfirm: 'Tạo logo sẽ trừ {credits} credits. Bạn có đồng ý?',
     logosCreateSuccess: 'Đã tạo logo.',
     logosCreateError: 'Không tạo được logo.',
     logosVersionsTitle: 'Các phiên bản icon tin nhắn đã tạo',
     logosVersionActive: 'Đang sử dụng',
     logosVersionUse: 'Dùng logo này',
     logosVersionCost: 'Phí {credits} credits',
-    logosChatDefaultPrompt: 'Nút chat: chữ Tư vấn to, chữ Nhắn tin nhỏ. Logo tràn hết viền icon.',
+    logosChatDefaultPrompt:
+      'Icon nhắn tin hình tròn theo shop {shop}: vòng stamp đặc, lòng trắng, mark shop phía trên, chữ tư vấn to đặc, chữ nhắn tin nhỏ — không túi viền mờ.',
+    logosFaviconDefaultPrompt:
+      'Favicon vuông theo shop {shop}: mark đơn giản, tương phản cao, đọc được ở 16px, nền phẳng.',
+    logosHeaderDefaultPrompt:
+      'Logo header theo shop {shop}: mark thương hiệu, tương phản cao, đọc được khi nhỏ, nền phẳng để xóa nền.',
+    logosFooterDefaultPrompt:
+      'Logo chân trang theo shop {shop}: mark thương hiệu, tương phản cao, đọc được khi nhỏ, nền phẳng để xóa nền.',
     imageInvalidType: 'Chỉ chấp nhận file ảnh.',
     uploadFailed: 'Tải ảnh thất bại.',
     generateSuccess: 'Đã áp giao diện mẫu',
@@ -1269,6 +1283,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditApplyLogoAll: 'Dùng logo này mọi vị trí',
     visualEditLogoHint: 'Chọn tỷ lệ và màu nền (màu giao diện hoặc trắng). Màu logo: trắng, màu giao diện, hoặc màu khác. Tạo logo = 1,5 credit + 1,5 credit xóa nền PNG (Gemini).',
     visualEditLogoPromptLabel: 'Yêu cầu tạo logo (tuỳ ý)',
+    visualEditLogoDefaultPrompt:
+      'Logo theo shop {shop}: mark thương hiệu, tương phản cao, vừa khung. Gợi ý thêm và ảnh tham khảo là tùy chọn.',
     visualEditLogoPromptPlaceholder: 'Ví dụ: chữ hiện đại, không khung, thêm icon túi… Có thể để trống.',
     visualEditLogoReferenceLabel: 'Ảnh tham khảo',
     visualEditLogoReferenceHint: 'Tải ảnh logo mẫu để AI bám theo.',
@@ -1318,6 +1334,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoColorHexPlaceholder: 'trắng / #ffffff',
     visualEditLogoInkTextPlaceholder: 'Gõ màu logo (trống = ô chọn)',
     visualEditLogoIdeaLabel: 'Ý tưởng tạo logo',
+    visualEditLogoStripBg: 'Xóa nền (PNG trong suốt, +1.5 credits)',
     visualEditAddText: 'Thêm chữ',
     visualEditAddImage: 'Thêm ảnh',
     visualEditAddVideo: 'Thêm video',
@@ -1422,8 +1439,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitLogoPosHint: 'Chỉ máy đang sửa. Kéo logo trên canvas hoặc gõ số. Không đổi máy khác.',
     visualEditChatIconLogoTitle: 'Tạo logo icon Chat mua',
     visualEditChatIconLogoHint:
-      'Cùng một logo icon cho mọi máy. Đổi ở đây thì Desktop / Tablet / Mobile đều đổi. Tải ảnh lên hoặc tạo bằng AI.',
-    visualEditChatIconLogoDefaultPrompt: 'Nút chat: chữ Tư vấn to, chữ Nhắn tin nhỏ. Logo tràn hết viền icon.',
+      'Cùng một logo icon cho mọi máy. Prompt sẵn theo tên shop. Gợi ý thêm và ảnh tham khảo là tùy chọn — trống thì dùng logo shop.',
+    visualEditChatIconLogoDefaultPrompt:
+      'Icon nhắn tin hình tròn theo shop {shop}: vòng stamp đặc, lòng trắng, mark shop phía trên, chữ tư vấn to đặc, chữ nhắn tin nhỏ — không túi viền mờ.',
     visualEditChatIconLogoPromptPlaceholder: 'Thêm ý nếu muốn (không bắt buộc)',
     visualEditChatIconLogoCreate: 'Tạo logo icon',
     visualEditChatIconLogoUpload: 'Tải ảnh làm logo icon',
@@ -2180,21 +2198,29 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logosSaved: 'Logo saved.',
     logosSaveError: 'Could not save logo.',
     logosCreate: 'Create',
-    logosCreateHint: 'Prompt and reference image are both optional. One is enough; leave blank to use the default brief.',
+    logosCreateHint: 'Extra prompt and reference image are optional. Leave blank to use the ready-made brief from the shop name.',
     logosCreatePromptLabel: 'Extra prompt (optional)',
     logosCreatePromptPlaceholder: 'e.g. orange icon, bold 188 lettering, modern, readable at small sizes…',
     logosCreateRefLabel: 'Reference image (optional)',
     logosCreateRefUpload: 'Upload reference',
-    logosCreateCost: 'Create (1.5 + 1.5 credits to remove PNG background)',
+    logosStripBg: 'Remove background (transparent PNG, +1.5 credits)',
+    logosCreateCost: 'Create ({credits} credits)',
     logosCreateBusy: 'Creating logo…',
-    logosCreateConfirm: 'Creating a logo costs 1.5 credits (plus 1.5 if the PNG background is removed). Continue?',
+    logosCreateConfirm: 'Creating a logo costs {credits} credits. Continue?',
     logosCreateSuccess: 'Logo created.',
     logosCreateError: 'Could not create logo.',
     logosVersionsTitle: 'Created message icons',
     logosVersionActive: 'In use',
     logosVersionUse: 'Use this logo',
     logosVersionCost: '{credits} credits',
-    logosChatDefaultPrompt: 'Chat button: large “Tư vấn”, smaller “Nhắn tin”. Artwork fills the icon edge to edge.',
+    logosChatDefaultPrompt:
+      'Round messaging stamp for {shop}: solid ring, white interior, shop mark on top, large filled “tư vấn”, smaller “nhắn tin” — not a pale outline bag.',
+    logosFaviconDefaultPrompt:
+      'Square favicon for {shop}: simple high-contrast mark, readable at 16px, flat background.',
+    logosHeaderDefaultPrompt:
+      'Header logo for {shop}: brand mark, high contrast, readable when small, flat background for cutout.',
+    logosFooterDefaultPrompt:
+      'Footer logo for {shop}: brand mark, high contrast, readable when small, flat background for cutout.',
     imageInvalidType: 'Images only.',
     uploadFailed: 'Upload failed.',
     generateSuccess: 'Web project created',
@@ -2365,6 +2391,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditApplyLogoAll: 'Use this logo everywhere',
     visualEditLogoHint: 'Pick an aspect ratio and a background (interface color or white). Logo ink can be white, the interface color, or another color. Creating a logo costs 1.5 credits plus 1.5 credits to remove the background (Gemini).',
     visualEditLogoPromptLabel: 'Logo request (optional)',
+    visualEditLogoDefaultPrompt:
+      'Logo for shop {shop}: brand mark, high contrast, fills the frame. Extra ideas and a reference image are optional.',
     visualEditLogoPromptPlaceholder: 'e.g. modern wordmark, no frame, add a bag icon… Leave empty if unsure.',
     visualEditLogoReferenceLabel: 'Reference image',
     visualEditLogoReferenceHint: 'Upload a sample logo for the AI to follow.',
@@ -2414,6 +2442,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoColorHexPlaceholder: 'white / #ffffff',
     visualEditLogoInkTextPlaceholder: 'Type a color, empty = swatch',
     visualEditLogoIdeaLabel: 'Logo idea',
+    visualEditLogoStripBg: 'Remove background (transparent PNG, +1.5 credits)',
     visualEditAddText: 'Add text',
     visualEditAddImage: 'Add image',
     visualEditAddVideo: 'Add video',
@@ -2518,8 +2547,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitLogoPosHint: 'This device only. Drag the logo or type px. Other devices stay put.',
     visualEditChatIconLogoTitle: 'Create Chat mua icon logo',
     visualEditChatIconLogoHint:
-      'One icon logo for every device. Change it here and Desktop / Tablet / Mobile all update. Upload an image or generate with AI.',
-    visualEditChatIconLogoDefaultPrompt: 'Chat button: large “Tư vấn”, small “Nhắn tin”. Logo fills the icon frame.',
+      'One icon logo for every device. The ready-made prompt uses the shop name. Extra ideas and a reference image are optional — if empty, the shop logo is used.',
+    visualEditChatIconLogoDefaultPrompt:
+      'Round messaging stamp for {shop}: solid ring, white interior, shop mark on top, large filled “tư vấn”, smaller “nhắn tin” — not a pale outline bag.',
     visualEditChatIconLogoPromptPlaceholder: 'Add extra ideas (optional)',
     visualEditChatIconLogoCreate: 'Create icon logo',
     visualEditChatIconLogoUpload: 'Upload image as icon logo',
@@ -3275,21 +3305,29 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logosSaved: '已保存 Logo。',
     logosSaveError: '无法保存 Logo。',
     logosCreate: '新建',
-    logosCreateHint: '提示词和参考图均为可选。有一项即可；都留空则使用默认说明。',
+    logosCreateHint: '补充提示词和参考图均为可选。留空则使用按店铺名生成的现成说明。',
     logosCreatePromptLabel: '补充提示（可选）',
     logosCreatePromptPlaceholder: '例如：橙色图标、突出 188 字样、现代风格、小尺寸也清晰…',
     logosCreateRefLabel: '参考图（可选）',
     logosCreateRefUpload: '上传参考图',
-    logosCreateCost: '新建（1.5 + 1.5 积分抠透明 PNG）',
+    logosStripBg: '抠透明背景（透明 PNG，+1.5 积分）',
+    logosCreateCost: '新建（{credits} 积分）',
     logosCreateBusy: '正在生成 Logo…',
-    logosCreateConfirm: '生成 Logo 将扣除 1.5 积分（抠透明 PNG 成功再加 1.5）。是否继续？',
+    logosCreateConfirm: '生成 Logo 将扣除 {credits} 积分。是否继续？',
     logosCreateSuccess: '已生成 Logo。',
     logosCreateError: '无法生成 Logo。',
     logosVersionsTitle: '已生成的消息图标',
     logosVersionActive: '使用中',
     logosVersionUse: '使用此 Logo',
     logosVersionCost: '{credits} 积分',
-    logosChatDefaultPrompt: '聊天按钮：大字「Tư vấn」，小字「Nhắn tin」。图案铺满图标边缘。',
+    logosChatDefaultPrompt:
+      '按店铺 {shop} 的圆形咨询章：实心圆环、白心、标志在上、大字实心「tư vấn」、小字「nhắn tin」— 不要淡描购物袋。',
+    logosFaviconDefaultPrompt:
+      '按店铺 {shop} 的方形 Favicon：简洁高对比标志，16px 仍可读，平底。',
+    logosHeaderDefaultPrompt:
+      '按店铺 {shop} 的页眉 Logo：品牌标志、高对比、小尺寸可读，平底便于抠图。',
+    logosFooterDefaultPrompt:
+      '按店铺 {shop} 的页脚 Logo：品牌标志、高对比、小尺寸可读，平底便于抠图。',
     imageInvalidType: '仅支持图片文件。',
     uploadFailed: '上传失败。',
     generateSuccess: '已创建网页项目',
@@ -3456,6 +3494,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditApplyLogoAll: '将此标志用于所有位置',
     visualEditLogoHint: '选择比例和背景（界面色或白色）。标志颜色可以是白色、界面色或其他颜色。生成 Logo 为 1.5 积分，再加 1.5 积分抠透明 PNG（Gemini）。',
     visualEditLogoPromptLabel: '标志要求（可选）',
+    visualEditLogoDefaultPrompt:
+      '按店铺 {shop} 的 Logo：品牌标志、高对比、填满画框。补充想法和参考图可选。',
     visualEditLogoPromptPlaceholder: '例如：更现代的字体、不要边框、加一个包图标… 可留空。',
     visualEditLogoReferenceLabel: '参考图',
     visualEditLogoReferenceHint: '上传样例标志供 AI 参考。',
@@ -3505,6 +3545,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoColorHexPlaceholder: '白 / #ffffff',
     visualEditLogoInkTextPlaceholder: '输入颜色，留空则用色块',
     visualEditLogoIdeaLabel: '标志创意',
+    visualEditLogoStripBg: '抠透明背景（透明 PNG，+1.5 积分）',
     visualEditAddText: '添加文字',
     visualEditAddImage: '添加图片',
     visualEditAddVideo: '添加视频',
@@ -3598,8 +3639,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitLogoPosHint: '仅当前设备。拖动标志或输入 px。其他设备不变。',
     visualEditChatIconLogoTitle: '为「Chat mua」图标生成标志',
     visualEditChatIconLogoHint:
-      '所有设备共用同一图标标志。在此更改后，桌面 / 平板 / 手机一并更新。可上传图片或用 AI 生成。',
-    visualEditChatIconLogoDefaultPrompt: '聊天按钮：大字「Tư vấn」，小字「Nhắn tin」。标志铺满图标边框。',
+      '所有设备共用同一图标标志。现成提示词按店铺名生成。补充想法和参考图可选 — 留空则使用店铺 Logo。',
+    visualEditChatIconLogoDefaultPrompt:
+      '按店铺 {shop} 的圆形咨询章：实心圆环、白心、标志在上、大字实心「tư vấn」、小字「nhắn tin」— 不要淡描购物袋。',
     visualEditChatIconLogoPromptPlaceholder: '补充想法（可选）',
     visualEditChatIconLogoCreate: '生成图标标志',
     visualEditChatIconLogoUpload: '上传图片作为图标标志',
@@ -4333,21 +4375,29 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logosSaved: 'ロゴを保存しました。',
     logosSaveError: 'ロゴを保存できませんでした。',
     logosCreate: '新規作成',
-    logosCreateHint: 'プロンプトと参考画像はどちらも任意。どちらか一つで十分。空なら既定の指示を使います。',
+    logosCreateHint: '追加の要望と参考画像は任意です。空なら店名から作った既定の指示を使います。',
     logosCreatePromptLabel: '追加の指示（任意）',
     logosCreatePromptPlaceholder: '例: オレンジのアイコン、188 を大きく、モダン、小さいサイズでも読みやすく…',
     logosCreateRefLabel: '参考画像（任意）',
     logosCreateRefUpload: '参考画像をアップロード',
-    logosCreateCost: '新規作成（1.5 + 背景透過 PNG 1.5 クレジット）',
+    logosStripBg: '背景を削除（透過 PNG、+1.5 クレジット）',
+    logosCreateCost: '新規作成（{credits} クレジット）',
     logosCreateBusy: 'ロゴを作成中…',
-    logosCreateConfirm: 'ロゴ作成は 1.5 クレジット（背景透過に成功すると +1.5）です。続行しますか？',
+    logosCreateConfirm: 'ロゴ作成は {credits} クレジットです。続行しますか？',
     logosCreateSuccess: 'ロゴを作成しました。',
     logosCreateError: 'ロゴを作成できませんでした。',
     logosVersionsTitle: '作成済みのメッセージアイコン',
     logosVersionActive: '使用中',
     logosVersionUse: 'このロゴを使う',
     logosVersionCost: '{credits} クレジット',
-    logosChatDefaultPrompt: 'チャットボタン: 「Tư vấn」を大きく、「Nhắn tin」を小さく。絵柄はアイコン枠いっぱいに。',
+    logosChatDefaultPrompt:
+      '{shop} の丸い相談スタンプ：実線の輪、白の内側、上にショップマーク、大きく塗りつぶし「tư vấn」、小さく「nhắn tin」— 薄い袋の線画にしない。',
+    logosFaviconDefaultPrompt:
+      '{shop} の四角ファビコン：シンプルで高コントラスト、16pxでも読める、平坦な背景。',
+    logosHeaderDefaultPrompt:
+      '{shop} のヘッダーロゴ：ブランドマーク、高コントラスト、小さくても読める、切り抜き用の平坦な背景。',
+    logosFooterDefaultPrompt:
+      '{shop} のフッターロゴ：ブランドマーク、高コントラスト、小さくても読める、切り抜き用の平坦な背景。',
     imageInvalidType: '画像ファイルのみ。',
     uploadFailed: 'アップロードに失敗しました。',
     generateSuccess: 'プロジェクトを作成しました',
@@ -4515,6 +4565,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditApplyLogoAll: 'このロゴをすべての位置に使う',
     visualEditLogoHint: '比率と背景（テーマ色または白）を選びます。ロゴ色は白、テーマ色、または別の色にできます。ロゴ生成 1.5 クレジット＋背景透過 PNG 1.5 クレジット（Gemini）。',
     visualEditLogoPromptLabel: 'ロゴの要望（任意）',
+    visualEditLogoDefaultPrompt:
+      '{shop} のロゴ：ブランドマーク、高コントラスト、枠に合わせる。追加の要望と参考画像は任意。',
     visualEditLogoPromptPlaceholder: '例：モダンな文字、枠なし、バッグのアイコンを追加… 空欄でも可。',
     visualEditLogoReferenceLabel: '参考画像',
     visualEditLogoReferenceHint: 'AIの参考用にサンプルロゴをアップロード。',
@@ -4564,6 +4616,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoColorHexPlaceholder: '白 / #ffffff',
     visualEditLogoInkTextPlaceholder: '色を入力、空なら色見本',
     visualEditLogoIdeaLabel: 'ロゴのアイデア',
+    visualEditLogoStripBg: '背景を削除（透過 PNG、+1.5 クレジット）',
     visualEditAddText: 'テキストを追加',
     visualEditAddImage: '画像を追加',
     visualEditAddVideo: '動画を追加',
@@ -4667,8 +4720,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitLogoPosHint: '編集中の端末のみ。ロゴをドラッグするか px を入力。他端末は変わりません。',
     visualEditChatIconLogoTitle: 'Chat muaアイコンのロゴを作成',
     visualEditChatIconLogoHint:
-      '全端末で同じアイコンロゴを使います。ここで変えるとデスクトップ / タブレット / モバイルが同時に変わります。画像アップロードまたは AI 生成。',
-    visualEditChatIconLogoDefaultPrompt: 'チャットボタン：大きい「Tư vấn」、小さい「Nhắn tin」。ロゴは枠いっぱいに。',
+      '全端末で同じアイコンロゴです。既定の指示は店名から作ります。追加の要望と参考画像は任意 — 空ならショップロゴを使います。',
+    visualEditChatIconLogoDefaultPrompt:
+      '{shop} の丸い相談スタンプ：実線の輪、白の内側、上にショップマーク、大きく塗りつぶし「tư vấn」、小さく「nhắn tin」— 薄い袋の線画にしない。',
     visualEditChatIconLogoPromptPlaceholder: '追加の要望（任意）',
     visualEditChatIconLogoCreate: 'アイコンロゴを作成',
     visualEditChatIconLogoUpload: '画像をアップロードしてアイコンに',
@@ -5414,21 +5468,29 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logosSaved: '로고를 저장했습니다.',
     logosSaveError: '로고를 저장하지 못했습니다.',
     logosCreate: '새로 만들기',
-    logosCreateHint: '프롬프트와 참고 이미지는 모두 선택입니다. 하나만 있어도 됩니다. 비우면 기본 안내를 씁니다.',
+    logosCreateHint: '추가 프롬프트와 참고 이미지는 선택입니다. 비우면 상점 이름으로 만든 기본 안내를 씁니다.',
     logosCreatePromptLabel: '추가 프롬프트 (선택)',
     logosCreatePromptPlaceholder: '예: 주황 아이콘, 188 글자를 크게, 모던, 작은 크기에서도 잘 읽히게…',
     logosCreateRefLabel: '참고 이미지 (선택)',
     logosCreateRefUpload: '참고 이미지 업로드',
-    logosCreateCost: '새로 만들기 (1.5 + 배경 제거 PNG 1.5 크레딧)',
+    logosStripBg: '배경 제거 (투명 PNG, +1.5 크레딧)',
+    logosCreateCost: '새로 만들기 ({credits} 크레딧)',
     logosCreateBusy: '로고 생성 중…',
-    logosCreateConfirm: '로고 생성은 1.5 크레딧입니다(배경 제거에 성공하면 +1.5). 계속할까요?',
+    logosCreateConfirm: '로고 생성은 {credits} 크레딧입니다. 계속할까요?',
     logosCreateSuccess: '로고를 만들었습니다.',
     logosCreateError: '로고를 만들지 못했습니다.',
     logosVersionsTitle: '만든 메시지 아이콘',
     logosVersionActive: '사용 중',
     logosVersionUse: '이 로고 사용',
     logosVersionCost: '{credits} 크레딧',
-    logosChatDefaultPrompt: '채팅 버튼: 「Tư vấn」는 크게, 「Nhắn tin」는 작게. 그림이 아이콘 테두리까지 채워집니다.',
+    logosChatDefaultPrompt:
+      '{shop}의 원형 상담 스탬프: 실선 원, 흰 안쪽, 위에 상점 마크, 큰 채움 글자 tư vấn, 작은 nhắn tin — 흐린 가방 윤곽 금지.',
+    logosFaviconDefaultPrompt:
+      '{shop}의 정사각 파비콘: 단순한 고대비 마크, 16px에서도 읽힘, 평평한 배경.',
+    logosHeaderDefaultPrompt:
+      '{shop}의 헤더 로고: 브랜드 마크, 고대비, 작아도 읽힘, 배경 제거용 평평한 바탕.',
+    logosFooterDefaultPrompt:
+      '{shop}의 푸터 로고: 브랜드 마크, 고대비, 작아도 읽힘, 배경 제거용 평평한 바탕.',
     imageInvalidType: '이미지 파일만 가능합니다.',
     uploadFailed: '업로드 실패.',
     generateSuccess: '프로젝트가 생성되었습니다',
@@ -5596,6 +5658,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditApplyLogoAll: '이 로고를 모든 위치에 사용',
     visualEditLogoHint: '비율과 배경(인터페이스 색 또는 흰색)을 고르세요. 로고 색은 흰색, 인터페이스 색, 또는 다른 색일 수 있습니다. 로고 생성 1.5 크레딧 + 배경 제거 PNG 1.5 크레딧(Gemini).',
     visualEditLogoPromptLabel: '로고 요청 (선택)',
+    visualEditLogoDefaultPrompt:
+      '{shop} 로고: 브랜드 마크, 고대비, 프레임에 맞춤. 추가 아이디어와 참고 이미지는 선택.',
     visualEditLogoPromptPlaceholder: '예: 더 모던한 글씨, 테두리 없음, 가방 아이콘 추가… 비워도 됩니다.',
     visualEditLogoReferenceLabel: '참고 이미지',
     visualEditLogoReferenceHint: 'AI가 참고할 샘플 로고를 업로드하세요.',
@@ -5645,6 +5709,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditLogoColorHexPlaceholder: '흰색 / #ffffff',
     visualEditLogoInkTextPlaceholder: '색 입력, 비우면 선택한 색',
     visualEditLogoIdeaLabel: '로고 아이디어',
+    visualEditLogoStripBg: '배경 제거 (투명 PNG, +1.5 크레딧)',
     visualEditAddText: '텍스트 추가',
     visualEditAddImage: '이미지 추가',
     visualEditAddVideo: '동영상 추가',
@@ -5748,8 +5813,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitLogoPosHint: '지금 기기에만 적용됩니다. 로고를 끌거나 px를 입력하세요. 다른 기기는 그대로입니다.',
     visualEditChatIconLogoTitle: 'Chat mua 아이콘 로고 만들기',
     visualEditChatIconLogoHint:
-      '모든 기기에서 같은 아이콘 로고를 씁니다. 여기서 바꾸면 데스크톱 / 태블릿 / 모바일이 함께 바뀝니다. 이미지 업로드 또는 AI 생성.',
-    visualEditChatIconLogoDefaultPrompt: '채팅 버튼: 큰 글자 Tư vấn, 작은 글자 Nhắn tin. 로고가 테두리까지 채움.',
+      '모든 기기에서 같은 아이콘 로고입니다. 기본 안내는 상점 이름으로 만듭니다. 추가 아이디어와 참고 이미지는 선택 — 비우면 상점 로고를 씁니다.',
+    visualEditChatIconLogoDefaultPrompt:
+      '{shop}의 원형 상담 스탬프: 실선 원, 흰 안쪽, 위에 상점 마크, 큰 채움 글자 tư vấn, 작은 nhắn tin — 흐린 가방 윤곽 금지.',
     visualEditChatIconLogoCreate: '아이콘 로고 만들기',
     visualEditChatIconLogoUpload: '이미지를 아이콘 로고로 올리기',
     visualEditChatIconLogoPromptPlaceholder: '추가 아이디어 (선택)',

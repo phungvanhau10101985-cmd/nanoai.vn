@@ -104,7 +104,8 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain("if (bar === 'float')")
     expect(s).toContain('function chromeKitFloatBtnsOf')
     expect(s).toContain("if (bar === 'float' && el.getAttribute('data-pw-hidden') === '1') return")
-    expect(s).toContain("if (kid.getAttribute('data-pw-hidden') === '1') continue")
+    expect(s).toContain('kid.querySelector ? kid.querySelector(\'[data-pw-chrome-btn]\')')
+    expect(s).toContain("if (unit.style) unit.style.removeProperty('order')")
     expect(s).toContain(
       '.pw-bottom-nav > a:not([data-pw-pdp-home]):not([data-pw-dock-show=\\"pdp\\"])[data-pw-hidden=\\"1\\"]'
     )
@@ -157,6 +158,8 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain("if (!isPdpEditorDoc()) { dedupeShopDockHomeBtns(); ensureShopDockHomeBtn() }")
     expect(s).toContain("if (!preferPdpDock && n.closest && n.closest('.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas')) continue")
     expect(s).toContain('if (!preferPdpDock && isPdpDockFaceBtn(n)) continue')
+    expect(s).toContain("if (el.closest && el.closest('.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas')) return true")
+    expect(s).not.toContain("kind === 'add-cart' || kind === 'buy-now' || kind === 'try-on' || kind === 'favorite-product'")
     expect(s).toContain('.pw-pdp-sticky-nav [data-pw-chrome-btn')
     expect(s).toContain("pk === 'product_detail'")
     expect(s).toContain("html.setAttribute('data-pw-pdp-desktop-sticky', '1')")

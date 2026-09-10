@@ -498,6 +498,7 @@ export function HomeHubChatBar() {
   const [menuVenueDraft, setMenuVenueDraft] = useState('')
   const [landingSectionDraft, setLandingSectionDraft] = useState('')
   const [landingLogoDraft, setLandingLogoDraft] = useState('')
+  const [logoStripBg, setLogoStripBg] = useState(true)
   const [selectedGenRefKeys, setSelectedGenRefKeys] = useState<string[]>([])
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false)
   const [regeneratePromptDraft, setRegeneratePromptDraft] = useState('')
@@ -855,6 +856,7 @@ export function HomeHubChatBar() {
       menuVenueName?: string
       landingSectionCopy?: string
       landingLogoBrief?: string
+      stripBackground?: boolean
       landingPublishedShareUrl?: string
       landingPublishedShareToken?: string
       landingHtmlSource?: string
@@ -990,6 +992,7 @@ export function HomeHubChatBar() {
             menuVenueName: payload.menuVenueName,
             landingSectionCopy: payload.landingSectionCopy,
             landingLogoBrief: payload.landingLogoBrief,
+            stripBackground: payload.stripBackground,
             landingPublishedShareUrl: payload.landingPublishedShareUrl,
             landingPublishedShareToken: payload.landingPublishedShareToken,
             landingHtmlSource: payload.landingHtmlSource,
@@ -1591,10 +1594,11 @@ export function HomeHubChatBar() {
   }, [postStudio])
 
   const postGenerateLandingLogo = useCallback(
-    async (brief: string) => {
+    async (brief: string, stripBackground = true) => {
       const ok = await postStudio({
         action: 'generate_landing_logo',
         landingLogoBrief: brief || landingLogoDraft,
+        stripBackground,
       })
       if (ok) {
         toast({ title: hc.studioLandingLogoGenerated })
@@ -1887,6 +1891,7 @@ export function HomeHubChatBar() {
       generationRefKeys: selectedGenRefKeys,
       message: trimmed,
       regenerateStepKey: regenerateTargetStepKey ?? undefined,
+      stripBackground: logoStripBg,
     })
     setRegenerateTargetStepKey(null)
   }, [
@@ -1895,6 +1900,7 @@ export function HomeHubChatBar() {
     regenerateTargetStepKey,
     selectedGenRefKeys,
     studioSession?.presetId,
+    logoStripBg,
   ])
 
   const showStudioUpload = useMemo(() => {
@@ -3033,6 +3039,7 @@ export function HomeHubChatBar() {
         landingSectionCopy: isLandingStep
           ? landingSectionDraft.trim() || trimmed || undefined
           : undefined,
+        stripBackground: currentDesignGenerator === 'logo' ? logoStripBg : undefined,
       })
     },
     [
@@ -3053,6 +3060,8 @@ export function HomeHubChatBar() {
       selectedGenRefKeys,
       studioSession,
       toast,
+      logoStripBg,
+      currentDesignGenerator,
     ]
   )
 
@@ -3763,6 +3772,14 @@ export function HomeHubChatBar() {
           allowEmptyPrompt={
             studioSession?.presetId === 'design_recreate' && regenerateTargetStepKey !== 'logo'
           }
+          showStripBg={Boolean(
+            studioSession?.presetId &&
+              regenerateTargetStepKey &&
+              isLogoDesignStep(studioSession.presetId, regenerateTargetStepKey)
+          )}
+          stripBg={logoStripBg}
+          onStripBgChange={setLogoStripBg}
+          stripBgLabel={hc.studioLogoStripBg}
           labels={{
             title:
               studioSession?.presetId === 'design_recreate' && regenerateTargetStepKey !== 'logo'
@@ -4068,7 +4085,7 @@ export function HomeHubChatBar() {
               onLogoBriefChange={setLandingLogoDraft}
               onUploadLogo={(files) => void postLandingLogoUpload(files)}
               onRemoveLogo={() => void postRemoveLandingLogo()}
-              onGenerateLogo={(brief) => void postGenerateLandingLogo(brief)}
+              onGenerateLogo={(brief, strip) => void postGenerateLandingLogo(brief, strip)}
               shareMenu={
                 <HubLandingShareMenu
                   locale={uiLocale}
@@ -4096,7 +4113,7 @@ export function HomeHubChatBar() {
               onLogoBriefChange={setLandingLogoDraft}
               onUploadLogo={(files) => void postLandingLogoUpload(files)}
               onRemoveLogo={() => void postRemoveLandingLogo()}
-              onGenerateLogo={(brief) => void postGenerateLandingLogo(brief)}
+              onGenerateLogo={(brief, strip) => void postGenerateLandingLogo(brief, strip)}
               onUploadProductFiles={(files) => void postStudioUpload(files)}
             />
           ) : null}
@@ -4157,6 +4174,18 @@ export function HomeHubChatBar() {
               <p className="text-xs text-indigo-800 dark:text-indigo-200">
                 {landingGenerateMissingHints.join(' · ')}
               </p>
+            ) : null}
+            {currentDesignGenerator === 'logo' ? (
+              <label className="flex items-start gap-2 text-xs leading-4">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={logoStripBg}
+                  disabled={busy}
+                  onChange={(e) => setLogoStripBg(e.target.checked)}
+                />
+                <span>{hc.studioLogoStripBg}</span>
+              </label>
             ) : null}
             <Button
               type="button"

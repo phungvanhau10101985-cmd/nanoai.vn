@@ -13,11 +13,16 @@ import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import type { PartnerWebsiteRow } from '@/lib/partner-website/partner-website-types'
 import { uploadPartnerImageFile } from '@/components/partner-website/partner-website-asset-panel'
 import {
-  extractLogoInventoryFromProject,
+  extractLogoInventoryFromWebsite,
   type PartnerWebsiteDeviceLogoSlot,
   type PartnerWebsiteLogoSlot,
 } from '@/lib/partner-website/visual-editor/apply-slot-logo'
 import { buildAdminLogoCreatePrompt } from '@/lib/partner-website/visual-editor/build-admin-logo-create-prompt'
+import {
+  collectChatIconStyleReferencesFromForm,
+  persistableHttpLogoUrl,
+  resolveChatIconStyleReferenceUrl,
+} from '@/lib/partner-website/visual-editor/build-chat-icon-logo-prompt'
 import {
   VISUAL_DEVICE_VARIANTS,
   type VisualDeviceVariant,
@@ -26,6 +31,7 @@ import {
   listMessagingWorkspaceLogoVersions,
   recordGeneratedPartnerChatIcon,
 } from '@/app/dashboard/messaging/actions'
+import { requiredCreditsForLogoCreate } from '@/lib/remove-background-png'
 
 type LogoVersionRow = {
   id: string
@@ -48,8 +54,11 @@ type Props = {
 type BusyKey = string
 
 function slotPreview(url: string) {
-  if (!url || !/^https?:\/\//i.test(url)) return null
-  return url
+  const u = String(url || '').trim()
+  if (!u) return null
+  if (/^https?:\/\//i.test(u)) return u
+  if (/^\/(?!\/)/.test(u) && u.length > 4) return u
+  return null
 }
 
 function rowKey(slot: PartnerWebsiteLogoSlot, device?: VisualDeviceVariant) {
@@ -75,16 +84,12 @@ export function PartnerWebsiteLogosPanel({
   const [createKey, setCreateKey] = useState<string | null>(null)
   const [createHint, setCreateHint] = useState('')
   const [createRefUrl, setCreateRefUrl] = useState('')
+  const [createStripBg, setCreateStripBg] = useState(true)
   const [logoVersions, setLogoVersions] = useState<LogoVersionRow[]>([])
 
   const inventory = useMemo(
-    () =>
-      extractLogoInventoryFromProject(
-        website?.project,
-        website?.theme?.faviconUrl,
-        website?.theme?.chatIconLogoUrl
-      ),
-    [website?.project, website?.theme?.faviconUrl, website?.theme?.chatIconLogoUrl]
+    () => extractLogoInventoryFromWebsite(website ?? {}),
+    [website]
   )
 
   const deviceLabels: Record<VisualDeviceVariant, string> = {
@@ -192,6 +197,32 @@ export function PartnerWebsiteLogosPanel({
     }
   }
 
+  function shopMarkUrl(visualDevice?: VisualDeviceVariant) {
+    const d = visualDevice || device
+    return (
+      inventory.header[d] ||
+      inventory.header.desktop ||
+      website?.theme?.logoUrl ||
+      ''
+    )
+  }
+
+  function currentSlotUrl(slot: PartnerWebsiteLogoSlot, visualDevice?: VisualDeviceVariant) {
+    if (slot === 'chat') return inventory.chatUrl
+    if (slot === 'favicon') return inventory.faviconUrl
+    const d = visualDevice || device
+    if (slot === 'header') return inventory.header[d] || inventory.header.desktop || ''
+    return inventory.footer[d] || inventory.footer.desktop || ''
+  }
+
+  function slotDefaultPrompt(slot: PartnerWebsiteLogoSlot) {
+    const shop = shopTitle || website?.title || 'Shop'
+    if (slot === 'chat') return t.logosChatDefaultPrompt.replace('{shop}', shop)
+    if (slot === 'favicon') return t.logosFaviconDefaultPrompt.replace('{shop}', shop)
+    if (slot === 'header') return t.logosHeaderDefaultPrompt.replace('{shop}', shop)
+    return t.logosFooterDefaultPrompt.replace('{shop}', shop)
+  }
+
   function openCreate(slot: PartnerWebsiteLogoSlot, visualDevice?: VisualDeviceVariant) {
     const key = rowKey(slot, visualDevice)
     if (createKey === key) {
@@ -200,20 +231,44 @@ export function PartnerWebsiteLogosPanel({
     }
     setCreateKey(key)
     setCreateHint('')
-    setCreateRefUrl('')
+    const shopLogo = shopMarkUrl(visualDevice)
+    setCreateRefUrl(
+      slot === 'chat'
+        ? resolveChatIconStyleReferenceUrl({
+            shopLogoUrl: shopLogo,
+            chatIconUrl: inventory.chatUrl,
+          })
+        : persistableHttpLogoUrl(currentSlotUrl(slot, visualDevice)) ||
+            persistableHttpLogoUrl(shopLogo)
+    )
   }
 
   async function createLogo(slot: PartnerWebsiteLogoSlot, visualDevice?: VisualDeviceVariant) {
     if (!partnerId || !website) return
-    if (!window.confirm(t.logosCreateConfirm)) return
+    const credits = requiredCreditsForLogoCreate(1.5, createStripBg)
+    if (!window.confirm(t.logosCreateConfirm.replace('{credits}', String(credits)))) return
     const key = `create:${rowKey(slot, visualDevice)}`
     const extra = createHint.trim()
     const source = createRefUrl.trim()
+    const shopLogo = shopMarkUrl(visualDevice)
+    const chatRefs =
+      slot === 'chat'
+        ? collectChatIconStyleReferencesFromForm({
+            formRef: source,
+            shopLogoUrl: shopLogo,
+            chatIconUrl: inventory.chatUrl,
+          })
+        : persistableHttpLogoUrl(source)
+          ? {
+              urls: [persistableHttpLogoUrl(source)],
+              meta: [{ screenKey: `${slot}_style`, label: 'Logo style reference' }],
+            }
+          : { urls: [] as string[], meta: [] as Array<{ screenKey: string; label: string }> }
     const prompt = buildAdminLogoCreatePrompt({
       slot,
       shopTitle: shopTitle || website.title,
       extra,
-      hasReference: Boolean(source),
+      hasReference: chatRefs.urls.length > 0,
       device: visualDevice,
     })
     const aspectRatio = slot === 'header' || slot === 'footer' ? '16:9' : '1:1'
@@ -228,8 +283,9 @@ export function PartnerWebsiteLogosPanel({
           kind: 'logo',
           aspectRatio,
           title: shopTitle || website.title || 'Shop',
-          referenceImageUrls: source ? [source] : undefined,
-          referenceImageMeta: source ? [{ screenKey: `${slot}_style`, label: 'Logo style reference' }] : undefined,
+          referenceImageUrls: chatRefs.urls.length ? chatRefs.urls : undefined,
+          referenceImageMeta: chatRefs.meta.length ? chatRefs.meta : undefined,
+          stripBackground: createStripBg,
         }),
       })
       const json = (await res.json().catch(() => ({}))) as {
@@ -281,11 +337,9 @@ export function PartnerWebsiteLogosPanel({
     return (
       <div className="mt-2 grid w-full gap-2 rounded-md border border-border/60 bg-background/80 p-2.5">
         <p className="text-[11px] text-muted-foreground">{t.logosCreateHint}</p>
-        {slot === 'chat' ? (
-          <p className="rounded-md bg-muted/70 px-2 py-1 text-[11px] leading-4 text-foreground">
-            {t.logosChatDefaultPrompt}
-          </p>
-        ) : null}
+        <p className="rounded-md bg-muted/70 px-2 py-1 text-[11px] leading-4 text-foreground">
+          {slotDefaultPrompt(slot)}
+        </p>
         <div className="space-y-1">
           <Label className="text-[11px]">{t.logosCreatePromptLabel}</Label>
           <Textarea
@@ -324,6 +378,16 @@ export function PartnerWebsiteLogosPanel({
             ) : null}
           </div>
         </div>
+        <label className="flex items-start gap-2 text-[11px] leading-4">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={createStripBg}
+            disabled={Boolean(busy)}
+            onChange={(e) => setCreateStripBg(e.target.checked)}
+          />
+          <span>{t.logosStripBg}</span>
+        </label>
         <Button
           type="button"
           variant="secondary"
@@ -333,7 +397,12 @@ export function PartnerWebsiteLogosPanel({
           onClick={() => void createLogo(slot, visualDevice)}
         >
           {createBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          {createBusy ? t.logosCreateBusy : t.logosCreateCost}
+          {createBusy
+            ? t.logosCreateBusy
+            : t.logosCreateCost.replace(
+                '{credits}',
+                String(requiredCreditsForLogoCreate(1.5, createStripBg))
+              )}
         </Button>
       </div>
     )
@@ -359,7 +428,12 @@ export function PartnerWebsiteLogosPanel({
           </div>
           {preview ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt="" className="h-10 w-10 rounded border bg-white object-contain p-0.5" />
+            <img
+              src={preview}
+              alt=""
+              referrerPolicy="no-referrer"
+              className="h-10 w-10 rounded border object-contain p-0.5 [background-color:#fff] [background-image:linear-gradient(45deg,#d1d5db_25%,transparent_25%,transparent_75%,#d1d5db_75%),linear-gradient(45deg,#d1d5db_25%,#fff_25%,#fff_75%,#d1d5db_75%)] [background-position:0_0,6px_6px] [background-size:12px_12px]"
+            />
           ) : (
             <span className="text-[11px] text-muted-foreground">{t.logosEmpty}</span>
           )}
@@ -465,7 +539,8 @@ export function PartnerWebsiteLogosPanel({
                     <img
                       src={lv.normalized_logo_url}
                       alt=""
-                      className="h-14 w-14 rounded border bg-white object-contain"
+                      referrerPolicy="no-referrer"
+                      className="h-14 w-14 rounded border object-contain [background-color:#fff] [background-image:linear-gradient(45deg,#d1d5db_25%,transparent_25%,transparent_75%,#d1d5db_75%),linear-gradient(45deg,#d1d5db_25%,#fff_25%,#fff_75%,#d1d5db_75%)] [background-position:0_0,6px_6px] [background-size:12px_12px]"
                     />
                     <p className="mt-1 text-[11px] text-muted-foreground">
                       {inUse

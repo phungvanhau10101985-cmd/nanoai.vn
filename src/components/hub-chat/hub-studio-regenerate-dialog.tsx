@@ -50,6 +50,10 @@ export function HubStudioRegenerateDialog({
   busy,
   labels,
   allowEmptyPrompt = false,
+  showStripBg = false,
+  stripBg = true,
+  onStripBgChange,
+  stripBgLabel,
   onToggleRef,
   onUploadProduct,
   onRemoveProduct,
@@ -70,6 +74,10 @@ export function HubStudioRegenerateDialog({
   labels: HubStudioRegenerateDialogLabels
   /** When true, confirm is allowed with an empty prompt (optional add-on notes). */
   allowEmptyPrompt?: boolean
+  showStripBg?: boolean
+  stripBg?: boolean
+  onStripBgChange?: (value: boolean) => void
+  stripBgLabel?: string
   onToggleRef: (screenKey: string, checked: boolean) => void
   onUploadProduct: (files: FileList) => void
   onRemoveProduct: (url: string) => void
@@ -95,6 +103,19 @@ export function HubStudioRegenerateDialog({
             />
             <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{labels.promptHint}</p>
           </div>
+
+          {showStripBg && stripBgLabel ? (
+            <label className="flex items-start gap-2 text-xs leading-4">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={stripBg}
+                disabled={busy}
+                onChange={(e) => onStripBgChange?.(e.target.checked)}
+              />
+              <span>{stripBgLabel}</span>
+            </label>
+          ) : null}
 
           {showRefPicker ? (
             <HubStudioGenerationRefPicker
