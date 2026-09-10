@@ -199,10 +199,7 @@ import {
   extractFashionHomeCopyFromDocument,
   type FashionHomeCopyPatch,
 } from '@/lib/partner-website/shop/build-fashion-home-copy'
-import {
-  appendVisualDeviceQuery,
-  visualDeviceVariantFromHtmlPath,
-} from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import { visualDeviceVariantFromHtmlPath } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import type { PartnerWebsitePageKey } from '@/lib/partner-website/partner-website-page-catalog'
 import {
   extractInfoPageCmsFromHtml,
@@ -828,7 +825,7 @@ type Props = {
   documentKey?: string
   /** Project HTML path for the page being edited (home = index.html). */
   htmlPath?: string
-  /** Live shop URL for the page being edited. */
+  /** Live storefront URL — custom domain if attached, else NanoAI `/site/{slug}`. */
   viewHref?: string
   pageKey?: PartnerWebsitePageKey
   cmsSlug?: string | null
@@ -2610,22 +2607,11 @@ export function PartnerWebsiteVisualEditorToolbar({
 
   if (saveFnRef) saveFnRef.current = requestSave
 
-  const liveViewHref = viewHref
-    ? appendVisualDeviceQuery(viewHref, visualDeviceVariantFromHtmlPath(htmlPath))
-    : undefined
+  const liveViewHref = viewHref?.trim() || undefined
 
   function openLiveView() {
-    if (dirty || canUndo || saving || busy) return
-    if (onRequestLeave) {
-      onRequestLeave('view')
-      return
-    }
-    if (!liveViewHref) return
-    const bust = `v=${Date.now()}`
-    const href = /[?&]v=/.test(liveViewHref)
-      ? liveViewHref.replace(/([?&])v=[^&]*/, `$1${bust}`)
-      : `${liveViewHref}${liveViewHref.includes('?') ? '&' : '?'}${bust}`
-    window.open(href, '_blank', 'noopener,noreferrer')
+    if (busy || saving || !liveViewHref) return
+    window.open(liveViewHref, '_blank', 'noopener,noreferrer')
   }
 
   async function persistChatLauncherHidden(hidden: boolean): Promise<boolean> {
@@ -4326,8 +4312,8 @@ export function PartnerWebsiteVisualEditorToolbar({
                 size="sm"
                 variant="outline"
                 className={cn(btn, 'gap-1')}
-                disabled={busy || saving || dirty || canUndo}
-                title={dirty || canUndo ? t.visualEditViewNeedsSave : t.visualEditViewSite}
+                disabled={busy || saving}
+                title={t.visualEditViewSite}
                 onClick={() => openLiveView()}
               >
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden />

@@ -200,6 +200,18 @@ export function visualEditorRoutePath(pageKey: PartnerWebsitePageKey): string {
   return route === '/' ? '' : route
 }
 
+/** Sửa nhanh «Xem web»: storefront live. Tên miền riêng nếu đã gắn, không thì `/site/{slug}` nền tảng. Không `?pw-device=`. */
+export function visualEditorLiveSiteHref(input: {
+  publicUrl?: string | null
+  siteSlug?: string | null
+}): string | undefined {
+  const pub = input.publicUrl?.trim()
+  if (pub) return pub
+  const slug = input.siteSlug?.trim()
+  if (!slug) return undefined
+  return `/site/${encodeURIComponent(slug)}`
+}
+
 export function visualEditorPreviewPath(
   siteSlug: string,
   pageKey: PartnerWebsitePageKey,

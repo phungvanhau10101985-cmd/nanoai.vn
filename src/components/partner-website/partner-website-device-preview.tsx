@@ -54,6 +54,7 @@ import {
   normalizeVisualProductId,
   VISUAL_EDITOR_PAGE_KEYS,
   visualEditorDeviceVariant,
+  visualEditorLiveSiteHref,
   visualEditorPreviewPath,
   visualEditorTargetHtmlPath,
   appendVisualDeviceQuery,
@@ -718,20 +719,11 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     previewPageKey === 'collection' ? previewCategoryPath || categoryOptions[0]?.path || null : previewCategoryPath
   const collectionSaveCategoryPath = previewPageKey === 'collection' ? null : previewCategoryPath
 
+  const liveViewHref = visualEditorLiveSiteHref({ publicUrl, siteSlug })
+
   function openLiveViewNow() {
-    const slug = siteSlug?.trim()
-    if (!slug) return
-    const href = appendVisualDeviceQuery(
-      `${visualEditorPreviewPath(
-        slug,
-        previewPageKey,
-        listingLiveCategoryPath,
-        previewPageKey === 'product_detail' ? productOptions[0]?.key || null : previewProductKey,
-        previewCmsSlug
-      )}?v=${Date.now()}`,
-      editVariant
-    )
-    window.open(href, '_blank', 'noopener,noreferrer')
+    if (!liveViewHref) return
+    window.open(liveViewHref, '_blank', 'noopener,noreferrer')
   }
 
   function exitVisualEdit() {
@@ -1336,17 +1328,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
             cmsSlug={previewCmsSlug}
             pageSelectValue={pageSelectValue}
             onOpenDestination={(next) => handlePageSelectChange(next)}
-            viewHref={
-              siteSlug?.trim()
-                ? `${visualEditorPreviewPath(
-                    siteSlug.trim(),
-                    previewPageKey,
-                    listingLiveCategoryPath,
-                    pdpLiveProductKey,
-                    previewCmsSlug
-                  )}?v=${encodeURIComponent(previewVersion || '0')}`
-                : undefined
-            }
+            viewHref={liveViewHref}
             onSave={
               onVisualEditSave
                 ? async (nextProject) => {
@@ -1469,17 +1451,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
               cmsSlug={previewCmsSlug}
               pageSelectValue={pageSelectValue}
               onOpenDestination={(next) => handlePageSelectChange(next)}
-              viewHref={
-                siteSlug?.trim()
-                  ? `${visualEditorPreviewPath(
-                      siteSlug.trim(),
-                      previewPageKey,
-                      listingLiveCategoryPath,
-                      pdpLiveProductKey,
-                      previewCmsSlug
-                    )}?v=${encodeURIComponent(previewVersion || '0')}`
-                  : undefined
-              }
+              viewHref={liveViewHref}
               onSave={
                 onVisualEditSave
                   ? async (nextProject) => {

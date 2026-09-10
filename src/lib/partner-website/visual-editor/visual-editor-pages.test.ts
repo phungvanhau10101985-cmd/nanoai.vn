@@ -46,6 +46,7 @@ import {
   isDesktopBrowserWindow,
   visualEditorDeviceVariant,
   visualEditorHtmlPath,
+  visualEditorLiveSiteHref,
   visualEditorPreviewPath,
   visualEditorTargetHtmlPath,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
@@ -84,6 +85,17 @@ test('visual editor paths map catalog pages', () => {
   assert.equal(visualEditorDeviceVariant('tablet'), 'tablet')
   assert.equal(visualEditorDeviceVariant('laptop'), 'laptop')
   assert.equal(visualEditorDeviceVariant('desktop'), 'desktop')
+  assert.equal(
+    visualEditorLiveSiteHref({ publicUrl: 'https://gudo.vn/', siteSlug: 'gudo-vn' }),
+    'https://gudo.vn/'
+  )
+  assert.equal(
+    visualEditorLiveSiteHref({ publicUrl: 'https://nanoai.vn/site/gudo-vn', siteSlug: 'gudo-vn' }),
+    'https://nanoai.vn/site/gudo-vn'
+  )
+  assert.equal(visualEditorLiveSiteHref({ siteSlug: 'gudo-vn' }), '/site/gudo-vn')
+  assert.equal(visualEditorLiveSiteHref({ publicUrl: '  ', siteSlug: 'gudo-vn' }), '/site/gudo-vn')
+  assert.equal(visualEditorLiveSiteHref({}), undefined)
   assert.equal(visualEditorPreviewPath('188-shop', 'collection'), '/site/188-shop/c')
   assert.equal(
     visualEditorPreviewPath('188-shop', 'collection', 'thoi-trang/ao'),
