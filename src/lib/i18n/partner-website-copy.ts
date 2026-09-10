@@ -239,6 +239,8 @@ export type PartnerWebsiteCopy = {
   visualEditAddLogoHint: string
   visualEditPanelClose: string
   visualEditMenuTheme: string
+  visualEditMenuLook: string
+  visualEditMenuLookHint: string
   visualEditMenuBlock: string
   visualEditHoverName: string
   visualEditHoverNameHint: string
@@ -1293,6 +1295,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddLogoHint: 'Chọn tỷ lệ khung hình và màu nền, rồi tạo logo. Không cần vẽ khung.',
     visualEditPanelClose: 'Đóng',
     visualEditMenuTheme: 'Màu',
+    visualEditMenuLook: 'Giao diện',
+    visualEditMenuLookHint:
+      'Đổi mẫu GD01–GD08 ngay trên Sửa nhanh. Sửa nhanh của mẫu hiện tại được lưu; quay lại mẫu đó thì còn nguyên. Catalog và giỏ không đổi.',
     visualEditMenuBlock: 'Khối',
     visualEditHoverName: 'Tên phần tử',
     visualEditHoverNameHint: 'Đưa chuột lên trang — luôn hiện tên phần tử dưới chuột.',
@@ -1366,14 +1371,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Mọi nút chức năng sửa giống nhau: kiểu, icon, cỡ, chữ. Việc khách bấm giữ đúng chức năng của nút đang chọn.',
     visualEditChromeKit: 'Thanh điều hướng',
     visualEditChromeKitHint:
-      'Nút nổi (Chat mua, Zalo, Facebook, Top) ở mục Thanh nổi ngay dưới đây — bật mắt để hiện góc màn. Thanh trên, Head, chân trang và thanh đáy cùng panel này. Thanh trên: ẩn/hiện + thêm nút chữ (không kéo tọa độ). Chân trang giữ layout gốc — ẩn/hiện, không thêm bằng dấu +. Mỗi máy một bản. Không còn trên thanh Thêm.',
+      'Nút nổi (Chat mua, Zalo, Facebook, Top) ở mục Thanh nổi ngay dưới đây — bật mắt để hiện góc màn. Thanh trên, Head, chân trang và thanh đáy cùng panel này. Thanh trên: ẩn/hiện mọi nút chữ (không kéo tọa độ). Chân trang giữ layout gốc — ẩn/hiện, không thêm bằng dấu +. Mỗi máy một bản. Không còn trên thanh Thêm.',
     visualEditChromeKitHeadPc: 'Head Desktop',
     visualEditChromeKitHeadLaptop: 'Head Laptop',
     visualEditChromeKitHeadTablet: 'Head máy tính bảng',
     visualEditChromeKitHeadMobile: 'Head điện thoại',
     visualEditChromeKitTopbar: 'Thanh trên',
     visualEditChromeKitTopbarHint:
-      'Thanh chữ trên cùng (Liên hệ, Đăng nhập…). Hiện Desktop/Laptop; Mobile/Tablet CSS ẩn. Thêm nút chức năng chữ tại đây — không kéo tọa độ, không dùng thanh Thêm.',
+      'Thanh chữ trên cùng (Liên hệ, Đăng nhập…). Hiện Desktop/Laptop; Mobile/Tablet CSS ẩn. Tất cả nút đã có sẵn — bật mắt để hiện, không kéo tọa độ, không dùng thanh Thêm.',
     visualEditChromeKitTopbarAdd: 'Thêm nút lên thanh trên',
     visualEditChromeKitDock: 'Thanh đáy',
     visualEditChromeKitFooter: 'Chân trang',
@@ -2382,6 +2387,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddLogoHint: 'Choose an aspect ratio and background color, then create the logo. No need to draw a frame.',
     visualEditPanelClose: 'Close',
     visualEditMenuTheme: 'Colors',
+    visualEditMenuLook: 'Look',
+    visualEditMenuLookHint:
+      'Switch GD01–GD08 from Quick edit. Quick-edit pages for the current look are saved; switching back restores them. Catalog and cart stay.',
     visualEditMenuBlock: 'Block',
     visualEditHoverName: 'Element name',
     visualEditHoverNameHint: 'Hover the page to always see the name of the element under the pointer.',
@@ -2455,14 +2463,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Every function button is edited the same way: style, icon, size, label. A live click still runs this button’s own action.',
     visualEditChromeKit: 'Navigation bars',
     visualEditChromeKitHint:
-      'Floating buttons (Shop chat, Zalo, Facebook, Top) are in Floating bar below — turn the eye on to show them. Top bar, head, footer, and bottom bar are in this same panel. Top bar: show/hide and add text links (no free-drag). Footer keeps its factory layout — show/hide only, no plus-sign inserts. One set per device. They are not on the Add bar.',
+      'Floating buttons (Shop chat, Zalo, Facebook, Top) are in Floating bar below — turn the eye on to show them. Top bar, head, footer, and bottom bar are in this same panel. Top bar: show/hide every text link (no free-drag). Footer keeps its factory layout — show/hide only, no plus-sign inserts. One set per device. They are not on the Add bar.',
     visualEditChromeKitHeadPc: 'Desktop header',
     visualEditChromeKitHeadLaptop: 'Laptop header',
     visualEditChromeKitHeadTablet: 'Tablet header',
     visualEditChromeKitHeadMobile: 'Phone header',
     visualEditChromeKitTopbar: 'Top bar',
     visualEditChromeKitTopbarHint:
-      'Text strip above the header (Contact, Sign in…). Visible on Desktop/Laptop; Mobile/Tablet CSS-hide it. Add function text links here — no free-drag, not on the Add bar.',
+      'Text strip above the header (Contact, Sign in…). Visible on Desktop/Laptop; Mobile/Tablet CSS-hide it. Every link is listed — use the eye to show or hide, no free-drag, not on the Add bar.',
     visualEditChromeKitTopbarAdd: 'Add a button to the top bar',
     visualEditChromeKitDock: 'Bottom bar',
     visualEditChromeKitFooter: 'Footer',
@@ -3466,6 +3474,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddLogoHint: '选择画面比例和背景色后创建标志，无需再画框。',
     visualEditPanelClose: '关闭',
     visualEditMenuTheme: '颜色',
+    visualEditMenuLook: '界面',
+    visualEditMenuLookHint:
+      '在快捷编辑中切换 GD01–GD08。当前界面的快捷编辑会保存；切回该界面时仍在。商品与购物车不变。',
     visualEditMenuBlock: '区块',
     visualEditHoverName: '元素名称',
     visualEditHoverNameHint: '把鼠标移到页面上，始终显示指针下的元素名称。',
@@ -3532,14 +3543,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeWidgetTitle: '店铺功能按钮',
     visualEditChromeWidgetHint: '所有功能按钮用同一套改法：样式、图标、大小、文字。顾客点击仍执行该按钮自己的功能。',
     visualEditChromeKit: '导航栏',
-    visualEditChromeKitHint: '浮动按钮（购买咨询、Zalo、Facebook、回顶）在下方「浮动栏」——点眼睛即可显示。顶栏、页头、页脚和底栏也在此面板。顶栏可显示/隐藏并添加文字按钮（不拖坐标）。页脚保持原布局，只显示/隐藏，不用加号插入。每台设备一份。不在「添加」栏。',
+    visualEditChromeKitHint: '浮动按钮（购买咨询、Zalo、Facebook、回顶）在下方「浮动栏」——点眼睛即可显示。顶栏、页头、页脚和底栏也在此面板。顶栏列出全部文字按钮，用眼睛显示/隐藏（不拖坐标）。页脚保持原布局，只显示/隐藏，不用加号插入。每台设备一份。不在「添加」栏。',
     visualEditChromeKitHeadPc: '桌面页头',
     visualEditChromeKitHeadLaptop: '笔记本页头',
     visualEditChromeKitHeadTablet: '平板页头',
     visualEditChromeKitHeadMobile: '手机页头',
     visualEditChromeKitTopbar: '顶栏',
     visualEditChromeKitTopbarHint:
-      '页头上方的文字条（联系、登录…）。桌面/笔记本显示；手机/平板用 CSS 隐藏。在此添加文字功能按钮——不拖坐标，不用「添加」栏。',
+      '页头上方的文字条（联系、登录…）。桌面/笔记本显示；手机/平板用 CSS 隐藏。全部按钮已列出——点眼睛显示或隐藏，不拖坐标，不用「添加」栏。',
     visualEditChromeKitTopbarAdd: '向顶栏添加按钮',
     visualEditChromeKitDock: '底栏',
     visualEditChromeKitFooter: '页脚',
@@ -4518,6 +4529,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddLogoHint: '比率と背景色を選んでロゴを作成します。枠を描く必要はありません。',
     visualEditPanelClose: '閉じる',
     visualEditMenuTheme: 'カラー',
+    visualEditMenuLook: 'デザイン',
+    visualEditMenuLookHint:
+      'クイック編集から GD01–GD08 を切り替えます。現在のデザインの編集は保存され、戻すとそのまま残ります。カタログとカートは変わりません。',
     visualEditMenuBlock: 'ブロック',
     visualEditHoverName: '要素名',
     visualEditHoverNameHint: 'ページ上にマウスを置くと、ポインター下の要素名を常に表示します。',
@@ -4591,14 +4605,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '機能ボタンはどれも同じ直し方です：スタイル・アイコン・サイズ・文字。公開サイトの動作はそのボタンのままです。',
     visualEditChromeKit: 'ナビバー',
     visualEditChromeKitHint:
-      'フローティングボタン（Chat mua、Zalo、Facebook、先頭へ）は下のフローティングバーにあります。目のアイコンで表示します。トップバー・ヘッダー・フッター・下部バーも同じパネル。トップバーは表示/非表示と文字リンク追加（座標ドラッグなし）。フッターは元のレイアウトのまま表示/非表示のみ。端末ごとに別。追加バーにはありません。',
+      'フローティングボタン（Chat mua、Zalo、Facebook、先頭へ）は下のフローティングバーにあります。目のアイコンで表示します。トップバー・ヘッダー・フッター・下部バーも同じパネル。トップバーはすべての文字リンクを表示/非表示（座標ドラッグなし）。フッターは元のレイアウトのまま表示/非表示のみ。端末ごとに別。追加バーにはありません。',
     visualEditChromeKitHeadPc: 'デスクトップヘッダー',
     visualEditChromeKitHeadLaptop: 'ノートヘッダー',
     visualEditChromeKitHeadTablet: 'タブレットヘッダー',
     visualEditChromeKitHeadMobile: 'スマホヘッダー',
     visualEditChromeKitTopbar: 'トップバー',
     visualEditChromeKitTopbarHint:
-      'ヘッダー上の文字バー（お問い合わせ、ログイン…）。Desktop/Laptop で表示、Mobile/Tablet は CSS で非表示。ここに文字の機能ボタンを追加。座標ドラッグなし、追加バーは使いません。',
+      'ヘッダー上の文字バー（お問い合わせ、ログイン…）。Desktop/Laptop で表示、Mobile/Tablet は CSS で非表示。すべてのボタンが並び、目のアイコンで表示/非表示。座標ドラッグなし、追加バーは使いません。',
     visualEditChromeKitTopbarAdd: 'トップバーにボタンを追加',
     visualEditChromeKitDock: '下部バー',
     visualEditChromeKitFooter: 'フッター',
@@ -5592,6 +5606,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditAddLogoHint: '화면 비율과 배경색을 고른 뒤 로고를 만듭니다. 프레임을 그릴 필요는 없습니다.',
     visualEditPanelClose: '닫기',
     visualEditMenuTheme: '색상',
+    visualEditMenuLook: '디자인',
+    visualEditMenuLookHint:
+      '빠른 수정에서 GD01–GD08을 바꿉니다. 현재 디자인의 빠른 수정은 저장되며, 다시 고르면 그대로입니다. 카탈로그와 장바구니는 그대로입니다.',
     visualEditMenuBlock: '블록',
     visualEditHoverName: '요소 이름',
     visualEditHoverNameHint: '페이지 위에 마우스를 올리면 포인터 아래 요소 이름이 항상 보입니다.',
@@ -5665,14 +5682,14 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '기능 버튼은 모두 같은 방식으로 수정합니다: 스타일, 아이콘, 크기, 글자. 고객이 누르면 이 버튼 고유 동작이 유지됩니다.',
     visualEditChromeKit: '탐색 막대',
     visualEditChromeKitHint:
-      '플로팅 버튼(Chat mua, Zalo, Facebook, 맨 위로)은 아래 플로팅 바에 있습니다. 눈을 켜면 모서리에 보입니다. 상단 바, 헤더, 푸터, 하단 바도 이 패널에 있습니다. 상단 바는 표시/숨김과 텍스트 버튼 추가(좌표 드래그 없음)입니다. 푸터는 원래 레이아웃을 유지하고 표시/숨김만 합니다. 기기마다 따로이며 추가 막대에는 없습니다.',
+      '플로팅 버튼(Chat mua, Zalo, Facebook, 맨 위로)은 아래 플로팅 바에 있습니다. 눈을 켜면 모서리에 보입니다. 상단 바, 헤더, 푸터, 하단 바도 이 패널에 있습니다. 상단 바는 모든 텍스트 버튼을 표시/숨김(좌표 드래그 없음)입니다. 푸터는 원래 레이아웃을 유지하고 표시/숨김만 합니다. 기기마다 따로이며 추가 막대에는 없습니다.',
     visualEditChromeKitHeadPc: '데스크톱 헤더',
     visualEditChromeKitHeadLaptop: '노트북 헤더',
     visualEditChromeKitHeadTablet: '태블릿 헤더',
     visualEditChromeKitHeadMobile: '휴대폰 헤더',
     visualEditChromeKitTopbar: '상단 바',
     visualEditChromeKitTopbarHint:
-      '헤더 위 텍스트 줄(연락처, 로그인…). Desktop/Laptop에서 보이고 Mobile/Tablet은 CSS로 숨깁니다. 여기에 텍스트 기능 버튼을 추가하세요. 좌표 드래그 없음, 추가 막대는 쓰지 않습니다.',
+      '헤더 위 텍스트 줄(연락처, 로그인…). Desktop/Laptop에서 보이고 Mobile/Tablet은 CSS로 숨깁니다. 모든 버튼이 이미 있고 눈으로 표시/숨깁니다. 좌표 드래그 없음, 추가 막대는 쓰지 않습니다.',
     visualEditChromeKitTopbarAdd: '상단 바에 버튼 추가',
     visualEditChromeKitDock: '하단 바',
     visualEditChromeKitFooter: '푸터',

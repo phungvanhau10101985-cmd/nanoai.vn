@@ -14,6 +14,7 @@ import {
   PW_KIT_X_MIN,
   buildChromeKitDockHtml,
   buildChromeKitHeadActionHtml,
+  buildChromeKitTopbarInnerHtml,
   buildChromeKitTopbarItemHtml,
   chromeKitGapDefaultForDevice,
   chromeKitHeadGroup,
@@ -29,6 +30,7 @@ import {
   isPdpDockNavKind,
   pinMidCanvasTopChromeInHtml,
   stripAuthorPinScreenInHtml,
+  isChromeKitHeadSeatKind,
 } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import { buildPartnerSiteHeaderHtml } from '@/lib/partner-website/shop/build-partner-site-header-html'
 
@@ -42,6 +44,18 @@ describe('partner-site-chrome-kit', () => {
     expect(html).not.toContain('data-pw-chrome-added="1"')
     expect(html).toContain('data-pw-chrome-btn="chat"')
     expect(html).toMatch(/data-pw-hidden="1"[^>]*data-pw-chrome-btn="chat"|data-pw-chrome-btn="chat"[^>]*data-pw-hidden="1"/)
+  })
+
+  it('does not seat Thanh trên text kinds into the Head icon row', () => {
+    expect(isChromeKitHeadSeatKind('login')).toBe(false)
+    expect(isChromeKitHeadSeatKind('favorites-link')).toBe(false)
+    expect(isChromeKitHeadSeatKind('contact', 'text')).toBe(false)
+    expect(isChromeKitHeadSeatKind('contact', '')).toBe(false)
+    expect(isChromeKitHeadSeatKind('contact', 'icon-label-below')).toBe(true)
+    expect(isChromeKitHeadSeatKind('account')).toBe(true)
+    expect(isChromeKitHeadSeatKind('recently-viewed')).toBe(true)
+    expect(isChromeKitHeadSeatKind('cart')).toBe(true)
+    expect(isChromeKitHeadSeatKind('search')).toBe(false)
   })
 
   it('hides account on mobile head by default', () => {
@@ -754,7 +768,8 @@ describe('partner-site-chrome-kit', () => {
       device: 'laptop',
     })
     const header = next.match(/<header\b[\s\S]*?<\/header>/i)?.[0] || ''
-    expect(header.match(/data-pw-chrome-btn="cart"/g)).toHaveLength(1)
+    const actions = header.match(/<div[^>]*pw-header-actions[\s\S]*?<\/div>/i)?.[0] || ''
+    expect(actions.match(/data-pw-chrome-btn="cart"/g)).toHaveLength(1)
     expect(header).toContain('Giỏ kit')
     expect(header).not.toContain('Giỏ leftover')
     expect(header.match(/pw-header-actions/g)).toHaveLength(1)
@@ -838,6 +853,12 @@ describe('partner-site-chrome-kit', () => {
     expect(seeded).toContain('data-pw-chrome-btn="contact"')
     expect(seeded).toContain('data-pw-chrome-btn="favorites-link"')
     expect(seeded).toContain('data-pw-chrome-btn="login"')
+    const factoryInner = buildChromeKitTopbarInnerHtml({ locale: 'vi', siteSlug: 'demo-shop' })
+    expect(factoryInner).toContain('data-pw-chrome-btn="faq"')
+    expect(factoryInner).toMatch(
+      /data-pw-chrome-btn="faq"[^>]*data-pw-hidden="1"|data-pw-hidden="1"[^>]*data-pw-chrome-btn="faq"/
+    )
+    expect(factoryInner).not.toMatch(/data-pw-chrome-btn="contact"[^>]*data-pw-hidden="1"/)
 
     const html = `<!DOCTYPE html><html><body>
 <header class="pw-header">
@@ -851,6 +872,10 @@ describe('partner-site-chrome-kit', () => {
     expect(next).toContain(`${PW_CHROME_KIT_ATTR}="topbar"`)
     expect(next).toMatch(/data-pw-chrome-btn="contact"[^>]*data-pw-chrome-kit="1"|data-pw-chrome-kit="1"[^>]*data-pw-chrome-btn="contact"/)
     expect(next).toContain('data-pw-chrome-style="text"')
+    expect(next).toContain('data-pw-chrome-btn="favorites-link"')
+    expect(next).toMatch(
+      /data-pw-chrome-btn="faq"[^>]*data-pw-hidden="1"|data-pw-hidden="1"[^>]*data-pw-chrome-btn="faq"/
+    )
 
     const faq = buildChromeKitTopbarItemHtml({ kind: 'faq', locale: 'vi', siteSlug: 'demo-shop' })
     expect(faq).toContain('data-pw-chrome-btn="faq"')
@@ -859,5 +884,92 @@ describe('partner-site-chrome-kit', () => {
     expect(faq).not.toContain('data-pw-chrome-added')
     expect(faq).not.toContain('data-pw-device')
     expect(faq).not.toContain('data-pw-scene')
+  })
+
+  it('moves leftover Đăng nhập out of header-actions and keeps one on the topbar', () => {
+    const html = `<!DOCTYPE html><html><body>
+<header class="pw-header">
+  <div class="pw-topbar" data-pw-region="topbar"><div class="pw-container pw-topbar-inner">
+    <a href="/login" data-pw-el="link" data-pw-chrome-btn="login" data-pw-chrome-style="text">Đăng nhập topbar</a>
+  </div></div>
+  <div class="pw-header-actions">
+    <a data-pw-chrome-btn="account" href="/account">Tài khoản</a>
+    <a data-pw-chrome-btn="login" data-pw-hidden="1" data-pw-chrome-style="text">Đăng nhập ẩn</a>
+    <a data-pw-chrome-btn="login" data-pw-chrome-style="text">Đăng nhập thừa</a>
+  </div>
+</header>
+</body></html>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' })
+    const header = next.match(/<header\b[\s\S]*?<\/header>/i)?.[0] || ''
+    const actions = header.match(/<div[^>]*pw-header-actions[\s\S]*?<\/div>/i)?.[0] || ''
+    const topbar = header.match(/<div[^>]*(?:pw-topbar|data-pw-chrome-kit=["']topbar["'])[\s\S]*?<\/div>\s*<\/div>/i)?.[0] || ''
+    expect(actions).not.toMatch(/data-pw-chrome-btn="login"/)
+    expect(actions).toContain('Tài khoản')
+    expect(topbar.match(/data-pw-chrome-btn="login"/g)).toHaveLength(1)
+    expect(topbar).toMatch(
+      /data-pw-chrome-btn="login"[^>]*data-pw-hidden="1"|data-pw-hidden="1"[^>]*data-pw-chrome-btn="login"/
+    )
+    expect(header).not.toContain('Đăng nhập thừa')
+  })
+
+  it('keeps hidden Liên hệ and Yêu thích on the topbar after save/ensure', () => {
+    const html = `<!DOCTYPE html><html><body>
+<header class="pw-header">
+  <div class="pw-topbar" data-pw-region="topbar"><div class="pw-container pw-topbar-inner">
+    <a href="/contact" data-pw-el="link" data-pw-chrome-btn="contact" data-pw-chrome-style="text">Liên hệ topbar</a>
+    <a href="/wishlist" data-pw-el="link" data-pw-chrome-btn="favorites-link" data-pw-chrome-style="text">Yêu thích topbar</a>
+  </div></div>
+  <div class="pw-header-actions">
+    <a data-pw-chrome-btn="account" href="/account">Tài khoản</a>
+    <a data-pw-chrome-btn="contact" data-pw-hidden="1" data-pw-chrome-style="text">Liên hệ</a>
+    <a data-pw-chrome-btn="favorites-link" data-pw-hidden="1" data-pw-chrome-style="text">Yêu thích</a>
+  </div>
+</header>
+</body></html>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' })
+    const header = next.match(/<header\b[\s\S]*?<\/header>/i)?.[0] || ''
+    const actions = header.match(/<div[^>]*pw-header-actions[\s\S]*?<\/div>/i)?.[0] || ''
+    expect(actions).not.toMatch(/data-pw-chrome-btn="favorites-link"/)
+    expect(actions).not.toMatch(/data-pw-chrome-btn="contact"[^>]*data-pw-chrome-style="text"|data-pw-chrome-style="text"[^>]*data-pw-chrome-btn="contact"/)
+    expect(header).toMatch(
+      /data-pw-chrome-btn="contact"[^>]*data-pw-hidden="1"|data-pw-hidden="1"[^>]*data-pw-chrome-btn="contact"/
+    )
+    expect(header).toMatch(
+      /data-pw-chrome-btn="favorites-link"[^>]*data-pw-hidden="1"|data-pw-hidden="1"[^>]*data-pw-chrome-btn="favorites-link"/
+    )
+    const visibleTopbarContact = /<a[^>]*data-pw-chrome-btn="contact"[^>]*>/gi
+    const contactTags = header.match(visibleTopbarContact) || []
+    const topbarContactShown = contactTags.filter(
+      (tag) => /data-pw-chrome-style="text"/i.test(tag) && !/data-pw-hidden="1"/i.test(tag)
+    )
+    expect(topbarContactShown).toHaveLength(0)
+    const favTags = header.match(/<a[^>]*data-pw-chrome-btn="favorites-link"[^>]*>/gi) || []
+    expect(favTags.every((tag) => /data-pw-hidden="1"/i.test(tag))).toBe(true)
+  })
+
+  it('does not hide stock topbar Liên hệ when Head only has the default-off icon', () => {
+    const html = `<!DOCTYPE html><html><body>
+<header class="pw-header">
+  <div class="pw-topbar" data-pw-region="topbar"><div class="pw-container pw-topbar-inner">
+    <a href="/contact" data-pw-el="link" data-pw-chrome-btn="contact" data-pw-chrome-style="text">Liên hệ</a>
+    <a href="/wishlist" data-pw-el="link" data-pw-chrome-btn="favorites-link" data-pw-chrome-style="text">Yêu thích</a>
+  </div></div>
+  <div class="pw-header-actions">
+    <a data-pw-chrome-btn="account" href="/account">Tài khoản</a>
+    <a data-pw-chrome-btn="contact" data-pw-hidden="1" data-pw-chrome-style="icon-label-below">Liên hệ</a>
+    <a data-pw-chrome-btn="wishlist" data-pw-hidden="1" data-pw-chrome-style="icon-label-below">Yêu thích</a>
+  </div>
+</header>
+</body></html>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' })
+    const header = next.match(/<header\b[\s\S]*?<\/header>/i)?.[0] || ''
+    const topbar = header.match(/<div[^>]*(?:pw-topbar|data-pw-region=["']topbar["'])[\s\S]*?<div class="pw-container pw-topbar-inner">[\s\S]*?<\/div>\s*<\/div>/i)?.[0] || ''
+    expect(topbar).toMatch(/data-pw-chrome-btn="contact"/)
+    expect(topbar).not.toMatch(
+      /data-pw-chrome-btn="contact"[^>]*data-pw-hidden="1"|data-pw-hidden="1"[^>]*data-pw-chrome-btn="contact"/
+    )
+    expect(topbar).not.toMatch(
+      /data-pw-chrome-btn="favorites-link"[^>]*data-pw-hidden="1"|data-pw-hidden="1"[^>]*data-pw-chrome-btn="favorites-link"/
+    )
   })
 })

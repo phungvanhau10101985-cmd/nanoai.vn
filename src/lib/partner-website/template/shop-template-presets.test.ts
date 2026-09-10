@@ -8,6 +8,8 @@ import {
   shopTemplatePresetHeading,
   SHOP_TEMPLATE_PRESETS,
 } from '@/lib/partner-website/template/shop-template-presets'
+import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
+import { WEB_LOCALES } from '@/lib/i18n/config'
 
 test('every shop preset has a unique short code GD01–GD08', () => {
   const codes = SHOP_TEMPLATE_PRESETS.map((p) => p.code)
@@ -30,6 +32,14 @@ test('shopTemplatePresetHeading shows code then name', () => {
   const preset = listShopTemplatePresets().find((p) => p.code === 'GD03')
   assert.ok(preset)
   assert.equal(shopTemplatePresetHeading(preset, 'vi'), 'GD03 · Sàn mua sắm')
+})
+
+test('Sửa nhanh look picker copy exists in every locale', () => {
+  for (const locale of WEB_LOCALES) {
+    const t = getPartnerWebsiteCopy(locale)
+    assert.ok(t.visualEditMenuLook.trim(), locale)
+    assert.match(t.visualEditMenuLookHint, /GD01/, locale)
+  }
 })
 
 test('every preset fills buy/cart/footer in the shared color frame', () => {

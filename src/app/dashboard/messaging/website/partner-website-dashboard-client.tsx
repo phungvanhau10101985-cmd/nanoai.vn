@@ -24,6 +24,7 @@ import { PartnerWebsiteCreationJournalPanel } from '@/components/partner-website
 import type { PartnerWebsiteCreationJournal } from '@/lib/partner-website/partner-website-creation-journal'
 import { isHomePageBuilt } from '@/lib/partner-website/partner-website-creation-journal'
 import { PartnerWebsiteDevicePreview, type PartnerWebsiteDevicePreviewHandle } from '@/components/partner-website/partner-website-device-preview'
+import type { ShopTemplatePresetId } from '@/lib/partner-website/template/shop-template-presets'
 import { PartnerWebsiteLeadsPanel } from '@/components/partner-website/partner-website-leads-panel'
 import { PartnerWebsiteCategoriesPanel } from '@/components/partner-website/partner-website-categories-panel'
 import { PartnerWebsiteReviewsQaPanel } from '@/components/partner-website/partner-website-reviews-qa-panel'
@@ -171,6 +172,7 @@ export function PartnerWebsiteDashboardClient({
     initialWebsiteRow?.updatedAt ?? String(Date.now())
   )
   const [chatBusy, setChatBusy] = useState(false)
+  const [lookApplying, setLookApplying] = useState(false)
   const previewRef = useRef<PartnerWebsiteDevicePreviewHandle>(null)
   const [provisioning, setProvisioning] = useState(false)
   const [migrating, setMigrating] = useState(false)
@@ -315,6 +317,56 @@ export function PartnerWebsiteDashboardClient({
     setPreviewVersion(payload.website.updatedAt || String(Date.now()))
     toast({ title: t.restoreSuccess })
     router.refresh()
+  }
+
+  async function handleApplyShopLook(presetId: ShopTemplatePresetId) {
+    if (!partnerId || !website) return null
+    setLookApplying(true)
+    try {
+      const brand =
+        website.title?.trim() || partner?.brand_name?.trim() || partner?.display_name?.trim() || partnerTitle
+      const res = await fetch('/api/messaging/partner-website/studio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'apply_template',
+          partnerId,
+          locale,
+          pageKey: 'home',
+          answers: {
+            brand_name: brand,
+            ...(logoUrl.trim() && /^https?:\/\//i.test(logoUrl.trim())
+              ? { logo_url: logoUrl.trim() }
+              : {}),
+          },
+          presetId,
+        }),
+      })
+      const json = (await res.json().catch(() => ({}))) as {
+        website?: PartnerWebsiteRow
+        publicUrl?: string | null
+        assistantMessage?: string
+        error?: string
+      }
+      if (!res.ok || !json.website) {
+        toast({ title: json.error || t.errorGeneric, variant: 'destructive' })
+        return null
+      }
+      setWebsite(json.website)
+      setPublicUrl(json.publicUrl ?? null)
+      setCreationJournal(json.website.creationJournal)
+      setLogoUrl(json.website.logoUrl ?? '')
+      setLiveTheme(json.website.theme)
+      setPreviewVersion(json.website.updatedAt || String(Date.now()))
+      toast({ title: json.assistantMessage || t.studioBuildComplete })
+      router.refresh()
+      return { website: json.website }
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : t.errorGeneric, variant: 'destructive' })
+      return null
+    } finally {
+      setLookApplying(false)
+    }
   }
 
   const loadResetTrash = useCallback(async (pid: string) => {
@@ -844,12 +896,14 @@ export function PartnerWebsiteDashboardClient({
                   siteSlug={website?.siteSlug}
                   hasWebsite={Boolean(website)}
                   embedded
-                  quickEditDisabled={chatBusy || !website}
+                  quickEditDisabled={chatBusy || lookApplying || !website}
                   visualEditEnabled={Boolean(website)}
                   websiteTitle={website?.title}
                   project={website?.project}
                   htmlSource={website?.htmlSource}
                   useVisualHtml={Boolean(website?.theme?.useVisualHtml)}
+                  templateId={website?.templateId}
+                  onApplyShopLook={website ? handleApplyShopLook : undefined}
                   onVisualEditSave={website ? handleVisualEditSave : undefined}
                   onVisualEditError={(message) => toast({ title: message, variant: 'destructive' })}
                   onLiveThemeChange={setLiveTheme}

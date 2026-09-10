@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutGrid, LayoutTemplate, Loader2, Lock, LogIn, LogOut, Mail, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Share2, Shield, Shirt, ShoppingBag, Sparkles, Square, Store, Tag, Ticket, Trash2, Truck, Type, Undo2, Upload, User, UserPlus, Video, Wallet, X, Zap } from 'lucide-react'
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, Check, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutGrid, LayoutTemplate, Loader2, Lock, LogIn, LogOut, Mail, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Share2, Shield, Shirt, ShoppingBag, Sparkles, Square, Store, Tag, Ticket, Trash2, Truck, Type, Undo2, Upload, User, UserPlus, Video, Wallet, X, Zap } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -24,6 +24,7 @@ import { footerLinkKitHrefKey } from '@/lib/partner-website/shop/partner-site-fo
 import type {
   PartnerWebsiteCanonicalVisualSave,
   PartnerWebsiteProject,
+  PartnerWebsiteRow,
 } from '@/lib/partner-website/partner-website-types'
 import { uploadPartnerImageFile } from '@/components/partner-website/partner-website-asset-panel'
 import {
@@ -57,6 +58,16 @@ import {
   type LogoGeminiAspectRatio,
 } from '@/lib/partner-website/visual-editor/gemini-working-aspect'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
+import {
+  getShopTemplatePreset,
+  listShopTemplatePresets,
+  resolveShopTemplatePresetId,
+  shopTemplatePresetDescription,
+  shopTemplatePresetHeading,
+  shopTemplatePresetLabel,
+  type ShopTemplatePresetId,
+} from '@/lib/partner-website/template/shop-template-presets'
+import { shopTemplateSamplePreviewPath } from '@/lib/partner-website/template/build-shop-template-sample-html'
 import {
   applyThemeCssVarsToFrameWindow,
   isHexColor,
@@ -833,6 +844,12 @@ type Props = {
   onOpenDestination?: (next: string) => void
   /** Màu giao diện đang chọn — gửi vào prompt tạo logo. */
   theme?: PartnerWebsiteTheme | null
+  /** Mẫu GD01–GD08 đang áp (`template_id`). */
+  templateId?: string | null
+  /** Đổi mẫu từ Sửa nhanh — cùng `apply_template` (snapshot / restore). */
+  onApplyShopLook?: (
+    presetId: ShopTemplatePresetId
+  ) => Promise<{ website: PartnerWebsiteRow } | null>
   onThemeLiveChange?: (next: PartnerWebsiteTheme) => void
   /** Cập nhật theme không debounce màu (ẩn/hiện nút chat). */
   onThemeFieldsChange?: (next: PartnerWebsiteTheme) => void
@@ -931,7 +948,7 @@ function cleanSerializedHtml(raw: string, htmlPath: string): string {
   return serializeVisualEditorHtml(doc, visualDeviceVariantFromHtmlPath(htmlPath))
 }
 
-type VisualEditOpenPanel = 'add' | 'logo' | 'theme' | 'block' | 'chromeKit'
+type VisualEditOpenPanel = 'add' | 'logo' | 'theme' | 'look' | 'block' | 'chromeKit'
 
 type ChromeKitListItem = {
   kind: string
@@ -1129,7 +1146,6 @@ function ChromeKitPanel({
   onToggleFloat,
   onToggleFooter,
   onToggleTopbar,
-  onAddTopbar,
   floatRight,
   floatBottom,
   floatGap,
@@ -1169,7 +1185,6 @@ function ChromeKitPanel({
   onToggleFloat: (kind: string, hidden: boolean) => void
   onToggleFooter: (kind: string, hidden: boolean) => void
   onToggleTopbar: (kind: string, hidden: boolean) => void
-  onAddTopbar: (kind: VisualEditorChromeWidgetKind) => void
   onSetFloatStack: (right: number, bottom: number, gap: number) => void
   onSetFloatItemSize: (kind: string, size: number) => void
   onSetFloatItemRight: (kind: string, right: number) => void
@@ -1247,8 +1262,20 @@ function ChromeKitPanel({
     seenFloat.add(item.kind)
     floatRows.push({ kind: item.kind, hidden: true, label: item.kind })
   }
-  const usedTopbar = new Set(topbar.map((row) => chromeKitTopbarKindKey(row.kind)))
-  const topbarAddKinds = CHROME_KIT_TOPBAR_ADD_KINDS.filter((kind) => !usedTopbar.has(chromeKitTopbarKindKey(kind)))
+  const usedTopbar = new Set<string>()
+  const topbarRows: ChromeKitListItem[] = []
+  for (const row of topbar) {
+    const key = chromeKitTopbarKindKey(row.kind)
+    if (!key || usedTopbar.has(key)) continue
+    usedTopbar.add(key)
+    topbarRows.push(row)
+  }
+  for (const kind of CHROME_KIT_TOPBAR_ADD_KINDS) {
+    const key = chromeKitTopbarKindKey(kind)
+    if (usedTopbar.has(key)) continue
+    usedTopbar.add(key)
+    topbarRows.push({ kind, hidden: true, label: kind })
+  }
   const [section, setSection] = useState<'topbar' | 'head' | 'float' | 'footer' | 'dock'>('topbar')
   const activeSection = section === 'dock' && !showDock ? 'topbar' : section
   const sections = [
@@ -1374,9 +1401,9 @@ function ChromeKitPanel({
       <p className="mt-1 px-1 text-[11px] font-semibold">{t.visualEditChromeKitTopbar}</p>
       <p className="px-1 text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitTopbarHint}</p>
       <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-      {topbar.map((item) => (
+      {topbarRows.map((item) => (
         <ChromeKitRow
-          key={`tb-${item.kind}`}
+          key={`tb-${chromeKitTopbarKindKey(item.kind)}`}
           label={isVisualEditorChromeWidgetKind(item.kind) ? chromeWidgetLabel(item.kind, locale) : item.label}
           hidden={item.hidden}
           busy={busy}
@@ -1389,31 +1416,6 @@ function ChromeKitPanel({
         />
       ))}
       </div>
-      {topbarAddKinds.length ? (
-        <label className="mt-2 flex flex-col gap-1 border-t px-1 pt-2 text-[10px] text-muted-foreground">
-          <span>{t.visualEditChromeKitTopbarAdd}</span>
-          <select
-            disabled={busy}
-            defaultValue=""
-            onChange={(e) => {
-              const kind = e.target.value
-              e.target.value = ''
-              if (!isChromeKitTopbarAddKind(kind)) return
-              onAddTopbar(kind)
-            }}
-            className="h-7 rounded border bg-background px-1 text-[11px] text-foreground"
-          >
-            <option value="" disabled>
-              {t.visualEditChromeKitTopbarAdd}
-            </option>
-            {topbarAddKinds.map((kind) => (
-              <option key={kind} value={kind}>
-                {chromeWidgetLabel(kind, locale)}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
         </div>
       ) : null}
       {activeSection === 'head' ? (
@@ -1766,6 +1768,8 @@ export function PartnerWebsiteVisualEditorToolbar({
   pageSelectValue,
   onOpenDestination,
   theme,
+  templateId,
+  onApplyShopLook,
   onThemeLiveChange,
   onThemeFieldsChange,
   themeSaving,
@@ -1804,6 +1808,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [addButtonPanelOpen, setAddButtonPanelOpen] = useState(false)
   const [contactChannels, setContactChannels] = useState<PartnerSiteContactChannels | null>(null)
   const [openPanel, setOpenPanel] = useState<VisualEditOpenPanel | null>(null)
+  const [lookBusy, setLookBusy] = useState(false)
   const [chromeKitHead, setChromeKitHead] = useState<ChromeKitListItem[]>([])
   const [chromeKitDock, setChromeKitDock] = useState<ChromeKitListItem[]>([])
   const [chromeKitFloat, setChromeKitFloat] = useState<ChromeKitListItem[]>([])
@@ -2670,6 +2675,31 @@ export function PartnerWebsiteVisualEditorToolbar({
   }
 
   if (saveFnRef) saveFnRef.current = requestSave
+
+  const shopLookPresets = useMemo(() => listShopTemplatePresets(), [])
+  const appliedShopLookId = resolveShopTemplatePresetId(templateId)
+  const appliedShopLook = appliedShopLookId ? getShopTemplatePreset(appliedShopLookId) : null
+
+  async function applyShopLook(presetId: ShopTemplatePresetId) {
+    if (!onApplyShopLook || lookBusy) return
+    if (presetId === appliedShopLookId) {
+      setOpenPanel('block')
+      return
+    }
+    if (dirty || canUndo) {
+      const saved = await requestSave()
+      if (!saved) return
+    }
+    if (!window.confirm(t.setupChangeTemplateConfirm)) return
+    setLookBusy(true)
+    try {
+      const result = await onApplyShopLook(presetId)
+      if (!result) return
+      setOpenPanel('block')
+    } finally {
+      setLookBusy(false)
+    }
+  }
 
   const liveViewHref = viewHref?.trim() || undefined
 
@@ -3613,7 +3643,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   if (!active) return null
 
   const isBold = selection?.fontWeight === '700' || selection?.fontWeight === 'bold'
-  const busy = disabled || saving || uploadBusy || aiBusy
+  const busy = disabled || saving || uploadBusy || aiBusy || lookBusy
   const logoActionLabel =
     selection?.logoFace === 'image' ? t.visualEditRecreateLogo : t.visualEditCreateLogo
   const hasRealLogoSrc = Boolean(
@@ -4227,7 +4257,9 @@ export function PartnerWebsiteVisualEditorToolbar({
         ? t.visualEditChromeKit
         : openPanel === 'theme'
           ? t.visualEditMenuTheme
-          : blockPanelTitle
+          : openPanel === 'look'
+            ? t.visualEditMenuLook
+            : blockPanelTitle
 
   return (
     <>
@@ -4340,6 +4372,30 @@ export function PartnerWebsiteVisualEditorToolbar({
             >
               <Palette className="h-3.5 w-3.5" aria-hidden />
               {t.visualEditMenuTheme}
+            </Button>
+          ) : null}
+          {active && onApplyShopLook ? (
+            <Button
+              type="button"
+              size="sm"
+              variant={openPanel === 'look' ? 'default' : 'outline'}
+              className={cn(btn, 'gap-1')}
+              disabled={busy}
+              title={
+                appliedShopLook
+                  ? shopTemplatePresetHeading(appliedShopLook, locale)
+                  : t.visualEditMenuLook
+              }
+              aria-expanded={openPanel === 'look'}
+              onClick={() => togglePanel('look')}
+            >
+              {lookBusy ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : (
+                <Store className="h-3.5 w-3.5" aria-hidden />
+              )}
+              {t.visualEditMenuLook}
+              {appliedShopLook ? ` ${appliedShopLook.code}` : ''}
             </Button>
           ) : null}
           <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -4485,7 +4541,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                 closeLabel={openPanel === 'block' ? undefined : t.visualEditPanelClose}
                 pos={panelPos}
                 onPosChange={setPanelPos}
-                wide={openPanel === 'chromeKit'}
+                wide={openPanel === 'chromeKit' || openPanel === 'look'}
                 onClose={
                   openPanel === 'block'
                     ? undefined
@@ -4832,21 +4888,23 @@ export function PartnerWebsiteVisualEditorToolbar({
                       setDirty(true)
                     }}
                     onToggleTopbar={(kind, hidden) => {
-                      postToIframe(iframeRef.current, 'setChromeKitHidden', { kind, bar: 'topbar', hidden })
-                      setChromeKitTopbar((prev) =>
-                        prev.map((row) => (row.kind === kind ? { ...row, hidden } : row))
-                      )
-                      setDirty(true)
-                    }}
-                    onAddTopbar={(kind) => {
-                      const slug = siteSlug?.trim()
-                      if (!slug) {
-                        onError(t.visualEditSaveFailed)
-                        return
+                      if (!hidden && isChromeKitTopbarAddKind(kind)) {
+                        const slug = siteSlug?.trim()
+                        if (slug) {
+                          const html = buildChromeKitTopbarItemHtml({ kind, locale, siteSlug: slug })
+                          if (html) postToIframe(iframeRef.current, 'addChromeKitTopbar', { kind, html })
+                        }
                       }
-                      const html = buildChromeKitTopbarItemHtml({ kind, locale, siteSlug: slug })
-                      if (!html) return
-                      postToIframe(iframeRef.current, 'addChromeKitTopbar', { kind, html })
+                      postToIframe(iframeRef.current, 'setChromeKitHidden', { kind, bar: 'topbar', hidden })
+                      setChromeKitTopbar((prev) => {
+                        const key = chromeKitTopbarKindKey(kind)
+                        if (prev.some((row) => chromeKitTopbarKindKey(row.kind) === key)) {
+                          return prev.map((row) =>
+                            chromeKitTopbarKindKey(row.kind) === key ? { ...row, hidden } : row
+                          )
+                        }
+                        return [...prev, { kind, hidden, label: kind }]
+                      })
                       setDirty(true)
                     }}
                     onSetFloatStack={(right, bottom, gap) => {
@@ -4914,6 +4972,76 @@ export function PartnerWebsiteVisualEditorToolbar({
                     saving={themeSaving}
                     onLiveChange={onThemeLiveChange}
                   />
+                ) : null}
+                {openPanel === 'look' && onApplyShopLook ? (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-[10px] leading-4 text-muted-foreground">{t.visualEditMenuLookHint}</p>
+                    {lookBusy ? (
+                      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                        {t.studioBuilding}
+                      </p>
+                    ) : null}
+                    <div className="grid grid-cols-2 gap-2">
+                      {shopLookPresets.map((preset) => {
+                        const inUse = appliedShopLookId === preset.id
+                        const previewHref = shopTemplateSamplePreviewPath(preset.id, locale)
+                        return (
+                          <div
+                            key={preset.id}
+                            className={cn(
+                              'overflow-hidden rounded-md border bg-background',
+                              inUse ? 'border-emerald-500 ring-1 ring-emerald-500/30' : 'border-border'
+                            )}
+                          >
+                            <div className="relative aspect-[2/1] overflow-hidden bg-muted">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={preset.coverImageUrl} alt="" className="h-full w-full object-cover" />
+                              {inUse ? (
+                                <span className="absolute right-1 top-1 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+                                  {t.templateInUseBadge}
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="space-y-0.5 px-1.5 py-1">
+                              <p className="text-[11px] font-semibold leading-snug">
+                                <span className="mr-1 inline-block rounded bg-slate-900 px-1 py-px font-mono text-[9px] font-bold tracking-wide text-white">
+                                  {preset.code}
+                                </span>
+                                {shopTemplatePresetLabel(preset, locale)}
+                              </p>
+                              <p className="line-clamp-2 text-[10px] leading-snug text-muted-foreground">
+                                {shopTemplatePresetDescription(preset, locale)}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1 border-t border-border/60 px-1.5 py-1">
+                              <Button type="button" size="sm" variant="outline" className="h-6 px-1.5 text-[10px]" asChild>
+                                <a href={previewHref} target="_blank" rel="noopener noreferrer">
+                                  {t.templateGalleryViewSample}
+                                </a>
+                              </Button>
+                              {inUse ? (
+                                <span className="inline-flex h-6 items-center gap-0.5 rounded-md bg-emerald-600 px-1.5 text-[10px] font-semibold text-white">
+                                  <Check className="h-3 w-3" aria-hidden />
+                                  {t.templateInUseNow}
+                                </span>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="h-6 px-1.5 text-[10px]"
+                                  disabled={busy}
+                                  onClick={() => void applyShopLook(preset.id)}
+                                >
+                                  {t.pagePickerChangeTemplate}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
                 ) : null}
                 {openPanel === 'block' ? (
                   <div className="flex flex-col gap-2">

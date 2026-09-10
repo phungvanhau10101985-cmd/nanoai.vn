@@ -18,9 +18,11 @@ import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import type {
   PartnerWebsiteCanonicalVisualSave,
   PartnerWebsiteProject,
+  PartnerWebsiteRow,
 } from '@/lib/partner-website/partner-website-types'
 import type { FashionHomeCopyPatch } from '@/lib/partner-website/shop/build-fashion-home-copy'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
+import type { ShopTemplatePresetId } from '@/lib/partner-website/template/shop-template-presets'
 import {
   applyThemeCssVarsToFrameWindow,
   themeCssVarMap,
@@ -266,6 +268,10 @@ type PartnerWebsiteDevicePreviewProps = {
   onAdminLogoChange?: (url: string) => void
   htmlSource?: string | null
   useVisualHtml?: boolean
+  templateId?: string | null
+  onApplyShopLook?: (
+    presetId: ShopTemplatePresetId
+  ) => Promise<{ website: PartnerWebsiteRow } | null>
 }
 
 export const PartnerWebsiteDevicePreview = forwardRef<
@@ -293,6 +299,8 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     onShopHomeSave,
     htmlSource,
     useVisualHtml = false,
+    templateId,
+    onApplyShopLook,
   },
   ref
 ) {
@@ -318,6 +326,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   const [editDirty, setEditDirty] = useState(false)
   const [leaveIntent, setLeaveIntent] = useState<VisualEditLeaveIntent | null>(null)
   const [leaveBusy, setLeaveBusy] = useState(false)
+  const [pendingLookReload, setPendingLookReload] = useState(false)
   const [freezeTick, setFreezeTick] = useState(0)
   const [portalReady, setPortalReady] = useState(false)
   const editVariant = visualEditorDeviceVariant(device)
@@ -943,6 +952,27 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   }, [visualEditActive, editDirty, htmlSource, project, liveTheme, previewPageKey, editVariant, editSrcDoc])
 
   useEffect(() => {
+    if (!visualEditActive || !pendingLookReload) return
+    const saved = savedHtmlForVariant(editVariant)
+    if (!visualHtmlLooksReadyForEditor(saved)) return
+    freezeLockRef.current = true
+    setEditSrcDoc(visualEditSrcDoc(saved))
+    setEditDirty(false)
+    setPendingLookReload(false)
+  }, [
+    pendingLookReload,
+    visualEditActive,
+    project,
+    htmlSource,
+    liveTheme,
+    editVariant,
+    previewPageKey,
+    previewCategoryPath,
+    previewProductId,
+    previewCmsSlug,
+  ])
+
+  useEffect(() => {
     if (!visualEditActive || !editSrcDoc || !visualHtmlLooksReadyForEditor(editSrcDoc)) return
     const iframe = iframeRef.current
     if (!iframe) return
@@ -1081,6 +1111,19 @@ export const PartnerWebsiteDevicePreview = forwardRef<
   }, [liveTheme, previewSrc, editSrcDoc])
 
   const canVisualEdit = visualEditEnabled && Boolean(onVisualEditSave || onShopHomeSave)
+  const applyShopLookFromEditor = useCallback(
+    async (presetId: ShopTemplatePresetId) => {
+      if (!onApplyShopLook) return null
+      const result = await onApplyShopLook(presetId)
+      if (result?.website) {
+        flushedHtmlByKeyRef.current = {}
+        setEditDirty(false)
+        setPendingLookReload(true)
+      }
+      return result
+    },
+    [onApplyShopLook]
+  )
   const pageSelectValue = previewCmsSlug
     ? `cms:${previewCmsSlug}`
     : previewPageKey === 'collection'
@@ -1317,6 +1360,8 @@ export const PartnerWebsiteDevicePreview = forwardRef<
             disabled={quickEditDisabled}
             websiteTitle={websiteTitle}
             theme={liveTheme}
+            templateId={templateId}
+            onApplyShopLook={onApplyShopLook ? applyShopLookFromEditor : undefined}
             htmlPath={visualEditorTargetHtmlPath({
               pageKey: previewPageKey,
               variant: editVariant,
@@ -1440,6 +1485,8 @@ export const PartnerWebsiteDevicePreview = forwardRef<
               disabled={quickEditDisabled || !editSrcDoc}
               websiteTitle={websiteTitle}
               theme={liveTheme}
+              templateId={templateId}
+              onApplyShopLook={onApplyShopLook ? applyShopLookFromEditor : undefined}
               htmlPath={visualEditorTargetHtmlPath({
                 pageKey: previewPageKey,
                 variant: editVariant,

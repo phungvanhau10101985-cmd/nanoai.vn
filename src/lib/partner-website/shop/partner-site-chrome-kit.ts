@@ -142,12 +142,12 @@ export const CHROME_KIT_FLOAT_ITEMS: ChromeKitFloatItem[] = PW_CHROME_FLOAT_KIND
   defaultOn: false,
 }))
 
-/** Thanh trên (topbar) — chữ Liên hệ / Đăng nhập / Yêu thích sẵn; Thêm nút chức năng trên Sửa nhanh. */
+/** Thanh trên (topbar) — kit sẵn, ẩn hiện bằng mắt. Liên hệ / Đăng nhập / Yêu thích mặc định hiện. */
 export const CHROME_KIT_TOPBAR_STOCK_KINDS = ['contact', 'favorites-link', 'login'] as const
 
 export type ChromeKitTopbarKind = VisualEditorChromeWidgetKind
 
-/** Nút chữ được thêm lên thanh trên — không search / categories / float / PDP CTA. */
+/** Mọi nút chữ trên thanh trên — seed sẵn; không search / categories / float / PDP CTA. */
 export const CHROME_KIT_TOPBAR_ADD_KINDS: VisualEditorChromeWidgetKind[] = [
   'contact',
   'login',
@@ -182,12 +182,27 @@ export const CHROME_KIT_TOPBAR_ADD_KINDS: VisualEditorChromeWidgetKind[] = [
 ]
 
 const HEAD_ACTION_KIND_SET = new Set(CHROME_KIT_HEAD_ACTION_ITEMS.map((item) => item.kind))
+
+/** Hàng icon Head — không phải chữ Thanh trên (`login` / `favorites-link` / Liên hệ `text`). */
+export function isChromeKitHeadSeatKind(kind: string, style?: string | null): boolean {
+  const k = String(kind || '').trim()
+  if (!k) return false
+  if (k === 'login' || k === 'favorites-link') return false
+  if (k === 'contact' && String(style || 'text').trim() === 'text') return false
+  return HEAD_ACTION_KIND_SET.has(k as VisualEditorChromeWidgetKind)
+}
+
 const DOCK_KIND_SET = new Set(CHROME_KIT_DOCK_ITEMS.map((item) => item.kind))
 const FLOAT_KIND_SET = new Set(CHROME_KIT_FLOAT_ITEMS.map((item) => item.kind))
 const TOPBAR_ADD_KIND_SET = new Set(CHROME_KIT_TOPBAR_ADD_KINDS)
+const TOPBAR_STOCK_KIND_SET = new Set<string>(CHROME_KIT_TOPBAR_STOCK_KINDS)
 
 export function isChromeKitTopbarAddKind(kind: string): kind is VisualEditorChromeWidgetKind {
   return TOPBAR_ADD_KIND_SET.has(kind as VisualEditorChromeWidgetKind)
+}
+
+export function isChromeKitTopbarStockKind(kind: string): boolean {
+  return TOPBAR_STOCK_KIND_SET.has(kind)
 }
 
 export function chromeKitTopbarKindKey(kind: string): string {
@@ -255,7 +270,7 @@ function asKitTag(html: string, extras: string): string {
 }
 
 /** Nút chữ trên thanh trên — kit, không tọa độ, không `data-pw-device`. */
-export function asChromeKitTopbarTag(html: string): string {
+export function asChromeKitTopbarTag(html: string, hidden = false): string {
   let next = asKitTag(html, '')
     .replace(/\sdata-pw-device=(["'])[^"']*\1/gi, '')
     .replace(/\sdata-pw-chrome-place=(["'])[^"']*\1/gi, '')
@@ -270,6 +285,9 @@ export function asChromeKitTopbarTag(html: string): string {
   if (!/\bdata-pw-chrome-style=/.test(next)) {
     next = next.replace(/<(a|button)\b/i, (open) => `${open} data-pw-chrome-style="text"`)
   }
+  if (hidden && !new RegExp(`\\b${PW_HIDDEN_ATTR}=`, 'i').test(next)) {
+    next = next.replace(/<(a|button)\b/i, (open) => `${open}${hiddenAttr(false)}`)
+  }
   return next
 }
 
@@ -277,6 +295,7 @@ export function buildChromeKitTopbarItemHtml(input: {
   kind: VisualEditorChromeWidgetKind
   locale: WebLocale
   siteSlug?: string | null
+  hidden?: boolean
 }): string {
   if (!isChromeKitTopbarAddKind(input.kind)) return ''
   const raw = buildVisualEditorChromeWidgetHtml({
@@ -287,15 +306,24 @@ export function buildChromeKitTopbarItemHtml(input: {
     place: 'header',
   })
   if (!raw) return ''
-  return asChromeKitTopbarTag(raw)
+  return asChromeKitTopbarTag(raw, Boolean(input.hidden))
 }
 
 export function buildChromeKitTopbarInnerHtml(input: {
   locale: WebLocale
   siteSlug?: string | null
+  hideKinds?: Iterable<string>
 }): string {
-  return CHROME_KIT_TOPBAR_STOCK_KINDS.map((kind) =>
-    buildChromeKitTopbarItemHtml({ kind, locale: input.locale, siteSlug: input.siteSlug })
+  const hideKeys = new Set(
+    [...(input.hideKinds || [])].map((kind) => chromeKitTopbarKindKey(kind))
+  )
+  return CHROME_KIT_TOPBAR_ADD_KINDS.map((kind) =>
+    buildChromeKitTopbarItemHtml({
+      kind,
+      locale: input.locale,
+      siteSlug: input.siteSlug,
+      hidden: hideKeys.has(chromeKitTopbarKindKey(kind)) || !isChromeKitTopbarStockKind(kind),
+    })
   )
     .filter(Boolean)
     .join('\n      ')
@@ -304,6 +332,7 @@ export function buildChromeKitTopbarInnerHtml(input: {
 export function buildChromeKitTopbarHtml(input: {
   locale: WebLocale
   siteSlug?: string | null
+  hideKinds?: Iterable<string>
 }): string {
   const inner = buildChromeKitTopbarInnerHtml(input)
   return `<div class="pw-topbar" ${pwRegionAttr(PW_REGION.topbar)} ${PW_CHROME_KIT_ATTR}="topbar"><div class="pw-container pw-topbar-inner">
@@ -833,14 +862,37 @@ function withTopbarHostAttrs(openAttrs: string): string {
 
 function ensureChromeKitTopbarHost(
   html: string,
-  input: { locale: WebLocale; siteSlug?: string | null }
+  input: { locale: WebLocale; siteSlug?: string | null; hideKinds?: Iterable<string> }
 ): string {
+  const hideKeys = new Set(
+    [...(input.hideKinds || [])].map((kind) => chromeKitTopbarKindKey(kind))
+  )
   let found = false
   const next = replaceBalancedTopbars(html, (attrs, inner) => {
     found = true
     let nextInner = stampExistingKitAttrs(inner, 'topbar')
     if (!/\bdata-pw-chrome-btn=/i.test(nextInner)) {
-      nextInner = `\n      <div class="pw-container pw-topbar-inner">\n      ${buildChromeKitTopbarInnerHtml(input)}\n    </div>\n    `
+      nextInner = `\n      <div class="pw-container pw-topbar-inner">\n      ${buildChromeKitTopbarInnerHtml({
+        locale: input.locale,
+        siteSlug: input.siteSlug,
+        hideKinds: hideKeys,
+      })}\n    </div>\n    `
+    } else {
+      const missing = CHROME_KIT_TOPBAR_ADD_KINDS.filter((kind) => !htmlHasTopbarKind(nextInner, kind))
+      if (missing.length) {
+        const extra = missing
+          .map((kind) =>
+            buildChromeKitTopbarItemHtml({
+              kind,
+              locale: input.locale,
+              siteSlug: input.siteSlug,
+              hidden: hideKeys.has(chromeKitTopbarKindKey(kind)) || !isChromeKitTopbarStockKind(kind),
+            })
+          )
+          .filter(Boolean)
+          .join('\n      ')
+        if (extra) nextInner = appendChromeKitTopbarItems(nextInner, extra)
+      }
     }
     return `<div${withTopbarHostAttrs(attrs)}>${nextInner}</div>`
   })
@@ -848,7 +900,11 @@ function ensureChromeKitTopbarHost(
   const headerOpen = html.match(/<header\b[^>]*>/i)
   if (!headerOpen || headerOpen.index == null) return html
   const insertAt = headerOpen.index + headerOpen[0].length
-  return `${html.slice(0, insertAt)}\n  ${buildChromeKitTopbarHtml(input)}\n${html.slice(insertAt)}`
+  return `${html.slice(0, insertAt)}\n  ${buildChromeKitTopbarHtml({
+    locale: input.locale,
+    siteSlug: input.siteSlug,
+    hideKinds: hideKeys,
+  })}\n${html.slice(insertAt)}`
 }
 
 function replaceBalancedHeaderActions(
@@ -1025,6 +1081,55 @@ function chromeBtnKindOf(block: string): string {
   return block.match(/\bdata-pw-chrome-btn=["']([^"']+)["']/i)?.[1] || ''
 }
 
+function chromeBtnBlockIsHidden(block: string): boolean {
+  return new RegExp(`\\b${PW_HIDDEN_ATTR}=["']1["']`, 'i').test(block)
+}
+
+/** Đăng nhập / Yêu thích chữ / Liên hệ chữ thuộc Thanh trên — không phải icon Head `wishlist`. */
+function isEscapedTopbarTextInHeadActions(block: string): boolean {
+  const kind = chromeBtnKindOf(block)
+  if (kind === 'login' || kind === 'favorites-link') return true
+  if (kind !== 'contact') return false
+  const style = block.match(/\bdata-pw-chrome-style=["']([^"']+)["']/i)?.[1] || 'text'
+  return style === 'text'
+}
+
+function stripEscapedTopbarTextFromHeadActions(inner: string): { inner: string; hideOnTopbar: string[] } {
+  const hideOnTopbar: string[] = []
+  CHROME_BTN_BLOCK_RE.lastIndex = 0
+  const next = inner.replace(CHROME_BTN_BLOCK_RE, (block) => {
+    if (!isEscapedTopbarTextInHeadActions(block)) return block
+    const key = chromeKitTopbarKindKey(chromeBtnKindOf(block))
+    if (chromeBtnBlockIsHidden(block)) hideOnTopbar.push(key)
+    return ''
+  })
+  return { inner: next, hideOnTopbar }
+}
+
+function applyHiddenOnChromeBtnBlock(block: string): string {
+  if (chromeBtnBlockIsHidden(block)) return block
+  return block.replace(/<(a|button)(\s[^>]*)>/i, (_open, tag: string, attrs: string) => {
+    if (new RegExp(`\\b${PW_HIDDEN_ATTR}=`, 'i').test(attrs)) {
+      return `<${tag}${attrs.replace(new RegExp(`\\s${PW_HIDDEN_ATTR}=(["'])[^"']*\\1`, 'i'), ` ${PW_HIDDEN_ATTR}="1"`)}>`
+    }
+    return `<${tag}${attrs} ${PW_HIDDEN_ATTR}="1">`
+  })
+}
+
+function applyTopbarHiddenKinds(html: string, keys: string[]): string {
+  if (!keys.length) return html
+  const set = new Set(keys)
+  return replaceBalancedTopbars(html, (attrs, inner) => {
+    CHROME_BTN_BLOCK_RE.lastIndex = 0
+    const nextInner = inner.replace(CHROME_BTN_BLOCK_RE, (block) => {
+      const key = chromeKitTopbarKindKey(chromeBtnKindOf(block))
+      if (!set.has(key)) return block
+      return applyHiddenOnChromeBtnBlock(block)
+    })
+    return `<div${withTopbarHostAttrs(attrs)}>${nextInner}</div>`
+  })
+}
+
 function headKitKindKey(kind: string): string {
   if (kind === 'favorites-link') return 'wishlist'
   if (kind === 'orders-link') return 'orders'
@@ -1050,6 +1155,7 @@ function stripDuplicateHeadKitKinds(inner: string): string {
   CHROME_BTN_BLOCK_RE.lastIndex = 0
   inner.replace(CHROME_BTN_BLOCK_RE, (block, _tag: string, offset: number) => {
     if (/\bdata-pw-chrome-float=["']1["']/i.test(block)) return block
+    if (isEscapedTopbarTextInHeadActions(block)) return block
     const kind = headKitKindKey(chromeBtnKindOf(block))
     if (!isHeadActionKind(kind)) return block
     const score = headKitKeepScore(block)
@@ -1060,6 +1166,7 @@ function stripDuplicateHeadKitKinds(inner: string): string {
   CHROME_BTN_BLOCK_RE.lastIndex = 0
   return inner.replace(CHROME_BTN_BLOCK_RE, (block, _tag: string, offset: number) => {
     if (/\bdata-pw-chrome-float=["']1["']/i.test(block)) return block
+    if (isEscapedTopbarTextInHeadActions(block)) return ''
     const kind = headKitKindKey(chromeBtnKindOf(block))
     if (!isHeadActionKind(kind)) return block
     const keep = best.get(kind)
@@ -1094,6 +1201,7 @@ function stripDuplicateHeadKitKindsInHeaderBody(headerHtml: string): string {
   headerHtml.replace(CHROME_BTN_BLOCK_RE, (block, _tag: string, offset: number) => {
     if (inHeadDedupSkipRange(offset, skip)) return block
     if (/\bdata-pw-chrome-float=["']1["']/i.test(block)) return block
+    if (isEscapedTopbarTextInHeadActions(block)) return block
     const kind = headKitKindKey(chromeBtnKindOf(block))
     if (!isHeadActionKind(kind)) return block
     const score = headKitKeepScore(block)
@@ -1107,6 +1215,7 @@ function stripDuplicateHeadKitKindsInHeaderBody(headerHtml: string): string {
   return headerHtml.replace(CHROME_BTN_BLOCK_RE, (block, _tag: string, offset: number) => {
     if (inHeadDedupSkipRange(offset, skip)) return block
     if (/\bdata-pw-chrome-float=["']1["']/i.test(block)) return block
+    if (isEscapedTopbarTextInHeadActions(block)) return ''
     const kind = headKitKindKey(chromeBtnKindOf(block))
     if (!isHeadActionKind(kind)) return block
     const keep = best.get(kind)
@@ -1225,6 +1334,22 @@ function stripLeftoverPdpFaceOutsideDock(html: string): string {
 function htmlHasChromeKind(html: string, kind: string): boolean {
   const re = new RegExp(`data-pw-chrome-btn=["']${kind}["']`, 'i')
   return re.test(html)
+}
+
+function htmlHasTopbarKind(html: string, kind: string): boolean {
+  const key = chromeKitTopbarKindKey(kind)
+  if (htmlHasChromeKind(html, kind) || (key !== kind && htmlHasChromeKind(html, key))) return true
+  if (key === 'orders-link') return htmlHasChromeKind(html, 'orders')
+  return false
+}
+
+function appendChromeKitTopbarItems(inner: string, extra: string): string {
+  if (!extra.trim()) return inner
+  const close = inner.lastIndexOf('</div>')
+  if (close >= 0 && /\bpw-(?:shop-)?topbar-inner\b/i.test(inner)) {
+    return `${inner.slice(0, close).trimEnd()}\n      ${extra}\n    ${inner.slice(close)}`
+  }
+  return `${inner.trim()}\n      ${extra}\n    `
 }
 
 function chromeOpenTagsOfKind(html: string, kind: string): string[] {
@@ -1750,8 +1875,12 @@ export function ensurePartnerSiteChromeKitInHtml(
     resetInflowHeaderSearchOpenTag(tag, attrs)
   )
 
+  const hideTopbarFromHead: string[] = []
   out = replaceBalancedHeaderActions(out, (attrs, inner) => {
     let nextInner = stampExistingKitAttrs(inner, 'head', input.device)
+    const stripped = stripEscapedTopbarTextFromHeadActions(nextInner)
+    hideTopbarFromHead.push(...stripped.hideOnTopbar)
+    nextInner = stripped.inner
     const missing = CHROME_KIT_HEAD_ACTION_ITEMS.filter((item) => !htmlHasChromeKind(nextInner, item.kind))
     if (missing.length) {
       const extra = buildChromeKitHeadActionHtml({
@@ -1825,7 +1954,12 @@ export function ensurePartnerSiteChromeKitInHtml(
     })
   }
 
-  out = ensureChromeKitTopbarHost(out, { locale, siteSlug: input.siteSlug })
+  out = ensureChromeKitTopbarHost(out, {
+    locale,
+    siteSlug: input.siteSlug,
+    hideKinds: hideTopbarFromHead,
+  })
+  if (hideTopbarFromHead.length) out = applyTopbarHiddenKinds(out, hideTopbarFromHead)
 
   out = ensureChromeKitFloatHost(out, {
     locale,

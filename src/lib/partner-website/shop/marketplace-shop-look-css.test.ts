@@ -47,6 +47,8 @@ test('marketplace look CSS paints chrome with tokens, not brand hex', () => {
   assert.match(css, /:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\]\) \.pw-nav-main \.pw-nav-pill:hover>a/)
   assert.match(css, /\.pw-nav-pill:hover>a\{[\s\S]*?color:#fff!important/)
   assert.match(css, /:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\]\) \.pw-nav-flyout-bar a/)
+  assert.match(css, /:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\]\) \.pw-topbar a/)
+  assert.match(css, /:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\]\) \.pw-shop-topbar a/)
 })
 
 test('injectMarketplaceLookIntoHtml stamps look after chrome and skips other themes', () => {

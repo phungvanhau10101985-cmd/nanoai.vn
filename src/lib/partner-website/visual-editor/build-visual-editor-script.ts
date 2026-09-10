@@ -104,6 +104,7 @@ import {
   PW_MOBILE_HEADER_TOPBAR_HIDE_CSS,
 } from '../shop/mobile-header-logo-collapse'
 import {
+  CHROME_KIT_HEAD_ACTION_ITEMS,
   listMidCanvasFlowChromeKinds,
   PW_KIT_GAP_DEFAULT,
   PW_KIT_GAP_DEFAULT_COMPACT,
@@ -4817,6 +4818,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     actions = header.querySelector('.pw-header-actions, .pw-shop-header-actions') || chromeKitHeadRoot()
     if (!actions) return
     try { stripEscapedHeadChromeLeftovers() } catch (errStripHeadRow) {}
+    try { reseatSearchControlsIntoForm() } catch (errReseatSearch) {}
+    try { reseatEscapedTopbarBtnsFromHead() } catch (errReseatTopbar) {}
     try { stripDuplicateHeadKitBtns() } catch (errDupHeadRow) {}
     try { reseatPdpDockButtonsFromHead() } catch (errReseatPdp) {}
     var kitBtns = document.querySelectorAll('[data-pw-chrome-kit="1"][data-pw-chrome-btn], .pw-header-actions [data-pw-chrome-btn], .pw-shop-header-actions [data-pw-chrome-btn]')
@@ -4826,9 +4829,14 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (!btn || isChromeFloatEl(btn)) continue
       if (isAddedChrome(btn) && !(btn.getAttribute && btn.getAttribute('data-pw-chrome-kit') === '1')) continue
       if (btn.closest && btn.closest('.pw-bottom-nav,.pw-shop-bottom-nav,[data-pw-chrome-kit="dock"],[data-pw-chrome-kit="float"],[data-pw-live-dock]')) continue
+      if (btn.closest && btn.closest('.pw-search-form,.pw-shop-search-form,.pw-header-search,.pw-shop-search-wrap,form[data-pw-search-form]')) continue
+      if (isInsideStockTopbar(btn)) continue
+      if (chromeHeadEscapedTopbarKey(btn)) continue
       if (isPdpDockFaceBtn(btn)) continue
-      var kind = chromeKindOf(btn)
+      var kind = chromeKindOf(btn) || String(btn.getAttribute && btn.getAttribute('data-pw-chrome-btn') || '')
       if (kind === 'categories' || kind === 'search' || kind === 'search-image') continue
+      var style = btn.getAttribute && btn.getAttribute('data-pw-chrome-style')
+      if (!isChromeKitHeadSeatKind(kind, style)) continue
       var wrap = btn.closest && btn.closest('.pw-account-wrap, .pw-shop-account-wrap')
       var home = wrap || btn
       if (home.parentNode !== actions && !(wrap && wrap.parentNode === actions)) {
@@ -4838,6 +4846,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (wrap && wrap !== btn) clearLockedHeaderRowPlacement(wrap)
       pinChromeFlowEl(btn)
     }
+    try { reseatEscapedTopbarBtnsFromHead() } catch (errReseatTopbarAfter) {}
+    try { reseatSearchControlsIntoForm() } catch (errReseatSearchAfter) {}
     try { stripDuplicateHeadKitBtns() } catch (errDupHeadAfterSeat) {}
     pinHeaderChromeIcons()
   }
@@ -4989,6 +4999,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function listChromeKitState() {
     try { collapseExtraHeaderActionHosts() } catch (errListCollapseHead) {}
+    try { reseatSearchControlsIntoForm() } catch (errListReseatSearch) {}
+    try { reseatEscapedTopbarBtnsFromHead() } catch (errListReseatTop) {}
     try { stripDuplicateHeadKitBtns() } catch (errListDupHead) {}
     var headRoot = chromeKitHeadRoot()
     var dockRoot = chromeKitDockRoot()
@@ -5009,6 +5021,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         if (!preferPdpDock && isPdpDockFaceBtn(n)) continue
         var kind = String(n.getAttribute('data-pw-chrome-btn') || '')
         if (!kind || seen[kind]) continue
+        if (chromeHeadEscapedTopbarKey(n)) continue
         seen[kind] = 1
         var dockShow = n.getAttribute('data-pw-dock-show') || ''
         var hidden = n.getAttribute('data-pw-hidden') === '1'
@@ -5251,8 +5264,20 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (bar === 'footer') {
       try { ensureFooterKitAttrs() } catch (errFootHid) {}
     }
+    var k = String(kind || '').replace(/"/g, '')
     var targets = bar === 'float' ? chromeKitFloatBtnsOf(kind) : []
-    if (bar !== 'float') {
+    if (bar === 'head') {
+      var headRoot = chromeKitHeadRoot()
+      if (headRoot && headRoot.querySelectorAll) {
+        var headSel = '[data-pw-chrome-btn="' + k + '"]'
+        if (k === 'wishlist') headSel = '[data-pw-chrome-btn="wishlist"],[data-pw-chrome-btn="favorites-link"]'
+        var headHits = headRoot.querySelectorAll(headSel)
+        var hi
+        for (hi = 0; hi < headHits.length; hi++) {
+          if (headHits[hi] && targets.indexOf(headHits[hi]) < 0) targets.push(headHits[hi])
+        }
+      }
+    } else if (bar !== 'float') {
       var one = findChromeKitBtn(kind, bar)
       if (one) targets.push(one)
     }
@@ -5281,6 +5306,30 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (shouldClear) {
       try { clearSelection() } catch (errClearHid) { selected = null }
       post('deselect', {})
+    }
+    if (bar === 'head') {
+      var syncTop = {}
+      for (ti = 0; ti < targets.length; ti++) {
+        var syncKey = chromeHeadEscapedTopbarKey(targets[ti])
+        if (syncKey) syncTop[syncKey] = 1
+      }
+      if (k === 'login' || k === 'favorites-link') syncTop[chromeKitTopbarKindKey(k)] = 1
+      var topKeys = Object.keys(syncTop)
+      var tk
+      for (tk = 0; tk < topKeys.length; tk++) {
+        var topEl = findChromeKitBtn(topKeys[tk] === 'favorites-link' ? 'favorites-link' : topKeys[tk], 'topbar')
+        if (!topEl) continue
+        if (hidden) topEl.setAttribute('data-pw-hidden', '1')
+        else {
+          topEl.removeAttribute('data-pw-hidden')
+          if (topEl.style) {
+            topEl.style.removeProperty('display')
+            topEl.style.removeProperty('visibility')
+            topEl.style.removeProperty('pointer-events')
+            topEl.style.removeProperty('opacity')
+          }
+        }
+      }
     }
     if (bar === 'float') {
       try { pwChromeFloatApplyStack() } catch (errStackHide) {}
@@ -15290,7 +15339,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '[data-pw-edit-device="mobile"] .pw-header-search,[data-pw-edit-device="mobile"] .pw-shop-search-wrap,.nanoai-ve-mobile .pw-header-search,.nanoai-ve-mobile .pw-shop-search-wrap{flex:1 1 0%!important;min-width:96px!important;min-height:36px!important;width:auto!important;max-width:100%!important;margin:0!important;transform:none!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;position:relative!important;opacity:1!important;visibility:visible!important}',
       '[data-pw-edit-device="tablet"] .pw-header-search,[data-pw-edit-device="tablet"] .pw-shop-search-wrap,.nanoai-ve-tablet .pw-header-search,.nanoai-ve-tablet .pw-shop-search-wrap{flex:1 1 0%!important;min-width:120px!important;min-height:36px!important;width:auto!important;max-width:100%!important;margin:0!important;transform:none!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;position:relative!important;opacity:1!important;visibility:visible!important}',
       '[data-pw-edit-device="mobile"] .pw-brand:has(img) .pw-wordmark,.nanoai-ve-mobile .pw-brand:has(img) .pw-wordmark,[data-pw-edit-device="tablet"] .pw-brand:has(img) .pw-wordmark,.nanoai-ve-tablet .pw-brand:has(img) .pw-wordmark,[data-pw-edit-device="mobile"] [data-pw-logo-wordmark-hidden="1"],.nanoai-ve-mobile [data-pw-logo-wordmark-hidden="1"],[data-pw-edit-device="tablet"] [data-pw-logo-wordmark-hidden="1"],.nanoai-ve-tablet [data-pw-logo-wordmark-hidden="1"]{display:none!important}',
-      '@media (max-width:899px){.pw-brand-cluster,.pw-shop-brand-cluster{max-width:200px!important;overflow:visible!important}.pw-header-search,.pw-shop-search-wrap{flex:1 1 0%!important;min-width:96px!important;min-height:36px!important;width:auto!important;max-width:100%!important;transform:none!important;position:relative!important;left:auto!important;top:auto!important;opacity:1!important;visibility:visible!important}}',
+      '@media (max-width:899px){html:not([data-pw-edit-device="desktop"]):not([data-pw-edit-device="laptop"]):not([data-pw-scene-lock="desktop"]):not([data-pw-scene-lock="laptop"]) .pw-brand-cluster,html:not([data-pw-edit-device="desktop"]):not([data-pw-edit-device="laptop"]):not([data-pw-scene-lock="desktop"]):not([data-pw-scene-lock="laptop"]) .pw-shop-brand-cluster{max-width:200px!important;overflow:visible!important}html:not([data-pw-edit-device="desktop"]):not([data-pw-edit-device="laptop"]):not([data-pw-scene-lock="desktop"]):not([data-pw-scene-lock="laptop"]) .pw-header-search,html:not([data-pw-edit-device="desktop"]):not([data-pw-edit-device="laptop"]):not([data-pw-scene-lock="desktop"]):not([data-pw-scene-lock="laptop"]) .pw-shop-search-wrap{flex:1 1 0%!important;min-width:96px!important;min-height:36px!important;width:auto!important;max-width:100%!important;transform:none!important;position:relative!important;left:auto!important;top:auto!important;opacity:1!important;visibility:visible!important}}',
       '.pw-logo-frame img,[data-pw-logo-frame="1"] img{max-width:none!important;max-height:none!important;width:100%!important;height:100%!important;object-fit:contain!important}',
       '[data-pw-edit-device="desktop"] .pw-header-search,[data-pw-edit-device="desktop"] .pw-shop-search-wrap,[data-pw-edit-device="laptop"] .pw-header-search,[data-pw-edit-device="laptop"] .pw-shop-search-wrap,.nanoai-ve-desktop .pw-header-search,.nanoai-ve-desktop .pw-shop-search-wrap,.nanoai-ve-laptop .pw-header-search,.nanoai-ve-laptop .pw-shop-search-wrap{position:absolute!important;left:50%!important;top:50%!important;transform:translate(-50%,-50%)!important;flex:0 0 auto!important;min-width:180px!important;min-height:34px!important;width:100%!important;max-width:380px!important;margin:0!important;z-index:125!important;opacity:1!important;visibility:visible!important}',
       '.pw-header-search,.pw-shop-search-wrap{flex:1 1 0%!important;min-width:72px!important;width:auto!important;max-width:100%!important;margin:0!important;z-index:1}',
@@ -15321,7 +15370,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '.nanoai-ve-active .pw-header-actions,.nanoai-ve-active .pw-shop-header-actions{z-index:170!important;pointer-events:auto!important;position:relative!important}',
       '.nanoai-ve-active .pw-header-actions > *:not([data-pw-scene]),.nanoai-ve-active .pw-shop-header-actions > *:not([data-pw-scene]),.nanoai-ve-active header [data-pw-el="account"]:not([data-pw-scene]),.nanoai-ve-active .pw-header .pw-account-btn:not([data-pw-scene]),.nanoai-ve-active .pw-shop-header .pw-account-btn:not([data-pw-scene]),.nanoai-ve-active header [data-pw-chrome-btn]:not([data-pw-scene]),.nanoai-ve-active .pw-header [data-pw-chrome-btn]:not([data-pw-scene]),.nanoai-ve-active .pw-shop-header [data-pw-chrome-btn]:not([data-pw-scene]),.nanoai-ve-active .pw-topbar [data-pw-chrome-btn]:not([data-pw-scene]),.nanoai-ve-active .pw-shop-topbar [data-pw-chrome-btn]:not([data-pw-scene]),.nanoai-ve-active .pw-nav-main [data-pw-chrome-btn]:not([data-pw-scene]),.nanoai-ve-active .pw-shop-nav-row [data-pw-chrome-btn]:not([data-pw-scene]),.nanoai-ve-active .pw-bottom-nav [data-pw-chrome-btn]:not([data-pw-scene]),.nanoai-ve-active .pw-shop-bottom-nav [data-pw-chrome-btn]:not([data-pw-scene]),.nanoai-ve-active [data-pw-chrome-added]:not([data-pw-scene]){position:relative;z-index:171;pointer-events:auto!important}',
       ${JSON.stringify(PARTNER_SHOP_FOOTER_INFLOW_CSS)},
-      '@media (max-width:899px){.nanoai-ve-active .pw-header-main,.nanoai-ve-active .pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;column-gap:6px!important;overflow:visible!important;min-width:0!important;max-width:100%!important;padding:8px 10px!important}.pw-brand-cluster,.pw-shop-brand-cluster{flex:0 0 auto!important;width:auto!important;max-width:200px!important;overflow:visible!important}.pw-header a.pw-brand:not([data-pw-logo-float]),.pw-shop-header a.pw-shop-brand:not([data-pw-logo-float]),.pw-header a[data-pw-logo-home]:not([data-pw-logo-float]),.pw-shop-header a[data-pw-logo-home]:not([data-pw-logo-float]){max-width:none!important}.pw-header-search,.pw-shop-search-wrap{flex:1 1 0%!important;min-width:96px!important;min-height:36px!important;width:auto!important;max-width:100%!important;margin:0!important;transform:none!important;position:relative!important;left:auto!important;top:auto!important;opacity:1!important;visibility:visible!important}.pw-header-actions,.pw-shop-header-actions{flex:0 0 auto!important;display:flex!important;flex-wrap:nowrap!important;align-items:center!important;width:auto!important;max-width:none!important;margin-left:auto!important}}',
+      '@media (max-width:899px){html:not([data-pw-edit-device="desktop"]):not([data-pw-edit-device="laptop"]):not([data-pw-scene-lock="desktop"]):not([data-pw-scene-lock="laptop"]) .nanoai-ve-active .pw-header-main,html:not([data-pw-edit-device="desktop"]):not([data-pw-edit-device="laptop"]):not([data-pw-scene-lock="desktop"]):not([data-pw-scene-lock="laptop"]) .nanoai-ve-active .pw-shop-header-inner{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;column-gap:6px!important;overflow:visible!important;min-width:0!important;max-width:100%!important;padding:8px 10px!important}html:not([data-pw-edit-device="desktop"]):not([data-pw-edit-device="laptop"]):not([data-pw-scene-lock="desktop"]):not([data-pw-scene-lock="laptop"]) .pw-brand-cluster,html:not([data-pw-edit-device="desktop"]):not([data-pw-edit-device="laptop"]):not([data-pw-scene-lock="desktop"]):not([data-pw-scene-lock="laptop"]) .pw-shop-brand-cluster{flex:0 0 auto!important;width:auto!important;max-width:200px!important;overflow:visible!important}html:not([data-pw-edit-device="desktop"]):not([data-pw-edit-device="laptop"]):not([data-pw-scene-lock="desktop"]):not([data-pw-scene-lock="laptop"]) .pw-header a.pw-brand:not([data-pw-logo-float]),html:not([data-pw-edit-device="desktop"]):not([data-pw-edit-device="laptop"]):not([data-pw-scene-lock="desktop"]):not([data-pw-scene-lock="laptop"]) .pw-shop-header a.pw-shop-brand:not([data-pw-logo-float]),html:not([data-pw-edit-device="desktop"]):not([data-pw-edit-device="laptop"]):not([data-pw-scene-lock="desktop"]):not([data-pw-scene-lock="laptop"]) .pw-header a[data-pw-logo-home]:not([data-pw-logo-float]),html:not([data-pw-edit-device="desktop"]):not([data-pw-edit-device="laptop"]):not([data-pw-scene-lock="desktop"]):not([data-pw-scene-lock="laptop"]) .pw-shop-header a[data-pw-logo-home]:not([data-pw-logo-float]){max-width:none!important}html:not([data-pw-edit-device="desktop"]):not([data-pw-edit-device="laptop"]):not([data-pw-scene-lock="desktop"]):not([data-pw-scene-lock="laptop"]) .pw-header-search,html:not([data-pw-edit-device="desktop"]):not([data-pw-edit-device="laptop"]):not([data-pw-scene-lock="desktop"]):not([data-pw-scene-lock="laptop"]) .pw-shop-search-wrap{flex:1 1 0%!important;min-width:96px!important;min-height:36px!important;width:auto!important;max-width:100%!important;margin:0!important;transform:none!important;position:relative!important;left:auto!important;top:auto!important;opacity:1!important;visibility:visible!important}html:not([data-pw-edit-device="desktop"]):not([data-pw-edit-device="laptop"]):not([data-pw-scene-lock="desktop"]):not([data-pw-scene-lock="laptop"]) .pw-header-actions,html:not([data-pw-edit-device="desktop"]):not([data-pw-edit-device="laptop"]):not([data-pw-scene-lock="desktop"]):not([data-pw-scene-lock="laptop"]) .pw-shop-header-actions{flex:0 0 auto!important;display:flex!important;flex-wrap:nowrap!important;align-items:center!important;width:auto!important;max-width:none!important;margin-left:auto!important}}',
       '.nanoai-ve-active .pw-header-actions a,.nanoai-ve-active .pw-shop-header-actions a,.nanoai-ve-active header [data-pw-chrome-btn]:not([data-pw-chrome-added]),.nanoai-ve-active header [data-pw-chrome-kit="1"]{cursor:pointer!important}',
       '.nanoai-ve-active header [data-pw-chrome-added]{cursor:grab!important}',
       '.pw-header-actions [data-pw-chrome-added]:not(.pw-chrome-icon-only):not(.pw-chrome-label-below):not([data-pw-chrome-style="icon-label-below"]),.pw-shop-header-actions [data-pw-chrome-added]:not(.pw-chrome-icon-only):not(.pw-chrome-label-below):not([data-pw-chrome-style="icon-label-below"]){display:inline-flex!important;flex:0 0 auto;flex-direction:row!important;align-items:center!important;justify-content:center!important;gap:var(--pw-chrome-gap,6px)!important;width:auto!important;height:auto!important;min-width:0!important;min-height:0!important;padding:var(--pw-chrome-pad-y,4px) var(--pw-chrome-pad-x,12px)!important;font-size:var(--pw-chrome-label,13px)!important;font-weight:700;background:transparent!important;cursor:grab}',
@@ -15800,7 +15849,96 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
   }
   function isInsideStockTopbar(el) {
-    return !!(el && el.closest && el.closest('.pw-topbar,.pw-shop-topbar,[data-pw-region="topbar"]'))
+    return !!(el && el.closest && el.closest('.pw-topbar,.pw-shop-topbar,[data-pw-region="topbar"],[data-pw-chrome-kit="topbar"]'))
+  }
+  function isChromeKitHeadSeatKind(kind, style) {
+    var k = String(kind || '')
+    if (!k) return false
+    if (k === 'login' || k === 'favorites-link') return false
+    if (k === 'contact' && String(style || 'text') === 'text') return false
+    var kinds = ${JSON.stringify(CHROME_KIT_HEAD_ACTION_ITEMS.map((item) => item.kind))}
+    return kinds.indexOf(k) >= 0
+  }
+  function chromeHeadEscapedTopbarKey(el) {
+    if (!el || !el.getAttribute) return ''
+    var kind = String(el.getAttribute('data-pw-chrome-btn') || chromeKindOf(el) || '').replace(/[^a-z0-9-]/g, '')
+    if (kind === 'login') return 'login'
+    if (kind === 'favorites-link') return 'favorites-link'
+    if (kind !== 'contact') return ''
+    var style = el.getAttribute('data-pw-chrome-style') || 'text'
+    return style === 'text' ? 'contact' : ''
+  }
+  function reseatSearchControlsIntoForm() {
+    var header = document.querySelector('header.pw-header, header.pw-shop-header, .pw-shop-header, header')
+    if (!header) return
+    var search = header.querySelector('.pw-header-search, .pw-shop-search-wrap, [data-pw-el="search"]')
+    if (!search) return
+    var form = search.querySelector ? search.querySelector('.pw-search-form, .pw-shop-search-form, form[data-pw-search-form]') : null
+    if (!form) return
+    var nodes = Array.prototype.slice.call(header.querySelectorAll('.pw-search-image-btn, .pw-shop-search-image, [data-pw-image-search], .pw-search-submit, .pw-shop-search-submit'))
+    var i
+    for (i = 0; i < nodes.length; i++) {
+      var el = nodes[i]
+      if (!el || (form.contains && form.contains(el))) continue
+      if (el.closest && el.closest('.pw-bottom-nav,.pw-shop-bottom-nav,[data-pw-chrome-kit="dock"],[data-pw-chrome-kit="float"]')) continue
+      try {
+        if (isSearchImageEl(el)) form.insertBefore(el, form.querySelector('.pw-search-submit, .pw-shop-search-submit, button[type="submit"]') || null)
+        else form.appendChild(el)
+      } catch (errSeatSearch) {}
+    }
+  }
+  function reseatEscapedTopbarBtnsFromHead() {
+    var header = document.querySelector('header.pw-header, header.pw-shop-header, .pw-shop-header, header')
+    var inner = chromeKitTopbarInner(true)
+    if (!header || !inner || !header.querySelectorAll) return
+    var nodes = Array.prototype.slice.call(header.querySelectorAll('[data-pw-chrome-btn]'))
+    var hide = {}
+    var i
+    for (i = 0; i < nodes.length; i++) {
+      var n = nodes[i]
+      if (!n) continue
+      if (n.closest && n.closest('[data-pw-chrome-kit="float"],[data-pw-chrome-kit="dock"],.pw-bottom-nav,.pw-shop-bottom-nav,[data-pw-live-dock]')) continue
+      var key = chromeHeadEscapedTopbarKey(n)
+      if (!key) continue
+      if (isInsideStockTopbar(n)) continue
+      if (n.getAttribute('data-pw-hidden') === '1') hide[key] = 1
+    }
+    for (i = 0; i < nodes.length; i++) {
+      var el = nodes[i]
+      if (!el) continue
+      if (el.closest && el.closest('[data-pw-chrome-kit="float"],[data-pw-chrome-kit="dock"],.pw-bottom-nav,.pw-shop-bottom-nav,[data-pw-live-dock]')) continue
+      var moveKey = chromeHeadEscapedTopbarKey(el)
+      if (!moveKey) continue
+      if (isInsideStockTopbar(el) && inner.contains && inner.contains(el)) continue
+      var existing = null
+      var hits = inner.querySelectorAll('[data-pw-chrome-btn]')
+      var t
+      for (t = 0; t < hits.length; t++) {
+        if (chromeKitTopbarKindKey(hits[t].getAttribute('data-pw-chrome-btn') || '') === moveKey) {
+          existing = hits[t]
+          break
+        }
+      }
+      if (existing && existing !== el) {
+        try { el.remove() } catch (errDropTop) {}
+        continue
+      }
+      try { stampChromeKitTopbarNode(el) } catch (errStampTop) {}
+      if (el.parentNode !== inner) {
+        try { inner.appendChild(el) } catch (errMoveTop) {}
+      }
+    }
+    var keys = Object.keys(hide)
+    for (i = 0; i < keys.length; i++) {
+      var hideKey = keys[i]
+      var hideHits = inner.querySelectorAll('[data-pw-chrome-btn]')
+      var j
+      for (j = 0; j < hideHits.length; j++) {
+        if (chromeKitTopbarKindKey(hideHits[j].getAttribute('data-pw-chrome-btn') || '') === hideKey) {
+          hideHits[j].setAttribute('data-pw-hidden', '1')
+        }
+      }
+    }
   }
   function collapseExtraHeaderActionHosts() {
     var header = document.querySelector('header.pw-header, header.pw-shop-header, .pw-shop-header, header')
@@ -15838,7 +15976,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function stripDuplicateHeadKitBtns() {
     var header = document.querySelector('header.pw-header, header.pw-shop-header, .pw-shop-header, header')
     if (!header || !header.querySelectorAll) return
-    var kinds = ['account', 'recently-viewed', 'cart', 'chat', 'notifications', 'wishlist', 'orders', 'sale', 'contact']
+    var kinds = ['account', 'recently-viewed', 'cart', 'chat', 'notifications', 'wishlist', 'orders', 'sale', 'contact', 'login']
     var i
     for (i = 0; i < kinds.length; i++) {
       var kind = kinds[i]

@@ -137,6 +137,14 @@ html[data-pw-look="marketplace"] .pw-shop-header-actions .pw-account-btn,
 html[data-pw-look="marketplace"] .pw-shop-header .pw-account-btn{
   color:#fff!important;
 }
+html[data-pw-look="marketplace"] .pw-topbar a,
+html[data-pw-look="marketplace"] .pw-topbar button,
+html[data-pw-look="marketplace"] .pw-shop-topbar a,
+html[data-pw-look="marketplace"] .pw-shop-topbar button,
+html[data-pw-look="marketplace"] [data-pw-region="topbar"] a,
+html[data-pw-look="marketplace"] [data-pw-region="topbar"] button{
+  color:#fff!important;
+}
 html[data-pw-look="marketplace"] .pw-header .pw-cat-btn:not([data-pw-chrome-added]),
 html[data-pw-look="marketplace"] .pw-shop-header .pw-shop-cat-btn:not([data-pw-chrome-added]),
 html[data-pw-look="marketplace"] .pw-shop-header .pw-cat-btn:not([data-pw-chrome-added]){
