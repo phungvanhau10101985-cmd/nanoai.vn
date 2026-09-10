@@ -31,7 +31,7 @@ import {
   listMessagingWorkspaceLogoVersions,
   recordGeneratedPartnerChatIcon,
 } from '@/app/dashboard/messaging/actions'
-import { requiredCreditsForLogoCreate } from '@/lib/remove-background-png'
+import { requiredCreditsForLogoCreate } from '@/lib/remove-background-png-prompts'
 
 type LogoVersionRow = {
   id: string

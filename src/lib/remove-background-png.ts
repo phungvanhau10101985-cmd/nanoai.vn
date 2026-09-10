@@ -1,3 +1,7 @@
+/**
+ * Server-only: Gemini mask + PIL. Client UI must import helpers from
+ * `@/lib/remove-background-png-prompts` — this file pulls `next/headers` via usage tracking.
+ */
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { buildTransparentPngFromMask } from '@/lib/mask-to-transparent'
