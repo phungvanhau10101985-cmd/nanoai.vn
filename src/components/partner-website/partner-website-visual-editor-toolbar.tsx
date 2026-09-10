@@ -1910,7 +1910,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [bgColorPickerOpen, setBgColorPickerOpen] = useState(false)
   const pinnedBgSelectionRef = useRef<VisualEditorSelection | null>(null)
   const [logoAspect, setLogoAspect] = useState<LogoGeminiAspectRatio>(DEFAULT_LOGO_GEMINI_ASPECT_RATIO)
-  const [logoStripBg, setLogoStripBg] = useState(true)
+  const [logoStripBg, setLogoStripBg] = useState(false)
   const [logoBgChoice, setLogoBgChoice] = useState<'theme' | 'white' | 'custom'>('theme')
   const [logoBgCustom, setLogoBgCustom] = useState('#c2410c')
   const [logoInkChoice, setLogoInkChoice] = useState<'white' | 'theme' | 'custom'>('white')

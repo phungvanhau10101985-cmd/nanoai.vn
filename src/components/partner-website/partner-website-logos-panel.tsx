@@ -84,7 +84,7 @@ export function PartnerWebsiteLogosPanel({
   const [createKey, setCreateKey] = useState<string | null>(null)
   const [createHint, setCreateHint] = useState('')
   const [createRefUrl, setCreateRefUrl] = useState('')
-  const [createStripBg, setCreateStripBg] = useState(true)
+  const [createStripBg, setCreateStripBg] = useState(false)
   const [logoVersions, setLogoVersions] = useState<LogoVersionRow[]>([])
 
   const inventory = useMemo(
@@ -231,6 +231,7 @@ export function PartnerWebsiteLogosPanel({
     }
     setCreateKey(key)
     setCreateHint('')
+    setCreateStripBg(false)
     const shopLogo = shopMarkUrl(visualDevice)
     setCreateRefUrl(
       slot === 'chat'

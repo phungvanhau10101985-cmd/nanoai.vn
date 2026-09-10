@@ -498,7 +498,7 @@ export function HomeHubChatBar() {
   const [menuVenueDraft, setMenuVenueDraft] = useState('')
   const [landingSectionDraft, setLandingSectionDraft] = useState('')
   const [landingLogoDraft, setLandingLogoDraft] = useState('')
-  const [logoStripBg, setLogoStripBg] = useState(true)
+  const [logoStripBg, setLogoStripBg] = useState(false)
   const [selectedGenRefKeys, setSelectedGenRefKeys] = useState<string[]>([])
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false)
   const [regeneratePromptDraft, setRegeneratePromptDraft] = useState('')
@@ -1594,7 +1594,7 @@ export function HomeHubChatBar() {
   }, [postStudio])
 
   const postGenerateLandingLogo = useCallback(
-    async (brief: string, stripBackground = true) => {
+    async (brief: string, stripBackground = false) => {
       const ok = await postStudio({
         action: 'generate_landing_logo',
         landingLogoBrief: brief || landingLogoDraft,

@@ -1281,7 +1281,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditCreateLogo: 'Tạo logo',
     visualEditRecreateLogo: 'Tạo lại logo',
     visualEditApplyLogoAll: 'Dùng logo này mọi vị trí',
-    visualEditLogoHint: 'Chọn tỷ lệ và màu nền (màu giao diện hoặc trắng). Màu logo: trắng, màu giao diện, hoặc màu khác. Tạo logo = 1,5 credit + 1,5 credit xóa nền PNG (Gemini).',
+    visualEditLogoHint: 'Chọn tỷ lệ và màu nền (màu giao diện hoặc trắng). Màu logo: trắng, màu giao diện, hoặc màu khác. Tạo logo = 1,5 credit. Xóa nền PNG là tùy chọn (+1,5 credit khi tích ô).',
     visualEditLogoPromptLabel: 'Yêu cầu tạo logo (tuỳ ý)',
     visualEditLogoDefaultPrompt:
       'Logo theo shop {shop}: mark thương hiệu, tương phản cao, vừa khung. Gợi ý thêm và ảnh tham khảo là tùy chọn.',
@@ -2389,7 +2389,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditCreateLogo: 'Create logo',
     visualEditRecreateLogo: 'Recreate logo',
     visualEditApplyLogoAll: 'Use this logo everywhere',
-    visualEditLogoHint: 'Pick an aspect ratio and a background (interface color or white). Logo ink can be white, the interface color, or another color. Creating a logo costs 1.5 credits plus 1.5 credits to remove the background (Gemini).',
+    visualEditLogoHint: 'Pick an aspect ratio and a background (interface color or white). Logo ink can be white, the interface color, or another color. Creating a logo costs 1.5 credits. Removing the background is optional (+1.5 credits when checked).',
     visualEditLogoPromptLabel: 'Logo request (optional)',
     visualEditLogoDefaultPrompt:
       'Logo for shop {shop}: brand mark, high contrast, fills the frame. Extra ideas and a reference image are optional.',
@@ -3492,7 +3492,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditCreateLogo: '生成标志',
     visualEditRecreateLogo: '重新生成标志',
     visualEditApplyLogoAll: '将此标志用于所有位置',
-    visualEditLogoHint: '选择比例和背景（界面色或白色）。标志颜色可以是白色、界面色或其他颜色。生成 Logo 为 1.5 积分，再加 1.5 积分抠透明 PNG（Gemini）。',
+    visualEditLogoHint: '选择比例和背景（界面色或白色）。标志颜色可以是白色、界面色或其他颜色。生成 Logo 为 1.5 积分。抠透明 PNG 为可选项（勾选后另加 1.5 积分）。',
     visualEditLogoPromptLabel: '标志要求（可选）',
     visualEditLogoDefaultPrompt:
       '按店铺 {shop} 的 Logo：品牌标志、高对比、填满画框。补充想法和参考图可选。',
@@ -4563,7 +4563,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditCreateLogo: 'ロゴを作成',
     visualEditRecreateLogo: 'ロゴを再作成',
     visualEditApplyLogoAll: 'このロゴをすべての位置に使う',
-    visualEditLogoHint: '比率と背景（テーマ色または白）を選びます。ロゴ色は白、テーマ色、または別の色にできます。ロゴ生成 1.5 クレジット＋背景透過 PNG 1.5 クレジット（Gemini）。',
+    visualEditLogoHint: '比率と背景（テーマ色または白）を選びます。ロゴ色は白、テーマ色、または別の色にできます。ロゴ生成は 1.5 クレジット。背景透過 PNG は任意（チェック時 +1.5 クレジット）。',
     visualEditLogoPromptLabel: 'ロゴの要望（任意）',
     visualEditLogoDefaultPrompt:
       '{shop} のロゴ：ブランドマーク、高コントラスト、枠に合わせる。追加の要望と参考画像は任意。',
@@ -5656,7 +5656,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditCreateLogo: '로고 만들기',
     visualEditRecreateLogo: '로고 다시 만들기',
     visualEditApplyLogoAll: '이 로고를 모든 위치에 사용',
-    visualEditLogoHint: '비율과 배경(인터페이스 색 또는 흰색)을 고르세요. 로고 색은 흰색, 인터페이스 색, 또는 다른 색일 수 있습니다. 로고 생성 1.5 크레딧 + 배경 제거 PNG 1.5 크레딧(Gemini).',
+    visualEditLogoHint: '비율과 배경(인터페이스 색 또는 흰색)을 고르세요. 로고 색은 흰색, 인터페이스 색, 또는 다른 색일 수 있습니다. 로고 생성은 1.5 크레딧. 배경 제거 PNG는 선택(+1.5 크레딧은 체크할 때만).',
     visualEditLogoPromptLabel: '로고 요청 (선택)',
     visualEditLogoDefaultPrompt:
       '{shop} 로고: 브랜드 마크, 고대비, 프레임에 맞춤. 추가 아이디어와 참고 이미지는 선택.',

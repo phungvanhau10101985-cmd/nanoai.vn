@@ -28,20 +28,21 @@ describe('removeBgMaskPrompt', () => {
 })
 
 describe('logo strip-background flag', () => {
-  it('defaults to on when the checkbox value is missing', () => {
-    expect(parseLogoStripBackgroundFlag(undefined)).toBe(true)
-    expect(parseLogoStripBackgroundFlag('')).toBe(true)
+  it('defaults to off when the checkbox value is missing', () => {
+    expect(parseLogoStripBackgroundFlag(undefined)).toBe(false)
+    expect(parseLogoStripBackgroundFlag('')).toBe(false)
     expect(parseLogoStripBackgroundFlag('1')).toBe(true)
     expect(parseLogoStripBackgroundFlag('0')).toBe(false)
     expect(parseLogoStripBackgroundFlag(false)).toBe(false)
+    expect(parseLogoStripBackgroundFlag(true)).toBe(true)
   })
 })
 
 describe('logo remove-bg credits', () => {
   it('adds xoa-nen-png 1.5 only when the strip checkbox is on', () => {
     expect(REMOVE_BG_PNG_CREDIT).toBe(1.5)
-    expect(requiredCreditsForLogoCreate(1.5)).toBe(3)
-    expect(requiredCreditsForLogoCreate(3)).toBe(4.5)
+    expect(requiredCreditsForLogoCreate(1.5)).toBe(1.5)
+    expect(requiredCreditsForLogoCreate(3)).toBe(3)
     expect(requiredCreditsForLogoCreate(1.5, true)).toBe(3)
     expect(requiredCreditsForLogoCreate(1.5, false)).toBe(1.5)
     expect(requiredCreditsForLogoCreate(3, false)).toBe(3)

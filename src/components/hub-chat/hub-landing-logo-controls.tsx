@@ -98,7 +98,7 @@ export function HubLandingLogoControls({
 }) {
   const t = COPY[locale]
   const fileRef = useRef<HTMLInputElement>(null)
-  const [stripBg, setStripBg] = useState(true)
+  const [stripBg, setStripBg] = useState(false)
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-indigo-200/70 bg-white/90 p-3 dark:border-indigo-900/40 dark:bg-slate-900/70">

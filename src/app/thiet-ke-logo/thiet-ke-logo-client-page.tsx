@@ -48,7 +48,7 @@ export default function ThietKeLogoClientPage() {
   const [image, setImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
   const [aspectRatio, setAspectRatio] = useState<string>('1:1')
-  const [stripBg, setStripBg] = useState(true)
+  const [stripBg, setStripBg] = useState(false)
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
@@ -155,7 +155,7 @@ export default function ThietKeLogoClientPage() {
       <div className="tool-page-container">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">{tr('Thiết kế logo thương hiệu', 'Brand Logo Design', '品牌 Logo 设计', 'ブランドロゴデザイン', '브랜드 로고 디자인')}</h1>
-          <p className="text-muted-foreground mt-1">{tr('Mô tả thương hiệu, tải ảnh tham khảo. AI tạo logo rồi xóa nền PNG (Gemini). 2K: 3 credits (1,5 tạo + 1,5 xóa nền); 4K: 4,5 credits.', 'Describe your brand, upload references. AI creates the logo then removes the background (Gemini). 2K: 3 credits (1.5 generate + 1.5 remove BG); 4K: 4.5 credits.', '描述品牌并上传参考图。AI 生成 Logo 后抠透明 PNG（Gemini）。2K：3 credits（1.5 生成 + 1.5 抠图）；4K：4.5 credits。', 'ブランド説明と参考画像。AIがロゴを生成し背景を透過PNGにします（Gemini）。2K：3クレジット（生成1.5＋切り抜き1.5）；4K：4.5クレジット。', '브랜드 설명과 참고 이미지. AI가 로고를 만든 뒤 배경을 투명 PNG로 지웁니다(Gemini). 2K: 3 크레딧(생성 1.5 + 배경 1.5); 4K: 4.5 크레딧.')}</p>
+          <p className="text-muted-foreground mt-1">{tr('Mô tả thương hiệu, tải ảnh tham khảo. AI tạo logo (1,5 credit 2K / 3 credit 4K). Xóa nền PNG là tùy chọn (+1,5 credit khi tích ô).', 'Describe your brand, upload references. AI creates the logo (1.5 credits 2K / 3 credits 4K). Removing the background is optional (+1.5 credits when checked).', '描述品牌并上传参考图。AI 生成 Logo（2K 1.5 积分 / 4K 3 积分）。抠透明 PNG 为可选项（勾选后另加 1.5 积分）。', 'ブランド説明と参考画像。AIがロゴを生成（2K 1.5 / 4K 3 クレジット）。背景透過 PNG は任意（チェック時 +1.5）。', '브랜드 설명과 참고 이미지. AI가 로고를 만듭니다(2K 1.5 / 4K 3 크레딧). 배경 제거 PNG는 선택(체크 시 +1.5).')}</p>
         </div>
 
         {step === 'UPLOAD' && (
@@ -301,7 +301,9 @@ export default function ThietKeLogoClientPage() {
           <Card className="border shadow-sm bg-white/80 backdrop-blur">
             <CardHeader>
               <CardTitle>{tr('Kết quả logo', 'Logo result', 'Logo 结果', 'ロゴ結果', '로고 결과')}</CardTitle>
-              <CardDescription>{tr('Logo PNG nền trong suốt.', 'Transparent PNG logo.', '透明背景 PNG Logo。', '背景透過PNGロゴ。', '투명 배경 PNG 로고.')}</CardDescription>
+              <CardDescription>{stripBg
+                ? tr('Logo PNG nền trong suốt.', 'Transparent PNG logo.', '透明背景 PNG Logo。', '背景透過PNGロゴ。', '투명 배경 PNG 로고.')
+                : tr('Logo AI vừa tạo.', 'Generated logo.', '刚生成的 Logo。', '生成したロゴ。', '생성된 로고.')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">

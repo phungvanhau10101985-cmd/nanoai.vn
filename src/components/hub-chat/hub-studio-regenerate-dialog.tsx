@@ -51,7 +51,7 @@ export function HubStudioRegenerateDialog({
   labels,
   allowEmptyPrompt = false,
   showStripBg = false,
-  stripBg = true,
+  stripBg = false,
   onStripBgChange,
   stripBgLabel,
   onToggleRef,
