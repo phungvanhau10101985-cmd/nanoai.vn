@@ -22,6 +22,14 @@ export function partnerSiteSearchPath(siteSlug: string, opts?: PathOpts & { q?: 
   return q ? `${base}?q=${encodeURIComponent(q)}` : base
 }
 
+export {
+  isPartnerMobileSearchComposePath,
+  isPartnerShopMobileSearchComposeFace,
+  partnerSiteMobileSearchPath,
+  PARTNER_MOBILE_SEARCH_COMPOSE_MQ,
+  PARTNER_MOBILE_SEARCH_COMPOSE_SEGMENT,
+} from '@/lib/partner-website/shop/partner-site-mobile-search-path'
+
 /** Image search listing — 188 `/tim-theo-anh`. */
 export function partnerSiteImageSearchPath(siteSlug: string, opts?: PathOpts): string {
   return partnerSiteHref(siteSlug, '/tim-theo-anh', opts?.customDomain)

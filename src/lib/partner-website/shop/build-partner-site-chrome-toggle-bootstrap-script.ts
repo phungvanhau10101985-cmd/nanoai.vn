@@ -1469,7 +1469,7 @@ if(!window.__pwChromeToggleMo){
 .pw-seo-row a{flex:0 0 auto;white-space:nowrap;font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--pw-muted,#6b7280);text-decoration:none}
 .pw-seo-row a:hover{color:var(--pw-primary)}
 .pw-nav-main,.pw-shop-nav-row{flex-wrap:nowrap!important;overflow:visible;position:relative}
-.pw-nav-row-scroll{display:flex;flex-wrap:nowrap;align-items:center;gap:inherit;width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.pw-nav-row-scroll{display:flex;flex-wrap:nowrap;justify-content:flex-start;align-items:center;gap:inherit;width:max-content;max-width:100%;margin-left:auto;margin-right:auto;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .pw-nav-row-scroll::-webkit-scrollbar{display:none}
 .pw-nav-pill{position:relative;display:inline-flex;align-items:center;flex:0 0 auto;gap:2px}
 .pw-nav-chevron{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;border:none;background:transparent;color:inherit;cursor:pointer;font-size:10px;line-height:1}

@@ -177,12 +177,18 @@ function repairPercentLogoHomes(){
     var frame=a.querySelector?a.querySelector('.pw-logo-frame,[data-pw-logo-frame="1"]'):null;
     var fw=frame?parseFloat(frame.style.width)||0:0;
     var fh=frame?parseFloat(frame.style.height)||0:0;
-    if(!(fw>8&&fh>8)){fw=140;fh=48}
+    if(!(fw>8&&fh>8)){fw=140;fh=36}
     a.style.setProperty('width',Math.round(fw)+'px','important');
     a.style.setProperty('height',Math.round(fh)+'px','important');
-    a.style.removeProperty('transform');
+    a.style.setProperty('--pw-logo-box-w',Math.round(fw)+'px','important');
+    a.style.setProperty('--pw-logo-box-h',Math.round(fh)+'px','important');
+    if(frame&&frame.style){
+      frame.style.setProperty('width',Math.round(fw)+'px','important');
+      frame.style.setProperty('height',Math.round(fh)+'px','important');
+      frame.style.setProperty('--pw-logo-box-w',Math.round(fw)+'px','important');
+      frame.style.setProperty('--pw-logo-box-h',Math.round(fh)+'px','important');
+    }
     if(img.style){
-      img.style.removeProperty('transform');
       img.style.setProperty('width','100%','important');
       img.style.setProperty('height','100%','important');
       img.style.objectFit='contain';

@@ -250,6 +250,10 @@ export const CHROME_KIND_INFER_RULES: ChromeKindInferRule[] = [
     labels: ['lên đầu trang', 'len dau trang', 'lên đầu', 'back to top'],
   },
   {
+    kind: 'back',
+    labels: ['quay lại', 'quay lai', 'go back', '返回', '戻る', '뒤로'],
+  },
+  {
     kind: 'account',
     lastSegs: ['account'],
     classes: ['pw-account-btn'],

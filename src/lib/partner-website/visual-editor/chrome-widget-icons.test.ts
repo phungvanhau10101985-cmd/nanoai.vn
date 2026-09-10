@@ -11,11 +11,13 @@ import {
 describe('chrome widget icons', () => {
   it('offers several glyphs for shop feature buttons', () => {
     expect(canPickChromeGlyph('home')).toBe(true)
+    expect(canPickChromeGlyph('back')).toBe(true)
     expect(canPickChromeGlyph('cart')).toBe(true)
     expect(canPickChromeGlyph('categories')).toBe(true)
     expect(chromeGlyphsForKind('home').length).toBeGreaterThanOrEqual(4)
     expect(chromeGlyphsForKind('account').length).toBeGreaterThanOrEqual(4)
     expect(defaultChromeGlyph('home')).toBe('home')
+    expect(defaultChromeGlyph('back')).toBe('chevron-left')
   })
 
   it('does not swap Chat mua / Zalo / Facebook / search cluster icons', () => {

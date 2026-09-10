@@ -16,6 +16,7 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   })
   assert.match(out, /data-pw-search-bootstrap/)
   assert.match(out, /\/site\/188-com-vn-rl56\/search/)
+  assert.match(out, /\/site\/188-com-vn-rl56\/tim-kiem/)
   assert.match(out, /\/site\/188-com-vn-rl56\/tim-theo-anh/)
   assert.match(out, /\/api\/site\/188-com-vn-rl56\/search\/history/)
   assert.match(out, /data-pw-shop-actions-bootstrap/)
@@ -267,6 +268,20 @@ test('search bootstrap navigates to /search?q= like 188 home /?q= (no overlay fe
   assert.match(s, /location\.assign\(dest\)/)
   assert.doesNotMatch(s, /\/api\/site\/188-shop\/search\/text/)
   assert.doesNotMatch(s, /limit','24'/)
+})
+
+test('search bootstrap opens /tim-kiem on mobile tap like 188 /tim-kiem', () => {
+  const s = buildPartnerSiteSearchBootstrapScript({ siteSlug: '188-shop', locale: 'vi' })
+  assert.match(s, /COMPOSE_PATH/)
+  assert.match(s, /\/site\/188-shop\/tim-kiem/)
+  assert.match(s, /isMobileSearchComposeFace/)
+  assert.match(s, /goMobileCompose/)
+  assert.match(s, /max-width:767px/)
+  assert.match(s, /goShopLocation/)
+  assert.match(s, /target='_top'/)
+  assert.match(s, /window\.top\.location\.assign/)
+  assert.match(s, /inputmode/)
+  assert.match(s, /pw-search-compose/)
 })
 
 test('search bootstrap paints history panel under the search box and keeps guest queries in localStorage', () => {

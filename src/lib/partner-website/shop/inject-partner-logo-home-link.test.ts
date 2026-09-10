@@ -26,6 +26,8 @@ describe('injectPartnerLogoHomeLinkScript', () => {
     expect(next).not.toContain("link.style.display='contents'")
     expect(next).not.toContain("unit.style.setProperty('width','100%','important')")
     expect(next).not.toContain("unit.style.setProperty('height','100%','important')")
+    expect(next).not.toContain("img.style.removeProperty('transform')")
+    expect(next).toContain('--pw-logo-box-w')
   })
 
   it('forces a live click on the logo to assign the shop home', () => {

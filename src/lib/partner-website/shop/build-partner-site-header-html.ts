@@ -7,6 +7,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import {
   partnerSiteHomePath,
+  partnerSiteMobileSearchPath,
   partnerSiteSearchPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
@@ -15,6 +16,7 @@ import {
   buildChromeKitHeadActionHtml,
   chromeKitHeadActionsHostAttrs,
 } from '@/lib/partner-website/shop/partner-site-chrome-kit'
+import { buildMobileHeadBackHtml } from '@/lib/partner-website/shop/mobile-header-back'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { searchGlyphSvg } from '@/lib/partner-website/visual-editor/search-cluster-icons'
@@ -65,10 +67,12 @@ function svgIcon(name: HtmlIconName): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">${paths[name]}</svg>`
 }
 
-function searchLabels(locale: WebLocale) {
+function searchLabels(locale: WebLocale, shopTitle: string) {
   const t = getPartnerSiteShopCopy(locale)
   return {
     placeholder: t.searchPlaceholder,
+    composePlaceholder: t.searchComposePlaceholder.replace('{shop}', shopTitle || ''),
+    composeOpen: t.searchComposeOpen,
     button: t.searchButton,
     image: t.searchByImage,
   }
@@ -170,7 +174,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   const saleHref = escapeAttr(paths.sale)
   const contactHref = escapeAttr(paths.contact)
   const loginHref = escapeAttr(paths.login)
-  const search = searchLabels(input.locale)
+  const search = searchLabels(input.locale, input.title)
   const logo = input.logoUrl?.trim() ?? ''
   const emptyLogoSrc =
     'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
@@ -186,14 +190,22 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
     : `<a class="pw-brand" href="${homeHref}"><img class="pw-logo" ${pwElAttr(PW_EL.logo)} data-pw-logo-empty="1" src="${emptyLogoSrc}" alt=""/><span class="pw-wordmark" ${pwElAttr(PW_EL.wordmark)}>${escapeHtml(input.title)}</span></a>`
 
   const searchAction = siteSlug ? escapeAttr(partnerSiteSearchPath(siteSlug)) : ''
+  const composeHref = siteSlug ? escapeAttr(partnerSiteMobileSearchPath(siteSlug)) : ''
+  const mobileCompose = input.device === 'mobile'
+  const searchField = mobileCompose
+    ? `<a class="pw-search-compose" href="${composeHref || '#'}" target="_top" aria-label="${escapeAttr(search.composeOpen)}"><span>${escapeHtml(search.composePlaceholder || search.placeholder)}</span></a>`
+    : `<input data-pw-search type="search" name="q" placeholder="${escapeAttr(search.placeholder)}" aria-label="${escapeAttr(search.placeholder)}" autocomplete="off"/>`
+  const searchSubmit = mobileCompose
+    ? `<a class="pw-search-submit" href="${composeHref || '#'}" target="_top" aria-label="${escapeAttr(search.composeOpen)}" data-pw-search-glyph="lens">${searchGlyphSvg('lens')}<span class="pw-shop-search-submit-label">${escapeHtml(search.button)}</span></a>`
+    : `<button type="submit" class="pw-search-submit" data-pw-search-glyph="lens">${searchGlyphSvg('lens')}<span class="pw-shop-search-submit-label">${escapeHtml(search.button)}</span></button>`
   const searchBar = `<div class="pw-header-search" ${pwElAttr(PW_EL.search)}>
-    <form class="pw-search-form" data-pw-search-form role="search"${searchAction ? ` method="get" action="${searchAction}"` : ''}>
+    <form class="pw-search-form" data-pw-search-form role="search"${!mobileCompose && searchAction ? ` method="get" action="${searchAction}"` : ''}>
       <span class="pw-search-default-icon" aria-hidden="true">${searchGlyphSvg('lens', 'pw-search-default-glyph')}</span>
-      <input data-pw-search type="search" name="q" placeholder="${escapeAttr(search.placeholder)}" aria-label="${escapeAttr(search.placeholder)}" autocomplete="off"/>
+      ${searchField}
       <button type="button" class="pw-search-image-btn" data-pw-image-search data-pw-search-glyph="camera" aria-label="${escapeAttr(search.image)}" title="${escapeAttr(search.image)}"><span class="pw-chrome-icon-wrap">${searchGlyphSvg('camera')}</span></button>
-      <button type="submit" class="pw-search-submit" data-pw-search-glyph="lens">${searchGlyphSvg('lens')}<span class="pw-shop-search-submit-label">${escapeHtml(search.button)}</span></button>
+      ${searchSubmit}
     </form>
-    <div data-pw-search-history data-pw-search-history-panel="1" hidden></div>
+    ${mobileCompose ? '' : '<div data-pw-search-history data-pw-search-history-panel="1" hidden></div>'}
   </div>`
 
   const categoryLinks = buildCategoryLinks(productsHref, saleHref, input.locale)
@@ -202,6 +214,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   ${topbar}
   <div class="pw-container pw-header-main">
     <div class="pw-brand-cluster">
+      ${input.device === 'mobile' ? `${buildMobileHeadBackHtml({ locale: input.locale })}` : ''}
       <button type="button" class="pw-cat-btn" ${pwElAttr(PW_EL.catToggle)} data-pw-chrome-btn="categories" data-pw-cat-toggle ${PW_CHROME_KIT_ATTR}="1" aria-expanded="false" aria-controls="pw-cat-panel" aria-label="${escapeAttr(shop.navCategories)}">${svgIcon('menu')}<span>${escapeHtml(shop.navCategories)}</span></button>
       ${brandBlock}
       <nav id="pw-cat-panel" class="pw-cat-panel" data-pw-cat-panel aria-label="${escapeAttr(shop.navCategories)}">

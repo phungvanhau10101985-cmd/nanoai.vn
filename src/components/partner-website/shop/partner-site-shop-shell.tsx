@@ -1,8 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   Bell,
+  ChevronLeft,
   Heart,
   Home,
   Menu,
@@ -90,6 +92,10 @@ import {
   PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID,
 } from '@/lib/partner-website/shop/mobile-header-logo-collapse'
 import {
+  PARTNER_SHOP_MOBILE_HEAD_BACK_SCRIPT,
+  PARTNER_SHOP_MOBILE_HEAD_BACK_SCRIPT_ID,
+} from '@/lib/partner-website/shop/mobile-header-back'
+import {
   PARTNER_SHOP_LISTING_HEAD_SCRIPT,
   PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID,
   PW_LISTING_FILTER_SLOT_ATTR,
@@ -161,6 +167,8 @@ export type PartnerSiteShopShellProps = {
   initialShowNavAll?: boolean
   /** Login stays full-width even though pageKind is account. */
   hideAccountNav?: boolean
+  /** Trang soạn tìm kiếm mobile — ẩn header/footer/dock (188 `/tim-kiem`). */
+  hideChrome?: boolean
   children: React.ReactNode
 }
 
@@ -202,6 +210,7 @@ function VisualHomeChromeRuntime({
       [PW_STAY_SCROLL_SCRIPT_ID, PARTNER_SHOP_STAY_SCROLL_SCRIPT],
       [PARTNER_SHOP_STICK_HEADER_SCRIPT_ID, PARTNER_SHOP_STICK_HEADER_SCRIPT],
       [PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID, PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT],
+      [PARTNER_SHOP_MOBILE_HEAD_BACK_SCRIPT_ID, PARTNER_SHOP_MOBILE_HEAD_BACK_SCRIPT],
       [PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID, PARTNER_SHOP_LISTING_HEAD_SCRIPT],
     ]
     for (const [id, body] of scripts) {
@@ -324,6 +333,7 @@ function PartnerSiteShopShellInner({
   chromeLook = null,
   previewDevice = null,
   hideAccountNav = false,
+  hideChrome = false,
   initialNavRow = [],
   initialShowNavAll = false,
   children,
@@ -333,6 +343,14 @@ function PartnerSiteShopShellInner({
   const { openChat } = usePartnerSiteChatWidget()
   const customDomain = usePartnerSiteCustomDomain()
   const paths = getPartnerSiteShopNavPaths(siteSlug, customDomain)
+  const router = useRouter()
+  const handleHeadBack = useCallback(() => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back()
+      return
+    }
+    router.push(paths.home)
+  }, [paths.home, router])
   const [loginHref, setLoginHref] = useState(paths.login)
   useEffect(() => {
     setLoginHref(
@@ -620,9 +638,17 @@ function PartnerSiteShopShellInner({
   return (
     <div className="pw-shop" data-pw-look={shopLook} {...(pageKind ? { 'data-pw-page': pageKind } : {})}>
       <PartnerSiteShopTrackingBootstrap tracking={tracking} />
-      <PartnerSiteCookieConsentBanner siteSlug={siteSlug} locale={locale} />
-      <PartnerSiteBirthGenderPromptModal siteSlug={siteSlug} shopTitle={title} locale={locale} />
+      {hideChrome ? null : (
+        <>
+          <PartnerSiteCookieConsentBanner siteSlug={siteSlug} locale={locale} />
+          <PartnerSiteBirthGenderPromptModal siteSlug={siteSlug} shopTitle={title} locale={locale} />
+        </>
+      )}
       <style dangerouslySetInnerHTML={{ __html: buildPartnerSiteShopThemeCss(theme) }} />
+      {hideChrome ? (
+        <main className="pw-shop-main pw-shop-main-compose">{children}</main>
+      ) : (
+      <>
       {useVisualChrome ? (
         <>
           <VisualHomeChromeRuntime siteSlug={siteSlug} locale={locale} />
@@ -665,6 +691,21 @@ function PartnerSiteShopShellInner({
       <header className="pw-shop-header" data-pw-region={PW_REGION.header}>
         <div className="pw-shop-header-inner">
           <div className="pw-shop-brand-cluster">
+            {mobileCatFace && pageKind && pageKind !== PW_PAGE.home ? (
+              <button
+                type="button"
+                className="pw-shop-cat-btn pw-head-back pw-chrome-icon-only"
+                data-pw-chrome-btn="back"
+                data-pw-head-back="1"
+                aria-label={t.navBack}
+                onClick={handleHeadBack}
+              >
+                <span className="pw-chrome-icon-wrap">
+                  <ChevronLeft className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
+                </span>
+                <span className="pw-chrome-btn-label">{t.navBack}</span>
+              </button>
+            ) : null}
             <div
               className="pw-chrome-cat-wrap"
               ref={categoriesRef}
@@ -783,7 +824,7 @@ function PartnerSiteShopShellInner({
             )}
           </div>
 
-          <PartnerSiteShopSearchBar siteSlug={siteSlug} locale={locale} />
+          <PartnerSiteShopSearchBar siteSlug={siteSlug} locale={locale} previewDevice={previewDevice} />
 
           <div className="pw-shop-header-actions">
             <Link
@@ -1022,6 +1063,8 @@ function PartnerSiteShopShellInner({
           hasFloatingCta={Boolean(theme.floatingCta?.enabled && theme.floatingCta.href)}
         />
       ) : null}
+      </>
+      )}
     </div>
   )
 }
@@ -1036,6 +1079,7 @@ export function PartnerSiteShopShell(props: PartnerSiteShopShellProps) {
       locale={props.locale}
       listenLandingPostMessage
       hideLauncher={
+        Boolean(props.hideChrome) ||
         props.theme.hideChatLauncher !== false ||
         !hasVisualHomeChrome(props.visualChromeByDevice) ||
         visualChromeHasChatMua(props.visualChromeByDevice)

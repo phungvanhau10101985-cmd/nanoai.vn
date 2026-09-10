@@ -336,6 +336,10 @@ export type PartnerWebsiteCopy = {
   visualEditChromeKitShiftHint: string
   visualEditChromeKitGap: string
   visualEditChromeKitGapHint: string
+  visualEditChromeKitTopbarShift: string
+  visualEditChromeKitTopbarShiftHint: string
+  visualEditChromeKitTopbarGap: string
+  visualEditChromeKitTopbarGapHint: string
   visualEditChromeKitLogoPos: string
   visualEditChromeKitLogoX: string
   visualEditChromeKitLogoY: string
@@ -1408,6 +1412,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitShiftHint: 'Cả cụm icon bên phải, vẫn trong hàng. Số âm sang trái, dương sang phải.',
     visualEditChromeKitGap: 'Khoảng cách icon',
     visualEditChromeKitGapHint: 'Khoảng cách giữa các icon cụm phải. Không dời cả cụm.',
+    visualEditChromeKitTopbarShift: 'Cách lề',
+    visualEditChromeKitTopbarShiftHint: 'Cả hàng chữ Liên hệ / Yêu thích / Đăng nhập. Số âm sang trái, dương sang phải. Chỉ máy đang sửa.',
+    visualEditChromeKitTopbarGap: 'Khoảng cách nút',
+    visualEditChromeKitTopbarGapHint: 'Khoảng cách giữa các nút chữ trên thanh trên. Không dời cả hàng.',
     visualEditChromeKitLogoPos: 'Vị trí logo',
     visualEditChromeKitLogoX: 'Ngang',
     visualEditChromeKitLogoY: 'Dọc',
@@ -2500,6 +2508,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitShiftHint: 'Moves the whole right-side icon cluster in flow. Negative is left, positive is right.',
     visualEditChromeKitGap: 'Icon gap',
     visualEditChromeKitGapHint: 'Spacing between the right-side icons. Does not move the whole cluster.',
+    visualEditChromeKitTopbarShift: 'Edge offset',
+    visualEditChromeKitTopbarShiftHint: 'Moves the Contact / Wishlist / Sign-in row. Negative is left, positive is right. This device only.',
+    visualEditChromeKitTopbarGap: 'Button gap',
+    visualEditChromeKitTopbarGapHint: 'Spacing between the top-bar text links. Does not move the whole row.',
     visualEditChromeKitLogoPos: 'Logo position',
     visualEditChromeKitLogoX: 'Horizontal',
     visualEditChromeKitLogoY: 'Vertical',
@@ -3576,6 +3588,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitShiftHint: '移动右侧整组图标，仍在同一行内。负数向左，正数向右。',
     visualEditChromeKitGap: '图标间距',
     visualEditChromeKitGapHint: '右侧图标之间的间距。不移动整组。',
+    visualEditChromeKitTopbarShift: '边距偏移',
+    visualEditChromeKitTopbarShiftHint: '移动整行「联系 / 收藏 / 登录」。负数向左，正数向右。仅当前设备。',
+    visualEditChromeKitTopbarGap: '按钮间距',
+    visualEditChromeKitTopbarGapHint: '顶栏文字按钮之间的间距。不移动整行。',
     visualEditChromeKitLogoPos: '标志位置',
     visualEditChromeKitLogoX: '水平',
     visualEditChromeKitLogoY: '垂直',
@@ -4641,6 +4657,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitShiftHint: '右側のアイコン一式を行内で動かします。マイナスは左、プラスは右です。',
     visualEditChromeKitGap: 'アイコン間隔',
     visualEditChromeKitGapHint: '右側アイコン同士の間隔です。グループ全体の位置は変わりません。',
+    visualEditChromeKitTopbarShift: '余白オフセット',
+    visualEditChromeKitTopbarShiftHint: 'お問い合わせ / お気に入り / ログインの行を動かします。マイナスは左、プラスは右。編集中の端末のみ。',
+    visualEditChromeKitTopbarGap: 'ボタン間隔',
+    visualEditChromeKitTopbarGapHint: 'トップバーの文字リンク同士の間隔です。行全体の位置は変わりません。',
     visualEditChromeKitLogoPos: 'ロゴ位置',
     visualEditChromeKitLogoX: '左右',
     visualEditChromeKitLogoY: '上下',
@@ -5718,6 +5738,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditChromeKitShiftHint: '오른쪽 아이콘 묶음 전체를 같은 줄에서 옮깁니다. 음수는 왼쪽, 양수는 오른쪽입니다.',
     visualEditChromeKitGap: '아이콘 간격',
     visualEditChromeKitGapHint: '오른쪽 아이콘 사이 간격입니다. 묶음 전체 위치는 바꾸지 않습니다.',
+    visualEditChromeKitTopbarShift: '여백 이동',
+    visualEditChromeKitTopbarShiftHint: '문의 / 찜 / 로그인 줄 전체를 옮깁니다. 음수는 왼쪽, 양수는 오른쪽. 지금 기기만.',
+    visualEditChromeKitTopbarGap: '버튼 간격',
+    visualEditChromeKitTopbarGapHint: '상단 글자 버튼 사이 간격입니다. 줄 전체 위치는 바꾸지 않습니다.',
     visualEditChromeKitLogoPos: '로고 위치',
     visualEditChromeKitLogoX: '가로',
     visualEditChromeKitLogoY: '세로',

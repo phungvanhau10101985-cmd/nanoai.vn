@@ -147,7 +147,9 @@ html[data-pw-look="marketplace"] [data-pw-region="topbar"] button{
 }
 html[data-pw-look="marketplace"] .pw-header .pw-cat-btn:not([data-pw-chrome-added]),
 html[data-pw-look="marketplace"] .pw-shop-header .pw-shop-cat-btn:not([data-pw-chrome-added]),
-html[data-pw-look="marketplace"] .pw-shop-header .pw-cat-btn:not([data-pw-chrome-added]){
+html[data-pw-look="marketplace"] .pw-shop-header .pw-cat-btn:not([data-pw-chrome-added]),
+html[data-pw-look="marketplace"] .pw-header [data-pw-chrome-btn="back"]:not([data-pw-chrome-added]),
+html[data-pw-look="marketplace"] .pw-shop-header [data-pw-chrome-btn="back"]:not([data-pw-chrome-added]){
   background:rgba(255,255,255,.16)!important;
   border:1.5px solid rgba(255,255,255,.55)!important;
   color:#fff!important;

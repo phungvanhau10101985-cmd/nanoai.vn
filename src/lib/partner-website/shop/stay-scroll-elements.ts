@@ -78,6 +78,10 @@ export const PARTNER_SHOP_HIDDEN_CSS = [
   `html [data-pw-chrome-kit="dock"] > .pw-account-btn[${PW_HIDDEN_ATTR}="1"]`,
   `html .pw-bottom-nav[data-pw-chrome-kit="dock"] > a[${PW_HIDDEN_ATTR}="1"]`,
   `html .pw-shop-bottom-nav[data-pw-chrome-kit="dock"] > a[${PW_HIDDEN_ATTR}="1"]`,
+  `html .pw-topbar[${PW_HIDDEN_ATTR}="1"]`,
+  `html .pw-shop-topbar[${PW_HIDDEN_ATTR}="1"]`,
+  `html [data-pw-chrome-kit="topbar"][${PW_HIDDEN_ATTR}="1"]`,
+  `html [data-pw-region="topbar"][${PW_HIDDEN_ATTR}="1"]`,
 ].join(',') + '{display:none!important}'
 
 export const PARTNER_SHOP_STAY_SCROLL_CSS = `

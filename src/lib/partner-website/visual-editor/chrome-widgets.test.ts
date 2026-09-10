@@ -65,6 +65,7 @@ test('chrome widgets accept shop header kinds', () => {
   assert.equal(isVisualEditorChromeWidgetKind('account'), true)
   assert.equal(isVisualEditorChromeWidgetKind('wallet'), true)
   assert.equal(isVisualEditorChromeWidgetKind('home'), true)
+  assert.equal(isVisualEditorChromeWidgetKind('back'), true)
   assert.equal(isVisualEditorChromeWidgetKind('categories'), true)
   assert.equal(isVisualEditorChromeWidgetKind('search'), true)
   assert.equal(isVisualEditorChromeWidgetKind('search-image'), true)
@@ -791,6 +792,8 @@ test('phone Instagram WhatsApp share logout coupon and lead form wire live APIs'
   assert.equal(chromeWidgetLiveHook('logout'), 'logout')
   assert.equal(chromeWidgetLiveHook('coupon'), 'coupon')
   assert.equal(chromeWidgetLiveHook('lead-form'), 'lead')
+  assert.equal(chromeWidgetLiveHook('back'), 'history-back')
+  assert.equal(VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS.includes('back'), false)
   assert.equal(chromeWidgetHref('register', '188-shop'), partnerSiteLoginPath('188-shop'))
   const phone = buildVisualEditorChromeWidgetHtml({
     kind: 'phone',

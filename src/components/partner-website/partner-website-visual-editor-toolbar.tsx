@@ -147,6 +147,7 @@ import {
   PW_KIT_GAP_MIN,
   PW_KIT_X_MAX,
   PW_KIT_X_MIN,
+  PW_TOPBAR_GAP_DEFAULT,
 } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import {
   clampHeaderLogoOffsetX,
@@ -1159,6 +1160,10 @@ function ChromeKitPanel({
   onShiftHead,
   headGap,
   onSetHeadGap,
+  topbarX,
+  onShiftTopbar,
+  topbarGap,
+  onSetTopbarGap,
   logoX,
   logoY,
   onSetLogoOffset,
@@ -1194,6 +1199,10 @@ function ChromeKitPanel({
   onReorder: (kind: string, bar: 'head' | 'dock' | 'float' | 'topbar', dir: 'up' | 'down') => void
   onShiftHead: (x: number) => void
   onSetHeadGap: (gap: number) => void
+  topbarX: number
+  onShiftTopbar: (x: number) => void
+  topbarGap: number
+  onSetTopbarGap: (gap: number) => void
   onSetLogoOffset: (x: number, y: number) => void
 }) {
   const headTitle =
@@ -1250,6 +1259,8 @@ function ChromeKitPanel({
   }
   const shift = clampChromeKitShift(headX)
   const gap = clampChromeKitGap(headGap)
+  const topbarShift = clampChromeKitShift(topbarX)
+  const topbarBtnGap = clampChromeKitGap(topbarGap)
   const seenFloat = new Set<string>()
   const floatRows: ChromeKitListItem[] = []
   for (const row of float) {
@@ -1400,6 +1411,70 @@ function ChromeKitPanel({
         <div className="rounded-lg border p-2">
       <p className="mt-1 px-1 text-[11px] font-semibold">{t.visualEditChromeKitTopbar}</p>
       <p className="px-1 text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitTopbarHint}</p>
+      <label className="flex flex-col gap-1 px-1 text-[10px] text-muted-foreground">
+        <span className="flex items-center justify-between gap-2">
+          <span>{t.visualEditChromeKitTopbarShift}</span>
+          <span className="inline-flex items-center gap-1">
+            <input
+              type="number"
+              min={PW_KIT_X_MIN}
+              max={PW_KIT_X_MAX}
+              step={1}
+              value={topbarShift}
+              disabled={busy}
+              onChange={(e) => {
+                if (e.target.value === '') return
+                onShiftTopbar(clampChromeKitShift(e.target.value))
+              }}
+              className="h-6 w-14 rounded border bg-background px-1 text-right text-[11px] text-foreground"
+            />
+            <span>px</span>
+          </span>
+        </span>
+        <input
+          type="range"
+          min={PW_KIT_X_MIN}
+          max={PW_KIT_X_MAX}
+          step={1}
+          value={topbarShift}
+          disabled={busy}
+          onChange={(e) => onShiftTopbar(clampChromeKitShift(e.target.value))}
+          className="w-full accent-foreground"
+        />
+        <span className="leading-4">{t.visualEditChromeKitTopbarShiftHint}</span>
+      </label>
+      <label className="flex flex-col gap-1 px-1 text-[10px] text-muted-foreground">
+        <span className="flex items-center justify-between gap-2">
+          <span>{t.visualEditChromeKitTopbarGap}</span>
+          <span className="inline-flex items-center gap-1">
+            <input
+              type="number"
+              min={PW_KIT_GAP_MIN}
+              max={PW_KIT_GAP_MAX}
+              step={1}
+              value={topbarBtnGap}
+              disabled={busy}
+              onChange={(e) => {
+                if (e.target.value === '') return
+                onSetTopbarGap(clampChromeKitGap(e.target.value))
+              }}
+              className="h-6 w-14 rounded border bg-background px-1 text-right text-[11px] text-foreground"
+            />
+            <span>px</span>
+          </span>
+        </span>
+        <input
+          type="range"
+          min={PW_KIT_GAP_MIN}
+          max={PW_KIT_GAP_MAX}
+          step={1}
+          value={topbarBtnGap}
+          disabled={busy}
+          onChange={(e) => onSetTopbarGap(clampChromeKitGap(e.target.value))}
+          className="w-full accent-foreground"
+        />
+        <span className="leading-4">{t.visualEditChromeKitTopbarGapHint}</span>
+      </label>
       <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
       {topbarRows.map((item) => (
         <ChromeKitRow
@@ -1821,6 +1896,8 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [chromeKitLogoX, setChromeKitLogoX] = useState(0)
   const [chromeKitLogoY, setChromeKitLogoY] = useState(0)
   const [chromeKitHeadGap, setChromeKitHeadGap] = useState<number>(PW_KIT_GAP_DEFAULT)
+  const [chromeKitTopbarX, setChromeKitTopbarX] = useState(0)
+  const [chromeKitTopbarGap, setChromeKitTopbarGap] = useState<number>(PW_TOPBAR_GAP_DEFAULT)
   const [panelPos, setPanelPos] = useState<{ x: number; y: number } | null>(null)
   const [bgColorPickerOpen, setBgColorPickerOpen] = useState(false)
   const pinnedBgSelectionRef = useRef<VisualEditorSelection | null>(null)
@@ -2371,6 +2448,8 @@ export function PartnerWebsiteVisualEditorToolbar({
         floatGap?: number
         headX?: number
         headGap?: number
+        topbarX?: number
+        topbarGap?: number
         logoX?: number
         logoY?: number
         show?: string
@@ -2560,6 +2639,8 @@ export function PartnerWebsiteVisualEditorToolbar({
         setChromeKitFloatGap(clampChromeFloatGap(data.floatGap ?? PW_FLOAT_GAP_DEFAULT))
         setChromeKitHeadX(clampChromeKitShift(data.headX))
         setChromeKitHeadGap(clampChromeKitGap(data.headGap ?? PW_KIT_GAP_DEFAULT))
+        setChromeKitTopbarX(clampChromeKitShift(data.topbarX))
+        setChromeKitTopbarGap(clampChromeKitGap(data.topbarGap ?? PW_TOPBAR_GAP_DEFAULT))
         setChromeKitLogoX(clampHeaderLogoOffsetX(data.logoX))
         setChromeKitLogoY(clampHeaderLogoOffsetY(data.logoY))
       }
@@ -4865,6 +4946,8 @@ export function PartnerWebsiteVisualEditorToolbar({
                     floatGap={chromeKitFloatGap}
                     headX={chromeKitHeadX}
                     headGap={chromeKitHeadGap}
+                    topbarX={chromeKitTopbarX}
+                    topbarGap={chromeKitTopbarGap}
                     logoX={chromeKitLogoX}
                     logoY={chromeKitLogoY}
                     busy={busy}
@@ -4952,6 +5035,16 @@ export function PartnerWebsiteVisualEditorToolbar({
                     onSetHeadGap={(gap) => {
                       setChromeKitHeadGap(gap)
                       postToIframe(iframeRef.current, 'setChromeKitGap', { bar: 'head', gap })
+                      setDirty(true)
+                    }}
+                    onShiftTopbar={(x) => {
+                      setChromeKitTopbarX(x)
+                      postToIframe(iframeRef.current, 'setChromeKitShift', { bar: 'topbar', x })
+                      setDirty(true)
+                    }}
+                    onSetTopbarGap={(gap) => {
+                      setChromeKitTopbarGap(gap)
+                      postToIframe(iframeRef.current, 'setChromeKitGap', { bar: 'topbar', gap })
                       setDirty(true)
                     }}
                     onSetLogoOffset={(x, y) => {

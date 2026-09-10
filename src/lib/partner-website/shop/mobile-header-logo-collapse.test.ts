@@ -9,6 +9,7 @@ import {
   PW_ESCAPED_HEAD_CHROME_HIDE_CSS,
   PW_MOBILE_HEADER_PDP_LEFTOVER_HIDE_CSS,
   PW_MOBILE_HEADER_STACK_RULES,
+  PW_MOBILE_HEADER_STACK_WIN_CSS,
   PW_MOBILE_LOGO_SCROLL_COLLAPSE_Y,
   PW_MOBILE_LOGO_SCROLL_EXPAND_Y,
 } from '@/lib/partner-website/shop/mobile-header-logo-collapse'
@@ -39,6 +40,11 @@ test('mobile header stack centers the logo row and keeps toolbar below', () => {
   assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('data-pw-logo-empty'), true)
   assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('nanoai-ve-active'), true)
   assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('.pw-brand-cluster,.pw-shop-brand-cluster{display:contents!important'), true)
+  assert.equal(PW_MOBILE_HEADER_STACK_WIN_CSS.includes('flex-wrap:wrap!important'), true)
+  assert.equal(PW_MOBILE_HEADER_STACK_WIN_CSS.includes('display:contents!important'), true)
+  assert.equal(PW_MOBILE_HEADER_STACK_WIN_CSS.includes('flex:1 1 100%!important'), true)
+  assert.equal(PW_MOBILE_HEADER_STACK_WIN_CSS.includes('left:auto!important'), true)
+  assert.equal(PW_MOBILE_HEADER_STACK_WIN_CSS.includes('html[data-pw-edit-device="mobile"] body.nanoai-ve-active .pw-header-main'), true)
   assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('.pw-chrome-cat-wrap{display:contents'), false)
   assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('.pw-chrome-cat-wrap{display:inline-flex!important'), true)
   assert.equal(PW_MOBILE_HEADER_STACK_RULES.includes('width:100%!important'), true)
@@ -86,7 +92,10 @@ test('chrome layout injects mobile logo script and stack CSS once', () => {
   assert.equal(once.includes('data-pw-head-logo-collapsed'), true)
   assert.equal(once.includes('flex-wrap:wrap!important'), true)
   assert.equal(once.includes('.pw-container.pw-header-main'), true)
-  assert.equal(once.includes('html[data-pw-edit-device="mobile"] .pw-brand-cluster'), true)
+  assert.equal(once.includes('html[data-pw-edit-device="mobile"] .pw-header a.pw-brand:not([data-pw-logo-float])'), true)
+  assert.equal(once.includes('left:auto!important'), true)
+  assert.equal(once.includes('html:not([data-pw-edit-device="mobile"]):not([data-pw-scene-lock="mobile"]) .pw-header-main'), true)
+  assert.equal(once.includes('@media (min-width:768px) and (max-width:899px)'), true)
   assert.equal(once.includes('html[data-pw-edit-device="tablet"] .pw-brand-cluster'), true)
   assert.equal(
     once.includes('html[data-pw-edit-device="tablet"] .pw-header a.pw-brand:not([data-pw-logo-float])'),

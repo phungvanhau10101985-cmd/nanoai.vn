@@ -7,6 +7,7 @@ import {
   PW_LOGO_X_MIN,
   PW_LOGO_Y_ATTR,
   stampHeaderLogoOffsetInHtml,
+  stampHeaderLogoFrameBoxInHtml,
   stampFooterLogoOffsetInHtml,
   stampChromeLogoOffsetInHtml,
   withBrandLogoOffsetStyle,
@@ -21,13 +22,16 @@ describe('header logo offset', () => {
     expect(clampHeaderLogoOffsetY(12.6)).toBe(13)
   })
 
-  it('stamps css vars on header brand only', () => {
-    const html = `<header class="pw-header"><a class="pw-brand" href="/" ${PW_LOGO_X_ATTR}="24" ${PW_LOGO_Y_ATTR}="-8"><img class="pw-logo" alt=""/></a></header><footer><a class="pw-brand" href="/"><img alt="f"/></a></footer>`
+  it('stamps css vars on header brand and inherits onto header-main', () => {
+    const html = `<header class="pw-header"><div class="pw-header-main"><a class="pw-brand" href="/" ${PW_LOGO_X_ATTR}="24" ${PW_LOGO_Y_ATTR}="-8"><img class="pw-logo" alt=""/></a></div></header><footer><a class="pw-brand" href="/"><img alt="f"/></a></footer>`
     const next = stampHeaderLogoOffsetInHtml(html)
     expect(next).toContain(`${PW_LOGO_X_ATTR}="24"`)
     expect(next).toContain(`${PW_LOGO_Y_ATTR}="-8"`)
     expect(next).toContain('--pw-logo-x:24px')
     expect(next).toContain('--pw-logo-y:-8px')
+    expect(next).toMatch(/class="pw-header-main"[^>]*--pw-logo-x:24px/)
+    expect(next).toMatch(/class="pw-header-main"[^>]*--pw-logo-y:-8px/)
+    expect(next).not.toMatch(/class="pw-header-main"[^>]*data-pw-logo-x/)
     const footer = next.slice(next.indexOf('<footer'))
     expect(footer).not.toContain('--pw-logo-x')
   })
@@ -62,6 +66,14 @@ describe('header logo offset', () => {
     expect(footer).toContain('--pw-logo-x:-12px')
     expect(header).not.toContain('--pw-logo-x:-12px')
     expect(footer).not.toContain('--pw-logo-x:24px')
+  })
+
+  it('stamps header logo frame box vars from authored px', () => {
+    const html = `<header class="pw-header"><span class="pw-logo-frame" data-pw-logo-frame="1" style="width:180px;height:56px"><img class="pw-logo" alt=""/></span></header>`
+    const next = stampHeaderLogoFrameBoxInHtml(html)
+    expect(next).toContain('--pw-logo-box-w:180px')
+    expect(next).toContain('--pw-logo-box-h:56px')
+    expect(next).toContain('width:180px')
   })
 
   it('stampFooterLogoOffsetInHtml does not write onto header brand', () => {

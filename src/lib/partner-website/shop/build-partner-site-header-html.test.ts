@@ -197,12 +197,45 @@ describe('listing native UI contract stamps', () => {
       device: 'mobile',
     })
     expect(header).toContain('pw-search-default-icon')
+    expect(header).toContain('class="pw-search-compose"')
+    expect(header).toContain('/site/demo-shop/tim-kiem')
+    expect(header).toContain('target="_top"')
+    expect(header).not.toContain('data-pw-search type="search"')
+    expect(header).not.toContain('data-pw-search-history')
     expect(header).toContain('data-pw-image-search')
     expect(header).toContain('data-pw-search-glyph="camera"')
     expect(header).toContain('data-pw-search-glyph="lens"')
     expect(header).toContain('data-pw-logo-empty="1"')
     expect(header).toContain('class="pw-logo"')
     expect(header).toContain('pw-wordmark')
+    expect(header).toContain('data-pw-chrome-btn="back"')
+    expect(header).toContain('data-pw-head-back="1"')
+    const backAt = header.indexOf('data-pw-chrome-btn="back"')
+    const catAt = header.indexOf('data-pw-chrome-btn="categories"')
+    expect(backAt).toBeGreaterThan(-1)
+    expect(catAt).toBeGreaterThan(backAt)
+  })
+
+  it('does not stamp a head back button on desktop or tablet', () => {
+    const desktop = buildPartnerSiteHeaderHtml({
+      locale: 'vi',
+      title: 'Demo Shop',
+      siteSlug: 'demo-shop',
+      device: 'desktop',
+    }).header
+    const tablet = buildPartnerSiteHeaderHtml({
+      locale: 'vi',
+      title: 'Demo Shop',
+      siteSlug: 'demo-shop',
+      device: 'tablet',
+    }).header
+    expect(desktop).not.toContain('data-pw-chrome-btn="back"')
+    expect(tablet).not.toContain('data-pw-chrome-btn="back"')
+    expect(desktop).toContain('data-pw-search type="search"')
+    expect(tablet).toContain('data-pw-search type="search"')
+    expect(desktop).toContain('data-pw-search-history')
+    expect(desktop).not.toContain('pw-search-compose')
+    expect(tablet).not.toContain('pw-search-compose')
   })
 
   it('fills an existing brand that lost its logo img', () => {

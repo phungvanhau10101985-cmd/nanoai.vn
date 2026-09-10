@@ -59,6 +59,11 @@ function stampChromeBtnOpenTag(
     return `<${tag}${next}>`
   }
 
+  if (hook === 'history-back') {
+    next = setAttr(next, 'data-pw-head-back', '1')
+    return `<${tag}${next}>`
+  }
+
   if (hook === 'categories') {
     next = setAttr(next, 'data-pw-cat-toggle', '1')
     next = setAttr(next, 'data-pw-el', 'cat-toggle')

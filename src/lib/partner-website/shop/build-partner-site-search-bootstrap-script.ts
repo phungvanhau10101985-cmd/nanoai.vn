@@ -4,6 +4,7 @@ import {
   partnerSiteSearchHistoryApiPath,
   partnerSiteSearchPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteMobileSearchPath } from '@/lib/partner-website/shop/partner-site-mobile-search-path'
 import { partnerSiteSearchHistoryStorageKey } from '@/lib/partner-website/shop/partner-site-search-history'
 import {
   PW_PENDING_IMAGE_EVENT,
@@ -153,12 +154,14 @@ export function buildPartnerSiteSearchBootstrapScript(input: {
   const historyApi = partnerSiteSearchHistoryApiPath(slug)
   const historyLsKey = partnerSiteSearchHistoryStorageKey(slug)
   const searchPath = partnerSiteSearchPath(slug)
+  const composePath = partnerSiteMobileSearchPath(slug)
   const imagePath = partnerSiteImageSearchPath(slug)
 
   return `<script data-pw-search-bootstrap>(function(){
 ${PW_SHOP_LIVE_UI_OFF_FN};
 ${PW_SITE_SALE_MO_SKIP_JS};
 var SEARCH_PATH=${JSON.stringify(searchPath)};
+var COMPOSE_PATH=${JSON.stringify(composePath)};
 var IMAGE_PATH=${JSON.stringify(imagePath)};
 var HISTORY_API=${JSON.stringify(historyApi)};
 var HISTORY_LS=${JSON.stringify(historyLsKey)};
@@ -246,6 +249,7 @@ function renderHistory(){
 }
 function openHistory(){
   if(pwShopLiveUiOff())return;
+  if(isMobileSearchComposeFace()&&!onMobileComposePage())return;
   historyOpen=true;
   var inp=searchHistoryInput();
   if(inp){inp.setAttribute('aria-expanded','true');inp.setAttribute('aria-haspopup','listbox');}
@@ -316,10 +320,53 @@ function loadHistory(){
     })
     .catch(function(){setHistoryList(readLocalHistory());});
 }
+function publicPathname(){
+  try{
+    if(window.top&&window.top!==window&&window.top.location)return String(window.top.location.pathname||'');
+  }catch(e){}
+  return String(location.pathname||'');
+}
 function toPublicPath(p){
   var s=String(p||'');
-  if(String(location.pathname||'').indexOf('/site/')===0)return s;
+  if(publicPathname().indexOf('/site/')===0)return s;
   return s.replace(/^\\/site\\/[^/]+(?=\\/|$)/,'')||'/';
+}
+function goShopLocation(dest){
+  dest=String(dest||'');
+  try{
+    var a=document.createElement('a');
+    a.href=dest;
+    a.target='_top';
+    a.rel='noopener';
+    a.style.display='none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return;
+  }catch(e){}
+  try{
+    if(window.top&&window.top!==window){window.top.location.assign(dest);return;}
+  }catch(e2){}
+  location.assign(dest);
+}
+function isMobileSearchComposeFace(){
+  var html=document.documentElement;
+  var d=String((html&&html.getAttribute('data-pw-edit-device'))||(html&&html.getAttribute('data-pw-scene-lock'))||'').toLowerCase();
+  if(d==='mobile')return true;
+  if(d==='desktop'||d==='laptop'||d==='tablet')return false;
+  try{return window.matchMedia('(max-width:767px)').matches;}catch(e){return false;}
+}
+function onMobileComposePage(){
+  var p=publicPathname().replace(/\\/$/,'');
+  return /\\/tim-kiem$/.test(p);
+}
+function goMobileCompose(q){
+  if(pwShopLiveUiOff())return;
+  if(onMobileComposePage())return;
+  var base=toPublicPath(COMPOSE_PATH);
+  var term=String(q||'').trim();
+  var dest=term?base+(base.indexOf('?')>=0?'&':'?')+'q='+encodeURIComponent(term):base;
+  goShopLocation(dest);
 }
 function runTextSearch(q){
   if(pwShopLiveUiOff())return;
@@ -328,10 +375,10 @@ function runTextSearch(q){
   persistHistory(q);
   var base=toPublicPath(SEARCH_PATH);
   var dest=base+(base.indexOf('?')>=0?'&':'?')+'q='+encodeURIComponent(q);
-  location.assign(dest);
+  goShopLocation(dest);
 }
 function onImageSearchPage(){
-  var p=String(location.pathname||'').replace(/\\/$/,'');
+  var p=publicPathname().replace(/\\/$/,'');
   var dest=String(IMAGE_PATH||'').replace(/\\/$/,'');
   if(p===dest||(dest&&p.indexOf(dest+'/')===0))return true;
   return /\\/tim-theo-anh$/.test(p);
@@ -382,17 +429,23 @@ function storePendingAndGo(file){
       try{window.dispatchEvent(new CustomEvent(PENDING_EVT));}catch(e){}
       return;
     }
-    location.assign(toPublicPath(IMAGE_PATH));
-  }).catch(function(){location.assign(toPublicPath(IMAGE_PATH));});
+    goShopLocation(toPublicPath(IMAGE_PATH));
+  }).catch(function(){goShopLocation(toPublicPath(IMAGE_PATH));});
 }
 function bindText(){
   var forms=document.querySelectorAll('[data-pw-search-form], form[role="search"]');
   forms.forEach(function(form){
     if(form.getAttribute('data-pw-search-bound'))return;
+    if(form.getAttribute('data-pw-search-compose')||form.querySelector('[data-pw-search-compose]'))return;
     form.setAttribute('data-pw-search-bound','1');
     form.addEventListener('submit',function(e){
       var input=form.querySelector('[data-pw-search], input[type="search"], input[name="q"], input[name="search"]');
       var q=input&&'value' in input?input.value:'';
+      if(isMobileSearchComposeFace()&&!onMobileComposePage()){
+        e.preventDefault();
+        goMobileCompose(q);
+        return;
+      }
       if(!q)return;
       e.preventDefault();
       runTextSearch(q);
@@ -400,27 +453,60 @@ function bindText(){
   });
   document.querySelectorAll('[data-pw-search], .pw-search-form input[type="search"], .pw-shop-search-form input[type="search"]').forEach(function(input){
     if(input.getAttribute('data-pw-search-bound'))return;
+    if(input.getAttribute('data-pw-search-compose'))return;
     input.setAttribute('data-pw-search-bound','1');
     input.setAttribute('aria-haspopup','listbox');
     input.setAttribute('aria-expanded','false');
-    input.addEventListener('focus',function(){openHistory();});
+    if(isMobileSearchComposeFace()&&!onMobileComposePage()){
+      input.setAttribute('readonly','readonly');
+      input.setAttribute('inputmode','none');
+    }
+    if(isMobileSearchComposeFace()&&!onMobileComposePage()){
+      try{input.setAttribute('readonly','readonly');input.setAttribute('inputmode','none');}catch(errLock){}
+    }
+    input.addEventListener('focus',function(){
+      if(isMobileSearchComposeFace()&&!onMobileComposePage()){
+        try{input.blur();}catch(err){}
+        goMobileCompose(input.value);
+        return;
+      }
+      openHistory();
+    });
     input.addEventListener('keydown',function(e){
-      if(e.key==='Enter'){e.preventDefault();closeHistory();runTextSearch(input.value);}
+      if(e.key==='Enter'){
+        e.preventDefault();
+        if(isMobileSearchComposeFace()&&!onMobileComposePage()){goMobileCompose(input.value);return;}
+        closeHistory();runTextSearch(input.value);
+      }
       if(e.key==='Escape')closeHistory();
     });
   });
   // Header search without data attrs: first type=search in header/nav
   if(!document.querySelector('[data-pw-search],[data-pw-search-form]')){
     var hi=document.querySelector('header input[type="search"], nav input[type="search"], .search input[type="search"], input[type="search"]');
-    if(hi&&!hi.getAttribute('data-pw-search-bound')){
+    if(hi&&!hi.getAttribute('data-pw-search-bound')&&!hi.getAttribute('data-pw-search-compose')){
       hi.setAttribute('data-pw-search','1');
       hi.setAttribute('data-pw-search-bound','1');
+      if(isMobileSearchComposeFace()&&!onMobileComposePage()){
+        hi.setAttribute('readonly','readonly');
+        hi.setAttribute('inputmode','none');
+      }
       var form=hi.closest('form');
       if(form){
         form.setAttribute('data-pw-search-form','1');
-        form.addEventListener('submit',function(e){e.preventDefault();runTextSearch(hi.value);});
+        form.addEventListener('submit',function(e){
+          e.preventDefault();
+          if(isMobileSearchComposeFace()&&!onMobileComposePage()){goMobileCompose(hi.value);return;}
+          runTextSearch(hi.value);
+        });
       }else{
-        hi.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();runTextSearch(hi.value);}});
+        hi.addEventListener('keydown',function(e){
+          if(e.key==='Enter'){
+            e.preventDefault();
+            if(isMobileSearchComposeFace()&&!onMobileComposePage()){goMobileCompose(hi.value);return;}
+            runTextSearch(hi.value);
+          }
+        });
       }
     }
   }
@@ -605,6 +691,36 @@ if(!document.documentElement.getAttribute('data-pw-search-history-doc')){
     if(t.closest('[data-pw-search-history], .pw-search-form, .pw-shop-search-form, [data-pw-search-form], [data-pw-search]'))return;
     closeHistory();
   });
+  document.addEventListener('pointerdown',function(e){
+    if(pwShopLiveUiOff())return;
+    if(!isMobileSearchComposeFace()||onMobileComposePage())return;
+    var t=e.target;
+    if(!t||!t.closest)return;
+    if(t.closest(imageBtnSel()))return;
+    if(t.closest('[data-pw-search-compose],.pw-mobile-search,.pw-search-compose,.pw-shop-search-compose'))return;
+    var wrap=t.closest('.pw-header-search,.pw-shop-search-wrap,[data-pw-el="search"],[data-pw-search-form],.pw-search-form,.pw-shop-search-form');
+    if(!wrap)return;
+    if(wrap.querySelector('.pw-search-compose,.pw-shop-search-compose,a[href*="/tim-kiem"]'))return;
+    var input=wrap.querySelector('[data-pw-search], input[type="search"], input[name="q"]');
+    if(input&&input.getAttribute('data-pw-search-compose'))return;
+    e.preventDefault();
+    goMobileCompose(input&&'value' in input?input.value:'');
+  },true);
+  document.addEventListener('click',function(e){
+    if(pwShopLiveUiOff())return;
+    if(!isMobileSearchComposeFace()||onMobileComposePage())return;
+    var t=e.target;
+    if(!t||!t.closest)return;
+    if(t.closest(imageBtnSel()))return;
+    if(t.closest('[data-pw-search-compose],.pw-mobile-search,.pw-search-compose,.pw-shop-search-compose'))return;
+    var wrap=t.closest('.pw-header-search,.pw-shop-search-wrap,[data-pw-el="search"],[data-pw-search-form],.pw-search-form,.pw-shop-search-form');
+    if(!wrap)return;
+    if(wrap.querySelector('.pw-search-compose,.pw-shop-search-compose,a[href*="/tim-kiem"]'))return;
+    var input=wrap.querySelector('[data-pw-search], input[type="search"], input[name="q"]');
+    if(input&&input.getAttribute('data-pw-search-compose'))return;
+    e.preventDefault();
+    goMobileCompose(input&&'value' in input?input.value:'');
+  },true);
 }
 var imgMoT=null;
 if(!window.__pwSearchMo){

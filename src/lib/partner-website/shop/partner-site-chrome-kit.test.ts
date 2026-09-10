@@ -6,10 +6,13 @@ import {
   PARTNER_SHOP_CHROME_KIT_CSS,
   PW_CHROME_KIT_ATTR,
   PW_DOCK_SHOW_ATTR,
+  PW_KIT_OFF_ATTR,
   PW_KIT_GAP_ATTR,
   PW_KIT_GAP_DEFAULT,
   PW_KIT_GAP_DEFAULT_COMPACT,
   PW_KIT_GAP_MAX,
+  PW_TOPBAR_GAP_DEFAULT,
+  PW_TOPBAR_EDGE_SHIFT_CSS,
   PW_KIT_X_ATTR,
   PW_KIT_X_MIN,
   buildChromeKitDockHtml,
@@ -382,12 +385,15 @@ describe('partner-site-chrome-kit', () => {
     expect(isChromeKitPickerKind('cart')).toBe(true)
     expect(isChromeKitPickerKind('chat-zalo')).toBe(true)
     expect(isChromeKitPickerKind('topup')).toBe(true)
+    expect(isChromeKitPickerKind('back')).toBe(true)
+    expect(CHROME_KIT_HEAD_ACTION_ITEMS.some((item) => item.kind === 'back')).toBe(false)
     expect(isChromeKitPickerKind('lead-form')).toBe(false)
     expect(isChromeKitPickerKind('stores')).toBe(false)
     expect(isMidCanvasFlowChromeKind('stores')).toBe(true)
     expect(isMidCanvasFlowChromeKind('wallet')).toBe(true)
     expect(isMidCanvasFlowChromeKind('cart')).toBe(false)
     expect(isMidCanvasFlowChromeKind('chat-zalo')).toBe(false)
+    expect(isMidCanvasFlowChromeKind('back')).toBe(false)
     expect(isPdpDockCtaLocked('add-cart')).toBe(true)
     expect(isPdpDockCtaLocked('buy-now')).toBe(true)
     expect(isPdpDockCtaLocked('home')).toBe(false)
@@ -672,6 +678,31 @@ describe('partner-site-chrome-kit', () => {
     expect(untouched).not.toContain('--pw-kit-gap')
   })
 
+  it('stamps Thanh trên kit-x / kit-gap on the inner without remapping Head icon rhythm', () => {
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(`gap:var(--pw-kit-gap, ${PW_TOPBAR_GAP_DEFAULT}px)`)
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(PW_TOPBAR_EDGE_SHIFT_CSS)
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).not.toMatch(/\.pw-topbar-inner[^{]*\{[^}]*transform:translateX/)
+    const html = `<header class="pw-header"><div class="pw-topbar" data-pw-region="topbar"><div class="pw-container pw-topbar-inner" ${PW_KIT_X_ATTR}="-12" ${PW_KIT_GAP_ATTR}="8">
+      <a data-pw-chrome-btn="contact" href="/contact">Liên hệ</a>
+    </div></div></header>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' })
+    const inner = next.match(/<div[^>]*pw-topbar-inner[^>]*>/)?.[0] || ''
+    expect(inner).toContain(`${PW_KIT_X_ATTR}="-12"`)
+    expect(inner).toContain('--pw-kit-x:-12px')
+    expect(inner).toContain(`${PW_KIT_GAP_ATTR}="8"`)
+    expect(inner).toContain('--pw-kit-gap:8px')
+    expect(inner).not.toContain(`${PW_KIT_GAP_ATTR}="33"`)
+    const laptopKeep18 = ensurePartnerSiteChromeKitInHtml(
+      `<header class="pw-header"><div class="pw-topbar" data-pw-region="topbar"><div class="pw-container pw-topbar-inner" ${PW_KIT_GAP_ATTR}="18">
+        <a data-pw-chrome-btn="contact" href="/contact">Liên hệ</a>
+      </div></div></header>`,
+      { locale: 'vi', siteSlug: 'demo-shop', device: 'laptop' }
+    )
+    const laptopInner = laptopKeep18.match(/<div[^>]*pw-topbar-inner[^>]*>/)?.[0] || ''
+    expect(laptopInner).toContain(`${PW_KIT_GAP_ATTR}="18"`)
+    expect(laptopInner).not.toContain(`${PW_KIT_GAP_ATTR}="33"`)
+  })
+
   it('bumps leftover desktop head icon size 26 to 20 without touching custom or other devices', () => {
     const desktop = ensurePartnerSiteChromeKitInHtml(
       `<header class="pw-header"><div class="pw-header-actions">
@@ -702,6 +733,29 @@ describe('partner-site-chrome-kit', () => {
     const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' })
     expect(next).not.toMatch(/pw-header-search[^>]*data-pw-user-move/)
     expect(next).not.toMatch(/pw-header-search[^>]*width:\s*280px/)
+  })
+
+  it('converts leftover mobile header search input into /tim-kiem like 188', () => {
+    const html = `<html data-pw-edit-device="mobile"><header class="pw-header">
+      <div class="pw-header-search" data-pw-el="search">
+        <form class="pw-search-form" data-pw-search-form>
+          <input data-pw-search type="search" name="q" placeholder="Tìm sản phẩm…"/>
+          <button type="button" class="pw-search-image-btn" data-pw-image-search>cam</button>
+          <button type="submit" class="pw-search-submit">TÌM</button>
+        </form>
+        <div data-pw-search-history data-pw-search-history-panel="1" hidden></div>
+      </div>
+    </header></html>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, {
+      locale: 'vi',
+      siteSlug: 'demo-shop',
+      device: 'mobile',
+    })
+    expect(next).toContain('pw-search-compose')
+    expect(next).toContain('/site/demo-shop/tim-kiem')
+    expect(next).toContain('target="_top"')
+    expect(next).not.toMatch(/data-pw-search type="search"/)
+    expect(next).toContain('data-pw-image-search')
   })
 
   it('keeps an absolutely placed search box', () => {
@@ -971,5 +1025,42 @@ describe('partner-site-chrome-kit', () => {
     expect(topbar).not.toMatch(
       /data-pw-chrome-btn="favorites-link"[^>]*data-pw-hidden="1"|data-pw-hidden="1"[^>]*data-pw-chrome-btn="favorites-link"/
     )
+  })
+
+  it('does not reseed Thanh trên after merchant deleted it', () => {
+    const html = `<!DOCTYPE html><html><body>
+<header class="pw-header" ${PW_KIT_OFF_ATTR}="topbar">
+  <div class="pw-header-actions">
+    <a data-pw-chrome-btn="account" href="/account">Tài khoản</a>
+    <a data-pw-chrome-btn="cart" href="/cart">Giỏ hàng</a>
+  </div>
+</header>
+</body></html>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' })
+    expect(next).toContain(`${PW_KIT_OFF_ATTR}="topbar"`)
+    expect(next).not.toMatch(/data-pw-chrome-kit=["']topbar["']/)
+    expect(next).not.toMatch(/\bpw-topbar\b/)
+  })
+
+  it('keeps a hidden Thanh trên host hidden after ensure', () => {
+    const html = `<!DOCTYPE html><html><body>
+<header class="pw-header" ${PW_KIT_OFF_ATTR}="topbar">
+  <div class="pw-topbar" data-pw-region="topbar" data-pw-hidden="1"><div class="pw-container pw-topbar-inner">
+    <a href="/contact" data-pw-el="link" data-pw-chrome-btn="contact" data-pw-chrome-style="text" data-pw-hidden="1">Liên hệ</a>
+    <a href="/login" data-pw-el="link" data-pw-chrome-btn="login" data-pw-chrome-style="text" data-pw-hidden="1">Đăng nhập</a>
+  </div></div>
+  <div class="pw-header-actions">
+    <a data-pw-chrome-btn="account" href="/account">Tài khoản</a>
+  </div>
+</header>
+</body></html>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' })
+    expect(next).toMatch(
+      /<(?:div)[^>]*(?:pw-topbar|data-pw-chrome-kit=["']topbar["'])[^>]*data-pw-hidden="1"|<(?:div)[^>]*data-pw-hidden="1"[^>]*(?:pw-topbar|data-pw-chrome-kit=["']topbar["'])/
+    )
+    const topbar = next.match(/<div[^>]*(?:pw-topbar|data-pw-region=["']topbar["'])[\s\S]*?<\/div>\s*<\/div>/i)?.[0] || ''
+    expect(topbar).toMatch(/data-pw-hidden="1"/)
+    const contact = topbar.match(/<a[^>]*data-pw-chrome-btn="contact"[^>]*>/i)?.[0] || ''
+    expect(contact).toMatch(/data-pw-hidden="1"/)
   })
 })

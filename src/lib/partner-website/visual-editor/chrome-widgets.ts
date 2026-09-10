@@ -490,6 +490,7 @@ function chromeSizeAttrs(
 
 export const VISUAL_EDITOR_CHROME_WIDGET_KINDS = [
   'home',
+  'back',
   'products',
   'categories',
   'search',
@@ -769,6 +770,7 @@ export function chromeWidgetAppearance(
 /** How a Thêm-phần-tử widget talks to the live shop — serve-time, every tenant. */
 export type ChromeWidgetLiveHook =
   | 'route'
+  | 'history-back'
   | 'search'
   | 'search-image'
   | 'categories'
@@ -800,6 +802,7 @@ export function isGapOnlyChromeAddKind(kind: string): boolean {
 }
 
 export function chromeWidgetLiveHook(kind: VisualEditorChromeWidgetKind): ChromeWidgetLiveHook {
+  if (kind === 'back') return 'history-back'
   if (kind === 'search') return 'search'
   if (kind === 'search-image') return 'search-image'
   if (kind === 'categories') return 'categories'
@@ -828,6 +831,7 @@ export function chromeWidgetLiveHook(kind: VisualEditorChromeWidgetKind): Chrome
 export function chromeWidgetHref(kind: VisualEditorChromeWidgetKind, siteSlug: string): string {
   const slug = siteSlug.trim()
   if (kind === 'home') return partnerSiteHomePath(slug)
+  if (kind === 'back') return '#'
   if (kind === 'products' || kind === 'categories' || kind === 'search' || kind === 'search-image') {
     return partnerSiteProductsPath(slug)
   }
@@ -889,6 +893,7 @@ export function chromeWidgetLabel(kind: VisualEditorChromeWidgetKind, locale: We
   const shop = getPartnerSiteShopCopy(locale)
   const nav = getPartnerSiteCategoryNavLabels(locale)
   if (kind === 'home') return shop.navHome
+  if (kind === 'back') return shop.navBack
   if (kind === 'products') return shop.navProducts
   if (kind === 'categories') return shop.navCategories
   if (kind === 'search') return shop.searchPlaceholder.replace(/[.…]+$/, '').trim() || shop.searchPlaceholder

@@ -37,8 +37,22 @@ import {
 } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import { PW_SCENE_MAX_INDEX, pwSceneZ } from '@/lib/partner-website/visual-editor/pw-scene'
 import { stampChromeLogoOffsetInHtml } from '@/lib/partner-website/shop/header-logo-offset'
+import { ensureMobileHeadBackInHtml } from '@/lib/partner-website/shop/mobile-header-back'
+import { ensureMobileSearchComposeInHtml } from '@/lib/partner-website/shop/mobile-header-search-compose'
 
 export const PW_CHROME_KIT_ATTR = 'data-pw-chrome-kit'
+/** Header stamp khi merchant Xóa thanh trên — Lưu / live không seed lại. */
+export const PW_KIT_OFF_ATTR = 'data-pw-kit-off'
+
+export function htmlHasChromeKitOff(html: string, kit: string): boolean {
+  const key = String(kit || '').trim()
+  if (!html || !key) return false
+  const re = new RegExp(`\\b${PW_KIT_OFF_ATTR}=["']([^"']*)["']`, 'i')
+  const found = html.match(re)
+  if (!found) return false
+  return found[1].split(/\s+/).includes(key)
+}
+
 export const PW_DOCK_SHOW_ATTR = 'data-pw-dock-show'
 export const PW_DOCK_SLOT_ATTR = 'data-pw-dock-slot'
 /** Nút Thêm giỏ / Mua trên thanh đáy PDP — cố định, không sửa trên Sửa nhanh. */
@@ -56,6 +70,11 @@ export const PW_KIT_GAP_MAX = 48
 /** Desktop/Laptop seed. Tablet 6 / mobile 4 — `chromeHeadKitGapForDevice`. */
 export const PW_KIT_GAP_DEFAULT = PW_HEAD_KIT_GAP.desktop
 export const PW_KIT_GAP_DEFAULT_COMPACT = PW_HEAD_KIT_GAP.mobile
+/** Khoảng cách chữ Thanh trên (theme `.pw-topbar-inner` 18px). */
+export const PW_TOPBAR_GAP_DEFAULT = 18
+/** Cách lề Thanh trên: đệm phải = inset − kit-x. Không dùng transform — host `.pw-topbar` khóa `transform:none`. */
+export const PW_TOPBAR_EDGE_SHIFT_CSS =
+  'padding-right:max(0px,calc(var(--pw-chrome-inset,60px) - var(--pw-kit-x, 0px)))!important'
 
 export function clampChromeKitShift(raw: unknown): number {
   const n = Math.round(Number(raw))
@@ -244,7 +263,15 @@ export function isChromeKitManagedKind(kind: string): boolean {
 }
 
 export function isChromeKitPickerKind(kind: string): boolean {
-  return isChromeKitManagedKind(kind) || kind === 'categories' || kind === 'search' || kind === 'search-image' || kind === 'login' || kind === 'favorites-link'
+  return (
+    isChromeKitManagedKind(kind) ||
+    kind === 'categories' ||
+    kind === 'search' ||
+    kind === 'search-image' ||
+    kind === 'login' ||
+    kind === 'favorites-link' ||
+    kind === 'back'
+  )
 }
 
 /** Nút Thêm ở giữa (Cửa hàng / Ví quà…) — kéo tọa độ, luôn lớp nổi. */
@@ -607,6 +634,7 @@ function pwProductDockCss(selector: string, body: string): string {
 
 export const PARTNER_SHOP_CHROME_KIT_CSS = `
 .pw-header-actions[${PW_CHROME_KIT_ATTR}="actions"],.pw-shop-header-actions[${PW_CHROME_KIT_ATTR}="actions"]{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;margin-right:0!important;gap:var(--pw-kit-gap, ${PW_KIT_GAP_DEFAULT}px)!important;transform:translateX(var(--pw-kit-x, 0px))!important}
+.pw-topbar-inner,.pw-shop-topbar-inner{gap:var(--pw-kit-gap, ${PW_TOPBAR_GAP_DEFAULT}px)!important;${PW_TOPBAR_EDGE_SHIFT_CSS}}
 .pw-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"],.pw-shop-bottom-nav[${PW_CHROME_KIT_ATTR}="dock"]{flex-wrap:nowrap!important;align-items:stretch}
 .pw-bottom-nav .pw-pdp-sticky-nav,.pw-shop-bottom-nav .pw-pdp-sticky-nav,.pw-bottom-nav .pw-pdp-sticky-ctas,.pw-shop-bottom-nav .pw-pdp-sticky-ctas,
 .pw-bottom-nav [${PW_DOCK_SHOW_ATTR}="pdp"],.pw-shop-bottom-nav [${PW_DOCK_SHOW_ATTR}="pdp"]{display:none!important}
@@ -897,6 +925,7 @@ function ensureChromeKitTopbarHost(
     return `<div${withTopbarHostAttrs(attrs)}>${nextInner}</div>`
   })
   if (found) return next
+  if (htmlHasChromeKitOff(html, 'topbar')) return html
   const headerOpen = html.match(/<header\b[^>]*>/i)
   if (!headerOpen || headerOpen.index == null) return html
   const insertAt = headerOpen.index + headerOpen[0].length
@@ -1612,6 +1641,48 @@ function withHostKitGapStyle(openAttrs: string, device?: VisualDeviceVariant | n
   )
 }
 
+/** Thanh trên: cùng attr kit-x / kit-gap, không remap nhịp icon Head. */
+function withTopbarKitGapStyle(openAttrs: string): string {
+  const fromAttr = openAttrs.match(new RegExp(`\\b${PW_KIT_GAP_ATTR}=(["'])([^"']*)\\1`, 'i'))?.[2]
+  const fromCss = openAttrs.match(/--pw-kit-gap\s*:\s*(-?\d+(?:\.\d+)?)px/i)?.[1]
+  if (fromAttr == null && fromCss == null) return openAttrs
+  return writeHostCssVar(openAttrs, PW_KIT_GAP_ATTR, '--pw-kit-gap', clampChromeKitGap(fromAttr ?? fromCss))
+}
+
+function replaceBalancedTopbarInner(
+  html: string,
+  replacer: (attrs: string, inner: string) => string
+): string {
+  let out = ''
+  let cursor = 0
+  const openRe = /<div([^>]*\b(?:pw-topbar-inner|pw-shop-topbar-inner)\b[^>]*)>/gi
+  while (cursor < html.length) {
+    openRe.lastIndex = cursor
+    const found = openRe.exec(html)
+    if (!found || found.index == null) {
+      out += html.slice(cursor)
+      break
+    }
+    const hit = extractBalancedTag(html, 'div', found.index)
+    if (!hit) {
+      out += html.slice(cursor, found.index + found[0].length)
+      cursor = found.index + found[0].length
+      continue
+    }
+    out += html.slice(cursor, hit.start)
+    out += replacer(found[1] || '', hit.inner)
+    cursor = hit.start + hit.full.length
+  }
+  return out
+}
+
+function stampTopbarInnerKitStyle(html: string): string {
+  return replaceBalancedTopbarInner(
+    html,
+    (attrs, inner) => `<div${withTopbarKitGapStyle(withHostKitShiftStyle(attrs))}>${inner}</div>`
+  )
+}
+
 function stampPdpCtaLockAttrs(html: string): string {
   return html.replace(/<(button|a)(\s[^>]*data-pw-chrome-btn=["'](?:add-cart|buy-now)["'][^>]*)>/gi, (_full, tag: string, attrs: string) => {
     let next = String(attrs)
@@ -1960,6 +2031,7 @@ export function ensurePartnerSiteChromeKitInHtml(
     hideKinds: hideTopbarFromHead,
   })
   if (hideTopbarFromHead.length) out = applyTopbarHiddenKinds(out, hideTopbarFromHead)
+  out = stampTopbarInnerKitStyle(out)
 
   out = ensureChromeKitFloatHost(out, {
     locale,
@@ -1969,14 +2041,20 @@ export function ensurePartnerSiteChromeKitInHtml(
     device: input.device,
   })
 
-  return stampChromeLogoOffsetInHtml(
-    stripAuthorPinScreenInHtml(
-      pinMidCanvasTopChromeInHtml(
-        stripDuplicateHeadKitKindsInHtml(
-          stripEscapedHeadChromeLeftoversInHtml(stripLeftoverPdpFaceOutsideDock(hoistViewportDockToBody(out)))
+  return ensureMobileSearchComposeInHtml(
+    ensureMobileHeadBackInHtml(
+      stampChromeLogoOffsetInHtml(
+        stripAuthorPinScreenInHtml(
+          pinMidCanvasTopChromeInHtml(
+            stripDuplicateHeadKitKindsInHtml(
+              stripEscapedHeadChromeLeftoversInHtml(stripLeftoverPdpFaceOutsideDock(hoistViewportDockToBody(out)))
+            )
+          )
         )
-      )
-    )
+      ),
+      { locale, device: input.device }
+    ),
+    { locale, siteSlug: input.siteSlug, device: input.device }
   )
 }
 

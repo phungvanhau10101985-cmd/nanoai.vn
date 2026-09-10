@@ -53,6 +53,7 @@ export const CHROME_GLYPH_IDS = [
   'eye',
   'history',
   'rotate-ccw',
+  'chevron-left',
   'arrow-up',
   'arrow-up-circle',
   'chevrons-up',
@@ -227,6 +228,7 @@ const PATHS: Record<ChromeGlyphId, string> = {
   eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
   history: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 2"/>',
   'rotate-ccw': '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  'chevron-left': '<path d="M15 19l-7-7 7-7"/>',
   'arrow-up': '<path d="m18 15-6-6-6 6"/>',
   'arrow-up-circle': '<circle cx="12" cy="12" r="9"/><path d="m8 12 4-4 4 4"/><path d="M12 16V8"/>',
   'chevrons-up': '<path d="m17 18-5-5-5 5"/><path d="m17 11-5-5-5 5"/>',
@@ -355,6 +357,7 @@ const PATHS: Record<ChromeGlyphId, string> = {
 
 const KIND_GLYPHS: Record<string, readonly ChromeGlyphId[]> = {
   home: ['home', 'home-door', 'home-circle', 'home-line', 'home-grid'],
+  back: ['chevron-left', 'undo', 'undo-2', 'reply', 'rotate-ccw'],
   products: ['box', 'box-open', 'grid-3', 'layers', 'package'],
   categories: ['menu', 'menu-square', 'grid-2', 'layout', 'apps'],
   sale: ['percent', 'tag', 'badge-percent', 'megaphone', 'spark-sale'],

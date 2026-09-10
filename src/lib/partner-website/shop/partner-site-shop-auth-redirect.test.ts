@@ -53,8 +53,9 @@ test('custom domain /login maps to the shop login route', () => {
   assert.equal(partnerSiteLoginPath('188-shop', { customDomain: true }), '/login')
 })
 
-test('custom domain search routes map like 188 /?q= and /tim-theo-anh', () => {
+test('custom domain search routes map like 188 /?q=, /tim-kiem and /tim-theo-anh', () => {
   assert.equal(mapPartnerCustomDomainPathToInternal('188-shop', '/search'), '/site/188-shop/search')
+  assert.equal(mapPartnerCustomDomainPathToInternal('188-shop', '/tim-kiem'), '/site/188-shop/tim-kiem')
   assert.equal(
     mapPartnerCustomDomainPathToInternal('188-shop', '/tim-theo-anh'),
     '/site/188-shop/tim-theo-anh'

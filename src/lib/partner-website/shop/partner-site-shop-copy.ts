@@ -13,6 +13,7 @@ export type PartnerSiteShopCopy = {
   navChatWhatsapp: string
   navTopUp: string
   navCategories: string
+  navBack: string
   catalogTitle: string
   categorySeoBodyAriaLabel: string
   categorySubcategoriesLabel: string
@@ -147,6 +148,18 @@ export type PartnerSiteShopCopy = {
   searchHistoryRemove: string
   searchHistoryEmpty: string
   searchHistoryClearAll: string
+  searchComposeOpen: string
+  searchClearQuery: string
+  searchComposePlaceholder: string
+  searchHistoryNoMatch: string
+  searchHistoryLoadError: string
+  searchSuggestTitle: string
+  searchSuggestProducts: string
+  searchSuggestFromViewed: string
+  searchSuggestForYou: string
+  searchSuggestLoadError: string
+  searchSuggestTypedEmpty: string
+  searchRetry: string
   searchForQuery: string
   imageSearchTitle: string
   imageSearchHint: string
@@ -562,6 +575,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navChatWhatsapp: 'Chat WhatsApp',
     navTopUp: 'Lên đầu trang',
     navCategories: 'Danh mục',
+    navBack: 'Quay lại',
     catalogTitle: 'Tất cả sản phẩm',
     categorySeoBodyAriaLabel: 'Giới thiệu danh mục',
     categorySubcategoriesLabel: 'Danh mục con',
@@ -687,6 +701,18 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryRemove: 'Xóa',
     searchHistoryEmpty: 'Chưa có từ khóa tìm kiếm',
     searchHistoryClearAll: 'Xóa tất cả lịch sử',
+    searchComposeOpen: 'Mở trang tìm kiếm',
+    searchClearQuery: 'Xóa từ khóa',
+    searchComposePlaceholder: 'Tìm trên {shop}…',
+    searchHistoryNoMatch: 'Không có lịch sử khớp từ khóa',
+    searchHistoryLoadError: 'Không tải được lịch sử tìm kiếm',
+    searchSuggestTitle: 'Gợi ý tìm kiếm',
+    searchSuggestProducts: 'Sản phẩm gợi ý',
+    searchSuggestFromViewed: 'Dựa trên sản phẩm bạn đã xem',
+    searchSuggestForYou: 'Dành cho bạn — cùng phong cách đang xem',
+    searchSuggestLoadError: 'Không tải được gợi ý tìm kiếm',
+    searchSuggestTypedEmpty: 'Chưa thấy sản phẩm khớp. Bấm nút tìm để xem kết quả đầy đủ.',
+    searchRetry: 'Thử lại',
     searchForQuery: 'Kết quả cho “{q}”',
     imageSearchTitle: 'Tìm theo ảnh',
     imageSearchHint: 'Tải ảnh, dán link vào ô bên dưới hoặc dán ảnh (Ctrl+V)',
@@ -1091,6 +1117,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navChatWhatsapp: 'WhatsApp chat',
     navTopUp: 'Back to top',
     navCategories: 'Categories',
+    navBack: 'Back',
     catalogTitle: 'All products',
     categorySeoBodyAriaLabel: 'About this category',
     categorySubcategoriesLabel: 'Subcategories',
@@ -1216,6 +1243,18 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryRemove: 'Remove',
     searchHistoryEmpty: 'No recent searches',
     searchHistoryClearAll: 'Clear all history',
+    searchComposeOpen: 'Open search',
+    searchClearQuery: 'Clear query',
+    searchComposePlaceholder: 'Search {shop}…',
+    searchHistoryNoMatch: 'No history matching this query',
+    searchHistoryLoadError: 'Could not load search history',
+    searchSuggestTitle: 'Search suggestions',
+    searchSuggestProducts: 'Suggested products',
+    searchSuggestFromViewed: 'Based on products you viewed',
+    searchSuggestForYou: 'Picked for you — similar to what you are browsing',
+    searchSuggestLoadError: 'Could not load search suggestions',
+    searchSuggestTypedEmpty: 'No products yet. Tap search to see full results.',
+    searchRetry: 'Try again',
     searchForQuery: 'Results for “{q}”',
     imageSearchTitle: 'Search by image',
     imageSearchHint: 'Upload a photo, paste a link, or paste an image (Ctrl+V)',
@@ -1620,6 +1659,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navChatWhatsapp: 'WhatsApp 聊天',
     navTopUp: '回到顶部',
     navCategories: '分类',
+    navBack: '返回',
     catalogTitle: '全部产品',
     categorySeoBodyAriaLabel: '分类介绍',
     categorySubcategoriesLabel: '子分类',
@@ -1745,6 +1785,18 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryRemove: '删除',
     searchHistoryEmpty: '暂无搜索记录',
     searchHistoryClearAll: '清除全部历史',
+    searchComposeOpen: '打开搜索页',
+    searchClearQuery: '清除关键词',
+    searchComposePlaceholder: '在 {shop} 搜索…',
+    searchHistoryNoMatch: '没有匹配的搜索记录',
+    searchHistoryLoadError: '无法加载搜索历史',
+    searchSuggestTitle: '搜索建议',
+    searchSuggestProducts: '推荐商品',
+    searchSuggestFromViewed: '根据你看过的商品',
+    searchSuggestForYou: '为你推荐 — 与正在浏览的风格相近',
+    searchSuggestLoadError: '无法加载搜索建议',
+    searchSuggestTypedEmpty: '暂无匹配商品。点搜索查看完整结果。',
+    searchRetry: '重试',
     searchForQuery: '“{q}” 的搜索结果',
     imageSearchTitle: '以图搜图',
     imageSearchHint: '上传图片、粘贴链接，或粘贴图片（Ctrl+V）',
@@ -2145,6 +2197,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navChatWhatsapp: 'WhatsAppチャット',
     navTopUp: 'ページ先頭',
     navCategories: 'カテゴリ',
+    navBack: '戻る',
     catalogTitle: 'すべての商品',
     categorySeoBodyAriaLabel: 'カテゴリー紹介',
     categorySubcategoriesLabel: 'サブカテゴリー',
@@ -2270,6 +2323,18 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryRemove: '削除',
     searchHistoryEmpty: '検索履歴はまだありません',
     searchHistoryClearAll: '履歴をすべて削除',
+    searchComposeOpen: '検索ページを開く',
+    searchClearQuery: 'キーワードを消去',
+    searchComposePlaceholder: '{shop} で検索…',
+    searchHistoryNoMatch: '一致する検索履歴はありません',
+    searchHistoryLoadError: '検索履歴を読み込めませんでした',
+    searchSuggestTitle: '検索候補',
+    searchSuggestProducts: 'おすすめ商品',
+    searchSuggestFromViewed: '閲覧した商品に基づく',
+    searchSuggestForYou: 'あなた向け — 閲覧中のスタイルに近い商品',
+    searchSuggestLoadError: '検索候補を読み込めませんでした',
+    searchSuggestTypedEmpty: '一致する商品はまだありません。検索を押して全件を表示。',
+    searchRetry: '再試行',
     searchForQuery: '「{q}」の検索結果',
     imageSearchTitle: '画像で検索',
     imageSearchHint: '写真をアップロード、リンクを貼る、または画像を貼り付け（Ctrl+V）',
@@ -2672,6 +2737,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     navChatWhatsapp: 'WhatsApp 채팅',
     navTopUp: '맨 위로',
     navCategories: '카테고리',
+    navBack: '뒤로',
     catalogTitle: '전체 상품',
     categorySeoBodyAriaLabel: '카테고리 소개',
     categorySubcategoriesLabel: '하위 카테고리',
@@ -2797,6 +2863,18 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryRemove: '삭제',
     searchHistoryEmpty: '최근 검색어가 없습니다',
     searchHistoryClearAll: '검색 기록 모두 삭제',
+    searchComposeOpen: '검색 페이지 열기',
+    searchClearQuery: '검색어 지우기',
+    searchComposePlaceholder: '{shop}에서 검색…',
+    searchHistoryNoMatch: '일치하는 검색 기록이 없습니다',
+    searchHistoryLoadError: '검색 기록을 불러오지 못했습니다',
+    searchSuggestTitle: '검색 제안',
+    searchSuggestProducts: '추천 상품',
+    searchSuggestFromViewed: '최근 본 상품 기준',
+    searchSuggestForYou: '회원님을 위한 추천 — 비슷한 스타일',
+    searchSuggestLoadError: '검색 제안을 불러오지 못했습니다',
+    searchSuggestTypedEmpty: '일치하는 상품이 없습니다. 검색을 눌러 전체 결과를 보세요.',
+    searchRetry: '다시 시도',
     searchForQuery: '“{q}” 검색 결과',
     imageSearchTitle: '이미지로 검색',
     imageSearchHint: '사진 업로드, 링크 붙여넣기, 또는 이미지 붙여넣기(Ctrl+V)',
