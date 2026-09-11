@@ -338,6 +338,7 @@ function toPublicPath(p){
   return s.replace(/^\\/site\\/[^/]+(?=\\/|$)/,'')||'/';
 }
 function goShopLocation(dest){
+  if(pwShopLiveUiOff())return;
   dest=String(dest||'');
   var nested=false;
   try{nested=!!(window.top&&window.top!==window);}catch(eN){nested=true;}

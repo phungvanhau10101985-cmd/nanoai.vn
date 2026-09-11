@@ -1941,6 +1941,7 @@ export function ensurePartnerSiteChromeKitInHtml(
     device?: VisualDeviceVariant | null
     logoUrl?: string | null
     chatIconLogoUrl?: string | null
+    targetTop?: boolean
   }
 ): string {
   if (!html.trim()) return html
@@ -2057,7 +2058,7 @@ export function ensurePartnerSiteChromeKitInHtml(
       ),
       { locale, device: input.device }
     ),
-    { locale, siteSlug: input.siteSlug, device: input.device }
+    { locale, siteSlug: input.siteSlug, device: input.device, targetTop: input.targetTop }
   )
 }
 

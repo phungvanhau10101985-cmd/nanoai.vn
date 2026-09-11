@@ -396,6 +396,7 @@ test('chrome widgets emit search box as /tim-kiem compose link like 188', () => 
   assert.match(html, /Tìm bằng ảnh/)
   assert.match(html, /data-pw-chrome-btn="search"/)
   assert.doesNotMatch(html, /data-pw-search type="search"/)
+  assert.doesNotMatch(html, /target="_top"/)
 })
 
 test('chrome widgets emit image-search camera button', () => {

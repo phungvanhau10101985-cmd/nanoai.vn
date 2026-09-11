@@ -813,6 +813,23 @@ describe('partner-site-chrome-kit', () => {
     expect(next).toContain('data-pw-image-search')
   })
 
+  it('strips search compose target=_top when authoring Sửa nhanh', () => {
+    const html = `<html data-pw-edit-device="desktop"><header class="pw-header">
+      <div class="pw-header-search" data-pw-el="search">
+        <a class="pw-search-compose" href="/site/demo-shop/tim-kiem" target="_top"><span>Tìm sản phẩm…</span></a>
+      </div>
+    </header></html>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, {
+      locale: 'vi',
+      siteSlug: 'demo-shop',
+      device: 'desktop',
+      targetTop: false,
+    })
+    expect(next).toContain('pw-search-compose')
+    expect(next).not.toMatch(/<(?:a)[^>]*(?:pw-search-compose|pw-search-submit)[^>]*target="_top"/i)
+    expect(next).not.toMatch(/<(?:a)[^>]*target="_top"[^>]*(?:pw-search-compose|pw-search-submit)/i)
+  })
+
   it('keeps an absolutely placed search box', () => {
     const html = `<header class="pw-header"><div class="pw-header-main">
       <div class="pw-header-search" data-pw-el="search" data-pw-user-move="1" data-pw-placement="scene-absolute" style="width:280px">

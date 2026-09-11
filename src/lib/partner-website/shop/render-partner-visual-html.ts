@@ -116,6 +116,7 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
     device: input.variant,
     logoUrl: input.theme?.logoUrl,
     chatIconLogoUrl: input.theme?.chatIconLogoUrl,
+    targetTop: input.runtime !== 'authoring',
   })
   const noSeoCoach = stripPartnerInfoPageSeoCoachFromHtml(withChromeKit)
   const restored = restoreDeferredPdpGalleryMediaInHtml(noSeoCoach)

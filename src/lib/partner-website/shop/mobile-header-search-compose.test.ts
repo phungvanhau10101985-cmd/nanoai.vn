@@ -92,6 +92,33 @@ describe('header search compose', () => {
     expect(next).toContain('pw-search-compose')
   })
 
+  it('strips target=_top in Sửa nhanh so compose clicks can select', () => {
+    const html = `<html data-pw-edit-device="desktop"><header class="pw-header">
+      <a class="pw-search-compose" href="/site/demo-shop/tim-kiem" target="_top"><span>Tìm sản phẩm…</span></a>
+      <a class="pw-search-submit" href="/site/demo-shop/tim-kiem" target="_top">TÌM</a>
+    </header></html>`
+    const next = ensureMobileSearchComposeInHtml(html, {
+      locale: 'vi',
+      siteSlug: 'demo-shop',
+      device: 'desktop',
+      targetTop: false,
+    })
+    expect(next).toContain('pw-search-compose')
+    expect(next).not.toContain('target="_top"')
+  })
+
+  it('converts leftover input without target=_top when authoring', () => {
+    const html = `<header><form data-pw-search-form><input data-pw-search type="search" name="q"/></form></header>`
+    const next = ensureMobileSearchComposeInHtml(html, {
+      locale: 'vi',
+      siteSlug: 'demo-shop',
+      device: 'desktop',
+      targetTop: false,
+    })
+    expect(htmlHasMobileSearchCompose(next)).toBe(true)
+    expect(next).not.toContain('target="_top"')
+  })
+
   it('still converts leftover input when injected CSS mentions .pw-search-compose', () => {
     const html = `<html><head><style>.pw-search-compose,.pw-shop-search-compose{flex:1}</style></head>
     <body><header class="pw-header">

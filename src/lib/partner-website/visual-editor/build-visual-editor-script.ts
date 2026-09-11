@@ -3821,7 +3821,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return 'Tìm sản phẩm...'
   }
   function shopComposeHref() {
-    var home = String(shopHomeHref() || '/').replace(/\/$/, '')
+    var home = String(shopHomeHref() || '/')
+    if (home.charAt(home.length - 1) === '/') home = home.slice(0, -1)
     if (!home || home === '/') return '/tim-kiem'
     return home + '/tim-kiem'
   }
@@ -3997,9 +3998,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var href = String(shopComposeHref() || '/tim-kiem').replace(/"/g, '&quot;')
     wrap.innerHTML = '<form class="pw-search-form pw-shop-search-form" data-pw-search-form role="search">' +
       '<span class="pw-search-default-icon pw-shop-search-default-icon" aria-hidden="true">' + searchSubmitIconSvg() + '</span>' +
-      '<a class="pw-search-compose pw-shop-search-compose" href="' + href + '" target="_top" aria-label="' + ph + '"><span>' + ph + '</span></a>' +
+      '<a class="pw-search-compose pw-shop-search-compose" href="' + href + '" aria-label="' + ph + '"><span>' + ph + '</span></a>' +
       '<button type="button" class="pw-search-image-btn pw-shop-search-image" data-pw-image-search data-pw-search-glyph="camera" aria-label="Search image"><span class="pw-chrome-icon-wrap">' + searchCameraIconSvg() + '</span></button>' +
-      '<a class="pw-search-submit pw-shop-search-submit" href="' + href + '" target="_top" data-pw-search-glyph="lens" aria-label="Search">' + searchSubmitIconSvg() + '</a></form>'
+      '<a class="pw-search-submit pw-shop-search-submit" href="' + href + '" data-pw-search-glyph="lens" aria-label="Search">' + searchSubmitIconSvg() + '</a></form>'
     return wrap
   }
   function seatSearchInHeader(search, main) {
@@ -4459,6 +4460,17 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       }
     }
     if (nx !== x || ny !== y) applyTranslatePx(el, nx, ny)
+  }
+  function isEditorNavLink(el) {
+    if (!el || !el.closest) return false
+    return !!el.closest('a[href], a[target]')
+  }
+  function disarmSearchComposeNav() {
+    var nodes = document.querySelectorAll('.pw-search-compose, .pw-shop-search-compose, a.pw-search-submit, a.pw-shop-search-submit')
+    var i
+    for (i = 0; i < nodes.length; i++) {
+      try { nodes[i].removeAttribute('target') } catch (errDisarm) {}
+    }
   }
   function lockExistingSearchBoxes() {
     var nodes = document.querySelectorAll('.pw-header-search, .pw-shop-search-wrap, [data-pw-el="search"]')
@@ -13200,6 +13212,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (typed) input.setAttribute('placeholder', typed)
       input.value = ''
     } else {
+      var typedSpan = String(input.textContent || '').replace(/\s+/g, ' ').trim()
+      if (typedSpan) {
+        input.setAttribute('placeholder', typedSpan)
+        var composeHost = input.closest ? input.closest('.pw-search-compose, .pw-shop-search-compose') : null
+        if (!composeHost && (hasClassToken(input, 'pw-search-compose') || hasClassToken(input, 'pw-shop-search-compose'))) composeHost = input
+        if (composeHost && composeHost.setAttribute) composeHost.setAttribute('aria-label', typedSpan)
+      }
       input.removeAttribute('contenteditable')
     }
     input.removeAttribute('data-pw-edit-placeholder')
@@ -14765,6 +14784,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function onMouseDown(e) {
     if (!document.body.classList.contains('nanoai-ve-active')) return
     if (e.button !== 0) return
+    if (isEditorNavLink(e.target)) {
+      try { e.preventDefault() } catch (errNavMd) {}
+    }
     if (logoCrop.live && isLiveCropNode(e.target)) {
       beginLiveCropPointer(e)
       return
@@ -14927,6 +14949,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function onClick(e) {
     if (!document.body.classList.contains('nanoai-ve-active')) return
+    if (isEditorNavLink(e.target)) {
+      try { e.preventDefault() } catch (errNavClick) {}
+    }
     if (insertBgPick.on) { e.preventDefault(); e.stopPropagation(); return }
     if (logoDraw.on) { e.preventDefault(); e.stopPropagation(); return }
     if (skipClick) { skipClick = false; e.preventDefault(); e.stopPropagation(); return }
@@ -15534,8 +15559,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       '[data-pw-edit-device="mobile"] .nanoai-ve-active .pw-header-search,[data-pw-edit-device="mobile"] .nanoai-ve-active .pw-shop-search-wrap,[data-pw-edit-device="tablet"] .nanoai-ve-active .pw-header-search,[data-pw-edit-device="tablet"] .nanoai-ve-active .pw-shop-search-wrap,.nanoai-ve-mobile .pw-header-search,.nanoai-ve-mobile .pw-shop-search-wrap,.nanoai-ve-tablet .pw-header-search,.nanoai-ve-tablet .pw-shop-search-wrap{position:relative!important}',
       '[data-pw-edit-device="desktop"] .nanoai-ve-active .pw-header-search,[data-pw-edit-device="desktop"] .nanoai-ve-active .pw-shop-search-wrap{cursor:pointer!important}',
       '.nanoai-ve-active .pw-header-search *,.nanoai-ve-active .pw-shop-search-wrap *{pointer-events:auto!important}',
-      '.nanoai-ve-active .pw-header-search input[type="search"],.nanoai-ve-active .pw-shop-search-wrap input[type="search"],.nanoai-ve-active input[data-pw-search],.nanoai-ve-active .pw-search-compose,.nanoai-ve-active .pw-shop-search-compose{pointer-events:none!important;caret-color:transparent!important}',
-      '.nanoai-ve-active input[data-pw-edit-placeholder="1"]{pointer-events:auto!important;caret-color:auto!important}',
+      '.nanoai-ve-active .pw-search-compose,.nanoai-ve-active .pw-shop-search-compose,.nanoai-ve-active .pw-search-compose *,.nanoai-ve-active .pw-shop-search-compose *,.nanoai-ve-active a.pw-search-submit,.nanoai-ve-active a.pw-shop-search-submit,.nanoai-ve-active a.pw-search-submit *,.nanoai-ve-active a.pw-shop-search-submit *,.nanoai-ve-active .pw-header-search input[type="search"],.nanoai-ve-active .pw-shop-search-wrap input[type="search"],.nanoai-ve-active input[data-pw-search]{pointer-events:none!important;caret-color:transparent!important}',
+      '.nanoai-ve-active [data-pw-edit-placeholder="1"],.nanoai-ve-active [data-pw-edit-placeholder="1"] *{pointer-events:auto!important;caret-color:auto!important}',
       '.pw-header-search[data-pw-search-width],.pw-shop-search-wrap[data-pw-search-width]{min-width:72px!important}',
       '@media (min-width:900px){.pw-header-search[data-pw-search-width]:not([data-pw-user-move]),.pw-shop-search-wrap[data-pw-search-width]:not([data-pw-user-move]){flex:0 0 auto!important}}',
       '.pw-search-form,.pw-shop-search-form,form[data-pw-search-form]{display:flex!important;width:100%!important;min-width:0!important}',
@@ -15725,8 +15750,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     drag.ready = false
     var wasLive = document.body.classList.contains('nanoai-ve-active')
     historyLock = true
-    injectStyles()
-    syncEditDeviceAttr()
+    try { injectStyles() } catch (errStyles) {}
+    try { syncEditDeviceAttr() } catch (errDev) {}
     try { sanitizeLogoFrames() } catch (errSan) {}
     try { rescueHeaderLogos() } catch (errRescue) {}
     try { reflowHeaderChrome() } catch (errHeadLogo) {}
@@ -15736,6 +15761,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { ensureSearchImageIcon(document) } catch (errSearchCam) {}
     try { ensureSearchDefaultIcon(document) } catch (errSearchDef) {}
     try { lockExistingSearchBoxes() } catch (errSearch) {}
+    try { disarmSearchComposeNav() } catch (errDisarmNav) {}
     try { stampAllChromeFloats() } catch (errFloatStamp) {}
     try { pinMidTopChromeAll() } catch (errMidFlow) {}
     try { pinKindLockedScenesAll() } catch (errKindScene) {}
@@ -16890,8 +16916,17 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.type === 'setSearchPlaceholder') {
       var phIn = selected ? searchInputOf(selected) : null
       if (phIn) {
-        phIn.setAttribute('placeholder', String(d.text || ''))
-        if (phIn.getAttribute('data-pw-edit-placeholder') === '1') phIn.value = String(d.text || '')
+        var phText = String(d.text || '')
+        phIn.setAttribute('placeholder', phText)
+        var phTag = String(phIn.tagName || '').toLowerCase()
+        if (phTag === 'input' || phTag === 'textarea') {
+          if (phIn.getAttribute('data-pw-edit-placeholder') === '1') phIn.value = phText
+        } else {
+          phIn.textContent = phText
+          var composeA = phIn.closest ? phIn.closest('.pw-search-compose, .pw-shop-search-compose') : null
+          if (!composeA && (hasClassToken(phIn, 'pw-search-compose') || hasClassToken(phIn, 'pw-shop-search-compose'))) composeA = phIn
+          if (composeA && composeA.setAttribute) composeA.setAttribute('aria-label', phText)
+        }
         post('dirty', {})
         refreshSelect()
       }

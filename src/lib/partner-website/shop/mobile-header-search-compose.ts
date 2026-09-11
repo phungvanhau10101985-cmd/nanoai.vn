@@ -44,6 +44,13 @@ function stampComposeTargetTop(html: string): string {
   )
 }
 
+function stripComposeTargetTop(html: string): string {
+  return html.replace(
+    /<a(\s[^>]*\b(?:pw-search-compose|pw-shop-search-compose|pw-search-submit)\b[^>]*)>/gi,
+    (_full, attrs: string) => `<a${attrs.replace(/\s*target\s*=\s*(["']).*?\1/gi, '')}>`
+  )
+}
+
 /** HTML cũ còn ô gõ trên header — đổi thành link `/tim-kiem` như 188, mọi máy. */
 export function ensureMobileSearchComposeInHtml(
   html: string,
@@ -52,10 +59,15 @@ export function ensureMobileSearchComposeInHtml(
     siteSlug?: string | null
     device?: VisualDeviceVariant | null
     title?: string | null
+    /** Live iframe needs `_top`. Sửa nhanh must not — sandbox blocks it and clicks look dead. */
+    targetTop?: boolean
   }
 ): string {
   if (!html.trim()) return html
-  if (htmlHasMobileSearchCompose(html)) return stampComposeTargetTop(html)
+  const targetTop = input.targetTop !== false
+  if (htmlHasMobileSearchCompose(html)) {
+    return targetTop ? stampComposeTargetTop(html) : stripComposeTargetTop(html)
+  }
   const siteSlug = String(input.siteSlug || '').trim()
   if (!siteSlug) return html
   const header = html.match(HEADER_BLOCK_RE)
@@ -69,12 +81,13 @@ export function ensureMobileSearchComposeInHtml(
   )
   const aria = escapeAttr(t.searchComposeOpen)
   const href = escapeAttr(partnerSiteMobileSearchPath(siteSlug))
-  const compose = `<a class="pw-search-compose" href="${href}" target="_top" aria-label="${aria}"><span>${placeholder}</span></a>`
+  const targetAttr = targetTop ? ' target="_top"' : ''
+  const compose = `<a class="pw-search-compose" href="${href}"${targetAttr} aria-label="${aria}"><span>${placeholder}</span></a>`
 
   let nextHeader = header[0].replace(SEARCH_INPUT_RE, compose)
   nextHeader = nextHeader.replace(SEARCH_SUBMIT_BTN_RE, (_m, attrs: string, inner: string) => {
-    const cleaned = String(attrs || '').replace(/\s*type=["'][^"']*["']/gi, '')
-    return `<a${cleaned} href="${href}" target="_top" aria-label="${aria}">${inner}</a>`
+    const cleaned = String(attrs || '').replace(/\s*type=["'][^"']*["']/gi, '').replace(/\s*target\s*=\s*(["']).*?\1/gi, '')
+    return `<a${cleaned} href="${href}"${targetAttr} aria-label="${aria}">${inner}</a>`
   })
   nextHeader = nextHeader.replace(SEARCH_HISTORY_RE, '')
   return html.replace(header[0], nextHeader)

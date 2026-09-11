@@ -287,6 +287,7 @@ test('search bootstrap opens /tim-kiem on every device like 188 /tim-kiem', () =
   assert.doesNotMatch(s, /history\.pushState/)
   assert.doesNotMatch(s, /input\.blur\(\)/)
   assert.doesNotMatch(s, /max-width:767px/)
+  assert.match(s, /function goShopLocation\(dest\)\{\s*if\(pwShopLiveUiOff\(\)\)return;/)
   assert.match(s, /function isMobileSearchComposeFace\(\)\{\s*return true;/)
   assert.match(s, /goShopLocation/)
   assert.match(s, /var nested=false/)
