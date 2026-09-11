@@ -3815,7 +3815,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var existing = document.querySelector('.pw-header-search input, .pw-shop-search-wrap input, input[data-pw-search]')
     var ph = existing && (existing.getAttribute('placeholder') || existing.placeholder)
     if (ph) return String(ph)
+    var compose = document.querySelector('.pw-search-compose span, .pw-shop-search-compose span')
+    var composeText = compose && String(compose.textContent || '').trim()
+    if (composeText) return composeText
     return 'Tìm sản phẩm...'
+  }
+  function shopComposeHref() {
+    var home = String(shopHomeHref() || '/').replace(/\/$/, '')
+    if (!home || home === '/') return '/tim-kiem'
+    return home + '/tim-kiem'
   }
   var SEARCH_GLYPH_PATHS = ${searchGlyphPathsJs()}
   var CHROME_GLYPH_CATALOG = ${chromeGlyphCatalogJs()}
@@ -3972,13 +3980,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     for (var i = 0; i < forms.length; i++) {
       var form = forms[i]
       if (form.querySelector && form.querySelector('.pw-search-default-icon, .pw-shop-search-default-icon')) continue
-      var input = form.querySelector('input[data-pw-search], input[type="search"]')
-      if (!input) continue
+      var before = form.querySelector('input[data-pw-search], input[type="search"], .pw-search-compose, .pw-shop-search-compose')
+      if (!before) continue
       var hold = document.createElement('span')
       hold.className = 'pw-search-default-icon pw-shop-search-default-icon'
       hold.setAttribute('aria-hidden', 'true')
       hold.innerHTML = searchSubmitIconSvg()
-      form.insertBefore(hold, input)
+      form.insertBefore(hold, before)
     }
   }
   function createSearchCluster() {
@@ -3986,11 +3994,12 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     wrap.className = 'pw-header-search pw-shop-search-wrap'
     wrap.setAttribute('data-pw-el', 'search')
     var ph = searchPlaceholderText().replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+    var href = String(shopComposeHref() || '/tim-kiem').replace(/"/g, '&quot;')
     wrap.innerHTML = '<form class="pw-search-form pw-shop-search-form" data-pw-search-form role="search">' +
       '<span class="pw-search-default-icon pw-shop-search-default-icon" aria-hidden="true">' + searchSubmitIconSvg() + '</span>' +
-      '<input data-pw-search type="search" name="q" placeholder="' + ph + '" aria-label="' + ph + '" autocomplete="off"/>' +
+      '<a class="pw-search-compose pw-shop-search-compose" href="' + href + '" target="_top" aria-label="' + ph + '"><span>' + ph + '</span></a>' +
       '<button type="button" class="pw-search-image-btn pw-shop-search-image" data-pw-image-search data-pw-search-glyph="camera" aria-label="Search image"><span class="pw-chrome-icon-wrap">' + searchCameraIconSvg() + '</span></button>' +
-      '<button type="submit" class="pw-search-submit pw-shop-search-submit" data-pw-search-glyph="lens" aria-label="Search">' + searchSubmitIconSvg() + '</button></form>'
+      '<a class="pw-search-submit pw-shop-search-submit" href="' + href + '" target="_top" data-pw-search-glyph="lens" aria-label="Search">' + searchSubmitIconSvg() + '</a></form>'
     return wrap
   }
   function seatSearchInHeader(search, main) {
@@ -4588,7 +4597,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function searchInputOf(el) {
     var host = isSearchEl(el) ? el : searchElOf(el)
     if (!host || !host.querySelector) return null
-    return host.querySelector('[data-pw-search], input[type="search"], input[name="q"]')
+    return host.querySelector('[data-pw-search], input[type="search"], input[name="q"], .pw-search-compose span, .pw-shop-search-compose span, .pw-search-compose, .pw-shop-search-compose')
   }
   function searchTypeEl(el) {
     if (!el) return el
@@ -6689,17 +6698,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (tag === 'footer') return true
     return hasClassToken(el, 'pw-footer') || hasClassToken(el, 'pw-shop-footer')
   }
-  function footerInkForColor(color) {
-    var hex = String(color || '').trim()
-    var m = hex.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
-    if (!m) return ''
-    var h = m[1]
-    if (h.length === 3) h = h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2)
-    var r = parseInt(h.slice(0, 2), 16) / 255
-    var g = parseInt(h.slice(2, 4), 16) / 255
-    var b = parseInt(h.slice(4, 6), 16) / 255
-    var lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
-    return lum < 0.45 ? '#e5e7eb' : ''
+  function footerInkForColor() {
+    return '#111827'
   }
   function regionFillTarget(el) {
     if (!el || isHeaderChromeEl(el) || isChromeBtn(el) || isSearchEl(el) || isAddedBg(el)) return null
@@ -6998,7 +6998,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       // Chrome CSS: html .pw-footer{background:var(--pw-footer)!important} — inline background loses.
       if (isFooterFillHost(el) && el.style && el.style.setProperty) {
         el.style.setProperty('--pw-footer', color)
-        var ink = footerInkForColor(color)
+        var ink = footerInkForColor()
         if (ink) el.style.setProperty('--pw-footer-ink', ink)
         else el.style.removeProperty('--pw-footer-ink')
         el.style.setProperty('background-image', 'none', 'important')
@@ -11496,19 +11496,33 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!w || w === '0' || w === '0px') el.style.setProperty('border-width', '1px')
     if (!s || s === 'none') el.style.setProperty('border-style', 'solid')
   }
-  function applyWidgetBg(el, color) {
+  function normalizePaintColor(color) {
     var c = String(color || '').trim()
-    if (c === 'transparent') c = ''
+    var n = c.replace(/\s/g, '').toLowerCase()
+    if (!c) return ''
+    if (n === 'transparent' || n === 'rgba(0,0,0,0)' || n === 'rgb(0,0,0,0)' || /^rgba\(0,0,0,0(?:\.0+)?\)$/.test(n)) {
+      return 'transparent'
+    }
+    return c
+  }
+  function applyWidgetBg(el, color) {
+    var c = normalizePaintColor(color)
     var target = widgetSurfaceEl(el)
     if (!target) return
     stampWidgetAttr(el, 'data-pw-btn-color', c)
     if (!c) {
       try { target.style.removeProperty('--pw-btn-color') } catch (errBgRm) {}
+      try { target.style.removeProperty('background') } catch (errBgRm2) {}
+      try { target.style.removeProperty('background-color') } catch (errBgRm3) {}
+      try { target.style.removeProperty('background-image') } catch (errBgRm4) {}
       return
     }
     target.style.setProperty('--pw-btn-color', c)
     target.style.setProperty('background', c, 'important')
     target.style.setProperty('background-color', c, 'important')
+    if (c === 'transparent') {
+      try { target.style.setProperty('background-image', 'none', 'important') } catch (errBgImg) {}
+    }
   }
   function applyWidgetBorder(el, color) {
     var c = String(color || '').trim()
@@ -11529,13 +11543,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return Array.prototype.slice.call(host.querySelectorAll('svg'))
   }
   function paintSvgIconColor(svg, color) {
-    var c = String(color || '').trim()
+    var c = normalizePaintColor(color)
     var parts
     var j
     if (!svg) return
     if (c) {
       svg.style.setProperty('stroke', c, 'important')
-      svg.style.setProperty('color', c)
+      svg.style.setProperty('color', c, 'important')
       svg.style.setProperty('fill', 'none', 'important')
       svg.setAttribute('stroke', c)
       svg.setAttribute('fill', 'none')
@@ -11555,7 +11569,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
   }
   function applyWidgetIconColor(el, color) {
-    var c = String(color || '').trim()
+    var c = normalizePaintColor(color)
     var host = catToggleElOf(el) || chromeBtnElOf(el) || el
     stampWidgetAttr(host, 'data-pw-icon-color', c)
     if (!c) {
@@ -11675,6 +11689,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function readWidgetIconColor(el) {
     var host = catToggleElOf(el) || chromeBtnElOf(el) || el
+    var attr = host && host.getAttribute ? String(host.getAttribute('data-pw-icon-color') || '').trim() : ''
+    if (attr) return attr
     var applied = readAppliedCssVar(host, '--pw-icon-color')
     if (applied) return applied
     var svgs = widgetIconNodes(el)
@@ -11701,6 +11717,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function readWidgetBgColor(el) {
     var host = widgetSurfaceEl(el) || catToggleElOf(el) || chromeBtnElOf(el) || el
+    var attr = host && host.getAttribute ? String(host.getAttribute('data-pw-btn-color') || '').trim() : ''
+    if (attr) return attr
     var applied = readAppliedCssVar(host, '--pw-btn-color')
     if (applied) return applied
     return parseBgColor(host)
@@ -11806,9 +11824,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       border = el.getAttribute('data-pw-btn-border') || ''
       icon = el.getAttribute('data-pw-icon-color') || ''
       text = el.getAttribute('data-pw-btn-text') || ''
-      if (bg && readAppliedCssVar(widgetSurfaceEl(el) || el, '--pw-btn-color')) applyWidgetBg(el, bg)
+      if (bg) applyWidgetBg(el, bg)
       if (border && readAppliedCssVar(widgetSurfaceEl(el) || el, '--pw-btn-border')) applyWidgetBorder(el, border)
-      if (icon && readAppliedCssVar(el, '--pw-icon-color')) applyWidgetIconColor(el, icon)
+      if (icon) applyWidgetIconColor(el, icon)
       if (text && readAppliedCssVar(el, '--pw-btn-text')) applyWidgetTextColor(el, text)
       var ph = el.getAttribute('data-pw-ph') || ''
       if (ph) applyPlaceholderColor(el, ph)
@@ -13158,19 +13176,32 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!searchField) return
     searchField.setAttribute('data-pw-edit-placeholder', '1')
     searchField.style.setProperty('pointer-events', 'auto', 'important')
-    searchField.value = searchField.getAttribute('placeholder') || searchField.placeholder || ''
+    var tag = String(searchField.tagName || '').toLowerCase()
+    if (tag === 'input' || tag === 'textarea') {
+      searchField.value = searchField.getAttribute('placeholder') || searchField.placeholder || ''
+      try {
+        if (searchField.focus) searchField.focus()
+        if (searchField.select) searchField.select()
+      } catch (errPh) {}
+      return
+    }
+    searchField.setAttribute('contenteditable', 'true')
     try {
       if (searchField.focus) searchField.focus()
-      if (searchField.select) searchField.select()
-    } catch (errPh) {}
+    } catch (errPh2) {}
   }
   function finishSearchPlaceholderEdit(el) {
     var input = searchInputOf(el) || (el && el.getAttribute && el.getAttribute('data-pw-search') != null ? el : null)
     if (!input) return
     if (input.getAttribute('data-pw-edit-placeholder') !== '1') return
-    var typed = String(input.value || '').trim()
-    if (typed) input.setAttribute('placeholder', typed)
-    input.value = ''
+    var tag = String(input.tagName || '').toLowerCase()
+    if (tag === 'input' || tag === 'textarea') {
+      var typed = String(input.value || '').trim()
+      if (typed) input.setAttribute('placeholder', typed)
+      input.value = ''
+    } else {
+      input.removeAttribute('contenteditable')
+    }
     input.removeAttribute('data-pw-edit-placeholder')
     input.style.removeProperty('pointer-events')
   }

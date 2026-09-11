@@ -376,7 +376,7 @@ test('chrome Chat Zalo without settings URL stays pending (no # href)', () => {
   assert.doesNotMatch(html, /href="#"/)
 })
 
-test('chrome widgets emit search box with image search and submit', () => {
+test('chrome widgets emit search box as /tim-kiem compose link like 188', () => {
   const html = buildVisualEditorChromeWidgetHtml({
     kind: 'search',
     siteSlug: '188-shop',
@@ -384,7 +384,8 @@ test('chrome widgets emit search box with image search and submit', () => {
     style: 'icon-label',
   })
   assert.match(html, /data-pw-el="search"/)
-  assert.match(html, /data-pw-search/)
+  assert.match(html, /pw-search-compose/)
+  assert.match(html, /\/site\/188-shop\/tim-kiem/)
   assert.match(html, /pw-search-default-icon/)
   assert.match(html, /data-pw-image-search/)
   assert.match(html, /data-pw-search-glyph="camera"/)
@@ -392,10 +393,9 @@ test('chrome widgets emit search box with image search and submit', () => {
   assert.match(html, /pw-search-submit/)
   assert.match(html, /pw-shop-search-submit-icon/)
   assert.match(html, /<circle cx="11" cy="11" r="7"/)
-  assert.match(html, /Tìm sản phẩm/)
   assert.match(html, /Tìm bằng ảnh/)
   assert.match(html, /data-pw-chrome-btn="search"/)
-  assert.doesNotMatch(html, / href=/)
+  assert.doesNotMatch(html, /data-pw-search type="search"/)
 })
 
 test('chrome widgets emit image-search camera button', () => {
@@ -670,6 +670,9 @@ test('chrome face extras cover bold, gap, radius, hover, and column text', () =>
   assert.match(PW_CHROME_FACE_EXTRAS_CSS, /data-pw-el="nav-link"\]\[data-pw-btn-color/)
   assert.match(PW_CHROME_FACE_EXTRAS_CSS, /data-pw-el="link"\]\[data-pw-btn-color/)
   assert.match(PW_CHROME_FACE_EXTRAS_CSS, /--pw-icon-color/)
+  assert.match(PW_CHROME_FACE_EXTRAS_CSS, /\[data-pw-icon-color\]\{color:var\(--pw-icon-color\)!important\}/)
+  assert.match(PW_CHROME_FACE_EXTRAS_CSS, /data-pw-icon-color="transparent"/)
+  assert.match(PW_CHROME_FACE_EXTRAS_CSS, /data-pw-btn-color="transparent"/)
   assert.match(PW_CHROME_FACE_EXTRAS_CSS, /--pw-btn-color/)
   assert.match(PW_CHROME_FACE_EXTRAS_CSS, /--pw-btn-border/)
   assert.doesNotMatch(PW_CHROME_FACE_EXTRAS_CSS, /\[data-pw-btn-text\],\[data-pw-btn-text\] \.pw-chrome-btn-label/)

@@ -84,6 +84,7 @@ import {
 } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import {
   cssColorToHex,
+  isTransparentCssColor,
   shopThemeQuickPicksFromCopy,
   ThemeColorConfirmPicker,
 } from '@/components/partner-website/partner-website-confirm-color-picker'
@@ -737,6 +738,17 @@ const LOGO_COLOR_NAMES: Record<string, string> = {
   xám: '#6b7280',
   gray: '#6b7280',
   grey: '#6b7280',
+}
+
+function widgetFacePickerValue(
+  color: string | undefined,
+  fallback: string,
+  emptyAsTransparent = false
+): string {
+  const raw = String(color || '').trim()
+  if (!raw) return emptyAsTransparent ? 'transparent' : fallback
+  if (isTransparentCssColor(raw)) return 'transparent'
+  return cssColorToHex(raw, fallback)
 }
 
 function parseLogoColorText(raw: string): string | null {
@@ -5472,7 +5484,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                   <ThemeColorConfirmPicker
                     value={
                       selection.btnColor
-                        ? cssColorToHex(selection.btnColor, '#ffffff')
+                        ? widgetFacePickerValue(selection.btnColor, '#ffffff')
                         : selection.bgColor
                           ? cssColorToHex(selection.bgColor, '#ffffff')
                           : 'transparent'
@@ -5484,9 +5496,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                     allowTransparent
                     transparentLabel={t.visualEditBgTransparent}
                     onConfirm={(color) => {
-                      postToIframe(iframeRef.current, 'setButtonColor', {
-                        color: color === 'transparent' ? '' : color,
-                      })
+                      postToIframe(iframeRef.current, 'setButtonColor', { color })
                       setDirty(true)
                     }}
                   />
@@ -5768,11 +5778,7 @@ export function PartnerWebsiteVisualEditorToolbar({
               <div className="flex items-center gap-1 text-[10px]">
                 <span className="text-muted-foreground">{t.visualEditAddButtonColor}</span>
                 <ThemeColorConfirmPicker
-                  value={
-                    selection.btnColor
-                      ? cssColorToHex(selection.btnColor, '#ffffff')
-                      : 'transparent'
-                  }
+                  value={widgetFacePickerValue(selection.btnColor, '#ffffff', true)}
                   disabled={busy}
                   compact={compact}
                   okLabel={t.themeColorOk}
@@ -5780,9 +5786,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                   allowTransparent
                   transparentLabel={t.visualEditBgTransparent}
                   onConfirm={(color) => {
-                    postToIframe(iframeRef.current, 'setButtonColor', {
-                      color: color === 'transparent' ? '' : color,
-                    })
+                    postToIframe(iframeRef.current, 'setButtonColor', { color })
                     setDirty(true)
                   }}
                 />
@@ -5807,11 +5811,13 @@ export function PartnerWebsiteVisualEditorToolbar({
                     {t.visualEditIconColor}
                   </span>
                   <ThemeColorConfirmPicker
-                    value={cssColorToHex(selection.iconColor || '', '#ffffff')}
+                    value={widgetFacePickerValue(selection.iconColor, '#ffffff')}
                     disabled={busy}
                     compact={compact}
                     okLabel={t.themeColorOk}
                     themePicks={themePicks}
+                    allowTransparent
+                    transparentLabel={t.visualEditBgTransparent}
                     onConfirm={(color) => {
                       postToIframe(iframeRef.current, 'setIconColor', { color })
                       setDirty(true)

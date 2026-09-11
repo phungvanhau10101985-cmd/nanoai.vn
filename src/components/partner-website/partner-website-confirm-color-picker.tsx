@@ -123,7 +123,12 @@ export function isTransparentCssColor(color: string): boolean {
   const n = String(color || '')
     .replace(/\s/g, '')
     .toLowerCase()
-  return n === 'transparent' || n === 'rgba(0,0,0,0)'
+  return (
+    n === 'transparent' ||
+    n === 'rgba(0,0,0,0)' ||
+    n === 'rgb(0,0,0,0)' ||
+    /^rgba\(0,0,0,0(?:\.0+)?\)$/.test(n)
+  )
 }
 
 const TRANSPARENT_CHECKER =

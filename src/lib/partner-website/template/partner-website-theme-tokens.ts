@@ -73,7 +73,8 @@ export const SHOP_AUX_CART_SWATCHES: ShopColorSwatch[] = [
 /** Shop looks keep this cart gray when the brand swatch changes. Marketplace cart follows primary. */
 export const SHOP_DEFAULT_CART_COLOR = '#6b7280'
 export const SHOP_DEFAULT_FOOTER_COLOR = '#ffffff'
-export const MARKETPLACE_DEFAULT_FOOTER_COLOR = '#111827'
+/** Every shop/landing footer uses black copy; background stays `--pw-footer`. */
+export const MARKETPLACE_DEFAULT_FOOTER_COLOR = '#ffffff'
 
 export function normalizeHexColor(raw: string | null | undefined, fallback: string): string {
   const v = String(raw ?? '').trim()
@@ -130,13 +131,11 @@ export function hexRelativeLuminance(hex: string): number {
   return 0.2126 * lin(rgb.r) + 0.7152 * lin(rgb.g) + 0.0722 * lin(rgb.b)
 }
 
-/** Light copy on a dark `--pw-footer`; otherwise body text. */
-export const SHOP_FOOTER_LIGHT_INK = '#e5e7eb'
+/** Footer copy is always black. Background stays `--pw-footer` from the color picker. */
+export const SHOP_FOOTER_INK = '#111827'
 
-export function shopFooterInkColor(footerHex: string, textHex: string): string {
-  return hexRelativeLuminance(footerHex) < 0.42
-    ? SHOP_FOOTER_LIGHT_INK
-    : normalizeHexColor(textHex, '#111827')
+export function shopFooterInkColor(_footerHex?: string, _textHex?: string): string {
+  return SHOP_FOOTER_INK
 }
 
 export function hexesClose(a: string, b: string): boolean {
@@ -361,7 +360,7 @@ export function themeCssVarMap(theme: PartnerWebsiteTheme): Record<string, strin
     '--pw-surface': c.surfaceColor,
     '--pw-border': c.borderColor,
     '--pw-footer': c.footerColor,
-    '--pw-footer-ink': shopFooterInkColor(c.footerColor, c.textColor),
+    '--pw-footer-ink': shopFooterInkColor(),
   }
 }
 

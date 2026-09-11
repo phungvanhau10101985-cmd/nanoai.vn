@@ -177,7 +177,7 @@ html .pw-footer-bar a.pw-shop-footer-moit:hover,html .pw-shop-footer-bar a.pw-sh
   color:var(--pw-primary)!important;border-color:var(--pw-primary)!important
 }
 html .pw-footer:not([data-pw-bg-cleared="1"]):not([data-pw-paper="image"]),html .pw-shop-footer:not([data-pw-bg-cleared="1"]):not([data-pw-paper="image"]){background:var(--pw-footer,#fff)!important}
-html .pw-footer,html .pw-shop-footer{color:var(--pw-footer-ink,var(--pw-text,#111827))!important}
+html .pw-footer,html .pw-shop-footer{color:#111827!important}
 html .pw-shop-footer-name,html .pw-shop-footer-hint,html .pw-footer-col h3,html .pw-shop-footer-col h3,
 html .pw-footer-col a:not([data-pw-hidden="1"]):not(.pw-shop-footer-moit),
 html .pw-shop-footer-col a:not([data-pw-hidden="1"]):not(.pw-shop-footer-moit),
@@ -890,7 +890,7 @@ header a.pw-brand img.pw-logo ~ img.pw-logo,header a.pw-shop-brand img.pw-logo ~
 .pw-shop-search-compose,.pw-search-compose{flex:1 1 auto!important;min-width:0!important;display:flex!important;align-items:center!important;padding:0 8px!important;text-decoration:none!important;color:inherit!important;overflow:hidden!important}
 .pw-shop-search-compose span,.pw-search-compose span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b7280}
 .pw-shop-search-compose .pw-shop-search-compose-q{color:#111827}
-.pw-shop-main-compose{padding:0!important;margin:0!important;min-height:100dvh;overflow:hidden}
+.pw-shop-main-compose{padding:0!important;margin:0!important;min-height:100dvh;overflow:visible;background:#f4f4f5}
 .pw-search-form .pw-search-image-btn:not([data-pw-chrome-size]),.pw-search-form .pw-shop-search-image:not([data-pw-chrome-size]),.pw-shop-search-form .pw-search-image-btn:not([data-pw-chrome-size]),.pw-shop-search-form .pw-shop-search-image:not([data-pw-chrome-size]),.pw-search-form .pw-search-submit:not([data-pw-chrome-size]),.pw-search-form .pw-shop-search-submit:not([data-pw-chrome-size]),.pw-shop-search-form .pw-search-submit:not([data-pw-chrome-size]),.pw-shop-search-form .pw-shop-search-submit:not([data-pw-chrome-size]){--pw-chrome-size:${PW_SEARCH_ICON_SIZE.desktop}px}
 ${PW_SEARCH_IMAGE_IN_FORM_BTN_CSS}
 ${PW_SEARCH_IMAGE_IN_FORM_WRAP_CSS}

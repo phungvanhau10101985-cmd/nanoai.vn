@@ -147,6 +147,7 @@ export type PartnerSiteShopCopy = {
   searchHistoryAria: string
   searchHistoryRemove: string
   searchHistoryEmpty: string
+  searchHistoryEmptyHint: string
   searchHistoryClearAll: string
   searchComposeOpen: string
   searchClearQuery: string
@@ -159,6 +160,10 @@ export type PartnerSiteShopCopy = {
   searchSuggestForYou: string
   searchSuggestLoadError: string
   searchSuggestTypedEmpty: string
+  searchSuggestTapTyped: string
+  searchTileBadge: string
+  searchQuickAria: string
+  searchQuickNew: string
   searchRetry: string
   searchForQuery: string
   imageSearchTitle: string
@@ -700,6 +705,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryAria: 'Lịch sử tìm kiếm',
     searchHistoryRemove: 'Xóa',
     searchHistoryEmpty: 'Chưa có từ khóa tìm kiếm',
+    searchHistoryEmptyHint: 'Từ khóa bạn tìm sẽ hiện ở đây để bấm lại cho nhanh.',
     searchHistoryClearAll: 'Xóa tất cả lịch sử',
     searchComposeOpen: 'Mở trang tìm kiếm',
     searchClearQuery: 'Xóa từ khóa',
@@ -708,10 +714,14 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryLoadError: 'Không tải được lịch sử tìm kiếm',
     searchSuggestTitle: 'Gợi ý tìm kiếm',
     searchSuggestProducts: 'Sản phẩm gợi ý',
-    searchSuggestFromViewed: 'Dựa trên sản phẩm bạn đã xem',
-    searchSuggestForYou: 'Dành cho bạn — cùng phong cách đang xem',
+    searchSuggestFromViewed: 'Dựa trên sản phẩm bạn đã xem — bấm ảnh để tìm',
+    searchSuggestForYou: 'Bấm ảnh để tìm sản phẩm cùng loại',
     searchSuggestLoadError: 'Không tải được gợi ý tìm kiếm',
-    searchSuggestTypedEmpty: 'Chưa thấy sản phẩm khớp. Bấm nút tìm để xem kết quả đầy đủ.',
+    searchSuggestTypedEmpty: 'Chưa thấy gợi ý khớp. Bấm nút tìm để xem kết quả đầy đủ.',
+    searchSuggestTapTyped: 'Bấm ảnh để tìm sản phẩm cùng kiểu',
+    searchTileBadge: 'Tìm',
+    searchQuickAria: 'Tìm nhanh',
+    searchQuickNew: 'Hàng mới',
     searchRetry: 'Thử lại',
     searchForQuery: 'Kết quả cho “{q}”',
     imageSearchTitle: 'Tìm theo ảnh',
@@ -1242,6 +1252,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryAria: 'Search history',
     searchHistoryRemove: 'Remove',
     searchHistoryEmpty: 'No recent searches',
+    searchHistoryEmptyHint: 'Words you search will show here so you can tap them again.',
     searchHistoryClearAll: 'Clear all history',
     searchComposeOpen: 'Open search',
     searchClearQuery: 'Clear query',
@@ -1250,10 +1261,14 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryLoadError: 'Could not load search history',
     searchSuggestTitle: 'Search suggestions',
     searchSuggestProducts: 'Suggested products',
-    searchSuggestFromViewed: 'Based on products you viewed',
-    searchSuggestForYou: 'Picked for you — similar to what you are browsing',
+    searchSuggestFromViewed: 'Based on products you viewed — tap a photo to search',
+    searchSuggestForYou: 'Tap a photo to search similar products',
     searchSuggestLoadError: 'Could not load search suggestions',
-    searchSuggestTypedEmpty: 'No products yet. Tap search to see full results.',
+    searchSuggestTypedEmpty: 'No matching suggestions yet. Tap search for full results.',
+    searchSuggestTapTyped: 'Tap a photo to search similar styles',
+    searchTileBadge: 'Search',
+    searchQuickAria: 'Quick search',
+    searchQuickNew: 'New in',
     searchRetry: 'Try again',
     searchForQuery: 'Results for “{q}”',
     imageSearchTitle: 'Search by image',
@@ -1784,6 +1799,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryAria: '搜索历史',
     searchHistoryRemove: '删除',
     searchHistoryEmpty: '暂无搜索记录',
+    searchHistoryEmptyHint: '您搜索过的关键词会显示在这里，方便再次点击。',
     searchHistoryClearAll: '清除全部历史',
     searchComposeOpen: '打开搜索页',
     searchClearQuery: '清除关键词',
@@ -1792,10 +1808,14 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryLoadError: '无法加载搜索历史',
     searchSuggestTitle: '搜索建议',
     searchSuggestProducts: '推荐商品',
-    searchSuggestFromViewed: '根据你看过的商品',
-    searchSuggestForYou: '为你推荐 — 与正在浏览的风格相近',
+    searchSuggestFromViewed: '根据你看过的商品 — 点图片即可搜索',
+    searchSuggestForYou: '点图片搜索同类商品',
     searchSuggestLoadError: '无法加载搜索建议',
-    searchSuggestTypedEmpty: '暂无匹配商品。点搜索查看完整结果。',
+    searchSuggestTypedEmpty: '暂无匹配建议。点搜索查看完整结果。',
+    searchSuggestTapTyped: '点图片搜索同款商品',
+    searchTileBadge: '搜索',
+    searchQuickAria: '快捷搜索',
+    searchQuickNew: '新品',
     searchRetry: '重试',
     searchForQuery: '“{q}” 的搜索结果',
     imageSearchTitle: '以图搜图',
@@ -2322,6 +2342,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryAria: '検索履歴',
     searchHistoryRemove: '削除',
     searchHistoryEmpty: '検索履歴はまだありません',
+    searchHistoryEmptyHint: '検索したキーワードがここに残り、すぐ再検索できます。',
     searchHistoryClearAll: '履歴をすべて削除',
     searchComposeOpen: '検索ページを開く',
     searchClearQuery: 'キーワードを消去',
@@ -2330,10 +2351,14 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryLoadError: '検索履歴を読み込めませんでした',
     searchSuggestTitle: '検索候補',
     searchSuggestProducts: 'おすすめ商品',
-    searchSuggestFromViewed: '閲覧した商品に基づく',
-    searchSuggestForYou: 'あなた向け — 閲覧中のスタイルに近い商品',
+    searchSuggestFromViewed: '閲覧した商品に基づく — 写真をタップして検索',
+    searchSuggestForYou: '写真をタップして同系統の商品を検索',
     searchSuggestLoadError: '検索候補を読み込めませんでした',
-    searchSuggestTypedEmpty: '一致する商品はまだありません。検索を押して全件を表示。',
+    searchSuggestTypedEmpty: '一致する候補はまだありません。検索を押して全件を表示。',
+    searchSuggestTapTyped: '写真をタップして同じスタイルを検索',
+    searchTileBadge: '検索',
+    searchQuickAria: 'クイック検索',
+    searchQuickNew: '新着',
     searchRetry: '再試行',
     searchForQuery: '「{q}」の検索結果',
     imageSearchTitle: '画像で検索',
@@ -2862,6 +2887,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryAria: '검색 기록',
     searchHistoryRemove: '삭제',
     searchHistoryEmpty: '최근 검색어가 없습니다',
+    searchHistoryEmptyHint: '검색한 단어가 여기에 남아 다시 눌러 찾을 수 있어요.',
     searchHistoryClearAll: '검색 기록 모두 삭제',
     searchComposeOpen: '검색 페이지 열기',
     searchClearQuery: '검색어 지우기',
@@ -2870,10 +2896,14 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     searchHistoryLoadError: '검색 기록을 불러오지 못했습니다',
     searchSuggestTitle: '검색 제안',
     searchSuggestProducts: '추천 상품',
-    searchSuggestFromViewed: '최근 본 상품 기준',
-    searchSuggestForYou: '회원님을 위한 추천 — 비슷한 스타일',
+    searchSuggestFromViewed: '최근 본 상품 기준 — 사진을 눌러 검색',
+    searchSuggestForYou: '사진을 눌러 비슷한 상품 검색',
     searchSuggestLoadError: '검색 제안을 불러오지 못했습니다',
-    searchSuggestTypedEmpty: '일치하는 상품이 없습니다. 검색을 눌러 전체 결과를 보세요.',
+    searchSuggestTypedEmpty: '일치하는 제안이 없습니다. 검색을 눌러 전체 결과를 보세요.',
+    searchSuggestTapTyped: '사진을 눌러 비슷한 스타일 검색',
+    searchTileBadge: '검색',
+    searchQuickAria: '빠른 검색',
+    searchQuickNew: '신상품',
     searchRetry: '다시 시도',
     searchForQuery: '“{q}” 검색 결과',
     imageSearchTitle: '이미지로 검색',

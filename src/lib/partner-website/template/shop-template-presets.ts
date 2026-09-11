@@ -255,7 +255,7 @@ const SHOP_TEMPLATE_PRESET_SOURCES: ShopTemplatePreset[] = [
       textColor: '#1a1a1a',
       mutedColor: '#6b7280',
       surfaceColor: '#ffffff',
-      footerColor: '#111827',
+      footerColor: '#ffffff',
       borderColor: '#e5e7eb',
       fontFamily:
         '"Nunito", "Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',

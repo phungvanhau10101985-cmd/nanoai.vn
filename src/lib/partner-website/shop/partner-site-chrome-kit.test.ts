@@ -769,6 +769,27 @@ describe('partner-site-chrome-kit', () => {
     expect(next).not.toMatch(/pw-header-search[^>]*width:\s*280px/)
   })
 
+  it('converts leftover header search input into /tim-kiem on desktop too', () => {
+    const html = `<html data-pw-edit-device="desktop"><header class="pw-header">
+      <div class="pw-header-search" data-pw-el="search">
+        <form class="pw-search-form" data-pw-search-form>
+          <input data-pw-search type="search" name="q" placeholder="Tìm sản phẩm…"/>
+          <button type="button" class="pw-search-image-btn" data-pw-image-search>cam</button>
+          <button type="submit" class="pw-search-submit">TÌM</button>
+        </form>
+        <div data-pw-search-history data-pw-search-history-panel="1" hidden></div>
+      </div>
+    </header></html>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, {
+      locale: 'vi',
+      siteSlug: 'demo-shop',
+      device: 'desktop',
+    })
+    expect(next).toContain('pw-search-compose')
+    expect(next).toContain('/site/demo-shop/tim-kiem')
+    expect(next).not.toMatch(/data-pw-search type="search"/)
+  })
+
   it('converts leftover mobile header search input into /tim-kiem like 188', () => {
     const html = `<html data-pw-edit-device="mobile"><header class="pw-header">
       <div class="pw-header-search" data-pw-el="search">

@@ -14,61 +14,97 @@ import {
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import {
+  partnerSiteCategoryHubPath,
   partnerSiteHomePath,
   partnerSiteImageSearchPath,
+  partnerSiteKhoSalePath,
   partnerSitePersonalizationApiPath,
-  partnerSiteProductPath,
   partnerSiteProductsApiPath,
+  partnerSiteProductsPath,
   partnerSiteSearchHistoryApiPath,
   partnerSiteSearchPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { storePendingImageAndNavigate } from '@/lib/partner-website/shop/partner-site-pending-image'
+import { isSaleListingSearchTerm } from '@/lib/partner-website/shop/partner-site-text-search'
 
 const PW_MOBILE_SEARCH_COMPOSE_CSS = `
-.pw-mobile-search{position:fixed;inset:0;z-index:100000;display:flex;flex-direction:column;background:#fff;color:var(--pw-text,#111)}
-.pw-mobile-search-head{flex:0 0 auto;background:#fff;border-bottom:1px solid var(--pw-border,#f3f4f6);padding-top:env(safe-area-inset-top,0px)}
-.pw-mobile-search-form{display:flex;align-items:center;gap:6px;padding:8px}
-.pw-mobile-search-back{flex:0 0 auto;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;border-radius:12px;color:var(--pw-text,#111)}
-.pw-mobile-search-back svg{width:24px;height:24px}
-.pw-mobile-search-field{flex:1 1 auto;min-width:0;height:44px;display:flex;align-items:stretch;overflow:hidden;border-radius:12px;background:#f3f4f6;box-shadow:inset 0 0 0 1px var(--pw-border,#e5e7eb)}
-.pw-mobile-search-lens{width:20px;height:20px;margin:auto 0 auto 10px;color:#9ca3af;flex:0 0 auto}
-.pw-mobile-search-field input{flex:1 1 auto;min-width:0;height:100%;border:0;background:transparent;font-size:16px;color:var(--pw-text,#111);padding:0 6px;outline:none}
-.pw-mobile-search-clear{flex:0 0 auto;width:32px;height:32px;margin:auto 2px;border:0;background:transparent;border-radius:999px;color:#6b7280}
-.pw-mobile-search-clear svg{width:16px;height:16px}
-.pw-mobile-search-camera{flex:0 0 auto;width:44px;border:0;border-left:1px solid var(--pw-border,#e5e7eb);background:transparent;color:#4b5563}
-.pw-mobile-search-camera svg{width:22px;height:22px;margin:auto}
-.pw-mobile-search-go{flex:0 0 auto;width:44px;border:0;background:var(--pw-primary);color:#fff}
-.pw-mobile-search-go svg{width:22px;height:22px;margin:auto;stroke:#fff}
-.pw-mobile-search-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:12px 12px max(12px,env(safe-area-inset-bottom))}
+.pw-mobile-search{position:fixed;inset:0;z-index:100000;display:flex;flex-direction:column;background:#f9fafb;color:var(--pw-text,#111);font-family:var(--pw-font-ui),system-ui,sans-serif}
+.pw-mobile-search-head{flex:0 0 auto;background:#fff;padding-top:env(safe-area-inset-top,0px);border-bottom:1px solid #f3f4f6}
+.pw-mobile-search-form{display:flex;align-items:center;gap:6px;padding:10px 12px;touch-action:manipulation;max-width:48rem;margin:0 auto;width:100%;box-sizing:border-box}
+@media (min-width:768px){.pw-mobile-search-form{padding:12px 16px}}
+.pw-mobile-search-back,.pw-mobile-search-camera,.pw-mobile-search-go{flex:0 0 auto;min-width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:0;cursor:pointer}
+.pw-mobile-search-back{background:transparent;border-radius:12px;color:#1f2937}
+.pw-mobile-search-back:hover{background:#f3f4f6}
+.pw-mobile-search-back svg,.pw-mobile-search-camera svg,.pw-mobile-search-go svg{width:22px;height:22px}
+.pw-mobile-search-field{flex:1 1 auto;min-width:0;height:44px;display:flex;align-items:stretch;overflow:hidden;border-radius:12px;background:#f3f4f6;box-shadow:inset 0 0 0 1px #e5e7eb}
+.pw-mobile-search-field:focus-within{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--pw-primary,#ea580c) 55%,#fff)}
+.pw-mobile-search-field-main{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:6px;padding:0 4px 0 10px}
+.pw-mobile-search-lens{width:18px;height:18px;color:#9ca3af;flex:0 0 auto}
+.pw-mobile-search-field input{flex:1 1 auto;min-width:0;height:100%;border:0;background:transparent;font-size:16px;color:var(--pw-text,#111);padding:0 4px;outline:none;caret-color:var(--pw-primary,#ea580c);-webkit-user-select:text}
+.pw-mobile-search-field input::placeholder{color:#6b7280}
+.pw-mobile-search-field input[type=search]::-webkit-search-decoration,
+.pw-mobile-search-field input[type=search]::-webkit-search-cancel-button{display:none}
+.pw-mobile-search-clear{flex:0 0 auto;width:32px;height:32px;margin:auto 4px auto 0;border:0;background:#e5e7eb;border-radius:999px;color:#6b7280;cursor:pointer}
+.pw-mobile-search-clear svg{width:14px;height:14px}
+.pw-mobile-search-camera{width:44px;border-left:1px solid #e5e7eb;border-radius:0;background:transparent;color:#4b5563}
+.pw-mobile-search-camera:hover{background:color-mix(in srgb,var(--pw-primary,#ea580c) 8%,#fff);color:var(--pw-primary,#ea580c)}
+.pw-mobile-search-go{min-width:44px;width:44px;padding:0;border-radius:0;background:var(--pw-primary,#ea580c);color:#fff}
+@media (min-width:768px){.pw-mobile-search-go{min-width:56px;width:56px}}
+.pw-mobile-search-go:hover{filter:brightness(.95)}
+.pw-mobile-search-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:12px 12px max(20px,env(safe-area-inset-bottom))}
+.pw-mobile-search-body-inner{max-width:48rem;margin:0 auto;width:100%}
+@media (min-width:768px){.pw-mobile-search-body{padding-top:20px}}
+.pw-mobile-search-quick{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+.pw-mobile-search-quick a{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border-radius:999px;background:#fff;color:var(--pw-text,#111);font-size:13px;font-weight:700;text-decoration:none;box-shadow:0 0 0 1px #e5e7eb}
+.pw-mobile-search-card{background:transparent;border-radius:0;padding:0;box-shadow:none}
+.pw-mobile-search-card + .pw-mobile-search-card,.pw-mobile-search-body section + section{margin-top:20px}
 .pw-mobile-search-body h2{margin:0;font-size:14px;font-weight:700;color:var(--pw-text,#111)}
 .pw-mobile-search-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
-.pw-mobile-search-clear-all{border:0;background:transparent;font-size:12px;font-weight:600;color:var(--pw-muted,#6b7280)}
-.pw-mobile-search-muted{margin:8px 0;font-size:12px;color:var(--pw-muted,#6b7280)}
-.pw-mobile-search-hint{margin:2px 0 8px;font-size:12px;color:var(--pw-muted,#6b7280)}
-.pw-mobile-search-err{margin:8px 0;padding:10px 12px;border-radius:10px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;font-size:13px}
+.pw-mobile-search-clear-all{border:0;background:transparent;font-size:12px;font-weight:600;color:var(--pw-muted,#6b7280);min-height:36px;cursor:pointer}
+.pw-mobile-search-clear-all:hover{color:#b91c1c}
+.pw-mobile-search-muted{margin:0;font-size:13px;line-height:1.45;color:var(--pw-muted,#6b7280)}
+.pw-mobile-search-hint{margin:2px 0 12px;font-size:12px;color:var(--pw-muted,#6b7280)}
+.pw-mobile-search-empty{display:flex;align-items:flex-start;gap:10px;padding:2px 0 4px;color:var(--pw-muted,#6b7280)}
+.pw-mobile-search-empty svg{width:22px;height:22px;margin-top:1px;color:var(--pw-primary,#ea580c);flex:0 0 auto}
+.pw-mobile-search-empty strong{display:block;font-size:13px;font-weight:700;color:var(--pw-text,#111)}
+.pw-mobile-search-err{margin:0 0 10px;padding:10px 12px;border-radius:12px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;font-size:13px}
 .pw-mobile-search-err button{border:0;background:transparent;font:inherit;font-weight:600;text-decoration:underline;color:inherit;cursor:pointer}
 .pw-mobile-search-chips{display:flex;flex-wrap:wrap;gap:8px}
-.pw-mobile-search-chip{display:inline-flex;max-width:100%;align-items:center;border-radius:999px;background:#f3f4f6;padding:4px 4px 4px 12px}
-.pw-mobile-search-chip>button:first-child{border:0;background:transparent;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--pw-text,#111)}
-.pw-mobile-search-chip>button:last-child{width:32px;height:32px;border:0;background:transparent;border-radius:999px;color:#9ca3af;font-size:18px;line-height:1}
-.pw-mobile-search-body section{margin-top:16px}
-.pw-mobile-search-body section:first-of-type{margin-top:4px}
-.pw-mobile-search-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
-.pw-mobile-search-tile{display:block;overflow:hidden;border-radius:12px;border:1px solid var(--pw-border,#f3f4f6);background:#fff;text-align:left;color:inherit;text-decoration:none;box-shadow:0 1px 2px rgba(15,23,42,.06)}
-.pw-mobile-search-tile img{width:100%;aspect-ratio:1;object-fit:cover;background:#f9fafb;display:block}
-.pw-mobile-search-tile p{margin:0;padding:6px 8px;font-size:12px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.7em}
-.pw-mobile-search-skel{border-radius:12px;border:1px solid #f3f4f6;background:#f3f4f6;min-height:160px}
+.pw-mobile-search-chip{display:inline-flex;max-width:100%;align-items:center;gap:2px;border-radius:999px;background:#fff;padding:2px 4px 2px 12px;box-shadow:0 0 0 1px #e5e7eb}
+.pw-mobile-search-chip svg{width:14px;height:14px;color:#9ca3af;flex:0 0 auto;margin-left:4px}
+.pw-mobile-search-chip>button:first-of-type{border:0;background:transparent;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:600;color:var(--pw-text,#111);padding:8px 4px;min-height:36px;cursor:pointer}
+.pw-mobile-search-chip>button:last-child{width:36px;height:36px;border:0;background:transparent;border-radius:999px;color:#9ca3af;font-size:18px;line-height:1;cursor:pointer}
+.pw-mobile-search-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (min-width:640px){.pw-mobile-search-grid{grid-template-columns:repeat(3,1fr)}}
+@media (min-width:768px){.pw-mobile-search-grid{grid-template-columns:repeat(4,1fr)}}
+.pw-mobile-search-tile{position:relative;display:block;overflow:hidden;border-radius:16px;background:#fff;text-align:left;color:inherit;border:0;padding:0;box-shadow:0 0 0 1px #f3f4f6,0 1px 2px rgba(15,23,42,.04);cursor:pointer;width:100%}
+.pw-mobile-search-tile:hover{transform:translateY(-2px);box-shadow:0 8px 16px rgba(15,23,42,.08),0 0 0 1px color-mix(in srgb,var(--pw-primary,#ea580c) 22%,#fff)}
+.pw-mobile-search-tile-media{position:relative;aspect-ratio:3/4;background:#f9fafb}
+.pw-mobile-search-tile img{width:100%;height:100%;object-fit:cover;background:#f3f4f6;display:block}
+.pw-mobile-search-tile-badge{position:absolute;left:8px;top:8px;display:inline-flex;align-items:center;gap:4px;border-radius:999px;background:rgba(255,255,255,.95);padding:2px 8px;font-size:11px;font-weight:700;color:var(--pw-primary,#ea580c);box-shadow:0 1px 2px rgba(15,23,42,.08)}
+.pw-mobile-search-tile-badge svg{width:12px;height:12px}
+.pw-mobile-search-tile p{margin:0;padding:8px 10px 10px;font-size:13px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.7em;color:var(--pw-text,#111)}
+.pw-mobile-search-skel{border-radius:16px;background:linear-gradient(90deg,#f3f4f6 25%,#eceff3 37%,#f3f4f6 63%);background-size:400% 100%;animation:pw-ms-skel 1.2s ease infinite;min-height:220px}
+@keyframes pw-ms-skel{0%{background-position:100% 0}100%{background-position:0 0}}
 `
 
 type SuggestProduct = {
   id?: string
+  inventoryId?: string
+  inventory_id?: string
   name?: string
   imageUrl?: string | null
   image_url?: string | null
-  detailPath?: string
-  detail_path?: string
-  productUrl?: string
-  product_url?: string
+  categoryL1?: string | null
+  category_l1?: string | null
+  categoryL2?: string | null
+  category_l2?: string | null
+  categoryL3?: string | null
+  category_l3?: string | null
+}
+
+function productId(p: SuggestProduct): string {
+  return String(p.id || p.inventoryId || p.inventory_id || '').trim()
 }
 
 function productImage(p: SuggestProduct): string {
@@ -76,26 +112,23 @@ function productImage(p: SuggestProduct): string {
   return shopCardDisplaySrc(raw) || raw
 }
 
-function productHref(
-  p: SuggestProduct,
-  siteSlug: string,
-  customDomain?: boolean
-): string {
-  const raw = String(p.detailPath || p.detail_path || '').trim()
-  if (raw.startsWith('/')) return raw
-  const id = String(p.id || '').trim()
-  if (id) return partnerSiteProductPath(siteSlug, id, { name: p.name, customDomain })
-  return ''
+function searchQueryFromProduct(p: SuggestProduct, typed: boolean): string {
+  const name = String(p.name || '').trim()
+  const l3 = String(p.categoryL3 || p.category_l3 || '').trim()
+  const l2 = String(p.categoryL2 || p.category_l2 || '').trim()
+  const l1 = String(p.categoryL1 || p.category_l1 || '').trim()
+  if (typed) return name || l3 || l2 || l1
+  return l3 || l2 || l1 || name
 }
 
 function pushUnique(out: SuggestProduct[], seen: Set<string>, product: SuggestProduct | null | undefined) {
   if (!product) return
-  const id = String(product.id || '').trim()
+  const id = productId(product)
   const name = String(product.name || '').trim()
   const img = productImage(product)
   if (!id || seen.has(id) || !name || !img) return
   seen.add(id)
-  out.push(product)
+  out.push({ ...product, id })
 }
 
 async function fetchJson(url: string): Promise<Record<string, unknown> | null> {
@@ -111,7 +144,11 @@ async function fetchJson(url: string): Promise<Record<string, unknown> | null> {
 function asProducts(raw: unknown): SuggestProduct[] {
   if (!raw || typeof raw !== 'object') return []
   const list = (raw as { products?: unknown }).products
-  return Array.isArray(list) ? (list as SuggestProduct[]) : []
+  if (!Array.isArray(list)) return []
+  return (list as SuggestProduct[]).map((product) => {
+    const id = productId(product)
+    return id ? { ...product, id } : product
+  })
 }
 
 async function loadSuggestProducts(siteSlug: string): Promise<{ products: SuggestProduct[]; fromViewed: boolean }> {
@@ -123,7 +160,7 @@ async function loadSuggestProducts(siteSlug: string): Promise<{ products: Sugges
   let fromViewed = false
   if (viewedRes.status === 'fulfilled' && viewedRes.value) {
     for (const p of asProducts(viewedRes.value)) {
-      if (out.length >= 8) break
+      if (out.length >= 12) break
       const before = out.length
       pushUnique(out, seen, p)
       if (out.length > before) fromViewed = true
@@ -131,18 +168,18 @@ async function loadSuggestProducts(siteSlug: string): Promise<{ products: Sugges
   }
   if (recRes.status === 'fulfilled' && recRes.value) {
     for (const p of asProducts(recRes.value)) {
-      if (out.length >= 8) break
+      if (out.length >= 12) break
       pushUnique(out, seen, p)
     }
   }
-  if (out.length < 8) {
-    const popular = await fetchJson(`${partnerSiteProductsApiPath(siteSlug)}?limit=12&sort=views_desc`)
+  if (out.length < 12) {
+    const popular = await fetchJson(`${partnerSiteProductsApiPath(siteSlug)}?limit=16&sort=views_desc`)
     for (const p of asProducts(popular)) {
-      if (out.length >= 8) break
+      if (out.length >= 12) break
       pushUnique(out, seen, p)
     }
   }
-  return { products: out.slice(0, 8), fromViewed }
+  return { products: out.slice(0, 12), fromViewed }
 }
 
 function focusComposeInput(el: HTMLInputElement | null) {
@@ -234,11 +271,13 @@ export function PartnerSiteMobileSearchClient({
     if (!el) return
     const focus = () => focusComposeInput(el)
     focus()
-    const timers = [0, 50, 120, 320].map((ms) => window.setTimeout(focus, ms))
+    const raf = window.requestAnimationFrame(focus)
+    const timers = [0, 50, 120, 320, 700].map((ms) => window.setTimeout(focus, ms))
     const onShow = () => focus()
     window.addEventListener('pageshow', onShow)
     document.addEventListener('visibilitychange', onShow)
     return () => {
+      window.cancelAnimationFrame(raf)
       for (const id of timers) window.clearTimeout(id)
       window.removeEventListener('pageshow', onShow)
       document.removeEventListener('visibilitychange', onShow)
@@ -367,7 +406,9 @@ export function PartnerSiteMobileSearchClient({
         return
       }
       emitPartnerSiteSearchHistory(term)
-      const dest = partnerSiteSearchPath(siteSlug, { customDomain, q: term })
+      const dest = isSaleListingSearchTerm(term)
+        ? partnerSiteKhoSalePath(siteSlug, { customDomain })
+        : partnerSiteSearchPath(siteSlug, { customDomain, q: term })
       if (typeof window !== 'undefined') {
         window.location.assign(dest)
         return
@@ -457,6 +498,35 @@ export function PartnerSiteMobileSearchClient({
   const showSuggestSection =
     typed.length >= 2 || suggestLoading || Boolean(suggestError) || suggestProducts.length > 0
 
+  const renderProduct = (product: SuggestProduct) => {
+    const img = productImage(product)
+    if (!img) return null
+    const query = searchQueryFromProduct(product, typed.length >= 2)
+    if (!query) return null
+    const key = productId(product) || query
+    return (
+      <button
+        key={key}
+        type="button"
+        className="pw-mobile-search-tile"
+        onClick={() => runSearch(query)}
+        aria-label={`${t.searchTileBadge} ${query}`}
+      >
+        <span className="pw-mobile-search-tile-media">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={img} alt="" loading="lazy" decoding="async" />
+          <span className="pw-mobile-search-tile-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            {t.searchTileBadge}
+          </span>
+        </span>
+        <p>{query}</p>
+      </button>
+    )
+  }
+
   return (
     <div
       className="pw-mobile-search"
@@ -477,41 +547,43 @@ export function PartnerSiteMobileSearchClient({
             </svg>
           </button>
           <div className="pw-mobile-search-field">
-            <svg className="pw-mobile-search-lens" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              ref={inputRef}
-              data-pw-search-compose="1"
-              type="text"
-              name="q"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={placeholder}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              autoFocus
-              enterKeyHint="search"
-              inputMode="search"
-              aria-label={placeholder}
-            />
-            {searchTerm ? (
-              <button
-                type="button"
-                className="pw-mobile-search-clear"
-                onClick={() => {
-                  setSearchTerm('')
-                  focusComposeInput(inputRef.current)
-                }}
-                aria-label={t.searchClearQuery}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            ) : null}
+            <div className="pw-mobile-search-field-main">
+              <svg className="pw-mobile-search-lens" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                ref={inputRef}
+                data-pw-search-compose="1"
+                type="search"
+                name="q"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={placeholder}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                autoFocus
+                enterKeyHint="search"
+                inputMode="search"
+                aria-label={placeholder}
+              />
+              {searchTerm ? (
+                <button
+                  type="button"
+                  className="pw-mobile-search-clear"
+                  onClick={() => {
+                    setSearchTerm('')
+                    focusComposeInput(inputRef.current)
+                  }}
+                  aria-label={t.searchClearQuery}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              ) : null}
+            </div>
             <button
               type="button"
               className="pw-mobile-search-camera"
@@ -552,6 +624,15 @@ export function PartnerSiteMobileSearchClient({
       </header>
 
       <div className="pw-mobile-search-body">
+        <div className="pw-mobile-search-body-inner">
+        {typed.length < 2 ? (
+          <nav className="pw-mobile-search-quick" aria-label={t.searchQuickAria}>
+            <Link href={partnerSiteProductsPath(siteSlug, { customDomain })}>{t.searchQuickNew}</Link>
+            <Link href={partnerSiteKhoSalePath(siteSlug, { customDomain })}>{t.khoSaleNavLabel}</Link>
+            <Link href={partnerSiteCategoryHubPath(siteSlug, { customDomain })}>{t.categoryHubTitle}</Link>
+          </nav>
+        ) : null}
+
         {historyError ? (
           <div className="pw-mobile-search-err">
             {historyError}{' '}
@@ -561,7 +642,7 @@ export function PartnerSiteMobileSearchClient({
           </div>
         ) : null}
 
-        <section aria-label={t.searchHistoryAria}>
+        <section className="pw-mobile-search-card" aria-label={t.searchHistoryAria}>
           <div className="pw-mobile-search-row">
             <h2>{t.searchHistoryAria}</h2>
             {history.length > 0 ? (
@@ -577,12 +658,37 @@ export function PartnerSiteMobileSearchClient({
           </div>
           {historyLoading ? <p className="pw-mobile-search-muted">{t.searchSearching}</p> : null}
           {!historyLoading && matchedHistory.length === 0 && !historyError ? (
-            <p className="pw-mobile-search-muted">{typedKey ? t.searchHistoryNoMatch : t.searchHistoryEmpty}</p>
+            typedKey ? (
+              <p className="pw-mobile-search-muted">{t.searchHistoryNoMatch}</p>
+            ) : (
+              <div className="pw-mobile-search-empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.8}
+                    d="M12 8v4l2.5 1.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <div>
+                  <strong>{t.searchHistoryEmpty}</strong>
+                  <p className="pw-mobile-search-muted">{t.searchHistoryEmptyHint}</p>
+                </div>
+              </div>
+            )
           ) : null}
           {matchedHistory.length > 0 ? (
             <div className="pw-mobile-search-chips">
               {matchedHistory.map((q) => (
                 <div key={q} className="pw-mobile-search-chip">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4l2.5 1.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
                   <button type="button" onClick={() => runSearch(q)}>
                     {q}
                   </button>
@@ -601,13 +707,18 @@ export function PartnerSiteMobileSearchClient({
         </section>
 
         {showSuggestSection ? (
-          <section aria-label={typed.length >= 2 ? t.searchSuggestProducts : t.searchSuggestTitle}>
+          <section
+            className="pw-mobile-search-card"
+            aria-label={typed.length >= 2 ? t.searchSuggestProducts : t.searchSuggestTitle}
+          >
             <h2>{typed.length >= 2 ? t.searchSuggestProducts : t.searchSuggestTitle}</h2>
-            {typed.length < 2 && !suggestLoading && suggestProducts.length > 0 ? (
-              <p className="pw-mobile-search-hint">
-                {suggestFromViewed ? t.searchSuggestFromViewed : t.searchSuggestForYou}
-              </p>
-            ) : null}
+            <p className="pw-mobile-search-hint">
+              {typed.length >= 2
+                ? t.searchSuggestTapTyped
+                : suggestFromViewed
+                  ? t.searchSuggestFromViewed
+                  : t.searchSuggestForYou}
+            </p>
             {suggestError && typed.length < 2 ? (
               <div className="pw-mobile-search-err">
                 {suggestError}{' '}
@@ -655,54 +766,31 @@ export function PartnerSiteMobileSearchClient({
                 </button>
               </div>
             ) : null}
-            {((suggestLoading && typed.length < 2) ||
-              (typedLoading && typed.length >= 2 && visibleProducts.length === 0)) && (
+            {suggestLoading && typed.length < 2 ? (
               <div className="pw-mobile-search-grid">
-                {Array.from({ length: 4 }).map((_, i) => (
+                {Array.from({ length: 8 }).map((_, i) => (
                   <div key={i} className="pw-mobile-search-skel" />
                 ))}
               </div>
-            )}
+            ) : null}
+            {typedLoading && typed.length >= 2 && visibleProducts.length === 0 ? (
+              <div className="pw-mobile-search-grid">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="pw-mobile-search-skel" />
+                ))}
+              </div>
+            ) : null}
             {!typedLoading && typed.length >= 2 && visibleProducts.length === 0 && !typedError ? (
               <p className="pw-mobile-search-muted">{t.searchSuggestTypedEmpty}</p>
             ) : null}
             {visibleProducts.length > 0 && !(suggestLoading && typed.length < 2) ? (
               <div className="pw-mobile-search-grid">
-                {visibleProducts.map((product) => {
-                  const img = productImage(product)
-                  if (!img) return null
-                  const name = String(product.name || '').trim()
-                  const body = (
-                    <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img} alt="" />
-                      <p>{name}</p>
-                    </>
-                  )
-                  if (typed.length >= 2) {
-                    const href = productHref(product, siteSlug, customDomain)
-                    if (!href) return null
-                    return (
-                      <Link key={String(product.id)} href={href} className="pw-mobile-search-tile">
-                        {body}
-                      </Link>
-                    )
-                  }
-                  return (
-                    <button
-                      key={String(product.id)}
-                      type="button"
-                      className="pw-mobile-search-tile"
-                      onClick={() => runSearch(name)}
-                    >
-                      {body}
-                    </button>
-                  )
-                })}
+                {visibleProducts.map((product) => renderProduct(product))}
               </div>
             ) : null}
           </section>
         ) : null}
+        </div>
       </div>
     </div>
   )

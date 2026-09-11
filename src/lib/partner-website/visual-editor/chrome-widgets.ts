@@ -29,6 +29,7 @@ import {
   partnerSiteRecentlyViewedPath,
   partnerSiteWishlistPath,
   partnerSiteLeadApiPath,
+  partnerSiteMobileSearchPath,
   partnerSitePromotionsValidateApiPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 
@@ -401,11 +402,16 @@ export const PW_CHROME_FACE_EXTRAS_CSS =
   '[data-pw-el="nav-link"][data-pw-btn-color],[data-pw-el="link"][data-pw-btn-color],' +
   '[data-pw-el="crumb"][data-pw-btn-color],[data-pw-el="section-more"][data-pw-btn-color],' +
   '[data-pw-el="menu-item"][data-pw-btn-color]{background:var(--pw-btn-color)!important;background-color:var(--pw-btn-color)!important}' +
-  '[data-pw-icon-color]{color:var(--pw-icon-color)}' +
+  '[data-pw-icon-color]{color:var(--pw-icon-color)!important}' +
   '[data-pw-icon-color] svg,[data-pw-icon-color] .pw-chrome-icon-wrap{color:var(--pw-icon-color)!important;stroke:var(--pw-icon-color)!important}' +
   '[data-pw-icon-color] svg path,[data-pw-icon-color] svg circle,[data-pw-icon-color] svg line,' +
   '[data-pw-icon-color] svg polyline,[data-pw-icon-color] svg rect,[data-pw-icon-color] svg polygon{stroke:var(--pw-icon-color)!important}' +
+  '[data-pw-icon-color="transparent"] .pw-chrome-icon-wrap svg,' +
+  '[data-pw-icon-color="transparent"] .pw-chrome-icon-wrap img,' +
+  '[data-pw-icon-color="transparent"] .pw-chrome-chat-logo,' +
+  '[data-pw-icon-color="transparent"] .pw-chrome-brand-logo{opacity:0!important}' +
   '[data-pw-btn-color]{background:var(--pw-btn-color)!important;background-color:var(--pw-btn-color)!important}' +
+  '[data-pw-btn-color="transparent"]{background:transparent!important;background-color:transparent!important;background-image:none!important}' +
   '[data-pw-btn-border]{border-color:var(--pw-btn-border)!important}' +
   '[data-pw-chrome-text-flow="row"] .pw-chrome-btn-label,[data-pw-chrome-text-flow="row"] .pw-shop-nav-label,' +
   '[data-pw-chrome-text-flow="row"] .pw-shop-icon-label,[data-pw-chrome-text-flow="row"] .pw-account-btn-label,' +
@@ -1141,12 +1147,14 @@ export function buildVisualEditorChromeWidgetHtml(input: {
   const sizeAttr = chromeSizeAttrs(input.iconSize, input.iconWidth, input.iconHeight)
   if (kind === 'search') {
     const shop = getPartnerSiteShopCopy(input.locale)
-    const ph = escapeAttr(shop.searchPlaceholder)
+    const ph = escapeHtml(shop.searchPlaceholder)
+    const openLabel = escapeAttr(shop.searchComposeOpen)
     const imgLabel = escapeAttr(shop.searchByImage)
-    const btnAttr = escapeAttr(shop.searchButton)
+    const btnAttr = escapeAttr(shop.searchComposeOpen)
     const cameraSvg = chromeKindSvg('search-image')
     const searchSvg = chromeKindSvg('search')
-    return `<div class="pw-shop-search-wrap pw-header-search" data-pw-el="search" data-pw-chrome-btn="search" data-pw-chrome-added="1"${placeAttr}${sizeAttr} draggable="false"><form class="pw-shop-search-form pw-search-form" data-pw-search-form role="search"><span class="pw-search-default-icon pw-shop-search-default-icon" aria-hidden="true">${searchSvg}</span><input data-pw-search type="search" name="q" placeholder="${ph}" aria-label="${ph}" autocomplete="off"/><button type="button" class="pw-shop-search-image pw-search-image-btn" data-pw-image-search data-pw-search-glyph="camera" aria-label="${imgLabel}" title="${imgLabel}"><span class="pw-chrome-icon-wrap">${cameraSvg}</span></button><button type="submit" class="pw-shop-search-submit pw-search-submit" data-pw-search-glyph="lens" aria-label="${btnAttr}">${searchSvg}<span class="pw-shop-search-submit-label">${escapeHtml(shop.searchButton)}</span></button></form></div>`
+    const href = escapeAttr(partnerSiteMobileSearchPath(slug))
+    return `<div class="pw-shop-search-wrap pw-header-search" data-pw-el="search" data-pw-chrome-btn="search" data-pw-chrome-added="1"${placeAttr}${sizeAttr} draggable="false"><form class="pw-shop-search-form pw-search-form" data-pw-search-form role="search"><span class="pw-search-default-icon pw-shop-search-default-icon" aria-hidden="true">${searchSvg}</span><a class="pw-shop-search-compose pw-search-compose" href="${href}" target="_top" aria-label="${openLabel}"><span>${ph}</span></a><button type="button" class="pw-shop-search-image pw-search-image-btn" data-pw-image-search data-pw-search-glyph="camera" aria-label="${imgLabel}" title="${imgLabel}"><span class="pw-chrome-icon-wrap">${cameraSvg}</span></button><a class="pw-shop-search-submit pw-search-submit" href="${href}" target="_top" aria-label="${btnAttr}" data-pw-search-glyph="lens">${searchSvg}<span class="pw-shop-search-submit-label">${escapeHtml(shop.searchButton)}</span></a></form></div>`
   }
   if (kind === 'search-image') {
     const svg = chromeKindSvg('search-image')

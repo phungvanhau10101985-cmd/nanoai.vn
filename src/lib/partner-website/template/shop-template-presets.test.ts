@@ -49,11 +49,10 @@ test('every preset fills buy/cart/footer in the shared color frame', () => {
     assert.ok(preset.theme.footerColor, `${preset.code} footer`)
     if (preset.theme.look === 'marketplace') {
       assert.equal(preset.theme.cartButtonColor, preset.theme.primaryColor)
-      assert.equal(preset.theme.footerColor, '#111827')
     } else {
       assert.equal(preset.theme.cartButtonColor, '#6b7280')
       assert.equal(preset.theme.buyButtonColor, preset.theme.primaryColor)
-      assert.equal(preset.theme.footerColor, '#ffffff')
     }
+    assert.equal(preset.theme.footerColor, '#ffffff')
   }
 })

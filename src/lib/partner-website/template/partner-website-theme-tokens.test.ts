@@ -14,7 +14,7 @@ import {
   rewriteThemeCssVarsInHtml,
   SHOP_AUX_BG_SWATCHES,
   SHOP_AUX_CART_SWATCHES,
-  SHOP_FOOTER_LIGHT_INK,
+  SHOP_FOOTER_INK,
   SHOP_MAIN_COLOR_SWATCHES,
   shopBrowserChromeColor,
   shopBrowserThemeColorViewportItems,
@@ -108,20 +108,31 @@ test('preset with explicit buy, cart, footer, and look keeps those values', () =
   assert.equal(next.fontFamily, '"Nunito", sans-serif')
 })
 
-test('dark footer color uses light footer ink', () => {
+test('footer ink stays black on any footer background', () => {
   const dark = themeCssVarMap({
     ...DEFAULT_PARTNER_WEBSITE_THEME,
     footerColor: '#111827',
     textColor: '#1a1a1a',
   })
   assert.equal(dark['--pw-footer'], '#111827')
-  assert.equal(dark['--pw-footer-ink'], SHOP_FOOTER_LIGHT_INK)
+  assert.equal(dark['--pw-footer-ink'], SHOP_FOOTER_INK)
   const light = themeCssVarMap({
     ...DEFAULT_PARTNER_WEBSITE_THEME,
     footerColor: '#ffffff',
     textColor: '#111827',
   })
-  assert.equal(light['--pw-footer-ink'], '#111827')
+  assert.equal(light['--pw-footer-ink'], SHOP_FOOTER_INK)
+})
+
+test('marketplace look keeps the same black footer ink', () => {
+  const vars = themeCssVarMap({
+    ...DEFAULT_PARTNER_WEBSITE_THEME,
+    look: 'marketplace',
+    footerColor: '#111827',
+    textColor: '#1a1a1a',
+  })
+  assert.equal(vars['--pw-footer'], '#111827')
+  assert.equal(vars['--pw-footer-ink'], SHOP_FOOTER_INK)
 })
 
 test('rejects invalid theme patch', () => {

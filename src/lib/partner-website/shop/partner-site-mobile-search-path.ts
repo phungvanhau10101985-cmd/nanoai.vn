@@ -2,10 +2,10 @@ import { partnerSiteHref } from '@/lib/messaging/partner-custom-domain-site-path
 
 type PathOpts = { customDomain?: boolean }
 
-/** Trang soạn tìm kiếm mobile (kiểu Shopee / 188 `/tim-kiem`) — kết quả vẫn ở `/search?q=`. */
+/** Trang soạn tìm kiếm (kiểu 188 `/tim-kiem`) — mọi máy. Kết quả vẫn ở `/search?q=`. */
 export const PARTNER_MOBILE_SEARCH_COMPOSE_SEGMENT = 'tim-kiem'
 
-/** Khớp 188 `md` (768): máy stamp mobile, hoặc tab <768 khi chưa khóa máy. Tablet không mở trang này. */
+/** Legacy MQ — 188 mở `/tim-kiem` trên mọi máy, không còn cổng <768. */
 export const PARTNER_MOBILE_SEARCH_COMPOSE_MQ = '(max-width:767px)'
 
 export function partnerSiteMobileSearchPath(
@@ -23,16 +23,12 @@ export function isPartnerMobileSearchComposePath(pathname: string | null | undef
   return p === `/${PARTNER_MOBILE_SEARCH_COMPOSE_SEGMENT}` || /\/tim-kiem$/.test(p)
 }
 
-export function isPartnerShopMobileSearchComposeFace(input: {
+/** 188: mọi máy bấm ô tìm → `/tim-kiem`. Stamp / viewport không đổi. */
+export function isPartnerShopMobileSearchComposeFace(_input?: {
   editDevice?: string | null
   sceneLock?: string | null
   queryDevice?: string | null
   viewportMobile?: boolean
 }): boolean {
-  const stamped = String(input.editDevice || input.sceneLock || input.queryDevice || '')
-    .trim()
-    .toLowerCase()
-  if (stamped === 'mobile') return true
-  if (stamped === 'desktop' || stamped === 'laptop' || stamped === 'tablet') return false
-  return Boolean(input.viewportMobile)
+  return true
 }

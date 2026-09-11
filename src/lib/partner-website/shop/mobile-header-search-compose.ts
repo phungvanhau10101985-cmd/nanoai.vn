@@ -1,15 +1,14 @@
 /**
- * Mobile header search — UX 188: the box is a link to `/tim-kiem`, not an inline input.
+ * Header search — UX 188: the box is a link to `/tim-kiem` on every device, not an inline input.
  * Leftover saved HTML still has `<input data-pw-search>` — convert on Sửa nhanh / live.
  */
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
-import { isMobileHeadBackTarget } from '@/lib/partner-website/shop/mobile-header-back'
 import { partnerSiteMobileSearchPath } from '@/lib/partner-website/shop/partner-site-mobile-search-path'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
 const HEADER_BLOCK_RE = /<header\b[^>]*>[\s\S]*?<\/header>/i
-const SEARCH_INPUT_RE = /<input\b[^>]*\bdata-pw-search\b[^>]*\/?>/i
+const SEARCH_INPUT_RE = /<input\b[^>]*(?:\bdata-pw-search\b|\btype=["']search["'])[^>]*\/?>/i
 const SEARCH_SUBMIT_BTN_RE = /<button(\s[^>]*\bpw-search-submit\b[^>]*)>([\s\S]*?)<\/button>/i
 const SEARCH_HISTORY_RE = /<div\b[^>]*\bdata-pw-search-history\b[^>]*>[\s\S]*?<\/div>/i
 
@@ -31,7 +30,7 @@ function wordmarkTitle(html: string): string {
 }
 
 export function htmlHasMobileSearchCompose(html: string): boolean {
-  return /\bpw-search-compose\b|\bpw-shop-search-compose\b/.test(html)
+  return /<a\b[^>]*\b(?:pw-search-compose|pw-shop-search-compose)\b/i.test(html)
 }
 
 /** Live visual iframe is sandboxed — compose must open the parent, like a real tap on 188. */
@@ -45,7 +44,7 @@ function stampComposeTargetTop(html: string): string {
   )
 }
 
-/** HTML cũ còn ô gõ trên header mobile — đổi thành link `/tim-kiem` như 188. */
+/** HTML cũ còn ô gõ trên header — đổi thành link `/tim-kiem` như 188, mọi máy. */
 export function ensureMobileSearchComposeInHtml(
   html: string,
   input: {
@@ -56,7 +55,6 @@ export function ensureMobileSearchComposeInHtml(
   }
 ): string {
   if (!html.trim()) return html
-  if (!isMobileHeadBackTarget(html, input.device)) return html
   if (htmlHasMobileSearchCompose(html)) return stampComposeTargetTop(html)
   const siteSlug = String(input.siteSlug || '').trim()
   if (!siteSlug) return html

@@ -108,6 +108,6 @@ test('theme footerColor maps to --pw-footer', () => {
   assert.equal(themeCssVarMap({ ...DEFAULT_PARTNER_WEBSITE_THEME, footerColor: '#111827' })['--pw-footer'], '#111827')
   assert.equal(
     themeCssVarMap({ ...DEFAULT_PARTNER_WEBSITE_THEME, footerColor: '#111827' })['--pw-footer-ink'],
-    '#e5e7eb'
+    '#111827'
   )
 })

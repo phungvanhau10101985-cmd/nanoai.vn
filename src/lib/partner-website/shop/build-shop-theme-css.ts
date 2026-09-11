@@ -90,7 +90,7 @@ a{color:inherit;text-decoration:none}
 .pw-shop-search-compose,.pw-search-compose{flex:1;min-width:0;display:flex;align-items:center;padding:10px 8px;text-decoration:none;color:#111827;overflow:hidden}
 .pw-shop-search-compose span,.pw-search-compose span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b7280}
 .pw-shop-search-compose .pw-shop-search-compose-q{color:#111827}
-.pw-shop-main-compose{padding:0;margin:0;min-height:100dvh;overflow:hidden}
+.pw-shop-main-compose{padding:0;margin:0;min-height:100dvh;overflow:visible}
 .pw-search-default-icon,.pw-shop-search-default-icon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:18px;margin-left:10px;color:#9ca3af;pointer-events:none}
 .pw-search-default-icon svg,.pw-shop-search-default-icon svg{width:16px;height:16px;display:block}
 .pw-search-image-btn{border:none;background:transparent;padding:0;cursor:pointer;font-size:0;line-height:1;color:var(--pw-primary)}

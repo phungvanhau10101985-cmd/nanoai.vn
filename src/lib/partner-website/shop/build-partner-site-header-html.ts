@@ -8,7 +8,6 @@ import {
 import {
   partnerSiteHomePath,
   partnerSiteMobileSearchPath,
-  partnerSiteSearchPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
   PW_CHROME_KIT_ATTR,
@@ -189,23 +188,16 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
     ? `<a class="pw-brand" href="${homeHref}"><img class="pw-logo" ${pwElAttr(PW_EL.logo)} src="${escapeAttr(logo)}" alt="${escapeAttr(input.title)}"/><span class="pw-wordmark" ${pwElAttr(PW_EL.wordmark)}>${escapeHtml(input.title)}</span></a>`
     : `<a class="pw-brand" href="${homeHref}"><img class="pw-logo" ${pwElAttr(PW_EL.logo)} data-pw-logo-empty="1" src="${emptyLogoSrc}" alt=""/><span class="pw-wordmark" ${pwElAttr(PW_EL.wordmark)}>${escapeHtml(input.title)}</span></a>`
 
-  const searchAction = siteSlug ? escapeAttr(partnerSiteSearchPath(siteSlug)) : ''
   const composeHref = siteSlug ? escapeAttr(partnerSiteMobileSearchPath(siteSlug)) : ''
-  const mobileCompose = input.device === 'mobile'
-  const searchField = mobileCompose
-    ? `<a class="pw-search-compose" href="${composeHref || '#'}" target="_top" aria-label="${escapeAttr(search.composeOpen)}"><span>${escapeHtml(search.composePlaceholder || search.placeholder)}</span></a>`
-    : `<input data-pw-search type="search" name="q" placeholder="${escapeAttr(search.placeholder)}" aria-label="${escapeAttr(search.placeholder)}" autocomplete="off"/>`
-  const searchSubmit = mobileCompose
-    ? `<a class="pw-search-submit" href="${composeHref || '#'}" target="_top" aria-label="${escapeAttr(search.composeOpen)}" data-pw-search-glyph="lens">${searchGlyphSvg('lens')}<span class="pw-shop-search-submit-label">${escapeHtml(search.button)}</span></a>`
-    : `<button type="submit" class="pw-search-submit" data-pw-search-glyph="lens">${searchGlyphSvg('lens')}<span class="pw-shop-search-submit-label">${escapeHtml(search.button)}</span></button>`
+  const searchField = `<a class="pw-search-compose" href="${composeHref || '#'}" target="_top" aria-label="${escapeAttr(search.composeOpen)}"><span>${escapeHtml(search.composePlaceholder || search.placeholder)}</span></a>`
+  const searchSubmit = `<a class="pw-search-submit" href="${composeHref || '#'}" target="_top" aria-label="${escapeAttr(search.composeOpen)}" data-pw-search-glyph="lens">${searchGlyphSvg('lens')}<span class="pw-shop-search-submit-label">${escapeHtml(search.button)}</span></a>`
   const searchBar = `<div class="pw-header-search" ${pwElAttr(PW_EL.search)}>
-    <form class="pw-search-form" data-pw-search-form role="search"${!mobileCompose && searchAction ? ` method="get" action="${searchAction}"` : ''}>
+    <form class="pw-search-form" data-pw-search-form role="search">
       <span class="pw-search-default-icon" aria-hidden="true">${searchGlyphSvg('lens', 'pw-search-default-glyph')}</span>
       ${searchField}
       <button type="button" class="pw-search-image-btn" data-pw-image-search data-pw-search-glyph="camera" aria-label="${escapeAttr(search.image)}" title="${escapeAttr(search.image)}"><span class="pw-chrome-icon-wrap">${searchGlyphSvg('camera')}</span></button>
       ${searchSubmit}
     </form>
-    ${mobileCompose ? '' : '<div data-pw-search-history data-pw-search-history-panel="1" hidden></div>'}
   </div>`
 
   const categoryLinks = buildCategoryLinks(productsHref, saleHref, input.locale)

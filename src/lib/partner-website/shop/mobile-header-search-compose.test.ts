@@ -5,7 +5,7 @@ import {
 } from '@/lib/partner-website/shop/mobile-header-search-compose'
 import { buildPartnerSiteHeaderHtml } from '@/lib/partner-website/shop/build-partner-site-header-html'
 
-describe('mobile header search compose', () => {
+describe('header search compose', () => {
   it('seeds a compose link on mobile factory HTML', () => {
     const { header } = buildPartnerSiteHeaderHtml({
       locale: 'vi',
@@ -46,14 +46,22 @@ describe('mobile header search compose', () => {
     expect(next).not.toMatch(/<button[^>]*pw-search-submit/)
   })
 
-  it('does not rewrite desktop or tablet headers', () => {
+  it('converts leftover header input on desktop and tablet into /tim-kiem like 188', () => {
     const leftover = `<header><form data-pw-search-form><input data-pw-search type="search" name="q"/></form></header>`
-    expect(
-      ensureMobileSearchComposeInHtml(leftover, { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' })
-    ).toBe(leftover)
-    expect(
-      ensureMobileSearchComposeInHtml(leftover, { locale: 'vi', siteSlug: 'demo-shop', device: 'tablet' })
-    ).toBe(leftover)
+    const desktop = ensureMobileSearchComposeInHtml(leftover, {
+      locale: 'vi',
+      siteSlug: 'demo-shop',
+      device: 'desktop',
+    })
+    const tablet = ensureMobileSearchComposeInHtml(leftover, {
+      locale: 'vi',
+      siteSlug: 'demo-shop',
+      device: 'tablet',
+    })
+    expect(htmlHasMobileSearchCompose(desktop)).toBe(true)
+    expect(htmlHasMobileSearchCompose(tablet)).toBe(true)
+    expect(desktop).toContain('/site/demo-shop/tim-kiem')
+    expect(tablet).toContain('/site/demo-shop/tim-kiem')
   })
 
   it('is idempotent when the compose link is already there', () => {
@@ -82,5 +90,23 @@ describe('mobile header search compose', () => {
     })
     expect(next).toContain('target="_top"')
     expect(next).toContain('pw-search-compose')
+  })
+
+  it('still converts leftover input when injected CSS mentions .pw-search-compose', () => {
+    const html = `<html><head><style>.pw-search-compose,.pw-shop-search-compose{flex:1}</style></head>
+    <body><header class="pw-header">
+      <form class="pw-search-form" data-pw-search-form>
+        <input data-pw-search type="search" name="q" placeholder="Tìm sản phẩm…"/>
+        <button type="submit" class="pw-search-submit">TÌM</button>
+      </form>
+    </header></body></html>`
+    const next = ensureMobileSearchComposeInHtml(html, {
+      locale: 'vi',
+      siteSlug: 'demo-shop',
+      title: 'Demo Shop',
+    })
+    expect(htmlHasMobileSearchCompose(next)).toBe(true)
+    expect(next).not.toMatch(/data-pw-search type="search"/)
+    expect(next).toContain('/site/demo-shop/tim-kiem')
   })
 })
