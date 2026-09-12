@@ -45,3 +45,16 @@ test('login identity CSS shows avatar on text topbar buttons', () => {
   assert.match(PW_LOGIN_IDENTITY_CSS, /html\[data-pw-edit-device\]/)
   assert.match(PW_LOGIN_IDENTITY_CSS, /aspect-ratio:auto/)
 })
+
+test('client login identity helpers do not import postgres', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const src = await readFile(new URL('./partner-site-login-identity.ts', import.meta.url), 'utf8')
+  const link = await readFile(
+    new URL('../../../components/partner-website/shop/partner-site-login-chrome-link.tsx', import.meta.url),
+    'utf8'
+  )
+  assert.doesNotMatch(src, /from '@\/lib\/db\//)
+  assert.doesNotMatch(src, /from 'pg'/)
+  assert.doesNotMatch(link, /login-identity-pg/)
+  assert.doesNotMatch(link, /from '@\/lib\/db\//)
+})

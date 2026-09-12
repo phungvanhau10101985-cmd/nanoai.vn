@@ -119,7 +119,7 @@ export async function GET(req: NextRequest) {
     }
 
     const { persistShopCustomerGoogleIdentity } = await import(
-      '@/lib/partner-website/shop/partner-site-login-identity'
+      '@/lib/partner-website/shop/partner-site-login-identity-pg'
     )
     await persistShopCustomerGoogleIdentity({
       userId: uidRow.id,

@@ -45,7 +45,7 @@ import {
 } from '@/lib/messaging/guest-auth-session'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
 import { getCustomerDeliveryProfile } from '@/lib/messaging/guest-chat-ordering'
-import { resolveShopCustomerLoginIdentity } from '@/lib/partner-website/shop/partner-site-login-identity'
+import { resolveShopCustomerLoginIdentity } from '@/lib/partner-website/shop/partner-site-login-identity-pg'
 import { headlessAccountKey } from '@/lib/messaging/partner-headless-cart-utils'
 import {
   resolveWidgetOrderThreadFromRequest,
