@@ -62,7 +62,7 @@ export function PartnerSiteLoginChromeLink(input: {
     )
   }
 
-  const label = name || input.loginLabel
+  const label = name
   return (
     <Link
       href={input.accountHref}
@@ -71,8 +71,8 @@ export function PartnerSiteLoginChromeLink(input: {
       data-pw-chrome-style="text"
       data-pw-login-identity="1"
       data-pw-login-chrome="1"
-      aria-label={label}
-      title={label}
+      aria-label={label || undefined}
+      title={label || undefined}
     >
       {avatarUrl ? (
         <img className="pw-login-avatar" src={avatarUrl} alt="" referrerPolicy="no-referrer" decoding="async" />
@@ -81,7 +81,7 @@ export function PartnerSiteLoginChromeLink(input: {
           {shopCustomerInitials(label)}
         </span>
       )}
-      <span className="pw-chrome-btn-label">{label}</span>
+      {label ? <span className="pw-chrome-btn-label">{label}</span> : null}
     </Link>
   )
 }

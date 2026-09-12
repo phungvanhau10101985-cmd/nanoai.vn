@@ -8,6 +8,7 @@ import { validatePromotionCodeFromPg } from '@/lib/db/messaging-partner-promotio
 import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import { resolvePartnerCheckoutPriceLinesFromPg } from '@/lib/db/messaging-partner-sale-pricing-pg'
 import { partnerSaleLiveCountdownTo, resolvePartnerSaleDiscountBreakdown } from '@/lib/partner-website/promotions/partner-sale-pricing'
+import { fetchPartnerPaymentSettingsFromPg } from '@/lib/db/messaging-partner-orders-pg'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
   resolveSiteVisitorContext,
@@ -36,6 +37,15 @@ function money(value: unknown): number {
 }
 
 export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
+  try {
+    return await postCartQuote(request, ctx)
+  } catch (error) {
+    console.error('[site-cart-quote]', error)
+    return NextResponse.json({ ok: false, error: 'quote_failed' }, { status: 500 })
+  }
+}
+
+async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 })

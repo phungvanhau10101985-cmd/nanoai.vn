@@ -1,7 +1,6 @@
 'use client'
 
-import { Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { PartnerSiteChatWidgetProvider } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import type { WebLocale } from '@/lib/i18n/config'
 import { FASHION_SHOP_GOOGLE_FONTS_HREF } from '@/lib/partner-website/shop/fashion-shop-design'
@@ -46,7 +45,34 @@ function hideChatLaunchersInHtml(html: string, hide: boolean): string {
   return `${style}${html}`
 }
 
-/** `dangerouslySetInnerHTML` does not execute `<script>` — re-arm shop runtime APIs (badges, search, cats). */
+const PW_INERT_RUNTIME_SCRIPT_TYPE = 'application/x-pw-runtime'
+
+/**
+ * Scripts emitted by SSR `dangerouslySetInnerHTML` execute while React is still hydrating.
+ * Keep them inert until the layout effect below; otherwise they replace grids/chrome and
+ * React consumes the visitor's first pointer event to repair the mutated Suspense tree.
+ */
+export function inertPartnerInlineVisualScripts(markup: string): string {
+  return markup.replace(/<script\b([^>]*)>/gi, (tag, rawAttrs: string) => {
+    const typeMatch = rawAttrs.match(/\btype\s*=\s*(["'])(.*?)\1/i)
+    const originalType = typeMatch?.[2]?.trim().toLowerCase() || ''
+    if (
+      originalType &&
+      originalType !== 'text/javascript' &&
+      originalType !== 'application/javascript' &&
+      originalType !== 'module'
+    ) {
+      return tag
+    }
+    const attrs = rawAttrs.replace(/\s*\btype\s*=\s*(["']).*?\1/i, '')
+    const savedType = originalType
+      ? ` data-pw-script-original-type="${originalType}"`
+      : ''
+    return `<script type="${PW_INERT_RUNTIME_SCRIPT_TYPE}" data-pw-script-inert="1"${savedType}${attrs}>`
+  })
+}
+
+/** Re-arm inert shop runtime APIs after React has hydrated the visual root. */
 function PartnerSiteInlineVisualScripts({ revision }: { revision: string }) {
   useLayoutEffect(() => {
     const root = document.querySelector('[data-pw-inline-visual-root]')
@@ -66,9 +92,18 @@ function PartnerSiteInlineVisualScripts({ revision }: { revision: string }) {
       const next = document.createElement('script')
       next.textContent = old.textContent
       Array.from(old.attributes).forEach((attr) => {
-        if (attr.name === 'data-pw-script-armed') return
+        if (
+          attr.name === 'data-pw-script-armed' ||
+          attr.name === 'data-pw-script-inert' ||
+          attr.name === 'data-pw-script-original-type' ||
+          (attr.name === 'type' && attr.value === PW_INERT_RUNTIME_SCRIPT_TYPE)
+        ) {
+          return
+        }
         next.setAttribute(attr.name, attr.value)
       })
+      const originalType = old.getAttribute('data-pw-script-original-type')
+      if (originalType) next.setAttribute('type', originalType)
       next.setAttribute('data-pw-script-armed', '1')
       old.replaceWith(next)
     })
@@ -80,10 +115,6 @@ function PartnerSiteInlineVisualScripts({ revision }: { revision: string }) {
     }, 80)
   }, [revision])
   return null
-}
-
-function readForcedDevice(search: URLSearchParams | null): VisualDeviceVariant | null {
-  return parseVisualDeviceQuery(search?.get('pw-device') || '')
 }
 
 function readVisualHtmlFaviconHref(html: string): string {
@@ -204,63 +235,27 @@ export function PartnerSitePublicClient({
   /** Canonical shop theme color; saved visual HTML may still contain stale preset metadata. */
   browserThemeColor?: string
 }) {
-  return (
-    <Suspense
-      fallback={
-        <PartnerSitePublicFrame
-          html={html}
-          htmlByDevice={htmlByDevice}
-          allowScripts={allowScripts}
-          chatPath={chatPath}
-          shopName={shopName}
-          logoUrl={logoUrl}
-          locale={locale}
-          inlineHtml={inlineHtml}
-          initialDevice={initialDevice}
-          forceDevice={null}
-          deviceHtmlAlreadyIsolated={deviceHtmlAlreadyIsolated}
-          hideChatLauncher={hideChatLauncher}
-          browserThemeColor={browserThemeColor}
-        />
-      }
-    >
-      <PartnerSitePublicClientWithParams
-        html={html}
-        htmlByDevice={htmlByDevice}
-        allowScripts={allowScripts}
-        chatPath={chatPath}
-        shopName={shopName}
-        logoUrl={logoUrl}
-        locale={locale}
-        inlineHtml={inlineHtml}
-        initialDevice={initialDevice}
-        deviceHtmlAlreadyIsolated={deviceHtmlAlreadyIsolated}
-        hideChatLauncher={hideChatLauncher}
-        browserThemeColor={browserThemeColor}
-      />
-    </Suspense>
-  )
-}
-
-function PartnerSitePublicClientWithParams(props: {
-  html: string
-  htmlByDevice?: PartnerVisualHtmlByDevice
-  allowScripts?: boolean
-  chatPath: string
-  shopName: string
-  logoUrl?: string | null
-  locale: WebLocale
-  inlineHtml?: boolean
-  initialDevice?: VisualDeviceVariant | null
-  deviceHtmlAlreadyIsolated?: boolean
-  hideChatLauncher?: boolean
-  browserThemeColor?: string
-}) {
-  const params = useSearchParams()
+  const [forceDevice, setForceDevice] = useState<VisualDeviceVariant | null>(null)
+  useLayoutEffect(() => {
+    setForceDevice(
+      parseVisualDeviceQuery(new URLSearchParams(window.location.search).get('pw-device') || '')
+    )
+  }, [])
   return (
     <PartnerSitePublicFrame
-      {...props}
-      forceDevice={readForcedDevice(params)}
+      html={html}
+      htmlByDevice={htmlByDevice}
+      allowScripts={allowScripts}
+      chatPath={chatPath}
+      shopName={shopName}
+      logoUrl={logoUrl}
+      locale={locale}
+      inlineHtml={inlineHtml}
+      initialDevice={initialDevice}
+      forceDevice={forceDevice}
+      deviceHtmlAlreadyIsolated={deviceHtmlAlreadyIsolated}
+      hideChatLauncher={hideChatLauncher}
+      browserThemeColor={browserThemeColor}
     />
   )
 }
@@ -461,7 +456,9 @@ function PartnerSitePublicFrame({
           data-pw-active-device={activeDevice}
           data-pw-runtime-revision={revision}
           className="bg-white"
-          dangerouslySetInnerHTML={{ __html: extractVisualHtmlBodyMarkup(previewHtml) }}
+          dangerouslySetInnerHTML={{
+            __html: inertPartnerInlineVisualScripts(extractVisualHtmlBodyMarkup(previewHtml)),
+          }}
         />
       </PartnerSiteChatWidgetProvider>
     )

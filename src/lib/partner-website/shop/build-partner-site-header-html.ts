@@ -181,7 +181,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   const topbar = `<div class="pw-topbar" ${pwRegionAttr(PW_REGION.topbar)} ${PW_CHROME_KIT_ATTR}="topbar"><div class="pw-container pw-topbar-inner">
       <a href="${contactHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="contact" data-pw-chrome-style="text" ${PW_CHROME_KIT_ATTR}="1">${escapeHtml(n.contact)}</a>
       <a href="${wishlistHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="favorites-link" data-pw-chrome-style="text" ${PW_CHROME_KIT_ATTR}="1">${escapeHtml(shop.navFavorites)}</a>
-      <a href="${loginHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="login" data-pw-chrome-style="text" ${PW_CHROME_KIT_ATTR}="1">${escapeHtml(n.login)}</a>
+      <a href="${loginHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="login" data-pw-chrome-style="text" ${PW_CHROME_KIT_ATTR}="1"><span class="pw-chrome-btn-label">${escapeHtml(n.login)}</span></a>
     </div></div>`
 
   const brandBlock = logo

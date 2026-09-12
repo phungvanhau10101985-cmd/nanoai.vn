@@ -816,7 +816,7 @@ function restoreLoginIdentity(){
     if(el.getAttribute('data-pw-login-identity')!=='1'&&seed==null)continue;
     var label=String(seed||COPY.login||'').trim();
     var labelEl=el.querySelector('.pw-chrome-btn-label,.pw-shop-nav-label');
-    if(labelEl)labelEl.textContent=label;
+    if(labelEl){labelEl.textContent=label;labelEl.removeAttribute('hidden');}
     else if(label)el.textContent=label;
     el.removeAttribute('data-pw-login-identity');
     el.removeAttribute('data-pw-seed-login-label');
@@ -826,7 +826,7 @@ function restoreLoginIdentity(){
   }
 }
 function paintLoginIdentity(identity){
-  var name=String(identity&&identity.name||'').trim()||COPY.account||COPY.login||'';
+  var name=String(identity&&identity.name||'').trim();
   var avatar=identity&&identity.avatarUrl?String(identity.avatarUrl).trim():'';
   var nodes=document.querySelectorAll('[data-pw-chrome-btn="login"]');
   for(var i=0;i<nodes.length;i++){
@@ -835,14 +835,14 @@ function paintLoginIdentity(identity){
     if(el.getAttribute('data-pw-login-identity')==='1'
       && el.getAttribute('data-pw-login-name')===name
       && el.getAttribute('data-pw-login-avatar')===avatar
-      && el.querySelector('.pw-login-avatar,.pw-login-avatar-fallback'))continue;
+      && el.querySelector('.pw-login-avatar,.pw-login-avatar-fallback')
+      && !loginHasLeftoverText(el))continue;
     seedLoginLabel(el);
     el.setAttribute('href',guestOrAccountHref());
     el.setAttribute('data-pw-login-identity','1');
     el.setAttribute('data-pw-login-name',name);
     el.setAttribute('data-pw-login-avatar',avatar);
-    el.setAttribute('aria-label',name);
-    el.setAttribute('title',name);
+    if(name){el.setAttribute('aria-label',name);el.setAttribute('title',name);}
     var old=el.querySelectorAll('.pw-login-avatar,.pw-login-avatar-fallback');
     for(var a=0;a<old.length;a++)old[a].remove();
     var node;
@@ -876,6 +876,25 @@ function paintLoginIdentity(identity){
       el.appendChild(labelEl);
     }
     labelEl.textContent=name;
+    if(!name)labelEl.setAttribute('hidden','');
+    else labelEl.removeAttribute('hidden');
+    stripLoginTextNodes(el);
+  }
+}
+function loginHasLeftoverText(el){
+  var n=el.firstChild;
+  while(n){
+    if(n.nodeType===3 && String(n.nodeValue||'').replace(/\\s+/g,' ').trim())return true;
+    n=n.nextSibling;
+  }
+  return false;
+}
+function stripLoginTextNodes(el){
+  var n=el.firstChild;
+  while(n){
+    var next=n.nextSibling;
+    if(n.nodeType===3)el.removeChild(n);
+    n=next;
   }
 }
 function hydrateLoginIdentity(){
@@ -895,13 +914,13 @@ function hydrateLoginIdentity(){
       var at=em.indexOf('@');
       name=at>0?em.slice(0,at):em;
     }
-    loginIdentityCache={name:name||COPY.account||COPY.login||'',avatarUrl:String(p.avatar_url||'').trim()};
+    loginIdentityCache={name:name,avatarUrl:String(p.avatar_url||'').trim()};
     if(!isLoggedIn){restoreLoginIdentity();return;}
     paintLoginIdentity(loginIdentityCache);
   }).catch(function(){
     loginIdentityLoading=false;
     if(!isLoggedIn){restoreLoginIdentity();return;}
-    loginIdentityCache={name:COPY.account||COPY.login||'',avatarUrl:''};
+    loginIdentityCache={name:'',avatarUrl:''};
     paintLoginIdentity(loginIdentityCache);
   });
 }

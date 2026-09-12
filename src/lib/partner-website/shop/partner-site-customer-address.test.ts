@@ -68,5 +68,9 @@ test('address book API path and theme tokens', () => {
   const addressCss = theme.match(/\.pw-shop-address-head[\s\S]*?\.pw-shop-address-delete-btn\{[^}]+\}/)?.[0] || ''
   assert.match(theme, /\.pw-shop-address-pick-item/)
   assert.match(addressCss, /--pw-primary/)
+  assert.match(theme, /\.pw-shop-address-modal\{[^}]*z-index:100050/)
+  assert.match(theme, /\.pw-shop-address-modal-card\{[^}]*width:min\(760px,92vw\)/)
+  assert.match(theme, /\.pw-shop-address-form-grid\{[^}]*container-type:inline-size/)
+  assert.match(theme, /\.pw-shop-address-form-grid input:not\(\[type="checkbox"\]\)[^}]*min-height:44px/)
   assert.doesNotMatch(addressCss, /#ea580c|#f97316/)
 })

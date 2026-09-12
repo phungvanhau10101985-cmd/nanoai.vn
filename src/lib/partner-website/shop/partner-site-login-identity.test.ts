@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { parseHTML } from 'linkedom'
 import {
+  paintShopLoginIdentityOnElement,
   restoreLoginIdentitySeedsInDocument,
   shopCustomerInitials,
   shopCustomerLoginLabel,
@@ -44,6 +45,23 @@ test('login identity CSS shows avatar on text topbar buttons', () => {
   assert.match(PW_LOGIN_IDENTITY_CSS, /border-radius:999px/)
   assert.match(PW_LOGIN_IDENTITY_CSS, /html\[data-pw-edit-device\]/)
   assert.match(PW_LOGIN_IDENTITY_CSS, /aspect-ratio:auto/)
+  assert.match(PW_LOGIN_IDENTITY_CSS, /font-size:0!important/)
+  assert.match(PW_LOGIN_IDENTITY_CSS, /font-size:13px!important/)
+})
+
+test('paint login identity replaces leftover Đăng nhập text with name and avatar', () => {
+  const { document } = parseHTML(
+    `<a href="/login" data-pw-chrome-btn="login" data-pw-chrome-style="text">Đăng nhập</a>`
+  )
+  const el = document.querySelector('[data-pw-chrome-btn="login"]')
+  assert.ok(el)
+  paintShopLoginIdentityOnElement(el as Element, { name: 'Phùng Hậu', avatarUrl: null }, '/account')
+  assert.equal(el?.getAttribute('data-pw-login-identity'), '1')
+  assert.equal(el?.getAttribute('href'), '/account')
+  assert.equal(el?.querySelector('.pw-login-avatar-fallback')?.textContent, 'PH')
+  assert.equal(el?.querySelector('.pw-chrome-btn-label')?.textContent, 'Phùng Hậu')
+  assert.ok(el?.querySelector('.pw-login-avatar-fallback'))
+  assert.doesNotMatch(el?.textContent || '', /Đăng nhập/)
 })
 
 test('client login identity helpers do not import postgres', async () => {

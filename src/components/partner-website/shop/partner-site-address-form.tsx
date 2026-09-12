@@ -10,9 +10,10 @@ type Props = {
   onChange: (next: PartnerSiteCustomerAddressInput) => void
   t: PartnerSiteShopCopy
   idPrefix: string
+  autoFocus?: boolean
 }
 
-export function PartnerSiteAddressFormFields({ value, onChange, t, idPrefix }: Props) {
+export function PartnerSiteAddressFormFields({ value, onChange, t, idPrefix, autoFocus }: Props) {
   function patch(part: Partial<PartnerSiteCustomerAddressInput>) {
     onChange({ ...value, ...part })
   }
@@ -20,9 +21,10 @@ export function PartnerSiteAddressFormFields({ value, onChange, t, idPrefix }: P
   return (
     <div className="pw-shop-address-form-grid">
       <div className="pw-shop-address-form-grid-2">
-        <label data-pw-el={PW_EL.label}>
+        <label data-pw-el={PW_EL.label} htmlFor={`${idPrefix}-full-name`}>
           {t.addressFullName} *
           <input
+            id={`${idPrefix}-full-name`}
             type="text"
             required
             minLength={2}
@@ -31,11 +33,13 @@ export function PartnerSiteAddressFormFields({ value, onChange, t, idPrefix }: P
             onChange={(e) => patch({ full_name: e.target.value })}
             data-pw-el={PW_EL.field}
             autoComplete="name"
+            autoFocus={autoFocus}
           />
         </label>
-        <label data-pw-el={PW_EL.label}>
+        <label data-pw-el={PW_EL.label} htmlFor={`${idPrefix}-phone`}>
           {t.addressPhone} *
           <input
+            id={`${idPrefix}-phone`}
             type="tel"
             required
             minLength={10}
@@ -47,12 +51,14 @@ export function PartnerSiteAddressFormFields({ value, onChange, t, idPrefix }: P
           />
         </label>
       </div>
-      <label data-pw-el={PW_EL.label}>
+      <label data-pw-el={PW_EL.label} htmlFor={`${idPrefix}-province`}>
         {t.addressProvince}
         <select
+          id={`${idPrefix}-province`}
           value={value.province || ''}
           onChange={(e) => patch({ province: e.target.value })}
           data-pw-el={PW_EL.field}
+          autoComplete="address-level1"
         >
           <option value="">{t.addressProvincePlaceholder}</option>
           {VIETNAM_PROVINCES.map((province) => (
@@ -63,32 +69,37 @@ export function PartnerSiteAddressFormFields({ value, onChange, t, idPrefix }: P
         </select>
       </label>
       <div className="pw-shop-address-form-grid-2">
-        <label data-pw-el={PW_EL.label}>
+        <label data-pw-el={PW_EL.label} htmlFor={`${idPrefix}-district`}>
           {t.addressDistrict}
           <input
+            id={`${idPrefix}-district`}
             type="text"
             value={value.district || ''}
             onChange={(e) => patch({ district: e.target.value })}
             data-pw-el={PW_EL.field}
+            autoComplete="address-level2"
           />
         </label>
-        <label data-pw-el={PW_EL.label}>
+        <label data-pw-el={PW_EL.label} htmlFor={`${idPrefix}-ward`}>
           {t.addressWard}
           <input
+            id={`${idPrefix}-ward`}
             type="text"
             value={value.ward || ''}
             onChange={(e) => patch({ ward: e.target.value })}
             data-pw-el={PW_EL.field}
+            autoComplete="address-level3"
           />
         </label>
       </div>
-      <label data-pw-el={PW_EL.label}>
+      <label data-pw-el={PW_EL.label} htmlFor={`${idPrefix}-street`}>
         {t.addressStreet} *
-        <input
-          type="text"
+        <textarea
+          id={`${idPrefix}-street`}
           required
           minLength={5}
           maxLength={500}
+          rows={3}
           value={value.street_address}
           onChange={(e) => patch({ street_address: e.target.value })}
           placeholder={t.addressStreetPlaceholder}

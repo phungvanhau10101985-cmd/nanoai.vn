@@ -35,6 +35,7 @@ import {
   type PartnerSiteCustomerAddressInput,
 } from '@/lib/partner-website/shop/partner-site-customer-address'
 import { PartnerSiteAddressFormFields } from '@/components/partner-website/shop/partner-site-address-form'
+import { PartnerSiteShopDialog } from '@/components/partner-website/shop/partner-site-shop-dialog'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import {
@@ -700,6 +701,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     }
     if (!next) {
       if (fromAuto) {
+        setQuote(null)
         setAppliedPromo(null)
         setSelectedWalletCode('')
         setPromoCodeInput('')
@@ -908,6 +910,8 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     setPromoMessage('')
     setPromoMessageKind('')
   }
+
+  const closeAddressModal = useCallback(() => setShowAddressModal(false), [])
 
   function openAddAddress() {
     setAddressForm(
@@ -1765,7 +1769,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                 </label>
                 <label data-pw-el={PW_EL.label}>
                   {t.checkoutAddress}
-                  <textarea rows={3} value={orderAddress} onChange={(e) => setOrderAddress(e.target.value)} data-pw-el={PW_EL.field} />
+                  <textarea rows={4} value={orderAddress} onChange={(e) => setOrderAddress(e.target.value)} data-pw-el={PW_EL.field} />
                 </label>
               </>
             )}
@@ -1783,7 +1787,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               <button
                 type="button"
                 className="pw-shop-btn pw-shop-btn-buy"
-                disabled={checkoutBusy || !quote || selectedItems.length === 0}
+                disabled={checkoutBusy || selectedItems.length === 0}
                 onClick={() => void checkout()}
                 data-pw-el={PW_EL.checkout}
               >
@@ -1793,29 +1797,30 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
             {status && !needsAuth ? <p className="pw-shop-muted">{status}</p> : null}
           </div>
           {needsAuth && checkoutLoginRequired ? <p className="pw-shop-muted">{t.checkoutAuthRequired}</p> : null}
-          {showAddressModal ? (
-            <div className="pw-shop-address-modal" role="dialog" aria-modal="true" onClick={() => setShowAddressModal(false)}>
-              <div className="pw-shop-address-modal-card" onClick={(e) => e.stopPropagation()}>
-                <h3>{t.addressCartModalTitle}</h3>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault()
-                    void saveCartAddress()
-                  }}
-                >
-                  <PartnerSiteAddressFormFields value={addressForm} onChange={setAddressForm} t={t} idPrefix="cart" />
-                  <div className="pw-shop-address-form-actions">
-                    <button type="submit" className="pw-shop-btn pw-shop-btn-buy" disabled={addressSaving} data-pw-el={PW_EL.submit}>
-                      {addressSaving ? '…' : t.addressSaveBook}
-                    </button>
-                    <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => setShowAddressModal(false)}>
-                      {t.addressCancel}
-                    </button>
-                  </div>
-                </form>
+          <PartnerSiteShopDialog
+            open={showAddressModal}
+            title={t.addressCartModalTitle}
+            closeLabel={t.addressCancel}
+            onClose={closeAddressModal}
+          >
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                void saveCartAddress()
+              }}
+              data-pw-region={PW_REGION.form}
+            >
+              <PartnerSiteAddressFormFields value={addressForm} onChange={setAddressForm} t={t} idPrefix="cart" autoFocus />
+              <div className="pw-shop-address-form-actions">
+                <button type="submit" className="pw-shop-btn pw-shop-btn-buy" disabled={addressSaving} data-pw-el={PW_EL.submit}>
+                  {addressSaving ? '…' : t.addressSaveBook}
+                </button>
+                <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={closeAddressModal}>
+                  {t.addressCancel}
+                </button>
               </div>
-            </div>
-          ) : null}
+            </form>
+          </PartnerSiteShopDialog>
         </div>
         </div>
       ) : null}

@@ -21,6 +21,7 @@ import {
   type PartnerSiteCustomerAddressInput,
 } from '@/lib/partner-website/shop/partner-site-customer-address'
 import { PartnerSiteAddressFormFields } from '@/components/partner-website/shop/partner-site-address-form'
+import { PartnerSiteShopDialog } from '@/components/partner-website/shop/partner-site-shop-dialog'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = {
@@ -86,6 +87,13 @@ export function PartnerSiteShopAddressesClient({ siteSlug, locale }: Props) {
       })
     )
   }, [customDomain, isAuthenticated, loading, needsAuth, ready, siteSlug])
+
+  const closeForm = useCallback(() => {
+    setShowForm(false)
+    setEditingId(null)
+  }, [])
+
+  const closeDelete = useCallback(() => setPendingDeleteId(null), [])
 
   function openAdd() {
     setEditingId(null)
@@ -224,32 +232,30 @@ export function PartnerSiteShopAddressesClient({ siteSlug, locale }: Props) {
         </ul>
       ) : null}
       {showForm ? (
-        <form
-          className="pw-shop-address-form"
-          data-pw-region={PW_REGION.form}
-          onSubmit={(e) => {
-            e.preventDefault()
-            void saveAddress()
-          }}
+        <PartnerSiteShopDialog
+          open={showForm}
+          title={editingId ? t.addressFormTitleEdit : t.addressFormTitleAdd}
+          closeLabel={t.addressCancel}
+          onClose={closeForm}
         >
-          <h2 data-pw-el={PW_EL.heading}>{editingId ? t.addressFormTitleEdit : t.addressFormTitleAdd}</h2>
-          <PartnerSiteAddressFormFields value={form} onChange={setForm} t={t} idPrefix="book" />
-          <div className="pw-shop-address-form-actions">
-            <button type="submit" className="pw-shop-btn pw-shop-btn-buy" disabled={saving} data-pw-el={PW_EL.submit}>
-              {saving ? '…' : t.addressSave}
-            </button>
-            <button
-              type="button"
-              className="pw-shop-btn pw-shop-btn-outline"
-              onClick={() => {
-                setShowForm(false)
-                setEditingId(null)
-              }}
-            >
-              {t.addressCancel}
-            </button>
-          </div>
-        </form>
+          <form
+            data-pw-region={PW_REGION.form}
+            onSubmit={(e) => {
+              e.preventDefault()
+              void saveAddress()
+            }}
+          >
+            <PartnerSiteAddressFormFields value={form} onChange={setForm} t={t} idPrefix="book" autoFocus />
+            <div className="pw-shop-address-form-actions">
+              <button type="submit" className="pw-shop-btn pw-shop-btn-buy" disabled={saving} data-pw-el={PW_EL.submit}>
+                {saving ? '…' : t.addressSave}
+              </button>
+              <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={closeForm}>
+                {t.addressCancel}
+              </button>
+            </div>
+          </form>
+        </PartnerSiteShopDialog>
       ) : null}
       {status ? <p className="pw-shop-muted">{status}</p> : null}
       <p style={{ marginTop: 16 }}>
@@ -258,20 +264,22 @@ export function PartnerSiteShopAddressesClient({ siteSlug, locale }: Props) {
         </Link>
       </p>
       {pendingDeleteId ? (
-        <div className="pw-shop-address-modal" role="dialog" aria-modal="true" onClick={() => setPendingDeleteId(null)}>
-          <div className="pw-shop-address-modal-card" onClick={(e) => e.stopPropagation()}>
-            <h3>{t.addressDeleteConfirm}</h3>
-            <p className="pw-shop-muted">{t.addressDeleteConfirmBody}</p>
-            <div className="pw-shop-address-form-actions">
-              <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => setPendingDeleteId(null)}>
-                {t.addressCancel}
-              </button>
-              <button type="button" className="pw-shop-btn pw-shop-address-delete-btn" onClick={() => void confirmDelete()}>
-                {t.addressDelete}
-              </button>
-            </div>
+        <PartnerSiteShopDialog
+          open
+          title={t.addressDeleteConfirm}
+          closeLabel={t.addressCancel}
+          onClose={closeDelete}
+        >
+          <p className="pw-shop-muted">{t.addressDeleteConfirmBody}</p>
+          <div className="pw-shop-address-form-actions">
+            <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={closeDelete}>
+              {t.addressCancel}
+            </button>
+            <button type="button" className="pw-shop-btn pw-shop-address-delete-btn" onClick={() => void confirmDelete()}>
+              {t.addressDelete}
+            </button>
           </div>
-        </div>
+        </PartnerSiteShopDialog>
       ) : null}
     </div>
   )
