@@ -19,15 +19,25 @@ import {
   partnerSiteOrderDepositPath,
   partnerSiteOrdersPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
-import { formatPartnerSiteOrderStatus } from '@/lib/partner-website/shop/partner-site-order-labels'
+import { formatPartnerSiteOrderStatus, formatPartnerSiteShippingStatus } from '@/lib/partner-website/shop/partner-site-order-labels'
 import {
   PartnerOrderDiscountBreakdown,
   type PartnerOrderDiscountFields,
 } from '@/components/partner-website/shop/partner-order-discount-breakdown'
+import {
+  PartnerSiteOrderEmsTracking,
+  PartnerSiteOrderFulfillmentBadge,
+  PartnerSiteOrderShipmentSteps,
+  PartnerSiteOrderSplitGroup,
+  genericShippingTimelineSteps,
+  type ShopShipmentEventView,
+  type ShopSiblingOrderView,
+} from '@/components/partner-website/shop/partner-site-order-fulfillment-bits'
 
 type DetailOrder = PartnerOrderDiscountFields & {
   id: string
   status: string
+  shipping_status?: string | null
   payment_reference?: string | null
   customer_email?: string | null
   created_at?: string | null
@@ -40,6 +50,9 @@ type DetailOrder = PartnerOrderDiscountFields & {
   product_name?: string | null
   promo_code?: string | null
   loyalty_tier_name?: string | null
+  fulfillment_source?: 'vietnam' | 'china' | null
+  source_platform?: string | null
+  tracking_number?: string | null
 }
 
 type Props = {
@@ -56,6 +69,11 @@ export function PartnerSiteShopOrderDetailClient({ siteSlug, partnerSlug, locale
   const [order, setOrder] = useState<DetailOrder | null>(null)
   const [merchantId, setMerchantId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  const [shipmentEvents, setShipmentEvents] = useState<ShopShipmentEventView[]>([])
+  const [siblings, setSiblings] = useState<ShopSiblingOrderView[]>([])
+  const [canConfirm, setCanConfirm] = useState(false)
+  const [confirmBusy, setConfirmBusy] = useState(false)
+  const [confirmStatus, setConfirmStatus] = useState('')
 
   const orderApi = `/api/messaging/guest/${encodeURIComponent(partnerSlug)}/order/${encodeURIComponent(orderId)}`
 
@@ -65,12 +83,18 @@ export function PartnerSiteShopOrderDetailClient({ siteSlug, partnerSlug, locale
     const json = (await res.json().catch(() => ({}))) as {
       order?: DetailOrder
       google_customer_reviews_merchant_id?: number | null
+      shipment_events?: ShopShipmentEventView[]
+      sibling_orders?: ShopSiblingOrderView[]
+      can_confirm_received?: boolean
     }
     if (!res.ok || !json.order) {
       setOrder(null)
       return
     }
     setOrder(json.order)
+    setShipmentEvents(Array.isArray(json.shipment_events) ? json.shipment_events : [])
+    setSiblings(Array.isArray(json.sibling_orders) ? json.sibling_orders : [])
+    setCanConfirm(json.can_confirm_received === true)
     const mid = Number(json.google_customer_reviews_merchant_id ?? 0)
     setMerchantId(Number.isInteger(mid) && mid > 0 ? mid : null)
   }, [authHeaders, captureFromResponse, orderApi])
@@ -165,6 +189,24 @@ export function PartnerSiteShopOrderDetailClient({ siteSlug, partnerSlug, locale
             <p>
               {t.orderStatusLabel}: <strong>{formatPartnerSiteOrderStatus(locale, order.status)}</strong>
             </p>
+            {order.shipping_status ? (
+              <p className="pw-shop-muted">
+                {t.orderShippingStatusLabel}: {formatPartnerSiteShippingStatus(locale, order.shipping_status)}
+              </p>
+            ) : null}
+            <PartnerSiteOrderFulfillmentBadge
+              t={t}
+              source={order.fulfillment_source}
+              platform={order.source_platform}
+            />
+            <PartnerSiteOrderSplitGroup
+              t={t}
+              siteSlug={siteSlug}
+              customDomain={customDomain}
+              currentId={order.id}
+              siblings={siblings}
+            />
+            <PartnerSiteOrderEmsTracking t={t} trackingNumber={order.tracking_number} />
             {ship > 0 ? (
               <p>
                 {t.cartShippingFeeLabel}: {formatVnd(ship)}
@@ -180,6 +222,13 @@ export function PartnerSiteShopOrderDetailClient({ siteSlug, partnerSlug, locale
               </p>
             ) : null}
             {isCod ? <p className="pw-shop-muted">{t.orderConfirmCodNote}</p> : null}
+            <div style={{ marginTop: 16 }}>
+              <PartnerSiteOrderShipmentSteps
+                t={t}
+                events={shipmentEvents}
+                fallback={genericShippingTimelineSteps(order.shipping_status, t)}
+              />
+            </div>
           </div>
           {merchantId ? (
             <div className="pw-shop-deposit-gcr">
@@ -190,10 +239,43 @@ export function PartnerSiteShopOrderDetailClient({ siteSlug, partnerSlug, locale
             </div>
           ) : null}
           <div className="pw-shop-deposit-actions">
+            {canConfirm ? (
+              <button
+                type="button"
+                className="pw-shop-btn"
+                disabled={confirmBusy}
+                onClick={() => {
+                  void (async () => {
+                    setConfirmBusy(true)
+                    setConfirmStatus('')
+                    try {
+                      const res = await fetch(orderApi, {
+                        method: 'PATCH',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ action: 'confirm_received' }),
+                      })
+                      captureFromResponse(res)
+                      if (!res.ok) {
+                        setConfirmStatus(t.orderActionFailed)
+                        return
+                      }
+                      await load()
+                      setConfirmStatus(t.orderConfirmReceivedOk)
+                    } finally {
+                      setConfirmBusy(false)
+                    }
+                  })()
+                }}
+              >
+                {t.orderConfirmReceived}
+              </button>
+            ) : null}
             <Link href={ordersHref} className="pw-shop-btn pw-shop-btn-buy">
               {t.depositBackToOrders}
             </Link>
           </div>
+          {confirmStatus ? <p className="pw-shop-muted">{confirmStatus}</p> : null}
         </div>
       </div>
     </div>

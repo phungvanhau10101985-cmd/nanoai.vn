@@ -788,6 +788,8 @@ export type Dictionary = {
     settingsNavShippingFeeTitle: string
     settingsShippingOpenFromPayment: string
     settingsNavShippingSaveFee: string
+    settingsNavEmsOps: string
+    settingsNavEmsOpsDesc: string
     settingsNavLoyalty: string
     settingsNavLoyaltyDesc: string
     settingsNavPromotions: string
@@ -1088,6 +1090,24 @@ export type Dictionary = {
     skuLabel: string
     timelineHeading: string
     timelineEmpty: string
+    filterFulfillmentAll: string
+    filterFulfillmentVietnam: string
+    filterFulfillmentChina: string
+    filterFulfillmentChinaNoDeposit: string
+    filterFulfillmentNeedsReview: string
+    badgeVietnam: string
+    badgeChina: string
+    badgeNeedsReview: string
+    badgeSla4h: string
+    badgeSla24h: string
+    badgeDepositException: string
+    siblingOrdersLabel: string
+    btnClearCustoms: string
+    btnStartVnPacking: string
+    btnMarkOutForConfirm: string
+    shipmentTrackingLabel: string
+    shipmentProviderLabel: string
+    emsLatestLabel: string
   }
   /** /dashboard/messaging/analytics — S0.8 dashboard doanh thu/conversion/UTM */
   partnerMessagingAnalytics: {
@@ -4290,6 +4310,9 @@ const VI_DICTIONARY: Dictionary = {
     settingsNavShippingFeeTitle: 'Phí vận chuyển (đơn trên chat)',
     settingsShippingOpenFromPayment: 'Phí ship, đơn vị vận chuyển, địa chỉ hoàn và cổng tra cứu đơn → Quản lý vận chuyển',
     settingsNavShippingSaveFee: 'Lưu phí vận chuyển',
+    settingsNavEmsOps: 'Vận chuyển EMS',
+    settingsNavEmsOpsDesc:
+      'Import EMS, đối soát COD/cước, xác nhận hoàn và nhập kho — cùng bảng với Cài đặt vận chuyển, đặt cạnh danh sách đơn.',
     settingsNavLoyalty: 'Thành viên thân quen',
     settingsNavLoyaltyDesc:
       'Tính hạng theo chi tiêu của khách trong cửa sổ thời gian và tự động giảm giá khi chốt đơn.',
@@ -4478,12 +4501,12 @@ const VI_DICTIONARY: Dictionary = {
     filterShippingLabel: 'Tất cả trạng thái',
     filterPaymentShort: 'TT thanh toán',
     clearTableFilters: 'Xóa bộ lọc',
-    consultedAria: 'Đã liên hệ tư vấn (lưu trên trình duyệt này)',
+    consultedAria: 'Đã liên hệ tư vấn (lưu trên cửa hàng)',
     reviewedAria: 'Khách đã đánh giá (lưu trên trình duyệt này)',
     expandRow: 'Mở rộng',
     collapseRow: 'Thu gọn',
     listCapNote: 'Danh sách tối đa 200 đơn mới nhất theo bộ lọc ngày / workspace.',
-    consultLocalHint: 'Ghi nhớ trên trình duyệt này; không đồng bộ giữa máy.',
+    consultLocalHint: 'Ghi trên cửa hàng, đồng bộ mọi máy nhân viên.',
     badgePayAwaiting: 'Chờ thanh toán',
     badgePayPartial: 'Đã đặt cọc',
     badgePayDone: 'Đã thanh toán đủ',
@@ -4588,6 +4611,24 @@ const VI_DICTIONARY: Dictionary = {
     skuLabel: 'Mã SP (SKU): {sku}',
     timelineHeading: 'Lịch trình đơn hàng',
     timelineEmpty: 'Chưa có lịch trình.',
+    filterFulfillmentAll: 'Mọi nguồn',
+    filterFulfillmentVietnam: 'Việt Nam',
+    filterFulfillmentChina: 'Trung Quốc',
+    filterFulfillmentChinaNoDeposit: 'TQ không cọc',
+    filterFulfillmentNeedsReview: 'Cần rà nguồn',
+    badgeVietnam: 'VN',
+    badgeChina: 'TQ',
+    badgeNeedsReview: 'Rà nguồn',
+    badgeSla4h: 'SLA 4h',
+    badgeSla24h: 'SLA 24h',
+    badgeDepositException: 'Ngoại lệ cọc',
+    siblingOrdersLabel: 'Mã nhóm',
+    btnClearCustoms: 'Thông quan',
+    btnStartVnPacking: 'Bắt đầu soạn hàng',
+    btnMarkOutForConfirm: 'Gửi shipper / chờ nhận',
+    shipmentTrackingLabel: 'Mã vận đơn',
+    shipmentProviderLabel: 'Hãng',
+    emsLatestLabel: 'EMS',
   },
   partnerMessagingAnalytics: {
     pageTitle: 'Doanh thu & Chuyển đổi',
@@ -7800,6 +7841,9 @@ const EN_DICTIONARY: Dictionary = {
     settingsNavShippingFeeTitle: 'Shipping fee (chat orders)',
     settingsShippingOpenFromPayment: 'Shipping fee, carrier, return address, and lookup API → Shipping management',
     settingsNavShippingSaveFee: 'Save shipping fees',
+    settingsNavEmsOps: 'EMS shipping',
+    settingsNavEmsOpsDesc:
+      'EMS import, COD/freight settlement, returns, and warehouse intake — same ops as Shipping settings, next to the order hub.',
     settingsNavLoyalty: 'Returning members',
     settingsNavLoyaltyDesc:
       'Tier customers by spend within a time window and apply automatic discounts at checkout.',
@@ -7989,12 +8033,12 @@ const EN_DICTIONARY: Dictionary = {
     filterShippingLabel: 'Shipping status',
     filterPaymentShort: 'Payment status',
     clearTableFilters: 'Clear filters',
-    consultedAria: 'Consulted (stored in this browser)',
+    consultedAria: 'Consulted (saved on the shop)',
     reviewedAria: 'Customer reviewed (stored in this browser)',
     expandRow: 'Expand',
     collapseRow: 'Collapse',
     listCapNote: 'Showing up to 200 latest orders for the current workspace + date filters.',
-    consultLocalHint: 'Saved in this browser only; not synced across devices.',
+    consultLocalHint: 'Saved on the shop and synced for staff on every device.',
     badgePayAwaiting: 'Awaiting payment',
     badgePayPartial: 'Deposit placed',
     badgePayDone: 'Fully paid',
@@ -8099,6 +8143,24 @@ const EN_DICTIONARY: Dictionary = {
     skuLabel: 'SKU: {sku}',
     timelineHeading: 'Order timeline',
     timelineEmpty: 'No timeline yet.',
+    filterFulfillmentAll: 'All sources',
+    filterFulfillmentVietnam: 'Vietnam',
+    filterFulfillmentChina: 'China',
+    filterFulfillmentChinaNoDeposit: 'China, no deposit',
+    filterFulfillmentNeedsReview: 'Needs source review',
+    badgeVietnam: 'VN',
+    badgeChina: 'CN',
+    badgeNeedsReview: 'Review source',
+    badgeSla4h: 'SLA 4h',
+    badgeSla24h: 'SLA 24h',
+    badgeDepositException: 'Deposit exception',
+    siblingOrdersLabel: 'Group codes',
+    btnClearCustoms: 'Clear customs',
+    btnStartVnPacking: 'Start packing',
+    btnMarkOutForConfirm: 'Hand to shipper',
+    shipmentTrackingLabel: 'Tracking number',
+    shipmentProviderLabel: 'Carrier',
+    emsLatestLabel: 'EMS',
   },
   partnerMessagingAnalytics: {
     pageTitle: 'Revenue & Conversion',
@@ -11303,6 +11365,8 @@ const ZH_DICTIONARY: Dictionary = {
     settingsNavShippingFeeTitle: '运费（聊天订单）',
     settingsShippingOpenFromPayment: '运费、承运商、退货地址与查询接口 → 物流管理',
     settingsNavShippingSaveFee: '保存运费',
+    settingsNavEmsOps: 'EMS 物流',
+    settingsNavEmsOpsDesc: 'EMS 导入、代收/运费对账、退件入库 — 与物流设置同一引擎，放在订单旁边。',
     settingsNavLoyalty: '常客会员',
     settingsNavLoyaltyDesc: '按时间窗口内的消费划分等级，并在结账时自动打折。',
     settingsNavPromotions: '生日优惠',
@@ -11479,12 +11543,12 @@ const ZH_DICTIONARY: Dictionary = {
     filterShippingLabel: '物流状态',
     filterPaymentShort: '支付状态',
     clearTableFilters: '清除筛选',
-    consultedAria: '已咨询（仅本浏览器）',
+    consultedAria: '已咨询（保存在店铺）',
     reviewedAria: '客户已评价（仅本浏览器）',
     expandRow: '展开',
     collapseRow: '收起',
     listCapNote: '在当前工作区与日期筛选下，列表最多显示 200 条最新订单。',
-    consultLocalHint: '仅保存在本浏览器，不会在设备间同步。',
+    consultLocalHint: '保存在店铺，员工各设备同步。',
     badgePayAwaiting: '待付款',
     badgePayPartial: '已付定金',
     badgePayDone: '已付清',
@@ -11589,6 +11653,24 @@ const ZH_DICTIONARY: Dictionary = {
     skuLabel: 'SKU：{sku}',
     timelineHeading: '订单进度',
     timelineEmpty: '暂无进度。',
+    filterFulfillmentAll: '全部来源',
+    filterFulfillmentVietnam: '越南',
+    filterFulfillmentChina: '中国',
+    filterFulfillmentChinaNoDeposit: '中国未定金',
+    filterFulfillmentNeedsReview: '需核对来源',
+    badgeVietnam: 'VN',
+    badgeChina: 'CN',
+    badgeNeedsReview: '核对来源',
+    badgeSla4h: 'SLA 4小时',
+    badgeSla24h: 'SLA 24小时',
+    badgeDepositException: '定金异常',
+    siblingOrdersLabel: '同组单号',
+    btnClearCustoms: '清关',
+    btnStartVnPacking: '开始备货',
+    btnMarkOutForConfirm: '交给配送',
+    shipmentTrackingLabel: '运单号',
+    shipmentProviderLabel: '承运商',
+    emsLatestLabel: 'EMS',
   },
   partnerMessagingAnalytics: {
     pageTitle: '营收与转化',
@@ -14719,6 +14801,8 @@ const JA_DICTIONARY: Dictionary = {
     settingsNavShippingFeeTitle: '送料（チャット注文）',
     settingsShippingOpenFromPayment: '送料・配送業者・返送先・照会 API → 配送管理',
     settingsNavShippingSaveFee: '送料を保存',
+    settingsNavEmsOps: 'EMS配送',
+    settingsNavEmsOpsDesc: 'EMS取込、代引/運賃照合、返品入庫 — 配送設定と同じエンジンで、注文の横に置きます。',
     settingsNavLoyalty: '常連会員',
     settingsNavLoyaltyDesc: '期間内の購入額でランク付けし、注文確定時に自動割引します。',
     settingsNavPromotions: '誕生日特典',
@@ -14900,12 +14984,12 @@ const JA_DICTIONARY: Dictionary = {
     filterShippingLabel: '配送ステータス',
     filterPaymentShort: '支払い状態',
     clearTableFilters: 'フィルターをクリア',
-    consultedAria: '相談済（このブラウザのみ保存）',
+    consultedAria: '相談済（ショップに保存）',
     reviewedAria: 'レビュー済（このブラウザのみ保存）',
     expandRow: '展開',
     collapseRow: '折りたたむ',
     listCapNote: 'ワークスペースと日付の条件で、最新 200 件まで表示します。',
-    consultLocalHint: 'このブラウザにのみ保存。端末間では同期されません。',
+    consultLocalHint: 'ショップに保存し、スタッフ端末で同期します。',
     badgePayAwaiting: '支払い待ち',
     badgePayPartial: '手付済',
     badgePayDone: '支払い完了',
@@ -15010,6 +15094,24 @@ const JA_DICTIONARY: Dictionary = {
     skuLabel: 'SKU: {sku}',
     timelineHeading: '注文の進捗',
     timelineEmpty: '進捗はまだありません。',
+    filterFulfillmentAll: 'すべての調達元',
+    filterFulfillmentVietnam: 'ベトナム',
+    filterFulfillmentChina: '中国',
+    filterFulfillmentChinaNoDeposit: '中国・デポジットなし',
+    filterFulfillmentNeedsReview: '調達元要確認',
+    badgeVietnam: 'VN',
+    badgeChina: 'CN',
+    badgeNeedsReview: '要確認',
+    badgeSla4h: 'SLA 4時間',
+    badgeSla24h: 'SLA 24時間',
+    badgeDepositException: 'デポジット例外',
+    siblingOrdersLabel: 'グループ番号',
+    btnClearCustoms: '通関',
+    btnStartVnPacking: '梱包開始',
+    btnMarkOutForConfirm: '配送業者へ',
+    shipmentTrackingLabel: '追跡番号',
+    shipmentProviderLabel: '配送会社',
+    emsLatestLabel: 'EMS',
   },
   partnerMessagingAnalytics: {
     pageTitle: '売上とコンバージョン',
@@ -18200,6 +18302,8 @@ const KO_DICTIONARY: Dictionary = {
     settingsNavShippingFeeTitle: '배송비(채팅 주문)',
     settingsShippingOpenFromPayment: '배송비, 운송사, 반송 주소, 조회 API → 배송 관리',
     settingsNavShippingSaveFee: '배송비 저장',
+    settingsNavEmsOps: 'EMS 배송',
+    settingsNavEmsOpsDesc: 'EMS 가져오기, 착불/운임 대사, 반품 입고 — 배송 설정과 같은 엔진이며 주문 옆에 둡니다.',
     settingsNavLoyalty: '단골 회원',
     settingsNavLoyaltyDesc: '기간 내 구매액으로 등급을 매기고 주문 확정 시 자동 할인합니다.',
     settingsNavPromotions: '생일 혜택',
@@ -18380,12 +18484,12 @@ const KO_DICTIONARY: Dictionary = {
     filterShippingLabel: '배송 상태',
     filterPaymentShort: '결제 상태',
     clearTableFilters: '필터 지우기',
-    consultedAria: '상담 완료(이 브라우저에만 저장)',
+    consultedAria: '상담 완료(샵에 저장)',
     reviewedAria: '리뷰 작성됨(이 브라우저에만 저장)',
     expandRow: '펼치기',
     collapseRow: '접기',
     listCapNote: '워크스페이스·날짜 필터 기준 최신 200건까지 표시합니다.',
-    consultLocalHint: '이 브라우저에만 저장되며 기기 간 동기화되지 않습니다.',
+    consultLocalHint: '샵에 저장되며 직원 기기 간에 동기화됩니다.',
     badgePayAwaiting: '결제 대기',
     badgePayPartial: '예치 완료',
     badgePayDone: '결제 완료',
@@ -18490,6 +18594,24 @@ const KO_DICTIONARY: Dictionary = {
     skuLabel: 'SKU: {sku}',
     timelineHeading: '주문 진행',
     timelineEmpty: '진행 내역이 없습니다.',
+    filterFulfillmentAll: '모든 출처',
+    filterFulfillmentVietnam: '베트남',
+    filterFulfillmentChina: '중국',
+    filterFulfillmentChinaNoDeposit: '중국·계약금 없음',
+    filterFulfillmentNeedsReview: '출처 확인 필요',
+    badgeVietnam: 'VN',
+    badgeChina: 'CN',
+    badgeNeedsReview: '출처 확인',
+    badgeSla4h: 'SLA 4시간',
+    badgeSla24h: 'SLA 24시간',
+    badgeDepositException: '계약금 예외',
+    siblingOrdersLabel: '그룹 코드',
+    btnClearCustoms: '통관',
+    btnStartVnPacking: '패킹 시작',
+    btnMarkOutForConfirm: '배송사 전달',
+    shipmentTrackingLabel: '운송장 번호',
+    shipmentProviderLabel: '운송사',
+    emsLatestLabel: 'EMS',
   },
   partnerMessagingAnalytics: {
     pageTitle: '매출 및 전환',

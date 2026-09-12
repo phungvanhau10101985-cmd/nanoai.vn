@@ -4,6 +4,7 @@ import {
   isPartnerShopDepositWaiting,
   partnerOrderPayableTotal,
   partnerOrderRemainingAfterDeposit,
+  pickDepositLandingOrder,
   shouldRedirectToDepositAfterCreate,
   shouldShowDepositSuccessPage,
 } from '@/lib/partner-website/shop/order-deposit'
@@ -48,6 +49,13 @@ test('shows success after paid amount or verified status', () => {
     }),
     true
   )
+})
+
+test('split checkout lands on the sibling that still needs deposit', () => {
+  const vn = { id: 'vn', status: 'paid_verified', required_amount: 0 }
+  const cn = { id: 'cn', status: 'awaiting_payment', required_amount: 200000 }
+  assert.equal(pickDepositLandingOrder(vn, [vn, cn]).id, 'cn')
+  assert.equal(pickDepositLandingOrder(vn, [vn]).id, 'vn')
 })
 
 test('COD orders are not waiting deposit', () => {

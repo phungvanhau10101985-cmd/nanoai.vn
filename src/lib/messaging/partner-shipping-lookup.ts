@@ -36,6 +36,9 @@ export type PartnerShippingLookupHit = {
   items: PartnerShippingLookupOrderItem[]
   emsStatus: string
   emsEvents: Array<{ description: string; address: string; tracedAt: string }>
+  fulfillmentSource?: 'vietnam' | 'china' | ''
+  sourcePlatform?: string
+  shipmentEvents?: Array<{ stepKey: string; title: string; status: string; scheduledAt: string | null; completedAt: string | null }>
   httpStatus: number
 }
 
@@ -582,6 +585,33 @@ function lookupClosingLine(
   return 'Nếu cần em hỗ trợ thêm cứ nhắn ạ.'
 }
 
+function formatFulfillmentSourceLine(hit: PartnerShippingLookupHit, loc: string): string {
+  const src = String(hit.fulfillmentSource || '').trim()
+  if (!src) return ''
+  const china = src === 'china'
+  const plat = String(hit.sourcePlatform || '').trim()
+  const platBit = plat ? ` · ${plat}` : ''
+  if (loc.startsWith('en')) return china ? `Source: China stock${platBit}.` : `Source: Vietnam stock${platBit}.`
+  if (loc.startsWith('zh')) return china ? `货源：中国${platBit}。` : `货源：越南仓${platBit}。`
+  if (loc.startsWith('ja')) return china ? `仕入：中国${platBit}。` : `仕入：ベトナム在庫${platBit}。`
+  if (loc.startsWith('ko')) return china ? `출처: 중국${platBit}.` : `출처: 베트남 재고${platBit}.`
+  return china ? `Nguồn: hàng Trung Quốc${platBit}.` : `Nguồn: hàng Việt Nam${platBit}.`
+}
+
+function formatShipmentEventsLine(hit: PartnerShippingLookupHit, loc: string): string {
+  const events = (hit.shipmentEvents || []).filter((event) => event.status === 'completed' || event.status === 'active')
+  if (!events.length) return ''
+  const lines = events.map((event) => {
+    const mark = event.status === 'active' ? ' ←' : ''
+    return `• ${event.title}${mark}`
+  })
+  if (loc.startsWith('en')) return `Shipment steps:\n${lines.join('\n')}`
+  if (loc.startsWith('zh')) return `发货进度：\n${lines.join('\n')}`
+  if (loc.startsWith('ja')) return `出荷進捗：\n${lines.join('\n')}`
+  if (loc.startsWith('ko')) return `출고 단계:\n${lines.join('\n')}`
+  return `Lịch trình giao hàng:\n${lines.join('\n')}`
+}
+
 /** Tin trả khách từ dữ liệu live — gọn, không lặp SĐT / chuỗi EMS kỹ thuật. */
 export function formatShippingLookupCustomerReply(
   hit: PartnerShippingLookupHit,
@@ -636,10 +666,12 @@ export function formatShippingLookupCustomerReply(
 
   return [
     lookupIntroLine(hit, loc),
+    formatFulfillmentSourceLine(hit, loc),
     statusLine,
     track,
     recipientLine,
     items,
+    formatShipmentEventsLine(hit, loc),
     events,
     lookupClosingLine(loc, { delivered, depositLike, shippingLike: shippingLike && !delivered }),
   ]

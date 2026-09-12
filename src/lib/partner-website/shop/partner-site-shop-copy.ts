@@ -268,6 +268,10 @@ export type PartnerSiteShopCopy = {
   orderTimelinePacking: string
   orderTimelineShipping: string
   orderTimelineDelivered: string
+  orderFulfillmentVietnam: string
+  orderFulfillmentChina: string
+  orderSplitBanner: string
+  orderEmsTracking: string
   orderActionFailed: string
   orderAddressLabel: string
   authSendOtp: string
@@ -824,6 +828,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     orderTimelinePacking: 'Đang đóng gói',
     orderTimelineShipping: 'Đang giao hàng',
     orderTimelineDelivered: 'Đã nhận hàng',
+    orderFulfillmentVietnam: 'Hàng Việt Nam',
+    orderFulfillmentChina: 'Hàng Trung Quốc',
+    orderSplitBanner: 'Giỏ tách 2 mã đơn. Phí giao hàng chỉ tính một lần.',
+    orderEmsTracking: 'Mã EMS',
     orderActionFailed: 'Không thực hiện được. Thử lại.',
     orderAddressLabel: 'Địa chỉ giao',
     authSendOtp: 'Gửi mã OTP',
@@ -1371,6 +1379,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     orderTimelinePacking: 'Packing',
     orderTimelineShipping: 'Out for delivery',
     orderTimelineDelivered: 'Delivered',
+    orderFulfillmentVietnam: 'Vietnam stock',
+    orderFulfillmentChina: 'China source',
+    orderSplitBanner: 'This cart splits into 2 order codes. Shipping is charged once.',
+    orderEmsTracking: 'EMS tracking',
     orderActionFailed: 'Could not complete this action. Try again.',
     orderAddressLabel: 'Shipping address',
     authSendOtp: 'Send OTP',
@@ -1916,6 +1928,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     orderTimelinePacking: '打包中',
     orderTimelineShipping: '配送中',
     orderTimelineDelivered: '已收货',
+    orderFulfillmentVietnam: '越南仓',
+    orderFulfillmentChina: '中国货源',
+    orderSplitBanner: '购物车会拆成两个订单号，运费只收一次。',
+    orderEmsTracking: 'EMS 运单',
     orderActionFailed: '操作失败，请重试。',
     orderAddressLabel: '收货地址',
     authSendOtp: '发送验证码',
@@ -2461,6 +2477,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     orderTimelinePacking: '梱包中',
     orderTimelineShipping: '配送中',
     orderTimelineDelivered: '受け取り済み',
+    orderFulfillmentVietnam: 'ベトナム在庫',
+    orderFulfillmentChina: '中国仕入',
+    orderSplitBanner: 'カートは2つの注文番号に分かれます。送料は1回だけです。',
+    orderEmsTracking: 'EMS追跡',
     orderActionFailed: '操作できませんでした。再試行してください。',
     orderAddressLabel: 'お届け先',
     authSendOtp: 'OTP送信',
@@ -3006,6 +3026,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     orderTimelinePacking: '포장 중',
     orderTimelineShipping: '배송 중',
     orderTimelineDelivered: '수령 완료',
+    orderFulfillmentVietnam: '베트남 재고',
+    orderFulfillmentChina: '중국 소싱',
+    orderSplitBanner: '장바구니는 주문 코드 2개로 나뉩니다. 배송비는 한 번만 받습니다.',
+    orderEmsTracking: 'EMS 운송장',
     orderActionFailed: '처리할 수 없습니다. 다시 시도하세요.',
     orderAddressLabel: '배송 주소',
     authSendOtp: 'OTP 전송',

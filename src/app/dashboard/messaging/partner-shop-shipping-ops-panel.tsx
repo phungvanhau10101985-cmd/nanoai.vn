@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -9,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import type { WebLocale } from '@/lib/i18n/config'
 import { partnerShippingOpsCopy, type PartnerShippingOpsCopy } from '@/lib/i18n/partner-shipping-ops-copy'
+import { messagingSettingsSectionHref } from '@/lib/messaging/messaging-settings-section-href'
 import type { OpsBucketKey, PartnerEmsRecord, EmsImportSummary, EmsTrackingEvent } from '@/lib/messaging/shipping/ems-types'
 import { Loader2 } from 'lucide-react'
 
@@ -91,6 +93,8 @@ type WarehouseInv = {
   parsed_size?: string
   parsed_color?: string
   parsed_base?: string
+  parsed_color_image_index?: number | null
+  parsed_color_image_url?: string
 }
 
 type CodRow = {
@@ -115,6 +119,19 @@ type FreightRow = {
 
 function vnd(n: number | null | undefined): string {
   return `${Math.round(Number(n || 0)).toLocaleString('vi-VN')} đ`
+}
+
+function OrderCodeLink({ partnerId, code }: { partnerId: string; code?: string | null }) {
+  const value = String(code || '').trim()
+  if (!value) return <>{'—'}</>
+  return (
+    <Link
+      href={messagingSettingsSectionHref('hub-orders', partnerId, { q: value })}
+      className="text-[#ea580c] underline-offset-2 hover:underline"
+    >
+      {value}
+    </Link>
+  )
 }
 
 function statusTone(status: string): string {
@@ -742,8 +759,16 @@ export function PartnerShopShippingOpsPanel({
   const warehouseColors = inv?.colors?.length ? inv.colors : inv?.parsed_color ? [inv.parsed_color] : []
 
   const composeWarehouseSku = (size: string, color: string) => {
-    const base = inv?.parsed_base || String(warehouseLookup?.sku || warehouseCode).split('/')[0]
-    return [base, size, color].filter(Boolean).join('/')
+    const raw = String(warehouseLookup?.sku || warehouseCode).trim()
+    const isSource = /^[AT]/i.test(raw)
+    const prefix = isSource ? raw[0].toUpperCase() : ''
+    const base = inv?.parsed_base || raw.replace(/^[AT]/i, '').split('/')[0]
+    let colorPart = color
+    if (isSource && inv?.colors?.length) {
+      const idx = inv.colors.indexOf(color)
+      if (idx >= 0) colorPart = String(idx + 1)
+    }
+    return `${prefix}${[base, size, colorPart].filter(Boolean).join('/')}`
   }
 
   return (
@@ -967,7 +992,7 @@ export function PartnerShopShippingOpsPanel({
                 {bucketRows.map((r) => (
                   <tr key={r.id} className="border-t border-border/60 align-top">
                     <td className="py-1.5 pr-2 font-medium">{r.ems_tracking_code || r.reference_code}</td>
-                    <td className="py-1.5 pr-2">{r.order_code || '—'}</td>
+                    <td className="py-1.5 pr-2"><OrderCodeLink partnerId={partnerId} code={r.order_code} /></td>
                     <td className="py-1.5 pr-2 tabular-nums">{r.cod_amount != null ? vnd(r.cod_amount) : '—'}</td>
                     <td className="py-1.5 pr-2">{r.ems_status || '—'}</td>
                     <td className="py-1.5">
@@ -1046,7 +1071,7 @@ export function PartnerShopShippingOpsPanel({
                     <tr key={`${String(row.reference_code || i)}-${i}`} className="border-t border-border/50">
                       <td className="px-2 py-1 tabular-nums">{String(row.row_number || i + 1)}</td>
                       <td className="px-2 py-1 font-medium">{String(row.reference_code || '')}</td>
-                      <td className="px-2 py-1">{String(row.order_code || '')}</td>
+                      <td className="px-2 py-1"><OrderCodeLink partnerId={partnerId} code={String(row.order_code || '')} /></td>
                       <td className="px-2 py-1 tabular-nums">{vnd(Number(row.cod_amount || 0))}</td>
                       <td className={`px-2 py-1 ${statusTone(String(row.import_action || row.sync_status || ''))}`}>
                         {String(row.import_action || '')} · {String(row.sync_status || '')}
@@ -1207,7 +1232,7 @@ export function PartnerShopShippingOpsPanel({
                   {returnPreview.map((row) => (
                     <tr key={row.input} className="border-t border-border/50">
                       <td className="px-2 py-1 font-medium">{row.input}</td>
-                      <td className="px-2 py-1">{row.order_code || ''}</td>
+                      <td className="px-2 py-1"><OrderCodeLink partnerId={partnerId} code={row.order_code || ''} /></td>
                       <td className="px-2 py-1">{row.ems_tracking_code || ''}</td>
                       <td className={`px-2 py-1 ${statusTone(row.status)}`}>
                         {row.status} — {row.message}
@@ -1282,9 +1307,13 @@ export function PartnerShopShippingOpsPanel({
           ) : null}
           {inv ? (
             <div className="flex gap-3 rounded-md border border-border/70 p-2">
-              {inv.image_url ? (
+              {inv.parsed_color_image_url || inv.image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={inv.image_url} alt="" className="h-16 w-16 rounded object-cover" />
+                <img
+                  src={inv.parsed_color_image_url || inv.image_url}
+                  alt=""
+                  className="h-16 w-16 rounded object-cover"
+                />
               ) : (
                 <div className="h-16 w-16 rounded bg-muted" />
               )}
@@ -1516,7 +1545,7 @@ export function PartnerShopShippingOpsPanel({
                     <div className="text-muted-foreground">{r.product_code}</div>
                   </td>
                   <td className="py-1.5 pr-2">
-                    {r.order_code || '—'}
+                    <OrderCodeLink partnerId={partnerId} code={r.order_code} />
                     <div className="text-muted-foreground">{r.shop_order_status || r.order_status || ''}</div>
                   </td>
                   <td className="py-1.5 pr-2">{r.recipient_label || r.shop_customer_name || r.shop_customer_phone || '—'}</td>

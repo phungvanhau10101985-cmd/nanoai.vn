@@ -69,6 +69,13 @@ async function trySyncShopOrder(input: {
     source: 'shop',
     createdBy: input.userId || undefined,
   })
+  const { applyEmsImportToPartnerOrderShipmentFromPg } = await import(
+    '@/lib/messaging/fulfillment/order-fulfillment-service'
+  )
+  await applyEmsImportToPartnerOrderShipmentFromPg({
+    orderId: input.orderId,
+    shippingStatus,
+  })
   return { synced: true, message: shopHandoffMessage(input.orderCode), shippingStatus }
 }
 

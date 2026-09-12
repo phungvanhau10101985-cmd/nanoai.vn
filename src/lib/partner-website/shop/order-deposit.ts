@@ -33,6 +33,15 @@ export function shouldRedirectToDepositAfterCreate(order: PartnerShopDepositOrde
   return status === 'awaiting_payment' || status === 'waiting_deposit'
 }
 
+/** Giỏ mix: ưu tiên đơn còn cọc (kể cả khi đơn chính mang phí ship). */
+export function pickDepositLandingOrder<T extends PartnerShopDepositOrderLike>(
+  primary: T,
+  orders?: T[] | null
+): T {
+  const list = (orders && orders.length ? orders : [primary]).filter(Boolean)
+  return list.find((row) => shouldRedirectToDepositAfterCreate(row)) || primary
+}
+
 /** Đơn đã cọc xong — kể cả khi webhook đẩy status sang packing ngay. */
 export function shouldShowDepositSuccessPage(order: PartnerShopDepositOrderLike): boolean {
   const status = String(order.status ?? '').trim()

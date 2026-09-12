@@ -7,7 +7,7 @@ import {
   intakePartnerReturnWarehouseFromPg,
 } from '@/lib/db/messaging-partner-ems-shipping-pg'
 import { cellStr, extractWarehouseSkuFromEmsLabel, looksLikeRecipientNotSku, readSpreadsheetRows } from '@/lib/messaging/shipping/ems-excel'
-import { isEmsReturnPendingShop, isEmsRecordShopReturnReceived } from '@/lib/messaging/shipping/shipping-ops'
+import { parseWarehouseSourceSkuParts, resolveWarehouseIntakeHints } from '@/lib/messaging/fulfillment/warehouse-source-sku'
 
 const CODE_SPLIT_RE = /[\s,;|\t]+/
 
@@ -29,6 +29,14 @@ export function classifyShopReturnStatus(input: {
 }
 
 export function parseWarehouseSkuParts(sku: string | null | undefined): { base: string; size: string; color: string } {
+  const source = parseWarehouseSourceSkuParts(sku)
+  if (source.kind !== 'unknown') {
+    return {
+      base: source.offerId,
+      size: source.size,
+      color: source.colorImageIndex != null ? String(source.colorImageIndex + 1) : '',
+    }
+  }
   const parts = String(sku || '')
     .split('/')
     .map((p) => p.trim())
@@ -167,9 +175,17 @@ export async function resolveReturnWarehouseSku(partnerId: string, code: string)
   if (!sku) return { sku: null, record, inventory: null, error: 'Không đọc được SKU kho từ mã này.' }
   const inventory = await fetchPartnerInventoryByWarehouseSkuFromPg(partnerId, sku)
   const inv = inventory as Record<string, unknown> | null
-  const parts = parseWarehouseSkuParts(String(inv?.sku || sku))
   const colors = asNameList(inv?.colors_json)
   const sizes = asNameList(inv?.sizes_json)
+  const gallery = Array.isArray(inv?.gallery_urls)
+    ? (inv?.gallery_urls as unknown[]).map((url) => String(url || '').trim()).filter(Boolean)
+    : []
+  const hints = resolveWarehouseIntakeHints({
+    sku: String(inv?.sku || sku),
+    colors,
+    sizes,
+    galleryUrls: gallery,
+  })
   return {
     sku,
     record,
@@ -178,9 +194,11 @@ export async function resolveReturnWarehouseSku(partnerId: string, code: string)
           ...inventory,
           colors,
           sizes,
-          parsed_size: parts.size,
-          parsed_color: parts.color,
-          parsed_base: parts.base,
+          parsed_size: hints.size,
+          parsed_color: hints.color,
+          parsed_base: hints.base,
+          parsed_color_image_index: hints.colorImageIndex,
+          parsed_color_image_url: hints.colorImageUrl,
         }
       : null,
     error: inventory ? null : `Không thấy SKU «${sku}» trong tồn kho shop.`,

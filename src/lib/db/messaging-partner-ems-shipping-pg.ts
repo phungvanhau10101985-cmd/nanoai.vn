@@ -734,7 +734,7 @@ export async function fetchPartnerInventoryByWarehouseSkuFromPg(partnerId: strin
   try {
     return await pgQueryOne(
       `select id::text, sku, name, stock_qty, is_clearance, remarketing_id, image_url,
-              price_amount, sale_price_amount, colors_json, sizes_json
+              price_amount, sale_price_amount, colors_json, sizes_json, gallery_urls
        from public.messaging_partner_inventory
        ${where}`,
       [partnerId, key],

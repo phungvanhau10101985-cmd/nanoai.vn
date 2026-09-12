@@ -32,6 +32,15 @@ import {
   PartnerOrderDiscountBreakdown,
   type PartnerOrderDiscountFields,
 } from '@/components/partner-website/shop/partner-order-discount-breakdown'
+import {
+  PartnerSiteOrderEmsTracking,
+  PartnerSiteOrderFulfillmentBadge,
+  PartnerSiteOrderShipmentSteps,
+  PartnerSiteOrderSplitGroup,
+  genericShippingTimelineSteps,
+  type ShopShipmentEventView,
+  type ShopSiblingOrderView,
+} from '@/components/partner-website/shop/partner-site-order-fulfillment-bits'
 
 type DepositOrder = PartnerOrderDiscountFields & {
   id: string
@@ -50,6 +59,10 @@ type DepositOrder = PartnerOrderDiscountFields & {
   product_name?: string | null
   promo_code?: string | null
   loyalty_tier_name?: string | null
+  fulfillment_source?: 'vietnam' | 'china' | null
+  source_platform?: string | null
+  tracking_number?: string | null
+  shipping_status?: string | null
 }
 
 type PaymentDisplay =
@@ -105,6 +118,8 @@ export function PartnerSiteShopDepositClient({
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
   const [toast, setToast] = useState('')
+  const [siblings, setSiblings] = useState<ShopSiblingOrderView[]>([])
+  const [shipmentEvents, setShipmentEvents] = useState<ShopShipmentEventView[]>([])
   const prevStatusRef = useRef<string | null>(null)
 
   const orderApi = `/api/messaging/guest/${encodeURIComponent(partnerSlug)}/order/${encodeURIComponent(orderId)}`
@@ -117,12 +132,16 @@ export function PartnerSiteShopDepositClient({
       payment_display?: PaymentDisplay
       default_deposit_percent?: number
       google_customer_reviews_merchant_id?: number | null
+      sibling_orders?: ShopSiblingOrderView[]
+      shipment_events?: ShopShipmentEventView[]
     }
     if (!res.ok || !json.order) {
       setOrder(null)
       return
     }
     setOrder(json.order)
+    setSiblings(Array.isArray(json.sibling_orders) ? json.sibling_orders : [])
+    setShipmentEvents(Array.isArray(json.shipment_events) ? json.shipment_events : [])
     setPaymentDisplay(json.payment_display ?? null)
     if (typeof json.default_deposit_percent === 'number' && json.default_deposit_percent > 0) {
       setShopPercent(Math.max(1, Math.min(99, Math.round(json.default_deposit_percent))))
@@ -319,6 +338,19 @@ export function PartnerSiteShopDepositClient({
                   {t.depositPageCode.replace('{code}', code)}
                 </strong>
               </p>
+              <PartnerSiteOrderFulfillmentBadge
+                t={t}
+                source={order.fulfillment_source}
+                platform={order.source_platform}
+              />
+              <PartnerSiteOrderSplitGroup
+                t={t}
+                siteSlug={siteSlug}
+                customDomain={customDomain}
+                currentId={order.id}
+                siblings={siblings}
+              />
+              <PartnerSiteOrderEmsTracking t={t} trackingNumber={order.tracking_number} />
               <p>
                 {t.orderStatusLabel}: <strong>{t.depositStatusPaid}</strong>
               </p>
@@ -328,6 +360,13 @@ export function PartnerSiteShopDepositClient({
               {remaining > 0 ? (
                 <p className="pw-shop-muted">{t.depositRemainingHint.replace('{amount}', formatVnd(remaining))}</p>
               ) : null}
+              <div style={{ marginTop: 16 }}>
+                <PartnerSiteOrderShipmentSteps
+                  t={t}
+                  events={shipmentEvents}
+                  fallback={genericShippingTimelineSteps(order.shipping_status, t)}
+                />
+              </div>
             </div>
             <p className="pw-shop-muted">{t.depositSuccessThanks}</p>
             {merchantId ? (
@@ -368,6 +407,24 @@ export function PartnerSiteShopDepositClient({
       <div className="pw-shop-deposit-head">
         <h1>{t.depositPageTitle}</h1>
         <p>{t.depositPageCode.replace('{code}', code)}</p>
+        <PartnerSiteOrderFulfillmentBadge
+          t={t}
+          source={order.fulfillment_source}
+          platform={order.source_platform}
+        />
+        <PartnerSiteOrderSplitGroup
+          t={t}
+          siteSlug={siteSlug}
+          customDomain={customDomain}
+          currentId={order.id}
+          siblings={siblings}
+        />
+        <PartnerSiteOrderEmsTracking t={t} trackingNumber={order.tracking_number} />
+        {shipmentEvents.length > 0 ? (
+          <div style={{ marginTop: 12 }}>
+            <PartnerSiteOrderShipmentSteps t={t} events={shipmentEvents} fallback={[]} />
+          </div>
+        ) : null}
       </div>
       <div className="pw-shop-deposit-money">
         <div>

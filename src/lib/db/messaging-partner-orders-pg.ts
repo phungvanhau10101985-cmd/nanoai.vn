@@ -4,8 +4,10 @@ import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import type { PartnerStackedDiscountSnapshot } from '@/lib/db/messaging-partner-loyalty-pg'
 import type { PartnerSaleDiscountBreakdown } from '@/lib/partner-website/promotions/partner-sale-pricing'
 import {
+  partnerAdminFulfillmentFilterSql,
   partnerAdminLifecycleSql,
   partnerAdminPaymentFilterSql,
+  type PartnerAdminFulfillmentFilter,
   type PartnerAdminLifecycleTab,
   type PartnerAdminPaymentFilter,
 } from '@/lib/messaging/partner-admin-orders-lifecycle'
@@ -14,6 +16,7 @@ import {
   formatShopSequentialOrderCode,
   paymentReferenceLookupKeys,
 } from '@/lib/messaging/shop-payment-reference'
+import { vietnamSlaBadge } from '@/lib/messaging/fulfillment/vietnam-order-sla'
 
 export type PartnerPaymentSettingsRow = {
   partner_id: string
@@ -113,6 +116,17 @@ export type PartnerOrderRow = {
   refund_amount: number
   refund_note: string
   refunded_at: string | null
+  fulfillment_source: 'vietnam' | 'china'
+  fulfillment_needs_review: boolean
+  source_platform: string | null
+  checkout_group_id: string | null
+  split_index: number
+  staff_consultation_contacted: boolean
+  deposit_exception: boolean
+  deposit_exception_note: string
+  stock_hold_expires_at: string | null
+  stock_hold_released_at: string | null
+  deposit_hold_overdue: boolean
 }
 
 export type PartnerOrderLineRow = {
@@ -132,6 +146,13 @@ export type PartnerOrderLineRow = {
   sort_order: number
   created_at: string
   updated_at: string
+  fulfillment_source: 'vietnam' | 'china'
+  source_platform: string | null
+  source_url: string
+  product_sku_snapshot: string
+  is_warehouse_item: boolean
+  warehouse_stock_reserved_at: string | null
+  warehouse_stock_deducted_at: string | null
 }
 
 function num(v: unknown, fallback = 0): number {
@@ -247,6 +268,18 @@ function mapOrderRow(r: Record<string, unknown>): PartnerOrderRow {
     refund_amount: Math.max(0, num(r.refund_amount, 0)),
     refund_note: String(r.refund_note ?? ''),
     refunded_at: r.refunded_at ? String(r.refunded_at) : null,
+    fulfillment_source: String(r.fulfillment_source ?? '') === 'china' ? 'china' : 'vietnam',
+    fulfillment_needs_review: r.fulfillment_needs_review === true || String(r.fulfillment_needs_review) === 'true',
+    source_platform: r.source_platform ? String(r.source_platform) : null,
+    checkout_group_id: r.checkout_group_id ? String(r.checkout_group_id) : null,
+    split_index: Math.max(1, Math.floor(num(r.split_index, 1))),
+    staff_consultation_contacted:
+      r.staff_consultation_contacted === true || String(r.staff_consultation_contacted) === 'true',
+    deposit_exception: r.deposit_exception === true || String(r.deposit_exception) === 'true',
+    deposit_exception_note: String(r.deposit_exception_note ?? ''),
+    stock_hold_expires_at: r.stock_hold_expires_at ? String(r.stock_hold_expires_at) : null,
+    stock_hold_released_at: r.stock_hold_released_at ? String(r.stock_hold_released_at) : null,
+    deposit_hold_overdue: r.deposit_hold_overdue === true || String(r.deposit_hold_overdue) === 'true',
   }
 }
 
@@ -268,6 +301,13 @@ function mapOrderLineRow(r: Record<string, unknown>): PartnerOrderLineRow {
     sort_order: Math.max(0, Math.floor(num(r.sort_order, 0))),
     created_at: String(r.created_at ?? ''),
     updated_at: String(r.updated_at ?? ''),
+    fulfillment_source: String(r.fulfillment_source ?? '') === 'china' ? 'china' : 'vietnam',
+    source_platform: r.source_platform ? String(r.source_platform) : null,
+    source_url: String(r.source_url ?? ''),
+    product_sku_snapshot: String(r.product_sku_snapshot ?? ''),
+    is_warehouse_item: r.is_warehouse_item === true || String(r.is_warehouse_item) === 'true',
+    warehouse_stock_reserved_at: r.warehouse_stock_reserved_at ? String(r.warehouse_stock_reserved_at) : null,
+    warehouse_stock_deducted_at: r.warehouse_stock_deducted_at ? String(r.warehouse_stock_deducted_at) : null,
   }
 }
 
@@ -283,6 +323,12 @@ export type PartnerOrderLineUpsertInput = {
   variantImageUrlsJson: string
   note: string
   sortOrder: number
+  fulfillmentSource?: 'vietnam' | 'china'
+  sourcePlatform?: string | null
+  sourceUrl?: string
+  productSkuSnapshot?: string
+  isWarehouseItem?: boolean
+  depositRequired?: boolean
 }
 
 export function parseVndAmountFromText(raw: string): number {
@@ -475,7 +521,11 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
 
 const ORDER_LINE_RETURNING = `id::text, order_id::text, product_inventory_id::text, product_name, product_image_url,
        product_url, unit_price, quantity, line_subtotal, variant_color, variant_size, variant_image_urls,
-       note, sort_order, created_at, updated_at`
+       note, sort_order, created_at, updated_at,
+       coalesce(fulfillment_source, 'vietnam') as fulfillment_source, source_platform,
+       coalesce(source_url, '') as source_url, coalesce(product_sku_snapshot, '') as product_sku_snapshot,
+       coalesce(is_warehouse_item, false) as is_warehouse_item,
+       warehouse_stock_reserved_at, warehouse_stock_deducted_at`
 
 export async function fetchPartnerOrderLinesFromPg(orderId: string): Promise<PartnerOrderLineRow[]> {
   if (!isPgConfigured()) return []
@@ -522,11 +572,12 @@ export async function replacePartnerOrderLinesFromPg(
         `insert into public.messaging_partner_order_lines (
            order_id, product_inventory_id, product_name, product_image_url, product_url,
            unit_price, quantity, line_subtotal, variant_color, variant_size, variant_image_urls,
-           note, sort_order, created_at, updated_at
+           note, sort_order, fulfillment_source, source_platform, source_url, product_sku_snapshot,
+           is_warehouse_item, created_at, updated_at
          ) values (
            $1::uuid, $2::uuid, $3, $4, $5,
            $6::numeric, $7::integer, $8::numeric, $9, $10, $11,
-           $12, $13::integer, now(), now()
+           $12, $13::integer, $14, $15, $16, $17, $18, now(), now()
          )`,
         [
           orderId,
@@ -542,6 +593,11 @@ export async function replacePartnerOrderLinesFromPg(
           line.variantImageUrlsJson.trim().slice(0, 8000),
           line.note,
           line.sortOrder,
+          line.fulfillmentSource === 'china' ? 'china' : 'vietnam',
+          line.sourcePlatform || null,
+          String(line.sourceUrl || line.productUrl || '').slice(0, 800),
+          String(line.productSkuSnapshot || '').slice(0, 180),
+          line.isWarehouseItem === true,
         ]
       )
     }
@@ -556,13 +612,21 @@ export async function replacePartnerOrderLinesFromPg(
   }
 }
 
-export async function syncPrimaryPartnerOrderLineFromOrderFromPg(order: PartnerOrderRow): Promise<boolean> {
+export async function syncPrimaryPartnerOrderLineFromOrderFromPg(
+  order: PartnerOrderRow,
+  extra?: Partial<
+    Pick<
+      PartnerOrderLineUpsertInput,
+      'fulfillmentSource' | 'sourcePlatform' | 'sourceUrl' | 'productSkuSnapshot' | 'isWarehouseItem' | 'depositRequired'
+    >
+  >
+): Promise<boolean> {
   return replacePartnerOrderLinesFromPg(order.id, [
     {
       productInventoryId: order.product_inventory_id,
       productName: order.product_name,
       productImageUrl: order.product_image_url,
-      productUrl: order.product_url,
+      productUrl: extra?.sourceUrl || order.product_url,
       unitPrice: order.unit_price,
       quantity: order.quantity,
       variantColor: order.variant_color,
@@ -570,6 +634,12 @@ export async function syncPrimaryPartnerOrderLineFromOrderFromPg(order: PartnerO
       variantImageUrlsJson: order.variant_image_urls,
       note: order.note,
       sortOrder: 0,
+      fulfillmentSource: extra?.fulfillmentSource || order.fulfillment_source,
+      sourcePlatform: extra?.sourcePlatform ?? order.source_platform,
+      sourceUrl: extra?.sourceUrl || order.product_url,
+      productSkuSnapshot: extra?.productSkuSnapshot,
+      isWarehouseItem: extra?.isWarehouseItem,
+      depositRequired: extra?.depositRequired,
     },
   ])
 }
@@ -1072,7 +1142,18 @@ const ORDER_ROW_SELECT = `select id::text, partner_id::text, conversation_id::te
               promo_id::text, promo_code, promo_discount_amount,
               coalesce(payment_method, 'cod') as payment_method, coalesce(shipping_fee_amount, 0) as shipping_fee_amount,
               coalesce(refund_status, 'none') as refund_status, coalesce(refund_amount, 0) as refund_amount,
-              coalesce(refund_note, '') as refund_note, refunded_at
+              coalesce(refund_note, '') as refund_note, refunded_at,
+              coalesce(fulfillment_source, 'vietnam') as fulfillment_source,
+              coalesce(fulfillment_needs_review, false) as fulfillment_needs_review,
+              source_platform, checkout_group_id::text,
+              coalesce(split_index, 1) as split_index,
+              coalesce(staff_consultation_contacted, false) as staff_consultation_contacted,
+              coalesce(deposit_exception, false) as deposit_exception,
+              coalesce(deposit_exception_note, '') as deposit_exception_note,
+              stock_hold_expires_at, stock_hold_released_at,
+              coalesce(deposit_hold_overdue, false) as deposit_hold_overdue,
+              coalesce(tracking_number, '') as tracking_number,
+              coalesce(shipping_provider, '') as shipping_provider
        from public.messaging_partner_orders`
 
 const ORDER_ROW_SELECT_WITH_SALE = ORDER_ROW_SELECT.replace(
@@ -1306,6 +1387,79 @@ export async function fetchPartnerOrdersForConversationFromPg(
   }
 }
 
+export async function fetchPartnerCheckoutGroupOrdersFromPg(
+  partnerId: string,
+  groupId: string | null | undefined
+): Promise<Array<{ id: string; payment_reference: string; fulfillment_source: 'vietnam' | 'china' }>> {
+  const gid = String(groupId ?? '').trim()
+  if (!isPgConfigured() || !gid) return []
+  try {
+    const rows = await pgQuery<{
+      id: string
+      payment_reference: string
+      fulfillment_source: string
+    }>(
+      `select id::text, coalesce(payment_reference, '') as payment_reference,
+              coalesce(fulfillment_source, 'vietnam') as fulfillment_source
+       from public.messaging_partner_orders
+       where partner_id = $1::uuid and checkout_group_id = $2::uuid
+       order by split_index asc, created_at asc`,
+      [partnerId, gid]
+    )
+    return rows.map((row) => ({
+      id: row.id,
+      payment_reference: row.payment_reference,
+      fulfillment_source: row.fulfillment_source === 'china' ? 'china' : 'vietnam',
+    }))
+  } catch (e) {
+    const err = e as { code?: string }
+    if (err.code !== '42703') console.warn('[fetchPartnerCheckoutGroupOrdersFromPg]', e)
+    return []
+  }
+}
+
+export async function fetchPartnerCheckoutGroupsMapFromPg(
+  partnerId: string,
+  groupIds: string[]
+): Promise<
+  Record<string, Array<{ id: string; payment_reference: string; fulfillment_source: 'vietnam' | 'china' }>>
+> {
+  const ids = [...new Set(groupIds.map((id) => String(id || '').trim()).filter(Boolean))]
+  const out: Record<string, Array<{ id: string; payment_reference: string; fulfillment_source: 'vietnam' | 'china' }>> =
+    {}
+  if (!isPgConfigured() || ids.length === 0) return out
+  try {
+    const rows = await pgQuery<{
+      id: string
+      checkout_group_id: string
+      payment_reference: string
+      fulfillment_source: string
+    }>(
+      `select id::text, checkout_group_id::text,
+              coalesce(payment_reference, '') as payment_reference,
+              coalesce(fulfillment_source, 'vietnam') as fulfillment_source
+       from public.messaging_partner_orders
+       where partner_id = $1::uuid and checkout_group_id = any($2::uuid[])
+       order by split_index asc, created_at asc`,
+      [partnerId, ids]
+    )
+    for (const row of rows) {
+      const gid = row.checkout_group_id
+      const list = out[gid] || []
+      list.push({
+        id: row.id,
+        payment_reference: row.payment_reference,
+        fulfillment_source: row.fulfillment_source === 'china' ? 'china' : 'vietnam',
+      })
+      out[gid] = list
+    }
+  } catch (e) {
+    const err = e as { code?: string }
+    if (err.code !== '42703') console.warn('[fetchPartnerCheckoutGroupsMapFromPg]', e)
+  }
+  return out
+}
+
 export async function fetchPartnerOrderForThreadFromPg(input: {
   orderId: string
   partnerId: string
@@ -1503,6 +1657,27 @@ export async function insertPartnerPaymentProofFromPg(input: {
   }
 }
 
+export async function patchPartnerOrderDepositExceptionFromPg(input: {
+  orderId: string
+  depositException: boolean
+  note?: string
+}): Promise<void> {
+  if (!isPgConfigured()) return
+  try {
+    await pgQuery(
+      `update public.messaging_partner_orders
+       set deposit_exception = $2,
+           deposit_exception_note = case when $2 then $3 else '' end,
+           updated_at = now()
+       where id = $1::uuid`,
+      [input.orderId, input.depositException, String(input.note || '').slice(0, 500)]
+    )
+  } catch (e) {
+    const err = e as { code?: string }
+    if (err.code !== '42P01' && err.code !== '42703') console.warn('[patchPartnerOrderDepositExceptionFromPg]', e)
+  }
+}
+
 export async function updatePartnerOrderPaymentVerificationFromPg(input: {
   orderId: string
   status: PartnerOrderRow['status']
@@ -1537,6 +1712,9 @@ export type PartnerOrderAdminRow = PartnerOrderRow & {
   latest_proof_status: 'pending' | 'verified' | 'failed' | 'manual_review' | null
   latest_proof_reason: string | null
   has_customer_review?: boolean
+  shipment_active_step?: string | null
+  sibling_order_codes?: string
+  vn_sla_badge?: 'overdue_4h' | 'overdue_24h' | null
 }
 
 /** Tổng hợp đơn chat (cùng bộ lọc workspace + trạng thái với danh sách; không giới hạn 200 dòng). */
@@ -1646,6 +1824,13 @@ function mapOrderAdminRow(r: Record<string, unknown>): PartnerOrderAdminRow {
     latest_proof_status: r.latest_proof_status ? (String(r.latest_proof_status) as PartnerOrderAdminRow['latest_proof_status']) : null,
     latest_proof_reason: r.latest_proof_reason ? String(r.latest_proof_reason) : null,
     has_customer_review: Boolean(r.has_customer_review),
+    shipment_active_step: r.shipment_active_step ? String(r.shipment_active_step) : null,
+    sibling_order_codes: String(r.sibling_order_codes ?? ''),
+    vn_sla_badge: vietnamSlaBadge({
+      fulfillmentSource: String(r.fulfillment_source ?? 'vietnam'),
+      activeStep: r.shipment_active_step ? String(r.shipment_active_step) : null,
+      startedAt: (r.verified_at || r.created_at) as string | null,
+    }),
   }
 }
 
@@ -1921,7 +2106,32 @@ const ORDER_ADMIN_LIST_SELECT = `o.id::text, o.partner_id::text, o.conversation_
               exists (
                 select 1 from public.messaging_partner_product_reviews rv
                 where rv.order_id = o.id and coalesce(rv.is_imported, false) = false and coalesce(rv.is_active, true) = true
-              ) as has_customer_review`
+              ) as has_customer_review,
+              coalesce(o.fulfillment_source, 'vietnam') as fulfillment_source,
+              coalesce(o.fulfillment_needs_review, false) as fulfillment_needs_review,
+              o.source_platform,
+              o.checkout_group_id::text,
+              coalesce(o.split_index, 1) as split_index,
+              coalesce(o.staff_consultation_contacted, false) as staff_consultation_contacted,
+              coalesce(o.deposit_exception, false) as deposit_exception,
+              coalesce(o.deposit_exception_note, '') as deposit_exception_note,
+              o.stock_hold_expires_at,
+              o.stock_hold_released_at,
+              coalesce(o.deposit_hold_overdue, false) as deposit_hold_overdue,
+              (
+                select e.step_key
+                from public.messaging_partner_order_shipment_events e
+                where e.order_id = o.id and e.status = 'active'
+                order by e.sort_order asc
+                limit 1
+              ) as shipment_active_step,
+              (
+                select string_agg(coalesce(nullif(trim(sib.payment_reference), ''), sib.id::text), ', ' order by sib.split_index)
+                from public.messaging_partner_orders sib
+                where sib.checkout_group_id is not null
+                  and sib.checkout_group_id = o.checkout_group_id
+                  and sib.id <> o.id
+              ) as sibling_order_codes`
 
 const ORDER_ADMIN_LIST_JOINS = `from public.messaging_partner_orders o
        join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
@@ -1950,6 +2160,7 @@ export async function fetchPartnerOrdersAdminPageFromPg(input: {
   q?: string | null
   lifecycleTab?: PartnerAdminLifecycleTab | null
   paymentFilter?: PartnerAdminPaymentFilter | null
+  fulfillmentFilter?: PartnerAdminFulfillmentFilter | null
   skip?: number
   limit?: number
 }): Promise<PartnerOrderAdminPage | null> {
@@ -1958,10 +2169,12 @@ export async function fetchPartnerOrdersAdminPageFromPg(input: {
   const q = String(input.q ?? '').trim()
   const tab = (input.lifecycleTab || 'all') as PartnerAdminLifecycleTab
   const pay = (input.paymentFilter || '') as PartnerAdminPaymentFilter
+  const sourceFilter = (input.fulfillmentFilter || '') as PartnerAdminFulfillmentFilter
   const lim = Math.max(25, Math.min(100, Math.floor(Number(input.limit) || 100)))
   const skip = Math.max(0, Math.floor(Number(input.skip) || 0))
   const lifeSql = partnerAdminLifecycleSql(tab)
   const paySql = partnerAdminPaymentFilterSql(pay)
+  const sourceSql = partnerAdminFulfillmentFilterSql(sourceFilter)
   const searchSql = q
     ? `and (
          coalesce(o.payment_reference, '') ilike $3 escape '\\'
@@ -1986,6 +2199,7 @@ export async function fetchPartnerOrdersAdminPageFromPg(input: {
        where ($2::uuid is null or o.partner_id = $2::uuid)
          and ${lifeSql}
          and ${paySql}
+         and ${sourceSql}
          ${searchSql}`,
       countParams
     )
@@ -1996,6 +2210,7 @@ export async function fetchPartnerOrdersAdminPageFromPg(input: {
        where ($2::uuid is null or o.partner_id = $2::uuid)
          and ${lifeSql}
          and ${paySql}
+         and ${sourceSql}
          ${searchSql}
        order by o.created_at desc
        limit ${limitIdx} offset ${skipIdx}`,
@@ -2230,6 +2445,13 @@ export async function updatePartnerOrderShippingStatusForOwnerFromPg(input: {
        where o.id = $1::uuid
          and mp.id = o.partner_id
          and ${sqlPartnerMpActorHasPerm(2, 'orders')}
+         and (
+           $3 not in ('shipping', 'packing')
+           or not exists (
+             select 1 from public.messaging_partner_order_shipment_events se
+             where se.order_id = o.id
+           )
+         )
        returning o.id::text, o.partner_id::text, o.conversation_id::text, o.external_thread_id, o.status,
                  o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
                  o.variant_color, o.variant_size, o.variant_image_urls, o.quantity, o.note,
@@ -2396,7 +2618,18 @@ const GUEST_ORDER_RETURNING = `id::text, partner_id::text, conversation_id::text
                  promo_id::text, promo_code, promo_discount_amount,
                  coalesce(payment_method, 'cod') as payment_method, coalesce(shipping_fee_amount, 0) as shipping_fee_amount,
                  coalesce(refund_status, 'none') as refund_status, coalesce(refund_amount, 0) as refund_amount,
-                 coalesce(refund_note, '') as refund_note, refunded_at`
+                 coalesce(refund_note, '') as refund_note, refunded_at,
+                 coalesce(fulfillment_source, 'vietnam') as fulfillment_source,
+                 coalesce(fulfillment_needs_review, false) as fulfillment_needs_review,
+                 source_platform, checkout_group_id::text,
+                 coalesce(split_index, 1) as split_index,
+                 coalesce(staff_consultation_contacted, false) as staff_consultation_contacted,
+                 coalesce(deposit_exception, false) as deposit_exception,
+                 coalesce(deposit_exception_note, '') as deposit_exception_note,
+                 stock_hold_expires_at, stock_hold_released_at,
+                 coalesce(deposit_hold_overdue, false) as deposit_hold_overdue,
+                 coalesce(tracking_number, '') as tracking_number,
+                 coalesce(shipping_provider, '') as shipping_provider`
 
 /** Khách huỷ đơn chưa thanh toán / chưa giao — chỉ đúng conversation của khách. */
 export async function cancelPartnerOrderForConversationFromPg(input: {

@@ -3,7 +3,9 @@ import {
   fetchPartnerOrderForPublicTrackingFromPg,
   fetchPartnerOrderLinesFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
-import { isPgConfigured } from '@/lib/db/pool'
+import { fetchPartnerOrderShipmentEventsFromPg } from '@/lib/db/messaging-partner-order-shipment-pg'
+import { fetchEmsTracking } from '@/lib/messaging/shipping/ems-tracking'
+import { looksLikeEmsTrackingCode } from '@/lib/messaging/shipping/ems-excel'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 
 export const dynamic = 'force-dynamic'
@@ -34,8 +36,66 @@ async function trackOrder(partnerId: string, orderCode: string, phone: string) {
   const order = await fetchPartnerOrderForPublicTrackingFromPg(partnerId, orderCode, phone)
   if (!order) return null
   const lines = await fetchPartnerOrderLinesFromPg(order.id)
+  const events = await fetchPartnerOrderShipmentEventsFromPg(order.id)
+  const tracking = String(order.tracking_number || '').trim()
+  let emsEvents: Array<{ description: string; address: string; tracedAt: string }> = []
+  if (tracking && looksLikeEmsTrackingCode(tracking)) {
+    const live = await fetchEmsTracking(tracking).catch(() => null)
+    emsEvents = (live?.events || []).map((e) => ({
+      description: e.description,
+      address: e.address || '',
+      tracedAt: e.traced_at || '',
+    }))
+  }
+  const shipmentTimeline =
+    events.length > 0
+      ? events.map((event) => ({
+          key: event.stepKey,
+          title: event.title,
+          status: event.status,
+          at: event.completedAt || event.scheduledAt,
+          done: event.status === 'completed',
+          active: event.status === 'active',
+        }))
+      : [
+          { key: 'created', at: order.created_at, done: true, active: false, title: '' },
+          {
+            key: 'confirmed',
+            at: null,
+            done: ['confirmed', 'packing', 'shipping', 'delivered'].includes(order.shipping_status),
+            active: order.shipping_status === 'confirmed',
+            title: '',
+          },
+          {
+            key: 'packing',
+            at: null,
+            done: ['packing', 'shipping', 'delivered'].includes(order.shipping_status),
+            active: order.shipping_status === 'packing',
+            title: '',
+          },
+          {
+            key: 'shipping',
+            at: null,
+            done: ['shipping', 'delivered'].includes(order.shipping_status),
+            active: order.shipping_status === 'shipping',
+            title: '',
+          },
+          {
+            key: 'delivered',
+            at: null,
+            done: order.shipping_status === 'delivered',
+            active: false,
+            title: '',
+          },
+        ]
   return {
-    order: publicTrackingPayload(order),
+    order: {
+      ...publicTrackingPayload(order),
+      fulfillment_source: order.fulfillment_source,
+      source_platform: order.source_platform,
+      tracking_number: order.tracking_number || null,
+      shipping_provider: order.shipping_provider || null,
+    },
     lines: lines.map((line) => ({
       id: line.id,
       product_name: line.product_name,
@@ -47,29 +107,8 @@ async function trackOrder(partnerId: string, orderCode: string, phone: string) {
       variant_color: line.variant_color,
       variant_size: line.variant_size,
     })),
-    timeline: [
-      { key: 'created', at: order.created_at, done: true },
-      {
-        key: 'confirmed',
-        at: null,
-        done: ['confirmed', 'packing', 'shipping', 'delivered'].includes(order.shipping_status),
-      },
-      {
-        key: 'packing',
-        at: null,
-        done: ['packing', 'shipping', 'delivered'].includes(order.shipping_status),
-      },
-      {
-        key: 'shipping',
-        at: null,
-        done: ['shipping', 'delivered'].includes(order.shipping_status),
-      },
-      {
-        key: 'delivered',
-        at: null,
-        done: order.shipping_status === 'delivered',
-      },
-    ],
+    timeline: shipmentTimeline,
+    emsEvents,
   }
 }
 

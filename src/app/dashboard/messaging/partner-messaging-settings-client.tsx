@@ -261,7 +261,7 @@ const MESSAGING_SETTINGS_SECTION_IDS = [
 ] as const
 
 type MessagingSettingsSectionId = (typeof MESSAGING_SETTINGS_SECTION_IDS)[number]
-const OPERATIONS_SECTION_IDS = ['hub-notifications', 'hub-marketing', 'hub-orders', 'hub-email'] as const
+const OPERATIONS_SECTION_IDS = ['hub-notifications', 'hub-marketing', 'hub-orders', 'hub-ems', 'hub-email'] as const
 type OperationsSectionId = (typeof OPERATIONS_SECTION_IDS)[number]
 type SettingsPageSectionId = MessagingSettingsSectionId | PartnerWebsiteAdminSectionId | OperationsSectionId
 
@@ -630,6 +630,12 @@ export function PartnerMessagingSettingsClient({
         id: 'hub-orders' as const,
         label: t.messagingOrdersLink,
         icon: ClipboardList,
+        visible: Boolean(selectedPartnerId && partnerCanOrdersHub(selectedPartner)),
+      },
+      {
+        id: 'hub-ems' as const,
+        label: t.settingsNavEmsOps,
+        icon: Package,
         visible: Boolean(selectedPartnerId && partnerCanOrdersHub(selectedPartner)),
       },
       {
@@ -2365,7 +2371,7 @@ export function PartnerMessagingSettingsClient({
               'min-w-0 flex-1 rounded-xl border border-border/70 bg-white dark:bg-zinc-950',
               activeSection === 'partner-website-editor'
                 ? 'flex min-h-0 flex-col p-2 sm:p-3'
-                : activeSection === 'hub-orders'
+                : activeSection === 'hub-orders' || activeSection === 'hub-ems'
                   ? 'min-w-0 overflow-x-hidden p-3 sm:p-4 lg:p-5'
                   : 'p-3 sm:p-4 lg:p-5'
             )}
@@ -3803,6 +3809,19 @@ export function PartnerMessagingSettingsClient({
                 lockedPartnerId={selectedPartnerId}
                 hidePartnerPicker
               />
+            </div>
+          ) : null}
+
+          {activeSection === 'hub-ems' && selectedPartnerId && partnerCanOrdersHub(selectedPartner) ? (
+            <div id="messaging-ems-ops" className="min-w-0 scroll-mt-4">
+              <SettingsBlock
+                id="messaging-ems-ops-block"
+                icon={Package}
+                title={t.settingsNavEmsOps}
+                description={t.settingsNavEmsOpsDesc}
+              >
+                <PartnerShopShippingOpsPanel partnerId={selectedPartnerId} locale={locale} />
+              </SettingsBlock>
             </div>
           ) : null}
           </div>

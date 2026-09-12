@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
@@ -34,6 +35,7 @@ import { fetchMessagingPartnersByIdsFromPg, fetchPartnerGoogleCustomerReviewsMer
 import {
   fetchPartnerInventoryDefaultForAiFromPg,
   fetchPartnerInventoryPurchaseOptionsByProductUrlFromPg,
+  fetchPartnerInventoryRowByIdForPartnerFromPg,
   fetchPartnerInventoryRowByProductUrlFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
@@ -77,6 +79,17 @@ import {
 import { createPartnerAffiliateCommissionForOrderFromPg } from '@/lib/db/messaging-partner-affiliate-pg'
 import { guestAccountEmailMatchesAuthUserFromPg } from '@/lib/db/messaging-guest-pg'
 import { queuePartnerOrderGoogleSheetsSync } from '@/lib/messaging/partner-order-google-sheets-sync'
+import {
+  fulfillmentSourceFromUrl,
+  resolveInventoryFulfillmentUrl,
+  sourcePlatformFromUrl,
+} from '@/lib/messaging/fulfillment/fulfillment-routing'
+import { buildCheckoutSplitPlans, pickPrimaryCheckoutOrderIndex } from '@/lib/messaging/fulfillment/checkout-split'
+import { patchPartnerOrderFulfillmentFromPg } from '@/lib/db/messaging-partner-order-shipment-pg'
+import {
+  holdVietnamWarehouseStockForDeposit,
+  seedPartnerOrderTimelineIfReady,
+} from '@/lib/messaging/fulfillment/order-fulfillment-service'
 import {
   emitPartnerOutboundOrderCreated,
   emitPartnerOutboundPaymentPaid,
@@ -824,18 +837,38 @@ export async function completeOrderCheckout(input: {
     loyaltyPercent: loyaltyPct,
   })
   const payableSubtotal = saleBreakdown.amountAfterDiscount
-  // Deposit is controlled entirely by shop settings; customer cannot override.
-  const mode = settings.default_deposit_mode ?? 'percent'
-  const percent = clampPercent(settings.default_deposit_percent ?? 30, 30)
-  const fixedAmount = normalizeMoney(settings.default_deposit_amount ?? 0)
-  const calc = resolveRequiredAmountByDepositRule({
-    subtotal: payableSubtotal,
-    mode,
-    percent,
-    fixedAmount,
-  })
-  const expectedAmount = calc.requiredAmount
   const shippingFeeAmount = resolveShippingFeeAmount(settings, payableSubtotal)
+  const inv = oldOrder.product_inventory_id
+    ? await fetchPartnerInventoryRowByIdForPartnerFromPg(input.partnerId, oldOrder.product_inventory_id)
+    : oldOrder.product_url
+      ? await fetchPartnerInventoryRowByProductUrlFromPg(input.partnerId, oldOrder.product_url)
+      : null
+  const sourceUrl = resolveInventoryFulfillmentUrl({
+    catalogJson: inv?.catalog_json,
+    productUrl: inv?.product_url || oldOrder.product_url,
+    fallbackUrl: oldOrder.product_url,
+  })
+  const platform = sourcePlatformFromUrl(sourceUrl)
+  const fulfillmentSource = fulfillmentSourceFromUrl(sourceUrl)
+  const checkoutPlan = buildCheckoutSplitPlans({
+    lines: [
+      {
+        fulfillmentSource,
+        sourcePlatform: platform,
+        sourceUrl,
+        lineSubtotal: payableSubtotal,
+        isWarehouseItem: inv?.is_clearance === true,
+        depositRequired: inv?.deposit_required === true,
+      },
+    ],
+    totalDiscount: 0,
+    shippingFee: shippingFeeAmount,
+    shopDepositMode: settings.default_deposit_mode ?? 'percent',
+    shopDepositPercent: clampPercent(settings.default_deposit_percent ?? 30, 30),
+    shopDepositFixed: normalizeMoney(settings.default_deposit_amount ?? 0),
+  })[0]
+  const expectedAmount = checkoutPlan?.requiredAmount ?? 0
+  const depositPercent = checkoutPlan?.depositPercent ?? 0
   const paymentMethod = resolvePaymentMethodForCheckout({
     requested: input.form.paymentMethod,
     requiredAmount: expectedAmount,
@@ -887,8 +920,8 @@ export async function completeOrderCheckout(input: {
     quantity: qty,
     unitPrice: priceLine?.effectiveUnitPrice ?? oldOrder.unit_price,
     note: trim(input.form.note, 800),
-    depositPercent: calc.appliedPercent,
-    requiredAmount: calc.requiredAmount,
+    depositPercent,
+    requiredAmount: expectedAmount,
     paymentReference,
     paymentQrUrl: qrUrl,
     discountSnapshot: finalDiscountSnapshot,
@@ -898,6 +931,22 @@ export async function completeOrderCheckout(input: {
     shippingFeeAmount,
   })
   if (!updated) return { error: 'Không cập nhật được đơn hàng.' }
+  await patchPartnerOrderFulfillmentFromPg({
+    orderId: updated.id,
+    fulfillmentSource,
+    sourcePlatform: platform,
+    checkoutGroupId: null,
+    splitIndex: 1,
+    needsReview: !String(sourceUrl || '').trim(),
+  })
+  await seedPartnerOrderTimelineIfReady({
+    orderId: updated.id,
+    status: updated.status,
+    requiredAmount: updated.required_amount,
+    paidAmount: updated.paid_amount,
+    fulfillmentSource,
+    shopName: shopDisplayName,
+  })
   if (appliedPromo) {
     await recordPromotionUsageFromPg({
       partnerId: input.partnerId,
@@ -924,7 +973,20 @@ export async function completeOrderCheckout(input: {
     }),
     amountAfterDiscount: updated.amount_after_discount,
   })
-  await syncPrimaryPartnerOrderLineFromOrderFromPg(updated)
+  await syncPrimaryPartnerOrderLineFromOrderFromPg(updated, {
+    fulfillmentSource,
+    sourcePlatform: platform,
+    sourceUrl,
+    productSkuSnapshot: String(inv?.sku || '').slice(0, 180),
+    isWarehouseItem: inv?.is_clearance === true,
+    depositRequired: inv?.deposit_required === true,
+  })
+  await holdVietnamWarehouseStockForDeposit({
+    partnerId: input.partnerId,
+    orderId: updated.id,
+    fulfillmentSource,
+    requiredAmount: updated.required_amount,
+  })
   const updatedLines = await fetchPartnerOrderLinesFromPg(updated.id)
   const em = trim(input.form.customerEmail, 180).toLowerCase()
   if (em) {
@@ -1019,11 +1081,18 @@ async function cartInputLineToOrderLine(input: {
   const unitPrice = Math.max(0, Math.round(baseUnit))
   const variantImageUrlsJson = variantLineImagesToStoredJson(input.line.variantLineImages)
   const firstVariantImage = input.line.variantLineImages?.find((u) => /^https?:\/\//i.test(String(u ?? '').trim()))
+  const sourceUrl =
+    resolveInventoryFulfillmentUrl({
+      catalogJson: inv?.catalog_json,
+      productUrl: inv?.product_url,
+      fallbackUrl: productUrl,
+    }) || productUrl
+  const platform = sourcePlatformFromUrl(sourceUrl)
   return {
     productInventoryId: inv?.id ?? input.line.card.inventory_id ?? null,
     productName: trim(inv?.name || input.line.card.name, 180),
     productImageUrl: trim(firstVariantImage || inv?.image_url || input.line.card.image_url, 600),
-    productUrl: trim(inv?.product_url || productUrl, 600),
+    productUrl: sourceUrl,
     unitPrice,
     quantity: Math.max(1, Math.min(99, Math.floor(Number(input.line.quantity) || 1))),
     variantColor: trim(input.line.color ?? '', 2000),
@@ -1031,6 +1100,12 @@ async function cartInputLineToOrderLine(input: {
     variantImageUrlsJson,
     note: trim(input.line.note ?? '', 800),
     sortOrder: input.sortOrder,
+    fulfillmentSource: fulfillmentSourceFromUrl(sourceUrl),
+    sourcePlatform: platform,
+    sourceUrl,
+    productSkuSnapshot: String(inv?.sku || input.line.card.sku || '').slice(0, 180),
+    isWarehouseItem: inv?.is_clearance === true,
+    depositRequired: inv?.deposit_required === true,
   }
 }
 
@@ -1041,7 +1116,10 @@ export async function completeCartCheckout(input: {
   form: CartCheckoutFormInput
   linkedUserId?: string | null
   guestAccountId?: string | null
-}): Promise<{ ok: true; order: PartnerOrderRow } | { error: string }> {
+}): Promise<
+  | { ok: true; order: PartnerOrderRow; orders: PartnerOrderRow[]; checkout_group_id: string | null }
+  | { error: string }
+> {
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
   if (!settings) return { error: 'Shop chưa cài đặt thanh toán.' }
 
@@ -1165,103 +1243,155 @@ export async function completeCartCheckout(input: {
   const mode = settings.default_deposit_mode ?? 'percent'
   const percent = clampPercent(settings.default_deposit_percent ?? 30, 30)
   const fixedAmount = normalizeMoney(settings.default_deposit_amount ?? 0)
-  const calc = resolveRequiredAmountByDepositRule({ subtotal: payableSubtotal, mode, percent, fixedAmount })
-
-  const first = lines[0]
-  const draft = await insertPartnerOrderDraftFromPg({
-    partnerId: input.partnerId,
-    conversationId: conv.conversationId,
-    externalThreadId: input.externalThreadId,
-    productInventoryId: first.productInventoryId,
-    productName: first.productName,
-    productImageUrl: first.productImageUrl,
-    productUrl: first.productUrl,
-    unitPrice: first.unitPrice,
-    depositPercent: calc.appliedPercent,
-    requiredAmount: calc.requiredAmount,
-    customerEmail: trim(input.form.customerEmail, 180).toLowerCase(),
+  const shippingFeeAmount = resolveShippingFeeAmount(settings, payableSubtotal)
+  const plans = buildCheckoutSplitPlans({
+    lines: lines.map((line) => ({
+      fulfillmentSource: line.fulfillmentSource === 'china' ? 'china' : 'vietnam',
+      sourcePlatform: line.sourcePlatform === '1688' || line.sourcePlatform === 'taobao' || line.sourcePlatform === 'tmall'
+        ? line.sourcePlatform
+        : null,
+      sourceUrl: line.sourceUrl || line.productUrl,
+      lineSubtotal: Math.max(0, Math.round(line.unitPrice)) * Math.max(1, line.quantity),
+      isWarehouseItem: line.isWarehouseItem === true,
+      depositRequired: line.depositRequired === true,
+    })),
+    totalDiscount: Math.max(0, Math.round(subtotal - payableSubtotal)),
+    shippingFee: shippingFeeAmount,
+    shopDepositMode: mode === 'none' || mode === 'fixed_amount' ? mode : 'percent',
+    shopDepositPercent: percent,
+    shopDepositFixed: fixedAmount,
   })
-  if (!draft) return { error: 'Không tạo được đơn hàng.' }
-  const linesOk = await replacePartnerOrderLinesFromPg(draft.id, lines)
-  if (!linesOk) return { error: 'Không lưu được sản phẩm trong giỏ hàng.' }
-
+  const primaryIndex = pickPrimaryCheckoutOrderIndex(plans)
+  const checkoutGroupId = plans.length > 1 ? randomUUID() : null
   const partnerRow = await fetchMessagingPartnersByIdsFromPg([input.partnerId])
   const shopDisplayName = String(partnerRow?.[0]?.display_name ?? '').trim()
-  // W1.7 — phí ship (cộng thêm lúc hiển thị, KHÔNG đổi cọc/amount_after_discount) + phương thức
-  // thanh toán khách chọn (chỉ có ý nghĩa thật khi có cọc).
-  const shippingFeeAmount = resolveShippingFeeAmount(settings, payableSubtotal)
-  const paymentMethod = resolvePaymentMethodForCheckout({
+  const paymentMethodBase = resolvePaymentMethodForCheckout({
     requested: input.form.paymentMethod,
-    requiredAmount: calc.requiredAmount,
+    requiredAmount: plans.reduce((sum, plan) => sum + plan.requiredAmount, 0),
     ewalletEnabled: settings.ewallet_enabled,
   })
   const useSepayQr =
     settings.sepay_enabled === true &&
     Boolean(String(settings.sepay_bank_code ?? '').trim()) &&
     Boolean(String(settings.sepay_account_number ?? '').trim())
-  const paymentReference = await resolveCheckoutPaymentReference({
-    partnerId: input.partnerId,
-    shopDisplayName,
-    existingReference: draft.payment_reference,
-    orderId: draft.id,
-    useSepayQr,
-  })
-  let qrUrl = ''
-  if (calc.requiredAmount > 0) {
-    if (paymentMethod === 'ewallet') {
-      // Giống SePay QR về UX (khách tự quét/chuyển) nhưng đây là ảnh QR TĨNH merchant tự upload —
-      // không nhúng số tiền/nội dung như QR ngân hàng.
-      qrUrl = String(settings.ewallet_qr_url ?? '').trim()
-      if (!qrUrl) return { error: 'Shop chưa cài đặt QR ví điện tử.' }
-    } else {
-      if (!useSepayQr) {
-        const effectiveBankBin =
-          String(settings.bank_bin ?? '').trim() || inferVietQrBankCodeFromName(settings.bank_name ?? '')
-        if (!String(settings.account_number ?? '').trim() || !effectiveBankBin) {
-          return { error: 'Shop chưa cài đặt thông tin ngân hàng nhận cọc.' }
-        }
-      }
-      qrUrl = buildOrderPaymentQrBySettings({
-        amount: calc.requiredAmount,
-        paymentReference,
-        accountHolder: settings.account_holder,
-        settings: {
-          sepay_enabled: settings.sepay_enabled,
-          sepay_bank_code: settings.sepay_bank_code,
-          sepay_account_number: settings.sepay_account_number,
-          sepay_qr_template: settings.sepay_qr_template,
-          bank_name: settings.bank_name,
-          bank_bin: settings.bank_bin,
-          account_number: settings.account_number,
-        },
-      })
-      if (!qrUrl) return { error: 'Chưa xác định được mã ngân hàng để tạo QR. Vui lòng kiểm tra tên ngân hàng.' }
-    }
-  }
 
-  const updated = await updatePartnerOrderCartCheckoutFromPg({
-    orderId: draft.id,
-    partnerId: input.partnerId,
-    conversationId: conv.conversationId,
-    externalThreadId: input.externalThreadId,
-    customerName: trim(input.form.customerName, 120),
-    customerEmail: trim(input.form.customerEmail, 180).toLowerCase(),
-    customerPhone: trim(input.form.customerPhone, 40),
-    shippingAddress: trim(input.form.shippingAddress, 280),
-    note: trim(input.form.note, 800),
-    subtotalAmount: subtotal,
-    depositPercent: calc.appliedPercent,
-    requiredAmount: calc.requiredAmount,
-    paymentReference,
-    paymentQrUrl: qrUrl,
-    primaryLine: first,
-    discountSnapshot: finalDiscountSnapshot,
-    saleBreakdown,
-    promo: appliedPromo,
-    paymentMethod,
-    shippingFeeAmount,
-  })
-  if (updated && appliedPromo) {
+  const createdOrders: PartnerOrderRow[] = []
+  for (const plan of plans) {
+    const groupLines = lines.filter(
+      (line) => (line.fulfillmentSource === 'china' ? 'china' : 'vietnam') === plan.source
+    )
+    const first = groupLines[0]
+    if (!first) continue
+    const draft = await insertPartnerOrderDraftFromPg({
+      partnerId: input.partnerId,
+      conversationId: conv.conversationId,
+      externalThreadId: input.externalThreadId,
+      productInventoryId: first.productInventoryId,
+      productName: first.productName,
+      productImageUrl: first.productImageUrl,
+      productUrl: first.productUrl,
+      unitPrice: first.unitPrice,
+      depositPercent: plan.depositPercent,
+      requiredAmount: plan.requiredAmount,
+      customerEmail: trim(input.form.customerEmail, 180).toLowerCase(),
+    })
+    if (!draft) return { error: 'Không tạo được đơn hàng.' }
+    const linesOk = await replacePartnerOrderLinesFromPg(draft.id, groupLines)
+    if (!linesOk) return { error: 'Không lưu được sản phẩm trong giỏ hàng.' }
+    const needsReview = groupLines.some((line) => !String(line.sourceUrl || line.productUrl || '').trim())
+    await patchPartnerOrderFulfillmentFromPg({
+      orderId: draft.id,
+      fulfillmentSource: plan.source,
+      sourcePlatform: plan.lines.find((row) => row.sourcePlatform)?.sourcePlatform ?? first.sourcePlatform ?? null,
+      checkoutGroupId,
+      splitIndex: plan.splitIndex,
+      needsReview,
+    })
+    const paymentReference = await resolveCheckoutPaymentReference({
+      partnerId: input.partnerId,
+      shopDisplayName,
+      existingReference: draft.payment_reference,
+      orderId: draft.id,
+      useSepayQr,
+    })
+    let qrUrl = ''
+    if (plan.requiredAmount > 0) {
+      if (paymentMethodBase === 'ewallet') {
+        qrUrl = String(settings.ewallet_qr_url ?? '').trim()
+        if (!qrUrl) return { error: 'Shop chưa cài đặt QR ví điện tử.' }
+      } else {
+        if (!useSepayQr) {
+          const effectiveBankBin =
+            String(settings.bank_bin ?? '').trim() || inferVietQrBankCodeFromName(settings.bank_name ?? '')
+          if (!String(settings.account_number ?? '').trim() || !effectiveBankBin) {
+            return { error: 'Shop chưa cài đặt thông tin ngân hàng nhận cọc.' }
+          }
+        }
+        qrUrl = buildOrderPaymentQrBySettings({
+          amount: plan.requiredAmount,
+          paymentReference,
+          accountHolder: settings.account_holder,
+          settings: {
+            sepay_enabled: settings.sepay_enabled,
+            sepay_bank_code: settings.sepay_bank_code,
+            sepay_account_number: settings.sepay_account_number,
+            sepay_qr_template: settings.sepay_qr_template,
+            bank_name: settings.bank_name,
+            bank_bin: settings.bank_bin,
+            account_number: settings.account_number,
+          },
+        })
+        if (!qrUrl) return { error: 'Chưa xác định được mã ngân hàng để tạo QR. Vui lòng kiểm tra tên ngân hàng.' }
+      }
+    }
+    const isPrimary = createdOrders.length === primaryIndex
+    const groupSnapshot = {
+      ...finalDiscountSnapshot,
+      totalDiscountAmount: plan.discount,
+      amountAfterDiscount: plan.amountAfterDiscount,
+    }
+    const updated = await updatePartnerOrderCartCheckoutFromPg({
+      orderId: draft.id,
+      partnerId: input.partnerId,
+      conversationId: conv.conversationId,
+      externalThreadId: input.externalThreadId,
+      customerName: trim(input.form.customerName, 120),
+      customerEmail: trim(input.form.customerEmail, 180).toLowerCase(),
+      customerPhone: trim(input.form.customerPhone, 40),
+      shippingAddress: trim(input.form.shippingAddress, 280),
+      note: trim(input.form.note, 800),
+      subtotalAmount: plan.subtotal,
+      depositPercent: plan.depositPercent,
+      requiredAmount: plan.requiredAmount,
+      paymentReference,
+      paymentQrUrl: qrUrl,
+      primaryLine: first,
+      discountSnapshot: groupSnapshot,
+      saleBreakdown: isPrimary ? saleBreakdown : undefined,
+      promo: isPrimary ? appliedPromo : null,
+      paymentMethod: paymentMethodBase,
+      shippingFeeAmount: plan.shippingFee,
+    })
+    if (!updated) return { error: 'Không cập nhật được đơn hàng.' }
+    createdOrders.push(updated)
+    await holdVietnamWarehouseStockForDeposit({
+      partnerId: input.partnerId,
+      orderId: updated.id,
+      fulfillmentSource: plan.source,
+      requiredAmount: plan.requiredAmount,
+    })
+    await seedPartnerOrderTimelineIfReady({
+      orderId: updated.id,
+      status: updated.status,
+      requiredAmount: updated.required_amount,
+      paidAmount: updated.paid_amount,
+      fulfillmentSource: plan.source,
+      shopName: shopDisplayName,
+    })
+  }
+  if (createdOrders.length === 0) return { error: 'Không tạo được đơn hàng.' }
+  const updated = createdOrders[Math.min(primaryIndex, createdOrders.length - 1)]
+  if (appliedPromo) {
     await recordPromotionUsageFromPg({
       partnerId: input.partnerId,
       promotionId: appliedPromo.id,
@@ -1271,15 +1401,12 @@ export async function completeCartCheckout(input: {
       linkedUserId: input.linkedUserId ?? null,
     })
   }
-  if (updated) {
-    await expireWorthlessPromotionGrantsForCustomerFromPg({
-      partnerId: input.partnerId,
-      guestAccountId: input.guestAccountId ?? null,
-      linkedUserId: input.linkedUserId ?? null,
-      emailNormalized: trim(input.form.customerEmail, 180).toLowerCase() || null,
-    })
-  }
-  if (!updated) return { error: 'Không cập nhật được đơn hàng.' }
+  await expireWorthlessPromotionGrantsForCustomerFromPg({
+    partnerId: input.partnerId,
+    guestAccountId: input.guestAccountId ?? null,
+    linkedUserId: input.linkedUserId ?? null,
+    emailNormalized: trim(input.form.customerEmail, 180).toLowerCase() || null,
+  })
   await createPartnerAffiliateCommissionForOrderFromPg({
     partnerId: input.partnerId,
     orderId: updated.id,
@@ -1288,7 +1415,7 @@ export async function completeCartCheckout(input: {
       guestAccountId: input.guestAccountId,
       fallback: input.externalThreadId,
     }),
-    amountAfterDiscount: updated.amount_after_discount,
+    amountAfterDiscount: createdOrders.reduce((sum, row) => sum + row.amount_after_discount, 0),
   })
   const savedLines = await fetchPartnerOrderLinesFromPg(updated.id)
   const em = trim(input.form.customerEmail, 180).toLowerCase()
@@ -1303,13 +1430,18 @@ export async function completeCartCheckout(input: {
     })
   }
 
+  const splitHint =
+    createdOrders.length > 1
+      ? `Giỏ hàng được tách ${createdOrders.length} mã đơn (Việt Nam / Trung Quốc). Phí giao hàng chỉ tính một lần.\n`
+      : ''
   const paymentDisplay = resolveOrderPaymentDisplay(updated, settings)
   await insertMessagePg({
     conversationId: conv.conversationId,
     direction: 'outbound',
     body:
       updated.required_amount > 0
-        ? `Đơn hàng ${savedLines.length} sản phẩm đã được tạo thành công.\n` +
+        ? splitHint +
+          `Đơn hàng ${savedLines.length} sản phẩm đã được tạo thành công.\n` +
           `Tổng đơn: **${toVnd(updated.subtotal_amount)}**\n` +
           orderDiscountSummaryLine(updated) +
           orderShippingFeeSummaryLine(updated) +
@@ -1318,7 +1450,8 @@ export async function completeCartCheckout(input: {
           (updated.payment_method === 'ewallet'
             ? 'Quét QR ví điện tử trong khối «Thanh toán» bên dưới.'
             : 'STK, nội dung chuyển khoản và QR nằm trong khối «Thanh toán chuyển khoản» bên dưới.')
-        : `Đơn hàng ${savedLines.length} sản phẩm đã được tạo thành công.\n` +
+        : splitHint +
+          `Đơn hàng ${savedLines.length} sản phẩm đã được tạo thành công.\n` +
           `Tổng đơn: **${toVnd(updated.subtotal_amount)}**\n` +
           orderDiscountSummaryLine(updated) +
           orderShippingFeeSummaryLine(updated) +
@@ -1326,27 +1459,29 @@ export async function completeCartCheckout(input: {
           `Thanh toán khi nhận hàng: **${toVnd(updated.amount_after_discount + updated.shipping_fee_amount)}**.`,
     rawPayload: toJson(orderCardPayload(updated, paymentDisplay, savedLines)),
   })
-  await insertPartnerOrderEventFromPg({
-    orderId: updated.id,
-    eventType: 'checkout_submitted',
-    title: 'Khách gửi thông tin nhận hàng',
-    detail: `${savedLines.length} sản phẩm, cần đặt cọc trước ${toVnd(updated.required_amount)}.`,
-    source: 'customer',
-  })
-  try {
-    await emailCustomerOrderCheckoutSubmitted({
-      order: updated,
-      shopNotifyEmail: settings.notify_email || '',
+  for (const order of createdOrders) {
+    await insertPartnerOrderEventFromPg({
+      orderId: order.id,
+      eventType: 'checkout_submitted',
+      title: 'Khách gửi thông tin nhận hàng',
+      detail: `Cần đặt cọc trước ${toVnd(order.required_amount)}.`,
+      source: 'customer',
     })
-  } catch (e) {
-    console.warn('[completeCartCheckout] email', e)
+    try {
+      await emailCustomerOrderCheckoutSubmitted({
+        order,
+        shopNotifyEmail: settings.notify_email || '',
+      })
+    } catch (e) {
+      console.warn('[completeCartCheckout] email', e)
+    }
+    queuePartnerOrderGoogleSheetsSync(input.partnerId, order.id)
+    emitPartnerOutboundOrderCreated(input.partnerId, order)
+    notifyPartnerOwnerNewOrder(input.partnerId, order).catch((e) =>
+      console.warn('[completeCartCheckout] notify owner', e)
+    )
   }
-  queuePartnerOrderGoogleSheetsSync(input.partnerId, updated.id)
-  emitPartnerOutboundOrderCreated(input.partnerId, updated)
-  notifyPartnerOwnerNewOrder(input.partnerId, updated).catch((e) =>
-    console.warn('[completeCartCheckout] notify owner', e)
-  )
-  return { ok: true, order: updated }
+  return { ok: true, order: updated, orders: createdOrders, checkout_group_id: checkoutGroupId }
 }
 
 export async function listRelatedBuyProducts(input: {

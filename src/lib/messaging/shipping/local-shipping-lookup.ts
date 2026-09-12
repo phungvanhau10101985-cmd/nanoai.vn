@@ -5,7 +5,7 @@ import {
 } from '@/lib/db/messaging-partner-ems-shipping-pg'
 import { looksLikeEmsTrackingCode } from '@/lib/messaging/shipping/ems-excel'
 import { fetchEmsTracking } from '@/lib/messaging/shipping/ems-tracking'
-import type { PartnerShippingLookupHit, PartnerShippingLookupOutcome, ShippingLookupQuery } from '@/lib/messaging/partner-shipping-lookup'
+import { fetchPartnerOrderShipmentEventsFromPg } from '@/lib/db/messaging-partner-order-shipment-pg'
 
 function classifyQuery(query: ShippingLookupQuery): { kind: 'order' | 'phone' | 'ems'; value: string } {
   const v = query.value.trim()
@@ -92,6 +92,17 @@ export async function lookupLocalPartnerShipping(
       : [],
     emsStatus,
     emsEvents,
+    fulfillmentSource: order?.fulfillment_source || '',
+    sourcePlatform: order?.source_platform || '',
+    shipmentEvents: order
+      ? (await fetchPartnerOrderShipmentEventsFromPg(order.id)).map((event) => ({
+          stepKey: event.stepKey,
+          title: event.title,
+          status: event.status,
+          scheduledAt: event.scheduledAt,
+          completedAt: event.completedAt,
+        }))
+      : [],
     httpStatus: 200,
   }
   return { ok: true, hit }

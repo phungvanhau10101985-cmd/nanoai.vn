@@ -13,8 +13,15 @@ import { fetchGuestWidgetConversationIdFromPg } from '@/lib/db/customer-care-pg'
 import {
   cancelPartnerOrderForConversationFromPg,
   confirmPartnerOrderReceivedForConversationFromPg,
+  fetchPartnerCheckoutGroupOrdersFromPg,
   insertPartnerOrderEventFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
+import { fetchPartnerOrderShipmentEventsFromPg } from '@/lib/db/messaging-partner-order-shipment-pg'
+import {
+  onPartnerOrderCancelledFulfillment,
+  onPartnerOrderCustomerConfirmedReceived,
+  partnerOrderCanConfirmReceived,
+} from '@/lib/messaging/fulfillment/order-fulfillment-service'
 import { notifyPartnerOwnerOrderCustomerAction } from '@/lib/messaging/partner-admin-notifications'
 import { notifyPartnerCustomerOrderUpdateFromPg } from '@/lib/db/messaging-partner-customer-notifications-pg'
 
@@ -40,10 +47,18 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   if (!order) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const view = await buildGuestOrderDepositView({ partnerId: partner.partnerId, order })
+  const [events, canConfirm, siblings] = await Promise.all([
+    fetchPartnerOrderShipmentEventsFromPg(order.id),
+    partnerOrderCanConfirmReceived(order.id, order.shipping_status),
+    fetchPartnerCheckoutGroupOrdersFromPg(partner.partnerId, order.checkout_group_id),
+  ])
   return NextResponse.json({
     ...view,
     partner_display_name: partner.displayName,
     partner_slug: slug,
+    shipment_events: events,
+    sibling_orders: siblings.filter((row) => row.id !== order.id),
+    can_confirm_received: canConfirm,
   })
 }
 
@@ -124,10 +139,15 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       title: `Đơn ${updated.payment_reference || updated.id.slice(0, 8)}`,
       body: 'Bạn đã hủy đơn hàng.',
     })
+    await onPartnerOrderCancelledFulfillment(updated.id)
     return NextResponse.json({ ok: true, order: updated })
   }
 
   if (action === 'confirm_received') {
+    const allowed = await partnerOrderCanConfirmReceived(oid, existing.shipping_status)
+    if (!allowed) {
+      return NextResponse.json({ error: 'Cannot confirm received' }, { status: 409 })
+    }
     const updated = await confirmPartnerOrderReceivedForConversationFromPg({
       partnerId: partner.partnerId,
       conversationId: convId,
@@ -175,6 +195,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       title: `Đơn ${updated.payment_reference || updated.id.slice(0, 8)}`,
       body: 'Bạn đã xác nhận nhận hàng.',
     })
+    await onPartnerOrderCustomerConfirmedReceived(updated.id)
     return NextResponse.json({ ok: true, order: updated })
   }
 

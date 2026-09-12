@@ -30,4 +30,8 @@ describe('parseWarehouseSkuParts', () => {
   it('splits warehouse SKU into base / size / color', () => {
     assert.deepEqual(parseWarehouseSkuParts('B7796/41/2'), { base: 'B7796', size: '41', color: '2' })
   })
+
+  it('treats A…/4 as color gallery index, not size', () => {
+    assert.deepEqual(parseWarehouseSkuParts('A1234567890/4'), { base: '1234567890', size: '', color: '4' })
+  })
 })

@@ -24,6 +24,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
   partnerOrderPayableTotal,
+  pickDepositLandingOrder,
   shouldRedirectToDepositAfterCreate,
 } from '@/lib/partner-website/shop/order-deposit'
 import { markGoogleCustomerReviewsForOrder } from '@/lib/partner-website/shop/google-customer-reviews'
@@ -143,6 +144,19 @@ type CartQuote = {
     countdownTo?: string | null
     eventDate?: string | null
     saleDate?: string | null
+  } | null
+  checkoutSplit?: {
+    orderCount: number
+    shippingOnce: boolean
+    sources: Array<'vietnam' | 'china'>
+    requiredAmount?: number
+    plans?: Array<{
+      source: 'vietnam' | 'china'
+      requiredAmount: number
+      requiresDeposit: boolean
+      shippingFee: number
+      depositPercent: number
+    }>
   } | null
 }
 
@@ -993,6 +1007,16 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   ].filter(Boolean)
   const depositPreview = useMemo(() => {
     if (depositPolicy.mode === 'none') return null
+    const split = quote?.checkoutSplit
+    if (split && typeof split.requiredAmount === 'number') {
+      const amount = Math.max(0, Math.round(split.requiredAmount))
+      if (amount <= 0) return null
+      const percent =
+        payableSubtotal > 0
+          ? Math.round((amount * 100) / payableSubtotal)
+          : Math.max(0, ...(split.plans || []).map((plan) => plan.depositPercent))
+      return { percent, amount }
+    }
     if (payableSubtotal <= 0) return null
     if (depositPolicy.mode === 'fixed_amount') {
       const fixed = depositPolicy.fixedAmount
@@ -1005,7 +1029,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     }
     const percent = depositPolicy.percent
     return { percent, amount: Math.ceil((payableSubtotal * percent) / 100) }
-  }, [depositPolicy, payableSubtotal])
+  }, [depositPolicy, payableSubtotal, quote?.checkoutSplit])
 
   async function saveItems(next: SiteCartLine[]) {
     setItems(next)
@@ -1077,6 +1101,8 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
         error?: string
         requireAuth?: boolean
         order?: OrderSnapshot
+        orders?: OrderSnapshot[]
+        checkout_group_id?: string | null
       }
       if (!res.ok || !json.ok) {
         if (json.error === 'AUTH_REQUIRED_PURCHASE_LOGIN' || json.requireAuth) {
@@ -1099,7 +1125,14 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       }
       setAppliedPromo(null)
       setPromoCodeInput('')
-      const created = json.order ?? null
+      const createdOrders = (Array.isArray(json.orders) && json.orders.length
+        ? json.orders
+        : json.order
+          ? [json.order]
+          : []) as OrderSnapshot[]
+      const created = json.order
+        ? pickDepositLandingOrder(json.order, createdOrders)
+        : createdOrders[0] || null
       const goDeposit = created?.id ? shouldRedirectToDepositAfterCreate(created) : false
       if (created?.id) {
         markGoogleCustomerReviewsForOrder(created.id)
@@ -1636,6 +1669,9 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               ? ` — ${t.cartShippingFreeThresholdHint.replace('{amount}', formatVnd((quote?.shipping.freeThresholdAmount ?? shippingPolicy.freeThresholdAmount) as number))}`
               : ''}
           </p>
+          {quote?.checkoutSplit && quote.checkoutSplit.orderCount > 1 ? (
+            <p className="pw-shop-muted">{t.orderSplitBanner}</p>
+          ) : null}
           <p className="pw-shop-cart-grand" data-pw-el={PW_EL.price}>
             {saleT.grandTotal}: {formatVnd(orderTotal)}
           </p>

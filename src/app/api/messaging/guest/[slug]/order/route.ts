@@ -280,7 +280,13 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
         console.warn('[order PATCH cart] meta purchase', e)
       }
     }
-    return NextResponse.json({ ok: true, order: done.order, ...(metaPurchase ? { metaPurchase } : {}) })
+    return NextResponse.json({
+      ok: true,
+      order: done.order,
+      orders: done.orders,
+      checkout_group_id: done.checkout_group_id,
+      ...(metaPurchase ? { metaPurchase } : {}),
+    })
   }
   const orderId = String(body?.orderId ?? '').trim()
   if (!orderId) return NextResponse.json({ error: 'Missing orderId.' }, { status: 400 })

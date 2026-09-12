@@ -242,7 +242,7 @@ import {
   updatePartnerOrderShippingStatusForOwnerFromPg,
   updatePartnerOrderRefundForOwnerFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
-import type { PartnerAdminLifecycleTab, PartnerAdminPaymentFilter } from '@/lib/messaging/partner-admin-orders-lifecycle'
+import type { PartnerAdminFulfillmentFilter, PartnerAdminLifecycleTab, PartnerAdminPaymentFilter } from '@/lib/messaging/partner-admin-orders-lifecycle'
 import {
   fetchPartnerLoyaltyDashboardForActorFromPg,
   updatePartnerLoyaltyDashboardForActorFromPg,
@@ -1092,6 +1092,7 @@ export async function listMyMessagingOrdersAdminPage(input?: {
   q?: string
   lifecycleTab?: PartnerAdminLifecycleTab
   paymentFilter?: PartnerAdminPaymentFilter
+  fulfillmentFilter?: PartnerAdminFulfillmentFilter
   skip?: number
   limit?: number
 }): Promise<
@@ -1120,6 +1121,7 @@ export async function listMyMessagingOrdersAdminPage(input?: {
       q,
       lifecycleTab,
       paymentFilter,
+      fulfillmentFilter: input?.fulfillmentFilter,
       skip,
       limit,
     }),
@@ -1244,6 +1246,8 @@ export async function updateMyMessagingOrderStatus(input: {
       sendPartnerMetaPurchaseCapiOnPaymentConfirmed({ partnerId: row.partner_id, order: row }).catch((e) =>
         console.warn('[updateMyMessagingOrderStatus] Meta CAPI Purchase', e)
       )
+      const { onPartnerOrderPaidVerifiedFulfillment } = await import('@/lib/messaging/fulfillment/order-fulfillment-service')
+      await onPartnerOrderPaidVerifiedFulfillment(row.id)
     }
   }
   revalidateMessagingDashboard()
@@ -1285,6 +1289,8 @@ export async function confirmMyMessagingOrderDeposit(input: {
     sendPartnerMetaPurchaseCapiOnPaymentConfirmed({ partnerId: row.partner_id, order: row }).catch((e) =>
       console.warn('[confirmMyMessagingOrderDeposit] Meta CAPI Purchase', e)
     )
+    const { onPartnerOrderPaidVerifiedFulfillment } = await import('@/lib/messaging/fulfillment/order-fulfillment-service')
+    await onPartnerOrderPaidVerifiedFulfillment(row.id)
   }
   revalidateMessagingDashboard()
   return { ok: true }
@@ -1306,6 +1312,71 @@ export async function listMyMessagingOrderEvents(input: {
   })
   if (rows === null) return { error: 'Khong tai duoc timeline.' }
   return { rows }
+}
+
+export async function listMyMessagingOrderShipmentEvents(input: {
+  orderId: string
+}): Promise<{ rows: import('@/lib/db/messaging-partner-order-shipment-pg').PartnerOrderShipmentEventRow[] } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  if (!isValidUuidString(input.orderId)) return { error: 'Invalid order id.' }
+  const owned = await fetchPartnerOrderForOwnerFromPg(user.id, input.orderId)
+  if (!owned) return { error: 'Order not found.' }
+  const { fetchPartnerOrderShipmentEventsFromPg } = await import('@/lib/db/messaging-partner-order-shipment-pg')
+  const rows = await fetchPartnerOrderShipmentEventsFromPg(input.orderId)
+  return { rows }
+}
+
+export async function runMyMessagingOrderShipmentAction(input: {
+  orderId: string
+  action: 'clear_customs' | 'start_vn_packing' | 'mark_out_for_confirm'
+  note?: string
+  shippingProvider?: string
+  trackingNumber?: string
+}): Promise<{ ok: true } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  if (!isValidUuidString(input.orderId)) return { error: 'Invalid order id.' }
+  const owned = await fetchPartnerOrderForOwnerFromPg(user.id, input.orderId)
+  if (!owned) return { error: 'Order not found.' }
+  const { runAdminShipmentAction } = await import('@/lib/messaging/fulfillment/order-fulfillment-service')
+  const result = await runAdminShipmentAction({
+    orderId: input.orderId,
+    action: input.action,
+    updatedBy: user.id,
+    note: input.note,
+    shippingProvider: input.shippingProvider,
+    trackingNumber: input.trackingNumber,
+  })
+  if ('error' in result) return { error: result.error }
+  revalidateMessagingDashboard()
+  return { ok: true }
+}
+
+export async function setMyMessagingOrderStaffConsulted(input: {
+  orderId: string
+  contacted: boolean
+}): Promise<{ ok: true } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  if (!isValidUuidString(input.orderId)) return { error: 'Invalid order id.' }
+  const owned = await fetchPartnerOrderForOwnerFromPg(user.id, input.orderId)
+  if (!owned) return { error: 'Order not found.' }
+  const { setPartnerOrderStaffConsultedFromPg } = await import('@/lib/db/messaging-partner-order-shipment-pg')
+  const ok = await setPartnerOrderStaffConsultedFromPg({
+    ownerUserId: user.id,
+    orderId: input.orderId,
+    contacted: input.contacted,
+  })
+  if (!ok) return { error: 'Khong luu duoc co tu van.' }
+  revalidateMessagingDashboard()
+  return { ok: true }
 }
 
 export async function updateMyMessagingOrderShipping(input: {

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchPartnerPaymentSettingsFromPg } from '@/lib/db/messaging-partner-orders-pg'
+import { fetchPartnerInventoryRowsByIdsInOrderFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { fulfillmentSourceFromUrl, resolveInventoryFulfillmentUrl } from '@/lib/messaging/fulfillment/fulfillment-routing'
+import { buildCheckoutSplitPlans } from '@/lib/messaging/fulfillment/checkout-split'
 import { resolveActiveBirthdayOfferForCustomer } from '@/lib/db/messaging-partner-birthday-promo-pg'
 import { resolvePartnerCustomerLoyaltyStatusFromPg } from '@/lib/db/messaging-partner-loyalty-pg'
 import { validatePromotionCodeFromPg } from '@/lib/db/messaging-partner-promotions-pg'
@@ -165,6 +167,48 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       ? configuredFee
       : 0
 
+  const billedInventoryIds = billedPriceLines.map((line) => line.inventoryId).filter((id): id is string => Boolean(id))
+  const inventoryRows =
+    billedInventoryIds.length > 0
+      ? (await fetchPartnerInventoryRowsByIdsInOrderFromPg(shop.partnerId, billedInventoryIds)) || []
+      : []
+  const inventoryById = new Map(inventoryRows.map((row) => [row.id, row]))
+  const checkoutPlans = buildCheckoutSplitPlans({
+    lines: billedPriceLines.map((line) => {
+      const inv = line.inventoryId ? inventoryById.get(line.inventoryId) : undefined
+      const url = resolveInventoryFulfillmentUrl({
+        catalogJson: inv?.catalog_json,
+        productUrl: inv?.product_url,
+      })
+      return {
+        fulfillmentSource: fulfillmentSourceFromUrl(url),
+        sourcePlatform: null,
+        sourceUrl: url,
+        lineSubtotal: Math.max(0, Math.round(line.effectiveUnitPrice * line.quantity)),
+        isWarehouseItem: inv?.is_clearance === true,
+        depositRequired: inv?.deposit_required === true,
+      }
+    }),
+    totalDiscount: breakdown.totalDiscountAmount,
+    shippingFee: shippingFeeAmount,
+    shopDepositMode: paymentSettings?.default_deposit_mode || 'percent',
+    shopDepositPercent: paymentSettings?.default_deposit_percent ?? 30,
+    shopDepositFixed: paymentSettings?.default_deposit_amount ?? 0,
+  })
+  const checkoutSplit = {
+    orderCount: Math.max(1, checkoutPlans.length),
+    shippingOnce: true,
+    sources: checkoutPlans.map((plan) => plan.source),
+    requiredAmount: checkoutPlans.reduce((sum, plan) => sum + Math.max(0, plan.requiredAmount), 0),
+    plans: checkoutPlans.map((plan) => ({
+      source: plan.source,
+      requiredAmount: plan.requiredAmount,
+      requiresDeposit: plan.requiresDeposit,
+      shippingFee: plan.shippingFee,
+      depositPercent: plan.depositPercent,
+    })),
+  }
+
   return jsonSitePersonalization(
     request,
     {
@@ -265,6 +309,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
         carrierLabel: paymentSettings?.shipping_carrier_label ?? '',
       },
       orderTotal: breakdown.amountAfterDiscount + shippingFeeAmount,
+      checkoutSplit,
     },
     200,
     { sessionId: visitor.sessionId, thread: visitor.thread }

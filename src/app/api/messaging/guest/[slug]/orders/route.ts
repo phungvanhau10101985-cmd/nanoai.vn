@@ -9,7 +9,12 @@ import {
 } from '@/lib/messaging/guest-widget-identity'
 import { applyGuestIdentityToResponse } from '@/lib/messaging/guest-auth-session'
 import { fetchGuestWidgetConversationIdFromPg } from '@/lib/db/customer-care-pg'
-import { fetchPartnerOrdersForConversationFromPg } from '@/lib/db/messaging-partner-orders-pg'
+import {
+  fetchPartnerCheckoutGroupsMapFromPg,
+  fetchPartnerOrdersForConversationFromPg,
+} from '@/lib/db/messaging-partner-orders-pg'
+import { fetchPartnerOrderShipmentEventsForOrdersFromPg } from '@/lib/db/messaging-partner-order-shipment-pg'
+import { canConfirmReceivedFromShipment } from '@/lib/messaging/fulfillment/order-shipment-timeline'
 import { fetchReviewedOrderIdsFromPg } from '@/lib/db/messaging-partner-reviews-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 
@@ -61,15 +66,28 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
       partnerId,
       orders.map((o) => o.id).filter(Boolean)
     )
-    const enriched = orders.map((o) => ({
-      ...o,
-      has_review: reviewedIds.has(o.id),
-      can_cancel:
-        (o.status === 'awaiting_payment' || o.status === 'payment_checking') &&
-        o.shipping_status !== 'delivered' &&
-        o.shipping_status !== 'returned',
-      can_confirm_received: o.status !== 'cancelled' && o.shipping_status === 'shipping',
-    }))
+    const eventsByOrder = await fetchPartnerOrderShipmentEventsForOrdersFromPg(orders.map((o) => o.id))
+    const groupIds = orders.map((o) => o.checkout_group_id).filter((id): id is string => Boolean(id))
+    const siblingsByGroup = await fetchPartnerCheckoutGroupsMapFromPg(partnerId, groupIds)
+    const enriched = orders.map((o) => {
+      const events = eventsByOrder[o.id] || []
+      const siblings = (o.checkout_group_id ? siblingsByGroup[o.checkout_group_id] || [] : []).filter(
+        (row) => row.id !== o.id
+      )
+      return {
+        ...o,
+        has_review: reviewedIds.has(o.id),
+        can_cancel:
+          (o.status === 'awaiting_payment' || o.status === 'payment_checking') &&
+          o.shipping_status !== 'delivered' &&
+          o.shipping_status !== 'returned',
+        can_confirm_received:
+          o.status !== 'cancelled' &&
+          (events.length > 0 ? canConfirmReceivedFromShipment(events) : o.shipping_status === 'shipping'),
+        shipment_events: events,
+        sibling_orders: siblings,
+      }
+    })
     const res = NextResponse.json({ orders: enriched })
     applyGuestIdentityToResponse(res, request, {
       newSessionId: identity.newSessionId,

@@ -25,6 +25,7 @@ import {
   yearRangeIso,
   type PartnerAdminLifecycleTab,
   type PartnerAdminPaymentFilter,
+  type PartnerAdminFulfillmentFilter,
 } from '@/lib/messaging/partner-admin-orders-lifecycle'
 import type { Database } from '@/types/database.types'
 import {
@@ -33,7 +34,10 @@ import {
   fetchMyMessagingOrderRevenueReport,
   listMyMessagingOrderEvents,
   listMyMessagingOrderLines,
+  listMyMessagingOrderShipmentEvents,
   listMyMessagingOrdersAdminPage,
+  runMyMessagingOrderShipmentAction,
+  setMyMessagingOrderStaffConsulted,
   updateMyMessagingOrderRefund,
   updateMyMessagingOrderShipping,
   updateMyMessagingOrderStatus,
@@ -43,10 +47,8 @@ import {
   type PartnerOrderLineRow,
 } from '@/app/dashboard/messaging/actions'
 
-const LS_CONSULT_FLAG = 'nano_messaging_orders_consult_v1'
-const ACCENT = 'bg-[#ea580c] text-white hover:bg-[#c2410c]'
-
 type PartnerRow = Database['public']['Tables']['messaging_partners']['Row']
+const ACCENT = 'bg-[#ea580c] text-white hover:bg-[#c2410c]'
 type OrderStatus = 'awaiting_payment' | 'payment_checking' | 'paid_verified' | 'pending_manual_review' | 'cancelled'
 type OrdersT = Dictionary['partnerMessagingOrders']
 type RevenueReportMode = 'day' | 'week' | 'month' | 'year' | 'range'
@@ -86,6 +88,34 @@ type OrderRow = {
   refund_status?: 'none' | 'requested' | 'refunded'
   refund_amount?: number
   refund_note?: string
+  fulfillment_source?: 'vietnam' | 'china'
+  fulfillment_needs_review?: boolean
+  source_platform?: string | null
+  checkout_group_id?: string | null
+  sibling_order_codes?: string
+  shipment_active_step?: string | null
+  vn_sla_badge?: 'overdue_4h' | 'overdue_24h' | null
+  staff_consultation_contacted?: boolean
+  deposit_exception?: boolean
+  deposit_exception_note?: string
+  tracking_number?: string
+  shipping_provider?: string
+}
+
+type ShipmentEventRow = {
+  id: string
+  orderId: string
+  stepKey: string
+  title: string
+  sortOrder: number
+  status: string
+  scheduledAt: string | null
+  completedAt: string | null
+  note: string
+}
+
+function fulfillmentSourceLabel(t: OrdersT, source?: string | null): string {
+  return source === 'china' ? t.badgeChina : t.badgeVietnam
 }
 
 type OrderEventRow = {
@@ -114,27 +144,6 @@ const EMPTY_REVENUE_FILTER: RevenueFilterState = {
   year: String(new Date().getFullYear()),
   month: '',
   preset: null,
-}
-
-function loadBoolMap(key: string): Record<string, boolean> {
-  if (typeof window === 'undefined') return {}
-  try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return {}
-    const p = JSON.parse(raw) as unknown
-    if (!p || typeof p !== 'object') return {}
-    return p as Record<string, boolean>
-  } catch {
-    return {}
-  }
-}
-
-function saveBoolMap(key: string, m: Record<string, boolean>) {
-  try {
-    localStorage.setItem(key, JSON.stringify(m))
-  } catch {
-    /* ignore */
-  }
 }
 
 function intlLocaleTag(locale: WebLocale): string {
@@ -372,6 +381,35 @@ function OrdersAdminOrdersTable({
                 }
               >
                 {orderCodeDisplay(order)}
+                <div className="mt-1 flex flex-wrap gap-1">
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-700">
+                    {fulfillmentSourceLabel(t, order.fulfillment_source)}
+                  </span>
+                  {order.source_platform ? (
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800">
+                      {order.source_platform}
+                    </span>
+                  ) : null}
+                  {order.fulfillment_needs_review ? (
+                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-800">
+                      {t.badgeNeedsReview}
+                    </span>
+                  ) : null}
+                  {order.vn_sla_badge === 'overdue_24h' ? (
+                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-800">
+                      {t.badgeSla24h}
+                    </span>
+                  ) : order.vn_sla_badge === 'overdue_4h' ? (
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                      {t.badgeSla4h}
+                    </span>
+                  ) : null}
+                </div>
+                {order.sibling_order_codes ? (
+                  <div className="mt-1 text-[10px] text-gray-500">
+                    {t.siblingOrdersLabel}: {order.sibling_order_codes}
+                  </div>
+                ) : null}
               </td>
               <td className={`${td} text-center`}>
                 <input
@@ -505,6 +543,7 @@ export function PartnerMessagingOrdersClient({
   const [appliedSearch, setAppliedSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<PartnerAdminLifecycleTab | ''>('')
   const [paymentFilter, setPaymentFilter] = useState<PartnerAdminPaymentFilter>('')
+  const [fulfillmentFilter, setFulfillmentFilter] = useState<PartnerAdminFulfillmentFilter>('')
   const [consultedMap, setConsultedMap] = useState<Record<string, boolean>>({})
   const [pageToast, setPageToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
@@ -514,7 +553,10 @@ export function PartnerMessagingOrdersClient({
   const [paymentNote, setPaymentNote] = useState('')
   const [noteByOrder, setNoteByOrder] = useState<Record<string, string>>({})
   const [eventsByOrder, setEventsByOrder] = useState<Record<string, OrderEventRow[]>>({})
+  const [shipmentEventsByOrder, setShipmentEventsByOrder] = useState<Record<string, ShipmentEventRow[]>>({})
   const [linesByOrder, setLinesByOrder] = useState<Record<string, PartnerOrderLineRow[]>>({})
+  const [markOutTracking, setMarkOutTracking] = useState('')
+  const [markOutProvider, setMarkOutProvider] = useState('EMS')
 
   const [revenueMode, setRevenueMode] = useState<RevenueReportMode>('day')
   const [revenueFilter, setRevenueFilter] = useState<RevenueFilterState>(() => ({
@@ -536,7 +578,6 @@ export function PartnerMessagingOrdersClient({
   }
 
   useEffect(() => {
-    setConsultedMap(loadBoolMap(LS_CONSULT_FLAG))
     const params = new URLSearchParams(window.location.search)
     const q = (params.get('q') || params.get('highlight') || '').trim()
     if (q) {
@@ -560,7 +601,7 @@ export function PartnerMessagingOrdersClient({
 
   useEffect(() => {
     setListPage(1)
-  }, [activeTab, statusFilter, paymentFilter, listPageSize, selectedPartnerId])
+  }, [activeTab, statusFilter, paymentFilter, fulfillmentFilter, listPageSize, selectedPartnerId])
 
   const loadOrders = useCallback(() => {
     startTransition(async () => {
@@ -570,6 +611,7 @@ export function PartnerMessagingOrdersClient({
         q: appliedSearch,
         lifecycleTab: lifecycleForQuery,
         paymentFilter,
+        fulfillmentFilter,
         skip,
         limit: listPageSize,
       })
@@ -588,9 +630,16 @@ export function PartnerMessagingOrdersClient({
         setFilteredTotal(res.filteredTotal)
         setKpi(res.kpi)
         setTabCounts(res.tabCounts)
+        setConsultedMap((prev) => {
+          const next = { ...prev }
+          for (const row of res.rows as unknown as OrderRow[]) {
+            next[row.id] = Boolean(row.staff_consultation_contacted)
+          }
+          return next
+        })
       }
     })
-  }, [appliedSearch, lifecycleForQuery, listPage, listPageSize, partnerIdArg, paymentFilter, toast])
+  }, [appliedSearch, lifecycleForQuery, listPage, listPageSize, partnerIdArg, paymentFilter, fulfillmentFilter, toast])
 
   useEffect(() => {
     loadOrders()
@@ -695,10 +744,10 @@ export function PartnerMessagingOrdersClient({
   }, [loadRevenue])
 
   const toggleConsulted = (orderId: string, next: boolean) => {
-    setConsultedMap((prev) => {
-      const n = { ...prev, [orderId]: next }
-      saveBoolMap(LS_CONSULT_FLAG, n)
-      return n
+    setConsultedMap((prev) => ({ ...prev, [orderId]: next }))
+    startTransition(async () => {
+      const res = await setMyMessagingOrderStaffConsulted({ orderId, contacted: next })
+      if ('error' in res && res.error) showPageToast('err', res.error)
     })
   }
 
@@ -736,6 +785,15 @@ export function PartnerMessagingOrdersClient({
         else setLinesByOrder((prev) => ({ ...prev, [order.id]: [] }))
       })
     }
+    if (shipmentEventsByOrder[order.id] === undefined) {
+      startTransition(async () => {
+        const res = await listMyMessagingOrderShipmentEvents({ orderId: order.id })
+        if ('rows' in res) setShipmentEventsByOrder((prev) => ({ ...prev, [order.id]: res.rows as ShipmentEventRow[] }))
+        else setShipmentEventsByOrder((prev) => ({ ...prev, [order.id]: [] }))
+      })
+    }
+    setMarkOutTracking(order.tracking_number || '')
+    setMarkOutProvider(order.shipping_provider || 'EMS')
   }
 
   const openPaymentModal = (order: OrderRow) => {
@@ -781,6 +839,28 @@ export function PartnerMessagingOrdersClient({
         return
       }
       showPageToast('ok', t.toastShippingUpdated)
+      loadOrders()
+    })
+  }
+
+  const runShipment = (
+    orderId: string,
+    action: 'clear_customs' | 'start_vn_packing' | 'mark_out_for_confirm'
+  ) => {
+    startTransition(async () => {
+      const res = await runMyMessagingOrderShipmentAction({
+        orderId,
+        action,
+        shippingProvider: markOutProvider,
+        trackingNumber: markOutTracking,
+      })
+      if ('error' in res && res.error) {
+        showPageToast('err', res.error)
+        return
+      }
+      showPageToast('ok', t.toastShippingUpdated)
+      const ev = await listMyMessagingOrderShipmentEvents({ orderId })
+      if ('rows' in ev) setShipmentEventsByOrder((prev) => ({ ...prev, [orderId]: ev.rows as ShipmentEventRow[] }))
       loadOrders()
     })
   }
@@ -1222,6 +1302,17 @@ export function PartnerMessagingOrdersClient({
             <option value="paid">{t.badgePayDone}</option>
             <option value="failed">{t.filterPayFailed}</option>
           </select>
+          <select
+            value={fulfillmentFilter}
+            onChange={(e) => setFulfillmentFilter((e.target.value || '') as PartnerAdminFulfillmentFilter)}
+            className="w-44 max-w-full rounded-lg border px-3 py-2 dark:border-zinc-600 dark:bg-zinc-900"
+          >
+            <option value="">{t.filterFulfillmentAll}</option>
+            <option value="vietnam">{t.filterFulfillmentVietnam}</option>
+            <option value="china">{t.filterFulfillmentChina}</option>
+            <option value="china_no_deposit">{t.filterFulfillmentChinaNoDeposit}</option>
+            <option value="needs_review">{t.filterFulfillmentNeedsReview}</option>
+          </select>
           <button
             type="button"
             onClick={() => {
@@ -1229,6 +1320,7 @@ export function PartnerMessagingOrdersClient({
               setAppliedSearch('')
               setStatusFilter('')
               setPaymentFilter('')
+              setFulfillmentFilter('')
               setActiveTab('all')
               setListPage(1)
             }}
@@ -1364,6 +1456,31 @@ export function PartnerMessagingOrdersClient({
                 <div>
                   <p className="text-sm text-gray-500">{t.customerCodeLabel}</p>
                   <p className="text-lg font-semibold tracking-wide">{orderCodeDisplay(selectedOrder)}</p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-700">
+                      {fulfillmentSourceLabel(t, selectedOrder.fulfillment_source)}
+                    </span>
+                    {selectedOrder.source_platform ? (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800">
+                        {selectedOrder.source_platform}
+                      </span>
+                    ) : null}
+                    {selectedOrder.deposit_exception ? (
+                      <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-800">
+                        {t.badgeDepositException}
+                      </span>
+                    ) : null}
+                  </div>
+                  {selectedOrder.sibling_order_codes ? (
+                    <p className="mt-1 text-xs text-gray-500">
+                      {t.siblingOrdersLabel}: {selectedOrder.sibling_order_codes}
+                    </p>
+                  ) : null}
+                  {selectedOrder.tracking_number ? (
+                    <p className="mt-1 text-xs text-gray-600">
+                      {t.emsLatestLabel}: {selectedOrder.shipping_provider || 'EMS'} {selectedOrder.tracking_number}
+                    </p>
+                  ) : null}
                   <p className="mt-1 text-xs text-gray-500">{t.internalIdLabel.replace('{id}', selectedOrder.id)}</p>
                   <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-gray-800 dark:text-zinc-200">
                     <input
@@ -1519,7 +1636,30 @@ export function PartnerMessagingOrdersClient({
 
               <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50/60 p-4">
                 <h3 className="mb-2 font-semibold text-blue-900">{t.timelineHeading}</h3>
-                {eventsByOrder[selectedOrder.id] === undefined ? (
+                {(shipmentEventsByOrder[selectedOrder.id] ?? []).length > 0 ? (
+                  <ul className="mb-4 space-y-2">
+                    {(shipmentEventsByOrder[selectedOrder.id] ?? []).map((ev) => (
+                      <li key={ev.id || ev.stepKey} className="text-sm">
+                        <span
+                          className={
+                            ev.status === 'completed'
+                              ? 'font-medium text-green-700'
+                              : ev.status === 'active'
+                                ? 'font-medium text-[#ea580c]'
+                                : 'text-gray-500'
+                          }
+                        >
+                          {ev.title}
+                        </span>
+                        {ev.completedAt ? (
+                          <span className="ml-2 text-xs text-gray-500">{formatDate(ev.completedAt, locale)}</span>
+                        ) : ev.scheduledAt ? (
+                          <span className="ml-2 text-xs text-gray-500">{formatDate(ev.scheduledAt, locale)}</span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : eventsByOrder[selectedOrder.id] === undefined ? (
                   <p className="text-sm text-gray-500">{t.timelineLoading}</p>
                 ) : (eventsByOrder[selectedOrder.id] ?? []).length ? (
                   <ul className="mb-4 space-y-2">
@@ -1562,16 +1702,63 @@ export function PartnerMessagingOrdersClient({
                   </button>
                 ) : null}
                 {!partnerAdminNeedsDepositStage(selectedOrder) &&
-                selectedOrder.shipping_status !== 'shipping' &&
+                !partnerAdminOrderIsCancelled(selectedOrder) &&
                 selectedOrder.shipping_status !== 'delivered' &&
-                !partnerAdminOrderIsCancelled(selectedOrder) ? (
-                  <button
-                    type="button"
-                    onClick={() => setShipping(selectedOrder.id, 'shipping')}
-                    className="rounded-lg bg-gray-200 px-4 py-2 text-gray-800 hover:bg-gray-300"
-                  >
-                    {t.btnMarkShipping}
-                  </button>
+                selectedOrder.shipping_status !== 'returned' ? (
+                  <>
+                    {selectedOrder.shipment_active_step === 'at_customs' ? (
+                      <button
+                        type="button"
+                        onClick={() => runShipment(selectedOrder.id, 'clear_customs')}
+                        className="rounded-lg bg-gray-200 px-4 py-2 text-gray-800 hover:bg-gray-300"
+                      >
+                        {t.btnClearCustoms}
+                      </button>
+                    ) : null}
+                    {selectedOrder.shipment_active_step === 'vn_picking' ? (
+                      <button
+                        type="button"
+                        onClick={() => runShipment(selectedOrder.id, 'start_vn_packing')}
+                        className="rounded-lg bg-gray-200 px-4 py-2 text-gray-800 hover:bg-gray-300"
+                      >
+                        {t.btnStartVnPacking}
+                      </button>
+                    ) : null}
+                    {selectedOrder.shipment_active_step === 'domestic_shipping' ||
+                    selectedOrder.shipment_active_step === 'vn_packed' ? (
+                      <div className="flex w-full flex-wrap items-center gap-2">
+                        <input
+                          value={markOutProvider}
+                          onChange={(e) => setMarkOutProvider(e.target.value)}
+                          className="w-28 rounded-lg border px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900"
+                          placeholder={t.shipmentProviderLabel}
+                        />
+                        <input
+                          value={markOutTracking}
+                          onChange={(e) => setMarkOutTracking(e.target.value)}
+                          className="w-40 rounded-lg border px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900"
+                          placeholder={t.shipmentTrackingLabel}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => runShipment(selectedOrder.id, 'mark_out_for_confirm')}
+                          className="rounded-lg bg-gray-200 px-4 py-2 text-gray-800 hover:bg-gray-300"
+                        >
+                          {t.btnMarkOutForConfirm}
+                        </button>
+                      </div>
+                    ) : null}
+                    {!selectedOrder.shipment_active_step &&
+                    selectedOrder.shipping_status !== 'shipping' ? (
+                      <button
+                        type="button"
+                        onClick={() => setShipping(selectedOrder.id, 'shipping')}
+                        className="rounded-lg bg-gray-200 px-4 py-2 text-gray-800 hover:bg-gray-300"
+                      >
+                        {t.btnMarkShipping}
+                      </button>
+                    ) : null}
+                  </>
                 ) : null}
                 {selectedOrder.shipping_status === 'delivered' && !selectedOrder.has_customer_review ? (
                   <button

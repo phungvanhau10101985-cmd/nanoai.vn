@@ -28,6 +28,21 @@ export type PartnerAdminLifecycleTab =
 
 export type PartnerAdminPaymentFilter = '' | 'pending' | 'deposit_paid' | 'paid' | 'failed'
 
+export type PartnerAdminFulfillmentFilter = '' | 'vietnam' | 'china' | 'china_no_deposit' | 'needs_review'
+
+export function partnerAdminFulfillmentFilterSql(filter: PartnerAdminFulfillmentFilter): string {
+  if (!filter) return 'true'
+  if (filter === 'vietnam') return `coalesce(o.fulfillment_source, 'vietnam') = 'vietnam'`
+  if (filter === 'china') return `coalesce(o.fulfillment_source, 'vietnam') = 'china'`
+  if (filter === 'needs_review') return `coalesce(o.fulfillment_needs_review, false) = true`
+  return `(
+    coalesce(o.fulfillment_source, 'vietnam') = 'china'
+    and coalesce(o.required_amount, 0) <= 0
+    and o.status <> 'cancelled'
+    and coalesce(o.shipping_status, 'pending') not in ('shipping', 'delivered', 'cancelled', 'returned')
+  )`
+}
+
 export type PartnerAdminOrderLifecycleInput = {
   status: PartnerAdminOrderStatus
   shipping_status: PartnerAdminShippingStatus

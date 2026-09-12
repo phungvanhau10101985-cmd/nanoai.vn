@@ -19,6 +19,7 @@ import {
   fetchPartnerOrderByIdForPartnerFromPg,
   fetchPartnerOrderByPaymentReferenceFromPg,
   fetchPartnerPaymentSettingsFromPg,
+  patchPartnerOrderDepositExceptionFromPg,
   updatePartnerOrderPaymentVerificationFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
 import {
@@ -271,6 +272,13 @@ export async function POST(request: NextRequest) {
             ? 'Webhook doi chieu thanh cong.'
             : `Webhook can duyet tay (accountMatched=${String(accountMatched)}, amountMatched=${String(amountMatched)}).`,
       })
+      if (nextStatus === 'pending_manual_review') {
+        await patchPartnerOrderDepositExceptionFromPg({
+          orderId: order.id,
+          depositException: true,
+          note: `Webhook cần duyệt tay (accountMatched=${String(accountMatched)}, amountMatched=${String(amountMatched)}).`,
+        })
+      }
       const refreshed = await fetchPartnerOrderByIdForPartnerFromPg(partnerId, order.id)
       const subtotal = Math.round(refreshed?.subtotal_amount ?? 0)
       const paidRounded = Math.round(refreshed?.paid_amount ?? amountIn)
@@ -339,6 +347,10 @@ export async function POST(request: NextRequest) {
         sendPartnerMetaPurchaseCapiOnPaymentConfirmed({ partnerId, order: refreshed }).catch((e) =>
           console.warn('[sepay-webhook] Meta CAPI Purchase (paid_verified)', e)
         )
+        const { onPartnerOrderPaidVerifiedFulfillment } = await import(
+          '@/lib/messaging/fulfillment/order-fulfillment-service'
+        )
+        await onPartnerOrderPaidVerifiedFulfillment(refreshed.id)
       }
       return NextResponse.json({
         success: true,

@@ -23,6 +23,15 @@ import { partnerSiteOrderDepositPath, partnerSiteOrderDetailPath, partnerSitePro
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import {
+  PartnerSiteOrderEmsTracking,
+  PartnerSiteOrderFulfillmentBadge,
+  PartnerSiteOrderShipmentSteps,
+  PartnerSiteOrderSplitGroup,
+  genericShippingTimelineSteps,
+  type ShopShipmentEventView,
+  type ShopSiblingOrderView,
+} from '@/components/partner-website/shop/partner-site-order-fulfillment-bits'
 
 type OrderRow = {
   id: string
@@ -43,6 +52,11 @@ type OrderRow = {
   has_review?: boolean | null
   can_cancel?: boolean | null
   can_confirm_received?: boolean | null
+  fulfillment_source?: 'vietnam' | 'china' | null
+  source_platform?: string | null
+  tracking_number?: string | null
+  shipment_events?: ShopShipmentEventView[]
+  sibling_orders?: ShopSiblingOrderView[]
 }
 
 type Props = {
@@ -75,27 +89,6 @@ function filterLabel(
     case 'returned':
       return t.ordersFilterReturned
   }
-}
-
-function timelineSteps(
-  ship: string | null | undefined,
-  t: ReturnType<typeof getPartnerSiteShopCopy>
-): Array<{ key: string; label: string; done: boolean; active: boolean }> {
-  const order = ['pending', 'confirmed', 'packing', 'shipping', 'delivered']
-  const idx = Math.max(0, order.indexOf(String(ship ?? 'pending')))
-  const labels = [
-    t.orderTimelineCreated,
-    t.orderTimelineConfirmed,
-    t.orderTimelinePacking,
-    t.orderTimelineShipping,
-    t.orderTimelineDelivered,
-  ]
-  return order.map((key, i) => ({
-    key,
-    label: labels[i] ?? key,
-    done: i < idx || ship === 'delivered',
-    active: i === idx && ship !== 'delivered' && ship !== 'cancelled' && ship !== 'returned',
-  }))
 }
 
 export function PartnerSiteShopOrdersClient({
@@ -264,7 +257,7 @@ export function PartnerSiteShopOrdersClient({
                 name: o.product_name,
               })
             : o.product_url || ''
-          const steps = timelineSteps(o.shipping_status, t)
+          const steps = genericShippingTimelineSteps(o.shipping_status, t)
 
           return (
             <li key={o.id} className="pw-shop-order-card" data-pw-el={PW_EL.card}>
@@ -292,6 +285,19 @@ export function PartnerSiteShopOrdersClient({
                       {t.orderShippingStatusLabel}: {formatPartnerSiteShippingStatus(locale, o.shipping_status)}
                     </p>
                   ) : null}
+                  <PartnerSiteOrderFulfillmentBadge
+                    t={t}
+                    source={o.fulfillment_source}
+                    platform={o.source_platform}
+                  />
+                  <PartnerSiteOrderSplitGroup
+                    t={t}
+                    siteSlug={siteSlug}
+                    customDomain={customDomain}
+                    currentId={o.id}
+                    siblings={o.sibling_orders}
+                  />
+                  <PartnerSiteOrderEmsTracking t={t} trackingNumber={o.tracking_number} />
                   {o.quantity != null && o.quantity > 0 ? (
                     <p className="pw-shop-muted">
                       {t.orderQuantityLabel}: {o.quantity}
@@ -390,17 +396,12 @@ export function PartnerSiteShopOrdersClient({
 
               {open && panel === 'track' ? (
                 <div className="pw-shop-order-payment">
-                  <p style={{ fontWeight: 700, margin: '0 0 10px' }}>{t.orderTimelineTitle}</p>
-                  <ol className="pw-shop-order-timeline">
-                    {steps.map((step) => (
-                      <li
-                        key={step.key}
-                        className={step.done ? 'is-done' : step.active ? 'is-active' : undefined}
-                      >
-                        {step.label}
-                      </li>
-                    ))}
-                  </ol>
+                  <PartnerSiteOrderShipmentSteps
+                    t={t}
+                    events={o.shipment_events}
+                    fallback={steps}
+                  />
+                  <PartnerSiteOrderEmsTracking t={t} trackingNumber={o.tracking_number} />
                 </div>
               ) : null}
 

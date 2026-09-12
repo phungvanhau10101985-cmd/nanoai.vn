@@ -133,6 +133,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ partnerId:
       ok: true,
       customer_ref: customerRef,
       order: mapPartnerOrderToHeadlessSnapshot(done.order),
+      orders: done.orders.map(mapPartnerOrderToHeadlessSnapshot),
+      checkout_group_id: done.checkout_group_id,
       ...(metaPurchase ? { meta_purchase: metaPurchase } : {}),
     },
     200
