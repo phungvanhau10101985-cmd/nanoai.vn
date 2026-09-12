@@ -105,6 +105,11 @@ import {
   PW_SEARCH_FORM_HEIGHT,
   PW_SEARCH_ICON_SIZE,
 } from '@/lib/partner-website/shop/chrome-rhythm'
+import {
+  PARTNER_SHOP_DOCK_NAV_SCRIPT,
+  PARTNER_SHOP_DOCK_NAV_SCRIPT_ID,
+  PW_DOCK_NAV_ACTIVE_CSS,
+} from '@/lib/partner-website/shop/partner-site-dock-nav-active'
 
 /** Live mobile: tap logo / Chat mua like a button, not a dragged image. */
 export const PARTNER_SHOP_TAP_CHROME_CSS = `
@@ -620,10 +625,10 @@ ${PW_CHROME_COUNT_BADGE_HIDE_CSS}
 .pw-bottom-nav>a:not([data-pw-pdp-home]):not([data-pw-dock-show="pdp"]):not([data-pw-hidden="1"]),.pw-shop-bottom-nav>a:not([data-pw-pdp-home]):not([data-pw-dock-show="pdp"]):not([data-pw-hidden="1"]),.pw-bottom-nav>.pw-icon-btn:not([data-pw-hidden="1"]),.pw-shop-bottom-nav>.pw-icon-btn:not([data-pw-hidden="1"]),.pw-bottom-nav>.pw-shop-icon-btn:not([data-pw-hidden="1"]),.pw-shop-bottom-nav>.pw-shop-icon-btn:not([data-pw-hidden="1"]),.pw-bottom-nav>.pw-account-btn:not([data-pw-hidden="1"]),.pw-shop-bottom-nav>.pw-account-btn:not([data-pw-hidden="1"]),[data-pw-chrome-kit="dock"]>.pw-account-btn:not([data-pw-hidden="1"]){
   flex:1 1 0!important;min-width:0!important;min-height:0!important;width:auto!important;height:auto!important;
   display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;
-  gap:2px!important;padding:6px 2px!important;background:transparent!important;position:relative!important;color:#6b7280!important;overflow:visible!important
+  gap:2px!important;padding:6px 2px!important;background:transparent!important;position:relative!important;overflow:visible!important
 }
-.pw-bottom-nav .pw-account-btn,.pw-shop-bottom-nav .pw-account-btn,[data-pw-chrome-kit="dock"] .pw-account-btn{color:#6b7280!important}
-.pw-bottom-nav>a.is-active,.pw-shop-bottom-nav>a.is-active{color:var(--pw-primary)!important}
+.pw-bottom-nav>a:not([data-pw-pdp-home]):not([data-pw-dock-show="pdp"]):not([data-pw-hidden="1"]):not(.is-active):not([aria-current="page"]),.pw-shop-bottom-nav>a:not([data-pw-pdp-home]):not([data-pw-dock-show="pdp"]):not([data-pw-hidden="1"]):not(.is-active):not([aria-current="page"]),.pw-bottom-nav>.pw-icon-btn:not([data-pw-hidden="1"]):not(.is-active):not([aria-current="page"]),.pw-shop-bottom-nav>.pw-icon-btn:not([data-pw-hidden="1"]):not(.is-active):not([aria-current="page"]),.pw-bottom-nav>.pw-shop-icon-btn:not([data-pw-hidden="1"]):not(.is-active):not([aria-current="page"]),.pw-shop-bottom-nav>.pw-shop-icon-btn:not([data-pw-hidden="1"]):not(.is-active):not([aria-current="page"]),.pw-bottom-nav>.pw-account-btn:not([data-pw-hidden="1"]):not(.is-active):not([aria-current="page"]),.pw-shop-bottom-nav>.pw-account-btn:not([data-pw-hidden="1"]):not(.is-active):not([aria-current="page"]),[data-pw-chrome-kit="dock"]>.pw-account-btn:not([data-pw-hidden="1"]):not(.is-active):not([aria-current="page"]){color:#6b7280!important}
+.pw-bottom-nav .pw-account-btn:not(.is-active):not([aria-current="page"]),.pw-shop-bottom-nav .pw-account-btn:not(.is-active):not([aria-current="page"]),[data-pw-chrome-kit="dock"] .pw-account-btn:not(.is-active):not([aria-current="page"]){color:#6b7280!important}
 .pw-bottom-nav>a:not([data-pw-chrome-added]),.pw-shop-bottom-nav>a:not([data-pw-chrome-added]){
   transform:none;left:auto;top:auto;right:auto;bottom:auto
 }
@@ -1024,6 +1029,7 @@ ${PW_MOBILE_HEAD_BACK_CSS}
 html[data-pw-edit-device="mobile"] .pw-brand-cluster,html[data-pw-edit-device="mobile"] .pw-shop-brand-cluster,html[data-pw-scene-lock="mobile"] .pw-brand-cluster,html[data-pw-scene-lock="mobile"] .pw-shop-brand-cluster{pointer-events:auto!important}
 html[data-pw-edit-device="mobile"] .pw-cat-btn,html[data-pw-edit-device="mobile"] .pw-shop-cat-btn,html[data-pw-edit-device="mobile"] [data-pw-el="cat-toggle"],html[data-pw-edit-device="mobile"] [data-pw-cat-toggle],html[data-pw-edit-device="mobile"] .pw-chrome-cat-wrap,html[data-pw-edit-device="mobile"] [data-pw-chrome-btn="back"],html[data-pw-edit-device="mobile"] [data-pw-head-back],html[data-pw-scene-lock="mobile"] .pw-cat-btn,html[data-pw-scene-lock="mobile"] .pw-shop-cat-btn,html[data-pw-scene-lock="mobile"] [data-pw-el="cat-toggle"],html[data-pw-scene-lock="mobile"] [data-pw-cat-toggle],html[data-pw-scene-lock="mobile"] .pw-chrome-cat-wrap,html[data-pw-scene-lock="mobile"] [data-pw-chrome-btn="back"],html[data-pw-scene-lock="mobile"] [data-pw-head-back]{position:relative!important;z-index:200!important;pointer-events:auto!important}
 @media (max-width:767px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-brand-cluster,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-shop-brand-cluster{pointer-events:auto!important}html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-cat-btn,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-shop-cat-btn,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) [data-pw-el="cat-toggle"],html:not([data-pw-edit-device]):not([data-pw-scene-lock]) [data-pw-cat-toggle],html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-chrome-cat-wrap,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) [data-pw-chrome-btn="back"],html:not([data-pw-edit-device]):not([data-pw-scene-lock]) [data-pw-head-back]{position:relative!important;z-index:200!important;pointer-events:auto!important}}
+${PW_DOCK_NAV_ACTIVE_CSS}
 `.trim()
 
 /**
@@ -1097,6 +1103,7 @@ export function injectPartnerShopChromeLayoutCss(html: string): string {
   out = injectNamedScript(out, PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID, PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT)
   out = injectNamedScript(out, PARTNER_SHOP_MOBILE_HEAD_BACK_SCRIPT_ID, PARTNER_SHOP_MOBILE_HEAD_BACK_SCRIPT)
   out = injectNamedScript(out, PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID, PARTNER_SHOP_LISTING_HEAD_SCRIPT)
+  out = injectNamedScript(out, PARTNER_SHOP_DOCK_NAV_SCRIPT_ID, PARTNER_SHOP_DOCK_NAV_SCRIPT)
   return out
 }
 

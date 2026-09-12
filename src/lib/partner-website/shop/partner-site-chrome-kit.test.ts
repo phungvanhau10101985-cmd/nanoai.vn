@@ -17,6 +17,7 @@ import {
   PW_KIT_X_MIN,
   buildChromeKitDockHtml,
   buildChromeKitHeadActionHtml,
+  shopDockTryOnHtmlByLocale,
   buildChromeKitTopbarInnerHtml,
   buildChromeKitTopbarItemHtml,
   chromeKitGapDefaultForDevice,
@@ -118,6 +119,19 @@ describe('partner-site-chrome-kit', () => {
     )
     expect(nextNav).toContain('data-pw-chrome-btn="try-on"')
     expect(nextNav).toContain('data-pw-pdp-nav="1"')
+  })
+
+  it('exports shop dock try-on html separate from the PDP face', () => {
+    const html = shopDockTryOnHtmlByLocale('demo-shop').vi
+    expect(html).toMatch(
+      /data-pw-chrome-btn="try-on"[^>]*data-pw-dock-show="shop"|data-pw-dock-show="shop"[^>]*data-pw-chrome-btn="try-on"/
+    )
+    expect(html).toMatch(
+      /data-pw-chrome-btn="try-on"[^>]*data-pw-hidden="1"|data-pw-hidden="1"[^>]*data-pw-chrome-btn="try-on"/
+    )
+    expect(html).toContain('data-nanoai-try-on')
+    expect(html).not.toContain('data-pw-pdp-nav')
+    expect(html).not.toContain('data-pw-dock-show="pdp"')
   })
 
   it('seeds hidden extra icons in the PDP sticky nav so the left 3 can swap', () => {

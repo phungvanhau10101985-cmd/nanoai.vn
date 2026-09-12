@@ -4,6 +4,7 @@ import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { PartnerSiteShopLoginClient } from '@/components/partner-website/shop/partner-site-shop-login-client'
+import { resolvePartnerShopSso } from '@/lib/partner-website/shop/resolve-partner-shop-sso'
 
 type Props = { params: Promise<{ slug: string }> }
 
@@ -33,6 +34,7 @@ export default async function PartnerSiteLoginPage({ params }: Props) {
   if (!shop) notFound()
   const partnerSlug = shop.partnerSlug
   if (!partnerSlug.trim()) notFound()
+  const sso = await resolvePartnerShopSso(shop.partnerId)
 
   return (
     <PartnerSiteShopLoginClient
@@ -40,6 +42,8 @@ export default async function PartnerSiteLoginPage({ params }: Props) {
       partnerSlug={partnerSlug}
       shopTitle={shop.site.title}
       locale={shop.site.locale}
+      googleAuthEnabled={sso.platformGoogleAuthEnabled}
+      platformAuthOrigin={sso.platformAuthOrigin}
     />
   )
 }

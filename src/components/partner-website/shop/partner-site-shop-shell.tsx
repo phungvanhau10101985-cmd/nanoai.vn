@@ -30,12 +30,14 @@ import {
 import { PartnerSiteShopSearchBar } from '@/components/partner-website/shop/partner-site-shop-search-bar'
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
 import { PartnerSiteCookieConsentBanner } from '@/components/partner-website/shop/partner-site-cookie-consent-banner'
-import { PartnerSiteBirthGenderPromptModal } from '@/components/partner-website/shop/partner-site-birth-gender-prompt-modal'
+import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
+import { CART_ADDED_MODAL_COPY } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
 import { PartnerSiteNewsletterForm } from '@/components/partner-website/shop/partner-site-newsletter-form'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   partnerSiteAccountTabPath,
   partnerSiteCartApiPath,
+  partnerSiteCartPath,
   partnerSiteCategoriesApiPath,
   partnerSiteInfoPath,
   partnerSiteNotificationsApiPath,
@@ -122,7 +124,10 @@ import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-sessi
 import {
   buildPartnerShopLoginHref,
   getPartnerShopBrowserReturnLocation,
+  isPartnerShopLoginPath,
 } from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
+import { consumePartnerSiteGoogleAuthHandoffFromWindow } from '@/lib/partner-website/shop/partner-site-google-auth-handoff-client'
+import { flushPartnerSitePendingCartAfterAuth } from '@/lib/partner-website/shop/flush-partner-site-pending-cart'
 import {
   PartnerSiteShopProvider,
   usePartnerSiteShop,
@@ -418,6 +423,7 @@ function PartnerSiteShopShellInner({
     )
   const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { cartCount, setCartCount, registerCartLoader } = usePartnerSiteShop()
+  const [pendingCartAdded, setPendingCartAdded] = useState<{ name: string; imageUrl?: string | null } | null>(null)
   const [categoryTree, setCategoryTree] = useState<PartnerCategoryTreeNode[] | null>(null)
   const [seoSizeNodes, setSeoSizeNodes] = useState<PartnerCategoryTreeNode[]>([])
   const [categoriesOpen, setCategoriesOpen] = useState(false)
@@ -500,6 +506,40 @@ function PartnerSiteShopShellInner({
   useEffect(() => {
     registerCartLoader(loadCartCount)
   }, [loadCartCount, registerCartLoader])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (isPartnerShopLoginPath(window.location.pathname, siteSlug)) return
+    let cancelled = false
+    void (async () => {
+      const handed = await consumePartnerSiteGoogleAuthHandoffFromWindow({
+        siteSlug,
+        authHeaders,
+        captureFromResponse,
+      })
+      if (cancelled) return
+      if (!isAuthenticated && !handed) return
+      const result = await flushPartnerSitePendingCartAfterAuth({
+        siteSlug,
+        pathname: window.location.pathname,
+        authHeaders,
+        captureFromResponse,
+      })
+      if (cancelled) return
+      if (!result.flushed) return
+      await loadCartCount()
+      if (result.buyNow) {
+        window.location.replace(partnerSiteCartPath(siteSlug, { customDomain }))
+        return
+      }
+      if (result.last) {
+        setPendingCartAdded({ name: result.last.name || '', imageUrl: result.last.image_url })
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [authHeaders, captureFromResponse, customDomain, isAuthenticated, loadCartCount, siteSlug])
 
   useEffect(() => {
     // The cart screen loads the same payload and updates the shared badge itself.
@@ -1021,22 +1061,22 @@ function PartnerSiteShopShellInner({
       </footer>
 
       <nav className="pw-shop-bottom-nav" data-pw-region={PW_REGION.nav} aria-label="Mobile">
-          <Link href={paths.home} className={activeNav === 'home' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink}>
+          <Link href={paths.home} className={activeNav === 'home' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink} data-pw-chrome-btn="home" aria-current={activeNav === 'home' ? 'page' : undefined}>
           <Home className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
           <span>{t.navHome}</span>
         </Link>
-        <Link href={paths.products} className={activeNav === 'products' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink}>
+        <Link href={paths.products} className={activeNav === 'products' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink} data-pw-chrome-btn="products" aria-current={activeNav === 'products' ? 'page' : undefined}>
           <Package className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
           <span>{t.navProducts}</span>
         </Link>
-        <Link href={partnerSiteAccountTabPath(siteSlug, 'cart', { customDomain })} className={activeNav === 'cart' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink}>
+        <Link href={partnerSiteAccountTabPath(siteSlug, 'cart', { customDomain })} className={activeNav === 'cart' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink} data-pw-chrome-btn="cart" aria-current={activeNav === 'cart' ? 'page' : undefined}>
           <ShoppingBag className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
           <span>{t.navCart}</span>
           {cartCount > 0 ? (
             <span className="pw-shop-cart-badge">{cartCount > 99 ? '99+' : cartCount}</span>
           ) : null}
         </Link>
-        <Link href={paths.account} className={activeNav === 'account' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink}>
+        <Link href={paths.account} className={activeNav === 'account' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink} data-pw-chrome-btn="account" aria-current={activeNav === 'account' ? 'page' : undefined}>
           <UserRound className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
           <span>{t.navAccount}</span>
         </Link>
@@ -1070,6 +1110,13 @@ function PartnerSiteShopShellInner({
       ) : null}
       </>
       )}
+      <PartnerSiteCartAddedModal
+        open={Boolean(pendingCartAdded)}
+        item={pendingCartAdded}
+        cartHref={partnerSiteCartPath(siteSlug, { customDomain })}
+        copy={CART_ADDED_MODAL_COPY[locale]}
+        onClose={() => setPendingCartAdded(null)}
+      />
     </div>
   )
 }

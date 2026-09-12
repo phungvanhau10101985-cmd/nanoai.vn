@@ -43,8 +43,8 @@ test('catalog cards clamp names to two lines and hide listing add-to-cart', () =
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /\.pw-rec-stats/)
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /align-items:stretch/)
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /touch-action:manipulation/)
-  assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /data-pw-nav="1"/)
-  assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /body:not\(\.nanoai-ve-active\)/)
+  assert.doesNotMatch(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /data-pw-nav="1"/)
+  assert.doesNotMatch(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /opacity:\.72/)
   assert.equal(PW_PRODUCT_GRID_RULER_CSS.includes(PW_PRODUCT_CATALOG_CARD_FACE_CSS), true)
 })
 

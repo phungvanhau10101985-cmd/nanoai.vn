@@ -294,6 +294,15 @@ function stripEditorAndRuntimeNodes(clone: Element) {
       )
       if (!el.getAttribute('class')?.trim()) el.removeAttribute('class')
     })
+  clone
+    .querySelectorAll(
+      '.pw-bottom-nav [aria-current], .pw-shop-bottom-nav [aria-current], [data-pw-chrome-kit="dock"] [aria-current], [data-pw-live-dock] [aria-current]'
+    )
+    .forEach((el) => {
+      el.removeAttribute('aria-current')
+      el.classList.remove('is-active')
+      if (!el.getAttribute('class')?.trim()) el.removeAttribute('class')
+    })
   clone.querySelectorAll('[contenteditable]').forEach((el) => {
     el.removeAttribute('contenteditable')
   })

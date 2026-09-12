@@ -397,7 +397,7 @@ test('shop actions bootstrap hydrates Zalo\/Facebook from contact-channels API',
   assert.match(s, /function productCardNavUrl/)
   assert.match(s, /function prefetchProduct/)
   assert.match(s, /rel='prefetch'/)
-  assert.match(s, /data-pw-nav/)
+  assert.match(s, /a\[href\*="\/products\/"\]/)
   assert.match(s, /pointerdown/)
   assert.match(s, /location\.assign/)
 })

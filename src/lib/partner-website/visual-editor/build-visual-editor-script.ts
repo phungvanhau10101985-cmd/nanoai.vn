@@ -116,6 +116,7 @@ import {
   PW_TOPBAR_GAP_DEFAULT,
   PW_PDP_NAV_MAX,
   pdpDockDefaultIconHtmlByLocale,
+  shopDockTryOnHtmlByLocale,
 } from '../shop/partner-site-chrome-kit'
 import {
   PW_LOGO_X_MAX,
@@ -768,6 +769,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   var logoLayerPicked = false
   var editDevice = 'desktop'
   var PW_PDP_DOCK_DEFAULT_ICONS = ${JSON.stringify(pdpDockDefaultIconHtmlByLocale())}
+  var PW_SHOP_DOCK_TRYON_HTML = ${JSON.stringify(shopDockTryOnHtmlByLocale())}
   var logoDraw = { on: false, dragging: false, x1: 0, y1: 0, x2: 0, y2: 0 }
   var logoCrop = { on: false, live: false, img: null, zoom: 1, panX: 0, panY: 0, startX: 0, startY: 0, baseX: 0, baseY: 0, dragging: false, resize: '', frameW: 80, frameH: 32, viewW: 280, viewH: 112, picW: 280, picH: 112, baseViewW: 280, baseViewH: 112, snap: null }
   var resize = { active: false, startX: 0, startY: 0, startW: 0, startH: 0, startZoom: 1, startLeft: 0, startTop: 0, dir: 'se', mode: 'frame' }
@@ -5531,6 +5533,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (el.closest && el.closest('.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas')) return false
     return true
   }
+  function isShopDockTryOnBtn(el) {
+    if (!el || !el.getAttribute) return false
+    if (el.getAttribute('data-pw-chrome-btn') !== 'try-on') return false
+    if (isPdpDockFaceBtn(el)) return false
+    if (el.closest && el.closest('.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas')) return false
+    return true
+  }
   function revealShopDockHomeBtn(el) {
     if (!el || !el.setAttribute) return el
     try { el.removeAttribute('data-pw-pdp-home') } catch (errPdpHome) {}
@@ -5588,11 +5597,67 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     } catch (errIns) { return null }
     return el
   }
+  function revealShopDockTryOnBtn(el) {
+    if (!el || !el.setAttribute) return el
+    try { el.removeAttribute('data-pw-pdp-home') } catch (errPdpHomeTry) {}
+    try { el.removeAttribute('data-pw-pdp-nav') } catch (errPdpNavTry) {}
+    el.setAttribute('data-pw-chrome-kit', '1')
+    el.setAttribute('data-pw-dock-show', 'shop')
+    el.setAttribute('data-pw-dock-slot', 'icon')
+    el.setAttribute('data-nanoai-try-on', '')
+    if (el.style) {
+      el.style.removeProperty('display')
+      el.style.removeProperty('visibility')
+      el.style.removeProperty('opacity')
+      el.style.display = ''
+    }
+    return el
+  }
+  function dedupeShopDockTryOnBtns() {
+    var dock = chromeKitDockRoot()
+    if (!dock || !dock.querySelectorAll) return null
+    var nodes = dock.querySelectorAll('[data-pw-chrome-btn="try-on"]')
+    var kept = null
+    var i
+    for (i = 0; i < nodes.length; i++) {
+      var n = nodes[i]
+      if (n.closest && n.closest('.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas')) continue
+      if (isPdpDockFaceBtn(n)) continue
+      if (!kept) { kept = n; continue }
+      try { if (n.parentNode) n.parentNode.removeChild(n) } catch (errDupTry) {}
+    }
+    return kept
+  }
+  function shopDockTryOnDefaultHtml() {
+    var loc = String((document.documentElement && document.documentElement.getAttribute('lang')) || 'vi').slice(0, 2)
+    return PW_SHOP_DOCK_TRYON_HTML[loc] || PW_SHOP_DOCK_TRYON_HTML.vi || ''
+  }
+  function ensureShopDockTryOnBtn() {
+    var dock = chromeKitDockRoot()
+    if (!dock) return null
+    var existing = dedupeShopDockTryOnBtns() || findChromeKitBtn('try-on', 'dock')
+    if (existing) return revealShopDockTryOnBtn(existing)
+    var html = shopDockTryOnDefaultHtml()
+    if (!html) return null
+    var wrap = document.createElement('div')
+    wrap.innerHTML = html
+    var el = revealShopDockTryOnBtn(wrap.firstElementChild)
+    if (!el) return null
+    var face = dock.querySelector('.pw-pdp-sticky-nav,.pw-pdp-sticky-ctas')
+    try {
+      if (face) dock.insertBefore(el, face)
+      else dock.appendChild(el)
+    } catch (errInsTry) { return null }
+    return el
+  }
   function setChromeKitDockShow(kind, show) {
     if (isPdpDockCtaLockedKind(kind)) return
     var el = findChromeKitBtn(kind, 'dock')
     if (!el && kind === 'home' && String(show || '') !== 'off' && !isPdpEditorDoc()) {
       el = ensureShopDockHomeBtn()
+    }
+    if (!el && kind === 'try-on' && String(show || '') !== 'off' && !isPdpEditorDoc()) {
+      el = ensureShopDockTryOnBtn()
     }
     if (!el) return
     var next = String(show || 'shop')
@@ -15788,7 +15853,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { restorePdpBuyBoxActionsFromDock() } catch (errRestoreBuy) {}
     try { ensurePdpDockFaceInDoc() } catch (errFaceDock) {}
     try { restorePdpBuyBoxActionsFromDock() } catch (errRestoreBuy2) {}
-    try { if (!isPdpEditorDoc()) { dedupeShopDockHomeBtns(); ensureShopDockHomeBtn() } } catch (errShopHome) {}
+    try { if (!isPdpEditorDoc()) { dedupeShopDockHomeBtns(); ensureShopDockHomeBtn(); dedupeShopDockTryOnBtns(); ensureShopDockTryOnBtn() } } catch (errShopHome) {}
     try { reseatStrayPdpBuyBoxToInline() } catch (errReseatBuy) {}
     try { hideLeftoverPdpBottomBars() } catch (errHidePdpBar) {}
     try { seatLockedHeaderRow() } catch (errSeatRow) {}
@@ -16030,6 +16095,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (el.classList && (el.classList.contains('is-try') || el.classList.contains('is-fav'))) s += 6
     if (el.getAttribute('data-pw-chrome-kit') === '1') s += 3
     if (isPdpBuyBoxActionEl(el)) s -= 10
+    if (isShopDockTryOnBtn(el) || isShopDockHomeBtn(el)) s -= 20
     return s
   }
   function restorePdpBuyBoxActionsFromDock() {
@@ -16049,7 +16115,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       for (i = 0; i < nodes.length; i++) {
         var el = nodes[i]
         if (el === keep) continue
-        if (isShopDockHomeBtn(el)) continue
+        if (isShopDockHomeBtn(el) || isShopDockTryOnBtn(el)) continue
         if (isPdpBuyBoxActionEl(el) && box) {
           if (!box.contains(el) && !box.querySelector('[data-pw-chrome-btn="' + kind + '"]')) {
             try { box.appendChild(el) } catch (errBox) {}
@@ -16253,6 +16319,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (!el) continue
       if (el.closest && el.closest('[data-pw-chrome-kit="dock"],.pw-bottom-nav,.pw-shop-bottom-nav,[data-pw-live-dock]')) continue
       if (el.closest && el.closest('[data-pw-chrome-kit="float"]')) continue
+      if (isShopDockHomeBtn(el) || isShopDockTryOnBtn(el)) continue
       var inHead = el.closest && el.closest('header,.pw-header,.pw-shop-header,[data-pw-live-chrome],.pw-header-actions,.pw-shop-header-actions,.pw-topbar,.pw-shop-topbar')
       var leftoverBar = el.closest && el.closest('nav[data-pw-pdp-bottom],nav.pw-pdp-sticky,div.pw-pdp-sticky')
       var bodyChild = el.parentNode === document.body
@@ -16312,6 +16379,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (el.closest && el.closest('[data-pw-chrome-kit="float"]')) continue
       var kind = el.getAttribute('data-pw-chrome-btn') || ''
       var show = el.getAttribute('data-pw-dock-show') || ''
+      if (isShopDockHomeBtn(el) || isShopDockTryOnBtn(el)) continue
       if (kind === 'add-cart' || kind === 'buy-now') {
         el.setAttribute('data-pw-dock-show', 'pdp')
         if (el.parentNode !== ctas) ctas.appendChild(el)

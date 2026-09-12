@@ -31,6 +31,7 @@ import {
   buildPartnerShopLoginHref,
   getPartnerShopBrowserReturnLocation,
 } from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
+import { queuePartnerSitePendingCart } from '@/lib/partner-website/shop/partner-site-pending-cart'
 import {
   shopProductToTrackingProduct,
   trackPartnerSiteAddToCart,
@@ -477,8 +478,7 @@ export function PartnerSiteShopProductClient({
     }
   }
 
-  function requirePurchaseLogin(): boolean {
-    if (isAuthenticated) return false
+  function goPurchaseLogin() {
     window.location.assign(
       buildPartnerShopLoginHref(
         siteSlug,
@@ -486,11 +486,9 @@ export function PartnerSiteShopProductClient({
         { customDomain }
       )
     )
-    return true
   }
 
   function onInlinePdpCart(redirectToCart: boolean) {
-    if (requirePurchaseLogin()) return
     if (readPdpWideStickyViewport()) {
       void addLine(redirectToCart)
       return
@@ -499,7 +497,6 @@ export function PartnerSiteShopProductClient({
   }
 
   function onStickyPdpCart() {
-    if (requirePurchaseLogin()) return
     setVariantModalOpen(true)
   }
 
@@ -507,13 +504,33 @@ export function PartnerSiteShopProductClient({
     redirectToCart: boolean,
     pick?: { color?: string; size?: string; quantity?: number; imageUrl?: string }
   ) {
-    if (!ready || busy || requirePurchaseLogin()) return
-    setBusy(true)
-    setMessage('')
+    if (busy) return
     const nextColor = pick?.color ?? color
     const nextSize = pick?.size ?? size
     const nextQty = pick?.quantity ?? quantity
     const nextImage = pick?.imageUrl?.trim() || displayImage
+    if (!isAuthenticated) {
+      queuePartnerSitePendingCart(
+        siteSlug,
+        {
+          inventory_id: product.id,
+          name: productName,
+          image_url: nextImage,
+          product_url: product.productUrl,
+          price_hint: options?.price_hint || product.priceHint,
+          sku,
+          color: nextColor,
+          size: nextSize,
+          quantity: nextQty,
+        },
+        { buyNow: redirectToCart }
+      )
+      goPurchaseLogin()
+      return
+    }
+    if (!ready) return
+    setBusy(true)
+    setMessage('')
     try {
       const card = shopProductToCartCard({
         ...product,

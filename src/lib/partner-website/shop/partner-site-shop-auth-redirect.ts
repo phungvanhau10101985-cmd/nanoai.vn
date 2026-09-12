@@ -1,4 +1,7 @@
-import { SHOP_PUBLIC_ROOT_SEGMENTS } from '@/lib/messaging/partner-custom-domain-site-path'
+import {
+  mapPartnerCustomDomainPathToInternal,
+  SHOP_PUBLIC_ROOT_SEGMENTS,
+} from '@/lib/messaging/partner-custom-domain-site-path'
 import {
   partnerSiteAccountPath,
   partnerSiteLoginPath,
@@ -28,7 +31,7 @@ function sitePrefix(siteSlug: string): string {
   return `/site/${siteSlug.trim()}`
 }
 
-function isShopLoginPath(pathname: string, siteSlug: string): boolean {
+export function isPartnerShopLoginPath(pathname: string, siteSlug: string): boolean {
   const p = pathOnly(pathname)
   if (p === '/login') return true
   const prefix = sitePrefix(siteSlug)
@@ -41,12 +44,12 @@ export function isSafePartnerShopRedirectPath(loc: string, siteSlug: string): bo
   const slug = siteSlug.trim()
   if (!slug) return false
   const p = pathOnly(loc)
-  if (isShopLoginPath(p, slug)) return false
+  if (isPartnerShopLoginPath(p, slug)) return false
 
   const prefix = sitePrefix(slug)
   if (p === prefix || p.startsWith(`${prefix}/`)) {
     const rest = p.slice(prefix.length) || '/'
-    return !isShopLoginPath(rest, slug)
+    return !isPartnerShopLoginPath(rest, slug)
   }
 
   if (p === '/') return true
@@ -133,7 +136,7 @@ export function getPartnerShopBrowserReturnLocation(siteSlug: string, opts?: Pat
     window.location.search?.replace(/^\?/, '') ?? '',
     window.location.hash || ''
   )
-  if (isShopLoginPath(window.location.pathname, siteSlug)) {
+  if (isPartnerShopLoginPath(window.location.pathname, siteSlug)) {
     return getPartnerShopLoginRedirectFromUrl(siteSlug, opts)
   }
   return sanitizePartnerShopReturnLocation(siteSlug, full, opts)
@@ -147,4 +150,24 @@ export function getPartnerShopLoginRedirectFromUrl(siteSlug: string, opts?: Path
   const raw = sp.get(PARTNER_SHOP_LOGIN_REDIRECT_QUERY_KEY) || sp.get(LEGACY_NEXT_QUERY_KEY)
   if (!raw) return fallback
   return sanitizePartnerShopReturnLocation(siteSlug, raw, opts)
+}
+
+/** Path nội bộ `/site/{slug}/…` cho Google OAuth `next` (cookie gắn host NanoAI). */
+export function partnerShopOAuthNextPath(siteSlug: string, loc: string, opts?: PathOpts): string {
+  const safe = sanitizePartnerShopReturnLocation(siteSlug, loc, opts)
+  const p = pathOnly(safe)
+  const rest = safe.slice(p.length)
+  const mapped = mapPartnerCustomDomainPathToInternal(siteSlug, p)
+  return mapped ? `${mapped}${rest}` : partnerSiteAccountPath(siteSlug)
+}
+
+/** URL tuyệt đối trên origin đang mở — Google bridge trả về đúng trang trước. */
+export function partnerShopReturnAbsoluteHref(siteSlug: string, loc: string): string {
+  const safe = sanitizePartnerShopReturnLocation(siteSlug, loc, { customDomain: true })
+  if (typeof window === 'undefined') return safe
+  try {
+    return new URL(safe, window.location.origin).href
+  } catch {
+    return `${window.location.origin}${safe}`
+  }
 }

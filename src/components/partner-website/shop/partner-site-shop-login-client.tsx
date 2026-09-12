@@ -17,6 +17,8 @@ type Props = {
   partnerSlug: string
   shopTitle?: string
   locale: WebLocale
+  googleAuthEnabled?: boolean
+  platformAuthOrigin?: string
 }
 
 function hasPendingAuthHandoff(): boolean {
@@ -28,11 +30,22 @@ function hasPendingAuthHandoff(): boolean {
   )
 }
 
-export function PartnerSiteShopLoginClient({ siteSlug, partnerSlug, shopTitle, locale }: Props) {
+export function PartnerSiteShopLoginClient({
+  siteSlug,
+  partnerSlug,
+  shopTitle,
+  locale,
+  googleAuthEnabled,
+  platformAuthOrigin,
+}: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
-  const { ready, authResolved, isAuthenticated } = usePartnerSiteGuestSession(siteSlug)
-  const [dest, setDest] = useState(partnerSiteAccountPath(siteSlug, { customDomain }))
+  const { authResolved, isAuthenticated } = usePartnerSiteGuestSession(siteSlug)
+  const [dest, setDest] = useState(() =>
+    typeof window === 'undefined'
+      ? partnerSiteAccountPath(siteSlug)
+      : getPartnerShopLoginRedirectFromUrl(siteSlug, { customDomain })
+  )
 
   useEffect(() => {
     setDest(getPartnerShopLoginRedirectFromUrl(siteSlug, { customDomain }))
@@ -40,7 +53,7 @@ export function PartnerSiteShopLoginClient({ siteSlug, partnerSlug, shopTitle, l
 
   const goDest = useCallback(() => {
     if (typeof window === 'undefined') return
-    window.location.assign(dest)
+    window.location.replace(dest)
   }, [dest])
 
   useEffect(() => {
@@ -56,17 +69,16 @@ export function PartnerSiteShopLoginClient({ siteSlug, partnerSlug, shopTitle, l
       <p className="pw-shop-muted" data-pw-el={PW_EL.body}>
         {t.authLoginSubtitle}
       </p>
-      {!ready ? <p className="pw-shop-muted">…</p> : null}
-      {ready ? (
-        <PartnerSiteShopAuthPanel
-          partnerSlug={partnerSlug}
-          siteSlug={siteSlug}
-          shopTitle={shopTitle}
-          locale={locale}
-          pageMode
-          onAuthed={goDest}
-        />
-      ) : null}
+      <PartnerSiteShopAuthPanel
+        partnerSlug={partnerSlug}
+        siteSlug={siteSlug}
+        shopTitle={shopTitle}
+        locale={locale}
+        pageMode
+        googleAuthEnabled={googleAuthEnabled}
+        platformAuthOrigin={platformAuthOrigin}
+        onAuthed={goDest}
+      />
     </div>
   )
 }

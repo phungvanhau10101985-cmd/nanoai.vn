@@ -487,6 +487,19 @@ export function pdpDockDefaultIconHtmlByLocale(siteSlug?: string | null): Record
   ) as Record<WebLocale, Record<(typeof CHROME_KIT_PDP_NAV_DEFAULT_KINDS)[number], string>>
 }
 
+/** Thanh đáy shop — Thử đồ AI (ẩn mặc định), khác nút PDP `is-try`. */
+export function shopDockTryOnHtmlByLocale(siteSlug?: string | null): Record<WebLocale, string> {
+  return Object.fromEntries(
+    WEB_LOCALES.map((locale) => [
+      locale,
+      buildChromeKitShopDockItemHtml(
+        { kind: 'try-on', slot: 'icon', defaultShow: 'off' },
+        { locale, siteSlug }
+      ),
+    ])
+  ) as Record<WebLocale, string>
+}
+
 function buildDockPdpNavExtrasHtml(input: {
   locale: WebLocale
   siteSlug?: string | null

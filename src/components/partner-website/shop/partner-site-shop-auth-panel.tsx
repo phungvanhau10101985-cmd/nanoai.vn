@@ -15,7 +15,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-sso'
 import {
   buildShopGoogleAuthBridgeUrl,
-  PARTNER_SITE_GOOGLE_AUTH_HANDOFF_QUERY_KEY,
+  consumePartnerSiteGoogleAuthHandoffFromWindow,
 } from '@/lib/partner-website/shop/partner-site-google-auth-handoff-client'
 import {
   clearPartnerSiteShopSkipAuthSync,
@@ -24,6 +24,11 @@ import {
 import { partnerSiteAccountPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
+import {
+  getPartnerShopLoginRedirectFromUrl,
+  partnerShopOAuthNextPath,
+  partnerShopReturnAbsoluteHref,
+} from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
 import {
   readGuestAuthRememberDevicePreference,
   writeGuestAuthRememberDevicePreference,
@@ -39,6 +44,9 @@ type Props = {
   onAuthed?: () => void
   /** Dedicated `/login` page — hide checkout-style intro (title lives on the page). */
   pageMode?: boolean
+  /** Server-known Google OAuth — hiện nút ngay, không chờ GET shop-sso. */
+  googleAuthEnabled?: boolean
+  platformAuthOrigin?: string
 }
 
 function GoogleIcon() {
@@ -68,26 +76,40 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 }
 
-export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, locale, onAuthed, pageMode }: Props) {
+export function PartnerSiteShopAuthPanel({
+  partnerSlug,
+  siteSlug,
+  shopTitle,
+  locale,
+  onAuthed,
+  pageMode,
+  googleAuthEnabled,
+  platformAuthOrigin,
+}: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const onCustomDomain = usePartnerSiteCustomDomain()
-  const { ready, authResolved, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { authResolved, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
   const [step, setStep] = useState<'email' | 'otp'>('email')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
-  const [returnNext, setReturnNext] = useState(partnerSiteAccountPath(siteSlug))
-  const [shopReturnHref, setShopReturnHref] = useState('')
+  const [returnDest, setReturnDest] = useState(() =>
+    typeof window === 'undefined'
+      ? partnerSiteAccountPath(siteSlug)
+      : getPartnerShopLoginRedirectFromUrl(siteSlug, { customDomain: onCustomDomain })
+  )
 
   const [rememberDevice, setRememberDevice] = useState(() => readGuestAuthRememberDevicePreference())
   const [ssoConfig, setSsoConfig] = useState<PartnerSiteShopSsoConfig | null>(null)
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    setReturnNext(`${window.location.pathname}${window.location.search}`)
-    setShopReturnHref(window.location.href.split('#')[0])
-  }, [])
+    setReturnDest(getPartnerShopLoginRedirectFromUrl(siteSlug, { customDomain: onCustomDomain }))
+  }, [onCustomDomain, siteSlug])
+
+  const oauthNext = partnerShopOAuthNextPath(siteSlug, returnDest, { customDomain: onCustomDomain })
+  const showGoogleButton = googleAuthEnabled ?? ssoConfig?.platformGoogleAuthEnabled ?? true
+  const bridgeOrigin = (platformAuthOrigin || ssoConfig?.platformAuthOrigin || '').replace(/\/$/, '')
 
   useEffect(() => {
     let cancelled = false
@@ -146,39 +168,21 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
   }, [authHeaders, captureFromResponse, onAuthed, partnerSlug, siteSlug])
 
   const consumeGoogleHandoffFromUrl = useCallback(async (): Promise<boolean> => {
-    if (typeof window === 'undefined') return false
-    const sp = new URLSearchParams(window.location.search)
-    const token = sp.get(PARTNER_SITE_GOOGLE_AUTH_HANDOFF_QUERY_KEY)?.trim() ?? ''
-    if (!token) return false
-    clearPartnerSiteShopSkipAuthSync(siteSlug)
-    try {
-      const res = await fetch(`/api/site/${encodeURIComponent(siteSlug)}/auth/handoff`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ token }),
-      })
-      captureFromResponse(res)
-      const json = (await res.json().catch(() => ({}))) as { ok?: boolean }
-      sp.delete(PARTNER_SITE_GOOGLE_AUTH_HANDOFF_QUERY_KEY)
-      sp.delete('meta_complete_registration')
-      const nextPath = `${window.location.pathname}${sp.toString() ? `?${sp.toString()}` : ''}`
-      window.history.replaceState(null, '', nextPath)
-      if (res.ok && json.ok) {
-        markPartnerSiteFreshLoginSession(siteSlug)
-        onAuthed?.()
-        return true
-      }
-    } catch {
-      /* stay on form */
-    }
-    return false
-  }, [authHeaders, captureFromResponse, onAuthed, siteSlug])
+    return consumePartnerSiteGoogleAuthHandoffFromWindow({
+      siteSlug,
+      authHeaders,
+      captureFromResponse,
+    })
+  }, [authHeaders, captureFromResponse, siteSlug])
 
   useEffect(() => {
     if (!authResolved) return
     void (async () => {
-      if (await consumeGoogleHandoffFromUrl()) return
+      if (await consumeGoogleHandoffFromUrl()) {
+        markPartnerSiteFreshLoginSession(siteSlug)
+        onAuthed?.()
+        return
+      }
       if (await consumePcTokenFromUrl()) return
       if (isAuthenticated) {
         onAuthed?.()
@@ -194,10 +198,11 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
     consumePcTokenFromUrl,
     isAuthenticated,
     onAuthed,
+    siteSlug,
     tryQuickLogin,
   ])
 
-  const showGoogleButton = Boolean(ssoConfig?.platformGoogleAuthEnabled)
+  const showGoogleButtonResolved = Boolean(showGoogleButton)
   /** Domain khách: cookie OAuth phải gắn trên NanoAI → bridge `/auth/shop-google`. */
   const useBridgeGoogle = onCustomDomain
 
@@ -206,22 +211,22 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
   }
 
   function handleBridgeGoogleLogin() {
-    if (busy || !ready || !ssoConfig?.platformAuthOrigin) return
+    if (busy || !bridgeOrigin) return
     beginGoogleLogin()
-    const returnUrl = shopReturnHref || (typeof window !== 'undefined' ? window.location.href.split('#')[0] : '')
+    const returnUrl = partnerShopReturnAbsoluteHref(siteSlug, returnDest)
     if (!returnUrl) return
     setBusy(true)
     window.location.href = buildShopGoogleAuthBridgeUrl({
-      platformOrigin: ssoConfig.platformAuthOrigin,
+      platformOrigin: bridgeOrigin,
       siteSlug,
       shopReturnUrl: returnUrl,
-      nextPath: partnerSiteAccountPath(siteSlug),
+      nextPath: oauthNext,
     })
   }
 
   async function requestOtp() {
     const em = email.trim().toLowerCase()
-    if (busy || !ready) return
+    if (busy || !authResolved) return
     if (!em) {
       setMessage(t.authEmailRequired)
       return
@@ -270,7 +275,7 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
   async function verifyOtp() {
     const em = email.trim().toLowerCase()
     const code = otp.trim()
-    if (busy || !ready) return
+    if (busy) return
     if (!code) {
       setMessage(t.authFailed)
       return
@@ -306,14 +311,6 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
     } finally {
       setBusy(false)
     }
-  }
-
-  if (!ready) {
-    return (
-      <div className="pw-shop-auth-panel pw-shop-form">
-        <p className="pw-shop-muted">…</p>
-      </div>
-    )
   }
 
   if (step === 'otp') {
@@ -367,12 +364,12 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
       {pageMode ? null : shopTitle ? <p className="pw-shop-auth-panel-welcome">{shopTitle}</p> : null}
       {pageMode ? null : <p className="pw-shop-auth-panel-hint">{t.authLoginSubtitle}</p>}
 
-      {showGoogleButton ? (
+      {showGoogleButtonResolved ? (
         useBridgeGoogle ? (
           <button
             type="button"
             className="pw-shop-btn-google"
-            disabled={busy || !ssoConfig?.platformAuthOrigin}
+            disabled={busy || !bridgeOrigin}
             onClick={handleBridgeGoogleLogin}
           >
             <GoogleIcon />
@@ -380,7 +377,7 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
           </button>
         ) : (
           <form action={signInWithGoogle} onSubmit={beginGoogleLogin}>
-            <input type="hidden" name="next" value={returnNext} />
+            <input type="hidden" name="next" value={oauthNext} />
             <button type="submit" className="pw-shop-btn-google" disabled={busy}>
               <GoogleIcon />
               <span>{t.authGoogleLogin}</span>
@@ -389,12 +386,13 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
         )
       ) : null}
 
-      {showGoogleButton ? (
+      {showGoogleButtonResolved ? (
         <div className="pw-shop-auth-divider">
           <span>{t.authShopOtpOr}</span>
         </div>
       ) : null}
 
+      <p className="pw-shop-auth-panel-welcome">{t.authEmailLogin}</p>
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -424,7 +422,7 @@ export function PartnerSiteShopAuthPanel({ partnerSlug, siteSlug, shopTitle, loc
           />
           <span>{t.authRememberDevice}</span>
         </label>
-        <button type="submit" className="pw-shop-btn pw-shop-btn-outline pw-shop-btn-send-otp" disabled={busy}>
+        <button type="submit" className="pw-shop-btn pw-shop-btn-outline pw-shop-btn-send-otp" disabled={busy || !authResolved}>
           {busy ? '…' : t.authSendOtp}
         </button>
       </form>

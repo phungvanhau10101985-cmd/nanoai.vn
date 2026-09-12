@@ -1688,7 +1688,7 @@ function ChromeKitPanel({
           {isProductPage ? (
             <p className="px-1 text-[10px] leading-4 text-muted-foreground">{t.visualEditChromeKitPdpNavHint}</p>
           ) : null}
-          <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+          <div className="flex flex-col gap-1">
             {dockRows.map((item) => {
               const locked = isPdpDockCtaLocked(item.kind)
               const hidden = dockRowHidden(item)

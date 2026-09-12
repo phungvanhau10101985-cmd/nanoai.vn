@@ -46,12 +46,21 @@ test('shop-actions injects cart added modal instead of success toast', () => {
   assert.match(PW_CART_ADDED_MODAL_RUNTIME_JS, /showCartAddedModal/)
 })
 
-test('shop-actions requires a signed-in account before cart or buy actions', () => {
+test('shop-actions queues guest cart then opens login, and does not gate the variant modal', () => {
   const script = buildPartnerSiteShopActionsBootstrapScript({ siteSlug: 'demo-shop', locale: 'vi' })
   assert.match(script, /function requirePurchaseLogin\(\)/)
+  assert.match(script, /function queuePendingCart/)
+  assert.match(script, /queuePendingCart\(product,\{buyNow:!!\(opts\.buyNow\|\|opts\.silent\)\}/)
+  assert.match(script, /function flushPendingCart/)
+  assert.match(script, /function consumeGoogleHandoff/)
+  assert.match(script, /pw_auth/)
   assert.match(script, /app_guest_account_id/)
   assert.match(script, /AUTH_REQUIRED_CART_LOGIN|purchaseLoginHref/)
   assert.match(script, /window\.top\.location\.assign/)
-  assert.match(script, /if\(requirePurchaseLogin\(\)\)return;/)
   assert.match(script, /redirect=/)
+  assert.match(script, /if\(isPdpCartTrigger\(addBtn\)\)\{openPdpVariantModal\(p,'add'\)/)
+  assert.doesNotMatch(script, /if\(requirePurchaseLogin\(\)\)return;\s*var p=readProductFromEl\(addBtn\)/)
+  assert.doesNotMatch(script, /function goProduct\(/)
+  assert.match(script, /prefetchProduct\(productCardNavUrl\(t\)\)/)
+  assert.doesNotMatch(script, /function goProduct\(/)
 })

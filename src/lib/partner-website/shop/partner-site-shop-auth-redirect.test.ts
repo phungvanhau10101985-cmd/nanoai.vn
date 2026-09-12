@@ -3,8 +3,10 @@ import test from 'node:test'
 import {
   buildPartnerShopLoginHref,
   composePartnerShopReturnLocation,
+  isPartnerShopLoginPath,
   isSafePartnerShopRedirectPath,
   isSafeRelativeRedirectPath,
+  partnerShopOAuthNextPath,
   sanitizePartnerShopReturnLocation,
 } from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
 import { mapPartnerCustomDomainPathToInternal } from '@/lib/messaging/partner-custom-domain-site-path'
@@ -71,4 +73,22 @@ test('unsafe return falls back to account', () => {
     sanitizePartnerShopReturnLocation('188-shop', '/login'),
     partnerSiteAccountPath('188-shop')
   )
+})
+
+test('oauth next maps custom-domain return onto /site/{slug}', () => {
+  assert.equal(
+    partnerShopOAuthNextPath('188-shop', '/products/ao-1?color=red'),
+    '/site/188-shop/products/ao-1?color=red'
+  )
+  assert.equal(
+    partnerShopOAuthNextPath('188-shop', '/site/188-shop/cart'),
+    '/site/188-shop/cart'
+  )
+})
+
+test('login path is detected on platform and custom domain', () => {
+  assert.equal(isPartnerShopLoginPath('/login', '188-shop'), true)
+  assert.equal(isPartnerShopLoginPath('/site/188-shop/login', '188-shop'), true)
+  assert.equal(isPartnerShopLoginPath('/site/188-shop/products/ao-1', '188-shop'), false)
+  assert.equal(isPartnerShopLoginPath('/products/ao-1', '188-shop'), false)
 })
