@@ -385,6 +385,9 @@ export type PartnerDepositReminderDueRow = {
   shopName: string
   paymentReference: string
   customerEmail: string
+  paymentQrUrl: string
+  requiredAmount: number
+  paidAmount: number
   createdAt: string
   remindedAt2h: string | null
   remindedAt20h: string | null
@@ -396,9 +399,12 @@ export async function fetchPartnerDepositReminderDueFromPg(limit = 80): Promise<
     return await pgQuery<PartnerDepositReminderDueRow>(
       `select o.id::text as id,
               o.partner_id::text as "partnerId",
-              coalesce(mp.display_name, '') as "shopName",
+              coalesce(nullif(trim(mp.brand_name), ''), mp.display_name, '') as "shopName",
               coalesce(o.payment_reference, '') as "paymentReference",
               coalesce(o.customer_email, '') as "customerEmail",
+              coalesce(o.payment_qr_url, '') as "paymentQrUrl",
+              coalesce(o.required_amount, 0)::float8 as "requiredAmount",
+              coalesce(o.paid_amount, 0)::float8 as "paidAmount",
               o.created_at::text as "createdAt",
               o.deposit_reminded_at_2h::text as "remindedAt2h",
               o.deposit_reminded_at_20h::text as "remindedAt20h"

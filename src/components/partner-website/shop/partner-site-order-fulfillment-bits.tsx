@@ -55,22 +55,13 @@ export function shopSourcePlatformLabel(platform?: string | null): string {
   return ''
 }
 
-export function PartnerSiteOrderFulfillmentBadge({
-  t,
-  source,
-  platform,
-}: {
+/** Nguồn hàng (VN/TQ / 1688) chỉ cho người bán. Storefront khách không hiện. */
+export function PartnerSiteOrderFulfillmentBadge(_props: {
   t: ReturnType<typeof getPartnerSiteShopCopy>
   source?: string | null
   platform?: string | null
 }) {
-  const plat = shopSourcePlatformLabel(platform)
-  return (
-    <p className="pw-shop-muted">
-      {shopFulfillmentSourceLabel(t, source)}
-      {plat ? ` · ${plat}` : ''}
-    </p>
-  )
+  return null
 }
 
 export function PartnerSiteOrderSplitGroup({

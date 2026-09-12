@@ -25,7 +25,6 @@ import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-s
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import {
   PartnerSiteOrderEmsTracking,
-  PartnerSiteOrderFulfillmentBadge,
   PartnerSiteOrderShipmentSteps,
   PartnerSiteOrderSplitGroup,
   genericShippingTimelineSteps,
@@ -285,11 +284,6 @@ export function PartnerSiteShopOrdersClient({
                       {t.orderShippingStatusLabel}: {formatPartnerSiteShippingStatus(locale, o.shipping_status)}
                     </p>
                   ) : null}
-                  <PartnerSiteOrderFulfillmentBadge
-                    t={t}
-                    source={o.fulfillment_source}
-                    platform={o.source_platform}
-                  />
                   <PartnerSiteOrderSplitGroup
                     t={t}
                     siteSlug={siteSlug}

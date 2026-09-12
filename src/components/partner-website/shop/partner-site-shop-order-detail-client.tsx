@@ -26,7 +26,6 @@ import {
 } from '@/components/partner-website/shop/partner-order-discount-breakdown'
 import {
   PartnerSiteOrderEmsTracking,
-  PartnerSiteOrderFulfillmentBadge,
   PartnerSiteOrderShipmentSteps,
   PartnerSiteOrderSplitGroup,
   genericShippingTimelineSteps,
@@ -194,11 +193,6 @@ export function PartnerSiteShopOrderDetailClient({ siteSlug, partnerSlug, locale
                 {t.orderShippingStatusLabel}: {formatPartnerSiteShippingStatus(locale, order.shipping_status)}
               </p>
             ) : null}
-            <PartnerSiteOrderFulfillmentBadge
-              t={t}
-              source={order.fulfillment_source}
-              platform={order.source_platform}
-            />
             <PartnerSiteOrderSplitGroup
               t={t}
               siteSlug={siteSlug}

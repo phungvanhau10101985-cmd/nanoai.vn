@@ -38,7 +38,7 @@ test('shop theme CSS keeps desktop account nav as a compact left column', () => 
   assert.match(css, /\.pw-shop-deposit-head\{background:linear-gradient\(90deg,var\(--pw-primary\),var\(--pw-accent\)/)
   assert.match(css, /\.pw-shop-deposit-pay\{order:1\}/)
   assert.match(css, /\.pw-shop-deposit-info\{order:2\}/)
-  assert.match(css, /@media\(min-width:900px\)\{\.pw-shop-deposit-body\{grid-template-columns:5fr 7fr\}\.pw-shop-deposit-info\{order:1\}\.pw-shop-deposit-pay\{order:2\}/)
+  assert.match(css, /@media\(min-width:768px\)\{\.pw-shop-deposit-body\{grid-template-columns:minmax\(0,1fr\) minmax\(220px,280px\)/)
   assert.match(css, /\.pw-shop-deposit-sepay/)
   assert.match(css, /\.pw-shop-deposit-instruct/)
   assert.match(css, /\.pw-shop-deposit-instruct\{[^}]*color:var\(--pw-primary\)/)

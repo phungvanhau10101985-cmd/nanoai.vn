@@ -5,8 +5,8 @@ import {
 } from '@/lib/db/messaging-partner-orders-pg'
 import { pgQuery } from '@/lib/db/pg-query'
 import { isPgConfigured } from '@/lib/db/pool'
-import { isSmtpConfigured, sendSmtpMail } from '@/lib/email/smtp'
 import { depositReminderCopy, depositReminderHoursDue } from '@/lib/messaging/fulfillment/deposit-sla'
+import { emailCustomerDepositReminder } from '@/lib/messaging/partner-order-customer-email'
 import {
   adjustPartnerInventoryStockQtyFromPg,
   applyEmsImportToPartnerOrderShipmentFromPg,
@@ -192,13 +192,18 @@ export async function sendDuePartnerDepositReminders(): Promise<{ reminded: numb
         source: 'system',
       })
       const email = row.customerEmail.trim().toLowerCase()
-      if (email && isSmtpConfigured()) {
+      if (email) {
         try {
-          await sendSmtpMail({
-            to: email,
-            subject: copy.subject,
-            text: copy.text,
-            fromName: row.shopName.trim() || undefined,
+          await emailCustomerDepositReminder({
+            partnerId: row.partnerId,
+            orderId: row.id,
+            customerEmail: email,
+            shopName: row.shopName,
+            paymentReference: row.paymentReference,
+            paymentQrUrl: row.paymentQrUrl,
+            requiredAmount: Number(row.requiredAmount) || 0,
+            paidAmount: Number(row.paidAmount) || 0,
+            hours: hour,
           })
         } catch (e) {
           console.warn('[sendDuePartnerDepositReminders] mail', e)

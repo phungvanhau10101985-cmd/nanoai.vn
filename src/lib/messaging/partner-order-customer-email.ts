@@ -1,11 +1,18 @@
 import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
-import { sendSmtpMail } from '@/lib/email/smtp'
+import { sendSmtpMail, type SmtpInlineAttachment } from '@/lib/email/smtp'
 import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { DEFAULT_WEB_LOCALE, normalizeWebLocale } from '@/lib/i18n/config'
 import { formatShippingStatusEmailContentForCustomer } from '@/lib/messaging/order-customer-notify-i18n'
-import { partnerShopEmailBrandName } from '@/lib/messaging/partner-shop-email-brand'
+import { partnerShopEmailBrandName, shopEmailSubject } from '@/lib/messaging/partner-shop-email-brand'
+import {
+  buildCustomerDepositQrEmailBlock,
+  orderNeedsCustomerDepositMail,
+  resolveCustomerOrderOpenUrl,
+  resolveDepositQrForEmail,
+} from '@/lib/messaging/partner-order-deposit-email'
+import { depositReminderCopy, type DepositRemindHour } from '@/lib/messaging/fulfillment/deposit-sla'
 
 function trim(s: string, max = 240): string {
   return String(s || '')
@@ -61,15 +68,19 @@ async function fetchPartnerEmailMeta(partnerId: string): Promise<PartnerEmailMet
   }
 }
 
+function guestChatOrderUrlFromSlug(slug: string | null, orderId: string): string | null {
+  if (!slug || !orderId.trim()) return null
+  const origin = getPublicAppUrlForServer().replace(/\/$/, '')
+  return `${origin}/messaging/p/${encodeURIComponent(slug)}?order=${encodeURIComponent(orderId.trim())}`
+}
+
 /** Trang chat shop — tham số `order` mở thẳng chi tiết đơn (hosted / embed). */
 export async function guestChatOrderDetailUrl(
   order: PartnerOrderRow,
   meta?: PartnerEmailMeta
 ): Promise<string | null> {
   const m = meta ?? (await fetchPartnerEmailMeta(order.partner_id))
-  if (!m.slug) return null
-  const origin = getPublicAppUrlForServer().replace(/\/$/, '')
-  return `${origin}/messaging/p/${encodeURIComponent(m.slug)}?order=${encodeURIComponent(order.id)}`
+  return guestChatOrderUrlFromSlug(m.slug, order.id)
 }
 
 function escapeHtml(s: string): string {
@@ -80,27 +91,98 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;')
 }
 
-/** Nội dung text + HTML (nút «Xem chi tiết đơn hàng») cho email khách. */
+type CustomerMailCtaOpts = {
+  /** Mail đặt hàng / nhắc cọc: nhúng QR khi đơn còn cần cọc. */
+  includeDepositQr?: boolean
+}
+
+async function resolveCustomerMailOpenUrl(
+  order: PartnerOrderRow,
+  meta: PartnerEmailMeta,
+  needsDeposit: boolean
+): Promise<string | null> {
+  const chatUrl = await guestChatOrderDetailUrl(order, meta)
+  return resolveCustomerOrderOpenUrl({
+    partnerId: order.partner_id,
+    orderId: order.id,
+    needsDeposit,
+    chatFallback: chatUrl,
+  })
+}
+
+function wrapCustomerMailHtml(baseText: string, extraHtml: string): string {
+  return `<div style="white-space:pre-wrap;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.55;color:#111827;">${escapeHtml(baseText)}</div>${extraHtml}`
+}
+
+function orderOpenCtaHtml(input: {
+  url: string
+  heading: string
+  button: string
+}): string {
+  return `<p style="margin:16px 0 8px;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;color:#111827;">${escapeHtml(input.heading)}</p><p style="margin:0 0 12px;"><a href="${escapeHtml(input.url)}" style="display:inline-block;padding:12px 22px;background:#111827;color:#ffffff !important;text-decoration:none;border-radius:10px;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;font-weight:600;">${escapeHtml(input.button)}</a></p><p style="font-size:12px;color:#6b7280;margin:0;font-family:system-ui,sans-serif;">Hoặc mở liên kết: <a href="${escapeHtml(input.url)}">${escapeHtml(input.url)}</a></p>`
+}
+
+/** Nội dung text + HTML (nút mở đơn / trang cọc + QR nếu cần) cho email khách. */
 async function customerMailBodyWithOrderCta(
   order: PartnerOrderRow,
   linesBeforeCta: string[],
-  meta?: PartnerEmailMeta
-): Promise<{ text: string; html: string }> {
+  meta?: PartnerEmailMeta,
+  opts?: CustomerMailCtaOpts
+): Promise<{ text: string; html: string; attachments?: SmtpInlineAttachment[] }> {
   const m = meta ?? (await fetchPartnerEmailMeta(order.partner_id))
-  const detailUrl = await guestChatOrderDetailUrl(order, m)
-  const baseText = linesBeforeCta.join('\n')
-  if (!detailUrl) {
-    const html = `<div style="white-space:pre-wrap;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.55;color:#111827;">${escapeHtml(baseText)}</div>`
-    return { text: baseText, html }
+  const needsDeposit = orderNeedsCustomerDepositMail({
+    requiredAmount: order.required_amount,
+    paidAmount: order.paid_amount,
+  })
+  const includeQr = Boolean(opts?.includeDepositQr && needsDeposit)
+  const openUrl = await resolveCustomerMailOpenUrl(order, m, needsDeposit)
+  const ctaHeading = needsDeposit
+    ? 'Bấm vào đây để mở đơn và đặt cọc nhanh:'
+    : 'Bấm vào đây để xem chi tiết đơn hàng:'
+  const ctaButton = needsDeposit ? 'Mở đơn đặt cọc' : 'Xem chi tiết đơn hàng'
+  const ctaTextHint = needsDeposit
+    ? 'Mở đơn nhanh để đặt cọc:'
+    : 'Xem chi tiết đơn hàng:'
+
+  let qrText = ''
+  let qrHtml = ''
+  let attachments: SmtpInlineAttachment[] | undefined
+  if (includeQr) {
+    const qr = await resolveDepositQrForEmail({
+      qrUrl: order.payment_qr_url,
+      orderCode: order.payment_reference,
+    })
+    if (qr) {
+      const block = buildCustomerDepositQrEmailBlock({
+        qrImageSrc: qr.htmlSrc,
+        amountLabel: toVnd(order.required_amount),
+        transferMemo: trim(order.payment_reference, 64),
+      })
+      qrText = block.text
+      qrHtml = block.html
+      if (qr.attachment) attachments = [qr.attachment]
+    }
   }
-  const text =
-    baseText +
-    '\n\n—\n' +
-    `Xem chi tiết đơn hàng (trang chat ${m.displayName}, mục «Đơn hàng»):\n` +
-    detailUrl +
-    '\n'
-  const html = `<div style="white-space:pre-wrap;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.55;color:#111827;">${escapeHtml(baseText)}</div><p style="margin:16px 0 8px;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;color:#111827;">Bấm vào đây để xem chi tiết đơn hàng:</p><p style="margin:0 0 12px;"><a href="${escapeHtml(detailUrl)}" style="display:inline-block;padding:12px 22px;background:#111827;color:#ffffff !important;text-decoration:none;border-radius:10px;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;font-weight:600;">Xem chi tiết đơn hàng</a></p><p style="font-size:12px;color:#6b7280;margin:0;font-family:system-ui,sans-serif;">Hoặc mở liên kết: <a href="${escapeHtml(detailUrl)}">${escapeHtml(detailUrl)}</a></p>`
-  return { text, html }
+
+  const baseText = linesBeforeCta.join('\n')
+  const signIdx = baseText.lastIndexOf('\nTrân trọng,\n')
+  const bodyText = signIdx >= 0 ? baseText.slice(0, signIdx).replace(/\n+$/, '') : baseText
+  const signText = signIdx >= 0 ? baseText.slice(signIdx + 1) : ''
+  const textParts = [bodyText]
+  if (qrText) textParts.push('', qrText)
+  if (openUrl) textParts.push('', '—', ctaTextHint, openUrl)
+  if (signText) textParts.push('', signText)
+  const extraHtml =
+    qrHtml +
+    (openUrl ? orderOpenCtaHtml({ url: openUrl, heading: ctaHeading, button: ctaButton }) : '') +
+    (signText
+      ? `<div style="white-space:pre-wrap;margin:16px 0 0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.55;color:#111827;">${escapeHtml(signText)}</div>`
+      : '')
+  return {
+    text: textParts.filter((p) => p.length > 0).join('\n') + (openUrl || qrText || signText ? '\n' : ''),
+    html: wrapCustomerMailHtml(bodyText, extraHtml),
+    attachments,
+  }
 }
 
 async function appendShopOrderLinkLines(
@@ -140,8 +222,8 @@ export async function emailCustomerOrderCheckoutSubmitted(input: {
           payment_qr_url: input.order.payment_qr_url,
           payment_reference: input.order.payment_reference,
         })
-        ? `Vui lòng chuyển khoản đúng số tiền và nội dung CK; xác nhận tự động qua hệ thống của ${shopLabel} — không cần gửi ảnh biên lai.`
-        : 'Vui lòng chuyển khoản đúng số tiền và nội dung trong khung «Thanh toán chuyển khoản» trên chat, rồi gửi ảnh biên lai nếu được yêu cầu.'
+        ? `Vui lòng chuyển khoản đúng số tiền và nội dung CK (quét mã QR trong email này hoặc mở đơn nhanh); xác nhận tự động qua hệ thống của ${shopLabel} — không cần gửi ảnh biên lai.`
+        : 'Vui lòng chuyển khoản đúng số tiền và nội dung CK. Quét mã QR trong email này hoặc mở đơn nhanh, rồi gửi ảnh biên lai nếu được yêu cầu.'
       : 'Đơn không yêu cầu cọc trước — shop sẽ liên hệ xác nhận và giao hàng.',
     '',
     `Địa chỉ nhận: ${trim(input.order.shipping_address, 500)}`,
@@ -151,8 +233,10 @@ export async function emailCustomerOrderCheckoutSubmitted(input: {
     shopLabel,
   ]
   if (to) {
-    const { text, html } = await customerMailBodyWithOrderCta(input.order, lines, meta)
-    await sendSmtpMail({ to, subject: subj, text, html, fromName: shopLabel })
+    const { text, html, attachments } = await customerMailBodyWithOrderCta(input.order, lines, meta, {
+      includeDepositQr: true,
+    })
+    await sendSmtpMail({ to, subject: subj, text, html, fromName: shopLabel, attachments })
   }
   const shop = trim(input.shopNotifyEmail, 180).toLowerCase()
   if (shop && /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(shop)) {
@@ -303,5 +387,79 @@ export async function emailCustomerOrderPaymentStatusChanged(input: {
     text,
     html,
     fromName: shopLabel,
+  })
+}
+
+/** Nhắc cọc 2h / 20h — link mở đơn nhanh + QR. Không gửi cho chủ shop. */
+export async function emailCustomerDepositReminder(input: {
+  partnerId: string
+  orderId: string
+  customerEmail: string
+  shopName: string
+  paymentReference: string
+  paymentQrUrl: string
+  requiredAmount: number
+  paidAmount?: number
+  hours: DepositRemindHour
+}): Promise<void> {
+  const to = trim(input.customerEmail, 180).toLowerCase()
+  if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(to)) return
+  const meta = await fetchPartnerEmailMeta(input.partnerId)
+  const shopLabel = meta.displayName || input.shopName.trim() || 'Shop'
+  const ref = trim(input.paymentReference, 64)
+  const needsDeposit = orderNeedsCustomerDepositMail({
+    requiredAmount: input.requiredAmount,
+    paidAmount: input.paidAmount,
+  })
+  const openUrl = await resolveCustomerOrderOpenUrl({
+    partnerId: input.partnerId,
+    orderId: input.orderId,
+    needsDeposit: true,
+    chatFallback: guestChatOrderUrlFromSlug(meta.slug, input.orderId),
+  })
+  const copy = depositReminderCopy({
+    shopName: shopLabel,
+    orderCode: ref || input.orderId.slice(0, 8),
+    hours: input.hours,
+  })
+  let qrText = ''
+  let qrHtml = ''
+  let attachments: SmtpInlineAttachment[] | undefined
+  if (needsDeposit) {
+    const qr = await resolveDepositQrForEmail({
+      qrUrl: input.paymentQrUrl,
+      orderCode: ref,
+    })
+    if (qr) {
+      const block = buildCustomerDepositQrEmailBlock({
+        qrImageSrc: qr.htmlSrc,
+        amountLabel: toVnd(input.requiredAmount),
+        transferMemo: ref,
+      })
+      qrText = block.text
+      qrHtml = block.html
+      if (qr.attachment) attachments = [qr.attachment]
+    }
+  }
+  const text = [copy.text, qrText, openUrl ? `Mở đơn nhanh: ${openUrl}` : '', `Trân trọng,\n${shopLabel}`]
+    .filter(Boolean)
+    .join('\n\n') + '\n'
+  const extraHtml =
+    qrHtml +
+    (openUrl
+      ? orderOpenCtaHtml({
+          url: openUrl,
+          heading: 'Bấm vào đây để mở đơn và đặt cọc nhanh:',
+          button: 'Mở đơn đặt cọc',
+        })
+      : '') +
+    `<p style="margin:20px 0 0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.55;color:#111827;">Trân trọng,<br/>${escapeHtml(shopLabel)}</p>`
+  await sendSmtpMail({
+    to,
+    subject: shopEmailSubject(shopLabel, copy.subjectRest),
+    text,
+    html: wrapCustomerMailHtml(copy.text, extraHtml),
+    fromName: shopLabel,
+    attachments,
   })
 }

@@ -20,6 +20,14 @@ function buildFromWithName(baseFrom: string, fromName?: string): string {
   return `"${safeName}" <${address}>`
 }
 
+export type SmtpInlineAttachment = {
+  filename: string
+  content: Buffer
+  cid?: string
+  contentType?: string
+  contentDisposition?: 'inline' | 'attachment'
+}
+
 export async function sendSmtpMail(opts: {
   to: string
   subject: string
@@ -32,6 +40,8 @@ export async function sendSmtpMail(opts: {
   headers?: Record<string, string>
   /** Giá trị header List-Unsubscribe (URL/mailto). Tự bật One-Click. */
   listUnsubscribe?: string
+  /** Ảnh QR cọc (CID) — hiện trong HTML, không gửi cho chủ shop. */
+  attachments?: SmtpInlineAttachment[]
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!isSmtpConfigured()) {
     return { ok: false, error: 'smtp_not_configured' }
@@ -71,6 +81,7 @@ export async function sendSmtpMail(opts: {
       ...(opts.html ? { html: opts.html } : {}),
       ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
       ...(Object.keys(headers).length ? { headers } : {}),
+      ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
     })
     return { ok: true }
   } catch (e) {

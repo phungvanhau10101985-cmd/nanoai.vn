@@ -23,16 +23,23 @@ export function depositReminderCopy(input: {
   shopName: string
   orderCode: string
   hours: DepositRemindHour
-}): { title: string; detail: string; subject: string; text: string } {
+  openUrl?: string | null
+}): { title: string; detail: string; subject: string; subjectRest: string; text: string } {
   const shop = input.shopName.trim() || 'Shop'
   const code = input.orderCode.trim() || 'đơn'
   const title = `Nhắc đặt cọc sau ${input.hours} giờ`
   const detail = `Đơn ${code} đang chờ đặt cọc. Đây là lời nhắc sau ${input.hours} giờ.`
-  const subject = `Nhắc đặt cọc đơn ${code} · ${shop}`
-  const text = [
+  const subjectRest = `Nhắc đặt cọc đơn ${code}`
+  const subject = `${shop} — ${subjectRest}`
+  const lines = [
     `Đơn ${code} tại ${shop} đang chờ đặt cọc.`,
     'Vui lòng hoàn tất chuyển khoản để shop xử lý đơn.',
     `Đây là lời nhắc sau ${input.hours} giờ; nếu đã chuyển khoản, bạn có thể bỏ qua email này.`,
-  ].join('\n')
-  return { title, detail, subject, text }
+    'Quét mã QR trong email này để đặt cọc, hoặc bấm nút mở đơn nhanh.',
+  ]
+  const openUrl = String(input.openUrl || '').trim()
+  if (openUrl) {
+    lines.push('', `Mở đơn nhanh: ${openUrl}`)
+  }
+  return { title, detail, subject, subjectRest, text: lines.join('\n') }
 }
