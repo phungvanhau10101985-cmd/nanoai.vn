@@ -13,6 +13,8 @@ test('chrome layout css is injected once before </head>', () => {
   const once = injectPartnerShopChromeLayoutCss(html)
   const twice = injectPartnerShopChromeLayoutCss(once)
   assert.equal(once.includes(PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID), true)
+  assert.equal(once.includes('.pw-login-avatar'), true)
+  assert.equal(once.includes('data-pw-login-identity'), true)
   assert.equal(once.includes('data-pw-chat-icon-logo'), true)
   assert.equal(once.includes('.pw-nav-main:not([data-pw-nav-live])'), true)
   assert.equal(once.includes('body:not(.nanoai-ve-active) [data-pw-personalize-banner]:not([data-pw-banner-live="off"])'), true)

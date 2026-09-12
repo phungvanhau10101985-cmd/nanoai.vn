@@ -45,6 +45,7 @@ import {
 } from '@/lib/messaging/guest-auth-session'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
 import { getCustomerDeliveryProfile } from '@/lib/messaging/guest-chat-ordering'
+import { resolveShopCustomerLoginIdentity } from '@/lib/partner-website/shop/partner-site-login-identity'
 import { headlessAccountKey } from '@/lib/messaging/partner-headless-cart-utils'
 import {
   resolveWidgetOrderThreadFromRequest,
@@ -98,6 +99,7 @@ export type PartnerSiteVisitorProfile = {
   shipping_address: string | null
   gender: PartnerShopGender | null
   date_of_birth: string | null
+  avatar_url: string | null
   auth_mode: 'anonymous' | 'guest_account' | 'linked_user'
   utm: PartnerVisitorUtmContext
 }
@@ -509,7 +511,12 @@ export async function getSiteVisitorProfile(input: {
     delivery = await getCustomerDeliveryProfile({ partnerId: input.partnerId, emailNormalized: email })
   }
 
-  const greeting_name = delivery?.customerName?.trim() || null
+  const identity = await resolveShopCustomerLoginIdentity({
+    partnerId: input.partnerId,
+    email,
+    linkedUserId: input.thread.linkedUserId,
+  })
+  const greeting_name = delivery?.customerName?.trim() || identity.name || null
   const hint = await fetchVisitorProfileHintFromPg({
     partnerId: input.partnerId,
     accountKey: input.accountKey,
@@ -523,6 +530,7 @@ export async function getSiteVisitorProfile(input: {
     shipping_address: delivery?.shippingAddress?.trim() || null,
     gender: delivery?.gender ?? hint?.gender ?? null,
     date_of_birth: delivery?.dateOfBirth ?? null,
+    avatar_url: identity.avatarUrl,
     auth_mode,
     utm,
   }

@@ -21,6 +21,7 @@ test('catalog live cards do not render listing add-to-cart', () => {
   assert.match(js, /pw-rec-fav/)
   assert.match(js, /pw-rec-stats/)
   assert.match(js, /Đã bán/)
+  assert.match(js, /pw-product-card-hit/)
   assert.doesNotMatch(js, /Chi tiết sản phẩm/)
   assert.doesNotMatch(js, /pwElAttr\(PW_EL\.cardBuy\)/)
 })
@@ -34,6 +35,7 @@ test('personalize live cards do not render listing add-to-cart', () => {
   assert.match(js, /function listingFavHtml/)
   assert.match(js, /function listingStatsHtml/)
   assert.match(js, /\+mark\+fav\+'<img/)
+  assert.match(js, /pw-product-card-hit/)
 })
 
 test('shop-actions does not inject add-to-cart onto listing cards', () => {
@@ -50,6 +52,7 @@ test('outfit live cards use listing heart and sold stats, not Chi tiết', () =>
   assert.match(js, /pw-rec-fav/)
   assert.match(js, /pw-rec-stats/)
   assert.match(js, /Đã bán/)
+  assert.match(js, /pw-product-card-hit/)
   assert.doesNotMatch(js, /Chi tiết sản phẩm/)
 })
 
@@ -78,6 +81,7 @@ test('React listing card has heart + stats and no Chi tiết button', () => {
   assert.match(src, /PartnerSiteListingProductCard/)
   assert.match(src, /pw-rec-fav/)
   assert.match(src, /pw-rec-stats/)
+  assert.match(src, /pw-product-card-hit/)
   assert.match(src, /pdpPurchasesLabel/)
   assert.doesNotMatch(src, /t\.productDetail/)
   assert.doesNotMatch(src, /PW_EL\.cardBuy/)

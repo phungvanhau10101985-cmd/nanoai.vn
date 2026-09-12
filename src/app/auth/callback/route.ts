@@ -118,6 +118,16 @@ export async function GET(req: NextRequest) {
       return res
     }
 
+    const { persistShopCustomerGoogleIdentity } = await import(
+      '@/lib/partner-website/shop/partner-site-login-identity'
+    )
+    await persistShopCustomerGoogleIdentity({
+      userId: uidRow.id,
+      email,
+      name: userInfo.name,
+      picture: userInfo.picture,
+    })
+
     await markNewUserSignupSource({
       userId: uidRow.id,
       isNewUser,
@@ -138,6 +148,13 @@ export async function GET(req: NextRequest) {
       try {
         const shop = await loadPartnerSiteShopContext(siteFromNext.slug)
         if (shop) {
+          await persistShopCustomerGoogleIdentity({
+            userId: uidRow.id,
+            partnerId: shop.partnerId,
+            email,
+            name: userInfo.name,
+            picture: userInfo.picture,
+          })
           shopGuestAccountId = await upsertGuestAccountForGoogleIdentity(
             shop.partnerId,
             req,

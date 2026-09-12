@@ -116,6 +116,7 @@ export function outfitCardHtml(
     ${price ? `<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>${escapeHtml(price)}</p>` : ''}
     ${stats}
   </div>
+  <a class="pw-product-card-hit" href="${href}" aria-label="${escapeHtml(item.name)}" tabindex="-1"></a>
 </article>`
 }
 

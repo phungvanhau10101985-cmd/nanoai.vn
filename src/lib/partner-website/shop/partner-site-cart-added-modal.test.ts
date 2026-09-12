@@ -61,6 +61,6 @@ test('shop-actions queues guest cart then opens login, and does not gate the var
   assert.match(script, /if\(isPdpCartTrigger\(addBtn\)\)\{openPdpVariantModal\(p,'add'\)/)
   assert.doesNotMatch(script, /if\(requirePurchaseLogin\(\)\)return;\s*var p=readProductFromEl\(addBtn\)/)
   assert.doesNotMatch(script, /function goProduct\(/)
-  assert.match(script, /prefetchProduct\(productCardNavUrl\(t\)\)/)
-  assert.doesNotMatch(script, /function goProduct\(/)
+  assert.doesNotMatch(script, /function prefetchProduct/)
+  assert.doesNotMatch(script, /navigateShop\(dest\)/)
 })

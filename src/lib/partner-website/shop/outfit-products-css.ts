@@ -9,7 +9,9 @@ export const PW_OUTFIT_CHROME_CSS = `
 .pw-outfit-slot{display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:999px;padding:6px 12px;font:600 13px/1.2 system-ui,sans-serif;cursor:pointer;background:var(--pw-surface,#f3f4f6);color:var(--pw-text,#374151)}
 .pw-outfit-slot[aria-selected="true"],.pw-outfit-slot.is-active{background:var(--pw-primary);color:#fff}
 .pw-outfit-card{border:1px solid var(--pw-border,#e5e7eb);border-radius:8px;background:#fff}
+@media (hover:hover) and (pointer:fine){
 .pw-outfit-card:hover .pw-product-card-media img{transform:scale(1.06);transition:transform .3s}
+}
 .pw-outfit-card-body{padding:8px;display:flex;flex-direction:column;gap:4px;flex:1}
 .pw-outfit-reason{margin:0;display:inline-flex;align-self:start;padding:2px 6px;border-radius:4px;background:var(--pw-surface,#fff7ed);color:var(--pw-primary);font-size:10px;line-height:1.3}
 .pw-outfit-card .pw-shop-action-bar,.pw-outfit-card [data-pw-el="card-cart"],.pw-outfit-card [data-pw-el="card-buy"]{display:none!important}

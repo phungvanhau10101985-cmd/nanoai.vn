@@ -115,6 +115,7 @@ function renderStaticProductCards(
           ${str(o.price) ? `<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>${escapeHtml(str(o.price))}</p>` : ''}
           ${listingCardStatsHtml({ rating, sold, soldLabel: opts.soldLabel })}
         </div>
+        <a class="pw-product-card-hit" href="${href}" aria-label="${name}" tabindex="-1"></a>
       </article>`
     })
     .join('')
@@ -500,10 +501,12 @@ ${buildPartnerSiteAccountPanelCss()}
   .pw-product-grid{grid-template-columns:repeat(5,minmax(0,1fr))}
 }
 .pw-product-card{display:flex;flex-direction:column;background:#fff;border-radius:16px;overflow:hidden;border:1px solid var(--pw-border);box-shadow:0 12px 36px -18px color-mix(in srgb, var(--pw-primary) 40%, transparent);transition:transform .35s ease,box-shadow .35s ease}
-.pw-product-card:hover{transform:translateY(-4px);box-shadow:0 22px 44px -20px rgba(234,88,12,.5)}
 .pw-product-card-media{position:relative;display:block;aspect-ratio:4/5;background:var(--pw-surface)}
 .pw-product-card-media img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .7s ease}
+@media (hover:hover) and (pointer:fine){
+.pw-product-card:hover{transform:translateY(-4px);box-shadow:0 22px 44px -20px rgba(234,88,12,.5)}
 .pw-product-card:hover .pw-product-card-media img{transform:scale(1.05)}
+}
 .pw-product-ph{width:100%;height:100%;background:linear-gradient(135deg,color-mix(in srgb, var(--pw-primary) 28%, #fff),var(--pw-surface))}
 .pw-badge-new{position:absolute;top:8px;left:8px;background:#9ca3af;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;letter-spacing:.04em}
 .pw-product-card-body{padding:12px;display:grid;gap:8px}

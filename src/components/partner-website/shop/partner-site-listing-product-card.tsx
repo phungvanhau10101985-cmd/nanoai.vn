@@ -149,10 +149,9 @@ export function PartnerSiteListingProductCard({
       data-inventory-id={id || undefined}
       data-pw-actions-ready="1"
     >
+      <Link className="pw-product-card-hit" href={dest} aria-label={name || dest} tabIndex={-1} />
       <div className="pw-product-card-media" data-pw-el={PW_EL.cardMedia}>
-        <Link href={dest} aria-label={name || dest} style={{ position: 'absolute', inset: 0, zIndex: 0, display: 'block' }}>
-          {img ? <img src={img} alt={name} loading="lazy" decoding="async" /> : null}
-        </Link>
+        {img ? <img src={img} alt="" loading="lazy" decoding="async" /> : null}
         <PartnerSiteSaleMediaMarks product={product as SaleCardProduct} locale={locale} />
         {newBadge ? <span className="pw-badge-new">NEW</span> : null}
         {id ? (
@@ -165,9 +164,7 @@ export function PartnerSiteListingProductCard({
         ) : null}
       </div>
       <div className="pw-shop-card-body pw-product-card-body">
-        <Link href={dest} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <h3 data-pw-el={PW_EL.cardName}>{name}</h3>
-        </Link>
+        <h3 data-pw-el={PW_EL.cardName}>{name}</h3>
         <PartnerSiteSalePriceBlock product={product as SaleCardProduct} locale={locale} fallback={priceHint} />
         <PartnerSiteListingCardStats product={product} locale={locale} />
       </div>

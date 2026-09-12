@@ -11,6 +11,9 @@ import {
   PW_BIRTH_GENDER_PROMPT_CSS,
 } from '@/lib/partner-website/shop/partner-site-birth-gender-prompt'
 import { isPartnerSiteShopLoginPath } from '@/lib/partner-website/shop/partner-site-birth-gender-prompt-session'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   daysInCalendarMonth,
   isValidCalendarDate,
@@ -79,4 +82,11 @@ test('prompt script skips login path and validates calendar like 188', () => {
   assert.equal(partnerShopNeedsBirthOrGender({ gender: 'male', date_of_birth: '1990-05-01' }), false)
   assert.equal(partnerShopNeedsBirthOrGender({ gender: null, date_of_birth: '1990-05-01' }), true)
   assert.equal(partnerShopNeedsBirthOrGender({ gender: 'female', date_of_birth: null }), true)
+})
+
+test('React shop shell imports the birth-gender modal so login and PDP do not crash', () => {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const src = readFileSync(join(here, '../../../components/partner-website/shop/partner-site-shop-shell.tsx'), 'utf8')
+  assert.match(src, /import \{ PartnerSiteBirthGenderPromptModal \} from '@\/components\/partner-website\/shop\/partner-site-birth-gender-prompt-modal'/)
+  assert.match(src, /hideAccountNav \? null/)
 })

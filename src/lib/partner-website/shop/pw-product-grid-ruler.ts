@@ -190,6 +190,11 @@ ${PW_STRIP_PRICE_SEL}{margin:0;margin-top:auto;font-size:14px;font-weight:700;co
 export const PW_PRODUCT_CATALOG_CARD_FACE_CSS = `
 ${PW_CATALOG_GRID_SEL}{align-items:stretch}
 ${PW_CATALOG_CARD_SEL}{position:relative;display:flex!important;flex-direction:column!important;height:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+html .pw-product-card > a.pw-product-card-hit,html .pw-shop-card > a.pw-product-card-hit{position:absolute;inset:0;z-index:2;display:block}
+html .pw-product-card a.pw-product-card-media,html .pw-shop-card a.pw-product-card-media,html .pw-product-card [data-pw-el="card-name"] a,html .pw-shop-card [data-pw-el="card-name"] a{pointer-events:none}
+@media not all and (hover:hover) and (pointer:fine){
+${PW_CATALOG_CARD_SEL}:hover,${PW_CATALOG_CARD_SEL}:hover .pw-product-card-media img,${PW_CATALOG_CARD_SEL}:hover [data-pw-el="card-media"] img{transform:none!important}
+}
 ${PW_CATALOG_BODY_SEL}{display:flex!important;flex-direction:column!important;flex:1 1 auto!important;min-height:0!important;gap:4px!important;padding:8px!important}
 ${PW_CATALOG_NAME_SEL}{margin:0!important;font-size:12px!important;font-weight:500!important;line-height:1.25!important;display:-webkit-box!important;-webkit-line-clamp:2!important;-webkit-box-orient:vertical!important;overflow:hidden!important;word-break:break-word;overflow-wrap:anywhere;min-height:2rem;max-height:2rem}
 ${suffixEach(PW_CATALOG_NAME_SEL, ' a')}{color:inherit;text-decoration:none}

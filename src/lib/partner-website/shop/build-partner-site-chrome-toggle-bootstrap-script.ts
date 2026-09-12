@@ -26,6 +26,7 @@ import {
   partnerSiteSessionApiPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
+import { PW_LOGIN_IDENTITY_CSS } from '@/lib/partner-website/shop/partner-site-login-identity'
 import { PW_SITE_SALE_MO_SKIP_JS } from '@/lib/partner-website/promotions/partner-site-sale-display'
 
 /**
@@ -47,6 +48,7 @@ export function buildPartnerSiteChromeToggleBootstrapScript(input: {
   const nav = getPartnerSiteCategoryNavLabels(locale)
   const catApi = partnerSiteCategoriesApiPath(slug)
   const featuredNavApi = `${partnerSitePersonalizationApiPath(slug, 'featured-categories')}?limit=8`
+  const profileApi = partnerSitePersonalizationApiPath(slug, 'profile')
   const productsPath = partnerSiteProductsPath(slug)
   const salePath = partnerSiteInfoPath(slug, 'sale')
   const khoSalePath = partnerSiteKhoSalePath(slug)
@@ -76,6 +78,7 @@ var SKIP_AUTH_SYNC_KEY=${JSON.stringify(skipAuthSyncKey)};
 var SKIP_AUTH_SYNC_HDR=${JSON.stringify('x-pw-shop-skip-auth-sync')};
 var CAT_API=${JSON.stringify(catApi)};
 var FEATURED_NAV_API=${JSON.stringify(featuredNavApi)};
+var PROFILE_API=${JSON.stringify(profileApi)};
 var PRODUCTS_PATH=${JSON.stringify(productsPath)};
 var SALE_PATH=${JSON.stringify(salePath)};
 var KHO_SALE_PATH=${JSON.stringify(khoSalePath)};
@@ -103,6 +106,7 @@ var accountId='';
 var COPY=${JSON.stringify({
     categories: shop.navCategories,
     account: shop.navAccount,
+    login: nav.login,
     newArrivals: nav.newArrivals,
     sale: nav.sale,
     megaHint: shop.categoryMegaHint,
@@ -786,6 +790,121 @@ function normalizeLoginLinks(){
     el.setAttribute('href',dest);
   }
 }
+var loginIdentityCache=null;
+var loginIdentityLoading=false;
+function loginInitials(name){
+  var parts=String(name||'').trim().split(/\\s+/).filter(Boolean);
+  if(!parts.length)return '?';
+  if(parts.length===1)return String(parts[0]).slice(0,2).toUpperCase();
+  return (String(parts[0]).charAt(0)+String(parts[parts.length-1]).charAt(0)).toUpperCase();
+}
+function seedLoginLabel(el){
+  if(el.getAttribute('data-pw-seed-login-label')!=null)return;
+  var labelEl=el.querySelector('.pw-chrome-btn-label,.pw-shop-nav-label');
+  var seed=labelEl?String(labelEl.textContent||'').replace(/\\s+/g,' ').trim():String(el.textContent||'').replace(/\\s+/g,' ').trim();
+  el.setAttribute('data-pw-seed-login-label',seed||COPY.login||'');
+}
+function restoreLoginIdentity(){
+  var nodes=document.querySelectorAll('[data-pw-chrome-btn="login"]');
+  for(var i=0;i<nodes.length;i++){
+    var el=nodes[i];
+    var seed=el.getAttribute('data-pw-seed-login-label');
+    var avatars=el.querySelectorAll('.pw-login-avatar,.pw-login-avatar-fallback');
+    for(var a=0;a<avatars.length;a++)avatars[a].remove();
+    var hidden=el.querySelectorAll('[data-pw-login-hide="1"]');
+    for(var h=0;h<hidden.length;h++){hidden[h].removeAttribute('hidden');hidden[h].removeAttribute('data-pw-login-hide');}
+    if(el.getAttribute('data-pw-login-identity')!=='1'&&seed==null)continue;
+    var label=String(seed||COPY.login||'').trim();
+    var labelEl=el.querySelector('.pw-chrome-btn-label,.pw-shop-nav-label');
+    if(labelEl)labelEl.textContent=label;
+    else if(label)el.textContent=label;
+    el.removeAttribute('data-pw-login-identity');
+    el.removeAttribute('data-pw-seed-login-label');
+    el.removeAttribute('data-pw-login-name');
+    el.removeAttribute('data-pw-login-avatar');
+    el.removeAttribute('title');
+  }
+}
+function paintLoginIdentity(identity){
+  var name=String(identity&&identity.name||'').trim()||COPY.account||COPY.login||'';
+  var avatar=identity&&identity.avatarUrl?String(identity.avatarUrl).trim():'';
+  var nodes=document.querySelectorAll('[data-pw-chrome-btn="login"]');
+  for(var i=0;i<nodes.length;i++){
+    var el=nodes[i];
+    if(!el||el.tagName.toLowerCase()!=='a')continue;
+    if(el.getAttribute('data-pw-login-identity')==='1'
+      && el.getAttribute('data-pw-login-name')===name
+      && el.getAttribute('data-pw-login-avatar')===avatar
+      && el.querySelector('.pw-login-avatar,.pw-login-avatar-fallback'))continue;
+    seedLoginLabel(el);
+    el.setAttribute('href',guestOrAccountHref());
+    el.setAttribute('data-pw-login-identity','1');
+    el.setAttribute('data-pw-login-name',name);
+    el.setAttribute('data-pw-login-avatar',avatar);
+    el.setAttribute('aria-label',name);
+    el.setAttribute('title',name);
+    var old=el.querySelectorAll('.pw-login-avatar,.pw-login-avatar-fallback');
+    for(var a=0;a<old.length;a++)old[a].remove();
+    var node;
+    if(/^https?:\\/\\//i.test(avatar)){
+      node=document.createElement('img');
+      node.className='pw-login-avatar';
+      node.src=avatar;
+      node.alt='';
+      node.setAttribute('referrerpolicy','no-referrer');
+      node.setAttribute('decoding','async');
+    }else{
+      node=document.createElement('span');
+      node.className='pw-login-avatar-fallback';
+      node.setAttribute('aria-hidden','true');
+      node.textContent=loginInitials(name);
+    }
+    var style=String(el.getAttribute('data-pw-chrome-style')||'');
+    var wrap=el.querySelector('.pw-chrome-icon-wrap');
+    var textOnly=style==='text'||el.classList.contains('pw-chrome-link');
+    if(wrap&&!textOnly){
+      wrap.insertBefore(node,wrap.firstChild);
+      var glyphs=wrap.querySelectorAll('svg,.pw-chrome-chat-logo');
+      for(var g=0;g<glyphs.length;g++){glyphs[g].setAttribute('hidden','');glyphs[g].setAttribute('data-pw-login-hide','1');}
+    }else{
+      el.insertBefore(node,el.firstChild);
+    }
+    var labelEl=el.querySelector('.pw-chrome-btn-label,.pw-shop-nav-label');
+    if(!labelEl){
+      labelEl=document.createElement('span');
+      labelEl.className='pw-chrome-btn-label';
+      el.appendChild(labelEl);
+    }
+    labelEl.textContent=name;
+  }
+}
+function hydrateLoginIdentity(){
+  if(pwShopLiveUiOff()){restoreLoginIdentity();return;}
+  if(!isLoggedIn){loginIdentityCache=null;restoreLoginIdentity();return;}
+  if(loginIdentityCache){paintLoginIdentity(loginIdentityCache);return;}
+  if(loginIdentityLoading)return;
+  loginIdentityLoading=true;
+  fetch(PROFILE_API,{credentials:'same-origin',headers:authReqHeaders()}).then(function(res){
+    return res.json().catch(function(){return {};});
+  }).then(function(json){
+    loginIdentityLoading=false;
+    var p=json&&json.profile||{};
+    var name=String(p.customer_name||p.greeting_name||'').trim();
+    if(!name&&p.email){
+      var em=String(p.email);
+      var at=em.indexOf('@');
+      name=at>0?em.slice(0,at):em;
+    }
+    loginIdentityCache={name:name||COPY.account||COPY.login||'',avatarUrl:String(p.avatar_url||'').trim()};
+    if(!isLoggedIn){restoreLoginIdentity();return;}
+    paintLoginIdentity(loginIdentityCache);
+  }).catch(function(){
+    loginIdentityLoading=false;
+    if(!isLoggedIn){restoreLoginIdentity();return;}
+    loginIdentityCache={name:COPY.account||COPY.login||'',avatarUrl:''};
+    paintLoginIdentity(loginIdentityCache);
+  });
+}
 function normalizeCatBtns(){
   var nodes=document.querySelectorAll(catSel());
   for(var i=0;i<nodes.length;i++){
@@ -1176,6 +1295,7 @@ function bindToggles(){
   normalizeCatBtns();
   normalizeAccountBtns();
   normalizeLoginLinks();
+  hydrateLoginIdentity();
   document.querySelectorAll('[data-pw-chrome-btn="logout"],[data-pw-account-logout]').forEach(function(btn){
     if(btn.getAttribute('data-pw-acc-logout-bound'))return;
     btn.setAttribute('data-pw-acc-logout-bound','1');
@@ -1478,5 +1598,6 @@ ${PARTNER_CATEGORY_MEGA_LAYOUT_CSS}
 .pw-account-panel.is-open a.is-header,.pw-shop-account-panel.is-open a.is-header{background:color-mix(in srgb,var(--pw-primary) 12%,#fff);color:var(--pw-primary);border-left:3px solid var(--pw-primary);font-weight:700}
 .pw-account-panel.is-open a.is-accent,.pw-shop-account-panel.is-open a.is-accent{background:var(--pw-surface,#f3f4f6);color:var(--pw-accent);border-left:3px solid var(--pw-primary);font-weight:700}
 [data-pw-chrome-btn="account"][role="button"],[data-pw-account-toggle]{cursor:pointer}
+${PW_LOGIN_IDENTITY_CSS}
 </style>`
 }

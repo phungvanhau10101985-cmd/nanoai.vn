@@ -30,6 +30,8 @@ import {
 import { PartnerSiteShopSearchBar } from '@/components/partner-website/shop/partner-site-shop-search-bar'
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
 import { PartnerSiteCookieConsentBanner } from '@/components/partner-website/shop/partner-site-cookie-consent-banner'
+import { PartnerSiteBirthGenderPromptModal } from '@/components/partner-website/shop/partner-site-birth-gender-prompt-modal'
+import { PartnerSiteLoginChromeLink } from '@/components/partner-website/shop/partner-site-login-chrome-link'
 import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
 import { CART_ADDED_MODAL_COPY } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
 import { PartnerSiteNewsletterForm } from '@/components/partner-website/shop/partner-site-newsletter-form'
@@ -681,7 +683,9 @@ function PartnerSiteShopShellInner({
       {hideChrome ? null : (
         <>
           <PartnerSiteCookieConsentBanner siteSlug={siteSlug} locale={locale} />
-          <PartnerSiteBirthGenderPromptModal siteSlug={siteSlug} shopTitle={title} locale={locale} />
+          {hideAccountNav ? null : (
+            <PartnerSiteBirthGenderPromptModal siteSlug={siteSlug} shopTitle={title} locale={locale} />
+          )}
         </>
       )}
       <style dangerouslySetInnerHTML={{ __html: buildPartnerSiteShopThemeCss(theme) }} />
@@ -724,7 +728,12 @@ function PartnerSiteShopShellInner({
           <Link href={partnerSiteAccountTabPath(siteSlug, 'contact', { customDomain })} data-pw-el={PW_EL.link}>{n.contact}</Link>
           <Link href={partnerSiteAccountTabPath(siteSlug, 'wishlist', { customDomain })} data-pw-el={PW_EL.link}>{t.navFavorites}</Link>
           <Link href={partnerSiteAccountTabPath(siteSlug, 'orders', { customDomain })} data-pw-el={PW_EL.link}>{t.navOrders}</Link>
-          {!isAuthenticated ? <Link href={loginHref} data-pw-el={PW_EL.link}>{n.login}</Link> : null}
+          <PartnerSiteLoginChromeLink
+            siteSlug={siteSlug}
+            loginHref={loginHref}
+            accountHref={paths.account}
+            loginLabel={n.login}
+          />
         </div>
       </div>
 

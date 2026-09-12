@@ -5,7 +5,9 @@ export const PW_RELATED_CHROME_CSS = `
 .pw-related{margin-top:40px;padding-top:20px;border-top:1px solid var(--pw-border,#e5e7eb);box-sizing:border-box}
 .pw-related-title{margin:0 0 12px;font-size:1rem;line-height:1.4;font-weight:700;color:var(--pw-text,#111827);text-transform:uppercase;letter-spacing:.02em}
 .pw-related-card{border:1px solid var(--pw-border,#e5e7eb);border-radius:8px;background:#fff}
+@media (hover:hover) and (pointer:fine){
 .pw-related-card:hover .pw-product-card-media img{transform:scale(1.06);transition:transform .3s}
+}
 .pw-related-card-body{padding:8px;display:flex;flex-direction:column;gap:4px;flex:1}
 .pw-related-card .pw-shop-action-bar,.pw-related-card [data-pw-el="card-cart"],.pw-related-card [data-pw-el="card-buy"]{display:none!important}
 .pw-related-actions{margin-top:16px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
