@@ -46,6 +46,10 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   const order = await fetchPartnerOrderDetailForGuestWidgetIfAllowed(partner.partnerId, oid, thread)
   if (!order) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  if (request.nextUrl.searchParams.get('poll') === '1') {
+    return NextResponse.json({ order })
+  }
+
   const view = await buildGuestOrderDepositView({ partnerId: partner.partnerId, order })
   const [events, canConfirm, siblings] = await Promise.all([
     fetchPartnerOrderShipmentEventsFromPg(order.id),

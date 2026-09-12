@@ -55,7 +55,7 @@ const COPY: Record<WebLocale, Copy> = {
     linkHint: 'Hoặc sao chép liên kết:',
     signOff: (s) => `Trân trọng,\n${s}`,
     optOutText: 'Không muốn nhận email gợi ý từ shop? Hủy nhận tại đây',
-    footer: (s) => `Bạn nhận email này vì đã từng nhắn tin với ${s}. Email tự động qua NanoAI.`,
+    footer: (s) => `Bạn nhận email này vì đã từng nhắn tin với ${s}.`,
   },
   en: {
     subject: (s) => `${s} — the items you were looking at`,
@@ -70,7 +70,7 @@ const COPY: Record<WebLocale, Copy> = {
     linkHint: 'Or copy this link:',
     signOff: (s) => `Best regards,\n${s}`,
     optOutText: 'Don’t want product emails from this shop? Unsubscribe here',
-    footer: (s) => `You received this because you chatted with ${s}. Automated email via NanoAI.`,
+    footer: (s) => `You received this because you chatted with ${s}.`,
   },
   zh: {
     subject: (s) => `${s} — 您关注的商品`,
@@ -84,7 +84,7 @@ const COPY: Record<WebLocale, Copy> = {
     linkHint: '或复制链接：',
     signOff: (s) => `此致\n${s}`,
     optOutText: '不想再收到本店铺的商品邮件？点此退订',
-    footer: (s) => `您收到此邮件是因为曾与 ${s} 聊天。NanoAI 自动发送。`,
+    footer: (s) => `您收到此邮件是因为曾与 ${s} 聊天。`,
   },
   ja: {
     subject: (s) => `${s} — 気になっていた商品`,
@@ -98,7 +98,7 @@ const COPY: Record<WebLocale, Copy> = {
     linkHint: 'またはリンクをコピー：',
     signOff: (s) => `よろしくお願いいたします。\n${s}`,
     optOutText: 'このショップからの商品メールを希望しない場合はこちらから配信停止',
-    footer: (s) => `${s} とチャットされたため送信しています。NanoAI による自動送信です。`,
+    footer: (s) => `${s} とチャットされたため送信しています。`,
   },
   ko: {
     subject: (s) => `${s} — 관심 있게 보신 상품`,
@@ -112,7 +112,7 @@ const COPY: Record<WebLocale, Copy> = {
     linkHint: '또는 링크 복사:',
     signOff: (s) => `감사합니다.\n${s}`,
     optOutText: '이 상점의 상품 이메일을 원하지 않으세요? 여기서 수신 거부',
-    footer: (s) => `${s}님과 채팅한 적이 있어 보내드립니다. NanoAI 자동 발송.`,
+    footer: (s) => `${s}님과 채팅한 적이 있어 보내드립니다.`,
   },
 }
 

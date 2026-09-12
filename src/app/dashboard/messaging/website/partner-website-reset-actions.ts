@@ -17,7 +17,9 @@ import {
   type PartnerWebsiteResetTrashInfo,
 } from '@/lib/db/partner-website-reset-pg'
 import { fetchPartnerWebsiteByPartnerIdPg } from '@/lib/db/messaging-partner-websites-pg'
+import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import { sendSmtpMail, isSmtpConfigured } from '@/lib/email/smtp'
+import { partnerShopEmailBrandName, shopEmailSubject } from '@/lib/messaging/partner-shop-email-brand'
 import { resolvePartnerWebsitePublicUrl } from '@/lib/partner-website/resolve-partner-website-public-url'
 import type { PartnerWebsiteRow } from '@/lib/partner-website/partner-website-types'
 
@@ -84,13 +86,21 @@ export async function requestPartnerWebsiteResetOtp(
   })
   if (!saved) return { error: 'Không lưu được mã xác nhận.' }
 
+  const partners = await fetchMessagingPartnersByIdsFromPg([partnerId])
+  const shopName = partnerShopEmailBrandName({
+    brand_name: partners?.[0]?.brand_name,
+    display_name: partners?.[0]?.display_name,
+    title: existing?.title,
+  })
+
   const sent = await sendSmtpMail({
     to: email,
-    subject: 'Mã OTP reset website shop',
+    subject: shopEmailSubject(shopName, 'Mã OTP reset website shop'),
     text: `Mã OTP reset website: ${otp}\n\nMã có hiệu lực 10 phút. Sau khi xác nhận, web hiện tại sẽ được đưa vào thùng lưu ${PARTNER_WEBSITE_RESET_TRASH_DAYS} ngày — bạn có thể khôi phục trong thời gian này. Nếu không phải bạn yêu cầu, hãy bỏ qua email này.`,
     html: `<p>Mã OTP reset website: <b>${otp}</b></p>
 <p>Mã có hiệu lực <b>10 phút</b>. Sau khi xác nhận, web hiện tại sẽ được <b>lưu tạm ${PARTNER_WEBSITE_RESET_TRASH_DAYS} ngày</b> để có thể khôi phục.</p>
 <p>Nếu không phải bạn yêu cầu, hãy bỏ qua email này.</p>`,
+    fromName: shopName,
   })
 
   if (!sent.ok) {

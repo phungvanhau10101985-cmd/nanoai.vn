@@ -7,6 +7,7 @@ import { resolvePartnerWebsitePublicUrl } from '@/lib/partner-website/resolve-pa
 import { partnerWebsitePublicPath } from '@/lib/partner-website/partner-website-slug'
 import { resolveShopThemeColors } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/partner-website-template-types'
+import { partnerShopEmailBrandName } from '@/lib/messaging/partner-shop-email-brand'
 
 export type PartnerShopEmailContext = {
   partnerId: string
@@ -27,8 +28,12 @@ function joinShopPath(shopUrl: string, path: string): string {
 
 export async function resolvePartnerShopEmailContext(partnerId: string): Promise<PartnerShopEmailContext> {
   const partners = await fetchMessagingPartnersByIdsFromPg([partnerId])
-  const shopDisplayName = partners?.[0]?.display_name?.trim() || 'Shop'
   const website = await fetchPartnerWebsiteByPartnerIdPg(partnerId)
+  const shopDisplayName = partnerShopEmailBrandName({
+    brand_name: partners?.[0]?.brand_name,
+    display_name: partners?.[0]?.display_name,
+    title: website?.title,
+  })
   const siteSlug = website?.siteSlug?.trim() || ''
   const locale = normalizeWebLocale(website?.locale) ?? 'vi'
   const theme = resolveShopThemeColors(website?.theme ?? DEFAULT_PARTNER_WEBSITE_THEME)

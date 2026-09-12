@@ -649,6 +649,7 @@ export async function fetchMessagingPartnerOwnerUserIdFromPg(partnerId: string):
 export type MessagingPartnerByIdsRow = {
   id: string
   display_name: string
+  brand_name: string
   slug: string
   is_active: boolean
   industry_key: 'fashion' | 'hotel' | 'food' | 'other' | null
@@ -680,6 +681,7 @@ export async function fetchMessagingPartnersByIdsFromPg(partnerIds: string[]): P
     return rows.map((r) => ({
       id: r.id,
       display_name: String(r.display_name ?? ''),
+      brand_name: String(r.brand_name ?? ''),
       slug: String(r.slug ?? ''),
       is_active: r.is_active !== false,
       industry_key: r.industry_key ?? null,
@@ -701,6 +703,7 @@ export async function fetchMessagingPartnersByIdsFromPg(partnerIds: string[]): P
         return rows.map((r) => ({
           id: r.id,
           display_name: String(r.display_name ?? ''),
+          brand_name: '',
           slug: String(r.slug ?? ''),
           is_active: r.is_active !== false,
           industry_key: null,

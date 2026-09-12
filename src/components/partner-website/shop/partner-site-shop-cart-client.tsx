@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
@@ -27,6 +28,7 @@ import {
   pickDepositLandingOrder,
   shouldRedirectToDepositAfterCreate,
 } from '@/lib/partner-website/shop/order-deposit'
+import { stashPartnerSiteCheckoutHandoff } from '@/lib/partner-website/shop/partner-site-checkout-handoff'
 import { markGoogleCustomerReviewsForOrder } from '@/lib/partner-website/shop/google-customer-reviews'
 import {
   emptyPartnerSiteAddressInput,
@@ -440,6 +442,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   const customDomain = usePartnerSiteCustomDomain()
   const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { refreshCartCount, setCartCount, tracking } = usePartnerSiteShop()
+  const router = useRouter()
   const [items, setItems] = useState<SiteCartLine[]>(() => initialItems ?? [])
   const [loading, setLoading] = useState(initialItems == null)
   const [checkoutBusy, setCheckoutBusy] = useState(false)
@@ -1107,6 +1110,15 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
         order?: OrderSnapshot
         orders?: OrderSnapshot[]
         checkout_group_id?: string | null
+        payment_display?: {
+          kind: 'bank' | 'ewallet'
+          bank_name?: string
+          account_number?: string
+          account_holder?: string
+          provider_label?: string
+          account_name?: string
+          qr_url?: string
+        } | null
       }
       if (!res.ok || !json.ok) {
         if (json.error === 'AUTH_REQUIRED_PURCHASE_LOGIN' || json.requireAuth) {
@@ -1140,7 +1152,40 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       const goDeposit = created?.id ? shouldRedirectToDepositAfterCreate(created) : false
       if (created?.id) {
         markGoogleCustomerReviewsForOrder(created.id)
-        if (!goDeposit) {
+        if (goDeposit) {
+          stashPartnerSiteCheckoutHandoff(siteSlug, {
+            orderId: created.id,
+            order: {
+              id: created.id,
+              status: String(created.status ?? 'awaiting_payment'),
+              payment_reference: created.payment_reference ?? null,
+              required_amount: created.required_amount ?? null,
+              paid_amount: created.paid_amount ?? null,
+              deposit_percent: created.deposit_percent ?? null,
+              payment_qr_url: created.payment_qr_url ?? null,
+              amount_after_discount: created.amount_after_discount ?? null,
+              subtotal_amount: created.subtotal_amount ?? null,
+              shipping_fee_amount: created.shipping_fee_amount ?? null,
+            },
+            payment_display:
+              json.payment_display?.kind === 'ewallet'
+                ? {
+                    kind: 'ewallet',
+                    provider_label: json.payment_display.provider_label || '',
+                    account_name: json.payment_display.account_name || '',
+                    account_number: json.payment_display.account_number || '',
+                    qr_url: json.payment_display.qr_url || '',
+                  }
+                : json.payment_display?.kind === 'bank'
+                  ? {
+                      kind: 'bank',
+                      bank_name: json.payment_display.bank_name || '',
+                      account_number: json.payment_display.account_number || '',
+                      account_holder: json.payment_display.account_holder || '',
+                    }
+                  : null,
+          })
+        } else {
           trackPartnerSitePurchase(tracking, {
             transactionId: created.id,
             value: partnerOrderPayableTotal(created),
@@ -1153,18 +1198,21 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       const remainingItems = items.filter((item) => !checkedOutIds.has(item.id))
       setItems(remainingItems)
       setSelectedLineIds(new Set())
-      await fetch(`/api/site/${encodeURIComponent(siteSlug)}/cart`, {
+      setCartCount(cartLinesQuantity(remainingItems))
+      void fetch(`/api/site/${encodeURIComponent(siteSlug)}/cart`, {
         method: 'PUT',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ items: remainingItems }),
+      }).then((cartRes) => {
+        captureFromResponse(cartRes)
+        void refreshCartCount()
       })
-      await refreshCartCount()
       if (created?.id && typeof window !== 'undefined') {
         const next = goDeposit
           ? partnerSiteOrderDepositPath(siteSlug, created.id, { customDomain })
           : partnerSiteOrderDetailPath(siteSlug, created.id, { customDomain })
-        window.location.assign(next)
+        router.push(next)
         return
       }
       setCompletedOrder(created)

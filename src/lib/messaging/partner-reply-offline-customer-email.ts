@@ -99,7 +99,7 @@ export async function maybeEmailCustomerOfflineShopReply(input: {
       metadata: conv.metadata,
     })
 
-    const sent = await sendSmtpMail({ to, subject, text, html })
+    const sent = await sendSmtpMail({ to, subject, text, html, fromName: shopDisplayName || 'Shop' })
     if (!sent.ok) {
       console.warn('[maybeEmailCustomerOfflineShopReply] send failed', sent.error)
       return

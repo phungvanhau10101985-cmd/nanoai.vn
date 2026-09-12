@@ -1,6 +1,9 @@
 import { insertNotificationPg } from '@/lib/db/notifications-repo'
 import { isPgConfigured } from '@/lib/db/pool'
-import { sendAccountNotificationEmailByUserIdPg } from '@/lib/email/account-notification-email'
+import {
+  accountNotificationFromNameFromMeta,
+  sendAccountNotificationEmailByUserIdPg,
+} from '@/lib/email/account-notification-email'
 import { sendPushNotificationsToUser } from '@/lib/push/send-to-user'
 
 export type UserNotificationPayload = {
@@ -40,6 +43,7 @@ export async function createUserNotificationWithEmail(payload: UserNotificationP
   await sendAccountNotificationEmailByUserIdPg(payload.user_id, {
     title: payload.title,
     body: payload.body,
+    fromName: accountNotificationFromNameFromMeta(payload.meta),
   })
   await sendPushNotificationsToUser(payload.user_id, {
     title: payload.title,

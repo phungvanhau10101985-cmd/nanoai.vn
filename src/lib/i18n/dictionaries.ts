@@ -4224,13 +4224,13 @@ const VI_DICTIONARY: Dictionary = {
     teamInviteOk: 'Đã mời nhân viên. Email kèm link quản trị shop đã được gửi.',
     teamInviteOkEmailFailed:
       'Đã thêm nhân viên. Không gửi được email — kiểm tra SMTP hoặc bấm Mời lại để gửi link quản trị.',
-    teamInviteMailSubject: '{shop} — lời mời quản trị shop trên NanoAI',
+    teamInviteMailSubject: '{shop} — lời mời quản trị shop',
     teamInviteMailTitle: 'Bạn được mời quản trị {shop}',
     teamInviteMailBody:
-      '{inviter} đã mời bạn làm quản trị viên shop {shop} trên NanoAI. Bấm nút bên dưới để vào trang quản trị shop.',
+      '{inviter} đã mời bạn làm quản trị viên shop {shop}. Bấm nút bên dưới để vào trang quản trị shop.',
     teamInviteMailCta: 'Vào trang quản trị shop',
     teamInviteMailNeedLogin:
-      'Đăng nhập NanoAI bằng đúng email được mời rồi mở liên kết. Nếu chưa có tài khoản, hãy đăng ký bằng email này.',
+      'Đăng nhập bằng đúng email được mời rồi mở liên kết. Nếu chưa có tài khoản, hãy đăng ký bằng email này.',
     teamInviteMailOrLink: 'Hoặc mở liên kết:',
     teamInviteMailIgnore: 'Nếu bạn không nhận lời mời này, hãy bỏ qua email.',
     teamStaffRestrictedNote:
@@ -7758,13 +7758,13 @@ const EN_DICTIONARY: Dictionary = {
     teamInviteOk: 'Staff invited. An email with the shop admin link was sent.',
     teamInviteOkEmailFailed:
       'Staff was added, but the email could not be sent. Check SMTP or invite again to resend the admin link.',
-    teamInviteMailSubject: '{shop} — shop admin invitation on NanoAI',
+    teamInviteMailSubject: '{shop} — shop admin invitation',
     teamInviteMailTitle: 'You were invited to manage {shop}',
     teamInviteMailBody:
-      '{inviter} invited you as a shop admin for {shop} on NanoAI. Use the button below to open the shop admin page.',
+      '{inviter} invited you as a shop admin for {shop}. Use the button below to open the shop admin page.',
     teamInviteMailCta: 'Open shop admin',
     teamInviteMailNeedLogin:
-      'Sign in to NanoAI with the invited email, then open the link. If you do not have an account yet, register with this email.',
+      'Sign in with the invited email, then open the link. If you do not have an account yet, register with this email.',
     teamInviteMailOrLink: 'Or open this link:',
     teamInviteMailIgnore: 'If you were not expecting this invite, you can ignore this email.',
     teamStaffRestrictedNote:
@@ -11285,11 +11285,11 @@ const ZH_DICTIONARY: Dictionary = {
     teamInviteErrorOwner: '不可邀请店主或店主账号。',
     teamInviteOk: '已邀请员工。已发送带店铺管理页链接的邮件。',
     teamInviteOkEmailFailed: '已添加员工，但邮件未能发送。请检查 SMTP 或再次点击邀请以重发管理链接。',
-    teamInviteMailSubject: '{shop} — NanoAI 店铺管理邀请',
+    teamInviteMailSubject: '{shop} — 店铺管理邀请',
     teamInviteMailTitle: '你被邀请管理 {shop}',
-    teamInviteMailBody: '{inviter} 邀请你成为 NanoAI 上 {shop} 的店铺管理员。点击下方按钮进入店铺管理页。',
+    teamInviteMailBody: '{inviter} 邀请你成为 {shop} 的店铺管理员。点击下方按钮进入店铺管理页。',
     teamInviteMailCta: '进入店铺管理页',
-    teamInviteMailNeedLogin: '请用被邀请的邮箱登录 NanoAI 后再打开链接。若还没有账号，请用此邮箱注册。',
+    teamInviteMailNeedLogin: '请用被邀请的邮箱登录后再打开链接。若还没有账号，请用此邮箱注册。',
     teamInviteMailOrLink: '或打开此链接：',
     teamInviteMailIgnore: '若你并未收到此邀请，请忽略本邮件。',
     teamStaffRestrictedNote:
@@ -14716,13 +14716,13 @@ const JA_DICTIONARY: Dictionary = {
     teamInviteOk: 'スタッフを招待しました。店舗管理ページのリンクをメールで送信しました。',
     teamInviteOkEmailFailed:
       'スタッフは追加されましたが、メールを送信できませんでした。SMTP を確認するか、もう一度招待して管理リンクを再送してください。',
-    teamInviteMailSubject: '{shop} — NanoAI 店舗管理への招待',
+    teamInviteMailSubject: '{shop} — 店舗管理への招待',
     teamInviteMailTitle: '{shop} の管理に招待されました',
     teamInviteMailBody:
-      '{inviter} が NanoAI 上のショップ {shop} の管理者としてあなたを招待しました。下のボタンから店舗管理ページを開けます。',
+      '{inviter} がショップ {shop} の管理者としてあなたを招待しました。下のボタンから店舗管理ページを開けます。',
     teamInviteMailCta: '店舗管理ページを開く',
     teamInviteMailNeedLogin:
-      '招待されたメールで NanoAI にログインしてからリンクを開いてください。アカウントがない場合は、このメールで登録してください。',
+      '招待されたメールでログインしてからリンクを開いてください。アカウントがない場合は、このメールで登録してください。',
     teamInviteMailOrLink: 'または次のリンクを開く：',
     teamInviteMailIgnore: 'この招待に心当たりがない場合は、このメールを無視してください。',
     teamStaffRestrictedNote:
@@ -18218,13 +18218,13 @@ const KO_DICTIONARY: Dictionary = {
     teamInviteOk: '직원을 초대했습니다. 샵 관리 링크가 포함된 이메일을 보냈습니다.',
     teamInviteOkEmailFailed:
       '직원은 추가되었지만 이메일을 보내지 못했습니다. SMTP를 확인하거나 초대를 다시 눌러 관리 링크를 재전송하세요.',
-    teamInviteMailSubject: '{shop} — NanoAI 샵 관리 초대',
+    teamInviteMailSubject: '{shop} — 샵 관리 초대',
     teamInviteMailTitle: '{shop} 관리자로 초대되었습니다',
     teamInviteMailBody:
-      '{inviter}님이 NanoAI의 {shop} 샵 관리자로 초대했습니다. 아래 버튼으로 샵 관리 페이지를 여세요.',
+      '{inviter}님이 {shop} 샵 관리자로 초대했습니다. 아래 버튼으로 샵 관리 페이지를 여세요.',
     teamInviteMailCta: '샵 관리 페이지 열기',
     teamInviteMailNeedLogin:
-      '초대받은 이메일로 NanoAI에 로그인한 뒤 링크를 여세요. 계정이 없으면 이 이메일로 가입하세요.',
+      '초대받은 이메일로 로그인한 뒤 링크를 여세요. 계정이 없으면 이 이메일로 가입하세요.',
     teamInviteMailOrLink: '또는 이 링크를 여세요:',
     teamInviteMailIgnore: '이 초대를 요청하지 않았다면 이 이메일을 무시하세요.',
     teamStaffRestrictedNote:

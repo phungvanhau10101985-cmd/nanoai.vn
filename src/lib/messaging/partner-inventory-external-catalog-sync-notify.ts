@@ -83,6 +83,7 @@ export async function notifyPartnerExternalCatalogSyncReport(params: {
         updated: o.updated,
         deleted: o.deleted,
         embeddings_deferred: o.embeddingsDeferred,
+        shop_display_name: params.shopLabel,
       },
     })
     return
@@ -110,6 +111,7 @@ export async function notifyPartnerExternalCatalogSyncReport(params: {
       fetched: params.stats.fetched,
       mapped: params.stats.mappedRows,
       remarketing_in_feed: params.stats.remarketingInFeed,
+      shop_display_name: params.shopLabel,
     },
   })
 }

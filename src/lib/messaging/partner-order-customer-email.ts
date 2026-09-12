@@ -5,6 +5,7 @@ import { sendSmtpMail } from '@/lib/email/smtp'
 import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { DEFAULT_WEB_LOCALE, normalizeWebLocale } from '@/lib/i18n/config'
 import { formatShippingStatusEmailContentForCustomer } from '@/lib/messaging/order-customer-notify-i18n'
+import { partnerShopEmailBrandName } from '@/lib/messaging/partner-shop-email-brand'
 
 function trim(s: string, max = 240): string {
   return String(s || '')
@@ -49,7 +50,10 @@ type PartnerEmailMeta = {
 async function fetchPartnerEmailMeta(partnerId: string): Promise<PartnerEmailMeta> {
   const rows = await fetchMessagingPartnersByIdsFromPg([partnerId])
   const r = rows?.[0]
-  const displayName = String(r?.display_name ?? '').trim()
+  const displayName = partnerShopEmailBrandName({
+    brand_name: r?.brand_name,
+    display_name: r?.display_name,
+  })
   const slug = String(r?.slug ?? '').trim() || null
   return {
     displayName: displayName || 'Cửa hàng',
@@ -148,7 +152,7 @@ export async function emailCustomerOrderCheckoutSubmitted(input: {
   ]
   if (to) {
     const { text, html } = await customerMailBodyWithOrderCta(input.order, lines, meta)
-    await sendSmtpMail({ to, subject: subj, text, html })
+    await sendSmtpMail({ to, subject: subj, text, html, fromName: shopLabel })
   }
   const shop = trim(input.shopNotifyEmail, 180).toLowerCase()
   if (shop && /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(shop)) {
@@ -165,6 +169,7 @@ export async function emailCustomerOrderCheckoutSubmitted(input: {
       to: shop,
       subject: `${shopLabel} — [Thông báo shop] Đơn mới ${ref}`,
       text: shopLines.join('\n'),
+      fromName: shopLabel,
     })
   }
 }
@@ -195,7 +200,7 @@ export async function emailCustomerOrderPaymentVerified(input: {
   ]
   if (to) {
     const { text, html } = await customerMailBodyWithOrderCta(input.order, lines, meta)
-    await sendSmtpMail({ to, subject: subj, text, html })
+    await sendSmtpMail({ to, subject: subj, text, html, fromName: shopLabel })
   }
   const shop = trim(input.shopNotifyEmail, 180).toLowerCase()
   if (shop && /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(shop)) {
@@ -210,6 +215,7 @@ export async function emailCustomerOrderPaymentVerified(input: {
       to: shop,
       subject: `${shopLabel} — [Thông báo shop] Đã thanh toán ${ref}`,
       text: shopLines.join('\n'),
+      fromName: shopLabel,
     })
   }
 }
@@ -239,6 +245,7 @@ export async function emailCustomerOrderPaymentManualReview(input: {
     subject: `${shopLabel} — Đơn ${ref} — đã nhận chứng từ, chờ shop xác nhận`,
     text,
     html,
+    fromName: shopLabel,
   })
 }
 
@@ -267,6 +274,7 @@ export async function emailCustomerShippingStatusChanged(input: {
     subject,
     text,
     html,
+    fromName: shopLabel,
   })
 }
 
@@ -294,5 +302,6 @@ export async function emailCustomerOrderPaymentStatusChanged(input: {
     subject: `${shopLabel} — Đơn ${ref} — cập nhật: ${label}`,
     text,
     html,
+    fromName: shopLabel,
   })
 }

@@ -1,6 +1,10 @@
 import type { AppUser } from '@/lib/auth/app-user'
 import { getAuthUserEmailFromPg } from '@/lib/db/auth-user-email-pg'
 import { isSmtpConfigured, sendSmtpMail } from '@/lib/email/smtp'
+import {
+  shopBrandFromNotificationMeta,
+  shopEmailSubject,
+} from '@/lib/messaging/partner-shop-email-brand'
 
 /**
  * Email đăng nhập Google (và email/password) lấy từ `user.email` trong `auth.users`.
@@ -36,7 +40,7 @@ function appBaseUrl(): string {
 /** Gửi email khi đã biết userId — ưu tiên đọc email từ Postgres `auth.users` (không gọi HTTP Auth hosted). */
 export async function sendAccountNotificationEmailByUserIdPg(
   userId: string,
-  payload: { title: string; body: string }
+  payload: { title: string; body: string; fromName?: string }
 ): Promise<void> {
   if (!isSmtpConfigured()) return
   try {
@@ -45,22 +49,31 @@ export async function sendAccountNotificationEmailByUserIdPg(
       console.warn('[account-notification-email] no email in auth.users', { userId })
       return
     }
+    const shopName = payload.fromName?.trim() || ''
     const base = appBaseUrl()
-    const lines = [
-      payload.title,
-      '',
-      payload.body,
-      '',
-      '—',
-      base ? `Mở NanoAI để xem thông báo trong ứng dụng: ${base}` : 'Xem thông báo trong ứng dụng NanoAI.',
-    ]
+    const lines = shopName
+      ? [payload.title, '', payload.body, '', '—', `Thông báo từ ${shopName}.`]
+      : [
+          payload.title,
+          '',
+          payload.body,
+          '',
+          '—',
+          base ? `Mở NanoAI để xem thông báo trong ứng dụng: ${base}` : 'Xem thông báo trong ứng dụng NanoAI.',
+        ]
     await sendSmtpMail({
       to: email,
-      subject: `[NanoAI] ${payload.title}`,
+      subject: shopName ? shopEmailSubject(shopName, payload.title) : `[NanoAI] ${payload.title}`,
       text: lines.join('\n'),
+      fromName: shopName || undefined,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     console.error('[account-notification-email] pg path', msg)
   }
+}
+
+export function accountNotificationFromNameFromMeta(meta?: Record<string, unknown> | null): string | undefined {
+  const shop = shopBrandFromNotificationMeta(meta)
+  return shop || undefined
 }

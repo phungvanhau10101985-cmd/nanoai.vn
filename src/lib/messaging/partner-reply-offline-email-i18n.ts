@@ -46,7 +46,7 @@ export function formatOfflineShopReplyEmailContent(input: {
       cta: string
       linkHint: string
       signOff: (s: string) => string
-      footer: string
+      footer: (s: string) => string
     }
   > = {
     vi: {
@@ -58,7 +58,7 @@ export function formatOfflineShopReplyEmailContent(input: {
       cta: 'Mở cuộc trò chuyện',
       linkHint: 'Hoặc sao chép liên kết:',
       signOff: (s) => `Trân trọng,\n${s}`,
-      footer: 'Tin nhắn tự động từ NanoAI',
+      footer: (s) => `Tin nhắn tự động từ ${s}`,
     },
     en: {
       subject: (s) => `${s} — New message for you`,
@@ -69,7 +69,7 @@ export function formatOfflineShopReplyEmailContent(input: {
       cta: 'Open conversation',
       linkHint: 'Or copy this link:',
       signOff: (s) => `Best regards,\n${s}`,
-      footer: 'Automated message from NanoAI',
+      footer: (s) => `Automated message from ${s}`,
     },
     zh: {
       subject: (s) => `${s} — 您有新消息`,
@@ -79,7 +79,7 @@ export function formatOfflineShopReplyEmailContent(input: {
       cta: '打开对话',
       linkHint: '或复制链接：',
       signOff: (s) => `此致\n${s}`,
-      footer: 'NanoAI 自动发送',
+      footer: (s) => `${s} 自动发送`,
     },
     ja: {
       subject: (s) => `${s} — 新しいメッセージがあります`,
@@ -90,7 +90,7 @@ export function formatOfflineShopReplyEmailContent(input: {
       cta: '会話を開く',
       linkHint: 'またはリンクをコピー：',
       signOff: (s) => `よろしくお願いいたします。\n${s}`,
-      footer: 'NanoAI からの自動メッセージ',
+      footer: (s) => `${s} からの自動メッセージ`,
     },
     ko: {
       subject: (s) => `${s} — 새 메시지가 있습니다`,
@@ -101,7 +101,7 @@ export function formatOfflineShopReplyEmailContent(input: {
       cta: '대화 열기',
       linkHint: '또는 링크 복사:',
       signOff: (s) => `감사합니다.\n${s}`,
-      footer: 'NanoAI 자동 발송',
+      footer: (s) => `${s} 자동 발송`,
     },
   }
 
@@ -109,7 +109,7 @@ export function formatOfflineShopReplyEmailContent(input: {
   const subject = c.subject(shop)
   const textParts = [c.hello, '', c.body(shop)]
   if (preview) textParts.push('', `${c.previewLabel}`, preview)
-  textParts.push('', c.cta, input.chatUrl, '', c.signOff(shop), '', '—', c.footer)
+  textParts.push('', c.cta, input.chatUrl, '', c.signOff(shop), '', '—', c.footer(shop))
   const text = textParts.join('\n')
 
   const previewHtml = preview
@@ -125,7 +125,7 @@ ${previewHtml}
 <p style="font-size:12px;color:#6b7280;word-break:break-all;">${c.linkHint} <a href="${safeUrl}">${safeUrl}</a></p>
 <p style="margin-top:24px;white-space:pre-line;">${c.signOff(safeShop).replace(/\n/g, '<br/>')}</p>
 <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;" />
-<p style="font-size:12px;color:#9ca3af;">${c.footer}</p>
+<p style="font-size:12px;color:#9ca3af;">${c.footer(safeShop)}</p>
 </div>`
 
   return { subject, text, html }

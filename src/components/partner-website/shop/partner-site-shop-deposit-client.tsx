@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { PartnerSiteOrderGoogleCustomerReviews } from '@/components/partner-website/shop/partner-site-order-google-customer-reviews'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -10,12 +10,25 @@ import {
   markGoogleCustomerReviewsForOrder,
 } from '@/lib/partner-website/shop/google-customer-reviews'
 import {
+  detectInAppBrowser,
+  getInAppBrowserShortName,
+  isLikelyMobile,
+  type InAppBrowserKind,
+} from '@/lib/partner-website/shop/in-app-browser'
+import { depositQrDownloadFilename } from '@/lib/messaging/deposit-qr-image'
+import {
   isPartnerShopDepositWaiting,
   partnerOrderPayableTotal,
   partnerOrderRemainingAfterDeposit,
   shouldShowDepositSuccessPage,
 } from '@/lib/partner-website/shop/order-deposit'
+import {
+  readPartnerSiteCheckoutHandoff,
+  clearPartnerSiteCheckoutHandoff,
+  type PartnerSiteDepositPaymentDisplay,
+} from '@/lib/partner-website/shop/partner-site-checkout-handoff'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { saveImageBlob, trySaveFilePicker, trySyncBlobDownload } from '@/lib/partner-website/shop/save-image-blob'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import {
   bankTransferMemoFromPaymentReference,
@@ -65,10 +78,7 @@ type DepositOrder = PartnerOrderDiscountFields & {
   shipping_status?: string | null
 }
 
-type PaymentDisplay =
-  | { kind: 'bank'; bank_name: string; account_number: string; account_holder: string }
-  | { kind: 'ewallet'; provider_label: string; account_name: string; account_number: string; qr_url: string }
-  | null
+type PaymentDisplay = PartnerSiteDepositPaymentDisplay | null
 
 type Props = {
   siteSlug: string
@@ -118,14 +128,21 @@ export function PartnerSiteShopDepositClient({
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
   const [toast, setToast] = useState('')
+  const [toastKind, setToastKind] = useState<'info' | 'pay'>('info')
   const [siblings, setSiblings] = useState<ShopSiblingOrderView[]>([])
   const [shipmentEvents, setShipmentEvents] = useState<ShopShipmentEventView[]>([])
   const prevStatusRef = useRef<string | null>(null)
+  const qrBlobRef = useRef<Blob | null>(null)
+  const [qrBlobReady, setQrBlobReady] = useState(false)
+  const [qrDownloading, setQrDownloading] = useState(false)
+  const [qrSavePreviewUrl, setQrSavePreviewUrl] = useState<string | null>(null)
+  const [inAppKind, setInAppKind] = useState<InAppBrowserKind | null>(null)
 
   const orderApi = `/api/messaging/guest/${encodeURIComponent(partnerSlug)}/order/${encodeURIComponent(orderId)}`
 
-  const load = useCallback(async () => {
-    const res = await fetch(orderApi, { credentials: 'same-origin', headers: authHeaders() })
+  const load = useCallback(async (opts?: { poll?: boolean }) => {
+    const url = opts?.poll ? `${orderApi}?poll=1` : orderApi
+    const res = await fetch(url, { credentials: 'same-origin', headers: authHeaders() })
     captureFromResponse(res)
     const json = (await res.json().catch(() => ({}))) as {
       order?: DepositOrder
@@ -136,30 +153,46 @@ export function PartnerSiteShopDepositClient({
       shipment_events?: ShopShipmentEventView[]
     }
     if (!res.ok || !json.order) {
-      setOrder(null)
       return
     }
     setOrder(json.order)
-    setSiblings(Array.isArray(json.sibling_orders) ? json.sibling_orders : [])
-    setShipmentEvents(Array.isArray(json.shipment_events) ? json.shipment_events : [])
-    setPaymentDisplay(json.payment_display ?? null)
-    if (typeof json.default_deposit_percent === 'number' && json.default_deposit_percent > 0) {
-      setShopPercent(Math.max(1, Math.min(99, Math.round(json.default_deposit_percent))))
+    if (!opts?.poll) {
+      clearPartnerSiteCheckoutHandoff(siteSlug)
+      setSiblings(Array.isArray(json.sibling_orders) ? json.sibling_orders : [])
+      setShipmentEvents(Array.isArray(json.shipment_events) ? json.shipment_events : [])
+      setPaymentDisplay(json.payment_display ?? null)
+      if (typeof json.default_deposit_percent === 'number' && json.default_deposit_percent > 0) {
+        setShopPercent(Math.max(1, Math.min(99, Math.round(json.default_deposit_percent))))
+      }
+      const mid = Number(json.google_customer_reviews_merchant_id ?? 0)
+      setMerchantId(Number.isInteger(mid) && mid > 0 ? mid : null)
     }
-    const mid = Number(json.google_customer_reviews_merchant_id ?? 0)
-    setMerchantId(Number.isInteger(mid) && mid > 0 ? mid : null)
-  }, [authHeaders, captureFromResponse, orderApi])
+  }, [authHeaders, captureFromResponse, orderApi, siteSlug])
+
+  useLayoutEffect(() => {
+    const handoff = readPartnerSiteCheckoutHandoff(siteSlug, orderId)
+    if (!handoff?.order) return
+    setOrder(handoff.order as DepositOrder)
+    setPaymentDisplay(handoff.payment_display ?? null)
+    if (typeof handoff.default_deposit_percent === 'number' && handoff.default_deposit_percent > 0) {
+      setShopPercent(Math.max(1, Math.min(99, Math.round(handoff.default_deposit_percent))))
+    }
+    setLoading(false)
+  }, [orderId, siteSlug])
+
+  useEffect(() => {
+    setInAppKind(detectInAppBrowser())
+  }, [])
 
   useEffect(() => {
     if (!ready) return
-    setLoading(true)
     void load().finally(() => setLoading(false))
   }, [load, ready])
 
   useEffect(() => {
     if (!order || !isPartnerShopDepositWaiting(order)) return
     const iv = window.setInterval(() => {
-      void load()
+      void load({ poll: true })
     }, 4000)
     return () => window.clearInterval(iv)
   }, [load, order])
@@ -174,6 +207,7 @@ export function PartnerSiteShopDepositClient({
       markGoogleCustomerReviewsForOrder(order.id)
     }
     if (wasWaiting && nowDone) {
+      setToastKind('pay')
       setToast(t.depositToastBody)
       const key = `pw_purchase_tracked_order_${order.id}`
       let tracked = false
@@ -209,10 +243,60 @@ export function PartnerSiteShopDepositClient({
     prevStatusRef.current = order.status
   }, [order, shopTitle, t.depositToastBody, tracking])
 
+  useEffect(() => {
+    if (!toast || toastKind === 'pay') return
+    const tmr = window.setTimeout(() => setToast(''), 4000)
+    return () => window.clearTimeout(tmr)
+  }, [toast, toastKind])
+
   const depositOption = useMemo(() => {
     const p = Math.round(Number(order?.deposit_percent ?? shopPercent))
     return p >= 100 ? 100 : shopPercent
   }, [order?.deposit_percent, shopPercent])
+
+  const displayQr = useMemo(() => {
+    if (paymentDisplay?.kind === 'ewallet') return String(paymentDisplay.qr_url ?? '').trim()
+    return String(order?.payment_qr_url ?? '').trim()
+  }, [order?.payment_qr_url, paymentDisplay])
+  const waitingDeposit = Boolean(order && isPartnerShopDepositWaiting(order))
+  const depositOrderId = order?.id ?? ''
+
+  useEffect(() => {
+    qrBlobRef.current = null
+    setQrBlobReady(false)
+    if (!waitingDeposit || !displayQr || !depositOrderId) return
+    let cancelled = false
+    const qrApi = `/api/messaging/guest/${encodeURIComponent(partnerSlug)}/order/${encodeURIComponent(depositOrderId)}/deposit-qr-image`
+    fetch(qrApi, { credentials: 'same-origin', headers: authHeaders() })
+      .then((res) => (res.ok ? res.blob() : Promise.reject(new Error('qr'))))
+      .then((blob) => {
+        if (!cancelled) {
+          qrBlobRef.current = blob
+          setQrBlobReady(true)
+        }
+      })
+      .catch(() => {
+        if (cancelled) return
+        fetch(displayQr, { mode: 'cors' })
+          .then((res) => (res.ok ? res.blob() : null))
+          .then((blob) => {
+            if (!cancelled && blob) qrBlobRef.current = blob
+          })
+          .catch(() => {})
+          .finally(() => {
+            if (!cancelled) setQrBlobReady(true)
+          })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [authHeaders, depositOrderId, displayQr, partnerSlug, waitingDeposit])
+
+  useEffect(() => {
+    return () => {
+      if (qrSavePreviewUrl) URL.revokeObjectURL(qrSavePreviewUrl)
+    }
+  }, [qrSavePreviewUrl])
 
   async function setDepositPercent(next: number) {
     if (!order || updating || next === depositOption) return
@@ -235,6 +319,80 @@ export function PartnerSiteShopDepositClient({
       }
     } finally {
       setUpdating(false)
+    }
+  }
+
+  function closeQrSavePreview() {
+    setQrSavePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+  }
+
+  async function handleDownloadQr() {
+    if (!order || !displayQr) return
+    setQrDownloading(true)
+    const filename = depositQrDownloadFilename(displayShopOrderCode(order.payment_reference || '') || order.id)
+    try {
+      let blob = qrBlobRef.current
+      if (!blob) {
+        const qrApi = `/api/messaging/guest/${encodeURIComponent(partnerSlug)}/order/${encodeURIComponent(order.id)}/deposit-qr-image`
+        const res = await fetch(qrApi, { credentials: 'same-origin', headers: authHeaders() })
+        blob = res.ok ? await res.blob() : null
+        if (!blob) {
+          const fallback = await fetch(displayQr, { mode: 'cors' })
+          if (!fallback.ok) throw new Error('no_qr')
+          blob = await fallback.blob()
+        }
+        qrBlobRef.current = blob
+        setQrBlobReady(true)
+      }
+
+      if (!isLikelyMobile() && !inAppKind) {
+        try {
+          if (await trySaveFilePicker(blob, filename)) {
+            setToastKind('info')
+            setToast(t.depositQrSaved)
+            return
+          }
+        } catch (e) {
+          if ((e as Error)?.name === 'AbortError') return
+        }
+      }
+
+      if (trySyncBlobDownload(blob, filename)) {
+        setToastKind('info')
+        setToast(t.depositQrSaved)
+        return
+      }
+
+      const result = await saveImageBlob(blob, filename, {
+        shareTitle: t.depositQrTitle,
+        preferShareOnMobile: true,
+      })
+      if (result === 'download') {
+        setToastKind('info')
+        setToast(t.depositQrSaved)
+        return
+      }
+      if (result === 'share') {
+        setToastKind('info')
+        setToast(t.depositQrSaveShareHint)
+        return
+      }
+
+      const url = URL.createObjectURL(blob)
+      setQrSavePreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return url
+      })
+      setToastKind('info')
+      setToast(inAppKind ? t.depositQrSaveInAppHint : t.depositQrSaveManualHint)
+    } catch {
+      setToastKind('info')
+      setToast(t.depositQrSaveFailed)
+    } finally {
+      setQrDownloading(false)
     }
   }
 
@@ -301,8 +459,8 @@ export function PartnerSiteShopDepositClient({
       <div>
         {toast ? (
           <div className="pw-shop-deposit-toast" role="status">
-            <strong>{t.depositToastTitle}</strong>
-            <p style={{ margin: '4px 0 0' }}>{toast}</p>
+            {toastKind === 'pay' ? <strong>{t.depositToastTitle}</strong> : null}
+            <p style={{ margin: toastKind === 'pay' ? '4px 0 0' : 0 }}>{toast}</p>
           </div>
         ) : null}
         <PartnerSiteOrderGoogleCustomerReviews
@@ -403,28 +561,16 @@ export function PartnerSiteShopDepositClient({
   }
 
   return (
+    <>
     <div className="pw-shop-deposit">
+      {toast ? (
+        <div className="pw-shop-deposit-toast" role="status">
+          <p style={{ margin: 0 }}>{toast}</p>
+        </div>
+      ) : null}
       <div className="pw-shop-deposit-head">
         <h1>{t.depositPageTitle}</h1>
         <p>{t.depositPageCode.replace('{code}', code)}</p>
-        <PartnerSiteOrderFulfillmentBadge
-          t={t}
-          source={order.fulfillment_source}
-          platform={order.source_platform}
-        />
-        <PartnerSiteOrderSplitGroup
-          t={t}
-          siteSlug={siteSlug}
-          customDomain={customDomain}
-          currentId={order.id}
-          siblings={siblings}
-        />
-        <PartnerSiteOrderEmsTracking t={t} trackingNumber={order.tracking_number} />
-        {shipmentEvents.length > 0 ? (
-          <div style={{ marginTop: 12 }}>
-            <PartnerSiteOrderShipmentSteps t={t} events={shipmentEvents} fallback={[]} />
-          </div>
-        ) : null}
       </div>
       <div className="pw-shop-deposit-money">
         <div>
@@ -434,21 +580,112 @@ export function PartnerSiteShopDepositClient({
         <div className="need">
           <p className="k">{t.depositNeedLabel}</p>
           <p className="v">{formatVnd(required)}</p>
-          <p className="pw-shop-muted" style={{ margin: 0, fontSize: 11 }}>
-            {t.depositNeedHint}
-          </p>
+          <p className="pw-shop-deposit-money-hint">{t.depositNeedHint}</p>
         </div>
         <div>
           <p className="k">{t.depositOnDeliveryLabel}</p>
           <p className="v">{formatVnd(remaining)}</p>
-          <p className="pw-shop-muted" style={{ margin: 0, fontSize: 11 }}>
-            {t.depositOnDeliveryHint}
-          </p>
+          <p className="pw-shop-deposit-money-hint">{t.depositOnDeliveryHint}</p>
         </div>
       </div>
-      <PartnerOrderDiscountBreakdown locale={locale} order={order} />
       <div className="pw-shop-deposit-body">
-        <div className="pw-shop-deposit-col">
+        <div className="pw-shop-deposit-pay">
+          <div className="pw-shop-deposit-box pw-shop-deposit-qr">
+            <p className="lbl">{t.depositQrTitle}</p>
+            {required > 0 ? (
+              <p className="pw-shop-deposit-qr-need">
+                {t.depositNeedLabel}: {formatVnd(required)}
+              </p>
+            ) : null}
+            {qr ? <img src={qr} alt="QR" /> : null}
+            {qr ? (
+              <button
+                type="button"
+                className="pw-shop-btn pw-shop-btn-outline pw-shop-btn-sm pw-shop-deposit-qr-dl"
+                onClick={() => void handleDownloadQr()}
+                disabled={qrDownloading || !qrBlobReady}
+              >
+                {qrDownloading ? (
+                  <>
+                    <span className="pw-shop-deposit-spin" aria-hidden />
+                    {t.depositDownloadQrBusy}
+                  </>
+                ) : !qrBlobReady ? (
+                  <>
+                    <span className="pw-shop-deposit-spin" aria-hidden />
+                    {t.depositDownloadQrPreparing}
+                  </>
+                ) : (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                      <path
+                        fillRule="evenodd"
+                        d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    {inAppKind ? t.depositSaveQr : t.depositDownloadQr}
+                  </>
+                )}
+              </button>
+            ) : null}
+            <p className="pw-shop-deposit-hint">
+              {t.depositPollingHint}
+              {inAppKind ? ` ${t.depositQrInAppHoldHint.replace('{app}', getInAppBrowserShortName(inAppKind))}` : ''}
+            </p>
+          </div>
+        </div>
+        <div className="pw-shop-deposit-info">
+          <div className="pw-shop-deposit-box">
+            <p className="lbl">{t.depositBankLabel}</p>
+            <p className="pw-shop-deposit-instruct">{t.depositQrHint}</p>
+            {bank ? (
+              <div className="pw-shop-deposit-transfer">
+                <div className="pw-shop-deposit-row">
+                  <span className="k">{t.depositBankLabel}</span>
+                  <span className="v">{bank.bank_name}</span>
+                </div>
+                <div className="pw-shop-deposit-row">
+                  <span className="k">{t.depositAccountLabel}</span>
+                  <span className="v">{bank.account_number}</span>
+                </div>
+                <div className="pw-shop-deposit-row">
+                  <span className="k">{t.depositHolderLabel}</span>
+                  <span className="v">{bank.account_holder}</span>
+                </div>
+                <div className="pw-shop-deposit-copy">
+                  <CopyButton text={bank.account_number} label={t.depositCopyAccount} copiedLabel={t.depositCopied} />
+                </div>
+              </div>
+            ) : paymentDisplay?.kind === 'ewallet' ? (
+              <div className="pw-shop-deposit-transfer">
+                <div className="pw-shop-deposit-row">
+                  <span className="k">{t.checkoutPaymentMethodEwallet}</span>
+                  <span className="v">{paymentDisplay.provider_label}</span>
+                </div>
+                {paymentDisplay.account_number ? (
+                  <div className="pw-shop-deposit-row">
+                    <span className="k">{t.depositAccountLabel}</span>
+                    <span className="v">{paymentDisplay.account_number}</span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          {transferMemo ? (
+            <div className="pw-shop-deposit-box">
+              <p className="lbl">{t.depositTransferContent}</p>
+              <div className="pw-shop-deposit-memo-row">
+                <span className="pw-shop-deposit-memo">{transferMemo}</span>
+                <div className="pw-shop-deposit-copy">
+                  <CopyButton text={transferMemo} label={t.depositCopyContent} copiedLabel={t.depositCopied} />
+                </div>
+              </div>
+              <p className="pw-shop-deposit-hint" style={{ marginTop: 8 }}>
+                {t.depositTransferHint}
+              </p>
+            </div>
+          ) : null}
           {order.payment_method !== 'ewallet' ? (
             <div className="pw-shop-deposit-box">
               <p className="lbl">{t.depositChooseLevel}</p>
@@ -477,77 +714,78 @@ export function PartnerSiteShopDepositClient({
               {updating ? <p className="pw-shop-muted">{t.depositUpdating}</p> : null}
             </div>
           ) : null}
-          <div className="pw-shop-deposit-box">
-            <p className="lbl">{t.depositBankLabel}</p>
-            {bank ? (
-              <p className="pw-shop-deposit-sepay">
-                {bank.bank_name} · {bank.account_number}
-              </p>
-            ) : paymentDisplay?.kind === 'ewallet' && paymentDisplay.account_number ? (
-              <p className="pw-shop-deposit-sepay">
-                {paymentDisplay.provider_label} · {paymentDisplay.account_number}
-              </p>
-            ) : null}
-            <p className="pw-shop-deposit-instruct">{t.depositQrHint}</p>
-            {bank ? (
-              <div style={{ marginTop: 10 }}>
-                <div className="pw-shop-deposit-row">
-                  <span className="k">{t.depositBankLabel}</span>
-                  <span className="v">{bank.bank_name}</span>
-                </div>
-                <div className="pw-shop-deposit-row">
-                  <span className="k">{t.depositAccountLabel}</span>
-                  <span className="v">{bank.account_number}</span>
-                </div>
-                <div className="pw-shop-deposit-row">
-                  <span className="k">{t.depositHolderLabel}</span>
-                  <span className="v">{bank.account_holder}</span>
-                </div>
-                <div style={{ marginTop: 8 }}>
-                  <CopyButton text={bank.account_number} label={t.depositCopyAccount} copiedLabel={t.depositCopied} />
-                </div>
-              </div>
-            ) : paymentDisplay?.kind === 'ewallet' ? (
-              <div style={{ marginTop: 10 }}>
-                <div className="pw-shop-deposit-row">
-                  <span className="k">{t.checkoutPaymentMethodEwallet}</span>
-                  <span className="v">{paymentDisplay.provider_label}</span>
-                </div>
-                {paymentDisplay.account_number ? (
-                  <div className="pw-shop-deposit-row">
-                    <span className="k">{t.depositAccountLabel}</span>
-                    <span className="v">{paymentDisplay.account_number}</span>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-          {transferMemo ? (
-            <div className="pw-shop-deposit-box">
-              <p className="lbl">{t.depositTransferContent}</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                <span className="pw-shop-deposit-memo">{transferMemo}</span>
-                <CopyButton text={transferMemo} label={t.depositCopyContent} copiedLabel={t.depositCopied} />
-              </div>
-              <p className="pw-shop-deposit-hint" style={{ marginTop: 8 }}>
-                {t.depositTransferHint}
-              </p>
-            </div>
-          ) : null}
-        </div>
-        <div className="pw-shop-deposit-col">
-          <div className="pw-shop-deposit-box pw-shop-deposit-qr">
-            <p className="lbl">{t.depositQrTitle}</p>
-            {qr ? <img src={qr} alt="QR" /> : null}
-            {qr ? (
-              <a href={qr} download={`qr-${code}.png`} className="pw-shop-btn pw-shop-btn-outline pw-shop-btn-sm" target="_blank" rel="noreferrer">
-                {t.depositDownloadQr}
-              </a>
-            ) : null}
-            <p className="pw-shop-deposit-hint">{t.depositPollingHint}</p>
-          </div>
         </div>
       </div>
+      <div className="pw-shop-deposit-extra">
+        <PartnerOrderDiscountBreakdown locale={locale} order={order} />
+        <PartnerSiteOrderFulfillmentBadge
+          t={t}
+          source={order.fulfillment_source}
+          platform={order.source_platform}
+        />
+        <PartnerSiteOrderSplitGroup
+          t={t}
+          siteSlug={siteSlug}
+          customDomain={customDomain}
+          currentId={order.id}
+          siblings={siblings}
+        />
+        <PartnerSiteOrderEmsTracking t={t} trackingNumber={order.tracking_number} />
+        {shipmentEvents.length > 0 ? (
+          <PartnerSiteOrderShipmentSteps t={t} events={shipmentEvents} fallback={[]} />
+        ) : null}
+      </div>
     </div>
+    {qrSavePreviewUrl ? (
+      <div
+        className="pw-shop-deposit-qr-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pw-qr-save-title"
+        onClick={closeQrSavePreview}
+      >
+        <div className="pw-shop-deposit-qr-modal-card" onClick={(e) => e.stopPropagation()}>
+          <h2 id="pw-qr-save-title">{t.depositQrSaveTitle}</h2>
+          <p>{inAppKind ? t.depositQrSaveInAppHint : t.depositQrSaveManualHint}</p>
+          <div className="pw-shop-deposit-qr-modal-img">
+            <img src={qrSavePreviewUrl} alt="QR" draggable={false} />
+          </div>
+          <button
+            type="button"
+            className="pw-shop-btn pw-shop-btn-buy"
+            onClick={() => {
+              const blob = qrBlobRef.current
+              if (!blob) return
+              const filename = depositQrDownloadFilename(code)
+              if (trySyncBlobDownload(blob, filename)) {
+                setToastKind('info')
+                setToast(t.depositQrSaved)
+                closeQrSavePreview()
+                return
+              }
+              void saveImageBlob(blob, filename, {
+                shareTitle: t.depositQrTitle,
+                preferShareOnMobile: true,
+              }).then((result) => {
+                if (result === 'download') {
+                  setToastKind('info')
+                  setToast(t.depositQrSaved)
+                  closeQrSavePreview()
+                } else if (result === 'share') {
+                  setToastKind('info')
+                  setToast(t.depositQrSaveShareHint)
+                }
+              })
+            }}
+          >
+            {t.depositQrSaveDownloadFile}
+          </button>
+          <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={closeQrSavePreview}>
+            {t.depositQrSaveClose}
+          </button>
+        </div>
+      </div>
+    ) : null}
+    </>
   )
 }

@@ -1034,14 +1034,10 @@ export async function completeOrderCheckout(input: {
     detail: `Số lượng ${updated.quantity}, cần đặt cọc trước ${toVnd(updated.required_amount)}.`,
     source: 'customer',
   })
-  try {
-    await emailCustomerOrderCheckoutSubmitted({
-      order: updated,
-      shopNotifyEmail: settings.notify_email || '',
-    })
-  } catch (e) {
-    console.warn('[completeOrderCheckout] email', e)
-  }
+  void emailCustomerOrderCheckoutSubmitted({
+    order: updated,
+    shopNotifyEmail: settings.notify_email || '',
+  }).catch((e) => console.warn('[completeOrderCheckout] email', e))
   queuePartnerOrderGoogleSheetsSync(input.partnerId, updated.id)
   emitPartnerOutboundOrderCreated(input.partnerId, updated)
   notifyPartnerOwnerNewOrder(input.partnerId, updated).catch((e) =>
@@ -1117,33 +1113,43 @@ export async function completeCartCheckout(input: {
   linkedUserId?: string | null
   guestAccountId?: string | null
 }): Promise<
-  | { ok: true; order: PartnerOrderRow; orders: PartnerOrderRow[]; checkout_group_id: string | null }
+  | {
+      ok: true
+      order: PartnerOrderRow
+      orders: PartnerOrderRow[]
+      checkout_group_id: string | null
+      payment_display: PartnerOrderPaymentDisplay | null
+    }
   | { error: string }
 > {
-  const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
+  const [settings, conv] = await Promise.all([
+    fetchPartnerPaymentSettingsFromPg(input.partnerId),
+    ensureConversationPg({
+      partnerId: input.partnerId,
+      channel: 'widget',
+      externalThreadId: input.externalThreadId,
+      customerName: firstLine(input.customerName || input.form.customerEmail || 'Guest'),
+      linkedUserId: input.linkedUserId ?? null,
+      guestAccountId: input.guestAccountId ?? null,
+      metadata: { source: 'hosted_chat_page', auth_mode: input.guestAccountId ? 'account' : 'anonymous' },
+    }),
+  ])
   if (!settings) return { error: 'Shop chưa cài đặt thanh toán.' }
-
-  const conv = await ensureConversationPg({
-    partnerId: input.partnerId,
-    channel: 'widget',
-    externalThreadId: input.externalThreadId,
-    customerName: firstLine(input.customerName || input.form.customerEmail || 'Guest'),
-    linkedUserId: input.linkedUserId ?? null,
-    guestAccountId: input.guestAccountId ?? null,
-    metadata: { source: 'hosted_chat_page', auth_mode: input.guestAccountId ? 'account' : 'anonymous' },
-  })
   if (!conv?.conversationId) return { error: 'Không tạo được hội thoại.' }
 
-  const lines: PartnerOrderLineUpsertInput[] = []
-  for (const line of input.form.lines.slice(0, 20)) {
-    const mapped = await cartInputLineToOrderLine({
-      partnerId: input.partnerId,
-      linkedUserId: input.linkedUserId ?? null,
-      line,
-      sortOrder: lines.length,
-    })
-    if (mapped) lines.push(mapped)
-  }
+  const mappedLines = await Promise.all(
+    input.form.lines.slice(0, 20).map((line, sortOrder) =>
+      cartInputLineToOrderLine({
+        partnerId: input.partnerId,
+        linkedUserId: input.linkedUserId ?? null,
+        line,
+        sortOrder,
+      })
+    )
+  )
+  const lines: PartnerOrderLineUpsertInput[] = mappedLines.filter(
+    (row): row is PartnerOrderLineUpsertInput => Boolean(row)
+  )
   if (lines.length === 0) return { error: 'Giỏ hàng chưa có sản phẩm hợp lệ.' }
 
   const identity = {
@@ -1459,29 +1465,35 @@ export async function completeCartCheckout(input: {
           `Thanh toán khi nhận hàng: **${toVnd(updated.amount_after_discount + updated.shipping_fee_amount)}**.`,
     rawPayload: toJson(orderCardPayload(updated, paymentDisplay, savedLines)),
   })
-  for (const order of createdOrders) {
-    await insertPartnerOrderEventFromPg({
-      orderId: order.id,
-      eventType: 'checkout_submitted',
-      title: 'Khách gửi thông tin nhận hàng',
-      detail: `Cần đặt cọc trước ${toVnd(order.required_amount)}.`,
-      source: 'customer',
-    })
-    try {
-      await emailCustomerOrderCheckoutSubmitted({
-        order,
-        shopNotifyEmail: settings.notify_email || '',
+  await Promise.all(
+    createdOrders.map((order) =>
+      insertPartnerOrderEventFromPg({
+        orderId: order.id,
+        eventType: 'checkout_submitted',
+        title: 'Khách gửi thông tin nhận hàng',
+        detail: `Cần đặt cọc trước ${toVnd(order.required_amount)}.`,
+        source: 'customer',
       })
-    } catch (e) {
-      console.warn('[completeCartCheckout] email', e)
-    }
+    )
+  )
+  for (const order of createdOrders) {
+    void emailCustomerOrderCheckoutSubmitted({
+      order,
+      shopNotifyEmail: settings.notify_email || '',
+    }).catch((e) => console.warn('[completeCartCheckout] email', e))
     queuePartnerOrderGoogleSheetsSync(input.partnerId, order.id)
     emitPartnerOutboundOrderCreated(input.partnerId, order)
     notifyPartnerOwnerNewOrder(input.partnerId, order).catch((e) =>
       console.warn('[completeCartCheckout] notify owner', e)
     )
   }
-  return { ok: true, order: updated, orders: createdOrders, checkout_group_id: checkoutGroupId }
+  return {
+    ok: true,
+    order: updated,
+    orders: createdOrders,
+    checkout_group_id: checkoutGroupId,
+    payment_display: paymentDisplay,
+  }
 }
 
 export async function listRelatedBuyProducts(input: {

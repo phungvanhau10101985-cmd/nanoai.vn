@@ -268,16 +268,25 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       },
     })
     if ('error' in done) return NextResponse.json({ error: done.error }, { status: 400 })
+    const shopCheckout = isPartnerSiteCheckoutRequest(request)
     let metaPurchase = null as Awaited<ReturnType<typeof runMetaPurchaseAfterOrderComplete>>
     if (isPgConfigured()) {
-      try {
-        metaPurchase = await runMetaPurchaseAfterOrderComplete({
+      if (shopCheckout) {
+        void runMetaPurchaseAfterOrderComplete({
           partnerId: partner.partnerId,
           order: done.order,
           request,
-        })
-      } catch (e) {
-        console.warn('[order PATCH cart] meta purchase', e)
+        }).catch((e) => console.warn('[order PATCH cart] meta purchase', e))
+      } else {
+        try {
+          metaPurchase = await runMetaPurchaseAfterOrderComplete({
+            partnerId: partner.partnerId,
+            order: done.order,
+            request,
+          })
+        } catch (e) {
+          console.warn('[order PATCH cart] meta purchase', e)
+        }
       }
     }
     return NextResponse.json({
@@ -285,6 +294,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       order: done.order,
       orders: done.orders,
       checkout_group_id: done.checkout_group_id,
+      payment_display: done.payment_display,
       ...(metaPurchase ? { metaPurchase } : {}),
     })
   }

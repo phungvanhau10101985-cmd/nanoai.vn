@@ -13,6 +13,7 @@ import { buildMarketingOptOutUrl } from '@/lib/messaging/marketing-opt-out-token
 import { resolvePartnerWebsitePublicUrl } from '@/lib/partner-website/resolve-partner-website-public-url'
 import { partnerWebsitePublicPath } from '@/lib/partner-website/partner-website-slug'
 import { partnerSiteAccountTabPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerShopEmailBrandName, shopEmailSubject } from '@/lib/messaging/partner-shop-email-brand'
 
 function escapeHtml(s: string): string {
   return String(s)
@@ -75,7 +76,7 @@ export async function sendPartnerCustomerNotificationEmail(input: {
   if (optedOut) return { status: 'skipped', reason: 'opt_out' }
 
   const partners = await fetchMessagingPartnersByIdsFromPg([input.partnerId])
-  const shopName = partners?.[0]?.display_name?.trim() || 'Shop'
+  const shopName = partnerShopEmailBrandName(partners?.[0])
   const website = await fetchPartnerWebsiteByPartnerIdPg(input.partnerId)
   const siteSlug = website?.siteSlug?.trim() ?? ''
   const origin = getPublicAppUrlForServer().replace(/\/$/, '')
@@ -118,7 +119,7 @@ export async function sendPartnerCustomerNotificationEmail(input: {
 
   const sent = await sendSmtpMail({
     to: email,
-    subject: input.title.trim().slice(0, 180) || shopName,
+    subject: shopEmailSubject(shopName, input.title.trim().slice(0, 180) || shopName),
     text: textLines.join('\n'),
     html,
     fromName: shopName,

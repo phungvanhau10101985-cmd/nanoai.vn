@@ -10,6 +10,7 @@ import {
 import { writeGuestAccountCookie } from '@/lib/messaging/guest-account-session'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
 import { isSmtpConfigured, sendSmtpMail } from '@/lib/email/smtp'
+import { partnerShopEmailBrandName, shopEmailSubject } from '@/lib/messaging/partner-shop-email-brand'
 import {
   getClientIpFromRequest,
   getRateLimitRetryAfterSec,
@@ -51,7 +52,11 @@ function normalizeEmail(v: string): string {
 async function resolvePartner(slug: string) {
   const active = await resolveFashionMessagingPartnerBySlug(slug)
   if (!active) return { error: 'not_found' as const }
-  return { partnerId: active.id, displayName: active.display_name, slug }
+  return {
+    partnerId: active.id,
+    displayName: partnerShopEmailBrandName({ display_name: active.display_name }),
+    slug,
+  }
 }
 
 function randOtp6() {
@@ -201,7 +206,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     return NextResponse.json({ error: 'Could not create verification challenge.' }, { status: 500 })
   }
 
-  const subject = `Xac thuc chat - ${displayName}`
+  const subject = shopEmailSubject(displayName, 'Xác thực chat')
   const text = [
     `Xin chao,`,
     ``,
@@ -215,6 +220,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       subject,
       text,
       html: `<p>Xin chao,</p><p>Ma OTP cua ban: <b>${otp}</b></p><p>Vui long nhap ma nay ngay trong khung chat de tiep tuc.</p><p>Ma het han sau ${OTP_TTL_MINUTES} phut.</p>`,
+      fromName: displayName,
     })
   }
 

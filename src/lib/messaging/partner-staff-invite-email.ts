@@ -4,6 +4,7 @@ import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import { insertNotificationPg } from '@/lib/db/notifications-repo'
 import { isSmtpConfigured, sendSmtpMail } from '@/lib/email/smtp'
+import { partnerShopEmailBrandName } from '@/lib/messaging/partner-shop-email-brand'
 import { sendPushNotificationsToUser } from '@/lib/push/send-to-user'
 
 function fillPlaceholders(s: string, vars: Record<string, string>): string {
@@ -80,7 +81,7 @@ export function buildPartnerStaffInviteEmailContent(input: {
   const locale = resolveInviteLocale(input.locale)
   const t = getDictionary(locale).partnerMessaging
   const shopName = input.shopName.trim() || 'Shop'
-  const inviterEmail = input.inviterEmail.trim() || 'NanoAI'
+  const inviterEmail = input.inviterEmail.trim() || shopName
   const vars = { shop: shopName, inviter: inviterEmail }
   const title = fillPlaceholders(t.teamInviteMailTitle, vars)
   const body = fillPlaceholders(t.teamInviteMailBody, vars)
@@ -119,7 +120,7 @@ export async function sendPartnerStaffInviteEmail(input: {
 
   const partners = await fetchMessagingPartnersByIdsFromPg([input.partnerId])
   const partner = partners?.[0]
-  const shopName = partner?.display_name?.trim() || 'Shop'
+  const shopName = partnerShopEmailBrandName(partner)
   const adminPath = partnerStaffAdminPath(input.partnerId, partner?.industry_key)
   const adminUrl = buildPartnerStaffInviteAdminUrl({
     origin: getPublicAppUrlForServer(),

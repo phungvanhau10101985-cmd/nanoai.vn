@@ -100,27 +100,11 @@ export function GuestWidgetOrderDepositPanel({
   return (
     <div className={`rounded-lg border border-amber-300/60 bg-amber-50/50 p-2.5 dark:border-amber-700/50 dark:bg-amber-950/25 ${className}`}>
       <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">Đặt cọc chuyển khoản</p>
-      <div className="mt-1.5 space-y-0 overflow-hidden rounded-md border border-border/60 bg-background/80 px-0">
-        {bank ? <CompactCopyRow label="Ngân hàng" value={bank} copyText={bank} /> : null}
-        {acc ? <CompactCopyRow label="STK" value={acc} copyText={acc} monospace /> : null}
-        {holder ? <CompactCopyRow label="Chủ TK" value={holder} copyText={holder} /> : null}
-        {amount > 0 ? (
-          <CompactCopyRow
-            label="Số tiền"
-            value={<>{new Intl.NumberFormat('vi-VN').format(amount)}đ</>}
-            copyText={String(amount)}
-            monospace
-          />
-        ) : null}
-        {transferMemo ? (
-          <CompactCopyRow label="Nội dung CK" value={<span className="font-mono">{transferMemo}</span>} copyText={transferMemo} monospace />
-        ) : null}
-      </div>
-      <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">
-        {isSepay
-          ? `Chuyển đúng số tiền và «Nội dung CK» (memo). Quét QR để điền sẵn. ${brand} nhận xác nhận tự động — không cần gửi ảnh biên lai.`
-          : 'Nhập đúng nội dung chuyển khoản. Có thể quét QR để điền sẵn.'}
-      </p>
+      {amount > 0 ? (
+        <p className="mt-1 text-center text-sm font-extrabold tabular-nums text-amber-950 dark:text-amber-100">
+          {new Intl.NumberFormat('vi-VN').format(amount)}đ
+        </p>
+      ) : null}
       <div className="mt-2 flex justify-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -144,11 +128,22 @@ export function GuestWidgetOrderDepositPanel({
               Tải mã QR đơn hàng
             </a>
           </Button>
-          <p className="text-center text-[10px] text-muted-foreground">
-            {`Tải ảnh QR về máy — chuyển khoản đúng «Nội dung CK»; ${brand} nhận xác nhận tự động, không cần ảnh biên lai.`}
-          </p>
         </div>
-      ) : (
+      ) : null}
+      <div className="mt-2 space-y-0 overflow-hidden rounded-md border border-border/60 bg-background/80 px-0">
+        {bank ? <CompactCopyRow label="Ngân hàng" value={bank} copyText={bank} /> : null}
+        {acc ? <CompactCopyRow label="STK" value={acc} copyText={acc} monospace /> : null}
+        {holder ? <CompactCopyRow label="Chủ TK" value={holder} copyText={holder} /> : null}
+        {transferMemo ? (
+          <CompactCopyRow label="Nội dung CK" value={<span className="font-mono">{transferMemo}</span>} copyText={transferMemo} monospace />
+        ) : null}
+      </div>
+      <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">
+        {isSepay
+          ? `Quét QR, chuyển đúng số tiền và «Nội dung CK». ${brand} nhận xác nhận tự động — không cần gửi ảnh biên lai.`
+          : 'Nhập đúng nội dung chuyển khoản. Có thể quét QR để điền sẵn.'}
+      </p>
+      {!isSepay ? (
         <div className="mt-2">
           <Button
             type="button"
@@ -170,7 +165,7 @@ export function GuestWidgetOrderDepositPanel({
             Chỉ gửi biên lai qua nút này (đúng mã đơn); không gửi qua ô ảnh chat.
           </p>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

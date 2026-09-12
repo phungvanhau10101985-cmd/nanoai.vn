@@ -332,8 +332,21 @@ function OrderPaymentPanel({
       ) : null}
       {!depositDone ? (
         <>
+      <div className="mt-2 flex justify-center px-0.5">
+        {/* eslint-disable-next-line @next/next/no-img-element -- URL VietQR ngoài, domain động */}
+        <img
+          src={qrUrl}
+          alt="Mã QR chuyển khoản thanh toán đơn hàng"
+          width={280}
+          height={280}
+          className={`h-auto w-full max-w-[280px] rounded-md border object-contain ${
+            onViolet ? 'border-white/30 bg-white' : 'border-border/60 bg-white'
+          }`}
+          loading="lazy"
+        />
+      </div>
       <div
-        className={`mt-1.5 space-y-0 overflow-hidden rounded-md border px-1 sm:px-1.5 ${
+        className={`mt-2 space-y-0 overflow-hidden rounded-md border px-1 sm:px-1.5 ${
           onViolet ? 'border-white/15 bg-black/10' : 'border-border/60 bg-background/50'
         }`}
       >
@@ -390,29 +403,16 @@ function OrderPaymentPanel({
       </div>
       <p className={`mt-1.5 text-[10px] leading-snug sm:text-[11px] ${onViolet ? 'text-white/75' : 'text-muted-foreground'}`}>
         {isEwallet ? (
-          <>Quét mã QR bên dưới bằng app ví điện tử, nhập đúng số tiền rồi gửi ảnh biên lai sau khi chuyển.</>
+          <>Quét mã QR bằng app ví điện tử, nhập đúng số tiền rồi gửi ảnh biên lai sau khi chuyển.</>
         ) : isSepay ? (
           <>
-            «Nội dung CK» là memo trên app — nhập đúng chuỗi bên trên (hoặc quét QR). {shopBrand} nhận xác nhận tự động —{' '}
+            Quét QR rồi nhập đúng «Nội dung CK». {shopBrand} nhận xác nhận tự động —{' '}
             <strong className={onViolet ? 'text-white' : 'text-foreground'}>không cần gửi ảnh biên lai</strong>.
           </>
         ) : (
-          <>«Nội dung CK» chính là nội dung chuyển khoản (memo) trên app — nhập đúng chuỗi bên trên. Có thể quét QR để điền sẵn.</>
+          <>Quét QR rồi nhập đúng «Nội dung CK» (memo trên app). Có thể quét QR để điền sẵn.</>
         )}
       </p>
-      <div className="mt-2 flex justify-center px-0.5">
-        {/* eslint-disable-next-line @next/next/no-img-element -- URL VietQR ngoài, domain động */}
-        <img
-          src={qrUrl}
-          alt="Mã QR chuyển khoản thanh toán đơn hàng"
-          width={280}
-          height={280}
-          className={`h-auto w-full max-w-[280px] rounded-md border object-contain ${
-            onViolet ? 'border-white/30 bg-white' : 'border-border/60 bg-white'
-          }`}
-          loading="lazy"
-        />
-      </div>
         </>
       ) : null}
       {depositDone && orderId && orderPaymentProof?.onViewOrderDetail ? (

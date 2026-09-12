@@ -1,6 +1,7 @@
 import { deliverUserNotificationPg } from '@/lib/notifications/deliver-user-notification-pg'
-import { fetchMessagingPartnerOwnerUserIdFromPg } from '@/lib/db/messaging-partners-pg'
+import { fetchMessagingPartnerOwnerUserIdFromPg, fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
+import { partnerShopEmailBrandName } from '@/lib/messaging/partner-shop-email-brand'
 
 /**
  * M4.1 (docs/PARTNER_WEBSITE_AND_LANDING_UPGRADE_188.md) — thông báo cho MERCHANT (chủ shop) khi có
@@ -23,12 +24,18 @@ async function notifyPartnerOwner(input: {
   try {
     const ownerUserId = await fetchMessagingPartnerOwnerUserIdFromPg(input.partnerId)
     if (!ownerUserId) return
+    const partners = await fetchMessagingPartnersByIdsFromPg([input.partnerId])
+    const shopName = partnerShopEmailBrandName(partners?.[0])
     await deliverUserNotificationPg({
       user_id: ownerUserId,
       type: input.type,
       title: input.title,
       body: input.body,
-      meta: { push_url: input.pushUrl, partner_id: input.partnerId },
+      meta: {
+        push_url: input.pushUrl,
+        partner_id: input.partnerId,
+        shop_display_name: shopName,
+      },
     })
   } catch (e) {
     console.warn('[notifyPartnerOwner]', input.type, e)

@@ -166,6 +166,25 @@ const PW_SHOP_CART_COMPACT_LAYOUT_CSS = `.pw-shop-cart-row{grid-template-columns
 .pw-shop-account-content:has(.pw-shop-cart){padding:8px 4px 12px;border-radius:12px}
 .pw-shop-main:has(.pw-shop-cart){padding-bottom:calc(24px + 80px)}`
 
+/** Mobile deposit: QR + STK first, compact money strip, no long hints. */
+const PW_SHOP_DEPOSIT_COMPACT_LAYOUT_CSS = `.pw-shop-account-content:has(.pw-shop-deposit){padding:4px 0 12px;border:none;border-radius:0;box-shadow:none;background:transparent}
+.pw-shop-deposit{border-radius:0;border-left:none;border-right:none}
+.pw-shop-deposit-head{padding:10px 12px}
+.pw-shop-deposit-head h1{font-size:16px}
+.pw-shop-deposit-money{grid-template-columns:repeat(3,minmax(0,1fr))}
+.pw-shop-deposit-money>div{padding:8px 6px;text-align:center;border-right:1px solid var(--pw-border,#e5e7eb)}
+.pw-shop-deposit-money .v{font-size:13px;line-height:1.2}
+.pw-shop-deposit-money-hint,.pw-shop-deposit-instruct,.pw-shop-deposit-qr>.pw-shop-deposit-hint{display:none}
+.pw-shop-deposit-pay,.pw-shop-deposit-info,.pw-shop-deposit-col{padding:10px 12px}
+.pw-shop-deposit-qr{padding:10px 8px}
+.pw-shop-deposit-qr img{width:min(86vw,300px)}
+.pw-shop-deposit-qr-dl{max-width:none}
+.pw-shop-deposit-copy .pw-shop-btn{width:100%}
+.pw-shop-deposit-memo-row{flex-direction:column;align-items:stretch}
+.pw-shop-deposit-extra{padding:8px 12px 12px}
+.pw-shop-deposit-opts{flex-direction:column;gap:10px}
+.pw-shop-main:has(.pw-shop-deposit){padding-bottom:calc(24px + 80px)}`
+
 /** Fashion-orange aligned chrome for React platform shop pages + HTML factory chrome. */
 export function buildPartnerSiteShopThemeCss(theme: PartnerWebsiteTheme): string {
   return `:root{
@@ -469,18 +488,20 @@ ${PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS}
 .pw-shop-deposit-head{background:linear-gradient(90deg,var(--pw-primary),var(--pw-accent));color:#fff;padding:14px 16px}
 .pw-shop-deposit-head h1{margin:0;font-size:18px;font-weight:800}
 .pw-shop-deposit-head p{margin:4px 0 0;font-size:13px;opacity:.92}
-.pw-shop-deposit-money{display:grid;grid-template-columns:1fr;background:var(--pw-surface,#f8fafc);border-bottom:1px solid var(--pw-border,#e5e7eb)}
-@media(min-width:640px){.pw-shop-deposit-money{grid-template-columns:repeat(3,1fr)}}
-.pw-shop-deposit-money>div{padding:12px 14px;text-align:center}
-@media(min-width:640px){.pw-shop-deposit-money>div{text-align:left;border-right:1px solid var(--pw-border,#e5e7eb)}}
+.pw-shop-deposit-money{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:var(--pw-surface,#f8fafc);border-bottom:1px solid var(--pw-border,#e5e7eb)}
+.pw-shop-deposit-money>div{padding:10px 10px;text-align:center;border-right:1px solid var(--pw-border,#e5e7eb)}
+@media(min-width:900px){.pw-shop-deposit-money>div{padding:12px 14px;text-align:left}}
 .pw-shop-deposit-money>div:last-child{border-right:none}
 .pw-shop-deposit-money .k{margin:0;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--pw-muted,#6b7280)}
 .pw-shop-deposit-money .v{margin:2px 0 0;font-size:18px;font-weight:800;color:var(--pw-text,#111);font-variant-numeric:tabular-nums}
 .pw-shop-deposit-money .need{background:color-mix(in srgb, var(--pw-buy) 10%, #fff)}
 .pw-shop-deposit-money .need .v{color:var(--pw-buy)}
+.pw-shop-deposit-money-hint{margin:2px 0 0;font-size:11px;line-height:1.3;color:var(--pw-muted,#6b7280)}
 .pw-shop-deposit-body{display:grid;grid-template-columns:1fr}
-@media(min-width:900px){.pw-shop-deposit-body{grid-template-columns:5fr 7fr}}
-.pw-shop-deposit-col{padding:14px 16px;display:grid;gap:12px}
+.pw-shop-deposit-pay{order:1}
+.pw-shop-deposit-info{order:2}
+@media(min-width:900px){.pw-shop-deposit-body{grid-template-columns:5fr 7fr}.pw-shop-deposit-info{order:1}.pw-shop-deposit-pay{order:2}}
+.pw-shop-deposit-col,.pw-shop-deposit-pay,.pw-shop-deposit-info{padding:14px 16px;display:grid;gap:12px;align-content:start}
 .pw-shop-deposit-box{border:1px solid var(--pw-border,#e5e7eb);border-radius:10px;padding:12px;background:var(--pw-bg,#fff)}
 .pw-shop-deposit-box h2,.pw-shop-deposit-box p.lbl{margin:0 0 8px;font-size:14px;font-weight:700}
 .pw-shop-deposit-opts{display:flex;flex-wrap:wrap;gap:16px}
@@ -492,8 +513,23 @@ ${PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS}
 .pw-shop-deposit-row .k{color:var(--pw-muted,#6b7280)}
 .pw-shop-deposit-row .v{font-weight:600;text-align:right;word-break:break-all}
 .pw-shop-deposit-memo{font-family:ui-monospace,Menlo,monospace;font-weight:800;background:var(--pw-surface,#f3f4f6);border:1px solid var(--pw-border,#e5e7eb);border-radius:8px;padding:10px 12px;word-break:break-all}
+.pw-shop-deposit-transfer{margin-top:4px}
+.pw-shop-deposit-copy{margin-top:8px}
+.pw-shop-deposit-memo-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pw-shop-deposit-extra{padding:12px 16px;display:grid;gap:10px;border-top:1px solid var(--pw-border,#e5e7eb)}
 .pw-shop-deposit-qr{display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px}
 .pw-shop-deposit-qr img{width:min(280px,100%);height:auto;border-radius:8px;background:#fff}
+.pw-shop-deposit-qr-need{margin:0;font-size:15px;font-weight:800;color:var(--pw-buy);font-variant-numeric:tabular-nums}
+.pw-shop-deposit-qr-dl{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;max-width:240px}
+.pw-shop-deposit-spin{display:inline-block;width:14px;height:14px;border:2px solid var(--pw-border,#d1d5db);border-top-color:var(--pw-primary);border-radius:999px;animation:pw-shop-spin .7s linear infinite}
+@keyframes pw-shop-spin{to{transform:rotate(360deg)}}
+.pw-shop-deposit-qr-modal{position:fixed;inset:0;z-index:120;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.6);padding:16px}
+@media(min-width:640px){.pw-shop-deposit-qr-modal{align-items:center}}
+.pw-shop-deposit-qr-modal-card{width:100%;max-width:24rem;border-radius:16px;background:#fff;padding:16px;box-shadow:0 20px 40px rgba(0,0,0,.18);display:grid;gap:12px}
+.pw-shop-deposit-qr-modal-card h2{margin:0;text-align:center;font-size:16px;color:#111827}
+.pw-shop-deposit-qr-modal-card p{margin:0;text-align:center;font-size:14px;line-height:1.45;color:#4b5563}
+.pw-shop-deposit-qr-modal-img{display:flex;justify-content:center;border:1px solid var(--pw-border,#e5e7eb);border-radius:12px;background:var(--pw-surface,#f9fafb);padding:12px}
+.pw-shop-deposit-qr-modal-img img{width:min(100%,280px);height:auto}
 .pw-shop-deposit-hint{margin:0;font-size:12px;line-height:1.45;color:var(--pw-muted,#6b7280)}
 .pw-shop-deposit-success-head{background:linear-gradient(90deg,var(--pw-primary),var(--pw-accent));color:#fff;padding:20px 16px;display:flex;gap:12px;align-items:flex-start}
 .pw-shop-deposit-success-head .mark{flex-shrink:0;width:40px;height:40px;border-radius:999px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center}
@@ -775,6 +811,8 @@ html[data-pw-scene-lock="desktop"] .pw-pdp-spec-grid,html[data-pw-scene-lock="la
 .pw-shop-cart-summary .pw-shop-form textarea{min-height:5.5rem}
 @media(max-width:639px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]){${PW_SHOP_CART_COMPACT_LAYOUT_CSS}}}
 html[data-pw-edit-device="mobile"],html[data-pw-scene-lock="mobile"]{${PW_SHOP_CART_COMPACT_LAYOUT_CSS}}
+@media(max-width:899px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]){${PW_SHOP_DEPOSIT_COMPACT_LAYOUT_CSS}}}
+html[data-pw-edit-device="mobile"],html[data-pw-scene-lock="mobile"],html[data-pw-edit-device="tablet"],html[data-pw-scene-lock="tablet"]{${PW_SHOP_DEPOSIT_COMPACT_LAYOUT_CSS}}
 .pw-shop-form{display:grid;gap:12px;max-width:480px}
 .pw-shop-form label{display:grid;gap:6px;font-size:15px;font-weight:600;color:var(--pw-text)}
 .pw-shop-form input,.pw-shop-form textarea,.pw-shop-form select{padding:11px 12px;border:1px solid #9ca3af;border-radius:8px;font:inherit;font-size:15px;line-height:1.4;color:var(--pw-text);background:#fff}

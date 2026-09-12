@@ -71,5 +71,8 @@ test('invite email has translations for all web locales', () => {
     assert.ok(mail.subject.includes('Demo Shop'), locale)
     assert.ok(mail.html.includes('https://example.com/admin'), locale)
     assert.ok(mail.title.includes('Demo Shop'), locale)
+    assert.doesNotMatch(mail.subject, /NanoAI/i)
+    assert.doesNotMatch(mail.text, /NanoAI/i)
+    assert.doesNotMatch(mail.html, /NanoAI/i)
   }
 })
