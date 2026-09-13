@@ -404,7 +404,7 @@ export function PartnerSiteShopProductClient({
   }, [options?.price_hint, product, tracking])
 
   useEffect(() => {
-    if (!ready) return
+    if (!product.id) return
     void fetch(partnerSitePersonalizationApiPath(siteSlug, 'events'), {
       method: 'POST',
       credentials: 'same-origin',
@@ -420,7 +420,7 @@ export function PartnerSiteShopProductClient({
         }
       }
     })
-  }, [authHeaders, captureFromResponse, product.id, ready, siteSlug])
+  }, [authHeaders, captureFromResponse, product.id, siteSlug])
 
   useEffect(() => {
     setLikesCount(catalogLikes)

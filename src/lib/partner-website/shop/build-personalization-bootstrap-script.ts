@@ -1,6 +1,7 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import { FEATURED_CATEGORY_TILE_DEFAULT } from '@/lib/partner-website/shop/featured-categories-constants'
 import { PW_FEATURED_MARQUEE_JS } from '@/lib/partner-website/shop/featured-category-marquee-js'
+import { PW_ENSURE_GUEST_BROWSER_SESSION_JS } from '@/lib/partner-website/shop/partner-site-guest-browser-session'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import { PW_SHOP_CARD_IMG_JS } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PW_PRODUCT_GRID_PAGE_JS } from '@/lib/partner-website/shop/pw-product-grid-page'
@@ -295,10 +296,18 @@ ${PW_FEATURED_MARQUEE_JS}
 var SESSION_KEY='app_guest_session_id';
 var SESSION_KEY_LEGACY='nanoai_guest_session_id';
 var SESSION_HDR='x-guest-session-id';
+var ACCOUNT_KEY='app_guest_account_id';
+var ACCOUNT_KEY_LEGACY='nanoai_guest_account_id';
+var ACCOUNT_HDR='x-guest-account-id';
 function readCookie(n){var p=document.cookie.split(';');for(var i=0;i<p.length;i++){var x=p[i].trim().split('=');if(x[0]===n)return decodeURIComponent(x.slice(1).join('=')||'');}return '';}
-function sessionId(){try{var ls=localStorage.getItem(SESSION_KEY)||localStorage.getItem(SESSION_KEY_LEGACY)||'';if(ls)return ls;}catch(e){}return readCookie('app_guest_session_sync');}
-function authHeaders(){var h={};var s=sessionId();if(s)h[SESSION_HDR]=s;return h;}
-function captureSession(res){var sid=res.headers.get(SESSION_HDR);if(sid){try{localStorage.setItem(SESSION_KEY,sid);localStorage.setItem(SESSION_KEY_LEGACY,sid);}catch(e){}}}
+${PW_ENSURE_GUEST_BROWSER_SESSION_JS}
+function sessionId(){return pwEnsureGuestSessionId();}
+function accountId(){try{var ls=localStorage.getItem(ACCOUNT_KEY)||localStorage.getItem(ACCOUNT_KEY_LEGACY)||'';if(ls)return ls;}catch(e){}return readCookie('app_guest_account_sync')||readCookie(ACCOUNT_KEY);}
+function authHeaders(){var h={};var s=sessionId(),a=accountId();if(s)h[SESSION_HDR]=s;if(a)h[ACCOUNT_HDR]=a;return h;}
+function captureSession(res){
+  var sid=res.headers.get(SESSION_HDR);if(sid){try{localStorage.setItem(SESSION_KEY,sid);localStorage.setItem(SESSION_KEY_LEGACY,sid);}catch(e){}}
+  var aid=res.headers.get(ACCOUNT_HDR);if(aid){try{localStorage.setItem(ACCOUNT_KEY,aid);localStorage.setItem(ACCOUNT_KEY_LEGACY,aid);}catch(e){}}
+}
 function apiFetch(path,opts){
   opts=opts||{};opts.credentials='same-origin';
   opts.headers=Object.assign({},authHeaders(),opts.headers||{});

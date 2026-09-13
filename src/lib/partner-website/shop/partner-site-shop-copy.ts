@@ -367,6 +367,9 @@ export type PartnerSiteShopCopy = {
   wishlistEmpty: string
   recentlyViewedTitle: string
   recentlyViewedEmpty: string
+  recentlyViewedCount: string
+  recentlyViewedSyncNote: string
+  recentlyViewedExplore: string
   chatOpenLabel: string
   chatCloseLabel: string
   chatFullPageLabel: string
@@ -937,7 +940,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     wishlistTitle: 'Yêu thích',
     wishlistEmpty: 'Chưa có sản phẩm yêu thích.',
     recentlyViewedTitle: 'Vừa xem',
-    recentlyViewedEmpty: 'Chưa xem sản phẩm nào.',
+    recentlyViewedEmpty: 'Bạn chưa xem sản phẩm nào.',
+    recentlyViewedCount: 'Đã xem gần đây ({count})',
+    recentlyViewedSyncNote:
+      'Không cần đăng nhập vẫn xem được danh sách đã xem trong phiên trình duyệt này. Đăng nhập để đồng bộ và giữ trên tài khoản (phiên khách được gộp vào tài khoản khi đăng nhập).',
+    recentlyViewedExplore: 'Khám phá sản phẩm',
     chatOpenLabel: 'Mở chat',
     chatCloseLabel: 'Đóng',
     chatFullPageLabel: 'Mở toàn trang',
@@ -1501,7 +1508,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     wishlistTitle: 'Favorites',
     wishlistEmpty: 'No favorite products yet.',
     recentlyViewedTitle: 'Recently viewed',
-    recentlyViewedEmpty: 'No recently viewed products.',
+    recentlyViewedEmpty: 'You have not viewed any products yet.',
+    recentlyViewedCount: 'Recently viewed ({count})',
+    recentlyViewedSyncNote:
+      'You can see this list in this browser without signing in. Sign in to sync and keep it on your account (the guest session merges when you log in).',
+    recentlyViewedExplore: 'Explore products',
     chatOpenLabel: 'Open chat',
     chatCloseLabel: 'Close',
     chatFullPageLabel: 'Open full page',
@@ -2061,7 +2072,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     wishlistTitle: '收藏',
     wishlistEmpty: '暂无收藏商品。',
     recentlyViewedTitle: '最近浏览',
-    recentlyViewedEmpty: '暂无浏览记录。',
+    recentlyViewedEmpty: '您还没有浏览过商品。',
+    recentlyViewedCount: '最近浏览（{count}）',
+    recentlyViewedSyncNote:
+      '无需登录也可在本浏览器查看浏览记录。登录后会同步并保存在账户中（访客会话会在登录时合并）。',
+    recentlyViewedExplore: '去逛商品',
     chatOpenLabel: '打开聊天',
     chatCloseLabel: '关闭',
     chatFullPageLabel: '全页打开',
@@ -2623,7 +2638,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     wishlistTitle: 'お気に入り',
     wishlistEmpty: 'お気に入りはまだありません。',
     recentlyViewedTitle: '最近見た商品',
-    recentlyViewedEmpty: '閲覧履歴はありません。',
+    recentlyViewedEmpty: 'まだ閲覧した商品はありません。',
+    recentlyViewedCount: '最近見た商品（{count}）',
+    recentlyViewedSyncNote:
+      'ログインしなくてもこのブラウザで閲覧履歴を見られます。ログインするとアカウントに同期・保存されます（ゲストセッションはログイン時に統合されます）。',
+    recentlyViewedExplore: '商品を見る',
     chatOpenLabel: 'チャットを開く',
     chatCloseLabel: '閉じる',
     chatFullPageLabel: '全画面で開く',
@@ -3185,7 +3204,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     wishlistTitle: '찜',
     wishlistEmpty: '찜한 상품이 없습니다.',
     recentlyViewedTitle: '최근 본 상품',
-    recentlyViewedEmpty: '최근 본 상품이 없습니다.',
+    recentlyViewedEmpty: '아직 본 상품이 없습니다.',
+    recentlyViewedCount: '최근 본 상품 ({count})',
+    recentlyViewedSyncNote:
+      '로그인하지 않아도 이 브라우저에서 최근 본 목록을 볼 수 있습니다. 로그인하면 계정에 동기화·저장됩니다(게스트 세션은 로그인 시 합쳐집니다).',
+    recentlyViewedExplore: '상품 둘러보기',
     chatOpenLabel: '채팅 열기',
     chatCloseLabel: '닫기',
     chatFullPageLabel: '전체 페이지 열기',

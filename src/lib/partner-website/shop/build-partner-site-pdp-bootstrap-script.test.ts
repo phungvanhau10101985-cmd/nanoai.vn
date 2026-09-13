@@ -22,6 +22,13 @@ test('PDP bootstrap hydrates reviews, Q&A, and options instead of clearing cards
   assert.match(s, /data-pw-pdp-video-thumb/)
   assert.match(s, /ACCOUNT_HDR='x-guest-account-id'/)
   assert.match(s, /pw-recently-viewed-updated/)
+  assert.match(s, /function pwEnsureGuestSessionId/)
+  assert.match(s, /data-pw-region="pdp-info"/)
+  assert.match(s, /data-nanoai-inventory/)
+  assert.doesNotMatch(
+    s,
+    /querySelector\('\[data-pw-region="pdp-info"\],\[data-pw-region="gallery"\],\.pw-pdp,\[data-pw-page="product"\]'\)/
+  )
   assert.match(s, /closest\('\[data-pw-el="variant"\],\[data-pw-pdp-option\]'\)/)
   assert.match(s, /if\(info\.querySelector\('\[data-pw-pdp-option="'\+kind\+'"\]'\)\)return/)
   assert.match(s, /function rehomePdpBuyBox/)

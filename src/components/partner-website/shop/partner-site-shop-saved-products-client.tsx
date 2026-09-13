@@ -8,9 +8,9 @@ import type { PartnerSitePersonalizationProduct } from '@/lib/partner-website/sh
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   partnerSiteCartPath,
+  partnerSiteHomePath,
   partnerSitePersonalizationApiPath,
   partnerSiteProductPath,
-  partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { PartnerSiteListingProductCard } from '@/components/partner-website/shop/partner-site-listing-product-card'
@@ -24,6 +24,8 @@ type Props = {
   mode: Mode
   initialProducts?: PartnerSitePersonalizationProduct[]
 }
+
+const RECENTLY_VIEWED_LIMIT = 24
 
 export function PartnerSiteShopSavedProductsClient({
   siteSlug,
@@ -41,9 +43,11 @@ export function PartnerSiteShopSavedProductsClient({
   const [busyId, setBusyId] = useState<string | null>(null)
   const [message, setMessage] = useState('')
 
-  const title = mode === 'favorites' ? t.wishlistTitle : t.recentlyViewedTitle
-  const empty = mode === 'favorites' ? t.wishlistEmpty : t.recentlyViewedEmpty
-  const apiTail = mode === 'favorites' ? 'favorites?limit=48' : 'recently-viewed?limit=48'
+  const isViewed = mode === 'recently-viewed'
+  const title = isViewed ? t.accountViewedProducts : t.wishlistTitle
+  const empty = isViewed ? t.recentlyViewedEmpty : t.wishlistEmpty
+  const apiTail = isViewed ? `recently-viewed?limit=${RECENTLY_VIEWED_LIMIT}` : 'favorites?limit=48'
+  const homeHref = partnerSiteHomePath(siteSlug, { customDomain })
 
   const load = useCallback(async () => {
     const res = await fetch(partnerSitePersonalizationApiPath(siteSlug, apiTail), {
@@ -65,6 +69,15 @@ export function PartnerSiteShopSavedProductsClient({
       cancelled = true
     }
   }, [initialProducts, isAuthenticated, load])
+
+  useEffect(() => {
+    if (!isViewed) return
+    const onViewed = () => {
+      void load()
+    }
+    document.addEventListener('pw-recently-viewed-updated', onViewed)
+    return () => document.removeEventListener('pw-recently-viewed-updated', onViewed)
+  }, [isViewed, load])
 
   async function toggleFavorite(product: PartnerSitePersonalizationProduct) {
     if (busyId) return
@@ -93,7 +106,7 @@ export function PartnerSiteShopSavedProductsClient({
   }
 
   async function clearRecentlyViewed() {
-    if (busyId || mode !== 'recently-viewed' || products.length === 0) return
+    if (busyId || !isViewed || products.length === 0) return
     setBusyId('clear')
     setMessage('')
     try {
@@ -106,6 +119,11 @@ export function PartnerSiteShopSavedProductsClient({
       if (!res.ok) return
       setProducts([])
       setMessage(t.recentlyViewedCleared)
+      try {
+        document.dispatchEvent(new Event('pw-recently-viewed-updated'))
+      } catch {
+        /* ignore */
+      }
     } finally {
       setBusyId(null)
     }
@@ -115,7 +133,12 @@ export function PartnerSiteShopSavedProductsClient({
     <section data-pw-region={PW_REGION.catalog} data-pw-catalog>
       <div className="pw-shop-page-head">
         <h1 data-pw-el={PW_EL.sectionTitle}>{title}</h1>
-        {mode === 'recently-viewed' && !loading && products.length > 0 ? (
+        {isViewed ? (
+          <p className="pw-shop-muted" style={{ margin: '4px 0 0' }}>
+            {t.recentlyViewedCount.replace('{count}', String(products.length))}
+          </p>
+        ) : null}
+        {isViewed && !loading && products.length > 0 ? (
           <button
             type="button"
             className="pw-shop-btn pw-shop-btn-outline"
@@ -126,12 +149,21 @@ export function PartnerSiteShopSavedProductsClient({
           </button>
         ) : null}
       </div>
+      {isViewed ? (
+        <p className="pw-shop-muted" style={{ marginTop: 8, maxWidth: 720, lineHeight: 1.45 }}>
+          {t.recentlyViewedSyncNote}
+        </p>
+      ) : null}
       {loading ? <p className="pw-shop-muted">…</p> : null}
       {!loading && products.length === 0 ? (
-        <p className="pw-shop-muted">
-          {empty}{' '}
-          <Link href={partnerSiteProductsPath(siteSlug, { customDomain })}>{t.backToShop}</Link>
-        </p>
+        <div className="pw-shop-empty" style={{ marginTop: 20, textAlign: 'center' }}>
+          <p className="pw-shop-muted">{empty}</p>
+          <p style={{ marginTop: 12 }}>
+            <Link href={homeHref} className="pw-shop-btn pw-shop-btn-buy">
+              {isViewed ? t.recentlyViewedExplore : t.backToShop}
+            </Link>
+          </p>
+        </div>
       ) : null}
       {message ? <p className="pw-shop-muted">{message}</p> : null}
       <div className="pw-shop-grid" style={{ marginTop: 20 }} data-pw-el={PW_EL.grid} data-pw-grid>
@@ -157,7 +189,7 @@ export function PartnerSiteShopSavedProductsClient({
           )
         })}
       </div>
-      {products.length > 0 ? (
+      {!isViewed && products.length > 0 ? (
         <p style={{ marginTop: 24 }}>
           <Link href={partnerSiteCartPath(siteSlug, { customDomain })} className="pw-shop-btn">
             {t.navCart}

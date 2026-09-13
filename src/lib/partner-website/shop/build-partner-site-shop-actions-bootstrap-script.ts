@@ -14,6 +14,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { partnerSiteAppliedPromoStorageKey } from '@/lib/partner-website/shop/partner-site-applied-promo'
 import { PW_CHROME_COUNT_BADGE_RUNTIME_JS } from '@/lib/partner-website/shop/chrome-count-badges'
+import { PW_ENSURE_GUEST_BROWSER_SESSION_JS } from '@/lib/partner-website/shop/partner-site-guest-browser-session'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import {
   CART_ADDED_MODAL_COPY,
@@ -208,7 +209,8 @@ var ACCOUNT_KEY_LEGACY='nanoai_guest_account_id';
 var ACCOUNT_HDR='x-guest-account-id';
 var UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function readCookie(n){var p=document.cookie.split(';');for(var i=0;i<p.length;i++){var x=p[i].trim().split('=');if(x[0]===n)return decodeURIComponent(x.slice(1).join('=')||'');}return '';}
-function sessionId(){try{var ls=localStorage.getItem(SESSION_KEY)||localStorage.getItem(SESSION_KEY_LEGACY)||'';if(ls)return ls;}catch(e){}return readCookie('app_guest_session_sync');}
+${PW_ENSURE_GUEST_BROWSER_SESSION_JS}
+function sessionId(){return pwEnsureGuestSessionId();}
 function accountId(){try{var ls=localStorage.getItem(ACCOUNT_KEY)||localStorage.getItem(ACCOUNT_KEY_LEGACY)||'';if(ls)return ls;}catch(e){}return readCookie('app_guest_account_sync')||readCookie(ACCOUNT_KEY);}
 function authHeaders(){var h={};var s=sessionId(),a=accountId();if(s)h[SESSION_HDR]=s;if(a)h[ACCOUNT_HDR]=a;return h;}
 function pageLocation(){try{if(window.top&&window.top.location&&window.top.location.href)return window.top.location;}catch(e){}return location;}

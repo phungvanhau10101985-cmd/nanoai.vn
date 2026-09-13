@@ -39,6 +39,7 @@ export default async function PartnerSiteRecentlyViewedPage({ params }: Props) {
     partnerId: shop.partnerId,
     siteSlug: shop.site.siteSlug,
     mode: 'recently-viewed',
+    limit: 24,
   })
 
   return (

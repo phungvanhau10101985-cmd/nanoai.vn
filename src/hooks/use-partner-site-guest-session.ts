@@ -21,6 +21,7 @@ import {
   shouldPartnerSiteShopSkipAuthSync,
 } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
+import { ensurePartnerSiteGuestBrowserSessionId } from '@/lib/partner-website/shop/partner-site-guest-browser-session'
 
 function readCookie(name: string): string {
   if (typeof document === 'undefined') return ''
@@ -86,7 +87,7 @@ function clearGuestSessionBootstrap(siteSlug: string) {
 
 async function loadGuestSessionBootstrap(siteSlug: string): Promise<GuestSessionBootstrap> {
   const skipAuthSync = shouldPartnerSiteShopSkipAuthSync(siteSlug)
-  let sessionId = readStoredSessionId()
+  let sessionId = ensurePartnerSiteGuestBrowserSessionId() || readStoredSessionId()
   let accountId = skipAuthSync ? '' : readStoredAccountId()
 
   const sessionRes = await fetch(partnerSiteSessionApiPath(siteSlug), {
@@ -168,8 +169,11 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
 
   const authHeaders = useCallback((): Record<string, string> => {
     const h: Record<string, string> = {}
-    const sid = sessionRef.current.trim()
-    if (sid) h[MESSAGING_GUEST_SESSION_HEADER] = sid
+    const sid = sessionRef.current.trim() || ensurePartnerSiteGuestBrowserSessionId()
+    if (sid) {
+      sessionRef.current = sid
+      h[MESSAGING_GUEST_SESSION_HEADER] = sid
+    }
     const skip = shouldPartnerSiteShopSkipAuthSync(siteSlug)
     if (skip) {
       h[PARTNER_SITE_SHOP_SKIP_AUTH_SYNC_HEADER] = '1'
