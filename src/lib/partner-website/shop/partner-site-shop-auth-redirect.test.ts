@@ -86,6 +86,17 @@ test('oauth next maps custom-domain return onto /site/{slug}', () => {
   )
 })
 
+test('custom-domain redirect strips the internal /site/{slug} prefix', () => {
+  assert.equal(
+    sanitizePartnerShopReturnLocation(
+      '188-shop',
+      '/site/188-shop/account?tab=orders#latest',
+      { customDomain: true }
+    ),
+    '/account?tab=orders#latest'
+  )
+})
+
 test('login path is detected on platform and custom domain', () => {
   assert.equal(isPartnerShopLoginPath('/login', '188-shop'), true)
   assert.equal(isPartnerShopLoginPath('/site/188-shop/login', '188-shop'), true)

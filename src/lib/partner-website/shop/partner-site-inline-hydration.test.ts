@@ -129,3 +129,23 @@ test('React chrome runtime binds click handlers in layout effect', async () => {
     /function VisualHomeChromeRuntime[\s\S]*useLayoutEffect\(\(\) => \{\s*mountHtmlBootstraps/
   )
 })
+
+test('custom-domain Google login has a native href before hydration', async () => {
+  const authPanel = await readFile(
+    new URL('../../../components/partner-website/shop/partner-site-shop-auth-panel.tsx', import.meta.url),
+    'utf8'
+  )
+  const siteLayout = await readFile(
+    new URL('../../../app/site/[slug]/layout.tsx', import.meta.url),
+    'utf8'
+  )
+  const handoffBoot = await readFile(
+    new URL('../../../components/partner-website/shop/partner-site-google-auth-handoff-boot.tsx', import.meta.url),
+    'utf8'
+  )
+  assert.match(authPanel, /<a[\s\S]*className="pw-shop-btn-google"[\s\S]*href=\{bridgeGoogleHref/)
+  assert.doesNotMatch(authPanel, /onClick=\{handleBridgeGoogleLogin\}/)
+  assert.match(siteLayout, /<PartnerSiteGoogleAuthHandoffBoot/)
+  assert.match(handoffBoot, /useLayoutEffect/)
+  assert.match(handoffBoot, /window\.location\.replace\(window\.location\.href\)/)
+})

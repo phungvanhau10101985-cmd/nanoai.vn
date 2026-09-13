@@ -556,9 +556,9 @@ ${PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS}
 .pw-shop-auth-panel-check input{margin-top:3px;flex-shrink:0}
 .pw-shop-auth-panel form{display:grid;gap:12px}
 .pw-shop-auth-panel-welcome{margin:0 0 4px;font-size:15px;font-weight:700;color:var(--pw-text)}
-.pw-shop-btn-google{display:inline-flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px 18px;border:1px solid #d1d5db;border-radius:8px;background:#fff;color:#374151;font-weight:600;font-size:14px;cursor:pointer;font-family:inherit}
-.pw-shop-btn-google:hover:not(:disabled){background:#f9fafb;border-color:#9ca3af}
-.pw-shop-btn-google:disabled{opacity:.45;cursor:not-allowed}
+.pw-shop-btn-google{display:inline-flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px 18px;border:1px solid #d1d5db;border-radius:8px;background:#fff;color:#374151;font-weight:600;font-size:14px;cursor:pointer;font-family:inherit;text-decoration:none}
+.pw-shop-btn-google:hover:not(:disabled):not([aria-disabled="true"]){background:#f9fafb;border-color:#9ca3af}
+.pw-shop-btn-google:disabled,.pw-shop-btn-google[aria-disabled="true"]{opacity:.45;cursor:not-allowed;pointer-events:none}
 .pw-shop-auth-divider{display:flex;align-items:center;gap:12px;margin:4px 0;color:#6b7280;font-size:13px}
 .pw-shop-auth-divider::before,.pw-shop-auth-divider::after{content:'';flex:1;height:1px;background:#e5e7eb}
 .pw-shop-btn-send-otp{width:100%;background:#fff!important;color:#374151!important;border:1px solid #d1d5db!important;font-weight:600}

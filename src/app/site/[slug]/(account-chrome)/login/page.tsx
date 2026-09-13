@@ -1,12 +1,18 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
+import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { PartnerSiteShopLoginClient } from '@/components/partner-website/shop/partner-site-shop-login-client'
 import { resolvePartnerShopSso } from '@/lib/partner-website/shop/resolve-partner-shop-sso'
+import { sanitizePartnerShopReturnLocation } from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
 
-type Props = { params: Promise<{ slug: string }> }
+type Props = {
+  params: Promise<{ slug: string }>
+  searchParams?: Promise<{ redirect?: string; next?: string }>
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
@@ -28,13 +34,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export const dynamic = 'force-dynamic'
 
 /** Login always uses React auth shell — never frozen visual HTML (form must work). */
-export default async function PartnerSiteLoginPage({ params }: Props) {
+export default async function PartnerSiteLoginPage({ params, searchParams }: Props) {
   const { slug } = await params
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
   const partnerSlug = shop.partnerSlug
   if (!partnerSlug.trim()) notFound()
   const sso = await resolvePartnerShopSso(shop.partnerId)
+  const headerStore = headers()
+  const customDomainHost = readPartnerCustomDomainFromHeaders((name) => headerStore.get(name))
+  const customDomain = Boolean(customDomainHost)
+  const sp = (await searchParams) ?? {}
+  const initialReturnDest = sanitizePartnerShopReturnLocation(
+    shop.site.siteSlug,
+    sp.redirect || sp.next || '',
+    { customDomain }
+  )
 
   return (
     <PartnerSiteShopLoginClient
@@ -44,6 +59,8 @@ export default async function PartnerSiteLoginPage({ params }: Props) {
       locale={shop.site.locale}
       googleAuthEnabled={sso.platformGoogleAuthEnabled}
       platformAuthOrigin={sso.platformAuthOrigin}
+      shopRequestOrigin={customDomainHost ? `https://${customDomainHost}` : ''}
+      initialReturnDest={initialReturnDest}
     />
   )
 }

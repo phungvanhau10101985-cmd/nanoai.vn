@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
+import { hasPendingPartnerSiteGoogleAuthHandoff } from '@/lib/partner-website/shop/partner-site-google-auth-handoff-client'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
@@ -563,6 +564,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
 
   useEffect(() => {
     if (!authResolved) return
+    if (hasPendingPartnerSiteGoogleAuthHandoff()) return
     if (!isAuthenticated) {
       window.location.assign(
         buildPartnerShopLoginHref(

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { PartnerSiteShopAuthPanel } from '@/components/partner-website/shop/partner-site-shop-auth-panel'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
@@ -19,6 +19,8 @@ type Props = {
   locale: WebLocale
   googleAuthEnabled?: boolean
   platformAuthOrigin?: string
+  shopRequestOrigin?: string
+  initialReturnDest: string
 }
 
 function hasPendingAuthHandoff(): boolean {
@@ -37,17 +39,15 @@ export function PartnerSiteShopLoginClient({
   locale,
   googleAuthEnabled,
   platformAuthOrigin,
+  shopRequestOrigin,
+  initialReturnDest,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
   const { authResolved, isAuthenticated } = usePartnerSiteGuestSession(siteSlug)
-  const [dest, setDest] = useState(() =>
-    typeof window === 'undefined'
-      ? partnerSiteAccountPath(siteSlug)
-      : getPartnerShopLoginRedirectFromUrl(siteSlug, { customDomain })
-  )
+  const [dest, setDest] = useState(initialReturnDest || partnerSiteAccountPath(siteSlug))
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setDest(getPartnerShopLoginRedirectFromUrl(siteSlug, { customDomain }))
   }, [customDomain, siteSlug])
 
@@ -77,6 +77,8 @@ export function PartnerSiteShopLoginClient({
         pageMode
         googleAuthEnabled={googleAuthEnabled}
         platformAuthOrigin={platformAuthOrigin}
+        shopRequestOrigin={shopRequestOrigin}
+        initialReturnDest={initialReturnDest}
         onAuthed={goDest}
       />
     </div>

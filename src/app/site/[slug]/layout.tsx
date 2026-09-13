@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import type { Metadata, Viewport } from 'next'
 import { headers } from 'next/headers'
 import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
+import { PartnerSiteGoogleAuthHandoffBoot } from '@/components/partner-website/shop/partner-site-google-auth-handoff-boot'
 import { PartnerSiteShopPushBoot } from '@/components/partner-website/shop/partner-site-shop-push-boot'
 import {
   FASHION_SHOP_FONT_DISPLAY,
@@ -112,6 +113,7 @@ export default async function PartnerSiteSlugLayout({
         {icon180 ? <link rel="apple-touch-icon" href={icon180} /> : null}
       </head>
       <PartnerSiteCustomDomainProvider active={onCustomDomain}>
+        <PartnerSiteGoogleAuthHandoffBoot siteSlug={site?.siteSlug || slug} />
         <PartnerSiteShopPushBoot siteSlug={site?.siteSlug || slug} />
         <div style={shopFontVars}>{children}</div>
       </PartnerSiteCustomDomainProvider>

@@ -26,6 +26,7 @@ import {
   readPartnerSiteAccountBrowserCache,
   writePartnerSiteAccountBrowserCache,
 } from '@/lib/partner-website/shop/partner-site-account-browser-cache'
+import { hasPendingPartnerSiteGoogleAuthHandoff } from '@/lib/partner-website/shop/partner-site-google-auth-handoff-client'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = {
@@ -80,6 +81,7 @@ export function PartnerSiteShopAddressesClient({ siteSlug, locale }: Props) {
 
   useEffect(() => {
     if (!authResolved) return
+    if (hasPendingPartnerSiteGoogleAuthHandoff()) return
     if (!isAuthenticated) {
       window.location.replace(
         buildPartnerShopLoginHref(siteSlug, getPartnerShopBrowserReturnLocation(siteSlug, { customDomain }), {

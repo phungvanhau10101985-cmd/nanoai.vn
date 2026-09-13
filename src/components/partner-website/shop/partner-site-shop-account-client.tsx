@@ -9,6 +9,7 @@ import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-sessi
 import { getPartnerSiteShopCopy, shopPromoErrorMessage } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { shouldRenderPartnerSiteAccountShell } from '@/lib/partner-website/shop/partner-site-account-nav'
 import { shouldPartnerSiteShopSkipAuthSync } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
+import { hasPendingPartnerSiteGoogleAuthHandoff } from '@/lib/partner-website/shop/partner-site-google-auth-handoff-client'
 import {
   isPartnerSiteAccountTab,
   partnerSiteAccountTabPath,
@@ -291,6 +292,7 @@ export function PartnerSiteShopAccountClient({
 
   useEffect(() => {
     if (!authResolved) return
+    if (hasPendingPartnerSiteGoogleAuthHandoff()) return
     if (!isAuthenticated) {
       window.location.replace(
         buildPartnerShopLoginHref(siteSlug, getPartnerShopBrowserReturnLocation(siteSlug, { customDomain }), {

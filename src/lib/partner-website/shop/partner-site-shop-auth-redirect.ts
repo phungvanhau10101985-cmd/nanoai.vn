@@ -99,7 +99,16 @@ export function sanitizePartnerShopReturnLocation(
   if (!trimmed) return fallback
   try {
     const decoded = trimmed.includes('%') ? decodeURIComponent(trimmed) : trimmed
-    return isSafePartnerShopRedirectPath(decoded, siteSlug) ? decoded.slice(0, 2048) : fallback
+    if (!isSafePartnerShopRedirectPath(decoded, siteSlug)) return fallback
+    if (opts?.customDomain) {
+      const prefix = sitePrefix(siteSlug)
+      const pathname = pathOnly(decoded)
+      if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
+        const rest = pathname.slice(prefix.length) || '/'
+        return `${rest}${decoded.slice(pathname.length)}`.slice(0, 2048)
+      }
+    }
+    return decoded.slice(0, 2048)
   } catch {
     return fallback
   }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { signInWithGoogle } from '@/app/auth/actions'
 import { PARTNER_SITE_CUSTOMER_TOKEN_QUERY_KEY } from '@/lib/messaging/partner-site-customer-auth-constants'
@@ -15,7 +15,6 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-sso'
 import {
   buildShopGoogleAuthBridgeUrl,
-  consumePartnerSiteGoogleAuthHandoffFromWindow,
 } from '@/lib/partner-website/shop/partner-site-google-auth-handoff-client'
 import {
   clearPartnerSiteShopSkipAuthSync,
@@ -47,6 +46,8 @@ type Props = {
   /** Server-known Google OAuth — hiện nút ngay, không chờ GET shop-sso. */
   googleAuthEnabled?: boolean
   platformAuthOrigin?: string
+  shopRequestOrigin?: string
+  initialReturnDest?: string
 }
 
 function GoogleIcon() {
@@ -85,6 +86,8 @@ export function PartnerSiteShopAuthPanel({
   pageMode,
   googleAuthEnabled,
   platformAuthOrigin,
+  shopRequestOrigin,
+  initialReturnDest,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const onCustomDomain = usePartnerSiteCustomDomain()
@@ -94,16 +97,14 @@ export function PartnerSiteShopAuthPanel({
   const [step, setStep] = useState<'email' | 'otp'>('email')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
-  const [returnDest, setReturnDest] = useState(() =>
-    typeof window === 'undefined'
-      ? partnerSiteAccountPath(siteSlug)
-      : getPartnerShopLoginRedirectFromUrl(siteSlug, { customDomain: onCustomDomain })
+  const [returnDest, setReturnDest] = useState(
+    initialReturnDest || partnerSiteAccountPath(siteSlug)
   )
 
   const [rememberDevice, setRememberDevice] = useState(() => readGuestAuthRememberDevicePreference())
   const [ssoConfig, setSsoConfig] = useState<PartnerSiteShopSsoConfig | null>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setReturnDest(getPartnerShopLoginRedirectFromUrl(siteSlug, { customDomain: onCustomDomain }))
   }, [onCustomDomain, siteSlug])
 
@@ -167,23 +168,10 @@ export function PartnerSiteShopAuthPanel({
     return ok
   }, [authHeaders, captureFromResponse, onAuthed, partnerSlug, siteSlug])
 
-  const consumeGoogleHandoffFromUrl = useCallback(async (): Promise<boolean> => {
-    return consumePartnerSiteGoogleAuthHandoffFromWindow({
-      siteSlug,
-      authHeaders,
-      captureFromResponse,
-    })
-  }, [authHeaders, captureFromResponse, siteSlug])
-
-  useEffect(() => {
-    if (!authResolved) return
+  useLayoutEffect(() => {
     void (async () => {
-      if (await consumeGoogleHandoffFromUrl()) {
-        markPartnerSiteFreshLoginSession(siteSlug)
-        onAuthed?.()
-        return
-      }
       if (await consumePcTokenFromUrl()) return
+      if (!authResolved) return
       if (isAuthenticated) {
         onAuthed?.()
         return
@@ -194,7 +182,6 @@ export function PartnerSiteShopAuthPanel({
     })()
   }, [
     authResolved,
-    consumeGoogleHandoffFromUrl,
     consumePcTokenFromUrl,
     isAuthenticated,
     onAuthed,
@@ -205,23 +192,28 @@ export function PartnerSiteShopAuthPanel({
   const showGoogleButtonResolved = Boolean(showGoogleButton)
   /** Domain khách: cookie OAuth phải gắn trên NanoAI → bridge `/auth/shop-google`. */
   const useBridgeGoogle = onCustomDomain
-
-  function beginGoogleLogin() {
-    clearPartnerSiteShopSkipAuthSync(siteSlug)
-  }
-
-  function handleBridgeGoogleLogin() {
-    if (busy || !bridgeOrigin) return
-    beginGoogleLogin()
-    const returnUrl = partnerShopReturnAbsoluteHref(siteSlug, returnDest)
-    if (!returnUrl) return
-    setBusy(true)
-    window.location.href = buildShopGoogleAuthBridgeUrl({
+  const bridgeGoogleHref = (() => {
+    if (!useBridgeGoogle || !bridgeOrigin) return ''
+    let returnUrl = ''
+    if (shopRequestOrigin) {
+      try {
+        returnUrl = new URL(returnDest, `${shopRequestOrigin.replace(/\/$/, '')}/`).href
+      } catch {
+        returnUrl = ''
+      }
+    }
+    if (!returnUrl) returnUrl = partnerShopReturnAbsoluteHref(siteSlug, returnDest)
+    if (!returnUrl) return ''
+    return buildShopGoogleAuthBridgeUrl({
       platformOrigin: bridgeOrigin,
       siteSlug,
       shopReturnUrl: returnUrl,
       nextPath: oauthNext,
     })
+  })()
+
+  function beginGoogleLogin() {
+    clearPartnerSiteShopSkipAuthSync(siteSlug)
   }
 
   async function requestOtp() {
@@ -366,15 +358,15 @@ export function PartnerSiteShopAuthPanel({
 
       {showGoogleButtonResolved ? (
         useBridgeGoogle ? (
-          <button
-            type="button"
+          <a
             className="pw-shop-btn-google"
-            disabled={busy || !bridgeOrigin}
-            onClick={handleBridgeGoogleLogin}
+            href={bridgeGoogleHref || undefined}
+            aria-disabled={!bridgeGoogleHref || busy}
+            onClick={beginGoogleLogin}
           >
             <GoogleIcon />
             <span>{t.authGoogleLogin}</span>
-          </button>
+          </a>
         ) : (
           <form action={signInWithGoogle} onSubmit={beginGoogleLogin}>
             <input type="hidden" name="next" value={oauthNext} />

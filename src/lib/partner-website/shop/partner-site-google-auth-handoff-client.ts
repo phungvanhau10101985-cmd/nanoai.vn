@@ -35,6 +35,15 @@ export function buildShopGoogleAuthBridgeUrl(input: {
 
 type HandoffWindow = Window & { __pwAuthHandoffDone?: boolean }
 
+export function hasPendingPartnerSiteGoogleAuthHandoff(): boolean {
+  if (typeof window === 'undefined') return false
+  return Boolean(
+    new URLSearchParams(window.location.search)
+      .get(PARTNER_SITE_GOOGLE_AUTH_HANDOFF_QUERY_KEY)
+      ?.trim()
+  )
+}
+
 /** Đổi `?pw_auth=` → cookie guest trên domain đang mở. Gọi một lần trên mọi trang shop. */
 export async function consumePartnerSiteGoogleAuthHandoffFromWindow(input: {
   siteSlug: string
