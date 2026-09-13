@@ -6,7 +6,7 @@ export const PARTNER_SITE_ACCOUNT_NATIVE_NAV_SCRIPT = String.raw`
 (function(){
   if(window.__pwAccountNativeNavBound)return;
   window.__pwAccountNativeNavBound=1;
-  document.addEventListener('click',function(event){
+  window.addEventListener('click',function(event){
     if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
     var target=event.target;
     if(!target||typeof target.closest!=='function')return;
@@ -32,7 +32,8 @@ export function buildPartnerSiteVisualNativeNavigationScript(siteSlug: string): 
   if(window.__pwVisualNativeNavBound)return;
   window.__pwVisualNativeNavBound=1;
   var PREFIX=${JSON.stringify(prefix)};
-  document.addEventListener('click',function(event){
+  var ON_PLATFORM=window.location.pathname===PREFIX||window.location.pathname.indexOf(PREFIX+'/')===0;
+  window.addEventListener('click',function(event){
     if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
     var target=event.target;
     if(!target||typeof target.closest!=='function')return;
@@ -45,7 +46,7 @@ export function buildPartnerSiteVisualNativeNavigationScript(siteSlug: string): 
     var href='';
     try{
       var url=new URL(raw,window.location.href);
-      if(url.origin===window.location.origin&&(url.pathname===PREFIX||url.pathname.indexOf(PREFIX+'/')===0)){
+      if(!ON_PLATFORM&&url.origin===window.location.origin&&(url.pathname===PREFIX||url.pathname.indexOf(PREFIX+'/')===0)){
         url.pathname=url.pathname.slice(PREFIX.length)||'/';
       }
       href=url.href;

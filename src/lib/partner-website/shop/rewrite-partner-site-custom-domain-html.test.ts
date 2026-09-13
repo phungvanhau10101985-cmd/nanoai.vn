@@ -26,7 +26,10 @@ test('keeps platform paths unchanged outside custom domains', () => {
 test('inline visual native navigation strips the internal site prefix before navigation', () => {
   const script = buildPartnerSiteVisualNativeNavigationScript('demo-shop')
   assert.match(script, /var PREFIX="\/site\/demo-shop"/)
+  assert.match(script, /var ON_PLATFORM=/)
+  assert.match(script, /!ON_PLATFORM&&url\.origin===window\.location\.origin/)
   assert.match(script, /url\.pathname\.slice\(PREFIX\.length\)/)
+  assert.match(script, /window\.addEventListener\('click'/)
   assert.match(script, /window\.location\.assign\(href\)/)
   assert.match(script, /stopImmediatePropagation/)
 })

@@ -60,7 +60,8 @@ test('account chrome resolves navigation on the server without a usePathname cli
     new URL('./partner-site-account-native-navigation.ts', import.meta.url),
     'utf8'
   )
-  assert.match(nativeNavigation, /addEventListener\('click'/)
+  assert.match(nativeNavigation, /window\.addEventListener\('click'/)
+  assert.doesNotMatch(nativeNavigation, /document\.addEventListener\('click'/)
   assert.match(nativeNavigation, /window\.location\.assign\(href\)/)
 })
 
