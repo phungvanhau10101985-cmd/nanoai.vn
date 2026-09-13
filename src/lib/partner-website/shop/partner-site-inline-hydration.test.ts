@@ -33,6 +33,16 @@ test('public storefront does not use a Suspense fallback that can consume the fi
   assert.match(source, /id="pw-visual-native-navigation"/)
   assert.match(source, /PARTNER_SHOP_LISTING_HEAD_SCRIPT/)
   assert.match(source, /PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID}-early/)
+  assert.match(source, /PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT/)
+})
+
+test('shop runtime arms from plain HTML instead of waiting for React to commit', async () => {
+  const { PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT } = await import('./arm-inline-visual-runtime')
+  assert.match(PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT, /data-pw-inline-visual-root/)
+  assert.match(PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT, /data-pw-script-armed/)
+  assert.match(PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT, /application\/x-pw-runtime/)
+  assert.match(PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT, /DOMContentLoaded/)
+  assert.doesNotMatch(PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT, /useLayoutEffect/)
 })
 
 test('account chrome has no loading.tsx Suspense that defers deposit/order hydration until click', async () => {

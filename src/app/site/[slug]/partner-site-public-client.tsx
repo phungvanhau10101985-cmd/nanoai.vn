@@ -41,6 +41,10 @@ import {
   PARTNER_SHOP_LISTING_HEAD_SCRIPT,
   PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID,
 } from '@/lib/partner-website/shop/listing-head'
+import {
+  PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT,
+  PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT_ID,
+} from '@/lib/partner-website/shop/arm-inline-visual-runtime'
 
 function hideChatLaunchersInHtml(html: string, hide: boolean): string {
   if (!hide || !html.trim() || html.includes('data-pw-hide-chat-launcher')) return html
@@ -481,6 +485,10 @@ function PartnerSitePublicFrame({
           dangerouslySetInnerHTML={{
             __html: inertPartnerInlineVisualScripts(extractVisualHtmlBodyMarkup(previewHtml)),
           }}
+        />
+        <script
+          id={PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT_ID}
+          dangerouslySetInnerHTML={{ __html: PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT }}
         />
       </PartnerSiteChatWidgetProvider>
     )
