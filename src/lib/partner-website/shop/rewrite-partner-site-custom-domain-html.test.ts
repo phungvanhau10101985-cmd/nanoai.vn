@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { rewritePartnerSiteCustomDomainHtmlPaths } from './rewrite-partner-site-custom-domain-html'
+import { buildPartnerSiteVisualNativeNavigationScript } from './partner-site-account-native-navigation'
 
 test('rewrites saved visual chrome links before custom-domain hydration', () => {
   const html = [
@@ -20,4 +21,12 @@ test('rewrites saved visual chrome links before custom-domain hydration', () => 
 test('keeps platform paths unchanged outside custom domains', () => {
   const html = '<a href="/site/demo-shop/account">Account</a>'
   assert.equal(rewritePartnerSiteCustomDomainHtmlPaths(html, 'demo-shop', false), html)
+})
+
+test('inline visual native navigation strips the internal site prefix before navigation', () => {
+  const script = buildPartnerSiteVisualNativeNavigationScript('demo-shop')
+  assert.match(script, /var PREFIX="\/site\/demo-shop"/)
+  assert.match(script, /url\.pathname\.slice\(PREFIX\.length\)/)
+  assert.match(script, /window\.location\.assign\(href\)/)
+  assert.match(script, /stopImmediatePropagation/)
 })

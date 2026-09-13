@@ -201,6 +201,7 @@ export default async function PartnerSitePublicPage({ params, searchParams }: Pr
       initialDevice={previewDevice}
       hideChatLauncher={site.theme?.hideChatLauncher}
       browserThemeColor={shopBrowserChromeColor(site.theme)}
+      siteSlug={site.siteSlug}
     />
   )
 }

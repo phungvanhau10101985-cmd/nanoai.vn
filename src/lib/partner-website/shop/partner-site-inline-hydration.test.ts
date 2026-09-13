@@ -29,6 +29,8 @@ test('public storefront does not use a Suspense fallback that can consume the fi
   assert.doesNotMatch(source, /useSearchParams/)
   assert.doesNotMatch(source, /<Suspense/)
   assert.match(source, /inertPartnerInlineVisualScripts\(extractVisualHtmlBodyMarkup\(previewHtml\)\)/)
+  assert.match(source, /buildPartnerSiteVisualNativeNavigationScript/)
+  assert.match(source, /id="pw-visual-native-navigation"/)
 })
 
 test('account chrome has no loading.tsx Suspense that defers deposit/order hydration until click', async () => {

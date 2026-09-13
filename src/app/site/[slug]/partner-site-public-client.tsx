@@ -36,6 +36,7 @@ import {
   applyShopBrowserThemeColorToDocument,
   extractShopBrowserThemeColorFromHtml,
 } from '@/lib/partner-website/template/partner-website-theme-tokens'
+import { buildPartnerSiteVisualNativeNavigationScript } from '@/lib/partner-website/shop/partner-site-account-native-navigation'
 
 function hideChatLaunchersInHtml(html: string, hide: boolean): string {
   if (!hide || !html.trim() || html.includes('data-pw-hide-chat-launcher')) return html
@@ -216,6 +217,7 @@ export function PartnerSitePublicClient({
   deviceHtmlAlreadyIsolated = false,
   hideChatLauncher,
   browserThemeColor,
+  siteSlug,
 }: {
   html: string
   htmlByDevice?: PartnerVisualHtmlByDevice
@@ -234,6 +236,7 @@ export function PartnerSitePublicClient({
   hideChatLauncher?: boolean
   /** Canonical shop theme color; saved visual HTML may still contain stale preset metadata. */
   browserThemeColor?: string
+  siteSlug?: string
 }) {
   const [forceDevice, setForceDevice] = useState<VisualDeviceVariant | null>(null)
   useLayoutEffect(() => {
@@ -256,6 +259,7 @@ export function PartnerSitePublicClient({
       deviceHtmlAlreadyIsolated={deviceHtmlAlreadyIsolated}
       hideChatLauncher={hideChatLauncher}
       browserThemeColor={browserThemeColor}
+      siteSlug={siteSlug}
     />
   )
 }
@@ -274,6 +278,7 @@ function PartnerSitePublicFrame({
   deviceHtmlAlreadyIsolated = false,
   hideChatLauncher,
   browserThemeColor,
+  siteSlug,
 }: {
   html: string
   htmlByDevice?: PartnerVisualHtmlByDevice
@@ -288,6 +293,7 @@ function PartnerSitePublicFrame({
   deviceHtmlAlreadyIsolated?: boolean
   hideChatLauncher?: boolean
   browserThemeColor?: string
+  siteSlug?: string
 }) {
   const availableDevices = useMemo(
     () =>
@@ -445,6 +451,14 @@ function PartnerSitePublicFrame({
         listenLandingPostMessage
         hideLauncher={hideEmbedFab}
       >
+        {siteSlug ? (
+          <script
+            id="pw-visual-native-navigation"
+            dangerouslySetInnerHTML={{
+              __html: buildPartnerSiteVisualNativeNavigationScript(siteSlug),
+            }}
+          />
+        ) : null}
         <PartnerSiteInlineVisualHead html={previewHtml} />
         <PartnerSiteInlineVisualScripts revision={revision} />
         <div
