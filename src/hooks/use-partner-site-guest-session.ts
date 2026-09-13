@@ -46,11 +46,12 @@ function readStoredSessionId(): string {
 
 function readStoredAccountId(): string {
   if (typeof window === 'undefined') return ''
-  return (
+  const fromLs =
     window.localStorage.getItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY)?.trim() ||
     window.localStorage.getItem(MESSAGING_GUEST_ACCOUNT_STORAGE_KEY_LEGACY)?.trim() ||
     ''
-  )
+  if (fromLs) return fromLs
+  return readCookie(MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE).trim()
 }
 
 function persistSessionId(sessionId: string) {

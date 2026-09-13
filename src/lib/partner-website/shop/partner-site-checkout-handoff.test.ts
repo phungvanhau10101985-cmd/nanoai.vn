@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   partnerSiteCheckoutHandoffKey,
   stashPartnerSiteCheckoutHandoff,
+  stashPartnerSiteOrderListHandoff,
   readPartnerSiteCheckoutHandoff,
   takePartnerSiteCheckoutHandoff,
 } from '@/lib/partner-website/shop/partner-site-checkout-handoff'
@@ -73,6 +74,37 @@ test('handoff ignores a different order id', () => {
       order: { id: 'ord-a', status: 'awaiting_payment', required_amount: 1 },
     })
     assert.equal(takePartnerSiteCheckoutHandoff('demo-shop', 'ord-b'), null)
+  } finally {
+    g.window = prevWindow
+  }
+})
+
+test('orders list can stash a row for deposit/detail first paint', () => {
+  const store = new Map<string, string>()
+  const g = globalThis as typeof globalThis & { window?: unknown }
+  const prevWindow = g.window
+  g.window = {
+    sessionStorage: {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        store.set(k, v)
+      },
+      removeItem: (k: string) => {
+        store.delete(k)
+      },
+    },
+  }
+  try {
+    stashPartnerSiteOrderListHandoff('demo-shop', {
+      id: 'ord-list',
+      status: 'awaiting_payment',
+      required_amount: 60000,
+      payment_qr_url: 'https://qr.example/x',
+      product_name: 'Áo thun',
+    })
+    const row = readPartnerSiteCheckoutHandoff('demo-shop', 'ord-list')
+    assert.equal(row?.order.product_name, 'Áo thun')
+    assert.equal(row?.order.required_amount, 60000)
   } finally {
     g.window = prevWindow
   }

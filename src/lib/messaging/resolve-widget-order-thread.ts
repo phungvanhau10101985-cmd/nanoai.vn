@@ -1,8 +1,8 @@
 import type { NextRequest } from 'next/server'
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
+import { findGuestAccountIdByEmailPg } from '@/lib/db/messaging-guest-pg'
 import { readGuestAccountIdFromRequest } from '@/lib/messaging/guest-account-session'
 import { readGuestSessionIdFromRequestStrictOrLoose } from '@/lib/messaging/guest-auth-session'
-import { upsertGuestAccountForGoogleIdentity } from '@/lib/messaging/guest-widget-identity'
 import { requestSkipsPartnerSiteShopAuthResume } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
 
 /**
@@ -24,9 +24,13 @@ export async function resolveWidgetOrderThreadFromRequest(
   const skipPlatformResume = requestSkipsPartnerSiteShopAuthResume(request)
   const user = skipPlatformResume ? null : await getEmailSessionUser()
   const sessionFromRequest = readGuestSessionIdFromRequestStrictOrLoose(request)?.trim() ?? null
+  const accountFromRequest = readGuestAccountIdFromRequest(request)?.trim() ?? null
 
   if (user?.id) {
-    const accountId = await upsertGuestAccountForGoogleIdentity(partnerId, request, user)
+    let accountId = accountFromRequest
+    if (!accountId && user.email) {
+      accountId = await findGuestAccountIdByEmailPg(partnerId, user.email.trim().toLowerCase())
+    }
     if (accountId) {
       return {
         externalThreadId: accountId,
@@ -43,12 +47,11 @@ export async function resolveWidgetOrderThreadFromRequest(
     }
   }
 
-  const accountId = readGuestAccountIdFromRequest(request)?.trim() ?? null
-  if (accountId) {
+  if (accountFromRequest) {
     return {
-      externalThreadId: accountId,
+      externalThreadId: accountFromRequest,
       linkedUserId: null,
-      guestAccountId: accountId,
+      guestAccountId: accountFromRequest,
       anonymousSessionId: sessionFromRequest,
     }
   }

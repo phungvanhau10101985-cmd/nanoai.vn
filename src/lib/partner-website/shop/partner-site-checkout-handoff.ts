@@ -163,6 +163,14 @@ export function clearPartnerSiteCheckoutHandoff(siteSlug: string): void {
   }
 }
 
+/** Stash a row already on the orders list so deposit/detail can paint before GET. */
+export function stashPartnerSiteOrderListHandoff(
+  siteSlug: string,
+  order: PartnerSiteCheckoutHandoffOrder
+): void {
+  stashPartnerSiteCheckoutHandoff(siteSlug, { orderId: order.id, order })
+}
+
 /** Đọc rồi xóa — dùng khi chắc chỉ một lần (không React Strict Mode remount). */
 export function takePartnerSiteCheckoutHandoff(
   siteSlug: string,

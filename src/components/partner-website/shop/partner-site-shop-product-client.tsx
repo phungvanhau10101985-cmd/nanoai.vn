@@ -410,7 +410,16 @@ export function PartnerSiteShopProductClient({
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ event: 'view_product', inventory_id: product.id }),
-    }).then((res) => captureFromResponse(res))
+    }).then((res) => {
+      captureFromResponse(res)
+      if (res.ok) {
+        try {
+          document.dispatchEvent(new Event('pw-recently-viewed-updated'))
+        } catch {
+          /* ignore */
+        }
+      }
+    })
   }, [authHeaders, captureFromResponse, product.id, ready, siteSlug])
 
   useEffect(() => {

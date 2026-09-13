@@ -87,17 +87,7 @@ type Props = {
   shopTitle: string
 }
 
-function CopyButton({
-  text,
-  label,
-  copiedLabel,
-  compact,
-}: {
-  text: string
-  label: string
-  copiedLabel: string
-  compact?: boolean
-}) {
+function CopyButton({ text, label, copiedLabel }: { text: string; label: string; copiedLabel: string }) {
   const [copied, setCopied] = useState(false)
   useEffect(() => {
     if (!copied) return
@@ -107,12 +97,7 @@ function CopyButton({
   return (
     <button
       type="button"
-      className={
-        compact
-          ? 'pw-shop-btn pw-shop-btn-outline pw-shop-btn-sm pw-shop-deposit-copy-btn'
-          : 'pw-shop-btn pw-shop-btn-buy pw-shop-btn-sm'
-      }
-      aria-label={copied ? copiedLabel : label}
+      className="pw-shop-btn pw-shop-btn-buy pw-shop-btn-sm"
       onClick={() => {
         const v = text.trim()
         if (!v) return
@@ -121,28 +106,6 @@ function CopyButton({
     >
       {copied ? copiedLabel : label}
     </button>
-  )
-}
-
-function TransferCopyRow({
-  k,
-  value,
-  copyLabel,
-  copiedLabel,
-}: {
-  k: string
-  value: string
-  copyLabel: string
-  copiedLabel: string
-}) {
-  const v = value.trim()
-  if (!v) return null
-  return (
-    <div className="pw-shop-deposit-row">
-      <span className="k">{k}</span>
-      <span className="v">{v}</span>
-      <CopyButton compact text={v} label={copyLabel} copiedLabel={copiedLabel} />
-    </div>
   )
 }
 
@@ -178,30 +141,38 @@ export function PartnerSiteShopDepositClient({
 
   const load = useCallback(async (opts?: { poll?: boolean }) => {
     const url = opts?.poll ? `${orderApi}?poll=1` : orderApi
-    const res = await fetch(url, { credentials: 'same-origin', headers: authHeaders() })
-    captureFromResponse(res)
-    const json = (await res.json().catch(() => ({}))) as {
-      order?: DepositOrder
-      payment_display?: PaymentDisplay
-      default_deposit_percent?: number
-      google_customer_reviews_merchant_id?: number | null
-      sibling_orders?: ShopSiblingOrderView[]
-      shipment_events?: ShopShipmentEventView[]
-    }
-    if (!res.ok || !json.order) {
-      return
-    }
-    setOrder(json.order)
-    if (!opts?.poll) {
-      clearPartnerSiteCheckoutHandoff(siteSlug)
-      setSiblings(Array.isArray(json.sibling_orders) ? json.sibling_orders : [])
-      setShipmentEvents(Array.isArray(json.shipment_events) ? json.shipment_events : [])
-      setPaymentDisplay(json.payment_display ?? null)
-      if (typeof json.default_deposit_percent === 'number' && json.default_deposit_percent > 0) {
-        setShopPercent(Math.max(1, Math.min(99, Math.round(json.default_deposit_percent))))
+    const ctrl = new AbortController()
+    const timer = window.setTimeout(() => ctrl.abort(), 8000)
+    try {
+      const res = await fetch(url, { credentials: 'same-origin', headers: authHeaders(), signal: ctrl.signal })
+      captureFromResponse(res)
+      const json = (await res.json().catch(() => ({}))) as {
+        order?: DepositOrder
+        payment_display?: PaymentDisplay
+        default_deposit_percent?: number
+        google_customer_reviews_merchant_id?: number | null
+        sibling_orders?: ShopSiblingOrderView[]
+        shipment_events?: ShopShipmentEventView[]
       }
-      const mid = Number(json.google_customer_reviews_merchant_id ?? 0)
-      setMerchantId(Number.isInteger(mid) && mid > 0 ? mid : null)
+      if (!res.ok || !json.order) {
+        return
+      }
+      setOrder(json.order)
+      if (!opts?.poll) {
+        clearPartnerSiteCheckoutHandoff(siteSlug)
+        setSiblings(Array.isArray(json.sibling_orders) ? json.sibling_orders : [])
+        setShipmentEvents(Array.isArray(json.shipment_events) ? json.shipment_events : [])
+        setPaymentDisplay(json.payment_display ?? null)
+        if (typeof json.default_deposit_percent === 'number' && json.default_deposit_percent > 0) {
+          setShopPercent(Math.max(1, Math.min(99, Math.round(json.default_deposit_percent))))
+        }
+        const mid = Number(json.google_customer_reviews_merchant_id ?? 0)
+        setMerchantId(Number.isInteger(mid) && mid > 0 ? mid : null)
+      }
+    } catch {
+      /* aborted / network */
+    } finally {
+      window.clearTimeout(timer)
     }
   }, [authHeaders, captureFromResponse, orderApi, siteSlug])
 
@@ -221,8 +192,24 @@ export function PartnerSiteShopDepositClient({
   }, [])
 
   useEffect(() => {
-    if (!ready) return
-    void load().finally(() => setLoading(false))
+    let cancelled = false
+    const run = () => {
+      if (cancelled) return
+      void load().finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    }
+    if (ready) {
+      run()
+      return () => {
+        cancelled = true
+      }
+    }
+    const t = window.setTimeout(run, 1200)
+    return () => {
+      cancelled = true
+      window.clearTimeout(t)
+    }
   }, [load, ready])
 
   useEffect(() => {
@@ -618,11 +605,44 @@ export function PartnerSiteShopDepositClient({
           <p className="v">{formatVnd(remaining)}</p>
           <p className="pw-shop-deposit-money-hint">{t.depositOnDeliveryHint}</p>
         </div>
+        {order.payment_method !== 'ewallet' ? (
+          <div className="pw-shop-deposit-level">
+            <p className="lbl">{t.depositChooseLevel}</p>
+            <div className="pw-shop-deposit-opts">
+              <label>
+                <input
+                  type="radio"
+                  name="deposit_option"
+                  checked={depositOption !== 100}
+                  disabled={updating}
+                  onChange={() => void setDepositPercent(shopPercent)}
+                />
+                {t.depositPercentOption.replace('{percent}', String(shopPercent))}
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="deposit_option"
+                  checked={depositOption === 100}
+                  disabled={updating}
+                  onChange={() => void setDepositPercent(100)}
+                />
+                {t.depositFullOption}
+              </label>
+            </div>
+            {updating ? <p className="pw-shop-muted">{t.depositUpdating}</p> : null}
+          </div>
+        ) : null}
       </div>
       <div className="pw-shop-deposit-body">
         <div className="pw-shop-deposit-pay">
           <div className="pw-shop-deposit-box pw-shop-deposit-qr">
             <p className="lbl">{t.depositQrTitle}</p>
+            {required > 0 ? (
+              <p className="pw-shop-deposit-qr-need">
+                {t.depositNeedLabel}: {formatVnd(required)}
+              </p>
+            ) : null}
             {qr ? <img src={qr} alt="QR" /> : null}
             {qr ? (
               <button
@@ -667,71 +687,54 @@ export function PartnerSiteShopDepositClient({
             <p className="pw-shop-deposit-instruct">{t.depositQrHint}</p>
             {bank ? (
               <div className="pw-shop-deposit-transfer">
-                <TransferCopyRow k={t.depositBankLabel} value={bank.bank_name} copyLabel={t.depositCopyContent} copiedLabel={t.depositCopied} />
-                <TransferCopyRow k={t.depositAccountLabel} value={bank.account_number} copyLabel={t.depositCopyContent} copiedLabel={t.depositCopied} />
-                <TransferCopyRow k={t.depositHolderLabel} value={bank.account_holder} copyLabel={t.depositCopyContent} copiedLabel={t.depositCopied} />
+                <div className="pw-shop-deposit-row">
+                  <span className="k">{t.depositBankLabel}</span>
+                  <span className="v">{bank.bank_name}</span>
+                </div>
+                <div className="pw-shop-deposit-row">
+                  <span className="k">{t.depositAccountLabel}</span>
+                  <span className="v">{bank.account_number}</span>
+                </div>
+                <div className="pw-shop-deposit-row">
+                  <span className="k">{t.depositHolderLabel}</span>
+                  <span className="v">{bank.account_holder}</span>
+                </div>
+                <div className="pw-shop-deposit-copy">
+                  <CopyButton text={bank.account_number} label={t.depositCopyAccount} copiedLabel={t.depositCopied} />
+                </div>
               </div>
             ) : paymentDisplay?.kind === 'ewallet' ? (
               <div className="pw-shop-deposit-transfer">
-                <TransferCopyRow
-                  k={t.checkoutPaymentMethodEwallet}
-                  value={paymentDisplay.provider_label}
-                  copyLabel={t.depositCopyContent}
-                  copiedLabel={t.depositCopied}
-                />
+                <div className="pw-shop-deposit-row">
+                  <span className="k">{t.checkoutPaymentMethodEwallet}</span>
+                  <span className="v">{paymentDisplay.provider_label}</span>
+                </div>
                 {paymentDisplay.account_number ? (
-                  <TransferCopyRow
-                    k={t.depositAccountLabel}
-                    value={paymentDisplay.account_number}
-                    copyLabel={t.depositCopyContent}
-                    copiedLabel={t.depositCopied}
-                  />
+                  <div className="pw-shop-deposit-row">
+                    <span className="k">{t.depositAccountLabel}</span>
+                    <span className="v">{paymentDisplay.account_number}</span>
+                  </div>
                 ) : null}
               </div>
             ) : null}
-            {transferMemo ? (
-              <div className="pw-shop-deposit-memo-block">
-                <TransferCopyRow
-                  k={t.depositTransferContent}
-                  value={transferMemo}
-                  copyLabel={t.depositCopyContent}
-                  copiedLabel={t.depositCopied}
-                />
-                <p className="pw-shop-deposit-hint">{t.depositTransferHint}</p>
-              </div>
-            ) : null}
           </div>
+          {transferMemo ? (
+            <div className="pw-shop-deposit-box">
+              <p className="lbl">{t.depositTransferContent}</p>
+              <div className="pw-shop-deposit-memo-row">
+                <span className="pw-shop-deposit-memo">{transferMemo}</span>
+                <div className="pw-shop-deposit-copy">
+                  <CopyButton text={transferMemo} label={t.depositCopyContent} copiedLabel={t.depositCopied} />
+                </div>
+              </div>
+              <p className="pw-shop-deposit-hint" style={{ marginTop: 8 }}>
+                {t.depositTransferHint}
+              </p>
+            </div>
+          ) : null}
         </div>
       </div>
       <div className="pw-shop-deposit-extra">
-        {order.payment_method !== 'ewallet' ? (
-          <div className="pw-shop-deposit-box">
-            <p className="lbl">{t.depositChooseLevel}</p>
-            <div className="pw-shop-deposit-opts">
-              <label>
-                <input
-                  type="radio"
-                  name="deposit_option"
-                  checked={depositOption !== 100}
-                  disabled={updating}
-                  onChange={() => void setDepositPercent(shopPercent)}
-                />
-                {t.depositPercentOption.replace('{percent}', String(shopPercent))}
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="deposit_option"
-                  checked={depositOption === 100}
-                  disabled={updating}
-                  onChange={() => void setDepositPercent(100)}
-                />
-                {t.depositFullOption}
-              </label>
-            </div>
-            {updating ? <p className="pw-shop-muted">{t.depositUpdating}</p> : null}
-          </div>
-        ) : null}
         <PartnerOrderDiscountBreakdown locale={locale} order={order} />
         <PartnerSiteOrderSplitGroup
           t={t}

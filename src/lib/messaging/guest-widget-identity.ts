@@ -19,24 +19,24 @@ import { isPgConfigured } from '@/lib/db/pool'
 
 export async function resolveGuestIdentity(request: NextRequest) {
   const user = await getEmailSessionUser()
+  const accountFromRequest = readGuestAccountIdFromRequest(request)
 
   if (user?.id) {
     return {
       user,
-      externalThreadId: user.id,
+      externalThreadId: accountFromRequest || user.id,
       linkedUserId: user.id,
-      guestAccountId: null as string | null,
+      guestAccountId: accountFromRequest,
       newSessionId: null as string | null,
     }
   }
 
-  const accountId = readGuestAccountIdFromRequest(request)
-  if (accountId) {
+  if (accountFromRequest) {
     return {
       user: null,
-      externalThreadId: accountId,
+      externalThreadId: accountFromRequest,
       linkedUserId: null,
-      guestAccountId: accountId,
+      guestAccountId: accountFromRequest,
       newSessionId: null as string | null,
     }
   }

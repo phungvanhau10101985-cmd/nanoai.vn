@@ -386,6 +386,7 @@ test('shop actions bootstrap hydrates Zalo\/Facebook from contact-channels API',
   assert.match(s, /wa.me/)
   assert.match(s, /bindShareLeadCoupon/)
   assert.match(s, /hydrateChromeBadges\(true\)/)
+  assert.match(s, /pw-recently-viewed-updated/)
   assert.match(s, /pwClearNonCountChromeBadges\(document\)/)
   assert.match(s, /__pwChromeBadgeCache/)
   assert.match(s, /__pwFavoriteIdsCache/)

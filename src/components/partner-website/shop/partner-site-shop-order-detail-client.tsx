@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { PartnerSiteOrderGoogleCustomerReviews } from '@/components/partner-website/shop/partner-site-order-google-customer-reviews'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -10,8 +10,8 @@ import { markGoogleCustomerReviewsForOrder } from '@/lib/partner-website/shop/go
 import {
   isPartnerShopDepositWaiting,
   partnerOrderPayableTotal,
-  shouldRedirectToDepositAfterCreate,
 } from '@/lib/partner-website/shop/order-deposit'
+import { readPartnerSiteCheckoutHandoff } from '@/lib/partner-website/shop/partner-site-checkout-handoff'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { displayShopOrderCode } from '@/lib/messaging/shop-payment-reference'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
@@ -77,45 +77,76 @@ export function PartnerSiteShopOrderDetailClient({ siteSlug, partnerSlug, locale
   const orderApi = `/api/messaging/guest/${encodeURIComponent(partnerSlug)}/order/${encodeURIComponent(orderId)}`
 
   const load = useCallback(async () => {
-    const res = await fetch(orderApi, { credentials: 'same-origin', headers: authHeaders() })
-    captureFromResponse(res)
-    const json = (await res.json().catch(() => ({}))) as {
-      order?: DetailOrder
-      google_customer_reviews_merchant_id?: number | null
-      shipment_events?: ShopShipmentEventView[]
-      sibling_orders?: ShopSiblingOrderView[]
-      can_confirm_received?: boolean
+    const ctrl = new AbortController()
+    const timer = window.setTimeout(() => ctrl.abort(), 8000)
+    try {
+      const res = await fetch(orderApi, {
+        credentials: 'same-origin',
+        headers: authHeaders(),
+        signal: ctrl.signal,
+      })
+      captureFromResponse(res)
+      const json = (await res.json().catch(() => ({}))) as {
+        order?: DetailOrder
+        google_customer_reviews_merchant_id?: number | null
+        shipment_events?: ShopShipmentEventView[]
+        sibling_orders?: ShopSiblingOrderView[]
+        can_confirm_received?: boolean
+      }
+      if (!res.ok || !json.order) {
+        return
+      }
+      setOrder(json.order)
+      setShipmentEvents(Array.isArray(json.shipment_events) ? json.shipment_events : [])
+      setSiblings(Array.isArray(json.sibling_orders) ? json.sibling_orders : [])
+      setCanConfirm(json.can_confirm_received === true)
+      const mid = Number(json.google_customer_reviews_merchant_id ?? 0)
+      setMerchantId(Number.isInteger(mid) && mid > 0 ? mid : null)
+    } catch {
+      /* aborted / network */
+    } finally {
+      window.clearTimeout(timer)
     }
-    if (!res.ok || !json.order) {
-      setOrder(null)
-      return
-    }
-    setOrder(json.order)
-    setShipmentEvents(Array.isArray(json.shipment_events) ? json.shipment_events : [])
-    setSiblings(Array.isArray(json.sibling_orders) ? json.sibling_orders : [])
-    setCanConfirm(json.can_confirm_received === true)
-    const mid = Number(json.google_customer_reviews_merchant_id ?? 0)
-    setMerchantId(Number.isInteger(mid) && mid > 0 ? mid : null)
   }, [authHeaders, captureFromResponse, orderApi])
 
+  useLayoutEffect(() => {
+    const handoff = readPartnerSiteCheckoutHandoff(siteSlug, orderId)
+    if (!handoff?.order) return
+    setOrder((prev) => prev ?? (handoff.order as DetailOrder))
+    setLoading(false)
+  }, [orderId, siteSlug])
+
   useEffect(() => {
-    if (!ready) return
-    setLoading(true)
-    void load().finally(() => setLoading(false))
+    let cancelled = false
+    const run = () => {
+      if (cancelled) return
+      void load().finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    }
+    if (ready) {
+      run()
+      return () => {
+        cancelled = true
+      }
+    }
+    const t = window.setTimeout(run, 1200)
+    return () => {
+      cancelled = true
+      window.clearTimeout(t)
+    }
   }, [load, ready])
 
   useEffect(() => {
     if (!order?.id) return
-    if (shouldRedirectToDepositAfterCreate(order) || isPartnerShopDepositWaiting(order)) {
-      window.location.replace(partnerSiteOrderDepositPath(siteSlug, order.id, { customDomain }))
-      return
-    }
     if (Number(order.required_amount ?? 0) <= 0) {
       markGoogleCustomerReviewsForOrder(order.id)
     }
-  }, [customDomain, order, siteSlug])
+  }, [order])
 
   const ordersHref = partnerSiteOrdersPath(siteSlug, { customDomain })
+  const depositHref = partnerSiteOrderDepositPath(siteSlug, orderId, { customDomain })
+  const waitingPay = Boolean(order && isPartnerShopDepositWaiting(order))
 
   if (loading) {
     return (
@@ -132,14 +163,6 @@ export function PartnerSiteShopOrderDetailClient({ siteSlug, partnerSlug, locale
         <Link href={ordersHref} className="pw-shop-btn">
           {t.depositBackToOrders}
         </Link>
-      </div>
-    )
-  }
-
-  if (shouldRedirectToDepositAfterCreate(order) || isPartnerShopDepositWaiting(order)) {
-    return (
-      <div className="pw-shop-deposit-center">
-        <p className="pw-shop-muted">{t.depositLoading}</p>
       </div>
     )
   }
@@ -233,6 +256,11 @@ export function PartnerSiteShopOrderDetailClient({ siteSlug, partnerSlug, locale
             </div>
           ) : null}
           <div className="pw-shop-deposit-actions">
+            {waitingPay ? (
+              <Link href={depositHref} className="pw-shop-btn pw-shop-btn-buy">
+                {t.orderPayDeposit}
+              </Link>
+            ) : null}
             {canConfirm ? (
               <button
                 type="button"
@@ -265,7 +293,10 @@ export function PartnerSiteShopOrderDetailClient({ siteSlug, partnerSlug, locale
                 {t.orderConfirmReceived}
               </button>
             ) : null}
-            <Link href={ordersHref} className="pw-shop-btn pw-shop-btn-buy">
+            <Link
+              href={ordersHref}
+              className={waitingPay ? 'pw-shop-btn pw-shop-btn-outline' : 'pw-shop-btn pw-shop-btn-buy'}
+            >
               {t.depositBackToOrders}
             </Link>
           </div>

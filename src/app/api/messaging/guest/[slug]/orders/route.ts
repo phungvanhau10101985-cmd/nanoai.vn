@@ -3,10 +3,8 @@ import {
   commercePartnerErrorResponse,
   resolveCommerceOrderPartnerBySlug,
 } from '@/lib/messaging/resolve-commerce-partner'
-import {
-  resolveGuestIdentity,
-  upsertGuestAccountForGoogleIdentity,
-} from '@/lib/messaging/guest-widget-identity'
+import { findGuestAccountIdByEmailPg } from '@/lib/db/messaging-guest-pg'
+import { resolveGuestIdentity } from '@/lib/messaging/guest-widget-identity'
 import { applyGuestIdentityToResponse } from '@/lib/messaging/guest-auth-session'
 import { fetchGuestWidgetConversationIdFromPg } from '@/lib/db/customer-care-pg'
 import {
@@ -41,8 +39,9 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   let effectiveExternalThreadId = identity.externalThreadId
   let effectiveGuestAccountId = identity.guestAccountId
 
-  if (identity.user?.id) {
-    const accountId = await upsertGuestAccountForGoogleIdentity(partnerId, request, identity.user)
+  if (identity.user?.id && !effectiveGuestAccountId) {
+    const email = identity.user.email?.trim().toLowerCase() || ''
+    const accountId = email ? await findGuestAccountIdByEmailPg(partnerId, email) : null
     if (accountId) {
       effectiveGuestAccountId = accountId
       effectiveExternalThreadId = accountId

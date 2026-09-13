@@ -20,6 +20,7 @@ import {
   type PartnerSiteOrderStatusFilterKey,
 } from '@/lib/partner-website/shop/partner-site-order-status-filters'
 import { partnerSiteOrderDepositPath, partnerSiteOrderDetailPath, partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { stashPartnerSiteOrderListHandoff } from '@/lib/partner-website/shop/partner-site-checkout-handoff'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
@@ -67,6 +68,23 @@ type Props = {
 }
 
 type Panel = 'none' | 'detail' | 'payment' | 'track' | 'cancel' | 'confirm'
+
+function stashListOrderRow(siteSlug: string, o: OrderRow) {
+  stashPartnerSiteOrderListHandoff(siteSlug, {
+    id: o.id,
+    status: o.status || '',
+    payment_reference: o.payment_reference,
+    created_at: o.created_at,
+    required_amount: o.required_amount,
+    paid_amount: o.paid_amount,
+    amount_after_discount: o.subtotal_amount,
+    subtotal_amount: o.subtotal_amount,
+    payment_qr_url: o.payment_qr_url,
+    product_name: o.product_name,
+    tracking_number: o.tracking_number,
+    shipping_status: o.shipping_status,
+  })
+}
 
 function filterLabel(
   key: PartnerSiteOrderStatusFilterKey,
@@ -309,6 +327,7 @@ export function PartnerSiteShopOrdersClient({
                 <Link
                   href={partnerSiteOrderDetailPath(siteSlug, o.id, { customDomain })}
                   className="pw-shop-btn pw-shop-btn-outline"
+                  onClick={() => stashListOrderRow(siteSlug, o)}
                 >
                   {t.depositViewOrder}
                 </Link>
@@ -316,7 +335,11 @@ export function PartnerSiteShopOrdersClient({
                   {open && panel === 'detail' ? t.orderHideDetail : t.orderDetail}
                 </button>
                 {showPayment && waitingPay ? (
-                  <Link href={partnerSiteOrderDepositPath(siteSlug, o.id, { customDomain })} className="pw-shop-btn">
+                  <Link
+                    href={partnerSiteOrderDepositPath(siteSlug, o.id, { customDomain })}
+                    className="pw-shop-btn"
+                    onClick={() => stashListOrderRow(siteSlug, o)}
+                  >
                     {t.orderPayDeposit}
                   </Link>
                 ) : null}

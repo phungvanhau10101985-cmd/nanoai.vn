@@ -17,6 +17,7 @@ import {
   insertPartnerOrderEventFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
 import { fetchPartnerOrderShipmentEventsFromPg } from '@/lib/db/messaging-partner-order-shipment-pg'
+import { canConfirmReceivedFromShipment } from '@/lib/messaging/fulfillment/order-shipment-timeline'
 import {
   onPartnerOrderCancelledFulfillment,
   onPartnerOrderCustomerConfirmedReceived,
@@ -51,9 +52,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   }
 
   const view = await buildGuestOrderDepositView({ partnerId: partner.partnerId, order })
-  const [events, canConfirm, siblings] = await Promise.all([
+  const [events, siblings] = await Promise.all([
     fetchPartnerOrderShipmentEventsFromPg(order.id),
-    partnerOrderCanConfirmReceived(order.id, order.shipping_status),
     fetchPartnerCheckoutGroupOrdersFromPg(partner.partnerId, order.checkout_group_id),
   ])
   return NextResponse.json({
@@ -62,7 +62,11 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     partner_slug: slug,
     shipment_events: events,
     sibling_orders: siblings.filter((row) => row.id !== order.id),
-    can_confirm_received: canConfirm,
+    can_confirm_received:
+      order.status !== 'cancelled' &&
+      (events.length > 0
+        ? canConfirmReceivedFromShipment(events)
+        : order.shipping_status === 'shipping'),
   })
 }
 

@@ -857,6 +857,7 @@ if(document.documentElement.getAttribute('data-pw-shop-actions-events')!=='1'){
   document.documentElement.setAttribute('data-pw-shop-actions-events','1');
   document.addEventListener('pw-cart-updated', function(){hydrateChromeBadges(true);});
   document.addEventListener('pw-shop-notifications-refresh', function(){hydrateChromeBadges(true);});
+  document.addEventListener('pw-recently-viewed-updated', function(){hydrateChromeBadges(true);});
 }
 function runHydrate(forceNetwork){
   if(window.__pwShopHydrating)return;
