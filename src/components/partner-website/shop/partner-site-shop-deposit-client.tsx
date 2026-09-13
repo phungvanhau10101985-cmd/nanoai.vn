@@ -27,6 +27,10 @@ import {
   clearPartnerSiteCheckoutHandoff,
   type PartnerSiteDepositPaymentDisplay,
 } from '@/lib/partner-website/shop/partner-site-checkout-handoff'
+import {
+  PW_GUEST_ORDER_PAGE_READY_EVENT,
+  readPartnerSiteGuestOrderPageBoot,
+} from '@/lib/partner-website/shop/partner-site-guest-order-page-boot'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { saveImageBlob, trySaveFilePicker, trySyncBlobDownload } from '@/lib/partner-website/shop/save-image-blob'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
@@ -85,6 +89,12 @@ type Props = {
   locale: WebLocale
   orderId: string
   shopTitle: string
+  initialOrder?: DepositOrder | null
+  initialPaymentDisplay?: PaymentDisplay
+  initialShopPercent?: number
+  initialMerchantId?: number | null
+  initialSiblings?: ShopSiblingOrderView[]
+  initialShipmentEvents?: ShopShipmentEventView[]
 }
 
 function CopyButton({ text, label, copiedLabel }: { text: string; label: string; copiedLabel: string }) {
@@ -115,21 +125,31 @@ export function PartnerSiteShopDepositClient({
   locale,
   orderId,
   shopTitle,
+  initialOrder = null,
+  initialPaymentDisplay = null,
+  initialShopPercent,
+  initialMerchantId = null,
+  initialSiblings = [],
+  initialShipmentEvents = [],
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
   const { authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { tracking } = usePartnerSiteShop()
-  const [order, setOrder] = useState<DepositOrder | null>(null)
-  const [paymentDisplay, setPaymentDisplay] = useState<PaymentDisplay>(null)
-  const [merchantId, setMerchantId] = useState<number | null>(null)
-  const [shopPercent, setShopPercent] = useState(30)
-  const [loading, setLoading] = useState(true)
+  const [order, setOrder] = useState<DepositOrder | null>(initialOrder)
+  const [paymentDisplay, setPaymentDisplay] = useState<PaymentDisplay>(initialPaymentDisplay)
+  const [merchantId, setMerchantId] = useState<number | null>(initialMerchantId)
+  const [shopPercent, setShopPercent] = useState(
+    typeof initialShopPercent === 'number' && initialShopPercent > 0
+      ? Math.max(1, Math.min(99, Math.round(initialShopPercent)))
+      : 30
+  )
+  const [loading, setLoading] = useState(!initialOrder)
   const [updating, setUpdating] = useState(false)
   const [toast, setToast] = useState('')
   const [toastKind, setToastKind] = useState<'info' | 'pay'>('info')
-  const [siblings, setSiblings] = useState<ShopSiblingOrderView[]>([])
-  const [shipmentEvents, setShipmentEvents] = useState<ShopShipmentEventView[]>([])
+  const [siblings, setSiblings] = useState<ShopSiblingOrderView[]>(initialSiblings)
+  const [shipmentEvents, setShipmentEvents] = useState<ShopShipmentEventView[]>(initialShipmentEvents)
   const prevStatusRef = useRef<string | null>(null)
   const qrBlobRef = useRef<Blob | null>(null)
   const [qrBlobReady, setQrBlobReady] = useState(false)
@@ -138,6 +158,32 @@ export function PartnerSiteShopDepositClient({
   const [inAppKind, setInAppKind] = useState<InAppBrowserKind | null>(null)
 
   const orderApi = `/api/messaging/guest/${encodeURIComponent(partnerSlug)}/order/${encodeURIComponent(orderId)}`
+
+  const applyFull = useCallback(
+    (json: {
+      order?: DepositOrder
+      payment_display?: PaymentDisplay
+      default_deposit_percent?: number
+      google_customer_reviews_merchant_id?: number | null
+      sibling_orders?: ShopSiblingOrderView[]
+      shipment_events?: ShopShipmentEventView[]
+    }) => {
+      if (!json.order) return false
+      setOrder(json.order)
+      clearPartnerSiteCheckoutHandoff(siteSlug)
+      setSiblings(Array.isArray(json.sibling_orders) ? json.sibling_orders : [])
+      setShipmentEvents(Array.isArray(json.shipment_events) ? json.shipment_events : [])
+      setPaymentDisplay(json.payment_display ?? null)
+      if (typeof json.default_deposit_percent === 'number' && json.default_deposit_percent > 0) {
+        setShopPercent(Math.max(1, Math.min(99, Math.round(json.default_deposit_percent))))
+      }
+      const mid = Number(json.google_customer_reviews_merchant_id ?? 0)
+      setMerchantId(Number.isInteger(mid) && mid > 0 ? mid : null)
+      setLoading(false)
+      return true
+    },
+    [siteSlug]
+  )
 
   const load = useCallback(async (opts?: { poll?: boolean }) => {
     const url = opts?.poll ? `${orderApi}?poll=1` : orderApi
@@ -157,26 +203,20 @@ export function PartnerSiteShopDepositClient({
       if (!res.ok || !json.order) {
         return
       }
-      setOrder(json.order)
-      if (!opts?.poll) {
-        clearPartnerSiteCheckoutHandoff(siteSlug)
-        setSiblings(Array.isArray(json.sibling_orders) ? json.sibling_orders : [])
-        setShipmentEvents(Array.isArray(json.shipment_events) ? json.shipment_events : [])
-        setPaymentDisplay(json.payment_display ?? null)
-        if (typeof json.default_deposit_percent === 'number' && json.default_deposit_percent > 0) {
-          setShopPercent(Math.max(1, Math.min(99, Math.round(json.default_deposit_percent))))
-        }
-        const mid = Number(json.google_customer_reviews_merchant_id ?? 0)
-        setMerchantId(Number.isInteger(mid) && mid > 0 ? mid : null)
+      if (opts?.poll) {
+        setOrder(json.order)
+        return
       }
+      applyFull(json)
     } catch {
       /* aborted / network */
     } finally {
       window.clearTimeout(timer)
     }
-  }, [authHeaders, captureFromResponse, orderApi, siteSlug])
+  }, [applyFull, authHeaders, captureFromResponse, orderApi])
 
   useLayoutEffect(() => {
+    if (initialOrder) return
     const handoff = readPartnerSiteCheckoutHandoff(siteSlug, orderId)
     if (!handoff?.order) return
     setOrder(handoff.order as DepositOrder)
@@ -185,21 +225,46 @@ export function PartnerSiteShopDepositClient({
       setShopPercent(Math.max(1, Math.min(99, Math.round(handoff.default_deposit_percent))))
     }
     setLoading(false)
-  }, [orderId, siteSlug])
+  }, [initialOrder, orderId, siteSlug])
 
   useEffect(() => {
     setInAppKind(detectInAppBrowser())
   }, [])
 
   useLayoutEffect(() => {
+    const boot = readPartnerSiteGuestOrderPageBoot()
+    if (boot?.order) {
+      applyFull({
+        order: boot.order as DepositOrder,
+        payment_display: (boot.payment_display as PaymentDisplay) ?? null,
+        default_deposit_percent: boot.default_deposit_percent,
+        google_customer_reviews_merchant_id: boot.google_customer_reviews_merchant_id,
+        sibling_orders: Array.isArray(boot.sibling_orders) ? (boot.sibling_orders as ShopSiblingOrderView[]) : [],
+        shipment_events: Array.isArray(boot.shipment_events) ? (boot.shipment_events as ShopShipmentEventView[]) : [],
+      })
+    }
+    const onReady = () => {
+      const next = readPartnerSiteGuestOrderPageBoot()
+      if (!next?.order) return
+      applyFull({
+        order: next.order as DepositOrder,
+        payment_display: (next.payment_display as PaymentDisplay) ?? null,
+        default_deposit_percent: next.default_deposit_percent,
+        google_customer_reviews_merchant_id: next.google_customer_reviews_merchant_id,
+        sibling_orders: Array.isArray(next.sibling_orders) ? (next.sibling_orders as ShopSiblingOrderView[]) : [],
+        shipment_events: Array.isArray(next.shipment_events) ? (next.shipment_events as ShopShipmentEventView[]) : [],
+      })
+    }
+    window.addEventListener(PW_GUEST_ORDER_PAGE_READY_EVENT, onReady)
     let cancelled = false
     void load().finally(() => {
       if (!cancelled) setLoading(false)
     })
     return () => {
       cancelled = true
+      window.removeEventListener(PW_GUEST_ORDER_PAGE_READY_EVENT, onReady)
     }
-  }, [load])
+  }, [applyFull, load])
 
   useEffect(() => {
     if (!order || !isPartnerShopDepositWaiting(order)) return

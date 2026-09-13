@@ -469,9 +469,13 @@ export default async function RootLayout({
           </>
         ) : null}
         {shouldRenderNanoAiSiteTags ? <AnalyticsTracker /> : null}
-        <CreditFeatureAccessGuard />
-        <ReferralCapture />
-        <ReferralClaimRunner />
+        {isCustomerOwnedSurface ? null : (
+          <>
+            <CreditFeatureAccessGuard />
+            <ReferralCapture />
+            <ReferralClaimRunner />
+          </>
+        )}
         {shouldRenderNanoAiSiteTags ? (
           <>
             <JsonLd data={webAppLd} />

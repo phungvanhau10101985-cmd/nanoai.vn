@@ -11,6 +11,7 @@ test('storefront order/personalization thread lookup does not finalize Google au
   assert.doesNotMatch(src, /completeGuestEmailAuth/)
   assert.match(src, /findGuestAccountIdByEmailPg/)
   assert.match(src, /readGuestAccountIdFromRequest/)
+  assert.match(src, /resolveWidgetOrderThreadFromCookies/)
 
   const ordersSrc = readFileSync(
     join(dir, '../../app/api/messaging/guest/[slug]/orders/route.ts'),

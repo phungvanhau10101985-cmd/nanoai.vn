@@ -12,6 +12,10 @@ import {
   partnerOrderPayableTotal,
 } from '@/lib/partner-website/shop/order-deposit'
 import { readPartnerSiteCheckoutHandoff } from '@/lib/partner-website/shop/partner-site-checkout-handoff'
+import {
+  PW_GUEST_ORDER_PAGE_READY_EVENT,
+  readPartnerSiteGuestOrderPageBoot,
+} from '@/lib/partner-website/shop/partner-site-guest-order-page-boot'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { displayShopOrderCode } from '@/lib/messaging/shop-payment-reference'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
@@ -59,22 +63,55 @@ type Props = {
   partnerSlug: string
   locale: WebLocale
   orderId: string
+  initialOrder?: DetailOrder | null
+  initialMerchantId?: number | null
+  initialShipmentEvents?: ShopShipmentEventView[]
+  initialSiblings?: ShopSiblingOrderView[]
+  initialCanConfirm?: boolean
 }
 
-export function PartnerSiteShopOrderDetailClient({ siteSlug, partnerSlug, locale, orderId }: Props) {
+export function PartnerSiteShopOrderDetailClient({
+  siteSlug,
+  partnerSlug,
+  locale,
+  orderId,
+  initialOrder = null,
+  initialMerchantId = null,
+  initialShipmentEvents = [],
+  initialSiblings = [],
+  initialCanConfirm = false,
+}: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
   const { authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
-  const [order, setOrder] = useState<DetailOrder | null>(null)
-  const [merchantId, setMerchantId] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [shipmentEvents, setShipmentEvents] = useState<ShopShipmentEventView[]>([])
-  const [siblings, setSiblings] = useState<ShopSiblingOrderView[]>([])
-  const [canConfirm, setCanConfirm] = useState(false)
+  const [order, setOrder] = useState<DetailOrder | null>(initialOrder)
+  const [merchantId, setMerchantId] = useState<number | null>(initialMerchantId)
+  const [loading, setLoading] = useState(!initialOrder)
+  const [shipmentEvents, setShipmentEvents] = useState<ShopShipmentEventView[]>(initialShipmentEvents)
+  const [siblings, setSiblings] = useState<ShopSiblingOrderView[]>(initialSiblings)
+  const [canConfirm, setCanConfirm] = useState(initialCanConfirm)
   const [confirmBusy, setConfirmBusy] = useState(false)
   const [confirmStatus, setConfirmStatus] = useState('')
 
   const orderApi = `/api/messaging/guest/${encodeURIComponent(partnerSlug)}/order/${encodeURIComponent(orderId)}`
+
+  const applyFull = useCallback((json: {
+    order?: DetailOrder
+    google_customer_reviews_merchant_id?: number | null
+    shipment_events?: ShopShipmentEventView[]
+    sibling_orders?: ShopSiblingOrderView[]
+    can_confirm_received?: boolean
+  }) => {
+    if (!json.order) return false
+    setOrder(json.order)
+    setShipmentEvents(Array.isArray(json.shipment_events) ? json.shipment_events : [])
+    setSiblings(Array.isArray(json.sibling_orders) ? json.sibling_orders : [])
+    setCanConfirm(json.can_confirm_received === true)
+    const mid = Number(json.google_customer_reviews_merchant_id ?? 0)
+    setMerchantId(Number.isInteger(mid) && mid > 0 ? mid : null)
+    setLoading(false)
+    return true
+  }, [])
 
   const load = useCallback(async () => {
     const ctrl = new AbortController()
@@ -96,35 +133,54 @@ export function PartnerSiteShopOrderDetailClient({ siteSlug, partnerSlug, locale
       if (!res.ok || !json.order) {
         return
       }
-      setOrder(json.order)
-      setShipmentEvents(Array.isArray(json.shipment_events) ? json.shipment_events : [])
-      setSiblings(Array.isArray(json.sibling_orders) ? json.sibling_orders : [])
-      setCanConfirm(json.can_confirm_received === true)
-      const mid = Number(json.google_customer_reviews_merchant_id ?? 0)
-      setMerchantId(Number.isInteger(mid) && mid > 0 ? mid : null)
+      applyFull(json)
     } catch {
       /* aborted / network */
     } finally {
       window.clearTimeout(timer)
     }
-  }, [authHeaders, captureFromResponse, orderApi])
+  }, [applyFull, authHeaders, captureFromResponse, orderApi])
 
   useLayoutEffect(() => {
+    if (initialOrder) return
     const handoff = readPartnerSiteCheckoutHandoff(siteSlug, orderId)
     if (!handoff?.order) return
     setOrder((prev) => prev ?? (handoff.order as DetailOrder))
     setLoading(false)
-  }, [orderId, siteSlug])
+  }, [initialOrder, orderId, siteSlug])
 
   useLayoutEffect(() => {
+    const boot = readPartnerSiteGuestOrderPageBoot()
+    if (boot?.order) {
+      applyFull({
+        order: boot.order as DetailOrder,
+        google_customer_reviews_merchant_id: boot.google_customer_reviews_merchant_id,
+        shipment_events: Array.isArray(boot.shipment_events) ? (boot.shipment_events as ShopShipmentEventView[]) : [],
+        sibling_orders: Array.isArray(boot.sibling_orders) ? (boot.sibling_orders as ShopSiblingOrderView[]) : [],
+        can_confirm_received: boot.can_confirm_received === true,
+      })
+    }
+    const onReady = () => {
+      const next = readPartnerSiteGuestOrderPageBoot()
+      if (!next?.order) return
+      applyFull({
+        order: next.order as DetailOrder,
+        google_customer_reviews_merchant_id: next.google_customer_reviews_merchant_id,
+        shipment_events: Array.isArray(next.shipment_events) ? (next.shipment_events as ShopShipmentEventView[]) : [],
+        sibling_orders: Array.isArray(next.sibling_orders) ? (next.sibling_orders as ShopSiblingOrderView[]) : [],
+        can_confirm_received: next.can_confirm_received === true,
+      })
+    }
+    window.addEventListener(PW_GUEST_ORDER_PAGE_READY_EVENT, onReady)
     let cancelled = false
     void load().finally(() => {
       if (!cancelled) setLoading(false)
     })
     return () => {
       cancelled = true
+      window.removeEventListener(PW_GUEST_ORDER_PAGE_READY_EVENT, onReady)
     }
-  }, [load])
+  }, [applyFull, load])
 
   useEffect(() => {
     if (!order?.id) return

@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { buildMetadata } from '@/lib/seo'
+import { loadGuestOrderPageForCookies } from '@/lib/messaging/load-guest-order-page'
+import { buildPartnerSiteGuestOrderBootScript } from '@/lib/partner-website/shop/partner-site-guest-order-page-boot'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { PartnerSiteShopDepositClient } from '@/components/partner-website/shop/partner-site-shop-deposit-client'
@@ -38,14 +40,30 @@ export default async function PartnerSiteOrderDepositPage({ params }: Props) {
   if (!shop) notFound()
   const id = String(orderId ?? '').trim()
   if (!id) notFound()
+  const initial = await loadGuestOrderPageForCookies(shop.partnerSlug, id)
 
   return (
-    <PartnerSiteShopDepositClient
-      siteSlug={shop.site.siteSlug}
-      partnerSlug={shop.partnerSlug}
-      locale={shop.site.locale}
-      orderId={id}
-      shopTitle={shop.site.title}
-    />
+    <>
+      {!initial ? (
+        <script
+          dangerouslySetInnerHTML={{
+            __html: buildPartnerSiteGuestOrderBootScript(shop.partnerSlug, id),
+          }}
+        />
+      ) : null}
+      <PartnerSiteShopDepositClient
+        siteSlug={shop.site.siteSlug}
+        partnerSlug={shop.partnerSlug}
+        locale={shop.site.locale}
+        orderId={id}
+        shopTitle={shop.site.title}
+        initialOrder={initial?.order ?? null}
+        initialPaymentDisplay={initial?.payment_display ?? null}
+        initialShopPercent={initial?.default_deposit_percent}
+        initialMerchantId={initial?.google_customer_reviews_merchant_id ?? null}
+        initialSiblings={initial?.sibling_orders ?? []}
+        initialShipmentEvents={initial?.shipment_events ?? []}
+      />
+    </>
   )
 }

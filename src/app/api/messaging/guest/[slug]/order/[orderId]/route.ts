@@ -8,16 +8,14 @@ import {
   fetchPartnerOrderDetailForGuestWidgetIfAllowed,
   updateCartOrderDepositPercent,
 } from '@/lib/messaging/guest-chat-ordering'
+import { buildGuestOrderPagePayload } from '@/lib/messaging/load-guest-order-page'
 import { resolveWidgetOrderThreadFromRequest } from '@/lib/messaging/resolve-widget-order-thread'
 import { fetchGuestWidgetConversationIdFromPg } from '@/lib/db/customer-care-pg'
 import {
   cancelPartnerOrderForConversationFromPg,
   confirmPartnerOrderReceivedForConversationFromPg,
-  fetchPartnerCheckoutGroupOrdersFromPg,
   insertPartnerOrderEventFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
-import { fetchPartnerOrderShipmentEventsFromPg } from '@/lib/db/messaging-partner-order-shipment-pg'
-import { canConfirmReceivedFromShipment } from '@/lib/messaging/fulfillment/order-shipment-timeline'
 import {
   onPartnerOrderCancelledFulfillment,
   onPartnerOrderCustomerConfirmedReceived,
@@ -51,23 +49,14 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     return NextResponse.json({ order })
   }
 
-  const view = await buildGuestOrderDepositView({ partnerId: partner.partnerId, order })
-  const [events, siblings] = await Promise.all([
-    fetchPartnerOrderShipmentEventsFromPg(order.id),
-    fetchPartnerCheckoutGroupOrdersFromPg(partner.partnerId, order.checkout_group_id),
-  ])
-  return NextResponse.json({
-    ...view,
-    partner_display_name: partner.displayName,
-    partner_slug: slug,
-    shipment_events: events,
-    sibling_orders: siblings.filter((row) => row.id !== order.id),
-    can_confirm_received:
-      order.status !== 'cancelled' &&
-      (events.length > 0
-        ? canConfirmReceivedFromShipment(events)
-        : order.shipping_status === 'shipping'),
-  })
+  return NextResponse.json(
+    await buildGuestOrderPagePayload({
+      partnerId: partner.partnerId,
+      partnerDisplayName: partner.displayName,
+      slug,
+      order,
+    })
+  )
 }
 
 export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug: string; orderId: string }> }) {

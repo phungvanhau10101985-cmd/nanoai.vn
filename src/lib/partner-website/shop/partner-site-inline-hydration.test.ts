@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
 import { inertPartnerInlineVisualScripts } from '../../../app/site/[slug]/partner-site-public-client'
+import { buildPartnerSiteGuestOrderBootScript } from './partner-site-guest-order-page-boot'
 
 test('inline visual runtime scripts stay inert until React hydration completes', () => {
   const html =
@@ -57,10 +58,46 @@ test('deposit and order pages fetch without waiting for session ready', async ()
   assert.doesNotMatch(deposit, /if \(ready\)/)
   assert.doesNotMatch(detail, /if \(ready\)/)
   assert.doesNotMatch(orders, /if \(!ready\)/)
+  assert.match(deposit, /useState\(!initialOrder\)/)
+  assert.match(detail, /useState\(!initialOrder\)/)
   assert.match(deposit, /useLayoutEffect\(\(\) => \{/)
   assert.match(deposit, /void load\(\)/)
   assert.match(detail, /useLayoutEffect\(\(\) => \{/)
   assert.match(detail, /void load\(\)/)
+})
+
+test('deposit and order pages SSR cookie order and boot-fetch without waiting for a click', async () => {
+  const depositPage = await readFile(
+    new URL('../../../app/site/[slug]/(account-chrome)/orders/[orderId]/deposit/page.tsx', import.meta.url),
+    'utf8'
+  )
+  const detailPage = await readFile(
+    new URL('../../../app/site/[slug]/(account-chrome)/orders/[orderId]/page.tsx', import.meta.url),
+    'utf8'
+  )
+  const boot = await readFile(
+    new URL('./partner-site-guest-order-page-boot.ts', import.meta.url),
+    'utf8'
+  )
+  const loader = await readFile(
+    new URL('../../messaging/load-guest-order-page.ts', import.meta.url),
+    'utf8'
+  )
+  assert.match(depositPage, /loadGuestOrderPageForCookies/)
+  assert.match(detailPage, /loadGuestOrderPageForCookies/)
+  assert.match(depositPage, /buildPartnerSiteGuestOrderBootScript/)
+  assert.match(detailPage, /buildPartnerSiteGuestOrderBootScript/)
+  assert.match(boot, /localStorage\.getItem/)
+  assert.doesNotMatch(loader, /completeGuestEmailAuth/)
+  assert.doesNotMatch(loader, /upsertGuestAccountForGoogleIdentity/)
+})
+
+test('guest order boot script fetches with guest identity headers before React hydrates', () => {
+  const src = buildPartnerSiteGuestOrderBootScript('shop-a', 'order-1')
+  assert.match(src, /\/api\/messaging\/guest\/shop-a\/order\/order-1/)
+  assert.match(src, /x-guest-session-id/)
+  assert.match(src, /x-guest-account-id/)
+  assert.match(src, /credentials:'same-origin'/)
 })
 
 test('PDP cart and favorite buttons are not disabled until session ready', async () => {

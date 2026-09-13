@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { buildMetadata } from '@/lib/seo'
+import { loadGuestOrderPageForCookies } from '@/lib/messaging/load-guest-order-page'
+import { buildPartnerSiteGuestOrderBootScript } from '@/lib/partner-website/shop/partner-site-guest-order-page-boot'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { PartnerSiteShopOrderDetailClient } from '@/components/partner-website/shop/partner-site-shop-order-detail-client'
@@ -38,13 +40,28 @@ export default async function PartnerSiteOrderDetailPage({ params }: Props) {
   if (!shop) notFound()
   const id = String(orderId ?? '').trim()
   if (!id) notFound()
+  const initial = await loadGuestOrderPageForCookies(shop.partnerSlug, id)
 
   return (
-    <PartnerSiteShopOrderDetailClient
-      siteSlug={shop.site.siteSlug}
-      partnerSlug={shop.partnerSlug}
-      locale={shop.site.locale}
-      orderId={id}
-    />
+    <>
+      {!initial ? (
+        <script
+          dangerouslySetInnerHTML={{
+            __html: buildPartnerSiteGuestOrderBootScript(shop.partnerSlug, id),
+          }}
+        />
+      ) : null}
+      <PartnerSiteShopOrderDetailClient
+        siteSlug={shop.site.siteSlug}
+        partnerSlug={shop.partnerSlug}
+        locale={shop.site.locale}
+        orderId={id}
+        initialOrder={initial?.order ?? null}
+        initialMerchantId={initial?.google_customer_reviews_merchant_id ?? null}
+        initialShipmentEvents={initial?.shipment_events ?? []}
+        initialSiblings={initial?.sibling_orders ?? []}
+        initialCanConfirm={initial?.can_confirm_received === true}
+      />
+    </>
   )
 }
