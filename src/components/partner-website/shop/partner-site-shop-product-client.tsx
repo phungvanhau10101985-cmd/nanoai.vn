@@ -168,7 +168,7 @@ export function PartnerSiteShopProductClient({
   const router = useRouter()
   const { openConsult, openTryOn } = usePartnerSiteChatWidget()
   const { setActiveProduct } = usePartnerSiteActiveProductRegistrar()
-  const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { refreshCartCount, tracking } = usePartnerSiteShop()
   const customDomain = usePartnerSiteCustomDomain()
   const [options, setOptions] = useState<ProductPurchaseOptions | null>(null)
@@ -427,7 +427,6 @@ export function PartnerSiteShopProductClient({
   }, [catalogLikes, product.id])
 
   useEffect(() => {
-    if (!ready) return
     void fetch(partnerSitePersonalizationApiPath(siteSlug, 'favorites?idsOnly=1'), {
       credentials: 'same-origin',
       headers: authHeaders(),
@@ -440,10 +439,10 @@ export function PartnerSiteShopProductClient({
         setIsFavorite(ids.includes(product.id.toLowerCase()))
       })
       .catch(() => {})
-  }, [authHeaders, product.id, ready, siteSlug])
+  }, [authHeaders, product.id, siteSlug])
 
   async function toggleFavorite() {
-    if (!ready || favoriteBusy) return
+    if (favoriteBusy) return
     const inflightKey = product.id.trim().toLowerCase()
     const host = window as Window & { __pwFavoriteToggleInFlight?: Partial<Record<string, Promise<unknown>>> }
     host.__pwFavoriteToggleInFlight = host.__pwFavoriteToggleInFlight || {}
@@ -537,7 +536,6 @@ export function PartnerSiteShopProductClient({
       goPurchaseLogin()
       return
     }
-    if (!ready) return
     setBusy(true)
     setMessage('')
     try {
@@ -656,7 +654,7 @@ export function PartnerSiteShopProductClient({
         <button
           type="button"
           className="is-fav"
-          disabled={!ready || favoriteBusy}
+          disabled={favoriteBusy}
           onClick={() => void toggleFavorite()}
           aria-pressed={isFavorite}
           aria-label={isFavorite ? t.favoriteRemove : t.favoriteAdd}
@@ -672,10 +670,10 @@ export function PartnerSiteShopProductClient({
         </button>
       </nav>
       <div className="pw-pdp-sticky-ctas">
-        <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => onStickyPdpCart()} data-pw-el={PW_EL.cardCart} data-pw-add-cart data-pw-pdp-add-cart="1">
+        <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={busy} onClick={() => onStickyPdpCart()} data-pw-el={PW_EL.cardCart} data-pw-add-cart data-pw-pdp-add-cart="1">
           {t.pdpAddToCartShort}
         </button>
-        <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => onStickyPdpCart()} data-pw-el={PW_EL.buy} data-pw-buy data-pw-pdp-buy-now="1">
+        <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={busy} onClick={() => onStickyPdpCart()} data-pw-el={PW_EL.buy} data-pw-buy data-pw-pdp-buy-now="1">
           {t.pdpBuyNowShort}
         </button>
       </div>
@@ -997,10 +995,10 @@ export function PartnerSiteShopProductClient({
           ) : null}
 
           <div ref={buyActionsRef} className="pw-pdp-actions pw-pdp-actions-inline">
-            <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={!ready || busy} onClick={() => onInlinePdpCart(false)} data-pw-el={PW_EL.cardCart} data-pw-add-cart data-pw-pdp-add-cart="1">
+            <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={busy} onClick={() => onInlinePdpCart(false)} data-pw-el={PW_EL.cardCart} data-pw-add-cart data-pw-pdp-add-cart="1">
               {t.addToCart}
             </button>
-            <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={!ready || busy} onClick={() => onInlinePdpCart(true)} data-pw-el={PW_EL.buy} data-pw-buy data-pw-pdp-buy-now="1">
+            <button type="button" className="pw-shop-btn pw-shop-btn-buy" disabled={busy} onClick={() => onInlinePdpCart(true)} data-pw-el={PW_EL.buy} data-pw-buy data-pw-pdp-buy-now="1">
               {t.buyNow}
             </button>
             <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => openConsult(consultCtx)} data-pw-el={PW_EL.cta}>
@@ -1012,7 +1010,7 @@ export function PartnerSiteShopProductClient({
             <button
               type="button"
               className="pw-shop-btn pw-shop-btn-outline"
-              disabled={!ready || favoriteBusy}
+              disabled={favoriteBusy}
               onClick={() => void toggleFavorite()}
               aria-pressed={isFavorite}
               data-pw-el={PW_EL.wishlist}

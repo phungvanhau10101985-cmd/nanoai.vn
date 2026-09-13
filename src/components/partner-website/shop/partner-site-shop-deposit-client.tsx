@@ -118,7 +118,7 @@ export function PartnerSiteShopDepositClient({
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
-  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { tracking } = usePartnerSiteShop()
   const [order, setOrder] = useState<DepositOrder | null>(null)
   const [paymentDisplay, setPaymentDisplay] = useState<PaymentDisplay>(null)
@@ -191,26 +191,15 @@ export function PartnerSiteShopDepositClient({
     setInAppKind(detectInAppBrowser())
   }, [])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false
-    const run = () => {
-      if (cancelled) return
-      void load().finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    }
-    if (ready) {
-      run()
-      return () => {
-        cancelled = true
-      }
-    }
-    const t = window.setTimeout(run, 1200)
+    void load().finally(() => {
+      if (!cancelled) setLoading(false)
+    })
     return () => {
       cancelled = true
-      window.clearTimeout(t)
     }
-  }, [load, ready])
+  }, [load])
 
   useEffect(() => {
     if (!order || !isPartnerShopDepositWaiting(order)) return

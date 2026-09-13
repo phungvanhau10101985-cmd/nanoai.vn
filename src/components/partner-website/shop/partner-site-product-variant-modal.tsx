@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   nextShopImageRetrySrc,
@@ -170,7 +170,7 @@ export function PartnerSiteProductVariantModal({
   const [hasSaleCount, setHasSaleCount] = useState(false)
   const saleHmsRef = useRef<HTMLElement>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setReady(true)
   }, [])
 

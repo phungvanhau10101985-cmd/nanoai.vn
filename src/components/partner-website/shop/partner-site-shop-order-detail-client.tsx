@@ -64,7 +64,7 @@ type Props = {
 export function PartnerSiteShopOrderDetailClient({ siteSlug, partnerSlug, locale, orderId }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
-  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const [order, setOrder] = useState<DetailOrder | null>(null)
   const [merchantId, setMerchantId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -116,26 +116,15 @@ export function PartnerSiteShopOrderDetailClient({ siteSlug, partnerSlug, locale
     setLoading(false)
   }, [orderId, siteSlug])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false
-    const run = () => {
-      if (cancelled) return
-      void load().finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    }
-    if (ready) {
-      run()
-      return () => {
-        cancelled = true
-      }
-    }
-    const t = window.setTimeout(run, 1200)
+    void load().finally(() => {
+      if (!cancelled) setLoading(false)
+    })
     return () => {
       cancelled = true
-      window.clearTimeout(t)
     }
-  }, [load, ready])
+  }, [load])
 
   useEffect(() => {
     if (!order?.id) return

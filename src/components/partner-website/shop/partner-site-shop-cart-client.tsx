@@ -440,7 +440,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   const saleT = CART_SALE_COPY[locale] ?? CART_SALE_COPY.en
   const siteSaleT = partnerSiteSaleCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
-  const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { ready, authResolved, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { refreshCartCount, setCartCount, tracking } = usePartnerSiteShop()
   const router = useRouter()
   const [items, setItems] = useState<SiteCartLine[]>(() => initialItems ?? [])
@@ -556,7 +556,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   }, [authHeaders, captureFromResponse, setCartCount, siteSlug])
 
   useEffect(() => {
-    if (!ready) return
+    if (!authResolved) return
     if (!isAuthenticated) {
       window.location.assign(
         buildPartnerShopLoginHref(
@@ -572,15 +572,15 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     void loadCart().finally(() => {
       if (blocking) setLoading(false)
     })
-  }, [customDomain, initialItems, isAuthenticated, loadCart, ready, siteSlug])
+  }, [authResolved, customDomain, initialItems, isAuthenticated, loadCart, siteSlug])
 
   useEffect(() => {
-    if (!ready) return
+    if (!authResolved) return
     const timer = window.setTimeout(() => {
       void loadAddressBook()
     }, 0)
     return () => window.clearTimeout(timer)
-  }, [loadAddressBook, ready])
+  }, [authResolved, loadAddressBook])
 
   const selectedAddress = bookAddresses.find((addr) => addr.id === selectedAddressId) ?? null
 

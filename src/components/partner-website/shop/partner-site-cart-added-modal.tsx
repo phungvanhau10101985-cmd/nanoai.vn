@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
@@ -22,7 +22,7 @@ type Props = {
 export function PartnerSiteCartAddedModal({ open, item, cartHref, copy, onClose }: Props) {
   const [ready, setReady] = useState(false)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setReady(true)
   }, [])
 

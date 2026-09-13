@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import {
   MESSAGING_GUEST_SESSION_HEADER,
   MESSAGING_GUEST_SESSION_STORAGE_KEY,
@@ -184,35 +184,32 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
     return h
   }, [siteSlug])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false
     const normalizedSlug = siteSlug.trim().toLowerCase()
-    const syncFromStorage = (resolveMissing = false) => {
+    const syncFromStorage = (resolveAuth = false) => {
       if (cancelled) return
-      sessionRef.current = readStoredSessionId()
+      sessionRef.current = ensurePartnerSiteGuestBrowserSessionId() || readStoredSessionId()
       const skip = shouldPartnerSiteShopSkipAuthSync(siteSlug)
       accountRef.current = skip ? '' : readStoredAccountId()
+      setReady(true)
       if (skip) {
         setIsAuthenticated(false)
-        setReady(true)
         setAuthResolved(true)
-      } else if (accountRef.current) {
-        setIsAuthenticated(true)
-        setReady(true)
-        setAuthResolved(true)
-      } else if (sessionRef.current) {
-        setIsAuthenticated(false)
-        setReady(true)
-      } else if (resolveMissing) {
-        setIsAuthenticated(false)
-        setReady(true)
-        setAuthResolved(true)
+        return
       }
+      if (accountRef.current) {
+        setIsAuthenticated(true)
+        setAuthResolved(true)
+        return
+      }
+      setIsAuthenticated(false)
+      if (resolveAuth) setAuthResolved(true)
     }
     const onSessionChange = (event: Event) => {
       const detail = (event as CustomEvent<{ siteSlug?: string }>).detail
       if (detail?.siteSlug && detail.siteSlug !== normalizedSlug) return
-      syncFromStorage(true)
+      syncFromStorage()
     }
     const onStorage = (event: StorageEvent) => {
       if (
@@ -224,7 +221,7 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
       ) {
         return
       }
-      syncFromStorage(true)
+      syncFromStorage()
     }
     const onPageShow = () => syncFromStorage()
     const onVisibilityChange = () => {
@@ -237,19 +234,6 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
 
     syncFromStorage()
     const skipAuthSync = shouldPartnerSiteShopSkipAuthSync(siteSlug)
-    if (skipAuthSync) {
-      accountRef.current = ''
-      setIsAuthenticated(false)
-      setReady(true)
-      setAuthResolved(true)
-    } else if (accountRef.current) {
-      setIsAuthenticated(true)
-      setReady(true)
-      setAuthResolved(true)
-    } else if (sessionRef.current) {
-      setIsAuthenticated(false)
-      setReady(true)
-    }
     void sharedGuestSessionBootstrap(siteSlug)
       .then((result) => {
         if (cancelled) return

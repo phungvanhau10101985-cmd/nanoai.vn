@@ -34,7 +34,7 @@ type Props = {
 export function PartnerSiteShopAddressesClient({ siteSlug, locale }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
-  const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { authResolved, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const [addresses, setAddresses] = useState<PartnerSiteCustomerAddress[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -66,7 +66,7 @@ export function PartnerSiteShopAddressesClient({ siteSlug, locale }: Props) {
   }, [authHeaders, captureFromResponse, siteSlug])
 
   useEffect(() => {
-    if (!ready) return
+    if (!authResolved) return
     if (!isAuthenticated) {
       window.location.replace(
         buildPartnerShopLoginHref(siteSlug, getPartnerShopBrowserReturnLocation(siteSlug, { customDomain }), {
@@ -77,16 +77,16 @@ export function PartnerSiteShopAddressesClient({ siteSlug, locale }: Props) {
     }
     setLoading(true)
     void loadAddresses().finally(() => setLoading(false))
-  }, [customDomain, isAuthenticated, loadAddresses, ready, siteSlug])
+  }, [authResolved, customDomain, isAuthenticated, loadAddresses, siteSlug])
 
   useEffect(() => {
-    if (!ready || loading || !needsAuth || !isAuthenticated) return
+    if (!authResolved || loading || !needsAuth || !isAuthenticated) return
     window.location.replace(
       buildPartnerShopLoginHref(siteSlug, getPartnerShopBrowserReturnLocation(siteSlug, { customDomain }), {
         customDomain,
       })
     )
-  }, [customDomain, isAuthenticated, loading, needsAuth, ready, siteSlug])
+  }, [authResolved, customDomain, isAuthenticated, loading, needsAuth, siteSlug])
 
   const closeForm = useCallback(() => {
     setShowForm(false)

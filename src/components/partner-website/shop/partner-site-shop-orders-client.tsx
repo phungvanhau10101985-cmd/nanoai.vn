@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { WebLocale } from '@/lib/i18n/config'
 import { formatVnd } from '@/lib/partner-website/shop/cart-line-utils'
@@ -117,7 +117,7 @@ export function PartnerSiteShopOrdersClient({
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
-  const { ready, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [loading, setLoading] = useState(true)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -143,18 +143,21 @@ export function PartnerSiteShopOrdersClient({
     setOrders(Array.isArray(json.orders) ? json.orders : [])
   }
 
-  useEffect(() => {
-    if (!ready) return
+  useLayoutEffect(() => {
+    let cancelled = false
     void (async () => {
       setLoading(true)
       try {
         await reload()
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once session ready
-  }, [authHeaders, captureFromResponse, partnerSlug, ready])
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load on mount / session header identity
+  }, [authHeaders, captureFromResponse, partnerSlug])
 
   const counts = useMemo(() => countPartnerSiteOrdersByStatusFilter(orders), [orders])
   const visibleOrders = useMemo(

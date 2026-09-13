@@ -202,7 +202,7 @@ function VisualHomeChromeRuntime({
   siteSlug: string
   locale: WebLocale
 }) {
-  useEffect(() => {
+  useLayoutEffect(() => {
     mountHtmlBootstraps(
       `pw-visual-home-chrome-runtime-${siteSlug}`,
       [
