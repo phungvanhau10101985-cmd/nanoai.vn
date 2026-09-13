@@ -4,7 +4,11 @@ import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { PartnerSiteShopAccountClient } from '@/components/partner-website/shop/partner-site-shop-account-client'
-import { loadSiteSavedProductsForRequest } from '@/lib/partner-website/shop/partner-site-personalization'
+import {
+  loadSiteSavedProductsForRequest,
+  loadSiteVisitorProfileForRequest,
+} from '@/lib/partner-website/shop/partner-site-personalization'
+import { loadSiteOrdersForRequest } from '@/lib/partner-website/shop/load-site-orders-for-request'
 import {
   isPartnerSiteAccountTab,
   type PartnerSiteAccountTab,
@@ -74,6 +78,9 @@ export default async function PartnerSiteAccountTabPage({ params, searchParams }
 
   const sp = (await searchParams) ?? {}
   const ordersFilter = normalized === 'orders' ? sp.tab?.trim() || null : null
+  const initialProfile = await loadSiteVisitorProfileForRequest(shop.partnerId)
+  const initialOrders =
+    normalized === 'orders' ? await loadSiteOrdersForRequest(shop.partnerId) : null
   const initialSavedProducts =
     normalized === 'wishlist' || normalized === 'recently-viewed'
       ? await loadSiteSavedProductsForRequest({
@@ -92,6 +99,8 @@ export default async function PartnerSiteAccountTabPage({ params, searchParams }
       initialTab={normalized}
       initialOrdersFilter={ordersFilter}
       initialSavedProducts={initialSavedProducts}
+      initialProfile={initialProfile}
+      initialOrders={initialOrders}
     />
   )
 }

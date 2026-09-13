@@ -1,6 +1,5 @@
 'use client'
 
-import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell, Copy, Download, MessageCircle } from 'lucide-react'
@@ -20,6 +19,10 @@ import {
 import { PartnerSiteAccountHub } from '@/components/partner-website/shop/partner-site-account-hub'
 import { PartnerSiteAccountSessionActions } from '@/components/partner-website/shop/partner-site-account-session-actions'
 import { PartnerSiteShopAuthPanel } from '@/components/partner-website/shop/partner-site-shop-auth-panel'
+import { PartnerSiteShopAddressesClient } from '@/components/partner-website/shop/partner-site-shop-addresses-client'
+import { PartnerSiteShopCartClient } from '@/components/partner-website/shop/partner-site-shop-cart-client'
+import { PartnerSiteShopOrdersClient } from '@/components/partner-website/shop/partner-site-shop-orders-client'
+import type { SiteOrderRow } from '@/lib/partner-website/shop/load-site-orders-for-request'
 import {
   buildPartnerShopLoginHref,
   getPartnerShopBrowserReturnLocation,
@@ -80,28 +83,6 @@ function walletFromCache(rows: PartnerSiteCachedWalletVoucher[]): WalletVoucher[
   }))
 }
 
-const PartnerSiteShopCartClient = dynamic(
-  () =>
-    import('@/components/partner-website/shop/partner-site-shop-cart-client').then(
-      (module) => module.PartnerSiteShopCartClient
-    ),
-  { loading: () => <p className="pw-shop-muted">…</p> }
-)
-const PartnerSiteShopOrdersClient = dynamic(
-  () =>
-    import('@/components/partner-website/shop/partner-site-shop-orders-client').then(
-      (module) => module.PartnerSiteShopOrdersClient
-    ),
-  { loading: () => <p className="pw-shop-muted">…</p> }
-)
-const PartnerSiteShopAddressesClient = dynamic(
-  () =>
-    import('@/components/partner-website/shop/partner-site-shop-addresses-client').then(
-      (module) => module.PartnerSiteShopAddressesClient
-    ),
-  { loading: () => <p className="pw-shop-muted">…</p> }
-)
-
 type AccountTab = PartnerSiteAccountTab
 
 type WalletVoucher = {
@@ -158,6 +139,8 @@ type Props = {
   initialTab?: AccountTab
   initialOrdersFilter?: string | null
   initialSavedProducts?: PartnerSitePersonalizationProduct[]
+  initialProfile?: PartnerSiteVisitorProfile | null
+  initialOrders?: SiteOrderRow[] | null
 }
 
 export function PartnerSiteShopAccountClient({
@@ -168,22 +151,27 @@ export function PartnerSiteShopAccountClient({
   initialTab = 'overview',
   initialSavedProducts,
   initialOrdersFilter = null,
+  initialProfile = null,
+  initialOrders = null,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const router = useRouter()
   const customDomain = usePartnerSiteCustomDomain()
   const { ready, authResolved, isAuthenticated, authHeaders, captureFromResponse, clearSession } =
     usePartnerSiteGuestSession(siteSlug)
-  const [profile, setProfile] = useState<PartnerSiteVisitorProfile | null>(null)
+  const initialDob = (initialProfile?.date_of_birth ?? '').trim().slice(0, 10)
+  const [profile, setProfile] = useState<PartnerSiteVisitorProfile | null>(initialProfile)
   const [shopAdminHref, setShopAdminHref] = useState<string | null>(null)
-  const [customerName, setCustomerName] = useState('')
-  const [customerPhone, setCustomerPhone] = useState('')
-  const [gender, setGender] = useState<PartnerShopGender | ''>('')
-  const [dob, setDob] = useState('')
-  const [birthYear, setBirthYear] = useState('')
-  const [savedDobIso, setSavedDobIso] = useState('')
-  const [contactAddress, setContactAddress] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [customerName, setCustomerName] = useState(initialProfile?.customer_name ?? '')
+  const [customerPhone, setCustomerPhone] = useState(initialProfile?.customer_phone ?? '')
+  const [gender, setGender] = useState<PartnerShopGender | ''>(
+    parsePartnerShopGender(initialProfile?.gender) ?? ''
+  )
+  const [dob, setDob] = useState(initialDob)
+  const [birthYear, setBirthYear] = useState(parseDobParts(initialDob)?.year ?? '')
+  const [savedDobIso, setSavedDobIso] = useState(initialDob)
+  const [contactAddress, setContactAddress] = useState(initialProfile?.shipping_address ?? '')
+  const [loading, setLoading] = useState(!initialProfile?.email)
   const [saving, setSaving] = useState(false)
   const [needsAuth, setNeedsAuth] = useState(false)
   const [status, setStatus] = useState('')
@@ -590,6 +578,7 @@ export function PartnerSiteShopAccountClient({
                 locale={locale}
                 chatPath=""
                 initialFilter={ordersFilter}
+                initialOrders={initialOrders}
               />
             ) : null}
 

@@ -307,6 +307,30 @@ export async function resolvePartnerStorefrontSaleIdentity(partnerId: string): P
   }
 }
 
+/** RSC first paint for account overview — use existing cookies only, never finalize auth. */
+export async function loadSiteVisitorProfileForRequest(
+  partnerId: string
+): Promise<PartnerSiteVisitorProfile | null> {
+  const identity = await resolvePartnerStorefrontSaleIdentity(partnerId)
+  if (!identity.accountKey || !identity.emailNormalized) return null
+  const linkedUserId = identity.linkedUserId
+  const guestAccountId =
+    identity.accountKey !== linkedUserId && UUID_RE.test(identity.accountKey)
+      ? identity.accountKey
+      : null
+  return getSiteVisitorProfile({
+    partnerId,
+    accountKey: identity.accountKey,
+    email: identity.emailNormalized,
+    thread: {
+      externalThreadId: identity.accountKey,
+      linkedUserId,
+      guestAccountId,
+      anonymousSessionId: null,
+    },
+  })
+}
+
 async function loadProductsByIds(
   partnerId: string,
   siteSlug: string,

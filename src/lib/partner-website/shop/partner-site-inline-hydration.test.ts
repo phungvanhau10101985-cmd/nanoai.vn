@@ -42,6 +42,24 @@ test('account chrome has no loading.tsx Suspense that defers deposit/order hydra
   )
 })
 
+test('account chrome resolves navigation on the server without a usePathname client boundary', async () => {
+  const source = await readFile(
+    new URL('../../../app/site/[slug]/(account-chrome)/layout.tsx', import.meta.url),
+    'utf8'
+  )
+  assert.doesNotMatch(source, /PartnerSiteReactAccountShell/)
+  assert.doesNotMatch(source, /usePathname/)
+  assert.match(source, /reactAccountShellNavFromPathname/)
+  assert.match(source, /<PartnerSiteShopShell/)
+  assert.match(source, /PARTNER_SITE_ACCOUNT_NATIVE_NAV_SCRIPT/)
+  const nativeNavigation = await readFile(
+    new URL('./partner-site-account-native-navigation.ts', import.meta.url),
+    'utf8'
+  )
+  assert.match(nativeNavigation, /addEventListener\('click'/)
+  assert.match(nativeNavigation, /window\.location\.assign\(href\)/)
+})
+
 test('deposit and order pages fetch without waiting for session ready', async () => {
   const deposit = await readFile(
     new URL('../../../components/partner-website/shop/partner-site-shop-deposit-client.tsx', import.meta.url),

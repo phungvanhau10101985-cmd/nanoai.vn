@@ -137,6 +137,7 @@ import {
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { PW_EL, PW_PAGE, PW_REGION, type PwPageKind } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { partnerShopSloganFromTheme } from '@/lib/partner-website/shop/partner-site-shop-slogan'
+import { rewritePartnerSiteCustomDomainHtmlPaths } from '@/lib/partner-website/shop/rewrite-partner-site-custom-domain-html'
 import { PartnerSiteAccountNavLayout } from '@/components/partner-website/shop/partner-site-account-nav-layout'
 import { PartnerSiteSaleCalendarBanner } from '@/components/partner-website/shop/partner-site-sale-calendar-banner'
 import { PartnerSiteContactChannelsFab } from '@/components/partner-website/shop/partner-site-contact-channels-fab'
@@ -251,10 +252,16 @@ function VisualHomeChromeRuntime({
 function visualHomeChromeHtml(
   byDevice: VisualHomeChromeByDevice,
   previewDevice: VisualDeviceVariant | null,
-  slot: 'before' | 'after'
+  slot: 'before' | 'after',
+  siteSlug: string,
+  customDomain: boolean
 ): { html: string; split: boolean } {
   const slice = (chrome: NonNullable<ReturnType<typeof pickVisualHomeChrome>>) =>
-    slot === 'before' ? visualChromeBeforeMain(chrome) : visualChromeAfterMain(chrome)
+    rewritePartnerSiteCustomDomainHtmlPaths(
+      slot === 'before' ? visualChromeBeforeMain(chrome) : visualChromeAfterMain(chrome),
+      siteSlug,
+      customDomain
+    )
   if (previewDevice) {
     const chrome = pickVisualHomeChrome(byDevice, previewDevice)
     return { html: chrome ? slice(chrome) : '', split: false }
@@ -673,11 +680,11 @@ function PartnerSiteShopShellInner({
   }, [previewDevice, useVisualChrome])
   const visualBefore =
     useVisualChrome && visualChromeByDevice
-      ? visualHomeChromeHtml(visualChromeByDevice, previewDevice, 'before')
+      ? visualHomeChromeHtml(visualChromeByDevice, previewDevice, 'before', siteSlug, customDomain)
       : null
   const visualAfter =
     useVisualChrome && visualChromeByDevice
-      ? visualHomeChromeHtml(visualChromeByDevice, previewDevice, 'after')
+      ? visualHomeChromeHtml(visualChromeByDevice, previewDevice, 'after', siteSlug, customDomain)
       : null
   return (
     <div className="pw-shop" data-pw-look={shopLook} {...(pageKind ? { 'data-pw-page': pageKind } : {})}>

@@ -28,40 +28,15 @@ import {
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import type { SiteOrderRow } from '@/lib/partner-website/shop/load-site-orders-for-request'
 import {
   PartnerSiteOrderEmsTracking,
   PartnerSiteOrderShipmentSteps,
   PartnerSiteOrderSplitGroup,
   genericShippingTimelineSteps,
-  type ShopShipmentEventView,
-  type ShopSiblingOrderView,
 } from '@/components/partner-website/shop/partner-site-order-fulfillment-bits'
 
-type OrderRow = {
-  id: string
-  status?: string | null
-  shipping_status?: string | null
-  product_name?: string | null
-  product_image_url?: string | null
-  product_inventory_id?: string | null
-  product_url?: string | null
-  required_amount?: number | null
-  subtotal_amount?: number | null
-  paid_amount?: number | null
-  quantity?: number | null
-  payment_qr_url?: string | null
-  payment_reference?: string | null
-  shipping_address?: string | null
-  created_at?: string | null
-  has_review?: boolean | null
-  can_cancel?: boolean | null
-  can_confirm_received?: boolean | null
-  fulfillment_source?: 'vietnam' | 'china' | null
-  source_platform?: string | null
-  tracking_number?: string | null
-  shipment_events?: ShopShipmentEventView[]
-  sibling_orders?: ShopSiblingOrderView[]
-}
+type OrderRow = SiteOrderRow
 
 type Props = {
   siteSlug: string
@@ -69,6 +44,7 @@ type Props = {
   locale: WebLocale
   chatPath: string
   initialFilter?: string | null
+  initialOrders?: SiteOrderRow[] | null
 }
 
 type Panel = 'none' | 'detail' | 'payment' | 'track' | 'cancel' | 'confirm'
@@ -118,12 +94,13 @@ export function PartnerSiteShopOrdersClient({
   locale,
   chatPath,
   initialFilter,
+  initialOrders = null,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
   const { authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
-  const [orders, setOrders] = useState<OrderRow[]>([])
-  const [loading, setLoading] = useState(true)
+  const [orders, setOrders] = useState<OrderRow[]>(initialOrders ?? [])
+  const [loading, setLoading] = useState(initialOrders == null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [panel, setPanel] = useState<Panel>('none')
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -151,14 +128,15 @@ export function PartnerSiteShopOrdersClient({
 
   useLayoutEffect(() => {
     const cached = readPartnerSiteAccountBrowserCache(siteSlug)
-    const hasCachedOrders = Boolean(cached?.orders.length)
-    if (cached?.orders.length) {
+    const hasInitialOrders = initialOrders != null
+    const hasCachedOrders = !hasInitialOrders && Boolean(cached?.orders.length)
+    if (!hasInitialOrders && cached?.orders.length) {
       setOrders(cached.orders as OrderRow[])
       setLoading(false)
     }
     let cancelled = false
     void (async () => {
-      if (!hasCachedOrders) setLoading(true)
+      if (!hasInitialOrders && !hasCachedOrders) setLoading(true)
       try {
         await reload()
       } finally {
@@ -169,7 +147,7 @@ export function PartnerSiteShopOrdersClient({
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load on mount / session header identity
-  }, [authHeaders, captureFromResponse, partnerSlug, siteSlug])
+  }, [authHeaders, captureFromResponse, initialOrders, partnerSlug, siteSlug])
 
   const counts = useMemo(() => countPartnerSiteOrdersByStatusFilter(orders), [orders])
   const visibleOrders = useMemo(

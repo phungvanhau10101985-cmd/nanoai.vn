@@ -4,6 +4,7 @@ import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { PartnerSiteShopAccountClient } from '@/components/partner-website/shop/partner-site-shop-account-client'
+import { loadSiteVisitorProfileForRequest } from '@/lib/partner-website/shop/partner-site-personalization'
 
 type Props = { params: Promise<{ slug: string }> }
 
@@ -33,6 +34,7 @@ export default async function PartnerSiteAccountPage({ params }: Props) {
   if (!shop) notFound()
   const partnerSlug = shop.partnerSlug
   if (!partnerSlug.trim()) notFound()
+  const initialProfile = await loadSiteVisitorProfileForRequest(shop.partnerId)
 
   return (
     <PartnerSiteShopAccountClient
@@ -41,6 +43,7 @@ export default async function PartnerSiteAccountPage({ params }: Props) {
       shopTitle={shop.site.title}
       locale={shop.site.locale}
       initialTab="overview"
+      initialProfile={initialProfile}
     />
   )
 }

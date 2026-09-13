@@ -4,6 +4,7 @@ import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { PartnerSiteShopOrdersClient } from '@/components/partner-website/shop/partner-site-shop-orders-client'
+import { loadSiteOrdersForRequest } from '@/lib/partner-website/shop/load-site-orders-for-request'
 
 type Props = {
   params: Promise<{ slug: string }>
@@ -34,6 +35,7 @@ export default async function PartnerSiteOrdersPage({ params, searchParams }: Pr
   if (!shop) notFound()
   const sp = (await searchParams) ?? {}
   const ordersFilter = sp.tab?.trim() || null
+  const initialOrders = await loadSiteOrdersForRequest(shop.partnerId)
   // Danh sách đơn / thanh toán cọc là React — không serve orders.html vỏ trống.
 
   return (
@@ -43,6 +45,7 @@ export default async function PartnerSiteOrdersPage({ params, searchParams }: Pr
       locale={shop.site.locale}
       chatPath={shop.site.chatPath}
       initialFilter={ordersFilter}
+      initialOrders={initialOrders}
     />
   )
 }
