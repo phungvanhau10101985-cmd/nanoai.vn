@@ -31,7 +31,12 @@ import {
   listMessagingWorkspaceLogoVersions,
   recordGeneratedPartnerChatIcon,
 } from '@/app/dashboard/messaging/actions'
-import { requiredCreditsForLogoCreate } from '@/lib/remove-background-png-prompts'
+import {
+  partnerShopSloganFromTheme,
+  partnerShopSloganProductsFromTheme,
+  PW_SLOGAN_MAX,
+  PW_SLOGAN_PRODUCTS_MAX,
+} from '@/lib/partner-website/shop/partner-site-shop-slogan'
 
 type LogoVersionRow = {
   id: string
@@ -86,11 +91,20 @@ export function PartnerWebsiteLogosPanel({
   const [createRefUrl, setCreateRefUrl] = useState('')
   const [createStripBg, setCreateStripBg] = useState(false)
   const [logoVersions, setLogoVersions] = useState<LogoVersionRow[]>([])
+  const [slogan, setSlogan] = useState('')
+  const [sloganIdea, setSloganIdea] = useState('')
+  const [sloganProducts, setSloganProducts] = useState('')
+  const [sloganAlts, setSloganAlts] = useState<string[]>([])
 
   const inventory = useMemo(
     () => extractLogoInventoryFromWebsite(website ?? {}),
     [website]
   )
+
+  useEffect(() => {
+    setSlogan(partnerShopSloganFromTheme(website?.theme))
+    setSloganProducts(partnerShopSloganProductsFromTheme(website?.theme))
+  }, [website])
 
   const deviceLabels: Record<VisualDeviceVariant, string> = {
     desktop: t.visualEditDeviceDesktop,
@@ -151,6 +165,87 @@ export function PartnerWebsiteLogosPanel({
       return false
     } finally {
       if (!opts?.keepBusy) setBusy(null)
+    }
+  }
+
+  async function saveSlogan(nextSlogan: string, opts?: { products?: string; silent?: boolean }) {
+    if (!partnerId) return false
+    setBusy('slogan')
+    try {
+      const res = await fetch(`/api/messaging/partner-website/${encodeURIComponent(partnerId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          action: 'update_slogan',
+          slogan: nextSlogan,
+          sloganProducts: opts?.products ?? sloganProducts,
+        }),
+      })
+      const json = (await res.json().catch(() => ({}))) as {
+        website?: PartnerWebsiteRow
+        error?: string
+      }
+      if (!res.ok || !json.website) {
+        onToast(json.error || t.sloganSaveError, 'destructive')
+        return false
+      }
+      onWebsiteRefresh(json.website)
+      if (!opts?.silent) onToast(t.sloganSaved)
+      return true
+    } catch (e) {
+      onToast(e instanceof Error ? e.message : t.sloganSaveError, 'destructive')
+      return false
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function rewriteSlogan(mode: 'rewrite' | 'create') {
+    if (!partnerId || !website) return
+    if (mode === 'rewrite' && !slogan.trim() && !sloganIdea.trim()) {
+      onToast(t.sloganNeedDraft, 'destructive')
+      return
+    }
+    if (mode === 'create' && !sloganProducts.trim() && !sloganIdea.trim()) {
+      onToast(t.sloganNeedProducts, 'destructive')
+      return
+    }
+    setBusy(`slogan:${mode}`)
+    try {
+      const res = await fetch(
+        `/api/messaging/partner-website/${encodeURIComponent(partnerId)}/rewrite-slogan`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            mode,
+            currentSlogan: slogan,
+            idea: sloganIdea,
+            products: sloganProducts,
+            locale,
+          }),
+        }
+      )
+      const json = (await res.json().catch(() => ({}))) as {
+        success?: boolean
+        slogan?: string
+        alternatives?: string[]
+        error?: string
+      }
+      if (!res.ok || !json.success || !json.slogan) {
+        onToast(json.error || t.sloganAiError, 'destructive')
+        return
+      }
+      setSlogan(json.slogan)
+      setSloganAlts((json.alternatives || []).filter((item) => item && item !== json.slogan).slice(0, 3))
+      await saveSlogan(json.slogan, { silent: true, products: sloganProducts })
+      onToast(t.sloganSaved)
+    } catch (e) {
+      onToast(e instanceof Error ? e.message : t.sloganAiError, 'destructive')
+    } finally {
+      setBusy(null)
     }
   }
 
@@ -512,6 +607,131 @@ export function PartnerWebsiteLogosPanel({
             e.target.value = ''
           }}
         />
+        <div className="rounded-lg border border-border/70 bg-muted/10 p-3">
+          <p className="text-sm font-medium">{t.sloganTitle}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{t.sloganHint}</p>
+          <div className="mt-2 space-y-2">
+            <div className="space-y-1">
+              <Label htmlFor="pw-shop-slogan" className="text-[11px]">
+                {t.sloganLabel}
+              </Label>
+              <Textarea
+                id="pw-shop-slogan"
+                value={slogan}
+                maxLength={PW_SLOGAN_MAX}
+                onChange={(e) => setSlogan(e.target.value)}
+                placeholder={t.sloganPlaceholder}
+                rows={2}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {slogan.length}/{PW_SLOGAN_MAX}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="pw-shop-slogan-idea" className="text-[11px]">
+                {t.sloganIdeaLabel}
+              </Label>
+              <Textarea
+                id="pw-shop-slogan-idea"
+                value={sloganIdea}
+                onChange={(e) => setSloganIdea(e.target.value)}
+                placeholder={t.sloganIdeaPlaceholder}
+                rows={2}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="pw-shop-slogan-products" className="text-[11px]">
+                {t.sloganProductsLabel}
+              </Label>
+              <Input
+                id="pw-shop-slogan-products"
+                value={sloganProducts}
+                maxLength={PW_SLOGAN_PRODUCTS_MAX}
+                onChange={(e) => setSloganProducts(e.target.value)}
+                placeholder={t.sloganProductsPlaceholder}
+              />
+            </div>
+            {sloganAlts.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                <span className="text-[11px] text-muted-foreground">{t.sloganPickAlt}:</span>
+                {sloganAlts.map((alt) => (
+                  <Button
+                    key={alt}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 max-w-full px-2 text-[11px]"
+                    disabled={Boolean(busy)}
+                    onClick={() => {
+                      setSlogan(alt)
+                      void saveSlogan(alt, { silent: true })
+                    }}
+                  >
+                    {alt}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 px-2.5 text-xs"
+                disabled={Boolean(busy) || !partnerId || !website}
+                onClick={() => void saveSlogan(slogan)}
+              >
+                {busy === 'slogan' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                {t.visualEditSave}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 px-2.5 text-xs"
+                disabled={Boolean(busy) || !partnerId || !website}
+                onClick={() => void rewriteSlogan('rewrite')}
+              >
+                {busy === 'slogan:rewrite' ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                {busy === 'slogan:rewrite' ? t.sloganBusy : t.sloganRewrite}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 px-2.5 text-xs"
+                disabled={Boolean(busy) || !partnerId || !website}
+                onClick={() => void rewriteSlogan('create')}
+              >
+                {busy === 'slogan:create' ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                {busy === 'slogan:create' ? t.sloganBusy : t.sloganCreate}
+              </Button>
+              {slogan ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 text-xs"
+                  disabled={Boolean(busy) || !partnerId || !website}
+                  onClick={() => {
+                    setSlogan('')
+                    setSloganAlts([])
+                    void saveSlogan('')
+                  }}
+                >
+                  {t.sloganClear}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </div>
         {renderRow({
           slot: 'favicon',
           label: t.logosFaviconLabel,

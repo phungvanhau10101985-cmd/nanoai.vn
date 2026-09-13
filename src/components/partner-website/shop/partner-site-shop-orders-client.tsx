@@ -21,6 +21,10 @@ import {
 } from '@/lib/partner-website/shop/partner-site-order-status-filters'
 import { partnerSiteOrderDepositPath, partnerSiteOrderDetailPath, partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { stashPartnerSiteOrderListHandoff } from '@/lib/partner-website/shop/partner-site-checkout-handoff'
+import {
+  readPartnerSiteAccountBrowserCache,
+  writePartnerSiteAccountBrowserCache,
+} from '@/lib/partner-website/shop/partner-site-account-browser-cache'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
@@ -140,13 +144,21 @@ export function PartnerSiteShopOrdersClient({
     })
     captureFromResponse(res)
     const json = (await res.json()) as { orders?: OrderRow[] }
-    setOrders(Array.isArray(json.orders) ? json.orders : [])
+    const next = Array.isArray(json.orders) ? json.orders : []
+    setOrders(next)
+    writePartnerSiteAccountBrowserCache(siteSlug, { orders: next })
   }
 
   useLayoutEffect(() => {
+    const cached = readPartnerSiteAccountBrowserCache(siteSlug)
+    const hasCachedOrders = Boolean(cached?.orders.length)
+    if (cached?.orders.length) {
+      setOrders(cached.orders as OrderRow[])
+      setLoading(false)
+    }
     let cancelled = false
     void (async () => {
-      setLoading(true)
+      if (!hasCachedOrders) setLoading(true)
       try {
         await reload()
       } finally {
@@ -157,7 +169,7 @@ export function PartnerSiteShopOrdersClient({
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load on mount / session header identity
-  }, [authHeaders, captureFromResponse, partnerSlug])
+  }, [authHeaders, captureFromResponse, partnerSlug, siteSlug])
 
   const counts = useMemo(() => countPartnerSiteOrdersByStatusFilter(orders), [orders])
   const visibleOrders = useMemo(

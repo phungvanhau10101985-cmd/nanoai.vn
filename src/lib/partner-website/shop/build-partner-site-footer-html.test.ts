@@ -35,6 +35,9 @@ test('full footer has four columns and required policy links', () => {
   assert.match(html, /online\.gov\.vn/)
   assert.match(html, /Đã thông báo với Bộ Công Thương/)
   assert.match(html, /data-pw-footer-kit="link:shipping"/)
+  assert.match(html, /data-pw-el="slogan"/)
+  assert.match(html, /data-pw-slogan="1"/)
+  assert.match(html, /data-pw-seed-slogan=/)
 })
 
 test('skeletal policy-only footer is upgraded when site slug exists', () => {

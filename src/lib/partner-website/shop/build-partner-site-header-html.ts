@@ -18,6 +18,7 @@ import {
 import { buildMobileHeadBackHtml } from '@/lib/partner-website/shop/mobile-header-back'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { PW_SLOGAN_ATTR } from '@/lib/partner-website/shop/partner-site-shop-slogan'
 import { searchGlyphSvg } from '@/lib/partner-website/visual-editor/search-cluster-icons'
 
 export type PartnerSiteHeaderHtmlInput = {
@@ -179,6 +180,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
     'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
 
   const topbar = `<div class="pw-topbar" ${pwRegionAttr(PW_REGION.topbar)} ${PW_CHROME_KIT_ATTR}="topbar"><div class="pw-container pw-topbar-inner">
+      <span class="pw-slogan" ${pwElAttr(PW_EL.slogan)} ${PW_SLOGAN_ATTR}="1" hidden></span>
       <a href="${contactHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="contact" data-pw-chrome-style="text" ${PW_CHROME_KIT_ATTR}="1">${escapeHtml(n.contact)}</a>
       <a href="${wishlistHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="favorites-link" data-pw-chrome-style="text" ${PW_CHROME_KIT_ATTR}="1">${escapeHtml(shop.navFavorites)}</a>
       <a href="${loginHref}" ${pwElAttr(PW_EL.link)} data-pw-chrome-btn="login" data-pw-chrome-style="text" ${PW_CHROME_KIT_ATTR}="1"><span class="pw-chrome-btn-label">${escapeHtml(n.login)}</span></a>

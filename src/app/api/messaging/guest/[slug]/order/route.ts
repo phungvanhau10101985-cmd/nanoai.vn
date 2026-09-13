@@ -175,6 +175,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       customerName?: string
       customerPhone?: string
       shippingAddress?: string
+      shippingProvince?: string
       customerEmail?: string
       color?: string
       size?: string
@@ -261,6 +262,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
         customerEmail: sessionEmail || formEmail,
         customerPhone,
         shippingAddress,
+        shippingProvince: String(f.shippingProvince ?? '').trim() || undefined,
         note: String(f.note ?? '').trim(),
         lines,
         promoCode: String(f.promoCode ?? '').trim() || undefined,
@@ -312,6 +314,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       customerEmail: sessionEmail || formEmail,
       customerPhone,
       shippingAddress,
+      shippingProvince: String(f.shippingProvince ?? '').trim() || undefined,
       color,
       size,
       quantity,

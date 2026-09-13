@@ -25,6 +25,7 @@ import {
   ensurePartnerSitePdpBottomNavInHtml,
 } from '@/lib/partner-website/shop/build-partner-site-header-html'
 import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/partner-site-chrome-kit'
+import { bindPartnerShopSloganInHtml } from '@/lib/partner-website/shop/partner-site-shop-slogan'
 import { ensureSearchClusterInHtml } from '@/lib/partner-website/visual-editor/search-cluster-icons'
 import { ensureFeaturedCategoriesHostInHtml } from '@/lib/partner-website/visual-editor/featured-category-widgets'
 import { ensurePromoMarketingBannerInHtml } from '@/lib/partner-website/visual-editor/banner-widgets'
@@ -139,7 +140,8 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
     title: wordmark,
     siteSlug: input.siteSlug,
   })
-  const withShopCss = injectPartnerShopThemeCss(withLogoSlot, input.theme)
+  const withSlogan = bindPartnerShopSloganInHtml(withLogoSlot, input.theme, locale)
+  const withShopCss = injectPartnerShopThemeCss(withSlogan, input.theme)
   const logosReady =
     input.runtime === 'authoring' ? withShopCss : stripEmptyLogoPlaceholdersFromHtml(withShopCss)
   const withFavicon = injectPartnerShopFaviconIntoHtml(stampPwPageOnDocumentHtml(logosReady, input.pageKey), {

@@ -22,6 +22,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
 import { isValidMessagingGuestSessionId } from '@/lib/messaging/guest-session-id'
 import { ensurePartnerSiteGuestBrowserSessionId } from '@/lib/partner-website/shop/partner-site-guest-browser-session'
+import { clearPartnerSiteAccountBrowserCache } from '@/lib/partner-website/shop/partner-site-account-browser-cache'
 
 function readCookie(name: string): string {
   if (typeof document === 'undefined') return ''
@@ -276,6 +277,7 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
     setAuthResolved(true)
     clearGuestSessionBootstrap(siteSlug)
     markPartnerSiteShopSkipAuthSync(siteSlug)
+    clearPartnerSiteAccountBrowserCache(siteSlug)
     notifyGuestSessionChange(siteSlug)
     try {
       window.localStorage.removeItem(MESSAGING_GUEST_SESSION_STORAGE_KEY)

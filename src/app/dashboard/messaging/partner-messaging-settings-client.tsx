@@ -60,6 +60,8 @@ import {
 } from '@/components/ui/dialog'
 import { PartnerAiSettingsPanel } from '@/app/dashboard/messaging/partner-ai-settings-panel'
 import { PartnerShopShippingOpsPanel } from '@/app/dashboard/messaging/partner-shop-shipping-ops-panel'
+import { PartnerShopGoLivePanel } from '@/app/dashboard/messaging/partner-shop-go-live-panel'
+import { PartnerShopProvinceFeesPanel } from '@/app/dashboard/messaging/partner-shop-province-fees-panel'
 import { PartnerCustomDomainSettingsCard } from '@/app/dashboard/messaging/partner-custom-domain-settings-card'
 import { PartnerApiIntegrationWorkspace } from '@/components/integration/partner-api-integration-workspace'
 import { PartnerSiteLoginGuide } from '@/components/integration/partner-site-login-guide'
@@ -86,6 +88,7 @@ import {
   ExternalLink,
   Globe,
   Database,
+  ListChecks,
   Loader2,
   Mail,
   Megaphone,
@@ -244,6 +247,7 @@ function SettingsBlock({
 }
 
 const MESSAGING_SETTINGS_SECTION_IDS = [
+  'go-live',
   'workspace',
   'brand',
   'inventory',
@@ -540,6 +544,13 @@ export function PartnerMessagingSettingsClient({
       icon: ComponentType<{ className?: string }>
       visible: boolean
     }> = [
+      {
+        id: 'go-live' as const,
+        group: 'shop',
+        label: t.settingsNavGoLive,
+        icon: ListChecks,
+        visible: Boolean(selectedPartnerId),
+      },
       { id: 'workspace', group: 'shop', label: t.settingsNavWorkspace, icon: Building2, visible: true },
       {
         id: 'brand',
@@ -2376,6 +2387,23 @@ export function PartnerMessagingSettingsClient({
                   : 'p-3 sm:p-4 lg:p-5'
             )}
           >
+          {activeSection === 'go-live' && selectedPartnerId ? (
+          <SettingsBlock
+            id="messaging-go-live"
+            icon={ListChecks}
+            title={t.settingsNavGoLive}
+            description={t.settingsNavGoLiveDesc}
+          >
+            <PartnerShopGoLivePanel
+              partnerId={selectedPartnerId}
+              locale={locale}
+              onOpenSection={(sectionId) => {
+                if (isKnownSettingsPageSectionId(sectionId)) selectSettingsSection(sectionId)
+              }}
+            />
+          </SettingsBlock>
+          ) : null}
+
           {activeSection === 'workspace' ? (
           <SettingsBlock
             id="messaging-workspace"
@@ -3379,13 +3407,14 @@ export function PartnerMessagingSettingsClient({
               <CardContent className="space-y-3 px-4 pb-4 pt-0">
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium">Phí ship cố định (VND)</Label>
+                    <Label className="text-xs font-medium">{partnerShippingOpsCopy(locale).flatFeeLabel}</Label>
                     <Input
                       className="h-9 text-sm"
                       value={paymentShippingFeeAmount}
                       onChange={(e) => setPaymentShippingFeeAmount(e.target.value.replace(/[^\d]/g, '').slice(0, 12))}
-                      placeholder="0 = không thu phí ship"
+                      placeholder="0"
                     />
+                    <p className="text-[11px] text-muted-foreground">{partnerShippingOpsCopy(locale).flatFeeHint}</p>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-xs font-medium">Miễn phí ship từ đơn (VND, để trống = không áp dụng)</Label>
@@ -3415,6 +3444,13 @@ export function PartnerMessagingSettingsClient({
                 </Button>
               </CardContent>
             </Card>
+            ) : null}
+            {selectedPartnerId ? (
+              <PartnerShopProvinceFeesPanel
+                partnerId={selectedPartnerId}
+                locale={locale}
+                canEdit={isOwnerSelected}
+              />
             ) : null}
             {selectedPartnerId && isOwnerSelected ? (
               <PartnerAiSettingsPanel

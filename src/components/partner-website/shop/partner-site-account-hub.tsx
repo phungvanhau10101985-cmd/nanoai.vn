@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { PartnerSiteAccountSessionActions } from '@/components/partner-website/shop/partner-site-account-session-actions'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
@@ -24,10 +24,15 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import type { PartnerSiteVisitorProfile } from '@/lib/partner-website/shop/partner-site-personalization'
+import {
+  readPartnerSiteAccountBrowserCache,
+  writePartnerSiteAccountBrowserCache,
+} from '@/lib/partner-website/shop/partner-site-account-browser-cache'
 
 type WalletVoucher = { code?: string }
 
 type OrderLite = {
+  id?: string
   status?: string | null
   shipping_status?: string | null
   has_review?: boolean | null
@@ -81,6 +86,13 @@ export function PartnerSiteAccountHub({
   const [orders, setOrders] = useState<OrderLite[]>([])
   const [walletCount, setWalletCount] = useState(0)
 
+  useLayoutEffect(() => {
+    const cached = readPartnerSiteAccountBrowserCache(siteSlug)
+    if (!cached) return
+    if (cached.orders.length) setOrders(cached.orders)
+    if (cached.wallet.length) setWalletCount(cached.wallet.length)
+  }, [siteSlug])
+
   useEffect(() => {
     if (!ready || !isAuthenticated) return
     void fetch(`/api/messaging/guest/${encodeURIComponent(partnerSlug)}/orders`, {
@@ -91,8 +103,12 @@ export function PartnerSiteAccountHub({
         captureFromResponse(res)
         return res.json()
       })
-      .then((json: { orders?: OrderLite[] }) => setOrders(Array.isArray(json.orders) ? json.orders : []))
-      .catch(() => setOrders([]))
+      .then((json: { orders?: OrderLite[] }) => {
+        const next = Array.isArray(json.orders) ? json.orders : []
+        setOrders(next)
+        writePartnerSiteAccountBrowserCache(siteSlug, { orders: next })
+      })
+      .catch(() => setOrders((prev) => prev))
     void fetch(`/api/site/${encodeURIComponent(siteSlug)}/promotions/wallet`, {
       credentials: 'same-origin',
       headers: authHeaders(),
@@ -101,8 +117,12 @@ export function PartnerSiteAccountHub({
         captureFromResponse(res)
         return res.json()
       })
-      .then((json: { vouchers?: WalletVoucher[] }) => setWalletCount(Array.isArray(json.vouchers) ? json.vouchers.length : 0))
-      .catch(() => setWalletCount(0))
+      .then((json: { vouchers?: WalletVoucher[] }) => {
+        const vouchers = Array.isArray(json.vouchers) ? json.vouchers : []
+        setWalletCount(vouchers.length)
+        writePartnerSiteAccountBrowserCache(siteSlug, { wallet: vouchers })
+      })
+      .catch(() => setWalletCount((n) => n))
   }, [authHeaders, captureFromResponse, isAuthenticated, partnerSlug, ready, siteSlug])
 
   const counts = useMemo(() => countPartnerSiteOrdersByStatusFilter(orders), [orders])

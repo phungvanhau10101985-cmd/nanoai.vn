@@ -27,6 +27,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import { PW_LOGIN_IDENTITY_CSS } from '@/lib/partner-website/shop/partner-site-login-identity'
+import { PW_ACCOUNT_BROWSER_CACHE_KEY_PREFIX } from '@/lib/partner-website/shop/partner-site-account-browser-cache'
 import { PW_SITE_SALE_MO_SKIP_JS } from '@/lib/partner-website/promotions/partner-site-sale-display'
 
 /**
@@ -97,6 +98,7 @@ var SESSION_LS='app_guest_session_id';
 var SESSION_LS_LEGACY='nanoai_guest_session_id';
 var ACCOUNT_LS='app_guest_account_id';
 var ACCOUNT_LS_LEGACY='nanoai_guest_account_id';
+var ACCOUNT_CACHE_PREFIX=${JSON.stringify(PW_ACCOUNT_BROWSER_CACHE_KEY_PREFIX)};
 var SESSION_COOKIE='app_guest_session_sync';
 var ACCOUNT_COOKIE='app_guest_account_sync';
 var authReady=false;
@@ -176,6 +178,45 @@ function markSkipAuthSync(){
 }
 function clearSkipAuthSync(){
   try{window.sessionStorage.removeItem(SKIP_AUTH_SYNC_KEY);}catch(errClearSkip){}
+}
+function accountCacheKey(){return ACCOUNT_CACHE_PREFIX+String(SITE_SLUG||'').toLowerCase();}
+function readAccountCache(){
+  try{
+    var raw=window.localStorage.getItem(accountCacheKey());
+    if(!raw)return null;
+    var parsed=JSON.parse(raw);
+    if(!parsed||parsed.v!==1||!accountId||parsed.accountId!==accountId)return null;
+    return parsed;
+  }catch(errCacheRead){return null;}
+}
+function writeAccountCache(patch){
+  if(!accountId||shouldSkipAuthSync())return;
+  try{
+    var prev=readAccountCache()||{};
+    var next={
+      v:1,
+      accountId:accountId,
+      savedAt:Date.now(),
+      profile:prev.profile||null,
+      shopAdminHref:prev.shopAdminHref||null,
+      orders:prev.orders||[],
+      wallet:prev.wallet||[],
+      addresses:prev.addresses||[],
+      unreadNotifications:prev.unreadNotifications||0,
+      notifications:prev.notifications||[]
+    };
+    if(patch){
+      if('profile' in patch && patch.profile && typeof patch.profile==='object'){
+        var prevProfile=prev.profile&&typeof prev.profile==='object'?prev.profile:{};
+        next.profile=Object.assign({},prevProfile,patch.profile);
+      }
+      if('shopAdminHref' in patch)next.shopAdminHref=patch.shopAdminHref;
+    }
+    window.localStorage.setItem(accountCacheKey(),JSON.stringify(next));
+  }catch(errCacheWrite){}
+}
+function clearAccountCache(){
+  try{window.localStorage.removeItem(accountCacheKey());}catch(errCacheClear){}
 }
 function hydrateAuth(done){
   applyLocalAuth();
@@ -258,6 +299,7 @@ function clearShopSession(){
     window.localStorage.removeItem(SESSION_LS_LEGACY);
     window.localStorage.removeItem(ACCOUNT_LS);
     window.localStorage.removeItem(ACCOUNT_LS_LEGACY);
+    clearAccountCache();
   }catch(errClear){}
   try{
     document.cookie=SESSION_COOKIE+'=; Max-Age=0; path=/';
@@ -900,7 +942,20 @@ function stripLoginTextNodes(el){
 function hydrateLoginIdentity(){
   if(pwShopLiveUiOff()){restoreLoginIdentity();return;}
   if(!isLoggedIn){loginIdentityCache=null;restoreLoginIdentity();return;}
-  if(loginIdentityCache){paintLoginIdentity(loginIdentityCache);return;}
+  if(!loginIdentityCache){
+    var cached=readAccountCache();
+    var cachedProfile=cached&&cached.profile;
+    if(cachedProfile){
+      var cachedName=String(cachedProfile.customer_name||cachedProfile.greeting_name||'').trim();
+      if(!cachedName&&cachedProfile.email){
+        var cachedEmail=String(cachedProfile.email);
+        var cachedAt=cachedEmail.indexOf('@');
+        cachedName=cachedAt>0?cachedEmail.slice(0,cachedAt):cachedEmail;
+      }
+      loginIdentityCache={name:cachedName,avatarUrl:String(cachedProfile.avatar_url||'').trim()};
+    }
+  }
+  if(loginIdentityCache)paintLoginIdentity(loginIdentityCache);
   if(loginIdentityLoading)return;
   loginIdentityLoading=true;
   fetch(PROFILE_API,{credentials:'same-origin',headers:authReqHeaders()}).then(function(res){
@@ -915,13 +970,21 @@ function hydrateLoginIdentity(){
       name=at>0?em.slice(0,at):em;
     }
     loginIdentityCache={name:name,avatarUrl:String(p.avatar_url||'').trim()};
+    if(p&&(p.email||p.customer_name||p.greeting_name||p.avatar_url)){
+      writeAccountCache({
+        profile:p,
+        shopAdminHref:json&&json.shopAdmin&&json.shopAdmin.href?String(json.shopAdmin.href).trim():null
+      });
+    }
     if(!isLoggedIn){restoreLoginIdentity();return;}
     paintLoginIdentity(loginIdentityCache);
   }).catch(function(){
     loginIdentityLoading=false;
     if(!isLoggedIn){restoreLoginIdentity();return;}
-    loginIdentityCache={name:'',avatarUrl:''};
-    paintLoginIdentity(loginIdentityCache);
+    if(!loginIdentityCache){
+      loginIdentityCache={name:'',avatarUrl:''};
+      paintLoginIdentity(loginIdentityCache);
+    }
   });
 }
 function normalizeCatBtns(){

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { partnerSitePersonalizationApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
@@ -9,6 +9,12 @@ import {
   shopCustomerInitials,
   shopCustomerLoginLabel,
 } from '@/lib/partner-website/shop/partner-site-login-identity'
+import {
+  loginIdentityFromAccountCache,
+  PW_ACCOUNT_BROWSER_CACHE_CHANGE_EVENT,
+  readPartnerSiteAccountBrowserCache,
+  writePartnerSiteAccountBrowserCache,
+} from '@/lib/partner-website/shop/partner-site-account-browser-cache'
 
 export function PartnerSiteLoginChromeLink(input: {
   siteSlug: string
@@ -20,10 +26,29 @@ export function PartnerSiteLoginChromeLink(input: {
   const [name, setName] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
 
+  useLayoutEffect(() => {
+    const apply = () => {
+      const identity = loginIdentityFromAccountCache(readPartnerSiteAccountBrowserCache(input.siteSlug))
+      if (!identity) return
+      setName(identity.name)
+      setAvatarUrl(identity.avatarUrl)
+    }
+    apply()
+    const onCache = (event: Event) => {
+      const slug = (event as CustomEvent<{ siteSlug?: string }>).detail?.siteSlug
+      if (slug && slug !== input.siteSlug.trim().toLowerCase()) return
+      apply()
+    }
+    window.addEventListener(PW_ACCOUNT_BROWSER_CACHE_CHANGE_EVENT, onCache)
+    return () => window.removeEventListener(PW_ACCOUNT_BROWSER_CACHE_CHANGE_EVENT, onCache)
+  }, [input.siteSlug])
+
   useEffect(() => {
     if (!isAuthenticated) {
-      setName('')
-      setAvatarUrl(null)
+      if (!loginIdentityFromAccountCache(readPartnerSiteAccountBrowserCache(input.siteSlug))) {
+        setName('')
+        setAvatarUrl(null)
+      }
       return
     }
     let cancelled = false
@@ -45,9 +70,12 @@ export function PartnerSiteLoginChromeLink(input: {
         )
         const avatar = String(profile?.avatar_url ?? '').trim()
         setAvatarUrl(/^https?:\/\//i.test(avatar) ? avatar : null)
+        if (profile) {
+          writePartnerSiteAccountBrowserCache(input.siteSlug, { profile })
+        }
       })
       .catch(() => {
-        if (!cancelled) setName('')
+        if (!cancelled) setName((prev) => prev)
       })
     return () => {
       cancelled = true

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
@@ -22,6 +22,10 @@ import {
 } from '@/lib/partner-website/shop/partner-site-customer-address'
 import { PartnerSiteAddressFormFields } from '@/components/partner-website/shop/partner-site-address-form'
 import { PartnerSiteShopDialog } from '@/components/partner-website/shop/partner-site-shop-dialog'
+import {
+  readPartnerSiteAccountBrowserCache,
+  writePartnerSiteAccountBrowserCache,
+} from '@/lib/partner-website/shop/partner-site-account-browser-cache'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = {
@@ -62,8 +66,17 @@ export function PartnerSiteShopAddressesClient({ siteSlug, locale }: Props) {
       return
     }
     setNeedsAuth(false)
-    setAddresses(Array.isArray(json.addresses) ? json.addresses : [])
+    const next = Array.isArray(json.addresses) ? json.addresses : []
+    setAddresses(next)
+    writePartnerSiteAccountBrowserCache(siteSlug, { addresses: next })
   }, [authHeaders, captureFromResponse, siteSlug])
+
+  useLayoutEffect(() => {
+    const cached = readPartnerSiteAccountBrowserCache(siteSlug)
+    if (!cached?.addresses.length) return
+    setAddresses(cached.addresses)
+    setLoading(false)
+  }, [siteSlug])
 
   useEffect(() => {
     if (!authResolved) return
@@ -75,7 +88,7 @@ export function PartnerSiteShopAddressesClient({ siteSlug, locale }: Props) {
       )
       return
     }
-    setLoading(true)
+    setLoading(!addresses.length)
     void loadAddresses().finally(() => setLoading(false))
   }, [authResolved, customDomain, isAuthenticated, loadAddresses, siteSlug])
 

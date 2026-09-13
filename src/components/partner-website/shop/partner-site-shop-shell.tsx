@@ -136,6 +136,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { PW_EL, PW_PAGE, PW_REGION, type PwPageKind } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { partnerShopSloganFromTheme } from '@/lib/partner-website/shop/partner-site-shop-slogan'
 import { PartnerSiteAccountNavLayout } from '@/components/partner-website/shop/partner-site-account-nav-layout'
 import { PartnerSiteSaleCalendarBanner } from '@/components/partner-website/shop/partner-site-sale-calendar-banner'
 import { PartnerSiteContactChannelsFab } from '@/components/partner-website/shop/partner-site-contact-channels-fab'
@@ -347,6 +348,7 @@ function PartnerSiteShopShellInner({
 }: PartnerSiteShopShellProps) {
   const t = getPartnerSiteShopCopy(locale)
   const n = getPartnerSiteCategoryNavLabels(locale)
+  const slogan = partnerShopSloganFromTheme(theme)
   const { openChat } = usePartnerSiteChatWidget()
   const customDomain = usePartnerSiteCustomDomain()
   const paths = getPartnerSiteShopNavPaths(siteSlug, customDomain)
@@ -725,6 +727,11 @@ function PartnerSiteShopShellInner({
       ) : null}
       <div className="pw-shop-topbar" data-pw-region={PW_REGION.topbar}>
         <div className="pw-shop-topbar-inner">
+          {slogan ? (
+            <span className="pw-slogan" data-pw-el={PW_EL.slogan} data-pw-slogan="1">
+              {slogan}
+            </span>
+          ) : null}
           <Link href={partnerSiteAccountTabPath(siteSlug, 'contact', { customDomain })} data-pw-el={PW_EL.link}>{n.contact}</Link>
           <Link href={partnerSiteAccountTabPath(siteSlug, 'wishlist', { customDomain })} data-pw-el={PW_EL.link}>{t.navFavorites}</Link>
           <Link href={partnerSiteAccountTabPath(siteSlug, 'orders', { customDomain })} data-pw-el={PW_EL.link}>{t.navOrders}</Link>
@@ -1016,7 +1023,9 @@ function PartnerSiteShopShellInner({
               </Link>
             ) : null}
             <p className="pw-shop-footer-name">{title}</p>
-            <p className="pw-shop-footer-hint">{t.footerBrandHint}</p>
+            <p className="pw-shop-footer-hint" data-pw-el={PW_EL.slogan} data-pw-slogan="1">
+              {slogan || t.footerBrandHint}
+            </p>
             <PartnerSiteNewsletterForm siteSlug={siteSlug} locale={locale} />
           </div>
           {PARTNER_SITE_FOOTER_COLUMN_ORDER.map((colId) => {

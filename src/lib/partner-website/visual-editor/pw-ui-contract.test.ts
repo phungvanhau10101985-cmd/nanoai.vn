@@ -196,6 +196,8 @@ describe('pw ui contract', () => {
     expect(regionAllowsEl(PW_REGION.content, PW_EL.faqItem)).toBe(true)
     expect(regionAllowsEl(PW_REGION.content, PW_EL.cta)).toBe(true)
     expect(regionAllowsEl(PW_REGION.form, PW_EL.submit)).toBe(true)
+    expect(regionAllowsEl(PW_REGION.topbar, PW_EL.slogan)).toBe(true)
+    expect(regionAllowsEl(PW_REGION.footer, PW_EL.slogan)).toBe(true)
     expect(pwElsForRegion('unknown')).toEqual([])
   })
 
@@ -216,6 +218,9 @@ describe('pw ui contract', () => {
     expect(pwHasCap(PW_EL.empty, PW_CAP.text, PW_REGION.cartList)).toBe(true)
     expect(pwHasCap(PW_EL.link, PW_CAP.href, PW_REGION.footer)).toBe(true)
     expect(pwHasCap(PW_EL.link, PW_CAP.text, PW_REGION.footer)).toBe(true)
+    expect(pwHasCap(PW_EL.slogan, PW_CAP.text, PW_REGION.topbar)).toBe(true)
+    expect(pwHasCap(PW_EL.slogan, PW_CAP.hide, PW_REGION.footer)).toBe(true)
+    expect(pwIsLiveLocked(PW_EL.slogan, PW_REGION.topbar)).toBe(false)
     expect(pwCapsOf('not-an-el')).toEqual([])
     expect(isPwLockedRegion(PW_REGION.gallery)).toBe(false)
     expect(isPwLiveDataRegion(PW_REGION.gallery)).toBe(true)

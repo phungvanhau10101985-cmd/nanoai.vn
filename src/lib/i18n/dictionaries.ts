@@ -766,6 +766,8 @@ export type Dictionary = {
     settingsNavShopTitle: string
     settingsNavSalesTitle: string
     settingsNavWorkspace: string
+    settingsNavGoLive: string
+    settingsNavGoLiveDesc: string
     settingsNavBrandDesc: string
     settingsNavWebsiteEditor: string
     settingsNavConnectTitle: string
@@ -4286,6 +4288,8 @@ const VI_DICTIONARY: Dictionary = {
     settingsNavShopTitle: 'Cửa hàng',
     settingsNavSalesTitle: 'Bán hàng',
     settingsNavWorkspace: 'Shop & nhân viên',
+    settingsNavGoLive: 'Checklist mở bán',
+    settingsNavGoLiveDesc: 'Các mục bắt buộc trước khi nhận đơn trên web shop.',
     settingsNavBrandDesc:
       'Tên hiển thị, ngành hàng, logo chat, favicon và logo header / chân trang trên website.',
     settingsNavWebsiteEditor: 'Giao diện web shop',
@@ -7817,6 +7821,8 @@ const EN_DICTIONARY: Dictionary = {
     settingsNavShopTitle: 'Shop',
     settingsNavSalesTitle: 'Sales',
     settingsNavWorkspace: 'Shop & staff',
+    settingsNavGoLive: 'Go-live checklist',
+    settingsNavGoLiveDesc: 'Required items before taking orders on the shop website.',
     settingsNavBrandDesc:
       'Display name, industry, chat logo, favicon, and header / footer logos on the shop website.',
     settingsNavWebsiteEditor: 'Shop website look',
@@ -11342,6 +11348,8 @@ const ZH_DICTIONARY: Dictionary = {
     settingsNavShopTitle: '店铺',
     settingsNavSalesTitle: '销售',
     settingsNavWorkspace: '店铺与员工',
+    settingsNavGoLive: '开售清单',
+    settingsNavGoLiveDesc: '在网站接单前需完成的必填项。',
     settingsNavBrandDesc: '显示名称、行业、聊天 Logo、网站 favicon 以及页头/页脚 Logo。',
     settingsNavWebsiteEditor: '店铺网站外观',
     settingsNavConnectTitle: '连接',
@@ -14778,6 +14786,8 @@ const JA_DICTIONARY: Dictionary = {
     settingsNavShopTitle: 'ショップ',
     settingsNavSalesTitle: '販売',
     settingsNavWorkspace: 'ショップとスタッフ',
+    settingsNavGoLive: '公開前チェック',
+    settingsNavGoLiveDesc: '店舗サイトで受注する前に必須の項目です。',
     settingsNavBrandDesc: '表示名、業種、チャットロゴ、ファビコン、サイトのヘッダー／フッターロゴ。',
     settingsNavWebsiteEditor: 'ショップサイトの見た目',
     settingsNavConnectTitle: '連携',
@@ -18279,6 +18289,8 @@ const KO_DICTIONARY: Dictionary = {
     settingsNavShopTitle: '샵',
     settingsNavSalesTitle: '판매',
     settingsNavWorkspace: '매장과 직원',
+    settingsNavGoLive: '판매 시작 체크리스트',
+    settingsNavGoLiveDesc: '웹샵에서 주문을 받기 전에 필요한 항목입니다.',
     settingsNavBrandDesc: '표시 이름, 업종, 채팅 로고, 파비콘, 사이트 헤더/푸터 로고.',
     settingsNavWebsiteEditor: '쇼핑몰 사이트 디자인',
     settingsNavConnectTitle: '연결',

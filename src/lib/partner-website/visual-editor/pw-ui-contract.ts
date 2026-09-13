@@ -64,6 +64,7 @@ export type PwRegionKind = (typeof PW_REGION)[keyof typeof PW_REGION]
 export const PW_EL = {
   logo: 'logo',
   wordmark: 'wordmark',
+  slogan: 'slogan',
   search: 'search',
   catToggle: 'cat-toggle',
   account: 'account',
@@ -433,7 +434,7 @@ export const PW_REGION_ELS: Record<PwRegionKind, readonly PwElKind[]> = {
     PW_EL.navLink,
   ],
   [PW_REGION.nav]: [PW_EL.navLink],
-  [PW_REGION.topbar]: [PW_EL.announcement, PW_EL.link],
+  [PW_REGION.topbar]: [PW_EL.announcement, PW_EL.link, PW_EL.slogan],
   [PW_REGION.banner]: [
     PW_EL.media,
     PW_EL.inner,
@@ -514,7 +515,7 @@ export const PW_REGION_ELS: Record<PwRegionKind, readonly PwElKind[]> = {
     PW_EL.cta,
   ],
   [PW_REGION.form]: [PW_EL.title, PW_EL.subtitle, PW_EL.label, PW_EL.field, PW_EL.submit],
-  [PW_REGION.footer]: [PW_EL.logo, PW_EL.col, PW_EL.link, PW_EL.copyright],
+  [PW_REGION.footer]: [PW_EL.logo, PW_EL.col, PW_EL.link, PW_EL.copyright, PW_EL.slogan],
   [PW_REGION.accountNav]: [PW_EL.title, PW_EL.menuItem],
   [PW_REGION.accountMain]: [
     PW_EL.heading,
@@ -541,6 +542,7 @@ const LOCK: readonly PwCapKind[] = [PW_CAP.lock]
 const PW_EL_CAPS: Record<PwElKind, readonly PwCapKind[]> = {
   [PW_EL.logo]: IMAGE_PAN_HIDE,
   [PW_EL.wordmark]: TEXT_HIDE,
+  [PW_EL.slogan]: TEXT_HIDE,
   [PW_EL.search]: HIDE,
   [PW_EL.catToggle]: HIDE,
   [PW_EL.account]: HIDE,

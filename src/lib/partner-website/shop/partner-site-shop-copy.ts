@@ -111,6 +111,9 @@ export type PartnerSiteShopCopy = {
   checkoutName: string
   checkoutPhone: string
   checkoutAddress: string
+  checkoutProvince: string
+  checkoutProvincePlaceholder: string
+  cartShippingSelectProvinceHint: string
   checkoutNote: string
   checkoutSuccess: string
   checkoutAuthRequired: string
@@ -693,6 +696,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     checkoutName: 'Họ tên',
     checkoutPhone: 'Số điện thoại',
     checkoutAddress: 'Địa chỉ giao hàng',
+    checkoutProvince: 'Tỉnh / thành phố',
+    checkoutProvincePlaceholder: 'Chọn tỉnh/thành (trống = phí đồng giá)',
+    cartShippingSelectProvinceHint: 'Chọn tỉnh để tính đúng phí ship. Tỉnh chưa cài riêng dùng phí đồng giá.',
     checkoutNote: 'Ghi chú',
     checkoutSuccess: 'Đã tạo đơn — shop sẽ liên hệ sớm.',
     checkoutAuthRequired: 'Vui lòng đăng nhập để tiếp tục.',
@@ -1261,6 +1267,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     checkoutName: 'Full name',
     checkoutPhone: 'Phone',
     checkoutAddress: 'Shipping address',
+    checkoutProvince: 'Province / city',
+    checkoutProvincePlaceholder: 'Select province (blank = flat fee)',
+    cartShippingSelectProvinceHint: 'Pick a province for the correct shipping fee. Unset provinces use the flat fee.',
     checkoutNote: 'Note',
     checkoutSuccess: 'Order placed — the shop will contact you soon.',
     checkoutAuthRequired: 'Please sign in to continue.',
@@ -1829,6 +1838,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     checkoutName: '姓名',
     checkoutPhone: '电话',
     checkoutAddress: '收货地址',
+    checkoutProvince: '省 / 市',
+    checkoutProvincePlaceholder: '选择省/市（留空 = 统一运费）',
+    cartShippingSelectProvinceHint: '选择省份以计算正确运费。未单独设置的省份使用统一运费。',
     checkoutNote: '备注',
     checkoutSuccess: '订单已创建 — 店铺将尽快联系。',
     checkoutAuthRequired: '请登录后继续。',
@@ -2393,6 +2405,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     checkoutName: '氏名',
     checkoutPhone: '電話番号',
     checkoutAddress: '配送先',
+    checkoutProvince: '省 / 市',
+    checkoutProvincePlaceholder: '省・市を選択（空欄 = 一律送料）',
+    cartShippingSelectProvinceHint: '正しい送料のために省を選んでください。未設定の省は一律送料です。',
     checkoutNote: 'メモ',
     checkoutSuccess: '注文を受け付けました — ショップから連絡があります。',
     checkoutAuthRequired: '続行するにはログインしてください。',
@@ -2959,6 +2974,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     checkoutName: '이름',
     checkoutPhone: '전화번호',
     checkoutAddress: '배송 주소',
+    checkoutProvince: '성 / 시',
+    checkoutProvincePlaceholder: '성/시 선택 (비움 = 기본 배송비)',
+    cartShippingSelectProvinceHint: '정확한 배송비를 위해 성을 선택하세요. 별도 설정이 없으면 기본 배송비입니다.',
     checkoutNote: '메모',
     checkoutSuccess: '주문이 접수되었습니다 — 곧 연락드립니다.',
     checkoutAuthRequired: '계속하려면 로그인해 주세요.',

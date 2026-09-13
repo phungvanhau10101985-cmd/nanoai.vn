@@ -42,6 +42,13 @@ import {
   withChatIconLogoFromProject,
 } from '@/lib/partner-website/visual-editor/apply-slot-logo'
 import type { PartnerWebsiteFileKind } from '@/lib/partner-website/partner-website-types'
+import {
+  applySloganInHtml,
+  applySloganToProject,
+  sanitizePartnerShopSlogan,
+  sanitizePartnerShopSloganProducts,
+} from '@/lib/partner-website/shop/partner-site-shop-slogan'
+import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
 import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-landing-v1-template'
@@ -226,6 +233,7 @@ export async function PATCH(
       | 'update_chat_launcher'
       | 'update_chat_icon_logo'
       | 'update_logo_slot'
+      | 'update_slogan'
       | 'update_brand'
       | 'update_logo_url'
       | 'clear_logo'
@@ -237,6 +245,8 @@ export async function PATCH(
     chatIconLogoUrl?: string | null
     logoSlot?: 'favicon' | 'header' | 'footer' | 'chat'
     title?: string
+    slogan?: string | null
+    sloganProducts?: string | null
     briefText?: string
     logoUrl?: string | null
     htmlSource?: string | null
@@ -419,6 +429,33 @@ export async function PATCH(
       changeNote: `update_logo_slot:${slot}:${device}`,
     })
     if (!updated) return NextResponse.json({ error: 'Could not save logo' }, { status: 500 })
+    return NextResponse.json({ success: true, website: updated })
+  }
+
+  if (body.action === 'update_slogan') {
+    const existing = await fetchPartnerWebsiteByPartnerIdPg(pid)
+    if (!existing) return NextResponse.json({ error: 'Website not found' }, { status: 404 })
+    const slogan = sanitizePartnerShopSlogan(body.slogan)
+    const sloganProducts = sanitizePartnerShopSloganProducts(body.sloganProducts)
+    const footerSeed = getPartnerSiteShopCopy(normalizeWebLocale(existing.locale) ?? 'vi').footerBrandHint
+    const nextTheme: PartnerWebsiteTheme = {
+      ...existing.theme,
+      slogan: slogan || null,
+      sloganProducts: sloganProducts || null,
+    }
+    const nextProject = applySloganToProject(existing.project, slogan, { footerSeed })
+    const nextHtmlSource = existing.htmlSource
+      ? applySloganInHtml(existing.htmlSource, slogan, { footerSeed })
+      : existing.htmlSource
+    const updated = await updatePartnerWebsiteDraftPg({
+      partnerId: pid,
+      theme: nextTheme,
+      project: nextProject,
+      htmlSource: nextHtmlSource,
+      skipRevision: true,
+      changeNote: 'update_slogan',
+    })
+    if (!updated) return NextResponse.json({ error: 'Could not save slogan' }, { status: 500 })
     return NextResponse.json({ success: true, website: updated })
   }
 

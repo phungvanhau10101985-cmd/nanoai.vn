@@ -53,6 +53,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ partnerId:
       customerName?: string
       customerPhone?: string
       shippingAddress?: string
+      shippingProvince?: string
       customerEmail?: string
       note?: string
     }
@@ -99,6 +100,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ partnerId:
       customerEmail,
       customerPhone,
       shippingAddress,
+      shippingProvince: String(f.shippingProvince ?? '').trim() || undefined,
       note,
       lines,
     },

@@ -9,6 +9,7 @@ import {
   copyPageCloneElementsAcrossSameDevicePages,
 } from '@/lib/partner-website/visual-editor/copy-element-across-pages'
 import { normalizeVisualCoordinateContract } from '@/lib/partner-website/visual-editor/normalize-visual-coordinate-contract'
+import { extractSloganFromHtml } from '@/lib/partner-website/shop/partner-site-shop-slogan'
 import { sanitizeVisualHtmlForStore } from '@/lib/partner-website/visual-editor/serialize-visual-editor-html'
 import {
   applyVisualEditThemeFlag,
@@ -127,6 +128,8 @@ export function finalizeVisualEditorSave(
       applyVisualEditThemeFlag(next, { pageKey, variant: input.visualDevice }),
     input.theme
   )
+  const sloganFromHtml = extractSloganFromHtml(canonicalSource)
+  const nextTheme = sloganFromHtml ? { ...theme, slogan: sloganFromHtml } : theme
   const project: PartnerWebsiteProject = {
     ...cloned.project,
     files: cloned.project.files.flatMap((file) => {
@@ -159,7 +162,7 @@ export function finalizeVisualEditorSave(
 
   return {
     project,
-    theme,
+    theme: nextTheme,
     canonicalHtml,
     syncedHomeHtml,
     clonedPageKeys: cloned.pageKeys,

@@ -54,6 +54,8 @@ a{color:inherit;text-decoration:none}
 .pw-topbar{background:var(--pw-primary);color:#fff;font-size:12px;position:relative;z-index:${PW_SCENE_TOPBAR_Z};}
 .pw-topbar-inner{display:flex;justify-content:flex-end;align-items:center;gap:18px;max-width:var(--pw-content,1200px);width:100%;margin:0 auto;padding:8px var(--pw-chrome-inset,60px);box-sizing:border-box}
 .pw-topbar a,.pw-topbar button{color:#fff;text-decoration:none;background:none;border:none;cursor:pointer;font:inherit;padding:0}
+.pw-slogan,[data-pw-el="slogan"].pw-slogan{margin-right:auto;min-width:0;max-width:min(52%,420px);font-size:12px;font-weight:600;letter-spacing:.02em;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:inherit}
+.pw-slogan:empty,[data-pw-el="slogan"].pw-slogan:empty,.pw-slogan[hidden],[data-pw-el="slogan"].pw-slogan[hidden]{display:none!important}
 .pw-header{background:#fff;border-bottom:1px solid var(--pw-border,#f3f4f6);position:sticky;top:0;z-index:${PW_SCENE_HEAD_Z};overflow:visible}
 .pw-header-main{display:flex;align-items:center;gap:12px;padding:14px var(--pw-chrome-inset,60px)}
 .pw-brand-cluster{position:relative;display:flex;align-items:center;gap:10px;flex-shrink:0}
@@ -846,6 +848,7 @@ ${PW_FLASH_SALE_GRID_FACE_CSS}
 .pw-shop-footer-brand{overflow:visible}
 .pw-shop-footer-name{margin:0 0 8px;font-weight:800;font-size:1.05rem;line-height:1.3;color:inherit;font-family:var(--pw-font-display),var(--pw-font-ui),sans-serif}
 .pw-shop-footer-hint{margin:0;max-width:280px;font-size:13px;line-height:1.65;color:inherit;opacity:.78}
+.pw-shop-footer-hint[data-pw-el="slogan"]{max-width:min(100%,420px);white-space:normal;overflow:visible}
 .pw-newsletter{display:flex;gap:0;margin-top:10px;max-width:280px}
 .pw-newsletter input{flex:1;min-width:0;border:1px solid var(--pw-border,#e5e7eb);border-right:none;border-radius:6px 0 0 6px;padding:10px 12px;font:inherit;background:var(--pw-surface,#f9fafb);color:var(--pw-text,#111827)}
 .pw-newsletter button{border:none;background:var(--pw-primary);color:#fff;padding:0 14px;border-radius:0 6px 6px 0;font-weight:800;cursor:pointer;white-space:nowrap}

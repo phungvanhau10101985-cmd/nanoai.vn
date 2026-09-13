@@ -38,6 +38,8 @@ import {
   fetchPartnerInventoryRowByIdForPartnerFromPg,
   fetchPartnerInventoryRowByProductUrlFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchPartnerShippingProvinceFeesFromPg } from '@/lib/db/messaging-partner-shipping-province-fees-pg'
+import { partnerShippingFeeAmount } from '@/lib/partner-website/shop/partner-site-shipping-fee'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import {
   resolveActiveBirthdayDiscountPercentForCustomer,
@@ -164,6 +166,8 @@ export type CheckoutFormInput = {
   customerEmail: string
   customerPhone: string
   shippingAddress: string
+  /** Tỉnh/thành giao hàng — phí ship theo tỉnh; trống thì parse từ địa chỉ, không khớp thì đồng giá. */
+  shippingProvince?: string
   color: string
   size: string
   quantity: number
@@ -338,20 +342,26 @@ function resolveRequiredAmountByDepositRule(input: {
 }
 
 /**
- * W1.7 — phí ship cố định + miễn phí theo ngưỡng. Tính trên `payableSubtotal` (giá trị sản phẩm
- * SAU giảm giá, TRƯỚC khi cộng ship) — không dùng để tính cọc, chỉ cộng thêm lúc hiển thị tổng
- * cuối cho khách (xem comment trong migration `20260806130000_...` để biết lý do không đổi
- * `amount_after_discount`).
+ * W1.7 — phí ship đồng giá + phí theo tỉnh (tỉnh chưa cài = đồng giá) + miễn phí theo ngưỡng.
+ * Tính trên `payableSubtotal` (SAU giảm giá, TRƯỚC ship) — không dùng để tính cọc.
  */
 function resolveShippingFeeAmount(
   settings: { shipping_fee_amount: number; shipping_free_threshold_amount: number | null },
-  payableSubtotal: number
+  payableSubtotal: number,
+  opts?: {
+    provinceFees?: Record<string, number>
+    province?: string | null
+    shippingAddress?: string | null
+  }
 ): number {
-  const fee = Math.max(0, Math.round(settings.shipping_fee_amount || 0))
-  if (fee <= 0) return 0
-  const threshold = settings.shipping_free_threshold_amount
-  if (threshold != null && payableSubtotal >= threshold) return 0
-  return fee
+  return partnerShippingFeeAmount({
+    defaultFeeAmount: settings.shipping_fee_amount,
+    provinceFees: opts?.provinceFees,
+    province: opts?.province,
+    shippingAddress: opts?.shippingAddress,
+    payableSubtotal,
+    freeThresholdAmount: settings.shipping_free_threshold_amount,
+  })
 }
 
 /**
@@ -837,7 +847,12 @@ export async function completeOrderCheckout(input: {
     loyaltyPercent: loyaltyPct,
   })
   const payableSubtotal = saleBreakdown.amountAfterDiscount
-  const shippingFeeAmount = resolveShippingFeeAmount(settings, payableSubtotal)
+  const provinceFees = await fetchPartnerShippingProvinceFeesFromPg(input.partnerId)
+  const shippingFeeAmount = resolveShippingFeeAmount(settings, payableSubtotal, {
+    provinceFees,
+    province: input.form.shippingProvince,
+    shippingAddress: input.form.shippingAddress,
+  })
   const inv = oldOrder.product_inventory_id
     ? await fetchPartnerInventoryRowByIdForPartnerFromPg(input.partnerId, oldOrder.product_inventory_id)
     : oldOrder.product_url
@@ -1122,7 +1137,7 @@ export async function completeCartCheckout(input: {
     }
   | { error: string }
 > {
-  const [settings, conv] = await Promise.all([
+  const [settings, conv, provinceFees] = await Promise.all([
     fetchPartnerPaymentSettingsFromPg(input.partnerId),
     ensureConversationPg({
       partnerId: input.partnerId,
@@ -1133,6 +1148,7 @@ export async function completeCartCheckout(input: {
       guestAccountId: input.guestAccountId ?? null,
       metadata: { source: 'hosted_chat_page', auth_mode: input.guestAccountId ? 'account' : 'anonymous' },
     }),
+    fetchPartnerShippingProvinceFeesFromPg(input.partnerId),
   ])
   if (!settings) return { error: 'Shop chưa cài đặt thanh toán.' }
   if (!conv?.conversationId) return { error: 'Không tạo được hội thoại.' }
@@ -1249,7 +1265,11 @@ export async function completeCartCheckout(input: {
   const mode = settings.default_deposit_mode ?? 'percent'
   const percent = clampPercent(settings.default_deposit_percent ?? 30, 30)
   const fixedAmount = normalizeMoney(settings.default_deposit_amount ?? 0)
-  const shippingFeeAmount = resolveShippingFeeAmount(settings, payableSubtotal)
+  const shippingFeeAmount = resolveShippingFeeAmount(settings, payableSubtotal, {
+    provinceFees,
+    province: input.form.shippingProvince,
+    shippingAddress: input.form.shippingAddress,
+  })
   const plans = buildCheckoutSplitPlans({
     lines: lines.map((line) => ({
       fulfillmentSource: line.fulfillmentSource === 'china' ? 'china' : 'vietnam',

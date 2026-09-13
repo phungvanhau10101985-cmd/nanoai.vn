@@ -721,5 +721,11 @@ export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): P
     ...(typeof o.chatIconLogoUrl === 'string' && o.chatIconLogoUrl.trim()
       ? { chatIconLogoUrl: o.chatIconLogoUrl.trim() }
       : {}),
+    ...(typeof o.slogan === 'string' && o.slogan.trim()
+      ? { slogan: o.slogan.trim().slice(0, 80) }
+      : {}),
+    ...(typeof o.sloganProducts === 'string' && o.sloganProducts.trim()
+      ? { sloganProducts: o.sloganProducts.trim().slice(0, 200) }
+      : {}),
   }
 }

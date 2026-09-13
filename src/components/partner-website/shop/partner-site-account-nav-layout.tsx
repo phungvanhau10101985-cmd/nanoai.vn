@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import {
@@ -17,6 +17,10 @@ import {
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { partnerSiteAccountPath, partnerSitePersonalizationApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import {
+  readPartnerSiteAccountBrowserCache,
+  writePartnerSiteAccountBrowserCache,
+} from '@/lib/partner-website/shop/partner-site-account-browser-cache'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = {
@@ -39,9 +43,14 @@ export function PartnerSiteAccountNavLayout({
   const [shopAdminHref, setShopAdminHref] = useState<string | null>(null)
   const activeId = partnerSiteAccountNavActiveId(pathname || '')
 
+  useLayoutEffect(() => {
+    const cached = readPartnerSiteAccountBrowserCache(siteSlug)
+    if (cached?.shopAdminHref) setShopAdminHref(cached.shopAdminHref)
+  }, [siteSlug])
+
   useEffect(() => {
     if (!isAuthenticated) {
-      setShopAdminHref(null)
+      if (!readPartnerSiteAccountBrowserCache(siteSlug)?.shopAdminHref) setShopAdminHref(null)
       return
     }
     let cancelled = false
@@ -51,11 +60,20 @@ export function PartnerSiteAccountNavLayout({
     })
       .then(async (res) => {
         captureFromResponse(res)
-        const json = (await res.json().catch(() => ({}))) as { shopAdmin?: { href?: string } | null }
-        if (!cancelled) setShopAdminHref(json.shopAdmin?.href?.trim() || null)
+        const json = (await res.json().catch(() => ({}))) as {
+          profile?: unknown
+          shopAdmin?: { href?: string } | null
+        }
+        if (cancelled) return
+        const href = json.shopAdmin?.href?.trim() || null
+        setShopAdminHref(href)
+        writePartnerSiteAccountBrowserCache(siteSlug, {
+          profile: json.profile,
+          shopAdminHref: href,
+        })
       })
       .catch(() => {
-        if (!cancelled) setShopAdminHref(null)
+        if (!cancelled) setShopAdminHref((prev) => prev)
       })
     return () => {
       cancelled = true

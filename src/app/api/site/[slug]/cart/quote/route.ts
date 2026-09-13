@@ -9,6 +9,8 @@ import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner
 import { resolvePartnerCheckoutPriceLinesFromPg } from '@/lib/db/messaging-partner-sale-pricing-pg'
 import { partnerSaleLiveCountdownTo, resolvePartnerSaleDiscountBreakdown } from '@/lib/partner-website/promotions/partner-sale-pricing'
 import { fetchPartnerPaymentSettingsFromPg } from '@/lib/db/messaging-partner-orders-pg'
+import { fetchPartnerShippingProvinceFeesFromPg } from '@/lib/db/messaging-partner-shipping-province-fees-pg'
+import { resolvePartnerShippingFeeQuote } from '@/lib/partner-website/shop/partner-site-shipping-fee'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
   resolveSiteVisitorContext,
@@ -53,6 +55,8 @@ async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug
   const body = (await request.json().catch(() => null)) as {
     lines?: QuoteLineInput[]
     promoCode?: string
+    province?: string
+    shippingAddress?: string
   } | null
   const sourceLines = Array.isArray(body?.lines) ? body.lines.slice(0, 100) : []
   const validLines = sourceLines
@@ -93,7 +97,7 @@ async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug
     visitorEmail: emailNormalized,
     settings: saleConfig,
   })
-  const [priceLines, birthdayOfferRow, loyaltyStatus, paymentSettings] =
+  const [priceLines, birthdayOfferRow, loyaltyStatus, paymentSettings, provinceFees] =
     await Promise.all([
       resolvePartnerCheckoutPriceLinesFromPg({
         partnerId: shop.partnerId,
@@ -114,6 +118,7 @@ async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug
         identity,
       }),
       fetchPartnerPaymentSettingsFromPg(shop.partnerId),
+      fetchPartnerShippingProvinceFeesFromPg(shop.partnerId),
     ])
   const birthdayDiscountPercent = birthdayOfferRow?.percent ?? 0
 
@@ -166,16 +171,20 @@ async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug
     birthdayDiscountPercent: promo ? 0 : (birthdayDiscountPercent ?? 0),
     loyaltyDiscountPercent,
   })
-  const configuredFee = money(paymentSettings?.shipping_fee_amount)
+  const shippingQuote = resolvePartnerShippingFeeQuote({
+    defaultFeeAmount: money(paymentSettings?.shipping_fee_amount),
+    provinceFees,
+    province: String(body?.province ?? '').trim() || null,
+    shippingAddress: String(body?.shippingAddress ?? '').trim() || null,
+    payableSubtotal: breakdown.amountAfterDiscount,
+    freeThresholdAmount: paymentSettings?.shipping_free_threshold_amount,
+  })
+  const shippingFeeAmount = shippingQuote.feeAmount
+  const configuredFee = shippingQuote.configuredFeeAmount
   const configuredThreshold =
     paymentSettings?.shipping_free_threshold_amount == null
       ? null
       : money(paymentSettings.shipping_free_threshold_amount)
-  const shippingFeeAmount =
-    configuredFee > 0 &&
-    !(configuredThreshold != null && breakdown.amountAfterDiscount >= configuredThreshold)
-      ? configuredFee
-      : 0
 
   const billedInventoryIds = billedPriceLines.map((line) => line.inventoryId).filter((id): id is string => Boolean(id))
   const inventoryRows =
@@ -317,6 +326,8 @@ async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug
         configuredFeeAmount: configuredFee,
         freeThresholdAmount: configuredThreshold,
         carrierLabel: paymentSettings?.shipping_carrier_label ?? '',
+        source: shippingQuote.source,
+        matchedProvince: shippingQuote.matchedProvince,
       },
       orderTotal: breakdown.amountAfterDiscount + shippingFeeAmount,
       checkoutSplit,

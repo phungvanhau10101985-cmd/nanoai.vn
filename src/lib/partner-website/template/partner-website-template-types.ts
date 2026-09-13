@@ -77,6 +77,13 @@ export type PartnerWebsiteTheme = {
   hideChatLauncher?: boolean
   /** Logo icon Chat mua dùng chung mọi máy (desktop / tablet / mobile). Không phải logo shop. */
   chatIconLogoUrl?: string | null
+  /**
+   * Slogan / tagline shop. Một câu mọi máy. Dashboard Thương hiệu + AI viết lại.
+   * Live bind `[data-pw-el="slogan"]` (thanh trên + chân trang).
+   */
+  slogan?: string | null
+  /** Ngành / mặt hàng khách buôn bán — ngữ cảnh cho AI viết slogan. */
+  sloganProducts?: string | null
   /** M3.2 — optional fixed bottom-right CTA above chat FAB. */
   floatingCta?: {
     enabled: boolean

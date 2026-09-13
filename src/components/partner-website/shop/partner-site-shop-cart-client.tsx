@@ -36,6 +36,7 @@ import {
   type PartnerSiteCustomerAddress,
   type PartnerSiteCustomerAddressInput,
 } from '@/lib/partner-website/shop/partner-site-customer-address'
+import { VIETNAM_PROVINCES } from '@/lib/partner-website/shop/vietnam-provinces'
 import { PartnerSiteAddressFormFields } from '@/components/partner-website/shop/partner-site-address-form'
 import { PartnerSiteShopDialog } from '@/components/partner-website/shop/partner-site-shop-dialog'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
@@ -137,6 +138,8 @@ type CartQuote = {
     configuredFeeAmount: number
     freeThresholdAmount: number | null
     carrierLabel: string
+    source?: 'province' | 'default' | 'free'
+    matchedProvince?: string | null
   }
   orderTotal: number
   birthdayOffer?: { percent: number; countdownTo?: string | null } | null
@@ -451,6 +454,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   const [orderName, setOrderName] = useState('')
   const [orderPhone, setOrderPhone] = useState('')
   const [orderAddress, setOrderAddress] = useState('')
+  const [orderProvince, setOrderProvince] = useState('')
   const [orderNote, setOrderNote] = useState('')
   const [status, setStatus] = useState('')
   const [completedOrder, setCompletedOrder] = useState<OrderSnapshot | null>(null)
@@ -487,10 +491,12 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     feeAmount: number
     freeThresholdAmount: number | null
     carrierLabel: string | null
+    hasProvinceRates: boolean
   }>({
     feeAmount: 0,
     freeThresholdAmount: null,
     carrierLabel: null,
+    hasProvinceRates: false,
   })
   const [ewalletAvailable, setEwalletAvailable] = useState(false)
   const [depositPolicy, setDepositPolicy] = useState<{
@@ -583,6 +589,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   }, [authResolved, loadAddressBook])
 
   const selectedAddress = bookAddresses.find((addr) => addr.id === selectedAddressId) ?? null
+  const checkoutProvince = String(selectedAddress?.province || orderProvince || '').trim()
 
   useEffect(() => {
     if (!selectedAddress) return
@@ -603,6 +610,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               feeAmount?: number
               freeThresholdAmount?: number | null
               carrierLabel?: string | null
+              hasProvinceRates?: boolean
             }
             ewalletAvailable?: boolean
             depositPolicy?: {
@@ -617,6 +625,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               freeThresholdAmount:
                 json.shippingPolicy?.freeThresholdAmount == null ? null : Math.max(0, Math.round(json.shippingPolicy.freeThresholdAmount)),
               carrierLabel: String(json.shippingPolicy?.carrierLabel ?? '').trim() || null,
+              hasProvinceRates: json.shippingPolicy?.hasProvinceRates === true,
             })
             setEwalletAvailable(json.ewalletAvailable === true)
             const mode = json.depositPolicy?.mode
@@ -670,6 +679,8 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
         promoCode: promoCode?.trim() || undefined,
+        province: checkoutProvince || undefined,
+        shippingAddress: orderAddress.trim() || undefined,
         lines: lines.map((item) => ({
           lineId: item.id,
           inventoryId: item.card.inventory_id || '',
@@ -684,7 +695,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       | ({ ok?: boolean } & CartQuote)
       | null
     return res.ok && json?.ok ? json : null
-  }, [authHeaders, captureFromResponse, siteSlug])
+  }, [authHeaders, captureFromResponse, checkoutProvince, orderAddress, siteSlug])
 
   const requestQuote = useCallback(async (
     lines: SiteCartLine[],
@@ -814,6 +825,8 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     selectedItems.length,
     selectedLineIds,
     walletVouchers,
+    checkoutProvince,
+    orderAddress,
   ])
 
   useEffect(() => {
@@ -1088,6 +1101,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
             customerName: orderName.trim(),
             customerPhone: orderPhone.trim(),
             shippingAddress: orderAddress.trim(),
+            shippingProvince: checkoutProvince || undefined,
             note: orderNote.trim(),
             ...(appliedPromo ? { promoCode: appliedPromo.code } : {}),
             ...(ewalletAvailable ? { paymentMethod } : {}),
@@ -1720,6 +1734,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
             {(quote?.shipping.freeThresholdAmount ?? shippingPolicy.freeThresholdAmount) != null && shippingFeeEstimate > 0
               ? ` — ${t.cartShippingFreeThresholdHint.replace('{amount}', formatVnd((quote?.shipping.freeThresholdAmount ?? shippingPolicy.freeThresholdAmount) as number))}`
               : ''}
+            {shippingPolicy.hasProvinceRates && !checkoutProvince ? ` — ${t.cartShippingSelectProvinceHint}` : ''}
           </p>
           {quote?.checkoutSplit && quote.checkoutSplit.orderCount > 1 ? (
             <p className="pw-shop-muted">{t.orderSplitBanner}</p>
@@ -1818,6 +1833,21 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                 <label data-pw-el={PW_EL.label}>
                   {t.checkoutAddress}
                   <textarea rows={4} value={orderAddress} onChange={(e) => setOrderAddress(e.target.value)} data-pw-el={PW_EL.field} />
+                </label>
+                <label data-pw-el={PW_EL.label}>
+                  {t.checkoutProvince}
+                  <select
+                    value={orderProvince}
+                    onChange={(e) => setOrderProvince(e.target.value)}
+                    data-pw-el={PW_EL.field}
+                  >
+                    <option value="">{t.checkoutProvincePlaceholder}</option>
+                    {VIETNAM_PROVINCES.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </>
             )}

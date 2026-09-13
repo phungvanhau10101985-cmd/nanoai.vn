@@ -3,6 +3,16 @@ import type { WebLocale } from '@/lib/i18n/config'
 export type PartnerShippingOpsCopy = {
   shopPartTitle: string
   shopPartHint: string
+  flatFeeLabel: string
+  flatFeeHint: string
+  provinceTitle: string
+  provinceHint: string
+  provinceSearch: string
+  provinceEmptyMeansDefault: string
+  provinceOverrideCount: string
+  provinceSave: string
+  provinceSaved: string
+  provinceLoadError: string
   lookupPartTitle: string
   lookupPartHint: string
   emsTitle: string
@@ -95,6 +105,18 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
     shopPartTitle: '1. Quản lý vận chuyển web shop',
     shopPartHint:
       'Phí ship, đơn vị vận chuyển, địa chỉ hoàn hàng, và vận hành EMS/COD trên chính shop NanoAI (giống admin 188: import gửi EMS, đối soát COD, hoàn trả shop, đối soát cước).',
+    flatFeeLabel: 'Phí ship đồng giá (VND)',
+    flatFeeHint:
+      'Tỉnh chưa cài phí riêng sẽ nhận mức này. 0 = miễn phí ship mặc định. Miễn phí theo ngưỡng đơn vẫn áp sau khi chọn phí tỉnh hoặc đồng giá.',
+    provinceTitle: 'Phí ship theo tỉnh',
+    provinceHint:
+      'Để trống = dùng phí đồng giá. Nhập số (kể cả 0) để gán phí riêng cho tỉnh đó.',
+    provinceSearch: 'Tìm tỉnh/thành',
+    provinceEmptyMeansDefault: 'Ô trống = phí đồng giá. 0 = miễn phí đúng tỉnh đó.',
+    provinceOverrideCount: '{n} tỉnh đang có phí riêng',
+    provinceSave: 'Lưu phí theo tỉnh',
+    provinceSaved: 'Đã lưu phí ship theo tỉnh.',
+    provinceLoadError: 'Không lưu được phí theo tỉnh.',
     lookupPartTitle: '2. API vận chuyển web khách khác hệ thống',
     lookupPartHint:
       'Khi khách hỏi đơn trên chat, NanoAI gọi HTTPS cổng tra cứu của website khách (URL + API key). Shop NanoAI không cần cổng này — tra cứu đọc bảng EMS/đơn shop.',
@@ -188,6 +210,17 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
     shopPartTitle: '1. Shop website shipping',
     shopPartHint:
       'Shipping fee, carrier, return address, and EMS/COD operations on this NanoAI shop (import EMS, COD settlement, shop returns, freight).',
+    flatFeeLabel: 'Flat shipping fee (VND)',
+    flatFeeHint:
+      'Provinces without a custom rate use this fee. 0 = free by default. The free-shipping threshold still applies after the province or flat fee is chosen.',
+    provinceTitle: 'Shipping by province',
+    provinceHint: 'Leave blank to use the flat fee. Enter a number (including 0) to override that province.',
+    provinceSearch: 'Search province',
+    provinceEmptyMeansDefault: 'Blank = flat fee. 0 = free shipping for that province.',
+    provinceOverrideCount: '{n} provinces have a custom fee',
+    provinceSave: 'Save province fees',
+    provinceSaved: 'Province shipping fees saved.',
+    provinceLoadError: 'Could not save province fees.',
     lookupPartTitle: '2. External customer-site shipping API',
     lookupPartHint:
       'When customers ask about orders in chat, NanoAI calls their website shipping lookup (URL + API key). NanoAI shops do not need this — lookup reads EMS/order tables.',
@@ -278,6 +311,16 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
   zh: {
     shopPartTitle: '1. 本店网站物流',
     shopPartHint: '运费、承运商、退货地址，以及本店 EMS/货到付款作业（导入、对账、退回、运费）。',
+    flatFeeLabel: '统一运费（VND）',
+    flatFeeHint: '未单独设置的省份使用该费用。0 = 默认包邮。满额包邮在选定省运费或统一运费之后再计算。',
+    provinceTitle: '分省运费',
+    provinceHint: '留空 = 使用统一运费。填写数字（含 0）即为该省单独运费。',
+    provinceSearch: '搜索省/市',
+    provinceEmptyMeansDefault: '留空 = 统一运费。0 = 该省包邮。',
+    provinceOverrideCount: '已为 {n} 个省设置单独运费',
+    provinceSave: '保存分省运费',
+    provinceSaved: '已保存分省运费。',
+    provinceLoadError: '无法保存分省运费。',
     lookupPartTitle: '2. 外部客户网站物流 API',
     lookupPartHint: '顾客在聊天中询问订单时，NanoAI 调用其网站物流查询（URL + API key）。NanoAI 本店无需此接口。',
     emsTitle: 'EMS 物流管理',
@@ -367,6 +410,16 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
   ja: {
     shopPartTitle: '1. 自店サイトの配送管理',
     shopPartHint: '送料、配送業者、返送先、および本店の EMS/代引運用（取込・照合・返品・運賃）。',
+    flatFeeLabel: '一律送料（VND）',
+    flatFeeHint: '個別未設定の省はこの料金です。0 = デフォルト無料。送料無料の閾値は省料金または一律料金の後に適用します。',
+    provinceTitle: '省ごとの送料',
+    provinceHint: '空欄 = 一律送料。数字（0 含む）を入れるとその省だけ上書きします。',
+    provinceSearch: '省・市を検索',
+    provinceEmptyMeansDefault: '空欄 = 一律送料。0 = その省は送料無料。',
+    provinceOverrideCount: '{n} 省に個別送料あり',
+    provinceSave: '省送料を保存',
+    provinceSaved: '省ごとの送料を保存しました。',
+    provinceLoadError: '省送料を保存できませんでした。',
     lookupPartTitle: '2. 外部顧客サイトの配送 API',
     lookupPartHint:
       'チャットで注文を尋ねられたとき、NanoAI は顧客サイトの照会 API（URL + API key）を呼びます。NanoAI 店舗はこの設定なしでも EMS/注文表を参照します。',
@@ -457,6 +510,16 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
   ko: {
     shopPartTitle: '1. 자사 웹샵 배송 관리',
     shopPartHint: '배송비, 운송사, 반송 주소, 그리고 이 샵의 EMS/착불 운영(가져오기, 대사, 반품, 운임).',
+    flatFeeLabel: '기본 배송비 (VND)',
+    flatFeeHint: '별도 설정이 없는 성은 이 금액을 씁니다. 0 = 기본 무료. 무료 배송 기준 금액은 성 요금 또는 기본 요금 다음에 적용됩니다.',
+    provinceTitle: '성/시 배송비',
+    provinceHint: '비워 두면 기본 배송비. 숫자(0 포함)를 넣으면 해당 성만 덮어씁니다.',
+    provinceSearch: '성/시 검색',
+    provinceEmptyMeansDefault: '빈 칸 = 기본 배송비. 0 = 그 성은 무료 배송.',
+    provinceOverrideCount: '{n}개 성에 개별 배송비',
+    provinceSave: '성 배송비 저장',
+    provinceSaved: '성 배송비를 저장했습니다.',
+    provinceLoadError: '성 배송비를 저장하지 못했습니다.',
     lookupPartTitle: '2. 외부 고객 사이트 배송 API',
     lookupPartHint:
       '채팅에서 주문을 물으면 NanoAI가 고객 사이트 조회 API(URL + API key)를 호출합니다. NanoAI 샵은 이 설정 없이 EMS/주문 표를 읽습니다.',

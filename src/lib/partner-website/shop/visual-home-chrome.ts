@@ -14,6 +14,7 @@ import {
 } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
 import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/partner-site-chrome-kit'
+import { bindPartnerShopSloganInHtml } from '@/lib/partner-website/shop/partner-site-shop-slogan'
 import {
   extractSharedChrome,
   fillMissingSharedChromeFloats,
@@ -68,7 +69,8 @@ function prepareHomeChromeSourceHtml(
     logoUrl: website.theme?.logoUrl,
     chatIconLogoUrl: website.theme?.chatIconLogoUrl,
   })
-  const withTheme = injectPartnerShopThemeCss(withKit, website.theme)
+  const withSlogan = bindPartnerShopSloganInHtml(withKit, website.theme, website.locale ?? 'vi')
+  const withTheme = injectPartnerShopThemeCss(withSlogan, website.theme)
   const withChrome = injectPartnerShopChromeLayoutCss(withTheme)
   return injectMarketplaceLookIntoHtml(withChrome, website.theme)
 }

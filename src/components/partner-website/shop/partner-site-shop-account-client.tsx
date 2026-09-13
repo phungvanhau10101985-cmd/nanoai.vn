@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell, Copy, Download, MessageCircle } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -39,7 +39,45 @@ import {
   partnerShopBirthYearOptions,
   type PartnerShopGender,
 } from '@/lib/partner-website/shop/partner-site-profile-demographics'
+import {
+  clearPartnerSiteAccountBrowserCache,
+  readPartnerSiteAccountBrowserCache,
+  writePartnerSiteAccountBrowserCache,
+  type PartnerSiteCachedAccountProfile,
+  type PartnerSiteCachedWalletVoucher,
+} from '@/lib/partner-website/shop/partner-site-account-browser-cache'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+
+function visitorProfileFromCache(p: PartnerSiteCachedAccountProfile): PartnerSiteVisitorProfile {
+  return {
+    email: p.email,
+    greeting_name: p.greeting_name,
+    customer_name: p.customer_name,
+    customer_phone: p.customer_phone,
+    shipping_address: p.shipping_address,
+    gender: p.gender,
+    date_of_birth: p.date_of_birth,
+    avatar_url: p.avatar_url,
+    auth_mode: p.auth_mode,
+    utm: {},
+  }
+}
+
+function walletFromCache(rows: PartnerSiteCachedWalletVoucher[]): WalletVoucher[] {
+  return rows.map((v) => ({
+    code: v.code,
+    name: v.name || v.code,
+    description: v.description || '',
+    discountType: v.discountType === 'percent' ? 'percent' : 'fixed_amount',
+    discountPercent: v.discountPercent ?? null,
+    discountAmount: v.discountAmount ?? null,
+    maxDiscountAmount: v.maxDiscountAmount ?? null,
+    minSubtotal: v.minSubtotal ?? 0,
+    expiresAt: v.expiresAt ?? null,
+    eligible: v.eligible,
+    ineligibleReason: v.ineligibleReason,
+  }))
+}
 
 const PartnerSiteShopCartClient = dynamic(
   () =>
@@ -175,6 +213,7 @@ export function PartnerSiteShopAccountClient({
       setSavedDobIso('')
       setContactAddress('')
       setNeedsAuth(true)
+      clearPartnerSiteAccountBrowserCache(siteSlug)
       return null
     }
     const res = await fetch(partnerSitePersonalizationApiPath(siteSlug, 'profile'), {
@@ -200,8 +239,55 @@ export function PartnerSiteShopAccountClient({
       setContactAddress,
     })
     setNeedsAuth(!next?.email)
+    if (next) {
+      writePartnerSiteAccountBrowserCache(siteSlug, {
+        profile: next,
+        shopAdminHref: json.shopAdmin?.href?.trim() || null,
+      })
+    }
     return next
   }, [authHeaders, captureFromResponse, siteSlug])
+
+  useLayoutEffect(() => {
+    if (shouldPartnerSiteShopSkipAuthSync(siteSlug)) return
+    const cached = readPartnerSiteAccountBrowserCache(siteSlug)
+    if (!cached) return
+    if (cached.profile) {
+      const next = visitorProfileFromCache(cached.profile)
+      setProfile(next)
+      setShopAdminHref(cached.shopAdminHref)
+      applyProfileFields(next, {
+        setCustomerName,
+        setCustomerPhone,
+        setGender,
+        setDob,
+        setBirthYear,
+        setSavedDobIso,
+        setContactAddress,
+      })
+      if (next.email) {
+        setNeedsAuth(false)
+        setLoading(false)
+      }
+    } else if (cached.shopAdminHref) {
+      setShopAdminHref(cached.shopAdminHref)
+    }
+    if (cached.wallet.length) setWallet(walletFromCache(cached.wallet))
+    if (cached.notifications.length) {
+      setNotifications(
+        cached.notifications.map((item) => ({
+          id: item.id,
+          type: item.type || '',
+          title: item.title,
+          body: item.body || '',
+          href: item.href || '',
+          readAt: item.readAt ?? null,
+          createdAt: item.createdAt || '',
+        }))
+      )
+    }
+    if (cached.unreadNotifications > 0) setUnreadFromApi(cached.unreadNotifications)
+  }, [siteSlug])
 
   useEffect(() => {
     if (!authResolved) return
@@ -269,7 +355,7 @@ export function PartnerSiteShopAccountClient({
 
   useEffect(() => {
     if (activeTab !== 'wallet' || !ready) return
-    setWalletLoading(true)
+    if (!wallet.length) setWalletLoading(true)
     void fetch(`/api/site/${encodeURIComponent(siteSlug)}/promotions/wallet`, {
       credentials: 'same-origin',
       headers: authHeaders(),
@@ -278,13 +364,17 @@ export function PartnerSiteShopAccountClient({
         captureFromResponse(res)
         return res.json()
       })
-      .then((json: { vouchers?: WalletVoucher[] }) => setWallet(json.vouchers ?? []))
+      .then((json: { vouchers?: WalletVoucher[] }) => {
+        const vouchers = json.vouchers ?? []
+        setWallet(vouchers)
+        writePartnerSiteAccountBrowserCache(siteSlug, { wallet: vouchers })
+      })
       .finally(() => setWalletLoading(false))
   }, [activeTab, authHeaders, captureFromResponse, ready, siteSlug])
 
   useEffect(() => {
     if (activeTab !== 'notifications' || !ready || needsAuth) return
-    setNotificationsLoading(true)
+    if (!notifications.length) setNotificationsLoading(true)
     void fetch(partnerSiteNotificationsApiPath(siteSlug), {
       credentials: 'same-origin',
       headers: authHeaders(),
@@ -294,8 +384,17 @@ export function PartnerSiteShopAccountClient({
         return res.json()
       })
       .then((json: { notifications?: NotificationItem[]; unreadCount?: number }) => {
-        setNotifications(json.notifications ?? [])
-        if (typeof json.unreadCount === 'number') setUnreadFromApi(json.unreadCount)
+        const items = json.notifications ?? []
+        setNotifications(items)
+        const unread =
+          typeof json.unreadCount === 'number'
+            ? json.unreadCount
+            : items.filter((item) => !item.readAt).length
+        setUnreadFromApi(unread)
+        writePartnerSiteAccountBrowserCache(siteSlug, {
+          notifications: items,
+          unreadNotifications: unread,
+        })
       })
       .finally(() => setNotificationsLoading(false))
   }, [activeTab, authHeaders, captureFromResponse, needsAuth, ready, siteSlug])
@@ -311,7 +410,9 @@ export function PartnerSiteShopAccountClient({
         return res.json()
       })
       .then((json: { unreadCount?: number }) => {
-        setUnreadFromApi(Math.max(0, Number(json.unreadCount ?? 0) || 0))
+        const unread = Math.max(0, Number(json.unreadCount ?? 0) || 0)
+        setUnreadFromApi(unread)
+        writePartnerSiteAccountBrowserCache(siteSlug, { unreadNotifications: unread })
       })
   }, [activeTab, authHeaders, captureFromResponse, needsAuth, ready, siteSlug])
 
@@ -378,6 +479,7 @@ export function PartnerSiteShopAccountClient({
           setContactAddress,
         })
         setNeedsAuth(false)
+        writePartnerSiteAccountBrowserCache(siteSlug, { profile: json.profile, shopAdminHref })
       }
       setStatus(t.accountSaved)
     } finally {
@@ -395,9 +497,11 @@ export function PartnerSiteShopAccountClient({
     captureFromResponse(res)
     if (!res.ok) return
     setUnreadFromApi(0)
-    setNotifications((prev) =>
-      prev.map((nItem) => ({ ...nItem, readAt: nItem.readAt ?? new Date().toISOString() }))
-    )
+    setNotifications((prev) => {
+      const next = prev.map((nItem) => ({ ...nItem, readAt: nItem.readAt ?? new Date().toISOString() }))
+      writePartnerSiteAccountBrowserCache(siteSlug, { notifications: next, unreadNotifications: 0 })
+      return next
+    })
   }
 
   async function markNotificationRead(id: string) {
@@ -409,12 +513,17 @@ export function PartnerSiteShopAccountClient({
     })
     captureFromResponse(res)
     if (!res.ok) return
-    setUnreadFromApi((n) => Math.max(0, n - 1))
-    setNotifications((prev) =>
-      prev.map((nItem) =>
-        nItem.id === id ? { ...nItem, readAt: nItem.readAt ?? new Date().toISOString() } : nItem
-      )
-    )
+    setUnreadFromApi((n) => {
+      const unread = Math.max(0, n - 1)
+      setNotifications((prev) => {
+        const next = prev.map((nItem) =>
+          nItem.id === id ? { ...nItem, readAt: nItem.readAt ?? new Date().toISOString() } : nItem
+        )
+        writePartnerSiteAccountBrowserCache(siteSlug, { notifications: next, unreadNotifications: unread })
+        return next
+      })
+      return unread
+    })
   }
 
   async function handleInstallApp() {

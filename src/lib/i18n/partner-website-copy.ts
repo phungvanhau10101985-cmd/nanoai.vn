@@ -46,6 +46,24 @@ export type PartnerWebsiteCopy = {
   logosFaviconDefaultPrompt: string
   logosHeaderDefaultPrompt: string
   logosFooterDefaultPrompt: string
+  sloganTitle: string
+  sloganHint: string
+  sloganLabel: string
+  sloganPlaceholder: string
+  sloganIdeaLabel: string
+  sloganIdeaPlaceholder: string
+  sloganProductsLabel: string
+  sloganProductsPlaceholder: string
+  sloganNeedDraft: string
+  sloganNeedProducts: string
+  sloganRewrite: string
+  sloganCreate: string
+  sloganBusy: string
+  sloganSaved: string
+  sloganSaveError: string
+  sloganAiError: string
+  sloganClear: string
+  sloganPickAlt: string
   imageInvalidType: string
   uploadFailed: string
   generateSuccess: string
@@ -533,6 +551,7 @@ export type PartnerWebsiteCopy = {
   revisionNoteBeforeRestore: string
   revisionNoteCta: string
   revisionNoteChatLauncher: string
+  revisionNoteSlogan: string
   revisionNoteSession: string
   /** M3.2 */
   floatingCtaPanelTitle: string
@@ -1112,6 +1131,25 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Logo header theo shop {shop}: mark thương hiệu, tương phản cao, đọc được khi nhỏ, nền phẳng để xóa nền.',
     logosFooterDefaultPrompt:
       'Logo chân trang theo shop {shop}: mark thương hiệu, tương phản cao, đọc được khi nhỏ, nền phẳng để xóa nền.',
+    sloganTitle: 'Slogan cửa hàng',
+    sloganHint:
+      'Một câu ngắn hiện trên thanh trên (máy tính) và chân trang. AI viết lại theo ý bạn, hoặc viết mới từ tên shop và mặt hàng.',
+    sloganLabel: 'Slogan',
+    sloganPlaceholder: 'Ví dụ: Thời trang đúng chất — giao nhanh toàn quốc',
+    sloganIdeaLabel: 'Ý tưởng / gợi ý (tuỳ chọn)',
+    sloganIdeaPlaceholder: 'Ví dụ: nhấn mạnh hàng thật, giá tốt, giao 2–4 ngày…',
+    sloganProductsLabel: 'Sản phẩm đang bán',
+    sloganProductsPlaceholder: 'Ví dụ: túi xách, giày dép, thời trang nữ',
+    sloganNeedDraft: 'Nhập slogan hiện tại hoặc ý tưởng trước khi AI viết lại.',
+    sloganNeedProducts: 'Nhập mặt hàng đang bán trước khi AI viết mới.',
+    sloganRewrite: 'AI viết lại',
+    sloganCreate: 'AI viết mới',
+    sloganBusy: 'Đang viết slogan…',
+    sloganSaved: 'Đã lưu slogan.',
+    sloganSaveError: 'Không lưu được slogan.',
+    sloganAiError: 'AI chưa viết được slogan. Thử lại.',
+    sloganClear: 'Xóa slogan',
+    sloganPickAlt: 'Chọn câu khác',
     imageInvalidType: 'Chỉ chấp nhận file ảnh.',
     uploadFailed: 'Tải ảnh thất bại.',
     generateSuccess: 'Đã áp giao diện mẫu',
@@ -1626,6 +1664,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     revisionNoteBeforeRestore: 'Trước khi khôi phục',
     revisionNoteCta: 'Đổi nút CTA nổi',
     revisionNoteChatLauncher: 'Ẩn / hiện nút chat',
+    revisionNoteSlogan: 'Đổi slogan',
     revisionNoteSession: 'Phiên chỉnh sửa',
     floatingCtaPanelTitle: "Nút liên hệ trên web",
     floatingCtaPanelHint: "Gắn nút Zalo, Facebook, gọi điện trên web. Có thể thêm một nút CTA tuỳ chọn.",
@@ -2221,6 +2260,25 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Header logo for {shop}: brand mark, high contrast, readable when small, flat background for cutout.',
     logosFooterDefaultPrompt:
       'Footer logo for {shop}: brand mark, high contrast, readable when small, flat background for cutout.',
+    sloganTitle: 'Shop slogan',
+    sloganHint:
+      'One short line on the top bar (desktop) and footer. AI can rewrite from your idea, or write a new line from the shop name and products you sell.',
+    sloganLabel: 'Slogan',
+    sloganPlaceholder: 'e.g. Real fashion — delivered nationwide',
+    sloganIdeaLabel: 'Idea / notes (optional)',
+    sloganIdeaPlaceholder: 'e.g. authentic goods, fair price, 2–4 day delivery…',
+    sloganProductsLabel: 'Products you sell',
+    sloganProductsPlaceholder: 'e.g. handbags, shoes, women’s fashion',
+    sloganNeedDraft: 'Enter a current slogan or an idea before rewriting.',
+    sloganNeedProducts: 'Enter the products you sell before writing a new slogan.',
+    sloganRewrite: 'Rewrite with AI',
+    sloganCreate: 'Write new with AI',
+    sloganBusy: 'Writing slogan…',
+    sloganSaved: 'Slogan saved.',
+    sloganSaveError: 'Could not save the slogan.',
+    sloganAiError: 'AI could not write a slogan. Try again.',
+    sloganClear: 'Clear slogan',
+    sloganPickAlt: 'Pick another line',
     imageInvalidType: 'Images only.',
     uploadFailed: 'Upload failed.',
     generateSuccess: 'Web project created',
@@ -2734,6 +2792,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     revisionNoteBeforeRestore: 'Before restore',
     revisionNoteCta: 'Floating CTA',
     revisionNoteChatLauncher: 'Hide / show chat button',
+    revisionNoteSlogan: 'Slogan',
     revisionNoteSession: 'Edit session',
     floatingCtaPanelTitle: "On-site contact buttons",
     floatingCtaPanelHint: "Add Zalo, Facebook, and call buttons on the shop. Optional extra promo CTA below.",
@@ -3328,6 +3387,25 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '按店铺 {shop} 的页眉 Logo：品牌标志、高对比、小尺寸可读，平底便于抠图。',
     logosFooterDefaultPrompt:
       '按店铺 {shop} 的页脚 Logo：品牌标志、高对比、小尺寸可读，平底便于抠图。',
+    sloganTitle: '店铺口号',
+    sloganHint:
+      '一句短句显示在顶栏（电脑）和页脚。AI 可按你的想法改写，或根据店名和在售商品全新撰写。',
+    sloganLabel: '口号',
+    sloganPlaceholder: '例如：真品时尚 — 全国配送',
+    sloganIdeaLabel: '想法 / 提示（可选）',
+    sloganIdeaPlaceholder: '例如：正品、价格实在、2–4 天送达…',
+    sloganProductsLabel: '在售商品',
+    sloganProductsPlaceholder: '例如：手袋、鞋靴、女装',
+    sloganNeedDraft: '请先填写当前口号或想法再让 AI 改写。',
+    sloganNeedProducts: '请先填写在售商品再让 AI 新写。',
+    sloganRewrite: 'AI 改写',
+    sloganCreate: 'AI 新写',
+    sloganBusy: '正在写口号…',
+    sloganSaved: '已保存口号。',
+    sloganSaveError: '无法保存口号。',
+    sloganAiError: 'AI 未能写出口号，请重试。',
+    sloganClear: '清除口号',
+    sloganPickAlt: '选用其他句子',
     imageInvalidType: '仅支持图片文件。',
     uploadFailed: '上传失败。',
     generateSuccess: '已创建网页项目',
@@ -3822,6 +3900,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     revisionNoteBeforeRestore: '恢复前',
     revisionNoteCta: '悬浮 CTA',
     revisionNoteChatLauncher: '隐藏 / 显示聊天按钮',
+    revisionNoteSlogan: '口号',
     revisionNoteSession: '编辑会话',
     floatingCtaPanelTitle: "网站联系按钮",
     floatingCtaPanelHint: "在网站上添加 Zalo、Facebook、电话按钮。下方可再加一个促销 CTA。",
@@ -4398,6 +4477,25 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '{shop} のヘッダーロゴ：ブランドマーク、高コントラスト、小さくても読める、切り抜き用の平坦な背景。',
     logosFooterDefaultPrompt:
       '{shop} のフッターロゴ：ブランドマーク、高コントラスト、小さくても読める、切り抜き用の平坦な背景。',
+    sloganTitle: 'ショップスローガン',
+    sloganHint:
+      '短い一文をトップバー（PC）とフッターに表示。AIはアイデアから書き直すか、店名と取扱商品から新規作成できます。',
+    sloganLabel: 'スローガン',
+    sloganPlaceholder: '例: 本物のファッション — 全国配送',
+    sloganIdeaLabel: 'アイデア / メモ（任意）',
+    sloganIdeaPlaceholder: '例: 正規品、適正価格、2〜4日配送…',
+    sloganProductsLabel: '取扱商品',
+    sloganProductsPlaceholder: '例: バッグ、靴、レディースファッション',
+    sloganNeedDraft: 'AIで書き直す前に、現在のスローガンかアイデアを入力してください。',
+    sloganNeedProducts: 'AIで新規作成する前に、取扱商品を入力してください。',
+    sloganRewrite: 'AIで書き直す',
+    sloganCreate: 'AIで新規作成',
+    sloganBusy: 'スローガンを作成中…',
+    sloganSaved: 'スローガンを保存しました。',
+    sloganSaveError: 'スローガンを保存できませんでした。',
+    sloganAiError: 'スローガンを作成できませんでした。再試行してください。',
+    sloganClear: 'スローガンを削除',
+    sloganPickAlt: '別の文を選ぶ',
     imageInvalidType: '画像ファイルのみ。',
     uploadFailed: 'アップロードに失敗しました。',
     generateSuccess: 'プロジェクトを作成しました',
@@ -4907,6 +5005,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     revisionNoteBeforeRestore: '復元前',
     revisionNoteCta: 'フローティング CTA',
     revisionNoteChatLauncher: 'チャットボタンの表示 / 非表示',
+    revisionNoteSlogan: 'スローガン',
     revisionNoteSession: '編集セッション',
     floatingCtaPanelTitle: "サイトの連絡ボタン",
     floatingCtaPanelHint: "サイトに Zalo・Facebook・電話ボタンを設置。下に任意のプロモ CTA も追加できます。",
@@ -5491,6 +5590,25 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '{shop}의 헤더 로고: 브랜드 마크, 고대비, 작아도 읽힘, 배경 제거용 평평한 바탕.',
     logosFooterDefaultPrompt:
       '{shop}의 푸터 로고: 브랜드 마크, 고대비, 작아도 읽힘, 배경 제거용 평평한 바탕.',
+    sloganTitle: '상점 슬로건',
+    sloganHint:
+      '짧은 한 줄을 상단바(데스크톱)와 푸터에 표시합니다. AI가 아이디어로 다시 쓰거나, 상점 이름과 판매 상품으로 새로 작성합니다.',
+    sloganLabel: '슬로건',
+    sloganPlaceholder: '예: 진짜 패션 — 전국 배송',
+    sloganIdeaLabel: '아이디어 / 메모 (선택)',
+    sloganIdeaPlaceholder: '예: 정품, 합리적인 가격, 2–4일 배송…',
+    sloganProductsLabel: '판매 상품',
+    sloganProductsPlaceholder: '예: 핸드백, 신발, 여성 패션',
+    sloganNeedDraft: 'AI로 다시 쓰기 전에 현재 슬로건이나 아이디어를 입력하세요.',
+    sloganNeedProducts: 'AI로 새로 쓰기 전에 판매 상품을 입력하세요.',
+    sloganRewrite: 'AI로 다시 쓰기',
+    sloganCreate: 'AI로 새로 쓰기',
+    sloganBusy: '슬로건 작성 중…',
+    sloganSaved: '슬로건을 저장했습니다.',
+    sloganSaveError: '슬로건을 저장하지 못했습니다.',
+    sloganAiError: '슬로건을 쓰지 못했습니다. 다시 시도하세요.',
+    sloganClear: '슬로건 지우기',
+    sloganPickAlt: '다른 문장 선택',
     imageInvalidType: '이미지 파일만 가능합니다.',
     uploadFailed: '업로드 실패.',
     generateSuccess: '프로젝트가 생성되었습니다',
@@ -6000,6 +6118,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     revisionNoteBeforeRestore: '복원 전',
     revisionNoteCta: '플로팅 CTA',
     revisionNoteChatLauncher: '채팅 버튼 숨김 / 표시',
+    revisionNoteSlogan: '슬로건',
     revisionNoteSession: '편집 세션',
     floatingCtaPanelTitle: "사이트 연락 버튼",
     floatingCtaPanelHint: "스토어에 Zalo, Facebook, 전화 버튼을 답니다. 아래에 프로모 CTA를 추가할 수 있습니다.",

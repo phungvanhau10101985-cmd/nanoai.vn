@@ -24,6 +24,7 @@ import {
   stampFooterKitInHtml,
 } from '@/lib/partner-website/shop/partner-site-footer-kit'
 import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { PW_SLOGAN_ATTR, PW_SLOGAN_SEED_ATTR } from '@/lib/partner-website/shop/partner-site-shop-slogan'
 
 export const PW_FOOTER_FULL_ATTR = 'data-pw-footer'
 export const PW_FOOTER_FULL_VALUE = 'full'
@@ -140,8 +141,8 @@ function injectNewsletterIntoFooterBlock(block: string, locale: WebLocale): stri
     return block
   }
   const form = buildFooterNewsletterFormHtml(locale)
-  if (/<p class="pw-shop-footer-hint">/i.test(block)) {
-    return block.replace(/(<p class="pw-shop-footer-hint">[\s\S]*?<\/p>)/i, `$1\n      ${form}`)
+  if (/<p\b[^>]*\bpw-shop-footer-hint\b/i.test(block)) {
+    return block.replace(/(<p\b[^>]*\bpw-shop-footer-hint\b[^>]*>[\s\S]*?<\/p>)/i, `$1\n      ${form}`)
   }
   if (/data-pw-footer-kit=["']brand["']/i.test(block)) {
     return block.replace(
@@ -256,7 +257,7 @@ export function buildPartnerSiteFooterHtml(input: {
     <div class="pw-shop-footer-brand" ${PW_FOOTER_KIT_ATTR}="brand">
       ${logo}
       <p class="pw-shop-footer-name">${escapeHtml(brand)}</p>
-      <p class="pw-shop-footer-hint">${escapeHtml(t.footerBrandHint)}</p>
+      <p class="pw-shop-footer-hint" ${pwElAttr(PW_EL.slogan)} ${PW_SLOGAN_ATTR}="1" ${PW_SLOGAN_SEED_ATTR}="${escapeAttr(t.footerBrandHint)}">${escapeHtml(t.footerBrandHint)}</p>
       ${buildFooterNewsletterFormHtml(locale)}
     </div>
     ${cols}
