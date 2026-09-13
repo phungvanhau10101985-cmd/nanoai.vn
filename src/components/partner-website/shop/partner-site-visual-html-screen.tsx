@@ -200,6 +200,7 @@ export async function PartnerSiteVisualHtmlScreen({
         deviceHtmlAlreadyIsolated
         hideChatLauncher={site.theme?.hideChatLauncher}
         browserThemeColor={shopBrowserChromeColor(site.theme)}
+        siteSlug={site.siteSlug}
       />
     )
   }
@@ -233,6 +234,7 @@ export async function PartnerSiteVisualHtmlScreen({
       deviceHtmlAlreadyIsolated={Boolean(device)}
       hideChatLauncher={site.theme?.hideChatLauncher}
       browserThemeColor={shopBrowserChromeColor(site.theme)}
+      siteSlug={site.siteSlug}
     />
   )
 }

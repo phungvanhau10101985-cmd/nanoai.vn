@@ -37,6 +37,10 @@ import {
   extractShopBrowserThemeColorFromHtml,
 } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { buildPartnerSiteVisualNativeNavigationScript } from '@/lib/partner-website/shop/partner-site-account-native-navigation'
+import {
+  PARTNER_SHOP_LISTING_HEAD_SCRIPT,
+  PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID,
+} from '@/lib/partner-website/shop/listing-head'
 
 function hideChatLaunchersInHtml(html: string, hide: boolean): string {
   if (!hide || !html.trim() || html.includes('data-pw-hide-chat-launcher')) return html
@@ -196,6 +200,10 @@ function PartnerSiteInlineVisualHead({ html }: { html: string }) {
           {css ? <style data-pw-inline-visual-css="1" dangerouslySetInnerHTML={{ __html: css }} /> : null}
         </>
       )}
+      <script
+        id={`${PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID}-early`}
+        dangerouslySetInnerHTML={{ __html: PARTNER_SHOP_LISTING_HEAD_SCRIPT }}
+      />
       <script
         id={PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID}
         dangerouslySetInnerHTML={{ __html: PARTNER_SHOP_SCENE_CENTER_SCRIPT }}
