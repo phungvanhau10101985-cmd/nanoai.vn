@@ -42,6 +42,8 @@ test('outfit live cards keep a square media slot and do not leak name as img alt
     ],
   })
   assert.match(html, /class="pw-product-card-media"/)
+  assert.match(html, /<div class="pw-product-card-media"/)
+  assert.doesNotMatch(html, /<a class="pw-product-card-media"/)
   assert.match(html, /pw-rec-fav/)
   assert.match(html, /pw-rec-stats/)
   assert.match(html, /pw-product-card-hit/)

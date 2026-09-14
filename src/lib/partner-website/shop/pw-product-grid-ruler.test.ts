@@ -44,6 +44,8 @@ test('catalog cards clamp names to two lines and hide listing add-to-cart', () =
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /align-items:stretch/)
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /touch-action:manipulation/)
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /pw-product-card-hit/)
+  assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /z-index:3!important;pointer-events:none/)
+  assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /pointer-events:auto!important/)
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /pointer-events:none/)
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /@media not all and \(hover:hover\) and \(pointer:fine\)/)
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /transform:none!important/)

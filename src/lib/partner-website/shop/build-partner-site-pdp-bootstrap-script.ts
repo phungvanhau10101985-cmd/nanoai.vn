@@ -388,11 +388,21 @@ function apply(p){
   stampTryOnButtons(p);
   hideBrokenPdpImgs();
 }
+function isListingFavBtn(btn){
+  if(!btn||!btn.getAttribute)return false;
+  if(btn.getAttribute('data-pw-pdp-favorite')!=null)return false;
+  if(btn.classList&&btn.classList.contains('pw-rec-fav'))return true;
+  return !!(btn.closest&&btn.closest('.pw-product-card-media,[data-pw-el="card-media"],.pw-product-card,[data-pw-el="card"]'));
+}
 function paintPdpLikeCounts(likes){
   var n=Math.max(0,Math.round(Number(likes)||0));
-  document.querySelectorAll('[data-pw-like-count]').forEach(function(el){el.textContent=String(n);});
+  document.querySelectorAll('[data-pw-like-count]').forEach(function(el){
+    if(el.closest&&el.closest('.pw-rec-fav,.pw-product-card-media,[data-pw-el="card-media"]'))return;
+    el.textContent=String(n);
+  });
   document.querySelectorAll('[data-pw-stat="likes"]').forEach(function(el){el.textContent=String(n);});
   document.querySelectorAll('[data-pw-favorite],[data-pw-pdp-favorite],[data-pw-chrome-btn="favorite-product"]').forEach(function(btn){
+    if(isListingFavBtn(btn))return;
     btn.setAttribute('data-pw-like-base',String(n));
     if(btn.querySelector&&btn.querySelector('[data-pw-like-count],svg,.pw-pdp-like-copy'))return;
     btn.textContent='♡ '+String(n);

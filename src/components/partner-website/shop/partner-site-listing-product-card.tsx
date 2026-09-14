@@ -153,20 +153,20 @@ export function PartnerSiteListingProductCard({
         {img ? <img src={img} alt="" loading="lazy" decoding="async" /> : null}
         <PartnerSiteSaleMediaMarks product={product as SaleCardProduct} locale={locale} />
         {newBadge ? <span className="pw-badge-new">NEW</span> : null}
-        {id ? (
-          <PartnerSiteListingFavoriteButton
-            inventoryId={id}
-            label={t.favoriteAdd}
-            pressed={favorited}
-            onClick={onFavorite}
-          />
-        ) : null}
       </div>
       <div className="pw-shop-card-body pw-product-card-body">
         <h3 data-pw-el={PW_EL.cardName}>{name}</h3>
         <PartnerSiteSalePriceBlock product={product as SaleCardProduct} locale={locale} fallback={priceHint} />
         <PartnerSiteListingCardStats product={product} locale={locale} />
       </div>
+      {id ? (
+        <PartnerSiteListingFavoriteButton
+          inventoryId={id}
+          label={t.favoriteAdd}
+          pressed={favorited}
+          onClick={onFavorite}
+        />
+      ) : null}
     </article>
   )
 }

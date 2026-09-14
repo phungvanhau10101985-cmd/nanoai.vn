@@ -105,11 +105,11 @@ function renderStaticProductCards(
       const rating = Number(o.ratingScore ?? o.rating_score)
       const sold = Number(o.purchasesCount ?? o.purchases_count)
       return `<article class="pw-product-card" ${pwElAttr(PW_EL.card)}${id ? ` data-inventory-id="${escapeAttr(id)}"` : ''}>
-        <a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="${href}">
+        <div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)}>
           ${opts.showNew ? '<span class="pw-badge-new">NEW</span>' : ''}
           ${listingCardFavHtml(id, opts.favoriteLabel)}
           ${img ? `<img src="${escapeAttr(img)}" alt="${escapeAttr(str(o.name))}" loading="lazy"/>` : '<div class="pw-product-ph"></div>'}
-        </a>
+        </div>
         <div class="pw-product-card-body">
           <h3 ${pwElAttr(PW_EL.cardName)}><a href="${href}">${name}</a></h3>
           ${str(o.price) ? `<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>${escapeHtml(str(o.price))}</p>` : ''}

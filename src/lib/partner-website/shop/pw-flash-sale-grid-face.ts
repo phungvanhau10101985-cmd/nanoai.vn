@@ -52,6 +52,7 @@ html [data-pw-personalize="flash-sale"] .pw-rec-fav{
 position:absolute;top:4px;right:4px;z-index:4;display:inline-flex;width:44px;height:44px;align-items:center;justify-content:center;border:none;border-radius:999px;background:rgba(255,255,255,.92);color:#4b5563;cursor:pointer;padding:0;pointer-events:auto
 }
 html [data-pw-personalize="flash-sale"] .pw-rec-fav svg{width:16px;height:16px;display:block}
+html [data-pw-personalize="flash-sale"] .pw-rec-fav .pw-pdp-like-copy,html [data-pw-personalize="flash-sale"] .pw-rec-fav .pw-chrome-btn-label{display:none!important}
 html [data-pw-personalize="flash-sale"] .pw-rec-fav:hover,
 html [data-pw-personalize="flash-sale"] .pw-rec-fav[aria-pressed="true"]{background:#ef4444;color:#fff}
 html [data-pw-personalize="flash-sale"] .pw-rec-fav[aria-pressed="true"] svg{fill:#fff;stroke:#fff}

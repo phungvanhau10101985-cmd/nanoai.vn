@@ -487,10 +487,32 @@ function paintLikeCount(n,inventoryId){
     if(countEl)countEl.textContent=String(likes);
   });
 }
+function isListingFavBtn(btn){
+  if(!btn||!btn.getAttribute)return false;
+  if(btn.getAttribute('data-pw-pdp-favorite')!=null)return false;
+  if(btn.classList&&btn.classList.contains('pw-rec-fav'))return true;
+  if(btn.closest&&btn.closest('.pw-product-card-media,[data-pw-el="card-media"],.pw-product-card,[data-pw-el="card"]'))return true;
+  return false;
+}
+function listingHeartSvg(){
+  return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>';
+}
+function ensureListingFavFace(btn,on){
+  btn.classList.add('pw-rec-fav');
+  if(btn.getAttribute('data-pw-chrome-btn')==='favorite-product')btn.removeAttribute('data-pw-chrome-btn');
+  btn.setAttribute('aria-label',on?COPY.favoriteRemove:COPY.favoriteAdd);
+  btn.innerHTML=listingHeartSvg();
+  var svg=btn.querySelector('svg');
+  if(svg)svg.setAttribute('fill',on?'currentColor':'none');
+}
 function applyFavoriteState(btn,on,likes){
   if(!btn)return;
   btn.setAttribute('aria-pressed',on?'true':'false');
   btn.classList.toggle('is-active',!!on);
+  if(isListingFavBtn(btn)){
+    ensureListingFavFace(btn,on);
+    return;
+  }
   var svg=btn.querySelector&&btn.querySelector('svg');
   if(svg)svg.setAttribute('fill',on?'currentColor':'none');
   if(typeof likes==='number'&&isFinite(likes)){
@@ -607,9 +629,10 @@ if(document.documentElement.getAttribute('data-pw-shop-actions-bound')!=='1'){
       }).finally(function(){buyBtn.disabled=false;});
       return;
     }
-    var favBtn=t.closest('[data-pw-favorite],[data-pw-chrome-btn="favorite-product"]');
+    var favBtn=t.closest('[data-pw-favorite],[data-pw-chrome-btn="favorite-product"],.pw-rec-fav');
     if(favBtn){
       ev.preventDefault();ev.stopPropagation();
+      if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();
       var p2=readProductFromEl(favBtn);if(!p2){toast(COPY.error);return;}
       favBtn.disabled=true;
       toggleFavorite(p2,favBtn).finally(function(){favBtn.disabled=false;});

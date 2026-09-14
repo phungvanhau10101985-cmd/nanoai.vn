@@ -186,15 +186,8 @@ function renderCard(p, opts){
   var sale=saleView(p);
   var price=priceHtml(p);
   var badge=saleBadgeHtml(sale,opts,p);
-  var favBtn='';
-  if(id&&opts&&opts.favoriteHtml){
-    favBtn=String(opts.favoriteHtml).replace(/data-inventory-id=["'][^"']*["']/gi,'data-inventory-id="'+esc(id)+'"');
-    if(favBtn.indexOf('data-inventory-id=')<0)favBtn=favBtn.replace(/<(button|a)\\b/i,'<$1 data-inventory-id="'+esc(id)+'"');
-    if(favBtn.indexOf('pw-rec-fav')<0)favBtn=favBtn.replace(/class="/,'class="pw-rec-fav ');
-  }else{
-    favBtn=listingFavHtml(id);
-  }
-  return '<article class="pw-product-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'" data-pw-actions-ready="1"><a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="'+esc(href)+'">'+badge+favBtn+'<img src="'+img+'" alt="'+name+'" loading="lazy"/></a><div class="pw-product-card-body"><h3 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h3>'+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+listingStatsHtml(p)+'</div><a class="pw-product-card-hit" href="'+esc(href)+'" aria-label="'+name+'" tabindex="-1"></a></article>';
+  var favBtn=listingFavHtml(id);
+  return '<article class="pw-product-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'" data-pw-actions-ready="1"><div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)}>'+badge+favBtn+'<img src="'+img+'" alt="'+name+'" loading="lazy"/></div><div class="pw-product-card-body"><h3 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h3>'+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+listingStatsHtml(p)+'</div><a class="pw-product-card-hit" href="'+esc(href)+'" aria-label="'+name+'" tabindex="-1"></a></article>';
 }
 function isRelated(el){
   return el.getAttribute('data-pw-related')==='1'||el.getAttribute('data-pw-grid-kind')==='related';
@@ -208,7 +201,7 @@ function renderRelatedCard(p){
   var name=esc(p.name||'Product');
   var img=esc(shopImg(p));
   var price=priceHtml(p);
-  return '<article class="pw-product-card pw-related-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'"><a class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)} href="'+esc(href)+'">'+(img?'<img src="'+img+'" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"/>':'')+listingFavHtml(id)+'</a><div class="pw-product-card-body pw-related-card-body"><h4 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h4>'+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+listingStatsHtml(p)+'</div><a class="pw-product-card-hit" href="'+esc(href)+'" aria-label="'+name+'" tabindex="-1"></a></article>';
+  return '<article class="pw-product-card pw-related-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'"><div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)}>'+(img?'<img src="'+img+'" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"/>':'')+listingFavHtml(id)+'</div><div class="pw-product-card-body pw-related-card-body"><h4 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h4>'+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+listingStatsHtml(p)+'</div><a class="pw-product-card-hit" href="'+esc(href)+'" aria-label="'+name+'" tabindex="-1"></a></article>';
 }
 function hideBrokenCardImgs(root){
   var imgs=(root||document).querySelectorAll('.pw-product-card-media img,[data-pw-el="card-media"] img');
@@ -295,9 +288,7 @@ function appendCards(el,products,replace){
     html=products.map(renderRelatedCard).join('');
   }else{
     var newBadge=el.getAttribute('data-new-badge')==='1';
-    var favTpl=el.querySelector('template[data-pw-card-favorite-tpl]');
-    var favoriteHtml=favTpl&&favTpl.innerHTML?favTpl.innerHTML:'';
-    html=products.map(function(p){return renderCard(p,{newBadge:newBadge,favorite:true,favoriteHtml:favoriteHtml});}).join('');
+    html=products.map(function(p){return renderCard(p,{newBadge:newBadge,favorite:true});}).join('');
   }
   if(replace)grid.innerHTML=html;
   else{

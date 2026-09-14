@@ -15,6 +15,10 @@
  * later `click`. Keep the `<a>` from pointerdown: hydration / badge / wrap can
  * detach `event.target` before pointerup, which would otherwise make closest()
  * miss the link.
+ *
+ * Listing hearts (`.pw-rec-fav` / `[data-pw-favorite]`) sit on the card photo.
+ * Skip navigation when the tap origin is the heart, even if a parent media
+ * `<a>` or `.pw-product-card-hit` would otherwise open the product page.
  */
 export const PARTNER_SITE_NATIVE_NAV_SCRIPT_ID = 'pw-native-navigation'
 
@@ -29,6 +33,7 @@ const JS_ONLY_CHROME_SEL = [
   '[data-pw-pdp-add-cart]',
   '[data-pw-buy]',
   '[data-pw-favorite]',
+  '.pw-rec-fav',
   '[data-pw-head-back]',
   '[data-pw-chrome-btn="back"]',
   '[data-pw-chrome-btn="chat"]',
@@ -79,17 +84,30 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
     }catch(_){}
     return true;
   }
-  function pointLink(x,y){
+  function pointNode(x,y){
     try{
       var doc=window.document;
       if(!doc||typeof doc.elementFromPoint!=='function')return null;
-      return liveLink(doc.elementFromPoint(x,y));
+      return doc.elementFromPoint(x,y);
     }catch(_){return null;}
   }
-  function resolveLink(event,saved){
+  function eventOrigin(event){
     var target=event&&event.target;
-    var link=null;
-    if(nodeConnected(target))link=liveLink(target);
+    if(nodeConnected(target)&&typeof target.closest==='function')return target;
+    if(!event)return null;
+    var hit=pointNode(event.clientX,event.clientY);
+    if(hit&&typeof hit.closest==='function')return hit;
+    return null;
+  }
+  function isJsOnly(node){
+    return !!(node&&typeof node.closest==='function'&&node.closest(SKIP));
+  }
+  function pointLink(x,y){
+    return liveLink(pointNode(x,y));
+  }
+  function resolveLink(event,saved){
+    var origin=eventOrigin(event);
+    var link=liveLink(origin);
     if(!link&&event)link=pointLink(event.clientX,event.clientY);
     if(!link)link=saved||null;
     return link;
@@ -142,6 +160,17 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
   function go(event,saved){
     if(event.button!=null&&event.button!==0)return;
     if(event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+    var origin=eventOrigin(event);
+    if(isJsOnly(origin)){
+      if(event.type==='click'){
+        if(origin.closest('[data-pw-chrome-btn="categories"],[data-pw-cat-toggle],[data-pw-el="cat-toggle"]')){
+          swallow(event);
+        }else{
+          event.preventDefault();
+        }
+      }
+      return;
+    }
     var link=resolveLink(event,saved);
     if(!link||link.hasAttribute('download'))return;
     if(link.closest(SKIP)){
@@ -174,9 +203,10 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
   }
   function onPointerDown(event){
     if(event.button!=null&&event.button!==0)return;
-    var link=liveLink(event.target);
-    tap={id:event.pointerId,x:event.clientX||0,y:event.clientY||0,link:link};
-    if(!link||link.closest(SKIP)||link.hasAttribute('download'))return;
+    var origin=eventOrigin(event);
+    var link=liveLink(origin)||liveLink(event.target);
+    tap={id:event.pointerId,x:event.clientX||0,y:event.clientY||0,link:link,skip:isJsOnly(origin)};
+    if(tap.skip||!link||link.closest(SKIP)||link.hasAttribute('download'))return;
     var raw=String(link.getAttribute('href')||'').trim();
     if(!raw||raw.charAt(0)==='#'||/^(?:javascript|mailto|tel|data):/i.test(raw))return;
     try{prefetchHref(rewriteHref(raw));}catch(_){}
@@ -186,8 +216,10 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
     var dx=(event.clientX||0)-tap.x;
     var dy=(event.clientY||0)-tap.y;
     var saved=tap.link;
+    var skip=tap.skip;
     tap=null;
     if(dx*dx+dy*dy>144)return;
+    if(skip)return;
     go(event,saved);
   }
   window.addEventListener('pointerdown',onPointerDown,true);

@@ -86,7 +86,7 @@ export function relatedCardHtml(
     soldLabel: opts?.soldLabel || 'Đã bán',
   })
   return `<article class="pw-product-card pw-related-card" ${pwElAttr(PW_EL.card)} data-inventory-id="${escapeAttr(item.id)}">
-  <a class="pw-product-card-media" href="${href}" ${pwElAttr(PW_EL.cardMedia)}>${media}${fav}</a>
+  <div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)}>${media}${fav}</div>
   <div class="pw-product-card-body pw-related-card-body">
     <h4 ${pwElAttr(PW_EL.cardName)}><a href="${href}">${escapeHtml(item.name)}</a></h4>
     ${price ? `<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>${escapeHtml(price)}</p>` : ''}

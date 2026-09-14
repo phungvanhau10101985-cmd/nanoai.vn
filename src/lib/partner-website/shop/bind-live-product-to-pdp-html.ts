@@ -42,6 +42,7 @@ import {
   relatedCardHtml,
   relatedListingHref,
 } from '@/lib/partner-website/shop/related-products'
+import { listingCardFavHtml } from '@/lib/partner-website/shop/listing-card-html'
 import { ensurePartnerSitePdpBottomNavInHtml } from '@/lib/partner-website/shop/build-partner-site-header-html'
 import { partnerSiteHomePath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
@@ -185,12 +186,32 @@ function rewriteFavoriteButtonLikeCount(buttonHtml: string, likes: number, local
   return `${open}♡ ${nText}</button>`
 }
 
-/** Cập nhật số lượt thích trên nút PDP — không xóa icon / nhãn thanh đáy. */
+/** Listing overlay (`.pw-rec-fav`) — not the PDP dock / buy-box like control. */
+function isPdpChromeFavoriteButton(buttonHtml: string): boolean {
+  if (/\bpw-rec-fav\b/i.test(buttonHtml) || /\bdata-pw-card-favorite\b/i.test(buttonHtml)) return false
+  return (
+    /\bdata-pw-pdp-favorite\b/i.test(buttonHtml) ||
+    /\bdata-pw-chrome-btn\s*=\s*["']favorite-product["']/i.test(buttonHtml)
+  )
+}
+
+function restoreListingFavoriteButton(buttonHtml: string, locale: WebLocale): string {
+  const id = buttonHtml.match(/\bdata-inventory-id=["']([^"']*)["']/i)?.[1] || ''
+  return listingCardFavHtml(id, getPartnerSiteShopCopy(locale).favoriteAdd)
+}
+
+/** Cập nhật số lượt thích trên nút PDP — không biến tim lưới thành chữ Thích thanh đáy. */
 export function applyPdpFavoriteLikeCounts(html: string, likes: number, locale: WebLocale = 'vi'): string {
   const n = Math.max(0, Math.round(Number(likes) || 0))
   return html.replace(
-    /<button\b[^>]*\b(?:data-pw-pdp-favorite\s*=|data-pw-chrome-btn\s*=\s*["']favorite-product["']|\bdata-pw-favorite\b)[^>]*>[\s\S]*?<\/button>/gi,
-    (full) => rewriteFavoriteButtonLikeCount(full, n, locale)
+    /(<!--[\s\S]*?-->|<script\b[\s\S]*?<\/script>|<style\b[\s\S]*?<\/style>)|(<button\b[^>]*\b(?:data-pw-pdp-favorite\s*=|data-pw-chrome-btn\s*=\s*["']favorite-product["']|\bdata-pw-favorite\b)[^>]*>[\s\S]*?<\/button>)/gi,
+    (full, skipped: string, button: string) => {
+      if (skipped) return full
+      const target = button || full
+      return isPdpChromeFavoriteButton(target)
+        ? rewriteFavoriteButtonLikeCount(target, n, locale)
+        : restoreListingFavoriteButton(target, locale)
+    }
   )
 }
 

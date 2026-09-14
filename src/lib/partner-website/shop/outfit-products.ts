@@ -109,7 +109,7 @@ export function outfitCardHtml(
     soldLabel: opts?.soldLabel || 'Đã bán',
   })
   return `<article class="pw-product-card pw-outfit-card" ${pwElAttr(PW_EL.card)} data-inventory-id="${escapeAttr(item.id)}">
-  <a class="pw-product-card-media" href="${href}" ${pwElAttr(PW_EL.cardMedia)}>${media}${fav}</a>
+  <div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)}>${media}${fav}</div>
   <div class="pw-product-card-body pw-outfit-card-body">
     <h4 ${pwElAttr(PW_EL.cardName)}><a href="${href}">${escapeHtml(item.name)}</a></h4>
     ${reason ? `<p class="pw-outfit-reason">${escapeHtml(reason)}</p>` : ''}

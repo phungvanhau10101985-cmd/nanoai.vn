@@ -4,6 +4,7 @@ import { buildPartnerSiteCatalogBootstrapScript } from '@/lib/partner-website/sh
 import { buildPartnerSiteOutfitBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-outfit-bootstrap-script'
 import { buildPartnerSitePersonalizationBootstrapScript } from '@/lib/partner-website/shop/build-personalization-bootstrap-script'
 import { buildPartnerSiteShopActionsBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-shop-actions-bootstrap-script'
+import { buildPartnerSitePdpBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-pdp-bootstrap-script'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -22,6 +23,8 @@ test('catalog live cards do not render listing add-to-cart', () => {
   assert.match(js, /pw-rec-stats/)
   assert.match(js, /Đã bán/)
   assert.match(js, /pw-product-card-hit/)
+  assert.match(js, /<div class="pw-product-card-media"/)
+  assert.doesNotMatch(js, /<a class="pw-product-card-media"/)
   assert.doesNotMatch(js, /Chi tiết sản phẩm/)
   assert.doesNotMatch(js, /pwElAttr\(PW_EL\.cardBuy\)/)
 })
@@ -36,6 +39,8 @@ test('personalize live cards do not render listing add-to-cart', () => {
   assert.match(js, /function listingStatsHtml/)
   assert.match(js, /\+mark\+fav\+'<img/)
   assert.match(js, /pw-product-card-hit/)
+  assert.match(js, /<div class="pw-product-card-media"/)
+  assert.doesNotMatch(js, /<a class="pw-product-card-media"/)
 })
 
 test('shop-actions does not inject add-to-cart onto listing cards', () => {
@@ -43,6 +48,23 @@ test('shop-actions does not inject add-to-cart onto listing cards', () => {
   assert.match(js, /function enhanceCards/)
   assert.doesNotMatch(js, /pw-shop-action-bar/)
   assert.match(js, /data-pw-add-cart/)
+})
+
+test('shop-actions keeps listing overlay as heart icon, not Thích text', () => {
+  const js = buildPartnerSiteShopActionsBootstrapScript({ siteSlug: 'demo-shop', locale: 'vi' })
+  assert.match(js, /function isListingFavBtn/)
+  assert.match(js, /function ensureListingFavFace/)
+  assert.match(js, /if\(isListingFavBtn\(btn\)\)/)
+  assert.match(js, /btn\.innerHTML=listingHeartSvg\(\)/)
+  assert.match(js, /closest\('\[data-pw-favorite\],\[data-pw-chrome-btn="favorite-product"\],\.pw-rec-fav'\)/)
+  assert.match(js, /stopImmediatePropagation/)
+})
+
+test('PDP like-count paint skips listing overlay hearts', () => {
+  const js = buildPartnerSitePdpBootstrapScript({ siteSlug: 'demo-shop', locale: 'vi' })
+  assert.match(js, /function isListingFavBtn/)
+  assert.match(js, /if\(isListingFavBtn\(btn\)\)return/)
+  assert.match(js, /el\.closest&&el\.closest\('\.pw-rec-fav/)
 })
 
 test('outfit live cards use listing heart and sold stats, not Chi tiết', () => {
@@ -53,6 +75,8 @@ test('outfit live cards use listing heart and sold stats, not Chi tiết', () =>
   assert.match(js, /pw-rec-stats/)
   assert.match(js, /Đã bán/)
   assert.match(js, /pw-product-card-hit/)
+  assert.match(js, /<div class="pw-product-card-media"/)
+  assert.doesNotMatch(js, /<a class="pw-product-card-media"/)
   assert.doesNotMatch(js, /Chi tiết sản phẩm/)
 })
 
@@ -62,6 +86,8 @@ test('ruler CSS hides leftover listing cart and Chi tiết buttons and keeps PDP
   assert.doesNotMatch(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /\[data-pw-pdp-add-cart\]\{display:none/)
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /\[data-pw-el="card-buy"\]/)
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /\.pw-rec-fav/)
+  assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /\.pw-pdp-like-copy/)
+  assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /font-size:0!important/)
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /\.pw-rec-stats/)
 })
 
@@ -86,4 +112,5 @@ test('React listing card has heart + stats and no Chi tiết button', () => {
   assert.doesNotMatch(src, /from 'next\/link'/)
   assert.doesNotMatch(src, /t\.productDetail/)
   assert.doesNotMatch(src, /PW_EL\.cardBuy/)
+  assert.match(src, /pw-shop-card-body[\s\S]*PartnerSiteListingFavoriteButton/)
 })

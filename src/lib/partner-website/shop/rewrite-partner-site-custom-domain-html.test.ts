@@ -38,6 +38,9 @@ test('inline visual native navigation strips the internal site prefix before nav
   assert.match(script, /stopImmediatePropagation/)
   assert.match(script, /data-pw-chrome-btn=\\?"categories/)
   assert.match(script, /data-nanoai-open-chat/)
+  assert.match(script, /function eventOrigin\(/)
+  assert.match(script, /function isJsOnly\(/)
+  assert.match(script, /\.pw-rec-fav/)
   assert.doesNotMatch(script, /if\(event\.defaultPrevented/)
   assert.doesNotMatch(script, /__pwNativeNavGoing/)
 })
@@ -280,4 +283,95 @@ test('native nav uses hydrated App Router push instead of a full document reload
   assert.equal(pushed.length, 1)
   assert.equal(assigned.length, 0)
   assert.equal(clickSwallowed, 1)
+})
+
+test('native nav does not open the product page when the listing heart is the tap origin', () => {
+  const assigned: string[] = []
+  const pushed: string[] = []
+  const clickFns: Array<(event: object) => void> = []
+  const pointerUpFns: Array<(event: object) => void> = []
+  const pointerDownFns: Array<(event: object) => void> = []
+  const windowMock = {
+    location: {
+      href: 'https://shop.test/',
+      origin: 'https://shop.test',
+      pathname: '/',
+      search: '',
+      assign(href: string) {
+        assigned.push(href)
+      },
+    },
+    addEventListener(type: string, fn: (event: object) => void) {
+      if (type === 'click') clickFns.push(fn)
+      if (type === 'pointerup') pointerUpFns.push(fn)
+      if (type === 'pointerdown') pointerDownFns.push(fn)
+    },
+    setTimeout() {
+      return 0
+    },
+  }
+  const productLink = {
+    isConnected: true,
+    getAttribute(name: string) {
+      if (name === 'href') return '/site/demo-shop/products/bag-1'
+      if (name === 'target') return ''
+      return null
+    },
+    setAttribute() {},
+    hasAttribute() {
+      return false
+    },
+    closest(sel: string) {
+      if (sel === 'a[href]') return this
+      return null
+    },
+  }
+  const heart = {
+    isConnected: true,
+    closest(sel: string) {
+      if (sel === 'input,textarea,select,option,[contenteditable="true"]') return null
+      if (sel === 'a[href]') return productLink
+      if (typeof sel === 'string' && (sel.includes('[data-pw-favorite]') || sel.includes('.pw-rec-fav'))) return this
+      if (typeof sel === 'string' && sel.includes('[data-pw-chrome-btn="categories"]')) return null
+      return null
+    },
+  }
+  const run = new Function('window', buildPartnerSiteVisualNativeNavigationScript('demo-shop'))
+  run(windowMock)
+  pointerDownFns[0]({ button: 0, pointerId: 9, clientX: 80, clientY: 24, target: heart })
+  pointerUpFns[0]({
+    type: 'pointerup',
+    button: 0,
+    pointerId: 9,
+    clientX: 81,
+    clientY: 24,
+    metaKey: false,
+    ctrlKey: false,
+    shiftKey: false,
+    altKey: false,
+    target: heart,
+    preventDefault() {},
+    stopPropagation() {},
+    stopImmediatePropagation() {},
+  })
+  assert.equal(assigned.length, 0)
+  assert.equal(pushed.length, 0)
+  let clickPrevented = 0
+  clickFns[0]({
+    type: 'click',
+    button: 0,
+    metaKey: false,
+    ctrlKey: false,
+    shiftKey: false,
+    altKey: false,
+    target: heart,
+    preventDefault() {
+      clickPrevented += 1
+    },
+    stopPropagation() {},
+    stopImmediatePropagation() {},
+  })
+  assert.equal(assigned.length, 0)
+  assert.equal(pushed.length, 0)
+  assert.equal(clickPrevented, 1)
 })

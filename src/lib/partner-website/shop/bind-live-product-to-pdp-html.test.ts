@@ -485,6 +485,56 @@ test('bind updates like count without wiping the sticky heart icon', () => {
   assert.doesNotMatch(next, /class="is-fav"[^>]*>♡ 121/)
 })
 
+test('bind keeps listing grid hearts as overlay icons, not PDP like-copy', () => {
+  const html = `<body data-pw-page="product">
+    <nav class="pw-pdp-sticky" data-pw-pdp-bottom="1">
+      <button type="button" class="is-fav" data-pw-chrome-btn="favorite-product" data-pw-favorite data-pw-pdp-favorite="1" data-pw-like-base="0">
+        <svg class="pw-pdp-like-icon" width="17" height="17" viewBox="0 0 24 24"></svg>
+        <span class="pw-pdp-like-copy"><span>Thích</span><span class="pw-pdp-like-count" data-pw-like-count>0</span></span>
+      </button>
+    </nav>
+    <section data-pw-region="catalog" data-pw-outfit="1" data-pw-grid-kind="outfit">
+      <div data-pw-grid>
+        <article class="pw-product-card pw-outfit-card" data-pw-el="card" data-inventory-id="cccccccc-cccc-cccc-cccc-cccccccccccc">
+          <a class="pw-product-card-media" data-pw-el="card-media" href="#">
+            <button type="button" class="pw-rec-fav" data-pw-favorite data-inventory-id="cccccccc-cccc-cccc-cccc-cccccccccccc" aria-pressed="false" aria-label="Thích">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"></svg>
+              <span class="pw-pdp-like-copy"><span>Thích</span><span class="pw-pdp-like-count" data-pw-like-count>3</span></span>
+            </button>
+          </a>
+        </article>
+      </div>
+    </section>
+  </body>`
+  const next = bindLiveProductToPdpHtml(html, { ...PRODUCT_B, likesCount: 121 })
+  assert.match(next, /pw-pdp-like-icon/)
+  assert.match(next, /class="is-fav"[\s\S]*?data-pw-like-count[^>]*>121</)
+  assert.match(next, /class="pw-rec-fav"/)
+  assert.match(next, /data-inventory-id="cccccccc-cccc-cccc-cccc-cccccccccccc"/)
+  const listing = next.match(/class="pw-rec-fav"[\s\S]*?<\/button>/)?.[0] || ''
+  assert.match(listing, /<svg[\s\S]*?<\/svg>/)
+  assert.doesNotMatch(listing, /pw-pdp-like-copy/)
+  assert.doesNotMatch(listing, /Bỏ thích/)
+})
+
+test('bind like-count rewrite does not mutate listingFavHtml inside outfit bootstrap script', () => {
+  const html = `<body data-pw-page="product">
+    <button type="button" class="is-fav" data-pw-chrome-btn="favorite-product" data-pw-favorite data-pw-pdp-favorite="1">
+      <svg class="pw-pdp-like-icon"></svg>
+      <span class="pw-pdp-like-copy"><span>Thích</span><span class="pw-pdp-like-count" data-pw-like-count>0</span></span>
+    </button>
+    <script data-pw-outfit-bootstrap>
+      function listingFavHtml(id){
+        return '<button type="button" class="pw-rec-fav" data-pw-favorite data-inventory-id="'+esc(id)+'" aria-pressed="false" aria-label="'+esc(COPY.favorite)+'">'+listingHeartSvg()+'</button>';
+      }
+    </script>
+  </body>`
+  const next = bindLiveProductToPdpHtml(html, { ...PRODUCT_B, likesCount: 121 })
+  assert.match(next, /data-pw-like-count[^>]*>121</)
+  assert.match(next, /data-inventory-id="'\+esc\(id\)\+'/)
+  assert.match(next, /\+listingHeartSvg\(\)\+'<\/button>'/)
+})
+
 test('bind upgrades a legacy sticky favorite into 188 like-copy without wiping the heart', () => {
   const html = `<body data-pw-page="product">
     <nav class="pw-bottom-nav pw-pdp-sticky" data-pw-pdp-bottom="1">
