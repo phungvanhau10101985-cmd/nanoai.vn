@@ -1,162 +1,109 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import {
+  fetchPartnerRatingGroupPhraseRowsFromPg,
+  type PartnerRatingGroupPhraseRow,
+} from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchPartnerImportedReviewGroupIdsFromPg } from '@/lib/db/messaging-partner-reviews-pg'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { deepseekPartnerChat } from '@/lib/messaging/partner-ai-llm'
 import { resolvePartnerWebsiteGeminiApiKey } from '@/lib/partner-website/partner-website-gemini-key'
 
 /**
- * Nhóm đánh giá / hỏi đáp sau scrape — luật từ-khóa 188 (product_rating_question_groups).
+ * Nhóm đánh giá / hỏi đáp sau scrape — cùng thuật toán 188 (từ-khóa rồi AI whitelist),
+ * nhưng catalog lấy theo từng shop: pool Excel admin import + nhãn L1/L2/L3 SP đã gán nhóm.
+ * Không dùng bảng cụm cứng của shop 188.com.vn.
  */
-
-const RATING_GROUPS: Array<[string, number]> = [
-  ['áo da nam', 1],
-  ['đồ ngủ nam', 2],
-  ['áo giữ nhiệt nữ', 3],
-  ['bikini nữ', 4],
-  ['vest nam', 5],
-  ['váy đầm đầm maxi nữ', 6],
-  ['váy đầm maxi nữ', 6],
-  ['áo phông nữ', 7],
-  ['áo dài nữ', 8],
-  ['áo da nữ', 9],
-  ['vest nữ', 10],
-  ['dép tăng chiều cao nữ', 11],
-  ['áo jean nam', 12],
-  ['dép xăng đan nam', 13],
-  ['giày lười nữ', 14],
-  ['giày lười nam', 15],
-  ['dép lê nam', 16],
-  ['quần jean nữ', 17],
-  ['giày sneaker nam', 18],
-  ['giày trung niên nữ', 19],
-  ['martin nam', 20],
-  ['giày dép nam', 21],
-  ['sandal nam', 22],
-  ['giày thể thao nam', 23],
-  ['giày dép nữ', 24],
-  ['quần jean nam', 25],
-  ['dây lưng nam', 26],
-  ['giày sneaker nữ', 27],
-  ['giày da nữ', 28],
-  ['áo sơ mi nam', 29],
-  ['giày da nam', 30],
-  ['boot nam', 30],
-  ['áo lót nam', 31],
-  ['giày tăng chiều cao nam', 32],
-  ['martin nữ', 33],
-  ['giày bệt nữ', 34],
-  ['giày cao gót nữ', 35],
-  ['giày thể thao nữ', 36],
-  ['sandal nữ', 37],
-  ['set đồ bộ nam', 38],
-  ['đồ bộ nam', 38],
-  ['áo lót nữ', 39],
-  ['váy đầm liền thân dự tiệc nữ', 40],
-  ['set đồ bộ nam nữ', 42],
-  ['đồ bộ nam nữ', 61],
-  ['áo len nam nữ', 43],
-  ['quần nam nữ', 44],
-  ['áo khoác nam nữ', 45],
-  ['quần nam', 46],
-  ['áo len nữ', 47],
-  ['áo thun nữ', 48],
-  ['áo khoác nam', 49],
-  ['áo len nam', 50],
-  ['áo thun nam', 51],
-  ['túi xách nam', 52],
-  ['ví nam', 53],
-  ['chân váy đầm nữ', 54],
-  ['đồ ngủ nữ', 55],
-  ['áo gió nữ', 56],
-  ['quần nữ', 57],
-  ['áo sơ mi nữ', 58],
-  ['váy đầm liền thân nữ', 59],
-  ['áo khoác nữ', 60],
-  ['set đồ bộ nữ', 61],
-  ['đồ bộ nữ', 61],
-  ['đồng hồ nữ nữ', 62],
-  ['đồng hồ nam nam nữ', 63],
-  ['đồng hồ nam nam', 64],
-  ['dép lê nữ', 65],
-  ['dép lê nam nữ', 65],
-  ['boot nữ', 66],
-  ['giày tăng chiều cao nữ', 67],
-  ['ví nữ', 68],
-  ['túi xách nữ', 69],
-  ['lắc tay nữ', 70],
-  ['lắc tay nam', 71],
-  ['vòng cổ nữ', 72],
-  ['vòng cổ nam', 73],
-  ['mũ nữ', 74],
-  ['nhẫn nữ', 75],
-  ['trang sức nữ', 75],
-  ['nhẫn nam', 76],
-  ['nhẫn nam nữ', 77],
-  ['bông tai nữ', 78],
-  ['hàng sale', 79],
-  ['áo lông nữ', 80],
-  ['áo lông nam', 81],
-  ['áo nỉ nam', 82],
-  ['áo nỉ nữ', 83],
-  ['áo lông nam nữ', 80],
-  ['vest nam nữ', 5],
-  ['áo sơ mi nam nữ', 29],
-  ['giày thể thao nam nữ', 23],
-  ['máy hút bụi', 84],
-  ['áo hai dây nữ', 85],
-  ['bóng golf', 88],
-  ['cỏ nhân tạo', 89],
-  ['găng tay chơi golf', 91],
-  ['gậy đánh golf', 92],
-  ['túi gậy golf', 93],
-  ['vali túi du lịch', 94],
-  ['ốp điện thoại', 95],
-]
-
-const RATING_ALIASES: Array<[string, number]> = [
-  ['váy maxi nữ', 6],
-  ['đầm maxi nữ', 6],
-  ['sandal cao gót nữ', 35],
-  ['giày sandal cao gót nữ', 35],
-  ['sandal gót nữ', 35],
-  ['dép sandal nữ', 37],
-  ['sandal xỏ ngón nữ', 37],
-  ['sandal quai hậu nữ', 37],
-  ['giày sandal nữ', 37],
-  ['sneaker nữ', 27],
-  ['giày sneaker nữ', 27],
-  ['sneaker nam', 18],
-  ['boot cổ thấp nữ', 66],
-  ['boot cổ cao nữ', 66],
-  ['túi đeo chéo nữ', 69],
-  ['balo nữ', 69],
-  ['vali du lịch', 94],
-  ['vali hành lý', 94],
-  ['hành lý du lịch', 94],
-  ['vali điện', 94],
-  ['túi du lịch', 94],
-  ['ốp lưng điện thoại', 95],
-  ['case điện thoại', 95],
-  ['ốp lưng', 95],
-  ['gậy golf', 92],
-  ['gậy chơi golf', 92],
-  ['túi đựng gậy golf', 93],
-  ['găng tay golf', 91],
-  ['thảm cỏ nhân tạo', 89],
-]
 
 export const RATING_GROUP_ID_UNASSIGNED = 888
 
-const GENERIC_RATING_PHRASES = new Set(['giày dép nam', 'giày dép nữ'])
 const SPECIFICITY_DEBOOST_MAX_GAP = 2
 
-const RATING_SORTED: Array<[string, number]> = (() => {
+export type PartnerRatingGroupCatalog = {
+  groupIds: number[]
+  phrases: Array<[string, number]>
+  genericPhrases: Set<string>
+  labels: Map<number, string>
+}
+
+export function emptyPartnerRatingGroupCatalog(): PartnerRatingGroupCatalog {
+  return { groupIds: [], phrases: [], genericPhrases: new Set(), labels: new Map() }
+}
+
+export function buildPartnerRatingGroupCatalog(
+  importedGroupIds: number[],
+  rows: PartnerRatingGroupPhraseRow[]
+): PartnerRatingGroupCatalog {
+  const groupIds = [...new Set(importedGroupIds.map((n) => Math.round(Number(n))).filter((n) => n > 0 && n !== 888 && n !== 1000))]
+  const allow = new Set(groupIds)
+  const phrases: Array<[string, number]> = []
+  const add = (raw: string, gid: number, minLen = 3) => {
+    const p = String(raw || '').trim().replace(/\s+/g, ' ')
+    if (p.length < minLen) return
+    phrases.push([p, gid])
+  }
+  const l1Owners = new Map<string, Set<number>>()
+  for (const row of rows) {
+    const gid = Math.round(Number(row.ratingGroupId))
+    if (!allow.has(gid)) continue
+    add(row.categoryL3, gid, 3)
+    add(row.categoryL2, gid, 6)
+    add(row.categoryL1, gid, 8)
+    const l1 = String(row.categoryL1 || '').trim()
+    const cf1 = l1.toLocaleLowerCase()
+    let gender = ''
+    if (cf1.endsWith(' nữ')) gender = 'nữ'
+    else if (cf1.endsWith(' nam')) gender = 'nam'
+    if (gender) {
+      const l2 = String(row.categoryL2 || '').trim()
+      const l3 = String(row.categoryL3 || '').trim()
+      if (l2 && !l2.toLocaleLowerCase().includes(gender)) add(`${l2} ${gender}`, gid, 6)
+      if (l3 && !l3.toLocaleLowerCase().includes(gender)) add(`${l3} ${gender}`, gid, 3)
+    }
+    if (cf1) {
+      const owners = l1Owners.get(cf1) ?? new Set<number>()
+      owners.add(gid)
+      l1Owners.set(cf1, owners)
+    }
+  }
+  const genericPhrases = new Set<string>()
+  for (const [phrase, owners] of l1Owners) {
+    if (owners.size >= 2) genericPhrases.add(phrase)
+  }
+  const pickShorter = (cur: string | undefined, next: string): string | undefined => {
+    const n = String(next || '').trim()
+    if (n.length < 3) return cur
+    if (cur == null || n.length < cur.length) return n
+    return cur
+  }
+  const l3ByGid = new Map<number, string>()
+  const l2ByGid = new Map<number, string>()
+  const l1ByGid = new Map<number, string>()
+  for (const row of rows) {
+    const gid = Math.round(Number(row.ratingGroupId))
+    if (!allow.has(gid)) continue
+    const l3 = pickShorter(l3ByGid.get(gid), row.categoryL3)
+    if (l3) l3ByGid.set(gid, l3)
+    const l2 = pickShorter(l2ByGid.get(gid), row.categoryL2)
+    if (l2) l2ByGid.set(gid, l2)
+    const l1 = pickShorter(l1ByGid.get(gid), row.categoryL1)
+    if (l1) l1ByGid.set(gid, l1)
+  }
+  const labels = new Map<number, string>()
+  for (const gid of groupIds) {
+    const label = (l3ByGid.get(gid) || l2ByGid.get(gid) || l1ByGid.get(gid) || '').trim()
+    labels.set(gid, label.length >= 3 ? label : `(id=${gid})`)
+  }
+  return { groupIds, phrases, genericPhrases, labels }
+}
+
+function sortRatingPhrases(pairs: Array<[string, number]>): Array<[string, number]> {
   const m = new Map<string, number>()
-  for (const [phrase, gid] of [...RATING_ALIASES, ...RATING_GROUPS]) {
+  for (const [phrase, gid] of pairs) {
     const key = phrase.trim().toLocaleLowerCase()
     if (key) m.set(key, gid)
   }
   return [...m.entries()].sort((a, b) => b[0].length - a[0].length || a[0].localeCompare(b[0]))
-})()
+}
 
 function normCtx(text: string): string {
   return (text || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase()
@@ -171,16 +118,21 @@ export function inferQuestionGroupIdFromProductName(productName: string): number
   return 99
 }
 
-export function inferRatingGroupIdFromText(context: string): number {
+export function inferRatingGroupIdFromText(
+  context: string,
+  phrases: Array<[string, number]> = [],
+  genericPhrases: Iterable<string> = []
+): number {
   const hay = normCtx(context)
-  if (!hay) return 0
+  if (!hay || phrases.length === 0) return 0
+  const generic = new Set([...genericPhrases].map((s) => s.trim().toLocaleLowerCase()).filter(Boolean))
   const matched: Array<[string, number]> = []
-  for (const [phrase, gid] of RATING_SORTED) {
+  for (const [phrase, gid] of sortRatingPhrases(phrases)) {
     if (hay.includes(phrase)) matched.push([phrase, gid])
   }
   if (!matched.length) return 0
   const maxlen = Math.max(...matched.map((x) => x[0].length))
-  const specifics = matched.filter((x) => !GENERIC_RATING_PHRASES.has(x[0]))
+  const specifics = matched.filter((x) => !generic.has(x[0]))
   if (specifics.length) {
     const bestSpecLen = Math.max(...specifics.map((x) => x[0].length))
     if (maxlen - bestSpecLen <= SPECIFICITY_DEBOOST_MAX_GAP) {
@@ -254,22 +206,29 @@ export function buildImportRatingContextText(productData: Record<string, unknown
   return parts.join(' ')
 }
 
-const RATING_GROUP_ID_WHITELIST = new Set(
-  [...RATING_GROUPS, ...RATING_ALIASES].map(([, gid]) => gid)
-)
+export async function loadPartnerRatingGroupCatalog(partnerId: string): Promise<PartnerRatingGroupCatalog> {
+  const ids = await fetchPartnerImportedReviewGroupIdsFromPg(partnerId)
+  if (ids.length === 0) return emptyPartnerRatingGroupCatalog()
+  const rows = await fetchPartnerRatingGroupPhraseRowsFromPg(partnerId, ids)
+  return buildPartnerRatingGroupCatalog(ids, rows)
+}
 
-function ratingGroupCatalogTextForPrompt(): string {
-  const canon = new Map<number, string>()
-  for (const [phrase, gid] of RATING_GROUPS) {
-    const q = phrase.trim()
-    if (!q) continue
-    const cur = canon.get(gid)
-    if (cur == null || q.length < cur.length) canon.set(gid, q)
+function ratingWhitelist(catalog: PartnerRatingGroupCatalog): Set<number> {
+  const out = new Set<number>()
+  for (const [, gid] of catalog.phrases) {
+    if (gid > 0 && gid !== 888 && gid !== 1000) out.add(gid)
   }
-  for (const gid of [...RATING_GROUP_ID_WHITELIST].sort((a, b) => a - b)) {
-    if (!canon.has(gid)) canon.set(gid, `(id=${gid})`)
-  }
-  return [...canon.entries()]
+  return out
+}
+
+function isPlaceholderGroupLabel(label: string): boolean {
+  return /^\(id=\d+\)$/.test(label.trim())
+}
+
+function ratingGroupCatalogTextForPrompt(catalog: PartnerRatingGroupCatalog): string {
+  const allow = ratingWhitelist(catalog)
+  return [...catalog.labels.entries()]
+    .filter(([gid, label]) => allow.has(gid) && !isPlaceholderGroupLabel(label))
     .sort((a, b) => a[0] - b[0])
     .map(([gid, label]) => `${gid}: ${label}`)
     .join('\n')
@@ -301,10 +260,10 @@ function listingImportGeminiGroupsEnabled(): boolean {
   return Boolean(key && key.length >= 10)
 }
 
-function ratingCatalogForPrompt(): string {
-  const catalog = ratingGroupCatalogTextForPrompt()
-  if (catalog.length <= PROMPT_CATALOG_MAX_CHARS) return catalog
-  return `${catalog.slice(0, PROMPT_CATALOG_MAX_CHARS)}\n...[truncated]`
+function ratingCatalogForPrompt(catalog: PartnerRatingGroupCatalog): string {
+  const text = ratingGroupCatalogTextForPrompt(catalog)
+  if (text.length <= PROMPT_CATALOG_MAX_CHARS) return text
+  return `${text.slice(0, PROMPT_CATALOG_MAX_CHARS)}\n...[truncated]`
 }
 
 function pullGroupInt(parsed: Record<string, unknown>, keys: string[]): number | null {
@@ -318,7 +277,8 @@ function pullGroupInt(parsed: Record<string, unknown>, keys: string[]): number |
 }
 
 function parseGroupsAiJson(
-  text: string
+  text: string,
+  catalog: PartnerRatingGroupCatalog
 ): { rating: number; question: number | null } | null {
   const trimmed = (text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
   const start = trimmed.indexOf('{')
@@ -330,8 +290,9 @@ function parseGroupsAiJson(
     const rec = parsed as Record<string, unknown>
     const rid = pullGroupInt(rec, ['rating_group_id', 'group_rating'])
     const qid = pullGroupInt(rec, ['question_group_id', 'group_question'])
+    const allow = ratingWhitelist(catalog)
     return {
-      rating: rid != null && RATING_GROUP_ID_WHITELIST.has(rid) ? rid : 0,
+      rating: rid != null && allow.has(rid) ? rid : 0,
       question: qid != null && VALID_QUESTION_GROUP_IDS.has(qid) ? qid : null,
     }
   } catch {
@@ -342,11 +303,15 @@ function parseGroupsAiJson(
 async function deepseekFallbackImportGroups(
   contextText: string,
   productName: string,
-  warnings: string[]
+  warnings: string[],
+  catalog: PartnerRatingGroupCatalog
 ): Promise<{ rating: number; question: number | null }> {
   if (!listingImportDeepseekGroupsEnabled()) return { rating: 0, question: null }
-  const catalog = ratingCatalogForPrompt()
-  const whitelistIds = [...RATING_GROUP_ID_WHITELIST].sort((a, b) => a - b).join(',')
+  const allow = ratingWhitelist(catalog)
+  if (allow.size === 0) return { rating: 0, question: null }
+  const catalogText = ratingCatalogForPrompt(catalog)
+  if (!catalogText.trim()) return { rating: 0, question: null }
+  const whitelistIds = [...allow].sort((a, b) => a - b).join(',')
   const r = await deepseekPartnerChat(
     'Bạn gán hai mã cố định cho một sản phẩm thương mại Việt Nam.\n\n' +
       'Quy tắc nhóm **câu hỏi** (question_group_id), chỉ một trong ba số sau:\n' +
@@ -354,12 +319,13 @@ async function deepseekFallbackImportGroups(
       '- **100**: sản phẩm dành **nam** (hoặc từ chỉ nam rõ ràng).\n' +
       '- **88**: sản phẩm dành **nữ** (hoặc từ chỉ nữ rõ ràng).\n\n' +
       'Quy tắc nhóm **đánh giá** (rating_group_id):\n' +
-      '- Chọn **exactly một** id số trong bảng có dạng `id:ví-dụ cụm` sau đây (chỉ số trong whitelist).\n' +
-      '- Ưu tiên đúng **loại hàng + giới** theo NGỮ CẢNH (danh mục, tên).\n\n' +
+      '- Chọn **exactly một** id số trong bảng có dạng `id:ví-dụ cụm` sau đây (chỉ số trong whitelist của shop này).\n' +
+      '- Ưu tiên đúng **loại hàng + giới** theo NGỮ CẢNH (danh mục, tên).\n' +
+      '- Không dùng nhóm của shop khác; không bịa id mới.\n\n' +
       'Đầu ra: **JSON thuần** một object, không markdown:\n' +
       '{"rating_group_id": <int whitelist>, "question_group_id": 88 hoặc 99 hoặc 100}\n',
     `WHITELIST rating_group_id (chỉ được chọn một số trong tập): [${whitelistIds}]\n\n` +
-      `Bảng chi tiết (id : nhãn):\n${catalog}\n\n` +
+      `Bảng chi tiết (id : nhãn):\n${catalogText}\n\n` +
       `NGỮ CẢNH (taxonomy + slug + JSON + tên, có thể lẫn ngoại ngữ):\n${contextText.slice(0, 40000)}\n\n` +
       `TÊN SẢN PHẨM:\n${productName.slice(0, 2000)}\n`,
     { feature: 'listing-import-groups', userId: null }
@@ -368,7 +334,7 @@ async function deepseekFallbackImportGroups(
     if (r.error) warnings.push(`deepseek_groups: ${r.error}`)
     return { rating: 0, question: null }
   }
-  const parsed = parseGroupsAiJson(r.text)
+  const parsed = parseGroupsAiJson(r.text, catalog)
   if (!parsed) {
     warnings.push('deepseek_groups: không đọc được JSON.')
     return { rating: 0, question: null }
@@ -382,13 +348,17 @@ async function deepseekFallbackImportGroups(
 async function geminiFallbackImportGroups(
   contextText: string,
   productName: string,
-  warnings: string[]
+  warnings: string[],
+  catalog: PartnerRatingGroupCatalog
 ): Promise<{ rating: number; question: number | null }> {
   if (!listingImportGeminiGroupsEnabled()) return { rating: 0, question: null }
   const key = resolvePartnerWebsiteGeminiApiKey()
   if (!key) return { rating: 0, question: null }
-  const catalog = ratingCatalogForPrompt()
-  const whitelistIds = [...RATING_GROUP_ID_WHITELIST].sort((a, b) => a - b).join(',')
+  const allow = ratingWhitelist(catalog)
+  if (allow.size === 0) return { rating: 0, question: null }
+  const catalogText = ratingCatalogForPrompt(catalog)
+  if (!catalogText.trim()) return { rating: 0, question: null }
+  const whitelistIds = [...allow].sort((a, b) => a - b).join(',')
   const prompt =
     'Bạn gán hai mã cố định cho một sản phẩm TMĐT Việt Nam.\n' +
     'Tên/ngữ cảnh có thể là tiếng Trung, Mông Cổ, Anh hoặc ngôn ngữ khác; hãy hiểu/diễn dịch sang loại hàng tiếng Việt trước khi chọn mã.\n\n' +
@@ -397,13 +367,13 @@ async function geminiFallbackImportGroups(
     '- 100: sản phẩm dành nam.\n' +
     '- 88: sản phẩm dành nữ.\n\n' +
     'Quy tắc rating_group_id:\n' +
-    '- Chọn exactly một id trong whitelist và bảng id:nhãn bên dưới.\n' +
+    '- Chọn exactly một id trong whitelist và bảng id:nhãn của shop này bên dưới.\n' +
     '- Ưu tiên đúng loại hàng + giới theo tên, taxonomy, style, material, color và product_info.\n' +
-    '- Không tạo id mới.\n\n' +
+    '- Không tạo id mới. Không dùng nhóm của shop khác.\n\n' +
     'Đầu ra JSON thuần một object, không markdown:\n' +
     '{"rating_group_id": <int whitelist>, "question_group_id": 88 hoặc 99 hoặc 100}\n\n' +
     `WHITELIST rating_group_id: [${whitelistIds}]\n\n` +
-    `Bảng chi tiết:\n${catalog}\n\n` +
+    `Bảng chi tiết:\n${catalogText}\n\n` +
     `NGỮ CẢNH (có thể gồm nhiều cột Excel/import):\n${contextText.slice(0, 40000)}\n\n` +
     `TÊN SẢN PHẨM:\n${productName.slice(0, 2000)}\n`
   try {
@@ -424,7 +394,7 @@ async function geminiFallbackImportGroups(
       warnings.push('gemini_groups: không có candidates.')
       return { rating: 0, question: null }
     }
-    const parsed = parseGroupsAiJson(text)
+    const parsed = parseGroupsAiJson(text, catalog)
     if (!parsed) {
       warnings.push('gemini_groups: không đọc được JSON.')
       return { rating: 0, question: null }
@@ -442,13 +412,16 @@ async function geminiFallbackImportGroups(
 async function aiFallbackImportGroups(
   contextText: string,
   productName: string,
-  warnings: string[]
+  warnings: string[],
+  catalog: PartnerRatingGroupCatalog
 ): Promise<{ rating: number; question: number | null }> {
-  const ds = await deepseekFallbackImportGroups(contextText, productName, warnings)
+  const allow = ratingWhitelist(catalog)
+  if (allow.size === 0) return { rating: 0, question: null }
+  const ds = await deepseekFallbackImportGroups(contextText, productName, warnings, catalog)
   let rating = ds.rating
   let question = ds.question
   if (rating <= 0) {
-    const gemini = await geminiFallbackImportGroups(contextText, productName, warnings)
+    const gemini = await geminiFallbackImportGroups(contextText, productName, warnings, catalog)
     if (rating <= 0) rating = gemini.rating
     if (question == null) question = gemini.question
   }
@@ -476,7 +449,8 @@ export function coalesceGroupRating(raw: unknown, inferred: number): number {
 
 export async function applyListingImportRatingGroups(
   productData: Record<string, unknown>,
-  warnings: string[]
+  warnings: string[],
+  opts?: { partnerId?: string; catalog?: PartnerRatingGroupCatalog }
 ): Promise<void> {
   const autoLv = String(productData._taxonomy_auto_created_levels || '').trim()
   if (autoLv) {
@@ -485,15 +459,22 @@ export async function applyListingImportRatingGroups(
     warnings.push(`import_groups: taxonomy vừa tạo cấp [${autoLv}] — để trống nhóm đánh giá (888) và nhóm câu hỏi (0).`)
     return
   }
+  const catalog =
+    opts?.catalog ??
+    (opts?.partnerId ? await loadPartnerRatingGroupCatalog(opts.partnerId) : emptyPartnerRatingGroupCatalog())
+  const allowed = ratingWhitelist(catalog)
   const pname = String(productData.name || '').trim()
   const ctx = buildImportRatingContextText(productData)
-  let rid = inferRatingGroupIdFromText(ctx)
+  let rid = inferRatingGroupIdFromText(ctx, catalog.phrases, catalog.genericPhrases)
+  if (!allowed.has(rid)) rid = 0
   let qid = inferQuestionGroupIdFromProductName(pname)
-  if (rid <= 0) {
-    const ai = await aiFallbackImportGroups(ctx, pname, warnings)
+  if (rid <= 0 && allowed.size > 0) {
+    const ai = await aiFallbackImportGroups(ctx, pname, warnings, catalog)
     if (ai.rating > 0) rid = ai.rating
     if (ai.question != null) qid = ai.question
-    if (rid <= 0) warnings.push('import_groups: chưa khớp từ-khóa — giữ nhóm đánh giá 888.')
+    if (rid <= 0) warnings.push('import_groups: chưa khớp nhóm đánh giá của shop — giữ 888.')
+  } else if (rid <= 0) {
+    warnings.push('import_groups: shop chưa có nhóm đánh giá (import + SP đã gán) — giữ 888.')
   }
   productData.group_rating = coalesceGroupRating(productData.group_rating, rid)
   productData.group_question = qid

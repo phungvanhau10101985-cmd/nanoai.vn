@@ -14,10 +14,13 @@ import {
   PARTNER_ADMIN_LIFECYCLE_TABS,
   PARTNER_ADMIN_ORDERS_DEFAULT_PAGE_SIZE,
   monthInputToDateRange,
+  clampPartnerAdminDepositReceivedAmount,
+  parsePartnerAdminVndDigits,
   partnerAdminAmountDueOnDelivery,
   partnerAdminExpectsDeposit,
   partnerAdminNeedsDepositStage,
   partnerAdminOrderIsCancelled,
+  partnerAdminOrderMerchandiseTotal,
   partnerAdminPayBadgeKey,
   partnerAdminStageBadgeKey,
   todayIsoVn,
@@ -435,9 +438,13 @@ function OrdersAdminOrdersTable({
               <td className={`${td} ${pinned ? 'text-xs leading-snug' : 'text-sm'}`}>
                 {expects ? (
                   <>
-                    {t.depositNeed}: {formatVnd(order.required_amount, locale)}
+                    <span className="text-gray-600">
+                      {t.depositNeed}: {formatVnd(order.required_amount, locale)}
+                    </span>
                     <br />
-                    {t.depositPaid}: {formatVnd(order.paid_amount, locale)}
+                    <span className={order.paid_amount > 0 ? 'font-semibold tabular-nums text-gray-900' : 'tabular-nums text-gray-500'}>
+                      {t.depositPaid}: {formatVnd(order.paid_amount, locale)}
+                    </span>
                   </>
                 ) : (
                   <span className="text-green-600">{t.depositNotRequired}</span>
@@ -551,6 +558,7 @@ export function PartnerMessagingOrdersClient({
   const [detailOpen, setDetailOpen] = useState(false)
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [paymentNote, setPaymentNote] = useState('')
+  const [paymentReceivedDigits, setPaymentReceivedDigits] = useState('')
   const [noteByOrder, setNoteByOrder] = useState<Record<string, string>>({})
   const [eventsByOrder, setEventsByOrder] = useState<Record<string, OrderEventRow[]>>({})
   const [shipmentEventsByOrder, setShipmentEventsByOrder] = useState<Record<string, ShipmentEventRow[]>>({})
@@ -799,13 +807,26 @@ export function PartnerMessagingOrdersClient({
   const openPaymentModal = (order: OrderRow) => {
     setSelectedOrder(order)
     setPaymentNote(noteByOrder[order.id] ?? '')
+    const already = Math.max(0, Math.round(order.paid_amount || 0))
+    const expected = Math.max(0, Math.round(order.required_amount || 0))
+    const seed = already > 0 ? already : expected
+    setPaymentReceivedDigits(seed > 0 ? String(seed) : '')
     setPaymentOpen(true)
   }
 
-  const confirmDepositManual = (orderId: string) => {
+  const confirmDepositManual = (order: OrderRow) => {
+    const received = parsePartnerAdminVndDigits(paymentReceivedDigits)
+    const paidAmount = clampPartnerAdminDepositReceivedAmount(
+      received,
+      partnerAdminOrderMerchandiseTotal(order)
+    )
+    if (paidAmount == null) {
+      showPageToast('err', t.confirmDepositAmountRequired)
+      return
+    }
     startTransition(async () => {
-      const note = (noteByOrder[orderId] ?? paymentNote).trim()
-      const res = await confirmMyMessagingOrderDeposit({ orderId, verifiedNote: note })
+      const note = (noteByOrder[order.id] ?? paymentNote).trim()
+      const res = await confirmMyMessagingOrderDeposit({ orderId: order.id, verifiedNote: note, paidAmount })
       if ('error' in res && res.error) {
         showPageToast('err', res.error)
         return
@@ -1534,7 +1555,7 @@ export function PartnerMessagingOrdersClient({
                           {t.depositNeed}: {formatVnd(selectedOrder.required_amount, locale)}
                         </span>
                         <span className="mx-1.5 font-normal text-gray-400">·</span>
-                        <span>
+                        <span className={selectedOrder.paid_amount > 0 ? 'font-semibold' : undefined}>
                           {t.depositPaid}: {formatVnd(selectedOrder.paid_amount, locale)}
                         </span>
                       </dd>
@@ -1838,8 +1859,47 @@ export function PartnerMessagingOrdersClient({
                 .replace('{code}', orderCodeDisplay(selectedOrder))
                 .replace('{amount}', formatVnd(selectedOrder.required_amount, locale))}
             </p>
+            <p className="mb-1 text-sm text-gray-700">
+              {t.modalOrderTotal}:{' '}
+              <span className="font-semibold tabular-nums">
+                {formatVnd(partnerAdminOrderMerchandiseTotal(selectedOrder), locale)}
+              </span>
+            </p>
             <p className="mb-2 text-sm text-amber-600">{t.confirmDepositNoTxn}</p>
             <p className="mb-3 text-sm text-gray-600">{t.confirmDepositManualHint}</p>
+            <div className="mb-3">
+              <label className="mb-1 block text-sm font-medium" htmlFor="pw-confirm-deposit-received">
+                {t.confirmDepositReceivedLabel}
+              </label>
+              <input
+                id="pw-confirm-deposit-received"
+                inputMode="numeric"
+                autoComplete="off"
+                value={
+                  paymentReceivedDigits
+                    ? new Intl.NumberFormat(tag, { maximumFractionDigits: 0 }).format(
+                        parsePartnerAdminVndDigits(paymentReceivedDigits)
+                      )
+                    : ''
+                }
+                onChange={(e) => setPaymentReceivedDigits(e.target.value.replace(/[^\d]/g, '').slice(0, 12))}
+                placeholder={t.confirmDepositReceivedLabel}
+                className="w-full rounded-lg border px-3 py-2 tabular-nums dark:border-zinc-600 dark:bg-zinc-800"
+              />
+              <p className="mt-1 text-xs text-gray-500">{t.confirmDepositReceivedHint}</p>
+            </div>
+            <p className="mb-3 text-sm font-semibold tabular-nums text-red-700">
+              {t.confirmDepositRemainingPreview.replace(
+                '{amount}',
+                formatVnd(
+                  Math.max(
+                    0,
+                    partnerAdminOrderMerchandiseTotal(selectedOrder) - parsePartnerAdminVndDigits(paymentReceivedDigits)
+                  ),
+                  locale
+                )
+              )}
+            </p>
             <div className="mb-4">
               <label className="mb-1 block text-sm font-medium">{t.confirmDepositNoteLabel}</label>
               <textarea
@@ -1869,8 +1929,11 @@ export function PartnerMessagingOrdersClient({
               </button>
               <button
                 type="button"
-                disabled={pending}
-                onClick={() => confirmDepositManual(selectedOrder.id)}
+                disabled={pending || !clampPartnerAdminDepositReceivedAmount(
+                  parsePartnerAdminVndDigits(paymentReceivedDigits),
+                  partnerAdminOrderMerchandiseTotal(selectedOrder)
+                )}
+                onClick={() => confirmDepositManual(selectedOrder)}
                 className="rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-50"
               >
                 {t.btnConfirmDeposit}

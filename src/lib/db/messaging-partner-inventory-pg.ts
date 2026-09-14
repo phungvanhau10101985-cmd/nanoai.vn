@@ -4261,3 +4261,45 @@ export async function fetchActivePartnerInventoryScanRowsFromPg(
     return null
   }
 }
+
+export type PartnerRatingGroupPhraseRow = {
+  ratingGroupId: number
+  categoryL1: string
+  categoryL2: string
+  categoryL3: string
+}
+
+/** Nhãn nhóm đánh giá theo shop: L1/L2/L3 của SP đã gán rating_group_id trong pool admin import. */
+export async function fetchPartnerRatingGroupPhraseRowsFromPg(
+  partnerId: string,
+  groupIds: number[]
+): Promise<PartnerRatingGroupPhraseRow[]> {
+  const id = String(partnerId || '').trim()
+  const ids = [...new Set(groupIds.map((n) => Math.round(Number(n))).filter((n) => n > 0 && n !== 888))]
+  if (!id || ids.length === 0 || !isPgConfigured()) return []
+  try {
+    const rows = await pgQuery<{ gid: number; l1: string; l2: string; l3: string }>(
+      `select rating_group_id as gid,
+              coalesce(category_l1, '') as l1,
+              coalesce(category_l2, '') as l2,
+              coalesce(category_l3, '') as l3
+       from public.messaging_partner_inventory
+       where partner_id = $1::uuid
+         and coalesce(is_active, true) = true
+         and rating_group_id = any($2::int[])
+         and rating_group_id > 0
+         and rating_group_id <> 888
+       limit 4000`,
+      [id, ids]
+    )
+    return rows.map((r) => ({
+      ratingGroupId: Math.round(Number(r.gid)) || 0,
+      categoryL1: String(r.l1 || ''),
+      categoryL2: String(r.l2 || ''),
+      categoryL3: String(r.l3 || ''),
+    }))
+  } catch (e) {
+    console.warn('[fetchPartnerRatingGroupPhraseRowsFromPg]', e)
+    return []
+  }
+}

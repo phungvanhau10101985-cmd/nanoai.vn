@@ -2337,22 +2337,22 @@ export async function updatePartnerOrderStatusForOwnerFromPg(input: {
   }
 }
 
-/** Chủ shop xác nhận cọc thủ công: ghi nhận paid ≥ required (không vượt subtotal), đặt paid_verified. */
+/** Chủ shop xác nhận cọc thủ công: ghi `paid_amount` đúng số đã nhận (không vượt tổng đơn). */
 export async function confirmPartnerOrderDepositForOwnerFromPg(input: {
   ownerUserId: string
   orderId: string
   verifiedNote: string
+  paidAmount: number
 }): Promise<boolean> {
   if (!isPgConfigured()) return false
   const note = input.verifiedNote.trim().slice(0, 1000)
+  const paidAmount = Math.round(Number(input.paidAmount) || 0)
+  if (!Number.isFinite(paidAmount) || paidAmount <= 0) return false
   try {
     const row = await pgQueryOne<{ id: string }>(
       `update public.messaging_partner_orders o
        set status = 'paid_verified',
-           paid_amount = least(
-             coalesce(nullif(o.amount_after_discount, 0), o.subtotal_amount, 0::numeric),
-             greatest(coalesce(o.paid_amount, 0::numeric), coalesce(o.required_amount, 0::numeric))
-           ),
+           paid_amount = least((${ORDER_TOTAL_EXPR})::numeric, $4::numeric),
            verified_note = $3,
            verified_at = now(),
            locked_at = coalesce(o.locked_at, now()),
@@ -2360,9 +2360,13 @@ export async function confirmPartnerOrderDepositForOwnerFromPg(input: {
        from public.messaging_partners mp
        where o.id = $1::uuid
          and mp.id = o.partner_id
+         and o.status <> 'cancelled'
+         and coalesce(o.shipping_status, 'pending') not in ('cancelled', 'returned')
+         and ${ORDER_TOTAL_EXPR} > 0
+         and $4::numeric > 0
          and ${sqlPartnerMpActorHasPerm(2, 'orders')}
        returning o.id::text as id`,
-      [input.orderId, input.ownerUserId, note]
+      [input.orderId, input.ownerUserId, note, paidAmount]
     )
     return row !== null
   } catch (e) {

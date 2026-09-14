@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  clampPartnerAdminDepositReceivedAmount,
   monthInputToDateRange,
+  parsePartnerAdminVndDigits,
   partnerAdminAmountDueOnDelivery,
   partnerAdminAmountDueOnDeliverySql,
   partnerAdminLifecycleSql,
@@ -85,6 +87,40 @@ test('COD after deposit uses amount after discount', () => {
     ),
     126000
   )
+})
+
+test('manual deposit received amount clamps to order total', () => {
+  assert.equal(parsePartnerAdminVndDigits('2.980.740'), 2980740)
+  assert.equal(clampPartnerAdminDepositReceivedAmount(2980740, 9935800), 2980740)
+  assert.equal(clampPartnerAdminDepositReceivedAmount(20000000, 9935800), 9935800)
+  assert.equal(clampPartnerAdminDepositReceivedAmount(0, 9935800), null)
+  assert.equal(clampPartnerAdminDepositReceivedAmount(-1, 9935800), null)
+  assert.equal(
+    partnerAdminAmountDueOnDelivery(
+      row({
+        subtotal_amount: 9935800,
+        amount_after_discount: 9935800,
+        required_amount: 2980740,
+        paid_amount: 2500000,
+      })
+    ),
+    7435800
+  )
+})
+
+test('paid_verified leaves waiting deposit even if received < required', () => {
+  const confirmedShort = row({
+    status: 'paid_verified',
+    required_amount: 2980740,
+    paid_amount: 2000000,
+    amount_after_discount: 9935800,
+    subtotal_amount: 9935800,
+  })
+  assert.equal(partnerAdminNeedsDepositStage(confirmedShort), false)
+  assert.equal(partnerAdminMatchesLifecycleTab(confirmedShort, 'waiting_deposit'), false)
+  assert.equal(partnerAdminMatchesLifecycleTab(confirmedShort, 'waiting_ship'), true)
+  assert.equal(partnerAdminPayBadgeKey(confirmedShort), 'deposit_paid')
+  assert.match(partnerAdminLifecycleSql('waiting_deposit'), /paid_verified/)
 })
 
 test('payment filter: pending / deposit_paid / paid', () => {

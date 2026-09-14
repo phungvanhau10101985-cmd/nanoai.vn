@@ -242,7 +242,13 @@ import {
   updatePartnerOrderShippingStatusForOwnerFromPg,
   updatePartnerOrderRefundForOwnerFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
-import type { PartnerAdminFulfillmentFilter, PartnerAdminLifecycleTab, PartnerAdminPaymentFilter } from '@/lib/messaging/partner-admin-orders-lifecycle'
+import {
+  clampPartnerAdminDepositReceivedAmount,
+  partnerAdminOrderMerchandiseTotal,
+  type PartnerAdminFulfillmentFilter,
+  type PartnerAdminLifecycleTab,
+  type PartnerAdminPaymentFilter,
+} from '@/lib/messaging/partner-admin-orders-lifecycle'
 import {
   fetchPartnerLoyaltyDashboardForActorFromPg,
   updatePartnerLoyaltyDashboardForActorFromPg,
@@ -1257,16 +1263,29 @@ export async function updateMyMessagingOrderStatus(input: {
 export async function confirmMyMessagingOrderDeposit(input: {
   orderId: string
   verifiedNote?: string
+  paidAmount: number
 }): Promise<{ ok: true } | { error: string }> {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
   const { user } = auth
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   if (!isValidUuidString(input.orderId)) return { error: 'Invalid order id.' }
+  const received = Math.round(Number(input.paidAmount) || 0)
+  if (!Number.isFinite(received) || received <= 0) {
+    return { error: 'Nhap so tien da nhan coc.' }
+  }
+  const existing = await fetchPartnerOrderForOwnerFromPg(user.id, input.orderId)
+  if (!existing) return { error: 'Khong xac nhan duoc coc.' }
+  const paidAmount = clampPartnerAdminDepositReceivedAmount(
+    received,
+    partnerAdminOrderMerchandiseTotal(existing)
+  )
+  if (paidAmount == null) return { error: 'So tien da nhan coc khong hop le.' }
   const ok = await confirmPartnerOrderDepositForOwnerFromPg({
     ownerUserId: user.id,
     orderId: input.orderId,
     verifiedNote: (input.verifiedNote ?? '').trim().slice(0, 1000),
+    paidAmount,
   })
   if (!ok) return { error: 'Khong xac nhan duoc coc.' }
   const row = await fetchPartnerOrderForOwnerFromPg(user.id, input.orderId)

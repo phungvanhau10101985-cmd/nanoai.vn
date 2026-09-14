@@ -1222,3 +1222,53 @@ export async function togglePartnerProductQuestionVoteFromPg(input: {
     client.release()
   }
 }
+
+/** Nhóm đánh giá admin đã import Excel (pool ảo). 0/888 = chưa gán, không đưa vào whitelist cào. */
+export async function fetchPartnerImportedReviewGroupIdsFromPg(partnerId: string): Promise<number[]> {
+  const id = String(partnerId || '').trim()
+  if (!id || !isPgConfigured()) return []
+  try {
+    const rows = await pgQuery<{ gid: number }>(
+      `select distinct import_group as gid
+       from public.messaging_partner_product_reviews
+       where partner_id = $1::uuid
+         and is_imported = true
+         and is_active = true
+         and import_group > 0
+         and import_group <> 888
+       order by 1`,
+      [id]
+    )
+    return rows
+      .map((r) => Math.round(Number(r.gid)))
+      .filter((n) => Number.isFinite(n) && n > 0 && n !== 888)
+  } catch (e) {
+    console.warn('[fetchPartnerImportedReviewGroupIdsFromPg]', e)
+    return []
+  }
+}
+
+/** Nhóm hỏi đáp admin đã import Excel. */
+export async function fetchPartnerImportedQuestionGroupIdsFromPg(partnerId: string): Promise<number[]> {
+  const id = String(partnerId || '').trim()
+  if (!id || !isPgConfigured()) return []
+  try {
+    const rows = await pgQuery<{ gid: number }>(
+      `select distinct import_group as gid
+       from public.messaging_partner_product_questions
+       where partner_id = $1::uuid
+         and is_imported = true
+         and is_active = true
+         and import_group > 0
+         and import_group <> 888
+       order by 1`,
+      [id]
+    )
+    return rows
+      .map((r) => Math.round(Number(r.gid)))
+      .filter((n) => Number.isFinite(n) && n > 0 && n !== 888)
+  } catch (e) {
+    console.warn('[fetchPartnerImportedQuestionGroupIdsFromPg]', e)
+    return []
+  }
+}

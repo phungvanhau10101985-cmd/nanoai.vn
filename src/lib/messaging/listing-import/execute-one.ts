@@ -95,7 +95,7 @@ export async function executeOneListingImport(input: {
     reapplyListingLocaleOverlay(productData, input.overlay)
     applyListingYearSanitizeToProductData(productData)
     try {
-      await applyListingImportRatingGroups(productData, warnings)
+      await applyListingImportRatingGroups(productData, warnings, { partnerId: input.partnerId })
     } catch (e) {
       warnings.push(`import_groups: ${e instanceof Error ? e.message : String(e)}`)
     }

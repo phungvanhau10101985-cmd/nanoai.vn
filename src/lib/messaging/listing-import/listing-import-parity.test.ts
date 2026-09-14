@@ -18,6 +18,8 @@ import {
   inferRatingGroupIdFromText,
   applyListingImportRatingGroups,
   buildImportRatingContextText,
+  buildPartnerRatingGroupCatalog,
+  emptyPartnerRatingGroupCatalog,
   RATING_GROUP_ID_UNASSIGNED,
 } from '@/lib/messaging/listing-import/listing-import-rating-groups'
 import { appendListingImportColorSuffixToViName } from '@/lib/messaging/listing-import/listing-import-taxonomy'
@@ -39,21 +41,32 @@ describe('listing import cookies', () => {
 })
 
 describe('listing import rating groups', () => {
-  it('maps túi xách nữ and áo thun nam', () => {
-    assert.equal(inferRatingGroupIdFromText('túi xách nữ da bò'), 69)
-    assert.equal(inferRatingGroupIdFromText('áo thun nam cotton'), 51)
+  const shopCatalog = buildPartnerRatingGroupCatalog(
+    [12, 20, 31],
+    [
+      { ratingGroupId: 12, categoryL1: 'Túi xách Nữ', categoryL2: 'Túi xách', categoryL3: 'túi xách nữ' },
+      { ratingGroupId: 20, categoryL1: 'Thời trang Nam', categoryL2: 'Áo thun', categoryL3: 'áo thun nam' },
+      { ratingGroupId: 31, categoryL1: 'Thời trang Nữ', categoryL2: 'Đầm', categoryL3: 'đầm suông nữ midi' },
+    ]
+  )
+
+  it('maps from this shop catalog, not a global 188 table', () => {
+    assert.equal(inferRatingGroupIdFromText('túi xách nữ da bò', shopCatalog.phrases, shopCatalog.genericPhrases), 12)
+    assert.equal(inferRatingGroupIdFromText('áo thun nam cotton', shopCatalog.phrases, shopCatalog.genericPhrases), 20)
+    assert.equal(inferRatingGroupIdFromText('túi xách nữ da bò'), 0)
+    assert.equal(inferRatingGroupIdFromText('váy đầm liền thân dự tiệc nữ', shopCatalog.phrases, shopCatalog.genericPhrases), 0)
   })
   it('maps question group from product name', () => {
     assert.equal(inferQuestionGroupIdFromProductName('Áo thun nam nữ'), 99)
     assert.equal(inferQuestionGroupIdFromProductName('Áo thun nam'), 100)
     assert.equal(inferQuestionGroupIdFromProductName('Váy đầm nữ'), 88)
   })
-  it('assigns 888 when no keyword match', async () => {
-    const pd: Record<string, unknown> = { name: 'Widget lạ xyz' }
+  it('assigns 888 when shop has no rating catalog', async () => {
+    const pd: Record<string, unknown> = { name: 'túi xách nữ da bò' }
     const warnings: string[] = []
-    await applyListingImportRatingGroups(pd, warnings)
+    await applyListingImportRatingGroups(pd, warnings, { catalog: emptyPartnerRatingGroupCatalog() })
     assert.equal(pd.group_rating, RATING_GROUP_ID_UNASSIGNED)
-    assert.equal(pd.group_question, 99)
+    assert.equal(pd.group_question, 88)
   })
   it('maps question group 88 from Vietnamese name with nữ like 188', () => {
     assert.equal(inferQuestionGroupIdFromProductName('Đầm nữ dáng suông xếp ly nhẹ thanh lịch — Đỏ chà là'), 88)
@@ -78,7 +91,7 @@ describe('listing import rating groups', () => {
     assert.match(ctx, /280g/)
     assert.match(ctx, /Phù hợp Nữ 18–35/)
     assert.match(ctx, /Nữ 18-35/)
-    assert.equal(inferRatingGroupIdFromText(ctx), 59)
+    assert.equal(inferRatingGroupIdFromText(ctx, shopCatalog.phrases, shopCatalog.genericPhrases), 31)
   })
   it('keeps 888/0 without AI when taxonomy just created levels', async () => {
     const pd: Record<string, unknown> = {
@@ -89,10 +102,38 @@ describe('listing import rating groups', () => {
       _taxonomy_auto_created_levels: '2,3',
     }
     const warnings: string[] = []
-    await applyListingImportRatingGroups(pd, warnings)
+    await applyListingImportRatingGroups(pd, warnings, { catalog: shopCatalog })
     assert.equal(pd.group_rating, RATING_GROUP_ID_UNASSIGNED)
     assert.equal(pd.group_question, 0)
     assert.match(String(warnings[0] || ''), /taxonomy vừa tạo/)
+  })
+  it('only assigns groups that exist in this shop catalog', async () => {
+    const hit: Record<string, unknown> = { name: 'Túi xách nữ da bò' }
+    await applyListingImportRatingGroups(hit, [], { catalog: shopCatalog })
+    assert.equal(hit.group_rating, 12)
+    const otherShop = buildPartnerRatingGroupCatalog(
+      [40],
+      [{ ratingGroupId: 40, categoryL1: 'Thời trang Nữ', categoryL2: 'Đầm', categoryL3: 'váy đầm liền thân dự tiệc nữ' }]
+    )
+    const miss: Record<string, unknown> = { name: 'Túi xách nữ da bò' }
+    await applyListingImportRatingGroups(miss, [], { catalog: otherShop })
+    assert.equal(miss.group_rating, RATING_GROUP_ID_UNASSIGNED)
+    const empty: Record<string, unknown> = { name: 'Túi xách nữ da bò' }
+    await applyListingImportRatingGroups(empty, [], { catalog: emptyPartnerRatingGroupCatalog() })
+    assert.equal(empty.group_rating, RATING_GROUP_ID_UNASSIGNED)
+  })
+  it('deboosts L1 shared by two groups in the same shop', () => {
+    const catalog = buildPartnerRatingGroupCatalog(
+      [18, 21],
+      [
+        { ratingGroupId: 18, categoryL1: 'Giày dép Nam', categoryL2: 'Sneaker', categoryL3: 'giày sneaker nam' },
+        { ratingGroupId: 21, categoryL1: 'Giày dép Nam', categoryL2: 'Giày lười', categoryL3: 'giày lười nam' },
+      ]
+    )
+    assert.equal(
+      inferRatingGroupIdFromText('giày sneaker nam da bò giày dép nam', catalog.phrases, catalog.genericPhrases),
+      18
+    )
   })
 })
 

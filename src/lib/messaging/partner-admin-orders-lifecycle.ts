@@ -88,9 +88,11 @@ export function partnerAdminDepositKind(r: PartnerAdminOrderLifecycleInput): Par
 
 export function partnerAdminNeedsDepositStage(r: PartnerAdminOrderLifecycleInput): boolean {
   if (partnerAdminOrderIsCancelled(r) || partnerAdminOrderIsReturned(r)) return false
+  // Chủ shop đã xác nhận cọc (kể cả số nhận khác số cần thu) → sang chờ giao, còn COD khi nhận.
+  if (r.status === 'paid_verified') return false
   const req = Math.max(0, Math.round(r.required_amount || 0))
   const paid = Math.max(0, Math.round(r.paid_amount || 0))
-  if (req > 0 && paid >= req) return r.status !== 'paid_verified'
+  if (req > 0 && paid >= req) return true
   if (partnerAdminDepositKind(r) !== 'full') return true
   if (r.status === 'awaiting_payment' || r.status === 'payment_checking' || r.status === 'pending_manual_review') {
     return true
@@ -102,12 +104,34 @@ export function partnerAdminExpectsDeposit(r: PartnerAdminOrderLifecycleInput): 
   return Math.max(0, Math.round(r.required_amount || 0)) > 0
 }
 
-export function partnerAdminAmountDueOnDelivery(r: PartnerAdminOrderLifecycleInput): number {
-  const paid = Math.max(0, Math.round(r.paid_amount || 0))
+export function partnerAdminOrderMerchandiseTotal(
+  r: Pick<PartnerAdminOrderLifecycleInput, 'subtotal_amount' | 'amount_after_discount'>
+): number {
   const after = Math.max(0, Math.round(r.amount_after_discount || 0))
   const sub = Math.max(0, Math.round(r.subtotal_amount || 0))
-  const base = after > 0 ? after : sub
-  return Math.max(0, base - paid)
+  return after > 0 ? after : sub
+}
+
+export function parsePartnerAdminVndDigits(raw: string): number {
+  const digits = String(raw || '').replace(/[^\d]/g, '').slice(0, 12)
+  if (!digits) return 0
+  return Math.round(Number(digits) || 0)
+}
+
+/** Số đã nhận cọc khi xác nhận thủ công: > 0, không vượt tổng đơn. */
+export function clampPartnerAdminDepositReceivedAmount(
+  received: number,
+  orderTotal: number
+): number | null {
+  const amount = Math.round(Number(received) || 0)
+  const total = Math.max(0, Math.round(orderTotal || 0))
+  if (!Number.isFinite(amount) || amount <= 0 || total <= 0) return null
+  return Math.min(amount, total)
+}
+
+export function partnerAdminAmountDueOnDelivery(r: PartnerAdminOrderLifecycleInput): number {
+  const paid = Math.max(0, Math.round(r.paid_amount || 0))
+  return Math.max(0, partnerAdminOrderMerchandiseTotal(r) - paid)
 }
 
 /** SQL remaining COD — cùng công thức `partnerAdminAmountDueOnDelivery`. */
@@ -230,9 +254,10 @@ export function partnerAdminLifecycleSql(tab: PartnerAdminLifecycleTab): string 
   const reviewed = `exists (select 1 from public.messaging_partner_product_reviews rv where rv.order_id = o.id and coalesce(rv.is_imported, false) = false and coalesce(rv.is_active, true) = true)`
   const needsDeposit = `(
     o.status <> 'cancelled'
+    and o.status <> 'paid_verified'
     and coalesce(o.shipping_status, 'pending') not in ('cancelled', 'returned', 'shipping', 'delivered')
     and (
-      (coalesce(o.required_amount, 0) > 0 and coalesce(o.paid_amount, 0) >= coalesce(o.required_amount, 0) and o.status <> 'paid_verified')
+      (coalesce(o.required_amount, 0) > 0 and coalesce(o.paid_amount, 0) >= coalesce(o.required_amount, 0))
       or (coalesce(o.required_amount, 0) > 0 and coalesce(o.paid_amount, 0) < coalesce(o.required_amount, 0))
       or o.status in ('awaiting_payment', 'payment_checking', 'pending_manual_review')
     )
