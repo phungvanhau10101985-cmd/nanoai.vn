@@ -83,6 +83,7 @@ test('React listing card has heart + stats and no Chi tiết button', () => {
   assert.match(src, /pw-rec-stats/)
   assert.match(src, /pw-product-card-hit/)
   assert.match(src, /pdpPurchasesLabel/)
+  assert.doesNotMatch(src, /from 'next\/link'/)
   assert.doesNotMatch(src, /t\.productDetail/)
   assert.doesNotMatch(src, /PW_EL\.cardBuy/)
 })

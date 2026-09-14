@@ -1002,7 +1002,6 @@ function normalizeCatBtns(){
       el.setAttribute('aria-haspopup','true');
       el.setAttribute('tabindex','0');
     }
-    ensureCatWrap(el);
   }
 }
 function isAccountSubpathLink(el){
@@ -1280,13 +1279,24 @@ function toggleCatPair(btn,panel,otherBtn,otherPanel){
   }
 }
 function bindCatHover(btn){
-  var wrap=ensureCatWrap(btn);
-  if(!wrap||wrap.getAttribute('data-pw-cat-hover-bound'))return;
-  wrap.setAttribute('data-pw-cat-hover-bound','1');
-  wrap.addEventListener('mouseenter',function(){
+  if(!btn||btn.getAttribute('data-pw-cat-hover-bound'))return;
+  btn.setAttribute('data-pw-cat-hover-bound','1');
+  function openOnHover(){
     if(pwShopLiveUiOff()||!hoverCapable()||isMobileCatFace())return;
     clearCatLeave(btn);
+    var wrap=ensureCatWrap(btn);
     var livePanel=ensureCatPanel(btn);
+    if(livePanel&&livePanel.id)btn.setAttribute('aria-controls',livePanel.id);
+    if(wrap&&wrap.getAttribute('data-pw-cat-hover-wrap')!=='1'){
+      wrap.setAttribute('data-pw-cat-hover-wrap','1');
+      wrap.addEventListener('mouseenter',openOnHover);
+      wrap.addEventListener('mouseleave',function(e){
+        if(!hoverCapable())return;
+        var p=ensureCatPanel(btn);
+        if(relatedInCatUi(e.relatedTarget,btn,p))return;
+        scheduleCatLeave(btn,p);
+      });
+    }
     if(livePanel&&!livePanel.querySelector('[data-pw-cat-mega]'))hydrateCats();
     var root=deviceRoot(btn);
     var liveAccBtn=qs(root,accBtnSel());
@@ -1297,13 +1307,8 @@ function bindCatHover(btn){
       else livePanel.classList.add('is-open');
       btn.setAttribute('aria-expanded','true');
     }
-  });
-  wrap.addEventListener('mouseleave',function(e){
-    if(!hoverCapable())return;
-    var livePanel=ensureCatPanel(btn);
-    if(relatedInCatUi(e.relatedTarget,btn,livePanel))return;
-    scheduleCatLeave(btn,livePanel);
-  });
+  }
+  btn.addEventListener('mouseenter',openOnHover);
 }
 function repositionOpenPanels(){
   var panels=document.querySelectorAll('[data-pw-panel-fixed].is-open');
@@ -1369,6 +1374,9 @@ function handleAccountClick(e){
     if(dest)window.location.href=dest;
     return;
   }
+  if(cur&&cur.tagName&&cur.tagName.toLowerCase()==='a'&&cur.getAttribute('href')){
+    return;
+  }
   e.preventDefault();
   e.stopPropagation();
   navigateAccountLogin(cur);
@@ -1393,18 +1401,16 @@ function bindToggles(){
   for(i=0;i<catBtns.length;i++){
     var btn=catBtns[i];
     if(isInsidePanel(btn,panelSel())||isInsidePanel(btn,accPanelSel()))continue;
-    var panel=ensureCatPanel(btn);
     if(btn.getAttribute('data-pw-toggle-bound'))continue;
     btn.setAttribute('data-pw-toggle-bound','1');
-    if(panel&&panel.id)btn.setAttribute('aria-controls',panel.id);
     bindCatHover(btn);
-    bindCatPanelHover(btn,panel);
     btn.addEventListener('click',function(e){
       if(pwShopLiveUiOff())return;
       e.preventDefault();
       e.stopPropagation();
       var cur=e.currentTarget;
       var livePanel=ensureCatPanel(cur);
+      if(livePanel&&livePanel.id)cur.setAttribute('aria-controls',livePanel.id);
       var root=deviceRoot(cur);
       var liveAccBtn=qs(root,accBtnSel());
       var liveAcc=liveAccBtn?qs(root,accPanelSel()):qs(root,accPanelSel());

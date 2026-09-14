@@ -2,7 +2,6 @@
 
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import Link from 'next/link'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import type { CartAddedModalCopy } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
 
@@ -71,10 +70,10 @@ export function PartnerSiteCartAddedModal({ open, item, cartHref, copy, onClose 
           </button>
         </div>
         <div data-pw-cart-added-actions>
-          <Link href={cartHref} data-pw-cart-added-go onClick={onClose}>
+          <a href={cartHref} data-pw-cart-added-go onClick={onClose}>
             <span aria-hidden>🛒</span>
             <span>{copy.cartGoToCart}</span>
-          </Link>
+          </a>
           <button type="button" data-pw-cart-added-stay onClick={onClose}>
             <span aria-hidden>🛍️</span>
             <span>{copy.cartContinueShopping}</span>

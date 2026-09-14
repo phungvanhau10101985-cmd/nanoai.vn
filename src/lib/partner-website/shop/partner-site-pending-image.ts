@@ -63,9 +63,14 @@ export function isPartnerImageSearchPath(pathname: string, imageSearchPath: stri
 
 export async function storePendingImageAndNavigate(
   file: File,
-  router: { push: (href: string) => void },
-  imageSearchPath: string
+  imageSearchPathOrRouter: string | { push: (href: string) => void },
+  imageSearchPathMaybe?: string
 ): Promise<void> {
+  const imageSearchPath =
+    typeof imageSearchPathOrRouter === 'string'
+      ? imageSearchPathOrRouter
+      : String(imageSearchPathMaybe || '')
+  const router = typeof imageSearchPathOrRouter === 'string' ? undefined : imageSearchPathOrRouter
   let dataUrl = await fileToCompressedDataUrl(file)
   try {
     sessionStorage.setItem(PW_PENDING_IMAGE_KEY, dataUrl)
@@ -82,7 +87,11 @@ export async function storePendingImageAndNavigate(
     window.dispatchEvent(new CustomEvent(PW_PENDING_IMAGE_EVENT))
     return
   }
-  router.push(imageSearchPath)
+  if (typeof window !== 'undefined') {
+    window.location.assign(imageSearchPath)
+    return
+  }
+  router?.push(imageSearchPath)
 }
 
 /** Đọc và xóa khỏi sessionStorage (một lần). */

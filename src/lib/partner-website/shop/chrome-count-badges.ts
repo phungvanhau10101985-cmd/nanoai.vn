@@ -302,21 +302,15 @@ function pwEnsureChromeCountBadge(el){
   var wrap=el.querySelector(':scope > .pw-chrome-icon-wrap');
   if(!wrap){
     var svg=el.querySelector(':scope > svg')||el.querySelector('svg');
-    if(!svg)return null;
-    wrap=svg.closest?svg.closest('.pw-chrome-icon-wrap'):null;
-    if(!(wrap&&el.contains(wrap))){
-      wrap=doc.createElement('span');
-      wrap.className='pw-chrome-icon-wrap';
-      if(svg.parentNode)svg.parentNode.insertBefore(wrap,svg);
-      wrap.appendChild(svg);
-    }
+    wrap=svg&&svg.closest?svg.closest('.pw-chrome-icon-wrap'):null;
+    if(!(wrap&&el.contains(wrap)))wrap=null;
   }
   b=doc.createElement('span');
   b.className='pw-cart-badge pw-shop-cart-badge';
   b.setAttribute('data-pw-chrome-badge','');
   b.setAttribute('hidden','');
   b.textContent='0';
-  wrap.appendChild(b);
+  (wrap||el).appendChild(b);
   return b;
 }
 function pwSetChromeCountBadge(el,n,demo){

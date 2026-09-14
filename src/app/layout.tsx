@@ -19,12 +19,18 @@ import { JsonLd } from "@/components/seo-json-ld";
 import {
   readLoginNextFromHeaders,
   readPartnerCustomDomainFromHeaders,
+  readPartnerSiteSlugFromHeaders,
+  partnerSiteSlugFromPathname,
 } from '@/lib/auth/app-request-headers'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 import { FloatingChatWidget } from '@/components/messaging/floating-chat-widget'
 import { parseSiteChatEmbed } from '@/lib/messaging/parse-site-chat-embed'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
 import { PlatformServiceWorkerRegistration } from '@/components/pwa/platform-service-worker-registration'
+import {
+  buildPartnerSiteNativeNavigationScript,
+  PARTNER_SITE_NATIVE_NAV_SCRIPT_ID,
+} from '@/lib/partner-website/shop/partner-site-account-native-navigation'
 
 const AnalyticsTracker = nextDynamic(
   () => import("@/components/analytics/analytics-tracker").then((m) => m.AnalyticsTracker),
@@ -226,6 +232,9 @@ export default async function RootLayout({
   const currentPathWithQuery = readLoginNextFromHeaders((name) => headerStore.get(name));
   const [currentPathname = ""] = currentPathWithQuery.split("?");
   const partnerCustomDomain = readPartnerCustomDomainFromHeaders((name) => headerStore.get(name));
+  const partnerSiteSlug =
+    readPartnerSiteSlugFromHeaders((name) => headerStore.get(name)) ||
+    partnerSiteSlugFromPathname(currentPathname);
   const isMessagingGuestPage = currentPathname.startsWith("/messaging/p/");
   const isWeddingPublicPage = currentPathname.startsWith("/thiep-moi-cuoi/");
   const isPartnerWebsitePage =
@@ -377,6 +386,14 @@ export default async function RootLayout({
     <html lang={locale} suppressHydrationWarning>
       <head>
         {bunnyCdnOrigin ? <link rel="preconnect" href={bunnyCdnOrigin} crossOrigin="anonymous" /> : null}
+        {isPartnerWebsitePage && partnerSiteSlug ? (
+          <script
+            id={PARTNER_SITE_NATIVE_NAV_SCRIPT_ID}
+            dangerouslySetInnerHTML={{
+              __html: buildPartnerSiteNativeNavigationScript(partnerSiteSlug),
+            }}
+          />
+        ) : null}
         {shouldRenderNanoAiSiteTags
           ? metaTags.map((tag, index) =>
               tag.name ? (

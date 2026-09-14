@@ -389,8 +389,6 @@ function goMobileCompose(q){
     focusComposeInput(document.querySelector('[data-pw-search-compose]'));
     return;
   }
-  if(window.__pwComposeGoing)return;
-  window.__pwComposeGoing=1;
   var dest=toPublicPath(COMPOSE_PATH);
   var t=String(q||currentSearchQuery()||'').trim();
   if(t)dest=dest+(dest.indexOf('?')>=0?'&':'?')+'q='+encodeURIComponent(t);
@@ -707,28 +705,6 @@ if(!document.documentElement.getAttribute('data-pw-search-history-doc')){
     if(t.closest('[data-pw-search-history], .pw-search-form, .pw-shop-search-form, [data-pw-search-form], [data-pw-search]'))return;
     closeHistory();
   });
-  document.addEventListener('pointerdown',function(e){
-    if(pwShopLiveUiOff())return;
-    if(!isMobileSearchComposeFace())return;
-    var t=e.target;
-    if(!t||!t.closest)return;
-    if(t.closest(imageBtnSel()))return;
-    if(t.closest('[data-pw-search-compose]'))return;
-    if(e.ctrlKey||e.metaKey||e.shiftKey||e.altKey||(e.button&&e.button!==0))return;
-    var compose=t.closest('.pw-search-compose,.pw-shop-search-compose,a[href*="/tim-kiem"]');
-    if(compose){
-      e.preventDefault();
-      goMobileCompose(currentSearchQuery());
-      return;
-    }
-    if(onMobileComposePage())return;
-    var wrap=t.closest('.pw-header-search,.pw-shop-search-wrap,[data-pw-el="search"],[data-pw-search-form],.pw-search-form,.pw-shop-search-form');
-    if(!wrap)return;
-    var input=wrap.querySelector('[data-pw-search], input[type="search"], input[name="q"]');
-    if(input&&input.getAttribute('data-pw-search-compose'))return;
-    e.preventDefault();
-    goMobileCompose((input&&'value' in input?input.value:'')||currentSearchQuery());
-  },true);
   document.addEventListener('click',function(e){
     if(pwShopLiveUiOff())return;
     if(!isMobileSearchComposeFace())return;

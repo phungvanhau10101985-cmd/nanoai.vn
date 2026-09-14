@@ -1,9 +1,7 @@
 'use client'
 
 import { Camera, Search } from 'lucide-react'
-import { useEffect, useRef, useState, type SyntheticEvent } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useEffect, useRef, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { partnerSiteImageSearchPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
@@ -12,14 +10,6 @@ import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-s
 import { storePendingImageAndNavigate } from '@/lib/partner-website/shop/partner-site-pending-image'
 import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
-
-function goComposePage(href: string, router: ReturnType<typeof useRouter>) {
-  if (typeof window !== 'undefined') {
-    window.location.assign(href)
-    return
-  }
-  router.push(href)
-}
 
 export function PartnerSiteShopSearchBar({
   siteSlug,
@@ -33,7 +23,6 @@ export function PartnerSiteShopSearchBar({
 }) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
-  const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [qHint, setQHint] = useState('')
@@ -51,19 +40,11 @@ export function PartnerSiteShopSearchBar({
     q: qHint,
   })
 
-  function openCompose(e: SyntheticEvent) {
-    const native = e.nativeEvent as MouseEvent | PointerEvent | KeyboardEvent
-    if ('button' in native && native.button !== 0) return
-    if ('ctrlKey' in native && (native.ctrlKey || native.metaKey || native.shiftKey || native.altKey)) return
-    e.preventDefault()
-    goComposePage(composeHref, router)
-  }
-
   async function goImage(file: File | undefined) {
     if (!file || busy) return
     setBusy(true)
     try {
-      await storePendingImageAndNavigate(file, router, partnerSiteImageSearchPath(siteSlug, { customDomain }))
+      await storePendingImageAndNavigate(file, partnerSiteImageSearchPath(siteSlug, { customDomain }))
     } finally {
       setBusy(false)
     }
@@ -78,24 +59,22 @@ export function PartnerSiteShopSearchBar({
         role="search"
         onSubmit={(e) => {
           e.preventDefault()
-          goComposePage(composeHref, router)
+          window.location.assign(composeHref)
         }}
       >
         <span className="pw-shop-search-default-icon" aria-hidden="true">
           <Search className="pw-search-default-glyph" strokeWidth={2} />
         </span>
-        <Link
+        <a
           href={composeHref}
           target="_top"
           className="pw-shop-search-compose"
           aria-label={t.searchComposeOpen}
-          onPointerDown={openCompose}
-          onClick={openCompose}
         >
           <span className={shown ? 'pw-shop-search-compose-q' : undefined}>
             {shown || t.searchComposePlaceholder.replace('{shop}', shopTitle || '') || t.searchPlaceholder}
           </span>
-        </Link>
+        </a>
         <button
           type="button"
           className="pw-shop-search-image"
@@ -106,17 +85,15 @@ export function PartnerSiteShopSearchBar({
         >
           <Camera className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
         </button>
-        <Link
+        <a
           href={composeHref}
           target="_top"
           className="pw-shop-search-submit"
           aria-label={t.searchComposeOpen}
-          onPointerDown={openCompose}
-          onClick={openCompose}
         >
           <Search className="pw-shop-search-submit-icon" aria-hidden="true" strokeWidth={2.4} />
           <span className="pw-shop-search-submit-label">{t.searchButton}</span>
-        </Link>
+        </a>
       </form>
       <input
         ref={fileRef}

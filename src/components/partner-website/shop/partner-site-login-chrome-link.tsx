@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
@@ -82,34 +81,35 @@ export function PartnerSiteLoginChromeLink(input: {
     }
   }, [authHeaders, input.siteSlug, isAuthenticated])
 
-  if (!isAuthenticated) {
-    return (
-      <Link href={input.loginHref} data-pw-el={PW_EL.link} data-pw-chrome-btn="login" data-pw-chrome-style="text">
-        {input.loginLabel}
-      </Link>
-    )
-  }
+  const href = isAuthenticated ? input.accountHref : input.loginHref
+  const label = isAuthenticated ? name : input.loginLabel
+  const showIdentity = isAuthenticated
 
-  const label = name
   return (
-    <Link
-      href={input.accountHref}
+    <a
+      href={href}
       data-pw-el={PW_EL.link}
       data-pw-chrome-btn="login"
       data-pw-chrome-style="text"
-      data-pw-login-identity="1"
-      data-pw-login-chrome="1"
-      aria-label={label || undefined}
-      title={label || undefined}
+      {...(showIdentity
+        ? {
+            'data-pw-login-identity': '1',
+            'data-pw-login-chrome': '1',
+            'aria-label': label || undefined,
+            title: label || undefined,
+          }
+        : {})}
     >
-      {avatarUrl ? (
-        <img className="pw-login-avatar" src={avatarUrl} alt="" referrerPolicy="no-referrer" decoding="async" />
-      ) : (
-        <span className="pw-login-avatar-fallback" aria-hidden="true">
-          {shopCustomerInitials(label)}
-        </span>
-      )}
-      {label ? <span className="pw-chrome-btn-label">{label}</span> : null}
-    </Link>
+      {showIdentity ? (
+        avatarUrl ? (
+          <img className="pw-login-avatar" src={avatarUrl} alt="" referrerPolicy="no-referrer" decoding="async" />
+        ) : (
+          <span className="pw-login-avatar-fallback" aria-hidden="true">
+            {shopCustomerInitials(label)}
+          </span>
+        )
+      ) : null}
+      <span className="pw-chrome-btn-label">{label || input.loginLabel}</span>
+    </a>
   )
 }

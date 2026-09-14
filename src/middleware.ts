@@ -3,7 +3,9 @@ import {
   APP_LOGIN_NEXT_HEADER,
   APP_LOGIN_NEXT_HEADER_LEGACY,
   PARTNER_CUSTOM_DOMAIN_HEADER,
+  PARTNER_SITE_SLUG_HEADER,
   PARTNER_VISUAL_DEVICE_HEADER,
+  partnerSiteSlugFromPathname,
 } from '@/lib/auth/app-request-headers'
 import { getJwtUserFromRequest } from '@/lib/auth/email-jwt-middleware'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY } from '@/lib/auth/email-auth-config'
@@ -78,17 +80,24 @@ function applyVisualDeviceHeader(headers: Headers, request: NextRequest) {
   headers.delete(PARTNER_VISUAL_DEVICE_HEADER)
 }
 
+function applyPartnerSiteSlugHeader(headers: Headers, pathname: string, siteSlug?: string) {
+  const slug = (siteSlug || partnerSiteSlugFromPathname(pathname)).trim()
+  if (slug) headers.set(PARTNER_SITE_SLUG_HEADER, slug)
+}
+
 function partnerCustomDomainRewrite(
   request: NextRequest,
   rewriteUrl: URL,
   host: string,
-  internalPath: string
+  internalPath: string,
+  siteSlug?: string
 ): NextResponse {
   const requestHeaders = new Headers(request.headers)
   applyVisualDeviceHeader(requestHeaders, request)
   requestHeaders.set(PARTNER_CUSTOM_DOMAIN_HEADER, host)
   requestHeaders.set(APP_LOGIN_NEXT_HEADER, internalPath)
   requestHeaders.set(APP_LOGIN_NEXT_HEADER_LEGACY, internalPath)
+  applyPartnerSiteSlugHeader(requestHeaders, internalPath, siteSlug)
   const rewriteResponse = NextResponse.rewrite(rewriteUrl, {
     request: { headers: requestHeaders },
   })
@@ -173,12 +182,18 @@ export async function middleware(request: NextRequest) {
             if (internalPath) {
               const rewriteUrl = request.nextUrl.clone()
               rewriteUrl.pathname = internalPath
-              return partnerCustomDomainRewrite(request, rewriteUrl, host, internalPath)
+              return partnerCustomDomainRewrite(request, rewriteUrl, host, internalPath, siteSlug)
             }
           } else if ((path === '/' || path === '') && data.rewriteRootPath) {
             const rewriteUrl = request.nextUrl.clone()
             rewriteUrl.pathname = data.rewriteRootPath
-            return partnerCustomDomainRewrite(request, rewriteUrl, host, data.rewriteRootPath)
+            return partnerCustomDomainRewrite(
+              request,
+              rewriteUrl,
+              host,
+              data.rewriteRootPath,
+              siteSlug
+            )
           }
         }
       }
@@ -192,6 +207,7 @@ export async function middleware(request: NextRequest) {
   applyVisualDeviceHeader(forwarded, request)
   forwarded.set(APP_LOGIN_NEXT_HEADER, pathForLogin)
   forwarded.set(APP_LOGIN_NEXT_HEADER_LEGACY, pathForLogin)
+  applyPartnerSiteSlugHeader(forwarded, request.nextUrl.pathname)
   const requestWithLoginNext = new NextRequest(request.url, { headers: forwarded })
 
   const jwtEarly = await getJwtUserFromRequest(requestWithLoginNext)

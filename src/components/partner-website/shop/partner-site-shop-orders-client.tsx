@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -317,24 +316,24 @@ export function PartnerSiteShopOrdersClient({
               </div>
 
               <div className="pw-shop-order-actions">
-                <Link
+                <a
                   href={partnerSiteOrderDetailPath(siteSlug, o.id, { customDomain })}
                   className="pw-shop-btn pw-shop-btn-outline"
                   onClick={() => stashListOrderRow(siteSlug, o)}
                 >
                   {t.depositViewOrder}
-                </Link>
+                </a>
                 <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => togglePanel(o.id, 'detail')}>
                   {open && panel === 'detail' ? t.orderHideDetail : t.orderDetail}
                 </button>
                 {showPayment && waitingPay ? (
-                  <Link
+                  <a
                     href={partnerSiteOrderDepositPath(siteSlug, o.id, { customDomain })}
                     className="pw-shop-btn"
                     onClick={() => stashListOrderRow(siteSlug, o)}
                   >
                     {t.orderPayDeposit}
-                  </Link>
+                  </a>
                 ) : null}
                 {canTrack ? (
                   <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => togglePanel(o.id, 'track')}>

@@ -1,7 +1,5 @@
 'use client'
 
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import { useEffect, useLayoutEffect, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
@@ -26,6 +24,7 @@ import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-cont
 type Props = {
   siteSlug: string
   locale: WebLocale
+  pathname?: string
   unreadNotifications?: number
   children: React.ReactNode
 }
@@ -33,15 +32,24 @@ type Props = {
 export function PartnerSiteAccountNavLayout({
   siteSlug,
   locale,
+  pathname: pathnameProp = '',
   unreadNotifications = 0,
   children,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
-  const pathname = usePathname()
   const customDomain = usePartnerSiteCustomDomain()
   const { isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const [shopAdminHref, setShopAdminHref] = useState<string | null>(null)
-  const activeId = partnerSiteAccountNavActiveId(pathname || '')
+  const [pathname, setPathname] = useState(pathnameProp)
+  const activeId = partnerSiteAccountNavActiveId(pathname || pathnameProp)
+
+  useLayoutEffect(() => {
+    if (pathnameProp) {
+      setPathname(pathnameProp)
+      return
+    }
+    setPathname(window.location.pathname)
+  }, [pathnameProp])
 
   useLayoutEffect(() => {
     const cached = readPartnerSiteAccountBrowserCache(siteSlug)
@@ -83,7 +91,7 @@ export function PartnerSiteAccountNavLayout({
   const items = getPartnerSiteAccountMenuItems({ siteSlug, locale, customDomain }).filter(
     isPartnerSiteAccountSidebarItem
   )
-  const path = normalizePartnerSitePathname(pathname || '')
+  const path = normalizePartnerSitePathname(pathname || pathnameProp || '')
   const showMobileBack = path !== '/account' && path !== '/login' && !path.startsWith('/login/')
 
   return (
@@ -93,7 +101,7 @@ export function PartnerSiteAccountNavLayout({
           {items.map((item) => {
             const active = item.id === activeId
             return (
-              <Link
+              <a
                 key={item.id}
                 href={item.href}
                 className={`pw-shop-account-nav-item${active ? ' is-active' : ''}${item.isHeader ? ' is-header' : ''}`}
@@ -108,7 +116,7 @@ export function PartnerSiteAccountNavLayout({
                     {unreadNotifications > 99 ? '99+' : unreadNotifications}
                   </span>
                 ) : null}
-              </Link>
+              </a>
             )
           })}
           {shopAdminHref ? (
@@ -133,9 +141,9 @@ export function PartnerSiteAccountNavLayout({
           </a>
         ) : null}
         {showMobileBack ? (
-          <Link href={partnerSiteAccountPath(siteSlug, { customDomain })} className="pw-shop-account-back">
+          <a href={partnerSiteAccountPath(siteSlug, { customDomain })} className="pw-shop-account-back">
             {t.accountBackToAccount}
-          </Link>
+          </a>
         ) : null}
         {children}
       </div>

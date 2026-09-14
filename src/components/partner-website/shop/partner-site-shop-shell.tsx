@@ -1,7 +1,5 @@
 'use client'
 
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import {
   Bell,
   ChevronLeft,
@@ -13,7 +11,7 @@ import {
   ShoppingBag,
   UserRound,
 } from 'lucide-react'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, memo } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
   PartnerSiteChatWidgetProvider,
@@ -178,6 +176,8 @@ export type PartnerSiteShopShellProps = {
   hideAccountNav?: boolean
   /** Trang soạn tìm kiếm mobile — ẩn header/footer/dock (188 `/tim-kiem`). */
   hideChrome?: boolean
+  /** Server pathname — account sidebar active item without `usePathname`. */
+  pathname?: string
   children: React.ReactNode
 }
 
@@ -229,22 +229,7 @@ function VisualHomeChromeRuntime({
       s.textContent = body
       document.body.appendChild(s)
     }
-    // React may paint chrome after the first bootstrap tick — refresh badge APIs + toggles.
-    const t1 = window.setTimeout(() => {
-      document.dispatchEvent(new Event('pw-cart-updated'))
-      document.dispatchEvent(new Event('pw-shop-notifications-refresh'))
-    }, 60)
-    const t2 = window.setTimeout(() => {
-      document.dispatchEvent(new Event('pw-cart-updated'))
-    }, 400)
-    const t3 = window.setTimeout(() => {
-      document.dispatchEvent(new Event('pw-cart-updated'))
-    }, 1200)
-    return () => {
-      window.clearTimeout(t1)
-      window.clearTimeout(t2)
-      window.clearTimeout(t3)
-    }
+    return undefined
   }, [locale, siteSlug])
   return null
 }
@@ -300,6 +285,26 @@ function VisualHomeDocumentStyles({ html }: { html: string }) {
   )
 }
 
+const frozenVisualChromeHtml = new Map<string, string>()
+
+function VisualChromeHtmlSlot({ html, freezeKey }: { html: string; freezeKey: string }) {
+  const frozen = useRef(html)
+  if (html && !frozenVisualChromeHtml.get(freezeKey)) frozenVisualChromeHtml.set(freezeKey, html)
+  const kept = frozenVisualChromeHtml.get(freezeKey) || html
+  if (!frozen.current && kept) frozen.current = kept
+  const markup = frozen.current || kept
+  if (!markup) return null
+  return (
+    <div
+      style={{ display: 'contents' }}
+      suppressHydrationWarning
+      dangerouslySetInnerHTML={{ __html: markup }}
+    />
+  )
+}
+
+const VisualChromeHtmlSlotMemo = memo(VisualChromeHtmlSlot)
+
 const VISUAL_HOME_DEVICE_WRAP =
   '.pw-visual-desktop, .pw-visual-laptop, .pw-visual-tablet, .pw-visual-mobile'
 
@@ -351,6 +356,7 @@ function PartnerSiteShopShellInner({
   hideChrome = false,
   initialNavRow = [],
   initialShowNavAll = false,
+  pathname: pathnameProp = '',
   children,
 }: PartnerSiteShopShellProps) {
   const t = getPartnerSiteShopCopy(locale)
@@ -359,14 +365,13 @@ function PartnerSiteShopShellInner({
   const { openChat } = usePartnerSiteChatWidget()
   const customDomain = usePartnerSiteCustomDomain()
   const paths = getPartnerSiteShopNavPaths(siteSlug, customDomain)
-  const router = useRouter()
   const handleHeadBack = useCallback(() => {
     if (typeof window !== 'undefined' && window.history.length > 1) {
-      router.back()
+      window.history.back()
       return
     }
-    router.push(paths.home)
-  }, [paths.home, router])
+    window.location.assign(paths.home)
+  }, [paths.home])
   const [loginHref, setLoginHref] = useState(paths.login)
   useEffect(() => {
     setLoginHref(
@@ -646,6 +651,20 @@ function PartnerSiteShopShellInner({
       : undefined
   )
   const useVisualChrome = hasVisualHomeChrome(visualChromeByDevice)
+  const visualBeforeHtml = useMemo(
+    () =>
+      useVisualChrome && visualChromeByDevice
+        ? visualHomeChromeHtml(visualChromeByDevice, previewDevice, 'before', siteSlug, customDomain).html
+        : '',
+    [customDomain, previewDevice, siteSlug, useVisualChrome, visualChromeByDevice]
+  )
+  const visualAfterHtml = useMemo(
+    () =>
+      useVisualChrome && visualChromeByDevice
+        ? visualHomeChromeHtml(visualChromeByDevice, previewDevice, 'after', siteSlug, customDomain).html
+        : '',
+    [customDomain, previewDevice, siteSlug, useVisualChrome, visualChromeByDevice]
+  )
   useLayoutEffect(() => {
     if (pageKind) document.documentElement.setAttribute('data-pw-page', pageKind)
     if (document.getElementById(PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID)) return
@@ -677,15 +696,7 @@ function PartnerSiteShopShellInner({
       ro?.disconnect()
       window.removeEventListener('resize', apply)
     }
-  }, [previewDevice, useVisualChrome])
-  const visualBefore =
-    useVisualChrome && visualChromeByDevice
-      ? visualHomeChromeHtml(visualChromeByDevice, previewDevice, 'before', siteSlug, customDomain)
-      : null
-  const visualAfter =
-    useVisualChrome && visualChromeByDevice
-      ? visualHomeChromeHtml(visualChromeByDevice, previewDevice, 'after', siteSlug, customDomain)
-      : null
+  }, [previewDevice, useVisualChrome, visualBeforeHtml])
   return (
     <div className="pw-shop" data-pw-look={shopLook} {...(pageKind ? { 'data-pw-page': pageKind } : {})}>
       <PartnerSiteShopTrackingBootstrap tracking={tracking} />
@@ -720,8 +731,8 @@ function PartnerSiteShopShellInner({
             id="pw-visual-home-chrome-split"
             dangerouslySetInnerHTML={{ __html: VISUAL_HOME_CHROME_SPLIT_CSS }}
           />
-          {visualBefore?.html ? (
-            <div style={{ display: 'contents' }} dangerouslySetInnerHTML={{ __html: visualBefore.html }} />
+          {visualBeforeHtml ? (
+            <VisualChromeHtmlSlotMemo html={visualBeforeHtml} freezeKey={`${siteSlug}:before`} />
           ) : null}
         </>
       ) : (
@@ -739,9 +750,9 @@ function PartnerSiteShopShellInner({
               {slogan}
             </span>
           ) : null}
-          <Link href={partnerSiteAccountTabPath(siteSlug, 'contact', { customDomain })} data-pw-el={PW_EL.link}>{n.contact}</Link>
-          <Link href={partnerSiteAccountTabPath(siteSlug, 'wishlist', { customDomain })} data-pw-el={PW_EL.link}>{t.navFavorites}</Link>
-          <Link href={partnerSiteAccountTabPath(siteSlug, 'orders', { customDomain })} data-pw-el={PW_EL.link}>{t.navOrders}</Link>
+          <a href={partnerSiteAccountTabPath(siteSlug, 'contact', { customDomain })} data-pw-el={PW_EL.link}>{n.contact}</a>
+          <a href={partnerSiteAccountTabPath(siteSlug, 'wishlist', { customDomain })} data-pw-el={PW_EL.link}>{t.navFavorites}</a>
+          <a href={partnerSiteAccountTabPath(siteSlug, 'orders', { customDomain })} data-pw-el={PW_EL.link}>{t.navOrders}</a>
           <PartnerSiteLoginChromeLink
             siteSlug={siteSlug}
             loginHref={loginHref}
@@ -845,36 +856,36 @@ function PartnerSiteShopShellInner({
                   )
                 ) : (
                   <>
-                    <Link href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
+                    <a href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
                       {n.newArrivals}
-                    </Link>
-                    <Link href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
+                    </a>
+                    <a href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
                       {n.clothing}
-                    </Link>
-                    <Link href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
+                    </a>
+                    <a href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
                       {n.bags}
-                    </Link>
-                    <Link href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
+                    </a>
+                    <a href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
                       {n.shoes}
-                    </Link>
-                    <Link href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
+                    </a>
+                    <a href={paths.products} data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
                       {n.accessories}
-                    </Link>
-                    <Link href={paths.sale} className="is-sale" data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
+                    </a>
+                    <a href={paths.sale} className="is-sale" data-pw-el={PW_EL.navLink} onClick={() => setCategoriesOpen(false)}>
                       {n.sale}
-                    </Link>
+                    </a>
                   </>
                 )}
               </nav>
             ) : null}
             </div>
             {logoUrl ? (
-              <Link href={paths.home} className="pw-shop-brand">
+              <a href={paths.home} className="pw-shop-brand">
                 <img className="pw-shop-logo" data-pw-el={PW_EL.logo} src={logoUrl} alt={title} />
                 <span className="pw-wordmark" data-pw-el={PW_EL.wordmark}>{title}</span>
-              </Link>
+              </a>
             ) : (
-              <Link href={paths.home} className="pw-shop-brand">
+              <a href={paths.home} className="pw-shop-brand">
                 <img
                   className="pw-shop-logo"
                   data-pw-el={PW_EL.logo}
@@ -883,7 +894,7 @@ function PartnerSiteShopShellInner({
                   alt=""
                 />
                 <span className="pw-wordmark" data-pw-el={PW_EL.wordmark}>{title}</span>
-              </Link>
+              </a>
             )}
           </div>
 
@@ -895,7 +906,7 @@ function PartnerSiteShopShellInner({
           />
 
           <div className="pw-shop-header-actions">
-            <Link
+            <a
               href={paths.account}
               className="pw-shop-icon-btn"
               data-pw-el={PW_EL.account}
@@ -905,8 +916,8 @@ function PartnerSiteShopShellInner({
             >
               <UserRound className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
               <span className="pw-shop-icon-label">{t.navAccount}</span>
-            </Link>
-            <Link
+            </a>
+            <a
               href={partnerSiteAccountTabPath(siteSlug, 'notifications', { customDomain })}
               className="pw-shop-icon-btn"
               aria-label={t.accountNotifications}
@@ -916,11 +927,11 @@ function PartnerSiteShopShellInner({
               {unreadNotifications > 0 ? (
                 <span className="pw-shop-cart-badge">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>
               ) : null}
-            </Link>
-            <Link href={partnerSiteAccountTabPath(siteSlug, 'wishlist', { customDomain })} className="pw-shop-icon-btn" aria-label={t.navFavorites}>
+            </a>
+            <a href={partnerSiteAccountTabPath(siteSlug, 'wishlist', { customDomain })} className="pw-shop-icon-btn" aria-label={t.navFavorites}>
               <Heart className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
               <span className="pw-shop-icon-label">{t.navFavorites}</span>
-            </Link>
+            </a>
             <button
               type="button"
               className="pw-shop-icon-btn pw-chat-open pw-chrome-icon-only"
@@ -947,13 +958,13 @@ function PartnerSiteShopShellInner({
               </span>
               <span className="pw-shop-icon-label">{t.navChat}</span>
             </button>
-            <Link href={partnerSiteAccountTabPath(siteSlug, 'cart', { customDomain })} className="pw-shop-icon-btn" data-pw-el={PW_EL.cart} aria-label={t.navCart}>
+            <a href={partnerSiteAccountTabPath(siteSlug, 'cart', { customDomain })} className="pw-shop-icon-btn" data-pw-el={PW_EL.cart} aria-label={t.navCart}>
               <ShoppingBag className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
               <span className="pw-shop-icon-label">{t.navCart}</span>
               {cartCount > 0 ? (
                 <span className="pw-shop-cart-badge">{cartCount > 99 ? '99+' : cartCount}</span>
               ) : null}
-            </Link>
+            </a>
           </div>
         </div>
         <PartnerSiteCategorySeoRow
@@ -1005,6 +1016,7 @@ function PartnerSiteShopShellInner({
           <PartnerSiteAccountNavLayout
             siteSlug={siteSlug}
             locale={locale}
+            pathname={pathnameProp}
             unreadNotifications={unreadNotifications}
           >
             {children}
@@ -1015,8 +1027,8 @@ function PartnerSiteShopShellInner({
       </main>
 
       {useVisualChrome ? (
-        visualAfter?.html ? (
-          <div style={{ display: 'contents' }} dangerouslySetInnerHTML={{ __html: visualAfter.html }} />
+        visualAfterHtml ? (
+          <VisualChromeHtmlSlotMemo html={visualAfterHtml} freezeKey={`${siteSlug}:after`} />
         ) : null
       ) : (
       <>
@@ -1024,10 +1036,10 @@ function PartnerSiteShopShellInner({
         <div className="pw-shop-footer-inner">
           <div className="pw-shop-footer-brand" data-pw-footer-kit="brand">
             {logoUrl ? (
-              <Link href={paths.home}>
+              <a href={paths.home}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img className="pw-shop-footer-logo" data-pw-el={PW_EL.logo} src={logoUrl} alt={title} />
-              </Link>
+              </a>
             ) : null}
             <p className="pw-shop-footer-name">{title}</p>
             <p className="pw-shop-footer-hint" data-pw-el={PW_EL.slogan} data-pw-slogan="1">
@@ -1051,13 +1063,13 @@ function PartnerSiteShopShellInner({
                 <ul>
                   {items.map((item) => (
                     <li key={item.id}>
-                      <Link
+                      <a
                         href={resolvePartnerSiteNavHref(item.hrefKey, paths, infoPath)}
                         data-pw-el={PW_EL.link}
                         data-pw-footer-kit={footerLinkKitKind(item.hrefKey)}
                       >
                         {footerLabel(item.hrefKey, item.labelOverride)}
-                      </Link>
+                      </a>
                     </li>
                   ))}
                 </ul>
@@ -1086,25 +1098,25 @@ function PartnerSiteShopShellInner({
       </footer>
 
       <nav className="pw-shop-bottom-nav" data-pw-region={PW_REGION.nav} aria-label="Mobile">
-          <Link href={paths.home} className={activeNav === 'home' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink} data-pw-chrome-btn="home" aria-current={activeNav === 'home' ? 'page' : undefined}>
+          <a href={paths.home} className={activeNav === 'home' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink} data-pw-chrome-btn="home" aria-current={activeNav === 'home' ? 'page' : undefined}>
           <Home className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
           <span>{t.navHome}</span>
-        </Link>
-        <Link href={paths.products} className={activeNav === 'products' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink} data-pw-chrome-btn="products" aria-current={activeNav === 'products' ? 'page' : undefined}>
+        </a>
+        <a href={paths.products} className={activeNav === 'products' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink} data-pw-chrome-btn="products" aria-current={activeNav === 'products' ? 'page' : undefined}>
           <Package className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
           <span>{t.navProducts}</span>
-        </Link>
-        <Link href={partnerSiteAccountTabPath(siteSlug, 'cart', { customDomain })} className={activeNav === 'cart' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink} data-pw-chrome-btn="cart" aria-current={activeNav === 'cart' ? 'page' : undefined}>
+        </a>
+        <a href={partnerSiteAccountTabPath(siteSlug, 'cart', { customDomain })} className={activeNav === 'cart' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink} data-pw-chrome-btn="cart" aria-current={activeNav === 'cart' ? 'page' : undefined}>
           <ShoppingBag className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
           <span>{t.navCart}</span>
           {cartCount > 0 ? (
             <span className="pw-shop-cart-badge">{cartCount > 99 ? '99+' : cartCount}</span>
           ) : null}
-        </Link>
-        <Link href={paths.account} className={activeNav === 'account' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink} data-pw-chrome-btn="account" aria-current={activeNav === 'account' ? 'page' : undefined}>
+        </a>
+        <a href={paths.account} className={activeNav === 'account' ? 'is-active' : undefined} data-pw-el={PW_EL.navLink} data-pw-chrome-btn="account" aria-current={activeNav === 'account' ? 'page' : undefined}>
           <UserRound className="pw-shop-nav-icon" aria-hidden="true" strokeWidth={2.25} />
           <span>{t.navAccount}</span>
-        </Link>
+        </a>
       </nav>
       </>
       )}

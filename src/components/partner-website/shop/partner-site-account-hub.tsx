@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { PartnerSiteAccountSessionActions } from '@/components/partner-website/shop/partner-site-account-session-actions'
@@ -143,9 +142,9 @@ export function PartnerSiteAccountHub({
             {name}
           </h1>
           {phone ? <p className="pw-shop-account-hub-phone">{phone}</p> : null}
-          <Link href={editHref} className="pw-shop-account-hub-edit">
+          <a href={editHref} className="pw-shop-account-hub-edit">
             {t.accountEditPersonal}
-          </Link>
+          </a>
         </div>
 
         <div className="pw-shop-account-hub-orders">
@@ -154,10 +153,10 @@ export function PartnerSiteAccountHub({
             {PARTNER_SITE_ACCOUNT_HUB_ORDER_FILTER_KEYS.map((key) => {
               const href = key === 'all' ? ordersHref : `${ordersHref}?tab=${encodeURIComponent(key)}`
               return (
-                <Link key={key} href={href} className="pw-shop-account-hub-order-chip">
+                <a key={key} href={href} className="pw-shop-account-hub-order-chip">
                   <span>{filterLabel(key, t)}</span>
                   <span className="pw-shop-account-hub-order-count">{counts[key]}</span>
-                </Link>
+                </a>
               )
             })}
           </div>
@@ -166,7 +165,7 @@ export function PartnerSiteAccountHub({
         <div className="pw-shop-account-hub-list">
           {hubItems.flatMap((item) => {
             const row = (
-              <Link key={item.id} href={item.href} className="pw-shop-account-hub-row" data-pw-el={PW_EL.menuItem}>
+              <a key={item.id} href={item.href} className="pw-shop-account-hub-row" data-pw-el={PW_EL.menuItem}>
                 <span>
                   {item.emoji} {item.label}
                 </span>
@@ -181,7 +180,7 @@ export function PartnerSiteAccountHub({
                     ›
                   </span>
                 )}
-              </Link>
+              </a>
             )
             if (item.id === 'addresses' && shopAdminHref) {
               return [
@@ -214,9 +213,9 @@ export function PartnerSiteAccountHub({
       <div className="pw-shop-account-hub-desktop">
         <div className="pw-shop-account-summary-head">
           <h2 data-pw-el={PW_EL.heading}>{t.accountInfoTitle}</h2>
-          <Link href={editHref} className="pw-shop-btn">
+          <a href={editHref} className="pw-shop-btn">
             {t.accountEditProfile}
-          </Link>
+          </a>
         </div>
         <dl className="pw-shop-account-dl">
           <div>
@@ -233,9 +232,9 @@ export function PartnerSiteAccountHub({
           </div>
         </dl>
         <div className="pw-shop-account-summary-links">
-          <Link href={partnerSiteAddressesPath(siteSlug, { customDomain })} className="pw-shop-account-addresses-link">
+          <a href={partnerSiteAddressesPath(siteSlug, { customDomain })} className="pw-shop-account-addresses-link">
             {t.accountManageAddresses}
-          </Link>
+          </a>
           {shopAdminHref ? (
             <div>
               <a href={shopAdminHref} className="pw-shop-btn pw-shop-btn-outline" rel="noopener noreferrer">

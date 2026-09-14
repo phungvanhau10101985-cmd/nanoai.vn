@@ -6,7 +6,7 @@ import { inferLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-l
 import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { reactAccountShellNavFromPathname } from '@/lib/partner-website/shop/partner-site-account-nav'
-import { PARTNER_SITE_ACCOUNT_NATIVE_NAV_SCRIPT } from '@/lib/partner-website/shop/partner-site-account-native-navigation'
+import { buildPartnerSiteNativeNavigationScript } from '@/lib/partner-website/shop/partner-site-account-native-navigation'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 
 export const dynamic = 'force-dynamic'
@@ -37,7 +37,7 @@ export default async function PartnerSiteAccountChromeLayout({
     <>
       <script
         id="pw-account-native-navigation"
-        dangerouslySetInnerHTML={{ __html: PARTNER_SITE_ACCOUNT_NATIVE_NAV_SCRIPT }}
+        dangerouslySetInnerHTML={{ __html: buildPartnerSiteNativeNavigationScript(site.siteSlug) }}
       />
       <PartnerSiteShopShell
         siteSlug={site.siteSlug}
@@ -53,6 +53,7 @@ export default async function PartnerSiteAccountChromeLayout({
         pageKind={nav.pageKind}
         activeNav={nav.activeNav}
         hideAccountNav={nav.hideAccountNav}
+        pathname={requestPath}
         {...(await liveVisualHomeChromeShellProps(site, device))}
       >
         {children}

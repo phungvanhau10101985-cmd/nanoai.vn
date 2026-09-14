@@ -65,14 +65,36 @@ test('account chrome resolves navigation on the server without a usePathname cli
   assert.doesNotMatch(source, /usePathname/)
   assert.match(source, /reactAccountShellNavFromPathname/)
   assert.match(source, /<PartnerSiteShopShell/)
-  assert.match(source, /PARTNER_SITE_ACCOUNT_NATIVE_NAV_SCRIPT/)
+  assert.match(source, /buildPartnerSiteNativeNavigationScript/)
   const nativeNavigation = await readFile(
     new URL('./partner-site-account-native-navigation.ts', import.meta.url),
     'utf8'
   )
   assert.match(nativeNavigation, /window\.addEventListener\('click'/)
+  assert.match(nativeNavigation, /window\.addEventListener\('pointerup'/)
+  assert.match(nativeNavigation, /window\.addEventListener\('pointerdown',onPointerDown/)
+  assert.match(nativeNavigation, /function liveLink\(/)
+  assert.match(nativeNavigation, /elementFromPoint/)
+  assert.doesNotMatch(nativeNavigation, /function onPointerDown\(event\)\{[\s\S]*location\.assign/)
   assert.doesNotMatch(nativeNavigation, /document\.addEventListener\('click'/)
   assert.match(nativeNavigation, /window\.location\.assign\(href\)/)
+  assert.doesNotMatch(nativeNavigation, /if\(event\.defaultPrevented/)
+  assert.match(nativeNavigation, /stopImmediatePropagation/)
+  assert.doesNotMatch(nativeNavigation, /__pwNativeNavGoing/)
+})
+
+test('root layout injects parser-blocking native navigation for custom-domain shops', async () => {
+  const source = await readFile(new URL('../../../app/layout.tsx', import.meta.url), 'utf8')
+  assert.match(source, /PARTNER_SITE_NATIVE_NAV_SCRIPT_ID/)
+  assert.match(source, /buildPartnerSiteNativeNavigationScript/)
+  assert.doesNotMatch(source, /strategy="beforeInteractive"/)
+})
+
+test('shop layout binds native navigation in head before React hydrates', async () => {
+  const source = await readFile(new URL('../../../app/site/[slug]/layout.tsx', import.meta.url), 'utf8')
+  assert.match(source, /PARTNER_SITE_NATIVE_NAV_SCRIPT_ID/)
+  assert.match(source, /buildPartnerSiteNativeNavigationScript/)
+  assert.match(source, /<head>/)
 })
 
 test('deposit and order pages fetch without waiting for session ready', async () => {

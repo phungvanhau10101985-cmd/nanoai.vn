@@ -627,16 +627,10 @@ function pinChromeIconBadges(){
     var wrap=el.querySelector(':scope > .pw-chrome-icon-wrap');
     if(!wrap){
       var svg=el.querySelector(':scope > svg')||el.querySelector('svg');
-      if(!svg)continue;
-      var existing=svg.closest('.pw-chrome-icon-wrap');
+      var existing=svg&&svg.closest?svg.closest('.pw-chrome-icon-wrap'):null;
       if(existing&&el.contains(existing))wrap=existing;
-      else{
-        wrap=document.createElement('span');
-        wrap.className='pw-chrome-icon-wrap';
-        if(svg.parentNode)svg.parentNode.insertBefore(wrap,svg);
-        wrap.appendChild(svg);
-      }
     }
+    if(!wrap)continue;
     if(badge.parentNode!==wrap)wrap.appendChild(badge);
   }
 }

@@ -13,17 +13,11 @@ export function pinChromeIconBadges(root: ParentNode): number {
     let wrap = el.querySelector(':scope > .pw-chrome-icon-wrap')
     if (!wrap) {
       const svg = el.querySelector(':scope > svg') || el.querySelector('svg')
-      if (!svg) return
-      const existing = svg.closest('.pw-chrome-icon-wrap')
-      if (existing && el.contains(existing)) {
-        wrap = existing
-      } else {
-        wrap = (el.ownerDocument || document).createElement('span')
-        wrap.className = 'pw-chrome-icon-wrap'
-        svg.parentNode?.insertBefore(wrap, svg)
-        wrap.appendChild(svg)
-      }
+      const existing = svg?.closest('.pw-chrome-icon-wrap')
+      if (existing && el.contains(existing)) wrap = existing
     }
+    // Live: never wrap/move SVG after paint — that cancels the first click on Giỏ hàng.
+    if (!wrap) return
     if (badge.parentElement !== wrap) {
       wrap.appendChild(badge)
       moved += 1
@@ -46,16 +40,10 @@ export const PARTNER_SHOP_CHROME_BADGE_PIN_SCRIPT = `(function(){
       var wrap=el.querySelector(':scope > .pw-chrome-icon-wrap');
       if(!wrap){
         var svg=el.querySelector(':scope > svg')||el.querySelector('svg');
-        if(!svg)continue;
-        var existing=svg.closest('.pw-chrome-icon-wrap');
+        var existing=svg&&svg.closest?svg.closest('.pw-chrome-icon-wrap'):null;
         if(existing&&el.contains(existing))wrap=existing;
-        else{
-          wrap=document.createElement('span');
-          wrap.className='pw-chrome-icon-wrap';
-          if(svg.parentNode)svg.parentNode.insertBefore(wrap,svg);
-          wrap.appendChild(svg);
-        }
       }
+      if(!wrap)continue;
       if(badge.parentNode!==wrap)wrap.appendChild(badge);
     }
   }

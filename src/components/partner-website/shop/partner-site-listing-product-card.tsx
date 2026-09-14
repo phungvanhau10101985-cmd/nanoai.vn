@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import type { WebLocale } from '@/lib/i18n/config'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
@@ -149,7 +148,7 @@ export function PartnerSiteListingProductCard({
       data-inventory-id={id || undefined}
       data-pw-actions-ready="1"
     >
-      <Link className="pw-product-card-hit" href={dest} aria-label={name || dest} tabIndex={-1} />
+      <a className="pw-product-card-hit" href={dest} aria-label={name || dest} tabIndex={-1} />
       <div className="pw-product-card-media" data-pw-el={PW_EL.cardMedia}>
         {img ? <img src={img} alt="" loading="lazy" decoding="async" /> : null}
         <PartnerSiteSaleMediaMarks product={product as SaleCardProduct} locale={locale} />

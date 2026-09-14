@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { usePathname } from 'next/navigation'
 import { isLikelyBotTraffic } from '@/lib/analytics-bot-filter'
 import { ensureFbqPixelInitialized } from '@/app/messaging/p/[slug]/meta-pixel-session'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
@@ -110,7 +109,6 @@ function useTrackingConsentGranted(siteSlug: string | null | undefined): boolean
 }
 
 export function PartnerSiteShopTrackingBootstrap({ tracking }: Props) {
-  const pathname = usePathname()
   const consentGranted = useTrackingConsentGranted(tracking.siteSlug)
 
   useEffect(() => {
@@ -152,13 +150,8 @@ export function PartnerSiteShopTrackingBootstrap({ tracking }: Props) {
     if (/^GTM-[A-Z0-9]+$/.test(gtm)) {
       ensureGtmLoaded(gtm)
     }
-  }, [tracking, consentGranted])
-
-  useEffect(() => {
-    if (isLikelyBotTraffic()) return
-    if (!consentGranted) return
     trackPartnerSitePageView(tracking)
-  }, [pathname, tracking, consentGranted])
+  }, [tracking, consentGranted])
 
   return null
 }
