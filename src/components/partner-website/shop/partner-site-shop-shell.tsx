@@ -136,6 +136,11 @@ import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-s
 import { PW_EL, PW_PAGE, PW_REGION, type PwPageKind } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { partnerShopSloganFromTheme } from '@/lib/partner-website/shop/partner-site-shop-slogan'
 import { rewritePartnerSiteCustomDomainHtmlPaths } from '@/lib/partner-website/shop/rewrite-partner-site-custom-domain-html'
+import {
+  PARTNER_LIVE_HOIST_HOST_SEL,
+  dedupePartnerShopLiveHeaders,
+  stripPartnerLiveHoistHosts,
+} from '@/lib/partner-website/shop/strip-partner-live-hoist-hosts'
 import { PartnerSiteAccountNavLayout } from '@/components/partner-website/shop/partner-site-account-nav-layout'
 import { PartnerSiteSaleCalendarBanner } from '@/components/partner-website/shop/partner-site-sale-calendar-banner'
 import { PartnerSiteContactChannelsFab } from '@/components/partner-website/shop/partner-site-contact-channels-fab'
@@ -205,6 +210,32 @@ function VisualHomeChromeRuntime({
   locale: WebLocale
 }) {
   useLayoutEffect(() => {
+    const win = window as Window & { __pwReactShopChrome?: number }
+    win.__pwReactShopChrome = 1
+    stripPartnerLiveHoistHosts()
+    dedupePartnerShopLiveHeaders()
+    const sweepHoistedHeads = () => {
+      if (document.querySelector(PARTNER_LIVE_HOIST_HOST_SEL)) stripPartnerLiveHoistHosts()
+      dedupePartnerShopLiveHeaders()
+    }
+    const mo =
+      typeof MutationObserver !== 'undefined'
+        ? new MutationObserver((records) => {
+            for (const rec of records) {
+              for (const node of rec.addedNodes) {
+                if (!(node instanceof Element)) continue
+                if (
+                  node.matches?.(PARTNER_LIVE_HOIST_HOST_SEL) ||
+                  node.querySelector?.(PARTNER_LIVE_HOIST_HOST_SEL)
+                ) {
+                  sweepHoistedHeads()
+                  return
+                }
+              }
+            }
+          })
+        : null
+    mo?.observe(document.body, { childList: true })
     mountHtmlBootstraps(
       `pw-visual-home-chrome-runtime-${siteSlug}`,
       [
@@ -229,7 +260,10 @@ function VisualHomeChromeRuntime({
       s.textContent = body
       document.body.appendChild(s)
     }
-    return undefined
+    return () => {
+      mo?.disconnect()
+      win.__pwReactShopChrome = 0
+    }
   }, [locale, siteSlug])
   return null
 }
@@ -732,7 +766,10 @@ function PartnerSiteShopShellInner({
             dangerouslySetInnerHTML={{ __html: VISUAL_HOME_CHROME_SPLIT_CSS }}
           />
           {visualBeforeHtml ? (
-            <VisualChromeHtmlSlotMemo html={visualBeforeHtml} freezeKey={`${siteSlug}:before`} />
+            <VisualChromeHtmlSlotMemo
+              html={visualBeforeHtml}
+              freezeKey={`${siteSlug}:${previewDevice || 'auto'}:before`}
+            />
           ) : null}
         </>
       ) : (
@@ -1028,7 +1065,10 @@ function PartnerSiteShopShellInner({
 
       {useVisualChrome ? (
         visualAfterHtml ? (
-          <VisualChromeHtmlSlotMemo html={visualAfterHtml} freezeKey={`${siteSlug}:after`} />
+          <VisualChromeHtmlSlotMemo
+            html={visualAfterHtml}
+            freezeKey={`${siteSlug}:${previewDevice || 'auto'}:after`}
+          />
         ) : null
       ) : (
       <>

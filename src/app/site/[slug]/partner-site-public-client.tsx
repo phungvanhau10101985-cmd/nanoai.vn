@@ -41,10 +41,8 @@ import {
   PARTNER_SHOP_LISTING_HEAD_SCRIPT,
   PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID,
 } from '@/lib/partner-website/shop/listing-head'
-import {
-  PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT,
-  PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT_ID,
-} from '@/lib/partner-website/shop/arm-inline-visual-runtime'
+import { PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT, PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT_ID } from '@/lib/partner-website/shop/arm-inline-visual-runtime'
+import { stripPartnerLiveHoistHosts } from '@/lib/partner-website/shop/strip-partner-live-hoist-hosts'
 
 function hideChatLaunchersInHtml(html: string, hide: boolean): string {
   if (!hide || !html.trim() || html.includes('data-pw-hide-chat-launcher')) return html
@@ -116,12 +114,17 @@ function PartnerSiteInlineVisualScripts({ revision }: { revision: string }) {
       next.setAttribute('data-pw-script-armed', '1')
       old.replaceWith(next)
     })
-    window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
+      if (!document.querySelector('[data-pw-inline-visual-root]')) return
       document.dispatchEvent(new Event('pw-cart-updated'))
       document.dispatchEvent(new Event('pw-shop-notifications-refresh'))
       const apply = (window as Window & { __pwSceneCenterApply?: () => void }).__pwSceneCenterApply
       if (typeof apply === 'function') apply()
     }, 80)
+    return () => {
+      window.clearTimeout(timer)
+      stripPartnerLiveHoistHosts()
+    }
   }, [revision])
   return null
 }
@@ -450,6 +453,7 @@ function PartnerSitePublicFrame({
       for (const [name, value] of applied) {
         if (root.getAttribute(name) === value) root.removeAttribute(name)
       }
+      stripPartnerLiveHoistHosts()
     }
   }, [activeDevice, inlineHtml, previewHtml, visualDocumentCodes])
   /** Live custom domain: never srcDoc-iframe (except `?pw-device=` preview frames). */

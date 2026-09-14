@@ -33,6 +33,7 @@ export const PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT = String.raw`
     });
     if(!armed)return true;
     window.setTimeout(function(){
+      if(!document.querySelector('[data-pw-inline-visual-root]'))return;
       document.dispatchEvent(new Event('pw-cart-updated'));
       document.dispatchEvent(new Event('pw-shop-notifications-refresh'));
       if(typeof window.__pwSceneCenterApply==='function')window.__pwSceneCenterApply();

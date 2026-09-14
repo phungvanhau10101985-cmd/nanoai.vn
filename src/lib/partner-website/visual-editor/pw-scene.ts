@@ -836,6 +836,9 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
   function liveRoot(){
     return document.querySelector('[data-pw-inline-visual-root]');
   }
+  function isReactShopShell(){
+    return !!(document.querySelector('.pw-shop')&&!liveRoot());
+  }
   function zoomScale(scenePx,key){
     var root=liveRoot();
     if(!root)return 1;
@@ -1052,6 +1055,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
   }
   function hoistLiveChrome(root,scale){
     if(!root||isEditor())return;
+    if(window.__pwReactShopChrome||isReactShopShell())return;
     var header=findLiveHeader(root);
     var host=root.parentNode||document.body;
     if(!host)return;
@@ -1485,10 +1489,19 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
         }
       }
     } else if(!isEditor()&&document.body){
-      ensureContentSceneRoot(document.body);
-      pinPdpDockFaceLive();
-      reflowInFlowStackHosts(sceneCanvasOf(document.body));
-      bindSceneAbsolute(document.body);
+      if(!liveRoot()){
+        var leftoverChrome=document.querySelectorAll('[data-pw-live-chrome]');
+        var lc;
+        for(lc=0;lc<leftoverChrome.length;lc++){
+          try{leftoverChrome[lc].remove()}catch(eLc){}
+        }
+      }
+      if(!(window.__pwReactShopChrome||isReactShopShell())){
+        ensureContentSceneRoot(document.body);
+        pinPdpDockFaceLive();
+        reflowInFlowStackHosts(sceneCanvasOf(document.body));
+        bindSceneAbsolute(document.body);
+      }
     }
     if(root&&root.style){
       var h=root.offsetHeight||0;

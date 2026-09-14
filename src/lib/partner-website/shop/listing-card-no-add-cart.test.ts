@@ -56,7 +56,8 @@ test('shop-actions keeps listing overlay as heart icon, not Thích text', () => 
   assert.match(js, /function ensureListingFavFace/)
   assert.match(js, /if\(isListingFavBtn\(btn\)\)/)
   assert.match(js, /btn\.innerHTML=listingHeartSvg\(\)/)
-  assert.match(js, /closest\('\[data-pw-favorite\],\[data-pw-chrome-btn="favorite-product"\],\.pw-rec-fav'\)/)
+  assert.match(js, /data-pw-react-fav/)
+  assert.match(js, /closest\('\[data-pw-favorite\],\[data-pw-chrome-btn="favorite-product"\]'\)/)
   assert.match(js, /stopImmediatePropagation/)
 })
 
@@ -106,6 +107,7 @@ test('React listing card has heart + stats and no Chi tiết button', () => {
   const src = readFileSync(join(here, '../../../components/partner-website/shop/partner-site-listing-product-card.tsx'), 'utf8')
   assert.match(src, /PartnerSiteListingProductCard/)
   assert.match(src, /pw-rec-fav/)
+  assert.match(src, /data-pw-react-fav/)
   assert.match(src, /pw-rec-stats/)
   assert.match(src, /pw-product-card-hit/)
   assert.match(src, /pdpPurchasesLabel/)

@@ -33,6 +33,7 @@ const JS_ONLY_CHROME_SEL = [
   '[data-pw-pdp-add-cart]',
   '[data-pw-buy]',
   '[data-pw-favorite]',
+  '[data-pw-react-fav]',
   '.pw-rec-fav',
   '[data-pw-head-back]',
   '[data-pw-chrome-btn="back"]',

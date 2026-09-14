@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerSitePersonalizationProduct } from '@/lib/partner-website/shop/partner-site-personalization'
@@ -35,13 +35,14 @@ export function PartnerSiteShopSavedProductsClient({
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
-  const { isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const [products, setProducts] = useState<PartnerSitePersonalizationProduct[]>(
     () => initialProducts ?? []
   )
   const [loading, setLoading] = useState(initialProducts == null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [message, setMessage] = useState('')
+  const prevAuthRef = useRef<boolean | null>(null)
 
   const isViewed = mode === 'recently-viewed'
   const title = isViewed ? t.accountViewedProducts : t.wishlistTitle
@@ -50,16 +51,28 @@ export function PartnerSiteShopSavedProductsClient({
   const homeHref = partnerSiteHomePath(siteSlug, { customDomain })
 
   const load = useCallback(async () => {
+    if (!ready) return
     const res = await fetch(partnerSitePersonalizationApiPath(siteSlug, apiTail), {
       credentials: 'same-origin',
       headers: authHeaders(),
     })
     captureFromResponse(res)
+    if (!res.ok) return
     const json = (await res.json().catch(() => ({}))) as { products?: PartnerSitePersonalizationProduct[] }
-    setProducts(Array.isArray(json.products) ? json.products : [])
-  }, [apiTail, authHeaders, captureFromResponse, siteSlug])
+    if (!Array.isArray(json.products)) return
+    const next = json.products
+    setProducts((prev) => {
+      // Guest/session GET often returns [] and must not wipe SSR or a local unlike.
+      if (next.length === 0 && prev.length > 0) return prev
+      return next
+    })
+  }, [apiTail, authHeaders, captureFromResponse, ready, siteSlug])
 
   useEffect(() => {
+    if (!ready) return
+    prevAuthRef.current = isAuthenticated
+    // SSR already painted cookies. Refetching on auth flip races unlike and empties the grid.
+    if ((initialProducts?.length ?? 0) > 0) return
     let cancelled = false
     if (initialProducts == null) setLoading(true)
     void load().finally(() => {
@@ -68,7 +81,7 @@ export function PartnerSiteShopSavedProductsClient({
     return () => {
       cancelled = true
     }
-  }, [initialProducts, isAuthenticated, load])
+  }, [initialProducts, isAuthenticated, load, ready])
 
   useEffect(() => {
     if (!isViewed) return

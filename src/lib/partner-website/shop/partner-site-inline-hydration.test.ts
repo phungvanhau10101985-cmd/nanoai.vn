@@ -191,8 +191,33 @@ test('React chrome runtime binds click handlers in layout effect', async () => {
   )
   assert.match(
     source,
-    /function VisualHomeChromeRuntime[\s\S]*useLayoutEffect\(\(\) => \{\s*mountHtmlBootstraps/
+    /function VisualHomeChromeRuntime[\s\S]*useLayoutEffect\(\(\) => \{[\s\S]*stripPartnerLiveHoistHosts\(\)[\s\S]*mountHtmlBootstraps/
   )
+  assert.match(source, /stripPartnerLiveHoistHosts/)
+  assert.match(source, /__pwReactShopChrome/)
+  assert.match(source, /dedupePartnerShopLiveHeaders/)
+})
+
+test('wishlist keeps SSR favorites until session identity is ready', async () => {
+  const source = await readFile(
+    new URL('../../../components/partner-website/shop/partner-site-shop-saved-products-client.tsx', import.meta.url),
+    'utf8'
+  )
+  assert.match(source, /if \(!ready\) return/)
+  assert.match(source, /if \(!res\.ok\) return/)
+  assert.match(source, /prevAuthRef/)
+  assert.match(source, /next\.length === 0 && prev\.length > 0/)
+  assert.match(source, /\(initialProducts\?\.length \?\? 0\) > 0\) return/)
+  assert.doesNotMatch(source, /setProducts\(Array\.isArray\(json\.products\) \? json\.products : \[\]\)/)
+})
+
+test('visual HTML unmounts leftover hoisted heads so React account pages do not get two headers', async () => {
+  const source = await readFile(
+    new URL('../../../app/site/[slug]/partner-site-public-client.tsx', import.meta.url),
+    'utf8'
+  )
+  assert.match(source, /stripPartnerLiveHoistHosts/)
+  assert.match(source, /clearTimeout\(timer\)/)
 })
 
 test('custom-domain Google login has a native href before hydration', async () => {

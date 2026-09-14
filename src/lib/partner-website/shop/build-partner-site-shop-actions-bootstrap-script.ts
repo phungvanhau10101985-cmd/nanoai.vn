@@ -498,6 +498,7 @@ function listingHeartSvg(){
   return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>';
 }
 function ensureListingFavFace(btn,on){
+  if(btn.getAttribute&&btn.getAttribute('data-pw-react-fav')==='1')return;
   btn.classList.add('pw-rec-fav');
   if(btn.getAttribute('data-pw-chrome-btn')==='favorite-product')btn.removeAttribute('data-pw-chrome-btn');
   btn.setAttribute('aria-label',on?COPY.favoriteRemove:COPY.favoriteAdd);
@@ -629,8 +630,14 @@ if(document.documentElement.getAttribute('data-pw-shop-actions-bound')!=='1'){
       }).finally(function(){buyBtn.disabled=false;});
       return;
     }
-    var favBtn=t.closest('[data-pw-favorite],[data-pw-chrome-btn="favorite-product"],.pw-rec-fav');
+    var favBtn=t.closest('[data-pw-favorite],[data-pw-chrome-btn="favorite-product"]');
+    if(!favBtn){
+      var rec=t.closest('.pw-rec-fav');
+      if(rec&&rec.getAttribute&&rec.getAttribute('data-pw-react-fav')==='1')return;
+      favBtn=rec;
+    }
     if(favBtn){
+      if(favBtn.getAttribute&&favBtn.getAttribute('data-pw-react-fav')==='1')return;
       ev.preventDefault();ev.stopPropagation();
       if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();
       var p2=readProductFromEl(favBtn);if(!p2){toast(COPY.error);return;}
