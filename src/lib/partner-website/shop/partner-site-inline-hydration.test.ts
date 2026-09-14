@@ -78,6 +78,9 @@ test('account chrome resolves navigation on the server without a usePathname cli
   assert.doesNotMatch(nativeNavigation, /function onPointerDown\(event\)\{[\s\S]*location\.assign/)
   assert.doesNotMatch(nativeNavigation, /document\.addEventListener\('click'/)
   assert.match(nativeNavigation, /window\.location\.assign\(href\)/)
+  assert.match(nativeNavigation, /__pwShopSoftNav/)
+  assert.match(nativeNavigation, /__pwShopPrefetch/)
+  assert.match(nativeNavigation, /function swallow\(event\)/)
   assert.doesNotMatch(nativeNavigation, /if\(event\.defaultPrevented/)
   assert.match(nativeNavigation, /stopImmediatePropagation/)
   assert.doesNotMatch(nativeNavigation, /__pwNativeNavGoing/)
@@ -94,7 +97,14 @@ test('shop layout binds native navigation in head before React hydrates', async 
   const source = await readFile(new URL('../../../app/site/[slug]/layout.tsx', import.meta.url), 'utf8')
   assert.match(source, /PARTNER_SITE_NATIVE_NAV_SCRIPT_ID/)
   assert.match(source, /buildPartnerSiteNativeNavigationScript/)
+  assert.match(source, /PartnerSiteSoftNavRelay/)
   assert.match(source, /<head>/)
+  const relay = await readFile(
+    new URL('../../../components/partner-website/shop/partner-site-soft-nav-relay.tsx', import.meta.url),
+    'utf8'
+  )
+  assert.match(relay, /startTransition/)
+  assert.match(relay, /router\.push\(path\)/)
 })
 
 test('deposit and order pages fetch without waiting for session ready', async () => {

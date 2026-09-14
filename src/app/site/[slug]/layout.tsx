@@ -8,6 +8,7 @@ import {
   FASHION_SHOP_FONT_DISPLAY,
   FASHION_SHOP_FONT_UI,
 } from '@/lib/partner-website/shop/fashion-shop-design'
+import { PartnerSiteSoftNavRelay } from '@/components/partner-website/shop/partner-site-soft-nav-relay'
 import { PartnerSiteCustomDomainProvider } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
@@ -126,6 +127,7 @@ export default async function PartnerSiteSlugLayout({
         {icon180 ? <link rel="apple-touch-icon" href={icon180} /> : null}
       </head>
       <PartnerSiteCustomDomainProvider active={onCustomDomain}>
+        <PartnerSiteSoftNavRelay />
         <PartnerSiteGoogleAuthHandoffBoot siteSlug={site?.siteSlug || slug} />
         <PartnerSiteShopPushBoot siteSlug={site?.siteSlug || slug} />
         <div style={shopFontVars}>{children}</div>

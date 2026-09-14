@@ -1037,7 +1037,47 @@ function findNextPdpFaceBlock(
   return hit ? { full: hit.full, start: hit.start } : null
 }
 
+function isInsideMainHtml(html: string, index: number): boolean {
+  const before = html.slice(0, index)
+  return before.lastIndexOf('<main') > before.lastIndexOf('</main>')
+}
+
+function isInsidePageHeadHtml(html: string, index: number): boolean {
+  const before = html.slice(0, index)
+  const re = /<(header|div)\b[^>]*\bpw-page-head\b[^>]*>/gi
+  let last = -1
+  let found: RegExpExecArray | null
+  while ((found = re.exec(before))) last = found.index
+  if (last < 0) return false
+  const tag = before.slice(last).match(/^<(header|div)\b/i)?.[1]?.toLowerCase()
+  if (!tag) return false
+  const hit = extractBalancedTag(html, tag, last)
+  if (!hit) return true
+  return index > hit.start && index < hit.start + hit.full.length
+}
+
+function isShopChromeHeaderOpenTag(open: string): boolean {
+  if (/\bpw-page-head\b/i.test(open)) return false
+  return /\bpw-header\b/i.test(open) || /\bpw-shop-header\b/i.test(open) || /\bdata-pw-region=["']header["']/i.test(open)
+}
+
+function lastUnclosedShopChromeHeaderIndex(html: string, index: number): number {
+  const before = html.slice(0, index)
+  const re = /<header\b[^>]*>/gi
+  let last = -1
+  let found: RegExpExecArray | null
+  while ((found = re.exec(before))) {
+    if (isShopChromeHeaderOpenTag(found[0])) last = found.index
+  }
+  if (last < 0) return -1
+  const hit = extractBalancedTag(html, 'header', last)
+  if (!hit) return last
+  return index > hit.start && index < hit.start + hit.full.length ? last : -1
+}
+
 function isInsideStockTopbarHtml(html: string, index: number): boolean {
+  if (isInsidePageHeadHtml(html, index)) return false
+  if (isInsideMainHtml(html, index) && lastUnclosedShopChromeHeaderIndex(html, index) < 0) return false
   const before = html.slice(0, index)
   const re = /<(div)\b[^>]*>/gi
   let last = -1
@@ -1069,11 +1109,30 @@ function isInsideChromeKitHostHtml(html: string, index: number): boolean {
   return index < hit.start + hit.full.length
 }
 
+function isInsideHeaderHtml(html: string, index: number): boolean {
+  if (isInsidePageHeadHtml(html, index)) return false
+  if (lastUnclosedShopChromeHeaderIndex(html, index) >= 0) return true
+  const before = html.slice(0, index)
+  const re = /<(div)\b[^>]*\bdata-pw-region=["']header["'][^>]*>/gi
+  let last = -1
+  let found: RegExpExecArray | null
+  while ((found = re.exec(before))) {
+    if (/\bpw-page-head\b/i.test(found[0])) continue
+    last = found.index
+  }
+  if (last < 0) return false
+  const hit = extractBalancedTag(html, 'div', last)
+  if (!hit) return true
+  return index > hit.start && index < hit.start + hit.full.length
+}
+
 function isEscapedTopbarTextLinkAttrs(attrs: string): boolean {
   if (/\bdata-pw-chrome-kit=["'](?:actions|dock|float)["']/i.test(attrs)) return false
   const textFace = /\bdata-pw-chrome-style=["']text["']/i.test(attrs) || !/\bdata-pw-chrome-style=/.test(attrs)
   if (!textFace) return false
   return (
+    /\bdata-pw-chrome-kit=["']1["']/i.test(attrs) ||
+    /\bdata-pw-el=["']link["']/i.test(attrs) ||
     /\bdata-pw-chrome-added=/.test(attrs) ||
     /\bdata-pw-user-move=/.test(attrs) ||
     /\bdata-pw-placement=["']scene-absolute["']/i.test(attrs) ||
@@ -1082,16 +1141,26 @@ function isEscapedTopbarTextLinkAttrs(attrs: string): boolean {
 }
 
 function shouldStripEscapedHeadLink(html: string, index: number, attrs: string, kind: string): boolean {
-  if (isInsideStockTopbarHtml(html, index) || isInsideChromeKitHostHtml(html, index)) return false
+  if (
+    isInsideStockTopbarHtml(html, index) ||
+    isInsideChromeKitHostHtml(html, index) ||
+    isInsideHeaderHtml(html, index)
+  ) {
+    return false
+  }
   if (kind === 'favorites-link') return true
+  const kitItem = /\bdata-pw-chrome-kit=["']1["']/i.test(attrs)
+  if (kind === 'cart' || kind === 'wishlist' || kind === 'account' || kind === 'recently-viewed') {
+    return kitItem && !/\bdata-pw-chrome-added=/.test(attrs)
+  }
   return isEscapedTopbarTextLinkAttrs(attrs)
 }
 
-/** Topbar / Yêu thích bị kéo lên `main` — leftover máy khác, xóa sạch. */
+/** Topbar / Đăng nhập / Yêu thích / giỏ kit bị kéo lên `main` — leftover, xóa sạch. */
 export function stripEscapedHeadChromeLeftoversInHtml(html: string): string {
   if (!html.trim()) return html
   let next = html.replace(
-    /<(a|button)\b([^>]*\bdata-pw-chrome-btn=["'](favorites-link|login|contact)["'][^>]*)>([\s\S]*?)<\/\1>/gi,
+    /<(a|button)\b([^>]*\bdata-pw-chrome-btn=["'](favorites-link|login|contact|cart|wishlist|account|recently-viewed)["'][^>]*)>([\s\S]*?)<\/\1>/gi,
     (full, _tag: string, attrs: string, kind: string, _inner: string, offset: number) =>
       shouldStripEscapedHeadLink(html, offset, attrs, kind) ? '' : full
   )
@@ -1102,6 +1171,32 @@ export function stripEscapedHeadChromeLeftoversInHtml(html: string): string {
     const found = re.exec(next)
     if (!found || found.index == null) break
     if (isInsideStockTopbarHtml(next, found.index)) {
+      from = found.index + found[0].length
+      continue
+    }
+    const hit = extractBalancedTag(next, 'div', found.index)
+    if (!hit) {
+      from = found.index + found[0].length
+      continue
+    }
+    next = `${next.slice(0, hit.start)}${next.slice(hit.start + hit.full.length)}`
+    from = hit.start
+  }
+  from = 0
+  for (let guard = 0; guard < 16; guard += 1) {
+    const re = /<(div)\b[^>]*(?:\bpw-topbar\b|\bpw-shop-topbar\b|\bdata-pw-region=["']topbar["'])[^>]*>/gi
+    re.lastIndex = from
+    const found = re.exec(next)
+    if (!found || found.index == null) break
+    if (/\bpw-topbar-inner\b|\bpw-shop-topbar-inner\b/i.test(found[0])) {
+      from = found.index + found[0].length
+      continue
+    }
+    if (isInsideStockTopbarHtml(next, found.index) || lastUnclosedShopChromeHeaderIndex(next, found.index) >= 0) {
+      from = found.index + found[0].length
+      continue
+    }
+    if (!isInsidePageHeadHtml(next, found.index) && !isInsideMainHtml(next, found.index)) {
       from = found.index + found[0].length
       continue
     }

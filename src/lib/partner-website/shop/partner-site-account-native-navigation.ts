@@ -5,15 +5,16 @@
  * transitions. The first press is swallowed and chrome (Tài khoản / Giỏ hàng) only
  * "blinks" because the DOM is rewritten between pointerdown and click. Bind on
  * `window` capture from a parser-blocking root `<head>` `<script>` (not `next/script`)
- * and hard-navigate with `location.assign`.
+ * and hard-navigate with `location.assign` only when App Router is not ready.
+ * After hydration, `window.__pwShopSoftNav` (`PartnerSiteSoftNavRelay`) uses
+ * `router.push` so the shared account header/sidebar stays mounted.
  *
  * Do not navigate on `pointerdown` — that would start navigation when the customer
- * is scrolling a product card on mobile. Navigate on `pointerup` (tap, little
- * movement) so the press still wins when React eats the later `click`. Keep the
- * `<a>` from pointerdown: hydration / badge / wrap can detach `event.target`
- * before pointerup, which would otherwise make closest() miss the link. Keep the
- * `<a>` from pointerdown: hydration / badge / wrap can detach `event.target`
- * before pointerup, which would otherwise make closest() miss the link.
+ * is scrolling a product card on mobile. Prefetch on pointerdown; navigate on
+ * `pointerup` (tap, little movement) so the press still wins when React eats the
+ * later `click`. Keep the `<a>` from pointerdown: hydration / badge / wrap can
+ * detach `event.target` before pointerup, which would otherwise make closest()
+ * miss the link.
  */
 export const PARTNER_SITE_NATIVE_NAV_SCRIPT_ID = 'pw-native-navigation'
 
@@ -120,6 +121,24 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
     }
     return url.href;
   }
+  function openHref(href){
+    var fn=window.__pwShopSoftNav;
+    if(typeof fn==='function'){
+      try{fn(href);return;}catch(_){}
+    }
+    window.location.assign(href);
+  }
+  function prefetchHref(href){
+    var fn=window.__pwShopPrefetch;
+    if(typeof fn==='function'){
+      try{fn(href);}catch(_){}
+    }
+  }
+  function swallow(event){
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+  }
   function go(event,saved){
     if(event.button!=null&&event.button!==0)return;
     if(event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
@@ -127,7 +146,7 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
     if(!link||link.hasAttribute('download'))return;
     if(link.closest(SKIP)){
       if(event.type==='click'&&link.closest('[data-pw-chrome-btn="categories"],[data-pw-cat-toggle],[data-pw-el="cat-toggle"]')){
-        event.preventDefault();
+        swallow(event);
       }
       return;
     }
@@ -144,17 +163,23 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
       return;
     }
     var now=Date.now();
-    if(lastHref===href&&now-lastAt<800)return;
+    if(lastHref===href&&now-lastAt<800){
+      swallow(event);
+      return;
+    }
     lastHref=href;
     lastAt=now;
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-    window.location.assign(href);
+    swallow(event);
+    openHref(href);
   }
   function onPointerDown(event){
     if(event.button!=null&&event.button!==0)return;
-    tap={id:event.pointerId,x:event.clientX||0,y:event.clientY||0,link:liveLink(event.target)};
+    var link=liveLink(event.target);
+    tap={id:event.pointerId,x:event.clientX||0,y:event.clientY||0,link:link};
+    if(!link||link.closest(SKIP)||link.hasAttribute('download'))return;
+    var raw=String(link.getAttribute('href')||'').trim();
+    if(!raw||raw.charAt(0)==='#'||/^(?:javascript|mailto|tel|data):/i.test(raw))return;
+    try{prefetchHref(rewriteHref(raw));}catch(_){}
   }
   function onPointerUp(event){
     if(!tap||(event.pointerId!=null&&event.pointerId!==tap.id))return;

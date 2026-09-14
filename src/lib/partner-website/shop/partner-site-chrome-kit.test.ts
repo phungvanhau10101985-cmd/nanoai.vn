@@ -890,6 +890,41 @@ describe('partner-site-chrome-kit', () => {
     expect(viaEnsure).toContain('data-pw-chrome-btn="stores"')
   })
 
+  it('strips leftover topbar login and kit cart from listing main but keeps header copies', () => {
+    const leftoverLogin =
+      '<a data-pw-el="link" class="pw-chrome-link" data-pw-chrome-btn="login" data-pw-chrome-kit="1" data-pw-chrome-style="text" data-pw-chrome-glyph="login" data-pw-chrome-size="22" href="/site/gudo-vn-3f93/account" data-pw-login-identity="1" data-pw-login-name="Phùng Hậu"><img class="pw-login-avatar" src="https://example.test/a.jpg" alt=""><span class="pw-chrome-btn-label">Phùng Hậu</span></a>'
+    const leftoverCart =
+      '<a data-pw-chrome-btn="cart" data-pw-chrome-kit="1" href="/site/gudo-vn-3f93/cart"><span class="pw-cart-badge pw-shop-cart-badge" data-pw-chrome-badge="">1</span></a>'
+    const html = `<header class="pw-header" data-pw-region="header">
+      <div class="pw-topbar" data-pw-region="topbar"><div class="pw-topbar-inner">
+        <a data-pw-el="link" class="pw-chrome-link" data-pw-chrome-btn="login" data-pw-chrome-kit="1" data-pw-chrome-style="text" href="/account">Phùng Hậu header</a>
+      </div></div>
+      <div class="pw-header-actions">
+        <a data-pw-chrome-btn="cart" data-pw-chrome-kit="1" href="/cart">Giỏ header<span class="pw-cart-badge">2</span></a>
+      </div>
+    </header>
+    <main class="pw-shop-main pw-page-shell" data-pw-scene-root="1">
+      <header class="pw-page-head">
+        <h1>Túi đeo chéo &amp; bucket Nữ</h1>
+        ${leftoverLogin}
+        <div class="pw-topbar" data-pw-region="topbar"><div class="pw-container pw-topbar-inner">
+          <a data-pw-el="link" data-pw-chrome-btn="contact" data-pw-chrome-kit="1" data-pw-chrome-style="text">Liên hệ giữa</a>
+          ${leftoverCart}
+        </div></div>
+      </header>
+      <a data-pw-chrome-added="1" data-pw-chrome-btn="login" data-pw-chrome-style="icon-circle">Đăng nhập giữa</a>
+    </main>`
+    const stripped = stripEscapedHeadChromeLeftoversInHtml(html)
+    expect(stripped).toContain('Phùng Hậu header')
+    expect(stripped).toContain('Giỏ header')
+    expect(stripped).toMatch(/data-pw-chrome-style="icon-circle"[^>]*>Đăng nhập giữa/)
+    expect(stripped).not.toContain('data-pw-login-name="Phùng Hậu"')
+    expect(stripped).not.toContain('pw-shop-cart-badge')
+    expect(stripped).not.toContain('Liên hệ giữa')
+    expect(stripped).not.toMatch(/pw-page-head[\s\S]*pw-topbar/)
+    expect(stripped).toContain('Túi đeo chéo')
+  })
+
   it('drops a duplicate laptop header cart so hide/show lists one Giỏ hàng', () => {
     const html = `<!DOCTYPE html><html><body>
 <header class="pw-header">

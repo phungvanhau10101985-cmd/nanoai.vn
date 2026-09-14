@@ -66,6 +66,10 @@ test('mobile header stack centers the logo row and keeps toolbar below', () => {
   assert.equal(PW_MOBILE_HEADER_PDP_LEFTOVER_HIDE_CSS.includes('main > .pw-shop-btn[data-pw-chrome-btn="favorite-product"]'), true)
   assert.equal(PW_ESCAPED_HEAD_CHROME_HIDE_CSS.includes('main > .pw-topbar-inner'), true)
   assert.equal(PW_ESCAPED_HEAD_CHROME_HIDE_CSS.includes('[data-pw-chrome-btn="favorites-link"][data-pw-chrome-added]'), true)
+  assert.equal(PW_ESCAPED_HEAD_CHROME_HIDE_CSS.includes('main [data-pw-chrome-btn="login"][data-pw-chrome-kit="1"]'), true)
+  assert.equal(PW_ESCAPED_HEAD_CHROME_HIDE_CSS.includes(':not(header *)'), true)
+  assert.equal(PW_ESCAPED_HEAD_CHROME_HIDE_CSS.includes('[data-pw-listing-filter-slot] [data-pw-chrome-btn="login"]'), true)
+  assert.equal(PW_ESCAPED_HEAD_CHROME_HIDE_CSS.includes('.pw-page-head [data-pw-chrome-btn="login"]'), true)
   assert.equal(PW_MOBILE_HEADER_LOGO_COLLAPSE_CSS.includes('header [data-pw-chrome-btn="favorite-product"]'), true)
   assert.equal(
     /html\[[^\]]*\]\s+header \[data-pw-chrome-btn="try-on"\][\s\S]*?,\s*header \[data-pw-chrome-btn="favorite-product"\]/.test(

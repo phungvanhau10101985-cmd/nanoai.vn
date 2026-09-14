@@ -26,6 +26,8 @@ test('listing head attaches filters and collapses after scroll', () => {
   assert.equal(PW_LISTING_HEAD_CSS.includes('.pw-cat-btn{display:none'), false)
   assert.match(PW_LISTING_HEAD_CSS, /min-height:48px/)
   assert.match(PARTNER_SHOP_LISTING_HEAD_SCRIPT, /data-pw-listing-filter-slot/)
+  assert.match(PARTNER_SHOP_LISTING_HEAD_SCRIPT, /stripEscapedChromeFromPage/)
+  assert.match(PARTNER_SHOP_LISTING_HEAD_SCRIPT, /shouldDropListingChrome/)
   assert.match(PARTNER_SHOP_LISTING_HEAD_SCRIPT, /data-pw-react-filters/)
   assert.match(PARTNER_SHOP_LISTING_HEAD_SCRIPT, /insertAdjacentElement\('afterend'/)
   assert.match(PARTNER_SHOP_LISTING_HEAD_SCRIPT, /nanoai-ve-active/)

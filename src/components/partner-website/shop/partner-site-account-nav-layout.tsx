@@ -20,6 +20,7 @@ import {
   writePartnerSiteAccountBrowserCache,
 } from '@/lib/partner-website/shop/partner-site-account-browser-cache'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { PW_SHOP_SOFT_NAV_EVENT } from '@/components/partner-website/shop/partner-site-soft-nav-relay'
 
 type Props = {
   siteSlug: string
@@ -50,6 +51,20 @@ export function PartnerSiteAccountNavLayout({
     }
     setPathname(window.location.pathname)
   }, [pathnameProp])
+
+  useLayoutEffect(() => {
+    const onNav = (event: Event) => {
+      const href = (event as CustomEvent<{ href?: string }>).detail?.href
+      if (!href) return
+      try {
+        setPathname(new URL(href, window.location.href).pathname)
+      } catch {
+        /* ignore */
+      }
+    }
+    window.addEventListener(PW_SHOP_SOFT_NAV_EVENT, onNav)
+    return () => window.removeEventListener(PW_SHOP_SOFT_NAV_EVENT, onNav)
+  }, [])
 
   useLayoutEffect(() => {
     const cached = readPartnerSiteAccountBrowserCache(siteSlug)

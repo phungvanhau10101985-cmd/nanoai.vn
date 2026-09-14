@@ -16134,6 +16134,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
   }
   function isInsideStockTopbar(el) {
+    if (el && el.closest && el.closest('.pw-page-head')) return false
     return !!(el && el.closest && el.closest('.pw-topbar,.pw-shop-topbar,[data-pw-region="topbar"],[data-pw-chrome-kit="topbar"]'))
   }
   function isChromeKitHeadSeatKind(kind, style) {
@@ -16291,18 +16292,26 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function stripEscapedHeadChromeLeftovers() {
     var nodes = document.querySelectorAll(
-      'main .pw-topbar-inner, main .pw-shop-topbar-inner, .pw-shop-main .pw-topbar-inner, .pw-shop-main .pw-shop-topbar-inner, [data-pw-scene-root] > .pw-topbar-inner, [data-pw-scene-root] > .pw-shop-topbar-inner, [data-pw-chrome-btn="favorites-link"], [data-pw-chrome-btn="login"][data-pw-chrome-style="text"], [data-pw-chrome-btn="contact"][data-pw-chrome-style="text"]'
+      'main .pw-topbar-inner, main .pw-shop-topbar-inner, .pw-shop-main .pw-topbar-inner, .pw-shop-main .pw-shop-topbar-inner, [data-pw-scene-root] > .pw-topbar-inner, [data-pw-scene-root] > .pw-shop-topbar-inner, [data-pw-listing-filter-slot] [data-pw-chrome-btn="login"], [data-pw-listing-filter-slot] [data-pw-chrome-btn="contact"], [data-pw-listing-filter-slot] [data-pw-chrome-btn="favorites-link"], [data-pw-listing-filter-slot] [data-pw-chrome-btn="cart"], [data-pw-chrome-btn="favorites-link"], [data-pw-chrome-btn="login"][data-pw-chrome-style="text"], [data-pw-chrome-btn="contact"][data-pw-chrome-style="text"], [data-pw-chrome-btn="login"][data-pw-chrome-kit="1"], [data-pw-chrome-btn="cart"][data-pw-chrome-kit="1"]'
     )
     var i
     for (i = 0; i < nodes.length; i++) {
       var el = nodes[i]
       if (!el) continue
       var kind = el.getAttribute && el.getAttribute('data-pw-chrome-btn')
-      if (kind === 'favorites-link' || kind === 'login' || kind === 'contact') {
+      if (kind === 'favorites-link' || kind === 'login' || kind === 'contact' || kind === 'cart') {
         if (isInsideStockTopbar(el)) continue
-        if (el.closest && el.closest('[data-pw-chrome-kit="actions"],[data-pw-chrome-kit="dock"],[data-pw-chrome-kit="float"],header,.pw-header,.pw-shop-header')) continue
+        if (el.closest && el.closest('[data-pw-chrome-kit="actions"],[data-pw-chrome-kit="dock"],[data-pw-chrome-kit="float"],header.pw-header,header.pw-shop-header,.pw-header,.pw-shop-header,[data-pw-region="header"]')) continue
+        if (kind === 'cart') {
+          if (el.getAttribute('data-pw-chrome-added')) continue
+          if (el.getAttribute('data-pw-chrome-kit') !== '1') continue
+          try { el.remove() } catch (errCart) {}
+          continue
+        }
         if (kind !== 'favorites-link') {
-          var escaped = el.getAttribute('data-pw-chrome-added') || el.getAttribute('data-pw-user-move') || el.getAttribute('data-pw-device') || el.getAttribute('data-pw-placement') === 'scene-absolute'
+          var kit = el.getAttribute('data-pw-chrome-kit') === '1'
+          var roleLink = el.getAttribute('data-pw-el') === 'link'
+          var escaped = kit || roleLink || el.getAttribute('data-pw-chrome-added') || el.getAttribute('data-pw-user-move') || el.getAttribute('data-pw-device') || el.getAttribute('data-pw-placement') === 'scene-absolute'
           if (!escaped) continue
         }
         try { el.remove() } catch (errFav) {}
