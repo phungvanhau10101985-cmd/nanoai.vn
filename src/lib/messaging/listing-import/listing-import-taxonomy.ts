@@ -54,6 +54,19 @@ export async function applyListingImportTaxonomy(
   }
 
   const tree = (await fetchPartnerCategoriesFlatFromPg(partnerId)) ?? []
+  const specNotes = (() => {
+    const pi = productData.product_info
+    if (!pi || typeof pi !== 'object') return ''
+    const spec = (pi as Record<string, unknown>).specifications
+    if (!spec || typeof spec !== 'object') return ''
+    const excerpt = String((spec as Record<string, unknown>).supplier_specs_excerpt || '').trim()
+    if (excerpt) return excerpt.slice(0, 2500)
+    return Object.entries(spec as Record<string, unknown>)
+      .filter(([k, v]) => k !== 'vipomall_info_texts' && k !== 'pandamall_info_texts' && typeof v === 'string')
+      .map(([k, v]) => `${k}: ${v}`)
+      .join('\n')
+      .slice(0, 2500)
+  })()
   const payload: ProductStudioJobPayload = {
     mode: 'manual',
     productName: str(productData.name) || titleSrc,
@@ -68,7 +81,7 @@ export async function applyListingImportTaxonomy(
     mainImage: str(productData.main_image),
     gallery: [],
     description: str(productData.description),
-    notes: '',
+    notes: specNotes,
     available: typeof productData.available === 'number' ? productData.available : 0,
   }
   const proposed = await proposeProductStudioCategoryPath(payload, str(productData.name) || titleSrc, tree)
@@ -79,4 +92,27 @@ export async function applyListingImportTaxonomy(
   if (proposed.l1?.name) productData.category = proposed.l1.name
   if (proposed.l2?.name) productData.subcategory = proposed.l2.name
   if (proposed.l3?.name) productData.sub_subcategory = proposed.l3.name
+  const pi =
+    productData.product_info && typeof productData.product_info === 'object'
+      ? (productData.product_info as Record<string, unknown>)
+      : {}
+  const inner =
+    pi.product_info && typeof pi.product_info === 'object'
+      ? (pi.product_info as Record<string, unknown>)
+      : {}
+  inner.category = {
+    level_1: str(productData.category),
+    level_2: str(productData.subcategory),
+    level_3: str(productData.sub_subcategory),
+  }
+  pi.product_info = inner
+  const spec =
+    pi.specifications && typeof pi.specifications === 'object'
+      ? (pi.specifications as Record<string, unknown>)
+      : {}
+  if (str(productData.material) && !str(spec.upper_material)) spec.upper_material = str(productData.material)
+  if (str(productData.style) && !str(spec.style)) spec.style = str(productData.style)
+  if (str(productData.occasion) && !str(spec.occasion)) spec.occasion = str(productData.occasion)
+  pi.specifications = spec
+  productData.product_info = pi
 }

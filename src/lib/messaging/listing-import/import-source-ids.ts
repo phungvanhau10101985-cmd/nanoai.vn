@@ -79,9 +79,14 @@ export function extractAbbOfferDigits(slug: string): string | null {
   return m?.[1] ?? null
 }
 
+export function canonical1688OfferPcUrl(offerId: string): string {
+  const oid = String(offerId || '').trim()
+  return /^\d+$/.test(oid) ? `https://detail.1688.com/offer/${oid}.html` : ''
+}
+
 export function supplyProductLinkDefaultForItemSlug(slug: string): string {
   const oid = extractAbbOfferDigits(slug)
-  if (oid) return `https://detail.1688.com/offer/${oid}.html`
+  if (oid) return canonical1688OfferPcUrl(oid)
   const tid = (slug || '').trim()
   if (!tid) return ''
   return `https://detail.tmall.com/item.htm?id=${encodeURIComponent(tid)}`

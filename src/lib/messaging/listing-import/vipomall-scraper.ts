@@ -10,6 +10,7 @@ import {
   extractVipomallOfferId,
   resolveVipomallImportUrl,
 } from './listing-import-urls'
+import { enrichListingProductDataFromBody, pickCnyPriceFromScrapeRow } from './listing-import-body-specs'
 import {
   cleanText,
   dedupeUrls,
@@ -20,7 +21,7 @@ import {
   parseVndPrice,
   syntheticEngagementCounts,
 } from './scrape-common'
-import { ListingImportPlaywrightError, withListingImportPage } from './playwright-browser'
+import { ListingImportPlaywrightError, expandVipomallDetailOnPage, withListingImportPage } from './playwright-browser'
 
 const VIPOMALL_INFO_NOISE_RE =
   /(trung tâm hỗ trợ|hướng dẫn|ước tính chi phí|chính sách|hàng cấm|giới thiệu|điều khoản dịch vụ|quy chế hoạt động|kinh nghiệm vipomall|vipo\s*mall)/i
@@ -46,29 +47,13 @@ function pickShopNameChinese(row: Record<string, unknown>): string | null {
     if (s && /[\u4e00-\u9fff]/.test(s)) return s.slice(0, 200)
   }
   const body = String(row.body_text_sample || '')
-  const m = /([\u4e00-\u9fff]{2,40}(?:旗舰店|专卖店|店))/.exec(body)
-  return m?.[1]?.trim().slice(0, 200) || null
-}
-
-function pickCnyPrice(row: Record<string, unknown>, priceVnd: number): string {
-  for (const raw of (row.cny_price_texts as unknown[]) || []) {
-    const s = String(raw || '').trim().replace(/,/g, '')
-    if (!s) continue
-    const val = Number.parseFloat(s)
-    if (Number.isFinite(val) && val > 0 && val < 9_999_999) {
-      return String(val.toFixed(4)).replace(/0+$/, '').replace(/\.$/, '')
-    }
+  const re = /([\u4e00-\u9fff]{2,40}(?:旗舰店|专卖店|店))/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(body))) {
+    const cand = m[1]?.trim() || ''
+    if (cand.length >= 4) return cand.slice(0, 200)
   }
-  for (const t of (row.price_texts as unknown[]) || []) {
-    const m = /(?:¥|￥|CNY|元)\s*([\d.,]+)/.exec(String(t))
-    if (m) {
-      const val = Number.parseFloat(m[1].replace(/,/g, ''))
-      if (Number.isFinite(val) && val > 0 && val < 9_999_999) {
-        return String(val.toFixed(4)).replace(/0+$/, '').replace(/\.$/, '')
-      }
-    }
-  }
-  return estimateCnyFromVnd(priceVnd)
+  return null
 }
 
 function variantRowsAreColorOnly(variantRows: Record<string, unknown>[]): boolean {
@@ -136,10 +121,13 @@ export function vipomallRowToProductData(
   platformType: number
 ): Record<string, unknown> {
   const gallery = dedupeUrls((row.gallery_images as unknown[] | undefined)?.map((u) => String(u)) || [])
-  const colorsRaw = ((row.colors as unknown[]) || []).filter((c) => c && typeof c === 'object') as Record<
-    string,
-    unknown
-  >[]
+  const swatchColorsRaw = ((row.swatch_colors as unknown[]) || []).filter(
+    (c) => c && typeof c === 'object'
+  ) as Record<string, unknown>[]
+  let colorsRaw = swatchColorsRaw.length
+    ? swatchColorsRaw
+    : (((row.colors as unknown[]) || []).filter((c) => c && typeof c === 'object') as Record<string, unknown>[])
+  const preserveAllSwatchColors = swatchColorsRaw.length > 0
   let colorsOut: { name: string; img: string }[] = []
   let swatches: { label: string; image_url: string | null }[] = []
   colorsRaw.forEach((c, idx) => {
@@ -160,12 +148,14 @@ export function vipomallRowToProductData(
   ) as Record<string, unknown>[]
 
   const remapped = remapVariantOnlyRows(colorsRaw, colorsOut, swatches, variantRows)
+  colorsRaw = remapped.colorsRaw
   colorsOut = remapped.colorsOut
   swatches = remapped.swatches
   variantRows = remapped.variantRows
+  for (const c of colorsOut) if (c.img) exclude.add(c.img.split('?')[0])
 
   const colorMap = new Map<string, string>()
-  remapped.colorsRaw.forEach((rawC, i) => {
+  colorsRaw.forEach((rawC, i) => {
     const rawLabel = cleanText(rawC.label, 160)
     const vn = cleanText(colorsOut[i]?.name, 160)
     if (rawLabel && vn) colorMap.set(rawLabel, vn)
@@ -177,7 +167,6 @@ export function vipomallRowToProductData(
   const prices: number[] = []
   const stocks: number[] = []
   const inStockRawColors = new Set<string>()
-  const variantOnly = variantRowsAreColorOnly(variantRows)
   for (const r of variantRows) {
     const rawColor = cleanText(r.color, 160)
     const size = cleanText(r.size, 80)
@@ -194,8 +183,26 @@ export function vipomallRowToProductData(
     if (stock > 0) stocks.push(stock)
   }
 
+  const rawColorLabels = new Set(colorsRaw.map((c) => cleanText(c.label, 160)).filter(Boolean))
+  const variantColorLabels = new Set(variantRows.map((r) => cleanText(r.color, 160)).filter(Boolean))
+  const hasExtraSwatchColors = [...rawColorLabels].some((label) => !variantColorLabels.has(label))
+  if (inStockRawColors.size && !preserveAllSwatchColors && !hasExtraSwatchColors) {
+    const keptRaw: Record<string, unknown>[] = []
+    const keptOut: { name: string; img: string }[] = []
+    const keptSw: { label: string; image_url: string | null }[] = []
+    colorsRaw.forEach((rawC, i) => {
+      if (!inStockRawColors.has(cleanText(rawC.label, 160))) return
+      keptRaw.push(rawC)
+      if (colorsOut[i]) keptOut.push(colorsOut[i])
+      if (swatches[i]) keptSw.push(swatches[i])
+    })
+    colorsRaw = keptRaw
+    colorsOut = keptOut
+    swatches = keptSw
+  }
+
   let sizesOut = sizes
-  const colorOnlyLayout = Boolean(colorsOut.length) && variantOnly
+  const colorOnlyLayout = Boolean(colorsOut.length) && variantRowsAreColorOnly(variantRows)
   if (colorOnlyLayout) {
     sizesOut = []
     for (const r of variantRows) {
@@ -229,13 +236,23 @@ export function vipomallRowToProductData(
   const supplyUrl = supplyProductLinkDefaultForItemSlug(supplySlug)
   const productId = isTaobao ? buildCanonicalTaobaoProductId(offerId) : buildCanonical1688ProductId(offerId)
   const origin = isTaobao ? 'taobao' : '1688'
-  const cny = pickCnyPrice(row, priceVnd)
+  const cny = pickCnyPriceFromScrapeRow(row, priceVnd)
   const infoTexts = cleanInfoTexts((row.info_texts as unknown[]) || [])
   const variantParts: string[] = []
   if (colorsOut.length) {
-    variantParts.push(`${colorOnlyLayout ? 'Biến thể' : 'Màu sắc'}: ${colorsOut.map((c) => c.name).filter(Boolean).join(', ')}`)
+    variantParts.push(
+      `${colorOnlyLayout ? 'Biến thể' : 'Màu sắc'}: ${colorsOut.map((c) => c.name).filter(Boolean).join(', ')}`
+    )
   }
   if (sizesOut.length) variantParts.push(`Kích cỡ: ${sizesOut.join(', ')}`)
+  if (pairObjs.length) {
+    variantParts.push(
+      `Biến thể màu-size: ${pairObjs
+        .slice(0, 80)
+        .map((p) => `${p.color} / ${p.size}`)
+        .join('; ')}`
+    )
+  }
   const descBase = cleanText(row.meta_description, 2000)
   const desc = infoTexts.length
     ? `${descBase ? `${descBase}\n\n--- Thông số ---\n` : '--- Thông số ---\n'}${infoTexts.slice(0, 60).join('\n')}`
@@ -269,7 +286,7 @@ export function vipomallRowToProductData(
     variants,
   }
   const eng = syntheticEngagementCounts()
-  return {
+  const out: Record<string, unknown> = {
     product_id: productId,
     code: '',
     origin,
@@ -315,6 +332,8 @@ export function vipomallRowToProductData(
     is_active: true,
     slug: '',
   }
+  enrichListingProductDataFromBody(out, row)
+  return out
 }
 
 export async function scrapeVipomallForImport(
@@ -334,9 +353,10 @@ export async function scrapeVipomallForImport(
     pageUrl = `https://vipomall.vn/san-pham/${oid}?platform_type=${platformType}`
   }
   const offerId = extractVipomallOfferId(pageUrl) || ''
-  const raw = await withListingImportPage(pageUrl, VIPOMALL_SCRAPE_JS, ['Xem thêm', 'Xem thêm chi tiết'], {
+  const raw = await withListingImportPage(pageUrl, VIPOMALL_SCRAPE_JS, {
     partnerId,
     preferHosts: ['vipomall.vn'],
+    afterIdle: expandVipomallDetailOnPage,
   })
   const pageText = ['title', 'document_title', 'body_text_sample']
     .map((k) => String(raw[k] || ''))
@@ -348,10 +368,21 @@ export async function scrapeVipomallForImport(
   const productData = vipomallRowToProductData(raw, pageUrl, offerId, platformType)
   const warnings: string[] = []
   if (!Array.isArray(productData.colors) || !(productData.colors as unknown[]).length) {
-    warnings.push('Vipomall: chưa thu được variant màu.')
+    warnings.push('Vipomall: chưa thu được variant màu từ .product-type-list / .product-type-list-size.')
   }
-  if (!Array.isArray(productData.images) || !(productData.images as unknown[]).length) {
-    warnings.push('Vipomall: chưa thu được ảnh gallery.')
+  if (
+    (!Array.isArray(productData.sizes) || !(productData.sizes as unknown[]).length) &&
+    (!Array.isArray(productData.colors) || !(productData.colors as unknown[]).length)
+  ) {
+    const rawVariantCount = ((raw.variant_rows as unknown[]) || []).filter((r) => r && typeof r === 'object').length
+    if (rawVariantCount) {
+      warnings.push('Vipomall: mọi size đều hết hàng — đã bỏ biến thể «Hết hàng», không còn size nào import.')
+    } else {
+      warnings.push('Vipomall: chưa thu được size từ .product-type-list-size.')
+    }
+  }
+  if (!Array.isArray(productData.gallery) || !(productData.gallery as unknown[]).length) {
+    warnings.push('Vipomall: chưa thu được ảnh chi tiết sau Xem thêm/Xem thêm chi tiết.')
   }
   return { raw, productData, warnings }
 }

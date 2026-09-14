@@ -88,6 +88,17 @@ export function isVariantInStock(r: Record<string, unknown>): boolean {
   return false
 }
 
+/** Khớp `_is_variant_in_stock` PandaMall (188): «sản phẩm» + `in_stock` true ở cuối. */
+export function isPandamallVariantInStock(r: Record<string, unknown>): boolean {
+  if (r.in_stock === false) return false
+  const stockText = cleanText(r.stock_text || '', 160)
+  if (/hết\s*hàng/i.test(stockText)) return false
+  const stock = Number(r.stock || 0) || 0
+  if (stock > 0) return true
+  if (/có\s*sẵn|sản phẩm/i.test(stockText)) return true
+  return r.in_stock === true
+}
+
 export function mergeListingOverlayIntoProductData(
   productData: Record<string, unknown>,
   overlay: Record<string, unknown> | null | undefined

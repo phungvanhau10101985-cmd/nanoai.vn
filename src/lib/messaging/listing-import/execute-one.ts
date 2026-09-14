@@ -16,6 +16,8 @@ import {
 import { applyListingImportColorTranslation } from '@/lib/messaging/listing-import/listing-import-color-translate'
 import { applyListingImportRatingGroups } from '@/lib/messaging/listing-import/listing-import-rating-groups'
 import { applyListingImportTaxonomy } from '@/lib/messaging/listing-import/listing-import-taxonomy'
+import { reapplyListingLocaleOverlay } from '@/lib/messaging/listing-import/listing-import-body-specs'
+import { applyListingYearSanitizeToProductData } from '@/lib/messaging/listing-import/listing-import-year-sanitize'
 import { scrapePandamallForImport } from '@/lib/messaging/listing-import/pandamall-scraper'
 import { mergeListingOverlayIntoProductData, preferListingChineseName } from '@/lib/messaging/listing-import/scrape-common'
 import { scrapeVipomallForImport } from '@/lib/messaging/listing-import/vipomall-scraper'
@@ -89,6 +91,8 @@ export async function executeOneListingImport(input: {
     } catch (e) {
       warnings.push(`taxonomy: ${e instanceof Error ? e.message : String(e)}`)
     }
+    reapplyListingLocaleOverlay(productData, input.overlay)
+    applyListingYearSanitizeToProductData(productData)
     try {
       applyListingImportRatingGroups(productData, warnings)
     } catch (e) {
