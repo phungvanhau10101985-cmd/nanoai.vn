@@ -427,7 +427,11 @@ function addToCart(product, opts){
   }).then(function(res){
     if(!res)return false;
     if(!res.ok){toast(COPY.error);return false;}
-    if(!opts.silent)showCartAddedModal({name:addedCard&&addedCard.name||product.name,imageUrl:addedCard&&addedCard.image_url||product.image_url});
+    if(!opts.silent)showCartAddedModal({
+      name:addedCard&&addedCard.name||product.name,
+      imageUrl:addedCard&&addedCard.image_url||product.image_url,
+      inventory_id:(addedCard&&addedCard.inventory_id)||product.inventory_id||''
+    });
     try{document.dispatchEvent(new CustomEvent('pw-cart-updated'));}catch(e){}
     hydrateChromeBadges(true);
     return true;
@@ -464,7 +468,7 @@ function flushPendingCart(){
       return;
     }
     if(buy){location.replace(CART_PATH);return;}
-    if(last)showCartAddedModal({name:last.name||'',imageUrl:last.image_url||''});
+    if(last)showCartAddedModal({name:last.name||'',imageUrl:last.image_url||'',inventory_id:last.inventory_id||''});
   });
 }
 ${PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS}

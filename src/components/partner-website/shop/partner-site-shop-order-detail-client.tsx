@@ -23,6 +23,7 @@ import {
   partnerSiteOrderDepositPath,
   partnerSiteOrdersPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { PartnerSiteStorefrontProductHits } from '@/components/partner-website/shop/partner-site-product-hit-link'
 import { formatPartnerSiteOrderStatus, formatPartnerSiteShippingStatus } from '@/lib/partner-website/shop/partner-site-order-labels'
 import {
   PartnerOrderDiscountBreakdown,
@@ -51,6 +52,9 @@ type DetailOrder = PartnerOrderDiscountFields & {
   shipping_fee_amount?: number | null
   shipping_address?: string | null
   product_name?: string | null
+  product_image_url?: string | null
+  product_inventory_id?: string | null
+  product_url?: string | null
   promo_code?: string | null
   loyalty_tier_name?: string | null
   fulfillment_source?: 'vietnam' | 'china' | null
@@ -252,7 +256,14 @@ export function PartnerSiteShopOrderDetailClient({
             <p>
               <strong>{t.depositPageCode.replace('{code}', code)}</strong>
             </p>
-            {order.product_name ? <p>{order.product_name}</p> : null}
+            <PartnerSiteStorefrontProductHits
+              siteSlug={siteSlug}
+              customDomain={customDomain}
+              inventoryId={order.product_inventory_id}
+              name={order.product_name}
+              imageUrl={order.product_image_url}
+              productUrl={order.product_url}
+            />
             <p>
               {t.orderStatusLabel}: <strong>{formatPartnerSiteOrderStatus(locale, order.status)}</strong>
             </p>

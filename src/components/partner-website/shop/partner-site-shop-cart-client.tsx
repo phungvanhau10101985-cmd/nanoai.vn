@@ -23,6 +23,7 @@ import {
   partnerSiteOrderDepositPath,
   partnerSiteOrderDetailPath,
   partnerSiteProductsPath,
+  partnerSiteStorefrontProductHref,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
   partnerOrderPayableTotal,
@@ -51,6 +52,7 @@ import {
   getPartnerShopBrowserReturnLocation,
 } from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
 import { PartnerSiteShopOrderConfirmation } from '@/components/partner-website/shop/partner-site-shop-order-confirmation'
+import { PartnerSiteProductHitLink } from '@/components/partner-website/shop/partner-site-product-hit-link'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { partnerSiteAppliedPromoStorageKey } from '@/lib/partner-website/shop/partner-site-applied-promo'
 import {
@@ -1317,6 +1319,12 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
             : lineQuote?.isClearance
               ? saleT.clearanceSubtotal
               : ''
+          const productHref = partnerSiteStorefrontProductHref(siteSlug, {
+            inventoryId: item.card.inventory_id,
+            name: item.card.name,
+            productUrl: item.card.product_url,
+            customDomain,
+          })
           return (
           <div key={item.id} className={`pw-shop-cart-row${selectedLineIds.has(item.id) ? ' is-selected' : ''}`} data-pw-el={PW_EL.line} data-pw-cart-qty={qty}>
             <label className="pw-shop-cart-check" aria-label={saleT.selectProduct}>
@@ -1333,18 +1341,22 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                 }
               />
             </label>
-            <img
-              src={shopCardDisplaySrc(item.card.image_url) || item.card.image_url}
-              alt={item.card.name}
-              width={72}
-              height={72}
-              loading={index < 2 ? 'eager' : 'lazy'}
-              fetchPriority={index === 0 ? 'high' : undefined}
-              decoding="async"
-              data-pw-el={PW_EL.cardMedia}
-            />
+            <PartnerSiteProductHitLink href={productHref} className="pw-shop-cart-product-media" aria-label={item.card.name}>
+              <img
+                src={shopCardDisplaySrc(item.card.image_url) || item.card.image_url}
+                alt={item.card.name}
+                width={72}
+                height={72}
+                loading={index < 2 ? 'eager' : 'lazy'}
+                fetchPriority={index === 0 ? 'high' : undefined}
+                decoding="async"
+                data-pw-el={PW_EL.cardMedia}
+              />
+            </PartnerSiteProductHitLink>
             <div className="pw-shop-cart-row-main">
-              <strong data-pw-el={PW_EL.cardName}>{item.card.name}</strong>
+              <strong data-pw-el={PW_EL.cardName}>
+                <PartnerSiteProductHitLink href={productHref}>{item.card.name}</PartnerSiteProductHitLink>
+              </strong>
               {chipLabel ? (
                 <div className="pw-shop-cart-line-chips">
                   <span className={`pw-shop-cart-chip pw-shop-cart-chip-${chipKind}`}>{chipLabel}</span>

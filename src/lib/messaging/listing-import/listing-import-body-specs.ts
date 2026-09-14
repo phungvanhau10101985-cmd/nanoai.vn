@@ -180,25 +180,9 @@ export function enrichListingProductDataFromBody(
     }
   }
 
-  if (!String(productData.material || '').trim()) {
-    const mat = String(pairs['材质成分'] || pairs['面料名称'] || pairs['主面料成分'] || '').trim()
-    if (mat) productData.material = mat.slice(0, 100)
-  }
-  if (!String(productData.style || '').trim()) {
-    const st = String(pairs['风格'] || pairs['款式'] || pairs['风格类型'] || '').trim()
-    if (st) productData.style = st.slice(0, 100)
-  }
-  if (!String(productData.occasion || '').trim()) {
-    const oc = String(pairs['适用场景'] || '').trim()
-    if (oc) productData.occasion = oc.slice(0, 100)
-  }
   if (!String(productData.weight || '').trim()) {
     const w = String(pairs['重量'] || spec.weight_note_vi || '').trim()
     if (w) productData.weight = w.slice(0, 80)
-  }
-  if (!String(productData.brand_name || '').trim()) {
-    const brand = String(pairs['品牌'] || '').trim()
-    if (brand && brand !== '无') productData.brand_name = brand.slice(0, 120)
   }
 
   pi.product_info = inner

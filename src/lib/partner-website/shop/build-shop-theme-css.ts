@@ -151,7 +151,8 @@ ${PARTNER_CATEGORY_MEGA_LAYOUT_CSS}`
 
 /** Mobile cart: 3 columns + full-width total. Never let the 4th grid item land in the 22px checkbox track. */
 const PW_SHOP_CART_COMPACT_LAYOUT_CSS = `.pw-shop-cart-row{grid-template-columns:22px 64px minmax(0,1fr);align-items:start;gap:10px;padding:10px}
-.pw-shop-cart-row img{width:64px;height:64px}
+.pw-shop-cart-row img,.pw-shop-cart-product-media{width:64px;height:64px}
+.pw-shop-cart-product-media img{width:100%;height:100%}
 .pw-shop-cart-row-main{min-width:0}
 .pw-shop-cart-row-main strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .pw-shop-cart-line-expected,.pw-shop-cart-line-save,.pw-shop-cart-line-count{max-width:100%;overflow-wrap:break-word}
@@ -368,6 +369,11 @@ ${buildPartnerSiteHtmlChromeCss()}
 .pw-shop-order-card{border:1px solid #e2e8f0;border-radius:12px;padding:16px;background:#fff}
 .pw-shop-order-card-head{display:flex;gap:14px;align-items:flex-start}
 .pw-shop-order-thumb{width:72px;height:72px;object-fit:cover;border-radius:8px;flex-shrink:0;background:var(--pw-surface)}
+.pw-shop-product-hit-media{display:block;flex-shrink:0;line-height:0;border-radius:8px;overflow:hidden}
+.pw-shop-order-product{display:flex;align-items:center;gap:12px;margin:8px 0;min-width:0}
+.pw-shop-order-product .pw-shop-product-hit-name{flex:1;min-width:0}
+.pw-shop-order-card-main .pw-shop-product-hit-name,.pw-shop-deposit-success-card .pw-shop-product-hit-name,.pw-shop-deposit .pw-shop-product-hit-name{color:inherit;text-decoration:none}
+.pw-shop-order-card-main .pw-shop-product-hit-name:hover,.pw-shop-deposit-success-card .pw-shop-product-hit-name:hover,.pw-shop-deposit .pw-shop-product-hit-name:hover{color:var(--pw-primary)}
 .pw-shop-order-card-main{flex:1;min-width:0}
 .pw-shop-order-actions{margin-top:12px;display:flex;flex-wrap:wrap;gap:8px}
 .pw-shop-order-payment{margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb}
@@ -490,6 +496,7 @@ ${PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS}
 .pw-shop-btn-buy{background:var(--pw-buy);color:#fff;border:none}
 .pw-shop-deposit{max-width:none;margin:0;background:var(--pw-bg,#fff);border:1px solid var(--pw-border,#e5e7eb);border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(15,23,42,.04)}
 .pw-shop-deposit-head{background:linear-gradient(90deg,var(--pw-primary),var(--pw-accent));color:#fff;padding:14px 16px}
+.pw-shop-deposit .pw-shop-order-product{padding:12px 16px 0}
 .pw-shop-deposit-head h1{margin:0;font-size:18px;font-weight:800}
 .pw-shop-deposit-head p{margin:4px 0 0;font-size:13px;opacity:.92}
 .pw-shop-deposit-money{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:var(--pw-surface,#f8fafc);border-bottom:1px solid var(--pw-border,#e5e7eb)}
@@ -748,8 +755,12 @@ html[data-pw-scene-lock="desktop"] .pw-pdp-spec-grid,html[data-pw-scene-lock="la
 .pw-shop-cart-row{display:grid;gap:12px;padding:12px;border:1px solid var(--pw-border);border-radius:12px;background:var(--pw-bg);grid-template-columns:24px 72px minmax(0,1fr) minmax(0,auto);align-items:center;box-shadow:0 1px 4px rgba(15,23,42,.04)}
 .pw-shop-cart-row.is-selected{border-color:color-mix(in srgb,var(--pw-primary) 42%,var(--pw-border))}
 .pw-shop-cart-row img{width:72px;height:72px;object-fit:cover;border-radius:8px}
+.pw-shop-cart-product-media{display:block;width:72px;height:72px;line-height:0;border-radius:8px;overflow:hidden}
+.pw-shop-cart-product-media img{width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit}
 .pw-shop-cart-row-main{min-width:0}
 .pw-shop-cart-row-main strong{display:block;font-size:14px;line-height:1.35}
+.pw-shop-cart-row-main strong a,.pw-shop-product-hit-name{color:inherit;text-decoration:none}
+.pw-shop-cart-row-main strong a:hover,.pw-shop-product-hit-name:hover{color:var(--pw-primary)}
 .pw-shop-cart-row-main .pw-shop-price,.pw-shop-cart-row-main .pw-shop-muted{margin:2px 0 0;font-size:13px}
 .pw-shop-cart-row-tools{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
 .pw-shop-qty{display:inline-flex;align-items:center;border:1px solid var(--pw-border,#e5e7eb);border-radius:999px;overflow:hidden;background:#fff}

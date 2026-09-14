@@ -7,7 +7,7 @@ import { resolvePartnerCustomerLoyaltyStatusFromPg } from '@/lib/db/messaging-pa
 import { validatePromotionCodeFromPg } from '@/lib/db/messaging-partner-promotions-pg'
 import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import { resolvePartnerCheckoutPriceLinesFromPg } from '@/lib/db/messaging-partner-sale-pricing-pg'
-import { partnerSaleLiveCountdownTo, resolvePartnerSaleDiscountBreakdown } from '@/lib/partner-website/promotions/partner-sale-pricing'
+import { partnerSaleLiveCountdownTo, partnerCheckoutStackedDiscountAmount, resolvePartnerSaleDiscountBreakdown } from '@/lib/partner-website/promotions/partner-sale-pricing'
 import { fetchPartnerPaymentSettingsFromPg } from '@/lib/db/messaging-partner-orders-pg'
 import { fetchPartnerShippingProvinceFeesFromPg } from '@/lib/db/messaging-partner-shipping-province-fees-pg'
 import { resolvePartnerShippingFeeQuote } from '@/lib/partner-website/shop/partner-site-shipping-fee'
@@ -208,7 +208,7 @@ async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug
         depositRequired: inv?.deposit_required === true,
       }
     }),
-    totalDiscount: breakdown.totalDiscountAmount,
+    totalDiscount: partnerCheckoutStackedDiscountAmount(breakdown),
     shippingFee: shippingFeeAmount,
     shopDepositMode: paymentSettings?.default_deposit_mode || 'percent',
     shopDepositPercent: paymentSettings?.default_deposit_percent ?? 30,

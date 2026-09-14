@@ -1,5 +1,8 @@
 import { partnerSiteHref } from '@/lib/messaging/partner-custom-domain-site-path'
-import { buildPartnerSiteProductKey } from '@/lib/partner-website/shop/partner-site-product-slug'
+import {
+  buildPartnerSiteProductKey,
+  isPartnerInventoryUuid,
+} from '@/lib/partner-website/shop/partner-site-product-slug'
 
 type PathOpts = { customDomain?: boolean; name?: string | null }
 
@@ -47,6 +50,62 @@ export function partnerSiteProductPath(
 ): string {
   const key = buildPartnerSiteProductKey(opts?.name, inventoryId)
   return partnerSiteHref(siteSlug, `/products/${encodeURIComponent(key)}`, opts?.customDomain)
+}
+
+function isChinaSourceProductHost(host: string): boolean {
+  const h = host.toLowerCase()
+  return (
+    h === '1688.com' ||
+    h.endsWith('.1688.com') ||
+    h === 'taobao.com' ||
+    h.endsWith('.taobao.com') ||
+    h === 'tmall.com' ||
+    h.endsWith('.tmall.com')
+  )
+}
+
+/**
+ * Storefront PDP href for cart / order / added-to-cart hits.
+ * Prefer inventory UUID. Never follow 1688/Taobao/Tmall source URLs.
+ */
+export function partnerSiteStorefrontProductHref(
+  siteSlug: string,
+  opts?: PathOpts & {
+    inventoryId?: string | null
+    productUrl?: string | null
+  }
+): string {
+  const id = String(opts?.inventoryId || '').trim()
+  if (isPartnerInventoryUuid(id)) {
+    return partnerSiteProductPath(siteSlug, id, { customDomain: opts?.customDomain, name: opts?.name })
+  }
+  const raw = String(opts?.productUrl || '').trim()
+  if (!raw) return ''
+  try {
+    const url = new URL(raw, 'https://shop.local')
+    if (isChinaSourceProductHost(url.hostname)) return ''
+    const path = url.pathname
+    const inventoryMatch = path.match(/\/inventory\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i)
+    if (inventoryMatch?.[1] && isPartnerInventoryUuid(inventoryMatch[1])) {
+      return partnerSiteProductPath(siteSlug, inventoryMatch[1], {
+        customDomain: opts?.customDomain,
+        name: opts?.name,
+      })
+    }
+    const productMatch = path.match(/\/products\/([^/]+)\/?$/)
+    if (!productMatch?.[1]) return ''
+    const key = decodeURIComponent(productMatch[1])
+    const uuidInKey = key.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)
+    if (uuidInKey && isPartnerInventoryUuid(uuidInKey[0])) {
+      return partnerSiteProductPath(siteSlug, uuidInKey[0], {
+        customDomain: opts?.customDomain,
+        name: opts?.name,
+      })
+    }
+    return partnerSiteHref(siteSlug, `/products/${encodeURIComponent(key)}`, opts?.customDomain)
+  } catch {
+    return ''
+  }
 }
 
 export function partnerSiteCartPath(siteSlug: string, opts?: PathOpts): string {

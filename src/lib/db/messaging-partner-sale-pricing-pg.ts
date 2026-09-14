@@ -10,6 +10,7 @@ import {
   getPartnerFlashSaleAssignmentFromPg,
   partnerFlashSalePercentForLine,
 } from '@/lib/db/messaging-partner-flash-sale-pg'
+import { partnerFlashSaleIdentityKey } from '@/lib/partner-website/promotions/partner-flash-sale'
 import type { PartnerSalePriceKind, PartnerSalePriceLine } from '@/lib/partner-website/promotions/partner-sale-pricing'
 
 type InventoryPriceDbRow = {
@@ -65,6 +66,7 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
     }))
   }
   const config = input.saleConfig ?? (await fetchPartnerSaleCalendarConfigFromPg(input.partnerId))
+  const saleAccountKey = partnerFlashSaleIdentityKey(input.accountKey)
   const [rows, locks, calendarState, flashAssignment] = await Promise.all([
     pgQuery<InventoryPriceDbRow>(
       `select id::text, price_amount, coalesce(price_hint, '') as price_hint,
@@ -84,13 +86,13 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
         [input.partnerId, ids]
       )
     }),
-    input.accountKey
+    saleAccountKey
       ? pgQuery<GoogleLockDbRow>(
           `select inventory_id::text, locked_unit_price, expires_at
            from public.messaging_partner_google_discount_locks
            where partner_id = $1::uuid and account_key = $2 and expires_at > now()
              and inventory_id = any($3::uuid[])`,
-          [input.partnerId, input.accountKey, ids]
+          [input.partnerId, saleAccountKey, ids]
         ).catch(() => [])
       : Promise.resolve([]),
     input.calendarState
@@ -103,7 +105,7 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
         }),
     getPartnerFlashSaleAssignmentFromPg({
       partnerId: input.partnerId,
-      accountKey: input.accountKey,
+      accountKey: saleAccountKey,
       timezone: config.timezone,
       now: input.at,
       enabled: config.flashSaleEnabled,

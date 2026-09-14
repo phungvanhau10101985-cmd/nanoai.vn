@@ -18,7 +18,8 @@ import {
   PARTNER_SITE_ORDER_STATUS_FILTER_KEYS,
   type PartnerSiteOrderStatusFilterKey,
 } from '@/lib/partner-website/shop/partner-site-order-status-filters'
-import { partnerSiteOrderDepositPath, partnerSiteOrderDetailPath, partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteOrderDepositPath, partnerSiteOrderDetailPath, partnerSiteStorefrontProductHref } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { PartnerSiteProductHitLink } from '@/components/partner-website/shop/partner-site-product-hit-link'
 import { stashPartnerSiteOrderListHandoff } from '@/lib/partner-website/shop/partner-site-checkout-handoff'
 import {
   readPartnerSiteAccountBrowserCache,
@@ -260,22 +261,29 @@ export function PartnerSiteShopOrdersClient({
             (o.status === 'paid_verified' ||
               o.status === 'pending_manual_review' ||
               ['confirmed', 'packing', 'shipping', 'delivered'].includes(String(o.shipping_status ?? '')))
-          const reviewHref = o.product_inventory_id
-            ? partnerSiteProductPath(siteSlug, o.product_inventory_id, {
-                customDomain,
-                name: o.product_name,
-              })
-            : o.product_url || ''
+          const productHref = partnerSiteStorefrontProductHref(siteSlug, {
+            inventoryId: o.product_inventory_id,
+            name: o.product_name,
+            productUrl: o.product_url,
+            customDomain,
+          })
+          const reviewHref = productHref
           const steps = genericShippingTimelineSteps(o.shipping_status, t)
 
           return (
             <li key={o.id} className="pw-shop-order-card" data-pw-el={PW_EL.card}>
               <div className="pw-shop-order-card-head">
                 {o.product_image_url ? (
-                  <img src={shopCardDisplaySrc(o.product_image_url) || o.product_image_url} alt={o.product_name ?? ''} className="pw-shop-order-thumb" loading="lazy" decoding="async" />
+                  <PartnerSiteProductHitLink href={productHref} className="pw-shop-product-hit-media" aria-label={o.product_name || t.orderIdLabel}>
+                    <img src={shopCardDisplaySrc(o.product_image_url) || o.product_image_url} alt={o.product_name ?? ''} className="pw-shop-order-thumb" loading="lazy" decoding="async" />
+                  </PartnerSiteProductHitLink>
                 ) : null}
                 <div className="pw-shop-order-card-main">
-                  <strong>{o.product_name || t.orderIdLabel}</strong>
+                  <strong>
+                    <PartnerSiteProductHitLink href={productHref} className="pw-shop-product-hit-name">
+                      {o.product_name || t.orderIdLabel}
+                    </PartnerSiteProductHitLink>
+                  </strong>
                   <p className="pw-shop-muted">
                     {t.orderIdLabel}: {ref || o.id}
                   </p>

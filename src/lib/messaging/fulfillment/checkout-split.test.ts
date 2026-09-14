@@ -94,4 +94,17 @@ describe('buildCheckoutSplitPlans', () => {
     assert.equal(plans[0].requiresDeposit, true)
     assert.equal(plans[1].requiresDeposit, false)
   })
+
+  it('takes 30 percent deposit from Flash unit price, not list minus Flash twice', () => {
+    const plans = buildCheckoutSplitPlans({
+      lines: [line({ fulfillmentSource: 'vietnam', lineSubtotal: 9_935_800 })],
+      totalDiscount: 0,
+      shippingFee: 0,
+      shopDepositMode: 'percent',
+      shopDepositPercent: 30,
+      shopDepositFixed: 0,
+    })
+    assert.equal(plans[0].amountAfterDiscount, 9_935_800)
+    assert.equal(plans[0].requiredAmount, 2_980_740)
+  })
 })

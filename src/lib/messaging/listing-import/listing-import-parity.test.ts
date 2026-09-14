@@ -17,8 +17,12 @@ import {
   inferQuestionGroupIdFromProductName,
   inferRatingGroupIdFromText,
   applyListingImportRatingGroups,
+  buildImportRatingContextText,
   RATING_GROUP_ID_UNASSIGNED,
 } from '@/lib/messaging/listing-import/listing-import-rating-groups'
+import { appendListingImportColorSuffixToViName } from '@/lib/messaging/listing-import/listing-import-taxonomy'
+import { compactListingImportProductInfoForWeb } from '@/lib/messaging/listing-import/listing-import-product-info-compact'
+import { excelExportRowFromProductData } from '@/lib/messaging/listing-import/import-1688-excel-export-preview'
 
 describe('listing import cookies', () => {
   it('parses Cookie-Editor JSON list', () => {
@@ -44,12 +48,51 @@ describe('listing import rating groups', () => {
     assert.equal(inferQuestionGroupIdFromProductName('Áo thun nam'), 100)
     assert.equal(inferQuestionGroupIdFromProductName('Váy đầm nữ'), 88)
   })
-  it('assigns 888 when no keyword match', () => {
+  it('assigns 888 when no keyword match', async () => {
     const pd: Record<string, unknown> = { name: 'Widget lạ xyz' }
     const warnings: string[] = []
-    applyListingImportRatingGroups(pd, warnings)
+    await applyListingImportRatingGroups(pd, warnings)
     assert.equal(pd.group_rating, RATING_GROUP_ID_UNASSIGNED)
     assert.equal(pd.group_question, 99)
+  })
+  it('maps question group 88 from Vietnamese name with nữ like 188', () => {
+    assert.equal(inferQuestionGroupIdFromProductName('Đầm nữ dáng suông xếp ly nhẹ thanh lịch — Đỏ chà là'), 88)
+  })
+  it('builds rating context from taxonomy JSON features weight and audience like 188', () => {
+    const ctx = buildImportRatingContextText({
+      name: 'Váy đầm liền thân nữ suông',
+      category: 'Thời trang Nữ',
+      subcategory: 'Đầm',
+      sub_subcategory: 'đầm suông nữ midi',
+      features: 'xếp ly nhẹ',
+      weight: '280g',
+      product_info: {
+        product_info: {
+          category: { level_1: 'Thời trang Nữ', level_2: 'Đầm', level_3: 'đầm suông nữ midi' },
+          target_audience_suggestion_vi: 'Phù hợp Nữ 18–35',
+        },
+        import_taxonomy_meta: { khach_hang_vi: 'Nữ 18-35' },
+      },
+    })
+    assert.match(ctx, /xếp ly nhẹ/)
+    assert.match(ctx, /280g/)
+    assert.match(ctx, /Phù hợp Nữ 18–35/)
+    assert.match(ctx, /Nữ 18-35/)
+    assert.equal(inferRatingGroupIdFromText(ctx), 59)
+  })
+  it('keeps 888/0 without AI when taxonomy just created levels', async () => {
+    const pd: Record<string, unknown> = {
+      name: 'Đầm nữ dáng suông',
+      category: 'Thời trang Nữ',
+      subcategory: 'Đầm',
+      sub_subcategory: 'đầm suông nữ midi',
+      _taxonomy_auto_created_levels: '2,3',
+    }
+    const warnings: string[] = []
+    await applyListingImportRatingGroups(pd, warnings)
+    assert.equal(pd.group_rating, RATING_GROUP_ID_UNASSIGNED)
+    assert.equal(pd.group_question, 0)
+    assert.match(String(warnings[0] || ''), /taxonomy vừa tạo/)
   })
 })
 
@@ -217,8 +260,8 @@ Nền tảng mua hàng`
       10
     )
     assert.equal(pd.pro_lower_price, '349')
-    assert.equal(pd.material, '涤纶（聚酯纤维）:100%')
-    assert.equal(pd.style, '小香风')
+    assert.equal(pd.material, null)
+    assert.equal(pd.style, null)
     const spec = (pd.product_info as Record<string, unknown>).specifications as Record<string, unknown>
     assert.equal(spec['货号'], '45471')
     assert.match(String(pd.description), /货号: 45471/)
@@ -228,6 +271,90 @@ Nền tảng mua hàng`
     const pd: Record<string, unknown> = { name: 'Trang phục mùa thu năm 2026, váy lụa' }
     applyListingYearSanitizeToProductData(pd)
     assert.equal(pd.name, 'Trang phục mùa thu, váy lụa')
+  })
+})
+
+describe('listing import Excel / product_info parity with 188', () => {
+  it('appends up to 4 color labels to Vietnamese name', () => {
+    assert.equal(
+      appendListingImportColorSuffixToViName('Đầm nữ dáng suông', ['Đỏ chà là']),
+      'Đầm nữ dáng suông — Đỏ chà là'
+    )
+    assert.equal(
+      appendListingImportColorSuffixToViName('Áo', ['A', 'B', 'C', 'D', 'E']),
+      'Áo — A, B, C, D'
+    )
+  })
+
+  it('blanks origin/brand/shop columns like 188 _excel_row_from_product', () => {
+    const row = excelExportRowFromProductData({
+      product_id: 'A1',
+      name: 'Đầm nữ',
+      origin: '1688',
+      brand_name: '其他',
+      shop_name: 'Vipomall',
+      shop_id: '123',
+      pro_lower_price: '128,00',
+      pro_high_price: '128,00',
+      description: 'Mô tả bán',
+      sizes: ['S', 'XXL'],
+      group_rating: 888,
+      group_question: 88,
+    })
+    assert.equal(row.origin, '')
+    assert.equal(row.brand, '')
+    assert.equal(row.shop_name, '')
+    assert.equal(row.shop_id, '')
+    assert.equal(row.pro_lower_price, '')
+    assert.equal(row.pro_high_price, '')
+    assert.equal(row.pro_content, 'Mô tả bán')
+    assert.equal(row.sizes, '["S", "XXL"]')
+    assert.equal(row.question_group_id, 88)
+  })
+
+  it('compacts product_info to web keys like 188 compact_product_info_for_web', () => {
+    const pd: Record<string, unknown> = {
+      product_info: {
+        product_info: {
+          name: 'Đầm nữ — Đỏ',
+          name_vi: 'Đầm nữ',
+          display_name_vi: 'Đầm nữ — Đỏ',
+          target_audience_suggestion_vi: 'Phù hợp Nữ 18–35',
+          listing_sku_hint: 'A1',
+        },
+        specifications: {
+          style: 'Thanh lịch',
+          occasion: 'Đi làm, dạo phố',
+          thong_so_kich_thuoc_vi: 'Dáng suông',
+          supplier_specs_excerpt: '材质:涤纶',
+          货号: '45471',
+        },
+        variants: {
+          source: 'vipomall',
+          colors: 'Đỏ chà là',
+          sizes: 'S, XXL',
+          pairs: [{ color: 'Đỏ', size: 'S' }],
+          vipomall_rows: [{ x: 1 }],
+        },
+        market_info: { currency: 'VND', note: 'scrape' },
+      },
+    }
+    compactListingImportProductInfoForWeb(pd)
+    const pi = pd.product_info as Record<string, unknown>
+    const inner = pi.product_info as Record<string, unknown>
+    const spec = pi.specifications as Record<string, unknown>
+    const variants = pi.variants as Record<string, unknown>
+    assert.equal(inner.name_vi, 'Đầm nữ')
+    assert.equal(inner.display_name_vi, 'Đầm nữ — Đỏ')
+    assert.equal(spec.style, 'Thanh lịch')
+    assert.equal(spec.occasion, 'Đi làm, dạo phố')
+    assert.equal(spec['货号'], undefined)
+    assert.equal(spec.supplier_specs_excerpt, undefined)
+    assert.equal(variants.colors, 'Đỏ chà là')
+    assert.equal(variants.sizes, 'S, XXL')
+    assert.equal(variants.source, undefined)
+    assert.equal(variants.pairs, undefined)
+    assert.equal(pi.market_info, undefined)
   })
 })
 

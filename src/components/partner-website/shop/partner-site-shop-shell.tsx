@@ -31,7 +31,7 @@ import { PartnerSiteCookieConsentBanner } from '@/components/partner-website/sho
 import { PartnerSiteBirthGenderPromptModal } from '@/components/partner-website/shop/partner-site-birth-gender-prompt-modal'
 import { PartnerSiteLoginChromeLink } from '@/components/partner-website/shop/partner-site-login-chrome-link'
 import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
-import { CART_ADDED_MODAL_COPY } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
+import { CART_ADDED_MODAL_COPY, hideLeftoverPartnerCartAddedHtmlPopup } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
 import { PartnerSiteNewsletterForm } from '@/components/partner-website/shop/partner-site-newsletter-form'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
@@ -41,6 +41,7 @@ import {
   partnerSiteCategoriesApiPath,
   partnerSiteInfoPath,
   partnerSiteNotificationsApiPath,
+  partnerSiteStorefrontProductHref,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { type PartnerCategoryTreeNode } from '@/lib/partner-website/category/partner-category-types'
 import {
@@ -473,7 +474,11 @@ function PartnerSiteShopShellInner({
     )
   const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { cartCount, setCartCount, registerCartLoader } = usePartnerSiteShop()
-  const [pendingCartAdded, setPendingCartAdded] = useState<{ name: string; imageUrl?: string | null } | null>(null)
+  const [pendingCartAdded, setPendingCartAdded] = useState<{
+    name: string
+    imageUrl?: string | null
+    productHref?: string | null
+  } | null>(null)
   const [categoryTree, setCategoryTree] = useState<PartnerCategoryTreeNode[] | null>(null)
   const [seoSizeNodes, setSeoSizeNodes] = useState<PartnerCategoryTreeNode[]>([])
   const [categoriesOpen, setCategoriesOpen] = useState(false)
@@ -557,6 +562,11 @@ function PartnerSiteShopShellInner({
     registerCartLoader(loadCartCount)
   }, [loadCartCount, registerCartLoader])
 
+  useLayoutEffect(() => {
+    hideLeftoverPartnerCartAddedHtmlPopup()
+    if (activeNav === 'cart') setPendingCartAdded(null)
+  }, [activeNav])
+
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (isPartnerShopLoginPath(window.location.pathname, siteSlug)) return
@@ -582,14 +592,23 @@ function PartnerSiteShopShellInner({
         window.location.replace(partnerSiteCartPath(siteSlug, { customDomain }))
         return
       }
-      if (result.last) {
-        setPendingCartAdded({ name: result.last.name || '', imageUrl: result.last.image_url })
+      if (result.last && activeNav !== 'cart') {
+        setPendingCartAdded({
+          name: result.last.name || '',
+          imageUrl: result.last.image_url,
+          productHref: partnerSiteStorefrontProductHref(siteSlug, {
+            inventoryId: result.last.inventory_id,
+            name: result.last.name,
+            productUrl: result.last.product_url,
+            customDomain,
+          }),
+        })
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [authHeaders, captureFromResponse, customDomain, isAuthenticated, loadCartCount, siteSlug])
+  }, [activeNav, authHeaders, captureFromResponse, customDomain, isAuthenticated, loadCartCount, siteSlug])
 
   useEffect(() => {
     // The cart screen loads the same payload and updates the shared badge itself.

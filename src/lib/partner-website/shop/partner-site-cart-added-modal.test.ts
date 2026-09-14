@@ -6,6 +6,7 @@ import { buildPartnerSiteShopThemeCss } from '@/lib/partner-website/shop/build-s
 import { buildPartnerSiteShopActionsBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-shop-actions-bootstrap-script'
 import {
   CART_ADDED_MODAL_COPY,
+  hideLeftoverPartnerCartAddedHtmlPopup,
   PW_CART_ADDED_MODAL_CSS,
   PW_CART_ADDED_MODAL_RUNTIME_JS,
 } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
@@ -34,6 +35,8 @@ test('cart added modal CSS matches 188 layout and theme tokens', () => {
   assert.doesNotMatch(PW_CART_ADDED_MODAL_CSS, /#ea580c|#f97316/)
   const theme = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
   assert.match(theme, /data-pw-cart-added-popup/)
+  assert.match(theme, /pw-shop-cart-product-media/)
+  assert.match(theme, /pw-shop-order-product/)
 })
 
 test('shop-actions injects cart added modal instead of success toast', () => {
@@ -44,6 +47,11 @@ test('shop-actions injects cart added modal instead of success toast', () => {
   assert.match(script, /Vào giỏ hàng/)
   assert.match(script, /Mua sắm tiếp/)
   assert.match(PW_CART_ADDED_MODAL_RUNTIME_JS, /showCartAddedModal/)
+  assert.match(PW_CART_ADDED_MODAL_RUNTIME_JS, /pw-shop-soft-nav/)
+  assert.match(PW_CART_ADDED_MODAL_RUNTIME_JS, /data-pw-cart-added-go/)
+  assert.match(PW_CART_ADDED_MODAL_RUNTIME_JS, /goBtn\.addEventListener\('pointerdown',hideCartAddedModal\)/)
+  assert.match(PW_CART_ADDED_MODAL_RUNTIME_JS, /data-pw-cart-added-pdp/)
+  assert.match(PW_CART_ADDED_MODAL_RUNTIME_JS, /cartAddedPdpHref/)
 })
 
 test('shop-actions queues guest cart then opens login, and does not gate the variant modal', () => {
@@ -63,4 +71,22 @@ test('shop-actions queues guest cart then opens login, and does not gate the var
   assert.doesNotMatch(script, /function goProduct\(/)
   assert.doesNotMatch(script, /function prefetchProduct/)
   assert.doesNotMatch(script, /navigateShop\(dest\)/)
+})
+
+test('hideLeftoverPartnerCartAddedHtmlPopup hides the HTML runtime popup', () => {
+  const attrs: Record<string, string> = {}
+  const body = { style: { overflow: 'hidden' } }
+  const root = {
+    getAttribute: (key: string) => (key === 'data-pw-prev-overflow' ? 'auto' : null),
+    setAttribute: (name: string, value: string) => {
+      attrs[name] = value
+    },
+  }
+  const doc = {
+    getElementById: (id: string) => (id === 'pw-cart-added-popup' ? root : null),
+    body,
+  } as unknown as Document
+  hideLeftoverPartnerCartAddedHtmlPopup(doc)
+  assert.equal(attrs.hidden, '')
+  assert.equal(body.style.overflow, 'auto')
 })

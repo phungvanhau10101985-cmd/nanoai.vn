@@ -104,9 +104,25 @@ export function emptyPartnerFlashSaleAssignment(
   return { productIds: [], percentById: {}, slot }
 }
 
+const STOREFRONT_ACCOUNT_PREFIX_RE = /^(?:user|guest|session):/i
+
+/**
+ * Flash / Google lock / recently-viewed share one storefront key: the raw UUID
+ * (guest first). Checkout must not look up `guest:` / `user:` prefixes.
+ */
 export function partnerFlashSaleIdentityKey(accountKey: string | null | undefined): string | null {
-  const key = String(accountKey || '').trim()
+  const key = String(accountKey || '').trim().replace(STOREFRONT_ACCOUNT_PREFIX_RE, '').trim()
   return key || null
+}
+
+export function partnerStorefrontSaleAccountKey(input: {
+  guestAccountId?: string | null
+  linkedUserId?: string | null
+  fallback?: string | null
+}): string | null {
+  return partnerFlashSaleIdentityKey(
+    input.guestAccountId || input.linkedUserId || input.fallback || ''
+  )
 }
 
 /** FNV-1a 32-bit — isomorphic (visual editor client cannot import `node:crypto`). */

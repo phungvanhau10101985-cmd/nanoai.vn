@@ -28,7 +28,7 @@ function lenLatinFashion(t: string): boolean {
   return /^[A-Za-z0-9\s\-–/.(),[\]%+]+$/.test(t)
 }
 
-function collectColorLabels(productData: Record<string, unknown>): string[] {
+export function collectListingImportColorLabels(productData: Record<string, unknown>): string[] {
   const out: string[] = []
   const seen = new Set<string>()
   const push = (raw: unknown) => {
@@ -89,7 +89,7 @@ export async function applyListingImportColorTranslation(
   productData: Record<string, unknown>,
   warnings: string[]
 ): Promise<number> {
-  const unique = collectColorLabels(productData).filter(listingImportColorNeedsTranslate)
+  const unique = collectListingImportColorLabels(productData).filter(listingImportColorNeedsTranslate)
   if (!unique.length) return 0
   const mapping: Record<string, string> = {}
   for (let i = 0; i < unique.length; i += CHUNK) {
@@ -133,7 +133,7 @@ export async function applyListingImportColorTranslation(
           n += 1
         }
       }
-      const flat = collectColorLabels({ colors: productData.colors }).join(', ')
+      const flat = collectListingImportColorLabels({ colors: productData.colors }).join(', ')
       if (flat) v.colors = flat
     }
   }

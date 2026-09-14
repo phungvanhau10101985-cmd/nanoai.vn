@@ -7,6 +7,8 @@ import {
   FLASH_SALE_MIN_PERCENT,
   FLASH_SALE_SLOT_MINUTES,
   partnerFlashSalePercentForProduct,
+  partnerFlashSaleIdentityKey,
+  partnerStorefrontSaleAccountKey,
   pickEvenShopProducts,
   resolvePartnerFlashSaleSlot,
 } from '@/lib/partner-website/promotions/partner-flash-sale'
@@ -126,4 +128,21 @@ test('flash unit price replaces calendar instead of stacking min', () => {
     }),
     calendarEightPercent
   )
+})
+
+test('flash identity matches cart quote UUID, not checkout guest:/user: prefixes', () => {
+  const guest = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
+  const user = '11111111-2222-4333-8444-555555555555'
+  assert.equal(
+    partnerStorefrontSaleAccountKey({ guestAccountId: guest, linkedUserId: user }),
+    guest
+  )
+  assert.equal(
+    partnerStorefrontSaleAccountKey({ linkedUserId: user }),
+    user
+  )
+  assert.equal(partnerFlashSaleIdentityKey(`guest:${guest}`), guest)
+  assert.equal(partnerFlashSaleIdentityKey(`user:${user}`), user)
+  assert.equal(partnerFlashSaleIdentityKey('session:thread-1'), 'thread-1')
+  assert.equal(partnerFlashSaleIdentityKey(guest), guest)
 })

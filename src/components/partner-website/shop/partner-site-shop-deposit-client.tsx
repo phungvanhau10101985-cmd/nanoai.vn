@@ -43,6 +43,7 @@ import {
   partnerSiteOrderDetailPath,
   partnerSiteOrdersPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { PartnerSiteStorefrontProductHits } from '@/components/partner-website/shop/partner-site-product-hit-link'
 import { trackPartnerSitePurchase } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import {
@@ -73,6 +74,9 @@ type DepositOrder = PartnerOrderDiscountFields & {
   payment_qr_url?: string | null
   payment_method?: string | null
   product_name?: string | null
+  product_image_url?: string | null
+  product_inventory_id?: string | null
+  product_url?: string | null
   promo_code?: string | null
   loyalty_tier_name?: string | null
   fulfillment_source?: 'vietnam' | 'china' | null
@@ -573,6 +577,14 @@ export function PartnerSiteShopDepositClient({
                   {t.depositPageCode.replace('{code}', code)}
                 </strong>
               </p>
+              <PartnerSiteStorefrontProductHits
+                siteSlug={siteSlug}
+                customDomain={customDomain}
+                inventoryId={order.product_inventory_id}
+                name={order.product_name}
+                imageUrl={order.product_image_url}
+                productUrl={order.product_url}
+              />
               <PartnerSiteOrderSplitGroup
                 t={t}
                 siteSlug={siteSlug}
@@ -644,6 +656,14 @@ export function PartnerSiteShopDepositClient({
         <h1>{t.depositPageTitle}</h1>
         <p>{t.depositPageCode.replace('{code}', code)}</p>
       </div>
+      <PartnerSiteStorefrontProductHits
+        siteSlug={siteSlug}
+        customDomain={customDomain}
+        inventoryId={order.product_inventory_id}
+        name={order.product_name}
+        imageUrl={order.product_image_url}
+        productUrl={order.product_url}
+      />
       <div className="pw-shop-deposit-money">
         <div>
           <p className="k">{t.depositTotalLabel}</p>

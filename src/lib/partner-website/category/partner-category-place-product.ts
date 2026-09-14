@@ -13,7 +13,10 @@ import {
   type PartnerCategoryShopSeoContext,
 } from '@/lib/partner-website/category/partner-category-fill-seo'
 import { buildPartnerCategorySeoTitle } from '@/lib/partner-website/category/partner-category-seo-ai'
-import { resolveCategorySiblingBySeoIntent } from '@/lib/partner-website/category/partner-category-seo-intent'
+import {
+  findExactCategorySibling,
+  resolveCategorySiblingBySeoIntent,
+} from '@/lib/partner-website/category/partner-category-seo-intent'
 import { shouldSkipPartnerCategoryImportName } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
 import type { ProductStudioJobPayload } from '@/lib/partner-website/product-studio/product-studio-types'
 import { proposeProductStudioCategoryPath } from '@/lib/partner-website/category/partner-category-taxonomy-propose'
@@ -346,4 +349,119 @@ export async function placeProductStudioInventoryInCategoryTree(input: {
   const seo = await finishSession(session, [input.productName])
   if (!seo.ok) return toResult(session, leaf.id, { error: seo.error })
   return toResult(session, leaf.id)
+}
+
+export type EnsurePartnerCategoryTripleResult = {
+  ok: boolean
+  createdLevels: string
+  cat1: string
+  cat2: string
+  cat3: string
+  fullSlug: string
+  warnings: string[]
+  error?: string
+}
+
+/**
+ * Cào listing 188: khớp đúng tên L1/L2/L3 đã có; thiếu thì tạo mới rồi sinh SEO.
+ * Không gộp synonym SEO (tránh «đầm suông» dính «đầm voan»).
+ */
+export async function ensurePartnerCategoryTripleWithSeo(input: {
+  partnerId: string
+  categoryL1: string
+  categoryL2: string
+  categoryL3: string
+  productName: string
+}): Promise<EnsurePartnerCategoryTripleResult> {
+  const l1Name = input.categoryL1.trim().slice(0, 200)
+  const l2Name = input.categoryL2.trim().slice(0, 200)
+  const l3Name = input.categoryL3.trim().slice(0, 200)
+  const empty = {
+    ok: false,
+    createdLevels: '',
+    cat1: l1Name,
+    cat2: l2Name,
+    cat3: l3Name,
+    fullSlug: '',
+    warnings: [] as string[],
+  }
+  if (!l1Name || !l2Name || !l3Name) {
+    return { ...empty, error: 'missing_triple', warnings: ['place_category: thiếu cat1/cat2/cat3'] }
+  }
+  const session = await startSession(input.partnerId)
+  if (!session) {
+    return { ...empty, error: 'db_error', warnings: ['place_category: could not read tree'] }
+  }
+
+  const createdTags: string[] = []
+  const takeExact = async (
+    parentId: string | null,
+    name: string,
+    levelTag: string
+  ): Promise<PartnerCategoryRow | null> => {
+    if (!name || shouldSkipPartnerCategoryImportName(name)) {
+      return parentId ? session.rows.find((c) => c.id === parentId) ?? null : null
+    }
+    const exact = findExactCategorySibling(session.rows, parentId, name)
+    if (exact) {
+      markTouched(session, exact, false)
+      return exact
+    }
+    const created = await insertPartnerCategoryFromPg({
+      partnerId: session.partnerId,
+      parentId,
+      name,
+      slug: slugifyPartnerCategoryName(name),
+      isActive: true,
+      sortOrder: session.rows.filter((c) => (c.parentId ?? null) === parentId).length,
+      seoTitle: buildPartnerCategorySeoTitle(name, session.shop.shopDisplayName),
+      aiGenerated: true,
+    })
+    if (!created.ok) {
+      const again = await fetchPartnerCategoriesFlatFromPg(session.partnerId, { activeOnly: false })
+      if (again) {
+        session.rows.splice(0, session.rows.length, ...again)
+        const raced = findExactCategorySibling(session.rows, parentId, name)
+        if (raced) {
+          markTouched(session, raced, false)
+          return raced
+        }
+      }
+      session.warnings.push(`place_category: create "${name}" failed (${created.error})`)
+      return null
+    }
+    session.rows.push(created.row)
+    markTouched(session, created.row, true)
+    createdTags.push(levelTag)
+    return created.row
+  }
+
+  const n1 = await takeExact(null, l1Name, '1')
+  if (!n1) return { ...empty, warnings: session.warnings, error: 'place_category_failed' }
+  const n2 = await takeExact(n1.id, l2Name, '2')
+  if (!n2) return { ...empty, cat1: n1.name, warnings: session.warnings, error: 'place_category_failed' }
+  const n3 = await takeExact(n2.id, l3Name, '3')
+  if (!n3) {
+    return {
+      ...empty,
+      cat1: n1.name,
+      cat2: n2.name,
+      warnings: session.warnings,
+      error: 'place_category_failed',
+    }
+  }
+
+  const seo = await finishSession(session, [input.productName])
+  if (!seo.ok) {
+    session.warnings.push(`taxonomy_seo: ${seo.error}`)
+  }
+  return {
+    ok: true,
+    createdLevels: createdTags.join(','),
+    cat1: n1.name,
+    cat2: n2.name,
+    cat3: n3.name,
+    fullSlug: (n3.path || '').replace(/^\//, ''),
+    warnings: session.warnings,
+  }
 }

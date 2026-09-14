@@ -1,3 +1,8 @@
+import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import { deepseekPartnerChat } from '@/lib/messaging/partner-ai-llm'
+import { resolvePartnerWebsiteGeminiApiKey } from '@/lib/partner-website/partner-website-gemini-key'
+
 /**
  * Nhóm đánh giá / hỏi đáp sau scrape — luật từ-khóa 188 (product_rating_question_groups).
  */
@@ -211,6 +216,8 @@ export function buildImportRatingContextText(productData: Record<string, unknown
     'style',
     'color',
     'occasion',
+    'features',
+    'weight',
   ]) {
     add(productData[key])
   }
@@ -220,13 +227,15 @@ export function buildImportRatingContextText(productData: Record<string, unknown
     const rec = pi as Record<string, unknown>
     const inner = rec.product_info
     if (inner && typeof inner === 'object') {
-      const cat = (inner as Record<string, unknown>).category
+      const inn = inner as Record<string, unknown>
+      const cat = inn.category
       if (cat && typeof cat === 'object') {
         const c = cat as Record<string, unknown>
         add(c.level_1)
         add(c.level_2)
         add(c.level_3)
       }
+      add(inn.target_audience_suggestion_vi)
     }
     const meta = rec.import_taxonomy_meta
     if (meta && typeof meta === 'object') add((meta as Record<string, unknown>).khach_hang_vi)
@@ -245,10 +254,230 @@ export function buildImportRatingContextText(productData: Record<string, unknown
   return parts.join(' ')
 }
 
-export function applyListingImportRatingGroups(
+const RATING_GROUP_ID_WHITELIST = new Set(
+  [...RATING_GROUPS, ...RATING_ALIASES].map(([, gid]) => gid)
+)
+
+function ratingGroupCatalogTextForPrompt(): string {
+  const canon = new Map<number, string>()
+  for (const [phrase, gid] of RATING_GROUPS) {
+    const q = phrase.trim()
+    if (!q) continue
+    const cur = canon.get(gid)
+    if (cur == null || q.length < cur.length) canon.set(gid, q)
+  }
+  for (const gid of [...RATING_GROUP_ID_WHITELIST].sort((a, b) => a - b)) {
+    if (!canon.has(gid)) canon.set(gid, `(id=${gid})`)
+  }
+  return [...canon.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([gid, label]) => `${gid}: ${label}`)
+    .join('\n')
+}
+
+const PROMPT_CATALOG_MAX_CHARS = 100_000
+const VALID_QUESTION_GROUP_IDS = new Set([88, 99, 100])
+
+function envFlagOff(raw: string | undefined): boolean {
+  const v = (raw || '').trim().toLowerCase()
+  return v === '0' || v === 'false' || v === 'off'
+}
+
+function listingImportGroupsAiSkipped(): boolean {
+  if (process.argv.includes('--test')) return true
+  return envFlagOff(process.env.LISTING_IMPORT_GROUPS_FALLBACK)
+}
+
+function listingImportDeepseekGroupsEnabled(): boolean {
+  if (listingImportGroupsAiSkipped()) return false
+  if (envFlagOff(process.env.LISTING_IMPORT_DEEPSEEK_GROUPS_FALLBACK)) return false
+  return Boolean(process.env.DEEPSEEK_API_KEY?.trim())
+}
+
+function listingImportGeminiGroupsEnabled(): boolean {
+  if (listingImportGroupsAiSkipped()) return false
+  if (envFlagOff(process.env.LISTING_IMPORT_GEMINI_GROUPS_FALLBACK)) return false
+  const key = resolvePartnerWebsiteGeminiApiKey()
+  return Boolean(key && key.length >= 10)
+}
+
+function ratingCatalogForPrompt(): string {
+  const catalog = ratingGroupCatalogTextForPrompt()
+  if (catalog.length <= PROMPT_CATALOG_MAX_CHARS) return catalog
+  return `${catalog.slice(0, PROMPT_CATALOG_MAX_CHARS)}\n...[truncated]`
+}
+
+function pullGroupInt(parsed: Record<string, unknown>, keys: string[]): number | null {
+  for (const k of keys) {
+    const raw = parsed[k]
+    if (typeof raw === 'boolean') continue
+    if (typeof raw === 'number' && Number.isFinite(raw)) return Math.trunc(raw)
+    if (typeof raw === 'string' && /^\d+$/.test(raw.trim())) return Number.parseInt(raw.trim(), 10)
+  }
+  return null
+}
+
+function parseGroupsAiJson(
+  text: string
+): { rating: number; question: number | null } | null {
+  const trimmed = (text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  const start = trimmed.indexOf('{')
+  const end = trimmed.lastIndexOf('}')
+  if (start < 0 || end <= start) return null
+  try {
+    const parsed = JSON.parse(trimmed.slice(start, end + 1)) as unknown
+    if (!parsed || typeof parsed !== 'object') return null
+    const rec = parsed as Record<string, unknown>
+    const rid = pullGroupInt(rec, ['rating_group_id', 'group_rating'])
+    const qid = pullGroupInt(rec, ['question_group_id', 'group_question'])
+    return {
+      rating: rid != null && RATING_GROUP_ID_WHITELIST.has(rid) ? rid : 0,
+      question: qid != null && VALID_QUESTION_GROUP_IDS.has(qid) ? qid : null,
+    }
+  } catch {
+    return null
+  }
+}
+
+async function deepseekFallbackImportGroups(
+  contextText: string,
+  productName: string,
+  warnings: string[]
+): Promise<{ rating: number; question: number | null }> {
+  if (!listingImportDeepseekGroupsEnabled()) return { rating: 0, question: null }
+  const catalog = ratingCatalogForPrompt()
+  const whitelistIds = [...RATING_GROUP_ID_WHITELIST].sort((a, b) => a - b).join(',')
+  const r = await deepseekPartnerChat(
+    'Bạn gán hai mã cố định cho một sản phẩm thương mại Việt Nam.\n\n' +
+      'Quy tắc nhóm **câu hỏi** (question_group_id), chỉ một trong ba số sau:\n' +
+      '- **99**: không phân biệt giới hoặc unisex nam-nữ trong tên/ngữ cảnh (hoặc không suy được).\n' +
+      '- **100**: sản phẩm dành **nam** (hoặc từ chỉ nam rõ ràng).\n' +
+      '- **88**: sản phẩm dành **nữ** (hoặc từ chỉ nữ rõ ràng).\n\n' +
+      'Quy tắc nhóm **đánh giá** (rating_group_id):\n' +
+      '- Chọn **exactly một** id số trong bảng có dạng `id:ví-dụ cụm` sau đây (chỉ số trong whitelist).\n' +
+      '- Ưu tiên đúng **loại hàng + giới** theo NGỮ CẢNH (danh mục, tên).\n\n' +
+      'Đầu ra: **JSON thuần** một object, không markdown:\n' +
+      '{"rating_group_id": <int whitelist>, "question_group_id": 88 hoặc 99 hoặc 100}\n',
+    `WHITELIST rating_group_id (chỉ được chọn một số trong tập): [${whitelistIds}]\n\n` +
+      `Bảng chi tiết (id : nhãn):\n${catalog}\n\n` +
+      `NGỮ CẢNH (taxonomy + slug + JSON + tên, có thể lẫn ngoại ngữ):\n${contextText.slice(0, 40000)}\n\n` +
+      `TÊN SẢN PHẨM:\n${productName.slice(0, 2000)}\n`,
+    { feature: 'listing-import-groups', userId: null }
+  )
+  if (r.error || !r.text) {
+    if (r.error) warnings.push(`deepseek_groups: ${r.error}`)
+    return { rating: 0, question: null }
+  }
+  const parsed = parseGroupsAiJson(r.text)
+  if (!parsed) {
+    warnings.push('deepseek_groups: không đọc được JSON.')
+    return { rating: 0, question: null }
+  }
+  if (parsed.rating <= 0) {
+    warnings.push('deepseek_groups: model không trả rating_group_id hợp lệ trong whitelist.')
+  }
+  return parsed
+}
+
+async function geminiFallbackImportGroups(
+  contextText: string,
+  productName: string,
+  warnings: string[]
+): Promise<{ rating: number; question: number | null }> {
+  if (!listingImportGeminiGroupsEnabled()) return { rating: 0, question: null }
+  const key = resolvePartnerWebsiteGeminiApiKey()
+  if (!key) return { rating: 0, question: null }
+  const catalog = ratingCatalogForPrompt()
+  const whitelistIds = [...RATING_GROUP_ID_WHITELIST].sort((a, b) => a - b).join(',')
+  const prompt =
+    'Bạn gán hai mã cố định cho một sản phẩm TMĐT Việt Nam.\n' +
+    'Tên/ngữ cảnh có thể là tiếng Trung, Mông Cổ, Anh hoặc ngôn ngữ khác; hãy hiểu/diễn dịch sang loại hàng tiếng Việt trước khi chọn mã.\n\n' +
+    'Quy tắc question_group_id, chỉ một trong ba số:\n' +
+    '- 99: unisex/nam-nữ/không phân biệt giới hoặc không suy được.\n' +
+    '- 100: sản phẩm dành nam.\n' +
+    '- 88: sản phẩm dành nữ.\n\n' +
+    'Quy tắc rating_group_id:\n' +
+    '- Chọn exactly một id trong whitelist và bảng id:nhãn bên dưới.\n' +
+    '- Ưu tiên đúng loại hàng + giới theo tên, taxonomy, style, material, color và product_info.\n' +
+    '- Không tạo id mới.\n\n' +
+    'Đầu ra JSON thuần một object, không markdown:\n' +
+    '{"rating_group_id": <int whitelist>, "question_group_id": 88 hoặc 99 hoặc 100}\n\n' +
+    `WHITELIST rating_group_id: [${whitelistIds}]\n\n` +
+    `Bảng chi tiết:\n${catalog}\n\n` +
+    `NGỮ CẢNH (có thể gồm nhiều cột Excel/import):\n${contextText.slice(0, 40000)}\n\n` +
+    `TÊN SẢN PHẨM:\n${productName.slice(0, 2000)}\n`
+  try {
+    const genAI = new GoogleGenerativeAI(key)
+    const model = genAI.getGenerativeModel({
+      model: GEMINI_25_FLASH_NO_THINKING.model,
+      generationConfig: { temperature: 0.1, maxOutputTokens: 180 },
+    })
+    const result = await model.generateContent(prompt)
+    let text = ''
+    try {
+      text = result.response.text()?.trim() || ''
+    } catch {
+      const parts = result.response.candidates?.[0]?.content?.parts || []
+      text = parts.map((p) => String(p.text || '')).join('').trim()
+    }
+    if (!text) {
+      warnings.push('gemini_groups: không có candidates.')
+      return { rating: 0, question: null }
+    }
+    const parsed = parseGroupsAiJson(text)
+    if (!parsed) {
+      warnings.push('gemini_groups: không đọc được JSON.')
+      return { rating: 0, question: null }
+    }
+    if (parsed.rating <= 0) {
+      warnings.push('gemini_groups: model không trả rating_group_id hợp lệ trong whitelist.')
+    }
+    return parsed
+  } catch (e) {
+    warnings.push(`gemini_groups: lỗi mạng/API: ${e instanceof Error ? e.message : String(e)}`)
+    return { rating: 0, question: null }
+  }
+}
+
+async function aiFallbackImportGroups(
+  contextText: string,
+  productName: string,
+  warnings: string[]
+): Promise<{ rating: number; question: number | null }> {
+  const ds = await deepseekFallbackImportGroups(contextText, productName, warnings)
+  let rating = ds.rating
+  let question = ds.question
+  if (rating <= 0) {
+    const gemini = await geminiFallbackImportGroups(contextText, productName, warnings)
+    if (rating <= 0) rating = gemini.rating
+    if (question == null) question = gemini.question
+  }
+  return { rating, question }
+}
+
+export function coalesceGroupRating(raw: unknown, inferred: number): number {
+  if (inferred > 0) return inferred
+  if (raw == null || raw === '') return RATING_GROUP_ID_UNASSIGNED
+  if (typeof raw === 'boolean') return RATING_GROUP_ID_UNASSIGNED
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    const val = Math.trunc(raw)
+    if (val === 0 || val === 1000) return RATING_GROUP_ID_UNASSIGNED
+    return val > 0 ? val : RATING_GROUP_ID_UNASSIGNED
+  }
+  const s = String(raw).trim()
+  if (!s || ['nan', 'none', 'null'].includes(s.toLowerCase())) return RATING_GROUP_ID_UNASSIGNED
+  if (/^-?\d+$/.test(s)) {
+    const val = Number.parseInt(s, 10)
+    if (val === 0 || val === 1000) return RATING_GROUP_ID_UNASSIGNED
+    return val > 0 ? val : RATING_GROUP_ID_UNASSIGNED
+  }
+  return RATING_GROUP_ID_UNASSIGNED
+}
+
+export async function applyListingImportRatingGroups(
   productData: Record<string, unknown>,
   warnings: string[]
-): void {
+): Promise<void> {
   const autoLv = String(productData._taxonomy_auto_created_levels || '').trim()
   if (autoLv) {
     productData.group_rating = RATING_GROUP_ID_UNASSIGNED
@@ -259,11 +488,13 @@ export function applyListingImportRatingGroups(
   const pname = String(productData.name || '').trim()
   const ctx = buildImportRatingContextText(productData)
   let rid = inferRatingGroupIdFromText(ctx)
-  const qid = inferQuestionGroupIdFromProductName(pname)
+  let qid = inferQuestionGroupIdFromProductName(pname)
   if (rid <= 0) {
-    warnings.push('import_groups: chưa khớp từ-khóa — giữ nhóm đánh giá 888.')
-    rid = 0
+    const ai = await aiFallbackImportGroups(ctx, pname, warnings)
+    if (ai.rating > 0) rid = ai.rating
+    if (ai.question != null) qid = ai.question
+    if (rid <= 0) warnings.push('import_groups: chưa khớp từ-khóa — giữ nhóm đánh giá 888.')
   }
-  productData.group_rating = rid > 0 ? rid : RATING_GROUP_ID_UNASSIGNED
+  productData.group_rating = coalesceGroupRating(productData.group_rating, rid)
   productData.group_question = qid
 }

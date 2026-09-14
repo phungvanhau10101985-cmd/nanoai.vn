@@ -11,6 +11,7 @@ import {
 import {
   PARTNER_ORDER_MAX_DISCOUNT_PERCENT,
   nextPartnerSaleRefreshDelayMs,
+  partnerCheckoutStackedDiscountAmount,
   resolvePartnerSaleDiscountBreakdown,
 } from '@/lib/partner-website/promotions/partner-sale-pricing'
 import {
@@ -112,6 +113,23 @@ test('inventory window savings are not labeled as calendar sale', () => {
   assert.equal(result.calendarSaleDiscountAmount, 0)
   assert.equal(result.flashSaleDiscountAmount, 0)
   assert.equal(result.siteSaleDiscountAmount, 100_000)
+})
+
+test('checkout deposit stacked discount excludes Flash already in unit price', () => {
+  const result = resolvePartnerSaleDiscountBreakdown({
+    lines: [{
+      inventoryId: 'flash-line',
+      quantity: 1,
+      listUnitPrice: 10_570_000,
+      effectiveUnitPrice: 9_935_800,
+      priceKind: 'flash',
+      flashPercent: 6,
+    }],
+  })
+  assert.equal(result.flashSaleDiscountAmount, 634_200)
+  assert.equal(result.amountAfterDiscount, 9_935_800)
+  assert.equal(result.totalDiscountAmount, 634_200)
+  assert.equal(partnerCheckoutStackedDiscountAmount(result), 0)
 })
 
 test('voucher excludes birthday, loyalty uses remainder and total is capped at 15 percent', () => {

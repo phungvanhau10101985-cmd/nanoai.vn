@@ -24,6 +24,7 @@ import {
   partnerSiteInfoPath,
   partnerSitePersonalizationApiPath,
   partnerSiteProductsPath,
+  partnerSiteStorefrontProductHref,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
@@ -177,7 +178,11 @@ export function PartnerSiteShopProductClient({
   const [color, setColor] = useState(product.colors[0]?.name || '')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
-  const [cartAdded, setCartAdded] = useState<{ name: string; imageUrl?: string | null } | null>(null)
+  const [cartAdded, setCartAdded] = useState<{
+    name: string
+    imageUrl?: string | null
+    productHref?: string | null
+  } | null>(null)
   const [variantModalOpen, setVariantModalOpen] = useState(false)
   const [isFavorite, setIsFavorite] = useState(false)
   const [favoriteBusy, setFavoriteBusy] = useState(false)
@@ -581,7 +586,17 @@ export function PartnerSiteShopProductClient({
         line.quantity
       )
       if (redirectToCart) router.push(partnerSiteCartPath(siteSlug, { customDomain }))
-      else setCartAdded({ name: productName, imageUrl: nextImage })
+      else
+        setCartAdded({
+          name: productName,
+          imageUrl: nextImage,
+          productHref: partnerSiteStorefrontProductHref(siteSlug, {
+            inventoryId: product.id,
+            name: productName,
+            productUrl: product.productUrl,
+            customDomain,
+          }),
+        })
     } finally {
       setBusy(false)
     }

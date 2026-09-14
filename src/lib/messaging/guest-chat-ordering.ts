@@ -75,9 +75,11 @@ import {
 } from '@/lib/db/messaging-partner-loyalty-pg'
 import { resolvePartnerCheckoutPriceLinesFromPg } from '@/lib/db/messaging-partner-sale-pricing-pg'
 import {
+  partnerCheckoutStackedDiscountAmount,
   resolvePartnerSaleDiscountBreakdown,
   type PartnerSaleDiscountBreakdown,
 } from '@/lib/partner-website/promotions/partner-sale-pricing'
+import { partnerStorefrontSaleAccountKey } from '@/lib/partner-website/promotions/partner-flash-sale'
 import { createPartnerAffiliateCommissionForOrderFromPg } from '@/lib/db/messaging-partner-affiliate-pg'
 import { guestAccountEmailMatchesAuthUserFromPg } from '@/lib/db/messaging-guest-pg'
 import { queuePartnerOrderGoogleSheetsSync } from '@/lib/messaging/partner-order-google-sheets-sync'
@@ -292,6 +294,15 @@ function promotionAccountKey(input: {
   if (input.guestAccountId) return `guest:${input.guestAccountId}`
   const fallback = input.fallback?.trim()
   return fallback ? `session:${fallback}` : null
+}
+
+/** Same identity as cart quote / Flash / recently-viewed. Not affiliate `user:` keys. */
+function saleCheckoutAccountKey(input: {
+  guestAccountId?: string | null
+  linkedUserId?: string | null
+  fallback?: string | null
+}): string | null {
+  return partnerStorefrontSaleAccountKey(input)
 }
 
 function saleBreakdownToLegacySnapshot(input: {
@@ -767,7 +778,7 @@ export async function completeOrderCheckout(input: {
   const [priceLines, bdayPct, loyaltyStatus] = await Promise.all([
     resolvePartnerCheckoutPriceLinesFromPg({
       partnerId: input.partnerId,
-      accountKey: promotionAccountKey({
+      accountKey: saleCheckoutAccountKey({
         linkedUserId: input.linkedUserId,
         guestAccountId: input.guestAccountId,
         fallback: input.externalThreadId,
@@ -1176,7 +1187,7 @@ export async function completeCartCheckout(input: {
   const [priceLines, bdayPct, loyaltyStatus] = await Promise.all([
     resolvePartnerCheckoutPriceLinesFromPg({
       partnerId: input.partnerId,
-      accountKey: promotionAccountKey({
+      accountKey: saleCheckoutAccountKey({
         linkedUserId: input.linkedUserId,
         guestAccountId: input.guestAccountId,
         fallback: input.externalThreadId,
@@ -1281,7 +1292,7 @@ export async function completeCartCheckout(input: {
       isWarehouseItem: line.isWarehouseItem === true,
       depositRequired: line.depositRequired === true,
     })),
-    totalDiscount: Math.max(0, Math.round(subtotal - payableSubtotal)),
+    totalDiscount: partnerCheckoutStackedDiscountAmount(saleBreakdown),
     shippingFee: shippingFeeAmount,
     shopDepositMode: mode === 'none' || mode === 'fixed_amount' ? mode : 'percent',
     shopDepositPercent: percent,

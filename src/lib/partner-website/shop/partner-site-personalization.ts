@@ -56,6 +56,7 @@ import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-de
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { mergePartnerVisitorPersonalizationFromPg } from '@/lib/db/messaging-partner-recommendation-pg'
 import { getSiteHomeRecommendationBlock } from '@/lib/partner-website/shop/partner-site-home-recommendation'
+import { partnerStorefrontSaleAccountKey } from '@/lib/partner-website/promotions/partner-flash-sale'
 import {
   applyPartnerSiteSaleToShopProduct,
   type PartnerSiteSalePricing,
@@ -110,7 +111,11 @@ export function visitorAccountKeyFromThread(
   thread: Awaited<ReturnType<typeof resolveWidgetOrderThreadFromRequest>>
 ): string | null {
   if (!thread) return null
-  return (thread.guestAccountId || thread.linkedUserId || thread.externalThreadId || '').trim() || null
+  return partnerStorefrontSaleAccountKey({
+    guestAccountId: thread.guestAccountId,
+    linkedUserId: thread.linkedUserId,
+    fallback: thread.externalThreadId,
+  })
 }
 
 export async function resolveSiteVisitorContext(

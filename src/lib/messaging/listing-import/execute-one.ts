@@ -16,6 +16,7 @@ import {
 import { applyListingImportColorTranslation } from '@/lib/messaging/listing-import/listing-import-color-translate'
 import { applyListingImportRatingGroups } from '@/lib/messaging/listing-import/listing-import-rating-groups'
 import { applyListingImportTaxonomy } from '@/lib/messaging/listing-import/listing-import-taxonomy'
+import { compactListingImportProductInfoForWeb } from '@/lib/messaging/listing-import/listing-import-product-info-compact'
 import { reapplyListingLocaleOverlay } from '@/lib/messaging/listing-import/listing-import-body-specs'
 import { applyListingYearSanitizeToProductData } from '@/lib/messaging/listing-import/listing-import-year-sanitize'
 import { scrapePandamallForImport } from '@/lib/messaging/listing-import/pandamall-scraper'
@@ -94,10 +95,11 @@ export async function executeOneListingImport(input: {
     reapplyListingLocaleOverlay(productData, input.overlay)
     applyListingYearSanitizeToProductData(productData)
     try {
-      applyListingImportRatingGroups(productData, warnings)
+      await applyListingImportRatingGroups(productData, warnings)
     } catch (e) {
       warnings.push(`import_groups: ${e instanceof Error ? e.message : String(e)}`)
     }
+    compactListingImportProductInfoForWeb(productData)
     const updated = await updateListingImportDraftFromPg(input.partnerId, draft.id, {
       status: 'done',
       message: 'OK',

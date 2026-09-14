@@ -54,10 +54,26 @@ function jsonExcelCell(value: unknown): string {
   if (value === undefined || value === null) return '';
   if (typeof value === 'string') return value;
   try {
-    return JSON.stringify(value, (_, v) => (typeof v === 'bigint' ? String(v) : v));
+    return listingImportPyJson(value);
   } catch {
     return String(value);
   }
+}
+
+/** Khớp `json.dumps(..., ensure_ascii=False)` — khoảng trắng sau `,` và `:`. */
+export function listingImportPyJson(value: unknown): string {
+  if (value === undefined) return 'null';
+  if (value === null) return 'null';
+  if (typeof value === 'string') return JSON.stringify(value);
+  if (typeof value === 'number' || typeof value === 'boolean') return JSON.stringify(value);
+  if (typeof value === 'bigint') return String(value);
+  if (Array.isArray(value)) return `[${value.map((v) => listingImportPyJson(v)).join(', ')}]`;
+  if (typeof value === 'object') {
+    const rec = value as Record<string, unknown>;
+    const keys = Object.keys(rec);
+    return `{${keys.map((k) => `${JSON.stringify(k)}: ${listingImportPyJson(rec[k])}`).join(', ')}}`;
+  }
+  return JSON.stringify(value);
 }
 
 /** Khớp `product_crud.deposit_require_to_excel_int` (frontend). */
@@ -141,15 +157,15 @@ export function excelExportRowFromProductData(
   return {
     id: pd.product_id != null ? String(pd.product_id) : '',
     sku: pd.code != null ? String(pd.code) : '',
-    origin: excelStr(pd.origin),
-    brand: excelStr(pd.brand_name || pd.brand),
+    origin: '',
+    brand: '',
     name: excelStr(pd.name),
     pro_content: excelStr(pd.description),
     price: excelNum(pd.price, 0),
-    shop_name: excelStr(pd.shop_name),
-    shop_id: excelStr(pd.shop_id),
-    pro_lower_price: excelStr(pd.pro_lower_price),
-    pro_high_price: excelStr(pd.pro_high_price),
+    shop_name: '',
+    shop_id: '',
+    pro_lower_price: '',
+    pro_high_price: '',
     rating_group_id: excelNum(pd.group_rating, 0),
     question_group_id: excelNum(pd.group_question, 0),
     sizes: jsonExcelCell(pd.sizes ?? []),

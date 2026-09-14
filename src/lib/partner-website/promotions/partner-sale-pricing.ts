@@ -218,3 +218,14 @@ export function resolvePartnerSaleDiscountBreakdown(
     maxDiscountAmount,
   }
 }
+
+/**
+ * Extra money still stacked on already-sale unit prices (voucher XOR CMSN + loyalty).
+ * Flash / calendar / Google are already in `effectiveUnitPrice` — do not feed those
+ * into checkout-split `totalDiscount` or deposit is taken from the sale price twice.
+ */
+export function partnerCheckoutStackedDiscountAmount(
+  breakdown: Pick<PartnerSaleDiscountBreakdown, 'effectiveSubtotal' | 'amountAfterDiscount'>
+): number {
+  return Math.max(0, Math.round(breakdown.effectiveSubtotal - breakdown.amountAfterDiscount))
+}

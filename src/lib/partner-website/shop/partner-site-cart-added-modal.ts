@@ -53,10 +53,13 @@ export const PW_CART_ADDED_MODAL_CSS = `
 [data-pw-cart-added-card]{position:relative;z-index:1;width:100%;max-width:28rem;max-height:calc(100dvh - 2rem);overflow:auto;border-radius:12px;background:#fff;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);touch-action:manipulation}
 [data-pw-cart-added-head]{display:flex;align-items:center;gap:12px;padding:12px;border-bottom:1px solid #f3f4f6}
 [data-pw-cart-added-thumb]{width:48px;height:48px;border-radius:4px;background:#f3f4f6;overflow:hidden;flex-shrink:0}
+a[data-pw-cart-added-thumb]{display:block;line-height:0}
 [data-pw-cart-added-thumb] img{width:48px;height:48px;object-fit:cover;display:block}
 [data-pw-cart-added-copy]{flex:1;min-width:0}
 [data-pw-cart-added-title]{margin:0;font:600 14px/1.35 system-ui,sans-serif;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 [data-pw-cart-added-name]{margin:2px 0 0;font:400 12px/1.35 system-ui,sans-serif;color:#4b5563;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+a[data-pw-cart-added-pdp]{color:inherit;text-decoration:none}
+[data-pw-cart-added-name] a[data-pw-cart-added-pdp]:hover{color:var(--pw-primary)}
 [data-pw-cart-added-close]{flex-shrink:0;width:36px;height:36px;border:0;border-radius:8px;background:transparent;color:#6b7280;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}
 [data-pw-cart-added-close]:hover{background:#f3f4f6;color:#374151}
 [data-pw-cart-added-close] svg{width:20px;height:20px}
@@ -79,7 +82,16 @@ export const PW_CART_ADDED_MODAL_CSS = `
 }
 `
 
-/** Runtime HTML shop — gọi `showCartAddedModal({name,imageUrl})` sau khi thêm giỏ. */
+/** HTML runtime popup lives on `document.body` and survives App Router soft-nav. */
+export function hideLeftoverPartnerCartAddedHtmlPopup(doc: Document | null | undefined = typeof document === 'undefined' ? null : document) {
+  if (!doc) return
+  const root = doc.getElementById('pw-cart-added-popup')
+  if (!root) return
+  root.setAttribute('hidden', '')
+  doc.body.style.overflow = root.getAttribute('data-pw-prev-overflow') || ''
+}
+
+/** Runtime HTML shop — gọi `showCartAddedModal({name,imageUrl,inventory_id})` sau khi thêm giỏ. */
 export const PW_CART_ADDED_MODAL_RUNTIME_JS = `
 function cartAddedImg(url){
   url=String(url||'').trim();
@@ -101,7 +113,13 @@ function hideCartAddedModal(){
   root.setAttribute('hidden','');
   document.body.style.overflow=root.getAttribute('data-pw-prev-overflow')||'';
 }
+function bindCartAddedModalNavHide(){
+  if(window.__pwCartAddedNavHide)return;
+  window.__pwCartAddedNavHide=1;
+  window.addEventListener('pw-shop-soft-nav',hideCartAddedModal);
+}
 function ensureCartAddedModal(){
+  bindCartAddedModalNavHide();
   var root=document.getElementById('pw-cart-added-popup');
   if(root)return root;
   root=document.createElement('div');
@@ -114,8 +132,8 @@ function ensureCartAddedModal(){
   root.innerHTML='<div data-pw-cart-added-backdrop></div>'
     +'<div data-pw-cart-added-card>'
     +'<div data-pw-cart-added-head>'
-    +'<div data-pw-cart-added-thumb><img alt="" width="48" height="48"/></div>'
-    +'<div data-pw-cart-added-copy><p data-pw-cart-added-title id="pw-cart-added-title"></p><p data-pw-cart-added-name></p></div>'
+    +'<a data-pw-cart-added-thumb data-pw-cart-added-pdp><img alt="" width="48" height="48"/></a>'
+    +'<div data-pw-cart-added-copy><p data-pw-cart-added-title id="pw-cart-added-title"></p><p data-pw-cart-added-name><a data-pw-cart-added-pdp></a></p></div>'
     +'<button type="button" data-pw-cart-added-close aria-label="">'
     +'<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>'
     +'</button></div>'
@@ -127,19 +145,43 @@ function ensureCartAddedModal(){
   var backdrop=root.querySelector('[data-pw-cart-added-backdrop]');
   var closeBtn=root.querySelector('[data-pw-cart-added-close]');
   var stayBtn=root.querySelector('[data-pw-cart-added-stay]');
+  var goBtn=root.querySelector('[data-pw-cart-added-go]');
   if(backdrop)backdrop.addEventListener('click',hideCartAddedModal);
   if(closeBtn)closeBtn.addEventListener('click',hideCartAddedModal);
   if(stayBtn)stayBtn.addEventListener('click',hideCartAddedModal);
+  if(goBtn){
+    goBtn.addEventListener('pointerdown',hideCartAddedModal);
+    goBtn.addEventListener('click',hideCartAddedModal);
+  }
+  var pdpLinks=root.querySelectorAll('[data-pw-cart-added-pdp]');
+  for(var i=0;i<pdpLinks.length;i++){
+    pdpLinks[i].addEventListener('pointerdown',hideCartAddedModal);
+    pdpLinks[i].addEventListener('click',hideCartAddedModal);
+  }
   document.addEventListener('keydown',function(ev){
     if(ev.key==='Escape'&&root&&!root.hasAttribute('hidden'))hideCartAddedModal();
   });
   return root;
 }
+function cartAddedPdpHref(item){
+  var href=String((item&&(item.productHref||item.product_href))||'').trim();
+  if(href)return href;
+  var id=String((item&&(item.inventory_id||item.inventoryId))||'').trim();
+  if(id&&UUID_RE.test(id))return DETAIL_PREFIX+id;
+  return '';
+}
+function bindCartAddedPdpHref(root,href){
+  var links=root.querySelectorAll('[data-pw-cart-added-pdp]');
+  for(var i=0;i<links.length;i++){
+    if(href)links[i].setAttribute('href',href);
+    else links[i].removeAttribute('href');
+  }
+}
 function showCartAddedModal(item){
   item=item||{};
   var root=ensureCartAddedModal();
   var title=root.querySelector('[data-pw-cart-added-title]');
-  var nameEl=root.querySelector('[data-pw-cart-added-name]');
+  var nameEl=root.querySelector('[data-pw-cart-added-name] [data-pw-cart-added-pdp]')||root.querySelector('[data-pw-cart-added-name]');
   var img=root.querySelector('[data-pw-cart-added-thumb] img');
   var go=root.querySelector('[data-pw-cart-added-go]');
   var stay=root.querySelector('[data-pw-cart-added-stay] span:last-child');
@@ -147,6 +189,7 @@ function showCartAddedModal(item){
   var closeBtn=root.querySelector('[data-pw-cart-added-close]');
   if(title)title.textContent=COPY.cartAddedTitle||COPY.addedToCart;
   if(nameEl)nameEl.textContent=String(item.name||'').trim()||'—';
+  bindCartAddedPdpHref(root,cartAddedPdpHref(item));
   if(img){
     var src=cartAddedImg(item.imageUrl||item.image_url||'');
     img.alt=String(item.name||'');
