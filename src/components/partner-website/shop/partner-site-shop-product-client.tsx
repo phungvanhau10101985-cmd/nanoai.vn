@@ -38,7 +38,7 @@ import {
   trackPartnerSiteAddToCart,
   trackPartnerSiteViewItem,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
-import { PartnerSiteProductReviewsQa } from '@/components/partner-website/shop/partner-site-product-reviews-qa'
+import { PartnerSiteAffiliateShareBar } from '@/components/partner-website/shop/partner-site-affiliate-share-bar'
 import { PartnerSiteRelatedProducts } from '@/components/partner-website/shop/partner-site-related-products'
 import {
   formatPartnerShopMoneyVnd,
@@ -787,6 +787,7 @@ export function PartnerSiteShopProductClient({
 
         <div className="pw-shop-pdp-info pw-pdp-info-pad" data-pw-region={PW_REGION.pdpInfo}>
           <h1 className="pw-pdp-title" data-pw-el={PW_EL.title}>{productName}</h1>
+          <PartnerSiteAffiliateShareBar siteSlug={siteSlug} locale={locale} shareTitle={productName} />
           {brandText ? (
             <p className="pw-pdp-brand" data-pw-pdp-slot="brand">
               {t.pdpBrandLabel}: {brandText}

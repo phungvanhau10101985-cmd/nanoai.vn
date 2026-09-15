@@ -535,7 +535,7 @@ export function PartnerSiteShopDepositClient({
   const bank = paymentDisplay?.kind === 'bank' ? paymentDisplay : null
 
   if (shouldShowDepositSuccessPage(order)) {
-    const paid = Math.max(Number(order.paid_amount ?? 0), required)
+    const paid = Math.max(0, Math.round(Number(order.paid_amount ?? 0)))
     return (
       <div>
         {toast ? (

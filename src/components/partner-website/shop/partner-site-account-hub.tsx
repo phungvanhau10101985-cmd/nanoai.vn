@@ -10,7 +10,7 @@ import {
   PARTNER_SITE_ACCOUNT_HUB_ORDER_FILTER_KEYS,
   type PartnerSiteOrderStatusFilterKey,
 } from '@/lib/partner-website/shop/partner-site-order-status-filters'
-import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { getPartnerSiteShopCopy, type PartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   getPartnerSiteAccountMenuItems,
   isPartnerSiteAccountHubRow,
@@ -18,7 +18,9 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import {
   partnerSiteAccountEditPath,
+  partnerSiteAccountTabPath,
   partnerSiteAddressesPath,
+  partnerSiteLoyaltyApiPath,
   partnerSiteOrdersPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
@@ -27,6 +29,13 @@ import {
   readPartnerSiteAccountBrowserCache,
   writePartnerSiteAccountBrowserCache,
 } from '@/lib/partner-website/shop/partner-site-account-browser-cache'
+import {
+  fillLoyaltyCopy,
+  formatLoyaltyMoney,
+  formatLoyaltyPercent,
+  loyaltyRankHint,
+  type PartnerSiteLoyaltyStatusView,
+} from '@/lib/partner-website/shop/partner-site-loyalty'
 
 type WalletVoucher = { code?: string }
 
@@ -45,6 +54,7 @@ type Props = {
   shopAdminHref: string | null
   displayName: string
   unreadNotifications?: number
+  initialLoyalty?: PartnerSiteLoyaltyStatusView | null
 }
 
 function filterLabel(
@@ -77,6 +87,7 @@ export function PartnerSiteAccountHub({
   shopAdminHref,
   displayName,
   unreadNotifications = 0,
+  initialLoyalty = null,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
@@ -84,6 +95,7 @@ export function PartnerSiteAccountHub({
     usePartnerSiteGuestSession(siteSlug)
   const [orders, setOrders] = useState<OrderLite[]>([])
   const [walletCount, setWalletCount] = useState(0)
+  const [loyalty, setLoyalty] = useState<PartnerSiteLoyaltyStatusView | null>(initialLoyalty)
 
   useLayoutEffect(() => {
     const cached = readPartnerSiteAccountBrowserCache(siteSlug)
@@ -122,6 +134,18 @@ export function PartnerSiteAccountHub({
         writePartnerSiteAccountBrowserCache(siteSlug, { wallet: vouchers })
       })
       .catch(() => setWalletCount((n) => n))
+    void fetch(partnerSiteLoyaltyApiPath(siteSlug), {
+      credentials: 'same-origin',
+      headers: authHeaders(),
+    })
+      .then((res) => {
+        captureFromResponse(res)
+        return res.json()
+      })
+      .then((json: { loyalty?: PartnerSiteLoyaltyStatusView }) => {
+        if (json.loyalty) setLoyalty(json.loyalty)
+      })
+      .catch(() => setLoyalty((prev) => prev))
   }, [authHeaders, captureFromResponse, isAuthenticated, partnerSlug, ready, siteSlug])
 
   const counts = useMemo(() => countPartnerSiteOrdersByStatusFilter(orders), [orders])
@@ -130,6 +154,7 @@ export function PartnerSiteAccountHub({
   )
   const editHref = partnerSiteAccountEditPath(siteSlug, { customDomain })
   const ordersHref = partnerSiteOrdersPath(siteSlug, { customDomain })
+  const loyaltyHref = partnerSiteAccountTabPath(siteSlug, 'loyalty', { customDomain })
   const phone = profile?.customer_phone?.trim() || ''
   const email = profile?.email?.trim() || ''
   const name = displayName || t.navAccount
@@ -146,6 +171,7 @@ export function PartnerSiteAccountHub({
             {t.accountEditPersonal}
           </a>
         </div>
+        <LoyaltyHubCard t={t} loyalty={loyalty} href={loyaltyHref} />
 
         <div className="pw-shop-account-hub-orders">
           <p className="pw-shop-account-hub-orders-kicker">{t.navOrders}</p>
@@ -217,6 +243,7 @@ export function PartnerSiteAccountHub({
             {t.accountEditProfile}
           </a>
         </div>
+        <LoyaltyHubCard t={t} loyalty={loyalty} href={loyaltyHref} />
         <dl className="pw-shop-account-dl">
           <div>
             <dt>{t.accountFullName}</dt>
@@ -248,5 +275,39 @@ export function PartnerSiteAccountHub({
         </div>
       </div>
     </>
+  )
+}
+
+function LoyaltyHubCard({
+  t,
+  loyalty,
+  href,
+}: {
+  t: PartnerSiteShopCopy
+  loyalty: PartnerSiteLoyaltyStatusView | null
+  href: string
+}) {
+  if (!loyalty?.enabled) return null
+  const current = loyalty.current
+  const metal = current ? loyaltyRankHint(t, current.rank) : t.loyaltyNewMember
+  const title = current?.name || t.loyaltyNewMember
+  const subtitle = loyalty.next
+    ? fillLoyaltyCopy(t.loyaltyRemaining, { amount: formatLoyaltyMoney(loyalty.amountToNextTier) })
+    : current && current.discountPercent > 0
+      ? fillLoyaltyCopy(t.loyaltyDiscountNow, { percent: formatLoyaltyPercent(current.discountPercent) })
+      : metal
+  return (
+    <a href={href} className="pw-shop-loyalty-hub">
+      <span className="pw-shop-loyalty-medal" data-rank={current?.rank ?? 0}>
+        {current?.code || 'L1'}
+      </span>
+      <span className="pw-shop-loyalty-hub-copy">
+        <strong>
+          {t.loyaltyTitle}: {title}
+        </strong>
+        <span>{subtitle}</span>
+      </span>
+      <span className="pw-shop-loyalty-hub-go">{t.loyaltyHubCta} ›</span>
+    </a>
   )
 }

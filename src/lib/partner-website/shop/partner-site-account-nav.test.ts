@@ -62,6 +62,14 @@ test('highlights cart, orders (including deposit), and account overview', () => 
   assert.equal(partnerSiteAccountNavActiveId('/orders/DH1/deposit'), 'orders')
   assert.equal(partnerSiteAccountNavActiveId('/site/demo/orders/DH1'), 'orders')
   assert.equal(partnerSiteAccountNavActiveId('/account'), 'account')
+  assert.equal(partnerSiteAccountNavActiveId('/account/wallet'), 'wallet')
+  assert.equal(partnerSiteAccountNavActiveId('/account/loyalty'), 'loyalty')
+  assert.equal(partnerSiteAccountNavActiveId('/account/thanh-vien'), 'loyalty')
+  assert.equal(partnerSiteAccountNavActiveId('/thanh-vien'), 'loyalty')
+  assert.equal(partnerSiteAccountNavActiveId('/account/affiliate'), 'affiliate')
+  assert.equal(partnerSiteAccountNavActiveId('/vi-dien-tu'), 'affiliate')
+  assert.equal(partnerSiteAccountNavActiveId('/account/affiliate-bank'), 'affiliate-bank')
+  assert.equal(partnerSiteAccountNavActiveId('/tai-khoan-ngan-hang'), 'affiliate-bank')
   assert.equal(partnerSiteAccountNavActiveId('/privacy'), null)
 })
 
@@ -99,7 +107,19 @@ test('account menu cart/orders use dedicated routes; cart CTA is place-order', (
   assert.match(String(cart?.href), /\/cart$/)
   assert.doesNotMatch(String(cart?.href), /\/account\/cart/)
   assert.match(String(orders?.href), /\/orders$/)
+  const loyalty = items.find((i) => i.id === 'loyalty')
+  const affiliate = items.find((i) => i.id === 'affiliate')
+  const affiliateBank = items.find((i) => i.id === 'affiliate-bank')
   assert.equal(wallet?.label, 'Ví quà / Khuyến mãi')
+  assert.equal(loyalty?.label, 'Hạng thành viên')
+  assert.equal(loyalty?.emoji, '🏆')
+  assert.match(String(loyalty?.href), /\/account\/loyalty$/)
+  assert.equal(affiliate?.label, 'Ví Affiliate')
+  assert.equal(affiliate?.emoji, '🤝')
+  assert.match(String(affiliate?.href), /\/account\/affiliate$/)
+  assert.equal(affiliateBank?.label, 'Tài khoản ngân hàng')
+  assert.equal(affiliateBank?.emoji, '🏦')
+  assert.match(String(affiliateBank?.href), /\/account\/affiliate-bank$/)
   assert.equal(wishlist?.label, 'Sản phẩm yêu thích')
   assert.equal(cart?.emoji, '🛒')
   const hubIds = items.filter(isPartnerSiteAccountHubRow).map((i) => i.id)
@@ -109,6 +129,9 @@ test('account menu cart/orders use dedicated routes; cart CTA is place-order', (
     'recently-viewed',
     'addresses',
     'wallet',
+    'loyalty',
+    'affiliate',
+    'affiliate-bank',
     'notifications',
     'install-app',
     'wishlist',
@@ -119,5 +142,12 @@ test('account menu cart/orders use dedicated routes; cart CTA is place-order', (
   assert.ok(!sidebarIds.includes('contact'))
   const t = getPartnerSiteShopCopy('vi')
   assert.equal(t.cartCheckout, 'Đặt hàng')
-  assert.equal(getPartnerSiteShopCopy('en').cartCheckout, 'Place order')
+  assert.equal(getPartnerSiteShopCopy('en').accountMenuLoyalty, 'Membership')
+  assert.equal(getPartnerSiteShopCopy('en').loyaltyHubCta, 'See benefits')
+  assert.equal(getPartnerSiteShopCopy('vi').loyaltyAutoApply, 'Tự áp dụng khi đặt hàng')
+  assert.equal(getPartnerSiteShopCopy('en').accountMenuAffiliate, 'Affiliate wallet')
+  assert.equal(getPartnerSiteShopCopy('vi').accountMenuAffiliateBank, 'Tài khoản ngân hàng')
+  assert.equal(getPartnerSiteShopCopy('zh').accountMenuLoyalty, '会员等级')
+  assert.equal(getPartnerSiteShopCopy('ja').accountMenuLoyalty, '会員ランク')
+  assert.equal(getPartnerSiteShopCopy('ko').accountMenuLoyalty, '회원 등급')
 })

@@ -184,6 +184,8 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       variantLineImages?: unknown
       promoCode?: string
       paymentMethod?: string
+      useAffiliateWallet?: boolean
+      affiliateReferralCode?: string
     }
   } | null
   const action = body?.action
@@ -267,6 +269,8 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
         lines,
         promoCode: String(f.promoCode ?? '').trim() || undefined,
         paymentMethod: asPaymentMethod(f.paymentMethod),
+        useAffiliateWallet: f.useAffiliateWallet === true,
+        affiliateReferralCode: String(f.affiliateReferralCode ?? '').trim() || undefined,
       },
     })
     if ('error' in done) return NextResponse.json({ error: done.error }, { status: 400 })

@@ -106,6 +106,17 @@ test('manual deposit received amount clamps to order total', () => {
     ),
     7435800
   )
+  assert.equal(
+    partnerAdminAmountDueOnDelivery(
+      row({
+        subtotal_amount: 9935800,
+        amount_after_discount: 9935800,
+        required_amount: 2980740,
+        paid_amount: 0,
+      })
+    ),
+    9935800
+  )
 })
 
 test('paid_verified leaves waiting deposit even if received < required', () => {

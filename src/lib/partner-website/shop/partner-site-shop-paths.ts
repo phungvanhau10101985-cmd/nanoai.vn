@@ -153,6 +153,9 @@ export const PARTNER_SITE_ACCOUNT_TABS = [
   'cart',
   'orders',
   'wallet',
+  'loyalty',
+  'affiliate',
+  'affiliate-bank',
   'wishlist',
   'recently-viewed',
   'addresses',
@@ -203,6 +206,16 @@ export function partnerSitePromotionsValidateApiPath(siteSlug: string): string {
 export function partnerSiteNotificationsApiPath(siteSlug: string, opts?: { unread?: boolean }): string {
   const base = `/api/site/${encodeURIComponent(siteSlug.trim())}/notifications`
   return opts?.unread ? `${base}?count=1` : base
+}
+
+export function partnerSiteLoyaltyApiPath(siteSlug: string): string {
+  return `/api/site/${encodeURIComponent(siteSlug.trim())}/loyalty`
+}
+
+export function partnerSiteAffiliateApiPath(siteSlug: string, rest = ''): string {
+  const suffix = rest.trim().replace(/^\/+/, '')
+  const base = `/api/site/${encodeURIComponent(siteSlug.trim())}/affiliate`
+  return suffix ? `${base}/${suffix}` : base
 }
 
 export function partnerSitePushApiPath(siteSlug: string): string {
@@ -315,6 +328,11 @@ export function partnerSiteSearchImageApiPath(siteSlug: string): string {
 /** Same-platform shop search history (account when logged in; guest stays in the browser). */
 export function partnerSiteSearchHistoryApiPath(siteSlug: string): string {
   return `/api/site/${encodeURIComponent(siteSlug.trim())}/search/history`
+}
+
+/** Keyword chips on `/tim-kiem` — 188 `/user-behavior/search/suggestions`. */
+export function partnerSiteSearchSuggestionsApiPath(siteSlug: string): string {
+  return `/api/site/${encodeURIComponent(siteSlug.trim())}/search/suggestions`
 }
 
 export function partnerSiteInfoPath(

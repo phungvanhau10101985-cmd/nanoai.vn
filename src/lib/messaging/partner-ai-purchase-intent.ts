@@ -225,6 +225,92 @@ export function inboundTextLooksLikePolicyRefundOrCancelAsk(raw: string): boolea
   return POLICY_REFUND_OR_CANCEL_RE.test(msg)
 }
 
+/**
+ * Hỏi **có phải cọc không** — chính sách shop, không phải «đã cọc / xác nhận CK».
+ * Không hỏi mã DH.
+ */
+const DEPOSIT_POLICY_ASK_RE = new RegExp(
+  [
+    String.raw`(?:có|phải|cần|can)\s+.{0,40}(?:đặt\s*)?cọc`,
+    String.raw`(?:co|phai|can)\s+.{0,40}(?:dat\s*)?coc`,
+    String.raw`(?:đặt\s*)?cọc.{0,24}(?:không|ko|nhỉ|à|hả|hong)`,
+    String.raw`(?:dat\s*)?coc.{0,24}(?:khong|ko|nhi)`,
+    String.raw`mua.{0,20}cọc`,
+    String.raw`mua.{0,20}coc`,
+    String.raw`need.{0,16}deposit`,
+    String.raw`deposit.{0,16}(?:required|needed|\?)`,
+  ].join('|'),
+  'i'
+)
+
+const DEPOSIT_CONFIRM_EXCLUDE_RE =
+  /(?:xác\s*nhận|xac\s*nhan).{0,24}(?:cọc|coc)|đã\s*(?:gửi|goi|gởi|gui).{0,24}(?:cọc|coc)|(?:đã|da|em)\s*(?:đặt\s*)?cọc|dat\s*coc|đã\s*cọc|em\s*đã\s*cọc/i
+
+export function inboundTextLooksLikeDepositPolicyAsk(raw: string): boolean {
+  const msg = normalizeCustomerMessageForInventorySearch(raw)
+  if (!msg) return false
+  if (DEPOSIT_CONFIRM_EXCLUDE_RE.test(msg)) return false
+  return DEPOSIT_POLICY_ASK_RE.test(msg)
+}
+
+/**
+ * Hỏi thời gian giao **chung** (sau khi shop gửi / ship bao lâu) — không kèm mã DH / tra cứu đơn.
+ */
+const LEAD_TIME_POLICY_ASK_RE = new RegExp(
+  [
+    String.raw`bao\s*lâu.{0,32}(?:nhận|ship|giao|hàng)`,
+    String.raw`bao\s*lau.{0,32}(?:nhan|ship|giao|hang)`,
+    String.raw`(?:ship|giao\s*hàng|giao\s*hang).{0,20}bao\s*lâu`,
+    String.raw`(?:mấy|may)\s*ngày.{0,20}(?:nhận|giao|ship|hàng)`,
+    String.raw`sau\s*khi.{0,40}(?:gửi|gui|ship).{0,32}bao\s*lâu`,
+    String.raw`cỡ\s*bao\s*lâu`,
+    String.raw`co\s*bao\s*lau`,
+    String.raw`khi\s*nào.{0,20}(?:nhận|giao|ship)`,
+    String.raw`khi\s*nao.{0,20}(?:nhan|giao)`,
+    String.raw`how\s+long.{0,24}(?:ship|deliver|receive|arrive)`,
+  ].join('|'),
+  'i'
+)
+
+const ORDER_CODE_IN_TEXT_RE = /(?:\b(?:dh|đh|dc|đc)\s*[-_]?\s*\d{2,}\b|#\s*(?:dh|đh)\s*\d+)/i
+
+export function inboundTextLooksLikeLeadTimePolicyAsk(raw: string): boolean {
+  const msg = normalizeCustomerMessageForInventorySearch(raw)
+  if (!msg) return false
+  if (ORDER_CODE_IN_TEXT_RE.test(msg)) return false
+  if (inboundTextLooksLikeExplicitOrderTrackAsk(msg)) return false
+  if (inboundTextLooksLikeBareShippingId(msg)) return false
+  return LEAD_TIME_POLICY_ASK_RE.test(msg)
+}
+
+const PAYMENT_METHOD_POLICY_ASK_RE = new RegExp(
+  [
+    String.raw`(?:cod|chuyển\s*khoản|chuyen\s*khoan).{0,24}(?:hay|hoặc|hoac|không|ko)`,
+    String.raw`trả.{0,16}(?:khi\s*nhận|luc\s*nhan|khi\s*nhan)`,
+    String.raw`thanh\s*toán.{0,24}(?:khi\s*nhận|khi\s*nhan|cod)`,
+    String.raw`pay\s+on\s+delivery`,
+  ].join('|'),
+  'i'
+)
+
+export function inboundTextLooksLikePaymentMethodPolicyAsk(raw: string): boolean {
+  const msg = normalizeCustomerMessageForInventorySearch(raw)
+  if (!msg) return false
+  return PAYMENT_METHOD_POLICY_ASK_RE.test(msg)
+}
+
+/**
+ * Hỏi chính sách shop (cọc / giao / đổi trả / COD) — LLM `policy_or_order_support`.
+ * **Không** phải tra cứu một đơn (không hỏi DH/SĐT).
+ */
+export function inboundTextLooksLikeShopPolicyAsk(raw: string): boolean {
+  if (inboundTextLooksLikePolicyRefundOrCancelAsk(raw)) return true
+  if (inboundTextLooksLikeDepositPolicyAsk(raw)) return true
+  if (inboundTextLooksLikeLeadTimePolicyAsk(raw)) return true
+  if (inboundTextLooksLikePaymentMethodPolicyAsk(raw)) return true
+  return false
+}
+
 export function inboundTextLooksLikeExplicitOrderTrackAsk(raw: string): boolean {
   const msg = normalizeCustomerMessageForInventorySearch(raw)
   if (!msg) return false
@@ -253,11 +339,14 @@ export function inboundTextLooksLikeBareShippingId(raw: string): boolean {
 
 /**
  * Hỏi tình trạng hàng/đơn — kể cả chưa nêu mã DH (dùng SĐT tin này hoặc tin trước).
- * Không gồm hỏi hoàn/hủy/không ưng (đi job `policy_or_order_support`).
+ * Không gồm hỏi chính sách cọc/giao/hoàn/hủy (đi job `policy_or_order_support`).
  */
 export function inboundTextLooksLikeOrderStatusAsk(raw: string): boolean {
   if (inboundTextLooksLikeBareShippingId(raw)) return true
-  if (inboundTextLooksLikePolicyRefundOrCancelAsk(raw) && !inboundTextLooksLikeExplicitOrderTrackAsk(raw)) {
+  if (
+    inboundTextLooksLikeShopPolicyAsk(raw) &&
+    !inboundTextLooksLikeExplicitOrderTrackAsk(raw)
+  ) {
     return false
   }
   return inboundTextLooksLikeAfterSalesNotCheckout(raw)

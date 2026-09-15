@@ -43,6 +43,17 @@ test('customer inbound fit-issue still classifies size-exchange photo', () => {
   )
 })
 
+test('order-status caption without OCR is not vision product consult', () => {
+  assert.equal(
+    classifyAfterSalesImage({
+      caption: 'kiểm tra xem đơn hàng này thế nào rồi',
+      ocrText: '',
+      conversationContext: '',
+    }),
+    'shipping_status_notice'
+  )
+})
+
 test('ask sku of this photo after guest image', () => {
   assert.equal(inboundTextLooksLikeAskSkuOfThisPhotoItem('Mã sp mẫu này'), true)
   assert.equal(inboundBodyHasCustomerUploadedImage('📷\n[Customer image: https://cdn.example/a.jpg]'), true)

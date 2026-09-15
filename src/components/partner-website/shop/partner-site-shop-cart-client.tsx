@@ -31,6 +31,7 @@ import {
   shouldRedirectToDepositAfterCreate,
 } from '@/lib/partner-website/shop/order-deposit'
 import { stashPartnerSiteCheckoutHandoff } from '@/lib/partner-website/shop/partner-site-checkout-handoff'
+import { readStoredAffiliateReferralCode } from '@/lib/partner-website/shop/partner-site-affiliate'
 import { markGoogleCustomerReviewsForOrder } from '@/lib/partner-website/shop/google-customer-reviews'
 import {
   emptyPartnerSiteAddressInput,
@@ -166,6 +167,11 @@ type CartQuote = {
       shippingFee: number
       depositPercent: number
     }>
+  } | null
+  affiliateWallet?: {
+    enabled: boolean
+    balance: number
+    used: number
   } | null
 }
 
@@ -508,6 +514,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     fixedAmount: number
   }>({ mode: 'percent', percent: 30, fixedAmount: 0 })
   const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'ewallet'>('bank_transfer')
+  const [useAffiliateWallet, setUseAffiliateWallet] = useState(false)
   const [bookAddresses, setBookAddresses] = useState<PartnerSiteCustomerAddress[]>([])
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null)
   const [showAddressModal, setShowAddressModal] = useState(false)
@@ -685,6 +692,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
         promoCode: promoCode?.trim() || undefined,
         province: checkoutProvince || undefined,
         shippingAddress: orderAddress.trim() || undefined,
+        useAffiliateWallet,
         lines: lines.map((item) => ({
           lineId: item.id,
           inventoryId: item.card.inventory_id || '',
@@ -699,7 +707,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       | ({ ok?: boolean } & CartQuote)
       | null
     return res.ok && json?.ok ? json : null
-  }, [authHeaders, captureFromResponse, checkoutProvince, orderAddress, siteSlug])
+  }, [authHeaders, captureFromResponse, checkoutProvince, orderAddress, siteSlug, useAffiliateWallet])
 
   const requestQuote = useCallback(async (
     lines: SiteCartLine[],
@@ -831,6 +839,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     walletVouchers,
     checkoutProvince,
     orderAddress,
+    useAffiliateWallet,
   ])
 
   useEffect(() => {
@@ -1109,6 +1118,8 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
             note: orderNote.trim(),
             ...(appliedPromo ? { promoCode: appliedPromo.code } : {}),
             ...(ewalletAvailable ? { paymentMethod } : {}),
+            useAffiliateWallet,
+            affiliateReferralCode: readStoredAffiliateReferralCode(siteSlug) || undefined,
           },
           items: selectedItems.map((item) => ({
             card: item.card as PartnerAiProductCard,
@@ -1618,6 +1629,12 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               {quote.breakdown.loyaltyDiscountAmount > 0 ? (
                 <p className="is-loyalty"><span>{saleT.loyaltyDiscount}{quote.loyalty.tierName ? ` ${quote.loyalty.tierName}` : ''}</span><strong>−{formatVnd(quote.breakdown.loyaltyDiscountAmount)}</strong></p>
               ) : null}
+              {(quote.affiliateWallet?.used ?? 0) > 0 ? (
+                <p className="is-loyalty">
+                  <span>{t.affiliateWalletApplied}</span>
+                  <strong>−{formatVnd(quote.affiliateWallet?.used ?? 0)}</strong>
+                </p>
+              ) : null}
               {quote.breakdown.regularListSubtotal > 0 ? (
                 <p>
                   <span>{saleT.regularSubtotal}</span>
@@ -1736,6 +1753,28 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               </p>
             ) : null}
           </div>
+          {(quote?.affiliateWallet?.enabled && (quote.affiliateWallet.balance ?? 0) > 0) ? (
+            <div className="pw-shop-cart-affiliate-wallet">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={useAffiliateWallet}
+                  onChange={(event) => setUseAffiliateWallet(event.target.checked)}
+                />
+                <span>
+                  {t.affiliateUseWallet} ({formatVnd(quote.affiliateWallet.balance)})
+                  {useAffiliateWallet && (quote.affiliateWallet.used ?? 0) > 0 ? (
+                    <span>
+                      {' '}
+                      −{formatVnd(quote.affiliateWallet.used)}
+                    </span>
+                  ) : (
+                    <span> {t.affiliateUseWalletHint}</span>
+                  )}
+                </span>
+              </label>
+            </div>
+          ) : null}
           <p className="pw-shop-muted">
             {shippingFeeEstimate > 0
               ? `${t.cartShippingFeeLabel}: ${formatVnd(shippingFeeEstimate)}`

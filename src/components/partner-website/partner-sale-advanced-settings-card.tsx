@@ -7,19 +7,26 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
 
 type Settings = {
   google: { enabled: boolean; merchantId: string; lockHours: number; minimumPricePercent: number }
-  affiliate: { enabled: boolean; commissionPercent: number; attributionDays: number; minimumPayoutAmount: number }
+  affiliate: {
+    enabled: boolean
+    commissionPercent: number
+    attributionDays: number
+    minimumPayoutAmount: number
+    commissionPolicy: string
+  }
 }
 
 const COPY: Record<WebLocale, string[]> = {
-  vi: ['Google Automated Discount & Affiliate', 'Google tự động giảm giá', 'Merchant ID', 'Khóa giá (giờ)', 'Giá tối thiểu (% giá niêm yết)', 'Chương trình Affiliate', 'Hoa hồng (%)', 'Thời gian ghi nhận (ngày)', 'Mức rút tối thiểu', 'Lưu cài đặt', 'Đã lưu cài đặt.', 'Không lưu được cài đặt.'],
-  en: ['Google Automated Discount & Affiliate', 'Google automated discount', 'Merchant ID', 'Price lock (hours)', 'Minimum price (% of list)', 'Affiliate program', 'Commission (%)', 'Attribution window (days)', 'Minimum payout', 'Save settings', 'Settings saved.', 'Could not save settings.'],
-  zh: ['Google 自动折扣与联盟', 'Google 自动折扣', '商家 ID', '价格锁定（小时）', '最低价格（标价百分比）', '联盟计划', '佣金 (%)', '归因窗口（天）', '最低提现额', '保存设置', '设置已保存。', '无法保存设置。'],
-  ja: ['Google 自動割引とアフィリエイト', 'Google 自動割引', 'Merchant ID', '価格ロック（時間）', '最低価格（定価比%）', 'アフィリエイト', '手数料 (%)', 'アトリビューション（日）', '最低支払額', '設定を保存', '設定を保存しました。', '設定を保存できませんでした。'],
-  ko: ['Google 자동 할인 및 제휴', 'Google 자동 할인', '판매자 ID', '가격 잠금(시간)', '최저 가격(정가 대비 %)', '제휴 프로그램', '수수료 (%)', '기여 기간(일)', '최소 지급액', '설정 저장', '설정을 저장했습니다.', '설정을 저장하지 못했습니다.'],
+  vi: ['Google Automated Discount & Affiliate', 'Google tự động giảm giá', 'Merchant ID', 'Khóa giá (giờ)', 'Giá tối thiểu (% giá niêm yết)', 'Chương trình Affiliate', 'Hoa hồng (%)', 'Thời gian ghi nhận (ngày)', 'Mức rút tối thiểu', 'Lưu cài đặt', 'Đã lưu cài đặt.', 'Không lưu được cài đặt.', 'Ghi chú chính sách hoa hồng'],
+  en: ['Google Automated Discount & Affiliate', 'Google automated discount', 'Merchant ID', 'Price lock (hours)', 'Minimum price (% of list)', 'Affiliate program', 'Commission (%)', 'Attribution window (days)', 'Minimum payout', 'Save settings', 'Settings saved.', 'Could not save settings.', 'Commission policy note'],
+  zh: ['Google 自动折扣与联盟', 'Google 自动折扣', '商家 ID', '价格锁定（小时）', '最低价格（标价百分比）', '联盟计划', '佣金 (%)', '归因窗口（天）', '最低提现额', '保存设置', '设置已保存。', '无法保存设置。', '佣金政策说明'],
+  ja: ['Google 自動割引とアフィリエイト', 'Google 自動割引', 'Merchant ID', '価格ロック（時間）', '最低価格（定価比%）', 'アフィリエイト', '手数料 (%)', 'アトリビューション（日）', '最低支払額', '設定を保存', '設定を保存しました。', '設定を保存できませんでした。', '手数料ポリシー'],
+  ko: ['Google 자동 할인 및 제휴', 'Google 자동 할인', '판매자 ID', '가격 잠금(시간)', '최저 가격(정가 대비 %)', '제휴 프로그램', '수수료 (%)', '기여 기간(일)', '최소 지급액', '설정 저장', '설정을 저장했습니다.', '설정을 저장하지 못했습니다.', '수수료 정책'],
 }
 
 export function PartnerSaleAdvancedSettingsCard(props: {
@@ -37,7 +44,15 @@ export function PartnerSaleAdvancedSettingsCard(props: {
   useEffect(() => {
     void fetch(api)
       .then((response) => response.json())
-      .then((body: Settings) => setSettings(body))
+      .then((body: Settings) =>
+        setSettings({
+          ...body,
+          affiliate: {
+            ...body.affiliate,
+            commissionPolicy: body.affiliate?.commissionPolicy ?? '',
+          },
+        })
+      )
       .catch(() => setSettings(null))
   }, [api])
 
@@ -108,6 +123,19 @@ export function PartnerSaleAdvancedSettingsCard(props: {
           {number('affiliate', 'commissionPercent', t[6])}
           {number('affiliate', 'attributionDays', t[7], 365)}
           {number('affiliate', 'minimumPayoutAmount', t[8], 1_000_000_000)}
+        </div>
+        <div className="space-y-1.5">
+          <Label>{t[12]}</Label>
+          <Textarea
+            rows={4}
+            value={settings.affiliate.commissionPolicy}
+            onChange={(event) =>
+              setSettings({
+                ...settings,
+                affiliate: { ...settings.affiliate, commissionPolicy: event.target.value },
+              })
+            }
+          />
         </div>
         <Button onClick={save} disabled={saving}>
           {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}

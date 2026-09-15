@@ -28,5 +28,16 @@ export function classifyPartnerImageSearchError(
 }
 
 export function looksLikeHttpUrl(text: string): boolean {
-  return /^https?:\/\/.+/i.test(String(text || '').trim())
+  const s = String(text || '').trim()
+  if (!/^https?:\/\/.+/i.test(s)) return false
+  try {
+    const u = new URL(s)
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false
+    const host = u.hostname.replace(/\.$/, '').toLowerCase()
+    if (!host || host === 'www') return false
+    if (!host.includes('.')) return false
+    return /[a-z0-9]/i.test(host)
+  } catch {
+    return false
+  }
 }

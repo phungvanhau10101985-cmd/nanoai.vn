@@ -12,7 +12,11 @@ import {
   fetchPartnerInventoryRowByComparableSkuFromPg,
   fetchPartnerInventoryRowByIdForPartnerFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
-import { inboundTextLooksLikeAfterSalesNotCheckout } from '@/lib/messaging/partner-ai-purchase-intent'
+import {
+  inboundTextLooksLikeAfterSalesNotCheckout,
+  inboundTextLooksLikeExplicitOrderTrackAsk,
+  inboundTextLooksLikeOrderStatusAsk,
+} from '@/lib/messaging/partner-ai-purchase-intent'
 import { extractExplicitSkuCandidates } from '@/lib/messaging/partner-inventory-ai-search'
 import {
   formatBoundOrderDepositConfirmReply,
@@ -332,6 +336,17 @@ export function classifyAfterSalesImage(input: {
   if (looksLikeShippingStatusNotice(ocr)) return 'shipping_status_notice'
   if (looksLikeDepositNotice(ocr) || looksLikeDepositNotice(caption)) return 'deposit_notice'
   if (looksLikeOrderChatScreenshot(ocr)) return 'order_chat_screenshot'
+
+  if (
+    inboundTextLooksLikeExplicitOrderTrackAsk(caption) ||
+    inboundTextLooksLikeExplicitOrderTrackAsk(customerSide) ||
+    inboundTextLooksLikeOrderStatusAsk(caption)
+  ) {
+    if (looksLikeBankTransferReceipt(ocr) || looksLikeBankTransferReceipt(caption)) return 'deposit_notice'
+    if (looksLikeReturnWaybill(ocr)) return 'return_waybill'
+    if (looksLikeDepositNotice(ocr) || looksLikeDepositNotice(caption)) return 'deposit_notice'
+    return 'shipping_status_notice'
+  }
 
   if (FIT_ISSUE_RE.test(customerSide) && !looksLikeShippingStatusNotice(ocr) && !looksLikeDepositNotice(ocr)) {
     return 'fit_issue_product_photo'

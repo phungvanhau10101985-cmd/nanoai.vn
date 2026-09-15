@@ -970,7 +970,6 @@ export function PartnerMessagingInboxClient({
                         ) : (
                           <CustomerCareMessageBody
                             row={m}
-                            showVisionCandidates
                             labels={{
                               productCardOpenProduct: t.messageProductCardOpenProduct,
                               productCardViewDetails: t.messageProductCardViewDetails,

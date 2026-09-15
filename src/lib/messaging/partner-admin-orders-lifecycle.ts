@@ -131,6 +131,7 @@ export function clampPartnerAdminDepositReceivedAmount(
 
 export function partnerAdminAmountDueOnDelivery(r: PartnerAdminOrderLifecycleInput): number {
   const paid = Math.max(0, Math.round(r.paid_amount || 0))
+  // Tổng đơn − số đã cọc thật. Không lấy (100% − % cọc) hay `required_amount`.
   return Math.max(0, partnerAdminOrderMerchandiseTotal(r) - paid)
 }
 

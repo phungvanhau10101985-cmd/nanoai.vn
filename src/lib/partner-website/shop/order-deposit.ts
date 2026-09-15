@@ -67,8 +67,9 @@ export function partnerOrderRemainingAfterDeposit(order: {
   paid_amount?: number | string | null
 }): number {
   const total = partnerOrderPayableTotal(order)
-  const covered = Math.max(money(order.paid_amount), money(order.required_amount))
-  return Math.max(0, total - Math.round(covered))
+  // Còn thu khi nhận = tổng đơn − số đã cọc thật. Không trừ theo % cọc (`required_amount`).
+  const paid = Math.round(money(order.paid_amount))
+  return Math.max(0, total - paid)
 }
 
 export function isPartnerShopDepositWaiting(order: PartnerShopDepositOrderLike): boolean {

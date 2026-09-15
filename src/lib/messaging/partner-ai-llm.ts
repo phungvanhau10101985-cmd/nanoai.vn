@@ -71,6 +71,7 @@ import {
   defaultSalesConversionForIntent,
   parsePartnerAiRouteDecision,
   partnerAiShouldIsolateProductCardConsult,
+  partnerAiIntentYieldsCardConsultIsolation,
   type PartnerAiCtaStrategy,
   type PartnerAiRouteIntent,
   type PartnerAiSalesStage,
@@ -246,7 +247,7 @@ function buildPartnerPaymentPolicyBlockForPartnerAi(pay: PartnerPaymentSettingsR
   return `
 
 [Thanh toán (cài đặt hệ thống shop)]
-Cài đặt mặc định: **không bắt cọc** theo cấu hình. Nếu **chính sách shop** hoặc tin tư vấn gần đây đã nêu **cọc** cho mặt hàng này — ưu tiên **cọc**; **không** hứa trả 100% lúc nhận nếu mâu thuẫn với cách tư vấn đang thống nhất.`
+Cài đặt mặc định của **shop này**: **không bắt cọc**. **Cấm** nêu «cọc 30%» hay bất kỳ %/số cọc nào không có trong khối này hoặc [Ngữ cảnh shop]. Nếu **chính sách shop** hoặc tin tư vấn gần đây đã nêu **cọc** cho mặt hàng này — ưu tiên **cọc**; **không** hứa trả 100% lúc nhận nếu mâu thuẫn với cách tư vấn đang thống nhất.`
 }
 
 function visionCatalogNoHitsFromTrigger(raw: Json | null | undefined): boolean {
@@ -441,6 +442,7 @@ const PARTNER_AI_AUTHORIZED_DATA_ONLY_DOCTRINE = `
 [Chỉ tư vấn từ dữ liệu shop cung cấp — **cấm bịa dịch vụ / cam kết ngoài nguồn**]
 Nguồn được phép: (1) **Ngữ cảnh shop bắt buộc** (product_consultation_context), (2) khối **[Thanh toán (cài đặt hệ thống shop)]**, (3) **danh sách kho**, (4) **FAQ/chính sách** shop đã lưu, (5) tin **Shop** do nhân viên gửi thật trong lịch sử, (6) hồ sơ khách **chỉ để xưng hô**.
 **Tuyệt đối không** tự thêm dịch vụ hay cam kết nếu **không có** trong các nguồn trên — ví dụ **cấm bịa**: gói quà / hộp quà / giấy gói / nơ / thiệp / ghi chú tay / giao hàng đặc biệt / free ship / tặng kèm / đổi size miễn phí / bảo hành mở rộng / may đo / khắc tên / làm theo yêu cầu… trừ khi **chính sách shop** hoặc tin **Shop** (nhân viên) đã ghi rõ shop có dịch vụ đó.
+**Cấm bịa số/tỷ lệ cọc** (vd. «cọc 30%», «COD 100%») nếu không có trong khối **[Thanh toán (cài đặt hệ thống shop)]** hoặc **ngữ cảnh shop**. Mỗi shop SaaS cấu hình riêng — không lấy % của shop khác.
 Khi khách hỏi dịch vụ mà **không thấy** trong dữ liệu: trả lời **thật** — shop **chưa ghi / chưa cung cấp** dịch vụ đó; mặc định shop **chỉ bán sản phẩm và giao hàng như đơn thường** theo chính sách đã có. **Không** bịa «shop sẽ gói quà / ghi thiệp / có nơ giấy gói» để làm khách hài lòng.
 Nếu khách hỏi «xem mẫu hộp quà» / «gói quà» mà shop **không có** dịch vụ gói quà: có thể gửi **ảnh sản phẩm thật trong kho** (nếu liên quan) hoặc nói rõ shop **chỉ bán và ship như bình thường** — **không** giả vờ có quy trình / mẫu hộp quà riêng.
 Không suy đoán shop có thêm tiện ích chỉ vì ngành thời trang/quà tặng hay vì khách hỏi lịch sự.
@@ -1114,7 +1116,8 @@ export async function buildPartnerAiContext(
     lastConsultedRow
   )
   const cardConsultIsolatedThread =
-    partnerAiRouteIntent === 'card_consult_isolated' ||
+    !partnerAiIntentYieldsCardConsultIsolation(partnerAiRouteIntent) &&
+    (partnerAiRouteIntent === 'card_consult_isolated' ||
     (!opensGeneralShopCatalog &&
     !similarCatalogVersusLastConsulted &&
     Boolean(
@@ -1122,7 +1125,7 @@ export async function buildPartnerAiContext(
         (latestCardConsultAnchorInvId &&
           lastConsultedRow &&
           latestCardConsultAnchorInvId === lastConsultedRow.id)
-    ))
+    )))
 
   /**
    * Neo «mẫu khác»: SP kèm tin này; tin shop vừa có thẻ/mã; hoặc **dòng kho đang tư vấn** (sau chỉnh widget `context_reply`).
@@ -1618,7 +1621,11 @@ Bắt buộc (khi khách chưa đổi sang mẫu khác): trả lời bằng các
 `
 
   /** Khối mặc định — luôn có; shop mở rộng qua `product_consultation_context`. */
-  const khoContextInstructionForSystem = cardConsultIsolatedThread
+  const khoContextInstructionForSystem =
+    partnerAiRouteIntent === 'policy_or_order_support'
+      ? `[Nhánh chính sách / hỗ trợ đơn — **ý định khách** thắng neo SKU trên trang]
+Trả lời **cọc, COD, thời gian giao, đổi trả, hủy/hoàn** từ: (1) khối **[Thanh toán (cài đặt hệ thống shop)]**, (2) **[Ngữ cảnh shop bắt buộc]**, (3) FAQ nếu có trong prompt. **Cấm** bịa % cọc hay «xem hàng rồi trả hết» nếu mâu thuẫn cài đặt **shop này**. **Cấm** gửi thẻ SP / carousel (\`products\` = []). Hỏi «có phải cọc không» / «bao lâu nhận hàng» = giải thích chính sách, **không** hỏi mã DH trừ khi khách đang **tra cứu một đơn** (đã có DH/SĐT).`
+    : cardConsultIsolatedThread
     ? `[Tư vấn từ thẻ — **cô lập** khỏi lịch sử thread]
 Phần user prompt **không** chứa lịch sử chat thật — chỉ hướng dẫn + **một dòng kho** + **tin mới nhất của khách**. **Cấm** bám chủ đề/đoạn chat cũ (vd. đã hỏi túi rồi váy…) dù khách lỡ nhắn nhảy sang loại hàng khác: **chỉ** tư vấn theo **đúng dòng kho** (đúng mã/SP từ thẻ). Nếu khách hỏi hàng **khác ngành / khác mã**, trả lời ngắn: đang hỗ trợ **đúng mẫu trong kho**; mời hỏi tiếp về **mẫu đó** hoặc **bấm Tư vấn** trên thẻ sản phẩm khác. Trong JSON: \`products\` tối đa **một** thẻ — đúng dòng kho, hoặc \`[]\` nếu chỉ trả lời chữ.`
     : inboundAnchoredProductConsultBranch

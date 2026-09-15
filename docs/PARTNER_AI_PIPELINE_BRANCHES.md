@@ -35,7 +35,8 @@ Luồng bắt đầu tại `buildPartnerAiContext` (`src/lib/messaging/partner-a
 | **Neo SKU / trang (không similar, không B)** | Khớp mã trong tin/trang, thường **≤1 thẻ** | `explicitSkuRows` + không bật A | `explicitSkuRows` | *(mặc định)* |
 | **Ảnh góc chi tiết (template)** | Khách hỏi góc rất cụ thể (bên trong/trước/sau/đáy/ngăn...) → **không tạo ảnh AI**; gửi thẻ và điều hướng bấm **Xem chi tiết** trên web | `customerMessageAsksSpecificPhotoAngleDetail` + có dòng kho neo | `specificAnglePhotoRequest`, `specificAnglePhotoTemplateInventoryRows` | `photo_angle_detail_template` |
 | **Page context — mã không có kho, gợi ý theo ảnh** | Trang/embed có `page_context` + ảnh nhưng **không** resolve được dòng kho → vector ảnh ngoài so với kho | `inboundPageSkuMissImageSimilarFallback` | `fetchInventoryRowsSimilarToExternalImageUrl` | `page_context_image_similar_fallback` |
-| **Neo đơn (ảnh CK / tra cứu)** | Giữ **một mã DH** từ ảnh CK (`SEVQR DH…`) hoặc lần tra cứu, tư vấn đúng đơn đó đến khi khách **đổi chủ đề / đơn khác**. **Không** intercept câu hỏi hoàn/hủy/không ưng (đi job `policy_or_order_support`). | `bound_order` trên `raw_payload`; `inboundTextLooksLikeOrderStatusAsk` ≠ `AfterSalesNotCheckout` | `partner-ai-bound-order.ts`, `partner-ai-inbound.ts`, `partner-ai-purchase-intent.ts` | *(intercept trước LLM; không set A/B)* |
+| **Neo đơn (ảnh CK / tra cứu)** | Giữ **một mã DH** từ ảnh CK (`SEVQR DH…`) hoặc lần tra cứu, tư vấn đúng đơn đó đến khi khách **đổi chủ đề / đơn khác**. **Không** intercept câu hỏi hoàn/hủy/không ưng **hay hỏi chính sách cọc/giao** (đi job `policy_or_order_support`). | `bound_order` trên `raw_payload`; `inboundTextLooksLikeOrderStatusAsk` ≠ `inboundTextLooksLikeShopPolicyAsk` | `partner-ai-bound-order.ts`, `partner-ai-inbound.ts`, `partner-ai-purchase-intent.ts` | *(intercept trước LLM; không set A/B)* |
+| **Chính sách shop (SaaS)** | Cọc/COD/thời gian giao/đổi trả — **ý định** `policy_or_order_support`. Nguồn: Cài đặt thanh toán + `product_consultation_context` + FAQ. **Cấm** bịa % cọc. Neo thẻ / `page_context` **không** cô lập 1 SKU. | `inboundTextLooksLikeShopPolicyAsk`; `partnerAiIntentYieldsCardConsultIsolation` | `partner-ai-purchase-intent.ts`, `partner-ai-intent-router.ts`, `partner-ai-llm.ts` | `policy_or_order_support` |
 | **Tìm kho mặc định** | Keyword + vector theo tin | Không thuộc các nhánh trên | `invForContext` rộng | *(mặc định)* |
 | **Ảnh khách upload** | OCR/SKU trên ảnh → vector; ≥86% khóa mẫu; dưới 86% carousel | Tin widget có `guest_media` / `[Customer image:]` | `widget-guest-post`, `partner-ai-photo-item-consult` | `image_sku_match` / `image_visual_lock` / vision pick |
 | **Ảnh hậu mãi** | Chỉ khi **caption hoặc tin inbound khách** có ý đổi size/hoàn, hoặc OCR ra vận đơn/CK/screenshot đơn | `classifyAfterSalesImage` — **cấm** lấy chữ «đổi size» từ tin shop | `partner-ai-after-sales-image.ts` | `guest_after_sales_image_reply` |
@@ -46,6 +47,10 @@ Trong code, **Nhánh B** được định nghĩa có điều kiện `!similarCat
 Nghĩa là: nếu khách vừa gửi **ngữ cảnh SP** vừa hỏi kiểu **«mẫu khác»**, hệ thống đi **Nhánh A**, không phải B. Đây là hành vi **cố ý** (carousel tương tự ≠ tư vấn thuộc tính một mã).
 
 **Không** được bỏ điều kiện này trừ khi có quyết định sản phẩm rõ và cập nhật cả prompt lẫn QA.
+
+## Ý định thắng neo thẻ (SaaS)
+
+Khách vừa bấm **Tư vấn** / đang xem PDP (`page_context`) rồi hỏi **cọc, COD, bao lâu nhận, đổi trả, check đơn**: đi `policy_or_order_support`, **không** `card_consult_isolated`. Cài đặt thanh toán + ngữ cảnh admin của **đúng `partnerId`**. Hỏi màu/size/chất liệu đúng mẫu đó vẫn isolate / Nhánh B / follow-up như cũ.
 
 ## Ví dụ Nhánh B — «Mã SP trên trang + ảnh + hỏi chất liệu»
 

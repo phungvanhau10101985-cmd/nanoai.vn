@@ -849,8 +849,9 @@ export function CustomerCareMessageBody({
   shopDisplayName?: string
   /** Trang `/messaging/p/...`: URL trong tin dùng policy guest (iOS luôn cùng tab; Android/desktop màn rộng tab mới). */
   openMessageLinksInSameTab?: boolean
-  /** Hiện thẻ gợi ý từ `vision_candidates` (để inbox shop mirror đúng phía khách). */
+  /** Hiện thẻ từ `vision_candidates` — chỉ tin **shop** (outbound). Tin khách giữ payload để chọn mẫu, không vẽ carousel (tránh trùng tin nhắc). */
   showVisionCandidates?: boolean
+  /** Guest chat: tin **khách** chỉ chữ bên phải — carousel `ai_product_cards` / vision map chỉ hiện ở tin **shop** (trái). */
   renderAiProductCarousel?: boolean
 }) {
   const url = imageUrlFromPayload(row.raw_payload)

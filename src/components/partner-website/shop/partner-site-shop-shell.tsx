@@ -122,6 +122,7 @@ import { htmlHasChromeChatMua } from '@/lib/partner-website/visual-editor/chrome
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
+import { capturePartnerAffiliateReferralOnClient } from '@/lib/partner-website/shop/partner-site-affiliate'
 import {
   buildPartnerShopLoginHref,
   getPartnerShopBrowserReturnLocation,
@@ -474,6 +475,23 @@ function PartnerSiteShopShellInner({
     )
   const { ready, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { cartCount, setCartCount, registerCartLoader } = usePartnerSiteShop()
+
+  useEffect(() => {
+    const run = () => {
+      capturePartnerAffiliateReferralOnClient({
+        siteSlug,
+        authHeaders: ready && isAuthenticated ? authHeaders() : undefined,
+      })
+    }
+    run()
+    const onChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ siteSlug?: string }>).detail
+      if (detail?.siteSlug && detail.siteSlug !== siteSlug.trim().toLowerCase()) return
+      run()
+    }
+    window.addEventListener('pw-partner-site-guest-session-change', onChange)
+    return () => window.removeEventListener('pw-partner-site-guest-session-change', onChange)
+  }, [authHeaders, isAuthenticated, ready, siteSlug])
   const [pendingCartAdded, setPendingCartAdded] = useState<{
     name: string
     imageUrl?: string | null

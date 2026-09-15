@@ -132,6 +132,30 @@ test('info and chat kinds from href or channel', () => {
   assert.equal(inferChromeWidgetKindFromHints({ href: '#', label: 'Đăng ký' }), 'register')
 })
 
+test('affiliate and loyalty kinds beat generic /account', () => {
+  assert.equal(
+    inferChromeWidgetKindFromHints({
+      href: '/site/188-shop/account/loyalty',
+      label: 'Hạng thành viên',
+    }),
+    'loyalty'
+  )
+  assert.equal(
+    inferChromeWidgetKindFromHints({
+      href: '/site/188-shop/vi-dien-tu',
+      label: 'Ví Affiliate',
+    }),
+    'affiliate'
+  )
+  assert.equal(
+    inferChromeWidgetKindFromHints({
+      href: '/site/188-shop/tai-khoan-ngan-hang',
+      label: 'Tài khoản ngân hàng',
+    }),
+    'affiliate-bank'
+  )
+})
+
 test('card overlay heart is not a chrome favorite-product widget', () => {
   assert.equal(
     inferChromeWidgetKindFromHints({

@@ -3,7 +3,8 @@ import { fetchPartnerInventoryRowsByIdsInOrderFromPg } from '@/lib/db/messaging-
 import { fulfillmentSourceFromUrl, resolveInventoryFulfillmentUrl } from '@/lib/messaging/fulfillment/fulfillment-routing'
 import { buildCheckoutSplitPlans } from '@/lib/messaging/fulfillment/checkout-split'
 import { resolveActiveBirthdayOfferForCustomer } from '@/lib/db/messaging-partner-birthday-promo-pg'
-import { resolvePartnerCustomerLoyaltyStatusFromPg } from '@/lib/db/messaging-partner-loyalty-pg'
+import { fetchPartnerAffiliateMeFromPg } from '@/lib/db/messaging-partner-affiliate-pg'
+import { applyAffiliateWalletToSplitPlans } from '@/lib/partner-website/shop/partner-site-affiliate'
 import { validatePromotionCodeFromPg } from '@/lib/db/messaging-partner-promotions-pg'
 import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import { resolvePartnerCheckoutPriceLinesFromPg } from '@/lib/db/messaging-partner-sale-pricing-pg'
@@ -57,6 +58,7 @@ async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug
     promoCode?: string
     province?: string
     shippingAddress?: string
+    useAffiliateWallet?: boolean
   } | null
   const sourceLines = Array.isArray(body?.lines) ? body.lines.slice(0, 100) : []
   const validLines = sourceLines
@@ -97,7 +99,7 @@ async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug
     visitorEmail: emailNormalized,
     settings: saleConfig,
   })
-  const [priceLines, birthdayOfferRow, loyaltyStatus, paymentSettings, provinceFees] =
+  const [priceLines, birthdayOfferRow, loyaltyStatus, paymentSettings, provinceFees, affiliateMe] =
     await Promise.all([
       resolvePartnerCheckoutPriceLinesFromPg({
         partnerId: shop.partnerId,
@@ -119,6 +121,15 @@ async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug
       }),
       fetchPartnerPaymentSettingsFromPg(shop.partnerId),
       fetchPartnerShippingProvinceFeesFromPg(shop.partnerId),
+      visitor.thread.guestAccountId || visitor.thread.linkedUserId
+        ? fetchPartnerAffiliateMeFromPg({
+            partnerId: shop.partnerId,
+            guestAccountId: visitor.thread.guestAccountId,
+            linkedUserId: visitor.thread.linkedUserId,
+            emailNormalized,
+            origin: request.nextUrl.origin,
+          })
+        : Promise.resolve(null),
     ])
   const birthdayDiscountPercent = birthdayOfferRow?.percent ?? 0
 
@@ -227,6 +238,25 @@ async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug
       depositPercent: plan.depositPercent,
     })),
   }
+  const affiliateWalletBalance =
+    affiliateMe?.affiliate_status === 'approved' ? Math.max(0, affiliateMe.balance) : 0
+  const useWallet = body?.useAffiliateWallet === true && affiliateWalletBalance > 0
+  const walletApplied = applyAffiliateWalletToSplitPlans({
+    plans: checkoutPlans.map((plan) => ({
+      amountAfterDiscount: plan.amountAfterDiscount,
+      shippingFeeAmount: plan.shippingFee,
+      requiredAmount: plan.requiredAmount,
+    })),
+    walletBalance: affiliateWalletBalance,
+    requestedAmount: useWallet ? affiliateWalletBalance : 0,
+  })
+  if (useWallet && walletApplied.walletUsed > 0) {
+    checkoutSplit.requiredAmount = walletApplied.requiredAmount
+    checkoutSplit.plans = checkoutSplit.plans.map((plan, index) => ({
+      ...plan,
+      requiredAmount: walletApplied.plans[index]?.requiredAmount ?? plan.requiredAmount,
+    }))
+  }
 
   return jsonSitePersonalization(
     request,
@@ -329,8 +359,15 @@ async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug
         source: shippingQuote.source,
         matchedProvince: shippingQuote.matchedProvince,
       },
-      orderTotal: breakdown.amountAfterDiscount + shippingFeeAmount,
+      orderTotal: useWallet
+        ? walletApplied.payableTotal
+        : breakdown.amountAfterDiscount + shippingFeeAmount,
       checkoutSplit,
+      affiliateWallet: {
+        enabled: affiliateMe?.affiliate_enabled !== false && affiliateMe?.affiliate_status === 'approved',
+        balance: affiliateWalletBalance,
+        used: useWallet ? walletApplied.walletUsed : 0,
+      },
     },
     200,
     { sessionId: visitor.sessionId, thread: visitor.thread }

@@ -218,6 +218,21 @@ export const CHROME_KIND_INFER_RULES: ChromeKindInferRule[] = [
     labels: ['ví quà', 'vi qua', 'my vouchers', '优惠券'],
   },
   {
+    kind: 'loyalty',
+    pathSegs: ['loyalty', 'thanh-vien'],
+    labels: ['hạng thành viên', 'hang thanh vien', 'membership', '会員ランク', '회원 등급', '会员等级'],
+  },
+  {
+    kind: 'affiliate',
+    pathSegs: ['affiliate', 'vi-dien-tu', 'vi-affiliate', 'ctv'],
+    labels: ['ví affiliate', 'vi affiliate', 'hạng ctv', 'hang ctv', 'affiliate wallet', '联盟钱包', 'アフィリエイトウォレット', '제휴 지갑'],
+  },
+  {
+    kind: 'affiliate-bank',
+    pathSegs: ['affiliate-bank', 'tai-khoan-ngan-hang'],
+    labels: ['tài khoản ngân hàng', 'tai khoan ngan hang', 'bank account', '银行账户', '銀行口座', '은행 계좌'],
+  },
+  {
     kind: 'addresses',
     pathSegs: ['addresses'],
     labels: ['sổ địa chỉ', 'so dia chi', 'address book', 'địa chỉ', '地址簿'],

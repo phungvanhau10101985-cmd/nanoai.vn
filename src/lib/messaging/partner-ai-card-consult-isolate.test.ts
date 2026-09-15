@@ -12,6 +12,30 @@ test('stale product_card_consult does not isolate when intent is new_product_sea
   )
 })
 
+test('policy / similar / purchase yield isolation even after Tư vấn click', () => {
+  assert.equal(
+    partnerAiShouldIsolateProductCardConsult({
+      rawIsProductCardConsult: true,
+      routeIntent: 'policy_or_order_support',
+    }),
+    false
+  )
+  assert.equal(
+    partnerAiShouldIsolateProductCardConsult({
+      rawIsProductCardConsult: true,
+      routeIntent: 'similar_alternatives',
+    }),
+    false
+  )
+  assert.equal(
+    partnerAiShouldIsolateProductCardConsult({
+      rawIsProductCardConsult: true,
+      routeIntent: 'purchase_or_order',
+    }),
+    false
+  )
+})
+
 test('real Tư vấn click still isolates when intent is not new search', () => {
   assert.equal(
     partnerAiShouldIsolateProductCardConsult({

@@ -29,6 +29,10 @@ import {
   partnerSiteSaleCopy,
   PW_SITE_SALE_MO_SKIP_JS,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
+import {
+  partnerAffiliateAttrDoneKey,
+  partnerAffiliateCookieName,
+} from '@/lib/partner-website/shop/partner-site-affiliate'
 
 function variantModalCopyKeys(c: ProductVariantModalCopy) {
   return {
@@ -61,6 +65,9 @@ const COPY: Record<
     shareFailed: string
     couponOk: string
     couponNeedCart: string
+    affiliateShareThisPage: string
+    affiliateCopy: string
+    affiliateShare: string
     cartAddedTitle: string
     cartGoToCart: string
     cartContinueShopping: string
@@ -93,6 +100,9 @@ const COPY: Record<
     shareFailed: 'Không chia sẻ được.',
     couponOk: 'Đã áp mã. Mở giỏ để xem giảm giá.',
     couponNeedCart: 'Thêm sản phẩm vào giỏ rồi áp mã.',
+    affiliateShareThisPage: 'Link giới thiệu trang này',
+    affiliateCopy: 'Sao chép',
+    affiliateShare: 'Chia sẻ',
   },
   en: {
     addToCart: 'Add to cart',
@@ -106,6 +116,9 @@ const COPY: Record<
     shareFailed: 'Could not share.',
     couponOk: 'Code applied. Open the cart to see the discount.',
     couponNeedCart: 'Add items to the cart first.',
+    affiliateShareThisPage: 'Referral link for this page',
+    affiliateCopy: 'Copy',
+    affiliateShare: 'Share',
   },
   zh: {
     addToCart: '加入购物车',
@@ -119,6 +132,9 @@ const COPY: Record<
     shareFailed: '无法分享。',
     couponOk: '已应用优惠码，请打开购物车查看。',
     couponNeedCart: '请先把商品加入购物车。',
+    affiliateShareThisPage: '本页推荐链接',
+    affiliateCopy: '复制',
+    affiliateShare: '分享',
   },
   ja: {
     addToCart: 'カートに追加',
@@ -132,6 +148,9 @@ const COPY: Record<
     shareFailed: '共有できませんでした。',
     couponOk: 'コードを適用しました。カートで確認してください。',
     couponNeedCart: '先にカートへ商品を入れてください。',
+    affiliateShareThisPage: 'このページの紹介リンク',
+    affiliateCopy: 'コピー',
+    affiliateShare: '共有',
   },
   ko: {
     addToCart: '장바구니',
@@ -145,6 +164,9 @@ const COPY: Record<
     shareFailed: '공유하지 못했습니다.',
     couponOk: '코드가 적용되었습니다. 장바구니에서 확인하세요.',
     couponNeedCart: '먼저 장바구니에 상품을 담으세요.',
+    affiliateShareThisPage: '이 페이지 추천 링크',
+    affiliateCopy: '복사',
+    affiliateShare: '공유',
   },
 }
 
@@ -327,13 +349,75 @@ function captureGoogleDiscount(){
 }
 function captureAffiliate(){
   if(pwShopLiveUiOff())return;
+  var cookieName=${JSON.stringify(partnerAffiliateCookieName(slug))};
+  var cookieRe=${JSON.stringify(partnerAffiliateCookieName(slug).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))};
+  var doneKey=${JSON.stringify(partnerAffiliateAttrDoneKey(slug))};
   var code='';
   try{var u=new URL(location.href);code=u.searchParams.get('ref')||u.searchParams.get('affiliate')||'';}catch(e){}
+  code=String(code||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,16);
+  if(code){
+    try{document.cookie=cookieName+'='+encodeURIComponent(code)+'; path=/; max-age=2592000; SameSite=Lax';}catch(e){}
+  }else{
+    try{
+      var m=document.cookie.match(new RegExp('(?:^|; )'+cookieRe+'=([^;]*)'));
+      if(m)code=decodeURIComponent(m[1]||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,16);
+    }catch(e){}
+  }
   if(!code)return;
+  if(!accountId())return;
+  try{if(sessionStorage.getItem(doneKey)==='1')return;}catch(e){}
   apiFetch(AFFILIATE_API,{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({referralCode:code})
+  }).then(function(res){
+    if(!res.ok)return;
+    try{document.cookie=cookieName+'=; path=/; max-age=0; SameSite=Lax';}catch(e2){}
+    try{sessionStorage.setItem(doneKey,'1');}catch(e3){}
+  }).catch(function(){});
+}
+function paintAffiliateShareBar(){
+  if(pwShopLiveUiOff())return;
+  var page=document.documentElement.getAttribute('data-pw-page')||'';
+  if(page!=='product')return;
+  if(!accountId())return;
+  if(document.querySelector('[data-pw-affiliate-share]'))return;
+  apiFetch(AFFILIATE_API).then(function(res){
+    var me=res.j&&res.j.me;
+    if(!me||me.affiliate_status!=='approved'||!me.referral_code)return;
+    if(document.querySelector('[data-pw-affiliate-share]'))return;
+    var host=document.querySelector('[data-pw-region="pdp-info"] [data-pw-el="title"],.pw-pdp-title,[data-pw-el="title"]');
+    if(!host||!host.parentNode)return;
+    var code=String(me.referral_code||'').trim().toUpperCase();
+    var url=location.href.split('#')[0];
+    try{var parsed=new URL(url);parsed.searchParams.set('ref',code);url=parsed.toString();}
+    catch(e){url+=(url.indexOf('?')>=0?'&':'?')+'ref='+encodeURIComponent(code);}
+    var bar=document.createElement('div');
+    bar.setAttribute('data-pw-affiliate-share','1');
+    bar.className='pw-shop-affiliate-share-bar';
+    bar.innerHTML='<span>'+COPY.affiliateShareThisPage+'</span>'
+      +'<button type="button" data-pw-aff-copy="1">'+COPY.affiliateCopy+'</button>'
+      +'<button type="button" data-pw-aff-share="1">'+COPY.affiliateShare+'</button>'
+      +'<a href="https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(url)+'" target="_blank" rel="noreferrer">Facebook</a>'
+      +'<a href="https://zalo.me/share?url='+encodeURIComponent(url)+'" target="_blank" rel="noreferrer">Zalo</a>'
+      +'<a href="https://t.me/share/url?url='+encodeURIComponent(url)+'" target="_blank" rel="noreferrer">Telegram</a>';
+    host.parentNode.insertBefore(bar, host.nextSibling);
+    var copyBtn=bar.querySelector('[data-pw-aff-copy]');
+    if(copyBtn)copyBtn.addEventListener('click',function(){
+      if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url).then(function(){toast(COPY.shareCopied);}).catch(function(){toast(COPY.shareFailed);});
+      } else toast(COPY.shareFailed);
+    });
+    var shareBtn=bar.querySelector('[data-pw-aff-share]');
+    if(shareBtn)shareBtn.addEventListener('click',function(){
+      if(navigator.share){
+        navigator.share({title:COPY.affiliateShare,url:url}).catch(function(){});
+        return;
+      }
+      if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url).then(function(){toast(COPY.shareCopied);}).catch(function(){toast(COPY.shareFailed);});
+      } else toast(COPY.shareFailed);
+    });
   }).catch(function(){});
 }
 function readProductFromEl(el){
@@ -902,8 +986,10 @@ function runHydrate(forceNetwork){
     window.__pwShopHydrating=false;
   }
 }
-function run(){captureGoogleDiscount();captureAffiliate();runHydrate(true);
-  consumeGoogleHandoff().then(function(){flushPendingCart();});
+function run(){captureGoogleDiscount();captureAffiliate();paintAffiliateShareBar();runHydrate(true);
+  consumeGoogleHandoff().then(function(){captureAffiliate();paintAffiliateShareBar();flushPendingCart();});
+  document.addEventListener('pw-partner-site-guest-session-change',function(){captureAffiliate();paintAffiliateShareBar();});
+  window.addEventListener('pw-partner-site-guest-session-change',function(){captureAffiliate();paintAffiliateShareBar();});
   if(document.documentElement.getAttribute('data-pw-shop-actions-mo')==='1')return;
   document.documentElement.setAttribute('data-pw-shop-actions-mo','1');
   var moTimer=null;

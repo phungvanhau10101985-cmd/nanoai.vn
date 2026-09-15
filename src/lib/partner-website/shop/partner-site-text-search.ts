@@ -158,6 +158,34 @@ export function matchPartnerCategoryPathForSearch(
   return null
 }
 
+type PartnerCategoryTreeLike = {
+  slug?: string
+  name?: string
+  path?: string
+  depth?: number
+  children?: PartnerCategoryTreeLike[]
+}
+
+/** API mega-menu tree → flat nodes for 188 `navigateProductTextSearch`. */
+export function flattenPartnerCategoryTreeForSearch(nodes: unknown): PartnerSearchCategoryNode[] {
+  const out: PartnerSearchCategoryNode[] = []
+  const walk = (list: PartnerCategoryTreeLike[] | undefined) => {
+    if (!Array.isArray(list)) return
+    for (const n of list) {
+      if (!n || typeof n !== 'object') continue
+      const path = String(n.path || '').trim().replace(/^\/+|\/+$/g, '')
+      const slug = String(n.slug || '').trim()
+      const name = String(n.name || '').trim()
+      if (path || slug || name) {
+        out.push({ slug, name, path, depth: Number(n.depth) || 0 })
+      }
+      if (Array.isArray(n.children) && n.children.length) walk(n.children)
+    }
+  }
+  walk(Array.isArray(nodes) ? (nodes as PartnerCategoryTreeLike[]) : [])
+  return out
+}
+
 /**
  * SQL haystack — cùng cột 188 `SEARCH_DOCUMENT_FIELDS` (không `description`).
  * `catalog_json` keys cover Excel snapshot when denormalized columns are empty.

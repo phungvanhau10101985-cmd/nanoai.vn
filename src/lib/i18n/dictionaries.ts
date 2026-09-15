@@ -1075,6 +1075,7 @@ export type Dictionary = {
     confirmDepositReceivedLabel: string
     confirmDepositReceivedHint: string
     confirmDepositRemainingPreview: string
+    confirmDepositRemainingFormula: string
     confirmDepositAmountRequired: string
     confirmDepositNoteLabel: string
     confirmDepositNotePlaceholder: string
@@ -4596,12 +4597,13 @@ const VI_DICTIONARY: Dictionary = {
     loadingOrders: 'Đang tải...',
     filterPayFailed: 'Thanh toán thất bại',
     confirmDepositTitle: 'Xác nhận đặt cọc',
-    confirmDepositBody: 'Đơn {code}. Số tiền cọc cần thu: {amount}',
+    confirmDepositBody: 'Đơn {code}.',
     confirmDepositNoTxn: 'Chưa có giao dịch cọc.',
-    confirmDepositManualHint: 'Nhập số tiền khách đã chuyển khoản, rồi bấm xác nhận. Số còn lại khách trả khi nhận hàng.',
+    confirmDepositManualHint: 'Nhập đúng số khách đã chuyển (số bất kỳ). Còn thu khi nhận hàng = tổng đơn trừ số đã cọc, không trừ theo % cọc.',
     confirmDepositReceivedLabel: 'Số tiền đã nhận cọc',
-    confirmDepositReceivedHint: 'Nhập đúng số đã nhận. Có thể khác số cần thu.',
+    confirmDepositReceivedHint: 'Không bắt buộc đúng số % cọc trên web. Nhập số thực đã nhận.',
     confirmDepositRemainingPreview: 'Còn thu khi nhận hàng: {amount}',
+    confirmDepositRemainingFormula: '{total} − {paid} = {remaining}',
     confirmDepositAmountRequired: 'Nhập số tiền đã nhận cọc.',
     confirmDepositNoteLabel: 'Ghi chú',
     confirmDepositNotePlaceholder: 'Ghi chú...',
@@ -5002,9 +5004,9 @@ const VI_DICTIONARY: Dictionary = {
       'Độ trễ ngẫu nhiên (ms) trước khi gửi tin điều phối tự động không đi qua model LLM (ví dụ gợi ý đặt mua, hướng dẫn mua trong chat). Tin DeepSeek không dùng bước này sau khi model đã trả kết quả. Đặt cả hai 0 để tắt.',
     productConsultationContextLabel: 'Ngữ cảnh & hướng dẫn AI của shop',
     productConsultationContextHint:
-      'Một ô duy nhất cho toàn bộ thông tin AI luôn phải dùng: chính sách shop, giọng điệu trả lời, cách tư vấn, cách chốt đơn, đổi trả, cọc, giao hàng…',
+      'AI luôn đọc ô này + Cài đặt thanh toán (có cọc hay không, %). Ghi thời gian giao sau khi shop gửi, đổi trả, giọng điệu, cách chốt. Không bịa % cọc của shop khác.',
     productConsultationContextPlaceholder:
-      'Ví dụ: giọng lịch sự, xưng em — anh/chị. Luôn nhắc khách kiểm tra bảng size trước khi chốt. Hàng sale không đổi trả. Đơn may theo số đo cần cọc 50%. Khi khách lăn tăn, giải thích chính sách nhẹ nhàng, không ép mua…',
+      'Ví dụ: giọng lịch sự, xưng em — anh/chị. Hàng thường giao 7–12 ngày sau khi shop gửi. Đổi size 1 lần nếu không vừa số đo. Shop không cọc thì ghi rõ; nếu có cọc thì khớp Cài đặt thanh toán. Hàng sale không đổi trả…',
     afterSalesReturnAddressLabel: 'Địa chỉ nhận hàng hoàn / đổi size / trả hàng',
     afterSalesReturnAddressHint:
       'Địa chỉ shop nhận khi khách gửi hàng hoàn, đổi size hoặc trả hàng. AI sẽ gửi địa chỉ này trong chat hậu mãi. Để trống thì AI vẫn hướng dẫn quy trình, không tự bịa địa chỉ.',
@@ -8134,12 +8136,13 @@ const EN_DICTIONARY: Dictionary = {
     loadingOrders: 'Loading...',
     filterPayFailed: 'Payment failed',
     confirmDepositTitle: 'Confirm deposit',
-    confirmDepositBody: 'Order {code}. Deposit due: {amount}',
+    confirmDepositBody: 'Order {code}.',
     confirmDepositNoTxn: 'No deposit transaction yet.',
-    confirmDepositManualHint: 'Enter the amount received, then confirm. The rest is due on delivery.',
+    confirmDepositManualHint: 'Enter the amount actually received (any amount). Balance due on delivery = order total minus deposit received, not a leftover percentage.',
     confirmDepositReceivedLabel: 'Deposit received',
-    confirmDepositReceivedHint: 'Enter the amount actually received. It may differ from the amount due.',
+    confirmDepositReceivedHint: 'Does not have to match the website deposit %. Enter the amount received.',
     confirmDepositRemainingPreview: 'Due on delivery: {amount}',
+    confirmDepositRemainingFormula: '{total} − {paid} = {remaining}',
     confirmDepositAmountRequired: 'Enter the deposit amount received.',
     confirmDepositNoteLabel: 'Note',
     confirmDepositNotePlaceholder: 'Note...',
@@ -8543,9 +8546,9 @@ const EN_DICTIONARY: Dictionary = {
       'Random delay (ms) before sending automated messages that do not use the LLM (e.g. purchase list, buy-in-chat guidance). DeepSeek replies do not use this after the model returns. Set both to 0 to disable.',
     productConsultationContextLabel: 'Shop AI context & instructions',
     productConsultationContextHint:
-      'One field for everything the AI must always use: shop policies, reply tone, consultation style, closing guidance, exchanges, deposits, shipping…',
+      'The AI always reads this plus Payment settings (deposit on/off and %). Enter lead time after the shop ships, returns, tone, and how to close. Do not invent another shop’s deposit %.',
     productConsultationContextPlaceholder:
-      'e.g. use a polite and concise tone. Always ask customers to check the size chart before ordering. Sale items are final. Made-to-measure orders require a 50% deposit. Handle hesitation gently without pressuring customers…',
+      'e.g. polite, concise tone. Typical delivery 7–12 days after the shop ships. One size exchange if the fit is wrong. If this shop does not take deposits, say so; if it does, match Payment settings. Sale items are final…',
     afterSalesReturnAddressLabel: 'Return / size-exchange address',
     afterSalesReturnAddressHint:
       'Shop address for returns, size exchanges, and send-backs. The AI includes this in after-sales chat. If empty, the AI still explains the process and does not invent an address.',
@@ -11650,12 +11653,13 @@ const ZH_DICTIONARY: Dictionary = {
     loadingOrders: '加载中...',
     filterPayFailed: '付款失败',
     confirmDepositTitle: '确认定金',
-    confirmDepositBody: '订单 {code}。应付定金：{amount}',
+    confirmDepositBody: '订单 {code}。',
     confirmDepositNoTxn: '尚无定金交易。',
-    confirmDepositManualHint: '输入已收到的金额后确认。余额在收货时收取。',
+    confirmDepositManualHint: '输入实际到账金额（任意数额）。货到应付 = 订单总额 − 已收定金，不按定金百分比扣。',
     confirmDepositReceivedLabel: '已收到定金',
-    confirmDepositReceivedHint: '请填写实际到账金额，可与应付定金不同。',
+    confirmDepositReceivedHint: '不必等于网站定金比例。请填写实际到账金额。',
     confirmDepositRemainingPreview: '货到应付：{amount}',
+    confirmDepositRemainingFormula: '{total} − {paid} = {remaining}',
     confirmDepositAmountRequired: '请输入已收到的定金金额。',
     confirmDepositNoteLabel: '备注',
     confirmDepositNotePlaceholder: '备注...',
@@ -12050,9 +12054,9 @@ const ZH_DICTIONARY: Dictionary = {
       '不经大模型而自动发送的消息（如下单提示、聊天内购买引导）在发送前于该范围随机延迟（0–30000）。DeepSeek 正文不重复此步骤。两项均 0 则关闭。',
     productConsultationContextLabel: '店铺 AI 上下文与指引',
     productConsultationContextHint:
-      '一个输入框填写 AI 必须始终参考的全部内容：店铺政策、回复语气、导购方式、促单方式、退换、定金、配送等。',
+      'AI 始终读取本栏以及支付设置（是否定金及比例）。请填写发货后时效、退换、语气、促单方式。不要编造其他店铺的定金比例。',
     productConsultationContextPlaceholder:
-      '例如：语气礼貌简短；下单前提醒顾客查看尺码表；特价商品不退换；按尺寸定制需支付 50% 定金；顾客犹豫时温和说明政策，不强迫购买等。',
+      '例如：语气礼貌简短。店铺发出后通常 7–12 天送达。尺码不符可换码一次。本店无定金请写明；有定金则与支付设置一致。特价不退换…',
     afterSalesReturnAddressLabel: '退换货 / 换码收件地址',
     afterSalesReturnAddressHint:
       '店铺收取退货、换码或寄回商品的地址。AI 会在售后聊天中发送该地址。留空时仍说明流程，不会编造地址。',
@@ -15097,12 +15101,13 @@ const JA_DICTIONARY: Dictionary = {
     loadingOrders: '読み込み中...',
     filterPayFailed: '支払い失敗',
     confirmDepositTitle: 'デポジット確認',
-    confirmDepositBody: '注文 {code}。請求デポジット：{amount}',
+    confirmDepositBody: '注文 {code}。',
     confirmDepositNoTxn: 'デポジット取引はまだありません。',
-    confirmDepositManualHint: '受領額を入力して確認してください。残額は受取時に支払います。',
+    confirmDepositManualHint: '実際に受け取った金額を入力（任意の額）。受取時の残額 = 合計 − 受領額であり、手付率では引きません。',
     confirmDepositReceivedLabel: '受領したデポジット',
-    confirmDepositReceivedHint: '実際に入金された金額を入力。請求額と違っても構いません。',
+    confirmDepositReceivedHint: 'サイトの手付率と一致しなくても構いません。実入金額を入力。',
     confirmDepositRemainingPreview: '受取時の残額: {amount}',
+    confirmDepositRemainingFormula: '{total} − {paid} = {remaining}',
     confirmDepositAmountRequired: '受領したデポジット額を入力してください。',
     confirmDepositNoteLabel: 'メモ',
     confirmDepositNotePlaceholder: 'メモ...',
@@ -15506,9 +15511,9 @@ const JA_DICTIONARY: Dictionary = {
       'LLM を使わず送る自動メッセージ（購入一覧の案内、チャット内購入手順など）の送信前ランダム遅延（0〜30000）。DeepSeek の本文には適用しません。両方 0 でオフ。',
     productConsultationContextLabel: '店舗 AI の文脈・指示',
     productConsultationContextHint:
-      'AI が常に参照する内容を1つの欄に入力します。店舗ポリシー、返信トーン、接客方針、購入案内、交換、手付け、配送など。',
+      'AI は本欄と決済設定（手付けの有無・割合）を常に読みます。発送後の日数、返品交換、トーン、クロージングを記入。他店の手付け率をでっち上げない。',
     productConsultationContextPlaceholder:
-      '例：丁寧で簡潔なトーン。注文前にサイズ表の確認を促す。セール品は返品交換不可。採寸オーダーは50%の手付けが必要。迷っているお客様には押し売りせず、やさしく説明する。',
+      '例：丁寧で簡潔。店舗発送後 7〜12 日で届くことが多い。サイズが合わなければ1回交換可。手付けなしなら明記。手付けありなら決済設定と一致。セール品は返品不可…',
     afterSalesReturnAddressLabel: '返品・サイズ交換の受取住所',
     afterSalesReturnAddressHint:
       '返品・サイズ交換・返送を受け取る店舗住所です。AI がアフター対応のチャットでこの住所を送ります。空欄の場合は手順のみ案内し、住所は作りません。',
@@ -18603,12 +18608,13 @@ const KO_DICTIONARY: Dictionary = {
     loadingOrders: '불러오는 중...',
     filterPayFailed: '결제 실패',
     confirmDepositTitle: '계약금 확인',
-    confirmDepositBody: '주문 {code}. 받을 계약금: {amount}',
+    confirmDepositBody: '주문 {code}.',
     confirmDepositNoTxn: '계약금 거래가 없습니다.',
-    confirmDepositManualHint: '받은 금액을 입력한 뒤 확인하세요. 나머지는 수령 시 받습니다.',
+    confirmDepositManualHint: '실제로 받은 금액을 입력하세요(임의 금액). 수령 시 잔액 = 주문 합계 − 받은 계약금이며, 계약금 %로 빼지 않습니다.',
     confirmDepositReceivedLabel: '받은 계약금',
-    confirmDepositReceivedHint: '실제로 받은 금액을 입력하세요. 청구액과 달라도 됩니다.',
+    confirmDepositReceivedHint: '웹 계약금 비율과 같지 않아도 됩니다. 실제 수령액을 입력하세요.',
     confirmDepositRemainingPreview: '수령 시 잔액: {amount}',
+    confirmDepositRemainingFormula: '{total} − {paid} = {remaining}',
     confirmDepositAmountRequired: '받은 계약금 금액을 입력하세요.',
     confirmDepositNoteLabel: '메모',
     confirmDepositNotePlaceholder: '메모...',
@@ -19009,9 +19015,9 @@ const KO_DICTIONARY: Dictionary = {
       'LLM 없이 자동 발송되는 메시지(주문 목록 안내·채팅 내 구매 안내 등)만 전송 전 이 범위에서 무작위 지연(0–30000). DeepSeek 본문에는 적용하지 않음. 둘 다 0이면 끔.',
     productConsultationContextLabel: '매장 AI 컨텍스트 및 지침',
     productConsultationContextHint:
-      'AI가 항상 참고해야 할 내용을 한 곳에 입력하세요: 매장 정책, 답변 톤, 상담 방식, 구매 유도 방식, 교환, 계약금, 배송 등.',
+      'AI는 이 칸과 결제 설정(계약금 여부·비율)을 항상 읽습니다. 발송 후 배송 기간, 교환/반품, 말투, 구매 안내를 적으세요. 다른 매장 계약금 %를 지어내지 마세요.',
     productConsultationContextPlaceholder:
-      '예: 정중하고 간결한 톤. 주문 전 사이즈표 확인 안내. 세일 상품은 교환/환불 불가. 맞춤 제작 주문은 50% 계약금 필요. 망설이는 고객에게는 부담을 주지 않고 부드럽게 설명.',
+      '예: 정중하고 간결. 매장 발송 후 보통 7–12일. 사이즈가 안 맞으면 1회 교환. 계약금 없으면 명시. 있으면 결제 설정과 일치. 세일 상품은 교환 불가…',
     afterSalesReturnAddressLabel: '반품 / 사이즈 교환 수령 주소',
     afterSalesReturnAddressHint:
       '반품·사이즈 교환·반송 상품을 받는 매장 주소입니다. AI가 애프터 채팅에서 이 주소를 보냅니다. 비워 두면 절차만 안내하고 주소를 지어내지 않습니다.',

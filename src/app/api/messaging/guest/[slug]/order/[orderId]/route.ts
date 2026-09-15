@@ -110,11 +110,10 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       return NextResponse.json({ error: 'Cannot cancel this order' }, { status: 409 })
     }
     void import('@/lib/db/messaging-partner-affiliate-pg')
-      .then(({ transitionPartnerAffiliateCommissionFromPg }) =>
-        transitionPartnerAffiliateCommissionFromPg({
+      .then(({ clawbackPartnerAffiliateForOrderFromPg }) =>
+        clawbackPartnerAffiliateForOrderFromPg({
           partnerId: partner.partnerId,
           orderId: updated.id,
-          state: 'reversed',
         })
       )
       .catch((error) => console.warn('[cancel_order:affiliate]', error))

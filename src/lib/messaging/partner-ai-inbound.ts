@@ -33,8 +33,8 @@ import { runMessagingPartnerAiJobBatch } from '@/lib/messaging/partner-ai-run-jo
 import { normalizeWebLocale } from '@/lib/i18n/config'
 import {
   inboundTextLooksLikeOrderStatusAsk,
-  inboundTextLooksLikePolicyRefundOrCancelAsk,
   inboundTextLooksLikePurchasePickListIntent,
+  inboundTextLooksLikeShopPolicyAsk,
 } from '@/lib/messaging/partner-ai-purchase-intent'
 import { inboundTextLooksLikeFollowUpConsultHeuristic } from '@/lib/messaging/partner-inventory-ai-search'
 import {
@@ -366,12 +366,12 @@ export async function handlePartnerInboundForAi(input: {
     const variantAsk = Boolean(activeBound && inboundTextLooksLikeBoundOrderVariantFollowUp(probeForLookup))
     const followsBound = Boolean(activeBound && inboundTextFollowsBoundOrder(probeForLookup, activeBound))
     const orderStatusAsk = inboundTextLooksLikeOrderStatusAsk(probeForLookup)
-    /** Hỏi hoàn/hủy: AI `policy_or_order_support` — không cắt sang tra cứu / hỏi mã DH. */
-    const policyRefundWithoutTrack =
-      inboundTextLooksLikePolicyRefundOrCancelAsk(probeForLookup) && !orderStatusAsk
+    /** Chính sách cọc/giao/đổi trả: AI `policy_or_order_support` — không hỏi mã DH. */
+    const policyWithoutTrack =
+      inboundTextLooksLikeShopPolicyAsk(probeForLookup) && !orderStatusAsk
     const boundProductFollowUp =
       Boolean(activeBound) &&
-      !policyRefundWithoutTrack &&
+      !policyWithoutTrack &&
       inboundTextLooksLikeFollowUpConsultHeuristic(probeForLookup) &&
       !depositAsk &&
       !variantAsk &&
@@ -390,6 +390,20 @@ export async function handlePartnerInboundForAi(input: {
         )
       } catch (e) {
         console.warn('[partner-ai-inbound] order-status hard-rule payload', e)
+      }
+    } else if (policyWithoutTrack && routeDecision?.intent !== 'policy_or_order_support') {
+      routeDecision = createPartnerAiRouteDecision('policy_or_order_support', {
+        source: 'hard_rule',
+        reason: 'shop_policy_ask',
+        confidence: 1,
+      })
+      try {
+        await mergeCustomerCareMessageRawPayloadPatchPg(
+          input.messageId,
+          partnerAiRouteDecisionToPayload(routeDecision)
+        )
+      } catch (e) {
+        console.warn('[partner-ai-inbound] shop-policy hard-rule payload', e)
       }
     }
 
@@ -410,19 +424,20 @@ export async function handlePartnerInboundForAi(input: {
     const skipPurchasePickForAfterSales =
       routeDecision?.intent === 'policy_or_order_support' ||
       orderStatusAsk ||
+      policyWithoutTrack ||
       followsBound ||
       variantAsk ||
       depositAsk ||
       Boolean(activeBound && boundProductFollowUp)
     const allowPhoneLookup =
-      !activeBound && !policyRefundWithoutTrack && (orderStatusAsk || followsBound || depositAsk)
+      !activeBound && !policyWithoutTrack && (orderStatusAsk || followsBound || depositAsk)
     let shippingQuery = extractShippingLookupQuery(probeForLookup, {
       allowPhone: allowPhoneLookup,
     })
     if (
       activeBound &&
       !boundProductFollowUp &&
-      !policyRefundWithoutTrack &&
+      !policyWithoutTrack &&
       (followsBound || orderStatusAsk || depositAsk || variantAsk)
     ) {
       shippingQuery = { type: 'order_code', value: activeBound.order_code }
@@ -442,7 +457,7 @@ export async function handlePartnerInboundForAi(input: {
     }
     if (
       !boundProductFollowUp &&
-      !policyRefundWithoutTrack &&
+      !policyWithoutTrack &&
       shippingQuery &&
       (orderStatusAsk || depositAsk || variantAsk || followsBound) &&
       (allowPhoneLookup || shippingQuery.type !== 'phone')

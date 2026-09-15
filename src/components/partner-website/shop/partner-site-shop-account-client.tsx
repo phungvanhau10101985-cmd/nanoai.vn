@@ -23,12 +23,15 @@ import { PartnerSiteShopAddressesClient } from '@/components/partner-website/sho
 import { PartnerSiteShopCartClient } from '@/components/partner-website/shop/partner-site-shop-cart-client'
 import { PartnerSiteShopOrdersClient } from '@/components/partner-website/shop/partner-site-shop-orders-client'
 import type { SiteOrderRow } from '@/lib/partner-website/shop/load-site-orders-for-request'
+import type { PartnerSiteLoyaltyStatusView } from '@/lib/partner-website/shop/partner-site-loyalty'
 import {
   buildPartnerShopLoginHref,
   getPartnerShopBrowserReturnLocation,
 } from '@/lib/partner-website/shop/partner-site-shop-auth-redirect'
 import { PartnerSitePushEnableCard } from '@/components/partner-website/shop/partner-site-push-enable-card'
 import { PartnerSiteShopSavedProductsClient } from '@/components/partner-website/shop/partner-site-shop-saved-products-client'
+import { PartnerSiteShopLoyaltyClient } from '@/components/partner-website/shop/partner-site-shop-loyalty-client'
+import { PartnerSiteShopAffiliateClient } from '@/components/partner-website/shop/partner-site-shop-affiliate-client'
 import { usePartnerSiteChatWidget } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { usePartnerPwaInstall } from '@/lib/partner-website/shop/partner-site-pwa-install'
@@ -141,6 +144,7 @@ type Props = {
   initialSavedProducts?: PartnerSitePersonalizationProduct[]
   initialProfile?: PartnerSiteVisitorProfile | null
   initialOrders?: SiteOrderRow[] | null
+  initialLoyalty?: PartnerSiteLoyaltyStatusView | null
 }
 
 export function PartnerSiteShopAccountClient({
@@ -153,6 +157,7 @@ export function PartnerSiteShopAccountClient({
   initialOrdersFilter = null,
   initialProfile = null,
   initialOrders = null,
+  initialLoyalty = null,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const router = useRouter()
@@ -313,6 +318,14 @@ export function PartnerSiteShopAccountClient({
       '#cart': 'cart',
       '#orders': 'orders',
       '#wallet': 'wallet',
+      '#loyalty': 'loyalty',
+      '#thanh-vien': 'loyalty',
+      '#membership': 'loyalty',
+      '#affiliate': 'affiliate',
+      '#vi-dien-tu': 'affiliate',
+      '#ctv': 'affiliate',
+      '#affiliate-bank': 'affiliate-bank',
+      '#tai-khoan-ngan-hang': 'affiliate-bank',
       '#wishlist': 'wishlist',
       '#recently-viewed': 'recently-viewed',
       '#addresses': 'addresses',
@@ -558,6 +571,7 @@ export function PartnerSiteShopAccountClient({
                 shopAdminHref={shopAdminHref}
                 displayName={displayName}
                 unreadNotifications={unreadCount}
+                initialLoyalty={initialLoyalty}
               />
             ) : null}
 
@@ -579,6 +593,23 @@ export function PartnerSiteShopAccountClient({
                 chatPath=""
                 initialFilter={ordersFilter}
                 initialOrders={initialOrders}
+              />
+            ) : null}
+
+            {activeTab === 'loyalty' ? (
+              <PartnerSiteShopLoyaltyClient
+                siteSlug={siteSlug}
+                locale={locale}
+                displayName={displayName}
+                initialLoyalty={initialLoyalty}
+              />
+            ) : null}
+
+            {activeTab === 'affiliate' || activeTab === 'affiliate-bank' ? (
+              <PartnerSiteShopAffiliateClient
+                siteSlug={siteSlug}
+                locale={locale}
+                mode={activeTab === 'affiliate-bank' ? 'affiliate-bank' : 'affiliate'}
               />
             ) : null}
 

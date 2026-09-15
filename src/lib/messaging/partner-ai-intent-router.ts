@@ -185,15 +185,32 @@ export function parsePartnerAiRouteDecision(raw: unknown): PartnerAiRouteDecisio
 }
 
 /**
+ * Ý định **không** phải tư vấn đúng 1 SKU — thắng `page_context` / thẻ «Tư vấn».
+ * Chính sách, tìm mới, mẫu khác, chốt/đóng: không cô lập 1 dòng kho.
+ */
+export function partnerAiIntentYieldsCardConsultIsolation(
+  intent: PartnerAiRouteIntent | null
+): boolean {
+  return (
+    intent === 'new_product_search' ||
+    intent === 'similar_alternatives' ||
+    intent === 'policy_or_order_support' ||
+    intent === 'purchase_or_order' ||
+    intent === 'pause_or_close' ||
+    intent === 'clarify'
+  )
+}
+
+/**
  * Neo thẻ «Tư vấn» chỉ khi khách đang hỏi tiếp đúng SP đó.
- * Ý `new_product_search` không bị `page_context` cũ đè thành cô lập 1 SKU.
+ * Ý chính sách / tìm mới / mẫu khác không bị `page_context` cũ đè thành cô lập 1 SKU.
  */
 export function partnerAiShouldIsolateProductCardConsult(input: {
   rawIsProductCardConsult: boolean
   routeIntent: PartnerAiRouteIntent | null
 }): boolean {
   if (!input.rawIsProductCardConsult) return false
-  if (input.routeIntent === 'new_product_search') return false
+  if (partnerAiIntentYieldsCardConsultIsolation(input.routeIntent)) return false
   return true
 }
 

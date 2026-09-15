@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  flattenPartnerCategoryTreeForSearch,
   generate188SearchSlug,
   isSaleListingSearchTerm,
   matchPartnerCategoryPathForSearch,
@@ -36,6 +37,29 @@ test('category match is L1 then deeper like 188 navigateProductTextSearch', () =
   assert.equal(matchPartnerCategoryPathForSearch('váy', cats), 'vay')
   assert.equal(matchPartnerCategoryPathForSearch('Váy hoa', cats), 'vay/vay-hoa')
   assert.equal(matchPartnerCategoryPathForSearch('túi xách', cats), null)
+})
+
+test('flattenPartnerCategoryTreeForSearch walks L1-L3 like 188 category tree', () => {
+  const tree = [
+    {
+      slug: 'ao',
+      name: 'Áo',
+      path: 'ao',
+      depth: 1,
+      children: [
+        {
+          slug: 'ao-thun',
+          name: 'Áo thun',
+          path: 'ao/ao-thun',
+          depth: 2,
+          children: [{ slug: 'ao-thun-nam', name: 'Áo thun nam', path: 'ao/ao-thun/ao-thun-nam', depth: 3, children: [] }],
+        },
+      ],
+    },
+  ]
+  const flat = flattenPartnerCategoryTreeForSearch(tree)
+  assert.equal(flat.length, 3)
+  assert.equal(matchPartnerCategoryPathForSearch('áo thun nam', flat), 'ao/ao-thun/ao-thun-nam')
 })
 
 test('188 generateSlug keeps hyphenated sale slugs', () => {

@@ -409,3 +409,49 @@ export async function clearPartnerVisitorSearchQueriesFromPg(input: {
     queries: [],
   })
 }
+
+/** Gợi ý từ khóa 188: 3 cụm gần đây của khách + cụm phổ biến của shop (trừ chính họ). */
+export async function fetchPartnerSearchSuggestionsFromPg(input: {
+  partnerId: string
+  accountKey?: string | null
+  recentQueries?: string[]
+  limit?: number
+}): Promise<string[]> {
+  if (!isPgConfigured()) return []
+  const limit = Math.min(24, Math.max(1, input.limit ?? 12))
+  const out: string[] = []
+  const seen = new Set<string>()
+  const add = (raw: unknown) => {
+    const q = String(raw || '').trim()
+    if (q.length < 2) return
+    const key = q.toLowerCase()
+    if (seen.has(key)) return
+    seen.add(key)
+    out.push(q)
+  }
+  for (const q of input.recentQueries ?? []) {
+    if (out.length >= limit) break
+    add(q)
+  }
+  try {
+    const { rows } = await getPgPool().query<{ query: string }>(
+      `select trim(q) as query
+       from public.messaging_partner_visitor_personalization v
+       cross join lateral jsonb_array_elements_text(coalesce(v.search_queries, '[]'::jsonb)) as q
+       where v.partner_id = $1::uuid
+         and ($2::text is null or v.account_key is distinct from $2)
+         and char_length(trim(q)) between 2 and 80
+       group by trim(q)
+       order by count(*) desc, trim(q) asc
+       limit $3`,
+      [input.partnerId, input.accountKey?.trim() || null, limit + 8]
+    )
+    for (const row of rows ?? []) {
+      if (out.length >= limit) break
+      add(row.query)
+    }
+  } catch (e) {
+    console.warn('[fetchPartnerSearchSuggestionsFromPg]', e)
+  }
+  return out.slice(0, limit)
+}

@@ -1254,6 +1254,14 @@ export async function updateMyMessagingOrderStatus(input: {
       )
       const { onPartnerOrderPaidVerifiedFulfillment } = await import('@/lib/messaging/fulfillment/order-fulfillment-service')
       await onPartnerOrderPaidVerifiedFulfillment(row.id)
+      void import('@/lib/db/messaging-partner-affiliate-pg')
+        .then(({ grantPartnerAffiliateCommissionAfterPaidFromPg }) =>
+          grantPartnerAffiliateCommissionAfterPaidFromPg({
+            partnerId: row.partner_id,
+            orderId: row.id,
+          })
+        )
+        .catch((error) => console.warn('[updateMyMessagingOrderStatus:affiliate]', error))
     }
   }
   revalidateMessagingDashboard()
@@ -1310,6 +1318,14 @@ export async function confirmMyMessagingOrderDeposit(input: {
     )
     const { onPartnerOrderPaidVerifiedFulfillment } = await import('@/lib/messaging/fulfillment/order-fulfillment-service')
     await onPartnerOrderPaidVerifiedFulfillment(row.id)
+    void import('@/lib/db/messaging-partner-affiliate-pg')
+      .then(({ grantPartnerAffiliateCommissionAfterPaidFromPg }) =>
+        grantPartnerAffiliateCommissionAfterPaidFromPg({
+          partnerId: row.partner_id,
+          orderId: row.id,
+        })
+      )
+      .catch((error) => console.warn('[confirmMyMessagingOrderDeposit:affiliate]', error))
   }
   revalidateMessagingDashboard()
   return { ok: true }
@@ -1436,12 +1452,18 @@ export async function updateMyMessagingOrderShipping(input: {
     input.shippingStatus === 'cancelled'
   ) {
     void import('@/lib/db/messaging-partner-affiliate-pg')
-      .then(({ transitionPartnerAffiliateCommissionFromPg }) =>
-        transitionPartnerAffiliateCommissionFromPg({
-          partnerId: updated.partner_id,
-          orderId: updated.id,
-          state: input.shippingStatus === 'delivered' ? 'confirmed' : 'reversed',
-        })
+      .then(({ clawbackPartnerAffiliateForOrderFromPg, transitionPartnerAffiliateCommissionFromPg }) =>
+        input.shippingStatus === 'delivered'
+          ? transitionPartnerAffiliateCommissionFromPg({
+              partnerId: updated.partner_id,
+              orderId: updated.id,
+              state: 'confirmed',
+            })
+          : clawbackPartnerAffiliateForOrderFromPg({
+              partnerId: updated.partner_id,
+              orderId: updated.id,
+              refundWallet: input.shippingStatus !== 'returned',
+            })
       )
       .catch((error) =>
         console.warn('[updateMyMessagingOrderShipping:affiliate]', error)
@@ -1525,11 +1547,10 @@ export async function updateMyMessagingOrderRefund(input: {
   })
   if (input.refundStatus === 'refunded') {
     void import('@/lib/db/messaging-partner-affiliate-pg')
-      .then(({ transitionPartnerAffiliateCommissionFromPg }) =>
-        transitionPartnerAffiliateCommissionFromPg({
+      .then(({ clawbackPartnerAffiliateForOrderFromPg }) =>
+        clawbackPartnerAffiliateForOrderFromPg({
           partnerId: updated.partner_id,
           orderId: updated.id,
-          state: 'reversed',
         })
       )
       .catch((error) =>

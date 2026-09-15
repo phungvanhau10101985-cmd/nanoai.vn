@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { WebLocale } from '@/lib/i18n/config'
+import { PartnerSiteImageSearchPopover } from '@/components/partner-website/shop/partner-site-image-search-popover'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { imageUrlToFile } from '@/lib/partner-website/shop/partner-site-image-from-url'
 import {
   emitPartnerSiteSearchHistory,
   mergeSearchQueries,
@@ -14,18 +15,25 @@ import {
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import {
-  partnerSiteCategoryHubPath,
+  partnerSiteCategoriesApiPath,
+  partnerSiteCategoryPath,
   partnerSiteHomePath,
   partnerSiteImageSearchPath,
   partnerSiteKhoSalePath,
   partnerSitePersonalizationApiPath,
   partnerSiteProductsApiPath,
-  partnerSiteProductsPath,
   partnerSiteSearchHistoryApiPath,
   partnerSiteSearchPath,
+  partnerSiteSearchSuggestionsApiPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteMobileSearchPath } from '@/lib/partner-website/shop/partner-site-mobile-search-path'
 import { storePendingImageAndNavigate } from '@/lib/partner-website/shop/partner-site-pending-image'
-import { isSaleListingSearchTerm } from '@/lib/partner-website/shop/partner-site-text-search'
+import {
+  flattenPartnerCategoryTreeForSearch,
+  isSaleListingSearchTerm,
+  matchPartnerCategoryPathForSearch,
+  type PartnerSearchCategoryNode,
+} from '@/lib/partner-website/shop/partner-site-text-search'
 
 const PW_MOBILE_SEARCH_COMPOSE_CSS = `
 .pw-mobile-search{position:fixed;inset:0;z-index:100000;display:flex;flex-direction:column;background:#f9fafb;color:var(--pw-text,#111);font-family:var(--pw-font-ui),system-ui,sans-serif}
@@ -46,6 +54,7 @@ const PW_MOBILE_SEARCH_COMPOSE_CSS = `
 .pw-mobile-search-field input[type=search]::-webkit-search-cancel-button{display:none}
 .pw-mobile-search-clear{flex:0 0 auto;width:32px;height:32px;margin:auto 4px auto 0;border:0;background:#e5e7eb;border-radius:999px;color:#6b7280;cursor:pointer}
 .pw-mobile-search-clear svg{width:14px;height:14px}
+.pw-mobile-search-camera-wrap{display:flex;align-items:stretch;height:100%;flex:0 0 auto}
 .pw-mobile-search-camera{width:44px;border-left:1px solid #e5e7eb;border-radius:0;background:transparent;color:#4b5563}
 .pw-mobile-search-camera:hover{background:color-mix(in srgb,var(--pw-primary,#ea580c) 8%,#fff);color:var(--pw-primary,#ea580c)}
 .pw-mobile-search-go{min-width:44px;width:44px;padding:0;border-radius:0;background:var(--pw-primary,#ea580c);color:#fff}
@@ -54,8 +63,6 @@ const PW_MOBILE_SEARCH_COMPOSE_CSS = `
 .pw-mobile-search-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:12px 12px max(20px,env(safe-area-inset-bottom))}
 .pw-mobile-search-body-inner{max-width:48rem;margin:0 auto;width:100%}
 @media (min-width:768px){.pw-mobile-search-body{padding-top:20px}}
-.pw-mobile-search-quick{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
-.pw-mobile-search-quick a{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border-radius:999px;background:#fff;color:var(--pw-text,#111);font-size:13px;font-weight:700;text-decoration:none;box-shadow:0 0 0 1px #e5e7eb}
 .pw-mobile-search-card{background:transparent;border-radius:0;padding:0;box-shadow:none}
 .pw-mobile-search-card + .pw-mobile-search-card,.pw-mobile-search-body section + section{margin-top:20px}
 .pw-mobile-search-body h2{margin:0;font-size:14px;font-weight:700;color:var(--pw-text,#111)}
@@ -64,25 +71,26 @@ const PW_MOBILE_SEARCH_COMPOSE_CSS = `
 .pw-mobile-search-clear-all:hover{color:#b91c1c}
 .pw-mobile-search-muted{margin:0;font-size:13px;line-height:1.45;color:var(--pw-muted,#6b7280)}
 .pw-mobile-search-hint{margin:2px 0 12px;font-size:12px;color:var(--pw-muted,#6b7280)}
-.pw-mobile-search-empty{display:flex;align-items:flex-start;gap:10px;padding:2px 0 4px;color:var(--pw-muted,#6b7280)}
-.pw-mobile-search-empty svg{width:22px;height:22px;margin-top:1px;color:var(--pw-primary,#ea580c);flex:0 0 auto}
-.pw-mobile-search-empty strong{display:block;font-size:13px;font-weight:700;color:var(--pw-text,#111)}
 .pw-mobile-search-err{margin:0 0 10px;padding:10px 12px;border-radius:12px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;font-size:13px}
 .pw-mobile-search-err button{border:0;background:transparent;font:inherit;font-weight:600;text-decoration:underline;color:inherit;cursor:pointer}
 .pw-mobile-search-chips{display:flex;flex-wrap:wrap;gap:8px}
-.pw-mobile-search-chip{display:inline-flex;max-width:100%;align-items:center;gap:2px;border-radius:999px;background:#fff;padding:2px 4px 2px 12px;box-shadow:0 0 0 1px #e5e7eb}
-.pw-mobile-search-chip svg{width:14px;height:14px;color:#9ca3af;flex:0 0 auto;margin-left:4px}
-.pw-mobile-search-chip>button:first-of-type{border:0;background:transparent;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:600;color:var(--pw-text,#111);padding:8px 4px;min-height:36px;cursor:pointer}
-.pw-mobile-search-chip>button:last-child{width:36px;height:36px;border:0;background:transparent;border-radius:999px;color:#9ca3af;font-size:18px;line-height:1;cursor:pointer}
+.pw-mobile-search-chip{display:inline-flex;max-width:100%;align-items:center;border-radius:999px;background:#fff;padding:4px 4px 4px 12px;box-shadow:0 0 0 1px #e5e7eb}
+.pw-mobile-search-chip>button:first-of-type{border:0;background:transparent;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--pw-text,#111);padding:8px 4px;min-height:36px;cursor:pointer}
+.pw-mobile-search-chip>button:last-child{width:32px;height:32px;border:0;background:transparent;border-radius:999px;color:#9ca3af;font-size:18px;line-height:1;cursor:pointer}
+.pw-mobile-search-chip>button:last-child:hover{background:#f3f4f6;color:#374151}
+.pw-mobile-search-kw{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;background:color-mix(in srgb,var(--pw-primary,#ea580c) 10%,#fff);color:var(--pw-primary,#c2410c);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--pw-primary,#ea580c) 18%,#fff)}
+.pw-mobile-search-kw:hover{background:color-mix(in srgb,var(--pw-primary,#ea580c) 16%,#fff)}
 .pw-mobile-search-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media (min-width:640px){.pw-mobile-search-grid{grid-template-columns:repeat(3,1fr)}}
 @media (min-width:768px){.pw-mobile-search-grid{grid-template-columns:repeat(4,1fr)}}
 .pw-mobile-search-tile{position:relative;display:block;overflow:hidden;border-radius:16px;background:#fff;text-align:left;color:inherit;border:0;padding:0;box-shadow:0 0 0 1px #f3f4f6,0 1px 2px rgba(15,23,42,.04);cursor:pointer;width:100%}
 .pw-mobile-search-tile:hover{transform:translateY(-2px);box-shadow:0 8px 16px rgba(15,23,42,.08),0 0 0 1px color-mix(in srgb,var(--pw-primary,#ea580c) 22%,#fff)}
+.pw-mobile-search-tile:disabled{opacity:.7}
 .pw-mobile-search-tile-media{position:relative;aspect-ratio:3/4;background:#f9fafb}
 .pw-mobile-search-tile img{width:100%;height:100%;object-fit:cover;background:#f3f4f6;display:block}
 .pw-mobile-search-tile-badge{position:absolute;left:8px;top:8px;display:inline-flex;align-items:center;gap:4px;border-radius:999px;background:rgba(255,255,255,.95);padding:2px 8px;font-size:11px;font-weight:700;color:var(--pw-primary,#ea580c);box-shadow:0 1px 2px rgba(15,23,42,.08)}
 .pw-mobile-search-tile-badge svg{width:12px;height:12px}
+.pw-mobile-search-tile-busy{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.7);font-size:12px;font-weight:700;color:var(--pw-primary,#ea580c)}
 .pw-mobile-search-tile p{margin:0;padding:8px 10px 10px;font-size:13px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.7em;color:var(--pw-text,#111)}
 .pw-mobile-search-skel{border-radius:16px;background:linear-gradient(90deg,#f3f4f6 25%,#eceff3 37%,#f3f4f6 63%);background-size:400% 100%;animation:pw-ms-skel 1.2s ease infinite;min-height:220px}
 @keyframes pw-ms-skel{0%{background-position:100% 0}100%{background-position:0 0}}
@@ -107,25 +115,28 @@ function productId(p: SuggestProduct): string {
   return String(p.id || p.inventoryId || p.inventory_id || '').trim()
 }
 
-function productImage(p: SuggestProduct): string {
-  const raw = String(p.imageUrl || p.image_url || '').trim()
+function productRawImage(p: SuggestProduct): string {
+  return String(p.imageUrl || p.image_url || '').trim()
+}
+
+function productDisplayImage(p: SuggestProduct): string {
+  const raw = productRawImage(p)
   return shopCardDisplaySrc(raw) || raw
 }
 
-function searchQueryFromProduct(p: SuggestProduct, typed: boolean): string {
+function searchQueryFromProduct(p: SuggestProduct): string {
   const name = String(p.name || '').trim()
   const l3 = String(p.categoryL3 || p.category_l3 || '').trim()
   const l2 = String(p.categoryL2 || p.category_l2 || '').trim()
   const l1 = String(p.categoryL1 || p.category_l1 || '').trim()
-  if (typed) return name || l3 || l2 || l1
-  return l3 || l2 || l1 || name
+  return name || l3 || l2 || l1
 }
 
 function pushUnique(out: SuggestProduct[], seen: Set<string>, product: SuggestProduct | null | undefined) {
   if (!product) return
   const id = productId(product)
   const name = String(product.name || '').trim()
-  const img = productImage(product)
+  const img = productDisplayImage(product)
   if (!id || seen.has(id) || !name || !img) return
   seen.add(id)
   out.push({ ...product, id })
@@ -149,6 +160,18 @@ function asProducts(raw: unknown): SuggestProduct[] {
     const id = productId(product)
     return id ? { ...product, id } : product
   })
+}
+
+function loadGuestSuggestions(siteSlug: string): string[] {
+  try {
+    const raw = localStorage.getItem(`pw-search-suggestions:${siteSlug}`)
+    const parsed = raw ? JSON.parse(raw) : null
+    return Array.isArray(parsed?.suggestions)
+      ? parsed.suggestions.filter((s: unknown) => typeof s === 'string' && s.trim())
+      : []
+  } catch {
+    return []
+  }
 }
 
 async function loadSuggestProducts(siteSlug: string): Promise<{ products: SuggestProduct[]; fromViewed: boolean }> {
@@ -216,7 +239,7 @@ export function PartnerSiteMobileSearchClient({
   const customDomain = usePartnerSiteCustomDomain()
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const imageSearchBusyRef = useRef(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [viewportHeight, setViewportHeight] = useState<number | null>(null)
   const [history, setHistory] = useState<string[]>([])
@@ -225,6 +248,8 @@ export function PartnerSiteMobileSearchClient({
   const [historyLoggedIn, setHistoryLoggedIn] = useState(false)
   const [removingQuery, setRemovingQuery] = useState<string | null>(null)
   const [clearingAll, setClearingAll] = useState(false)
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [categories, setCategories] = useState<PartnerSearchCategoryNode[]>([])
   const [suggestProducts, setSuggestProducts] = useState<SuggestProduct[]>([])
   const [suggestLoading, setSuggestLoading] = useState(true)
   const [suggestError, setSuggestError] = useState<string | null>(null)
@@ -232,12 +257,14 @@ export function PartnerSiteMobileSearchClient({
   const [typedProducts, setTypedProducts] = useState<SuggestProduct[]>([])
   const [typedLoading, setTypedLoading] = useState(false)
   const [typedError, setTypedError] = useState<string | null>(null)
-  const [busyImage, setBusyImage] = useState(false)
+  const [imageSearchBusyId, setImageSearchBusyId] = useState<string | null>(null)
+  const [imageSearchError, setImageSearchError] = useState<string | null>(null)
 
   const typed = searchTerm.trim()
   const typedKey = typed.toLowerCase()
   const historyApi = partnerSiteSearchHistoryApiPath(siteSlug)
   const historyLs = partnerSiteSearchHistoryStorageKey(siteSlug)
+  const imageHref = partnerSiteImageSearchPath(siteSlug, { customDomain })
   const placeholder = t.searchComposePlaceholder.replace('{shop}', shopTitle || '')
 
   useEffect(() => {
@@ -252,7 +279,8 @@ export function PartnerSiteMobileSearchClient({
   useEffect(() => {
     const apply = () => {
       const vv = window.visualViewport
-      setViewportHeight(vv ? Math.round(vv.height) : window.innerHeight)
+      const raw = vv ? Math.round(vv.height) : window.innerHeight
+      setViewportHeight(raw)
     }
     apply()
     const vv = window.visualViewport
@@ -335,6 +363,40 @@ export function PartnerSiteMobileSearchClient({
 
   useEffect(() => {
     let cancelled = false
+    void fetchJson(partnerSiteSearchSuggestionsApiPath(siteSlug)).then((json) => {
+      if (cancelled) return
+      const fromApi = Array.isArray(json?.suggestions)
+        ? (json.suggestions as unknown[]).filter((s): s is string => typeof s === 'string' && Boolean(s.trim()))
+        : []
+      if (fromApi.length) {
+        setSuggestions(fromApi)
+        try {
+          localStorage.setItem(`pw-search-suggestions:${siteSlug}`, JSON.stringify({ suggestions: fromApi }))
+        } catch {
+          /* ignore */
+        }
+      } else {
+        setSuggestions(loadGuestSuggestions(siteSlug))
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [siteSlug, historyLoggedIn])
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchJson(partnerSiteCategoriesApiPath(siteSlug)).then((json) => {
+      if (cancelled) return
+      setCategories(flattenPartnerCategoryTreeForSearch(json?.tree || json?.menuTree || []))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [siteSlug])
+
+  useEffect(() => {
+    let cancelled = false
     setSuggestLoading(true)
     setSuggestError(null)
     void loadSuggestProducts(siteSlug)
@@ -391,6 +453,16 @@ export function PartnerSiteMobileSearchClient({
     return history.filter((row) => row.toLowerCase().includes(typedKey))
   }, [history, typedKey])
 
+  const matchedSuggestions = useMemo(() => {
+    const historyKeys = new Set(history.map((row) => row.toLowerCase()))
+    const extra = suggestions.filter((s) => {
+      const key = s.trim().toLowerCase()
+      return key && !historyKeys.has(key)
+    })
+    if (!typedKey) return extra.slice(0, 12)
+    return extra.filter((s) => s.toLowerCase().includes(typedKey)).slice(0, 12)
+  }, [suggestions, history, typedKey])
+
   const visibleProducts = typed.length >= 2 ? typedProducts : suggestProducts
 
   const runSearch = useCallback(
@@ -406,16 +478,67 @@ export function PartnerSiteMobileSearchClient({
         return
       }
       emitPartnerSiteSearchHistory(term)
+      if (historyLoggedIn) {
+        void fetch(historyApi, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ query: term }),
+        }).catch(() => {})
+      } else {
+        try {
+          localStorage.setItem(historyLs, JSON.stringify(mergeSearchQueries([term], history)))
+        } catch {
+          /* ignore */
+        }
+      }
+      if (typeof window !== 'undefined') {
+        const composeHref = partnerSiteMobileSearchPath(siteSlug, { customDomain, q: term })
+        const current = `${window.location.pathname}${window.location.search}`
+        if (current !== composeHref) {
+          window.history.replaceState(window.history.state, '', composeHref)
+        }
+      }
       const dest = isSaleListingSearchTerm(term)
         ? partnerSiteKhoSalePath(siteSlug, { customDomain })
-        : partnerSiteSearchPath(siteSlug, { customDomain, q: term })
+        : (() => {
+            const categoryPath = matchPartnerCategoryPathForSearch(term, categories)
+            return categoryPath
+              ? partnerSiteCategoryPath(siteSlug, categoryPath, { customDomain })
+              : partnerSiteSearchPath(siteSlug, { customDomain, q: term })
+          })()
       if (typeof window !== 'undefined') {
         window.location.assign(dest)
         return
       }
       router.push(dest)
     },
-    [customDomain, router, siteSlug]
+    [categories, customDomain, history, historyApi, historyLoggedIn, historyLs, router, siteSlug]
+  )
+
+  const searchByProductImage = useCallback(
+    async (product: SuggestProduct) => {
+      if (imageSearchBusyRef.current) return
+      const raw = productRawImage(product)
+      if (!raw) {
+        setImageSearchError(t.searchImageNoPhoto)
+        return
+      }
+      const id = productId(product)
+      imageSearchBusyRef.current = true
+      setImageSearchBusyId(id)
+      setImageSearchError(null)
+      try {
+        const file = await imageUrlToFile(raw)
+        await storePendingImageAndNavigate(file, router, imageHref)
+      } catch {
+        setImageSearchError(t.searchImageFail)
+      } finally {
+        imageSearchBusyRef.current = false
+        setImageSearchBusyId(null)
+      }
+    },
+    [imageHref, router, t.searchImageFail, t.searchImageNoPhoto]
   )
 
   const handleBack = () => {
@@ -485,44 +608,44 @@ export function PartnerSiteMobileSearchClient({
     }
   }
 
-  async function goImage(file: File | undefined) {
-    if (!file || busyImage) return
-    setBusyImage(true)
-    try {
-      await storePendingImageAndNavigate(file, router, partnerSiteImageSearchPath(siteSlug, { customDomain }))
-    } finally {
-      setBusyImage(false)
-    }
-  }
-
   const showSuggestSection =
     typed.length >= 2 || suggestLoading || Boolean(suggestError) || suggestProducts.length > 0
 
   const renderProduct = (product: SuggestProduct) => {
-    const img = productImage(product)
+    const img = productDisplayImage(product)
     if (!img) return null
-    const query = searchQueryFromProduct(product, typed.length >= 2)
-    if (!query) return null
-    const key = productId(product) || query
+    const caption = searchQueryFromProduct(product)
+    if (!caption) return null
+    const key = productId(product) || caption
+    const searchingThis = imageSearchBusyId === key
     return (
       <button
         key={key}
         type="button"
         className="pw-mobile-search-tile"
-        onClick={() => runSearch(query)}
-        aria-label={`${t.searchTileBadge} ${query}`}
+        onClick={() => void searchByProductImage(product)}
+        disabled={imageSearchBusyId != null}
+        aria-label={`${t.searchTileBadge} ${caption}`}
+        aria-busy={searchingThis}
       >
         <span className="pw-mobile-search-tile-media">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={img} alt="" loading="lazy" decoding="async" />
           <span className="pw-mobile-search-tile-badge">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+              />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
             {t.searchTileBadge}
           </span>
+          {searchingThis ? <span className="pw-mobile-search-tile-busy">{t.searchImageSearching}</span> : null}
         </span>
-        <p>{query}</p>
+        <p>{caption}</p>
       </button>
     )
   }
@@ -584,55 +707,24 @@ export function PartnerSiteMobileSearchClient({
                 </button>
               ) : null}
             </div>
-            <button
-              type="button"
-              className="pw-mobile-search-camera"
-              title={t.searchByImage}
-              aria-label={t.searchByImage}
-              disabled={busyImage}
-              onClick={() => fileRef.current?.click()}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 8h3l2-3h8l2 3h3v12H3z"
-                />
-                <circle cx="12" cy="14" r="3.5" />
-              </svg>
-            </button>
-            <button type="submit" className="pw-mobile-search-go" aria-label={t.searchButton} disabled={busyImage}>
+            <PartnerSiteImageSearchPopover
+              imageSearchPath={imageHref}
+              locale={locale}
+              wrapperClassName="pw-mobile-search-camera-wrap"
+              triggerButtonClassName="pw-mobile-search-camera"
+              triggerIconClassName="block size-6 shrink-0 pointer-events-none"
+            />
+            <button type="submit" className="pw-mobile-search-go" aria-label={t.searchButton}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </button>
           </div>
         </form>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          className="sr-only"
-          hidden
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            void goImage(f)
-            e.target.value = ''
-          }}
-        />
       </header>
 
       <div className="pw-mobile-search-body">
         <div className="pw-mobile-search-body-inner">
-        {typed.length < 2 ? (
-          <nav className="pw-mobile-search-quick" aria-label={t.searchQuickAria}>
-            <Link href={partnerSiteProductsPath(siteSlug, { customDomain })}>{t.searchQuickNew}</Link>
-            <Link href={partnerSiteKhoSalePath(siteSlug, { customDomain })}>{t.khoSaleNavLabel}</Link>
-            <Link href={partnerSiteCategoryHubPath(siteSlug, { customDomain })}>{t.categoryHubTitle}</Link>
-          </nav>
-        ) : null}
-
         {historyError ? (
           <div className="pw-mobile-search-err">
             {historyError}{' '}
@@ -656,39 +748,14 @@ export function PartnerSiteMobileSearchClient({
               </button>
             ) : null}
           </div>
-          {historyLoading ? <p className="pw-mobile-search-muted">{t.searchSearching}</p> : null}
+          {historyLoading ? <p className="pw-mobile-search-muted">{t.searchHistoryLoading}</p> : null}
           {!historyLoading && matchedHistory.length === 0 && !historyError ? (
-            typedKey ? (
-              <p className="pw-mobile-search-muted">{t.searchHistoryNoMatch}</p>
-            ) : (
-              <div className="pw-mobile-search-empty">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.8}
-                    d="M12 8v4l2.5 1.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <div>
-                  <strong>{t.searchHistoryEmpty}</strong>
-                  <p className="pw-mobile-search-muted">{t.searchHistoryEmptyHint}</p>
-                </div>
-              </div>
-            )
+            <p className="pw-mobile-search-muted">{typedKey ? t.searchHistoryNoMatch : t.searchHistoryEmpty}</p>
           ) : null}
           {matchedHistory.length > 0 ? (
             <div className="pw-mobile-search-chips">
               {matchedHistory.map((q) => (
                 <div key={q} className="pw-mobile-search-chip">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 8v4l2.5 1.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
                   <button type="button" onClick={() => runSearch(q)}>
                     {q}
                   </button>
@@ -706,18 +773,27 @@ export function PartnerSiteMobileSearchClient({
           ) : null}
         </section>
 
+        {matchedSuggestions.length > 0 ? (
+          <section className="pw-mobile-search-card" aria-label={t.searchKeywordTitle}>
+            <h2>{t.searchKeywordTitle}</h2>
+            <div className="pw-mobile-search-chips" style={{ marginTop: 8 }}>
+              {matchedSuggestions.map((term) => (
+                <button key={term} type="button" className="pw-mobile-search-kw" onClick={() => runSearch(term)}>
+                  {term}
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         {showSuggestSection ? (
           <section
             className="pw-mobile-search-card"
             aria-label={typed.length >= 2 ? t.searchSuggestProducts : t.searchSuggestTitle}
           >
-            <h2>{typed.length >= 2 ? t.searchSuggestProducts : t.searchSuggestTitle}</h2>
+            <h2>{t.searchSuggestTitle}</h2>
             <p className="pw-mobile-search-hint">
-              {typed.length >= 2
-                ? t.searchSuggestTapTyped
-                : suggestFromViewed
-                  ? t.searchSuggestFromViewed
-                  : t.searchSuggestForYou}
+              {suggestFromViewed && typed.length < 2 ? t.searchSuggestFromViewed : t.searchSuggestForYou}
             </p>
             {suggestError && typed.length < 2 ? (
               <div className="pw-mobile-search-err">
@@ -763,6 +839,14 @@ export function PartnerSiteMobileSearchClient({
                   }}
                 >
                   {t.searchRetry}
+                </button>
+              </div>
+            ) : null}
+            {imageSearchError ? (
+              <div className="pw-mobile-search-err">
+                {imageSearchError}{' '}
+                <button type="button" onClick={() => setImageSearchError(null)}>
+                  {t.imageSearchClose}
                 </button>
               </div>
             ) : null}

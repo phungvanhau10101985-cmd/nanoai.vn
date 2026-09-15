@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, Check, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Heart, Home, ImagePlus, Images, Info, LayoutGrid, LayoutTemplate, Loader2, Lock, LogIn, LogOut, Mail, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Share2, Shield, Shirt, ShoppingBag, Sparkles, Square, Store, Tag, Ticket, Trash2, Truck, Type, Undo2, Upload, User, UserPlus, Video, Wallet, X, Zap } from 'lucide-react'
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, Check, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Handshake, Heart, Home, ImagePlus, Images, Info, Landmark, LayoutGrid, LayoutTemplate, Loader2, Lock, LogIn, LogOut, Mail, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Share2, Shield, Shirt, ShoppingBag, Sparkles, Square, Store, Tag, Ticket, Trash2, Trophy, Truck, Type, Undo2, Upload, User, UserPlus, Video, Wallet, X, Zap } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -813,6 +813,9 @@ const CHROME_WIDGET_ICONS: Record<VisualEditorChromeWidgetKind, LucideIcon> = {
   orders: ClipboardList,
   'order-tracking': Truck,
   wallet: Wallet,
+  loyalty: Trophy,
+  affiliate: Handshake,
+  'affiliate-bank': Landmark,
   addresses: MapPin,
   'edit-profile': Pencil,
   notifications: Bell,

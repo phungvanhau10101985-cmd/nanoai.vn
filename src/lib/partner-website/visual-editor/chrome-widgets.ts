@@ -526,6 +526,9 @@ export const VISUAL_EDITOR_CHROME_WIDGET_KINDS = [
   'orders',
   'order-tracking',
   'wallet',
+  'loyalty',
+  'affiliate',
+  'affiliate-bank',
   'addresses',
   'edit-profile',
   'notifications',
@@ -682,6 +685,9 @@ export const VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS: VisualEditorChromeWidgetK
   'orders',
   'order-tracking',
   'wallet',
+  'loyalty',
+  'affiliate',
+  'affiliate-bank',
   'addresses',
   'edit-profile',
   'notifications',
@@ -867,6 +873,9 @@ export function chromeWidgetHref(kind: VisualEditorChromeWidgetKind, siteSlug: s
   if (kind === 'account') return partnerSiteAccountPath(slug)
   if (kind === 'addresses') return partnerSiteAddressesPath(slug)
   if (kind === 'wallet') return partnerSiteAccountTabPath(slug, 'wallet')
+  if (kind === 'loyalty') return partnerSiteAccountTabPath(slug, 'loyalty')
+  if (kind === 'affiliate') return partnerSiteAccountTabPath(slug, 'affiliate')
+  if (kind === 'affiliate-bank') return partnerSiteAccountTabPath(slug, 'affiliate-bank')
   if (kind === 'edit-profile') return partnerSiteAccountEditPath(slug)
   if (kind === 'notifications') return partnerSiteAccountTabPath(slug, 'notifications')
   if (kind === 'security') return partnerSiteAccountTabPath(slug, 'security')
@@ -929,6 +938,9 @@ export function chromeWidgetLabel(kind: VisualEditorChromeWidgetKind, locale: We
   if (kind === 'account') return shop.navAccount
   if (kind === 'addresses') return shop.accountAddressBook
   if (kind === 'wallet') return shop.navWallet
+  if (kind === 'loyalty') return shop.loyaltyTitle
+  if (kind === 'affiliate') return shop.affiliateTitle
+  if (kind === 'affiliate-bank') return shop.affiliateBankTitle
   if (kind === 'edit-profile') return shop.accountEditProfile
   if (kind === 'notifications') return shop.accountNotifications
   if (kind === 'security') return shop.accountSecurity

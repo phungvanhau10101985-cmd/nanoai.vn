@@ -34,8 +34,9 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ partne
       commission_percent: string | number
       attribution_days: number
       minimum_payout_amount: string | number
+      commission_policy: string | null
     }>(
-      `select enabled, commission_percent, attribution_days, minimum_payout_amount
+      `select enabled, commission_percent, attribution_days, minimum_payout_amount, commission_policy
        from public.messaging_partner_affiliate_settings where partner_id = $1::uuid`,
       [partnerId]
     ),
@@ -50,9 +51,10 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ partne
     },
     affiliate: {
       enabled: affiliate?.enabled !== false,
-      commissionPercent: Number(affiliate?.commission_percent) || 5,
+      commissionPercent: Number(affiliate?.commission_percent) || 10,
       attributionDays: affiliate?.attribution_days ?? 30,
-      minimumPayoutAmount: Number(affiliate?.minimum_payout_amount) || 0,
+      minimumPayoutAmount: Number(affiliate?.minimum_payout_amount) || 100000,
+      commissionPolicy: affiliate?.commission_policy ?? '',
     },
   })
 }
@@ -73,6 +75,7 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ partner
       commissionPercent?: number
       attributionDays?: number
       minimumPayoutAmount?: number
+      commissionPolicy?: string | null
     }
   } | null
   if (!body) return NextResponse.json({ error: 'invalid_body' }, { status: 400 })
@@ -97,18 +100,20 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ partner
     await pgQuery(
       `insert into public.messaging_partner_affiliate_settings (
          partner_id, enabled, commission_percent, attribution_days,
-         minimum_payout_amount, updated_at
-       ) values ($1::uuid,$2,$3,$4,$5,now())
+         minimum_payout_amount, commission_policy, updated_at
+       ) values ($1::uuid,$2,$3,$4,$5,$6,now())
        on conflict (partner_id) do update set enabled = excluded.enabled,
          commission_percent = excluded.commission_percent,
          attribution_days = excluded.attribution_days,
-         minimum_payout_amount = excluded.minimum_payout_amount, updated_at = now()`,
+         minimum_payout_amount = excluded.minimum_payout_amount,
+         commission_policy = excluded.commission_policy, updated_at = now()`,
       [
         partnerId,
         body.affiliate.enabled === true,
         Math.max(0, Math.min(100, Number(body.affiliate.commissionPercent) || 0)),
         Math.max(1, Math.min(365, Number(body.affiliate.attributionDays) || 30)),
         Math.max(0, Math.round(Number(body.affiliate.minimumPayoutAmount) || 0)),
+        body.affiliate.commissionPolicy?.trim() || null,
       ]
     )
   }

@@ -18,6 +18,10 @@ describe('chrome widget icons', () => {
     expect(chromeGlyphsForKind('account').length).toBeGreaterThanOrEqual(4)
     expect(defaultChromeGlyph('home')).toBe('home')
     expect(defaultChromeGlyph('back')).toBe('chevron-left')
+    expect(canPickChromeGlyph('loyalty')).toBe(true)
+    expect(canPickChromeGlyph('affiliate')).toBe(true)
+    expect(canPickChromeGlyph('affiliate-bank')).toBe(true)
+    expect(defaultChromeGlyph('affiliate')).toBe('users')
   })
 
   it('does not swap Chat mua / Zalo / Facebook / search cluster icons', () => {

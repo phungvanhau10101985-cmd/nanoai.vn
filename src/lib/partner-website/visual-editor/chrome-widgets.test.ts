@@ -27,6 +27,7 @@ import {
   chromeWidgetAppearance,
   chromeWidgetHost,
   chromeWidgetHref,
+  chromeWidgetLabel,
   chromeWidgetLiveHook,
   htmlHasChromeChatMua,
   isChromeFloatKind,
@@ -87,6 +88,9 @@ test('chrome widget picker lists every shop destination once', () => {
   assert.ok(kinds.includes('chat-facebook'))
   assert.ok(kinds.includes('topup'))
   assert.ok(kinds.includes('wallet'))
+  assert.ok(kinds.includes('loyalty'))
+  assert.ok(kinds.includes('affiliate'))
+  assert.ok(kinds.includes('affiliate-bank'))
   assert.ok(kinds.includes('try-on'))
   assert.ok(kinds.includes('favorite-product'))
   assert.ok(kinds.includes('add-cart'))
@@ -210,6 +214,15 @@ test('chrome widgets wire each kind to the real shop route', () => {
   assert.equal(chromeWidgetHref('products', '188-shop'), partnerSiteProductsPath('188-shop'))
   assert.equal(chromeWidgetHref('sale', '188-shop'), partnerSiteInfoPath('188-shop', 'sale'))
   assert.equal(chromeWidgetHref('wallet', '188-shop'), partnerSiteAccountTabPath('188-shop', 'wallet'))
+  assert.equal(chromeWidgetHref('loyalty', '188-shop'), partnerSiteAccountTabPath('188-shop', 'loyalty'))
+  assert.equal(chromeWidgetHref('affiliate', '188-shop'), partnerSiteAccountTabPath('188-shop', 'affiliate'))
+  assert.equal(
+    chromeWidgetHref('affiliate-bank', '188-shop'),
+    partnerSiteAccountTabPath('188-shop', 'affiliate-bank')
+  )
+  assert.equal(chromeWidgetLabel('loyalty', 'vi'), 'Hạng thành viên')
+  assert.equal(chromeWidgetLabel('affiliate', 'vi'), 'Ví affiliate')
+  assert.equal(chromeWidgetLabel('affiliate-bank', 'en'), 'Bank account')
   assert.equal(chromeWidgetHref('edit-profile', '188-shop'), partnerSiteAccountEditPath('188-shop'))
   assert.equal(chromeWidgetHref('order-tracking', '188-shop'), partnerSiteOrderTrackingPath('188-shop'))
   assert.equal(chromeWidgetHref('about', '188-shop'), partnerSiteInfoPath('188-shop', 'about'))

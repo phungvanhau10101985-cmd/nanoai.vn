@@ -66,7 +66,7 @@ test('COD orders are not waiting deposit', () => {
   )
 })
 
-test('remaining after deposit includes shipping', () => {
+test('remaining after deposit is total minus actual paid, not the % due', () => {
   assert.equal(
     partnerOrderPayableTotal({ amount_after_discount: 1_000_000, shipping_fee_amount: 30000 }),
     1_030_000
@@ -77,6 +77,15 @@ test('remaining after deposit includes shipping', () => {
       shipping_fee_amount: 30000,
       required_amount: 300000,
     }),
-    730000
+    1_030_000
+  )
+  assert.equal(
+    partnerOrderRemainingAfterDeposit({
+      amount_after_discount: 1_000_000,
+      shipping_fee_amount: 30000,
+      required_amount: 300000,
+      paid_amount: 200000,
+    }),
+    830000
   )
 })

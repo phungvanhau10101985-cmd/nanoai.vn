@@ -9,10 +9,13 @@ import {
   loadSiteVisitorProfileForRequest,
 } from '@/lib/partner-website/shop/partner-site-personalization'
 import { loadSiteOrdersForRequest } from '@/lib/partner-website/shop/load-site-orders-for-request'
+import { loadSiteLoyaltyForRequest } from '@/lib/partner-website/shop/load-site-loyalty-for-request'
 import {
   isPartnerSiteAccountTab,
   type PartnerSiteAccountTab,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { normalizePartnerSiteLoyaltyTab } from '@/lib/partner-website/shop/partner-site-loyalty'
+import { normalizePartnerSiteAffiliateTab } from '@/lib/partner-website/shop/partner-site-affiliate'
 
 type Props = {
   params: Promise<{ slug: string; tab: string }>
@@ -24,6 +27,9 @@ const ROUTE_TABS = new Set<PartnerSiteAccountTab>([
   'cart',
   'orders',
   'wallet',
+  'loyalty',
+  'affiliate',
+  'affiliate-bank',
   'wishlist',
   'recently-viewed',
   'addresses',
@@ -34,10 +40,20 @@ const ROUTE_TABS = new Set<PartnerSiteAccountTab>([
   'install-app',
 ])
 
+function resolveAccountRouteTab(raw: string): PartnerSiteAccountTab | null {
+  const normalized = raw.trim().toLowerCase()
+  const loyalty = normalizePartnerSiteLoyaltyTab(normalized)
+  if (loyalty) return loyalty
+  const affiliate = normalizePartnerSiteAffiliateTab(normalized)
+  if (affiliate) return affiliate
+  if (isPartnerSiteAccountTab(normalized) && ROUTE_TABS.has(normalized)) return normalized
+  return null
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug, tab } = await params
-  const normalized = tab.trim().toLowerCase()
-  if (!isPartnerSiteAccountTab(normalized) || !ROUTE_TABS.has(normalized)) {
+  const normalized = resolveAccountRouteTab(tab)
+  if (!normalized) {
     return buildMetadata({
       title: 'Account',
       description: 'Account',
@@ -68,8 +84,8 @@ export const dynamic = 'force-dynamic'
 
 export default async function PartnerSiteAccountTabPage({ params, searchParams }: Props) {
   const { slug, tab } = await params
-  const normalized = tab.trim().toLowerCase()
-  if (!isPartnerSiteAccountTab(normalized) || !ROUTE_TABS.has(normalized)) notFound()
+  const normalized = resolveAccountRouteTab(tab)
+  if (!normalized) notFound()
 
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
@@ -81,6 +97,8 @@ export default async function PartnerSiteAccountTabPage({ params, searchParams }
   const initialProfile = await loadSiteVisitorProfileForRequest(shop.partnerId)
   const initialOrders =
     normalized === 'orders' ? await loadSiteOrdersForRequest(shop.partnerId) : null
+  const initialLoyalty =
+    normalized === 'loyalty' ? await loadSiteLoyaltyForRequest(shop.partnerId) : null
   const initialSavedProducts =
     normalized === 'wishlist' || normalized === 'recently-viewed'
       ? await loadSiteSavedProductsForRequest({
@@ -101,6 +119,7 @@ export default async function PartnerSiteAccountTabPage({ params, searchParams }
       initialSavedProducts={initialSavedProducts}
       initialProfile={initialProfile}
       initialOrders={initialOrders}
+      initialLoyalty={initialLoyalty}
     />
   )
 }

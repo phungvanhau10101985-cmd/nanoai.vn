@@ -14,7 +14,7 @@ import {
 } from '@/lib/messaging/partner-ai-intent-router'
 
 /** Đổi khi đổi prompt/schema phân loại — cache cũ không còn khớp. */
-export const WIDGET_INTENT_CLASSIFIER_VERSION = 'v3'
+export const WIDGET_INTENT_CLASSIFIER_VERSION = 'v4'
 
 export function normalizeIntentCacheText(s: string): string {
   return s.replace(/\s+/g, ' ').trim().toLowerCase()
@@ -78,11 +78,11 @@ export async function classifyWidgetInboundIntent(input: {
 Schema bắt buộc: {"decision":"follow_up_current_product"|"new_product_search"|"similar_alternatives"|"purchase_or_order"|"policy_or_order_support"|"clarify"|"pause_or_close","sales_stage":"browsing"|"considering"|"objection"|"purchase_ready"|"post_purchase_support","cta_strategy":"soft_explore"|"fit_question"|"reassure_then_cta"|"buy_now"|"no_cta","confidence":0.0-1.0,"category":string|null,"reason":string}
 
 Nghĩa:
-- follow_up_current_product: Khách hỏi tiếp sản phẩm/mẫu shop vừa gửi: giá, màu, size, tồn, chất liệu, ảnh thật, ship cho mẫu đó; hoặc phản ứng ngắn về mẫu đang bàn.
+- follow_up_current_product: Khách hỏi tiếp **thuộc tính** sản phẩm/mẫu shop vừa gửi hoặc đang xem: giá, màu, size, tồn, chất liệu, ảnh thật, «có 6cm không», «có 3 màu». Không phải hỏi chính sách shop.
 - new_product_search: Khách hỏi/tìm loại hàng hoặc nhu cầu mới trong kho rộng: "shop có túi không", "cho xem áo khoác", "có cái nào đựng laptop", "bag nữ còn không". Nếu khách đổi ý khỏi mẫu cũ sang loại khác, chọn nhánh này.
-- similar_alternatives: Khách muốn mẫu khác/tương tự/na ná so với mẫu đang bàn: "mẫu khác", "tương tự", "loại khác", "na ná". Nếu chưa có mẫu neo rõ trong tin shop gần nhất thì chọn clarify.
+- similar_alternatives: Khách muốn **mẫu khác / tương tự / na ná / loại khác** so với mẫu đang bàn. «Có màu/size này trên đúng mẫu đang bàn» = follow_up_current_product, không phải similar. Nếu chưa có mẫu neo rõ trong tin shop gần nhất thì chọn clarify.
 - purchase_or_order: Khách muốn mua/chốt/đặt/lấy hàng/gửi số điện thoại/hỏi cách đặt sau khi đã có sản phẩm đang bàn.
-- policy_or_order_support: Khách hỏi chính sách/cọc/thanh toán/ship/đổi trả/hủy đơn/hoàn cọc/check đơn. Nếu câu chỉ là "ship bao lâu" cho mẫu đang bàn thì follow_up_current_product; nếu hỏi chính sách chung thì nhánh này.
+- policy_or_order_support: Khách hỏi **chính sách shop** hoặc hỗ trợ đơn: có phải cọc không, COD/chuyển khoản, thời gian giao / bao lâu nhận hàng / sau khi shop gửi, đổi trả, hủy, hoàn cọc, check đơn. **Thắng** cả khi đang xem 1 SP hoặc vừa bấm Tư vấn — không chọn follow_up chỉ vì có SKU trên trang. Câu chỉ hỏi màu/size/chất liệu của mẫu đang bàn thì follow_up_current_product.
 - clarify: Chưa rõ cần tư vấn gì: chào chung, lỗi/truy cập/không thấy sản phẩm, cảm xúc/khiếu nại chưa nêu loại hàng; hoặc "xem thêm đi" nhưng không có mẫu neo rõ.
 - pause_or_close: Ok/cảm ơn/để xem thêm/thôi nhé/kết thúc, không cần tư vấn thêm.
 

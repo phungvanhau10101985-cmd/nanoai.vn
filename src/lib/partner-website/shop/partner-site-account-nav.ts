@@ -59,6 +59,29 @@ export function partnerSiteAccountNavActiveId(pathname: string): PartnerSiteAcco
   if (path === '/addresses' || path === '/account/addresses') return 'addresses'
   if (path === '/account/edit-profile' || path === '/account/profile') return 'edit-profile'
   if (path === '/account/wallet' || path === '/account/khuyen-mai') return 'wallet'
+  if (
+    path === '/account/loyalty' ||
+    path === '/account/thanh-vien' ||
+    path === '/thanh-vien'
+  ) {
+    return 'loyalty'
+  }
+  if (
+    path === '/account/affiliate' ||
+    path === '/account/vi-dien-tu' ||
+    path === '/account/vi-affiliate' ||
+    path === '/account/ctv' ||
+    path === '/vi-dien-tu'
+  ) {
+    return 'affiliate'
+  }
+  if (
+    path === '/account/affiliate-bank' ||
+    path === '/account/tai-khoan-ngan-hang' ||
+    path === '/tai-khoan-ngan-hang'
+  ) {
+    return 'affiliate-bank'
+  }
   if (path === '/account/security' || path === '/account/change-password') return 'security'
   if (path === '/account/notifications') return 'notifications'
   if (path === '/account/install-app') return 'install-app'

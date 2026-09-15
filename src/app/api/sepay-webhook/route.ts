@@ -351,6 +351,14 @@ export async function POST(request: NextRequest) {
           '@/lib/messaging/fulfillment/order-fulfillment-service'
         )
         await onPartnerOrderPaidVerifiedFulfillment(refreshed.id)
+        void import('@/lib/db/messaging-partner-affiliate-pg')
+          .then(({ grantPartnerAffiliateCommissionAfterPaidFromPg }) =>
+            grantPartnerAffiliateCommissionAfterPaidFromPg({
+              partnerId,
+              orderId: refreshed.id,
+            })
+          )
+          .catch((error) => console.warn('[sepay-webhook] affiliate commission', error))
       }
       return NextResponse.json({
         success: true,

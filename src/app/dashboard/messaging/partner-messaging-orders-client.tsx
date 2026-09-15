@@ -436,16 +436,10 @@ function OrdersAdminOrdersTable({
                 {formatVnd(order.amount_after_discount || order.subtotal_amount, locale)}
               </td>
               <td className={`${td} ${pinned ? 'text-xs leading-snug' : 'text-sm'}`}>
-                {expects ? (
-                  <>
-                    <span className="text-gray-600">
-                      {t.depositNeed}: {formatVnd(order.required_amount, locale)}
-                    </span>
-                    <br />
-                    <span className={order.paid_amount > 0 ? 'font-semibold tabular-nums text-gray-900' : 'tabular-nums text-gray-500'}>
-                      {t.depositPaid}: {formatVnd(order.paid_amount, locale)}
-                    </span>
-                  </>
+                {expects || order.paid_amount > 0 ? (
+                  <span className={order.paid_amount > 0 ? 'font-semibold tabular-nums text-gray-900' : 'tabular-nums text-gray-500'}>
+                    {t.depositPaid}: {formatVnd(order.paid_amount, locale)}
+                  </span>
                 ) : (
                   <span className="text-green-600">{t.depositNotRequired}</span>
                 )}
@@ -808,9 +802,7 @@ export function PartnerMessagingOrdersClient({
     setSelectedOrder(order)
     setPaymentNote(noteByOrder[order.id] ?? '')
     const already = Math.max(0, Math.round(order.paid_amount || 0))
-    const expected = Math.max(0, Math.round(order.required_amount || 0))
-    const seed = already > 0 ? already : expected
-    setPaymentReceivedDigits(seed > 0 ? String(seed) : '')
+    setPaymentReceivedDigits(already > 0 ? String(already) : '')
     setPaymentOpen(true)
   }
 
@@ -1547,17 +1539,11 @@ export function PartnerMessagingOrdersClient({
                       {formatVnd(selectedOrder.amount_after_discount || selectedOrder.subtotal_amount, locale)}
                     </dd>
                   </div>
-                  {partnerAdminExpectsDeposit(selectedOrder) ? (
+                  {partnerAdminExpectsDeposit(selectedOrder) || selectedOrder.paid_amount > 0 ? (
                     <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                       <dt className="shrink-0 text-gray-600">{t.tableColDeposit}</dt>
-                      <dd className="text-right font-medium tabular-nums text-gray-900">
-                        <span>
-                          {t.depositNeed}: {formatVnd(selectedOrder.required_amount, locale)}
-                        </span>
-                        <span className="mx-1.5 font-normal text-gray-400">·</span>
-                        <span className={selectedOrder.paid_amount > 0 ? 'font-semibold' : undefined}>
-                          {t.depositPaid}: {formatVnd(selectedOrder.paid_amount, locale)}
-                        </span>
+                      <dd className="text-right font-semibold tabular-nums text-gray-900">
+                        {t.depositPaid}: {formatVnd(selectedOrder.paid_amount, locale)}
                       </dd>
                     </div>
                   ) : (
@@ -1567,12 +1553,7 @@ export function PartnerMessagingOrdersClient({
                     </div>
                   )}
                   <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-amber-200/80 pt-2">
-                    <dt className="shrink-0 font-medium text-gray-800">
-                      {t.paymentWhenReceive}
-                      {partnerAdminExpectsDeposit(selectedOrder) ? (
-                        <span className="hidden font-normal text-gray-500 sm:inline"> ({t.modalCodAfterDeposit})</span>
-                      ) : null}
-                    </dt>
+                    <dt className="shrink-0 font-medium text-gray-800">{t.paymentWhenReceive}</dt>
                     <dd className="font-semibold tabular-nums text-red-700">
                       {formatVnd(partnerAdminAmountDueOnDelivery(selectedOrder), locale)}
                     </dd>
@@ -1854,18 +1835,15 @@ export function PartnerMessagingOrdersClient({
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="mb-4 text-xl font-bold">{t.confirmDepositTitle}</h2>
-            <p className="mb-2">
-              {t.confirmDepositBody
-                .replace('{code}', orderCodeDisplay(selectedOrder))
-                .replace('{amount}', formatVnd(selectedOrder.required_amount, locale))}
+            <p className="mb-1 font-medium">
+              {t.confirmDepositBody.replace('{code}', orderCodeDisplay(selectedOrder))}
             </p>
-            <p className="mb-1 text-sm text-gray-700">
+            <p className="mb-2 text-sm text-gray-700">
               {t.modalOrderTotal}:{' '}
               <span className="font-semibold tabular-nums">
                 {formatVnd(partnerAdminOrderMerchandiseTotal(selectedOrder), locale)}
               </span>
             </p>
-            <p className="mb-2 text-sm text-amber-600">{t.confirmDepositNoTxn}</p>
             <p className="mb-3 text-sm text-gray-600">{t.confirmDepositManualHint}</p>
             <div className="mb-3">
               <label className="mb-1 block text-sm font-medium" htmlFor="pw-confirm-deposit-received">
@@ -1892,13 +1870,31 @@ export function PartnerMessagingOrdersClient({
               {t.confirmDepositRemainingPreview.replace(
                 '{amount}',
                 formatVnd(
-                  Math.max(
-                    0,
-                    partnerAdminOrderMerchandiseTotal(selectedOrder) - parsePartnerAdminVndDigits(paymentReceivedDigits)
-                  ),
+                  partnerAdminAmountDueOnDelivery({
+                    ...selectedOrder,
+                    paid_amount: parsePartnerAdminVndDigits(paymentReceivedDigits),
+                  }),
                   locale
                 )
               )}
+            </p>
+            <p className="mb-4 text-xs tabular-nums text-gray-500">
+              {t.confirmDepositRemainingFormula
+                .replace('{total}', formatVnd(partnerAdminOrderMerchandiseTotal(selectedOrder), locale))
+                .replace(
+                  '{paid}',
+                  formatVnd(parsePartnerAdminVndDigits(paymentReceivedDigits), locale)
+                )
+                .replace(
+                  '{remaining}',
+                  formatVnd(
+                    partnerAdminAmountDueOnDelivery({
+                      ...selectedOrder,
+                      paid_amount: parsePartnerAdminVndDigits(paymentReceivedDigits),
+                    }),
+                    locale
+                  )
+                )}
             </p>
             <div className="mb-4">
               <label className="mb-1 block text-sm font-medium">{t.confirmDepositNoteLabel}</label>

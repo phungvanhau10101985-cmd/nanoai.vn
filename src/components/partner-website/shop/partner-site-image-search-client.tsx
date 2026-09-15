@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { PARTNER_PUBLIC_INVENTORY_SEARCH_MAX } from '@/lib/messaging/partner-public-search-limits'
+import { imageUrlToFile } from '@/lib/partner-website/shop/partner-site-image-from-url'
 import {
   classifyPartnerImageSearchError,
   looksLikeHttpUrl,
@@ -48,29 +49,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
   })
-}
-
-async function imageUrlToFile(raw: string): Promise<File> {
-  const u = new URL(raw.trim())
-  if (u.protocol !== 'http:' && u.protocol !== 'https:') {
-    throw new Error('protocol')
-  }
-  const hrefs = [raw.trim(), `/api/fetch-image?url=${encodeURIComponent(raw.trim())}`]
-  let last: Error | null = null
-  for (const href of hrefs) {
-    try {
-      const res = await fetch(href, href.startsWith('/') ? { credentials: 'same-origin' } : { mode: 'cors' })
-      if (!res.ok) throw new Error(`http ${res.status}`)
-      const blob = await res.blob()
-      if (!String(blob.type || '').startsWith('image/')) throw new Error('type')
-      const sub = blob.type.split('/')[1]?.replace(/[^a-z0-9]/gi, '') || 'jpg'
-      const ext = sub === 'jpeg' ? 'jpg' : sub
-      return new File([blob], `anh-tu-link.${ext}`, { type: blob.type })
-    } catch (e) {
-      last = e instanceof Error ? e : new Error('fetch')
-    }
-  }
-  throw last || new Error('fetch')
 }
 
 function useLazyReveal<T>(items: T[], initial = 12, step = 12) {
@@ -350,7 +328,7 @@ export function PartnerSiteImageSearchClient({
           htmlFor={fileInputId}
           className="pw-shop-btn"
           style={{
-            background: 'var(--pw-buy)',
+            background: 'var(--pw-primary)',
             color: '#fff',
             cursor: loading ? 'default' : 'pointer',
             opacity: loading ? 0.5 : 1,
@@ -403,7 +381,16 @@ export function PartnerSiteImageSearchClient({
       ) : null}
 
       <section data-pw-region={PW_REGION.catalog} data-pw-catalog aria-live="polite">
-        <h2 data-pw-el={PW_EL.sectionTitle} style={{ fontSize: 14, margin: '0 0 12px' }}>
+        <h2
+          data-pw-el={PW_EL.sectionTitle}
+          style={{
+            fontSize: 14,
+            margin: '0 0 12px',
+            width: 'fit-content',
+            paddingBottom: 4,
+            borderBottom: '1px solid color-mix(in srgb, var(--pw-primary) 40%, transparent)',
+          }}
+        >
           {loading
             ? t.imageSearchLoading
             : t.imageSearchResultCount.replace('{n}', String(products.length))}

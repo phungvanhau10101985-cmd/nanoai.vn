@@ -80,7 +80,12 @@ import {
   type PartnerSaleDiscountBreakdown,
 } from '@/lib/partner-website/promotions/partner-sale-pricing'
 import { partnerStorefrontSaleAccountKey } from '@/lib/partner-website/promotions/partner-flash-sale'
-import { createPartnerAffiliateCommissionForOrderFromPg } from '@/lib/db/messaging-partner-affiliate-pg'
+import {
+  applyPartnerAffiliateWalletToOrderFromPg,
+  createPartnerAffiliateCommissionForOrderFromPg,
+  ensurePartnerAffiliateProfileFromPg,
+  isApprovedPartnerAffiliateFromPg,
+} from '@/lib/db/messaging-partner-affiliate-pg'
 import { guestAccountEmailMatchesAuthUserFromPg } from '@/lib/db/messaging-guest-pg'
 import { queuePartnerOrderGoogleSheetsSync } from '@/lib/messaging/partner-order-google-sheets-sync'
 import {
@@ -180,6 +185,9 @@ export type CheckoutFormInput = {
   promoCode?: string
   /** W1.7 — chỉ có ý nghĩa lựa chọn thật khi đơn có cọc (required_amount > 0); mặc định 'cod'. */
   paymentMethod?: 'cod' | 'bank_transfer' | 'ewallet'
+  /** Dùng số dư ví affiliate (CTV đã duyệt) trừ vào tổng / cọc — giống 188. */
+  useAffiliateWallet?: boolean
+  affiliateReferralCode?: string
 }
 
 export type CartCheckoutLineInput = {
@@ -285,17 +293,6 @@ function normalizeMoney(v: unknown): number {
   return Number.isFinite(n) ? Math.max(0, n) : 0
 }
 
-function promotionAccountKey(input: {
-  guestAccountId?: string | null
-  linkedUserId?: string | null
-  fallback?: string | null
-}): string | null {
-  if (input.linkedUserId) return `user:${input.linkedUserId}`
-  if (input.guestAccountId) return `guest:${input.guestAccountId}`
-  const fallback = input.fallback?.trim()
-  return fallback ? `session:${fallback}` : null
-}
-
 /** Same identity as cart quote / Flash / recently-viewed. Not affiliate `user:` keys. */
 function saleCheckoutAccountKey(input: {
   guestAccountId?: string | null
@@ -303,6 +300,69 @@ function saleCheckoutAccountKey(input: {
   fallback?: string | null
 }): string | null {
   return partnerStorefrontSaleAccountKey(input)
+}
+
+async function settlePartnerAffiliateOnCheckout(input: {
+  partnerId: string
+  order: PartnerOrderRow
+  orders?: PartnerOrderRow[]
+  guestAccountId?: string | null
+  linkedUserId?: string | null
+  emailNormalized: string | null
+  accountKeyFallback?: string | null
+  amountAfterDiscount: number
+  useAffiliateWallet?: boolean
+  referralCode?: string | null
+}): Promise<PartnerOrderRow> {
+  const identity = {
+    partnerId: input.partnerId,
+    guestAccountId: input.guestAccountId ?? null,
+    linkedUserId: input.linkedUserId ?? null,
+    emailNormalized: input.emailNormalized,
+  }
+  const accountKey = saleCheckoutAccountKey({
+    linkedUserId: input.linkedUserId,
+    guestAccountId: input.guestAccountId,
+    fallback: input.accountKeyFallback,
+  })
+  const queue = input.orders?.length ? input.orders : [input.order]
+  let primary = input.order
+  for (const row of queue) {
+    let order = row
+    if (input.useAffiliateWallet) {
+      const profile = await ensurePartnerAffiliateProfileFromPg(identity)
+      if (
+        profile &&
+        (await isApprovedPartnerAffiliateFromPg({
+          partnerId: input.partnerId,
+          profileId: profile.id,
+        }))
+      ) {
+        await applyPartnerAffiliateWalletToOrderFromPg({
+          partnerId: input.partnerId,
+          orderId: order.id,
+          profileId: profile.id,
+          requestedAmount: Number.MAX_SAFE_INTEGER,
+          amountAfterDiscount: order.amount_after_discount,
+          shippingFeeAmount: order.shipping_fee_amount,
+          requiredAmount: order.required_amount,
+        })
+        const refreshed = await fetchPartnerOrderByIdForPartnerFromPg(input.partnerId, order.id)
+        if (refreshed) order = refreshed
+      }
+    }
+    await createPartnerAffiliateCommissionForOrderFromPg({
+      partnerId: input.partnerId,
+      orderId: order.id,
+      accountKey,
+      amountAfterDiscount: order.amount_after_discount,
+      identity,
+      referralCode: input.referralCode,
+    })
+    if (order.id === input.order.id) primary = order
+  }
+  const latest = await fetchPartnerOrderByIdForPartnerFromPg(input.partnerId, primary.id)
+  return latest ?? primary
 }
 
 function saleBreakdownToLegacySnapshot(input: {
@@ -931,7 +991,7 @@ export async function completeOrderCheckout(input: {
     }
   }
 
-  const updated = await updatePartnerOrderCheckoutFromPg({
+  const checkoutRow = await updatePartnerOrderCheckoutFromPg({
     orderId: oldOrder.id,
     partnerId: input.partnerId,
     conversationId: oldOrder.conversation_id,
@@ -956,6 +1016,7 @@ export async function completeOrderCheckout(input: {
     paymentMethod,
     shippingFeeAmount,
   })
+  let updated = checkoutRow
   if (!updated) return { error: 'Không cập nhật được đơn hàng.' }
   await patchPartnerOrderFulfillmentFromPg({
     orderId: updated.id,
@@ -989,15 +1050,16 @@ export async function completeOrderCheckout(input: {
     linkedUserId: input.linkedUserId ?? null,
     emailNormalized: trim(input.form.customerEmail, 180).toLowerCase() || null,
   })
-  await createPartnerAffiliateCommissionForOrderFromPg({
+  updated = await settlePartnerAffiliateOnCheckout({
     partnerId: input.partnerId,
-    orderId: updated.id,
-    accountKey: promotionAccountKey({
-      linkedUserId: input.linkedUserId,
-      guestAccountId: input.guestAccountId,
-      fallback: input.externalThreadId,
-    }),
+    order: updated,
+    guestAccountId: input.guestAccountId,
+    linkedUserId: input.linkedUserId,
+    emailNormalized: trim(input.form.customerEmail, 180).toLowerCase() || null,
+    accountKeyFallback: input.externalThreadId,
     amountAfterDiscount: updated.amount_after_discount,
+    useAffiliateWallet: input.form.useAffiliateWallet === true,
+    referralCode: input.form.affiliateReferralCode,
   })
   await syncPrimaryPartnerOrderLineFromOrderFromPg(updated, {
     fulfillmentSource,
@@ -1427,7 +1489,7 @@ export async function completeCartCheckout(input: {
     })
   }
   if (createdOrders.length === 0) return { error: 'Không tạo được đơn hàng.' }
-  const updated = createdOrders[Math.min(primaryIndex, createdOrders.length - 1)]
+  let updated = createdOrders[Math.min(primaryIndex, createdOrders.length - 1)]
   if (appliedPromo) {
     await recordPromotionUsageFromPg({
       partnerId: input.partnerId,
@@ -1444,16 +1506,25 @@ export async function completeCartCheckout(input: {
     linkedUserId: input.linkedUserId ?? null,
     emailNormalized: trim(input.form.customerEmail, 180).toLowerCase() || null,
   })
-  await createPartnerAffiliateCommissionForOrderFromPg({
+  updated = await settlePartnerAffiliateOnCheckout({
     partnerId: input.partnerId,
-    orderId: updated.id,
-    accountKey: promotionAccountKey({
-      linkedUserId: input.linkedUserId,
-      guestAccountId: input.guestAccountId,
-      fallback: input.externalThreadId,
-    }),
-    amountAfterDiscount: createdOrders.reduce((sum, row) => sum + row.amount_after_discount, 0),
+    order: updated,
+    orders: createdOrders,
+    guestAccountId: input.guestAccountId,
+    linkedUserId: input.linkedUserId,
+    emailNormalized: trim(input.form.customerEmail, 180).toLowerCase() || null,
+    accountKeyFallback: input.externalThreadId,
+    amountAfterDiscount: updated.amount_after_discount,
+    useAffiliateWallet: input.form.useAffiliateWallet === true,
+    referralCode: input.form.affiliateReferralCode,
   })
+  const primarySlot = createdOrders.findIndex((row) => row.id === updated.id)
+  if (primarySlot >= 0) createdOrders[primarySlot] = updated
+  for (let i = 0; i < createdOrders.length; i += 1) {
+    if (createdOrders[i].id === updated.id) continue
+    const refreshed = await fetchPartnerOrderByIdForPartnerFromPg(input.partnerId, createdOrders[i].id)
+    if (refreshed) createdOrders[i] = refreshed
+  }
   const savedLines = await fetchPartnerOrderLinesFromPg(updated.id)
   const em = trim(input.form.customerEmail, 180).toLowerCase()
   if (em) {

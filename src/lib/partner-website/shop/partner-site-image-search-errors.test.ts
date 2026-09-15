@@ -11,6 +11,10 @@ test('looksLikeHttpUrl matches 188 paste-link guard', () => {
   assert.equal(looksLikeHttpUrl('http://x.test/a.png'), true)
   assert.equal(looksLikeHttpUrl('ftp://x/a.jpg'), false)
   assert.equal(looksLikeHttpUrl('cdn.example/a.jpg'), false)
+  assert.equal(looksLikeHttpUrl('https://'), false)
+  assert.equal(looksLikeHttpUrl('https://…'), false)
+  assert.equal(looksLikeHttpUrl('https://www.'), false)
+  assert.equal(looksLikeHttpUrl('https://cdn.example/a.jpg'), true)
 })
 
 test('gemini INTERNAL errors retry like 188', () => {
