@@ -265,6 +265,18 @@ test('search bootstrap opens an image-search popover like 188 (paste / drop / ch
   assert.match(s, /pwShopLiveUiOff/)
 })
 
+test('search bootstrap does not seed a second camera on /tim-kiem compose', () => {
+  const s = buildPartnerSiteSearchBootstrapScript({ siteSlug: '188-shop', locale: 'vi' })
+  assert.match(s, /function stripComposeImageDupes/)
+  assert.match(s, /pw-mobile-search-head/)
+  assert.match(s, /if\(onMobileComposePage\(\)\|\|document\.querySelector\('\.pw-mobile-search'\)\)return;/)
+  assert.match(s, /var anyBtn=document\.querySelector\('\[data-pw-image-search\], \.pw-search-image-btn, \.pw-shop-search-image'\)/)
+  assert.match(s, /data-pw-image-search-fallback/)
+  assert.match(s, /data-pw-image-pop-react/)
+  assert.doesNotMatch(s, /header \.search, header form/)
+  assert.doesNotMatch(s, /document\.querySelector\('header'\)/)
+})
+
 test('search bootstrap navigates to /search?q= like 188 home /?q= (no overlay fetch)', () => {
   const s = buildPartnerSiteSearchBootstrapScript({ siteSlug: '188-shop', locale: 'vi' })
   assert.match(s, /SEARCH_PATH/)

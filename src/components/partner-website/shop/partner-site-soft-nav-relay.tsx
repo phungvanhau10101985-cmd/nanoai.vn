@@ -1,6 +1,6 @@
 'use client'
 
-import { startTransition, useLayoutEffect } from 'react'
+import { useLayoutEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 export const PW_SHOP_SOFT_NAV_EVENT = 'pw-shop-soft-nav'
@@ -24,6 +24,10 @@ function pathFromHref(href: string): string | null {
  * After hydration, chrome taps use App Router `router.push` so the shared
  * account shell (header / sidebar) stays mounted. Parser-blocking native nav
  * still `location.assign` if this relay is not ready yet.
+ *
+ * Do not wrap `router.push` in an extra `startTransition`. Next.js already
+ * transitions internally; a nested transition leaves the destination page
+ * committed but its passive effects frozen until the next tap.
  */
 export function PartnerSiteSoftNavRelay() {
   const router = useRouter()
@@ -38,9 +42,7 @@ export function PartnerSiteSoftNavRelay() {
       const here = `${window.location.pathname}${window.location.search}${window.location.hash}`
       if (path === here) return
       window.dispatchEvent(new CustomEvent(PW_SHOP_SOFT_NAV_EVENT, { detail: { href: path } }))
-      startTransition(() => {
-        router.push(path)
-      })
+      router.push(path)
     }
     win.__pwShopPrefetch = (href: string) => {
       const path = pathFromHref(href)

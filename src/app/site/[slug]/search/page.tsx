@@ -1,5 +1,4 @@
 import { notFound, redirect } from 'next/navigation'
-import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { buildMetadata } from '@/lib/seo'
 import { fetchPartnerCategoriesFlatFromPg } from '@/lib/db/messaging-partner-categories-pg'
@@ -180,17 +179,16 @@ export default async function PartnerSiteTextSearchPage({ params, searchParams }
       <h1 data-pw-el={PW_EL.sectionTitle}>{heading}</h1>
       {q ? (
         <section style={{ marginTop: 24 }}>
-          <Suspense fallback={<p className="pw-shop-muted">…</p>}>
-            <PartnerSiteCategoryProductsClient
-              siteSlug={shop.site.siteSlug}
-              searchQuery={q}
-              locale={shop.site.locale}
-              initialProducts={initialProducts}
-              initialTotal={initialTotal}
-              priceRange={null}
-              initialFacets={facets ?? { sizes: [], colors: [], styleTags: [] }}
-            />
-          </Suspense>
+          <PartnerSiteCategoryProductsClient
+            siteSlug={shop.site.siteSlug}
+            searchQuery={q}
+            locale={shop.site.locale}
+            initialProducts={initialProducts}
+            initialTotal={initialTotal}
+            priceRange={null}
+            initialFacets={facets ?? { sizes: [], colors: [], styleTags: [] }}
+            initialListing={listing}
+          />
         </section>
       ) : (
         <p className="pw-shop-muted">{t.searchEmpty}</p>

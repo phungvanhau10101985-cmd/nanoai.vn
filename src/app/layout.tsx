@@ -31,6 +31,10 @@ import {
   buildPartnerSiteNativeNavigationScript,
   PARTNER_SITE_NATIVE_NAV_SCRIPT_ID,
 } from '@/lib/partner-website/shop/partner-site-account-native-navigation'
+import {
+  buildPartnerSiteImageSearchPageBootScript,
+  PW_IMAGE_SEARCH_BOOT_SCRIPT_ID,
+} from '@/lib/partner-website/shop/partner-site-image-search-page-boot'
 
 const AnalyticsTracker = nextDynamic(
   () => import("@/components/analytics/analytics-tracker").then((m) => m.AnalyticsTracker),
@@ -387,12 +391,20 @@ export default async function RootLayout({
       <head>
         {bunnyCdnOrigin ? <link rel="preconnect" href={bunnyCdnOrigin} crossOrigin="anonymous" /> : null}
         {isPartnerWebsitePage && partnerSiteSlug ? (
-          <script
-            id={PARTNER_SITE_NATIVE_NAV_SCRIPT_ID}
-            dangerouslySetInnerHTML={{
-              __html: buildPartnerSiteNativeNavigationScript(partnerSiteSlug),
-            }}
-          />
+          <>
+            <script
+              id={PARTNER_SITE_NATIVE_NAV_SCRIPT_ID}
+              dangerouslySetInnerHTML={{
+                __html: buildPartnerSiteNativeNavigationScript(partnerSiteSlug),
+              }}
+            />
+            <script
+              id={PW_IMAGE_SEARCH_BOOT_SCRIPT_ID}
+              dangerouslySetInnerHTML={{
+                __html: buildPartnerSiteImageSearchPageBootScript(partnerSiteSlug),
+              }}
+            />
+          </>
         ) : null}
         {shouldRenderNanoAiSiteTags
           ? metaTags.map((tag, index) =>

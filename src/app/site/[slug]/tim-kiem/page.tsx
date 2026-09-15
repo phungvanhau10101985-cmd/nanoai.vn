@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation'
-import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { buildMetadata } from '@/lib/seo'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
@@ -62,13 +61,11 @@ export default async function PartnerSiteMobileSearchComposePage({ params, searc
       hideAccountNav
       {...(await liveVisualHomeChromeShellProps(shop.site, device))}
     >
-      <Suspense fallback={null}>
-        <PartnerSiteMobileSearchClient
-          siteSlug={shop.site.siteSlug}
-          locale={shop.site.locale}
-          shopTitle={shop.site.title}
-        />
-      </Suspense>
+      <PartnerSiteMobileSearchClient
+        siteSlug={shop.site.siteSlug}
+        locale={shop.site.locale}
+        shopTitle={shop.site.title}
+      />
     </PartnerSiteShopShell>
   )
 }

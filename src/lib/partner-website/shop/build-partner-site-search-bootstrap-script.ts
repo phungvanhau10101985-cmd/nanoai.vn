@@ -541,7 +541,20 @@ function looksHttp(u){
   }catch(eH){return false;}
 }
 function imageBtnSel(){return '[data-pw-image-search]:not([data-pw-image-pop-react]), .pw-search-image-btn:not([data-pw-image-pop-react]), .pw-shop-search-image:not([data-pw-image-pop-react])';}
+function stripComposeImageDupes(){
+  var head=document.querySelector('.pw-mobile-search-head');
+  if(!head)return;
+  var kids=head.children;
+  for(var i=kids.length-1;i>=0;i--){
+    var el=kids[i];
+    if(!el||(el.classList&&el.classList.contains('pw-mobile-search-form')))continue;
+    var isCam=(el.getAttribute&&el.getAttribute('data-pw-image-search')!=null)||(el.classList&&(el.classList.contains('pw-search-image-btn')||el.classList.contains('pw-shop-search-image')));
+    if(isCam&&el.parentNode)el.parentNode.removeChild(el);
+  }
+}
 function ensureImageControl(){
+  stripComposeImageDupes();
+  if(onMobileComposePage()||document.querySelector('.pw-mobile-search'))return;
   var file=document.querySelector('input[data-pw-image-search-input]');
   if(!file){
     file=document.createElement('input');
@@ -570,23 +583,25 @@ function ensureImageControl(){
       +'</div><p class="pw-img-pop-err" data-pw-image-err hidden></p>';
     document.body.appendChild(pop);
   }
+  var anyBtn=document.querySelector('[data-pw-image-search], .pw-search-image-btn, .pw-shop-search-image');
   var btns=document.querySelectorAll(imageBtnSel());
-  if(!btns.length){
-    var host=document.querySelector('[data-pw-search], input[type="search"], header .search, header form')||document.querySelector('header');
-    if(host){
+  if(!btns.length && !anyBtn){
+    var form=document.querySelector('.pw-search-form, .pw-shop-search-form, form[data-pw-search-form]');
+    if(form&&form.closest&&form.closest('.pw-mobile-search'))form=null;
+    if(form){
       var created=document.createElement('button');
       created.type='button';
       created.setAttribute('data-pw-image-search','1');
+      created.setAttribute('data-pw-image-search-fallback','1');
       created.setAttribute('data-pw-search-glyph','camera');
       created.setAttribute('aria-label',COPY.imageBtn);
       created.title=COPY.imageBtn;
       created.className='pw-search-image-btn pw-shop-search-image';
       created.innerHTML='<span class="pw-chrome-icon-wrap">${searchGlyphSvg('camera')}</span>';
       created.style.cssText='margin-left:.35rem;border:0;background:transparent;cursor:pointer;line-height:1;padding:.25rem;flex:0 0 auto';
-      if(host.parentNode){
-        if(host.tagName==='INPUT'||host.tagName==='FORM')host.parentNode.insertBefore(created,host.nextSibling);
-        else host.appendChild(created);
-      }
+      var submit=form.querySelector('.pw-search-submit, .pw-shop-search-submit, a.pw-search-submit, button[type="submit"]');
+      if(submit&&submit.parentNode===form)form.insertBefore(created,submit);
+      else form.appendChild(created);
       btns=document.querySelectorAll(imageBtnSel());
     }
   }

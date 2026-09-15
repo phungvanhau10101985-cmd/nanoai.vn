@@ -5,6 +5,10 @@ import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-part
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteImageSearchClient } from '@/components/partner-website/shop/partner-site-image-search-client'
+import {
+  buildPartnerSiteImageSearchPageBootScript,
+  PW_IMAGE_SEARCH_BOOT_SCRIPT_ID,
+} from '@/lib/partner-website/shop/partner-site-image-search-page-boot'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
@@ -49,22 +53,30 @@ export default async function PartnerSiteImageSearchPage({ params, searchParams 
   const device = await readVisualPreviewDevice(searchParams)
 
   return (
-    <PartnerSiteShopShell
-      siteSlug={shop.site.siteSlug}
-      partnerSlug={shop.partnerSlug}
-      title={shop.site.title}
-      logoUrl={shop.site.logoUrl}
-      theme={shop.site.theme}
-      locale={shop.site.locale}
-      chatPath={shop.site.chatPath}
-      tracking={partnerSiteTrackingFromPublicRow(shop.site)}
-      footerJson={shop.site.footerJson}
-      navJson={shop.site.navJson}
-      activeNav="products"
-      pageKind={PW_PAGE.listing}
-      {...(await liveVisualHomeChromeShellProps(shop.site, device))}
-    >
-      <PartnerSiteImageSearchClient siteSlug={shop.site.siteSlug} locale={shop.site.locale} />
-    </PartnerSiteShopShell>
+    <>
+      <script
+        id={PW_IMAGE_SEARCH_BOOT_SCRIPT_ID}
+        dangerouslySetInnerHTML={{
+          __html: buildPartnerSiteImageSearchPageBootScript(shop.site.siteSlug),
+        }}
+      />
+      <PartnerSiteShopShell
+        siteSlug={shop.site.siteSlug}
+        partnerSlug={shop.partnerSlug}
+        title={shop.site.title}
+        logoUrl={shop.site.logoUrl}
+        theme={shop.site.theme}
+        locale={shop.site.locale}
+        chatPath={shop.site.chatPath}
+        tracking={partnerSiteTrackingFromPublicRow(shop.site)}
+        footerJson={shop.site.footerJson}
+        navJson={shop.site.navJson}
+        activeNav="products"
+        pageKind={PW_PAGE.listing}
+        {...(await liveVisualHomeChromeShellProps(shop.site, device))}
+      >
+        <PartnerSiteImageSearchClient siteSlug={shop.site.siteSlug} locale={shop.site.locale} />
+      </PartnerSiteShopShell>
+    </>
   )
 }

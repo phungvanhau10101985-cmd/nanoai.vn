@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
@@ -234,17 +233,16 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
       {categoryDescription ? <p className="pw-shop-muted">{categoryDescription}</p> : null}
 
       <section style={{ marginTop: 24 }}>
-        <Suspense fallback={<p className="pw-shop-muted">…</p>}>
-          <PartnerSiteCategoryProductsClient
-            siteSlug={shop.site.siteSlug}
-            categoryId={category.id}
-            locale={locale}
-            initialProducts={initialProducts}
-            initialTotal={page?.count ?? initialProducts.length}
-            priceRange={priceRange}
-            initialFacets={facets ?? { sizes: [], colors: [], styleTags: [] }}
-          />
-        </Suspense>
+        <PartnerSiteCategoryProductsClient
+          siteSlug={shop.site.siteSlug}
+          categoryId={category.id}
+          locale={locale}
+          initialProducts={initialProducts}
+          initialTotal={page?.count ?? initialProducts.length}
+          priceRange={priceRange}
+          initialFacets={facets ?? { sizes: [], colors: [], styleTags: [] }}
+          initialListing={listing}
+        />
       </section>
 
       {/* W4.12 (bổ sung) — đoạn văn SEO cuối trang, AI sinh hoặc merchant tự viết qua nút

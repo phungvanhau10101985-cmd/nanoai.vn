@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
+import { usePartnerSitePageReadyEffect } from '@/hooks/use-partner-site-page-ready-effect'
 import { PARTNER_PUBLIC_INVENTORY_SEARCH_MAX } from '@/lib/messaging/partner-public-search-limits'
 import { imageUrlToFile } from '@/lib/partner-website/shop/partner-site-image-from-url'
 import {
@@ -9,6 +10,10 @@ import {
   looksLikeHttpUrl,
   shouldRetryPartnerImageSearchTransient,
 } from '@/lib/partner-website/shop/partner-site-image-search-errors'
+import {
+  PW_IMAGE_SEARCH_BOOT_EVENT,
+  readPartnerSiteImageSearchBoot,
+} from '@/lib/partner-website/shop/partner-site-image-search-page-boot'
 import {
   consumePendingImageFile,
   PW_PENDING_IMAGE_EVENT,
@@ -94,6 +99,7 @@ export function PartnerSiteImageSearchClient({
   const [imageUrlInput, setImageUrlInput] = useState('')
   const lastAutoFetchedUrlRef = useRef<string | null>(null)
   const linkSearchBusyRef = useRef(false)
+  const appliedBootProductsRef = useRef(false)
 
   const humanize = useCallback(
     (raw: string | null | undefined) => {
@@ -165,15 +171,59 @@ export function PartnerSiteImageSearchClient({
     [humanize, siteSlug, t.imageSearchRetry, t.searchError]
   )
 
-  useEffect(() => {
-    const consume = () => {
-      const file = consumePendingImageFile()
-      if (file) void runSearch(file)
+  usePartnerSitePageReadyEffect(() => {
+    const applyBoot = () => {
+      const boot = readPartnerSiteImageSearchBoot()
+      if (!boot?.started) return false
+      if (boot.previewDataUrl) {
+        setPreviewUrl((prev) => prev || boot.previewDataUrl)
+      }
+      if (Array.isArray(boot.products)) {
+        if (!appliedBootProductsRef.current) {
+          appliedBootProductsRef.current = true
+          setProducts(boot.products as Hit[])
+        }
+        setLoading(false)
+        if (boot.error && boot.products.length === 0) setSoftMessage(humanize(boot.error))
+        return true
+      }
+      if (boot.error) {
+        setLoading(false)
+        setSoftMessage(humanize(boot.error))
+        return true
+      }
+      if (boot.loading) {
+        setLoading(true)
+        setError(null)
+      }
+      return true
     }
-    consume()
-    window.addEventListener(PW_PENDING_IMAGE_EVENT, consume)
-    return () => window.removeEventListener(PW_PENDING_IMAGE_EVENT, consume)
-  }, [runSearch])
+
+    const consumePending = () => {
+      const boot = readPartnerSiteImageSearchBoot()
+      if (boot?.loading) return
+      const file = consumePendingImageFile()
+      if (file) {
+        void runSearch(file)
+      }
+    }
+
+    const owned = applyBoot()
+    if (!owned) consumePending()
+
+    const onBoot = () => {
+      applyBoot()
+    }
+    const onPending = () => {
+      consumePending()
+    }
+    window.addEventListener(PW_IMAGE_SEARCH_BOOT_EVENT, onBoot)
+    window.addEventListener(PW_PENDING_IMAGE_EVENT, onPending)
+    return () => {
+      window.removeEventListener(PW_IMAGE_SEARCH_BOOT_EVENT, onBoot)
+      window.removeEventListener(PW_PENDING_IMAGE_EVENT, onPending)
+    }
+  }, [humanize, runSearch])
 
   useEffect(() => {
     return () => {

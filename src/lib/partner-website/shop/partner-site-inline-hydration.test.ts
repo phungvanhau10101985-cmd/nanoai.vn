@@ -103,8 +103,43 @@ test('shop layout binds native navigation in head before React hydrates', async 
     new URL('../../../components/partner-website/shop/partner-site-soft-nav-relay.tsx', import.meta.url),
     'utf8'
   )
-  assert.match(relay, /startTransition/)
+  assert.doesNotMatch(relay, /startTransition\s*\(/)
   assert.match(relay, /router\.push\(path\)/)
+})
+
+test('image search and compose pages boot without Suspense or nested startTransition', async () => {
+  const imagePage = await readFile(
+    new URL('../../../app/site/[slug]/tim-theo-anh/page.tsx', import.meta.url),
+    'utf8'
+  )
+  const composePage = await readFile(
+    new URL('../../../app/site/[slug]/tim-kiem/page.tsx', import.meta.url),
+    'utf8'
+  )
+  const searchPage = await readFile(new URL('../../../app/site/[slug]/search/page.tsx', import.meta.url), 'utf8')
+  const categoryPage = await readFile(
+    new URL('../../../app/site/[slug]/c/[...path]/page.tsx', import.meta.url),
+    'utf8'
+  )
+  const listingClient = await readFile(
+    new URL('../../../components/partner-website/shop/partner-site-category-products-client.tsx', import.meta.url),
+    'utf8'
+  )
+  const imageClient = await readFile(
+    new URL('../../../components/partner-website/shop/partner-site-image-search-client.tsx', import.meta.url),
+    'utf8'
+  )
+  const shopLayout = await readFile(new URL('../../../app/site/[slug]/layout.tsx', import.meta.url), 'utf8')
+  const rootLayout = await readFile(new URL('../../../app/layout.tsx', import.meta.url), 'utf8')
+  assert.match(imagePage, /buildPartnerSiteImageSearchPageBootScript/)
+  assert.match(shopLayout, /buildPartnerSiteImageSearchPageBootScript/)
+  assert.match(rootLayout, /buildPartnerSiteImageSearchPageBootScript/)
+  assert.match(imageClient, /usePartnerSitePageReadyEffect/)
+  assert.doesNotMatch(composePage, /<Suspense/)
+  assert.doesNotMatch(searchPage, /<Suspense/)
+  assert.doesNotMatch(categoryPage, /<Suspense/)
+  assert.doesNotMatch(listingClient, /useSearchParams\s*\(/)
+  assert.doesNotMatch(listingClient, /startTransition\s*\(/)
 })
 
 test('deposit and order pages fetch without waiting for session ready', async () => {

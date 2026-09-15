@@ -21,6 +21,10 @@ import {
   PARTNER_SITE_NATIVE_NAV_SCRIPT_ID,
 } from '@/lib/partner-website/shop/partner-site-account-native-navigation'
 import {
+  buildPartnerSiteImageSearchPageBootScript,
+  PW_IMAGE_SEARCH_BOOT_SCRIPT_ID,
+} from '@/lib/partner-website/shop/partner-site-image-search-page-boot'
+import {
   shopBrowserChromeColor,
   shopBrowserThemeColorViewportItems,
 } from '@/lib/partner-website/template/partner-website-theme-tokens'
@@ -116,12 +120,20 @@ export default async function PartnerSiteSlugLayout({
           }}
         />
         {nativeNavSlug ? (
-          <script
-            id={PARTNER_SITE_NATIVE_NAV_SCRIPT_ID}
-            dangerouslySetInnerHTML={{
-              __html: buildPartnerSiteNativeNavigationScript(nativeNavSlug),
-            }}
-          />
+          <>
+            <script
+              id={PARTNER_SITE_NATIVE_NAV_SCRIPT_ID}
+              dangerouslySetInnerHTML={{
+                __html: buildPartnerSiteNativeNavigationScript(nativeNavSlug),
+              }}
+            />
+            <script
+              id={PW_IMAGE_SEARCH_BOOT_SCRIPT_ID}
+              dangerouslySetInnerHTML={{
+                __html: buildPartnerSiteImageSearchPageBootScript(nativeNavSlug),
+              }}
+            />
+          </>
         ) : null}
         {name ? <meta name="apple-mobile-web-app-title" content={name} /> : null}
         {icon180 ? <link rel="apple-touch-icon" href={icon180} /> : null}

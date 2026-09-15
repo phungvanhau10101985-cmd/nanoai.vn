@@ -38,6 +38,9 @@ import {
 const PW_MOBILE_SEARCH_COMPOSE_CSS = `
 .pw-mobile-search{position:fixed;inset:0;z-index:100000;display:flex;flex-direction:column;background:#f9fafb;color:var(--pw-text,#111);font-family:var(--pw-font-ui),system-ui,sans-serif}
 .pw-mobile-search-head{flex:0 0 auto;background:#fff;padding-top:env(safe-area-inset-top,0px);border-bottom:1px solid #f3f4f6}
+.pw-mobile-search-head>.pw-search-image-btn,
+.pw-mobile-search-head>.pw-shop-search-image,
+.pw-mobile-search-head>[data-pw-image-search]{display:none!important}
 .pw-mobile-search-form{display:flex;align-items:center;gap:6px;padding:10px 12px;touch-action:manipulation;max-width:48rem;margin:0 auto;width:100%;box-sizing:border-box}
 @media (min-width:768px){.pw-mobile-search-form{padding:12px 16px}}
 .pw-mobile-search-back,.pw-mobile-search-camera,.pw-mobile-search-go{flex:0 0 auto;min-width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:0;cursor:pointer}
@@ -267,7 +270,7 @@ export function PartnerSiteMobileSearchClient({
   const imageHref = partnerSiteImageSearchPath(siteSlug, { customDomain })
   const placeholder = t.searchComposePlaceholder.replace('{shop}', shopTitle || '')
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     try {
       const q = new URLSearchParams(window.location.search).get('q') || ''
       if (q) setSearchTerm(q)
@@ -357,11 +360,11 @@ export function PartnerSiteMobileSearchClient({
     }
   }, [historyApi, historyLs, readLocalHistory, t.searchHistoryLoadError])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     void loadHistory()
   }, [loadHistory])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false
     void fetchJson(partnerSiteSearchSuggestionsApiPath(siteSlug)).then((json) => {
       if (cancelled) return
@@ -384,7 +387,7 @@ export function PartnerSiteMobileSearchClient({
     }
   }, [siteSlug, historyLoggedIn])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false
     void fetchJson(partnerSiteCategoriesApiPath(siteSlug)).then((json) => {
       if (cancelled) return
@@ -395,7 +398,7 @@ export function PartnerSiteMobileSearchClient({
     }
   }, [siteSlug])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false
     setSuggestLoading(true)
     setSuggestError(null)

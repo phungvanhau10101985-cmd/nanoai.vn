@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import { createPortal } from 'react-dom'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from 'react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import {
@@ -24,6 +24,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { PartnerSiteListingProductCard } from '@/components/partner-website/shop/partner-site-listing-product-card'
+import { PW_SHOP_SOFT_NAV_EVENT } from '@/components/partner-website/shop/partner-site-soft-nav-relay'
 import { PW_LISTING_FILTER_SLOT_ATTR } from '@/lib/partner-website/shop/listing-head'
 
 type Props = {
@@ -40,6 +41,8 @@ type Props = {
     colors: Array<{ value: string; count: number }>
     styleTags?: Array<{ value: string; count: number }>
   }
+  /** SSR listing so this client does not need `useSearchParams` (Suspense stall). */
+  initialListing?: PartnerCategoryListingQuery
 }
 
 function listingHref(
@@ -69,22 +72,22 @@ export function PartnerSiteCategoryProductsClient({
   initialTotal,
   priceRange,
   initialFacets,
+  initialListing,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const { tracking } = usePartnerSiteShop()
   const router = useRouter()
   const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const [isPending, startTransition] = useTransition()
   const isTextSearch = Boolean(searchQuery?.trim())
   const defaultSort: PartnerCategoryListingSort = isTextSearch ? 'random' : 'newest'
   const listingExtras = useMemo(
     () => ({ searchQ: searchQuery?.trim() || undefined, defaultSort }),
     [defaultSort, searchQuery]
   )
-  const listing = useMemo(
-    () => parsePartnerCategoryListingFromSearchParams(searchParams, { defaultSort }),
-    [defaultSort, searchParams]
+  const [listing, setListing] = useState<PartnerCategoryListingQuery>(
+    () =>
+      initialListing ??
+      parsePartnerCategoryListingFromSearchParams(new URLSearchParams(), { defaultSort })
   )
 
   const [products, setProducts] = useState(initialProducts)
@@ -97,7 +100,48 @@ export function PartnerSiteCategoryProductsClient({
   const [facetStyleTags, setFacetStyleTags] = useState(initialFacets?.styleTags ?? [])
   const hasInitialFacets = initialFacets !== undefined
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const applySearch = (search: string) => {
+      setListing((prev) => {
+        const next = parsePartnerCategoryListingFromSearchParams(new URLSearchParams(search), {
+          defaultSort,
+        })
+        if (
+          prev.page === next.page &&
+          prev.sort === next.sort &&
+          prev.minPrice === next.minPrice &&
+          prev.maxPrice === next.maxPrice &&
+          prev.size === next.size &&
+          prev.color === next.color &&
+          prev.styleTag === next.styleTag &&
+          prev.randomSeed === next.randomSeed
+        ) {
+          return prev
+        }
+        return next
+      })
+    }
+    const onPop = () => applySearch(window.location.search)
+    const onSoftNav = (ev: Event) => {
+      const href = (ev as CustomEvent<{ href?: string }>).detail?.href
+      if (!href) return
+      try {
+        const url = new URL(href, window.location.href)
+        if (url.pathname !== window.location.pathname) return
+        applySearch(url.search)
+      } catch {
+        /* ignore */
+      }
+    }
+    window.addEventListener('popstate', onPop)
+    window.addEventListener(PW_SHOP_SOFT_NAV_EVENT, onSoftNav)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      window.removeEventListener(PW_SHOP_SOFT_NAV_EVENT, onSoftNav)
+    }
+  }, [defaultSort])
+
+  useLayoutEffect(() => {
     setMinLocal(listing.minPrice != null ? String(listing.minPrice) : '')
     setMaxLocal(listing.maxPrice != null ? String(listing.maxPrice) : '')
   }, [listing.minPrice, listing.maxPrice])
@@ -113,11 +157,11 @@ export function PartnerSiteCategoryProductsClient({
   const pushListing = useCallback(
     (next: Partial<PartnerCategoryListingQuery>) => {
       const dest = listingHref(pathname, { ...listing, page: 1, ...next }, listingExtras)
-      startTransition(() => {
-        router.push(dest, { scroll: false })
-      })
+      const qs = dest.includes('?') ? dest.slice(dest.indexOf('?') + 1) : ''
+      setListing(parsePartnerCategoryListingFromSearchParams(new URLSearchParams(qs), { defaultSort }))
+      router.push(dest, { scroll: false })
     },
-    [listing, listingExtras, pathname, router]
+    [defaultSort, listing, listingExtras, pathname, router]
   )
 
   const skipInitialFetch = useMemo(
@@ -133,7 +177,7 @@ export function PartnerSiteCategoryProductsClient({
   )
   const skippedRef = useRef(skipInitialFetch)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const params = new URLSearchParams()
     if (isTextSearch && searchQuery) params.set('q', searchQuery)
     else if (categoryId) params.set('categoryId', categoryId)
@@ -232,7 +276,7 @@ export function PartnerSiteCategoryProductsClient({
           data-pw-react-filters="1"
           data-pw-region={PW_REGION.filters}
           aria-label={t.categoryFiltersAria}
-          aria-busy={isPending || loading || undefined}
+          aria-busy={loading || undefined}
         >
           {facetSizes.length > 0 ? (
             <label>
@@ -343,13 +387,14 @@ export function PartnerSiteCategoryProductsClient({
             <button
               type="button"
               className="pw-shop-filter-clear"
-              onClick={() =>
-                startTransition(() =>
-                  router.push(listingHref(pathname, { page: 1, sort: defaultSort }, listingExtras), {
-                    scroll: false,
-                  })
+              onClick={() => {
+                const dest = listingHref(pathname, { page: 1, sort: defaultSort }, listingExtras)
+                const qs = dest.includes('?') ? dest.slice(dest.indexOf('?') + 1) : ''
+                setListing(
+                  parsePartnerCategoryListingFromSearchParams(new URLSearchParams(qs), { defaultSort })
                 )
-              }
+                router.push(dest, { scroll: false })
+              }}
             >
               {t.categoryFilterClear}
             </button>
@@ -362,7 +407,7 @@ export function PartnerSiteCategoryProductsClient({
       {filterSlot && filterBar ? createPortal(filterBar, filterSlot) : filterBar}
 
       <section data-pw-region={PW_REGION.catalog} data-pw-catalog>
-        {loading || isPending ? (
+        {loading ? (
           <div className="pw-shop-grid" data-pw-el={PW_EL.grid} data-pw-grid aria-hidden>
             {Array.from({ length: 8 }).map((_, i) => (
               <article key={i} className="pw-shop-card" style={{ minHeight: 220, background: 'var(--pw-surface)' }} />
