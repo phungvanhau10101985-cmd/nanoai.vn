@@ -102,7 +102,7 @@ test('chrome widget picker lists every shop destination once', () => {
   assert.deepEqual(VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS[0]?.kinds, kinds)
 })
 
-test('form sections are gap-only adds, not toolbar Thêm', () => {
+test('form sections are gap-only adds, not floating canvas widgets', () => {
   assert.equal(isGapOnlyChromeAddKind('lead-form'), true)
   assert.equal(isGapOnlyChromeAddKind('coupon'), true)
   assert.equal(isGapOnlyChromeAddKind('stores'), false)

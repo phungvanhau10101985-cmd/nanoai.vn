@@ -3506,6 +3506,19 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (own === 'pdp-info') return true
     return false
   }
+  function isTrustBarHost(el) {
+    if (!el || el.nodeType !== 1) return false
+    if (el.getAttribute && el.getAttribute('data-pw-trust-bar') === '1') return true
+    var cls = clsOf(el)
+    return cls.indexOf('pw-marketplace-trust') >= 0 && cls.indexOf('pw-marketplace-trust-item') < 0
+  }
+  function isTrustBarLeaf(el) {
+    if (!el || el.nodeType !== 1) return false
+    if (el.getAttribute && el.getAttribute('data-pw-trust-item') === '1') return true
+    var cls = clsOf(el)
+    if (cls.indexOf('pw-marketplace-trust-item') >= 0) return true
+    return !!(el.closest && el.closest('[data-pw-trust-bar="1"], .pw-marketplace-trust'))
+  }
   function isChromeBgHost(el) {
     if (!el || el.nodeType !== 1) return false
     if (isAddedBg(el)) return true
@@ -6454,7 +6467,9 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if ((el.getAttribute('data-pw-catalog') != null) || (el.getAttribute('data-pw-grid') != null)) return true
     var cls = clsOf(el)
     if (cls.indexOf('pw-section-title') >= 0 || cls.indexOf('pw-section-more') >= 0) return true
-    if (/(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories)(?:\s|$)/.test(cls)) return true
+    if (/(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories|pw-marketplace-trust)(?:\s|$)/.test(cls)) return true
+    if (el.getAttribute('data-pw-trust-bar') === '1' || el.getAttribute('data-pw-trust-item') === '1') return true
+    if (el.closest && el.closest('[data-pw-trust-bar="1"],.pw-marketplace-trust')) return true
     return !!(el.closest && el.closest('[data-pw-region="catalog"],[data-pw-catalog]'))
   }
   function isInFlowStackHost(el) {
@@ -6465,14 +6480,48 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (isInFlowAddedSlot(el) || el.getAttribute('data-pw-added-banner') === '1') return true
     var region = ownPwRegion(el)
     if (region === 'banner' || region === 'categories' || region === 'catalog' || region === 'promo') return true
+    if (el.getAttribute('data-pw-trust-bar') === '1') return true
     var cls = clsOf(el)
-    return /(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories)(?:\s|$)/.test(cls)
+    return /(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories|pw-marketplace-trust)(?:\s|$)/.test(cls) && cls.indexOf('pw-marketplace-trust-item') < 0
   }
   function reflowInFlowStackHosts() {
     var root = canonicalSceneRoot() || visibleVisualRoot()
     if (!root || !root.querySelectorAll) return
-    var nodes = root.querySelectorAll('[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="catalog"],[data-pw-region="promo"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-featured-categories],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-categories')
+    var nodes = root.querySelectorAll('[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="catalog"],[data-pw-region="promo"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-featured-categories],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-categories,[data-pw-trust-bar="1"],.pw-marketplace-trust,[data-pw-trust-item],.pw-marketplace-trust-item,[data-pw-trust-bar="1"] [data-pw-el],.pw-marketplace-trust [data-pw-el]')
     for (var i = 0; i < nodes.length; i++) releaseInFlowCatalogChrome(nodes[i])
+    try { unwrapTrustHrow(root) } catch (errTrustHrow) {}
+  }
+  function unwrapTrustHrow(root) {
+    if (!root || !root.querySelectorAll) return
+    var hosts = root.querySelectorAll('[data-pw-trust-bar="1"],.pw-marketplace-trust')
+    for (var ti = 0; ti < hosts.length; ti++) {
+      var host = hosts[ti]
+      try { host.removeAttribute('data-pw-hrow') } catch (errH) {}
+      if (host.style) {
+        try { host.style.removeProperty('display') } catch (errDisp) {}
+        try { host.style.removeProperty('flex-direction') } catch (errFlex) {}
+        try { host.style.removeProperty('transform') } catch (errTf) {}
+      }
+      var parent = host.parentNode
+      if (parent && isHrow(parent)) {
+        var row = parent
+        var rowParent = row.parentNode
+        if (rowParent) {
+          try { rowParent.insertBefore(host, row) } catch (errUn) {}
+          if (!hrowCells(row).length && row.parentNode) {
+            try { row.parentNode.removeChild(row) } catch (errRm) {}
+          }
+        }
+      }
+      var innerRows = host.querySelectorAll('[data-pw-hrow="1"]')
+      for (var r = innerRows.length - 1; r >= 0; r--) {
+        var wrap = innerRows[r]
+        var wp = wrap.parentNode
+        if (!wp) continue
+        while (wrap.firstChild) wp.insertBefore(wrap.firstChild, wrap)
+        try { wp.removeChild(wrap) } catch (errWrap) {}
+      }
+    }
   }
   function releaseInFlowCatalogChrome(el) {
     if (!el || !el.getAttribute || !isInFlowCatalogChrome(el)) return
@@ -6495,7 +6544,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function releaseInFlowCatalogChromeAll() {
     var root = visibleVisualRoot() || document
     if (!root.querySelectorAll) return
-    var nodes = root.querySelectorAll('[data-pw-el="section-title"],[data-pw-el="section-more"],.pw-section-title,.pw-section-more,[data-pw-region="catalog"],[data-pw-catalog],[data-pw-grid],[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="promo"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-featured-categories],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-categories')
+    var nodes = root.querySelectorAll('[data-pw-el="section-title"],[data-pw-el="section-more"],.pw-section-title,.pw-section-more,[data-pw-region="catalog"],[data-pw-catalog],[data-pw-grid],[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="promo"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-featured-categories],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-categories,[data-pw-trust-bar="1"],.pw-marketplace-trust,[data-pw-trust-item],.pw-marketplace-trust-item,[data-pw-trust-bar="1"] [data-pw-el],.pw-marketplace-trust [data-pw-el]')
     for (var i = 0; i < nodes.length; i++) releaseInFlowCatalogChrome(nodes[i])
     try { reflowInFlowStackHosts() } catch (errReflow) {}
   }
@@ -8627,7 +8676,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function focusExistingChrome(el, kind) {
     if (!el) return
-    parkChromeAtViewportCenter(el, kind)
+    selectEl(el)
   }
   function bringExistingChromeToCenter(kind) {
     var el = findExistingChrome(kind)
@@ -9380,23 +9429,27 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     }
     if (node.setAttribute) node.setAttribute('data-pw-device', pwStampDevice())
     if (isMidCanvasFlowChromeKind(k)) {
-      if (node.setAttribute) node.setAttribute('data-pw-chrome-added', '1')
-      insertMidChromeOnTop(node)
-      sizeChromeIcons(node)
-      pinChromeIconBadges(node)
-      if (k === 'chat') applyChatLogoToChromeBtn(node, chatPrepLogoUrl)
-      try { pwApplyDemoChromeCountBadges(document) } catch (errDemoMid) {}
-      if (hasInsertAnchor() && insertInFlowAtAnchor(node)) {
-        liftLooseElToSceneHost(node)
+      if (!hasInsertAnchor()) {
         consumeInsertAnchor()
-      } else {
-        parkChromeAtViewportCenter(node, k)
+        return
       }
-      writeSceneIndex(node, SCENE.maxIndex)
-      stripMidCanvasToggles(node)
-      try { document.dispatchEvent(new CustomEvent('pw-cart-updated')) } catch (errMidCart) {}
-      selectEl(node)
-      post('dirty', {})
+      if (node.setAttribute) node.setAttribute('data-pw-chrome-added', '1')
+      var midSlot = wrapInFlowSlot(node, 'data-pw-added-chrome-slot')
+      midSlot.style.display = 'flex'
+      midSlot.style.justifyContent = 'center'
+      midSlot.style.alignItems = 'center'
+      if (insertInFlowAtAnchor(midSlot)) {
+        sizeChromeIcons(node)
+        pinChromeIconBadges(node)
+        if (k === 'chat') applyChatLogoToChromeBtn(node, chatPrepLogoUrl)
+        try { pwApplyDemoChromeCountBadges(document) } catch (errDemoMid) {}
+        writeSceneIndex(node, SCENE.defaultIndex)
+        stripMidCanvasToggles(node)
+        try { document.dispatchEvent(new CustomEvent('pw-cart-updated')) } catch (errMidCart) {}
+        selectEl(node)
+        post('dirty', {})
+      }
+      consumeInsertAnchor()
       return
     }
     if (isChromeFloatKind(k)) {
@@ -9443,30 +9496,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         return
       }
     }
-    if (!hostEl) hostEl = canonicalSceneRoot()
-    ensureOverlayHost(hostEl)
-    if (node.setAttribute) {
-      node.setAttribute('data-pw-chrome-added', '1')
-      node.setAttribute('data-pw-device', pwStampDevice())
-    }
-    hostEl.appendChild(node)
-    sizeChromeIcons(node)
-    pinChromeIconBadges(node)
-    if (k === 'search') {
-      ensureSearchSubmitIcon(node)
-      ensureSearchImageIcon(node)
-      ensureSearchDefaultIcon(node)
-      lockSearchBox(node, defaultSearchBoxWidth())
-      try { ensureSearchVisible() } catch (errSearchSeat) {}
-    }
-    if (k === 'chat') applyChatLogoToChromeBtn(node, chatPrepLogoUrl)
-    try { pwApplyDemoChromeCountBadges(document) } catch (errDemoBtn) {}
-    parkChromeAtViewportCenter(node, k)
-    writeSceneIndex(node, SCENE.defaultIndex)
-    stripMidCanvasToggles(node)
-    liftLooseElToSceneHost(node)
-    applySceneToLooseChrome(node)
-    try { document.dispatchEvent(new CustomEvent('pw-cart-updated')) } catch (err) {}
+    consumeInsertAnchor()
   }
   function isShown(el) {
     if (!el) return false
@@ -9604,6 +9634,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function ensureHrowAround(unit) {
     if (!unit || !unit.parentNode) return null
+    if (isTrustBarHost(unit) || isTrustBarLeaf(unit)) return null
     if (isHrow(unit.parentNode)) return unit.parentNode
     var row = document.createElement('div')
     styleHrow(row)
@@ -9840,18 +9871,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     for (var i = 0; i < nodes.length; i++) {
       var el = nodes[i]
       if (!isMidCanvasFlowChromeEl(el)) continue
-      unwrapChromeSlot(el)
-      try { el.removeAttribute('data-pw-device') } catch (errDevPin) {}
-      writeSceneIndex(el, SCENE.maxIndex)
+      if (el.closest && el.closest('[data-pw-added-chrome-slot="1"]')) continue
       stripMidCanvasToggles(el)
-      if (el.getAttribute && el.getAttribute('data-pw-placement') === 'scene-absolute') {
-        var sceneHost = canonicalSceneRoot()
-        if (el.parentNode !== sceneHost && el.closest && el.closest('[data-pw-region="catalog"],[data-pw-catalog],[data-pw-hrow="1"]')) {
-          continue
-        }
-        liftLooseElToSceneHost(el)
-        applyCanonicalPlacement(el)
-      }
     }
   }
   function resolveGapUnit(el) {
@@ -10767,26 +10788,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         return
       }
     }
-    var host = insertTextHost()
-    if (!host) return
-    var node = document.createElement('p')
-    node.setAttribute('data-pw-added-text', '1')
-    node.setAttribute('data-pw-edit', '1')
-    node.textContent = label
-    node.style.display = 'inline-block'
-    node.style.width = 'auto'
-    node.style.maxWidth = '100%'
-    node.style.margin = '0'
-    node.style.padding = '0'
-    node.style.fontSize = '22px'
-    node.style.fontWeight = '700'
-    node.style.lineHeight = '1.25'
-    node.style.whiteSpace = 'nowrap'
-    node.style.color = 'inherit'
-    placeOverlayText(node, host)
-    pinKindLockedScene(node)
-    selectEl(node)
-    post('dirty', {})
+    consumeInsertAnchor()
   }
   function insertArticleImage(url) {
     var src = String(url || '').trim()
@@ -10854,12 +10856,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         return
       }
     }
-    var host = insertTextHost()
-    if (!host) return
-    placeOverlayText(fig, host)
-    pinKindLockedScene(fig)
-    selectEl(fig)
-    post('dirty', {})
+    consumeInsertAnchor()
   }
   function youtubeEmbedSrc(raw) {
     var url = String(raw || '').trim()
@@ -10913,12 +10910,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         return
       }
     }
-    var host = insertTextHost()
-    if (!host) return
-    placeOverlayText(wrap, host)
-    pinKindLockedScene(wrap)
-    selectEl(wrap)
-    post('dirty', {})
+    consumeInsertAnchor()
   }
   function isTinyBannerHost(el) {
     var cls = clsOf(el)
@@ -12401,18 +12393,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (isChromeFloatEl(selected)) return
     var translatedTarget = null
     if (isLogoTarget(selected)) {
-      if (isInHeader(selected)) return
-      var frameTarget = logoMoveEl(selected) || selected
-      ensureDragDisplay(frameTarget)
-      var fp = parseTransform(frameTarget)
-      clampTranslateToViewport(frameTarget, fp.x + dx, fp.y + dy)
-      translatedTarget = frameTarget
-    } else if (isBannerContentEl(selected) || isMoveBlockEl(selected) || isTextEl(selected) || isBtnEl(selected)) {
-      var contentTarget = selected
-      ensureDragDisplay(contentTarget)
-      var cp = parseTransform(contentTarget)
-      clampTranslateToViewport(contentTarget, cp.x + dx, cp.y + dy)
-      translatedTarget = contentTarget
+      var panImgN = logoImgOf(selected) || (isLogoImg(selected) ? selected : null)
+      if (!logoCanPan(panImgN) || !panImgN) return
+      var pan0n = parseLogoPan(panImgN)
+      applyLogoPan(panImgN, pan0n.x + dx, pan0n.y + dy)
     } else if (isFillImageHost(selected) && !isAddedBg(selected)) {
       var paperHostN = fillHostOf(selected) || selected
       var prPaperN = paperHostN.getBoundingClientRect()
@@ -12444,16 +12428,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       var py = Math.max(0, Math.min(100, cy - (dy / Math.max(1, pr.height)) * 80))
       panBannerPhoto(panHost, px, py)
     } else {
-      var target = searchMoveEl(selected) || logoMoveEl(selected) || selected
-      ensureDragDisplay(target)
-      var p = parseTransform(target)
-      if (isAddedBg(target)) {
-        applyTranslatePx(target, p.x + dx, p.y + dy)
-        growCanvasForAbsEl(target)
-      } else {
-        clampTranslateToViewport(target, p.x + dx, p.y + dy)
-      }
-      translatedTarget = target
+      return
     }
     if (translatedTarget) {
       markUserMoved(translatedTarget)
@@ -12704,18 +12679,28 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       ensureLogoHomeLink(unit)
     }
   }
+  function canTranslateEl(el) {
+    return false
+  }
+  function canPanEl(el) {
+    if (!el || el.nodeType !== 1) return false
+    if (isTrustBarHost(el) || isTrustBarLeaf(el)) return false
+    if (isLockedHeadDockChrome(el) || isLockedFooterStockEl(el)) return false
+    if (isLogoTarget(el) || isLogoImg(el) || isLogoFrame(el) || isLogoSlot(el)) {
+      var zImg = logoImgOf(el) || (isLogoImg(el) ? el : null)
+      return !!(typeof logoCanPan === 'function' && logoCanPan(zImg))
+    }
+    if (isFillImageHost(el) && !isAddedBg(el)) return true
+    if (typeof isBannerPhotoTarget === 'function' && isBannerPhotoTarget(el)) return true
+    if (isBgLayerEl(el) && !isImgEl(el)) return true
+    return false
+  }
   function canDragEl(el) {
     if (!el || el === document.body || el === document.documentElement) return false
     if (isLockedHeadDockChrome(el)) return false
     if (isLockedFooterStockEl(el)) return false
     if (chatEmbedLauncherOf(el)) return false
-    if (isFooterAddedEl(el) || (isInFooter(el) && (isAddedText(el) || isAddedBtn(el) || isAddedChrome(el)))) {
-      return !!(isLogoTarget(el) || isLogoImg(el) || isLogoFrame(el) || isLogoSlot(el))
-    }
-    if (isOverlayNode(el) || isInFlowCatalogChrome(el) || (isLockedCatalogEl(el) && !productActionChromeOf(el)) || (isProductCardEl(el) && !productActionChromeOf(el))) return false
-    if (isFillImageHost(el) && !isAddedBg(el)) return true
-    if (isChromeBgHost(el) || isShopRegionHost(el)) return true
-    return isAddedBg(el) || isAddedText(el) || isImgEl(el) || isLogoFrame(el) || isLogoTarget(el) || isBtnEl(el) || isTextEl(el) || isChromeBtn(el) || isHeaderWidget(el) || isSearchEl(el) || isContentBlockEl(el) || isBgImageEl(el) || isMoveBlockEl(el) || isBgLayerEl(el) || isBannerHostEl(el)
+    return canPanEl(el)
   }
   function canDeleteEl(el) {
     if (!el || el === document.body || el === document.documentElement) return false
@@ -13387,7 +13372,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       ? (layerMode === 'image' ? bannerLayerTarget(bannerHost, 'image') : bannerHost)
       : (layerMode === 'image'
         ? (ensureImageLayer(block) || imageTargetOf(block) || block)
-        : (ensureMoveBlock(block) || block))
+        : ((canTranslateEl(block) ? ensureMoveBlock(block) : null) || block))
     selectEl(target)
   }
   function ensureLayerSwitch(block) {
@@ -14008,6 +13993,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function snapSelected() {
     if (!selected) return
+    if (!canTranslateEl(selected)) return
     if (isChromeFloatEl(selected) || isPinScreenOn(selected)) return
     var target = logoMoveEl(selected) || selected
     var r = target.getBoundingClientRect()
@@ -14031,8 +14017,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       }
     }
     if (dx || dy) {
-      var p = parseTransform(target)
-      clampTranslateToViewport(target, p.x + dx, p.y + dy)
+      var snapT = parseTransform(target)
+      clampTranslateToViewport(target, snapT.x + dx, snapT.y + dy)
     }
   }
   function positionAlignGuides() {
@@ -14121,7 +14107,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         }
       } else {
         var hostDrag = isContentBlockEl(selected) ? selected : findContentBlockEl(selected)
-        if (hostDrag && canImageLayer(hostDrag) && !isBannerHostEl(hostDrag)) {
+        if (hostDrag && canTranslateEl(hostDrag) && canImageLayer(hostDrag) && !isBannerHostEl(hostDrag)) {
           var moveNow = isMoveBlockEl(selected) ? selected : ensureMoveBlock(hostDrag)
           if (moveNow) selected = moveNow
         }
@@ -14186,7 +14172,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function showMoveHandle(el) {
     hideMoveHandle()
-    if (!el || !canDragEl(el)) return
+    if (!el || !canTranslateEl(el)) return
     if (isLogoTarget(el) && (isInHeader(el) || isInFooter(el))) return
     var h = document.createElement('button')
     h.type = 'button'
@@ -14614,6 +14600,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   function clusterChildAtPoint(cluster, x, y) {
     if (!cluster || !cluster.querySelectorAll || !isFinite(x) || !isFinite(y)) return null
+    if (isTrustBarHost(cluster) || (cluster.closest && cluster.closest('[data-pw-trust-bar="1"],.pw-marketplace-trust'))) {
+      var trustItems = cluster.querySelectorAll('[data-pw-trust-item="1"],.pw-marketplace-trust-item')
+      for (var ti = 0; ti < trustItems.length; ti++) {
+        if (pointInEl(trustItems[ti], x, y)) return trustItems[ti]
+      }
+      return null
+    }
     var header = cluster.closest ? cluster.closest('header, .pw-header, .pw-shop-header') : null
     var scope = header || cluster
     var kids = scope.querySelectorAll('[data-pw-added-text],[data-pw-added-btn],[data-pw-el="title"],[data-pw-el="subtitle"],h1,h2,h3,p,img.pw-logo, img.pw-shop-logo, [data-pw-el="logo"], [data-pw-el="wordmark"], [data-pw-logo-added], [data-pw-logo-float], .pw-logo-frame, [data-pw-logo-frame], .pw-wordmark, [data-pw-el="cat-toggle"], [data-pw-cat-toggle], .pw-cat-btn, .pw-shop-cat-btn, a.pw-brand, a.pw-shop-brand, a[data-pw-logo-home], svg, [data-pw-el="search"], .pw-header-search, .pw-shop-search-wrap, [data-pw-el="account"], .pw-account-btn, [data-pw-account-toggle], [data-pw-el="cart"], [data-pw-chrome-btn], [data-pw-chrome-added], .pw-icon-btn, .pw-shop-icon-btn, .pw-search-submit, .pw-shop-search-submit, [data-pw-image-search], .pw-search-image-btn')
@@ -14815,7 +14808,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     while (walk && walk !== document.body) {
       if (looksLikeBannerHost(walk) || canImageLayer(walk)) {
         ensureImageLayer(walk)
-        ensureMoveBlock(walk)
+        if (canTranslateEl(walk)) ensureMoveBlock(walk)
         return ensureImageLayer(walk) || imageTargetOf(walk) || walk
       }
       if (isContentBlockEl(walk)) return walk
@@ -14835,7 +14828,12 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (cat) return cat
       if (isLogoFrame(n) || isLogoImg(n) || (n.getAttribute && n.getAttribute('data-pw-logo-added') === '1')) return logoImgOf(n) || n
       var role = pwElOf(n)
-      if (role === 'nav-link' || role === 'link' || role === 'crumb' || role === 'logo' || role === 'wordmark' || role === 'cat-toggle' || role === 'title' || role === 'subtitle' || role === 'cta' || role === 'cta-secondary' || role === 'badge' || role === 'search' || role === 'account' || role === 'cart') return n
+      if (role === 'nav-link' || role === 'link' || role === 'crumb' || role === 'logo' || role === 'wordmark' || role === 'cat-toggle' || role === 'title' || role === 'subtitle' || role === 'cta' || role === 'cta-secondary' || role === 'badge' || role === 'search' || role === 'account' || role === 'cart') {
+        if ((role === 'title' || role === 'subtitle') && isTrustBarLeaf(n)) {
+          return n.closest('[data-pw-trust-item="1"],.pw-marketplace-trust-item') || n
+        }
+        return n
+      }
       if (n.tagName && n.tagName.toLowerCase() === 'a' && n.closest && n.closest('.pw-nav-main, .pw-shop-nav-row, .pw-topbar, .pw-shop-topbar, .pw-cat-panel, .pw-shop-cat-panel')) return n
       if (isHeaderWidget(n) || isChromeBtn(n) || isSearchEl(n) || isTextEl(n) || isBtnEl(n) || isImgEl(n)) return n
       n = n.parentElement
@@ -14992,6 +14990,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
         }
       } else {
         var dragHost = isContentBlockEl(selected) ? selected : findContentBlockEl(selected)
+        if (!canTranslateEl(selected) && !canTranslateEl(dragHost)) return
         var movePick = isMoveBlockEl(selected) ? selected : (dragHost ? ensureMoveBlock(dragHost) : null)
         if (movePick && (found === movePick || movePick.contains(found) || found === selected || (selected.contains && selected.contains(found)))) {
           selected = movePick
@@ -15288,6 +15287,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     } else if (logoDrag === 'logo-slot') {
       applyChromeLogoOffset(isInFooter(selected) ? 'footer' : 'header', drag.baseX + dx2, drag.baseY + dy)
     } else if (logoDrag === 'logo-box') {
+      if (!canTranslateEl(selected)) return
       var moveEl = (isInHeader(selected) && headerLogoUnit(selected)) || logoMoveEl(selected) || selected
       moveEl.style.transform = 'translate(' + (drag.baseX + dx2) + 'px,' + (drag.baseY + dy) + 'px)'
       clampTranslateToViewport(moveEl, drag.baseX + dx2, drag.baseY + dy)
@@ -15311,6 +15311,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       var py2 = Math.max(0, Math.min(100, drag.baseY - (dy / span2) * 80))
       applyBannerPhoto(panHost2, parseBannerZoom(panHost2), px2, py2)
     } else if (isBannerHostEl(selected) && !isInFlowStackHost(selected)) {
+      if (!canTranslateEl(selected)) return
       clampTranslateToViewport(selected, drag.baseX + dx2, drag.baseY + dy)
       snapSelected()
     } else if (isInFlowStackHost(selected)) {
@@ -15324,6 +15325,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       updateDropTarget(e)
     } else {
       var dragEl = searchMoveEl(selected) || selected
+      if (!canTranslateEl(dragEl)) return
       if (isAddedBg(dragEl)) applyTranslatePx(dragEl, drag.baseX + dx2, drag.baseY + dy)
       else clampTranslateToViewport(dragEl, drag.baseX + dx2, drag.baseY + dy)
       snapSelected()

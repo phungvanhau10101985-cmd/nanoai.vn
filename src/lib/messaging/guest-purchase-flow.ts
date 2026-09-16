@@ -104,6 +104,17 @@ export function guestPurchaseOpensExternalUrl(flow: GuestPurchaseFlow): boolean 
   return flow === 'external_site' || flow === 'external_cart_url'
 }
 
+/** Tín hiệu mua trên chat = nút Mua / Thêm giỏ / Đặt hàng. Chat mua, Tư vấn, bấm ảnh thẻ = không. */
+export type GuestChatProductAction = 'buy' | 'add_cart' | 'order' | 'card_click' | 'consult' | 'view_details'
+
+export function guestChatActionOpensExternalPurchase(
+  flow: GuestPurchaseFlow,
+  action: GuestChatProductAction
+): boolean {
+  if (action !== 'buy' && action !== 'add_cart' && action !== 'order') return false
+  return guestPurchaseOpensExternalUrl(flow)
+}
+
 export function buildGuestExternalCartUrl(template: string, sku: string): string | null {
   const t = template.trim()
   const s = sku.trim().slice(0, 128)

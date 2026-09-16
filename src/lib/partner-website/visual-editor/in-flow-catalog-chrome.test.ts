@@ -106,3 +106,25 @@ test('reflow releases leftover absolute but keeps authored DOM order', () => {
   releaseInFlowStackBlock(banner)
   assert.equal(banner.getAttribute('data-pw-box-y'), null)
 })
+
+test('GD03 trust bar and card titles stay in-flow', () => {
+  assert.equal(isInFlowStackBlockAttrs(' data-pw-trust-bar="1" data-pw-region="promo"'), true)
+  assert.equal(isInFlowCatalogChromeAttrs(' class="pw-marketplace-trust-item" data-pw-trust-item="1"'), true)
+  const { document } = parseHTML(`<!doctype html><html><body>
+    <section class="pw-marketplace-trust" data-pw-trust-bar="1" data-pw-region="promo">
+      <div class="pw-marketplace-trust-item" data-pw-trust-item="1" data-pw-placement="scene-absolute" style="position:absolute;left:12px;top:8px">
+        <strong data-pw-el="title" style="transform:translate(40px,0)">Hàng chọn lựa kỹ lưỡng</strong>
+      </div>
+    </section>
+  </body></html>`)
+  const host = document.querySelector('[data-pw-trust-bar="1"]') as HTMLElement
+  const item = document.querySelector('[data-pw-trust-item]') as HTMLElement
+  const title = document.querySelector('[data-pw-el="title"]') as HTMLElement
+  assert.equal(isInFlowStackHostElement(host), true)
+  assert.equal(isInFlowCatalogChromeElement(item), true)
+  assert.equal(isInFlowCatalogChromeElement(title), true)
+  reflowInFlowStackHosts(document.body)
+  assert.equal(item.getAttribute('data-pw-placement'), null)
+  assert.doesNotMatch(item.getAttribute('style') || '', /position:\s*absolute/)
+  assert.doesNotMatch(title.getAttribute('style') || '', /transform/)
+})

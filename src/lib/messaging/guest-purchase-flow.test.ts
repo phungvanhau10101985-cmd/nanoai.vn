@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   buildPartnerShopCartAddUrlTemplate,
   decodePartnerShopCartAddSkuParam,
+  guestChatActionOpensExternalPurchase,
   isGuestCartAddFromNanoAi,
   parseGuestExternalCartUrlTemplate,
   resolveGuestPurchaseButtonUrl,
@@ -31,6 +32,14 @@ test('from=nanoai is the chat return marker', () => {
   assert.equal(isGuestCartAddFromNanoAi('nanoai'), true)
   assert.equal(isGuestCartAddFromNanoAi('NANOAI'), true)
   assert.equal(isGuestCartAddFromNanoAi('web'), false)
+})
+
+test('only Buy / Add to cart leave chat when web-cart mode is on', () => {
+  assert.equal(guestChatActionOpensExternalPurchase('external_cart_url', 'buy'), true)
+  assert.equal(guestChatActionOpensExternalPurchase('external_cart_url', 'add_cart'), true)
+  assert.equal(guestChatActionOpensExternalPurchase('external_cart_url', 'card_click'), false)
+  assert.equal(guestChatActionOpensExternalPurchase('external_cart_url', 'consult'), false)
+  assert.equal(guestChatActionOpensExternalPurchase('in_chat', 'buy'), false)
 })
 
 test('external_cart_url buy button uses template, not PDP', () => {

@@ -116,6 +116,7 @@ import {
   chromeKindShowsCountBadge,
   isChromeContactChatKind,
   isGapOnlyChromeAddKind,
+  isProductHostChromeKind,
   isChromeFloatKind,
   isChromeIconOnlyStyle,
   isVisualEditorChromeWidgetKind,
@@ -3531,6 +3532,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       iconSize: PW_CHROME_ICON_SIZE_DEFAULT,
     })
     if (!html) return
+    if (!isProductHostChromeKind(kind) && !insertAnchorActive) return
     if (isGapOnlyChromeAddKind(kind) && !insertAnchorActive) return
     if (insertAnchorHost === 'footer') return
     const host = chromeWidgetHost(kind)
@@ -3540,7 +3542,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       html,
       host,
       force: Boolean(opts?.force),
-      atCenter: true,
+      atCenter: false,
       useAnchor: insertAnchorActive,
     })
     if (opts?.force) {
@@ -3561,7 +3563,8 @@ export function PartnerWebsiteVisualEditorToolbar({
         html: pending.html,
         host: pending.host,
         force: true,
-        atCenter: true,
+        atCenter: false,
+        useAnchor: insertAnchorActive,
       })
       setDirty(true)
       return
@@ -3576,12 +3579,12 @@ export function PartnerWebsiteVisualEditorToolbar({
     pendingChromeDupRef.current = null
     setChromeDupAskKind(null)
     postToIframe(iframeRef.current, 'bringExistingChromeToCenter', { kind })
-    setDirty(true)
   }
 
   function insertTextBlock() {
     if (insertBgPickPlace) cancelInsertBgPickUi()
     setAddBgAskOpen(false)
+    if (!insertAnchorActive && !isTextArticlePage) return
     postToIframe(iframeRef.current, 'insertText', { useAnchor: insertAnchorActive })
     setDirty(true)
     openBlockPanel()
@@ -4389,7 +4392,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         ? insertAnchorPlace === 'left' || insertAnchorPlace === 'right'
           ? t.visualEditAddAtSide
           : t.visualEditAddAtGap
-        : t.visualEditAddWidget
+        : t.visualEditAddAtGap
       : openPanel === 'chromeKit'
         ? t.visualEditChromeKit
         : openPanel === 'theme'
@@ -4452,28 +4455,6 @@ export function PartnerWebsiteVisualEditorToolbar({
       />
       <div className={cn('flex min-w-0 flex-col', sidebar && 'h-full')}>
         <div className={cn('flex min-w-0 flex-nowrap items-center overflow-x-auto', compact ? 'gap-1' : 'gap-2')}>
-          <Button
-            type="button"
-            size="sm"
-            variant={openPanel === 'add' ? 'default' : 'outline'}
-            className={cn(btn, 'gap-1')}
-            disabled={busy}
-            title={t.visualEditAddWidget}
-            aria-expanded={openPanel === 'add'}
-            onClick={() => {
-              if (openPanel !== 'add') {
-                setInsertAnchorActive(false)
-                setInsertAnchorPlace(null)
-                setInsertAnchorHost(null)
-                postToIframe(iframeRef.current, 'clearInsertAnchor')
-              }
-              setOpenPanel((cur) => (cur === 'add' ? 'block' : 'add'))
-              setPanelPos((pos) => pos || defaultFloatingPanelPos())
-            }}
-          >
-            <Plus className="h-3.5 w-3.5" aria-hidden />
-            {t.visualEditAddWidget}
-          </Button>
           <Button
             type="button"
             size="sm"
@@ -4948,7 +4929,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                       {VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS.filter(
                         (kind) =>
                           !isChromeKitPickerKind(kind) &&
-                          (addAtGap || !isGapOnlyChromeAddKind(kind))
+                          (addAtGap || isProductHostChromeKind(kind))
                       ).map((kind) => {
                         const Icon = isLucideIconComponent(CHROME_WIDGET_ICONS[kind])
                           ? CHROME_WIDGET_ICONS[kind]

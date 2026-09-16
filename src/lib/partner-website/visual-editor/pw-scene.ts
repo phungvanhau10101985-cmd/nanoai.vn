@@ -518,6 +518,8 @@ const STACK_FLOW_HOSTS = [
   '.pw-shop-hero',
   '.pw-shop-banner',
   '.pw-categories',
+  '.pw-marketplace-trust',
+  '[data-pw-trust-bar="1"]',
 ] as const
 
 function stackFlowSel(extra = ''): string {
@@ -576,9 +578,11 @@ export const PARTNER_SHOP_STACK_FLOW_CSS = `
 ${stackFlowSel()}{position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;float:none!important;z-index:1!important}
 ${stackFlowSel('[data-pw-scene]')}{z-index:1!important}
 ${stackFlowSel('[data-pw-placement="scene-absolute"]')}{position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:1!important}
+html .pw-marketplace-trust,html [data-pw-trust-bar="1"]{display:grid!important}
+html [data-pw-trust-item],html .pw-marketplace-trust-item,html [data-pw-trust-bar="1"] [data-pw-el],html .pw-marketplace-trust [data-pw-el]{position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;float:none!important;transform:none!important}
 `.trim()
 
-/** Thêm ở giữa: tách khối mới với phần trên/dưới một chút, không tạo khe lớn. */
+/** Thêm tại khe +: tách khối mới với phần trên/dưới một chút, không tạo khe lớn. */
 export const PW_MID_INSERT_GAP_ATTR = 'data-pw-mid-gap'
 export const PW_MID_INSERT_GAP_PX = 20
 
@@ -886,7 +890,9 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     if(el.getAttribute('data-pw-catalog')!=null||el.getAttribute('data-pw-grid')!=null)return true;
     var cls=String(el.className||'');
     if(cls.indexOf('pw-section-title')>=0||cls.indexOf('pw-section-more')>=0)return true;
-    if(/(?:^|\\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories)(?:\\s|$)/.test(cls))return true;
+    if(/(?:^|\\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories|pw-marketplace-trust)(?:\\s|$)/.test(cls))return true;
+    if(el.getAttribute('data-pw-trust-bar')==='1'||el.getAttribute('data-pw-trust-item')==='1')return true;
+    if(el.closest&&el.closest('[data-pw-trust-bar="1"],.pw-marketplace-trust'))return true;
     return !!(el.closest&&el.closest('[data-pw-region="catalog"],[data-pw-catalog]'));
   }
   function isInFlowStackHost(el){
@@ -894,12 +900,13 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     if(isInFlowSlot(el))return true;
     var region=el.getAttribute('data-pw-region')||'';
     if(region==='banner'||region==='categories'||region==='catalog'||region==='promo')return true;
+    if(el.getAttribute('data-pw-trust-bar')==='1')return true;
     var cls=String(el.className||'');
-    return /(?:^|\\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories)(?:\\s|$)/.test(cls);
+    return /(?:^|\\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories|pw-marketplace-trust)(?:\\s|$)/.test(cls)&&cls.indexOf('pw-marketplace-trust-item')<0;
   }
   function reflowInFlowStackHosts(root){
     if(!root||!root.querySelectorAll)return;
-    var nodes=root.querySelectorAll('[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="catalog"],[data-pw-region="promo"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-categories');
+    var nodes=root.querySelectorAll('[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="catalog"],[data-pw-region="promo"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-categories,[data-pw-trust-bar="1"],.pw-marketplace-trust,[data-pw-trust-item],.pw-marketplace-trust-item,[data-pw-trust-bar="1"] [data-pw-el],.pw-marketplace-trust [data-pw-el]');
     var i;
     for(i=0;i<nodes.length;i++){
       var el=nodes[i];

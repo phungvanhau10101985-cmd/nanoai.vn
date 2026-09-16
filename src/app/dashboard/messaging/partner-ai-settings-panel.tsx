@@ -778,6 +778,98 @@ export function PartnerAiSettingsPanel({
           {showSettingsTab ? (
           <TabsContent value="settings" className="space-y-4 mt-0">
             {!isShippingOnly ? (
+            <div
+              id="messaging-guest-purchase"
+              className="space-y-2 rounded-lg border border-violet-200/60 bg-violet-50/40 p-3 dark:border-violet-900/40 dark:bg-violet-950/20"
+            >
+              <Label htmlFor="ai-guest-purchase-flow">{t.guestPurchaseFlowLabel}</Label>
+              <p className="text-xs text-muted-foreground">{t.guestPurchaseFlowHint}</p>
+              <Select
+                value={form.guest_purchase_flow}
+                onValueChange={(v: string) => {
+                  const flow = normalizeGuestPurchaseFlow(v)
+                  const next = { ...formRef.current, guest_purchase_flow: flow }
+                  formRef.current = next
+                  setForm(next)
+                  const canSaveCartFlow =
+                    flow !== 'external_cart_url' ||
+                    saasShopCart.linked ||
+                    Boolean(parseGuestExternalCartUrlTemplate(next.guest_external_cart_url_template))
+                  /** Web khách ngoài: chờ điền mẫu URL. Shop SaaS / đã có mẫu: lưu ngay — không xóa URL 188. */
+                  if (canSaveCartFlow) {
+                    persistPartial({ guest_purchase_flow: flow })
+                  }
+                }}
+                disabled={pending || !settingsLoaded}
+              >
+                <SelectTrigger id="ai-guest-purchase-flow" className="max-w-md bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="in_chat">{t.guestPurchaseFlowInChat}</SelectItem>
+                  {!saasShopCart.linked || form.guest_purchase_flow === 'external_site' ? (
+                    <SelectItem value="external_site">{t.guestPurchaseFlowExternal}</SelectItem>
+                  ) : null}
+                  <SelectItem value="external_cart_url">{t.guestPurchaseFlowExternalCart}</SelectItem>
+                </SelectContent>
+              </Select>
+              {form.guest_purchase_flow === 'external_cart_url' ? (
+                <div className="space-y-1.5 pt-1">
+                  {guestPurchaseUsesSaasAutoCart({
+                    saasLinked: saasShopCart.linked,
+                    storedTemplate: form.guest_external_cart_url_template,
+                  }) ? (
+                    <>
+                      <p className="text-xs text-muted-foreground">{t.guestPurchaseFlowSaasLinkedHint}</p>
+                      {saasShopCart.autoTemplate ? (
+                        <p className="max-w-xl break-all font-mono text-[11px] text-muted-foreground">
+                          <span className="font-sans text-muted-foreground">{t.guestPurchaseFlowSaasPreviewLabel}: </span>
+                          {saasShopCart.autoTemplate}
+                        </p>
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      {saasShopCart.linked ? null : (
+                        <p className="text-xs text-muted-foreground">{t.guestPurchaseFlowNeedWebsite}</p>
+                      )}
+                      <Label htmlFor="ai-guest-cart-url-template">{t.guestExternalCartUrlTemplateLabel}</Label>
+                      <p className="text-xs text-muted-foreground">{t.guestExternalCartUrlTemplateHint}</p>
+                      <Input
+                        id="ai-guest-cart-url-template"
+                        type="text"
+                        inputMode="url"
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="max-w-xl bg-background font-mono text-xs"
+                        placeholder={t.guestExternalCartUrlTemplatePlaceholder}
+                        value={form.guest_external_cart_url_template}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          setForm((f) => {
+                            const next = { ...f, guest_external_cart_url_template: v }
+                            formRef.current = next
+                            return next
+                          })
+                        }}
+                        onBlur={(e) => {
+                          const tpl = e.target.value.trim()
+                          persistPartial({
+                            guest_purchase_flow: 'external_cart_url',
+                            guest_external_cart_url_template: tpl,
+                          })
+                        }}
+                        disabled={!settingsLoaded}
+                      />
+                      <p className="text-[11px] text-muted-foreground">{t.guestExternalCartUrlTemplateSaveHint}</p>
+                    </>
+                  )}
+                </div>
+              ) : null}
+            </div>
+            ) : null}
+
+            {!isShippingOnly ? (
             <>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -962,93 +1054,6 @@ export function PartnerAiSettingsPanel({
 
             {!isShippingOnly ? (
             <>
-            <div className="space-y-2">
-              <Label htmlFor="ai-guest-purchase-flow">{t.guestPurchaseFlowLabel}</Label>
-              <p className="text-xs text-muted-foreground">{t.guestPurchaseFlowHint}</p>
-              <Select
-                value={form.guest_purchase_flow}
-                onValueChange={(v: string) => {
-                  const flow = normalizeGuestPurchaseFlow(v)
-                  const next = { ...formRef.current, guest_purchase_flow: flow }
-                  formRef.current = next
-                  setForm(next)
-                  const canSaveCartFlow =
-                    flow !== 'external_cart_url' ||
-                    saasShopCart.linked ||
-                    Boolean(parseGuestExternalCartUrlTemplate(next.guest_external_cart_url_template))
-                  /** Web khách ngoài: chờ điền mẫu URL. Shop SaaS / đã có mẫu: lưu ngay — không xóa URL 188. */
-                  if (canSaveCartFlow) {
-                    persistPartial({ guest_purchase_flow: flow })
-                  }
-                }}
-                disabled={pending || !settingsLoaded}
-              >
-                <SelectTrigger id="ai-guest-purchase-flow" className="max-w-md">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="in_chat">{t.guestPurchaseFlowInChat}</SelectItem>
-                  {!saasShopCart.linked || form.guest_purchase_flow === 'external_site' ? (
-                    <SelectItem value="external_site">{t.guestPurchaseFlowExternal}</SelectItem>
-                  ) : null}
-                  <SelectItem value="external_cart_url">{t.guestPurchaseFlowExternalCart}</SelectItem>
-                </SelectContent>
-              </Select>
-              {form.guest_purchase_flow === 'external_cart_url' ? (
-                <div className="space-y-1.5 pt-1">
-                  {guestPurchaseUsesSaasAutoCart({
-                    saasLinked: saasShopCart.linked,
-                    storedTemplate: form.guest_external_cart_url_template,
-                  }) ? (
-                    <>
-                      <p className="text-xs text-muted-foreground">{t.guestPurchaseFlowSaasLinkedHint}</p>
-                      {saasShopCart.autoTemplate ? (
-                        <p className="max-w-xl break-all font-mono text-[11px] text-muted-foreground">
-                          <span className="font-sans text-muted-foreground">{t.guestPurchaseFlowSaasPreviewLabel}: </span>
-                          {saasShopCart.autoTemplate}
-                        </p>
-                      ) : null}
-                    </>
-                  ) : (
-                    <>
-                      {saasShopCart.linked ? null : (
-                        <p className="text-xs text-muted-foreground">{t.guestPurchaseFlowNeedWebsite}</p>
-                      )}
-                      <Label htmlFor="ai-guest-cart-url-template">{t.guestExternalCartUrlTemplateLabel}</Label>
-                      <p className="text-xs text-muted-foreground">{t.guestExternalCartUrlTemplateHint}</p>
-                      <Input
-                        id="ai-guest-cart-url-template"
-                        type="text"
-                        inputMode="url"
-                        autoComplete="off"
-                        spellCheck={false}
-                        className="max-w-xl font-mono text-xs"
-                        placeholder={t.guestExternalCartUrlTemplatePlaceholder}
-                        value={form.guest_external_cart_url_template}
-                        onChange={(e) => {
-                          const v = e.target.value
-                          setForm((f) => {
-                            const next = { ...f, guest_external_cart_url_template: v }
-                            formRef.current = next
-                            return next
-                          })
-                        }}
-                        onBlur={(e) => {
-                          const tpl = e.target.value.trim()
-                          persistPartial({
-                            guest_purchase_flow: 'external_cart_url',
-                            guest_external_cart_url_template: tpl,
-                          })
-                        }}
-                        disabled={!settingsLoaded}
-                      />
-                      <p className="text-[11px] text-muted-foreground">{t.guestExternalCartUrlTemplateSaveHint}</p>
-                    </>
-                  )}
-                </div>
-              ) : null}
-            </div>
-
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
               <div className="min-w-0">
                 <Label className="text-sm font-medium">{t.shopCheckoutLoginLabel}</Label>

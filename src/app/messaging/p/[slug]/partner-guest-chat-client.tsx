@@ -3448,17 +3448,10 @@ export function PartnerGuestChatClient({
     [guestPurchaseFlow, openOrderFormByOption, resolveSkuForGuestPurchase]
   )
 
-  const openGuestProductCardNav = useCallback(
-    (card: PartnerAiProductCard) => {
-      if (guestPurchaseFlow === 'external_cart_url') {
-        void triggerGuestProductPurchase(card)
-        return
-      }
-      const href = (card.product_url ?? '').trim()
-      if (/^https?:\/\//i.test(href)) openGuestProductDetailUrl(href)
-    },
-    [guestPurchaseFlow, triggerGuestProductPurchase]
-  )
+  const openGuestProductCardNav = useCallback((card: PartnerAiProductCard) => {
+    const href = (card.product_url ?? '').trim()
+    if (/^https?:\/\//i.test(href)) openGuestProductDetailUrl(href)
+  }, [])
 
   const openGuestProductOrderFormFromCard = triggerGuestProductPurchase
 

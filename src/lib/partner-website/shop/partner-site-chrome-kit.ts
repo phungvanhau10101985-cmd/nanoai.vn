@@ -1,6 +1,6 @@
 /**
  * Kit chrome sẵn: head / thanh đáy / thanh nổi — ẩn hiện + thứ tự, không tọa độ.
- * Nút Thêm giữa trang (Cửa hàng / Ví quà…) — kéo tọa độ, luôn lớp nổi, mỗi máy một file.
+ * Nút Thêm tại khe + (Cửa hàng / Ví quà…) — in-flow, không kéo tọa độ, mỗi máy một file.
  * Mỗi máy một bản (Desktop ≠ Laptop ≠ Tablet ≠ Mobile).
  */
 import { WEB_LOCALES, type WebLocale } from '@/lib/i18n/config'
@@ -274,7 +274,7 @@ export function isChromeKitPickerKind(kind: string): boolean {
   )
 }
 
-/** Nút Thêm ở giữa (Cửa hàng / Ví quà…) — kéo tọa độ, luôn lớp nổi. */
+/** Nút Thêm tại khe + (Cửa hàng / Ví quà…) — in-flow, không kéo tọa độ. */
 export const PW_MID_CANVAS_TOP_SCENE = PW_SCENE_MAX_INDEX
 
 export function isMidCanvasFlowChromeKind(kind: string): boolean {

@@ -52,6 +52,14 @@ function isInFlowSlot(source: string | Element): boolean {
   return hasAttr(source, 'data-pw-hrow')
 }
 
+function isTrustFlow(source: string | Element): boolean {
+  if (readAttr(source, 'data-pw-trust-bar') === '1' || readAttr(source, 'data-pw-trust-item') === '1') return true
+  const cls = classNameOf(source)
+  if (/(?:^|\s)(?:pw-marketplace-trust|pw-marketplace-trust-item)(?:\s|$)/i.test(cls)) return true
+  if (typeof source !== 'string' && source.closest?.('[data-pw-trust-bar="1"],.pw-marketplace-trust')) return true
+  return false
+}
+
 function isOverlayAddedBg(source: string | Element): boolean {
   return readAttr(source, 'data-pw-added-bg') === '1' && readAttr(source, 'data-pw-added-bg-slot') !== '1'
 }
@@ -75,11 +83,12 @@ export function isInFlowCatalogChromeRole(role: string | null | undefined): bool
 export function isInFlowStackBlockAttrs(attrs: string): boolean {
   if (!attrs || isAuthoredOverlay(attrs)) return false
   if (isInFlowSlot(attrs)) return true
+  if (isTrustFlow(attrs)) return true
   if (isStackRegion(readAttr(attrs, 'data-pw-region'))) return true
   if (isInFlowCatalogChromeRole(readAttr(attrs, 'data-pw-el'))) return true
   if (/\bdata-pw-(?:catalog|grid)=/i.test(attrs)) return true
   if (
-    /(?:^|[\s"'])(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories|pw-section-title|pw-section-more)(?:[\s"']|$)/i.test(
+    /(?:^|[\s"'])(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories|pw-section-title|pw-section-more|pw-marketplace-trust)(?:[\s"']|$)/i.test(
       attrs
     )
   ) {
@@ -96,11 +105,12 @@ export function isInFlowStackBlockElement(el: Element | null | undefined): boole
   if (!el || el.nodeType !== 1) return false
   if (isAuthoredOverlay(el)) return false
   if (isInFlowSlot(el)) return true
+  if (isTrustFlow(el)) return true
   if (isStackRegion(el.getAttribute?.('data-pw-region') || '')) return true
   if (isInFlowCatalogChromeRole(el.getAttribute('data-pw-el'))) return true
   if (el.hasAttribute('data-pw-catalog') || el.hasAttribute('data-pw-grid')) return true
   const cls = classNameOf(el)
-  if (/(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories|pw-section-title|pw-section-more)(?:\s|$)/.test(cls)) {
+  if (/(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories|pw-section-title|pw-section-more|pw-marketplace-trust)(?:\s|$)/.test(cls)) {
     return true
   }
   return !!(el.closest?.('[data-pw-region="catalog"],[data-pw-catalog]'))
@@ -114,8 +124,10 @@ export function isInFlowStackHostElement(el: Element | null | undefined): boolea
   if (!el || el.nodeType !== 1 || isAuthoredOverlay(el)) return false
   if (isInFlowSlot(el)) return true
   if (isStackRegion(el.getAttribute?.('data-pw-region') || '')) return true
+  if (el.getAttribute?.('data-pw-trust-bar') === '1') return true
   const cls = classNameOf(el)
-  return /(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories)(?:\s|$)/.test(cls)
+  return /(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories|pw-marketplace-trust)(?:\s|$)/.test(cls) &&
+    !/(?:^|\s)pw-marketplace-trust-item(?:\s|$)/.test(cls)
 }
 
 export function releaseInFlowStackBlock(el: Element | null | undefined): void {
@@ -155,7 +167,7 @@ export function releaseInFlowStackBlock(el: Element | null | undefined): void {
 export function reflowInFlowStackHosts(root: Element | null | undefined): void {
   if (!root?.querySelectorAll) return
   const nodes = root.querySelectorAll(
-    '[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="catalog"],[data-pw-region="promo"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-featured-categories],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-categories'
+    '[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="catalog"],[data-pw-region="promo"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-featured-categories],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-categories,[data-pw-trust-bar="1"],.pw-marketplace-trust,[data-pw-trust-item],.pw-marketplace-trust-item,[data-pw-trust-bar="1"] [data-pw-el],.pw-marketplace-trust [data-pw-el]'
   )
   for (const node of Array.from(nodes)) releaseInFlowStackBlock(node)
 }
