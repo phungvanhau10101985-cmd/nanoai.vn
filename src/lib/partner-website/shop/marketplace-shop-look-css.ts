@@ -208,7 +208,9 @@ html[data-pw-look="marketplace"] .pw-hero.pw-banner{
   border:1px solid var(--pw-border,#e5e7eb);
   border-radius:12px;
   overflow:hidden;
+  padding:16px 16px 18px;
 }
+html[data-pw-look="marketplace"] .pw-hero.pw-banner{padding:0}
 html[data-pw-look="marketplace"] .pw-featured-cat{
   background:var(--pw-primary)!important;
   border:none;
@@ -343,9 +345,31 @@ html[data-pw-look="marketplace"] .pw-marketplace-cta .pw-newsletter input{
 html[data-pw-look="marketplace"] .pw-marketplace-cta .pw-newsletter button{
   border:none;border-radius:8px;background:#fff;color:var(--pw-primary);font-weight:800;padding:0 16px;cursor:pointer;
 }
-html[data-pw-look="marketplace"] .pw-featured-cat-inner{padding:16px}
+html[data-pw-look="marketplace"] .pw-featured-cat[data-pw-featured-categories]>.pw-featured-cat-inner{padding:14px 14px 0!important}
+html[data-pw-look="marketplace"] .pw-featured-cat .pw-marketplace-block-title,
+html[data-pw-look="marketplace"] .pw-featured-cat [data-pw-el="section-title"]{
+  margin:0 4px 12px;font-size:1.15rem;font-weight:800;color:#fff!important;letter-spacing:.02em
+}
 html[data-pw-look="marketplace"] .pw-marketplace-block-title{
   margin:0 0 12px;font-size:1.05rem;font-weight:800;color:var(--pw-text);
+}
+html[data-pw-look="marketplace"] .pw-catalog .pw-container>h2[data-pw-el="section-title"],
+html[data-pw-look="marketplace"] .pw-catalog .pw-rec-title,
+html[data-pw-look="marketplace"] .pw-catalog .pw-flash-title{
+  font-size:1.2rem;font-weight:800;letter-spacing:.02em;margin:0 0 14px;padding:0 0 8px;
+  border-bottom:2px solid var(--pw-primary);display:block;width:100%;box-sizing:border-box
+}
+html[data-pw-look="marketplace"] .pw-catalog .pw-flash-head .pw-flash-title{margin:0;padding:0;border-bottom:none}
+html[data-pw-look="marketplace"] .pw-catalog .pw-flash-head{
+  margin:0 0 14px;padding:0 0 8px;border-bottom:2px solid var(--pw-primary)
+}
+html[data-pw-look="marketplace"] .pw-catalog .pw-product-grid,
+html[data-pw-look="marketplace"] .pw-catalog [data-pw-el="grid"]{
+  margin-top:4px
+}
+html[data-pw-look="marketplace"] .pw-product-card [data-pw-el="card-media"] img,
+html[data-pw-look="marketplace"] .pw-product-card-media img{
+  width:100%;height:100%;object-fit:cover;display:block
 }
 @media (max-width:767px){
   .pw-marketplace-trust,[data-pw-trust-bar="1"],

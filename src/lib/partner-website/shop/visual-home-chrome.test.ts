@@ -12,7 +12,7 @@ import {
 } from '@/lib/partner-website/shop/visual-home-chrome'
 
 const deskHome = `<!DOCTYPE html><html><body>
-<div class="pw-shop-topbar" data-pw-region="topbar">DeskTop</div>
+<div class="pw-shop-topbar" data-pw-region="topbar"><a data-pw-chrome-btn="contact">DeskTop</a></div>
 <header class="pw-shop-header" data-pw-region="header">DeskHead</header>
 <section>Home mid</section>
 <footer class="pw-shop-footer" data-pw-region="footer">DeskFoot</footer>
@@ -174,9 +174,34 @@ test('visual home chrome copies marketplace look CSS onto React pages of that ma
   assert.match(byDevice.desktopStyles, /pw-marketplace-look-css|pw-look/)
   assert.match(
     byDevice.desktopStyles,
-    /:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\]\)/
+    /:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\]/
   )
   assert.match(byDevice.desktopStyles, /background:var\(--pw-primary\)!important/)
+  assert.ok(byDevice.desktop)
+  assert.match(byDevice.desktop.header, /DeskHead/)
+})
+
+test('visual home chrome copies shop look CSS onto React pages of that machine', () => {
+  const home = `<!DOCTYPE html><html data-pw-look="shop"><head></head><body>
+<header class="pw-header" data-pw-region="header">DeskHead</header>
+<footer class="pw-footer" data-pw-region="footer">DeskFoot</footer>
+</body></html>`
+  const website = {
+    theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, look: 'shop' as const, useVisualHtml: true },
+    htmlSource: home,
+    project: {
+      entryPath: 'index.html',
+      files: [{ path: 'index.html', kind: 'html' as const, content: home }],
+    },
+  }
+  const byDevice = visualHomeChromeByDeviceFor(website, 'desktop')
+  assert.equal(visualHomeChromeLookFor(website, 'desktop'), 'shop')
+  assert.match(byDevice.desktopStyles, /height:42px!important/)
+  assert.match(
+    byDevice.desktopStyles,
+    /:is\(html\[data-pw-look="shop"\],\.pw-shop\[data-pw-look="shop"\]/
+  )
+  assert.doesNotMatch(byDevice.desktopStyles, /pw-marketplace-look-css/)
   assert.ok(byDevice.desktop)
   assert.match(byDevice.desktop.header, /DeskHead/)
 })

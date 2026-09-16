@@ -9,9 +9,11 @@ import {
   type ShopTemplatePresetId,
   isShopTemplatePresetId,
 } from '@/lib/partner-website/template/shop-template-presets'
+import { paintShopTemplateSamplePreviewInHtml } from '@/lib/partner-website/template/shop-template-sample-preview'
 import {
   getShopTemplateSampleBrand,
   getShopTemplateSampleProducts,
+  getShopTemplateSampleSlogan,
 } from '@/lib/partner-website/template/shop-template-sample-products'
 import type { PartnerWebsitePage } from '@/lib/partner-website/template/partner-website-template-types'
 import { isMarketplaceTemplateId } from '@/lib/partner-website/shop/marketplace-shop-look-css'
@@ -76,32 +78,45 @@ export function buildShopTemplateSampleHtml(input: {
       pages: [],
       samplePreview: true,
     })
-    const html = preparePartnerVisualHtmlForPublic(seeded, {
+    const prepared = preparePartnerVisualHtmlForPublic(seeded, {
       theme,
       locale: input.locale,
       variant: 'desktop',
       includeRuntime: false,
       pageKey: 'home',
     })
+    const html = paintShopTemplateSamplePreviewInHtml(prepared, input.locale)
     return { ok: true, html, presetId: preset.id }
+  }
+  const slogan = preset.id === 'fashion-orange' ? getShopTemplateSampleSlogan(input.locale) : undefined
+  const theme = {
+    ...DEFAULT_PARTNER_WEBSITE_THEME,
+    ...preset.theme,
+    ...(slogan ? { slogan } : {}),
   }
   const site = buildDefaultLandingV1Site({
     locale: input.locale,
     title: brand,
-    briefText: brand,
-    theme: { ...preset.theme },
+    theme,
   })
   const pages = injectSampleProducts(site.pages, input.locale)
   const html = renderTemplateSiteToHtml({
     locale: input.locale,
     title: brand,
     templateId: preset.templateId,
-    theme: { ...site.theme, ...preset.theme },
+    theme: { ...site.theme, ...theme },
     pages,
     logoUrl: null,
     samplePreview: true,
   })
-  return { ok: true, html, presetId: preset.id }
+  const prepared = preparePartnerVisualHtmlForPublic(html, {
+    theme: { ...site.theme, ...theme },
+    locale: input.locale,
+    variant: 'desktop',
+    includeRuntime: false,
+    pageKey: 'home',
+  })
+  return { ok: true, html: prepared, presetId: preset.id }
 }
 
 export function shopTemplateSamplePreviewPath(presetId: string, locale?: WebLocale): string {

@@ -171,14 +171,13 @@ function visualDeviceFlagSnapshot(theme: PartnerWebsiteTheme): string {
 function applyHomeSharedChrome(
   html: string,
   homeHtml: string,
-  variant: VisualDeviceVariant
+  _variant: VisualDeviceVariant
 ): string {
   const chrome = extractSharedChrome(homeHtml)
   if (!hasSharedChrome(chrome)) return html
-  return mergeVisualHomeStylesIntoHtml(
-    applySharedChrome(html, chrome, { targetVariant: variant }),
-    homeHtml
-  )
+  // Same-device copy: do not restamp `data-pw-device` onto count buttons.
+  // Inner pages must keep the exact home header.
+  return mergeVisualHomeStylesIntoHtml(applySharedChrome(html, chrome), homeHtml)
 }
 
 function buildShopTemplatePdpVisualHtml(input: {

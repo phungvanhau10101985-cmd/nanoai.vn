@@ -73,6 +73,10 @@ import {
   type PartnerWebsiteLook,
 } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import {
+  buildShopLookCss,
+  PARTNER_SHOP_LOOK_STYLE_ID,
+} from '@/lib/partner-website/shop/shop-look-css'
+import {
   PARTNER_SHOP_CHROME_FLOAT_SCRIPT,
   PW_CHROME_FLOAT_SCRIPT_ID,
 } from '@/lib/partner-website/shop/chrome-float-widgets'
@@ -799,7 +803,12 @@ function PartnerSiteShopShellInner({
               id={PARTNER_MARKETPLACE_LOOK_STYLE_ID}
               dangerouslySetInnerHTML={{ __html: buildMarketplaceLookCss() }}
             />
-          ) : null}
+          ) : (
+            <style
+              id={PARTNER_SHOP_LOOK_STYLE_ID}
+              dangerouslySetInnerHTML={{ __html: buildShopLookCss() }}
+            />
+          )}
           <style
             id="pw-visual-home-chrome-split"
             dangerouslySetInnerHTML={{ __html: VISUAL_HOME_CHROME_SPLIT_CSS }}
@@ -818,7 +827,12 @@ function PartnerSiteShopShellInner({
           id={PARTNER_MARKETPLACE_LOOK_STYLE_ID}
           dangerouslySetInnerHTML={{ __html: buildMarketplaceLookCss() }}
         />
-      ) : null}
+      ) : (
+        <style
+          id={PARTNER_SHOP_LOOK_STYLE_ID}
+          dangerouslySetInnerHTML={{ __html: buildShopLookCss() }}
+        />
+      )}
       <div className="pw-shop-topbar" data-pw-region={PW_REGION.topbar}>
         <div className="pw-shop-topbar-inner">
           {slogan ? (

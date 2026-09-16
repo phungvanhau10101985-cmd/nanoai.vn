@@ -75,6 +75,19 @@ test('does not rewrite footer without a shop slug', () => {
   assert.match(next, /data-pw-footer-kit="moit"/)
 })
 
+test('injects a full footer when the document has none, even without a shop slug', () => {
+  const html = `<html><body><main>Home</main><nav class="pw-bottom-nav"></nav></body></html>`
+  const next = ensureFullPartnerSiteFooterInHtml(html, {
+    locale: 'vi',
+    siteSlug: '',
+    brand: 'Sàn mua sắm',
+  })
+  assert.match(next, /data-pw-footer="full"/)
+  assert.match(next, /data-pw-region="footer"/)
+  assert.match(next, /Sàn mua sắm/)
+  assert.match(next, /<main>Home<\/main>\s*<footer[\s\S]*<\/footer>\s*<nav class="pw-bottom-nav"/)
+})
+
 test('ensure injects MoIT button into leftover full footer', () => {
   const full = `<html><body>
   <footer class="pw-footer" data-pw-region="footer" data-pw-footer="full">

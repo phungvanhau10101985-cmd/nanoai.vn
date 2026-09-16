@@ -405,9 +405,10 @@ export function ensureFullPartnerSiteFooterInHtml(
   if (!html.trim()) return html
   const locale = input.locale ?? 'vi'
   const siteSlug = input.siteSlug?.trim() ?? ''
-  if (!siteSlug) return finishFooterKit(html, locale)
   const found = extractFooterRange(html)
-  if (found && !isSkeletalPartnerSiteFooter(found.html)) {
+  if (!siteSlug) {
+    if (found) return finishFooterKit(html, locale)
+  } else if (found && !isSkeletalPartnerSiteFooter(found.html)) {
     return finishFooterKit(html, locale)
   }
   const brand = (input.brand?.trim() || inferBrandFromHtml(html, siteSlug || 'Shop')).trim()

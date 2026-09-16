@@ -26,6 +26,7 @@ import {
   resolvePartnerWebsiteLook,
   stampPartnerWebsiteLookInHtml,
 } from '@/lib/partner-website/shop/marketplace-shop-look-css'
+import { buildShopLookCss } from '@/lib/partner-website/shop/shop-look-css'
 import {
   PW_CHROME_BTN_MIN_H,
   PW_CHROME_H_VAR,
@@ -1120,7 +1121,7 @@ ${PW_SITE_SALE_CARD_CSS}
 ${PW_SHOP_LOYALTY_CSS}
 ${PW_SHOP_AFFILIATE_CSS}
 .pw-shop-cart-teaser{color:#b45309;font-size:12px;font-weight:600}
-.pw-shop-cart-teaser strong{font-weight:800}${isMarketplaceLook(theme) ? `\n${buildMarketplaceLookCss()}` : ''}`
+.pw-shop-cart-teaser strong{font-weight:800}${isMarketplaceLook(theme) ? `\n${buildMarketplaceLookCss()}` : `\n${buildShopLookCss()}`}`
 }
 
 export const PARTNER_SHOP_THEME_STYLE_ID = 'pw-shop-theme-css'

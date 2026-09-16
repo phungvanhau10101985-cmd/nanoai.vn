@@ -1,6 +1,7 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import { escapeAttr, escapeHtml } from '@/lib/packaging/mockup-share-html'
 import { buildPartnerSitePersonalizationBootstrapScript } from '@/lib/partner-website/shop/build-personalization-bootstrap-script'
+import { buildPartnerSiteFooterHtml } from '@/lib/partner-website/shop/build-partner-site-footer-html'
 import { buildPartnerSiteHeaderHtml } from '@/lib/partner-website/shop/build-partner-site-header-html'
 import {
   buildShopVisualSeoHead,
@@ -256,6 +257,12 @@ export function buildMarketplaceShopHomeHtml(input: {
     locale,
   })
   const featured = featuredBlock({ siteSlug, locale, device: input.variant })
+  const flashSale = buildVisualEditorProductGridHtml({
+    kind: 'flash-sale',
+    siteSlug,
+    locale,
+    device: input.variant,
+  })
   const newArrivals = catalogBlock({
     kind: 'catalog',
     title: nav.newArrivals,
@@ -296,6 +303,12 @@ export function buildMarketplaceShopHomeHtml(input: {
     siteSlug,
     locale,
     device: input.variant,
+  })
+  const footer = buildPartnerSiteFooterHtml({
+    locale,
+    siteSlug,
+    brand: input.brand,
+    logoUrl: logo,
   })
   const personalizationScript = siteSlug
     ? buildPartnerSitePersonalizationBootstrapScript({ siteSlug, locale })
@@ -338,6 +351,7 @@ ${chrome.header}
 ${slider}
 ${trustRow(locale)}
 ${featured}
+${flashSale}
 ${newArrivals}
 ${sale}
 ${recommended}
@@ -345,6 +359,7 @@ ${best}
 ${recent}
 ${leadCta({ locale })}
 </main>
+${footer}
 ${chrome.bottomNav}
 ${chrome.scripts}
 ${personalizationScript}
