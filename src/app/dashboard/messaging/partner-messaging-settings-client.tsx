@@ -109,6 +109,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { WebLocale } from '@/lib/i18n/config'
+import { settingsDataRoleCopy } from '@/lib/messaging/settings-data-role'
+import { SettingsDataRoleBox, SettingsDataRoleLegend } from '@/components/messaging/settings-data-role'
 
 const INDUSTRY_OPTIONS = [
   { value: 'fashion', label: 'Thoi trang' },
@@ -403,6 +405,7 @@ export function PartnerMessagingSettingsClient({
   const queryPartnerId = searchParams.get('partner')
   const { toast } = useToast()
   const { runWithStepUp } = useStepUpOtp()
+  const roleCopy = settingsDataRoleCopy(t)
   const [partners, setPartners] = useState<MessagingPartnerDashboardRow[]>(initialPartners)
   const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(() => {
     if (queryPartnerId && initialPartners.some((p) => p.id === queryPartnerId)) return queryPartnerId
@@ -2387,6 +2390,9 @@ export function PartnerMessagingSettingsClient({
                   : 'p-3 sm:p-4 lg:p-5'
             )}
           >
+          {(MESSAGING_SETTINGS_SECTION_IDS as readonly string[]).includes(activeSection) ? (
+            <SettingsDataRoleLegend copy={roleCopy} />
+          ) : null}
           {activeSection === 'go-live' && selectedPartnerId ? (
           <SettingsBlock
             id="messaging-go-live"
@@ -2806,33 +2812,37 @@ export function PartnerMessagingSettingsClient({
                       <a href={facebookConnectHref}>Ket noi Facebook (OAuth)</a>
                     </Button>
                   </div>
-                  <Label className="text-xs font-medium">{t.fbPageId}</Label>
-                  <Input
-                    className="h-9 text-sm"
-                    value={fbPageId}
-                    onChange={(e) => setFbPageId(e.target.value)}
-                    placeholder={t.fbPageId}
-                  />
-                  <Label className="text-xs font-medium">{t.fbPageToken}</Label>
-                  <Input
-                    className="h-9 text-sm"
-                    value={fbToken}
-                    onChange={(e) => setFbToken(e.target.value)}
-                    placeholder={t.fbPageToken}
-                    type="password"
-                  />
-                  <Label className="text-xs font-medium">{t.fbVerifyToken}</Label>
-                  <Input
-                    className="h-9 text-sm"
-                    value={fbVerify}
-                    onChange={(e) => setFbVerify(e.target.value)}
-                    placeholder={t.fbVerifyToken}
-                  />
+                  <SettingsDataRoleBox role="inbound" copy={roleCopy}>
+                    <Label className="text-xs font-medium">{t.fbPageId}</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={fbPageId}
+                      onChange={(e) => setFbPageId(e.target.value)}
+                      placeholder={t.fbPageId}
+                    />
+                    <Label className="text-xs font-medium">{t.fbPageToken}</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={fbToken}
+                      onChange={(e) => setFbToken(e.target.value)}
+                      placeholder={t.fbPageToken}
+                      type="password"
+                    />
+                  </SettingsDataRoleBox>
+                  <SettingsDataRoleBox role="issued" copy={roleCopy}>
+                    <Label className="text-xs font-medium">{t.fbVerifyToken}</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={fbVerify}
+                      onChange={(e) => setFbVerify(e.target.value)}
+                      placeholder={t.fbVerifyToken}
+                    />
+                  </SettingsDataRoleBox>
                   <Button type="button" size="sm" className="mt-1" onClick={saveFb} disabled={pending}>
                     {t.saveFacebook}
                   </Button>
                 </div>
-                <div className="space-y-2">
+                <SettingsDataRoleBox role="inbound" copy={roleCopy} className="space-y-2">
                   <Label className="text-xs font-medium">{t.zaloSecret}</Label>
                   <Input
                     className="h-9 text-sm"
@@ -2852,7 +2862,7 @@ export function PartnerMessagingSettingsClient({
                   <Button type="button" size="sm" className="mt-1" onClick={saveZl} disabled={pending}>
                     {t.saveZalo}
                   </Button>
-                </div>
+                </SettingsDataRoleBox>
               </div>
             </CardContent>
           </Card>
@@ -2892,6 +2902,7 @@ export function PartnerMessagingSettingsClient({
                 <CardTitle className="text-sm font-medium text-muted-foreground">Meta Pixel &amp; CAPI</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 px-4 pb-4 pt-0">
+                <SettingsDataRoleBox role="inbound" copy={roleCopy}>
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">{t.facebookPixelLabel}</Label>
                   <Input
@@ -2924,6 +2935,7 @@ export function PartnerMessagingSettingsClient({
                     {metaCapiConfigured ? t.metaConsultCapiSavedHint : t.credentialsKeepHint}
                   </p>
                 </div>
+                </SettingsDataRoleBox>
                 {!isOwnerSelected ? (
                   <p className="text-[11px] text-muted-foreground">{t.integrationsAnalyticsOwnerOnly}</p>
                 ) : null}
@@ -2939,12 +2951,12 @@ export function PartnerMessagingSettingsClient({
               <CardContent className="space-y-3 px-4 pb-4 pt-0">
                 <p className="text-[11px] text-muted-foreground leading-relaxed">{t.facebookCatalogFeedHint}</p>
                 {facebookCatalogFeedUrl ? (
-                  <>
+                  <SettingsDataRoleBox role="issued" copy={roleCopy}>
                     <Input readOnly className="h-9 font-mono text-[11px]" value={facebookCatalogFeedUrl} />
                     <Button type="button" size="sm" variant="outline" onClick={copyFacebookCatalogFeedUrl}>
                       {t.facebookCatalogFeedCopyButton}
                     </Button>
-                  </>
+                  </SettingsDataRoleBox>
                 ) : (
                   <p className="text-[11px] text-muted-foreground">—</p>
                 )}
@@ -2957,12 +2969,12 @@ export function PartnerMessagingSettingsClient({
               <CardContent className="space-y-3 px-4 pb-4 pt-0">
                 <p className="text-[11px] text-muted-foreground leading-relaxed">{t.googleMerchantCatalogFeedHint}</p>
                 {googleMerchantCatalogFeedUrl ? (
-                  <>
+                  <SettingsDataRoleBox role="issued" copy={roleCopy}>
                     <Input readOnly className="h-9 font-mono text-[11px]" value={googleMerchantCatalogFeedUrl} />
                     <Button type="button" size="sm" variant="outline" onClick={copyGoogleMerchantCatalogFeedUrl}>
                       {t.googleMerchantCatalogFeedCopyButton}
                     </Button>
-                  </>
+                  </SettingsDataRoleBox>
                 ) : (
                   <p className="text-[11px] text-muted-foreground">—</p>
                 )}
@@ -2975,12 +2987,12 @@ export function PartnerMessagingSettingsClient({
               <CardContent className="space-y-3 px-4 pb-4 pt-0">
                 <p className="text-[11px] text-muted-foreground leading-relaxed">{t.tiktokCatalogFeedHint}</p>
                 {tiktokCatalogFeedUrl ? (
-                  <>
+                  <SettingsDataRoleBox role="issued" copy={roleCopy}>
                     <Input readOnly className="h-9 font-mono text-[11px]" value={tiktokCatalogFeedUrl} />
                     <Button type="button" size="sm" variant="outline" onClick={copyTiktokCatalogFeedUrl}>
                       {t.tiktokCatalogFeedCopyButton}
                     </Button>
-                  </>
+                  </SettingsDataRoleBox>
                 ) : (
                   <p className="text-[11px] text-muted-foreground">—</p>
                 )}
@@ -3001,6 +3013,7 @@ export function PartnerMessagingSettingsClient({
                 <CardTitle className="text-sm font-medium text-muted-foreground">Google Analytics 4</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 px-4 pb-4 pt-0">
+                <SettingsDataRoleBox role="inbound" copy={roleCopy}>
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">{t.shopGa4MeasurementLabel}</Label>
                   <Input
@@ -3012,6 +3025,7 @@ export function PartnerMessagingSettingsClient({
                   />
                   <p className="text-[11px] text-muted-foreground">{t.shopGa4MeasurementHint}</p>
                 </div>
+                </SettingsDataRoleBox>
                 {!isOwnerSelected ? (
                   <p className="text-[11px] text-muted-foreground">{t.integrationsAnalyticsOwnerOnly}</p>
                 ) : null}
@@ -3025,6 +3039,7 @@ export function PartnerMessagingSettingsClient({
                 <CardTitle className="text-sm font-medium text-muted-foreground">Google Ads</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 px-4 pb-4 pt-0">
+                <SettingsDataRoleBox role="inbound" copy={roleCopy}>
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">{t.shopGoogleAdsIdLabel}</Label>
                   <Input
@@ -3036,6 +3051,7 @@ export function PartnerMessagingSettingsClient({
                   />
                   <p className="text-[11px] text-muted-foreground">{t.shopGoogleAdsIdHint}</p>
                 </div>
+                </SettingsDataRoleBox>
                 {!isOwnerSelected ? (
                   <p className="text-[11px] text-muted-foreground">{t.integrationsAnalyticsOwnerOnly}</p>
                 ) : null}
@@ -3049,6 +3065,7 @@ export function PartnerMessagingSettingsClient({
                 <CardTitle className="text-sm font-medium text-muted-foreground">Google Customer Reviews</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 px-4 pb-4 pt-0">
+                <SettingsDataRoleBox role="inbound" copy={roleCopy}>
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">{t.shopGcrMerchantIdLabel}</Label>
                   <Input
@@ -3061,6 +3078,7 @@ export function PartnerMessagingSettingsClient({
                   />
                   <p className="text-[11px] text-muted-foreground">{t.shopGcrMerchantIdHint}</p>
                 </div>
+                </SettingsDataRoleBox>
                 {!isOwnerSelected ? (
                   <p className="text-[11px] text-muted-foreground">{t.integrationsAnalyticsOwnerOnly}</p>
                 ) : null}
@@ -3079,6 +3097,7 @@ export function PartnerMessagingSettingsClient({
                 <CardTitle className="text-sm font-medium text-muted-foreground">TikTok Ads</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 px-4 pb-4 pt-0">
+                <SettingsDataRoleBox role="inbound" copy={roleCopy}>
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">{t.shopTiktokPixelLabel}</Label>
                   <Input
@@ -3090,6 +3109,7 @@ export function PartnerMessagingSettingsClient({
                   />
                   <p className="text-[11px] text-muted-foreground">{t.shopTiktokPixelHint}</p>
                 </div>
+                </SettingsDataRoleBox>
                 {!isOwnerSelected ? (
                   <p className="text-[11px] text-muted-foreground">{t.integrationsAnalyticsOwnerOnly}</p>
                 ) : null}
@@ -3103,6 +3123,7 @@ export function PartnerMessagingSettingsClient({
                 <CardTitle className="text-sm font-medium text-muted-foreground">Google Tag Manager</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 px-4 pb-4 pt-0">
+                <SettingsDataRoleBox role="inbound" copy={roleCopy}>
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">{t.shopGtmContainerLabel}</Label>
                   <Input
@@ -3114,6 +3135,7 @@ export function PartnerMessagingSettingsClient({
                   />
                   <p className="text-[11px] text-muted-foreground">{t.shopGtmContainerHint}</p>
                 </div>
+                </SettingsDataRoleBox>
                 {!isOwnerSelected ? (
                   <p className="text-[11px] text-muted-foreground">{t.integrationsAnalyticsOwnerOnly}</p>
                 ) : null}
@@ -3138,6 +3160,7 @@ export function PartnerMessagingSettingsClient({
             </CardHeader>
             <CardContent className="space-y-3 px-4 pb-4 pt-0">
               <div className="grid gap-3 md:grid-cols-2">
+                <SettingsDataRoleBox role="inbound" copy={roleCopy} className="md:col-span-2 grid gap-3 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">Ngan hang</Label>
                   <Input className="h-9 text-sm" value={paymentBankName} onChange={(e) => setPaymentBankName(e.target.value)} />
@@ -3154,6 +3177,7 @@ export function PartnerMessagingSettingsClient({
                   <Label className="text-xs font-medium">Chu tai khoan</Label>
                   <Input className="h-9 text-sm" value={paymentAccountHolder} onChange={(e) => setPaymentAccountHolder(e.target.value)} />
                 </div>
+                </SettingsDataRoleBox>
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">Email nhan thong bao don moi</Label>
                   <Input className="h-9 text-sm" value={paymentNotifyEmail} onChange={(e) => setPaymentNotifyEmail(e.target.value)} />
@@ -3221,6 +3245,7 @@ export function PartnerMessagingSettingsClient({
                   Uu tien tao QR theo SePay neu shop da dien du bien
                 </label>
                 <div className="grid gap-3 md:grid-cols-2">
+                  <SettingsDataRoleBox role="inbound" copy={roleCopy} className="md:col-span-2 grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label className="text-xs font-medium">SePay bank code</Label>
                     <Input
@@ -3238,30 +3263,6 @@ export function PartnerMessagingSettingsClient({
                       onChange={(e) => setPaymentSePayAccountNumber(e.target.value)}
                       placeholder="Nhap so tai khoan nhan tien tren SePay"
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-medium">SePay QR template</Label>
-                    <Select
-                      value={paymentSePayQrTemplate}
-                      onValueChange={(v) => setPaymentSePayQrTemplate(v === 'qronly' ? 'qronly' : 'compact')}
-                    >
-                      <SelectTrigger className="h-9 w-full bg-background">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="compact">compact</SelectItem>
-                        <SelectItem value="qronly">qronly</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-medium">Webhook token (shop)</Label>
-                    <Input
-                      className="h-9 text-sm"
-                      value={paymentSePayWebhookToken}
-                      readOnly
-                    />
-                    <p className="text-[11px] text-muted-foreground">Token duoc tao tu dong theo tung shop va khong cho sua tay.</p>
                   </div>
                   <div className="space-y-2 md:col-span-2">
                     <div className="flex flex-wrap items-center gap-2">
@@ -3287,6 +3288,38 @@ export function PartnerMessagingSettingsClient({
                         : t.sepayHmacKeepHint}
                     </p>
                   </div>
+                  </SettingsDataRoleBox>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">SePay QR template</Label>
+                    <Select
+                      value={paymentSePayQrTemplate}
+                      onValueChange={(v) => setPaymentSePayQrTemplate(v === 'qronly' ? 'qronly' : 'compact')}
+                    >
+                      <SelectTrigger className="h-9 w-full bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="compact">compact</SelectItem>
+                        <SelectItem value="qronly">qronly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <SettingsDataRoleBox role="issued" copy={roleCopy} className="md:col-span-2">
+                    <Label className="text-xs font-medium">Webhook token (shop)</Label>
+                    <Input
+                      className="h-9 text-sm"
+                      value={paymentSePayWebhookToken}
+                      readOnly
+                    />
+                    <p className="text-[11px] text-muted-foreground">Token duoc tao tu dong theo tung shop va khong cho sua tay.</p>
+                    <p className="text-[11px] text-muted-foreground break-all">
+                      Webhook URL cho shop:
+                      {selectedPartnerId ? ` ${paymentSePayWebhookUrl}` : ' (chon workspace)'}
+                    </p>
+                    <Button type="button" size="sm" variant="outline" onClick={copySePayWebhookUrl} disabled={!selectedPartnerId}>
+                      Copy webhook URL
+                    </Button>
+                  </SettingsDataRoleBox>
                 </div>
                 {paymentSePayEnabled &&
                 (!paymentSePayBankCode.trim() || !paymentSePayAccountNumber.trim() || !paymentSePayWebhookToken.trim()) ? (
@@ -3294,13 +3327,6 @@ export function PartnerMessagingSettingsClient({
                     SePay đang bật nhưng thiếu biến bắt buộc (bank code / account / webhook token). Hệ thống sẽ fallback về QR thường.
                   </p>
                 ) : null}
-                <p className="mt-2 text-[11px] text-muted-foreground break-all">
-                  Webhook URL cho shop:
-                  {selectedPartnerId ? ` ${paymentSePayWebhookUrl}` : ' (chon workspace)'}
-                </p>
-                <Button type="button" size="sm" variant="outline" onClick={copySePayWebhookUrl} disabled={!selectedPartnerId}>
-                  Copy webhook URL
-                </Button>
                 <p className="text-[11px] text-muted-foreground">
                   Neu thieu bien SePay, he thong tu dong fallback ve QR thuong hien tai.
                 </p>
@@ -3331,6 +3357,7 @@ export function PartnerMessagingSettingsClient({
                         placeholder="Momo / ZaloPay / ViettelPay..."
                       />
                     </div>
+                    <SettingsDataRoleBox role="inbound" copy={roleCopy} className="md:col-span-2 grid gap-3 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label className="text-xs font-medium">Số điện thoại / số tài khoản ví</Label>
                       <Input
@@ -3356,6 +3383,7 @@ export function PartnerMessagingSettingsClient({
                         placeholder="https://..."
                       />
                     </div>
+                    </SettingsDataRoleBox>
                   </div>
                   {paymentEwalletEnabled && !paymentEwalletQrUrl.trim() ? (
                     <p className="mt-2 rounded-md border border-red-300 bg-red-50 px-2 py-1 text-[11px] text-red-700">
@@ -3536,7 +3564,7 @@ export function PartnerMessagingSettingsClient({
                   Bật ghi đơn lên Google Sheet cho workspace này
                 </label>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <div className="space-y-2 md:col-span-2">
+                  <SettingsDataRoleBox role="inbound" copy={roleCopy} className="space-y-2 md:col-span-2">
                     <Label className="text-xs font-medium">Link hoặc ID Google Sheet</Label>
                     <Input
                       className="h-9 text-sm font-mono"
@@ -3545,7 +3573,7 @@ export function PartnerMessagingSettingsClient({
                       placeholder="https://docs.google.com/spreadsheets/d/..."
                       autoComplete="off"
                     />
-                  </div>
+                  </SettingsDataRoleBox>
                   <div className="space-y-2">
                     <Label className="text-xs font-medium">Tên tab (sheet)</Label>
                     <Input
@@ -3557,7 +3585,7 @@ export function PartnerMessagingSettingsClient({
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
+                <SettingsDataRoleBox role="inbound" copy={roleCopy} className="space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <Label className="text-xs font-medium">Service account JSON (Google Cloud)</Label>
                     {gsHasServiceAccount ? (
@@ -3585,7 +3613,7 @@ export function PartnerMessagingSettingsClient({
                       Gỡ JSON đã lưu
                     </Button>
                   </div>
-                </div>
+                </SettingsDataRoleBox>
                 <Button
                   type="button"
                   size="sm"

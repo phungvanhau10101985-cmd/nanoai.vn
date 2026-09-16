@@ -229,6 +229,18 @@ export function guestPurchaseUsesSaasAutoCart(input: {
   return Boolean(input.saasLinked) && !parseGuestExternalCartUrlTemplate(input.storedTemplate)
 }
 
+/**
+ * Dropdown quản trị «Khách mua hàng từ chat».
+ * Shop đã có web SaaS: chỉ hai lựa chọn (trong chat / modal giỏ web). Không khóa vì inventory hay pending.
+ */
+export function guestPurchaseFlowChoices(
+  saasLinked: boolean,
+  current?: GuestPurchaseFlow | null
+): GuestPurchaseFlow[] {
+  if (saasLinked && current !== 'external_site') return ['in_chat', 'external_cart_url']
+  return ['in_chat', 'external_site', 'external_cart_url']
+}
+
 export type GuestPurchaseNavigateInput = {
   product_url: string
   sku?: string | null

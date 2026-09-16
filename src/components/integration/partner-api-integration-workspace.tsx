@@ -7,6 +7,9 @@ import { PartnerDevIntegrationGuide } from '@/components/integration/partner-dev
 import { PARTNER_API_KEYS_MANAGER_COPY } from '@/lib/integration/api-keys-hub-copy'
 import type { ApiKeysHubLocale } from '@/lib/integration/api-keys-hub-copy'
 import { PARTNER_DEV_INTEGRATION_COPY } from '@/lib/integration/partner-dev-integration-copy'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import { settingsDataRoleCopy } from '@/lib/messaging/settings-data-role'
+import type { WebLocale } from '@/lib/i18n/config'
 
 function resolveInitialPartnerId(
   partners: Array<{ id: string }>,
@@ -76,11 +79,12 @@ export function PartnerApiIntegrationWorkspace({
 
   const tKeys = PARTNER_API_KEYS_MANAGER_COPY[locale]
   const tGuide = PARTNER_DEV_INTEGRATION_COPY[locale]
+  const dataRoleCopy = settingsDataRoleCopy(getDictionary(locale as WebLocale).partnerMessaging)
 
   if (partners.length === 0) {
     return (
       <>
-        <PartnerApiKeysManager partners={[]} t={tKeys} hidePartnerPicker={hidePartnerPicker} />
+        <PartnerApiKeysManager partners={[]} t={tKeys} hidePartnerPicker={hidePartnerPicker} dataRoleCopy={dataRoleCopy} />
         {betweenKeysAndGuide}
         <PartnerDevIntegrationGuide baseUrl={baseUrl} t={tGuide} partners={[]} embedded={embedded} />
       </>
@@ -95,6 +99,7 @@ export function PartnerApiIntegrationWorkspace({
         partnerId={partnerId}
         onPartnerIdChange={setPartnerId}
         hidePartnerPicker={hidePartnerPicker}
+        dataRoleCopy={dataRoleCopy}
       />
       {betweenKeysAndGuide}
       <PartnerDevIntegrationGuide

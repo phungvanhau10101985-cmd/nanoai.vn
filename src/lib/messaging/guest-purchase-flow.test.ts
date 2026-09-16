@@ -4,6 +4,7 @@ import {
   buildPartnerShopCartAddUrlTemplate,
   decodePartnerShopCartAddSkuParam,
   guestChatActionOpensExternalPurchase,
+  guestPurchaseFlowChoices,
   isGuestCartAddFromNanoAi,
   parseGuestExternalCartUrlTemplate,
   resolveGuestPurchaseButtonUrl,
@@ -32,6 +33,16 @@ test('from=nanoai is the chat return marker', () => {
   assert.equal(isGuestCartAddFromNanoAi('nanoai'), true)
   assert.equal(isGuestCartAddFromNanoAi('NANOAI'), true)
   assert.equal(isGuestCartAddFromNanoAi('web'), false)
+})
+
+test('dashboard purchase-flow dropdown always offers in-chat and web-cart', () => {
+  assert.deepEqual(guestPurchaseFlowChoices(true), ['in_chat', 'external_cart_url'])
+  assert.deepEqual(guestPurchaseFlowChoices(false), ['in_chat', 'external_site', 'external_cart_url'])
+  assert.deepEqual(guestPurchaseFlowChoices(true, 'external_site'), [
+    'in_chat',
+    'external_site',
+    'external_cart_url',
+  ])
 })
 
 test('only Buy / Add to cart leave chat when web-cart mode is on', () => {

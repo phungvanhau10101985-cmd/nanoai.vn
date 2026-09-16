@@ -24,6 +24,7 @@ import { ProductStudioManualDialog } from '@/components/partner-website/product-
 import {
   deletePartnerInventoryItem,
   getPartnerAiBundle,
+  getPartnerAiSettingsBundle,
   getPartnerInventoryEmbeddingStats,
   getPartnerInventoryTextEmbeddingStats,
   triggerPartnerInventoryEmbeddingSync,
@@ -63,12 +64,16 @@ import { buildGuestConsultChatAbsoluteUrl, buildGuestConsultChatPath } from '@/l
 import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
 import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 import {
+  guestPurchaseFlowChoices,
   guestPurchaseUsesSaasAutoCart,
   normalizeGuestPurchaseFlow,
   parseGuestExternalCartUrlTemplate,
 } from '@/lib/messaging/guest-purchase-flow'
 import { Bot, Copy, Download, FileSpreadsheet, Image as ImageIcon, Package, RefreshCw, Search, Sparkles, Truck, Upload } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import { settingsDataRoleCopy } from '@/lib/messaging/settings-data-role'
+import { SettingsDataRoleBox } from '@/components/messaging/settings-data-role'
 
 type AiT = Dictionary['partnerMessagingAi']
 type SettingsRow = PartnerAiSettingsClientRow
@@ -245,6 +250,7 @@ export function PartnerAiSettingsPanel({
   const isShippingOnly = panelMode === 'shipping-only'
   const showReturnAddress = !isShippingOnly || shippingSections !== 'lookup'
   const showShippingLookup = !isShippingOnly || shippingSections !== 'return-address'
+  const roleCopy = settingsDataRoleCopy(getDictionary(locale).partnerMessaging)
   const showSettingsTab = panelMode === 'full' || panelMode === 'ai-only' || isShippingOnly
   const showInventoryTab = panelMode === 'full' || panelMode === 'inventory-only'
   const showUsageTab = panelMode === 'full' || panelMode === 'usage-only'
@@ -252,7 +258,7 @@ export function PartnerAiSettingsPanel({
     panelMode === 'inventory-only' ? 'inv' : panelMode === 'usage-only' ? 'usage' : 'settings'
   )
   const [loadErr, setLoadErr] = useState<string | null>(null)
-  const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const [settingsLoaded, setSettingsLoaded] = useState(true)
   const [saasShopCart, setSaasShopCart] = useState<{
     linked: boolean
     publicUrl: string | null
@@ -295,6 +301,7 @@ export function PartnerAiSettingsPanel({
   const [form, setForm] = useState<FormState>(() => defaultsFromSettings(null))
   const formRef = useRef<FormState>(form)
   const loadSeqRef = useRef(0)
+  const settingsDirtyRef = useRef(false)
   const autoEmbedSyncStateRef = useRef<{ running: boolean; lastRunAt: number; partnerId: string | null }>({
     running: false,
     lastRunAt: 0,
@@ -385,76 +392,107 @@ export function PartnerAiSettingsPanel({
 
   const load = useCallback((): Promise<void> => {
     const seq = ++loadSeqRef.current
+    settingsDirtyRef.current = false
     setLoadErr(null)
-    setSettingsLoaded(false)
-    setInventory([])
-    setSelectedInventoryIds(new Set())
-    setInventoryTotalCount(0)
-    setInventoryPage(0)
-    setEmbeddingStats(null)
-    setTextEmbeddingStats(null)
+    const needInventory = panelMode === 'full' || panelMode === 'inventory-only'
+    const needUsage = panelMode === 'full' || panelMode === 'usage-only'
+    const applySaas = (raw: unknown) => {
+      const cart = raw as { linked?: boolean; publicUrl?: string | null; autoTemplate?: string | null } | null | undefined
+      if (cart) {
+        setSaasShopCart({
+          linked: Boolean(cart.linked),
+          publicUrl: cart.publicUrl ?? null,
+          autoTemplate: cart.autoTemplate ?? null,
+        })
+      } else {
+        setSaasShopCart({ linked: false, publicUrl: null, autoTemplate: null })
+      }
+    }
+    if (needInventory) {
+      setInventory([])
+      setSelectedInventoryIds(new Set())
+      setInventoryTotalCount(0)
+      setInventoryPage(0)
+      setEmbeddingStats(null)
+      setTextEmbeddingStats(null)
+    }
     return (async () => {
-      const [bundleRes, embeddingRes, textEmbeddingRes] = await Promise.all([
-        getPartnerAiBundle(partnerId),
-        getPartnerInventoryEmbeddingStats(partnerId),
-        getPartnerInventoryTextEmbeddingStats(partnerId),
-      ])
-      if (seq !== loadSeqRef.current) return
-
-      if ('error' in embeddingRes) {
-        setEmbeddingStats(null)
-      } else {
-        setEmbeddingStats(embeddingRes.stats)
-      }
-      if ('error' in textEmbeddingRes) {
-        setTextEmbeddingStats(null)
-      } else {
-        setTextEmbeddingStats(textEmbeddingRes.stats)
-      }
-      setEmbeddingErrorsRefreshKey((k) => k + 1)
-
-      if ('error' in bundleRes && bundleRes.error) {
-        setLoadErr(bundleRes.error)
-        toast({ title: t.loadError, description: bundleRes.error, variant: 'destructive' })
-        return
-      }
-      if ('settings' in bundleRes) {
-        const next = defaultsFromSettings(bundleRes.settings ?? null)
-        formRef.current = next
-        setForm(next)
-        if ('saasShopCart' in bundleRes && bundleRes.saasShopCart) {
-          setSaasShopCart({
-            linked: Boolean(bundleRes.saasShopCart.linked),
-            publicUrl: bundleRes.saasShopCart.publicUrl ?? null,
-            autoTemplate: bundleRes.saasShopCart.autoTemplate ?? null,
-          })
-        } else {
-          setSaasShopCart({ linked: false, publicUrl: null, autoTemplate: null })
-        }
-        const inv = bundleRes.inventory ?? []
-        setInventory(inv)
-        setInventoryTotalCount(
-          Math.max(inv.length, typeof bundleRes.inventoryTotalCount === 'number' ? bundleRes.inventoryTotalCount : 0)
-        )
-        setInventoryPageSize(Math.max(20, Number(bundleRes.inventoryPageSize ?? 120) || 120))
-        setInventoryPage(0)
-        setSettingsLoaded(true)
-      } else {
-        setSettingsLoaded(true)
-      }
-
-      const mode = usageRangeModeRef.current
-      const usageQuery: PartnerAiUsageQuery =
-        mode === 'rolling'
-          ? { type: 'rolling', period: usagePeriodRef.current }
-          : {
-              type: 'calendar',
-              fromDayUtc: usageCalendarFromRef.current || utcYmdToday(),
-              toDayUtc: usageCalendarToRef.current || utcYmdToday(),
+      try {
+        if (!needInventory) {
+          const settingsRes = await getPartnerAiSettingsBundle(partnerId)
+          if (seq !== loadSeqRef.current) return
+          if ('error' in settingsRes && settingsRes.error) {
+            setLoadErr(settingsRes.error)
+            toast({ title: t.loadError, description: settingsRes.error, variant: 'destructive' })
+          } else if ('settings' in settingsRes) {
+            if (!settingsDirtyRef.current) {
+              const next = defaultsFromSettings(settingsRes.settings ?? null)
+              formRef.current = next
+              setForm(next)
             }
-      await loadUsageAnalyticsWithSeq(seq, usageQuery)
+            applySaas('saasShopCart' in settingsRes ? settingsRes.saasShopCart : null)
+          }
+        } else {
+          const [bundleRes, embeddingRes, textEmbeddingRes] = await Promise.all([
+            getPartnerAiBundle(partnerId),
+            getPartnerInventoryEmbeddingStats(partnerId),
+            getPartnerInventoryTextEmbeddingStats(partnerId),
+          ])
+          if (seq !== loadSeqRef.current) return
+
+          if ('error' in embeddingRes) {
+            setEmbeddingStats(null)
+          } else {
+            setEmbeddingStats(embeddingRes.stats)
+          }
+          if ('error' in textEmbeddingRes) {
+            setTextEmbeddingStats(null)
+          } else {
+            setTextEmbeddingStats(textEmbeddingRes.stats)
+          }
+          setEmbeddingErrorsRefreshKey((k) => k + 1)
+
+          if ('error' in bundleRes && bundleRes.error) {
+            setLoadErr(bundleRes.error)
+            toast({ title: t.loadError, description: bundleRes.error, variant: 'destructive' })
+          } else if ('settings' in bundleRes) {
+            if (!settingsDirtyRef.current) {
+              const next = defaultsFromSettings(bundleRes.settings ?? null)
+              formRef.current = next
+              setForm(next)
+            }
+            applySaas('saasShopCart' in bundleRes ? bundleRes.saasShopCart : null)
+            const inv = bundleRes.inventory ?? []
+            setInventory(inv)
+            setInventoryTotalCount(
+              Math.max(inv.length, typeof bundleRes.inventoryTotalCount === 'number' ? bundleRes.inventoryTotalCount : 0)
+            )
+            setInventoryPageSize(Math.max(20, Number(bundleRes.inventoryPageSize ?? 120) || 120))
+            setInventoryPage(0)
+          }
+        }
+
+        if (needUsage) {
+          const mode = usageRangeModeRef.current
+          const usageQuery: PartnerAiUsageQuery =
+            mode === 'rolling'
+              ? { type: 'rolling', period: usagePeriodRef.current }
+              : {
+                  type: 'calendar',
+                  fromDayUtc: usageCalendarFromRef.current || utcYmdToday(),
+                  toDayUtc: usageCalendarToRef.current || utcYmdToday(),
+                }
+          await loadUsageAnalyticsWithSeq(seq, usageQuery)
+        }
+      } catch {
+        if (seq === loadSeqRef.current) {
+          toast({ title: t.loadError, variant: 'destructive' })
+        }
+      } finally {
+        if (seq === loadSeqRef.current) setSettingsLoaded(true)
+      }
     })()
-  }, [partnerId, t.loadError, toast, loadUsageAnalyticsWithSeq])
+  }, [partnerId, panelMode, t.loadError, toast, loadUsageAnalyticsWithSeq])
 
   useEffect(() => {
     load()
@@ -468,15 +506,16 @@ export function PartnerAiSettingsPanel({
     (partial: Partial<FormState>) => {
       const next = { ...formRef.current, ...partial }
       formRef.current = next
+      settingsDirtyRef.current = true
       setForm(next)
-      startTransition(async () => {
+      void (async () => {
         const res = await savePartnerAiSettings(partnerId, formToPayload(next))
         if ('error' in res && res.error) {
           toast({ title: res.error, variant: 'destructive' })
           return
         }
         toast({ title: saveOkMessage })
-      })
+      })()
     },
     [partnerId, saveOkMessage, toast]
   )
@@ -711,17 +750,17 @@ export function PartnerAiSettingsPanel({
                   <p className="text-sm font-medium">{t.enableLabel}</p>
                   <p className="text-xs text-muted-foreground">{t.enableHint}</p>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex shrink-0 items-center gap-2 rounded-full border border-slate-300 bg-white px-2 py-1 shadow-sm dark:border-slate-600 dark:bg-slate-900">
                   <span
-                    className={`text-xs font-semibold tabular-nums ${form.enabled ? 'text-violet-600 dark:text-violet-400' : 'text-muted-foreground'}`}
+                    className={`min-w-[4.5rem] text-right text-xs font-semibold tabular-nums ${form.enabled ? 'text-violet-600 dark:text-violet-400' : 'text-slate-600 dark:text-slate-300'}`}
                   >
-                    {settingsLoaded ? (form.enabled ? t.toggleStatusOn : t.toggleStatusOff) : '...'}
+                    {form.enabled ? t.toggleStatusOn : t.toggleStatusOff}
                   </span>
                   <Switch
                     checked={form.enabled}
                     onCheckedChange={(c) => persistPartial({ enabled: c })}
-                    disabled={pending || !settingsLoaded}
                     aria-label={t.enableLabel}
+                    className="h-7 w-12 border border-slate-400 data-[state=unchecked]:bg-slate-400 data-[state=checked]:bg-violet-600 data-[state=unchecked]:border-slate-500"
                   />
                 </div>
               </div>
@@ -784,35 +823,24 @@ export function PartnerAiSettingsPanel({
             >
               <Label htmlFor="ai-guest-purchase-flow">{t.guestPurchaseFlowLabel}</Label>
               <p className="text-xs text-muted-foreground">{t.guestPurchaseFlowHint}</p>
-              <Select
+              <select
+                id="ai-guest-purchase-flow"
+                className="flex h-9 w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 value={form.guest_purchase_flow}
-                onValueChange={(v: string) => {
-                  const flow = normalizeGuestPurchaseFlow(v)
-                  const next = { ...formRef.current, guest_purchase_flow: flow }
-                  formRef.current = next
-                  setForm(next)
-                  const canSaveCartFlow =
-                    flow !== 'external_cart_url' ||
-                    saasShopCart.linked ||
-                    Boolean(parseGuestExternalCartUrlTemplate(next.guest_external_cart_url_template))
-                  /** Web khách ngoài: chờ điền mẫu URL. Shop SaaS / đã có mẫu: lưu ngay — không xóa URL 188. */
-                  if (canSaveCartFlow) {
-                    persistPartial({ guest_purchase_flow: flow })
-                  }
+                onChange={(e) => {
+                  persistPartial({ guest_purchase_flow: normalizeGuestPurchaseFlow(e.target.value) })
                 }}
-                disabled={pending || !settingsLoaded}
               >
-                <SelectTrigger id="ai-guest-purchase-flow" className="max-w-md bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="in_chat">{t.guestPurchaseFlowInChat}</SelectItem>
-                  {!saasShopCart.linked || form.guest_purchase_flow === 'external_site' ? (
-                    <SelectItem value="external_site">{t.guestPurchaseFlowExternal}</SelectItem>
-                  ) : null}
-                  <SelectItem value="external_cart_url">{t.guestPurchaseFlowExternalCart}</SelectItem>
-                </SelectContent>
-              </Select>
+                {guestPurchaseFlowChoices(saasShopCart.linked, form.guest_purchase_flow).map((flow) => (
+                  <option key={flow} value={flow}>
+                    {flow === 'in_chat'
+                      ? t.guestPurchaseFlowInChat
+                      : flow === 'external_cart_url'
+                        ? t.guestPurchaseFlowExternalCart
+                        : t.guestPurchaseFlowExternal}
+                  </option>
+                ))}
+              </select>
               {form.guest_purchase_flow === 'external_cart_url' ? (
                 <div className="space-y-1.5 pt-1">
                   {saasShopCart.linked ? (
@@ -823,10 +851,12 @@ export function PartnerAiSettingsPanel({
                           : t.guestPurchaseFlowSaasLinkedHint}
                       </p>
                       {saasShopCart.autoTemplate ? (
-                        <p className="max-w-xl break-all font-mono text-[11px] text-muted-foreground">
-                          <span className="font-sans text-muted-foreground">{t.guestPurchaseFlowSaasPreviewLabel}: </span>
-                          {saasShopCart.autoTemplate}
-                        </p>
+                        <SettingsDataRoleBox role="issued" copy={roleCopy} className="max-w-xl">
+                          <p className="break-all font-mono text-[11px]">
+                            <span className="font-sans">{t.guestPurchaseFlowSaasPreviewLabel}: </span>
+                            {saasShopCart.autoTemplate}
+                          </p>
+                        </SettingsDataRoleBox>
                       ) : null}
                     </>
                   ) : parseGuestExternalCartUrlTemplate(form.guest_external_cart_url_template) ? null : (
@@ -837,6 +867,7 @@ export function PartnerAiSettingsPanel({
                     storedTemplate: form.guest_external_cart_url_template,
                   }) ? null : (
                     <>
+                      <SettingsDataRoleBox role="inbound" copy={roleCopy}>
                       <Label htmlFor="ai-guest-cart-url-template">{t.guestExternalCartUrlTemplateLabel}</Label>
                       <p className="text-xs text-muted-foreground">{t.guestExternalCartUrlTemplateHint}</p>
                       <Input
@@ -863,9 +894,9 @@ export function PartnerAiSettingsPanel({
                             guest_external_cart_url_template: tpl,
                           })
                         }}
-                        disabled={!settingsLoaded}
                       />
                       <p className="text-[11px] text-muted-foreground">{t.guestExternalCartUrlTemplateSaveHint}</p>
+                      </SettingsDataRoleBox>
                     </>
                   )}
                 </div>
@@ -961,7 +992,7 @@ export function PartnerAiSettingsPanel({
             ) : null}
 
             {showShippingLookup ? (
-            <div className="space-y-3 rounded-lg border border-border/80 bg-muted/20 p-4">
+            <SettingsDataRoleBox role="inbound" copy={roleCopy} className="space-y-3 p-4">
               <div className="space-y-1">
                 <Label>{t.shippingLookupTitle}</Label>
                 <p className="text-xs text-muted-foreground">{t.shippingLookupHint}</p>
@@ -1053,7 +1084,7 @@ export function PartnerAiSettingsPanel({
                   </Button>
                 ) : null}
               </div>
-            </div>
+            </SettingsDataRoleBox>
             ) : null}
 
             {!isShippingOnly ? (

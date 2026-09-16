@@ -2581,6 +2581,37 @@ function buildPartnerVisionSyncHealth(
   }
 }
 
+async function loadPartnerSaasCartPreview(partnerId: string): Promise<{
+  linked: boolean
+  publicUrl: string | null
+  autoTemplate: string | null
+}> {
+  try {
+    return await resolvePartnerSaasCartAddPreview(partnerId)
+  } catch (e) {
+    console.warn('[loadPartnerSaasCartPreview]', e)
+    return { linked: false, publicUrl: null, autoTemplate: null }
+  }
+}
+
+/** Tab Cài đặt AI — không chờ kho hàng / usage. */
+export async function getPartnerAiSettingsBundle(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerAnyStaffCapability(user.id, partnerId, ['ai_settings', 'inventory'])
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) {
+    return { error: 'DATABASE_URL is not set.' }
+  }
+  const settings = await fetchMessagingPartnerAiSettingsFullFromPg(partnerId)
+  const saasShopCart = await loadPartnerSaasCartPreview(partnerId)
+  return {
+    settings: toPartnerAiSettingsClient(settings ?? null),
+    saasShopCart,
+  }
+}
+
 export async function getPartnerAiBundle(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -2591,23 +2622,30 @@ export async function getPartnerAiBundle(partnerId: string) {
     return { error: 'DATABASE_URL is not set.' }
   }
   const settings = await fetchMessagingPartnerAiSettingsFullFromPg(partnerId)
-  const invPg = await fetchPartnerInventoryActivePageWithCountFromPg(
-    partnerId,
-    0,
-    PARTNER_INVENTORY_PAGE_SIZE
-  )
-  if (invPg === null) return { error: 'Failed to load inventory.' }
+  const saasShopCart = await loadPartnerSaasCartPreview(partnerId)
+  let rows: Database['public']['Tables']['messaging_partner_inventory']['Row'][] = []
+  let total = 0
+  try {
+    const invPg = await fetchPartnerInventoryActivePageWithCountFromPg(
+      partnerId,
+      0,
+      PARTNER_INVENTORY_PAGE_SIZE
+    )
+    if (invPg) {
+      rows = invPg.rows
+      total = Math.max(invPg.rows.length, invPg.count)
+    }
+  } catch (e) {
+    console.warn('[getPartnerAiBundle] inventory', e)
+  }
   const runner = (await fetchVisionWarehouseRunnerLockFieldsFromPg(1)) ?? null
-  const inv = invPg.rows
-  const total = Math.max(inv.length, invPg.count)
-  const saasShopCart = await resolvePartnerSaasCartAddPreview(partnerId)
   return {
     settings: toPartnerAiSettingsClient(settings ?? null),
-    inventory: inv,
+    inventory: rows,
     inventoryTotalCount: total,
     inventoryPageSize: PARTNER_INVENTORY_PAGE_SIZE,
-    visionCatalogStats: buildPartnerVisionCatalogStats(inv),
-    visionSyncHealth: buildPartnerVisionSyncHealth(inv, runner ?? null),
+    visionCatalogStats: buildPartnerVisionCatalogStats(rows),
+    visionSyncHealth: buildPartnerVisionSyncHealth(rows, runner ?? null),
     saasShopCart,
   }
 }
@@ -2831,14 +2869,15 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
   let templateToStore = cartTpl
   if (purchaseFlow === 'external_cart_url' && !cartTpl) {
     const auto = await resolvePartnerSaasCartAddUrlTemplate(partnerId)
-    if (!auto) {
+    if (auto) {
+      const existingFull = await fetchMessagingPartnerAiSettingsFullFromPg(partnerId)
+      templateToStore = parseGuestExternalCartUrlTemplate(existingFull?.guest_external_cart_url_template)
+    } else {
       return {
         error:
           'Shop website on this platform is missing. Publish the shop site (no API key), or paste a public cart URL with {sku} for an external site.',
       }
     }
-    const existingFull = await fetchMessagingPartnerAiSettingsFullFromPg(partnerId)
-    templateToStore = parseGuestExternalCartUrlTemplate(existingFull?.guest_external_cart_url_template)
   }
   const shippingLookupUrl = (payload.shipping_lookup_url ?? '').trim().slice(0, 2048)
   if (shippingLookupUrl && !assertPublicHttpsShippingLookupUrl(shippingLookupUrl)) {

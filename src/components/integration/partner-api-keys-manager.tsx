@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Copy, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -39,8 +39,29 @@ import {
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { PARTNER_OUTBOUND_WEBHOOK_EVENTS } from '@/lib/messaging/partner-outbound-webhook-types'
+import type { SettingsDataRole, SettingsDataRoleCopy } from '@/lib/messaging/settings-data-role'
+import { SettingsDataRoleBox } from '@/components/messaging/settings-data-role'
 
 const MASK = '••••••••••••••••••••••••••••'
+
+function RoleWrap({
+  role,
+  copy,
+  fallbackClass,
+  children,
+}: {
+  role: SettingsDataRole
+  copy?: SettingsDataRoleCopy
+  fallbackClass: string
+  children: ReactNode
+}) {
+  if (!copy) return <div className={fallbackClass}>{children}</div>
+  return (
+    <SettingsDataRoleBox role={role} copy={copy}>
+      {children}
+    </SettingsDataRoleBox>
+  )
+}
 
 type BundleOk = {
   ok: true
@@ -71,6 +92,7 @@ type Props = {
   onPartnerIdChange?: (id: string) => void
   /** Ẩn ô chọn shop khi đã chọn workspace ở trang Cài đặt. */
   hidePartnerPicker?: boolean
+  dataRoleCopy?: SettingsDataRoleCopy
 }
 
 export function PartnerApiKeysManager({
@@ -79,6 +101,7 @@ export function PartnerApiKeysManager({
   partnerId: partnerIdProp,
   onPartnerIdChange,
   hidePartnerPicker = false,
+  dataRoleCopy,
 }: Props) {
   const { toast } = useToast()
   const { runWithStepUp } = useStepUpOtp()
@@ -323,7 +346,11 @@ export function PartnerApiKeysManager({
           </div>
           )}
 
-          <div className="space-y-3 rounded-lg border border-emerald-300/40 bg-emerald-50/15 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+          <RoleWrap
+            role="issued"
+            copy={dataRoleCopy}
+            fallbackClass="space-y-3 rounded-lg border border-emerald-300/40 bg-emerald-50/15 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20"
+          >
             <div>
               <p className="text-sm font-medium">{t.embedTitle}</p>
               <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{t.embedHint}</p>
@@ -344,9 +371,13 @@ export function PartnerApiKeysManager({
                 {t.copy}
               </Button>
             </div>
-          </div>
+          </RoleWrap>
 
-          <div className="space-y-3 rounded-lg border border-violet-300/40 bg-violet-50/15 p-3 dark:border-violet-900/40 dark:bg-violet-950/20">
+          <RoleWrap
+            role="issued"
+            copy={dataRoleCopy}
+            fallbackClass="space-y-3 rounded-lg border border-violet-300/40 bg-violet-50/15 p-3 dark:border-violet-900/40 dark:bg-violet-950/20"
+          >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-medium">{t.imageSearchTitle}</p>
@@ -426,9 +457,13 @@ export function PartnerApiKeysManager({
             >
               {generating ? t.generating : t.generate}
             </Button>
-          </div>
+          </RoleWrap>
 
-          <div className="space-y-3 rounded-lg border border-sky-300/40 bg-sky-50/15 p-3 dark:border-sky-900/40 dark:bg-sky-950/20">
+          <RoleWrap
+            role="inbound"
+            copy={dataRoleCopy}
+            fallbackClass="space-y-3 rounded-lg border border-sky-300/40 bg-sky-50/15 p-3 dark:border-sky-900/40 dark:bg-sky-950/20"
+          >
             <div>
               <p className="text-sm font-medium">{t.webhookTitle}</p>
               <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{t.webhookHint}</p>
@@ -473,9 +508,11 @@ export function PartnerApiKeysManager({
               ))}
             </div>
             {webhookSecretEphemeral ? (
-              <code className="block break-all rounded-md border bg-background px-2 py-1.5 text-[11px] font-mono">
-                {webhookSecretEphemeral}
-              </code>
+              <RoleWrap role="issued" copy={dataRoleCopy} fallbackClass="">
+                <code className="block break-all rounded-md border bg-background px-2 py-1.5 text-[11px] font-mono">
+                  {webhookSecretEphemeral}
+                </code>
+              </RoleWrap>
             ) : null}
             <div className="flex flex-wrap gap-2">
               <Button
@@ -553,7 +590,7 @@ export function PartnerApiKeysManager({
                 {t.webhookTest}
               </Button>
             </div>
-          </div>
+          </RoleWrap>
         </CardContent>
       </Card>
 

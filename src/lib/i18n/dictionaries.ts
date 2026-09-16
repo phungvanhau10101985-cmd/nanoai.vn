@@ -768,6 +768,14 @@ export type Dictionary = {
     settingsNavWorkspace: string
     settingsNavGoLive: string
     settingsNavGoLiveDesc: string
+    /** Chú giải màu trường: nội bộ / cấp ra / nhận vào */
+    settingsDataRoleLegendTitle: string
+    settingsDataRoleLegendInternal: string
+    settingsDataRoleLegendIssued: string
+    settingsDataRoleLegendInbound: string
+    settingsDataRoleBadgeInternal: string
+    settingsDataRoleBadgeIssued: string
+    settingsDataRoleBadgeInbound: string
     settingsNavBrandDesc: string
     settingsNavWebsiteEditor: string
     settingsNavConnectTitle: string
@@ -4299,6 +4307,13 @@ const VI_DICTIONARY: Dictionary = {
     settingsNavWorkspace: 'Shop & nhân viên',
     settingsNavGoLive: 'Checklist mở bán',
     settingsNavGoLiveDesc: 'Các mục bắt buộc trước khi nhận đơn trên web shop.',
+    settingsDataRoleLegendTitle: 'Màu trường thông tin',
+    settingsDataRoleLegendInternal: 'Đen — thông tin dùng nội bộ trên nền tảng.',
+    settingsDataRoleLegendIssued: 'Xanh dương — khóa / dữ liệu nền tảng cấp sang hệ thống khác (dán bên kia).',
+    settingsDataRoleLegendInbound: 'Xanh lá — cần dữ liệu từ nền tảng khác điền vào đây để hoạt động.',
+    settingsDataRoleBadgeInternal: 'Nội bộ',
+    settingsDataRoleBadgeIssued: 'Cấp ra',
+    settingsDataRoleBadgeInbound: 'Nhận vào',
     settingsNavBrandDesc:
       'Tên hiển thị, ngành hàng, logo chat, favicon và logo header / chân trang trên website.',
     settingsNavWebsiteEditor: 'Giao diện web shop',
@@ -7844,6 +7859,13 @@ const EN_DICTIONARY: Dictionary = {
     settingsNavWorkspace: 'Shop & staff',
     settingsNavGoLive: 'Go-live checklist',
     settingsNavGoLiveDesc: 'Required items before taking orders on the shop website.',
+    settingsDataRoleLegendTitle: 'Field colors',
+    settingsDataRoleLegendInternal: 'Black — information used inside this platform.',
+    settingsDataRoleLegendIssued: 'Blue — keys or data this platform issues to another system (paste them there).',
+    settingsDataRoleLegendInbound: 'Green — fill in data from another platform for this field to work.',
+    settingsDataRoleBadgeInternal: 'Internal',
+    settingsDataRoleBadgeIssued: 'Issued',
+    settingsDataRoleBadgeInbound: 'Inbound',
     settingsNavBrandDesc:
       'Display name, industry, chat logo, favicon, and header / footer logos on the shop website.',
     settingsNavWebsiteEditor: 'Shop website look',
@@ -11383,6 +11405,13 @@ const ZH_DICTIONARY: Dictionary = {
     settingsNavWorkspace: '店铺与员工',
     settingsNavGoLive: '开售清单',
     settingsNavGoLiveDesc: '在网站接单前需完成的必填项。',
+    settingsDataRoleLegendTitle: '字段颜色',
+    settingsDataRoleLegendInternal: '黑色 — 平台内部使用的信息。',
+    settingsDataRoleLegendIssued: '蓝色 — 本平台发给其他系统的密钥/数据（粘贴到对方）。',
+    settingsDataRoleLegendInbound: '绿色 — 需填入其他平台的数据才能生效。',
+    settingsDataRoleBadgeInternal: '内部',
+    settingsDataRoleBadgeIssued: '发放',
+    settingsDataRoleBadgeInbound: '填入',
     settingsNavBrandDesc: '显示名称、行业、聊天 Logo、网站 favicon 以及页头/页脚 Logo。',
     settingsNavWebsiteEditor: '店铺网站外观',
     settingsNavConnectTitle: '连接',
@@ -14834,6 +14863,13 @@ const JA_DICTIONARY: Dictionary = {
     settingsNavWorkspace: 'ショップとスタッフ',
     settingsNavGoLive: '公開前チェック',
     settingsNavGoLiveDesc: '店舗サイトで受注する前に必須の項目です。',
+    settingsDataRoleLegendTitle: '項目の色',
+    settingsDataRoleLegendInternal: '黒 — このプラットフォーム内だけで使う情報。',
+    settingsDataRoleLegendIssued: '青 — 本プラットフォームが他システムへ渡すキー／データ（先方に貼る）。',
+    settingsDataRoleLegendInbound: '緑 — 他プラットフォームのデータをここに入れて初めて動く。',
+    settingsDataRoleBadgeInternal: '内部',
+    settingsDataRoleBadgeIssued: '発行',
+    settingsDataRoleBadgeInbound: '受入',
     settingsNavBrandDesc: '表示名、業種、チャットロゴ、ファビコン、サイトのヘッダー／フッターロゴ。',
     settingsNavWebsiteEditor: 'ショップサイトの見た目',
     settingsNavConnectTitle: '連携',
@@ -18350,6 +18386,13 @@ const KO_DICTIONARY: Dictionary = {
     settingsNavWorkspace: '매장과 직원',
     settingsNavGoLive: '판매 시작 체크리스트',
     settingsNavGoLiveDesc: '웹샵에서 주문을 받기 전에 필요한 항목입니다.',
+    settingsDataRoleLegendTitle: '필드 색',
+    settingsDataRoleLegendInternal: '검정 — 이 플랫폼 내부에서 쓰는 정보.',
+    settingsDataRoleLegendIssued: '파랑 — 이 플랫폼이 다른 시스템에 넘겨 주는 키/데이터(그쪽에 붙여 넣기).',
+    settingsDataRoleLegendInbound: '초록 — 다른 플랫폼의 데이터를 여기에 넣어야 동작합니다.',
+    settingsDataRoleBadgeInternal: '내부',
+    settingsDataRoleBadgeIssued: '발급',
+    settingsDataRoleBadgeInbound: '입력',
     settingsNavBrandDesc: '표시 이름, 업종, 채팅 로고, 파비콘, 사이트 헤더/푸터 로고.',
     settingsNavWebsiteEditor: '쇼핑몰 사이트 디자인',
     settingsNavConnectTitle: '연결',

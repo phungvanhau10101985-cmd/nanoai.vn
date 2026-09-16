@@ -27,6 +27,8 @@ import {
   verifyMessagingPartnerCustomDomain,
 } from '@/app/dashboard/messaging/actions'
 import { CheckCircle2, Copy, Globe, Loader2, RefreshCw, ShieldCheck } from 'lucide-react'
+import { settingsDataRoleCopy } from '@/lib/messaging/settings-data-role'
+import { SettingsDataRoleBox } from '@/components/messaging/settings-data-role'
 
 type T = Dictionary['partnerMessaging']
 
@@ -296,6 +298,7 @@ export function PartnerCustomDomainSettingsCard({
   }
 
   const compact = variant === 'website'
+  const roleCopy = settingsDataRoleCopy(t)
 
   return (
     <div className="space-y-3">
@@ -337,7 +340,7 @@ export function PartnerCustomDomainSettingsCard({
         </div>
         )}
         <CardContent className={compact ? 'space-y-3 p-0' : 'space-y-3 px-4 pb-4 pt-0'}>
-          <div className="space-y-2">
+          <SettingsDataRoleBox role="inbound" copy={roleCopy} className="space-y-2">
             <Label htmlFor="custom-domain-host">{t.customDomainHostnameLabel}</Label>
             <Input
               id="custom-domain-host"
@@ -346,7 +349,7 @@ export function PartnerCustomDomainSettingsCard({
               placeholder={t.customDomainHostnamePlaceholder}
               className="font-mono text-sm"
             />
-          </div>
+          </SettingsDataRoleBox>
 
           {!compact ? (
           <div className="flex flex-wrap gap-4 text-xs">
@@ -371,7 +374,7 @@ export function PartnerCustomDomainSettingsCard({
           </div>
           ) : null}
 
-          <div className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-2">
+          <SettingsDataRoleBox role="issued" copy={roleCopy} className="rounded-lg p-3 space-y-2">
             <p className="text-xs font-medium">{t.customDomainCnameTitle}</p>
             <p className="text-[11px] text-muted-foreground">
               {t.customDomainCnameHint.replace('{target}', cnameTarget)}
@@ -385,10 +388,10 @@ export function PartnerCustomDomainSettingsCard({
                 {t.customDomainCopyTarget}
               </Button>
             </div>
-          </div>
+          </SettingsDataRoleBox>
 
           {apexPair ? (
-          <div className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-2">
+          <SettingsDataRoleBox role="issued" copy={roleCopy} className="rounded-lg p-3 space-y-2">
             <p className="text-xs font-medium">{t.customDomainApexTitle}</p>
             <p className="text-[11px] text-muted-foreground">
               {t.customDomainApexHint.replace('{ip}', apexATarget)}
@@ -402,7 +405,7 @@ export function PartnerCustomDomainSettingsCard({
                 {t.customDomainCopyApexIp}
               </Button>
             </div>
-          </div>
+          </SettingsDataRoleBox>
           ) : null}
 
           <div className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-1">
@@ -471,7 +474,7 @@ export function PartnerCustomDomainSettingsCard({
               <p className="text-xs font-medium">{t.shopSsoSectionTitle}</p>
               <p className="text-[11px] text-muted-foreground leading-relaxed">{t.shopSsoSectionDesc}</p>
             </div>
-            <div className="space-y-2">
+            <SettingsDataRoleBox role="inbound" copy={roleCopy} className="space-y-2">
               <Label htmlFor="shop-sso-origin">{t.shopSsoLoginOriginLabel}</Label>
               <Input
                 id="shop-sso-origin"
@@ -480,7 +483,7 @@ export function PartnerCustomDomainSettingsCard({
                 placeholder={t.shopSsoLoginOriginPlaceholder}
                 className="font-mono text-sm"
               />
-            </div>
+            </SettingsDataRoleBox>
             <div className="space-y-2">
               <Label htmlFor="shop-sso-login-path">{t.shopSsoLoginPathLabel}</Label>
               <Input
