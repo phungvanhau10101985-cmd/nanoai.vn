@@ -11,7 +11,11 @@ export async function GET(req: Request) {
   const localeRaw = (url.searchParams.get('locale') || 'vi').trim()
   const locale: WebLocale = normalizeWebLocale(localeRaw) ?? 'vi'
 
-  const built = buildShopTemplateSampleHtml({ presetId, locale })
+  const built = buildShopTemplateSampleHtml({
+    presetId,
+    locale,
+    primaryColor: url.searchParams.get('color'),
+  })
   if (!built.ok) {
     return new NextResponse(built.error, { status: 404 })
   }

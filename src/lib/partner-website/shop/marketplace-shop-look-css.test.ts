@@ -106,6 +106,7 @@ test('marketplace gallery sample is not 188-branded and keeps live hooks', () =>
   assert.match(built.html, /data-pw-region="footer"/)
   assert.match(built.html, /data-pw-footer="full"/)
   assert.match(built.html, /data-pw-sample-preview="1"/)
+  assert.match(built.html, /data-pw-sample-colors="1"/)
   assert.match(built.html, /data-pw-featured-live="1"/)
   assert.match(built.html, /data-pw-sample-card="1"/)
   assert.match(built.html, /Túi xách/)

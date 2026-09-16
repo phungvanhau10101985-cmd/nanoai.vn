@@ -15,6 +15,7 @@ export async function GET(
   const built = buildShopTemplateSampleHtml({
     presetId: decodeURIComponent(presetId || '').trim(),
     locale,
+    primaryColor: url.searchParams.get('color'),
   })
   if (!built.ok) {
     return new NextResponse(built.error, { status: 404 })

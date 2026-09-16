@@ -934,6 +934,8 @@ export type PartnerWebsiteCopy = {
   templateGalleryReadyBadge: string
   templateGalleryOpenLibrary: string
   templateGalleryCloseLibrary: string
+  templateGalleryColorPicker: string
+  templateGalleryColorCustom: string
   studioBuildProgressCount: string
   studioStartInterview: string
   studioSkipToEditor: string
@@ -2053,6 +2055,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateGalleryReadyBadge: 'Sẵn dùng',
     templateGalleryOpenLibrary: 'Mở kho giao diện',
     templateGalleryCloseLibrary: 'Ẩn mẫu',
+    templateGalleryColorPicker: 'Màu giao diện',
+    templateGalleryColorCustom: 'Màu khác',
     studioBuildProgressCount: '{done}/{total} bước',
     studioStartInterview: 'Tạo web mới từ mẫu',
     studioSkipToEditor: 'Dùng mẫu có sẵn',
@@ -3182,6 +3186,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateGalleryReadyBadge: 'Ready',
     templateGalleryOpenLibrary: 'Open template library',
     templateGalleryCloseLibrary: 'Hide',
+    templateGalleryColorPicker: 'Site colors',
+    templateGalleryColorCustom: 'Custom',
     studioBuildProgressCount: '{done}/{total} steps',
     studioStartInterview: 'New site from template',
     studioSkipToEditor: 'Use default template',
@@ -4281,6 +4287,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateGalleryReadyBadge: '可用',
     templateGalleryOpenLibrary: '打开模板库',
     templateGalleryCloseLibrary: '收起',
+    templateGalleryColorPicker: '网站配色',
+    templateGalleryColorCustom: '自选',
     studioBuildProgressCount: '{done}/{total} 步',
     studioStartInterview: '用模板新建网站',
     studioSkipToEditor: '使用默认模板',
@@ -5389,6 +5397,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateGalleryReadyBadge: '利用可',
     templateGalleryOpenLibrary: 'テンプレート庫を開く',
     templateGalleryCloseLibrary: '閉じる',
+    templateGalleryColorPicker: 'サイトの色',
+    templateGalleryColorCustom: '指定',
     studioBuildProgressCount: '{done}/{total} ステップ',
     studioStartInterview: 'テンプレートで新規Web',
     studioSkipToEditor: 'デフォルトテンプレート',
@@ -6502,6 +6512,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateGalleryReadyBadge: '사용 가능',
     templateGalleryOpenLibrary: '템플릿 라이브러리 열기',
     templateGalleryCloseLibrary: '숨기기',
+    templateGalleryColorPicker: '사이트 색상',
+    templateGalleryColorCustom: '직접 선택',
     studioBuildProgressCount: '{done}/{total} 단계',
     studioStartInterview: '템플릿으로 새 웹',
     studioSkipToEditor: '기본 템플릿 사용',
