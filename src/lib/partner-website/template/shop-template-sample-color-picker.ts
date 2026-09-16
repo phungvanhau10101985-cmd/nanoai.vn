@@ -2,6 +2,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { escapeAttr, escapeHtml } from '@/lib/packaging/mockup-share-html'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
+import { getShopTemplatePreset } from '@/lib/partner-website/template/shop-template-presets'
 import {
   hexesClose,
   isHexColor,
@@ -89,7 +90,9 @@ const SAMPLE_COLOR_CSS = `html:has([data-pw-sample-colors]){scroll-padding-top:5
 html:has([data-pw-sample-colors]) body{padding-top:52px}
 html:has([data-pw-sample-colors]) .pw-header,html:has([data-pw-sample-colors]) .pw-shop-header{top:52px}
 [data-pw-sample-colors]{position:fixed;z-index:10050;top:0;left:0;right:0;bottom:auto;width:auto;max-width:none;height:52px;display:flex;align-items:center;gap:10px;padding:0 16px;border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:#fff;color:#111827;box-shadow:0 4px 18px rgba(15,23,42,.08);font:600 12px/1.3 system-ui,-apple-system,"Segoe UI",sans-serif;box-sizing:border-box}
-[data-pw-sample-colors] [data-pw-sample-colors-title]{margin:0 0 0 auto;flex:0 0 auto;font-size:12px;font-weight:700;letter-spacing:.02em;color:#111827;white-space:nowrap}
+[data-pw-sample-preset-code],[data-pw-sample-colors]:not(:has([data-pw-sample-preset-code])) [data-pw-sample-colors-title]{margin-left:auto}
+[data-pw-sample-preset-code]{flex:0 0 auto;display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:#111827;color:#fff;font:700 11px/1 system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:.04em}
+[data-pw-sample-colors] [data-pw-sample-colors-title]{margin:0;flex:0 0 auto;font-size:12px;font-weight:700;letter-spacing:.02em;color:#111827;white-space:nowrap}
 [data-pw-sample-swatches]{display:flex;flex-wrap:nowrap;align-items:center;gap:6px;min-width:0;overflow-x:auto;padding:4px 0}
 [data-pw-sample-swatches] button{flex:0 0 22px;width:22px;height:22px;min-height:22px;padding:0;border-radius:7px;border:1px solid rgba(15,23,42,.18);cursor:pointer;box-shadow:0 1px 2px rgba(15,23,42,.08)}
 [data-pw-sample-swatches] button[aria-pressed="true"]{outline:2px solid #111827;outline-offset:1px}
@@ -161,8 +164,14 @@ export function injectShopTemplateSampleColorPickerInHtml(
   const applyBtn = applyHref
     ? `<a ${PW_SAMPLE_APPLY_ATTR}="1" href="${escapeAttr(applyHref)}">${escapeHtml(t.templateGallerySelectThis)}</a>`
     : ''
+  const presetCode = presetId ? getShopTemplatePreset(presetId).code : ''
+  const codeBadge = presetCode
+    ? `<span data-pw-sample-preset-code aria-label="${escapeAttr(presetCode)}">${escapeHtml(presetCode)}</span>`
+    : ''
+  const barLabel = presetCode ? `${presetCode} · ${t.templateGalleryColorPicker}` : t.templateGalleryColorPicker
   const styleTag = `<style id="${PW_SAMPLE_COLOR_STYLE_ID}">${SAMPLE_COLOR_CSS}</style>`
-  const panel = `<aside ${PW_SAMPLE_COLORS_ATTR}="1" role="group" aria-label="${escapeAttr(t.templateGalleryColorPicker)}">
+  const panel = `<aside ${PW_SAMPLE_COLORS_ATTR}="1" role="group" aria-label="${escapeAttr(barLabel)}">
+${codeBadge}
 <p data-pw-sample-colors-title>${escapeHtml(t.templateGalleryColorPicker)}</p>
 <div data-pw-sample-swatches>${buttons}</div>
 <label data-pw-sample-custom>

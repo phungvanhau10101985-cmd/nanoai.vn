@@ -49,6 +49,8 @@ test('banner, categories, and in-flow added-bg stay stack hosts', () => {
     true
   )
   assert.equal(isInFlowStackBlockAttrs(' data-pw-region="categories"'), true)
+  assert.equal(isInFlowStackBlockAttrs(' data-pw-region="content"'), true)
+  assert.equal(isInFlowStackBlockAttrs(' data-pw-region="form"'), true)
   assert.equal(isInFlowStackBlockAttrs(' data-pw-added-banner="1"'), true)
   assert.equal(isInFlowStackBlockAttrs(' data-pw-added-bg-slot="1" data-pw-added-bg="1"'), true)
   assert.equal(isInFlowCatalogChromeAttrs(' class="pw-hero-copy" data-pw-el="copy"'), false)

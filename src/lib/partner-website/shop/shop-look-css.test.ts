@@ -57,3 +57,23 @@ test('fashion-orange gallery sample uses shop look, photo hero, and slogan', () 
   assert.match(built.html, /pw-hero-media|data-pw-el="media"/)
   assert.doesNotMatch(built.html, /id="pw-marketplace-look-css"/)
 })
+
+test('every template gallery sample shares the mid-page --pw-block-w column', () => {
+  const presets = [
+    'commerce-blue',
+    'fashion-orange',
+    'fashion-marketplace',
+    'hospitality-stay',
+    'food-warm',
+    'commerce-minimal',
+    'soft-neutral',
+  ] as const
+  for (const presetId of presets) {
+    const built = buildShopTemplateSampleHtml({ presetId, locale: 'vi' })
+    assert.equal(built.ok, true, presetId)
+    if (!built.ok) continue
+    assert.match(built.html, /--pw-block-w:min\(/, presetId)
+    assert.match(built.html, /width:var\(--pw-block-w\)!important/, presetId)
+    assert.match(built.html, /max-width:min\(100%,var\(--pw-block-w\)\)!important/, presetId)
+  }
+})

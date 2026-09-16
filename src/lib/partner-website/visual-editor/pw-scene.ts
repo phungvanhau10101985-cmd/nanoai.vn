@@ -485,17 +485,26 @@ const STACK_FLOW_HOSTS = [
   '[data-pw-region="categories"]',
   '[data-pw-region="catalog"]',
   '[data-pw-region="promo"]',
+  '[data-pw-region="content"]',
+  '[data-pw-region="form"]',
   '[data-pw-added-banner]',
   '[data-pw-added-catalog]',
   '[data-pw-featured-categories]',
+  '[data-pw-personalize]',
   '[data-pw-added-bg-slot]',
   '[data-pw-hrow]',
   '.pw-hero',
   '.pw-banner',
   '.pw-shop-hero',
   '.pw-shop-banner',
+  '.pw-section',
   '.pw-categories',
+  '.pw-featured-cat',
+  '.pw-catalog',
+  '.pw-trust-bar',
+  '.pw-lead-form',
   '.pw-marketplace-trust',
+  '.pw-marketplace-cta',
   '[data-pw-trust-bar="1"]',
 ] as const
 
@@ -555,6 +564,10 @@ export const PARTNER_SHOP_STACK_FLOW_CSS = `
 ${stackFlowSel()}{position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;float:none!important;z-index:1!important}
 ${stackFlowSel('[data-pw-scene]')}{z-index:1!important}
 ${stackFlowSel('[data-pw-placement="scene-absolute"]')}{position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:1!important}
+${stackFlowSel()}{width:var(--pw-block-w)!important;max-width:min(100%,var(--pw-block-w))!important;margin-left:auto!important;margin-right:auto!important;align-self:center!important;box-sizing:border-box}
+html [data-pw-hrow]>*{width:auto!important;max-width:100%!important;margin-left:0!important;margin-right:0!important;align-self:stretch!important}
+html [data-pw-region="categories"]>.pw-container,html [data-pw-region="catalog"]>.pw-container,html [data-pw-region="promo"]>.pw-container,html [data-pw-region="content"]>.pw-container,html [data-pw-region="form"]>.pw-container,html [data-pw-featured-categories]>.pw-container,html [data-pw-added-catalog]>.pw-container,html [data-pw-personalize]>.pw-container,html .pw-catalog>.pw-container,html .pw-section>.pw-container,html .pw-categories>.pw-container,html .pw-trust-bar>.pw-container{max-width:none!important;width:100%!important;margin-left:0!important;margin-right:0!important;box-sizing:border-box}
+html .pw-container.pw-lead-inner{max-width:560px!important;width:100%!important;margin-left:auto!important;margin-right:auto!important}
 html .pw-marketplace-trust,html [data-pw-trust-bar="1"]{display:grid!important}
 html [data-pw-trust-item],html .pw-marketplace-trust-item,html [data-pw-trust-bar="1"] [data-pw-el],html .pw-marketplace-trust [data-pw-el]{position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;float:none!important;transform:none!important}
 `.trim()
@@ -861,13 +874,13 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     if(!el||!el.getAttribute||isAuthoredOverlay(el))return false;
     if(isInFlowSlot(el))return true;
     var region=el.getAttribute('data-pw-region')||'';
-    if(region==='banner'||region==='categories'||region==='catalog'||region==='promo')return true;
+    if(region==='banner'||region==='categories'||region==='catalog'||region==='promo'||region==='content'||region==='form')return true;
     var role=el.getAttribute('data-pw-el')||'';
     if(role==='section-title'||role==='section-more')return true;
     if(el.getAttribute('data-pw-catalog')!=null||el.getAttribute('data-pw-grid')!=null)return true;
     var cls=String(el.className||'');
     if(cls.indexOf('pw-section-title')>=0||cls.indexOf('pw-section-more')>=0)return true;
-    if(/(?:^|\\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories|pw-marketplace-trust)(?:\\s|$)/.test(cls))return true;
+    if(/(?:^|\\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-section|pw-categories|pw-featured-cat|pw-catalog|pw-trust-bar|pw-lead-form|pw-marketplace-trust)(?:\\s|$)/.test(cls))return true;
     if(el.getAttribute('data-pw-trust-bar')==='1'||el.getAttribute('data-pw-trust-item')==='1')return true;
     if(el.closest&&el.closest('[data-pw-trust-bar="1"],.pw-marketplace-trust'))return true;
     return !!(el.closest&&el.closest('[data-pw-region="catalog"],[data-pw-catalog]'));
@@ -876,14 +889,14 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     if(!el||!el.getAttribute||isAuthoredOverlay(el))return false;
     if(isInFlowSlot(el))return true;
     var region=el.getAttribute('data-pw-region')||'';
-    if(region==='banner'||region==='categories'||region==='catalog'||region==='promo')return true;
+    if(region==='banner'||region==='categories'||region==='catalog'||region==='promo'||region==='content'||region==='form')return true;
     if(el.getAttribute('data-pw-trust-bar')==='1')return true;
     var cls=String(el.className||'');
-    return /(?:^|\\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories|pw-marketplace-trust)(?:\\s|$)/.test(cls)&&cls.indexOf('pw-marketplace-trust-item')<0;
+    return /(?:^|\\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-section|pw-categories|pw-featured-cat|pw-catalog|pw-trust-bar|pw-lead-form|pw-marketplace-trust)(?:\\s|$)/.test(cls)&&cls.indexOf('pw-marketplace-trust-item')<0;
   }
   function reflowInFlowStackHosts(root){
     if(!root||!root.querySelectorAll)return;
-    var nodes=root.querySelectorAll('[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="catalog"],[data-pw-region="promo"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-categories,[data-pw-trust-bar="1"],.pw-marketplace-trust,[data-pw-trust-item],.pw-marketplace-trust-item,[data-pw-trust-bar="1"] [data-pw-el],.pw-marketplace-trust [data-pw-el]');
+    var nodes=root.querySelectorAll('[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="catalog"],[data-pw-region="promo"],[data-pw-region="content"],[data-pw-region="form"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-featured-categories],[data-pw-personalize],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-section,.pw-categories,.pw-featured-cat,.pw-catalog,.pw-trust-bar,.pw-lead-form,.pw-marketplace-cta,[data-pw-trust-bar="1"],.pw-marketplace-trust,[data-pw-trust-item],.pw-marketplace-trust-item,[data-pw-trust-bar="1"] [data-pw-el],.pw-marketplace-trust [data-pw-el]');
     var i;
     for(i=0;i<nodes.length;i++){
       var el=nodes[i];

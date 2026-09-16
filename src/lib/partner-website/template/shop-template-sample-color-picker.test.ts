@@ -59,6 +59,8 @@ test('gallery samples for every preset include a live color picker', () => {
     assert.match(built.html, /id="pw-sample-color-cfg"/)
     assert.match(built.html, /Màu giao diện/)
     assert.match(built.html, /Chọn giao diện này/)
+    assert.match(built.html, /data-pw-sample-preset-code/)
+    assert.match(built.html, new RegExp(`>${preset.code}<`))
     assert.match(built.html, /data-pw-sample-apply="1"/)
     assert.match(
       built.html,

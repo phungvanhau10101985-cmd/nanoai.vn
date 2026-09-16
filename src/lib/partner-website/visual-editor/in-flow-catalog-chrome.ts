@@ -3,7 +3,7 @@
 export const IN_FLOW_CATALOG_CHROME_ROLES = ['section-title', 'section-more'] as const
 
 /** Mảng khối xếp dọc theo thiết kế — không scene-absolute. */
-export const IN_FLOW_STACK_REGIONS = ['banner', 'categories', 'catalog', 'promo'] as const
+export const IN_FLOW_STACK_REGIONS = ['banner', 'categories', 'catalog', 'promo', 'content', 'form'] as const
 
 const AUTHORED_OVERLAY_ATTRS = [
   'data-pw-added-text',
@@ -88,7 +88,7 @@ export function isInFlowStackBlockAttrs(attrs: string): boolean {
   if (isInFlowCatalogChromeRole(readAttr(attrs, 'data-pw-el'))) return true
   if (/\bdata-pw-(?:catalog|grid)=/i.test(attrs)) return true
   if (
-    /(?:^|[\s"'])(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories|pw-section-title|pw-section-more|pw-marketplace-trust)(?:[\s"']|$)/i.test(
+    /(?:^|[\s"'])(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-section|pw-categories|pw-featured-cat|pw-catalog|pw-trust-bar|pw-lead-form|pw-section-title|pw-section-more|pw-marketplace-trust)(?:[\s"']|$)/i.test(
       attrs
     )
   ) {
@@ -110,7 +110,7 @@ export function isInFlowStackBlockElement(el: Element | null | undefined): boole
   if (isInFlowCatalogChromeRole(el.getAttribute('data-pw-el'))) return true
   if (el.hasAttribute('data-pw-catalog') || el.hasAttribute('data-pw-grid')) return true
   const cls = classNameOf(el)
-  if (/(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories|pw-section-title|pw-section-more|pw-marketplace-trust)(?:\s|$)/.test(cls)) {
+  if (/(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-section|pw-categories|pw-featured-cat|pw-catalog|pw-trust-bar|pw-lead-form|pw-section-title|pw-section-more|pw-marketplace-trust)(?:\s|$)/.test(cls)) {
     return true
   }
   return !!(el.closest?.('[data-pw-region="catalog"],[data-pw-catalog]'))
@@ -126,7 +126,7 @@ export function isInFlowStackHostElement(el: Element | null | undefined): boolea
   if (isStackRegion(el.getAttribute?.('data-pw-region') || '')) return true
   if (el.getAttribute?.('data-pw-trust-bar') === '1') return true
   const cls = classNameOf(el)
-  return /(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories|pw-marketplace-trust)(?:\s|$)/.test(cls) &&
+  return /(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-section|pw-categories|pw-featured-cat|pw-catalog|pw-trust-bar|pw-lead-form|pw-marketplace-trust)(?:\s|$)/.test(cls) &&
     !/(?:^|\s)pw-marketplace-trust-item(?:\s|$)/.test(cls)
 }
 
@@ -167,7 +167,7 @@ export function releaseInFlowStackBlock(el: Element | null | undefined): void {
 export function reflowInFlowStackHosts(root: Element | null | undefined): void {
   if (!root?.querySelectorAll) return
   const nodes = root.querySelectorAll(
-    '[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="catalog"],[data-pw-region="promo"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-featured-categories],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-categories,[data-pw-trust-bar="1"],.pw-marketplace-trust,[data-pw-trust-item],.pw-marketplace-trust-item,[data-pw-trust-bar="1"] [data-pw-el],.pw-marketplace-trust [data-pw-el]'
+    '[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="catalog"],[data-pw-region="promo"],[data-pw-region="content"],[data-pw-region="form"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-featured-categories],[data-pw-personalize],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-section,.pw-categories,.pw-featured-cat,.pw-catalog,.pw-trust-bar,.pw-lead-form,.pw-marketplace-cta,[data-pw-trust-bar="1"],.pw-marketplace-trust,[data-pw-trust-item],.pw-marketplace-trust-item,[data-pw-trust-bar="1"] [data-pw-el],.pw-marketplace-trust [data-pw-el]'
   )
   for (const node of Array.from(nodes)) releaseInFlowStackBlock(node)
 }

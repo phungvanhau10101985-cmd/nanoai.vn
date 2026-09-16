@@ -51,7 +51,7 @@ import {
 export function buildPartnerSiteHtmlChromeCss(): string {
   return `html,body{margin:0;color:var(--pw-text);background:var(--pw-bg)}
 a{color:inherit;text-decoration:none}
-.pw-container{max-width:var(--pw-content,1200px);margin:0 auto;padding:0 var(--pw-page-gutter,20px);box-sizing:border-box}
+.pw-container{max-width:var(--pw-block-w,var(--pw-content,1200px));margin:0 auto;padding:0 var(--pw-page-gutter,20px);box-sizing:border-box}
 .pw-topbar{background:var(--pw-primary);color:#fff;font-size:12px;position:relative;z-index:${PW_SCENE_TOPBAR_Z};}
 .pw-topbar-inner{display:flex;justify-content:flex-end;align-items:center;gap:18px;max-width:var(--pw-content,1200px);width:100%;margin:0 auto;padding:8px var(--pw-chrome-inset,60px);box-sizing:border-box}
 .pw-topbar a,.pw-topbar button{color:#fff;text-decoration:none;background:none;border:none;cursor:pointer;font:inherit;padding:0}

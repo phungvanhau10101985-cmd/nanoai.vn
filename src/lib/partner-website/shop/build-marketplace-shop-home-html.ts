@@ -217,7 +217,7 @@ function marketplaceStyles(theme: PartnerWebsiteTheme): string {
 html,body{margin:0}
 body{font-family:var(--pw-font-ui);color:var(--pw-text);background:var(--pw-bg);line-height:1.5}
 a{color:inherit;text-decoration:none}
-.pw-container{max-width:var(--pw-content,1200px);margin:0 auto;padding:0 var(--pw-page-gutter,20px)}
+.pw-container{max-width:var(--pw-block-w,var(--pw-content,1200px));margin:0 auto;padding:0 var(--pw-page-gutter,20px)}
 .pw-skip{position:absolute;left:-999px;top:8px;z-index:1000;padding:8px 12px;background:var(--pw-primary);color:#fff;border-radius:8px}
 .pw-skip:focus{left:12px}
 ${buildMarketplaceLookCss()}

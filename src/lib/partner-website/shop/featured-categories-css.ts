@@ -29,8 +29,9 @@ export const PW_FEATURED_CATEGORIES_CSS = `
   100%{transform:translate3d(0,-50%,0)}
 }
 html .pw-featured-cat[data-pw-featured-categories]{
-  margin:0 0 16px;padding:0;border-radius:16px;overflow:hidden;background:var(--pw-primary);color:#fff;
-  box-shadow:0 8px 24px rgba(0,0,0,.12);box-sizing:border-box;height:auto!important
+  margin:0 auto 16px;padding:0;border-radius:16px;overflow:hidden;background:var(--pw-primary);color:#fff;
+  box-shadow:0 8px 24px rgba(0,0,0,.12);box-sizing:border-box;height:auto!important;
+  width:var(--pw-block-w);max-width:min(100%,var(--pw-block-w))
 }
 html .pw-featured-cat[data-pw-featured-categories] > .pw-featured-cat-inner{
   padding:0;margin:0;box-sizing:border-box

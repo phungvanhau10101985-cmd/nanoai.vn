@@ -80,6 +80,10 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('pw-featured-cat-tile-shine'), false)
   assert.equal(once.includes('data-pw-featured-clone'), true)
   assert.equal(once.includes('html .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card-name"]'), true)
+  assert.equal(once.includes('html .pw-featured-cat[data-pw-featured-categories]{\n  margin:0 auto 16px'), true)
+  assert.equal(once.includes('width:var(--pw-block-w);max-width:min(100%,var(--pw-block-w))'), true)
+  assert.equal(once.includes('html [data-pw-personalize]'), true)
+  assert.equal(once.includes('width:var(--pw-block-w)!important;max-width:min(100%,var(--pw-block-w))!important'), true)
   assert.equal(
     once.includes(
       'html .pw-featured-cat[data-pw-featured-categories] [data-pw-grid],\nhtml .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-clone]{\n  display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important'
@@ -309,6 +313,8 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('gap:var(--pw-kit-gap, 18px)!important;transform:translateX(var(--pw-kit-x, 0px))!important'), false)
   assert.equal(once.includes('align-self:center!important;box-sizing:border-box'), true)
   assert.equal(once.includes('html .pw-hero,html .pw-banner,html .pw-shop-hero,html .pw-shop-banner,html [data-pw-region="banner"]{max-width:var(--pw-block-w)!important'), true)
+  assert.equal(once.includes('max-width:min(100%,var(--pw-block-w))!important'), true)
+  assert.equal(once.includes('html [data-pw-hrow]>*{width:auto!important'), true)
   assert.equal(once.includes('[data-pw-region="banner"][data-pw-placement="scene-absolute"]'), true)
   assert.equal(once.includes('html [data-pw-region="banner"][data-pw-scene],html [data-pw-region="categories"][data-pw-scene]'), true)
   assert.equal(once.includes('[data-pw-added-bg-slot]'), true)

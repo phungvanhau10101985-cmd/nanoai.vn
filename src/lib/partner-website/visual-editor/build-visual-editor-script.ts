@@ -6470,13 +6470,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (el.getAttribute('data-pw-added-bg') === '1' && el.getAttribute('data-pw-added-bg-slot') !== '1') return false
     if (isInFlowAddedSlot(el) || el.getAttribute('data-pw-added-banner') === '1') return true
     var region = ownPwRegion(el)
-    if (region === 'banner' || region === 'categories' || region === 'catalog' || region === 'promo') return true
+    if (region === 'banner' || region === 'categories' || region === 'catalog' || region === 'promo' || region === 'content' || region === 'form') return true
     var role = pwElOf(el)
     if (role === 'section-title' || role === 'section-more') return true
     if ((el.getAttribute('data-pw-catalog') != null) || (el.getAttribute('data-pw-grid') != null)) return true
     var cls = clsOf(el)
     if (cls.indexOf('pw-section-title') >= 0 || cls.indexOf('pw-section-more') >= 0) return true
-    if (/(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories|pw-marketplace-trust)(?:\s|$)/.test(cls)) return true
+    if (/(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-section|pw-categories|pw-featured-cat|pw-catalog|pw-trust-bar|pw-lead-form|pw-marketplace-trust)(?:\s|$)/.test(cls)) return true
     if (el.getAttribute('data-pw-trust-bar') === '1' || el.getAttribute('data-pw-trust-item') === '1') return true
     if (el.closest && el.closest('[data-pw-trust-bar="1"],.pw-marketplace-trust')) return true
     return !!(el.closest && el.closest('[data-pw-region="catalog"],[data-pw-catalog]'))
@@ -6488,15 +6488,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (el.getAttribute('data-pw-added-bg') === '1' && el.getAttribute('data-pw-added-bg-slot') !== '1') return false
     if (isInFlowAddedSlot(el) || el.getAttribute('data-pw-added-banner') === '1') return true
     var region = ownPwRegion(el)
-    if (region === 'banner' || region === 'categories' || region === 'catalog' || region === 'promo') return true
+    if (region === 'banner' || region === 'categories' || region === 'catalog' || region === 'promo' || region === 'content' || region === 'form') return true
     if (el.getAttribute('data-pw-trust-bar') === '1') return true
     var cls = clsOf(el)
-    return /(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-categories|pw-marketplace-trust)(?:\s|$)/.test(cls) && cls.indexOf('pw-marketplace-trust-item') < 0
+    return /(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-section|pw-categories|pw-featured-cat|pw-catalog|pw-trust-bar|pw-lead-form|pw-marketplace-trust)(?:\s|$)/.test(cls) && cls.indexOf('pw-marketplace-trust-item') < 0
   }
   function reflowInFlowStackHosts() {
     var root = canonicalSceneRoot() || visibleVisualRoot()
     if (!root || !root.querySelectorAll) return
-    var nodes = root.querySelectorAll('[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="catalog"],[data-pw-region="promo"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-featured-categories],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-categories,[data-pw-trust-bar="1"],.pw-marketplace-trust,[data-pw-trust-item],.pw-marketplace-trust-item,[data-pw-trust-bar="1"] [data-pw-el],.pw-marketplace-trust [data-pw-el]')
+    var nodes = root.querySelectorAll('[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="catalog"],[data-pw-region="promo"],[data-pw-region="content"],[data-pw-region="form"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-featured-categories],[data-pw-personalize],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-section,.pw-categories,.pw-featured-cat,.pw-catalog,.pw-trust-bar,.pw-lead-form,.pw-marketplace-cta,[data-pw-trust-bar="1"],.pw-marketplace-trust,[data-pw-trust-item],.pw-marketplace-trust-item,[data-pw-trust-bar="1"] [data-pw-el],.pw-marketplace-trust [data-pw-el]')
     for (var i = 0; i < nodes.length; i++) releaseInFlowCatalogChrome(nodes[i])
     try { unwrapTrustHrow(root) } catch (errTrustHrow) {}
   }
@@ -6553,7 +6553,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function releaseInFlowCatalogChromeAll() {
     var root = visibleVisualRoot() || document
     if (!root.querySelectorAll) return
-    var nodes = root.querySelectorAll('[data-pw-el="section-title"],[data-pw-el="section-more"],.pw-section-title,.pw-section-more,[data-pw-region="catalog"],[data-pw-catalog],[data-pw-grid],[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="promo"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-featured-categories],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-categories,[data-pw-trust-bar="1"],.pw-marketplace-trust,[data-pw-trust-item],.pw-marketplace-trust-item,[data-pw-trust-bar="1"] [data-pw-el],.pw-marketplace-trust [data-pw-el]')
+    var nodes = root.querySelectorAll('[data-pw-el="section-title"],[data-pw-el="section-more"],.pw-section-title,.pw-section-more,[data-pw-region="catalog"],[data-pw-catalog],[data-pw-grid],[data-pw-region="banner"],[data-pw-region="categories"],[data-pw-region="promo"],[data-pw-region="content"],[data-pw-region="form"],[data-pw-added-banner],[data-pw-added-catalog],[data-pw-featured-categories],[data-pw-added-bg-slot],[data-pw-hrow],.pw-hero,.pw-banner,.pw-shop-hero,.pw-shop-banner,.pw-section,.pw-categories,.pw-featured-cat,.pw-catalog,.pw-trust-bar,[data-pw-trust-bar="1"],.pw-marketplace-trust,[data-pw-trust-item],.pw-marketplace-trust-item,[data-pw-trust-bar="1"] [data-pw-el],.pw-marketplace-trust [data-pw-el]')
     for (var i = 0; i < nodes.length; i++) releaseInFlowCatalogChrome(nodes[i])
     try { reflowInFlowStackHosts() } catch (errReflow) {}
   }
