@@ -132,7 +132,10 @@ import {
 import {
   guestPurchaseInputFromProductCard,
   guestPurchaseOpensExternalUrl,
+  pickGuestCartUrlTemplateByHost,
+  readGuestChatEmbedPageUrlFromWindow,
   resolveGuestPurchaseButtonUrl,
+  normalizeGuestChatEmbedPageUrl,
   type GuestPurchaseFlow,
 } from '@/lib/messaging/guest-purchase-flow'
 import { inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/partner-ai-purchase-intent'
@@ -1519,6 +1522,9 @@ export function PartnerGuestChatClient({
   initialChatList = [],
   guestPurchaseFlow = 'in_chat',
   guestExternalCartUrlTemplate = null,
+  guestSaasCartUrlTemplate = null,
+  guestSaasPublicUrl = null,
+  guestSiteSlug = null,
   consultFromInventory,
   metaViewContent,
   adsTracking,
@@ -1534,8 +1540,12 @@ export function PartnerGuestChatClient({
   orderDetailT: Dictionary['messagingMyOrders']
   initialChatList?: ChatRailItem[]
   guestPurchaseFlow?: GuestPurchaseFlow
-  /** Mẫu URL giỏ web (`{sku}`) — chế độ `external_cart_url`. */
+  /** Mẫu URL giỏ web khách ngoài hệ thống (`{sku}`). */
   guestExternalCartUrlTemplate?: string | null
+  /** Mẫu URL giỏ shop SaaS cùng nền tảng. */
+  guestSaasCartUrlTemplate?: string | null
+  guestSaasPublicUrl?: string | null
+  guestSiteSlug?: string | null
   /**
    * Trang `/messaging/p/{slug}/tu-van/{uuid}` — ngữ cảnh từ kho (URL gọn, không query `ctx_*` dài).
    */
@@ -1778,6 +1788,9 @@ export function PartnerGuestChatClient({
   const [tryOnResultInComposer, setTryOnResultInComposer] = useState(false)
   const [tryOnComposerLargeOpen, setTryOnComposerLargeOpen] = useState(false)
   const pageContextRef = useRef<WidgetPageContextSeed | null>(null)
+  const embedPageRef = useRef<string | null>(
+    typeof window !== 'undefined' ? readGuestChatEmbedPageUrlFromWindow() : null
+  )
   const contextSeededRef = useRef(false)
   /** Chỉ khi `true`: gửi `pageContext` (từ ?ctx_* / tu-vân) lên server — khi khách bấm chip hoặc gửi tin. */
   const attachUrlPageContextRef = useRef(false)
@@ -3219,6 +3232,16 @@ export function PartnerGuestChatClient({
     [slug]
   )
 
+  const resolveActiveGuestCartUrlTemplate = useCallback(() => {
+    return pickGuestCartUrlTemplateByHost({
+      storedTemplate: guestExternalCartUrlTemplate,
+      saasTemplate: guestSaasCartUrlTemplate,
+      saasPublicUrl: guestSaasPublicUrl,
+      siteSlug: guestSiteSlug,
+      embedPage: embedPageRef.current || readGuestChatEmbedPageUrlFromWindow(),
+    })
+  }, [guestExternalCartUrlTemplate, guestSaasCartUrlTemplate, guestSaasPublicUrl, guestSiteSlug])
+
   const openGuestPurchaseExternalFromOption = useCallback(
     async (x: BuyProductOption): Promise<boolean> => {
       let sku = (x.sku ?? '').trim().slice(0, 128) || null
@@ -3230,7 +3253,7 @@ export function PartnerGuestChatClient({
             product_url: x.product_url,
           })) || null
       }
-      const nav = resolveGuestPurchaseButtonUrl(guestPurchaseFlow, guestExternalCartUrlTemplate, {
+      const nav = resolveGuestPurchaseButtonUrl(guestPurchaseFlow, resolveActiveGuestCartUrlTemplate(), {
         product_url: x.product_url ?? '',
         sku,
       })
@@ -3254,7 +3277,7 @@ export function PartnerGuestChatClient({
       }
       return false
     },
-    [guestExternalCartUrlTemplate, guestPurchaseFlow, resolveSkuForGuestPurchase, t]
+    [guestPurchaseFlow, resolveActiveGuestCartUrlTemplate, resolveSkuForGuestPurchase, t]
   )
 
   const openOrderFormByOption = useCallback(
@@ -3346,7 +3369,6 @@ export function PartnerGuestChatClient({
       fireMetaBuyNowFromProductCard,
       toast,
       guestPurchaseFlow,
-      guestExternalCartUrlTemplate,
       openGuestPurchaseExternalFromOption,
       t,
     ]
@@ -3656,7 +3678,7 @@ export function PartnerGuestChatClient({
       const type = (data as { type?: unknown }).type
       if (type === 'OPEN_CART') setCartOpen(true)
       if (type === 'SCROLL_CHAT_BOTTOM') scrollGuestChatToBottomOnce('smooth')
-      if (isSetPageContextMessage(data)) {
+        if (isSetPageContextMessage(data)) {
         const raw = {
           sku: data.sku,
           imageUrl: data.imageUrl,
@@ -3665,6 +3687,9 @@ export function PartnerGuestChatClient({
           inventoryId: data.inventoryId,
         }
         const next = sanitizeWidgetPageContextSeed(raw)
+        if (typeof data.embedPage === 'string' && data.embedPage.trim()) {
+          embedPageRef.current = normalizeGuestChatEmbedPageUrl(data.embedPage) || data.embedPage.trim()
+        }
         if (hasWidgetPageContextSeed(next)) {
           pageContextRef.current = { ...(pageContextRef.current || {}), ...next }
         }

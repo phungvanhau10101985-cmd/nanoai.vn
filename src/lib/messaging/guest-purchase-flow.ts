@@ -45,12 +45,180 @@ export function buildPartnerShopCartAddUrlTemplate(publicBaseUrl: string): strin
   return parseGuestExternalCartUrlTemplate(`${base}/cart/add/{sku}?from=${GUEST_CART_ADD_FROM_NANOAI}`)
 }
 
-/** URL web khách đã lưu thắng mẫu SaaS tự gắn — workspace 188.com.vn không bị đè. */
+/** Query trên iframe chat: origin+path trang host (web khách hoặc shop SaaS). */
+export const GUEST_CHAT_EMBED_PAGE_PARAM = 'embed_page'
+
+/** URL web khách đã lưu thắng mẫu SaaS khi không biết trang host — dashboard / fallback. */
 export function pickGuestExternalCartUrlTemplate(
   storedTemplate: string | null | undefined,
   saasAutoTemplate: string | null | undefined
 ): string | null {
   return parseGuestExternalCartUrlTemplate(storedTemplate) || parseGuestExternalCartUrlTemplate(saasAutoTemplate)
+}
+
+/** Origin + pathname, bỏ query — đủ để phân nhánh giỏ. */
+export function normalizeGuestChatEmbedPageUrl(raw: string | null | undefined): string | null {
+  const t = String(raw ?? '').trim()
+  if (!t || !/^https?:\/\//i.test(t)) return null
+  try {
+    const u = new URL(t)
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null
+    const path = u.pathname || '/'
+    return `${u.origin}${path}`
+  } catch {
+    return null
+  }
+}
+
+/** Gắn `embed_page` vào URL iframe chat — parent origin/path lúc mở. */
+export function stampGuestChatEmbedPageParam(
+  chatUrl: string,
+  embedPage?: string | null,
+  baseHref?: string
+): string {
+  const t = String(chatUrl ?? '').trim()
+  if (!t) return t
+  const page =
+    normalizeGuestChatEmbedPageUrl(embedPage) ||
+    (typeof window !== 'undefined'
+      ? normalizeGuestChatEmbedPageUrl(`${window.location.origin}${window.location.pathname}`)
+      : null)
+  if (!page) return t
+  try {
+    const base =
+      baseHref ||
+      (typeof window !== 'undefined' && window.location?.href ? window.location.href : 'https://localhost')
+    const u = new URL(t, base)
+    u.searchParams.set(GUEST_CHAT_EMBED_PAGE_PARAM, page)
+    if (/^https?:\/\//i.test(t)) return u.toString()
+    return `${u.pathname}${u.search}${u.hash}`
+  } catch {
+    return t
+  }
+}
+
+export function readGuestChatEmbedPageUrlFromWindow(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const q = new URLSearchParams(window.location.search).get(GUEST_CHAT_EMBED_PAGE_PARAM)
+    const fromQ = normalizeGuestChatEmbedPageUrl(q)
+    if (fromQ) return fromQ
+  } catch {
+    /* ignore */
+  }
+  try {
+    if (window.parent !== window) {
+      const fromParent = normalizeGuestChatEmbedPageUrl(window.parent.location.href)
+      if (fromParent) return fromParent
+    }
+  } catch {
+    /* cross-origin */
+  }
+  try {
+    const fromRef = normalizeGuestChatEmbedPageUrl(document.referrer)
+    if (fromRef) return fromRef
+  } catch {
+    /* ignore */
+  }
+  try {
+    return normalizeGuestChatEmbedPageUrl(`${window.location.origin}${window.location.pathname}`)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Chat đang mở trên web shop cùng nền tảng (tên miền riêng hoặc `/site/{slug}`).
+ * Không khớp web khách ngoài hệ thống (vd. 188.com.vn).
+ */
+export function isGuestChatOnSamePlatformShop(input: {
+  embedPage?: string | null
+  saasPublicUrl?: string | null
+  siteSlug?: string | null
+}): boolean {
+  const page = normalizeGuestChatEmbedPageUrl(input.embedPage)
+  if (!page) return false
+  let pageUrl: URL
+  try {
+    pageUrl = new URL(page)
+  } catch {
+    return false
+  }
+
+  const saasRaw = String(input.saasPublicUrl ?? '').trim()
+  if (saasRaw && /^https?:\/\//i.test(saasRaw)) {
+    try {
+      const saas = new URL(saasRaw)
+      if (pageUrl.origin === saas.origin) {
+        const saasPath = (saas.pathname || '/').replace(/\/+$/, '') || '/'
+        if (saasPath === '/') return true
+        if (pageUrl.pathname === saasPath || pageUrl.pathname.startsWith(`${saasPath}/`)) return true
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const slug = String(input.siteSlug ?? '').trim()
+  if (slug) {
+    const prefix = `/site/${slug}`
+    if (pageUrl.pathname === prefix || pageUrl.pathname.startsWith(`${prefix}/`)) return true
+  }
+
+  return false
+}
+
+/** Giỏ trên đúng origin+prefix đang chat (`/site/{slug}` hoặc tên miền riêng). */
+export function guestCartUrlTemplateFromEmbedPage(
+  embedPage?: string | null,
+  siteSlug?: string | null
+): string | null {
+  const page = normalizeGuestChatEmbedPageUrl(embedPage)
+  if (!page) return null
+  let u: URL
+  try {
+    u = new URL(page)
+  } catch {
+    return null
+  }
+  const slug = String(siteSlug ?? '').trim()
+  const prefix = slug ? `/site/${slug}` : ''
+  const base =
+    prefix && (u.pathname === prefix || u.pathname.startsWith(`${prefix}/`))
+      ? `${u.origin}${prefix}`
+      : u.origin
+  return buildPartnerShopCartAddUrlTemplate(base)
+}
+
+/**
+ * Hai nhánh độc lập: chat trên web cùng nền tảng → giỏ đúng tên miền đó;
+ * chat trên web khách ngoài hệ thống → URL đã lưu. Không biết host thì URL đã lưu thắng.
+ */
+export function pickGuestCartUrlTemplateByHost(input: {
+  storedTemplate?: string | null
+  saasTemplate?: string | null
+  saasPublicUrl?: string | null
+  siteSlug?: string | null
+  embedPage?: string | null
+}): string | null {
+  const stored = parseGuestExternalCartUrlTemplate(input.storedTemplate)
+  const saas = parseGuestExternalCartUrlTemplate(input.saasTemplate)
+  const saasPublic =
+    String(input.saasPublicUrl ?? '').trim() ||
+    (saas ? saas.replace(/\/cart\/add\/\{sku\}(?:\?from=nanoai)?$/i, '') : '') ||
+    null
+  if (
+    isGuestChatOnSamePlatformShop({
+      embedPage: input.embedPage,
+      saasPublicUrl: saasPublic,
+      siteSlug: input.siteSlug,
+    })
+  ) {
+    return (
+      guestCartUrlTemplateFromEmbedPage(input.embedPage, input.siteSlug) || saas
+    )
+  }
+  return stored || saas
 }
 
 /** Ẩn ô dán URL khi shop đã có web trên hệ thống và chưa có mẫu web khách. */

@@ -84,3 +84,74 @@ test('stored external cart URL wins over SaaS auto template', async () => {
   assert.equal(guestPurchaseUsesSaasAutoCart({ saasLinked: true, storedTemplate: stored }), false)
   assert.equal(guestPurchaseUsesSaasAutoCart({ saasLinked: false, storedTemplate: null }), false)
 })
+
+test('chat on same-platform domain uses SaaS cart, web khách keeps stored URL', async () => {
+  const {
+    pickGuestCartUrlTemplateByHost,
+    stampGuestChatEmbedPageParam,
+    normalizeGuestChatEmbedPageUrl,
+    isGuestChatOnSamePlatformShop,
+  } = await import('@/lib/messaging/guest-purchase-flow')
+  const stored = 'https://188.com.vn/cart/add/{sku}?from=nanoai'
+  const saas = 'https://gudo.vn/cart/add/{sku}?from=nanoai'
+  const saasPublic = 'https://gudo.vn/'
+  assert.equal(
+    pickGuestCartUrlTemplateByHost({
+      storedTemplate: stored,
+      saasTemplate: saas,
+      saasPublicUrl: saasPublic,
+      siteSlug: '188-com-vn-rl56',
+      embedPage: 'https://gudo.vn/products/bag',
+    }),
+    saas
+  )
+  assert.equal(
+    pickGuestCartUrlTemplateByHost({
+      storedTemplate: stored,
+      saasTemplate: saas,
+      saasPublicUrl: saasPublic,
+      siteSlug: '188-com-vn-rl56',
+      embedPage: 'https://188.com.vn/sp/bag',
+    }),
+    stored
+  )
+  assert.equal(
+    pickGuestCartUrlTemplateByHost({
+      storedTemplate: stored,
+      saasTemplate: saas,
+      saasPublicUrl: 'https://nanoai.vn/site/188-com-vn-rl56',
+      siteSlug: '188-com-vn-rl56',
+      embedPage: 'https://nanoai.vn/site/188-com-vn-rl56/products/1',
+    }),
+    'https://nanoai.vn/site/188-com-vn-rl56/cart/add/{sku}?from=nanoai'
+  )
+  assert.equal(
+    pickGuestCartUrlTemplateByHost({
+      storedTemplate: stored,
+      saasTemplate: saas,
+      saasPublicUrl: saasPublic,
+      embedPage: null,
+    }),
+    stored
+  )
+  assert.equal(
+    pickGuestCartUrlTemplateByHost({
+      storedTemplate: stored,
+      saasTemplate: saas,
+      saasPublicUrl: saasPublic,
+      siteSlug: '188-com-vn-rl56',
+      embedPage: 'https://nanoai.vn/site/188-com-vn-rl56/products/1',
+    }),
+    'https://nanoai.vn/site/188-com-vn-rl56/cart/add/{sku}?from=nanoai'
+  )
+  assert.equal(isGuestChatOnSamePlatformShop({ embedPage: 'https://gudo.vn/', saasPublicUrl: saasPublic }), true)
+  assert.equal(isGuestChatOnSamePlatformShop({ embedPage: 'https://188.com.vn/', saasPublicUrl: saasPublic }), false)
+  assert.equal(normalizeGuestChatEmbedPageUrl('https://gudo.vn/cart?x=1'), 'https://gudo.vn/cart')
+  const stamped = stampGuestChatEmbedPageParam(
+    '/messaging/p/demo?embed=1',
+    'https://gudo.vn/products/bag',
+    'https://nanoai.vn/'
+  )
+  assert.match(stamped, /embed_page=/)
+  assert.match(stamped, /gudo\.vn/)
+})

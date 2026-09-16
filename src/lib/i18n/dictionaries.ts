@@ -2144,6 +2144,7 @@ export type Dictionary = {
     guestExternalCartUrlTemplatePlaceholder: string
     guestExternalCartUrlTemplateSaveHint: string
     guestPurchaseFlowSaasLinkedHint: string
+    guestPurchaseFlowDualHint: string
     guestPurchaseFlowNeedWebsite: string
     guestPurchaseFlowSaasPreviewLabel: string
     shopCheckoutLoginLabel: string
@@ -5702,18 +5703,20 @@ const VI_DICTIONARY: Dictionary = {
     imageSearchApiManageKeysLink: 'Mở trang Tích hợp API — quản lý khóa',
     guestPurchaseFlowLabel: 'Khách mua hàng từ chat',
     guestPurchaseFlowHint:
-      'Nút Chat mua vẫn mở hộp chat. Chọn mua luôn trong chat, hoặc khi khách bấm Mua / Thêm giỏ thì mở modal giỏ trên web shop. Shop SaaS đã có website trên hệ thống thì liên kết thẳng — không API key, không dán URL. Web khách ngoài (vd. 188.com.vn) mới điền mẫu {sku}.',
+      'Nút Chat mua vẫn mở hộp chat. Chọn mua luôn trong chat, hoặc khi khách bấm Mua / Thêm giỏ thì mở modal giỏ trên đúng web đang chat. Shop có cả web khách ngoài hệ thống và web cùng nền tảng thì hai nhánh độc lập.',
     guestPurchaseFlowInChat: 'Mua ngay trên chat',
     guestPurchaseFlowExternal: 'Mở trang chi tiết sản phẩm',
     guestPurchaseFlowExternalCart: 'Mở modal giỏ trên web shop',
     guestExternalCartUrlTemplateLabel: 'URL giỏ web khách (ngoài hệ thống)',
     guestExternalCartUrlTemplateHint:
-      'Chỉ khi web không phải shop SaaS cùng hệ thống. Bắt buộc {sku}. Ví dụ: https://188.com.vn/cart/add/{sku}?from=nanoai — chỉ nút Mua / Thêm giỏ dùng link này; Chat mua và Tư vấn vẫn trong chat.',
+      'Chỉ khi web không phải shop SaaS cùng hệ thống. Bắt buộc {sku}. Ví dụ: https://188.com.vn/cart/add/{sku}?from=nanoai — chỉ nút Mua / Thêm giỏ trên chat nhúng web khách dùng link này; Chat mua trên tên miền cùng nền tảng mở giỏ tên miền đó.',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.vn/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint:
       'Điền link thật của shop → click ra ngoài ô (hoặc bấm «Lưu cài đặt») để lưu chế độ mở giỏ web.',
     guestPurchaseFlowSaasLinkedHint:
       'Đã liên kết web shop trên hệ thống. Chỉ khi khách bấm Mua hoặc Thêm giỏ trên chat mới mở modal chọn màu/size trên web — không cần API key. Nút Chat mua vẫn mở chat.',
+    guestPurchaseFlowDualHint:
+      'Shop có cả web khách ngoài hệ thống và web cùng nền tảng. Chat nhúng trên web khách giữ URL giỏ web khách. Chat mua trên tên miền cùng hệ thống thì Mua / Thêm giỏ mở giỏ trên tên miền đó — hai nhánh độc lập.',
     guestPurchaseFlowNeedWebsite:
       'Chưa có website shop trên hệ thống. Đăng web trong Tạo web & landing, hoặc dán URL giỏ của web khách bên ngoài.',
     guestPurchaseFlowSaasPreviewLabel: 'Đường dẫn tự liên kết',
@@ -9260,6 +9263,8 @@ const EN_DICTIONARY: Dictionary = {
       'Enter the shop URL → click outside the field (or Save settings) to apply web-cart mode.',
     guestPurchaseFlowSaasLinkedHint:
       'This shop website is already linked. Only Buy or Add to cart in chat opens the color/size modal on the web — no API key. Chat mua still opens chat.',
+    guestPurchaseFlowDualHint:
+      'This shop has both an external site and a same-platform storefront. Chat embedded on the external site keeps that cart URL. Chat mua on the same-platform domain opens that domain’s cart — two independent branches.',
     guestPurchaseFlowNeedWebsite:
       'No shop website on this platform yet. Publish the site under Create web & landing, or paste an external cart URL.',
     guestPurchaseFlowSaasPreviewLabel: 'Auto-linked path',
@@ -12752,6 +12757,8 @@ const ZH_DICTIONARY: Dictionary = {
     guestExternalCartUrlTemplateSaveHint: '填写店铺链接 → 点击输入框外（或保存设置）以应用网店加购。',
     guestPurchaseFlowSaasLinkedHint:
       '已关联本平台网店。仅当客户在聊天中点击购买或加入购物车时打开颜色/尺码弹窗 — 无需 API 密钥。Chat mua 仍打开聊天。',
+    guestPurchaseFlowDualHint:
+      '店铺同时有站外网店和本平台网站。站外嵌入聊天仍用站外加购链接。在本平台域名上 Chat mua 时，购买/加购打开该域名购物车 — 两条独立分支。',
     guestPurchaseFlowNeedWebsite:
       '本平台尚无店铺网站。请在「创建网站」发布，或粘贴站外加购链接。',
     guestPurchaseFlowSaasPreviewLabel: '自动关联路径',
@@ -16232,6 +16239,8 @@ const JA_DICTIONARY: Dictionary = {
       'ショップのURLを入力 → 欄の外をクリック（または設定を保存）でウェブカートを保存。',
     guestPurchaseFlowSaasLinkedHint:
       'ショップサイトは連携済み。チャットの購入またはカート追加でのみ色・サイズモーダルが開きます（APIキー不要）。Chat mua はチャットのままです。',
+    guestPurchaseFlowDualHint:
+      '外部サイトと本プラットフォーム店の両方がある場合、外部埋め込みチャットは外部カートURLを使います。同一基盤ドメインの Chat mua ではそのドメインのカートを開きます。2系統は独立です。',
     guestPurchaseFlowNeedWebsite:
       'このプラットフォームにショップサイトがありません。ウェブ作成で公開するか、外部カートURLを貼ってください。',
     guestPurchaseFlowSaasPreviewLabel: '自動連携パス',
@@ -19742,6 +19751,8 @@ const KO_DICTIONARY: Dictionary = {
       '쇼핑몰 URL 입력 → 입력란 밖 클릭(또는 설정 저장)으로 웹 장바구니 적용.',
     guestPurchaseFlowSaasLinkedHint:
       '이 플랫폼 쇼핑몰이 이미 연결됨. 채팅에서 구매 또는 장바구니 담기를 눌렀을 때만 색상/사이즈 모달이 열립니다(API 키 없음). Chat mua는 채팅을 엽니다.',
+    guestPurchaseFlowDualHint:
+      '외부 사이트와 같은 플랫폼 스토어가 함께 있으면, 외부 사이트에 삽입된 채팅은 외부 장바구니 URL을 씁니다. 같은 플랫폼 도메인의 Chat mua는 그 도메인 장바구니를 엽니다. 두 분기는 독립입니다.',
     guestPurchaseFlowNeedWebsite:
       '이 플랫폼에 쇼핑몰 웹이 없습니다. 웹 만들기에서 게시하거나 외부 장바구니 URL을 붙여 넣으세요.',
     guestPurchaseFlowSaasPreviewLabel: '자동 연결 경로',

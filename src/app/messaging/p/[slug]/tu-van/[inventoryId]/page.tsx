@@ -216,6 +216,9 @@ export default async function PartnerGuestConsultByInventoryPage(props: {
           initialChatList={chatList}
           guestPurchaseFlow={guestPurchaseConfig.flow}
           guestExternalCartUrlTemplate={guestPurchaseConfig.externalCartUrlTemplate}
+          guestSaasCartUrlTemplate={guestPurchaseConfig.saasCartUrlTemplate}
+          guestSaasPublicUrl={guestPurchaseConfig.saasPublicUrl}
+          guestSiteSlug={guestPurchaseConfig.siteSlug}
           consultFromInventory={{
             inventoryId: row.id,
             sku: sku || undefined,

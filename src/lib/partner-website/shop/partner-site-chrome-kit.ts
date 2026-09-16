@@ -155,11 +155,13 @@ export const CHROME_KIT_DOCK_ITEMS: ChromeKitDockItem[] = [
   { kind: 'buy-now', slot: 'cta', defaultShow: 'pdp' },
 ]
 
-/** Thanh nổi mọi máy — Chat mua / Zalo / Facebook / Top, chỉ ẩn hiện. */
-export const CHROME_KIT_FLOAT_ITEMS: ChromeKitFloatItem[] = PW_CHROME_FLOAT_KINDS.map((kind) => ({
-  kind,
-  defaultOn: false,
-}))
+/** Thanh nổi mọi máy — Chat mua hiện mặc định; Zalo / Facebook / Top ẩn. */
+export const CHROME_KIT_FLOAT_ITEMS: ChromeKitFloatItem[] = [
+  { kind: 'chat', defaultOn: true },
+  { kind: 'chat-zalo', defaultOn: false },
+  { kind: 'chat-facebook', defaultOn: false },
+  { kind: 'topup', defaultOn: false },
+]
 
 /** Thanh trên (topbar) — kit sẵn, ẩn hiện bằng mắt. Liên hệ / Đăng nhập / Yêu thích mặc định hiện. */
 export const CHROME_KIT_TOPBAR_STOCK_KINDS = ['contact', 'favorites-link', 'login'] as const

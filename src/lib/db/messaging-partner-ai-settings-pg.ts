@@ -1,13 +1,13 @@
 import type { Database } from '@/types/database.types'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
+import { fetchPartnerWebsitePublishMetaFromPg } from '@/lib/db/messaging-partner-websites-pg'
 import {
   normalizeGuestPurchaseFlow,
   parseGuestExternalCartUrlTemplate,
-  pickGuestExternalCartUrlTemplate,
   type GuestPurchaseFlow,
 } from '@/lib/messaging/guest-purchase-flow'
-import { resolvePartnerSaasCartAddUrlTemplate } from '@/lib/messaging/resolve-partner-saas-cart-add-url'
+import { resolvePartnerSaasCartAddPreview } from '@/lib/messaging/resolve-partner-saas-cart-add-url'
 import { normalizeShopCheckoutLoginRequired } from '@/lib/partner-website/shop/shop-checkout-auth'
 
 export type MessagingPartnerAiSettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
@@ -611,14 +611,27 @@ export async function peekMessagingPartnerAiImageSearchSecretFromPg(
 
 export type GuestPurchaseConfig = {
   flow: GuestPurchaseFlow
+  /** URL giỏ web khách ngoài hệ thống (đã lưu). */
   externalCartUrlTemplate: string | null
+  /** URL giỏ shop SaaS cùng nền tảng (tên miền riêng hoặc `/site/{slug}`). */
+  saasCartUrlTemplate: string | null
+  saasPublicUrl: string | null
+  siteSlug: string | null
+}
+
+const EMPTY_GUEST_PURCHASE: GuestPurchaseConfig = {
+  flow: 'in_chat',
+  externalCartUrlTemplate: null,
+  saasCartUrlTemplate: null,
+  saasPublicUrl: null,
+  siteSlug: null,
 }
 
 /** Chế độ mua trên trang guest `/messaging/p/{slug}`. Không có dòng settings → `in_chat`. */
 export async function fetchGuestPurchaseConfigForPartnerFromPg(
   partnerId: string
 ): Promise<GuestPurchaseConfig> {
-  if (!isPgConfigured()) return { flow: 'in_chat', externalCartUrlTemplate: null }
+  if (!isPgConfigured()) return { ...EMPTY_GUEST_PURCHASE }
   try {
     const row = await pgQueryOne<{
       guest_purchase_flow: string | null
@@ -630,17 +643,26 @@ export async function fetchGuestPurchaseConfigForPartnerFromPg(
        limit 1`,
       [partnerId]
     )
-    if (!row) return { flow: 'in_chat', externalCartUrlTemplate: null }
+    if (!row) return { ...EMPTY_GUEST_PURCHASE }
     const flow = normalizeGuestPurchaseFlow(row.guest_purchase_flow)
     const stored = parseGuestExternalCartUrlTemplate(row.guest_external_cart_url_template)
     if (flow !== 'external_cart_url') {
-      return { flow, externalCartUrlTemplate: stored }
+      return { ...EMPTY_GUEST_PURCHASE, flow, externalCartUrlTemplate: stored }
     }
-    const auto = await resolvePartnerSaasCartAddUrlTemplate(partnerId)
-    return { flow, externalCartUrlTemplate: pickGuestExternalCartUrlTemplate(stored, auto) }
+    const [preview, meta] = await Promise.all([
+      resolvePartnerSaasCartAddPreview(partnerId),
+      fetchPartnerWebsitePublishMetaFromPg(partnerId),
+    ])
+    return {
+      flow,
+      externalCartUrlTemplate: stored,
+      saasCartUrlTemplate: preview.autoTemplate,
+      saasPublicUrl: preview.publicUrl,
+      siteSlug: meta?.siteSlug?.trim() || null,
+    }
   } catch (e) {
     console.warn('[fetchGuestPurchaseConfigForPartnerFromPg]', e)
-    return { flow: 'in_chat', externalCartUrlTemplate: null }
+    return { ...EMPTY_GUEST_PURCHASE }
   }
 }
 

@@ -190,6 +190,9 @@ export default async function PartnerGuestChatPage(props: {
           initialChatList={chatList}
           guestPurchaseFlow={guestPurchaseConfig.flow}
           guestExternalCartUrlTemplate={guestPurchaseConfig.externalCartUrlTemplate}
+          guestSaasCartUrlTemplate={guestPurchaseConfig.saasCartUrlTemplate}
+          guestSaasPublicUrl={guestPurchaseConfig.saasPublicUrl}
+          guestSiteSlug={guestPurchaseConfig.siteSlug}
           metaViewContent={metaViewContent}
           adsTracking={adsTracking}
           ga4InitialViewItem={ga4InitialViewItem}

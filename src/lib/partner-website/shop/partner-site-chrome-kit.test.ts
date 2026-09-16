@@ -166,7 +166,7 @@ describe('partner-site-chrome-kit', () => {
     expect(nextNav).toContain('data-pw-pdp-nav="1"')
   })
 
-  it('seeds a hidden float kit host for chat zalo facebook top', () => {
+  it('seeds a float kit with Chat mua visible and other icons hidden', () => {
     const html = buildChromeKitFloatHostHtml({ locale: 'vi', siteSlug: 'demo-shop' })
     expect(html).toContain(`${PW_CHROME_KIT_ATTR}="float"`)
     expect(html).toContain('data-pw-float-right="16"')
@@ -182,6 +182,7 @@ describe('partner-site-chrome-kit', () => {
     expect(html).toContain('pw-chrome-icon-circle')
     expect(html).toContain('data-pw-chrome-size="44"')
     expect(html).toMatch(/data-pw-hidden="1"/)
+    expect(html).not.toMatch(/data-pw-chrome-btn="chat"[^>]*data-pw-hidden="1"/)
     expect(html).not.toContain('data-pw-chrome-added="1"')
   })
 

@@ -964,6 +964,17 @@ export function htmlHasChromeChatMua(html: string): boolean {
   return /data-pw-chrome-btn=["']chat["']/i.test(html)
 }
 
+/** Chat mua chrome đang hiện — không tính nút kit đã ẩn (`data-pw-hidden`). */
+export function htmlHasVisibleChromeChatMua(html: string): boolean {
+  if (!html) return false
+  const re = /<(?:a|button)\b[^>]*\bdata-pw-chrome-btn=["']chat["'][^>]*>/gi
+  let m: RegExpExecArray | null
+  while ((m = re.exec(html))) {
+    if (!/\bdata-pw-hidden=["']1["']/i.test(m[0])) return true
+  }
+  return false
+}
+
 export { isChromeFloatKind } from '@/lib/partner-website/shop/chrome-float-widgets'
 
 export function isChromeContactChatKind(

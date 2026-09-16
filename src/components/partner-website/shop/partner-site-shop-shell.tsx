@@ -118,7 +118,7 @@ import {
 } from '@/lib/partner-website/shop/visual-home-chrome'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { applyShopBrowserThemeColorToDocument } from '@/lib/partner-website/template/partner-website-theme-tokens'
-import { htmlHasChromeChatMua } from '@/lib/partner-website/visual-editor/chrome-widgets'
+import { htmlHasVisibleChromeChatMua } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
@@ -365,12 +365,14 @@ function applyStickyHeadOffset(shop: HTMLElement) {
   shop.style.setProperty('--pw-sticky-head', `${height}px`)
 }
 
-function visualChromeHasChatMua(byDevice?: VisualHomeChromeByDevice | null): boolean {
+function visualChromeHasVisibleChatMua(byDevice?: VisualHomeChromeByDevice | null): boolean {
   if (!byDevice) return false
   return [byDevice.desktop, byDevice.laptop, byDevice.tablet, byDevice.mobile].some(
     (chrome) =>
       Boolean(chrome) &&
-      htmlHasChromeChatMua(`${chrome!.topbar}${chrome!.header}${chrome!.footer}${chrome!.bottomNav}${chrome!.floats}`)
+      htmlHasVisibleChromeChatMua(
+        `${chrome!.topbar}${chrome!.header}${chrome!.footer}${chrome!.bottomNav}${chrome!.floats}`
+      )
   )
 }
 
@@ -1245,10 +1247,7 @@ export function PartnerSiteShopShell(props: PartnerSiteShopShellProps) {
       locale={props.locale}
       listenLandingPostMessage
       hideLauncher={
-        Boolean(props.hideChrome) ||
-        props.theme.hideChatLauncher !== false ||
-        !hasVisualHomeChrome(props.visualChromeByDevice) ||
-        visualChromeHasChatMua(props.visualChromeByDevice)
+        Boolean(props.hideChrome) || visualChromeHasVisibleChatMua(props.visualChromeByDevice)
       }
     >
       <PartnerSiteShopProvider tracking={props.tracking}>

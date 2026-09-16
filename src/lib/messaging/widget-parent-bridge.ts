@@ -8,6 +8,8 @@ export type NanoaiWidgetPageContextPayload = {
   inventoryId?: string
   productUrl?: string
   openTryOn?: boolean
+  /** Origin+path trang host khi nhúng — phân nhánh giỏ SaaS vs web khách. */
+  embedPage?: string
 }
 
 export type NanoaiWidgetToIframeMessage =
@@ -42,6 +44,7 @@ export function parseWidgetPageContextFromChatUrl(urlStr: string, baseHref?: str
     const tryOn =
       (u.searchParams.get('open_try_on') || '').trim() === '1' ||
       (u.searchParams.get('ctx_gateway') || '').trim().toLowerCase() === 'try_on'
+    const embedPage = (u.searchParams.get('embed_page') || '').trim()
     return {
       ...(imageUrl ? { imageUrl } : {}),
       ...(imageUrl2 ? { imageUrl2 } : {}),
@@ -49,6 +52,7 @@ export function parseWidgetPageContextFromChatUrl(urlStr: string, baseHref?: str
       ...(inventoryId ? { inventoryId } : {}),
       ...(productUrl ? { productUrl } : {}),
       ...(tryOn ? { openTryOn: true } : {}),
+      ...(embedPage ? { embedPage } : {}),
     }
   } catch {
     return {}

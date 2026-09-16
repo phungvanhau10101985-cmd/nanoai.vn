@@ -16,6 +16,13 @@ test('parseWidgetPageContextFromChatUrl reads try-on image like 188 embed', () =
   assert.equal(ctx.openTryOn, true)
 })
 
+test('parseWidgetPageContextFromChatUrl reads embed_page for dual cart hosts', () => {
+  const ctx = parseWidgetPageContextFromChatUrl(
+    '/messaging/p/demo?embed=1&embed_page=https%3A%2F%2Fgudo.vn%2Fproducts%2Fbag'
+  )
+  assert.equal(ctx.embedPage, 'https://gudo.vn/products/bag')
+})
+
 test('parseWidgetPageContextFromChatUrl ignores empty query', () => {
   const ctx = parseWidgetPageContextFromChatUrl('/messaging/p/demo?embed=1')
   assert.deepEqual(ctx, {})

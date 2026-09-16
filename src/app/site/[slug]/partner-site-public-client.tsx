@@ -14,7 +14,7 @@ import {
   extractVisualDocumentCssText,
   extractVisualDocumentStyleLinks,
 } from '@/lib/partner-website/shop/merge-visual-home-styles'
-import { htmlHasChromeChatMua } from '@/lib/partner-website/visual-editor/chrome-widgets'
+import { htmlHasVisibleChromeChatMua } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import {
   isolateVisualHtmlForDevice,
   isDesktopBrowserWindow,
@@ -230,7 +230,7 @@ export function PartnerSitePublicClient({
   inlineHtml = false,
   initialDevice = null,
   deviceHtmlAlreadyIsolated = false,
-  hideChatLauncher,
+  hideChatLauncher: _hideChatLauncher,
   browserThemeColor,
   siteSlug,
 }: {
@@ -272,7 +272,7 @@ export function PartnerSitePublicClient({
       initialDevice={initialDevice}
       forceDevice={forceDevice}
       deviceHtmlAlreadyIsolated={deviceHtmlAlreadyIsolated}
-      hideChatLauncher={hideChatLauncher}
+      hideChatLauncher={_hideChatLauncher}
       browserThemeColor={browserThemeColor}
       siteSlug={siteSlug}
     />
@@ -291,7 +291,7 @@ function PartnerSitePublicFrame({
   initialDevice = null,
   forceDevice,
   deviceHtmlAlreadyIsolated = false,
-  hideChatLauncher,
+  hideChatLauncher: _hideChatLauncher,
   browserThemeColor,
   siteSlug,
 }: {
@@ -381,7 +381,7 @@ function PartnerSitePublicFrame({
     (forceDevice && !deviceHtmlAlreadyIsolated
       ? isolateVisualHtmlForDevice(html, forceDevice) || html
       : html)
-  const hideEmbedFab = hideChatLauncher !== false || htmlHasChromeChatMua(selectedHtml)
+  const hideEmbedFab = htmlHasVisibleChromeChatMua(selectedHtml)
   const devicePreview = Boolean(forceDevice)
   const desktopLocked = activeDevice === 'desktop' || activeDevice === 'laptop'
   const [desktopWindowLock, setDesktopWindowLock] = useState(false)
@@ -426,7 +426,7 @@ function PartnerSitePublicFrame({
       vv?.removeEventListener('resize', centerPreviewWrap)
     }
   }, [centerPreviewWrap, devicePreview, frameLocked, previewFrameStyle.width])
-  const previewHtml = hideChatLaunchersInHtml(selectedHtml, hideEmbedFab)
+  const previewHtml = hideChatLaunchersInHtml(selectedHtml, true)
   const revision = visualHtmlRevision(previewHtml, activeDevice)
   const visualDocumentCodes = useMemo(() => extractVisualHtmlDocumentCodes(previewHtml), [previewHtml])
   const visualPageKind = visualDocumentCodes['data-pw-page'] || ''

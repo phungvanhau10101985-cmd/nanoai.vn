@@ -11,6 +11,7 @@ import {
   isNavigateTopFromIframe,
   parseWidgetPageContextFromChatUrl,
 } from '@/lib/messaging/widget-parent-bridge'
+import { stampGuestChatEmbedPageParam } from '@/lib/messaging/guest-purchase-flow'
 import { readReturnChatIframeHref, writeReturnChatIframeHref } from '@/lib/messaging/widget-embed-session'
 
 const LOCALE_SHORT: Record<WebLocale, string> = {
@@ -60,7 +61,7 @@ function appendStoredGuestIdentity(urlStr: string): string {
     const aid = readStoredGuestAccountId()
     if (UUID_STRING_RE.test(sid)) u.searchParams.set('guest_session_id', sid)
     if (UUID_STRING_RE.test(aid)) u.searchParams.set('guest_account_id', aid)
-    return u.toString()
+    return stampGuestChatEmbedPageParam(u.toString(), `${window.location.origin}${window.location.pathname}`)
   } catch {
     return urlStr
   }
@@ -205,7 +206,15 @@ export function FloatingChatWidget({
     if (!win) return
     const ctx = parseWidgetPageContextFromChatUrl(iframeSrc, window.location.href)
     try {
-      win.postMessage({ source: NANOAI_WIDGET_MSG_SOURCE, type: 'SET_PAGE_CONTEXT', ...ctx }, '*')
+      win.postMessage(
+        {
+          source: NANOAI_WIDGET_MSG_SOURCE,
+          type: 'SET_PAGE_CONTEXT',
+          ...ctx,
+          embedPage: `${window.location.origin}${window.location.pathname}`,
+        },
+        '*'
+      )
     } catch {
       /* ignore */
     }
@@ -220,7 +229,7 @@ export function FloatingChatWidget({
         const baseSrc = iframeSrc || chatUrl
         const u = new URL(el.src || baseSrc, window.location.href)
         u.searchParams.set('ui_locale', next)
-        const nextSrc = u.toString()
+        const nextSrc = stampGuestChatEmbedPageParam(u.toString())
         if (el.src !== nextSrc) el.src = nextSrc
         setIframeSrc(nextSrc)
       } catch {

@@ -675,6 +675,9 @@
         if (openTryOn) u.searchParams.set('open_try_on', '1')
         var pcToken = readPartnerCustomerToken()
         if (pcToken) u.searchParams.set(PARTNER_CUSTOMER_TOKEN_KEY, pcToken)
+        try {
+          u.searchParams.set('embed_page', window.location.origin + window.location.pathname)
+        } catch (_) {}
         return u.toString()
       } catch (_) {
         return baseUrl

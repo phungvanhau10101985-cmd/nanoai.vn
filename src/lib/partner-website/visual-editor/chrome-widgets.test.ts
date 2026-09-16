@@ -30,6 +30,7 @@ import {
   chromeWidgetLabel,
   chromeWidgetLiveHook,
   htmlHasChromeChatMua,
+  htmlHasVisibleChromeChatMua,
   isChromeFloatKind,
   isFooterAddChromeKind,
   isGapOnlyChromeAddKind,
@@ -305,10 +306,23 @@ test('chrome Chat mua helper stamps logo and embed API, never a NanoAI FAB', () 
     logoUrl: 'https://cdn.example.com/shop-logo.png',
   })
   assert.equal(htmlHasChromeChatMua(html), true)
+  assert.equal(htmlHasVisibleChromeChatMua(html), true)
   assert.match(html, /data-nanoai-open-chat/)
   assert.match(html, /pw-chrome-chat-logo/)
   assert.doesNotMatch(html, /pw-fab-chat/)
   assert.equal(htmlHasChromeChatMua('<button class="pw-fab-chat" data-nanoai-open-chat>💬</button>'), false)
+  assert.equal(
+    htmlHasVisibleChromeChatMua(
+      '<button data-pw-chrome-btn="chat" data-pw-hidden="1" data-nanoai-open-chat>Chat</button>'
+    ),
+    false
+  )
+  assert.equal(
+    htmlHasVisibleChromeChatMua(
+      '<button data-pw-hidden="1" data-pw-chrome-btn="chat">Chat</button><button data-pw-chrome-btn="chat">Chat mua</button>'
+    ),
+    true
+  )
 })
 
 test('chrome chat button uses shop logo when provided', () => {

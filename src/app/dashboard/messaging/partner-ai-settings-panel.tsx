@@ -815,12 +815,13 @@ export function PartnerAiSettingsPanel({
               </Select>
               {form.guest_purchase_flow === 'external_cart_url' ? (
                 <div className="space-y-1.5 pt-1">
-                  {guestPurchaseUsesSaasAutoCart({
-                    saasLinked: saasShopCart.linked,
-                    storedTemplate: form.guest_external_cart_url_template,
-                  }) ? (
+                  {saasShopCart.linked ? (
                     <>
-                      <p className="text-xs text-muted-foreground">{t.guestPurchaseFlowSaasLinkedHint}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {parseGuestExternalCartUrlTemplate(form.guest_external_cart_url_template)
+                          ? t.guestPurchaseFlowDualHint
+                          : t.guestPurchaseFlowSaasLinkedHint}
+                      </p>
                       {saasShopCart.autoTemplate ? (
                         <p className="max-w-xl break-all font-mono text-[11px] text-muted-foreground">
                           <span className="font-sans text-muted-foreground">{t.guestPurchaseFlowSaasPreviewLabel}: </span>
@@ -828,11 +829,14 @@ export function PartnerAiSettingsPanel({
                         </p>
                       ) : null}
                     </>
-                  ) : (
+                  ) : parseGuestExternalCartUrlTemplate(form.guest_external_cart_url_template) ? null : (
+                    <p className="text-xs text-muted-foreground">{t.guestPurchaseFlowNeedWebsite}</p>
+                  )}
+                  {guestPurchaseUsesSaasAutoCart({
+                    saasLinked: saasShopCart.linked,
+                    storedTemplate: form.guest_external_cart_url_template,
+                  }) ? null : (
                     <>
-                      {saasShopCart.linked ? null : (
-                        <p className="text-xs text-muted-foreground">{t.guestPurchaseFlowNeedWebsite}</p>
-                      )}
                       <Label htmlFor="ai-guest-cart-url-template">{t.guestExternalCartUrlTemplateLabel}</Label>
                       <p className="text-xs text-muted-foreground">{t.guestExternalCartUrlTemplateHint}</p>
                       <Input
