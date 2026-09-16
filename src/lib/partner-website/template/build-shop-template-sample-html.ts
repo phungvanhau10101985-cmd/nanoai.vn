@@ -52,12 +52,14 @@ function withSampleColorPicker(
   html: string,
   locale: WebLocale,
   originalTheme: PartnerWebsiteTheme,
-  theme: PartnerWebsiteTheme
+  theme: PartnerWebsiteTheme,
+  presetId: string
 ): string {
   return injectShopTemplateSampleColorPickerInHtml(html, {
     locale,
     originalTheme,
     selectedHex: theme.primaryColor,
+    presetId,
   })
 }
 
@@ -91,7 +93,8 @@ export function buildShopTemplateSampleHtml(input: {
       ),
       input.locale,
       originalTheme,
-      theme
+      theme,
+      preset.id
     )
     return { ok: true, html, presetId: preset.id }
   }
@@ -117,7 +120,8 @@ export function buildShopTemplateSampleHtml(input: {
       paintShopTemplateSamplePreviewInHtml(prepared, input.locale),
       input.locale,
       originalTheme,
-      theme
+      theme,
+      preset.id
     )
     return { ok: true, html, presetId: preset.id }
   }
@@ -150,7 +154,7 @@ export function buildShopTemplateSampleHtml(input: {
   })
   return {
     ok: true,
-    html: withSampleColorPicker(prepared, input.locale, originalTheme, themed),
+    html: withSampleColorPicker(prepared, input.locale, originalTheme, themed, preset.id),
     presetId: preset.id,
   }
 }

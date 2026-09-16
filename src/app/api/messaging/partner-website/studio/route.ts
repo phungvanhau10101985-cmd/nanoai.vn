@@ -318,6 +318,7 @@ export async function POST(req: NextRequest) {
         partnerId,
         answers,
         presetId: String(body.presetId ?? '').trim() || null,
+        primaryColor: String(body.primaryColor ?? '').trim() || null,
       })
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 422 })
@@ -364,6 +365,7 @@ export async function POST(req: NextRequest) {
         partnerId,
         answers,
         presetId: String(body.presetId ?? '').trim() || null,
+        primaryColor: String(body.primaryColor ?? '').trim() || null,
       })
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 422 })

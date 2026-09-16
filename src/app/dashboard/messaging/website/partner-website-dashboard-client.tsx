@@ -25,6 +25,12 @@ import type { PartnerWebsiteCreationJournal } from '@/lib/partner-website/partne
 import { isHomePageBuilt } from '@/lib/partner-website/partner-website-creation-journal'
 import { PartnerWebsiteDevicePreview, type PartnerWebsiteDevicePreviewHandle } from '@/components/partner-website/partner-website-device-preview'
 import type { ShopTemplatePresetId } from '@/lib/partner-website/template/shop-template-presets'
+import { isShopTemplatePresetId } from '@/lib/partner-website/template/shop-template-presets'
+import {
+  PW_SAMPLE_APPLY_COLOR_PARAM,
+  PW_SAMPLE_APPLY_PRESET_PARAM,
+  parseShopTemplateSampleColorParam,
+} from '@/lib/partner-website/template/shop-template-sample-color-picker'
 import { PartnerWebsiteLeadsPanel } from '@/components/partner-website/partner-website-leads-panel'
 import { PartnerWebsiteCategoriesPanel } from '@/components/partner-website/partner-website-categories-panel'
 import { PartnerWebsiteReviewsQaPanel } from '@/components/partner-website/partner-website-reviews-qa-panel'
@@ -226,9 +232,104 @@ export function PartnerWebsiteDashboardClient({
     [locale, t.errorGeneric, toast]
   )
 
+  const applyShopLook = useCallback(
+    async (presetId: ShopTemplatePresetId, primaryColor?: string | null) => {
+      if (!partnerId) return null
+      setLookApplying(true)
+      try {
+        const brand =
+          website?.title?.trim() ||
+          partner?.brand_name?.trim() ||
+          partner?.display_name?.trim() ||
+          partnerTitle
+        const hue = parseShopTemplateSampleColorParam(primaryColor)
+        const res = await fetch('/api/messaging/partner-website/studio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'apply_template',
+            partnerId,
+            locale,
+            pageKey: 'home',
+            answers: {
+              brand_name: brand,
+              ...(logoUrl.trim() && /^https?:\/\//i.test(logoUrl.trim())
+                ? { logo_url: logoUrl.trim() }
+                : {}),
+            },
+            presetId,
+            ...(hue ? { primaryColor: hue } : {}),
+          }),
+        })
+        const json = (await res.json().catch(() => ({}))) as {
+          website?: PartnerWebsiteRow
+          publicUrl?: string | null
+          assistantMessage?: string
+          error?: string
+        }
+        if (!res.ok || !json.website) {
+          toast({ title: json.error || t.errorGeneric, variant: 'destructive' })
+          return null
+        }
+        setWebsite(json.website)
+        setPublicUrl(json.publicUrl ?? null)
+        setCreationJournal(json.website.creationJournal)
+        setLogoUrl(json.website.logoUrl ?? '')
+        setLiveTheme(json.website.theme)
+        setPreviewVersion(json.website.updatedAt || String(Date.now()))
+        toast({ title: json.assistantMessage || t.studioBuildComplete })
+        router.refresh()
+        return { website: json.website }
+      } catch (e) {
+        toast({ title: e instanceof Error ? e.message : t.errorGeneric, variant: 'destructive' })
+        return null
+      } finally {
+        setLookApplying(false)
+      }
+    },
+    [
+      locale,
+      logoUrl,
+      partner?.brand_name,
+      partner?.display_name,
+      partnerId,
+      partnerTitle,
+      router,
+      t.errorGeneric,
+      t.studioBuildComplete,
+      toast,
+      website?.title,
+    ]
+  )
+
+  const applyShopLookRef = useRef(applyShopLook)
+  applyShopLookRef.current = applyShopLook
+  const galleryApplyDoneRef = useRef(false)
+
   useEffect(() => {
     if (!partnerId) return
-    void loadWebsite(partnerId)
+    let cancelled = false
+    void (async () => {
+      await loadWebsite(partnerId)
+      if (cancelled || galleryApplyDoneRef.current || typeof window === 'undefined') return
+      const params = new URLSearchParams(window.location.search)
+      const presetRaw = params.get(PW_SAMPLE_APPLY_PRESET_PARAM) || ''
+      if (!isShopTemplatePresetId(presetRaw)) return
+      const color = params.get(PW_SAMPLE_APPLY_COLOR_PARAM)
+      galleryApplyDoneRef.current = true
+      params.delete(PW_SAMPLE_APPLY_PRESET_PARAM)
+      params.delete(PW_SAMPLE_APPLY_COLOR_PARAM)
+      const qs = params.toString()
+      window.history.replaceState(
+        null,
+        '',
+        `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`
+      )
+      await applyShopLookRef.current(presetRaw, color)
+    })()
+    return () => {
+      cancelled = true
+    }
     // Only refetch when the workspace changes — not when parent re-renders (section click).
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadWebsite identity is unstable (toast)
   }, [partnerId])
@@ -317,56 +418,6 @@ export function PartnerWebsiteDashboardClient({
     setPreviewVersion(payload.website.updatedAt || String(Date.now()))
     toast({ title: t.restoreSuccess })
     router.refresh()
-  }
-
-  async function handleApplyShopLook(presetId: ShopTemplatePresetId) {
-    if (!partnerId || !website) return null
-    setLookApplying(true)
-    try {
-      const brand =
-        website.title?.trim() || partner?.brand_name?.trim() || partner?.display_name?.trim() || partnerTitle
-      const res = await fetch('/api/messaging/partner-website/studio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'apply_template',
-          partnerId,
-          locale,
-          pageKey: 'home',
-          answers: {
-            brand_name: brand,
-            ...(logoUrl.trim() && /^https?:\/\//i.test(logoUrl.trim())
-              ? { logo_url: logoUrl.trim() }
-              : {}),
-          },
-          presetId,
-        }),
-      })
-      const json = (await res.json().catch(() => ({}))) as {
-        website?: PartnerWebsiteRow
-        publicUrl?: string | null
-        assistantMessage?: string
-        error?: string
-      }
-      if (!res.ok || !json.website) {
-        toast({ title: json.error || t.errorGeneric, variant: 'destructive' })
-        return null
-      }
-      setWebsite(json.website)
-      setPublicUrl(json.publicUrl ?? null)
-      setCreationJournal(json.website.creationJournal)
-      setLogoUrl(json.website.logoUrl ?? '')
-      setLiveTheme(json.website.theme)
-      setPreviewVersion(json.website.updatedAt || String(Date.now()))
-      toast({ title: json.assistantMessage || t.studioBuildComplete })
-      router.refresh()
-      return { website: json.website }
-    } catch (e) {
-      toast({ title: e instanceof Error ? e.message : t.errorGeneric, variant: 'destructive' })
-      return null
-    } finally {
-      setLookApplying(false)
-    }
   }
 
   const loadResetTrash = useCallback(async (pid: string) => {
@@ -903,7 +954,7 @@ export function PartnerWebsiteDashboardClient({
                   htmlSource={website?.htmlSource}
                   useVisualHtml={Boolean(website?.theme?.useVisualHtml)}
                   templateId={website?.templateId}
-                  onApplyShopLook={website ? handleApplyShopLook : undefined}
+                  onApplyShopLook={partnerId ? applyShopLook : undefined}
                   onVisualEditSave={website ? handleVisualEditSave : undefined}
                   onVisualEditError={(message) => toast({ title: message, variant: 'destructive' })}
                   onLiveThemeChange={setLiveTheme}

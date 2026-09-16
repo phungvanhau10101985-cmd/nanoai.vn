@@ -5,11 +5,31 @@ import { buildShopTemplateSampleHtml } from '@/lib/partner-website/template/buil
 import {
   injectShopTemplateSampleColorPickerInHtml,
   parseShopTemplateSampleColorParam,
+  shopTemplateSampleApplyDashboardPath,
   shopTemplateSampleThemeForPrimary,
+  withShopTemplateSampleApplyQuery,
 } from '@/lib/partner-website/template/shop-template-sample-color-picker'
 import { getShopTemplatePreset, listShopTemplatePresets } from '@/lib/partner-website/template/shop-template-presets'
 import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/partner-website-template-types'
 import { themeFromMainSwatch } from '@/lib/partner-website/template/partner-website-theme-tokens'
+
+test('shopTemplateSampleApplyDashboardPath keeps look + hue', () => {
+  assert.equal(
+    shopTemplateSampleApplyDashboardPath('fashion-marketplace', '#2563eb'),
+    '/dashboard/messaging/website?applyPreset=fashion-marketplace&color=2563eb'
+  )
+  assert.equal(
+    withShopTemplateSampleApplyQuery('/dashboard/messaging/p/188-shop/website', {
+      applyPreset: 'fashion-marketplace',
+      color: 'c026d3',
+    }),
+    '/dashboard/messaging/p/188-shop/website?applyPreset=fashion-marketplace&color=c026d3'
+  )
+  assert.equal(
+    withShopTemplateSampleApplyQuery('/dashboard/messaging/p/188-shop/website', {}),
+    '/dashboard/messaging/p/188-shop/website'
+  )
+})
 
 test('parseShopTemplateSampleColorParam accepts hex with or without hash', () => {
   assert.equal(parseShopTemplateSampleColorParam('2563eb'), '#2563eb')
@@ -38,6 +58,12 @@ test('gallery samples for every preset include a live color picker', () => {
     assert.match(built.html, /data-pw-sample-swatch="/)
     assert.match(built.html, /id="pw-sample-color-cfg"/)
     assert.match(built.html, /Màu giao diện/)
+    assert.match(built.html, /Chọn giao diện này/)
+    assert.match(built.html, /data-pw-sample-apply="1"/)
+    assert.match(
+      built.html,
+      new RegExp(`/dashboard/messaging/website\\?applyPreset=${preset.id}`)
+    )
     assert.doesNotMatch(built.html, /data-pw-sample-colors="1"[\s\S]*data-pw-sample-colors="1"/)
   }
 })
@@ -53,6 +79,7 @@ test('fashion-marketplace sample ?color= paints primary before first paint', () 
   assert.match(built.html, /--pw-primary:#2563eb/)
   assert.match(built.html, /data-pw-sample-hue="#2563eb"/)
   assert.match(built.html, /data-pw-sample-swatch="#2563eb"[^>]*aria-pressed="true"/)
+  assert.match(built.html, /applyPreset=fashion-marketplace&amp;color=2563eb/)
   assert.doesNotMatch(built.html, /data-pw-sample-swatch="#ff6b00"[^>]*aria-pressed="true"/)
 })
 

@@ -33,6 +33,7 @@ import {
 import { maybeSeedShopDemoInventoryOnWebsiteCreate } from '@/lib/messaging/seed-shop-demo-inventory'
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
 import { themeFromPresetPartial } from '@/lib/partner-website/template/partner-website-theme-tokens'
+import { shopTemplateSampleThemeForPrimary } from '@/lib/partner-website/template/shop-template-sample-color-picker'
 import { seedBlankShopVisualWebsite } from '@/lib/partner-website/shop/build-blank-shop-visual-html'
 import { seedShopTemplateVisualWebsite } from '@/lib/partner-website/shop/seed-shop-template-visual-website'
 
@@ -42,6 +43,8 @@ export type BuildPartnerWebsiteFromTemplateStudioInput = {
   answers: PartnerWebsiteStudioAnswers
   /** Shop look preset chosen by the merchant (fashion-orange). */
   presetId?: string | null
+  /** Hue shown on `/mau-giao-dien/{preset}` when the merchant picks «Chọn giao diện này». */
+  primaryColor?: string | null
   /** Optional override; otherwise derived from partner slug / existing row. */
   siteSlug?: string
 }
@@ -279,10 +282,13 @@ export async function buildPartnerWebsiteFromTemplateStudio(
   }
 
   if (switchPlan.action === 'restore' && existing && savedTargetLook) {
-    const restoredTheme: PartnerWebsiteTheme = {
-      ...savedTargetLook.theme,
-      logoUrl: existing.logoUrl ?? savedTargetLook.theme.logoUrl ?? null,
-    }
+    const restoredTheme: PartnerWebsiteTheme = shopTemplateSampleThemeForPrimary(
+      {
+        ...savedTargetLook.theme,
+        logoUrl: existing.logoUrl ?? savedTargetLook.theme.logoUrl ?? null,
+      },
+      input.primaryColor
+    )
     const restored = await updatePartnerWebsiteDraftPg({
       partnerId,
       renderMode: 'template',
@@ -355,34 +361,37 @@ export async function buildPartnerWebsiteFromTemplateStudio(
     locale: input.locale,
   })
 
-  const theme: PartnerWebsiteTheme = {
-    ...themeFromPresetPartial(
-      { ...DEFAULT_PARTNER_WEBSITE_THEME, ...templateSite.theme, ...preset.theme },
-      { ...preset.theme, ...paletteTheme }
-    ),
-    logoUrl,
-    // Seeded below so Sửa nhanh and live read the same HTML after reset / apply.
-    useVisualHtml: false,
-    useVisualMobileHtml: false,
-    useVisualTabletHtml: false,
-    useVisualLaptopHtml: false,
-    visualPageKeys: [],
-    visualMobilePageKeys: [],
-    visualTabletPageKeys: [],
-    visualLaptopPageKeys: [],
-    visualCategoryPaths: [],
-    visualMobileCategoryPaths: [],
-    visualTabletCategoryPaths: [],
-    visualLaptopCategoryPaths: [],
-    visualProductIds: [],
-    visualMobileProductIds: [],
-    visualTabletProductIds: [],
-    visualLaptopProductIds: [],
-    visualCmsSlugs: [],
-    visualMobileCmsSlugs: [],
-    visualTabletCmsSlugs: [],
-    visualLaptopCmsSlugs: [],
-  }
+  const theme: PartnerWebsiteTheme = shopTemplateSampleThemeForPrimary(
+    {
+      ...themeFromPresetPartial(
+        { ...DEFAULT_PARTNER_WEBSITE_THEME, ...templateSite.theme, ...preset.theme },
+        { ...preset.theme, ...paletteTheme }
+      ),
+      logoUrl,
+      // Seeded below so Sửa nhanh and live read the same HTML after reset / apply.
+      useVisualHtml: false,
+      useVisualMobileHtml: false,
+      useVisualTabletHtml: false,
+      useVisualLaptopHtml: false,
+      visualPageKeys: [],
+      visualMobilePageKeys: [],
+      visualTabletPageKeys: [],
+      visualLaptopPageKeys: [],
+      visualCategoryPaths: [],
+      visualMobileCategoryPaths: [],
+      visualTabletCategoryPaths: [],
+      visualLaptopCategoryPaths: [],
+      visualProductIds: [],
+      visualMobileProductIds: [],
+      visualTabletProductIds: [],
+      visualLaptopProductIds: [],
+      visualCmsSlugs: [],
+      visualMobileCmsSlugs: [],
+      visualTabletCmsSlugs: [],
+      visualLaptopCmsSlugs: [],
+    },
+    input.primaryColor
+  )
   const templateId = preset.templateId
   const chatPath = `/messaging/p/${encodeURIComponent(partner.slug)}`
   let project = syncTemplateToProject({

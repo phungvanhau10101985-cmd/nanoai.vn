@@ -21,6 +21,7 @@ import { loadPartnerWebsiteDashboardData } from '@/lib/partner-website/load-part
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 
 import { partnerWebsiteDashboardPath } from '@/lib/partner-website/partner-website-dashboard-path'
+import { withShopTemplateSampleApplyQuery } from '@/lib/partner-website/template/shop-template-sample-color-picker'
 
 
 
@@ -104,7 +105,7 @@ export default async function DashboardPartnerWebsitePage({
 
     if (match?.slug) {
 
-      redirect(partnerWebsiteDashboardPath(match.slug))
+      redirect(withShopTemplateSampleApplyQuery(partnerWebsiteDashboardPath(match.slug), sp))
 
     }
 
@@ -114,7 +115,7 @@ export default async function DashboardPartnerWebsitePage({
 
   if (data.partners.length === 1 && data.partners[0]?.slug) {
 
-    redirect(partnerWebsiteDashboardPath(data.partners[0].slug))
+    redirect(withShopTemplateSampleApplyQuery(partnerWebsiteDashboardPath(data.partners[0].slug), sp))
 
   }
 

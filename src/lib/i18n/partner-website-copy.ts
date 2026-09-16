@@ -936,6 +936,7 @@ export type PartnerWebsiteCopy = {
   templateGalleryCloseLibrary: string
   templateGalleryColorPicker: string
   templateGalleryColorCustom: string
+  templateGallerySelectThis: string
   studioBuildProgressCount: string
   studioStartInterview: string
   studioSkipToEditor: string
@@ -2057,6 +2058,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateGalleryCloseLibrary: 'Ẩn mẫu',
     templateGalleryColorPicker: 'Màu giao diện',
     templateGalleryColorCustom: 'Màu khác',
+    templateGallerySelectThis: 'Chọn giao diện này',
     studioBuildProgressCount: '{done}/{total} bước',
     studioStartInterview: 'Tạo web mới từ mẫu',
     studioSkipToEditor: 'Dùng mẫu có sẵn',
@@ -3188,6 +3190,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateGalleryCloseLibrary: 'Hide',
     templateGalleryColorPicker: 'Site colors',
     templateGalleryColorCustom: 'Custom',
+    templateGallerySelectThis: 'Use this look',
     studioBuildProgressCount: '{done}/{total} steps',
     studioStartInterview: 'New site from template',
     studioSkipToEditor: 'Use default template',
@@ -4289,6 +4292,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateGalleryCloseLibrary: '收起',
     templateGalleryColorPicker: '网站配色',
     templateGalleryColorCustom: '自选',
+    templateGallerySelectThis: '选用此界面',
     studioBuildProgressCount: '{done}/{total} 步',
     studioStartInterview: '用模板新建网站',
     studioSkipToEditor: '使用默认模板',
@@ -5399,6 +5403,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateGalleryCloseLibrary: '閉じる',
     templateGalleryColorPicker: 'サイトの色',
     templateGalleryColorCustom: '指定',
+    templateGallerySelectThis: 'このデザインを使う',
     studioBuildProgressCount: '{done}/{total} ステップ',
     studioStartInterview: 'テンプレートで新規Web',
     studioSkipToEditor: 'デフォルトテンプレート',
@@ -6514,6 +6519,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateGalleryCloseLibrary: '숨기기',
     templateGalleryColorPicker: '사이트 색상',
     templateGalleryColorCustom: '직접 선택',
+    templateGallerySelectThis: '이 디자인 선택',
     studioBuildProgressCount: '{done}/{total} 단계',
     studioStartInterview: '템플릿으로 새 웹',
     studioSkipToEditor: '기본 템플릿 사용',
