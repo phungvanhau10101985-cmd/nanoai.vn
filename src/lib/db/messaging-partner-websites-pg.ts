@@ -169,6 +169,31 @@ export async function fetchPartnerProfileForWebsitePg(partnerId: string): Promis
   }
 }
 
+/** Meta mỏng — liên kết chat → giỏ SaaS, không đọc `project_files_json`. */
+export async function fetchPartnerWebsitePublishMetaFromPg(partnerId: string): Promise<{
+  siteSlug: string
+  isPublished: boolean
+} | null> {
+  if (!isPgConfigured()) return null
+  const pid = partnerId.trim()
+  if (!pid) return null
+  try {
+    const row = await pgQueryOne<{ site_slug: string | null; is_published: boolean | null }>(
+      `select site_slug, is_published
+       from public.messaging_partner_websites
+       where partner_id = $1::uuid
+       limit 1`,
+      [pid]
+    )
+    const siteSlug = row?.site_slug?.trim() || ''
+    if (!siteSlug) return null
+    return { siteSlug, isPublished: Boolean(row?.is_published) }
+  } catch (e) {
+    console.warn('[fetchPartnerWebsitePublishMetaFromPg]', e)
+    return null
+  }
+}
+
 /** Serialize studio/create after reset so two POSTs do not both INSERT the same slug. */
 const PARTNER_WEBSITE_WRITE_LOCK_NS = 871122
 

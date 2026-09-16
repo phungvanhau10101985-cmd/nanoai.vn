@@ -44,6 +44,9 @@ export function reactAccountShellNavFromPathname(pathname: string): {
   if (path === '/login' || path.startsWith('/login/')) {
     return { pageKind: PW_PAGE.account, activeNav: 'account', hideAccountNav: true }
   }
+  if (path === '/cart/add' || path.startsWith('/cart/add/')) {
+    return { pageKind: PW_PAGE.cart, activeNav: 'cart', hideAccountNav: true }
+  }
   if (path === '/cart' || path.startsWith('/cart/')) {
     return { pageKind: PW_PAGE.cart, activeNav: 'cart', hideAccountNav: false }
   }

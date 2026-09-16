@@ -16,6 +16,7 @@ type Props = {
   siteSlug: string
   partnerSlug: string
   shopTitle?: string
+  documentTitle?: string
   locale: WebLocale
   googleAuthEnabled?: boolean
   platformAuthOrigin?: string
@@ -36,6 +37,7 @@ export function PartnerSiteShopLoginClient({
   siteSlug,
   partnerSlug,
   shopTitle,
+  documentTitle,
   locale,
   googleAuthEnabled,
   platformAuthOrigin,
@@ -46,6 +48,12 @@ export function PartnerSiteShopLoginClient({
   const customDomain = usePartnerSiteCustomDomain()
   const { authResolved, isAuthenticated } = usePartnerSiteGuestSession(siteSlug)
   const [dest, setDest] = useState(initialReturnDest || partnerSiteAccountPath(siteSlug))
+
+  useLayoutEffect(() => {
+    const nextTitle = documentTitle?.trim()
+    if (!nextTitle || typeof document === 'undefined') return
+    document.title = nextTitle
+  }, [documentTitle])
 
   useLayoutEffect(() => {
     setDest(getPartnerShopLoginRedirectFromUrl(siteSlug, { customDomain }))

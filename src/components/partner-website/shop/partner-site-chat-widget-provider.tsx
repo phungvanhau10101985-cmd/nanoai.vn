@@ -24,6 +24,7 @@ import {
   type PartnerSiteChatOpenMessage,
   type PartnerSiteConsultContext,
 } from '@/lib/partner-website/shop/partner-site-chat-embed'
+import { consumePartnerShopReopenChat } from '@/lib/partner-website/shop/partner-site-cart-add-return'
 
 type OpenRequest = {
   seq: number
@@ -172,6 +173,16 @@ export function PartnerSiteChatWidgetProvider({
     window.addEventListener('message', handleLandingMessage)
     return () => window.removeEventListener('message', handleLandingMessage)
   }, [handleLandingMessage, listenLandingPostMessage])
+
+  useEffect(() => {
+    const tryOpen = () => {
+      if (!consumePartnerShopReopenChat()) return
+      openChat()
+    }
+    tryOpen()
+    window.addEventListener('pageshow', tryOpen)
+    return () => window.removeEventListener('pageshow', tryOpen)
+  }, [openChat])
 
   useEffect(() => {
     const onClick = (event: MouseEvent) => {

@@ -31,7 +31,7 @@ import { PartnerSiteCookieConsentBanner } from '@/components/partner-website/sho
 import { PartnerSiteBirthGenderPromptModal } from '@/components/partner-website/shop/partner-site-birth-gender-prompt-modal'
 import { PartnerSiteLoginChromeLink } from '@/components/partner-website/shop/partner-site-login-chrome-link'
 import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
-import { CART_ADDED_MODAL_COPY, hideLeftoverPartnerCartAddedHtmlPopup } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
+import { CART_ADDED_MODAL_COPY, releasePartnerShopBodyScroll } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
 import { PartnerSiteNewsletterForm } from '@/components/partner-website/shop/partner-site-newsletter-form'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
@@ -581,7 +581,7 @@ function PartnerSiteShopShellInner({
   }, [loadCartCount, registerCartLoader])
 
   useLayoutEffect(() => {
-    hideLeftoverPartnerCartAddedHtmlPopup()
+    releasePartnerShopBodyScroll()
     if (activeNav === 'cart') setPendingCartAdded(null)
   }, [activeNav])
 

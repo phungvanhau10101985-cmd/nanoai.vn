@@ -1065,6 +1065,32 @@ ${PW_FLASH_SALE_GRID_FACE_CSS}
   .pw-shop-sticky-buy-actions{display:flex;gap:6px;flex-shrink:0}
   .pw-shop-sticky-buy-actions .pw-shop-btn{padding:9px 12px;font-size:12px}
 }
+@media(min-width:768px){
+  html[data-pw-page="cart"] .pw-bottom-nav,
+  html[data-pw-page="cart"] .pw-shop-bottom-nav,
+  html[data-pw-page="account"] .pw-bottom-nav,
+  html[data-pw-page="account"] .pw-shop-bottom-nav,
+  html[data-pw-page="info"] .pw-bottom-nav,
+  html[data-pw-page="info"] .pw-shop-bottom-nav,
+  html:has([data-pw-page="cart"]) .pw-bottom-nav,
+  html:has([data-pw-page="cart"]) .pw-shop-bottom-nav,
+  html:has([data-pw-page="account"]) .pw-bottom-nav,
+  html:has([data-pw-page="account"]) .pw-shop-bottom-nav,
+  html:has([data-pw-page="info"]) .pw-bottom-nav,
+  html:has([data-pw-page="info"]) .pw-shop-bottom-nav,
+  .pw-shop[data-pw-page="cart"] .pw-bottom-nav,
+  .pw-shop[data-pw-page="cart"] .pw-shop-bottom-nav,
+  .pw-shop[data-pw-page="account"] .pw-bottom-nav,
+  .pw-shop[data-pw-page="account"] .pw-shop-bottom-nav,
+  .pw-shop[data-pw-page="info"] .pw-bottom-nav,
+  .pw-shop[data-pw-page="info"] .pw-shop-bottom-nav{display:none!important}
+  html[data-pw-page="cart"] body,
+  html[data-pw-page="account"] body,
+  html[data-pw-page="info"] body,
+  .pw-shop[data-pw-page="cart"],
+  .pw-shop[data-pw-page="account"],
+  .pw-shop[data-pw-page="info"]{padding-bottom:0!important}
+}
 @media(max-width:767px){
   .pw-shop{padding-bottom:72px}
   html:has([data-pw-page="product"]) .pw-shop-bottom-nav:not([data-pw-pdp-bottom]):not([data-pw-chrome-kit="dock"]),

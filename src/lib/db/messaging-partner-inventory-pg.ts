@@ -2673,6 +2673,30 @@ export async function fetchPartnerInventoryRowBySkuForPartnerFromPg(
   }
 }
 
+/** Khớp `remarketing_id` (mã A/T 1688 trên thẻ chat) — không đoán SKU đã strip `/`. */
+export async function fetchPartnerInventoryRowByRemarketingIdForPartnerFromPg(
+  partnerId: string,
+  remarketingId: string
+): Promise<MessagingPartnerInventoryRow | null> {
+  if (!isPgConfigured()) return null
+  const key = remarketingId.trim()
+  if (!key) return null
+  try {
+    const rows = await runInventorySelectWithStockQtyFallback(
+      `where mpi.partner_id = $1::uuid
+         and coalesce(mpi.is_active, true) = true
+         and lower(trim(coalesce(mpi.remarketing_id, ''))) = lower($2)
+       limit 1`,
+      [partnerId, key]
+    )
+    const row = rows[0] ?? null
+    return row ? mapPgInventoryRow(row) : null
+  } catch (e) {
+    console.warn('[fetchPartnerInventoryRowByRemarketingIdForPartnerFromPg]', e)
+    return null
+  }
+}
+
 /** Fingerprint đầu vào tin mở đầu link tư vấn — khớp với `productName` + `extraContext` + SKU dùng trong prompt. */
 export function computeConsultLinkOpeningInputFingerprint(
   productName: string,

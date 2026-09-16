@@ -383,6 +383,30 @@ type BuyProductOption = {
   inventory_id?: string
 }
 
+function guestCardFromChatSurface(input: {
+  name?: string
+  image_url?: string
+  product_url?: string
+  price_hint?: string
+  sku?: string | null
+  inventory_id?: string
+  inventoryId?: string
+}): PartnerAiProductCard | null {
+  const product_url = (input.product_url ?? '').trim()
+  const image_url = (input.image_url ?? '').trim()
+  if (!/^https?:\/\//i.test(product_url) || !/^https?:\/\//i.test(image_url)) return null
+  const sku = (input.sku ?? '').trim().slice(0, 128)
+  const inventory_id = (input.inventory_id ?? input.inventoryId ?? '').trim()
+  return {
+    name: (input.name ?? '').trim() || 'San pham',
+    image_url,
+    product_url,
+    ...(input.price_hint ? { price_hint: input.price_hint } : {}),
+    ...(sku ? { sku } : {}),
+    ...(inventory_id ? { inventory_id } : {}),
+  }
+}
+
 type PurchaseOptionsPayload = {
   sku: string | null
   name: string
@@ -3424,6 +3448,18 @@ export function PartnerGuestChatClient({
     [guestPurchaseFlow, openOrderFormByOption, resolveSkuForGuestPurchase]
   )
 
+  const openGuestProductCardNav = useCallback(
+    (card: PartnerAiProductCard) => {
+      if (guestPurchaseFlow === 'external_cart_url') {
+        void triggerGuestProductPurchase(card)
+        return
+      }
+      const href = (card.product_url ?? '').trim()
+      if (/^https?:\/\//i.test(href)) openGuestProductDetailUrl(href)
+    },
+    [guestPurchaseFlow, triggerGuestProductPurchase]
+  )
+
   const openGuestProductOrderFormFromCard = triggerGuestProductPurchase
 
   const cartSubtotal = useMemo(
@@ -5860,7 +5896,16 @@ export function PartnerGuestChatClient({
                                         onClick={(ev) => {
                                           ev.preventDefault()
                                           ev.stopPropagation()
-                                          openGuestProductDetailUrl(puVision.trim())
+                                          const card = guestCardFromChatSurface({
+                                            name: c.name,
+                                            image_url: c.image_url,
+                                            product_url: puVision.trim(),
+                                            price_hint: c.price_hint,
+                                            sku: c.sku,
+                                            inventoryId: c.inventoryId,
+                                          })
+                                          if (card) openGuestProductCardNav(card)
+                                          else openGuestProductDetailUrl(puVision.trim())
                                         }}
                                         aria-label={`${c.name}. ${t.visionProductViewDetails}`}
                                       >
@@ -6134,7 +6179,16 @@ export function PartnerGuestChatClient({
                                         onClick={(ev) => {
                                           ev.preventDefault()
                                           ev.stopPropagation()
-                                          openGuestProductDetailUrl(puVision.trim())
+                                          const card = guestCardFromChatSurface({
+                                            name: c.name,
+                                            image_url: c.image_url,
+                                            product_url: puVision.trim(),
+                                            price_hint: c.price_hint,
+                                            sku: c.sku,
+                                            inventoryId: c.inventoryId,
+                                          })
+                                          if (card) openGuestProductCardNav(card)
+                                          else openGuestProductDetailUrl(puVision.trim())
                                         }}
                                         aria-label={`${c.name}. ${t.visionProductViewDetails}`}
                                       >
@@ -6383,7 +6437,9 @@ export function PartnerGuestChatClient({
                               aria-label={`Mở trang sản phẩm: ${item.name}`}
                               onClick={(e) => {
                                 e.preventDefault()
-                                openGuestProductDetailUrl(href)
+                                const card = guestCardFromChatSurface(item)
+                                if (card) openGuestProductCardNav(card)
+                                else openGuestProductDetailUrl(href)
                               }}
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -7869,7 +7925,7 @@ export function PartnerGuestChatClient({
                         onClick={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
-                          openGuestProductDetailUrl(href)
+                          openGuestProductCardNav(row.card)
                         }}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element -- URL ngoài từ shop */}

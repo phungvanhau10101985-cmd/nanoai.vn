@@ -493,6 +493,21 @@ test('saved html never keeps the editor runtime state on <body>', () => {
   assert.equal(stripVisualEditorRuntimeStateClasses(clean), clean)
 })
 
+test('live cart/account hide the mobile dock from tablet/laptop widths', () => {
+  const html = '<html><head></head><body><nav class="pw-bottom-nav"></nav></body></html>'
+  const out = injectPartnerShopChromeLayoutCss(html)
+  assert.match(out, /@media \(min-width:768px\)/)
+  assert.match(
+    out,
+    /html:not\(\[data-pw-edit-device\]\):not\(\[data-pw-scene-lock\]\)\[data-pw-page="cart"\] \.pw-bottom-nav/
+  )
+  assert.match(
+    out,
+    /html:not\(\[data-pw-edit-device\]\):not\(\[data-pw-scene-lock\]\):has\(\[data-pw-page="cart"\]\) \.pw-bottom-nav/
+  )
+  assert.match(out, /html:not\(\[data-pw-edit-device\]\):not\(\[data-pw-scene-lock\]\)\[data-pw-page="account"\] \.pw-bottom-nav/)
+})
+
 test('chrome layout paints marketplace desktop header with the primary token', () => {
   const html = '<html><head></head><body><header class="pw-header"></header></body></html>'
   const out = injectPartnerShopChromeLayoutCss(html)

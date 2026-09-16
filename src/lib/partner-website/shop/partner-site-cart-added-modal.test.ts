@@ -9,6 +9,7 @@ import {
   hideLeftoverPartnerCartAddedHtmlPopup,
   PW_CART_ADDED_MODAL_CSS,
   PW_CART_ADDED_MODAL_RUNTIME_JS,
+  releasePartnerShopBodyScroll,
 } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 
@@ -88,5 +89,38 @@ test('hideLeftoverPartnerCartAddedHtmlPopup hides the HTML runtime popup', () =>
   } as unknown as Document
   hideLeftoverPartnerCartAddedHtmlPopup(doc)
   assert.equal(attrs.hidden, '')
-  assert.equal(body.style.overflow, 'auto')
+  assert.equal(body.style.overflow, 'hidden')
+})
+
+test('releasePartnerShopBodyScroll closes leftover overlays and unlocks the page', () => {
+  const hidden: Record<string, string> = {}
+  const body = { style: { overflow: 'hidden' } }
+  const popup = {
+    setAttribute: (name: string, value: string) => {
+      hidden[name] = value
+    },
+  }
+  const variant = {
+    setAttribute: (name: string, value: string) => {
+      hidden[`variant:${name}`] = value
+    },
+  }
+  const doc = {
+    getElementById: (id: string) => (id === 'pw-cart-added-popup' ? popup : id === 'pw-variant-modal' ? variant : null),
+    body,
+  } as unknown as Document
+  releasePartnerShopBodyScroll(doc)
+  assert.equal(hidden.hidden, '')
+  assert.equal(hidden['variant:hidden'], '')
+  assert.equal(body.style.overflow, '')
+})
+
+test('cart added modal unlocks body scroll after nested variant overlay', () => {
+  assert.match(PW_CART_ADDED_MODAL_RUNTIME_JS, /if\(typeof hideVariantModal==='function'\)hideVariantModal\(\)/)
+  assert.match(PW_CART_ADDED_MODAL_RUNTIME_JS, /function shopModalIsOpen\(id\)/)
+  assert.match(PW_CART_ADDED_MODAL_RUNTIME_JS, /document\.body\.style\.overflow=''/)
+  assert.doesNotMatch(
+    PW_CART_ADDED_MODAL_RUNTIME_JS,
+    /document\.body\.style\.overflow=root\.getAttribute\('data-pw-prev-overflow'\)\|\|''/
+  )
 })

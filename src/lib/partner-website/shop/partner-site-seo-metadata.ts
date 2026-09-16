@@ -67,7 +67,8 @@ export function buildPartnerSiteMetadata(config: PartnerSiteSEOConfig): Metadata
     .slice(0, 8) || 'vi'
 
   return {
-    title,
+    // absolute: root layout template is `%s | NanoAI` — shop tabs must not show the platform name.
+    title: { absolute: title },
     description,
     keywords: keywordsStr,
     metadataBase: new URL(origin),

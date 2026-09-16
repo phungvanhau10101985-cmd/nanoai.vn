@@ -39,7 +39,7 @@ export function PartnerSiteCartAddedModal({ open, item, cartHref, copy, onClose 
     document.addEventListener('keydown', onKey)
     window.addEventListener(PW_SHOP_SOFT_NAV_EVENT, onSoftNav)
     return () => {
-      document.body.style.overflow = prev
+      document.body.style.overflow = prev === 'hidden' ? '' : prev
       document.removeEventListener('keydown', onKey)
       window.removeEventListener(PW_SHOP_SOFT_NAV_EVENT, onSoftNav)
     }

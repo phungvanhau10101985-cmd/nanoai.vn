@@ -109,6 +109,9 @@ test('shop-actions injects PDP variant modal before add-to-cart', () => {
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /pw-device/)
   assert.doesNotMatch(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /adds\[i\]\.closest\('article/)
   assert.doesNotMatch(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /shopImg\(/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /window\.addEventListener\('pw-shop-soft-nav',hideVariantModal\)/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /bindVariantModalNavHide\(\)/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /document\.body\.style\.overflow=''/)
 })
 
 test('variant modal applies empty API size/color arrays instead of leftover DOM pills', () => {

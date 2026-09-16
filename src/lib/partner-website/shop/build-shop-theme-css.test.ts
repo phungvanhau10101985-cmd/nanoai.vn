@@ -238,6 +238,14 @@ test('Sửa nhanh PDP receives HTML header colors from the shop theme pack', () 
   assert.match(out, /<meta name="theme-color" content="#f97316"\/>/)
 })
 
+test('shop theme CSS hides the live cart dock from 768px up', () => {
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(css, /@media\(min-width:768px\)\{/)
+  assert.match(css, /html\[data-pw-page="cart"\] \.pw-bottom-nav/)
+  assert.match(css, /html\[data-pw-page="cart"\] \.pw-shop-bottom-nav/)
+  assert.match(css, /html:has\(\[data-pw-page="cart"\]\) \.pw-bottom-nav/)
+})
+
 test('shop theme CSS keeps mobile cart totals on a full-width row, not the 22px checkbox column', () => {
   const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
   assert.match(css, /\.pw-shop-cart-row\{[^}]*grid-template-columns:24px 72px minmax\(0,1fr\) minmax\(0,auto\)/)

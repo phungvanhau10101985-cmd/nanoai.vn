@@ -5,7 +5,8 @@ import { SEPAY_HMAC_SECRET_MAX_LEN, sepaySecretLast4 } from '@/lib/sepay-webhook
 import { revalidatePath } from 'next/cache'
 import { getUserForCreditAction } from '@/lib/auth'
 import { RESERVED_MESSAGING_GUEST_SLUGS } from '@/lib/messaging/reserved-guest-slugs'
-import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
+import { normalizeGuestPurchaseFlow, parseGuestExternalCartUrlTemplate } from '@/lib/messaging/guest-purchase-flow'
+import { resolvePartnerSaasCartAddPreview, resolvePartnerSaasCartAddUrlTemplate } from '@/lib/messaging/resolve-partner-saas-cart-add-url'
 import {
   assertPublicHttpsShippingLookupUrl,
   classifyShippingLookupQuery,
@@ -2196,9 +2197,9 @@ export type PartnerAiSettingsPayload = {
   vision_product_category: string
   vision_gcs_bucket: string
   image_search_api_enabled: boolean
-  /** ─Éß║╖t h├áng trong chat vs mß╗ƒ trang SP / link giß╗Å web shop. */
+  /** Mua trong chat vs mở trang SP / modal giỏ web shop. */
   guest_purchase_flow: 'in_chat' | 'external_site' | 'external_cart_url'
-  /** Mß║½u URL giß╗Å web ΓÇö bß║»t buß╗Öc khi `external_cart_url`, phß║úi chß╗⌐a `{sku}`. */
+  /** Mẫu URL giỏ web khách ngoài hệ thống. Trống được nếu shop SaaS đã có website. */
   guest_external_cart_url_template: string
   shop_checkout_login_required: boolean
   after_sales_return_address: string
@@ -2599,6 +2600,7 @@ export async function getPartnerAiBundle(partnerId: string) {
   const runner = (await fetchVisionWarehouseRunnerLockFieldsFromPg(1)) ?? null
   const inv = invPg.rows
   const total = Math.max(inv.length, invPg.count)
+  const saasShopCart = await resolvePartnerSaasCartAddPreview(partnerId)
   return {
     settings: toPartnerAiSettingsClient(settings ?? null),
     inventory: inv,
@@ -2606,6 +2608,7 @@ export async function getPartnerAiBundle(partnerId: string) {
     inventoryPageSize: PARTNER_INVENTORY_PAGE_SIZE,
     visionCatalogStats: buildPartnerVisionCatalogStats(inv),
     visionSyncHealth: buildPartnerVisionSyncHealth(inv, runner ?? null),
+    saasShopCart,
   }
 }
 
@@ -2824,14 +2827,18 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
   const vision_product_category = 'general-v1'
   const vision_gcs_bucket = ''
   const purchaseFlow = normalizeGuestPurchaseFlow(payload.guest_purchase_flow)
-  const cartTpl = (payload.guest_external_cart_url_template ?? '').trim()
-  if (purchaseFlow === 'external_cart_url') {
-    if (!cartTpl || !/\{sku\}/i.test(cartTpl) || !/^https?:\/\//i.test(cartTpl)) {
+  const cartTpl = parseGuestExternalCartUrlTemplate(payload.guest_external_cart_url_template)
+  let templateToStore = cartTpl
+  if (purchaseFlow === 'external_cart_url' && !cartTpl) {
+    const auto = await resolvePartnerSaasCartAddUrlTemplate(partnerId)
+    if (!auto) {
       return {
         error:
-          'Cart URL template is required for this mode: use https://ΓÇª with {sku} (e.g. https://shop.vn/cart/add/{sku}?from=nanoai).',
+          'Shop website on this platform is missing. Publish the shop site (no API key), or paste a public cart URL with {sku} for an external site.',
       }
     }
+    const existingFull = await fetchMessagingPartnerAiSettingsFullFromPg(partnerId)
+    templateToStore = parseGuestExternalCartUrlTemplate(existingFull?.guest_external_cart_url_template)
   }
   const shippingLookupUrl = (payload.shipping_lookup_url ?? '').trim().slice(0, 2048)
   if (shippingLookupUrl && !assertPublicHttpsShippingLookupUrl(shippingLookupUrl)) {
@@ -2875,8 +2882,7 @@ export async function savePartnerAiSettings(partnerId: string, payload: PartnerA
     image_search_api_enabled: Boolean(payload.image_search_api_enabled),
     image_search_api_secret: existingAi?.image_search_api_secret ?? null,
     guest_purchase_flow: purchaseFlow,
-    guest_external_cart_url_template:
-      (payload.guest_external_cart_url_template ?? '').trim().slice(0, 2048) || null,
+    guest_external_cart_url_template: templateToStore,
     shop_checkout_login_required: Boolean(payload.shop_checkout_login_required),
     after_sales_return_address: (payload.after_sales_return_address ?? '').trim().slice(0, 2000),
     shipping_lookup_url: shippingLookupUrl,

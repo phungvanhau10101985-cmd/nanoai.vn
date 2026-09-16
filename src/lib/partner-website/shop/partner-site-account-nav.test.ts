@@ -79,6 +79,16 @@ test('react account layout maps cart/login/orders from the URL', () => {
     activeNav: 'cart',
     hideAccountNav: false,
   })
+  assert.deepEqual(reactAccountShellNavFromPathname('/site/demo/cart/add/A1%2F4'), {
+    pageKind: PW_PAGE.cart,
+    activeNav: 'cart',
+    hideAccountNav: true,
+  })
+  assert.deepEqual(reactAccountShellNavFromPathname('/cart/add/SKU-1'), {
+    pageKind: PW_PAGE.cart,
+    activeNav: 'cart',
+    hideAccountNav: true,
+  })
   assert.deepEqual(reactAccountShellNavFromPathname('/login'), {
     pageKind: PW_PAGE.account,
     activeNav: 'account',

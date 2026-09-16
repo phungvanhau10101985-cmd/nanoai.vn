@@ -112,6 +112,25 @@ export function partnerSiteCartPath(siteSlug: string, opts?: PathOpts): string {
   return partnerSiteHref(siteSlug, '/cart', opts?.customDomain)
 }
 
+/** Landing chat → web: mở modal biến thể giống 188 `/cart/add/{sku}`. */
+export function partnerSiteCartAddPath(
+  siteSlug: string,
+  sku: string,
+  opts?: PathOpts & { fromNanoAi?: boolean }
+): string {
+  const key = sku.trim()
+  if (!key) return partnerSiteCartPath(siteSlug, opts)
+  const base = partnerSiteHref(siteSlug, `/cart/add/${encodeURIComponent(key)}`, opts?.customDomain)
+  return opts?.fromNanoAi === false ? base : `${base}?from=nanoai`
+}
+
+export function isPartnerSiteCartAddPath(pathname: string): boolean {
+  const raw = String(pathname || '/').split(/[?#]/)[0] || '/'
+  const stripped = raw.replace(/^\/site\/[^/]+(?=\/|$)/, '')
+  const path = (stripped.startsWith('/') ? stripped : `/${stripped}`).replace(/\/+$/, '') || '/'
+  return path === '/cart/add' || path.startsWith('/cart/add/')
+}
+
 /** Same-platform shop cart (no Bearer / partner slug). */
 export function partnerSiteCartApiPath(siteSlug: string, opts?: { countOnly?: boolean }): string {
   const base = `/api/site/${encodeURIComponent(siteSlug.trim())}/cart`

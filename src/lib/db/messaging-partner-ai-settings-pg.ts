@@ -1,7 +1,13 @@
 import type { Database } from '@/types/database.types'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
-import { normalizeGuestPurchaseFlow, type GuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
+import {
+  normalizeGuestPurchaseFlow,
+  parseGuestExternalCartUrlTemplate,
+  pickGuestExternalCartUrlTemplate,
+  type GuestPurchaseFlow,
+} from '@/lib/messaging/guest-purchase-flow'
+import { resolvePartnerSaasCartAddUrlTemplate } from '@/lib/messaging/resolve-partner-saas-cart-add-url'
 import { normalizeShopCheckoutLoginRequired } from '@/lib/partner-website/shop/shop-checkout-auth'
 
 export type MessagingPartnerAiSettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
@@ -625,11 +631,13 @@ export async function fetchGuestPurchaseConfigForPartnerFromPg(
       [partnerId]
     )
     if (!row) return { flow: 'in_chat', externalCartUrlTemplate: null }
-    const tpl = row.guest_external_cart_url_template?.trim().slice(0, 2048) || null
-    return {
-      flow: normalizeGuestPurchaseFlow(row.guest_purchase_flow),
-      externalCartUrlTemplate: tpl,
+    const flow = normalizeGuestPurchaseFlow(row.guest_purchase_flow)
+    const stored = parseGuestExternalCartUrlTemplate(row.guest_external_cart_url_template)
+    if (flow !== 'external_cart_url') {
+      return { flow, externalCartUrlTemplate: stored }
     }
+    const auto = await resolvePartnerSaasCartAddUrlTemplate(partnerId)
+    return { flow, externalCartUrlTemplate: pickGuestExternalCartUrlTemplate(stored, auto) }
   } catch (e) {
     console.warn('[fetchGuestPurchaseConfigForPartnerFromPg]', e)
     return { flow: 'in_chat', externalCartUrlTemplate: null }

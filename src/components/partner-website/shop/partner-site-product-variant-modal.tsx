@@ -91,6 +91,11 @@ type Props = {
   onAddToCart: (pick: { color: string; size: string; quantity: number; imageUrl: string }) => void
   onBuyNow: (pick: { color: string; size: string; quantity: number; imageUrl: string }) => void
   copy?: ProductVariantModalCopy
+  /**
+   * Landing `/cart/add/{sku}`: render in-tree (CSS is `position:fixed`).
+   * Avoid `createPortal` on first paint — portal-after-hydrate mismatched SSR and blocked Buy.
+   */
+  disablePortal?: boolean
 }
 
 function ColorChips({
@@ -152,6 +157,7 @@ export function PartnerSiteProductVariantModal({
   onAddToCart,
   onBuyNow,
   copy: copyProp,
+  disablePortal = false,
 }: Props) {
   const copy = copyProp ?? PRODUCT_VARIANT_MODAL_COPY[locale] ?? PRODUCT_VARIANT_MODAL_COPY.en
   const colors = useMemo(
@@ -310,7 +316,7 @@ export function PartnerSiteProductVariantModal({
     else onAddToCart(pick)
   }
 
-  if (!open || !ready || typeof document === 'undefined') return null
+  if (!open) return null
 
   const sizeGuide =
     sizes.length && (onOpenSizeGuide || sizeGuideHref) ? (
@@ -478,7 +484,7 @@ export function PartnerSiteProductVariantModal({
     </div>
   )
 
-  return createPortal(
+  const node = (
     <div
       data-pw-variant-modal="1"
       data-pw-variant-face={face}
@@ -555,7 +561,10 @@ export function PartnerSiteProductVariantModal({
           </button>
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
   )
+
+  if (disablePortal) return node
+  if (!ready || typeof document === 'undefined' || !document.body) return null
+  return createPortal(node, document.body)
 }

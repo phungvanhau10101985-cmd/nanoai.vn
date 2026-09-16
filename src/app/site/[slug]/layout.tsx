@@ -11,6 +11,11 @@ import {
 import { PartnerSiteSoftNavRelay } from '@/components/partner-website/shop/partner-site-soft-nav-relay'
 import { PartnerSiteCustomDomainProvider } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
+import { buildPartnerShopBrandDocumentTitle } from '@/lib/partner-website/shop/partner-shop-brand-document-title'
+import {
+  extractSloganFromHtml,
+  partnerShopSloganFromTheme,
+} from '@/lib/partner-website/shop/partner-site-shop-slogan'
 import {
   partnerSitePwaIconPath,
   partnerSitePwaManifestPath,
@@ -46,8 +51,14 @@ export async function generateMetadata({
   const site = (await loadPartnerSiteShopContext(slug).catch(() => null))?.site ?? null
   if (!site) return {}
   const headerStore = headers()
-  const customDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
+  const customDomainHost = readPartnerCustomDomainFromHeaders((name) => headerStore.get(name))
+  const customDomain = Boolean(customDomainHost)
   const name = site.title.trim() || site.partnerDisplayName || 'Shop'
+  const brandTitle = buildPartnerShopBrandDocumentTitle({
+    hostname: customDomainHost,
+    slogan: partnerShopSloganFromTheme(site.theme) || extractSloganFromHtml(site.htmlSource || ''),
+    fallbackName: name,
+  })
   const icons = buildPartnerShopFaviconMetadataIcons({
     siteSlug: site.siteSlug,
     customDomain,
@@ -56,6 +67,10 @@ export async function generateMetadata({
   })
 
   return {
+    title: {
+      default: brandTitle,
+      template: '%s',
+    },
     applicationName: name,
     manifest: partnerSitePwaManifestPath(
       site.siteSlug,

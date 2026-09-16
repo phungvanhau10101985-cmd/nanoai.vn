@@ -942,6 +942,33 @@ body{padding-bottom:0}
 .pw-bottom-nav,.pw-shop-bottom-nav{display:flex!important;position:fixed!important;left:0;right:0;bottom:0;z-index:${PW_SCENE_HEAD_Z}!important;background:#fff}
 body{padding-bottom:72px}
 }
+@media (min-width:768px){
+${PW_SCENE_UNLOCKED_HTML}[data-pw-page="cart"] .pw-bottom-nav,
+${PW_SCENE_UNLOCKED_HTML}[data-pw-page="cart"] .pw-shop-bottom-nav,
+${PW_SCENE_UNLOCKED_HTML}[data-pw-page="account"] .pw-bottom-nav,
+${PW_SCENE_UNLOCKED_HTML}[data-pw-page="account"] .pw-shop-bottom-nav,
+${PW_SCENE_UNLOCKED_HTML}[data-pw-page="info"] .pw-bottom-nav,
+${PW_SCENE_UNLOCKED_HTML}[data-pw-page="info"] .pw-shop-bottom-nav,
+${PW_SCENE_UNLOCKED_HTML}:has([data-pw-page="cart"]) .pw-bottom-nav,
+${PW_SCENE_UNLOCKED_HTML}:has([data-pw-page="cart"]) .pw-shop-bottom-nav,
+${PW_SCENE_UNLOCKED_HTML}:has([data-pw-page="account"]) .pw-bottom-nav,
+${PW_SCENE_UNLOCKED_HTML}:has([data-pw-page="account"]) .pw-shop-bottom-nav,
+${PW_SCENE_UNLOCKED_HTML}:has([data-pw-page="info"]) .pw-bottom-nav,
+${PW_SCENE_UNLOCKED_HTML}:has([data-pw-page="info"]) .pw-shop-bottom-nav{
+  display:none!important
+}
+${PW_SCENE_UNLOCKED_HTML}[data-pw-page="cart"] body,
+${PW_SCENE_UNLOCKED_HTML}[data-pw-page="account"] body,
+${PW_SCENE_UNLOCKED_HTML}[data-pw-page="info"] body,
+${PW_SCENE_UNLOCKED_HTML}:has([data-pw-page="cart"]) body,
+${PW_SCENE_UNLOCKED_HTML}:has([data-pw-page="account"]) body,
+${PW_SCENE_UNLOCKED_HTML}:has([data-pw-page="info"]) body,
+${PW_SCENE_UNLOCKED_HTML} .pw-shop[data-pw-page="cart"],
+${PW_SCENE_UNLOCKED_HTML} .pw-shop[data-pw-page="account"],
+${PW_SCENE_UNLOCKED_HTML} .pw-shop[data-pw-page="info"]{
+  padding-bottom:0!important
+}
+}
 html[data-pw-scene-lock="desktop"] .pw-bottom-nav,html[data-pw-scene-lock="desktop"] .pw-shop-bottom-nav,html[data-pw-scene-lock="laptop"] .pw-bottom-nav,html[data-pw-scene-lock="laptop"] .pw-shop-bottom-nav,html[data-pw-edit-device="desktop"] .pw-bottom-nav,html[data-pw-edit-device="desktop"] .pw-shop-bottom-nav,html[data-pw-edit-device="laptop"] .pw-bottom-nav,html[data-pw-edit-device="laptop"] .pw-shop-bottom-nav{display:none!important}
 html[data-pw-scene-lock="desktop"] body,html[data-pw-scene-lock="laptop"] body,html[data-pw-edit-device="desktop"] body,html[data-pw-edit-device="laptop"] body{padding-bottom:0}
 html[data-pw-pdp-desktop-sticky="1"][data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"],

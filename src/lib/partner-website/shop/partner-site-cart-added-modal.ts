@@ -86,9 +86,21 @@ a[data-pw-cart-added-pdp]{color:inherit;text-decoration:none}
 export function hideLeftoverPartnerCartAddedHtmlPopup(doc: Document | null | undefined = typeof document === 'undefined' ? null : document) {
   if (!doc) return
   const root = doc.getElementById('pw-cart-added-popup')
-  if (!root) return
-  root.setAttribute('hidden', '')
-  doc.body.style.overflow = root.getAttribute('data-pw-prev-overflow') || ''
+  if (root) root.setAttribute('hidden', '')
+}
+
+export function hideLeftoverPartnerVariantModal(doc: Document | null | undefined = typeof document === 'undefined' ? null : document) {
+  if (!doc) return
+  const root = doc.getElementById('pw-variant-modal')
+  if (root) root.setAttribute('hidden', '')
+}
+
+/** Close leftover add-to-cart overlays and unlock page scroll (cart/account soft-nav). */
+export function releasePartnerShopBodyScroll(doc: Document | null | undefined = typeof document === 'undefined' ? null : document) {
+  if (!doc) return
+  hideLeftoverPartnerCartAddedHtmlPopup(doc)
+  hideLeftoverPartnerVariantModal(doc)
+  doc.body.style.overflow = ''
 }
 
 /** Runtime HTML shop — gọi `showCartAddedModal({name,imageUrl,inventory_id})` sau khi thêm giỏ. */
@@ -107,11 +119,19 @@ function cartAddedImg(url){
   }catch(e){}
   return url;
 }
+function shopModalIsOpen(id){
+  var el=document.getElementById(id);
+  return !!(el&&!el.hasAttribute('hidden'));
+}
 function hideCartAddedModal(){
   var root=document.getElementById('pw-cart-added-popup');
   if(!root)return;
   root.setAttribute('hidden','');
-  document.body.style.overflow=root.getAttribute('data-pw-prev-overflow')||'';
+  if(shopModalIsOpen('pw-variant-modal')){
+    document.body.style.overflow='hidden';
+    return;
+  }
+  document.body.style.overflow='';
 }
 function bindCartAddedModalNavHide(){
   if(window.__pwCartAddedNavHide)return;
@@ -179,6 +199,7 @@ function bindCartAddedPdpHref(root,href){
 }
 function showCartAddedModal(item){
   item=item||{};
+  if(typeof hideVariantModal==='function')hideVariantModal();
   var root=ensureCartAddedModal();
   var title=root.querySelector('[data-pw-cart-added-title]');
   var nameEl=root.querySelector('[data-pw-cart-added-name] [data-pw-cart-added-pdp]')||root.querySelector('[data-pw-cart-added-name]');

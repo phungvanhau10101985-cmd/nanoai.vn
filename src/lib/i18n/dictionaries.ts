@@ -2143,6 +2143,9 @@ export type Dictionary = {
     guestExternalCartUrlTemplateHint: string
     guestExternalCartUrlTemplatePlaceholder: string
     guestExternalCartUrlTemplateSaveHint: string
+    guestPurchaseFlowSaasLinkedHint: string
+    guestPurchaseFlowNeedWebsite: string
+    guestPurchaseFlowSaasPreviewLabel: string
     shopCheckoutLoginLabel: string
     shopCheckoutLoginHint: string
     shopCheckoutLoginRequiredOn: string
@@ -5697,18 +5700,23 @@ const VI_DICTIONARY: Dictionary = {
     imageSearchApiGenerating: 'Đang tạo khóa…',
     imageSearchApiKeyCreated: 'Đã tạo khóa (đã thử copy vào clipboard). Lưu ngay — không hiện lại.',
     imageSearchApiManageKeysLink: 'Mở trang Tích hợp API — quản lý khóa',
-    guestPurchaseFlowLabel: 'Cách khách mua hàng trên chat NanoAI',
+    guestPurchaseFlowLabel: 'Khách mua hàng từ chat',
     guestPurchaseFlowHint:
-      'Chế độ 1: đặt trong chat như hiện tại. Chế độ 2: Xem chi tiết / Mua / Thêm giỏ đều mở trang SP (URL kho). Chế độ 3: Mua và Thêm giỏ mở link giỏ web (mẫu có {sku}) — Tư vấn không đổi.',
-    guestPurchaseFlowInChat: '1 — Đặt trong chat (form + thanh toán NanoAI)',
-    guestPurchaseFlowExternal: '2 — Mở trang chi tiết SP (Xem chi tiết / Mua / Thêm giỏ)',
-    guestPurchaseFlowExternalCart: '3 — Mở link giỏ web shop ({sku})',
-    guestExternalCartUrlTemplateLabel: 'Mẫu URL thêm giỏ (web shop)',
+      'Hai cách chính: mua luôn trong chat, hoặc bấm Mua / thẻ sản phẩm để mở modal giỏ trên web shop. Shop SaaS đã có website trên hệ thống thì liên kết thẳng — không cần API key hay dán URL. Web khách ngoài hệ thống mới điền mẫu {sku}.',
+    guestPurchaseFlowInChat: 'Mua ngay trên chat',
+    guestPurchaseFlowExternal: 'Mở trang chi tiết sản phẩm',
+    guestPurchaseFlowExternalCart: 'Mở modal giỏ trên web shop',
+    guestExternalCartUrlTemplateLabel: 'URL giỏ web khách (ngoài hệ thống)',
     guestExternalCartUrlTemplateHint:
-      'Bắt buộc có {sku}. Ví dụ: https://188.com.vn/cart/add/{sku}?from=nanoai — Mua và Thêm giỏ dùng cùng link; Tư vấn vẫn trong chat.',
+      'Chỉ khi web không phải shop SaaS cùng hệ thống. Bắt buộc {sku}. Ví dụ: https://188.com.vn/cart/add/{sku}?from=nanoai — Mua và thẻ SP dùng cùng link; Tư vấn vẫn trong chat.',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.vn/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint:
-      'Điền link thật của shop → click ra ngoài ô (hoặc bấm «Lưu cài đặt») để lưu chế độ 3.',
+      'Điền link thật của shop → click ra ngoài ô (hoặc bấm «Lưu cài đặt») để lưu chế độ mở giỏ web.',
+    guestPurchaseFlowSaasLinkedHint:
+      'Đã liên kết web shop trên hệ thống. Bấm Mua hoặc thẻ sản phẩm trên chat sẽ mở modal chọn màu/size trên web — không cần API key.',
+    guestPurchaseFlowNeedWebsite:
+      'Chưa có website shop trên hệ thống. Đăng web trong Tạo web & landing, hoặc dán URL giỏ của web khách bên ngoài.',
+    guestPurchaseFlowSaasPreviewLabel: 'Đường dẫn tự liên kết',
     shopCheckoutLoginLabel: 'Thanh toán trên website shop',
     shopCheckoutLoginHint:
       'Áp dụng trang /site/… của shop. Bật: khách xác minh email (OTP) trước khi đặt hàng. Tắt: chỉ cần họ tên, SĐT và địa chỉ giao hàng.',
@@ -5845,7 +5853,7 @@ const VI_DICTIONARY: Dictionary = {
     purchaseMissingProductUrlToast: 'Mẫu này chưa có link trang sản phẩm — shop vui lòng thêm URL trong kho.',
     purchaseMissingSkuToast: 'Mẫu này chưa có mã SKU — shop vui lòng thêm SKU trong kho.',
     purchaseMissingCartTemplateToast:
-      'Shop chưa cấu hình mẫu link giỏ (Cài đặt AI → mẫu URL có {sku}).',
+      'Chưa liên kết được giỏ web. Đăng website shop trên hệ thống, hoặc dán URL giỏ của web khách có {sku}.',
     productConsultProductRefFromSku: 'mã sản phẩm {sku}',
     productConsultProductRefFromName: 'mẫu {name}',
     productConsultAskShipping:
@@ -9238,18 +9246,23 @@ const EN_DICTIONARY: Dictionary = {
     imageSearchApiGenerating: 'Generating key…',
     imageSearchApiKeyCreated: 'Key created (copied to clipboard if allowed). Save it now — it will not be shown again.',
     imageSearchApiManageKeysLink: 'Open API integration — manage keys',
-    guestPurchaseFlowLabel: 'How customers check out on NanoAI chat',
+    guestPurchaseFlowLabel: 'How customers buy from chat',
     guestPurchaseFlowHint:
-      'Mode 1: checkout in chat (current). Mode 2: View details / Buy / Add to cart all open the product page (inventory URL). Mode 3: Buy and Add to cart open your cart URL template with {sku}; Consult unchanged.',
-    guestPurchaseFlowInChat: '1 — Checkout in chat (form + NanoAI payment)',
-    guestPurchaseFlowExternal: '2 — Open product page (view / buy / add to cart)',
-    guestPurchaseFlowExternalCart: '3 — Open shop cart URL ({sku})',
-    guestExternalCartUrlTemplateLabel: 'Cart add URL template (shop website)',
+      'Two main options: check out in chat, or tap Buy / a product card to open the shop cart variant modal. Same-system SaaS shops link automatically — no API key or pasted URL. External sites (e.g. 188.com.vn) still use a {sku} template.',
+    guestPurchaseFlowInChat: 'Buy in chat',
+    guestPurchaseFlowExternal: 'Open product page',
+    guestPurchaseFlowExternalCart: 'Open shop cart modal on the website',
+    guestExternalCartUrlTemplateLabel: 'External shop cart URL template',
     guestExternalCartUrlTemplateHint:
-      'Must include {sku}. Example: https://shop.com/cart/add/{sku}?from=nanoai — Buy and Add to cart use the same link; Consult stays in chat.',
+      'Only for websites outside this platform. Must include {sku}. Example: https://188.com.vn/cart/add/{sku}?from=nanoai — Buy and product cards use the same link; Consult stays in chat.',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint:
-      'Enter your shop URL → click outside the field (or Save settings) to apply mode 3.',
+      'Enter the shop URL → click outside the field (or Save settings) to apply web-cart mode.',
+    guestPurchaseFlowSaasLinkedHint:
+      'This shop website is already linked. Buy or a product card in chat opens the color/size modal on the web — no API key.',
+    guestPurchaseFlowNeedWebsite:
+      'No shop website on this platform yet. Publish the site under Create web & landing, or paste an external cart URL.',
+    guestPurchaseFlowSaasPreviewLabel: 'Auto-linked path',
     shopCheckoutLoginLabel: 'Checkout on shop website',
     shopCheckoutLoginHint:
       'Applies to your /site/… shop pages. On: customers verify email (OTP) before checkout. Off: name, phone, and shipping address only.',
@@ -9385,7 +9398,7 @@ const EN_DICTIONARY: Dictionary = {
     purchaseMissingProductUrlToast: 'This item has no product URL — add it in inventory.',
     purchaseMissingSkuToast: 'This item has no SKU — add SKU in inventory.',
     purchaseMissingCartTemplateToast:
-      'Cart URL template is not configured (AI settings → URL with {sku}).',
+      'Shop cart is not linked. Publish the shop website, or paste an external cart URL with {sku}.',
     productConsultProductRefFromSku: 'product code {sku}',
     productConsultProductRefFromName: '{name}',
     productConsultAskShipping:
@@ -12726,17 +12739,22 @@ const ZH_DICTIONARY: Dictionary = {
     imageSearchApiGenerating: '正在生成密钥…',
     imageSearchApiKeyCreated: '已生成密钥（若允许已尝试复制到剪贴板）。请立即保存 — 不会再次显示。',
     imageSearchApiManageKeysLink: '打开 API 集成 — 管理密钥',
-    guestPurchaseFlowLabel: '客户在 NanoAI 聊天中的购买方式',
+    guestPurchaseFlowLabel: '客户从聊天购买的方式',
     guestPurchaseFlowHint:
-      '模式1：聊天内下单（当前）。模式2：查看详情/购买/加入购物车均打开商品页（库存 URL）。模式3：购买与加入购物车打开购物车链接模板（含 {sku}）；咨询不变。',
-    guestPurchaseFlowInChat: '1 — 在聊天内下单（表单 + NanoAI 支付）',
-    guestPurchaseFlowExternal: '2 — 打开商品详情页（查看/购买/加购）',
-    guestPurchaseFlowExternalCart: '3 — 打开店铺购物车链接（{sku}）',
-    guestExternalCartUrlTemplateLabel: '加购链接模板（店铺网站）',
+      '两种主方式：在聊天内下单，或点击购买/商品卡打开网店加购弹窗。同系统 SaaS 店铺自动关联，无需 API 密钥或粘贴网址。站外网店才填写 {sku} 模板。',
+    guestPurchaseFlowInChat: '在聊天内购买',
+    guestPurchaseFlowExternal: '打开商品详情页',
+    guestPurchaseFlowExternalCart: '在网店打开加购弹窗',
+    guestExternalCartUrlTemplateLabel: '站外网店加购链接模板',
     guestExternalCartUrlTemplateHint:
-      '须包含 {sku}。例：https://shop.com/cart/add/{sku}?from=nanoai — 购买与加购同链；咨询仍在聊天内。',
+      '仅用于非本平台网站。必须含 {sku}。例：https://188.com.vn/cart/add/{sku}?from=nanoai — 购买与商品卡同链；咨询仍在聊天内。',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
-    guestExternalCartUrlTemplateSaveHint: '填写店铺链接 → 点击输入框外（或保存设置）以应用模式 3。',
+    guestExternalCartUrlTemplateSaveHint: '填写店铺链接 → 点击输入框外（或保存设置）以应用网店加购。',
+    guestPurchaseFlowSaasLinkedHint:
+      '已关联本平台网店。聊天中点击购买或商品卡会打开颜色/尺码弹窗 — 无需 API 密钥。',
+    guestPurchaseFlowNeedWebsite:
+      '本平台尚无店铺网站。请在「创建网站」发布，或粘贴站外加购链接。',
+    guestPurchaseFlowSaasPreviewLabel: '自动关联路径',
     shopCheckoutLoginLabel: '店铺网站结账',
     shopCheckoutLoginHint:
       '适用于 /site/… 店铺页面。开启：结账前需邮箱 OTP 验证。关闭：仅需姓名、电话和收货地址。',
@@ -12865,7 +12883,8 @@ const ZH_DICTIONARY: Dictionary = {
     purchaseOpenCartUrlToast: '已打开店铺加购页面。',
     purchaseMissingProductUrlToast: '该商品缺少商品链接 — 请在库存中填写 URL。',
     purchaseMissingSkuToast: '该商品缺少 SKU — 请在库存中填写 SKU。',
-    purchaseMissingCartTemplateToast: '未配置加购链接模板（AI 设置 → 含 {sku} 的 URL）。',
+    purchaseMissingCartTemplateToast:
+      '尚未关联加购页。请发布本平台店铺网站，或粘贴含 {sku} 的外部购物车 URL。',
     productConsultProductRefFromSku: '商品编号 {sku}',
     productConsultProductRefFromName: '{name}',
     productConsultAskShipping:
@@ -16199,18 +16218,23 @@ const JA_DICTIONARY: Dictionary = {
     imageSearchApiGenerating: 'キーを生成中…',
     imageSearchApiKeyCreated: 'キーを発行しました（可能ならクリップボードにコピー済み）。再表示されないので今すぐ保存してください。',
     imageSearchApiManageKeysLink: 'API 連携を開く — キー管理',
-    guestPurchaseFlowLabel: 'NanoAIチャットでの購入方法',
+    guestPurchaseFlowLabel: 'チャットからの購入方法',
     guestPurchaseFlowHint:
-      'モード1：チャット内注文（現状）。モード2：詳細/購入/カート追加はすべて商品ページ（在庫URL）。モード3：購入・カート追加は {sku} 入りカートURL — 相談は変更なし。',
-    guestPurchaseFlowInChat: '1 — チャット内で注文（フォーム＋NanoAI決済）',
-    guestPurchaseFlowExternal: '2 — 商品詳細ページを開く（詳細/購入/カート）',
-    guestPurchaseFlowExternalCart: '3 — ショップのカートURL（{sku}）',
-    guestExternalCartUrlTemplateLabel: 'カート追加URLテンプレート',
+      '主な2通り：チャット内で購入するか、購入／商品カードでショップのカートモーダルを開く。同一システムのSaaSショップは自動連携（APIキー不要）。外部サイトだけ {sku} テンプレートを使います。',
+    guestPurchaseFlowInChat: 'チャット内で購入',
+    guestPurchaseFlowExternal: '商品詳細ページを開く',
+    guestPurchaseFlowExternalCart: 'ショップサイトでカートモーダルを開く',
+    guestExternalCartUrlTemplateLabel: '外部ショップのカートURLテンプレート',
     guestExternalCartUrlTemplateHint:
-      '{sku} 必須。例：https://shop.com/cart/add/{sku}?from=nanoai — 購入とカート追加は同じURL。相談はチャットのまま。',
+      'このプラットフォーム外のサイトのみ。{sku} 必須。例：https://188.com.vn/cart/add/{sku}?from=nanoai — 購入とカードは同じURL。相談はチャットのまま。',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint:
-      'ショップのURLを入力 → 欄の外をクリック（または設定を保存）でモード3を保存。',
+      'ショップのURLを入力 → 欄の外をクリック（または設定を保存）でウェブカートを保存。',
+    guestPurchaseFlowSaasLinkedHint:
+      'ショップサイトは連携済み。チャットの購入または商品カードで色・サイズモーダルが開きます（APIキー不要）。',
+    guestPurchaseFlowNeedWebsite:
+      'このプラットフォームにショップサイトがありません。ウェブ作成で公開するか、外部カートURLを貼ってください。',
+    guestPurchaseFlowSaasPreviewLabel: '自動連携パス',
     shopCheckoutLoginLabel: 'ショップサイトでの決済',
     shopCheckoutLoginHint:
       '/site/… のショップページに適用。オン：決済前にメール OTP 認証。オフ：氏名・電話・配送先のみ。',
@@ -16344,7 +16368,8 @@ const JA_DICTIONARY: Dictionary = {
     purchaseOpenCartUrlToast: 'ショップのカートページを開きました。',
     purchaseMissingProductUrlToast: '商品URLがありません。在庫にURLを追加してください。',
     purchaseMissingSkuToast: 'SKUがありません。在庫にSKUを追加してください。',
-    purchaseMissingCartTemplateToast: 'カートURLテンプレート未設定（AI設定 → {sku} を含むURL）。',
+    purchaseMissingCartTemplateToast:
+      'カートページ未連携。ショップサイトを公開するか、{sku} を含む外部カートURLを入力してください。',
     productConsultProductRefFromSku: '商品コード {sku}',
     productConsultProductRefFromName: '{name}',
     productConsultAskShipping:
@@ -19703,18 +19728,23 @@ const KO_DICTIONARY: Dictionary = {
     imageSearchApiGenerating: '키 생성 중…',
     imageSearchApiKeyCreated: '키가 생성되었습니다(가능하면 클립보드에 복사됨). 다시 표시되지 않으니 지금 저장하세요.',
     imageSearchApiManageKeysLink: 'API 연동 열기 — 키 관리',
-    guestPurchaseFlowLabel: 'NanoAI 채팅에서 구매 진행 방식',
+    guestPurchaseFlowLabel: '채팅에서 구매하는 방식',
     guestPurchaseFlowHint:
-      '모드1: 채팅 내 주문(현재). 모드2: 상세/구매/장바구니 모두 상품 페이지(재고 URL). 모드3: 구매·장바구니는 {sku} 카트 URL — 상담은 동일.',
-    guestPurchaseFlowInChat: '1 — 채팅에서 주문 (양식 + NanoAI 결제)',
-    guestPurchaseFlowExternal: '2 — 상품 상세 페이지 (보기/구매/장바구니)',
-    guestPurchaseFlowExternalCart: '3 — 쇼핑몰 장바구니 URL ({sku})',
-    guestExternalCartUrlTemplateLabel: '장바구니 추가 URL 템플릿',
+      '두 가지 기본 방식: 채팅에서 바로 구매하거나, 구매/상품 카드를 눌러 쇼핑몰 장바구니 모달을 엽니다. 같은 시스템의 SaaS 쇼핑몰은 API 키 없이 자동 연결됩니다. 외부 사이트만 {sku} 템플릿을 씁니다.',
+    guestPurchaseFlowInChat: '채팅에서 바로 구매',
+    guestPurchaseFlowExternal: '상품 상세 페이지 열기',
+    guestPurchaseFlowExternalCart: '쇼핑몰 웹에서 장바구니 모달 열기',
+    guestExternalCartUrlTemplateLabel: '외부 쇼핑몰 장바구니 URL 템플릿',
     guestExternalCartUrlTemplateHint:
-      '{sku} 필수. 예: https://shop.com/cart/add/{sku}?from=nanoai — 구매·장바구니 동일 링크. 상담은 채팅 유지.',
+      '이 플랫폼 밖 사이트만. {sku} 필수. 예: https://188.com.vn/cart/add/{sku}?from=nanoai — 구매와 상품 카드가 같은 링크. 상담은 채팅 유지.',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint:
-      '쇼핑몰 URL 입력 → 입력란 밖 클릭(또는 설정 저장)으로 모드 3 적용.',
+      '쇼핑몰 URL 입력 → 입력란 밖 클릭(또는 설정 저장)으로 웹 장바구니 적용.',
+    guestPurchaseFlowSaasLinkedHint:
+      '이 플랫폼 쇼핑몰이 이미 연결됨. 채팅에서 구매 또는 상품 카드를 누르면 색상/사이즈 모달이 열립니다(API 키 없음).',
+    guestPurchaseFlowNeedWebsite:
+      '이 플랫폼에 쇼핑몰 웹이 없습니다. 웹 만들기에서 게시하거나 외부 장바구니 URL을 붙여 넣으세요.',
+    guestPurchaseFlowSaasPreviewLabel: '자동 연결 경로',
     shopCheckoutLoginLabel: '쇼핑몰 웹사이트 결제',
     shopCheckoutLoginHint:
       '/site/… 쇼핑몰 페이지에 적용. 켜기: 결제 전 이메일 OTP 인증. 끄기: 이름·전화·배송지만 필요.',
@@ -19848,7 +19878,8 @@ const KO_DICTIONARY: Dictionary = {
     purchaseOpenCartUrlToast: '쇼핑몰 장바구니 페이지를 열었습니다.',
     purchaseMissingProductUrlToast: '상품 URL이 없습니다. 재고에 URL을 추가하세요.',
     purchaseMissingSkuToast: 'SKU가 없습니다. 재고에 SKU를 추가하세요.',
-    purchaseMissingCartTemplateToast: '장바구니 URL 템플릿이 없습니다(AI 설정 → {sku} 포함 URL).',
+    purchaseMissingCartTemplateToast:
+      '장바구니가 연결되지 않았습니다. 쇼핑몰 웹을 게시하거나 {sku}가 있는 외부 장바구니 URL을 입력하세요.',
     productConsultProductRefFromSku: '상품 코드 {sku}',
     productConsultProductRefFromName: '{name}',
     productConsultAskShipping:
