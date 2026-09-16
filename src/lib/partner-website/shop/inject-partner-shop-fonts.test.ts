@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  buildPartnerLiveDocumentStampScript,
   buildPartnerShopFontCss,
   extractVisualHtmlBodyMarkup,
   extractVisualHtmlDocumentCodes,
@@ -66,6 +67,17 @@ test('extractVisualHtmlDocumentCodes copies live document codes from html tags o
   assert.equal(codes['data-pw-look'], 'shop')
   assert.equal(codes['data-pw-coordinate-version'], '4')
   assert.equal(codes['data-pw-edit-device'], undefined)
+})
+
+test('buildPartnerLiveDocumentStampScript copies look and device onto html', () => {
+  const script = buildPartnerLiveDocumentStampScript(
+    '<html data-pw-page="home" data-pw-look="marketplace"><body></body></html>',
+    'desktop'
+  )
+  assert.match(script, /data-pw-look","marketplace"/)
+  assert.match(script, /data-pw-page","home"/)
+  assert.match(script, /data-pw-edit-device","desktop"/)
+  assert.match(script, /data-pw-scene-lock","desktop"/)
 })
 
 test('buildPartnerShopFontCss pins UI vs display stacks', () => {

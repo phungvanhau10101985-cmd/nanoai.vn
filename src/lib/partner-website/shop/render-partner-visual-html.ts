@@ -19,7 +19,10 @@ import { injectMarketplaceLookIntoHtml } from '@/lib/partner-website/shop/market
 import { injectPartnerShopFaviconIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
 import { stripPartnerInfoPageSeoCoachFromHtml } from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
 import { ensureAdsPlatformPolicyInHtml } from '@/lib/partner-website/pages/partner-info-page-visual'
-import { ensureFullPartnerSiteFooterInHtml } from '@/lib/partner-website/shop/build-partner-site-footer-html'
+import {
+  ensureFullPartnerSiteFooterInHtml,
+  pinPaintedFooterThemeVarsInHtml,
+} from '@/lib/partner-website/shop/build-partner-site-footer-html'
 import {
   ensurePartnerSiteHeaderLogoSlotInHtml,
   ensurePartnerSitePdpBottomNavInHtml,
@@ -165,9 +168,11 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
     input.runtime === 'authoring' || !siteSlug
       ? themed
       : injectPartnerLogoHomeLinkScript(themed, siteSlug, Boolean(input.onCustomDomain))
-  return input.runtime === 'live' && input.onCustomDomain && siteSlug
-    ? injectPartnerCustomDomainLinkRewriteScript(withLogoHome, siteSlug)
-    : withLogoHome
+  const served =
+    input.runtime === 'live' && input.onCustomDomain && siteSlug
+      ? injectPartnerCustomDomainLinkRewriteScript(withLogoHome, siteSlug)
+      : withLogoHome
+  return pinPaintedFooterThemeVarsInHtml(served)
 }
 
 export function preparePartnerVisualHtmlForEditor(

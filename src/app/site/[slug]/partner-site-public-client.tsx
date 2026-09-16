@@ -5,6 +5,7 @@ import { PartnerSiteChatWidgetProvider } from '@/components/partner-website/shop
 import type { WebLocale } from '@/lib/i18n/config'
 import { FASHION_SHOP_GOOGLE_FONTS_HREF } from '@/lib/partner-website/shop/fashion-shop-design'
 import {
+  buildPartnerLiveDocumentStampScript,
   buildPartnerShopFontCss,
   extractVisualHtmlBodyMarkup,
   extractVisualHtmlDocumentCodes,
@@ -163,17 +164,17 @@ function visualHtmlRevision(html: string, device: VisualDeviceVariant): string {
   return `${device}:${html.length}:${hash >>> 0}`
 }
 
-function PartnerSiteInlineVisualHead({ html }: { html: string }) {
+function PartnerSiteInlineVisualHead({
+  html,
+  activeDevice,
+}: {
+  html: string
+  activeDevice: VisualDeviceVariant
+}) {
   const links = extractVisualDocumentStyleLinks(html)
   const css = extractVisualDocumentCssText(html)
   const hasGoogleFont = links.some((link) => /fonts\.googleapis\.com/i.test(link.href))
-  const codes = extractVisualHtmlDocumentCodes(html)
-  const stampScript = Object.entries(codes)
-    .map(
-      ([name, value]) =>
-        `document.documentElement.setAttribute(${JSON.stringify(name)},${JSON.stringify(value)});`
-    )
-    .join('')
+  const stampScript = buildPartnerLiveDocumentStampScript(html, activeDevice)
   return (
     <>
       {stampScript ? (
@@ -475,7 +476,7 @@ function PartnerSitePublicFrame({
             }}
           />
         ) : null}
-        <PartnerSiteInlineVisualHead html={previewHtml} />
+        <PartnerSiteInlineVisualHead html={previewHtml} activeDevice={activeDevice} />
         <PartnerSiteInlineVisualScripts revision={revision} />
         <div
           key={revision}

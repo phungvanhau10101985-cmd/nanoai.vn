@@ -1,5 +1,6 @@
 import { headers } from 'next/headers'
 import { PartnerSitePublicClient } from '@/app/site/[slug]/partner-site-public-client'
+import { buildPartnerLiveDocumentStampScript } from '@/lib/partner-website/shop/inject-partner-shop-fonts'
 import { withSiteHtmlCache } from '@/lib/cache/partner-shop-cache'
 import {
   readPartnerCustomDomainFromHeaders,
@@ -109,6 +110,18 @@ function withInfoPageAdvancedSeo(
   })
 }
 
+function LiveVisualDocumentStamp({
+  html,
+  device,
+}: {
+  html: string
+  device?: VisualDeviceVariant | null
+}) {
+  const script = buildPartnerLiveDocumentStampScript(html, device)
+  if (!script) return null
+  return <script dangerouslySetInnerHTML={{ __html: script }} />
+}
+
 export async function PartnerSiteVisualHtmlScreen({
   site,
   html,
@@ -164,6 +177,7 @@ export async function PartnerSiteVisualHtmlScreen({
         infoSeo?.dateModified || '',
         infoSeo?.noIndex ? '1' : '0',
         'promo-home-1',
+        'live-chrome-stamp-1',
       ].join(':'),
       load: async () => prepare(),
     })
@@ -187,21 +201,25 @@ export async function PartnerSiteVisualHtmlScreen({
     const selected = htmlByDevice ? selectPartnerVisualHtmlDevice(htmlByDevice, requested) : null
     const sourceDevice = selected?.sourceDevice || device || inferredRequestDevice
     const publicHtml = finish(await prepareShell(selected?.html || html, sourceDevice), sourceDevice)
+    const liveDevice = device || sourceDevice
     return (
-      <PartnerSitePublicClient
-        html={publicHtml}
-        allowScripts
-        chatPath={site.chatPath}
-        shopName={site.title}
-        logoUrl={site.logoUrl}
-        locale={site.locale}
-        inlineHtml
-        initialDevice={device || sourceDevice}
-        deviceHtmlAlreadyIsolated
-        hideChatLauncher={site.theme?.hideChatLauncher}
-        browserThemeColor={shopBrowserChromeColor(site.theme)}
-        siteSlug={site.siteSlug}
-      />
+      <>
+        <LiveVisualDocumentStamp html={publicHtml} device={liveDevice} />
+        <PartnerSitePublicClient
+          html={publicHtml}
+          allowScripts
+          chatPath={site.chatPath}
+          shopName={site.title}
+          logoUrl={site.logoUrl}
+          locale={site.locale}
+          inlineHtml
+          initialDevice={liveDevice}
+          deviceHtmlAlreadyIsolated
+          hideChatLauncher={site.theme?.hideChatLauncher}
+          browserThemeColor={shopBrowserChromeColor(site.theme)}
+          siteSlug={site.siteSlug}
+        />
+      </>
     )
   }
 
@@ -219,23 +237,27 @@ export async function PartnerSiteVisualHtmlScreen({
     ? selectPartnerVisualHtmlDevice(preparedByDevice, inferredRequestDevice)
     : null
   const publicHtml = initialSelection?.html || finish(await prepareShell(html, device), device)
+  const liveDevice = device || initialSelection?.sourceDevice || inferredRequestDevice
 
   return (
-    <PartnerSitePublicClient
-      html={publicHtml}
-      htmlByDevice={Object.keys(preparedByDevice).length ? preparedByDevice : undefined}
-      allowScripts
-      chatPath={site.chatPath}
-      shopName={site.title}
-      logoUrl={site.logoUrl}
-      locale={site.locale}
-      inlineHtml
-      initialDevice={device || initialSelection?.sourceDevice || null}
-      deviceHtmlAlreadyIsolated={Boolean(device)}
-      hideChatLauncher={site.theme?.hideChatLauncher}
-      browserThemeColor={shopBrowserChromeColor(site.theme)}
-      siteSlug={site.siteSlug}
-    />
+    <>
+      <LiveVisualDocumentStamp html={publicHtml} device={liveDevice} />
+      <PartnerSitePublicClient
+        html={publicHtml}
+        htmlByDevice={Object.keys(preparedByDevice).length ? preparedByDevice : undefined}
+        allowScripts
+        chatPath={site.chatPath}
+        shopName={site.title}
+        logoUrl={site.logoUrl}
+        locale={site.locale}
+        inlineHtml
+        initialDevice={liveDevice}
+        deviceHtmlAlreadyIsolated={Boolean(device)}
+        hideChatLauncher={site.theme?.hideChatLauncher}
+        browserThemeColor={shopBrowserChromeColor(site.theme)}
+        siteSlug={site.siteSlug}
+      />
+    </>
   )
 }
 

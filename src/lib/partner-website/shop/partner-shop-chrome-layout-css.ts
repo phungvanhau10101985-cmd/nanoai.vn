@@ -176,8 +176,11 @@ html .pw-footer-bar a.pw-shop-footer-moit,html .pw-shop-footer-bar a.pw-shop-foo
   display:inline-flex!important;align-items:center!important;justify-content:center!important;
   width:fit-content!important;max-width:100%!important;margin-top:10px!important;padding:8px 12px!important;
   border:1px solid var(--pw-border)!important;border-radius:8px!important;
-  background:var(--pw-surface)!important;color:var(--pw-text)!important;
+  background:var(--pw-btn-color,var(--pw-surface,#fff))!important;color:var(--pw-btn-ink,var(--pw-text,#111827))!important;
   font-size:12px!important;font-weight:600!important;line-height:1.35!important;text-decoration:none!important
+}
+html .pw-footer-bar a.pw-shop-footer-moit[style*="--pw-btn-color"],html .pw-shop-footer-bar a.pw-shop-footer-moit[style*="--pw-btn-color"],html .pw-footer-bottom a.pw-shop-footer-moit[style*="--pw-btn-color"]{
+  color:#fff!important
 }
 html .pw-footer-bar a.pw-shop-footer-moit:hover,html .pw-shop-footer-bar a.pw-shop-footer-moit:hover,html .pw-footer-bottom a.pw-shop-footer-moit:hover{
   color:var(--pw-primary)!important;border-color:var(--pw-primary)!important
@@ -368,6 +371,8 @@ export const PW_WIDE_HEADER_BALANCE_RULES = `
 export const PW_FOOTER_LOGO_OFFSET_RULES = `
 .pw-footer .pw-shop-footer-brand>a,.pw-shop-footer .pw-shop-footer-brand>a,.pw-footer a:has(>img.pw-shop-footer-logo),.pw-shop-footer a:has(>img.pw-shop-footer-logo){display:inline-block!important;position:relative!important;transform:translate(var(--pw-logo-x, 0px), var(--pw-logo-y, 0px))!important}
 .pw-footer .pw-shop-footer-brand,.pw-shop-footer .pw-shop-footer-brand{overflow:visible!important}
+.pw-footer .pw-logo-frame,.pw-footer [data-pw-logo-frame="1"],.pw-shop-footer .pw-logo-frame,.pw-shop-footer [data-pw-logo-frame="1"]{width:var(--pw-logo-box-w,140px)!important;height:var(--pw-logo-box-h,40px)!important;max-width:none!important;max-height:none!important}
+.pw-footer .pw-logo-frame img,.pw-footer [data-pw-logo-frame="1"] img,.pw-shop-footer .pw-logo-frame img,.pw-shop-footer [data-pw-logo-frame="1"] img,.pw-footer img.pw-shop-footer-logo[data-pw-logo-user-size="1"],.pw-shop-footer img.pw-shop-footer-logo[data-pw-logo-user-size="1"]{height:100%!important;width:100%!important;max-height:none!important;max-width:none!important}
 `.trim()
 
 export const PARTNER_SHOP_WIDE_HEADER_BALANCE_CSS = [

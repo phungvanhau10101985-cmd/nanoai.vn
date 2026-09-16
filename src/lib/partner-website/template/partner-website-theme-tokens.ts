@@ -374,7 +374,9 @@ export function buildThemeCssVarBlock(theme: PartnerWebsiteTheme): string {
 function buildThemeCssVarImportantBlock(theme: PartnerWebsiteTheme): string {
   const vars = themeCssVarMap(theme)
   return Object.entries(vars)
-    .map(([k, v]) => `${k}:${v} !important`)
+    .map(([k, v]) =>
+      k === '--pw-footer' || k === '--pw-footer-ink' ? `${k}:${v}` : `${k}:${v} !important`
+    )
     .join(';')
 }
 

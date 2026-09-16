@@ -4,6 +4,7 @@ import {
   buildPartnerSiteFooterHtml,
   ensureFullPartnerSiteFooterInHtml,
   isSkeletalPartnerSiteFooter,
+  pinPaintedFooterThemeVarsInHtml,
 } from '@/lib/partner-website/shop/build-partner-site-footer-html'
 import { resolveShopThemeColors, themeCssVarMap } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/partner-website-template-types'
@@ -113,4 +114,23 @@ test('theme footerColor maps to --pw-footer', () => {
     themeCssVarMap({ ...DEFAULT_PARTNER_WEBSITE_THEME, footerColor: '#111827' })['--pw-footer-ink'],
     '#111827'
   )
+})
+
+test('pinPaintedFooterThemeVarsInHtml keeps Sửa nhanh footer paint on live', () => {
+  const painted = pinPaintedFooterThemeVarsInHtml(
+    `<footer class="pw-footer" data-pw-region="footer" style="--pw-footer:#f5f5f5;background-color:rgb(245,245,245)">cols</footer>`
+  )
+  assert.match(painted, /--pw-footer:\s*#f5f5f5\s*!important/i)
+  assert.match(painted, /background-color:\s*rgb\(245,\s*245,\s*245\)\s*!important/i)
+
+  const fromBg = pinPaintedFooterThemeVarsInHtml(
+    `<footer class="pw-footer" data-pw-region="footer" style="background-color:#f5f5f5">cols</footer>`
+  )
+  assert.match(fromBg, /--pw-footer:\s*#f5f5f5\s*!important/i)
+  assert.match(fromBg, /background-color:\s*#f5f5f5\s*!important/i)
+
+  const moit = pinPaintedFooterThemeVarsInHtml(
+    `<a class="pw-shop-footer-moit" style="--pw-btn-color:#ff6b00;background:#ff6b00;color:#fff">MoIT</a>`
+  )
+  assert.match(moit, /--pw-btn-color:\s*#ff6b00\s*!important/i)
 })

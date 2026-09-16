@@ -115,6 +115,73 @@ function extractFooterRange(html: string): { start: number; end: number; html: s
   return null
 }
 
+function pinCssDeclImportant(style: string, name: string): string {
+  const re = new RegExp(`(${name}\\s*:\\s*)([^;]+)`, 'gi')
+  return style.replace(re, (full, prefix: string, value: string) => {
+    if (/\s!important\s*$/i.test(value.trim())) return full
+    return `${prefix}${value.trim()} !important`
+  })
+}
+
+function concreteCssColor(value: string): string | null {
+  const v = value.replace(/\s*!important\s*$/i, '').trim()
+  if (!v || /^var\(/i.test(v) || /^(?:none|transparent|inherit|initial|unset)$/i.test(v)) return null
+  if (/^#(?:[0-9a-f]{3,8})$/i.test(v)) return v
+  if (/^(?:rgba?|hsla?)\(/i.test(v)) return v
+  if (/^[a-z]+$/i.test(v)) return v
+  return null
+}
+
+function readStyleDecl(style: string, name: string): string | null {
+  const re = new RegExp(`(?:^|;)\\s*${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:\\s*([^;]+)`, 'i')
+  return re.exec(style)?.[1]?.trim() || null
+}
+
+/** Sửa nhanh paints `--pw-footer` on the element; theme `:root` must not win on live. */
+export function pinPaintedFooterThemeVarsInHtml(html: string): string {
+  if (!html.trim()) return html
+  const pinned = html.replace(
+    /<(footer|div)\b([^>]*?(?:data-pw-region=["']footer["']|[\s"']pw-footer[\s"']|[\s"']pw-shop-footer[\s"'])[^>]*)>/gi,
+    (full) => {
+      if (/\bdata-pw-bg-cleared=["']1["']/i.test(full)) return full
+      if (/\bdata-pw-paper=["']image["']/i.test(full)) return full
+      if (!/\bstyle=/i.test(full)) return full
+      return full.replace(/\bstyle=(["'])([\s\S]*?)\1/i, (_s, q: string, style: string) => {
+        let next = style
+        if (!/--pw-footer\s*:/i.test(next)) {
+          const fromBg =
+            concreteCssColor(readStyleDecl(next, 'background-color') || '') ||
+            concreteCssColor(readStyleDecl(next, 'background') || '')
+          if (fromBg) next = `--pw-footer:${fromBg} !important;${next}`
+        }
+        const token = concreteCssColor(readStyleDecl(next, '--pw-footer') || '')
+        if (token && !/background-color\s*:/i.test(next)) {
+          next = `${next};background-color:${token} !important`
+        }
+        next = pinCssDeclImportant(next, '--pw-footer')
+        next = pinCssDeclImportant(next, '--pw-footer-ink')
+        next = pinCssDeclImportant(next, 'background-color')
+        return `style=${q}${next}${q}`
+      })
+    }
+  )
+  return pinPaintedMoitButtonVarsInHtml(pinned)
+}
+
+function pinPaintedMoitButtonVarsInHtml(html: string): string {
+  return html.replace(/<a\b([^>]*\bpw-shop-footer-moit\b[^>]*)>/gi, (full) => {
+    if (!/\bstyle=/i.test(full) || !/--pw-btn-color\s*:/i.test(full)) return full
+    return full.replace(/\bstyle=(["'])([\s\S]*?)\1/i, (_s, q: string, style: string) => {
+      let next = pinCssDeclImportant(style, '--pw-btn-color')
+      next = pinCssDeclImportant(next, '--pw-btn-ink')
+      next = pinCssDeclImportant(next, 'background')
+      next = pinCssDeclImportant(next, 'background-color')
+      next = pinCssDeclImportant(next, 'color')
+      return `style=${q}${next}${q}`
+    })
+  })
+}
+
 export function isSkeletalPartnerSiteFooter(footerHtml: string): boolean {
   if (!footerHtml.trim()) return true
   if (new RegExp(`${PW_FOOTER_FULL_ATTR}=["']${PW_FOOTER_FULL_VALUE}["']`).test(footerHtml)) return false

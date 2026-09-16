@@ -104,6 +104,31 @@ export function extractVisualHtmlDocumentCodes(html: string): Record<string, str
   return out
 }
 
+/**
+ * Parser-blocking stamp for live inline HTML. Sửa nhanh iframe already has these on `<html>`;
+ * Next.js live drops the visual `<html>` so chrome/look CSS would otherwise miss first paint.
+ */
+export function buildPartnerLiveDocumentStampScript(
+  html: string,
+  device?: string | null
+): string {
+  const codes = extractVisualHtmlDocumentCodes(html)
+  const lines = Object.entries(codes).map(
+    ([name, value]) =>
+      `document.documentElement.setAttribute(${JSON.stringify(name)},${JSON.stringify(value)});`
+  )
+  const stampedDevice = String(device || '').trim()
+  if (stampedDevice) {
+    lines.push(
+      `document.documentElement.setAttribute("data-pw-edit-device",${JSON.stringify(stampedDevice)});`
+    )
+    lines.push(
+      `document.documentElement.setAttribute("data-pw-scene-lock",${JSON.stringify(stampedDevice)});`
+    )
+  }
+  return lines.join('')
+}
+
 /** `data-pw-page` lives on `<html>` / `<body>` — lost when only inner body is inlined. */
 export function extractVisualHtmlPageKind(html: string): string {
   return extractVisualHtmlDocumentCodes(html)[PW_PAGE_ATTR] || ''

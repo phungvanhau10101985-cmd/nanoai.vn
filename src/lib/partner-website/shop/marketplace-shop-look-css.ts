@@ -37,9 +37,9 @@ export function isMarketplaceTemplateId(templateId: string | null | undefined): 
 
 export const PARTNER_MARKETPLACE_LOOK_STYLE_ID = 'pw-marketplace-look-css'
 
-/** React pages stamp look on `.pw-shop` — live home copies it onto `<html>`. Same CSS both places. */
+/** Live inlines body into Next.js — look also lives on the visual root until `<html>` is stamped. */
 export const MARKETPLACE_LOOK_SCOPE =
-  ':is(html[data-pw-look="marketplace"],.pw-shop[data-pw-look="marketplace"])'
+  ':is(html[data-pw-look="marketplace"],.pw-shop[data-pw-look="marketplace"],[data-pw-inline-visual-root][data-pw-look="marketplace"])'
 
 export function scopeMarketplaceLookCss(css: string): string {
   if (!css) return css

@@ -7128,9 +7128,10 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       }
       // Chrome CSS: html .pw-footer{background:var(--pw-footer)!important} — inline background loses.
       if (isFooterFillHost(el) && el.style && el.style.setProperty) {
-        el.style.setProperty('--pw-footer', color)
+        el.style.setProperty('--pw-footer', color, 'important')
+        el.style.setProperty('background-color', color, 'important')
         var ink = footerInkForColor()
-        if (ink) el.style.setProperty('--pw-footer-ink', ink)
+        if (ink) el.style.setProperty('--pw-footer-ink', ink, 'important')
         else el.style.removeProperty('--pw-footer-ink')
         el.style.setProperty('background-image', 'none', 'important')
       }

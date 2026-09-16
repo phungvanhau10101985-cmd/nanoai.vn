@@ -129,6 +129,9 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('html .pw-footer-col li:has(>[data-pw-hidden="1"])'), true)
   assert.equal(once.includes('html .pw-footer:not([data-pw-bg-cleared="1"]):not([data-pw-paper="image"]),html .pw-shop-footer:not([data-pw-bg-cleared="1"]):not([data-pw-paper="image"]){background:var(--pw-footer,#fff)!important}'), true)
   assert.equal(once.includes('html .pw-footer,html .pw-shop-footer{color:#111827!important}'), true)
+  assert.equal(once.includes('.pw-footer .pw-logo-frame'), true)
+  assert.equal(once.includes('--pw-logo-box-h,40px'), true)
+  assert.equal(once.includes('html .pw-footer-bar a.pw-shop-footer-moit[style*="--pw-btn-color"]'), true)
   assert.equal(once.includes('html .pw-shop-footer-col h3'), true)
   assert.equal(once.includes('min-height:1.45em!important'), true)
   assert.equal(once.includes('.pw-seo-row:empty'), true)
@@ -513,6 +516,6 @@ test('chrome layout paints marketplace desktop header with the primary token', (
   const out = injectPartnerShopChromeLayoutCss(html)
   assert.match(
     out,
-    /:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\]\) \[data-pw-region="header"\],:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\]\) \.pw-header,:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\]\) \.pw-shop-header\{background:var\(--pw-primary\)!important/
+    /:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\],\[data-pw-inline-visual-root\]\[data-pw-look="marketplace"\]\) \[data-pw-region="header"\],:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\],\[data-pw-inline-visual-root\]\[data-pw-look="marketplace"\]\) \.pw-header,:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\],\[data-pw-inline-visual-root\]\[data-pw-look="marketplace"\]\) \.pw-shop-header\{background:var\(--pw-primary\)!important/
   )
 })
