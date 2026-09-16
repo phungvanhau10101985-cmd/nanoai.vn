@@ -83,6 +83,7 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('html .pw-featured-cat[data-pw-featured-categories]{\n  margin:0 auto 16px'), true)
   assert.equal(once.includes('width:var(--pw-block-w);max-width:min(100%,var(--pw-block-w))'), true)
   assert.equal(once.includes('html [data-pw-personalize]'), true)
+  assert.equal(once.includes('--pw-block-w:inherit!important'), true)
   assert.equal(once.includes('width:var(--pw-block-w)!important;max-width:min(100%,var(--pw-block-w))!important'), true)
   assert.equal(
     once.includes(
@@ -315,6 +316,12 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('html .pw-hero,html .pw-banner,html .pw-shop-hero,html .pw-shop-banner,html [data-pw-region="banner"]{max-width:var(--pw-block-w)!important'), true)
   assert.equal(once.includes('max-width:min(100%,var(--pw-block-w))!important'), true)
   assert.equal(once.includes('html [data-pw-hrow]>*{width:auto!important'), true)
+  assert.equal(
+    once.includes(
+      'html [data-pw-grid-kind][data-pw-added-catalog],html .pw-product-grid-section[data-pw-added-catalog]{margin-left:auto!important;margin-right:auto!important;align-self:center!important}'
+    ),
+    true
+  )
   assert.equal(once.includes('[data-pw-region="banner"][data-pw-placement="scene-absolute"]'), true)
   assert.equal(once.includes('html [data-pw-region="banner"][data-pw-scene],html [data-pw-region="categories"][data-pw-scene]'), true)
   assert.equal(once.includes('[data-pw-added-bg-slot]'), true)

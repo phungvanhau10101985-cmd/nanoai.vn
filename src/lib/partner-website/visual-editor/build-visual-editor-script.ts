@@ -6540,15 +6540,26 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     ;['data-pw-box-x','data-pw-box-y','data-pw-box-w','data-pw-box-h','data-pw-fixed-x','data-pw-fixed-y','data-pw-fixed-w','data-pw-fixed-h','data-pw-canvas-x','data-pw-canvas-y','data-pw-canvas-w','data-pw-canvas-h'].forEach(function (name) {
       try { el.removeAttribute(name) } catch (errBox) {}
     })
-    if (!el.style) return
-    el.style.removeProperty('position')
-    el.style.removeProperty('left')
-    el.style.removeProperty('top')
-    el.style.removeProperty('right')
-    el.style.removeProperty('bottom')
-    el.style.removeProperty('transform')
-    el.style.removeProperty('z-index')
+    if (el.style) {
+      el.style.removeProperty('position')
+      el.style.removeProperty('left')
+      el.style.removeProperty('top')
+      el.style.removeProperty('right')
+      el.style.removeProperty('bottom')
+      el.style.removeProperty('transform')
+      el.style.removeProperty('z-index')
+    }
     try { el.removeAttribute('data-pw-z') } catch (errZ) {}
+    if (!isInFlowStackHost(el)) return
+    try { el.removeAttribute('data-pw-block-w') } catch (errBw) {}
+    if (!el.style) return
+    el.style.removeProperty('width')
+    el.style.removeProperty('max-width')
+    el.style.removeProperty('min-width')
+    el.style.removeProperty('margin-left')
+    el.style.removeProperty('margin-right')
+    el.style.removeProperty('--pw-block-w')
+    el.style.removeProperty('--pw-added-bg-w')
   }
   function releaseInFlowCatalogChromeAll() {
     var root = visibleVisualRoot() || document
@@ -7877,7 +7888,14 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       return
     }
     var sceneW = sceneWidthPx()
-    if (typeof width === 'number' && isFinite(width)) {
+    if (isInFlowStackHost(el) && !isAddedBg(el)) {
+      try { el.removeAttribute('data-pw-block-w') } catch (errHostW) {}
+      if (el.style) {
+        el.style.removeProperty('--pw-block-w')
+        el.style.removeProperty('width')
+        el.style.removeProperty('max-width')
+      }
+    } else if (typeof width === 'number' && isFinite(width)) {
       var w = Math.max(80, Math.min(sceneW, Math.round(width)))
       el.setAttribute('data-pw-block-w', String(w))
       el.style.setProperty('--pw-block-w', w + 'px')
@@ -9681,14 +9699,25 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!node || !node.style) return
     node.style.position = 'relative'
     node.style.display = 'block'
-    node.style.width = '100%'
     node.style.flex = ''
-    node.style.minWidth = ''
     node.style.left = 'auto'
     node.style.top = 'auto'
+    node.style.boxSizing = 'border-box'
+    if (isInFlowStackHost(node)) {
+      try { node.removeAttribute('data-pw-block-w') } catch (errSlotW) {}
+      node.style.removeProperty('width')
+      node.style.removeProperty('max-width')
+      node.style.removeProperty('min-width')
+      node.style.removeProperty('margin-left')
+      node.style.removeProperty('margin-right')
+      node.style.removeProperty('--pw-block-w')
+      node.style.removeProperty('--pw-added-bg-w')
+      return
+    }
+    node.style.width = '100%'
+    node.style.minWidth = ''
     node.style.marginLeft = '0'
     node.style.marginRight = '0'
-    node.style.boxSizing = 'border-box'
   }
   function applyMidInsertGap(node) {
     if (!node || !node.setAttribute) return
@@ -10550,7 +10579,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (el.getAttribute && el.getAttribute('data-pw-image-radius') != null) {
         applyImageRadius(el, parseImageRadius(el))
       }
-      if (!el.style || isProductGridHost(el) || isBannerHostEl(el) || bannerHostOf(el)) continue
+      if (!el.style || isProductGridHost(el) || isInFlowStackHost(el) || isBannerHostEl(el) || bannerHostOf(el)) continue
       var hRaw = el.getAttribute('data-pw-block-h')
       var wRaw = el.getAttribute('data-pw-block-w')
       if (hRaw) {

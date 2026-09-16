@@ -120,14 +120,49 @@ export function isInFlowCatalogChromeElement(el: Element | null | undefined): bo
   return isInFlowStackBlockElement(el)
 }
 
+const STACK_FLOW_HOST_CLASS_RE =
+  /(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-section|pw-categories|pw-featured-cat|pw-catalog|pw-trust-bar|pw-lead-form|pw-marketplace-trust|pw-marketplace-cta)(?:\s|$)/i
+
+export function isInFlowStackHostAttrs(attrs: string): boolean {
+  if (!attrs || isAuthoredOverlay(attrs)) return false
+  if (isInFlowSlot(attrs)) return true
+  if (isStackRegion(readAttr(attrs, 'data-pw-region'))) return true
+  if (readAttr(attrs, 'data-pw-trust-bar') === '1') return true
+  const cls = classNameOf(attrs)
+  return STACK_FLOW_HOST_CLASS_RE.test(cls) && !/(?:^|\s)pw-marketplace-trust-item(?:\s|$)/i.test(cls)
+}
+
 export function isInFlowStackHostElement(el: Element | null | undefined): boolean {
   if (!el || el.nodeType !== 1 || isAuthoredOverlay(el)) return false
   if (isInFlowSlot(el)) return true
   if (isStackRegion(el.getAttribute?.('data-pw-region') || '')) return true
   if (el.getAttribute?.('data-pw-trust-bar') === '1') return true
   const cls = classNameOf(el)
-  return /(?:^|\s)(?:pw-hero|pw-banner|pw-shop-hero|pw-shop-banner|pw-section|pw-categories|pw-featured-cat|pw-catalog|pw-trust-bar|pw-lead-form|pw-marketplace-trust)(?:\s|$)/.test(cls) &&
-    !/(?:^|\s)pw-marketplace-trust-item(?:\s|$)/.test(cls)
+  return STACK_FLOW_HOST_CLASS_RE.test(cls) && !/(?:^|\s)pw-marketplace-trust-item(?:\s|$)/i.test(cls)
+}
+
+const STACK_FLOW_COLUMN_STYLE_PROPS = [
+  'width',
+  'max-width',
+  'min-width',
+  'margin-left',
+  'margin-right',
+  '--pw-block-w',
+  '--pw-added-bg-w',
+] as const
+
+function clearStackFlowColumnLeftovers(el: Element): void {
+  if (!isInFlowStackHostElement(el)) return
+  try {
+    el.removeAttribute('data-pw-block-w')
+  } catch {
+    /* ignore */
+  }
+  const style = (el as HTMLElement).style
+  if (!style) return
+  for (const name of STACK_FLOW_COLUMN_STYLE_PROPS) {
+    style.removeProperty(name)
+  }
 }
 
 export function releaseInFlowStackBlock(el: Element | null | undefined): void {
@@ -153,14 +188,16 @@ export function releaseInFlowStackBlock(el: Element | null | undefined): void {
     el.removeAttribute(name)
   }
   const style = (el as HTMLElement).style
-  if (!style) return
-  style.removeProperty('position')
-  style.removeProperty('left')
-  style.removeProperty('top')
-  style.removeProperty('right')
-  style.removeProperty('bottom')
-  style.removeProperty('transform')
-  style.removeProperty('z-index')
+  if (style) {
+    style.removeProperty('position')
+    style.removeProperty('left')
+    style.removeProperty('top')
+    style.removeProperty('right')
+    style.removeProperty('bottom')
+    style.removeProperty('transform')
+    style.removeProperty('z-index')
+  }
+  clearStackFlowColumnLeftovers(el)
 }
 
 /** Chỉ bỏ absolute — giữ thứ tự DOM. Không gom lưới SP lên cạnh banner. */

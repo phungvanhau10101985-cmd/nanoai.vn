@@ -545,9 +545,14 @@ describe('scene layers inside the editor runtime', () => {
     expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('.pw-trust-bar')
     expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('[data-pw-region="content"]')
     expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('[data-pw-region="form"]')
+    expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('--pw-block-w:inherit!important')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("el.style.removeProperty('width')")
     expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('[data-pw-personalize]')
     expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('width:var(--pw-block-w)!important')
     expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('max-width:min(100%,var(--pw-block-w))!important')
+    expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain(
+      'html [data-pw-grid-kind][data-pw-added-catalog],html .pw-product-grid-section[data-pw-added-catalog]{margin-left:auto!important;margin-right:auto!important;align-self:center!important}'
+    )
     expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('html [data-pw-hrow]>*{width:auto!important')
     expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('html [data-pw-region="categories"]>.pw-container')
     expect(PARTNER_SHOP_STACK_FLOW_CSS).toContain('html .pw-section>.pw-container')

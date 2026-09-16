@@ -249,10 +249,11 @@ html [data-pw-catalog] [data-pw-el="section-more"],html [data-pw-personalize] [d
 html [data-pw-el="section-more"][hidden],html .pw-related-all[hidden],html .pw-outfit-all[hidden],html .pw-grid-all[hidden]{display:none!important}
 `.trim()
 
-/** Thêm lưới: ôm nội dung, không padding section 48px / không khóa chiều cao khối. */
+/** Thêm lưới: ôm nội dung, không padding section 48px / không khóa chiều cao khối.
+ * Không `margin:0` / `align-self:stretch` — STACK_FLOW căn giữa cùng `--pw-block-w` với banner/danh mục. */
 export const PW_ADDED_PRODUCT_GRID_COMPACT_CSS = `
 html [data-pw-added-catalog],html .pw-product-grid-section,html [data-pw-grid-kind][data-pw-added-catalog]{
-margin:0!important;padding:0!important;min-height:0!important;height:auto!important;flex:0 0 auto!important;align-self:stretch!important;box-sizing:border-box
+padding:0!important;min-height:0!important;height:auto!important;flex:0 0 auto!important;box-sizing:border-box
 }
 html [data-pw-added-catalog] > .pw-container,html .pw-product-grid-section > .pw-container{
 padding:12px var(--pw-page-gutter,16px) 16px!important;box-sizing:border-box

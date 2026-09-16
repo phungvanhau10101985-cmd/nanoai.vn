@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { PW_OUTFIT_CSS } from '@/lib/partner-website/shop/outfit-products-css'
 import {
+  PW_ADDED_PRODUCT_GRID_COMPACT_CSS,
   PW_PRODUCT_CARD_MEDIA_RULER_CSS,
   PW_PRODUCT_CATALOG_CARD_FACE_CSS,
   PW_PRODUCT_GRID_MORE_CSS,
@@ -81,6 +82,8 @@ test('added product grids hug content and do not keep section padding', () => {
   assert.match(PW_PRODUCT_GRID_RULER_CSS, /height:auto!important/)
   assert.match(PW_PRODUCT_GRID_RULER_CSS, /padding:12px var\(--pw-page-gutter,16px\) 16px!important/)
   assert.match(PW_PRODUCT_GRID_RULER_CSS, /padding:8px 0 12px!important/)
+  assert.doesNotMatch(PW_ADDED_PRODUCT_GRID_COMPACT_CSS, /margin:0!important/)
+  assert.doesNotMatch(PW_ADDED_PRODUCT_GRID_COMPACT_CSS, /align-self:stretch!important/)
 })
 
 test('catalog titles are sized per device and show see-more plus see-all', () => {

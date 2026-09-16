@@ -6,6 +6,7 @@ import {
   isInFlowCatalogChromeElement,
   isInFlowCatalogChromeRole,
   isInFlowStackBlockAttrs,
+  isInFlowStackHostAttrs,
   isInFlowStackHostElement,
   reflowInFlowStackHosts,
   releaseInFlowStackBlock,
@@ -107,6 +108,25 @@ test('reflow releases leftover absolute but keeps authored DOM order', () => {
   assert.doesNotMatch(banner.getAttribute('style') || '', /z-index/)
   releaseInFlowStackBlock(banner)
   assert.equal(banner.getAttribute('data-pw-box-y'), null)
+})
+
+test('reflow strips leftover column width so featured cat matches catalog', () => {
+  const { document } = parseHTML(`<!doctype html><html><body>
+    <main>
+      <section class="pw-featured-cat" data-pw-region="categories" data-pw-featured-categories="1" data-pw-block-w="1408" style="width:1408px!important;max-width:none;--pw-block-w:1408px;margin-left:0">Cats</section>
+      <section class="pw-catalog" data-pw-region="catalog" data-pw-personalize="flash-sale">Flash</section>
+    </main>
+  </body></html>`)
+  const cats = document.querySelector('.pw-featured-cat') as HTMLElement
+  const flash = document.querySelector('.pw-catalog') as HTMLElement
+  assert.equal(isInFlowStackHostElement(cats), true)
+  assert.equal(isInFlowStackHostElement(flash), true)
+  assert.equal(isInFlowStackHostAttrs(' class="pw-featured-cat" data-pw-featured-categories="1"'), true)
+  reflowInFlowStackHosts(document.body)
+  assert.equal(cats.getAttribute('data-pw-block-w'), null)
+  assert.doesNotMatch(cats.getAttribute('style') || '', /width/)
+  assert.doesNotMatch(cats.getAttribute('style') || '', /--pw-block-w/)
+  assert.doesNotMatch(cats.getAttribute('style') || '', /margin-left/)
 })
 
 test('GD03 trust bar and card titles stay in-flow', () => {

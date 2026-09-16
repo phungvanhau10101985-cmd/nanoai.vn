@@ -110,6 +110,18 @@ test('banner and category hosts stay in-flow instead of scene-absolute', () => {
   assert.match(bg, /data-pw-placement="scene-absolute"/)
 })
 
+test('featured category leftover column width is stripped to the shared mid-page column', () => {
+  const html = `<html data-pw-edit-device="desktop"><body><main>
+    <section class="pw-featured-cat" data-pw-region="categories" data-pw-featured-categories="1" data-pw-block-w="1408" style="width:1408px!important;--pw-block-w:1408px;margin-left:0">Cats</section>
+  </main></body></html>`
+  const next = normalizeVisualCoordinateContract(html, { variant: 'desktop' })
+  const cats = next.match(/<section\b[^>]*data-pw-featured-categories="1"[^>]*>/)?.[0] || ''
+  assert.match(cats, /data-pw-placement="flow"/)
+  assert.doesNotMatch(cats, /data-pw-block-w/)
+  assert.doesNotMatch(cats, /width:1408px/)
+  assert.doesNotMatch(cats, /--pw-block-w:1408px/)
+})
+
 test('page links keep authored text and fill colors as CSS vars', () => {
   const html = `<html data-pw-edit-device="mobile"><body>
     <footer class="pw-footer" data-pw-region="footer">

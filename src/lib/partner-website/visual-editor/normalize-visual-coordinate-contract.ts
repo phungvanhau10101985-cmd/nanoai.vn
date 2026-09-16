@@ -1,4 +1,4 @@
-import { isInFlowCatalogChromeAttrs } from './in-flow-catalog-chrome'
+import { isInFlowCatalogChromeAttrs, isInFlowStackHostAttrs } from './in-flow-catalog-chrome'
 import {
   PW_COORDINATE_CONTRACT_VERSION,
   PW_COORDINATE_VERSION_ATTR,
@@ -164,6 +164,20 @@ function canonicalizeOpeningTag(
     }
     for (const name of ['position', 'left', 'top', 'right', 'bottom', 'transform']) {
       style.delete(name)
+    }
+    if (isInFlowStackHostAttrs(attrs)) {
+      attrs = removeAttr(attrs, 'data-pw-block-w')
+      for (const name of [
+        'width',
+        'max-width',
+        'min-width',
+        'margin-left',
+        'margin-right',
+        '--pw-block-w',
+        '--pw-added-bg-w',
+      ]) {
+        style.delete(name)
+      }
     }
     attrs = writeStyle(attrs, style)
     return `<${tag}${attrs}>`
