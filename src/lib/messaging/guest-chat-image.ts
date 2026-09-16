@@ -125,14 +125,20 @@ function sniffImageMimeFromMagic(buf: Buffer): string | null {
   return null
 }
 
-/**
- * Tải ảnh HTTPS công khai (link sản phẩm) → bucket guest — cùng đường như khách upload ảnh tư vấn.
- * Dùng khi POST có `pageContext.imageUrl` mà không có `imageStoragePath`.
- */
-export async function fetchRemoteProductImageIntoGuestStorage(
-  partnerId: string,
+/** Ảnh AI Hub Studio ghi `results/{userId}/studio_*` — CDN dọn sau, live 404. */
+export function isEphemeralStudioResultUrl(url: string): boolean {
+  const s = String(url || '').trim()
+  if (!s) return false
+  try {
+    return /\/results\/[^/]+\/(?:studio_|hub_)/i.test(new URL(s).pathname)
+  } catch {
+    return /\/results\/[^/]+\/(?:studio_|hub_)/i.test(s)
+  }
+}
+
+async function downloadPublicImageBuffer(
   imageUrl: string
-): Promise<{ path: string; publicUrl: string } | { error: string }> {
+): Promise<{ buffer: Buffer; mime: string } | { error: string }> {
   const trimmed = rewriteAllMessagingCdnUrls(normalizeAlicdnImageUrl(imageUrl.trim()))
   if (!/^https?:\/\//i.test(trimmed)) {
     return { error: 'Image URL must be http(s).' }
@@ -171,11 +177,43 @@ export async function fetchRemoteProductImageIntoGuestStorage(
     if (!mime || !isAllowedGuestImageMime(mime)) {
       return { error: 'Unsupported image type.' }
     }
-    return uploadGuestChatImageBuffer(partnerId, buf, mime)
+    return { buffer: buf, mime }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { error: msg || 'Download failed.' }
   }
+}
+
+/**
+ * Tải ảnh HTTPS công khai (link sản phẩm) → bucket guest — cùng đường như khách upload ảnh tư vấn.
+ * Dùng khi POST có `pageContext.imageUrl` mà không có `imageStoragePath`.
+ */
+export async function fetchRemoteProductImageIntoGuestStorage(
+  partnerId: string,
+  imageUrl: string
+): Promise<{ path: string; publicUrl: string } | { error: string }> {
+  const got = await downloadPublicImageBuffer(imageUrl)
+  if ('error' in got) return got
+  return uploadGuestChatImageBuffer(partnerId, got.buffer, got.mime)
+}
+
+/** Copy ảnh công khai vào `messaging-partner/{partnerId}` — logo Chat mua bền. */
+export async function fetchRemoteImageIntoPartnerStorage(
+  partnerId: string,
+  imageUrl: string
+): Promise<{ path: string; publicUrl: string } | { error: string }> {
+  const got = await downloadPublicImageBuffer(imageUrl)
+  if ('error' in got) return got
+  return uploadPartnerChatImageBuffer(partnerId, got.buffer, got.mime)
+}
+
+/** `/results/.../studio_*` còn sống thì copy sang messaging-partner; 404 thì giữ URL cũ. */
+export async function durablePartnerChatIconLogoUrl(partnerId: string, url: string): Promise<string> {
+  const src = String(url || '').trim()
+  if (!partnerId.trim() || !src || !isEphemeralStudioResultUrl(src)) return src
+  const copied = await fetchRemoteImageIntoPartnerStorage(partnerId, src)
+  if ('publicUrl' in copied && copied.publicUrl) return copied.publicUrl
+  return src
 }
 
 export async function uploadPartnerChatImageBuffer(

@@ -1456,6 +1456,8 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     if(root){
       watchLiveRoot(root);
       if(!isEditor()){
+        hoistLiveFloat(root);
+        hoistLiveDock(root);
         var contentRoot=ensureContentSceneRoot(root);
         var originReady=!root.querySelector('[data-pw-placement="scene-absolute"],[data-pw-added-text="1"],[data-pw-added-btn="1"],[data-pw-chrome-added="1"][data-pw-box-x]')||(contentRoot&&contentRoot.getAttribute&&contentRoot.getAttribute('data-pw-scene-origin')==='content');
         if(originReady){

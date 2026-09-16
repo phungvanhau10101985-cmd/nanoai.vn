@@ -389,6 +389,38 @@ describe('partner-site-chrome-kit', () => {
     expect(next.indexOf('data-pw-btn-color="#111111"')).toBeGreaterThan(next.indexOf('data-pw-chrome-kit="float"'))
   })
 
+  it('moves leftover float Chat mua out of the header into the kit and stamps a header-logo fallback', () => {
+    const html = `<!DOCTYPE html><html><body>
+<header class="pw-header">
+  <a class="pw-brand" data-pw-logo-slot="header"><img class="pw-logo" src="https://cdn.example.com/messaging-partner/p/logo.png" alt=""/></a>
+  <nav class="pw-nav-main"><a data-pw-el="nav-link">Hàng mới</a></nav>
+  <button type="button" data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-pw-chrome-style="icon-circle">
+    <span class="pw-chrome-icon-wrap"><img class="pw-chrome-chat-logo" src="https://cdn.example.com/results/u/studio_logo_1.png" alt=""/></span>
+  </button>
+</header>
+<aside data-pw-chrome-kit="float" data-pw-float-right="16">
+  <button type="button" data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-pw-chrome-style="icon-circle">
+    <span class="pw-chrome-icon-wrap"><img class="pw-chrome-chat-logo" src="https://cdn.example.com/results/u/studio_logo_1.png" alt=""/></span>
+  </button>
+</aside>
+</body></html>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, {
+      locale: 'vi',
+      siteSlug: 'demo-shop',
+      device: 'desktop',
+      chatIconLogoUrl: 'https://cdn.example.com/results/u/studio_logo_1.png',
+      logoUrl: 'https://cdn.example.com/messaging-partner/p/logo.png',
+    })
+    const header = next.match(/<header\b[\s\S]*?<\/header>/i)?.[0] || ''
+    const kit = next.match(/<aside[^>]*data-pw-chrome-kit=["']float["'][^>]*>[\s\S]*?<\/aside>/i)?.[0] || ''
+    expect(header).not.toMatch(
+      /data-pw-chrome-btn="chat"[^>]*data-pw-chrome-float=["']1["']|data-pw-chrome-float=["']1["'][^>]*data-pw-chrome-btn="chat"/
+    )
+    expect(kit).toContain('data-pw-chrome-btn="chat"')
+    expect(kit).toContain('data-pw-chat-logo-fallback="https://cdn.example.com/messaging-partner/p/logo.png"')
+    expect((kit.match(/data-pw-chrome-btn="chat"/g) || []).length).toBe(1)
+  })
+
   it('migrates legacy float icons to circles but keeps each button size', () => {
     const html = `<aside data-pw-chrome-kit="float" data-pw-float-right="16" data-pw-float-stack-bottom="88" data-pw-float-gap="56">
       <button data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-pw-chrome-style="icon" data-pw-chrome-size="22" class="pw-chrome-icon-only">Chat</button>

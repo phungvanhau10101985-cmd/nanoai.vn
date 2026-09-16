@@ -3294,6 +3294,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   }
   var chatLauncherHidden = true
   var chatPrepLogoUrl = ''
+  var chatPrepShopLogoUrl = ''
   var chatPrepDevice = 'desktop'
   function applyChatLogoToChromeBtn(btn, url, force) {
     if (!btn || !url || !/^https?:/i.test(String(url))) return
@@ -3313,6 +3314,13 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       wrap.insertBefore(img, wrap.firstChild)
     }
     img.src = String(url)
+    if (img.getAttribute('data-pw-chat-logo-bound') !== '1') {
+      img.setAttribute('data-pw-chat-logo-bound', '1')
+      img.addEventListener('error', function () {
+        var fb = String(chatPrepShopLogoUrl || '').trim()
+        if (fb && /^https?:/i.test(fb) && img.getAttribute('src') !== fb) img.src = fb
+      })
+    }
     if (force) btn.setAttribute('data-pw-chat-icon-logo', '1')
   }
   function setChatIconLogo(url) {
@@ -3414,6 +3422,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var chatIconLogoUrl = String(d.chatIconLogoUrl || '').trim()
     var sharedChatIcon = chatIconLogoUrl && /^https?:/i.test(chatIconLogoUrl) ? chatIconLogoUrl : ''
     var device = d.device === 'mobile' || d.device === 'tablet' || d.device === 'laptop' ? d.device : 'desktop'
+    chatPrepShopLogoUrl = logoUrl
     chatPrepLogoUrl = sharedChatIcon || logoUrl
     chatPrepDevice = device
     chatLauncherHidden = d.hideChatLauncher !== false

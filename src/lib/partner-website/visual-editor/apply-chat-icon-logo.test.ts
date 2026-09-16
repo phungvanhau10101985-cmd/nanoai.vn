@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { applyChatIconLogoToHtml, applyChatIconLogoToProject } from './apply-chat-icon-logo'
+import { isEphemeralStudioResultUrl } from '@/lib/messaging/guest-chat-image'
+import { applyChatIconLogoToHtml, applyChatIconLogoToProject, firstShopLogoSrcInHtml, stampChatLogoFallbackInHtml } from './apply-chat-icon-logo'
 
 const ICON = 'https://cdn.example.com/chat-icon.png'
 const NEXT = 'https://cdn.example.com/chat-icon-2.png'
@@ -63,5 +64,23 @@ describe('apply-chat-icon-logo', () => {
       expect(f.content).toContain('data-pw-chat-icon-logo="1"')
       expect(f.content).not.toContain('old/')
     }
+  })
+
+  it('reads the header logo src and stamps a chat-logo fallback', () => {
+    const html = `<a class="pw-brand" data-pw-logo-slot="header"><img class="pw-logo" src="https://cdn.example.com/shop.png" alt=""/></a>
+  <button data-pw-chrome-btn="chat"><span class="pw-chrome-icon-wrap"><img class="pw-chrome-chat-logo" src="https://cdn.example.com/results/u/studio_logo_1.png"/></span></button>`
+    expect(firstShopLogoSrcInHtml(html)).toBe('https://cdn.example.com/shop.png')
+    const next = stampChatLogoFallbackInHtml(html, 'https://cdn.example.com/shop.png')
+    expect(next).toContain('data-pw-chat-logo-fallback="https://cdn.example.com/shop.png"')
+    expect(next).toContain('studio_logo_1.png')
+  })
+
+  it('treats Hub Studio results paths as ephemeral', () => {
+    expect(
+      isEphemeralStudioResultUrl(
+        'https://cdn.nanoai.vn/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/studio_logo_1789088224176.png'
+      )
+    ).toBe(true)
+    expect(isEphemeralStudioResultUrl('https://cdn.nanoai.vn/messaging-partner/p/logo.png')).toBe(false)
   })
 })

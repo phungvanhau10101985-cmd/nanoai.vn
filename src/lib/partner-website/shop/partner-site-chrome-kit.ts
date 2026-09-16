@@ -39,6 +39,11 @@ import { PW_SCENE_MAX_INDEX, pwSceneZ } from '@/lib/partner-website/visual-edito
 import { stampChromeLogoOffsetInHtml } from '@/lib/partner-website/shop/header-logo-offset'
 import { ensureMobileHeadBackInHtml } from '@/lib/partner-website/shop/mobile-header-back'
 import { ensureMobileSearchComposeInHtml } from '@/lib/partner-website/shop/mobile-header-search-compose'
+import {
+  applyChatIconLogoToHtml,
+  firstShopLogoSrcInHtml,
+  stampChatLogoFallbackInHtml,
+} from '@/lib/partner-website/visual-editor/apply-chat-icon-logo'
 
 export const PW_CHROME_KIT_ATTR = 'data-pw-chrome-kit'
 /** Header stamp khi merchant Xóa thanh trên — Lưu / live không seed lại. */
@@ -2155,7 +2160,7 @@ export function ensurePartnerSiteChromeKitInHtml(
     device: input.device,
   })
 
-  return ensureMobileSearchComposeInHtml(
+  out = ensureMobileSearchComposeInHtml(
     ensureMobileHeadBackInHtml(
       stampChromeLogoOffsetInHtml(
         stripAuthorPinScreenInHtml(
@@ -2170,6 +2175,12 @@ export function ensurePartnerSiteChromeKitInHtml(
     ),
     { locale, siteSlug: input.siteSlug, device: input.device, targetTop: input.targetTop }
   )
+  const chatUrl = String(input.chatIconLogoUrl || '').trim()
+  const shopLogo = String(input.logoUrl || '').trim() || firstShopLogoSrcInHtml(out)
+  if (chatUrl) out = applyChatIconLogoToHtml(out, chatUrl)
+  else if (shopLogo) out = applyChatIconLogoToHtml(out, shopLogo)
+  if (shopLogo && shopLogo !== chatUrl) out = stampChatLogoFallbackInHtml(out, shopLogo)
+  return out
 }
 
 const FLOAT_KIT_HOST_RE =
@@ -2184,6 +2195,20 @@ function insideOpenTag(html: string, index: number, tag: string): boolean {
   return before.lastIndexOf(`<${tag}`) > before.lastIndexOf(`</${tag}`)
 }
 
+function insideFloatKitHost(html: string, index: number): boolean {
+  const before = html.slice(0, index)
+  const openRe = /<(aside|div|nav)([^>]*\bdata-pw-chrome-kit=["']float["'][^>]*)>/gi
+  let lastOpen = -1
+  let lastTag = ''
+  let found: RegExpExecArray | null
+  while ((found = openRe.exec(before))) {
+    lastOpen = found.index
+    lastTag = String(found[1] || '').toLowerCase()
+  }
+  if (lastOpen < 0 || !lastTag) return false
+  return before.toLowerCase().lastIndexOf(`</${lastTag}`) < lastOpen
+}
+
 /** Body-level kit icons after runtime hoist — keep authored face/colors, do not reseed. */
 function takeEscapedChromeFloatWidgets(html: string): { html: string; widgets: Map<string, string> } {
   const widgets = new Map<string, string>()
@@ -2195,11 +2220,16 @@ function takeEscapedChromeFloatWidgets(html: string): { html: string; widgets: M
     const full = found[0]
     const attrs = found[2] || ''
     if (/\bdata-pw-chrome-kit=["'](?:actions|dock|float)["']/i.test(attrs)) continue
-    if (insideOpenTag(html, start, 'header') || insideOpenTag(html, start, 'footer')) continue
-    if (insideOpenTag(html, start, 'nav') || insideOpenTag(html, start, 'aside')) continue
+    if (insideFloatKitHost(html, start)) continue
+    const isFloat = /\bdata-pw-chrome-float=["']1["']/i.test(attrs)
+    const inChromeHost =
+      insideOpenTag(html, start, 'header') ||
+      insideOpenTag(html, start, 'footer') ||
+      insideOpenTag(html, start, 'nav') ||
+      insideOpenTag(html, start, 'aside')
+    if (inChromeHost && !isFloat) continue
     const kind = attrs.match(/\bdata-pw-chrome-btn=["']([^"']+)["']/i)?.[1] || ''
     if (!FLOAT_KIND_SET.has(kind as PwChromeFloatKind) || widgets.has(kind)) continue
-    const isFloat = /\bdata-pw-chrome-float=["']1["']/i.test(attrs)
     const isKitBtn = /\bdata-pw-chrome-kit=["']1["']/i.test(attrs)
     if (isKitBtn && !isFloat) continue
     widgets.set(kind, asFloatKitTag(full, ''))

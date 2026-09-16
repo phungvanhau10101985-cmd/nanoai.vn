@@ -31,6 +31,7 @@ import {
   applyFirstImageLogoToHtml,
   applyFirstImageLogoToProject,
 } from '@/lib/partner-website/visual-editor/apply-first-image-logo'
+import { durablePartnerChatIconLogoUrl } from '@/lib/messaging/guest-chat-image'
 import {
   applyChatIconLogoToHtml,
   applyChatIconLogoToProject,
@@ -322,10 +323,11 @@ export async function PATCH(
   if (body.action === 'update_chat_icon_logo') {
     const existing = await fetchPartnerWebsiteByPartnerIdPg(pid)
     if (!existing) return NextResponse.json({ error: 'Website not found' }, { status: 404 })
-    const chatIconLogoUrl = typeof body.chatIconLogoUrl === 'string' ? body.chatIconLogoUrl.trim() : ''
-    if (!chatIconLogoUrl || !/^https?:\/\//i.test(chatIconLogoUrl)) {
+    const rawChatIconLogoUrl = typeof body.chatIconLogoUrl === 'string' ? body.chatIconLogoUrl.trim() : ''
+    if (!rawChatIconLogoUrl || !/^https?:\/\//i.test(rawChatIconLogoUrl)) {
       return NextResponse.json({ error: 'chatIconLogoUrl required' }, { status: 400 })
     }
+    const chatIconLogoUrl = await durablePartnerChatIconLogoUrl(pid, rawChatIconLogoUrl)
     const nextTheme: PartnerWebsiteTheme = {
       ...existing.theme,
       chatIconLogoUrl,
@@ -376,13 +378,14 @@ export async function PATCH(
     }
 
     if (slot === 'chat') {
+      const durableChat = logoUrl ? await durablePartnerChatIconLogoUrl(pid, logoUrl) : ''
       const htmlLogo =
-        logoUrl ||
+        durableChat ||
         (typeof existing.logoUrl === 'string' ? existing.logoUrl.trim() : '') ||
         (typeof existing.theme.logoUrl === 'string' ? existing.theme.logoUrl.trim() : '')
       const nextTheme: PartnerWebsiteTheme = {
         ...existing.theme,
-        chatIconLogoUrl: logoUrl || null,
+        chatIconLogoUrl: durableChat || null,
       }
       const nextProject = isPersistableLogoUrl(htmlLogo)
         ? applyChatIconLogoToProject(existing.project, htmlLogo)

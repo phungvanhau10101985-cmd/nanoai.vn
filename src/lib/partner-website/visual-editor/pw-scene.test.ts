@@ -274,7 +274,7 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain(':scope > .pw-pdp-sticky-nav')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function hoistLiveFloat(root){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function findLiveFloatKit(root){')
-    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('hoistLiveFloat(root)')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT.split('hoistLiveFloat(root)').length - 1).toBeGreaterThanOrEqual(2)
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('z>1&&h>0')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("root.style.removeProperty('margin-bottom')")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function hoistLiveOverlays(){')

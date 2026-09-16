@@ -379,6 +379,35 @@ function pwChromeFloatMigrateStack(host){
   if(!hasSize){for(var c=0;c<items.length;c++)pwChromeFloatEnsureCircle(items[c]);}
   pwChromeFloatStackWrite(right,bottom,gap,size);
 }
+function pwBindChatLogoFallback(){
+  var nodes=document.querySelectorAll('[data-pw-chrome-btn="chat"] img.pw-chrome-chat-logo');
+  var header=document.querySelector('[data-pw-logo-slot="header"] img, img[data-pw-logo-slot="header"], img.pw-logo, img.pw-shop-footer-logo');
+  var headerSrc='';
+  if(header) headerSrc=header.getAttribute('src')||header.src||'';
+  for(var i=0;i<nodes.length;i++){
+    var img=nodes[i];
+    if(!img) continue;
+    if(img.getAttribute('data-pw-chat-logo-bound')==='1'){
+      if(img.complete&&img.naturalWidth===0){
+        var fbBound=img.getAttribute('data-pw-chat-logo-fallback')||headerSrc;
+        if(fbBound&&img.getAttribute('src')!==fbBound) img.src=fbBound;
+      }
+      continue;
+    }
+    img.setAttribute('data-pw-chat-logo-bound','1');
+    img.addEventListener('error',function(ev){
+      var el=ev&&ev.target;
+      if(!el||!el.getAttribute)return;
+      var fb=el.getAttribute('data-pw-chat-logo-fallback')||headerSrc;
+      if(!fb||el.getAttribute('src')===fb)return;
+      el.src=fb;
+    });
+    if(img.complete&&img.naturalWidth===0&&(img.getAttribute('src')||img.src)){
+      var fb=img.getAttribute('data-pw-chat-logo-fallback')||headerSrc;
+      if(fb&&img.getAttribute('src')!==fb) img.src=fb;
+    }
+  }
+}
 function pwChromeFloatEscapeScaledRoot(host){
   if(!host||!host.closest)return host;
   try{
@@ -413,6 +442,7 @@ function pwChromeFloatApplyStack(){
     vis+=1;
     if(ve&&el.getAttribute('data-pw-chrome-btn')==='topup'&&el.classList)el.classList.add('${PW_CHROME_TOPUP_ON_CLASS}');
   }
+  try{pwBindChatLogoFallback()}catch(eChatLogo){}
   return st;
 }
 function pwChromeFloatSeatDefault(el){
@@ -674,9 +704,9 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
   function pwChromeFloatShouldBake(el){
     if(!el||!el.getAttribute)return false;
     if(el.getAttribute('data-pw-float-dup')==='1')return false;
+    if(pwChromeFloatIsHeadDock(el))return false;
     if(el.getAttribute(ATTR)==='1')return true;
     if(pwChromeFloatIsKitHost(el))return true;
-    if(pwChromeFloatIsHeadDock(el))return false;
     return false;
   }
   function pwChromeFloatKeepScore(el){
@@ -745,6 +775,7 @@ export const PARTNER_SHOP_CHROME_FLOAT_SCRIPT = `(function(){
       }
     }
     bakePinned();
+    try { pwBindChatLogoFallback(); } catch (errChatLogo) {}
   }
   function pageY(){
     var y = window.pageYOffset || window.scrollY || 0;

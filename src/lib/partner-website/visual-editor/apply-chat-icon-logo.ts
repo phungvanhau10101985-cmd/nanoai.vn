@@ -12,6 +12,50 @@ function isPersistableChatIconUrl(url: string): boolean {
   return /^https?:\/\//i.test(String(url || '').trim())
 }
 
+function unescapeHtmlAttr(value: string): string {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+}
+
+/** Logo header / ô brand — fallback khi icon Chat mua `results/` 404. */
+export function firstShopLogoSrcInHtml(html: string): string {
+  if (!html.trim()) return ''
+  const patterns = [
+    /<img\b[^>]*\bdata-pw-logo-slot=["']header["'][^>]*>/i,
+    /<img\b[^>]*\bpw-logo\b[^>]*>/i,
+    /<img\b[^>]*\bpw-shop-header-logo\b[^>]*>/i,
+  ]
+  for (const re of patterns) {
+    const tag = html.match(re)?.[0] || ''
+    const raw = tag.match(/\bsrc=["']([^"']+)["']/i)?.[1]?.trim() || ''
+    const src = unescapeHtmlAttr(raw)
+    if (isPersistableChatIconUrl(src)) return src
+  }
+  return ''
+}
+
+function stampFallbackOnChatLogoTag(tag: string, fallback: string): string {
+  if (!/\bpw-chrome-chat-logo\b/.test(tag)) return tag
+  if (/\bdata-pw-chat-logo-fallback=/.test(tag)) {
+    return tag.replace(
+      /\bdata-pw-chat-logo-fallback=["'][^"']*["']/i,
+      `data-pw-chat-logo-fallback="${fallback}"`
+    )
+  }
+  return tag.replace(/<img\b/i, `<img data-pw-chat-logo-fallback="${fallback}"`)
+}
+
+/** Gắn URL dự phòng lên mọi `.pw-chrome-chat-logo` (live `onerror` → logo header). */
+export function stampChatLogoFallbackInHtml(html: string, fallbackUrl: string): string {
+  const raw = String(fallbackUrl || '').trim()
+  if (!isPersistableChatIconUrl(raw) || !html.trim()) return html
+  const fallback = escapeHtmlAttr(raw)
+  return html.replace(/<img\b[^>]*>/gi, (tag) => stampFallbackOnChatLogoTag(tag, fallback))
+}
+
 function replaceChatLogoImgSrc(tag: string, src: string): string {
   if (!/\bpw-chrome-chat-logo\b/.test(tag)) return tag
   return /\bsrc=["']/.test(tag)

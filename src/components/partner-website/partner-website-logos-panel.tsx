@@ -37,6 +37,7 @@ import {
   PW_SLOGAN_MAX,
   PW_SLOGAN_PRODUCTS_MAX,
 } from '@/lib/partner-website/shop/partner-site-shop-slogan'
+import { requiredCreditsForLogoCreate } from '@/lib/remove-background-png-prompts'
 
 type LogoVersionRow = {
   id: string
