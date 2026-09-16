@@ -177,7 +177,7 @@ export async function PartnerSiteVisualHtmlScreen({
         infoSeo?.dateModified || '',
         infoSeo?.noIndex ? '1' : '0',
         'promo-home-1',
-        'live-chrome-stamp-1',
+        'live-chrome-stamp-2',
       ].join(':'),
       load: async () => prepare(),
     })

@@ -306,6 +306,9 @@ describe('pw scene layers', () => {
     expect(pwSceneChromeAddedVisibilityCss()).toContain(
       'html[data-pw-scene-lock="mobile"] [data-pw-chrome-added]'
     )
+    expect(pwSceneChromeAddedVisibilityCss()).toContain(
+      '[data-pw-inline-visual-root][data-pw-active-device="desktop"] [data-pw-chrome-added]'
+    )
     expect(pwSceneChromeAddedVisibilityCss()).toContain('[data-pw-device="mobile"]')
     expect(pwSceneChromeAddedVisibilityCss()).toContain('[data-pw-device="desktop"]')
     expect(pwSceneDeviceVisibilityCss()).toContain(

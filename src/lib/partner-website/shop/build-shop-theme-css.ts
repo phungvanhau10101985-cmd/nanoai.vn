@@ -956,6 +956,7 @@ ${PW_FLASH_SALE_GRID_FACE_CSS}
 .pw-shop-footer{background:var(--pw-footer,#fff);color:var(--pw-footer-ink,var(--pw-text,#111827));border-top:1px solid var(--pw-border,#e5e7eb);padding:36px 16px 0;margin-top:40px}
 .pw-shop-footer-inner{max-width:var(--pw-content);margin:0 auto;display:grid;gap:28px 32px;grid-template-columns:1fr}
 .pw-shop-footer-logo{height:40px;width:auto;max-width:160px;object-fit:contain;margin:0 0 12px;display:block}
+.pw-shop-footer .pw-logo-frame .pw-shop-footer-logo,.pw-footer .pw-logo-frame .pw-shop-footer-logo,.pw-shop-footer-logo[data-pw-logo-user-size="1"]{height:100%!important;width:100%!important;max-width:none!important;max-height:none!important}
 .pw-shop-footer-brand>a,.pw-shop-footer a:has(>img.pw-shop-footer-logo){display:inline-block;position:relative;transform:translate(var(--pw-logo-x, 0px), var(--pw-logo-y, 0px))}
 .pw-shop-footer-brand{overflow:visible}
 .pw-shop-footer-name{margin:0 0 8px;font-weight:800;font-size:1.05rem;line-height:1.3;color:inherit;font-family:var(--pw-font-display),var(--pw-font-ui),sans-serif}

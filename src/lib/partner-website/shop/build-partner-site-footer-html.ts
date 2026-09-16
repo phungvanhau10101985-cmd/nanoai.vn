@@ -28,6 +28,7 @@ import { PW_SLOGAN_ATTR, PW_SLOGAN_SEED_ATTR } from '@/lib/partner-website/shop/
 
 export const PW_FOOTER_FULL_ATTR = 'data-pw-footer'
 export const PW_FOOTER_FULL_VALUE = 'full'
+export const PW_FOOTER_PAINT_STYLE_ID = 'pw-footer-paint'
 
 const FOOTER_OPEN_RE =
   /<(footer|div)\b(?=[^>]*?(?:data-pw-region=["']footer["']|class=["'][^"']*\b(?:pw-footer|pw-shop-footer)(?![\w-])))[^>]*>/i
@@ -137,6 +138,53 @@ function readStyleDecl(style: string, name: string): string | null {
   return re.exec(style)?.[1]?.trim() || null
 }
 
+function firstPaintedFooterColor(html: string): string | null {
+  const re =
+    /<(footer|div)\b([^>]*?(?:data-pw-region=["']footer["']|[\s"']pw-footer[\s"']|[\s"']pw-shop-footer[\s"'])[^>]*)>/gi
+  let found: RegExpExecArray | null
+  while ((found = re.exec(html))) {
+    const full = found[0]
+    if (/\bdata-pw-bg-cleared=["']1["']/i.test(full)) continue
+    if (/\bdata-pw-paper=["']image["']/i.test(full)) continue
+    const style = full.match(/\bstyle=(["'])([\s\S]*?)\1/i)?.[2] || ''
+    const color =
+      concreteCssColor(readStyleDecl(style, '--pw-footer') || '') ||
+      concreteCssColor(readStyleDecl(style, 'background-color') || '') ||
+      concreteCssColor(readStyleDecl(style, 'background') || '')
+    if (color) return color
+  }
+  return null
+}
+
+function rewriteLeftoverFooterTokenFallbacks(html: string, painted: string): string {
+  return html
+    .replace(/var\(\s*--pw-footer\s*,\s*#111827\s*\)/gi, `var(--pw-footer,${painted})`)
+    .replace(/var\(\s*--pw-footer-ink\s*,\s*#e5e7eb\s*\)/gi, 'var(--pw-footer-ink,#111827)')
+}
+
+function injectFooterPaintStyle(html: string, painted: string): string {
+  const hosts =
+    ':is(html,body,[data-pw-inline-visual-root],html[data-pw-look],.pw-shop[data-pw-look],[data-pw-inline-visual-root][data-pw-look])'
+  const css =
+    `:root,html,body,[data-pw-inline-visual-root]{--pw-footer:${painted}!important}` +
+    `${hosts} .pw-footer:not([data-pw-bg-cleared="1"]):not([data-pw-paper="image"]),` +
+    `${hosts} .pw-shop-footer:not([data-pw-bg-cleared="1"]):not([data-pw-paper="image"]){` +
+    `background-color:${painted}!important;background-image:none!important;--pw-footer:${painted}!important;color:#111827!important}`
+  const tag = `<style id="${PW_FOOTER_PAINT_STYLE_ID}">${css}</style>`
+  let replaced = false
+  const out = html.replace(
+    new RegExp(`<style\\b[^>]*\\bid=["']${PW_FOOTER_PAINT_STYLE_ID}["'][^>]*>[\\s\\S]*?<\\/style>`, 'gi'),
+    () => {
+      if (replaced) return ''
+      replaced = true
+      return tag
+    }
+  )
+  if (replaced) return out
+  if (/<\/head>/i.test(out)) return out.replace(/<\/head>/i, `${tag}</head>`)
+  return `${tag}${out}`
+}
+
 /** Sửa nhanh paints `--pw-footer` on the element; theme `:root` must not win on live. */
 export function pinPaintedFooterThemeVarsInHtml(html: string): string {
   if (!html.trim()) return html
@@ -165,7 +213,10 @@ export function pinPaintedFooterThemeVarsInHtml(html: string): string {
       })
     }
   )
-  return pinPaintedMoitButtonVarsInHtml(pinned)
+  const painted = firstPaintedFooterColor(pinned)
+  const withFallbacks = painted ? rewriteLeftoverFooterTokenFallbacks(pinned, painted) : pinned
+  const withPaint = painted ? injectFooterPaintStyle(withFallbacks, painted) : withFallbacks
+  return pinPaintedMoitButtonVarsInHtml(withPaint)
 }
 
 function pinPaintedMoitButtonVarsInHtml(html: string): string {

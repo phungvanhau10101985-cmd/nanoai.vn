@@ -5,6 +5,7 @@ import {
   ensureFullPartnerSiteFooterInHtml,
   isSkeletalPartnerSiteFooter,
   pinPaintedFooterThemeVarsInHtml,
+  PW_FOOTER_PAINT_STYLE_ID,
 } from '@/lib/partner-website/shop/build-partner-site-footer-html'
 import { resolveShopThemeColors, themeCssVarMap } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/partner-website-template-types'
@@ -122,12 +123,22 @@ test('pinPaintedFooterThemeVarsInHtml keeps Sửa nhanh footer paint on live', (
   )
   assert.match(painted, /--pw-footer:\s*#f5f5f5\s*!important/i)
   assert.match(painted, /background-color:\s*rgb\(245,\s*245,\s*245\)\s*!important/i)
+  assert.match(painted, new RegExp(`id="${PW_FOOTER_PAINT_STYLE_ID}"`))
+  assert.match(painted, /background-color:#f5f5f5!important/i)
+  assert.match(painted, /:root,html,body,\[data-pw-inline-visual-root\]\{--pw-footer:#f5f5f5!important\}/)
 
   const fromBg = pinPaintedFooterThemeVarsInHtml(
     `<footer class="pw-footer" data-pw-region="footer" style="background-color:#f5f5f5">cols</footer>`
   )
   assert.match(fromBg, /--pw-footer:\s*#f5f5f5\s*!important/i)
   assert.match(fromBg, /background-color:\s*#f5f5f5\s*!important/i)
+
+  const leftover = pinPaintedFooterThemeVarsInHtml(
+    `<style>:is(html[data-pw-look="marketplace"],.pw-shop[data-pw-look="marketplace"]) .pw-shop-footer{background:var(--pw-footer,#111827)!important;color:var(--pw-footer-ink,#e5e7eb)}</style><footer class="pw-shop-footer" data-pw-region="footer" style="--pw-footer:#f5f5f5">cols</footer>`
+  )
+  assert.match(leftover, /var\(--pw-footer,#f5f5f5\)/)
+  assert.doesNotMatch(leftover, /var\(--pw-footer,#111827\)/)
+  assert.match(leftover, /var\(--pw-footer-ink,#111827\)/)
 
   const moit = pinPaintedFooterThemeVarsInHtml(
     `<a class="pw-shop-footer-moit" style="--pw-btn-color:#ff6b00;background:#ff6b00;color:#fff">MoIT</a>`

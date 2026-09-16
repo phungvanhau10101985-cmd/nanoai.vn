@@ -165,7 +165,7 @@ html[data-pw-look="marketplace"] .pw-search-form .pw-search-submit,
 html[data-pw-look="marketplace"] .pw-shop-search-form .pw-search-submit,
 html[data-pw-look="marketplace"] .pw-search-submit,
 html[data-pw-look="marketplace"] .pw-shop-search-submit{
-  background:var(--pw-buy)!important;
+  background:var(--pw-primary)!important;
   color:#fff!important;
 }
 html[data-pw-look="marketplace"] .pw-nav-main a,

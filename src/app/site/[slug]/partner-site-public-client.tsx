@@ -485,6 +485,7 @@ function PartnerSitePublicFrame({
           data-pw-look={visualLook || undefined}
           data-pw-coordinate-version={visualDocumentCodes['data-pw-coordinate-version'] || undefined}
           data-pw-active-device={activeDevice}
+          data-pw-edit-device={activeDevice}
           data-pw-runtime-revision={revision}
           className="bg-white"
           dangerouslySetInnerHTML={{

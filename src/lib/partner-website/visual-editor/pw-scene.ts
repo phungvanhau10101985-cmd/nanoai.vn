@@ -323,40 +323,23 @@ export function pwSceneLockForAvailableHtml(
 export const PW_SCENE_UNLOCKED_HTML =
   'html:not([data-pw-edit-device]):not([data-pw-scene-lock])'
 
+/** Live inlines body — stamp máy trên visual root, không chỉ `<html>`. */
+function pwSceneDeviceHosts(device: 'mobile' | 'tablet' | 'laptop' | 'desktop'): string[] {
+  return [
+    `html[data-pw-edit-device="${device}"]`,
+    `html[data-pw-scene-lock="${device}"]`,
+    `[data-pw-inline-visual-root][data-pw-active-device="${device}"]`,
+    `[data-pw-inline-visual-root][data-pw-edit-device="${device}"]`,
+  ]
+}
+
 /** Máy compact = Sửa nhanh Mobile/Tablet. Live `?pw-device=` phải dùng cùng mặt này. */
-export const PW_SCENE_COMPACT_HOSTS = [
-  'html[data-pw-edit-device="mobile"]',
-  'html[data-pw-edit-device="tablet"]',
-  'html[data-pw-scene-lock="mobile"]',
-  'html[data-pw-scene-lock="tablet"]',
-] as const
-
-export const PW_SCENE_PHONE_HOSTS = [
-  'html[data-pw-edit-device="mobile"]',
-  'html[data-pw-scene-lock="mobile"]',
-] as const
-
-export const PW_SCENE_TABLET_HOSTS = [
-  'html[data-pw-edit-device="tablet"]',
-  'html[data-pw-scene-lock="tablet"]',
-] as const
-
-export const PW_SCENE_WIDE_HOSTS = [
-  'html[data-pw-edit-device="laptop"]',
-  'html[data-pw-edit-device="desktop"]',
-  'html[data-pw-scene-lock="laptop"]',
-  'html[data-pw-scene-lock="desktop"]',
-] as const
-
-export const PW_SCENE_DESKTOP_HOSTS = [
-  'html[data-pw-edit-device="desktop"]',
-  'html[data-pw-scene-lock="desktop"]',
-] as const
-
-export const PW_SCENE_LAPTOP_HOSTS = [
-  'html[data-pw-edit-device="laptop"]',
-  'html[data-pw-scene-lock="laptop"]',
-] as const
+export const PW_SCENE_PHONE_HOSTS = pwSceneDeviceHosts('mobile')
+export const PW_SCENE_TABLET_HOSTS = pwSceneDeviceHosts('tablet')
+export const PW_SCENE_LAPTOP_HOSTS = pwSceneDeviceHosts('laptop')
+export const PW_SCENE_DESKTOP_HOSTS = pwSceneDeviceHosts('desktop')
+export const PW_SCENE_COMPACT_HOSTS = [...PW_SCENE_PHONE_HOSTS, ...PW_SCENE_TABLET_HOSTS]
+export const PW_SCENE_WIDE_HOSTS = [...PW_SCENE_LAPTOP_HOSTS, ...PW_SCENE_DESKTOP_HOSTS]
 
 /** Gắn mỗi selector trong khối CSS (không có @media) vào từng host. */
 export function pwHostPrefixCss(hosts: readonly string[], css: string): string {
@@ -389,17 +372,11 @@ export function pwSceneChromeAddedVisibilityCss(): string {
   const hide: string[] = []
   for (const lock of PW_SCENE_DEVICES) {
     const sel = `${PW_CHROME_ADDED_NOT_SEARCH}[data-pw-device="${lock}"]`
-    show.push(
-      `html[data-pw-edit-device="${lock}"] ${sel}`,
-      `html[data-pw-scene-lock="${lock}"] ${sel}`
-    )
+    show.push(...pwSceneDeviceHosts(lock).map((host) => `${host} ${sel}`))
     for (const other of PW_SCENE_DEVICES) {
       if (other === lock) continue
       const otherSel = `${PW_CHROME_ADDED_NOT_SEARCH}[data-pw-device="${other}"]`
-      hide.push(
-        `html[data-pw-edit-device="${lock}"] ${otherSel}`,
-        `html[data-pw-scene-lock="${lock}"] ${otherSel}`
-      )
+      hide.push(...pwSceneDeviceHosts(lock).map((host) => `${host} ${otherSel}`))
     }
   }
   return `${show.join(',')}{display:inline-flex!important}${hide.join(',')}{display:none!important}`
