@@ -1,7 +1,13 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import { normalizeWebLocale } from '@/lib/i18n/config'
 
-export type PartnerPromoEmailKind = 'birthday' | 'cart_abandon' | 'comeback' | 'newsletter_welcome' | 'campaign'
+export type PartnerPromoEmailKind =
+  | 'birthday'
+  | 'birthday_day'
+  | 'cart_abandon'
+  | 'comeback'
+  | 'newsletter_welcome'
+  | 'campaign'
 
 type PromoCopy = {
     hello: string
@@ -15,6 +21,12 @@ type PromoCopy = {
     body: string
     cta: string
     nextLabel: string
+  }
+  birthdayDay: {
+    subject: string
+    body: string
+    offerLine: string
+    cta: string
   }
   cart: {
     subject: string
@@ -56,6 +68,12 @@ const COPY: Record<WebLocale, PromoCopy> = {
       cta: 'Vào web xem giá ưu đãi',
       nextLabel: 'Sinh nhật sắp tới: {date}',
     },
+    birthdayDay: {
+      subject: '{shop} chúc mừng sinh nhật {name}',
+      body: 'Chúc mừng sinh nhật! {shop} gửi lời chúc sức khỏe và một ngày mua sắm vui vẻ.',
+      offerLine: 'Ưu đãi sinh nhật {percent}% vẫn đang áp dụng khi bạn đăng nhập và mua trên web, không cần mã.',
+      cta: 'Vào web mua sắm',
+    },
     cart: {
       subject: 'Bạn còn sản phẩm trong giỏ — hoàn tất đơn tại {shop}',
       intro: 'Bạn còn sản phẩm trong giỏ hàng nhưng chưa hoàn tất đặt hàng.',
@@ -95,6 +113,12 @@ const COPY: Record<WebLocale, PromoCopy> = {
       body: 'Your birthday week has started. {shop} gives you {percent}% off automatically when you sign in and shop on the website — no code needed.',
       cta: 'See sale prices on the site',
       nextLabel: 'Upcoming birthday: {date}',
+    },
+    birthdayDay: {
+      subject: '{shop} wishes {name} a happy birthday',
+      body: 'Happy birthday! {shop} wishes you a wonderful day and happy shopping.',
+      offerLine: 'Your {percent}% birthday offer still applies when you sign in and shop — no code needed.',
+      cta: 'Shop now',
     },
     cart: {
       subject: 'Items are waiting in your cart at {shop}',
@@ -136,6 +160,12 @@ const COPY: Record<WebLocale, PromoCopy> = {
       cta: '打开网站查看优惠价',
       nextLabel: '即将到来的生日：{date}',
     },
+    birthdayDay: {
+      subject: '{shop} 祝 {name} 生日快乐',
+      body: '生日快乐！{shop} 祝您健康愉快、购物开心。',
+      offerLine: '生日优惠 {percent}% 仍然有效：登录网站购物即可自动减免，无需优惠码。',
+      cta: '打开网站购物',
+    },
     cart: {
       subject: '购物车里还有商品 — 在 {shop} 完成订单',
       intro: '您的购物车仍有商品，但尚未下单。',
@@ -173,6 +203,12 @@ const COPY: Record<WebLocale, PromoCopy> = {
       body: 'お誕生日週間が始まりました。ウェブにログインして購入すると、コードなしで自動的に {percent}% OFF になります。',
       cta: 'サイトでセール価格を見る',
       nextLabel: '次のお誕生日：{date}',
+    },
+    birthdayDay: {
+      subject: '{shop} より {name} 様へお誕生日のお祝い',
+      body: 'お誕生日おめでとうございます。{shop} は健康と楽しいお買い物をお祈りします。',
+      offerLine: '誕生日 {percent}% OFF はウェブにログインして購入するとコードなしで引き続き適用されます。',
+      cta: 'サイトでお買い物',
     },
     cart: {
       subject: 'カートに商品が残っています — {shop}',
@@ -213,6 +249,12 @@ const COPY: Record<WebLocale, PromoCopy> = {
       body: '생일 주간이 시작되었습니다. 웹에 로그인하고 구매하면 코드 없이 자동으로 {percent}% 할인됩니다.',
       cta: '웹에서 할인가 보기',
       nextLabel: '다가오는 생일: {date}',
+    },
+    birthdayDay: {
+      subject: '{shop}에서 {name}님의 생일을 축하합니다',
+      body: '생일 축하합니다! {shop}이 건강과 즐거운 쇼핑을 기원합니다.',
+      offerLine: '생일 {percent}% 혜택은 웹에 로그인하고 구매하면 코드 없이 계속 적용됩니다.',
+      cta: '웹에서 쇼핑하기',
     },
     cart: {
       subject: '장바구니에 상품이 남아 있습니다 — {shop}',

@@ -12,6 +12,7 @@ import {
   jsonAffiliateStorefront,
   loadPartnerSiteAffiliateStorefront,
 } from '@/lib/partner-website/shop/partner-site-affiliate-storefront'
+import { notifyPartnerOwnerAffiliateApplication } from '@/lib/messaging/partner-admin-notifications'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +50,10 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       ...store.identity,
       socialLinks: body?.social_links ?? body?.socialLinks,
       note: body?.note,
+    })
+    void notifyPartnerOwnerAffiliateApplication({
+      partnerId: store.shop.partnerId,
+      email: store.identity.emailNormalized,
     })
     return jsonAffiliateStorefront(request, store, { ok: true, application })
   } catch (error) {

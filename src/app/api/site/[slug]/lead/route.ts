@@ -4,6 +4,7 @@ import {
   insertPartnerWebsiteLeadPg,
 } from '@/lib/db/partner-website-leads-pg'
 import { emitPartnerOutboundLeadCreated } from '@/lib/messaging/partner-outbound-webhook-emit'
+import { notifyPartnerOwnerNewLead } from '@/lib/messaging/partner-admin-notifications'
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   try {
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
     }
 
     emitPartnerOutboundLeadCreated(site.partnerId, saved)
+    void notifyPartnerOwnerNewLead({ partnerId: site.partnerId, lead: saved })
 
     return NextResponse.json({ success: true, id: saved.id })
   } catch (e) {

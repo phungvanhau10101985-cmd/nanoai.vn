@@ -1,8 +1,12 @@
+import { PARTNER_LIVE_DEVICE_COOKIE } from '@/lib/auth/app-request-headers'
 import {
   parseVisualDeviceQuery,
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { pwResolveCoordinateDevice } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
+
+/** Keep the last live machine so the *next* navigation serves that HTML file. Never F5 the open tab. */
+export const PARTNER_LIVE_DEVICE_COOKIE_MAX_AGE_SEC = 60 * 60 * 24 * 7
 
 /**
  * Phone vs tablet from UA. Android tablets usually omit "Mobile"; phones include it.
@@ -55,4 +59,48 @@ export function resolveLiveVisualRequestDevice(input: {
   const fromCookie = parseVisualDeviceQuery(input.cookieDevice)
   if (fromCookie) return fromCookie
   return fromCh || 'desktop'
+}
+
+/** Same width rule as live HTML client: phone UA / F12 <1280 uses innerWidth; desktop window uses outerWidth. */
+export function resolveLiveVisualDeviceFromViewport(input: {
+  forceDevice?: VisualDeviceVariant | null
+  userAgent?: string | null
+  innerWidth?: number
+  outerWidth?: number
+  devicePixelRatio?: number
+  maxTouchPoints?: number
+}): VisualDeviceVariant {
+  if (input.forceDevice) return input.forceDevice
+  const ua = String(input.userAgent || '')
+  const fromUa = liveVisualDeviceVisibleInUserAgent(ua)
+  const cssWidth = Number(input.innerWidth || 0)
+  return resolveLiveVisualRequestDevice({
+    viewportWidth:
+      fromUa === 'mobile' || fromUa === 'tablet' || (cssWidth > 0 && cssWidth < 1280)
+        ? cssWidth
+        : Number(input.outerWidth || cssWidth),
+    devicePixelRatio: Number(input.devicePixelRatio || 0),
+    userAgent: ua,
+    maxTouchPoints: Number(input.maxTouchPoints || 0),
+  })
+}
+
+export function partnerLiveVisualDeviceCookieAssignment(
+  device: VisualDeviceVariant,
+  userAgent: string
+): string {
+  const uaVisible = liveVisualDeviceVisibleInUserAgent(userAgent)
+  if (uaVisible === 'mobile' || uaVisible === 'tablet') {
+    return `${PARTNER_LIVE_DEVICE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`
+  }
+  return `${PARTNER_LIVE_DEVICE_COOKIE}=${device}; Path=/; Max-Age=${PARTNER_LIVE_DEVICE_COOKIE_MAX_AGE_SEC}; SameSite=Lax`
+}
+
+/** Write `pw-live-device` for the next request. Must not `location.reload` — deposit / editor / cart stay on screen. */
+export function persistPartnerLiveVisualDeviceCookie(
+  device: VisualDeviceVariant,
+  userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+): void {
+  if (typeof document === 'undefined') return
+  document.cookie = partnerLiveVisualDeviceCookieAssignment(device, userAgent)
 }

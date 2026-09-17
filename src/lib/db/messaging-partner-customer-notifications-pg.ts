@@ -281,20 +281,34 @@ export async function insertPartnerCustomerNotificationFromPg(input: {
 
 export async function notifyPartnerCustomerOrderUpdateFromPg(input: {
   partnerId: string
-  conversationId: string
+  conversationId?: string | null
+  customerEmail?: string | null
   title: string
   body: string
+  type?: string
+  href?: string
 }): Promise<void> {
   if (!isPgConfigured()) return
   try {
-    const conv = await pgQueryOne<{ guest_account_id: string | null }>(
-      `select guest_account_id::text as guest_account_id
-       from public.customer_care_conversations
-       where id = $1::uuid and partner_id = $2::uuid
-       limit 1`,
-      [input.conversationId, input.partnerId]
-    )
-    const guestAccountId = conv?.guest_account_id?.trim() ?? ''
+    let guestAccountId = ''
+    const conversationId = String(input.conversationId || '').trim()
+    if (conversationId) {
+      const conv = await pgQueryOne<{ guest_account_id: string | null }>(
+        `select guest_account_id::text as guest_account_id
+         from public.customer_care_conversations
+         where id = $1::uuid and partner_id = $2::uuid
+         limit 1`,
+        [conversationId, input.partnerId]
+      )
+      guestAccountId = conv?.guest_account_id?.trim() ?? ''
+    }
+    if (!guestAccountId && input.customerEmail?.trim()) {
+      const found = await findPartnerNotificationRecipientFromPg({
+        partnerId: input.partnerId,
+        email: input.customerEmail,
+      })
+      guestAccountId = found?.guestAccountId ?? ''
+    }
     if (!guestAccountId) return
 
     const site = await pgQueryOne<{ site_slug: string }>(
@@ -309,10 +323,10 @@ export async function notifyPartnerCustomerOrderUpdateFromPg(input: {
     const row = await insertPartnerCustomerNotificationFromPg({
       partnerId: input.partnerId,
       guestAccountId,
-      type: 'order',
+      type: (input.type ?? 'order').trim().slice(0, 40) || 'order',
       title: input.title,
       body: input.body,
-      href,
+      href: input.href?.trim() || href,
       pushStatus: 'pending',
     })
     if (row) {

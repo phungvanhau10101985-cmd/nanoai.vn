@@ -205,10 +205,9 @@ import { isValidUuidString } from '@/lib/validate-uuid'
 import { DEFAULT_WEB_LOCALE, normalizeWebLocale } from '@/lib/i18n/config'
 import { assertStepUp, STEP_UP_REQUIRED } from '@/lib/auth/step-up-guard'
 import {
+  formatDepositConfirmedChatBodyForCustomer,
   formatShippingUpdateChatBodyForCustomer,
-  shippingStatusLabelForCustomerEmail,
 } from '@/lib/messaging/order-customer-notify-i18n'
-import { notifyPartnerCustomerOrderUpdateFromPg } from '@/lib/db/messaging-partner-customer-notifications-pg'
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai'
 import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-credits'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
@@ -245,6 +244,7 @@ import {
 } from '@/lib/db/messaging-partner-orders-pg'
 import {
   clampPartnerAdminDepositReceivedAmount,
+  partnerAdminAmountDueOnDelivery,
   partnerAdminOrderMerchandiseTotal,
   type PartnerAdminFulfillmentFilter,
   type PartnerAdminLifecycleTab,
@@ -255,7 +255,9 @@ import {
   updatePartnerLoyaltyDashboardForActorFromPg,
 } from '@/lib/db/messaging-partner-loyalty-pg'
 import {
+  emailCustomerOrderDepositConfirmed,
   emailCustomerOrderPaymentStatusChanged,
+  emailCustomerOrderRefunded,
   emailCustomerShippingStatusChanged,
 } from '@/lib/messaging/partner-order-customer-email'
 import { maybeEmailCustomerOfflineShopReply } from '@/lib/messaging/partner-reply-offline-customer-email'
@@ -1241,13 +1243,6 @@ export async function updateMyMessagingOrderStatus(input: {
     } catch (e) {
       console.warn('[updateMyMessagingOrderStatus] customer email', e)
     }
-    // W5.2 — in-app notification (fire-and-forget)
-    void notifyPartnerCustomerOrderUpdateFromPg({
-      partnerId: row.partner_id,
-      conversationId: row.conversation_id,
-      title: `Order ${row.payment_reference || row.id.slice(0, 8)}`,
-      body: `Payment status: ${input.status}`,
-    })
     if (input.status === 'paid_verified') {
       emitPartnerOutboundPaymentPaid(row.partner_id, row)
       sendPartnerMetaPurchaseCapiOnPaymentConfirmed({ partnerId: row.partner_id, order: row }).catch((e) =>
@@ -1308,8 +1303,38 @@ export async function confirmMyMessagingOrderDeposit(input: {
       createdBy: user.id,
     })
     queuePartnerOrderGoogleSheetsSync(row.partner_id, row.id)
+    const customerLocaleRaw = await fetchConversationUiLocaleFromPg(row.conversation_id)
+    const customerLocale = normalizeWebLocale(customerLocaleRaw ?? '') ?? DEFAULT_WEB_LOCALE
+    const remainingOnDelivery = partnerAdminAmountDueOnDelivery(row)
+    const depositChatBody = formatDepositConfirmedChatBodyForCustomer({
+      locale: customerLocale,
+      shopLabel: '',
+      customerName: row.customer_name,
+      paymentRef: row.payment_reference,
+      productName: row.product_name,
+      orderTotalLabel: `${new Intl.NumberFormat('vi-VN').format(partnerAdminOrderMerchandiseTotal(row))}đ`,
+      paidAmountLabel: `${new Intl.NumberFormat('vi-VN').format(Math.max(0, Math.round(row.paid_amount || 0)))}đ`,
+      remainingAmountLabel: `${new Intl.NumberFormat('vi-VN').format(remainingOnDelivery)}đ`,
+      remainingAmount: remainingOnDelivery,
+      shopNote: (row.verified_note || '').trim() || undefined,
+    })
+    if (isValidUuidString(row.conversation_id)) {
+      await insertMessagePg({
+        conversationId: row.conversation_id,
+        direction: 'outbound',
+        body: depositChatBody,
+        rawPayload: {
+          source: 'system_order',
+          order_id: row.id,
+          order_status: row.status,
+          payment_amount_detected: Math.max(0, Math.round(row.paid_amount || 0)),
+          payment_remaining_on_delivery: remainingOnDelivery,
+          customer_ui_locale: customerLocale,
+        },
+      })
+    }
     try {
-      await emailCustomerOrderPaymentStatusChanged({ order: row })
+      await emailCustomerOrderDepositConfirmed({ order: row, customerLocale: customerLocaleRaw })
     } catch (e) {
       console.warn('[confirmMyMessagingOrderDeposit] customer email', e)
     }
@@ -1505,14 +1530,6 @@ export async function updateMyMessagingOrderShipping(input: {
   } catch (e) {
     console.warn('[updateMyMessagingOrderShipping] customer email', e)
   }
-  // W5.2 — in-app notification (fire-and-forget)
-  const shipLabel = shippingStatusLabelForCustomerEmail(customerLocale, input.shippingStatus)
-  void notifyPartnerCustomerOrderUpdateFromPg({
-    partnerId: updated.partner_id,
-    conversationId: updated.conversation_id,
-    title: `Order ${updated.payment_reference || updated.id.slice(0, 8)}`,
-    body: outboundOrderBody || shipLabel,
-  })
   revalidateMessagingDashboard()
   return { ok: true }
 }
@@ -1569,6 +1586,15 @@ export async function updateMyMessagingOrderRefund(input: {
         order_refund_amount: input.refundAmount,
       },
     })
+    try {
+      await emailCustomerOrderRefunded({
+        order: updated,
+        refundAmount: input.refundAmount,
+        shopNote: note || null,
+      })
+    } catch (e) {
+      console.warn('[updateMyMessagingOrderRefund] customer email', e)
+    }
   }
   revalidateMessagingDashboard()
   return { ok: true }

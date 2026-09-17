@@ -1,10 +1,26 @@
-import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
+﻿import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import { sendSmtpMail, type SmtpInlineAttachment } from '@/lib/email/smtp'
 import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
-import { DEFAULT_WEB_LOCALE, normalizeWebLocale } from '@/lib/i18n/config'
-import { formatShippingStatusEmailContentForCustomer } from '@/lib/messaging/order-customer-notify-i18n'
+import { DEFAULT_WEB_LOCALE, normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
+import {
+  formatCheckoutSubmittedEmailContentForCustomer,
+  formatDepositConfirmedEmailContentForCustomer,
+  formatDepositReminderEmailContentForCustomer,
+  formatOrderCancelledEmailContentForCustomer,
+  formatOrderDeliveredReviewEmailContentForCustomer,
+  formatOrderRefundedEmailContentForCustomer,
+  formatPaymentManualReviewEmailContentForCustomer,
+  formatPaymentStatusEmailContentForCustomer,
+  formatShippingStatusEmailContentForCustomer,
+} from '@/lib/messaging/order-customer-notify-i18n'
+import { notifyPartnerCustomerOrderUpdateFromPg } from '@/lib/db/messaging-partner-customer-notifications-pg'
+import { fetchConversationUiLocaleFromPg } from '@/lib/db/customer-care-pg'
+import {
+  partnerAdminAmountDueOnDelivery,
+  partnerAdminOrderMerchandiseTotal,
+} from '@/lib/messaging/partner-admin-orders-lifecycle'
 import { partnerShopEmailBrandName, shopEmailSubject } from '@/lib/messaging/partner-shop-email-brand'
 import {
   buildCustomerDepositQrEmailBlock,
@@ -12,7 +28,7 @@ import {
   resolveCustomerOrderOpenUrl,
   resolveDepositQrForEmail,
 } from '@/lib/messaging/partner-order-deposit-email'
-import { depositReminderCopy, type DepositRemindHour } from '@/lib/messaging/fulfillment/deposit-sla'
+import { type DepositRemindHour } from '@/lib/messaging/fulfillment/deposit-sla'
 
 function trim(s: string, max = 240): string {
   return String(s || '')
@@ -28,24 +44,6 @@ function customerEmailTo(order: PartnerOrderRow): string | null {
   const em = trim(order.customer_email, 180).toLowerCase()
   if (!em || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(em)) return null
   return em
-}
-
-const shipVi: Record<PartnerOrderRow['shipping_status'], string> = {
-  pending: 'Chờ xử lý',
-  confirmed: 'Đã xác nhận',
-  packing: 'Đang đóng gói',
-  shipping: 'Đang giao hàng',
-  delivered: 'Đã giao',
-  returned: 'Hoàn trả',
-  cancelled: 'Đã hủy (giao hàng)',
-}
-
-const payVi: Record<PartnerOrderRow['status'], string> = {
-  awaiting_payment: 'Chờ thanh toán',
-  payment_checking: 'Đang kiểm tra thanh toán',
-  paid_verified: 'Đã xác nhận thanh toán',
-  pending_manual_review: 'Chờ shop duyệt tay',
-  cancelled: 'Đã hủy',
 }
 
 type PartnerEmailMeta = {
@@ -66,6 +64,40 @@ async function fetchPartnerEmailMeta(partnerId: string): Promise<PartnerEmailMet
     displayName: displayName || 'Cửa hàng',
     slug,
   }
+}
+
+async function resolveOrderCustomerLocale(
+  order: PartnerOrderRow,
+  fallback?: string | null
+): Promise<WebLocale> {
+  const fromArg = normalizeWebLocale(fallback ?? '')
+  if (fromArg) return fromArg
+  const convId = String(order.conversation_id || '').trim()
+  if (convId) {
+    try {
+      const raw = await fetchConversationUiLocaleFromPg(convId)
+      return normalizeWebLocale(raw ?? '') ?? DEFAULT_WEB_LOCALE
+    } catch {
+      return DEFAULT_WEB_LOCALE
+    }
+  }
+  return DEFAULT_WEB_LOCALE
+}
+
+function notifyCustomerInAppFromOrder(
+  order: PartnerOrderRow,
+  title: string,
+  body: string,
+  extra?: { type?: string }
+): void {
+  void notifyPartnerCustomerOrderUpdateFromPg({
+    partnerId: order.partner_id,
+    conversationId: order.conversation_id,
+    customerEmail: order.customer_email,
+    title,
+    body,
+    type: extra?.type,
+  }).catch((e) => console.warn('[notifyCustomerInAppFromOrder]', e))
 }
 
 function guestChatOrderUrlFromSlug(slug: string | null, orderId: string): string | null {
@@ -92,8 +124,10 @@ function escapeHtml(s: string): string {
 }
 
 type CustomerMailCtaOpts = {
-  /** Mail đặt hàng / nhắc cọc: nhúng QR khi đơn còn cần cọc. */
+  /** Mail Ä‘áº·t hÃ ng / nháº¯c cá»c: nhÃºng QR khi Ä‘Æ¡n cÃ²n cáº§n cá»c. */
   includeDepositQr?: boolean
+  /** Shop Ä‘Ã£ xÃ¡c nháº­n cá»c â€” CTA xem Ä‘Æ¡n, khÃ´ng kÃªu Ä‘áº·t cá»c láº¡i. */
+  depositAlreadyConfirmed?: boolean
 }
 
 async function resolveCustomerMailOpenUrl(
@@ -130,10 +164,12 @@ async function customerMailBodyWithOrderCta(
   opts?: CustomerMailCtaOpts
 ): Promise<{ text: string; html: string; attachments?: SmtpInlineAttachment[] }> {
   const m = meta ?? (await fetchPartnerEmailMeta(order.partner_id))
-  const needsDeposit = orderNeedsCustomerDepositMail({
-    requiredAmount: order.required_amount,
-    paidAmount: order.paid_amount,
-  })
+  const needsDeposit = opts?.depositAlreadyConfirmed
+    ? false
+    : orderNeedsCustomerDepositMail({
+        requiredAmount: order.required_amount,
+        paidAmount: order.paid_amount,
+      })
   const includeQr = Boolean(opts?.includeDepositQr && needsDeposit)
   const openUrl = await resolveCustomerMailOpenUrl(order, m, needsDeposit)
   const ctaHeading = needsDeposit
@@ -170,7 +206,7 @@ async function customerMailBodyWithOrderCta(
   const signText = signIdx >= 0 ? baseText.slice(signIdx + 1) : ''
   const textParts = [bodyText]
   if (qrText) textParts.push('', qrText)
-  if (openUrl) textParts.push('', '—', ctaTextHint, openUrl)
+  if (openUrl) textParts.push('', 'â€”', ctaTextHint, openUrl)
   if (signText) textParts.push('', signText)
   const extraHtml =
     qrHtml +
@@ -201,43 +237,38 @@ async function appendShopOrderLinkLines(
 export async function emailCustomerOrderCheckoutSubmitted(input: {
   order: PartnerOrderRow
   shopNotifyEmail: string
+  customerLocale?: string | null
 }): Promise<void> {
   const meta = await fetchPartnerEmailMeta(input.order.partner_id)
   const shopLabel = meta.displayName
   const to = customerEmailTo(input.order)
   const ref = trim(input.order.payment_reference, 64)
-  const subj = `${shopLabel} — Đơn ${ref} — đã nhận thông tin đặt hàng`
-  const lines: string[] = [
-    `Xin chào ${trim(input.order.customer_name, 80) || 'quý khách'},`,
-    '',
-    `Đơn hàng của bạn đã được ghi nhận tại ${shopLabel}.`,
-    `Mã đơn / nội dung CK: ${ref}`,
-    `Sản phẩm: ${trim(input.order.product_name, 200)}`,
-    `Số lượng: ${input.order.quantity}`,
-    `Tổng tiền hàng: ${toVnd(input.order.subtotal_amount)}`,
-    `Số tiền cần đặt cọc trước: ${toVnd(input.order.required_amount)} (${input.order.deposit_percent}% cọc).`,
-    '',
-    input.order.required_amount > 0
-      ? isSepayStyleOrderPayment({
-          payment_qr_url: input.order.payment_qr_url,
-          payment_reference: input.order.payment_reference,
-        })
-        ? `Vui lòng chuyển khoản đúng số tiền và nội dung CK (quét mã QR trong email này hoặc mở đơn nhanh); xác nhận tự động qua hệ thống của ${shopLabel} — không cần gửi ảnh biên lai.`
-        : 'Vui lòng chuyển khoản đúng số tiền và nội dung CK. Quét mã QR trong email này hoặc mở đơn nhanh, rồi gửi ảnh biên lai nếu được yêu cầu.'
-      : 'Đơn không yêu cầu cọc trước — shop sẽ liên hệ xác nhận và giao hàng.',
-    '',
-    `Địa chỉ nhận: ${trim(input.order.shipping_address, 500)}`,
-    `SĐT: ${trim(input.order.customer_phone, 40)}`,
-    '',
-    'Trân trọng,',
+  const locale = await resolveOrderCustomerLocale(input.order, input.customerLocale)
+  const copy = formatCheckoutSubmittedEmailContentForCustomer({
+    locale,
     shopLabel,
-  ]
+    customerName: trim(input.order.customer_name, 80),
+    paymentRef: ref,
+    productName: trim(input.order.product_name, 200),
+    quantity: input.order.quantity,
+    subtotalLabel: toVnd(input.order.subtotal_amount),
+    requiredAmountLabel: toVnd(input.order.required_amount),
+    depositPercent: input.order.deposit_percent,
+    needsDeposit: input.order.required_amount > 0,
+    sepayAutoConfirm: isSepayStyleOrderPayment({
+      payment_qr_url: input.order.payment_qr_url,
+      payment_reference: input.order.payment_reference,
+    }),
+    shippingAddress: trim(input.order.shipping_address, 500),
+    customerPhone: trim(input.order.customer_phone, 40),
+  })
   if (to) {
-    const { text, html, attachments } = await customerMailBodyWithOrderCta(input.order, lines, meta, {
+    const { text, html, attachments } = await customerMailBodyWithOrderCta(input.order, copy.lines, meta, {
       includeDepositQr: true,
     })
-    await sendSmtpMail({ to, subject: subj, text, html, fromName: shopLabel, attachments })
+    await sendSmtpMail({ to, subject: copy.subject, text, html, fromName: shopLabel, attachments })
   }
+  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter(Boolean).slice(0, 4).join(' '))
   const shop = trim(input.shopNotifyEmail, 180).toLowerCase()
   if (shop && /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(shop)) {
     const shopLines = [
@@ -258,46 +289,89 @@ export async function emailCustomerOrderCheckoutSubmitted(input: {
   }
 }
 
+function depositConfirmedNotifyInput(
+  order: PartnerOrderRow,
+  shopLabel: string,
+  locale?: string | null
+) {
+  const loc = normalizeWebLocale(locale ?? '') ?? DEFAULT_WEB_LOCALE
+  const paid = Math.max(0, Math.round(order.paid_amount || 0))
+  const remaining = partnerAdminAmountDueOnDelivery(order)
+  return {
+    locale: loc,
+    shopLabel,
+    customerName: trim(order.customer_name, 80),
+    paymentRef: trim(order.payment_reference, 64),
+    productName: trim(order.product_name, 200),
+    orderTotalLabel: toVnd(partnerAdminOrderMerchandiseTotal(order)),
+    paidAmountLabel: toVnd(paid),
+    remainingAmountLabel: toVnd(remaining),
+    remainingAmount: remaining,
+    shopNote: trim(order.verified_note, 500) || undefined,
+  }
+}
+
+/** Admin nhập số đã nhận cọc — mail khách ghi rõ đã cọc và còn thu khi nhận hàng. */
+export async function emailCustomerOrderDepositConfirmed(input: {
+  order: PartnerOrderRow
+  customerLocale?: string | null
+}): Promise<void> {
+  const meta = await fetchPartnerEmailMeta(input.order.partner_id)
+  const shopLabel = meta.displayName
+  const locale = await resolveOrderCustomerLocale(input.order, input.customerLocale)
+  const copy = formatDepositConfirmedEmailContentForCustomer(
+    depositConfirmedNotifyInput(input.order, shopLabel, locale)
+  )
+  const to = customerEmailTo(input.order)
+  if (to) {
+    const { text, html } = await customerMailBodyWithOrderCta(input.order, copy.lines, meta, {
+      depositAlreadyConfirmed: true,
+    })
+    await sendSmtpMail({
+      to,
+      subject: copy.subject,
+      text,
+      html,
+      fromName: shopLabel,
+    })
+  }
+  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter((l) => l.trim()).slice(2, 6).join(' '))
+}
+
 /** Cọc / thanh toán đã xác minh (AI hoặc webhook). */
 export async function emailCustomerOrderPaymentVerified(input: {
   order: PartnerOrderRow
   shopNotifyEmail: string
+  customerLocale?: string | null
 }): Promise<void> {
   const meta = await fetchPartnerEmailMeta(input.order.partner_id)
   const shopLabel = meta.displayName
   const to = customerEmailTo(input.order)
   const ref = trim(input.order.payment_reference, 64)
-  const subj = `${shopLabel} — Đơn ${ref} — đã xác nhận thanh toán`
-  const lines = [
-    `Xin chào ${trim(input.order.customer_name, 80) || 'quý khách'},`,
-    '',
-    `Shop đã xác nhận thanh toán cho đơn của bạn.`,
-    `Mã đơn: ${ref}`,
-    `Sản phẩm: ${trim(input.order.product_name, 200)}`,
-    `Số tiền ghi nhận: ${toVnd(input.order.paid_amount)}`,
-    `Trạng thái giao hàng: ${shipVi[input.order.shipping_status] ?? input.order.shipping_status}`,
-    '',
-    `Shop sẽ liên hệ theo SĐT: ${trim(input.order.customer_phone, 40)}`,
-    '',
-    'Trân trọng,',
-    shopLabel,
-  ]
+  const locale = await resolveOrderCustomerLocale(input.order, input.customerLocale)
+  const amounts = depositConfirmedNotifyInput(input.order, shopLabel, locale)
+  const copy = formatDepositConfirmedEmailContentForCustomer(amounts)
   if (to) {
-    const { text, html } = await customerMailBodyWithOrderCta(input.order, lines, meta)
-    await sendSmtpMail({ to, subject: subj, text, html, fromName: shopLabel })
+    const { text, html } = await customerMailBodyWithOrderCta(input.order, copy.lines, meta, {
+      depositAlreadyConfirmed: true,
+    })
+    await sendSmtpMail({ to, subject: copy.subject, text, html, fromName: shopLabel })
   }
+  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter((l) => l.trim()).slice(2, 6).join(' '))
   const shop = trim(input.shopNotifyEmail, 180).toLowerCase()
   if (shop && /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(shop)) {
     const shopLines = [
       `Shop: ${shopLabel}`,
-      `Đơn ${ref} đã chuyển sang trạng thái thanh toán đã xác nhận.`,
+      `Đơn ${ref} đã xác nhận đặt cọc.`,
       `KH: ${trim(input.order.customer_name)} | ${trim(input.order.customer_phone)}`,
-      `Số tiền: ${toVnd(input.order.paid_amount)}`,
+      `Tổng đơn: ${amounts.orderTotalLabel}`,
+      `Số tiền đã cọc: ${amounts.paidAmountLabel}`,
+      `Còn thu khi nhận hàng: ${amounts.remainingAmountLabel}`,
     ]
     await appendShopOrderLinkLines(input.order, shopLines, meta)
     await sendSmtpMail({
       to: shop,
-      subject: `${shopLabel} — [Thông báo shop] Đã thanh toán ${ref}`,
+      subject: `${shopLabel} — [Thông báo shop] Đã cọc ${ref}`,
       text: shopLines.join('\n'),
       fromName: shopLabel,
     })
@@ -308,29 +382,29 @@ export async function emailCustomerOrderPaymentVerified(input: {
 export async function emailCustomerOrderPaymentManualReview(input: {
   order: PartnerOrderRow
   shopNotifyEmail: string
+  customerLocale?: string | null
 }): Promise<void> {
   const meta = await fetchPartnerEmailMeta(input.order.partner_id)
   const shopLabel = meta.displayName
-  const to = customerEmailTo(input.order)
-  if (!to) return
-  const ref = trim(input.order.payment_reference, 64)
-  const lines = [
-    `Xin chào ${trim(input.order.customer_name, 80) || 'quý khách'},`,
-    '',
-    'Chúng tôi đã nhận ảnh/ thông tin thanh toán của bạn. Shop sẽ kiểm tra và phản hồi sớm trong chat.',
-    `Mã đơn: ${ref}`,
-    '',
-    'Trân trọng,',
+  const locale = await resolveOrderCustomerLocale(input.order, input.customerLocale)
+  const copy = formatPaymentManualReviewEmailContentForCustomer({
+    locale,
     shopLabel,
-  ]
-  const { text, html } = await customerMailBodyWithOrderCta(input.order, lines, meta)
-  await sendSmtpMail({
-    to,
-    subject: `${shopLabel} — Đơn ${ref} — đã nhận chứng từ, chờ shop xác nhận`,
-    text,
-    html,
-    fromName: shopLabel,
+    customerName: trim(input.order.customer_name, 80),
+    paymentRef: trim(input.order.payment_reference, 64),
   })
+  const to = customerEmailTo(input.order)
+  if (to) {
+    const { text, html } = await customerMailBodyWithOrderCta(input.order, copy.lines, meta)
+    await sendSmtpMail({
+      to,
+      subject: copy.subject,
+      text,
+      html,
+      fromName: shopLabel,
+    })
+  }
+  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter((l) => l.trim()).slice(2, 4).join(' '))
 }
 
 export async function emailCustomerShippingStatusChanged(input: {
@@ -340,54 +414,132 @@ export async function emailCustomerShippingStatusChanged(input: {
 }): Promise<void> {
   const meta = await fetchPartnerEmailMeta(input.order.partner_id)
   const shopLabel = meta.displayName
-  const to = customerEmailTo(input.order)
-  if (!to) return
-  const ref = trim(input.order.payment_reference, 64)
-  const loc = normalizeWebLocale(input.customerLocale ?? '') ?? DEFAULT_WEB_LOCALE
-  const { subject, lines } = formatShippingStatusEmailContentForCustomer({
-    locale: loc,
+  const locale = await resolveOrderCustomerLocale(input.order, input.customerLocale)
+  const copy = formatShippingStatusEmailContentForCustomer({
+    locale,
     shopLabel,
     customerName: trim(input.order.customer_name, 80),
-    paymentRef: ref,
+    paymentRef: trim(input.order.payment_reference, 64),
     productName: trim(input.order.product_name, 200),
     shippingStatus: input.order.shipping_status,
   })
-  const { text, html } = await customerMailBodyWithOrderCta(input.order, lines, meta)
-  await sendSmtpMail({
-    to,
-    subject,
-    text,
-    html,
-    fromName: shopLabel,
-  })
+  const to = customerEmailTo(input.order)
+  if (to) {
+    const { text, html } = await customerMailBodyWithOrderCta(input.order, copy.lines, meta)
+    await sendSmtpMail({
+      to,
+      subject: copy.subject,
+      text,
+      html,
+      fromName: shopLabel,
+    })
+  }
+  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter((l) => l.trim()).slice(2, 5).join(' '))
 }
 
 export async function emailCustomerOrderPaymentStatusChanged(input: {
   order: PartnerOrderRow
+  customerLocale?: string | null
 }): Promise<void> {
   const meta = await fetchPartnerEmailMeta(input.order.partner_id)
   const shopLabel = meta.displayName
-  const to = customerEmailTo(input.order)
-  if (!to) return
-  const ref = trim(input.order.payment_reference, 64)
-  const label = payVi[input.order.status] ?? input.order.status
-  const note = trim(input.order.verified_note, 500)
-  const lines: string[] = [
-    `Xin chào ${trim(input.order.customer_name, 80) || 'quý khách'},`,
-    '',
-    `Trạng thái thanh toán đơn của bạn: ${label}.`,
-    `Mã đơn: ${ref}`,
-  ]
-  if (note) lines.push(`Ghi chú: ${note}`)
-  lines.push('', 'Trân trọng,', shopLabel)
-  const { text, html } = await customerMailBodyWithOrderCta(input.order, lines, meta)
-  await sendSmtpMail({
-    to,
-    subject: `${shopLabel} — Đơn ${ref} — cập nhật: ${label}`,
-    text,
-    html,
-    fromName: shopLabel,
+  const locale = await resolveOrderCustomerLocale(input.order, input.customerLocale)
+  if (input.order.status === 'cancelled') {
+    await emailCustomerOrderCancelled({ order: input.order, customerLocale: locale })
+    return
+  }
+  const copy = formatPaymentStatusEmailContentForCustomer({
+    locale,
+    shopLabel,
+    customerName: trim(input.order.customer_name, 80),
+    paymentRef: trim(input.order.payment_reference, 64),
+    status: input.order.status,
+    shopNote: trim(input.order.verified_note, 500) || undefined,
   })
+  const to = customerEmailTo(input.order)
+  if (to) {
+    const { text, html } = await customerMailBodyWithOrderCta(input.order, copy.lines, meta)
+    await sendSmtpMail({
+      to,
+      subject: copy.subject,
+      text,
+      html,
+      fromName: shopLabel,
+    })
+  }
+  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter((l) => l.trim()).slice(2, 4).join(' '))
+}
+
+export async function emailCustomerOrderCancelled(input: {
+  order: PartnerOrderRow
+  customerLocale?: string | null
+  reason?: string | null
+}): Promise<void> {
+  const meta = await fetchPartnerEmailMeta(input.order.partner_id)
+  const shopLabel = meta.displayName
+  const locale = await resolveOrderCustomerLocale(input.order, input.customerLocale)
+  const copy = formatOrderCancelledEmailContentForCustomer({
+    locale,
+    shopLabel,
+    customerName: trim(input.order.customer_name, 80),
+    paymentRef: trim(input.order.payment_reference, 64),
+    productName: trim(input.order.product_name, 200),
+    reason: input.reason?.trim() || undefined,
+  })
+  const to = customerEmailTo(input.order)
+  if (to) {
+    const { text, html } = await customerMailBodyWithOrderCta(input.order, copy.lines, meta)
+    await sendSmtpMail({ to, subject: copy.subject, text, html, fromName: shopLabel })
+  }
+  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter((l) => l.trim()).slice(2, 4).join(' '))
+}
+
+export async function emailCustomerOrderRefunded(input: {
+  order: PartnerOrderRow
+  refundAmount: number
+  customerLocale?: string | null
+  shopNote?: string | null
+}): Promise<void> {
+  const meta = await fetchPartnerEmailMeta(input.order.partner_id)
+  const shopLabel = meta.displayName
+  const locale = await resolveOrderCustomerLocale(input.order, input.customerLocale)
+  const copy = formatOrderRefundedEmailContentForCustomer({
+    locale,
+    shopLabel,
+    customerName: trim(input.order.customer_name, 80),
+    paymentRef: trim(input.order.payment_reference, 64),
+    productName: trim(input.order.product_name, 200),
+    refundAmountLabel: toVnd(input.refundAmount),
+    shopNote: input.shopNote?.trim() || undefined,
+  })
+  const to = customerEmailTo(input.order)
+  if (to) {
+    const { text, html } = await customerMailBodyWithOrderCta(input.order, copy.lines, meta)
+    await sendSmtpMail({ to, subject: copy.subject, text, html, fromName: shopLabel })
+  }
+  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter((l) => l.trim()).slice(2, 5).join(' '))
+}
+
+export async function emailCustomerOrderDeliveredReview(input: {
+  order: PartnerOrderRow
+  customerLocale?: string | null
+}): Promise<void> {
+  const meta = await fetchPartnerEmailMeta(input.order.partner_id)
+  const shopLabel = meta.displayName
+  const locale = await resolveOrderCustomerLocale(input.order, input.customerLocale)
+  const copy = formatOrderDeliveredReviewEmailContentForCustomer({
+    locale,
+    shopLabel,
+    customerName: trim(input.order.customer_name, 80),
+    paymentRef: trim(input.order.payment_reference, 64),
+    productName: trim(input.order.product_name, 200),
+  })
+  const to = customerEmailTo(input.order)
+  if (to) {
+    const { text, html } = await customerMailBodyWithOrderCta(input.order, copy.lines, meta)
+    await sendSmtpMail({ to, subject: copy.subject, text, html, fromName: shopLabel })
+  }
+  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter((l) => l.trim()).slice(2, 5).join(' '))
 }
 
 /** Nhắc cọc 2h / 20h — link mở đơn nhanh + QR. Không gửi cho chủ shop. */
@@ -401,12 +553,23 @@ export async function emailCustomerDepositReminder(input: {
   requiredAmount: number
   paidAmount?: number
   hours: DepositRemindHour
+  customerLocale?: string | null
+  conversationId?: string | null
 }): Promise<void> {
   const to = trim(input.customerEmail, 180).toLowerCase()
   if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(to)) return
   const meta = await fetchPartnerEmailMeta(input.partnerId)
   const shopLabel = meta.displayName || input.shopName.trim() || 'Shop'
   const ref = trim(input.paymentReference, 64)
+  let locale = normalizeWebLocale(input.customerLocale ?? '') ?? DEFAULT_WEB_LOCALE
+  if (!input.customerLocale && input.conversationId) {
+    try {
+      const raw = await fetchConversationUiLocaleFromPg(input.conversationId)
+      locale = normalizeWebLocale(raw ?? '') ?? DEFAULT_WEB_LOCALE
+    } catch {
+      /* keep default */
+    }
+  }
   const needsDeposit = orderNeedsCustomerDepositMail({
     requiredAmount: input.requiredAmount,
     paidAmount: input.paidAmount,
@@ -417,8 +580,9 @@ export async function emailCustomerDepositReminder(input: {
     needsDeposit: true,
     chatFallback: guestChatOrderUrlFromSlug(meta.slug, input.orderId),
   })
-  const copy = depositReminderCopy({
-    shopName: shopLabel,
+  const copy = formatDepositReminderEmailContentForCustomer({
+    locale,
+    shopLabel,
     orderCode: ref || input.orderId.slice(0, 8),
     hours: input.hours,
   })
@@ -462,4 +626,11 @@ export async function emailCustomerDepositReminder(input: {
     fromName: shopLabel,
     attachments,
   })
+  void notifyPartnerCustomerOrderUpdateFromPg({
+    partnerId: input.partnerId,
+    conversationId: input.conversationId,
+    customerEmail: to,
+    title: copy.subject,
+    body: copy.detail,
+  }).catch((e) => console.warn('[emailCustomerDepositReminder] in-app', e))
 }

@@ -8,11 +8,15 @@ import {
 import { fetchPartnerEmailSendSettingsFromPg } from '@/lib/db/messaging-partner-email-management-pg'
 import {
   birthdayCampaignKey,
+  birthdayDayCampaignKey,
   daysUntilNextBirthday,
   isInBirthdayOfferWindow,
   nextBirthdayIsoFromProfileYmd,
 } from '@/lib/messaging/birthday-promo-interest-inventory-ids'
-import { sendPartnerBirthdayPromoEmail } from '@/lib/messaging/partner-promo-email'
+import {
+  sendPartnerBirthdayCongratsEmail,
+  sendPartnerBirthdayPromoEmail,
+} from '@/lib/messaging/partner-promo-email'
 import { resolvePartnerShopEmailContext } from '@/lib/messaging/partner-shop-email-context'
 
 export type BirthdayPromoBatchResult = {
@@ -49,47 +53,88 @@ export async function runPartnerBirthdayPromoBatchForPartner(
       skipped += 1
       continue
     }
-    if (!opts?.force && (!isInBirthdayOfferWindow(daysUntil, dMax, dMin) || daysUntil !== 7)) {
-      skipped += 1
-      continue
-    }
     const nextYmd = nextBirthdayIsoFromProfileYmd(u.birth_date)
     if (!nextYmd) {
       skipped += 1
       continue
     }
-    const campaignKey = birthdayCampaignKey(nextYmd)
-    const claimed = await tryClaimBirthdayEmailSlotFromPg({
-      partnerId,
-      recipientKey: u.recipient_key,
-      campaignKey,
-      recipientEmail: u.email,
-      recipientUserId: u.user_id || undefined,
-    })
-    if (!claimed) {
+    const sendT7 = Boolean(
+      opts?.force || (isInBirthdayOfferWindow(daysUntil, dMax, dMin) && daysUntil === 7)
+    )
+    const sendT0 = !opts?.force && daysUntil === 0
+    if (!sendT7 && !sendT0) {
       skipped += 1
       continue
     }
-    const mail = await sendPartnerBirthdayPromoEmail({
-      ctx,
-      toEmail: u.email,
-      recipientKey: u.recipient_key,
-      customerName: u.customer_name,
-      discountPercent: pct,
-      nextBirthdayLabel: nextYmd,
-      campaignKey,
-    })
-    if (!mail.ok) {
-      await releaseBirthdayEmailSlotFromPg({
+
+    if (sendT7) {
+      const campaignKey = birthdayCampaignKey(nextYmd)
+      const claimed = await tryClaimBirthdayEmailSlotFromPg({
         partnerId,
         recipientKey: u.recipient_key,
         campaignKey,
+        recipientEmail: u.email,
+        recipientUserId: u.user_id || undefined,
       })
-      if (mail.error === 'warmup_quota') deferredQuota += 1
-      else skipped += 1
-      continue
+      if (!claimed) {
+        skipped += 1
+      } else {
+        const mail = await sendPartnerBirthdayPromoEmail({
+          ctx,
+          toEmail: u.email,
+          recipientKey: u.recipient_key,
+          customerName: u.customer_name,
+          discountPercent: pct,
+          nextBirthdayLabel: nextYmd,
+          campaignKey,
+        })
+        if (!mail.ok) {
+          await releaseBirthdayEmailSlotFromPg({
+            partnerId,
+            recipientKey: u.recipient_key,
+            campaignKey,
+          })
+          if (mail.error === 'warmup_quota') deferredQuota += 1
+          else skipped += 1
+        } else {
+          sent += 1
+        }
+      }
     }
-    sent += 1
+
+    if (sendT0) {
+      const campaignKey = birthdayDayCampaignKey(nextYmd)
+      const claimed = await tryClaimBirthdayEmailSlotFromPg({
+        partnerId,
+        recipientKey: u.recipient_key,
+        campaignKey,
+        recipientEmail: u.email,
+        recipientUserId: u.user_id || undefined,
+      })
+      if (!claimed) {
+        skipped += 1
+      } else {
+        const mail = await sendPartnerBirthdayCongratsEmail({
+          ctx,
+          toEmail: u.email,
+          recipientKey: u.recipient_key,
+          customerName: u.customer_name,
+          discountPercent: pct,
+          campaignKey,
+        })
+        if (!mail.ok) {
+          await releaseBirthdayEmailSlotFromPg({
+            partnerId,
+            recipientKey: u.recipient_key,
+            campaignKey,
+          })
+          if (mail.error === 'warmup_quota') deferredQuota += 1
+          else skipped += 1
+        } else {
+          sent += 1
+        }
+      }
+    }
   }
   return { sent, skipped, deferredQuota }
 }

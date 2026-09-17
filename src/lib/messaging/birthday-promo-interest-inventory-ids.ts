@@ -95,9 +95,14 @@ export function isInBirthdayOfferWindow(
   return daysUntil >= lo && daysUntil <= hi
 }
 
-/** Một lần gửi / mỗi (partner, user, năm sinh nhật sắp tới). */
+/** Một lần gửi / mỗi (partner, user, năm sinh nhật sắp tới) — mail T-7. */
 export function birthdayCampaignKey(nextBirthdayYmd: string): string {
   return `bday_${nextBirthdayYmd.replace(/-/g, '')}`
+}
+
+/** Mail chúc mừng đúng ngày SN — tách slot với T-7. */
+export function birthdayDayCampaignKey(nextBirthdayYmd: string): string {
+  return `bday_day_${nextBirthdayYmd.replace(/-/g, '')}`
 }
 
 export function nextBirthdayIsoFromProfileYmd(birthDateYmd: string, now = new Date()): string | null {

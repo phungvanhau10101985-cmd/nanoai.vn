@@ -12,7 +12,7 @@ import {
 } from '@/lib/db/customer-care-pg'
 import { fetchGuestGenderForPartnerConsultCachePg } from '@/lib/db/partner-product-consult-cache-pg'
 import { fetchMessagingPartnerAiSettingsFullFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
-import { fetchMessagingPartnerByIdFromPg } from '@/lib/db/messaging-partners-pg'
+import { notifyPartnerOwnerChatNeedsReply } from '@/lib/messaging/partner-admin-notifications'
 import {
   cancelPendingAiJobsForConversationPg,
   insertPartnerAiJobPg,
@@ -264,7 +264,16 @@ export async function handlePartnerInboundForAi(input: {
     }
     const settings = await fetchMessagingPartnerAiSettingsFullFromPg(input.partnerId)
 
-    if (!settings?.enabled) return { show: false }
+    if (!settings?.enabled) {
+      const conv = await fetchCustomerCareConversationByIdPg(input.conversationId).catch(() => null)
+      void notifyPartnerOwnerChatNeedsReply({
+        partnerId: input.partnerId,
+        conversationId: input.conversationId,
+        customerName: conv?.customer_name,
+        preview: input.inboundBody,
+      })
+      return { show: false }
+    }
 
     let routeDecision = await mergePartnerAiWidgetIntentFromClassifier({
       partnerId: input.partnerId,

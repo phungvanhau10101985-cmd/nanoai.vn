@@ -11,6 +11,7 @@ import {
   jsonAffiliateStorefront,
   loadPartnerSiteAffiliateStorefront,
 } from '@/lib/partner-website/shop/partner-site-affiliate-storefront'
+import { notifyPartnerOwnerAffiliateWithdrawal } from '@/lib/messaging/partner-admin-notifications'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,6 +48,11 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       ...store.identity,
       amount: Number(body?.amount) || 0,
       otp: String(body?.otp ?? ''),
+    })
+    void notifyPartnerOwnerAffiliateWithdrawal({
+      partnerId: store.shop.partnerId,
+      amount: withdrawal.amount,
+      email: store.identity.emailNormalized,
     })
     return jsonAffiliateStorefront(request, store, { ok: true, withdrawal })
   } catch (error) {

@@ -117,11 +117,13 @@ function applyCommonResponseHeaders(response: NextResponse, request: NextRequest
       .map((x) => x.trim())
       .filter(Boolean)
   )
-  ;['RSC', 'Next-Router-State-Tree', 'Next-Router-Prefetch', 'Accept-Encoding', 'Sec-CH-Viewport-Width'].forEach(
-    (token) => varyTokens.add(token)
+  ;['RSC', 'Next-Router-State-Tree', 'Next-Router-Prefetch', 'Accept-Encoding'].forEach((token) =>
+    varyTokens.add(token)
   )
   response.headers.set('Vary', Array.from(varyTokens).join(', '))
-  response.headers.append('Accept-CH', 'Sec-CH-Viewport-Width, Sec-CH-DPR')
+  // Do not send Accept-CH / Critical-CH. Chrome may restart the navigation to attach
+  // viewport hints — that looks like a random F5 on deposit, Sửa nhanh, and every open tab.
+  // Live machine selection uses UA + `pw-live-device` cookie written without reload.
 
   // Shop consultation surfaces are operational chat UIs, not public SEO pages.
   if (request.nextUrl.pathname.startsWith('/messaging/p/')) {

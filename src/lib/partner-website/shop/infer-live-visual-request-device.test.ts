@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   inferVisualDeviceFromUserAgent,
+  partnerLiveVisualDeviceCookieAssignment,
+  resolveLiveVisualDeviceFromViewport,
   resolveLiveVisualRequestDevice,
 } from '@/lib/partner-website/shop/infer-live-visual-request-device'
 
@@ -124,5 +126,49 @@ test('iPadOS desktop UA with touch is tablet on the client', () => {
       viewportWidth: 1440,
     }),
     'tablet'
+  )
+})
+
+test('viewport helper: desktop window uses outerWidth (laptop vs desktop)', () => {
+  assert.equal(
+    resolveLiveVisualDeviceFromViewport({
+      userAgent: DESKTOP,
+      innerWidth: 1440,
+      outerWidth: 1440,
+      devicePixelRatio: 1,
+    }),
+    'desktop'
+  )
+  assert.equal(
+    resolveLiveVisualDeviceFromViewport({
+      userAgent: DESKTOP,
+      innerWidth: 1366,
+      outerWidth: 1366,
+      devicePixelRatio: 1,
+    }),
+    'laptop'
+  )
+})
+
+test('viewport helper: F12 innerWidth under 1280 is mobile even on desktop UA', () => {
+  assert.equal(
+    resolveLiveVisualDeviceFromViewport({
+      userAgent: DESKTOP,
+      innerWidth: 390,
+      outerWidth: 1920,
+      devicePixelRatio: 1,
+    }),
+    'mobile'
+  )
+})
+
+test('live device cookie assignment never implies a reload; phone UA clears leftover desktop cookie', () => {
+  assert.equal(
+    partnerLiveVisualDeviceCookieAssignment('laptop', DESKTOP),
+    'pw-live-device=laptop; Path=/; Max-Age=604800; SameSite=Lax'
+  )
+  assert.equal(
+    partnerLiveVisualDeviceCookieAssignment('desktop', IPHONE),
+    'pw-live-device=; Path=/; Max-Age=0; SameSite=Lax'
   )
 })

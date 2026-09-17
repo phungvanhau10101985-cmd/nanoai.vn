@@ -9,6 +9,7 @@ import {
 } from '../src/lib/messaging/partner-custom-domain-site-path'
 import {
   buildPartnerShopWebManifest,
+  isPartnerShopServiceWorkerScriptUrl,
   partnerSitePwaIconPath,
   partnerSitePwaManifestPath,
   partnerSitePwaSwPath,
@@ -69,6 +70,10 @@ function main() {
   })
   assert.equal(pathManifest.id, pathManifest.start_url)
   assert.equal(pathManifest.start_url, '/site/my-shop/')
+
+  assert.equal(isPartnerShopServiceWorkerScriptUrl('https://shop.example/pw-shop-sw.js'), true)
+  assert.equal(isPartnerShopServiceWorkerScriptUrl('https://nanoai.vn/site/my-shop/sw.js'), true)
+  assert.equal(isPartnerShopServiceWorkerScriptUrl('https://nanoai.vn/sw.js'), false)
 
   console.log('test-w5_5-pwa: ok')
 }

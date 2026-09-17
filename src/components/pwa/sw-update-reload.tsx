@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { isPartnerShopServiceWorkerScriptUrl } from '@/lib/partner-website/shop/partner-site-pwa'
 import { unregisterAllServiceWorkers } from '@/lib/pwa/unregister-service-workers'
 
 /**
@@ -29,6 +30,8 @@ export function SwUpdateReload() {
         skipFirstActivate.current = false
         return
       }
+      const scriptUrl = navigator.serviceWorker.controller?.scriptURL || ''
+      if (scriptUrl && isPartnerShopServiceWorkerScriptUrl(scriptUrl)) return
       reloading = true
       window.location.reload()
     }

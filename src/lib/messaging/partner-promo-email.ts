@@ -7,6 +7,7 @@ import {
   partnerPromoEmailCopy,
   type PartnerPromoEmailKind,
 } from '@/lib/messaging/partner-promo-email-i18n'
+import { notifyPartnerCustomerOrderUpdateFromPg } from '@/lib/db/messaging-partner-customer-notifications-pg'
 import {
   escapePromoHtml,
   formatPromoVnd,
@@ -126,6 +127,14 @@ async function deliverPromoMail(input: {
     error: sent.ok ? null : sent.error,
   })
   if (!sent.ok) return sent
+  void notifyPartnerCustomerOrderUpdateFromPg({
+    partnerId: input.ctx.partnerId,
+    customerEmail: email,
+    title: input.subject,
+    body: input.text.replace(/\s+/g, ' ').trim().slice(0, 400),
+    type: 'promotion',
+    href: input.ctx.shopUrl,
+  }).catch((e) => console.warn('[deliverPromoMail] in-app', e))
   return { ok: true }
 }
 
@@ -188,6 +197,74 @@ export async function sendPartnerBirthdayPromoEmail(input: {
     recipientKey: input.recipientKey,
     channel: 'birthday',
     kind: 'birthday',
+    subject,
+    text,
+    html,
+    listUnsubscribe: unsub.listUnsubscribe,
+    skipWarmup: input.skipWarmup,
+    skipOptOut: input.skipOptOut,
+    campaignKey: input.campaignKey,
+  })
+}
+
+export async function sendPartnerBirthdayCongratsEmail(input: {
+  ctx: PartnerShopEmailContext
+  toEmail: string
+  recipientKey: string
+  customerName?: string | null
+  discountPercent: number
+  skipWarmup?: boolean
+  skipOptOut?: boolean
+  campaignKey?: string
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const copy = partnerPromoEmailCopy(input.ctx.locale)
+  const name = displayName(input.customerName)
+  const shop = input.ctx.shopDisplayName
+  const pct = Math.max(0, Math.min(100, Math.floor(input.discountPercent || 0)))
+  const vars = { shop, name, percent: pct }
+  const unsub = unsubscribeBits({
+    ctx: input.ctx,
+    toEmail: input.toEmail,
+    recipientKey: input.recipientKey,
+    include: true,
+  })
+  const subject = fillPromoTemplate(copy.birthdayDay.subject, vars)
+  const hello = fillPromoTemplate(copy.hello, { name })
+  const body = fillPromoTemplate(copy.birthdayDay.body, vars)
+  const offer = fillPromoTemplate(copy.birthdayDay.offerLine, vars)
+  const text = [
+    hello.replace(/<[^>]+>/g, ''),
+    '',
+    body,
+    offer,
+    '',
+    `${copy.birthdayDay.cta}: ${input.ctx.shopUrl}`,
+    '',
+    `${copy.regards}`,
+    shop,
+    `--`,
+    fillPromoTemplate(copy.autoFooter, { shop }),
+    unsub.text,
+  ].join('\n')
+  const inner = `<p>${escapePromoHtml(hello)}</p>
+<p>${escapePromoHtml(body)}</p>
+<p style="color:#4b5563;font-size:14px;">${escapePromoHtml(offer)}</p>`
+  const html = shellHtml({
+    inner,
+    shop,
+    ctaLabel: fillPromoTemplate(copy.birthdayDay.cta, vars),
+    ctaUrl: input.ctx.shopUrl,
+    buyColor: input.ctx.buyButtonColor,
+    footerNote: fillPromoTemplate(copy.autoFooter, { shop }),
+    unsubscribeHtml: unsub.html,
+    orCopy: copy.orCopyLink,
+  })
+  return deliverPromoMail({
+    ctx: input.ctx,
+    toEmail: input.toEmail,
+    recipientKey: input.recipientKey,
+    channel: 'birthday',
+    kind: 'birthday_day',
     subject,
     text,
     html,

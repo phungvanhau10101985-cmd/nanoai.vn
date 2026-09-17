@@ -3,6 +3,7 @@ import test from 'node:test'
 import { isValidPartnerEmail, normalizeImportedEmail } from '@/lib/messaging/partner-email-normalize'
 import { cartItemSummaryLines } from '@/lib/messaging/partner-promo-email'
 import { formatPromoCopy, partnerPromoEmailCopy } from '@/lib/messaging/partner-promo-email-i18n'
+import { birthdayCampaignKey, birthdayDayCampaignKey } from '@/lib/messaging/birthday-promo-interest-inventory-ids'
 import {
   EMAIL_WARMUP_UNLIMITED,
   partnerEmailWarmupDailyLimit,
@@ -33,6 +34,13 @@ test('promo copy fills shop name and keeps CTA structure', () => {
   assert.match(formatPromoCopy(copy.birthdaySubject, { shop: 'Demo', percent: 10, name: 'An' }), /Demo/)
   assert.match(copy.cartCta, /giỏ/i)
   assert.ok(copy.regards.length > 0)
+  assert.match(formatPromoCopy(copy.birthdayDay.subject, { shop: 'Demo', name: 'An' }), /chúc mừng sinh nhật/)
+  assert.match(formatPromoCopy(copy.birthdayDay.offerLine, { percent: 10 }), /10%/)
+})
+
+test('birthday T-7 and T0 campaign keys are distinct', () => {
+  assert.notEqual(birthdayCampaignKey('2026-09-17'), birthdayDayCampaignKey('2026-09-17'))
+  assert.match(birthdayDayCampaignKey('2026-09-17'), /^bday_day_/)
 })
 
 test('warmup daily limit ramps from start by day then caps', () => {

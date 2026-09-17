@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { insertPartnerWebsiteLeadPg } from '@/lib/db/partner-website-leads-pg'
 import { fetchPartnerWebsiteByPartnerIdPg } from '@/lib/db/messaging-partner-websites-pg'
 import { emitPartnerOutboundLeadCreated } from '@/lib/messaging/partner-outbound-webhook-emit'
+import { notifyPartnerOwnerNewLead } from '@/lib/messaging/partner-admin-notifications'
 import { guardPartnerInventorySearchApi } from '@/lib/messaging/partner-inventory-search-api-guard'
 import {
   headlessWriteCorsHeaders,
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ partnerId:
   }
 
   emitPartnerOutboundLeadCreated(partnerId, saved)
+  void notifyPartnerOwnerNewLead({ partnerId, lead: saved })
 
   return jsonHeadlessWriteWithCors(
     req,

@@ -28,11 +28,10 @@ import {
   PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID,
 } from '@/lib/partner-website/visual-editor/pw-scene'
 import {
-  liveVisualDeviceVisibleInUserAgent,
-  resolveLiveVisualRequestDevice,
+  persistPartnerLiveVisualDeviceCookie,
+  resolveLiveVisualDeviceFromViewport,
 } from '@/lib/partner-website/shop/infer-live-visual-request-device'
 import type { PartnerVisualHtmlByDevice } from '@/lib/partner-website/shop/render-partner-visual-html'
-import { PARTNER_LIVE_DEVICE_COOKIE } from '@/lib/auth/app-request-headers'
 import {
   applyShopBrowserThemeColorToDocument,
   extractShopBrowserThemeColorFromHtml,
@@ -324,59 +323,34 @@ function PartnerSitePublicFrame({
     'desktop'
   const [activeDevice, setActiveDevice] = useState<VisualDeviceVariant>(firstDevice)
   useLayoutEffect(() => {
-    const viewportDevice = () => {
-      const ua = navigator.userAgent || ''
-      const fromUa = liveVisualDeviceVisibleInUserAgent(ua)
-      const cssWidth =
-        window.innerWidth || document.documentElement.clientWidth || 0
-      return (
-        forceDevice ||
-        resolveLiveVisualRequestDevice({
-          viewportWidth:
-            fromUa === 'mobile' || fromUa === 'tablet' || (cssWidth > 0 && cssWidth < 1280)
-              ? cssWidth
-              : window.outerWidth || cssWidth,
-          devicePixelRatio: window.devicePixelRatio || 0,
-          userAgent: ua,
-          maxTouchPoints: navigator.maxTouchPoints || 0,
-        })
-      )
-    }
     const choose = () => {
-      const requested = viewportDevice()
-      if (!availableDevices.length || availableDevices.includes(requested)) {
+      const requested = resolveLiveVisualDeviceFromViewport({
+        forceDevice,
+        userAgent: navigator.userAgent || '',
+        innerWidth: window.innerWidth || document.documentElement.clientWidth || 0,
+        outerWidth: window.outerWidth || 0,
+        devicePixelRatio: window.devicePixelRatio || 0,
+        maxTouchPoints: navigator.maxTouchPoints || 0,
+      })
+      if (availableDevices.includes(requested)) {
         setActiveDevice((current) => (current === requested ? current : requested))
       }
       if (forceDevice) return
-      if (requested === initialDevice) {
-        try {
-          sessionStorage.removeItem('pw-live-device-reload')
-        } catch {
-          /* private mode */
-        }
-        return
-      }
-      if (!initialDevice || htmlByDevice?.[requested]) return
-      try {
-        const flag = sessionStorage.getItem('pw-live-device-reload')
-        if (flag === requested) return
-        sessionStorage.setItem('pw-live-device-reload', requested)
-      } catch {
-        /* private mode */
-      }
-      const uaVisible = liveVisualDeviceVisibleInUserAgent(navigator.userAgent || '')
-      if (uaVisible === 'mobile' || uaVisible === 'tablet') {
-        document.cookie = `${PARTNER_LIVE_DEVICE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`
-      } else {
-        document.cookie = `${PARTNER_LIVE_DEVICE_COOKIE}=${requested}; Path=/; Max-Age=1800; SameSite=Lax`
-      }
-      window.location.reload()
+      persistPartnerLiveVisualDeviceCookie(requested, navigator.userAgent || '')
     }
     choose()
     if (forceDevice) return
-    window.addEventListener('resize', choose)
-    return () => window.removeEventListener('resize', choose)
-  }, [availableDevices, forceDevice, htmlByDevice, initialDevice])
+    let timer = 0
+    const onResize = () => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(choose, 400)
+    }
+    window.addEventListener('resize', onResize)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('resize', onResize)
+    }
+  }, [availableDevices, forceDevice])
   const selectedHtml =
     (htmlByDevice && htmlByDevice[activeDevice]) ||
     (forceDevice && !deviceHtmlAlreadyIsolated

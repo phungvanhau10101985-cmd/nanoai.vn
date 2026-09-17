@@ -158,6 +158,7 @@ import {
 import { PartnerSiteAccountNavLayout } from '@/components/partner-website/shop/partner-site-account-nav-layout'
 import { PartnerSiteSaleCalendarBanner } from '@/components/partner-website/shop/partner-site-sale-calendar-banner'
 import { PartnerSiteContactChannelsFab } from '@/components/partner-website/shop/partner-site-contact-channels-fab'
+import { PartnerSiteLiveDeviceCookieSync } from '@/components/partner-website/shop/partner-site-live-device-cookie-sync'
 import { partnerSitePageShowsAccountNav } from '@/lib/partner-website/shop/partner-site-account-nav'
 import {
   partnerSitePwaScope,
@@ -784,6 +785,7 @@ function PartnerSiteShopShellInner({
   }, [previewDevice, useVisualChrome, visualBeforeHtml])
   return (
     <div className="pw-shop" data-pw-look={shopLook} {...(pageKind ? { 'data-pw-page': pageKind } : {})}>
+      <PartnerSiteLiveDeviceCookieSync />
       <PartnerSiteShopTrackingBootstrap tracking={tracking} />
       {hideChrome ? null : (
         <>

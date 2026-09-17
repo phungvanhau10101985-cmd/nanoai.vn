@@ -204,6 +204,7 @@ export async function sendDuePartnerDepositReminders(): Promise<{ reminded: numb
             requiredAmount: Number(row.requiredAmount) || 0,
             paidAmount: Number(row.paidAmount) || 0,
             hours: hour,
+            conversationId: row.conversationId,
           })
         } catch (e) {
           console.warn('[sendDuePartnerDepositReminders] mail', e)

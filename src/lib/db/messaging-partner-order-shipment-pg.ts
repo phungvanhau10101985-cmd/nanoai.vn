@@ -391,6 +391,7 @@ export type PartnerDepositReminderDueRow = {
   createdAt: string
   remindedAt2h: string | null
   remindedAt20h: string | null
+  conversationId: string | null
 }
 
 export async function fetchPartnerDepositReminderDueFromPg(limit = 80): Promise<PartnerDepositReminderDueRow[]> {
@@ -407,7 +408,8 @@ export async function fetchPartnerDepositReminderDueFromPg(limit = 80): Promise<
               coalesce(o.paid_amount, 0)::float8 as "paidAmount",
               o.created_at::text as "createdAt",
               o.deposit_reminded_at_2h::text as "remindedAt2h",
-              o.deposit_reminded_at_20h::text as "remindedAt20h"
+              o.deposit_reminded_at_20h::text as "remindedAt20h",
+              o.conversation_id::text as "conversationId"
        from public.messaging_partner_orders o
        join public.messaging_partners mp on mp.id = o.partner_id
        where o.status in ('awaiting_payment', 'payment_checking')

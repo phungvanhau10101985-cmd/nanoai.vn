@@ -32,7 +32,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
     status: 200,
     headers: {
       'Content-Type': 'application/javascript; charset=utf-8',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'max-age=300, must-revalidate',
       'Service-Worker-Allowed': '/',
     },
   })

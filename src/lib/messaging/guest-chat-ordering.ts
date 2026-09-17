@@ -51,7 +51,11 @@ import {
   validatePromotionCodeFromPg,
 } from '@/lib/db/messaging-partner-promotions-pg'
 import { sendPartnerMetaPurchaseCapiOnPaymentConfirmed } from '@/lib/tracking/meta-purchase-after-order'
-import { notifyPartnerOwnerNewOrder } from '@/lib/messaging/partner-admin-notifications'
+import {
+  notifyPartnerOwnerNewOrder,
+  notifyPartnerOwnerPaymentNeedsReview,
+  notifyPartnerOwnerPaymentVerified,
+} from '@/lib/messaging/partner-admin-notifications'
 import { guestImageObjectExists } from '@/lib/messaging/guest-chat-image'
 import { getTryOnPublicUrlFromPath } from '@/lib/storage/try-on-public-upload'
 import {
@@ -1938,6 +1942,7 @@ export async function verifyOrderPaymentProof(input: {
         order: refreshed,
         shopNotifyEmail: settings.notify_email || '',
       })
+      void notifyPartnerOwnerPaymentVerified(input.partnerId, refreshed)
     } catch (e) {
       console.warn('[verifyOrderPaymentProof] email verified', e)
     }
@@ -1947,6 +1952,7 @@ export async function verifyOrderPaymentProof(input: {
         order: refreshed,
         shopNotifyEmail: settings.notify_email || '',
       })
+      void notifyPartnerOwnerPaymentNeedsReview(input.partnerId, refreshed)
     } catch (e) {
       console.warn('[verifyOrderPaymentProof] email manual_review', e)
     }

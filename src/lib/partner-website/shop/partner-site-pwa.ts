@@ -3,6 +3,19 @@ import { partnerSiteHomePath } from './partner-site-shop-paths'
 /** Public SW filename on a shop custom domain — must not collide with NanoAI `public/sw.js`. */
 export const PARTNER_SHOP_PWA_SW_PUBLIC_FILE = 'pw-shop-sw.js'
 
+/** Shop SW is network-first for navigations — claiming it must not F5 open tabs. */
+export function isPartnerShopServiceWorkerScriptUrl(scriptUrl: string): boolean {
+  try {
+    const path = new URL(scriptUrl, 'https://invalid.local').pathname.toLowerCase()
+    if (path === `/${PARTNER_SHOP_PWA_SW_PUBLIC_FILE}` || path.endsWith(`/${PARTNER_SHOP_PWA_SW_PUBLIC_FILE}`)) {
+      return true
+    }
+    return /^\/site\/[^/]+\/sw\.js$/.test(path)
+  } catch {
+    return false
+  }
+}
+
 export const PARTNER_PWA_ICON_SIZES = [32, 180, 192, 512] as const
 export type PartnerPwaIconSize = (typeof PARTNER_PWA_ICON_SIZES)[number]
 

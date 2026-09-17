@@ -32,6 +32,10 @@ import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-p
 import { queuePartnerOrderGoogleSheetsSync } from '@/lib/messaging/partner-order-google-sheets-sync'
 import { emitPartnerOutboundPaymentPaid } from '@/lib/messaging/partner-outbound-webhook-emit'
 import { sendPartnerMetaPurchaseCapiOnPaymentConfirmed } from '@/lib/tracking/meta-purchase-after-order'
+import {
+  notifyPartnerOwnerPaymentNeedsReview,
+  notifyPartnerOwnerPaymentVerified,
+} from '@/lib/messaging/partner-admin-notifications'
 
 type SePayBody = Record<string, string | number | boolean | null | undefined>
 
@@ -329,11 +333,13 @@ export async function POST(request: NextRequest) {
               order: refreshed,
               shopNotifyEmail: paySettings.notify_email || '',
             })
+            void notifyPartnerOwnerPaymentVerified(partnerId, refreshed)
           } else {
             await emailCustomerOrderPaymentManualReview({
               order: refreshed,
               shopNotifyEmail: paySettings.notify_email || '',
             })
+            void notifyPartnerOwnerPaymentNeedsReview(partnerId, refreshed)
           }
         }
       } catch (e) {

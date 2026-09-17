@@ -110,3 +110,33 @@ export async function countUnreadNotificationsForUser(userId: string): Promise<n
   const n = Number(row?.c ?? 0)
   return Number.isFinite(n) ? n : 0
 }
+
+export async function hasRecentUserNotificationFromPg(input: {
+  userId: string
+  type: string
+  metaKey: string
+  metaValue: string
+  withinMinutes: number
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const minutes = Math.max(1, Math.min(24 * 60, Math.floor(input.withinMinutes) || 20))
+  const key = input.metaKey.trim().slice(0, 80)
+  const value = input.metaValue.trim()
+  if (!key || !value) return false
+  try {
+    const row = await pgQueryOne<{ id: string }>(
+      `select id::text
+       from public.notifications
+       where user_id = $1::uuid
+         and type = $2
+         and created_at > now() - ($3::int * interval '1 minute')
+         and coalesce(meta->>$4, '') = $5
+       limit 1`,
+      [input.userId, input.type, minutes, key, value]
+    )
+    return Boolean(row?.id)
+  } catch (e) {
+    console.warn('[hasRecentUserNotificationFromPg]', e)
+    return false
+  }
+}

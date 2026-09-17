@@ -1,5 +1,8 @@
 /** SLA cọc: nhắc 2h/20h; chỉ nhả tồn VN, không tự hủy đơn TQ. */
 
+import { DEFAULT_WEB_LOCALE, normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
+import { formatDepositReminderEmailContentForCustomer } from '@/lib/messaging/order-customer-notify-i18n'
+
 export const DEPOSIT_REMIND_HOURS = [2, 20] as const
 export type DepositRemindHour = (typeof DEPOSIT_REMIND_HOURS)[number]
 
@@ -24,22 +27,16 @@ export function depositReminderCopy(input: {
   orderCode: string
   hours: DepositRemindHour
   openUrl?: string | null
+  locale?: WebLocale | string | null
 }): { title: string; detail: string; subject: string; subjectRest: string; text: string } {
-  const shop = input.shopName.trim() || 'Shop'
-  const code = input.orderCode.trim() || 'đơn'
-  const title = `Nhắc đặt cọc sau ${input.hours} giờ`
-  const detail = `Đơn ${code} đang chờ đặt cọc. Đây là lời nhắc sau ${input.hours} giờ.`
-  const subjectRest = `Nhắc đặt cọc đơn ${code}`
-  const subject = `${shop} — ${subjectRest}`
-  const lines = [
-    `Đơn ${code} tại ${shop} đang chờ đặt cọc.`,
-    'Vui lòng hoàn tất chuyển khoản để shop xử lý đơn.',
-    `Đây là lời nhắc sau ${input.hours} giờ; nếu đã chuyển khoản, bạn có thể bỏ qua email này.`,
-    'Quét mã QR trong email này để đặt cọc, hoặc bấm nút mở đơn nhanh.',
-  ]
+  const loc = normalizeWebLocale(input.locale ?? '') ?? DEFAULT_WEB_LOCALE
+  const mail = formatDepositReminderEmailContentForCustomer({
+    locale: loc,
+    shopLabel: input.shopName,
+    orderCode: input.orderCode,
+    hours: input.hours,
+  })
   const openUrl = String(input.openUrl || '').trim()
-  if (openUrl) {
-    lines.push('', `Mở đơn nhanh: ${openUrl}`)
-  }
-  return { title, detail, subject, subjectRest, text: lines.join('\n') }
+  const text = openUrl ? `${mail.text}\n\n${openUrl}` : mail.text
+  return { ...mail, text }
 }
