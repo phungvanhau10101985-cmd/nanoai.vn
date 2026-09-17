@@ -5,12 +5,9 @@ import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-sessi
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import {
   ensurePartnerShopServiceWorkerRegistration,
-  isIosDevice,
   PW_SHOP_NOTIFICATIONS_REFRESH_EVENT,
-  requestPartnerSitePushPermissionAndSubscribe,
-  syncPartnerSitePushSubscription,
+  syncPartnerSitePushIfGranted,
 } from '@/lib/partner-website/shop/partner-site-push-subscribe-client'
-import { isStandalonePwa } from '@/lib/pwa/push-subscribe-client'
 
 /** Registers shop SW + Web Push on every /site/{slug} page, including HTML landing. */
 export function PartnerSiteShopPushBoot({ siteSlug }: { siteSlug: string }) {
@@ -32,34 +29,24 @@ export function PartnerSiteShopPushBoot({ siteSlug }: { siteSlug: string }) {
   useEffect(() => {
     if (!ready || !isAuthenticated) return
     if (typeof window === 'undefined' || !('Notification' in window) || !('PushManager' in window)) return
-    const headers = authHeaders()
-    if (Notification.permission === 'granted') {
-      const timer = window.setTimeout(() => {
-        void syncPartnerSitePushSubscription({ siteSlug, customDomain, authHeaders: headers })
-      }, 4000)
-      return () => window.clearTimeout(timer)
-    }
-    if (Notification.permission !== 'default') return
-    if (isIosDevice() && !isStandalonePwa()) return
-    const promptKey = 'pw_shop_push_prompt_v1'
-    try {
-      if (window.sessionStorage.getItem(promptKey)) return
-    } catch {
-      return
-    }
-    const timer = window.setTimeout(() => {
-      try {
-        window.sessionStorage.setItem(promptKey, '1')
-      } catch {
-        /* ignore quota */
-      }
-      void requestPartnerSitePushPermissionAndSubscribe({
+    const run = () => {
+      if (document.visibilityState === 'hidden') return
+      void syncPartnerSitePushIfGranted({
         siteSlug,
         customDomain,
-        authHeaders: headers,
+        authHeaders: authHeaders(),
       })
-    }, 8000)
-    return () => window.clearTimeout(timer)
+    }
+    run()
+    const onVis = () => {
+      if (document.visibilityState === 'visible') run()
+    }
+    window.addEventListener('pageshow', run)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('pageshow', run)
+      document.removeEventListener('visibilitychange', onVis)
+    }
   }, [authHeaders, customDomain, isAuthenticated, ready, siteSlug])
 
   return null

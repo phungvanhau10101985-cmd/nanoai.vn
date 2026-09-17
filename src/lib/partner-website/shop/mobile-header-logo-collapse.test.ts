@@ -67,6 +67,14 @@ test('mobile header stack centers the logo row and keeps toolbar below', () => {
   assert.equal(PW_ESCAPED_HEAD_CHROME_HIDE_CSS.includes('main > .pw-topbar-inner'), true)
   assert.equal(PW_ESCAPED_HEAD_CHROME_HIDE_CSS.includes('[data-pw-chrome-btn="favorites-link"][data-pw-chrome-added]'), true)
   assert.equal(PW_ESCAPED_HEAD_CHROME_HIDE_CSS.includes('main [data-pw-chrome-btn="login"][data-pw-chrome-kit="1"]'), true)
+  assert.equal(PW_ESCAPED_HEAD_CHROME_HIDE_CSS.includes(':not([data-pw-chrome-kit="dock"] *)'), true)
+  assert.equal(PW_ESCAPED_HEAD_CHROME_HIDE_CSS.includes(':not([data-pw-live-dock] *)'), true)
+  assert.equal(
+    PW_ESCAPED_HEAD_CHROME_HIDE_CSS.includes(
+      'main [data-pw-chrome-btn="cart"][data-pw-chrome-kit="1"]:not([data-pw-chrome-added]):not(header *):not([data-pw-region="header"] *):not([data-pw-chrome-kit="dock"] *)'
+    ),
+    true
+  )
   assert.equal(PW_ESCAPED_HEAD_CHROME_HIDE_CSS.includes(':not(header *)'), true)
   assert.equal(PW_ESCAPED_HEAD_CHROME_HIDE_CSS.includes('[data-pw-listing-filter-slot] [data-pw-chrome-btn="login"]'), true)
   assert.equal(PW_ESCAPED_HEAD_CHROME_HIDE_CSS.includes('.pw-page-head [data-pw-chrome-btn="login"]'), true)

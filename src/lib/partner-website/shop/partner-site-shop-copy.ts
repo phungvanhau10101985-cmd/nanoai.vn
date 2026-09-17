@@ -546,6 +546,7 @@ export type PartnerSiteShopCopy = {
   pushDenied: string
   pushUnsupported: string
   pushIosHint: string
+  pushChromeIosHint: string
   pushSyncing: string
   /** W5.5 */
   accountInstallApp: string
@@ -1208,13 +1209,16 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountNotificationsLoading: 'Đang tải thông báo...',
     accountNotificationsSignIn: 'Đăng nhập ngay',
     pushEnableTitle: 'Thông báo trên trình duyệt',
-    pushEnableHint: 'Nhận thông báo đơn hàng và tin từ shop ngay cả khi bạn không mở trang.',
+    pushEnableHint:
+      'Bật trong Cài đặt điện thoại chưa đủ — phải bấm Bật trên trang này (đúng icon shop trên màn hình chính).',
     pushEnableButton: 'Bật thông báo đẩy',
     pushEnabled: 'Đã bật thông báo đẩy trên thiết bị này.',
     pushTestButton: 'Gửi thông báo thử',
     pushDenied: 'Trình duyệt đang chặn thông báo. Hãy cho phép trong cài đặt trang.',
     pushUnsupported: 'Trình duyệt này chưa hỗ trợ thông báo đẩy.',
-    pushIosHint: 'Trên iPhone/iPad: thêm shop vào màn hình chính rồi bật thông báo trong app.',
+    pushIosHint:
+      'iPhone: Safari → Chia sẻ → Thêm vào Màn hình chính → mở icon shop → đăng nhập → bấm Bật thông báo đẩy.',
+    pushChromeIosHint: 'Chrome trên iPhone không hiện toast. Hãy dùng Safari rồi thêm vào Màn hình chính.',
     pushSyncing: 'Đang bật…',
     accountInstallApp: 'Cài đặt app',
     accountInstallAppTitle: 'Cài đặt ứng dụng',
@@ -1872,13 +1876,16 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountNotificationsLoading: 'Loading notifications...',
     accountNotificationsSignIn: 'Sign in now',
     pushEnableTitle: 'Browser notifications',
-    pushEnableHint: 'Get order and shop alerts even when this page is closed.',
+    pushEnableHint:
+      'Turning on Android/iOS Settings is not enough — tap Enable on this page in the Home Screen app.',
     pushEnableButton: 'Turn on push notifications',
     pushEnabled: 'Push notifications are on for this device.',
     pushTestButton: 'Send a test notification',
     pushDenied: 'Notifications are blocked. Allow them in your browser site settings.',
     pushUnsupported: 'This browser does not support push notifications.',
-    pushIosHint: 'On iPhone/iPad: add the shop to your Home Screen, then enable notifications in the app.',
+    pushIosHint:
+      'iPhone: Safari → Share → Add to Home Screen → open the shop icon → sign in → tap Enable push notifications.',
+    pushChromeIosHint: 'Chrome on iPhone cannot show web toasts. Use Safari and add the shop to the Home Screen.',
     pushSyncing: 'Turning on…',
     accountInstallApp: 'Install app',
     accountInstallAppTitle: 'Install the app',
@@ -2531,13 +2538,14 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountNotificationsLoading: '正在加载通知...',
     accountNotificationsSignIn: '立即登录',
     pushEnableTitle: '浏览器通知',
-    pushEnableHint: '即使未打开页面，也能收到订单和店铺通知。',
+    pushEnableHint: '仅在系统设置里打开通知不够 — 必须在主屏幕店铺应用里点「开启推送通知」。',
     pushEnableButton: '开启推送通知',
     pushEnabled: '此设备已开启推送通知。',
     pushTestButton: '发送测试通知',
     pushDenied: '浏览器已拦截通知。请在网站设置中允许。',
     pushUnsupported: '此浏览器不支持推送通知。',
-    pushIosHint: '在 iPhone/iPad：先将店铺添加到主屏幕，再在应用中开启通知。',
+    pushIosHint: 'iPhone：Safari → 分享 → 添加到主屏幕 → 打开店铺图标 → 登录 → 点开启推送通知。',
+    pushChromeIosHint: 'iPhone 上的 Chrome 无法显示网页推送。请改用 Safari 并添加到主屏幕。',
     pushSyncing: '正在开启…',
     accountInstallApp: '安装应用',
     accountInstallAppTitle: '安装应用',
@@ -3192,13 +3200,16 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountNotificationsLoading: '通知を読み込み中...',
     accountNotificationsSignIn: '今すぐログイン',
     pushEnableTitle: 'ブラウザ通知',
-    pushEnableHint: 'このページを閉じていても、注文やショップのお知らせを受け取れます。',
+    pushEnableHint:
+      '端末の設定で通知をオンにしただけでは届きません。ホーム画面のショップで「プッシュ通知をオンにする」を押してください。',
     pushEnableButton: 'プッシュ通知をオンにする',
     pushEnabled: 'この端末でプッシュ通知がオンです。',
     pushTestButton: 'テスト通知を送る',
     pushDenied: '通知がブロックされています。サイト設定で許可してください。',
     pushUnsupported: 'このブラウザはプッシュ通知に対応していません。',
-    pushIosHint: 'iPhone/iPad：ホーム画面に追加してから、アプリ内で通知をオンにしてください。',
+    pushIosHint:
+      'iPhone：Safari → 共有 → ホーム画面に追加 → ショップのアイコンを開く → ログイン → プッシュ通知をオンにする。',
+    pushChromeIosHint: 'iPhoneのChromeではWeb通知が出ません。Safariでホーム画面に追加してください。',
     pushSyncing: 'オンにしています…',
     accountInstallApp: 'アプリをインストール',
     accountInstallAppTitle: 'アプリをインストール',
@@ -3853,13 +3864,16 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountNotificationsLoading: '알림을 불러오는 중...',
     accountNotificationsSignIn: '지금 로그인',
     pushEnableTitle: '브라우저 알림',
-    pushEnableHint: '이 페이지를 닫아도 주문과 샵 알림을 받을 수 있습니다.',
+    pushEnableHint:
+      '휴대폰 설정에서 알림을 켠 것만으로는 부족합니다. 홈 화면 샵에서 푸시 알림 켜기를 누르세요.',
     pushEnableButton: '푸시 알림 켜기',
     pushEnabled: '이 기기에서 푸시 알림이 켜져 있습니다.',
     pushTestButton: '테스트 알림 보내기',
     pushDenied: '알림이 차단되었습니다. 브라우저 사이트 설정에서 허용하세요.',
     pushUnsupported: '이 브라우저는 푸시 알림을 지원하지 않습니다.',
-    pushIosHint: 'iPhone/iPad: 홈 화면에 샵을 추가한 뒤 앱에서 알림을 켜세요.',
+    pushIosHint:
+      'iPhone: Safari → 공유 → 홈 화면에 추가 → 샵 아이콘 열기 → 로그인 → 푸시 알림 켜기.',
+    pushChromeIosHint: 'iPhone Chrome에서는 웹 푸시 토스트가 나오지 않습니다. Safari로 홈 화면에 추가하세요.',
     pushSyncing: '켜는 중…',
     accountInstallApp: '앱 설치',
     accountInstallAppTitle: '앱 설치',

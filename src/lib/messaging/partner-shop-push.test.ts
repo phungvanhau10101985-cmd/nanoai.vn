@@ -76,8 +76,37 @@ test('notifications card still syncs this device when another device already sub
   )
   assert.match(src, /pushTestButton/)
   assert.match(src, /sendTest:\s*true/)
+  assert.match(src, /partnerShopPushCannotAutoSubscribe/)
   assert.doesNotMatch(src, /permission !== 'granted' \|\| subscribed/)
   assert.doesNotMatch(src, /setSubscribed\(Boolean\(json\.subscribed\)\)/)
+})
+
+test('shop push re-syncs when returning from OS settings and does not auto-prompt', () => {
+  const boot = readFileSync(
+    join(here, '../../components/partner-website/shop/partner-site-shop-push-boot.tsx'),
+    'utf8'
+  )
+  const card = readFileSync(
+    join(here, '../../components/partner-website/shop/partner-site-push-enable-card.tsx'),
+    'utf8'
+  )
+  const client = readFileSync(
+    join(here, '../partner-website/shop/partner-site-push-subscribe-client.ts'),
+    'utf8'
+  )
+  assert.match(client, /syncPartnerSitePushIfGranted/)
+  assert.match(client, /isIosNonSafariBrowser/)
+  assert.match(client, /partnerShopPushCannotAutoSubscribe/)
+  assert.match(boot, /syncPartnerSitePushIfGranted/)
+  assert.match(boot, /pageshow/)
+  assert.match(boot, /visibilitychange/)
+  assert.doesNotMatch(boot, /requestPartnerSitePushPermissionAndSubscribe/)
+  assert.doesNotMatch(boot, /setTimeout/)
+  assert.match(card, /pageshow/)
+  assert.match(card, /visibilitychange/)
+  for (const locale of WEB_LOCALES) {
+    assert.ok(getPartnerSiteShopCopy(locale).pushChromeIosHint.trim())
+  }
 })
 
 test('sending shop push does not load the full website project blob', () => {

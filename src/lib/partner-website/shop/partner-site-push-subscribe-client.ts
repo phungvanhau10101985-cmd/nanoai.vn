@@ -1,6 +1,6 @@
 'use client'
 
-import { getPushVapidPublicKey, urlBase64ToUint8Array } from '@/lib/pwa/push-subscribe-client'
+import { getPushVapidPublicKey, isStandalonePwa, urlBase64ToUint8Array } from '@/lib/pwa/push-subscribe-client'
 import {
   isPartnerShopServiceWorkerScriptUrl,
   partnerSitePwaScope,
@@ -19,6 +19,21 @@ export function dispatchPartnerShopNotificationsRefresh(): void {
 export function isIosDevice(): boolean {
   if (typeof navigator === 'undefined') return false
   return /iPad|iPhone|iPod/i.test(navigator.userAgent)
+}
+
+/** Chrome / Firefox / Edge on iOS — PushManager may return FCM, but the OS never shows a toast. */
+export function isIosNonSafariBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return isIosDevice() && /CriOS|FxiOS|EdgiOS|OPiOS/i.test(navigator.userAgent)
+}
+
+/**
+ * Do not auto-subscribe here: iOS Safari in a tab, Chrome iOS, or desktop Chrome
+ * with an iPhone user-agent. Those land FCM on the computer, not the phone PWA.
+ */
+export function partnerShopPushCannotAutoSubscribe(): boolean {
+  if (isIosNonSafariBrowser()) return true
+  return isIosDevice() && !isStandalonePwa()
 }
 
 function registrationScriptUrl(reg: ServiceWorkerRegistration): string {
@@ -151,6 +166,21 @@ export async function syncPartnerSitePushSubscription(input: {
     console.warn('[shop-push] syncPartnerSitePushSubscription', e)
     return false
   }
+}
+
+/** OS Settings toggle does not create a PushSubscription — POST when JS permission is already granted. */
+export async function syncPartnerSitePushIfGranted(input: {
+  siteSlug: string
+  customDomain: boolean
+  authHeaders: Record<string, string>
+  sendTest?: boolean
+}): Promise<boolean> {
+  if (typeof window === 'undefined' || !('Notification' in window) || !('PushManager' in window)) {
+    return false
+  }
+  if (partnerShopPushCannotAutoSubscribe()) return false
+  if (Notification.permission !== 'granted') return false
+  return syncPartnerSitePushSubscription(input)
 }
 
 export async function requestPartnerSitePushPermissionAndSubscribe(input: {

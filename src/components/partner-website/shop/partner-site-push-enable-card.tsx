@@ -8,6 +8,8 @@ import { isStandalonePwa } from '@/lib/pwa/push-subscribe-client'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   isIosDevice,
+  isIosNonSafariBrowser,
+  partnerShopPushCannotAutoSubscribe,
   requestPartnerSitePushPermissionAndSubscribe,
   syncPartnerSitePushSubscription,
 } from '@/lib/partner-website/shop/partner-site-push-subscribe-client'
@@ -28,11 +30,23 @@ export function PartnerSitePushEnableCard({ siteSlug, locale }: Props) {
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('default')
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !('Notification' in window) || !('PushManager' in window)) {
-      setPermission('unsupported')
-      return
+    const read = () => {
+      if (typeof window === 'undefined' || !('Notification' in window) || !('PushManager' in window)) {
+        setPermission('unsupported')
+        return
+      }
+      setPermission(Notification.permission)
     }
-    setPermission(Notification.permission)
+    read()
+    const onVis = () => {
+      if (document.visibilityState === 'visible') read()
+    }
+    window.addEventListener('pageshow', read)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('pageshow', read)
+      document.removeEventListener('visibilitychange', onVis)
+    }
   }, [])
 
   useEffect(() => {
@@ -58,6 +72,7 @@ export function PartnerSitePushEnableCard({ siteSlug, locale }: Props) {
 
   useEffect(() => {
     if (!ready || !isAuthenticated || permission !== 'granted') return
+    if (partnerShopPushCannotAutoSubscribe()) return
     // Always POST this device's endpoint. GET `subscribed` is account-wide — another
     // phone/tab (or a leftover NanoAI SW) must not skip registering the shop PWA here.
     void syncPartnerSitePushSubscription({
@@ -72,8 +87,9 @@ export function PartnerSitePushEnableCard({ siteSlug, locale }: Props) {
   if (!ready || !isAuthenticated) return null
   if (!configured) return null
 
-  const iosNeedsPwa = isIosDevice() && !isStandalonePwa()
-  const unsupported = permission === 'unsupported'
+  const chromeIos = isIosNonSafariBrowser()
+  const iosNeedsPwa = !chromeIos && isIosDevice() && !isStandalonePwa()
+  const unsupported = permission === 'unsupported' || chromeIos
   const denied = permission === 'denied'
 
   async function enable() {
@@ -111,9 +127,10 @@ export function PartnerSitePushEnableCard({ siteSlug, locale }: Props) {
       <h3>{t.pushEnableTitle}</h3>
       <p className="pw-shop-muted">{t.pushEnableHint}</p>
       {iosNeedsPwa ? <p className="pw-shop-muted">{t.pushIosHint}</p> : null}
-      {unsupported ? <p className="pw-shop-muted">{t.pushUnsupported}</p> : null}
+      {chromeIos ? <p className="pw-shop-muted">{t.pushChromeIosHint}</p> : null}
+      {unsupported && !chromeIos ? <p className="pw-shop-muted">{t.pushUnsupported}</p> : null}
       {denied ? <p className="pw-shop-muted">{t.pushDenied}</p> : null}
-      {subscribed && permission === 'granted' ? (
+      {subscribed && permission === 'granted' && !iosNeedsPwa && !chromeIos ? (
         <>
           <p style={{ marginTop: 10, fontWeight: 600 }}>{t.pushEnabled}</p>
           <button

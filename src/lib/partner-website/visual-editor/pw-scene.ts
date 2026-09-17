@@ -717,7 +717,7 @@ export const PW_LIVE_DOCK_ATTR = 'data-pw-live-dock'
  * Live inline: sticky header không được nằm trong ancestor có transform.
  * Host sticky + mặt header full viewport, không `transform:scale` — vùng bấm = vùng vẽ
  * (canvas vẫn scale qua `[data-pw-inline-visual-root]`).
- * Thanh đáy / PDP sticky hoist ra [data-pw-live-dock] (fixed đáy viewport, không transform).
+ * Thanh đáy / PDP sticky hoist ra [data-pw-live-dock] trên `document.body` (fixed đáy viewport, không transform).
  * Thanh nổi kit hoist ra [data-pw-live-fixed-layer] để `position:fixed` không dính canvas scale.
  */
 export function pwSceneLiveChromeCss(): string {
@@ -1121,22 +1121,53 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     if(inner.style)inner.style.removeProperty('margin-bottom');
   }
   function findLiveDockNavs(root){
-    if(!root||!root.querySelectorAll)return [];
-    var list=root.querySelectorAll('.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-sticky,[data-pw-pdp-bottom]');
-    var pdp=null;
-    var home=null;
-    var i;
-    for(i=0;i<list.length;i++){
-      var el=list[i];
-      if(el.closest&&el.closest('[data-pw-live-dock]'))continue;
-      var isPdp=(el.getAttribute&&el.getAttribute('data-pw-pdp-bottom')==='1')||(el.classList&&el.classList.contains('pw-pdp-sticky'));
-      if(isPdp){ if(!pdp) pdp=el; }
-      else if(!home) home=el;
+    var seen=[];
+    function isDockNav(el){
+      if(!el||!el.getAttribute)return false;
+      if(el.getAttribute('data-pw-chrome-kit')==='dock')return true;
+      if(el.getAttribute('data-pw-pdp-bottom')==='1')return true;
+      return !!(el.classList&&(el.classList.contains('pw-bottom-nav')||el.classList.contains('pw-shop-bottom-nav')||el.classList.contains('pw-pdp-sticky')));
     }
-    var out=[];
-    if(pdp) out.push(pdp);
-    if(home) out.push(home);
-    return out;
+    function add(el){
+      if(!el||seen.indexOf(el)>=0)return;
+      if(!isDockNav(el))return;
+      if(el.closest&&el.closest('[data-pw-live-dock]'))return;
+      if(el.getAttribute('data-pw-chrome-kit')!=='dock'&&el.closest&&el.closest('[data-pw-chrome-kit="dock"]'))return;
+      seen.push(el);
+    }
+    function collect(scope){
+      if(!scope||!scope.querySelectorAll)return;
+      var kits=scope.querySelectorAll('[data-pw-chrome-kit="dock"]');
+      var i;
+      for(i=0;i<kits.length;i++) add(kits[i]);
+      var list=scope.querySelectorAll('.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-sticky,[data-pw-pdp-bottom]');
+      for(i=0;i<list.length;i++) add(list[i]);
+    }
+    function collectStray(node){
+      if(!node||!node.children)return;
+      var i;
+      var n;
+      for(i=0;i<node.children.length;i++){
+        n=node.children[i];
+        if(n===root)continue;
+        if(n.getAttribute&&n.getAttribute('data-pw-live-dock')==='1')continue;
+        add(n);
+      }
+    }
+    collect(root);
+    collectStray(document.body);
+    if(root&&root.parentNode&&root.parentNode!==document.body) collectStray(root.parentNode);
+    var pdp=[];
+    var home=[];
+    var i;
+    for(i=0;i<seen.length;i++){
+      var el=seen[i];
+      var isKit=el.getAttribute&&el.getAttribute('data-pw-chrome-kit')==='dock';
+      var isPdp=!isKit&&((el.getAttribute&&el.getAttribute('data-pw-pdp-bottom')==='1')||(el.classList&&el.classList.contains('pw-pdp-sticky')));
+      if(isPdp) pdp.push(el);
+      else home.push(el);
+    }
+    return pdp.concat(home);
   }
   function siblingDock(host){
     if(!host||!host.children)return null;
@@ -1279,11 +1310,25 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
   function hoistLiveDock(root){
     if(!root||isEditor())return;
     var navs=findLiveDockNavs(root);
-    var host=root.parentNode||document.body;
+    var host=document.body;
     if(!host)return;
-    var dock=currentRuntimeHost(siblingDock(host),root);
+    var dock=siblingDock(host)||document.querySelector('[data-pw-live-dock="1"]');
+    var revision=runtimeRevision(root);
+    if(dock&&revision&&dock.getAttribute('data-pw-runtime-revision')!==revision){
+      if(dock.querySelector('[data-pw-chrome-kit="dock"],.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-sticky,[data-pw-pdp-bottom]')){
+        dock.setAttribute('data-pw-runtime-revision',revision);
+      }else{
+        try{dock.remove()}catch(eR){}
+        dock=null;
+      }
+    }else if(dock&&revision){
+      dock.setAttribute('data-pw-runtime-revision',revision);
+    }
+    if(dock&&dock.parentNode!==host){
+      try{host.appendChild(dock)}catch(eH){}
+    }
     if(!navs.length){
-      if(dock&&!dock.querySelector('.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-sticky,[data-pw-pdp-bottom]')){
+      if(dock&&!dock.querySelector('.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-sticky,[data-pw-pdp-bottom],[data-pw-chrome-kit="dock"]')){
         try{dock.remove()}catch(eD){}
       }
       return;
@@ -1291,11 +1336,10 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     if(!dock){
       dock=document.createElement('div');
       dock.setAttribute('data-pw-live-dock','1');
-      var dockRevision=runtimeRevision(root);
-      if(dockRevision)dock.setAttribute('data-pw-runtime-revision',dockRevision);
+      if(revision)dock.setAttribute('data-pw-runtime-revision',revision);
       host.appendChild(dock);
     }
-    var stale=dock.querySelectorAll('.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-sticky,[data-pw-pdp-bottom]');
+    var stale=dock.querySelectorAll('.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-sticky,[data-pw-pdp-bottom],[data-pw-chrome-kit="dock"]');
     var i;
     var j;
     for(i=0;i<stale.length;i++){
