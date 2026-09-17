@@ -1,4 +1,5 @@
 import {
+  fetchPartnerOrderByIdForPartnerFromPg,
   fetchPartnerOrderLinesFromPg,
   insertPartnerOrderEventFromPg,
   patchPartnerOrderDepositExceptionFromPg,
@@ -6,7 +7,10 @@ import {
 import { pgQuery } from '@/lib/db/pg-query'
 import { isPgConfigured } from '@/lib/db/pool'
 import { depositReminderCopy, depositReminderHoursDue } from '@/lib/messaging/fulfillment/deposit-sla'
-import { emailCustomerDepositReminder } from '@/lib/messaging/partner-order-customer-email'
+import {
+  emailCustomerDepositReminder,
+  emailCustomerShippingStatusChanged,
+} from '@/lib/messaging/partner-order-customer-email'
 import {
   adjustPartnerInventoryStockQtyFromPg,
   applyEmsImportToPartnerOrderShipmentFromPg,
@@ -310,6 +314,14 @@ export async function runAdminShipmentAction(input: {
     source: 'shop',
     createdBy: input.updatedBy,
   })
+  const shipped = await fetchPartnerOrderByIdForPartnerFromPg(ctx.partnerId, input.orderId)
+  if (shipped) {
+    try {
+      await emailCustomerShippingStatusChanged({ order: shipped })
+    } catch (e) {
+      console.warn('[runAdminShipmentAction] shipper customer notify', e)
+    }
+  }
   return { ok: true }
 }
 

@@ -1,6 +1,9 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
-import { partnerSiteAccountTabPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import {
+  partnerSiteAccountTabPath,
+  partnerSiteOrderDetailPath,
+} from '@/lib/partner-website/shop/partner-site-shop-paths'
 
 /**
  * W5.2 + 188-style shop notifications (scheduled / expiry / email / broadcast).
@@ -287,6 +290,9 @@ export async function notifyPartnerCustomerOrderUpdateFromPg(input: {
   body: string
   type?: string
   href?: string
+  orderId?: string | null
+  /** 188 `create_notification` → `send_for_notification` ngay. Mặc định await. */
+  awaitPush?: boolean
 }): Promise<void> {
   if (!isPgConfigured()) return
   try {
@@ -318,7 +324,11 @@ export async function notifyPartnerCustomerOrderUpdateFromPg(input: {
       [input.partnerId]
     )
     const siteSlug = site?.site_slug?.trim() ?? ''
-    const href = siteSlug ? partnerSiteAccountTabPath(siteSlug, 'orders') : ''
+    const orderId = String(input.orderId || '').trim()
+    const href =
+      input.href?.trim() ||
+      (siteSlug && orderId ? partnerSiteOrderDetailPath(siteSlug, orderId) : '') ||
+      (siteSlug ? partnerSiteAccountTabPath(siteSlug, 'orders') : '')
 
     const row = await insertPartnerCustomerNotificationFromPg({
       partnerId: input.partnerId,
@@ -326,14 +336,19 @@ export async function notifyPartnerCustomerOrderUpdateFromPg(input: {
       type: (input.type ?? 'order').trim().slice(0, 40) || 'order',
       title: input.title,
       body: input.body,
-      href: input.href?.trim() || href,
+      href,
       pushStatus: 'pending',
     })
-    if (row) {
-      void import('@/lib/messaging/partner-customer-notification-push')
-        .then((m) => m.deliverPendingPartnerNotificationPush(row))
-        .catch((e) => console.warn('[notifyPartnerCustomerOrderUpdateFromPg] push', e))
+    if (!row) return
+    const sendPush = () =>
+      import('@/lib/messaging/partner-customer-notification-push').then((m) =>
+        m.deliverPendingPartnerNotificationPush(row)
+      )
+    if (input.awaitPush === false) {
+      void sendPush().catch((e) => console.warn('[notifyPartnerCustomerOrderUpdateFromPg] push', e))
+      return
     }
+    await sendPush().catch((e) => console.warn('[notifyPartnerCustomerOrderUpdateFromPg] push', e))
   } catch (e) {
     console.warn('[notifyPartnerCustomerOrderUpdateFromPg]', e)
   }

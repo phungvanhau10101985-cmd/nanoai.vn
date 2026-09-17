@@ -1810,14 +1810,19 @@ export async function notifyPartnerAffiliateReferrerFromPg(input: {
   }
   if (!guest) return
   const siteSlug = await siteSlugForPartner(input.partnerId)
-  await insertPartnerCustomerNotificationFromPg({
+  const row = await insertPartnerCustomerNotificationFromPg({
     partnerId: input.partnerId,
     guestAccountId: guest,
     type: 'affiliate',
     title: input.title,
     body: input.body,
     href: siteSlug ? partnerSiteAccountTabPath(siteSlug, 'affiliate') : '',
+    pushStatus: 'pending',
   })
+  if (!row) return
+  await import('@/lib/messaging/partner-customer-notification-push')
+    .then((m) => m.deliverPendingPartnerNotificationPush(row))
+    .catch((e) => console.warn('[notifyPartnerAffiliateReferrerFromPg] push', e))
 }
 
 export async function grantPartnerAffiliateCommissionAfterPaidFromPg(input: {

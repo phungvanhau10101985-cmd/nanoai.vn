@@ -127,13 +127,13 @@ async function deliverPromoMail(input: {
     error: sent.ok ? null : sent.error,
   })
   if (!sent.ok) return sent
-  void notifyPartnerCustomerOrderUpdateFromPg({
+  await notifyPartnerCustomerOrderUpdateFromPg({
     partnerId: input.ctx.partnerId,
     customerEmail: email,
     title: input.subject,
     body: input.text.replace(/\s+/g, ' ').trim().slice(0, 400),
     type: 'promotion',
-    href: input.ctx.shopUrl,
+    href: '/account/wallet',
   }).catch((e) => console.warn('[deliverPromoMail] in-app', e))
   return { ok: true }
 }

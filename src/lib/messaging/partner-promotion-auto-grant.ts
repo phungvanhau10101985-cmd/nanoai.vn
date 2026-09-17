@@ -7,6 +7,7 @@ import {
 import { insertPartnerCustomerNotificationFromPg } from '@/lib/db/messaging-partner-customer-notifications-pg'
 import { writePartnerSaleAuditFromPg } from '@/lib/db/messaging-partner-sale-audit-pg'
 import { ensurePartnerEmailSendSettingsFromPg } from '@/lib/db/messaging-partner-email-management-pg'
+import { formatCustomerInAppCopy } from '@/lib/messaging/partner-customer-inapp-copy'
 import {
   resolvePartnerCustomerEmail,
   resolvePartnerShopEmailContext,
@@ -144,21 +145,33 @@ async function notifyGrant(input: {
   promotionName: string
   code: string
   expiresAt: string | null
+  percent: number
+  maxAmount: number
+  days: number
 }): Promise<void> {
   if (!input.guestAccountId) return
+  const maxLabel = `${new Intl.NumberFormat('vi-VN').format(Math.max(0, Math.round(input.maxAmount || 0)))}đ`
+  const copy = formatCustomerInAppCopy(null, {
+    kind: 'promo_grant',
+    promotionName: input.promotionName,
+    code: input.code,
+    days: Math.max(1, input.days),
+    percent: Math.max(0, Math.min(100, Math.floor(input.percent || 0))),
+    maxLabel,
+  })
   const row = await insertPartnerCustomerNotificationFromPg({
     partnerId: input.partnerId,
     guestAccountId: input.guestAccountId,
     type: 'promotion',
-    title: 'Bạn có ưu đãi mới',
-    body: `${input.promotionName} – mã ${input.code}`,
+    title: copy.title,
+    body: copy.body,
     href: '/account/wallet',
     expiresAt: input.expiresAt,
     emailStatus: 'none',
     pushStatus: 'pending',
   })
   if (!row) return
-  void import('@/lib/messaging/partner-customer-notification-push')
+  await import('@/lib/messaging/partner-customer-notification-push')
     .then((module) => module.deliverPendingPartnerNotificationPush(row))
     .catch((error) => console.warn('[notifyPromotionGrant:push]', error))
 }
@@ -249,6 +262,9 @@ async function grantClaimedPromotion(input: {
     promotionName: input.promotion.name,
     code: input.promotion.code,
     expiresAt: grant.expiresAt,
+    percent: Number(input.promotion.discount_percent) || 0,
+    maxAmount: Number(input.promotion.max_discount_amount) || 0,
+    days: Number(input.promotion.auto_grant_valid_days) || 3,
   })
   if (
     input.promotion.auto_grant_trigger === 'cart_abandon' ||

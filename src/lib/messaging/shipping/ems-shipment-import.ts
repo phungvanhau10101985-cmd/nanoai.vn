@@ -1,4 +1,4 @@
-import { fetchPartnerOrderByPaymentReferenceForPartnerFromPg } from '@/lib/db/messaging-partner-orders-pg'
+import { fetchPartnerOrderByPaymentReferenceForPartnerFromPg, fetchPartnerOrderByIdForPartnerFromPg } from '@/lib/db/messaging-partner-orders-pg'
 import { insertPartnerOrderEventFromPg } from '@/lib/db/messaging-partner-orders-pg'
 import {
   persistPartnerEmsImportBatchFromPg,
@@ -22,6 +22,8 @@ import {
 import { emsLookupCandidates, emsPhaseFromDescription, fetchEmsWithFallback } from '@/lib/messaging/shipping/ems-tracking'
 import type { EmsImportSummary, PartnerEmsListRow } from '@/lib/messaging/shipping/ems-types'
 import { isEmsDelivered } from '@/lib/messaging/shipping/shipping-ops'
+import { emailCustomerOrderDeliveredReview } from '@/lib/messaging/partner-order-customer-email'
+import { notifyPartnerCustomerEmsUpdateWebApp } from '@/lib/messaging/partner-customer-webapp-notify'
 
 function shopHandoffMessage(orderCode?: string | null): string {
   const code = (orderCode || '').trim().toUpperCase()
@@ -50,8 +52,12 @@ async function trySyncShopOrder(input: {
   emsTrackingCode?: string | null
   emsPhase?: string | null
   emsStatus?: string | null
+  beforeEmsPhase?: string | null
+  beforeEmsStatus?: string | null
+  beforeEmsTracking?: string | null
   userId?: string | null
 }): Promise<{ synced: boolean; message: string; shippingStatus: 'shipping' | 'delivered' }> {
+  const beforeOrder = await fetchPartnerOrderByIdForPartnerFromPg(input.partnerId, input.orderId)
   const delivered = isEmsDelivered(input.emsPhase, input.emsStatus)
   const shippingStatus = delivered ? 'delivered' : 'shipping'
   const tracking = (input.emsTrackingCode || input.referenceCode || '').trim()
@@ -76,6 +82,37 @@ async function trySyncShopOrder(input: {
     orderId: input.orderId,
     shippingStatus,
   })
+  const afterOrder =
+    (await fetchPartnerOrderByIdForPartnerFromPg(input.partnerId, input.orderId)) || beforeOrder
+  if (afterOrder) {
+    const beforeStatus = String(beforeOrder?.shipping_status || '').trim().toLowerCase()
+    try {
+      await notifyPartnerCustomerEmsUpdateWebApp({
+        order: afterOrder,
+        before: {
+          shippingStatus: beforeOrder?.shipping_status,
+          trackingNumber: beforeOrder?.tracking_number || input.beforeEmsTracking,
+          emsPhase: input.beforeEmsPhase,
+          emsStatus: input.beforeEmsStatus,
+        },
+        after: {
+          shippingStatus,
+          trackingNumber: tracking,
+          emsPhase: input.emsPhase,
+          emsStatus: input.emsStatus,
+        },
+      })
+    } catch (e) {
+      console.warn('[trySyncShopOrder] customer webapp', e)
+    }
+    if (shippingStatus === 'delivered' && beforeStatus !== 'delivered') {
+      try {
+        await emailCustomerOrderDeliveredReview({ order: afterOrder, skipInApp: true })
+      } catch (e) {
+        console.warn('[trySyncShopOrder] delivered email', e)
+      }
+    }
+  }
   return { synced: true, message: shopHandoffMessage(input.orderCode), shippingStatus }
 }
 
@@ -328,7 +365,16 @@ export async function importEmsShipmentExcel(input: {
 
 export async function refreshEmsRecordTracking(input: {
   partnerId: string
-  record: { id: string; reference_code: string; ems_tracking_code?: string | null; tracking_number_saved?: string | null; order_id?: string | null; order_code?: string | null }
+  record: {
+    id: string
+    reference_code: string
+    ems_tracking_code?: string | null
+    tracking_number_saved?: string | null
+    order_id?: string | null
+    order_code?: string | null
+    ems_phase?: string | null
+    ems_status?: string | null
+  }
   userId?: string | null
 }) {
   const ems = await fetchEmsWithFallback(
@@ -346,6 +392,9 @@ export async function refreshEmsRecordTracking(input: {
       emsTrackingCode: ems.tracking_code || input.record.reference_code,
       emsPhase,
       emsStatus,
+      beforeEmsPhase: input.record.ems_phase,
+      beforeEmsStatus: input.record.ems_status,
+      beforeEmsTracking: input.record.ems_tracking_code || input.record.tracking_number_saved,
       userId: input.userId,
     })
   }

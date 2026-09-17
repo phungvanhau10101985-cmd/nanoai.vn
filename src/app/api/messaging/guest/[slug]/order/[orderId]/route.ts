@@ -22,7 +22,8 @@ import {
   partnerOrderCanConfirmReceived,
 } from '@/lib/messaging/fulfillment/order-fulfillment-service'
 import { notifyPartnerOwnerOrderCustomerAction } from '@/lib/messaging/partner-admin-notifications'
-import { notifyPartnerCustomerOrderUpdateFromPg } from '@/lib/db/messaging-partner-customer-notifications-pg'
+import { emailCustomerOrderCancelled } from '@/lib/messaging/partner-order-customer-email'
+import { notifyPartnerCustomerDeliveredWebApp } from '@/lib/messaging/partner-customer-webapp-notify'
 
 export const dynamic = 'force-dynamic'
 
@@ -129,12 +130,15 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       title: 'Khách hủy đơn',
       body: `${updated.customer_name || 'Khách'} đã hủy đơn ${updated.payment_reference || updated.id.slice(0, 8)}.`,
     })
-    void notifyPartnerCustomerOrderUpdateFromPg({
-      partnerId: partner.partnerId,
-      conversationId: updated.conversation_id,
-      title: `Đơn ${updated.payment_reference || updated.id.slice(0, 8)}`,
-      body: 'Bạn đã hủy đơn hàng.',
-    })
+    try {
+      await emailCustomerOrderCancelled({
+        order: updated,
+        reason,
+        byCustomer: true,
+      })
+    } catch (e) {
+      console.warn('[cancel_order:customer-notify]', e)
+    }
     await onPartnerOrderCancelledFulfillment(updated.id)
     return NextResponse.json({ ok: true, order: updated })
   }
@@ -185,12 +189,11 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       title: 'Khách đã nhận hàng',
       body: `${updated.customer_name || 'Khách'} xác nhận đã nhận đơn ${updated.payment_reference || updated.id.slice(0, 8)}.`,
     })
-    void notifyPartnerCustomerOrderUpdateFromPg({
-      partnerId: partner.partnerId,
-      conversationId: updated.conversation_id,
-      title: `Đơn ${updated.payment_reference || updated.id.slice(0, 8)}`,
-      body: 'Bạn đã xác nhận nhận hàng.',
-    })
+    try {
+      await notifyPartnerCustomerDeliveredWebApp(updated, 'customer_confirm')
+    } catch (e) {
+      console.warn('[confirm_received:customer-notify]', e)
+    }
     await onPartnerOrderCustomerConfirmedReceived(updated.id)
     return NextResponse.json({ ok: true, order: updated })
   }

@@ -15,7 +15,15 @@ import {
   formatPaymentStatusEmailContentForCustomer,
   formatShippingStatusEmailContentForCustomer,
 } from '@/lib/messaging/order-customer-notify-i18n'
-import { notifyPartnerCustomerOrderUpdateFromPg } from '@/lib/db/messaging-partner-customer-notifications-pg'
+import {
+  notifyPartnerCustomerCancelledWebApp,
+  notifyPartnerCustomerDepositConfirmedWebApp,
+  notifyPartnerCustomerDeliveredWebApp,
+  notifyPartnerCustomerProofReceivedWebApp,
+  notifyPartnerCustomerRefundedWebApp,
+  notifyPartnerCustomerShipperWebApp,
+  notifyPartnerCustomerWebApp,
+} from '@/lib/messaging/partner-customer-webapp-notify'
 import { fetchConversationUiLocaleFromPg } from '@/lib/db/customer-care-pg'
 import {
   partnerAdminAmountDueOnDelivery,
@@ -84,20 +92,22 @@ async function resolveOrderCustomerLocale(
   return DEFAULT_WEB_LOCALE
 }
 
-function notifyCustomerInAppFromOrder(
+async function notifyCustomerShippingWebApp(
   order: PartnerOrderRow,
-  title: string,
-  body: string,
-  extra?: { type?: string }
-): void {
-  void notifyPartnerCustomerOrderUpdateFromPg({
-    partnerId: order.partner_id,
-    conversationId: order.conversation_id,
-    customerEmail: order.customer_email,
-    title,
-    body,
-    type: extra?.type,
-  }).catch((e) => console.warn('[notifyCustomerInAppFromOrder]', e))
+  locale: WebLocale
+): Promise<void> {
+  const status = String(order.shipping_status || '').trim().toLowerCase()
+  if (status === 'shipping') {
+    await notifyPartnerCustomerShipperWebApp(order, locale)
+    return
+  }
+  if (status === 'delivered') {
+    await notifyPartnerCustomerDeliveredWebApp(order, 'ems_auto', locale)
+    return
+  }
+  if (status === 'cancelled') {
+    await notifyPartnerCustomerCancelledWebApp(order, { locale })
+  }
 }
 
 function guestChatOrderUrlFromSlug(slug: string | null, orderId: string): string | null {
@@ -268,7 +278,6 @@ export async function emailCustomerOrderCheckoutSubmitted(input: {
     })
     await sendSmtpMail({ to, subject: copy.subject, text, html, fromName: shopLabel, attachments })
   }
-  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter(Boolean).slice(0, 4).join(' '))
   const shop = trim(input.shopNotifyEmail, 180).toLowerCase()
   if (shop && /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(shop)) {
     const shopLines = [
@@ -335,7 +344,7 @@ export async function emailCustomerOrderDepositConfirmed(input: {
       fromName: shopLabel,
     })
   }
-  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter((l) => l.trim()).slice(2, 6).join(' '))
+  await notifyPartnerCustomerDepositConfirmedWebApp(input.order, locale)
 }
 
 /** Cọc / thanh toán đã xác minh (AI hoặc webhook). */
@@ -357,7 +366,7 @@ export async function emailCustomerOrderPaymentVerified(input: {
     })
     await sendSmtpMail({ to, subject: copy.subject, text, html, fromName: shopLabel })
   }
-  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter((l) => l.trim()).slice(2, 6).join(' '))
+  await notifyPartnerCustomerDepositConfirmedWebApp(input.order, locale)
   const shop = trim(input.shopNotifyEmail, 180).toLowerCase()
   if (shop && /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(shop)) {
     const shopLines = [
@@ -404,7 +413,7 @@ export async function emailCustomerOrderPaymentManualReview(input: {
       fromName: shopLabel,
     })
   }
-  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter((l) => l.trim()).slice(2, 4).join(' '))
+  await notifyPartnerCustomerProofReceivedWebApp(input.order, locale)
 }
 
 export async function emailCustomerShippingStatusChanged(input: {
@@ -434,7 +443,7 @@ export async function emailCustomerShippingStatusChanged(input: {
       fromName: shopLabel,
     })
   }
-  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter((l) => l.trim()).slice(2, 5).join(' '))
+  await notifyCustomerShippingWebApp(input.order, locale)
 }
 
 export async function emailCustomerOrderPaymentStatusChanged(input: {
@@ -467,13 +476,18 @@ export async function emailCustomerOrderPaymentStatusChanged(input: {
       fromName: shopLabel,
     })
   }
-  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter((l) => l.trim()).slice(2, 4).join(' '))
+  if (input.order.status === 'paid_verified') {
+    await notifyPartnerCustomerDepositConfirmedWebApp(input.order, locale)
+  } else if (input.order.status === 'pending_manual_review') {
+    await notifyPartnerCustomerProofReceivedWebApp(input.order, locale)
+  }
 }
 
 export async function emailCustomerOrderCancelled(input: {
   order: PartnerOrderRow
   customerLocale?: string | null
   reason?: string | null
+  byCustomer?: boolean
 }): Promise<void> {
   const meta = await fetchPartnerEmailMeta(input.order.partner_id)
   const shopLabel = meta.displayName
@@ -491,7 +505,10 @@ export async function emailCustomerOrderCancelled(input: {
     const { text, html } = await customerMailBodyWithOrderCta(input.order, copy.lines, meta)
     await sendSmtpMail({ to, subject: copy.subject, text, html, fromName: shopLabel })
   }
-  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter((l) => l.trim()).slice(2, 4).join(' '))
+  await notifyPartnerCustomerCancelledWebApp(input.order, {
+    locale,
+    byCustomer: input.byCustomer,
+  })
 }
 
 export async function emailCustomerOrderRefunded(input: {
@@ -517,12 +534,13 @@ export async function emailCustomerOrderRefunded(input: {
     const { text, html } = await customerMailBodyWithOrderCta(input.order, copy.lines, meta)
     await sendSmtpMail({ to, subject: copy.subject, text, html, fromName: shopLabel })
   }
-  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter((l) => l.trim()).slice(2, 5).join(' '))
+  await notifyPartnerCustomerRefundedWebApp(input.order, toVnd(input.refundAmount), locale)
 }
 
 export async function emailCustomerOrderDeliveredReview(input: {
   order: PartnerOrderRow
   customerLocale?: string | null
+  skipInApp?: boolean
 }): Promise<void> {
   const meta = await fetchPartnerEmailMeta(input.order.partner_id)
   const shopLabel = meta.displayName
@@ -539,7 +557,9 @@ export async function emailCustomerOrderDeliveredReview(input: {
     const { text, html } = await customerMailBodyWithOrderCta(input.order, copy.lines, meta)
     await sendSmtpMail({ to, subject: copy.subject, text, html, fromName: shopLabel })
   }
-  notifyCustomerInAppFromOrder(input.order, copy.subject, copy.lines.filter((l) => l.trim()).slice(2, 5).join(' '))
+  if (!input.skipInApp) {
+    await notifyPartnerCustomerDeliveredWebApp(input.order, 'ems_auto', locale)
+  }
 }
 
 /** Nhắc cọc 2h / 20h — link mở đơn nhanh + QR. Không gửi cho chủ shop. */
@@ -626,11 +646,12 @@ export async function emailCustomerDepositReminder(input: {
     fromName: shopLabel,
     attachments,
   })
-  void notifyPartnerCustomerOrderUpdateFromPg({
+  await notifyPartnerCustomerWebApp({
     partnerId: input.partnerId,
     conversationId: input.conversationId,
     customerEmail: to,
-    title: copy.subject,
-    body: copy.detail,
+    orderId: input.orderId,
+    locale,
+    event: { kind: 'deposit_reminder', orderCode: ref || input.orderId.slice(0, 8), hours: input.hours },
   }).catch((e) => console.warn('[emailCustomerDepositReminder] in-app', e))
 }

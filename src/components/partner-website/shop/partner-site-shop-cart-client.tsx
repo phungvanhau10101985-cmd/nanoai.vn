@@ -1826,7 +1826,8 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
             <p className="pw-shop-muted">{t.orderSplitBanner}</p>
           ) : null}
           <p className="pw-shop-cart-grand" data-pw-el={PW_EL.price}>
-            {saleT.grandTotal}: {formatVnd(orderTotal)}
+            <span>{saleT.grandTotal}</span>
+            <strong>{formatVnd(orderTotal)}</strong>
           </p>
           {depositPreview && depositPreview.amount > 0 ? (
             <p className="pw-shop-cart-deposit-note">
