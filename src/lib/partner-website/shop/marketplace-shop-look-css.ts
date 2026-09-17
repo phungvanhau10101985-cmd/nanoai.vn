@@ -349,13 +349,13 @@ html[data-pw-look="marketplace"] .pw-marketplace-cta{
 html[data-pw-look="marketplace"] .pw-marketplace-cta h2{margin:0 0 6px;color:#fff;font-size:1.35rem}
 html[data-pw-look="marketplace"] .pw-marketplace-cta p{margin:0 0 14px;color:rgba(255,255,255,.88);font-size:14px}
 html[data-pw-look="marketplace"] .pw-marketplace-cta .pw-newsletter{
-  max-width:420px;margin:0 auto;display:flex;gap:8px;
+  max-width:min(100%,420px);margin:0 auto;display:flex;flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:8px;min-width:0;width:100%;box-sizing:border-box;
 }
 html[data-pw-look="marketplace"] .pw-marketplace-cta .pw-newsletter input{
-  flex:1;border:none;border-radius:8px;padding:10px 12px;font:inherit;
+  flex:none;width:100%;min-width:0;max-width:100%;box-sizing:border-box;border:none;border-radius:8px;padding:10px 12px;font:inherit;
 }
 html[data-pw-look="marketplace"] .pw-marketplace-cta .pw-newsletter button{
-  border:none;border-radius:8px;background:#fff;color:var(--pw-primary);font-weight:800;padding:0 16px;cursor:pointer;
+  border:none;border-radius:8px;background:#fff;color:var(--pw-primary);font-weight:800;padding:10px 16px;cursor:pointer;width:100%;max-width:100%;min-width:0;white-space:normal;box-sizing:border-box;
 }
 html[data-pw-look="marketplace"] .pw-featured-cat[data-pw-featured-categories]>.pw-featured-cat-inner{padding:14px 14px 0!important}
 html[data-pw-look="marketplace"] .pw-featured-cat .pw-marketplace-block-title,
@@ -388,7 +388,11 @@ html[data-pw-look="marketplace"] .pw-product-card-media img{
   [data-pw-region="promo"][data-pw-trust-bar="1"],
   html[data-pw-look="marketplace"] .pw-marketplace-trust,
   html[data-pw-look="marketplace"] [data-pw-trust-bar="1"]{grid-template-columns:1fr!important;gap:6px}
-  html[data-pw-look="marketplace"] .pw-marketplace-cta .pw-newsletter{flex-direction:column}
+}
+@media (min-width:900px){
+  html[data-pw-look="marketplace"] .pw-marketplace-cta .pw-newsletter{flex-direction:row;flex-wrap:wrap;gap:8px}
+  html[data-pw-look="marketplace"] .pw-marketplace-cta .pw-newsletter input{flex:1 1 0;width:auto}
+  html[data-pw-look="marketplace"] .pw-marketplace-cta .pw-newsletter button{width:auto;flex:0 0 auto;white-space:nowrap;padding:0 16px}
 }
 `.trim()
   return scopeMarketplaceLookCss(css)

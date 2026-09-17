@@ -553,9 +553,9 @@ ${buildPartnerSiteAccountPanelCss()}
 .pw-footer-col a,.pw-footer-link-btn{display:flex;align-items:center;color:inherit;opacity:.88;text-decoration:none;font-size:14px;margin:0;padding:8px 0;min-height:36px;background:none;border:none;cursor:pointer;font:inherit;text-align:left}
 .pw-footer-col a:hover,.pw-footer-link-btn:hover{color:var(--pw-primary);opacity:1}
 .pw-footer-news-hint{opacity:.85}
-.pw-newsletter{display:flex;gap:0;margin-top:10px}
-.pw-newsletter input{flex:1;border:1px solid #e5e7eb;border-right:none;border-radius:6px 0 0 6px;padding:10px 12px;font:inherit;background:#f9fafb}
-.pw-newsletter button{border:none;background:var(--pw-primary);color:#fff;padding:0 14px;border-radius:0 6px 6px 0;font-weight:800;cursor:pointer}
+.pw-newsletter{display:flex;flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:8px;margin-top:10px;width:100%;max-width:100%;min-width:0}
+.pw-newsletter input{flex:none;width:100%;min-width:0;max-width:100%;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px;font:inherit;background:#f9fafb}
+.pw-newsletter button{border:none;background:var(--pw-primary);color:#fff;padding:10px 14px;border-radius:6px;font-weight:800;cursor:pointer;white-space:normal;width:100%;max-width:100%;min-width:0;box-sizing:border-box}
 .pw-footer-bottom{border-top:1px solid color-mix(in srgb,currentColor 18%,transparent);padding:16px 0 20px;color:inherit;opacity:.8}
 .pw-footer-bottom-inner{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.85}
 .pw-bottom-nav{display:none}
@@ -564,6 +564,9 @@ ${buildPartnerSiteAccountPanelCss()}
   .pw-nav-main{display:flex}
   .pw-header-main{justify-content:flex-start;gap:16px}
   .pw-header-search{flex:1 1 0%;min-width:200px;max-width:100%}
+  .pw-newsletter{flex-direction:row;flex-wrap:wrap;max-width:min(100%,360px);gap:0}
+  .pw-newsletter input{flex:1 1 0;width:auto;border-right:none;border-radius:6px 0 0 6px}
+  .pw-newsletter button{width:auto;flex:0 0 auto;white-space:nowrap;border-radius:0 6px 6px 0;padding:0 14px}
 }
 html[data-pw-edit-device="laptop"] .pw-header-main,html[data-pw-scene-lock="laptop"] .pw-header-main{gap:8px;padding:8px var(--pw-chrome-inset,60px)}
 html[data-pw-edit-device="desktop"] .pw-header-main,html[data-pw-scene-lock="desktop"] .pw-header-main{gap:8px;padding:8px var(--pw-chrome-inset,60px)}
@@ -662,8 +665,10 @@ html[data-pw-edit-device="desktop"] .pw-header,html[data-pw-scene-lock="desktop"
 html[data-pw-edit-device="desktop"] .pw-wordmark,html[data-pw-scene-lock="desktop"] .pw-wordmark,html[data-pw-edit-device="laptop"] .pw-wordmark,html[data-pw-scene-lock="laptop"] .pw-wordmark{color:var(--pw-primary);text-shadow:none}
 html[data-pw-edit-device="mobile"] .pw-header,html[data-pw-scene-lock="mobile"] .pw-header,html[data-pw-edit-device="tablet"] .pw-header,html[data-pw-scene-lock="tablet"] .pw-header{background:var(--pw-primary);border:none;box-shadow:0 6px 18px color-mix(in srgb, var(--pw-primary) 35%, transparent)}
 html[data-pw-edit-device="mobile"] .pw-wordmark,html[data-pw-scene-lock="mobile"] .pw-wordmark,html[data-pw-edit-device="tablet"] .pw-wordmark,html[data-pw-scene-lock="tablet"] .pw-wordmark{color:#fff}
+@media (min-width:1280px){
 html[data-pw-edit-device="desktop"] .pw-bottom-nav,html[data-pw-scene-lock="desktop"] .pw-bottom-nav,html[data-pw-edit-device="laptop"] .pw-bottom-nav,html[data-pw-scene-lock="laptop"] .pw-bottom-nav{display:none}
 html[data-pw-edit-device="desktop"] body,html[data-pw-scene-lock="desktop"] body,html[data-pw-edit-device="laptop"] body,html[data-pw-scene-lock="laptop"] body{padding-bottom:0}
+}
 html[data-pw-edit-device="mobile"] .pw-bottom-nav,html[data-pw-scene-lock="mobile"] .pw-bottom-nav,html[data-pw-edit-device="tablet"] .pw-bottom-nav,html[data-pw-scene-lock="tablet"] .pw-bottom-nav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:${PW_SCENE_HEAD_Z};background:#fff}
 html[data-pw-edit-device="mobile"] body,html[data-pw-scene-lock="mobile"] body,html[data-pw-edit-device="tablet"] body,html[data-pw-scene-lock="tablet"] body{padding-bottom:72px}
 ${PW_PRODUCT_GRID_RULER_CSS}`

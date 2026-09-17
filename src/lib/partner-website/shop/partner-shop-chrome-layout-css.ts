@@ -111,6 +111,7 @@ import {
   PW_DOCK_NAV_ACTIVE_CSS,
 } from '@/lib/partner-website/shop/partner-site-dock-nav-active'
 import { PW_LOGIN_IDENTITY_CSS } from '@/lib/partner-website/shop/partner-site-login-identity'
+import { PW_SHOP_FOOTER_FIT_CSS } from '@/lib/partner-website/shop/partner-site-footer-fit-css'
 
 /** Live mobile: tap logo / Chat mua like a button, not a dragged image. */
 export const PARTNER_SHOP_TAP_CHROME_CSS = `
@@ -205,8 +206,8 @@ html .pw-footer [data-pw-footer-added][data-pw-added-text],html .pw-shop-footer 
 }
 html footer [data-pw-footer-added][data-pw-added-btn-slot],html .pw-footer [data-pw-footer-added][data-pw-added-btn-slot],
 html .pw-shop-footer [data-pw-footer-added][data-pw-added-btn-slot]{padding:0!important;text-align:left!important;width:auto!important}
-html .pw-footer-grid,html .pw-shop-footer-inner{display:grid!important;height:auto!important;gap:28px 32px!important;grid-template-columns:minmax(200px,1.25fr) repeat(4,minmax(0,1fr))!important}
-html .pw-shop-footer-brand,html .pw-footer-brand{grid-column:auto!important}
+html .pw-footer-grid,html .pw-shop-footer-inner{display:grid!important;height:auto!important;gap:28px 32px!important;grid-template-columns:minmax(0,1fr)!important;min-width:0!important;max-width:100%!important;width:100%!important}
+html .pw-shop-footer-brand,html .pw-footer-brand,html .pw-footer-col,html .pw-shop-footer-col{grid-column:auto!important;min-width:0!important;max-width:100%!important}
 html[data-pw-edit-device="mobile"] .pw-footer-grid,html[data-pw-edit-device="mobile"] .pw-shop-footer-inner,
 html[data-pw-scene-lock="mobile"] .pw-footer-grid,html[data-pw-scene-lock="mobile"] .pw-shop-footer-inner,
 [data-pw-inline-visual-root][data-pw-active-device="mobile"] .pw-footer-grid,[data-pw-inline-visual-root][data-pw-active-device="mobile"] .pw-shop-footer-inner,
@@ -223,11 +224,19 @@ html[data-pw-scene-lock="desktop"] .pw-footer-grid,html[data-pw-scene-lock="desk
 [data-pw-inline-visual-root][data-pw-active-device="desktop"] .pw-footer-grid,[data-pw-inline-visual-root][data-pw-active-device="desktop"] .pw-shop-footer-inner,
 [data-pw-inline-visual-root][data-pw-edit-device="laptop"] .pw-footer-grid,[data-pw-inline-visual-root][data-pw-edit-device="laptop"] .pw-shop-footer-inner,
 [data-pw-inline-visual-root][data-pw-edit-device="desktop"] .pw-footer-grid,[data-pw-inline-visual-root][data-pw-edit-device="desktop"] .pw-shop-footer-inner{
-  grid-template-columns:minmax(200px,1.25fr) repeat(4,minmax(0,1fr))!important
+  grid-template-columns:minmax(0,1.25fr) repeat(4,minmax(0,1fr))!important
 }
 @media (max-width:767px){
 html:not([data-pw-edit-device="tablet"]):not([data-pw-edit-device="laptop"]):not([data-pw-edit-device="desktop"]) .pw-footer-grid,
-html:not([data-pw-edit-device="tablet"]):not([data-pw-edit-device="laptop"]):not([data-pw-edit-device="desktop"]) .pw-shop-footer-inner{grid-template-columns:1fr!important}
+html:not([data-pw-edit-device="tablet"]):not([data-pw-edit-device="laptop"]):not([data-pw-edit-device="desktop"]) .pw-shop-footer-inner{grid-template-columns:minmax(0,1fr)!important}
+}
+@media (min-width:768px) and (max-width:899px){
+html:not([data-pw-edit-device="mobile"]):not([data-pw-edit-device="laptop"]):not([data-pw-edit-device="desktop"]) .pw-footer-grid,
+html:not([data-pw-edit-device="mobile"]):not([data-pw-edit-device="laptop"]):not([data-pw-edit-device="desktop"]) .pw-shop-footer-inner{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media (min-width:900px){
+html:not([data-pw-edit-device="mobile"]):not([data-pw-edit-device="tablet"]) .pw-footer-grid,
+html:not([data-pw-edit-device="mobile"]):not([data-pw-edit-device="tablet"]) .pw-shop-footer-inner{grid-template-columns:minmax(0,1.25fr) repeat(4,minmax(0,1fr))!important}
 }
 `.trim()
 
@@ -967,6 +976,8 @@ ${PW_SCENE_UNLOCKED_HTML} [data-pw-chrome-added][data-pw-device="tablet"]:not([d
 ${PW_SCENE_UNLOCKED_HTML} [data-pw-chrome-added][data-pw-device="tablet"]:not([data-pw-el="search"]):not(.pw-header-search):not(.pw-shop-search-wrap){display:none!important}
 .pw-bottom-nav,.pw-shop-bottom-nav{display:none!important}
 body{padding-bottom:0}
+html[data-pw-scene-lock="desktop"] .pw-bottom-nav,html[data-pw-scene-lock="desktop"] .pw-shop-bottom-nav,html[data-pw-scene-lock="laptop"] .pw-bottom-nav,html[data-pw-scene-lock="laptop"] .pw-shop-bottom-nav,html[data-pw-edit-device="desktop"] .pw-bottom-nav,html[data-pw-edit-device="desktop"] .pw-shop-bottom-nav,html[data-pw-edit-device="laptop"] .pw-bottom-nav,html[data-pw-edit-device="laptop"] .pw-shop-bottom-nav{display:none!important}
+html[data-pw-scene-lock="desktop"] body,html[data-pw-scene-lock="laptop"] body,html[data-pw-edit-device="desktop"] body,html[data-pw-edit-device="laptop"] body{padding-bottom:0}
 }
 @media (max-width:1279px){
 .pw-bottom-nav,.pw-shop-bottom-nav{display:flex!important;position:fixed!important;left:0;right:0;bottom:0;z-index:${PW_SCENE_HEAD_Z}!important;background:#fff}
@@ -999,8 +1010,6 @@ ${PW_SCENE_UNLOCKED_HTML} .pw-shop[data-pw-page="info"]{
   padding-bottom:0!important
 }
 }
-html[data-pw-scene-lock="desktop"] .pw-bottom-nav,html[data-pw-scene-lock="desktop"] .pw-shop-bottom-nav,html[data-pw-scene-lock="laptop"] .pw-bottom-nav,html[data-pw-scene-lock="laptop"] .pw-shop-bottom-nav,html[data-pw-edit-device="desktop"] .pw-bottom-nav,html[data-pw-edit-device="desktop"] .pw-shop-bottom-nav,html[data-pw-edit-device="laptop"] .pw-bottom-nav,html[data-pw-edit-device="laptop"] .pw-shop-bottom-nav{display:none!important}
-html[data-pw-scene-lock="desktop"] body,html[data-pw-scene-lock="laptop"] body,html[data-pw-edit-device="desktop"] body,html[data-pw-edit-device="laptop"] body{padding-bottom:0}
 html[data-pw-pdp-desktop-sticky="1"][data-pw-page="product"] .pw-bottom-nav[data-pw-chrome-kit="dock"],
 html[data-pw-pdp-desktop-sticky="1"][data-pw-page="product"] .pw-shop-bottom-nav[data-pw-chrome-kit="dock"],
 html[data-pw-pdp-desktop-sticky="1"]:has([data-pw-page="product"]) .pw-bottom-nav[data-pw-chrome-kit="dock"],
@@ -1071,6 +1080,7 @@ ${PARTNER_SHOP_STAY_SCROLL_CSS}
 ${PARTNER_SHOP_CHROME_FLOAT_CSS}
 ${PW_CHROME_ICON_SQUARE_CSS}
 ${PARTNER_SHOP_FOOTER_INFLOW_CSS}
+${PW_SHOP_FOOTER_FIT_CSS}
 ${PARTNER_SHOP_BANNER_MEDIA_FILL_CSS}
 ${PARTNER_SHOP_PAGE_FIT_CSS}
 ${PARTNER_SHOP_STACK_FLOW_CSS}

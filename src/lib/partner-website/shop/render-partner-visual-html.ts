@@ -17,6 +17,7 @@ import { injectPartnerShopThemeCss } from '@/lib/partner-website/shop/build-shop
 import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
 import { injectMarketplaceLookIntoHtml } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import { injectShopLookIntoHtml } from '@/lib/partner-website/shop/shop-look-css'
+import { injectPartnerShopFooterFitCss } from '@/lib/partner-website/shop/partner-site-footer-fit-css'
 import { injectPartnerShopFaviconIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
 import { stripPartnerInfoPageSeoCoachFromHtml } from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
 import { ensureAdsPlatformPolicyInHtml } from '@/lib/partner-website/pages/partner-info-page-visual'
@@ -159,10 +160,11 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
     injectMarketplaceLookIntoHtml(withChrome, input.theme),
     input.theme
   )
+  const withFooterFit = injectPartnerShopFooterFitCss(withLook)
   const withRuntime =
     input.runtime === 'authoring'
-      ? injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(withLook, { siteSlug, locale })
-      : injectPartnerShopRuntimeScriptsIntoHtml(withLook, {
+      ? injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(withFooterFit, { siteSlug, locale })
+      : injectPartnerShopRuntimeScriptsIntoHtml(withFooterFit, {
           siteSlug,
           locale,
           shopTitle: wordmark,

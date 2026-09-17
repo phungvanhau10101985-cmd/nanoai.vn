@@ -96,14 +96,28 @@ export function PartnerOrderDiscountBreakdown(props: {
 
   return (
     <div className="pw-shop-cart-discount-breakdown">
-      {listSubtotal > 0 ? <p><span>{t.list}</span><strong>{formatVnd(listSubtotal)}</strong></p> : null}
+      {listSubtotal > 0 ? (
+        <div className="pw-shop-cart-kv is-list">
+          <span className="pw-shop-cart-kv-k">{t.list}</span>
+          <span className="pw-shop-cart-kv-v">{formatVnd(listSubtotal)}</span>
+        </div>
+      ) : null}
       {rows.map((row) => (
-        <p key={row.label}><span>{row.label}</span><strong>−{formatVnd(row.value)}</strong></p>
+        <div className="pw-shop-cart-kv" key={row.label}>
+          <span className="pw-shop-cart-kv-k">{row.label}</span>
+          <span className="pw-shop-cart-kv-v">−{formatVnd(row.value)}</span>
+        </div>
       ))}
       {clearanceSubtotal > 0 ? (
-        <p className="is-clearance"><span>{t.clearance}</span><strong>{formatVnd(clearanceSubtotal)}</strong></p>
+        <div className="pw-shop-cart-kv is-clearance">
+          <span className="pw-shop-cart-kv-k">{t.clearance}</span>
+          <span className="pw-shop-cart-kv-v">{formatVnd(clearanceSubtotal)}</span>
+        </div>
       ) : null}
-      <p><span>{t.afterDiscount}</span><strong>{formatVnd(afterDiscount)}</strong></p>
+      <div className="pw-shop-cart-kv">
+        <span className="pw-shop-cart-kv-k">{t.afterDiscount}</span>
+        <span className="pw-shop-cart-kv-v">{formatVnd(afterDiscount)}</span>
+      </div>
       {amount(props.order.discount_cap_adjustment_amount) > 0 ? <p>{t.capped}</p> : null}
     </div>
   )

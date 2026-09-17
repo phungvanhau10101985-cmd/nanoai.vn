@@ -26,7 +26,7 @@ export function liveVisualDeviceVisibleInUserAgent(userAgent: string): VisualDev
   return inferVisualDeviceFromUserAgent(userAgent, 0)
 }
 
-/** Pure: `?pw-device=` wins; phone/tablet UA wins over cookie and viewport (landscape iPhone ≠ tablet). */
+/** Pure: `?pw-device=` wins; phone/tablet UA wins; narrow viewport (F12) wins over leftover desktop cookie. */
 export function resolveLiveVisualRequestDevice(input: {
   queryOrHeader?: string | null
   cookieDevice?: string | null
@@ -42,8 +42,6 @@ export function resolveLiveVisualRequestDevice(input: {
     Number(input.maxTouchPoints || 0)
   )
   if (fromUa === 'mobile' || fromUa === 'tablet') return fromUa
-  const fromCookie = parseVisualDeviceQuery(input.cookieDevice)
-  if (fromCookie) return fromCookie
   const width = Number(input.viewportWidth || 0)
   const fromCh =
     Number.isFinite(width) && width > 0
@@ -53,5 +51,8 @@ export function resolveLiveVisualRequestDevice(input: {
           devicePixelRatio: Number(input.devicePixelRatio || 0),
         })
       : null
+  if (fromCh === 'mobile' || fromCh === 'tablet') return fromCh
+  const fromCookie = parseVisualDeviceQuery(input.cookieDevice)
+  if (fromCookie) return fromCookie
   return fromCh || 'desktop'
 }

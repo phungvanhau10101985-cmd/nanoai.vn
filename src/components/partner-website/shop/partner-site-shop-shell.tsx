@@ -77,6 +77,14 @@ import {
   PARTNER_SHOP_LOOK_STYLE_ID,
 } from '@/lib/partner-website/shop/shop-look-css'
 import {
+  PW_SHOP_CART_PAGE_CSS,
+  PW_SHOP_CART_PAGE_STYLE_ID,
+} from '@/lib/partner-website/shop/partner-site-cart-page-css'
+import {
+  PW_SHOP_FOOTER_FIT_CSS,
+  PW_SHOP_FOOTER_FIT_STYLE_ID,
+} from '@/lib/partner-website/shop/partner-site-footer-fit-css'
+import {
   PARTNER_SHOP_CHROME_FLOAT_SCRIPT,
   PW_CHROME_FLOAT_SCRIPT_ID,
 } from '@/lib/partner-website/shop/chrome-float-widgets'
@@ -1247,6 +1255,16 @@ function PartnerSiteShopShellInner({
         copy={CART_ADDED_MODAL_COPY[locale]}
         onClose={() => setPendingCartAdded(null)}
       />
+      <style
+        id={PW_SHOP_FOOTER_FIT_STYLE_ID}
+        dangerouslySetInnerHTML={{ __html: PW_SHOP_FOOTER_FIT_CSS }}
+      />
+      {pageKind === PW_PAGE.cart ? (
+        <style
+          id={PW_SHOP_CART_PAGE_STYLE_ID}
+          dangerouslySetInnerHTML={{ __html: PW_SHOP_CART_PAGE_CSS }}
+        />
+      ) : null}
     </div>
   )
 }

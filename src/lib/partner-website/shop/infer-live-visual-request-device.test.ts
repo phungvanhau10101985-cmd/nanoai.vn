@@ -103,6 +103,17 @@ test('desktop UA uses cookie when present', () => {
   )
 })
 
+test('F12 narrow viewport beats leftover desktop cookie', () => {
+  assert.equal(
+    resolveLiveVisualRequestDevice({
+      cookieDevice: 'desktop',
+      viewportWidth: 440,
+      userAgent: DESKTOP,
+    }),
+    'mobile'
+  )
+})
+
 test('iPadOS desktop UA with touch is tablet on the client', () => {
   assert.equal(inferVisualDeviceFromUserAgent(IPADOS_DESKTOP_UA, 5), 'tablet')
   assert.equal(inferVisualDeviceFromUserAgent(IPADOS_DESKTOP_UA, 0), null)

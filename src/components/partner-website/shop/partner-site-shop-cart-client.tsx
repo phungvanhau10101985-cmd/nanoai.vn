@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { hasPendingPartnerSiteGoogleAuthHandoff } from '@/lib/partner-website/shop/partner-site-google-auth-handoff-client'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
@@ -67,6 +67,9 @@ import {
 import { PartnerSiteSaleCountdown } from '@/components/partner-website/shop/partner-site-sale-face'
 import { nextPartnerSaleRefreshDelayMs } from '@/lib/partner-website/promotions/partner-sale-pricing'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import {
+  PW_SHOP_CART_PAGE_CSS,
+} from '@/lib/partner-website/shop/partner-site-cart-page-css'
 
 type Props = {
   siteSlug: string
@@ -445,6 +448,23 @@ function cartBirthdayLineSave(
     isClearance: line?.isClearance,
     siteSalePhase: teaser ? 'teaser' : list > charged ? 'active' : 'off',
   })
+}
+
+function CartMoneyRow({
+  label,
+  value,
+  kind,
+}: {
+  label: ReactNode
+  value?: ReactNode
+  kind?: string
+}) {
+  return (
+    <div className={kind ? `pw-shop-cart-kv ${kind}` : 'pw-shop-cart-kv'}>
+      <span className="pw-shop-cart-kv-k">{label}</span>
+      {value != null && value !== '' ? <span className="pw-shop-cart-kv-v">{value}</span> : null}
+    </div>
+  )
 }
 
 export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatPath, initialItems = null }: Props) {
@@ -1256,6 +1276,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
 
   return (
     <div className="pw-shop-cart">
+      <style dangerouslySetInnerHTML={{ __html: PW_SHOP_CART_PAGE_CSS }} />
       <h1 data-pw-el={PW_EL.sectionTitle}>{t.cartTitle}</h1>
       {loading && items.length === 0 ? <p className="pw-shop-muted">…</p> : null}
       {!loading && items.length === 0 ? (
@@ -1583,46 +1604,50 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                 <p className="pw-shop-cart-section">{saleT.regularGoods}</p>
               ) : null}
               {quote.breakdown.regularListSubtotal > quote.breakdown.regularEffectiveSubtotal ? (
-                <p className="is-list"><span>{saleT.listSubtotal}</span><strong>{formatVnd(quote.breakdown.regularListSubtotal)}</strong></p>
+                <CartMoneyRow kind="is-list" label={saleT.listSubtotal} value={formatVnd(quote.breakdown.regularListSubtotal)} />
               ) : quote.breakdown.regularListSubtotal > 0 ? (
-                <p><span>{saleT.listSubtotal}</span><strong>{formatVnd(quote.breakdown.regularListSubtotal)}</strong></p>
+                <CartMoneyRow label={saleT.listSubtotal} value={formatVnd(quote.breakdown.regularListSubtotal)} />
               ) : null}
               {flashSaleAmount > 0 ? (
-                <p className="is-flash">
-                  <span>{saleT.flashDiscount}</span>
-                  <strong>−{formatVnd(flashSaleAmount)}</strong>
-                </p>
+                <CartMoneyRow kind="is-flash" label={saleT.flashDiscount} value={`−${formatVnd(flashSaleAmount)}`} />
               ) : null}
               {calendarSaleAmount > 0 ? (
-                <p className="is-calendar">
-                  <span>
-                    {calendarProgramName}
-                    {quote.saleCalendar?.discountPercent ? ` (-${quote.saleCalendar.discountPercent}%)` : ''}
-                  </span>
-                  <strong>−{formatVnd(calendarSaleAmount)}</strong>
-                </p>
+                <CartMoneyRow
+                  kind="is-calendar"
+                  label={`${calendarProgramName}${quote.saleCalendar?.discountPercent ? ` (-${quote.saleCalendar.discountPercent}%)` : ''}`}
+                  value={`−${formatVnd(calendarSaleAmount)}`}
+                />
               ) : null}
               {inventorySaleAmount > 0 ? (
-                <p><span>{saleT.inventoryDiscount}</span><strong>−{formatVnd(inventorySaleAmount)}</strong></p>
+                <CartMoneyRow label={saleT.inventoryDiscount} value={`−${formatVnd(inventorySaleAmount)}`} />
               ) : null}
               {quote.breakdown.googleDiscountAmount > 0 ? (
-                <p className="is-google"><span>{saleT.googleDiscount}</span><strong>−{formatVnd(quote.breakdown.googleDiscountAmount)}</strong></p>
+                <CartMoneyRow kind="is-google" label={saleT.googleDiscount} value={`−${formatVnd(quote.breakdown.googleDiscountAmount)}`} />
               ) : null}
               {quote.breakdown.voucherDiscountAmount > 0 ? (
-                <p className="is-voucher"><span>{appliedPromo?.name || appliedPromo?.code || t.cartPromoDiscountLabel}</span><strong>−{formatVnd(quote.breakdown.voucherDiscountAmount)}</strong></p>
+                <CartMoneyRow
+                  kind="is-voucher"
+                  label={appliedPromo?.name || appliedPromo?.code || t.cartPromoDiscountLabel}
+                  value={`−${formatVnd(quote.breakdown.voucherDiscountAmount)}`}
+                />
               ) : null}
               {birthdayAmount > 0 ? (
-                <p className="is-birthday"><span>{saleT.birthdayDiscount.replace('{pct}', String(birthdayPercent || ''))}</span><strong>−{formatVnd(birthdayAmount)}</strong></p>
+                <CartMoneyRow
+                  kind="is-birthday"
+                  label={saleT.birthdayDiscount.replace('{pct}', String(birthdayPercent || ''))}
+                  value={`−${formatVnd(birthdayAmount)}`}
+                />
               ) : birthdayPaused ? (
                 <p className="pw-shop-cart-promo-msg is-warn">{saleT.birthdayPaused}</p>
               ) : birthdayPercent > 0 && !birthdayPaused ? (
-                <p className="is-birthday">
-                  <span>
-                    {partnerSiteBirthdaySaveText(birthdayDisplayTotal, locale) ||
-                      partnerSiteBirthdayCheckoutHint(birthdayPercent, locale)}
-                  </span>
-                  {birthdayDisplayTotal > 0 ? <strong>{formatVnd(birthdayDisplayTotal)}</strong> : null}
-                </p>
+                <CartMoneyRow
+                  kind="is-birthday"
+                  label={
+                    partnerSiteBirthdaySaveText(birthdayDisplayTotal, locale) ||
+                    partnerSiteBirthdayCheckoutHint(birthdayPercent, locale)
+                  }
+                  value={birthdayDisplayTotal > 0 ? formatVnd(birthdayDisplayTotal) : undefined}
+                />
               ) : null}
               {birthdayPercent > 0 && !birthdayPaused && birthdayEndsAt ? (
                 <p className="is-birthday pw-shop-cart-birthday-count">
@@ -1637,27 +1662,25 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                 </p>
               ) : null}
               {quote.breakdown.loyaltyDiscountAmount > 0 ? (
-                <p className="is-loyalty"><span>{saleT.loyaltyDiscount}{quote.loyalty.tierName ? ` ${quote.loyalty.tierName}` : ''}</span><strong>−{formatVnd(quote.breakdown.loyaltyDiscountAmount)}</strong></p>
+                <CartMoneyRow
+                  kind="is-loyalty"
+                  label={`${saleT.loyaltyDiscount}${quote.loyalty.tierName ? ` ${quote.loyalty.tierName}` : ''}`}
+                  value={`−${formatVnd(quote.breakdown.loyaltyDiscountAmount)}`}
+                />
               ) : null}
               {(quote.affiliateWallet?.used ?? 0) > 0 ? (
-                <p className="is-loyalty">
-                  <span>{t.affiliateWalletApplied}</span>
-                  <strong>−{formatVnd(quote.affiliateWallet?.used ?? 0)}</strong>
-                </p>
+                <CartMoneyRow kind="is-loyalty" label={t.affiliateWalletApplied} value={`−${formatVnd(quote.affiliateWallet?.used ?? 0)}`} />
               ) : null}
               {quote.breakdown.regularListSubtotal > 0 ? (
-                <p>
-                  <span>{saleT.regularSubtotal}</span>
-                  <strong>{formatVnd(Math.max(0, quote.breakdown.amountAfterDiscount - quote.breakdown.clearanceSubtotal))}</strong>
-                </p>
+                <CartMoneyRow
+                  label={saleT.regularSubtotal}
+                  value={formatVnd(Math.max(0, quote.breakdown.amountAfterDiscount - quote.breakdown.clearanceSubtotal))}
+                />
               ) : null}
               {quote.breakdown.clearanceSubtotal > 0 ? (
                 <div className="is-clearance">
                   <p className="pw-shop-cart-section">{saleT.clearanceSubtotal}</p>
-                  <p>
-                    <span>{saleT.warehouseSubtotal}</span>
-                    <strong>{formatVnd(quote.breakdown.clearanceSubtotal)}</strong>
-                  </p>
+                  <CartMoneyRow label={saleT.warehouseSubtotal} value={formatVnd(quote.breakdown.clearanceSubtotal)} />
                 </div>
               ) : null}
               {quote.breakdown.regularListSubtotal > 0 && quote.breakdown.totalDiscountAmount > 0 ? (
@@ -1721,7 +1744,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               </div>
             ) : isAuthenticated ? <p className="pw-shop-muted">{saleT.noVoucher}</p> : null}
             {appliedPromo || (promoBusy && selectedWalletCode) ? (
-              <div className="pw-shop-cart-promo-row">
+              <div className="pw-shop-cart-promo-row pw-shop-cart-stack">
                 <span className="pw-shop-price">
                   {promoBusy
                     ? `${appliedPromo?.code || selectedWalletCode} — ${t.cartPromoApplying}`
@@ -1734,7 +1757,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                 </button>
               </div>
             ) : (
-              <div className="pw-shop-cart-promo-row">
+              <div className="pw-shop-cart-promo-row pw-shop-cart-stack">
                 <input
                   type="text"
                   value={promoCodeInput}
@@ -1871,7 +1894,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                     </label>
                   ))
                 )}
-                <div className="pw-shop-address-form-actions">
+                <div className="pw-shop-address-form-actions pw-shop-cart-stack">
                   <button type="button" className="pw-shop-btn pw-shop-btn-buy pw-shop-btn-sm" onClick={openAddAddress}>
                     {t.addressCartAddHint}
                   </button>
@@ -1918,7 +1941,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               {t.checkoutNote}
               <textarea rows={2} value={orderNote} onChange={(e) => setOrderNote(e.target.value)} data-pw-el={PW_EL.field} />
             </label>
-            <div className="pw-shop-cart-actions">
+            <div className="pw-shop-cart-actions pw-shop-cart-stack">
               <Link
                 href={partnerSiteHomePath(siteSlug, { customDomain })}
                 className="pw-shop-btn pw-shop-btn-outline"

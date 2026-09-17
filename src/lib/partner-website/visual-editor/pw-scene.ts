@@ -819,11 +819,20 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     return html&&html.getAttribute?String(html.getAttribute('data-pw-edit-device')||''):'';
   }
   function band(){
-    var s=queryDevice()||stamped()||uaDevice();
+    var q=queryDevice();
+    var ua=uaDevice();
+    var stampedDev=stamped();
+    var s;
+    if(q) s=q;
+    else if(isEditor()) s=stampedDev||ua;
+    else if(ua==='mobile'||ua==='tablet') s=ua;
+    else s='';
+    var inner=window.innerWidth||(document.documentElement&&document.documentElement.clientWidth)||0;
+    var liveAuto=!q&&!isEditor();
     return C.resolveDevice({
       forcedDevice:s,
-      outerWidth:(s==='mobile'||s==='tablet')?(window.innerWidth||0):(window.outerWidth||0),
-      layoutWidth:window.innerWidth||(document.documentElement&&document.documentElement.clientWidth)||0,
+      outerWidth:(liveAuto||s==='mobile'||s==='tablet')?inner:(window.outerWidth||inner),
+      layoutWidth:inner,
       screenWidth:window.screen&&Math.max(window.screen.width||0,window.screen.availWidth||0)||0,
       devicePixelRatio:window.devicePixelRatio||0
     });

@@ -333,7 +333,7 @@ function PartnerSitePublicFrame({
         forceDevice ||
         resolveLiveVisualRequestDevice({
           viewportWidth:
-            fromUa === 'mobile' || fromUa === 'tablet'
+            fromUa === 'mobile' || fromUa === 'tablet' || (cssWidth > 0 && cssWidth < 1280)
               ? cssWidth
               : window.outerWidth || cssWidth,
           devicePixelRatio: window.devicePixelRatio || 0,
