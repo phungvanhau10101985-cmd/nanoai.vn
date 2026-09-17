@@ -113,7 +113,7 @@ export async function deleteExpiredPartnerCustomerNotificationsFromPg(input?: {
     const rows = await pgQuery<{ id: string }>(
       `delete from public.messaging_partner_customer_notifications
        where expires_at is not null
-         and expires_at <= timezone('utc'::text, now())
+         and expires_at <= now()
          and ($1 = '' or partner_id = $1::uuid)
          and ($2 = '' or guest_account_id = $2)
        returning id::text`,
@@ -145,8 +145,8 @@ export async function listPartnerCustomerNotificationsFromPg(input: {
        from public.messaging_partner_customer_notifications
        where partner_id = $1::uuid
          and guest_account_id = $2
-         and scheduled_at <= timezone('utc'::text, now())
-         and (expires_at is null or expires_at > timezone('utc'::text, now()))
+         and scheduled_at <= now()
+         and (expires_at is null or expires_at > now())
        order by scheduled_at desc, created_at desc
        limit $3 offset $4`,
       [input.partnerId, input.guestAccountId.trim(), limit, offset]
@@ -170,8 +170,8 @@ export async function countUnreadPartnerCustomerNotificationsFromPg(input: {
        where partner_id = $1::uuid
          and guest_account_id = $2
          and read_at is null
-         and scheduled_at <= timezone('utc'::text, now())
-         and (expires_at is null or expires_at > timezone('utc'::text, now()))`,
+         and scheduled_at <= now()
+         and (expires_at is null or expires_at > now())`,
       [input.partnerId, input.guestAccountId.trim()]
     )
     return Math.max(0, Number(row?.c ?? 0) || 0)
@@ -190,7 +190,7 @@ export async function markPartnerCustomerNotificationReadFromPg(input: {
   try {
     const row = await pgQueryOne<{ id: string }>(
       `update public.messaging_partner_customer_notifications
-       set read_at = coalesce(read_at, timezone('utc'::text, now()))
+       set read_at = coalesce(read_at, now())
        where id = $1::uuid
          and partner_id = $2::uuid
          and guest_account_id = $3
@@ -212,11 +212,11 @@ export async function markAllPartnerCustomerNotificationsReadFromPg(input: {
   try {
     const rows = await pgQuery<{ id: string }>(
       `update public.messaging_partner_customer_notifications
-       set read_at = timezone('utc'::text, now())
+       set read_at = now()
        where partner_id = $1::uuid
          and guest_account_id = $2
          and read_at is null
-         and scheduled_at <= timezone('utc'::text, now())
+         and scheduled_at <= now()
        returning id::text`,
       [input.partnerId, input.guestAccountId.trim()]
     )
@@ -257,7 +257,7 @@ export async function insertPartnerCustomerNotificationFromPg(input: {
          partner_id, guest_account_id, type, title, body, href, created_at,
          scheduled_at, expires_at, email_status, push_status, broadcast_id
        ) values (
-         $1::uuid, $2, $3, $4, $5, $6, timezone('utc'::text, now()),
+         $1::uuid, $2, $3, $4, $5, $6, now(),
          $7::timestamptz, $8::timestamptz, $9, $10, $11::uuid
        )
        returning ${NOTIFICATION_SELECT}`,
@@ -475,7 +475,7 @@ export async function listPendingPartnerNotificationEmailsFromPg(input?: {
       `select ${NOTIFICATION_SELECT}
        from public.messaging_partner_customer_notifications
        where email_status = 'pending'
-         and scheduled_at <= timezone('utc'::text, now())
+         and scheduled_at <= now()
        order by scheduled_at asc
        limit $1`,
       [limit]
@@ -497,8 +497,8 @@ export async function listPendingPartnerNotificationPushesFromPg(input?: {
       `select ${NOTIFICATION_SELECT}
        from public.messaging_partner_customer_notifications
        where push_status = 'pending'
-         and scheduled_at <= timezone('utc'::text, now())
-         and (expires_at is null or expires_at > timezone('utc'::text, now()))
+         and scheduled_at <= now()
+         and (expires_at is null or expires_at > now())
        order by scheduled_at asc
        limit $1`,
       [limit]
