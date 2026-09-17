@@ -542,6 +542,7 @@ export type PartnerSiteShopCopy = {
   pushEnableHint: string
   pushEnableButton: string
   pushEnabled: string
+  pushTestButton: string
   pushDenied: string
   pushUnsupported: string
   pushIosHint: string
@@ -1210,6 +1211,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pushEnableHint: 'Nhận thông báo đơn hàng và tin từ shop ngay cả khi bạn không mở trang.',
     pushEnableButton: 'Bật thông báo đẩy',
     pushEnabled: 'Đã bật thông báo đẩy trên thiết bị này.',
+    pushTestButton: 'Gửi thông báo thử',
     pushDenied: 'Trình duyệt đang chặn thông báo. Hãy cho phép trong cài đặt trang.',
     pushUnsupported: 'Trình duyệt này chưa hỗ trợ thông báo đẩy.',
     pushIosHint: 'Trên iPhone/iPad: thêm shop vào màn hình chính rồi bật thông báo trong app.',
@@ -1873,6 +1875,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pushEnableHint: 'Get order and shop alerts even when this page is closed.',
     pushEnableButton: 'Turn on push notifications',
     pushEnabled: 'Push notifications are on for this device.',
+    pushTestButton: 'Send a test notification',
     pushDenied: 'Notifications are blocked. Allow them in your browser site settings.',
     pushUnsupported: 'This browser does not support push notifications.',
     pushIosHint: 'On iPhone/iPad: add the shop to your Home Screen, then enable notifications in the app.',
@@ -2531,6 +2534,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pushEnableHint: '即使未打开页面，也能收到订单和店铺通知。',
     pushEnableButton: '开启推送通知',
     pushEnabled: '此设备已开启推送通知。',
+    pushTestButton: '发送测试通知',
     pushDenied: '浏览器已拦截通知。请在网站设置中允许。',
     pushUnsupported: '此浏览器不支持推送通知。',
     pushIosHint: '在 iPhone/iPad：先将店铺添加到主屏幕，再在应用中开启通知。',
@@ -3191,6 +3195,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pushEnableHint: 'このページを閉じていても、注文やショップのお知らせを受け取れます。',
     pushEnableButton: 'プッシュ通知をオンにする',
     pushEnabled: 'この端末でプッシュ通知がオンです。',
+    pushTestButton: 'テスト通知を送る',
     pushDenied: '通知がブロックされています。サイト設定で許可してください。',
     pushUnsupported: 'このブラウザはプッシュ通知に対応していません。',
     pushIosHint: 'iPhone/iPad：ホーム画面に追加してから、アプリ内で通知をオンにしてください。',
@@ -3851,6 +3856,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pushEnableHint: '이 페이지를 닫아도 주문과 샵 알림을 받을 수 있습니다.',
     pushEnableButton: '푸시 알림 켜기',
     pushEnabled: '이 기기에서 푸시 알림이 켜져 있습니다.',
+    pushTestButton: '테스트 알림 보내기',
     pushDenied: '알림이 차단되었습니다. 브라우저 사이트 설정에서 허용하세요.',
     pushUnsupported: '이 브라우저는 푸시 알림을 지원하지 않습니다.',
     pushIosHint: 'iPhone/iPad: 홈 화면에 샵을 추가한 뒤 앱에서 알림을 켜세요.',

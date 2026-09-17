@@ -58,7 +58,9 @@ export function PartnerSitePushEnableCard({ siteSlug, locale }: Props) {
   }, [authHeaders, captureFromResponse, isAuthenticated, ready, siteSlug])
 
   useEffect(() => {
-    if (!ready || !isAuthenticated || permission !== 'granted' || subscribed) return
+    if (!ready || !isAuthenticated || permission !== 'granted') return
+    // Always POST this device's endpoint. GET `subscribed` is account-wide — another
+    // phone/tab (or a leftover NanoAI SW) must not skip registering the shop PWA here.
     void syncPartnerSitePushSubscription({
       siteSlug,
       customDomain,
@@ -66,7 +68,7 @@ export function PartnerSitePushEnableCard({ siteSlug, locale }: Props) {
     }).then((ok) => {
       if (ok) setSubscribed(true)
     })
-  }, [authHeaders, customDomain, isAuthenticated, permission, ready, siteSlug, subscribed])
+  }, [authHeaders, customDomain, isAuthenticated, permission, ready, siteSlug])
 
   if (!ready || !isAuthenticated) return null
   if (!configured) return null
@@ -90,6 +92,21 @@ export function PartnerSitePushEnableCard({ siteSlug, locale }: Props) {
     }
   }
 
+  async function sendTest() {
+    setBusy(true)
+    try {
+      const ok = await syncPartnerSitePushSubscription({
+        siteSlug,
+        customDomain,
+        authHeaders: authHeaders(),
+        sendTest: true,
+      })
+      if (ok) setSubscribed(true)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="pw-shop-push-card">
       <h3>{t.pushEnableTitle}</h3>
@@ -98,7 +115,18 @@ export function PartnerSitePushEnableCard({ siteSlug, locale }: Props) {
       {unsupported ? <p className="pw-shop-muted">{t.pushUnsupported}</p> : null}
       {denied ? <p className="pw-shop-muted">{t.pushDenied}</p> : null}
       {subscribed && permission === 'granted' ? (
-        <p style={{ marginTop: 10, fontWeight: 600 }}>{t.pushEnabled}</p>
+        <>
+          <p style={{ marginTop: 10, fontWeight: 600 }}>{t.pushEnabled}</p>
+          <button
+            type="button"
+            className="pw-shop-btn"
+            style={{ marginTop: 12 }}
+            disabled={busy}
+            onClick={() => void sendTest()}
+          >
+            {busy ? t.pushSyncing : t.pushTestButton}
+          </button>
+        </>
       ) : !unsupported && !denied && !iosNeedsPwa ? (
         <button type="button" className="pw-shop-btn" style={{ marginTop: 12 }} disabled={busy} onClick={() => void enable()}>
           {busy ? t.pushSyncing : t.pushEnableButton}

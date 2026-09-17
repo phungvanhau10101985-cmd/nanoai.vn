@@ -452,3 +452,33 @@ export function formatCustomerInAppCopy(
     }
   }
 }
+
+/** OS toast after the shop PWA actually creates a Web Push subscription. */
+export function formatPushEnabledCopy(locale?: string | null): CustomerInAppCopy {
+  const loc = locOf(locale)
+  if (loc === 'zh') {
+    return { title: '已开启推送通知', body: '即使未打开店铺页面，也能收到订单和店铺通知。' }
+  }
+  if (loc === 'ja') {
+    return {
+      title: 'プッシュ通知がオンです',
+      body: 'このページを閉じていても、注文やショップのお知らせを受け取れます。',
+    }
+  }
+  if (loc === 'ko') {
+    return {
+      title: '푸시 알림이 켜졌습니다',
+      body: '이 페이지를 닫아도 주문과 샵 알림을 받을 수 있습니다.',
+    }
+  }
+  if (loc === 'en') {
+    return {
+      title: 'Push notifications are on',
+      body: 'You will get order and shop alerts even when this page is closed.',
+    }
+  }
+  return {
+    title: 'Thông báo đẩy đã bật',
+    body: 'Bạn sẽ nhận thông báo đơn hàng và tin shop trên thiết bị này, kể cả khi không mở trang.',
+  }
+}

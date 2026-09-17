@@ -1,5 +1,5 @@
 import webpush from 'web-push'
-import { fetchPartnerWebsiteByPartnerIdPg } from '@/lib/db/messaging-partner-websites-pg'
+import { pgQueryOne } from '@/lib/db/pg-query'
 import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import {
   deletePartnerGuestPushSubscriptionByIdFromPg,
@@ -29,6 +29,18 @@ function configureVapid(): boolean {
   return true
 }
 
+async function siteSlugForPartner(partnerId: string): Promise<string> {
+  try {
+    const row = await pgQueryOne<{ site_slug: string }>(
+      `select site_slug from public.messaging_partner_websites where partner_id = $1::uuid limit 1`,
+      [partnerId]
+    )
+    return row?.site_slug?.trim() ?? ''
+  } catch {
+    return ''
+  }
+}
+
 export async function sendPartnerCustomerWebPush(input: {
   partnerId: string
   guestAccountId: string
@@ -45,10 +57,9 @@ export async function sendPartnerCustomerWebPush(input: {
   })
   if (!subs.length) return { status: 'skipped', reason: 'no_subscription', delivered: 0 }
 
-  const website = await fetchPartnerWebsiteByPartnerIdPg(input.partnerId)
-  const siteSlug = website?.siteSlug?.trim() ?? ''
+  const siteSlug = await siteSlugForPartner(input.partnerId)
   const partners = await fetchMessagingPartnersByIdsFromPg([input.partnerId])
-  const shopName = partners?.[0]?.display_name?.trim() || website?.title?.trim() || 'Shop'
+  const shopName = partners?.[0]?.display_name?.trim() || 'Shop'
   const shortBody = input.body.length > 220 ? `${input.body.slice(0, 217)}...` : input.body
 
   let delivered = 0

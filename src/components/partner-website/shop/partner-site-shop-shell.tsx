@@ -160,13 +160,11 @@ import { PartnerSiteSaleCalendarBanner } from '@/components/partner-website/shop
 import { PartnerSiteContactChannelsFab } from '@/components/partner-website/shop/partner-site-contact-channels-fab'
 import { PartnerSiteLiveDeviceCookieSync } from '@/components/partner-website/shop/partner-site-live-device-cookie-sync'
 import { partnerSitePageShowsAccountNav } from '@/lib/partner-website/shop/partner-site-account-nav'
-import {
-  partnerSitePwaScope,
-  partnerSitePwaStartUrl,
-  partnerSitePwaSwPath,
-} from '@/lib/partner-website/shop/partner-site-pwa'
 import { ensurePartnerPwaInstallListener } from '@/lib/partner-website/shop/partner-site-pwa-install'
-import { PW_SHOP_NOTIFICATIONS_REFRESH_EVENT } from '@/lib/partner-website/shop/partner-site-push-subscribe-client'
+import {
+  ensurePartnerShopServiceWorkerRegistration,
+  PW_SHOP_NOTIFICATIONS_REFRESH_EVENT,
+} from '@/lib/partner-website/shop/partner-site-push-subscribe-client'
 
 export type PartnerSiteShopShellProps = {
   siteSlug: string
@@ -687,13 +685,7 @@ function PartnerSiteShopShellInner({
   useEffect(() => {
     ensurePartnerPwaInstallListener()
     if (!('serviceWorker' in navigator)) return
-    const startUrl = partnerSitePwaStartUrl(siteSlug, customDomain)
-    const swHref = partnerSitePwaSwPath(siteSlug, customDomain)
-    void navigator.serviceWorker
-      .register(swHref, { scope: partnerSitePwaScope(startUrl) })
-      .catch(() => {
-        /* PWA remains optional when worker registration is unavailable. */
-      })
+    void ensurePartnerShopServiceWorkerRegistration(siteSlug, customDomain)
   }, [customDomain, siteSlug])
 
   // W4.8 — mega menu thật từ cây danh mục (active). Rỗng = shop chưa cấu hình danh mục

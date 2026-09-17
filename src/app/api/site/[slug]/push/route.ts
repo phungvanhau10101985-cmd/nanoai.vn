@@ -5,6 +5,10 @@ import {
   deletePartnerGuestPushSubscriptionFromPg,
   upsertPartnerGuestPushSubscriptionFromPg,
 } from '@/lib/db/messaging-partner-guest-push-subscriptions-pg'
+import { resolveWebLocaleFromCookieStore } from '@/lib/i18n/config'
+import { formatPushEnabledCopy } from '@/lib/messaging/partner-customer-inapp-copy'
+import { isShopCustomDomainHost } from '@/lib/messaging/partner-custom-domain-platform-host'
+import { sendPartnerCustomerWebPush } from '@/lib/messaging/partner-customer-notification-push'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { resolveSiteVisitorContext } from '@/lib/partner-website/shop/partner-site-personalization'
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
@@ -14,6 +18,13 @@ export const dynamic = 'force-dynamic'
 
 function vapidPublicKey(): string {
   return process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() || ''
+}
+
+function requestIsShopCustomDomain(request: NextRequest): boolean {
+  if (request.headers.get(PARTNER_CUSTOM_DOMAIN_HEADER)?.trim()) return true
+  return isShopCustomDomainHost(
+    request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
+  )
 }
 
 export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
@@ -68,12 +79,13 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const body = (await request.json().catch(() => null)) as {
     endpoint?: string
     keys?: { p256dh?: string; auth?: string }
+    sendTest?: boolean
   } | null
   if (!body?.endpoint || !body.keys?.p256dh || !body.keys?.auth) {
     return NextResponse.json({ error: 'invalid_subscription' }, { status: 400 })
   }
 
-  const customDomain = Boolean(request.headers.get(PARTNER_CUSTOM_DOMAIN_HEADER)?.trim())
+  const customDomain = requestIsShopCustomDomain(request)
   const out = await upsertPartnerGuestPushSubscriptionFromPg({
     partnerId: shop.partnerId,
     guestAccountId,
@@ -86,6 +98,24 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   if (!out.ok) {
     console.error('[site/push subscribe]', out.error)
     return NextResponse.json({ error: out.error || 'save_failed' }, { status: 500 })
+  }
+
+  if (body.sendTest) {
+    const locale = resolveWebLocaleFromCookieStore({
+      get: (name) => {
+        const value = request.cookies.get(name)?.value
+        return value ? { value } : undefined
+      },
+    })
+    const copy = formatPushEnabledCopy(locale)
+    await sendPartnerCustomerWebPush({
+      partnerId: shop.partnerId,
+      guestAccountId,
+      title: copy.title,
+      body: copy.body,
+      href: '/account/notifications',
+      tag: 'pw-shop-push-enabled',
+    }).catch((e) => console.warn('[site/push sendTest]', e))
   }
 
   return jsonSitePersonalization(

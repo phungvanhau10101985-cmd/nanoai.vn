@@ -39,7 +39,7 @@ function main() {
       siteSlug: slug,
       customDomain: true,
     }),
-    '/account/notifications'
+    'https://188.com.vn/account/notifications'
   )
 
   const sw = buildPartnerShopServiceWorkerSource({

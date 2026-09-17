@@ -4,17 +4,13 @@ import { useEffect } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import {
-  partnerSitePwaScope,
-  partnerSitePwaStartUrl,
-  partnerSitePwaSwPath,
-} from '@/lib/partner-website/shop/partner-site-pwa'
-import { isStandalonePwa } from '@/lib/pwa/push-subscribe-client'
-import {
+  ensurePartnerShopServiceWorkerRegistration,
   isIosDevice,
   PW_SHOP_NOTIFICATIONS_REFRESH_EVENT,
   requestPartnerSitePushPermissionAndSubscribe,
   syncPartnerSitePushSubscription,
 } from '@/lib/partner-website/shop/partner-site-push-subscribe-client'
+import { isStandalonePwa } from '@/lib/pwa/push-subscribe-client'
 
 /** Registers shop SW + Web Push on every /site/{slug} page, including HTML landing. */
 export function PartnerSiteShopPushBoot({ siteSlug }: { siteSlug: string }) {
@@ -23,11 +19,7 @@ export function PartnerSiteShopPushBoot({ siteSlug }: { siteSlug: string }) {
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
-    const startUrl = partnerSitePwaStartUrl(siteSlug, customDomain)
-    const swHref = partnerSitePwaSwPath(siteSlug, customDomain)
-    void navigator.serviceWorker
-      .register(swHref, { scope: partnerSitePwaScope(startUrl) })
-      .catch(() => undefined)
+    void ensurePartnerShopServiceWorkerRegistration(siteSlug, customDomain)
     const onSwMessage = (event: MessageEvent) => {
       if (event.data?.type === 'PW_SHOP_NOTIFICATIONS_REFRESH') {
         window.dispatchEvent(new Event(PW_SHOP_NOTIFICATIONS_REFRESH_EVENT))
