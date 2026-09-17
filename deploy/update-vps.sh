@@ -433,6 +433,7 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
   if [[ -z "${INV_SECRET}" ]]; then INV_SECRET="${AI_SECRET}"; fi
   if [[ -z "${LOGO_SECRET}" ]]; then LOGO_SECRET="${AI_SECRET}"; fi
   if [[ -z "${MKT_SECRET}" ]]; then MKT_SECRET="${AI_SECRET}"; fi
+  if [[ -z "${CRON_SECRET_FALLBACK}" ]]; then CRON_SECRET_FALLBACK="${AI_SECRET}"; fi
   if [[ -z "${PARTNER_SSL_SECRET}" ]]; then PARTNER_SSL_SECRET="${CRON_SECRET_FALLBACK}"; fi
 
   # Gỡ cron Vision đã remove khỏi codebase (tránh POST treo khi app yếu).
