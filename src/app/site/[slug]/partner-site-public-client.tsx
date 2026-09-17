@@ -310,6 +310,7 @@ function PartnerSitePublicFrame({
   browserThemeColor?: string
   siteSlug?: string
 }) {
+  void _hideChatLauncher
   const availableDevices = useMemo(
     () =>
       (Object.keys(htmlByDevice || {}) as VisualDeviceVariant[]).filter(

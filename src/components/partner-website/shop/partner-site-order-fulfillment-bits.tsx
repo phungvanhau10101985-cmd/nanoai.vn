@@ -61,6 +61,7 @@ export function PartnerSiteOrderFulfillmentBadge(_props: {
   source?: string | null
   platform?: string | null
 }) {
+  void _props
   return null
 }
 

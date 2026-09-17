@@ -1131,6 +1131,7 @@ export const PartnerWebsiteDevicePreview = forwardRef<
       : previewPageKey
   const pdpLiveProductKey =
     previewPageKey === 'product_detail' ? productOptions[0]?.key || null : previewProductKey
+  void pdpLiveProductKey
   const visualTargetProductId = previewPageKey === 'product_detail' ? null : previewProductId
 
   useEffect(() => {
