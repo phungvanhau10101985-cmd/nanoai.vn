@@ -258,3 +258,12 @@ test('shop theme CSS keeps mobile cart totals on a full-width row, not the 22px 
   assert.match(css, /\.pw-shop-cart-row\[data-pw-cart-qty="1"\] \.pw-shop-cart-line-total-wrap\{display:none\}/)
   assert.doesNotMatch(css, /\.pw-shop-cart-line-total\{grid-column:3;justify-self:end\}/)
 })
+
+test('shop theme CSS keeps cart summary money and buttons inside the viewport', () => {
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(css, /\.pw-shop-cart-discount-breakdown p\{[^}]*grid-template-columns:minmax\(0,1fr\) auto/)
+  assert.match(css, /\.pw-shop-cart-discount-breakdown p strong\{[^}]*white-space:nowrap/)
+  assert.match(css, /\.pw-shop-cart-promo-row\{display:grid;grid-template-columns:1fr/)
+  assert.match(css, /\.pw-shop-cart-summary \.pw-shop-address-form-actions\{display:grid;grid-template-columns:1fr/)
+  assert.match(css, /\.pw-shop-cart-actions\{flex-direction:column\}/)
+})
