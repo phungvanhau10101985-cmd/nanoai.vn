@@ -28,7 +28,7 @@ test('only tenant shop SW scripts count as shop workers', () => {
     isPartnerShopServiceWorkerScriptUrl('https://nanoai.vn/site/gudo-vn-3f93/sw.js'),
     true
   )
-  assert.equal(isPartnerShopServiceWorkerScriptUrl('https://gudo.vn/sw.js'), false)
+  assert.equal(isPartnerShopServiceWorkerScriptUrl('https://gudo.vn/sw.js'), true)
   assert.equal(isPartnerShopServiceWorkerScriptUrl('https://nanoai.vn/sw.js'), false)
 })
 
@@ -56,6 +56,7 @@ test('shop push subscribe drops leftover NanoAI SW and can send a test ping', ()
   )
   assert.match(src, /ensurePartnerShopServiceWorkerRegistration/)
   assert.match(src, /unregister\(\)/)
+  assert.match(src, /shopReg/)
   assert.match(src, /sendTest:\s*Boolean\(input\.sendTest \|\| created\)/)
   assert.doesNotMatch(src, /getRegistration\(scope\)[\s\S]{0,80}pushManager\.subscribe/)
 })
@@ -76,10 +77,12 @@ test('notifications card still syncs this device when another device already sub
   assert.match(src, /pushTestButton/)
   assert.match(src, /sendTest:\s*true/)
   assert.doesNotMatch(src, /permission !== 'granted' \|\| subscribed/)
+  assert.doesNotMatch(src, /setSubscribed\(Boolean\(json\.subscribed\)\)/)
 })
 
 test('sending shop push does not load the full website project blob', () => {
   const src = readFileSync(join(here, 'partner-customer-notification-push.ts'), 'utf8')
   assert.match(src, /select site_slug from public\.messaging_partner_websites/)
+  assert.match(src, /urgency:\s*'high'/)
   assert.doesNotMatch(src, /fetchPublishedPartnerWebsiteBySlugPg/)
 })

@@ -46,10 +46,9 @@ export function PartnerSitePushEnableCard({ siteSlug, locale }: Props) {
         captureFromResponse(res)
         return res.json()
       })
-      .then((json: { configured?: boolean; subscribed?: boolean }) => {
+      .then((json: { configured?: boolean }) => {
         if (cancelled) return
         setConfigured(json.configured !== false)
-        setSubscribed(Boolean(json.subscribed))
       })
       .catch(() => undefined)
     return () => {

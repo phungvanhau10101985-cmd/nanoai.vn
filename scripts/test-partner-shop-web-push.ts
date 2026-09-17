@@ -53,6 +53,7 @@ function main() {
   assert.match(sw, /addEventListener\('notificationclick'/)
   assert.match(sw, /PW_SHOP_NOTIFICATIONS_REFRESH/)
   assert.match(sw, /pw-shop-shell-v4/)
+  assert.match(sw, /iconUrl/)
   assert.doesNotMatch(sw, /#f97316|#ea580c|orange-/)
 
   console.log('OK — partner shop web push')

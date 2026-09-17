@@ -72,6 +72,7 @@ function main() {
   assert.equal(pathManifest.start_url, '/site/my-shop/')
 
   assert.equal(isPartnerShopServiceWorkerScriptUrl('https://shop.example/pw-shop-sw.js'), true)
+  assert.equal(isPartnerShopServiceWorkerScriptUrl('https://shop.example/sw.js'), true)
   assert.equal(isPartnerShopServiceWorkerScriptUrl('https://nanoai.vn/site/my-shop/sw.js'), true)
   assert.equal(isPartnerShopServiceWorkerScriptUrl('https://nanoai.vn/sw.js'), false)
 

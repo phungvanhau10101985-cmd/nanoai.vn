@@ -1,3 +1,4 @@
+import { isPlatformAppHostname } from '@/lib/messaging/partner-custom-domain-platform-host'
 import { partnerSiteHomePath } from './partner-site-shop-paths'
 
 /** Public SW filename on a shop custom domain — must not collide with NanoAI `public/sw.js`. */
@@ -6,11 +7,17 @@ export const PARTNER_SHOP_PWA_SW_PUBLIC_FILE = 'pw-shop-sw.js'
 /** Shop SW is network-first for navigations — claiming it must not F5 open tabs. */
 export function isPartnerShopServiceWorkerScriptUrl(scriptUrl: string): boolean {
   try {
-    const path = new URL(scriptUrl, 'https://invalid.local').pathname.toLowerCase()
+    const parsed = new URL(scriptUrl, 'https://invalid.local')
+    const path = parsed.pathname.toLowerCase()
     if (path === `/${PARTNER_SHOP_PWA_SW_PUBLIC_FILE}` || path.endsWith(`/${PARTNER_SHOP_PWA_SW_PUBLIC_FILE}`)) {
       return true
     }
-    return /^\/site\/[^/]+\/sw\.js$/.test(path)
+    if (/^\/site\/[^/]+\/sw\.js$/.test(path)) return true
+    // Custom-domain rewrite serves the shop worker at `/sw.js` (Android WebAPK stays on that script).
+    if (path === '/sw.js' && parsed.hostname && parsed.hostname !== 'invalid.local') {
+      return !isPlatformAppHostname(parsed.hostname)
+    }
+    return false
   } catch {
     return false
   }
@@ -171,13 +178,17 @@ self.addEventListener('push', function (event) {
   var urlPath = data.url || INBOX;
   var origin = self.location.origin;
   var openUrl = urlPath.indexOf('http') === 0 ? urlPath : origin + (urlPath.charAt(0) === '/' ? urlPath : '/' + urlPath);
+  var iconUrl = ICON.indexOf('http') === 0 ? ICON : origin + (ICON.charAt(0) === '/' ? ICON : '/' + ICON);
   event.waitUntil(
     self.registration.showNotification(title, {
       body: body,
-      icon: ICON,
+      icon: iconUrl,
+      badge: iconUrl,
       tag: data.tag || 'pw-shop',
-      renotify: !!data.renotify,
+      renotify: true,
       data: { url: openUrl },
+    }).catch(function () {
+      return self.registration.showNotification(title, { body: body, data: { url: openUrl } });
     }).then(function () {
       return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clients) {
         clients.forEach(function (c) {

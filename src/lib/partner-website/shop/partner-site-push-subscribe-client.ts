@@ -40,8 +40,11 @@ async function waitForWorkerState(worker: ServiceWorker | null): Promise<void> {
 }
 
 /**
- * Shop origin must own `/` with the tenant SW (`/pw-shop-sw.js` or `/site/{slug}/sw.js`).
- * Leftover NanoAI `public/sw.js` steals the scope: UI says subscribed, FCM delivers to a dead worker.
+ * Shop origin must own `/` with the tenant SW (`/pw-shop-sw.js`, `/site/{slug}/sw.js`,
+ * or custom-domain `/sw.js` rewrite). Leftover NanoAI `public/sw.js` on nanoai.vn
+ * steals the scope: UI says subscribed, FCM delivers to a dead worker.
+ * Android WebAPK stays bound to the script URL used at install — do not replace
+ * an already-controlling shop `/sw.js` with `/pw-shop-sw.js`.
  */
 export async function ensurePartnerShopServiceWorkerRegistration(
   siteSlug: string,
@@ -70,7 +73,9 @@ export async function ensurePartnerShopServiceWorkerRegistration(
         }
       })
     )
-    const reg = await navigator.serviceWorker.register(swHref, { scope })
+    const remaining = await navigator.serviceWorker.getRegistrations()
+    const shopReg = remaining.find((reg) => isPartnerShopServiceWorkerScriptUrl(registrationScriptUrl(reg)))
+    const reg = shopReg || (await navigator.serviceWorker.register(swHref, { scope }))
     await waitForWorkerState(reg.installing)
     await waitForWorkerState(reg.waiting)
     try {
@@ -78,7 +83,7 @@ export async function ensurePartnerShopServiceWorkerRegistration(
     } catch {
       /* ignore */
     }
-    const ready = await navigator.serviceWorker.getRegistration(scope)
+    const ready = shopReg || (await navigator.serviceWorker.getRegistration(scope))
     if (ready && isPartnerShopServiceWorkerScriptUrl(registrationScriptUrl(ready))) return ready
     return isPartnerShopServiceWorkerScriptUrl(registrationScriptUrl(reg)) ? reg : null
   } catch (e) {
