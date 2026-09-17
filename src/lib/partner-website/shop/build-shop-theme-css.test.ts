@@ -220,7 +220,10 @@ test('injecting theme CSS keeps marketplace look when HTML already stamped it', 
     '<!DOCTYPE html><html data-pw-look="marketplace"><head></head><body><header class="pw-header"></header></body></html>'
   const out = injectPartnerShopThemeCss(html, DEFAULT_PARTNER_WEBSITE_THEME)
   assert.match(out, /data-pw-look="marketplace"/)
-  assert.match(out, /:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\]\) \.pw-header/)
+  assert.match(
+    out,
+    /:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\](?:,\[data-pw-inline-visual-root\]\[data-pw-look="marketplace"\])?\) \.pw-header/
+  )
   assert.match(out, /\.pw-marketplace-trust/)
 })
 
@@ -249,8 +252,9 @@ test('shop theme CSS hides the live cart dock from 768px up', () => {
 test('shop theme CSS keeps mobile cart totals on a full-width row, not the 22px checkbox column', () => {
   const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
   assert.match(css, /\.pw-shop-cart-row\{[^}]*grid-template-columns:24px 72px minmax\(0,1fr\) minmax\(0,auto\)/)
+  assert.match(css, /\.pw-shop-cart-row\{[^}]*grid-template-columns:22px 64px minmax\(0,1fr\)/)
   assert.match(css, /\.pw-shop-cart-line-total-wrap\{grid-column:1\/-1/)
-  assert.match(css, /html\[data-pw-edit-device="mobile"\],html\[data-pw-scene-lock="mobile"\]/)
+  assert.match(css, /@media\(min-width:1600px\)\{\.pw-shop-cart-layout\{/)
   assert.match(css, /\.pw-shop-cart-row\[data-pw-cart-qty="1"\] \.pw-shop-cart-line-total-wrap\{display:none\}/)
   assert.doesNotMatch(css, /\.pw-shop-cart-line-total\{grid-column:3;justify-self:end\}/)
 })

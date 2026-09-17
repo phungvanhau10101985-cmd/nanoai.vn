@@ -141,6 +141,44 @@ export function partnerFlashSalePercentForProduct(productId: string, slotKey: st
   return FLASH_SALE_MIN_PERCENT + (partnerFlashSaleStableSeed(slotKey, String(productId).toLowerCase()) % span)
 }
 
+/** Same views + slot → same 12 deals after login (guest UUID ≠ session UUID). */
+export function partnerFlashSaleAssignmentSeed(slotKey: string, viewedIds: string[]): number {
+  const ids = [...new Set(viewedIds.map((id) => id.trim().toLowerCase()).filter(Boolean))].sort()
+  return partnerFlashSaleStableSeed(slotKey, ...ids)
+}
+
+/**
+ * Keep SKUs the shopper is buying inside the 12-deal window when they still
+ * sit in the same shop+L3 candidate pool as homepage / PDP Flash sale.
+ */
+export function pinPartnerFlashSaleProducts(
+  assignment: PartnerFlashSaleAssignment,
+  pinIds: string[],
+  eligibleIds: Iterable<string>
+): PartnerFlashSaleAssignment {
+  const eligible = new Set(
+    [...eligibleIds].map((id) => String(id || '').trim().toLowerCase()).filter(Boolean)
+  )
+  const existing = new Set(assignment.productIds.map((id) => id.toLowerCase()))
+  const nextIds = [...assignment.productIds]
+  const nextPercent = { ...assignment.percentById }
+  for (const raw of pinIds) {
+    const id = String(raw || '').trim()
+    const key = id.toLowerCase()
+    if (!key || !eligible.has(key) || existing.has(key)) continue
+    nextIds.unshift(id)
+    existing.add(key)
+    nextPercent[key] = partnerFlashSalePercentForProduct(id, assignment.slot.key)
+  }
+  const trimmed = nextIds.slice(0, FLASH_SALE_MAX_COUNT)
+  const percentById: Record<string, number> = {}
+  for (const id of trimmed) {
+    const key = id.toLowerCase()
+    percentById[key] = nextPercent[key] ?? partnerFlashSalePercentForProduct(id, assignment.slot.key)
+  }
+  return { productIds: trimmed, percentById, slot: assignment.slot }
+}
+
 export function pickEvenShopProducts<T>(
   shopQueues: Record<string, T[]>,
   shopOrder: string[],

@@ -12,10 +12,11 @@ import {
   FLASH_SALE_MAX_COUNT,
   FLASH_SALE_MIN_SHOW,
   FLASH_SALE_RECENT_VIEWS,
+  partnerFlashSaleAssignmentSeed,
   partnerFlashSaleIdentityKey,
   partnerFlashSalePercentForProduct,
   partnerFlashSaleProductId,
-  partnerFlashSaleStableSeed,
+  pinPartnerFlashSaleProducts,
   pickEvenShopProducts,
   resolvePartnerFlashSaleSlot,
   type PartnerFlashSaleAssignment,
@@ -42,6 +43,7 @@ type CachedAssignment = {
   expiresAt: number
   productIds: string[]
   percentById: Record<string, number>
+  eligibleIds: string[]
 }
 
 const assignmentCache = new Map<string, CachedAssignment>()
@@ -125,16 +127,21 @@ async function buildAssignment(input: {
   partnerId: string
   accountKey: string
   slot: PartnerFlashSaleAssignment['slot']
-}): Promise<PartnerFlashSaleAssignment> {
+  pinInventoryIds?: string[]
+}): Promise<{ assignment: PartnerFlashSaleAssignment; eligibleIds: string[] }> {
   const empty = emptyPartnerFlashSaleAssignment(input.slot)
+  const pinIds = asUuidList(input.pinInventoryIds ?? [])
   const state = await fetchPartnerVisitorPersonalizationFromPg({
     partnerId: input.partnerId,
     accountKey: input.accountKey,
   })
-  const viewedIds = asUuidList(state?.recently_viewed_ids ?? []).slice(0, FLASH_SALE_RECENT_VIEWS)
-  if (!viewedIds.length) return empty
+  const recentIds = asUuidList(state?.recently_viewed_ids ?? []).slice(0, FLASH_SALE_RECENT_VIEWS)
+  // Cart/checkout: if login merged views too late, still seed from SKUs in the basket.
+  const viewedIds = recentIds.length ? recentIds : pinIds.slice(0, FLASH_SALE_RECENT_VIEWS)
+  if (!viewedIds.length) return { assignment: empty, eligibleIds: [] }
 
-  const signals = await fetchInventorySameShopSignalsFromPg(input.partnerId, viewedIds)
+  const signalIds = asUuidList([...viewedIds, ...pinIds])
+  const signals = await fetchInventorySameShopSignalsFromPg(input.partnerId, signalIds)
   const pairs: Array<{ shop: string; l3: string; key: string }> = []
   const seenPairs = new Set<string>()
   for (const id of viewedIds) {
@@ -146,7 +153,7 @@ async function buildAssignment(input: {
     if (!shop || !l3) continue
     pairs.push({ shop, l3, key })
   }
-  if (!pairs.length) return empty
+  if (!pairs.length) return { assignment: empty, eligibleIds: [] }
 
   const candidates = await fetchFlashSaleCandidatesFromPg({
     partnerId: input.partnerId,
@@ -162,7 +169,7 @@ async function buildAssignment(input: {
     groupQueues[row.groupKey]?.push(row)
   }
 
-  const seed = partnerFlashSaleStableSeed(input.accountKey, input.slot.key)
+  const seed = partnerFlashSaleAssignmentSeed(input.slot.key, viewedIds)
   const available = Object.values(groupQueues).reduce((sum, q) => sum + q.length, 0)
   const target = Math.min(FLASH_SALE_MAX_COUNT, available)
   const picked = pickEvenShopProducts(groupQueues, groupOrder, {
@@ -175,7 +182,16 @@ async function buildAssignment(input: {
   for (const id of productIds) {
     percentById[id.toLowerCase()] = partnerFlashSalePercentForProduct(id, input.slot.key)
   }
-  return { productIds, percentById, slot: input.slot }
+  const eligibleIds = new Set(candidates.map((row) => row.id.toLowerCase()))
+  for (const id of pinIds) {
+    const hit = signals.get(id.toLowerCase())
+    const key = shopL3PairKey(hit?.sourceShopKey, hit?.l3Key)
+    if (key && allowed.has(key)) eligibleIds.add(id.toLowerCase())
+  }
+  return {
+    assignment: { productIds, percentById, slot: input.slot },
+    eligibleIds: [...eligibleIds],
+  }
 }
 
 export async function getPartnerFlashSaleAssignmentFromPg(input: {
@@ -184,11 +200,13 @@ export async function getPartnerFlashSaleAssignmentFromPg(input: {
   timezone?: string | null
   now?: Date
   enabled?: boolean
+  pinInventoryIds?: string[] | null
 }): Promise<PartnerFlashSaleAssignment> {
   const now = input.now ?? new Date()
   const timezone = input.timezone?.trim() || PARTNER_SALE_DEFAULT_TIMEZONE
   const slot = resolvePartnerFlashSaleSlot(now, timezone)
   const identity = partnerFlashSaleIdentityKey(input.accountKey)
+  const pinIds = asUuidList(input.pinInventoryIds ?? [])
   const enabled =
     input.enabled ??
     (await fetchPartnerSaleCalendarConfigFromPg(input.partnerId).catch(() => null))?.flashSaleEnabled !== false
@@ -198,30 +216,38 @@ export async function getPartnerFlashSaleAssignmentFromPg(input: {
 
   const key = cacheKey(input.partnerId, identity, slot.key)
   const cached = assignmentCache.get(key)
+  let base: PartnerFlashSaleAssignment
+  let eligibleIds: string[] = []
   if (cached && cached.expiresAt > Date.now() && cached.productIds.length) {
-    return {
+    base = {
       productIds: cached.productIds,
       percentById: cached.percentById,
       slot,
     }
+    eligibleIds = cached.eligibleIds ?? []
+  } else {
+    const built = await buildAssignment({
+      partnerId: input.partnerId,
+      accountKey: identity,
+      slot,
+      pinInventoryIds: pinIds,
+    })
+    if (!built.assignment.productIds.length) {
+      assignmentCache.delete(key)
+      return built.assignment
+    }
+    const ttlMs = Math.max(5_000, built.assignment.slot.endAt.getTime() - now.getTime())
+    assignmentCache.set(key, {
+      expiresAt: Date.now() + ttlMs,
+      productIds: built.assignment.productIds,
+      percentById: built.assignment.percentById,
+      eligibleIds: built.eligibleIds,
+    })
+    base = built.assignment
+    eligibleIds = built.eligibleIds
   }
-
-  const built = await buildAssignment({
-    partnerId: input.partnerId,
-    accountKey: identity,
-    slot,
-  })
-  if (!built.productIds.length) {
-    assignmentCache.delete(key)
-    return built
-  }
-  const ttlMs = Math.max(5_000, built.slot.endAt.getTime() - now.getTime())
-  assignmentCache.set(key, {
-    expiresAt: Date.now() + ttlMs,
-    productIds: built.productIds,
-    percentById: built.percentById,
-  })
-  return built
+  if (!pinIds.length) return base
+  return pinPartnerFlashSaleProducts(base, pinIds, [...eligibleIds, ...base.productIds])
 }
 
 export async function listPartnerFlashSaleBlockFromPg(input: {
@@ -268,12 +294,15 @@ export async function overlayPartnerFlashSaleOnProducts<
   const config = await fetchPartnerSaleCalendarConfigFromPg(input.partnerId).catch(() => null)
   const flashOn = config == null || config.flashSaleEnabled
   if (!flashOn) return input.products
+  const pinInventoryIds =
+    input.products.length === 1 ? [partnerFlashSaleProductId(input.products[0])] : []
   const assignment = await getPartnerFlashSaleAssignmentFromPg({
     partnerId: input.partnerId,
     accountKey: input.accountKey,
     timezone: input.timezone || config?.timezone,
     now: input.now,
     enabled: flashOn,
+    pinInventoryIds,
   })
   if (!assignment.productIds.length) return input.products
   return input.products.map((product) => applyPartnerFlashSaleToProduct(product, assignment, input.now?.getTime()))

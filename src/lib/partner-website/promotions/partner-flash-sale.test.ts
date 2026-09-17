@@ -3,12 +3,15 @@ import test from 'node:test'
 import {
   applyPartnerFlashPercentToPrice,
   applyPartnerFlashSaleToProduct,
+  FLASH_SALE_MAX_COUNT,
   FLASH_SALE_MAX_PERCENT,
   FLASH_SALE_MIN_PERCENT,
   FLASH_SALE_SLOT_MINUTES,
+  partnerFlashSaleAssignmentSeed,
   partnerFlashSalePercentForProduct,
   partnerFlashSaleIdentityKey,
   partnerStorefrontSaleAccountKey,
+  pinPartnerFlashSaleProducts,
   pickEvenShopProducts,
   resolvePartnerFlashSaleSlot,
 } from '@/lib/partner-website/promotions/partner-flash-sale'
@@ -146,3 +149,39 @@ test('flash identity matches cart quote UUID, not checkout guest:/user: prefixes
   assert.equal(partnerFlashSaleIdentityKey('session:thread-1'), 'thread-1')
   assert.equal(partnerFlashSaleIdentityKey(guest), guest)
 })
+
+test('flash assignment seed ignores account key so login does not reshuffle deals', () => {
+  const viewed = ['aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', '11111111-2222-4333-8444-555555555555']
+  assert.equal(
+    partnerFlashSaleAssignmentSeed('2026-09-07:72', viewed),
+    partnerFlashSaleAssignmentSeed('2026-09-07:72', [...viewed].reverse())
+  )
+  assert.notEqual(
+    partnerFlashSaleAssignmentSeed('2026-09-07:72', viewed),
+    partnerFlashSaleAssignmentSeed('2026-09-07:73', viewed)
+  )
+})
+
+test('pin keeps a cart SKU inside the 12-deal flash window', () => {
+  const endAt = new Date('2026-09-07T04:10:00.000Z')
+  const slot = { key: '2026-09-07:1', startAt: new Date('2026-09-07T04:00:00.000Z'), endAt }
+  const productIds = Array.from({ length: FLASH_SALE_MAX_COUNT }, (_, i) => `sku-${i + 1}`)
+  const percentById = Object.fromEntries(
+    productIds.map((id) => [id, partnerFlashSalePercentForProduct(id, slot.key)])
+  )
+  const pinned = pinPartnerFlashSaleProducts(
+    { productIds, percentById, slot },
+    ['cart-sku'],
+    ['cart-sku', 'sku-1']
+  )
+  assert.equal(pinned.productIds[0], 'cart-sku')
+  assert.equal(pinned.productIds.length, FLASH_SALE_MAX_COUNT)
+  assert.ok(pinned.percentById['cart-sku'] >= FLASH_SALE_MIN_PERCENT)
+  const skipped = pinPartnerFlashSaleProducts(
+    { productIds, percentById, slot },
+    ['other-sku'],
+    ['sku-1']
+  )
+  assert.equal(skipped.productIds[0], 'sku-1')
+})
+

@@ -10,6 +10,7 @@ import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner
 import { resolvePartnerCheckoutPriceLinesFromPg } from '@/lib/db/messaging-partner-sale-pricing-pg'
 import { partnerSaleLiveCountdownTo, partnerCheckoutStackedDiscountAmount, resolvePartnerSaleDiscountBreakdown } from '@/lib/partner-website/promotions/partner-sale-pricing'
 import { fetchPartnerPaymentSettingsFromPg } from '@/lib/db/messaging-partner-orders-pg'
+import { resolvePartnerCustomerLoyaltyStatusFromPg } from '@/lib/db/messaging-partner-loyalty-pg'
 import { fetchPartnerShippingProvinceFeesFromPg } from '@/lib/db/messaging-partner-shipping-province-fees-pg'
 import { resolvePartnerShippingFeeQuote } from '@/lib/partner-website/shop/partner-site-shipping-fee'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'

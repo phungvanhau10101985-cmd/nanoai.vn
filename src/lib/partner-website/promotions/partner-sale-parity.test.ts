@@ -156,6 +156,36 @@ test('voucher excludes birthday, loyalty uses remainder and total is capped at 1
   assert.equal(result.amountAfterDiscount, 850_000)
 })
 
+test('flash and calendar line savings stay in separate breakdown buckets', () => {
+  const result = resolvePartnerSaleDiscountBreakdown({
+    lines: [
+      {
+        inventoryId: 'flash-line',
+        quantity: 2,
+        listUnitPrice: 1_000_000,
+        effectiveUnitPrice: 950_000,
+        priceKind: 'flash',
+      },
+      {
+        inventoryId: 'calendar-line',
+        quantity: 1,
+        listUnitPrice: 1_000_000,
+        effectiveUnitPrice: 920_000,
+        priceKind: 'calendar',
+      },
+    ],
+  })
+  assert.equal(result.flashSaleDiscountAmount, 100_000)
+  assert.equal(result.calendarSaleDiscountAmount, 80_000)
+  assert.equal(result.inventorySaleDiscountAmount, 0)
+  assert.equal(result.siteSaleDiscountAmount, 180_000)
+  assert.equal(result.amountAfterDiscount, 2_820_000)
+  assert.equal(
+    result.listSubtotal - result.flashSaleDiscountAmount - result.calendarSaleDiscountAmount,
+    result.amountAfterDiscount
+  )
+})
+
 test('clearance subtotal receives no voucher birthday or loyalty discount', () => {
   const result = resolvePartnerSaleDiscountBreakdown({
     lines: [

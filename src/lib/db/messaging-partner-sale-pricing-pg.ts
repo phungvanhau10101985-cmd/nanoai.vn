@@ -108,7 +108,8 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
       accountKey: saleAccountKey,
       timezone: config.timezone,
       now: input.at,
-      enabled: config.flashSaleEnabled,
+      enabled: config.flashSaleEnabled !== false,
+      pinInventoryIds: ids,
     }),
   ])
   const byId = new Map(rows.map((row) => [row.id, row]))

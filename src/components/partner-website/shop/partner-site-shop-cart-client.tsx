@@ -695,7 +695,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
         useAffiliateWallet,
         lines: lines.map((item) => ({
           lineId: item.id,
-          inventoryId: item.card.inventory_id || '',
+          inventoryId: item.card.inventory_id || item.id,
           quantity: item.quantity,
           selected: selectedIds.has(item.id),
           fallbackUnitPrice: parseVndFromPriceHint(item.card.price_hint),
@@ -1029,11 +1029,11 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   )
   const birthdayPaused = birthdayPercent > 0 && (quote?.breakdown.voucherDiscountAmount ?? 0) > 0
   const calendarProgramName = calendarSaleProgramName(saleT.saleDiscount, quote?.saleCalendar)
+  const flashCountdownTo =
+    quote?.lines.find((line) => line.priceKind === 'flash' && line.countdownTo)?.countdownTo ?? null
   const runningProgramLabels = [
     flashSaleAmount > 0 ? saleT.flashDiscount : '',
-    quote?.saleCalendar?.phase === 'active' && (calendarSaleAmount > 0 || quote.saleCalendar.discountPercent > 0)
-      ? calendarProgramName
-      : '',
+    calendarSaleAmount > 0 ? calendarProgramName : '',
     inventorySaleAmount > 0 ? saleT.inventoryDiscount : '',
     birthdayPercent > 0 && !birthdayPaused ? saleT.birthdayDiscount.replace('{pct}', String(birthdayPercent)) : '',
     (quote?.breakdown.clearanceSubtotal ?? 0) > 0 ? saleT.clearanceSubtotal : '',
@@ -1303,9 +1303,12 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
           const teaserUnitSavings = isTeaserLine && expectedUnit != null ? listUnitPrice - expectedUnit : 0
           const birthdayLineSave = cartBirthdayLineSave(item, lineQuote, birthdayPercent)
           const birthdayLineSaveText = partnerSiteBirthdaySaveText(birthdayLineSave, locale)
-          const programName =
-            cartLineProgramName(lineQuote, quote?.saleCalendar, locale, saleT.inventoryDiscount) ||
-            calendarProgramName
+          const programName = cartLineProgramName(
+            lineQuote,
+            quote?.saleCalendar,
+            locale,
+            saleT.inventoryDiscount
+          )
           const chipKind =
             lineQuote?.priceKind === 'flash'
               ? 'flash'
@@ -1320,16 +1323,19 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                       : lineQuote?.saleBadge
                         ? 'calendar'
                         : ''
-          const chipLabel = lineQuote?.saleBadge
-            ? isTeaserLine
-              ? partnerSiteSaleFill(saleT.comingSoon, {
-                  program: programName,
-                  pct: quote?.saleCalendar?.discountPercent ?? 0,
-                })
-              : lineQuote.saleBadge
-            : lineQuote?.isClearance
-              ? saleT.clearanceSubtotal
-              : ''
+          const chipLabel =
+            lineQuote?.priceKind === 'flash'
+              ? lineQuote.saleBadge || saleT.flashDiscount
+              : lineQuote?.saleBadge
+                ? isTeaserLine
+                  ? partnerSiteSaleFill(saleT.comingSoon, {
+                      program: programName,
+                      pct: quote?.saleCalendar?.discountPercent ?? 0,
+                    })
+                  : lineQuote.saleBadge
+                : lineQuote?.isClearance
+                  ? saleT.clearanceSubtotal
+                  : ''
           const productHref = partnerSiteStorefrontProductHref(siteSlug, {
             inventoryId: item.card.inventory_id,
             name: item.card.name,
@@ -1553,7 +1559,16 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               ) : null}
             </div>
           ) : null}
-          {quote?.saleCalendar?.phase === 'active' && quote.saleCalendar.countdownTo ? (
+          {flashSaleAmount > 0 && flashCountdownTo ? (
+            <PartnerSiteSaleCountdown
+              countdownTo={flashCountdownTo}
+              phase="active"
+              locale={locale}
+              eventLabel={saleT.flashDiscount}
+              promoKind="flash"
+            />
+          ) : null}
+          {calendarSaleAmount > 0 && quote?.saleCalendar?.phase === 'active' && quote.saleCalendar.countdownTo ? (
             <PartnerSiteSaleCountdown
               countdownTo={quote.saleCalendar.countdownTo}
               phase="active"
@@ -1574,12 +1589,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               ) : null}
               {flashSaleAmount > 0 ? (
                 <p className="is-flash">
-                  <span>
-                    {partnerSiteSaleFill(saleT.flashAlreadyDeducted, {
-                      program: saleT.flashDiscount,
-                      amount: formatVnd(flashSaleAmount),
-                    })}
-                  </span>
+                  <span>{saleT.flashDiscount}</span>
                   <strong>−{formatVnd(flashSaleAmount)}</strong>
                 </p>
               ) : null}
