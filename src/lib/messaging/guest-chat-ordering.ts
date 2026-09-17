@@ -959,6 +959,15 @@ export async function completeOrderCheckout(input: {
   })[0]
   const expectedAmount = checkoutPlan?.requiredAmount ?? 0
   const depositPercent = checkoutPlan?.depositPercent ?? 0
+  const calc = resolveRequiredAmountByDepositRule({
+    subtotal: payableSubtotal,
+    mode:
+      settings.default_deposit_mode === 'none' || settings.default_deposit_mode === 'fixed_amount'
+        ? settings.default_deposit_mode
+        : 'percent',
+    percent: clampPercent(settings.default_deposit_percent ?? 30, 30),
+    fixedAmount: normalizeMoney(settings.default_deposit_amount ?? 0),
+  })
   const paymentMethod = resolvePaymentMethodForCheckout({
     requested: input.form.paymentMethod,
     requiredAmount: expectedAmount,
@@ -1405,7 +1414,11 @@ export async function completeCartCheckout(input: {
     await patchPartnerOrderFulfillmentFromPg({
       orderId: draft.id,
       fulfillmentSource: plan.source,
-      sourcePlatform: plan.lines.find((row) => row.sourcePlatform)?.sourcePlatform ?? first.sourcePlatform ?? null,
+      sourcePlatform:
+        plan.lines.find((row) => row.sourcePlatform)?.sourcePlatform ??
+        (first.sourcePlatform === '1688' || first.sourcePlatform === 'taobao' || first.sourcePlatform === 'tmall'
+          ? first.sourcePlatform
+          : null),
       checkoutGroupId,
       splitIndex: plan.splitIndex,
       needsReview,

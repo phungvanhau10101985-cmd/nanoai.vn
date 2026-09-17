@@ -21,7 +21,9 @@ export function collectInventoryImageRefs(row: {
   const refs: ImageRef[] = []
   const colors = parseColors(row.colors_json)
   for (let i = 0; i < colors.length; i++) {
-    const img = typeof colors[i]?.img === 'string' ? colors[i].img : ''
+    const color = colors[i]
+    if (!color) continue
+    const img = typeof color.img === 'string' ? color.img : ''
     if (img.trim()) refs.push({ bucket: 'colors', index: i, url: normalizeImageUrl(img) })
   }
   const gallery = asStringList(row.gallery_urls)

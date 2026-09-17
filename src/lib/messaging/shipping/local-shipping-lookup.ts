@@ -6,6 +6,11 @@ import {
 import { looksLikeEmsTrackingCode } from '@/lib/messaging/shipping/ems-excel'
 import { fetchEmsTracking } from '@/lib/messaging/shipping/ems-tracking'
 import { fetchPartnerOrderShipmentEventsFromPg } from '@/lib/db/messaging-partner-order-shipment-pg'
+import type {
+  PartnerShippingLookupHit,
+  PartnerShippingLookupOutcome,
+  ShippingLookupQuery,
+} from '@/lib/messaging/partner-shipping-lookup'
 
 function classifyQuery(query: ShippingLookupQuery): { kind: 'order' | 'phone' | 'ems'; value: string } {
   const v = query.value.trim()

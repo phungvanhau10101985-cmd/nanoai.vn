@@ -12,6 +12,7 @@ import {
 } from '@/lib/db/customer-care-pg'
 import { fetchGuestGenderForPartnerConsultCachePg } from '@/lib/db/partner-product-consult-cache-pg'
 import { fetchMessagingPartnerAiSettingsFullFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
+import { fetchMessagingPartnerByIdFromPg } from '@/lib/db/messaging-partners-pg'
 import { notifyPartnerOwnerChatNeedsReply } from '@/lib/messaging/partner-admin-notifications'
 import {
   cancelPendingAiJobsForConversationPg,

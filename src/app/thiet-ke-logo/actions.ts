@@ -120,17 +120,17 @@ export async function createLogo(formData: FormData) {
       return { error: 'AI không trả về ảnh hợp lệ.' }
     }
     const resultBufferRaw = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
-    let resultBuffer = resultBufferRaw
+    let resultBuffer: Buffer<ArrayBufferLike> = resultBufferRaw
     let charged = COST
     if (stripBackground) {
       const stripped = await stripLogoBackgroundToTransparentPng({
         apiKey,
         userId: user.id,
         feature: 'thiet-ke-logo-remove-bg',
-        imageBuffer: resultBufferRaw,
+        imageBuffer: resultBufferRaw as Buffer,
       })
-      resultBuffer = stripped.buffer
-      charged = chargedCreditsForLogoCreate(COST, stripped.removed)
+      resultBuffer = stripped.buffer as Buffer
+      charged = chargedCreditsForLogoCreate(COST, stripped.removed) as 3 | 1.5
     }
     const resultPath = `results/${user.id}/logo_${Date.now()}.png`
     const { publicUrl: logoResultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {

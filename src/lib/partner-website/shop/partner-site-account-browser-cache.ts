@@ -286,7 +286,8 @@ function sanitizeWallet(raw: unknown): PartnerSiteCachedWalletVoucher | null {
   const o = raw as Record<string, unknown>
   const code = clip(o.code, 40)
   if (!code) return null
-  const discountType = o.discountType === 'percent' || o.discountType === 'fixed_amount' ? o.discountType : undefined
+  const discountType: PartnerSiteCachedWalletVoucher['discountType'] =
+    o.discountType === 'percent' || o.discountType === 'fixed_amount' ? o.discountType : undefined
   return definedRecord({
     code,
     name: clip(o.name, 120) || undefined,

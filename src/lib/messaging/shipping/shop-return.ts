@@ -8,6 +8,7 @@ import {
 } from '@/lib/db/messaging-partner-ems-shipping-pg'
 import { cellStr, extractWarehouseSkuFromEmsLabel, looksLikeRecipientNotSku, readSpreadsheetRows } from '@/lib/messaging/shipping/ems-excel'
 import { parseWarehouseSourceSkuParts, resolveWarehouseIntakeHints } from '@/lib/messaging/fulfillment/warehouse-source-sku'
+import { isEmsRecordShopReturnReceived, isEmsReturnPendingShop } from '@/lib/messaging/shipping/shipping-ops'
 
 const CODE_SPLIT_RE = /[\s,;|\t]+/
 
@@ -192,6 +193,8 @@ export async function resolveReturnWarehouseSku(partnerId: string, code: string)
     inventory: inventory
       ? {
           ...inventory,
+          id: String(inventory.id ?? ''),
+          stock_qty: Number(inventory.stock_qty || 0),
           colors,
           sizes,
           parsed_size: hints.size,

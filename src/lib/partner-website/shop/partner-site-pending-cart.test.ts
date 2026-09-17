@@ -13,7 +13,7 @@ const ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
 test('pending cart queues, merges quantity, and take clears storage', () => {
   const store = new Map<string, string>()
   const key = partnerSitePendingCartKey('demo-shop')
-  const g = globalThis as typeof globalThis & { window?: unknown; sessionStorage?: Storage }
+  const g = globalThis as unknown as { window?: { sessionStorage: Storage } }
   const prevWindow = g.window
   g.window = {
     sessionStorage: {
@@ -24,6 +24,9 @@ test('pending cart queues, merges quantity, and take clears storage', () => {
       removeItem: (k: string) => {
         store.delete(k)
       },
+      clear: () => {},
+      key: () => null,
+      length: 0,
     },
   }
   try {

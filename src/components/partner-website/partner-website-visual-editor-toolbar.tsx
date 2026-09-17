@@ -785,6 +785,7 @@ function logoPromptInputFrom(
 
 const CHROME_WIDGET_ICONS: Record<VisualEditorChromeWidgetKind, LucideIcon> = {
   home: Home,
+  back: ChevronLeft,
   products: Package,
   categories: Menu,
   search: Search,

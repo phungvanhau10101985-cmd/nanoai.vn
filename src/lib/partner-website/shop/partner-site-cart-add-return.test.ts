@@ -8,7 +8,7 @@ import {
 
 test('reopen-chat flag is one-shot in sessionStorage', () => {
   const store: Record<string, string> = {}
-  const g = globalThis as typeof globalThis & { window?: { sessionStorage: Storage } }
+  const g = globalThis as unknown as { window?: { sessionStorage: Storage } }
   const prev = g.window
   const sessionStorage = {
     getItem: (k: string) => store[k] ?? null,
@@ -35,6 +35,6 @@ test('reopen-chat flag is one-shot in sessionStorage', () => {
     assert.equal(consumePartnerShopReopenChat(), false)
   } finally {
     if (prev) g.window = prev
-    else delete g.window
+    else g.window = undefined
   }
 })

@@ -25,6 +25,7 @@ import {
 import { cn } from '@/lib/utils'
 import { PW_EL, PW_PAGE, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { PartnerSiteListingProductCard } from '@/components/partner-website/shop/partner-site-listing-product-card'
+import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 
 export type FashionHomeCategory = {
   name: string

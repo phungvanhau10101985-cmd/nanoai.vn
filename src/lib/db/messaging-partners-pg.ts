@@ -810,6 +810,7 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
       partner_capabilities: null,
       external_shop_origin: null,
       external_shop_login_path: '',
+      shop_order_seq: 0,
       created_at: mapTimestamptz(r.created_at),
       updated_at: mapTimestamptz(r.updated_at),
     }))
@@ -876,6 +877,7 @@ export async function fetchMessagingPartnersByOwnerFromPg(ownerUserId: string): 
           partner_capabilities: null,
           external_shop_origin: null,
           external_shop_login_path: '',
+          shop_order_seq: 0,
           created_at: mapTimestamptz(r.created_at),
           updated_at: mapTimestamptz(r.updated_at),
         }))
@@ -976,6 +978,7 @@ export async function fetchMessagingPartnersForDashboardFromPg(
         partner_capabilities: null,
         external_shop_origin: null,
         external_shop_login_path: '',
+        shop_order_seq: 0,
         created_at: mapTimestamptz(r.created_at),
         updated_at: mapTimestamptz(r.updated_at),
         dashboard_access: 'staff',
@@ -1099,6 +1102,7 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
       partner_capabilities: null,
       external_shop_origin: null,
       external_shop_login_path: '',
+      shop_order_seq: 0,
       created_at: mapTimestamptz(row.created_at),
       updated_at: mapTimestamptz(row.updated_at),
     }
@@ -1152,6 +1156,7 @@ export async function insertMessagingPartnerForOwnerFromPg(params: {
           partner_capabilities: null,
           external_shop_origin: null,
           external_shop_login_path: '',
+          shop_order_seq: 0,
           created_at: mapTimestamptz(row.created_at),
           updated_at: mapTimestamptz(row.updated_at),
         }
@@ -1263,6 +1268,7 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
       partner_capabilities: null,
       external_shop_origin: null,
       external_shop_login_path: '',
+      shop_order_seq: 0,
       created_at: mapTimestamptz(row.created_at),
       updated_at: mapTimestamptz(row.updated_at),
     }
@@ -1328,6 +1334,7 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
           partner_capabilities: null,
           external_shop_origin: null,
           external_shop_login_path: '',
+          shop_order_seq: 0,
           created_at: mapTimestamptz(row.created_at),
           updated_at: mapTimestamptz(row.updated_at),
         }

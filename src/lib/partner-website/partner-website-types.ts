@@ -110,6 +110,7 @@ export type PartnerWebsitePublicRow = {
   gtmContainerId: string | null
   /** S0.10 */
   defaultCurrency?: string | null
+  isPublished?: boolean
 }
 
 export function mapTemplateFieldsFromDb(input: {

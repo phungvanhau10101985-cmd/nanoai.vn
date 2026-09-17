@@ -952,6 +952,13 @@ export function PartnerMessagingOrdersClient({
         sort_order: 0,
         created_at: selectedOrder.created_at,
         updated_at: selectedOrder.created_at,
+        fulfillment_source: 'vietnam',
+        source_platform: null,
+        source_url: '',
+        product_sku_snapshot: '',
+        is_warehouse_item: false,
+        warehouse_stock_reserved_at: null,
+        warehouse_stock_deducted_at: null,
       },
     ]
   }, [detailLines, selectedOrder])

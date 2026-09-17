@@ -101,6 +101,7 @@ export async function POST(req: NextRequest) {
       defaultBrandName?: string
       pageKey?: string
       presetId?: string
+      primaryColor?: string
     }
 
     const partnerId = String(body.partnerId ?? '').trim()

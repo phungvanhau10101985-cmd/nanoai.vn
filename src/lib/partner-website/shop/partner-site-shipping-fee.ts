@@ -24,7 +24,9 @@ function provinceOverrideFee(
     if (fees.has(province)) return money(fees.get(province))
     return undefined
   }
-  if (Object.prototype.hasOwnProperty.call(fees, province)) return money(fees[province])
+  if (Object.prototype.hasOwnProperty.call(fees, province)) {
+    return money((fees as Record<string, number>)[province])
+  }
   return undefined
 }
 

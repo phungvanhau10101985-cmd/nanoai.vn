@@ -92,9 +92,11 @@ export function parseExcelDateCell(value: unknown): string | null {
     }
   }
   const text = cellStr(value)
-  for (const fmt of [/^(\d{4})-(\d{2})-(\d{2})/, /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/]) {
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/
+  const dmy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
+  for (const fmt of [iso, dmy]) {
     const m = fmt.exec(text)
-    if (m && fmt === /^(\d{4})-(\d{2})-(\d{2})/) return `${m[1]}-${m[2]}-${m[3]}`
+    if (m && fmt === iso) return `${m[1]}-${m[2]}-${m[3]}`
     if (m && m[3]?.length === 4) {
       return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
     }

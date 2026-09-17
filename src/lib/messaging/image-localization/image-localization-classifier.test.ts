@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { classifyImage, convertJinWeightText, hasSizeTableContext, localBlocksNeedDraw } from './image-localization-classifier'
+import type { ImageLocOcrBlock } from './image-localization-types'
 import { collectInventoryImageRefs, uniqueImageUrls } from './collect-image-refs'
 import { normalizeImageUrl } from './image-localization-config'
 
@@ -17,7 +18,7 @@ describe('image localization classifier', () => {
   })
 
   it('detects a size table', () => {
-    const blocks = [
+    const blocks: ImageLocOcrBlock[] = [
       { text: '尺码表', bbox: [0, 0, 20, 10] },
       { text: '胸围', bbox: [0, 12, 20, 20] },
       { text: 'S', bbox: [22, 12, 30, 20] },
@@ -34,7 +35,7 @@ describe('image localization classifier', () => {
   })
 
   it('marks size/laundry for delete in local-only mode', () => {
-    const blocks = [
+    const blocks: ImageLocOcrBlock[] = [
       { text: '尺码表', bbox: [0, 0, 40, 12] },
       { text: 'S', bbox: [0, 14, 8, 22] },
       { text: 'M', bbox: [10, 14, 18, 22] },

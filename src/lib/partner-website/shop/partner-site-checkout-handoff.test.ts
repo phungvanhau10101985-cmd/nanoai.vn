@@ -11,7 +11,7 @@ import {
 test('checkout handoff paints deposit then take clears storage', () => {
   const store = new Map<string, string>()
   const key = partnerSiteCheckoutHandoffKey('demo-shop')
-  const g = globalThis as typeof globalThis & { window?: unknown }
+  const g = globalThis as unknown as { window?: { sessionStorage: Storage } }
   const prevWindow = g.window
   g.window = {
     sessionStorage: {
@@ -22,6 +22,9 @@ test('checkout handoff paints deposit then take clears storage', () => {
       removeItem: (k: string) => {
         store.delete(k)
       },
+      clear: () => {},
+      key: () => null,
+      length: 0,
     },
   }
   try {
@@ -55,7 +58,7 @@ test('checkout handoff paints deposit then take clears storage', () => {
 
 test('handoff ignores a different order id', () => {
   const store = new Map<string, string>()
-  const g = globalThis as typeof globalThis & { window?: unknown }
+  const g = globalThis as unknown as { window?: { sessionStorage: Storage } }
   const prevWindow = g.window
   g.window = {
     sessionStorage: {
@@ -66,6 +69,9 @@ test('handoff ignores a different order id', () => {
       removeItem: (k: string) => {
         store.delete(k)
       },
+      clear: () => {},
+      key: () => null,
+      length: 0,
     },
   }
   try {
@@ -81,7 +87,7 @@ test('handoff ignores a different order id', () => {
 
 test('orders list can stash a row for deposit/detail first paint', () => {
   const store = new Map<string, string>()
-  const g = globalThis as typeof globalThis & { window?: unknown }
+  const g = globalThis as unknown as { window?: { sessionStorage: Storage } }
   const prevWindow = g.window
   g.window = {
     sessionStorage: {
@@ -92,6 +98,9 @@ test('orders list can stash a row for deposit/detail first paint', () => {
       removeItem: (k: string) => {
         store.delete(k)
       },
+      clear: () => {},
+      key: () => null,
+      length: 0,
     },
   }
   try {

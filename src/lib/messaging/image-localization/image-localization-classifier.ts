@@ -1,4 +1,6 @@
 import type { ImageLocClassifyType, ImageLocOcrBlock } from './image-localization-types'
+
+export type { ImageLocOcrBlock }
 import {
   IMAGE_LOC_COMPLEX_KEYWORDS,
   IMAGE_LOC_DOMAIN_REGEX,

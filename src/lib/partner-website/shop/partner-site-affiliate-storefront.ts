@@ -35,7 +35,7 @@ export async function loadPartnerSiteAffiliateStorefront(
     (await resolvePartnerWebsitePublicUrl({
       partnerId: shop.partnerId,
       siteSlug: shop.site.siteSlug,
-      isPublished: shop.site.isPublished,
+      isPublished: Boolean(shop.site.isPublished),
       req: request,
     })) || request.nextUrl.origin
   return {

@@ -346,6 +346,7 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
       default_currency: string | null
       nav_json: unknown
       footer_json: unknown
+      is_published: boolean | null
     }>(
       `select w.partner_id::text, w.site_slug, w.title, w.logo_url,
               case when $3::text = 'full' then w.html_source else null end as html_source,
@@ -384,7 +385,8 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
               nullif(trim(coalesce(p.google_ads_id, '')), '') as google_ads_id,
               nullif(trim(coalesce(p.tiktok_pixel_id, '')), '') as tiktok_pixel_id,
               nullif(trim(coalesce(p.gtm_container_id, '')), '') as gtm_container_id,
-              coalesce(nullif(trim(p.default_currency), ''), 'VND') as default_currency
+              coalesce(nullif(trim(p.default_currency), ''), 'VND') as default_currency,
+              w.is_published
        from public.messaging_partner_websites w
        inner join public.messaging_partners p on p.id = w.partner_id
        where w.site_slug = $1
@@ -421,6 +423,7 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
       tiktokPixelId: row.tiktok_pixel_id,
       gtmContainerId: row.gtm_container_id,
       defaultCurrency: String(row.default_currency ?? 'VND').trim().toUpperCase() || 'VND',
+      isPublished: Boolean(row.is_published),
     }
 
     if (filesLoad.mode !== 'full') {

@@ -6,6 +6,7 @@ import {
 import { fetchPartnerOrderShipmentEventsFromPg } from '@/lib/db/messaging-partner-order-shipment-pg'
 import { fetchEmsTracking } from '@/lib/messaging/shipping/ems-tracking'
 import { looksLikeEmsTrackingCode } from '@/lib/messaging/shipping/ems-excel'
+import { isPgConfigured } from '@/lib/db/pool'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 
 export const dynamic = 'force-dynamic'
