@@ -333,13 +333,13 @@ export async function POST(request: NextRequest) {
               order: refreshed,
               shopNotifyEmail: paySettings.notify_email || '',
             })
-            void notifyPartnerOwnerPaymentVerified(partnerId, refreshed)
+            await notifyPartnerOwnerPaymentVerified(partnerId, refreshed)
           } else {
             await emailCustomerOrderPaymentManualReview({
               order: refreshed,
               shopNotifyEmail: paySettings.notify_email || '',
             })
-            void notifyPartnerOwnerPaymentNeedsReview(partnerId, refreshed)
+            await notifyPartnerOwnerPaymentNeedsReview(partnerId, refreshed)
           }
         }
       } catch (e) {

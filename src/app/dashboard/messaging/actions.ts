@@ -260,6 +260,7 @@ import {
   emailCustomerOrderRefunded,
   emailCustomerShippingStatusChanged,
 } from '@/lib/messaging/partner-order-customer-email'
+import { notifyPartnerOwnerPaymentVerified } from '@/lib/messaging/partner-admin-notifications'
 import { maybeEmailCustomerOfflineShopReply } from '@/lib/messaging/partner-reply-offline-customer-email'
 import {
   parseSpreadsheetId,
@@ -1338,6 +1339,7 @@ export async function confirmMyMessagingOrderDeposit(input: {
     } catch (e) {
       console.warn('[confirmMyMessagingOrderDeposit] customer email', e)
     }
+    await notifyPartnerOwnerPaymentVerified(row.partner_id, row, { excludeUserId: user.id })
     emitPartnerOutboundPaymentPaid(row.partner_id, row)
     sendPartnerMetaPurchaseCapiOnPaymentConfirmed({ partnerId: row.partner_id, order: row }).catch((e) =>
       console.warn('[confirmMyMessagingOrderDeposit] Meta CAPI Purchase', e)

@@ -20,20 +20,20 @@ export async function deliverUserNotificationPg(payload: UserNotificationPayload
     return
   }
 
-  await sendAccountNotificationEmailByUserIdPg(payload.user_id, {
-    title: payload.title,
-    body: payload.body,
-    fromName: accountNotificationFromNameFromMeta(payload.meta),
-  })
-
   const pushUrl =
     typeof payload.meta?.push_url === 'string' && payload.meta.push_url.startsWith('/')
       ? payload.meta.push_url
       : '/'
 
-  await sendPushNotificationsToUser(payload.user_id, {
+  void sendAccountNotificationEmailByUserIdPg(payload.user_id, {
+    title: payload.title,
+    body: payload.body,
+    fromName: accountNotificationFromNameFromMeta(payload.meta),
+  }).catch((e) => console.warn('[deliverUserNotificationPg] email', e))
+
+  void sendPushNotificationsToUser(payload.user_id, {
     title: payload.title,
     body: payload.body,
     url: pushUrl,
-  })
+  }).catch((e) => console.warn('[deliverUserNotificationPg] push', e))
 }

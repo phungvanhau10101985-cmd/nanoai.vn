@@ -1,14 +1,17 @@
 import { deliverUserNotificationPg } from '@/lib/notifications/deliver-user-notification-pg'
-import { fetchMessagingPartnerOwnerUserIdFromPg, fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
+import {
+  fetchMessagingPartnerOwnerUserIdFromPg,
+  fetchMessagingPartnersByIdsFromPg,
+  listMessagingPartnerNotifyUserIdsFromPg,
+} from '@/lib/db/messaging-partners-pg'
 import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
 import { partnerShopEmailBrandName } from '@/lib/messaging/partner-shop-email-brand'
 import { hasRecentUserNotificationFromPg } from '@/lib/db/notifications-repo'
 import type { PartnerWebsiteLeadRow } from '@/lib/db/partner-website-leads-pg'
 
 /**
- * M4.1 — thông báo cho MERCHANT (chủ shop) khi có đơn mới / cọc / lead / chat / CTV.
+ * M4.1 — thông báo webapp cho người quản trị shop (chủ, tài khoản trùng email chủ, nhân viên).
  * Khác W5.2 (thông báo cho khách hàng cuối).
- * Chỉ gửi cho chủ shop (`owner_user_id`).
  */
 
 function toVnd(n: number): string {
@@ -26,24 +29,35 @@ async function notifyPartnerOwner(input: {
   body: string
   pushUrl: string
   extraMeta?: Record<string, unknown>
+  excludeUserId?: string | null
 }): Promise<void> {
   try {
-    const ownerUserId = await fetchMessagingPartnerOwnerUserIdFromPg(input.partnerId)
-    if (!ownerUserId) return
+    const skip = input.excludeUserId?.trim() || ''
+    const userIds = (await listMessagingPartnerNotifyUserIdsFromPg(input.partnerId)).filter(
+      (id) => id !== skip
+    )
+    if (!userIds.length) {
+      console.warn('[notifyPartnerOwner] no dashboard users', input.type, input.partnerId)
+      return
+    }
     const partners = await fetchMessagingPartnersByIdsFromPg([input.partnerId])
     const shopName = partnerShopEmailBrandName(partners?.[0])
-    await deliverUserNotificationPg({
-      user_id: ownerUserId,
-      type: input.type,
-      title: input.title,
-      body: input.body,
-      meta: {
-        push_url: input.pushUrl,
-        partner_id: input.partnerId,
-        shop_display_name: shopName,
-        ...(input.extraMeta ?? {}),
-      },
-    })
+    await Promise.all(
+      userIds.map((user_id) =>
+        deliverUserNotificationPg({
+          user_id,
+          type: input.type,
+          title: input.title,
+          body: input.body,
+          meta: {
+            push_url: input.pushUrl,
+            partner_id: input.partnerId,
+            shop_display_name: shopName,
+            ...(input.extraMeta ?? {}),
+          },
+        })
+      )
+    )
   } catch (e) {
     console.warn('[notifyPartnerOwner]', input.type, e)
   }
@@ -61,7 +75,11 @@ export async function notifyPartnerOwnerNewOrder(partnerId: string, order: Partn
   })
 }
 
-export async function notifyPartnerOwnerPaymentVerified(partnerId: string, order: PartnerOrderRow): Promise<void> {
+export async function notifyPartnerOwnerPaymentVerified(
+  partnerId: string,
+  order: PartnerOrderRow,
+  opts?: { excludeUserId?: string | null }
+): Promise<void> {
   const ref = order.payment_reference || order.id.slice(0, 8)
   await notifyPartnerOwner({
     partnerId,
@@ -70,6 +88,7 @@ export async function notifyPartnerOwnerPaymentVerified(partnerId: string, order
     body: `Đơn ${ref}: đã xác nhận ${toVnd(order.paid_amount || 0)} từ ${order.customer_name || 'khách'}.`,
     pushUrl: ownerOrdersUrl(partnerId),
     extraMeta: { order_id: order.id },
+    excludeUserId: opts?.excludeUserId,
   })
 }
 
@@ -179,10 +198,12 @@ export async function notifyPartnerOwnerChatNeedsReply(input: {
   preview?: string | null
 }): Promise<void> {
   try {
-    const ownerUserId = await fetchMessagingPartnerOwnerUserIdFromPg(input.partnerId)
-    if (!ownerUserId) return
+    const userIds = await listMessagingPartnerNotifyUserIdsFromPg(input.partnerId)
+    const cooldownUserId =
+      (await fetchMessagingPartnerOwnerUserIdFromPg(input.partnerId)) || userIds[0] || ''
+    if (!cooldownUserId) return
     const recent = await hasRecentUserNotificationFromPg({
-      userId: ownerUserId,
+      userId: cooldownUserId,
       type: 'messaging_partner_chat_inbound',
       metaKey: 'conversation_id',
       metaValue: input.conversationId,

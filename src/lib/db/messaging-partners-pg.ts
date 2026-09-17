@@ -646,6 +646,77 @@ export async function fetchMessagingPartnerOwnerUserIdFromPg(partnerId: string):
   }
 }
 
+/**
+ * Mọi tài khoản mở được dashboard shop: chủ (`owner_user_id`), user trùng email chủ,
+ * và nhân viên `messaging_partner_members`. Chuông webapp phải ghi hết — không chỉ owner UUID.
+ */
+export async function listMessagingPartnerNotifyUserIdsFromPg(partnerId: string): Promise<string[]> {
+  if (!isPgConfigured()) return []
+  const pid = safeUuid(partnerId)
+  if (!pid) return []
+  const sql = `
+    select distinct x.user_id
+    from (
+      select p.owner_user_id::text as user_id
+      from public.messaging_partners p
+      where p.id = $1::uuid
+        and p.owner_user_id is not null
+      union
+      select me.id::text
+      from public.messaging_partners p
+      join auth.users owner_u on owner_u.id = p.owner_user_id
+      join auth.users me
+        on lower(trim(coalesce(me.email, ''))) = lower(trim(coalesce(owner_u.email, '')))
+       and trim(coalesce(me.email, '')) <> ''
+      where p.id = $1::uuid
+      union
+      select m.member_user_id::text
+      from public.messaging_partner_members m
+      where m.partner_id = $1::uuid
+    ) x
+    where x.user_id is not null
+      and x.user_id ~* $2
+  `
+  try {
+    const rows = await pgQuery<{ user_id: string }>(sql, [pid, UUID_SQL.source])
+    return [...new Set(rows.map((r) => r.user_id.trim()).filter((id) => UUID_SQL.test(id)))]
+  } catch (e) {
+    const code = typeof e === 'object' && e && 'code' in e ? String((e as { code?: unknown }).code || '') : ''
+    if (code === '42P01') {
+      try {
+        const rows = await pgQuery<{ user_id: string }>(
+          `select distinct x.user_id
+           from (
+             select p.owner_user_id::text as user_id
+             from public.messaging_partners p
+             where p.id = $1::uuid
+               and p.owner_user_id is not null
+             union
+             select me.id::text
+             from public.messaging_partners p
+             join auth.users owner_u on owner_u.id = p.owner_user_id
+             join auth.users me
+               on lower(trim(coalesce(me.email, ''))) = lower(trim(coalesce(owner_u.email, '')))
+              and trim(coalesce(me.email, '')) <> ''
+             where p.id = $1::uuid
+           ) x
+           where x.user_id is not null
+             and x.user_id ~* $2`,
+          [pid, UUID_SQL.source]
+        )
+        return [...new Set(rows.map((r) => r.user_id.trim()).filter((id) => UUID_SQL.test(id)))]
+      } catch (legacyErr) {
+        console.warn('[listMessagingPartnerNotifyUserIdsFromPg:legacy]', legacyErr)
+        const owner = await fetchMessagingPartnerOwnerUserIdFromPg(pid)
+        return owner ? [owner] : []
+      }
+    }
+    console.warn('[listMessagingPartnerNotifyUserIdsFromPg]', e)
+    const owner = await fetchMessagingPartnerOwnerUserIdFromPg(pid)
+    return owner ? [owner] : []
+  }
+}
+
 export type MessagingPartnerByIdsRow = {
   id: string
   display_name: string

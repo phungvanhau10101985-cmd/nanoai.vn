@@ -1141,9 +1141,7 @@ export async function completeOrderCheckout(input: {
   }).catch((e) => console.warn('[completeOrderCheckout] email', e))
   queuePartnerOrderGoogleSheetsSync(input.partnerId, updated.id)
   emitPartnerOutboundOrderCreated(input.partnerId, updated)
-  notifyPartnerOwnerNewOrder(input.partnerId, updated).catch((e) =>
-    console.warn('[completeOrderCheckout] notify owner', e)
-  )
+  await notifyPartnerOwnerNewOrder(input.partnerId, updated)
   return { ok: true, order: updated }
 }
 
@@ -1602,9 +1600,7 @@ export async function completeCartCheckout(input: {
     }).catch((e) => console.warn('[completeCartCheckout] email', e))
     queuePartnerOrderGoogleSheetsSync(input.partnerId, order.id)
     emitPartnerOutboundOrderCreated(input.partnerId, order)
-    notifyPartnerOwnerNewOrder(input.partnerId, order).catch((e) =>
-      console.warn('[completeCartCheckout] notify owner', e)
-    )
+    await notifyPartnerOwnerNewOrder(input.partnerId, order)
   }
   return {
     ok: true,
@@ -1955,7 +1951,7 @@ export async function verifyOrderPaymentProof(input: {
         order: refreshed,
         shopNotifyEmail: settings.notify_email || '',
       })
-      void notifyPartnerOwnerPaymentVerified(input.partnerId, refreshed)
+      await notifyPartnerOwnerPaymentVerified(input.partnerId, refreshed)
     } catch (e) {
       console.warn('[verifyOrderPaymentProof] email verified', e)
     }
@@ -1965,7 +1961,7 @@ export async function verifyOrderPaymentProof(input: {
         order: refreshed,
         shopNotifyEmail: settings.notify_email || '',
       })
-      void notifyPartnerOwnerPaymentNeedsReview(input.partnerId, refreshed)
+      await notifyPartnerOwnerPaymentNeedsReview(input.partnerId, refreshed)
     } catch (e) {
       console.warn('[verifyOrderPaymentProof] email manual_review', e)
     }

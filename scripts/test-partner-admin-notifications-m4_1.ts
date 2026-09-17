@@ -59,7 +59,10 @@ async function main() {
     const orderNotif = await latestNotificationFor('messaging_partner_new_order')
     assert(orderNotif, 'phải có thông báo đơn hàng mới cho chủ shop')
     assert(orderNotif!.body.includes('Nguyễn Văn A') && orderNotif!.body.includes('350.000đ'), `nội dung thông báo đơn hàng sai: ${JSON.stringify(orderNotif)}`)
-    assert(orderNotif!.meta.push_url === `/dashboard/messaging/orders?partner=${partnerId}`, 'push_url phải trỏ đúng trang đơn hàng')
+    assert(
+      orderNotif!.meta.push_url === `/dashboard/messaging/settings?section=hub-orders&partner=${partnerId}`,
+      'push_url phải trỏ đúng hub đơn hàng'
+    )
     console.log('OK notifyPartnerOwnerNewOrder: chủ shop nhận thông báo đúng nội dung + push_url')
 
     await notifyPartnerOwnerNewQuestion({ partnerId, askerName: 'Khách B', content: 'Sản phẩm này có size XL không ạ?' })
