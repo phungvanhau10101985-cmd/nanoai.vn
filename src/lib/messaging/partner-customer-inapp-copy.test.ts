@@ -2,6 +2,36 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { formatCustomerInAppCopy } from './partner-customer-inapp-copy'
 import { pickPartnerCustomerEmsNotifyEvent } from './partner-customer-webapp-notify'
+import { mergePartnerCustomerNotifyGuestIds } from '@/lib/db/messaging-partner-customer-notifications-pg'
+
+test('order placed in-app goes to the customer, not the owner copy', () => {
+  const vi = formatCustomerInAppCopy('vi', {
+    kind: 'order_placed',
+    orderCode: 'GUDOVN14',
+    shopName: 'gudo.vn',
+    productName: 'Đầm voan',
+    needsDeposit: true,
+    depositLabel: '190.000đ',
+  })
+  assert.equal(vi.title, 'Đơn hàng đã được ghi nhận')
+  assert.match(vi.body, /gudo\.vn/)
+  assert.match(vi.body, /190\.000đ/)
+  assert.doesNotMatch(vi.body, /vừa đặt đơn/)
+  const en = formatCustomerInAppCopy('en', {
+    kind: 'order_placed',
+    orderCode: 'GUDOVN14',
+    shopName: 'gudo.vn',
+    needsDeposit: false,
+  })
+  assert.equal(en.title, 'Order received')
+})
+
+test('customer notify guest ids keep both chat session and email account', () => {
+  assert.deepEqual(
+    mergePartnerCustomerNotifyGuestIds('aaa', 'bbb', 'aaa', '', null),
+    ['aaa', 'bbb']
+  )
+})
 
 test('cancelled in-app matches 188, not Payment status dump', () => {
   const vi = formatCustomerInAppCopy('vi', { kind: 'cancelled', orderCode: 'GUDOVN08' })

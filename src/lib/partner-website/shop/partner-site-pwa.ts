@@ -192,17 +192,20 @@ self.addEventListener('notificationclick', function (event) {
   event.notification.close();
   var raw = (event.notification.data && event.notification.data.url) || (self.location.origin + INBOX);
   var urlToOpen = raw.indexOf('http') === 0 ? raw : self.location.origin + (raw.charAt(0) === '/' ? raw : '/' + raw);
+  var sameOrigin = urlToOpen.indexOf(self.location.origin) === 0;
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-      for (var i = 0; i < clientList.length; i++) {
-        var client = clientList[i];
-        if (client.url.indexOf(self.location.origin) === 0 && 'focus' in client) {
-          return client.focus().then(function () {
-            if ('navigate' in client) {
-              try { return client.navigate(urlToOpen); } catch (e) {}
-            }
-            return self.clients.openWindow(urlToOpen);
-          });
+      if (sameOrigin) {
+        for (var i = 0; i < clientList.length; i++) {
+          var client = clientList[i];
+          if (client.url.indexOf(self.location.origin) === 0 && 'focus' in client) {
+            return client.focus().then(function () {
+              if ('navigate' in client) {
+                try { return client.navigate(urlToOpen); } catch (e) {}
+              }
+              return self.clients.openWindow(urlToOpen);
+            });
+          }
         }
       }
       if (self.clients.openWindow) return self.clients.openWindow(urlToOpen);

@@ -282,10 +282,26 @@ export async function insertPartnerCustomerNotificationFromPg(input: {
   }
 }
 
+/** Conversation guest and login-by-email guest can differ — notify both. */
+export function mergePartnerCustomerNotifyGuestIds(
+  ...ids: Array<string | null | undefined>
+): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const raw of ids) {
+    const id = String(raw || '').trim()
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+  }
+  return out
+}
+
 export async function notifyPartnerCustomerOrderUpdateFromPg(input: {
   partnerId: string
   conversationId?: string | null
   customerEmail?: string | null
+  customerPhone?: string | null
   title: string
   body: string
   type?: string
@@ -296,7 +312,7 @@ export async function notifyPartnerCustomerOrderUpdateFromPg(input: {
 }): Promise<void> {
   if (!isPgConfigured()) return
   try {
-    let guestAccountId = ''
+    let conversationGuestId = ''
     const conversationId = String(input.conversationId || '').trim()
     if (conversationId) {
       const conv = await pgQueryOne<{ guest_account_id: string | null }>(
@@ -306,16 +322,21 @@ export async function notifyPartnerCustomerOrderUpdateFromPg(input: {
          limit 1`,
         [conversationId, input.partnerId]
       )
-      guestAccountId = conv?.guest_account_id?.trim() ?? ''
+      conversationGuestId = conv?.guest_account_id?.trim() ?? ''
     }
-    if (!guestAccountId && input.customerEmail?.trim()) {
-      const found = await findPartnerNotificationRecipientFromPg({
-        partnerId: input.partnerId,
-        email: input.customerEmail,
-      })
-      guestAccountId = found?.guestAccountId ?? ''
-    }
-    if (!guestAccountId) return
+    const emailOrPhone = Boolean(input.customerEmail?.trim() || input.customerPhone?.trim())
+    const found = emailOrPhone
+      ? await findPartnerNotificationRecipientFromPg({
+          partnerId: input.partnerId,
+          email: input.customerEmail,
+          phone: input.customerPhone,
+        })
+      : null
+    const guestAccountIds = mergePartnerCustomerNotifyGuestIds(
+      conversationGuestId,
+      found?.guestAccountId
+    )
+    if (!guestAccountIds.length) return
 
     const site = await pgQueryOne<{ site_slug: string }>(
       `select site_slug from public.messaging_partner_websites
@@ -330,19 +351,27 @@ export async function notifyPartnerCustomerOrderUpdateFromPg(input: {
       (siteSlug && orderId ? partnerSiteOrderDetailPath(siteSlug, orderId) : '') ||
       (siteSlug ? partnerSiteAccountTabPath(siteSlug, 'orders') : '')
 
-    const row = await insertPartnerCustomerNotificationFromPg({
-      partnerId: input.partnerId,
-      guestAccountId,
-      type: (input.type ?? 'order').trim().slice(0, 40) || 'order',
-      title: input.title,
-      body: input.body,
-      href,
-      pushStatus: 'pending',
-    })
-    if (!row) return
+    const rows: PartnerCustomerNotificationRow[] = []
+    for (const guestAccountId of guestAccountIds) {
+      const row = await insertPartnerCustomerNotificationFromPg({
+        partnerId: input.partnerId,
+        guestAccountId,
+        type: (input.type ?? 'order').trim().slice(0, 40) || 'order',
+        title: input.title,
+        body: input.body,
+        href,
+        pushStatus: 'pending',
+      })
+      if (row) rows.push(row)
+    }
+    if (!rows.length) return
     const sendPush = () =>
-      import('@/lib/messaging/partner-customer-notification-push').then((m) =>
-        m.deliverPendingPartnerNotificationPush(row)
+      Promise.all(
+        rows.map((row) =>
+          import('@/lib/messaging/partner-customer-notification-push').then((m) =>
+            m.deliverPendingPartnerNotificationPush(row)
+          )
+        )
       )
     if (input.awaitPush === false) {
       void sendPush().catch((e) => console.warn('[notifyPartnerCustomerOrderUpdateFromPg] push', e))

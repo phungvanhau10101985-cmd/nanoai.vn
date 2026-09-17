@@ -63,6 +63,7 @@ import {
   emailCustomerOrderPaymentManualReview,
   emailCustomerOrderPaymentVerified,
 } from '@/lib/messaging/partner-order-customer-email'
+import { notifyPartnerCustomerOrderPlacedWebApp } from '@/lib/messaging/partner-customer-webapp-notify'
 import {
   buildSepayOrderPaymentReference,
   buildStablePaymentReference,
@@ -1141,6 +1142,7 @@ export async function completeOrderCheckout(input: {
   }).catch((e) => console.warn('[completeOrderCheckout] email', e))
   queuePartnerOrderGoogleSheetsSync(input.partnerId, updated.id)
   emitPartnerOutboundOrderCreated(input.partnerId, updated)
+  await notifyPartnerCustomerOrderPlacedWebApp(updated)
   await notifyPartnerOwnerNewOrder(input.partnerId, updated)
   return { ok: true, order: updated }
 }
@@ -1600,6 +1602,7 @@ export async function completeCartCheckout(input: {
     }).catch((e) => console.warn('[completeCartCheckout] email', e))
     queuePartnerOrderGoogleSheetsSync(input.partnerId, order.id)
     emitPartnerOutboundOrderCreated(input.partnerId, order)
+    await notifyPartnerCustomerOrderPlacedWebApp(order)
     await notifyPartnerOwnerNewOrder(input.partnerId, order)
   }
   return {

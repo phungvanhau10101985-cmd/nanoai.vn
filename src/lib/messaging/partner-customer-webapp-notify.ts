@@ -43,6 +43,7 @@ export async function notifyPartnerCustomerWebApp(input: {
   partnerId: string
   conversationId?: string | null
   customerEmail?: string | null
+  customerPhone?: string | null
   orderId?: string | null
   event: CustomerInAppEvent
   locale?: string | null
@@ -53,6 +54,7 @@ export async function notifyPartnerCustomerWebApp(input: {
     partnerId: input.partnerId,
     conversationId: input.conversationId,
     customerEmail: input.customerEmail,
+    customerPhone: input.customerPhone,
     orderId: input.orderId,
     title: copy.title,
     body: copy.body,
@@ -71,9 +73,29 @@ export async function notifyPartnerCustomerOrderWebApp(input: {
     partnerId: input.order.partner_id,
     conversationId: input.order.conversation_id,
     customerEmail: input.order.customer_email,
+    customerPhone: input.order.customer_phone,
     orderId: input.order.id,
     event: input.event,
     locale,
+  })
+}
+
+export async function notifyPartnerCustomerOrderPlacedWebApp(
+  order: PartnerOrderRow,
+  locale?: string | null
+): Promise<void> {
+  const shopName = await shopNameForPartner(order.partner_id)
+  await notifyPartnerCustomerOrderWebApp({
+    order,
+    locale,
+    event: {
+      kind: 'order_placed',
+      orderCode: orderCode(order),
+      shopName,
+      productName: order.product_name || undefined,
+      needsDeposit: (order.required_amount || 0) > 0,
+      depositLabel: (order.required_amount || 0) > 0 ? toVnd(order.required_amount) : undefined,
+    },
   })
 }
 

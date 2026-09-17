@@ -5,9 +5,13 @@ import {
   listMessagingPartnerNotifyUserIdsFromPg,
 } from '@/lib/db/messaging-partners-pg'
 import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
-import { partnerShopEmailBrandName } from '@/lib/messaging/partner-shop-email-brand'
+import { partnerShopEmailBrandName, shopEmailSubject } from '@/lib/messaging/partner-shop-email-brand'
 import { hasRecentUserNotificationFromPg } from '@/lib/db/notifications-repo'
 import type { PartnerWebsiteLeadRow } from '@/lib/db/partner-website-leads-pg'
+import { getAuthUserEmailFromPg } from '@/lib/db/auth-user-email-pg'
+import { findGuestAccountIdByEmailPg } from '@/lib/db/messaging-guest-pg'
+import { sendPartnerCustomerWebPush } from '@/lib/messaging/partner-customer-notification-push'
+import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 
 /**
  * M4.1 — thông báo webapp cho người quản trị shop (chủ, tài khoản trùng email chủ, nhân viên).
@@ -42,9 +46,14 @@ async function notifyPartnerOwner(input: {
     }
     const partners = await fetchMessagingPartnersByIdsFromPg([input.partnerId])
     const shopName = partnerShopEmailBrandName(partners?.[0])
+    const platformOrigin = getPublicAppUrlForServer().replace(/\/$/, '')
+    const dashboardHref = input.pushUrl.startsWith('http')
+      ? input.pushUrl
+      : `${platformOrigin}${input.pushUrl.startsWith('/') ? input.pushUrl : `/${input.pushUrl}`}`
+    const phoneTitle = shopEmailSubject(shopName, input.title)
     await Promise.all(
-      userIds.map((user_id) =>
-        deliverUserNotificationPg({
+      userIds.map(async (user_id) => {
+        await deliverUserNotificationPg({
           user_id,
           type: input.type,
           title: input.title,
@@ -53,10 +62,22 @@ async function notifyPartnerOwner(input: {
             push_url: input.pushUrl,
             partner_id: input.partnerId,
             shop_display_name: shopName,
+            skip_platform_push: true,
             ...(input.extraMeta ?? {}),
           },
         })
-      )
+        const email = (await getAuthUserEmailFromPg(user_id))?.trim().toLowerCase() || ''
+        const guestAccountId = email ? await findGuestAccountIdByEmailPg(input.partnerId, email) : null
+        if (!guestAccountId) return
+        await sendPartnerCustomerWebPush({
+          partnerId: input.partnerId,
+          guestAccountId,
+          title: phoneTitle,
+          body: input.body,
+          href: dashboardHref,
+          tag: `pw-shop-owner-${input.type}`,
+        })
+      })
     )
   } catch (e) {
     console.warn('[notifyPartnerOwner]', input.type, e)

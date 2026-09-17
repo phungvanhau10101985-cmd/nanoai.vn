@@ -3,6 +3,14 @@ import { DEFAULT_WEB_LOCALE, type WebLocale, normalizeWebLocale } from '@/lib/i1
 export type CustomerInAppCopy = { title: string; body: string }
 
 export type CustomerInAppEvent =
+  | {
+      kind: 'order_placed'
+      orderCode: string
+      shopName: string
+      productName?: string
+      needsDeposit: boolean
+      depositLabel?: string
+    }
   | { kind: 'deposit_confirmed'; orderCode: string; paidLabel: string; remaining: number; remainingLabel: string }
   | { kind: 'cancelled'; orderCode: string; byCustomer?: boolean }
   | { kind: 'proof_received'; orderCode: string }
@@ -114,6 +122,58 @@ export function formatCustomerInAppCopy(
 ): CustomerInAppCopy {
   const loc = locOf(locale)
   switch (event.kind) {
+    case 'order_placed': {
+      const code = codeOf(event.orderCode, loc)
+      const shop = shopOf(event.shopName)
+      const product = event.productName?.trim() || ''
+      const productBit =
+        product && loc === 'vi'
+          ? ` (${product})`
+          : product && loc === 'zh'
+            ? `（${product}）`
+            : product
+              ? ` (${product})`
+              : ''
+      const deposit = event.depositLabel?.trim() || ''
+      if (loc === 'zh') {
+        return {
+          title: '已收到订单',
+          body: event.needsDeposit
+            ? `订单 ${code}：${shop} 已登记${productBit}。请预付 ${deposit}。`
+            : `订单 ${code}：${shop} 已登记${productBit}。无需定金，店铺会联系发货。`,
+        }
+      }
+      if (loc === 'ja') {
+        return {
+          title: 'ご注文を受け付けました',
+          body: event.needsDeposit
+            ? `ご注文 ${code}：${shop} が受付${productBit}。デポジット ${deposit} をお願いします。`
+            : `ご注文 ${code}：${shop} が受付${productBit}。デポジット不要です。店舗が発送します。`,
+        }
+      }
+      if (loc === 'ko') {
+        return {
+          title: '주문을 접수했습니다',
+          body: event.needsDeposit
+            ? `주문 ${code}: ${shop}이(가) 접수${productBit}. 계약금 ${deposit}을(를) 입금해 주세요.`
+            : `주문 ${code}: ${shop}이(가) 접수${productBit}. 계약금 없이 샵이 배송 안내합니다.`,
+        }
+      }
+      if (loc === 'en') {
+        return {
+          title: 'Order received',
+          body: event.needsDeposit
+            ? `Order ${code}: ${shop} has your order${productBit}. Please pay the ${deposit} deposit.`
+            : `Order ${code}: ${shop} has your order${productBit}. No deposit — the shop will confirm delivery.`,
+        }
+      }
+      return {
+        title: 'Đơn hàng đã được ghi nhận',
+        body: event.needsDeposit
+          ? `Đơn ${code}: ${shop} đã nhận đơn${productBit}. Vui lòng đặt cọc ${deposit}.`
+          : `Đơn ${code}: ${shop} đã nhận đơn${productBit}. Không cần cọc trước — shop sẽ liên hệ giao hàng.`,
+      }
+    }
     case 'deposit_confirmed': {
       const code = codeOf(event.orderCode, loc)
       const paidFull = event.remaining <= 0

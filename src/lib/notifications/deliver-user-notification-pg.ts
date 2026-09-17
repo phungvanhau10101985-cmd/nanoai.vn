@@ -6,6 +6,11 @@ import {
 } from '@/lib/email/account-notification-email'
 import { sendPushNotificationsToUser } from '@/lib/push/send-to-user'
 
+/** Shop events go to the shop PWA (gudo.vn), not the NanoAI platform SW. */
+export function notificationSkipsPlatformWebPush(meta?: Record<string, unknown> | null): boolean {
+  return meta?.skip_platform_push === true
+}
+
 /** Thông báo + email SMTP + Web Push — chỉ Postgres (insert notifications, đọc email từ auth.users). */
 export async function deliverUserNotificationPg(payload: UserNotificationPayload): Promise<void> {
   const ins = await insertNotificationPg({
@@ -30,6 +35,8 @@ export async function deliverUserNotificationPg(payload: UserNotificationPayload
     body: payload.body,
     fromName: accountNotificationFromNameFromMeta(payload.meta),
   }).catch((e) => console.warn('[deliverUserNotificationPg] email', e))
+
+  if (notificationSkipsPlatformWebPush(payload.meta)) return
 
   void sendPushNotificationsToUser(payload.user_id, {
     title: payload.title,

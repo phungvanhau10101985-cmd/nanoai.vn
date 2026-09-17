@@ -31,6 +31,8 @@ export function partnerShopPushClickPath(input: {
   const fallback = partnerSiteHref(slug, '/account/notifications', input.customDomain)
   const raw = input.href.trim()
   if (!raw) return fallback
+  // Keep platform dashboard / already-absolute shop URLs. SW opens http(s) as-is.
+  if (/^https?:\/\//i.test(raw)) return raw
 
   const { pathname, search, hash } = splitPath(raw)
   const suffix = `${search}${hash}`
