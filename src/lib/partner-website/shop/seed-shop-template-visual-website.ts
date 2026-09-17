@@ -173,6 +173,7 @@ function applyHomeSharedChrome(
   homeHtml: string,
   _variant: VisualDeviceVariant
 ): string {
+  void _variant
   const chrome = extractSharedChrome(homeHtml)
   if (!hasSharedChrome(chrome)) return html
   // Same-device copy: do not restamp `data-pw-device` onto count buttons.

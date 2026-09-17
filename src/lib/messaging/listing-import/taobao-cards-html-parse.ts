@@ -515,7 +515,7 @@ export function parse1688TextTablePaste(raw: string): ParsedTaobaoCardRow[] {
 
     let price_raw = '';
     let tabParts: string[] = [];
-    let tabIdx = nextNonBlankLineIndex(lines, i + 1);
+    const tabIdx = nextNonBlankLineIndex(lines, i + 1);
     if (tabIdx < lines.length && lines[tabIdx].includes('\t')) {
       tabParts = lines[tabIdx].trim().split(/\t/).map((x) => x.trim());
       const pickPrice = (cell: string | undefined): cell is string =>

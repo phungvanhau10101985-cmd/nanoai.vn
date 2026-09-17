@@ -30,5 +30,6 @@ export function isPartnerShopMobileSearchComposeFace(_input?: {
   queryDevice?: string | null
   viewportMobile?: boolean
 }): boolean {
+  void _input
   return true
 }

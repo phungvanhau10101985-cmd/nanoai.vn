@@ -119,7 +119,7 @@ function readLogoOffsetFromHeaderBlock(block: string): { x: number; y: number } 
 export function stampHeaderLogoOffsetInHtml(html: string): string {
   if (!html || !/<header\b/i.test(html)) return html
   return html.replace(/<header\b[^>]*>[\s\S]*?<\/header>/gi, (block) => {
-    let next = block.replace(/<a\b([^>]*)>/gi, (full, attrs: string) => {
+    const next = block.replace(/<a\b([^>]*)>/gi, (full, attrs: string) => {
       if (!isHeaderBrandOpenAttrs(attrs)) return full
       return `<a${withBrandLogoOffsetStyle(attrs)}>`
     })

@@ -6,7 +6,6 @@ import {
   IMAGE_LOC_LAUNDRY_KEYWORDS,
   IMAGE_LOC_LAUNDRY_STRONG_PATTERNS,
   IMAGE_LOC_SIZE_LABELS,
-  IMAGE_LOC_SIZE_TABLE_KEYWORDS,
   IMAGE_LOC_SIZE_TABLE_TITLE_PATTERNS,
   IMAGE_LOC_URGENT_DELETE_KEYWORDS,
 } from './image-localization-keywords'
@@ -142,6 +141,8 @@ export function classifyImage(
   _ignore: ImageLocOcrBlock[],
   _originalUrl: string
 ): { type: ImageLocClassifyType; reason: string; details: Record<string, unknown> } {
+  void _ignore
+  void _originalUrl
   const nonempty = blocks.filter((b) => (b.text || '').trim())
   for (const b of nonempty) {
     const hit = urgentDeleteHit(b.text)

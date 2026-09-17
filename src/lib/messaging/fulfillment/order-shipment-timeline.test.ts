@@ -54,7 +54,7 @@ describe('China shipment timeline', () => {
 describe('Vietnam shipment timeline', () => {
   it('requires packing then mark-out before confirm', () => {
     const now = new Date('2026-09-03T00:00:00.000Z')
-    let events = buildInitialShipmentEvents({ source: 'vietnam', shopName: 'Shop VN', now })
+    const events = buildInitialShipmentEvents({ source: 'vietnam', shopName: 'Shop VN', now })
     assert.equal(events.find((e) => e.stepKey === 'vn_picking')?.status, 'active')
     const started = startVietnamPackingShipment(events, { now })
     assert.equal(started.ok, true)

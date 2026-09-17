@@ -194,7 +194,7 @@ function normLabel(s: string): string {
   return s.replace(/\s+/g, ' ').trim()
 }
 
-function resolveTripleFromTaxonomy(cat1: string, cat2: string, cat3: string, triples: Triple[]): Triple | null {
+export function resolveTripleFromTaxonomy(cat1: string, cat2: string, cat3: string, triples: Triple[]): Triple | null {
   const n1 = normLabel(cat1)
   const n2 = normLabel(cat2)
   const n3 = normLabel(cat3)
@@ -421,7 +421,7 @@ async function translateListingViOnly(
   if (r.error || !r.text) return { ten: '', moTa: '' }
   const parsed = extractListingImportJsonObject(r.text)
   if (!parsed) return { ten: '', moTa: '' }
-  let ten = descriptionOnly ? '' : scrubCjk(str(parsed.ten_tieng_viet)).slice(0, 220)
+  const ten = descriptionOnly ? '' : scrubCjk(str(parsed.ten_tieng_viet)).slice(0, 220)
   let moTa = scrubCjk(str(parsed.mo_ta_vi))
   moTa = moTa.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
   return { ten, moTa }

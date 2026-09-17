@@ -135,6 +135,8 @@ export function hexRelativeLuminance(hex: string): number {
 export const SHOP_FOOTER_INK = '#111827'
 
 export function shopFooterInkColor(_footerHex?: string, _textHex?: string): string {
+  void _footerHex
+  void _textHex
   return SHOP_FOOTER_INK
 }
 

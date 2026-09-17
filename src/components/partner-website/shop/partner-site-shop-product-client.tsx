@@ -54,6 +54,7 @@ import {
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { PartnerSiteBirthdayOfferBlock, PartnerSiteSaleCountdown } from '@/components/partner-website/shop/partner-site-sale-face'
 import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
+import { PartnerSiteProductReviewsQa } from '@/components/partner-website/shop/partner-site-product-reviews-qa'
 import { PartnerSiteProductVariantModal } from '@/components/partner-website/shop/partner-site-product-variant-modal'
 import { readPdpWideStickyViewport } from '@/lib/partner-website/shop/partner-site-product-variant-modal'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'

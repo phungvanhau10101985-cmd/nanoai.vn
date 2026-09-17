@@ -104,7 +104,7 @@ async function waitOffPeak(partnerId: string, job: ImageLocJob): Promise<boolean
 }
 
 async function runJob(partnerId: string, jobId: string, resume: boolean): Promise<void> {
-  let job = await fetchImageLocJobFromPg(partnerId, jobId)
+  const job = await fetchImageLocJobFromPg(partnerId, jobId)
   if (!job) return
   const payload = (job.payload || {}) as ImageLocStartPayload
   const processed = uniqueIds(job.processed_product_ids)
