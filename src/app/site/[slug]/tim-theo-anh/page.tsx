@@ -8,7 +8,6 @@ import { PartnerSiteImageSearchClient } from '@/components/partner-website/shop/
 import {
   buildPartnerSiteImageSearchPageBootScript,
   PW_IMAGE_SEARCH_BOOT_SCRIPT_ID,
-  PW_IMAGE_SEARCH_EAGER_ID,
 } from '@/lib/partner-website/shop/partner-site-image-search-page-boot'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
@@ -76,7 +75,6 @@ export default async function PartnerSiteImageSearchPage({ params, searchParams 
         pageKind={PW_PAGE.listing}
         {...(await liveVisualHomeChromeShellProps(shop.site, device))}
       >
-        <div id={PW_IMAGE_SEARCH_EAGER_ID} hidden />
         <PartnerSiteImageSearchClient siteSlug={shop.site.siteSlug} locale={shop.site.locale} />
       </PartnerSiteShopShell>
     </>

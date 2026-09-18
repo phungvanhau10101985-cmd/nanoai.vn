@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { usePartnerSitePageReadyEffect } from '@/hooks/use-partner-site-page-ready-effect'
 import { PARTNER_PUBLIC_INVENTORY_SEARCH_MAX } from '@/lib/messaging/partner-public-search-limits'
@@ -13,16 +13,12 @@ import {
 import {
   getPartnerSiteImageSearchBootSnapshot,
   PW_IMAGE_SEARCH_APPLIED_ATTR,
-  PW_IMAGE_SEARCH_BOOT_EVENT,
   PW_IMAGE_SEARCH_EAGER_ID,
   PW_IMAGE_SEARCH_REACT_ATTR,
   runPartnerSiteImageSearchBoot,
   subscribePartnerSiteImageSearchBoot,
 } from '@/lib/partner-website/shop/partner-site-image-search-page-boot'
-import {
-  consumePendingImageFile,
-  PW_PENDING_IMAGE_EVENT,
-} from '@/lib/partner-website/shop/partner-site-pending-image'
+import { consumePendingImageFile } from '@/lib/partner-website/shop/partner-site-pending-image'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { partnerSiteSearchImageApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
@@ -105,11 +101,13 @@ export function PartnerSiteImageSearchClient({
   const lastAutoFetchedUrlRef = useRef<string | null>(null)
   const linkSearchBusyRef = useRef(false)
   const appliedBootProductsRef = useRef(false)
-  const boot = useSyncExternalStore(
-    subscribePartnerSiteImageSearchBoot,
-    getPartnerSiteImageSearchBootSnapshot,
-    () => null
-  )
+  const [boot, setBoot] = useState<ReturnType<typeof getPartnerSiteImageSearchBootSnapshot>>(null)
+
+  const pullBoot = useCallback(() => {
+    const next = getPartnerSiteImageSearchBootSnapshot()
+    setBoot(next)
+    return next
+  }, [])
 
   const humanize = useCallback(
     (raw: string | null | undefined) => {
@@ -200,41 +198,43 @@ export function PartnerSiteImageSearchClient({
 
   usePartnerSitePageReadyEffect(() => {
     runPartnerSiteImageSearchBoot()
-    if (boot?.previewDataUrl) {
-      setPreviewUrl((prev) => prev || boot.previewDataUrl)
-    }
-    if (Array.isArray(boot?.products)) {
-      if (!appliedBootProductsRef.current) {
-        appliedBootProductsRef.current = true
-        setProducts(boot.products as Hit[])
+    const applyFromBoot = (next: ReturnType<typeof getPartnerSiteImageSearchBootSnapshot>) => {
+      if (next?.previewDataUrl) {
+        setPreviewUrl((prev) => prev || next.previewDataUrl)
       }
-      setLoading(false)
-      if (boot.error && boot.products.length === 0) setSoftMessage(humanize(boot.error))
-    } else if (boot?.error) {
-      setLoading(false)
-      setSoftMessage(humanize(boot.error))
-    } else if (boot?.loading) {
-      setLoading(true)
-      setError(null)
-    } else if (!boot?.started) {
-      const file = consumePendingImageFile()
-      if (file) void runSearch(file)
+      if (Array.isArray(next?.products)) {
+        if (!appliedBootProductsRef.current) {
+          appliedBootProductsRef.current = true
+          setProducts(next.products as Hit[])
+        }
+        setLoading(false)
+        if (next.error && next.products.length === 0) setSoftMessage(humanize(next.error))
+      } else if (next?.error) {
+        setLoading(false)
+        setSoftMessage(humanize(next.error))
+      } else if (next?.loading) {
+        setLoading(true)
+        setError(null)
+      } else if (!next?.started) {
+        const file = consumePendingImageFile()
+        if (file) void runSearch(file)
+      }
     }
+    applyFromBoot(pullBoot())
 
     const onPending = () => {
       runPartnerSiteImageSearchBoot()
-      const snapshot = getPartnerSiteImageSearchBootSnapshot()
-      if (snapshot?.started) return
+      const snapshot = pullBoot()
+      if (snapshot?.started) {
+        applyFromBoot(snapshot)
+        return
+      }
       const file = consumePendingImageFile()
       if (file) void runSearch(file)
     }
-    window.addEventListener(PW_IMAGE_SEARCH_BOOT_EVENT, onPending)
-    window.addEventListener(PW_PENDING_IMAGE_EVENT, onPending)
-    return () => {
-      window.removeEventListener(PW_IMAGE_SEARCH_BOOT_EVENT, onPending)
-      window.removeEventListener(PW_PENDING_IMAGE_EVENT, onPending)
-    }
-  }, [boot, humanize, runSearch])
+    const unsub = subscribePartnerSiteImageSearchBoot(onPending)
+    return unsub
+  }, [humanize, pullBoot, runSearch])
 
   useEffect(() => {
     return () => {
@@ -429,6 +429,7 @@ export function PartnerSiteImageSearchClient({
           }}
         />
       </div>
+      <div id={PW_IMAGE_SEARCH_EAGER_ID} hidden suppressHydrationWarning />
 
       {error ? (
         <p className="pw-shop-muted" role="alert" style={{ color: '#b91c1c', marginBottom: 8 }}>

@@ -91,6 +91,14 @@ test('image search boot script consumes pending storage and POSTs before React',
   assert.match(src, /credentials:'same-origin'/)
   assert.match(src, /location\.pathname/)
   assert.match(src, /tim-theo-anh/)
+  assert.match(src, /pw-product-card/)
+  assert.match(src, /pw-rec-fav/)
+  assert.match(src, /pw-rec-stats/)
+  assert.match(src, /pw-product-card-hit/)
+  assert.match(src, /insertBefore\(host,react\)/)
+  assert.match(src, /MutationObserver/)
+  assert.match(src, /compareDocumentPosition/)
+  assert.doesNotMatch(src, /main\.insertBefore\(host,main\.firstChild/)
   assert.doesNotMatch(src, /useEffect/)
 })
 
@@ -109,10 +117,131 @@ test('boot script searches on /tim-theo-anh without waiting for a tap, and ignor
   assert.equal(compose.boot, undefined)
 })
 
-test('boot script paints product cards when fetch resolves, without a tap', async () => {
+test('boot script paints listing cards when fetch resolves, without a tap', async () => {
   const onPage = runBootScript('/site/188-shop/tim-theo-anh')
   for (let i = 0; i < 8; i += 1) await Promise.resolve()
   assert.match(onPage.host.innerHTML, /Áo/)
   assert.match(onPage.host.innerHTML, /\/p\/1/)
+  assert.match(onPage.host.innerHTML, /pw-product-card/)
+  assert.match(onPage.host.innerHTML, /pw-rec-fav/)
+  assert.match(onPage.host.innerHTML, /pw-rec-stats/)
+  assert.match(onPage.host.innerHTML, /pw-product-card-hit/)
   assert.equal(onPage.host.hidden, false)
+})
+
+test('boot script relocates a leftover eager host next to the React catalog', () => {
+  const children: unknown[] = []
+  const host: {
+    id: string
+    hidden: boolean
+    innerHTML: string
+    nextSibling: { getAttribute?: (name: string) => string } | null
+  } = {
+    id: PW_IMAGE_SEARCH_EAGER_ID,
+    hidden: true,
+    innerHTML: '',
+    nextSibling: null,
+  }
+  const react = {
+    hidden: false,
+    getAttribute: (name: string) => (name === 'data-pw-image-search-react' ? '1' : ''),
+  }
+  const parent = {
+    insertBefore: (node: unknown, before: unknown) => {
+      children.push([node, before])
+      host.nextSibling = before as typeof host.nextSibling
+    },
+  }
+  const context: Record<string, unknown> = {
+    location: { pathname: '/site/188-shop/tim-theo-anh', href: 'https://gudo.vn/site/188-shop/tim-theo-anh' },
+    sessionStorage: {
+      getItem: (key: string) => (key === PW_PENDING_IMAGE_KEY ? TINY_JPEG : ''),
+      removeItem() {},
+    },
+    FormData: class {
+      append() {}
+    },
+    Blob,
+    Uint8Array,
+    atob,
+    Event,
+    URL,
+    Promise,
+    document: {
+      readyState: 'complete',
+      documentElement: { lang: 'vi' },
+      getElementById: (id: string) => (id === PW_IMAGE_SEARCH_EAGER_ID ? host : null),
+      querySelector: (sel: string) => (String(sel).includes('data-pw-image-search-react') ? react : null),
+      createElement: () => host,
+      addEventListener() {},
+    },
+    fetch: () => Promise.resolve({ json: () => ({ products: [] }) }),
+    addEventListener() {},
+    dispatchEvent: () => true,
+  }
+  ;(react as { parentNode: typeof parent }).parentNode = parent
+  context.window = context
+  vm.runInNewContext(buildPartnerSiteImageSearchPageBootScript('188-shop'), context)
+  const run = context[PW_IMAGE_SEARCH_BOOT_RUN] as () => void
+  run()
+  assert.equal(children.length, 1)
+  assert.equal(children[0]?.[0], host)
+  assert.equal(children[0]?.[1], react)
+})
+
+test('boot script hides a leftover host parked on document.body until the catalog exists', async () => {
+  const body = { name: 'body' }
+  const host: {
+    id: string
+    hidden: boolean
+    innerHTML: string
+    parentNode: typeof body
+    nextSibling: null
+    compareDocumentPosition: () => number
+  } = {
+    id: PW_IMAGE_SEARCH_EAGER_ID,
+    hidden: false,
+    innerHTML: 'parked-above-header',
+    parentNode: body,
+    nextSibling: null,
+    compareDocumentPosition: () => 4,
+  }
+  const context: Record<string, unknown> = {
+    location: { pathname: '/site/188-shop/tim-theo-anh', href: 'https://gudo.vn/site/188-shop/tim-theo-anh' },
+    sessionStorage: {
+      getItem: (key: string) => (key === PW_PENDING_IMAGE_KEY ? TINY_JPEG : ''),
+      removeItem() {},
+    },
+    FormData: class {
+      append() {}
+    },
+    Blob,
+    Uint8Array,
+    atob,
+    Event,
+    URL,
+    Promise,
+    document: {
+      readyState: 'complete',
+      documentElement: { lang: 'vi' },
+      body,
+      getElementById: (id: string) => (id === PW_IMAGE_SEARCH_EAGER_ID ? host : null),
+      querySelector: () => null,
+      createElement: () => host,
+      addEventListener() {},
+    },
+    fetch: () =>
+      Promise.resolve({
+        json: () => ({ products: [{ id: '1', name: 'Áo', imageUrl: '/a.jpg', detailPath: '/p/1' }] }),
+      }),
+    addEventListener() {},
+    dispatchEvent: () => true,
+  }
+  context.window = context
+  vm.runInNewContext(buildPartnerSiteImageSearchPageBootScript('188-shop'), context)
+  const run = context[PW_IMAGE_SEARCH_BOOT_RUN] as () => void
+  run()
+  for (let i = 0; i < 8; i += 1) await Promise.resolve()
+  assert.equal(host.hidden, true)
+  assert.equal(host.innerHTML, 'parked-above-header')
 })
