@@ -30,7 +30,7 @@ test('listing seed is SEO stamped and hydrates catalog on every device', () => {
   }
 })
 
-test('desktop listing uses 5 columns and mobile uses 2', () => {
+test('listing seed uses 5/4/3/2 columns for desktop/laptop/tablet/mobile', () => {
   const desktop = buildShopTemplatePageVisualHtml({
     pageKey: 'products',
     variant: 'desktop',
@@ -45,9 +45,27 @@ test('desktop listing uses 5 columns and mobile uses 2', () => {
     siteSlug: 'demo-shop',
     brand: 'Shop Cam',
   })
+  const laptop = buildShopTemplatePageVisualHtml({
+    pageKey: 'products',
+    variant: 'laptop',
+    locale: 'vi',
+    siteSlug: 'demo-shop',
+    brand: 'Shop Cam',
+  })
+  const tablet = buildShopTemplatePageVisualHtml({
+    pageKey: 'products',
+    variant: 'tablet',
+    locale: 'vi',
+    siteSlug: 'demo-shop',
+    brand: 'Shop Cam',
+  })
   assert.match(desktop, /data-pw-grid-cols="5"/)
   assert.match(desktop, /grid-template-columns:repeat\(5,/)
-  assert.match(mobile, /data-pw-grid-cols="2"/)
+  assert.match(laptop, /data-pw-grid-cols-laptop="4"/)
+  assert.match(laptop, /grid-template-columns:repeat\(4,/)
+  assert.match(tablet, /data-pw-grid-cols-tablet="3"/)
+  assert.match(tablet, /grid-template-columns:repeat\(3,/)
+  assert.match(mobile, /data-pw-grid-cols-mobile="2"/)
   assert.match(mobile, /grid-template-columns:repeat\(2,/)
   assert.match(mobile, /Products \| Shop Cam|Products/)
 })

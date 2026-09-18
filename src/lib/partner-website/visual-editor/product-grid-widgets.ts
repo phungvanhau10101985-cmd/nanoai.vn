@@ -357,7 +357,7 @@ export function buildVisualEditorProductGridHtml(input: {
     ? `<div class="pw-rec-head" data-pw-rec-head="1"><div class="pw-rec-head-row"><h2 class="pw-rec-title" ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2></div></div>`
     : `<h2 ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2>`
 
-  return `<section class="pw-catalog pw-product-grid-section${rec ? ' pw-rec-grid' : ''}${flash ? ' pw-flash-sale-grid pw-rec-grid' : ''}" id="${sectionId}" ${pwRegionAttr(PW_REGION.catalog)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-added-catalog="1" data-pw-grid-kind="${kind}" data-pw-grid-cols="5" data-pw-grid-cols-mobile="2" data-pw-grid-rows="${rows}" data-limit="${limit}"${catalogAttr}${personalize}${rec ? ' data-pw-rec-face="188"' : ''}${flash ? ' data-pw-flash-face="188"' : ''} style="margin:0;padding:0;min-height:0;height:auto">
+  return `<section class="pw-catalog pw-product-grid-section${rec ? ' pw-rec-grid' : ''}${flash ? ' pw-flash-sale-grid pw-rec-grid' : ''}" id="${sectionId}" ${pwRegionAttr(PW_REGION.catalog)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-added-catalog="1" data-pw-grid-kind="${kind}" data-pw-grid-cols="5" data-pw-grid-cols-laptop="4" data-pw-grid-cols-tablet="3" data-pw-grid-cols-mobile="2" data-pw-grid-rows="${rows}" data-limit="${limit}"${catalogAttr}${personalize}${rec ? ' data-pw-rec-face="188"' : ''}${flash ? ' data-pw-flash-face="188"' : ''} style="margin:0;padding:0;min-height:0;height:auto">
   <div class="pw-container" style="padding:12px 16px 16px">
     ${titleHtml}
     <div data-pw-grid class="pw-product-grid" ${pwElAttr(PW_EL.grid)}>${cards}</div>

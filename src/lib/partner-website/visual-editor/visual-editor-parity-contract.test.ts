@@ -24,6 +24,7 @@ function parityFixture(device: VisualDeviceVariant): string {
     <div id="added-bg" data-pw-added-bg="1" data-pw-scene="1" data-pw-bg-index="2" data-pw-user-move="1" style="position:absolute;left:115px;top:230px;width:360px;height:180px;z-index:2"></div>
     <button id="added-button" data-pw-added-btn="1" data-pw-chrome-added="1" data-pw-device="${device}" data-pw-scene="3" data-pw-user-move="1" style="position:absolute;left:510px;top:275px;width:132px;height:44px;z-index:300">CTA</button>
     <button id="stay" data-pw-added-btn="1" data-pw-stay-scroll="1" data-pw-stay-x="72.5" data-pw-stay-y="64" data-pw-stay-w="54" data-pw-stay-h="54" data-pw-scene="4">Stay</button>
+    <section id="grid-ruler" data-pw-region="catalog" data-pw-grid-cols="5" data-pw-grid-cols-laptop="4" data-pw-grid-cols-tablet="3" data-pw-grid-cols-mobile="2"><div data-pw-grid></div></section>
   </main>
   <footer class="pw-footer" data-pw-region="footer">Footer</footer>
 </body>
@@ -98,6 +99,13 @@ test('editor and public preparation preserve authored geometry on every device',
         authoredGeometry(live, id),
         `${device} #${id} geometry drifted between editor and public preparation`
       )
+    }
+    for (const html of [editor, live]) {
+      const grid = openTag(html, 'grid-ruler')
+      assert.equal(attr(grid, 'data-pw-grid-cols'), '5')
+      assert.equal(attr(grid, 'data-pw-grid-cols-laptop'), '4')
+      assert.equal(attr(grid, 'data-pw-grid-cols-tablet'), '3')
+      assert.equal(attr(grid, 'data-pw-grid-cols-mobile'), '2')
     }
   }
 })

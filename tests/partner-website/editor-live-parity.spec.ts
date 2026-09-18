@@ -761,6 +761,111 @@ for (const tenant of TENANTS) {
   }
 }
 
+for (const tenant of TENANTS) {
+  for (const [device, width] of [
+    ['tablet', 768],
+    ['laptop', 1280],
+  ] as const) {
+    test(`${tenant.slug} ${device} search keeps the same responsive grid in editor and live`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 })
+      const searchRegion =
+        '<section class="pw-shop-search-grid" data-pw-region="catalog" data-pw-grid-cols="5" data-pw-grid-cols-laptop="4" data-pw-grid-cols-tablet="3" data-pw-grid-cols-mobile="2"><article>1</article><article>2</article><article>3</article><article>4</article><article>5</article></section>'
+      const source = fixtureHtml('products', device, tenant).replace(
+        pageRegion('products'),
+        searchRegion
+      )
+      const htmlPath = visualEditorHtmlPath('products', device)
+      const theme = applyVisualEditThemeFlag(tenant.theme, {
+        pageKey: 'products',
+        variant: device,
+      })
+      const editor = preparePartnerVisualHtmlForEditor(source, {
+        variant: device,
+        siteSlug: tenant.slug,
+        locale: 'vi',
+        pageKey: 'products',
+        theme,
+      })
+      const live = renderPartnerVisualHtmlForPublic(
+        {
+          siteSlug: tenant.slug,
+          locale: 'vi',
+          theme,
+          project: {
+            entryPath: htmlPath,
+            files: [{ path: htmlPath, kind: 'html', content: source }],
+          },
+        },
+        { kind: 'page', pageKey: 'products' },
+        { device }
+      )
+      const columnCount = async () =>
+        page.locator('.pw-shop-search-grid').evaluate((element) =>
+          window.getComputedStyle(element).gridTemplateColumns.split(/\s+/).filter(Boolean).length
+        )
+
+      await settle(page, editor, device)
+      const editorColumns = await columnCount()
+      await settle(page, live, device)
+      const liveColumns = await columnCount()
+      const expectedColumns = device === 'tablet' ? 3 : 4
+      expect(editorColumns).toBe(expectedColumns)
+      expect(liveColumns).toBe(expectedColumns)
+    })
+
+    test(`${tenant.slug} ${device} deposit keeps the intended one/two-column layout in editor and live`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 })
+      const depositRegion =
+        '<section class="pw-shop-deposit" data-pw-region="account-main"><div class="pw-shop-deposit-money"><div>Total</div><div>Paid</div><div>Due</div></div><div class="pw-shop-deposit-body"><div class="pw-shop-deposit-info">Bank</div><div class="pw-shop-deposit-pay"><div class="pw-shop-deposit-qr">QR</div></div></div></section>'
+      const source = fixtureHtml('account', device, tenant).replace(
+        pageRegion('account'),
+        depositRegion
+      )
+      const htmlPath = visualEditorHtmlPath('account', device)
+      const theme = applyVisualEditThemeFlag(tenant.theme, {
+        pageKey: 'account',
+        variant: device,
+      })
+      const editor = preparePartnerVisualHtmlForEditor(source, {
+        variant: device,
+        siteSlug: tenant.slug,
+        locale: 'vi',
+        pageKey: 'account',
+        theme,
+      })
+      const live = renderPartnerVisualHtmlForPublic(
+        {
+          siteSlug: tenant.slug,
+          locale: 'vi',
+          theme,
+          project: {
+            entryPath: htmlPath,
+            files: [{ path: htmlPath, kind: 'html', content: source }],
+          },
+        },
+        { kind: 'page', pageKey: 'account' },
+        { device }
+      )
+      const columnCount = async () =>
+        page.locator('.pw-shop-deposit-body').evaluate((element) =>
+          window.getComputedStyle(element).gridTemplateColumns.split(/\s+/).filter(Boolean).length
+        )
+
+      await settle(page, editor, device)
+      const editorColumns = await columnCount()
+      await settle(page, live, device)
+      const liveColumns = await columnCount()
+      const expectedColumns = device === 'tablet' ? 1 : 2
+      expect(editorColumns).toBe(expectedColumns)
+      expect(liveColumns).toBe(expectedColumns)
+    })
+  }
+}
+
 for (const [device, width] of DEVICES) {
   test(`${device}: actual editor serialization survives two PATCH saves and public reload`, async ({
     page,

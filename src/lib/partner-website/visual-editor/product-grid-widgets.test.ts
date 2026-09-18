@@ -63,6 +63,8 @@ test('stamps live catalog contract', () => {
   assert.match(html, /data-pw-catalog/)
   assert.match(html, /data-pw-grid/)
   assert.match(html, /data-pw-grid-cols="5"/)
+  assert.match(html, /data-pw-grid-cols-laptop="4"/)
+  assert.match(html, /data-pw-grid-cols-tablet="3"/)
   assert.match(html, /data-pw-grid-cols-mobile="2"/)
   assert.match(html, /data-pw-grid-rows="1"/)
   assert.match(html, /data-pw-grid-more/)

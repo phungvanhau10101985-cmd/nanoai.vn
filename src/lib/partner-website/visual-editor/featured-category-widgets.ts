@@ -160,7 +160,7 @@ export function buildVisualEditorFeaturedCategoriesHtml(input: {
     '<svg class="pw-featured-cat-all-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>'
   const tiles = placeholderTiles(limit, locale)
   const cloneTiles = placeholderTiles(limit, locale, true)
-  return `<section class="pw-featured-cat" ${pwRegionAttr(PW_REGION.categories)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-featured-categories="1" data-pw-grid-kind="featured-categories" data-pw-grid-cols="5" data-pw-grid-cols-mobile="2" data-pw-grid-rows="${rows}" data-limit="${limit}" style="margin:0;padding:0">
+  return `<section class="pw-featured-cat" ${pwRegionAttr(PW_REGION.categories)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-featured-categories="1" data-pw-grid-kind="featured-categories" data-pw-grid-cols="5" data-pw-grid-cols-laptop="4" data-pw-grid-cols-tablet="3" data-pw-grid-cols-mobile="2" data-pw-grid-rows="${rows}" data-limit="${limit}" style="margin:0;padding:0">
   <div class="pw-featured-cat-inner">
     <div class="pw-featured-cat-viewport" data-pw-featured-viewport="1">
       <div class="pw-featured-cat-marquee" data-pw-featured-marquee="1" data-pw-featured-marquee-on="1">

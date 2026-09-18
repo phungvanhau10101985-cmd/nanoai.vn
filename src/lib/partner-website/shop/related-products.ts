@@ -6,7 +6,9 @@ import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-
 import {
   clampProductGridRows,
   productGridActionsHtml,
+  PW_GRID_COLS_LAPTOP,
   PW_GRID_COLS_NARROW,
+  PW_GRID_COLS_TABLET,
   PW_GRID_COLS_WIDE,
   productGridPageSize,
 } from '@/lib/partner-website/shop/pw-product-grid-page'
@@ -130,7 +132,7 @@ export function buildRelatedProductsSectionHtml(input: {
   const loadMore = t.gridLoadMore || t.loadMore
   const seeAll = t.gridSeeAllGroups || t.relatedSeeAll
   const seeAllHref = relatedListingHref({ siteSlug: slug, categoryPath: input.categoryPath })
-  return `<section class="pw-related pw-catalog" ${pwRegionAttr(PW_REGION.catalog)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="catalog" data-pw-catalog data-pw-related="1" data-pw-grid-kind="related" data-pw-grid-cols="${PW_GRID_COLS_WIDE}" data-pw-grid-cols-mobile="${PW_GRID_COLS_NARROW}" data-pw-grid-rows="${rows}" data-limit="${pageSize}"${added}${
+  return `<section class="pw-related pw-catalog" ${pwRegionAttr(PW_REGION.catalog)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="catalog" data-pw-catalog data-pw-related="1" data-pw-grid-kind="related" data-pw-grid-cols="${PW_GRID_COLS_WIDE}" data-pw-grid-cols-laptop="${PW_GRID_COLS_LAPTOP}" data-pw-grid-cols-tablet="${PW_GRID_COLS_TABLET}" data-pw-grid-cols-mobile="${PW_GRID_COLS_NARROW}" data-pw-grid-rows="${rows}" data-limit="${pageSize}"${added}${
     categoryId ? ` data-category-id="${escapeAttr(categoryId)}"` : ''
   }${excludeId ? ` data-exclude="${escapeAttr(excludeId)}"` : ''}>
   <h3 class="pw-related-title" ${pwElAttr(PW_EL.sectionTitle)}>${escapeHtml(t.relatedProducts)}</h3>

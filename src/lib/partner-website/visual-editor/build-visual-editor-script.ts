@@ -6358,10 +6358,14 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function editorGridCols(host) {
     var html = document.documentElement
     var d = ((html && html.getAttribute('data-pw-edit-device')) || (html && html.getAttribute('data-pw-scene-lock')) || '').toLowerCase()
-    var narrow = d === 'mobile' || d === 'tablet'
-    var wide = parseInt((host && host.getAttribute('data-pw-grid-cols')) || '5', 10) || 5
-    var mob = parseInt((host && host.getAttribute('data-pw-grid-cols-mobile')) || '2', 10) || 2
-    return narrow ? mob : wide
+    var desktop = parseInt((host && host.getAttribute('data-pw-grid-cols')) || '5', 10) || 5
+    var laptop = parseInt((host && host.getAttribute('data-pw-grid-cols-laptop')) || '4', 10) || 4
+    var tablet = parseInt((host && host.getAttribute('data-pw-grid-cols-tablet')) || '3', 10) || 3
+    var mobile = parseInt((host && host.getAttribute('data-pw-grid-cols-mobile')) || '2', 10) || 2
+    if (d === 'mobile') return mobile
+    if (d === 'tablet') return tablet
+    if (d === 'laptop') return laptop
+    return desktop
   }
   function editorGridRows(host) {
     var raw = parseInt((host && host.getAttribute('data-pw-grid-rows')) || '', 10)

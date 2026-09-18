@@ -80,10 +80,17 @@ function compactDevice(variant: VisualDeviceVariant): boolean {
   return variant === 'mobile' || variant === 'tablet'
 }
 
+function pageGridCols(variant: VisualDeviceVariant): number {
+  if (variant === 'mobile') return 2
+  if (variant === 'tablet') return 3
+  if (variant === 'laptop') return 4
+  return 5
+}
+
 function pagePad(variant: VisualDeviceVariant): string {
   if (variant === 'mobile') return '12px 4px 96px'
-  if (variant === 'tablet') return '28px 20px 96px'
-  if (variant === 'laptop') return '36px 28px 48px'
+  if (variant === 'tablet') return '24px 16px 96px'
+  if (variant === 'laptop') return '32px 24px 48px'
   return '44px 32px 56px'
 }
 
@@ -242,8 +249,8 @@ function buildListingMain(
     pageKey === 'wishlist' || pageKey === 'recently_viewed'
       ? personalize
       : ' data-pw-catalog data-sort="default"'
-  const cols = compactDevice(variant) ? '2' : variant === 'laptop' ? '4' : '5'
-  const limit = compactDevice(variant) ? 8 : 10
+  const cols = pageGridCols(variant)
+  const limit = cols * 2
   return `<main id="main" class="pw-shop-main pw-page-shell" data-pw-bg-role="content">
   ${breadcrumbHtml({ locale, siteSlug, current: title })}
   <header class="pw-page-head">
@@ -278,7 +285,7 @@ function buildListingMain(
   <div class="pw-page-toolbar" ${pwRegionAttr(PW_REGION.toolbar)}>
     <p ${pwElAttr(PW_EL.count)}>${escapeHtml(shop.catalogTitle)}</p>
   </div>
-  <section class="pw-catalog pw-section" ${pwRegionAttr(PW_REGION.catalog)} data-pw-grid-kind="catalog" data-pw-grid-cols="${cols}" data-pw-grid-cols-mobile="2" data-limit="${limit}"${catalogAttr}>
+  <section class="pw-catalog pw-section" ${pwRegionAttr(PW_REGION.catalog)} data-pw-grid-kind="catalog" data-pw-grid-cols="5" data-pw-grid-cols-laptop="4" data-pw-grid-cols-tablet="3" data-pw-grid-cols-mobile="2" data-limit="${limit}"${catalogAttr}>
     <h2 class="pw-visually-hidden" ${pwElAttr(PW_EL.sectionTitle)}>${escapeHtml(title)}</h2>
     <div data-pw-grid class="pw-product-grid" ${pwElAttr(PW_EL.grid)}>${placeholderCards(limit, title, shop.favoriteAdd, shop.pdpPurchasesLabel)}</div>
     <p class="pw-catalog-empty pw-personalize-empty" hidden>${escapeHtml(shop.catalogEmpty)}</p>
@@ -288,7 +295,7 @@ function buildListingMain(
 
 function buildCartMain(locale: WebLocale, siteSlug: string, variant: VisualDeviceVariant): string {
   const { shop } = uiCopy(locale)
-  const split = compactDevice(variant) ? 'pw-page-split pw-page-split-stack' : 'pw-page-split'
+  const split = variant === 'mobile' ? 'pw-page-split pw-page-account-split pw-page-split-stack' : 'pw-page-split pw-page-account-split'
   return `<main id="main" class="pw-shop-main pw-page-shell" data-pw-bg-role="content">
   ${breadcrumbHtml({ locale, siteSlug, current: shop.cartTitle })}
   <header class="pw-page-head">
@@ -404,7 +411,7 @@ function buildBottomNavHtml(input: { locale: WebLocale; siteSlug: string }): str
 function pageShellCss(variant: VisualDeviceVariant): string {
   const pad = pagePad(variant)
   const articleW = articleMaxWidth(variant)
-  const gridCols = compactDevice(variant) ? 2 : variant === 'laptop' ? 4 : 5
+  const gridCols = pageGridCols(variant)
   return `.pw-skip{position:absolute;left:-999px;top:8px;z-index:1000;padding:8px 12px;background:var(--pw-primary);color:#fff;border-radius:8px}
 .pw-skip:focus{left:12px}
 .pw-visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
@@ -420,9 +427,10 @@ function pageShellCss(variant: VisualDeviceVariant): string {
 .pw-page-filters select,.pw-page-filters input,.pw-form input,.pw-form textarea{height:32px;border:1px solid var(--pw-border,#d1d5db);border-radius:6px;padding:0 6px;font:inherit;font-size:11px;background:#fff;min-width:0;width:100%;box-sizing:border-box}
 .pw-form textarea{height:auto;padding:10px}
 .pw-page-toolbar{margin:0 0 16px;font-size:13px;color:var(--pw-muted,#6b7280)}
-.pw-page-shell .pw-product-grid{display:grid;grid-template-columns:repeat(${gridCols},minmax(0,1fr));gap:${compactDevice(variant) ? '10px' : '16px'}}
+.pw-page-shell .pw-product-grid{display:grid;grid-template-columns:repeat(${gridCols},minmax(0,1fr));gap:${variant === 'mobile' ? '10px' : variant === 'tablet' ? '12px' : '16px'}}
 .pw-page-split{display:grid;gap:24px;grid-template-columns:${compactDevice(variant) ? '1fr' : 'minmax(0,1.4fr) minmax(240px,0.8fr)'};align-items:start}
 .pw-page-split-stack{grid-template-columns:1fr}
+.pw-page-account-split{grid-template-columns:${variant === 'mobile' ? '1fr' : variant === 'tablet' ? '200px minmax(0,1fr)' : '224px minmax(0,1fr)'}}
 .pw-page-split [data-pw-region]{padding:20px;border:1px solid var(--pw-border,#e5e7eb);border-radius:14px;background:var(--pw-surface,#fff)}
 .pw-page-article{max-width:${articleW};margin:0 auto}
 .pw-page-article h1{margin:0 0 16px;font-size:clamp(1.6rem,3vw,2.2rem);line-height:1.2}

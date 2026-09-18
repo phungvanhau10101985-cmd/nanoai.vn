@@ -1,6 +1,6 @@
 /**
  * Shared product-card ruler — Sửa nhanh = live, every shop / device.
- * Related + outfit strips: desktop/laptop 5 cols, mobile/tablet 2 cols.
+ * Related + outfit strips: desktop 5, laptop 4, tablet 3, mobile 2 cols.
  * Card media stays 1:1 even when the image is missing or broken.
  * Never auto-fit: leftover HTML `repeat(auto-fit, minmax(220px,1fr))` must not win.
  */
@@ -26,12 +26,18 @@ function pwStripGridSel(prefix = 'html'): string {
 const PW_STRIP_GRID_SEL = pwStripGridSel('html')
 const PW_STRIP_GRID_MOBILE_SEL = [
   pwStripGridSel('html[data-pw-edit-device="mobile"]'),
-  pwStripGridSel('html[data-pw-edit-device="tablet"]'),
   pwStripGridSel('html[data-pw-scene-lock="mobile"]'),
+].join(',')
+const PW_STRIP_GRID_TABLET_SEL = [
+  pwStripGridSel('html[data-pw-edit-device="tablet"]'),
   pwStripGridSel('html[data-pw-scene-lock="tablet"]'),
 ].join(',')
-const PW_STRIP_GRID_UNLOCKED_NARROW_SEL = pwStripGridSel(
-  'html:not([data-pw-edit-device="desktop"]):not([data-pw-edit-device="laptop"]):not([data-pw-scene-lock="desktop"]):not([data-pw-scene-lock="laptop"])'
+const PW_STRIP_GRID_LAPTOP_SEL = [
+  pwStripGridSel('html[data-pw-edit-device="laptop"]'),
+  pwStripGridSel('html[data-pw-scene-lock="laptop"]'),
+].join(',')
+const PW_STRIP_GRID_UNLOCKED_SEL = pwStripGridSel(
+  'html:not([data-pw-edit-device]):not([data-pw-scene-lock])'
 )
 
 const PW_CARD_MEDIA_SEL = [
@@ -166,12 +172,20 @@ const PW_LISTING_FAV_SEL = [
   'html .pw-rec-fav',
 ].join(',')
 
-/** Desktop/laptop 5 · mobile/tablet 2. Attribute selectors beat leftover class/auto-fit CSS. */
+/** Desktop 5 · laptop 4 · tablet 3 · mobile 2. Device stamps beat viewport media rules. */
 export const PW_PRODUCT_STRIP_GRID_CSS = `
 ${PW_STRIP_GRID_SEL}{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:12px!important;align-items:stretch;width:100%;max-width:100%;box-sizing:border-box;grid-auto-flow:row}
 ${PW_STRIP_GRID_MOBILE_SEL}{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
-@media (max-width:1279px){
-${PW_STRIP_GRID_UNLOCKED_NARROW_SEL}{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+${PW_STRIP_GRID_TABLET_SEL}{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important}
+${PW_STRIP_GRID_LAPTOP_SEL}{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:14px!important}
+@media (max-width:767px){
+${PW_STRIP_GRID_UNLOCKED_SEL}{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+}
+@media (min-width:768px) and (max-width:1279px){
+${PW_STRIP_GRID_UNLOCKED_SEL}{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important}
+}
+@media (min-width:1280px) and (max-width:1439px){
+${PW_STRIP_GRID_UNLOCKED_SEL}{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:14px!important}
 }
 `.trim()
 

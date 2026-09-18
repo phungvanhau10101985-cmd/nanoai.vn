@@ -5,20 +5,30 @@
 
 const GRID = '.pw-featured-cat[data-pw-featured-categories] [data-pw-grid],.pw-featured-cat[data-pw-featured-categories] [data-pw-featured-clone]'
 
-const WIDE = [
+const DESKTOP = [
   'html[data-pw-edit-device="desktop"]',
-  'html[data-pw-edit-device="laptop"]',
   'html[data-pw-scene-lock="desktop"]',
+]
+  .map((p) => `${p} ${GRID}`)
+  .join(',')
+
+const LAPTOP = [
+  'html[data-pw-edit-device="laptop"]',
   'html[data-pw-scene-lock="laptop"]',
 ]
   .map((p) => `${p} ${GRID}`)
   .join(',')
 
-const NARROW = [
-  'html[data-pw-edit-device="mobile"]',
+const TABLET = [
   'html[data-pw-edit-device="tablet"]',
-  'html[data-pw-scene-lock="mobile"]',
   'html[data-pw-scene-lock="tablet"]',
+]
+  .map((p) => `${p} ${GRID}`)
+  .join(',')
+
+const MOBILE = [
+  'html[data-pw-edit-device="mobile"]',
+  'html[data-pw-scene-lock="mobile"]',
 ]
   .map((p) => `${p} ${GRID}`)
   .join(',')
@@ -42,14 +52,27 @@ html .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-viewport]{
   transform:translateZ(0);backface-visibility:hidden;-webkit-backface-visibility:hidden
 }
 html[data-pw-edit-device="desktop"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-viewport,
-html[data-pw-edit-device="laptop"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-viewport,
 html[data-pw-edit-device="desktop"] .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-viewport],
-html[data-pw-edit-device="laptop"] .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-viewport],
 html[data-pw-scene-lock="desktop"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-viewport,
-html[data-pw-scene-lock="laptop"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-viewport,
 html[data-pw-scene-lock="desktop"] .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-viewport],
-html[data-pw-scene-lock="laptop"] .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-viewport]{height:230px}
-@media (min-width:1280px){
+html[data-pw-scene-lock="desktop"] .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-viewport]{height:230px}
+html[data-pw-edit-device="laptop"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-viewport,
+html[data-pw-edit-device="laptop"] .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-viewport],
+html[data-pw-scene-lock="laptop"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-viewport,
+html[data-pw-scene-lock="laptop"] .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-viewport]{height:220px}
+html[data-pw-edit-device="tablet"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-viewport,
+html[data-pw-edit-device="tablet"] .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-viewport],
+html[data-pw-scene-lock="tablet"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-viewport,
+html[data-pw-scene-lock="tablet"] .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-viewport]{height:200px}
+@media (min-width:768px) and (max-width:1279px){
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-viewport,
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-viewport]{height:200px}
+}
+@media (min-width:1280px) and (max-width:1439px){
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-viewport,
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-viewport]{height:220px}
+}
+@media (min-width:1440px){
 html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-viewport,
 html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-viewport]{height:230px}
 }
@@ -106,9 +129,17 @@ html .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-clone]{
 html .pw-featured-cat[data-pw-featured-categories] :not([data-pw-featured-marquee]):not(.pw-featured-cat-marquee) > [data-pw-featured-clone]{
   display:none!important
 }
-${NARROW}{grid-template-columns:repeat(2,minmax(0,1fr))!important}
-${WIDE}{grid-template-columns:repeat(5,minmax(0,1fr))!important}
+${MOBILE}{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+${TABLET}{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+${LAPTOP}{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+${DESKTOP}{grid-template-columns:repeat(5,minmax(0,1fr))!important}
+@media (min-width:768px) and (max-width:1279px){
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) ${GRID}{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+}
 @media (min-width:1280px){
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) ${GRID}{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+}
+@media (min-width:1440px){
 html:not([data-pw-edit-device]):not([data-pw-scene-lock]) ${GRID}{grid-template-columns:repeat(5,minmax(0,1fr))!important}
 }
 html:not([data-pw-edit-device]):not([data-pw-sample-preview]) .pw-featured-cat[data-pw-featured-categories]:not([data-pw-featured-live]) [data-pw-el="card"]{visibility:hidden}
@@ -131,32 +162,55 @@ html .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card{
   box-sizing:border-box;background:transparent
 }
 html[data-pw-edit-device="desktop"] .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"],
-html[data-pw-edit-device="laptop"] .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"],
 html[data-pw-edit-device="desktop"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card,
-html[data-pw-edit-device="laptop"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card,
 html[data-pw-scene-lock="desktop"] .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"],
+html[data-pw-scene-lock="desktop"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card{min-height:115px;height:115px}
+html[data-pw-edit-device="laptop"] .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"],
+html[data-pw-edit-device="laptop"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card,
 html[data-pw-scene-lock="laptop"] .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"],
-html[data-pw-scene-lock="desktop"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card,
-html[data-pw-scene-lock="laptop"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card{min-height:115px;height:115px}
+html[data-pw-scene-lock="laptop"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card{min-height:110px;height:110px}
+html[data-pw-edit-device="tablet"] .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"],
+html[data-pw-edit-device="tablet"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card,
+html[data-pw-scene-lock="tablet"] .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"],
+html[data-pw-scene-lock="tablet"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card{min-height:100px;height:100px}
+@media (min-width:768px) and (max-width:1279px){
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"],
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card{min-height:100px;height:100px}
+}
 html[data-pw-edit-device="mobile"] .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"],
 html[data-pw-scene-lock="mobile"] .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"]{min-height:88px;height:88px}
-@media (min-width:1280px){
+@media (min-width:1280px) and (max-width:1439px){
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"],
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card{min-height:110px;height:110px}
+}
+@media (min-width:1440px){
 html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"],
 html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card{min-height:115px;height:115px}
 }
 html .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"]:nth-child(5n),
 html .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card:nth-child(5n){border-right:none}
 html[data-pw-edit-device="mobile"] .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"]:nth-child(2n),
-html[data-pw-edit-device="tablet"] .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"]:nth-child(2n),
 html[data-pw-scene-lock="mobile"] .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"]:nth-child(2n),
-html[data-pw-scene-lock="tablet"] .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"]:nth-child(2n),
 html[data-pw-edit-device="mobile"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card:nth-child(2n),
-html[data-pw-edit-device="tablet"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card:nth-child(2n),
 html[data-pw-scene-lock="mobile"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card:nth-child(2n),
-html[data-pw-scene-lock="tablet"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card:nth-child(2n){border-right:none}
-@media (max-width:1279px){
-html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"]:nth-child(2n),
-html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card:nth-child(2n){border-right:none}
+html[data-pw-scene-lock="mobile"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card:nth-child(2n){border-right:none}
+html[data-pw-edit-device="tablet"] .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"]:nth-child(3n),
+html[data-pw-scene-lock="tablet"] .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"]:nth-child(3n),
+html[data-pw-edit-device="tablet"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card:nth-child(3n),
+html[data-pw-scene-lock="tablet"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card:nth-child(3n){border-right:none}
+html[data-pw-edit-device="laptop"] .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"]:nth-child(4n),
+html[data-pw-scene-lock="laptop"] .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"]:nth-child(4n),
+html[data-pw-edit-device="laptop"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card:nth-child(4n),
+html[data-pw-scene-lock="laptop"] .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card:nth-child(4n){border-right:none}
+@media (min-width:768px) and (max-width:1279px){
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"]:nth-child(3n),
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card:nth-child(3n){border-right:none}
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"]:nth-child(5n),
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card:nth-child(5n){border-right:1px solid rgba(255,255,255,.12)}
+}
+@media (min-width:1280px) and (max-width:1439px){
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"]:nth-child(4n),
+html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card:nth-child(4n){border-right:none}
 html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card"]:nth-child(5n),
 html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-featured-cat[data-pw-featured-categories] .pw-featured-cat-card:nth-child(5n){border-right:1px solid rgba(255,255,255,.12)}
 }

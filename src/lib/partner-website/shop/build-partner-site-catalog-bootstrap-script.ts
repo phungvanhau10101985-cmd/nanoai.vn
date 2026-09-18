@@ -419,7 +419,7 @@ export function buildLiveCatalogSectionHtml(input: {
   const loadMore = COPY[locale].loadMore
   const seeAll = input.seeAllLabel || COPY[locale].seeAll
   const seeAllHref = partnerSiteProductsPath(input.siteSlug)
-  return `<section class="pw-catalog pw-section" ${pwRegionAttr(PW_REGION.catalog)} data-pw-section-id="${escapeAttr(input.sectionId)}" data-pw-catalog data-pw-grid-cols="5" data-pw-grid-cols-mobile="2" data-pw-grid-rows="${rows}" data-limit="${limit}" data-sort="default">
+  return `<section class="pw-catalog pw-section" ${pwRegionAttr(PW_REGION.catalog)} data-pw-section-id="${escapeAttr(input.sectionId)}" data-pw-catalog data-pw-grid-cols="5" data-pw-grid-cols-laptop="4" data-pw-grid-cols-tablet="3" data-pw-grid-cols-mobile="2" data-pw-grid-rows="${rows}" data-limit="${limit}" data-sort="default">
   <div class="pw-container" style="padding:16px 20px">
     <h2 ${pwElAttr(PW_EL.sectionTitle)} style="margin:0">${escapeHtml(title)}</h2>
     <div data-pw-grid class="pw-product-grid" ${pwElAttr(PW_EL.grid)}></div>

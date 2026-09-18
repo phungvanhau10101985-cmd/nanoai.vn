@@ -12,10 +12,12 @@ import {
 
 test('page size is rows × cols for the stamped device', () => {
   assert.equal(productGridColsForDevice('desktop'), 5)
-  assert.equal(productGridColsForDevice('laptop'), 5)
-  assert.equal(productGridColsForDevice('tablet'), 2)
+  assert.equal(productGridColsForDevice('laptop'), 4)
+  assert.equal(productGridColsForDevice('tablet'), 3)
   assert.equal(productGridColsForDevice('mobile'), 2)
   assert.equal(productGridPageSize(2, 5), 10)
+  assert.equal(productGridPageSize(2, 4), 8)
+  assert.equal(productGridPageSize(2, 3), 6)
   assert.equal(productGridPageSize(2, 2), 4)
   assert.equal(productGridPageSize(3, 5), 15)
 })
@@ -35,6 +37,8 @@ test('bootstrap helpers ship rows × cols page size', () => {
   assert.match(PW_PRODUCT_GRID_PAGE_JS, /function pwGridPageSize/)
   assert.match(PW_PRODUCT_GRID_PAGE_JS, /function pwGridRows/)
   assert.match(PW_PRODUCT_GRID_PAGE_JS, /data-pw-grid-rows/)
+  assert.match(PW_PRODUCT_GRID_PAGE_JS, /data-pw-grid-cols-tablet/)
+  assert.match(PW_PRODUCT_GRID_PAGE_JS, /data-pw-grid-cols-laptop/)
   assert.match(PW_PRODUCT_GRID_PAGE_JS, /return 1;/)
 })
 

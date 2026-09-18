@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
@@ -21,7 +21,11 @@ type Props = {
 
 function relatedColsFromViewport(): number {
   if (typeof window === 'undefined') return 5
-  return window.matchMedia('(min-width: 1280px)').matches ? 5 : 2
+  const width = window.innerWidth || document.documentElement.clientWidth || 0
+  if (width >= 1440) return 5
+  if (width >= 1280) return 4
+  if (width >= 768) return 3
+  return 2
 }
 
 export function PartnerSiteRelatedProducts({
@@ -35,7 +39,7 @@ export function PartnerSiteRelatedProducts({
   const [step, setStep] = useState(productGridPageSize(PW_GRID_ROWS_DEFAULT, 5))
   const [visible, setVisible] = useState(productGridPageSize(PW_GRID_ROWS_DEFAULT, 5))
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const sync = () => {
       const next = productGridPageSize(PW_GRID_ROWS_DEFAULT, relatedColsFromViewport())
       setStep(next)
@@ -45,9 +49,8 @@ export function PartnerSiteRelatedProducts({
       })
     }
     sync()
-    const mq = window.matchMedia('(min-width: 1280px)')
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
+    window.addEventListener('resize', sync)
+    return () => window.removeEventListener('resize', sync)
   }, [products.length])
 
   const shown = products.slice(0, visible)
@@ -61,6 +64,8 @@ export function PartnerSiteRelatedProducts({
       data-pw-related="1"
       data-pw-grid-kind="related"
       data-pw-grid-cols="5"
+      data-pw-grid-cols-laptop="4"
+      data-pw-grid-cols-tablet="3"
       data-pw-grid-cols-mobile="2"
       data-pw-grid-rows={String(PW_GRID_ROWS_DEFAULT)}
     >

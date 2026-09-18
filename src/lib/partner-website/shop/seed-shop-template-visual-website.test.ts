@@ -9,7 +9,10 @@ import {
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/partner-website-template-types'
 import { buildDefaultLandingV1Site } from '@/lib/partner-website/template/default-landing-v1'
-import { getShopTemplatePreset } from '@/lib/partner-website/template/shop-template-presets'
+import {
+  getShopTemplatePreset,
+  SHOP_TEMPLATE_PRESETS,
+} from '@/lib/partner-website/template/shop-template-presets'
 import {
   SHOP_TEMPLATE_VISUAL_PAGE_KEYS,
   buildShopTemplateHomeVisualHtml,
@@ -119,6 +122,16 @@ test('seedShopTemplateVisualWebsite writes every built-in page for all four devi
   assert.match(productsDesktop.content, /data-pw-region="breadcrumb"/)
   assert.match(productsDesktop.content, /<meta name="description"/)
 
+  const productsLaptop = htmlFiles.find((f) => f.path === visualEditorHtmlPath('products', 'laptop'))
+  assert.ok(productsLaptop)
+  assert.match(productsLaptop.content, /data-pw-grid-cols-laptop="4"/)
+  assert.match(productsLaptop.content, /grid-template-columns:repeat\(4,/)
+
+  const productsTablet = htmlFiles.find((f) => f.path === visualEditorHtmlPath('products', 'tablet'))
+  assert.ok(productsTablet)
+  assert.match(productsTablet.content, /data-pw-grid-cols-tablet="3"/)
+  assert.match(productsTablet.content, /grid-template-columns:repeat\(3,/)
+
   const productsMobile = htmlFiles.find((f) => f.path === visualEditorHtmlPath('products', 'mobile'))
   assert.ok(productsMobile)
   assert.match(productsMobile.content, /data-pw-grid-cols-mobile="2"/)
@@ -152,6 +165,41 @@ test('seeded shop live variants include all four devices', () => {
     const html = variants[device] || ''
     assert.ok(html.length >= 40, `${device} must be in live htmlByDevice`)
     assert.match(html, new RegExp(`data-pw-edit-device="${device}"`))
+  }
+})
+
+test('GD01-GD08 seed independent tablet 3-column and laptop 4-column storefront files', () => {
+  for (const templatePreset of SHOP_TEMPLATE_PRESETS) {
+    const presetSite = buildDefaultLandingV1Site({
+      locale: 'vi',
+      title: templatePreset.code,
+      briefText: templatePreset.description.vi,
+      logoUrl: null,
+      theme: { ...DEFAULT_PARTNER_WEBSITE_THEME, ...templatePreset.theme },
+    })
+    const seeded = seedShopTemplateVisualWebsite({
+      project: { entryPath: 'site.config.json', files: [] },
+      theme: presetSite.theme,
+      pages: presetSite.pages,
+      locale: 'vi',
+      siteSlug: `preset-${templatePreset.code.toLowerCase()}`,
+      brand: templatePreset.code,
+      templateId: templatePreset.templateId,
+    })
+    const tablet = seeded.project.files.find(
+      (file) => file.path === visualEditorHtmlPath('products', 'tablet')
+    )
+    const laptop = seeded.project.files.find(
+      (file) => file.path === visualEditorHtmlPath('products', 'laptop')
+    )
+    assert.ok(tablet, `${templatePreset.code} tablet listing must be seeded`)
+    assert.ok(laptop, `${templatePreset.code} laptop listing must be seeded`)
+    assert.match(tablet.content, /data-pw-edit-device="tablet"/)
+    assert.match(tablet.content, /data-pw-grid-cols-tablet="3"/)
+    assert.match(tablet.content, /grid-template-columns:repeat\(3,/)
+    assert.match(laptop.content, /data-pw-edit-device="laptop"/)
+    assert.match(laptop.content, /data-pw-grid-cols-laptop="4"/)
+    assert.match(laptop.content, /grid-template-columns:repeat\(4,/)
   }
 })
 

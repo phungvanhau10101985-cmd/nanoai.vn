@@ -85,7 +85,8 @@ const PW_MOBILE_SEARCH_COMPOSE_CSS = `
 .pw-mobile-search-kw:hover{background:color-mix(in srgb,var(--pw-primary,#ea580c) 16%,#fff)}
 .pw-mobile-search-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media (min-width:640px){.pw-mobile-search-grid{grid-template-columns:repeat(3,1fr)}}
-@media (min-width:768px){.pw-mobile-search-grid{grid-template-columns:repeat(4,1fr)}}
+@media (min-width:1280px){.pw-mobile-search-grid{grid-template-columns:repeat(4,1fr)}}
+@media (min-width:1440px){.pw-mobile-search-grid{grid-template-columns:repeat(5,1fr)}}
 .pw-mobile-search-tile{position:relative;display:block;overflow:hidden;border-radius:16px;background:#fff;text-align:left;color:inherit;border:0;padding:0;box-shadow:0 0 0 1px #f3f4f6,0 1px 2px rgba(15,23,42,.04);cursor:pointer;width:100%}
 .pw-mobile-search-tile:hover{transform:translateY(-2px);box-shadow:0 8px 16px rgba(15,23,42,.08),0 0 0 1px color-mix(in srgb,var(--pw-primary,#ea580c) 22%,#fff)}
 .pw-mobile-search-tile:disabled{opacity:.7}

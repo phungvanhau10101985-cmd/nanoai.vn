@@ -6,7 +6,12 @@
 export const PW_GRID_ROWS_MIN = 1
 export const PW_GRID_ROWS_MAX = 4
 export const PW_GRID_ROWS_DEFAULT = 1
-export const PW_GRID_COLS_WIDE = 5
+export const PW_GRID_COLS_DESKTOP = 5
+export const PW_GRID_COLS_LAPTOP = 4
+export const PW_GRID_COLS_TABLET = 3
+export const PW_GRID_COLS_MOBILE = 2
+/** Backward-compatible aliases for persisted visual HTML. */
+export const PW_GRID_COLS_WIDE = PW_GRID_COLS_DESKTOP
 export const PW_GRID_COLS_NARROW = 2
 export const PW_GRID_PAGE_MAX = 48
 
@@ -18,7 +23,11 @@ export function isNarrowProductGridDevice(device?: string | null): boolean {
 }
 
 export function productGridColsForDevice(device?: string | null): number {
-  return isNarrowProductGridDevice(device) ? PW_GRID_COLS_NARROW : PW_GRID_COLS_WIDE
+  const d = String(device || '').trim().toLowerCase()
+  if (d === 'mobile') return PW_GRID_COLS_MOBILE
+  if (d === 'tablet') return PW_GRID_COLS_TABLET
+  if (d === 'laptop') return PW_GRID_COLS_LAPTOP
+  return PW_GRID_COLS_DESKTOP
 }
 
 export function clampProductGridRows(value: unknown): number {
@@ -93,14 +102,23 @@ export const PW_PRODUCT_GRID_PAGE_JS = `
 function pwGridDevice(){
   var html=document.documentElement;
   var d=(html.getAttribute('data-pw-edit-device')||html.getAttribute('data-pw-scene-lock')||'').toLowerCase();
-  if(d==='mobile'||d==='tablet')return 'narrow';
-  if(d==='desktop'||d==='laptop')return 'wide';
-  return window.innerWidth>=1280?'wide':'narrow';
+  if(d==='mobile'||d==='tablet'||d==='laptop'||d==='desktop')return d;
+  var w=window.innerWidth||document.documentElement.clientWidth||0;
+  if(w>=1440)return 'desktop';
+  if(w>=1280)return 'laptop';
+  if(w>=768)return 'tablet';
+  return 'mobile';
 }
 function pwGridCols(el){
-  var wide=parseInt(el.getAttribute('data-pw-grid-cols')||'5',10)||5;
-  var narrow=parseInt(el.getAttribute('data-pw-grid-cols-mobile')||'2',10)||2;
-  return pwGridDevice()==='narrow'?narrow:wide;
+  var desktop=parseInt(el.getAttribute('data-pw-grid-cols')||'5',10)||5;
+  var laptop=parseInt(el.getAttribute('data-pw-grid-cols-laptop')||'4',10)||4;
+  var tablet=parseInt(el.getAttribute('data-pw-grid-cols-tablet')||'3',10)||3;
+  var mobile=parseInt(el.getAttribute('data-pw-grid-cols-mobile')||'2',10)||2;
+  var device=pwGridDevice();
+  if(device==='mobile')return mobile;
+  if(device==='tablet')return tablet;
+  if(device==='laptop')return laptop;
+  return desktop;
 }
 function pwGridRows(el){
   var raw=parseInt(el.getAttribute('data-pw-grid-rows')||'',10);
