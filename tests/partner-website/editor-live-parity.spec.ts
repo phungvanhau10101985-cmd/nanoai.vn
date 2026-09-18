@@ -863,6 +863,76 @@ for (const tenant of TENANTS) {
       expect(editorColumns).toBe(expectedColumns)
       expect(liveColumns).toBe(expectedColumns)
     })
+
+    test(`${tenant.slug} ${device} PDP keeps its polished gallery and buy-box face in editor and live`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 })
+      const pdpRegion =
+        '<div class="pw-shop-product-layout"><div class="pw-shop-product-gallery pw-pdp-gallery-desktop" data-pw-region="gallery"><img class="pw-shop-product-img" data-pw-el="main-image" alt=""><div class="pw-shop-product-thumbs"><button class="pw-shop-product-thumb"></button></div></div><div class="pw-shop-pdp-info" data-pw-region="pdp-info"><h1 class="pw-pdp-title">Product</h1><div class="pw-pdp-price-card">Price</div><div class="pw-pdp-actions pw-pdp-actions-inline"><button class="pw-shop-btn">Cart</button><button class="pw-shop-btn">Buy</button><button class="pw-shop-btn">Chat</button><button class="pw-shop-btn">Try</button><button class="pw-shop-btn">Favorite</button></div></div></div><section class="pw-shop-product-detail"><div class="pw-pdp-tabs"><div class="pw-pdp-tabpanel">Detail</div></div></section>'
+      const source = fixtureHtml('product_detail', device, tenant).replace(
+        pageRegion('product_detail'),
+        pdpRegion
+      )
+      const htmlPath = visualEditorHtmlPath('product_detail', device)
+      const theme = applyVisualEditThemeFlag(tenant.theme, {
+        pageKey: 'product_detail',
+        variant: device,
+      })
+      const editor = preparePartnerVisualHtmlForEditor(source, {
+        variant: device,
+        siteSlug: tenant.slug,
+        locale: 'vi',
+        pageKey: 'product_detail',
+        theme,
+      })
+      const live = renderPartnerVisualHtmlForPublic(
+        {
+          siteSlug: tenant.slug,
+          locale: 'vi',
+          theme,
+          project: {
+            entryPath: htmlPath,
+            files: [{ path: htmlPath, kind: 'html', content: source }],
+          },
+        },
+        { kind: 'product', productId: 'parity-product' },
+        { device }
+      )
+      const face = async () =>
+        page.evaluate(() => {
+          const layout = document.querySelector<HTMLElement>('.pw-shop-product-layout')
+          const gallery = document.querySelector<HTMLElement>('.pw-pdp-gallery-desktop')
+          const info = document.querySelector<HTMLElement>('.pw-shop-pdp-info')
+          const actions = document.querySelector<HTMLElement>('.pw-pdp-actions-inline')
+          if (!layout || !gallery || !info || !actions) throw new Error('PDP face missing')
+          const layoutStyle = getComputedStyle(layout)
+          const actionStyle = getComputedStyle(actions)
+          return {
+            columns: layoutStyle.gridTemplateColumns.split(/\s+/).filter(Boolean).length,
+            gap: layoutStyle.columnGap,
+            galleryPosition: getComputedStyle(gallery).position,
+            infoPadding: getComputedStyle(info).paddingTop,
+            actionColumns: actionStyle.gridTemplateColumns.split(/\s+/).filter(Boolean).length,
+          }
+        })
+
+      await page.setContent(editor, { waitUntil: 'domcontentloaded' })
+      await page.locator('.pw-shop-product-layout').waitFor()
+      const editorFace = await face()
+      await page.setContent(live, { waitUntil: 'domcontentloaded' })
+      await page.locator('.pw-shop-product-layout').waitFor()
+      const liveFace = await face()
+      const expected = {
+        columns: 2,
+        gap: device === 'tablet' ? '18px' : '32px',
+        galleryPosition: device === 'tablet' ? 'relative' : 'sticky',
+        infoPadding: device === 'tablet' ? '18px' : '24px',
+        actionColumns: 2,
+      }
+      expect(editorFace).toEqual(expected)
+      expect(liveFace).toEqual(expected)
+    })
   }
 }
 

@@ -21,7 +21,10 @@ import {
 } from './seed-shop-template-visual-website'
 import { extractSharedChrome } from '@/lib/partner-website/shop/sync-shared-chrome'
 import { visualHomeChromeForDevice } from '@/lib/partner-website/shop/visual-home-chrome'
-import { resolvePartnerVisualHtmlVariantsForTarget } from '@/lib/partner-website/shop/render-partner-visual-html'
+import {
+  preparePartnerVisualHtmlForEditor,
+  resolvePartnerVisualHtmlVariantsForTarget,
+} from '@/lib/partner-website/shop/render-partner-visual-html'
 
 const preset = getShopTemplatePreset('fashion-orange')
 const site = buildDefaultLandingV1Site({
@@ -192,14 +195,44 @@ test('GD01-GD08 seed independent tablet 3-column and laptop 4-column storefront 
     const laptop = seeded.project.files.find(
       (file) => file.path === visualEditorHtmlPath('products', 'laptop')
     )
+    const tabletPdp = seeded.project.files.find(
+      (file) => file.path === visualEditorHtmlPath('product_detail', 'tablet')
+    )
+    const laptopPdp = seeded.project.files.find(
+      (file) => file.path === visualEditorHtmlPath('product_detail', 'laptop')
+    )
     assert.ok(tablet, `${templatePreset.code} tablet listing must be seeded`)
     assert.ok(laptop, `${templatePreset.code} laptop listing must be seeded`)
+    assert.ok(tabletPdp, `${templatePreset.code} tablet PDP must be seeded`)
+    assert.ok(laptopPdp, `${templatePreset.code} laptop PDP must be seeded`)
     assert.match(tablet.content, /data-pw-edit-device="tablet"/)
     assert.match(tablet.content, /data-pw-grid-cols-tablet="3"/)
     assert.match(tablet.content, /grid-template-columns:repeat\(3,/)
     assert.match(laptop.content, /data-pw-edit-device="laptop"/)
     assert.match(laptop.content, /data-pw-grid-cols-laptop="4"/)
     assert.match(laptop.content, /grid-template-columns:repeat\(4,/)
+    const tabletPdpPrepared = preparePartnerVisualHtmlForEditor(tabletPdp.content, {
+      variant: 'tablet',
+      siteSlug: `preset-${templatePreset.code.toLowerCase()}`,
+      locale: 'vi',
+      pageKey: 'product_detail',
+      theme: seeded.theme,
+    })
+    const laptopPdpPrepared = preparePartnerVisualHtmlForEditor(laptopPdp.content, {
+      variant: 'laptop',
+      siteSlug: `preset-${templatePreset.code.toLowerCase()}`,
+      locale: 'vi',
+      pageKey: 'product_detail',
+      theme: seeded.theme,
+    })
+    assert.match(
+      tabletPdpPrepared,
+      /html\[data-pw-edit-device="tablet"\] \.pw-shop-product-layout[^}]*minmax\(0,.88fr\) minmax\(0,1.12fr\)/
+    )
+    assert.match(
+      laptopPdpPrepared,
+      /html\[data-pw-edit-device="laptop"\] \.pw-pdp-gallery-desktop[^}]*position:sticky/
+    )
   }
 })
 

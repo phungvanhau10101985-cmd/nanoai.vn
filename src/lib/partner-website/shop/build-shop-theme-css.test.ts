@@ -33,7 +33,8 @@ test('shop theme CSS keeps desktop account nav as a compact left column', () => 
   assert.match(css, /\.pw-shop-affiliate\{/)
   assert.match(css, /\.pw-shop-affiliate-share-bar\{/)
   assert.match(css, /\.pw-shop-cart-affiliate-wallet/)
-  assert.match(css, /@media\(min-width:768px\)\{\.pw-shop-account-layout\{flex-direction:row;gap:24px/)
+  assert.match(css, /@media\(min-width:768px\)\{\.pw-shop-account-layout\{flex-direction:row;gap:16px/)
+  assert.match(css, /@media\(min-width:1280px\)\{\.pw-shop-account-layout\{gap:24px/)
   assert.match(css, /\.pw-shop-account-nav-item\{[^}]*font-weight:500;font-size:14px;color:#374151/)
   assert.match(css, /\.pw-shop-account-content\{[^}]*background:#fff/)
   assert.match(css, /\.pw-shop-account-hub-mobile\{display:block/)
@@ -154,6 +155,34 @@ test('shop theme CSS hides leftover PDP line-total and keeps buy controls in the
   assert.match(css, /display:none!important/)
   assert.match(css, /\.pw-shop-product-layout>\.pw-shop-pdp-info/)
   assert.match(css, /grid-column:2/)
+})
+
+test('shop theme CSS gives tablet and laptop distinct polished PDP faces', () => {
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(
+    css,
+    /html\[data-pw-edit-device="tablet"\] \.pw-shop-product-layout[^}]*grid-template-columns:minmax\(0,.88fr\) minmax\(0,1.12fr\);gap:18px/
+  )
+  assert.match(
+    css,
+    /html\[data-pw-edit-device="tablet"\] \.pw-shop-pdp-info[^}]*padding:18px[^}]*border-radius:16px/
+  )
+  assert.match(
+    css,
+    /html\[data-pw-edit-device="tablet"\] \.pw-pdp-actions-inline[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/
+  )
+  assert.match(
+    css,
+    /html\[data-pw-edit-device="laptop"\] \.pw-shop-product-layout[^}]*grid-template-columns:minmax\(0,.94fr\) minmax\(0,1.06fr\);gap:32px/
+  )
+  assert.match(
+    css,
+    /html\[data-pw-edit-device="laptop"\] \.pw-pdp-gallery-desktop[^}]*position:sticky[^}]*top:calc\(var\(--pw-sticky-head,72px\) \+ 16px\)/
+  )
+  assert.match(
+    css,
+    /html\[data-pw-edit-device="laptop"\] \.pw-shop-pdp-info[^}]*padding:24px[^}]*border-radius:18px/
+  )
 })
 
 test('shop theme CSS hides broken PDP images after retry', () => {
