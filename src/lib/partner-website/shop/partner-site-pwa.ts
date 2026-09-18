@@ -52,20 +52,32 @@ export function partnerSitePwaStartUrl(siteSlug: string, customDomain: boolean):
   return customDomain || home.endsWith('/') ? home : `${home}/`
 }
 
+function pwaQueryToken(raw: string | null | undefined, max = 32): string {
+  return String(raw || '')
+    .trim()
+    .replace(/[^a-z0-9-]/gi, '')
+    .slice(0, max)
+}
+
 export function partnerSitePwaManifestPath(
   siteSlug: string,
   customDomain: boolean,
-  bust?: string | null
+  bust?: string | null,
+  iconBust?: string | null
 ): string {
   const base = customDomain
     ? '/manifest.webmanifest'
     : `/site/${encodeURIComponent(siteSlug.trim())}/manifest.webmanifest`
-  const token = String(bust ?? '')
+  const params = new URLSearchParams()
+  const color = String(bust ?? '')
     .trim()
     .replace(/^#/, '')
     .toLowerCase()
-  if (!/^[0-9a-f]{3,8}$/.test(token)) return base
-  return `${base}?c=${token}`
+  if (/^[0-9a-f]{3,8}$/.test(color)) params.set('c', color)
+  const icon = pwaQueryToken(iconBust)
+  if (icon) params.set('i', icon)
+  const qs = params.toString()
+  return qs ? `${base}?${qs}` : base
 }
 
 export function partnerSitePwaSwPath(siteSlug: string, customDomain: boolean): string {
@@ -77,9 +89,14 @@ export function partnerSitePwaIconPath(
   siteSlug: string,
   size: PartnerPwaIconSize,
   customDomain: boolean,
-  opts?: { maskable?: boolean }
+  opts?: { maskable?: boolean; bust?: string | null }
 ): string {
-  const tail = `/pwa-icon/${size}${opts?.maskable ? '?purpose=maskable' : ''}`
+  const params = new URLSearchParams()
+  if (opts?.maskable) params.set('purpose', 'maskable')
+  const bust = pwaQueryToken(opts?.bust)
+  if (bust) params.set('v', bust)
+  const qs = params.toString()
+  const tail = `/pwa-icon/${size}${qs ? `?${qs}` : ''}`
   if (customDomain) return tail
   return `/site/${encodeURIComponent(siteSlug.trim())}${tail}`
 }
@@ -96,12 +113,16 @@ export function buildPartnerShopWebManifest(input: {
   backgroundColor: unknown
   themeColor: unknown
   locale?: string
+  iconBust?: string | null
 }): Record<string, unknown> {
   const name = input.name.trim() || 'Shop'
   const startUrl = partnerSitePwaStartUrl(input.siteSlug, input.customDomain)
   const slug = input.siteSlug.trim().toLowerCase()
   const icon = (size: 192 | 512, maskable: boolean) => ({
-    src: partnerSitePwaIconPath(slug, size, input.customDomain, { maskable }),
+    src: partnerSitePwaIconPath(slug, size, input.customDomain, {
+      maskable,
+      bust: input.iconBust,
+    }),
     sizes: `${size}x${size}`,
     type: 'image/png',
     purpose: maskable ? 'maskable' : 'any',

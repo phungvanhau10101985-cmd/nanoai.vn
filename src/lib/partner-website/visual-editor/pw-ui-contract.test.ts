@@ -123,6 +123,7 @@ describe('pw ui contract', () => {
         'cookie',
         'faq',
         'home',
+        'how_to_buy',
         'lookbook',
         'order_tracking',
         'orders',
@@ -132,13 +133,17 @@ describe('pw ui contract', () => {
         'products',
         'recently_viewed',
         'returns',
+        'reviews_policy',
         'sale',
         'shipping',
         'size_guide',
         'stores',
         'terms',
         'thank_you',
+        'trust',
         'wishlist',
+        'brand_origin',
+        'company',
       ].sort()
     )
   })

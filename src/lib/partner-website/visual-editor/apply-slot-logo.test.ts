@@ -103,6 +103,7 @@ describe('apply-slot-logo', () => {
       'https://cdn.example/chat-theme.png'
     )
     expect(inv.faviconUrl).toBe('https://cdn.example/favicon.png')
+    expect(inv.pwaIconUrl).toBe('')
     expect(inv.chatUrl).toBe('https://cdn.example/chat-theme.png')
     expect(inv.header.desktop).toBe(HEADER)
     expect(inv.header.mobile).toBe('https://cdn.example/mobile-h.png')
@@ -143,8 +144,9 @@ describe('apply-slot-logo', () => {
       },
       null,
       null,
-      { htmlSource: headerHtml }
+      { htmlSource: headerHtml, pwaIconUrl: 'https://cdn.example/pwa.png' }
     )
+    expect(inv.pwaIconUrl).toBe('https://cdn.example/pwa.png')
     expect(inv.header.desktop).toBe(HEADER)
     expect(inv.footer.desktop).toBe(FOOTER)
     expect(inv.chatUrl).toBe(CHAT)

@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server'
 import { PARTNER_CUSTOM_DOMAIN_HEADER } from '@/lib/auth/app-request-headers'
+import {
+  loadPartnerShopLiveBrandTheme,
+  partnerShopLiveIconBust,
+} from '@/lib/partner-website/promotions/partner-sale-icon-live'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { buildPartnerShopWebManifest } from '@/lib/partner-website/shop/partner-site-pwa'
 
@@ -15,6 +19,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
 
   const customDomain = Boolean(req.headers.get(PARTNER_CUSTOM_DOMAIN_HEADER)?.trim())
   const name = shop.site.title.trim() || shop.site.partnerDisplayName || 'Shop'
+  const live = await loadPartnerShopLiveBrandTheme({
+    partnerId: shop.partnerId,
+    theme: shop.site.theme,
+  })
   const manifest = buildPartnerShopWebManifest({
     siteSlug: shop.site.siteSlug,
     name,
@@ -23,6 +31,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
     backgroundColor: shop.site.theme.backgroundColor,
     themeColor: shop.site.theme.primaryColor,
     locale: shop.site.locale,
+    iconBust: partnerShopLiveIconBust(live.theme, shop.site.logoUrl),
   })
 
   return new NextResponse(JSON.stringify(manifest), {

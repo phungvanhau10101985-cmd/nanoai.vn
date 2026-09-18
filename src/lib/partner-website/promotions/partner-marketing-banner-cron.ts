@@ -9,12 +9,17 @@ import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner
 import { generatePartnerMarketingBanner } from '@/lib/partner-website/promotions/partner-marketing-banner-generate'
 import { listUpcomingPartnerSaleEvents } from '@/lib/partner-website/promotions/partner-sale-calendar'
 import type { PartnerMarketingBannerKind } from '@/lib/partner-website/promotions/partner-marketing-banner'
+import {
+  ensureDailyPartnerSaleIcons,
+  type PartnerSaleIconCronResult,
+} from '@/lib/partner-website/promotions/partner-sale-icon-cron'
 
 export type PartnerMarketingBannerCronResult = {
   partners: number
   birthday: { created: number; reused: number; failed: number }
   sale: { created: number; reused: number; failed: number }
   warehouse: { created: number; reused: number; failed: number; skipped: number }
+  saleIcons: PartnerSaleIconCronResult
 }
 
 function emptyCounts() {
@@ -31,6 +36,7 @@ export async function ensureDailyPartnerMarketingBanners(input?: {
     birthday: emptyCounts(),
     sale: emptyCounts(),
     warehouse: { ...emptyCounts(), skipped: 0 },
+    saleIcons: { partners: 0, created: 0, reused: 0, failed: 0, skipped: 0 },
   }
   const partnerIds = await listWebsitePartnerIdsForMarketingBannersFromPg(input?.limitPartners ?? 40)
   result.partners = partnerIds.length
@@ -130,5 +136,13 @@ export async function ensureDailyPartnerMarketingBanners(input?: {
     }
   }
 
+  try {
+    result.saleIcons = await ensureDailyPartnerSaleIcons({
+      limitPartners: input?.limitPartners ?? 40,
+      maxGenerate: Math.max(1, maxGenerate - generated),
+    })
+  } catch (error) {
+    console.warn('[ensureDailyPartnerSaleIcons]', error)
+  }
   return result
 }

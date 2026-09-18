@@ -117,6 +117,11 @@ test('notifications and cart are not swallowed by /account', () => {
 test('info and chat kinds from href or channel', () => {
   assert.equal(inferChromeWidgetKindFromHints({ href: '/site/s/privacy', label: 'Bảo mật' }), 'privacy')
   assert.equal(inferChromeWidgetKindFromHints({ href: '/site/s/terms', label: 'Điều khoản' }), 'terms')
+  assert.equal(inferChromeWidgetKindFromHints({ href: '/site/s/how-to-buy', label: 'Hướng dẫn mua hàng' }), 'how-to-buy')
+  assert.equal(inferChromeWidgetKindFromHints({ href: '/site/s/brand-origin', label: 'Nguồn gốc' }), 'brand-origin')
+  assert.equal(inferChromeWidgetKindFromHints({ href: '/site/s/reviews-policy', label: 'Chính sách đánh giá' }), 'reviews-policy')
+  assert.equal(inferChromeWidgetKindFromHints({ href: '/site/s/trust', label: 'Uy tín' }), 'trust')
+  assert.equal(inferChromeWidgetKindFromHints({ href: '/site/s/company', label: 'Thông tin đơn vị' }), 'company')
   assert.equal(
     inferChromeWidgetKindFromHints({ href: 'https://zalo.me/123', contactChannel: 'zalo' }),
     'chat-zalo'

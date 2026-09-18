@@ -25,6 +25,10 @@ export function buildAdminLogoCreatePrompt(input: {
     parts.push(
       `Square favicon PNG for "${title}". 1:1, simple high-contrast mark, readable at 16-32px, no tiny text, fill the frame, isolated on a flat background so it can be cut to a transparent PNG.`
     )
+  } else if (input.slot === 'pwa') {
+    parts.push(
+      `Square mobile web-app avatar / PWA icon for "${title}". 1:1, fill the frame, readable on a phone home screen at 180px, high-contrast mark, no tiny text, isolated on a flat background.`
+    )
   } else if (input.slot === 'header') {
     parts.push(
       `Website header logo for "${title}" (${device}). Clean brand mark, high contrast, readable at small size, isolated on a flat background for a transparent PNG.`

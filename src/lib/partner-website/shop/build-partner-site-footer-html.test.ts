@@ -7,6 +7,7 @@ import {
   pinPaintedFooterThemeVarsInHtml,
   PW_FOOTER_PAINT_STYLE_ID,
 } from '@/lib/partner-website/shop/build-partner-site-footer-html'
+import { withPartnerSiteFooterLegalLinks } from '@/lib/partner-website/shop/partner-site-nav-footer'
 import { resolveShopThemeColors, themeCssVarMap } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/partner-website-template-types'
 
@@ -24,6 +25,11 @@ test('full footer has four columns and required policy links', () => {
   assert.equal((html.match(/data-pw-el="col"/g) || []).length, 4)
   assert.match(html, /privacy/)
   assert.match(html, /terms/)
+  assert.match(html, /how-to-buy/)
+  assert.match(html, /brand-origin/)
+  assert.match(html, /reviews-policy/)
+  assert.match(html, /\/trust/)
+  assert.match(html, /\/company/)
   assert.match(html, /payment/)
   assert.match(html, /shipping/)
   assert.match(html, /returns/)
@@ -115,6 +121,17 @@ test('ensure injects MoIT button into leftover full footer', () => {
     siteSlug: '188-com-vn-rl56',
   })
   assert.equal((again.match(/data-pw-footer-kit="moit"/g) || []).length, 1)
+  assert.match(next, /how-to-buy/)
+  assert.match(next, /data-pw-footer-kit="link:how-to-buy"/)
+  assert.match(next, /data-pw-footer-kit="link:brand-origin"/)
+  assert.match(next, /data-pw-footer-kit="link:reviews-policy"/)
+  assert.match(next, /data-pw-footer-kit="link:trust"/)
+  assert.match(next, /data-pw-footer-kit="link:company"/)
+  const twice = ensureFullPartnerSiteFooterInHtml(next, {
+    locale: 'vi',
+    siteSlug: '188-com-vn-rl56',
+  })
+  assert.equal((twice.match(/data-pw-footer-kit="link:how-to-buy"/g) || []).length, 1)
 })
 
 test('theme footerColor maps to --pw-footer', () => {
@@ -157,4 +174,14 @@ test('pinPaintedFooterThemeVarsInHtml keeps Sửa nhanh footer paint on live', (
     `<a class="pw-shop-footer-moit" style="--pw-btn-color:#ff6b00;background:#ff6b00;color:#fff">MoIT</a>`
   )
   assert.match(moit, /--pw-btn-color:\s*#ff6b00\s*!important/i)
+})
+
+test('saved footer JSON keeps merchant hides and appends missing legal keys', () => {
+  const merged = withPartnerSiteFooterLegalLinks([
+    { id: 'ft_privacy', hrefKey: 'privacy', visible: false, sortOrder: 0 },
+    { id: 'ft_terms', hrefKey: 'terms', visible: true, sortOrder: 1 },
+  ])
+  assert.equal(merged.find((x) => x.hrefKey === 'privacy')?.visible, false)
+  assert.ok(merged.some((x) => x.hrefKey === 'how-to-buy' && x.visible))
+  assert.ok(merged.some((x) => x.hrefKey === 'company' && x.visible))
 })

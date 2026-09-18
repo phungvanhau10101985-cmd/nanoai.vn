@@ -30,6 +30,16 @@ export const PARTNER_BUILTIN_PAGE_SLUGS = [
 
   'payment',
 
+  'how-to-buy',
+
+  'brand-origin',
+
+  'reviews-policy',
+
+  'trust',
+
+  'company',
+
   'thank-you',
 
   'stores',
@@ -54,7 +64,7 @@ export const PARTNER_SITE_RESERVED_SLUGS = [
 
   'about', 'account', 'addresses', 'blog', 'c', 'cart', 'contact', 'faq', 'login', 'lookbook', 'lp', 'orders',
 
-  'goi-y-tuoi-gioi', 'payment', 'privacy', 'products', 'recently-viewed', 'returns', 'sale', 'shipping', 'size-guide',
+  'goi-y-tuoi-gioi', 'how-to-buy', 'brand-origin', 'reviews-policy', 'trust', 'company', 'payment', 'privacy', 'products', 'recently-viewed', 'returns', 'sale', 'shipping', 'size-guide',
 
   'stores', 'terms', 'thank-you',
 

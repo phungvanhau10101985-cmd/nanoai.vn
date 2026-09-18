@@ -15,6 +15,11 @@ export type PartnerWebsitePageKey =
   | 'privacy'
   | 'cookie'
   | 'terms'
+  | 'how_to_buy'
+  | 'brand_origin'
+  | 'reviews_policy'
+  | 'trust'
+  | 'company'
   | 'collection'
   | 'order_tracking'
   | 'lookbook'
@@ -458,11 +463,86 @@ export const PARTNER_WEBSITE_PAGE_CATALOG: PartnerWebsitePageDef[] = [
       'Complies with Google Merchant Center, Facebook, and TikTok ad policies',
     ],
   },
+  {
+    key: 'how_to_buy',
+    htmlPath: 'how-to-buy.html',
+    routePath: '/how-to-buy',
+    studioMode: 'platform',
+    discoveryKeys: PAGE_FEATURE_KEYS,
+    defaultFeaturesVi: [
+      'Hướng dẫn chọn SP, thêm giỏ, đăng nhập, cọc theo cài đặt shop, theo dõi đơn',
+      'Tuân thủ chính sách quảng cáo Google Merchant Center, Facebook, TikTok',
+    ],
+    defaultFeaturesEn: [
+      'How to pick a product, add to cart, sign in, pay any shop-configured deposit, track orders',
+      'Complies with Google Merchant Center, Facebook, and TikTok ad policies',
+    ],
+  },
+  {
+    key: 'brand_origin',
+    htmlPath: 'brand-origin.html',
+    routePath: '/brand-origin',
+    studioMode: 'platform',
+    discoveryKeys: PAGE_FEATURE_KEYS,
+    defaultFeaturesVi: [
+      'Nguồn gốc hàng, SKU, không hàng giả, trách nhiệm nhà bán lẻ độc lập',
+      'Tuân thủ chính sách quảng cáo Google Merchant Center, Facebook, TikTok',
+    ],
+    defaultFeaturesEn: [
+      'Product origin, SKU traceability, no counterfeits, independent retailer',
+      'Complies with Google Merchant Center, Facebook, and TikTok ad policies',
+    ],
+  },
+  {
+    key: 'reviews_policy',
+    htmlPath: 'reviews-policy.html',
+    routePath: '/reviews-policy',
+    studioMode: 'platform',
+    discoveryKeys: PAGE_FEATURE_KEYS,
+    defaultFeaturesVi: [
+      'Ai được đánh giá, không sửa review khách, ẩn spam, rà soát SP kém chất lượng',
+    ],
+    defaultFeaturesEn: [
+      'Who may review, no editing customer reviews, hide spam, pull poor-quality items',
+    ],
+  },
+  {
+    key: 'trust',
+    htmlPath: 'trust.html',
+    routePath: '/trust',
+    studioMode: 'platform',
+    discoveryKeys: PAGE_FEATURE_KEYS,
+    defaultFeaturesVi: [
+      'Uy tín shop: chính sách công khai, đơn theo tài khoản, chat hỗ trợ',
+    ],
+    defaultFeaturesEn: [
+      'Shop trust: published policies, account-tied orders, chat support',
+    ],
+  },
+  {
+    key: 'company',
+    htmlPath: 'company.html',
+    routePath: '/company',
+    studioMode: 'platform',
+    discoveryKeys: PAGE_FEATURE_KEYS,
+    defaultFeaturesVi: [
+      'Thông tin đơn vị chịu trách nhiệm — shop điền tên pháp lý, mã số, địa chỉ, liên hệ',
+    ],
+    defaultFeaturesEn: [
+      'Legal entity behind the shop — merchant fills name, registration, address, contact',
+    ],
+  },
 ]
 
 export function getPartnerWebsitePageDef(pageKey: string): PartnerWebsitePageDef | null {
   const key = pageKey.trim().toLowerCase()
-  return PARTNER_WEBSITE_PAGE_CATALOG.find((p) => p.key === key) ?? null
+  if (!key) return null
+  const underscored = key.replace(/-/g, '_')
+  return (
+    PARTNER_WEBSITE_PAGE_CATALOG.find((p) => p.key === key) ??
+    PARTNER_WEBSITE_PAGE_CATALOG.find((p) => p.key === underscored) ??
+    null
+  )
 }
 
 export function normalizePartnerWebsitePageKey(raw: string | undefined | null): PartnerWebsitePageKey {
@@ -506,6 +586,11 @@ export function pageCatalogLabels(locale: WebLocale): Record<
       privacy: { title: 'Privacy policy', hint: 'Data, pixels, Google Merchant / Facebook / TikTok ads' },
       cookie: { title: 'Cookie policy', hint: 'Cookies, analytics & ad tracking' },
       terms: { title: 'Terms', hint: 'Purchase terms; Google Merchant / Facebook / TikTok ads' },
+      how_to_buy: { title: 'How to buy', hint: 'Cart, deposit per shop settings, tracking; ads policy' },
+      brand_origin: { title: 'Origin & brands', hint: 'SKU, sourcing, no counterfeits; ads policy' },
+      reviews_policy: { title: 'Review policy', hint: 'Who can review, spam, quality' },
+      trust: { title: 'Trust', hint: 'Published policies and account-tied orders' },
+      company: { title: 'Company info', hint: 'Legal entity the merchant fills in' },
     }
   }
   if (locale === 'zh') {
@@ -536,6 +621,11 @@ export function pageCatalogLabels(locale: WebLocale): Record<
       privacy: { title: '隐私政策', hint: '数据、广告像素、用户权利' },
       cookie: { title: 'Cookie政策', hint: 'Cookie、分析与广告追踪' },
       terms: { title: '服务条款', hint: '购买与使用条款' },
+      how_to_buy: { title: '购买指南', hint: '加购、定金按本店设置、跟踪订单' },
+      brand_origin: { title: '来源与品牌', hint: 'SKU、货源、不售假' },
+      reviews_policy: { title: '评价政策', hint: '谁可评价、垃圾评价、质量' },
+      trust: { title: '信誉', hint: '公开政策与账号订单' },
+      company: { title: '开办单位', hint: '商家填写的责任主体' },
     }
   }
   if (locale === 'ja') {
@@ -566,6 +656,11 @@ export function pageCatalogLabels(locale: WebLocale): Record<
       privacy: { title: 'プライバシー', hint: 'データ・広告ピクセル・権利' },
       cookie: { title: 'Cookieポリシー', hint: 'Cookie・分析・広告トラッキング' },
       terms: { title: '利用規約', hint: '購入・利用条件' },
+      how_to_buy: { title: 'ご購入ガイド', hint: 'カート、デポジット（店舗設定）、追跡' },
+      brand_origin: { title: '産地とブランド', hint: 'SKU、仕入、偽造品なし' },
+      reviews_policy: { title: 'レビュー方針', hint: '投稿資格、スパム、品質' },
+      trust: { title: '信頼性', hint: '公開ポリシーとアカウント注文' },
+      company: { title: '事業者情報', hint: 'ショップが記入する責任主体' },
     }
   }
   if (locale === 'ko') {
@@ -596,6 +691,11 @@ export function pageCatalogLabels(locale: WebLocale): Record<
       privacy: { title: '개인정보처리방침', hint: '데이터, 광고 픽셀, 권리' },
       cookie: { title: '쿠키 정책', hint: '쿠키, 분석, 광고 추적' },
       terms: { title: '이용약관', hint: '구매 및 이용 조건' },
+      how_to_buy: { title: '구매 안내', hint: '장바구니, 샵 설정 보증금, 주문 조회' },
+      brand_origin: { title: '원산지·브랜드', hint: 'SKU, 매입, 위조품 없음' },
+      reviews_policy: { title: '리뷰 정책', hint: '작성 자격, 스팸, 품질' },
+      trust: { title: '신뢰', hint: '공개 정책과 계정 주문' },
+      company: { title: '사업자 정보', hint: '판매자가 기입하는 책임 주체' },
     }
   }
   return {
@@ -625,6 +725,11 @@ export function pageCatalogLabels(locale: WebLocale): Record<
     privacy: { title: 'Chính sách bảo mật', hint: 'Dữ liệu, pixel; Google Merchant / Facebook / TikTok' },
     cookie: { title: 'Chính sách cookie', hint: 'Cookie, phân tích & quảng cáo' },
     terms: { title: 'Điều khoản', hint: 'Điều khoản mua hàng; Google Merchant / Facebook / TikTok' },
+    how_to_buy: { title: 'Hướng dẫn mua hàng', hint: 'Giỏ, cọc theo cài đặt shop, theo dõi đơn' },
+    brand_origin: { title: 'Nguồn gốc & thương hiệu', hint: 'SKU, nguồn hàng, không hàng giả' },
+    reviews_policy: { title: 'Chính sách đánh giá', hint: 'Ai được đánh giá, spam, chất lượng' },
+    trust: { title: 'Uy tín', hint: 'Chính sách công khai và đơn theo tài khoản' },
+    company: { title: 'Thông tin đơn vị', hint: 'Pháp nhân shop điền trên trang này' },
   }
 }
 

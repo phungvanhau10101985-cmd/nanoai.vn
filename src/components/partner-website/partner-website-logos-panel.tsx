@@ -306,6 +306,7 @@ export function PartnerWebsiteLogosPanel({
   function currentSlotUrl(slot: PartnerWebsiteLogoSlot, visualDevice?: VisualDeviceVariant) {
     if (slot === 'chat') return inventory.chatUrl
     if (slot === 'favicon') return inventory.faviconUrl
+    if (slot === 'pwa') return inventory.pwaIconUrl
     const d = visualDevice || device
     if (slot === 'header') return inventory.header[d] || inventory.header.desktop || ''
     return inventory.footer[d] || inventory.footer.desktop || ''
@@ -315,6 +316,7 @@ export function PartnerWebsiteLogosPanel({
     const shop = shopTitle || website?.title || 'Shop'
     if (slot === 'chat') return t.logosChatDefaultPrompt.replace('{shop}', shop)
     if (slot === 'favicon') return t.logosFaviconDefaultPrompt.replace('{shop}', shop)
+    if (slot === 'pwa') return t.logosPwaDefaultPrompt.replace('{shop}', shop)
     if (slot === 'header') return t.logosHeaderDefaultPrompt.replace('{shop}', shop)
     return t.logosFooterDefaultPrompt.replace('{shop}', shop)
   }
@@ -368,7 +370,7 @@ export function PartnerWebsiteLogosPanel({
       hasReference: chatRefs.urls.length > 0,
       device: visualDevice,
     })
-    const aspectRatio = slot === 'header' || slot === 'footer' ? '16:9' : '1:1'
+    const aspectRatio = slot === 'header' || slot === 'footer' ? '16:9' : '1:1' // favicon + pwa + chat = square
     setBusy(key)
     try {
       const res = await fetch(`/api/messaging/partner-website/${encodeURIComponent(partnerId)}/visual-edit-image`, {
@@ -738,6 +740,12 @@ export function PartnerWebsiteLogosPanel({
           label: t.logosFaviconLabel,
           hint: t.logosFaviconHint,
           url: inventory.faviconUrl,
+        })}
+        {renderRow({
+          slot: 'pwa',
+          label: t.logosPwaLabel,
+          hint: t.logosPwaHint,
+          url: inventory.pwaIconUrl,
         })}
         {renderRow({
           slot: 'chat',

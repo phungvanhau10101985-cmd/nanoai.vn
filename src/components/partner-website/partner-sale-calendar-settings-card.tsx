@@ -46,6 +46,20 @@ const COPY: Record<
     flashSavedOn: string
     flashSavedOff: string
     flashError: string
+    iconTitle: string
+    iconHint: string
+    iconAuto: string
+    iconGenerate: string
+    iconGenerated: string
+    iconNeedSource: string
+    iconNeedEvent: string
+    iconSourceFav: string
+    iconSourcePwa: string
+    iconPreview: string
+    iconBusy: string
+    iconConfirm: string
+    iconError: string
+    iconNone: string
   }
 > = {
   vi: {
@@ -82,6 +96,21 @@ const COPY: Record<
     flashSavedOn: 'Đã bật Flash sale',
     flashSavedOff: 'Đã tắt Flash sale',
     flashError: 'Không lưu được Flash sale.',
+    iconTitle: 'Favicon / ảnh đại diện web app khi sale',
+    iconHint:
+      'AI lấy favicon và ảnh đại diện web app (mobile) để tạo icon vuông sale cùng ngày cùng tháng. Teaser/active tự đổi tab Chrome và icon PWA.',
+    iconAuto: 'Tự đổi favicon và ảnh đại diện web app khi sale trùng tháng',
+    iconGenerate: 'Tạo icon sale bằng AI',
+    iconGenerated: 'Đã tạo icon sale vuông.',
+    iconNeedSource: 'Cần favicon hoặc ảnh đại diện web app trước.',
+    iconNeedEvent: 'Chưa có ngày sale trùng tháng sắp tới.',
+    iconSourceFav: 'Favicon hiện tại',
+    iconSourcePwa: 'Ảnh đại diện web app',
+    iconPreview: 'Icon sale đã tạo',
+    iconBusy: 'Đang tạo icon…',
+    iconConfirm: 'Tạo icon sale sẽ trừ {credits} credits. Tiếp tục?',
+    iconError: 'Không tạo được icon sale.',
+    iconNone: 'Chưa có',
   },
   en: {
     title: 'Same-day same-month sale',
@@ -117,6 +146,21 @@ const COPY: Record<
     flashSavedOn: 'Flash sale is on',
     flashSavedOff: 'Flash sale is off',
     flashError: 'Could not save Flash sale.',
+    iconTitle: 'Sale favicon / web-app avatar',
+    iconHint:
+      'AI uses the current favicon and mobile web-app avatar to make a square same-day-same-month sale icon. Teaser/active swaps the Chrome tab and PWA icon.',
+    iconAuto: 'Auto-swap favicon and web-app avatar on same-day-same-month sale',
+    iconGenerate: 'Create sale icon with AI',
+    iconGenerated: 'Square sale icon created.',
+    iconNeedSource: 'Add a favicon or web-app avatar first.',
+    iconNeedEvent: 'No upcoming same-day-same-month sale.',
+    iconSourceFav: 'Current favicon',
+    iconSourcePwa: 'Web-app avatar',
+    iconPreview: 'Generated sale icon',
+    iconBusy: 'Creating icon…',
+    iconConfirm: 'Creating a sale icon costs {credits} credits. Continue?',
+    iconError: 'Could not create the sale icon.',
+    iconNone: 'None yet',
   },
   zh: {
     title: '同日同月促销',
@@ -152,6 +196,20 @@ const COPY: Record<
     flashSavedOn: '已开启限时抢购',
     flashSavedOff: '已关闭限时抢购',
     flashError: '无法保存限时抢购。',
+    iconTitle: '促销 Favicon / Web App 头像',
+    iconHint: 'AI 根据当前 Favicon 和手机 Web App 头像生成正方形同日同月促销图标。预告/进行中会替换浏览器标签和 PWA 图标。',
+    iconAuto: '同日同月促销时自动更换 Favicon 和 Web App 头像',
+    iconGenerate: '用 AI 生成促销图标',
+    iconGenerated: '已生成正方形促销图标。',
+    iconNeedSource: '请先上传 Favicon 或 Web App 头像。',
+    iconNeedEvent: '暂无即将到来的同日同月促销。',
+    iconSourceFav: '当前 Favicon',
+    iconSourcePwa: 'Web App 头像',
+    iconPreview: '已生成的促销图标',
+    iconBusy: '正在生成…',
+    iconConfirm: '生成促销图标将扣除 {credits} 积分。是否继续？',
+    iconError: '无法生成促销图标。',
+    iconNone: '暂无',
   },
   ja: {
     title: '同日同月セール',
@@ -187,6 +245,21 @@ const COPY: Record<
     flashSavedOn: 'フラッシュセールをオンにしました',
     flashSavedOff: 'フラッシュセールをオフにしました',
     flashError: 'フラッシュセールを保存できませんでした。',
+    iconTitle: 'セール用ファビコン / ウェブアプリアイコン',
+    iconHint:
+      'AI が現行ファビコンとモバイル用ウェブアプリアイコンから、同日同月セール用の四角アイコンを作ります。予告／開催中はタブと PWA アイコンを差し替えます。',
+    iconAuto: '同日同月セールでファビコンとウェブアプリアイコンを自動切替',
+    iconGenerate: 'AI でセールアイコンを作成',
+    iconGenerated: '四角のセールアイコンを作成しました。',
+    iconNeedSource: '先にファビコンかウェブアプリアイコンを追加してください。',
+    iconNeedEvent: '近日の同日同月セールがありません。',
+    iconSourceFav: '現在のファビコン',
+    iconSourcePwa: 'ウェブアプリアイコン',
+    iconPreview: '作成済みセールアイコン',
+    iconBusy: '作成中…',
+    iconConfirm: 'セールアイコン作成は {credits} クレジットです。続行しますか？',
+    iconError: 'セールアイコンを作成できませんでした。',
+    iconNone: '未作成',
   },
   ko: {
     title: '같은 날짜·월 세일',
@@ -222,6 +295,21 @@ const COPY: Record<
     flashSavedOn: '플래시 세일을 켰습니다',
     flashSavedOff: '플래시 세일을 껐습니다',
     flashError: '플래시 세일을 저장하지 못했습니다.',
+    iconTitle: '세일 파비콘 / 웹앱 아이콘',
+    iconHint:
+      'AI가 현재 파비콘과 모바일 웹앱 아이콘으로 같은 날짜·월 세일용 정사각 아이콘을 만듭니다. 예고/진행 중이면 탭과 PWA 아이콘이 바뀝니다.',
+    iconAuto: '같은 날짜·월 세일 때 파비콘과 웹앱 아이콘 자동 교체',
+    iconGenerate: 'AI로 세일 아이콘 만들기',
+    iconGenerated: '정사각 세일 아이콘을 만들었습니다.',
+    iconNeedSource: '먼저 파비콘 또는 웹앱 아이콘을 추가하세요.',
+    iconNeedEvent: '다가오는 같은 날짜·월 세일이 없습니다.',
+    iconSourceFav: '현재 파비콘',
+    iconSourcePwa: '웹앱 아이콘',
+    iconPreview: '만든 세일 아이콘',
+    iconBusy: '만드는 중…',
+    iconConfirm: '세일 아이콘 생성은 {credits} 크레딧입니다. 계속할까요?',
+    iconError: '세일 아이콘을 만들지 못했습니다.',
+    iconNone: '없음',
   },
 }
 
@@ -242,8 +330,20 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
   const [saving, setSaving] = useState(false)
   const [flashSaving, setFlashSaving] = useState(false)
   const [bannerWorking, setBannerWorking] = useState(false)
+  const [iconWorking, setIconWorking] = useState(false)
+  const [saleIcon, setSaleIcon] = useState<{
+    auto: boolean
+    creditCost: number
+    upcoming: { day: number; month: number; eventDate: string; discountPercent: number } | null
+    sources: { faviconUrl: string | null; pwaIconUrl: string | null }
+    asset: { imageUrl: string | null; status: string } | null
+  } | null>(null)
   const bannersApi = useMemo(
     () => `/api/messaging/partners/${encodeURIComponent(partnerId)}/marketing-banners`,
+    [partnerId]
+  )
+  const iconsApi = useMemo(
+    () => `/api/messaging/partners/${encodeURIComponent(partnerId)}/sale-icons`,
     [partnerId]
   )
 
@@ -255,10 +355,13 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
         config?: PartnerSaleCalendarConfig
       } | null
       setConfig(body?.config ?? null)
+      const iconRes = await fetch(iconsApi)
+      const iconBody = (await iconRes.json().catch(() => null)) as typeof saleIcon
+      setSaleIcon(iconBody)
     } finally {
       setLoading(false)
     }
-  }, [api])
+  }, [api, iconsApi])
 
   useEffect(() => {
     void load()
@@ -367,6 +470,41 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
       onToast?.(t.warehouseApplied)
     } finally {
       setBannerWorking(false)
+    }
+  }
+
+  async function generateSaleIcon() {
+    if (!saleIcon?.upcoming) {
+      onToast?.(t.iconNeedEvent, 'destructive')
+      return
+    }
+    if (!saleIcon.sources.faviconUrl && !saleIcon.sources.pwaIconUrl) {
+      onToast?.(t.iconNeedSource, 'destructive')
+      return
+    }
+    const credits = saleIcon.creditCost || 1.5
+    if (!window.confirm(t.iconConfirm.replace('{credits}', String(credits)))) return
+    setIconWorking(true)
+    try {
+      const res = await fetch(iconsApi, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          day: saleIcon.upcoming.day,
+          month: saleIcon.upcoming.month,
+          discountPercent: saleIcon.upcoming.discountPercent,
+          force: true,
+        }),
+      })
+      const body = (await res.json().catch(() => null)) as { asset?: { imageUrl?: string }; error?: string } | null
+      if (!res.ok) {
+        onToast?.(body?.error || t.iconError, 'destructive')
+        return
+      }
+      onToast?.(t.iconGenerated)
+      await load()
+    } finally {
+      setIconWorking(false)
     }
   }
 
@@ -499,6 +637,57 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
               {numberField('manualDiscountPercent', t.manualPercent, true)}
             </div>
             <p className="text-xs text-muted-foreground">{t.warehouseBannerHint}</p>
+            <div className="space-y-3 rounded-xl border border-border/70 bg-muted/20 p-4">
+              <div>
+                <p className="font-semibold text-gray-900">{t.iconTitle}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t.iconHint}</p>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="sale-icon-auto">{t.iconAuto}</Label>
+                <Switch
+                  id="sale-icon-auto"
+                  checked={config.saleIconAuto !== false}
+                  onCheckedChange={(saleIconAuto) => setConfig({ ...config, saleIconAuto })}
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {(
+                  [
+                    [t.iconSourceFav, saleIcon?.sources.faviconUrl],
+                    [t.iconSourcePwa, saleIcon?.sources.pwaIconUrl || saleIcon?.sources.faviconUrl],
+                    [t.iconPreview, saleIcon?.asset?.imageUrl],
+                  ] as const
+                ).map(([label, url]) => (
+                  <div key={label} className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                    {url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={url}
+                        alt=""
+                        className="h-16 w-16 rounded-md border bg-white object-contain"
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">{t.iconNone}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {saleIcon?.upcoming ? (
+                <p className="text-xs text-muted-foreground">
+                  Sale {saleIcon.upcoming.day}/{saleIcon.upcoming.month} · {saleIcon.upcoming.discountPercent}%
+                </p>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                disabled={iconWorking || saving || !saleIcon?.upcoming}
+                onClick={() => void generateSaleIcon()}
+              >
+                {iconWorking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-2 h-4 w-4" />}
+                {iconWorking ? t.iconBusy : t.iconGenerate}
+              </Button>
+            </div>
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"

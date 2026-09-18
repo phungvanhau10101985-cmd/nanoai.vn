@@ -60,6 +60,7 @@ import {
   normalizePartnerSiteNavLinks,
   resolvePartnerSiteNavHref,
   visibleSortedNavLinks,
+  withPartnerSiteFooterLegalLinks,
 } from '@/lib/partner-website/shop/partner-site-nav-footer'
 import { footerLinkKitKind, PW_FOOTER_KIT_MOIT, PW_FOOTER_MOIT_HREF } from '@/lib/partner-website/shop/partner-site-footer-kit'
 import { buildPartnerSiteChromeToggleBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-chrome-toggle-bootstrap-script'
@@ -433,7 +434,7 @@ function PartnerSiteShopShellInner({
     )
   }, [customDomain, siteSlug])
   const footerLinks = visibleSortedNavLinks(
-    normalizePartnerSiteNavLinks(footerJson, DEFAULT_PARTNER_SITE_FOOTER_LINKS)
+    withPartnerSiteFooterLegalLinks(normalizePartnerSiteNavLinks(footerJson, DEFAULT_PARTNER_SITE_FOOTER_LINKS))
   )
   const footerGroups = groupPartnerSiteFooterLinks(footerLinks)
   const footerColumnTitle: Record<(typeof PARTNER_SITE_FOOTER_COLUMN_ORDER)[number], string> = {
@@ -459,6 +460,11 @@ function PartnerSiteShopShellInner({
       payment: n.payment,
       privacy: n.privacy,
       terms: n.terms,
+      'how-to-buy': n.howToBuy,
+      'brand-origin': n.brandOrigin,
+      'reviews-policy': n.reviewsPolicy,
+      trust: n.trust,
+      company: n.company,
       blog: n.blog,
       home: t.navHome,
       cart: t.navCart,
@@ -480,6 +486,11 @@ function PartnerSiteShopShellInner({
         | 'privacy'
         | 'terms'
         | 'payment'
+        | 'how-to-buy'
+        | 'brand-origin'
+        | 'reviews-policy'
+        | 'trust'
+        | 'company'
         | 'thank-you'
         | 'stores'
         | 'lookbook'

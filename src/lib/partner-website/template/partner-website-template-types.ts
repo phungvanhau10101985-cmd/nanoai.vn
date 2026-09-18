@@ -31,6 +31,11 @@ export type PartnerWebsiteTheme = {
    */
   faviconUrl?: string | null
   /**
+   * Ảnh đại diện web app (PWA / apple-touch / icon 192·512). Vuông.
+   * Thiếu thì engine lấy faviconUrl rồi logoUrl.
+   */
+  pwaIconUrl?: string | null
+  /**
    * When true, preview/public prefer saved project/htmlSource from visual «Sửa nhanh»
    * instead of re-rendering from template pages.
    */

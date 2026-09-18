@@ -546,6 +546,11 @@ export const VISUAL_EDITOR_CHROME_WIDGET_KINDS = [
   'blog',
   'privacy',
   'terms',
+  'how-to-buy',
+  'brand-origin',
+  'reviews-policy',
+  'trust',
+  'company',
   'favorites-link',
   'orders-link',
 ] as const
@@ -567,6 +572,11 @@ export const FOOTER_ADD_CHROME_KINDS = [
   'payment',
   'privacy',
   'terms',
+  'how-to-buy',
+  'brand-origin',
+  'reviews-policy',
+  'trust',
+  'company',
   'stores',
   'lookbook',
   'size-guide',
@@ -705,6 +715,11 @@ export const VISUAL_EDITOR_CHROME_WIDGET_PICKER_KINDS: VisualEditorChromeWidgetK
   'blog',
   'privacy',
   'terms',
+  'how-to-buy',
+  'brand-origin',
+  'reviews-policy',
+  'trust',
+  'company',
 ]
 
 export const VISUAL_EDITOR_CHROME_WIDGET_PICKER_GROUPS: {
@@ -746,6 +761,11 @@ const TOPBAR_DEFAULT_KINDS = new Set<VisualEditorChromeWidgetKind>([
   'returns',
   'privacy',
   'terms',
+  'how-to-buy',
+  'brand-origin',
+  'reviews-policy',
+  'trust',
+  'company',
   'payment',
   'stores',
   'lookbook',
@@ -892,6 +912,11 @@ export function chromeWidgetHref(kind: VisualEditorChromeWidgetKind, siteSlug: s
   if (kind === 'blog') return partnerSiteInfoPath(slug, 'blog')
   if (kind === 'privacy') return partnerSiteInfoPath(slug, 'privacy')
   if (kind === 'terms') return partnerSiteInfoPath(slug, 'terms')
+  if (kind === 'how-to-buy') return partnerSiteInfoPath(slug, 'how-to-buy')
+  if (kind === 'brand-origin') return partnerSiteInfoPath(slug, 'brand-origin')
+  if (kind === 'reviews-policy') return partnerSiteInfoPath(slug, 'reviews-policy')
+  if (kind === 'trust') return partnerSiteInfoPath(slug, 'trust')
+  if (kind === 'company') return partnerSiteInfoPath(slug, 'company')
   if (kind === 'login') return partnerSiteLoginPath(slug)
   return partnerSiteAccountPath(slug)
 }
@@ -957,6 +982,11 @@ export function chromeWidgetLabel(kind: VisualEditorChromeWidgetKind, locale: We
   if (kind === 'blog') return nav.blog
   if (kind === 'privacy') return nav.privacy
   if (kind === 'terms') return nav.terms
+  if (kind === 'how-to-buy') return nav.howToBuy
+  if (kind === 'brand-origin') return nav.brandOrigin
+  if (kind === 'reviews-policy') return nav.reviewsPolicy
+  if (kind === 'trust') return nav.trust
+  if (kind === 'company') return nav.company
   return nav.login
 }
 

@@ -8,6 +8,7 @@ import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-
 import {
   DEFAULT_PARTNER_SITE_FOOTER_LINKS,
   PARTNER_SITE_FOOTER_COLUMN_ORDER,
+  PARTNER_SITE_FOOTER_LEGAL_HREF_KEYS,
   groupPartnerSiteFooterLinks,
   resolvePartnerSiteNavHref,
   visibleSortedNavLinks,
@@ -53,6 +54,11 @@ function footerLabel(locale: WebLocale, hrefKey: PartnerSiteNavHrefKey, override
     privacy: n.privacy,
     terms: n.terms,
     payment: n.payment,
+    'how-to-buy': n.howToBuy,
+    'brand-origin': n.brandOrigin,
+    'reviews-policy': n.reviewsPolicy,
+    trust: n.trust,
+    company: n.company,
     stores: n.stores,
     lookbook: n.lookbook,
     'size-guide': n.sizeGuide,
@@ -318,6 +324,86 @@ export function ensureFooterMoitBadgeInHtml(html: string, locale: WebLocale = 'v
   return html.replace(/<footer\b[^>]*>[\s\S]*?<\/footer>/gi, (block) => injectMoitIntoFooterBlock(block, locale))
 }
 
+function footerInfoPath(siteSlug: string, key: string): string {
+  const slug = siteSlug.trim()
+  return slug ? partnerSiteInfoPath(slug, key as Parameters<typeof partnerSiteInfoPath>[1]) : `/${key}`
+}
+
+function footerNavPaths(siteSlug: string) {
+  const slug = siteSlug.trim()
+  return slug
+    ? getPartnerSiteShopNavPaths(slug)
+    : {
+        home: '/',
+        products: '/products',
+        sale: '/sale',
+        wishlist: '/wishlist',
+        cart: '/cart',
+        orders: '/orders',
+        account: '/account',
+        login: '/login',
+        addresses: '/addresses',
+        recentlyViewed: '/recently-viewed',
+        contact: '/contact',
+      }
+}
+
+function legalPolicyLinkHtml(locale: WebLocale, siteSlug: string, hrefKey: PartnerSiteNavHrefKey): string {
+  const paths = footerNavPaths(siteSlug)
+  const href = escapeAttr(resolvePartnerSiteNavHref(hrefKey, paths, (key) => footerInfoPath(siteSlug, key)))
+  const label = escapeHtml(footerLabel(locale, hrefKey, null))
+  return `<li><a href="${href}" ${pwElAttr(PW_EL.link)} ${PW_FOOTER_KIT_ATTR}="${footerLinkKitKind(hrefKey)}">${label}</a></li>`
+}
+
+function footerHasLegalHref(block: string, hrefKey: PartnerSiteNavHrefKey): boolean {
+  if (new RegExp(`${PW_FOOTER_KIT_ATTR}=["']${footerLinkKitKind(hrefKey)}["']`, 'i').test(block)) return true
+  const re = new RegExp(`/${hrefKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/|"|'|\\?|#|\\s|>)`, 'i')
+  return re.test(block)
+}
+
+function injectLegalPolicyLinksIntoFooterBlock(block: string, locale: WebLocale, siteSlug: string): string {
+  if (!new RegExp(`${PW_FOOTER_FULL_ATTR}=["']${PW_FOOTER_FULL_VALUE}["']`).test(block) && isSkeletalPartnerSiteFooter(block)) {
+    return block
+  }
+  const missing = PARTNER_SITE_FOOTER_LEGAL_HREF_KEYS.filter((key) => !footerHasLegalHref(block, key))
+  if (!missing.length) return block
+  const linksHtml = missing.map((key) => legalPolicyLinkHtml(locale, siteSlug, key)).join('')
+  if (/data-pw-footer-kit=["']col:legal["']/i.test(block)) {
+    return block.replace(
+      /<nav\b([^>]*data-pw-footer-kit=["']col:legal["'][^>]*)>([\s\S]*?)<\/nav>/i,
+      (full) => {
+        if (/<\/ul>/i.test(full)) return full.replace(/<\/ul>/i, `${linksHtml}</ul>`)
+        return full.replace(/<\/nav>/i, `<ul>${linksHtml}</ul></nav>`)
+      }
+    )
+  }
+  const heading = columnTitle(locale, 'legal')
+  const col = `<nav class="pw-shop-footer-col pw-footer-col" ${pwElAttr(PW_EL.col)} ${PW_FOOTER_KIT_ATTR}="col:legal" aria-label="${escapeAttr(heading)}">
+      <h3>${escapeHtml(heading)}</h3>
+      <ul>${linksHtml}</ul>
+    </nav>`
+  if (/<div\b[^>]*\bpw-shop-footer-bar\b/i.test(block)) {
+    return block.replace(/(<div\b[^>]*\bpw-shop-footer-bar\b)/i, `${col}\n  $1`)
+  }
+  if (/data-pw-footer-kit=["']copyright["']/i.test(block)) {
+    return block.replace(/(<(?:div|p|section)\b[^>]*data-pw-footer-kit=["']copyright["'])/i, `${col}\n  $1`)
+  }
+  return block.replace(/<\/footer>/i, `${col}\n</footer>`)
+}
+
+/** Idempotent. Adds missing legal/policy links to saved full footers (how-to-buy, origin, reviews, trust, company). */
+export function ensureFooterLegalPolicyLinksInHtml(
+  html: string,
+  input: { locale?: WebLocale | null; siteSlug?: string | null } = {}
+): string {
+  if (!html || !/<footer\b/i.test(html)) return html
+  const locale = input.locale ?? 'vi'
+  const siteSlug = input.siteSlug?.trim() ?? ''
+  return html.replace(/<footer\b[^>]*>[\s\S]*?<\/footer>/gi, (block) =>
+    injectLegalPolicyLinksIntoFooterBlock(block, locale, siteSlug)
+  )
+}
+
 export function buildPartnerSiteFooterHtml(input: {
   locale: WebLocale
   siteSlug: string
@@ -388,8 +474,14 @@ export function buildPartnerSiteFooterHtml(input: {
 </footer>`
 }
 
-function finishFooterKit(html: string, locale: WebLocale): string {
-  return ensureFooterNewsletterInHtml(ensureFooterMoitBadgeInHtml(stampFooterKitInHtml(html), locale), locale)
+function finishFooterKit(html: string, locale: WebLocale, siteSlug = ''): string {
+  return ensureFooterNewsletterInHtml(
+    ensureFooterLegalPolicyLinksInHtml(ensureFooterMoitBadgeInHtml(stampFooterKitInHtml(html), locale), {
+      locale,
+      siteSlug,
+    }),
+    locale
+  )
 }
 
 /** Upgrade blank / policy-only footers. Keep a footer already marked full. */
@@ -407,9 +499,9 @@ export function ensureFullPartnerSiteFooterInHtml(
   const siteSlug = input.siteSlug?.trim() ?? ''
   const found = extractFooterRange(html)
   if (!siteSlug) {
-    if (found) return finishFooterKit(html, locale)
+    if (found) return finishFooterKit(html, locale, siteSlug)
   } else if (found && !isSkeletalPartnerSiteFooter(found.html)) {
-    return finishFooterKit(html, locale)
+    return finishFooterKit(html, locale, siteSlug)
   }
   const brand = (input.brand?.trim() || inferBrandFromHtml(html, siteSlug || 'Shop')).trim()
   const logoUrl = input.logoUrl?.trim() || inferLogoFromHtml(html)
@@ -417,12 +509,12 @@ export function ensureFullPartnerSiteFooterInHtml(
   if (!found) {
     const beforeNav = html.search(/<(nav|div)\b[^>]*class=["'][^"']*\b(?:pw-bottom-nav|pw-shop-bottom-nav)/i)
     if (beforeNav >= 0) {
-      return finishFooterKit(`${html.slice(0, beforeNav)}${next}\n${html.slice(beforeNav)}`, locale)
+      return finishFooterKit(`${html.slice(0, beforeNav)}${next}\n${html.slice(beforeNav)}`, locale, siteSlug)
     }
     if (/<\/body>/i.test(html)) {
-      return finishFooterKit(html.replace(/<\/body>/i, `${next}\n</body>`), locale)
+      return finishFooterKit(html.replace(/<\/body>/i, `${next}\n</body>`), locale, siteSlug)
     }
-    return finishFooterKit(`${html}\n${next}`, locale)
+    return finishFooterKit(`${html}\n${next}`, locale, siteSlug)
   }
-  return finishFooterKit(`${html.slice(0, found.start)}${next}${html.slice(found.end)}`, locale)
+  return finishFooterKit(`${html.slice(0, found.start)}${next}${html.slice(found.end)}`, locale, siteSlug)
 }

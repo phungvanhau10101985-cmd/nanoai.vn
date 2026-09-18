@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
+import { loadPartnerShopLiveBrandTheme } from '@/lib/partner-website/promotions/partner-sale-icon-live'
 import {
   buildPartnerPwaIconPng,
   partnerShopBrandIconUrls,
@@ -10,7 +11,9 @@ import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-w
 
 export const dynamic = 'force-dynamic'
 
-/** W5.5 — exact-size PNG icons so Chrome can install each shop as its own app. */
+/** W5.5 — exact-size PNG icons so Chrome can install each shop as its own app.
+ * `backgroundColor` only tints the letter fallback; canvas is transparent (any) or white (maskable).
+ */
 export async function GET(
   req: Request,
   ctx: { params: Promise<{ slug: string; size: string }> }
@@ -25,10 +28,15 @@ export async function GET(
     return new NextResponse('Not found', { status: 404 })
   }
 
+  const live = await loadPartnerShopLiveBrandTheme({
+    partnerId: shop.partnerId,
+    theme: shop.site.theme,
+  })
   const purpose = new URL(req.url).searchParams.get('purpose')?.trim().toLowerCase()
   const png = await buildPartnerPwaIconPng({
     logoUrls: partnerShopBrandIconUrls({
-      faviconUrl: shop.site.theme.faviconUrl,
+      pwaIconUrl: live.theme.pwaIconUrl,
+      faviconUrl: live.theme.faviconUrl,
       logoUrl: shop.site.logoUrl,
     }),
     size,
@@ -37,11 +45,14 @@ export async function GET(
     fallbackLetter: partnerShopIconFallbackLetter(shop.site.title || shop.site.partnerDisplayName),
   })
 
+  const shortCache = Boolean(live.saleIconUrl) || size <= 32
   return new NextResponse(new Uint8Array(png), {
     status: 200,
     headers: {
       'Content-Type': 'image/png',
-      'Cache-Control': size <= 32 ? 'public, max-age=60, must-revalidate' : 'public, max-age=3600',
+      'Cache-Control': shortCache
+        ? 'public, max-age=60, must-revalidate'
+        : 'public, max-age=3600, must-revalidate',
     },
   })
 }

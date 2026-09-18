@@ -2,6 +2,12 @@ import sharp from 'sharp'
 import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { partnerPwaManifestColor } from './partner-site-pwa'
 
+/** Canvas for maskable / letter fallback — never `--pw-primary` (mark would vanish on the same hue). */
+export const PARTNER_SHOP_ICON_CANVAS_HEX = '#ffffff'
+
+const TRANSPARENT_PAD = { r: 255, g: 255, b: 255, alpha: 0 }
+const WHITE_PAD = { r: 255, g: 255, b: 255, alpha: 1 }
+
 function isHttpUrl(value: string): boolean {
   try {
     const parsed = new URL(value)
@@ -13,10 +19,11 @@ function isHttpUrl(value: string): boolean {
 
 export function partnerShopBrandIconUrls(input: {
   faviconUrl?: string | null
+  pwaIconUrl?: string | null
   logoUrl?: string | null
 }): string[] {
   const out: string[] = []
-  for (const raw of [input.faviconUrl, input.logoUrl]) {
+  for (const raw of [input.pwaIconUrl, input.faviconUrl, input.logoUrl]) {
     const value = String(raw || '').trim()
     if (!value || !isHttpUrl(value) || out.includes(value)) continue
     out.push(value)
@@ -32,15 +39,8 @@ export function partnerShopIconFallbackLetter(name?: string | null): string {
   return (letter || 'S').toUpperCase()
 }
 
-function hexToFlattenBg(hex: string): { r: number; g: number; b: number; alpha: number } {
-  const n = partnerPwaManifestColor(hex, '#111827').replace('#', '')
-  const full = n.length === 3 ? n.split('').map((c) => `${c}${c}`).join('') : n
-  return {
-    r: parseInt(full.slice(0, 2), 16) || 17,
-    g: parseInt(full.slice(2, 4), 16) || 24,
-    b: parseInt(full.slice(4, 6), 16) || 39,
-    alpha: 1,
-  }
+function letterFillHex(hex: string): string {
+  return partnerPwaManifestColor(hex, '#111827')
 }
 
 async function fetchLogoBuffer(logoUrl: string): Promise<Buffer | null> {
@@ -67,39 +67,41 @@ async function fetchFirstLogoBuffer(urls: string[]): Promise<Buffer | null> {
   return null
 }
 
-async function letterTilePng(size: number, letter: string, backgroundColor: string): Promise<Buffer> {
-  const bg = partnerPwaManifestColor(backgroundColor, '#111827')
+async function letterTilePng(size: number, letter: string, letterColor: string): Promise<Buffer> {
+  const fill = letterFillHex(letterColor)
   const glyph = partnerShopIconFallbackLetter(letter)
   const fontSize = Math.round(size * 0.52)
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
-  <rect width="100%" height="100%" fill="${bg}"/>
-  <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" font-family="Arial,sans-serif" font-weight="700" font-size="${fontSize}" fill="#ffffff">${glyph}</text>
+  <rect width="100%" height="100%" fill="${PARTNER_SHOP_ICON_CANVAS_HEX}"/>
+  <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" font-family="Arial,sans-serif" font-weight="700" font-size="${fontSize}" fill="${fill}">${glyph}</text>
 </svg>`
   return sharp(Buffer.from(svg)).png().toBuffer()
 }
 
-async function resizeExactPng(input: Buffer, size: number, backgroundColor: string): Promise<Buffer> {
-  const pad = hexToFlattenBg(backgroundColor)
+async function resizeExactPng(input: Buffer, size: number): Promise<Buffer> {
   const meta = await sharp(input).metadata()
-  const fit = meta.hasAlpha ? 'contain' : 'cover'
+  if (meta.hasAlpha) {
+    return sharp(input)
+      .ensureAlpha()
+      .resize(size, size, {
+        fit: 'contain',
+        position: 'centre',
+        background: TRANSPARENT_PAD,
+      })
+      .png()
+      .toBuffer()
+  }
   return sharp(input)
-    .resize(size, size, {
-      fit,
-      position: 'centre',
-      background: pad,
-    })
-    .flatten({ background: pad })
+    .resize(size, size, { fit: 'cover', position: 'centre' })
     .png()
     .toBuffer()
 }
 
-async function resizeMaskablePng(input: Buffer, size: number, backgroundColor: string): Promise<Buffer> {
-  const bg = partnerPwaManifestColor(backgroundColor, '#111827')
-  const pad = hexToFlattenBg(bg)
+async function resizeMaskablePng(input: Buffer, size: number): Promise<Buffer> {
   const inner = Math.max(1, Math.round(size * 0.8))
   const logo = await sharp(input)
-    .resize(inner, inner, { fit: 'contain', background: pad })
-    .flatten({ background: pad })
+    .ensureAlpha()
+    .resize(inner, inner, { fit: 'contain', background: TRANSPARENT_PAD })
     .png()
     .toBuffer()
   return sharp({
@@ -107,7 +109,7 @@ async function resizeMaskablePng(input: Buffer, size: number, backgroundColor: s
       width: size,
       height: size,
       channels: 4,
-      background: pad,
+      background: WHITE_PAD,
     },
   })
     .composite([{ input: logo, gravity: 'centre' }])
@@ -115,7 +117,28 @@ async function resizeMaskablePng(input: Buffer, size: number, backgroundColor: s
     .toBuffer()
 }
 
-/** Square PNG at the exact PWA size Chrome requires (192 / 512) or apple-touch (180). Never NanoAI platform icons. */
+/** Raster a shop icon buffer. Transparent PNG keeps alpha; maskable sits on white — never primary. */
+export async function rasterPartnerShopIconPng(opts: {
+  image: Buffer | null
+  size: number
+  maskable: boolean
+  letterColor: string
+  fallbackLetter?: string
+}): Promise<Buffer> {
+  const size = opts.size
+  const letterColor = shopBrowserChromeColor(opts.letterColor)
+  try {
+    if (opts.image) {
+      if (opts.maskable) return await resizeMaskablePng(opts.image, size)
+      return await resizeExactPng(opts.image, size)
+    }
+  } catch {
+    /* shop letter tile — never public/icons NanoAI */
+  }
+  return letterTilePng(size, opts.fallbackLetter || 'S', letterColor)
+}
+
+/** Square PNG. `backgroundColor` is the letter-fallback fill only — not the icon canvas. */
 export async function buildPartnerPwaIconPng(opts: {
   logoUrl?: string | null
   logoUrls?: string[]
@@ -124,20 +147,16 @@ export async function buildPartnerPwaIconPng(opts: {
   maskable: boolean
   fallbackLetter?: string
 }): Promise<Buffer> {
-  const size = opts.size
   const urls = [
     ...(opts.logoUrls || []),
     ...(opts.logoUrl?.trim() ? [opts.logoUrl.trim()] : []),
   ].filter((url, index, all) => all.indexOf(url) === index)
   const logoBuf = await fetchFirstLogoBuffer(urls)
-  const pad = shopBrowserChromeColor(opts.backgroundColor)
-  try {
-    if (logoBuf) {
-      if (opts.maskable) return await resizeMaskablePng(logoBuf, size, pad)
-      return await resizeExactPng(logoBuf, size, pad)
-    }
-  } catch {
-    /* shop letter tile — never public/icons NanoAI */
-  }
-  return letterTilePng(size, opts.fallbackLetter || 'S', pad)
+  return rasterPartnerShopIconPng({
+    image: logoBuf,
+    size: opts.size,
+    maskable: opts.maskable,
+    letterColor: opts.backgroundColor,
+    fallbackLetter: opts.fallbackLetter,
+  })
 }

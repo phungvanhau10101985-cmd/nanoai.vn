@@ -41,11 +41,13 @@ async function loadPartnerSiteShopContextUncached(siteSlug: string): Promise<Par
           ...site.theme,
           logoUrl: site.logoUrl ?? site.theme.logoUrl ?? fromCss.logoUrl ?? null,
           faviconUrl: site.theme.faviconUrl ?? fromCss.faviconUrl ?? null,
+          pwaIconUrl: site.theme.pwaIconUrl ?? fromCss.pwaIconUrl ?? null,
         }
       : {
           ...fromCss,
           logoUrl: site.logoUrl ?? fromCss.logoUrl ?? null,
           faviconUrl: site.theme.faviconUrl ?? fromCss.faviconUrl ?? null,
+          pwaIconUrl: site.theme.pwaIconUrl ?? fromCss.pwaIconUrl ?? null,
         }
   return {
     site: {

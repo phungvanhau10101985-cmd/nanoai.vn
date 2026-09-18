@@ -18,6 +18,11 @@ export type PartnerSiteNavHrefKey =
   | 'privacy'
   | 'terms'
   | 'payment'
+  | 'how-to-buy'
+  | 'brand-origin'
+  | 'reviews-policy'
+  | 'trust'
+  | 'company'
   | 'stores'
   | 'lookbook'
   | 'size-guide'
@@ -47,6 +52,11 @@ const NAV_HREF_KEYS = new Set<string>([
   'privacy',
   'terms',
   'payment',
+  'how-to-buy',
+  'brand-origin',
+  'reviews-policy',
+  'trust',
+  'company',
   'stores',
   'lookbook',
   'size-guide',
@@ -80,6 +90,11 @@ export const DEFAULT_PARTNER_SITE_FOOTER_LINKS: PartnerSiteNavLinkItem[] = [
   { id: 'ft_account', hrefKey: 'account', visible: true, sortOrder: 16 },
   { id: 'ft_privacy', hrefKey: 'privacy', visible: true, sortOrder: 17 },
   { id: 'ft_terms', hrefKey: 'terms', visible: true, sortOrder: 18 },
+  { id: 'ft_how_to_buy', hrefKey: 'how-to-buy', visible: true, sortOrder: 19 },
+  { id: 'ft_brand_origin', hrefKey: 'brand-origin', visible: true, sortOrder: 20 },
+  { id: 'ft_reviews_policy', hrefKey: 'reviews-policy', visible: true, sortOrder: 21 },
+  { id: 'ft_trust', hrefKey: 'trust', visible: true, sortOrder: 22 },
+  { id: 'ft_company', hrefKey: 'company', visible: true, sortOrder: 23 },
 ]
 
 export function isPartnerSiteNavHrefKey(v: unknown): v is PartnerSiteNavHrefKey {
@@ -110,6 +125,24 @@ export function normalizePartnerSiteNavLinks(
   return out.sort((a, b) => a.sortOrder - b.sortOrder)
 }
 
+/** Saved footer JSON may predate extra legal pages — keep merchant hides, append missing stock legal links. */
+export function withPartnerSiteFooterLegalLinks(links: PartnerSiteNavLinkItem[]): PartnerSiteNavLinkItem[] {
+  const have = new Set(links.map((item) => item.hrefKey))
+  let sort = links.reduce((max, item) => Math.max(max, item.sortOrder), -1)
+  const extras: PartnerSiteNavLinkItem[] = []
+  for (const key of PARTNER_SITE_FOOTER_LEGAL_HREF_KEYS) {
+    if (have.has(key)) continue
+    const def = DEFAULT_PARTNER_SITE_FOOTER_LINKS.find((item) => item.hrefKey === key)
+    extras.push({
+      id: def?.id ?? `ft_${key.replace(/-/g, '_')}`,
+      hrefKey: key,
+      visible: true,
+      sortOrder: ++sort,
+    })
+  }
+  return extras.length ? [...links, ...extras] : links
+}
+
 export function visibleSortedNavLinks(items: PartnerSiteNavLinkItem[]): PartnerSiteNavLinkItem[] {
   return items.filter((x) => x.visible).sort((a, b) => a.sortOrder - b.sortOrder)
 }
@@ -123,11 +156,21 @@ export const PARTNER_SITE_FOOTER_COLUMN_ORDER: PartnerSiteFooterColumnId[] = [
   'legal',
 ]
 
+export const PARTNER_SITE_FOOTER_LEGAL_HREF_KEYS: readonly PartnerSiteNavHrefKey[] = [
+  'privacy',
+  'terms',
+  'how-to-buy',
+  'brand-origin',
+  'reviews-policy',
+  'trust',
+  'company',
+]
+
 const FOOTER_COLUMN_KEYS: Record<PartnerSiteFooterColumnId, readonly PartnerSiteNavHrefKey[]> = {
   shop: ['about', 'contact', 'stores', 'lookbook', 'blog'],
   shopping: ['home', 'products', 'sale', 'wishlist', 'size-guide', 'cart'],
   support: ['faq', 'shipping', 'returns', 'payment', 'orders', 'account'],
-  legal: ['privacy', 'terms'],
+  legal: [...PARTNER_SITE_FOOTER_LEGAL_HREF_KEYS],
 }
 
 export function groupPartnerSiteFooterLinks(

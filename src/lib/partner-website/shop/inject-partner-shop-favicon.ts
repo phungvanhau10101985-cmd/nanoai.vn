@@ -20,7 +20,7 @@ export function partnerShopFaviconCacheToken(
     hash ^= src.charCodeAt(i)
     hash = Math.imul(hash, 16777619)
   }
-  return (hash >>> 0).toString(36)
+  return `${(hash >>> 0).toString(36)}t1`
 }
 
 export function appendPartnerShopFaviconCacheToken(href: string, token: string): string {

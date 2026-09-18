@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
+import { loadPartnerShopLiveBrandIconUrls } from '@/lib/partner-website/promotions/partner-sale-icon-live'
 import {
   buildPartnerPwaIconPng,
-  partnerShopBrandIconUrls,
   partnerShopIconFallbackLetter,
 } from '@/lib/partner-website/shop/partner-site-pwa-icon'
 import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-website-theme-tokens'
 
 export const dynamic = 'force-dynamic'
 
-/** Custom domain `/favicon.ico` — tab trình duyệt. Nguồn: faviconUrl rồi logo shop. */
+/** Custom domain `/favicon.ico` — tab trình duyệt. PNG trong suốt giữ alpha; không tô `--pw-primary`. */
 export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params
   const shop = await loadPartnerSiteShopContext(slug)
@@ -18,8 +18,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }
   }
 
   const png = await buildPartnerPwaIconPng({
-    logoUrls: partnerShopBrandIconUrls({
-      faviconUrl: shop.site.theme.faviconUrl,
+    logoUrls: await loadPartnerShopLiveBrandIconUrls({
+      partnerId: shop.partnerId,
+      theme: shop.site.theme,
       logoUrl: shop.site.logoUrl,
     }),
     size: 32,

@@ -80,6 +80,11 @@ export const VISUAL_EDITOR_PAGE_KEYS: PartnerWebsitePageKey[] = [
   'payment',
   'privacy',
   'terms',
+  'how_to_buy',
+  'brand_origin',
+  'reviews_policy',
+  'trust',
+  'company',
   'thank_you',
 ]
 
@@ -1463,6 +1468,11 @@ const INFO_PAGE_TO_VISUAL: Partial<Record<PartnerSiteInfoPageKey, PartnerWebsite
   privacy: 'privacy',
   terms: 'terms',
   payment: 'payment',
+  'how-to-buy': 'how_to_buy',
+  'brand-origin': 'brand_origin',
+  'reviews-policy': 'reviews_policy',
+  trust: 'trust',
+  company: 'company',
   'thank-you': 'thank_you',
   stores: 'stores',
   lookbook: 'lookbook',

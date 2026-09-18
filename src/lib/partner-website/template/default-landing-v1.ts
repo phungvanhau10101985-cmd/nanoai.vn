@@ -584,6 +584,9 @@ export function normalizeTemplateTheme(raw: unknown, logoUrl?: string | null): P
     ...(typeof o.faviconUrl === 'string' && o.faviconUrl.trim()
       ? { faviconUrl: o.faviconUrl.trim() }
       : {}),
+    ...(typeof o.pwaIconUrl === 'string' && o.pwaIconUrl.trim()
+      ? { pwaIconUrl: o.pwaIconUrl.trim() }
+      : {}),
     ...(o.useVisualHtml === true ? { useVisualHtml: true } : {}),
     ...(o.useVisualMobileHtml === true ? { useVisualMobileHtml: true } : {}),
     ...(o.useVisualTabletHtml === true ? { useVisualTabletHtml: true } : {}),

@@ -400,6 +400,11 @@ const KIND_GLYPHS: Record<string, readonly ChromeGlyphId[]> = {
   'size-guide': ['ruler', 'ruler-square', 'maximize', 'move', 'scissors'],
   blog: ['book', 'book-marked', 'newspaper', 'pen-line', 'library'],
   privacy: ['lock', 'lock-closed', 'eye-off', 'shield-lock', 'fingerprint'],
+  'how-to-buy': ['cart', 'cart-plus', 'bag', 'file-text', 'help-circle'],
+  'brand-origin': ['badge-info', 'shield-check', 'store', 'package', 'info'],
+  'reviews-policy': ['star', 'file-check', 'message', 'shield', 'file-text'],
+  trust: ['shield-check', 'badge-info', 'lock', 'star', 'shield'],
+  company: ['building', 'store', 'id-card', 'file-text', 'badge-info'],
   terms: ['file', 'file-check', 'scroll', 'gavel', 'file-stack'],
   'edit-profile': ['pen', 'pen-square', 'user-pen', 'settings', 'sliders'],
 }

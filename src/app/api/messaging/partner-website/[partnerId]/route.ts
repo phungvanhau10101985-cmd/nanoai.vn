@@ -244,7 +244,7 @@ export async function PATCH(
     floatingCta?: unknown
     hideChatLauncher?: unknown
     chatIconLogoUrl?: string | null
-    logoSlot?: 'favicon' | 'header' | 'footer' | 'chat'
+    logoSlot?: 'favicon' | 'pwa' | 'header' | 'footer' | 'chat'
     title?: string
     slogan?: string | null
     sloganProducts?: string | null
@@ -352,7 +352,7 @@ export async function PATCH(
     const existing = await fetchPartnerWebsiteByPartnerIdPg(pid)
     if (!existing) return NextResponse.json({ error: 'Website not found' }, { status: 404 })
     const slot = body.logoSlot
-    if (slot !== 'favicon' && slot !== 'header' && slot !== 'footer' && slot !== 'chat') {
+    if (slot !== 'favicon' && slot !== 'pwa' && slot !== 'header' && slot !== 'footer' && slot !== 'chat') {
       return NextResponse.json({ error: 'logoSlot required' }, { status: 400 })
     }
     const rawUrl = typeof body.logoUrl === 'string' ? body.logoUrl.trim() : ''
@@ -362,18 +362,18 @@ export async function PATCH(
     }
     const logoUrl = clear ? '' : rawUrl
 
-    if (slot === 'favicon') {
+    if (slot === 'favicon' || slot === 'pwa') {
       const nextTheme: PartnerWebsiteTheme = {
         ...existing.theme,
-        faviconUrl: logoUrl || null,
+        ...(slot === 'favicon' ? { faviconUrl: logoUrl || null } : { pwaIconUrl: logoUrl || null }),
       }
       const updated = await updatePartnerWebsiteDraftPg({
         partnerId: pid,
         theme: nextTheme,
         skipRevision: true,
-        changeNote: 'update_logo_slot:favicon',
+        changeNote: `update_logo_slot:${slot}`,
       })
-      if (!updated) return NextResponse.json({ error: 'Could not save favicon' }, { status: 500 })
+      if (!updated) return NextResponse.json({ error: `Could not save ${slot}` }, { status: 500 })
       return NextResponse.json({ success: true, website: updated })
     }
 

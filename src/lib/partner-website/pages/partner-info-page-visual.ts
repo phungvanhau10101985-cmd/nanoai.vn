@@ -5,6 +5,7 @@ import {
   adsPlatformPolicyParagraph,
   contentHasAdsPlatformPolicy,
   isPartnerSiteAdsPolicyPageKey,
+  PARTNER_SITE_PLATFORM_INFO_KEYS,
   type PartnerSiteInfoPageKey,
 } from '@/lib/partner-website/shop/partner-site-shop-info-pages'
 import {
@@ -37,6 +38,11 @@ export const VISUAL_INFO_CMS_SLUG_BY_PAGE: Partial<Record<PartnerWebsitePageKey,
   payment: 'payment',
   privacy: 'privacy',
   terms: 'terms',
+  how_to_buy: 'how-to-buy',
+  brand_origin: 'brand-origin',
+  reviews_policy: 'reviews-policy',
+  trust: 'trust',
+  company: 'company',
   thank_you: 'thank-you',
 }
 
@@ -75,24 +81,9 @@ export function cmsSlugToVisualPageKey(slug: string): PartnerWebsitePageKey | nu
 
 export function cmsSlugToInfoPageKey(slug: string): PartnerSiteInfoPageKey | null {
   const raw = slug.trim().toLowerCase()
-  if (raw === 'size-guide') return 'size-guide'
-  if (raw === 'thank-you') return 'thank-you'
-  const keys: PartnerSiteInfoPageKey[] = [
-    'about',
-    'contact',
-    'faq',
-    'sale',
-    'shipping',
-    'returns',
-    'privacy',
-    'terms',
-    'payment',
-    'stores',
-    'lookbook',
-    'blog',
-    'goi-y-tuoi-gioi',
-  ]
-  return keys.includes(raw as PartnerSiteInfoPageKey) ? (raw as PartnerSiteInfoPageKey) : null
+  return PARTNER_SITE_PLATFORM_INFO_KEYS.includes(raw as PartnerSiteInfoPageKey)
+    ? (raw as PartnerSiteInfoPageKey)
+    : null
 }
 
 export type InfoPageCmsExtract = {

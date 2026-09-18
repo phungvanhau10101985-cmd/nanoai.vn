@@ -3,6 +3,10 @@ import { headers } from 'next/headers'
 import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
 import { resolveActivePartnerCustomDomainByHostPg } from '@/lib/db/messaging-partner-custom-domains-pg'
 import { isPlatformAppHostname } from '@/lib/messaging/partner-custom-domain-platform-host'
+import {
+  loadPartnerShopLiveBrandTheme,
+  partnerShopLiveIconBust,
+} from '@/lib/partner-website/promotions/partner-sale-icon-live'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { buildPartnerShopWebManifest } from '@/lib/partner-website/shop/partner-site-pwa'
 
@@ -105,6 +109,10 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
       const shop = await loadPartnerSiteShopContext(siteSlug).catch(() => null)
       if (shop) {
         const name = shop.site.title.trim() || shop.site.partnerDisplayName || 'Shop'
+        const live = await loadPartnerShopLiveBrandTheme({
+          partnerId: shop.partnerId,
+          theme: shop.site.theme,
+        })
         return buildPartnerShopWebManifest({
           siteSlug: shop.site.siteSlug,
           name,
@@ -113,6 +121,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
           backgroundColor: shop.site.theme.backgroundColor,
           themeColor: shop.site.theme.primaryColor,
           locale: shop.site.locale,
+          iconBust: partnerShopLiveIconBust(live.theme, shop.site.logoUrl),
         }) as MetadataRoute.Manifest
       }
     }

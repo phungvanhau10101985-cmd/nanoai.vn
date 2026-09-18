@@ -52,6 +52,11 @@ const INFO_PAGES: PartnerWebsitePageKey[] = [
   'payment',
   'privacy',
   'terms',
+  'how_to_buy',
+  'brand_origin',
+  'reviews_policy',
+  'trust',
+  'company',
   'thank_you',
 ]
 

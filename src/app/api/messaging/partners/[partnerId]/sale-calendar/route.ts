@@ -7,7 +7,8 @@ import {
 } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { writePartnerSaleAuditFromPg } from '@/lib/db/messaging-partner-sale-audit-pg'
-import { bumpInventoryCacheLater } from '@/lib/cache/partner-shop-cache'
+import { bumpInventoryCacheLater, bumpSiteCacheLater } from '@/lib/cache/partner-shop-cache'
+import { fetchPartnerWebsitePublishMetaFromPg } from '@/lib/db/messaging-partner-websites-pg'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 
 async function authorize(partnerId: string) {
@@ -55,11 +56,14 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ partner
       clearanceDiscountPercent:
         body.clearanceDiscountPercent ?? current.clearanceDiscountPercent,
       flashSaleEnabled: body.flashSaleEnabled ?? current.flashSaleEnabled,
+      saleIconAuto: body.saleIconAuto ?? current.saleIconAuto,
     },
     monthRules: body.monthRules ?? current.monthRules,
   })
   if (ok) {
     bumpInventoryCacheLater(partnerId)
+    const meta = await fetchPartnerWebsitePublishMetaFromPg(partnerId).catch(() => null)
+    if (meta?.siteSlug) bumpSiteCacheLater(meta.siteSlug)
     void writePartnerSaleAuditFromPg({
       partnerId,
       eventType: 'sale_calendar_settings_updated',
@@ -70,6 +74,7 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ partner
         timezone: body.timezone ?? current.timezone,
         teaserDays: body.teaserDays ?? current.teaserDays,
         flashSaleEnabled: body.flashSaleEnabled ?? current.flashSaleEnabled,
+        saleIconAuto: body.saleIconAuto ?? current.saleIconAuto,
       },
     })
   }

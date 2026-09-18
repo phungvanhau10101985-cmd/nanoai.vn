@@ -27,9 +27,14 @@ import { ensureLiveVisualWebsite } from '@/lib/partner-website/shop/load-live-vi
 import { inferLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-live-visual-request-device-server'
 import { loadSiteLiveCategoryBind } from '@/lib/partner-website/shop/load-site-live-category-bind'
 import { loadSiteLiveMarketingBanners } from '@/lib/partner-website/shop/load-site-live-marketing-banners'
+import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
+import { loadPartnerShopLiveBrandTheme } from '@/lib/partner-website/promotions/partner-sale-icon-live'
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
-import type { PartnerSiteInfoPageKey } from '@/lib/partner-website/shop/partner-site-shop-info-pages'
+import {
+  PARTNER_SITE_PLATFORM_INFO_KEYS,
+  type PartnerSiteInfoPageKey,
+} from '@/lib/partner-website/shop/partner-site-shop-info-pages'
 import { fillMissingShopVisualDeviceFiles } from '@/lib/partner-website/shop/seed-shop-template-visual-website'
 import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import {
@@ -58,24 +63,7 @@ export async function readVisualPreviewDevice(
 function infoPagePublicSubpath(pageKey: PartnerWebsitePageKey | null, cmsSlug?: string | null): string {
   const slug = visualInfoPageCmsSlug(pageKey, cmsSlug)
   if (!slug) return '/'
-  const builtins: PartnerSiteInfoPageKey[] = [
-    'about',
-    'contact',
-    'faq',
-    'sale',
-    'shipping',
-    'returns',
-    'privacy',
-    'terms',
-    'payment',
-    'thank-you',
-    'stores',
-    'lookbook',
-    'size-guide',
-    'blog',
-    'goi-y-tuoi-gioi',
-  ]
-  if (builtins.includes(slug as PartnerSiteInfoPageKey)) return `/${slug}`
+  if (PARTNER_SITE_PLATFORM_INFO_KEYS.includes(slug as PartnerSiteInfoPageKey)) return `/${slug}`
   return `/pages/${encodeURIComponent(slug)}`
 }
 
@@ -150,9 +138,13 @@ export async function PartnerSiteVisualHtmlScreen({
   const headerStore = headers()
   const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
   const pageKey = String(infoSeo?.pageKey || infoSeo?.cmsSlug || 'page')
-  const [liveCategoryBind, liveMarketingBanners] = await Promise.all([
+  const shopCtx = await loadPartnerSiteShopContext(site.siteSlug).catch(() => null)
+  const [liveCategoryBind, liveMarketingBanners, liveBrand] = await Promise.all([
     loadSiteLiveCategoryBind(site.siteSlug),
     loadSiteLiveMarketingBanners(site.siteSlug),
+    shopCtx
+      ? loadPartnerShopLiveBrandTheme({ partnerId: shopCtx.partnerId, theme: site.theme })
+      : Promise.resolve({ theme: site.theme, saleIconUrl: null, cacheToken: 'off' }),
   ])
   const prepareShell = async (sourceHtml: string, sourceDevice: VisualDeviceVariant | null) => {
     const prepare = () => {
@@ -163,7 +155,7 @@ export async function PartnerSiteVisualHtmlScreen({
         onCustomDomain,
         pageKey: infoSeo?.pageKey,
         cmsSlug: infoSeo?.cmsSlug,
-        theme: site.theme,
+        theme: liveBrand.theme,
         variant: sourceDevice || undefined,
       })
     }
@@ -178,6 +170,7 @@ export async function PartnerSiteVisualHtmlScreen({
         infoSeo?.noIndex ? '1' : '0',
         'promo-home-1',
         'live-chrome-stamp-3',
+        `sale-icon-${liveBrand.cacheToken}`,
       ].join(':'),
       load: async () => prepare(),
     })

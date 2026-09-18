@@ -1765,7 +1765,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var shopping = 0
     var support = 0
     var legal = 0
-    if (/\\/(privacy|terms)(?:\\/|"|'|\\?|#|\\s|>)/i.test(s)) legal += 4
+    if (/\\/(privacy|terms|how-to-buy|brand-origin|reviews-policy|trust|company)(?:\\/|"|'|\\?|#|\\s|>)/i.test(s)) legal += 4
     if (/\\/(faq|shipping|returns)(?:\\/|"|'|\\?|#|\\s|>)/i.test(s)) support += 3
     if (/\\/payment(?:\\/|"|'|\\?|#|\\s|>)/i.test(s)) support += 1
     if (/\\/(products|kho-sale|wishlist|size-guide)(?:\\/|"|'|\\?|#|\\s|>)/i.test(s)) shopping += 3
@@ -16017,7 +16017,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d.infoPage) return true
     var pk = String(d.pageKey || '').trim()
     // pageKey từ host — không phụ thuộc stamp HTML / catalog chrome
-    if (pk === 'about' || pk === 'contact' || pk === 'faq' || pk === 'shipping' || pk === 'returns' || pk === 'payment' || pk === 'privacy' || pk === 'terms' || pk === 'thank_you' || pk === 'stores' || pk === 'size_guide' || pk === 'blog') return true
+    if (pk === 'about' || pk === 'contact' || pk === 'faq' || pk === 'shipping' || pk === 'returns' || pk === 'payment' || pk === 'privacy' || pk === 'terms' || pk === 'how_to_buy' || pk === 'brand_origin' || pk === 'reviews_policy' || pk === 'trust' || pk === 'company' || pk === 'thank_you' || pk === 'stores' || pk === 'size_guide' || pk === 'blog') return true
     if (String(d.cmsSlug || '').trim()) return true
     if (document.querySelector('[data-pw-text-article="1"]')) return true
     if (document.querySelector('[data-pw-page="info"]')) return true

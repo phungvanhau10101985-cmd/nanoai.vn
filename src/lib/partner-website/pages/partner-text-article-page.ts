@@ -14,6 +14,11 @@ export const PARTNER_TEXT_ARTICLE_PAGE_KEYS = [
   'payment',
   'privacy',
   'terms',
+  'how_to_buy',
+  'brand_origin',
+  'reviews_policy',
+  'trust',
+  'company',
   'thank_you',
   'stores',
   'size_guide',
@@ -36,6 +41,11 @@ const ARTICLE_KIND_BY_PAGE: Partial<Record<PartnerTextArticlePageKey, PartnerTex
   payment: 'policy',
   privacy: 'policy',
   terms: 'policy',
+  how_to_buy: 'guide',
+  brand_origin: 'policy',
+  reviews_policy: 'policy',
+  trust: 'policy',
+  company: 'about',
   thank_you: 'guide',
   stores: 'guide',
   size_guide: 'guide',
@@ -69,7 +79,8 @@ const NEVER_TEXT_ARTICLE_PAGE_KEYS = new Set<string>([
 
 export function isPartnerTextArticlePageKey(pageKey: string | null | undefined): boolean {
   const key = String(pageKey || '').trim()
-  return TEXT_ARTICLE_KEY_SET.has(key)
+  if (!key) return false
+  return TEXT_ARTICLE_KEY_SET.has(key) || TEXT_ARTICLE_KEY_SET.has(key.replace(/-/g, '_'))
 }
 
 export function isPartnerInfoCatalogPageKey(pageKey: string | null | undefined): boolean {
@@ -82,7 +93,9 @@ export function resolvePartnerTextArticleKind(input: {
 }): PartnerTextArticleKind {
   const cms = String(input.cmsSlug || '').trim().toLowerCase()
   if (cms) return 'cms'
-  const key = String(input.pageKey || '').trim() as PartnerTextArticlePageKey
+  const key = String(input.pageKey || '')
+    .trim()
+    .replace(/-/g, '_') as PartnerTextArticlePageKey
   return ARTICLE_KIND_BY_PAGE[key] || 'policy'
 }
 

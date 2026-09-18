@@ -5,7 +5,7 @@ import {
   type VisualDeviceVariant,
 } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
-export type PartnerWebsiteLogoSlot = 'favicon' | 'header' | 'footer' | 'chat'
+export type PartnerWebsiteLogoSlot = 'favicon' | 'pwa' | 'header' | 'footer' | 'chat'
 
 export const PARTNER_WEBSITE_DEVICE_LOGO_SLOTS = ['header', 'footer'] as const
 export type PartnerWebsiteDeviceLogoSlot = (typeof PARTNER_WEBSITE_DEVICE_LOGO_SLOTS)[number]
@@ -14,6 +14,7 @@ export type PartnerWebsiteHtmlLogoSlot = PartnerWebsiteDeviceLogoSlot | 'chat'
 
 export type PartnerWebsiteLogoInventory = {
   faviconUrl: string
+  pwaIconUrl: string
   chatUrl: string
   header: Record<VisualDeviceVariant, string>
   footer: Record<VisualDeviceVariant, string>
@@ -227,6 +228,7 @@ export function emptyLogoInventory(): PartnerWebsiteLogoInventory {
   }
   return {
     faviconUrl: '',
+    pwaIconUrl: '',
     chatUrl: '',
     header: { ...blank },
     footer: { ...blank },
@@ -241,10 +243,11 @@ export function extractLogoInventoryFromProject(
   project: PartnerWebsiteProject | null | undefined,
   faviconUrl?: string | null,
   chatIconLogoUrl?: string | null,
-  opts?: { htmlSource?: string | null; logoUrl?: string | null }
+  opts?: { htmlSource?: string | null; logoUrl?: string | null; pwaIconUrl?: string | null }
 ): PartnerWebsiteLogoInventory {
   const out = emptyLogoInventory()
   out.faviconUrl = String(faviconUrl || '').trim()
+  out.pwaIconUrl = String(opts?.pwaIconUrl || '').trim()
   const themeChat = decodeLogoSrc(String(chatIconLogoUrl || '').trim())
   out.chatUrl = isFilledLogoSrc(themeChat) ? themeChat : ''
   const files: Array<{ path: string; content: string }> = []
@@ -302,7 +305,12 @@ export function extractLogoInventoryFromWebsite(website: {
   project?: PartnerWebsiteProject | null
   htmlSource?: string | null
   logoUrl?: string | null
-  theme?: { faviconUrl?: string | null; chatIconLogoUrl?: string | null; logoUrl?: string | null } | null
+  theme?: {
+    faviconUrl?: string | null
+    pwaIconUrl?: string | null
+    chatIconLogoUrl?: string | null
+    logoUrl?: string | null
+  } | null
 }): PartnerWebsiteLogoInventory {
   return extractLogoInventoryFromProject(
     website?.project,
@@ -311,6 +319,7 @@ export function extractLogoInventoryFromWebsite(website: {
     {
       htmlSource: website?.htmlSource,
       logoUrl: website?.theme?.logoUrl || website?.logoUrl,
+      pwaIconUrl: website?.theme?.pwaIconUrl,
     }
   )
 }

@@ -19,6 +19,8 @@ export type PartnerWebsiteCopy = {
   logosPanelHint: string
   logosFaviconLabel: string
   logosFaviconHint: string
+  logosPwaLabel: string
+  logosPwaHint: string
   logosHeaderLabel: string
   logosFooterLabel: string
   logosChatLabel: string
@@ -44,6 +46,7 @@ export type PartnerWebsiteCopy = {
   logosVersionCost: string
   logosChatDefaultPrompt: string
   logosFaviconDefaultPrompt: string
+  logosPwaDefaultPrompt: string
   logosHeaderDefaultPrompt: string
   logosFooterDefaultPrompt: string
   sloganTitle: string
@@ -1100,9 +1103,11 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logoRemove: 'Xóa logo',
     logosPanelTitle: 'Logo trên website',
     logosPanelHint:
-      'Favicon và Chat mua dùng chung mọi máy. Logo header và chân trang đổi độc lập từng máy. Mỗi ô: tải lên hoặc tạo mới (gợi ý + ảnh tham khảo tùy chọn).',
+      'Favicon, ảnh đại diện web app và Chat mua dùng chung mọi máy. Logo header và chân trang đổi độc lập từng máy. Mỗi ô: tải lên hoặc tạo mới (gợi ý + ảnh tham khảo tùy chọn).',
     logosFaviconLabel: 'Favicon tab trình duyệt',
     logosFaviconHint: 'Ảnh vuông PNG. Hiện trên tab Chrome và /favicon.ico của tên miền shop.',
+    logosPwaLabel: 'Ảnh đại diện web app (mobile)',
+    logosPwaHint: 'Ảnh vuông PNG. Hiện trên màn hình chính điện thoại / PWA / apple-touch. Trống thì dùng favicon.',
     logosHeaderLabel: 'Logo header',
     logosFooterLabel: 'Logo chân trang',
     logosChatLabel: 'Logo Chat mua / icon tin nhắn',
@@ -1130,6 +1135,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Icon nhắn tin hình tròn theo shop {shop}: vòng stamp đặc, lòng trắng, mark shop phía trên, chữ tư vấn to đặc, chữ nhắn tin nhỏ — không túi viền mờ.',
     logosFaviconDefaultPrompt:
       'Favicon vuông theo shop {shop}: mark đơn giản, tương phản cao, đọc được ở 16px, nền phẳng.',
+    logosPwaDefaultPrompt:
+      'Ảnh đại diện web app vuông theo shop {shop}: mark rõ trên màn hình điện thoại, 1:1, lấp khung, nền phẳng.',
     logosHeaderDefaultPrompt:
       'Logo header theo shop {shop}: mark thương hiệu, tương phản cao, đọc được khi nhỏ, nền phẳng để xóa nền.',
     logosFooterDefaultPrompt:
@@ -2232,9 +2239,11 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logoRemove: 'Remove logo',
     logosPanelTitle: 'Website logos',
     logosPanelHint:
-      'Favicon and Chat mua share one image across devices. Header and footer logos are independent per device. Each slot: upload or create (optional prompt + optional reference image).',
+      'Favicon, web-app avatar and Chat mua share one image across devices. Header and footer logos are independent per device. Each slot: upload or create (optional prompt + optional reference image).',
     logosFaviconLabel: 'Browser tab favicon',
     logosFaviconHint: 'Square PNG. Shown on the Chrome tab and /favicon.ico on the shop domain.',
+    logosPwaLabel: 'Web-app avatar (mobile)',
+    logosPwaHint: 'Square PNG for the phone home screen / PWA / apple-touch. Empty uses the favicon.',
     logosHeaderLabel: 'Header logo',
     logosFooterLabel: 'Footer logo',
     logosChatLabel: 'Chat mua / message icon',
@@ -2262,6 +2271,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Round messaging stamp for {shop}: solid ring, white interior, shop mark on top, large filled “tư vấn”, smaller “nhắn tin” — not a pale outline bag.',
     logosFaviconDefaultPrompt:
       'Square favicon for {shop}: simple high-contrast mark, readable at 16px, flat background.',
+    logosPwaDefaultPrompt:
+      'Square mobile web-app avatar for {shop}: readable on a phone home screen, 1:1, fill the frame, flat background.',
     logosHeaderDefaultPrompt:
       'Header logo for {shop}: brand mark, high contrast, readable when small, flat background for cutout.',
     logosFooterDefaultPrompt:
@@ -3365,6 +3376,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logosPanelHint: 'Favicon 和购物聊天共用一张图（所有设备）。页头与页脚 Logo 按设备独立设置。每个位置都可上传或新建（提示词和参考图均为可选）。',
     logosFaviconLabel: '浏览器标签 favicon',
     logosFaviconHint: '正方形 PNG。用于 Chrome 标签和店铺域名的 /favicon.ico。',
+    logosPwaLabel: 'Web App 头像（手机）',
+    logosPwaHint: '正方形 PNG。用于手机主屏幕 / PWA / apple-touch。留空则使用 favicon。',
     logosHeaderLabel: '页头 Logo',
     logosFooterLabel: '页脚 Logo',
     logosChatLabel: '购物聊天 / 消息图标',
@@ -3392,6 +3405,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '按店铺 {shop} 的圆形咨询章：实心圆环、白心、标志在上、大字实心「tư vấn」、小字「nhắn tin」— 不要淡描购物袋。',
     logosFaviconDefaultPrompt:
       '按店铺 {shop} 的方形 Favicon：简洁高对比标志，16px 仍可读，平底。',
+    logosPwaDefaultPrompt:
+      '按店铺 {shop} 的方形 Web App 头像：手机主屏幕清晰、1:1、铺满画幅、平底。',
     logosHeaderDefaultPrompt:
       '按店铺 {shop} 的页眉 Logo：品牌标志、高对比、小尺寸可读，平底便于抠图。',
     logosFooterDefaultPrompt:
@@ -4458,6 +4473,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logosPanelHint: 'ファビコンとチャット購入は全端末で共通。ヘッダーとフッターのロゴは端末ごとに独立です。各枠はアップロードまたは新規作成（任意のプロンプト＋参考画像）ができます。',
     logosFaviconLabel: 'ブラウザタブのファビコン',
     logosFaviconHint: '正方形のPNG。Chromeのタブとショップドメインの /favicon.ico に使います。',
+    logosPwaLabel: 'ウェブアプリのアイコン（モバイル）',
+    logosPwaHint: '正方形PNG。スマホのホーム画面 / PWA / apple-touch に使います。空ならファビコンを使います。',
     logosHeaderLabel: 'ヘッダーロゴ',
     logosFooterLabel: 'フッターロゴ',
     logosChatLabel: 'チャット購入 / メッセージアイコン',
@@ -4485,6 +4502,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '{shop} の丸い相談スタンプ：実線の輪、白の内側、上にショップマーク、大きく塗りつぶし「tư vấn」、小さく「nhắn tin」— 薄い袋の線画にしない。',
     logosFaviconDefaultPrompt:
       '{shop} の四角ファビコン：シンプルで高コントラスト、16pxでも読める、平坦な背景。',
+    logosPwaDefaultPrompt:
+      '{shop} の四角ウェブアプリアイコン：ホーム画面で読める、1:1、枠いっぱいに、平坦な背景。',
     logosHeaderDefaultPrompt:
       '{shop} のヘッダーロゴ：ブランドマーク、高コントラスト、小さくても読める、切り抜き用の平坦な背景。',
     logosFooterDefaultPrompt:
@@ -5574,6 +5593,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     logosPanelHint: '파비콘과 구매 채팅은 모든 기기에서 같은 이미지입니다. 헤더와 푸터 로고는 기기마다 따로 설정합니다. 각 칸은 업로드하거나 새로 만들 수 있습니다(프롬프트와 참고 이미지는 선택).',
     logosFaviconLabel: '브라우저 탭 파비콘',
     logosFaviconHint: '정사각 PNG. 크롬 탭과 샵 도메인의 /favicon.ico 에 사용됩니다.',
+    logosPwaLabel: '웹앱 아이콘 (모바일)',
+    logosPwaHint: '정사각 PNG. 휴대폰 홈 화면 / PWA / apple-touch. 비우면 파비콘을 씁니다.',
     logosHeaderLabel: '헤더 로고',
     logosFooterLabel: '푸터 로고',
     logosChatLabel: '구매 채팅 / 메시지 아이콘',
@@ -5601,6 +5622,8 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '{shop}의 원형 상담 스탬프: 실선 원, 흰 안쪽, 위에 상점 마크, 큰 채움 글자 tư vấn, 작은 nhắn tin — 흐린 가방 윤곽 금지.',
     logosFaviconDefaultPrompt:
       '{shop}의 정사각 파비콘: 단순한 고대비 마크, 16px에서도 읽힘, 평평한 배경.',
+    logosPwaDefaultPrompt:
+      '{shop}의 정사각 웹앱 아이콘: 홈 화면에서 읽힘, 1:1, 프레임을 채움, 평평한 배경.',
     logosHeaderDefaultPrompt:
       '{shop}의 헤더 로고: 브랜드 마크, 고대비, 작아도 읽힘, 배경 제거용 평평한 바탕.',
     logosFooterDefaultPrompt:

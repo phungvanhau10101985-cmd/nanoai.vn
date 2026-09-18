@@ -32,8 +32,13 @@ export const PW_FOOTER_LINK_KIT_MATCHERS: { key: PartnerSiteNavHrefKey; re: stri
   { key: 'shipping', re: '/shipping(?:/|$|\\?|#)' },
   { key: 'returns', re: '/returns(?:/|$|\\?|#)' },
   { key: 'payment', re: '/payment(?:/|$|\\?|#)' },
+  { key: 'how-to-buy', re: '/how-to-buy(?:/|$|\\?|#)' },
+  { key: 'brand-origin', re: '/brand-origin(?:/|$|\\?|#)' },
+  { key: 'reviews-policy', re: '/reviews-policy(?:/|$|\\?|#)' },
   { key: 'privacy', re: '/privacy(?:/|$|\\?|#)' },
   { key: 'terms', re: '/terms(?:/|$|\\?|#)' },
+  { key: 'trust', re: '/trust(?:/|$|\\?|#)' },
+  { key: 'company', re: '/company(?:/|$|\\?|#)' },
   { key: 'orders', re: '/orders(?:/|$|\\?|#)' },
   { key: 'account', re: '/account(?:/|$|\\?|#)' },
   { key: 'contact', re: '/contact(?:/|$|\\?|#)' },
@@ -87,7 +92,7 @@ export function inferFooterColumnKitKind(html: string): FooterColKitKind | null 
   const hit = (kind: FooterColKitKind, n: number) => {
     score[kind] += n
   }
-  if (/\/(privacy|terms)(?:\/|"|'|\?|#|\s|>)/i.test(html)) hit('col:legal', 4)
+  if (/\/(privacy|terms|how-to-buy|brand-origin|reviews-policy|trust|company)(?:\/|"|'|\?|#|\s|>)/i.test(html)) hit('col:legal', 4)
   if (/\/(faq|shipping|returns)(?:\/|"|'|\?|#|\s|>)/i.test(html)) hit('col:support', 3)
   if (/\/payment(?:\/|"|'|\?|#|\s|>)/i.test(html)) hit('col:support', 1)
   if (/\/(products|kho-sale|wishlist|size-guide)(?:\/|"|'|\?|#|\s|>)/i.test(html)) hit('col:shopping', 3)

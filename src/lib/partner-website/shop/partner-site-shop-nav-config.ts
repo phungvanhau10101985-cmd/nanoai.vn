@@ -62,6 +62,11 @@ export type PartnerSiteCategoryNavLabels = {
   terms: string
   /** W3.2 */
   payment: string
+  howToBuy: string
+  brandOrigin: string
+  reviewsPolicy: string
+  trust: string
+  company: string
   stores: string
   lookbook: string
   sizeGuide: string
@@ -101,6 +106,11 @@ export function getPartnerSiteCategoryNavLabels(locale: WebLocale): PartnerSiteC
       privacy: 'Bảo mật',
       terms: 'Điều khoản',
       payment: 'Thanh toán',
+      howToBuy: 'Hướng dẫn mua hàng',
+      brandOrigin: 'Nguồn gốc & thương hiệu',
+      reviewsPolicy: 'Chính sách đánh giá',
+      trust: 'Uy tín',
+      company: 'Thông tin đơn vị',
       stores: 'Cửa hàng',
       lookbook: 'Lookbook',
       sizeGuide: 'Hướng dẫn size',
@@ -124,6 +134,11 @@ export function getPartnerSiteCategoryNavLabels(locale: WebLocale): PartnerSiteC
       privacy: '隐私',
       terms: '条款',
       payment: '支付说明',
+      howToBuy: '购买指南',
+      brandOrigin: '来源与品牌',
+      reviewsPolicy: '评价政策',
+      trust: '诚信说明',
+      company: '开办单位',
       stores: '门店',
       lookbook: 'Lookbook',
       sizeGuide: '尺码指南',
@@ -147,6 +162,11 @@ export function getPartnerSiteCategoryNavLabels(locale: WebLocale): PartnerSiteC
       privacy: 'プライバシー',
       terms: '利用規約',
       payment: 'お支払い',
+      howToBuy: 'ご購入ガイド',
+      brandOrigin: '産地とブランド',
+      reviewsPolicy: 'レビュー方針',
+      trust: '信頼性',
+      company: '事業者情報',
       stores: '店舗',
       lookbook: 'ルックブック',
       sizeGuide: 'サイズガイド',
@@ -170,6 +190,11 @@ export function getPartnerSiteCategoryNavLabels(locale: WebLocale): PartnerSiteC
       privacy: '개인정보',
       terms: '이용약관',
       payment: '결제 안내',
+      howToBuy: '구매 안내',
+      brandOrigin: '원산지·브랜드',
+      reviewsPolicy: '리뷰 정책',
+      trust: '신뢰',
+      company: '사업자 정보',
       stores: '매장',
       lookbook: '룩북',
       sizeGuide: '사이즈 가이드',
@@ -192,6 +217,11 @@ export function getPartnerSiteCategoryNavLabels(locale: WebLocale): PartnerSiteC
     privacy: 'Privacy',
     terms: 'Terms',
     payment: 'Payment',
+    howToBuy: 'How to buy',
+    brandOrigin: 'Origin & brands',
+    reviewsPolicy: 'Review policy',
+    trust: 'Trust',
+    company: 'Company info',
     stores: 'Stores',
     lookbook: 'Lookbook',
     sizeGuide: 'Size guide',

@@ -133,6 +133,31 @@ export const CHROME_KIND_INFER_RULES: ChromeKindInferRule[] = [
     labels: ['thêm giỏ', 'them gio', 'add to cart', '加入购物车'],
   },
   {
+    kind: 'how-to-buy',
+    pathSegs: ['how-to-buy'],
+    labels: ['hướng dẫn mua hàng', 'huong dan mua hang', 'how to buy', '购买指南', 'ご購入ガイド', '구매 안내'],
+  },
+  {
+    kind: 'brand-origin',
+    pathSegs: ['brand-origin'],
+    labels: ['nguồn gốc', 'nguon goc', 'thương hiệu', 'thuong hieu', 'origin', 'brands', '来源', '品牌', '産地', '원산지'],
+  },
+  {
+    kind: 'reviews-policy',
+    pathSegs: ['reviews-policy'],
+    labels: ['chính sách đánh giá', 'chinh sach danh gia', 'review policy', '评价政策', 'レビュー方針', '리뷰 정책'],
+  },
+  {
+    kind: 'trust',
+    pathSegs: ['trust'],
+    labels: ['uy tín', 'uy tin', 'trust', '信誉', '信頼性', '신뢰'],
+  },
+  {
+    kind: 'company',
+    pathSegs: ['company'],
+    labels: ['thông tin đơn vị', 'thong tin don vi', 'company', '开办单位', '事業者情報', '사업자 정보'],
+  },
+  {
     kind: 'buy-now',
     labels: ['mua ngay', 'mua hàng', 'buy now', '立即购买'],
   },

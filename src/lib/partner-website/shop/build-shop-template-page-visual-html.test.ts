@@ -121,11 +121,16 @@ test('cart and account shells use live regions and noindex', () => {
 test('inner-page helper covers commerce and info keys', () => {
   assert.equal(isShopTemplateInnerPageKey('products'), true)
   assert.equal(isShopTemplateInnerPageKey('privacy'), true)
+  assert.equal(isShopTemplateInnerPageKey('how_to_buy'), true)
+  assert.equal(isShopTemplateInnerPageKey('brand_origin'), true)
+  assert.equal(isShopTemplateInnerPageKey('reviews_policy'), true)
+  assert.equal(isShopTemplateInnerPageKey('trust'), true)
+  assert.equal(isShopTemplateInnerPageKey('company'), true)
   assert.equal(isShopTemplateInnerPageKey('home'), false)
 })
 
 test('info pages are ready to open in Sửa nhanh without a hero or catalog', () => {
-  for (const pageKey of ['terms', 'privacy', 'shipping'] as const) {
+  for (const pageKey of ['terms', 'privacy', 'shipping', 'how_to_buy', 'brand_origin', 'reviews_policy', 'trust', 'company'] as const) {
     for (const variant of VISUAL_DEVICE_VARIANTS) {
       const html = buildShopTemplatePageVisualHtml({
         pageKey,

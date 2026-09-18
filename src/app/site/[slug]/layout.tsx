@@ -11,6 +11,7 @@ import {
 import { PartnerSiteSoftNavRelay } from '@/components/partner-website/shop/partner-site-soft-nav-relay'
 import { PartnerSiteCustomDomainProvider } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
+import { loadPartnerShopLiveBrandTheme, partnerShopLiveIconBust } from '@/lib/partner-website/promotions/partner-sale-icon-live'
 import { buildPartnerShopBrandDocumentTitle } from '@/lib/partner-website/shop/partner-shop-brand-document-title'
 import {
   extractSloganFromHtml,
@@ -48,7 +49,8 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>
 }): Promise<Metadata> {
   const { slug } = await params
-  const site = (await loadPartnerSiteShopContext(slug).catch(() => null))?.site ?? null
+  const shop = await loadPartnerSiteShopContext(slug).catch(() => null)
+  const site = shop?.site ?? null
   if (!site) return {}
   const headerStore = headers()
   const customDomainHost = readPartnerCustomDomainFromHeaders((name) => headerStore.get(name))
@@ -59,10 +61,13 @@ export async function generateMetadata({
     slogan: partnerShopSloganFromTheme(site.theme) || extractSloganFromHtml(site.htmlSource || ''),
     fallbackName: name,
   })
+  const live = shop
+    ? await loadPartnerShopLiveBrandTheme({ partnerId: shop.partnerId, theme: site.theme })
+    : { theme: site.theme, saleIconUrl: null, cacheToken: 'off' }
   const icons = buildPartnerShopFaviconMetadataIcons({
     siteSlug: site.siteSlug,
     customDomain,
-    faviconUrl: site.theme.faviconUrl,
+    faviconUrl: live.theme.faviconUrl,
     logoUrl: site.logoUrl,
   })
 
@@ -75,7 +80,8 @@ export async function generateMetadata({
     manifest: partnerSitePwaManifestPath(
       site.siteSlug,
       customDomain,
-      shopBrowserChromeColor(site.theme).slice(1)
+      shopBrowserChromeColor(site.theme).slice(1),
+      partnerShopLiveIconBust(live.theme, site.logoUrl)
     ),
     appleWebApp: {
       capable: true,
@@ -120,9 +126,17 @@ export default async function PartnerSiteSlugLayout({
   const { slug } = await params
   const headerStore = headers()
   const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
-  const site = (await loadPartnerSiteShopContext(slug).catch(() => null))?.site ?? null
+  const shop = await loadPartnerSiteShopContext(slug).catch(() => null)
+  const site = shop?.site ?? null
   const name = site?.title.trim() || site?.partnerDisplayName || ''
-  const icon180 = site ? partnerSitePwaIconPath(site.siteSlug, 180, onCustomDomain) : ''
+  const live = shop
+    ? await loadPartnerShopLiveBrandTheme({ partnerId: shop.partnerId, theme: shop.site.theme })
+    : null
+  const icon180 = site
+    ? partnerSitePwaIconPath(site.siteSlug, 180, onCustomDomain, {
+        bust: live ? partnerShopLiveIconBust(live.theme, site.logoUrl) : null,
+      })
+    : ''
   const nativeNavSlug = site?.siteSlug || slug
 
   return (

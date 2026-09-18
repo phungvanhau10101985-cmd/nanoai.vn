@@ -76,6 +76,8 @@ test('stampFooterKitInHtml infers columns on leftover full footer', () => {
 test('inferFooterLinkKitKind reads stock footer hrefs', () => {
   assert.equal(inferFooterLinkKitKind('/site/x/shipping'), footerLinkKitKind('shipping'))
   assert.equal(inferFooterLinkKitKind('/site/188.com.vn/156/payment'), footerLinkKitKind('payment'))
+  assert.equal(inferFooterLinkKitKind('/site/x/how-to-buy'), footerLinkKitKind('how-to-buy'))
+  assert.equal(inferFooterLinkKitKind('/company'), footerLinkKitKind('company'))
   assert.equal(inferFooterLinkKitKind('/site/x/orders'), footerLinkKitKind('orders'))
   assert.equal(inferFooterLinkKitKind('/site/demo-shop'), footerLinkKitKind('home'))
   assert.equal(inferFooterLinkKitKind(''), null)
@@ -83,6 +85,7 @@ test('inferFooterLinkKitKind reads stock footer hrefs', () => {
 
 test('inferFooterColumnKitKind reads policy vs shop hrefs', () => {
   assert.equal(inferFooterColumnKitKind('<a href="/privacy">Bảo mật</a>'), 'col:legal')
+  assert.equal(inferFooterColumnKitKind('<a href="/how-to-buy">Hướng dẫn mua hàng</a>'), 'col:legal')
   assert.equal(inferFooterColumnKitKind('<a href="/site/x/about">Giới thiệu</a>'), 'col:shop')
   assert.equal(inferFooterColumnKitKind('<a href="/products">Sản phẩm</a>'), 'col:shopping')
   assert.equal(inferFooterColumnKitKind('<a href="/faq">Hỏi đáp</a>'), 'col:support')
