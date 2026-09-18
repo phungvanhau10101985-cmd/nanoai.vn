@@ -23,6 +23,7 @@ import {
   PartnerSiteCategoryNavPills,
   PartnerSiteCategorySeoRow,
   usePartnerCategoryFineHover,
+  usePartnerShopHeadBackFace,
   usePartnerShopMobileCategoryFace,
 } from '@/components/partner-website/shop/partner-site-category-mega-menu'
 import { PartnerSiteShopSearchBar } from '@/components/partner-website/shop/partner-site-shop-search-bar'
@@ -518,6 +519,7 @@ function PartnerSiteShopShellInner({
   const categoriesLeaveTimer = useRef<number | null>(null)
   const fineHover = usePartnerCategoryFineHover()
   const mobileCatFace = usePartnerShopMobileCategoryFace(previewDevice)
+  const headBackFace = usePartnerShopHeadBackFace(previewDevice)
 
   useEffect(() => {
     const html = document.documentElement
@@ -857,7 +859,7 @@ function PartnerSiteShopShellInner({
       <header className="pw-shop-header" data-pw-region={PW_REGION.header}>
         <div className="pw-shop-header-inner">
           <div className="pw-shop-brand-cluster">
-            {mobileCatFace && pageKind && pageKind !== PW_PAGE.home ? (
+            {headBackFace && pageKind && pageKind !== PW_PAGE.home ? (
               <button
                 type="button"
                 className="pw-shop-cat-btn pw-head-back pw-chrome-icon-only"

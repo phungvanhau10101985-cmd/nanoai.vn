@@ -456,7 +456,7 @@ describe('partner-site-chrome-kit', () => {
     expect(header).toContain(`${PW_CHROME_KIT_ATTR}="actions"`)
     expect(header).toContain(`${PW_CHROME_KIT_ATTR}="topbar"`)
     expect(header).toContain(`${PW_KIT_GAP_ATTR}="33"`)
-    expect(header).toContain('data-pw-chrome-size="20"')
+    expect(header).toContain('data-pw-chrome-size="22"')
     expect(header).toContain('data-pw-chrome-btn="recently-viewed"')
     expect(bottomNav).toContain(`${PW_CHROME_KIT_ATTR}="dock"`)
     expect(bottomNav).toContain('data-pw-chrome-btn="add-cart"')
@@ -493,8 +493,8 @@ describe('partner-site-chrome-kit', () => {
   it('uses icon-below labels on PC head and icon-only on phone', () => {
     const pc = buildChromeKitHeadActionHtml({ locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' })
     const laptop = buildChromeKitHeadActionHtml({ locale: 'vi', siteSlug: 'demo-shop', device: 'laptop' })
-    expect(pc).toContain('data-pw-chrome-size="20"')
-    expect(laptop).toContain('data-pw-chrome-size="18"')
+    expect(pc).toContain('data-pw-chrome-size="22"')
+    expect(laptop).toContain('data-pw-chrome-size="22"')
     expect(pc).toContain('data-pw-chrome-style="icon-label-below"')
     expect(laptop).toContain('data-pw-chrome-style="icon-label-below"')
     expect(pc).toMatch(/data-pw-chrome-btn="cart"[^>]*data-pw-chrome-style="icon-label-below"|data-pw-chrome-style="icon-label-below"[^>]*data-pw-chrome-btn="cart"/)
@@ -595,6 +595,13 @@ describe('partner-site-chrome-kit', () => {
     )
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('.pw-pdp-sticky-nav .pw-pdp-sticky-copy>span')
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('white-space:nowrap!important')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toMatch(
+      /\.pw-pdp-sticky-nav \[data-pw-dock-show="pdp"\]:not\(\[data-pw-hidden="1"\]\)\{[^}]*border:none!important/
+    )
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain('.pw-pdp-sticky-nav .is-try,.pw-pdp-sticky-nav .is-fav')
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
+      '.pw-pdp-sticky-nav .is-try .pw-chrome-icon-wrap,.pw-pdp-sticky-nav .is-fav .pw-chrome-icon-wrap'
+    )
   })
 
   it('drops buy-box duplicate try-on / add-cart from the PDP dock face', () => {
@@ -784,23 +791,27 @@ describe('partner-site-chrome-kit', () => {
     expect(laptopInner).not.toContain(`${PW_KIT_GAP_ATTR}="33"`)
   })
 
-  it('bumps leftover desktop head icon size 26 to 20 without touching custom or other devices', () => {
+  it('bumps leftover desktop head icon size 26 and 20 to 22 without touching custom or other devices', () => {
     const desktop = ensurePartnerSiteChromeKitInHtml(
       `<header class="pw-header"><div class="pw-header-actions">
         <a data-pw-chrome-btn="cart" data-pw-chrome-size="26" style="--pw-chrome-size:26px" href="/cart">Giỏ</a>
         <a data-pw-chrome-btn="account" data-pw-chrome-size="24" style="--pw-chrome-size:24px" href="/account">Tài khoản</a>
+        <a data-pw-chrome-btn="recently-viewed" data-pw-chrome-size="20" style="--pw-chrome-size:20px" href="/recently-viewed">Vừa xem</a>
       </div></header>`,
       { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' }
     )
-    expect(desktop).toMatch(/data-pw-chrome-btn="cart"[^>]*data-pw-chrome-size="20"/)
+    expect(desktop).toMatch(/data-pw-chrome-btn="cart"[^>]*data-pw-chrome-size="22"/)
     expect(desktop).toMatch(/data-pw-chrome-btn="account"[^>]*data-pw-chrome-size="24"/)
+    expect(desktop).toMatch(/data-pw-chrome-btn="recently-viewed"[^>]*data-pw-chrome-size="22"/)
     const laptop = ensurePartnerSiteChromeKitInHtml(
       `<header class="pw-header"><div class="pw-header-actions">
         <a data-pw-chrome-btn="cart" data-pw-chrome-size="18" href="/cart">Giỏ</a>
+        <a data-pw-chrome-btn="account" data-pw-chrome-size="24" href="/account">Tài khoản</a>
       </div></header>`,
       { locale: 'vi', siteSlug: 'demo-shop', device: 'laptop' }
     )
-    expect(laptop).toMatch(/data-pw-chrome-btn="cart"[^>]*data-pw-chrome-size="18"/)
+    expect(laptop).toMatch(/data-pw-chrome-btn="cart"[^>]*data-pw-chrome-size="22"/)
+    expect(laptop).toMatch(/data-pw-chrome-btn="account"[^>]*data-pw-chrome-size="24"/)
   })
 
   it('resets leftover drag on in-flow header search so it can sit in the middle', () => {

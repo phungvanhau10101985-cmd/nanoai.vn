@@ -25,6 +25,10 @@ import {
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { partnerSiteCategoryHubPath, partnerSiteKhoSalePath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import {
+  isPartnerShopHeadBackFace,
+  PARTNER_HEAD_BACK_FACE_MQ,
+} from '@/lib/partner-website/shop/mobile-header-back'
 
 export function usePartnerCategoryFineHover(): boolean {
   const [fineHover, setFineHover] = useState(false)
@@ -67,6 +71,34 @@ export function usePartnerShopMobileCategoryFace(previewDevice?: string | null):
     document.documentElement.setAttribute('data-pw-cat-face', mobile ? 'mobile' : 'desktop')
   }, [mobile])
   return mobile
+}
+
+export function usePartnerShopHeadBackFace(previewDevice?: string | null): boolean {
+  const [show, setShow] = useState(previewDevice === 'mobile' || previewDevice === 'tablet')
+  useEffect(() => {
+    const read = () => {
+      let queryDevice = ''
+      try {
+        queryDevice = new URLSearchParams(location.search).get('pw-device') || ''
+      } catch {
+        queryDevice = ''
+      }
+      const html = document.documentElement
+      setShow(
+        isPartnerShopHeadBackFace({
+          editDevice: html.getAttribute('data-pw-edit-device'),
+          sceneLock: html.getAttribute('data-pw-scene-lock'),
+          queryDevice: queryDevice || previewDevice,
+          viewportCompact: window.matchMedia(PARTNER_HEAD_BACK_FACE_MQ).matches,
+        })
+      )
+    }
+    read()
+    const mq = window.matchMedia(PARTNER_HEAD_BACK_FACE_MQ)
+    mq.addEventListener('change', read)
+    return () => mq.removeEventListener('change', read)
+  }, [previewDevice])
+  return show
 }
 
 type Props = {

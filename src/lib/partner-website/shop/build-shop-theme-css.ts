@@ -334,7 +334,7 @@ ${buildPartnerSiteHtmlChromeCss()}
 .pw-shop-brand-cluster{position:relative;display:flex;align-items:center;gap:10px;flex-shrink:0;pointer-events:none}
 .pw-shop-brand-cluster > *,.pw-shop-brand-cluster a,.pw-shop-brand-cluster button,.pw-shop-brand-cluster img,.pw-shop-brand-cluster [data-pw-el]{pointer-events:auto}
 .pw-shop-cat-btn:not([data-pw-chrome-added]){display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid #e5e7eb;border-radius:999px;background:#fff;color:#374151;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
-.pw-shop-nav-icon{width:20px;height:20px;flex-shrink:0;display:block}
+.pw-shop-nav-icon{width:${PW_CHROME_W_VAR};height:${PW_CHROME_H_VAR};flex-shrink:0;display:block}
 .pw-shop-cat-panel{position:absolute;left:0;top:calc(100% + 8px);z-index:60;min-width:200px;display:none;gap:2px;padding:8px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.12)}
 .pw-shop-cat-panel.is-open{display:grid}
 .pw-shop-cat-panel.is-open.pw-cat-mega{display:block;min-width:0;max-width:calc(var(--pw-scene-w,100vw) - 16px);padding:0;overflow:hidden}
@@ -580,7 +580,7 @@ ${PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS}
 [data-pw-chrome-btn="chat"] .pw-chrome-icon-wrap,[data-pw-chrome-btn="chat-zalo"] .pw-chrome-icon-wrap,[data-pw-chrome-btn="chat-facebook"] .pw-chrome-icon-wrap{overflow:hidden;border-radius:999px}
 .pw-chrome-icon-wrap .pw-chrome-chat-logo{width:100%;height:100%;object-fit:cover;border-radius:999px}
 .pw-chrome-has-label .pw-shop-icon-label,.pw-chrome-has-label .pw-chrome-btn-label{display:block;max-width:none;overflow:visible;text-overflow:unset;white-space:nowrap}
-.pw-icon-btn svg,.pw-shop-icon-btn svg,.pw-shop-header-actions>a>svg,.pw-header-actions>a>svg{width:20px;height:20px;max-width:20px;max-height:20px;flex-shrink:0;display:block;stroke:currentColor;fill:none}
+.pw-icon-btn svg,.pw-shop-icon-btn svg,.pw-shop-header-actions>a>svg,.pw-header-actions>a>svg{width:${PW_CHROME_W_VAR};height:${PW_CHROME_H_VAR};max-width:${PW_CHROME_W_VAR};max-height:${PW_CHROME_H_VAR};flex-shrink:0;display:block;stroke:currentColor;fill:none}
 .pw-chrome-icon-wrap svg,[data-pw-chrome-btn] svg,[data-pw-chrome-added] svg{width:${PW_CHROME_W_VAR};height:${PW_CHROME_H_VAR};max-width:${PW_CHROME_W_VAR};max-height:${PW_CHROME_H_VAR};flex-shrink:0;display:block}
 .pw-shop-icon-label{max-width:none;overflow:visible;text-overflow:unset;white-space:nowrap}
 .pw-shop-cart-badge{position:absolute;top:0;right:2px;min-width:16px;height:16px;border-radius:999px;background:var(--pw-primary);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px}
@@ -818,7 +818,9 @@ html[data-pw-edit-device="laptop"] .pw-shop-product-detail,html[data-pw-scene-lo
   .pw-pdp-info-pad{padding-inline:16px}
   .pw-pdp-sticky{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:120;align-items:stretch;gap:6px;min-height:52px;padding:4px 6px calc(4px + env(safe-area-inset-bottom,0px));background:#f3f4f6;border-top:1px solid #e5e7eb}
   .pw-pdp-sticky-nav{display:flex;align-items:stretch;justify-content:center;gap:2px;padding-right:6px;margin-right:2px;border-right:1px solid #e5e7eb}
-  .pw-pdp-sticky-nav a,.pw-pdp-sticky-nav button{width:44px;flex:0 0 44px;min-width:44px;max-width:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:none;background:transparent;color:#4b5563;font:inherit;font-size:10px;line-height:1.1;text-align:center;cursor:pointer;text-decoration:none;padding:2px 0;box-sizing:border-box}
+  .pw-pdp-sticky-nav a,.pw-pdp-sticky-nav button{width:44px;flex:0 0 44px;min-width:44px;max-width:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:none;outline:none;box-shadow:none;-webkit-appearance:none;appearance:none;background:transparent;color:#4b5563;font:inherit;font-size:10px;line-height:1.1;text-align:center;cursor:pointer;text-decoration:none;padding:2px 0;box-sizing:border-box}
+  .pw-pdp-sticky-nav a.is-try,.pw-pdp-sticky-nav button.is-try,.pw-pdp-sticky-nav a.is-fav,.pw-pdp-sticky-nav button.is-fav{border:none;outline:none;box-shadow:none;background:transparent;-webkit-appearance:none;appearance:none;aspect-ratio:auto}
+  .pw-pdp-sticky-nav .is-try .pw-chrome-icon-wrap,.pw-pdp-sticky-nav .is-fav .pw-chrome-icon-wrap{border:none;outline:none;box-shadow:none;background:transparent;border-radius:0}
   .pw-pdp-sticky-nav a.is-try,.pw-pdp-sticky-nav button.is-try{color:var(--pw-primary);font-weight:500}
   .pw-pdp-sticky-nav button.is-fav[aria-pressed="true"],.pw-pdp-sticky-nav button.is-fav.is-active{color:#e11d48}
   .pw-pdp-sticky-nav button.is-fav[aria-pressed="true"] svg,.pw-pdp-sticky-nav button.is-fav.is-active svg{fill:currentColor}
@@ -829,7 +831,7 @@ html[data-pw-edit-device="laptop"] .pw-shop-product-detail,html[data-pw-scene-lo
 @media(min-width:768px){
   .pw-pdp-sticky.is-visible{display:flex;position:fixed;left:0;right:0;bottom:58px;z-index:120;align-items:stretch;justify-content:center;gap:12px;padding:10px 16px;background:#f3f4f6;border-top:1px solid #e5e7eb;min-height:64px;box-sizing:border-box}
   .pw-pdp-sticky.is-visible .pw-pdp-sticky-nav{display:flex;align-items:center;gap:8px}
-  .pw-pdp-sticky.is-visible .pw-pdp-sticky-nav a,.pw-pdp-sticky.is-visible .pw-pdp-sticky-nav button{width:56px;display:flex;flex-direction:column;align-items:center;gap:2px;border:none;background:transparent;color:#4b5563;font:inherit;font-size:11px;cursor:pointer;text-decoration:none}
+  .pw-pdp-sticky.is-visible .pw-pdp-sticky-nav a,.pw-pdp-sticky.is-visible .pw-pdp-sticky-nav button{width:56px;display:flex;flex-direction:column;align-items:center;gap:2px;border:none;outline:none;box-shadow:none;-webkit-appearance:none;appearance:none;background:transparent;color:#4b5563;font:inherit;font-size:11px;cursor:pointer;text-decoration:none}
   .pw-pdp-sticky.is-visible .pw-pdp-sticky-nav a.is-try,.pw-pdp-sticky.is-visible .pw-pdp-sticky-nav button.is-try{color:var(--pw-primary)}
   .pw-pdp-sticky.is-visible .pw-pdp-sticky-nav button.is-fav[aria-pressed="true"],.pw-pdp-sticky.is-visible .pw-pdp-sticky-nav button.is-fav.is-active{color:#e11d48}
   .pw-pdp-sticky.is-visible .pw-pdp-sticky-nav button.is-fav[aria-pressed="true"] svg,.pw-pdp-sticky.is-visible .pw-pdp-sticky-nav button.is-fav.is-active svg{fill:currentColor}

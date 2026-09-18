@@ -217,7 +217,7 @@ describe('listing native UI contract stamps', () => {
     expect(catAt).toBeGreaterThan(backAt)
   })
 
-  it('seeds a compose link on every device like 188, without a head back on desktop or tablet', () => {
+  it('seeds a compose link on every device like 188, with a head back on tablet but not desktop', () => {
     const desktop = buildPartnerSiteHeaderHtml({
       locale: 'vi',
       title: 'Demo Shop',
@@ -231,7 +231,10 @@ describe('listing native UI contract stamps', () => {
       device: 'tablet',
     }).header
     expect(desktop).not.toContain('data-pw-chrome-btn="back"')
-    expect(tablet).not.toContain('data-pw-chrome-btn="back"')
+    expect(tablet).toContain('data-pw-chrome-btn="back"')
+    expect(tablet.indexOf('data-pw-chrome-btn="back"')).toBeLessThan(
+      tablet.indexOf('data-pw-chrome-btn="categories"')
+    )
     expect(desktop).toContain('class="pw-search-compose"')
     expect(tablet).toContain('class="pw-search-compose"')
     expect(desktop).toContain('/site/demo-shop/tim-kiem')

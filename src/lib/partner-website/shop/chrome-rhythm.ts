@@ -13,8 +13,8 @@ export function chromeRhythmDevice(device?: VisualDeviceVariant | null): ChromeR
 
 /** Glyph cụm phải head (px). */
 export const PW_HEAD_ICON_SIZE = {
-  desktop: 20,
-  laptop: 18,
+  desktop: 22,
+  laptop: 22,
   tablet: 20,
   mobile: 22,
 } as const
@@ -28,8 +28,9 @@ export const PW_HEAD_KIT_GAP = {
 } as const
 
 /** Seed cũ — leftover HTML cùng số này được nâng lên nhịp mới. Sửa tay khác số thì giữ. */
-export const PW_HEAD_ICON_SIZE_LEGACY: Partial<Record<ChromeRhythmDevice, number>> = {
-  desktop: 26,
+export const PW_HEAD_ICON_SIZE_LEGACY: Partial<Record<ChromeRhythmDevice, readonly number[]>> = {
+  desktop: [26, 20],
+  laptop: [18],
 }
 
 export const PW_HEAD_KIT_GAP_LEGACY: Partial<Record<ChromeRhythmDevice, number>> = {
@@ -97,7 +98,7 @@ export function chromeHeadIconSizeFromLegacy(raw: unknown, device?: VisualDevice
   const current = chromeHeadIconSizeForDevice(device)
   const n = Math.round(Number(raw))
   const legacy = PW_HEAD_ICON_SIZE_LEGACY[chromeRhythmDevice(device)]
-  if (legacy != null && n === legacy) return current
+  if (legacy != null && legacy.includes(n)) return current
   return n
 }
 

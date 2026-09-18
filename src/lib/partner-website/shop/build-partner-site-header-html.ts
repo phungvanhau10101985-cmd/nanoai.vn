@@ -130,7 +130,7 @@ export function buildPartnerSiteAccountPanelCss(): string {
 .pw-account-panel a.is-header svg{color:var(--pw-primary)}
 .pw-account-panel a.is-accent svg{color:var(--pw-accent)}
 .pw-account-btn{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 10px;border-radius:999px;border:none;background:transparent;color:#374151;font:inherit;font-size:13px;font-weight:700;cursor:pointer;position:relative}
-.pw-account-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2}
+.pw-account-btn svg{width:var(--pw-chrome-w,var(--pw-chrome-size,22px));height:var(--pw-chrome-h,var(--pw-chrome-size,22px));stroke:currentColor;fill:none;stroke-width:2}
 @media(min-width:900px){.pw-account-btn-label{display:inline}}
 @media(max-width:899px){
 html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-account-wrap{display:none}
@@ -208,7 +208,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
   ${topbar}
   <div class="pw-container pw-header-main">
     <div class="pw-brand-cluster">
-      ${input.device === 'mobile' ? `${buildMobileHeadBackHtml({ locale: input.locale })}` : ''}
+      ${input.device === 'mobile' || input.device === 'tablet' ? `${buildMobileHeadBackHtml({ locale: input.locale })}` : ''}
       <button type="button" class="pw-cat-btn" ${pwElAttr(PW_EL.catToggle)} data-pw-chrome-btn="categories" data-pw-cat-toggle ${PW_CHROME_KIT_ATTR}="1" aria-expanded="false" aria-controls="pw-cat-panel" aria-label="${escapeAttr(shop.navCategories)}">${svgIcon('menu')}<span>${escapeHtml(shop.navCategories)}</span></button>
       ${brandBlock}
       <nav id="pw-cat-panel" class="pw-cat-panel" data-pw-cat-panel aria-label="${escapeAttr(shop.navCategories)}">
