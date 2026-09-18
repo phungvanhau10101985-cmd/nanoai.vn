@@ -129,6 +129,87 @@ test('boot script paints listing cards when fetch resolves, without a tap', asyn
   assert.equal(onPage.host.hidden, false)
 })
 
+test('loading paint is idempotent so MutationObserver cannot starve DOMContentLoaded', () => {
+  const observerCallbacks: Array<() => void> = []
+  let innerHtmlWrites = 0
+  let eagerState = ''
+  let innerHtml = ''
+  const parent = { insertBefore() {} }
+  const react = {
+    hidden: false,
+    parentNode: parent,
+    getAttribute: () => '',
+  }
+  const host = {
+    id: PW_IMAGE_SEARCH_EAGER_ID,
+    hidden: true,
+    parentNode: parent,
+    nextSibling: react,
+    getAttribute: (name: string) =>
+      name === 'data-pw-image-search-eager-state' ? eagerState : '',
+    setAttribute: (name: string, value: string) => {
+      if (name === 'data-pw-image-search-eager-state') eagerState = value
+    },
+    compareDocumentPosition: () => 0,
+    get innerHTML() {
+      return innerHtml
+    },
+    set innerHTML(value: string) {
+      innerHtml = value
+      innerHtmlWrites += 1
+    },
+  }
+  const store = { [PW_PENDING_IMAGE_KEY]: TINY_JPEG }
+  const context: Record<string, unknown> = {
+    location: {
+      pathname: '/site/188-shop/tim-theo-anh',
+      href: 'https://gudo.vn/site/188-shop/tim-theo-anh',
+    },
+    sessionStorage: {
+      getItem: (key: string) => store[key as keyof typeof store] ?? '',
+      removeItem: (key: string) => {
+        delete (store as Record<string, string>)[key]
+      },
+    },
+    FormData: class {
+      append() {}
+    },
+    MutationObserver: class {
+      constructor(callback: () => void) {
+        observerCallbacks.push(callback)
+      }
+      observe() {}
+    },
+    Blob,
+    Uint8Array,
+    atob,
+    Event,
+    URL,
+    Promise,
+    Date,
+    Math,
+    document: {
+      readyState: 'loading',
+      documentElement: { lang: 'vi' },
+      body: {},
+      getElementById: (id: string) => (id === PW_IMAGE_SEARCH_EAGER_ID ? host : null),
+      querySelector: (sel: string) =>
+        String(sel).includes('data-pw-image-search-react') ? react : null,
+      createElement: () => host,
+      addEventListener() {},
+    },
+    fetch: () => new Promise(() => {}),
+    addEventListener() {},
+    dispatchEvent: () => true,
+  }
+  context.window = context
+  vm.runInNewContext(buildPartnerSiteImageSearchPageBootScript('188-shop'), context)
+  assert.equal(innerHtmlWrites, 1)
+  assert.match(eagerState, /^loading:/)
+  for (let i = 0; i < 8; i += 1) observerCallbacks[0]?.()
+  assert.equal(innerHtmlWrites, 1)
+})
+
 test('boot script relocates a leftover eager host next to the React catalog', () => {
   const children: Array<[unknown, unknown]> = []
   const host: {

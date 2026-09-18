@@ -21,6 +21,7 @@ export type PartnerSiteImageSearchBoot = {
   previewDataUrl: string | null
   products: unknown[] | null
   error: string | null
+  requestId?: string
 }
 
 type ImageSearchBootWindow = Window & {
@@ -129,6 +130,15 @@ export function buildPartnerSiteImageSearchPageBootScript(siteSlug: string): str
     }
     return host;
   }
+  function paintHost(host,state,html,hidden){
+    var prev='';
+    try{prev=String(host.getAttribute('data-pw-image-search-eager-state')||'');}catch(eG){}
+    if(prev!==state){
+      try{host.setAttribute('data-pw-image-search-eager-state',state);}catch(eS){}
+      host.innerHTML=html;
+    }
+    if(host.hidden!==hidden)host.hidden=hidden;
+  }
   var painting=false;
   var observed=false;
   function watchSlot(){
@@ -181,30 +191,30 @@ export function buildPartnerSiteImageSearchPageBootScript(siteSlug: string): str
     if(!boot||!boot.started)return;
     if(reactApplied()){
       var done=document.getElementById(EAGER);
-      if(done){done.hidden=true;done.innerHTML='';}
+      if(done)paintHost(done,'react','',true);
       var live=reactRoot();
-      if(live)live.hidden=false;
+      if(live&&live.hidden)live.hidden=false;
       return;
     }
     var host=ensureHost();
     if(!host)return;
     if(isMisplaced(host)){
-      host.hidden=true;
+      if(!host.hidden)host.hidden=true;
       var liveMis=reactRoot();
-      if(liveMis)liveMis.hidden=false;
+      if(liveMis&&liveMis.hidden)liveMis.hidden=false;
       return;
     }
     var react=reactRoot();
     var list=Array.isArray(boot.products)?boot.products:[];
+    var requestId=String(boot.requestId||'0');
     if(list.length){
       var html=headingHtml(resultHeading(list.length));
       html+='<div class="pw-shop-grid" data-pw-el="grid" data-pw-grid>';
       var n=Math.min(list.length,12);
       for(var i=0;i<n;i++)html+=cardHtml(list[i]);
       html+='</div>';
-      host.innerHTML=html;
-      host.hidden=false;
-      if(react)react.hidden=true;
+      paintHost(host,'results:'+requestId,html,false);
+      if(react&&!react.hidden)react.hidden=true;
       return;
     }
     if(boot.loading){
@@ -212,14 +222,12 @@ export function buildPartnerSiteImageSearchPageBootScript(siteSlug: string): str
       skel+='<div class="pw-shop-grid" data-pw-el="grid" aria-hidden="true">';
       for(var s=0;s<10;s++)skel+='<article class="pw-shop-card" style="min-height:220px;background:var(--pw-surface)"></article>';
       skel+='</div>';
-      host.innerHTML=skel;
-      host.hidden=false;
-      if(react)react.hidden=true;
+      paintHost(host,'loading:'+requestId,skel,false);
+      if(react&&!react.hidden)react.hidden=true;
       return;
     }
-    host.innerHTML='';
-    host.hidden=true;
-    if(react)react.hidden=false;
+    paintHost(host,'empty:'+requestId,'',true);
+    if(react&&react.hidden)react.hidden=false;
     }finally{
       painting=false;
     }
@@ -236,13 +244,14 @@ export function buildPartnerSiteImageSearchPageBootScript(siteSlug: string): str
     return new Blob([bytes],{type:mime});
   }
   function startFetch(raw){
-    window[KEY]={started:true,loading:true,previewDataUrl:raw,products:null,error:null};
+    var requestId=String(Date.now())+'-'+String(Math.random());
+    window[KEY]={started:true,loading:true,previewDataUrl:raw,products:null,error:null,requestId:requestId};
     emit();
     paintEager();
     var blob=null;
     try{blob=blobFromDataUrl(raw);}catch(eB){}
     if(!blob){
-      window[KEY]={started:true,loading:false,previewDataUrl:raw,products:null,error:'invalid'};
+      window[KEY]={started:true,loading:false,previewDataUrl:raw,products:null,error:'invalid',requestId:requestId};
       emit();
       paintEager();
       return;
@@ -253,19 +262,22 @@ export function buildPartnerSiteImageSearchPageBootScript(siteSlug: string): str
     fetch(${JSON.stringify(api)},{method:'POST',body:fd,credentials:'same-origin'})
       .then(function(r){return r.json();})
       .then(function(j){
+        if(!window[KEY]||window[KEY].requestId!==requestId)return;
         var list=j&&Array.isArray(j.products)?j.products:[];
         window[KEY]={
           started:true,
           loading:false,
           previewDataUrl:raw,
           products:list,
-          error:j&&j.error?String(j.error):null
+          error:j&&j.error?String(j.error):null,
+          requestId:requestId
         };
         emit();
         paintEager();
       })
       .catch(function(){
-        window[KEY]={started:true,loading:false,previewDataUrl:raw,products:null,error:'network'};
+        if(!window[KEY]||window[KEY].requestId!==requestId)return;
+        window[KEY]={started:true,loading:false,previewDataUrl:raw,products:null,error:'network',requestId:requestId};
         emit();
         paintEager();
       });
