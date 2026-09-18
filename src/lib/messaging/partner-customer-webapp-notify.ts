@@ -233,7 +233,7 @@ export function pickPartnerCustomerEmsNotifyEvent(input: {
     })
   }
 
-  if (afterStatus === 'shipping' && beforeStatus !== 'shipping' && afterStatus !== 'delivered') {
+  if (afterStatus === 'shipping' && beforeStatus !== 'shipping') {
     candidates.push({
       priority: 35,
       event: { kind: 'shipping', orderCode: code, tracking: tracking || undefined },

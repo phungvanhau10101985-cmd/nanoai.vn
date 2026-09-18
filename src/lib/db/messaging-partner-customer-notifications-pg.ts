@@ -328,8 +328,8 @@ export async function notifyPartnerCustomerOrderUpdateFromPg(input: {
     const found = emailOrPhone
       ? await findPartnerNotificationRecipientFromPg({
           partnerId: input.partnerId,
-          email: input.customerEmail,
-          phone: input.customerPhone,
+          email: input.customerEmail ?? undefined,
+          phone: input.customerPhone ?? undefined,
         })
       : null
     const guestAccountIds = mergePartnerCustomerNotifyGuestIds(

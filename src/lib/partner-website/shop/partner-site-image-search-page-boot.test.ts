@@ -130,7 +130,7 @@ test('boot script paints listing cards when fetch resolves, without a tap', asyn
 })
 
 test('boot script relocates a leftover eager host next to the React catalog', () => {
-  const children: unknown[] = []
+  const children: Array<[unknown, unknown]> = []
   const host: {
     id: string
     hidden: boolean
@@ -142,7 +142,11 @@ test('boot script relocates a leftover eager host next to the React catalog', ()
     innerHTML: '',
     nextSibling: null,
   }
-  const react = {
+  const react: {
+    hidden: boolean
+    getAttribute: (name: string) => string
+    parentNode?: { insertBefore: (node: unknown, before: unknown) => void }
+  } = {
     hidden: false,
     getAttribute: (name: string) => (name === 'data-pw-image-search-react' ? '1' : ''),
   }
@@ -179,7 +183,7 @@ test('boot script relocates a leftover eager host next to the React catalog', ()
     addEventListener() {},
     dispatchEvent: () => true,
   }
-  ;(react as { parentNode: typeof parent }).parentNode = parent
+  react.parentNode = parent
   context.window = context
   vm.runInNewContext(buildPartnerSiteImageSearchPageBootScript('188-shop'), context)
   const run = context[PW_IMAGE_SEARCH_BOOT_RUN] as () => void
