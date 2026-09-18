@@ -77,14 +77,24 @@ export function buildPartnerShopFaviconHeadLinks(input: {
   faviconUrl?: string | null
   logoUrl?: string | null
 }): string {
-  const icon = resolvePartnerShopFaviconHref(input)
+  const slug = String(input.siteSlug || '').trim()
+  const token = cacheTokenOf(input)
+  const icon32 = slug
+    ? appendPartnerShopFaviconCacheToken(partnerSitePwaIconPath(slug, 32, Boolean(input.customDomain)), token)
+    : resolvePartnerShopFaviconHref(input)
+  const icon192 = slug
+    ? appendPartnerShopFaviconCacheToken(partnerSitePwaIconPath(slug, 192, Boolean(input.customDomain)), token)
+    : ''
   const apple = resolvePartnerShopAppleTouchHref(input)
-  if (!icon && !apple) return ''
+  if (!icon32 && !apple) return ''
   const lines: string[] = []
-  if (icon) {
-    const href = escapeAttr(icon)
+  if (icon32) {
+    const href = escapeAttr(icon32)
     lines.push(`<link rel="icon" type="image/png" sizes="32x32" href="${href}"/>`)
     lines.push(`<link rel="shortcut icon" href="${href}"/>`)
+  }
+  if (icon192) {
+    lines.push(`<link rel="icon" type="image/png" sizes="192x192" href="${escapeAttr(icon192)}"/>`)
   }
   if (apple) {
     lines.push(`<link rel="apple-touch-icon" sizes="180x180" href="${escapeAttr(apple)}"/>`)
@@ -103,9 +113,10 @@ export function buildPartnerShopFaviconMetadataIcons(input: {
   apple: Array<{ url: string; type: string; sizes: string }>
 } {
   const token = cacheTokenOf(input)
-  const icon32 =
-    resolvePartnerShopFaviconHref(input) ||
-    appendPartnerShopFaviconCacheToken(partnerSitePwaIconPath(input.siteSlug, 32, input.customDomain), token)
+  const icon32 = appendPartnerShopFaviconCacheToken(
+    partnerSitePwaIconPath(input.siteSlug, 32, input.customDomain),
+    token
+  )
   const icon192 = appendPartnerShopFaviconCacheToken(
     partnerSitePwaIconPath(input.siteSlug, 192, input.customDomain),
     token

@@ -85,6 +85,8 @@ export async function storePendingImageAndNavigate(
   }
   if (typeof window !== 'undefined' && isPartnerImageSearchPath(window.location.pathname, imageSearchPath)) {
     window.dispatchEvent(new CustomEvent(PW_PENDING_IMAGE_EVENT))
+    const run = (window as Window & { __pwRunImageSearchBoot?: () => void }).__pwRunImageSearchBoot
+    if (typeof run === 'function') run()
     return
   }
   if (typeof window !== 'undefined') {

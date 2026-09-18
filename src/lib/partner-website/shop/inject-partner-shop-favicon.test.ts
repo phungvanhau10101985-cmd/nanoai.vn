@@ -46,7 +46,8 @@ describe('inject-partner-shop-favicon', () => {
       customDomain: true,
       faviconUrl: 'https://cdn.example/fav.png',
     })
-    expect(next).toContain('https://cdn.example/fav.png')
+    expect(next).toContain('/pwa-icon/32')
+    expect(next).toContain('/pwa-icon/192')
     expect(next).not.toContain('https://old/logo.png')
     expect(next).toContain('rel="apple-touch-icon"')
     expect(buildPartnerShopFaviconHeadLinks({ siteSlug: 'shop-a', customDomain: true })).toContain(

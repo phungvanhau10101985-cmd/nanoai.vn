@@ -46,6 +46,7 @@ export function PartnerSiteImageSearchPopover({
   triggerIconClassName = 'block size-6 shrink-0 pointer-events-none',
   wrapperClassName,
   triggerPosition = 'inline-end',
+  directFilePicker = false,
   children,
 }: {
   imageSearchPath: string
@@ -54,6 +55,8 @@ export function PartnerSiteImageSearchPopover({
   triggerIconClassName?: string
   wrapperClassName?: string
   triggerPosition?: 'overlay-right' | 'inline-end'
+  /** Mobile compose: open the photo picker on the first tap (no extra popover). */
+  directFilePicker?: boolean
   children?: React.ReactNode
 }) {
   const t = getPartnerSiteShopCopy(locale)
@@ -372,8 +375,15 @@ export function PartnerSiteImageSearchPopover({
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
-            setOpen((v) => !v)
             setPanelError(null)
+            const mobile =
+              typeof window !== 'undefined' &&
+              (window.matchMedia('(max-width: 767px)').matches || window.matchMedia('(pointer: coarse)').matches)
+            if (directFilePicker || mobile) {
+              fileInputRef.current?.click()
+              return
+            }
+            setOpen((v) => !v)
           }}
         >
           {children || (

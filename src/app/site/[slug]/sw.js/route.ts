@@ -3,7 +3,7 @@ import { PARTNER_CUSTOM_DOMAIN_HEADER } from '@/lib/auth/app-request-headers'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
   buildPartnerShopServiceWorkerSource,
-  partnerSitePwaIconPath,
+  partnerShopPushIconPath,
   partnerSitePwaStartUrl,
 } from '@/lib/partner-website/shop/partner-site-pwa'
 import { partnerSiteAccountTabPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
@@ -25,7 +25,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
     startUrl,
     customDomain,
     inboxPath: partnerSiteAccountTabPath(shop.site.siteSlug, 'notifications', { customDomain }),
-    iconPath: partnerSitePwaIconPath(shop.site.siteSlug, 192, customDomain),
+    iconPath: partnerShopPushIconPath(shop.site.siteSlug, customDomain),
   })
 
   return new NextResponse(source, {

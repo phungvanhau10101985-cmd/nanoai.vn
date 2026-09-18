@@ -23,7 +23,10 @@ export async function GET(request: NextRequest) {
   if (!isPgConfigured()) {
     return NextResponse.json({ ok: false, error: 'database_unavailable' }, { status: 503 })
   }
-  const result = await ensureDailyPartnerMarketingBanners()
+  const maxRaw = Number(request.nextUrl.searchParams.get('maxGenerate') ?? '')
+  const result = await ensureDailyPartnerMarketingBanners({
+    maxGenerate: Number.isFinite(maxRaw) && maxRaw > 0 ? maxRaw : undefined,
+  })
   return NextResponse.json({ ok: true, ...result })
 }
 

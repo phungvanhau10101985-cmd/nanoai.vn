@@ -22,6 +22,7 @@ import {
   birthdayCampaignKey,
   daysUntilNextBirthday,
   isInBirthdayOfferWindow,
+  nextBirthdayIsoFromProfileYmd,
 } from '@/lib/messaging/birthday-promo-interest-inventory-ids'
 
 test('same-day sale uses odd/even month percentage and T-3 teaser', () => {
@@ -289,8 +290,6 @@ test('birthday window includes T-7 through T0 and campaign key changes by birthd
   assert.equal(isInBirthdayOfferWindow(8, 7, 1), false)
   assert.equal(birthdayCampaignKey('2026-01-02'), 'bday_20260102')
   assert.equal(birthdayCampaignKey('2027-01-02'), 'bday_20270102')
-  assert.equal(
-    daysUntilNextBirthday('2000-02-29', new Date('2027-02-28T05:00:00.000Z')),
-    1
-  )
+  assert.equal(daysUntilNextBirthday('2000-02-29', new Date(2027, 1, 28)), 0)
+  assert.equal(nextBirthdayIsoFromProfileYmd('2000-02-29', new Date(2027, 1, 28)), '2027-02-28')
 })

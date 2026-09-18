@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { usePartnerSitePageReadyEffect } from '@/hooks/use-partner-site-page-ready-effect'
 import { PARTNER_PUBLIC_INVENTORY_SEARCH_MAX } from '@/lib/messaging/partner-public-search-limits'
@@ -11,8 +11,13 @@ import {
   shouldRetryPartnerImageSearchTransient,
 } from '@/lib/partner-website/shop/partner-site-image-search-errors'
 import {
+  getPartnerSiteImageSearchBootSnapshot,
+  PW_IMAGE_SEARCH_APPLIED_ATTR,
   PW_IMAGE_SEARCH_BOOT_EVENT,
-  readPartnerSiteImageSearchBoot,
+  PW_IMAGE_SEARCH_EAGER_ID,
+  PW_IMAGE_SEARCH_REACT_ATTR,
+  runPartnerSiteImageSearchBoot,
+  subscribePartnerSiteImageSearchBoot,
 } from '@/lib/partner-website/shop/partner-site-image-search-page-boot'
 import {
   consumePendingImageFile,
@@ -100,6 +105,11 @@ export function PartnerSiteImageSearchClient({
   const lastAutoFetchedUrlRef = useRef<string | null>(null)
   const linkSearchBusyRef = useRef(false)
   const appliedBootProductsRef = useRef(false)
+  const boot = useSyncExternalStore(
+    subscribePartnerSiteImageSearchBoot,
+    getPartnerSiteImageSearchBootSnapshot,
+    () => null
+  )
 
   const humanize = useCallback(
     (raw: string | null | undefined) => {
@@ -171,59 +181,60 @@ export function PartnerSiteImageSearchClient({
     [humanize, siteSlug, t.imageSearchRetry, t.searchError]
   )
 
+  const bootProducts = Array.isArray(boot?.products) ? (boot.products as Hit[]) : null
+  const shownProducts = products.length > 0 ? products : bootProducts || []
+  const shownLoading = loading || Boolean(boot?.loading && shownProducts.length === 0)
+  const shownPreview = previewUrl || boot?.previewDataUrl || null
+  const shownSoft =
+    softMessage ||
+    (shownProducts.length === 0 && !shownLoading && boot?.error ? humanize(boot.error) : null)
+  const reactApplied = shownProducts.length > 0
+
+  if (typeof document !== 'undefined' && reactApplied) {
+    const eager = document.getElementById(PW_IMAGE_SEARCH_EAGER_ID)
+    if (eager) {
+      eager.hidden = true
+      eager.innerHTML = ''
+    }
+  }
+
   usePartnerSitePageReadyEffect(() => {
-    const applyBoot = () => {
-      const boot = readPartnerSiteImageSearchBoot()
-      if (!boot?.started) return false
-      if (boot.previewDataUrl) {
-        setPreviewUrl((prev) => prev || boot.previewDataUrl)
-      }
-      if (Array.isArray(boot.products)) {
-        if (!appliedBootProductsRef.current) {
-          appliedBootProductsRef.current = true
-          setProducts(boot.products as Hit[])
-        }
-        setLoading(false)
-        if (boot.error && boot.products.length === 0) setSoftMessage(humanize(boot.error))
-        return true
-      }
-      if (boot.error) {
-        setLoading(false)
-        setSoftMessage(humanize(boot.error))
-        return true
-      }
-      if (boot.loading) {
-        setLoading(true)
-        setError(null)
-      }
-      return true
+    runPartnerSiteImageSearchBoot()
+    if (boot?.previewDataUrl) {
+      setPreviewUrl((prev) => prev || boot.previewDataUrl)
     }
-
-    const consumePending = () => {
-      const boot = readPartnerSiteImageSearchBoot()
-      if (boot?.loading) return
+    if (Array.isArray(boot?.products)) {
+      if (!appliedBootProductsRef.current) {
+        appliedBootProductsRef.current = true
+        setProducts(boot.products as Hit[])
+      }
+      setLoading(false)
+      if (boot.error && boot.products.length === 0) setSoftMessage(humanize(boot.error))
+    } else if (boot?.error) {
+      setLoading(false)
+      setSoftMessage(humanize(boot.error))
+    } else if (boot?.loading) {
+      setLoading(true)
+      setError(null)
+    } else if (!boot?.started) {
       const file = consumePendingImageFile()
-      if (file) {
-        void runSearch(file)
-      }
+      if (file) void runSearch(file)
     }
 
-    const owned = applyBoot()
-    if (!owned) consumePending()
-
-    const onBoot = () => {
-      applyBoot()
-    }
     const onPending = () => {
-      consumePending()
+      runPartnerSiteImageSearchBoot()
+      const snapshot = getPartnerSiteImageSearchBootSnapshot()
+      if (snapshot?.started) return
+      const file = consumePendingImageFile()
+      if (file) void runSearch(file)
     }
-    window.addEventListener(PW_IMAGE_SEARCH_BOOT_EVENT, onBoot)
+    window.addEventListener(PW_IMAGE_SEARCH_BOOT_EVENT, onPending)
     window.addEventListener(PW_PENDING_IMAGE_EVENT, onPending)
     return () => {
-      window.removeEventListener(PW_IMAGE_SEARCH_BOOT_EVENT, onBoot)
+      window.removeEventListener(PW_IMAGE_SEARCH_BOOT_EVENT, onPending)
       window.removeEventListener(PW_PENDING_IMAGE_EVENT, onPending)
     }
-  }, [humanize, runSearch])
+  }, [boot, humanize, runSearch])
 
   useEffect(() => {
     return () => {
@@ -315,7 +326,7 @@ export function PartnerSiteImageSearchClient({
     if (f?.type.startsWith('image/')) await runSearch(f)
   }
 
-  const { revealed, hasMore, sentinelRef, total } = useLazyReveal(products, 12, 12)
+  const { revealed, hasMore, sentinelRef, total } = useLazyReveal(shownProducts, 12, 12)
 
   return (
     <div>
@@ -366,8 +377,8 @@ export function PartnerSiteImageSearchClient({
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => void onThumbDrop(e)}
         >
-          {previewUrl ? (
-            <img src={previewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          {shownPreview ? (
+            <img src={shownPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (
             <span className="pw-shop-muted" style={{ fontSize: 10 }}>
               —
@@ -380,9 +391,9 @@ export function PartnerSiteImageSearchClient({
           style={{
             background: 'var(--pw-primary)',
             color: '#fff',
-            cursor: loading ? 'default' : 'pointer',
-            opacity: loading ? 0.5 : 1,
-            pointerEvents: loading ? 'none' : undefined,
+            cursor: shownLoading ? 'default' : 'pointer',
+            opacity: shownLoading ? 0.5 : 1,
+            pointerEvents: shownLoading ? 'none' : undefined,
           }}
         >
           {t.imageSearchUpload}
@@ -424,13 +435,23 @@ export function PartnerSiteImageSearchClient({
           {error}
         </p>
       ) : null}
-      {softMessage && !error && products.length === 0 && !loading ? (
+      {shownSoft && !error && shownProducts.length === 0 && !shownLoading ? (
         <p className="pw-shop-muted" role="status" style={{ marginBottom: 8 }}>
-          {softMessage}
+          {shownSoft}
         </p>
       ) : null}
 
-      <section data-pw-region={PW_REGION.catalog} data-pw-catalog aria-live="polite">
+      <section
+        data-pw-region={PW_REGION.catalog}
+        data-pw-catalog
+        aria-live="polite"
+        suppressHydrationWarning
+        hidden={Boolean(boot?.started && Array.isArray(boot.products) && boot.products.length > 0 && !reactApplied)}
+        {...{
+          [PW_IMAGE_SEARCH_REACT_ATTR]: '1',
+          [PW_IMAGE_SEARCH_APPLIED_ATTR]: reactApplied ? '1' : '0',
+        }}
+      >
         <h2
           data-pw-el={PW_EL.sectionTitle}
           style={{
@@ -441,17 +462,17 @@ export function PartnerSiteImageSearchClient({
             borderBottom: '1px solid color-mix(in srgb, var(--pw-primary) 40%, transparent)',
           }}
         >
-          {loading
+          {shownLoading
             ? t.imageSearchLoading
-            : t.imageSearchResultCount.replace('{n}', String(products.length))}
+            : t.imageSearchResultCount.replace('{n}', String(shownProducts.length))}
         </h2>
-        {loading ? (
+        {shownLoading ? (
           <div className="pw-shop-grid" data-pw-el={PW_EL.grid} data-pw-grid aria-hidden>
             {Array.from({ length: 10 }).map((_, i) => (
               <article key={i} className="pw-shop-card" style={{ minHeight: 220, background: 'var(--pw-surface)' }} />
             ))}
           </div>
-        ) : products.length > 0 ? (
+        ) : shownProducts.length > 0 ? (
           <>
             <div className="pw-shop-grid" data-pw-el={PW_EL.grid} data-pw-grid>
               {revealed.map((p, i) => {
@@ -475,7 +496,7 @@ export function PartnerSiteImageSearchClient({
             ) : null}
             <div ref={sentinelRef} style={{ height: 16 }} aria-hidden />
           </>
-        ) : !loading && !error && !softMessage ? (
+        ) : !shownLoading && !error && !shownSoft ? (
           <p className="pw-shop-muted">{t.imageSearchEmpty}</p>
         ) : null}
       </section>

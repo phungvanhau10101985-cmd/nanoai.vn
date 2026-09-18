@@ -66,7 +66,12 @@ export async function collectInterestInventoryIdsForPartnerUserFromPg(input: {
   return [...ids].slice(0, lim)
 }
 
-/** Số ngày tính từ hôm nay đến sinh nhật **năm nay** hoặc **năm sau** (calendar local). */
+function clampBirthdayDay(year: number, month: number, day: number): number {
+  const last = new Date(year, month, 0).getDate()
+  return Math.min(day, last)
+}
+
+/** Số ngày tính từ hôm nay đến sinh nhật **năm nay** hoặc **năm sau** (calendar local). 29/02 → 28/02 năm không nhuận. */
 export function daysUntilNextBirthday(birthDateYmd: string, now = new Date()): number | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthDateYmd.trim())
   if (!m) return null
@@ -74,10 +79,9 @@ export function daysUntilNextBirthday(birthDateYmd: string, now = new Date()): n
   const day = Number(m[3])
   if (!Number.isFinite(month) || !Number.isFinite(day) || month < 1 || month > 12) return null
   const y = now.getFullYear()
-  const cand = new Date(y, month - 1, day)
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  let next = cand
-  if (next < today) next = new Date(y + 1, month - 1, day)
+  let next = new Date(y, month - 1, clampBirthdayDay(y, month, day))
+  if (next < today) next = new Date(y + 1, month - 1, clampBirthdayDay(y + 1, month, day))
   return Math.round((next.getTime() - today.getTime()) / 86400000)
 }
 
@@ -110,10 +114,11 @@ export function nextBirthdayIsoFromProfileYmd(birthDateYmd: string, now = new Da
   if (!m) return null
   const month = Number(m[2])
   const day = Number(m[3])
+  if (!Number.isFinite(month) || !Number.isFinite(day) || month < 1 || month > 12) return null
   const y = now.getFullYear()
-  let next = new Date(y, month - 1, day)
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  if (next < today) next = new Date(y + 1, month - 1, day)
+  let next = new Date(y, month - 1, clampBirthdayDay(y, month, day))
+  if (next < today) next = new Date(y + 1, month - 1, clampBirthdayDay(y + 1, month, day))
   const yy = next.getFullYear()
   const mm = String(next.getMonth() + 1).padStart(2, '0')
   const dd = String(next.getDate()).padStart(2, '0')

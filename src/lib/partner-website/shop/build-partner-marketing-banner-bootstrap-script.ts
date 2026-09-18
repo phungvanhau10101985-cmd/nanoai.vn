@@ -9,7 +9,7 @@ import { PW_BANNER_FIT_TO_MEDIA_JS } from '@/lib/partner-website/visual-editor/b
 
 /** Head CSS so first paint already hides seed and styles the live carousel. */
 export const PARTNER_MARKETING_BANNER_LIVE_CSS = `
-[data-pw-personalize-banner][data-pw-banner-live="1"]{display:block!important;flex-shrink:0;width:100%;aspect-ratio:var(--pw-banner-ratio,21/9)!important;height:auto!important;min-height:0!important;overflow:hidden;position:relative}
+[data-pw-personalize-banner][data-pw-banner-live="1"]{display:block!important;flex-shrink:0;width:100%;height:auto!important;min-height:0!important;overflow:hidden;position:relative}
 [data-pw-personalize-banner][data-pw-banner-live="1"] [data-pw-el="copy"],
 [data-pw-personalize-banner][data-pw-banner-live="1"] [data-pw-el="inner"],
 [data-pw-personalize-banner][data-pw-banner-live="1"] [data-pw-slides],
@@ -18,11 +18,11 @@ export const PARTNER_MARKETING_BANNER_LIVE_CSS = `
 [data-pw-personalize-banner][data-pw-banner-live="1"] .pw-slide-dots,
 [data-pw-personalize-banner][data-pw-banner-live="1"] img[data-pw-el="media"]{display:none!important}
 [data-pw-personalize-banner][data-pw-banner-live="off"]{display:none!important}
-[data-pw-banner-greeting]{margin:8px 0 12px;text-align:center;font:600 13px/1.4 system-ui,sans-serif;color:var(--pw-text)}
-[data-pw-promo-carousel]{position:absolute;inset:0;width:100%;height:100%;overflow:hidden;z-index:1;background:var(--pw-surface,#fff)}
+[data-pw-banner-greeting]{margin:0;padding:8px 12px;text-align:center;font:600 13px/1.4 system-ui,sans-serif;color:var(--pw-text);background:color-mix(in srgb,var(--pw-primary) 12%,var(--pw-surface,#fff));border-top:1px solid var(--pw-border)}
+[data-pw-promo-carousel]{position:relative;width:100%;aspect-ratio:var(--pw-banner-ratio,21/9);height:auto;overflow:hidden;z-index:1;background:var(--pw-surface,#fff)}
 [data-pw-promo-carousel] a{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;display:block!important;opacity:0;pointer-events:none;overflow:hidden;transform:none!important}
 [data-pw-promo-carousel] a.is-active{opacity:1!important;pointer-events:auto;z-index:1}
-[data-pw-promo-carousel] img{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:cover!important;display:block!important;transform:none!important}
+[data-pw-promo-carousel] img{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:contain!important;display:block!important;transform:none!important}
 [data-pw-promo-nav]{position:absolute;top:50%;z-index:2;transform:translateY(-50%);border:0;border-radius:999px;background:color-mix(in srgb,var(--pw-surface,#fff) 92%,transparent);color:var(--pw-primary);padding:6px 10px;font-size:18px;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.12);cursor:pointer}
 [data-pw-promo-prev]{left:8px}
 [data-pw-promo-next]{right:8px}
@@ -60,6 +60,8 @@ function seed(section){
   section.setAttribute('data-pw-seed-subtitle',sub?String(sub.textContent||'').replace(/\\s+/g,' ').trim():'');
 }
 function greetingOf(section){
+  var inner=section.querySelector('[data-pw-banner-greeting]');
+  if(inner)return inner;
   var n=section.nextElementSibling;
   return n&&n.getAttribute('data-pw-banner-greeting')==='1'?n:null;
 }
@@ -135,7 +137,7 @@ function wireCarousel(host,box,items){
       if(!greet){
         greet=document.createElement('p');
         greet.setAttribute('data-pw-banner-greeting','1');
-        host.insertAdjacentElement('afterend',greet);
+        box.insertAdjacentElement('afterend',greet);
       }
       greet.textContent=text;
     }else if(greet)greet.remove();

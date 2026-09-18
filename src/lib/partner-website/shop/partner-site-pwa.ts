@@ -23,6 +23,18 @@ export function isPartnerShopServiceWorkerScriptUrl(scriptUrl: string): boolean 
   }
 }
 
+/** Body of the tenant shop worker — not NanoAI next-pwa / `public/push-sw.js`. */
+export function partnerShopServiceWorkerSourceIsShop(source: string): boolean {
+  const text = String(source || '')
+  if (text.includes("data.title || 'NanoAI'")) return false
+  if (text.includes('/icons/icon-192x192.png')) return false
+  return text.includes('pw-shop-shell-') || text.includes('Partner shop SW')
+}
+
+export function partnerShopPushIconPath(siteSlug: string, customDomain: boolean): string {
+  return partnerSitePwaIconPath(siteSlug.trim().toLowerCase(), 192, customDomain)
+}
+
 export const PARTNER_PWA_ICON_SIZES = [32, 180, 192, 512] as const
 export type PartnerPwaIconSize = (typeof PARTNER_PWA_ICON_SIZES)[number]
 
@@ -119,7 +131,7 @@ export function buildPartnerShopServiceWorkerSource(input: {
   iconPath?: string
 }): string {
   const slug = input.siteSlug.trim().toLowerCase()
-  const cacheName = `pw-shop-shell-v4-${slug}`
+  const cacheName = `pw-shop-shell-v5-${slug}`
   const home = input.startUrl
   const customDomain = Boolean(input.customDomain)
   const inbox =
@@ -178,7 +190,8 @@ self.addEventListener('push', function (event) {
   var urlPath = data.url || INBOX;
   var origin = self.location.origin;
   var openUrl = urlPath.indexOf('http') === 0 ? urlPath : origin + (urlPath.charAt(0) === '/' ? urlPath : '/' + urlPath);
-  var iconUrl = ICON.indexOf('http') === 0 ? ICON : origin + (ICON.charAt(0) === '/' ? ICON : '/' + ICON);
+  var rawIcon = data.icon || ICON;
+  var iconUrl = rawIcon.indexOf('http') === 0 ? rawIcon : origin + (rawIcon.charAt(0) === '/' ? rawIcon : '/' + rawIcon);
   event.waitUntil(
     self.registration.showNotification(title, {
       body: body,

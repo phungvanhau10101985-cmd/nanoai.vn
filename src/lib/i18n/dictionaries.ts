@@ -737,6 +737,8 @@ export type Dictionary = {
     messagingOrdersLink: string
     messagingAnalyticsLink: string
     messagingSettingsPageTitle: string
+    /** Ô chọn shop trên thanh header trang quản trị */
+    settingsHeaderShopSelect: string
     messagingInboxDescription: string
     noWorkspaceInboxCta: string
     goToInbox: string
@@ -4281,6 +4283,7 @@ const VI_DICTIONARY: Dictionary = {
     messagingOrdersLink: 'Đơn hàng',
     messagingAnalyticsLink: 'Doanh thu',
     messagingSettingsPageTitle: 'Quản trị shop',
+    settingsHeaderShopSelect: 'Chọn shop',
     messagingInboxDescription:
       'Danh sách khách bên trái; khi mở một hội thoại, ô soạn tin cố định dưới cùng màn hình.',
     noWorkspaceInboxCta: 'Bạn chưa có workspace nhắn tin. Vào Quản trị để tạo shop và kết nối Facebook / Zalo / chat.',
@@ -7836,6 +7839,7 @@ const EN_DICTIONARY: Dictionary = {
     messagingOrdersLink: 'Orders',
     messagingAnalyticsLink: 'Revenue',
     messagingSettingsPageTitle: 'Shop admin',
+    settingsHeaderShopSelect: 'Select shop',
     messagingInboxDescription:
       'Customer list on the left; when a thread is open, the composer stays fixed at the bottom of the screen.',
     noWorkspaceInboxCta: 'You have no messaging workspace yet. Open settings to create a shop and connect Facebook / Zalo / chat.',
@@ -11381,6 +11385,7 @@ const ZH_DICTIONARY: Dictionary = {
     messagingOrdersLink: '订单',
     messagingAnalyticsLink: '营收',
     messagingSettingsPageTitle: '店铺管理',
+    settingsHeaderShopSelect: '选择店铺',
     messagingInboxDescription: '左侧为客户列表；打开会话后，输入框固定在屏幕底部。',
     noWorkspaceInboxCta: '您还没有消息工作区。前往设置创建店铺并连接 Facebook / Zalo / 聊天。',
     goToInbox: '返回收件箱',
@@ -14838,6 +14843,7 @@ const JA_DICTIONARY: Dictionary = {
     messagingOrdersLink: '注文',
     messagingAnalyticsLink: '売上',
     messagingSettingsPageTitle: '店舗管理',
+    settingsHeaderShopSelect: 'ショップを選択',
     messagingInboxDescription: '左に顧客一覧。会話を開くと、入力欄は画面下に固定されます。',
     noWorkspaceInboxCta: 'メッセージ用ワークスペースがありません。設定で店舗を作成し Facebook / Zalo / チャットを接続してください。',
     goToInbox: '受信箱へ',
@@ -18361,6 +18367,7 @@ const KO_DICTIONARY: Dictionary = {
     messagingOrdersLink: '주문',
     messagingAnalyticsLink: '매출',
     messagingSettingsPageTitle: '매장 관리',
+    settingsHeaderShopSelect: '매장 선택',
     messagingInboxDescription: '왼쪽에 고객 목록. 대화를 열면 입력창이 화면 하단에 고정됩니다.',
     noWorkspaceInboxCta: '메시징 워크스페이스가 없습니다. 설정에서 매장을 만들고 Facebook / Zalo / 채팅을 연결하세요.',
     goToInbox: '받은편지함으로',

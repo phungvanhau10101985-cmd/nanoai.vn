@@ -348,12 +348,20 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
         onToast?.(t.error, 'destructive')
         return
       }
-      if (config && !config.clearanceEnabled) {
-        await fetch(api, {
+      if (config) {
+        const saved = await fetch(api, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...config, clearanceEnabled: true }),
+          body: JSON.stringify({
+            ...config,
+            clearanceEnabled: true,
+            clearanceDiscountPercent: pct,
+          }),
         })
+        if (!saved.ok) {
+          onToast?.(t.error, 'destructive')
+          return
+        }
         await load()
       }
       onToast?.(t.warehouseApplied)

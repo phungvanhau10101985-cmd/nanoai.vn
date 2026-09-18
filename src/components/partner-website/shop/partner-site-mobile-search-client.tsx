@@ -716,6 +716,7 @@ export function PartnerSiteMobileSearchClient({
               wrapperClassName="pw-mobile-search-camera-wrap"
               triggerButtonClassName="pw-mobile-search-camera"
               triggerIconClassName="block size-6 shrink-0 pointer-events-none"
+              directFilePicker
             />
             <button type="submit" className="pw-mobile-search-go" aria-label={t.searchButton}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>

@@ -475,6 +475,7 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
 
   if [[ -n "${CRON_SECRET_FALLBACK}" ]]; then
     ensure_cron "partner-marketing-banners" "25 2 * * * curl -fsS -m 300 -X POST http://127.0.0.1:3000/api/cron/partner-marketing-banners -H \"Authorization: Bearer ${CRON_SECRET_FALLBACK}\" >> /root/logs/partner-marketing-banners.log 2>&1"
+    ensure_cron "partner-marketing-banners-catchup" "5-59/10 * * * * curl -fsS -m 280 -X POST \"http://127.0.0.1:3000/api/cron/partner-marketing-banners?maxGenerate=1\" -H \"Authorization: Bearer ${CRON_SECRET_FALLBACK}\" >> /root/logs/partner-marketing-banners-catchup.log 2>&1"
     ensure_cron "partner-email-daily" "0 9 * * * curl -fsS -m 300 -X POST http://127.0.0.1:3000/api/cron/partner-email-daily -H \"Authorization: Bearer ${CRON_SECRET_FALLBACK}\" >> /root/logs/partner-email-daily.log 2>&1"
   else
     echo "  Cảnh báo: thiếu CRON_SECRET, bỏ qua cron partner-marketing-banners / partner-email-daily."

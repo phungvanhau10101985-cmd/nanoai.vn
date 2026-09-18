@@ -182,12 +182,12 @@ export function bindLiveMarketingBannersToHtml(
         stampAttr(stampAttr(open, PW_BANNER_LIVE_ATTR, '1'), 'data-pw-personalize-banner', 'promo')
       )
       chunks.push(buildLiveMarketingBannerCarouselHtml(items, locale))
-      chunks.push(inner)
-      chunks.push(closeTok)
       const greet = String(items[0]?.greeting || '').trim()
       if (greet) {
         chunks.push(`<p data-pw-banner-greeting="1">${escapeHtml(greet)}</p>`)
       }
+      chunks.push(inner)
+      chunks.push(closeTok)
     } else {
       chunks.push(stampAttr(open, PW_BANNER_LIVE_ATTR, 'off'))
       chunks.push(inner)

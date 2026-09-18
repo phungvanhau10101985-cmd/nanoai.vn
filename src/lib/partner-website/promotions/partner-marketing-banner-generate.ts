@@ -176,7 +176,15 @@ export async function generatePartnerMarketingBanner(input: {
     kind: input.kind,
     campaignKey: key,
   })
-  if (generating) return { ok: false, error: 'Banner này đang được tạo.', status: 409 }
+  if (generating) {
+    const started = Date.parse(generating.created_at)
+    const stale = !Number.isFinite(started) || Date.now() - started >= 20 * 60 * 1000
+    if (!stale) return { ok: false, error: 'Banner này đang được tạo.', status: 409 }
+    await failPartnerMarketingBannerAssetFromPg({
+      id: generating.id,
+      errorMessage: 'Tạo banner bị treo (generating quá hạn).',
+    })
+  }
 
   if (input.chargeCredits && input.actorUserId) {
     try {

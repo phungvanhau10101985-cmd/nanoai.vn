@@ -15,11 +15,7 @@ import {
   resolvePartnerStorefrontSaleCalendarFromPg,
 } from '@/lib/db/messaging-partner-feature-test-pg'
 import { fetchNanoaiChatProfileFromPg } from '@/lib/db/profiles-repo'
-import {
-  daysUntilNextBirthday,
-  isInBirthdayOfferWindow,
-  nextBirthdayIsoFromProfileYmd,
-} from '@/lib/messaging/birthday-promo-interest-inventory-ids'
+import { isInBirthdayOfferWindow } from '@/lib/messaging/birthday-promo-interest-inventory-ids'
 import { shopBannerDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import type { WebLocale } from '@/lib/i18n/config'
 import { birthdayPercentForFeatureTest } from '@/lib/partner-website/promotions/partner-feature-test'
@@ -31,6 +27,11 @@ import {
   partnerSaleBannerLookupDate,
   type PartnerMarketingBannerPublicItem,
 } from '@/lib/partner-website/promotions/partner-marketing-banner'
+import {
+  daysUntilBirthdayInTimezone,
+  nextBirthdayYmdInTimezone,
+  PARTNER_SALE_DEFAULT_TIMEZONE,
+} from '@/lib/partner-website/promotions/partner-sale-calendar'
 
 function toPublicItem(
   row: PartnerMarketingBannerAssetRow,
@@ -104,13 +105,14 @@ export async function resolvePartnerBirthdayBannerContext(input: {
   if (linkedUserId) {
     const nano = await fetchNanoaiChatProfileFromPg(linkedUserId)
     birthDate = String(nano?.birthDate ?? '').trim().slice(0, 10)
+    displayName = nano?.fullName?.trim() || ''
     const email = (await getAuthUserEmailFromPg(linkedUserId))?.toLowerCase() ?? ''
     if (email) {
       const profile = await fetchPartnerCustomerProfileByEmailFromPg({
         partnerId: input.partnerId,
         emailNormalized: email,
       })
-      displayName = profile?.customer_name?.trim() || ''
+      displayName = profile?.customer_name?.trim() || displayName
       if (!birthDate) birthDate = profile?.date_of_birth?.trim().slice(0, 10) || ''
     }
   } else if (guestAccountId) {
@@ -127,12 +129,14 @@ export async function resolvePartnerBirthdayBannerContext(input: {
   }
 
   if (!birthDate) return null
-  const daysUntil = daysUntilNextBirthday(birthDate)
+  const timezone =
+    (await fetchPartnerSaleCalendarConfigFromPg(input.partnerId)).timezone || PARTNER_SALE_DEFAULT_TIMEZONE
+  const daysUntil = daysUntilBirthdayInTimezone(birthDate, timezone)
   if (daysUntil == null) return null
   if (!isInBirthdayOfferWindow(daysUntil, promo.offer_days_before_max, promo.offer_days_before_min)) {
     return null
   }
-  const nextIso = nextBirthdayIsoFromProfileYmd(birthDate)
+  const nextIso = nextBirthdayYmdInTimezone(birthDate, timezone)
   if (!nextIso) return null
   const month = Number(nextIso.slice(5, 7))
   const day = Number(nextIso.slice(8, 10))
@@ -206,7 +210,7 @@ export async function resolveCurrentPartnerMarketingBanners(input: {
         ? toPublicItem(found.asset, {
             siteSlug: input.siteSlug,
             eventDate: found.eventDate,
-            greeting: `[Test] ${partnerMarketingBannerGreeting(locale, profile?.customer_name ?? '')}`,
+            greeting: partnerMarketingBannerGreeting(locale, profile?.customer_name ?? ''),
             isTest: true,
             eventLabel: `[Test] CMSN ${Number(found.eventDate.slice(8, 10))}/${Number(found.eventDate.slice(5, 7))}`,
           })
@@ -237,7 +241,7 @@ export async function resolveCurrentPartnerMarketingBanners(input: {
       ? toPublicItem(asset, {
           siteSlug: input.siteSlug,
           eventDate: sale.saleDate,
-          greeting: sale.isTest ? sale.eventLabel : null,
+          greeting: null,
           isTest: sale.isTest,
           eventLabel: sale.eventLabel,
         })

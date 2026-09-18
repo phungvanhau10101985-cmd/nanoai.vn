@@ -441,13 +441,10 @@ export async function findTestBirthdayPartnerMarketingBannerFromPg(input: {
 export async function listBirthdayDatesWithCustomersFromPg(input: {
   partnerId: string
   today: Date
-}): Promise<Date[]> {
+}): Promise<Array<{ day: number; month: number }>> {
   if (!isPgConfigured()) return []
-  const targets = Array.from({ length: 8 }, (_, offset) => {
-    const d = new Date(input.today)
-    d.setDate(d.getDate() + offset)
-    return d
-  })
+  const today = vnYmd(input.today)
+  const targets = Array.from({ length: 8 }, (_, offset) => addYmd(today, offset))
   const pairs = new Set<string>()
   try {
     const profileRows = await pgQuery<{ month: number; day: number }>(
@@ -476,15 +473,14 @@ export async function listBirthdayDatesWithCustomersFromPg(input: {
   } catch (e) {
     console.warn('[listBirthdayDatesWithCustomersFromPg] linked', e)
   }
-  return targets.filter((target) => {
-    const key = `${target.getMonth() + 1}-${target.getDate()}`
-    if (pairs.has(key)) return true
-    const isFeb28NonLeap =
-      target.getMonth() === 1 &&
-      target.getDate() === 28 &&
-      !isLeapYear(target.getFullYear())
-    return isFeb28NonLeap && pairs.has('2-29')
-  })
+  return targets
+    .filter((target) => {
+      const key = `${target.month}-${target.day}`
+      if (pairs.has(key)) return true
+      const isFeb28NonLeap = target.month === 2 && target.day === 28 && !isLeapYear(target.year)
+      return isFeb28NonLeap && pairs.has('2-29')
+    })
+    .map((target) => ({ day: target.day, month: target.month }))
 }
 
 function isLeapYear(year: number): boolean {

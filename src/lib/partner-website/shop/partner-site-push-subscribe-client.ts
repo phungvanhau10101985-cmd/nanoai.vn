@@ -3,6 +3,7 @@
 import { getPushVapidPublicKey, isStandalonePwa, urlBase64ToUint8Array } from '@/lib/pwa/push-subscribe-client'
 import {
   isPartnerShopServiceWorkerScriptUrl,
+  partnerShopServiceWorkerSourceIsShop,
   partnerSitePwaScope,
   partnerSitePwaStartUrl,
   partnerSitePwaSwPath,
@@ -36,8 +37,57 @@ export function partnerShopPushCannotAutoSubscribe(): boolean {
   return isIosDevice() && !isStandalonePwa()
 }
 
+export function partnerShopPushOptOutStorageKey(siteSlug: string): string {
+  return `pw_shop_push_opt_out_v1:${siteSlug.trim().toLowerCase()}`
+}
+
+export function partnerShopPushUserOptedOut(siteSlug: string): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(partnerShopPushOptOutStorageKey(siteSlug)) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function setPartnerShopPushUserOptedOut(siteSlug: string, optedOut: boolean): void {
+  if (typeof window === 'undefined') return
+  try {
+    const key = partnerShopPushOptOutStorageKey(siteSlug)
+    if (optedOut) window.localStorage.setItem(key, '1')
+    else window.localStorage.removeItem(key)
+  } catch {
+    /* ignore quota */
+  }
+}
+
 function registrationScriptUrl(reg: ServiceWorkerRegistration): string {
   return reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || ''
+}
+
+async function registrationScriptIsShopWorker(script: string): Promise<boolean> {
+  if (!script) return false
+  try {
+    const res = await fetch(script, { cache: 'no-store' })
+    const text = await res.text()
+    return partnerShopServiceWorkerSourceIsShop(text)
+  } catch {
+    return isPartnerShopServiceWorkerScriptUrl(script)
+  }
+}
+
+async function unregisterPushRegistration(reg: ServiceWorkerRegistration): Promise<void> {
+  try {
+    const sub = await reg.pushManager.getSubscription()
+    if (sub) await sub.unsubscribe()
+  } catch {
+    /* ignore */
+  }
+  try {
+    await reg.unregister()
+  } catch {
+    /* ignore */
+  }
 }
 
 async function waitForWorkerState(worker: ServiceWorker | null): Promise<void> {
@@ -74,22 +124,19 @@ export async function ensurePartnerShopServiceWorkerRegistration(
     await Promise.all(
       regs.map(async (reg) => {
         const script = registrationScriptUrl(reg)
-        if (!script || isPartnerShopServiceWorkerScriptUrl(script)) return
-        try {
-          const sub = await reg.pushManager.getSubscription()
-          if (sub) await sub.unsubscribe()
-        } catch {
-          /* ignore */
-        }
-        try {
-          await reg.unregister()
-        } catch {
-          /* ignore */
-        }
+        if (!script) return
+        if (await registrationScriptIsShopWorker(script)) return
+        await unregisterPushRegistration(reg)
       })
     )
     const remaining = await navigator.serviceWorker.getRegistrations()
-    const shopReg = remaining.find((reg) => isPartnerShopServiceWorkerScriptUrl(registrationScriptUrl(reg)))
+    let shopReg: ServiceWorkerRegistration | undefined
+    for (const reg of remaining) {
+      if (await registrationScriptIsShopWorker(registrationScriptUrl(reg))) {
+        shopReg = reg
+        break
+      }
+    }
     const reg = shopReg || (await navigator.serviceWorker.register(swHref, { scope }))
     await waitForWorkerState(reg.installing)
     await waitForWorkerState(reg.waiting)
@@ -99,8 +146,8 @@ export async function ensurePartnerShopServiceWorkerRegistration(
       /* ignore */
     }
     const ready = shopReg || (await navigator.serviceWorker.getRegistration(scope))
-    if (ready && isPartnerShopServiceWorkerScriptUrl(registrationScriptUrl(ready))) return ready
-    return isPartnerShopServiceWorkerScriptUrl(registrationScriptUrl(reg)) ? reg : null
+    if (ready && (await registrationScriptIsShopWorker(registrationScriptUrl(ready)))) return ready
+    return (await registrationScriptIsShopWorker(registrationScriptUrl(reg))) ? reg : null
   } catch (e) {
     console.warn('[shop-push] ensurePartnerShopServiceWorkerRegistration', e)
     return null
@@ -141,20 +188,18 @@ export async function syncPartnerSitePushSubscription(input: {
     const reg = await ensurePartnerShopServiceWorkerRegistration(input.siteSlug, input.customDomain)
     if (!reg) return false
     let sub = await reg.pushManager.getSubscription()
-    let created = false
     if (!sub) {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapidPublic),
       })
-      created = true
     }
     const json = sub.toJSON()
     const res = await fetch(partnerSitePushApiPath(input.siteSlug), {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', ...input.authHeaders },
-      body: JSON.stringify({ ...json, sendTest: Boolean(input.sendTest || created) }),
+      body: JSON.stringify({ ...json, sendTest: Boolean(input.sendTest) }),
     })
     if (!res.ok) {
       console.warn('[shop-push] subscribe failed', res.status)
@@ -168,6 +213,54 @@ export async function syncPartnerSitePushSubscription(input: {
   }
 }
 
+/** Default ON: request permission on shop PWA / Android, then subscribe. Respects user opt-out. */
+export async function ensurePartnerSitePushDefaultOn(input: {
+  siteSlug: string
+  customDomain: boolean
+  authHeaders: Record<string, string>
+}): Promise<boolean> {
+  if (typeof window === 'undefined' || !('Notification' in window) || !('PushManager' in window)) {
+    return false
+  }
+  if (partnerShopPushCannotAutoSubscribe()) return false
+  if (partnerShopPushUserOptedOut(input.siteSlug)) return false
+  if (Notification.permission === 'denied') return false
+  if (Notification.permission !== 'granted') {
+    const perm = await Notification.requestPermission()
+    if (perm !== 'granted') return false
+  }
+  setPartnerShopPushUserOptedOut(input.siteSlug, false)
+  return syncPartnerSitePushSubscription(input)
+}
+
+export async function disablePartnerSitePush(input: {
+  siteSlug: string
+  customDomain: boolean
+  authHeaders: Record<string, string>
+}): Promise<boolean> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return false
+  setPartnerShopPushUserOptedOut(input.siteSlug, true)
+  try {
+    const reg = await ensurePartnerShopServiceWorkerRegistration(input.siteSlug, input.customDomain)
+    const sub = await reg?.pushManager.getSubscription()
+    const endpoint = sub?.endpoint
+    if (endpoint) {
+      await fetch(partnerSitePushApiPath(input.siteSlug), {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...input.authHeaders },
+        body: JSON.stringify({ endpoint }),
+      })
+    }
+    if (sub) await sub.unsubscribe()
+    dispatchPartnerShopNotificationsRefresh()
+    return true
+  } catch (e) {
+    console.warn('[shop-push] disablePartnerSitePush', e)
+    return false
+  }
+}
+
 /** OS Settings toggle does not create a PushSubscription — POST when JS permission is already granted. */
 export async function syncPartnerSitePushIfGranted(input: {
   siteSlug: string
@@ -175,12 +268,7 @@ export async function syncPartnerSitePushIfGranted(input: {
   authHeaders: Record<string, string>
   sendTest?: boolean
 }): Promise<boolean> {
-  if (typeof window === 'undefined' || !('Notification' in window) || !('PushManager' in window)) {
-    return false
-  }
-  if (partnerShopPushCannotAutoSubscribe()) return false
-  if (Notification.permission !== 'granted') return false
-  return syncPartnerSitePushSubscription(input)
+  return ensurePartnerSitePushDefaultOn(input)
 }
 
 export async function requestPartnerSitePushPermissionAndSubscribe(input: {
@@ -189,7 +277,9 @@ export async function requestPartnerSitePushPermissionAndSubscribe(input: {
   authHeaders: Record<string, string>
 }): Promise<boolean> {
   if (typeof window === 'undefined' || !('Notification' in window)) return false
-  const perm = await Notification.requestPermission()
+  setPartnerShopPushUserOptedOut(input.siteSlug, false)
+  const perm =
+    Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission()
   if (perm !== 'granted') return false
   return syncPartnerSitePushSubscription({ ...input, sendTest: true })
 }

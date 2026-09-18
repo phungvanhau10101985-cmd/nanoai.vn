@@ -89,7 +89,7 @@ test('PDP live strips leftover home promo hosts instead of painting sale slides'
   assert.match(out, /PDP/)
 })
 
-test('bindLiveMarketingBannersToHtml inserts greeting after the host', () => {
+test('bindLiveMarketingBannersToHtml inserts greeting inside the host under the image', () => {
   const birthday: PartnerMarketingBannerPublicItem = {
     ...sale,
     id: 'bday-1',
@@ -97,7 +97,9 @@ test('bindLiveMarketingBannersToHtml inserts greeting after the host', () => {
     greeting: 'Món quà sinh nhật dành riêng cho An',
   }
   const out = bindLiveMarketingBannersToHtml(seed, [birthday], 'vi')
-  assert.match(out, /<\/section><p data-pw-banner-greeting="1">Món quà sinh nhật dành riêng cho An<\/p>/)
+  assert.match(out, /data-pw-promo-carousel="1"/)
+  assert.match(out, /<p data-pw-banner-greeting="1">Món quà sinh nhật dành riêng cho An<\/p><\/section>/)
+  assert.doesNotMatch(out, /<\/section><p data-pw-banner-greeting/)
 })
 
 test('live banner uses page-sized AliCDN src and defers inactive slides', () => {

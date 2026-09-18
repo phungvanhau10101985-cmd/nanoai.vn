@@ -92,13 +92,13 @@ export async function updateProfileGender(
 /** Ngày sinh + giới tính trên hệ thống NanoAI (không theo shop) — `profiles.id` = `auth.users.id`. */
 export async function fetchNanoaiChatProfileFromPg(
   userId: string
-): Promise<{ birthDate: string | null; gender: GuestProfileGender | null } | null> {
+): Promise<{ birthDate: string | null; gender: GuestProfileGender | null; fullName: string | null } | null> {
   if (!isPgConfigured()) return null
   const uid = userId.trim()
   if (!uid || !UUID_RE.test(uid)) return null
   try {
-    const row = await pgQueryOne<{ birth_date: string | null; gender: string | null }>(
-      `select birth_date::text as birth_date, gender
+    const row = await pgQueryOne<{ birth_date: string | null; gender: string | null; full_name: string | null }>(
+      `select birth_date::text as birth_date, gender, full_name
        from public.profiles
        where id = $1::uuid
        limit 1`,
@@ -110,6 +110,7 @@ export async function fetchNanoaiChatProfileFromPg(
     return {
       birthDate: row.birth_date?.trim() || null,
       gender,
+      fullName: row.full_name?.trim() || null,
     }
   } catch (e) {
     console.warn('[profiles-repo] fetchNanoaiChatProfileFromPg', e)

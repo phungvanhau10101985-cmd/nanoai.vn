@@ -7,9 +7,11 @@ import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-s
 import { isStandalonePwa } from '@/lib/pwa/push-subscribe-client'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
+  disablePartnerSitePush,
   isIosDevice,
   isIosNonSafariBrowser,
   partnerShopPushCannotAutoSubscribe,
+  partnerShopPushUserOptedOut,
   requestPartnerSitePushPermissionAndSubscribe,
   syncPartnerSitePushSubscription,
 } from '@/lib/partner-website/shop/partner-site-push-subscribe-client'
@@ -73,6 +75,7 @@ export function PartnerSitePushEnableCard({ siteSlug, locale }: Props) {
   useEffect(() => {
     if (!ready || !isAuthenticated || permission !== 'granted') return
     if (partnerShopPushCannotAutoSubscribe()) return
+    if (partnerShopPushUserOptedOut(siteSlug)) return
     // Always POST this device's endpoint. GET `subscribed` is account-wide — another
     // phone/tab (or a leftover NanoAI SW) must not skip registering the shop PWA here.
     void syncPartnerSitePushSubscription({
@@ -122,6 +125,20 @@ export function PartnerSitePushEnableCard({ siteSlug, locale }: Props) {
     }
   }
 
+  async function disable() {
+    setBusy(true)
+    try {
+      const ok = await disablePartnerSitePush({
+        siteSlug,
+        customDomain,
+        authHeaders: authHeaders(),
+      })
+      if (ok) setSubscribed(false)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="pw-shop-push-card">
       <h3>{t.pushEnableTitle}</h3>
@@ -141,6 +158,15 @@ export function PartnerSitePushEnableCard({ siteSlug, locale }: Props) {
             onClick={() => void sendTest()}
           >
             {busy ? t.pushSyncing : t.pushTestButton}
+          </button>
+          <button
+            type="button"
+            className="pw-shop-btn"
+            style={{ marginTop: 8, background: 'transparent', color: 'inherit', border: '1px solid var(--pw-border, #e5e7eb)' }}
+            disabled={busy}
+            onClick={() => void disable()}
+          >
+            {t.pushDisableButton}
           </button>
         </>
       ) : !unsupported && !denied && !iosNeedsPwa ? (

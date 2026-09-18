@@ -5,8 +5,8 @@ import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-sessi
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import {
   ensurePartnerShopServiceWorkerRegistration,
+  ensurePartnerSitePushDefaultOn,
   PW_SHOP_NOTIFICATIONS_REFRESH_EVENT,
-  syncPartnerSitePushIfGranted,
 } from '@/lib/partner-website/shop/partner-site-push-subscribe-client'
 
 /** Registers shop SW + Web Push on every /site/{slug} page, including HTML landing. */
@@ -31,7 +31,7 @@ export function PartnerSiteShopPushBoot({ siteSlug }: { siteSlug: string }) {
     if (typeof window === 'undefined' || !('Notification' in window) || !('PushManager' in window)) return
     const run = () => {
       if (document.visibilityState === 'hidden') return
-      void syncPartnerSitePushIfGranted({
+      void ensurePartnerSitePushDefaultOn({
         siteSlug,
         customDomain,
         authHeaders: authHeaders(),

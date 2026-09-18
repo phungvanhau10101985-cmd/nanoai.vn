@@ -145,7 +145,7 @@ export function PartnerSiteMarketingBannerCarousel({ siteSlug, locale }: Props) 
       {active.greeting ? (
         <p
           data-pw-banner-greeting="1"
-          className="border-t border-[var(--pw-border)] bg-[var(--pw-surface)] px-3 py-2 text-center text-sm font-semibold text-[var(--pw-text)]"
+          className="border-t border-[var(--pw-border)] bg-[color-mix(in_srgb,var(--pw-primary)_12%,var(--pw-surface))] px-3 py-2 text-center text-sm font-semibold text-[var(--pw-text)]"
         >
           {active.greeting}
         </p>

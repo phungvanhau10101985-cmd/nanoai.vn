@@ -2137,13 +2137,35 @@ export function PartnerMessagingSettingsClient({
             <Menu className="h-5 w-5" aria-hidden />
           </Button>
         ) : null}
-        <h1 className="flex min-w-0 flex-1 items-center gap-2 text-base font-semibold tracking-tight sm:text-lg">
+        <h1 className="flex min-w-0 shrink-0 items-center gap-2 text-base font-semibold tracking-tight sm:text-lg">
           <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400 sm:flex">
             <Settings className="h-4 w-4" aria-hidden />
           </span>
           <span className="truncate leading-snug">{t.messagingSettingsPageTitle}</span>
         </h1>
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        {partners.length > 0 ? (
+          <Select
+            value={selectedPartnerId ?? undefined}
+            onValueChange={(v) => setSelectedPartnerAndPersist(v)}
+          >
+            <SelectTrigger
+              className="h-8 min-w-0 max-w-[16rem] flex-1 bg-background text-sm sm:max-w-xs"
+              aria-label={t.settingsHeaderShopSelect}
+            >
+              <SelectValue placeholder={t.settingsHeaderShopSelect} />
+            </SelectTrigger>
+            <SelectContent>
+              {partners.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.display_name} ({p.industry_key || 'fashion'})
+                  {p.dashboard_access === 'staff' ? ` — ${t.badgeStaffWorkspace}` : ''}
+                  {p.purge_at ? ' — chờ xóa' : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
+        <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
           <Button
             type="button"
             variant="ghost"

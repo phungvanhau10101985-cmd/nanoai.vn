@@ -10,6 +10,7 @@ import {
   type PartnerCustomerNotificationRow,
 } from '@/lib/db/messaging-partner-customer-notifications-pg'
 import { partnerShopPushClickPath } from '@/lib/messaging/partner-shop-push-click-path'
+import { partnerShopPushIconPath } from '@/lib/partner-website/shop/partner-site-pwa'
 import { isWebPushConfigured } from '@/lib/push/send-to-user'
 
 const IMMEDIATE_PUSH_CAP = 40
@@ -76,6 +77,7 @@ export async function sendPartnerCustomerWebPush(input: {
       body: shortBody,
       url,
       tag: input.tag || `pw-shop-${input.guestAccountId.slice(0, 8)}`,
+      icon: siteSlug ? partnerShopPushIconPath(siteSlug, sub.customDomain) : undefined,
     })
     try {
       await webpush.sendNotification(

@@ -8,6 +8,7 @@ import {
 import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import { generatePartnerMarketingBanner } from '@/lib/partner-website/promotions/partner-marketing-banner-generate'
 import { listUpcomingPartnerSaleEvents } from '@/lib/partner-website/promotions/partner-sale-calendar'
+import type { PartnerMarketingBannerKind } from '@/lib/partner-website/promotions/partner-marketing-banner'
 
 export type PartnerMarketingBannerCronResult = {
   partners: number
@@ -20,6 +21,7 @@ function emptyCounts() {
   return { created: 0, reused: 0, failed: 0 }
 }
 
+/** 188 order: birthday dates with customers → next same-day-month sale → warehouse %. */
 export async function ensureDailyPartnerMarketingBanners(input?: {
   limitPartners?: number
   maxGenerate?: number
@@ -36,77 +38,48 @@ export async function ensureDailyPartnerMarketingBanners(input?: {
   const maxGenerate = Math.max(1, Math.min(8, input?.maxGenerate ?? 4))
   const today = new Date()
 
+  async function tryCreate(inputCreate: {
+    partnerId: string
+    ownerUserId: string | null
+    kind: Exclude<PartnerMarketingBannerKind, 'regular'>
+    day: number
+    month: number
+    discountPercent: number
+    bucket: 'birthday' | 'sale' | 'warehouse'
+  }): Promise<void> {
+    const existing = await findActivePartnerMarketingBannerFromPg({
+      partnerId: inputCreate.partnerId,
+      kind: inputCreate.kind,
+      day: inputCreate.day,
+      month: inputCreate.month,
+      discountPercent: inputCreate.discountPercent,
+    })
+    if (existing) {
+      result[inputCreate.bucket].reused += 1
+      return
+    }
+    if (generated >= maxGenerate) return
+    const created = await generatePartnerMarketingBanner({
+      partnerId: inputCreate.partnerId,
+      kind: inputCreate.kind,
+      day: inputCreate.day,
+      month: inputCreate.month,
+      discountPercent: inputCreate.discountPercent,
+      actorUserId: inputCreate.ownerUserId,
+      chargeCredits: false,
+    })
+    if (created.ok) {
+      result[inputCreate.bucket].created += 1
+      generated += 1
+      return
+    }
+    result[inputCreate.bucket].failed += 1
+  }
+
   for (const partnerId of partnerIds) {
     if (generated >= maxGenerate) break
     const ownerUserId = await fetchMessagingPartnerOwnerUserIdFromPg(partnerId)
     const saleConfig = await fetchPartnerSaleCalendarConfigFromPg(partnerId)
-
-    if (generated < maxGenerate) {
-      const upcoming = listUpcomingPartnerSaleEvents({ settings: saleConfig, limit: 12 })
-      const saleEvent = upcoming.find((event) => event.sameDayMonth)
-      if (saleEvent) {
-        const existingSale = await findActivePartnerMarketingBannerFromPg({
-          partnerId,
-          kind: 'sale',
-          day: saleEvent.day,
-          month: saleEvent.month,
-          discountPercent: saleEvent.discountPercent,
-        })
-        if (existingSale) {
-          result.sale.reused += 1
-        } else {
-          const createdSale = await generatePartnerMarketingBanner({
-            partnerId,
-            kind: 'sale',
-            day: saleEvent.day,
-            month: saleEvent.month,
-            discountPercent: saleEvent.discountPercent,
-            actorUserId: ownerUserId,
-            chargeCredits: false,
-          })
-          if (createdSale.ok) {
-            result.sale.created += 1
-            generated += 1
-          } else {
-            result.sale.failed += 1
-          }
-        }
-      }
-    }
-
-    if (generated < maxGenerate) {
-      const warehousePct = Math.max(0, Number(saleConfig.clearanceDiscountPercent) || 0)
-      if (!saleConfig.clearanceEnabled || warehousePct <= 0) {
-        result.warehouse.skipped += 1
-      } else {
-        const existingWarehouse = await findActivePartnerMarketingBannerFromPg({
-          partnerId,
-          kind: 'warehouse',
-          day: 0,
-          month: 0,
-          discountPercent: warehousePct,
-        })
-        if (existingWarehouse) {
-          result.warehouse.reused += 1
-        } else {
-          const createdWarehouse = await generatePartnerMarketingBanner({
-            partnerId,
-            kind: 'warehouse',
-            day: 0,
-            month: 0,
-            discountPercent: warehousePct,
-            actorUserId: ownerUserId,
-            chargeCredits: false,
-          })
-          if (createdWarehouse.ok) {
-            result.warehouse.created += 1
-            generated += 1
-          } else {
-            result.warehouse.failed += 1
-          }
-        }
-      }
-    }
 
     const promo = await fetchBirthdayPromoForPartnerFromPg(partnerId)
     if (promo?.enabled) {
@@ -114,35 +87,46 @@ export async function ensureDailyPartnerMarketingBanners(input?: {
       if (percent > 0) {
         const dates = await listBirthdayDatesWithCustomersFromPg({ partnerId, today })
         for (const target of dates) {
-          if (generated >= maxGenerate) break
-          const existing = await findActivePartnerMarketingBannerFromPg({
+          await tryCreate({
             partnerId,
+            ownerUserId,
             kind: 'birthday',
-            day: target.getDate(),
-            month: target.getMonth() + 1,
+            day: target.day,
+            month: target.month,
             discountPercent: percent,
+            bucket: 'birthday',
           })
-          if (existing) {
-            result.birthday.reused += 1
-            continue
-          }
-          const created = await generatePartnerMarketingBanner({
-            partnerId,
-            kind: 'birthday',
-            day: target.getDate(),
-            month: target.getMonth() + 1,
-            discountPercent: percent,
-            actorUserId: ownerUserId,
-            chargeCredits: false,
-          })
-          if (created.ok) {
-            result.birthday.created += 1
-            generated += 1
-          } else {
-            result.birthday.failed += 1
-          }
         }
       }
+    }
+
+    const upcoming = listUpcomingPartnerSaleEvents({ settings: saleConfig, limit: 12 })
+    const saleEvent = upcoming.find((event) => event.sameDayMonth)
+    if (saleEvent) {
+      await tryCreate({
+        partnerId,
+        ownerUserId,
+        kind: 'sale',
+        day: saleEvent.day,
+        month: saleEvent.month,
+        discountPercent: saleEvent.discountPercent,
+        bucket: 'sale',
+      })
+    }
+
+    const warehousePct = Math.max(0, Number(saleConfig.clearanceDiscountPercent) || 0)
+    if (!saleConfig.clearanceEnabled || warehousePct <= 0) {
+      result.warehouse.skipped += 1
+    } else {
+      await tryCreate({
+        partnerId,
+        ownerUserId,
+        kind: 'warehouse',
+        day: 0,
+        month: 0,
+        discountPercent: warehousePct,
+        bucket: 'warehouse',
+      })
     }
   }
 
