@@ -45,6 +45,7 @@ import {
   pwSceneLocalOfZ,
   pwSceneLockForAvailableHtml,
   pwSceneLockFromWindowWidth,
+  pwSceneForcedLockDevice,
   pwLooksLikeMobileOrTabletUa,
   pwSceneLiveZoomScale,
   pwSceneLiveZoomViewWidth,
@@ -157,6 +158,11 @@ describe('pw scene layers', () => {
     expect(pwSceneDesignWidth('desktop')).toBe(1440)
     expect(pwSceneDesignWidth('laptop')).toBe(1280)
     expect(pwSceneDesignWidth(undefined)).toBe(1440)
+    expect(pwSceneForcedLockDevice({ stampedDevice: 'laptop', isEditor: false, uaDevice: '' })).toBe('laptop')
+    expect(pwSceneForcedLockDevice({ stampedDevice: 'laptop', isEditor: true })).toBe('laptop')
+    expect(pwSceneForcedLockDevice({ queryDevice: 'mobile', stampedDevice: 'laptop' })).toBe('mobile')
+    expect(pwSceneForcedLockDevice({ isEditor: false, uaDevice: 'tablet' })).toBe('tablet')
+    expect(pwSceneForcedLockDevice({ isEditor: false, uaDevice: 'desktop' })).toBe('')
     expect(pwSceneCssVars('mobile')).toBe('--pw-scene-w:390px')
     expect(pwSceneCssVars('laptop')).toBe('--pw-scene-w:1280px')
     expect(pwSceneCssVars('desktop')).toBe('--pw-scene-w:1440px')
@@ -253,6 +259,10 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-scene-zoomed')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function uaDevice(){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function queryDevice(){')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain(
+      "else if(stampedDev==='mobile'||stampedDev==='tablet'||stampedDev==='laptop'||stampedDev==='desktop') s=stampedDev;"
+    )
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('var liveAuto=!q&&!s&&!isEditor();')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("get('pw-device')")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function zoomScale(scenePx,key){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('if(inner>8&&view>inner)view=inner')
@@ -295,7 +305,7 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).not.toContain('ratio>1.04')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("querySelector('.pw-visual-'+k+',[data-pw-visual-device=\"'+k+'\"]')")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function pick(preferred)')
-    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('var liveAuto=!q&&!isEditor();')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('var liveAuto=!q&&!s&&!isEditor();')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("else if(ua==='mobile'||ua==='tablet') s=ua;")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).not.toContain('var s=queryDevice()||stamped()||uaDevice();')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("if(/android/i.test(ua))return /mobile/i.test(ua)?'mobile':'tablet';")

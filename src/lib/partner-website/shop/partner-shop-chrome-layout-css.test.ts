@@ -6,7 +6,7 @@ import {
   PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID,
   PARTNER_SHOP_LOGO_HOST_SCRIPT,
 } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
-import { PW_SCENE_HEAD_Z } from '@/lib/partner-website/visual-editor/pw-scene'
+import { PW_SCENE_HEAD_Z, PW_WIDE_HEADER_MAIN_HOST } from '@/lib/partner-website/visual-editor/pw-scene'
 
 test('chrome layout css is injected once before </head>', () => {
   const html = '<!DOCTYPE html><html><head><title>Shop</title></head><body><nav class="pw-shop-bottom-nav"></nav></body></html>'
@@ -246,7 +246,13 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('var C=window.__pwCoordinate'), true)
   assert.equal(once.includes('C.resolveDevice({'), true)
   assert.equal(once.includes('forcedDevice:s'), true)
-  assert.equal(once.includes('var liveAuto=!q&&!isEditor();'), true)
+  assert.equal(once.includes('var liveAuto=!q&&!s&&!isEditor();'), true)
+  assert.equal(
+    once.includes(
+      "else if(stampedDev==='mobile'||stampedDev==='tablet'||stampedDev==='laptop'||stampedDev==='desktop') s=stampedDev;"
+    ),
+    true
+  )
   assert.equal(once.includes('html:not([data-pw-edit-device="desktop"]):not([data-pw-scene-lock="desktop"]) .pw-nav-main'), true)
   const hideDockDesktopStamp =
     'html[data-pw-scene-lock="desktop"] .pw-bottom-nav,html[data-pw-scene-lock="desktop"] .pw-shop-bottom-nav,html[data-pw-scene-lock="laptop"] .pw-bottom-nav,html[data-pw-scene-lock="laptop"] .pw-shop-bottom-nav,html[data-pw-edit-device="desktop"] .pw-bottom-nav,html[data-pw-edit-device="desktop"] .pw-shop-bottom-nav,html[data-pw-edit-device="laptop"] .pw-bottom-nav,html[data-pw-edit-device="laptop"] .pw-shop-bottom-nav{display:none!important}'
@@ -319,7 +325,9 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes(`.pw-header,.pw-shop-header{position:sticky!important;top:0!important;z-index:${PW_SCENE_HEAD_Z}!important;isolation:isolate`), false)
   assert.equal(once.includes('position:fixed!important'), true)
   assert.equal(once.includes('z-index:160'), true)
-  assert.equal(once.includes('html:not([data-pw-edit-device="mobile"]):not([data-pw-scene-lock="mobile"]) .pw-header-main,html:not([data-pw-edit-device="mobile"]):not([data-pw-scene-lock="mobile"]) .pw-shop-header-inner{display:flex!important'), true)
+  assert.equal(once.includes(`${PW_WIDE_HEADER_MAIN_HOST} .pw-header-main,${PW_WIDE_HEADER_MAIN_HOST} .pw-shop-header-inner{display:flex!important`), true)
+  assert.equal(once.includes('not([data-pw-edit-device="tablet"])'), true)
+  assert.equal(once.includes('padding:10px 16px!important;width:100%!important;max-width:none!important'), true)
   assert.equal(once.includes('min-width:0;position:relative!important;max-width:var(--pw-block-w)!important'), true)
   assert.equal(once.includes('html .pw-topbar-inner,html .pw-shop-topbar-inner{display:flex!important;justify-content:flex-end!important'), true)
   assert.equal(once.includes('padding-right:max(0px,calc(var(--pw-chrome-inset,60px) - var(--pw-kit-x, 0px)))!important'), true)

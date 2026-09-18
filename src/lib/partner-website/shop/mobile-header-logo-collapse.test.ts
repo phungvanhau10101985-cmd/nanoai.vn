@@ -106,7 +106,7 @@ test('chrome layout injects mobile logo script and stack CSS once', () => {
   assert.equal(once.includes('.pw-container.pw-header-main'), true)
   assert.equal(once.includes('html[data-pw-edit-device="mobile"] .pw-header a.pw-brand:not([data-pw-logo-float])'), true)
   assert.equal(once.includes('left:auto!important'), true)
-  assert.equal(once.includes('html:not([data-pw-edit-device="mobile"]):not([data-pw-scene-lock="mobile"]) .pw-header-main'), true)
+  assert.equal(once.includes('html:not([data-pw-edit-device="mobile"]):not([data-pw-scene-lock="mobile"]):not([data-pw-edit-device="tablet"]):not([data-pw-scene-lock="tablet"]) .pw-header-main'), true)
   assert.equal(once.includes('@media (min-width:768px) and (max-width:899px)'), true)
   assert.equal(once.includes('html[data-pw-edit-device="tablet"] .pw-brand-cluster'), true)
   assert.equal(

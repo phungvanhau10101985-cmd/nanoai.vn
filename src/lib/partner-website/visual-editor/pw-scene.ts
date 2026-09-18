@@ -285,6 +285,33 @@ export function pwSceneLockFromWindowWidth(
   })
 }
 
+const PW_SCENE_LOCK_DEVICES = ['mobile', 'tablet', 'laptop', 'desktop'] as const
+
+function asPwSceneLockDevice(raw: unknown): PwSceneDevice | '' {
+  const v = String(raw || '').trim()
+  return PW_SCENE_LOCK_DEVICES.includes(v as PwSceneDevice) ? (v as PwSceneDevice) : ''
+}
+
+/**
+ * Khóa máy từ `?pw-device=` / stamp file / editor — không đoán theo iframe hẹp.
+ * Sửa nhanh Laptop 1280 trong khung chưa layout (hoặc scrollbar < 1280) không được
+ * bị `apply()` ghi `--pw-scene-w:768` rồi chỉ hết sau khi zoom.
+ */
+export function pwSceneForcedLockDevice(input: {
+  queryDevice?: unknown
+  stampedDevice?: unknown
+  isEditor?: boolean
+  uaDevice?: unknown
+}): PwSceneDevice | '' {
+  const query = asPwSceneLockDevice(input.queryDevice)
+  if (query) return query
+  const stamped = asPwSceneLockDevice(input.stampedDevice)
+  if (stamped) return stamped
+  if (input.isEditor) return asPwSceneLockDevice(input.uaDevice)
+  const ua = asPwSceneLockDevice(input.uaDevice)
+  return ua === 'mobile' || ua === 'tablet' ? ua : ''
+}
+
 /** Khi shop chưa lưu bản laptop/tablet, khóa đúng máy đó sẽ ẩn hết và trang trắng. */
 export const PW_SCENE_LOCK_FALLBACK = PW_DEVICE_FALLBACK_ORDER
 
@@ -340,6 +367,10 @@ export const PW_SCENE_LAPTOP_HOSTS = pwSceneDeviceHosts('laptop')
 export const PW_SCENE_DESKTOP_HOSTS = pwSceneDeviceHosts('desktop')
 export const PW_SCENE_COMPACT_HOSTS = [...PW_SCENE_PHONE_HOSTS, ...PW_SCENE_TABLET_HOSTS]
 export const PW_SCENE_WIDE_HOSTS = [...PW_SCENE_LAPTOP_HOSTS, ...PW_SCENE_DESKTOP_HOSTS]
+
+/** Desktop + laptop only. Tablet must not inherit content-column width + chrome-inset. */
+export const PW_WIDE_HEADER_MAIN_HOST =
+  'html:not([data-pw-edit-device="mobile"]):not([data-pw-scene-lock="mobile"]):not([data-pw-edit-device="tablet"]):not([data-pw-scene-lock="tablet"])'
 
 /** Gắn mỗi selector trong khối CSS (không có @media) vào từng host. */
 export function pwHostPrefixCss(hosts: readonly string[], css: string): string {
@@ -824,11 +855,12 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     var stampedDev=stamped();
     var s;
     if(q) s=q;
-    else if(isEditor()) s=stampedDev||ua;
+    else if(stampedDev==='mobile'||stampedDev==='tablet'||stampedDev==='laptop'||stampedDev==='desktop') s=stampedDev;
+    else if(isEditor()) s=ua;
     else if(ua==='mobile'||ua==='tablet') s=ua;
     else s='';
     var inner=window.innerWidth||(document.documentElement&&document.documentElement.clientWidth)||0;
-    var liveAuto=!q&&!isEditor();
+    var liveAuto=!q&&!s&&!isEditor();
     return C.resolveDevice({
       forcedDevice:s,
       outerWidth:(liveAuto||s==='mobile'||s==='tablet')?inner:(window.outerWidth||inner),
