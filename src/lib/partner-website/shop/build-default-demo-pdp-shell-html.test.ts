@@ -37,6 +37,7 @@ test('default demo PDP shell includes gallery, sizes, colors, qty, and reviews',
   assert.match(html, /id="pw-pdp-qa"/)
   assert.match(html, /pw-shop-product-video/)
   assert.match(html, /data-pw-pdp-slot="size-guide"/)
+  assert.match(html, /data-pw-size-guide-open="1"/)
   assert.doesNotMatch(html, /data-pw-pdp-slot="consult"/)
   assert.match(html, /data-pw-pdp-slot="review-form"/)
   assert.match(html, /data-pw-pdp-slot="low-stock"/)

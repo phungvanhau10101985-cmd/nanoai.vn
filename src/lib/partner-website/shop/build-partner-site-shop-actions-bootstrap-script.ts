@@ -829,6 +829,36 @@ function hydrateContactChatLinks(force){
     applyChannels({});
   });
 }
+function hoistSizeGuideModal(modal){
+  if(!modal||!document.body)return modal;
+  if(modal.parentNode!==document.body)document.body.appendChild(modal);
+  return modal;
+}
+function bindSizeGuideModal(){
+  hoistSizeGuideModal(document.querySelector('[data-pw-size-guide-modal]'));
+  if(window.__pwSizeGuideBound)return;
+  window.__pwSizeGuideBound=1;
+  document.addEventListener('click',function(e){
+    var t=e.target;
+    if(!t||!t.closest)return;
+    var modal=document.querySelector('[data-pw-size-guide-modal]');
+    if(!modal)return;
+    hoistSizeGuideModal(modal);
+    if(t.closest('[data-pw-size-guide-close]')){
+      e.preventDefault();
+      modal.setAttribute('hidden','');
+      return;
+    }
+    if(t===modal){
+      modal.setAttribute('hidden','');
+      return;
+    }
+    var openBtn=t.closest('[data-pw-size-guide-open],[data-pw-pdp-slot="size-guide"] button,[data-pw-variant-size-guide]');
+    if(!openBtn)return;
+    e.preventDefault();
+    modal.removeAttribute('hidden');
+  });
+}
 function bindShareLeadCoupon(){
   document.querySelectorAll('[data-pw-share],[data-pw-chrome-btn="share"]').forEach(function(el){
     if(el.getAttribute('data-pw-share-bound'))return;
@@ -986,7 +1016,7 @@ function runHydrate(forceNetwork){
     window.__pwShopHydrating=false;
   }
 }
-function run(){captureGoogleDiscount();captureAffiliate();paintAffiliateShareBar();runHydrate(true);
+function run(){captureGoogleDiscount();captureAffiliate();paintAffiliateShareBar();bindSizeGuideModal();runHydrate(true);
   consumeGoogleHandoff().then(function(){captureAffiliate();paintAffiliateShareBar();flushPendingCart();});
   document.addEventListener('pw-partner-site-guest-session-change',function(){captureAffiliate();paintAffiliateShareBar();});
   window.addEventListener('pw-partner-site-guest-session-change',function(){captureAffiliate();paintAffiliateShareBar();});

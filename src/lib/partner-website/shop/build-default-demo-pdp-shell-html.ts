@@ -13,7 +13,6 @@ import {
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   partnerSiteHomePath,
-  partnerSiteInfoPath,
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { buildOutfitProductsSectionHtml } from '@/lib/partner-website/shop/outfit-products'
@@ -61,7 +60,6 @@ export function buildDefaultDemoPdpShellHtml(input?: {
   const colors = (p.colors ?? []).filter((c) => c.name)
   const realUse = uniqueUrls(p.realUseImageUrls ?? [])
   const material = String(p.materialImageUrl || '').trim()
-  const sizeGuide = String(p.sizeGuideImageUrl || '').trim()
   const reviews = p.reviews ?? []
   const related = p.relatedProducts ?? []
   const crumbs = p.breadcrumb ?? []
@@ -83,7 +81,6 @@ export function buildDefaultDemoPdpShellHtml(input?: {
     p.priceAmount != null && effective < p.priceAmount
       ? formatPartnerShopMoneyVnd(p.priceAmount - effective)
       : ''
-  const sizeGuideHref = slug ? escapeAttr(partnerSiteInfoPath(slug, 'size-guide')) : '#'
   const homeHref = slug ? escapeAttr(partnerSiteHomePath(slug)) : '#'
   const productsHref = slug ? escapeAttr(partnerSiteProductsPath(slug)) : '#'
   const shareBtn = `<button type="button" class="pw-pdp-pill" data-pw-pdp-slot="share">${escapeHtml(t.pdpShareCopy)}</button>`
@@ -199,12 +196,9 @@ ${chrome.header}
         <div style="margin-top:16px" ${pwElAttr(PW_EL.variant)} data-pw-pdp-option="size">
           <p style="font-weight:700;margin:0 0 8px;font-size:14px">${escapeHtml(t.sizeLabel)}</p>
           <div class="pw-pdp-pills">${sizePills}</div>
-          <button type="button" class="pw-shop-btn pw-shop-btn-outline" style="margin-top:8px;font-size:13px">${escapeHtml(t.sizeGuideButton)}</button>
-          ${
-            sizeGuide
-              ? `<div data-pw-pdp-slot="size-guide" style="margin-top:8px"><img src="${escapeAttr(sizeGuide)}" alt="${escapeAttr(t.sizeGuideModalTitle)}" loading="lazy" decoding="async" style="width:100%;max-width:360px;height:auto;border-radius:8px;border:1px solid var(--pw-border)" /></div>`
-              : `<a href="${sizeGuideHref}" style="display:inline-block;margin-top:8px;font-size:13px">${escapeHtml(t.sizeGuideFallbackLink)}</a>`
-          }
+          <div data-pw-pdp-slot="size-guide" style="margin-top:8px">
+            <button type="button" class="pw-shop-btn pw-shop-btn-outline" style="font-size:13px" data-pw-size-guide-open="1">${escapeHtml(t.sizeGuideButton)}</button>
+          </div>
         </div>
         <div style="margin-top:16px">
           <p style="font-weight:700;margin:0 0 8px;font-size:14px">${escapeHtml(t.pdpQtyBuy)}</p>

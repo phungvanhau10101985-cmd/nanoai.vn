@@ -11,6 +11,7 @@ import { partnerSiteHref } from '@/lib/messaging/partner-custom-domain-site-path
 import { rewritePartnerCustomDomainOriginForSeo } from '@/lib/messaging/partner-custom-domain-hostname'
 import { buildPartnerSiteProductKey } from '@/lib/partner-website/shop/partner-site-product-slug'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
+import { PARTNER_SIZE_GUIDE_KINDS } from '@/lib/partner-website/shop/partner-site-size-guide'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,7 +57,30 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ slug: strin
   const entries: string[] = [urlEntry(abs('/')), urlEntry(abs('/c'))]
 
   // W3.2 — trang phụ indexable (bỏ thank-you: noindex / sau checkout).
-  for (const path of ['/about', '/contact', '/faq', '/shipping', '/returns', '/privacy', '/terms', '/payment', '/how-to-buy', '/brand-origin', '/reviews-policy', '/trust', '/company', '/stores', '/lookbook', '/size-guide', '/blog', '/sale', '/kho-sale', '/goi-y-tuoi-gioi'] as const) {
+  const infoPaths = [
+    '/about',
+    '/contact',
+    '/faq',
+    '/shipping',
+    '/returns',
+    '/privacy',
+    '/terms',
+    '/payment',
+    '/how-to-buy',
+    '/brand-origin',
+    '/reviews-policy',
+    '/trust',
+    '/company',
+    '/stores',
+    '/lookbook',
+    '/size-guide',
+    ...PARTNER_SIZE_GUIDE_KINDS.map((kind) => `/size-guide/${kind}`),
+    '/blog',
+    '/sale',
+    '/kho-sale',
+    '/goi-y-tuoi-gioi',
+  ]
+  for (const path of infoPaths) {
     entries.push(urlEntry(abs(path)))
   }
 

@@ -96,6 +96,7 @@ export function buildPartnerSitePdpBootstrapScript(input: { siteSlug: string; lo
     reviewsStarLabel3: t.reviewsStarLabel3,
     reviewsStarLabel4: t.reviewsStarLabel4,
     reviewsStarLabel5: t.reviewsStarLabel5,
+    sizeGuideButton: t.sizeGuideButton,
   }
 
   return `<script data-pw-pdp-bootstrap>(function(){
@@ -501,7 +502,22 @@ function paintPills(kind,items){
     var face=img?'<img src="'+esc(shopImg({imageUrl:img}))+'" data-pw-full-src="'+esc(shopPdpOrigSrc(img))+'" alt="'+esc(name)+'" loading="lazy" decoding="async" />':esc(name);
     pills+='<button type="button" class="pw-pdp-pill'+(kind==='color'?' pw-pdp-color':'')+(i===0?' is-active':'')+'" data-pw-pdp-option-value="'+esc(name)+'">'+face+'</button>';
   }
+  var keepGuide=kind==='size'?block.querySelector('[data-pw-pdp-slot="size-guide"]'):null;
   block.innerHTML='<p style="font-weight:700;margin:0 0 8px;font-size:14px">'+esc(label)+'</p><div class="pw-pdp-pills">'+pills+'</div>';
+  if(kind==='size'){
+    if(keepGuide)block.appendChild(keepGuide);
+    else {
+      var sgHost=info||pdpBuyBox();
+      var sgKind=(sgHost&&sgHost.getAttribute('data-pw-size-guide-kind'))||'';
+      if(sgKind&&document.querySelector('[data-pw-size-guide-modal]')){
+        var wrap=document.createElement('div');
+        wrap.setAttribute('data-pw-pdp-slot','size-guide');
+        wrap.style.marginTop='8px';
+        wrap.innerHTML='<button type="button" class="pw-shop-btn pw-shop-btn-outline" style="font-size:13px" data-pw-size-guide-open="1" data-pw-size-guide-kind="'+esc(sgKind)+'">'+esc(COPY.sizeGuideButton||'')+'</button>';
+        block.appendChild(wrap);
+      }
+    }
+  }
 }
 function applyOptions(options){
   rehomePdpBuyBox();
@@ -842,8 +858,39 @@ function bindLive(id){
     }
   });
 }
+function hoistSizeGuideModal(modal){
+  if(!modal||!document.body)return modal;
+  if(modal.parentNode!==document.body)document.body.appendChild(modal);
+  return modal;
+}
+function bindSizeGuideModal(){
+  hoistSizeGuideModal(document.querySelector('[data-pw-size-guide-modal]'));
+  if(window.__pwSizeGuideBound)return;
+  window.__pwSizeGuideBound=1;
+  document.addEventListener('click',function(e){
+    var t=e.target;
+    if(!t||!t.closest)return;
+    var modal=document.querySelector('[data-pw-size-guide-modal]');
+    if(!modal)return;
+    hoistSizeGuideModal(modal);
+    if(t.closest('[data-pw-size-guide-close]')){
+      e.preventDefault();
+      modal.setAttribute('hidden','');
+      return;
+    }
+    if(t===modal){
+      modal.setAttribute('hidden','');
+      return;
+    }
+    var openBtn=t.closest('[data-pw-size-guide-open],[data-pw-pdp-slot="size-guide"] button,[data-pw-variant-size-guide]');
+    if(!openBtn)return;
+    e.preventDefault();
+    modal.removeAttribute('hidden');
+  });
+}
 var id=productId();
 rehomePdpBuyBox();
+bindSizeGuideModal();
 if(!id)return;
 trackView(id);
 bindLive(id);

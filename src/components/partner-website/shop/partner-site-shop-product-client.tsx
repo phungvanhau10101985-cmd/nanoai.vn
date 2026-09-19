@@ -21,9 +21,9 @@ import {
   partnerSiteCartPath,
   partnerSiteCategoryPath,
   partnerSiteHomePath,
-  partnerSiteInfoPath,
   partnerSitePersonalizationApiPath,
   partnerSiteProductsPath,
+  partnerSiteSizeGuidePath,
   partnerSiteStorefrontProductHref,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
@@ -56,6 +56,8 @@ import { PartnerSiteBirthdayOfferBlock, PartnerSiteSaleCountdown } from '@/compo
 import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
 import { PartnerSiteProductReviewsQa } from '@/components/partner-website/shop/partner-site-product-reviews-qa'
 import { PartnerSiteProductVariantModal } from '@/components/partner-website/shop/partner-site-product-variant-modal'
+import { PartnerSiteSizeGuideModal } from '@/components/partner-website/shop/partner-site-size-guide-modal'
+import { resolvePartnerSizeGuideKind } from '@/lib/partner-website/shop/partner-site-size-guide'
 import { readPdpWideStickyViewport } from '@/lib/partner-website/shop/partner-site-product-variant-modal'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import {
@@ -363,6 +365,17 @@ export function PartnerSiteShopProductClient({
     .filter(Boolean)
   const sizeOptions = options?.sizes?.length ? options.sizes : product.sizes
   const colorOptions = options?.colors?.length ? options.colors : product.colors
+  const custom = Boolean(customDomain)
+  const sizeGuideKind = resolvePartnerSizeGuideKind({
+    categoryPath: product.categoryPath,
+    categoryL1: product.categoryL1,
+    categoryL2: product.categoryL2,
+    categoryL3: product.categoryL3,
+    name: product.name,
+  })
+  const sizeGuideHref = sizeGuideKind
+    ? partnerSiteSizeGuidePath(siteSlug, sizeGuideKind, { customDomain: custom })
+    : ''
 
   const unitPrice =
     saleFace.kind === 'teaser'
@@ -383,7 +396,6 @@ export function PartnerSiteShopProductClient({
   const priceLabel = options?.price_hint || product.priceHint
   const productName = options?.name || product.name
   const sku = options?.sku || product.sku
-  const custom = Boolean(customDomain)
   const homeHref = partnerSiteHomePath(siteSlug, { customDomain: custom })
   const categoryHref = product.categoryPath
     ? partnerSiteCategoryPath(siteSlug, product.categoryPath, { customDomain: custom })
@@ -942,63 +954,33 @@ export function PartnerSiteShopProductClient({
                   </button>
                 ))}
               </div>
-              {product.sizeGuideImageUrl ? (
+              {sizeGuideKind ? (
                 <button
                   type="button"
                   className="pw-shop-btn pw-shop-btn-outline"
                   style={{ marginTop: 8, fontSize: 13 }}
+                  data-pw-size-guide-open="1"
+                  data-pw-size-guide-kind={sizeGuideKind}
                   onClick={() => setSizeGuideOpen(true)}
                 >
                   {t.sizeGuideButton}
                 </button>
-              ) : (
-                <Link
-                  href={partnerSiteInfoPath(siteSlug, 'size-guide', { customDomain: custom })}
-                  style={{ display: 'inline-block', marginTop: 8, fontSize: 13 }}
-                >
-                  {t.sizeGuideFallbackLink}
-                </Link>
-              )}
+              ) : null}
             </div>
           ) : null}
 
-          {sizeGuideOpen && product.sizeGuideImageUrl ? (
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-label={t.sizeGuideModalTitle}
-              style={{
-                position: 'fixed',
-                inset: 0,
-                zIndex: 100060,
-                background: 'rgba(0,0,0,0.65)',
-                display: 'grid',
-                placeItems: 'center',
-                padding: 16,
-              }}
-              onClick={() => setSizeGuideOpen(false)}
-            >
-              <div
-                style={{ background: '#fff', borderRadius: 12, maxWidth: 560, width: '100%', padding: 12 }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <strong>{t.sizeGuideModalTitle}</strong>
-                  <button type="button" onClick={() => setSizeGuideOpen(false)}>
-                    {t.sizeGuideClose}
-                  </button>
-                </div>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={shopPdpPageSrc(product.sizeGuideImageUrl) || product.sizeGuideImageUrl}
-                  alt={t.sizeGuideModalTitle}
-                  decoding="async"
-                  style={{ width: '100%', height: 'auto' }}
-                  onError={hideBrokenPdpImage}
-                />
-              </div>
-            </div>
-          ) : null}
+          <PartnerSiteSizeGuideModal
+            open={sizeGuideOpen && Boolean(sizeGuideKind) && sizeOptions.length > 0}
+            onClose={() => setSizeGuideOpen(false)}
+            locale={locale}
+            siteSlug={siteSlug}
+            shopName={null}
+            customDomain={custom}
+            kind={sizeGuideKind}
+            title={t.sizeGuideModalTitle}
+            closeLabel={t.sizeGuideClose}
+            imageUrl={product.sizeGuideImageUrl || null}
+          />
 
           <div style={{ marginTop: 16 }}>
             <p style={{ fontWeight: 700, margin: '0 0 8px', fontSize: 14 }}>{t.pdpQtyBuy}</p>
@@ -1215,8 +1197,8 @@ export function PartnerSiteShopProductClient({
         initialColor={color}
         initialSize={size}
         initialQty={quantity}
-        sizeGuideHref={partnerSiteInfoPath(siteSlug, 'size-guide', { customDomain: custom })}
-        onOpenSizeGuide={product.sizeGuideImageUrl ? () => setSizeGuideOpen(true) : undefined}
+        sizeGuideHref={sizeGuideHref}
+        onOpenSizeGuide={sizeOptions.length && sizeGuideKind ? () => setSizeGuideOpen(true) : undefined}
         busy={busy}
         onClose={() => setVariantModalOpen(false)}
         onAddToCart={(pick) => {

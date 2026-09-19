@@ -112,6 +112,8 @@ test('shop-actions injects PDP variant modal before add-to-cart', () => {
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /window\.addEventListener\('pw-shop-soft-nav',hideVariantModal\)/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /bindVariantModalNavHide\(\)/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /document\.body\.style\.overflow=''/)
+  assert.match(script, /function hoistSizeGuideModal/)
+  assert.match(script, /document\.body\.appendChild\(modal\)/)
 })
 
 test('variant modal applies empty API size/color arrays instead of leftover DOM pills', () => {
@@ -119,4 +121,8 @@ test('variant modal applies empty API size/color arrays instead of leftover DOM 
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /if\(Array\.isArray\(opt\.sizes\)\)st\.sizes=/)
   assert.doesNotMatch(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /Array\.isArray\(p\.sizes\)&&p\.sizes\.length/)
   assert.doesNotMatch(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /Array\.isArray\(opt\.sizes\)&&opt\.sizes\.length/)
+})
+
+test('variant modal size guide requires a kind href, not leftover sizes alone', () => {
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /if\(st\.sizes\.length && st\.sizeGuideHref\)/)
 })

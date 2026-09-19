@@ -562,9 +562,14 @@ function variantSizeHtml(st){
     var on=st.size===s;
     chips+='<button type="button" data-pw-variant-size data-size="'+variantEsc(s)+'" aria-pressed="'+(on?'true':'false')+'">'+variantEsc(s)+'</button>';
   }
-  var guide=st.sizeGuideHref
-    ? '<a data-pw-variant-size-guide href="'+variantEsc(st.sizeGuideHref)+'">'+variantEsc(COPY.variantSizeGuide||'')+'</a>'
-    : '';
+  var guide='';
+  if(st.sizes.length && st.sizeGuideHref){
+    if(document.querySelector('[data-pw-size-guide-modal]')){
+      guide='<button type="button" data-pw-variant-size-guide data-pw-size-guide-open="1">'+variantEsc(COPY.variantSizeGuide||'')+'</button>';
+    }else{
+      guide='<a data-pw-variant-size-guide href="'+variantEsc(st.sizeGuideHref)+'">'+variantEsc(COPY.variantSizeGuide||'')+'</a>';
+    }
+  }
   return '<div data-pw-variant-section><div data-pw-variant-size-row><p data-pw-variant-label>'+variantEsc(COPY.variantSize||COPY.sizeLabel||'Size')+'</p>'+guide+'</div><div data-pw-variant-chips>'+chips+'</div></div>';
 }
 function variantStockHtml(st,short){
@@ -720,7 +725,13 @@ function openPdpVariantModal(seed,action){
     colorIndex:colorIndex,
     size:pickSize||sizes[0]||'',
     qty:Math.min(99,Math.max(1,Number(seed.quantity)||1)),
-    sizeGuideHref:typeof SIZE_GUIDE_PATH==='string'?SIZE_GUIDE_PATH:'',
+    sizeGuideHref:(function(){
+      var el=document.querySelector('[data-pw-size-guide-kind]');
+      var kind=el&&el.getAttribute('data-pw-size-guide-kind')||'';
+      var base=typeof SIZE_GUIDE_PATH==='string'?SIZE_GUIDE_PATH:'';
+      if(kind&&base)return base.replace(/\/$/,'')+'/'+kind;
+      return '';
+    })(),
     busy:true,
     action:action||'both',
     lineLabel:seed.price_hint||'',
@@ -760,7 +771,6 @@ function openPdpVariantModal(seed,action){
       st.maxQty=st.stockQty>0?Math.min(99,st.stockQty):99;
       if(Array.isArray(p.colors))st.colors=p.colors.map(function(c){return {name:String(c.name||'').trim(),img:String(c.img||'')};}).filter(function(c){return c.name;});
       if(Array.isArray(p.sizes))st.sizes=p.sizes.map(function(s){return String(s||'').trim();}).filter(Boolean);
-      if(p.sizeGuideImageUrl)st.sizeGuideHref=st.sizeGuideHref||SIZE_GUIDE_PATH;
     }
     if(opt){
       st.name=opt.name||st.name;

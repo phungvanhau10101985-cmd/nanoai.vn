@@ -1,6 +1,7 @@
 import type { PartnerWebsitePageKey } from '@/lib/partner-website/partner-website-page-catalog'
 import type { PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
 import type { WebLocale } from '@/lib/i18n/config'
+import { stripPartnerSizeGuideFromHtml } from '@/lib/partner-website/shop/partner-site-size-guide-html'
 import {
   adsPlatformPolicyParagraph,
   contentHasAdsPlatformPolicy,
@@ -167,16 +168,17 @@ export function isInfoVisualHtml(html: string): boolean {
 }
 
 export function extractInfoPageCmsFromHtml(html: string): InfoPageCmsExtract {
+  const source = stripPartnerSizeGuideFromHtml(html)
   const titleHtml =
-    pickAttrBlock(html, 'data-pw-info-title') ||
-    html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1] ||
+    pickAttrBlock(source, 'data-pw-info-title') ||
+    source.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1] ||
     ''
   const title = innerTextFromHtml(titleHtml).trim().slice(0, 200)
   const bodyHtml =
-    pickAttrBlock(html, 'data-pw-info-body') ||
-    pickAttrBlock(html, 'data-pw-region="content"') ||
-    pickAttrBlock(html, "data-pw-region='content'") ||
-    html.match(/<article\b[^>]*class=["'][^"']*\bpw-shop-info\b[^"']*["'][^>]*>([\s\S]*?)<\/article>/i)?.[1] ||
+    pickAttrBlock(source, 'data-pw-info-body') ||
+    pickAttrBlock(source, 'data-pw-region="content"') ||
+    pickAttrBlock(source, "data-pw-region='content'") ||
+    source.match(/<article\b[^>]*class=["'][^"']*\bpw-shop-info\b[^"']*["'][^>]*>([\s\S]*?)<\/article>/i)?.[1] ||
     ''
   let content = innerTextFromHtml(bodyHtml)
   if (title && content.toLowerCase().startsWith(title.toLowerCase())) {
@@ -184,12 +186,12 @@ export function extractInfoPageCmsFromHtml(html: string): InfoPageCmsExtract {
   }
   content = content.slice(0, 20000)
   const metaDesc =
-    html.match(/<meta\b[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i)?.[1] ||
-    html.match(/data-pw-seo-description=["']([^"']*)["']/i)?.[1] ||
+    source.match(/<meta\b[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i)?.[1] ||
+    source.match(/data-pw-seo-description=["']([^"']*)["']/i)?.[1] ||
     ''
   const seoDescription = (metaDesc.trim() || splitStaticPageContentToParagraphs(content)[0] || title)
     .slice(0, 500)
-  const docTitle = innerTextFromHtml(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '').trim()
+  const docTitle = innerTextFromHtml(source.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '').trim()
   return {
     title: title || docTitle.slice(0, 200) || 'Page',
     content,

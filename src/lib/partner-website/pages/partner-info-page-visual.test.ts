@@ -81,6 +81,21 @@ test('about pages do not get ads platform paragraph', () => {
   assert.doesNotMatch(next, /Google Merchant Center/)
 })
 
+test('extractInfoPageCmsFromHtml strips injected size-guide cards', () => {
+  const html = `<!DOCTYPE html><html><body>
+<article data-pw-info-article="1">
+<h1 data-pw-info-title="1">Hướng dẫn chọn size</h1>
+<div data-pw-info-body="1"><p>Đo ngực / eo.</p>
+<div class="pw-size-guide" data-pw-size-guide="index"><ul class="pw-size-guide-cards"><li>Giày dép Nam</li></ul></div>
+</div>
+</article>
+</body></html>`
+  const extracted = extractInfoPageCmsFromHtml(html)
+  assert.equal(extracted.title, 'Hướng dẫn chọn size')
+  assert.match(extracted.content, /Đo ngực/)
+  assert.doesNotMatch(extracted.content, /Giày dép Nam/)
+})
+
 test('default privacy/terms copy already includes ads platform policy', () => {
   const privacy = getPartnerSiteInfoPage('privacy', 'vi')
   assert.ok(contentHasAdsPlatformPolicy(privacy.paragraphs.join('\n')))

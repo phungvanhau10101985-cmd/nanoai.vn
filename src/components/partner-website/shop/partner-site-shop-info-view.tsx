@@ -17,6 +17,10 @@ import {
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import {
+  buildPartnerSizeGuideHostHtml,
+  PARTNER_SIZE_GUIDE_CSS,
+} from '@/lib/partner-website/shop/partner-site-size-guide-html'
 
 export function PartnerSiteShopInfoView({
   siteSlug,
@@ -70,6 +74,21 @@ export function PartnerSiteShopInfoView({
             <p>{item.a}</p>
           </details>
         ))}
+      {pageKey === 'size-guide' ? (
+        <>
+          <style data-pw-size-guide-css="1">{PARTNER_SIZE_GUIDE_CSS}</style>
+          <div
+            dangerouslySetInnerHTML={{
+              __html: buildPartnerSizeGuideHostHtml({
+                locale,
+                siteSlug,
+                customDomain,
+                includeLead: false,
+              }),
+            }}
+          />
+        </>
+      ) : null}
       {pageKey === 'goi-y-tuoi-gioi' ? (
         <p style={{ marginTop: 20, display: 'flex', flexWrap: 'wrap', gap: 10 }}>
           <Link

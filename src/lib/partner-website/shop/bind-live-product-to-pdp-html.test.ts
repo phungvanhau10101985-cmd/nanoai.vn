@@ -123,6 +123,8 @@ test('bind injects missing editor layout slots onto a sparse shell', () => {
   assert.match(next, /id="pw-pdp-qa"/)
   assert.doesNotMatch(next, /data-pw-pdp-slot="consult"/)
   assert.match(next, /data-pw-pdp-slot="size-guide"/)
+  assert.match(next, /data-pw-size-guide-modal/)
+  assert.match(next, /data-pw-size-guide-kind="thoi-trang-nu"/)
   assert.match(next, /data-pw-region="breadcrumb"/)
   assert.doesNotMatch(next, /data-pw-pdp-slot="video"/)
 })
@@ -386,6 +388,7 @@ test('bind fills live 188 fields only — empty sizes/colors/consult do not keep
   assert.doesNotMatch(next, /data-pw-pdp-slot="savings"/)
   assert.doesNotMatch(next, /data-pw-pdp-slot="deposit"/)
   assert.doesNotMatch(next, /data-pw-pdp-slot="size-guide"/)
+  assert.doesNotMatch(next, /data-pw-size-guide-modal/)
   assert.doesNotMatch(next, /Form đẹp/)
   assert.doesNotMatch(next, /Đầm voan/)
   assert.doesNotMatch(next, /Áo thun nữ cổ thuyền/)
@@ -393,6 +396,21 @@ test('bind fills live 188 fields only — empty sizes/colors/consult do not keep
   assert.doesNotMatch(next, /pw-pdp-notes/)
   assert.doesNotMatch(next, /pw-pdp-policy/)
   assert.doesNotMatch(next, /200\.000/)
+})
+
+test('bind does not keep leftover size-guide on a bag even if sizes exist', () => {
+  const bag = {
+    ...PRODUCT_B,
+    name: 'Túi đeo chéo nam leftover size',
+    categoryL1: 'Túi xách Nam',
+    sizes: ['L', 'XL'] as string[],
+  }
+  const next = bindLiveProductToPdpHtml(buildDefaultDemoPdpShellHtml({ locale: 'vi' }), bag)
+  assert.match(next, /data-pw-pdp-option="size"/)
+  assert.match(next, /data-pw-pdp-option-value="L"/)
+  assert.doesNotMatch(next, /data-pw-pdp-slot="size-guide"/)
+  assert.doesNotMatch(next, /data-pw-size-guide-open/)
+  assert.doesNotMatch(next, /data-pw-size-guide-modal/)
 })
 
 test('bind writes this product material and real-use photos instead of shell leftovers', () => {

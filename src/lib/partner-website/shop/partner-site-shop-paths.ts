@@ -382,6 +382,25 @@ export function partnerSiteInfoPath(
   return partnerSiteHref(siteSlug, `/${page}`, opts?.customDomain)
 }
 
+/** Index `/size-guide` hoặc nhóm hàng `/size-guide/{kind}` (kể cả `cat1/cat2`). */
+export function partnerSiteSizeGuidePath(
+  siteSlug: string,
+  kind?: string | null,
+  opts?: PathOpts
+): string {
+  const segs = String(kind || '')
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, '-')
+    .split('/')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => encodeURIComponent(s))
+    .join('/')
+  const tail = segs ? `/size-guide/${segs}` : '/size-guide'
+  return partnerSiteHref(siteSlug, tail, opts?.customDomain)
+}
+
 /** W3.4 — trang tĩnh tự do do merchant tạo (không phải 1 trong 8 trang có sẵn ở `partnerSiteInfoPath`). */
 export function partnerSiteCustomPagePath(siteSlug: string, pageSlug: string, opts?: PathOpts): string {
   return partnerSiteHref(siteSlug, `/pages/${encodeURIComponent(pageSlug)}`, opts?.customDomain)

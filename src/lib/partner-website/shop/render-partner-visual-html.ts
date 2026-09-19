@@ -21,6 +21,7 @@ import { injectPartnerShopFooterFitCss } from '@/lib/partner-website/shop/partne
 import { injectPartnerShopFaviconIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
 import { stripPartnerInfoPageSeoCoachFromHtml } from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
 import { ensureAdsPlatformPolicyInHtml } from '@/lib/partner-website/pages/partner-info-page-visual'
+import { ensurePartnerSizeGuideInHtml } from '@/lib/partner-website/shop/partner-site-size-guide-html'
 import {
   ensureFullPartnerSiteFooterInHtml,
   pinPaintedFooterThemeVarsInHtml,
@@ -106,7 +107,14 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
     locale,
     input.pageKey || input.cmsSlug
   )
-  const withFooter = ensureFullPartnerSiteFooterInHtml(withPolicy, {
+  const withSizeGuide = ensurePartnerSizeGuideInHtml(withPolicy, {
+    locale,
+    siteSlug: input.siteSlug,
+    pageKey: input.pageKey,
+    cmsSlug: input.cmsSlug,
+    customDomain: input.onCustomDomain,
+  })
+  const withFooter = ensureFullPartnerSiteFooterInHtml(withSizeGuide, {
     locale,
     siteSlug: input.siteSlug,
     logoUrl: input.theme?.logoUrl,

@@ -784,33 +784,37 @@ const PAGES: Record<PartnerSiteInfoPageKey, Record<WebLocale, PartnerSiteInfoBlo
     vi: {
       title: 'Hướng dẫn chọn size',
       paragraphs: [
-        'Tham khảo cách đo và gợi ý chọn size trước khi đặt hàng. Bảng size chi tiết theo từng sản phẩm có thể nằm trên trang sản phẩm.',
-        'Không chắc size? Chat shop để được tư vấn — merchant có thể cập nhật bảng đo tại đây qua CMS.',
+        'Chọn nhóm hàng có size: giày nam/nữ, quần áo nam/nữ, đồ lót (boxer cỡ VN, bra), trang phục bầu, thời trang trẻ em (kèm giày trẻ), thể thao. Nhóm con như cao gót / giày cưới có bảng riêng. Túi xách / phụ kiện không size không hiện bảng này.',
+        'Trên từng sản phẩm có size, bấm «Hướng dẫn chọn size» để xem đúng bảng của loại hàng đó.',
       ],
-      bullets: ['Đo ngực / eo / hông / chiều dài theo hướng dẫn', 'So với bảng size shop cung cấp', 'Chat nếu đang giữa hai size'],
     },
     en: {
       title: 'Size guide',
       paragraphs: [
-        'How to measure and pick a size before ordering. Product-specific charts may also appear on each product page.',
-        'Unsure? Chat the shop — merchants can update measurement tips here via CMS.',
+        'Guides are for products with sizes: men’s/women’s shoes, apparel, underwear (VN boxer sizes, bras), maternity, kids (including kids’ shoes), and sports. Sub-groups like heels and wedding shoes have their own charts. Bags and accessories without sizes do not show this guide.',
+        'On a product with sizes, tap Size guide for that group’s chart.',
       ],
-      bullets: ['Measure chest / waist / hips / length as guided', 'Compare with the shop chart', 'Chat if you are between sizes'],
     },
     zh: {
       title: '尺码指南',
-      paragraphs: ['下单前参考测量与选码建议。各商品页也可能有专属尺码表。', '不确定？可聊天咨询；商家可通过 CMS 更新本页。'],
-      bullets: ['按说明测量', '对照店铺尺码表', '介于两码之间可咨询'],
+      paragraphs: [
+        '适用于有尺码的商品：男鞋/女鞋、服装、内衣（越南码平角裤、文胸）、孕产、童装（含童鞋）、运动。高跟鞋/婚宴鞋等子品类有独立对照表。无尺码的箱包配饰不显示。',
+        '商品页如有尺码，点击尺码指南即可查看该品类表格。',
+      ],
     },
     ja: {
       title: 'サイズガイド',
-      paragraphs: ['注文前の採寸とサイズ選びの目安です。商品ページにも個別ガイドがある場合があります。', '迷ったらチャットで相談を。CMSから内容を更新できます。'],
-      bullets: ['案内どおり採寸', 'ショップの表と比較', '中間サイズは相談を'],
+      paragraphs: [
+        'サイズがある商品：メンズ/レディース靴、衣料、アンダーウェア（ベトナムサイズのボクサー、ブラ）、マタニティ、キッズ（キッズシューズ含む）、スポーツ。ヒールやウェディング靴などのサブグループは専用表です。サイズのないバッグ等は出ません。',
+        'サイズのある商品ページではサイズガイドを開くとそのグループの表が表示されます。',
+      ],
     },
     ko: {
       title: '사이즈 가이드',
-      paragraphs: ['주문 전 측정과 사이즈 선택 안내입니다. 상품 페이지에 개별 표가 있을 수 있습니다.', '확신이 없으면 채팅으로 문의하세요. CMS에서 내용을 수정할 수 있습니다.'],
-      bullets: ['안내에 따라 측정', '샵 사이즈표와 비교', '중간 사이즈는 문의'],
+      paragraphs: [
+        '사이즈가 있는 상품: 남성/여성 신발, 의류, 속옷(베트남 사이즈 드로즈, 브라), 임부, 아동(아동 신발 포함), 스포츠. 힐·웨딩슈즈 등 하위 그룹은 별도 표. 사이즈 없는 가방/액세서리는 표시하지 않습니다.',
+        '사이즈가 있는 상품에서 사이즈 가이드를 누르면 해당 그룹 표가 나옵니다.',
+      ],
     },
   },
   blog: {

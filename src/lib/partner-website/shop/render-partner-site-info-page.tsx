@@ -28,6 +28,15 @@ import {
 } from '@/components/partner-website/shop/partner-site-visual-html-screen'
 import { infoPageKeyToVisualPageKey } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { PW_PAGE } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { headers } from 'next/headers'
+import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
+import {
+  parsePartnerSizeGuideKind,
+  partnerSizeGuideKindPathTail,
+  partnerSizeGuideCopy,
+  partnerSizeGuidePageTitle,
+} from '@/lib/partner-website/shop/partner-site-size-guide'
+import { PartnerSiteSizeGuideView } from '@/components/partner-website/shop/partner-site-size-guide-view'
 
 /**
  * W3.3 — merchant có thể ghi đè title/content/SEO của 8 trang có sẵn qua CMS (W3.4). Không có
@@ -174,6 +183,97 @@ export async function PartnerSiteInfoPageScreen({
         override={override ? { title: override.title, paragraphs: splitStaticPageContentToParagraphs(override.content) } : null}
       />
       {saleCatalog}
+    </PartnerSiteShopShell>
+  )
+}
+
+export async function buildPartnerSiteSizeGuideKindMetadata(
+  slug: string,
+  kindRaw: string
+): Promise<Metadata> {
+  const kind = parsePartnerSizeGuideKind(kindRaw)
+  if (!kind) return {}
+  const shop = await loadPartnerSiteShopContext(slug)
+  const locale = shop?.site.locale ?? 'vi'
+  const copy = partnerSizeGuideCopy(locale)
+  const siteName = shop?.site.title || 'Shop'
+  const title = partnerSizeGuidePageTitle(kind, locale, siteName)
+  return buildPartnerSiteMetadata({
+    siteSlug: slug,
+    path: `/size-guide/${partnerSizeGuideKindPathTail(kind)}`,
+    title,
+    description: copy.indexLead,
+    siteName,
+    image: shop?.site.logoUrl || null,
+    locale: locale === 'vi' ? 'vi_VN' : locale,
+    type: 'article',
+  })
+}
+
+export async function PartnerSiteSizeGuideKindPageScreen({
+  slug,
+  kindRaw,
+}: {
+  slug: string
+  kindRaw: string
+}) {
+  const kind = parsePartnerSizeGuideKind(kindRaw)
+  if (!kind) notFound()
+  const shop = await loadPartnerSiteShopContext(slug)
+  if (!shop) notFound()
+  const device = await readVisualPreviewDevice()
+  const headerStore = headers()
+  const customDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
+  const locale = shop.site.locale
+  const copy = partnerSizeGuideCopy(locale)
+  const t = getPartnerSiteShopCopy(locale)
+  const pageUrl = resolvePartnerSiteAbsoluteUrl(shop.site.siteSlug, `/size-guide/${partnerSizeGuideKindPathTail(kind)}`)
+  const homeUrl = resolvePartnerSiteAbsoluteUrl(shop.site.siteSlug, '/')
+  const headline = copy.heading[kind]
+  const articleLd = buildPartnerInfoPageArticleJsonLd({
+    pageUrl,
+    homeUrl,
+    siteName: shop.site.title,
+    logoUrl: shop.site.logoUrl,
+    locale,
+    homeLabel: t.navHome,
+    datePublished: null,
+    dateModified: null,
+    headline,
+    description: copy.indexLead,
+  })
+  const breadcrumbLd = buildPartnerInfoPageBreadcrumbJsonLd({
+    homeUrl,
+    homeLabel: t.navHome,
+    pageUrl,
+    pageName: copy.cardTitle[kind],
+  })
+
+  return (
+    <PartnerSiteShopShell
+      siteSlug={shop.site.siteSlug}
+      partnerSlug={shop.partnerSlug}
+      title={shop.site.title}
+      logoUrl={shop.site.logoUrl}
+      theme={shop.site.theme}
+      locale={locale}
+      chatPath={shop.site.chatPath}
+      tracking={partnerSiteTrackingFromPublicRow(shop.site)}
+      activeNav="products"
+      footerJson={shop.site.footerJson}
+      navJson={shop.site.navJson}
+      pageKind={PW_PAGE.info}
+      {...(await liveVisualHomeChromeShellProps(shop.site, device))}
+    >
+      <JsonLd data={articleLd} />
+      <JsonLd data={breadcrumbLd} />
+      <PartnerSiteSizeGuideView
+        siteSlug={shop.site.siteSlug}
+        locale={locale}
+        kind={kind}
+        shopName={shop.site.title}
+        customDomain={customDomain}
+      />
     </PartnerSiteShopShell>
   )
 }

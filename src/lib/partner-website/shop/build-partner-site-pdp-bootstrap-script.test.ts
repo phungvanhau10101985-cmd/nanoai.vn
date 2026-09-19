@@ -54,6 +54,12 @@ test('PDP bootstrap hydrates reviews, Q&A, and options instead of clearing cards
   assert.match(s, /data-pw-pdp-slot=['"]price-kicker['"]/)
   assert.match(s, /countdownStarts/)
   assert.doesNotMatch(s, /pageSize=100/)
+  assert.match(s, /data-pw-size-guide-open/)
+  assert.match(s, /data-pw-pdp-slot['"],['"]size-guide/)
+  assert.match(s, /sizeGuideButton/)
+  assert.match(s, /function bindSizeGuideModal/)
+  assert.match(s, /function hoistSizeGuideModal/)
+  assert.match(s, /document\.body\.appendChild\(modal\)/)
 })
 
 test('PDP bootstrap uses shop copy for the requested locale', () => {

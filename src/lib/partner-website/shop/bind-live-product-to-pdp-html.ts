@@ -47,6 +47,11 @@ import { ensurePartnerSitePdpBottomNavInHtml } from '@/lib/partner-website/shop/
 import { partnerSiteHomePath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import {
+  partnerHasProductSizes,
+  resolvePartnerSizeGuideKind,
+} from '@/lib/partner-website/shop/partner-site-size-guide'
+import { ensurePartnerPdpSizeGuideModalInHtml } from '@/lib/partner-website/shop/partner-site-size-guide-html'
+import {
   pdpAttrGridHtml,
   pdpDescriptionBodyHtml,
   pdpProductInfoHtml,
@@ -855,6 +860,24 @@ export function buildPdpDetailTabsHtml(product: LivePdpBindProduct, locale: WebL
   </div>`
 }
 
+function pdpSizeGuideKindOf(product: LivePdpBindProduct) {
+  return resolvePartnerSizeGuideKind({
+    categoryPath: product.categoryPath,
+    categoryL1: product.categoryL1,
+    categoryL2: product.categoryL2,
+    categoryL3: product.categoryL3,
+    name: product.name,
+  })
+}
+
+function pdpSizeGuideControlHtml(product: LivePdpBindProduct, locale: WebLocale): string {
+  if (!partnerHasProductSizes(product.sizes)) return ''
+  const kind = pdpSizeGuideKindOf(product)
+  if (!kind) return ''
+  const t = getPartnerSiteShopCopy(locale)
+  return `<div data-pw-pdp-slot="size-guide" style="margin-top:8px"><button type="button" class="pw-shop-btn pw-shop-btn-outline" style="font-size:13px" data-pw-size-guide-open="1" data-pw-size-guide-kind="${escAttr(kind)}">${escText(t.sizeGuideButton)}</button></div>`
+}
+
 function sizeVariantInner(sizes: string[], locale: WebLocale): string {
   const t = getPartnerSiteShopCopy(locale)
   const pills = sizes
@@ -955,7 +978,7 @@ function rewriteVariantBlocks(inner: string, product: LivePdpBindProduct, locale
     }
     if (!sizes.length) return ''
     sizeDone = true
-    return `${stampPdpOption(open, 'size')}${sizeVariantInner(sizes, locale)}`
+      return `${stampPdpOption(open, 'size')}${sizeVariantInner(sizes, locale)}`
   })
   const inject: string[] = []
   if (colors.length && !colorDone) {
@@ -1454,12 +1477,12 @@ function ensureMissingPdpSlots(
   out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'material')
   out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'real-use')
   out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'size-guide')
-  const sizeGuide = String(product.sizeGuideImageUrl || '').trim()
-  if (sizeGuide && !hasSlot(out, 'size-guide')) {
-    const block = `<div data-pw-pdp-slot="size-guide" style="margin-top:8px"><button type="button" class="pw-shop-btn pw-shop-btn-outline" style="font-size:13px">${escText(t.sizeGuideButton)}</button><img src="${escAttr(sizeGuide)}" alt="${escAttr(t.sizeGuideModalTitle)}" style="width:100%;max-width:360px;height:auto;margin-top:8px;border-radius:8px;border:1px solid var(--pw-border)" /></div>`
-    out = out.replace(
+  const sizeGuideBlock = pdpSizeGuideControlHtml(product, locale)
+  if (sizeGuideBlock) {
+    const withInner = replaceAttrBlocks(out, 'data-pw-pdp-option', 'size', (inner, open) => `${open}${inner}${sizeGuideBlock}`)
+    out = withInner !== out ? withInner : out.replace(
       /(<[a-z0-9]+\b[^>]*data-pw-pdp-option=["']size["'][^>]*>)/i,
-      `$1${block}`
+      `$1${sizeGuideBlock}`
     )
   }
   // Buy-box «Gợi ý tư vấn» ẩn — consult_note chỉ dùng tab Thông tin + chat.
@@ -1601,7 +1624,11 @@ export function bindLiveProductToPdpHtml(
   })
   out = replaceRegionBlocks(out, PW_REGION.pdpInfo, (inner, open) => {
     const variants = !/\bpw-shop-product-detail\b/.test(open)
-    return `${stampPdpServerBoundOnTag(stampInventoryIdOnTag(open, id))}${rewritePdpInfoInner(inner, product, locale, { variants })}`
+    const kind = partnerHasProductSizes(product.sizes) ? pdpSizeGuideKindOf(product) : null
+    const stamped = kind
+      ? open.replace(/\sdata-pw-size-guide-kind=(["'])[^"']*\1/i, '').replace(/>$/, ` data-pw-size-guide-kind="${escAttr(kind)}">`)
+      : open.replace(/\sdata-pw-size-guide-kind=(["'])[^"']*\1/i, '')
+    return `${stampPdpServerBoundOnTag(stampInventoryIdOnTag(stamped, id))}${rewritePdpInfoInner(inner, product, locale, { variants })}`
   })
   out = replaceRegionBlocks(out, PW_REGION.reviews, (inner, open) => {
     if (/id=["']pw-pdp-qa["']|data-pw-pdp-slot=["']qa["']/.test(open)) return `${open}${inner}`
@@ -1617,6 +1644,18 @@ export function bindLiveProductToPdpHtml(
     return `${stampRelatedOpenTag(open, product, siteSlug)}${rewriteCatalogRelatedInner(inner, product, locale, siteSlug)}`
   })
   out = ensureMissingPdpSlots(out, product, locale, siteSlug)
+  const sizeGuideKind = partnerHasProductSizes(product.sizes) ? pdpSizeGuideKindOf(product) : null
+  const sizeGuideImg = shopPdpPageSrc(String(product.sizeGuideImageUrl || '').trim())
+  const t = getPartnerSiteShopCopy(locale)
+  out = ensurePartnerPdpSizeGuideModalInHtml(out, {
+    locale,
+    siteSlug,
+    hasSizes: Boolean(sizeGuideKind),
+    kind: sizeGuideKind,
+    closeLabel: t.sizeGuideClose,
+    title: t.sizeGuideModalTitle,
+    imageUrl: sizeGuideImg || String(product.sizeGuideImageUrl || '').trim() || null,
+  })
   out = fillPdpReviewQaSamples(out, product, locale)
   out = stampTryOnContextInHtml(out, product)
   const device = pdpHtmlDeviceOf(out, opts?.device)
