@@ -39,6 +39,8 @@ export const SHOP_PUBLIC_ROOT_SEGMENTS = new Set([
   'order-tracking',
   'thanh-vien',
   'sitemap.xml',
+  'sitemap-pages.xml',
+  'sitemap-products',
   'manifest.webmanifest',
   'sw.js',
   'pw-shop-sw.js',

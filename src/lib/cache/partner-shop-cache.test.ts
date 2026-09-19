@@ -56,6 +56,13 @@ test('shopCacheGetJson hits in-process memory when Redis is absent', async () =>
   assert.deepEqual(hit, { ok: 1, slug: 'demo' })
 })
 
+test('shopCacheGetJson uses the TTL passed to set, not a 60s clamp', async () => {
+  const key = `pw:test:ttl:${Date.now()}`
+  await shopCacheSetJson(key, 900, { ttl: 900 })
+  const hit = await shopCacheGetJson<{ ttl: number }>(key, 900)
+  assert.deepEqual(hit, { ttl: 900 })
+})
+
 test('concurrent cold cache requests share one backend load', async () => {
   const partnerId = `test-${Date.now()}-${Math.random()}`
   let loads = 0

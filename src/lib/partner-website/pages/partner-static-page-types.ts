@@ -68,7 +68,7 @@ export const PARTNER_SITE_RESERVED_SLUGS = [
 
   'stores', 'terms', 'thank-you',
 
-  'wishlist', 'pages', 'sitemap.xml', 'api', 'favorites', 'da-xem',
+  'wishlist', 'pages', 'sitemap.xml', 'sitemap-pages.xml', 'sitemap-products', 'api', 'favorites', 'da-xem',
 
 ] as const
 

@@ -1,4 +1,4 @@
-import { bumpInventoryCacheLater } from '@/lib/cache/partner-shop-cache'
+import { bumpInventoryCacheLater, SHOP_TREE_TTL_SEC, withInventoryShopCache } from '@/lib/cache/partner-shop-cache'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import {
@@ -110,6 +110,19 @@ export async function fetchPartnerCategoriesFlatFromPg(
 ): Promise<PartnerCategoryRow[] | null> {
   if (!isPgConfigured()) return null
   const activeOnly = opts.activeOnly !== false
+  return withInventoryShopCache({
+    partnerId,
+    kind: 'tree',
+    suffix: activeOnly ? 'flat:active' : 'flat:all',
+    ttlSec: SHOP_TREE_TTL_SEC,
+    load: () => fetchPartnerCategoriesFlatFromPgUncached(partnerId, activeOnly),
+  })
+}
+
+async function fetchPartnerCategoriesFlatFromPgUncached(
+  partnerId: string,
+  activeOnly: boolean
+): Promise<PartnerCategoryRow[] | null> {
   try {
     const rows = await pgQuery<CategoryDbRow>(
       `select ${SELECT_COLS}

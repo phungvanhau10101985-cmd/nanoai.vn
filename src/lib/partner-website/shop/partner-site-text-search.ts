@@ -219,6 +219,9 @@ export const PARTNER_TEXT_SEARCH_DOCUMENT_SQL = `lower(
   coalesce(mpi.catalog_json->>'product_info', '')
 )`
 
+/** Ưu tiên cột search_document (GIN pg_trgm); trống thì CONCAT runtime. */
+export const PARTNER_SEARCH_DOCUMENT_HAYSTACK_SQL = `coalesce(nullif(trim(mpi.search_document), ''), ${PARTNER_TEXT_SEARCH_DOCUMENT_SQL})`
+
 /** Fallback khi DB chưa có cột catalog 188. */
 export const PARTNER_TEXT_SEARCH_DOCUMENT_SQL_FALLBACK = `lower(
   coalesce(mpi.name, '') || ' ' ||

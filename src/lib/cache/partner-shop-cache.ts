@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { redisGet, redisGetInt, redisIncr, redisSetEx } from '@/lib/cache/redis'
+import { isRedisConfigured, redisGet, redisGetInt, redisIncr, redisSetEx } from '@/lib/cache/redis'
 
 export const SHOP_LIST_TTL_SEC = 60
 export const SHOP_ITEM_TTL_SEC = 120
@@ -9,9 +9,17 @@ export const SITE_CHROME_TTL_SEC = 1800
 export const SITE_META_TTL_SEC = 120
 /** Pill + featured tiles are visitor-specific; short so vừa xem still updates. */
 export const LIVE_CATEGORY_BIND_TTL_SEC = 45
+/** Facet snapshot + id list — busted by inventory version, so longer TTL is safe. */
+export const SHOP_FACET_TTL_SEC = 900
+export const SHOP_ID_LIST_TTL_SEC = 600
+export const SHOP_TREE_TTL_SEC = 600
+/** Product sitemap pages — busted by inventory version. */
+export const SHOP_SITEMAP_TTL_SEC = 3600
 
 /** Process L0 when Redis is off — same TTL as the Redis entry; cleared on bump. */
-const MEM_CACHE_MAX = 300
+const MEM_CACHE_MAX = 800
+/** Skip L0 when Redis already holds a fat id-list (~5000 UUID ≈ 180KB). */
+const MEM_CACHE_MAX_BYTES = 24 * 1024
 const memStore = new Map<string, { exp: number; raw: string }>()
 const pendingLoads = new Map<string, Promise<unknown>>()
 const pendingVersions = new Map<string, Promise<number>>()
@@ -37,6 +45,7 @@ function readMem(key: string): string | null {
 }
 
 function writeMem(key: string, ttlSec: number, raw: string): void {
+  if (raw.length > MEM_CACHE_MAX_BYTES && isRedisConfigured()) return
   if (memStore.size >= MEM_CACHE_MAX) {
     const oldest = memStore.keys().next().value
     if (typeof oldest === 'string') memStore.delete(oldest)
@@ -112,7 +121,7 @@ async function loadOnce<T>(key: string, load: () => Promise<T>): Promise<T> {
   return pending
 }
 
-export async function shopCacheGetJson<T>(key: string): Promise<T | null> {
+export async function shopCacheGetJson<T>(key: string, memTtlSec = SHOP_LIST_TTL_SEC): Promise<T | null> {
   const cached = readMem(key)
   if (cached) {
     try {
@@ -123,7 +132,7 @@ export async function shopCacheGetJson<T>(key: string): Promise<T | null> {
   }
   const raw = await redisGet(key)
   if (!raw) return null
-  writeMem(key, SHOP_LIST_TTL_SEC, raw)
+  writeMem(key, memTtlSec, raw)
   try {
     return JSON.parse(raw) as T
   } catch {
@@ -175,9 +184,15 @@ export async function withLiveCategoryBindCache<T>(input: {
   })
 }
 
+export async function partnerInventoryCacheVersion(partnerId: string): Promise<number> {
+  return inventoryVer(partnerId.trim())
+}
+
+export type PartnerInventoryShopCacheKind = 'shop' | 'cat' | 'item' | 'catbind' | 'facet' | 'ids' | 'tree' | 'sitemap'
+
 export async function withInventoryShopCache<T>(input: {
   partnerId: string
-  kind: 'shop' | 'cat' | 'item' | 'catbind'
+  kind: PartnerInventoryShopCacheKind
   suffix: string
   ttlSec: number
   load: () => Promise<T>
@@ -186,7 +201,7 @@ export async function withInventoryShopCache<T>(input: {
   const ver = await inventoryVer(partnerId)
   const key = `pw:inv:${partnerId}:v${ver}:${input.kind}:${input.suffix}`
   return loadOnce(key, async () => {
-    const hit = await shopCacheGetJson<T>(key)
+    const hit = await shopCacheGetJson<T>(key, input.ttlSec)
     if (hit !== null) return hit
     const value = await input.load()
     if (value != null) await shopCacheSetJson(key, input.ttlSec, value)
@@ -207,7 +222,7 @@ export async function withSiteHtmlCache(input: {
   const extra = input.extra ? `:${input.extra}` : ''
   const key = `pw:site:${slug}:v${ver}:html:${input.pageKey}:${input.device}${extra}`
   return loadOnce(key, async () => {
-    const hit = await shopCacheGetJson<string>(key)
+    const hit = await shopCacheGetJson<string>(key, SITE_HTML_TTL_SEC)
     if (typeof hit === 'string' && hit.length >= 40) return hit
     const value = await input.load()
     if (value.length >= 40) await shopCacheSetJson(key, SITE_HTML_TTL_SEC, value)
@@ -227,7 +242,7 @@ export async function withSiteMetaCache<T>(input: {
   const ver = await siteVer(slug)
   const key = `pw:site:${slug}:v${ver}:meta:${suffix}`
   return loadOnce(key, async () => {
-    const hit = await shopCacheGetJson<T>(key)
+    const hit = await shopCacheGetJson<T>(key, SITE_META_TTL_SEC)
     if (hit !== null) return hit
     const value = await input.load()
     if (value != null) await shopCacheSetJson(key, SITE_META_TTL_SEC, value)
@@ -247,7 +262,7 @@ export async function withSiteChromeCache<T>(input: {
   const ver = await siteVer(slug)
   const key = `pw:site:${slug}:v${ver}:chrome2:${device}`
   return loadOnce(key, async () => {
-    const hit = await shopCacheGetJson<T>(key)
+    const hit = await shopCacheGetJson<T>(key, SITE_CHROME_TTL_SEC)
     if (hit !== null) return hit
     const value = await input.load()
     if (value != null) await shopCacheSetJson(key, SITE_CHROME_TTL_SEC, value)
