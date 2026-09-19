@@ -730,7 +730,7 @@ function openPdpVariantModal(seed,action){
       var el=document.querySelector('[data-pw-size-guide-kind]');
       var kind=el&&el.getAttribute('data-pw-size-guide-kind')||'';
       var base=typeof SIZE_GUIDE_PATH==='string'?SIZE_GUIDE_PATH:'';
-      if(kind&&base)return base.replace(/\/$/,'')+'/'+kind;
+      if(kind&&base)return (base.charAt(base.length-1)==='/'?base.slice(0,-1):base)+'/'+kind;
       return '';
     })(),
     busy:true,

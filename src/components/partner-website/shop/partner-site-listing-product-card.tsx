@@ -81,7 +81,8 @@ export function PartnerSiteListingFavoriteButton({
     <button
       type="button"
       className="pw-rec-fav"
-      {...(onClick ? { 'data-pw-react-fav': '1' } : { 'data-pw-favorite': '1' })}
+      data-pw-favorite="1"
+      {...(onClick ? { 'data-pw-react-fav': '1' } : {})}
       data-inventory-id={inventoryId || undefined}
       aria-pressed={pressed ? 'true' : 'false'}
       aria-label={label}

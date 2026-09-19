@@ -109,6 +109,8 @@ test('shop theme CSS sizes stock bottom-nav icons from chrome vars', () => {
   assert.doesNotMatch(css, /\.pw-pdp-sticky svg,.pw-pdp-sticky-nav svg\{width:22px!important/)
   assert.match(css, /\.pw-pdp-sticky-nav svg\{width:17px!important/)
   assert.match(css, /button\.is-fav\[aria-pressed="true"\]/)
+  assert.match(css, /\.pw-pdp-sticky-nav button\.is-fav svg[\s\S]*color:#fff/)
+  assert.match(css, /button\.is-fav\[aria-pressed="true"\] svg[\s\S]*color:var\(--pw-primary\)/)
   assert.doesNotMatch(css, /\.pw-pdp-sticky-nav button\.is-fav\{color:#e11d48\}/)
 })
 

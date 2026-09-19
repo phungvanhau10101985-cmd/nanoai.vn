@@ -1322,7 +1322,7 @@ function stampPdpHosts(html: string, id: string): string {
     (full) => stampInventoryIdOnTag(full, id)
   )
   out = out.replace(
-    /<(button|a)\b([^>]*\bdata-pw-pdp-(?:favorite|add-cart|buy-now)\s*=[^>]*)>/gi,
+    /<(button|a)\b([^>]*\b(?:data-pw-pdp-(?:favorite|add-cart|buy-now)\s*=|data-pw-chrome-btn\s*=\s*["']favorite-product["'])[^>]*)>/gi,
     (full) => stampInventoryIdOnTag(full, id)
   )
   return out

@@ -174,13 +174,14 @@ export function buildPartnerSiteImageSearchPageBootScript(siteSlug: string): str
       +'<a class="pw-product-card-hit" href="'+href+'" aria-label="'+name+'" tabindex="-1"></a>'
       +'<div class="pw-product-card-media" data-pw-el="card-media">'
       +(img?'<img src="'+img+'" alt="" width="400" height="400" loading="lazy" decoding="async"/>':'')
-      +(id?'<button type="button" class="pw-rec-fav" data-pw-favorite="1" data-inventory-id="'+id+'" aria-pressed="false" aria-label="'+esc(favLabel())+'">'+heart+'</button>':'')
       +'</div>'
       +'<div class="pw-shop-card-body pw-product-card-body">'
       +'<h3 data-pw-el="card-name">'+name+'</h3>'
       +(price?'<p class="pw-price" data-pw-el="card-price">'+price+'</p>':'')
       +'<div class="pw-rec-stats"><span>★ '+rating+'</span><span>'+esc(soldLabel())+': '+sold+'</span></div>'
-      +'</div></article>';
+      +'</div>'
+      +(id?'<button type="button" class="pw-rec-fav" data-pw-favorite="1" data-inventory-id="'+id+'" aria-pressed="false" aria-label="'+esc(favLabel())+'">'+heart+'</button>':'')
+      +'</article>';
   }
   function paintEager(){
     if(typeof document==='undefined'||painting)return;

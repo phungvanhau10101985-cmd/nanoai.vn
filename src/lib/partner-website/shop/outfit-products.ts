@@ -111,7 +111,7 @@ export function outfitCardHtml(
     soldLabel: opts?.soldLabel || 'Đã bán',
   })
   return `<article class="pw-product-card pw-outfit-card" ${pwElAttr(PW_EL.card)} data-inventory-id="${escapeAttr(item.id)}">
-  <div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)}>${media}${fav}</div>
+  <div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)}>${media}</div>
   <div class="pw-product-card-body pw-outfit-card-body">
     <h4 ${pwElAttr(PW_EL.cardName)}><a href="${href}">${escapeHtml(item.name)}</a></h4>
     ${reason ? `<p class="pw-outfit-reason">${escapeHtml(reason)}</p>` : ''}
@@ -119,6 +119,7 @@ export function outfitCardHtml(
     ${stats}
   </div>
   <a class="pw-product-card-hit" href="${href}" aria-label="${escapeHtml(item.name)}" tabindex="-1"></a>
+  ${fav}
 </article>`
 }
 

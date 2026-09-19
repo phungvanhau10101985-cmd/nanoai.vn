@@ -467,6 +467,9 @@ export function PartnerSiteShopProductClient({
     if (host.__pwFavoriteToggleInFlight[inflightKey]) return
     setFavoriteBusy(true)
     const wasFavorite = isFavorite
+    const nextFavorite = !wasFavorite
+    setIsFavorite(nextFavorite)
+    setLikesCount((n) => Math.max(0, n + (nextFavorite ? 1 : -1)))
     const req = (async () => {
       const res = await fetch(partnerSitePersonalizationApiPath(siteSlug, 'events'), {
         method: 'POST',
@@ -476,12 +479,15 @@ export function PartnerSiteShopProductClient({
       })
       captureFromResponse(res)
       const json = (await res.json()) as { is_favorite?: boolean; likes_count?: number; ok?: boolean }
-      if (res.ok && typeof json.is_favorite === 'boolean') {
+      if (!res.ok) {
+        setIsFavorite(wasFavorite)
+        setLikesCount((n) => Math.max(0, n + (nextFavorite ? -1 : 1)))
+        return
+      }
+      if (typeof json.is_favorite === 'boolean') {
         setIsFavorite(json.is_favorite)
         if (typeof json.likes_count === 'number' && Number.isFinite(json.likes_count)) {
           setLikesCount(Math.max(0, Math.round(json.likes_count)))
-        } else {
-          setLikesCount((n) => Math.max(0, n + (json.is_favorite && !wasFavorite ? 1 : !json.is_favorite && wasFavorite ? -1 : 0)))
         }
       }
     })()
@@ -687,6 +693,10 @@ export function PartnerSiteShopProductClient({
           aria-pressed={isFavorite}
           aria-label={isFavorite ? t.favoriteRemove : t.favoriteAdd}
           data-pw-el={PW_EL.wishlist}
+          data-pw-favorite="1"
+          data-pw-pdp-favorite="1"
+          data-pw-react-fav="1"
+          data-inventory-id={product.id}
         >
           <IconHeart filled={isFavorite} />
           <span className="pw-pdp-like-copy">
@@ -1013,6 +1023,10 @@ export function PartnerSiteShopProductClient({
               onClick={() => void toggleFavorite()}
               aria-pressed={isFavorite}
               data-pw-el={PW_EL.wishlist}
+              data-pw-favorite="1"
+              data-pw-pdp-favorite="1"
+              data-pw-react-fav="1"
+              data-inventory-id={product.id}
             >
               {isFavorite ? '♥' : '♡'} {likesCount}
             </button>

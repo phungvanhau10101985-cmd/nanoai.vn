@@ -41,7 +41,11 @@ test('inline visual native navigation strips the internal site prefix before nav
   assert.match(script, /data-nanoai-open-chat/)
   assert.match(script, /function eventOrigin\(/)
   assert.match(script, /function isJsOnly\(/)
+  assert.match(script, /function isCatToggle\(/)
+  assert.match(script, /function favAtEvent\(/)
+  assert.match(script, /elementsFromPoint/)
   assert.match(script, /\.pw-rec-fav/)
+  assert.match(script, /data-pw-pdp-favorite/)
   assert.doesNotMatch(script, /if\(event\.defaultPrevented/)
   assert.doesNotMatch(script, /__pwNativeNavGoing/)
 })
@@ -375,4 +379,264 @@ test('native nav does not open the product page when the listing heart is the ta
   assert.equal(assigned.length, 0)
   assert.equal(pushed.length, 0)
   assert.equal(clickPrevented, 1)
+})
+
+test('native nav does not swallow mobile category taps so the sheet can open', () => {
+  const assigned: string[] = []
+  const clickFns: Array<(event: object) => void> = []
+  const pointerUpFns: Array<(event: object) => void> = []
+  const pointerDownFns: Array<(event: object) => void> = []
+  const windowMock = {
+    location: {
+      href: 'https://shop.test/',
+      origin: 'https://shop.test',
+      pathname: '/',
+      search: '',
+      assign(href: string) {
+        assigned.push(href)
+      },
+    },
+    addEventListener(type: string, fn: (event: object) => void) {
+      if (type === 'click') clickFns.push(fn)
+      if (type === 'pointerup') pointerUpFns.push(fn)
+      if (type === 'pointerdown') pointerDownFns.push(fn)
+    },
+    setTimeout() {
+      return 0
+    },
+  }
+  const catBtn = {
+    isConnected: true,
+    closest(sel: string) {
+      if (sel === 'input,textarea,select,option,[contenteditable="true"]') return null
+      if (sel === 'a[href]') return null
+      if (typeof sel === 'string' && sel.includes('[data-pw-chrome-btn="categories"]')) return this
+      if (typeof sel === 'string' && sel.includes('[data-pw-cat-toggle]')) return this
+      return null
+    },
+  }
+  const run = new Function('window', buildPartnerSiteVisualNativeNavigationScript('demo-shop'))
+  run(windowMock)
+  pointerDownFns[0]({ button: 0, pointerId: 3, clientX: 24, clientY: 88, target: catBtn })
+  pointerUpFns[0]({
+    type: 'pointerup',
+    button: 0,
+    pointerId: 3,
+    clientX: 24,
+    clientY: 88,
+    metaKey: false,
+    ctrlKey: false,
+    shiftKey: false,
+    altKey: false,
+    target: catBtn,
+    preventDefault() {},
+    stopPropagation() {},
+    stopImmediatePropagation() {},
+  })
+  let prevented = 0
+  let stopped = 0
+  let immediate = 0
+  clickFns[0]({
+    type: 'click',
+    button: 0,
+    metaKey: false,
+    ctrlKey: false,
+    shiftKey: false,
+    altKey: false,
+    target: catBtn,
+    preventDefault() {
+      prevented += 1
+    },
+    stopPropagation() {
+      stopped += 1
+    },
+    stopImmediatePropagation() {
+      immediate += 1
+    },
+  })
+  assert.equal(assigned.length, 0)
+  assert.equal(prevented, 1)
+  assert.equal(stopped, 0)
+  assert.equal(immediate, 0)
+})
+
+test('native nav does not swallow favorite taps so shop-actions can toggle', () => {
+  const assigned: string[] = []
+  const clickFns: Array<(event: object) => void> = []
+  const pointerUpFns: Array<(event: object) => void> = []
+  const pointerDownFns: Array<(event: object) => void> = []
+  const windowMock = {
+    location: {
+      href: 'https://shop.test/products/ao-bbbbbbbb',
+      origin: 'https://shop.test',
+      pathname: '/products/ao-bbbbbbbb',
+      search: '',
+      assign(href: string) {
+        assigned.push(href)
+      },
+    },
+    addEventListener(type: string, fn: (event: object) => void) {
+      if (type === 'click') clickFns.push(fn)
+      if (type === 'pointerup') pointerUpFns.push(fn)
+      if (type === 'pointerdown') pointerDownFns.push(fn)
+    },
+    setTimeout() {
+      return 0
+    },
+  }
+  const favBtn = {
+    isConnected: true,
+    closest(sel: string) {
+      if (sel === 'input,textarea,select,option,[contenteditable="true"]') return null
+      if (sel === 'a[href]') return null
+      if (typeof sel === 'string' && sel.includes('[data-pw-favorite]')) return this
+      if (typeof sel === 'string' && sel.includes('.pw-rec-fav')) return this
+      if (typeof sel === 'string' && sel.includes('favorite-product')) return this
+      return null
+    },
+  }
+  const run = new Function('window', buildPartnerSiteVisualNativeNavigationScript('demo-shop'))
+  run(windowMock)
+  pointerDownFns[0]({ button: 0, pointerId: 4, clientX: 40, clientY: 120, target: favBtn })
+  pointerUpFns[0]({
+    type: 'pointerup',
+    button: 0,
+    pointerId: 4,
+    clientX: 40,
+    clientY: 120,
+    metaKey: false,
+    ctrlKey: false,
+    shiftKey: false,
+    altKey: false,
+    target: favBtn,
+    preventDefault() {},
+    stopPropagation() {},
+    stopImmediatePropagation() {},
+  })
+  let prevented = 0
+  let stopped = 0
+  let immediate = 0
+  clickFns[0]({
+    type: 'click',
+    button: 0,
+    metaKey: false,
+    ctrlKey: false,
+    shiftKey: false,
+    altKey: false,
+    target: favBtn,
+    preventDefault() {
+      prevented += 1
+    },
+    stopPropagation() {
+      stopped += 1
+    },
+    stopImmediatePropagation() {
+      immediate += 1
+    },
+  })
+  assert.equal(assigned.length, 0)
+  assert.equal(prevented, 1)
+  assert.equal(stopped, 0)
+  assert.equal(immediate, 0)
+})
+
+test('native nav does not open PDP when the card-hit overlay covers the heart', () => {
+  const assigned: string[] = []
+  const clickFns: Array<(event: object) => void> = []
+  const pointerUpFns: Array<(event: object) => void> = []
+  const pointerDownFns: Array<(event: object) => void> = []
+  const favBtn = {
+    isConnected: true,
+    closest(sel: string) {
+      if (sel === 'input,textarea,select,option,[contenteditable="true"]') return null
+      if (sel === 'a[href]') return null
+      if (typeof sel === 'string' && sel.includes('[data-pw-favorite]')) return this
+      if (typeof sel === 'string' && sel.includes('.pw-rec-fav')) return this
+      return null
+    },
+  }
+  const overlay = {
+    isConnected: true,
+    closest(sel: string) {
+      if (sel === 'input,textarea,select,option,[contenteditable="true"]') return null
+      if (sel === 'a[href]') return this
+      return null
+    },
+    getAttribute(name: string) {
+      if (name === 'href') return '/products/ao-bbbbbbbb'
+      if (name === 'target') return ''
+      return null
+    },
+    hasAttribute(name: string) {
+      return name === 'href'
+    },
+  }
+  const windowMock = {
+    location: {
+      href: 'https://shop.test/',
+      origin: 'https://shop.test',
+      pathname: '/',
+      search: '',
+      assign(href: string) {
+        assigned.push(href)
+      },
+    },
+    document: {
+      elementsFromPoint() {
+        return [overlay, favBtn]
+      },
+      elementFromPoint() {
+        return overlay
+      },
+    },
+    addEventListener(type: string, fn: (event: object) => void) {
+      if (type === 'click') clickFns.push(fn)
+      if (type === 'pointerup') pointerUpFns.push(fn)
+      if (type === 'pointerdown') pointerDownFns.push(fn)
+    },
+    setTimeout() {
+      return 0
+    },
+  }
+  const run = new Function('window', buildPartnerSiteVisualNativeNavigationScript('demo-shop'))
+  run(windowMock)
+  pointerDownFns[0]({ button: 0, pointerId: 9, clientX: 40, clientY: 120, target: overlay })
+  pointerUpFns[0]({
+    type: 'pointerup',
+    button: 0,
+    pointerId: 9,
+    clientX: 40,
+    clientY: 120,
+    metaKey: false,
+    ctrlKey: false,
+    shiftKey: false,
+    altKey: false,
+    target: overlay,
+    preventDefault() {},
+    stopPropagation() {},
+    stopImmediatePropagation() {},
+  })
+  let prevented = 0
+  let stopped = 0
+  clickFns[0]({
+    type: 'click',
+    button: 0,
+    metaKey: false,
+    ctrlKey: false,
+    shiftKey: false,
+    altKey: false,
+    target: overlay,
+    preventDefault() {
+      prevented += 1
+    },
+    stopPropagation() {
+      stopped += 1
+    },
+    stopImmediatePropagation() {
+      stopped += 1
+    },
+  })
+  assert.equal(assigned.length, 0)
+  assert.equal(prevented, 1)
+  assert.equal(stopped, 0)
 })

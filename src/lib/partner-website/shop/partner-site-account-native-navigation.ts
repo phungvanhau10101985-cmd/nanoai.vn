@@ -20,6 +20,11 @@
  * Skip navigation when the tap origin is the heart, even if a parent media
  * `<a>` or `.pw-product-card-hit` would otherwise open the product page.
  *
+ * Category (`data-pw-chrome-btn="categories"`) and favorite
+ * (`[data-pw-favorite]` / `.pw-rec-fav` / dock `favorite-product`) are JS-only:
+ * `preventDefault` on click so Next.js does not hijack, but never
+ * `stopPropagation` — shop-actions / React `onClick` must still receive the tap.
+ *
  * Tap-ack (ripple + pending bar) is prepended so a press is visible before
  * hydration; extra taps while a navigation is in flight are swallowed.
  */
@@ -39,7 +44,10 @@ const JS_ONLY_CHROME_SEL = [
   '[data-pw-buy]',
   '[data-pw-favorite]',
   '[data-pw-react-fav]',
+  '[data-pw-pdp-favorite]',
+  '[data-pw-chrome-btn="favorite-product"]',
   '.pw-rec-fav',
+  '.is-fav',
   '[data-pw-head-back]',
   '[data-pw-chrome-btn="back"]',
   '[data-pw-chrome-btn="chat"]',
@@ -110,6 +118,28 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
   function isJsOnly(node){
     return !!(node&&typeof node.closest==='function'&&node.closest(SKIP));
   }
+  function isCatToggle(node){
+    return !!(node&&typeof node.closest==='function'&&node.closest('[data-pw-chrome-btn="categories"],[data-pw-cat-toggle],[data-pw-el="cat-toggle"]'));
+  }
+  function favNodeFrom(node){
+    if(!node||typeof node.closest!=='function')return null;
+    return node.closest('[data-pw-favorite],[data-pw-react-fav],[data-pw-pdp-favorite],[data-pw-chrome-btn="favorite-product"],.pw-rec-fav,.is-fav');
+  }
+  function favAtEvent(event){
+    var fav=favNodeFrom(eventOrigin(event));
+    if(fav)return fav;
+    if(!event)return null;
+    try{
+      var doc=window.document;
+      var list=doc&&typeof doc.elementsFromPoint==='function'?doc.elementsFromPoint(event.clientX||0,event.clientY||0):null;
+      if(!list||!list.length)return null;
+      for(var i=0;i<list.length;i++){
+        fav=favNodeFrom(list[i]);
+        if(fav)return fav;
+      }
+    }catch(_){}
+    return null;
+  }
   function pointLink(x,y){
     return liveLink(pointNode(x,y));
   }
@@ -175,12 +205,14 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
     if(event.button!=null&&event.button!==0)return;
     if(event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
     var origin=eventOrigin(event);
-    if(isJsOnly(origin)){
-      if(ackBusy()){
+    var fav=favAtEvent(event);
+    if(fav||isJsOnly(origin)){
+      var cat=isCatToggle(origin);
+      if(!cat&&!fav&&ackBusy()){
         swallow(event);
         return;
       }
-      if(event.type==='click'||event.type==='pointerup'){
+      if(!cat&&!fav&&(event.type==='click'||event.type==='pointerup')){
         var nowJs=Date.now();
         if(jsGateAt&&nowJs-jsGateAt<650){
           swallow(event);
@@ -188,21 +220,13 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
         }
         jsGateAt=nowJs;
       }
-      if(event.type==='click'){
-        if(origin.closest('[data-pw-chrome-btn="categories"],[data-pw-cat-toggle],[data-pw-el="cat-toggle"]')){
-          swallow(event);
-        }else{
-          event.preventDefault();
-        }
-      }
+      if(event.type==='click')event.preventDefault();
       return;
     }
     var link=resolveLink(event,saved);
     if(!link||link.hasAttribute('download'))return;
     if(link.closest(SKIP)){
-      if(event.type==='click'&&link.closest('[data-pw-chrome-btn="categories"],[data-pw-cat-toggle],[data-pw-el="cat-toggle"]')){
-        swallow(event);
-      }
+      if(event.type==='click')event.preventDefault();
       return;
     }
     var targetName=String(link.getAttribute('target')||'').toLowerCase();
@@ -235,7 +259,7 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
     try{if(typeof window.__pwShopTapAckPress==='function')dup=!!window.__pwShopTapAckPress(event);}catch(_){}
     var origin=eventOrigin(event);
     var link=liveLink(origin)||liveLink(event.target);
-    tap={id:event.pointerId,x:event.clientX||0,y:event.clientY||0,link:link,skip:isJsOnly(origin),dup:dup};
+    tap={id:event.pointerId,x:event.clientX||0,y:event.clientY||0,link:link,skip:!!(favAtEvent(event)||isJsOnly(origin)),dup:dup};
     if(tap.skip||!link||link.closest(SKIP)||link.hasAttribute('download'))return;
     var raw=String(link.getAttribute('href')||'').trim();
     if(!raw||raw.charAt(0)==='#'||/^(?:javascript|mailto|tel|data):/i.test(raw))return;

@@ -130,4 +130,6 @@ test('variant modal applies empty API size/color arrays instead of leftover DOM 
 
 test('variant modal size guide requires a kind href, not leftover sizes alone', () => {
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /if\(st\.sizes\.length && st\.sizeGuideHref\)/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /base\.charAt\(base\.length-1\)==='\/'\?base\.slice\(0,-1\):base/)
+  assert.doesNotThrow(() => new Function(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS))
 })

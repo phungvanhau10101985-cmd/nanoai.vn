@@ -118,7 +118,6 @@ function renderStaticProductCards(
       return `<article class="pw-product-card" ${pwElAttr(PW_EL.card)}${id ? ` data-inventory-id="${escapeAttr(id)}"` : ''}>
         <div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)}>
           ${opts.showNew ? '<span class="pw-badge-new">NEW</span>' : ''}
-          ${listingCardFavHtml(id, opts.favoriteLabel)}
           ${img ? `<img src="${escapeAttr(img)}" alt="${escapeAttr(str(o.name))}" loading="lazy"/>` : '<div class="pw-product-ph"></div>'}
         </div>
         <div class="pw-product-card-body">
@@ -127,6 +126,7 @@ function renderStaticProductCards(
           ${listingCardStatsHtml({ rating, sold, soldLabel: opts.soldLabel })}
         </div>
         <a class="pw-product-card-hit" href="${href}" aria-label="${name}" tabindex="-1"></a>
+        ${listingCardFavHtml(id, opts.favoriteLabel)}
       </article>`
     })
     .join('')

@@ -498,6 +498,7 @@ test('bind updates like count without wiping the sticky heart icon', () => {
   const next = bindLiveProductToPdpHtml(html, { ...PRODUCT_B, likesCount: 121 })
   assert.match(next, /data-pw-like-base="121"/)
   assert.match(next, /data-pw-like-count[^>]*>121</)
+  assert.match(next, /data-pw-chrome-btn="favorite-product"[^>]*data-inventory-id="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"/)
   assert.match(next, /pw-pdp-like-icon/)
   assert.match(next, /<span>Thích<\/span>/)
   assert.doesNotMatch(next, /class="is-fav"[^>]*>♡ 121/)

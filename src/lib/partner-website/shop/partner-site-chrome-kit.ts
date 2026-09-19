@@ -39,11 +39,8 @@ import { PW_SCENE_MAX_INDEX, pwSceneZ } from '@/lib/partner-website/visual-edito
 import { stampChromeLogoOffsetInHtml } from '@/lib/partner-website/shop/header-logo-offset'
 import { ensureMobileHeadBackInHtml } from '@/lib/partner-website/shop/mobile-header-back'
 import { ensureMobileSearchComposeInHtml } from '@/lib/partner-website/shop/mobile-header-search-compose'
-import {
-  applyChatIconLogoToHtml,
-  firstShopLogoSrcInHtml,
-  stampChatLogoFallbackInHtml,
-} from '@/lib/partner-website/visual-editor/apply-chat-icon-logo'
+import { applyChatIconLogoToHtml, firstShopLogoSrcInHtml, stampChatLogoFallbackInHtml } from '@/lib/partner-website/visual-editor/apply-chat-icon-logo'
+import { pwUnlockedBelowLaptopMediaQuery } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
 
 export const PW_CHROME_KIT_ATTR = 'data-pw-chrome-kit'
 /** Header stamp khi merchant Xóa thanh trên — Lưu / live không seed lại. */
@@ -657,6 +654,28 @@ function pwProductDockCss(selector: string, body: string): string {
   ]).join(',')}${body}`
 }
 
+function pwCompactProductDockCss(selector: string, body: string): string {
+  const devices = [
+    'html[data-pw-edit-device="mobile"]',
+    'html[data-pw-scene-lock="mobile"]',
+    'html[data-pw-edit-device="tablet"]',
+    'html[data-pw-scene-lock="tablet"]',
+  ]
+  const stamped = devices.flatMap((device) =>
+    PW_PRODUCT_PAGE_CSS_HOSTS.flatMap((host) => {
+      const scoped = host.startsWith('html') ? host.replace(/^html/, device) : `${device} ${host}`
+      return [`${scoped} .pw-bottom-nav${selector}`, `${scoped} .pw-shop-bottom-nav${selector}`]
+    }),
+  )
+  const unlocked = PW_PRODUCT_PAGE_CSS_HOSTS.flatMap((host) => {
+    const scoped = host.startsWith('html')
+      ? host.replace(/^html/, 'html:not([data-pw-edit-device]):not([data-pw-scene-lock])')
+      : `html:not([data-pw-edit-device]):not([data-pw-scene-lock]) ${host}`
+    return [`${scoped} .pw-bottom-nav${selector}`, `${scoped} .pw-shop-bottom-nav${selector}`]
+  })
+  return `${stamped.join(',')}${body}@media ${pwUnlockedBelowLaptopMediaQuery()}{${unlocked.join(',')}${body}}`
+}
+
 export const PARTNER_SHOP_CHROME_KIT_CSS = `
 .pw-header-actions[${PW_CHROME_KIT_ATTR}="actions"],.pw-shop-header-actions[${PW_CHROME_KIT_ATTR}="actions"]{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;margin-right:0!important;gap:var(--pw-kit-gap, ${PW_KIT_GAP_DEFAULT}px)!important;transform:translateX(var(--pw-kit-x, 0px))!important}
 .pw-topbar-inner,.pw-shop-topbar-inner{gap:var(--pw-kit-gap, ${PW_TOPBAR_GAP_DEFAULT}px)!important;${PW_TOPBAR_EDGE_SHIFT_CSS}}
@@ -715,8 +734,19 @@ ${pwProductDockCss(' .pw-shop-btn-outline', '{display:none!important}')}
 ${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="add-cart"]`, '{background:var(--pw-cart)!important;color:#fff!important}')}
 ${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="buy-now"]`, '{background:var(--pw-buy)!important;color:#fff!important}')}
 ${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] .is-try`, '{color:var(--pw-primary)!important}')}
-${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"]`, '{color:#e11d48!important}')}
-${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"] svg`, '{fill:currentColor!important}')}
+${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"]`, '{color:var(--pw-primary)!important}')}
+${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"] svg`, '{fill:currentColor!important;stroke:currentColor!important}')}
+${pwCompactProductDockCss(' .pw-pdp-sticky-nav .is-fav', '{color:#fff!important}')}
+${pwCompactProductDockCss(' .pw-pdp-sticky-nav [data-pw-chrome-btn="favorite-product"]', '{color:#fff!important}')}
+${pwCompactProductDockCss(' .pw-pdp-sticky-nav .is-fav svg', '{color:#fff!important;fill:none!important;stroke:currentColor!important}')}
+${pwCompactProductDockCss(' .pw-pdp-sticky-nav [data-pw-chrome-btn="favorite-product"] svg', '{color:#fff!important;fill:none!important;stroke:currentColor!important}')}
+${pwCompactProductDockCss(' .pw-pdp-sticky-nav .is-fav[aria-pressed="true"]', '{color:var(--pw-primary)!important}')}
+${pwCompactProductDockCss(' .pw-pdp-sticky-nav .is-fav.is-active', '{color:var(--pw-primary)!important}')}
+${pwCompactProductDockCss(' .pw-pdp-sticky-nav [data-pw-chrome-btn="favorite-product"][aria-pressed="true"]', '{color:var(--pw-primary)!important}')}
+${pwCompactProductDockCss(' .pw-pdp-sticky-nav .is-fav[aria-pressed="true"] svg', '{color:var(--pw-primary)!important;fill:currentColor!important;stroke:currentColor!important}')}
+${pwCompactProductDockCss(' .pw-pdp-sticky-nav .is-fav.is-active svg', '{color:var(--pw-primary)!important;fill:currentColor!important;stroke:currentColor!important}')}
+${pwCompactProductDockCss(' .pw-pdp-sticky-nav [data-pw-chrome-btn="favorite-product"][aria-pressed="true"] svg', '{color:var(--pw-primary)!important;fill:currentColor!important;stroke:currentColor!important}')}
+${pwCompactProductDockCss(' .pw-pdp-sticky-nav .pw-pdp-like-copy', '{color:#4b5563!important}')}
 ${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] ~ .pw-bottom-nav[data-pw-pdp-bottom]:not([${PW_CHROME_KIT_ATTR}])`, '{display:none!important}')}
 ${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] ~ .pw-shop-bottom-nav[data-pw-pdp-bottom]:not([${PW_CHROME_KIT_ATTR}])`, '{display:none!important}')}
 html:has([${PW_CHROME_KIT_ATTR}="dock"]) .pw-pdp-sticky-nav:not([${PW_CHROME_KIT_ATTR}="dock"] .pw-pdp-sticky-nav),

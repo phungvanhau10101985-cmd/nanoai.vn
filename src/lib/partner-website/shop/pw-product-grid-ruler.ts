@@ -214,6 +214,7 @@ ${PW_CATALOG_GRID_SEL}{align-items:stretch}
 ${PW_CATALOG_CARD_SEL}{position:relative;display:flex!important;flex-direction:column!important;height:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 html .pw-product-card > a.pw-product-card-hit,html .pw-shop-card > a.pw-product-card-hit{position:absolute;inset:0;z-index:2;display:block}
 html body:not(.nanoai-ve-active) .pw-product-card .pw-product-card-media,html body:not(.nanoai-ve-active) .pw-shop-card [data-pw-el="card-media"],html body:not(.nanoai-ve-active) .pw-product-card [data-pw-el="card-media"]{z-index:3!important;pointer-events:none}
+html .pw-product-card .pw-rec-fav,html .pw-shop-card .pw-rec-fav,html .pw-product-card [data-pw-favorite],html .pw-shop-card [data-pw-favorite]{z-index:8!important;pointer-events:auto!important}
 html .pw-product-card a.pw-product-card-media,html .pw-shop-card a.pw-product-card-media,html .pw-product-card [data-pw-el="card-name"] a,html .pw-shop-card [data-pw-el="card-name"] a{pointer-events:none}
 @media not all and (hover:hover) and (pointer:fine){
 ${PW_CATALOG_CARD_SEL}:hover,${PW_CATALOG_CARD_SEL}:hover .pw-product-card-media img,${PW_CATALOG_CARD_SEL}:hover [data-pw-el="card-media"] img{transform:none!important}
@@ -223,7 +224,7 @@ ${PW_CATALOG_NAME_SEL}{margin:0!important;font-size:12px!important;font-weight:5
 ${suffixEach(PW_CATALOG_NAME_SEL, ' a')}{color:inherit;text-decoration:none}
 ${PW_CATALOG_PRICE_SEL}{margin-top:0!important;font-size:14px;font-weight:700}
 html .pw-rec-stats{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:#6b7280;margin-top:2px}
-${PW_LISTING_FAV_SEL}{position:absolute;top:4px;right:4px;z-index:5;display:inline-flex;width:44px;height:44px;align-items:center;justify-content:center;border:none;border-radius:999px;background:rgba(255,255,255,.92);color:#4b5563;cursor:pointer;padding:0;pointer-events:auto!important;font-size:0!important;line-height:0;overflow:hidden}
+${PW_LISTING_FAV_SEL}{position:absolute;top:4px;right:4px;z-index:8;display:inline-flex;width:44px;height:44px;align-items:center;justify-content:center;border:none;border-radius:999px;background:rgba(255,255,255,.92);color:#4b5563;cursor:pointer;padding:0;pointer-events:auto!important;font-size:0!important;line-height:0;overflow:hidden}
 html .pw-rec-fav svg{width:16px;height:16px;display:block;flex-shrink:0}
 html .pw-rec-fav:hover,html .pw-rec-fav[aria-pressed="true"],html .pw-rec-fav.is-active{background:#ef4444;color:#fff}
 html .pw-rec-fav[aria-pressed="true"] svg,html .pw-rec-fav.is-active svg{fill:#fff;stroke:#fff}

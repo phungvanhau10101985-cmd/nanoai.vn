@@ -73,7 +73,7 @@ function renderCard(item){
   var img=esc(shopImg(p));
   var price=esc(p.priceHint||'');
   var reason=esc((item&&item.reasons&&item.reasons[0])||'');
-  return '<article class="pw-product-card pw-outfit-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'" data-pw-actions-ready="1"><div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)}>'+(img?'<img src="'+img+'" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"/>':'')+listingFavHtml(id)+'</div><div class="pw-product-card-body pw-outfit-card-body"><h4 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h4>'+(reason?'<p class="pw-outfit-reason">'+reason+'</p>':'')+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+listingStatsHtml(p)+'</div><a class="pw-product-card-hit" href="'+esc(href)+'" aria-label="'+name+'" tabindex="-1"></a></article>';
+  return '<article class="pw-product-card pw-outfit-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'" data-pw-actions-ready="1"><div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)}>'+(img?'<img src="'+img+'" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"/>':'')+'</div><div class="pw-product-card-body pw-outfit-card-body"><h4 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h4>'+(reason?'<p class="pw-outfit-reason">'+reason+'</p>':'')+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+listingStatsHtml(p)+'</div><a class="pw-product-card-hit" href="'+esc(href)+'" aria-label="'+name+'" tabindex="-1"></a>'+listingFavHtml(id)+'</article>';
 }
 function hideBrokenCardImgs(root){
   var imgs=(root||document).querySelectorAll('.pw-product-card-media img,[data-pw-el="card-media"] img');
