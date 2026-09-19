@@ -609,7 +609,16 @@ function applyFavoriteState(btn,on,likes){
     return;
   }
   var svg=btn.querySelector&&btn.querySelector('svg');
-  if(svg)svg.setAttribute('fill',on?'currentColor':'none');
+  if(svg){
+    if(on){
+      if(!svg.hasAttribute('data-pw-idle-fill')){
+        svg.setAttribute('data-pw-idle-fill', svg.getAttribute('fill')||'none');
+      }
+      svg.setAttribute('fill','currentColor');
+    } else if(svg.hasAttribute('data-pw-idle-fill')){
+      svg.setAttribute('fill', svg.getAttribute('data-pw-idle-fill')||'none');
+    }
+  }
   if(typeof likes==='number'&&isFinite(likes)){
     var n=Math.max(0,Math.round(likes));
     btn.setAttribute('data-pw-like-base',String(n));

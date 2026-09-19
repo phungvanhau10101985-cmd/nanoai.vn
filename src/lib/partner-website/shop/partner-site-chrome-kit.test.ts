@@ -602,10 +602,10 @@ describe('partner-site-chrome-kit', () => {
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
       '.pw-pdp-sticky-nav .is-try .pw-chrome-icon-wrap,.pw-pdp-sticky-nav .is-fav .pw-chrome-icon-wrap'
     )
-    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).not.toContain(
       '.pw-pdp-sticky-nav .is-fav{color:#fff!important}'
     )
-    expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(
+    expect(PARTNER_SHOP_CHROME_KIT_CSS).not.toContain(
       '.pw-pdp-sticky-nav .is-fav svg{color:#fff!important;fill:none!important;stroke:currentColor!important}'
     )
     expect(PARTNER_SHOP_CHROME_KIT_CSS).toContain(

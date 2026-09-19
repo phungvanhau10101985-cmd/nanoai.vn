@@ -830,8 +830,6 @@ html[data-pw-edit-device="laptop"] .pw-shop-product-detail,html[data-pw-scene-lo
   .pw-pdp-sticky-nav a.is-try,.pw-pdp-sticky-nav button.is-try,.pw-pdp-sticky-nav a.is-fav,.pw-pdp-sticky-nav button.is-fav{border:none;outline:none;box-shadow:none;background:transparent;-webkit-appearance:none;appearance:none;aspect-ratio:auto}
   .pw-pdp-sticky-nav .is-try .pw-chrome-icon-wrap,.pw-pdp-sticky-nav .is-fav .pw-chrome-icon-wrap{border:none;outline:none;box-shadow:none;background:transparent;border-radius:0}
   .pw-pdp-sticky-nav a.is-try,.pw-pdp-sticky-nav button.is-try{color:var(--pw-primary);font-weight:500}
-  .pw-pdp-sticky-nav button.is-fav,.pw-pdp-sticky-nav [data-pw-chrome-btn="favorite-product"]{color:#fff}
-  .pw-pdp-sticky-nav button.is-fav svg,.pw-pdp-sticky-nav [data-pw-chrome-btn="favorite-product"] svg{color:#fff;fill:none;stroke:currentColor}
   .pw-pdp-sticky-nav button.is-fav[aria-pressed="true"],.pw-pdp-sticky-nav button.is-fav.is-active,.pw-pdp-sticky-nav [data-pw-chrome-btn="favorite-product"][aria-pressed="true"]{color:var(--pw-primary)}
   .pw-pdp-sticky-nav button.is-fav[aria-pressed="true"] svg,.pw-pdp-sticky-nav button.is-fav.is-active svg,.pw-pdp-sticky-nav [data-pw-chrome-btn="favorite-product"][aria-pressed="true"] svg{color:var(--pw-primary);fill:currentColor;stroke:currentColor}
   .pw-pdp-sticky-nav .pw-pdp-like-copy{color:#4b5563}

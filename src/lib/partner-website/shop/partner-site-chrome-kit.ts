@@ -736,10 +736,6 @@ ${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] [data-pw-chrome-btn="buy-now"
 ${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] .is-try`, '{color:var(--pw-primary)!important}')}
 ${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"]`, '{color:var(--pw-primary)!important}')}
 ${pwProductDockCss(`[${PW_CHROME_KIT_ATTR}="dock"] .is-fav[aria-pressed="true"] svg`, '{fill:currentColor!important;stroke:currentColor!important}')}
-${pwCompactProductDockCss(' .pw-pdp-sticky-nav .is-fav', '{color:#fff!important}')}
-${pwCompactProductDockCss(' .pw-pdp-sticky-nav [data-pw-chrome-btn="favorite-product"]', '{color:#fff!important}')}
-${pwCompactProductDockCss(' .pw-pdp-sticky-nav .is-fav svg', '{color:#fff!important;fill:none!important;stroke:currentColor!important}')}
-${pwCompactProductDockCss(' .pw-pdp-sticky-nav [data-pw-chrome-btn="favorite-product"] svg', '{color:#fff!important;fill:none!important;stroke:currentColor!important}')}
 ${pwCompactProductDockCss(' .pw-pdp-sticky-nav .is-fav[aria-pressed="true"]', '{color:var(--pw-primary)!important}')}
 ${pwCompactProductDockCss(' .pw-pdp-sticky-nav .is-fav.is-active', '{color:var(--pw-primary)!important}')}
 ${pwCompactProductDockCss(' .pw-pdp-sticky-nav [data-pw-chrome-btn="favorite-product"][aria-pressed="true"]', '{color:var(--pw-primary)!important}')}

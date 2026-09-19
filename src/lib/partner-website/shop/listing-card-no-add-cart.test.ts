@@ -61,6 +61,7 @@ test('shop-actions keeps listing overlay as heart icon, not Thích text', () => 
   assert.match(js, /elementsFromPoint/)
   assert.match(js, /html\[data-inventory-id\]/)
   assert.match(js, /stopImmediatePropagation/)
+  assert.match(js, /data-pw-idle-fill/)
 })
 
 test('PDP like-count paint skips listing overlay hearts', () => {
