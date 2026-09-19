@@ -9,6 +9,11 @@ import {
   saveListingImportQueueFromPg,
 } from '@/lib/db/messaging-partner-listing-import-pg'
 import { executeOneListingImport } from '@/lib/messaging/listing-import/execute-one'
+import { fetchPartnerAllowAutoCreateCategoriesFromPg } from '@/lib/db/messaging-partner-category-auto-create-pg'
+import {
+  CATEGORY_AUTO_CREATE_DISABLED,
+  CATEGORY_AUTO_CREATE_DISABLED_MESSAGE,
+} from '@/lib/partner-website/category/partner-category-auto-create-copy'
 import { inferListingImportSource } from '@/lib/messaging/listing-import/listing-import-urls'
 import {
   countsFromListingItems,
@@ -220,6 +225,13 @@ export async function enqueueListingImport(
   createdBy?: string | null
 ): Promise<{ queue_token: string; added: number; message: string }> {
   if (!tasks.length) throw new Error('Không có link nào để thêm.')
+  const allowCreate = await fetchPartnerAllowAutoCreateCategoriesFromPg(partnerId)
+  if (!allowCreate) {
+    throw Object.assign(new Error(CATEGORY_AUTO_CREATE_DISABLED_MESSAGE), {
+      status: 409,
+      code: CATEGORY_AUTO_CREATE_DISABLED,
+    })
+  }
   let token: string | null = null
   if (queueToken && listingImportQueueTokenOk(queueToken)) {
     const ex = await loadQueue(partnerId, queueToken)

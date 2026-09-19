@@ -14,6 +14,11 @@ import {
 } from '@/lib/messaging/partner-inventory-external-catalog-get-plan'
 import { emptyInventoryCatalogRowFields } from '@/lib/messaging/partner-inventory-catalog-188'
 import { linkImportedInventoryToCatalogCategoriesBatch } from '@/lib/messaging/partner-inventory-import-categories'
+import { importedInventoryInsertIdsBlockedByAutoCreate } from '@/lib/partner-website/category/partner-category-place-product'
+import {
+  CATEGORY_AUTO_CREATE_DISABLED,
+} from '@/lib/partner-website/category/partner-category-auto-create-copy'
+import { fetchPartnerAllowAutoCreateCategoriesFromPg } from '@/lib/db/messaging-partner-category-auto-create-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
 import type { InventoryExcelInsert } from '@/lib/messaging/partner-inventory-excel'
@@ -28,6 +33,17 @@ import { syncPartnerInventoryTextEmbeddings } from '@/lib/messaging/partner-inve
 type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 type InventoryInsert = Database['public']['Tables']['messaging_partner_inventory']['Insert']
 const WRITE_CHUNK_SIZE = 500
+
+export type CategoryAutoCreateSkipRow = { sku: string; name: string }
+
+type InventoryUpsertOk = {
+  ok: true
+  inserted: number
+  updated: number
+  deleted: number
+  embeddingsDeferred: boolean
+  categoryAutoCreateSkipped?: CategoryAutoCreateSkipRow[]
+}
 
 type InventoryUpsertBase = {
   name: string
@@ -105,6 +121,60 @@ function chunked<T>(items: T[], size: number): T[][] {
   const out: T[][] = []
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
   return out
+}
+
+/** Tắt tự tạo: không insert SP mới có cột danh mục 41. File 12 cột không catalog thì vẫn thêm kho. */
+async function failIfNewCatalogInsertsWhileAutoCreateOff(
+  partnerId: string,
+  plannedInserts: Map<string, InventoryInsert>,
+  catalogPatches: Map<string, InventoryCatalogPatchRow>
+): Promise<{ ok: false; error: string } | null> {
+  const hasNewCatalog = [...plannedInserts.values()].some((row) => Boolean(row.id && catalogPatches.has(row.id)))
+  if (!hasNewCatalog) return null
+  const allowCreate = await fetchPartnerAllowAutoCreateCategoriesFromPg(partnerId)
+  if (allowCreate) return null
+  return { ok: false, error: CATEGORY_AUTO_CREATE_DISABLED }
+}
+
+async function pruneInsertsBlockedByCategoryAutoCreate(
+  partnerId: string,
+  plannedInserts: Map<string, InventoryInsert>,
+  catalogPatches: Map<string, InventoryCatalogPatchRow>,
+  changedIds: Set<string>
+): Promise<CategoryAutoCreateSkipRow[]> {
+  const insertIds = new Set<string>()
+  for (const row of plannedInserts.values()) {
+    if (row.id) insertIds.add(row.id)
+  }
+  const items: Array<{
+    id: string
+    categoryL1?: string | null
+    categoryL2?: string | null
+    categoryL3?: string | null
+  }> = []
+  for (const [id, patch] of catalogPatches) {
+    if (!insertIds.has(id)) continue
+    items.push({
+      id,
+      categoryL1: patch.catalog.category_l1,
+      categoryL2: patch.catalog.category_l2,
+      categoryL3: patch.catalog.category_l3,
+    })
+  }
+  const blocked = await importedInventoryInsertIdsBlockedByAutoCreate(partnerId, items)
+  const skipped: CategoryAutoCreateSkipRow[] = []
+  for (const id of blocked) {
+    catalogPatches.delete(id)
+    changedIds.delete(id)
+    for (const [key, row] of plannedInserts) {
+      if (row.id === id) {
+        plannedInserts.delete(key)
+        skipped.push({ sku: row.sku || '', name: row.name || '' })
+        break
+      }
+    }
+  }
+  return skipped
 }
 
 function dedupeExistingBySku(rows: InventoryRow[]): { canonical: InventoryRow[]; duplicateIds: string[] } {
@@ -223,10 +293,7 @@ async function upsertPartnerInventoryRemarketingSnapshotBatch(
   partnerId: string,
   rows: InventoryExcelInsert[],
   options: { existingRows: InventoryRow[]; deferEmbeddings?: boolean }
-): Promise<
-  | { ok: true; inserted: number; updated: number; deleted: number; embeddingsDeferred: boolean }
-  | { ok: false; error: string }
-> {
+): Promise<InventoryUpsertOk | { ok: false; error: string }> {
   const now = new Date().toISOString()
   const resolvedExistingRows = options.existingRows
   const existingById = new Map(resolvedExistingRows.map((r) => [r.id, r]))
@@ -339,10 +406,7 @@ export async function applyPartnerInventoryExternalCatalogGetBatch(
     deferEmbeddings?: boolean
     deleteRemarketingIds?: string[]
   }
-): Promise<
-  | { ok: true; inserted: number; updated: number; deleted: number; embeddingsDeferred: boolean }
-  | { ok: false; error: string }
-> {
+): Promise<InventoryUpsertOk | { ok: false; error: string }> {
   if (!isPgConfigured()) {
     return { ok: false, error: 'Postgres (DATABASE_URL) is not configured.' }
   }
@@ -385,10 +449,20 @@ export async function applyPartnerInventoryExternalCatalogGetBatch(
     changedIds.add(newId)
   }
 
+  const blockedCatalog = await failIfNewCatalogInsertsWhileAutoCreateOff(partnerId, plannedInserts, catalogPatches)
+  if (blockedCatalog) return blockedCatalog
+
   for (const ids of chunked(plan.deleteIds, WRITE_CHUNK_SIZE)) {
     const ok = await deletePartnerInventoryByIdsForPartnerFromPg(partnerId, ids)
     if (!ok) return { ok: false, error: 'Inventory delete failed (Postgres).' }
   }
+  const categoryAutoCreateSkipped = await pruneInsertsBlockedByCategoryAutoCreate(
+    partnerId,
+    plannedInserts,
+    catalogPatches,
+    changedIds
+  )
+  inserted = Math.max(0, inserted - categoryAutoCreateSkipped.length)
   for (const rowsChunk of chunked(Array.from(plannedInserts.values()), WRITE_CHUNK_SIZE)) {
     const ok = await insertPartnerInventoryChunkFromPg(rowsChunk)
     if (!ok) return { ok: false, error: 'Inventory insert failed (Postgres).' }
@@ -420,7 +494,7 @@ export async function applyPartnerInventoryExternalCatalogGetBatch(
     await syncPartnerInventoryTextEmbeddings(partnerId, { inventoryIds: ids, force: false })
   }
 
-  return { ok: true, inserted, updated: 0, deleted, embeddingsDeferred: deferEmbeddings }
+  return { ok: true, inserted, updated: 0, deleted, embeddingsDeferred: deferEmbeddings, categoryAutoCreateSkipped }
 }
 
 /**
@@ -433,10 +507,7 @@ export async function upsertPartnerInventoryRemarketingIncrementalBatch(
   partnerId: string,
   rows: InventoryExcelInsert[],
   options: { existingRows: InventoryRow[]; deferEmbeddings?: boolean; deleteRemarketingIds?: string[] }
-): Promise<
-  | { ok: true; inserted: number; updated: number; deleted: number; embeddingsDeferred: boolean }
-  | { ok: false; error: string }
-> {
+): Promise<InventoryUpsertOk | { ok: false; error: string }> {
   const now = new Date().toISOString()
   const existingById = new Map(options.existingRows.map((r) => [r.id, r]))
   const byRemarketing = new Map<string, InventoryRow[]>()
@@ -526,6 +597,9 @@ export async function upsertPartnerInventoryRemarketingIncrementalBatch(
     changedIds.add(target.id)
   }
 
+  const blockedCatalog = await failIfNewCatalogInsertsWhileAutoCreateOff(partnerId, plannedInserts, catalogPatches)
+  if (blockedCatalog) return blockedCatalog
+
   for (const ids of chunked(Array.from(plannedDeletes), WRITE_CHUNK_SIZE)) {
     const ok = await deletePartnerInventoryByIdsForPartnerFromPg(partnerId, ids)
     if (!ok) return { ok: false, error: 'Inventory delete failed (Postgres).' }
@@ -534,6 +608,13 @@ export async function upsertPartnerInventoryRemarketingIncrementalBatch(
     const ok = await upsertPartnerInventoryChunkFromPg(rowsChunk)
     if (!ok) return { ok: false, error: 'Inventory update failed (Postgres).' }
   }
+  const categoryAutoCreateSkipped = await pruneInsertsBlockedByCategoryAutoCreate(
+    partnerId,
+    plannedInserts,
+    catalogPatches,
+    changedIds
+  )
+  inserted = Math.max(0, inserted - categoryAutoCreateSkipped.length)
   for (const rowsChunk of chunked(Array.from(plannedInserts.values()), WRITE_CHUNK_SIZE)) {
     const ok = await insertPartnerInventoryChunkFromPg(rowsChunk)
     if (!ok) return { ok: false, error: 'Inventory insert failed (Postgres).' }
@@ -565,17 +646,14 @@ export async function upsertPartnerInventoryRemarketingIncrementalBatch(
     await syncPartnerInventoryTextEmbeddings(partnerId, { inventoryIds: ids, force: false })
   }
 
-  return { ok: true, inserted, updated, deleted, embeddingsDeferred: deferEmbeddings }
+  return { ok: true, inserted, updated, deleted, embeddingsDeferred: deferEmbeddings, categoryAutoCreateSkipped }
 }
 
 export async function upsertPartnerInventoryBatch(
   partnerId: string,
   rows: InventoryExcelInsert[],
   options?: { existingRows?: InventoryRow[]; deferEmbeddings?: boolean; remarketingIdSnapshot?: boolean }
-): Promise<
-  | { ok: true; inserted: number; updated: number; deleted: number; embeddingsDeferred: boolean }
-  | { ok: false; error: string }
-> {
+): Promise<InventoryUpsertOk | { ok: false; error: string }> {
   if (!isPgConfigured()) {
     return { ok: false, error: 'Postgres (DATABASE_URL) is not configured.' }
   }
@@ -778,6 +856,9 @@ export async function upsertPartnerInventoryBatch(
     }
   }
 
+  const blockedCatalog = await failIfNewCatalogInsertsWhileAutoCreateOff(partnerId, plannedInserts, catalogPatches)
+  if (blockedCatalog) return blockedCatalog
+
   for (const ids of chunked(Array.from(plannedDeletes), WRITE_CHUNK_SIZE)) {
     const ok = await deletePartnerInventoryByIdsForPartnerFromPg(partnerId, ids)
     if (!ok) {
@@ -791,6 +872,14 @@ export async function upsertPartnerInventoryBatch(
       return { ok: false, error: 'Inventory update failed (Postgres).' }
     }
   }
+
+  const categoryAutoCreateSkipped = await pruneInsertsBlockedByCategoryAutoCreate(
+    partnerId,
+    plannedInserts,
+    catalogPatches,
+    changedIds
+  )
+  inserted = Math.max(0, inserted - categoryAutoCreateSkipped.length)
 
   for (const rowsChunk of chunked(Array.from(plannedInserts.values()), WRITE_CHUNK_SIZE)) {
     const ok = await insertPartnerInventoryChunkFromPg(rowsChunk)
@@ -833,5 +922,5 @@ export async function upsertPartnerInventoryBatch(
     })
   }
 
-  return { ok: true, inserted, updated, deleted, embeddingsDeferred: deferEmbeddings }
+  return { ok: true, inserted, updated, deleted, embeddingsDeferred: deferEmbeddings, categoryAutoCreateSkipped }
 }

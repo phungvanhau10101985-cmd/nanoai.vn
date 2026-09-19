@@ -42,6 +42,8 @@ type CategoryDbRow = {
   seo_body_generated_locale: string | null
   size_guide_image_url: string
   ai_generated: boolean
+  external_id?: string | null
+  seo_cluster_id?: string | null
   created_at: unknown
   updated_at: unknown
 }
@@ -76,6 +78,8 @@ function mapCategoryRow(r: CategoryDbRow): PartnerCategoryRow {
     seoBodyGeneratedLocale: r.seo_body_generated_locale ?? null,
     sizeGuideImageUrl: r.size_guide_image_url ?? '',
     aiGenerated: r.ai_generated === true,
+    externalId: r.external_id ?? null,
+    seoClusterId: r.seo_cluster_id ?? null,
     createdAt: String(r.created_at ?? ''),
     updatedAt: String(r.updated_at ?? ''),
   }

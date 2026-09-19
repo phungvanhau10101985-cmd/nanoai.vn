@@ -2,6 +2,7 @@ import {
   insertListingImportDraftFromPg,
   updateListingImportDraftFromPg,
 } from '@/lib/db/messaging-partner-listing-import-pg'
+import { fetchPartnerAllowAutoCreateCategoriesFromPg } from '@/lib/db/messaging-partner-category-auto-create-pg'
 import {
   extract1688OfferId,
   extractTaobaoTmallItemId,
@@ -15,13 +16,17 @@ import {
 } from '@/lib/messaging/listing-import/listing-import-urls'
 import { applyListingImportColorTranslation } from '@/lib/messaging/listing-import/listing-import-color-translate'
 import { applyListingImportRatingGroups } from '@/lib/messaging/listing-import/listing-import-rating-groups'
-import { applyListingImportTaxonomy } from '@/lib/messaging/listing-import/listing-import-taxonomy'
+import {
+  applyListingImportTaxonomy,
+  listingImportOverlayTitle,
+} from '@/lib/messaging/listing-import/listing-import-taxonomy'
 import { compactListingImportProductInfoForWeb } from '@/lib/messaging/listing-import/listing-import-product-info-compact'
 import { reapplyListingLocaleOverlay } from '@/lib/messaging/listing-import/listing-import-body-specs'
 import { applyListingYearSanitizeToProductData } from '@/lib/messaging/listing-import/listing-import-year-sanitize'
 import { scrapePandamallForImport } from '@/lib/messaging/listing-import/pandamall-scraper'
 import { mergeListingOverlayIntoProductData, preferListingChineseName } from '@/lib/messaging/listing-import/scrape-common'
 import { scrapeVipomallForImport } from '@/lib/messaging/listing-import/vipomall-scraper'
+import { CATEGORY_AUTO_CREATE_DISABLED, CATEGORY_AUTO_CREATE_DISABLED_MESSAGE } from '@/lib/partner-website/category/partner-category-auto-create-copy'
 
 function resolveOfferId(source: 'vipomall' | 'pandamall', url: string): string {
   if (source === 'pandamall') {
@@ -68,12 +73,40 @@ export async function executeOneListingImport(input: {
     return { ok: false, error: 'Không tạo được nháp import.' }
   }
 
-  await updateListingImportDraftFromPg(input.partnerId, draft.id, {
-    status: 'running',
-    message: 'Đang cào dữ liệu…',
-  })
+  const taxonomyFailMessage = CATEGORY_AUTO_CREATE_DISABLED_MESSAGE
 
   try {
+    const allowCreate = await fetchPartnerAllowAutoCreateCategoriesFromPg(input.partnerId)
+    if (!allowCreate) {
+      const overlayTitle = listingImportOverlayTitle(input.overlay)
+      const productData: Record<string, unknown> = {
+        _taxonomy_error: CATEGORY_AUTO_CREATE_DISABLED,
+      }
+      if (overlayTitle) productData.chinese_name = overlayTitle
+      await updateListingImportDraftFromPg(input.partnerId, draft.id, {
+        status: 'error',
+        message: taxonomyFailMessage,
+        errors: [CATEGORY_AUTO_CREATE_DISABLED, taxonomyFailMessage],
+        warnings: [],
+        productData,
+        finished: true,
+      })
+      return {
+        ok: false,
+        job_id: jobId,
+        draft_id: draft.id,
+        draft_status: 'error',
+        error: CATEGORY_AUTO_CREATE_DISABLED,
+        message: taxonomyFailMessage,
+        errors: [CATEGORY_AUTO_CREATE_DISABLED, taxonomyFailMessage],
+      }
+    }
+
+    await updateListingImportDraftFromPg(input.partnerId, draft.id, {
+      status: 'running',
+      message: 'Đang cào dữ liệu…',
+    })
+
     const scraped =
       source === 'pandamall'
         ? await scrapePandamallForImport(sourceUrl, input.partnerId)
@@ -87,10 +120,32 @@ export async function executeOneListingImport(input: {
     } catch (e) {
       warnings.push(`color_translate: ${e instanceof Error ? e.message : String(e)}`)
     }
+    let taxonomyOk = true
     try {
-      await applyListingImportTaxonomy(input.partnerId, productData, warnings)
+      const tax = await applyListingImportTaxonomy(input.partnerId, productData, warnings, { allowCreate })
+      if (!tax.ok) taxonomyOk = false
     } catch (e) {
       warnings.push(`taxonomy: ${e instanceof Error ? e.message : String(e)}`)
+      if (!allowCreate) taxonomyOk = false
+    }
+    if (!taxonomyOk) {
+      await updateListingImportDraftFromPg(input.partnerId, draft.id, {
+        status: 'error',
+        message: taxonomyFailMessage,
+        errors: [CATEGORY_AUTO_CREATE_DISABLED],
+        warnings,
+        productData,
+        finished: true,
+      })
+      return {
+        ok: false,
+        job_id: jobId,
+        draft_id: draft.id,
+        draft_status: 'error',
+        error: CATEGORY_AUTO_CREATE_DISABLED,
+        message: taxonomyFailMessage,
+        errors: [CATEGORY_AUTO_CREATE_DISABLED],
+      }
     }
     reapplyListingLocaleOverlay(productData, input.overlay)
     applyListingYearSanitizeToProductData(productData)

@@ -91,7 +91,7 @@ export type InventoryImportWarning = {
   row_number: number
   sku: string
   name: string
-  field: 'size_json' | 'color_json' | 'stock_qty' | 'price_hint' | 'product_info'
+  field: 'size_json' | 'color_json' | 'stock_qty' | 'price_hint' | 'product_info' | 'category'
   code: string
   raw_value: string
   normalized_value: string

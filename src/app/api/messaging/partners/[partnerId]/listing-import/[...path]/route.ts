@@ -233,7 +233,11 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       const out = await enqueueListingImport(partnerId, body.queue_token, items, auth.userId)
       return NextResponse.json(out)
     } catch (e) {
-      return jsonError(e instanceof Error ? e.message : String(e))
+      const status = e && typeof e === 'object' && 'status' in e ? Number((e as { status?: number }).status) : 400
+      return jsonError(
+        e instanceof Error ? e.message : String(e),
+        Number.isFinite(status) && status >= 400 ? status : 400
+      )
     }
   }
 

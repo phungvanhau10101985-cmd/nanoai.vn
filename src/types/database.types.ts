@@ -226,6 +226,7 @@ export interface Database {
           external_shop_origin: string | null
           external_shop_login_path: string
           shop_order_seq: number
+          allow_auto_create_categories: boolean
           created_at: string
           updated_at: string
         }
@@ -255,6 +256,7 @@ export interface Database {
           contact_instagram_url?: string | null
           partner_capabilities?: unknown
           shop_order_seq?: number
+          allow_auto_create_categories?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -284,6 +286,7 @@ export interface Database {
           contact_instagram_url?: string | null
           partner_capabilities?: unknown
           shop_order_seq?: number
+          allow_auto_create_categories?: boolean
           created_at?: string
           updated_at?: string
         }

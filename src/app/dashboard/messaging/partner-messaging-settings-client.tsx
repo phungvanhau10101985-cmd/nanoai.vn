@@ -1293,12 +1293,16 @@ export function PartnerMessagingSettingsClient({
 
   const persistWorkspaceProfile = async (opts?: { logoUrl?: string; silent?: boolean }): Promise<boolean> => {
     if (!selectedPartnerId || !workspaceName.trim() || !workspaceBrandName.trim()) return false
+    const keepExistingLogo =
+      partnerCanWebsiteHub(selectedPartner) && brandWebsite
+        ? String(selectedPartner?.logo_url || workspaceLogoUrl || '').trim()
+        : workspaceLogoUrl.trim()
     const res = await updateMessagingWorkspaceProfile({
       partnerId: selectedPartnerId,
       displayName: workspaceName.trim(),
       brandName: workspaceBrandName.trim(),
       industryKey: workspaceIndustry,
-      logoUrl: (opts?.logoUrl ?? workspaceLogoUrl).trim(),
+      logoUrl: (opts?.logoUrl ?? keepExistingLogo).trim(),
     })
     if ('error' in res && res.error) {
       if (!opts?.silent) toast({ title: res.error, variant: 'destructive' })
@@ -2732,6 +2736,7 @@ export function PartnerMessagingSettingsClient({
                       {t.shopDefaultCurrencySaveButton}
                     </Button>
                   </div>
+                  {partnerCanWebsiteHub(selectedPartner) && brandWebsite ? null : (
                   <div className="space-y-2">
                     <Label htmlFor="ws-logo-main">Logo URL</Label>
                     <Input
@@ -2760,6 +2765,7 @@ export function PartnerMessagingSettingsClient({
                       <p className="text-[11px] text-muted-foreground">Nhap link hoac upload file anh deu duoc.</p>
                     </div>
                   </div>
+                  )}
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                   <Button

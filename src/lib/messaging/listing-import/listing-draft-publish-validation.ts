@@ -3,6 +3,8 @@
  * Khớp cấu trúc `excelExportRowFromProductData`: `images` = thư viện, `gallery` = ảnh chi tiết/mô tả.
  */
 
+import { CATEGORY_AUTO_CREATE_DISABLED_MESSAGE } from '@/lib/partner-website/category/partner-category-auto-create-copy';
+
 function trimStr(v: unknown): string {
   if (v == null) return '';
   if (typeof v === 'string') return v.trim();
@@ -196,6 +198,10 @@ export function getListingDraftPublishBlockers(pd: Record<string, unknown> | und
   if (!pd || typeof pd !== 'object') {
     issues.push('Thiếu product_data');
     return issues;
+  }
+
+  if (String(pd._taxonomy_error || '') === 'CATEGORY_AUTO_CREATE_DISABLED') {
+    issues.push(CATEGORY_AUTO_CREATE_DISABLED_MESSAGE);
   }
 
   const cn = trimStr(pd.chinese_name);

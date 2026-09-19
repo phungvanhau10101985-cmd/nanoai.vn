@@ -765,6 +765,40 @@ export type PartnerWebsiteCopy = {
   categoryErrorDuplicateSlug: string
   categoryErrorMaxDepth: string
   categoryErrorGeneric: string
+  taxonomyImportTitle: string
+  taxonomyImportHint: string
+  taxonomyImportStatus: string
+  taxonomyImportRefresh: string
+  taxonomyImportDownload: string
+  taxonomyImportDownloadBlank: string
+  taxonomyImportUploadTitle: string
+  taxonomyImportUploadHint: string
+  taxonomyImportProcessing: string
+  taxonomyImportNoErrors: string
+  taxonomyImportErrorCount: string
+  taxonomyImportElapsed: string
+  taxonomyImportInserted: string
+  taxonomyImportUpdated: string
+  taxonomyImportRows: string
+  taxonomyImportManualTitle: string
+  taxonomyImportManualHint: string
+  taxonomyImportCat1: string
+  taxonomyImportCat2: string
+  taxonomyImportCat3: string
+  taxonomyImportCreateNew: string
+  taxonomyImportPickLevel: string
+  taxonomyImportCluster: string
+  taxonomyImportCreateCluster: string
+  taxonomyImportSaveBranch: string
+  taxonomyImportReload: string
+  taxonomyImportLinkedProducts: string
+  taxonomyImportNamePlaceholder: string
+  taxonomyImportSlugPlaceholder: string
+  categoryAutoCreateTitle: string
+  categoryAutoCreateHintOn: string
+  categoryAutoCreateHintOff: string
+  categoryAutoCreateSaved: string
+  categoryAutoCreateError: string
   reviewsAdminTitle: string
   reviewsAdminHint: string
   reviewsAdminEmpty: string
@@ -1884,6 +1918,45 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categoryErrorDuplicateSlug: 'Slug đã tồn tại trong cùng cấp — đổi tên/slug khác.',
     categoryErrorMaxDepth: 'Đã đạt độ sâu tối đa của cây danh mục.',
     categoryErrorGeneric: 'Có lỗi xảy ra — thử lại.',
+    taxonomyImportTitle: 'Import cây danh mục (taxonomy)',
+    taxonomyImportHint:
+      'File Excel 4 sheet giống 188.com.vn (categories, category_paths, seo_clusters, meta). Khớp theo cột id: đã có → cập nhật; chưa có → thêm. Import lặp lại không xóa nhánh thiếu trong file. Web vẫn dùng /c/cấp-1/cấp-2/cấp-3.',
+    taxonomyImportStatus: 'Trạng thái hiện tại',
+    taxonomyImportRefresh: 'Làm mới',
+    taxonomyImportDownload: 'Tải taxonomy_import.xlsx',
+    taxonomyImportDownloadBlank: 'Chỉ mẫu đủ cột (nhẹ)',
+    taxonomyImportUploadTitle: 'Upload taxonomy_import.xlsx',
+    taxonomyImportUploadHint:
+      'Đủ 4 sheet. Khóa là cột id: trùng id → cập nhật; id mới → thêm. Sheet category_paths đối chiếu cat3/cluster — không xóa dữ liệu khi thiếu dòng.',
+    taxonomyImportProcessing: 'Đang xử lý… (file lớn có thể mất 10–30s)',
+    taxonomyImportNoErrors: 'Không có lỗi.',
+    taxonomyImportErrorCount: '{n} cảnh báo / lỗi (xem chi tiết)',
+    taxonomyImportElapsed: 'Thời gian xử lý: {ms} ms',
+    taxonomyImportInserted: '+ Thêm: {n}',
+    taxonomyImportUpdated: '⟲ Cập nhật: {n}',
+    taxonomyImportRows: 'Tổng dòng xử lý: {n}',
+    taxonomyImportManualTitle: 'Thêm nhánh thủ công (upsert như Excel)',
+    taxonomyImportManualHint:
+      'Cùng quy tắc id: đã tồn tại → cập nhật; chưa có → tạo mới. Chọn hoặc tạo cấp 1 → cấp 2 → nhập cấp 3, gán SEO cluster.',
+    taxonomyImportCat1: 'Cấp 1',
+    taxonomyImportCat2: 'Cấp 2',
+    taxonomyImportCat3: 'Cấp 3 (danh mục lá)',
+    taxonomyImportCreateNew: 'Tạo mới',
+    taxonomyImportPickLevel: '— Chọn cấp có sẵn —',
+    taxonomyImportCluster: 'SEO cluster',
+    taxonomyImportCreateCluster: 'Tạo cluster mới',
+    taxonomyImportSaveBranch: 'Lưu nhánh (upsert)',
+    taxonomyImportReload: 'Tải lại cây / clusters',
+    taxonomyImportLinkedProducts: 'đã gán danh mục / tổng',
+    taxonomyImportNamePlaceholder: 'Tên *',
+    taxonomyImportSlugPlaceholder: 'Slug (để trống → sinh từ tên)',
+    categoryAutoCreateTitle: 'Tự tạo danh mục khi cào / đăng sản phẩm',
+    categoryAutoCreateHintOn:
+      'Bật: cào 1688/Taobao/Tmall và đăng sản phẩm mới được tạo danh mục cấp 1/2/3 nếu cây chưa có nhánh.',
+    categoryAutoCreateHintOff:
+      'Tắt: không cào 1688/Taobao/Tmall và không tạo sản phẩm mới. Muốn tiếp tục thì bật lại công tắc này.',
+    categoryAutoCreateSaved: 'Đã lưu chế độ tự tạo danh mục.',
+    categoryAutoCreateError: 'Không lưu được công tắc tự tạo danh mục.',
     reviewsAdminTitle: 'Đánh giá & Hỏi đáp sản phẩm',
     reviewsAdminHint: 'Duyệt/ẩn đánh giá, trả lời khách hàng. Sửa trực tiếp trong bảng — tự lưu sau khi bạn ngừng gõ.',
     reviewsAdminEmpty: 'Chưa có đánh giá nào.',
@@ -3020,6 +3093,45 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categoryErrorDuplicateSlug: 'That slug already exists at this level — choose another name/slug.',
     categoryErrorMaxDepth: 'Maximum category tree depth reached.',
     categoryErrorGeneric: 'Something went wrong — try again.',
+    taxonomyImportTitle: 'Import category tree (taxonomy)',
+    taxonomyImportHint:
+      'Same 4-sheet Excel as 188.com.vn (categories, category_paths, seo_clusters, meta). Match on id: existing rows update; new ids insert. Re-import never deletes missing branches. Storefront URLs stay /c/l1/l2/l3.',
+    taxonomyImportStatus: 'Current status',
+    taxonomyImportRefresh: 'Refresh',
+    taxonomyImportDownload: 'Download taxonomy_import.xlsx',
+    taxonomyImportDownloadBlank: 'Column template only (light)',
+    taxonomyImportUploadTitle: 'Upload taxonomy_import.xlsx',
+    taxonomyImportUploadHint:
+      'All 4 sheets required. Key is the id column: duplicate id updates; new id inserts. category_paths checks cat3/cluster — missing rows do not delete data.',
+    taxonomyImportProcessing: 'Processing… (large files may take 10–30s)',
+    taxonomyImportNoErrors: 'No errors.',
+    taxonomyImportErrorCount: '{n} warnings / errors (details)',
+    taxonomyImportElapsed: 'Elapsed: {ms} ms',
+    taxonomyImportInserted: '+ Inserted: {n}',
+    taxonomyImportUpdated: '⟲ Updated: {n}',
+    taxonomyImportRows: 'Rows processed: {n}',
+    taxonomyImportManualTitle: 'Add a branch manually (same upsert as Excel)',
+    taxonomyImportManualHint:
+      'Same id rules: existing → update; missing → create. Pick or create level 1 → level 2 → enter level 3, assign an SEO cluster.',
+    taxonomyImportCat1: 'Level 1',
+    taxonomyImportCat2: 'Level 2',
+    taxonomyImportCat3: 'Level 3 (leaf)',
+    taxonomyImportCreateNew: 'Create new',
+    taxonomyImportPickLevel: '— Choose existing —',
+    taxonomyImportCluster: 'SEO cluster',
+    taxonomyImportCreateCluster: 'Create new cluster',
+    taxonomyImportSaveBranch: 'Save branch (upsert)',
+    taxonomyImportReload: 'Reload tree / clusters',
+    taxonomyImportLinkedProducts: 'linked to a category / total',
+    taxonomyImportNamePlaceholder: 'Name *',
+    taxonomyImportSlugPlaceholder: 'Slug (blank → from name)',
+    categoryAutoCreateTitle: 'Auto-create categories when scraping / publishing',
+    categoryAutoCreateHintOn:
+      'On: scraping 1688/Taobao/Tmall and publishing new products may create missing level 1/2/3 categories.',
+    categoryAutoCreateHintOff:
+      'Off: scraping 1688/Taobao/Tmall and creating new products are blocked. Turn this switch back on to continue.',
+    categoryAutoCreateSaved: 'Category auto-create setting saved.',
+    categoryAutoCreateError: 'Could not save the category auto-create setting.',
     reviewsAdminTitle: 'Product Reviews & Q&A',
     reviewsAdminHint: 'Approve/hide reviews, reply to customers. Edit directly in the table — auto-saves after you stop typing.',
     reviewsAdminEmpty: 'No reviews yet.',
@@ -4132,6 +4244,45 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categoryErrorDuplicateSlug: '同级下已存在该 slug——请更换名称/slug。',
     categoryErrorMaxDepth: '已达到分类树最大深度。',
     categoryErrorGeneric: '出现错误，请重试。',
+    taxonomyImportTitle: '导入类目树（taxonomy）',
+    taxonomyImportHint:
+      '与 188.com.vn 相同的 4 个 Excel 工作表（categories、category_paths、seo_clusters、meta）。按 id 匹配：已有则更新，没有则新增。重复导入不会删除文件中缺失的分支。前台仍使用 /c/一级/二级/三级。',
+    taxonomyImportStatus: '当前状态',
+    taxonomyImportRefresh: '刷新',
+    taxonomyImportDownload: '下载 taxonomy_import.xlsx',
+    taxonomyImportDownloadBlank: '仅列模板（轻量）',
+    taxonomyImportUploadTitle: '上传 taxonomy_import.xlsx',
+    taxonomyImportUploadHint:
+      '必须包含 4 个工作表。主键是 id：重复 id 更新，新 id 插入。category_paths 用于核对 cat3/cluster — 缺行不会删除数据。',
+    taxonomyImportProcessing: '处理中…（大文件可能需要 10–30 秒）',
+    taxonomyImportNoErrors: '没有错误。',
+    taxonomyImportErrorCount: '{n} 条警告 / 错误（详情）',
+    taxonomyImportElapsed: '耗时：{ms} ms',
+    taxonomyImportInserted: '+ 新增：{n}',
+    taxonomyImportUpdated: '⟲ 更新：{n}',
+    taxonomyImportRows: '处理行数：{n}',
+    taxonomyImportManualTitle: '手动添加分支（与 Excel 相同的 upsert）',
+    taxonomyImportManualHint:
+      '同一套 id 规则：已有则更新，没有则创建。选择或新建一级 → 二级 → 输入三级，并指定 SEO cluster。',
+    taxonomyImportCat1: '一级',
+    taxonomyImportCat2: '二级',
+    taxonomyImportCat3: '三级（叶子）',
+    taxonomyImportCreateNew: '新建',
+    taxonomyImportPickLevel: '— 选择已有 —',
+    taxonomyImportCluster: 'SEO cluster',
+    taxonomyImportCreateCluster: '新建 cluster',
+    taxonomyImportSaveBranch: '保存分支（upsert）',
+    taxonomyImportReload: '重新加载树 / clusters',
+    taxonomyImportLinkedProducts: '已关联类目 / 总计',
+    taxonomyImportNamePlaceholder: '名称 *',
+    taxonomyImportSlugPlaceholder: 'Slug（留空则按名称生成）',
+    categoryAutoCreateTitle: '抓取/上架时自动创建类目',
+    categoryAutoCreateHintOn:
+      '开启：抓取 1688/淘宝/天猫或上架新商品时，若树中没有对应分支则新建 1/2/3 级类目。',
+    categoryAutoCreateHintOff:
+      '关闭：禁止抓取 1688/淘宝/天猫，也禁止创建新商品。若要继续，请重新打开此开关。',
+    categoryAutoCreateSaved: '已保存自动创建类目设置。',
+    categoryAutoCreateError: '无法保存自动创建类目开关。',
     reviewsAdminTitle: '商品评价与问答',
     reviewsAdminHint: '审核/隐藏评价，回复客户。直接在表格中编辑——停止输入后自动保存。',
     reviewsAdminEmpty: '暂无评价。',
@@ -5245,6 +5396,45 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categoryErrorDuplicateSlug: '同じ階層に同じスラッグが存在します——別の名前/スラッグにしてください。',
     categoryErrorMaxDepth: 'カテゴリーツリーの最大階層に達しました。',
     categoryErrorGeneric: 'エラーが発生しました。もう一度お試しください。',
+    taxonomyImportTitle: 'カテゴリーツリーをインポート（taxonomy）',
+    taxonomyImportHint:
+      '188.com.vn と同じ 4 シート Excel（categories、category_paths、seo_clusters、meta）。id で照合：既存は更新、未登録は追加。再インポートしてもファイルに無い枝は削除しません。ストアフロント URL は /c/l1/l2/l3 のままです。',
+    taxonomyImportStatus: '現在の状態',
+    taxonomyImportRefresh: '更新',
+    taxonomyImportDownload: 'taxonomy_import.xlsx をダウンロード',
+    taxonomyImportDownloadBlank: '列テンプレートのみ（軽量）',
+    taxonomyImportUploadTitle: 'taxonomy_import.xlsx をアップロード',
+    taxonomyImportUploadHint:
+      '4 シート必須。キーは id：重複 id は更新、新しい id は追加。category_paths は cat3/cluster の照合用 — 行が無くても削除しません。',
+    taxonomyImportProcessing: '処理中…（大きいファイルは 10–30 秒かかることがあります）',
+    taxonomyImportNoErrors: 'エラーはありません。',
+    taxonomyImportErrorCount: '{n} 件の警告 / エラー（詳細）',
+    taxonomyImportElapsed: '処理時間: {ms} ms',
+    taxonomyImportInserted: '+ 追加: {n}',
+    taxonomyImportUpdated: '⟲ 更新: {n}',
+    taxonomyImportRows: '処理行数: {n}',
+    taxonomyImportManualTitle: '枝を手動追加（Excel と同じ upsert）',
+    taxonomyImportManualHint:
+      '同じ id ルール：既存は更新、未登録は作成。レベル 1 → 2 を選択または作成し、レベル 3 を入力して SEO cluster を割り当てます。',
+    taxonomyImportCat1: 'レベル 1',
+    taxonomyImportCat2: 'レベル 2',
+    taxonomyImportCat3: 'レベル 3（リーフ）',
+    taxonomyImportCreateNew: '新規作成',
+    taxonomyImportPickLevel: '— 既存を選択 —',
+    taxonomyImportCluster: 'SEO cluster',
+    taxonomyImportCreateCluster: 'cluster を新規作成',
+    taxonomyImportSaveBranch: '枝を保存（upsert）',
+    taxonomyImportReload: 'ツリー / clusters を再読み込み',
+    taxonomyImportLinkedProducts: 'カテゴリー紐付け済み / 合計',
+    taxonomyImportNamePlaceholder: '名前 *',
+    taxonomyImportSlugPlaceholder: 'スラッグ（空欄なら名前から生成）',
+    categoryAutoCreateTitle: 'スクレイプ／登録時にカテゴリーを自動作成',
+    categoryAutoCreateHintOn:
+      'オン：1688/Taobao/Tmall の取得や新商品登録で、木に該当枝がなければ L1/L2/L3 を新規作成します。',
+    categoryAutoCreateHintOff:
+      'オフ：1688/Taobao/Tmall の取得も新商品の作成もできません。続けるにはこのスイッチをオンにしてください。',
+    categoryAutoCreateSaved: 'カテゴリー自動作成の設定を保存しました。',
+    categoryAutoCreateError: 'カテゴリー自動作成の設定を保存できませんでした。',
     reviewsAdminTitle: '商品レビュー＆Q&A',
     reviewsAdminHint: 'レビューの承認/非表示、お客様への返信。表内で直接編集——入力を止めると自動保存されます。',
     reviewsAdminEmpty: 'まだレビューがありません。',
@@ -6365,6 +6555,45 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categoryErrorDuplicateSlug: '같은 단계에 동일한 슬러그가 있습니다 — 다른 이름/슬러그를 사용하세요.',
     categoryErrorMaxDepth: '카테고리 트리의 최대 깊이에 도달했습니다.',
     categoryErrorGeneric: '오류가 발생했습니다 — 다시 시도해주세요.',
+    taxonomyImportTitle: '카테고리 트리 가져오기 (taxonomy)',
+    taxonomyImportHint:
+      '188.com.vn과 같은 4시트 Excel(categories, category_paths, seo_clusters, meta). id로 매칭: 있으면 업데이트, 없으면 추가. 다시 가져와도 파일에 없는 분기는 삭제하지 않습니다. 스토어프론트 URL은 /c/l1/l2/l3 그대로입니다.',
+    taxonomyImportStatus: '현재 상태',
+    taxonomyImportRefresh: '새로고침',
+    taxonomyImportDownload: 'taxonomy_import.xlsx 다운로드',
+    taxonomyImportDownloadBlank: '열 템플릿만 (가벼움)',
+    taxonomyImportUploadTitle: 'taxonomy_import.xlsx 업로드',
+    taxonomyImportUploadHint:
+      '4시트가 필요합니다. 키는 id: 중복 id는 업데이트, 새 id는 추가. category_paths는 cat3/cluster 대조용이며 빠진 행 때문에 데이터를 삭제하지 않습니다.',
+    taxonomyImportProcessing: '처리 중… (큰 파일은 10–30초 걸릴 수 있음)',
+    taxonomyImportNoErrors: '오류 없음.',
+    taxonomyImportErrorCount: '{n}개 경고 / 오류 (자세히)',
+    taxonomyImportElapsed: '처리 시간: {ms} ms',
+    taxonomyImportInserted: '+ 추가: {n}',
+    taxonomyImportUpdated: '⟲ 업데이트: {n}',
+    taxonomyImportRows: '처리한 행: {n}',
+    taxonomyImportManualTitle: '분기를 수동 추가 (Excel과 같은 upsert)',
+    taxonomyImportManualHint:
+      '같은 id 규칙: 있으면 업데이트, 없으면 생성. 1단계 → 2단계를 선택 또는 만들고 3단계를 입력한 뒤 SEO cluster를 지정합니다.',
+    taxonomyImportCat1: '1단계',
+    taxonomyImportCat2: '2단계',
+    taxonomyImportCat3: '3단계 (리프)',
+    taxonomyImportCreateNew: '새로 만들기',
+    taxonomyImportPickLevel: '— 기존 항목 선택 —',
+    taxonomyImportCluster: 'SEO cluster',
+    taxonomyImportCreateCluster: 'cluster 새로 만들기',
+    taxonomyImportSaveBranch: '분기 저장 (upsert)',
+    taxonomyImportReload: '트리 / clusters 다시 불러오기',
+    taxonomyImportLinkedProducts: '카테고리 연결됨 / 전체',
+    taxonomyImportNamePlaceholder: '이름 *',
+    taxonomyImportSlugPlaceholder: '슬러그 (비우면 이름에서 생성)',
+    categoryAutoCreateTitle: '수집/등록 시 카테고리 자동 생성',
+    categoryAutoCreateHintOn:
+      '켜기: 1688/Taobao/Tmall 수집 또는 새 상품 등록 시 트리에 맞는 분기가 없으면 1/2/3단계를 새로 만듭니다.',
+    categoryAutoCreateHintOff:
+      '끄기: 1688/Taobao/Tmall 수집과 새 상품 생성을 막습니다. 계속하려면 이 스위치를 다시 켜세요.',
+    categoryAutoCreateSaved: '카테고리 자동 생성 설정을 저장했습니다.',
+    categoryAutoCreateError: '카테고리 자동 생성 설정을 저장하지 못했습니다.',
     reviewsAdminTitle: '상품 리뷰 및 Q&A',
     reviewsAdminHint: '리뷰 승인/숨기기, 고객에게 답변. 표에서 직접 수정하면 입력을 멈춘 후 자동 저장됩니다.',
     reviewsAdminEmpty: '아직 리뷰가 없습니다.',

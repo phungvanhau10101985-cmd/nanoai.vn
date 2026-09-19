@@ -13,6 +13,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { cn } from '@/lib/utils'
 import { ChevronDown, ChevronUp, FolderTree, Loader2, Package, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { PartnerWebsiteTaxonomyImportPanel } from '@/components/partner-website/partner-website-taxonomy-import-panel'
 
 /**
  * W4.4/W4.5/W4.6 — quản trị cây danh mục sản phẩm (CRUD từng node, kéo/xuống sắp xếp, gán sản phẩm).
@@ -128,6 +129,9 @@ export function PartnerWebsiteCategoriesPanel({ t, partnerId, sectionId = 'partn
   const [assignSelected, setAssignSelected] = useState<string[]>([])
   const [assignLoading, setAssignLoading] = useState(false)
   const [assignSaving, setAssignSaving] = useState(false)
+  const [allowAutoCreate, setAllowAutoCreate] = useState(true)
+  const [autoCreateLoaded, setAutoCreateLoaded] = useState(false)
+  const [autoCreateSaving, setAutoCreateSaving] = useState(false)
 
   const errorMessage = useCallback(
     (code: string | undefined) => {
@@ -164,6 +168,50 @@ export function PartnerWebsiteCategoriesPanel({ t, partnerId, sectionId = 'partn
   useEffect(() => {
     void loadTree()
   }, [loadTree])
+
+  useEffect(() => {
+    if (!partnerId) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(`/api/messaging/partners/${encodeURIComponent(partnerId)}/categories/auto-create`)
+        const json = (await res.json()) as { allowAutoCreate?: boolean }
+        if (!cancelled && res.ok && typeof json.allowAutoCreate === 'boolean') {
+          setAllowAutoCreate(json.allowAutoCreate)
+        }
+      } catch {
+        /* default on */
+      } finally {
+        if (!cancelled) setAutoCreateLoaded(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [partnerId])
+
+  const handleAutoCreateChange = async (next: boolean) => {
+    if (!partnerId || autoCreateSaving) return
+    const prev = allowAutoCreate
+    setAllowAutoCreate(next)
+    setAutoCreateSaving(true)
+    try {
+      const res = await fetch(`/api/messaging/partners/${encodeURIComponent(partnerId)}/categories/auto-create`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allowAutoCreate: next }),
+      })
+      const json = (await res.json()) as { allowAutoCreate?: boolean; error?: string }
+      if (!res.ok) throw new Error(json.error || t.categoryAutoCreateError)
+      setAllowAutoCreate(json.allowAutoCreate !== false)
+      onToast(t.categoryAutoCreateSaved)
+    } catch (e) {
+      setAllowAutoCreate(prev)
+      onToast(e instanceof Error ? e.message : t.categoryAutoCreateError, 'destructive')
+    } finally {
+      setAutoCreateSaving(false)
+    }
+  }
 
   const openCreate = (parentId: string | null) => setForm(emptyForm('create', parentId))
   const openEdit = (node: CategoryNode) =>
@@ -466,6 +514,23 @@ export function PartnerWebsiteCategoriesPanel({ t, partnerId, sectionId = 'partn
         </div>
       </CardHeader>
       <CardContent>
+        <div className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-border/60 p-3">
+          <div className="min-w-0 space-y-1">
+            <Label htmlFor="cat-auto-create" className="text-sm font-medium">
+              {t.categoryAutoCreateTitle}
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              {allowAutoCreate ? t.categoryAutoCreateHintOn : t.categoryAutoCreateHintOff}
+            </p>
+          </div>
+          <Switch
+            id="cat-auto-create"
+            checked={allowAutoCreate}
+            disabled={!autoCreateLoaded || autoCreateSaving || !partnerId}
+            onCheckedChange={(v) => void handleAutoCreateChange(v)}
+          />
+        </div>
+        <PartnerWebsiteTaxonomyImportPanel t={t} partnerId={partnerId} onToast={onToast} onImported={() => void loadTree()} />
         {loading ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />

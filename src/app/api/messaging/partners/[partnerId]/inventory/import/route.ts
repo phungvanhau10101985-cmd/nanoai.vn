@@ -5,6 +5,11 @@ import { upsertPartnerInventoryBatch } from '@/lib/messaging/partner-inventory-u
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
 import { syncPartnerInventoryTextEmbeddings } from '@/lib/messaging/partner-inventory-text-embedding'
 import { requireMessagingPartnerInventoryAccess } from '@/lib/messaging/partner-inventory-route-auth'
+import { fetchPartnerAllowAutoCreateCategoriesFromPg } from '@/lib/db/messaging-partner-category-auto-create-pg'
+import {
+  CATEGORY_AUTO_CREATE_DISABLED,
+  CATEGORY_AUTO_CREATE_DISABLED_MESSAGE,
+} from '@/lib/partner-website/category/partner-category-auto-create-copy'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -37,8 +42,35 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     return NextResponse.json({ error: parsed.error }, { status: 400 })
   }
 
+  const hasWebCatalogRows = parsed.rows.some((r) => r.catalogFormat === '188' && !r.removeFromInventory)
+  if (hasWebCatalogRows) {
+    const allowCreate = await fetchPartnerAllowAutoCreateCategoriesFromPg(partnerId)
+    if (!allowCreate) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: CATEGORY_AUTO_CREATE_DISABLED,
+          detail: CATEGORY_AUTO_CREATE_DISABLED_MESSAGE,
+        },
+        { status: 409 }
+      )
+    }
+  }
+
   const batch = await upsertPartnerInventoryBatch(partnerId, parsed.rows)
-  if (!batch.ok) return NextResponse.json({ error: batch.error }, { status: 500 })
+  if (!batch.ok) {
+    if (batch.error === CATEGORY_AUTO_CREATE_DISABLED) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: CATEGORY_AUTO_CREATE_DISABLED,
+          detail: CATEGORY_AUTO_CREATE_DISABLED_MESSAGE,
+        },
+        { status: 409 }
+      )
+    }
+    return NextResponse.json({ error: batch.error }, { status: 500 })
+  }
 
   let visionBgSyncQueued = false
   if (parsed.rows.length > 0) {
@@ -72,6 +104,21 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
   revalidatePath('/dashboard/messaging/settings')
   revalidatePath('/dashboard/api-integration')
 
+  const skippedCat = batch.categoryAutoCreateSkipped ?? []
+  const warnings = [...(parsed.warnings ?? [])]
+  for (const row of skippedCat) {
+    warnings.push({
+      row_number: 0,
+      sku: row.sku,
+      name: row.name,
+      field: 'category',
+      code: 'CATEGORY_AUTO_CREATE_DISABLED',
+      raw_value: '',
+      normalized_value: '',
+      message: CATEGORY_AUTO_CREATE_DISABLED_MESSAGE,
+    })
+  }
+
   return NextResponse.json({
     ok: true,
     count: parsed.rows.length,
@@ -79,8 +126,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     updated: batch.updated,
     deleted: batch.deleted,
     embeddings_deferred: batch.embeddingsDeferred,
-    warnings: parsed.warnings ?? [],
-    warnings_count: Array.isArray(parsed.warnings) ? parsed.warnings.length : 0,
+    warnings,
+    warnings_count: warnings.length,
     vision_bg_sync_queued: visionBgSyncQueued,
   })
 }

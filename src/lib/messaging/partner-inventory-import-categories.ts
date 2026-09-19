@@ -2,8 +2,8 @@ import { placeImportedInventoryInCategoryTreeBatch } from '@/lib/partner-website
 
 /**
  * Gán SP import đủ cột (41 cột / Open Catalog / sync) vào cây danh mục shop:
- * có rồi thì thêm, chưa có thì tạo L1/L2/L3, không trùng ý định SEO, sinh SEO trang bằng Gemini.
- * AI không sinh được → trả lỗi, dừng. Excel 12 cột không đi qua đây.
+ * có rồi thì gắn; chưa có thì tạo L1/L2/L3 khi công tắc tự tạo bật (không trùng ý định SEO, sinh SEO Gemini).
+ * Tắt công tắc + thiếu nhánh → không tạo `/c`, không insert hàng đó. Excel 12 cột không đi qua đây.
  */
 export async function linkImportedInventoryToCatalogCategories(input: {
   partnerId: string

@@ -21,6 +21,7 @@ import { useToast } from '@/hooks/use-toast'
 import type { Database } from '@/types/database.types'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import { ProductStudioManualDialog } from '@/components/partner-website/product-studio/product-studio-manual-dialog'
+import { CATEGORY_AUTO_CREATE_DISABLED_MESSAGE } from '@/lib/partner-website/category/partner-category-auto-create-copy'
 import {
   deletePartnerInventoryItem,
   getPartnerAiBundle,
@@ -2219,6 +2220,8 @@ function mapInventoryImportError(code: string | undefined, t: AiT): string {
       return t.inventoryErrNoFile
     case 'FILE_TOO_LARGE':
       return t.inventoryErrFileTooLarge
+    case 'CATEGORY_AUTO_CREATE_DISABLED':
+      return CATEGORY_AUTO_CREATE_DISABLED_MESSAGE
     default:
       return code || t.inventoryImportFailed
   }
@@ -2562,6 +2565,7 @@ function InventoryEditor({
         warnings?: InventoryImportWarningRow[]
         warnings_count?: number
         error?: string
+        detail?: string
       } = {}
       try {
         data = JSON.parse(text) as typeof data
@@ -2570,7 +2574,7 @@ function InventoryEditor({
       }
       if (!ok) {
         toast({
-          title: mapInventoryImportError(data.error, t),
+          title: data.detail || mapInventoryImportError(data.error, t),
           variant: 'destructive',
         })
         return

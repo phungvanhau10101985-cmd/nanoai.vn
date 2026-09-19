@@ -1,5 +1,9 @@
+import { fetchPartnerAllowAutoCreateCategoriesFromPg } from '@/lib/db/messaging-partner-category-auto-create-pg'
 import { fetchPartnerCategoryByIdFromPg } from '@/lib/db/messaging-partner-categories-pg'
-import { insertPartnerInventoryFromProductStudioFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import {
+  deletePartnerInventoryItemForPartnerFromPg,
+  insertPartnerInventoryFromProductStudioFromPg,
+} from '@/lib/db/messaging-partner-inventory-pg'
 import {
   fetchProductStudioJobByIdPg,
   updateProductStudioJobPg,
@@ -11,6 +15,8 @@ import {
 import { generateProductStudioDescription } from '@/lib/partner-website/product-studio/product-studio-description-ai'
 import { bootstrapSingleProductLandingForStudio } from '@/lib/partner-website/product-studio/product-studio-ladipage-bridge'
 import { placeProductStudioInventoryInCategoryTree } from '@/lib/partner-website/product-studio/product-studio-taxonomy-ai'
+import { CATEGORY_AUTO_CREATE_DISABLED } from '@/lib/partner-website/category/partner-category-place-product'
+import { CATEGORY_AUTO_CREATE_DISABLED_MESSAGE } from '@/lib/partner-website/category/partner-category-auto-create-copy'
 import {
   studioPublishMissing,
   type ProductStudioJobPayload,
@@ -148,6 +154,17 @@ export async function publishProductStudioJob(
     return { ok: false, error: 'missing_main_image' }
   }
 
+  const allowCreate = await fetchPartnerAllowAutoCreateCategoriesFromPg(partnerId)
+  if (!allowCreate) {
+    await updateProductStudioJobPg({
+      partnerId,
+      jobId,
+      status: 'failed',
+      errorMessage: CATEGORY_AUTO_CREATE_DISABLED_MESSAGE,
+    })
+    return { ok: false, error: CATEGORY_AUTO_CREATE_DISABLED_MESSAGE }
+  }
+
   const inventoryId = await insertPartnerInventoryFromProductStudioFromPg(partnerId, {
     name,
     description,
@@ -193,6 +210,9 @@ export async function publishProductStudioJob(
   warnings.push(...taxonomy.warnings)
   if (!taxonomy.ok) {
     const seoError = taxonomy.error || 'gemini_seo_failed'
+    if (seoError === CATEGORY_AUTO_CREATE_DISABLED) {
+      await deletePartnerInventoryItemForPartnerFromPg(partnerId, inventoryId)
+    }
     await updateProductStudioJobPg({
       partnerId,
       jobId,

@@ -61,6 +61,10 @@ export type PartnerCategoryRow = {
   sizeGuideImageUrl: string
   /** PS.8 — true nếu Product Studio AI tự tạo node này khi đăng sản phẩm (không phải merchant tạo tay). */
   aiGenerated: boolean
+  /** id chuỗi taxonomy_import.xlsx — khóa upsert khi re-import (vd `cat3__…`). */
+  externalId?: string | null
+  /** Cluster SEO gắn cat3 (metadata import 188). Storefront không 301 `/c/{cluster-slug}`. */
+  seoClusterId?: string | null
   createdAt: string
   updatedAt: string
 }

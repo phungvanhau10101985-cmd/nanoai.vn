@@ -1,3 +1,4 @@
+import { fetchPartnerAllowAutoCreateCategoriesFromPg } from '@/lib/db/messaging-partner-category-auto-create-pg'
 import {
   assignInventoryToCategoryFromPg,
   fetchPartnerCategoriesFlatFromPg,
@@ -41,6 +42,11 @@ export type PlaceProductCategoryResult = {
   error?: string
 }
 
+export {
+  CATEGORY_AUTO_CREATE_DISABLED,
+  CATEGORY_AUTO_CREATE_DISABLED_MESSAGE,
+} from '@/lib/partner-website/category/partner-category-auto-create-copy'
+
 type PlaceSession = {
   partnerId: string
   rows: PartnerCategoryRow[]
@@ -50,12 +56,20 @@ type PlaceSession = {
   needsSeoIds: Set<string>
   intentCache: Map<string, string | null>
   warnings: string[]
+  allowCreate: boolean
 }
 
-async function startSession(partnerId: string): Promise<PlaceSession | null> {
+async function startSession(
+  partnerId: string,
+  opts?: { allowCreate?: boolean }
+): Promise<PlaceSession | null> {
   const listed = await fetchPartnerCategoriesFlatFromPg(partnerId, { activeOnly: false })
   if (listed === null) return null
   const shop = await loadPartnerCategoryShopSeoContext(partnerId)
+  const allowCreate =
+    typeof opts?.allowCreate === 'boolean'
+      ? opts.allowCreate
+      : await fetchPartnerAllowAutoCreateCategoriesFromPg(partnerId)
   return {
     partnerId,
     rows: [...listed],
@@ -65,7 +79,37 @@ async function startSession(partnerId: string): Promise<PlaceSession | null> {
     needsSeoIds: new Set(),
     intentCache: new Map(),
     warnings: [],
+    allowCreate,
   }
+}
+
+/** Khớp đúng tên L1→L2→L3 đã có (cào listing / chặn publish). */
+export function findExistingCategoryTripleLeaf(
+  rows: PartnerCategoryRow[],
+  categoryL1: string,
+  categoryL2: string,
+  categoryL3: string
+): PartnerCategoryRow | null {
+  const l1Name = categoryL1.trim()
+  const l2Name = categoryL2.trim()
+  const l3Name = categoryL3.trim()
+  if (!l1Name || !l2Name || !l3Name) return null
+  const n1 = findExactCategorySibling(rows, null, l1Name)
+  if (!n1) return null
+  const n2 = findExactCategorySibling(rows, n1.id, l2Name)
+  if (!n2) return null
+  return findExactCategorySibling(rows, n2.id, l3Name) ?? null
+}
+
+export async function existingPartnerCategoryTripleExists(
+  partnerId: string,
+  categoryL1: string,
+  categoryL2: string,
+  categoryL3: string
+): Promise<boolean> {
+  const rows = await fetchPartnerCategoriesFlatFromPg(partnerId, { activeOnly: false })
+  if (!rows) return false
+  return Boolean(findExistingCategoryTripleLeaf(rows, categoryL1, categoryL2, categoryL3))
 }
 
 function markTouched(session: PlaceSession, row: PartnerCategoryRow, created: boolean) {
@@ -95,6 +139,11 @@ async function ensureLevel(
   if (matched) {
     markTouched(session, matched, false)
     return matched
+  }
+
+  if (!session.allowCreate) {
+    session.warnings.push(`place_category: ${CATEGORY_AUTO_CREATE_DISABLED} "${trimmed}"`)
+    return null
   }
 
   const created = await insertPartnerCategoryFromPg({
@@ -136,16 +185,27 @@ async function resolveHintPath(
   opts?: { aiGenerated?: boolean }
 ): Promise<PartnerCategoryRow | null> {
   const l1Name = (hint.categoryL1 ?? '').trim()
+  const l2Name = (hint.categoryL2 ?? '').trim()
+  const l3Name = (hint.categoryL3 ?? '').trim()
   if (!l1Name || shouldSkipPartnerCategoryImportName(l1Name)) return null
+  if (!session.allowCreate) {
+    if (!l2Name || !l3Name) return null
+    if (shouldSkipPartnerCategoryImportName(l2Name) || shouldSkipPartnerCategoryImportName(l3Name)) {
+      return null
+    }
+  }
   const n1 = await ensureLevel(session, null, l1Name, opts)
   if (!n1) return null
-  const l2Name = (hint.categoryL2 ?? '').trim()
-  if (l2Name && shouldSkipPartnerCategoryImportName(l2Name)) return n1
+  if (l2Name && shouldSkipPartnerCategoryImportName(l2Name)) {
+    return session.allowCreate ? n1 : null
+  }
   const n2 = l2Name ? await ensureLevel(session, n1.id, l2Name, opts) : n1
-  if (!n2) return n1
-  const l3Name = (hint.categoryL3 ?? '').trim()
-  if (l3Name && shouldSkipPartnerCategoryImportName(l3Name)) return n2
+  if (!n2) return session.allowCreate ? n1 : null
+  if (l3Name && shouldSkipPartnerCategoryImportName(l3Name)) {
+    return session.allowCreate ? n2 : null
+  }
   const n3 = l3Name ? await ensureLevel(session, n2.id, l3Name, opts) : n2
+  if (!session.allowCreate) return n3 && l3Name ? n3 : null
   return n3 ?? n2
 }
 
@@ -220,6 +280,7 @@ function toResult(
  * Import Excel 41 cột / Open Catalog / sync ngoài — tìm hoặc tạo L1/L2/L3,
  * không trùng ý định SEO, rồi sinh SEO cho trang danh mục còn trống.
  * Excel 12 cột không đi qua đây (không có category_l1).
+ * Tắt tự tạo: thiếu bất kỳ cấp đã có → không gán, không insert node.
  */
 export async function placeImportedInventoryInCategoryTreeBatch(
   partnerId: string,
@@ -230,14 +291,15 @@ export async function placeImportedInventoryInCategoryTreeBatch(
     categoryL3?: string | null
     productName?: string
   }>
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; skippedInventoryIds: string[] } | { ok: false; error: string; skippedInventoryIds: string[] }> {
   const work = items.filter((item) => item.inventoryId && (item.categoryL1 ?? '').trim())
-  if (work.length === 0) return { ok: true }
+  if (work.length === 0) return { ok: true, skippedInventoryIds: [] }
   const session = await startSession(partnerId)
-  if (!session) return { ok: false, error: 'db_error' }
+  if (!session) return { ok: false, error: 'db_error', skippedInventoryIds: work.map((i) => i.inventoryId) }
 
   const pathCache = new Map<string, string | null>()
   const samples: string[] = []
+  const skippedInventoryIds: string[] = []
   for (const item of work) {
     const pathKey = [item.categoryL1, item.categoryL2, item.categoryL3]
       .map((v) => (v ?? '').trim().toLowerCase())
@@ -253,11 +315,34 @@ export async function placeImportedInventoryInCategoryTreeBatch(
       leafId = leaf?.id ?? null
       pathCache.set(pathKey, leafId)
     }
-    if (!leafId) continue
+    if (!leafId) {
+      skippedInventoryIds.push(item.inventoryId)
+      continue
+    }
     await assignInventoryToCategoryFromPg(partnerId, item.inventoryId, leafId, true)
     if (item.productName?.trim() && samples.length < 8) samples.push(item.productName.trim())
   }
-  return finishSession(session, samples)
+  const finished = await finishSession(session, samples)
+  if (!finished.ok) return { ok: false, error: finished.error, skippedInventoryIds }
+  return { ok: true, skippedInventoryIds }
+}
+
+/**
+ * Excel 41 cột / Open Catalog: khi tắt tự tạo, mọi insert mới có category_l1 đều bị chặn.
+ * Dòng không có category_l1 (file 12 cột) không bị chặn.
+ */
+export async function importedInventoryInsertIdsBlockedByAutoCreate(
+  partnerId: string,
+  items: Array<{
+    id: string
+    categoryL1?: string | null
+    categoryL2?: string | null
+    categoryL3?: string | null
+  }>
+): Promise<Set<string>> {
+  const allowCreate = await fetchPartnerAllowAutoCreateCategoriesFromPg(partnerId)
+  if (allowCreate) return new Set()
+  return new Set(items.filter((item) => item.id && (item.categoryL1 ?? '').trim()).map((item) => item.id))
 }
 
 export async function placeProductStudioInventoryInCategoryTree(input: {
@@ -266,6 +351,8 @@ export async function placeProductStudioInventoryInCategoryTree(input: {
   payload: ProductStudioJobPayload
   productName: string
   preferredCategoryId?: string | null
+  /** false = chỉ phân loại, không gán kho / không sinh SEO (preview trước insert). */
+  assign?: boolean
 }): Promise<PlaceProductCategoryResult> {
   const session = await startSession(input.partnerId)
   if (!session) {
@@ -280,6 +367,7 @@ export async function placeProductStudioInventoryInCategoryTree(input: {
   }
 
   const preferred = (input.preferredCategoryId ?? '').trim()
+  const shouldAssign = input.assign !== false
   if (preferred) {
     const existing = await fetchPartnerCategoryByIdFromPg(input.partnerId, preferred)
     if (existing) {
@@ -288,6 +376,7 @@ export async function placeProductStudioInventoryInCategoryTree(input: {
       for (const node of ancestors) {
         if (categoryNeedsSeoFill(node)) session.needsSeoIds.add(node.id)
       }
+      if (!shouldAssign) return toResult(session, existing.id)
       await assignInventoryToCategoryFromPg(input.partnerId, input.inventoryId, existing.id, true)
       const seo = await finishSession(session, [input.productName])
       if (!seo.ok) return toResult(session, existing.id, { error: seo.error })
@@ -325,10 +414,10 @@ export async function placeProductStudioInventoryInCategoryTree(input: {
     const l1 = await takeOrCreate(proposed.l1, null, 1)
     const l2 = l1 ? await takeOrCreate(proposed.l2, l1, 2) : null
     const l3 = l2 ? await takeOrCreate(proposed.l3, l2, 3) : null
-    leaf = l3 ?? l2 ?? l1
+    leaf = session.allowCreate ? l3 ?? l2 ?? l1 : l3
   }
 
-  if (!leaf) {
+  if (!leaf && session.allowCreate) {
     session.warnings.push('place_category: AI path unused — fallback from product type')
     leaf = await resolveHintPath(session, {
       productName: input.productName,
@@ -343,8 +432,11 @@ export async function placeProductStudioInventoryInCategoryTree(input: {
   }
 
   if (!leaf) {
-    return toResult(session, null, { error: 'place_category_failed' })
+    return toResult(session, null, {
+      error: session.allowCreate ? 'place_category_failed' : CATEGORY_AUTO_CREATE_DISABLED,
+    })
   }
+  if (!shouldAssign) return toResult(session, leaf.id)
   await assignInventoryToCategoryFromPg(input.partnerId, input.inventoryId, leaf.id, true)
   const seo = await finishSession(session, [input.productName])
   if (!seo.ok) return toResult(session, leaf.id, { error: seo.error })
@@ -372,6 +464,7 @@ export async function ensurePartnerCategoryTripleWithSeo(input: {
   categoryL2: string
   categoryL3: string
   productName: string
+  allowCreate?: boolean
 }): Promise<EnsurePartnerCategoryTripleResult> {
   const l1Name = input.categoryL1.trim().slice(0, 200)
   const l2Name = input.categoryL2.trim().slice(0, 200)
@@ -388,7 +481,9 @@ export async function ensurePartnerCategoryTripleWithSeo(input: {
   if (!l1Name || !l2Name || !l3Name) {
     return { ...empty, error: 'missing_triple', warnings: ['place_category: thiếu cat1/cat2/cat3'] }
   }
-  const session = await startSession(input.partnerId)
+  const session = await startSession(input.partnerId, {
+    allowCreate: typeof input.allowCreate === 'boolean' ? input.allowCreate : undefined,
+  })
   if (!session) {
     return { ...empty, error: 'db_error', warnings: ['place_category: could not read tree'] }
   }
@@ -406,6 +501,10 @@ export async function ensurePartnerCategoryTripleWithSeo(input: {
     if (exact) {
       markTouched(session, exact, false)
       return exact
+    }
+    if (!session.allowCreate) {
+      session.warnings.push(`place_category: ${CATEGORY_AUTO_CREATE_DISABLED} "${name}"`)
+      return null
     }
     const created = await insertPartnerCategoryFromPg({
       partnerId: session.partnerId,
@@ -437,9 +536,22 @@ export async function ensurePartnerCategoryTripleWithSeo(input: {
   }
 
   const n1 = await takeExact(null, l1Name, '1')
-  if (!n1) return { ...empty, warnings: session.warnings, error: 'place_category_failed' }
+  if (!n1) {
+    return {
+      ...empty,
+      warnings: session.warnings,
+      error: session.allowCreate ? 'place_category_failed' : CATEGORY_AUTO_CREATE_DISABLED,
+    }
+  }
   const n2 = await takeExact(n1.id, l2Name, '2')
-  if (!n2) return { ...empty, cat1: n1.name, warnings: session.warnings, error: 'place_category_failed' }
+  if (!n2) {
+    return {
+      ...empty,
+      cat1: n1.name,
+      warnings: session.warnings,
+      error: session.allowCreate ? 'place_category_failed' : CATEGORY_AUTO_CREATE_DISABLED,
+    }
+  }
   const n3 = await takeExact(n2.id, l3Name, '3')
   if (!n3) {
     return {
@@ -447,7 +559,7 @@ export async function ensurePartnerCategoryTripleWithSeo(input: {
       cat1: n1.name,
       cat2: n2.name,
       warnings: session.warnings,
-      error: 'place_category_failed',
+      error: session.allowCreate ? 'place_category_failed' : CATEGORY_AUTO_CREATE_DISABLED,
     }
   }
 

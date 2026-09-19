@@ -14,6 +14,10 @@ import {
   listPartnerInventoryRows,
   upsertPartnerInventoryBatch,
 } from '@/lib/messaging/partner-inventory-upsert-batch'
+import {
+  CATEGORY_AUTO_CREATE_DISABLED,
+  CATEGORY_AUTO_CREATE_DISABLED_MESSAGE,
+} from '@/lib/partner-website/category/partner-category-auto-create-copy'
 import { fetchMessagingPartnerAiImageSearchAuthFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
 import { fetchMessagingPartnerByIdFromPg, isMessagingPartnerInboundOpen } from '@/lib/db/messaging-partners-pg'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -226,6 +230,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     deferEmbeddings,
   })
   if (!batch.ok) {
+    if (batch.error === CATEGORY_AUTO_CREATE_DISABLED) {
+      return jsonWithCors(
+        req,
+        { error: CATEGORY_AUTO_CREATE_DISABLED_MESSAGE, code: CATEGORY_AUTO_CREATE_DISABLED },
+        409
+      )
+    }
     return jsonWithCors(req, { error: batch.error, code: 'UPSERT_FAILED' }, 500)
   }
 
@@ -245,5 +256,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     deleted: batch.deleted,
     embeddings_deferred: batch.embeddingsDeferred,
     vision_bg_sync_queued: visionBgSyncQueued,
+    skipped_category_auto_create: (batch.categoryAutoCreateSkipped ?? []).length,
   }, 200)
 }

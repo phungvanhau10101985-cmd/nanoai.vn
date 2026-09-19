@@ -1,7 +1,12 @@
+import { fetchPartnerAllowAutoCreateCategoriesFromPg } from '@/lib/db/messaging-partner-category-auto-create-pg'
 import { fetchPartnerCategoriesFlatFromPg } from '@/lib/db/messaging-partner-categories-pg'
 import { deepseekPartnerChat } from '@/lib/messaging/partner-ai-llm'
 import { collectListingImportColorLabels } from '@/lib/messaging/listing-import/listing-import-color-translate'
-import { ensurePartnerCategoryTripleWithSeo } from '@/lib/partner-website/category/partner-category-place-product'
+import {
+  CATEGORY_AUTO_CREATE_DISABLED,
+  ensurePartnerCategoryTripleWithSeo,
+  existingPartnerCategoryTripleExists,
+} from '@/lib/partner-website/category/partner-category-place-product'
 import type { PartnerCategoryRow } from '@/lib/partner-website/category/partner-category-types'
 
 const CJK_RE = /[\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7af]/
@@ -27,13 +32,27 @@ thuong_hieu_vi, xuat_xu_vi, phong_cach_vi, dip_vi, trong_luong_vi, chieu_cao_got
 - chat_lieu_vi: chất liệu tiếng Việt ngắn; không đoán — không có thì "".
 - mo_ta_vi: mô tả bán hàng tiếng Việt, 350–1200 ký tự, 2–5 đoạn, \\n giữa đoạn; không HTML; không copy bảng thông số.
 - phong_cach_vi / dip_vi: tiếng Việt ngắn khi có; không có thì "".
-- Nếu không có nhánh phù hợp: đề xuất cat1/cat2/cat3 tiếng Việt ngắn (ưu tiên giữ cat1/cat2 đã có).
 QUY TẮC cat1:
 - Giày dép → «Giày dép Nam» hoặc «Giày dép Nữ».
 - Quần áo / váy → «Thời trang Nam» hoặc «Thời trang Nữ».
 - Túi / ví / ba lô → «Túi xách Nam» hoặc «Túi xách Nữ».
 ${LISTING_SANITIZE_PROMPT_VI}
 `
+
+function taxonomyNoMatchPromptLine(allowCreate: boolean): string {
+  return allowCreate
+    ? 'Ưu tiên cat1/cat2/cat3 nguyên văn trong bảng; nếu thiếu nhánh thì đề xuất tên Việt mới (giữ cat1/cat2 khi có thể).'
+    : 'CHỈ được SAO CHÉP đúng một bộ cat1/cat2/cat3 đã có trong bảng. Nếu không khớp: trả cat1="" cat2="" cat3="". CẤM đề xuất danh mục mới.'
+}
+
+export function listingImportOverlayTitle(overlay: Record<string, unknown> | null | undefined): string {
+  if (!overlay || typeof overlay !== 'object') return ''
+  const chinese = String(overlay.chinese_name ?? '').trim()
+  if (chinese) return chinese
+  const name = String(overlay.name ?? '').trim()
+  if (name) return name
+  return String(overlay.title ?? '').trim()
+}
 
 type Triple = {
   cat1: string
@@ -433,6 +452,7 @@ async function classifyTaxonomyDeepseek(input: {
   triples: Triple[]
   genderHint: 'female' | 'male' | null
   warnings: string[]
+  allowCreate: boolean
 }): Promise<Triple | null> {
   const name = input.title.trim()
   if (!name) {
@@ -440,6 +460,10 @@ async function classifyTaxonomyDeepseek(input: {
     return null
   }
   const triplesUse = filterTriplesByGenderHint(input.triples, input.genderHint)
+  if (!input.allowCreate && triplesUse.length === 0) {
+    input.warnings.push('deepseek_taxonomy: cây trống — tắt tự tạo nên không phân loại.')
+    return null
+  }
   const { block, truncated } = triplesUse.length
     ? buildTaxonomyPromptBlock(triplesUse)
     : {
@@ -465,7 +489,7 @@ async function classifyTaxonomyDeepseek(input: {
     `BẢNG DANH MỤC (mỗi ## là cat1; dòng «cat2 > cat3» là một nhánh hợp lệ):\n\n${block}\n\n` +
     `${genderLines}${ctxBlock}` +
     `TÊN SẢN PHẨM (ưu tiên tiếng Trung / tên NCC gốc):\n${name}\n\n` +
-    'Ưu tiên cat1/cat2/cat3 nguyên văn trong bảng; nếu thiếu nhánh thì đề xuất tên Việt mới (giữ cat1/cat2 khi có thể).\n' +
+    `${taxonomyNoMatchPromptLine(input.allowCreate)}\n` +
     'Trả về DUY NHẤT một JSON đủ 14 key:\n' +
     '{"cat1":"...","cat2":"...","cat3":"...","khach_hang":"...","ten_tieng_viet":"...","chat_lieu_vi":"","mo_ta_vi":"...","thuong_hieu_vi":"","xuat_xu_vi":"","phong_cach_vi":"","dip_vi":"","trong_luong_vi":"","chieu_cao_got_vi":"","thong_so_kich_thuoc_vi":""}'
 
@@ -511,27 +535,50 @@ async function classifyTaxonomyDeepseek(input: {
 
 /**
  * Phân loại DeepSeek 14 key + tạo L1/L2/L3 + SEO — khớp 188 apply_deepseek_taxonomy_to_product_data.
+ * Tắt tự tạo: không cào / không đăng SP mới — báo lỗi ngay kèm hướng dẫn bật lại công tắc.
  */
 export async function applyListingImportTaxonomy(
   partnerId: string,
   productData: Record<string, unknown>,
-  warnings: string[]
-): Promise<void> {
+  warnings: string[],
+  opts?: { allowCreate?: boolean }
+): Promise<{ ok: boolean; error?: string }> {
+  const allowCreate =
+    typeof opts?.allowCreate === 'boolean'
+      ? opts.allowCreate
+      : await fetchPartnerAllowAutoCreateCategoriesFromPg(partnerId)
   const titleSrc = nonemptyField(productData, 'chinese_name') || nonemptyField(productData, 'name')
   const descSrc = str(productData.description)
   const ctx = buildTaxonomyContextBlob(productData)
   const nameVi = nonemptyField(productData, 'name')
 
   if (shouldSkipExisting(productData)) {
+    if (!allowCreate) {
+      const exists = await existingPartnerCategoryTripleExists(
+        partnerId,
+        str(productData.category),
+        str(productData.subcategory),
+        str(productData.sub_subcategory)
+      )
+      if (!exists) {
+        warnings.push(`deepseek_taxonomy: ${CATEGORY_AUTO_CREATE_DISABLED} — danh mục nháp không có trên cây.`)
+        productData._taxonomy_error = CATEGORY_AUTO_CREATE_DISABLED
+        return { ok: false, error: CATEGORY_AUTO_CREATE_DISABLED }
+      }
+    }
     const { ten, moTa } = await translateListingViOnly(nameVi || titleSrc, descSrc, ctx, false)
     if (ten || moTa) applyViNameAndDesc(productData, ten, moTa)
     warnings.push('deepseek_taxonomy: giữ nguyên danh mục đã có — đã cập nhật tên/mô tả tiếng Việt (nếu API trả được).')
-    return
+    return { ok: true }
   }
 
   if (!titleSrc) {
     warnings.push('taxonomy: thiếu tên — bỏ qua phân loại.')
-    return
+    if (!allowCreate) {
+      productData._taxonomy_error = CATEGORY_AUTO_CREATE_DISABLED
+      return { ok: false, error: CATEGORY_AUTO_CREATE_DISABLED }
+    }
+    return { ok: true }
   }
 
   const tree = (await fetchPartnerCategoriesFlatFromPg(partnerId)) ?? []
@@ -544,13 +591,24 @@ export async function applyListingImportTaxonomy(
     triples,
     genderHint,
     warnings,
+    allowCreate,
   })
 
   if (!classified) {
     const { ten, moTa } = await translateListingViOnly(nameVi || titleSrc, descSrc, ctx, false)
     if (ten || moTa) applyViNameAndDesc(productData, ten, moTa)
     warnings.push('deepseek_listing_translate: taxonomy không gán được nhánh — chỉ cập nhật tên/mô tả tiếng Việt nếu có.')
-    return
+    if (!allowCreate) {
+      productData._taxonomy_error = CATEGORY_AUTO_CREATE_DISABLED
+      return { ok: false, error: CATEGORY_AUTO_CREATE_DISABLED }
+    }
+    return { ok: true }
+  }
+
+  if (!allowCreate && !resolveTripleFromTaxonomy(classified.cat1, classified.cat2, classified.cat3, triples)) {
+    warnings.push(`deepseek_taxonomy: ${CATEGORY_AUTO_CREATE_DISABLED} — model không khớp nhánh đã có.`)
+    productData._taxonomy_error = CATEGORY_AUTO_CREATE_DISABLED
+    return { ok: false, error: CATEGORY_AUTO_CREATE_DISABLED }
   }
 
   const placed = await ensurePartnerCategoryTripleWithSeo({
@@ -559,16 +617,22 @@ export async function applyListingImportTaxonomy(
     categoryL2: classified.cat2,
     categoryL3: classified.cat3,
     productName: classified.ten_tieng_viet || nameVi || titleSrc,
+    allowCreate,
   })
   warnings.push(...placed.warnings)
   if (!placed.ok) {
     warnings.push(`deepseek_taxonomy: không tạo/gán được danh mục (${placed.error || 'unknown'}).`)
     const { ten, moTa } = await translateListingViOnly(nameVi || titleSrc, descSrc, ctx, false)
     if (ten || moTa) applyViNameAndDesc(productData, ten, moTa)
-    return
+    if (!allowCreate) {
+      productData._taxonomy_error = placed.error || CATEGORY_AUTO_CREATE_DISABLED
+      return { ok: false, error: placed.error || CATEGORY_AUTO_CREATE_DISABLED }
+    }
+    return { ok: true }
   }
 
   delete productData._taxonomy_auto_created_levels
+  delete productData._taxonomy_error
   productData.category = placed.cat1
   productData.subcategory = placed.cat2
   productData.sub_subcategory = placed.cat3
@@ -598,4 +662,41 @@ export async function applyListingImportTaxonomy(
     if (fb.moTa) mergeDescriptionVi(productData, fb.moTa)
   }
   mergeExcelWebListingBlocks(productData, canon)
+  return { ok: true }
+}
+
+/**
+ * Khi tắt tự tạo: có tiêu đề overlay thì phân loại trước Playwright.
+ * Không khớp triple đã có → không cào.
+ */
+export async function previewListingImportTaxonomyMatch(input: {
+  partnerId: string
+  title: string
+  allowCreate?: boolean
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const allowCreate =
+    typeof input.allowCreate === 'boolean'
+      ? input.allowCreate
+      : await fetchPartnerAllowAutoCreateCategoriesFromPg(input.partnerId)
+  if (allowCreate) return { ok: true }
+  const title = input.title.trim()
+  if (!title) return { ok: true }
+
+  const warnings: string[] = []
+  const tree = (await fetchPartnerCategoriesFlatFromPg(input.partnerId)) ?? []
+  const triples = loadActiveCategoryTriples(tree)
+  const genderHint = inferListingImportSupplierGenderHint(title)
+  const classified = await classifyTaxonomyDeepseek({
+    title,
+    contextText: '',
+    triples,
+    genderHint,
+    warnings,
+    allowCreate: false,
+  })
+  if (!classified) return { ok: false, error: CATEGORY_AUTO_CREATE_DISABLED }
+  if (!resolveTripleFromTaxonomy(classified.cat1, classified.cat2, classified.cat3, triples)) {
+    return { ok: false, error: CATEGORY_AUTO_CREATE_DISABLED }
+  }
+  return { ok: true }
 }
