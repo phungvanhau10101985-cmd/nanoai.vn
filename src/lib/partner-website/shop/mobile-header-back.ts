@@ -5,11 +5,12 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import { pwUnlockedBelowLaptopMediaQuery, pwUnlockedTabletMediaQuery } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
 
 export const PW_HEAD_BACK_ATTR = 'data-pw-head-back'
 export const PARTNER_SHOP_MOBILE_HEAD_BACK_SCRIPT_ID = 'pw-shop-mobile-head-back'
-/** Live unlocked: phone + tablet. Stamp / `?pw-device=` vẫn thắng. */
-export const PARTNER_HEAD_BACK_FACE_MQ = '(max-width:1279px)'
+/** Live unlocked: phone + tablet, excluding Windows scaled FHD. Stamp / `?pw-device=` vẫn thắng. */
+export const PARTNER_HEAD_BACK_FACE_MQ = pwUnlockedBelowLaptopMediaQuery()
 
 const BACK_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 19l-7-7 7-7"/></svg>'
@@ -115,7 +116,7 @@ export const PW_MOBILE_HEAD_BACK_CSS = `
 ${PHONE_NOT_HOME.map((host) => mobileHeadBackShowBlock(host, BACK_FACE_PHONE)).join('')}
 ${TABLET_NOT_HOME.map((host) => mobileHeadBackShowBlock(host, BACK_FACE_TABLET)).join('')}
 @media (max-width:767px){${mobileHeadBackShowBlock(UNLOCKED_NOT_HOME, BACK_FACE_PHONE)}}
-@media (min-width:768px) and (max-width:1279px){${mobileHeadBackShowBlock(UNLOCKED_NOT_HOME, BACK_FACE_TABLET)}}
+@media ${pwUnlockedTabletMediaQuery()}{${mobileHeadBackShowBlock(UNLOCKED_NOT_HOME, BACK_FACE_TABLET)}}
 `.trim()
 
 /** Click = trang trước. Sửa nhanh không điều hướng. Thiếu history → href logo. */

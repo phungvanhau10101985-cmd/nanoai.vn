@@ -12,6 +12,7 @@ import {
   UserRound,
 } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, memo } from 'react'
+import { PW_LIVE_DOM_DEVICE_JS } from '@/lib/partner-website/shop/infer-live-visual-request-device'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
   PartnerSiteChatWidgetProvider,
@@ -532,7 +533,7 @@ function PartnerSiteShopShellInner({
   const mobileCatFace = usePartnerShopMobileCategoryFace(previewDevice)
   const headBackFace = usePartnerShopHeadBackFace(previewDevice)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const html = document.documentElement
     if (!previewDevice) return
     html.setAttribute('data-pw-scene-lock', previewDevice)
@@ -790,6 +791,14 @@ function PartnerSiteShopShellInner({
   }, [previewDevice, useVisualChrome, visualBeforeHtml])
   return (
     <div className="pw-shop" data-pw-look={shopLook} {...(pageKind ? { 'data-pw-page': pageKind } : {})}>
+      <script
+        id="pw-react-scene-lock"
+        dangerouslySetInnerHTML={{
+          __html: previewDevice
+            ? `document.documentElement.setAttribute("data-pw-scene-lock",${JSON.stringify(previewDevice)});`
+            : `${PW_LIVE_DOM_DEVICE_JS};(function(){var d=document.documentElement;if(d.getAttribute("data-pw-edit-device")||d.getAttribute("data-pw-scene-lock"))return;var key=pwLiveDomDevice();if(key)d.setAttribute("data-pw-scene-lock",key);})();`,
+        }}
+      />
       <PartnerSiteLiveDeviceCookieSync />
       <PartnerSiteShopTrackingBootstrap tracking={tracking} />
       {hideChrome ? null : (

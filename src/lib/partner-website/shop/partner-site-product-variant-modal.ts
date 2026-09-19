@@ -1,4 +1,5 @@
 import type { WebLocale } from '@/lib/i18n/config'
+import { readLiveDomDeviceFromWindow, PW_LIVE_DOM_DEVICE_JS } from '@/lib/partner-website/shop/infer-live-visual-request-device'
 
 /** Copy khớp modal chọn biến thể 188 `ProductVariantModal` — đủ 5 locale shop. */
 export type ProductVariantModalCopy = {
@@ -128,19 +129,20 @@ export function resolveVariantModalFace(input?: {
   return input?.viewportMinMd ? 'wide' : 'compact'
 }
 
-/** Desktop/Laptop (và viewport ≥1280): nút buy box trên trang thêm giỏ thẳng. */
+/** Desktop/Laptop (và Windows FHD Scale): nút buy box trên trang thêm giỏ thẳng. */
 export function isPdpWideStickyViewport(input?: {
   editDevice?: string | null
   sceneLock?: string | null
   queryDevice?: string | null
   minWidth1280?: boolean
+  wideChrome?: boolean
 }): boolean {
   const lock = String(input?.editDevice || input?.sceneLock || input?.queryDevice || '')
     .trim()
     .toLowerCase()
   if (lock === 'desktop' || lock === 'laptop') return true
   if (lock === 'mobile' || lock === 'tablet') return false
-  return Boolean(input?.minWidth1280)
+  return Boolean(input?.wideChrome ?? input?.minWidth1280)
 }
 
 export function readPdpWideStickyViewport(): boolean {
@@ -151,11 +153,12 @@ export function readPdpWideStickyViewport(): boolean {
   } catch {
     queryDevice = ''
   }
+  const live = readLiveDomDeviceFromWindow()
   return isPdpWideStickyViewport({
     editDevice: document.documentElement.getAttribute('data-pw-edit-device'),
     sceneLock: document.documentElement.getAttribute('data-pw-scene-lock'),
     queryDevice,
-    minWidth1280: window.matchMedia('(min-width:1280px)').matches,
+    wideChrome: live === 'desktop' || live === 'laptop',
   })
 }
 
@@ -270,14 +273,12 @@ export const PW_PRODUCT_VARIANT_MODAL_CSS = `
 
 /** Runtime HTML shop — `openPdpVariantModal` cho thanh đáy; buy box desktop/laptop thêm giỏ thẳng. */
 export const PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS = `
+${PW_LIVE_DOM_DEVICE_JS}
 function variantModalFace(){
-  var html=document.documentElement;
-  var q='';
-  try{q=new URLSearchParams(location.search).get('pw-device')||'';}catch(e){}
-  var lock=String(html.getAttribute('data-pw-edit-device')||html.getAttribute('data-pw-scene-lock')||q||'').toLowerCase();
-  if(lock==='mobile')return 'compact';
-  if(lock==='tablet'||lock==='laptop'||lock==='desktop')return 'wide';
-  try{return window.matchMedia('(min-width:768px)').matches?'wide':'compact';}catch(e2){return 'compact';}
+  var d=pwLiveDomDevice();
+  if(d==='mobile')return 'compact';
+  if(d==='tablet'||d==='laptop'||d==='desktop')return 'wide';
+  return 'compact';
 }
 function variantEsc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
 function variantDigits(raw){return Math.max(0,Math.round(Number(String(raw||'').replace(/[^\\d]/g,''))||0));}
@@ -820,13 +821,8 @@ function isPdpCartTrigger(el){
   return isPdpProductPage();
 }
 function isPdpWideStickyViewport(){
-  var html=document.documentElement;
-  var q='';
-  try{q=new URLSearchParams(location.search).get('pw-device')||'';}catch(e){}
-  var d=String(html.getAttribute('data-pw-edit-device')||html.getAttribute('data-pw-scene-lock')||q||'').toLowerCase();
-  if(d==='desktop'||d==='laptop')return true;
-  if(d==='mobile'||d==='tablet')return false;
-  try{return window.matchMedia('(min-width:1280px)').matches;}catch(e2){return false;}
+  var d=pwLiveDomDevice();
+  return d==='desktop'||d==='laptop';
 }
 function setPdpDesktopSticky(on){
   var html=document.documentElement;

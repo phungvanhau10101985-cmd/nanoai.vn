@@ -260,8 +260,15 @@ test('chrome layout css is injected once before </head>', () => {
     'html[data-pw-scene-lock="desktop"] .pw-bottom-nav,html[data-pw-scene-lock="desktop"] .pw-shop-bottom-nav,html[data-pw-scene-lock="laptop"] .pw-bottom-nav,html[data-pw-scene-lock="laptop"] .pw-shop-bottom-nav,html[data-pw-edit-device="desktop"] .pw-bottom-nav,html[data-pw-edit-device="desktop"] .pw-shop-bottom-nav,html[data-pw-edit-device="laptop"] .pw-bottom-nav,html[data-pw-edit-device="laptop"] .pw-shop-bottom-nav{display:none!important}'
   assert.equal(once.includes(hideDockDesktopStamp), true)
   const hideDockAt = once.indexOf(hideDockDesktopStamp)
-  assert.equal(once.lastIndexOf('@media (min-width:1280px){', hideDockAt) > once.lastIndexOf('@media (max-width:1279px){', hideDockAt), true)
-  assert.equal(once.includes('@media (max-width:1279px){\n.pw-bottom-nav,.pw-shop-bottom-nav{display:flex!important'), true)
+  const unlockedDockShow =
+    '@media (max-width:1079px), (max-width:1279px) and (max-resolution:1.24dppx), (max-width:1279px) and (min-resolution:2dppx){\n.pw-bottom-nav,.pw-shop-bottom-nav{display:flex!important'
+  const fhdDockHide =
+    '@media (min-width:1080px) and (max-width:1439px) and (min-resolution:1.25dppx) and (max-resolution:1.99dppx){\n.pw-bottom-nav,.pw-shop-bottom-nav{display:none!important'
+  assert.equal(once.includes(unlockedDockShow), true)
+  assert.equal(once.includes(fhdDockHide), true)
+  assert.equal(once.lastIndexOf('@media (min-width:1280px){', hideDockAt) > once.lastIndexOf(unlockedDockShow, hideDockAt), true)
+  assert.equal(once.lastIndexOf(hideDockDesktopStamp) > once.lastIndexOf(unlockedDockShow), true)
+  assert.equal(once.includes('@media (min-width:1080px) and (max-width:1439px)'), true)
   assert.equal(once.includes('html[data-pw-edit-device="tablet"] .pw-bottom-nav,html[data-pw-edit-device="tablet"] .pw-shop-bottom-nav,html[data-pw-edit-device="mobile"] .pw-bottom-nav'), true)
   assert.equal(once.includes('.pw-bottom-nav[data-pw-chrome-kit="dock"]{display:flex!important'), false)
   assert.equal(once.includes('data-pw-pdp-desktop-sticky'), true)

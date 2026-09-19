@@ -15,6 +15,7 @@ export function inferLiveVisualRequestDevice(): VisualDeviceVariant {
     viewportWidth: Number(
       headerStore.get('sec-ch-viewport-width') || headerStore.get('viewport-width') || 0
     ),
+    screenWidth: Number(headerStore.get('sec-ch-viewport-width') || headerStore.get('viewport-width') || 0),
     devicePixelRatio: Number(headerStore.get('sec-ch-dpr') || 0),
     userAgent: headerStore.get('user-agent') || '',
   })

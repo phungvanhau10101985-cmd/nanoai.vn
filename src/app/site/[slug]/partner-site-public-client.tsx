@@ -330,6 +330,7 @@ function PartnerSitePublicFrame({
         userAgent: navigator.userAgent || '',
         innerWidth: window.innerWidth || document.documentElement.clientWidth || 0,
         outerWidth: window.outerWidth || 0,
+        screenWidth: Math.max(window.screen?.width || 0, window.screen?.availWidth || 0),
         devicePixelRatio: window.devicePixelRatio || 0,
         maxTouchPoints: navigator.maxTouchPoints || 0,
       })

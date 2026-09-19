@@ -206,6 +206,8 @@ describe('pw scene layers', () => {
     expect(pwSceneLockFromWindowWidth(767)).toBe('mobile')
     expect(pwSceneLockFromWindowWidth(768)).toBe('tablet')
     expect(pwSceneLockFromWindowWidth(1279)).toBe('tablet')
+    expect(pwSceneLockFromWindowWidth(1263, { devicePixelRatio: 1.5 })).toBe('desktop')
+    expect(pwSceneLockFromWindowWidth(1097, { devicePixelRatio: 1.75 })).toBe('desktop')
     expect(pwSceneLockFromWindowWidth(1280)).toBe('laptop')
     expect(pwSceneLockFromWindowWidth(1439)).toBe('laptop')
     expect(pwSceneLockFromWindowWidth(1280, { devicePixelRatio: 1.5 })).toBe('desktop')
@@ -263,6 +265,12 @@ describe('pw scene layers', () => {
       "else if(stampedDev==='mobile'||stampedDev==='tablet'||stampedDev==='laptop'||stampedDev==='desktop') s=stampedDev;"
     )
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('var liveAuto=!q&&!s&&!isEditor();')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain(
+      "var phoneFace=ua==='mobile'||ua==='tablet'||s==='mobile'||s==='tablet'"
+    )
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain(
+      'outerWidth:phoneFace?inner:(window.outerWidth||inner)'
+    )
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("get('pw-device')")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function zoomScale(scenePx,key){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('if(inner>8&&view>inner)view=inner')

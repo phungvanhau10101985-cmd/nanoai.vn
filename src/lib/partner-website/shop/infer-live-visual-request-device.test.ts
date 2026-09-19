@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   inferVisualDeviceFromUserAgent,
   partnerLiveVisualDeviceCookieAssignment,
+  PW_LIVE_DOM_DEVICE_JS,
   resolveLiveVisualDeviceFromViewport,
   resolveLiveVisualRequestDevice,
 } from '@/lib/partner-website/shop/infer-live-visual-request-device'
@@ -84,6 +85,26 @@ test('narrow desktop window uses viewport, not desktop UA', () => {
   )
 })
 
+test('viewport-width Client Hint without DPR in the FHD CSS band is not tablet', () => {
+  assert.equal(
+    resolveLiveVisualRequestDevice({
+      viewportWidth: 1263,
+      userAgent: DESKTOP,
+    }),
+    'desktop'
+  )
+})
+
+test('narrow desktop window below the FHD CSS floor is still tablet', () => {
+  assert.equal(
+    resolveLiveVisualRequestDevice({
+      viewportWidth: 900,
+      userAgent: DESKTOP,
+    }),
+    'tablet'
+  )
+})
+
 test('wide desktop window stays desktop', () => {
   assert.equal(
     resolveLiveVisualRequestDevice({
@@ -94,14 +115,34 @@ test('wide desktop window stays desktop', () => {
   )
 })
 
-test('desktop UA uses cookie when present', () => {
+test('desktop UA ignores leftover tablet cookie on a wide window', () => {
   assert.equal(
     resolveLiveVisualRequestDevice({
       cookieDevice: 'tablet',
       viewportWidth: 1440,
       userAgent: DESKTOP,
     }),
-    'tablet'
+    'desktop'
+  )
+})
+
+test('desktop UA ignores leftover tablet cookie when viewport is unknown', () => {
+  assert.equal(
+    resolveLiveVisualRequestDevice({
+      cookieDevice: 'tablet',
+      userAgent: DESKTOP,
+    }),
+    'desktop'
+  )
+})
+
+test('desktop UA still uses laptop/desktop cookie when viewport is unknown', () => {
+  assert.equal(
+    resolveLiveVisualRequestDevice({
+      cookieDevice: 'laptop',
+      userAgent: DESKTOP,
+    }),
+    'laptop'
   )
 })
 
@@ -150,15 +191,54 @@ test('viewport helper: desktop window uses outerWidth (laptop vs desktop)', () =
   )
 })
 
-test('viewport helper: F12 innerWidth under 1280 is mobile even on desktop UA', () => {
+test('viewport helper: F12 device-mode phone UA is mobile even when the chrome window is wide', () => {
   assert.equal(
     resolveLiveVisualDeviceFromViewport({
-      userAgent: DESKTOP,
+      userAgent: IPHONE,
       innerWidth: 390,
       outerWidth: 1920,
       devicePixelRatio: 1,
     }),
     'mobile'
+  )
+})
+
+test('viewport helper: desktop UA keeps desktop when innerWidth is only the scrollbar below 1280', () => {
+  assert.equal(
+    resolveLiveVisualDeviceFromViewport({
+      userAgent: DESKTOP,
+      innerWidth: 1263,
+      outerWidth: 1280,
+      screenWidth: 1280,
+      devicePixelRatio: 1.5,
+    }),
+    'desktop'
+  )
+})
+
+test('viewport helper: Windows 175% FHD (~1097 CSS) is desktop, not tablet', () => {
+  assert.equal(
+    resolveLiveVisualDeviceFromViewport({
+      userAgent: DESKTOP,
+      innerWidth: 1080,
+      outerWidth: 1097,
+      screenWidth: 1097,
+      devicePixelRatio: 1.75,
+    }),
+    'desktop'
+  )
+})
+
+test('viewport helper: docked DevTools on a desktop UA keeps the desktop machine', () => {
+  assert.equal(
+    resolveLiveVisualDeviceFromViewport({
+      userAgent: DESKTOP,
+      innerWidth: 800,
+      outerWidth: 1920,
+      screenWidth: 1920,
+      devicePixelRatio: 1,
+    }),
+    'desktop'
   )
 })
 
@@ -171,4 +251,11 @@ test('live device cookie assignment never implies a reload; phone UA clears left
     partnerLiveVisualDeviceCookieAssignment('desktop', IPHONE),
     'pw-live-device=; Path=/; Max-Age=0; SameSite=Lax'
   )
+})
+
+test('live DOM helper prefers stamp then FHD-aware resolver, not innerWidth>=1280', () => {
+  assert.match(PW_LIVE_DOM_DEVICE_JS, /function pwLiveDomDevice/)
+  assert.match(PW_LIVE_DOM_DEVICE_JS, /__pwCoordinate/)
+  assert.match(PW_LIVE_DOM_DEVICE_JS, /dpr>=1\.25&&dpr<2&&w>=1080/)
+  assert.doesNotMatch(PW_LIVE_DOM_DEVICE_JS, /innerWidth\s*>=\s*1280/)
 })

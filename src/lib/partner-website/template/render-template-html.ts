@@ -30,6 +30,11 @@ import { PW_EL, PW_REGION, pwElAttr, pwRegionAttr } from '@/lib/partner-website/
 import { PW_CHROME_H_VAR, PW_CHROME_W_VAR } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import { PW_SCENE_HEAD_Z, PW_SCENE_TOPBAR_Z } from '@/lib/partner-website/visual-editor/pw-scene'
 import { buildPartnerShopFaviconHeadLinks } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
+import {
+  pwScaledFhdDesktopMediaQuery,
+  pwUnlockedBelowLaptopMediaQuery,
+  pwUnlockedTabletMediaQuery,
+} from '@/lib/partner-website/visual-editor/pw-coordinate-space'
 
 function str(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback
@@ -617,8 +622,10 @@ html[data-pw-edit-device="desktop"] .pw-header-main,html[data-pw-scene-lock="des
   .pw-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px}
   .pw-footer-grid{grid-template-columns:1fr 1fr}
 }
-@media (max-width:1279px){
+@media ${pwUnlockedTabletMediaQuery()}{
   .pw-product-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px}
+}
+@media ${pwUnlockedBelowLaptopMediaQuery()}{
   .pw-bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:${PW_SCENE_HEAD_Z};display:flex;flex-wrap:nowrap;justify-content:space-around;align-items:stretch;background:#fff;border-top:1px solid #e5e7eb;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
   .pw-bottom-nav a,.pw-bottom-nav .pw-icon-btn,.pw-bottom-nav .pw-shop-icon-btn{flex:1 1 0;min-width:0;min-height:0;width:auto;height:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-decoration:none;font-size:var(--pw-chrome-label,13px);font-weight:600;color:#6b7280;padding:6px 2px;background:transparent;transform:none}
   .pw-bottom-nav a.is-active,.pw-bottom-nav a:first-child{color:var(--pw-primary)}
@@ -626,6 +633,11 @@ html[data-pw-edit-device="desktop"] .pw-header-main,html[data-pw-scene-lock="des
   .pw-bottom-nav .pw-chrome-icon-wrap{position:relative;display:inline-flex;flex-direction:row;align-items:center;justify-content:center;width:22px;height:22px;overflow:visible}
   .pw-bottom-nav .pw-shop-icon-label,.pw-bottom-nav .pw-chrome-btn-label,.pw-bottom-nav .pw-shop-nav-label,.pw-bottom-nav>a>span:not(.pw-chrome-icon-wrap):not(.pw-cart-badge):not(.pw-shop-cart-badge){display:block;max-width:100%;white-space:normal;overflow:visible;text-overflow:unset;color:inherit;text-align:center;line-height:1.15;overflow-wrap:break-word;word-break:break-word}
   .pw-bottom-nav .pw-chrome-icon-wrap .pw-cart-badge,.pw-bottom-nav .pw-chrome-icon-wrap .pw-shop-cart-badge{position:absolute;top:-5px;right:-9px;left:auto;bottom:auto;z-index:2}
+}
+@media ${pwScaledFhdDesktopMediaQuery()}{
+  .pw-product-grid{grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:18px}
+  .pw-bottom-nav{display:none}
+  body{padding-bottom:0}
 }
 @media (max-width:767px){
   .pw-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px}

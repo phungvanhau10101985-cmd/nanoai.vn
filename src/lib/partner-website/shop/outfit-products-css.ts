@@ -1,5 +1,6 @@
 /** Client-safe outfit-grid styles. Keep Postgres fetchers out of this file. */
 import { PW_PRODUCT_GRID_RULER_CSS } from '@/lib/partner-website/shop/pw-product-grid-ruler'
+import { pwUnlockedBelowLaptopMediaQuery } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
 
 export const PW_OUTFIT_CHROME_CSS = `
 .pw-outfit{margin-top:24px;padding-top:20px;border-top:1px solid var(--pw-border,#e5e7eb);box-sizing:border-box}
@@ -17,7 +18,7 @@ export const PW_OUTFIT_CHROME_CSS = `
 .pw-outfit-card .pw-shop-action-bar,.pw-outfit-card [data-pw-el="card-cart"],.pw-outfit-card [data-pw-el="card-buy"]{display:none!important}
 .pw-outfit-actions{margin-top:16px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
 html[data-pw-edit-device="mobile"] .pw-outfit-actions,html[data-pw-edit-device="tablet"] .pw-outfit-actions,html[data-pw-scene-lock="mobile"] .pw-outfit-actions,html[data-pw-scene-lock="tablet"] .pw-outfit-actions{justify-content:space-between}
-@media (max-width:1279px){
+@media ${pwUnlockedBelowLaptopMediaQuery()}{
 html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-outfit-actions{justify-content:space-between}
 }
 .pw-outfit-more{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:none;border:none;padding:0;cursor:pointer;font:inherit;font-size:14px;color:var(--pw-text,#374151)}

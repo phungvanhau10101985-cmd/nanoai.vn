@@ -7,6 +7,11 @@
 
 import { PW_RECOMMENDED_GRID_FACE_CSS } from '@/lib/partner-website/shop/pw-recommended-grid-face'
 import { PW_FLASH_SALE_GRID_FACE_CSS } from '@/lib/partner-website/shop/pw-flash-sale-grid-face'
+import {
+  pwScaledFhdDesktopMediaQuery,
+  pwUnlockedBelowLaptopMediaQuery,
+  pwUnlockedTabletMediaQuery,
+} from '@/lib/partner-website/visual-editor/pw-coordinate-space'
 
 const PW_STRIP_GRID_PARTS = [
   '[data-pw-related] [data-pw-grid]',
@@ -181,11 +186,14 @@ ${PW_STRIP_GRID_LAPTOP_SEL}{grid-template-columns:repeat(4,minmax(0,1fr))!import
 @media (max-width:767px){
 ${PW_STRIP_GRID_UNLOCKED_SEL}{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
 }
-@media (min-width:768px) and (max-width:1279px){
+@media ${pwUnlockedTabletMediaQuery()}{
 ${PW_STRIP_GRID_UNLOCKED_SEL}{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important}
 }
 @media (min-width:1280px) and (max-width:1439px){
 ${PW_STRIP_GRID_UNLOCKED_SEL}{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:14px!important}
+}
+@media ${pwScaledFhdDesktopMediaQuery()}{
+${PW_STRIP_GRID_UNLOCKED_SEL}{grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:12px!important}
 }
 `.trim()
 
@@ -245,7 +253,7 @@ ${pwCatalogTitleSel('html')}{margin:0!important;font-size:1.125rem!important;lin
 ${pwCatalogTitleSel('html[data-pw-edit-device="laptop"]')},${pwCatalogTitleSel('html[data-pw-scene-lock="laptop"]')}{font-size:1.0625rem!important}
 ${pwCatalogTitleSel('html[data-pw-edit-device="tablet"]')},${pwCatalogTitleSel('html[data-pw-scene-lock="tablet"]')}{font-size:1.05rem!important}
 ${pwCatalogTitleSel('html[data-pw-edit-device="mobile"]')},${pwCatalogTitleSel('html[data-pw-scene-lock="mobile"]')}{font-size:1rem!important}
-@media (max-width:1279px){
+@media ${pwUnlockedBelowLaptopMediaQuery()}{
 ${pwCatalogTitleSel('html:not([data-pw-edit-device]):not([data-pw-scene-lock])')}{font-size:1.05rem!important}
 }
 @media (max-width:767px){

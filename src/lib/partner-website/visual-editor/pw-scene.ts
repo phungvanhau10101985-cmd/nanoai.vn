@@ -5,6 +5,7 @@ import {
   pwCoordinateRuntimeSource,
   pwResolveCoordinateDevice,
   pwScaledFhdDesktopMediaQuery,
+  pwUnlockedBelowLaptopMediaQuery,
   pwSceneWidth,
   pwUniformSceneScale,
   type PwCoordinateDevice,
@@ -656,7 +657,7 @@ html[data-pw-edit-device="mobile"] [data-pw-region="banner"],html[data-pw-scene-
 html[data-pw-edit-device="desktop"] [data-pw-region="banner"],html[data-pw-scene-lock="desktop"] [data-pw-region="banner"],html[data-pw-edit-device="desktop"] .pw-hero,html[data-pw-scene-lock="desktop"] .pw-hero,html[data-pw-edit-device="laptop"] [data-pw-region="banner"],html[data-pw-scene-lock="laptop"] [data-pw-region="banner"],html[data-pw-edit-device="laptop"] .pw-hero,html[data-pw-scene-lock="laptop"] .pw-hero{
   margin-top:0!important;margin-bottom:0!important
 }
-@media (max-width:1279px){
+@media ${pwUnlockedBelowLaptopMediaQuery()}{
 html:not([data-pw-edit-device]):not([data-pw-scene-lock]) [data-pw-region="banner"],html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-hero,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-banner,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-shop-hero,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-shop-banner{
   margin-top:4px!important;margin-bottom:0!important
 }
@@ -861,9 +862,10 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     else s='';
     var inner=window.innerWidth||(document.documentElement&&document.documentElement.clientWidth)||0;
     var liveAuto=!q&&!s&&!isEditor();
+    var phoneFace=ua==='mobile'||ua==='tablet'||s==='mobile'||s==='tablet';
     return C.resolveDevice({
       forcedDevice:s,
-      outerWidth:(liveAuto||s==='mobile'||s==='tablet')?inner:(window.outerWidth||inner),
+      outerWidth:phoneFace?inner:(window.outerWidth||inner),
       layoutWidth:inner,
       screenWidth:window.screen&&Math.max(window.screen.width||0,window.screen.availWidth||0)||0,
       devicePixelRatio:window.devicePixelRatio||0

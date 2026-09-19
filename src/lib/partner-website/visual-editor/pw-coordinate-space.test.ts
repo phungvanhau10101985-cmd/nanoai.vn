@@ -13,6 +13,8 @@ import {
   pwLooksLikeScaledFhdDesktop,
   pwResolveCoordinateDevice,
   pwScaledFhdDesktopMediaQuery,
+  pwUnlockedBelowLaptopMediaQuery,
+  pwUnlockedTabletMediaQuery,
   pwSceneBoxLeftCss,
   pwSceneBoxToClient,
   pwSceneBoxTopPx,
@@ -55,8 +57,29 @@ test('device selection is independent from display scale', () => {
     'laptop'
   )
   assert.equal(pwLooksLikeScaledFhdDesktop({ outerWidth: 1280, devicePixelRatio: 1.5 }), true)
+  assert.equal(pwLooksLikeScaledFhdDesktop({ outerWidth: 1263, devicePixelRatio: 1.5 }), true)
+  assert.equal(pwLooksLikeScaledFhdDesktop({ outerWidth: 1097, devicePixelRatio: 1.75 }), true)
+  assert.equal(pwLooksLikeScaledFhdDesktop({ outerWidth: 900, devicePixelRatio: 1.5 }), false)
+  assert.equal(
+    pwLooksLikeScaledFhdDesktop({ outerWidth: 900, screenWidth: 1280, devicePixelRatio: 1.5 }),
+    false
+  )
   assert.equal(pwLooksLikeScaledFhdDesktop({ outerWidth: 1280, devicePixelRatio: 2 }), false)
+  assert.match(pwScaledFhdDesktopMediaQuery(), /min-width:1080px/)
   assert.match(pwScaledFhdDesktopMediaQuery(), /min-resolution:1\.25dppx/)
+  assert.match(pwUnlockedTabletMediaQuery(), /min-width:768px\) and \(max-width:1079px/)
+  assert.match(pwUnlockedTabletMediaQuery(), /max-resolution:1\.24dppx/)
+  assert.match(pwUnlockedBelowLaptopMediaQuery(), /max-width:1079px/)
+  assert.doesNotMatch(pwUnlockedBelowLaptopMediaQuery(), /^\(max-width:1279px\)$/)
+  assert.equal(
+    pwResolveCoordinateDevice({
+      outerWidth: 1263,
+      layoutWidth: 1263,
+      screenWidth: 1280,
+      devicePixelRatio: 1.5,
+    }),
+    'desktop'
+  )
   assert.equal(pwResolveCoordinateDevice({ outerWidth: 768, layoutWidth: 384 }), 'tablet')
   assert.equal(pwResolveCoordinateDevice({ outerWidth: 390, layoutWidth: 195 }), 'mobile')
   assert.equal(
@@ -137,5 +160,7 @@ test('runtime is generated from the same constants and contract version', () => 
   assert.match(source, /boxLeftCss/)
   assert.match(source, /rectCenter/)
   assert.match(source, /function scaledDesk/)
-  assert.match(source, /r>=1\.25&&r<2/)
+  assert.match(source, /r>=1\.25/)
+  assert.match(source, /r<2/)
+  assert.match(source, /physical<1800/)
 })

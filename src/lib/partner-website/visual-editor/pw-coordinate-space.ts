@@ -201,21 +201,64 @@ export function pwFirstPositivePx(...values: unknown[]): number {
 
 /**
  * Windows Display Scale on a full-HD panel (typical 21" 1920×1080 @ 125–175%).
- * CSS width lands in the laptop band (1280–1439) even though the screen is a desktop.
+ * CSS width lands in the laptop band (1280–1439) — or just under 1280 after a
+ * scrollbar / @ 175% (~1097) — even though the screen is a desktop.
  * Exclude Retina `dpr >= 2` so a 13" MacBook at 1280 CSS stays laptop.
  */
 export const PW_SCALED_FHD_DPR_MIN = 1.25
 export const PW_SCALED_FHD_DPR_MAX_EXCLUSIVE = 2
+/** 1920×1080 @ 175% CSS ≈ 1097px. Keep this at/under that floor. */
+export const PW_SCALED_FHD_CSS_MIN = 1080
+/** `cssPx * dpr` of a 1920 panel, with slack for scrollbar / rounding. */
+export const PW_SCALED_FHD_PHYSICAL_MIN = 1800
 
 export function pwScaledFhdDesktopMediaQuery(): string {
-  return `(min-width:${PW_SCENE_WIDTH.laptop}px) and (max-width:${PW_SCENE_WIDTH.desktop - 1}px) and (min-resolution:${PW_SCALED_FHD_DPR_MIN}dppx) and (max-resolution:1.99dppx)`
+  return `(min-width:${PW_SCALED_FHD_CSS_MIN}px) and (max-width:${PW_SCENE_WIDTH.desktop - 1}px) and (min-resolution:${PW_SCALED_FHD_DPR_MIN}dppx) and (max-resolution:1.99dppx)`
+}
+
+/** CSS `max-resolution` just below Windows Scale 125% (`1.25dppx`). */
+export const PW_SCALED_FHD_DPR_BELOW = 1.24
+
+/**
+ * Unlocked tablet band (768–1279) excluding Windows scaled FHD
+ * (1080–1279 @ 1.25–1.99dppx). Retina iPad (`dpr >= 2`) still matches.
+ */
+export function pwUnlockedTabletMediaQuery(): string {
+  const tablet = PW_SCENE_WIDTH.tablet
+  const belowLaptop = PW_SCENE_WIDTH.laptop - 1
+  const belowFhd = PW_SCALED_FHD_CSS_MIN - 1
+  return [
+    `(min-width:${tablet}px) and (max-width:${belowFhd}px)`,
+    `(min-width:${tablet}px) and (max-width:${belowLaptop}px) and (max-resolution:${PW_SCALED_FHD_DPR_BELOW}dppx)`,
+    `(min-width:${tablet}px) and (max-width:${belowLaptop}px) and (min-resolution:${PW_SCALED_FHD_DPR_MAX_EXCLUSIVE}dppx)`,
+  ].join(', ')
+}
+
+/**
+ * Unlocked phone + tablet (`max-width:1279`) excluding Windows scaled FHD.
+ * Dock, head-back, orange compact header.
+ */
+export function pwUnlockedBelowLaptopMediaQuery(): string {
+  const belowLaptop = PW_SCENE_WIDTH.laptop - 1
+  const belowFhd = PW_SCALED_FHD_CSS_MIN - 1
+  return [
+    `(max-width:${belowFhd}px)`,
+    `(max-width:${belowLaptop}px) and (max-resolution:${PW_SCALED_FHD_DPR_BELOW}dppx)`,
+    `(max-width:${belowLaptop}px) and (min-resolution:${PW_SCALED_FHD_DPR_MAX_EXCLUSIVE}dppx)`,
+  ].join(', ')
 }
 
 export function pwLooksLikeScaledFhdDesktop(input: PwDeviceViewport): boolean {
   const dpr = Number(input.devicePixelRatio)
   if (!(dpr >= PW_SCALED_FHD_DPR_MIN) || !(dpr < PW_SCALED_FHD_DPR_MAX_EXCLUSIVE)) return false
+  const windowWidth = pwFirstPositivePx(input.outerWidth, input.layoutWidth)
+  const screenW = pwFirstPositivePx(input.screenWidth, input.outerWidth, input.layoutWidth)
   const width = pwFirstPositivePx(input.outerWidth, input.layoutWidth, input.screenWidth)
-  return width >= PW_SCENE_WIDTH.laptop && width < PW_SCENE_WIDTH.desktop
+  if (width >= PW_SCENE_WIDTH.laptop && width < PW_SCENE_WIDTH.desktop) return true
+  const physical = Math.max(width, windowWidth, screenW) * dpr
+  if (physical < PW_SCALED_FHD_PHYSICAL_MIN) return false
+  if (windowWidth > 0 && screenW > 0 && windowWidth < screenW * 0.85) return false
+  return width >= PW_SCENE_WIDTH.tablet
 }
 
 /**
@@ -224,12 +267,11 @@ export function pwLooksLikeScaledFhdDesktop(input: PwDeviceViewport): boolean {
  */
 export function pwResolveCoordinateDevice(input: PwDeviceViewport): PwCoordinateDevice {
   if (isPwCoordinateDevice(input.forcedDevice)) return input.forcedDevice
+  if (pwLooksLikeScaledFhdDesktop(input)) return 'desktop'
   const width = pwFirstPositivePx(input.outerWidth, input.layoutWidth, input.screenWidth)
   if (width < PW_SCENE_WIDTH.tablet) return 'mobile'
   if (width < PW_SCENE_WIDTH.laptop) return 'tablet'
-  if (width < PW_SCENE_WIDTH.desktop) {
-    return pwLooksLikeScaledFhdDesktop({ ...input, outerWidth: width }) ? 'desktop' : 'laptop'
-  }
+  if (width < PW_SCENE_WIDTH.desktop) return 'laptop'
   return 'desktop'
 }
 
@@ -326,8 +368,8 @@ var W=${JSON.stringify(PW_SCENE_WIDTH)};
 var O=${JSON.stringify(PW_DEVICE_FALLBACK_ORDER)};
 function device(v){return v==='mobile'||v==='tablet'||v==='laptop'||v==='desktop'?v:'desktop'}
 function pos(){var a=arguments,w=0,n,j;for(j=0;j<a.length;j++){n=Number(a[j]);if(isFinite(n)&&n>0){w=n;break}}return w}
-function scaledDesk(i,w){var r=Number(i.devicePixelRatio);return r>=${PW_SCALED_FHD_DPR_MIN}&&r<${PW_SCALED_FHD_DPR_MAX_EXCLUSIVE}&&w>=W.laptop&&w<W.desktop}
-function resolve(i){i=i||{};if(i.forcedDevice==='mobile'||i.forcedDevice==='tablet'||i.forcedDevice==='laptop'||i.forcedDevice==='desktop')return i.forcedDevice;var w=pos(i.outerWidth,i.layoutWidth,i.screenWidth);if(w<W.tablet)return'mobile';if(w<W.laptop)return'tablet';if(w<W.desktop)return scaledDesk(i,w)?'desktop':'laptop';return'desktop'}
+function scaledDesk(i){i=i||{};var r=Number(i.devicePixelRatio);if(!(r>=${PW_SCALED_FHD_DPR_MIN})||!(r<${PW_SCALED_FHD_DPR_MAX_EXCLUSIVE}))return false;var windowW=pos(i.outerWidth,i.layoutWidth);var screenW=pos(i.screenWidth,i.outerWidth,i.layoutWidth);var w=pos(i.outerWidth,i.layoutWidth,i.screenWidth);if(w>=W.laptop&&w<W.desktop)return true;var physical=Math.max(w,windowW,screenW)*r;if(physical<${PW_SCALED_FHD_PHYSICAL_MIN})return false;if(windowW>0&&screenW>0&&windowW<screenW*0.85)return false;return w>=W.tablet}
+function resolve(i){i=i||{};if(i.forcedDevice==='mobile'||i.forcedDevice==='tablet'||i.forcedDevice==='laptop'||i.forcedDevice==='desktop')return i.forcedDevice;if(scaledDesk(i))return'desktop';var w=pos(i.outerWidth,i.layoutWidth,i.screenWidth);if(w<W.tablet)return'mobile';if(w<W.laptop)return'tablet';if(w<W.desktop)return'laptop';return'desktop'}
 function pick(preferred,has){var list=O[device(preferred)]||O.desktop,j;for(j=0;j<list.length;j++)if(has(list[j]))return list[j];return''}
 function map(i){i=i||{};var d=i.device?device(i.device):resolve(i),sw=W[d],vw=Number(i.viewportWidth==null?i.layoutWidth:i.viewportWidth);if(!(vw>0))vw=sw;var s=Number(i.scale);if(!(s>0))s=i.fitWidth===false?1:vw/sw;var ox=Number(i.originX);var oy=Number(i.originY);return{device:d,sceneWidth:sw,viewportWidth:vw,scale:s,originX:isFinite(ox)?ox:vw/2,originY:isFinite(oy)?oy:0}}
 function toClient(p,m){return{x:m.originX+Number(p.x||0)*m.scale,y:m.originY+Number(p.y||0)*m.scale}}

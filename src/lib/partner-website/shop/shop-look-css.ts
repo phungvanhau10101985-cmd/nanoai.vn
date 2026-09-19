@@ -6,6 +6,7 @@ import {
   stampPartnerWebsiteLookInHtml,
   PARTNER_WEBSITE_LOOK_SHOP,
 } from '@/lib/partner-website/shop/marketplace-shop-look-css'
+import { pwUnlockedBelowLaptopMediaQuery } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
 
 export const PARTNER_SHOP_LOOK_STYLE_ID = 'pw-shop-look-css'
 
@@ -301,7 +302,7 @@ html[data-pw-scene-lock="mobile"][data-pw-look="shop"] .pw-wordmark,
 html[data-pw-scene-lock="tablet"][data-pw-look="shop"] .pw-wordmark{
   color:#fff!important;
 }
-@media (max-width:1279px){
+@media ${pwUnlockedBelowLaptopMediaQuery()}{
 html[data-pw-look="shop"]:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-header{
   background:var(--pw-primary)!important;
   border-bottom:none!important;

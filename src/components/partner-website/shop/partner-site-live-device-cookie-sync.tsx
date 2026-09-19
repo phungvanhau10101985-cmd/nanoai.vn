@@ -18,16 +18,19 @@ export function PartnerSiteLiveDeviceCookieSync({ locked = false }: { locked?: b
       return
     }
     const apply = () => {
-      persistPartnerLiveVisualDeviceCookie(
-        resolveLiveVisualDeviceFromViewport({
-          userAgent: navigator.userAgent || '',
-          innerWidth: window.innerWidth || document.documentElement.clientWidth || 0,
-          outerWidth: window.outerWidth || 0,
-          devicePixelRatio: window.devicePixelRatio || 0,
-          maxTouchPoints: navigator.maxTouchPoints || 0,
-        }),
-        navigator.userAgent || ''
-      )
+      const device = resolveLiveVisualDeviceFromViewport({
+        userAgent: navigator.userAgent || '',
+        innerWidth: window.innerWidth || document.documentElement.clientWidth || 0,
+        outerWidth: window.outerWidth || 0,
+        screenWidth: Math.max(window.screen?.width || 0, window.screen?.availWidth || 0),
+        devicePixelRatio: window.devicePixelRatio || 0,
+        maxTouchPoints: navigator.maxTouchPoints || 0,
+      })
+      persistPartnerLiveVisualDeviceCookie(device, navigator.userAgent || '')
+      const html = document.documentElement
+      if (!html.getAttribute('data-pw-scene-lock') && !html.getAttribute('data-pw-edit-device')) {
+        html.setAttribute('data-pw-scene-lock', device)
+      }
     }
     apply()
     let timer = 0

@@ -6,6 +6,7 @@ import { PW_SHOP_CARD_IMG_JS } from '@/lib/partner-website/shop/inventory-shop-d
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import { PW_OUTFIT_CSS } from '@/lib/partner-website/shop/outfit-products-css'
 import { PW_PRODUCT_GRID_PAGE_JS } from '@/lib/partner-website/shop/pw-product-grid-page'
+import { PW_LIVE_DOM_DEVICE_JS } from '@/lib/partner-website/shop/infer-live-visual-request-device'
 
 /**
  * Hydrate [data-pw-outfit] PDP grids from complementary inventory
@@ -36,6 +37,7 @@ export function buildPartnerSiteOutfitBootstrapScript(input: {
   return `<script data-pw-outfit-bootstrap>(function(){
 ${PW_SHOP_LIVE_UI_OFF_FN};
 ${PW_PRODUCT_GRID_PAGE_JS}
+${PW_LIVE_DOM_DEVICE_JS}
 var API=${JSON.stringify(api)};
 var PRODUCTS_PATH=${JSON.stringify(productsPath)};
 var DETAIL_PREFIX=${JSON.stringify(detailPrefix)};
@@ -47,11 +49,8 @@ function currentProductId(el){
   return String((el&&el.getAttribute('data-exclude'))||document.body.getAttribute('data-inventory-id')||'').trim();
 }
 function outfitLayout(){
-  var html=document.documentElement;
-  var d=html.getAttribute('data-pw-edit-device')||html.getAttribute('data-pw-scene-lock')||'';
-  if(d==='mobile'||d==='tablet')return 'mobile';
-  if(d==='desktop'||d==='laptop')return 'desktop';
-  return window.innerWidth>=1280?'desktop':'mobile';
+  var d=pwLiveDomDevice();
+  return (d==='mobile'||d==='tablet')?'mobile':'desktop';
 }
 function listingHeartSvg(){
   return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>';

@@ -105,7 +105,8 @@ describe('mobile header back', () => {
     expect(PW_MOBILE_HEAD_BACK_CSS).toContain(':not([data-pw-page="home"])')
     expect(PW_MOBILE_HEAD_BACK_CSS).toContain('max-width:767px')
     expect(PW_MOBILE_HEAD_BACK_CSS).toContain('data-pw-edit-device="tablet"')
-    expect(PW_MOBILE_HEAD_BACK_CSS).toContain('min-width:768px) and (max-width:1279px')
+    expect(PW_MOBILE_HEAD_BACK_CSS).toContain('min-width:768px) and (max-width:1079px')
+    expect(PW_MOBILE_HEAD_BACK_CSS).toContain('max-resolution:1.24dppx')
   })
 
   it('clicks previous page and skips the visual editor', () => {

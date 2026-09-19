@@ -72,6 +72,8 @@ test('PDP sticky / mobile buy box opens variant modal; desktop buy box and catal
   assert.equal(isPdpWideStickyViewport({ queryDevice: 'mobile' }), false)
   assert.equal(isPdpWideStickyViewport({ minWidth1280: true }), true)
   assert.equal(isPdpWideStickyViewport({ minWidth1280: false }), false)
+  assert.equal(isPdpWideStickyViewport({ wideChrome: true }), true)
+  assert.equal(isPdpWideStickyViewport({ wideChrome: false }), false)
 })
 
 test('shop-actions injects PDP variant modal before add-to-cart', () => {
@@ -106,7 +108,10 @@ test('shop-actions injects PDP variant modal before add-to-cart', () => {
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /if\(isPdpWideStickyViewport\(\)\)return false/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /isPdpStickyCartTrigger/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /if\(isPdpWideStickyViewport\(\)\)return false/)
-  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /pw-device/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /function pwLiveDomDevice/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /function variantModalFace/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /var d=pwLiveDomDevice\(\)/)
+  assert.doesNotMatch(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /matchMedia\('\(min-width:1280px\)'\)/)
   assert.doesNotMatch(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /adds\[i\]\.closest\('article/)
   assert.doesNotMatch(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /shopImg\(/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /window\.addEventListener\('pw-shop-soft-nav',hideVariantModal\)/)
