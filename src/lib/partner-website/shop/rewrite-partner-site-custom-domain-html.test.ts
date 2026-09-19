@@ -34,6 +34,7 @@ test('inline visual native navigation strips the internal site prefix before nav
   assert.doesNotMatch(script, /function onPointerDown\(event\)\{[\s\S]*location\.assign/)
   assert.match(script, /window\.location\.assign\(href\)/)
   assert.match(script, /__pwShopSoftNav/)
+  assert.match(script, /__pwShopTapAckPress/)
   assert.match(script, /function swallow\(/)
   assert.match(script, /stopImmediatePropagation/)
   assert.match(script, /data-pw-chrome-btn=\\?"categories/)

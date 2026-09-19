@@ -80,6 +80,8 @@ test('account chrome resolves navigation on the server without a usePathname cli
   assert.match(nativeNavigation, /window\.location\.assign\(href\)/)
   assert.match(nativeNavigation, /__pwShopSoftNav/)
   assert.match(nativeNavigation, /__pwShopPrefetch/)
+  assert.match(nativeNavigation, /__pwShopTapAckPress/)
+  assert.match(nativeNavigation, /function ackBusy\(/)
   assert.match(nativeNavigation, /function swallow\(event\)/)
   assert.doesNotMatch(nativeNavigation, /if\(event\.defaultPrevented/)
   assert.match(nativeNavigation, /stopImmediatePropagation/)
@@ -105,6 +107,9 @@ test('shop layout binds native navigation in head before React hydrates', async 
   )
   assert.doesNotMatch(relay, /startTransition\s*\(/)
   assert.match(relay, /router\.push\(path\)/)
+  assert.match(relay, /__pwShopTapAckNav/)
+  assert.match(relay, /__pwShopTapAckNavEnd/)
+  assert.match(relay, /usePathname/)
 })
 
 test('image search and compose pages boot without Suspense or nested startTransition', async () => {

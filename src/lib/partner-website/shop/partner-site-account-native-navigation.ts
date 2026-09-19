@@ -19,7 +19,12 @@
  * Listing hearts (`.pw-rec-fav` / `[data-pw-favorite]`) sit on the card photo.
  * Skip navigation when the tap origin is the heart, even if a parent media
  * `<a>` or `.pw-product-card-hit` would otherwise open the product page.
+ *
+ * Tap-ack (ripple + pending bar) is prepended so a press is visible before
+ * hydration; extra taps while a navigation is in flight are swallowed.
  */
+import { buildPartnerSiteTapAckScript } from '@/lib/partner-website/shop/partner-site-tap-ack'
+
 export const PARTNER_SITE_NATIVE_NAV_SCRIPT_ID = 'pw-native-navigation'
 
 const JS_ONLY_CHROME_SEL = [
@@ -54,7 +59,8 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
   const slug = siteSlug.trim()
   const prefix = slug ? `/site/${slug}` : ''
   const prefixEnc = slug ? `/site/${encodeURIComponent(slug)}` : ''
-  return `(function(){
+  return `${buildPartnerSiteTapAckScript()}
+(function(){
   if(window.__pwNativeNavBound||window.__pwAccountNativeNavBound||window.__pwVisualNativeNavBound){
     window.__pwNativeNavBound=1;
     window.__pwAccountNativeNavBound=1;
@@ -70,6 +76,7 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
   var tap=null;
   var lastHref='';
   var lastAt=0;
+  var jsGateAt=0;
   function liveLink(node){
     if(!node||typeof node.closest!=='function')return null;
     if(node.closest('input,textarea,select,option,[contenteditable="true"]'))return null;
@@ -158,11 +165,29 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
     event.stopPropagation();
     event.stopImmediatePropagation();
   }
+  function ackNav(){
+    try{if(typeof window.__pwShopTapAckNav==='function')window.__pwShopTapAckNav();}catch(_){}
+  }
+  function ackBusy(){
+    try{return typeof window.__pwShopTapAckBusy==='function'&&!!window.__pwShopTapAckBusy();}catch(_){return false;}
+  }
   function go(event,saved){
     if(event.button!=null&&event.button!==0)return;
     if(event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
     var origin=eventOrigin(event);
     if(isJsOnly(origin)){
+      if(ackBusy()){
+        swallow(event);
+        return;
+      }
+      if(event.type==='click'||event.type==='pointerup'){
+        var nowJs=Date.now();
+        if(jsGateAt&&nowJs-jsGateAt<650){
+          swallow(event);
+          return;
+        }
+        jsGateAt=nowJs;
+      }
       if(event.type==='click'){
         if(origin.closest('[data-pw-chrome-btn="categories"],[data-pw-cat-toggle],[data-pw-el="cat-toggle"]')){
           swallow(event);
@@ -193,20 +218,24 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
       return;
     }
     var now=Date.now();
-    if(lastHref===href&&now-lastAt<800){
+    if(ackBusy()||(lastHref===href&&now-lastAt<800)){
       swallow(event);
+      ackNav();
       return;
     }
     lastHref=href;
     lastAt=now;
     swallow(event);
+    ackNav();
     openHref(href);
   }
   function onPointerDown(event){
     if(event.button!=null&&event.button!==0)return;
+    var dup=false;
+    try{if(typeof window.__pwShopTapAckPress==='function')dup=!!window.__pwShopTapAckPress(event);}catch(_){}
     var origin=eventOrigin(event);
     var link=liveLink(origin)||liveLink(event.target);
-    tap={id:event.pointerId,x:event.clientX||0,y:event.clientY||0,link:link,skip:isJsOnly(origin)};
+    tap={id:event.pointerId,x:event.clientX||0,y:event.clientY||0,link:link,skip:isJsOnly(origin),dup:dup};
     if(tap.skip||!link||link.closest(SKIP)||link.hasAttribute('download'))return;
     var raw=String(link.getAttribute('href')||'').trim();
     if(!raw||raw.charAt(0)==='#'||/^(?:javascript|mailto|tel|data):/i.test(raw))return;

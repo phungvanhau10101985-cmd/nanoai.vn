@@ -118,6 +118,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-dock-nav-active'
 import { PW_LOGIN_IDENTITY_CSS } from '@/lib/partner-website/shop/partner-site-login-identity'
 import { PW_SHOP_FOOTER_FIT_CSS } from '@/lib/partner-website/shop/partner-site-footer-fit-css'
+import { PW_SHOP_TAP_ACK_CSS } from '@/lib/partner-website/shop/partner-site-tap-ack'
 
 /** Live mobile: tap logo / Chat mua like a button, not a dragged image. */
 export const PARTNER_SHOP_TAP_CHROME_CSS = `
@@ -1140,6 +1141,7 @@ ${PARTNER_MARKETING_BANNER_LIVE_CSS}
 ${PARTNER_SHOP_WIDE_HEADER_BALANCE_CSS}
 ${PARTNER_SHOP_SEARCH_HISTORY_CSS}
 ${PARTNER_SHOP_TAP_CHROME_CSS}
+${PW_SHOP_TAP_ACK_CSS}
 ${PW_LOGIN_IDENTITY_CSS}
 ${PW_MOBILE_HEADER_STACK_WIN_CSS}
 ${PW_MOBILE_HEADER_TOPBAR_HIDE_CSS}

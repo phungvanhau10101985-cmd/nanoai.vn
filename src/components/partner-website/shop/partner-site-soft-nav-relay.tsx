@@ -1,13 +1,15 @@
 'use client'
 
-import { useLayoutEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useLayoutEffect, useRef } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 
 export const PW_SHOP_SOFT_NAV_EVENT = 'pw-shop-soft-nav'
 
 type ShopSoftNavWindow = Window & {
   __pwShopSoftNav?: (href: string) => void
   __pwShopPrefetch?: (href: string) => void
+  __pwShopTapAckNav?: (href?: string) => void
+  __pwShopTapAckNavEnd?: () => void
 }
 
 function pathFromHref(href: string): string | null {
@@ -31,16 +33,28 @@ function pathFromHref(href: string): string | null {
  */
 export function PartnerSiteSoftNavRelay() {
   const router = useRouter()
+  const pathname = usePathname()
+  const pathRef = useRef(pathname)
   useLayoutEffect(() => {
     const win = window as ShopSoftNavWindow
     win.__pwShopSoftNav = (href: string) => {
       const path = pathFromHref(href)
       if (!path) {
+        try {
+          win.__pwShopTapAckNav?.(href)
+        } catch {
+          /* visual ack is best-effort */
+        }
         window.location.assign(href)
         return
       }
       const here = `${window.location.pathname}${window.location.search}${window.location.hash}`
       if (path === here) return
+      try {
+        win.__pwShopTapAckNav?.(path)
+      } catch {
+        /* visual ack is best-effort */
+      }
       window.dispatchEvent(new CustomEvent(PW_SHOP_SOFT_NAV_EVENT, { detail: { href: path } }))
       router.push(path)
     }
@@ -58,5 +72,14 @@ export function PartnerSiteSoftNavRelay() {
       delete win.__pwShopPrefetch
     }
   }, [router])
+  useLayoutEffect(() => {
+    if (pathRef.current === pathname) return
+    pathRef.current = pathname
+    try {
+      ;(window as ShopSoftNavWindow).__pwShopTapAckNavEnd?.()
+    } catch {
+      /* visual ack is best-effort */
+    }
+  }, [pathname])
   return null
 }
