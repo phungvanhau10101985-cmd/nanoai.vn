@@ -15,7 +15,7 @@ export async function DELETE(
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const ok = await deletePartnerSearchAliasFromPg(pid, aliasId.trim())

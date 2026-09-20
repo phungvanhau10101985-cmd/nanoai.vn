@@ -57,10 +57,6 @@ import {
   type PartnerAiUsagePeriod,
   type PartnerAiUsageQuery,
 } from '@/app/dashboard/messaging/actions'
-import { PartnerInventoryExternalSyncCard } from '@/app/dashboard/messaging/partner-inventory-external-sync-card'
-import { PartnerListingImportCard } from '@/app/dashboard/messaging/partner-listing-import-card'
-import { PartnerSourceStockCheckCard } from '@/app/dashboard/messaging/partner-source-stock-check-card'
-import { PartnerImageLocalizationCard } from '@/app/dashboard/messaging/partner-image-localization-card'
 import { PartnerInventoryEmbeddingErrorsPanel } from '@/app/dashboard/messaging/partner-inventory-embedding-errors-panel'
 import { buildGuestConsultChatAbsoluteUrl } from '@/lib/messaging/build-guest-consult-chat-link'
 import { inventoryFieldToJsonCellText } from '@/lib/messaging/inventory-admin-json-cell'
@@ -1236,13 +1232,10 @@ export function PartnerAiSettingsPanel({
               toast={toast}
               refreshKey={embeddingErrorsRefreshKey}
             />
-            <PartnerInventoryExternalSyncCard partnerId={partnerId} t={t} toast={toast} />
-            <PartnerListingImportCard partnerId={partnerId} t={t} />
-            <PartnerSourceStockCheckCard partnerId={partnerId} t={t} />
-            <PartnerImageLocalizationCard partnerId={partnerId} t={t} selectedInventoryIds={selectedInventoryIds} />
             <InventoryEditor
               partnerId={partnerId}
               partnerChatSlug={partnerChatSlug}
+              showProductStudio={false}
               t={t}
               rows={inventory}
               selectedIds={selectedInventoryIds}
@@ -2268,6 +2261,7 @@ function mapInventoryImportError(code: string | undefined, t: AiT): string {
 function InventoryEditor({
   partnerId,
   partnerChatSlug,
+  showProductStudio = true,
   t,
   rows,
   selectedIds,
@@ -2287,6 +2281,7 @@ function InventoryEditor({
 }: {
   partnerId: string
   partnerChatSlug: string
+  showProductStudio?: boolean
   t: AiT
   rows: InvRow[]
   selectedIds: Set<string>
@@ -2683,7 +2678,7 @@ function InventoryEditor({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
-        <ProductStudioManualDialog partnerId={partnerId} t={t} onPublished={onChanged} />
+        {showProductStudio ? <ProductStudioManualDialog partnerId={partnerId} t={t} onPublished={onChanged} /> : null}
         <Button
           type="button"
           variant="secondary"

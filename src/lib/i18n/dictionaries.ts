@@ -819,6 +819,14 @@ export type Dictionary = {
     settingsNavAiUsage: string
     settingsNavAiUsageDesc: string
     settingsNavInventoryDesc: string
+    settingsNavInventoryGroupTitle: string
+    settingsNavInventoryCatalog: string
+    settingsNavInventoryStudio: string
+    settingsNavInventoryStudioDesc: string
+    settingsNavListingFacetCache: string
+    settingsNavListingFacetCacheDesc: string
+    settingsNavSearchCache: string
+    settingsNavSearchCacheDesc: string
     settingsNavCustomDomain: string
     customDomainSectionTitle: string
     customDomainSectionDesc: string
@@ -4385,7 +4393,15 @@ const VI_DICTIONARY: Dictionary = {
     settingsNavSheetsDesc: 'Đồng bộ đơn hàng từ chat lên Google Sheet của shop.',
     settingsNavAiUsage: 'Token API AI',
     settingsNavAiUsageDesc: 'Thống kê token LLM, embedding, tạo ảnh và chi phí ước tính.',
-    settingsNavInventoryDesc: 'Thêm, sửa, import Excel và đồng bộ kho — AI dùng dữ liệu này khi tư vấn.',
+    settingsNavInventoryDesc: 'Bảng kho, Excel, tìm vector ảnh/chữ — AI tư vấn dùng dữ liệu này.',
+    settingsNavInventoryGroupTitle: 'Kho hàng & tìm kiếm',
+    settingsNavInventoryCatalog: 'Sản phẩm',
+    settingsNavInventoryStudio: 'Đăng sản phẩm',
+    settingsNavInventoryStudioDesc: 'Đăng thủ công hoặc bằng AI — cùng engine danh mục + SEO khi công tắc tự tạo bật.',
+    settingsNavListingFacetCache: 'Cache bộ lọc',
+    settingsNavListingFacetCacheDesc: 'Snapshot size / màu / kiểu / giá cho listing danh mục và từ khóa tìm.',
+    settingsNavSearchCache: 'Cache tìm kiếm',
+    settingsNavSearchCacheDesc: 'Thống kê từ khóa khách và cache danh sách id listing / catalog shop.',
     settingsNavCustomDomain: 'Tên miền riêng (SSL)',
     customDomainSectionTitle: 'Tên miền thương hiệu',
     customDomainSectionDesc:
@@ -7962,7 +7978,15 @@ const EN_DICTIONARY: Dictionary = {
     settingsNavSheetsDesc: 'Sync chat orders to your shop Google Sheet.',
     settingsNavAiUsage: 'AI API tokens',
     settingsNavAiUsageDesc: 'LLM token stats, embeddings, image generation, and cost estimates.',
-    settingsNavInventoryDesc: 'Add, edit, import Excel, and sync stock — the AI uses this catalog when advising customers.',
+    settingsNavInventoryDesc: 'Catalog table, Excel, and image/text vector search — the AI uses this stock when advising customers.',
+    settingsNavInventoryGroupTitle: 'Inventory & search',
+    settingsNavInventoryCatalog: 'Products',
+    settingsNavInventoryStudio: 'Publish products',
+    settingsNavInventoryStudioDesc: 'Manual or AI publish — same category + SEO engine when auto-create is on.',
+    settingsNavListingFacetCache: 'Filter cache',
+    settingsNavListingFacetCacheDesc: 'Size / color / style / price snapshots for category listing and search keywords.',
+    settingsNavSearchCache: 'Search cache',
+    settingsNavSearchCacheDesc: 'Shopper keyword stats and listing / shop catalog id-list cache.',
     settingsNavCustomDomain: 'Custom domain (SSL)',
     customDomainSectionTitle: 'Branded domain',
     customDomainSectionDesc:
@@ -11530,7 +11554,15 @@ const ZH_DICTIONARY: Dictionary = {
     settingsNavSheetsDesc: '将聊天订单同步到店铺 Google 表格。',
     settingsNavAiUsage: 'AI API 用量',
     settingsNavAiUsageDesc: 'LLM token、embedding、生图统计与费用估算。',
-    settingsNavInventoryDesc: '添加、编辑、Excel 导入与库存同步 — AI 咨询时使用此商品库。',
+    settingsNavInventoryDesc: '库存表、Excel、图片/文字向量搜索 — AI 咨询时使用此商品库。',
+    settingsNavInventoryGroupTitle: '库存与搜索',
+    settingsNavInventoryCatalog: '商品',
+    settingsNavInventoryStudio: '上架商品',
+    settingsNavInventoryStudioDesc: '手动或 AI 上架 — 自动创建开关打开时走同一套类目 + SEO。',
+    settingsNavListingFacetCache: '筛选缓存',
+    settingsNavListingFacetCacheDesc: '类目列表和搜索词的尺码 / 颜色 / 风格 / 价格快照。',
+    settingsNavSearchCache: '搜索缓存',
+    settingsNavSearchCacheDesc: '顾客关键词统计以及类目 / 店铺目录 id 列表缓存。',
     settingsNavCustomDomain: '自定义域名 (SSL)',
     customDomainSectionTitle: '品牌域名',
     customDomainSectionDesc: '使用店铺域名（如 shop.example.com）替代 nanoai.vn — 访客在您的域名上通过 HTTPS 访问。',
@@ -15013,7 +15045,15 @@ const JA_DICTIONARY: Dictionary = {
     settingsNavSheetsDesc: 'チャット注文をショップの Google スプレッドシートに同期。',
     settingsNavAiUsage: 'AI API トークン',
     settingsNavAiUsageDesc: 'LLM トークン、embedding、画像生成の統計と概算コスト。',
-    settingsNavInventoryDesc: '商品の追加・編集・Excel 取込・在庫同期 — AI 相談でこのカタログを使用します。',
+    settingsNavInventoryDesc: '在庫表、Excel、画像/テキストベクトル検索 — AI 相談でこのカタログを使用します。',
+    settingsNavInventoryGroupTitle: '在庫と検索',
+    settingsNavInventoryCatalog: '商品',
+    settingsNavInventoryStudio: '商品を登録',
+    settingsNavInventoryStudioDesc: '手動または AI で公開 — 自動作成がオンなら同じカテゴリ + SEO エンジン。',
+    settingsNavListingFacetCache: '絞り込みキャッシュ',
+    settingsNavListingFacetCacheDesc: 'カテゴリ一覧と検索語のサイズ / カラー / スタイル / 価格スナップショット。',
+    settingsNavSearchCache: '検索キャッシュ',
+    settingsNavSearchCacheDesc: '顧客キーワード統計とカテゴリ / ショップカタログの id リストキャッシュ。',
     settingsNavCustomDomain: '独自ドメイン (SSL)',
     customDomainSectionTitle: 'ブランドドメイン',
     customDomainSectionDesc:
@@ -18561,7 +18601,15 @@ const KO_DICTIONARY: Dictionary = {
     settingsNavSheetsDesc: '채팅 주문을 매장 Google 시트에 동기화합니다.',
     settingsNavAiUsage: 'AI API 토큰',
     settingsNavAiUsageDesc: 'LLM 토큰, embedding, 이미지 생성 통계 및 예상 비용.',
-    settingsNavInventoryDesc: '상품 추가·수정·Excel 가져오기·재고 동기화 — AI 상담 시 이 카탈로그를 사용합니다.',
+    settingsNavInventoryDesc: '재고 표, Excel, 이미지/텍스트 벡터 검색 — AI 상담 시 이 카탈로그를 사용합니다.',
+    settingsNavInventoryGroupTitle: '재고와 검색',
+    settingsNavInventoryCatalog: '상품',
+    settingsNavInventoryStudio: '상품 등록',
+    settingsNavInventoryStudioDesc: '수동 또는 AI 게시 — 자동 생성이 켜져 있으면 같은 카테고리 + SEO 엔진.',
+    settingsNavListingFacetCache: '필터 캐시',
+    settingsNavListingFacetCacheDesc: '카테고리 목록과 검색어의 사이즈 / 색상 / 스타일 / 가격 스냅샷.',
+    settingsNavSearchCache: '검색 캐시',
+    settingsNavSearchCacheDesc: '고객 키워드 통계와 카테고리 / 샵 카탈로그 id 목록 캐시.',
     settingsNavCustomDomain: '맞춤 도메인 (SSL)',
     customDomainSectionTitle: '브랜드 도메인',
     customDomainSectionDesc:

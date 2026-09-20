@@ -84,6 +84,11 @@ import {
   Bot,
   Building2,
   ClipboardList,
+  Filter,
+  Image,
+  ShieldCheck,
+  Wand2,
+  FileSearch,
   CreditCard,
   ExternalLink,
   Globe,
@@ -97,6 +102,7 @@ import {
   Palette,
   Plug,
   RefreshCw,
+  Search,
   Settings,
   Share2,
   Table,
@@ -253,6 +259,13 @@ const MESSAGING_SETTINGS_SECTION_IDS = [
   'workspace',
   'brand',
   'inventory',
+  'inventory-studio',
+  'inventory-listing-import',
+  'inventory-source-stock',
+  'inventory-open-sync',
+  'inventory-image-loc',
+  'listing-facet-cache',
+  'search-cache',
   'channels',
   'domains',
   'analytics-catalog-feeds',
@@ -305,7 +318,7 @@ function normalizeSettingsSectionParam(value: string | null): SettingsPageSectio
   if (value != null && (MESSAGING_SETTINGS_SECTION_IDS as readonly string[]).includes(value)) {
     return value as MessagingSettingsSectionId
   }
-  if (value === 'partner-website-capabilities' || value === 'partner-website-search-aliases') {
+  if (value === 'partner-website-capabilities') {
     return 'partner-website-editor'
   }
   if (value === 'partner-website-logos') return 'brand'
@@ -357,6 +370,70 @@ const PartnerMessagingOrdersClient = dynamic(
   () =>
     import('@/app/dashboard/messaging/partner-messaging-orders-client').then(
       (mod) => mod.PartnerMessagingOrdersClient
+    ),
+  { ssr: false, loading: () => sectionLoading }
+)
+
+const PartnerListingImportCard = dynamic(
+  () =>
+    import('@/app/dashboard/messaging/partner-listing-import-card').then(
+      (mod) => mod.PartnerListingImportCard
+    ),
+  { ssr: false, loading: () => sectionLoading }
+)
+
+const PartnerSourceStockCheckCard = dynamic(
+  () =>
+    import('@/app/dashboard/messaging/partner-source-stock-check-card').then(
+      (mod) => mod.PartnerSourceStockCheckCard
+    ),
+  { ssr: false, loading: () => sectionLoading }
+)
+
+const PartnerImageLocalizationCard = dynamic(
+  () =>
+    import('@/app/dashboard/messaging/partner-image-localization-card').then(
+      (mod) => mod.PartnerImageLocalizationCard
+    ),
+  { ssr: false, loading: () => sectionLoading }
+)
+
+const PartnerInventoryExternalSyncCard = dynamic(
+  () =>
+    import('@/app/dashboard/messaging/partner-inventory-external-sync-card').then(
+      (mod) => mod.PartnerInventoryExternalSyncCard
+    ),
+  { ssr: false, loading: () => sectionLoading }
+)
+
+const ProductStudioManualDialog = dynamic(
+  () =>
+    import('@/components/partner-website/product-studio/product-studio-manual-dialog').then(
+      (mod) => mod.ProductStudioManualDialog
+    ),
+  { ssr: false, loading: () => sectionLoading }
+)
+
+const PartnerWebsiteSearchAliasesPanel = dynamic(
+  () =>
+    import('@/components/partner-website/partner-website-search-aliases-panel').then(
+      (mod) => mod.PartnerWebsiteSearchAliasesPanel
+    ),
+  { ssr: false, loading: () => sectionLoading }
+)
+
+const PartnerListingFacetCachePanel = dynamic(
+  () =>
+    import('@/components/partner-website/partner-listing-facet-cache-panel').then(
+      (mod) => mod.PartnerListingFacetCachePanel
+    ),
+  { ssr: false, loading: () => sectionLoading }
+)
+
+const PartnerSearchCachePanel = dynamic(
+  () =>
+    import('@/components/partner-website/partner-search-cache-panel').then(
+      (mod) => mod.PartnerSearchCachePanel
     ),
   { ssr: false, loading: () => sectionLoading }
 )
@@ -562,13 +639,6 @@ export function PartnerMessagingSettingsClient({
         icon: Palette,
         visible: Boolean(selectedPartnerId && partnerAllowsPerm(selectedPartner, 'workspace_branding')),
       },
-      {
-        id: 'inventory',
-        group: 'shop',
-        label: t.teamPermInventory,
-        icon: Package,
-        visible: Boolean(selectedPartnerId && partnerCanInventoryPanel(selectedPartner)),
-      },
       { id: 'payment', group: 'sales', label: t.settingsNavPayment, icon: CreditCard, visible: isOwnerSelected },
       { id: 'shipping', group: 'sales', label: t.settingsNavShipping, icon: Truck, visible: canShippingOps },
       {
@@ -619,6 +689,26 @@ export function PartnerMessagingSettingsClient({
     ]
     return items
   }, [isOwnerSelected, selectedPartner, selectedPartnerId, t, tAi])
+
+  const inventorySidebarItems = useMemo(() => {
+    const canInv = Boolean(selectedPartnerId && partnerCanInventoryPanel(selectedPartner))
+    return [
+      { id: 'inventory' as const, label: t.settingsNavInventoryCatalog, icon: Package, visible: canInv },
+      { id: 'inventory-studio' as const, label: t.settingsNavInventoryStudio, icon: Wand2, visible: canInv },
+      { id: 'inventory-listing-import' as const, label: tAi.listingImportTitle, icon: FileSearch, visible: canInv },
+      { id: 'inventory-source-stock' as const, label: tAi.sourceStockTitle, icon: ShieldCheck, visible: canInv },
+      { id: 'inventory-open-sync' as const, label: tAi.inventoryExternalSyncTitle, icon: RefreshCw, visible: canInv },
+      { id: 'inventory-image-loc' as const, label: tAi.imageLocTitle, icon: Image, visible: canInv },
+      {
+        id: 'partner-website-search-aliases' as const,
+        label: tWeb.searchAliasesPanelTitle,
+        icon: Search,
+        visible: canInv,
+      },
+      { id: 'listing-facet-cache' as const, label: t.settingsNavListingFacetCache, icon: Filter, visible: canInv },
+      { id: 'search-cache' as const, label: t.settingsNavSearchCache, icon: Database, visible: canInv },
+    ]
+  }, [selectedPartner, selectedPartnerId, t, tAi, tWeb.searchAliasesPanelTitle])
 
   const visibleSettingsSections = useMemo(
     () => settingsNavItems.filter((item) => item.visible).map((item) => item.id),
@@ -685,9 +775,19 @@ export function PartnerMessagingSettingsClient({
     [settingsOperationsNavItems]
   )
 
+  const visibleInventorySectionIds = useMemo(
+    () => inventorySidebarItems.filter((item) => item.visible).map((item) => item.id as SettingsPageSectionId),
+    [inventorySidebarItems]
+  )
+
   const allVisibleSectionIds = useMemo((): SettingsPageSectionId[] => {
-    return [...visibleSettingsSections, ...visibleWebsiteSectionIds, ...visibleOperationsSectionIds]
-  }, [visibleSettingsSections, visibleWebsiteSectionIds, visibleOperationsSectionIds])
+    return [
+      ...visibleSettingsSections,
+      ...visibleInventorySectionIds,
+      ...visibleWebsiteSectionIds,
+      ...visibleOperationsSectionIds,
+    ]
+  }, [visibleSettingsSections, visibleInventorySectionIds, visibleWebsiteSectionIds, visibleOperationsSectionIds])
 
   const sidebarGroups = useMemo(() => {
     const fromSettings = (group: 'shop' | 'sales' | 'connect' | 'customers' | 'ai') =>
@@ -701,6 +801,7 @@ export function PartnerMessagingSettingsClient({
         }))
     return [
       { id: 'shop', title: t.settingsNavShopTitle, items: fromSettings('shop') },
+      { id: 'inventory', title: t.settingsNavInventoryGroupTitle, items: inventorySidebarItems },
       { id: 'sales', title: t.settingsNavSalesTitle, items: fromSettings('sales') },
       { id: 'operations', title: t.settingsNavOperationsTitle, items: settingsOperationsNavItems },
       {
@@ -739,7 +840,7 @@ export function PartnerMessagingSettingsClient({
       { id: 'connect', title: t.settingsNavConnectTitle, items: fromSettings('connect') },
       { id: 'ai', title: t.settingsNavAiGroupTitle, items: fromSettings('ai') },
     ]
-  }, [settingsNavItems, settingsOperationsNavItems, settingsWebsiteNavItems, t])
+  }, [inventorySidebarItems, settingsNavItems, settingsOperationsNavItems, settingsWebsiteNavItems, t])
 
   const refreshWebsitePublicUrl = useCallback(async () => {
     if (!selectedPartnerId || !partnerCanWebsiteHub(selectedPartner)) {
@@ -2806,8 +2907,106 @@ export function PartnerMessagingSettingsClient({
                 saveOkMessage={t.saveOk}
                 aiModelId={partnerAiLlmModel}
                 panelMode="inventory-only"
-                panelTitle={t.teamPermInventory}
+                panelTitle={t.settingsNavInventoryCatalog}
                 panelDescription={t.settingsNavInventoryDesc}
+              />
+            </div>
+          ) : null}
+
+          {activeSection === 'inventory-studio' && selectedPartnerId && partnerCanInventoryPanel(selectedPartner) ? (
+            <SettingsBlock
+              id="messaging-inventory-studio"
+              icon={Wand2}
+              title={t.settingsNavInventoryStudio}
+              description={t.settingsNavInventoryStudioDesc}
+            >
+              <Card className="border-border/70 shadow-sm">
+                <CardContent className="px-4 py-4">
+                  <ProductStudioManualDialog
+                    partnerId={selectedPartnerId}
+                    t={tAi}
+                    onPublished={() => toast({ title: t.saveOk })}
+                  />
+                </CardContent>
+              </Card>
+            </SettingsBlock>
+          ) : null}
+
+          {activeSection === 'inventory-listing-import' &&
+          selectedPartnerId &&
+          partnerCanInventoryPanel(selectedPartner) ? (
+            <div id="messaging-listing-import" className="scroll-mt-4">
+              <PartnerListingImportCard partnerId={selectedPartnerId} t={tAi} />
+            </div>
+          ) : null}
+
+          {activeSection === 'inventory-source-stock' &&
+          selectedPartnerId &&
+          partnerCanInventoryPanel(selectedPartner) ? (
+            <div id="messaging-source-stock" className="scroll-mt-4">
+              <PartnerSourceStockCheckCard partnerId={selectedPartnerId} t={tAi} />
+            </div>
+          ) : null}
+
+          {activeSection === 'inventory-open-sync' &&
+          selectedPartnerId &&
+          partnerCanInventoryPanel(selectedPartner) ? (
+            <div id="messaging-open-sync" className="scroll-mt-4">
+              <PartnerInventoryExternalSyncCard
+                partnerId={selectedPartnerId}
+                t={tAi}
+                toast={(opts) => toast({ title: opts.title, description: opts.description, variant: opts.variant })}
+              />
+            </div>
+          ) : null}
+
+          {activeSection === 'inventory-image-loc' &&
+          selectedPartnerId &&
+          partnerCanInventoryPanel(selectedPartner) ? (
+            <div id="messaging-image-loc" className="scroll-mt-4">
+              <PartnerImageLocalizationCard partnerId={selectedPartnerId} t={tAi} />
+            </div>
+          ) : null}
+
+          {activeSection === 'partner-website-search-aliases' &&
+          selectedPartnerId &&
+          partnerCanInventoryPanel(selectedPartner) ? (
+            <div id="messaging-search-aliases" className="scroll-mt-4">
+              <PartnerWebsiteSearchAliasesPanel
+                locale={locale}
+                t={tWeb}
+                partnerId={selectedPartnerId}
+                onToast={(message, variant) =>
+                  toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
+                }
+              />
+            </div>
+          ) : null}
+
+          {activeSection === 'listing-facet-cache' &&
+          selectedPartnerId &&
+          partnerCanInventoryPanel(selectedPartner) ? (
+            <div id="messaging-listing-facet-cache" className="scroll-mt-4">
+              <PartnerListingFacetCachePanel
+                t={tWeb}
+                partnerId={selectedPartnerId}
+                locale={locale}
+                onToast={(message, variant) =>
+                  toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
+                }
+              />
+            </div>
+          ) : null}
+
+          {activeSection === 'search-cache' && selectedPartnerId && partnerCanInventoryPanel(selectedPartner) ? (
+            <div id="messaging-search-cache" className="scroll-mt-4">
+              <PartnerSearchCachePanel
+                t={tWeb}
+                partnerId={selectedPartnerId}
+                locale={locale}
+                onToast={(message, variant) =>
+                  toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
+                }
               />
             </div>
           ) : null}
@@ -3832,7 +4031,10 @@ export function PartnerMessagingSettingsClient({
             </div>
           ) : null}
 
-          {isPartnerWebsiteAdminSectionId(activeSection) && selectedPartner && partnerCanWebsiteHub(selectedPartner) ? (
+          {isPartnerWebsiteAdminSectionId(activeSection) &&
+          activeSection !== 'partner-website-search-aliases' &&
+          selectedPartner &&
+          partnerCanWebsiteHub(selectedPartner) ? (
             <div id="partner-website-admin" className="flex min-h-0 min-w-0 flex-1 flex-col scroll-mt-4">
               <PartnerWebsiteDashboardClient
                 key={selectedPartner.id}

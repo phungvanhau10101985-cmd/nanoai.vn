@@ -59,9 +59,10 @@ export function PartnerImageLocalizationCard({
 }: {
   partnerId: string
   t: Dictionary['partnerMessagingAi']
-  selectedInventoryIds: Set<string>
+  selectedInventoryIds?: Set<string>
 }) {
-  const selectedCount = selectedInventoryIds.size
+  const selectedIds = selectedInventoryIds ?? new Set<string>()
+  const selectedCount = selectedIds.size
   const [language, setLanguage] = useState<ImageLocLanguage>('vi')
   const [geminiMode, setGeminiMode] = useState<ImageLocGeminiMode>('local_only')
   const [geminiModel, setGeminiModel] = useState('')
@@ -148,7 +149,7 @@ export function PartnerImageLocalizationCard({
     }
     setStartBusy(true)
     try {
-      const productIds = selectedOnly && selectedCount > 0 ? Array.from(selectedInventoryIds) : undefined
+      const productIds = selectedOnly && selectedCount > 0 ? Array.from(selectedIds) : undefined
       const out = await imageLocalizationClient.startJob(partnerId, {
         language,
         force,
