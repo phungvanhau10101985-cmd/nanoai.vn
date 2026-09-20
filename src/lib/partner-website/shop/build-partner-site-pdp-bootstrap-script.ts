@@ -1009,10 +1009,11 @@ function bindLive(id){
       if(open)closeRqModal(open);
     });
   }
-  if(reviewSec.getAttribute('data-pw-pdp-live')==='1')return;
   reviewSec.setAttribute('data-pw-pdp-live','1');
   qaSec.setAttribute('data-pw-pdp-live','1');
-  document.addEventListener('click',function(ev){
+  var oldPdpClick=window.__pwPdpClickHandler;
+  if(oldPdpClick)document.removeEventListener('click',oldPdpClick,true);
+  var onPdpClick=function(ev){
     var t=ev.target;if(!t||!t.closest)return;
     var pill=t.closest('[data-pw-pdp-option] .pw-pdp-pill');
     if(pill){
@@ -1244,7 +1245,9 @@ function bindLive(id){
       loadQuestions(questionsPage,true);
       return;
     }
-  });
+  };
+  window.__pwPdpClickHandler=onPdpClick;
+  document.addEventListener('click',onPdpClick,true);
 }
 function hoistSizeGuideModal(modal){
   if(!modal||!document.body)return modal;

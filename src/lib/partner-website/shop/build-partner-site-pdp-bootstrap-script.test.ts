@@ -107,4 +107,8 @@ test('PDP bootstrap paints helpful count outside the button and opens a write mo
     s,
     /function toggleHelpfulVote\(btn,kind\)\{\s*if\(!btn\)return;\s*if\(!loggedIn\(\)\)/
   )
+  assert.match(s, /window\.__pwPdpClickHandler=onPdpClick/)
+  assert.match(s, /removeEventListener\('click',oldPdpClick,true\)/)
+  assert.match(s, /addEventListener\('click',onPdpClick,true\)/)
+  assert.doesNotMatch(s, /getAttribute\('data-pw-pdp-live'\)==='1'\)return/)
 })
