@@ -4407,6 +4407,54 @@ export type PartnerRatingGroupPhraseRow = {
   categoryL1: string
   categoryL2: string
   categoryL3: string
+  productCount?: number
+}
+
+function uniqPositiveGroupIds(raw: number[]): number[] {
+  return [...new Set(raw.map((n) => Math.round(Number(n))).filter((n) => Number.isFinite(n) && n > 0 && n !== 888))]
+}
+
+/** Nhóm đánh giá đã gán trên kho (Excel 41 cột / cào trước) — whitelist ngữ cảnh giống 188. */
+export async function fetchPartnerAssignedRatingGroupIdsFromPg(partnerId: string): Promise<number[]> {
+  const id = String(partnerId || '').trim()
+  if (!id || !isPgConfigured()) return []
+  try {
+    const rows = await pgQuery<{ gid: number }>(
+      `select distinct rating_group_id as gid
+       from public.messaging_partner_inventory
+       where partner_id = $1::uuid
+         and coalesce(is_active, true) = true
+         and rating_group_id > 0
+         and rating_group_id <> 888
+       order by 1`,
+      [id]
+    )
+    return uniqPositiveGroupIds(rows.map((r) => Number(r.gid)))
+  } catch (e) {
+    console.warn('[fetchPartnerAssignedRatingGroupIdsFromPg]', e)
+    return []
+  }
+}
+
+/** Nhóm câu hỏi đã gán trên kho — 88 nữ / 99 unisex / 100 nam như 188. */
+export async function fetchPartnerAssignedQuestionGroupIdsFromPg(partnerId: string): Promise<number[]> {
+  const id = String(partnerId || '').trim()
+  if (!id || !isPgConfigured()) return []
+  try {
+    const rows = await pgQuery<{ gid: number }>(
+      `select distinct question_group_id as gid
+       from public.messaging_partner_inventory
+       where partner_id = $1::uuid
+         and coalesce(is_active, true) = true
+         and question_group_id in (88, 99, 100)
+       order by 1`,
+      [id]
+    )
+    return uniqPositiveGroupIds(rows.map((r) => Number(r.gid)))
+  } catch (e) {
+    console.warn('[fetchPartnerAssignedQuestionGroupIdsFromPg]', e)
+    return []
+  }
 }
 
 /** Nhãn nhóm đánh giá theo shop: L1/L2/L3 của SP đã gán rating_group_id trong pool admin import. */
@@ -4415,21 +4463,22 @@ export async function fetchPartnerRatingGroupPhraseRowsFromPg(
   groupIds: number[]
 ): Promise<PartnerRatingGroupPhraseRow[]> {
   const id = String(partnerId || '').trim()
-  const ids = [...new Set(groupIds.map((n) => Math.round(Number(n))).filter((n) => n > 0 && n !== 888))]
+  const ids = uniqPositiveGroupIds(groupIds)
   if (!id || ids.length === 0 || !isPgConfigured()) return []
   try {
-    const rows = await pgQuery<{ gid: number; l1: string; l2: string; l3: string }>(
+    const rows = await pgQuery<{ gid: number; l1: string; l2: string; l3: string; n: number }>(
       `select rating_group_id as gid,
               coalesce(category_l1, '') as l1,
               coalesce(category_l2, '') as l2,
-              coalesce(category_l3, '') as l3
+              coalesce(category_l3, '') as l3,
+              count(*)::int as n
        from public.messaging_partner_inventory
        where partner_id = $1::uuid
          and coalesce(is_active, true) = true
          and rating_group_id = any($2::int[])
          and rating_group_id > 0
          and rating_group_id <> 888
-       limit 4000`,
+       group by 1, 2, 3, 4`,
       [id, ids]
     )
     return rows.map((r) => ({
@@ -4437,6 +4486,7 @@ export async function fetchPartnerRatingGroupPhraseRowsFromPg(
       categoryL1: String(r.l1 || ''),
       categoryL2: String(r.l2 || ''),
       categoryL3: String(r.l3 || ''),
+      productCount: Math.round(Number(r.n)) || 0,
     }))
   } catch (e) {
     console.warn('[fetchPartnerRatingGroupPhraseRowsFromPg]', e)

@@ -20,6 +20,8 @@ import {
   buildImportRatingContextText,
   buildPartnerRatingGroupCatalog,
   emptyPartnerRatingGroupCatalog,
+  extractImportGroupIdsFromModelText,
+  familyFallbackRatingGroupId,
   RATING_GROUP_ID_UNASSIGNED,
 } from '@/lib/messaging/listing-import/listing-import-rating-groups'
 import { appendListingImportColorSuffixToViName } from '@/lib/messaging/listing-import/listing-import-taxonomy'
@@ -44,10 +46,11 @@ describe('listing import rating groups', () => {
   const shopCatalog = buildPartnerRatingGroupCatalog(
     [12, 20, 31],
     [
-      { ratingGroupId: 12, categoryL1: 'Túi xách Nữ', categoryL2: 'Túi xách', categoryL3: 'túi xách nữ' },
-      { ratingGroupId: 20, categoryL1: 'Thời trang Nam', categoryL2: 'Áo thun', categoryL3: 'áo thun nam' },
-      { ratingGroupId: 31, categoryL1: 'Thời trang Nữ', categoryL2: 'Đầm', categoryL3: 'đầm suông nữ midi' },
-    ]
+      { ratingGroupId: 12, categoryL1: 'Túi xách Nữ', categoryL2: 'Túi xách', categoryL3: 'túi xách nữ', productCount: 10 },
+      { ratingGroupId: 20, categoryL1: 'Thời trang Nam', categoryL2: 'Áo thun', categoryL3: 'áo thun nam', productCount: 8 },
+      { ratingGroupId: 31, categoryL1: 'Thời trang Nữ', categoryL2: 'Đầm', categoryL3: 'đầm suông nữ midi', productCount: 4 },
+    ],
+    [88, 99, 100]
   )
 
   it('maps from this shop catalog, not a global 188 table', () => {
@@ -122,6 +125,24 @@ describe('listing import rating groups', () => {
     await applyListingImportRatingGroups(empty, [], { catalog: emptyPartnerRatingGroupCatalog() })
     assert.equal(empty.group_rating, RATING_GROUP_ID_UNASSIGNED)
   })
+  it('when the same L3 is in two imported groups, prefers the group with more products', () => {
+    const catalog = buildPartnerRatingGroupCatalog(
+      [27, 36],
+      [
+        { ratingGroupId: 27, categoryL1: 'Giày dép Nữ', categoryL2: 'Sneaker', categoryL3: 'sneaker nữ chunky đế dày', productCount: 434 },
+        { ratingGroupId: 36, categoryL1: 'Giày dép Nữ', categoryL2: 'Giày thể thao', categoryL3: 'sneaker nữ chunky đế dày', productCount: 352 },
+      ]
+    )
+    assert.equal(
+      inferRatingGroupIdFromText(
+        'Giày dép Nữ Sneaker sneaker nữ chunky đế dày Giày sneaker nữ',
+        catalog.phrases,
+        catalog.genericPhrases,
+        catalog.groupIds
+      ),
+      27
+    )
+  })
   it('deboosts L1 shared by two groups in the same shop', () => {
     const catalog = buildPartnerRatingGroupCatalog(
       [18, 21],
@@ -134,6 +155,54 @@ describe('listing import rating groups', () => {
       inferRatingGroupIdFromText('giày sneaker nam da bò giày dép nam', catalog.phrases, catalog.genericPhrases),
       18
     )
+  })
+  it('uses family fallback like 188 only for groups this shop already imported', () => {
+    const dressCatalog = buildPartnerRatingGroupCatalog(
+      [6, 40, 54, 59, 85],
+      [
+        { ratingGroupId: 6, categoryL1: 'Thời trang Nữ', categoryL2: 'Đầm', categoryL3: 'váy đầm maxi nữ', productCount: 3 },
+        { ratingGroupId: 40, categoryL1: 'Thời trang Nữ', categoryL2: 'Đầm', categoryL3: 'váy đầm liền thân dự tiệc nữ', productCount: 2 },
+        { ratingGroupId: 54, categoryL1: 'Thời trang Nữ', categoryL2: 'Chân váy', categoryL3: 'chân váy nữ', productCount: 2 },
+        { ratingGroupId: 59, categoryL1: 'Thời trang Nữ', categoryL2: 'Đầm', categoryL3: 'váy đầm liền thân nữ', productCount: 8 },
+        { ratingGroupId: 85, categoryL1: 'Thời trang Nữ', categoryL2: 'Áo', categoryL3: 'áo hai dây nữ', productCount: 1 },
+      ],
+      [88]
+    )
+    assert.equal(
+      inferRatingGroupIdFromText('đầm ôm body nữ', dressCatalog.phrases, dressCatalog.genericPhrases, dressCatalog.groupIds),
+      59
+    )
+    assert.equal(
+      inferRatingGroupIdFromText('đầm maxi nữ dáng dài', dressCatalog.phrases, dressCatalog.genericPhrases, dressCatalog.groupIds),
+      6
+    )
+    assert.equal(familyFallbackRatingGroupId('đầm ôm body nữ', []), 0)
+    assert.equal(familyFallbackRatingGroupId('đầm ôm body nữ', dressCatalog.groupIds), 59)
+  })
+  it('keeps question groups from this shop import pool like 188', async () => {
+    assert.deepEqual(shopCatalog.questionGroupIds, [88, 99, 100])
+    const pd: Record<string, unknown> = { name: 'Túi xách nữ da bò' }
+    await applyListingImportRatingGroups(pd, [], { catalog: shopCatalog })
+    assert.equal(pd.group_question, 88)
+    const maleOnly = buildPartnerRatingGroupCatalog(
+      [20],
+      [{ ratingGroupId: 20, categoryL1: 'Thời trang Nam', categoryL2: 'Áo thun', categoryL3: 'áo thun nam' }],
+      [100]
+    )
+    const missQ: Record<string, unknown> = { name: 'Váy đầm nữ' }
+    await applyListingImportRatingGroups(missQ, [], { catalog: maleOnly })
+    assert.equal(missQ.group_question, 0)
+  })
+  it('extracts group ids from loose model text like 188', () => {
+    const parsed = extractImportGroupIdsFromModelText(
+      'rating_group_id: 12\nquestion_group_id: 88',
+      shopCatalog
+    )
+    assert.equal(parsed.rating, 12)
+    assert.equal(parsed.question, 88)
+    const miss = extractImportGroupIdsFromModelText('rating_group_id: 59\nquestion_group_id: 77', shopCatalog)
+    assert.equal(miss.rating, null)
+    assert.equal(miss.question, null)
   })
 })
 

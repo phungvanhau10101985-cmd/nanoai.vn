@@ -1599,6 +1599,14 @@ export type Dictionary = {
     listingImportPandamallPass: string
     listingImportPandamallPassKeep: string
     listingImportDraftEditHint: string
+    /** Nút trên đợt cào: mở nháp done để import lên kho shop */
+    listingImportProductsButton: string
+    listingImportProductsButtonBusy: string
+    listingImportProductsButtonTitle: string
+    /** {n} = số nháp đang chọn */
+    listingImportProductsSubmit: string
+    /** {done} {total} tiến trình import */
+    listingImportProductsSubmitting: string
     sourceStockTitle: string
     sourceStockIntro: string
     sourceStockApiError: string
@@ -5185,6 +5193,12 @@ const VI_DICTIONARY: Dictionary = {
     listingImportPandamallPass: 'Mật khẩu PandaMall',
     listingImportPandamallPassKeep: 'Để trống = giữ mật khẩu đã lưu',
     listingImportDraftEditHint: 'Sửa tên/danh mục trên modal này rồi đăng, hoặc dùng bảng Kho hàng bên dưới.',
+    listingImportProductsButton: 'Import sản phẩm',
+    listingImportProductsButtonBusy: 'Đang tải nháp…',
+    listingImportProductsButtonTitle:
+      'Mở danh sách nháp đã crawl xong — chọn rồi import lên cửa hàng (cùng luồng Import 1688).',
+    listingImportProductsSubmit: 'Import {n} sản phẩm',
+    listingImportProductsSubmitting: 'Đang import ({done}/{total})…',
     sourceStockTitle: 'Kiểm tra nguồn hàng',
     sourceStockIntro:
       'Worker CSSBuy → Vipomall → PandaMall. Có nút giỏ/mua (kể cả disabled) = còn hàng. Cloudflare/CAPTCHA trên một nền thì thử nền tiếp. Cả ba bị chặn = blocked. Hết hàng → tồn kho 0; về hàng sau OOS → 500. Mọi workspace cùng engine.',
@@ -8773,6 +8787,12 @@ const EN_DICTIONARY: Dictionary = {
     listingImportPandamallPass: 'PandaMall password',
     listingImportPandamallPassKeep: 'Leave blank to keep the saved password',
     listingImportDraftEditHint: 'Edit name/category in this modal then publish, or use the inventory table below.',
+    listingImportProductsButton: 'Import products',
+    listingImportProductsButtonBusy: 'Loading drafts…',
+    listingImportProductsButtonTitle:
+      'Open finished crawl drafts — select then import into the shop (same Import 1688 flow).',
+    listingImportProductsSubmit: 'Import {n} products',
+    listingImportProductsSubmitting: 'Importing ({done}/{total})…',
     sourceStockTitle: 'Source stock check',
     sourceStockIntro:
       'Worker CSSBuy → Vipomall → PandaMall. A cart/buy button (even disabled) means in stock. Cloudflare/CAPTCHA on one platform falls through. All three blocked = blocked. OOS → stock 0; back in stock after OOS → 500. Same engine for every workspace.',
@@ -12325,6 +12345,11 @@ const ZH_DICTIONARY: Dictionary = {
     listingImportPandamallPass: 'PandaMall 密码',
     listingImportPandamallPassKeep: '留空则保留已保存密码',
     listingImportDraftEditHint: '在此弹窗改名称/类目后发布，或使用下方库存表。',
+    listingImportProductsButton: '导入商品',
+    listingImportProductsButtonBusy: '正在加载草稿…',
+    listingImportProductsButtonTitle: '打开已抓取完成的草稿 — 勾选后导入店铺（与 Import 1688 同一流程）。',
+    listingImportProductsSubmit: '导入 {n} 件商品',
+    listingImportProductsSubmitting: '正在导入（{done}/{total}）…',
     sourceStockTitle: '货源库存检查',
     sourceStockIntro:
       'Worker：CSSBuy → Vipomall → PandaMall。有购物车/购买按钮（即使禁用）= 有货。某一平台 Cloudflare/验证码则试下一平台。三平台都被拦 = blocked。缺货 → 库存 0；OOS 后重新有货 → 500。每个店铺同一引擎。',
@@ -15833,6 +15858,12 @@ const JA_DICTIONARY: Dictionary = {
     listingImportPandamallPass: 'PandaMall パスワード',
     listingImportPandamallPassKeep: '空欄なら保存済みパスワードを維持',
     listingImportDraftEditHint: 'このモーダルで名・カテゴリを直して公開するか、下の在庫表を使います。',
+    listingImportProductsButton: '商品をインポート',
+    listingImportProductsButtonBusy: '下書きを読み込み中…',
+    listingImportProductsButtonTitle:
+      '取得済み下書きを開き、選んで店舗へインポートします（Import 1688 と同じ流れ）。',
+    listingImportProductsSubmit: '{n} 件をインポート',
+    listingImportProductsSubmitting: 'インポート中（{done}/{total}）…',
     sourceStockTitle: '仕入元在庫チェック',
     sourceStockIntro:
       'Worker は CSSBuy → Vipomall → PandaMall。カート/購入ボタンがあれば（disabled でも）在庫あり。1 プラットフォームの Cloudflare/CAPTCHA は次へ。3 つとも遮断 = blocked。欠品 → 在庫 0。欠品後に復活 → 500。全ワークスペース同一エンジン。',
@@ -19385,6 +19416,12 @@ const KO_DICTIONARY: Dictionary = {
     listingImportPandamallPass: 'PandaMall 비밀번호',
     listingImportPandamallPassKeep: '비워 두면 저장된 비밀번호 유지',
     listingImportDraftEditHint: '이 모달에서 이름/카테고리를 고친 뒤 게시하거나 아래 재고 표를 쓰세요.',
+    listingImportProductsButton: '상품 가져오기',
+    listingImportProductsButtonBusy: '초안 불러오는 중…',
+    listingImportProductsButtonTitle:
+      '수집이 끝난 초안을 열고 선택한 뒤 매장으로 가져옵니다(Import 1688과 같은 흐름).',
+    listingImportProductsSubmit: '{n}개 상품 가져오기',
+    listingImportProductsSubmitting: '가져오는 중 ({done}/{total})…',
     sourceStockTitle: '공급원 재고 확인',
     sourceStockIntro:
       'Worker: CSSBuy → Vipomall → PandaMall. 장바구니/구매 버튼(비활성 포함)이 있으면 재고 있음. 한 플랫폼 Cloudflare/CAPTCHA면 다음으로. 셋 다 차단 = blocked. 품절 → 재고 0, 품절 후 재입고 → 500. 모든 워크스페이스 동일 엔진.',

@@ -2468,8 +2468,13 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
                 className="px-4 py-2 rounded-lg bg-emerald-700 text-white text-sm font-medium hover:bg-emerald-800 disabled:opacity-40"
               >
                 {doneDraftsPublishing && doneDraftsPublishSummary.total > 0
-                  ? `Đang đăng (${doneDraftsPublishSummary.finished}/${doneDraftsPublishSummary.total})…`
-                  : `Đăng ${doneDraftsModalStats.selectedPublishable} sản phẩm`}
+                  ? t.listingImportProductsSubmitting
+                      .replace('{done}', String(doneDraftsPublishSummary.finished))
+                      .replace('{total}', String(doneDraftsPublishSummary.total))
+                  : t.listingImportProductsSubmit.replace(
+                      '{n}',
+                      String(doneDraftsModalStats.selectedPublishable),
+                    )}
               </button>
             </div>
           </div>
@@ -3108,11 +3113,11 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
                       onClick={() => void openDoneDraftsModalForToken(token)}
                       disabled={doneWithDraftCount === 0 || doneDraftsModalLoading}
                       className="px-3 py-1.5 rounded-md border border-emerald-600 bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-40"
-                      title="Mở danh sách nháp đã crawl xong — chọn và đăng lên cửa hàng (cùng luồng Import 1688)."
+                      title={t.listingImportProductsButtonTitle}
                     >
                       {doneDraftsModalLoading && doneDraftsModalToken === token
-                        ? 'Đang tải nháp…'
-                        : 'Chọn để đăng web…'}
+                        ? t.listingImportProductsButtonBusy
+                        : t.listingImportProductsButton}
                     </button>
                   </div>
 
