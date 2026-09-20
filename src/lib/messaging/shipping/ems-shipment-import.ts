@@ -22,8 +22,8 @@ import {
 import { emsLookupCandidates, emsPhaseFromDescription, fetchEmsWithFallback } from '@/lib/messaging/shipping/ems-tracking'
 import type { EmsImportSummary, PartnerEmsListRow } from '@/lib/messaging/shipping/ems-types'
 import { isEmsDelivered } from '@/lib/messaging/shipping/shipping-ops'
-import { emailCustomerOrderDeliveredReview } from '@/lib/messaging/partner-order-customer-email'
 import { notifyPartnerCustomerEmsUpdateWebApp } from '@/lib/messaging/partner-customer-webapp-notify'
+import { sendPartnerOrderDeliveredReviewOnce } from '@/lib/messaging/partner-order-review-reminder'
 
 function shopHandoffMessage(orderCode?: string | null): string {
   const code = (orderCode || '').trim().toUpperCase()
@@ -85,7 +85,6 @@ async function trySyncShopOrder(input: {
   const afterOrder =
     (await fetchPartnerOrderByIdForPartnerFromPg(input.partnerId, input.orderId)) || beforeOrder
   if (afterOrder) {
-    const beforeStatus = String(beforeOrder?.shipping_status || '').trim().toLowerCase()
     try {
       await notifyPartnerCustomerEmsUpdateWebApp({
         order: afterOrder,
@@ -105,9 +104,9 @@ async function trySyncShopOrder(input: {
     } catch (e) {
       console.warn('[trySyncShopOrder] customer webapp', e)
     }
-    if (shippingStatus === 'delivered' && beforeStatus !== 'delivered') {
+    if (shippingStatus === 'delivered') {
       try {
-        await emailCustomerOrderDeliveredReview({ order: afterOrder, skipInApp: true })
+        await sendPartnerOrderDeliveredReviewOnce({ order: afterOrder })
       } catch (e) {
         console.warn('[trySyncShopOrder] delivered email', e)
       }

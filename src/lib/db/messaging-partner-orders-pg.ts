@@ -127,6 +127,9 @@ export type PartnerOrderRow = {
   stock_hold_expires_at: string | null
   stock_hold_released_at: string | null
   deposit_hold_overdue: boolean
+  delivered_at?: string | null
+  delivered_review_email_sent_at?: string | null
+  review_reminder_sent_at?: string | null
 }
 
 export type PartnerOrderLineRow = {
@@ -280,6 +283,11 @@ function mapOrderRow(r: Record<string, unknown>): PartnerOrderRow {
     stock_hold_expires_at: r.stock_hold_expires_at ? String(r.stock_hold_expires_at) : null,
     stock_hold_released_at: r.stock_hold_released_at ? String(r.stock_hold_released_at) : null,
     deposit_hold_overdue: r.deposit_hold_overdue === true || String(r.deposit_hold_overdue) === 'true',
+    delivered_at: r.delivered_at ? String(r.delivered_at) : null,
+    delivered_review_email_sent_at: r.delivered_review_email_sent_at
+      ? String(r.delivered_review_email_sent_at)
+      : null,
+    review_reminder_sent_at: r.review_reminder_sent_at ? String(r.review_reminder_sent_at) : null,
   }
 }
 
@@ -2443,6 +2451,10 @@ export async function updatePartnerOrderShippingStatusForOwnerFromPg(input: {
     const row = await pgQueryOne<Record<string, unknown>>(
       `update public.messaging_partner_orders o
        set shipping_status = $3,
+           delivered_at = case
+             when $3 = 'delivered' then coalesce(o.delivered_at, now())
+             else o.delivered_at
+           end,
            verified_note = case when trim($4) <> '' then $4 else o.verified_note end,
            updated_at = now()
        from public.messaging_partners mp
@@ -2680,6 +2692,7 @@ export async function confirmPartnerOrderReceivedForConversationFromPg(input: {
     const row = await pgQueryOne<Record<string, unknown>>(
       `update public.messaging_partner_orders
        set shipping_status = 'delivered',
+           delivered_at = coalesce(delivered_at, now()),
            updated_at = now()
        where id = $1::uuid
          and partner_id = $2::uuid

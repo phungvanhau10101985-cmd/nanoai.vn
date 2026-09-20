@@ -589,6 +589,10 @@ export async function syncPartnerOrderShippingFromEmsFromPg(input: {
            when shipping_status = 'delivered' and $4 = 'shipping' then shipping_status
            else $4
          end,
+         delivered_at = case
+           when $4 = 'delivered' then coalesce(delivered_at, now())
+           else delivered_at
+         end,
          updated_at = now()
      where partner_id = $1::uuid and id = $2::uuid`,
     [input.partnerId, input.orderId, input.trackingNumber, input.shippingStatus],

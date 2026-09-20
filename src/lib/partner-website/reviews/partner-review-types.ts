@@ -48,6 +48,7 @@ export type PartnerReviewRow = {
   isActive: boolean
   usefulCount: number
   userHasVoted?: boolean
+  isCurrentUser?: boolean
   merchantReply: string
   merchantReplyBy: string
   merchantReplyAt: string | null
@@ -116,6 +117,7 @@ export type PartnerQuestionRow = {
   isActive: boolean
   usefulCount: number
   userHasVoted?: boolean
+  isCurrentUser?: boolean
   isImported: boolean
   importGroup: number
   createdAt: string
@@ -217,4 +219,35 @@ export function reviewTitleTemplate(rating: number, locale: WebLocale): string {
   const clamped = clampRating(rating) as 1 | 2 | 3 | 4 | 5
   const table = REVIEW_TITLE_TEMPLATES[locale] ?? REVIEW_TITLE_TEMPLATES.vi
   return table[clamped]
+}
+
+const VOTE_KEY_PREFIX_RE = /^(guest|user|session):/i
+
+/** UUID thuần — bỏ prefix `guest:` / `user:` nếu client gửi nhầm. */
+export function normalizePartnerReviewVoterKey(raw: string | null | undefined): string {
+  return String(raw || '').trim().replace(VOTE_KEY_PREFIX_RE, '').trim()
+}
+
+/**
+ * Khóa vote Hữu ích: ưu tiên tài khoản đã login, rồi guest, rồi fallback.
+ * Cùng người có thể đã vote bằng guest UUID trước khi login — phải giữ cả hai khi toggle.
+ */
+export function partnerReviewVoterKeys(...raw: Array<string | null | undefined>): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const value of raw) {
+    const key = normalizePartnerReviewVoterKey(value)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(key)
+  }
+  return out
+}
+
+export function partnerReviewVoterKeysFromVisitor(input: {
+  accountKey?: string | null
+  guestAccountId?: string | null
+  linkedUserId?: string | null
+}): string[] {
+  return partnerReviewVoterKeys(input.linkedUserId, input.guestAccountId, input.accountKey)
 }

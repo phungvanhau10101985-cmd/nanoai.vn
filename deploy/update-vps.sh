@@ -446,6 +446,7 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
     ensure_cron "image-localization-resume" "* * * * * curl -fsS -m 120 -X POST http://127.0.0.1:3000/api/cron/image-localization-resume -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/image-localization-resume.log 2>&1"
     ensure_cron "partner-inventory-bunny-delete" "*/5 * * * * curl -fsS -m 120 -X POST http://127.0.0.1:3000/api/cron/partner-inventory-bunny-delete -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/partner-inventory-bunny-delete.log 2>&1"
     ensure_cron "partner-order-shipment-timeline" "*/15 * * * * curl -fsS -m 280 -X POST http://127.0.0.1:3000/api/cron/partner-order-shipment-timeline -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/partner-order-shipment-timeline.log 2>&1"
+    ensure_cron "partner-review-reminders" "0 */6 * * * curl -fsS -m 280 -X POST http://127.0.0.1:3000/api/cron/partner-review-reminders -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/partner-review-reminders.log 2>&1"
   else
     echo "  Cảnh báo: thiếu MESSAGING_PARTNER_AI_CRON_SECRET/CRON_SECRET, bỏ qua cron messaging-partner-ai."
   fi
@@ -495,7 +496,7 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
   fi
 
   echo "  Cron hiện tại:"
-  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-external-catalog-sync|messaging-logo-cleanup|partner-marketing-campaign|partner-customer-notifications|partner-marketing-banners|partner-email-daily|partner-order-shipment-timeline|wedding-reminder|partner-custom-domain-ssl|vision-" || true
+  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-external-catalog-sync|messaging-logo-cleanup|partner-marketing-campaign|partner-customer-notifications|partner-marketing-banners|partner-email-daily|partner-order-shipment-timeline|partner-review-reminders|wedding-reminder|partner-custom-domain-ssl|vision-" || true
 else
   echo "  Bỏ qua (DEPLOY_SETUP_CRONS=${DEPLOY_SETUP_CRONS})."
 fi

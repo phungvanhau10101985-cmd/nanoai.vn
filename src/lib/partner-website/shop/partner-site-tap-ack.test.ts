@@ -58,4 +58,6 @@ test('native navigation prepends tap-ack and swallows extra presses while pendin
   assert.match(script, /ackBusy\(\)\|\|\(lastHref===href/)
   assert.match(script, /jsGateAt/)
   assert.match(script, /window\.location\.assign\(href\)/)
+  assert.match(script, /data-pw-review-vote/)
+  assert.match(script, /data-pw-rq-open-write/)
 })

@@ -15,7 +15,7 @@ test('PDP bootstrap hydrates reviews, Q&A, and options instead of clearing cards
   assert.match(s, /data-pw-qa-submit/)
   assert.match(s, /data-pw-qa-answer-submit/)
   assert.match(s, /LOGIN_PATH/)
-  assert.match(s, /Gửi đánh giá/)
+  assert.match(s, /"reviewsFormSubmit":"Gửi"/)
   assert.match(s, /Gửi câu hỏi/)
   assert.match(s, /applyOptions/)
   assert.match(s, /pdpPurchasesLabel/)
@@ -83,6 +83,22 @@ test('PDP bootstrap hydrates reviews, Q&A, and options instead of clearing cards
 
 test('PDP bootstrap uses shop copy for the requested locale', () => {
   const en = buildPartnerSitePdpBootstrapScript({ siteSlug: '188-shop', locale: 'en' })
-  assert.match(en, /Submit review/)
+  assert.match(en, /"reviewsFormSubmit":"Send"/)
   assert.match(en, /Ask a question|Your question/)
+})
+
+test('PDP bootstrap paints helpful count outside the button and opens a write modal', () => {
+  const s = buildPartnerSitePdpBootstrapScript({ siteSlug: '188-shop', locale: 'vi' })
+  assert.match(s, /class="pw-pdp-helpful-n"/)
+  assert.match(s, /pw-pdp-helpful-label/)
+  assert.match(s, /function paintHelpfulUi/)
+  assert.match(s, /helpfulVotes/)
+  assert.match(s, /data-pw-rq-modal="write"/)
+  assert.match(s, /function paintWriteForm/)
+  assert.match(s, /pw-pdp-rq-ctas-empty/)
+  assert.match(s, /function paintProductStrips/)
+  assert.match(s, /reviewsMineHeading/)
+  assert.match(s, /reviewsCustomersHeading/)
+  assert.match(s, /isCurrentUser/)
+  assert.doesNotMatch(s, /\[data-pw-rq-modal="reviews"\] \[data-pw-pdp-slot="review-form"\]/)
 })

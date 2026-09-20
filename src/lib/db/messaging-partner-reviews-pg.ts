@@ -6,6 +6,7 @@ import {
   QA_BUYER_ANSWER_LIMIT,
   clampRating,
   coalesceImportGroup,
+  partnerReviewVoterKeys,
   sanitizeReviewImageUrls,
   splitQaReplySlots,
   type PartnerQuestionAnswerRow,
@@ -181,8 +182,89 @@ function isUniqueViolation(e: unknown): boolean {
   return (e as { code?: string }).code === '23505'
 }
 
+const VOTE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+async function toggleUsefulVoteRow(input: {
+  id: string
+  voterKey: string
+  voterKeys?: string[]
+  votesTable: 'messaging_partner_product_review_votes' | 'messaging_partner_product_question_votes'
+  countTable: 'messaging_partner_product_reviews' | 'messaging_partner_product_questions'
+  idColumn: 'review_id' | 'question_id'
+}): Promise<{ ok: true; voted: boolean; usefulCount: number } | { ok: false }> {
+  const voterKeys = partnerReviewVoterKeys(...(input.voterKeys ?? []), input.voterKey)
+  const voterKey = voterKeys[0] || ''
+  const id = input.id.trim()
+  if (!voterKey || !VOTE_ID_RE.test(id) || !isPgConfigured()) return { ok: false }
+  const client = await getPgPool().connect()
+  try {
+    await client.query('begin')
+    await client.query('set local row_security = off')
+    const deleted = await client.query(
+      `delete from public.${input.votesTable}
+       where ${input.idColumn} = $1::uuid and voter_key = any($2::text[])
+       returning 1`,
+      [id, voterKeys]
+    )
+    const removedCount = Number(deleted.rowCount ?? deleted.rows.length) || 0
+    if (removedCount > 0) {
+      const res = await client.query<{ useful_count: number }>(
+        `update public.${input.countTable}
+         set useful_count = greatest(0, coalesce(useful_count, 0) - $2::int)
+         where id = $1::uuid
+         returning useful_count`,
+        [id, removedCount]
+      )
+      if (!res.rows[0]) {
+        await client.query('rollback')
+        return { ok: false }
+      }
+      await client.query('commit')
+      return { ok: true, voted: false, usefulCount: Math.max(0, Number(res.rows[0].useful_count) || 0) }
+    }
+    try {
+      await client.query(
+        `insert into public.${input.votesTable} (${input.idColumn}, voter_key)
+         values ($1::uuid, $2)`,
+        [id, voterKey]
+      )
+    } catch (e) {
+      if (!isUniqueViolation(e)) throw e
+      const res = await client.query<{ useful_count: number }>(
+        `select useful_count from public.${input.countTable} where id = $1::uuid`,
+        [id]
+      )
+      await client.query('commit')
+      return {
+        ok: true,
+        voted: true,
+        usefulCount: Math.max(0, Number(res.rows[0]?.useful_count) || 0),
+      }
+    }
+    const res = await client.query<{ useful_count: number }>(
+      `update public.${input.countTable}
+       set useful_count = coalesce(useful_count, 0) + 1
+       where id = $1::uuid
+       returning useful_count`,
+      [id]
+    )
+    if (!res.rows[0]) {
+      await client.query('rollback')
+      return { ok: false }
+    }
+    await client.query('commit')
+    return { ok: true, voted: true, usefulCount: Math.max(0, Number(res.rows[0].useful_count) || 0) }
+  } catch (e) {
+    await client.query('rollback').catch(() => undefined)
+    console.warn(`[toggleUsefulVoteRow ${input.countTable}]`, e)
+    return { ok: false }
+  } finally {
+    client.release()
+  }
+}
+
 /**
- * Đơn hàng thoả `paid_verified` + `shipping_status=delivered` chứa đúng `inventoryId`, thuộc về
+ * Đơn hàng không huỷ + `shipping_status=delivered` chứa đúng `inventoryId`, thuộc về
  * `guestAccountId`/`linkedUserId` — điều kiện được review (verified purchase tự nhiên).
  */
 export async function checkDeliveredPurchaseFromPg(input: {
@@ -203,7 +285,7 @@ export async function checkDeliveredPurchaseFromPg(input: {
        left join public.customer_care_conversations c on c.id = o.conversation_id
        where o.partner_id = $1::uuid
          and l.product_inventory_id = $2::uuid
-         and o.status = 'paid_verified'
+         and o.status <> 'cancelled'
          and coalesce(o.shipping_status, 'pending') = 'delivered'
          and (
            ($3::uuid is not null and c.guest_account_id = $3::uuid)
@@ -348,6 +430,7 @@ export async function fetchPartnerProductReviewsPageFromPg(input: {
   page?: number
   pageSize?: number
   viewerAccountKey?: string | null
+  viewerAccountKeys?: string[] | null
   ratingFilter?: number
 }): Promise<{ rows: PartnerReviewRow[]; total: number; hasReviewed: boolean } | null> {
   if (!isPgConfigured()) return null
@@ -357,7 +440,7 @@ export async function fetchPartnerProductReviewsPageFromPg(input: {
     Math.max(1, Math.floor(input.pageSize ?? PUBLIC_REVIEW_QA_PAGE_SIZE))
   )
   const offset = (page - 1) * pageSize
-  const viewerKey = (input.viewerAccountKey ?? '').trim()
+  const viewerKeys = partnerReviewVoterKeys(...(input.viewerAccountKeys ?? []), input.viewerAccountKey)
   const ratingFilter = input.ratingFilter ? clampRating(input.ratingFilter) : null
   const importGroup = coalesceImportGroup(input.importGroup)
 
@@ -370,14 +453,16 @@ export async function fetchPartnerProductReviewsPageFromPg(input: {
          and ${publicPoolWhereSql(2, 5)}
          ${extra}
        order by
-         (case when coalesce(guest_account_id::text, linked_user_id::text, '') = $3 and $3 <> '' then 0 else 1 end) asc,
+         (case when cardinality($3::text[]) > 0 and (
+           guest_account_id::text = any($3::text[]) or linked_user_id::text = any($3::text[])
+         ) then 0 else 1 end) asc,
          (case when coalesce(is_imported, false) then 1 else 0 end) asc,
          useful_count desc,
          created_at desc
        limit $4 offset ${offset}`,
       ratingFilter
-        ? [input.partnerId, input.inventoryId, viewerKey, pageSize, importGroup, ratingFilter]
-        : [input.partnerId, input.inventoryId, viewerKey, pageSize, importGroup]
+        ? [input.partnerId, input.inventoryId, viewerKeys, pageSize, importGroup, ratingFilter]
+        : [input.partnerId, input.inventoryId, viewerKeys, pageSize, importGroup]
     )
     const totalRow = await pgQueryOne<{ c: number }>(
       `select count(*)::int as c
@@ -389,28 +474,39 @@ export async function fetchPartnerProductReviewsPageFromPg(input: {
         ? [input.partnerId, input.inventoryId, importGroup, ratingFilter]
         : [input.partnerId, input.inventoryId, importGroup]
     )
-    const mine = viewerKey
+    const mine = viewerKeys.length
       ? await pgQueryOne<{ exists: boolean }>(
           `select exists (
              select 1 from public.messaging_partner_product_reviews
              where partner_id = $1::uuid and inventory_id = $2::uuid
                and coalesce(is_imported, false) = false
-               and (guest_account_id::text = $3 or linked_user_id::text = $3)
+               and (guest_account_id::text = any($3::text[]) or linked_user_id::text = any($3::text[]))
            ) as exists`,
-          [input.partnerId, input.inventoryId, viewerKey]
+          [input.partnerId, input.inventoryId, viewerKeys]
         )
       : null
-    const voted = viewerKey && rows.length
+    const voted = viewerKeys.length && rows.length
       ? await pgQuery<{ review_id: string }>(
           `select review_id::text as review_id
            from public.messaging_partner_product_review_votes
-           where voter_key = $1 and review_id = any($2::uuid[])`,
-          [viewerKey, rows.map((r) => r.id)]
+           where voter_key = any($1::text[]) and review_id = any($2::uuid[])`,
+          [viewerKeys, rows.map((r) => r.id)]
         )
       : []
     const votedIds = new Set(voted.map((v) => v.review_id))
+    const viewerSet = new Set(viewerKeys)
     return {
-      rows: rows.map((r) => ({ ...mapReviewRow(r), userHasVoted: votedIds.has(r.id) })),
+      rows: rows.map((r) => {
+        const mapped = mapReviewRow(r)
+        return {
+          ...mapped,
+          userHasVoted: votedIds.has(r.id),
+          isCurrentUser: Boolean(
+            (mapped.guestAccountId && viewerSet.has(mapped.guestAccountId)) ||
+              (mapped.linkedUserId && viewerSet.has(mapped.linkedUserId))
+          ),
+        }
+      }),
       total: totalRow?.c ?? 0,
       hasReviewed: Boolean(mine?.exists),
     }
@@ -462,59 +558,16 @@ export async function fetchPartnerProductRatingSummaryFromPg(
 export async function togglePartnerProductReviewVoteFromPg(input: {
   reviewId: string
   voterKey: string
+  voterKeys?: string[]
 }): Promise<{ ok: true; voted: boolean; usefulCount: number } | { ok: false }> {
-  if (!isPgConfigured()) return { ok: false }
-  const voterKey = input.voterKey.trim()
-  if (!voterKey) return { ok: false }
-  const client = await getPgPool().connect()
-  try {
-    await client.query('begin')
-    const existing = await client.query(
-      `select 1 from public.messaging_partner_product_review_votes
-       where review_id = $1::uuid and voter_key = $2`,
-      [input.reviewId, voterKey]
-    )
-    let voted: boolean
-    if (existing.rowCount) {
-      await client.query(
-        `delete from public.messaging_partner_product_review_votes
-         where review_id = $1::uuid and voter_key = $2`,
-        [input.reviewId, voterKey]
-      )
-      await client.query(
-        `update public.messaging_partner_product_reviews
-         set useful_count = greatest(0, useful_count - 1)
-         where id = $1::uuid`,
-        [input.reviewId]
-      )
-      voted = false
-    } else {
-      await client.query(
-        `insert into public.messaging_partner_product_review_votes (review_id, voter_key)
-         values ($1::uuid, $2)`,
-        [input.reviewId, voterKey]
-      )
-      await client.query(
-        `update public.messaging_partner_product_reviews
-         set useful_count = useful_count + 1
-         where id = $1::uuid`,
-        [input.reviewId]
-      )
-      voted = true
-    }
-    const res = await client.query<{ useful_count: number }>(
-      `select useful_count from public.messaging_partner_product_reviews where id = $1::uuid`,
-      [input.reviewId]
-    )
-    await client.query('commit')
-    return { ok: true, voted, usefulCount: res.rows[0]?.useful_count ?? 0 }
-  } catch (e) {
-    await client.query('rollback').catch(() => undefined)
-    console.warn('[togglePartnerProductReviewVoteFromPg]', e)
-    return { ok: false }
-  } finally {
-    client.release()
-  }
+  return toggleUsefulVoteRow({
+    id: input.reviewId,
+    voterKey: input.voterKey,
+    voterKeys: input.voterKeys,
+    votesTable: 'messaging_partner_product_review_votes',
+    countTable: 'messaging_partner_product_reviews',
+    idColumn: 'review_id',
+  })
 }
 
 /** Admin (M1.2) — phân trang 10/dòng, lọc sao / nhóm import / nguồn, gồm cả inactive. */
@@ -759,6 +812,7 @@ export async function fetchPartnerProductQuestionsPageFromPg(input: {
   page?: number
   pageSize?: number
   viewerAccountKey?: string | null
+  viewerAccountKeys?: string[] | null
   highlightQuestionId?: string | null
 }): Promise<{ rows: PartnerQuestionWithAnswers[]; total: number } | null> {
   if (!isPgConfigured()) return null
@@ -769,7 +823,7 @@ export async function fetchPartnerProductQuestionsPageFromPg(input: {
   )
   const offset = (page - 1) * pageSize
   const importGroup = coalesceImportGroup(input.importGroup)
-  const viewerKey = (input.viewerAccountKey ?? '').trim()
+  const viewerKeys = partnerReviewVoterKeys(...(input.viewerAccountKeys ?? []), input.viewerAccountKey)
   const highlightId = (input.highlightQuestionId ?? '').trim()
   const highlightOk = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
     highlightId
@@ -783,12 +837,14 @@ export async function fetchPartnerProductQuestionsPageFromPg(input: {
          and ${publicPoolWhereSql(2, 5)}
        order by
          (case when $6::uuid is not null and id = $6::uuid then 0 else 1 end) asc,
-         (case when coalesce(guest_account_id::text, linked_user_id::text, '') = $4 and $4 <> '' then 0 else 1 end) asc,
+         (case when cardinality($4::text[]) > 0 and (
+           guest_account_id::text = any($4::text[]) or linked_user_id::text = any($4::text[])
+         ) then 0 else 1 end) asc,
          (case when coalesce(is_imported, false) then 1 else 0 end) asc,
          useful_count desc,
          created_at desc
        limit $3 offset ${offset}`,
-      [input.partnerId, input.inventoryId, pageSize, viewerKey, importGroup, highlightOk ? highlightId : null]
+      [input.partnerId, input.inventoryId, pageSize, viewerKeys, importGroup, highlightOk ? highlightId : null]
     )
     const totalRow = await pgQueryOne<{ c: number }>(
       `select count(*)::int as c from public.messaging_partner_product_questions
@@ -812,21 +868,30 @@ export async function fetchPartnerProductQuestionsPageFromPg(input: {
       list.push(a)
       byQuestion.set(a.questionId, list)
     }
-    const voted = viewerKey
+    const voted = viewerKeys.length
       ? await pgQuery<{ question_id: string }>(
           `select question_id::text as question_id
            from public.messaging_partner_product_question_votes
-           where voter_key = $1 and question_id = any($2::uuid[])`,
-          [viewerKey, ids]
+           where voter_key = any($1::text[]) and question_id = any($2::uuid[])`,
+          [viewerKeys, ids]
         )
       : []
     const votedIds = new Set(voted.map((v) => v.question_id))
+    const viewerSet = new Set(viewerKeys)
     const rows = questions.map(mapQuestionRow).map((q) => {
       const slots = splitQaReplySlots(byQuestion.get(q.id) ?? [])
       const answers = [slots.admin, slots.userOne, slots.userTwo].filter(
         (a): a is PartnerQuestionAnswerRow => Boolean(a)
       )
-      return { ...q, answers, userHasVoted: votedIds.has(q.id) }
+      return {
+        ...q,
+        answers,
+        userHasVoted: votedIds.has(q.id),
+        isCurrentUser: Boolean(
+          (q.guestAccountId && viewerSet.has(q.guestAccountId)) ||
+            (q.linkedUserId && viewerSet.has(q.linkedUserId))
+        ),
+      }
     })
     return { rows, total: totalRow?.c ?? 0 }
   } catch (e) {
@@ -1326,59 +1391,16 @@ export async function insertImportedPartnerProductQuestionsFromPg(
 export async function togglePartnerProductQuestionVoteFromPg(input: {
   questionId: string
   voterKey: string
+  voterKeys?: string[]
 }): Promise<{ ok: true; voted: boolean; usefulCount: number } | { ok: false }> {
-  if (!isPgConfigured()) return { ok: false }
-  const voterKey = input.voterKey.trim()
-  if (!voterKey) return { ok: false }
-  const client = await getPgPool().connect()
-  try {
-    await client.query('begin')
-    const existing = await client.query(
-      `select 1 from public.messaging_partner_product_question_votes
-       where question_id = $1::uuid and voter_key = $2`,
-      [input.questionId, voterKey]
-    )
-    let voted: boolean
-    if (existing.rowCount) {
-      await client.query(
-        `delete from public.messaging_partner_product_question_votes
-         where question_id = $1::uuid and voter_key = $2`,
-        [input.questionId, voterKey]
-      )
-      await client.query(
-        `update public.messaging_partner_product_questions
-         set useful_count = greatest(0, useful_count - 1)
-         where id = $1::uuid`,
-        [input.questionId]
-      )
-      voted = false
-    } else {
-      await client.query(
-        `insert into public.messaging_partner_product_question_votes (question_id, voter_key)
-         values ($1::uuid, $2)`,
-        [input.questionId, voterKey]
-      )
-      await client.query(
-        `update public.messaging_partner_product_questions
-         set useful_count = useful_count + 1
-         where id = $1::uuid`,
-        [input.questionId]
-      )
-      voted = true
-    }
-    const res = await client.query<{ useful_count: number }>(
-      `select useful_count from public.messaging_partner_product_questions where id = $1::uuid`,
-      [input.questionId]
-    )
-    await client.query('commit')
-    return { ok: true, voted, usefulCount: res.rows[0]?.useful_count ?? 0 }
-  } catch (e) {
-    await client.query('rollback').catch(() => undefined)
-    console.warn('[togglePartnerProductQuestionVoteFromPg]', e)
-    return { ok: false }
-  } finally {
-    client.release()
-  }
+  return toggleUsefulVoteRow({
+    id: input.questionId,
+    voterKey: input.voterKey,
+    voterKeys: input.voterKeys,
+    votesTable: 'messaging_partner_product_question_votes',
+    countTable: 'messaging_partner_product_questions',
+    idColumn: 'question_id',
+  })
 }
 
 /** Nhóm đánh giá admin đã import Excel (pool ảo). 0/888 = chưa gán, không đưa vào whitelist cào. */

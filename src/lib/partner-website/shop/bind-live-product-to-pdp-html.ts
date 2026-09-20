@@ -57,6 +57,11 @@ import {
   pdpProductInfoHtml,
   displayablePdpText,
 } from '@/lib/partner-website/shop/pdp-product-info-html'
+import {
+  pdpReviewQaEmptySampleInner,
+  replacePdpReviewQaSampleInners,
+  stampPdpReviewQaCounts,
+} from '@/lib/partner-website/shop/partner-site-pdp-review-qa'
 
 export type LivePdpBindColor = {
   name: string
@@ -1099,16 +1104,10 @@ function reviewCardHtml(review: LivePdpBindReview): string {
   const replyHtml = reply
     ? `<div style="margin-top:8px;padding:10px;background:var(--pw-surface);border-radius:8px;font-size:14px"><strong>${escText(review.merchantReplyBy || 'Shop')}:</strong> ${escText(reply)}</div>`
     : ''
-  const useful =
-    review.usefulCount != null
-      ? `<button type="button" class="pw-shop-btn pw-shop-btn-outline" style="margin-top:8px;font-size:13px;padding:4px 10px">👍 ${escText(String(review.usefulCount))}</button>`
-      : ''
-  return `<article data-pw-el="${PW_EL.card}"><strong data-pw-el="${PW_EL.cardName}">${escText(review.name)}</strong><span class="pw-pdp-star"> ${stars}</span>${title ? `<p style="font-weight:600;margin:6px 0 2px">${escText(title)}</p>` : ''}<p data-pw-el="${PW_EL.body}">${escText(review.body)}</p>${photoHtml}${replyHtml}${useful}</article>`
+  return `<article data-pw-el="${PW_EL.card}"><strong data-pw-el="${PW_EL.cardName}">${escText(review.name)}</strong><span class="pw-pdp-star"> ${stars}</span>${title ? `<p style="font-weight:600;margin:6px 0 2px">${escText(title)}</p>` : ''}<p data-pw-el="${PW_EL.body}">${escText(review.body)}</p>${photoHtml}${replyHtml}</article>`
 }
 
 function fillPdpReviewQaSamples(html: string, product: LivePdpBindProduct, locale: WebLocale): string {
-  const t = getPartnerSiteShopCopy(locale)
-  let out = html
   const review = (product.reviews ?? []).find((r) => String(r.body || '').trim())
   const reviewInner = review
     ? `<p><span class="pw-pdp-rq-name">${escText(review.name)}</span>${
@@ -1116,20 +1115,28 @@ function fillPdpReviewQaSamples(html: string, product: LivePdpBindProduct, local
           ? `<span class="pw-pdp-rq-title"> ${escText(String(review.title).trim())}</span>`
           : ''
       }</p><p>${escText(review.body)}</p>`
-    : `<p class="pw-shop-muted">${escText(t.reviewsEmpty)}</p>`
-  out = out.replace(
-    /(<div\b[^>]*data-pw-rq-review-sample[^>]*>)([\s\S]*?)(<\/div>)/i,
-    `$1${reviewInner}$3`
-  )
+    : pdpReviewQaEmptySampleInner('review', locale)
   const question = (product.questions ?? []).find((q) => String(q.body || '').trim())
   const qaInner = question
     ? `<p><span class="pw-pdp-rq-name">${escText(question.asker)}</span></p><p>${escText(question.body)}</p>`
-    : `<p class="pw-shop-muted">${escText(t.qaEmpty)}</p>`
-  out = out.replace(
-    /(<div\b[^>]*data-pw-rq-qa-sample[^>]*>)([\s\S]*?)(<\/div>)/i,
-    `$1${qaInner}$3`
+    : pdpReviewQaEmptySampleInner('qa', locale)
+  const reviewsCount = Math.max(
+    0,
+    Math.round(Number(product.reviewsCount ?? (product.reviews ?? []).length) || 0)
   )
-  return out
+  const questionsCount = Math.max(
+    0,
+    Math.round(Number(product.questionsCount ?? (product.questions ?? []).length) || 0)
+  )
+  return stampPdpReviewQaCounts(
+    replacePdpReviewQaSampleInners(html, reviewInner, qaInner),
+    locale,
+    {
+      reviewsCount,
+      ratingScore: product.ratingScore,
+      questionsCount,
+    }
+  )
 }
 
 function stampOutfitOpenTag(open: string, product: LivePdpBindProduct): string {

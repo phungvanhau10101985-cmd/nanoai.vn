@@ -17,6 +17,7 @@ import {
   PUBLIC_REVIEW_QA_PAGE_SIZE_MAX,
   clampRating,
   coalesceImportGroup,
+  partnerReviewVoterKeysFromVisitor,
   reviewShowsVerifiedBadge,
   reviewTitleTemplate,
   sanitizeReviewImageUrls,
@@ -49,6 +50,11 @@ export async function GET(
   const importGroup = coalesceImportGroup(inv.ratingGroupId)
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
+  const viewerAccountKeys = partnerReviewVoterKeysFromVisitor({
+    accountKey: visitor.accountKey,
+    guestAccountId: visitor.thread.guestAccountId,
+    linkedUserId: visitor.thread.linkedUserId,
+  })
   const [summary, page1, delivered] = await Promise.all([
     fetchPartnerProductRatingSummaryFromPg(shop.partnerId, inventoryId, importGroup),
     fetchPartnerProductReviewsPageFromPg({
@@ -57,7 +63,7 @@ export async function GET(
       importGroup,
       page,
       pageSize,
-      viewerAccountKey: visitor.accountKey,
+      viewerAccountKeys,
       ratingFilter,
     }),
     visitor.thread.guestAccountId || visitor.thread.linkedUserId

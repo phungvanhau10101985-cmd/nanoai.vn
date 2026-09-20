@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { resolveSiteVisitorContext } from '@/lib/partner-website/shop/partner-site-personalization'
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
+import { partnerReviewVoterKeysFromVisitor } from '@/lib/partner-website/reviews/partner-review-types'
 import { togglePartnerProductReviewVoteFromPg } from '@/lib/db/messaging-partner-reviews-pg'
 
 export const dynamic = 'force-dynamic'
@@ -27,6 +28,11 @@ export async function POST(
   const result = await togglePartnerProductReviewVoteFromPg({
     reviewId,
     voterKey: visitor.accountKey,
+    voterKeys: partnerReviewVoterKeysFromVisitor({
+      accountKey: visitor.accountKey,
+      guestAccountId: visitor.thread.guestAccountId,
+      linkedUserId: visitor.thread.linkedUserId,
+    }),
   })
   if (!result.ok) {
     return jsonSitePersonalization(

@@ -882,6 +882,87 @@ export function formatOrderDeliveredReviewEmailContentForCustomer(input: {
   }
 }
 
+export function formatOrderReviewReminderEmailContentForCustomer(input: {
+  locale: WebLocale
+  shopLabel: string
+  customerName: string
+  paymentRef: string
+  productName: string
+}): { subject: string; lines: string[] } {
+  const loc = locOf(input.locale)
+  const name = depositGuestName(loc, input.customerName)
+  const ref = input.paymentRef.trim()
+  const shop = input.shopLabel
+  if (loc === 'vi') {
+    return {
+      subject: `${shop} — Nhắc đánh giá đơn ${ref}`,
+      lines: [
+        `Xin chào ${name},`,
+        '',
+        `Bạn đã nhận đơn ${ref} gồm ${input.productName}.`,
+        'Nếu chưa đánh giá, bạn có thể chia sẻ trải nghiệm thực tế để giúp khách khác chọn hàng và giúp shop phục vụ tốt hơn.',
+        '',
+        'Trân trọng,',
+        shop,
+      ],
+    }
+  }
+  if (loc === 'zh') {
+    return {
+      subject: `${shop} — 提醒评价订单 ${ref}`,
+      lines: [
+        `${name}，您好`,
+        '',
+        `您已收到订单 ${ref}（${input.productName}）。`,
+        '如果尚未评价，欢迎分享真实体验，帮助其他顾客和店铺。',
+        '',
+        '此致',
+        shop,
+      ],
+    }
+  }
+  if (loc === 'ja') {
+    return {
+      subject: `${shop} — ご注文 ${ref} のレビューのお願い`,
+      lines: [
+        `${name} 様`,
+        '',
+        `ご注文 ${ref}（${input.productName}）はお届け済みです。`,
+        'まだレビューがお済みでなければ、実際のご感想をお聞かせください。',
+        '',
+        'よろしくお願いいたします。',
+        shop,
+      ],
+    }
+  }
+  if (loc === 'ko') {
+    return {
+      subject: `${shop} — 주문 ${ref} 리뷰 알림`,
+      lines: [
+        `${name}님, 안녕하세요.`,
+        '',
+        `주문 ${ref} (${input.productName})을 받으셨습니다.`,
+        '아직 리뷰를 남기지 않으셨다면 실제 사용 경험을 공유해 주세요.',
+        '',
+        '감사합니다.',
+        shop,
+      ],
+    }
+  }
+  return {
+    subject: `${shop} — Reminder to review order ${ref}`,
+    lines: [
+      `Hello ${name},`,
+      '',
+      `You received order ${ref} (${input.productName}).`,
+      'If you have not reviewed it yet, please share your experience to help other shoppers and the shop.',
+      '',
+      'Best regards,',
+      shop,
+    ],
+  }
+}
+
 /** Chat + email khi shop xác nhận cọc: số đã cọc và còn thu khi nhận hàng. */
 export function formatDepositConfirmedChatBodyForCustomer(input: DepositConfirmedNotifyAmounts): string {
   const loc = SHIP[input.locale] ? input.locale : DEFAULT_WEB_LOCALE

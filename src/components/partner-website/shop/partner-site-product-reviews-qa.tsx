@@ -12,6 +12,7 @@ import {
   PW_PDP_REVIEW_QA_CSS,
   PW_PDP_REVIEW_QA_ICON,
   PW_PDP_REVIEW_STAR_ICON,
+  PW_PDP_RQ_CLOSE_ICON,
 } from '@/lib/partner-website/shop/partner-site-pdp-review-qa'
 import {
   qaPublicBuyerReplyCount,
@@ -38,6 +39,7 @@ type ReviewRow = {
   merchantReplyBy: string
   merchantReplyAt?: string | null
   isImported?: boolean
+  isCurrentUser?: boolean
   guestAccountId?: string | null
   linkedUserId?: string | null
   createdAt: string
@@ -135,22 +137,33 @@ function HelpfulBtn({
   onClick: () => void
 }) {
   const n = Math.max(0, Math.round(Number(count) || 0))
-  const title = n > 0 ? countLabel.replace('{n}', String(n)) : label
   return (
-    <button
-      type="button"
-      className={`pw-pdp-helpful-btn${voted ? ' is-on' : ''}`}
-      aria-pressed={Boolean(voted)}
-      aria-label={title}
-      title={title}
-      data-pw-busy={busy ? '1' : undefined}
-      onClick={onClick}
-    >
-      <span dangerouslySetInnerHTML={{ __html: PW_PDP_HELPFUL_THUMB_ICON }} />
-      <span className="pw-pdp-helpful-n" data-pw-helpful-n={n}>
-        {n}
-      </span>
-      <span className="pw-pdp-helpful-label">{label}</span>
+    <>
+      {n > 0 ? (
+        <span className="pw-pdp-helpful-n" data-pw-helpful-n={n}>
+          {countLabel.replace('{n}', String(n))}
+        </span>
+      ) : null}
+      <button
+        type="button"
+        className={`pw-pdp-helpful-btn${voted ? ' is-on' : ''}`}
+        aria-pressed={Boolean(voted)}
+        aria-label={label}
+        title={label}
+        data-pw-busy={busy ? '1' : undefined}
+        onClick={onClick}
+      >
+        <span dangerouslySetInnerHTML={{ __html: PW_PDP_HELPFUL_THUMB_ICON }} />
+        <span className="pw-pdp-helpful-label">{label}</span>
+      </button>
+    </>
+  )
+}
+
+function CloseX({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button type="button" className="pw-pdp-rq-close" aria-label={label} onClick={onClick}>
+      <span dangerouslySetInnerHTML={{ __html: PW_PDP_RQ_CLOSE_ICON }} />
     </button>
   )
 }
@@ -180,7 +193,7 @@ export function PartnerSiteProductReviewsQa({
   catalogQuestionsCount,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
-  const { isAuthenticated } = usePartnerSiteGuestSession(siteSlug)
+  const { isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const onCustomDomain = usePartnerSiteCustomDomain()
   const api = `/api/site/${encodeURIComponent(siteSlug)}/products/${encodeURIComponent(inventoryId)}`
 
@@ -194,7 +207,8 @@ export function PartnerSiteProductReviewsQa({
   const [hasReviewed, setHasReviewed] = useState(false)
   const [canReview, setCanReview] = useState(false)
   const [notice, setNotice] = useState('')
-  const [modal, setModal] = useState<'reviews' | 'qa' | 'write' | null>(null)
+  const [modal, setModal] = useState<'reviews' | 'qa' | null>(null)
+  const [writeOpen, setWriteOpen] = useState(false)
   const [rating, setRating] = useState(5)
   const [reviewBody, setReviewBody] = useState('')
   const [qaBody, setQaBody] = useState('')
@@ -214,10 +228,23 @@ export function PartnerSiteProductReviewsQa({
     )
   }, [siteSlug, onCustomDomain])
 
+  const shopFetch = useCallback(
+    async (url: string, init?: RequestInit) => {
+      const res = await fetch(url, {
+        credentials: 'same-origin',
+        ...init,
+        headers: { ...authHeaders(), ...(init?.headers as Record<string, string> | undefined) },
+      })
+      captureFromResponse(res)
+      return res
+    },
+    [authHeaders, captureFromResponse]
+  )
+
   const loadSummary = useCallback(async () => {
     const [r, q] = await Promise.all([
-      fetch(`${api}/reviews?page=1&pageSize=${SUMMARY_PAGE_SIZE}`, { credentials: 'same-origin' }).then((x) => x.json()),
-      fetch(`${api}/questions?page=1&pageSize=${SUMMARY_PAGE_SIZE}`, { credentials: 'same-origin' }).then((x) => x.json()),
+      shopFetch(`${api}/reviews?page=1&pageSize=${SUMMARY_PAGE_SIZE}`).then((x) => x.json()),
+      shopFetch(`${api}/questions?page=1&pageSize=${SUMMARY_PAGE_SIZE}`).then((x) => x.json()),
     ])
     setReviews(r.reviews ?? [])
     setReviewsTotal(Number(r.total ?? 0))
@@ -227,7 +254,7 @@ export function PartnerSiteProductReviewsQa({
     setQuestions(q.questions ?? [])
     setQuestionsTotal(Number(q.total ?? 0))
     setQuestionsPage(1)
-  }, [api])
+  }, [api, shopFetch])
 
   useEffect(() => {
     void loadSummary()
@@ -242,9 +269,7 @@ export function PartnerSiteProductReviewsQa({
   const loadReviewsPage = useCallback(async (page: number, append: boolean) => {
     setListBusy(true)
     try {
-      const r = await fetch(`${api}/reviews?page=${page}&pageSize=${MODAL_PAGE_SIZE}`, {
-        credentials: 'same-origin',
-      }).then((x) => x.json())
+      const r = await shopFetch(`${api}/reviews?page=${page}&pageSize=${MODAL_PAGE_SIZE}`).then((x) => x.json())
       const rows = (r.reviews ?? []) as ReviewRow[]
       setReviews((prev) => (append ? [...prev, ...rows] : rows))
       setReviewsTotal(Number(r.total ?? 0))
@@ -254,18 +279,17 @@ export function PartnerSiteProductReviewsQa({
     } finally {
       setListBusy(false)
     }
-  }, [api])
+  }, [api, shopFetch])
 
   const loadQuestionsPage = useCallback(async (page: number, append: boolean) => {
     setListBusy(true)
     try {
       const highlight =
         typeof window !== 'undefined' ? window.location.hash.match(/^#question-(.+)$/)?.[1] : ''
-      const q = await fetch(
+      const q = await shopFetch(
         `${api}/questions?page=${page}&pageSize=${MODAL_PAGE_SIZE}${
           highlight ? `&highlight=${encodeURIComponent(highlight)}` : ''
-        }`,
-        { credentials: 'same-origin' }
+        }`
       ).then((x) => x.json())
       const rows = (q.questions ?? []) as QuestionRow[]
       setQuestions((prev) => (append ? [...prev, ...rows] : rows))
@@ -274,10 +298,11 @@ export function PartnerSiteProductReviewsQa({
     } finally {
       setListBusy(false)
     }
-  }, [api])
+  }, [api, shopFetch])
 
   const closeModal = useCallback(() => {
     setModal(null)
+    setWriteOpen(false)
     if (typeof window === 'undefined') return
     const hash = window.location.hash
     if (/^#(reviews|qa|review-|question-)/.test(hash)) {
@@ -286,8 +311,12 @@ export function PartnerSiteProductReviewsQa({
     }
   }, [])
 
+  const closeWrite = useCallback(() => {
+    setWriteOpen(false)
+  }, [])
+
   useEffect(() => {
-    if (modal === 'reviews' || modal === 'write') void loadReviewsPage(1, false)
+    if (modal === 'reviews') void loadReviewsPage(1, false)
     if (modal === 'qa') void loadQuestionsPage(1, false)
   }, [modal, loadQuestionsPage, loadReviewsPage])
 
@@ -303,13 +332,18 @@ export function PartnerSiteProductReviewsQa({
   }, [])
 
   useEffect(() => {
-    if (!modal) return
+    if (!modal && !writeOpen) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeModal()
+      if (e.key !== 'Escape') return
+      if (writeOpen) {
+        closeWrite()
+        return
+      }
+      closeModal()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [modal, closeModal])
+  }, [modal, writeOpen, closeModal, closeWrite])
 
   useEffect(() => {
     if (modal !== 'qa') return
@@ -326,6 +360,8 @@ export function PartnerSiteProductReviewsQa({
   const displayQaTotal = catalogQuestionsCount && catalogQuestionsCount > 0 ? catalogQuestionsCount : questionsTotal
   const sampleReview = reviews[0] ?? null
   const sampleQa = questions[0] ?? null
+  const mineReviews = reviews.filter((r) => r.isCurrentUser)
+  const otherReviews = reviews.filter((r) => !r.isCurrentUser)
   const starLabels = [t.reviewsStarLabel1, t.reviewsStarLabel2, t.reviewsStarLabel3, t.reviewsStarLabel4, t.reviewsStarLabel5]
 
   async function voteReview(id: string) {
@@ -345,7 +381,7 @@ export function PartnerSiteProductReviewsQa({
       )
     }
     try {
-      const res = await fetch(`${api}/reviews/${encodeURIComponent(id)}/vote`, { method: 'POST', credentials: 'same-origin' })
+      const res = await shopFetch(`${api}/reviews/${encodeURIComponent(id)}/vote`, { method: 'POST' })
       const j = await res.json().catch(() => null)
       if (res.status === 401 || j?.error === 'login_required') {
         if (prev) setReviews((rows) => rows.map((r) => (r.id === id ? prev : r)))
@@ -387,7 +423,7 @@ export function PartnerSiteProductReviewsQa({
       )
     }
     try {
-      const res = await fetch(`${api}/questions/${encodeURIComponent(id)}/vote`, { method: 'POST', credentials: 'same-origin' })
+      const res = await shopFetch(`${api}/questions/${encodeURIComponent(id)}/vote`, { method: 'POST' })
       const j = await res.json().catch(() => null)
       if (res.status === 401 || j?.error === 'login_required') {
         if (prev) setQuestions((rows) => rows.map((q) => (q.id === id ? prev : q)))
@@ -415,9 +451,8 @@ export function PartnerSiteProductReviewsQa({
   async function submitReview() {
     const content = reviewBody.trim()
     if (!content) return
-    const res = await fetch(`${api}/reviews`, {
+    const res = await shopFetch(`${api}/reviews`, {
       method: 'POST',
-      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rating, content, locale }),
     })
@@ -432,7 +467,7 @@ export function PartnerSiteProductReviewsQa({
       return
     }
     if (j?.error === 'not_eligible') {
-      setModal('write')
+      setWriteOpen(true)
       setMsg('')
       return
     }
@@ -440,6 +475,7 @@ export function PartnerSiteProductReviewsQa({
       setNotice(t.reviewsSubmitSuccess)
       setReviewBody('')
       setHasReviewed(true)
+      setWriteOpen(false)
       setModal('reviews')
       await loadReviewsPage(1, false)
     }
@@ -448,9 +484,8 @@ export function PartnerSiteProductReviewsQa({
   async function submitQuestion() {
     const content = qaBody.trim()
     if (!content) return
-    const res = await fetch(`${api}/questions`, {
+    const res = await shopFetch(`${api}/questions`, {
       method: 'POST',
-      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content }),
     })
@@ -468,9 +503,8 @@ export function PartnerSiteProductReviewsQa({
   async function submitAnswer(qid: string) {
     const content = (answerDrafts[qid] ?? '').trim()
     if (!content) return
-    const res = await fetch(`${api}/questions/${encodeURIComponent(qid)}/answers`, {
+    const res = await shopFetch(`${api}/questions/${encodeURIComponent(qid)}/answers`, {
       method: 'POST',
-      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content }),
     })
@@ -499,7 +533,7 @@ export function PartnerSiteProductReviewsQa({
       setModal('reviews')
       return
     }
-    setModal('write')
+    setWriteOpen(true)
   }
 
   function openQaToReply(qid: string) {
@@ -542,8 +576,15 @@ export function PartnerSiteProductReviewsQa({
       linkedUserId: r.linkedUserId ?? null,
       content: r.content,
     })
+    const mine = !opts?.sample && Boolean(r.isCurrentUser)
     return (
-      <article key={r.id} id={`review-${r.id}`} className="pw-pdp-rq-item" data-pw-el={PW_EL.card}>
+      <article
+        key={r.id}
+        id={`review-${r.id}`}
+        className={`pw-pdp-rq-item${mine ? ' is-mine' : ''}`}
+        data-pw-el={PW_EL.card}
+      >
+        {mine ? <span className="pw-pdp-rq-mine-badge">{t.reviewsMineBadge}</span> : null}
         <div className="pw-pdp-rq-item-head">
           <div>
             <div className="pw-pdp-rq-who">
@@ -585,7 +626,7 @@ export function PartnerSiteProductReviewsQa({
             voted={r.userHasVoted}
             count={r.usefulCount}
             label={t.reviewsUsefulLabel}
-            countLabel={t.reviewsHelpfulCount}
+            countLabel={opts?.sample ? t.reviewsHelpfulCount : t.reviewsHelpfulCountLong}
             busy={Boolean(voteBusy[`r:${r.id}`])}
             onClick={() => void voteReview(r.id)}
           />
@@ -724,7 +765,7 @@ export function PartnerSiteProductReviewsQa({
                 <EmptyState kind="review" label={t.reviewsEmpty} />
               )}
             </div>
-            <div className="pw-pdp-rq-ctas">
+            <div className={`pw-pdp-rq-ctas${sampleReview ? '' : ' pw-pdp-rq-ctas-empty'}`}>
               <button type="button" className="pw-shop-btn" onClick={() => setModal('reviews')}>
                 {sampleReview ? t.reviewsSeeAll : t.reviewsSeeMore}
               </button>
@@ -764,7 +805,7 @@ export function PartnerSiteProductReviewsQa({
                 <EmptyState kind="qa" label={t.qaEmpty} />
               )}
             </div>
-            <div className="pw-pdp-rq-ctas">
+            <div className={`pw-pdp-rq-ctas${sampleQa ? ' pw-pdp-rq-ctas-wide' : ' pw-pdp-rq-ctas-empty'}`}>
               <button type="button" className="pw-shop-btn" onClick={() => setModal('qa')}>
                 {sampleQa ? t.qaSeeMore : t.qaSeeList}
               </button>
@@ -773,124 +814,162 @@ export function PartnerSiteProductReviewsQa({
         </section>
       </div>
 
-      {modal === 'write' ? (
-        <div className="pw-pdp-rq-modal" role="dialog" aria-modal="true" onClick={closeModal}>
-          <div className="pw-pdp-rq-dialog" onClick={(e) => e.stopPropagation()}>
+      {writeOpen ? (
+        <div className="pw-pdp-rq-modal" data-pw-rq-modal="write" role="dialog" aria-modal="true" onClick={closeWrite}>
+          <div className="pw-pdp-rq-dialog pw-pdp-rq-dialog-write" onClick={(e) => e.stopPropagation()}>
             <div className="pw-pdp-rq-dialog-head">
               <strong>{t.reviewsTitle}</strong>
-              <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={closeModal}>
-                ×
-              </button>
+              <CloseX onClick={closeWrite} label={t.reviewsCloseAria} />
             </div>
-            {!canReview ? (
-              <div className="pw-pdp-rq-need-buy">
-                <p>{t.reviewsPurchaseRequired}</p>
-                <button type="button" className="pw-shop-btn" onClick={closeModal}>
-                  {t.reviewsPurchaseRequiredClose}
-                </button>
-              </div>
-            ) : (
-              <div data-pw-pdp-slot="review-form" style={{ display: 'grid', gap: 8 }}>
-                <p style={{ margin: 0 }}>{t.reviewsFormRatingLabel}</p>
-                <div>
-                  {STARS.map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => setRating(n)}
-                      style={{ fontSize: 22, background: 'none', border: 'none', color: n <= rating ? '#f59e0b' : '#d1d5db' }}
-                    >
-                      ★
-                    </button>
-                  ))}
-                  <span className="pw-shop-muted" style={{ marginLeft: 8 }}>{starLabels[rating - 1]}</span>
+            <div className="pw-pdp-rq-dialog-body" data-pw-pdp-slot="review-form">
+              {!canReview ? (
+                <div className="pw-pdp-rq-need-buy">
+                  <p>{t.reviewsPurchaseRequired}</p>
+                  <button type="button" className="pw-shop-btn" onClick={closeWrite}>
+                    {t.reviewsPurchaseRequiredClose}
+                  </button>
                 </div>
-                <textarea
-                  rows={3}
-                  placeholder={t.reviewsFormContentPlaceholder}
-                  value={reviewBody}
-                  onChange={(e) => setReviewBody(e.target.value)}
-                />
-                {msg ? <p>{msg}</p> : null}
-                <button type="button" className="pw-shop-btn" onClick={() => void submitReview()}>
-                  {t.reviewsFormSubmit}
-                </button>
-              </div>
-            )}
+              ) : (
+                <div className="pw-pdp-write-form">
+                  <p className="pw-pdp-write-star-caption">
+                    {starLabels[rating - 1]} • {rating} {t.reviewsStarUnit}
+                  </p>
+                  <div className="pw-pdp-write-stars">
+                    {STARS.map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setRating(n)}
+                        style={{ color: n <= rating ? '#f59e0b' : '#d1d5db' }}
+                        aria-label={`${n}`}
+                      >
+                        ★
+                      </button>
+                    ))}
+                  </div>
+                  <div>
+                    <label>{t.reviewsFormContentLabel}</label>
+                    <textarea
+                      rows={4}
+                      placeholder={t.reviewsFormContentPlaceholder}
+                      value={reviewBody}
+                      onChange={(e) => setReviewBody(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <p className="pw-pdp-write-star-caption" style={{ fontWeight: 500 }}>
+                      {t.reviewsFormImagesLabel}
+                    </p>
+                    <div className="pw-pdp-write-media">
+                      <span>{t.reviewsFormAddVideo}</span>
+                      <span>{t.reviewsFormAddPhoto}</span>
+                    </div>
+                  </div>
+                  {msg ? <p>{msg}</p> : null}
+                  <button type="button" className="pw-shop-btn" onClick={() => void submitReview()}>
+                    {t.reviewsFormSubmit}
+                  </button>
+                  <p className="pw-pdp-write-note">{t.reviewsFormNote}</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       ) : null}
 
       {modal === 'reviews' ? (
-        <div className="pw-pdp-rq-modal" role="dialog" aria-modal="true" onClick={closeModal}>
+        <div className="pw-pdp-rq-modal" data-pw-rq-modal="reviews" role="dialog" aria-modal="true" onClick={closeModal}>
           <div className="pw-pdp-rq-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="pw-pdp-rq-dialog-head">
               <strong>{t.reviewsTitle}</strong>
-              <div>
+              <div className="pw-pdp-rq-dialog-head-actions">
                 {!hasReviewed ? (
-                  <button type="button" className="pw-shop-btn" onClick={openWrite}>
+                  <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={openWrite}>
                     {t.reviewsWriteButton}
                   </button>
                 ) : null}
-                <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={closeModal}>
-                  ×
-                </button>
+                <CloseX onClick={closeModal} label={t.reviewsCloseAria} />
               </div>
             </div>
-            {strip()}
-            <div className="pw-pdp-rq-list">{reviews.map((r) => reviewBlock(r))}</div>
-            {reviews.length < reviewsTotal ? (
-              <button
-                type="button"
-                className="pw-shop-btn pw-shop-btn-outline"
-                disabled={listBusy}
-                onClick={() => void loadReviewsPage(reviewsPage + 1, true)}
-              >
-                {t.loadMore}
-              </button>
-            ) : null}
+            <div className="pw-pdp-rq-dialog-body">
+              {strip()}
+              <div className="pw-pdp-rq-list">
+                {reviews.length ? (
+                  <>
+                    {mineReviews.length ? (
+                      <>
+                        <h3 className="pw-pdp-rq-list-heading">{t.reviewsMineHeading}</h3>
+                        {mineReviews.map((r) => reviewBlock(r))}
+                      </>
+                    ) : null}
+                    {otherReviews.length ? (
+                      <>
+                        <h3 className="pw-pdp-rq-list-heading">
+                          {mineReviews.length ? t.reviewsOthersHeading : t.reviewsCustomersHeading}
+                        </h3>
+                        {otherReviews.map((r) => reviewBlock(r))}
+                      </>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="pw-shop-muted">{t.reviewsEmpty}</p>
+                )}
+              </div>
+              {reviews.length < reviewsTotal ? (
+                <button
+                  type="button"
+                  className="pw-shop-btn pw-shop-btn-outline"
+                  disabled={listBusy}
+                  onClick={() => void loadReviewsPage(reviewsPage + 1, true)}
+                >
+                  {t.loadMore}
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}
 
       {modal === 'qa' ? (
-        <div className="pw-pdp-rq-modal" role="dialog" aria-modal="true" onClick={closeModal}>
+        <div className="pw-pdp-rq-modal" data-pw-rq-modal="qa" role="dialog" aria-modal="true" onClick={closeModal}>
           <div className="pw-pdp-rq-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="pw-pdp-rq-dialog-head">
               <strong>{t.qaModalTitle}</strong>
-              <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={closeModal}>
-                ×
-              </button>
+              <CloseX onClick={closeModal} label={t.reviewsCloseAria} />
             </div>
-            {strip()}
-            {isAuthenticated ? (
-              <div className="pw-pdp-qa-ask-form">
-                <p className="pw-pdp-qa-ask-title">{t.qaAskTitle}</p>
-                <textarea rows={3} placeholder={t.qaFormPlaceholder} value={qaBody} onChange={(e) => setQaBody(e.target.value)} />
-                <button type="button" className="pw-shop-btn" onClick={() => void submitQuestion()}>
-                  {t.qaFormSubmit}
+            <div className="pw-pdp-rq-dialog-body">
+              {strip()}
+              {isAuthenticated ? (
+                <div className="pw-pdp-qa-ask-form">
+                  <p className="pw-pdp-qa-ask-title">{t.qaAskTitle}</p>
+                  <div className="pw-pdp-qa-ask-form-row">
+                    <textarea rows={2} placeholder={t.qaFormPlaceholder} value={qaBody} onChange={(e) => setQaBody(e.target.value)} />
+                    <button type="button" className="pw-shop-btn" onClick={() => void submitQuestion()}>
+                      {t.qaFormSubmit}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="pw-pdp-qa-login-banner">
+                  <p>{t.qaLoginBanner}</p>
+                  <a href={loginHref} className="pw-shop-btn">
+                    {t.qaLoginToAsk}
+                  </a>
+                </div>
+              )}
+              {msg ? <p>{msg}</p> : null}
+              <div className="pw-pdp-rq-list">{questions.length ? questions.map((q) => questionBlock(q)) : <p className="pw-shop-muted">{t.qaEmptyHint}</p>}</div>
+              {questions.length < questionsTotal ? (
+                <button
+                  type="button"
+                  className="pw-shop-btn pw-shop-btn-outline"
+                  disabled={listBusy}
+                  onClick={() => void loadQuestionsPage(questionsPage + 1, true)}
+                >
+                  {t.loadMore}
                 </button>
-              </div>
-            ) : (
-              <div className="pw-pdp-qa-login-banner">
-                <p>{t.qaLoginBanner}</p>
-                <a href={loginHref} className="pw-shop-btn">
-                  {t.qaLoginToAsk}
-                </a>
-              </div>
-            )}
-            {msg ? <p>{msg}</p> : null}
-            <div className="pw-pdp-rq-list">{questions.length ? questions.map((q) => questionBlock(q)) : <p className="pw-shop-muted">{t.qaEmptyHint}</p>}</div>
-            {questions.length < questionsTotal ? (
-              <button
-                type="button"
-                className="pw-shop-btn pw-shop-btn-outline"
-                disabled={listBusy}
-                onClick={() => void loadQuestionsPage(questionsPage + 1, true)}
-              >
-                {t.loadMore}
-              </button>
-            ) : null}
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}

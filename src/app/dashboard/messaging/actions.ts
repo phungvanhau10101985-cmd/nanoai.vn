@@ -261,6 +261,8 @@ import {
   emailCustomerOrderRefunded,
   emailCustomerShippingStatusChanged,
 } from '@/lib/messaging/partner-order-customer-email'
+import { notifyPartnerCustomerDeliveredWebApp } from '@/lib/messaging/partner-customer-webapp-notify'
+import { sendPartnerOrderDeliveredReviewOnce } from '@/lib/messaging/partner-order-review-reminder'
 import { notifyPartnerOwnerPaymentVerified } from '@/lib/messaging/partner-admin-notifications'
 import { maybeEmailCustomerOfflineShopReply } from '@/lib/messaging/partner-reply-offline-customer-email'
 import {
@@ -1530,10 +1532,26 @@ export async function updateMyMessagingOrderShipping(input: {
       customer_ui_locale: customerLocale,
     },
   })
-  try {
-    await emailCustomerShippingStatusChanged({ order: updated, customerLocale: customerLocaleRaw })
-  } catch (e) {
-    console.warn('[updateMyMessagingOrderShipping] customer email', e)
+  if (input.shippingStatus === 'delivered') {
+    try {
+      await notifyPartnerCustomerDeliveredWebApp(updated, 'ems_auto', customerLocale)
+    } catch (e) {
+      console.warn('[updateMyMessagingOrderShipping] delivered webapp', e)
+    }
+    try {
+      await sendPartnerOrderDeliveredReviewOnce({
+        order: updated,
+        customerLocale: customerLocaleRaw,
+      })
+    } catch (e) {
+      console.warn('[updateMyMessagingOrderShipping] review email', e)
+    }
+  } else {
+    try {
+      await emailCustomerShippingStatusChanged({ order: updated, customerLocale: customerLocaleRaw })
+    } catch (e) {
+      console.warn('[updateMyMessagingOrderShipping] customer email', e)
+    }
   }
   revalidateMessagingDashboard()
   return { ok: true }

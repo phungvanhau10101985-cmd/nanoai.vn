@@ -98,6 +98,38 @@ test('bind fills demo reviews instead of clearing them', () => {
   assert.match(next, /Lan/)
 })
 
+test('bind strips leftover demo review/QA samples on a live product', () => {
+  const leftover = bindLiveProductToPdpHtml(buildDefaultDemoPdpShellHtml({ locale: 'vi' }), DEMO_PDP_BIND_PRODUCT)
+  assert.match(leftover, /Form đẹp/)
+  const next = bindLiveProductToPdpHtml(leftover, PRODUCT_B)
+  assert.match(next, /Cotton shirt/)
+  assert.doesNotMatch(next, /Form đẹp/)
+  assert.doesNotMatch(next, /Màu kem dịu/)
+  assert.doesNotMatch(next, /Đầm có lót/)
+  const nestedShell = `<!DOCTYPE html><html><body data-pw-page="product">
+<div data-pw-region="pdp-info"><h1 class="pw-pdp-title" data-pw-el="title">Old</h1></div>
+<div class="pw-pdp-rq-grid" data-pw-rq-grid="1" data-pw-pdp-slot="reviews-qa" data-pw-region="reviews">
+  <section id="pw-pdp-reviews">
+    <div class="pw-pdp-rq-sample" data-pw-rq-review-sample>
+      <div class="pw-pdp-rq-sample-box"><article><p>Lan</p><p>Form đẹp leftover</p>
+      <div><img src="https://cdn.example/dress.jpg" alt="" /></div></article></div>
+    </div>
+  </section>
+  <section id="pw-pdp-qa" data-pw-pdp-slot="qa">
+    <div class="pw-pdp-rq-sample" data-pw-rq-qa-sample>
+      <div class="pw-pdp-rq-sample-box"><article><p>Minh Anh</p><p>Màu kem dịu leftover</p></article></div>
+    </div>
+  </section>
+</div>
+</body></html>`
+  const fromNested = bindLiveProductToPdpHtml(nestedShell, PRODUCT_B)
+  assert.doesNotMatch(fromNested, /Form đẹp leftover/)
+  assert.doesNotMatch(fromNested, /Màu kem dịu leftover/)
+  assert.doesNotMatch(fromNested, /cdn\.example\/dress/)
+  assert.match(fromNested, /data-pw-rq-review-sample/)
+  assert.match(fromNested, /Chưa có đánh giá/)
+})
+
 test('bind does not treat a product photo as a video slot', () => {
   const next = bindLiveProductToPdpHtml(SHELL, {
     ...DEMO_PDP_BIND_PRODUCT,

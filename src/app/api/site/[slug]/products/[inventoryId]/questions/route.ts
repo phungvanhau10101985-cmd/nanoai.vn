@@ -15,6 +15,7 @@ import {
   PUBLIC_REVIEW_QA_PAGE_SIZE,
   PUBLIC_REVIEW_QA_PAGE_SIZE_MAX,
   coalesceImportGroup,
+  partnerReviewVoterKeysFromVisitor,
   qaBuyerAnswerShowsVerifiedBadge,
   qaSlotShowsVerifiedPurchaserBadge,
   splitQaReplySlots,
@@ -50,7 +51,11 @@ export async function GET(
     importGroup,
     page,
     pageSize,
-    viewerAccountKey: visitor.accountKey,
+    viewerAccountKeys: partnerReviewVoterKeysFromVisitor({
+      accountKey: visitor.accountKey,
+      guestAccountId: visitor.thread.guestAccountId,
+      linkedUserId: visitor.thread.linkedUserId,
+    }),
     highlightQuestionId: highlight,
   })
   if (result === null) return NextResponse.json({ error: 'Could not load questions' }, { status: 500 })

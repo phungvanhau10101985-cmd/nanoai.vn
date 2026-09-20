@@ -10,6 +10,7 @@ import {
   formatDepositReminderEmailContentForCustomer,
   formatOrderCancelledEmailContentForCustomer,
   formatOrderDeliveredReviewEmailContentForCustomer,
+  formatOrderReviewReminderEmailContentForCustomer,
   formatOrderRefundedEmailContentForCustomer,
   formatPaymentManualReviewEmailContentForCustomer,
   formatPaymentStatusEmailContentForCustomer,
@@ -138,6 +139,9 @@ type CustomerMailCtaOpts = {
   includeDepositQr?: boolean
   /** Shop Ä‘Ã£ xÃ¡c nháº­n cá»c â€” CTA xem Ä‘Æ¡n, khÃ´ng kÃªu Ä‘áº·t cá»c láº¡i. */
   depositAlreadyConfirmed?: boolean
+  ctaHeading?: string
+  ctaButton?: string
+  ctaTextHint?: string
 }
 
 async function resolveCustomerMailOpenUrl(
@@ -182,13 +186,12 @@ async function customerMailBodyWithOrderCta(
       })
   const includeQr = Boolean(opts?.includeDepositQr && needsDeposit)
   const openUrl = await resolveCustomerMailOpenUrl(order, m, needsDeposit)
-  const ctaHeading = needsDeposit
-    ? 'Bấm vào đây để mở đơn và đặt cọc nhanh:'
-    : 'Bấm vào đây để xem chi tiết đơn hàng:'
-  const ctaButton = needsDeposit ? 'Mở đơn đặt cọc' : 'Xem chi tiết đơn hàng'
-  const ctaTextHint = needsDeposit
-    ? 'Mở đơn nhanh để đặt cọc:'
-    : 'Xem chi tiết đơn hàng:'
+  const ctaHeading =
+    opts?.ctaHeading ??
+    (needsDeposit ? 'Bấm vào đây để mở đơn và đặt cọc nhanh:' : 'Bấm vào đây để xem chi tiết đơn hàng:')
+  const ctaButton = opts?.ctaButton ?? (needsDeposit ? 'Mở đơn đặt cọc' : 'Xem chi tiết đơn hàng')
+  const ctaTextHint =
+    opts?.ctaTextHint ?? (needsDeposit ? 'Mở đơn nhanh để đặt cọc:' : 'Xem chi tiết đơn hàng:')
 
   let qrText = ''
   let qrHtml = ''
@@ -537,11 +540,38 @@ export async function emailCustomerOrderRefunded(input: {
   await notifyPartnerCustomerRefundedWebApp(input.order, toVnd(input.refundAmount), locale)
 }
 
+function reviewMailCta(locale: WebLocale): Pick<
+  CustomerMailCtaOpts,
+  'ctaHeading' | 'ctaButton' | 'ctaTextHint'
+> {
+  if (locale === 'zh') {
+    return { ctaHeading: '打开订单并评价商品：', ctaButton: '评价商品', ctaTextHint: '打开订单评价：' }
+  }
+  if (locale === 'ja') {
+    return {
+      ctaHeading: '注文を開いて商品をレビュー：',
+      ctaButton: '商品をレビュー',
+      ctaTextHint: 'レビューする注文を開く：',
+    }
+  }
+  if (locale === 'ko') {
+    return { ctaHeading: '주문을 열어 상품을 리뷰하세요:', ctaButton: '상품 리뷰', ctaTextHint: '리뷰할 주문 열기:' }
+  }
+  if (locale === 'en') {
+    return { ctaHeading: 'Open your order to review the product:', ctaButton: 'Review product', ctaTextHint: 'Open order to review:' }
+  }
+  return {
+    ctaHeading: 'Mở đơn hàng để đánh giá sản phẩm:',
+    ctaButton: 'Đánh giá sản phẩm',
+    ctaTextHint: 'Mở đơn để đánh giá:',
+  }
+}
+
 export async function emailCustomerOrderDeliveredReview(input: {
   order: PartnerOrderRow
   customerLocale?: string | null
   skipInApp?: boolean
-}): Promise<void> {
+}): Promise<boolean> {
   const meta = await fetchPartnerEmailMeta(input.order.partner_id)
   const shopLabel = meta.displayName
   const locale = await resolveOrderCustomerLocale(input.order, input.customerLocale)
@@ -553,13 +583,47 @@ export async function emailCustomerOrderDeliveredReview(input: {
     productName: trim(input.order.product_name, 200),
   })
   const to = customerEmailTo(input.order)
+  let sent = false
   if (to) {
-    const { text, html } = await customerMailBodyWithOrderCta(input.order, copy.lines, meta)
-    await sendSmtpMail({ to, subject: copy.subject, text, html, fromName: shopLabel })
+    const { text, html } = await customerMailBodyWithOrderCta(
+      input.order,
+      copy.lines,
+      meta,
+      reviewMailCta(locale)
+    )
+    const result = await sendSmtpMail({ to, subject: copy.subject, text, html, fromName: shopLabel })
+    sent = result.ok
   }
   if (!input.skipInApp) {
     await notifyPartnerCustomerDeliveredWebApp(input.order, 'ems_auto', locale)
   }
+  return sent
+}
+
+export async function emailCustomerOrderReviewReminder(input: {
+  order: PartnerOrderRow
+  customerLocale?: string | null
+}): Promise<boolean> {
+  const meta = await fetchPartnerEmailMeta(input.order.partner_id)
+  const shopLabel = meta.displayName
+  const locale = await resolveOrderCustomerLocale(input.order, input.customerLocale)
+  const copy = formatOrderReviewReminderEmailContentForCustomer({
+    locale,
+    shopLabel,
+    customerName: trim(input.order.customer_name, 80),
+    paymentRef: trim(input.order.payment_reference, 64),
+    productName: trim(input.order.product_name, 200),
+  })
+  const to = customerEmailTo(input.order)
+  if (!to) return false
+  const { text, html } = await customerMailBodyWithOrderCta(
+    input.order,
+    copy.lines,
+    meta,
+    reviewMailCta(locale)
+  )
+  const result = await sendSmtpMail({ to, subject: copy.subject, text, html, fromName: shopLabel })
+  return result.ok
 }
 
 /** Nhắc cọc 2h / 20h — link mở đơn nhanh + QR. Không gửi cho chủ shop. */

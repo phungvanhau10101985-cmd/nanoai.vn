@@ -124,6 +124,8 @@ test('ensurePdpReviewQaCardsInBuyBox injects grid + modals', () => {
   assert.match(out, /id="pw-pdp-qa-modal"/)
   assert.match(out, /pw-pdp-review-qa-css/)
   assert.match(out, /pw-pdp-helpful-btn/)
+  assert.match(out, /id="pw-pdp-write-modal"/)
+  assert.match(out, /data-pw-rq-modal="write"/)
   assert.match(out, /Người trả lời|Hỏi đáp về sản phẩm/)
 })
 
@@ -134,6 +136,40 @@ test('ensurePdpReviewQaCardsInBuyBox refreshes existing review CSS', () => {
   assert.match(out, /pw-pdp-helpful-btn/)
   assert.match(out, /pw-pdp-verified-label/)
   assert.doesNotMatch(out, /\.pw-pdp-helpful\{color:red\}/)
+})
+
+test('ensurePdpReviewQaCardsInBuyBox strips nested leftover demo samples', () => {
+  const html = `<!DOCTYPE html><html><body data-pw-page="product">
+<div class="pw-pdp-rq-grid" data-pw-rq-grid="1" data-pw-pdp-slot="reviews-qa" data-pw-region="reviews">
+  <section id="pw-pdp-reviews" class="pw-pdp-rq-card">
+    <p data-pw-rq-review-count>12 đánh giá</p>
+    <span data-pw-rq-review-score>4.8/5 ★</span>
+    <div class="pw-pdp-rq-sample" data-pw-rq-review-sample>
+      <div class="pw-pdp-rq-sample-box">
+        <article><p>Lan</p><p>Form đẹp, vải mềm, đúng size M. Ảnh sát thực tế.</p>
+        <div><img src="https://cdn.example/dress.jpg" alt="Đầm voan" /></div></article>
+      </div>
+    </div>
+  </section>
+  <section id="pw-pdp-qa" data-pw-pdp-slot="qa" class="pw-pdp-rq-card">
+    <p data-pw-rq-qa-count>8 câu hỏi và trả lời</p>
+    <div class="pw-pdp-rq-sample" data-pw-rq-qa-sample>
+      <div class="pw-pdp-rq-sample-box">
+        <article><p>Minh Anh</p><p>Màu kem dịu, giao nhanh.</p></article>
+      </div>
+    </div>
+  </section>
+</div>
+</body></html>`
+  const out = ensurePdpReviewQaCardsInBuyBox(html, 'vi')
+  assert.doesNotMatch(out, /Form đẹp/)
+  assert.doesNotMatch(out, /Màu kem dịu/)
+  assert.doesNotMatch(out, /cdn\.example\/dress/)
+  assert.doesNotMatch(out, /Đầm voan/)
+  assert.match(out, /data-pw-rq-review-sample/)
+  assert.match(out, /data-pw-rq-qa-sample/)
+  assert.match(out, /Chưa có đánh giá/)
+  assert.match(out, />0 đánh giá</)
 })
 
 test('ensurePdpReviewQaCardsInBuyBox appends after buy-box actions', () => {

@@ -61,6 +61,17 @@ const JS_ONLY_CHROME_SEL = [
   '[data-pw-slide-next]',
   '[data-pw-grid-more]',
   '[data-pw-native-nav="off"]',
+  '[data-pw-review-vote]',
+  '[data-pw-qa-vote]',
+  '[data-pw-rq-open-reviews]',
+  '[data-pw-rq-open-qa]',
+  '[data-pw-rq-open-write]',
+  '[data-pw-rq-close]',
+  '[data-pw-review-submit]',
+  '[data-pw-qa-submit]',
+  '[data-pw-qa-answer-open]',
+  '[data-pw-qa-open-reply]',
+  '.pw-pdp-helpful-btn',
 ].join(',')
 
 export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string {

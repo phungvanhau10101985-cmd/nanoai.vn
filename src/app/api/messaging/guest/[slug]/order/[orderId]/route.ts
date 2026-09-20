@@ -24,6 +24,7 @@ import {
 import { notifyPartnerOwnerOrderCustomerAction } from '@/lib/messaging/partner-admin-notifications'
 import { emailCustomerOrderCancelled } from '@/lib/messaging/partner-order-customer-email'
 import { notifyPartnerCustomerDeliveredWebApp } from '@/lib/messaging/partner-customer-webapp-notify'
+import { sendPartnerOrderDeliveredReviewOnce } from '@/lib/messaging/partner-order-review-reminder'
 
 export const dynamic = 'force-dynamic'
 
@@ -193,6 +194,11 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       await notifyPartnerCustomerDeliveredWebApp(updated, 'customer_confirm')
     } catch (e) {
       console.warn('[confirm_received:customer-notify]', e)
+    }
+    try {
+      await sendPartnerOrderDeliveredReviewOnce({ order: updated })
+    } catch (e) {
+      console.warn('[confirm_received:review-email]', e)
     }
     await onPartnerOrderCustomerConfirmedReceived(updated.id)
     return NextResponse.json({ ok: true, order: updated })

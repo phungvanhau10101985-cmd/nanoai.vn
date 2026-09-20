@@ -30,6 +30,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/partner-review-reminders",
+      "schedule": "0 */6 * * *"
+    },
+    {
       "path": "/api/cron/partner-inventory-bunny-delete",
       "schedule": "*/5 * * * *"
     }
