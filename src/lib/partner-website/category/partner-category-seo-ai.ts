@@ -4,17 +4,12 @@ import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import type { WebLocale } from '@/lib/i18n/config'
 
 /**
- * W4.12 (bổ sung) — tự động sinh nội dung SEO danh mục bằng AI (Gemini), tương đương tính năng
- * "Sinh SEO bằng Gemini" của 188-com-vn (`backend/app/services/category_seo_service.py`).
+ * Sinh SEO danh mục — cùng Gemini 2.5 Flash + cùng yêu cầu nội dung với
+ * 188-com-vn `category_seo_service.py` (meta 140–155 ký tự, đoạn 150–300 từ,
+ * gợi ý kiểu/bảo quản, internal link danh mục anh em).
  *
- * Khác 188 ở 2 điểm phù hợp kiến trúc đa tenant/đa ngôn ngữ của NanoAI:
- * 1. Sinh theo `locale` của shop (vi/en/zh/ja/ko) thay vì cố định tiếng Việt — đúng quy tắc
- *    đa ngôn ngữ của dự án (không hardcode 1 ngôn ngữ).
- * 2. Không tự nhúng thương hiệu "188.com.vn" vào prompt — dùng tên shop thật (`shopDisplayName`).
- *
- * Gọi AI khi đăng sản phẩm lên web (import đủ cột / Product Studio AI / đăng thủ công) tạo
- * danh mục mới, hoặc khi merchant bấm nút admin. Không dùng mẫu dự phòng — AI lỗi thì dừng.
- * KHÔNG tự gọi AI mỗi lần trang danh mục được render.
+ * Khác 188 (đa tenant): tên shop thật, locale shop, không slogan 188, không mẫu dự phòng.
+ * Gọi khi đăng SP tạo danh mục mới hoặc nút admin. Không gọi lúc khách mở `/c/…`.
  */
 
 const LOCALE_LANGUAGE_NAME: Record<WebLocale, string> = {
@@ -31,6 +26,8 @@ export type CategorySeoAiContext = {
   breadcrumbNames: string[]
   productCount: number
   sampleProductNames: string[]
+  /** Tên danh mục anh em cùng cấp — AI nhắc 2–3 tên để gắn internal link (188). */
+  relatedCategoryNames?: string[]
   shopDisplayName: string
   locale: WebLocale
 }
@@ -47,7 +44,7 @@ async function callGeminiText(
     const genAI = new GoogleGenerativeAI(key)
     const model = genAI.getGenerativeModel({
       model: GEMINI_25_FLASH_NO_THINKING.model,
-      generationConfig: { temperature: 0.6, maxOutputTokens },
+      generationConfig: { temperature: 0.7, maxOutputTokens },
     })
     const result = await model.generateContent(prompt)
     const text = result.response.text()?.trim() ?? ''
@@ -63,12 +60,51 @@ function categoryLabel(ctx: CategorySeoAiContext): string {
   return ctx.breadcrumbNames.length > 0 ? ctx.breadcrumbNames.join(' > ') : ctx.categoryName
 }
 
+function sampleContext(ctx: CategorySeoAiContext): string {
+  if (!ctx.sampleProductNames.length) return ''
+  return `\nVí dụ sản phẩm trong danh mục: ${ctx.sampleProductNames.slice(0, 5).join(', ')}`
+}
+
+function relatedInstruction(ctx: CategorySeoAiContext): string {
+  const names = (ctx.relatedCategoryNames ?? []).map((n) => n.trim()).filter(Boolean).slice(0, 8)
+  if (names.length === 0) return ''
+  const namesStr = names.join(', ')
+  if (ctx.locale === 'vi') {
+    return `
+4. QUAN TRỌNG - Internal link: Hãy nhắc một cách TỰ NHIÊN ít nhất 2-3 trong các danh mục sau (đúng tên để hệ thống gắn link): ${namesStr}.
+   Ví dụ: "Bên cạnh ..., bạn có thể xem thêm [tên 1], [tên 2] để đa dạng tủ đồ." Dùng đúng chính tả tên danh mục như trong list.`
+  }
+  return `
+4. IMPORTANT — internal links: naturally mention at least 2-3 of these sibling category names (exact spelling): ${namesStr}.`
+}
+
 function buildDescriptionPrompt(ctx: CategorySeoAiContext): string {
+  const shop = ctx.shopDisplayName
+  const name = ctx.categoryName
+  const breadcrumb = categoryLabel(ctx)
+  if (ctx.locale === 'vi') {
+    return `Bạn là chuyên gia SEO cho website shop "${shop}".
+Nhiệm vụ: Viết meta description chuẩn SEO cho trang danh mục sản phẩm.
+
+Thông tin danh mục:
+- Tên: ${name}
+- Đường dẫn: ${breadcrumb}${sampleContext(ctx)}
+
+Yêu cầu:
+1. Độ dài: 140-155 ký tự (tối ưu cho Google)
+2. Bắt đầu bằng từ khóa chính (tên danh mục)
+3. Bao gồm: lợi ích mua hàng (đa dạng mẫu mã, chất lượng). KHÔNG ghi số lượng sản phẩm cụ thể (số thay đổi hàng ngày).
+4. Kêu gọi hành động (CTA) nhẹ nhàng
+5. Tự nhiên, không spam từ khóa
+6. Phù hợp thương hiệu "${shop}"
+
+Chỉ trả về mô tả, không giải thích, không markdown, không dấu ngoặc kép.`
+  }
   const lang = LOCALE_LANGUAGE_NAME[ctx.locale] ?? LOCALE_LANGUAGE_NAME.vi
-  return `You are an SEO expert writing for the online shop "${ctx.shopDisplayName}".
+  return `You are an SEO expert writing for the online shop "${shop}".
 Write ONE meta description for a product category page.
-Category: ${categoryLabel(ctx)}
-${ctx.sampleProductNames.length ? `Example products currently in this category: ${ctx.sampleProductNames.join(', ')}` : ''}
+Category: ${breadcrumb}
+${ctx.sampleProductNames.length ? `Example products currently in this category: ${ctx.sampleProductNames.slice(0, 5).join(', ')}` : ''}
 Requirements:
 1. Length: 140-155 characters (optimized for Google search results)
 2. Start with the main keyword (the category name)
@@ -80,20 +116,41 @@ Return ONLY the description text — no quotes, no markdown, no explanation.`
 }
 
 function buildBodyPrompt(ctx: CategorySeoAiContext): string {
+  const shop = ctx.shopDisplayName
+  const name = ctx.categoryName
+  const breadcrumb = categoryLabel(ctx)
+  const related = relatedInstruction(ctx)
+  if (ctx.locale === 'vi') {
+    return `Bạn là chuyên gia nội dung SEO cho website shop "${shop}".
+Nhiệm vụ: Viết MỘT đoạn văn (paragraph) từ 150 đến 300 từ, dùng cho cuối trang danh mục sản phẩm.
+
+Thông tin danh mục:
+- Tên: ${name}
+- Đường dẫn: ${breadcrumb}.${sampleContext(ctx)}
+
+Yêu cầu nội dung (tự nhiên, không liệt kê số):
+- KHÔNG đề cập số lượng sản phẩm cụ thể (số thay đổi hàng ngày). Có thể dùng "đa dạng", "nhiều mẫu mã" nếu cần.
+1. Tại sao nên mua ${name.toLowerCase()} tại ${shop} (chất lượng, giá, giao hàng).
+2. Các kiểu dáng/loại phổ biến phù hợp với danh mục này (ví dụ giày: Oxford, Derby, Loafer; áo: slim, regular...).
+3. Gợi ý bảo quản hoặc phối đồ ngắn gọn (1-2 câu).${related}
+
+Giọng văn: thân thiện, chuyên nghiệp, có CTA nhẹ (xem thêm, mua ngay tại ${shop}). Không spam từ khóa.
+Chỉ trả về đoạn văn liền mạch, không tiêu đề con, không markdown, không dấu ngoặc kép.`
+  }
   const lang = LOCALE_LANGUAGE_NAME[ctx.locale] ?? LOCALE_LANGUAGE_NAME.vi
-  return `You are an SEO content writer for the online shop "${ctx.shopDisplayName}".
-Write ONE paragraph (150 to 300 words) to display at the bottom of a product category page, to help
-this page rank on Google for the category's main keyword.
-Category: ${categoryLabel(ctx)}
-${ctx.sampleProductNames.length ? `Example products currently in this category: ${ctx.sampleProductNames.join(', ')}` : ''}
+  return `You are an SEO content writer for the online shop "${shop}".
+Write ONE paragraph (150 to 300 words) to display at the bottom of a product category page.
+Category: ${breadcrumb}
+${ctx.sampleProductNames.length ? `Example products: ${ctx.sampleProductNames.slice(0, 5).join(', ')}.` : ''}
 Requirements:
-1. 150-300 words total, a single flowing paragraph — no headings, no bullet points, no markdown
-2. Naturally mention the category name 2-3 times (never stuff keywords unnaturally)
-3. Describe what customers can typically find here, common use cases, and 1-2 buying tips
-4. Do NOT invent specific prices, discounts, guarantees, or made-up statistics
-5. Warm, trustworthy tone appropriate for an online shop named "${ctx.shopDisplayName}"
+- Do NOT mention a specific product count (it changes daily).
+1. Why shop ${name} at ${shop} (quality, price, delivery).
+2. Popular styles/types in this category.
+3. One or two short care or styling tips.${related}
+4. Do NOT invent specific prices, discounts, guarantees, or made-up statistics.
+5. Warm, trustworthy tone. Soft CTA to view more at ${shop}.
 6. Write entirely in ${lang}
-Return ONLY the paragraph text — no title, no markdown, no quotes.`
+Return ONLY the paragraph — no title, no markdown, no quotes.`
 }
 
 export type CategorySeoAiResult =
@@ -106,6 +163,18 @@ export function buildPartnerCategorySeoTitle(categoryName: string, shopDisplayNa
   const shop = shopDisplayName.trim()
   const raw = shop && shop.toLowerCase() !== name.toLowerCase() ? `${name} | ${shop}` : name
   return raw.slice(0, 60)
+}
+
+function normalizeDescription(text: string): string {
+  let content = text.trim().replace(/^["']+|["']+$/g, '')
+  if (content.length > 160) content = `${content.slice(0, 157)}...`
+  return content
+}
+
+function normalizeBody(text: string): string {
+  let content = text.trim().replace(/^["']+|["']+$/g, '')
+  if (content.length > 2200) content = `${content.slice(0, 2197)}...`
+  return content
 }
 
 /** Sinh cả seo_description + seo_body. Không dùng mẫu dự phòng — AI lỗi thì trả error và caller phải dừng. */
@@ -121,8 +190,10 @@ export async function generatePartnerCategorySeoContent(ctx: CategorySeoAiContex
   ])
   if (!rawDescription.ok) return rawDescription
   if (!rawBody.ok) return rawBody
-  if (rawDescription.text.length < MIN_VALID_DESCRIPTION_LEN || rawBody.text.length < MIN_VALID_BODY_LEN) {
+  const description = normalizeDescription(rawDescription.text)
+  const body = normalizeBody(rawBody.text)
+  if (description.length < MIN_VALID_DESCRIPTION_LEN || body.length < MIN_VALID_BODY_LEN) {
     return { ok: false, error: 'gemini_seo_failed' }
   }
-  return { ok: true, description: rawDescription.text, body: rawBody.text }
+  return { ok: true, description, body }
 }

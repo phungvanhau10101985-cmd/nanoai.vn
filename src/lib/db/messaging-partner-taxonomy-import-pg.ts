@@ -9,6 +9,7 @@ import {
   type TaxonomyImportSummary,
   type TaxonomyParsedSheets,
 } from '@/lib/partner-website/category/partner-category-taxonomy-import'
+import { storedSeoIndexForTaxonomyCategory } from '@/lib/partner-website/category/partner-category-public-index'
 
 type ClusterDbRow = {
   id: string
@@ -375,7 +376,7 @@ async function upsertCategories(
             draft.level,
             draft.sortOrder,
             draft.isActive,
-            draft.seoIndex,
+            storedSeoIndexForTaxonomyCategory(draft.level, draft.seoIndex),
             draft.externalId,
             clusterId,
           ]
@@ -412,7 +413,7 @@ async function upsertCategories(
             draft.level,
             draft.sortOrder,
             draft.isActive,
-            draft.seoIndex,
+            storedSeoIndexForTaxonomyCategory(draft.level, draft.seoIndex),
             draft.externalId,
             clusterId,
           ]

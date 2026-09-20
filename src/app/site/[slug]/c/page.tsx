@@ -8,11 +8,9 @@ import {
   fetchPartnerCategoriesFlatFromPg,
 } from '@/lib/db/messaging-partner-categories-pg'
 import {
-  buildPartnerCategoryTree,
+  buildPartnerStorefrontVisibleCategoryTree,
   flattenPartnerCategoryTree,
-  prunePartnerCategoriesMissingAncestors,
   resolvePartnerCategoryDisplayName,
-  rollupPartnerCategoryProductCounts,
 } from '@/lib/partner-website/category/partner-category-types'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
@@ -69,10 +67,16 @@ export default async function PartnerSiteCategoryHubPage({ params, searchParams 
     fetchPartnerCategoriesFlatFromPg(shop.partnerId, { activeOnly: true }),
     fetchDirectProductCountsByCategoryFromPg(shop.partnerId),
   ])
-  const tree = buildPartnerCategoryTree(prunePartnerCategoriesMissingAncestors(flat ?? []))
-  const rolled = rollupPartnerCategoryProductCounts(tree, counts ?? new Map())
+  const { tree, subtreeCounts: rolled, pruneEmpty } = buildPartnerStorefrontVisibleCategoryTree(
+    flat ?? [],
+    counts
+  )
   const rawTiles = flattenPartnerCategoryTree(tree)
-    .filter((cat) => !isPartnerCategoryNavJunkNode(cat))
+    .filter((cat) => {
+      if (isPartnerCategoryNavJunkNode(cat)) return false
+      if (!pruneEmpty) return true
+      return (rolled.get(cat.id) ?? 0) > 0
+    })
     .slice(0, 120)
   const accountKey = await peekSiteVisitorAccountKey()
   const images = await resolveCategoryHubTileImages({

@@ -12,6 +12,7 @@ import {
   prunePartnerCategoriesMissingAncestors,
   rollupPartnerCategoryProductCounts,
   buildPartnerCategoryTree,
+  buildPartnerStorefrontVisibleCategoryTree,
   type PartnerCategoryRow,
 } from '@/lib/partner-website/category/partner-category-types'
 import { buildPartnerSiteCategoryMegaMenuHtml } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
@@ -92,6 +93,30 @@ test('rollup counts include descendants', () => {
   const rolled = rollupPartnerCategoryProductCounts(tree, new Map([['2', 5]]))
   assert.equal(rolled.get('1'), 5)
   assert.equal(rolled.get('2'), 5)
+})
+
+test('storefront hides empty categories until they have products', () => {
+  const rows = [
+    row({ id: '1', name: 'Ao', slug: 'ao', path: 'ao' }),
+    row({ id: '2', name: 'Thun', slug: 'thun', path: 'ao/thun', parentId: '1', depth: 2 }),
+    row({ id: '3', name: 'Tui', slug: 'tui', path: 'tui' }),
+  ]
+  const visible = buildPartnerStorefrontVisibleCategoryTree(rows, new Map([['2', 4]]))
+  assert.equal(visible.pruneEmpty, true)
+  assert.deepEqual(
+    visible.tree.map((n) => n.id),
+    ['1']
+  )
+  assert.deepEqual(
+    visible.tree[0]?.children.map((n) => n.id),
+    ['2']
+  )
+  assert.equal(visible.subtreeCounts.get('1'), 4)
+  assert.ok(!visible.tree.some((n) => n.id === '3'))
+
+  const failOpen = buildPartnerStorefrontVisibleCategoryTree(rows, null)
+  assert.equal(failOpen.pruneEmpty, false)
+  assert.equal(failOpen.tree.length, 2)
 })
 
 test('mega menu html is 2-column L1 | L2/L3', () => {

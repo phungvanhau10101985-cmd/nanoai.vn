@@ -1,11 +1,21 @@
 import { NextRequest } from 'next/server'
-import { fetchPartnerCategoriesFlatFromPg } from '@/lib/db/messaging-partner-categories-pg'
+import {
+  fetchDirectProductCountsByCategoryFromPg,
+  fetchPartnerCategoriesFlatFromPg,
+} from '@/lib/db/messaging-partner-categories-pg'
 import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
 import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
 import { getPublicOriginFromAppRouterHeaders } from '@/lib/auth/public-app-url'
 import { partnerSiteHref } from '@/lib/messaging/partner-custom-domain-site-path'
 import { rewritePartnerCustomDomainOriginForSeo } from '@/lib/messaging/partner-custom-domain-hostname'
-import { prunePartnerCategoriesMissingAncestors } from '@/lib/partner-website/category/partner-category-types'
+import {
+  isPartnerCategoryPublicIndexable,
+  partnerCategoryHasGeneratedSeo,
+} from '@/lib/partner-website/category/partner-category-public-index'
+import {
+  buildPartnerStorefrontVisibleCategoryTree,
+  flattenPartnerCategoryTree,
+} from '@/lib/partner-website/category/partner-category-types'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { isPartnerCategoryNavJunkNode } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
 import { PARTNER_SIZE_GUIDE_KINDS } from '@/lib/partner-website/shop/partner-site-size-guide'
@@ -61,9 +71,31 @@ export async function partnerShopSitemapPageEntries(partnerId: string, abs: (p: 
   for (const path of partnerShopSitemapInfoPaths()) {
     entries.push(sitemapUrlEntry(abs(path)))
   }
-  const categories = await fetchPartnerCategoriesFlatFromPg(partnerId, { activeOnly: true })
-  for (const cat of prunePartnerCategoriesMissingAncestors(categories ?? [])) {
-    if (!cat.seoIndex || isPartnerCategoryNavJunkNode(cat)) continue
+  const [categories, counts] = await Promise.all([
+    fetchPartnerCategoriesFlatFromPg(partnerId, { activeOnly: true }),
+    fetchDirectProductCountsByCategoryFromPg(partnerId),
+  ])
+  const { fullTree, subtreeCounts, pruneEmpty } = buildPartnerStorefrontVisibleCategoryTree(
+    categories ?? [],
+    counts
+  )
+  for (const cat of flattenPartnerCategoryTree(fullTree)) {
+    const productCount = pruneEmpty
+      ? subtreeCounts.get(cat.id) ?? 0
+      : cat.depth >= 3
+        ? 0
+        : 1
+    if (
+      !isPartnerCategoryPublicIndexable({
+        depth: cat.depth,
+        seoIndex: cat.seoIndex,
+        productCount,
+        hasGeneratedSeo: partnerCategoryHasGeneratedSeo(cat),
+        isNavJunk: isPartnerCategoryNavJunkNode(cat),
+      })
+    ) {
+      continue
+    }
     entries.push(sitemapUrlEntry(abs(`/c/${cat.path}`), cat.updatedAt || undefined))
   }
   return entries

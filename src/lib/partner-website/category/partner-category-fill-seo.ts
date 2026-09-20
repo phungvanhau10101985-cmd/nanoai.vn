@@ -30,6 +30,20 @@ export function categoryNeedsSeoFill(row: PartnerCategoryRow): boolean {
   return !row.seoTitle.trim() || !row.seoDescription.trim() || !row.seoBody.trim()
 }
 
+/** Tên danh mục anh em cùng cha — prompt seo_body 188 (internal link). */
+export function relatedPartnerCategoryNames(
+  flat: PartnerCategoryRow[] | null | undefined,
+  category: PartnerCategoryRow,
+  locale: WebLocale
+): string[] {
+  if (!flat?.length) return []
+  return flat
+    .filter((row) => row.id !== category.id && (row.parentId ?? null) === (category.parentId ?? null))
+    .map((row) => resolvePartnerCategoryDisplayName(row, locale).trim())
+    .filter(Boolean)
+    .slice(0, 8)
+}
+
 export async function loadPartnerCategoryShopSeoContext(
   partnerId: string
 ): Promise<PartnerCategoryShopSeoContext> {
@@ -94,6 +108,7 @@ export async function fillPartnerCategorySeoIfEmpty(input: {
       breadcrumbNames,
       productCount: counts?.get(category.id) ?? 0,
       sampleProductNames: sampleNames,
+      relatedCategoryNames: relatedPartnerCategoryNames(flat, category, shop.locale),
       shopDisplayName: shop.shopDisplayName,
       locale: shop.locale,
     })

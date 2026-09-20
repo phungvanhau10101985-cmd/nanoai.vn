@@ -403,7 +403,7 @@ export function buildManualTaxonomySheets(input: {
 }): TaxonomyManualResolved {
   const body = input.body
   const isActive = body.isActive !== false
-  const cat3SeoIndex = body.cat3SeoIndex === 'index' ? 'index' : 'noindex'
+  const cat3SeoIndex = body.cat3SeoIndex === 'noindex' ? 'noindex' : 'index'
   const cat3SortOrder = Number.isFinite(body.cat3SortOrder) ? Number(body.cat3SortOrder) : 0
 
   const catRows: TaxonomySheetRow[] = []

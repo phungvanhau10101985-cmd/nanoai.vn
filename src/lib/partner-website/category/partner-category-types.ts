@@ -177,6 +177,48 @@ export function rollupPartnerCategoryProductCounts(
   return out
 }
 
+/**
+ * Storefront: ẩn node không còn SP trong cả nhánh (L1 giữ nếu L3 còn hàng).
+ * Quản trị không dùng — cây admin vẫn hiện danh mục trống.
+ */
+export function prunePartnerCategoryTreeEmptyOfProducts(
+  tree: PartnerCategoryTreeNode[],
+  subtreeCounts: Map<string, number>
+): PartnerCategoryTreeNode[] {
+  const walk = (nodes: PartnerCategoryTreeNode[]): PartnerCategoryTreeNode[] => {
+    const out: PartnerCategoryTreeNode[] = []
+    for (const node of nodes) {
+      if ((subtreeCounts.get(node.id) ?? 0) <= 0) continue
+      out.push({ ...node, children: walk(node.children) })
+    }
+    return out
+  }
+  return walk(tree)
+}
+
+/** Cây live mega/hub: active + có SP (rollup). Thiếu bảng đếm thì không ẩn (fail-open). */
+export function buildPartnerStorefrontVisibleCategoryTree(
+  flat: PartnerCategoryRow[],
+  directCounts: Map<string, number> | null | undefined
+): {
+  fullTree: PartnerCategoryTreeNode[]
+  tree: PartnerCategoryTreeNode[]
+  subtreeCounts: Map<string, number>
+  pruneEmpty: boolean
+} {
+  const fullTree = buildPartnerCategoryTree(prunePartnerCategoriesMissingAncestors(flat))
+  if (!directCounts) {
+    return { fullTree, tree: fullTree, subtreeCounts: new Map(), pruneEmpty: false }
+  }
+  const subtreeCounts = rollupPartnerCategoryProductCounts(fullTree, directCounts)
+  return {
+    fullTree,
+    tree: prunePartnerCategoryTreeEmptyOfProducts(fullTree, subtreeCounts),
+    subtreeCounts,
+    pruneEmpty: true,
+  }
+}
+
 export function flattenPartnerCategoryTree(tree: PartnerCategoryTreeNode[]): PartnerCategoryTreeNode[] {
   const out: PartnerCategoryTreeNode[] = []
   const walk = (nodes: PartnerCategoryTreeNode[]) => {

@@ -3,7 +3,10 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
-import { fetchPartnerCategoriesFlatFromPg } from '@/lib/db/messaging-partner-categories-pg'
+import {
+  fetchDirectProductCountsByCategoryFromPg,
+  fetchPartnerCategoriesFlatFromPg,
+} from '@/lib/db/messaging-partner-categories-pg'
 import {
   fetchPartnerCategoryFacetCountsFromPg,
   fetchPartnerCategoryPriceRangeFromPg,
@@ -14,6 +17,7 @@ import { applyPartnerStorefrontSaleFaces, loadPartnerSiteSaleOverlay } from '@/l
 import { resolvePartnerStorefrontSaleIdentity } from '@/lib/partner-website/shop/partner-site-personalization'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
+  buildPartnerStorefrontVisibleCategoryTree,
   prunePartnerCategoriesMissingAncestors,
   resolvePartnerCategoryDisplayDescription,
   resolvePartnerCategoryDisplayName,
@@ -42,6 +46,11 @@ import {
   type PartnerSiteSearchParams,
 } from '@/components/partner-website/shop/partner-site-visual-html-screen'
 import { PW_EL, PW_PAGE, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import {
+  isPartnerCategoryPublicIndexable,
+  partnerCategoryHasGeneratedSeo,
+} from '@/lib/partner-website/category/partner-category-public-index'
+import { isPartnerCategoryNavJunkNode } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
 
 type Props = {
   params: Promise<{ slug: string; path: string[] }>
@@ -63,8 +72,12 @@ async function resolveCategoryContext(slug: string, pathSegments: string[]) {
     .join('/')
   if (!joinedPath) return null
 
-  const flatRaw = await fetchPartnerCategoriesFlatFromPg(shop.partnerId, { activeOnly: true })
+  const [flatRaw, counts] = await Promise.all([
+    fetchPartnerCategoriesFlatFromPg(shop.partnerId, { activeOnly: true }),
+    fetchDirectProductCountsByCategoryFromPg(shop.partnerId),
+  ])
   if (!flatRaw) return null
+  const { subtreeCounts, pruneEmpty } = buildPartnerStorefrontVisibleCategoryTree(flatRaw, counts)
   const flat = prunePartnerCategoriesMissingAncestors(flatRaw)
   const category = flat.find((c) => c.path === joinedPath)
   if (!category) return null
@@ -77,7 +90,27 @@ async function resolveCategoryContext(slug: string, pathSegments: string[]) {
     if (found) ancestors.push(found)
   }
 
-  return { shop, category, ancestors, flat }
+  return {
+    shop,
+    category,
+    ancestors,
+    flat,
+    subtreeCount: subtreeCounts.get(category.id) ?? 0,
+    pruneEmpty,
+  }
+}
+
+function resolveCategoryPublicIndex(category: PartnerCategoryRow, subtreeCount: number) {
+  const isNavJunk = isPartnerCategoryNavJunkNode(category)
+  const hasGeneratedSeo = partnerCategoryHasGeneratedSeo(category)
+  const indexable = isPartnerCategoryPublicIndexable({
+    depth: category.depth,
+    seoIndex: category.seoIndex,
+    productCount: subtreeCount,
+    hasGeneratedSeo,
+    isNavJunk,
+  })
+  return { indexable, followWhenNoIndex: !indexable && subtreeCount > 0 }
 }
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
@@ -86,12 +119,14 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   if (!ctx) {
     return buildMetadata({ title: 'Category', description: 'Category', path: `/site/${slug}/c/${path.join('/')}`, noIndex: true })
   }
-  const { shop, category } = ctx
+  const { shop, category, subtreeCount, pruneEmpty } = ctx
+  if (pruneEmpty && subtreeCount <= 0) notFound()
   const name = resolvePartnerCategoryDisplayName(category, shop.site.locale)
   const description =
     (category.seoDescription?.trim() || resolvePartnerCategoryDisplayDescription(category, shop.site.locale)).slice(0, 160) ||
     shop.site.partnerDisplayName
   const listing = parsePartnerCategoryListingFromRecord((searchParams ? await searchParams : {}) ?? {})
+  const { indexable, followWhenNoIndex } = resolveCategoryPublicIndex(category, subtreeCount)
   return buildPartnerSiteMetadata({
     siteSlug: shop.site.siteSlug,
     siteName: shop.site.title,
@@ -99,7 +134,8 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
     description,
     path: `/c/${category.path}`,
     search: buildPartnerCategoryCanonicalQuery(listing) || undefined,
-    noIndex: !category.seoIndex,
+    noIndex: !indexable,
+    followWhenNoIndex,
     image: category.imageUrl || shop.site.logoUrl,
   })
 }
@@ -110,9 +146,11 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
   const { slug, path } = await params
   const ctx = await resolveCategoryContext(slug, path)
   if (!ctx) notFound()
-  const { shop, category, ancestors } = ctx
+  const { shop, category, ancestors, subtreeCount, pruneEmpty } = ctx
+  if (pruneEmpty && subtreeCount <= 0) notFound()
   const device = await readVisualPreviewDevice(searchParams)
   const locale = shop.site.locale
+  const { indexable, followWhenNoIndex } = resolveCategoryPublicIndex(category, subtreeCount)
   const visual = await maybePartnerSiteVisualCategoryPage(shop.site, category.path, device, {
     id: category.id,
     path: category.path,
@@ -123,7 +161,7 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
       path: a.path,
       name: resolvePartnerCategoryDisplayName(a, locale),
     })),
-  })
+  }, { noIndex: !indexable, followWhenNoIndex })
   if (visual) return visual
   const t = getPartnerSiteShopCopy(locale)
 

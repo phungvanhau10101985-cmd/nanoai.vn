@@ -1,3 +1,4 @@
+import { partnerCategoryRobotsContent } from '@/lib/partner-website/category/partner-category-public-index'
 import {
   extractInfoPageCmsFromHtml,
   isInfoVisualHtml,
@@ -118,6 +119,7 @@ export type PartnerInfoPageAdvancedSeoInput = {
   datePublished?: string | null
   dateModified?: string | null
   noIndex?: boolean
+  followWhenNoIndex?: boolean
   keywords?: string[]
 }
 
@@ -223,7 +225,7 @@ export function injectPartnerInfoPageAdvancedSeoInHtml(
   out = upsertHeadMeta(
     out,
     'robots',
-    input.noIndex ? 'noindex, nofollow' : 'index, follow, max-image-preview:large, max-snippet:-1'
+    partnerCategoryRobotsContent(!input.noIndex, Boolean(input.followWhenNoIndex))
   )
   out = upsertCanonical(out, input.pageUrl)
 

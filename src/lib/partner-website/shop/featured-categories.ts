@@ -13,8 +13,7 @@ import {
 import { fetchPartnerVisitorPersonalizationFromPg } from '@/lib/db/messaging-partner-visitor-personalization-pg'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
-  buildPartnerCategoryTree,
-  prunePartnerCategoriesMissingAncestors,
+  buildPartnerStorefrontVisibleCategoryTree,
   resolvePartnerCategoryDisplayName,
   type PartnerCategoryTreeNode,
 } from '@/lib/partner-website/category/partner-category-types'
@@ -490,10 +489,8 @@ async function getSiteFeaturedCategoryBlockUncached(input: {
   ])
   if (!flat?.length) return empty()
 
-  const tree = splitPartnerCategoryNavTree(
-    buildPartnerCategoryTree(prunePartnerCategoriesMissingAncestors(flat)),
-    locale
-  ).menuTree
+  const { tree: visibleTree } = buildPartnerStorefrontVisibleCategoryTree(flat, counts)
+  const tree = splitPartnerCategoryNavTree(visibleTree, locale).menuTree
   const viewedIds = state?.recently_viewed_ids ?? []
   const signals = viewedIds.length
     ? await fetchInventoryCategorySignalsFromPg(input.partnerId, viewedIds)

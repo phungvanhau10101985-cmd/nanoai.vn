@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { fetchPartnerCategoriesFlatFromPg } from '@/lib/db/messaging-partner-categories-pg'
 import {
-  buildPartnerCategoryTree,
-  prunePartnerCategoriesMissingAncestors,
-} from '@/lib/partner-website/category/partner-category-types'
+  fetchDirectProductCountsByCategoryFromPg,
+  fetchPartnerCategoriesFlatFromPg,
+} from '@/lib/db/messaging-partner-categories-pg'
+import { buildPartnerStorefrontVisibleCategoryTree } from '@/lib/partner-website/category/partner-category-types'
 import { splitPartnerCategoryNavTree } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
 import { isPgConfigured } from '@/lib/db/pool'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
@@ -19,10 +19,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const flat = await fetchPartnerCategoriesFlatFromPg(shop.partnerId, { activeOnly: true })
+  const [flat, counts] = await Promise.all([
+    fetchPartnerCategoriesFlatFromPg(shop.partnerId, { activeOnly: true }),
+    fetchDirectProductCountsByCategoryFromPg(shop.partnerId),
+  ])
   if (flat === null) return NextResponse.json({ error: 'Could not load categories' }, { status: 500 })
 
-  const tree = buildPartnerCategoryTree(prunePartnerCategoriesMissingAncestors(flat))
+  const { tree } = buildPartnerStorefrontVisibleCategoryTree(flat, counts)
   const { menuTree, seoSizeNodes } = splitPartnerCategoryNavTree(tree, shop.site.locale)
   return NextResponse.json(
     { tree, menuTree, seoSizes: seoSizeNodes },

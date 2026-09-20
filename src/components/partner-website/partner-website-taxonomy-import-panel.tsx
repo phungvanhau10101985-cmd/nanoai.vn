@@ -170,7 +170,7 @@ export function PartnerWebsiteTaxonomyImportPanel({ t, partnerId, onToast, onImp
   const [cat2Slug, setCat2Slug] = useState('')
   const [cat3Name, setCat3Name] = useState('')
   const [cat3Slug, setCat3Slug] = useState('')
-  const [cat3SeoIndex, setCat3SeoIndex] = useState<'index' | 'noindex'>('noindex')
+  const [cat3SeoIndex, setCat3SeoIndex] = useState<'index' | 'noindex'>('index')
   const [cat3SortOrder, setCat3SortOrder] = useState(0)
   const [clusterNew, setClusterNew] = useState(true)
   const [clusterExistingId, setClusterExistingId] = useState('')
@@ -521,8 +521,8 @@ export function PartnerWebsiteTaxonomyImportPanel({ t, partnerId, onToast, onImp
                   value={cat3SeoIndex}
                   onChange={(e) => setCat3SeoIndex(e.target.value as 'index' | 'noindex')}
                 >
-                  <option value="noindex">noindex</option>
                   <option value="index">index</option>
+                  <option value="noindex">noindex</option>
                 </select>
               </label>
               <label className="flex flex-col gap-1">

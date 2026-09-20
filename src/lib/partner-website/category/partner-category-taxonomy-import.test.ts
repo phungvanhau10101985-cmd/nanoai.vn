@@ -130,6 +130,7 @@ test('manual form reuses existing cat1/cat2/cluster ids', () => {
   assert.equal(built.sheets.seo_clusters.length, 0)
   assert.equal(built.cat3ExternalId, 'cat3__giay-dep-nu__dep-sandal-nu__dep-kep-nu')
   assert.equal(built.sheets.categories[0]?.parent_id, 'cat2__giay-dep-nu__dep-sandal-nu')
+  assert.equal(built.sheets.categories[0]?.seo_index, 'index')
 })
 
 test('normalizeImportedSlug sanitizes invalid NanoAI slug but keeps valid 188 slug', () => {

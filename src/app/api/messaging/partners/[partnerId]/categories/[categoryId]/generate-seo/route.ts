@@ -12,6 +12,7 @@ import {
   resolvePartnerCategoryAncestors,
   resolvePartnerCategoryDisplayName,
 } from '@/lib/partner-website/category/partner-category-types'
+import { relatedPartnerCategoryNames } from '@/lib/partner-website/category/partner-category-fill-seo'
 import {
   buildPartnerCategorySeoTitle,
   generatePartnerCategorySeoContent,
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     breadcrumbNames,
     productCount: counts?.get(cid) ?? 0,
     sampleProductNames: sampleNames,
+    relatedCategoryNames: relatedPartnerCategoryNames(flat, category, locale),
     shopDisplayName: site?.title || category.name,
     locale,
   })

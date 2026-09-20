@@ -478,6 +478,33 @@ export async function fetchDirectProductCountsByCategoryFromPg(
   }
 }
 
+/** Đếm SP active gán trực tiếp một danh mục — metadata L3 (không hydrate card). */
+export async function fetchDirectProductCountForCategoryFromPg(
+  partnerId: string,
+  categoryId: string
+): Promise<number> {
+  if (!isPgConfigured()) return 0
+  const cid = categoryId.trim()
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cid)) return 0
+  try {
+    const row = await pgQueryOne<{ c: number }>(
+      `select count(*)::int as c
+       from public.messaging_partner_inventory_categories pic
+       join public.messaging_partner_inventory inv on inv.id = pic.inventory_id
+       join public.messaging_partner_categories cat on cat.id = pic.category_id
+       where cat.partner_id = $1::uuid
+         and pic.category_id = $2::uuid
+         and coalesce(inv.is_active, true) = true`,
+      [partnerId, cid]
+    )
+    return Number(row?.c) || 0
+  } catch (e) {
+    if (isMissingCategoriesTableError(e)) return 0
+    console.warn('[fetchDirectProductCountForCategoryFromPg]', e)
+    return 0
+  }
+}
+
 /** Cây đầy đủ cho admin (gồm cả inactive) + đếm sản phẩm trực tiếp mỗi node — dùng cho panel quản trị (W4.4). */
 export async function fetchPartnerCategoryTreeForAdminFromPg(
   partnerId: string

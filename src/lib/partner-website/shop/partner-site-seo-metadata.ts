@@ -23,6 +23,8 @@ export interface PartnerSiteSEOConfig {
   /** Tên hiển thị của shop — dùng cho og:site_name. */
   siteName: string
   noIndex?: boolean
+  /** L3 trống: noindex nhưng follow để Google vẫn đi link SP. Mặc định nofollow khi noIndex. */
+  followWhenNoIndex?: boolean
   /** Ảnh thật (sản phẩm/danh mục/logo shop). Nếu bỏ trống sẽ dùng ảnh mặc định của platform. */
   image?: string | null
   keywords?: string[]
@@ -40,6 +42,7 @@ export function buildPartnerSiteMetadata(config: PartnerSiteSEOConfig): Metadata
     description,
     siteName,
     noIndex = false,
+    followWhenNoIndex = false,
     image,
     keywords = [],
     locale = 'vi_VN',
@@ -77,7 +80,11 @@ export function buildPartnerSiteMetadata(config: PartnerSiteSEOConfig): Metadata
       languages: { [hreflang]: url },
     },
     robots: noIndex
-      ? { index: false, follow: false }
+      ? {
+          index: false,
+          follow: followWhenNoIndex,
+          googleBot: { index: false, follow: followWhenNoIndex },
+        }
       : { index: true, follow: true, googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 } },
     openGraph: {
       type,

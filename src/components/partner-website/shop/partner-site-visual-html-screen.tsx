@@ -76,6 +76,7 @@ function withInfoPageAdvancedSeo(
     datePublished?: string | null
     dateModified?: string | null
     noIndex?: boolean
+    followWhenNoIndex?: boolean
   }
 ): string {
   if (!isInfoVisualHtml(html) && !isPartnerTextArticlePage({ pageKey: opts?.pageKey, cmsSlug: opts?.cmsSlug, html })) {
@@ -95,6 +96,7 @@ function withInfoPageAdvancedSeo(
     datePublished: opts?.datePublished,
     dateModified: opts?.dateModified,
     noIndex: opts?.noIndex,
+    followWhenNoIndex: opts?.followWhenNoIndex,
   })
 }
 
@@ -129,6 +131,7 @@ export async function PartnerSiteVisualHtmlScreen({
     datePublished?: string | null
     dateModified?: string | null
     noIndex?: boolean
+    followWhenNoIndex?: boolean
   }
   /** Bind tồn kho sau khi chọn đúng 1 máy — không bind 4 file trước khi trả HTML. */
   liveProduct?: LivePdpBindProduct | null
@@ -168,6 +171,7 @@ export async function PartnerSiteVisualHtmlScreen({
         infoSeo?.datePublished || '',
         infoSeo?.dateModified || '',
         infoSeo?.noIndex ? '1' : '0',
+        infoSeo?.followWhenNoIndex ? 'f1' : 'f0',
         'promo-home-1',
         'live-chrome-stamp-3',
         `sale-icon-${liveBrand.cacheToken}`,
@@ -356,7 +360,8 @@ export async function maybePartnerSiteVisualCategoryPage(
   site: PartnerVisualSite,
   categoryPath: string,
   device?: VisualDeviceVariant | null,
-  liveListing?: LiveCategoryListingBind | null
+  liveListing?: LiveCategoryListingBind | null,
+  infoSeo?: { noIndex?: boolean; followWhenNoIndex?: boolean }
 ) {
   const resolved = await loadVisualTargetForScreen(site, { kind: 'category', categoryPath }, device)
   if (!resolved) return null
@@ -365,7 +370,7 @@ export async function maybePartnerSiteVisualCategoryPage(
       site={site}
       html={resolved.html}
       device={resolved.sourceDevice}
-      infoSeo={{ pageKey: 'collection' }}
+      infoSeo={{ pageKey: 'collection', noIndex: infoSeo?.noIndex, followWhenNoIndex: infoSeo?.followWhenNoIndex }}
       liveListing={liveListing || null}
     />
   )
