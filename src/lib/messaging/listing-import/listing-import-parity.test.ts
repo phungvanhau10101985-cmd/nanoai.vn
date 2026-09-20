@@ -125,6 +125,22 @@ describe('listing import rating groups', () => {
     await applyListingImportRatingGroups(empty, [], { catalog: emptyPartnerRatingGroupCatalog() })
     assert.equal(empty.group_rating, RATING_GROUP_ID_UNASSIGNED)
   })
+  it('keeps excel-imported review groups as a whitelist even before any inventory is assigned', async () => {
+    const catalog = buildPartnerRatingGroupCatalog([27, 36], [])
+    assert.deepEqual(catalog.groupIds, [27, 36])
+    assert.equal(catalog.phrases.length, 0)
+    const pd: Record<string, unknown> = {
+      name: 'Giày sneaker nữ chunky đế dày',
+      category: 'Giày dép Nữ',
+      subcategory: 'Sneaker & giày bệt Nữ',
+      sub_subcategory: 'sneaker nữ chunky đế dày',
+    }
+    const warnings: string[] = []
+    await applyListingImportRatingGroups(pd, warnings, { catalog })
+    assert.equal(pd.group_rating, RATING_GROUP_ID_UNASSIGNED)
+    assert.equal(pd.group_question, 88)
+    assert.match(warnings.join(' '), /chưa khớp nhóm đánh giá/)
+  })
   it('when the same L3 is in two imported groups, prefers the group with more products', () => {
     const catalog = buildPartnerRatingGroupCatalog(
       [27, 36],

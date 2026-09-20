@@ -322,13 +322,21 @@ function isPlaceholderGroupLabel(label: string): boolean {
   return /^\(id=\d+\)$/.test(label.trim())
 }
 
+function ratingWhitelistForAi(catalog: PartnerRatingGroupCatalog): Set<number> {
+  const labeled = ratingLabeledWhitelist(catalog)
+  if (labeled.size > 0) return labeled
+  return ratingWhitelist(catalog)
+}
+
 function ratingGroupCatalogTextForPrompt(catalog: PartnerRatingGroupCatalog): string {
-  const allow = ratingLabeledWhitelist(catalog)
-  return [...catalog.labels.entries()]
-    .filter(([gid]) => allow.has(gid))
-    .sort((a, b) => a[0] - b[0])
-    .map(([gid, label]) => `${gid}: ${label}`)
-    .join('\n')
+  const allow = ratingWhitelistForAi(catalog)
+  const lines: string[] = []
+  for (const gid of [...allow].sort((a, b) => a - b)) {
+    const label = (catalog.labels.get(gid) || '').trim()
+    if (label && !isPlaceholderGroupLabel(label)) lines.push(`${gid}: ${label}`)
+    else lines.push(`${gid}: (nhóm đã import, chưa có SP gắn)`)
+  }
+  return lines.join('\n')
 }
 
 const QUESTION_GROUP_PROMPT_LABELS: Record<number, string> = {
@@ -399,7 +407,7 @@ export function extractImportGroupIdsFromModelText(
   if (!text) return { rating: null, question: null }
   const rm = RATING_ID_IN_TEXT_RE.exec(text)
   const qm = QUESTION_ID_IN_TEXT_RE.exec(text)
-  const allow = ratingLabeledWhitelist(catalog)
+  const allow = ratingWhitelistForAi(catalog)
   const qAllow = catalog.questionGroupIds.length ? new Set(catalog.questionGroupIds) : VALID_QUESTION_GROUP_IDS
   let rid = rm ? Number.parseInt(rm[1], 10) : null
   let qid = qm ? Number.parseInt(qm[1], 10) : null
@@ -415,7 +423,7 @@ function parseGroupsAiJson(
   const trimmed = (text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
   const start = trimmed.indexOf('{')
   const end = trimmed.lastIndexOf('}')
-  const allow = ratingLabeledWhitelist(catalog)
+  const allow = ratingWhitelistForAi(catalog)
   const qAllow = catalog.questionGroupIds.length ? new Set(catalog.questionGroupIds) : VALID_QUESTION_GROUP_IDS
   if (start >= 0 && end > start) {
     try {
@@ -445,7 +453,7 @@ async function deepseekFallbackImportGroups(
   catalog: PartnerRatingGroupCatalog
 ): Promise<{ rating: number; question: number | null }> {
   if (!listingImportDeepseekGroupsEnabled()) return { rating: 0, question: null }
-  const allow = ratingLabeledWhitelist(catalog)
+  const allow = ratingWhitelistForAi(catalog)
   if (allow.size === 0) return { rating: 0, question: null }
   const catalogText = ratingCatalogForPrompt(catalog)
   if (!catalogText.trim()) return { rating: 0, question: null }
@@ -494,7 +502,7 @@ async function geminiFallbackImportGroups(
   if (!listingImportGeminiGroupsEnabled()) return { rating: 0, question: null }
   const key = resolvePartnerWebsiteGeminiApiKey()
   if (!key) return { rating: 0, question: null }
-  const allow = ratingLabeledWhitelist(catalog)
+  const allow = ratingWhitelistForAi(catalog)
   if (allow.size === 0) return { rating: 0, question: null }
   const catalogText = ratingCatalogForPrompt(catalog)
   if (!catalogText.trim()) return { rating: 0, question: null }
@@ -557,7 +565,7 @@ async function aiFallbackImportGroups(
   warnings: string[],
   catalog: PartnerRatingGroupCatalog
 ): Promise<{ rating: number; question: number | null }> {
-  const allow = ratingLabeledWhitelist(catalog)
+  const allow = ratingWhitelistForAi(catalog)
   if (allow.size === 0) return { rating: 0, question: null }
   const ds = await deepseekFallbackImportGroups(contextText, productName, warnings, catalog)
   let rating = ds.rating
@@ -605,7 +613,6 @@ export async function applyListingImportRatingGroups(
     opts?.catalog ??
     (opts?.partnerId ? await loadPartnerRatingGroupCatalog(opts.partnerId) : emptyPartnerRatingGroupCatalog())
   const allowed = ratingWhitelist(catalog)
-  const labeled = ratingLabeledWhitelist(catalog)
   const pname = String(productData.name || '').trim()
   const ctx = buildImportRatingContextText(productData)
   let rid = inferRatingGroupIdFromText(ctx, catalog.phrases, catalog.genericPhrases, catalog.groupIds)
@@ -613,7 +620,7 @@ export async function applyListingImportRatingGroups(
   let qid = inferQuestionGroupIdFromProductName(pname)
   const qAllow = catalog.questionGroupIds.length ? new Set(catalog.questionGroupIds) : VALID_QUESTION_GROUP_IDS
   if (!qAllow.has(qid)) qid = catalog.questionGroupIds.length ? 0 : 99
-  if (rid <= 0 && labeled.size > 0) {
+  if (rid <= 0 && allowed.size > 0) {
     const ai = await aiFallbackImportGroups(ctx, pname, warnings, catalog)
     if (ai.rating > 0) rid = ai.rating
     if (ai.question != null && qAllow.has(ai.question)) qid = ai.question
