@@ -49,11 +49,26 @@ async function loadPlaywright() {
   }
 }
 
+function listingExpandIsNavigatingAnchor(href: string | null): boolean {
+  const h = (href || '').trim()
+  if (!h || h === '#' || h.toLowerCase().startsWith('javascript:')) return false
+  return true
+}
+
 async function clickExactText(page: Page, text: string, timeoutMs = 2500): Promise<boolean> {
   try {
-    const loc = page.locator(`text=${text}`).first()
-    if ((await loc.count()) > 0) {
-      await loc.click({ timeout: timeoutMs })
+    const loc = page.getByText(text, { exact: true })
+    const n = await loc.count()
+    for (let i = 0; i < Math.min(n, 8); i += 1) {
+      const el = loc.nth(i)
+      const href = await el
+        .evaluate((node) => {
+          const a = (node as HTMLElement).closest('a')
+          return a?.getAttribute('href') || ''
+        })
+        .catch(() => '')
+      if (listingExpandIsNavigatingAnchor(href)) continue
+      await el.click({ timeout: timeoutMs })
       return true
     }
   } catch {
@@ -64,7 +79,13 @@ async function clickExactText(page: Page, text: string, timeoutMs = 2500): Promi
       await page.evaluate((needle) => {
         const n = String(needle || '').trim()
         const els = [...document.querySelectorAll('button, span, div, a')]
-        const el = els.find((x) => ((x as HTMLElement).innerText || x.textContent || '').trim() === n)
+        const el = els.find((x) => {
+          if (((x as HTMLElement).innerText || x.textContent || '').trim() !== n) return false
+          const a = (x as HTMLElement).closest('a')
+          const href = (a?.getAttribute('href') || '').trim()
+          if (href && href !== '#' && !href.toLowerCase().startsWith('javascript:')) return false
+          return true
+        })
         if (el) {
           ;(el as HTMLElement).click()
           return true
@@ -72,6 +93,19 @@ async function clickExactText(page: Page, text: string, timeoutMs = 2500): Promi
         return false
       }, text)
     )
+  } catch {
+    return false
+  }
+}
+
+const LISTING_PDP_WIDGET_SELECTOR =
+  '.product-type-list .product-type-item, .product-type-list-size .product-size-content-item, .list-image img, [class*="list-image"] img, .variation-values'
+
+/** PDP Vipomall/PandaMall là SPA — đợi swatch/gallery trước khi evaluate scrape JS. */
+export async function waitForListingPdpWidgets(page: Page, timeoutMs = 25_000): Promise<boolean> {
+  try {
+    await page.waitForSelector(LISTING_PDP_WIDGET_SELECTOR, { timeout: timeoutMs, state: 'attached' })
+    return true
   } catch {
     return false
   }
@@ -182,6 +216,7 @@ export async function withListingImportPage(
     }
     await page.evaluate(() => window.scrollTo(0, 0))
     await page.waitForTimeout(600)
+    await waitForListingPdpWidgets(page)
     if (opts?.afterIdle) {
       await opts.afterIdle(page)
     } else {
@@ -205,6 +240,7 @@ export async function withListingImportPage(
         /* no modal */
       }
     }
+    await waitForListingPdpWidgets(page, 8_000)
     raw = await page.evaluate(listingImportScrapeEvaluateExpression(scrapeJs))
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e)

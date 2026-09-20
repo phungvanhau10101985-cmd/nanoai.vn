@@ -288,9 +288,15 @@ function mergeMaterialVi(productData: Record<string, unknown>, materialVi: strin
   let mv = scrubCjk(materialVi).trim()
   if (hasCjk(mv)) mv = ''
   if (mv.length > 100) mv = mv.slice(0, 100).trim()
-  productData.material = mv || ''
   const inner = ensureInner(productData)
-  if (mv) inner.material_vi = mv
+  if (mv) {
+    productData.material = mv
+    inner.material_vi = mv
+    return
+  }
+  if (hasCjk(str(productData.material))) productData.material = ''
+  const kept = viOrEmpty(productData.material)
+  if (kept) inner.material_vi = kept
   else delete inner.material_vi
 }
 

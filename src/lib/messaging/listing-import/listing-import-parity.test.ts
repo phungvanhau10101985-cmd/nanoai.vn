@@ -377,6 +377,49 @@ Nền tảng mua hàng`
     assert.match(String(pd.description), /货号: 45471/)
   })
 
+  it('maps Vietnamese Thông số sản phẩm to style/material/occasion/features', () => {
+    const thongSoVi = `Thông số sản phẩm
+Phong cách:
+Thư giãn
+Mã hàng:
+Z9839
+Chất liệu mặt giày:
+Siêu sợi
+Chức năng:
+Tăng chiều cao,Nhẹ nhàng,Chống mài mòn
+Các tình huống sử dụng:
+Thư giãn
+Kích cỡ:
+34,35,36
+Đóng
+Nền tảng mua hàng`
+    const pairs = extractCjkAttributePairs(thongSoVi)
+    assert.equal(pairs['Mã hàng'], 'Z9839')
+    assert.equal(pairs['Phong cách'], 'Thư giãn')
+    assert.equal(pairs['Chất liệu mặt giày'], 'Siêu sợi')
+    const pd = vipomallRowToProductData(
+      {
+        title: 'Giày dad nữ đế dày',
+        body_text_sample: thongSoVi,
+        swatch_colors: [{ label: 'Màu champagne', image_url: 'https://img.alicdn.com/c.jpg' }],
+        sizes: ['34', '35'],
+        gallery_images: ['https://img.alicdn.com/g.jpg'],
+        detail_images: ['https://img.alicdn.com/d.jpg'],
+      },
+      'https://vipomall.vn/san-pham/1077421901676?platform_type=10',
+      '1077421901676',
+      10
+    )
+    assert.equal(pd.style, 'Thư giãn')
+    assert.equal(pd.material, 'Siêu sợi')
+    assert.equal(pd.occasion, 'Thư giãn')
+    assert.deepEqual(pd.features, ['Tăng chiều cao', 'Nhẹ nhàng', 'Chống mài mòn'])
+    assert.equal(pd.code, '')
+    const inner = (pd.product_info as Record<string, unknown>).product_info as Record<string, unknown>
+    assert.equal(inner.article_no, 'Z9839')
+    assert.match(String(pd.description), /Mã hàng: Z9839/)
+  })
+
   it('strips marketing year from Vietnamese name like 188 year sanitize', () => {
     const pd: Record<string, unknown> = { name: 'Trang phục mùa thu năm 2026, váy lụa' }
     applyListingYearSanitizeToProductData(pd)
