@@ -1009,6 +1009,7 @@ export function PartnerWebsiteDashboardClient({
               locale={locale}
               t={t}
               partnerId={partnerId}
+              siteSlug={website?.siteSlug}
               sectionId="partner-website-reviews-qa"
               onToast={(message, variant) =>
                 toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
