@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { partnerWebsitePublicPath } from '@/lib/partner-website/partner-website-slug'
@@ -48,23 +48,58 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   group: 52,
   is_active: 88,
   useful: 88,
-  reply_admin_name: 120,
-  reply_admin_content: 150,
-  reply_user_one_name: 90,
-  reply_user_one_content: 110,
-  reply_user_two_name: 90,
-  reply_user_two_content: 110,
-  actions: 72,
-  created_at: 115,
+  reply_admin_name: 140,
+  reply_admin_content: 180,
+  reply_user_one_name: 140,
+  reply_user_one_content: 160,
+  reply_user_two_name: 140,
+  reply_user_two_content: 160,
+  actions: 96,
+  created_at: 130,
   product_id: 56,
-  updated_at: 115,
-  reply_admin_at: 115,
-  reply_user_one_id: 72,
-  reply_user_one_at: 115,
-  reply_user_two_id: 72,
-  reply_user_two_at: 115,
+  updated_at: 130,
+  reply_admin_at: 130,
+  reply_user_one_id: 88,
+  reply_user_one_at: 130,
+  reply_user_two_id: 88,
+  reply_user_two_at: 130,
   reply_count: 78,
 }
+
+/** Pixel widths for the reviews spreadsheet (188 layout, not squeezed into dashboard). */
+const REVIEW_COLUMN_KEYS = [
+  'stt',
+  'type',
+  'show_at',
+  'name',
+  'star',
+  'title',
+  'content',
+  'group',
+  'useful',
+  'reply',
+  'active',
+  'time',
+  'actions',
+] as const
+
+const REVIEW_COLUMN_WIDTHS: Record<(typeof REVIEW_COLUMN_KEYS)[number], number> = {
+  stt: 44,
+  type: 88,
+  show_at: 108,
+  name: 150,
+  star: 56,
+  title: 150,
+  content: 200,
+  group: 56,
+  useful: 72,
+  reply: 260,
+  active: 96,
+  time: 148,
+  actions: 120,
+}
+
+const REVIEW_TABLE_MIN_WIDTH = REVIEW_COLUMN_KEYS.reduce((sum, key) => sum + REVIEW_COLUMN_WIDTHS[key], 0)
 
 type ReviewRow = {
   id: string
@@ -190,6 +225,75 @@ function saveColumnWidths(widths: Record<string, number>) {
   } catch {
     /* ignore */
   }
+}
+
+function SpreadsheetTopHScroll({
+  children,
+  contentWidth = 0,
+  className,
+}: {
+  children: ReactNode
+  contentWidth?: number
+  className?: string
+}) {
+  const topRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const spacerRef = useRef<HTMLDivElement>(null)
+  const syncing = useRef(false)
+
+  const applySpacerWidth = useCallback(() => {
+    const table = bodyRef.current?.querySelector('table')
+    const width = Math.max(contentWidth, table?.scrollWidth ?? 0)
+    if (spacerRef.current) spacerRef.current.style.width = `${width}px`
+  }, [contentWidth])
+
+  useEffect(() => {
+    applySpacerWidth()
+    const body = bodyRef.current
+    if (!body || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => applySpacerWidth())
+    ro.observe(body)
+    const table = body.querySelector('table')
+    if (table) ro.observe(table)
+    return () => ro.disconnect()
+  }, [applySpacerWidth])
+
+  const onTopScroll = () => {
+    if (syncing.current) return
+    const top = topRef.current
+    const body = bodyRef.current
+    if (!top || !body) return
+    syncing.current = true
+    body.scrollLeft = top.scrollLeft
+    syncing.current = false
+  }
+
+  const onBodyScroll = () => {
+    if (syncing.current) return
+    const top = topRef.current
+    const body = bodyRef.current
+    if (!top || !body) return
+    syncing.current = true
+    top.scrollLeft = body.scrollLeft
+    syncing.current = false
+  }
+
+  return (
+    <div className="min-w-0">
+      <div
+        ref={topRef}
+        onScroll={onTopScroll}
+        className="min-w-0 overflow-x-scroll overflow-y-hidden border-b border-gray-100 bg-slate-100 [&::-webkit-scrollbar]:h-3.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar-track]:bg-slate-200"
+        style={{ height: 18 }}
+        aria-hidden
+      >
+        <div ref={spacerRef} style={{ width: contentWidth || undefined, height: 1 }} />
+      </div>
+      <div ref={bodyRef} onScroll={onBodyScroll} className={className ?? 'min-w-0 overflow-x-auto'}>
+        {children}
+      </div>
+    </div>
+  )
 }
 
 function useDebouncedSave() {
@@ -699,6 +803,7 @@ export function PartnerWebsiteReviewsQaPanel({
   const inputClass = 'rounded border border-gray-300 px-2 py-1 text-xs w-full min-w-0'
   const numClass = 'rounded border border-gray-300 px-1 py-0.5 text-xs'
 
+  const qaTableWidth = QA_COLUMN_KEYS.reduce((sum, key) => sum + getColWidth(key), 0)
   const qaHeaders: Array<[string, string]> = [
     ['stt', t.reviewsAdminColStt],
     ['view', t.qaAdminColView],
@@ -726,7 +831,7 @@ export function PartnerWebsiteReviewsQaPanel({
   ]
 
   return (
-    <div id={sectionId} className="p-1 sm:p-2">
+    <div id={sectionId} className="min-w-0 p-1 sm:p-2">
       <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
         <button
           type="button"
@@ -847,31 +952,39 @@ export function PartnerWebsiteReviewsQaPanel({
             </button>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+          <div className="w-full min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white">
             {reviewsLoading ? (
               <div className="p-12 text-center text-gray-500">{t.reviewsAdminLoading}</div>
             ) : reviews.length === 0 ? (
               <div className="p-12 text-center text-gray-500">{t.reviewsAdminEmpty}</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <SpreadsheetTopHScroll contentWidth={REVIEW_TABLE_MIN_WIDTH}>
+                <table
+                  className="w-full text-sm"
+                  style={{ minWidth: REVIEW_TABLE_MIN_WIDTH, tableLayout: 'fixed' }}
+                >
+                  <colgroup>
+                    {REVIEW_COLUMN_KEYS.map((key) => (
+                      <col key={key} style={{ width: REVIEW_COLUMN_WIDTHS[key] }} />
+                    ))}
+                  </colgroup>
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
-                      <th className="w-10 px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminColStt}</th>
-                      <th className="w-20 px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminColType}</th>
-                      <th className="w-24 px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminColShowAt}</th>
+                      <th className="px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminColStt}</th>
+                      <th className="px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminColType}</th>
+                      <th className="px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminColShowAt}</th>
                       <th className="px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminNameLabel}</th>
-                      <th className="w-14 px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminStarLabel}</th>
+                      <th className="px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminStarLabel}</th>
                       <th className="px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminTitleField}</th>
-                      <th className="min-w-[120px] px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminContentCol}</th>
-                      <th className="w-14 px-2 py-2 text-left font-semibold text-gray-700" title={t.reviewsAdminImportHint}>
+                      <th className="px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminContentCol}</th>
+                      <th className="px-2 py-2 text-left font-semibold text-gray-700" title={t.reviewsAdminImportHint}>
                         {t.reviewsAdminGroupLabel}
                       </th>
-                      <th className="w-16 px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminUsefulLabel}</th>
+                      <th className="px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminUsefulLabel}</th>
                       <th className="px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminColReply}</th>
-                      <th className="w-20 px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminColActive}</th>
+                      <th className="px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminColActive}</th>
                       <th className="whitespace-nowrap px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminColTime}</th>
-                      <th className="w-24 px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminColActions}</th>
+                      <th className="px-2 py-2 text-left font-semibold text-gray-700">{t.reviewsAdminColActions}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1016,8 +1129,8 @@ export function PartnerWebsiteReviewsQaPanel({
                               className={`${numClass} w-16`}
                             />
                           </td>
-                          <td className="px-2 py-2">
-                            <div className="space-y-1">
+                          <td className="px-2 py-2 align-top">
+                            <div className="flex min-w-0 flex-col gap-1">
                               <input
                                 type="text"
                                 value={String(getReviewVal(r, 'merchantReplyBy') ?? '')}
@@ -1035,8 +1148,9 @@ export function PartnerWebsiteReviewsQaPanel({
                                     void saveReviewRow(latest)
                                   })
                                 }
-                                className="w-full rounded border border-gray-300 px-2 py-0.5 text-xs"
+                                className="box-border w-full min-w-0 rounded border border-gray-300 px-2 py-0.5 text-xs"
                                 placeholder={t.reviewsAdminNameLabel}
+                                title={String(getReviewVal(r, 'merchantReplyBy') ?? '')}
                               />
                               <input
                                 type="text"
@@ -1055,8 +1169,9 @@ export function PartnerWebsiteReviewsQaPanel({
                                     void saveReviewRow(latest)
                                   })
                                 }
-                                className="w-full rounded border border-gray-300 px-2 py-0.5 text-xs"
+                                className="box-border w-full min-w-0 rounded border border-gray-300 px-2 py-0.5 text-xs"
                                 placeholder={t.reviewsAdminContentCol}
+                                title={String(getReviewVal(r, 'merchantReply') ?? '')}
                               />
                             </div>
                           </td>
@@ -1111,7 +1226,7 @@ export function PartnerWebsiteReviewsQaPanel({
                     })}
                   </tbody>
                 </table>
-              </div>
+              </SpreadsheetTopHScroll>
             )}
             {reviewsTotal > PAGE_SIZE ? (
               <div className="flex items-center justify-between border-t border-gray-100 p-3">
@@ -1236,17 +1351,20 @@ export function PartnerWebsiteReviewsQaPanel({
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+          <div className="w-full min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white">
             {questionsLoading ? (
               <div className="p-12 text-center text-gray-500">{t.reviewsAdminLoading}</div>
             ) : questions.length === 0 ? (
               <div className="p-12 text-center text-gray-500">{t.qaAdminEmpty}</div>
             ) : (
-              <div className="-mx-2 overflow-x-auto">
-                <table className="w-full table-fixed text-sm" style={{ tableLayout: 'fixed' }}>
+              <SpreadsheetTopHScroll contentWidth={qaTableWidth}>
+                <table
+                  className="text-sm"
+                  style={{ tableLayout: 'fixed', width: qaTableWidth, minWidth: qaTableWidth }}
+                >
                   <colgroup>
                     {QA_COLUMN_KEYS.map((key) => (
-                      <col key={key} style={{ width: getColWidth(key), minWidth: getColWidth(key) }} />
+                      <col key={key} style={{ width: getColWidth(key) }} />
                     ))}
                   </colgroup>
                   <thead>
@@ -1414,7 +1532,7 @@ export function PartnerWebsiteReviewsQaPanel({
                     })}
                   </tbody>
                 </table>
-              </div>
+              </SpreadsheetTopHScroll>
             )}
             {questionsTotal > PAGE_SIZE ? (
               <div className="flex items-center justify-between border-t border-gray-100 p-3">
