@@ -13,6 +13,12 @@ test('PDP review/QA CSS keeps 188 helpful count outside the button', () => {
   assert.match(PW_PDP_REVIEW_QA_CSS, /\.pw-pdp-rq-ctas-wide/)
   assert.match(PW_PDP_REVIEW_QA_CSS, /\.pw-pdp-rq-dialog-write/)
   assert.match(PW_PDP_REVIEW_QA_CSS, /\.pw-pdp-write-form/)
+  assert.match(PW_PDP_REVIEW_QA_CSS, /\.pw-pdp-rq-card\{[^}]*min-height:154px/)
+  assert.match(PW_PDP_REVIEW_QA_CSS, /-webkit-line-clamp:2/)
+  assert.match(PW_PDP_REVIEW_QA_CSS, /\.pw-pdp-rq-ctas \.pw-shop-btn\{[^}]*min-height:32px/)
+  assert.match(PW_PDP_REVIEW_QA_CSS, /\.pw-pdp-rq-modal\{[^}]*z-index:100000/)
+  assert.match(PW_PDP_REVIEW_QA_CSS, /data-pw-rq-modal="write"\]\{z-index:100001/)
+  assert.match(PW_PDP_REVIEW_QA_CSS, /\.pw-pdp-rq-toast\{[^}]*z-index:100002/)
   assert.doesNotMatch(PW_PDP_REVIEW_QA_CSS, /#ea580c|#f97316/)
 })
 

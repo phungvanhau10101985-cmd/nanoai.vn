@@ -58,6 +58,7 @@ import {
   displayablePdpText,
 } from '@/lib/partner-website/shop/pdp-product-info-html'
 import {
+  canonicalizePdpReviewQaGridInHtml,
   pdpReviewQaEmptySampleInner,
   replacePdpReviewQaSampleInners,
   stampPdpReviewQaCounts,
@@ -1108,6 +1109,7 @@ function reviewCardHtml(review: LivePdpBindReview): string {
 }
 
 function fillPdpReviewQaSamples(html: string, product: LivePdpBindProduct, locale: WebLocale): string {
+  const cleanHtml = canonicalizePdpReviewQaGridInHtml(html, locale)
   const review = (product.reviews ?? []).find((r) => String(r.body || '').trim())
   const reviewInner = review
     ? `<p><span class="pw-pdp-rq-name">${escText(review.name)}</span>${
@@ -1129,7 +1131,7 @@ function fillPdpReviewQaSamples(html: string, product: LivePdpBindProduct, local
     Math.round(Number(product.questionsCount ?? (product.questions ?? []).length) || 0)
   )
   return stampPdpReviewQaCounts(
-    replacePdpReviewQaSampleInners(html, reviewInner, qaInner),
+    replacePdpReviewQaSampleInners(cleanHtml, reviewInner, qaInner),
     locale,
     {
       reviewsCount,

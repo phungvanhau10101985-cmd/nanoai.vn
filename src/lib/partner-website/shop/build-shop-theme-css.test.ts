@@ -188,6 +188,17 @@ test('shop theme CSS gives tablet and laptop distinct polished PDP faces', () =>
   )
 })
 
+test('shop theme CSS keeps PDP controls compact and prioritizes two purchase actions', () => {
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(css, /\.pw-shop-pdp-info>\[data-pw-pdp-option\]\{margin-top:10px!important\}/)
+  assert.match(css, /\.pw-shop-pdp-info \.pw-pdp-pill\{[^}]*min-height:32px/)
+  assert.match(css, /\.pw-shop-pdp-info>div:has\(>\.pw-pdp-qty\)\{[^}]*grid-template-columns:auto minmax\(0,1fr\)/)
+  assert.match(css, /\.pw-pdp-actions-inline\{[^}]*grid-template-columns:repeat\(6,minmax\(0,1fr\)\)!important/)
+  assert.match(css, /\.pw-pdp-actions-inline>\.pw-shop-btn:nth-child\(-n\+2\)\{[^}]*grid-column:span 3!important/)
+  assert.match(css, /\.pw-pdp-actions-inline>\.pw-shop-btn:nth-child\(n\+3\)\{[^}]*grid-column:span 2!important/)
+  assert.match(css, /data-pw-edit-device="mobile"\] \.pw-pdp-actions-inline[^}]*display:none!important/)
+})
+
 test('shop theme CSS hides broken PDP images after retry', () => {
   const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
   assert.match(css, /\[data-pw-pdp-img-broken="1"\]\{display:none!important\}/)

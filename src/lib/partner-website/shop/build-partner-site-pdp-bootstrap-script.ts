@@ -232,6 +232,23 @@ function productId(){
 }
 function setText(el,text){if(el)el.textContent=text;}
 function stampId(el,id){if(el&&el.setAttribute)el.setAttribute('data-inventory-id',id);}
+function showPdpImage(img,page,full,alt){
+  if(!img||!page)return;
+  img.removeAttribute('data-pw-pdp-img-broken');
+  img.removeAttribute('data-pw-img-retry');
+  img.hidden=false;
+  img.style.removeProperty('display');
+  img.classList.remove('pw-pdp-hero-img-hidden');
+  var host=img.closest&&img.closest('[data-pw-el="thumb"],.pw-shop-product-thumb,.pw-pdp-hero-thumbs button,.pw-pdp-color');
+  if(host){
+    host.removeAttribute('data-pw-pdp-img-broken');
+    host.hidden=false;
+    host.style.removeProperty('display');
+  }
+  if(full)img.setAttribute('data-pw-full-src',full);
+  if(alt!=null)img.setAttribute('alt',String(alt));
+  img.setAttribute('src',page);
+}
 function goLogin(hash){
   var loc=location.pathname+(location.search||'')+(hash||location.hash||'');
   location.href=LOGIN_PATH+'?redirect='+encodeURIComponent(loc);
@@ -387,9 +404,7 @@ function apply(p){
       if(!galleryFaceVisible(img))return;
       var page=shopPdpPageSrc(main);
       var full=shopPdpOrigSrc(main);
-      img.setAttribute('src',page||main);
-      if(full)img.setAttribute('data-pw-full-src',full);
-      img.setAttribute('alt',name);
+      showPdpImage(img,page||main,full,name);
     });
   }
   document.querySelectorAll('[data-pw-region="gallery"] [data-pw-el="thumb"]').forEach(function(thumb,i){
@@ -778,6 +793,7 @@ function ensureModal(id,kind){
   var el=document.getElementById(id);
   if(el){
     ensureDialogLayout(el,kind==='write');
+    if(el.parentElement!==document.body)document.body.appendChild(el);
     return el;
   }
   el=document.createElement('div');
@@ -1029,9 +1045,7 @@ function bindLive(id){
         var colorFull=shopPdpOrigSrc(colorSrc);
         document.querySelectorAll('[data-pw-region="gallery"] img[data-pw-el="main-image"],[data-pw-region="gallery"] .pw-pdp-hero-img,[data-pw-region="gallery"] .pw-shop-product-img').forEach(function(main){
           if(!galleryFaceVisible(main))return;
-          main.setAttribute('src',colorPage||colorSrc);
-          if(colorFull)main.setAttribute('data-pw-full-src',colorFull);
-          main.classList.remove('pw-pdp-hero-img-hidden');
+          showPdpImage(main,colorPage||colorSrc,colorFull,pill.getAttribute('data-pw-pdp-option-value')||'');
         });
         document.querySelectorAll('[data-nanoai-try-on],[data-pw-chrome-btn="try-on"],[data-nanoai-open-chat],[data-pw-chrome-btn="chat"]').forEach(function(el){
           if(el.closest&&el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]'))return;
@@ -1059,9 +1073,7 @@ function bindLive(id){
         var full=shopPdpOrigSrc(src);
         document.querySelectorAll('[data-pw-region="gallery"] img[data-pw-el="main-image"],[data-pw-region="gallery"] .pw-pdp-hero-img,[data-pw-region="gallery"] .pw-shop-product-img').forEach(function(main){
           if(!galleryFaceVisible(main))return;
-          main.setAttribute('src',page||src);
-          if(full)main.setAttribute('data-pw-full-src',full);
-          main.classList.remove('pw-pdp-hero-img-hidden');
+          showPdpImage(main,page||src,full,thumbImg&&thumbImg.getAttribute('alt')||'');
         });
         document.querySelectorAll('[data-nanoai-try-on],[data-pw-chrome-btn="try-on"],[data-nanoai-open-chat],[data-pw-chrome-btn="chat"]').forEach(function(el){
           if(el.closest&&el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]'))return;

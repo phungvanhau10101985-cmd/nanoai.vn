@@ -130,6 +130,25 @@ test('bind strips leftover demo review/QA samples on a live product', () => {
   assert.match(fromNested, /Chưa có đánh giá/)
 })
 
+test('bind strips demo review cards escaped beside the review and QA sections', () => {
+  const escaped = `<!DOCTYPE html><html><body data-pw-page="product">
+<div data-pw-region="pdp-info"><h1 class="pw-pdp-title" data-pw-el="title">Old</h1></div>
+<div class="pw-pdp-rq-grid" data-pw-rq-grid="1" data-pw-region="reviews">
+  <section id="pw-pdp-reviews"><div data-pw-rq-review-sample><p>Chưa có đánh giá</p></div></section>
+  <section id="pw-pdp-qa"><div data-pw-rq-qa-sample><p>Chưa có câu hỏi</p></div></section>
+  <article data-pw-el="card"><strong>Lan</strong><p>Form đẹp, vải mềm, đúng size M.</p></article>
+  <article data-pw-el="card"><strong>Minh Anh</strong><p>Màu kem dịu, giao nhanh.</p></article>
+</div>
+</body></html>`
+  const next = bindLiveProductToPdpHtml(escaped, PRODUCT_B)
+  assert.doesNotMatch(next, /Form đẹp/)
+  assert.doesNotMatch(next, /Màu kem dịu/)
+  assert.doesNotMatch(next, />Lan</)
+  assert.doesNotMatch(next, />Minh Anh</)
+  assert.match(next, /data-pw-rq-review-sample/)
+  assert.match(next, /data-pw-rq-qa-sample/)
+})
+
 test('bind does not treat a product photo as a video slot', () => {
   const next = bindLiveProductToPdpHtml(SHELL, {
     ...DEMO_PDP_BIND_PRODUCT,

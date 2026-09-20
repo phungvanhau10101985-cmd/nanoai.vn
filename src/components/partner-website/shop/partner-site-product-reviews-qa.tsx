@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
@@ -43,6 +44,11 @@ type ReviewRow = {
   guestAccountId?: string | null
   linkedUserId?: string | null
   createdAt: string
+}
+
+function BodyModalPortal({ children }: { children: ReactNode }) {
+  if (typeof document === 'undefined') return null
+  return createPortal(children, document.body)
 }
 
 type AnswerRow = {
@@ -810,7 +816,7 @@ export function PartnerSiteProductReviewsQa({
       </div>
 
       {writeOpen ? (
-        <div className="pw-pdp-rq-modal" data-pw-rq-modal="write" role="dialog" aria-modal="true" onClick={closeWrite}>
+        <BodyModalPortal><div className="pw-pdp-rq-modal" data-pw-rq-modal="write" role="dialog" aria-modal="true" onClick={closeWrite}>
           <div className="pw-pdp-rq-dialog pw-pdp-rq-dialog-write" onClick={(e) => e.stopPropagation()}>
             <div className="pw-pdp-rq-dialog-head">
               <strong>{t.reviewsTitle}</strong>
@@ -869,11 +875,11 @@ export function PartnerSiteProductReviewsQa({
               )}
             </div>
           </div>
-        </div>
+        </div></BodyModalPortal>
       ) : null}
 
       {modal === 'reviews' ? (
-        <div className="pw-pdp-rq-modal" data-pw-rq-modal="reviews" role="dialog" aria-modal="true" onClick={closeModal}>
+        <BodyModalPortal><div className="pw-pdp-rq-modal" data-pw-rq-modal="reviews" role="dialog" aria-modal="true" onClick={closeModal}>
           <div className="pw-pdp-rq-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="pw-pdp-rq-dialog-head">
               <strong>{t.reviewsTitle}</strong>
@@ -922,11 +928,11 @@ export function PartnerSiteProductReviewsQa({
               ) : null}
             </div>
           </div>
-        </div>
+        </div></BodyModalPortal>
       ) : null}
 
       {modal === 'qa' ? (
-        <div className="pw-pdp-rq-modal" data-pw-rq-modal="qa" role="dialog" aria-modal="true" onClick={closeModal}>
+        <BodyModalPortal><div className="pw-pdp-rq-modal" data-pw-rq-modal="qa" role="dialog" aria-modal="true" onClick={closeModal}>
           <div className="pw-pdp-rq-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="pw-pdp-rq-dialog-head">
               <strong>{t.qaModalTitle}</strong>
@@ -966,7 +972,7 @@ export function PartnerSiteProductReviewsQa({
               ) : null}
             </div>
           </div>
-        </div>
+        </div></BodyModalPortal>
       ) : null}
 
       {notice ? (
