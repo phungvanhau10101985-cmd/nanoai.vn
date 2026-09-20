@@ -605,12 +605,28 @@ function paintHelpfulBtn(btn,voted,n){
   btn.setAttribute('title',COPY.reviewsUsefulLabel||'');
   btn.setAttribute('aria-label',COPY.reviewsUsefulLabel||'');
   var row=btn.closest('.pw-pdp-helpful');
-  var nEl=row&&row.querySelector('[data-pw-helpful-n]');
-  if(nEl){
-    nEl.setAttribute('data-pw-helpful-n',String(count));
-    nEl.textContent=helpfulCountText(kind,count,inModal);
-    nEl.hidden=count<=0;
+  if(!row){
+    row=document.createElement('div');
+    row.className='pw-pdp-helpful';
+    if(btn.parentNode)btn.parentNode.insertBefore(row,btn);
+    row.appendChild(btn);
   }
+  var nEl=row.querySelector('[data-pw-helpful-n]');
+  if(!nEl){
+    nEl=document.createElement('span');
+    nEl.className='pw-pdp-helpful-n';
+    row.insertBefore(nEl,btn);
+  }
+  nEl.setAttribute('data-pw-helpful-n',String(count));
+  nEl.textContent=helpfulCountText(kind,count,inModal);
+  nEl.hidden=count<=0;
+  var label=btn.querySelector('.pw-pdp-helpful-label');
+  if(!label){
+    label=document.createElement('span');
+    label.className='pw-pdp-helpful-label';
+    btn.appendChild(label);
+  }
+  label.textContent=COPY.reviewsUsefulLabel||'';
 }
 function paintHelpfulUi(kind,id,voted,n,busy){
   var count=Math.max(0,Number(n||0)||0);
@@ -624,23 +640,28 @@ function paintHelpfulUi(kind,id,voted,n,busy){
     else nodes[i].removeAttribute('data-pw-busy');
   }
 }
-function helpfulRow(kind,id,n,voted,inModal){
-  var snap=helpfulSnapshot(kind,id,n,voted);
-  var count=snap.n;
-  var on=snap.voted;
+function helpfulRow(kind,id,n,voted,inModal,extraHtml){
+  var count=Math.max(0,Number(n||0)||0);
+  var on=Boolean(voted);
+  helpfulVotes[helpfulVoteKey(kind,id)]={n:count,voted:on};
   var countHtml='<span class="pw-pdp-helpful-n" data-pw-helpful-n="'+count+'"'+(count<=0?' hidden':'')+'>'+esc(helpfulCountText(kind,count,inModal))+'</span>';
-  return '<div class="pw-pdp-helpful">'+countHtml+'<button type="button" class="pw-pdp-helpful-btn'+(on?' is-on':'')+'" data-pw-'+kind+'-vote="'+esc(id)+'" aria-pressed="'+(on?'true':'false')+'" title="'+esc(COPY.reviewsUsefulLabel)+'" aria-label="'+esc(COPY.reviewsUsefulLabel)+'">'+THUMB_ICON+'<span class="pw-pdp-helpful-label">'+esc(COPY.reviewsUsefulLabel)+'</span></button></div>';
+  return '<div class="pw-pdp-helpful">'+countHtml+(extraHtml||'')+'<button type="button" class="pw-pdp-helpful-btn'+(on?' is-on':'')+'" data-pw-'+kind+'-vote="'+esc(id)+'" aria-pressed="'+(on?'true':'false')+'" title="'+esc(COPY.reviewsUsefulLabel)+'" aria-label="'+esc(COPY.reviewsUsefulLabel)+'">'+THUMB_ICON+'<span class="pw-pdp-helpful-label">'+esc(COPY.reviewsUsefulLabel)+'</span></button></div>';
+}
+function readHelpfulCountFromDom(btn){
+  var row=btn.closest('.pw-pdp-helpful');
+  var nEl=row&&row.querySelector('[data-pw-helpful-n]');
+  if(nEl)return Number(nEl.getAttribute('data-pw-helpful-n')||nEl.textContent||0)||0;
+  var m=String(btn.textContent||'').match(/(\d+)/);
+  return m?Number(m[1])||0:0;
 }
 function toggleHelpfulVote(btn,kind){
   if(!btn)return;
-  if(!loggedIn()){rqToast(COPY.reviewsVoteLoginRequired);return;}
   if(btn.getAttribute('data-pw-busy'))return;
   var itemId=btn.getAttribute(kind==='qa'?'data-pw-qa-vote':'data-pw-review-vote');
   if(!itemId)return;
-  var row=btn.closest('.pw-pdp-helpful');
-  var nEl=row&&row.querySelector('[data-pw-helpful-n]');
-  var wasOn=btn.classList.contains('is-on');
-  var prevN=Number(nEl&&nEl.getAttribute('data-pw-helpful-n')||0)||0;
+  var snap=helpfulSnapshot(kind,itemId,readHelpfulCountFromDom(btn),btn.classList.contains('is-on'));
+  var wasOn=Boolean(snap.voted);
+  var prevN=Number(snap.n||0)||0;
   paintHelpfulUi(kind,itemId,!wasOn,Math.max(0,prevN+(wasOn?-1:1)),true);
   var path=kind==='qa'?'/questions/':'/reviews/';
   apiFetch(API_PREFIX+encodeURIComponent(productId())+path+encodeURIComponent(itemId)+'/vote',{method:'POST'}).then(function(res){
@@ -649,9 +670,6 @@ function toggleHelpfulVote(btn,kind){
     paintHelpfulUi(kind,itemId,Boolean(res.j.voted),Number(res.j.usefulCount||0),false);
   }).catch(function(){
     paintHelpfulUi(kind,itemId,wasOn,prevN,false);
-  }).finally(function(){
-    var snap=helpfulVotes[helpfulVoteKey(kind,itemId)]||{voted:!wasOn,n:Math.max(0,prevN+(wasOn?-1:1))};
-    paintHelpfulUi(kind,itemId,Boolean(snap.voted),Number(snap.n||0),false);
   });
 }
 function emptySample(kind,label){
@@ -690,7 +708,11 @@ function reviewCard(r,sample){
   var verified=(r.verified===true)||r.guestAccountId||r.linkedUserId||(r.isImported&&String(r.content||'').trim())?verifiedBadge():'';
   var mine=(!sample)&&Boolean(r.isCurrentUser);
   var mineBadge=mine?'<span class="pw-pdp-rq-mine-badge">'+esc(COPY.reviewsMineBadge||'')+'</span>':'';
-  return '<article class="pw-pdp-rq-item'+(mine?' is-mine':'')+'" data-pw-el="card" data-pw-review-id="'+esc(r.id)+'" id="review-'+esc(r.id)+'">'+mineBadge+'<div class="pw-pdp-rq-item-head"><div><div class="pw-pdp-rq-who"><strong data-pw-el="card-name">'+esc(r.reviewerName||'')+'</strong>'+verified+'</div><div class="pw-shop-muted pw-pdp-rq-date">'+esc(fmtDate(r.createdAt))+'</div></div><span class="pw-pdp-star">'+stars(r.rating)+'</span></div>'+(title?'<p class="pw-pdp-rq-title">'+esc(title)+'</p>':'')+'<p data-pw-el="body">'+esc(r.content||'')+'</p>'+photoHtml+replyHtml+helpfulRow('review',r.id,r.usefulCount,r.userHasVoted,!sample)+'</article>';
+  var name=esc(r.reviewerName||'')+(sample?':':'');
+  var dateHtml=sample
+    ?'<span class="pw-shop-muted pw-pdp-rq-date">'+esc(fmtDate(r.createdAt))+'</span>'
+    :'<div class="pw-shop-muted pw-pdp-rq-date">'+esc(fmtDate(r.createdAt))+'</div>';
+  return '<article class="pw-pdp-rq-item'+(mine?' is-mine':'')+'" data-pw-el="card" data-pw-review-id="'+esc(r.id)+'" id="review-'+esc(r.id)+'">'+mineBadge+'<div class="pw-pdp-rq-item-head"><div><div class="pw-pdp-rq-who"><strong data-pw-el="card-name">'+name+'</strong>'+verified+(sample?dateHtml:'')+'</div>'+(sample?'':dateHtml)+'</div><span class="pw-pdp-star">'+stars(r.rating)+'</span></div>'+(title?'<p class="pw-pdp-rq-title">'+esc(title)+'</p>':'')+'<p data-pw-el="body">'+esc(r.content||'')+'</p>'+photoHtml+replyHtml+helpfulRow('review',r.id,r.usefulCount,r.userHasVoted,!sample)+'</article>';
 }
 function questionCard(q,sample){
   var slots=splitSlots(q.answers);
@@ -704,10 +726,12 @@ function questionCard(q,sample){
   if(slots.userTwo&&String(slots.userTwo.content||'').trim()){
     reply+='<div class="pw-pdp-rq-reply buyer"><div class="pw-pdp-rq-who"><strong>'+esc(slots.userTwo.responderName||'')+'</strong>'+(slotVerified(q,slots,2)?verifiedBadge():'')+'<span class="pw-pdp-rq-meta-side">'+esc(COPY.qaBuyerReplied)+' · '+esc(fmtDate(slots.userTwo.createdAt))+'</span></div><p style="margin:4px 0 0">'+esc(slots.userTwo.content||'')+'</p></div>';
   }
+  var canReply=buyerReplyCount(slots)<2;
   var ansForm='';
-  if(buyerReplyCount(slots)<2){
+  var sampleReply='';
+  if(canReply){
     if(sample){
-      ansForm='<div style="margin-top:8px"><button type="button" class="pw-pdp-qa-reply-link" data-pw-qa-open-reply="'+esc(q.id)+'">'+esc(COPY.qaReplyBuyerOnly)+'</button></div>';
+      sampleReply='<button type="button" class="pw-pdp-qa-reply-link" data-pw-qa-open-reply="'+esc(q.id)+'">'+esc(COPY.qaReplyBuyerOnly)+'</button>';
     } else if(loggedIn()){
       ansForm='<div style="margin-top:8px"><button type="button" class="pw-pdp-qa-reply-link" data-pw-qa-answer-open="'+esc(q.id)+'">'+esc(COPY.qaReplyBuyerOnly)+'</button>'
         +'<div hidden class="pw-pdp-qa-answer-form" data-pw-qa-answer-form="'+esc(q.id)+'"><textarea rows="2" data-pw-qa-answer-body placeholder="'+esc(COPY.qaAnswerFormPlaceholder)+'"></textarea><p data-pw-qa-answer-msg hidden></p>'
@@ -715,7 +739,7 @@ function questionCard(q,sample){
         +'<button type="button" class="pw-shop-btn pw-shop-btn-outline" data-pw-qa-answer-cancel="'+esc(q.id)+'">'+esc(COPY.qaReplyCancel)+'</button></div></div></div>';
     }
   }
-  return '<article class="pw-pdp-rq-item" data-pw-el="card" data-pw-question-id="'+esc(q.id)+'" id="question-'+esc(q.id)+'"><p style="margin:0"><strong data-pw-el="card-name">'+esc(q.askerName||'')+'</strong> '+esc(COPY.qaAskedPrefix)+' <span data-pw-el="body">'+esc(q.content||'')+'</span></p><div class="pw-shop-muted" style="font-size:12px">'+esc(fmtDate(q.createdAt))+'</div>'+reply+ansForm+helpfulRow('qa',q.id,q.usefulCount,q.userHasVoted,!sample)+'</article>';
+  return '<article class="pw-pdp-rq-item" data-pw-el="card" data-pw-question-id="'+esc(q.id)+'" id="question-'+esc(q.id)+'"><p style="margin:0"><strong data-pw-el="card-name">'+esc(q.askerName||'')+'</strong> '+esc(COPY.qaAskedPrefix)+' <span data-pw-el="body">'+esc(q.content||'')+'</span></p><div class="pw-shop-muted" style="font-size:12px">'+esc(fmtDate(q.createdAt))+'</div>'+reply+ansForm+helpfulRow('qa',q.id,q.usefulCount,q.userHasVoted,!sample,sampleReply)+'</article>';
 }
 function closeBtnHtml(){
   return '<button type="button" class="pw-pdp-rq-close" data-pw-rq-close aria-label="'+esc(COPY.reviewsCloseAria||'')+'">'+CLOSE_ICON+'</button>';

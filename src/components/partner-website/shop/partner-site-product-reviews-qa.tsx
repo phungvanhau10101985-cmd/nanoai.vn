@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
@@ -127,6 +127,7 @@ function HelpfulBtn({
   label,
   countLabel,
   busy,
+  extra,
   onClick,
 }: {
   voted?: boolean
@@ -134,6 +135,7 @@ function HelpfulBtn({
   label: string
   countLabel: string
   busy?: boolean
+  extra?: ReactNode
   onClick: () => void
 }) {
   const n = Math.max(0, Math.round(Number(count) || 0))
@@ -144,6 +146,7 @@ function HelpfulBtn({
           {countLabel.replace('{n}', String(n))}
         </span>
       ) : null}
+      {extra}
       <button
         type="button"
         className={`pw-pdp-helpful-btn${voted ? ' is-on' : ''}`}
@@ -365,10 +368,6 @@ export function PartnerSiteProductReviewsQa({
   const starLabels = [t.reviewsStarLabel1, t.reviewsStarLabel2, t.reviewsStarLabel3, t.reviewsStarLabel4, t.reviewsStarLabel5]
 
   async function voteReview(id: string) {
-    if (!isAuthenticated) {
-      setNotice(t.reviewsVoteLoginRequired)
-      return
-    }
     const key = `r:${id}`
     if (voteBusy[key]) return
     const prev = reviews.find((r) => r.id === id)
@@ -407,10 +406,6 @@ export function PartnerSiteProductReviewsQa({
   }
 
   async function voteQuestion(id: string) {
-    if (!isAuthenticated) {
-      setNotice(t.reviewsVoteLoginRequired)
-      return
-    }
     const key = `q:${id}`
     if (voteBusy[key]) return
     const prev = questions.find((q) => q.id === id)
@@ -588,10 +583,11 @@ export function PartnerSiteProductReviewsQa({
         <div className="pw-pdp-rq-item-head">
           <div>
             <div className="pw-pdp-rq-who">
-              <strong data-pw-el={PW_EL.cardName}>{r.reviewerName}</strong>
+              <strong data-pw-el={PW_EL.cardName}>{r.reviewerName}{opts?.sample ? ':' : ''}</strong>
               {verified ? <Verified label={t.qaVerifiedBadge} /> : null}
+              {opts?.sample ? <span className="pw-shop-muted pw-pdp-rq-date">{fmtDate(r.createdAt)}</span> : null}
             </div>
-            <div className="pw-shop-muted pw-pdp-rq-date">{fmtDate(r.createdAt)}</div>
+            {opts?.sample ? null : <div className="pw-shop-muted pw-pdp-rq-date">{fmtDate(r.createdAt)}</div>}
           </div>
           <span className="pw-pdp-star">{stars(r.rating)}</span>
         </div>
@@ -679,46 +675,38 @@ export function PartnerSiteProductReviewsQa({
             <p style={{ margin: '4px 0 0' }}>{slots.userTwo.content}</p>
           </div>
         ) : null}
-        {canReply ? (
-          opts?.sample ? (
-            <div style={{ marginTop: 8 }}>
-              <button type="button" className="pw-pdp-qa-reply-link" onClick={() => openQaToReply(q.id)}>
+        {canReply && !opts?.sample && isAuthenticated ? (
+          <div style={{ marginTop: 8 }}>
+            {replyingId === q.id ? (
+              <div className="pw-pdp-qa-answer-form">
+                <textarea
+                  rows={2}
+                  placeholder={t.qaAnswerFormPlaceholder}
+                  value={answerDrafts[q.id] ?? ''}
+                  onChange={(e) => setAnswerDrafts((p) => ({ ...p, [q.id]: e.target.value }))}
+                />
+                <div className="pw-pdp-qa-answer-actions">
+                  <button type="button" className="pw-shop-btn" onClick={() => void submitAnswer(q.id)}>
+                    {t.qaAnswerSubmit}
+                  </button>
+                  <button
+                    type="button"
+                    className="pw-shop-btn pw-shop-btn-outline"
+                    onClick={() => {
+                      setReplyingId(null)
+                      setAnswerDrafts((p) => ({ ...p, [q.id]: '' }))
+                    }}
+                  >
+                    {t.qaReplyCancel}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" className="pw-pdp-qa-reply-link" onClick={() => setReplyingId(q.id)}>
                 {t.qaReplyBuyerOnly}
               </button>
-            </div>
-          ) : isAuthenticated ? (
-            <div style={{ marginTop: 8 }}>
-              {replyingId === q.id ? (
-                <div className="pw-pdp-qa-answer-form">
-                  <textarea
-                    rows={2}
-                    placeholder={t.qaAnswerFormPlaceholder}
-                    value={answerDrafts[q.id] ?? ''}
-                    onChange={(e) => setAnswerDrafts((p) => ({ ...p, [q.id]: e.target.value }))}
-                  />
-                  <div className="pw-pdp-qa-answer-actions">
-                    <button type="button" className="pw-shop-btn" onClick={() => void submitAnswer(q.id)}>
-                      {t.qaAnswerSubmit}
-                    </button>
-                    <button
-                      type="button"
-                      className="pw-shop-btn pw-shop-btn-outline"
-                      onClick={() => {
-                        setReplyingId(null)
-                        setAnswerDrafts((p) => ({ ...p, [q.id]: '' }))
-                      }}
-                    >
-                      {t.qaReplyCancel}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button type="button" className="pw-pdp-qa-reply-link" onClick={() => setReplyingId(q.id)}>
-                  {t.qaReplyBuyerOnly}
-                </button>
-              )}
-            </div>
-          ) : null
+            )}
+          </div>
         ) : null}
         <div className="pw-pdp-helpful">
           <HelpfulBtn
@@ -727,6 +715,13 @@ export function PartnerSiteProductReviewsQa({
             label={t.reviewsUsefulLabel}
             countLabel={t.qaHelpfulCount}
             busy={Boolean(voteBusy[`q:${q.id}`])}
+            extra={
+              canReply && opts?.sample ? (
+                <button type="button" className="pw-pdp-qa-reply-link" onClick={() => openQaToReply(q.id)}>
+                  {t.qaReplyBuyerOnly}
+                </button>
+              ) : null
+            }
             onClick={() => void voteQuestion(q.id)}
           />
         </div>

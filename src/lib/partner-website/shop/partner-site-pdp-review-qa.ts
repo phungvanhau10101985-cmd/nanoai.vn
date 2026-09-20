@@ -69,6 +69,7 @@ html .pw-pdp-rq-toast[hidden]{display:none!important}
 html .pw-pdp-rq-need-buy{margin-bottom:12px;padding:16px;border:1px solid var(--pw-border);border-radius:12px;background:var(--pw-surface,#f9fafb);font-size:14px;color:var(--pw-text)}
 html .pw-pdp-rq-need-buy p{margin:0 0 12px}
 html .pw-pdp-rq-need-buy .pw-shop-btn{width:100%;background:#e5e7eb;color:#1f2937;border:none}
+html .pw-pdp-rq-sample-box .pw-pdp-rq-who .pw-pdp-rq-date{margin:0;font-size:12px;font-weight:400}
 html .pw-pdp-helpful{display:flex;align-items:center;flex-wrap:wrap;gap:8px;justify-content:flex-start;margin-top:8px;padding-top:4px}
 html .pw-pdp-helpful-n{font-size:12px;font-weight:400;color:var(--pw-muted);line-height:1.3}
 html .pw-pdp-helpful-n[hidden],html .pw-pdp-helpful-n[data-pw-helpful-n="0"]{display:none!important}

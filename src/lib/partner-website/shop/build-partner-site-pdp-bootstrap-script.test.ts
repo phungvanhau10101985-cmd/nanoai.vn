@@ -93,6 +93,8 @@ test('PDP bootstrap paints helpful count outside the button and opens a write mo
   assert.match(s, /pw-pdp-helpful-label/)
   assert.match(s, /function paintHelpfulUi/)
   assert.match(s, /helpfulVotes/)
+  assert.match(s, /function readHelpfulCountFromDom/)
+  assert.match(s, /data-pw-qa-open-reply/)
   assert.match(s, /data-pw-rq-modal="write"/)
   assert.match(s, /function paintWriteForm/)
   assert.match(s, /pw-pdp-rq-ctas-empty/)
@@ -101,4 +103,8 @@ test('PDP bootstrap paints helpful count outside the button and opens a write mo
   assert.match(s, /reviewsCustomersHeading/)
   assert.match(s, /isCurrentUser/)
   assert.doesNotMatch(s, /\[data-pw-rq-modal="reviews"\] \[data-pw-pdp-slot="review-form"\]/)
+  assert.doesNotMatch(
+    s,
+    /function toggleHelpfulVote\(btn,kind\)\{\s*if\(!btn\)return;\s*if\(!loggedIn\(\)\)/
+  )
 })
