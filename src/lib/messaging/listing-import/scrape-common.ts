@@ -1,4 +1,5 @@
 import { randomInt } from 'node:crypto'
+import { normalizeListingProductImageUrl } from '@/lib/messaging/listing-import/listing-import-alicdn-urls'
 
 const VIPOMALL_IMAGE_HOST_MARKERS = ['viposeller', 'viettelidc.com.vn']
 
@@ -37,7 +38,7 @@ export function normProductImageUrl(raw: string, extraBlockHosts: string[] = [])
   if (u.startsWith('http://')) u = `https://${u.slice('http://'.length)}`
   const low = u.toLowerCase()
   if ([...VIPOMALL_IMAGE_HOST_MARKERS, ...extraBlockHosts].some((m) => low.includes(m))) return ''
-  return u
+  return normalizeListingProductImageUrl(u)
 }
 
 export function dedupeUrls(values: string[], extraBlockHosts: string[] = []): string[] {

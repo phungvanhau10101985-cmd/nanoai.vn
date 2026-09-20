@@ -35,6 +35,12 @@ import type {
   ListingImportQueueStatus as AdminListingImportQueueStatus,
 } from '@/lib/messaging/listing-import/listing-import-types';
 import type { Dictionary } from '@/lib/i18n/dictionaries';
+import {
+  PartnerInventoryExcelImportButton,
+  PartnerInventoryExcelImportHiddenInput,
+  PartnerInventoryExcelImportStatus,
+  usePartnerInventoryExcelImport,
+} from '@/app/dashboard/messaging/partner-inventory-excel-import';
 
 /** Lưu ô «Tỷ giá» (chuỗi gõ tay) để lần sau không phải nhập lại. */
 function listingImportLs(partnerId: string, key: string): string {
@@ -826,6 +832,8 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
     setToast({ type, msg });
     setTimeout(() => setToast(null), 4500);
   }, []);
+
+  const productExcelImport = usePartnerInventoryExcelImport({ partnerId, t, onToast: showToast });
 
   const parse = useCallback(() => {
     setError(null);
@@ -2916,6 +2924,11 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
           {toast.msg}
         </div>
       )}
+      <PartnerInventoryExcelImportHiddenInput ctrl={productExcelImport} />
+      {(productExcelImport.importing || productExcelImport.importDetailPanel) &&
+      (queuesPanelCollapsed || trackedQueueTokens.length === 0) ? (
+        <PartnerInventoryExcelImportStatus ctrl={productExcelImport} t={t} />
+      ) : null}
 
       {trackedQueueTokens.length === 0 ? (
         <div
@@ -3119,7 +3132,12 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
                         ? t.listingImportProductsButtonBusy
                         : t.listingImportProductsButton}
                     </button>
+                    <PartnerInventoryExcelImportButton ctrl={productExcelImport} t={t} />
                   </div>
+
+                  {idx === displayQueueTokens.length - 1 ? (
+                    <PartnerInventoryExcelImportStatus ctrl={productExcelImport} t={t} />
+                  ) : null}
 
                   {listingQueueExcelErrByToken[token] ? (
                     <div

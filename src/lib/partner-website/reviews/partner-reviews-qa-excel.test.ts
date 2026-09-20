@@ -123,7 +123,17 @@ test('ensurePdpReviewQaCardsInBuyBox injects grid + modals', () => {
   assert.match(out, /id="pw-pdp-reviews"/)
   assert.match(out, /id="pw-pdp-qa-modal"/)
   assert.match(out, /pw-pdp-review-qa-css/)
+  assert.match(out, /pw-pdp-helpful-btn/)
   assert.match(out, /Người trả lời|Hỏi đáp về sản phẩm/)
+})
+
+test('ensurePdpReviewQaCardsInBuyBox refreshes existing review CSS', () => {
+  const html = `<!DOCTYPE html><html><head><style id="pw-pdp-review-qa-css">.pw-pdp-helpful{color:red}</style></head>
+  <body data-pw-page="product"><div data-pw-region="pdp-info"></div></body></html>`
+  const out = ensurePdpReviewQaCardsInBuyBox(html, 'vi')
+  assert.match(out, /pw-pdp-helpful-btn/)
+  assert.match(out, /pw-pdp-verified-label/)
+  assert.doesNotMatch(out, /\.pw-pdp-helpful\{color:red\}/)
 })
 
 test('ensurePdpReviewQaCardsInBuyBox appends after buy-box actions', () => {

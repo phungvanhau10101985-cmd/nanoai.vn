@@ -28,7 +28,53 @@ function lenLatinFashion(t: string): boolean {
   return /^[A-Za-z0-9\s\-–/.(),[\]%+]+$/.test(t)
 }
 
+function labelsFromFlatColors(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const item of raw) {
+    let lab = ''
+    if (item && typeof item === 'object') {
+      const rec = item as Record<string, unknown>
+      const v = rec.name == null || String(rec.name).trim() === '' ? rec.label : rec.name
+      lab = v != null ? String(v).trim() : ''
+    } else if (item != null) {
+      lab = String(item).trim()
+    }
+    if (!lab) continue
+    const k = lab.toLowerCase()
+    if (seen.has(k)) continue
+    seen.add(k)
+    out.push(lab)
+  }
+  return out
+}
+
+/** Khớp 188 `collect_variant_color_labels` — colors[], không thì color_swatches. */
 export function collectListingImportColorLabels(productData: Record<string, unknown>): string[] {
+  const fromColors = labelsFromFlatColors(productData.colors)
+  if (fromColors.length) return fromColors
+  const pi = productData.product_info
+  const variants = pi && typeof pi === 'object' ? (pi as Record<string, unknown>).variants : null
+  if (!variants || typeof variants !== 'object') return []
+  const sw = (variants as Record<string, unknown>).color_swatches
+  if (!Array.isArray(sw)) return []
+  const labels: string[] = []
+  const seen = new Set<string>()
+  for (const it of sw) {
+    if (!it || typeof it !== 'object') continue
+    const lab = String((it as Record<string, unknown>).label || '').trim()
+    if (!lab) continue
+    const k = lab.toLowerCase()
+    if (seen.has(k)) continue
+    seen.add(k)
+    labels.push(lab)
+  }
+  return labels
+}
+
+/** Khớp 188 `collect_variant_color_label_strings` — colors + pairs + swatches (để dịch). */
+export function collectListingImportColorLabelStrings(productData: Record<string, unknown>): string[] {
   const out: string[] = []
   const seen = new Set<string>()
   const push = (raw: unknown) => {
@@ -58,7 +104,19 @@ export function collectListingImportColorLabels(productData: Record<string, unkn
       if (sw && typeof sw === 'object') push((sw as Record<string, unknown>).label)
     }
   }
+  const flat = String(productData.color || '').trim()
+  if (flat && flat.includes(',')) {
+    for (const part of flat.split(',')) push(part.trim())
+  } else if (flat) {
+    push(flat)
+  }
   return out
+}
+
+/** Khớp 188 `_rebuild_flat_color_column`. */
+export function rebuildListingImportFlatColorColumn(colors: unknown): string | null {
+  const parts = labelsFromFlatColors(colors)
+  return parts.length ? parts.join(', ') : null
 }
 
 async function translateChunk(unique: string[]): Promise<Record<string, string>> {
@@ -89,7 +147,7 @@ export async function applyListingImportColorTranslation(
   productData: Record<string, unknown>,
   warnings: string[]
 ): Promise<number> {
-  const unique = collectListingImportColorLabels(productData).filter(listingImportColorNeedsTranslate)
+  const unique = collectListingImportColorLabelStrings(productData).filter(listingImportColorNeedsTranslate)
   if (!unique.length) return 0
   const mapping: Record<string, string> = {}
   for (let i = 0; i < unique.length; i += CHUNK) {
@@ -133,11 +191,14 @@ export async function applyListingImportColorTranslation(
           n += 1
         }
       }
-      const flat = collectListingImportColorLabels({ colors: productData.colors }).join(', ')
-      if (flat) v.colors = flat
+      const flat = rebuildListingImportFlatColorColumn(productData.colors)
+      if (flat) {
+        v.colors = flat
+        productData.color = flat.length > 500 ? flat.slice(0, 500).trim() : flat
+      }
     }
   }
-  const colorCol = String(productData.color || '')
-  if (colorCol && mapping[colorCol]) productData.color = mapping[colorCol]
+  const rebuilt = rebuildListingImportFlatColorColumn(productData.colors)
+  if (rebuilt) productData.color = rebuilt.length > 500 ? rebuilt.slice(0, 500).trim() : rebuilt
   return n
 }

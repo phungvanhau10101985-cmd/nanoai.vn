@@ -18,6 +18,7 @@ import { applyListingImportColorTranslation } from '@/lib/messaging/listing-impo
 import { applyListingImportRatingGroups } from '@/lib/messaging/listing-import/listing-import-rating-groups'
 import { applyListingImportTaxonomy } from '@/lib/messaging/listing-import/listing-import-taxonomy'
 import { compactListingImportProductInfoForWeb } from '@/lib/messaging/listing-import/listing-import-product-info-compact'
+import { normalizeListingProductDataImageUrls } from '@/lib/messaging/listing-import/listing-import-alicdn-urls'
 import { reapplyListingLocaleOverlay } from '@/lib/messaging/listing-import/listing-import-body-specs'
 import { applyListingYearSanitizeToProductData } from '@/lib/messaging/listing-import/listing-import-year-sanitize'
 import { scrapePandamallForImport } from '@/lib/messaging/listing-import/pandamall-scraper'
@@ -102,6 +103,8 @@ export async function executeOneListingImport(input: {
       if (!allowCreate) taxonomyOk = false
     }
     if (!taxonomyOk) {
+      compactListingImportProductInfoForWeb(productData)
+      normalizeListingProductDataImageUrls(productData)
       await updateListingImportDraftFromPg(input.partnerId, draft.id, {
         status: 'error',
         message: taxonomyFailMessage,
@@ -128,6 +131,7 @@ export async function executeOneListingImport(input: {
       warnings.push(`import_groups: ${e instanceof Error ? e.message : String(e)}`)
     }
     compactListingImportProductInfoForWeb(productData)
+    normalizeListingProductDataImageUrls(productData)
     const updated = await updateListingImportDraftFromPg(input.partnerId, draft.id, {
       status: 'done',
       message: 'OK',

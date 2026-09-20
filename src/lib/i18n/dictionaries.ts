@@ -1599,7 +1599,7 @@ export type Dictionary = {
     listingImportPandamallPass: string
     listingImportPandamallPassKeep: string
     listingImportDraftEditHint: string
-    /** Nút trên đợt cào: mở nháp done để import lên kho shop */
+    /** Nút trên đợt cào: mở nháp done để đăng lên kho shop */
     listingImportProductsButton: string
     listingImportProductsButtonBusy: string
     listingImportProductsButtonTitle: string
@@ -1607,6 +1607,32 @@ export type Dictionary = {
     listingImportProductsSubmit: string
     /** {done} {total} tiến trình import */
     listingImportProductsSubmitting: string
+    /** Nút teal: chọn file .xlsx catalog 41 cột — cùng API kho, overwrite=false */
+    listingImportExcelButton: string
+    listingImportExcelButtonBusy: string
+    listingImportExcelButtonTitle: string
+    listingImportExcelUploading: string
+    /** {mb} kích thước file */
+    listingImportExcelUploadingLarge: string
+    /** {pct} {loaded} {total} MB */
+    listingImportExcelUploadPct: string
+    listingImportExcelProcessing: string
+    listingImportExcelCancel: string
+    listingImportExcelCancelling: string
+    listingImportExcelHideTrack: string
+    listingImportExcelClose: string
+    /** {inserted} {updated} {deleted} — {deleted} có thể rỗng */
+    listingImportExcelSuccess: string
+    /** {n} số dòng xóa — gắn vào {deleted} */
+    listingImportExcelSuccessDeleted: string
+    listingImportExcelFailedTitle: string
+    listingImportExcelFailedToast: string
+    listingImportExcelDoneTitle: string
+    /** {n} số cảnh báo */
+    listingImportExcelWarnings: string
+    listingImportExcelCancelTitle: string
+    listingImportExcelCancelBody: string
+    listingImportExcelCancelToast: string
     sourceStockTitle: string
     sourceStockIntro: string
     sourceStockApiError: string
@@ -5193,12 +5219,33 @@ const VI_DICTIONARY: Dictionary = {
     listingImportPandamallPass: 'Mật khẩu PandaMall',
     listingImportPandamallPassKeep: 'Để trống = giữ mật khẩu đã lưu',
     listingImportDraftEditHint: 'Sửa tên/danh mục trên modal này rồi đăng, hoặc dùng bảng Kho hàng bên dưới.',
-    listingImportProductsButton: 'Import sản phẩm',
+    listingImportProductsButton: 'Chọn để đăng web…',
     listingImportProductsButtonBusy: 'Đang tải nháp…',
     listingImportProductsButtonTitle:
-      'Mở danh sách nháp đã crawl xong — chọn rồi import lên cửa hàng (cùng luồng Import 1688).',
+      'Mở danh sách nháp đã crawl xong — chọn rồi đăng lên cửa hàng (cùng luồng Import 1688).',
     listingImportProductsSubmit: 'Import {n} sản phẩm',
     listingImportProductsSubmitting: 'Đang import ({done}/{total})…',
+    listingImportExcelButton: 'Import Excel dữ liệu SP',
+    listingImportExcelButtonBusy: 'Đang import…',
+    listingImportExcelButtonTitle:
+      'Chọn file .xlsx dữ liệu sản phẩm (cùng mẫu «Tải Excel nhập web») để tạo/cập nhật sản phẩm trên web. Trùng id/SKU thì cập nhật; listed=0 thì xóa; không xóa hàng không có trong file.',
+    listingImportExcelUploading: 'Đang tải file lên server…',
+    listingImportExcelUploadingLarge: 'Đang tải file ({mb} MB)… File lớn có thể vài phút.',
+    listingImportExcelUploadPct: 'Đang tải lên {pct}% ({loaded} / {total} MB)',
+    listingImportExcelProcessing: 'Đã nhận file, đang xử lý trên server (file lớn có thể vài phút)…',
+    listingImportExcelCancel: 'Hủy ngay',
+    listingImportExcelCancelling: 'Đang hủy…',
+    listingImportExcelHideTrack: 'Ẩn theo dõi',
+    listingImportExcelClose: 'Đóng',
+    listingImportExcelSuccess: 'Import xong: {inserted} mới, {updated} cập nhật{deleted}',
+    listingImportExcelSuccessDeleted: ', {n} đã xóa',
+    listingImportExcelFailedTitle: 'Import thất bại',
+    listingImportExcelFailedToast: 'Import lỗi — xem chi tiết phía dưới ô Import.',
+    listingImportExcelDoneTitle: 'Import xong — có cảnh báo',
+    listingImportExcelWarnings: 'Có {n} dòng cần rà soát.',
+    listingImportExcelCancelTitle: 'Import đã hủy',
+    listingImportExcelCancelBody: 'Đã hủy lúc đang tải file. Các dòng chưa ghi thì không vào kho.',
+    listingImportExcelCancelToast: 'Đã hủy import Excel.',
     sourceStockTitle: 'Kiểm tra nguồn hàng',
     sourceStockIntro:
       'Worker CSSBuy → Vipomall → PandaMall. Có nút giỏ/mua (kể cả disabled) = còn hàng. Cloudflare/CAPTCHA trên một nền thì thử nền tiếp. Cả ba bị chặn = blocked. Hết hàng → tồn kho 0; về hàng sau OOS → 500. Mọi workspace cùng engine.',
@@ -8787,12 +8834,33 @@ const EN_DICTIONARY: Dictionary = {
     listingImportPandamallPass: 'PandaMall password',
     listingImportPandamallPassKeep: 'Leave blank to keep the saved password',
     listingImportDraftEditHint: 'Edit name/category in this modal then publish, or use the inventory table below.',
-    listingImportProductsButton: 'Import products',
+    listingImportProductsButton: 'Choose to publish…',
     listingImportProductsButtonBusy: 'Loading drafts…',
     listingImportProductsButtonTitle:
-      'Open finished crawl drafts — select then import into the shop (same Import 1688 flow).',
+      'Open finished crawl drafts — select then publish to the shop (same Import 1688 flow).',
     listingImportProductsSubmit: 'Import {n} products',
     listingImportProductsSubmitting: 'Importing ({done}/{total})…',
+    listingImportExcelButton: 'Import product Excel',
+    listingImportExcelButtonBusy: 'Importing…',
+    listingImportExcelButtonTitle:
+      'Pick a .xlsx catalog file (same template as «Download web Excel») to create/update products. Match by id/SKU; listed=0 deletes; rows not in the file stay.',
+    listingImportExcelUploading: 'Uploading file to server…',
+    listingImportExcelUploadingLarge: 'Uploading file ({mb} MB)… Large files can take a few minutes.',
+    listingImportExcelUploadPct: 'Uploading {pct}% ({loaded} / {total} MB)',
+    listingImportExcelProcessing: 'File received, processing on server (large files may take a few minutes)…',
+    listingImportExcelCancel: 'Cancel now',
+    listingImportExcelCancelling: 'Cancelling…',
+    listingImportExcelHideTrack: 'Hide progress',
+    listingImportExcelClose: 'Close',
+    listingImportExcelSuccess: 'Import done: {inserted} created, {updated} updated{deleted}',
+    listingImportExcelSuccessDeleted: ', {n} deleted',
+    listingImportExcelFailedTitle: 'Import failed',
+    listingImportExcelFailedToast: 'Import error — see details below the Import button.',
+    listingImportExcelDoneTitle: 'Import finished — warnings',
+    listingImportExcelWarnings: '{n} row(s) need review.',
+    listingImportExcelCancelTitle: 'Import cancelled',
+    listingImportExcelCancelBody: 'Cancelled while uploading. Rows not yet written are not in inventory.',
+    listingImportExcelCancelToast: 'Excel import cancelled.',
     sourceStockTitle: 'Source stock check',
     sourceStockIntro:
       'Worker CSSBuy → Vipomall → PandaMall. A cart/buy button (even disabled) means in stock. Cloudflare/CAPTCHA on one platform falls through. All three blocked = blocked. OOS → stock 0; back in stock after OOS → 500. Same engine for every workspace.',
@@ -12345,11 +12413,32 @@ const ZH_DICTIONARY: Dictionary = {
     listingImportPandamallPass: 'PandaMall 密码',
     listingImportPandamallPassKeep: '留空则保留已保存密码',
     listingImportDraftEditHint: '在此弹窗改名称/类目后发布，或使用下方库存表。',
-    listingImportProductsButton: '导入商品',
+    listingImportProductsButton: '选择后发布到网站…',
     listingImportProductsButtonBusy: '正在加载草稿…',
-    listingImportProductsButtonTitle: '打开已抓取完成的草稿 — 勾选后导入店铺（与 Import 1688 同一流程）。',
+    listingImportProductsButtonTitle: '打开已抓取完成的草稿 — 勾选后发布到店铺（与 Import 1688 同一流程）。',
     listingImportProductsSubmit: '导入 {n} 件商品',
     listingImportProductsSubmitting: '正在导入（{done}/{total}）…',
+    listingImportExcelButton: '导入商品 Excel',
+    listingImportExcelButtonBusy: '正在导入…',
+    listingImportExcelButtonTitle:
+      '选择 .xlsx 商品数据文件（与「下载网站 Excel」同模板）以创建/更新商品。按 id/SKU 匹配；listed=0 删除；文件中没有的行保留。',
+    listingImportExcelUploading: '正在上传文件到服务器…',
+    listingImportExcelUploadingLarge: '正在上传文件（{mb} MB）… 大文件可能需要几分钟。',
+    listingImportExcelUploadPct: '正在上传 {pct}%（{loaded} / {total} MB）',
+    listingImportExcelProcessing: '已收到文件，正在服务器处理（大文件可能需要几分钟）…',
+    listingImportExcelCancel: '立即取消',
+    listingImportExcelCancelling: '正在取消…',
+    listingImportExcelHideTrack: '隐藏进度',
+    listingImportExcelClose: '关闭',
+    listingImportExcelSuccess: '导入完成：新增 {inserted}，更新 {updated}{deleted}',
+    listingImportExcelSuccessDeleted: '，已删除 {n}',
+    listingImportExcelFailedTitle: '导入失败',
+    listingImportExcelFailedToast: '导入出错 — 请查看 Import 按钮下方详情。',
+    listingImportExcelDoneTitle: '导入完成 — 有警告',
+    listingImportExcelWarnings: '有 {n} 行需要核对。',
+    listingImportExcelCancelTitle: '导入已取消',
+    listingImportExcelCancelBody: '上传过程中已取消。尚未写入的行不会进入库存。',
+    listingImportExcelCancelToast: '已取消 Excel 导入。',
     sourceStockTitle: '货源库存检查',
     sourceStockIntro:
       'Worker：CSSBuy → Vipomall → PandaMall。有购物车/购买按钮（即使禁用）= 有货。某一平台 Cloudflare/验证码则试下一平台。三平台都被拦 = blocked。缺货 → 库存 0；OOS 后重新有货 → 500。每个店铺同一引擎。',
@@ -15858,12 +15947,33 @@ const JA_DICTIONARY: Dictionary = {
     listingImportPandamallPass: 'PandaMall パスワード',
     listingImportPandamallPassKeep: '空欄なら保存済みパスワードを維持',
     listingImportDraftEditHint: 'このモーダルで名・カテゴリを直して公開するか、下の在庫表を使います。',
-    listingImportProductsButton: '商品をインポート',
+    listingImportProductsButton: '選んでウェブ公開…',
     listingImportProductsButtonBusy: '下書きを読み込み中…',
     listingImportProductsButtonTitle:
-      '取得済み下書きを開き、選んで店舗へインポートします（Import 1688 と同じ流れ）。',
+      '取得済み下書きを開き、選んで店舗へ公開します（Import 1688 と同じ流れ）。',
     listingImportProductsSubmit: '{n} 件をインポート',
     listingImportProductsSubmitting: 'インポート中（{done}/{total}）…',
+    listingImportExcelButton: '商品 Excel をインポート',
+    listingImportExcelButtonBusy: 'インポート中…',
+    listingImportExcelButtonTitle:
+      '「ウェブ用 Excel をダウンロード」と同じ .xlsx を選んで商品を作成/更新します。id/SKU で照合、listed=0 は削除、ファイルに無い行は残します。',
+    listingImportExcelUploading: 'サーバーへファイルをアップロード中…',
+    listingImportExcelUploadingLarge: 'ファイルをアップロード中（{mb} MB）… 大きいファイルは数分かかることがあります。',
+    listingImportExcelUploadPct: 'アップロード {pct}%（{loaded} / {total} MB）',
+    listingImportExcelProcessing: 'ファイル受信済み、サーバーで処理中（大きいファイルは数分）…',
+    listingImportExcelCancel: 'すぐキャンセル',
+    listingImportExcelCancelling: 'キャンセル中…',
+    listingImportExcelHideTrack: '進捗を隠す',
+    listingImportExcelClose: '閉じる',
+    listingImportExcelSuccess: '完了: 新規 {inserted}、更新 {updated}{deleted}',
+    listingImportExcelSuccessDeleted: '、削除 {n}',
+    listingImportExcelFailedTitle: 'インポート失敗',
+    listingImportExcelFailedToast: 'エラー — Import ボタン下の詳細を確認してください。',
+    listingImportExcelDoneTitle: '完了 — 警告あり',
+    listingImportExcelWarnings: '{n} 行の確認が必要です。',
+    listingImportExcelCancelTitle: 'インポートをキャンセルしました',
+    listingImportExcelCancelBody: 'アップロード中にキャンセルしました。未書き込みの行は在庫に入りません。',
+    listingImportExcelCancelToast: 'Excel インポートをキャンセルしました。',
     sourceStockTitle: '仕入元在庫チェック',
     sourceStockIntro:
       'Worker は CSSBuy → Vipomall → PandaMall。カート/購入ボタンがあれば（disabled でも）在庫あり。1 プラットフォームの Cloudflare/CAPTCHA は次へ。3 つとも遮断 = blocked。欠品 → 在庫 0。欠品後に復活 → 500。全ワークスペース同一エンジン。',
@@ -19416,12 +19526,33 @@ const KO_DICTIONARY: Dictionary = {
     listingImportPandamallPass: 'PandaMall 비밀번호',
     listingImportPandamallPassKeep: '비워 두면 저장된 비밀번호 유지',
     listingImportDraftEditHint: '이 모달에서 이름/카테고리를 고친 뒤 게시하거나 아래 재고 표를 쓰세요.',
-    listingImportProductsButton: '상품 가져오기',
+    listingImportProductsButton: '선택 후 웹에 등록…',
     listingImportProductsButtonBusy: '초안 불러오는 중…',
     listingImportProductsButtonTitle:
-      '수집이 끝난 초안을 열고 선택한 뒤 매장으로 가져옵니다(Import 1688과 같은 흐름).',
+      '수집이 끝난 초안을 열고 선택한 뒤 매장에 등록합니다(Import 1688과 같은 흐름).',
     listingImportProductsSubmit: '{n}개 상품 가져오기',
     listingImportProductsSubmitting: '가져오는 중 ({done}/{total})…',
+    listingImportExcelButton: '상품 Excel 가져오기',
+    listingImportExcelButtonBusy: '가져오는 중…',
+    listingImportExcelButtonTitle:
+      '«웹용 Excel 다운로드»와 같은 .xlsx를 골라 상품을 추가/수정합니다. id/SKU로 매칭, listed=0은 삭제, 파일에 없는 행은 유지합니다.',
+    listingImportExcelUploading: '서버로 파일을 올리는 중…',
+    listingImportExcelUploadingLarge: '파일 업로드 중 ({mb} MB)… 큰 파일은 몇 분 걸릴 수 있습니다.',
+    listingImportExcelUploadPct: '업로드 {pct}% ({loaded} / {total} MB)',
+    listingImportExcelProcessing: '파일을 받았고 서버에서 처리 중(큰 파일은 몇 분)…',
+    listingImportExcelCancel: '지금 취소',
+    listingImportExcelCancelling: '취소 중…',
+    listingImportExcelHideTrack: '진행 숨기기',
+    listingImportExcelClose: '닫기',
+    listingImportExcelSuccess: '완료: 신규 {inserted}, 업데이트 {updated}{deleted}',
+    listingImportExcelSuccessDeleted: ', {n}개 삭제',
+    listingImportExcelFailedTitle: '가져오기 실패',
+    listingImportExcelFailedToast: '오류 — Import 버튼 아래 자세한 내용을 확인하세요.',
+    listingImportExcelDoneTitle: '완료 — 경고 있음',
+    listingImportExcelWarnings: '{n}행을 검토해야 합니다.',
+    listingImportExcelCancelTitle: '가져오기를 취소함',
+    listingImportExcelCancelBody: '업로드 중 취소했습니다. 아직 쓰지 않은 행은 재고에 들어가지 않습니다.',
+    listingImportExcelCancelToast: 'Excel 가져오기를 취소했습니다.',
     sourceStockTitle: '공급원 재고 확인',
     sourceStockIntro:
       'Worker: CSSBuy → Vipomall → PandaMall. 장바구니/구매 버튼(비활성 포함)이 있으면 재고 있음. 한 플랫폼 Cloudflare/CAPTCHA면 다음으로. 셋 다 차단 = blocked. 품절 → 재고 0, 품절 후 재입고 → 500. 모든 워크스페이스 동일 엔진.',

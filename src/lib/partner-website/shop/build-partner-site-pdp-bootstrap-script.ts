@@ -556,11 +556,47 @@ function verifiedBadge(){
     +'<path fill="#16a34a" d="M12 2 4 5v6.09c0 5.05 3.41 9.76 8.05 11.01.13.04.26.06.4.06.14 0 .27-.02.4-.06 4.64-1.25 8.05-5.96 8.05-11.01V5l-8-3z"/>'
     +'<path fill="#22c55e" d="M12 3.54 5.5 6.02v4.78c0 4.14 2.86 8.18 6.5 9.85 3.64-1.67 6.5-5.71 6.5-9.85V6.02L12 3.54z"/>'
     +'<path fill="none" stroke="#fff" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" d="M9.2 11.9 11.4 14.1 15.9 8.6"/>'
-    +'</svg><span>'+esc(COPY.qaVerifiedBadge)+'</span></span>';
+    +'</svg><span class="pw-pdp-verified-label">'+esc(COPY.qaVerifiedBadge)+'</span></span>';
+}
+function helpfulTitle(kind,n){
+  var count=Math.max(0,Number(n||0)||0);
+  if(count<=0)return COPY.reviewsUsefulLabel||'';
+  return String((kind==='qa'?COPY.qaHelpfulCount:COPY.reviewsHelpfulCount)||'').replace('{n}',String(count));
+}
+function paintHelpfulBtn(btn,voted,n){
+  if(!btn)return;
+  var count=Math.max(0,Number(n||0)||0);
+  var kind=btn.hasAttribute('data-pw-qa-vote')?'qa':'review';
+  btn.classList.toggle('is-on',Boolean(voted));
+  btn.setAttribute('aria-pressed',voted?'true':'false');
+  var nEl=btn.querySelector('[data-pw-helpful-n]');
+  if(nEl){nEl.setAttribute('data-pw-helpful-n',String(count));nEl.textContent=String(count);}
+  var title=helpfulTitle(kind,count);
+  btn.setAttribute('title',title);
+  btn.setAttribute('aria-label',title);
 }
 function helpfulRow(kind,id,n,voted){
-  var count=Number(n||0)>0?'<span>'+esc(String((kind==='qa'?COPY.qaHelpfulCount:COPY.reviewsHelpfulCount)||'').replace('{n}',String(n||0)))+'</span>':'';
-  return '<div class="pw-pdp-helpful">'+count+'<button type="button" class="'+(voted?'is-on':'')+'" data-pw-'+kind+'-vote="'+esc(id)+'" title="'+esc(COPY.reviewsUsefulLabel)+'">'+THUMB_ICON+' '+esc(COPY.reviewsUsefulLabel)+'</button></div>';
+  var count=Math.max(0,Number(n||0)||0);
+  var title=helpfulTitle(kind,count);
+  return '<div class="pw-pdp-helpful"><button type="button" class="pw-pdp-helpful-btn'+(voted?' is-on':'')+'" data-pw-'+kind+'-vote="'+esc(id)+'" aria-pressed="'+(voted?'true':'false')+'" title="'+esc(title)+'" aria-label="'+esc(title)+'">'+THUMB_ICON+'<span class="pw-pdp-helpful-n" data-pw-helpful-n="'+count+'">'+count+'</span><span class="pw-pdp-helpful-label">'+esc(COPY.reviewsUsefulLabel)+'</span></button></div>';
+}
+function toggleHelpfulVote(btn,kind){
+  if(!btn)return;
+  if(!loggedIn()){rqToast(COPY.reviewsVoteLoginRequired);return;}
+  if(btn.getAttribute('data-pw-busy'))return;
+  var itemId=btn.getAttribute(kind==='qa'?'data-pw-qa-vote':'data-pw-review-vote');
+  if(!itemId)return;
+  var wasOn=btn.classList.contains('is-on');
+  var nEl=btn.querySelector('[data-pw-helpful-n]');
+  var prevN=Number(nEl&&nEl.getAttribute('data-pw-helpful-n')||0)||0;
+  btn.setAttribute('data-pw-busy','1');
+  paintHelpfulBtn(btn,!wasOn,Math.max(0,prevN+(wasOn?-1:1)));
+  var path=kind==='qa'?'/questions/':'/reviews/';
+  apiFetch(API_PREFIX+encodeURIComponent(productId())+path+encodeURIComponent(itemId)+'/vote',{method:'POST'}).then(function(res){
+    if(res.status===401){paintHelpfulBtn(btn,wasOn,prevN);rqToast(COPY.reviewsVoteLoginRequired);return;}
+    if(!res.ok||!res.j||!res.j.ok){paintHelpfulBtn(btn,wasOn,prevN);return;}
+    paintHelpfulBtn(btn,Boolean(res.j.voted),Number(res.j.usefulCount||0));
+  }).finally(function(){btn.removeAttribute('data-pw-busy');});
 }
 function emptySample(kind,label){
   var cls=kind==='review'?'pw-pdp-rq-icon-review':'pw-pdp-rq-icon-qa';
@@ -593,22 +629,22 @@ function reviewCard(r,sample){
   var photos=sample?[]:(r.imageUrls||[]).map(function(u){return String(u||'').trim();}).filter(Boolean);
   var photoHtml=photos.length?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">'+photos.map(function(u){return '<img src="'+esc(shopImg({imageUrl:u}))+'" data-pw-full-src="'+esc(shopPdpOrigSrc(u))+'" alt="" loading="lazy" decoding="async" style="width:72px;height:72px;object-fit:cover;border-radius:8px" />';}).join('')+'</div>':'';
   var reply=String(r.merchantReply||'').trim();
-  var replyHtml=reply?'<div class="pw-pdp-rq-reply"><strong>'+esc(r.merchantReplyBy||'Shop')+'</strong> · '+esc(fmtDate(r.merchantReplyAt||r.createdAt))+'<p style="margin:4px 0 0">'+esc(reply)+'</p></div>':'';
+  var replyHtml=reply?'<div class="pw-pdp-rq-reply"><div class="pw-pdp-rq-who"><strong>'+esc(r.merchantReplyBy||'Shop')+'</strong><span class="pw-pdp-rq-meta-side">'+esc(fmtDate(r.merchantReplyAt||r.createdAt))+'</span></div><p style="margin:4px 0 0">'+esc(reply)+'</p></div>':'';
   var title=String(r.title||'').trim();
   var verified=(r.verified===true)||r.guestAccountId||r.linkedUserId||(r.isImported&&String(r.content||'').trim())?verifiedBadge():'';
-  return '<article class="pw-pdp-rq-item" data-pw-el="card" data-pw-review-id="'+esc(r.id)+'" id="review-'+esc(r.id)+'"><div style="display:flex;justify-content:space-between;gap:8px"><div><strong data-pw-el="card-name">'+esc(r.reviewerName||'')+'</strong>'+verified+'<div class="pw-shop-muted" style="font-size:12px">'+esc(fmtDate(r.createdAt))+'</div></div><span class="pw-pdp-star">'+stars(r.rating)+'</span></div>'+(title?'<p class="pw-pdp-rq-title">'+esc(title)+'</p>':'')+'<p data-pw-el="body">'+esc(r.content||'')+'</p>'+photoHtml+replyHtml+helpfulRow('review',r.id,r.usefulCount,r.userHasVoted)+'</article>';
+  return '<article class="pw-pdp-rq-item" data-pw-el="card" data-pw-review-id="'+esc(r.id)+'" id="review-'+esc(r.id)+'"><div class="pw-pdp-rq-item-head"><div><div class="pw-pdp-rq-who"><strong data-pw-el="card-name">'+esc(r.reviewerName||'')+'</strong>'+verified+'</div><div class="pw-shop-muted pw-pdp-rq-date">'+esc(fmtDate(r.createdAt))+'</div></div><span class="pw-pdp-star">'+stars(r.rating)+'</span></div>'+(title?'<p class="pw-pdp-rq-title">'+esc(title)+'</p>':'')+'<p data-pw-el="body">'+esc(r.content||'')+'</p>'+photoHtml+replyHtml+helpfulRow('review',r.id,r.usefulCount,r.userHasVoted)+'</article>';
 }
 function questionCard(q,sample){
   var slots=splitSlots(q.answers);
   var reply='';
   if(slots.admin&&String(slots.admin.content||'').trim()){
-    reply+='<div class="pw-pdp-rq-reply"><strong>'+esc(slots.admin.responderName||'Shop')+'</strong> · '+esc(fmtDate(slots.admin.createdAt))+'<p style="margin:4px 0 0">'+esc(slots.admin.content||'')+'</p></div>';
+    reply+='<div class="pw-pdp-rq-reply"><div class="pw-pdp-rq-who"><strong>'+esc(slots.admin.responderName||'Shop')+'</strong><span class="pw-pdp-rq-meta-side">'+esc(fmtDate(slots.admin.createdAt))+'</span></div><p style="margin:4px 0 0">'+esc(slots.admin.content||'')+'</p></div>';
   }
   if(slots.userOne&&String(slots.userOne.content||'').trim()){
-    reply+='<div class="pw-pdp-rq-reply buyer"><strong>'+esc(slots.userOne.responderName||'')+'</strong>'+(slotVerified(q,slots,1)?verifiedBadge():'')+' '+esc(COPY.qaBuyerReplied)+' · '+esc(fmtDate(slots.userOne.createdAt))+'<p style="margin:4px 0 0">'+esc(slots.userOne.content||'')+'</p></div>';
+    reply+='<div class="pw-pdp-rq-reply buyer"><div class="pw-pdp-rq-who"><strong>'+esc(slots.userOne.responderName||'')+'</strong>'+(slotVerified(q,slots,1)?verifiedBadge():'')+'<span class="pw-pdp-rq-meta-side">'+esc(COPY.qaBuyerReplied)+' · '+esc(fmtDate(slots.userOne.createdAt))+'</span></div><p style="margin:4px 0 0">'+esc(slots.userOne.content||'')+'</p></div>';
   }
   if(slots.userTwo&&String(slots.userTwo.content||'').trim()){
-    reply+='<div class="pw-pdp-rq-reply buyer"><strong>'+esc(slots.userTwo.responderName||'')+'</strong>'+(slotVerified(q,slots,2)?verifiedBadge():'')+' '+esc(COPY.qaBuyerReplied)+' · '+esc(fmtDate(slots.userTwo.createdAt))+'<p style="margin:4px 0 0">'+esc(slots.userTwo.content||'')+'</p></div>';
+    reply+='<div class="pw-pdp-rq-reply buyer"><div class="pw-pdp-rq-who"><strong>'+esc(slots.userTwo.responderName||'')+'</strong>'+(slotVerified(q,slots,2)?verifiedBadge():'')+'<span class="pw-pdp-rq-meta-side">'+esc(COPY.qaBuyerReplied)+' · '+esc(fmtDate(slots.userTwo.createdAt))+'</span></div><p style="margin:4px 0 0">'+esc(slots.userTwo.content||'')+'</p></div>';
   }
   var ansForm='';
   if(buyerReplyCount(slots)<2){
@@ -917,39 +953,13 @@ function bindLive(id){
     var vote=t.closest('[data-pw-review-vote]');
     if(vote){
       ev.preventDefault();
-      if(!loggedIn()){rqToast(COPY.reviewsVoteLoginRequired);return;}
-      var rid=vote.getAttribute('data-pw-review-vote');
-      apiFetch(API_PREFIX+encodeURIComponent(id)+'/reviews/'+encodeURIComponent(rid)+'/vote',{method:'POST'}).then(function(res){
-        if(res.status===401){rqToast(COPY.reviewsVoteLoginRequired);return;}
-        if(!res.ok||!res.j||!res.j.ok)return;
-        vote.classList.toggle('is-on',Boolean(res.j.voted));
-        var row=vote.closest('.pw-pdp-helpful');
-        var span=row&&row.querySelector('span');
-        var n=Number(res.j.usefulCount||0);
-        if(n>0){
-          if(!span){span=document.createElement('span');row.insertBefore(span,vote);}
-          span.textContent=String(COPY.reviewsHelpfulCount||'').replace('{n}',String(n));
-        } else if(span) span.remove();
-      });
+      toggleHelpfulVote(vote,'review');
       return;
     }
     var qvote=t.closest('[data-pw-qa-vote]');
     if(qvote){
       ev.preventDefault();
-      if(!loggedIn()){rqToast(COPY.reviewsVoteLoginRequired);return;}
-      var qvid=qvote.getAttribute('data-pw-qa-vote');
-      apiFetch(API_PREFIX+encodeURIComponent(id)+'/questions/'+encodeURIComponent(qvid)+'/vote',{method:'POST'}).then(function(res){
-        if(res.status===401){rqToast(COPY.reviewsVoteLoginRequired);return;}
-        if(!res.ok||!res.j||!res.j.ok)return;
-        qvote.classList.toggle('is-on',Boolean(res.j.voted));
-        var row=qvote.closest('.pw-pdp-helpful');
-        var span=row&&row.querySelector('span');
-        var n=Number(res.j.usefulCount||0);
-        if(n>0){
-          if(!span){span=document.createElement('span');row.insertBefore(span,qvote);}
-          span.textContent=String(COPY.qaHelpfulCount||'').replace('{n}',String(n));
-        } else if(span) span.remove();
-      });
+      toggleHelpfulVote(qvote,'qa');
       return;
     }
     if(t.closest('[data-pw-review-submit]')){

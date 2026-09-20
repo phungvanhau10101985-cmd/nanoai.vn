@@ -114,24 +114,43 @@ function Verified({ label }: { label: string }) {
           d="M9.2 11.9 11.4 14.1 15.9 8.6"
         />
       </svg>
-      <span>{label}</span>
+      <span className="pw-pdp-verified-label">{label}</span>
     </span>
   )
 }
 
 function HelpfulBtn({
   voted,
+  count,
   label,
+  countLabel,
+  busy,
   onClick,
 }: {
   voted?: boolean
+  count: number
   label: string
+  countLabel: string
+  busy?: boolean
   onClick: () => void
 }) {
+  const n = Math.max(0, Math.round(Number(count) || 0))
+  const title = n > 0 ? countLabel.replace('{n}', String(n)) : label
   return (
-    <button type="button" className={voted ? 'is-on' : undefined} onClick={onClick} title={label}>
+    <button
+      type="button"
+      className={`pw-pdp-helpful-btn${voted ? ' is-on' : ''}`}
+      aria-pressed={Boolean(voted)}
+      aria-label={title}
+      title={title}
+      data-pw-busy={busy ? '1' : undefined}
+      onClick={onClick}
+    >
       <span dangerouslySetInnerHTML={{ __html: PW_PDP_HELPFUL_THUMB_ICON }} />
-      {label}
+      <span className="pw-pdp-helpful-n" data-pw-helpful-n={n}>
+        {n}
+      </span>
+      <span className="pw-pdp-helpful-label">{label}</span>
     </button>
   )
 }
@@ -182,6 +201,7 @@ export function PartnerSiteProductReviewsQa({
   const [msg, setMsg] = useState('')
   const [answerDrafts, setAnswerDrafts] = useState<Record<string, string>>({})
   const [replyingId, setReplyingId] = useState<string | null>(null)
+  const [voteBusy, setVoteBusy] = useState<Record<string, boolean>>({})
 
   const loginHref = useMemo(() => {
     if (typeof window === 'undefined') return '#'
@@ -313,16 +333,40 @@ export function PartnerSiteProductReviewsQa({
       setNotice(t.reviewsVoteLoginRequired)
       return
     }
-    const res = await fetch(`${api}/reviews/${encodeURIComponent(id)}/vote`, { method: 'POST', credentials: 'same-origin' })
-    const j = await res.json().catch(() => null)
-    if (res.status === 401 || j?.error === 'login_required') {
-      setNotice(t.reviewsVoteLoginRequired)
-      return
-    }
-    if (j?.ok) {
-      setReviews((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, usefulCount: j.usefulCount, userHasVoted: Boolean(j.voted) } : r))
+    const key = `r:${id}`
+    if (voteBusy[key]) return
+    const prev = reviews.find((r) => r.id === id)
+    const nextVoted = !prev?.userHasVoted
+    const nextCount = Math.max(0, Number(prev?.usefulCount || 0) + (nextVoted ? 1 : -1))
+    setVoteBusy((p) => ({ ...p, [key]: true }))
+    if (prev) {
+      setReviews((rows) =>
+        rows.map((r) => (r.id === id ? { ...r, usefulCount: nextCount, userHasVoted: nextVoted } : r))
       )
+    }
+    try {
+      const res = await fetch(`${api}/reviews/${encodeURIComponent(id)}/vote`, { method: 'POST', credentials: 'same-origin' })
+      const j = await res.json().catch(() => null)
+      if (res.status === 401 || j?.error === 'login_required') {
+        if (prev) setReviews((rows) => rows.map((r) => (r.id === id ? prev : r)))
+        setNotice(t.reviewsVoteLoginRequired)
+        return
+      }
+      if (j?.ok) {
+        setReviews((rows) =>
+          rows.map((r) => (r.id === id ? { ...r, usefulCount: j.usefulCount, userHasVoted: Boolean(j.voted) } : r))
+        )
+      } else if (prev) {
+        setReviews((rows) => rows.map((r) => (r.id === id ? prev : r)))
+      }
+    } catch {
+      if (prev) setReviews((rows) => rows.map((r) => (r.id === id ? prev : r)))
+    } finally {
+      setVoteBusy((p) => {
+        const next = { ...p }
+        delete next[key]
+        return next
+      })
     }
   }
 
@@ -331,16 +375,40 @@ export function PartnerSiteProductReviewsQa({
       setNotice(t.reviewsVoteLoginRequired)
       return
     }
-    const res = await fetch(`${api}/questions/${encodeURIComponent(id)}/vote`, { method: 'POST', credentials: 'same-origin' })
-    const j = await res.json().catch(() => null)
-    if (res.status === 401 || j?.error === 'login_required') {
-      setNotice(t.reviewsVoteLoginRequired)
-      return
-    }
-    if (j?.ok) {
-      setQuestions((prev) =>
-        prev.map((q) => (q.id === id ? { ...q, usefulCount: j.usefulCount, userHasVoted: Boolean(j.voted) } : q))
+    const key = `q:${id}`
+    if (voteBusy[key]) return
+    const prev = questions.find((q) => q.id === id)
+    const nextVoted = !prev?.userHasVoted
+    const nextCount = Math.max(0, Number(prev?.usefulCount || 0) + (nextVoted ? 1 : -1))
+    setVoteBusy((p) => ({ ...p, [key]: true }))
+    if (prev) {
+      setQuestions((rows) =>
+        rows.map((q) => (q.id === id ? { ...q, usefulCount: nextCount, userHasVoted: nextVoted } : q))
       )
+    }
+    try {
+      const res = await fetch(`${api}/questions/${encodeURIComponent(id)}/vote`, { method: 'POST', credentials: 'same-origin' })
+      const j = await res.json().catch(() => null)
+      if (res.status === 401 || j?.error === 'login_required') {
+        if (prev) setQuestions((rows) => rows.map((q) => (q.id === id ? prev : q)))
+        setNotice(t.reviewsVoteLoginRequired)
+        return
+      }
+      if (j?.ok) {
+        setQuestions((rows) =>
+          rows.map((q) => (q.id === id ? { ...q, usefulCount: j.usefulCount, userHasVoted: Boolean(j.voted) } : q))
+        )
+      } else if (prev) {
+        setQuestions((rows) => rows.map((q) => (q.id === id ? prev : q)))
+      }
+    } catch {
+      if (prev) setQuestions((rows) => rows.map((q) => (q.id === id ? prev : q)))
+    } finally {
+      setVoteBusy((p) => {
+        const next = { ...p }
+        delete next[key]
+        return next
+      })
     }
   }
 
@@ -476,11 +544,13 @@ export function PartnerSiteProductReviewsQa({
     })
     return (
       <article key={r.id} id={`review-${r.id}`} className="pw-pdp-rq-item" data-pw-el={PW_EL.card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+        <div className="pw-pdp-rq-item-head">
           <div>
-            <strong data-pw-el={PW_EL.cardName}>{r.reviewerName}</strong>
-            {verified ? <Verified label={t.qaVerifiedBadge} /> : null}
-            <div className="pw-shop-muted" style={{ fontSize: 12 }}>{fmtDate(r.createdAt)}</div>
+            <div className="pw-pdp-rq-who">
+              <strong data-pw-el={PW_EL.cardName}>{r.reviewerName}</strong>
+              {verified ? <Verified label={t.qaVerifiedBadge} /> : null}
+            </div>
+            <div className="pw-shop-muted pw-pdp-rq-date">{fmtDate(r.createdAt)}</div>
           </div>
           <span className="pw-pdp-star">{stars(r.rating)}</span>
         </div>
@@ -503,15 +573,22 @@ export function PartnerSiteProductReviewsQa({
         ) : null}
         {r.merchantReply ? (
           <div className="pw-pdp-rq-reply">
-            <strong>{r.merchantReplyBy || 'Shop'}</strong> · {fmtDate(r.merchantReplyAt || r.createdAt)}
+            <div className="pw-pdp-rq-who">
+              <strong>{r.merchantReplyBy || 'Shop'}</strong>
+              <span className="pw-pdp-rq-meta-side">{fmtDate(r.merchantReplyAt || r.createdAt)}</span>
+            </div>
             <p style={{ margin: '4px 0 0' }}>{r.merchantReply}</p>
           </div>
         ) : null}
         <div className="pw-pdp-helpful">
-          {r.usefulCount > 0 ? (
-            <span>{t.reviewsHelpfulCount.replace('{n}', String(r.usefulCount))}</span>
-          ) : null}
-          <HelpfulBtn voted={r.userHasVoted} label={t.reviewsUsefulLabel} onClick={() => void voteReview(r.id)} />
+          <HelpfulBtn
+            voted={r.userHasVoted}
+            count={r.usefulCount}
+            label={t.reviewsUsefulLabel}
+            countLabel={t.reviewsHelpfulCount}
+            busy={Boolean(voteBusy[`r:${r.id}`])}
+            onClick={() => void voteReview(r.id)}
+          />
         </div>
       </article>
     )
@@ -530,23 +607,34 @@ export function PartnerSiteProductReviewsQa({
         <div className="pw-shop-muted" style={{ fontSize: 12 }}>{fmtDate(q.createdAt)}</div>
         {slots.admin?.content?.trim() ? (
           <div className="pw-pdp-rq-reply">
-            <strong>{slots.admin.responderName || 'Shop'}</strong> · {fmtDate(slots.admin.createdAt)}
+            <div className="pw-pdp-rq-who">
+              <strong>{slots.admin.responderName || 'Shop'}</strong>
+              <span className="pw-pdp-rq-meta-side">{fmtDate(slots.admin.createdAt)}</span>
+            </div>
             <p style={{ margin: '4px 0 0' }}>{slots.admin.content}</p>
           </div>
         ) : null}
         {slots.userOne?.content?.trim() ? (
           <div className="pw-pdp-rq-reply buyer">
-            <strong>{slots.userOne.responderName}</strong>
-            {qaSlotShowsVerifiedPurchaserBadge(slots, 1, q.isImported) ? <Verified label={t.qaVerifiedBadge} /> : null}{' '}
-            {t.qaBuyerReplied} · {fmtDate(slots.userOne.createdAt)}
+            <div className="pw-pdp-rq-who">
+              <strong>{slots.userOne.responderName}</strong>
+              {qaSlotShowsVerifiedPurchaserBadge(slots, 1, q.isImported) ? <Verified label={t.qaVerifiedBadge} /> : null}
+              <span className="pw-pdp-rq-meta-side">
+                {t.qaBuyerReplied} · {fmtDate(slots.userOne.createdAt)}
+              </span>
+            </div>
             <p style={{ margin: '4px 0 0' }}>{slots.userOne.content}</p>
           </div>
         ) : null}
         {slots.userTwo?.content?.trim() ? (
           <div className="pw-pdp-rq-reply buyer">
-            <strong>{slots.userTwo.responderName}</strong>
-            {qaSlotShowsVerifiedPurchaserBadge(slots, 2, q.isImported) ? <Verified label={t.qaVerifiedBadge} /> : null}{' '}
-            {t.qaBuyerReplied} · {fmtDate(slots.userTwo.createdAt)}
+            <div className="pw-pdp-rq-who">
+              <strong>{slots.userTwo.responderName}</strong>
+              {qaSlotShowsVerifiedPurchaserBadge(slots, 2, q.isImported) ? <Verified label={t.qaVerifiedBadge} /> : null}
+              <span className="pw-pdp-rq-meta-side">
+                {t.qaBuyerReplied} · {fmtDate(slots.userTwo.createdAt)}
+              </span>
+            </div>
             <p style={{ margin: '4px 0 0' }}>{slots.userTwo.content}</p>
           </div>
         ) : null}
@@ -592,10 +680,14 @@ export function PartnerSiteProductReviewsQa({
           ) : null
         ) : null}
         <div className="pw-pdp-helpful">
-          {(q.usefulCount || 0) > 0 ? (
-            <span>{t.qaHelpfulCount.replace('{n}', String(q.usefulCount || 0))}</span>
-          ) : null}
-          <HelpfulBtn voted={q.userHasVoted} label={t.reviewsUsefulLabel} onClick={() => void voteQuestion(q.id)} />
+          <HelpfulBtn
+            voted={q.userHasVoted}
+            count={q.usefulCount || 0}
+            label={t.reviewsUsefulLabel}
+            countLabel={t.qaHelpfulCount}
+            busy={Boolean(voteBusy[`q:${q.id}`])}
+            onClick={() => void voteQuestion(q.id)}
+          />
         </div>
       </article>
     )

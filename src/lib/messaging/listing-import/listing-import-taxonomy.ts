@@ -339,6 +339,24 @@ function mergeExcelWebListingBlocks(productData: Record<string, unknown>, triple
   if (nameDisp) inner.name = nameDisp
   else delete inner.name
 
+  let th = viOrEmpty(triple.thuong_hieu_vi)
+  if (!th) th = viOrEmpty(productData.brand_name)
+  if (th) {
+    inner.brand = th
+    productData.brand_name = th.slice(0, 120)
+  } else {
+    delete inner.brand
+  }
+
+  let ox = viOrEmpty(triple.xuat_xu_vi)
+  if (!ox) ox = viOrEmpty(productData.origin)
+  if (ox) {
+    inner.origin = ox
+    productData.origin = ox.slice(0, 120)
+  } else {
+    delete inner.origin
+  }
+
   inner.category = { level_1: triple.cat1, level_2: triple.cat2, level_3: triple.cat3 }
 
   const specExisting = asRecord(pi.specifications) ?? {}
@@ -359,7 +377,6 @@ function mergeExcelWebListingBlocks(productData: Record<string, unknown>, triple
     productData.style = styleV.slice(0, 100)
   } else {
     delete spec.style
-    productData.style = ''
   }
 
   const dipV = viOrEmpty(triple.dip_vi) || viOrEmpty(productData.occasion)
@@ -368,7 +385,6 @@ function mergeExcelWebListingBlocks(productData: Record<string, unknown>, triple
     productData.occasion = dipV.slice(0, 100)
   } else {
     delete spec.occasion
-    productData.occasion = ''
   }
 
   const tw = viOrEmpty(triple.trong_luong_vi) || viOrEmpty(productData.weight)
@@ -383,7 +399,8 @@ function mergeExcelWebListingBlocks(productData: Record<string, unknown>, triple
   if (tsDims) spec.thong_so_kich_thuoc_vi = tsDims
   else delete spec.thong_so_kich_thuoc_vi
 
-  pi.specifications = spec
+  if (Object.keys(spec).length) pi.specifications = spec
+  else delete pi.specifications
 
   const colorsJoin = collectListingImportColorLabels(productData).join(', ')
   const sizesJoin = sizesJoinVi(productData)
@@ -396,7 +413,18 @@ function mergeExcelWebListingBlocks(productData: Record<string, unknown>, triple
     delete varM.colors
   }
   if (sizesJoin) varM.sizes = sizesJoin
-  pi.variants = varM
+  if (Object.keys(varM).length) pi.variants = varM
+  else delete pi.variants
+
+  const mkExisting = asRecord(pi.market_info) ?? {}
+  const mk: Record<string, unknown> = { ...mkExisting }
+  let stockRaw = productData.available
+  if (stockRaw == null) stockRaw = productData.stock_quantity
+  if (stockRaw != null && scrubPlaceholder(String(stockRaw))) {
+    const n = Number.parseInt(String(stockRaw), 10)
+    if (Number.isFinite(n)) mk.stock = n
+  }
+  if (Object.keys(mk).length) pi.market_info = mk
 
   const kh = viOrEmpty(triple.khach_hang)
   if (kh) {

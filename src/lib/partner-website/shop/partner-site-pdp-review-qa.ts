@@ -43,16 +43,28 @@ html .pw-pdp-rq-empty-icon{width:48px;height:48px;border-radius:999px;display:fl
 html .pw-pdp-rq-empty-icon svg{width:24px;height:24px}
 html .pw-pdp-rq-empty-icon.pw-pdp-rq-icon-review{background:color-mix(in srgb,#f59e0b 12%,#fff);color:#fbbf24}
 html .pw-pdp-rq-empty-icon.pw-pdp-rq-icon-qa{background:var(--pw-surface);color:var(--pw-muted)}
-html .pw-pdp-verified{display:inline-flex;align-items:center;gap:4px;margin-left:4px;color:#15803d;font-size:11px;font-weight:600;vertical-align:middle}
-html .pw-pdp-verified-icon{width:14px;height:14px;flex:none}
+html .pw-pdp-rq-item-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+html .pw-pdp-rq-who{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;min-width:0}
+html .pw-pdp-rq-who>strong{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html .pw-pdp-rq-date{margin-top:2px;font-size:12px}
+html .pw-pdp-rq-meta-side{font-size:12px;font-weight:400;color:var(--pw-muted);white-space:nowrap}
+html .pw-pdp-verified{display:inline-flex;align-items:center;gap:4px;flex:none;white-space:nowrap;color:#15803d;font-size:11px;font-weight:700;line-height:1;background:color-mix(in srgb,#16a34a 10%,#fff);border:1px solid color-mix(in srgb,#16a34a 22%,#fff);border-radius:999px;padding:3px 8px 3px 5px;vertical-align:middle}
+html .pw-pdp-verified-icon{width:13px;height:13px;flex:none;display:block}
+html .pw-pdp-verified-label{white-space:nowrap}
 html .pw-pdp-rq-toast{position:fixed;top:16px;right:16px;z-index:110;max-width:min(360px,calc(100vw - 32px));background:#111827;color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,.18)}
 html .pw-pdp-rq-toast[hidden]{display:none!important}
 html .pw-pdp-rq-need-buy{margin-bottom:12px;padding:16px;border:1px solid var(--pw-border);border-radius:12px;background:var(--pw-surface,#f9fafb);font-size:14px;color:var(--pw-text)}
 html .pw-pdp-rq-need-buy p{margin:0 0 12px}
-html .pw-pdp-helpful{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--pw-muted)}
-html .pw-pdp-helpful button{border:none;background:#f3f4f6;cursor:pointer;color:#374151;font-size:12px;font-weight:600;border-radius:6px;padding:4px 8px;display:inline-flex;align-items:center;gap:4px}
-html .pw-pdp-helpful button.is-on{background:color-mix(in srgb,var(--pw-primary) 16%,#fff);color:var(--pw-primary)}
-html .pw-pdp-helpful-icon{width:12px;height:12px}
+html .pw-pdp-helpful{display:flex;align-items:center;justify-content:flex-start;margin-top:10px;padding-top:8px;border-top:1px solid var(--pw-border)}
+html .pw-pdp-helpful-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--pw-border);background:#fff;cursor:pointer;color:#4b5563;font-size:12px;font-weight:600;line-height:1;border-radius:999px;padding:6px 12px 6px 10px;min-height:32px}
+html .pw-pdp-helpful-btn:hover{border-color:var(--pw-primary);color:var(--pw-primary);background:color-mix(in srgb,var(--pw-primary) 8%,#fff)}
+html .pw-pdp-helpful-btn:active{transform:scale(.97)}
+html .pw-pdp-helpful-btn:focus-visible{outline:2px solid var(--pw-primary);outline-offset:2px}
+html .pw-pdp-helpful-btn.is-on{border-color:color-mix(in srgb,var(--pw-primary) 42%,#fff);background:color-mix(in srgb,var(--pw-primary) 14%,#fff);color:var(--pw-primary)}
+html .pw-pdp-helpful-btn[data-pw-busy]{opacity:.72;pointer-events:none}
+html .pw-pdp-helpful-icon{width:15px;height:15px;flex:none;display:block}
+html .pw-pdp-helpful-n{font-variant-numeric:tabular-nums;font-weight:700;min-width:1.15em;text-align:center}
+html .pw-pdp-helpful-label{white-space:nowrap}
 html .pw-pdp-qa-reply-link{background:none;border:none;padding:0;color:var(--pw-buy);cursor:pointer;font-size:12px;font-weight:600}
 html .pw-pdp-qa-reply-link:hover{text-decoration:underline}
 html .pw-pdp-qa-answer-form{margin-top:8px;display:grid;gap:8px}
@@ -160,8 +172,10 @@ export function buildPdpReviewQaModalsHtml(locale: WebLocale): string {
 }
 
 export function injectPdpReviewQaCss(html: string): string {
-  if (html.includes(STYLE_ID)) return html
   const tag = `<style id="${STYLE_ID}">${PW_PDP_REVIEW_QA_CSS}</style>`
+  if (html.includes(`id="${STYLE_ID}"`) || html.includes(`id='${STYLE_ID}'`)) {
+    return html.replace(/<style\b[^>]*id=["']pw-pdp-review-qa-css["'][^>]*>[\s\S]*?<\/style>/i, tag)
+  }
   if (/<\/head>/i.test(html)) return html.replace(/<\/head>/i, `${tag}\n</head>`)
   return `${tag}\n${html}`
 }

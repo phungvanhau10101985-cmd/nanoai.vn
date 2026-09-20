@@ -27,6 +27,15 @@ import {
 import { appendListingImportColorSuffixToViName } from '@/lib/messaging/listing-import/listing-import-taxonomy'
 import { compactListingImportProductInfoForWeb } from '@/lib/messaging/listing-import/listing-import-product-info-compact'
 import { excelExportRowFromProductData } from '@/lib/messaging/listing-import/import-1688-excel-export-preview'
+import {
+  collectListingImportColorLabels,
+  collectListingImportColorLabelStrings,
+  rebuildListingImportFlatColorColumn,
+} from '@/lib/messaging/listing-import/listing-import-color-translate'
+import {
+  normalizeListingProductDataImageUrls,
+  normalizeListingProductImageUrl,
+} from '@/lib/messaging/listing-import/listing-import-alicdn-urls'
 
 describe('listing import cookies', () => {
   it('parses Cookie-Editor JSON list', () => {
@@ -524,6 +533,205 @@ describe('listing import Excel / product_info parity with 188', () => {
     assert.equal(variants.source, undefined)
     assert.equal(variants.pairs, undefined)
     assert.equal(pi.market_info, undefined)
+  })
+})
+
+describe('listing import AliCDN URL normalize (188 alicdn_urls)', () => {
+  it('strips jpg_NxN.jpg resize suffixes to the first .jpg', () => {
+    assert.equal(
+      normalizeListingProductImageUrl(
+        'https://cbu01.alicdn.com/img/ibank/O1CN01TcAxsb1j8QUCo5w3p_!!4217214503-0-cib.jpg_300x300.jpg'
+      ),
+      'https://cbu01.alicdn.com/img/ibank/O1CN01TcAxsb1j8QUCo5w3p_!!4217214503-0-cib.jpg'
+    )
+    assert.equal(
+      normalizeListingProductImageUrl(
+        'https://cbu01.alicdn.com/img/ibank/O1CN015pV83s1rvtsXYEkZq_!!3906805694-0-cib.jpg_100x100.jpg'
+      ),
+      'https://cbu01.alicdn.com/img/ibank/O1CN015pV83s1rvtsXYEkZq_!!3906805694-0-cib.jpg'
+    )
+    assert.equal(
+      normalizeListingProductImageUrl(
+        'https://img.alicdn.com/bao/uploaded/i2/1678094875/TB2hTFJdlNkpuFjy0FaXXbRCVXa_!!1678094875.jpg_500x500.jpg'
+      ),
+      'https://img.alicdn.com/bao/uploaded/i2/1678094875/TB2hTFJdlNkpuFjy0FaXXbRCVXa_!!1678094875.jpg'
+    )
+  })
+
+  it('drops AliCDN cache-bust ?__r__= on static jpg', () => {
+    assert.equal(
+      normalizeListingProductImageUrl(
+        'https://cbu01.alicdn.com/img/ibank/O1CN01bDLH1h1fRQWkELLbt_!!2210284314003-0-cib.jpg?__r__=1753103929326'
+      ),
+      'https://cbu01.alicdn.com/img/ibank/O1CN01bDLH1h1fRQWkELLbt_!!2210284314003-0-cib.jpg'
+    )
+  })
+
+  it('normalizes Variant img inside product_data like 188 normalize_product_data_image_urls_for_db', () => {
+    const pd: Record<string, unknown> = {
+      colors: [
+        {
+          name: 'Xám cổ điển',
+          img: 'https://cbu01.alicdn.com/img/ibank/22679636703_2115707610.jpg_300x300.jpg',
+        },
+      ],
+      images: [
+        'https://cbu01.alicdn.com/img/ibank/O1CN015pV83s1rvtsXYEkZq_!!3906805694-0-cib.jpg_100x100.jpg',
+      ],
+    }
+    normalizeListingProductDataImageUrls(pd)
+    const colors = pd.colors as { name: string; img: string }[]
+    assert.equal(colors[0].img, 'https://cbu01.alicdn.com/img/ibank/22679636703_2115707610.jpg')
+    assert.equal(
+      (pd.images as string[])[0],
+      'https://cbu01.alicdn.com/img/ibank/O1CN015pV83s1rvtsXYEkZq_!!3906805694-0-cib.jpg'
+    )
+  })
+})
+
+describe('pandamall Variant / gallery thumbs (188 test_import_pandamall_scraper)', () => {
+  it('strips gallery _100x100.jpg like 188 test_pandamall_gallery_from_swiper_thumb_strip', () => {
+    const product = pandamallRowToProductData(
+      {
+        title: 'Áo sơ mi nam',
+        colors: [],
+        sizes: ['M/38', 'L/39'],
+        variant_rows: [],
+        gallery_images: [
+          'https://cbu01.alicdn.com/img/ibank/O1CN015pV83s1rvtsXYEkZq_!!3906805694-0-cib.jpg_100x100.jpg',
+          'https://cbu01.alicdn.com/img/ibank/O1CN01PEcjge1rvtsZ0UoPl_!!3906805694-0-cib.jpg_100x100.jpg',
+        ],
+        detail_images: [],
+      },
+      'https://pandamall.vn/1688/detail/123456789',
+      '123456789',
+      '1688'
+    )
+    const images = product.images as string[]
+    assert.equal(images.length, 2)
+    assert.ok(images.every((u) => !u.includes('_100x100')))
+    assert.ok(images[0].endsWith('O1CN015pV83s1rvtsXYEkZq_!!3906805694-0-cib.jpg'))
+    assert.equal(product.main_image, images[0])
+  })
+
+  it('maps color-only Variant img to first .jpg like 188 test_pandamall_ver_swipe_color_buttons_map_variants_and_first_jpg', () => {
+    const product = pandamallRowToProductData(
+      {
+        title: 'Giày cao gót',
+        layout_mode: 'color_only',
+        colors: [
+          {
+            label: 'Màu cam 14cm',
+            image_url:
+              'https://img.alicdn.com/bao/uploaded/i2/1678094875/TB2hTFJdlNkpuFjy0FaXXbRCVXa_!!1678094875.jpg_500x500.jpg',
+            in_stock: true,
+          },
+          {
+            label: 'Đen 14cm',
+            image_url:
+              'https://img.alicdn.com/bao/uploaded/i3/1678094875/TB2Sr8QdmtkpuFjy0FhXXXQzFXa_!!1678094875.jpg_500x500.jpg',
+            in_stock: true,
+          },
+        ],
+        variant_rows: [
+          { color: 'Màu cam 14cm', size: '', in_stock: true },
+          { color: 'Đen 14cm', size: '', in_stock: true },
+        ],
+        sizes: [],
+        gallery_images: [],
+        detail_images: [],
+      },
+      'https://pandamall.vn/taobao/detail/123456789',
+      '123456789',
+      'taobao'
+    )
+    const colors = product.colors as { name: string; img: string }[]
+    assert.equal(colors.length, 2)
+    assert.equal(colors[0].name, 'Màu cam 14cm')
+    assert.ok(colors[0].img.endsWith('TB2hTFJdlNkpuFjy0FaXXbRCVXa_!!1678094875.jpg'))
+    assert.ok(!colors[0].img.includes('_500x500'))
+    assert.deepEqual(product.sizes, [])
+    const variants = (product.product_info as Record<string, unknown>).variants as Record<string, unknown>
+    assert.equal(variants.variant_only, true)
+    const row = excelExportRowFromProductData(product)
+    assert.match(String(row.Variant), /TB2hTFJdlNkpuFjy0FaXXbRCVXa_!!1678094875\.jpg"/)
+    assert.doesNotMatch(String(row.Variant), /_500x500/)
+  })
+
+  it('maps bag color-only Variant without sizes and strips jpg_300x300.jpg', () => {
+    const product = pandamallRowToProductData(
+      {
+        title: 'Túi xách nữ',
+        layout_mode: 'color_only',
+        colors: [
+          {
+            label: 'Xám cổ điển',
+            image_url: 'https://cbu01.alicdn.com/img/ibank/22679636703_2115707610.jpg_300x300.jpg',
+            price_vnd: 837900,
+            in_stock: true,
+            stock: 50,
+          },
+        ],
+        variant_rows: [{ color: 'Xám cổ điển', size: '', price_vnd: 837900, stock: 50, in_stock: true }],
+        sizes: [],
+        gallery_images: [],
+        detail_images: [],
+      },
+      'https://pandamall.vn/1688/detail/123456789',
+      '123456789',
+      '1688'
+    )
+    const colors = product.colors as { name: string; img: string }[]
+    assert.equal(colors[0].name, 'Xám cổ điển')
+    assert.equal(colors[0].img, 'https://cbu01.alicdn.com/img/ibank/22679636703_2115707610.jpg')
+    assert.deepEqual(product.sizes, [])
+    const variants = (product.product_info as Record<string, unknown>).variants as Record<string, unknown>
+    assert.equal(variants.variant_only, true)
+    assert.equal(variants.sizes, undefined)
+  })
+
+  it('strips detail image ?__r__= like 188', () => {
+    const product = pandamallRowToProductData(
+      {
+        title: 'Bốt nữ cao gót',
+        colors: [],
+        sizes: [],
+        variant_rows: [],
+        gallery_images: [],
+        detail_images: [
+          'https://cbu01.alicdn.com/img/ibank/O1CN01bDLH1h1fRQWkELLbt_!!2210284314003-0-cib.jpg?__r__=1753103929326',
+        ],
+      },
+      'https://pandamall.vn/1688/detail/935969699245',
+      '935969699245',
+      '1688'
+    )
+    const detail = product.gallery as string[]
+    assert.equal(detail.length, 1)
+    assert.ok(!detail[0].includes('?__r__='))
+    assert.ok(detail[0].endsWith('O1CN01bDLH1h1fRQWkELLbt_!!2210284314003-0-cib.jpg'))
+  })
+})
+
+describe('listing import color / Variant labels (188 variant_color_translate)', () => {
+  it('collects colors[] first then rebuilds the Color column', () => {
+    const pd: Record<string, unknown> = {
+      colors: [
+        { name: 'Đỏ chà là', img: 'https://img.alicdn.com/a.jpg' },
+        { name: 'Đen', img: 'https://img.alicdn.com/b.jpg' },
+      ],
+      color: '黑色, 红色',
+      product_info: {
+        variants: {
+          colors: '黑色, 红色',
+          color_swatches: [{ label: '黑色' }],
+          pairs: [{ color: '红色', size: 'S' }],
+        },
+      },
+    }
+    assert.deepEqual(collectListingImportColorLabels(pd), ['Đỏ chà là', 'Đen'])
+    assert.deepEqual(collectListingImportColorLabelStrings(pd), ['Đỏ chà là', 'Đen', '红色', '黑色'])
+    assert.equal(rebuildListingImportFlatColorColumn(pd.colors), 'Đỏ chà là, Đen')
   })
 })
 
