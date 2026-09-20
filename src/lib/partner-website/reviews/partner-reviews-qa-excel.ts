@@ -266,7 +266,7 @@ export function buildQuestionImportSampleXlsx(): Buffer {
     reply_admin_content: 'Kho gửi khoảng 10-12 ngày anh nhận được hàng.',
     reply_user_one_name: 'Minh',
     reply_user_one_content: 'Mình nhận sau 11 ngày.',
-    reply_user_two_name: '',
-    reply_user_two_content: '',
+    reply_user_two_name: 'Lan',
+    reply_user_two_content: 'Mình cũng nhận đúng 12 ngày.',
   })
 }

@@ -7,12 +7,14 @@ import {
   clampRating,
   coalesceImportGroup,
   sanitizeReviewImageUrls,
+  splitQaReplySlots,
   type PartnerQuestionAnswerRow,
   type PartnerQuestionRow,
   type PartnerQuestionWithAnswers,
   type PartnerRatingSummary,
   type PartnerReviewRow,
   type PartnerReviewSourceFilter,
+  type QaReplySlot,
 } from '@/lib/partner-website/reviews/partner-review-types'
 import type {
   ImportedQuestionDraft,
@@ -70,6 +72,7 @@ type AnswerDbRow = {
   question_id: string
   partner_id: string
   answer_type: 'buyer' | 'admin'
+  reply_slot: QaReplySlot | null
   guest_account_id: string | null
   linked_user_id: string | null
   responder_name: string
@@ -92,9 +95,14 @@ const QUESTION_SELECT = `id::text, partner_id::text, inventory_id::text, guest_a
   coalesce(useful_count, 0) as useful_count, coalesce(is_imported, false) as is_imported,
   coalesce(import_group, 0) as import_group, created_at, updated_at`
 
-const ANSWER_SELECT = `id::text, question_id::text, partner_id::text, answer_type, guest_account_id::text,
+const ANSWER_SELECT = `id::text, question_id::text, partner_id::text, answer_type,
+  reply_slot, guest_account_id::text,
   linked_user_id::text, coalesce(responder_name, '') as responder_name, content, is_verified, is_active,
   created_at, updated_at`
+
+const ANSWER_SLOT_ORDER = `order by case reply_slot
+    when 'admin' then 0 when 'user_one' then 1 when 'user_two' then 2 else 3 end,
+    created_at asc, id asc`
 
 function mapReviewRow(r: ReviewDbRow): PartnerReviewRow {
   return {
@@ -145,12 +153,18 @@ function publicPoolWhereSql(inventoryParam: number, groupParam: number): string 
   return `(inventory_id = $${inventoryParam}::uuid or (is_imported = true and coalesce(nullif(import_group, 0), 888) = $${groupParam}))`
 }
 
+function mapReplySlot(raw: unknown): QaReplySlot | null {
+  if (raw === 'admin' || raw === 'user_one' || raw === 'user_two') return raw
+  return null
+}
+
 function mapAnswerRow(r: AnswerDbRow): PartnerQuestionAnswerRow {
   return {
     id: r.id,
     questionId: r.question_id,
     partnerId: r.partner_id,
     answerType: r.answer_type,
+    replySlot: mapReplySlot(r.reply_slot),
     guestAccountId: r.guest_account_id,
     linkedUserId: r.linked_user_id,
     responderName: r.responder_name ?? '',
@@ -386,8 +400,17 @@ export async function fetchPartnerProductReviewsPageFromPg(input: {
           [input.partnerId, input.inventoryId, viewerKey]
         )
       : null
+    const voted = viewerKey && rows.length
+      ? await pgQuery<{ review_id: string }>(
+          `select review_id::text as review_id
+           from public.messaging_partner_product_review_votes
+           where voter_key = $1 and review_id = any($2::uuid[])`,
+          [viewerKey, rows.map((r) => r.id)]
+        )
+      : []
+    const votedIds = new Set(voted.map((v) => v.review_id))
     return {
-      rows: rows.map(mapReviewRow),
+      rows: rows.map((r) => ({ ...mapReviewRow(r), userHasVoted: votedIds.has(r.id) })),
       total: totalRow?.c ?? 0,
       hasReviewed: Boolean(mine?.exists),
     }
@@ -736,6 +759,7 @@ export async function fetchPartnerProductQuestionsPageFromPg(input: {
   page?: number
   pageSize?: number
   viewerAccountKey?: string | null
+  highlightQuestionId?: string | null
 }): Promise<{ rows: PartnerQuestionWithAnswers[]; total: number } | null> {
   if (!isPgConfigured()) return null
   const page = Math.max(1, Math.floor(input.page ?? 1))
@@ -746,6 +770,10 @@ export async function fetchPartnerProductQuestionsPageFromPg(input: {
   const offset = (page - 1) * pageSize
   const importGroup = coalesceImportGroup(input.importGroup)
   const viewerKey = (input.viewerAccountKey ?? '').trim()
+  const highlightId = (input.highlightQuestionId ?? '').trim()
+  const highlightOk = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    highlightId
+  )
 
   try {
     const questions = await pgQuery<QuestionDbRow>(
@@ -754,12 +782,13 @@ export async function fetchPartnerProductQuestionsPageFromPg(input: {
        where partner_id = $1::uuid and is_active = true
          and ${publicPoolWhereSql(2, 5)}
        order by
+         (case when $6::uuid is not null and id = $6::uuid then 0 else 1 end) asc,
          (case when coalesce(guest_account_id::text, linked_user_id::text, '') = $4 and $4 <> '' then 0 else 1 end) asc,
          (case when coalesce(is_imported, false) then 1 else 0 end) asc,
          useful_count desc,
          created_at desc
        limit $3 offset ${offset}`,
-      [input.partnerId, input.inventoryId, pageSize, viewerKey, importGroup]
+      [input.partnerId, input.inventoryId, pageSize, viewerKey, importGroup, highlightOk ? highlightId : null]
     )
     const totalRow = await pgQueryOne<{ c: number }>(
       `select count(*)::int as c from public.messaging_partner_product_questions
@@ -774,7 +803,7 @@ export async function fetchPartnerProductQuestionsPageFromPg(input: {
       `select ${ANSWER_SELECT}
        from public.messaging_partner_product_question_answers
        where question_id = any($1::uuid[]) and is_active = true
-       order by created_at asc`,
+       ${ANSWER_SLOT_ORDER}`,
       [ids]
     )
     const byQuestion = new Map<string, PartnerQuestionAnswerRow[]>()
@@ -783,11 +812,21 @@ export async function fetchPartnerProductQuestionsPageFromPg(input: {
       list.push(a)
       byQuestion.set(a.questionId, list)
     }
+    const voted = viewerKey
+      ? await pgQuery<{ question_id: string }>(
+          `select question_id::text as question_id
+           from public.messaging_partner_product_question_votes
+           where voter_key = $1 and question_id = any($2::uuid[])`,
+          [viewerKey, ids]
+        )
+      : []
+    const votedIds = new Set(voted.map((v) => v.question_id))
     const rows = questions.map(mapQuestionRow).map((q) => {
-      const all = byQuestion.get(q.id) ?? []
-      const buyerAnswers = all.filter((a) => a.answerType === 'buyer').slice(0, QA_BUYER_ANSWER_LIMIT)
-      const adminAnswers = all.filter((a) => a.answerType === 'admin')
-      return { ...q, answers: [...adminAnswers, ...buyerAnswers] }
+      const slots = splitQaReplySlots(byQuestion.get(q.id) ?? [])
+      const answers = [slots.admin, slots.userOne, slots.userTwo].filter(
+        (a): a is PartnerQuestionAnswerRow => Boolean(a)
+      )
+      return { ...q, answers, userHasVoted: votedIds.has(q.id) }
     })
     return { rows, total: totalRow?.c ?? 0 }
   } catch (e) {
@@ -829,20 +868,39 @@ export async function insertPartnerProductBuyerAnswerFromPg(input: {
   try {
     const countRow = await pgQueryOne<{ c: number }>(
       `select count(*)::int as c from public.messaging_partner_product_question_answers
-       where question_id = $1::uuid and answer_type = 'buyer' and is_active = true`,
+       where question_id = $1::uuid and answer_type = 'buyer' and is_active = true
+         and reply_slot in ('user_one', 'user_two')`,
       [input.questionId]
     )
     if ((countRow?.c ?? 0) >= QA_BUYER_ANSWER_LIMIT) return { ok: false, error: 'slot_full' }
+
+    const existingSlots = await pgQuery<{ reply_slot: string | null }>(
+      `select reply_slot from public.messaging_partner_product_question_answers
+       where question_id = $1::uuid and is_active = true and reply_slot in ('user_one', 'user_two')`,
+      [input.questionId]
+    )
+    const used = new Set(existingSlots.map((r) => r.reply_slot))
+    const replySlot: QaReplySlot = used.has('user_one') ? 'user_two' : 'user_one'
+    if (used.has('user_one') && used.has('user_two')) return { ok: false, error: 'slot_full' }
 
     const content = input.content.trim().slice(0, 2000)
     if (!content) return { ok: false, error: 'db_error' }
 
     const row = await pgQueryOne<AnswerDbRow>(
       `insert into public.messaging_partner_product_question_answers (
-        question_id, partner_id, answer_type, guest_account_id, linked_user_id, responder_name, content, is_verified
-      ) values ($1::uuid, $2::uuid, 'buyer', $3::uuid, $4::uuid, $5, $6, true)
+        question_id, partner_id, answer_type, reply_slot, guest_account_id, linked_user_id,
+        responder_name, content, is_verified
+      ) values ($1::uuid, $2::uuid, 'buyer', $3, $4::uuid, $5::uuid, $6, $7, true)
       returning ${ANSWER_SELECT}`,
-      [input.questionId, input.partnerId, guestAccountId, linkedUserId, input.responderName.trim().slice(0, 200), content]
+      [
+        input.questionId,
+        input.partnerId,
+        replySlot,
+        guestAccountId,
+        linkedUserId,
+        input.responderName.trim().slice(0, 200),
+        content,
+      ]
     )
     if (!row) return { ok: false, error: 'db_error' }
     return { ok: true, row: mapAnswerRow(row) }
@@ -852,28 +910,121 @@ export async function insertPartnerProductBuyerAnswerFromPg(input: {
   }
 }
 
-/** Trả lời của merchant (admin) — không giới hạn slot, không cần điều kiện mua hàng. */
+/** Trả lời của merchant (admin) — một slot `admin` (188), upsert không nhân bản. */
 export async function insertPartnerProductAdminAnswerFromPg(input: {
   partnerId: string
   questionId: string
   responderName: string
   content: string
 }): Promise<PartnerQuestionAnswerRow | null> {
+  const rows = await upsertPartnerQuestionReplySlotsFromPg(input.partnerId, input.questionId, {
+    admin: { name: input.responderName, content: input.content },
+  })
+  return rows?.find((a) => a.replySlot === 'admin') ?? rows?.find((a) => a.answerType === 'admin') ?? null
+}
+
+export type QaReplySlotPatch = { name?: string; content?: string }
+
+/** Admin sửa 3 slot 188: xóa khi nội dung trống, upsert khi có chữ. */
+export async function upsertPartnerQuestionReplySlotsFromPg(
+  partnerId: string,
+  questionId: string,
+  slots: {
+    admin?: QaReplySlotPatch
+    userOne?: QaReplySlotPatch
+    userTwo?: QaReplySlotPatch
+  }
+): Promise<PartnerQuestionAnswerRow[] | null> {
   if (!isPgConfigured()) return null
-  const content = input.content.trim().slice(0, 2000)
-  if (!content) return null
+  const client = await getPgPool().connect()
+  const items: Array<{ slot: QaReplySlot; type: 'admin' | 'buyer'; patch: QaReplySlotPatch }> = []
+  if (slots.admin) items.push({ slot: 'admin', type: 'admin', patch: slots.admin })
+  if (slots.userOne) items.push({ slot: 'user_one', type: 'buyer', patch: slots.userOne })
+  if (slots.userTwo) items.push({ slot: 'user_two', type: 'buyer', patch: slots.userTwo })
+  if (!items.length) return []
   try {
-    const row = await pgQueryOne<AnswerDbRow>(
-      `insert into public.messaging_partner_product_question_answers (
-        question_id, partner_id, answer_type, responder_name, content, is_verified
-      ) values ($1::uuid, $2::uuid, 'admin', $3, $4, false)
-      returning ${ANSWER_SELECT}`,
-      [input.questionId, input.partnerId, input.responderName.trim().slice(0, 200), content]
+    await client.query('begin')
+    const q = await client.query<{ is_imported: boolean }>(
+      `select coalesce(is_imported, false) as is_imported
+       from public.messaging_partner_product_questions
+       where partner_id = $1::uuid and id = $2::uuid`,
+      [partnerId, questionId]
     )
-    return row ? mapAnswerRow(row) : null
+    if (!q.rows[0]) {
+      await client.query('rollback')
+      return null
+    }
+    const imported = q.rows[0].is_imported === true
+    for (const item of items) {
+      const hasContent = item.patch.content !== undefined
+      const content = String(item.patch.content ?? '').trim().slice(0, 2000)
+      const existing = await client.query<{ id: string }>(
+        `select id::text from public.messaging_partner_product_question_answers
+         where question_id = $1::uuid and reply_slot = $2
+         limit 1`,
+        [questionId, item.slot]
+      )
+      if (hasContent && !content) {
+        await client.query(
+          `delete from public.messaging_partner_product_question_answers
+           where partner_id = $1::uuid and question_id = $2::uuid and reply_slot = $3`,
+          [partnerId, questionId, item.slot]
+        )
+        continue
+      }
+      const defaultName = item.type === 'admin' ? 'Shop' : 'Khách'
+      const name =
+        item.patch.name !== undefined
+          ? String(item.patch.name ?? '').trim().slice(0, 200) || defaultName
+          : undefined
+      if (!hasContent) {
+        if (name !== undefined && existing.rows[0]) {
+          await client.query(
+            `update public.messaging_partner_product_question_answers
+             set responder_name = $1 where id = $2::uuid`,
+            [name, existing.rows[0].id]
+          )
+        }
+        continue
+      }
+      const responderName = name ?? defaultName
+      if (existing.rows[0]) {
+        const sets = ['content = $1', 'is_active = true', 'answer_type = $2']
+        const params: unknown[] = [content, item.type, existing.rows[0].id]
+        if (name !== undefined) {
+          sets.push('responder_name = $4')
+          params.push(name)
+        }
+        await client.query(
+          `update public.messaging_partner_product_question_answers
+           set ${sets.join(', ')}
+           where id = $3::uuid`,
+          params
+        )
+      } else {
+        await client.query(
+          `insert into public.messaging_partner_product_question_answers (
+            question_id, partner_id, answer_type, reply_slot, responder_name, content, is_verified, is_active
+          ) values ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, true)`,
+          [questionId, partnerId, item.type, item.slot, responderName, content, item.type === 'buyer' ? imported : false]
+        )
+      }
+    }
+    const list = await client.query<AnswerDbRow>(
+      `select ${ANSWER_SELECT}
+       from public.messaging_partner_product_question_answers
+       where question_id = $1::uuid
+       ${ANSWER_SLOT_ORDER}`,
+      [questionId]
+    )
+    await client.query('commit')
+    return list.rows.map(mapAnswerRow)
   } catch (e) {
-    console.warn('[insertPartnerProductAdminAnswerFromPg]', e)
+    await client.query('rollback').catch(() => undefined)
+    console.warn('[upsertPartnerQuestionReplySlotsFromPg]', e)
     return null
+  } finally {
+    client.release()
   }
 }
 
@@ -933,7 +1084,7 @@ export async function fetchPartnerProductQuestionsForAdminFromPg(input: {
       `select ${ANSWER_SELECT}
        from public.messaging_partner_product_question_answers
        where question_id = any($1::uuid[])
-       order by created_at asc`,
+       ${ANSWER_SLOT_ORDER}`,
       [ids]
     )
     const byQuestion = new Map<string, PartnerQuestionAnswerRow[]>()
@@ -1018,7 +1169,7 @@ export async function deletePartnerProductQuestionFromPg(partnerId: string, ques
 export async function updatePartnerProductAnswerFromPg(
   partnerId: string,
   answerId: string,
-  patch: { isActive?: boolean; content?: string }
+  patch: { isActive?: boolean; content?: string; responderName?: string }
 ): Promise<PartnerQuestionAnswerRow | null> {
   if (!isPgConfigured()) return null
   const sets: string[] = []
@@ -1031,6 +1182,10 @@ export async function updatePartnerProductAnswerFromPg(
   if (patch.content !== undefined) {
     sets.push(`content = $${p++}`)
     params.push(patch.content.trim().slice(0, 2000))
+  }
+  if (patch.responderName !== undefined) {
+    sets.push(`responder_name = $${p++}`)
+    params.push(patch.responderName.trim().slice(0, 200))
   }
   if (!sets.length) return null
   try {
@@ -1133,8 +1288,8 @@ export async function insertImportedPartnerProductQuestionsFromPg(
       if (d.adminReplyContent.trim()) {
         await client.query(
           `insert into public.messaging_partner_product_question_answers (
-            question_id, partner_id, answer_type, responder_name, content, is_verified, is_active, created_at
-          ) values ($1::uuid, $2::uuid, 'admin', $3, $4, false, true, $5)`,
+            question_id, partner_id, answer_type, reply_slot, responder_name, content, is_verified, is_active, created_at
+          ) values ($1::uuid, $2::uuid, 'admin', 'admin', $3, $4, false, true, $5)`,
           [
             questionId,
             partnerId,
@@ -1144,12 +1299,15 @@ export async function insertImportedPartnerProductQuestionsFromPg(
           ]
         )
       }
-      for (const buyer of d.buyerReplies.slice(0, QA_BUYER_ANSWER_LIMIT)) {
+      const buyerSlots: QaReplySlot[] = ['user_one', 'user_two']
+      for (let i = 0; i < d.buyerReplies.slice(0, QA_BUYER_ANSWER_LIMIT).length; i++) {
+        const buyer = d.buyerReplies[i]
+        if (!buyer) continue
         await client.query(
           `insert into public.messaging_partner_product_question_answers (
-            question_id, partner_id, answer_type, responder_name, content, is_verified, is_active, created_at
-          ) values ($1::uuid, $2::uuid, 'buyer', $3, $4, true, true, $5)`,
-          [questionId, partnerId, buyer.name, buyer.content, d.createdAt]
+            question_id, partner_id, answer_type, reply_slot, responder_name, content, is_verified, is_active, created_at
+          ) values ($1::uuid, $2::uuid, 'buyer', $3, $4, $5, true, true, $6)`,
+          [questionId, partnerId, buyerSlots[i], buyer.name, buyer.content, d.createdAt]
         )
       }
       created += 1

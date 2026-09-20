@@ -7,7 +7,7 @@ import {
   parseQuestionImportWorkbook,
   parseReviewImportWorkbook,
 } from '@/lib/partner-website/reviews/partner-reviews-qa-excel'
-import { coalesceImportGroup, DEFAULT_IMPORT_GROUP } from '@/lib/partner-website/reviews/partner-review-types'
+import { coalesceImportGroup, DEFAULT_IMPORT_GROUP, splitQaReplySlots } from '@/lib/partner-website/reviews/partner-review-types'
 import { ensurePdpReviewQaCardsInBuyBox } from '@/lib/partner-website/shop/partner-site-pdp-review-qa'
 
 test('coalesceImportGroup defaults 0/null to 888', () => {
@@ -25,12 +25,14 @@ test('review sample xlsx parses 188 Vietnamese columns', () => {
   assert.ok(rows[0]?.content.includes('Sản phẩm'))
 })
 
-test('question sample xlsx parses EN columns + buyer reply', () => {
+test('question sample xlsx parses EN columns + buyer reply 1 and 2', () => {
   const rows = parseQuestionImportWorkbook(buildQuestionImportSampleXlsx())
   assert.equal(rows.length, 1)
   assert.equal(rows[0]?.askerName, 'Nguyễn Văn A')
   assert.equal(rows[0]?.adminReplyContent.includes('10-12'), true)
-  assert.equal(rows[0]?.buyerReplies.length, 1)
+  assert.equal(rows[0]?.buyerReplies.length, 2)
+  assert.equal(rows[0]?.buyerReplies[0]?.name, 'Minh')
+  assert.equal(rows[0]?.buyerReplies[1]?.name, 'Lan')
   assert.equal(rows[0]?.importGroup, DEFAULT_IMPORT_GROUP)
 })
 
@@ -73,6 +75,44 @@ test('review workbook accepts English 188 headers', () => {
   assert.equal(rows[0]?.imageUrls[0], 'https://example.com/a.jpg')
 })
 
+test('splitQaReplySlots keeps admin + user 1 + user 2 independently', () => {
+  const slots = splitQaReplySlots([
+    {
+      id: 'a',
+      questionId: 'q',
+      partnerId: 'p',
+      answerType: 'admin',
+      replySlot: 'admin',
+      guestAccountId: null,
+      linkedUserId: null,
+      responderName: 'Shop',
+      content: 'Admin reply',
+      isVerified: false,
+      isActive: true,
+      createdAt: '2026-01-01',
+      updatedAt: '2026-01-01',
+    },
+    {
+      id: 'u2',
+      questionId: 'q',
+      partnerId: 'p',
+      answerType: 'buyer',
+      replySlot: 'user_two',
+      guestAccountId: null,
+      linkedUserId: null,
+      responderName: 'Lan',
+      content: 'User two only',
+      isVerified: true,
+      isActive: true,
+      createdAt: '2026-01-02',
+      updatedAt: '2026-01-02',
+    },
+  ])
+  assert.equal(slots.admin?.responderName, 'Shop')
+  assert.equal(slots.userOne, null)
+  assert.equal(slots.userTwo?.responderName, 'Lan')
+})
+
 test('ensurePdpReviewQaCardsInBuyBox injects grid + modals', () => {
   const html = `<!DOCTYPE html><html><head></head><body data-pw-page="product"><main>
     <div data-pw-region="pdp-info"><h1>SP</h1></div>
@@ -83,4 +123,20 @@ test('ensurePdpReviewQaCardsInBuyBox injects grid + modals', () => {
   assert.match(out, /id="pw-pdp-reviews"/)
   assert.match(out, /id="pw-pdp-qa-modal"/)
   assert.match(out, /pw-pdp-review-qa-css/)
+  assert.match(out, /Người trả lời|Hỏi đáp về sản phẩm/)
+})
+
+test('ensurePdpReviewQaCardsInBuyBox appends after buy-box actions', () => {
+  const html = `<!DOCTYPE html><html><head></head><body data-pw-page="product"><main>
+    <div data-pw-region="pdp-info">
+      <h1>SP</h1>
+      <div class="pw-pdp-actions pw-pdp-actions-inline"><button>Mua</button></div>
+    </div>
+    <section class="pw-shop-product-detail"></section>
+  </main></body></html>`
+  const out = ensurePdpReviewQaCardsInBuyBox(html, 'vi')
+  const actionsAt = out.indexOf('pw-pdp-actions')
+  const gridAt = out.indexOf('data-pw-rq-grid')
+  const detailAt = out.indexOf('pw-shop-product-detail')
+  assert.ok(actionsAt > 0 && gridAt > actionsAt && gridAt < detailAt)
 })

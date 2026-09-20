@@ -8,6 +8,10 @@ import type { WebLocale } from '@/lib/i18n/config'
 /** Số câu trả lời của khách mua hàng hiển thị công khai / câu hỏi (188 hardcode 2 — ở đây là 1 hằng số). */
 export const QA_BUYER_ANSWER_LIMIT = 2
 
+/** 188: admin + user 1 + user 2 trên cùng một câu hỏi. */
+export const QA_REPLY_SLOTS = ['admin', 'user_one', 'user_two'] as const
+export type QaReplySlot = (typeof QA_REPLY_SLOTS)[number]
+
 export const REVIEW_CONTENT_MAX_LEN = 4000
 export const REVIEW_TITLE_MAX_LEN = 200
 export const REVIEW_IMAGE_MAX_COUNT = 6
@@ -43,6 +47,7 @@ export type PartnerReviewRow = {
   imageUrls: string[]
   isActive: boolean
   usefulCount: number
+  userHasVoted?: boolean
   merchantReply: string
   merchantReplyBy: string
   merchantReplyAt: string | null
@@ -65,6 +70,7 @@ export type PartnerQuestionAnswerRow = {
   questionId: string
   partnerId: string
   answerType: 'buyer' | 'admin'
+  replySlot: QaReplySlot | null
   guestAccountId: string | null
   linkedUserId: string | null
   responderName: string
@@ -73,6 +79,30 @@ export type PartnerQuestionAnswerRow = {
   isActive: boolean
   createdAt: string
   updatedAt: string
+}
+
+export type QaReplySlots = {
+  admin: PartnerQuestionAnswerRow | null
+  userOne: PartnerQuestionAnswerRow | null
+  userTwo: PartnerQuestionAnswerRow | null
+}
+
+/** 188: một admin + tối đa 2 khách (user 1 / user 2). Ưu tiên `reply_slot`, fallback thứ tự cũ. */
+export function splitQaReplySlots(answers: PartnerQuestionAnswerRow[]): QaReplySlots {
+  const active = answers.filter((a) => a.isActive !== false)
+  const bySlot = (slot: QaReplySlot) => active.find((a) => a.replySlot === slot) ?? null
+  let admin = bySlot('admin')
+  let userOne = bySlot('user_one')
+  let userTwo = bySlot('user_two')
+  if (!admin) admin = active.find((a) => a.answerType === 'admin') ?? null
+  const buyers = active.filter((a) => a.answerType === 'buyer')
+  if (!userOne) userOne = buyers.find((a) => a.id !== userTwo?.id) ?? null
+  if (!userTwo) userTwo = buyers.find((a) => a.id !== userOne?.id) ?? null
+  return { admin, userOne, userTwo }
+}
+
+export function qaPublicBuyerReplyCount(slots: QaReplySlots): number {
+  return [slots.userOne, slots.userTwo].filter((row) => Boolean(row?.content?.trim())).length
 }
 
 export type PartnerQuestionRow = {
@@ -85,6 +115,7 @@ export type PartnerQuestionRow = {
   content: string
   isActive: boolean
   usefulCount: number
+  userHasVoted?: boolean
   isImported: boolean
   importGroup: number
   createdAt: string
@@ -100,10 +131,23 @@ export function reviewShowsVerifiedBadge(
 }
 
 export function qaBuyerAnswerShowsVerifiedBadge(
-  row: Pick<PartnerQuestionAnswerRow, 'isVerified' | 'guestAccountId' | 'linkedUserId' | 'content'>
+  row: Pick<PartnerQuestionAnswerRow, 'isVerified' | 'guestAccountId' | 'linkedUserId' | 'content'>,
+  questionImported?: boolean
 ): boolean {
   if (row.isVerified || row.guestAccountId || row.linkedUserId) return true
-  return Boolean(row.content?.trim())
+  return Boolean(questionImported && row.content?.trim())
+}
+
+/** 188 `qaSlotShowsVerifiedPurchaserBadge(q, 1|2)` — user 1 / user 2. */
+export function qaSlotShowsVerifiedPurchaserBadge(
+  slots: QaReplySlots,
+  slot: 1 | 2,
+  questionImported?: boolean
+): boolean {
+  const row = slot === 1 ? slots.userOne : slots.userTwo
+  if (!row?.content?.trim()) return false
+  if (qaBuyerAnswerShowsVerifiedBadge(row, questionImported)) return true
+  return Boolean(questionImported)
 }
 
 export type PartnerQuestionWithAnswers = PartnerQuestionRow & {

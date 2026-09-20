@@ -9,6 +9,11 @@ import {
 import { PW_ENSURE_GUEST_BROWSER_SESSION_JS } from '@/lib/partner-website/shop/partner-site-guest-browser-session'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import { PW_SITE_SALE_CARD_CSS, PW_SITE_SALE_VIEW_JS, partnerSiteSaleCopy } from '@/lib/partner-website/promotions/partner-site-sale-display'
+import {
+  PW_PDP_HELPFUL_THUMB_ICON,
+  PW_PDP_REVIEW_QA_ICON,
+  PW_PDP_REVIEW_STAR_ICON,
+} from '@/lib/partner-website/shop/partner-site-pdp-review-qa'
 
 /**
  * Live PDP fields on the shared visual shell. Sửa nhanh strips this script;
@@ -60,6 +65,8 @@ export function buildPartnerSitePdpBootstrapScript(input: { siteSlug: string; lo
     reviewsSubmitLoginRequired: t.reviewsSubmitLoginRequired,
     reviewsSubmitAlreadyReviewed: t.reviewsSubmitAlreadyReviewed,
     reviewsSubmitNotEligible: t.reviewsSubmitNotEligible,
+    reviewsPurchaseRequired: t.reviewsPurchaseRequired,
+    reviewsPurchaseRequiredClose: t.reviewsPurchaseRequiredClose,
     reviewsEmpty: t.reviewsEmpty,
     reviewsLoadMore: t.reviewsLoadMore,
     reviewsUsefulLabel: t.reviewsUsefulLabel,
@@ -91,6 +98,14 @@ export function buildPartnerSitePdpBootstrapScript(input: { siteSlug: string; lo
     qaModalTitle: t.qaModalTitle,
     qaLoginToAsk: t.qaLoginToAsk,
     qaBuyerReplied: t.qaBuyerReplied,
+    qaAskTitle: t.qaAskTitle,
+    qaLoginBanner: t.qaLoginBanner,
+    qaReplyCancel: t.qaReplyCancel,
+    qaHelpfulCount: t.qaHelpfulCount,
+    qaSeeList: t.qaSeeList,
+    qaEmptyHint: t.qaEmptyHint,
+    qaReplyLoginRequired: t.qaReplyLoginRequired,
+    reviewsVoteLoginRequired: t.reviewsVoteLoginRequired,
     reviewsStarLabel1: t.reviewsStarLabel1,
     reviewsStarLabel2: t.reviewsStarLabel2,
     reviewsStarLabel3: t.reviewsStarLabel3,
@@ -112,6 +127,9 @@ var API_PREFIX=${JSON.stringify(apiPrefix)};
 var EVENTS_API=${JSON.stringify(eventsApi)};
 var LOGIN_PATH=${JSON.stringify(loginPath)};
 var COPY=${JSON.stringify(copy)};
+var THUMB_ICON=${JSON.stringify(PW_PDP_HELPFUL_THUMB_ICON)};
+var STAR_ICON=${JSON.stringify(PW_PDP_REVIEW_STAR_ICON)};
+var QA_ICON=${JSON.stringify(PW_PDP_REVIEW_QA_ICON)};
 var catalogReviewTotal=0,catalogReviewScore=0,catalogQaTotal=0;
 var REVIEW_PAGE_SIZE=20,SUMMARY_PAGE_SIZE=1;
 var SESSION_KEY='app_guest_session_id';
@@ -531,30 +549,79 @@ function applyOptions(options){
 function fmtDate(s){
   try{var d=new Date(s);if(isNaN(d.getTime()))return '';return d.toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit',year:'numeric'});}catch(e){return '';}
 }
-function verifiedBadge(){return '<span class="pw-pdp-verified">✓ '+esc(COPY.qaVerifiedBadge)+'</span>';}
-function helpfulRow(kind,id,n){
-  return '<div class="pw-pdp-helpful"><span>'+esc(String(COPY.reviewsHelpfulCount||'').replace('{n}',String(n||0)))+'</span><button type="button" data-pw-'+kind+'-vote="'+esc(id)+'">👍 '+esc(COPY.reviewsUsefulLabel)+'</button></div>';
+function loggedIn(){return Boolean(accountId());}
+function verifiedBadge(){
+  return '<span class="pw-pdp-verified" title="'+esc(COPY.qaVerifiedBadge)+'" role="img" aria-label="'+esc(COPY.qaVerifiedBadge)+'">'
+    +'<svg class="pw-pdp-verified-icon" viewBox="0 0 24 24" aria-hidden="true">'
+    +'<path fill="#16a34a" d="M12 2 4 5v6.09c0 5.05 3.41 9.76 8.05 11.01.13.04.26.06.4.06.14 0 .27-.02.4-.06 4.64-1.25 8.05-5.96 8.05-11.01V5l-8-3z"/>'
+    +'<path fill="#22c55e" d="M12 3.54 5.5 6.02v4.78c0 4.14 2.86 8.18 6.5 9.85 3.64-1.67 6.5-5.71 6.5-9.85V6.02L12 3.54z"/>'
+    +'<path fill="none" stroke="#fff" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" d="M9.2 11.9 11.4 14.1 15.9 8.6"/>'
+    +'</svg><span>'+esc(COPY.qaVerifiedBadge)+'</span></span>';
 }
-function reviewCard(r){
-  var photos=(r.imageUrls||[]).map(function(u){return String(u||'').trim();}).filter(Boolean);
+function helpfulRow(kind,id,n,voted){
+  var count=Number(n||0)>0?'<span>'+esc(String((kind==='qa'?COPY.qaHelpfulCount:COPY.reviewsHelpfulCount)||'').replace('{n}',String(n||0)))+'</span>':'';
+  return '<div class="pw-pdp-helpful">'+count+'<button type="button" class="'+(voted?'is-on':'')+'" data-pw-'+kind+'-vote="'+esc(id)+'" title="'+esc(COPY.reviewsUsefulLabel)+'">'+THUMB_ICON+' '+esc(COPY.reviewsUsefulLabel)+'</button></div>';
+}
+function emptySample(kind,label){
+  var cls=kind==='review'?'pw-pdp-rq-icon-review':'pw-pdp-rq-icon-qa';
+  var icon=kind==='review'?STAR_ICON:QA_ICON;
+  return '<div class="pw-pdp-rq-empty"><span class="pw-pdp-rq-empty-icon '+cls+'" aria-hidden="true">'+icon+'</span><p class="pw-shop-muted">'+esc(label)+'</p></div>';
+}
+function splitSlots(answers){
+  answers=answers||[];
+  function by(slot){for(var i=0;i<answers.length;i++){if(answers[i].replySlot===slot)return answers[i];}return null;}
+  var admin=by('admin');
+  var userOne=by('user_one');
+  var userTwo=by('user_two');
+  if(!admin){for(var i=0;i<answers.length;i++){if(answers[i].answerType==='admin'){admin=answers[i];break;}}}
+  var buyers=[];
+  for(var i=0;i<answers.length;i++){if(answers[i].answerType==='buyer')buyers.push(answers[i]);}
+  if(!userOne){for(var i=0;i<buyers.length;i++){if(!userTwo||buyers[i].id!==userTwo.id){userOne=buyers[i];break;}}}
+  if(!userTwo){for(var i=0;i<buyers.length;i++){if(!userOne||buyers[i].id!==userOne.id){userTwo=buyers[i];break;}}}
+  return {admin:admin,userOne:userOne,userTwo:userTwo};
+}
+function buyerReplyCount(slots){
+  return (slots.userOne&&String(slots.userOne.content||'').trim()?1:0)+(slots.userTwo&&String(slots.userTwo.content||'').trim()?1:0);
+}
+function slotVerified(q,slots,n){
+  var row=n===1?slots.userOne:slots.userTwo;
+  if(!row||!String(row.content||'').trim())return false;
+  if(row.isVerified||row.verified||row.guestAccountId||row.linkedUserId)return true;
+  return Boolean(q.isImported);
+}
+function reviewCard(r,sample){
+  var photos=sample?[]:(r.imageUrls||[]).map(function(u){return String(u||'').trim();}).filter(Boolean);
   var photoHtml=photos.length?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">'+photos.map(function(u){return '<img src="'+esc(shopImg({imageUrl:u}))+'" data-pw-full-src="'+esc(shopPdpOrigSrc(u))+'" alt="" loading="lazy" decoding="async" style="width:72px;height:72px;object-fit:cover;border-radius:8px" />';}).join('')+'</div>':'';
   var reply=String(r.merchantReply||'').trim();
-  var replyHtml=reply?'<div class="pw-pdp-rq-reply"><strong>'+esc(r.merchantReplyBy||'Shop')+'</strong> · '+esc(fmtDate(r.createdAt))+'<p style="margin:4px 0 0">'+esc(reply)+'</p></div>':'';
+  var replyHtml=reply?'<div class="pw-pdp-rq-reply"><strong>'+esc(r.merchantReplyBy||'Shop')+'</strong> · '+esc(fmtDate(r.merchantReplyAt||r.createdAt))+'<p style="margin:4px 0 0">'+esc(reply)+'</p></div>':'';
   var title=String(r.title||'').trim();
   var verified=(r.verified===true)||r.guestAccountId||r.linkedUserId||(r.isImported&&String(r.content||'').trim())?verifiedBadge():'';
-  return '<article class="pw-pdp-rq-item" data-pw-el="card" data-pw-review-id="'+esc(r.id)+'" id="review-'+esc(r.id)+'"><div style="display:flex;justify-content:space-between;gap:8px"><div><strong data-pw-el="card-name">'+esc(r.reviewerName||'')+'</strong>'+verified+'<div class="pw-shop-muted" style="font-size:12px">'+esc(fmtDate(r.createdAt))+'</div></div><span class="pw-pdp-star">'+stars(r.rating)+'</span></div>'+(title?'<p class="pw-pdp-rq-title">'+esc(title)+'</p>':'')+'<p data-pw-el="body">'+esc(r.content||'')+'</p>'+photoHtml+replyHtml+helpfulRow('review',r.id,r.usefulCount)+'</article>';
+  return '<article class="pw-pdp-rq-item" data-pw-el="card" data-pw-review-id="'+esc(r.id)+'" id="review-'+esc(r.id)+'"><div style="display:flex;justify-content:space-between;gap:8px"><div><strong data-pw-el="card-name">'+esc(r.reviewerName||'')+'</strong>'+verified+'<div class="pw-shop-muted" style="font-size:12px">'+esc(fmtDate(r.createdAt))+'</div></div><span class="pw-pdp-star">'+stars(r.rating)+'</span></div>'+(title?'<p class="pw-pdp-rq-title">'+esc(title)+'</p>':'')+'<p data-pw-el="body">'+esc(r.content||'')+'</p>'+photoHtml+replyHtml+helpfulRow('review',r.id,r.usefulCount,r.userHasVoted)+'</article>';
 }
-function questionCard(q){
-  var answers=q.answers||[];
-  var admin=answers.filter(function(a){return a.answerType==='admin';})[0];
-  var buyers=answers.filter(function(a){return a.answerType==='buyer';}).slice(0,2);
+function questionCard(q,sample){
+  var slots=splitSlots(q.answers);
   var reply='';
-  if(admin)reply+='<div class="pw-pdp-rq-reply"><strong>'+esc(admin.responderName||'Shop')+'</strong> · '+esc(fmtDate(admin.createdAt))+'<p style="margin:4px 0 0">'+esc(admin.content||'')+'</p></div>';
-  buyers.forEach(function(a){
-    reply+='<div class="pw-pdp-rq-reply buyer"><strong>'+esc(a.responderName||'')+'</strong>'+verifiedBadge()+' '+esc(COPY.qaBuyerReplied)+' · '+esc(fmtDate(a.createdAt))+'<p style="margin:4px 0 0">'+esc(a.content||'')+'</p></div>';
-  });
-  var ansForm=buyers.length<2?'<button type="button" class="pw-shop-btn pw-shop-btn-outline" data-pw-qa-answer-open="'+esc(q.id)+'" style="margin-top:8px;font-size:13px">'+esc(COPY.qaReplyBuyerOnly)+'</button><div hidden data-pw-qa-answer-form="'+esc(q.id)+'" style="margin-top:8px;display:grid;gap:8px"><textarea rows="2" data-pw-qa-answer-body placeholder="'+esc(COPY.qaAnswerFormPlaceholder)+'"></textarea><p data-pw-qa-answer-msg hidden></p><button type="button" class="pw-shop-btn" data-pw-qa-answer-submit="'+esc(q.id)+'">'+esc(COPY.qaAnswerSubmit)+'</button></div>':'';
-  return '<article class="pw-pdp-rq-item" data-pw-el="card" data-pw-question-id="'+esc(q.id)+'" id="question-'+esc(q.id)+'"><p style="margin:0"><strong data-pw-el="card-name">'+esc(q.askerName||'')+'</strong> '+esc(COPY.qaAskedPrefix)+' <span data-pw-el="body">'+esc(q.content||'')+'</span></p><div class="pw-shop-muted" style="font-size:12px">'+esc(fmtDate(q.createdAt))+'</div>'+reply+ansForm+helpfulRow('qa',q.id,q.usefulCount)+'</article>';
+  if(slots.admin&&String(slots.admin.content||'').trim()){
+    reply+='<div class="pw-pdp-rq-reply"><strong>'+esc(slots.admin.responderName||'Shop')+'</strong> · '+esc(fmtDate(slots.admin.createdAt))+'<p style="margin:4px 0 0">'+esc(slots.admin.content||'')+'</p></div>';
+  }
+  if(slots.userOne&&String(slots.userOne.content||'').trim()){
+    reply+='<div class="pw-pdp-rq-reply buyer"><strong>'+esc(slots.userOne.responderName||'')+'</strong>'+(slotVerified(q,slots,1)?verifiedBadge():'')+' '+esc(COPY.qaBuyerReplied)+' · '+esc(fmtDate(slots.userOne.createdAt))+'<p style="margin:4px 0 0">'+esc(slots.userOne.content||'')+'</p></div>';
+  }
+  if(slots.userTwo&&String(slots.userTwo.content||'').trim()){
+    reply+='<div class="pw-pdp-rq-reply buyer"><strong>'+esc(slots.userTwo.responderName||'')+'</strong>'+(slotVerified(q,slots,2)?verifiedBadge():'')+' '+esc(COPY.qaBuyerReplied)+' · '+esc(fmtDate(slots.userTwo.createdAt))+'<p style="margin:4px 0 0">'+esc(slots.userTwo.content||'')+'</p></div>';
+  }
+  var ansForm='';
+  if(buyerReplyCount(slots)<2){
+    if(sample){
+      ansForm='<div style="margin-top:8px"><button type="button" class="pw-pdp-qa-reply-link" data-pw-qa-open-reply="'+esc(q.id)+'">'+esc(COPY.qaReplyBuyerOnly)+'</button></div>';
+    } else if(loggedIn()){
+      ansForm='<div style="margin-top:8px"><button type="button" class="pw-pdp-qa-reply-link" data-pw-qa-answer-open="'+esc(q.id)+'">'+esc(COPY.qaReplyBuyerOnly)+'</button>'
+        +'<div hidden class="pw-pdp-qa-answer-form" data-pw-qa-answer-form="'+esc(q.id)+'"><textarea rows="2" data-pw-qa-answer-body placeholder="'+esc(COPY.qaAnswerFormPlaceholder)+'"></textarea><p data-pw-qa-answer-msg hidden></p>'
+        +'<div class="pw-pdp-qa-answer-actions"><button type="button" class="pw-shop-btn" data-pw-qa-answer-submit="'+esc(q.id)+'">'+esc(COPY.qaAnswerSubmit)+'</button>'
+        +'<button type="button" class="pw-shop-btn pw-shop-btn-outline" data-pw-qa-answer-cancel="'+esc(q.id)+'">'+esc(COPY.qaReplyCancel)+'</button></div></div></div>';
+    }
+  }
+  return '<article class="pw-pdp-rq-item" data-pw-el="card" data-pw-question-id="'+esc(q.id)+'" id="question-'+esc(q.id)+'"><p style="margin:0"><strong data-pw-el="card-name">'+esc(q.askerName||'')+'</strong> '+esc(COPY.qaAskedPrefix)+' <span data-pw-el="body">'+esc(q.content||'')+'</span></p><div class="pw-shop-muted" style="font-size:12px">'+esc(fmtDate(q.createdAt))+'</div>'+reply+ansForm+helpfulRow('qa',q.id,q.usefulCount,q.userHasVoted)+'</article>';
 }
 function ensureModal(id,kind){
   var el=document.getElementById(id);
@@ -576,6 +643,36 @@ function openRqModal(kind){
 function closeRqModals(){
   document.querySelectorAll('[data-pw-rq-modal]').forEach(function(m){m.hidden=true;});
 }
+function rqToast(text){
+  if(!text)return;
+  var el=document.getElementById('pw-pdp-rq-toast');
+  if(!el){
+    el=document.createElement('div');
+    el.id='pw-pdp-rq-toast';
+    el.className='pw-pdp-rq-toast';
+    document.body.appendChild(el);
+  }
+  el.textContent=text;
+  el.hidden=false;
+  clearTimeout(el._pwT);
+  el._pwT=setTimeout(function(){el.hidden=true;},2500);
+}
+function highlightQuestionId(){
+  var m=(location.hash||'').match(/^#question-(.+)$/);
+  return m?m[1]:'';
+}
+function paintNeedBuy(form){
+  if(!form)return;
+  form.hidden=false;
+  form.innerHTML='<div class="pw-pdp-rq-need-buy"><p>'+esc(COPY.reviewsPurchaseRequired||COPY.reviewsSubmitNotEligible||'')+'</p><button type="button" class="pw-shop-btn" data-pw-rq-close>'+esc(COPY.reviewsPurchaseRequiredClose||'OK')+'</button></div>';
+  var dlg=form.closest('.pw-pdp-rq-dialog');
+  var list=dlg&&dlg.querySelector('[data-pw-pdp-slot="review-list"]');
+  if(list)list.hidden=true;
+  var more=dlg&&dlg.querySelector('[data-pw-review-more]');
+  if(more)more.hidden=true;
+  var strip=dlg&&dlg.querySelector('[data-pw-rq-product-strip]');
+  if(strip)strip.hidden=true;
+}
 function ensureReviewUi(section){
   var modal=ensureModal('pw-pdp-reviews-modal','reviews');
   var form=modal.querySelector('[data-pw-pdp-slot="review-form"]');
@@ -594,7 +691,11 @@ function ensureQaUi(section){
   var modal=ensureModal('pw-pdp-qa-modal','qa');
   var form=modal.querySelector('[data-pw-pdp-slot="qa-form"]');
   if(form){
-    form.innerHTML='<textarea rows="3" data-pw-qa-body placeholder="'+esc(COPY.qaFormPlaceholder)+'"></textarea><p data-pw-qa-msg hidden></p><button type="button" class="pw-shop-btn" data-pw-qa-submit>'+esc(COPY.qaFormSubmit)+'</button>';
+    if(loggedIn()){
+      form.innerHTML='<div class="pw-pdp-qa-ask-form"><p class="pw-pdp-qa-ask-title">'+esc(COPY.qaAskTitle)+'</p><textarea rows="3" data-pw-qa-body placeholder="'+esc(COPY.qaFormPlaceholder)+'"></textarea><p data-pw-qa-msg hidden></p><button type="button" class="pw-shop-btn" data-pw-qa-submit>'+esc(COPY.qaFormSubmit)+'</button></div>';
+    } else {
+      form.innerHTML='<div class="pw-pdp-qa-login-banner"><p>'+esc(COPY.qaLoginBanner)+'</p><a class="pw-shop-btn" data-pw-qa-login-ask href="#">'+esc(COPY.qaLoginToAsk)+'</a></div>';
+    }
   }
   var list=modal.querySelector('[data-pw-pdp-slot="qa-list"]');
   var sample=section.querySelector('[data-pw-rq-qa-sample]')||section;
@@ -610,6 +711,7 @@ function showMsg(el,text){
 }
 function bindLive(id){
   var reviewsPage=1,reviewsTotal=0,questionsPage=1,questionsTotal=0;
+  var canReviewLive=false,hasReviewedLive=false;
   var reviewSec=ensureSection('#pw-pdp-reviews,[data-pw-region="reviews"]:not([data-pw-pdp-slot="qa"])','pw-pdp-reviews','reviews',COPY.reviewsTitle,false);
   var qaSec=ensureSection('#pw-pdp-qa,[data-pw-pdp-slot="qa"]','pw-pdp-qa','reviews',COPY.qaTitle,true);
   var reviewUi=ensureReviewUi(reviewSec);
@@ -618,40 +720,56 @@ function bindLive(id){
     if(!reviewUi.list)return;
     if(!append)reviewUi.list.innerHTML='';
     if(!rows.length&&!append)reviewUi.list.innerHTML='<p class="pw-shop-muted">'+esc(COPY.reviewsEmpty)+'</p>';
-    else reviewUi.list.insertAdjacentHTML('beforeend',rows.map(reviewCard).join(''));
+    else reviewUi.list.insertAdjacentHTML('beforeend',rows.map(function(r){return reviewCard(r,false);}).join(''));
     if(reviewUi.sample){
-      reviewUi.sample.innerHTML=rows[0]?reviewCard(rows[0]):'<p class="pw-shop-muted">'+esc(COPY.reviewsEmpty)+'</p>';
+      reviewUi.sample.innerHTML=rows[0]?'<div class="pw-pdp-rq-sample-box">'+reviewCard(rows[0],true)+'</div>':emptySample('review',COPY.reviewsEmpty);
     }
+    var reviewCta=reviewSec.querySelector('[data-pw-rq-open-reviews]');
+    if(reviewCta)reviewCta.textContent=rows[0]?COPY.reviewsSeeAll:COPY.reviewsSeeMore;
     reviewUi.more.hidden=reviewUi.list.querySelectorAll('.pw-pdp-rq-item').length>=reviewsTotal;
   }
   function paintQuestions(rows,append){
     if(!qaUi.list)return;
     if(!append)qaUi.list.innerHTML='';
-    if(!rows.length&&!append)qaUi.list.innerHTML='<p class="pw-shop-muted">'+esc(COPY.qaEmpty)+'</p>';
-    else qaUi.list.insertAdjacentHTML('beforeend',rows.map(questionCard).join(''));
+    if(!rows.length&&!append)qaUi.list.innerHTML='<p class="pw-shop-muted">'+esc(COPY.qaEmptyHint)+'</p>';
+    else qaUi.list.insertAdjacentHTML('beforeend',rows.map(function(q){return questionCard(q,false);}).join(''));
     if(qaUi.sample){
-      qaUi.sample.innerHTML=rows[0]?questionCard(rows[0]):'<p class="pw-shop-muted">'+esc(COPY.qaEmpty)+'</p>';
+      qaUi.sample.innerHTML=rows[0]?'<div class="pw-pdp-rq-sample-box">'+questionCard(rows[0],true)+'</div>':emptySample('qa',COPY.qaEmpty);
     }
+    var qaCta=qaSec.querySelector('[data-pw-rq-open-qa]');
+    if(qaCta)qaCta.textContent=rows[0]?COPY.qaSeeMore:COPY.qaSeeList;
     qaUi.more.hidden=qaUi.list.querySelectorAll('.pw-pdp-rq-item').length>=questionsTotal;
   }
   function loadReviews(page,append,pageSize){
     return apiFetch(API_PREFIX+encodeURIComponent(id)+'/reviews?page='+page+'&pageSize='+(pageSize||REVIEW_PAGE_SIZE)).then(function(res){
       var j=res.j||{};
       reviewsTotal=Number(j.total||0);
+      canReviewLive=j.canReview===true;
+      hasReviewedLive=j.hasReviewed===true;
       var displayTotal=catalogReviewTotal>0?catalogReviewTotal:reviewsTotal;
       if(reviewUi.summary)reviewUi.summary.textContent=displayTotal+' '+COPY.reviewsTotalSuffix;
       var summary=j.summary;
       var score=catalogReviewScore>0?catalogReviewScore:(summary&&summary.average?summary.average:0);
-      if(reviewUi.score&&score)reviewUi.score.textContent=String(score)+'/5 ★';
-      if(j.hasReviewed){
-        document.querySelectorAll('[data-pw-rq-open-write]').forEach(function(btn){btn.hidden=true;});
+      if(reviewUi.score)reviewUi.score.textContent=(score?Number(score).toFixed(1):'0.0')+'/5 ★';
+      if(hasReviewedLive){
+        document.querySelectorAll('[data-pw-rq-open-write]').forEach(function(btn){
+          btn.hidden=false;
+          btn.textContent=COPY.reviewsSeeMore;
+        });
         if(reviewUi.form)reviewUi.form.hidden=true;
+      } else {
+        document.querySelectorAll('[data-pw-rq-open-write]').forEach(function(btn){
+          btn.hidden=false;
+          btn.textContent=COPY.reviewsWriteButton;
+        });
       }
       paintReviews(j.reviews||[],append);
     });
   }
   function loadQuestions(page,append,pageSize){
-    return apiFetch(API_PREFIX+encodeURIComponent(id)+'/questions?page='+page+'&pageSize='+(pageSize||REVIEW_PAGE_SIZE)).then(function(res){
+    var hid=highlightQuestionId();
+    var qs='?page='+page+'&pageSize='+(pageSize||REVIEW_PAGE_SIZE)+(hid?'&highlight='+encodeURIComponent(hid):'');
+    return apiFetch(API_PREFIX+encodeURIComponent(id)+'/questions'+qs).then(function(res){
       var j=res.j||{};
       questionsTotal=Number(j.total||0);
       var qaDisplay=catalogQaTotal>0?catalogQaTotal:questionsTotal;
@@ -667,7 +785,18 @@ function bindLive(id){
   function applyHash(){
     var h=location.hash||'';
     if(h==='#reviews'||h.indexOf('#review-')===0){reviewsPage=1;loadReviews(1,false);openRqModal('reviews');}
-    if(h==='#qa'||h.indexOf('#question-')===0){questionsPage=1;loadQuestions(1,false);openRqModal('qa');}
+    if(h==='#qa'||h.indexOf('#question-')===0){
+      questionsPage=1;
+      loadQuestions(1,false).then(function(){
+        openRqModal('qa');
+        var m=h.match(/^#question-(.+)$/);
+        if(!m)return;
+        setTimeout(function(){
+          var el=document.getElementById('question-'+m[1]);
+          if(el&&el.scrollIntoView)el.scrollIntoView({block:'start'});
+        },200);
+      });
+    }
   }
   window.addEventListener('hashchange',applyHash);
   applyHash();
@@ -755,29 +884,71 @@ function bindLive(id){
     if(t.closest('[data-pw-rq-close]')||t.getAttribute&&t.getAttribute('data-pw-rq-modal')){
       if(t.closest('[data-pw-rq-close]')||t===t.closest('[data-pw-rq-modal]')){ev.preventDefault();closeRqModals();return;}
     }
-    if(t.closest('[data-pw-rq-open-reviews]')){ev.preventDefault();reviewsPage=1;loadReviews(1,false);openRqModal('reviews');return;}
-    if(t.closest('[data-pw-rq-open-write]')){ev.preventDefault();reviewsPage=1;loadReviews(1,false);openRqModal('reviews');var wf=document.querySelector('[data-pw-rq-modal="reviews"] [data-pw-pdp-slot="review-form"]');if(wf)wf.hidden=false;return;}
+    if(t.closest('[data-pw-rq-open-reviews]')){
+      ev.preventDefault();
+      reviewsPage=1;
+      if(reviewUi.form)reviewUi.form.hidden=true;
+      if(reviewUi.list)reviewUi.list.hidden=false;
+      var strip=reviewUi.modal&&reviewUi.modal.querySelector('[data-pw-rq-product-strip]');
+      if(strip)strip.hidden=false;
+      loadReviews(1,false);openRqModal('reviews');return;
+    }
+    if(t.closest('[data-pw-rq-open-write]')){
+      ev.preventDefault();
+      if(hasReviewedLive){
+        reviewsPage=1;
+        if(reviewUi.form)reviewUi.form.hidden=true;
+        if(reviewUi.list)reviewUi.list.hidden=false;
+        loadReviews(1,false);openRqModal('reviews');return;
+      }
+      openRqModal('reviews');
+      loadReviews(1,false).then(function(){
+        var wf=document.querySelector('[data-pw-rq-modal="reviews"] [data-pw-pdp-slot="review-form"]');
+        if(!canReviewLive){paintNeedBuy(wf);return;}
+        ensureReviewUi(reviewSec);
+        if(wf)wf.hidden=false;
+        if(reviewUi.list)reviewUi.list.hidden=false;
+        var writeStrip=reviewUi.modal&&reviewUi.modal.querySelector('[data-pw-rq-product-strip]');
+        if(writeStrip)writeStrip.hidden=false;
+      });
+      return;
+    }
     if(t.closest('[data-pw-rq-open-qa]')){ev.preventDefault();questionsPage=1;loadQuestions(1,false);openRqModal('qa');return;}
     var vote=t.closest('[data-pw-review-vote]');
     if(vote){
       ev.preventDefault();
+      if(!loggedIn()){rqToast(COPY.reviewsVoteLoginRequired);return;}
       var rid=vote.getAttribute('data-pw-review-vote');
       apiFetch(API_PREFIX+encodeURIComponent(id)+'/reviews/'+encodeURIComponent(rid)+'/vote',{method:'POST'}).then(function(res){
+        if(res.status===401){rqToast(COPY.reviewsVoteLoginRequired);return;}
         if(!res.ok||!res.j||!res.j.ok)return;
-        vote.textContent='👍 '+COPY.reviewsUsefulLabel;
+        vote.classList.toggle('is-on',Boolean(res.j.voted));
         var row=vote.closest('.pw-pdp-helpful');
-        if(row&&row.querySelector('span'))row.querySelector('span').textContent=String(COPY.reviewsHelpfulCount||'').replace('{n}',String(res.j.usefulCount||0));
+        var span=row&&row.querySelector('span');
+        var n=Number(res.j.usefulCount||0);
+        if(n>0){
+          if(!span){span=document.createElement('span');row.insertBefore(span,vote);}
+          span.textContent=String(COPY.reviewsHelpfulCount||'').replace('{n}',String(n));
+        } else if(span) span.remove();
       });
       return;
     }
     var qvote=t.closest('[data-pw-qa-vote]');
     if(qvote){
       ev.preventDefault();
+      if(!loggedIn()){rqToast(COPY.reviewsVoteLoginRequired);return;}
       var qvid=qvote.getAttribute('data-pw-qa-vote');
       apiFetch(API_PREFIX+encodeURIComponent(id)+'/questions/'+encodeURIComponent(qvid)+'/vote',{method:'POST'}).then(function(res){
+        if(res.status===401){rqToast(COPY.reviewsVoteLoginRequired);return;}
         if(!res.ok||!res.j||!res.j.ok)return;
+        qvote.classList.toggle('is-on',Boolean(res.j.voted));
         var row=qvote.closest('.pw-pdp-helpful');
-        if(row&&row.querySelector('span'))row.querySelector('span').textContent=String(COPY.reviewsHelpfulCount||'').replace('{n}',String(res.j.usefulCount||0));
+        var span=row&&row.querySelector('span');
+        var n=Number(res.j.usefulCount||0);
+        if(n>0){
+          if(!span){span=document.createElement('span');row.insertBefore(span,qvote);}
+          span.textContent=String(COPY.qaHelpfulCount||'').replace('{n}',String(n));
+        } else if(span) span.remove();
       });
       return;
     }
@@ -792,7 +963,7 @@ function bindLive(id){
       var btn=t.closest('button');if(btn)btn.disabled=true;
       apiFetch(API_PREFIX+encodeURIComponent(id)+'/reviews',{method:'POST',body:JSON.stringify({rating:Number(starsEl&&starsEl.getAttribute('data-rating'))||5,content:content,locale:COPY.locale})}).then(function(res){
         var err=res.j&&res.j.error;
-        if(res.status===401||err==='login_required'){showMsg(msg,COPY.reviewsSubmitLoginRequired);goLogin('#pw-pdp-reviews');return;}
+        if(res.status===401||err==='login_required'){rqToast(COPY.reviewsSubmitLoginRequired);return;}
         if(err==='already_reviewed'){showMsg(msg,COPY.reviewsSubmitAlreadyReviewed);return;}
         if(err==='not_eligible'){showMsg(msg,COPY.reviewsSubmitNotEligible);return;}
         if(res.ok&&res.j&&res.j.ok){showMsg(msg,COPY.reviewsSubmitSuccess);if(body)body.value='';reviewsPage=1;loadReviews(1,false);}
@@ -815,23 +986,56 @@ function bindLive(id){
       var qaBtn=t.closest('button');if(qaBtn)qaBtn.disabled=true;
       apiFetch(API_PREFIX+encodeURIComponent(id)+'/questions',{method:'POST',body:JSON.stringify({content:ask})}).then(function(res){
         var err=res.j&&res.j.error;
-        if(res.status===401||err==='login_required'){showMsg(qaMsg,COPY.qaSubmitLoginRequired);goLogin('#pw-pdp-qa');return;}
+        if(res.status===401||err==='login_required'){rqToast(COPY.qaSubmitLoginRequired);return;}
         if(res.ok&&res.j&&res.j.ok){showMsg(qaMsg,COPY.qaSubmitSuccess);if(qaBody)qaBody.value='';questionsPage=1;loadQuestions(1,false);}
       }).finally(function(){if(qaBtn)qaBtn.disabled=false;});
+      return;
+    }
+    if(t.closest('[data-pw-qa-login-ask]')){
+      ev.preventDefault();
+      goLogin('#qa');
+      return;
+    }
+    var openReply=t.closest('[data-pw-qa-open-reply]');
+    if(openReply){
+      ev.preventDefault();
+      if(!loggedIn()){rqToast(COPY.qaReplyLoginRequired);return;}
+      questionsPage=1;
+      loadQuestions(1,false);
+      openRqModal('qa');
+      var openId=openReply.getAttribute('data-pw-qa-open-reply');
+      setTimeout(function(){
+        var box=document.querySelector('[data-pw-qa-answer-form="'+openId+'"]');
+        if(box)box.hidden=false;
+        var el=document.getElementById('question-'+openId);
+        if(el&&el.scrollIntoView)el.scrollIntoView({block:'start'});
+      },80);
       return;
     }
     var openAns=t.closest('[data-pw-qa-answer-open]');
     if(openAns){
       ev.preventDefault();
-      var box=qaSec.querySelector('[data-pw-qa-answer-form="'+openAns.getAttribute('data-pw-qa-answer-open')+'"]');
+      if(!loggedIn()){rqToast(COPY.qaReplyLoginRequired);return;}
+      var box=document.querySelector('[data-pw-qa-answer-form="'+openAns.getAttribute('data-pw-qa-answer-open')+'"]');
       if(box)box.hidden=!box.hidden;
+      return;
+    }
+    var ansCancel=t.closest('[data-pw-qa-answer-cancel]');
+    if(ansCancel){
+      ev.preventDefault();
+      var cancelForm=document.querySelector('[data-pw-qa-answer-form="'+ansCancel.getAttribute('data-pw-qa-answer-cancel')+'"]');
+      if(cancelForm){
+        cancelForm.hidden=true;
+        var cancelBody=cancelForm.querySelector('[data-pw-qa-answer-body]');
+        if(cancelBody)cancelBody.value='';
+      }
       return;
     }
     var ansSubmit=t.closest('[data-pw-qa-answer-submit]');
     if(ansSubmit){
       ev.preventDefault();
       var qid=ansSubmit.getAttribute('data-pw-qa-answer-submit');
-      var ansForm=qaSec.querySelector('[data-pw-qa-answer-form="'+qid+'"]');
+      var ansForm=document.querySelector('[data-pw-qa-answer-form="'+qid+'"]');
       var ansBody=ansForm&&ansForm.querySelector('[data-pw-qa-answer-body]');
       var ansMsg=ansForm&&ansForm.querySelector('[data-pw-qa-answer-msg]');
       var ans=String(ansBody&&ansBody.value||'').trim();
@@ -839,7 +1043,7 @@ function bindLive(id){
       ansSubmit.disabled=true;
       apiFetch(API_PREFIX+encodeURIComponent(id)+'/questions/'+encodeURIComponent(qid)+'/answers',{method:'POST',body:JSON.stringify({content:ans})}).then(function(res){
         var err=res.j&&res.j.error;
-        if(res.status===401||err==='login_required'){showMsg(ansMsg,COPY.qaSubmitLoginRequired);goLogin('#pw-pdp-qa');return;}
+        if(res.status===401||err==='login_required'){rqToast(COPY.qaReplyLoginRequired);return;}
         if(err==='not_eligible'){showMsg(ansMsg,COPY.qaAnswerNotEligible);return;}
         if(err==='slot_full'){showMsg(ansMsg,COPY.qaAnswerSlotFull);return;}
         if(res.ok&&res.j&&res.j.ok){if(ansBody)ansBody.value='';if(ansForm)ansForm.hidden=true;questionsPage=1;loadQuestions(1,false);}

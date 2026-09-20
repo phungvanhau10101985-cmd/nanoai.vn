@@ -1547,6 +1547,11 @@ export type Dictionary = {
     inventoryColSourceStock: string
     inventoryColImageI18n: string
     inventoryColActions: string
+    inventoryDeleteSelected: string
+    inventoryDeleteSelectedBusy: string
+    inventoryDeleteSelectedConfirm: string
+    inventoryDeleteSelectedOk: string
+    inventoryDeleteSelectedFailed: string
     inventoryStatusShown: string
     inventoryStatusHidden: string
     inventoryViewWeb: string
@@ -5113,6 +5118,11 @@ const VI_DICTIONARY: Dictionary = {
     inventoryColSourceStock: 'Nguồn hàng',
     inventoryColImageI18n: 'Ảnh i18n',
     inventoryColActions: 'Thao tác',
+    inventoryDeleteSelected: 'Xóa ({n})',
+    inventoryDeleteSelectedBusy: 'Đang xóa...',
+    inventoryDeleteSelectedConfirm: 'Xóa {n} sản phẩm đang chọn?',
+    inventoryDeleteSelectedOk: 'Đã xóa {n} sản phẩm',
+    inventoryDeleteSelectedFailed: 'Không xóa được sản phẩm nào',
     inventoryStatusShown: 'Hiển thị',
     inventoryStatusHidden: 'Ẩn',
     inventoryViewWeb: 'Xem web',
@@ -8689,6 +8699,11 @@ const EN_DICTIONARY: Dictionary = {
     inventoryColSourceStock: 'Source stock',
     inventoryColImageI18n: 'Image i18n',
     inventoryColActions: 'Actions',
+    inventoryDeleteSelected: 'Delete ({n})',
+    inventoryDeleteSelectedBusy: 'Deleting...',
+    inventoryDeleteSelectedConfirm: 'Delete {n} selected products?',
+    inventoryDeleteSelectedOk: 'Deleted {n} products',
+    inventoryDeleteSelectedFailed: 'No products were deleted',
     inventoryStatusShown: 'Visible',
     inventoryStatusHidden: 'Hidden',
     inventoryViewWeb: 'View site',
@@ -12230,6 +12245,11 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryColSourceStock: '货源库存',
     inventoryColImageI18n: '图片本地化',
     inventoryColActions: '操作',
+    inventoryDeleteSelected: '删除（{n}）',
+    inventoryDeleteSelectedBusy: '正在删除…',
+    inventoryDeleteSelectedConfirm: '删除已选的 {n} 件商品？',
+    inventoryDeleteSelectedOk: '已删除 {n} 件商品',
+    inventoryDeleteSelectedFailed: '没有商品被删除',
     inventoryStatusShown: '显示',
     inventoryStatusHidden: '隐藏',
     inventoryViewWeb: '查看网页',
@@ -15723,6 +15743,11 @@ const JA_DICTIONARY: Dictionary = {
     inventoryColSourceStock: '仕入在庫',
     inventoryColImageI18n: '画像i18n',
     inventoryColActions: '操作',
+    inventoryDeleteSelected: '削除（{n}）',
+    inventoryDeleteSelectedBusy: '削除中…',
+    inventoryDeleteSelectedConfirm: '選択中の {n} 件の商品を削除しますか？',
+    inventoryDeleteSelectedOk: '{n} 件の商品を削除しました',
+    inventoryDeleteSelectedFailed: '商品を削除できませんでした',
     inventoryStatusShown: '表示',
     inventoryStatusHidden: '非表示',
     inventoryViewWeb: 'サイトを見る',
@@ -19262,6 +19287,11 @@ const KO_DICTIONARY: Dictionary = {
     inventoryColSourceStock: '공급 재고',
     inventoryColImageI18n: '이미지 i18n',
     inventoryColActions: '작업',
+    inventoryDeleteSelected: '삭제 ({n})',
+    inventoryDeleteSelectedBusy: '삭제 중...',
+    inventoryDeleteSelectedConfirm: '선택한 상품 {n}개를 삭제할까요?',
+    inventoryDeleteSelectedOk: '상품 {n}개를 삭제했습니다',
+    inventoryDeleteSelectedFailed: '삭제된 상품이 없습니다',
     inventoryStatusShown: '표시',
     inventoryStatusHidden: '숨김',
     inventoryViewWeb: '웹 보기',

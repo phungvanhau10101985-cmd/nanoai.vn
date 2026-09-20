@@ -1,4 +1,4 @@
-﻿'use server'
+'use server'
 
 import { randomBytes } from 'node:crypto'
 import { SEPAY_HMAC_SECRET_MAX_LEN, sepaySecretLast4 } from '@/lib/sepay-webhook-auth'
@@ -56,6 +56,7 @@ import {
   verifyPartnerCustomDomainDns,
 } from '@/lib/messaging/partner-custom-domain-dns'
 import {
+  deletePartnerInventoryByIdsForPartnerFromPg,
   deletePartnerInventoryItemForPartnerFromPg,
   fetchPartnerInventoryActivePageWithCountFromPg,
   fetchPartnerInventoryEmbeddingStatsFromPg,
@@ -3428,6 +3429,37 @@ export async function deletePartnerInventoryItem(partnerId: string, itemId: stri
   if (!ok) return { error: 'Failed to delete inventory item.' }
   revalidateMessagingDashboard()
   return { ok: true as const }
+}
+
+const INVENTORY_ITEM_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const INVENTORY_BULK_DELETE_MAX = 50_000
+
+/** Xóa hàng loạt SP đã chọn — cùng engine Bunny queue như xóa từng dòng / Excel listed=0. */
+export async function deletePartnerInventoryItems(partnerId: string, itemIds: string[]) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) {
+    return { error: 'DATABASE_URL is not set.' }
+  }
+  const ids = [
+    ...new Set(
+      (Array.isArray(itemIds) ? itemIds : [])
+        .map((id) => String(id || '').trim())
+        .filter((id) => INVENTORY_ITEM_UUID_RE.test(id))
+    ),
+  ]
+  if (ids.length === 0) return { ok: true as const, deleted: 0 }
+  if (ids.length > INVENTORY_BULK_DELETE_MAX) {
+    return { error: `Too many products to delete (max ${INVENTORY_BULK_DELETE_MAX}).` }
+  }
+  const ok = await deletePartnerInventoryByIdsForPartnerFromPg(partnerId, ids)
+  if (!ok) return { error: 'Failed to delete inventory items.' }
+  revalidateMessagingDashboard()
+  return { ok: true as const, deleted: ids.length }
 }
 
 export async function reloadShopDemoInventory(partnerId: string) {

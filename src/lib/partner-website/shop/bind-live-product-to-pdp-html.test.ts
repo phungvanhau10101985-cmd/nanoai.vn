@@ -356,6 +356,9 @@ test('bind strips leftover demo material and real-use photos from the shared PDP
   assert.doesNotMatch(fromFactory, /data-pw-pdp-slot="material"/)
   assert.doesNotMatch(fromFactory, /data-pw-pdp-slot="real-use"/)
   assert.doesNotMatch(fromFactory, /material-1-a3-1786251749/)
+  assert.match(fromFactory, /data-pw-rq-grid/)
+  assert.match(fromFactory, /id="pw-pdp-reviews"/)
+  assert.match(fromFactory, /id="pw-pdp-qa"/)
 })
 
 test('bind fills live 188 fields only — empty sizes/colors/consult do not keep demo leftovers', () => {

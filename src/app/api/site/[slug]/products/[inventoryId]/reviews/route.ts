@@ -6,6 +6,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-personalization'
 import { jsonSitePersonalization } from '@/lib/partner-website/shop/partner-site-personalization-response'
 import {
+  checkDeliveredPurchaseFromPg,
   fetchPartnerProductRatingSummaryFromPg,
   fetchPartnerProductReviewsPageFromPg,
   insertPartnerProductReviewFromPg,
@@ -48,7 +49,7 @@ export async function GET(
   const importGroup = coalesceImportGroup(inv.ratingGroupId)
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
-  const [summary, page1] = await Promise.all([
+  const [summary, page1, delivered] = await Promise.all([
     fetchPartnerProductRatingSummaryFromPg(shop.partnerId, inventoryId, importGroup),
     fetchPartnerProductReviewsPageFromPg({
       partnerId: shop.partnerId,
@@ -59,6 +60,14 @@ export async function GET(
       viewerAccountKey: visitor.accountKey,
       ratingFilter,
     }),
+    visitor.thread.guestAccountId || visitor.thread.linkedUserId
+      ? checkDeliveredPurchaseFromPg({
+          partnerId: shop.partnerId,
+          inventoryId,
+          guestAccountId: visitor.thread.guestAccountId,
+          linkedUserId: visitor.thread.linkedUserId,
+        })
+      : Promise.resolve(null),
   ])
   if (page1 === null) return NextResponse.json({ error: 'Could not load reviews' }, { status: 500 })
 
@@ -72,6 +81,7 @@ export async function GET(
       page,
       pageSize,
       hasReviewed: page1.hasReviewed,
+      canReview: Boolean(delivered),
     },
     200,
     { sessionId: visitor.sessionId, thread: visitor.thread }

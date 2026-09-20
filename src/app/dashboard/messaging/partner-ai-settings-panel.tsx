@@ -24,6 +24,7 @@ import { ProductStudioManualDialog } from '@/components/partner-website/product-
 import { CATEGORY_AUTO_CREATE_DISABLED_MESSAGE } from '@/lib/partner-website/category/partner-category-auto-create-copy'
 import {
   deletePartnerInventoryItem,
+  deletePartnerInventoryItems,
   getPartnerAiBundle,
   getPartnerAiSettingsBundle,
   getPartnerInventoryEmbeddingStats,
@@ -1261,6 +1262,7 @@ export function PartnerAiSettingsPanel({
                   return next
                 })
               }}
+              onClearSelected={() => setSelectedInventoryIds(new Set())}
               onChanged={load}
               onImportCompleted={runEmbeddingSync}
               saveOkMessage={saveOkMessage}
@@ -2271,6 +2273,7 @@ function InventoryEditor({
   selectedIds,
   onToggleSelected,
   onToggleAllVisible,
+  onClearSelected,
   onChanged,
   onImportCompleted,
   saveOkMessage,
@@ -2289,6 +2292,7 @@ function InventoryEditor({
   selectedIds: Set<string>
   onToggleSelected: (id: string) => void
   onToggleAllVisible: (ids: string[], selectAll: boolean) => void
+  onClearSelected: () => void
   onChanged: () => void
   onImportCompleted?: () => void
   saveOkMessage: string
@@ -2529,6 +2533,34 @@ function InventoryEditor({
     })
   }
 
+  const [deletingSelected, setDeletingSelected] = useState(false)
+  const delSelected = () => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    if (!window.confirm(t.inventoryDeleteSelectedConfirm.replace('{n}', String(ids.length)))) return
+    setDeletingSelected(true)
+    startTransition(async () => {
+      try {
+        const res = await deletePartnerInventoryItems(partnerId, ids)
+        if ('error' in res && res.error) {
+          toast({ title: res.error, variant: 'destructive' })
+          return
+        }
+        const n = 'ok' in res && res.ok ? res.deleted : 0
+        if (n > 0) {
+          toast({ title: t.inventoryDeleteSelectedOk.replace('{n}', String(n)) })
+          if (draft.id && ids.includes(draft.id)) resetDraft()
+          onClearSelected()
+          onChanged()
+        } else {
+          toast({ title: t.inventoryDeleteSelectedFailed, variant: 'destructive' })
+        }
+      } finally {
+        setDeletingSelected(false)
+      }
+    })
+  }
+
   const downloadTemplate = async () => {
     setExcelBusy(true)
     try {
@@ -2687,6 +2719,16 @@ function InventoryEditor({
         </Button>
         <Button
           type="button"
+          variant="destructive"
+          size="sm"
+          className="gap-1.5"
+          disabled={excelBusy || pending || deletingSelected || selectedIds.size === 0}
+          onClick={() => delSelected()}
+        >
+          {deletingSelected ? t.inventoryDeleteSelectedBusy : t.inventoryDeleteSelected.replace('{n}', String(selectedIds.size))}
+        </Button>
+        <Button
+          type="button"
           variant="outline"
           size="sm"
           className="gap-1.5"
@@ -2827,11 +2869,24 @@ function InventoryEditor({
         </p>
       ) : (
         <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <div className="border-b border-border bg-muted/40 px-4 py-2.5 text-sm text-muted-foreground">
-            {t.inventoryListCount.replace(
-              '{n}',
-              (vectorFilterActive ? displayRows.length : totalCount).toLocaleString()
-            )}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/40 px-4 py-2.5">
+            <span className="text-sm text-muted-foreground">
+              {t.inventoryListCount.replace(
+                '{n}',
+                (vectorFilterActive ? displayRows.length : totalCount).toLocaleString()
+              )}
+            </span>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={excelBusy || pending || deletingSelected || selectedIds.size === 0}
+              onClick={() => delSelected()}
+            >
+              {deletingSelected
+                ? t.inventoryDeleteSelectedBusy
+                : t.inventoryDeleteSelected.replace('{n}', String(selectedIds.size))}
+            </Button>
           </div>
           <div className="border-b border-border bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
             {t.inventoryListScrollHint}

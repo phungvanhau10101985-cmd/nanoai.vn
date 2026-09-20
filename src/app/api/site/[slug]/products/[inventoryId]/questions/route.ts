@@ -16,6 +16,8 @@ import {
   PUBLIC_REVIEW_QA_PAGE_SIZE_MAX,
   coalesceImportGroup,
   qaBuyerAnswerShowsVerifiedBadge,
+  qaSlotShowsVerifiedPurchaserBadge,
+  splitQaReplySlots,
 } from '@/lib/partner-website/reviews/partner-review-types'
 
 export const dynamic = 'force-dynamic'
@@ -41,6 +43,7 @@ export async function GET(
   const importGroup = coalesceImportGroup(inv.questionGroupId)
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
+  const highlight = String(url.searchParams.get('highlight') ?? '').trim() || null
   const result = await fetchPartnerProductQuestionsPageFromPg({
     partnerId: shop.partnerId,
     inventoryId,
@@ -48,6 +51,7 @@ export async function GET(
     page,
     pageSize,
     viewerAccountKey: visitor.accountKey,
+    highlightQuestionId: highlight,
   })
   if (result === null) return NextResponse.json({ error: 'Could not load questions' }, { status: 500 })
 
@@ -55,10 +59,22 @@ export async function GET(
     request,
     {
       ok: true,
-      questions: result.rows.map((q) => ({
-        ...q,
-        answers: q.answers.map((a) => ({ ...a, verified: qaBuyerAnswerShowsVerifiedBadge(a) })),
-      })),
+      questions: result.rows.map((q) => {
+        const slots = splitQaReplySlots(q.answers)
+        return {
+          ...q,
+          answers: q.answers.map((a) => {
+            const slotNum = a.replySlot === 'user_two' ? 2 : a.replySlot === 'user_one' ? 1 : 0
+            return {
+              ...a,
+              verified:
+                slotNum === 1 || slotNum === 2
+                  ? qaSlotShowsVerifiedPurchaserBadge(slots, slotNum, q.isImported)
+                  : qaBuyerAnswerShowsVerifiedBadge(a, q.isImported),
+            }
+          }),
+        }
+      }),
       total: result.total,
       page,
       pageSize,

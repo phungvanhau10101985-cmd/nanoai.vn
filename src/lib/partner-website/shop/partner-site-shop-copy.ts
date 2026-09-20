@@ -618,6 +618,8 @@ export type PartnerSiteShopCopy = {
   reviewsSubmitLoginRequired: string
   reviewsSubmitAlreadyReviewed: string
   reviewsSubmitNotEligible: string
+  reviewsPurchaseRequired: string
+  reviewsPurchaseRequiredClose: string
   reviewsEmpty: string
   reviewsLoadMore: string
   reviewsUsefulLabel: string
@@ -654,6 +656,14 @@ export type PartnerSiteShopCopy = {
   qaModalTitle: string
   qaLoginToAsk: string
   qaBuyerReplied: string
+  qaAskTitle: string
+  qaLoginBanner: string
+  qaReplyCancel: string
+  qaHelpfulCount: string
+  qaSeeList: string
+  qaEmptyHint: string
+  qaReplyLoginRequired: string
+  reviewsVoteLoginRequired: string
   footerColShop: string
   footerColShopping: string
   footerColSupport: string
@@ -1289,7 +1299,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     reviewsSubmitSuccess: 'Cảm ơn bạn đã đánh giá!',
     reviewsSubmitLoginRequired: 'Vui lòng đăng nhập để đánh giá sản phẩm.',
     reviewsSubmitAlreadyReviewed: 'Bạn đã đánh giá sản phẩm này rồi.',
-    reviewsSubmitNotEligible: 'Chỉ khách đã nhận hàng mới có thể đánh giá sản phẩm này.',
+    reviewsSubmitNotEligible: 'Khách hàng cần mua sản phẩm này trước mới đủ điều kiện để đánh giá sản phẩm.',
+    reviewsPurchaseRequired: 'Khách hàng cần mua sản phẩm này trước mới đủ điều kiện để đánh giá sản phẩm.',
+    reviewsPurchaseRequiredClose: 'Đóng',
     reviewsEmpty: 'Chưa có đánh giá nào — hãy là người đầu tiên!',
     reviewsLoadMore: 'Xem thêm đánh giá',
     reviewsUsefulLabel: 'Hữu ích',
@@ -1303,7 +1315,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaEmpty: 'Chưa có câu hỏi nào — hãy là người đầu tiên hỏi!',
     qaLoadMore: 'Xem thêm câu hỏi',
     qaAnswerButton: 'Trả lời',
-    qaAnswerFormPlaceholder: 'Chia sẻ câu trả lời của bạn...',
+    qaAnswerFormPlaceholder: 'Nhập câu trả lời của bạn (chỉ người đã mua sản phẩm mới được trả lời)',
     qaAnswerSubmit: 'Gửi trả lời',
     qaAnswerNotEligible: 'Chỉ khách đã mua sản phẩm này mới có thể trả lời.',
     qaAnswerSlotFull: 'Câu hỏi này đã đủ số lượt trả lời công khai.',
@@ -1326,6 +1338,14 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaModalTitle: 'Trang tổng hợp câu hỏi',
     qaLoginToAsk: 'Đăng nhập để đặt câu hỏi',
     qaBuyerReplied: 'trả lời',
+    qaAskTitle: 'Đặt câu hỏi của bạn',
+    qaLoginBanner: 'Đặt câu hỏi cho sản phẩm chỉ dành cho tài khoản đã đăng nhập.',
+    qaReplyCancel: 'Hủy',
+    qaHelpfulCount: '{n} người thấy câu hỏi này hữu ích',
+    qaSeeList: 'Xem danh sách câu hỏi',
+    qaEmptyHint: 'Chưa có câu hỏi nào. Bạn hãy đặt câu hỏi đầu tiên (cần đăng nhập).',
+    qaReplyLoginRequired: 'Vui lòng đăng nhập để trả lời.',
+    reviewsVoteLoginRequired: 'Vui lòng đăng nhập để bình chọn.',
     footerColShop: 'Cửa hàng',
     footerColShopping: 'Mua sắm',
     footerColSupport: 'Hỗ trợ khách hàng',
@@ -1957,7 +1977,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     reviewsSubmitSuccess: 'Thanks for your review!',
     reviewsSubmitLoginRequired: 'Please sign in to review this product.',
     reviewsSubmitAlreadyReviewed: 'You already reviewed this product.',
-    reviewsSubmitNotEligible: 'Only customers who received this product can review it.',
+    reviewsSubmitNotEligible: 'You need to buy this product first before you can leave a review.',
+    reviewsPurchaseRequired: 'You need to buy this product first before you can leave a review.',
+    reviewsPurchaseRequiredClose: 'Close',
     reviewsEmpty: 'No reviews yet — be the first!',
     reviewsLoadMore: 'Load more reviews',
     reviewsUsefulLabel: 'Helpful',
@@ -1971,7 +1993,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaEmpty: 'No questions yet — be the first to ask!',
     qaLoadMore: 'Load more questions',
     qaAnswerButton: 'Answer',
-    qaAnswerFormPlaceholder: 'Share your answer...',
+    qaAnswerFormPlaceholder: 'Enter your answer (only customers who bought this product can reply)',
     qaAnswerSubmit: 'Submit answer',
     qaAnswerNotEligible: 'Only customers who bought this product can answer.',
     qaAnswerSlotFull: 'This question already has enough public answers.',
@@ -1994,6 +2016,14 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaModalTitle: 'All questions',
     qaLoginToAsk: 'Sign in to ask a question',
     qaBuyerReplied: 'replied',
+    qaAskTitle: 'Ask your question',
+    qaLoginBanner: 'Asking a question is available only to signed-in accounts.',
+    qaReplyCancel: 'Cancel',
+    qaHelpfulCount: '{n} people found this question helpful',
+    qaSeeList: 'See question list',
+    qaEmptyHint: 'No questions yet. Be the first to ask (sign-in required).',
+    qaReplyLoginRequired: 'Please sign in to reply.',
+    reviewsVoteLoginRequired: 'Please sign in to vote.',
     footerColShop: 'Shop',
     footerColShopping: 'Shopping',
     footerColSupport: 'Customer support',
@@ -2618,7 +2648,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     reviewsSubmitSuccess: '感谢您的评价！',
     reviewsSubmitLoginRequired: '请登录后再评价商品。',
     reviewsSubmitAlreadyReviewed: '您已经评价过该商品。',
-    reviewsSubmitNotEligible: '只有收到商品的客户才能评价。',
+    reviewsSubmitNotEligible: '请先购买该商品后再评价。',
+    reviewsPurchaseRequired: '请先购买该商品后再评价。',
+    reviewsPurchaseRequiredClose: '关闭',
     reviewsEmpty: '暂无评价 — 快来抢沙发！',
     reviewsLoadMore: '查看更多评价',
     reviewsUsefulLabel: '有用',
@@ -2632,7 +2664,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaEmpty: '暂无问题 — 快来提第一个问题！',
     qaLoadMore: '查看更多问题',
     qaAnswerButton: '回答',
-    qaAnswerFormPlaceholder: '分享您的回答...',
+    qaAnswerFormPlaceholder: '请输入回复（仅限已购买该商品的顾客）',
     qaAnswerSubmit: '提交回答',
     qaAnswerNotEligible: '只有购买过该商品的客户才能回答。',
     qaAnswerSlotFull: '该问题的公开回答名额已满。',
@@ -2655,6 +2687,14 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaModalTitle: '全部问题',
     qaLoginToAsk: '登录后提问',
     qaBuyerReplied: '回复',
+    qaAskTitle: '提出您的问题',
+    qaLoginBanner: '仅已登录账号可以为商品提问。',
+    qaReplyCancel: '取消',
+    qaHelpfulCount: '{n} 人觉得这个问题有用',
+    qaSeeList: '查看问题列表',
+    qaEmptyHint: '还没有问题。请登录后提出第一个问题。',
+    qaReplyLoginRequired: '请登录后回复。',
+    reviewsVoteLoginRequired: '请登录后投票。',
     footerColShop: '店铺',
     footerColShopping: '购物',
     footerColSupport: '客户支持',
@@ -3283,7 +3323,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     reviewsSubmitSuccess: 'レビューありがとうございます！',
     reviewsSubmitLoginRequired: 'レビューを投稿するにはログインしてください。',
     reviewsSubmitAlreadyReviewed: 'この商品はすでにレビュー済みです。',
-    reviewsSubmitNotEligible: '商品を受け取ったお客様のみレビューできます。',
+    reviewsSubmitNotEligible: 'この商品を先にご購入いただいてからレビューできます。',
+    reviewsPurchaseRequired: 'この商品を先にご購入いただいてからレビューできます。',
+    reviewsPurchaseRequiredClose: '閉じる',
     reviewsEmpty: 'まだレビューがありません — 最初のレビューを書いてみましょう！',
     reviewsLoadMore: 'レビューをもっと見る',
     reviewsUsefulLabel: '参考になった',
@@ -3297,7 +3339,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaEmpty: 'まだ質問がありません — 最初の質問をしてみましょう！',
     qaLoadMore: '質問をもっと見る',
     qaAnswerButton: '回答する',
-    qaAnswerFormPlaceholder: 'あなたの回答をシェアしてください...',
+    qaAnswerFormPlaceholder: '回答を入力してください（購入者のみ返信できます）',
     qaAnswerSubmit: '回答を送信',
     qaAnswerNotEligible: 'この商品を購入したお客様のみ回答できます。',
     qaAnswerSlotFull: 'この質問はすでに公開回答の上限に達しています。',
@@ -3320,6 +3362,14 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaModalTitle: '質問一覧',
     qaLoginToAsk: 'ログインして質問する',
     qaBuyerReplied: '返信',
+    qaAskTitle: '質問する',
+    qaLoginBanner: '商品への質問はログインしたアカウントのみ可能です。',
+    qaReplyCancel: 'キャンセル',
+    qaHelpfulCount: '{n}人がこの質問を役立つと回答',
+    qaSeeList: '質問一覧を見る',
+    qaEmptyHint: 'まだ質問がありません。ログインして最初の質問をしてください。',
+    qaReplyLoginRequired: '返信するにはログインしてください。',
+    reviewsVoteLoginRequired: '投票するにはログインしてください。',
     footerColShop: 'ショップ',
     footerColShopping: 'ショッピング',
     footerColSupport: 'カスタマーサポート',
@@ -3948,7 +3998,9 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     reviewsSubmitSuccess: '리뷰를 남겨주셔서 감사합니다!',
     reviewsSubmitLoginRequired: '리뷰를 작성하려면 로그인해주세요.',
     reviewsSubmitAlreadyReviewed: '이미 이 상품에 리뷰를 작성했습니다.',
-    reviewsSubmitNotEligible: '상품을 수령한 고객만 리뷰를 작성할 수 있습니다.',
+    reviewsSubmitNotEligible: '이 상품을 먼저 구매한 뒤에 리뷰를 작성할 수 있습니다.',
+    reviewsPurchaseRequired: '이 상품을 먼저 구매한 뒤에 리뷰를 작성할 수 있습니다.',
+    reviewsPurchaseRequiredClose: '닫기',
     reviewsEmpty: '아직 리뷰가 없습니다 — 첫 리뷰를 남겨보세요!',
     reviewsLoadMore: '리뷰 더 보기',
     reviewsUsefulLabel: '도움이 됨',
@@ -3962,7 +4014,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaEmpty: '아직 질문이 없습니다 — 첫 질문을 남겨보세요!',
     qaLoadMore: '질문 더 보기',
     qaAnswerButton: '답변하기',
-    qaAnswerFormPlaceholder: '답변을 작성해주세요...',
+    qaAnswerFormPlaceholder: '답변을 입력하세요 (해당 상품을 구매한 고객만 답변할 수 있습니다)',
     qaAnswerSubmit: '답변 등록',
     qaAnswerNotEligible: '이 상품을 구매한 고객만 답변할 수 있습니다.',
     qaAnswerSlotFull: '이 질문은 공개 답변 수가 이미 가득 찼습니다.',
@@ -3985,6 +4037,14 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     qaModalTitle: '질문 모음',
     qaLoginToAsk: '로그인하고 질문하기',
     qaBuyerReplied: '답변',
+    qaAskTitle: '질문하기',
+    qaLoginBanner: '상품 질문은 로그인한 계정만 할 수 있습니다.',
+    qaReplyCancel: '취소',
+    qaHelpfulCount: '{n}명이 이 질문이 도움이 됨',
+    qaSeeList: '질문 목록 보기',
+    qaEmptyHint: '아직 질문이 없습니다. 로그인 후 첫 질문을 남겨 주세요.',
+    qaReplyLoginRequired: '답변하려면 로그인해 주세요.',
+    reviewsVoteLoginRequired: '투표하려면 로그인해 주세요.',
     footerColShop: '스토어',
     footerColShopping: '쇼핑',
     footerColSupport: '고객 지원',

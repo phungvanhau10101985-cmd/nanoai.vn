@@ -1,6 +1,15 @@
 'use client';
 
-import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Fragment,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { flushSync } from 'react-dom';
 import {
   DEFAULT_VND_PER_CNY_FOR_LISTING_ESTIMATE,
@@ -291,6 +300,91 @@ function draftModalRowTitle(draft: AdminImport1688Draft | null): string {
 /** Khớp khóa dòng trong bảng sau lọc. */
 function stableListingRowKey(r: ParsedTaobaoCardRow): string {
   return r.item_id ? `row-${r.row}-id-${r.item_id}` : `${r.row}-${r.main_image_url.slice(0, 64)}`;
+}
+
+/**
+ * Thanh cuộn ngang phía trên bảng (đồng bộ scrollLeft với khung overflow-x dưới).
+ * Bảng dán HTML có thể rất cao — thanh chỉ ở đáy buộc kéo hết danh sách mới pan cột được.
+ */
+function DualHScrollTable({
+  children,
+  className,
+  bodyClassName,
+  measureKey,
+}: {
+  children: ReactNode;
+  className?: string;
+  bodyClassName?: string;
+  measureKey?: string | number;
+}) {
+  const topRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const spacerRef = useRef<HTMLDivElement>(null);
+  const syncingRef = useRef(false);
+
+  const measure = useCallback(() => {
+    const body = bodyRef.current;
+    const spacer = spacerRef.current;
+    if (!body || !spacer) return;
+    const table = body.querySelector('table');
+    const w = Math.max(body.scrollWidth, table?.scrollWidth ?? 0, body.clientWidth);
+    spacer.style.width = `${w}px`;
+  }, []);
+
+  useLayoutEffect(() => {
+    measure();
+  }, [measure, measureKey]);
+
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(body);
+    const table = body.querySelector('table');
+    if (table) ro.observe(table);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [measure, measureKey]);
+
+  const onTopScroll = () => {
+    if (syncingRef.current) return;
+    const top = topRef.current;
+    const body = bodyRef.current;
+    if (!top || !body) return;
+    syncingRef.current = true;
+    body.scrollLeft = top.scrollLeft;
+    syncingRef.current = false;
+  };
+
+  const onBodyScroll = () => {
+    if (syncingRef.current) return;
+    const top = topRef.current;
+    const body = bodyRef.current;
+    if (!top || !body) return;
+    syncingRef.current = true;
+    top.scrollLeft = body.scrollLeft;
+    syncingRef.current = false;
+  };
+
+  return (
+    <div className={className}>
+      <div
+        ref={topRef}
+        onScroll={onTopScroll}
+        className="sticky top-0 z-20 overflow-x-auto overflow-y-hidden border-b border-slate-200 bg-slate-100 [&::-webkit-scrollbar]:h-3.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar-track]:bg-slate-200"
+        style={{ height: 18 }}
+        aria-label="Cuộn ngang danh sách sản phẩm"
+      >
+        <div ref={spacerRef} className="h-px" />
+      </div>
+      <div ref={bodyRef} onScroll={onBodyScroll} className={bodyClassName ?? 'overflow-x-auto'}>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 /** Offer id: từ href 1688 hoặc ID SP dạng A+digits. */
@@ -3158,7 +3252,7 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
         </div>
       )}
       {rows.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-slate-200">
+        <div className="rounded-lg border border-slate-200">
           {emptyFilterBannerChunks.length > 0 &&
             rows.length > 0 &&
             preDbFilteredRows.length === 0 && (
@@ -3189,7 +3283,8 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
                 Mọi ID trong lô parse đều đã có trong DB.
               </div>
             )}
-          <table className="min-w-full text-sm">
+          <DualHScrollTable measureKey={displayRows.length}>
+          <table className="min-w-max w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase text-slate-600">
               <tr>
                 <th className="p-2 w-10">
@@ -3315,6 +3410,7 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
               })}
             </tbody>
           </table>
+          </DualHScrollTable>
         </div>
       )}
     </div>

@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { Download, Loader2, MessageCircleQuestion, Star, Trash2, Upload } from 'lucide-react'
+import { splitQaReplySlots } from '@/lib/partner-website/reviews/partner-review-types'
 
 const AUTOSAVE_DEBOUNCE_MS = 700
 
@@ -31,6 +32,7 @@ type ReviewRow = {
 type AnswerRow = {
   id: string
   answerType: 'buyer' | 'admin'
+  replySlot?: 'admin' | 'user_one' | 'user_two' | null
   responderName: string
   content: string
   isVerified: boolean
@@ -106,8 +108,6 @@ export function PartnerWebsiteReviewsQaPanel({ t, partnerId, sectionId, onToast 
   const [questionGroup, setQuestionGroup] = useState('')
   const [questionSource, setQuestionSource] = useState<'all' | 'real' | 'imported'>('all')
   const [savingQuestionIds, setSavingQuestionIds] = useState<Set<string>>(new Set())
-  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({})
-  const [replyBusy, setReplyBusy] = useState<Set<string>>(new Set())
   const [importingQuestions, setImportingQuestions] = useState(false)
 
   const reviewFileRef = useRef<HTMLInputElement>(null)
@@ -184,7 +184,7 @@ export function PartnerWebsiteReviewsQaPanel({ t, partnerId, sectionId, onToast 
 
   function onReviewFieldChange(
     id: string,
-    field: 'title' | 'content' | 'merchantReply' | 'reviewerName',
+    field: 'title' | 'content' | 'merchantReply' | 'merchantReplyBy' | 'reviewerName',
     value: string
   ) {
     patchReviewLocal(id, { [field]: value } as Partial<ReviewRow>)
@@ -246,7 +246,11 @@ export function PartnerWebsiteReviewsQaPanel({ t, partnerId, sectionId, onToast 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (res.ok) onToast?.(t.reviewsAdminSaved)
+      const json = (await res.json().catch(() => null)) as { answers?: AnswerRow[] } | null
+      if (res.ok) {
+        onToast?.(t.reviewsAdminSaved)
+        if (Array.isArray(json?.answers)) patchQuestionLocal(id, { answers: json.answers })
+      }
     } finally {
       markSaving(setSavingQuestionIds, id, false)
     }
@@ -290,42 +294,80 @@ export function PartnerWebsiteReviewsQaPanel({ t, partnerId, sectionId, onToast 
     }
   }
 
-  async function submitAdminAnswer(questionId: string) {
-    const content = (replyDrafts[questionId] ?? '').trim()
-    if (!content) return
-    setReplyBusy((prev) => new Set(prev).add(questionId))
-    try {
-      const res = await fetch(`${basePath}/questions/${encodeURIComponent(questionId)}/answers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
-      })
-      const json = (await res.json().catch(() => null)) as { ok?: boolean; answer?: AnswerRow } | null
-      if (json?.ok && json.answer) {
-        patchQuestionLocal(questionId, {
-          answers: [json.answer, ...(questions.find((q) => q.id === questionId)?.answers ?? [])],
-        })
-        setReplyDrafts((prev) => ({ ...prev, [questionId]: '' }))
-      }
-    } finally {
-      setReplyBusy((prev) => {
-        const next = new Set(prev)
-        next.delete(questionId)
-        return next
-      })
+  function onQuestionSlotChange(
+    id: string,
+    field:
+      | 'replyAdminName'
+      | 'replyAdminContent'
+      | 'replyUserOneName'
+      | 'replyUserOneContent'
+      | 'replyUserTwoName'
+      | 'replyUserTwoContent',
+    value: string
+  ) {
+    const q = questions.find((row) => row.id === id)
+    if (!q) return
+    const slots = splitQaReplySlots(q.answers)
+    const nextSlots = {
+      admin: {
+        name: field === 'replyAdminName' ? value : slots.admin?.responderName ?? '',
+        content: field === 'replyAdminContent' ? value : slots.admin?.content ?? '',
+      },
+      userOne: {
+        name: field === 'replyUserOneName' ? value : slots.userOne?.responderName ?? '',
+        content: field === 'replyUserOneContent' ? value : slots.userOne?.content ?? '',
+      },
+      userTwo: {
+        name: field === 'replyUserTwoName' ? value : slots.userTwo?.responderName ?? '',
+        content: field === 'replyUserTwoContent' ? value : slots.userTwo?.content ?? '',
+      },
     }
-  }
-
-  async function deleteAnswer(questionId: string, answerId: string) {
-    const res = await fetch(
-      `${basePath}/questions/${encodeURIComponent(questionId)}/answers/${encodeURIComponent(answerId)}`,
-      { method: 'DELETE' }
+    const nextAnswers: AnswerRow[] = [
+              nextSlots.admin.content.trim() || nextSlots.admin.name.trim() || slots.admin
+                ? {
+                    id: slots.admin?.id ?? `draft-admin-${id}`,
+                    answerType: 'admin' as const,
+                    replySlot: 'admin' as const,
+                    responderName: nextSlots.admin.name,
+                    content: nextSlots.admin.content,
+                    isVerified: false,
+                    isActive: true,
+                  }
+                : null,
+              nextSlots.userOne.content.trim() || nextSlots.userOne.name.trim() || slots.userOne
+                ? {
+                    id: slots.userOne?.id ?? `draft-one-${id}`,
+                    answerType: 'buyer' as const,
+                    replySlot: 'user_one' as const,
+                    responderName: nextSlots.userOne.name,
+                    content: nextSlots.userOne.content,
+                    isVerified: true,
+                    isActive: true,
+                  }
+                : null,
+              nextSlots.userTwo.content.trim() || nextSlots.userTwo.name.trim() || slots.userTwo
+                ? {
+                    id: slots.userTwo?.id ?? `draft-two-${id}`,
+                    answerType: 'buyer' as const,
+                    replySlot: 'user_two' as const,
+                    responderName: nextSlots.userTwo.name,
+                    content: nextSlots.userTwo.content,
+                    isVerified: true,
+                    isActive: true,
+                  }
+                : null,
+    ].filter((row): row is AnswerRow => Boolean(row))
+    patchQuestionLocal(id, { answers: nextAnswers })
+    debounced(`question:${id}:slots`, () =>
+      void saveQuestionPatch(id, {
+        replyAdminName: nextSlots.admin.name,
+        replyAdminContent: nextSlots.admin.content,
+        replyUserOneName: nextSlots.userOne.name,
+        replyUserOneContent: nextSlots.userOne.content,
+        replyUserTwoName: nextSlots.userTwo.name,
+        replyUserTwoContent: nextSlots.userTwo.content,
+      })
     )
-    if (res.ok) {
-      patchQuestionLocal(questionId, {
-        answers: (questions.find((q) => q.id === questionId)?.answers ?? []).filter((a) => a.id !== answerId),
-      })
-    }
   }
 
   return (
@@ -336,21 +378,21 @@ export function PartnerWebsiteReviewsQaPanel({ t, partnerId, sectionId, onToast 
           {t.reviewsAdminTitle}
         </CardTitle>
         <CardDescription>
-          {t.reviewsAdminHint} {t.reviewsAdminImportHint}
+          {tab === 'qa' ? `${t.qaAdminHint} ${t.qaAdminLogicHint}` : `${t.reviewsAdminHint} ${t.reviewsAdminImportHint}`}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex gap-2 border-b border-gray-200">
           <button
             type="button"
-            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${tab === 'reviews' ? 'border-[var(--pw-primary,#ea580c)] text-[var(--pw-primary,#ea580c)]' : 'border-transparent text-gray-500'}`}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${tab === 'reviews' ? 'border-[var(--pw-primary)] text-[var(--pw-primary)]' : 'border-transparent text-gray-500'}`}
             onClick={() => setTab('reviews')}
           >
             {t.reviewsAdminTitle} ({reviewsTotal})
           </button>
           <button
             type="button"
-            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${tab === 'qa' ? 'border-[var(--pw-primary,#ea580c)] text-[var(--pw-primary,#ea580c)]' : 'border-transparent text-gray-500'}`}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${tab === 'qa' ? 'border-[var(--pw-primary)] text-[var(--pw-primary)]' : 'border-transparent text-gray-500'}`}
             onClick={() => setTab('qa')}
           >
             {t.qaAdminTitle} ({questionsTotal})
@@ -535,6 +577,13 @@ export function PartnerWebsiteReviewsQaPanel({ t, partnerId, sectionId, onToast 
                   ) : null}
                   <div className="space-y-1">
                     <p className="text-xs font-medium text-gray-500">{t.reviewsAdminReplyLabel}</p>
+                    <input
+                      className="w-full rounded border border-gray-200 px-2 py-1 text-sm"
+                      value={r.merchantReplyBy}
+                      placeholder={t.reviewsAdminReplyName}
+                      onChange={(e) => onReviewFieldChange(r.id, 'merchantReplyBy', e.target.value)}
+                      aria-label={t.reviewsAdminReplyName}
+                    />
                     <Textarea
                       value={r.merchantReply}
                       onChange={(e) => onReviewFieldChange(r.id, 'merchantReply', e.target.value)}
@@ -622,11 +671,14 @@ export function PartnerWebsiteReviewsQaPanel({ t, partnerId, sectionId, onToast 
                   if (file) void importQuestions(file)
                 }}
               />
+              <p className="w-full text-xs text-gray-500">{t.qaAdminLogicHint}</p>
             </div>
             {questions.length === 0 ? (
               <p className="text-sm text-gray-500">{t.qaAdminEmpty}</p>
             ) : (
-              questions.map((q) => (
+              questions.map((q) => {
+                const slots = splitQaReplySlots(q.answers)
+                return (
                 <div key={q.id} className="rounded-lg border border-gray-200 p-3 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2">
@@ -656,6 +708,18 @@ export function PartnerWebsiteReviewsQaPanel({ t, partnerId, sectionId, onToast 
                           }}
                         />
                       </label>
+                      <label className="flex items-center gap-1 text-xs text-gray-500">
+                        {t.qaAdminUsefulLabel}
+                        <input
+                          className="w-16 rounded border border-gray-200 px-1 py-0.5"
+                          value={q.usefulCount}
+                          onChange={(e) => {
+                            const usefulCount = Math.max(0, Number(e.target.value) || 0)
+                            patchQuestionLocal(q.id, { usefulCount })
+                            debounced(`question:${q.id}:useful`, () => void saveQuestionPatch(q.id, { usefulCount }))
+                          }}
+                        />
+                      </label>
                       {savingQuestionIds.has(q.id) ? <Loader2 className="h-3 w-3 animate-spin text-gray-400" /> : null}
                     </div>
                     <label className="flex items-center gap-1 text-xs text-gray-600">
@@ -667,39 +731,53 @@ export function PartnerWebsiteReviewsQaPanel({ t, partnerId, sectionId, onToast 
                     value={q.content}
                     onChange={(e) => onQuestionContentChange(q.id, e.target.value)}
                     rows={2}
+                    aria-label={t.qaAdminAskerContent}
                   />
-                  <div className="ml-3 space-y-2 border-l-2 border-gray-100 pl-3">
-                    {q.answers.map((a) => (
-                      <div key={a.id} className="flex items-start justify-between gap-2 text-sm">
-                        <div>
-                          <strong>{a.responderName}</strong>{' '}
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] ${a.answerType === 'admin' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}
-                          >
-                            {a.answerType}
-                          </span>
-                          <p className="mt-1">{a.content}</p>
-                        </div>
-                        <button type="button" onClick={() => void deleteAnswer(q.id, a.id)} aria-label="delete">
-                          <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                        </button>
-                      </div>
-                    ))}
-                    <div className="flex gap-2">
-                      <Textarea
-                        value={replyDrafts[q.id] ?? ''}
-                        onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [q.id]: e.target.value }))}
-                        placeholder={t.qaAdminReplyPlaceholder}
-                        rows={1}
-                        className="flex-1"
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="space-y-1 rounded-md border border-amber-100 bg-amber-50/40 p-2">
+                      <p className="text-[11px] font-semibold text-gray-600">{t.qaAdminAdminName}</p>
+                      <input
+                        className="w-full rounded border border-gray-200 px-2 py-1 text-sm"
+                        value={slots.admin?.responderName ?? ''}
+                        placeholder={t.qaAdminAdminName}
+                        onChange={(e) => onQuestionSlotChange(q.id, 'replyAdminName', e.target.value)}
                       />
-                      <Button
-                        size="sm"
-                        disabled={replyBusy.has(q.id) || !(replyDrafts[q.id] ?? '').trim()}
-                        onClick={() => void submitAdminAnswer(q.id)}
-                      >
-                        {t.qaAdminReplyButton}
-                      </Button>
+                      <Textarea
+                        value={slots.admin?.content ?? ''}
+                        placeholder={t.qaAdminAdminContent}
+                        rows={2}
+                        onChange={(e) => onQuestionSlotChange(q.id, 'replyAdminContent', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1 rounded-md border border-gray-100 p-2">
+                      <p className="text-[11px] font-semibold text-gray-600">{t.qaAdminUserOneName}</p>
+                      <input
+                        className="w-full rounded border border-gray-200 px-2 py-1 text-sm"
+                        value={slots.userOne?.responderName ?? ''}
+                        placeholder={t.qaAdminUserOneName}
+                        onChange={(e) => onQuestionSlotChange(q.id, 'replyUserOneName', e.target.value)}
+                      />
+                      <Textarea
+                        value={slots.userOne?.content ?? ''}
+                        placeholder={t.qaAdminUserOneContent}
+                        rows={2}
+                        onChange={(e) => onQuestionSlotChange(q.id, 'replyUserOneContent', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1 rounded-md border border-gray-100 p-2">
+                      <p className="text-[11px] font-semibold text-gray-600">{t.qaAdminUserTwoName}</p>
+                      <input
+                        className="w-full rounded border border-gray-200 px-2 py-1 text-sm"
+                        value={slots.userTwo?.responderName ?? ''}
+                        placeholder={t.qaAdminUserTwoName}
+                        onChange={(e) => onQuestionSlotChange(q.id, 'replyUserTwoName', e.target.value)}
+                      />
+                      <Textarea
+                        value={slots.userTwo?.content ?? ''}
+                        placeholder={t.qaAdminUserTwoContent}
+                        rows={2}
+                        onChange={(e) => onQuestionSlotChange(q.id, 'replyUserTwoContent', e.target.value)}
+                      />
                     </div>
                   </div>
                   <div className="flex justify-end">
@@ -708,7 +786,8 @@ export function PartnerWebsiteReviewsQaPanel({ t, partnerId, sectionId, onToast 
                     </Button>
                   </div>
                 </div>
-              ))
+                )
+              })
             )}
             {questions.length < questionsTotal ? (
               <Button

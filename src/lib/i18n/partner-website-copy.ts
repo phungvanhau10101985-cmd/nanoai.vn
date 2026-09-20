@@ -839,6 +839,15 @@ export type PartnerWebsiteCopy = {
   qaAdminGroupLabel: string
   qaAdminUsefulLabel: string
   qaAdminNameLabel: string
+  qaAdminAskerContent: string
+  qaAdminAdminName: string
+  qaAdminAdminContent: string
+  qaAdminUserOneName: string
+  qaAdminUserOneContent: string
+  qaAdminUserTwoName: string
+  qaAdminUserTwoContent: string
+  qaAdminLogicHint: string
+  reviewsAdminReplyName: string
   promotionsTitle: string
   promotionsHint: string
   promotionsEmpty: string
@@ -1997,6 +2006,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     qaAdminGroupLabel: 'Nhóm',
     qaAdminUsefulLabel: 'Hữu ích',
     qaAdminNameLabel: 'Người hỏi',
+    qaAdminAskerContent: 'Nội dung câu hỏi',
+    qaAdminAdminName: 'Admin',
+    qaAdminAdminContent: 'Nội dung admin',
+    qaAdminUserOneName: 'Người trả lời 1',
+    qaAdminUserOneContent: 'Nội dung người trả lời 1',
+    qaAdminUserTwoName: 'Người trả lời 2',
+    qaAdminUserTwoContent: 'Nội dung người trả lời 2',
+    qaAdminLogicHint: 'Mỗi câu hỏi có 3 ô: Admin, người trả lời 1, người trả lời 2. Khách đã mua tối đa 2 ô; đủ 2 thì khóa.',
+    reviewsAdminReplyName: 'Tên shop khi trả lời',
     promotionsTitle: 'Trung tâm khuyến mãi',
     promotionsHint: 'Quản lý lịch sale, voucher, khách hàng thân thiết, sinh nhật và remarketing.',
     promotionsEmpty: 'Chưa có voucher nào.',
@@ -3172,6 +3190,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     qaAdminGroupLabel: 'Group',
     qaAdminUsefulLabel: 'Helpful',
     qaAdminNameLabel: 'Asker',
+    qaAdminAskerContent: 'Question content',
+    qaAdminAdminName: 'Admin',
+    qaAdminAdminContent: 'Admin reply',
+    qaAdminUserOneName: 'Replier 1',
+    qaAdminUserOneContent: 'Replier 1 content',
+    qaAdminUserTwoName: 'Replier 2',
+    qaAdminUserTwoContent: 'Replier 2 content',
+    qaAdminLogicHint: 'Each question has 3 slots: Admin, replier 1, replier 2. Buyers get at most 2 slots; when both are filled, replies lock.',
+    reviewsAdminReplyName: 'Shop name on reply',
     promotionsTitle: 'Sale Center',
     promotionsHint: 'Manage sale calendars, vouchers, loyalty, birthdays, and remarketing.',
     promotionsEmpty: 'No vouchers yet.',
@@ -4323,6 +4350,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     qaAdminGroupLabel: '组',
     qaAdminUsefulLabel: '有用',
     qaAdminNameLabel: '提问者',
+    qaAdminAskerContent: '问题内容',
+    qaAdminAdminName: '管理员',
+    qaAdminAdminContent: '管理员回复',
+    qaAdminUserOneName: '回复者 1',
+    qaAdminUserOneContent: '回复者 1 内容',
+    qaAdminUserTwoName: '回复者 2',
+    qaAdminUserTwoContent: '回复者 2 内容',
+    qaAdminLogicHint: '每个问题有 3 个回复位：管理员、回复者 1、回复者 2。已购顾客最多 2 位；满 2 位后锁定。',
+    reviewsAdminReplyName: '店铺回复名称',
     promotionsTitle: '促销中心',
     promotionsHint: '管理促销日历、优惠券、会员、生日和再营销。',
     promotionsEmpty: '暂无优惠券。',
@@ -5475,6 +5511,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     qaAdminGroupLabel: 'グループ',
     qaAdminUsefulLabel: '役立つ',
     qaAdminNameLabel: '質問者',
+    qaAdminAskerContent: '質問内容',
+    qaAdminAdminName: '管理者',
+    qaAdminAdminContent: '管理者の返信',
+    qaAdminUserOneName: '返信者 1',
+    qaAdminUserOneContent: '返信者 1 の内容',
+    qaAdminUserTwoName: '返信者 2',
+    qaAdminUserTwoContent: '返信者 2 の内容',
+    qaAdminLogicHint: '各質問は管理者・返信者1・返信者2の3枠です。購入者は最大2枠。2枠埋まるとロックされます。',
+    reviewsAdminReplyName: 'ショップ返信名',
     promotionsTitle: 'セールセンター',
     promotionsHint: 'セール日程、クーポン、ロイヤルティ、誕生日、リマーケティングを管理します。',
     promotionsEmpty: 'クーポンはまだありません。',
@@ -6634,6 +6679,15 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     qaAdminGroupLabel: '그룹',
     qaAdminUsefulLabel: '도움됨',
     qaAdminNameLabel: '질문자',
+    qaAdminAskerContent: '질문 내용',
+    qaAdminAdminName: '관리자',
+    qaAdminAdminContent: '관리자 답변',
+    qaAdminUserOneName: '답변자 1',
+    qaAdminUserOneContent: '답변자 1 내용',
+    qaAdminUserTwoName: '답변자 2',
+    qaAdminUserTwoContent: '답변자 2 내용',
+    qaAdminLogicHint: '질문마다 관리자, 답변자 1, 답변자 2의 3칸이 있습니다. 구매자는 최대 2칸이며 가득 차면 잠깁니다.',
+    reviewsAdminReplyName: '상점 답변 이름',
     promotionsTitle: '세일 센터',
     promotionsHint: '세일 일정, 쿠폰, 로열티, 생일 및 리마케팅을 관리합니다.',
     promotionsEmpty: '아직 쿠폰이 없습니다.',

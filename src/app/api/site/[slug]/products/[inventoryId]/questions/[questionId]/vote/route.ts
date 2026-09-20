@@ -15,6 +15,14 @@ export async function POST(
   if (!shop) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
+  if (!visitor.thread.guestAccountId && !visitor.thread.linkedUserId) {
+    return jsonSitePersonalization(
+      request,
+      { error: 'login_required' },
+      401,
+      { sessionId: visitor.sessionId, thread: visitor.thread }
+    )
+  }
   const result = await togglePartnerProductQuestionVoteFromPg({
     questionId,
     voterKey: visitor.accountKey,

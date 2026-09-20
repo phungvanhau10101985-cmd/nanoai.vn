@@ -6,7 +6,7 @@ import { togglePartnerProductReviewVoteFromPg } from '@/lib/db/messaging-partner
 
 export const dynamic = 'force-dynamic'
 
-/** W1.5 — toggle vote hữu ích. Không bắt buộc đăng nhập (voterKey = session ẩn danh nếu chưa login). */
+/** W1.5 — toggle vote hữu ích. Cần đăng nhập (giống 188). */
 export async function POST(
   request: NextRequest,
   ctx: { params: Promise<{ slug: string; inventoryId: string; reviewId: string }> }
@@ -16,6 +16,14 @@ export async function POST(
   if (!shop) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const visitor = await resolveSiteVisitorContext(request, shop.partnerId)
+  if (!visitor.thread.guestAccountId && !visitor.thread.linkedUserId) {
+    return jsonSitePersonalization(
+      request,
+      { error: 'login_required' },
+      401,
+      { sessionId: visitor.sessionId, thread: visitor.thread }
+    )
+  }
   const result = await togglePartnerProductReviewVoteFromPg({
     reviewId,
     voterKey: visitor.accountKey,

@@ -3,6 +3,7 @@ import { getUserForCreditAction } from '@/lib/auth'
 import {
   deletePartnerProductQuestionFromPg,
   updatePartnerProductQuestionFromPg,
+  upsertPartnerQuestionReplySlotsFromPg,
 } from '@/lib/db/messaging-partner-reviews-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
@@ -27,10 +28,58 @@ export async function PATCH(
     askerName?: string
     usefulCount?: number
     importGroup?: number
+    replyAdminName?: string
+    replyAdminContent?: string
+    replyUserOneName?: string
+    replyUserOneContent?: string
+    replyUserTwoName?: string
+    replyUserTwoContent?: string
   }
-  const row = await updatePartnerProductQuestionFromPg(pid, questionId, body)
-  if (!row) return NextResponse.json({ error: 'Could not update question' }, { status: 500 })
-  return NextResponse.json({ success: true, question: row })
+  const questionPatch = {
+    isActive: body.isActive,
+    content: body.content,
+    askerName: body.askerName,
+    usefulCount: body.usefulCount,
+    importGroup: body.importGroup,
+  }
+  const hasQuestionPatch = Object.values(questionPatch).some((v) => v !== undefined)
+  const hasSlotPatch =
+    body.replyAdminName !== undefined ||
+    body.replyAdminContent !== undefined ||
+    body.replyUserOneName !== undefined ||
+    body.replyUserOneContent !== undefined ||
+    body.replyUserTwoName !== undefined ||
+    body.replyUserTwoContent !== undefined
+
+  if (!hasQuestionPatch && !hasSlotPatch) {
+    return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+  }
+
+  const row = hasQuestionPatch
+    ? await updatePartnerProductQuestionFromPg(pid, questionId, questionPatch)
+    : null
+  if (hasQuestionPatch && !row) return NextResponse.json({ error: 'Could not update question' }, { status: 500 })
+
+  let answers = undefined
+  if (hasSlotPatch) {
+    answers = await upsertPartnerQuestionReplySlotsFromPg(pid, questionId, {
+      admin:
+        body.replyAdminName !== undefined || body.replyAdminContent !== undefined
+          ? { name: body.replyAdminName, content: body.replyAdminContent }
+          : undefined,
+      userOne:
+        body.replyUserOneName !== undefined || body.replyUserOneContent !== undefined
+          ? { name: body.replyUserOneName, content: body.replyUserOneContent }
+          : undefined,
+      userTwo:
+        body.replyUserTwoName !== undefined || body.replyUserTwoContent !== undefined
+          ? { name: body.replyUserTwoName, content: body.replyUserTwoContent }
+          : undefined,
+    })
+    if (!answers) return NextResponse.json({ error: 'Could not update replies' }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true, question: row, answers })
 }
 
 export async function DELETE(

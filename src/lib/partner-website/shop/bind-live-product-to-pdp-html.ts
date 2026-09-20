@@ -1553,7 +1553,12 @@ function ensureMissingPdpSlots(
       )
     }
   }
-  if ((product.reviews ?? []).length && !hasSlot(out, 'review-form') && /data-pw-region=["']reviews["']/.test(out)) {
+  if (
+    (product.reviews ?? []).length &&
+    !hasSlot(out, 'review-form') &&
+    /data-pw-region=["']reviews["']/.test(out) &&
+    !/data-pw-rq-grid/.test(out)
+  ) {
     const form = `<div data-pw-pdp-slot="review-form" style="margin-top:16px;padding:16px;border:1px solid var(--pw-border);border-radius:12px;display:grid;gap:10px"><p style="margin:0;font-weight:700">${escText(t.reviewsWriteButton)}</p><p class="pw-shop-muted" style="margin:0">${escText(t.reviewsFormRatingLabel)} ★★★★★</p><textarea rows="3" placeholder="${escAttr(t.reviewsFormContentPlaceholder)}"></textarea><button type="button" class="pw-shop-btn pw-shop-btn-outline">${escText(t.reviewsFormSubmit)}</button></div>`
     out = out.replace(
       /(<([a-z0-9]+)\b[^>]*data-pw-region=["']reviews["'][^>]*>)/i,
@@ -1561,7 +1566,7 @@ function ensureMissingPdpSlots(
     )
   }
   const questions = product.questions ?? []
-  if (questions.length && !/id=["']pw-pdp-qa["']/.test(out)) {
+  if (questions.length && !/id=["']pw-pdp-qa["']/.test(out) && !/data-pw-rq-grid/.test(out)) {
     const cards = questions
       .map((q) => {
         const answer = String(q.answer || '').trim()
@@ -1631,7 +1636,14 @@ export function bindLiveProductToPdpHtml(
     return `${stampPdpServerBoundOnTag(stampInventoryIdOnTag(stamped, id))}${rewritePdpInfoInner(inner, product, locale, { variants })}`
   })
   out = replaceRegionBlocks(out, PW_REGION.reviews, (inner, open) => {
-    if (/id=["']pw-pdp-qa["']|data-pw-pdp-slot=["']qa["']/.test(open)) return `${open}${inner}`
+    if (
+      /data-pw-rq-grid|pw-pdp-rq-grid/.test(open) ||
+      /id=["']pw-pdp-reviews["']/.test(open) ||
+      /id=["']pw-pdp-qa["']/.test(open) ||
+      /data-pw-pdp-slot=["'](?:qa|reviews-qa)["']/.test(open)
+    ) {
+      return `${open}${inner}`
+    }
     return `${open}${rewriteReviewsInner(inner, product)}`
   })
   out = rehomeEscapedPdpOptionsIntoBuyBox(out)
