@@ -16,6 +16,7 @@ import {
 import { buildPartnerCategorySeoTitle } from '@/lib/partner-website/category/partner-category-seo-ai'
 import {
   findExactCategorySibling,
+  findLocalSeoIntentSibling,
   resolveCategorySiblingBySeoIntent,
 } from '@/lib/partner-website/category/partner-category-seo-intent'
 import { shouldSkipPartnerCategoryImportName } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
@@ -109,7 +110,50 @@ export async function existingPartnerCategoryTripleExists(
 ): Promise<boolean> {
   const rows = await fetchPartnerCategoriesFlatFromPg(partnerId, { activeOnly: false })
   if (!rows) return false
-  return Boolean(findExistingCategoryTripleLeaf(rows, categoryL1, categoryL2, categoryL3))
+  return Boolean(findReusableCategoryTripleLeaf(rows, categoryL1, categoryL2, categoryL3))
+}
+
+/** Khớp L1→L2→L3 đã có: đúng tên/slug, rồi đồng nghĩa cùng giới tính (không gọi AI). */
+export function findReusableCategoryTripleLeaf(
+  rows: PartnerCategoryRow[],
+  categoryL1: string,
+  categoryL2: string,
+  categoryL3: string
+): PartnerCategoryRow | null {
+  const exact = findExistingCategoryTripleLeaf(rows, categoryL1, categoryL2, categoryL3)
+  if (exact) return exact
+  const l1Name = categoryL1.trim()
+  const l2Name = categoryL2.trim()
+  const l3Name = categoryL3.trim()
+  if (!l1Name || !l2Name || !l3Name) return null
+  const n1 = findLocalSeoIntentSibling(rows, null, l1Name)
+  if (!n1) return null
+  const n2 = findLocalSeoIntentSibling(rows, n1.id, l2Name)
+  if (!n2) return null
+  return findLocalSeoIntentSibling(rows, n2.id, l3Name) ?? null
+}
+
+export function catalogInsertIdsBlockedWhenAutoCreateOff(
+  allowCreate: boolean,
+  rows: PartnerCategoryRow[],
+  items: Array<{
+    id: string
+    categoryL1?: string | null
+    categoryL2?: string | null
+    categoryL3?: string | null
+  }>
+): Set<string> {
+  if (allowCreate) return new Set()
+  const blocked = new Set<string>()
+  for (const item of items) {
+    if (!item.id) continue
+    const l1 = (item.categoryL1 ?? '').trim()
+    if (!l1) continue
+    if (!findReusableCategoryTripleLeaf(rows, l1, item.categoryL2 ?? '', item.categoryL3 ?? '')) {
+      blocked.add(item.id)
+    }
+  }
+  return blocked
 }
 
 function markTouched(session: PlaceSession, row: PartnerCategoryRow, created: boolean) {
@@ -329,8 +373,8 @@ export async function placeImportedInventoryInCategoryTreeBatch(
 }
 
 /**
- * Excel 41 cột / Open Catalog: khi tắt tự tạo, mọi insert mới có category_l1 đều bị chặn.
- * Dòng không có category_l1 (file 12 cột) không bị chặn.
+ * Excel 41 cột / Open Catalog: khi tắt tự tạo, chỉ chặn insert mới nếu L1/L2/L3 chưa có trên cây.
+ * File 12 cột (không category_l1) không bị chặn.
  */
 export async function importedInventoryInsertIdsBlockedByAutoCreate(
   partnerId: string,
@@ -343,7 +387,8 @@ export async function importedInventoryInsertIdsBlockedByAutoCreate(
 ): Promise<Set<string>> {
   const allowCreate = await fetchPartnerAllowAutoCreateCategoriesFromPg(partnerId)
   if (allowCreate) return new Set()
-  return new Set(items.filter((item) => item.id && (item.categoryL1 ?? '').trim()).map((item) => item.id))
+  const rows = (await fetchPartnerCategoriesFlatFromPg(partnerId, { activeOnly: false })) ?? []
+  return catalogInsertIdsBlockedWhenAutoCreateOff(false, rows, items)
 }
 
 export async function placeProductStudioInventoryInCategoryTree(input: {

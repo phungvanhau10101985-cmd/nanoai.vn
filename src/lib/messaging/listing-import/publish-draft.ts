@@ -6,7 +6,6 @@ import {
 import { isListingDraftPublishReady, getListingDraftPublishBlockers } from '@/lib/messaging/listing-import/listing-draft-publish-validation'
 import { productDataToInventoryExcelInsert } from '@/lib/messaging/listing-import/product-data-to-inventory'
 import { upsertPartnerInventoryBatch } from '@/lib/messaging/partner-inventory-upsert-batch'
-import { fetchPartnerAllowAutoCreateCategoriesFromPg } from '@/lib/db/messaging-partner-category-auto-create-pg'
 import {
   CATEGORY_AUTO_CREATE_DISABLED,
   CATEGORY_AUTO_CREATE_DISABLED_MESSAGE,
@@ -34,13 +33,6 @@ export async function publishListingImportDraft(input: {
     })
   }
   if (String(pd._taxonomy_error || '') === CATEGORY_AUTO_CREATE_DISABLED) {
-    throw Object.assign(new Error(CATEGORY_AUTO_CREATE_DISABLED_MESSAGE), {
-      status: 409,
-      blockers: [CATEGORY_AUTO_CREATE_DISABLED, CATEGORY_AUTO_CREATE_DISABLED_MESSAGE],
-    })
-  }
-  const allowCreate = await fetchPartnerAllowAutoCreateCategoriesFromPg(input.partnerId)
-  if (!allowCreate) {
     throw Object.assign(new Error(CATEGORY_AUTO_CREATE_DISABLED_MESSAGE), {
       status: 409,
       blockers: [CATEGORY_AUTO_CREATE_DISABLED, CATEGORY_AUTO_CREATE_DISABLED_MESSAGE],

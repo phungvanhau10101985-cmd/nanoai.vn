@@ -1954,7 +1954,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categoryAutoCreateHintOn:
       'Bật: cào 1688/Taobao/Tmall và đăng sản phẩm mới được tạo danh mục cấp 1/2/3 nếu cây chưa có nhánh.',
     categoryAutoCreateHintOff:
-      'Tắt: không cào 1688/Taobao/Tmall và không tạo sản phẩm mới. Muốn tiếp tục thì bật lại công tắc này.',
+      'Tắt: không tạo nhánh mới. Cào/đăng vẫn chạy nếu khớp danh mục đã import. Không khớp mới báo lỗi.',
     categoryAutoCreateSaved: 'Đã lưu chế độ tự tạo danh mục.',
     categoryAutoCreateError: 'Không lưu được công tắc tự tạo danh mục.',
     reviewsAdminTitle: 'Đánh giá & Hỏi đáp sản phẩm',
@@ -3129,7 +3129,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categoryAutoCreateHintOn:
       'On: scraping 1688/Taobao/Tmall and publishing new products may create missing level 1/2/3 categories.',
     categoryAutoCreateHintOff:
-      'Off: scraping 1688/Taobao/Tmall and creating new products are blocked. Turn this switch back on to continue.',
+      'Off: missing branches are not created. Scraping/publishing still run when the imported tree already has a match. Unmatched products error.',
     categoryAutoCreateSaved: 'Category auto-create setting saved.',
     categoryAutoCreateError: 'Could not save the category auto-create setting.',
     reviewsAdminTitle: 'Product Reviews & Q&A',
@@ -4280,7 +4280,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categoryAutoCreateHintOn:
       '开启：抓取 1688/淘宝/天猫或上架新商品时，若树中没有对应分支则新建 1/2/3 级类目。',
     categoryAutoCreateHintOff:
-      '关闭：禁止抓取 1688/淘宝/天猫，也禁止创建新商品。若要继续，请重新打开此开关。',
+      '关闭：不新建类目。若已导入的树中有对应分支，抓取/上架仍继续；对不上才报错。',
     categoryAutoCreateSaved: '已保存自动创建类目设置。',
     categoryAutoCreateError: '无法保存自动创建类目开关。',
     reviewsAdminTitle: '商品评价与问答',
@@ -5432,7 +5432,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categoryAutoCreateHintOn:
       'オン：1688/Taobao/Tmall の取得や新商品登録で、木に該当枝がなければ L1/L2/L3 を新規作成します。',
     categoryAutoCreateHintOff:
-      'オフ：1688/Taobao/Tmall の取得も新商品の作成もできません。続けるにはこのスイッチをオンにしてください。',
+      'オフ：新しい枝は作りません。インポート済みの木に一致すればスクレイプ／登録は続行し、一致しない商品だけエラーになります。',
     categoryAutoCreateSaved: 'カテゴリー自動作成の設定を保存しました。',
     categoryAutoCreateError: 'カテゴリー自動作成の設定を保存できませんでした。',
     reviewsAdminTitle: '商品レビュー＆Q&A',
@@ -6591,7 +6591,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     categoryAutoCreateHintOn:
       '켜기: 1688/Taobao/Tmall 수집 또는 새 상품 등록 시 트리에 맞는 분기가 없으면 1/2/3단계를 새로 만듭니다.',
     categoryAutoCreateHintOff:
-      '끄기: 1688/Taobao/Tmall 수집과 새 상품 생성을 막습니다. 계속하려면 이 스위치를 다시 켜세요.',
+      '끄기: 새 분기는 만들지 않습니다. 이미 가져온 트리에 맞으면 수집/등록은 계속되고, 맞지 않는 상품만 오류입니다.',
     categoryAutoCreateSaved: '카테고리 자동 생성 설정을 저장했습니다.',
     categoryAutoCreateError: '카테고리 자동 생성 설정을 저장하지 못했습니다.',
     reviewsAdminTitle: '상품 리뷰 및 Q&A',

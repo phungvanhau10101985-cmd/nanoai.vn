@@ -15,10 +15,6 @@ import {
 import { emptyInventoryCatalogRowFields } from '@/lib/messaging/partner-inventory-catalog-188'
 import { linkImportedInventoryToCatalogCategoriesBatch } from '@/lib/messaging/partner-inventory-import-categories'
 import { importedInventoryInsertIdsBlockedByAutoCreate } from '@/lib/partner-website/category/partner-category-place-product'
-import {
-  CATEGORY_AUTO_CREATE_DISABLED,
-} from '@/lib/partner-website/category/partner-category-auto-create-copy'
-import { fetchPartnerAllowAutoCreateCategoriesFromPg } from '@/lib/db/messaging-partner-category-auto-create-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
 import type { InventoryExcelInsert } from '@/lib/messaging/partner-inventory-excel'
@@ -121,19 +117,6 @@ function chunked<T>(items: T[], size: number): T[][] {
   const out: T[][] = []
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
   return out
-}
-
-/** Tắt tự tạo: không insert SP mới có cột danh mục 41. File 12 cột không catalog thì vẫn thêm kho. */
-async function failIfNewCatalogInsertsWhileAutoCreateOff(
-  partnerId: string,
-  plannedInserts: Map<string, InventoryInsert>,
-  catalogPatches: Map<string, InventoryCatalogPatchRow>
-): Promise<{ ok: false; error: string } | null> {
-  const hasNewCatalog = [...plannedInserts.values()].some((row) => Boolean(row.id && catalogPatches.has(row.id)))
-  if (!hasNewCatalog) return null
-  const allowCreate = await fetchPartnerAllowAutoCreateCategoriesFromPg(partnerId)
-  if (allowCreate) return null
-  return { ok: false, error: CATEGORY_AUTO_CREATE_DISABLED }
 }
 
 async function pruneInsertsBlockedByCategoryAutoCreate(
@@ -449,9 +432,6 @@ export async function applyPartnerInventoryExternalCatalogGetBatch(
     changedIds.add(newId)
   }
 
-  const blockedCatalog = await failIfNewCatalogInsertsWhileAutoCreateOff(partnerId, plannedInserts, catalogPatches)
-  if (blockedCatalog) return blockedCatalog
-
   for (const ids of chunked(plan.deleteIds, WRITE_CHUNK_SIZE)) {
     const ok = await deletePartnerInventoryByIdsForPartnerFromPg(partnerId, ids)
     if (!ok) return { ok: false, error: 'Inventory delete failed (Postgres).' }
@@ -596,9 +576,6 @@ export async function upsertPartnerInventoryRemarketingIncrementalBatch(
     updated += 1
     changedIds.add(target.id)
   }
-
-  const blockedCatalog = await failIfNewCatalogInsertsWhileAutoCreateOff(partnerId, plannedInserts, catalogPatches)
-  if (blockedCatalog) return blockedCatalog
 
   for (const ids of chunked(Array.from(plannedDeletes), WRITE_CHUNK_SIZE)) {
     const ok = await deletePartnerInventoryByIdsForPartnerFromPg(partnerId, ids)
@@ -855,9 +832,6 @@ export async function upsertPartnerInventoryBatch(
       }
     }
   }
-
-  const blockedCatalog = await failIfNewCatalogInsertsWhileAutoCreateOff(partnerId, plannedInserts, catalogPatches)
-  if (blockedCatalog) return blockedCatalog
 
   for (const ids of chunked(Array.from(plannedDeletes), WRITE_CHUNK_SIZE)) {
     const ok = await deletePartnerInventoryByIdsForPartnerFromPg(partnerId, ids)

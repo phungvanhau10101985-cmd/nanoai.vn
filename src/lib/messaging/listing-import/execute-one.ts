@@ -16,10 +16,7 @@ import {
 } from '@/lib/messaging/listing-import/listing-import-urls'
 import { applyListingImportColorTranslation } from '@/lib/messaging/listing-import/listing-import-color-translate'
 import { applyListingImportRatingGroups } from '@/lib/messaging/listing-import/listing-import-rating-groups'
-import {
-  applyListingImportTaxonomy,
-  listingImportOverlayTitle,
-} from '@/lib/messaging/listing-import/listing-import-taxonomy'
+import { applyListingImportTaxonomy } from '@/lib/messaging/listing-import/listing-import-taxonomy'
 import { compactListingImportProductInfoForWeb } from '@/lib/messaging/listing-import/listing-import-product-info-compact'
 import { reapplyListingLocaleOverlay } from '@/lib/messaging/listing-import/listing-import-body-specs'
 import { applyListingYearSanitizeToProductData } from '@/lib/messaging/listing-import/listing-import-year-sanitize'
@@ -77,30 +74,6 @@ export async function executeOneListingImport(input: {
 
   try {
     const allowCreate = await fetchPartnerAllowAutoCreateCategoriesFromPg(input.partnerId)
-    if (!allowCreate) {
-      const overlayTitle = listingImportOverlayTitle(input.overlay)
-      const productData: Record<string, unknown> = {
-        _taxonomy_error: CATEGORY_AUTO_CREATE_DISABLED,
-      }
-      if (overlayTitle) productData.chinese_name = overlayTitle
-      await updateListingImportDraftFromPg(input.partnerId, draft.id, {
-        status: 'error',
-        message: taxonomyFailMessage,
-        errors: [CATEGORY_AUTO_CREATE_DISABLED, taxonomyFailMessage],
-        warnings: [],
-        productData,
-        finished: true,
-      })
-      return {
-        ok: false,
-        job_id: jobId,
-        draft_id: draft.id,
-        draft_status: 'error',
-        error: CATEGORY_AUTO_CREATE_DISABLED,
-        message: taxonomyFailMessage,
-        errors: [CATEGORY_AUTO_CREATE_DISABLED, taxonomyFailMessage],
-      }
-    }
 
     await updateListingImportDraftFromPg(input.partnerId, draft.id, {
       status: 'running',

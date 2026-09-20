@@ -20,6 +20,10 @@ import {
   type PartnerCategoryFacetCounts,
 } from '@/lib/db/messaging-partner-facet-snapshot-pg'
 import { loadPartnerIdListCachedLayerFromPg } from '@/lib/db/messaging-partner-id-list-cache-pg'
+import {
+  scheduleBunnyCleanupForDeletedInventory,
+  type InventoryBunnyDeleteSnapshot,
+} from '@/lib/messaging/inventory-bunny-delete'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 import { PARTNER_PUBLIC_INVENTORY_SEARCH_MAX } from '@/lib/messaging/partner-public-search-limits'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
@@ -3247,6 +3251,48 @@ export async function fetchPartnerInventoryRemarketingKeysFromPg(
   }
 }
 
+const INVENTORY_DELETE_CHUNK = 200
+
+const INVENTORY_BUNNY_DELETE_RETURNING = `id, partner_id, image_url, gallery_urls, detail_image_urls,
+         material_detail_image_url, real_use_image_url, real_use_image_url_2,
+         product_video_url, colors_json, catalog_json, product_info_json, description, stock_note`
+
+const INVENTORY_BUNNY_DELETE_RETURNING_SLIM = `id, partner_id, image_url, product_video_url,
+         catalog_json, product_info_json, description, stock_note`
+
+function mapInventoryBunnyDeleteSnapshot(r: Record<string, unknown>): InventoryBunnyDeleteSnapshot {
+  return {
+    id: r.id == null ? null : String(r.id),
+    partner_id: r.partner_id == null ? null : String(r.partner_id),
+    image_url: r.image_url,
+    gallery_urls: r.gallery_urls,
+    detail_image_urls: r.detail_image_urls,
+    material_detail_image_url: r.material_detail_image_url,
+    real_use_image_url: r.real_use_image_url,
+    real_use_image_url_2: r.real_use_image_url_2,
+    product_video_url: r.product_video_url,
+    colors_json: r.colors_json,
+    catalog_json: r.catalog_json,
+    product_info_json: r.product_info_json,
+    description: r.description,
+    stock_note: r.stock_note,
+  }
+}
+
+async function deleteInventoryChunkReturningSnapshots(
+  partnerId: string,
+  ids: string[],
+  returning: string
+): Promise<InventoryBunnyDeleteSnapshot[]> {
+  const rows = await pgQuery<Record<string, unknown>>(
+    `delete from public.messaging_partner_inventory
+     where partner_id = $1::uuid and id = any($2::uuid[])
+     returning ${returning}`,
+    [partnerId, ids]
+  )
+  return rows.map(mapInventoryBunnyDeleteSnapshot)
+}
+
 /** `true` nếu chạy xong; `false` = không pool hoặc lỗi. */
 export async function deletePartnerInventoryByIdsForPartnerFromPg(
   partnerId: string,
@@ -3254,13 +3300,28 @@ export async function deletePartnerInventoryByIdsForPartnerFromPg(
 ): Promise<boolean> {
   if (!isPgConfigured()) return false
   if (ids.length === 0) return true
+  const snapshots: InventoryBunnyDeleteSnapshot[] = []
   try {
-    await getPgPool().query(
-      `delete from public.messaging_partner_inventory
-       where partner_id = $1::uuid and id = any($2::uuid[])`,
-      [partnerId, ids]
-    )
+    for (let i = 0; i < ids.length; i += INVENTORY_DELETE_CHUNK) {
+      const chunk = ids.slice(i, i + INVENTORY_DELETE_CHUNK)
+      try {
+        snapshots.push(
+          ...(await deleteInventoryChunkReturningSnapshots(partnerId, chunk, INVENTORY_BUNNY_DELETE_RETURNING))
+        )
+      } catch (e) {
+        const err = e as { code?: string }
+        if (err.code !== '42703') throw e
+        snapshots.push(
+          ...(await deleteInventoryChunkReturningSnapshots(
+            partnerId,
+            chunk,
+            INVENTORY_BUNNY_DELETE_RETURNING_SLIM
+          ))
+        )
+      }
+    }
     bumpInventoryCacheLater(partnerId)
+    scheduleBunnyCleanupForDeletedInventory(snapshots)
     return true
   } catch (e) {
     console.warn('[deletePartnerInventoryByIdsForPartnerFromPg]', e)

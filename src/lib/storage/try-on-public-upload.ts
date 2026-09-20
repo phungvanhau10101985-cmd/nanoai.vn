@@ -53,23 +53,39 @@ function requireTryOnBunnyStorage(): void {
   }
 }
 
-/** Xóa object trên Bunny (DELETE Storage API). */
+/**
+ * DELETE một object Bunny. 200/204/404 = thành công (giống 188 `delete_file_from_zone`).
+ * HTTP khác hoặc lỗi mạng → `false` / throw để hàng đợi retry.
+ */
+export async function deleteBunnyStorageObject(path: string): Promise<boolean> {
+  requireTryOnBunnyStorage()
+  const trimmed = path.trim()
+  if (!trimmed || trimmed.includes('..')) return false
+  const zone = process.env.BUNNY_STORAGE_ZONE!.trim()
+  const accessKey = process.env.BUNNY_STORAGE_API_KEY!.trim()
+  const remotePath = buildTryOnEncodedPath(trimmed)
+  if (!remotePath) return false
+  const delUrl = `https://storage.bunnycdn.com/${encodeURIComponent(zone)}/${remotePath}`
+  const res = await fetch(delUrl, {
+    method: 'DELETE',
+    headers: { AccessKey: accessKey },
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (res.status === 200 || res.status === 204 || res.status === 404) return true
+  const hint = await res.text().catch(() => '')
+  console.warn('[deleteBunnyStorageObject] Bunny DELETE', trimmed, res.status, hint.slice(0, 300))
+  return false
+}
+
+/** Xóa object trên Bunny (DELETE Storage API). Lỗi từng path chỉ cảnh báo — try-on / logo. */
 export async function removeTryOnStorageObjects(paths: string[]): Promise<void> {
   requireTryOnBunnyStorage()
   const uniq = [...new Set(paths.map((p) => p.trim()).filter(Boolean))]
   if (uniq.length === 0) return
 
-  const zone = process.env.BUNNY_STORAGE_ZONE!.trim()
-  const accessKey = process.env.BUNNY_STORAGE_API_KEY!.trim()
   for (const path of uniq) {
     try {
-      const remotePath = buildTryOnEncodedPath(path)
-      const delUrl = `https://storage.bunnycdn.com/${encodeURIComponent(zone)}/${remotePath}`
-      const res = await fetch(delUrl, { method: 'DELETE', headers: { AccessKey: accessKey } })
-      if (!res.ok && res.status !== 404) {
-        const hint = await res.text().catch(() => '')
-        console.warn('[removeTryOnStorageObjects] Bunny DELETE', path, res.status, hint.slice(0, 200))
-      }
+      await deleteBunnyStorageObject(path)
     } catch (e) {
       console.warn('[removeTryOnStorageObjects] Bunny DELETE error', path, e)
     }

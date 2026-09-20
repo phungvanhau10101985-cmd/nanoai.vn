@@ -5,7 +5,6 @@ import { upsertPartnerInventoryBatch } from '@/lib/messaging/partner-inventory-u
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
 import { syncPartnerInventoryTextEmbeddings } from '@/lib/messaging/partner-inventory-text-embedding'
 import { requireMessagingPartnerInventoryAccess } from '@/lib/messaging/partner-inventory-route-auth'
-import { fetchPartnerAllowAutoCreateCategoriesFromPg } from '@/lib/db/messaging-partner-category-auto-create-pg'
 import {
   CATEGORY_AUTO_CREATE_DISABLED,
   CATEGORY_AUTO_CREATE_DISABLED_MESSAGE,
@@ -40,21 +39,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
   const parsed = parseInventoryWorkbook(buf)
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.error }, { status: 400 })
-  }
-
-  const hasWebCatalogRows = parsed.rows.some((r) => r.catalogFormat === '188' && !r.removeFromInventory)
-  if (hasWebCatalogRows) {
-    const allowCreate = await fetchPartnerAllowAutoCreateCategoriesFromPg(partnerId)
-    if (!allowCreate) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: CATEGORY_AUTO_CREATE_DISABLED,
-          detail: CATEGORY_AUTO_CREATE_DISABLED_MESSAGE,
-        },
-        { status: 409 }
-      )
-    }
   }
 
   const batch = await upsertPartnerInventoryBatch(partnerId, parsed.rows)

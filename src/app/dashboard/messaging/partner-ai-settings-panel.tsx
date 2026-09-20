@@ -61,9 +61,9 @@ import { PartnerListingImportCard } from '@/app/dashboard/messaging/partner-list
 import { PartnerSourceStockCheckCard } from '@/app/dashboard/messaging/partner-source-stock-check-card'
 import { PartnerImageLocalizationCard } from '@/app/dashboard/messaging/partner-image-localization-card'
 import { PartnerInventoryEmbeddingErrorsPanel } from '@/app/dashboard/messaging/partner-inventory-embedding-errors-panel'
-import { buildGuestConsultChatAbsoluteUrl, buildGuestConsultChatPath } from '@/lib/messaging/build-guest-consult-chat-link'
-import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
-import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
+import { buildGuestConsultChatAbsoluteUrl } from '@/lib/messaging/build-guest-consult-chat-link'
+import { inventoryFieldToJsonCellText } from '@/lib/messaging/inventory-admin-json-cell'
+import { partnerSiteStorefrontProductHref } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
   guestPurchaseFlowChoices,
   guestPurchaseUsesSaasAutoCart,
@@ -80,6 +80,42 @@ type AiT = Dictionary['partnerMessagingAi']
 type SettingsRow = PartnerAiSettingsClientRow
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
+
+function inventoryAdminWebHref(siteSlug: string, row: InvRow): string {
+  const slug = siteSlug.trim()
+  if (slug) {
+    const href = partnerSiteStorefrontProductHref(slug, { inventoryId: row.id, name: row.name })
+    if (href) return href
+  }
+  const raw = (row.product_url || '').trim()
+  if (/^https?:\/\//i.test(raw) && !/(^|\.)(1688|taobao|tmall)\./i.test(raw)) return raw
+  return ''
+}
+
+function formatInventoryListPrice(row: InvRow, empty: string): string {
+  const amount = row.price_amount
+  if (typeof amount === 'number' && Number.isFinite(amount) && amount > 0) {
+    return new Intl.NumberFormat('vi-VN').format(amount)
+  }
+  const hint = (row.price_hint || '').trim()
+  return hint || empty
+}
+
+function InventoryAdminJsonCell({ raw, empty }: { raw: unknown; empty: string }) {
+  const jsonText = inventoryFieldToJsonCellText(raw)
+  return (
+    <div className="w-[14rem] max-w-[14rem] rounded border border-border bg-muted/40">
+      {jsonText ? (
+        <pre className="m-0 max-h-20 overflow-auto p-2 text-[10px] leading-snug font-mono text-foreground whitespace-pre-wrap break-all">
+          {jsonText}
+        </pre>
+      ) : (
+        <span className="block p-2 text-xs text-muted-foreground">{empty}</span>
+      )}
+    </div>
+  )
+}
+
 function parseStockQtyInput(raw: string): string {
   const n = Math.max(0, Math.floor(Number(raw || '0') || 0))
   return String(n)
@@ -2790,149 +2826,219 @@ function InventoryEditor({
           {vectorFilterActive ? t.inventoryVectorSearchNoResults : t.emptyInventory}
         </p>
       ) : (
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={displayRows.length > 0 && displayRows.every((r) => selectedIds.has(r.id))}
-            ref={(el) => {
-              if (!el) return
-              const n = displayRows.filter((r) => selectedIds.has(r.id)).length
-              el.indeterminate = n > 0 && n < displayRows.length
-            }}
-            onChange={() => {
-              const all = displayRows.length > 0 && displayRows.every((r) => selectedIds.has(r.id))
-              onToggleAllVisible(
-                displayRows.map((r) => r.id),
-                !all
-              )
-            }}
-          />
-          {t.imageLocSelectProduct}
-        </label>
-      )}
-      <ul className="space-y-2 max-h-[36vh] overflow-y-auto pr-1">
-        {displayRows.map((r) => (
-          <li key={r.id} className="rounded-lg border bg-card p-3 text-sm shadow-sm">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="flex min-w-0 gap-2">
-                <input
-                  type="checkbox"
-                  className="mt-1 shrink-0"
-                  checked={selectedIds.has(r.id)}
-                  onChange={() => onToggleSelected(r.id)}
-                  aria-label={t.imageLocSelectProduct}
-                />
-                {(() => {
-                  const iu = r.image_url?.trim() ?? ''
-                  const show =
-                    iu &&
-                    (/^https?:\/\//i.test(iu) || iu.startsWith('//'))
-                  const src = resolveExternalImageDisplayUrl(iu.startsWith('//') ? `https:${iu}` : iu)
-                  return show ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={src}
-                    alt=""
-                    className="h-14 w-14 shrink-0 rounded-md border object-cover"
-                  />
-                  ) : null
-                })()}
-                <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{r.name}</span>
-                  {r.sku ? (
-                    <Badge variant="outline" className="text-[10px] font-mono font-normal">
-                      {r.sku}
-                    </Badge>
-                  ) : null}
-                  {r.image_localization_status && r.image_localization_status !== 'pending' ? (
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] font-normal ${
-                        r.image_localization_status === 'localized'
-                          ? 'border-emerald-300 text-emerald-800'
-                          : r.image_localization_status === 'failed'
-                            ? 'border-red-300 text-red-800'
-                            : r.image_localization_status === 'processing'
-                              ? 'border-violet-300 text-violet-800'
-                              : ''
-                      }`}
-                    >
-                      {r.image_localization_status}
-                    </Badge>
-                  ) : null}
-                </div>
-                {r.description ? <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{r.description}</p> : null}
-                <p className="text-xs mt-1 text-muted-foreground">
-                  <span className="mr-2">Số lượng tồn: {Math.max(0, Number(r.stock_qty ?? 0))}</span>
-                  {r.stock_note ? (
-                    <span className="mr-2">
-                      {t.inventoryStock}: {r.stock_note}
-                    </span>
-                  ) : null}
-                  {r.price_hint ? <span>{r.price_hint}</span> : null}
-                </p>
-                {r.product_url?.trim() && /^https?:\/\//i.test(r.product_url.trim()) ? (
-                  <p className="mt-1 text-[11px]">
-                    <a
-                      href={r.product_url.trim()}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-violet-600 underline underline-offset-2 dark:text-violet-400"
-                    >
-                      {t.inventoryOpenProductPage}
-                    </a>
-                  </p>
-                ) : null}
-                {(() => {
-                  const vu = validateInventoryHttpUrl(r.product_video_url ?? '')
-                  return vu ? (
-                    <p className="mt-1 text-[11px]">
-                      <a
-                        href={vu}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-violet-600 underline underline-offset-2 dark:text-violet-400"
-                      >
-                        {t.inventoryOpenProductVideo}
-                      </a>
-                    </p>
-                  ) : null
-                })()}
-                {partnerChatSlug.trim() ? (() => {
-                  const consultPath = buildGuestConsultChatPath(partnerChatSlug, r)
-                  if (!consultPath) return null
-                  const href = browserOrigin ? `${browserOrigin}${consultPath}` : consultPath
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="border-b border-border bg-muted/40 px-4 py-2.5 text-sm text-muted-foreground">
+            {t.inventoryListCount.replace(
+              '{n}',
+              (vectorFilterActive ? displayRows.length : totalCount).toLocaleString()
+            )}
+          </div>
+          <div className="border-b border-border bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
+            {t.inventoryListScrollHint}
+          </div>
+          <div className="max-h-[min(70vh,40rem)] max-w-full overflow-auto overscroll-x-contain">
+            <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
+              <thead>
+                <tr>
+                  <th className="sticky left-0 top-0 z-30 min-w-[2.75rem] bg-muted px-3 py-3 text-left font-semibold text-foreground shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                    <input
+                      type="checkbox"
+                      checked={displayRows.length > 0 && displayRows.every((r) => selectedIds.has(r.id))}
+                      ref={(el) => {
+                        if (!el) return
+                        const n = displayRows.filter((r) => selectedIds.has(r.id)).length
+                        el.indeterminate = n > 0 && n < displayRows.length
+                      }}
+                      onChange={() => {
+                        const all = displayRows.length > 0 && displayRows.every((r) => selectedIds.has(r.id))
+                        onToggleAllVisible(
+                          displayRows.map((r) => r.id),
+                          !all
+                        )
+                      }}
+                      aria-label={t.imageLocSelectProduct}
+                    />
+                  </th>
+                  <th className="sticky left-[2.75rem] top-0 z-30 min-w-[9.5rem] bg-muted px-3 py-3 text-left font-semibold text-foreground shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)]">
+                    {t.inventoryColId}
+                  </th>
+                  <th className="sticky top-0 z-20 min-w-[5.5rem] whitespace-nowrap bg-muted px-2 py-3 text-left font-semibold text-foreground">
+                    {t.inventoryColWeb}
+                  </th>
+                  <th className="sticky top-0 z-20 min-w-[14rem] whitespace-nowrap bg-muted px-2 py-3 text-left font-semibold text-foreground">
+                    {t.inventoryColMainImage}
+                  </th>
+                  <th className="sticky top-0 z-20 min-w-[14rem] whitespace-nowrap bg-muted px-2 py-3 text-left font-semibold text-foreground">
+                    {t.inventoryColGallery}
+                  </th>
+                  <th className="sticky top-0 z-20 min-w-[14rem] whitespace-nowrap bg-muted px-2 py-3 text-left font-semibold text-foreground">
+                    {t.inventoryColDetailImages}
+                  </th>
+                  <th className="sticky top-0 z-20 min-w-[7rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground">
+                    {t.inventorySku}
+                  </th>
+                  <th className="sticky top-0 z-20 min-w-[10rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground">
+                    {t.inventoryColSlug}
+                  </th>
+                  <th className="sticky top-0 z-20 min-w-[16rem] bg-muted px-3 py-3 text-left font-semibold text-foreground">
+                    {t.inventoryName}
+                  </th>
+                  <th className="sticky top-0 z-20 min-w-[6.5rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground">
+                    {t.inventoryPrice}
+                  </th>
+                  <th className="sticky top-0 z-20 min-w-[8rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground">
+                    {t.inventoryColBrand}
+                  </th>
+                  <th className="sticky top-0 z-20 min-w-[4.5rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground">
+                    {t.inventoryColQty}
+                  </th>
+                  <th className="sticky top-0 z-20 min-w-[5.5rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground">
+                    {t.inventoryColStatus}
+                  </th>
+                  <th className="sticky top-0 z-20 min-w-[6rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground">
+                    {t.inventoryColSourceStock}
+                  </th>
+                  <th className="sticky top-0 z-20 min-w-[5.5rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground">
+                    {t.inventoryColImageI18n}
+                  </th>
+                  <th className="sticky right-0 top-0 z-30 min-w-[8.5rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]">
+                    {t.inventoryColActions}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayRows.map((r) => {
+                  const empty = t.inventoryEmptyCell
+                  const productId = (r.remarketing_id || r.sku || r.id).trim() || r.id
+                  const webHref = inventoryAdminWebHref(partnerChatSlug, r)
+                  const loc = (r.image_localization_status || '').trim()
+                  const stickyTd =
+                    'sticky z-10 bg-card py-2 px-3 align-top group-hover:bg-muted/40'
                   return (
-                    <p className="mt-1 text-[11px]">
-                      <a
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-violet-600 underline underline-offset-2 dark:text-violet-400"
-                      >
-                        {t.inventoryGuestConsultLink}
-                      </a>
-                    </p>
+                    <tr key={r.id} className="group border-b border-border/70 hover:bg-muted/30">
+                      <td className={`${stickyTd} left-0 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]`}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(r.id)}
+                          onChange={() => onToggleSelected(r.id)}
+                          aria-label={t.imageLocSelectProduct}
+                        />
+                      </td>
+                      <td className={`${stickyTd} left-[2.75rem] shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)]`}>
+                        <span className="font-mono text-xs text-blue-600 dark:text-blue-400">{productId}</span>
+                        {(r.is_clearance === true || productId.includes('/')) && (
+                          <span className="mt-0.5 block w-fit rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+                            {t.inventoryClearanceBadge}
+                          </span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-2 align-middle">
+                        {webHref ? (
+                          <a
+                            href={webHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium text-foreground shadow-sm hover:bg-muted"
+                          >
+                            <svg
+                              className="h-3.5 w-3.5 shrink-0 opacity-70"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              aria-hidden
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                              />
+                            </svg>
+                            {t.inventoryViewWeb}
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center rounded-md border border-dashed border-border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
+                            {empty}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 align-top">
+                        <InventoryAdminJsonCell raw={r.image_url || ''} empty={empty} />
+                      </td>
+                      <td className="px-2 py-2 align-top">
+                        <InventoryAdminJsonCell raw={r.gallery_urls ?? []} empty={empty} />
+                      </td>
+                      <td className="px-2 py-2 align-top">
+                        <InventoryAdminJsonCell raw={r.detail_image_urls ?? []} empty={empty} />
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 align-top font-mono text-xs">
+                        {r.sku?.trim() || empty}
+                      </td>
+                      <td className="max-w-[14rem] px-3 py-2 align-top">
+                        <span className="block truncate font-mono text-xs">{r.catalog_slug?.trim() || empty}</span>
+                      </td>
+                      <td className="min-w-[16rem] max-w-[22rem] px-3 py-2 align-top">
+                        <span className="whitespace-normal">{r.name || empty}</span>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums">
+                        {formatInventoryListPrice(r, empty)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 align-top">{r.brand_name?.trim() || empty}</td>
+                      <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums">
+                        {Math.max(0, Number(r.stock_qty ?? 0))}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 align-top">
+                        <span
+                          className={`inline-flex rounded-md border px-2 py-1 text-xs font-medium ${
+                            r.is_active !== false
+                              ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/40 dark:text-green-300'
+                              : 'border-border bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {r.is_active !== false ? t.inventoryStatusShown : t.inventoryStatusHidden}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 align-top text-xs text-muted-foreground">
+                        {r.source_stock_status?.trim() || empty}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 align-top">
+                        <span
+                          className={`text-xs font-medium ${
+                            loc === 'localized'
+                              ? 'text-violet-700 dark:text-violet-300'
+                              : loc === 'failed'
+                                ? 'text-red-600'
+                                : 'text-muted-foreground'
+                          }`}
+                        >
+                          {loc || 'pending'}
+                        </span>
+                      </td>
+                      <td className="sticky right-0 z-10 whitespace-nowrap bg-card px-3 py-2 align-top group-hover:bg-muted/40 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]">
+                        <div className="flex shrink-0 gap-1">
+                          <Button type="button" variant="outline" size="sm" onClick={() => editRow(r)} disabled={pending}>
+                            {t.edit}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive"
+                            onClick={() => del(r.id)}
+                            disabled={pending}
+                          >
+                            {t.deleteRow}
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
                   )
-                })() : null}
-                {r.consult_note?.trim() ? (
-                  <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{r.consult_note.trim()}</p>
-                ) : null}
-                </div>
-              </div>
-              <div className="flex shrink-0 gap-1">
-                <Button type="button" variant="outline" size="sm" onClick={() => editRow(r)} disabled={pending}>
-                  {t.edit}
-                </Button>
-                <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => del(r.id)} disabled={pending}>
-                  {t.deleteRow}
-                </Button>
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
       {hasMore && !vectorFilterActive ? (
         <div className="flex justify-center">
           <Button type="button" variant="outline" size="sm" disabled={loadingMore || pending} onClick={onLoadMore}>

@@ -1,4 +1,3 @@
-import { fetchPartnerAllowAutoCreateCategoriesFromPg } from '@/lib/db/messaging-partner-category-auto-create-pg'
 import { fetchPartnerCategoryByIdFromPg } from '@/lib/db/messaging-partner-categories-pg'
 import {
   deletePartnerInventoryItemForPartnerFromPg,
@@ -154,17 +153,6 @@ export async function publishProductStudioJob(
     return { ok: false, error: 'missing_main_image' }
   }
 
-  const allowCreate = await fetchPartnerAllowAutoCreateCategoriesFromPg(partnerId)
-  if (!allowCreate) {
-    await updateProductStudioJobPg({
-      partnerId,
-      jobId,
-      status: 'failed',
-      errorMessage: CATEGORY_AUTO_CREATE_DISABLED_MESSAGE,
-    })
-    return { ok: false, error: CATEGORY_AUTO_CREATE_DISABLED_MESSAGE }
-  }
-
   const inventoryId = await insertPartnerInventoryFromProductStudioFromPg(partnerId, {
     name,
     description,
@@ -212,6 +200,13 @@ export async function publishProductStudioJob(
     const seoError = taxonomy.error || 'gemini_seo_failed'
     if (seoError === CATEGORY_AUTO_CREATE_DISABLED) {
       await deletePartnerInventoryItemForPartnerFromPg(partnerId, inventoryId)
+      await updateProductStudioJobPg({
+        partnerId,
+        jobId,
+        status: 'failed',
+        errorMessage: CATEGORY_AUTO_CREATE_DISABLED_MESSAGE,
+      })
+      return { ok: false, error: CATEGORY_AUTO_CREATE_DISABLED_MESSAGE }
     }
     await updateProductStudioJobPg({
       partnerId,

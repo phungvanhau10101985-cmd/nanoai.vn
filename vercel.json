@@ -28,6 +28,10 @@
     {
       "path": "/api/cron/partner-order-shipment-timeline",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/partner-inventory-bunny-delete",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

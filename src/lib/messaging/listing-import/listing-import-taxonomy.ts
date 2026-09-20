@@ -534,8 +534,8 @@ async function classifyTaxonomyDeepseek(input: {
 }
 
 /**
- * Phân loại DeepSeek 14 key + tạo L1/L2/L3 + SEO — khớp 188 apply_deepseek_taxonomy_to_product_data.
- * Tắt tự tạo: không cào / không đăng SP mới — báo lỗi ngay kèm hướng dẫn bật lại công tắc.
+ * Phân loại DeepSeek 14 key + gắn L1/L2/L3 + SEO — khớp 188 apply_deepseek_taxonomy_to_product_data.
+ * Tắt tự tạo: khớp nhánh đã có thì dùng; không khớp mới lỗi + hướng dẫn bật công tắc.
  */
 export async function applyListingImportTaxonomy(
   partnerId: string,
@@ -666,8 +666,8 @@ export async function applyListingImportTaxonomy(
 }
 
 /**
- * Khi tắt tự tạo: có tiêu đề overlay thì phân loại trước Playwright.
- * Không khớp triple đã có → không cào.
+ * Optional: khi tắt tự tạo, thử khớp tiêu đề overlay với cây trước Playwright.
+ * Không khớp → caller có thể bỏ scrape dòng đó. Enqueue không dùng hàm này để chặn cả đợt.
  */
 export async function previewListingImportTaxonomyMatch(input: {
   partnerId: string

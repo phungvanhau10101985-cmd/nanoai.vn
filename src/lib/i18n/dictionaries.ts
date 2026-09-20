@@ -1533,6 +1533,25 @@ export type Dictionary = {
     inventoryProductVideoUrlHint: string
     inventoryOpenProductPage: string
     inventoryOpenProductVideo: string
+    inventoryListCount: string
+    inventoryListScrollHint: string
+    inventoryColId: string
+    inventoryColWeb: string
+    inventoryColMainImage: string
+    inventoryColGallery: string
+    inventoryColDetailImages: string
+    inventoryColSlug: string
+    inventoryColBrand: string
+    inventoryColQty: string
+    inventoryColStatus: string
+    inventoryColSourceStock: string
+    inventoryColImageI18n: string
+    inventoryColActions: string
+    inventoryStatusShown: string
+    inventoryStatusHidden: string
+    inventoryViewWeb: string
+    inventoryEmptyCell: string
+    inventoryClearanceBadge: string
     /** Link /messaging/p/{slug}?ctx_* — mở chat tư vấn kèm ảnh SP */
     inventoryGuestConsultLink: string
     inventoryGuestConsultLinkHint: string
@@ -5080,6 +5099,25 @@ const VI_DICTIONARY: Dictionary = {
       'Link YouTube (xem / embed) hoặc URL https://… tới file .mp4 / player CDN. Cùng cột “Video sản phẩm” trong Excel.',
     inventoryOpenProductPage: 'Mở trang sản phẩm',
     inventoryOpenProductVideo: 'Mở video',
+    inventoryListCount: '{n} sản phẩm trong danh sách',
+    inventoryListScrollHint: '↔ Cuộn ngang để xem đủ cột',
+    inventoryColId: 'ID',
+    inventoryColWeb: 'Web',
+    inventoryColMainImage: 'Ảnh đại diện',
+    inventoryColGallery: 'Thư viện ảnh',
+    inventoryColDetailImages: 'Ảnh chi tiết SP',
+    inventoryColSlug: 'Slug',
+    inventoryColBrand: 'Thương hiệu',
+    inventoryColQty: 'Tồn',
+    inventoryColStatus: 'Trạng thái',
+    inventoryColSourceStock: 'Nguồn hàng',
+    inventoryColImageI18n: 'Ảnh i18n',
+    inventoryColActions: 'Thao tác',
+    inventoryStatusShown: 'Hiển thị',
+    inventoryStatusHidden: 'Ẩn',
+    inventoryViewWeb: 'Xem web',
+    inventoryEmptyCell: '—',
+    inventoryClearanceBadge: 'Kho thanh lý',
     inventoryGuestConsultLink: 'Mở chat tư vấn',
     inventoryGuestConsultLinkHint:
       'Link trang chat NanoAI kèm ảnh & ngữ cảnh mặt hàng (đặt vào website, QR, quảng cáo). Khách mở sẽ tự gửi tin tư vấn kèm ảnh.',
@@ -8637,6 +8675,25 @@ const EN_DICTIONARY: Dictionary = {
       'YouTube watch/embed URL, or an https:// link to an .mp4 or hosted player (CDN). Same as the Excel “Video” column.',
     inventoryOpenProductPage: 'Open product page',
     inventoryOpenProductVideo: 'Open video',
+    inventoryListCount: '{n} products in the list',
+    inventoryListScrollHint: '↔ Scroll sideways to see every column',
+    inventoryColId: 'ID',
+    inventoryColWeb: 'Web',
+    inventoryColMainImage: 'Main image',
+    inventoryColGallery: 'Gallery',
+    inventoryColDetailImages: 'Detail images',
+    inventoryColSlug: 'Slug',
+    inventoryColBrand: 'Brand',
+    inventoryColQty: 'Stock',
+    inventoryColStatus: 'Status',
+    inventoryColSourceStock: 'Source stock',
+    inventoryColImageI18n: 'Image i18n',
+    inventoryColActions: 'Actions',
+    inventoryStatusShown: 'Visible',
+    inventoryStatusHidden: 'Hidden',
+    inventoryViewWeb: 'View site',
+    inventoryEmptyCell: '—',
+    inventoryClearanceBadge: 'Clearance',
     inventoryGuestConsultLink: 'Open consult chat',
     inventoryGuestConsultLinkHint:
       'NanoAI chat URL with this product’s image and context (website, QR, ads). Opens with an auto consult message.',
@@ -12159,6 +12216,25 @@ const ZH_DICTIONARY: Dictionary = {
       'YouTube 观看页/嵌入链接，或指向 .mp4 / CDN 播放器的 https:// 链接。与 Excel「Video」列一致。',
     inventoryOpenProductPage: '打开商品页',
     inventoryOpenProductVideo: '打开视频',
+    inventoryListCount: '列表中有 {n} 件商品',
+    inventoryListScrollHint: '↔ 左右滑动查看全部列',
+    inventoryColId: 'ID',
+    inventoryColWeb: '网页',
+    inventoryColMainImage: '主图',
+    inventoryColGallery: '图库',
+    inventoryColDetailImages: '详情图',
+    inventoryColSlug: 'Slug',
+    inventoryColBrand: '品牌',
+    inventoryColQty: '库存',
+    inventoryColStatus: '状态',
+    inventoryColSourceStock: '货源库存',
+    inventoryColImageI18n: '图片本地化',
+    inventoryColActions: '操作',
+    inventoryStatusShown: '显示',
+    inventoryStatusHidden: '隐藏',
+    inventoryViewWeb: '查看网页',
+    inventoryEmptyCell: '—',
+    inventoryClearanceBadge: '清仓库',
     inventoryGuestConsultLink: '打开咨询聊天',
     inventoryGuestConsultLinkHint:
       '带商品图片与上下文的 NanoAI 聊天链接（网站、二维码、广告）。顾客打开后会自动发送咨询消息。',
@@ -15633,6 +15709,25 @@ const JA_DICTIONARY: Dictionary = {
       'YouTube の視聴/埋め込み URL、または .mp4 / CDN プレーヤーへの https:// リンク。Excel の動画列と同じです。',
     inventoryOpenProductPage: '商品ページを開く',
     inventoryOpenProductVideo: '動画を開く',
+    inventoryListCount: 'リストに {n} 件の商品',
+    inventoryListScrollHint: '↔ 横スクロールですべての列を表示',
+    inventoryColId: 'ID',
+    inventoryColWeb: 'Web',
+    inventoryColMainImage: 'メイン画像',
+    inventoryColGallery: 'ギャラリー',
+    inventoryColDetailImages: '詳細画像',
+    inventoryColSlug: 'Slug',
+    inventoryColBrand: 'ブランド',
+    inventoryColQty: '在庫',
+    inventoryColStatus: 'ステータス',
+    inventoryColSourceStock: '仕入在庫',
+    inventoryColImageI18n: '画像i18n',
+    inventoryColActions: '操作',
+    inventoryStatusShown: '表示',
+    inventoryStatusHidden: '非表示',
+    inventoryViewWeb: 'サイトを見る',
+    inventoryEmptyCell: '—',
+    inventoryClearanceBadge: '清算在庫',
     inventoryGuestConsultLink: '相談チャットを開く',
     inventoryGuestConsultLinkHint:
       '商品画像と文脈付きの NanoAI チャット URL（サイト・QR・広告）。開くと自動で相談メッセージが送られます。',
@@ -19153,6 +19248,25 @@ const KO_DICTIONARY: Dictionary = {
       'YouTube 시청/임베드 주소 또는 .mp4·CDN 플레이어용 https:// 링크. Excel 동영상 열과 동일합니다.',
     inventoryOpenProductPage: '상품 페이지 열기',
     inventoryOpenProductVideo: '동영상 열기',
+    inventoryListCount: '목록에 상품 {n}개',
+    inventoryListScrollHint: '↔ 가로로 스크롤해 모든 열을 보세요',
+    inventoryColId: 'ID',
+    inventoryColWeb: '웹',
+    inventoryColMainImage: '대표 이미지',
+    inventoryColGallery: '갤러리',
+    inventoryColDetailImages: '상세 이미지',
+    inventoryColSlug: 'Slug',
+    inventoryColBrand: '브랜드',
+    inventoryColQty: '재고',
+    inventoryColStatus: '상태',
+    inventoryColSourceStock: '공급 재고',
+    inventoryColImageI18n: '이미지 i18n',
+    inventoryColActions: '작업',
+    inventoryStatusShown: '표시',
+    inventoryStatusHidden: '숨김',
+    inventoryViewWeb: '웹 보기',
+    inventoryEmptyCell: '—',
+    inventoryClearanceBadge: '클리어런스',
     inventoryGuestConsultLink: '상담 채팅 열기',
     inventoryGuestConsultLinkHint:
       '상품 이미지·맥락이 포함된 NanoAI 채팅 링크(웹사이트·QR·광고). 열면 자동으로 상담 메시지가 전송됩니다.',
