@@ -299,7 +299,7 @@ function appendCards(el,products,replace){
   hideBrokenCardImgs(grid);
 }
 function revealLiveCatalog(el){
-  el.setAttribute('data-pw-live-catalog','ready');
+  el.setAttribute('data-pw-live-products','ready');
 }
 function loadGridPage(el,append){
   if(pwShopLiveUiOff())return;
@@ -381,7 +381,7 @@ function run(){
   if(!window.__pwSaleChipTimer)window.__pwSaleChipTimer=setInterval(tickSaleChips,1000);
   document.querySelectorAll('[data-pw-catalog],[data-pw-related]').forEach(function(el){
     var grid=el.querySelector('[data-pw-grid]');
-    if(grid&&el.getAttribute('data-pw-live-catalog')==='loading')grid.innerHTML='';
+    if(grid&&el.getAttribute('data-pw-live-products')==='loading')grid.innerHTML='';
     if(!(grid&&grid.children.length)) el.hidden=true;
     hydrate(el);
   });

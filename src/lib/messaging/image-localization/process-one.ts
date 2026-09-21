@@ -1,16 +1,14 @@
 import { createHash } from 'node:crypto'
-import sharp from 'sharp'
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
-import { imageLocJpegQuality, isOwnCdnUrl, normalizeImageUrl } from './image-localization-config'
+import { isOwnCdnUrl, normalizeImageUrl } from './image-localization-config'
 import type { ImageLocOcrBlock, ImageProcessResult } from './image-localization-types'
 import { classifyImage, hasChineseText, hasSizeOrLaundryContext } from './image-localization-classifier'
 import { encodeJpeg, localBlocksNeedDraw, localDrawTranslated, ocrImageBlocks } from './local-pipeline'
 import { geminiProcessImage, ImageLocalizationError, raiseIfFatalDependency } from './gemini-adapter'
 import { openaiProcessImage } from './openai-adapter'
 import { splitTallImageIfNeeded, vstackImageParts } from './split-tall-image'
-
-const LARGE_IMAGE_INPUT = { limitInputPixels: false, sequentialRead: true } as const
+import { overlayBrandLogoOnProcessedImage, loadImageLocBrandLogoBytes } from './overlay-brand-logo'
 
 export async function downloadLocalizationImage(url: string): Promise<{ bytes: Buffer; filename: string }> {
   const normalized = normalizeImageUrl(url)
@@ -41,33 +39,6 @@ export async function uploadLocalizedImage(opts: {
   return publicUrl
 }
 
-async function overlayBrandLogo(imageBytes: Buffer, logoUrl?: string | null): Promise<Buffer> {
-  const logoSrc = (logoUrl || '').trim()
-  if (!logoSrc || !/^https?:\/\//i.test(logoSrc)) return imageBytes
-  try {
-    const logoBuf = await fetchImageWith1688Bypass(logoSrc, { timeoutMs: 15_000, maxBytes: 2 * 1024 * 1024 })
-    const base = sharp(imageBytes, LARGE_IMAGE_INPUT)
-    const meta = await base.metadata()
-    const w = meta.width || 0
-    const h = meta.height || 0
-    if (w < 48 || h < 16) return imageBytes
-    const maxW = Math.max(8, Math.floor(w * 0.22))
-    const logo = sharp(logoBuf).resize({ width: maxW, withoutEnlargement: true })
-    const logoMeta = await logo.metadata()
-    const lw = logoMeta.width || maxW
-    const margin = Math.max(4, Math.floor(Math.min(h, w) * 0.012))
-    const left = w - lw - margin
-    const top = margin
-    if (left < 0 || top < 0) return imageBytes
-    return base
-      .composite([{ input: await logo.png().toBuffer(), left, top }])
-      .jpeg({ quality: imageLocJpegQuality(), mozjpeg: true })
-      .toBuffer()
-  } catch {
-    return imageBytes
-  }
-}
-
 export type ProcessImageContext = {
   partnerId: string
   skuOrId: string
@@ -82,6 +53,7 @@ export type ProcessImageContext = {
   openaiImageQuality?: string | null
   openaiImageSize?: string | null
   logoUrl?: string | null
+  logoBytes?: Buffer | null
   userId?: string | null
   shouldCancel?: () => boolean
 }
@@ -221,7 +193,15 @@ export async function processPreparedImage(
   }
 
   const finishProcessed = async (out: Buffer, message: string): Promise<ImageProcessResult> => {
-    const withLogo = await overlayBrandLogo(out, ctx.logoUrl)
+    let withLogo = out
+    try {
+      if (ctx.logoBytes === undefined) {
+        ctx.logoBytes = await loadImageLocBrandLogoBytes(ctx.logoUrl)
+      }
+      withLogo = await overlayBrandLogoOnProcessedImage(out, ctx.logoBytes)
+    } catch (error) {
+      console.warn('[image-localization] đóng logo lên ảnh đã dịch thất bại:', error)
+    }
     const finalUrl = await uploadLocalizedImage({
       partnerId: ctx.partnerId,
       skuOrId: ctx.skuOrId,

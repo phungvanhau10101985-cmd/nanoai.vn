@@ -59,6 +59,7 @@ import { PartnerSiteProductVariantModal } from '@/components/partner-website/sho
 import { PartnerSiteSizeGuideModal } from '@/components/partner-website/shop/partner-site-size-guide-modal'
 import { resolvePartnerSizeGuideKind, sanitizePartnerSizeGuideImageUrl } from '@/lib/partner-website/shop/partner-site-size-guide'
 import { readPdpWideStickyViewport } from '@/lib/partner-website/shop/partner-site-product-variant-modal'
+import { revealPdpGalleryMainImage } from '@/lib/partner-website/shop/reveal-pdp-gallery-main'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import {
   displayablePdpText,
@@ -767,7 +768,10 @@ export function PartnerSiteShopProductClient({
                 type="button"
                 className={`pw-shop-product-thumb${i === mediaIndex ? ' is-active' : ''}`}
                 data-pw-el={PW_EL.thumb}
-                onClick={() => setMediaIndex(i)}
+                onClick={() => {
+                  setMediaIndex(i)
+                  revealPdpGalleryMainImage()
+                }}
               >
                 {item.kind === 'photo' ? (
                   <img src={item.url} alt="" loading="lazy" decoding="async" onError={hideBrokenPdpImage} />
@@ -937,7 +941,10 @@ export function PartnerSiteShopProductClient({
                     key={c.name}
                     type="button"
                     className={`pw-pdp-pill pw-pdp-color${color === c.name ? ' is-active' : ''}`}
-                    onClick={() => setColor(c.name)}
+                    onClick={() => {
+                      setColor(c.name)
+                      revealPdpGalleryMainImage()
+                    }}
                   >
                     {c.img ? (
                       <img

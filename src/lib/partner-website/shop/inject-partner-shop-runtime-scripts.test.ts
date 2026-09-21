@@ -167,12 +167,27 @@ test('live catalog hides saved demo cards before first paint and clears them bef
     siteSlug: 'demo-shop',
     locale: 'vi',
   })
-  assert.match(out, /data-pw-live-catalog="loading"/)
+  assert.match(out, /data-pw-live-products="loading"/)
   assert.match(out, /data-pw-catalog-first-paint-css/)
-  assert.match(out, /\[data-pw-live-catalog="loading"\] \[data-pw-grid\]\{visibility:hidden\}/)
+  assert.match(out, /\[data-pw-live-products="loading"\] \[data-pw-grid\]\{visibility:hidden\}/)
   assert.match(out, /grid\.innerHTML=''/)
-  assert.match(out, /setAttribute\('data-pw-live-catalog','ready'\)/)
+  assert.match(out, /setAttribute\('data-pw-live-products','ready'\)/)
   assert.doesNotMatch(out, /else if\(grid\.children\.length\)/)
+})
+
+test('home personalization grids also hide and clear stale demo products before live data', () => {
+  const out = injectPartnerShopRuntimeScriptsIntoHtml(
+    '<!DOCTYPE html><html><head></head><body><main>' +
+      '<section data-pw-personalize="recently-viewed"><div data-pw-grid><article>demo cũ</article></div></section>' +
+      '<section data-pw-personalize="recommended"><div data-pw-grid><article>demo cũ</article></div></section>' +
+      '<section data-pw-personalize="flash-sale"><div data-pw-grid><article>demo cũ</article></div></section>' +
+      '</main></body></html>',
+    { siteSlug: 'demo-shop', locale: 'vi' }
+  )
+  assert.equal((out.match(/<section[^>]*data-pw-live-products="loading"/g) || []).length, 3)
+  assert.match(out, /data-pw-personalization-bootstrap/)
+  assert.match(out, /function revealLiveProducts\(el\)/)
+  assert.match(out, /getAttribute\('data-pw-live-products'\)==='loading'\)grid\.innerHTML=''/)
 })
 
 test('Sửa nhanh keeps catalog seed cards visible for authoring', () => {
@@ -180,7 +195,7 @@ test('Sửa nhanh keeps catalog seed cards visible for authoring', () => {
     '<!DOCTYPE html><html><head></head><body><section data-pw-catalog><div data-pw-grid>demo</div></section></body></html>',
     { siteSlug: 'demo-shop', locale: 'vi' }
   )
-  assert.doesNotMatch(out, /data-pw-live-catalog="loading"/)
+  assert.doesNotMatch(out, /data-pw-live-products="loading"/)
   assert.doesNotMatch(out, /data-pw-catalog-first-paint-css/)
 })
 

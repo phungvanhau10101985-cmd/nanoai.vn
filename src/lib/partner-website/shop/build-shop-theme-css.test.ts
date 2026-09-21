@@ -224,6 +224,7 @@ test('shop theme CSS shows the mobile PDP hero full-bleed at the image natural s
   assert.match(css, /\.pw-pdp-hero\{display:grid;grid-template-columns:minmax\(0,1fr\);width:calc\(100% \+ 2 \* var\(--pw-page-gutter,4px\)\)/)
   assert.match(css, /html\[data-pw-edit-device="mobile"\] \.pw-pdp-hero,html\[data-pw-scene-lock="mobile"\] \.pw-pdp-hero/)
   assert.match(css, /margin-inline:calc\(-1 \* var\(--pw-page-gutter,4px\)\)/)
+  assert.match(css, /scroll-margin-top:calc\(var\(--pw-sticky-head,56px\) \+ 4px\)/)
 })
 
 test('shop theme CSS ships HTML chrome alongside React pw-shop-header', () => {

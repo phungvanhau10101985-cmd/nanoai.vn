@@ -60,8 +60,8 @@ import {
 } from '@/app/dashboard/messaging/actions'
 import { PartnerInventoryEmbeddingErrorsPanel } from '@/app/dashboard/messaging/partner-inventory-embedding-errors-panel'
 import { buildGuestConsultChatAbsoluteUrl } from '@/lib/messaging/build-guest-consult-chat-link'
+import { inventoryAdminWebHref } from '@/lib/messaging/inventory-admin-web-href'
 import { inventoryFieldToJsonCellText } from '@/lib/messaging/inventory-admin-json-cell'
-import { partnerSiteStorefrontProductHref } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
   guestPurchaseFlowChoices,
   guestPurchaseUsesSaasAutoCart,
@@ -78,17 +78,6 @@ type AiT = Dictionary['partnerMessagingAi']
 type SettingsRow = PartnerAiSettingsClientRow
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
-
-function inventoryAdminWebHref(siteSlug: string, row: InvRow): string {
-  const slug = siteSlug.trim()
-  if (slug) {
-    const href = partnerSiteStorefrontProductHref(slug, { inventoryId: row.id, name: row.name })
-    if (href) return href
-  }
-  const raw = (row.product_url || '').trim()
-  if (/^https?:\/\//i.test(raw) && !/(^|\.)(1688|taobao|tmall)\./i.test(raw)) return raw
-  return ''
-}
 
 function formatInventoryListPrice(row: InvRow, empty: string): string {
   const amount = row.price_amount
@@ -1236,6 +1225,7 @@ export function PartnerAiSettingsPanel({
             <InventoryEditor
               partnerId={partnerId}
               partnerChatSlug={partnerChatSlug}
+              websitePublicUrl={saasShopCart.publicUrl}
               showProductStudio={false}
               t={t}
               rows={inventory}
@@ -2262,6 +2252,7 @@ function mapInventoryImportError(code: string | undefined, t: AiT): string {
 function InventoryEditor({
   partnerId,
   partnerChatSlug,
+  websitePublicUrl,
   showProductStudio = true,
   t,
   rows,
@@ -2282,6 +2273,7 @@ function InventoryEditor({
 }: {
   partnerId: string
   partnerChatSlug: string
+  websitePublicUrl?: string | null
   showProductStudio?: boolean
   t: AiT
   rows: InvRow[]
@@ -2971,7 +2963,7 @@ function InventoryEditor({
                 {displayRows.map((r) => {
                   const empty = t.inventoryEmptyCell
                   const productId = (r.remarketing_id || r.sku || r.id).trim() || r.id
-                  const webHref = inventoryAdminWebHref(partnerChatSlug, r)
+                  const webHref = inventoryAdminWebHref(partnerChatSlug, websitePublicUrl, r)
                   const loc = (r.image_localization_status || '').trim()
                   const stickyTd =
                     'sticky z-10 bg-card py-2 px-3 align-top group-hover:bg-muted/40'

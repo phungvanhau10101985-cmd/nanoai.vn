@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import sharp from 'sharp'
 import { getUserForCreditAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
@@ -27,6 +26,8 @@ import {
 } from '@/lib/messaging/image-localization/image-localization-types'
 import { ImageLocalizationError } from '@/lib/messaging/image-localization/gemini-adapter'
 import { isOwnCdnUrl } from '@/lib/messaging/image-localization/image-localization-config'
+import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
+import { normalizeBrandLogoTemplate } from '@/lib/messaging/image-localization/overlay-brand-logo'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 import { removeTryOnStorageFromPublicUrls, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
@@ -55,6 +56,18 @@ function jsonError(detail: string, status = 400) {
 function boolParam(v: string | null, fallback = false): boolean {
   if (v == null) return fallback
   return !['0', 'false', 'no', 'off'].includes(v.trim().toLowerCase())
+}
+
+async function persistNormalizedImageLocLogo(partnerId: string, logoBytes: Buffer): Promise<string> {
+  const png = await normalizeBrandLogoTemplate(logoBytes)
+  const path = `localized-images/${partnerId}/brand/logo-${Date.now()}.png`
+  const { publicUrl } = await uploadTryOnImagePublic(path, png, { contentType: 'image/png' })
+  const previousLogoUrl = (await fetchImageLocSettingsFromPg(partnerId)).logo_url
+  await upsertImageLocLogoUrlFromPg(partnerId, publicUrl)
+  if (previousLogoUrl && previousLogoUrl !== publicUrl && isOwnCdnUrl(previousLogoUrl)) {
+    await removeTryOnStorageFromPublicUrls([previousLogoUrl]).catch(() => undefined)
+  }
+  return publicUrl
 }
 
 export async function GET(req: NextRequest, ctx: Ctx) {
@@ -122,18 +135,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     if (file.size > 5 * 1024 * 1024) return jsonError('Logo vượt quá 5 MB.')
     if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) return jsonError('Logo phải là PNG, JPG hoặc WebP.')
     try {
-      const png = await sharp(Buffer.from(await file.arrayBuffer()))
-        .rotate()
-        .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
-        .png()
-        .toBuffer()
-      const path = `localized-images/${partnerId}/brand/logo-${Date.now()}.png`
-      const { publicUrl } = await uploadTryOnImagePublic(path, png, { contentType: 'image/png' })
-      const previousLogoUrl = (await fetchImageLocSettingsFromPg(partnerId)).logo_url
-      await upsertImageLocLogoUrlFromPg(partnerId, publicUrl)
-      if (previousLogoUrl && previousLogoUrl !== publicUrl && isOwnCdnUrl(previousLogoUrl)) {
-        await removeTryOnStorageFromPublicUrls([previousLogoUrl]).catch(() => undefined)
-      }
+      const publicUrl = await persistNormalizedImageLocLogo(partnerId, Buffer.from(await file.arrayBuffer()))
       return NextResponse.json({ logo_url: publicUrl })
     } catch (e) {
       return jsonError(e instanceof Error ? e.message : String(e), 500)
@@ -213,15 +215,24 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   }
   if (p === 'settings/logo') {
     const raw = String(body.logo_url || '').trim()
-    if (raw && !/^https:\/\/[^\s]+$/i.test(raw)) {
+    if (!raw) {
+      const previousLogoUrl = (await fetchImageLocSettingsFromPg(partnerId)).logo_url
+      await upsertImageLocLogoUrlFromPg(partnerId, null)
+      if (previousLogoUrl && isOwnCdnUrl(previousLogoUrl)) {
+        await removeTryOnStorageFromPublicUrls([previousLogoUrl]).catch(() => undefined)
+      }
+      return NextResponse.json({ logo_url: null })
+    }
+    if (!/^https:\/\/[^\s]+$/i.test(raw)) {
       return jsonError('Logo phải là URL HTTPS hợp lệ.')
     }
-    const previousLogoUrl = (await fetchImageLocSettingsFromPg(partnerId)).logo_url
-    await upsertImageLocLogoUrlFromPg(partnerId, raw || null)
-    if (previousLogoUrl && previousLogoUrl !== raw && isOwnCdnUrl(previousLogoUrl)) {
-      await removeTryOnStorageFromPublicUrls([previousLogoUrl]).catch(() => undefined)
+    try {
+      const bytes = await fetchImageWith1688Bypass(raw, { timeoutMs: 20_000, maxBytes: 5 * 1024 * 1024 })
+      const publicUrl = await persistNormalizedImageLocLogo(partnerId, bytes)
+      return NextResponse.json({ logo_url: publicUrl })
+    } catch (e) {
+      return jsonError(e instanceof Error ? e.message : String(e), 500)
     }
-    return NextResponse.json({ logo_url: raw || null })
   }
   return jsonError('Not found', 404)
 }

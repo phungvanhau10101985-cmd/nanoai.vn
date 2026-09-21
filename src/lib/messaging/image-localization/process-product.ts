@@ -39,7 +39,13 @@ function asInfoObject(raw: unknown): Record<string, unknown> {
   return {}
 }
 
-function applyResultsToRow(
+function isKeptImageUrl(url: string | null | undefined): url is string {
+  const value = String(url || '').trim()
+  return Boolean(value) && value.toUpperCase() !== 'DELETED'
+}
+
+/** Classifier có thể xóa ảnh đại diện (keyword / bảng size). Lấy ảnh gallery còn lại làm cover. */
+export function applyImageLocResultsToRow(
   row: {
     image_url?: string | null
     colors_json?: unknown
@@ -69,19 +75,20 @@ function applyResultsToRow(
   const detail = Array.isArray(row.detail_image_urls) ? (row.detail_image_urls as unknown[]) : []
   const nextGallery = gallery
     .map((u) => (typeof u === 'string' ? replacement(u) : null))
-    .filter((u): u is string => Boolean(u))
+    .filter((u): u is string => isKeptImageUrl(u))
   const nextDetail = detail
     .map((u) => (typeof u === 'string' ? replacement(u) : null))
-    .filter((u): u is string => Boolean(u))
-  const main = typeof row.image_url === 'string' ? replacement(row.image_url) : row.image_url
+    .filter((u): u is string => isKeptImageUrl(u))
+  let main = typeof row.image_url === 'string' ? replacement(row.image_url) : row.image_url
+  if (!isKeptImageUrl(main) && nextGallery[0]) main = nextGallery[0]
   const material =
     typeof row.material_detail_image_url === 'string' ? replacement(row.material_detail_image_url) : row.material_detail_image_url
   return {
     colors_json: nextColors,
     gallery_urls: nextGallery,
     detail_image_urls: nextDetail,
-    image_url: main ?? '',
-    material_detail_image_url: material ?? '',
+    image_url: isKeptImageUrl(main) ? main.trim() : '',
+    material_detail_image_url: isKeptImageUrl(material) ? material.trim() : '',
   }
 }
 
@@ -196,7 +203,7 @@ export async function processInventoryProduct(opts: {
     }
   }
 
-  const patched = applyResultsToRow(row, results)
+  const patched = applyImageLocResultsToRow(row, results)
   const info = asInfoObject(row.product_info_json)
   const loc = asInfoObject(info.image_localization)
   loc.language = opts.ctx.language

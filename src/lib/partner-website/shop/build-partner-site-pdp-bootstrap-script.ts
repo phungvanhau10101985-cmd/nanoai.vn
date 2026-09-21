@@ -6,6 +6,7 @@ import {
   PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS,
   PW_SHOP_PDP_PAGE_SRC_JS,
 } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { PW_REVEAL_PDP_GALLERY_MAIN_JS } from '@/lib/partner-website/shop/reveal-pdp-gallery-main'
 import { PW_ENSURE_GUEST_BROWSER_SESSION_JS } from '@/lib/partner-website/shop/partner-site-guest-browser-session'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import { PW_SITE_SALE_CARD_CSS, PW_SITE_SALE_VIEW_JS, partnerSiteSaleCopy } from '@/lib/partner-website/promotions/partner-site-sale-display'
@@ -134,6 +135,7 @@ if(pwShopLiveUiOff())return;
 if(!document.querySelector('[data-pw-region="pdp-info"],[data-pw-region="gallery"],.pw-pdp'))return;
 ${PW_SHOP_CARD_IMG_JS};
 ${PW_SHOP_PDP_PAGE_SRC_JS};
+${PW_REVEAL_PDP_GALLERY_MAIN_JS};
 ${PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS};
 hideBrokenPdpImgs();
 var API_PREFIX=${JSON.stringify(apiPrefix)};
@@ -1051,6 +1053,7 @@ function bindLive(id){
           if(el.closest&&el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]'))return;
           el.setAttribute('data-nanoai-image',colorFull||colorSrc);
         });
+        revealPdpGalleryMainImage();
       }
       return;
     }
@@ -1061,6 +1064,7 @@ function bindLive(id){
       document.querySelectorAll('[data-pw-pdp-hero-video]').forEach(function(el){el.hidden=false;el.removeAttribute('hidden');});
       document.querySelectorAll('[data-pw-region="gallery"] [data-pw-el="thumb"],[data-pw-pdp-video-thumb]').forEach(function(el){el.classList.remove('is-active');});
       videoThumb.classList.add('is-active');
+      revealPdpGalleryMainImage();
       return;
     }
     var photoThumb=t.closest('[data-pw-region="gallery"] [data-pw-el="thumb"]');
@@ -1083,6 +1087,7 @@ function bindLive(id){
       document.querySelectorAll('[data-pw-pdp-hero-video]').forEach(function(el){el.hidden=true;});
       document.querySelectorAll('[data-pw-region="gallery"] [data-pw-el="thumb"],[data-pw-pdp-video-thumb]').forEach(function(el){el.classList.remove('is-active');});
       photoThumb.classList.add('is-active');
+      revealPdpGalleryMainImage();
       return;
     }
     var qtyHost=t.closest('[data-pw-el="qty"]');

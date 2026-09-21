@@ -70,6 +70,23 @@ export function imageLocJpegQuality(): number {
   return Math.max(70, Math.min(100, Math.floor(n)))
 }
 
+/** 188: IMAGE_LOCALIZATION_BRAND_LOGO_MAX_WIDTH_FRAC — logo rộng tối đa theo ảnh đã dịch. */
+export function imageLocBrandLogoMaxWidthFrac(): number {
+  const n = Number(process.env.IMAGE_LOCALIZATION_BRAND_LOGO_MAX_WIDTH_FRAC || '0.22')
+  if (!Number.isFinite(n)) return 0.22
+  return Math.max(0.05, Math.min(0.9, n))
+}
+
+/** 188: IMAGE_LOCALIZATION_BRAND_LOGO_MARGIN_FRAC — lề góc phải trên. */
+export function imageLocBrandLogoMarginFrac(): number {
+  const n = Number(process.env.IMAGE_LOCALIZATION_BRAND_LOGO_MARGIN_FRAC || '0.012')
+  if (!Number.isFinite(n)) return 0.012
+  return Math.max(0, Math.min(0.2, n))
+}
+
+/** PNG logo lưu Bunny trước khi đóng lên ảnh — đủ nét, không phình quá cỡ stamp. */
+export const IMAGE_LOC_BRAND_LOGO_TEMPLATE_MAX_PX = 512
+
 export function imageLocMaxAutoResumeCount(): number {
   const n = Number(process.env.IMAGE_LOCALIZATION_MAX_AUTO_RESUME_COUNT || '6')
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 6

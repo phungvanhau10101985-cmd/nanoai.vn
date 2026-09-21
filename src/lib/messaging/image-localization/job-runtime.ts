@@ -22,6 +22,7 @@ import {
 } from './image-localization-config'
 import { isDeepseekPeakUtc, offPeakWaitMessageVi, secondsUntilDeepseekOffPeak } from './deepseek-pricing'
 import { processInventoryProduct } from './process-product'
+import { loadImageLocBrandLogoBytes } from './overlay-brand-logo'
 import { geminiApiAuth, ImageLocalizationError, isImageLocalizationFatalDependencyError } from './gemini-adapter'
 import { openaiApiAuth } from './openai-adapter'
 import {
@@ -180,6 +181,7 @@ async function runJob(partnerId: string, jobId: string, resume: boolean, epoch: 
 
   const localizationSettings = await fetchImageLocSettingsFromPg(partnerId)
   const logoUrl = localizationSettings.logo_url
+  const logoBytes = await loadImageLocBrandLogoBytes(logoUrl)
 
   const allowsAi = payload.allow_ai_image_models === true ? true : payload.allow_ai_image_models === false ? false : !imageLocAiExplicitOnly()
   const geminiMode = payload.gemini_mode === 'openai' ? 'openai' : 'api'
@@ -237,6 +239,7 @@ async function runJob(partnerId: string, jobId: string, resume: boolean, epoch: 
           openaiImageQuality: payload.openai_image_quality,
           openaiImageSize: payload.openai_image_size,
           logoUrl,
+          logoBytes,
           shouldCancel: () => shouldStopWorker(partnerId, jobId, epoch),
         },
         progressCb,
