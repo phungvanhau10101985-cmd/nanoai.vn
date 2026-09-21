@@ -58,7 +58,9 @@ import {
 import {
   deletePartnerInventoryByIdsForPartnerFromPg,
   deletePartnerInventoryItemForPartnerFromPg,
-  fetchPartnerInventoryActivePageWithCountFromPg,
+  fetchPartnerInventoryActiveCountFromPg,
+  fetchPartnerInventoryAdminListPageFromPg,
+  fetchPartnerInventoryRowByIdForPartnerFromPg,
   fetchPartnerInventoryEmbeddingStatsFromPg,
   fetchPartnerInventoryEmbeddingErrorCountFromPg,
   fetchPartnerInventoryEmbeddingErrorsAllFromPg,
@@ -2675,14 +2677,16 @@ export async function getPartnerAiBundle(partnerId: string) {
   let rows: Database['public']['Tables']['messaging_partner_inventory']['Row'][] = []
   let total = 0
   try {
-    const invPg = await fetchPartnerInventoryActivePageWithCountFromPg(
+    const counted = await fetchPartnerInventoryActiveCountFromPg(partnerId)
+    if (typeof counted === 'number') total = counted
+    const invPg = await fetchPartnerInventoryAdminListPageFromPg(
       partnerId,
       0,
       PARTNER_INVENTORY_PAGE_SIZE
     )
     if (invPg) {
       rows = invPg.rows
-      total = Math.max(invPg.rows.length, invPg.count)
+      total = Math.max(total, invPg.rows.length, invPg.count)
     }
   } catch (e) {
     console.warn('[getPartnerAiBundle] inventory', e)
@@ -2713,7 +2717,7 @@ export async function getPartnerInventoryPage(partnerId: string, page: number, p
   const index = Math.max(0, Math.floor(Number(page) || 0))
   const from = index * size
 
-  const invPg = await fetchPartnerInventoryActivePageWithCountFromPg(partnerId, from, size)
+  const invPg = await fetchPartnerInventoryAdminListPageFromPg(partnerId, from, size)
   if (invPg === null) return { error: 'Failed to load inventory.' }
   const outRows = invPg.rows
   const outTotal = Math.max(outRows.length, invPg.count)
@@ -2724,6 +2728,20 @@ export async function getPartnerInventoryPage(partnerId: string, page: number, p
     totalCount: outTotal,
     hasMore: from + outRows.length < outTotal,
   }
+}
+
+export async function getPartnerInventoryItem(partnerId: string, inventoryId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) {
+    return { error: 'DATABASE_URL is not set.' }
+  }
+  const row = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, inventoryId)
+  if (!row) return { error: 'Failed to load inventory item.' }
+  return { row }
 }
 
 export async function getPartnerInventoryEmbeddingStats(partnerId: string) {

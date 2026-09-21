@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { injectPartnerShopRuntimeScriptsIntoHtml, stampPartnerShopEditorHooksInHtml } from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
+import {
+  injectPartnerShopReadOnlyRuntimeScriptsIntoHtml,
+  injectPartnerShopRuntimeScriptsIntoHtml,
+  stampPartnerShopEditorHooksInHtml,
+} from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
 import { buildPartnerSiteSearchBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-search-bootstrap-script'
 import { buildPartnerSiteChromeToggleBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-chrome-toggle-bootstrap-script'
 
@@ -152,6 +156,32 @@ test('runtime scripts omit page-specific heavy bootstraps when their hooks are a
   assert.doesNotMatch(out, /data-pw-paper-tile-bootstrap/)
   assert.match(out, /data-pw-search-bootstrap/)
   assert.match(out, /data-pw-shop-actions-bootstrap/)
+})
+
+test('live catalog hides saved demo cards before first paint and clears them before API hydration', () => {
+  const html =
+    '<!DOCTYPE html><html><head></head><body><main>' +
+    '<section data-pw-catalog><div data-pw-grid><article data-pw-el="card">demo cũ</article></div></section>' +
+    '</main></body></html>'
+  const out = injectPartnerShopRuntimeScriptsIntoHtml(html, {
+    siteSlug: 'demo-shop',
+    locale: 'vi',
+  })
+  assert.match(out, /data-pw-live-catalog="loading"/)
+  assert.match(out, /data-pw-catalog-first-paint-css/)
+  assert.match(out, /\[data-pw-live-catalog="loading"\] \[data-pw-grid\]\{visibility:hidden\}/)
+  assert.match(out, /grid\.innerHTML=''/)
+  assert.match(out, /setAttribute\('data-pw-live-catalog','ready'\)/)
+  assert.doesNotMatch(out, /else if\(grid\.children\.length\)/)
+})
+
+test('Sửa nhanh keeps catalog seed cards visible for authoring', () => {
+  const out = injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(
+    '<!DOCTYPE html><html><head></head><body><section data-pw-catalog><div data-pw-grid>demo</div></section></body></html>',
+    { siteSlug: 'demo-shop', locale: 'vi' }
+  )
+  assert.doesNotMatch(out, /data-pw-live-catalog="loading"/)
+  assert.doesNotMatch(out, /data-pw-catalog-first-paint-css/)
 })
 
 test('injected storefront runtime scripts remain valid JavaScript', () => {

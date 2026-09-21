@@ -31,6 +31,7 @@ import {
   getPartnerInventoryTextEmbeddingStats,
   triggerPartnerInventoryEmbeddingSync,
   getPartnerInventoryPage,
+  getPartnerInventoryItem,
   getPartnerAiTokenUsageStats,
   getPartnerAiUsageAnalytics,
   savePartnerAiSettings,
@@ -443,9 +444,7 @@ export function PartnerAiSettingsPanel({
       }
     }
     if (needInventory) {
-      setInventory([])
       setSelectedInventoryIds(new Set())
-      setInventoryTotalCount(0)
       setInventoryPage(0)
       setEmbeddingStats(null)
       setTextEmbeddingStats(null)
@@ -729,7 +728,7 @@ export function PartnerAiSettingsPanel({
               <CardTitle className="text-base flex flex-wrap items-center gap-2">
                 {panelTitle ?? t.tabInventory}
                 <Badge variant="secondary" className="h-6 min-w-6 px-2 font-mono text-[11px] tabular-nums">
-                  {inventoryTotalCount}
+                  {settingsLoaded ? inventoryTotalCount : '…'}
                 </Badge>
               </CardTitle>
               {panelDescription ? (
@@ -836,7 +835,7 @@ export function PartnerAiSettingsPanel({
             <TabsTrigger value="inv" className="text-xs sm:text-sm gap-1.5">
               {t.tabInventory}
               <Badge variant="secondary" className="h-5 min-w-5 px-1.5 font-mono text-[10px] tabular-nums">
-                {inventoryTotalCount}
+                {settingsLoaded ? inventoryTotalCount : '…'}
               </Badge>
             </TabsTrigger>
             ) : null}
@@ -1183,7 +1182,9 @@ export function PartnerAiSettingsPanel({
           <TabsContent value="inv" className="mt-0 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/25 px-3 py-2.5">
               <p className="text-sm font-medium tabular-nums">
-                {t.inventoryProductCountSummary.replace('{count}', String(inventoryTotalCount))}
+                {settingsLoaded
+                  ? t.inventoryProductCountSummary.replace('{count}', String(inventoryTotalCount))
+                  : '…'}
               </p>
             </div>
             {embeddingStats ? (
@@ -2453,7 +2454,7 @@ function InventoryEditor({
     }
   }, [draftGuestConsultFullUrl, t.inventoryGuestConsultLinkCopied, toast])
 
-  const editRow = (r: InvRow) => {
+  const applyDraftFromRow = (r: InvRow) => {
     setDraft({
       id: r.id,
       name: r.name,
@@ -2476,6 +2477,16 @@ function InventoryEditor({
       remarketing_id: r.remarketing_id ?? '',
       sort_order: r.sort_order,
     })
+  }
+
+  const editRow = (r: InvRow) => {
+    applyDraftFromRow(r)
+    void (async () => {
+      const res = await getPartnerInventoryItem(partnerId, r.id)
+      if ('row' in res && res.row && res.row.id === r.id) {
+        applyDraftFromRow(res.row as InvRow)
+      }
+    })()
   }
 
   const save = () => {

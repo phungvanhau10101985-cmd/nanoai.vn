@@ -298,6 +298,9 @@ function appendCards(el,products,replace){
   }
   hideBrokenCardImgs(grid);
 }
+function revealLiveCatalog(el){
+  el.setAttribute('data-pw-live-catalog','ready');
+}
 function loadGridPage(el,append){
   if(pwShopLiveUiOff())return;
   if(el.getAttribute('data-pw-personalize'))return;
@@ -320,27 +323,26 @@ function loadGridPage(el,append){
         grid.innerHTML='';
         if(empty){empty.hidden=false;empty.textContent=COPY.error+' ('+res.status+')';}
       }
-      st.hasMore=false;paintMore(el);el.hidden=false;return;
+      st.hasMore=false;paintMore(el);revealLiveCatalog(el);el.hidden=false;return;
     }
     if(!products.length){
       if(!append){
         if(isRelated(el)){
           grid.innerHTML='';
           if(empty){empty.hidden=false;empty.textContent=COPY.relatedEmpty;}
-        }else if(grid.children.length){
-          if(empty)empty.hidden=true;
         }else{
           grid.innerHTML='';
           if(empty){empty.hidden=false;empty.textContent=COPY.empty;}
         }
       }
-      st.hasMore=false;paintMore(el);el.hidden=false;return;
+      st.hasMore=false;paintMore(el);revealLiveCatalog(el);el.hidden=false;return;
     }
     if(empty)empty.hidden=true;
     appendCards(el,products,!append);
     st.offset+=products.length;
     st.hasMore=res.j&&res.j.hasMore===true;
     paintMore(el);
+    revealLiveCatalog(el);
     el.hidden=false;
   }).catch(function(){
     st.loading=false;
@@ -348,7 +350,7 @@ function loadGridPage(el,append){
       grid.innerHTML='';
       if(empty){empty.hidden=false;empty.textContent=COPY.error;}
     }
-    st.hasMore=false;paintMore(el);el.hidden=false;
+    st.hasMore=false;paintMore(el);revealLiveCatalog(el);el.hidden=false;
   });
 }
 function hydrate(el){
@@ -379,6 +381,7 @@ function run(){
   if(!window.__pwSaleChipTimer)window.__pwSaleChipTimer=setInterval(tickSaleChips,1000);
   document.querySelectorAll('[data-pw-catalog],[data-pw-related]').forEach(function(el){
     var grid=el.querySelector('[data-pw-grid]');
+    if(grid&&el.getAttribute('data-pw-live-catalog')==='loading')grid.innerHTML='';
     if(!(grid&&grid.children.length)) el.hidden=true;
     hydrate(el);
   });

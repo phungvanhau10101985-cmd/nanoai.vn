@@ -42,7 +42,6 @@ import {
 import {
   escapeIlikeToken,
   PARTNER_SEARCH_DOCUMENT_HAYSTACK_SQL,
-  PARTNER_TEXT_SEARCH_DOCUMENT_SQL,
   PARTNER_TEXT_SEARCH_DOCUMENT_SQL_FALLBACK,
   tokenizePartnerTextSearch,
 } from '@/lib/partner-website/shop/partner-site-text-search'
@@ -129,6 +128,14 @@ function isMissingPriceAmountColumnError(e: unknown): boolean {
   if (err.code !== '42703') return false
   const msg = String(err.message ?? '').toLowerCase()
   return msg.includes('price_amount') && msg.includes('messaging_partner_inventory')
+}
+
+function isMissingSourceStockStatusColumnError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const err = e as { code?: string; message?: string }
+  if (err.code !== '42703') return false
+  const msg = String(err.message ?? '').toLowerCase()
+  return msg.includes('messaging_partner_inventory') && msg.includes('source_stock_status')
 }
 
 /** Bản địa hóa ảnh — DB chưa áp migration `image_localization_*`. */
@@ -271,6 +278,7 @@ type PgInventoryRaw = {
   image_localization_language?: string | null
   image_localized_at?: unknown
   image_localization_error?: string | null
+  source_stock_status?: string | null
   created_at: unknown
   updated_at: unknown
 }
@@ -427,6 +435,7 @@ function mapPgInventoryRow(r: PgInventoryRaw): MessagingPartnerInventoryRow {
       r.image_localization_language != null ? String(r.image_localization_language) : undefined,
     image_localized_at: tsIso(r.image_localized_at) ?? undefined,
     image_localization_error: r.image_localization_error != null ? String(r.image_localization_error) : undefined,
+    source_stock_status: r.source_stock_status != null ? String(r.source_stock_status) : undefined,
     created_at: tsIsoReq(r.created_at),
     updated_at: tsIsoReq(r.updated_at),
   }
@@ -924,6 +933,38 @@ const INVENTORY_SHOP_SELECT_WITH_PRODUCT_STUDIO = `select
   mpi.updated_at
 from public.messaging_partner_inventory mpi`
 
+/**
+ * Dashboard Kho hàng: cùng cột shop nhưng không kéo mô tả HTML / catalog_json / product_info
+ * (payload server action dễ vượt hạn → UI hiện 0 sản phẩm trong khi web khách vẫn có hàng).
+ */
+const INVENTORY_ADMIN_LIST_SELECT = INVENTORY_SHOP_SELECT_WITH_PRODUCT_STUDIO.replace(
+  "  coalesce(mpi.description, '') as description,\n",
+  "  ''::text as description,\n"
+)
+  .replace('  mpi.catalog_json,\n', '  null::jsonb as catalog_json,\n')
+  .replace('  mpi.product_info_json,\n', '  null::jsonb as product_info_json,\n')
+  .replace(
+    '  mpi.created_at,\n  mpi.updated_at\nfrom public.messaging_partner_inventory mpi',
+    `  mpi.image_localization_status,
+  mpi.image_localization_language,
+  mpi.image_localized_at,
+  mpi.image_localization_error,
+  mpi.source_stock_status,
+  mpi.created_at,
+  mpi.updated_at
+from public.messaging_partner_inventory mpi`
+  )
+
+const INVENTORY_ADMIN_LIST_SELECT_PRE_SOURCE_STOCK = INVENTORY_ADMIN_LIST_SELECT.replace(
+  '\n  mpi.source_stock_status,',
+  ''
+)
+
+const INVENTORY_ADMIN_LIST_SELECT_PRE_IMAGE_LOC = INVENTORY_ADMIN_LIST_SELECT_PRE_SOURCE_STOCK.replace(
+  '\n  mpi.image_localization_status,\n  mpi.image_localization_language,\n  mpi.image_localized_at,\n  mpi.image_localization_error,',
+  ''
+)
+
 const INVENTORY_SHOP_SELECT = `select
   mpi.id::text as id,
   mpi.partner_id::text as partner_id,
@@ -1109,6 +1150,41 @@ async function runInventoryShopSelectWithFallback(
     }
     throw e
   }
+}
+
+async function runInventoryAdminListSelectWithFallback(
+  sqlFromSelect: string,
+  params: unknown[]
+): Promise<PgInventoryRaw[]> {
+  try {
+    return await pgQuery<PgInventoryRaw>(`${INVENTORY_ADMIN_LIST_SELECT}\n${sqlFromSelect}`, params)
+  } catch (e0) {
+    let next: unknown = e0
+    if (isMissingSourceStockStatusColumnError(next)) {
+      try {
+        return await pgQuery<PgInventoryRaw>(
+          `${INVENTORY_ADMIN_LIST_SELECT_PRE_SOURCE_STOCK}\n${sqlFromSelect}`,
+          params
+        )
+      } catch (e1) {
+        next = e1
+      }
+    }
+    if (isMissingImageLocalizationColumnError(next)) {
+      try {
+        return await pgQuery<PgInventoryRaw>(
+          `${INVENTORY_ADMIN_LIST_SELECT_PRE_IMAGE_LOC}\n${sqlFromSelect}`,
+          params
+        )
+      } catch (e2) {
+        next = e2
+      }
+    }
+    if (!isMissingCatalog188ColumnError(next) && !isMissingProductStudioColumnError(next)) {
+      throw next
+    }
+  }
+  return runInventoryShopSelectWithFallback(sqlFromSelect, params)
 }
 
 async function runInventorySelectWithStockQtyFallback(
@@ -1603,6 +1679,72 @@ export async function fetchPartnerInventoryActivePageWithCountFromPg(
   limit: number
 ): Promise<{ rows: MessagingPartnerInventoryRow[]; count: number } | null> {
   return fetchPartnerInventoryShopPageFromPg(partnerId, { offset, limit, sort: 'default' })
+}
+
+/** COUNT kho active — không kéo hàng, dùng badge dashboard. */
+export async function fetchPartnerInventoryActiveCountFromPg(partnerId: string): Promise<number | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ c: number }>(
+      `select count(*)::int as c
+       from public.messaging_partner_inventory mpi
+       where mpi.partner_id = $1::uuid
+         and coalesce(mpi.is_active, true) = true`,
+      [partnerId]
+    )
+    return Math.max(0, Number(row?.c) || 0)
+  } catch (e) {
+    if (isMissingInventoryTableError(e)) return 0
+    console.warn('[fetchPartnerInventoryActiveCountFromPg]', e)
+    return null
+  }
+}
+
+const ADMIN_LIST_PAGE_MAX = 120
+
+/**
+ * Trang Kho hàng dashboard: COUNT + hàng gọn (không mô tả/catalog). Không dùng trần 48 của listing shop.
+ */
+export async function fetchPartnerInventoryAdminListPageFromPg(
+  partnerId: string,
+  offset: number,
+  limit: number
+): Promise<{ rows: MessagingPartnerInventoryRow[]; count: number } | null> {
+  if (!isPgConfigured()) return null
+  const off = Math.max(0, Math.floor(offset))
+  const lim = Math.max(1, Math.min(ADMIN_LIST_PAGE_MAX, Math.floor(limit)))
+  try {
+    const counted = await pgQueryOne<{ c: number }>(
+      `select count(*)::int as c
+       from public.messaging_partner_inventory mpi
+       where mpi.partner_id = $1::uuid
+         and coalesce(mpi.is_active, true) = true`,
+      [partnerId]
+    )
+    const count = Math.max(0, Number(counted?.c) || 0)
+    if (count === 0) return { rows: [], count: 0 }
+    const idRows = await pgQuery<{ id: string }>(
+      `select mpi.id::text as id
+       from public.messaging_partner_inventory mpi
+       where mpi.partner_id = $1::uuid
+         and coalesce(mpi.is_active, true) = true
+       order by mpi.sort_order asc, mpi.created_at desc nulls last
+       limit $2::int offset $3::int`,
+      [partnerId, lim, off]
+    )
+    const ids = idRows.map((r) => r.id).filter(Boolean)
+    if (!ids.length) return { rows: [], count }
+    const rows = await runInventoryAdminListSelectWithFallback(
+      `where mpi.partner_id = $1::uuid and mpi.id = any($2::uuid[])
+       order by array_position($2::uuid[], mpi.id)`,
+      [partnerId, ids]
+    )
+    return { rows: rows.map(mapPgInventoryRow), count }
+  } catch (e) {
+    if (isMissingInventoryTableError(e)) return { rows: [], count: 0 }
+    console.warn('[fetchPartnerInventoryAdminListPageFromPg]', e)
+    return null
+  }
 }
 
 export async function fetchPartnerInventoryActiveCardPageWithCountFromPg(

@@ -18,7 +18,29 @@ import { buildPartnerSiteNewsletterBootstrapScript } from '@/lib/partner-website
 const PW_RUNTIME_SCRIPT_RE =
   /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|birth-gender-prompt-bootstrap|sale-calendar-bootstrap|marketing-banner-bootstrap|newsletter-bootstrap|header-toggle|lp-buy)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
 const PW_RUNTIME_STYLE_RE =
-  /<style\b[^>]*\bdata-pw-(?:chrome-toggle-css|search-image-css|marketing-banner-css)\b[^>]*>[\s\S]*?<\/style>/gi
+  /<style\b[^>]*\bdata-pw-(?:chrome-toggle-css|search-image-css|marketing-banner-css|catalog-first-paint-css)\b[^>]*>[\s\S]*?<\/style>/gi
+
+const PW_CATALOG_FIRST_PAINT_CSS =
+  '<style data-pw-catalog-first-paint-css>[data-pw-live-catalog="loading"] [data-pw-grid]{visibility:hidden}</style>'
+
+function prepareCatalogFirstPaint(html: string): string {
+  const stamped = html.replace(
+    /<(section|div)\b([^>]*\bdata-pw-catalog\b[^>]*)>/gi,
+    (full, tag: string, attrs: string) => {
+      if (
+        /\bdata-pw-(?:personalize|outfit|featured-categories)\b/i.test(attrs) ||
+        /\bdata-pw-grid-kind\s*=\s*["'](?:outfit|featured-categories|flash-sale|recommended|recently-viewed)["']/i.test(
+          attrs
+        )
+      ) {
+        return full
+      }
+      const clean = attrs.replace(/\sdata-pw-live-catalog\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+      return `<${tag}${clean} data-pw-live-catalog="loading">`
+    }
+  )
+  return appendInHead(stamped, PW_CATALOG_FIRST_PAINT_CSS)
+}
 
 function stripPartnerShopRuntimeAssets(html: string): string {
   return html.replace(PW_RUNTIME_SCRIPT_RE, '').replace(PW_RUNTIME_STYLE_RE, '')
@@ -152,6 +174,7 @@ export function injectPartnerShopRuntimeScriptsIntoHtml(
 
   out = appendBeforeBody(out, buildPartnerSiteSearchBootstrapScript({ siteSlug, locale }))
   if (hooks.catalog) {
+    out = prepareCatalogFirstPaint(out)
     out = appendBeforeBody(out, buildPartnerSiteCatalogBootstrapScript({ siteSlug, locale }))
   }
   if (hooks.outfit) {
