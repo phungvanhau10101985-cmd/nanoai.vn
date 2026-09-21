@@ -75,3 +75,19 @@ test('preferredVisualHomeStyleSource keeps the document that still has CSS', () 
   const picked = preferredVisualHomeStyleSource(isolatedBody, home)
   assert.equal(picked, home)
 })
+
+test('extractVisualDocumentCssText strips leftover order-status grid so engine swipe row can win', () => {
+  const css = extractVisualDocumentCssText(`<style>
+.pw-header{color:red}
+.pw-shop-order-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));overflow:visible}
+@media(min-width:768px){.pw-shop-order-filters{grid-template-columns:repeat(7,minmax(0,1fr))}}
+.pw-shop-order-filter-chip{flex:0 0 auto;min-width:0}
+.pw-shop-order-filter-chip.is-active{color:#dc2626}
+.pw-footer{color:#111}
+</style>`)
+  assert.match(css, /\.pw-header\{color:red\}/)
+  assert.match(css, /\.pw-footer\{color:#111\}/)
+  assert.doesNotMatch(css, /pw-shop-order-filter/)
+  assert.doesNotMatch(css, /display:grid/)
+  assert.doesNotMatch(css, /#dc2626/)
+})

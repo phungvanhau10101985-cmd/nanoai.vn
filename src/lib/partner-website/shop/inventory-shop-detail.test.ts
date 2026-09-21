@@ -65,6 +65,10 @@ test('shopCardDisplaySrc reads AliCDN like 188 getProductMainImage (img.alicdn +
     shopCardDisplaySrc('https://cbu01.alicdn.com/img/ibank/O1CN01a.jpg'),
     'https://img.alicdn.com/img/ibank/O1CN01a.jpg_600x600q90.jpg'
   )
+  assert.equal(
+    shopPdpPageSrc('https://cbu01.alicdn.com/img/ibank/O1CN01a.jpg'),
+    'https://img.alicdn.com/img/ibank/O1CN01a.jpg_1200x1200.jpg'
+  )
   assert.equal(shopCardDisplaySrc('https://cdn.188.com.vn/site/ok.jpg'), 'https://cdn.188.com.vn/site/ok.jpg')
   assert.equal(shopBannerDisplaySrc(dress), `${dress}_1200x1200.jpg`)
   assert.equal(shopBannerDisplaySrc('https://cdn.example/sale.png'), 'https://cdn.example/sale.png')

@@ -140,6 +140,7 @@ import {
 } from '@/lib/messaging/guest-purchase-flow'
 import { inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/partner-ai-purchase-intent'
 import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
+import { nextShopImageRetrySrc, shopPdpPageSrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PARTNER_SITE_CUSTOMER_TOKEN_QUERY_KEY } from '@/lib/messaging/partner-site-customer-auth-constants'
 
 const INVENTORY_ID_RE =
@@ -147,6 +148,22 @@ const INVENTORY_ID_RE =
 
 function msgImgSrc(url: string): string {
   return resolveExternalImageDisplayUrl(url)
+}
+
+/** Ảnh màu/mẫu form đặt hàng: cỡ PDP + proxy host AliCDN phụ (cbu01…). */
+function guestChatShopThumbSrc(url: string): string {
+  const raw = url.trim()
+  if (!raw) return ''
+  return shopPdpPageSrc(raw) || msgImgSrc(raw)
+}
+
+function onGuestChatShopThumbError(ev: { currentTarget: HTMLImageElement }) {
+  const img = ev.currentTarget
+  if (img.getAttribute('data-pw-img-retry') === '1') return
+  const retry = nextShopImageRetrySrc(img.currentSrc || img.getAttribute('src') || '')
+  if (!retry || retry === (img.getAttribute('src') || '')) return
+  img.setAttribute('data-pw-img-retry', '1')
+  img.src = retry
 }
 
 /** Khoảng cách tới đáy (px) để coi như user đang xem cuối thread — cho phép auto-scroll theo tin/typing mới. */
@@ -6679,6 +6696,9 @@ export function PartnerGuestChatClient({
                         const lineSize = orderSizeByColorImg[c.img] ?? ''
                         const sizeList = activePurchaseOptions.sizes ?? []
                         const variantLabel = (c.name || '').trim() || 'Mẫu này'
+                        const colorSrc =
+                          guestChatShopThumbSrc(c.img) ||
+                          guestChatShopThumbSrc(activeOrderCard?.image_url ?? '')
                         return (
                           <div key={`${c.img}-${idx}`} className="flex w-28 shrink-0 flex-col gap-1">
                             <button
@@ -6717,13 +6737,20 @@ export function PartnerGuestChatClient({
                                 }
                               }}
                             >
-                              <div className="flex h-28 w-full items-center justify-center overflow-hidden rounded bg-muted/40">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={c.img}
-                                  alt=""
-                                  className="max-h-full max-w-full object-contain object-center"
-                                />
+                              <div className="relative h-28 w-full overflow-hidden rounded bg-muted/40">
+                                {colorSrc ? (
+                                  /* eslint-disable-next-line @next/next/no-img-element */
+                                  <img
+                                    src={colorSrc}
+                                    alt=""
+                                    width={112}
+                                    height={112}
+                                    decoding="async"
+                                    draggable={false}
+                                    className="pointer-events-none absolute inset-0 block h-full w-full object-contain object-center"
+                                    onError={onGuestChatShopThumbError}
+                                  />
+                                ) : null}
                               </div>
                               <p className="mt-0.5 min-h-[2rem] truncate text-center text-[10px] leading-tight">
                                 {selected ? (

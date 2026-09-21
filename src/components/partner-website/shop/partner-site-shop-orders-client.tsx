@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { WebLocale } from '@/lib/i18n/config'
 import { formatVnd } from '@/lib/partner-website/shop/cart-line-utils'
@@ -114,10 +114,21 @@ export function PartnerSiteShopOrdersClient({
   const [filter, setFilter] = useState<PartnerSiteOrderStatusFilterKey>(() =>
     parsePartnerSiteOrderStatusFilter(initialFilter)
   )
+  const filtersRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setFilter(parsePartnerSiteOrderStatusFilter(initialFilter))
   }, [initialFilter])
+
+  useLayoutEffect(() => {
+    if (loading) return
+    const root = filtersRef.current
+    if (!root) return
+    const active = root.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+    if (!active) return
+    const left = active.offsetLeft - (root.clientWidth - active.offsetWidth) / 2
+    root.scrollTo({ left: Math.max(0, left), behavior: 'smooth' })
+  }, [filter, loading])
 
   const reload = useCallback(async () => {
     const res = await fetch(`/api/messaging/guest/${encodeURIComponent(partnerSlug)}/orders`, {
@@ -234,27 +245,30 @@ export function PartnerSiteShopOrdersClient({
     <div data-pw-region={PW_REGION.accountMain}>
       <h1 data-pw-el={PW_EL.heading}>{t.ordersTitle}</h1>
 
-      {!loading ? (
-        <div className="pw-shop-order-filters" role="tablist" aria-label={t.ordersFilterAriaLabel}>
-          {PARTNER_SITE_ORDER_STATUS_FILTER_KEYS.map((key) => {
-            const count = counts[key]
-            const active = filter === key
-            return (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                className={`pw-shop-order-filter-chip${active ? ' is-active' : ''}`}
-                onClick={() => selectFilter(key)}
-              >
-                <span>{filterLabel(key, t)}</span>
-                <span className="pw-shop-order-filter-badge">{count}</span>
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
+      <div
+        ref={filtersRef}
+        className="pw-shop-order-filters"
+        role="tablist"
+        aria-label={t.ordersFilterAriaLabel}
+      >
+        {PARTNER_SITE_ORDER_STATUS_FILTER_KEYS.map((key) => {
+          const count = counts[key]
+          const active = filter === key
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              className={`pw-shop-order-filter-chip${active ? ' is-active' : ''}`}
+              onClick={() => selectFilter(key)}
+            >
+              <span>{filterLabel(key, t)}</span>
+              <span className="pw-shop-order-filter-badge">{count}</span>
+            </button>
+          )
+        })}
+      </div>
 
       {loading ? <PartnerSiteShopSkeleton variant="orders" label={t.ordersTitle} /> : null}
       {!loading && orders.length === 0 ? (

@@ -11,10 +11,17 @@ function styleIdFromAttrs(attrs: string): string {
 
 /** Saved homepage CSS used `display:block` on `.pw-visual-*` and killed sticky head. */
 function rewriteVisualWrapperStickyCss(css: string): string {
-  return css.replace(
-    /(\.pw-visual-(?:desktop|laptop|tablet|mobile))\s*\{\s*display\s*:\s*block\s*!important\s*\}/gi,
-    '$1{display:contents!important}'
+  return stripLeftoverOrderStatusTabCss(
+    css.replace(
+      /(\.pw-visual-(?:desktop|laptop|tablet|mobile))\s*\{\s*display\s*:\s*block\s*!important\s*\}/gi,
+      '$1{display:contents!important}'
+    )
   )
+}
+
+/** Merchant HTML leftover grid for order tabs must not override the engine swipe row. */
+function stripLeftoverOrderStatusTabCss(css: string): string {
+  return css.replace(/[^{}]*\.pw-shop-order-filter[^{]*\{[^}]*\}/gi, '')
 }
 
 function stampTag(open: string): string {

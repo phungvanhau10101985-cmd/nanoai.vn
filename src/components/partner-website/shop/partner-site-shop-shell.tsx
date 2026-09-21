@@ -88,6 +88,10 @@ import {
   PW_SHOP_FOOTER_FIT_STYLE_ID,
 } from '@/lib/partner-website/shop/partner-site-footer-fit-css'
 import {
+  PW_SHOP_ORDER_STATUS_TABS_CSS,
+  PW_SHOP_ORDER_STATUS_TABS_STYLE_ID,
+} from '@/lib/partner-website/shop/partner-site-order-status-tabs-css'
+import {
   PARTNER_SHOP_CHROME_FLOAT_SCRIPT,
   PW_CHROME_FLOAT_SCRIPT_ID,
 } from '@/lib/partner-website/shop/chrome-float-widgets'
@@ -1270,6 +1274,10 @@ function PartnerSiteShopShellInner({
         cartHref={partnerSiteCartPath(siteSlug, { customDomain })}
         copy={CART_ADDED_MODAL_COPY[locale]}
         onClose={() => setPendingCartAdded(null)}
+      />
+      <style
+        id={PW_SHOP_ORDER_STATUS_TABS_STYLE_ID}
+        dangerouslySetInnerHTML={{ __html: PW_SHOP_ORDER_STATUS_TABS_CSS }}
       />
       <style
         id={PW_SHOP_FOOTER_FIT_STYLE_ID}

@@ -35,6 +35,7 @@ import { buildShopLookCss } from '@/lib/partner-website/shop/shop-look-css'
 import { PW_SHOP_CART_PAGE_CSS } from '@/lib/partner-website/shop/partner-site-cart-page-css'
 import { PW_SHOP_ACCOUNT_COMMERCE_POLISH_CSS } from '@/lib/partner-website/shop/partner-site-account-commerce-polish-css'
 import { PW_SHOP_FOOTER_FIT_CSS } from '@/lib/partner-website/shop/partner-site-footer-fit-css'
+import { PW_SHOP_ORDER_STATUS_TABS_CSS } from '@/lib/partner-website/shop/partner-site-order-status-tabs-css'
 import {
   PW_CHROME_BTN_MIN_H,
   PW_CHROME_H_VAR,
@@ -438,10 +439,10 @@ ${buildPartnerSiteHtmlChromeCss()}
 .pw-shop-account-hub-edit{display:inline-flex;min-height:40px;align-items:center;margin-top:8px;font-size:12px;font-weight:600;color:var(--pw-primary);text-decoration:none}
 .pw-shop-account-hub-orders{border-bottom:1px solid var(--pw-border,#f3f4f6);background:color-mix(in srgb,var(--pw-surface,#f9fafb) 80%,#fff);padding:8px}
 .pw-shop-account-hub-orders-kicker{margin:0 4px 6px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--pw-muted,#6b7280)}
-.pw-shop-account-hub-order-row{display:flex;gap:8px;overflow-x:auto;padding:0 4px 4px;margin:0 -4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.pw-shop-account-hub-order-row{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;padding:0 4px 4px;margin:0 -4px;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-inline:contain}
 .pw-shop-account-hub-order-row::-webkit-scrollbar{display:none}
 .pw-shop-account-hub-order-chip{flex:0 0 auto;display:flex;align-items:center;gap:6px;min-height:44px;padding:8px 12px;border:1px solid var(--pw-border,#e5e7eb);border-radius:12px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.04);text-decoration:none;color:var(--pw-text,#111827)}
-.pw-shop-account-hub-order-chip span:first-child{max-width:6.5rem;font-size:12px;font-weight:500;line-height:1.25}
+.pw-shop-account-hub-order-chip span:first-child{font-size:12px;font-weight:500;line-height:1.25;white-space:nowrap}
 .pw-shop-account-hub-order-count,.pw-shop-account-hub-wallet-badge{display:inline-flex;min-width:1.25rem;align-items:center;justify-content:center;border-radius:999px;background:var(--pw-buy,var(--pw-primary));color:#fff;padding:2px 6px;font-size:10px;font-weight:700;line-height:1}
 .pw-shop-account-hub-wallet-badge{background:#059669}
 .pw-shop-account-hub-list{position:relative;z-index:1}
@@ -493,16 +494,7 @@ ${buildPartnerSiteHtmlChromeCss()}
 .pw-shop-account-layout .pw-shop-btn-sm,.pw-shop-deposit .pw-shop-btn-sm{padding:6px 12px;font-size:12px;min-height:32px}
 .pw-shop-page-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
 .pw-shop-page-head h1{margin:0}
-.pw-shop-order-filters{display:flex;flex-wrap:nowrap;gap:4px;overflow-x:auto;overflow-y:hidden;padding:0 2px 4px;margin:12px 0 4px;border-bottom:1px solid #e5e7eb;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-inline:contain}
-.pw-shop-order-filters::-webkit-scrollbar{display:none}
-@media(min-width:768px){.pw-shop-order-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;overflow:visible;padding:0}}
-@media(min-width:1280px){.pw-shop-order-filters{grid-template-columns:repeat(7,minmax(0,1fr))}}
-.pw-shop-order-filter-chip{flex:0 0 auto;scroll-snap-align:start;display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:4px;min-width:88px;min-height:52px;padding:8px 8px 9px;border:none;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:#4b5563;font-size:11px;font-weight:500;cursor:pointer;white-space:nowrap;text-align:center}
-@media(min-width:768px){.pw-shop-order-filter-chip{font-size:14px}}
-.pw-shop-order-filter-chip:hover{color:var(--pw-text,#111827);border-color:transparent}
-.pw-shop-order-filter-chip.is-active{border-color:var(--pw-primary);color:var(--pw-primary);background:transparent}
-.pw-shop-order-filter-badge{min-width:18px;height:16px;padding:0 4px;border-radius:999px;background:var(--pw-buy,var(--pw-primary));color:#fff;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;line-height:1}
-.pw-shop-order-filter-chip.is-active .pw-shop-order-filter-badge{background:var(--pw-buy,var(--pw-primary));color:#fff}
+${PW_SHOP_ORDER_STATUS_TABS_CSS}
 .pw-shop-orders-list{list-style:none;padding:0;margin-top:16px;display:grid;gap:16px}
 .pw-shop-order-card{overflow:hidden;border:1px solid var(--pw-border,#dbe2ea);border-top:3px solid color-mix(in srgb,var(--pw-primary) 55%,var(--pw-border,#dbe2ea));border-radius:14px;padding:0;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.07)}
 .pw-shop-order-card-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 16px;border-bottom:1px solid var(--pw-border,#e5e7eb);background:color-mix(in srgb,var(--pw-surface,#f8fafc) 82%,#fff)}
@@ -526,7 +518,6 @@ ${buildPartnerSiteHtmlChromeCss()}
 @media(max-width:767px){
   .pw-shop-account-content:not(:has(.pw-shop-account-hub-mobile)){padding:12px 10px;border-radius:14px}
   .pw-shop-account-content h1{font-size:1.2rem}
-  .pw-shop-order-filters{margin-left:-10px;margin-right:-10px;padding-left:10px;padding-right:10px}
   .pw-shop-orders-list{margin-top:12px;gap:10px}
   .pw-shop-order-card{padding:0;border-top-width:2px}
   .pw-shop-order-card-top{align-items:flex-start;padding:9px 12px}
@@ -1259,7 +1250,8 @@ ${PW_SHOP_AFFILIATE_CSS}
 .pw-shop-cart-teaser strong{font-weight:800}${isMarketplaceLook(theme) ? `\n${buildMarketplaceLookCss()}` : `\n${buildShopLookCss()}`}
 ${PW_SHOP_CART_PAGE_CSS}
 ${PW_SHOP_ACCOUNT_COMMERCE_POLISH_CSS}
-${PW_SHOP_FOOTER_FIT_CSS}`
+${PW_SHOP_FOOTER_FIT_CSS}
+${PW_SHOP_ORDER_STATUS_TABS_CSS}`
 }
 
 export const PARTNER_SHOP_THEME_STYLE_ID = 'pw-shop-theme-css'
