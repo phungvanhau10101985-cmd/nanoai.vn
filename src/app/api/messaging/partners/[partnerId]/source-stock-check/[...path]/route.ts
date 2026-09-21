@@ -3,9 +3,12 @@ import { getUserForCreditAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
 import { deletePartnerInventoryByIdsForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import {
+  assertSourceStockSchemaReadyFromPg,
   clearOosFlagsFromPg,
+  fetchSourceStockInventoryByIdFromPg,
   listOosIdsInWindowFromPg,
   resetSourceStockPdpCycleFromPg,
+  SourceStockSchemaMissingError,
   sourceStockActivityReportFromPg,
   sourceStockQueueStatsFromPg,
 } from '@/lib/db/messaging-partner-source-stock-pg'
@@ -41,17 +44,47 @@ function jsonError(detail: string, status = 400) {
   return NextResponse.json({ ok: false, error: detail, detail }, { status })
 }
 
+function apiFailure(error: unknown, partnerId: string, path: string) {
+  const requestId = crypto.randomUUID()
+  const message = error instanceof Error ? error.message : String(error)
+  console.error('[source-stock api]', { requestId, partnerId, path, error: message })
+  if (error instanceof SourceStockSchemaMissingError) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: error.code,
+        error: 'Chưa cài đặt dữ liệu kiểm tra nguồn.',
+        detail:
+          'Thiếu migration kiểm tra nguồn hàng. Hãy áp dụng migration 20260909230000_messaging_partner_source_stock_check.sql.',
+        request_id: requestId,
+      },
+      { status: 503 }
+    )
+  }
+  return NextResponse.json(
+    {
+      ok: false,
+      code: 'SOURCE_STOCK_API_FAILED',
+      error: 'Lỗi API kiểm tra nguồn.',
+      detail: `Không tải được dữ liệu kiểm tra nguồn. Mã lỗi: ${requestId}`,
+      request_id: requestId,
+    },
+    { status: 500 }
+  )
+}
+
 function boolParam(v: string | null, fallback = true): boolean {
   if (v == null) return fallback
   return !['0', 'false', 'no', 'off'].includes(v.trim().toLowerCase())
 }
 
-export async function GET(req: NextRequest, ctx: Ctx) {
+async function handleGet(req: NextRequest, ctx: Ctx) {
   const { partnerId, path } = await ctx.params
   const auth = await authorize(partnerId)
   if (!auth.ok) return jsonError(auth.error, auth.status)
   const p = joinPath(path)
   const url = new URL(req.url)
+  await assertSourceStockSchemaReadyFromPg()
   ensureSourceStockDaemon()
 
   if (p === 'queue-stats') {
@@ -82,21 +115,39 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   if (p === 'oos-db-ids') {
     const ids = await listOosIdsInWindowFromPg(
       partnerId,
+      url.searchParams.get('domain') || 'cssbuy',
       Number(url.searchParams.get('window_days') || '30') || 30,
       boolParam(url.searchParams.get('active_only'), true)
     )
     return NextResponse.json({ ok: true, ids })
   }
 
+  if (p === 'product-state') {
+    const id = (url.searchParams.get('db_id') || '').trim()
+    if (!id) return jsonError('product_not_found')
+    const row = await fetchSourceStockInventoryByIdFromPg(partnerId, id)
+    if (!row) return jsonError('product_not_found', 404)
+    return NextResponse.json({
+      ok: true,
+      product_db_id: row.id,
+      source_stock_status: row.source_stock_status,
+      source_stock_checked_at: row.source_stock_checked_at,
+      source_stock_error: row.source_stock_error,
+      source_stock_check_platform: row.source_stock_check_platform,
+      stock_qty: row.stock_qty,
+    })
+  }
+
   return jsonError('Not found', 404)
 }
 
-export async function POST(req: NextRequest, ctx: Ctx) {
+async function handlePost(req: NextRequest, ctx: Ctx) {
   const { partnerId, path } = await ctx.params
   const auth = await authorize(partnerId)
   if (!auth.ok) return jsonError(auth.error, auth.status)
   const p = joinPath(path)
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
+  await assertSourceStockSchemaReadyFromPg()
   ensureSourceStockDaemon()
 
   if (p === 'worker-pause') {
@@ -113,7 +164,11 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   }
 
   if (p === 'reset-pdp-cycle') {
-    const updated = await resetSourceStockPdpCycleFromPg(partnerId, body.active_only !== false)
+    const updated = await resetSourceStockPdpCycleFromPg(
+      partnerId,
+      String(body.domain || 'cssbuy'),
+      body.active_only !== false
+    )
     const mem = clearSourceStockMemoryQueue(partnerId)
     return NextResponse.json({
       ok: true,
@@ -140,7 +195,12 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   if (p === 'clear-oos-flag-bulk') {
     const allInWindow = Boolean(body.all_in_window)
     const ids = allInWindow
-      ? await listOosIdsInWindowFromPg(partnerId, Number(body.window_days || 30) || 30, true)
+      ? await listOosIdsInWindowFromPg(
+          partnerId,
+          String(body.domain || 'cssbuy'),
+          Number(body.window_days || 30) || 30,
+          true
+        )
       : Array.isArray(body.db_ids)
         ? body.db_ids.map((x) => String(x)).filter(Boolean)
         : []
@@ -156,4 +216,22 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   }
 
   return jsonError('Not found', 404)
+}
+
+export async function GET(req: NextRequest, ctx: Ctx) {
+  const params = await ctx.params
+  try {
+    return await handleGet(req, { params: Promise.resolve(params) })
+  } catch (error) {
+    return apiFailure(error, params.partnerId, joinPath(params.path))
+  }
+}
+
+export async function POST(req: NextRequest, ctx: Ctx) {
+  const params = await ctx.params
+  try {
+    return await handlePost(req, { params: Promise.resolve(params) })
+  } catch (error) {
+    return apiFailure(error, params.partnerId, joinPath(params.path))
+  }
 }

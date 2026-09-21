@@ -57,23 +57,25 @@ function formatReportTimestampUtc(iso: string | null | undefined): string {
   if (!iso) return '—'
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
-  return `${d.toLocaleString('vi-VN', { timeZone: 'UTC' })} UTC`
+  return `${d.toLocaleString(undefined, { timeZone: 'UTC' })} UTC`
 }
 
-function formatReportAge(iso: string | null | undefined): string {
+type SourceStockText = Dictionary['partnerMessagingAi']
+
+function formatReportAge(iso: string | null | undefined, t: SourceStockText): string {
   if (!iso) return ''
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
   const diffMs = Date.now() - d.getTime()
-  if (diffMs < 0) return 'vừa ghi'
+  if (diffMs < 0) return t.sourceStockJustNow
   const minutes = Math.floor(diffMs / 60_000)
-  if (minutes < 60) return minutes <= 1 ? 'vừa ghi' : `${minutes} phút trước`
+  if (minutes < 60) return minutes <= 1 ? t.sourceStockJustNow : t.sourceStockMinutesAgo.replace('{n}', String(minutes))
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} giờ trước`
-  return `${Math.floor(hours / 24)} ngày trước`
+  if (hours < 24) return t.sourceStockHoursAgo.replace('{n}', String(hours))
+  return t.sourceStockDaysAgo.replace('{n}', String(Math.floor(hours / 24)))
 }
 
-function PreviewStockBranchCard({ title, branch }: { title: string; branch: { status: string; error?: string | null; checked_via?: string | null } }) {
+function PreviewStockBranchCard({ title, branch, t }: { title: string; branch: { status: string; error?: string | null; checked_via?: string | null }; t: SourceStockText }) {
   const st = (branch.status || '').trim().toLowerCase()
   const skin =
     st === 'in_stock'
@@ -92,11 +94,11 @@ function PreviewStockBranchCard({ title, branch }: { title: string; branch: { st
     <div className={`rounded-lg border px-2.5 py-2 ${skin}`}>
       <p className="text-[10px] font-semibold uppercase tracking-wide opacity-85">{title}</p>
       <p className="text-sm font-semibold mt-1">
-        status: <code className="text-[12px] bg-white/60 px-1 rounded">{branch.status || '—'}</code>
+        {t.sourceStockStatusLabel}: <code className="text-[12px] bg-white/60 px-1 rounded">{branch.status || '—'}</code>
       </p>
       {branch.checked_via ? (
         <p className="text-[10px] mt-1">
-          nền: <code className="bg-white/60 px-1 rounded font-mono">{branch.checked_via}</code>
+          {t.sourceStockPlatformLabel}: <code className="bg-white/60 px-1 rounded font-mono">{branch.checked_via}</code>
         </p>
       ) : null}
       {msg ? <p className="text-[11px] mt-1.5 whitespace-pre-wrap leading-snug opacity-95">{msg}</p> : null}
@@ -111,6 +113,7 @@ function WorkerStockProgressCard({
   row,
   emptyHint,
   mode,
+  t,
 }: {
   title: string
   subtitle: string
@@ -118,6 +121,7 @@ function WorkerStockProgressCard({
   row: SourceStockWorkerProgressRow | null | undefined
   emptyHint: string
   mode: 'checking' | 'completed' | 'upcoming'
+  t: SourceStockText
 }) {
   const skin = tone === 'sky' ? 'border-sky-200/90 bg-white/85' : tone === 'emerald' ? 'border-emerald-200/90 bg-white/85' : 'border-slate-200/90 bg-white/85'
   const titleColor = tone === 'sky' ? 'text-sky-950' : tone === 'emerald' ? 'text-emerald-950' : 'text-slate-900'
@@ -140,18 +144,18 @@ function WorkerStockProgressCard({
           </p>
           {row.name ? <p className="line-clamp-2 text-slate-700">{row.name}</p> : null}
           <p className="break-all">
-            <span className="text-slate-500">Link: </span>
+            <span className="text-slate-500">{t.sourceStockLinkLabel}: </span>
             <ExternalHttpLink url={row.link_default ?? ''} />
           </p>
           {mode === 'checking' && row.checking_started_at_utc_iso ? (
             <p className="text-slate-600">
-              Bắt đầu: <span className="font-mono text-[10px]">{formatReportTimestampUtc(row.checking_started_at_utc_iso)}</span>{' '}
-              <span className="text-slate-400">{formatReportAge(row.checking_started_at_utc_iso)}</span>
+              {t.sourceStockStartedLabel}: <span className="font-mono text-[10px]">{formatReportTimestampUtc(row.checking_started_at_utc_iso)}</span>{' '}
+              <span className="text-slate-400">{formatReportAge(row.checking_started_at_utc_iso, t)}</span>
             </p>
           ) : null}
           {mode === 'completed' && row.source_stock_status ? (
             <p>
-              Trạng thái: <code className="text-[10px] bg-slate-100 px-1 rounded border">{row.source_stock_status}</code>
+              {t.sourceStockStatusLabel}: <code className="text-[10px] bg-slate-100 px-1 rounded border">{row.source_stock_status}</code>
             </p>
           ) : null}
           {mode === 'upcoming' && row.queue_hint_vi ? (
@@ -214,20 +218,43 @@ export function PartnerSourceStockCheckCard({ partnerId, t }: { partnerId: strin
 
   const refreshQueueStats = useCallback(async () => {
     setQueueStatsLoading(true)
-    try {
-      const [stats, worker] = await Promise.all([
-        sourceStockClient.queueStats(partnerId, domain),
-        sourceStockClient.workerState(partnerId),
-      ])
-      setQueueStats(stats)
-      setWorkerState(worker)
-      setLastError(null)
-    } catch (e) {
-      setLastError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setQueueStatsLoading(false)
-    }
+    const [statsResult, workerResult] = await Promise.allSettled([
+      sourceStockClient.queueStats(partnerId, domain),
+      sourceStockClient.workerState(partnerId),
+    ])
+    const errors: string[] = []
+    if (statsResult.status === 'fulfilled') setQueueStats(statsResult.value)
+    else errors.push(statsResult.reason instanceof Error ? statsResult.reason.message : String(statsResult.reason))
+    if (workerResult.status === 'fulfilled') setWorkerState(workerResult.value)
+    else errors.push(workerResult.reason instanceof Error ? workerResult.reason.message : String(workerResult.reason))
+    setLastError(errors.length ? errors.join('\n') : null)
+    setQueueStatsLoading(false)
   }, [partnerId, domain])
+
+  const waitForRecheckResults = useCallback(
+    async (ids: string[]) => {
+      if (!ids.length || ids.length > 10) return
+      const pending = new Set(ids)
+      for (let attempt = 0; attempt < 32 && pending.size; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 2800))
+        const states = await Promise.all(
+          [...pending].map(async (id) => {
+            try {
+              return await sourceStockClient.productState(partnerId, id)
+            } catch {
+              return null
+            }
+          })
+        )
+        states.forEach((state) => {
+          if (!state) return
+          const status = (state.source_stock_status || '').toLowerCase()
+          if (status !== 'queued' && status !== 'checking') pending.delete(state.product_db_id)
+        })
+      }
+    },
+    [partnerId]
+  )
 
   const refreshActivityReport = useCallback(async () => {
     setActivityReportLoading(true)
@@ -323,11 +350,12 @@ export function PartnerSourceStockCheckCard({ partnerId, t }: { partnerId: strin
         await sourceStockClient.deleteByIds(partnerId, ids)
         showToast('ok', t.sourceStockDeletedOk.replace('{n}', String(ids.length)))
       } else if (kind === 'clear') {
-        await sourceStockClient.clearOosFlagBulk(partnerId, { db_ids: ids })
+        await sourceStockClient.clearOosFlagBulk(partnerId, { db_ids: ids, domain })
         showToast('ok', t.sourceStockClearedOk)
       } else {
         for (const id of ids) await sourceStockClient.forceRecheck(partnerId, id)
         showToast('ok', t.sourceStockRecheckOk)
+        await waitForRecheckResults(ids)
       }
       setSelectedOos([])
       await refreshActivityReport()
@@ -420,17 +448,17 @@ export function PartnerSourceStockCheckCard({ partnerId, t }: { partnerId: strin
         {testLinkResult?.ok ? (
           <div className="rounded-lg border border-white/80 bg-white/90 px-2.5 py-2 space-y-2">
             <p className="text-[11px] text-slate-700 leading-snug">
-              <span className="text-slate-500">Chuẩn hoá:</span>{' '}
+              <span className="text-slate-500">{t.sourceStockNormalizedLabel}:</span>{' '}
               <code className="text-[10px] break-all bg-slate-100 px-1 rounded">{testLinkResult.canonical_input}</code>
               {' · '}
               <span className={`font-semibold ${testLinkResult.link_eligible ? 'text-emerald-800' : 'text-amber-800'}`}>
                 {testLinkResult.link_eligible ? t.sourceStockEligible : t.sourceStockIneligible}
               </span>
             </p>
-            <PreviewStockBranchCard title="CSSBuy" branch={testLinkResult.cssbuy} />
-            <PreviewStockBranchCard title="Vipomall" branch={testLinkResult.vipomall ?? { status: 'skipped' }} />
-            <PreviewStockBranchCard title="PandaMall" branch={testLinkResult.pandamall ?? { status: 'skipped' }} />
-            <PreviewStockBranchCard title={t.sourceStockMerged} branch={testLinkResult.merged} />
+            <PreviewStockBranchCard title="CSSBuy" branch={testLinkResult.cssbuy} t={t} />
+            <PreviewStockBranchCard title="Vipomall" branch={testLinkResult.vipomall ?? { status: 'skipped' }} t={t} />
+            <PreviewStockBranchCard title="PandaMall" branch={testLinkResult.pandamall ?? { status: 'skipped' }} t={t} />
+            <PreviewStockBranchCard title={t.sourceStockMerged} branch={testLinkResult.merged} t={t} />
           </div>
         ) : null}
       </section>
@@ -480,9 +508,9 @@ export function PartnerSourceStockCheckCard({ partnerId, t }: { partnerId: strin
         </div>
         {workerState ? (
           <div className="grid md:grid-cols-3 gap-2 pt-2 border-t border-indigo-100/80">
-            <WorkerStockProgressCard tone="sky" title={t.sourceStockChecking} subtitle={t.sourceStockCheckingHint} row={workerState.checking} emptyHint={t.sourceStockCheckingEmpty} mode="checking" />
-            <WorkerStockProgressCard tone="emerald" title={t.sourceStockLastDone} subtitle={t.sourceStockLastDoneHint} row={workerState.last_completed} emptyHint={t.sourceStockLastDoneEmpty} mode="completed" />
-            <WorkerStockProgressCard tone="slate" title={t.sourceStockUpcoming} subtitle={t.sourceStockUpcomingHint} row={workerState.next_upcoming_primary} emptyHint={t.sourceStockUpcomingEmpty} mode="upcoming" />
+            <WorkerStockProgressCard tone="sky" title={t.sourceStockChecking} subtitle={t.sourceStockCheckingHint} row={workerState.checking} emptyHint={t.sourceStockCheckingEmpty} mode="checking" t={t} />
+            <WorkerStockProgressCard tone="emerald" title={t.sourceStockLastDone} subtitle={t.sourceStockLastDoneHint} row={workerState.last_completed} emptyHint={t.sourceStockLastDoneEmpty} mode="completed" t={t} />
+            <WorkerStockProgressCard tone="slate" title={t.sourceStockUpcoming} subtitle={t.sourceStockUpcomingHint} row={workerState.next_upcoming_primary} emptyHint={t.sourceStockUpcomingEmpty} mode="upcoming" t={t} />
           </div>
         ) : null}
       </section>
@@ -608,10 +636,10 @@ export function PartnerSourceStockCheckCard({ partnerId, t }: { partnerId: strin
                         </th>
                         <th className="px-2 py-1">SKU</th>
                         <th className="px-2 py-1">{t.sourceStockColName}</th>
-                        <th className="px-2 py-1">Link</th>
+                        <th className="px-2 py-1">{t.sourceStockLinkLabel}</th>
                         <th className="px-2 py-1">Vipomall</th>
                         <th className="px-2 py-1">CSSBuy</th>
-                        <th className="px-2 py-1">status</th>
+                        <th className="px-2 py-1">{t.sourceStockStatusLabel}</th>
                         <th className="px-2 py-1">{t.sourceStockColQty}</th>
                         <th className="px-2 py-1" />
                       </tr>

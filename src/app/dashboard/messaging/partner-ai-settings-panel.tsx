@@ -62,6 +62,7 @@ import { PartnerInventoryEmbeddingErrorsPanel } from '@/app/dashboard/messaging/
 import { buildGuestConsultChatAbsoluteUrl } from '@/lib/messaging/build-guest-consult-chat-link'
 import { inventoryAdminWebHref } from '@/lib/messaging/inventory-admin-web-href'
 import { inventoryFieldToJsonCellText } from '@/lib/messaging/inventory-admin-json-cell'
+import { isNavigationAbortError } from '@/lib/messaging/is-navigation-abort-error'
 import {
   guestPurchaseFlowChoices,
   guestPurchaseUsesSaasAutoCart,
@@ -282,7 +283,7 @@ export function PartnerAiSettingsPanel({
     panelMode === 'inventory-only' ? 'inv' : panelMode === 'usage-only' ? 'usage' : 'settings'
   )
   const [loadErr, setLoadErr] = useState<string | null>(null)
-  const [settingsLoaded, setSettingsLoaded] = useState(true)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [saasShopCart, setSaasShopCart] = useState<{
     linked: boolean
     publicUrl: string | null
@@ -325,6 +326,7 @@ export function PartnerAiSettingsPanel({
   const [form, setForm] = useState<FormState>(() => defaultsFromSettings(null))
   const formRef = useRef<FormState>(form)
   const loadSeqRef = useRef(0)
+  const inventoryLoadRetryRef = useRef(0)
   const settingsDirtyRef = useRef(false)
   const autoEmbedSyncStateRef = useRef<{ running: boolean; lastRunAt: number; partnerId: string | null }>({
     running: false,
@@ -455,24 +457,10 @@ export function PartnerAiSettingsPanel({
             applySaas('saasShopCart' in settingsRes ? settingsRes.saasShopCart : null)
           }
         } else {
-          const [bundleRes, embeddingRes, textEmbeddingRes] = await Promise.all([
-            getPartnerAiBundle(partnerId),
-            getPartnerInventoryEmbeddingStats(partnerId),
-            getPartnerInventoryTextEmbeddingStats(partnerId),
-          ])
+          const embeddingPromise = getPartnerInventoryEmbeddingStats(partnerId)
+          const textEmbeddingPromise = getPartnerInventoryTextEmbeddingStats(partnerId)
+          const bundleRes = await getPartnerAiBundle(partnerId)
           if (seq !== loadSeqRef.current) return
-
-          if ('error' in embeddingRes) {
-            setEmbeddingStats(null)
-          } else {
-            setEmbeddingStats(embeddingRes.stats)
-          }
-          if ('error' in textEmbeddingRes) {
-            setTextEmbeddingStats(null)
-          } else {
-            setTextEmbeddingStats(textEmbeddingRes.stats)
-          }
-          setEmbeddingErrorsRefreshKey((k) => k + 1)
 
           if ('error' in bundleRes && bundleRes.error) {
             setLoadErr(bundleRes.error)
@@ -491,7 +479,23 @@ export function PartnerAiSettingsPanel({
             )
             setInventoryPageSize(Math.max(20, Number(bundleRes.inventoryPageSize ?? 120) || 120))
             setInventoryPage(0)
+            inventoryLoadRetryRef.current = 0
+            setSettingsLoaded(true)
           }
+
+          const [embeddingRes, textEmbeddingRes] = await Promise.all([embeddingPromise, textEmbeddingPromise])
+          if (seq !== loadSeqRef.current) return
+          if ('error' in embeddingRes) {
+            setEmbeddingStats(null)
+          } else {
+            setEmbeddingStats(embeddingRes.stats)
+          }
+          if ('error' in textEmbeddingRes) {
+            setTextEmbeddingStats(null)
+          } else {
+            setTextEmbeddingStats(textEmbeddingRes.stats)
+          }
+          setEmbeddingErrorsRefreshKey((k) => k + 1)
         }
 
         if (needUsage) {
@@ -506,10 +510,15 @@ export function PartnerAiSettingsPanel({
                 }
           await loadUsageAnalyticsWithSeq(seq, usageQuery)
         }
-      } catch {
-        if (seq === loadSeqRef.current) {
-          toast({ title: t.loadError, variant: 'destructive' })
+      } catch (err) {
+        if (seq !== loadSeqRef.current) return
+        if (needInventory && isNavigationAbortError(err) && inventoryLoadRetryRef.current < 2) {
+          inventoryLoadRetryRef.current += 1
+          await new Promise<void>((r) => window.setTimeout(r, 120))
+          if (seq === loadSeqRef.current) await load()
+          return
         }
+        toast({ title: t.loadError, variant: 'destructive' })
       } finally {
         if (seq === loadSeqRef.current) setSettingsLoaded(true)
       }
@@ -517,6 +526,7 @@ export function PartnerAiSettingsPanel({
   }, [partnerId, panelMode, t.loadError, toast, loadUsageAnalyticsWithSeq])
 
   useEffect(() => {
+    inventoryLoadRetryRef.current = 0
     load()
   }, [load])
 

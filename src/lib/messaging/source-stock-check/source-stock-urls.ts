@@ -37,6 +37,29 @@ const ELIGIBLE_MARKERS = [
 
 export const SOURCE_STOCK_ELIGIBLE_MARKERS = ELIGIBLE_MARKERS
 
+export type SourceStockDomainScope = 'cssbuy' | 'vipomall'
+
+export function normalizeSourceStockDomain(raw: string | null | undefined): SourceStockDomainScope {
+  return (raw || '').trim().toLowerCase() === 'vipomall' ? 'vipomall' : 'cssbuy'
+}
+
+/**
+ * Phạm vi dropdown quản trị giống 188. Link nguồn 1688/Taobao/Tmall có thể
+ * quy đổi sang cả hai nền; link trực tiếp chỉ thuộc nền tương ứng.
+ */
+export function sourceStockDomainIlikePatterns(domain: string): string[] {
+  const shared = ['%1688.com%', '%offer.1688%', '%detail.1688%', '%taobao.com%', '%tmall.com%']
+  return normalizeSourceStockDomain(domain) === 'vipomall'
+    ? [...shared, '%cssbuy.com%', '%vipomall.vn%']
+    : [...shared, '%cssbuy.com%']
+}
+
+export function linkMatchesSourceStockDomain(url: string, domain: string): boolean {
+  const normalized = normalizeProductImportUrl((url || '').trim()) || (url || '').trim()
+  if (!linkEligibleForSourceStockCheck(normalized)) return false
+  return !coerceUrlForSourceStock(normalized, normalizeSourceStockDomain(domain)).error
+}
+
 export function linkEligibleForSourceStockCheck(url: string): boolean {
   const u = (url || '').trim().toLowerCase()
   if (u.length < 12) return false

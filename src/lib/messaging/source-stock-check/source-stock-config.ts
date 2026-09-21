@@ -57,13 +57,17 @@ export function sourceStockCheckClaimLeaseMinutes(): number {
   return envInt('SOURCE_STOCK_CHECK_CLAIM_LEASE_MINUTES', 15, 5)
 }
 
-/** Hết hàng nguồn → 0. Về hàng khi tồn đang ≤ 0 → 500 (không tin previous_status sau queued/checking). */
+/** Hết hàng nguồn → 0. Chỉ khôi phục 500 khi lần xác định trước thật sự là OOS. */
 export function nextStockQtyAfterSourceCheck(opts: {
   status: string
   stockQty: number
+  previousStatus?: string | null
 }): number {
   const st = (opts.status || '').trim().toLowerCase()
+  const previous = (opts.previousStatus || '').trim().toLowerCase()
   if (st === 'out_of_stock') return 0
-  if (st === 'in_stock' && opts.stockQty <= 0) return SOURCE_STOCK_OOS_RESTORE_QTY
+  if (st === 'in_stock' && previous === 'out_of_stock' && opts.stockQty <= 0) {
+    return SOURCE_STOCK_OOS_RESTORE_QTY
+  }
   return opts.stockQty
 }

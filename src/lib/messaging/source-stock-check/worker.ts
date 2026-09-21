@@ -23,7 +23,7 @@ import {
 import { linkEligibleForSourceStockCheck } from './source-stock-urls'
 import type { SourceStockWorkerProgressRow, SourceStockWorkerState } from './source-stock-types'
 
-type MemItem = { partnerId: string; inventoryId: string }
+type MemItem = { partnerId: string; inventoryId: string; previousStatus: string }
 
 const memoryQueue: MemItem[] = []
 const queuedKeys = new Set<string>()
@@ -105,9 +105,14 @@ export async function enqueueSourceStockCheck(opts: {
   if (!row || !linkEligibleForSourceStockCheck(row.product_url)) return false
   const key = memKey(opts.partnerId, opts.inventoryId)
   if (queuedKeys.has(key)) return false
+  const claimed = await enqueueSourceStockQueuedFromPg(opts.partnerId, opts.inventoryId)
+  if (!claimed) return false
   queuedKeys.add(key)
-  memoryQueue.push({ partnerId: opts.partnerId, inventoryId: opts.inventoryId })
-  await enqueueSourceStockQueuedFromPg(opts.partnerId, opts.inventoryId)
+  memoryQueue.push({
+    partnerId: opts.partnerId,
+    inventoryId: opts.inventoryId,
+    previousStatus: (row.source_stock_status || '').trim().toLowerCase(),
+  })
   ensureSourceStockDaemon()
   return true
 }
@@ -141,7 +146,11 @@ export async function enqueueProductViewStockCheckIfNeeded(opts: {
   })
 }
 
-export async function checkProductSourceStock(partnerId: string, inventoryId: string): Promise<void> {
+export async function checkProductSourceStock(
+  partnerId: string,
+  inventoryId: string,
+  previousStatusHint = ''
+): Promise<void> {
   let previous = ''
   let productUrl = ''
   let fallbackId: string | null = null
@@ -152,7 +161,8 @@ export async function checkProductSourceStock(partnerId: string, inventoryId: st
   try {
     const row = await markInventoryCheckingFromPg(partnerId, inventoryId)
     if (!row || !linkEligibleForSourceStockCheck(row.product_url)) return
-    previous = (row.previous_source_stock_status || '').trim().toLowerCase()
+    previous =
+      (previousStatusHint || row.previous_source_stock_status || '').trim().toLowerCase()
     productUrl = row.product_url
     fallbackId = (row.remarketing_id || row.sku || '').trim() || null
     await markSourceStockCheckingFromPg(partnerId, inventoryId)
@@ -246,7 +256,7 @@ async function workerLoop(): Promise<void> {
         await sleep(idle * 1000)
         continue
       }
-      await checkProductSourceStock(next.partnerId, next.inventoryId)
+      await checkProductSourceStock(next.partnerId, next.inventoryId, next.previousStatus)
       await sleep(sourceStockCheckIntervalSeconds() * 1000)
     } catch (e) {
       console.warn('[source-stock loop]', e instanceof Error ? e.message : e)

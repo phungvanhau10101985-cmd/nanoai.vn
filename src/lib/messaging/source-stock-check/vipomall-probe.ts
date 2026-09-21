@@ -16,7 +16,7 @@ const VIPOMALL_PDP_PROBE_JS = `() => {
   const pdpOk = ["thêm giỏ hàng", "cart_detail.svg", "spn-color", "mua ngay"].some(
     (m) => low.includes(m) || bodyText.toLowerCase().includes(m)
   );
-  const challenge = ["just a moment", "attention required", "cf-browser-verification", "verify you are human"].some(
+  const challenge = ["just a moment", "attention required", "cf-browser-verification", "verify you are human", "captcha", "access denied", "验证码"].some(
     (n) => title.toLowerCase().includes(n) || low.includes(n)
   );
   const cart = document.querySelector('button.button img[src*="cart_detail.svg"]')
@@ -54,7 +54,7 @@ export async function evaluateVipomallSourceStockFromUrl(
     page = coerced.url.trim()
   }
   try {
-    const { snap, html, title } = await withSourceStockProbePage({
+    const { snap, html } = await withSourceStockProbePage({
       pageUrl: page,
       partnerId: opts?.partnerId,
       preferHosts: ['vipomall.vn'],
@@ -62,7 +62,7 @@ export async function evaluateVipomallSourceStockFromUrl(
       probeJs: VIPOMALL_PDP_PROBE_JS,
     })
     if (
-      (vipomallHtmlSuggestsBlocked(html) && !vipomallHtmlShowsAddToCartCta(html) && title.toLowerCase().includes('just a moment')) ||
+      (vipomallHtmlSuggestsBlocked(html) && !vipomallHtmlShowsAddToCartCta(html)) ||
       snap.blocked
     ) {
       return {

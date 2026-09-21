@@ -1,16 +1,18 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { mergeAllPlatformsBlockedOrError } from './evaluate'
+import { evaluateStockWithProbeChain, mergeAllPlatformsBlockedOrError } from './evaluate'
 import {
   classifyCssbuyAddToCartCta,
   coerceUrlForSourceStock,
   cssbuyHtmlShowsAddToCartButton,
   cssbuyHtmlSuggestsSecurityBlock,
+  linkMatchesSourceStockDomain,
   linkEligibleForSourceStockCheck,
   pandamallHtmlShowsCartOrBuyCta,
   pandamallHtmlSuggestsBlocked,
   resultIsConclusiveStock,
   resultShouldFallbackNextPlatform,
+  sourceStockDomainIlikePatterns,
   vipomallHtmlShowsAddToCartCta,
   vipomallHtmlSuggestsBlocked,
 } from './source-stock-urls'
@@ -58,13 +60,26 @@ describe('source stock urls + merge', () => {
 
   it('detects Vipomall/PandaMall cart/buy HTML and CF blocks', () => {
     assert.equal(vipomallHtmlShowsAddToCartCta('<button class="add-cart">Thêm giỏ hàng</button>'), true)
+    assert.equal(vipomallHtmlShowsAddToCartCta('<button disabled>Thêm giỏ hàng</button>'), true)
     assert.equal(vipomallHtmlShowsAddToCartCta('<html></html>'), false)
     assert.equal(pandamallHtmlShowsCartOrBuyCta('<a class="btn-addcart">Thêm vào giỏ</a>'), true)
+    assert.equal(pandamallHtmlShowsCartOrBuyCta('<button class="btn-buynow" disabled>Mua ngay</button>'), true)
     assert.equal(pandamallHtmlShowsCartOrBuyCta('<div>empty</div>'), false)
     assert.equal(cssbuyHtmlSuggestsSecurityBlock('<html>Just a moment</html>', 'Just a moment'), true)
     assert.equal(cssbuyHtmlSuggestsSecurityBlock('<button>Add to cart</button>', 'Goods'), false)
     assert.equal(vipomallHtmlSuggestsBlocked('Just a moment / cf-browser-verification'), true)
     assert.equal(pandamallHtmlSuggestsBlocked('', 'Just a moment'), true)
+  })
+
+  it('scopes direct URLs to the selected 188 domain while shared source URLs can overlap', () => {
+    assert.equal(linkMatchesSourceStockDomain('https://www.cssbuy.com/item-1688-1.html', 'cssbuy'), true)
+    assert.equal(linkMatchesSourceStockDomain('https://www.cssbuy.com/item-1688-1.html', 'vipomall'), true)
+    assert.equal(linkMatchesSourceStockDomain('https://vipomall.vn/san-pham/1?platform_type=10', 'cssbuy'), false)
+    assert.equal(linkMatchesSourceStockDomain('https://vipomall.vn/san-pham/1?platform_type=10', 'vipomall'), true)
+    assert.equal(linkMatchesSourceStockDomain('https://detail.1688.com/offer/1.html', 'cssbuy'), true)
+    assert.equal(linkMatchesSourceStockDomain('https://detail.1688.com/offer/1.html', 'vipomall'), true)
+    assert.equal(sourceStockDomainIlikePatterns('cssbuy').includes('%vipomall.vn%'), false)
+    assert.equal(sourceStockDomainIlikePatterns('vipomall').includes('%vipomall.vn%'), true)
   })
 
   it('merges all-blocked platforms to blocked', () => {
@@ -76,6 +91,12 @@ describe('source stock urls + merge', () => {
     )
     assert.equal(out.status, 'blocked')
     assert.equal(out.checked_via, 'cssbuy+vipomall+pandamall')
+    const mixed = mergeAllPlatformsBlockedOrError(
+      blocked,
+      { status: 'error', error: 'timeout', checked_via: 'vipomall' },
+      { status: 'blocked', error: 'captcha', checked_via: 'pandamall' }
+    )
+    assert.equal(mixed.status, 'error')
   })
 
   it('falls through blocked/error and treats in_stock/out_of_stock as conclusive', () => {
@@ -86,13 +107,55 @@ describe('source stock urls + merge', () => {
     assert.equal(resultShouldFallbackNextPlatform('error'), true)
     assert.equal(resultShouldFallbackNextPlatform('in_stock'), false)
   })
+
+  it('runs CSSBuy → Vipomall → PandaMall and stops at the first conclusive result', async () => {
+    const calls: string[] = []
+    const out = await evaluateStockWithProbeChain({
+      cssbuy: async () => {
+        calls.push('cssbuy')
+        return { status: 'blocked', error: 'cf', checked_via: 'cssbuy' }
+      },
+      vipomall: async () => {
+        calls.push('vipomall')
+        return { status: 'error', error: 'timeout', checked_via: 'vipomall' }
+      },
+      pandamall: async () => {
+        calls.push('pandamall')
+        return { status: 'in_stock', error: null, checked_via: 'pandamall' }
+      },
+    })
+    assert.deepEqual(calls, ['cssbuy', 'vipomall', 'pandamall'])
+    assert.equal(out.status, 'in_stock')
+
+    calls.length = 0
+    const stopped = await evaluateStockWithProbeChain({
+      cssbuy: async () => {
+        calls.push('cssbuy')
+        return { status: 'out_of_stock', error: null, checked_via: 'cssbuy' }
+      },
+      vipomall: async () => {
+        calls.push('vipomall')
+        return { status: 'in_stock', error: null, checked_via: 'vipomall' }
+      },
+      pandamall: async () => {
+        calls.push('pandamall')
+        return { status: 'in_stock', error: null, checked_via: 'pandamall' }
+      },
+    })
+    assert.deepEqual(calls, ['cssbuy'])
+    assert.equal(stopped.status, 'out_of_stock')
+  })
 })
 
 describe('source stock qty after check', () => {
   it('zeros on OOS and restores 500 when back in stock at qty 0', async () => {
     const { nextStockQtyAfterSourceCheck } = await import('./source-stock-config')
     assert.equal(nextStockQtyAfterSourceCheck({ status: 'out_of_stock', stockQty: 12 }), 0)
-    assert.equal(nextStockQtyAfterSourceCheck({ status: 'in_stock', stockQty: 0 }), 500)
+    assert.equal(
+      nextStockQtyAfterSourceCheck({ status: 'in_stock', stockQty: 0, previousStatus: 'out_of_stock' }),
+      500
+    )
+    assert.equal(nextStockQtyAfterSourceCheck({ status: 'in_stock', stockQty: 0, previousStatus: 'unknown' }), 0)
     assert.equal(nextStockQtyAfterSourceCheck({ status: 'in_stock', stockQty: 40 }), 40)
     assert.equal(nextStockQtyAfterSourceCheck({ status: 'blocked', stockQty: 0 }), 0)
   })

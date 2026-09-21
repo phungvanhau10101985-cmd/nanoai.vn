@@ -96,6 +96,19 @@ export const sourceStockClient = {
       body: JSON.stringify({ db_id: dbId }),
     })
   },
+  productState(partnerId: string, dbId: string) {
+    const u = new URL(base(partnerId) + '/product-state', window.location.origin)
+    u.searchParams.set('db_id', dbId)
+    return json<{
+      ok: true
+      product_db_id: string
+      source_stock_status: string | null
+      source_stock_checked_at: string | null
+      source_stock_error: string | null
+      source_stock_check_platform: string | null
+      stock_qty: number
+    }>(u.pathname + u.search)
+  },
   oosIds(partnerId: string, domain: SourceStockDomain, windowDays = 30) {
     const u = new URL(base(partnerId) + '/oos-db-ids', window.location.origin)
     u.searchParams.set('domain', domain)

@@ -10,7 +10,7 @@ const PANDAMALL_PDP_PROBE_JS = `() => {
   const pdpOk = ["btn-addcart", "btn-buynow", "thêm vào giỏ", "mua ngay", "group-btn"].some(
     (m) => low.includes(m) || bodyText.toLowerCase().includes(m)
   );
-  const challenge = ["just a moment", "attention required", "cf-browser-verification", "verify you are human"].some(
+  const challenge = ["just a moment", "attention required", "cf-browser-verification", "verify you are human", "captcha", "access denied", "验证码"].some(
     (n) => title.toLowerCase().includes(n) || low.includes(n)
   );
   const add = document.querySelector(".group-btn .btn-addcart, button.btn-addcart");

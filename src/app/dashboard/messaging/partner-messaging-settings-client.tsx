@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import type { ComponentType, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
@@ -477,7 +477,6 @@ export function PartnerMessagingSettingsClient({
   appOrigin: string
 }) {
   const router = useRouter()
-  const pathname = usePathname()
   const searchParams = useSearchParams()
   const queryPartnerId = searchParams.get('partner')
   const { toast } = useToast()
@@ -906,18 +905,20 @@ export function PartnerMessagingSettingsClient({
     }
   }, [activeSection, locale, selectedPartner, selectedPartnerId])
 
-  const writeSettingsSearch = useCallback(
-    (mutate: (params: URLSearchParams) => void) => {
-      const next = liveSettingsSearchParams()
-      mutate(next)
-      const qs = next.toString()
-      const href = qs ? `${pathname}?${qs}` : pathname
-      const current = `${window.location.pathname}${window.location.search}`
-      if (current === href) return
-      router.replace(href, { scroll: false })
-    },
-    [pathname, router]
-  )
+  const writeSettingsSearch = useCallback((mutate: (params: URLSearchParams) => void) => {
+    if (typeof window === 'undefined') return
+    const next = liveSettingsSearchParams()
+    mutate(next)
+    const qs = next.toString()
+    const path = window.location.pathname
+    const href = qs ? `${path}?${qs}` : path
+    const current = `${path}${window.location.search}`
+    if (current === href) return
+    // Keep Next.js history.state. `router.replace` re-renders the settings RSC
+    // (page reads searchParams) and aborts in-flight Server Actions — Kho hàng
+    // then stays at 0 SP until Ctrl+F5.
+    window.history.replaceState(window.history.state, '', `${href}${window.location.hash}`)
+  }, [])
 
   const selectSettingsSection = useCallback((sectionId: SettingsPageSectionId) => {
     setActiveSection(sectionId)
@@ -1058,7 +1059,7 @@ export function PartnerMessagingSettingsClient({
   }, [])
 
   useEffect(() => {
-    const status = searchParams.get('fb_oauth')
+    const status = liveSettingsSearchParams().get('fb_oauth')
     if (!status) return
     const cur = partners.find((p) => p.id === selectedPartnerId) ?? null
     if (!partnerAllowsPerm(cur, 'integrations_channels')) {

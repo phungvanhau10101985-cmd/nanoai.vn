@@ -54,9 +54,9 @@ export function mergeAllPlatformsBlockedOrError(
   let err = (last.error || 'Không đọc được nút giỏ/mua trên mọi nền.').slice(0, 800)
   if (parts.length) err = `${err} [${parts.join(', ')}]`.slice(0, 1000)
   return {
-    status: last.status || 'error',
+    status: 'error',
     error: err,
-    checked_via: last.checked_via || 'cssbuy+vipomall+pandamall',
+    checked_via: 'cssbuy+vipomall+pandamall',
   }
 }
 
@@ -64,14 +64,27 @@ export async function evaluateStockPrimaryCssbuyWithFallbacks(
   rawUrl: string,
   opts?: { fallbackProductId?: string | null; partnerId?: string | null }
 ): Promise<SourceStockCheckResult> {
-  const css = await evaluateCssbuyPdpStock(rawUrl, opts?.partnerId)
-  if (resultIsConclusiveStock(css.status)) return css
-  const vm = await evaluateVipomallSourceStockFromUrl(rawUrl, {
-    fallbackProductId: opts?.fallbackProductId,
-    partnerId: opts?.partnerId,
+  return evaluateStockWithProbeChain({
+    cssbuy: () => evaluateCssbuyPdpStock(rawUrl, opts?.partnerId),
+    vipomall: () =>
+      evaluateVipomallSourceStockFromUrl(rawUrl, {
+        fallbackProductId: opts?.fallbackProductId,
+        partnerId: opts?.partnerId,
+      }),
+    pandamall: () => evaluatePandamallSourceStock(rawUrl, opts?.partnerId),
   })
+}
+
+export async function evaluateStockWithProbeChain(probes: {
+  cssbuy: () => Promise<SourceStockCheckResult>
+  vipomall: () => Promise<SourceStockCheckResult>
+  pandamall: () => Promise<SourceStockCheckResult>
+}): Promise<SourceStockCheckResult> {
+  const css = await probes.cssbuy()
+  if (resultIsConclusiveStock(css.status)) return css
+  const vm = await probes.vipomall()
   if (resultIsConclusiveStock(vm.status)) return vm
-  const panda = await evaluatePandamallSourceStock(rawUrl, opts?.partnerId)
+  const panda = await probes.pandamall()
   if (resultIsConclusiveStock(panda.status)) return panda
   return mergeAllPlatformsBlockedOrError(css, vm, panda)
 }

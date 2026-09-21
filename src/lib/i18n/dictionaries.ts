@@ -1720,6 +1720,15 @@ export type Dictionary = {
     sourceStockDeletedOk: string
     sourceStockClearedOk: string
     sourceStockRecheckOk: string
+    sourceStockPlatformLabel: string
+    sourceStockLinkLabel: string
+    sourceStockStartedLabel: string
+    sourceStockStatusLabel: string
+    sourceStockNormalizedLabel: string
+    sourceStockJustNow: string
+    sourceStockMinutesAgo: string
+    sourceStockHoursAgo: string
+    sourceStockDaysAgo: string
     imageLocTitle: string
     imageLocIntro: string
     imageLocRefresh: string
@@ -5343,6 +5352,15 @@ const VI_DICTIONARY: Dictionary = {
     sourceStockDeletedOk: 'Đã xóa {n} dòng.',
     sourceStockClearedOk: 'Đã xóa cờ hết hàng nguồn.',
     sourceStockRecheckOk: 'Đã đưa vào hàng kiểm lại.',
+    sourceStockPlatformLabel: 'Nền',
+    sourceStockLinkLabel: 'Liên kết',
+    sourceStockStartedLabel: 'Bắt đầu',
+    sourceStockStatusLabel: 'Trạng thái',
+    sourceStockNormalizedLabel: 'Chuẩn hóa',
+    sourceStockJustNow: 'vừa ghi',
+    sourceStockMinutesAgo: '{n} phút trước',
+    sourceStockHoursAgo: '{n} giờ trước',
+    sourceStockDaysAgo: '{n} ngày trước',
     imageLocTitle: 'Bản địa hóa ảnh',
     imageLocIntro: 'Xử lý ảnh cột O/P/Q/T: biến thể, thư viện, ảnh chi tiết và ảnh chính cho sản phẩm chưa bản địa hóa.',
     imageLocRefresh: 'Làm mới trạng thái',
@@ -8966,6 +8984,15 @@ const EN_DICTIONARY: Dictionary = {
     sourceStockDeletedOk: 'Deleted {n} rows.',
     sourceStockClearedOk: 'Cleared source OOS flags.',
     sourceStockRecheckOk: 'Queued for recheck.',
+    sourceStockPlatformLabel: 'Platform',
+    sourceStockLinkLabel: 'Link',
+    sourceStockStartedLabel: 'Started',
+    sourceStockStatusLabel: 'Status',
+    sourceStockNormalizedLabel: 'Normalized',
+    sourceStockJustNow: 'just now',
+    sourceStockMinutesAgo: '{n} minutes ago',
+    sourceStockHoursAgo: '{n} hours ago',
+    sourceStockDaysAgo: '{n} days ago',
     imageLocTitle: 'Image localization',
     imageLocIntro: 'Process O/P/Q/T images: color variants, gallery, detail photos, and the main image for products not yet localized.',
     imageLocRefresh: 'Refresh status',
@@ -12551,6 +12578,15 @@ const ZH_DICTIONARY: Dictionary = {
     sourceStockDeletedOk: '已删除 {n} 行。',
     sourceStockClearedOk: '已清除货源缺货标记。',
     sourceStockRecheckOk: '已加入再检查队列。',
+    sourceStockPlatformLabel: '平台',
+    sourceStockLinkLabel: '链接',
+    sourceStockStartedLabel: '开始',
+    sourceStockStatusLabel: '状态',
+    sourceStockNormalizedLabel: '标准化',
+    sourceStockJustNow: '刚刚',
+    sourceStockMinutesAgo: '{n} 分钟前',
+    sourceStockHoursAgo: '{n} 小时前',
+    sourceStockDaysAgo: '{n} 天前',
     imageLocTitle: '图片本地化',
     imageLocIntro: '处理 O/P/Q/T 列图片：颜色变体、图库、详情图和主图（尚未本地化的商品）。',
     imageLocRefresh: '刷新状态',
@@ -16095,6 +16131,15 @@ const JA_DICTIONARY: Dictionary = {
     sourceStockDeletedOk: '{n} 行を削除しました。',
     sourceStockClearedOk: '仕入元欠品フラグを消しました。',
     sourceStockRecheckOk: '再チェック待ちに入れました。',
+    sourceStockPlatformLabel: 'プラットフォーム',
+    sourceStockLinkLabel: 'リンク',
+    sourceStockStartedLabel: '開始',
+    sourceStockStatusLabel: 'ステータス',
+    sourceStockNormalizedLabel: '正規化',
+    sourceStockJustNow: 'たった今',
+    sourceStockMinutesAgo: '{n} 分前',
+    sourceStockHoursAgo: '{n} 時間前',
+    sourceStockDaysAgo: '{n} 日前',
     imageLocTitle: '画像のローカライズ',
     imageLocIntro: 'O/P/Q/T 列の画像（カラーバリエーション、ギャラリー、詳細、メイン）を未処理商品向けに処理します。',
     imageLocRefresh: '状態を更新',
@@ -19682,6 +19727,15 @@ const KO_DICTIONARY: Dictionary = {
     sourceStockDeletedOk: '{n}행을 삭제했습니다.',
     sourceStockClearedOk: '공급원 품절 플래그를 지웠습니다.',
     sourceStockRecheckOk: '다시 확인 대기열에 넣었습니다.',
+    sourceStockPlatformLabel: '플랫폼',
+    sourceStockLinkLabel: '링크',
+    sourceStockStartedLabel: '시작',
+    sourceStockStatusLabel: '상태',
+    sourceStockNormalizedLabel: '정규화',
+    sourceStockJustNow: '방금',
+    sourceStockMinutesAgo: '{n}분 전',
+    sourceStockHoursAgo: '{n}시간 전',
+    sourceStockDaysAgo: '{n}일 전',
     imageLocTitle: '이미지 현지화',
     imageLocIntro: '아직 현지화되지 않은 상품의 O/P/Q/T 이미지(색상 변형, 갤러리, 상세, 대표 이미지)를 처리합니다.',
     imageLocRefresh: '상태 새로고침',
